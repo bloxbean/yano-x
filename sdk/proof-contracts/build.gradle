@@ -1,7 +1,10 @@
+plugins {
+    id 'java-library'
+}
+
+description = 'Implementation-neutral portable and on-chain app-chain proof contracts'
+
 dependencies {
-    api libs.cardano.client.core
-    api project(':appchain-proof-contracts')
-    implementation libs.cbor
     implementation libs.cardano.client.crypto
 
     testImplementation libs.junit.jupiter.api
@@ -19,8 +22,8 @@ publishing {
     publications {
         mavenJava(MavenPublication) {
             pom {
-                name = 'Yano App-Chain EUTxO Contracts'
-                description = 'Canonical public contracts and codecs for the optional Yano EUTxO product family'
+                name = 'Yano App-Chain Proof Contracts'
+                description = 'Bounded implementation-neutral MPF proof ABI and contracts'
             }
         }
     }
