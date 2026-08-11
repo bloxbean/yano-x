@@ -1,0 +1,475 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Yano App Chain — Overview</title>
+<style>
+  @page { size: A4; margin: 11mm 12mm; }
+  * { box-sizing: border-box; }
+  html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body {
+    font-family: -apple-system, "Helvetica Neue", Arial, sans-serif;
+    font-size: 8.6pt; line-height: 1.38; color: #16202b; margin: 0;
+  }
+  .page { page-break-after: always; }
+  .page:last-child { page-break-after: auto; }
+  h1 { font-size: 17pt; margin: 0 0 1px; letter-spacing: -0.3px; }
+  h1 .sub { font-weight: 400; color: #5b6b7c; font-size: 10pt; }
+  h2 {
+    font-size: 10pt; margin: 11px 0 5px; color: #14324f;
+    border-bottom: 1.5px solid #d3dde6; padding-bottom: 2.5px;
+  }
+  h3 { font-size: 8.8pt; margin: 8px 0 3px; color: #1c4266; }
+  p { margin: 0 0 5px; }
+  ul { margin: 0 0 5px; padding-left: 14px; }
+  li { margin-bottom: 2px; }
+  .lede { font-size: 9.2pt; color: #2c3e50; margin-bottom: 7px; }
+  table { border-collapse: collapse; width: 100%; font-size: 7.7pt; margin: 3px 0 6px; }
+  th, td { border: 1px solid #ccd6df; padding: 2.6px 5px; text-align: left; vertical-align: top; }
+  th { background: #eef3f8; font-weight: 600; color: #14324f; }
+  code, .mono { font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 7.3pt; }
+  code { background: #eef2f6; padding: 0.5px 2.5px; border-radius: 2px; }
+  .cols2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .cols3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+  .box { border: 1px solid #ccd6df; border-left: 3px solid #2c5282; padding: 5px 8px; border-radius: 2px; background: #fafcfe; }
+  .box.warn { border-left-color: #c2410c; background: #fffaf6; }
+  .box.good { border-left-color: #2e7d32; background: #f8fdf8; }
+  .box h4 { margin: 0 0 3px; font-size: 8.2pt; color: #14324f; }
+  .box.warn h4 { color: #9a3412; }
+  .box.good h4 { color: #1b5e20; }
+  .tag { display: inline-block; font-size: 6.6pt; font-weight: 700; padding: 0.5px 4px;
+         border-radius: 7px; vertical-align: 1px; letter-spacing: 0.3px; }
+  .tag.p { background: #dcf0dc; color: #1b5e20; border: 1px solid #7cb37c; }
+  .tag.f { background: #dee9f4; color: #14324f; border: 1px solid #7ba3c9; }
+  .tag.c { background: #fdeccd; color: #8a5200; border: 1px solid #d9a752; }
+  svg { display: block; margin: 3px auto 5px; max-width: 100%; }
+  .foot { margin-top: 7px; font-size: 6.8pt; color: #7a8896; border-top: 1px solid #dde5ec; padding-top: 3px; }
+  .kv { font-size: 7.7pt; }
+  .kv b { color: #14324f; }
+</style>
+</head>
+<body>
+
+<!-- ─────────────────────────── PAGE 1 ─────────────────────────── -->
+<div class="page">
+  <h1>Yano App Chain <span class="sub">— what it is, and what its parts are</span></h1>
+
+  <p class="lede">
+    A <b>Yano app chain</b> is a small, permissioned ledger that runs <i>inside</i> a Cardano node,
+    beside the Cardano chain. A fixed group of members orders messages, applies them through a
+    deterministic state machine, and signs the result. Every few blocks the resulting state root is
+    <b>anchored onto Cardano L1</b>, so anyone can later prove what the group agreed — using nothing
+    but a Cardano transaction. The framework supplies networking, ordering, finality, storage,
+    proofs and anchoring; <b>you supply the transition function.</b>
+  </p>
+
+  <h2>The components — green boxes are yours (plugins), blue boxes are the framework</h2>
+
+  <svg viewBox="0 0 812 408" role="img" aria-label="Yano app chain component diagram">
+    <defs>
+      <marker id="ar" markerWidth="7" markerHeight="7" refX="6.2" refY="2.6" orient="auto">
+        <path d="M0,0 L6.4,2.6 L0,5.2 z" fill="#5b6b7c"/>
+      </marker>
+      <marker id="arg" markerWidth="7" markerHeight="7" refX="6.2" refY="2.6" orient="auto">
+        <path d="M0,0 L6.4,2.6 L0,5.2 z" fill="#3d8b3d"/>
+      </marker>
+      <marker id="ary" markerWidth="7" markerHeight="7" refX="6.2" refY="2.6" orient="auto">
+        <path d="M0,0 L6.4,2.6 L0,5.2 z" fill="#b8860b"/>
+      </marker>
+      <style>
+        .lbl  { font: 600 9.4px -apple-system, Arial; fill: #14324f; }
+        .lblg { font: 600 9.4px -apple-system, Arial; fill: #1b5e20; }
+        .sm   { font: 7.4px "SF Mono", Menlo, monospace; fill: #5b6b7c; }
+        .smg  { font: 7.4px "SF Mono", Menlo, monospace; fill: #3d7a3d; }
+        .hd   { font: 700 8.4px -apple-system, Arial; letter-spacing: .6px; }
+      </style>
+    </defs>
+
+    <rect x="2" y="2" width="808" height="404" rx="5" fill="#fcfdfe" stroke="#b9c6d2" stroke-width="1.2"/>
+    <text x="12" y="15" class="hd" fill="#5b6b7c">ONE YANO NODE</text>
+
+    <!-- clients -->
+    <rect x="248" y="24" width="316" height="21" rx="3" fill="#f2f5f8" stroke="#9fb3c6"/>
+    <text x="406" y="38.5" class="lbl" text-anchor="middle">Clients — REST · SSE · client SDK</text>
+
+    <!-- ===== centre pipeline (framework) ===== -->
+    <g>
+      <rect x="286" y="62"  width="240" height="30" rx="3" fill="#e8eef5" stroke="#2c5282" stroke-width="1.1"/>
+      <text x="406" y="75"   class="lbl" text-anchor="middle">Message pool + admission</text>
+      <text x="406" y="86"   class="sm"  text-anchor="middle">dedup · TTL · sender sequence</text>
+
+      <rect x="286" y="100" width="240" height="30" rx="3" fill="#e8eef5" stroke="#2c5282" stroke-width="1.1"/>
+      <text x="406" y="113"  class="lbl" text-anchor="middle">Sequencer — picks the proposer</text>
+      <text x="406" y="124"  class="sm"  text-anchor="middle">fixed · rotating (L1-slot windows)</text>
+
+      <rect x="286" y="138" width="240" height="38" rx="3" fill="#dbe6f2" stroke="#2c5282" stroke-width="1.6"/>
+      <text x="406" y="152"  class="lbl" text-anchor="middle">Consensus — propose · verify · vote</text>
+      <text x="406" y="163"  class="sm"  text-anchor="middle">threshold finality certificate (e.g. 2-of-3)</text>
+      <text x="406" y="172.5" class="sm" text-anchor="middle">append-only below finality — never rolls back</text>
+
+      <rect x="286" y="184" width="240" height="30" rx="3" fill="#e8eef5" stroke="#2c5282" stroke-width="1.1"/>
+      <text x="406" y="197"  class="lbl" text-anchor="middle">Block apply — deterministic</text>
+      <text x="406" y="208"  class="sm"  text-anchor="middle">runs YOUR state machine, in height order</text>
+
+      <rect x="286" y="222" width="240" height="30" rx="3" fill="#e8eef5" stroke="#2c5282" stroke-width="1.1"/>
+      <text x="406" y="235"  class="lbl" text-anchor="middle">State commitment → state root</text>
+      <text x="406" y="246"  class="sm"  text-anchor="middle">MPF or classic JMT — chosen at genesis</text>
+
+      <rect x="286" y="260" width="240" height="28" rx="3" fill="#e8eef5" stroke="#2c5282" stroke-width="1.1"/>
+      <text x="406" y="272"  class="lbl" text-anchor="middle">App ledger store (RocksDB)</text>
+      <text x="406" y="283"  class="sm"  text-anchor="middle">blocks + certs + state trie, atomic commit</text>
+
+      <rect x="286" y="296" width="240" height="28" rx="3" fill="#e8eef5" stroke="#2c5282" stroke-width="1.1"/>
+      <text x="406" y="308"  class="lbl" text-anchor="middle">Anchor service</text>
+      <text x="406" y="319"  class="sm"  text-anchor="middle">state root → Cardano (metadata or script)</text>
+
+      <path d="M406,45 L406,60"   stroke="#5b6b7c" stroke-width="1.2" marker-end="url(#ar)"/>
+      <path d="M406,92 L406,98"   stroke="#5b6b7c" stroke-width="1.2" marker-end="url(#ar)"/>
+      <path d="M406,130 L406,136" stroke="#5b6b7c" stroke-width="1.2" marker-end="url(#ar)"/>
+      <path d="M406,176 L406,182" stroke="#5b6b7c" stroke-width="1.2" marker-end="url(#ar)"/>
+      <path d="M406,214 L406,220" stroke="#5b6b7c" stroke-width="1.2" marker-end="url(#ar)"/>
+      <path d="M406,252 L406,258" stroke="#5b6b7c" stroke-width="1.2" marker-end="url(#ar)"/>
+      <path d="M406,288 L406,294" stroke="#5b6b7c" stroke-width="1.2" marker-end="url(#ar)"/>
+    </g>
+
+    <!-- ===== left plugins ===== -->
+    <g>
+      <rect x="30" y="62"  width="182" height="30" rx="3" fill="#e8f5e9" stroke="#2e7d32" stroke-width="1.1"/>
+      <text x="121" y="75"  class="lblg" text-anchor="middle">L1 Observer</text>
+      <text x="121" y="86"  class="smg"  text-anchor="middle">Cardano facts → app messages</text>
+
+      <rect x="30" y="100" width="182" height="30" rx="3" fill="#e8f5e9" stroke="#2e7d32" stroke-width="1.1"/>
+      <text x="121" y="113" class="lblg" text-anchor="middle">Sequencer Mode</text>
+      <text x="121" y="124" class="smg"  text-anchor="middle">custom proposer scheduling</text>
+
+      <rect x="30" y="138" width="182" height="30" rx="3" fill="#e8f5e9" stroke="#2e7d32" stroke-width="1.1"/>
+      <text x="121" y="151" class="lblg" text-anchor="middle">Signer Provider</text>
+      <text x="121" y="162" class="smg"  text-anchor="middle">key custody — file · KMS · HSM</text>
+
+      <rect x="30" y="184" width="182" height="30" rx="3" fill="#d6f0d8" stroke="#2e7d32" stroke-width="1.9"/>
+      <text x="121" y="197" class="lblg" text-anchor="middle">State Machine ★</text>
+      <text x="121" y="208" class="smg"  text-anchor="middle">YOUR transition function</text>
+
+      <rect x="30" y="222" width="182" height="30" rx="3" fill="#e8f5e9" stroke="#2e7d32" stroke-width="1.1"/>
+      <text x="121" y="235" class="lblg" text-anchor="middle">Auth-Map Validator</text>
+      <text x="121" y="246" class="smg"  text-anchor="middle">genesis-pinned value rules</text>
+
+      <path d="M212,77  L284,77"  stroke="#3d8b3d" stroke-width="1.2" marker-end="url(#arg)"/>
+      <path d="M212,115 L284,115" stroke="#3d8b3d" stroke-width="1.2" marker-end="url(#arg)"/>
+      <path d="M212,153 L284,153" stroke="#3d8b3d" stroke-width="1.2" marker-end="url(#arg)"/>
+      <path d="M212,199 L284,199" stroke="#3d8b3d" stroke-width="1.9" marker-end="url(#arg)"/>
+      <path d="M212,237 L284,237" stroke="#3d8b3d" stroke-width="1.2" marker-end="url(#arg)"/>
+    </g>
+
+    <!-- ===== right plugins ===== -->
+    <g>
+      <rect x="602" y="62"  width="196" height="30" rx="3" fill="#e8f5e9" stroke="#2e7d32" stroke-width="1.1"/>
+      <text x="700" y="75"  class="lblg" text-anchor="middle">Domain API</text>
+      <text x="700" y="86"  class="smg"  text-anchor="middle">your own query endpoints</text>
+
+      <rect x="602" y="184" width="196" height="30" rx="3" fill="#e8f5e9" stroke="#2e7d32" stroke-width="1.1"/>
+      <text x="700" y="197" class="lblg" text-anchor="middle">Effect Executor</text>
+      <text x="700" y="208" class="smg"  text-anchor="middle">act outside — pay · call · notify</text>
+
+      <rect x="602" y="260" width="196" height="28" rx="3" fill="#e8f5e9" stroke="#2e7d32" stroke-width="1.1"/>
+      <text x="700" y="272" class="lblg" text-anchor="middle">Finalized Sink</text>
+      <text x="700" y="283" class="smg"  text-anchor="middle">Kafka · S3 · IPFS · webhook</text>
+
+      <path d="M600,77  L528,77"  stroke="#3d8b3d" stroke-width="1.2" marker-end="url(#arg)"/>
+      <path d="M528,199 L600,199" stroke="#3d8b3d" stroke-width="1.2" marker-end="url(#arg)"/>
+      <path d="M528,274 L600,274" stroke="#3d8b3d" stroke-width="1.2" marker-end="url(#arg)"/>
+    </g>
+
+    <!-- transport -->
+    <rect x="30" y="296" width="182" height="28" rx="3" fill="#f2f5f8" stroke="#9fb3c6"/>
+    <text x="121" y="308" class="lbl" text-anchor="middle">Transport to members</text>
+    <text x="121" y="319" class="sm"  text-anchor="middle">protocol 100 msgs · 103 catch-up</text>
+    <path d="M212,310 L284,310" stroke="#5b6b7c" stroke-width="1.2" marker-end="url(#ar)"/>
+
+    <!-- Cardano L1 -->
+    <rect x="14" y="342" width="784" height="52" rx="4" fill="#fff8e6" stroke="#c99a1e" stroke-width="1.3"/>
+    <text x="406" y="358" class="lbl" text-anchor="middle" fill="#7a5c00">CARDANO L1 — the same node is a real Cardano node</text>
+    <text x="406" y="371" class="sm" text-anchor="middle" fill="#8a6d1f">chain-sync · block-fetch · tx-submission · ledger state · UTxO</text>
+    <text x="406" y="385" class="sm" text-anchor="middle" fill="#8a6d1f">the app chain reads L1 through observers, and writes to L1 through anchors</text>
+
+    <path d="M16,342 L16,77 L28,77" stroke="#b8860b" stroke-width="1.2" stroke-dasharray="3,2" fill="none" marker-end="url(#ary)"/>
+    <path d="M470,324 L470,340" stroke="#b8860b" stroke-width="1.5" marker-end="url(#ary)"/>
+    <text x="486" y="336" class="sm" fill="#8a6d1f">anchor tx</text>
+    <text x="24" y="336" class="sm" fill="#8a6d1f">L1 blocks in</text>
+
+    <!-- legend -->
+    <rect x="248" y="24" width="0" height="0"/>
+    <g transform="translate(578,20)">
+      <rect x="0" y="0" width="13" height="9" rx="2" fill="#e8f5e9" stroke="#2e7d32"/>
+      <text x="17" y="8" class="sm" fill="#1b5e20">plugin (you write it)</text>
+      <rect x="118" y="0" width="13" height="9" rx="2" fill="#e8eef5" stroke="#2c5282"/>
+      <text x="135" y="8" class="sm">framework (fixed)</text>
+    </g>
+  </svg>
+
+  <div class="cols2">
+    <div class="box good">
+      <h4>The one component you almost always write</h4>
+      <p style="margin:0">
+        The <b>State Machine ★</b>. Everything else has a working default. The framework never
+        looks inside a message body — your machine is the only layer that interprets it. A chain
+        with an off-the-shelf machine (<code>ordered-log</code>, <code>kv-registry</code>,
+        <code>eutxo-ledger</code>, <code>authenticated-map</code>) needs <b>no code at all</b>,
+        only configuration.
+      </p>
+    </div>
+    <div class="box">
+      <h4>What the framework will never let you change</h4>
+      <p style="margin:0">
+        Consensus and the finality certificate, block ordering, the wire protocols, the ledger
+        store, catch-up, and membership rules. These are fixed so that <i>every</i> member
+        computes the same chain. Extension points exist only where a choice cannot break
+        agreement — or where it is verified by every member.
+      </p>
+    </div>
+  </div>
+
+  <div class="foot">Yano app chain · ADR app-layer/005 (framework), 008.x (consensus, sequencer, membership, L1 view), 010 (effects), 011 (plugins), 025.x (authenticated map) · page 1 of 3</div>
+</div>
+
+<!-- ─────────────────────────── PAGE 2 ─────────────────────────── -->
+<div class="page">
+  <h1>How a message becomes proven state</h1>
+
+  <p class="lede">
+    Every member runs the same pipeline. Nothing is trusted: a follower re-derives everything the
+    proposer claims — the messages, the state root, the L1 facts — before it will sign.
+  </p>
+
+  <svg viewBox="0 0 812 168" role="img" aria-label="Message lifecycle">
+    <defs>
+      <marker id="a2" markerWidth="7" markerHeight="7" refX="6.2" refY="2.6" orient="auto">
+        <path d="M0,0 L6.4,2.6 L0,5.2 z" fill="#5b6b7c"/>
+      </marker>
+      <style>
+        .st { font: 600 8.6px -apple-system, Arial; fill: #14324f; }
+        .sd { font: 7.2px -apple-system, Arial; fill: #5b6b7c; }
+        .nn { font: 700 8.6px -apple-system, Arial; fill: #fff; }
+      </style>
+    </defs>
+
+    <g>
+      <rect x="6"   y="30" width="122" height="52" rx="4" fill="#f2f5f8" stroke="#9fb3c6"/>
+      <circle cx="20" cy="42" r="8" fill="#5b6b7c"/><text x="20" y="45" class="nn" text-anchor="middle">1</text>
+      <text x="34" y="45" class="st">Submit</text>
+      <text x="14" y="60" class="sd">client posts a message;</text>
+      <text x="14" y="70" class="sd">it is signed + diffused to</text>
+      <text x="14" y="79" class="sd">all members (protocol 100)</text>
+
+      <rect x="140" y="30" width="122" height="52" rx="4" fill="#e8eef5" stroke="#2c5282"/>
+      <circle cx="154" cy="42" r="8" fill="#2c5282"/><text x="154" y="45" class="nn" text-anchor="middle">2</text>
+      <text x="168" y="45" class="st">Propose</text>
+      <text x="148" y="60" class="sd">the scheduled proposer</text>
+      <text x="148" y="70" class="sd">packs a block: messages,</text>
+      <text x="148" y="79" class="sd">roots, and an L1 reference</text>
+
+      <rect x="274" y="30" width="122" height="52" rx="4" fill="#dbe6f2" stroke="#2c5282" stroke-width="1.6"/>
+      <circle cx="288" cy="42" r="8" fill="#1a4d80"/><text x="288" y="45" class="nn" text-anchor="middle">3</text>
+      <text x="302" y="45" class="st">Verify</text>
+      <text x="282" y="60" class="sd">each follower RE-RUNS the</text>
+      <text x="282" y="70" class="sd">machine and compares the</text>
+      <text x="282" y="79" class="sd">state root. Differs → refuse</text>
+
+      <rect x="408" y="30" width="122" height="52" rx="4" fill="#e8eef5" stroke="#2c5282"/>
+      <circle cx="422" cy="42" r="8" fill="#2c5282"/><text x="422" y="45" class="nn" text-anchor="middle">4</text>
+      <text x="436" y="45" class="st">Certify</text>
+      <text x="416" y="60" class="sd">threshold-many signatures</text>
+      <text x="416" y="70" class="sd">(e.g. 2-of-3) form a finality</text>
+      <text x="416" y="79" class="sd">certificate — now immutable</text>
+
+      <rect x="542" y="30" width="122" height="52" rx="4" fill="#e8eef5" stroke="#2c5282"/>
+      <circle cx="556" cy="42" r="8" fill="#2c5282"/><text x="556" y="45" class="nn" text-anchor="middle">5</text>
+      <text x="570" y="45" class="st">Commit</text>
+      <text x="550" y="60" class="sd">block + state trie + root</text>
+      <text x="550" y="70" class="sd">commit atomically to</text>
+      <text x="550" y="79" class="sd">RocksDB on every member</text>
+
+      <rect x="676" y="30" width="130" height="52" rx="4" fill="#fff8e6" stroke="#c99a1e"/>
+      <circle cx="690" cy="42" r="8" fill="#b8860b"/><text x="690" y="45" class="nn" text-anchor="middle">6</text>
+      <text x="704" y="45" class="st" fill="#7a5c00">Anchor</text>
+      <text x="684" y="60" class="sd" fill="#8a6d1f">the state root goes into a</text>
+      <text x="684" y="70" class="sd" fill="#8a6d1f">Cardano transaction — now</text>
+      <text x="684" y="79" class="sd" fill="#8a6d1f">provable to outsiders</text>
+
+      <path d="M128,56 L138,56" stroke="#5b6b7c" stroke-width="1.3" marker-end="url(#a2)"/>
+      <path d="M262,56 L272,56" stroke="#5b6b7c" stroke-width="1.3" marker-end="url(#a2)"/>
+      <path d="M396,56 L406,56" stroke="#5b6b7c" stroke-width="1.3" marker-end="url(#a2)"/>
+      <path d="M530,56 L540,56" stroke="#5b6b7c" stroke-width="1.3" marker-end="url(#a2)"/>
+      <path d="M664,56 L674,56" stroke="#5b6b7c" stroke-width="1.3" marker-end="url(#a2)"/>
+    </g>
+
+    <rect x="6" y="98" width="800" height="30" rx="4" fill="#f8fbf8" stroke="#7cb37c" stroke-dasharray="4,3"/>
+    <text x="16" y="111" class="st" fill="#1b5e20">Your state machine runs at step 3 AND step 5 — on every member, never only on the proposer.</text>
+    <text x="16" y="122" class="sd" fill="#3d7a3d">That is why it must be deterministic: if two members compute different state, the block cannot reach threshold and the chain stops rather than forks.</text>
+
+    <text x="16" y="150" class="sd">A member that is behind (restart, new joiner) fetches finalized blocks over <tspan class="st" font-size="7.6">protocol 103</tspan>, replays them through the same verification, and rejoins. Nothing is taken on faith.</text>
+  </svg>
+
+  <h2>The nine plugin extension points</h2>
+  <table>
+    <tr><th style="width:20%">Extension point</th><th style="width:26%">SPI (ServiceLoader)</th><th>What it lets you do · shipped example</th></tr>
+    <tr><td><b>App state machine ★</b></td><td class="mono">AppStateMachineProvider</td><td>Interpret message bodies and own the state. <i>ordered-log, kv-registry, eutxo-ledger, authenticated-map, composite</i></td></tr>
+    <tr><td><b>L1 observer</b></td><td class="mono">L1ObserverProvider</td><td>Turn a Cardano fact into an app message. <i>address-deposit, metadata-label, eutxo-vault-deposit</i></td></tr>
+    <tr><td><b>Effect executor</b></td><td class="mono">AppEffectExecutorFactory</td><td>Act on the outside world after finality. <i>Cardano payment</i></td></tr>
+    <tr><td><b>Finalized sink</b></td><td class="mono">FinalizedStreamSinkFactory</td><td>Stream finalized blocks out. <i>Kafka, S3, IPFS, webhook</i></td></tr>
+    <tr><td><b>Sequencer mode</b></td><td class="mono">SequencerModeProvider</td><td>Decide who proposes. <i>fixed, rotating (L1-slot windows)</i></td></tr>
+    <tr><td><b>Signer provider</b></td><td class="mono">SignerProviderFactory</td><td>Where the member key lives — file, KMS, HSM</td></tr>
+    <tr><td><b>Auth-map validator</b></td><td class="mono">AuthenticatedMapValueValidatorFactory</td><td>Genesis-pinned rules on what values may be written</td></tr>
+    <tr><td><b>Domain API</b></td><td class="mono">DomainApiProvider</td><td>Publish your own query endpoints through the node</td></tr>
+    <tr><td><b>Health / metrics</b></td><td class="mono">PluginHealthProvider · PluginMetricsProvider</td><td>Feed the node's health endpoint and Prometheus metrics</td></tr>
+  </table>
+
+  <div class="cols2">
+    <div class="box">
+      <h4>How a plugin is delivered</h4>
+      <p style="margin:0">
+        Implement the SPI, declare it in <code>META-INF/services</code>, add a bundle manifest,
+        drop the jar in <code>plugins/</code>. The manifest declares
+        <code>yanoApi {min, max, minLevel}</code>, and the catalog verifies digests and
+        compatibility offline before anything loads. Config selects it by
+        <code>type</code>.
+      </p>
+    </div>
+    <div class="box warn">
+      <h4>Consensus-critical config must be identical everywhere</h4>
+      <p style="margin:0">
+        State machine, observers, sequencer mode, stability depth and commitment profile are
+        part of the agreement. If one member is configured differently it will compute a
+        different block and simply stop agreeing. The framework fails closed — it never
+        guesses.
+      </p>
+    </div>
+  </div>
+
+  <div class="foot">Contribution kinds as declared in <span class="mono">ContributionKind</span> (yano plugin catalog) · page 2 of 3</div>
+</div>
+
+<!-- ─────────────────────────── PAGE 3 ─────────────────────────── -->
+<div class="page">
+  <h1>The three rules that make it trustworthy</h1>
+
+  <h2>1 · Determinism — the contract you must not break</h2>
+  <p>
+    <code>apply()</code> is called once per finalized block, in height order, <b>on every member</b>,
+    and must produce identical writes everywhere. A nondeterministic machine does not corrupt the
+    chain — it <i>stalls</i> it, because followers reject the state root.
+  </p>
+  <div class="cols2">
+    <div class="box warn">
+      <h4>Forbidden inside apply()</h4>
+      <ul style="margin:0">
+        <li>Wall-clock time — use <code>block.timestamp()</code></li>
+        <li>Randomness, network or file I/O</li>
+        <li>Environment / system-property reads</li>
+        <li><code>HashMap</code> / <code>HashSet</code> iteration — order is unspecified</li>
+        <li>Locale- or charset-dependent serialization</li>
+      </ul>
+    </div>
+    <div class="box good">
+      <h4>How you check it</h4>
+      <p style="margin:0">
+        Run the <code>StateMachineConformance</code> harness before deploying. It is the cheapest
+        bug you will ever prevent: a determinism defect found in production looks like a chain
+        that mysteriously stopped producing blocks.
+      </p>
+    </div>
+  </div>
+
+  <h2>2 · Rollback — Cardano rolls back, the app chain does not</h2>
+  <p>
+    This asymmetry drives the whole L1-facing design. There is no un-apply path below finality, so
+    an L1 fact must be <b>irreversible before it is allowed in</b>. The framework does this with a
+    waiting period, not with compensation.
+  </p>
+
+  <svg viewBox="0 0 812 118" role="img" aria-label="Stability gating of L1 facts">
+    <defs>
+      <marker id="a3" markerWidth="7" markerHeight="7" refX="6.2" refY="2.6" orient="auto">
+        <path d="M0,0 L6.4,2.6 L0,5.2 z" fill="#5b6b7c"/>
+      </marker>
+      <style>
+        .t3 { font: 600 8.4px -apple-system, Arial; fill: #14324f; }
+        .d3 { font: 7.2px -apple-system, Arial; fill: #5b6b7c; }
+      </style>
+    </defs>
+
+    <text x="6" y="12" class="t3" fill="#8a6d1f">CARDANO L1</text>
+    <g fill="#fff8e6" stroke="#c99a1e">
+      <rect x="6"   y="18" width="52" height="21" rx="2"/>
+      <rect x="62"  y="18" width="52" height="21" rx="2"/>
+      <rect x="118" y="18" width="52" height="21" rx="2"/>
+      <rect x="174" y="18" width="52" height="21" rx="2"/>
+      <rect x="230" y="18" width="52" height="21" rx="2"/>
+      <rect x="286" y="18" width="52" height="21" rx="2"/>
+    </g>
+    <rect x="118" y="18" width="52" height="21" rx="2" fill="#f9d976" stroke="#b8860b" stroke-width="1.5"/>
+    <text x="144" y="32" class="t3" text-anchor="middle" fill="#6b4e00">deposit</text>
+    <text x="312" y="32" class="d3" text-anchor="middle">tip</text>
+
+    <path d="M170,46 L170,54 L338,54 L338,46" stroke="#b8860b" stroke-width="1.1" fill="none"/>
+    <text x="254" y="65" class="d3" text-anchor="middle" fill="#8a6d1f">wait <tspan font-weight="700">l1.stability-depth</tspan> blocks — a reorg this deep is assumed impossible</text>
+
+
+    <text x="380" y="12" class="t3">THEN, AND ONLY THEN</text>
+    <rect x="380" y="18" width="200" height="42" rx="3" fill="#e8eef5" stroke="#2c5282"/>
+    <text x="480" y="33" class="t3" text-anchor="middle">proposer injects the fact</text>
+    <text x="480" y="45" class="d3" text-anchor="middle">as a message on <tspan font-family="Menlo, monospace">~l1/&lt;observer&gt;</tspan></text>
+    <text x="480" y="55" class="d3" text-anchor="middle">— an ordinary, provable app message</text>
+
+    <rect x="596" y="18" width="210" height="42" rx="3" fill="#dbe6f2" stroke="#2c5282" stroke-width="1.5"/>
+    <text x="701" y="33" class="t3" text-anchor="middle">every follower re-derives it</text>
+    <text x="701" y="45" class="d3" text-anchor="middle">from its OWN Cardano view.</text>
+    <text x="701" y="55" class="d3" text-anchor="middle">Mismatch → the proposal is rejected.</text>
+
+    <path d="M582,39 L594,39" stroke="#5b6b7c" stroke-width="1.3" marker-end="url(#a3)"/>
+
+    <rect x="6" y="76" width="800" height="36" rx="3" fill="#f8fbf8" stroke="#7cb37c"/>
+    <text x="16" y="90" class="t3" fill="#1b5e20">So a dishonest proposer cannot invent an L1 fact, cannot rush one in early, and cannot smuggle one that is not yet deep enough.</text>
+    <text x="16" y="103" class="d3" fill="#3d7a3d">It supplies the data; it never gets to be believed. Everything the proposer asserts about Cardano is checked independently by everyone else.</text>
+  </svg>
+
+  <h2>3 · Proof — why an outsider should believe any of this</h2>
+  <p>
+    Anyone can verify a value from the app chain <b>without trusting whoever runs it</b>, and without
+    the chain even being online, in two steps:
+  </p>
+  <div class="cols2">
+    <div class="box">
+      <h4>Step 1 — inclusion proof</h4>
+      <p style="margin:0">A proof that <code>key → value</code> is present in the state trie under a given <b>state root</b>. Produced by the authenticated map (MPF or classic JMT).</p>
+    </div>
+    <div class="box">
+      <h4>Step 2 — the anchor</h4>
+      <p style="margin:0">That state root appears in a <b>confirmed Cardano transaction</b>. Fetch it from any Cardano explorer or node; nothing about Yano needs to be trusted.</p>
+    </div>
+  </div>
+
+  <h2>Where to start</h2>
+  <table>
+    <tr><th style="width:22%">If you want to…</th><th>Do this</th></tr>
+    <tr><td>See one running</td><td class="mono">./showcase.sh — a multi-chain cluster with one command</td></tr>
+    <tr><td>Run a chain with no code</td><td>Pick a shipped state machine (<code>ordered-log</code>, <code>kv-registry</code>, <code>eutxo-ledger</code>) and configure it</td></tr>
+    <tr><td>Write your own machine</td><td>Implement <code>AppStateMachine</code>, start from <code>scaffolds/plugin-template</code>, verify with <code>StateMachineConformance</code></td></tr>
+    <tr><td>React to Cardano events</td><td>Configure a built-in observer, or implement <code>L1ObserverProvider</code>. Requires <code>l1.stability-depth &gt; 0</code></td></tr>
+    <tr><td>Read the detail</td><td><code>docs/APP_CHAIN_USER_GUIDE.md</code> · <code>docs/APP_CHAIN_CONSENSUS_GUIDE.md</code> · <code>adr/app-layer/</code></td></tr>
+  </table>
+
+  <div class="box warn" style="margin-top:6px">
+    <h4>Three things newcomers get wrong</h4>
+    <ul style="margin:0">
+      <li><b>"The app chain follows Cardano's forks."</b> It does not. It is append-only below finality; L1 facts wait out the stability depth before they are allowed in.</li>
+      <li><b>"Only the proposer runs the state machine."</b> Every member runs it, twice — to verify a proposal and to commit the block. That is the whole security model.</li>
+      <li><b>"Config differences are harmless."</b> Consensus-critical config is part of the agreement. One member with a different state machine or observer set will simply stop agreeing.</li>
+    </ul>
+  </div>
+
+  <div class="foot">Yano app chain overview · generated 2026-08-06 · page 3 of 3</div>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,22 @@
+plugins {
+    id 'java-library'
+}
+
+dependencies {
+    api project(':ledgers:eutxo-zk:contracts')
+    api project(':ledgers:eutxo:client')
+    implementation libs.cardano.client.core
+    implementation libs.cardano.client.crypto
+    implementation libs.zeroj.circuit.lib
+
+    testImplementation project(':ledgers:eutxo:testkit')
+    testImplementation libs.junit.jupiter.api
+    testRuntimeOnly libs.junit.jupiter.engine
+    testRuntimeOnly libs.junit.platform.launcher
+    testImplementation libs.assertj.core
+}
+
+java {
+    sourceCompatibility = 25
+    targetCompatibility = 25
+}

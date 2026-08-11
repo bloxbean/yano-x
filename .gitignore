@@ -1,3 +1,6 @@
 .gradle/
 build/
 **/build/
+**/yaci_error.log
+**/__pycache__/
+**/*.pyc

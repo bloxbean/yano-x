@@ -7,5 +7,64 @@ pluginManagement {
 
 rootProject.name = 'yano-x'
 
+def yanoXModules = [
+        ':state-machines:stdlib': 'state-machines/stdlib',
+        ':state-machines:stdlib-contracts': 'state-machines/stdlib-contracts',
+        ':capabilities:authenticated-map-validators': 'capabilities/authenticated-map-validators',
+        ':tooling:devtools': 'tooling/devtools',
+        ':tooling:studio': 'tooling/studio',
+        ':composition:contracts': 'composition/contracts',
+        ':composition:client': 'composition/client',
+        ':composition:runtime': 'composition/runtime',
+        ':capabilities:role-workflow-contracts': 'capabilities/role-workflow-contracts',
+        ':capabilities:role-workflow': 'capabilities/role-workflow',
+        ':sdk:effects-testkit': 'sdk/effects-testkit',
+        ':sdk:client': 'sdk/client',
+        ':sdk:proof-contracts': 'sdk/proof-contracts',
+        ':sdk:proof-onchain': 'sdk/proof-onchain',
+        ':sdk:integration-contracts': 'sdk/integration-contracts',
+        ':products:evidence:contracts': 'products/evidence/contracts',
+        ':products:evidence:registry': 'products/evidence/registry',
+        ':products:evidence:client': 'products/evidence/client',
+        ':products:evidence:profile': 'products/evidence/profile',
+        ':products:cardano-history:runtime': 'products/cardano-history/runtime',
+        ':products:cardano-history:client': 'products/cardano-history/client',
+        ':products:cardano-history:cli': 'products/cardano-history/cli',
+        ':products:cardano-history:onchain': 'products/cardano-history/onchain',
+        ':products:evidence:demo-runner': 'products/evidence/demo-runner',
+        ':examples:showcase': 'examples/showcase',
+        ':examples:showcase-client': 'examples/showcase-client',
+        ':connectors:kafka': 'connectors/kafka',
+        ':connectors:objectstore-s3': 'connectors/objectstore-s3',
+        ':connectors:ipfs': 'connectors/ipfs',
+        ':connectors:effects-cardano': 'connectors/effects-cardano',
+        ':state-machines:zk': 'state-machines/zk',
+        ':ledgers:eutxo:contracts': 'ledgers/eutxo/contracts',
+        ':ledgers:eutxo:ledger': 'ledgers/eutxo/ledger',
+        ':ledgers:eutxo:client': 'ledgers/eutxo/client',
+        ':ledgers:eutxo:testkit': 'ledgers/eutxo/testkit',
+        ':ledgers:eutxo:demo': 'ledgers/eutxo/demo',
+        ':ledgers:eutxo:bridge-cardano': 'ledgers/eutxo/bridge-cardano',
+        ':ledgers:eutxo:bridge-onchain': 'ledgers/eutxo/bridge-onchain',
+        ':ledgers:eutxo:indexer-core': 'ledgers/eutxo/indexer-core',
+        ':ledgers:eutxo:indexer-jdbc': 'ledgers/eutxo/indexer-jdbc',
+        ':ledgers:eutxo-zk:contracts': 'ledgers/eutxo-zk/contracts',
+        ':ledgers:eutxo-zk:zeroj': 'ledgers/eutxo-zk/zeroj',
+        ':ledgers:eutxo-zk:prover': 'ledgers/eutxo-zk/prover',
+        ':ledgers:eutxo-zk:client': 'ledgers/eutxo-zk/client',
+        ':ledgers:eutxo-zk:onchain': 'ledgers/eutxo-zk/onchain',
+        ':ledgers:eutxo-zk:testkit': 'ledgers/eutxo-zk/testkit',
+        ':ledgers:eutxo-zk:runtime': 'ledgers/eutxo-zk/runtime',
+        ':ledgers:eutxo-zk:lifecycle': 'ledgers/eutxo-zk/lifecycle',
+        ':ledgers:eutxo-zk:indexer': 'ledgers/eutxo-zk/indexer',
+        ':ledgers:eutxo-zk:demo': 'ledgers/eutxo-zk/demo',
+        ':tooling:spring-boot-starter': 'tooling/spring-boot-starter',
+        ':fixtures:eutxo-e2e': 'fixtures/eutxo-e2e'
+]
+
 include 'bom'
 include 'distribution:jvm'
+yanoXModules.each { path, directory ->
+    include path
+    project(path).projectDir = file(directory)
+}

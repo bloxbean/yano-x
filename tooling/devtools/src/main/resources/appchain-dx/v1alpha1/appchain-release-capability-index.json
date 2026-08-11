@@ -1,0 +1,68 @@
+{
+  "schemaVersion": "v1alpha1",
+  "schemaStatus": "alpha",
+  "stabilizationDecision": "RETAIN_V1ALPHA1",
+  "yanoVersion": "${yanoVersion}",
+  "tooling": "standalone-jvm",
+  "runtimeTypes": [
+    "jvm"
+  ],
+  "deploymentTargets": [
+    "host",
+    "docker-compose"
+  ],
+  "recipes": [
+    "audit-log",
+    "owned-registry",
+    "authenticated-map",
+    "approval-workflow",
+    "role-approval",
+    "evidence-ledger",
+    "eutxo-ledger",
+    "eutxo-cardano-bridge",
+    "eutxo-zeroj-validity",
+    "eutxo-zeroj-preview",
+    "custom-plugin"
+  ],
+  "artifacts": [
+    "yano-runtime",
+    "yano-x-stdlib",
+    "yano-x-evidence-registry",
+    "yano-x-composite",
+    "yano-x-role-workflow",
+    "yano-x-evidence-profile",
+    "yano-x-eutxo-ledger",
+    "yano-x-eutxo-indexer-core",
+    "yano-x-eutxo-indexer-jdbc",
+    "yano-x-eutxo-bridge-cardano",
+    "yano-x-eutxo-zk-zeroj",
+    "yano-x-eutxo-zk-runtime",
+    "yano-x-eutxo-zk-lifecycle"
+  ],
+  "distributions": [
+    {
+      "id": "yano-x-jvm",
+      "runtimeType": "jvm",
+      "archivePattern": "yano-x-jvm-{version}.zip",
+      "tooling": "bundled",
+      "platforms": [
+        "java-25"
+      ],
+      "artifacts": [
+        "yano-runtime",
+        "yano-x-stdlib",
+        "yano-x-evidence-registry",
+        "yano-x-composite",
+        "yano-x-role-workflow",
+        "yano-x-evidence-profile",
+        "yano-x-eutxo-ledger",
+        "yano-x-eutxo-indexer-core",
+        "yano-x-eutxo-indexer-jdbc",
+        "yano-x-eutxo-bridge-cardano",
+        "yano-x-eutxo-zk-zeroj",
+        "yano-x-eutxo-zk-runtime",
+        "yano-x-eutxo-zk-lifecycle"
+      ]
+    }
+  ]
+}

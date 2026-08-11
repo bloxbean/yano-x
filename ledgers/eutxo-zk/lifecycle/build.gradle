@@ -1,0 +1,41 @@
+plugins {
+    id 'java-library'
+}
+
+dependencies {
+    api project(':ledgers:eutxo-zk:contracts')
+    implementation project(':ledgers:eutxo-zk:client')
+    implementation project(':ledgers:eutxo-zk:prover')
+    implementation project(':ledgers:eutxo-zk:zeroj')
+    implementation project(':ledgers:eutxo-zk:onchain')
+    implementation project(':ledgers:eutxo:bridge-cardano')
+    implementation project(':ledgers:eutxo:bridge-onchain')
+    implementation libs.jackson.databind
+    implementation libs.jackson.dataformat.yaml
+
+    testImplementation project(':ledgers:eutxo:testkit')
+    testImplementation libs.junit.jupiter.api
+    testRuntimeOnly libs.junit.jupiter.engine
+    testRuntimeOnly libs.junit.platform.launcher
+    testImplementation libs.assertj.core
+}
+
+java {
+    sourceCompatibility = 25
+    targetCompatibility = 25
+}
+
+tasks.named('test') {
+    systemProperty 'zeroj.allowInsecureTrustedSetup', 'true'
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Yano EUTxO ZeroJ Lifecycle'
+                description = 'Project-aware lifecycle, prover, relay, and recovery tooling'
+            }
+        }
+    }
+}

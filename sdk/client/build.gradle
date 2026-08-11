@@ -1,0 +1,38 @@
+// Client SDK for applications talking to a Yano app chain over REST/SSE.
+// Deliberately light: no yaci/runtime dependencies — just JSON and the
+// release-matched MPF/JMT verifiers for client-side proof checks.
+dependencies {
+    api rootProject.ext.yanoModule('yano-core-api')
+    api rootProject.ext.yanoModule('yano-appchain-proof-verifier')
+    api project(':state-machines:stdlib-contracts')
+    api project(':composition:contracts')
+    api project(':capabilities:role-workflow-contracts')
+    api project(':sdk:proof-contracts')
+    implementation libs.jackson.databind
+    implementation libs.jackson.dataformat.cbor
+    implementation libs.cardano.client.crypto
+    api libs.cardano.client.mpf
+    api libs.cardano.client.jmt
+    implementation libs.cbor
+
+    testImplementation libs.junit.jupiter.api
+    testRuntimeOnly libs.junit.jupiter.engine
+    testRuntimeOnly libs.junit.platform.launcher
+    testImplementation libs.assertj.core
+}
+
+java {
+    sourceCompatibility = 25
+    targetCompatibility = 25
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Yano App-Chain Client'
+                description = 'Java client SDK for Yano app chains: typed REST/SSE access and profile-aware proof verification'
+            }
+        }
+    }
+}

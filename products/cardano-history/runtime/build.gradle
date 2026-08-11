@@ -1,0 +1,69 @@
+plugins {
+    id 'com.gradleup.shadow'
+}
+
+description = 'Optional Cardano History app-chain product plugin'
+
+dependencies {
+    compileOnly rootProject.ext.yanoModule('yano-core-api')
+    compileOnly project(':composition:runtime')
+    compileOnly project(':composition:contracts')
+    compileOnly project(':state-machines:stdlib')
+    compileOnly project(':state-machines:stdlib-contracts')
+
+    testImplementation rootProject.ext.yanoModule('yano-core-api')
+    testImplementation project(':composition:runtime')
+    testImplementation project(':composition:contracts')
+    testImplementation project(':state-machines:stdlib')
+    testImplementation project(':state-machines:stdlib-contracts')
+    testImplementation rootProject.ext.yanoModule('yano-appchain-core-testkit')
+    testImplementation rootProject.ext.yanoModule('yano-plugin-catalog')
+    testImplementation libs.assertj.core
+    testImplementation libs.junit.jupiter.api
+    testRuntimeOnly libs.junit.jupiter.engine
+    testRuntimeOnly libs.junit.platform.launcher
+}
+
+tasks.named('compileJava') {
+    options.compilerArgs.removeAll { it.startsWith('-Aproject=') }
+}
+
+tasks.named('processResources') {
+    filesMatching('META-INF/yano/plugins/*.json') {
+        expand(pluginVersion: project.version.toString())
+    }
+}
+
+tasks.named('shadowJar') {
+    archiveBaseName.set('yano-x-cardano-history')
+    archiveClassifier.set('bundle')
+    reproducibleFileOrder = true
+    preserveFileTimestamps = false
+    mergeServiceFiles()
+    exclude 'com/bloxbean/cardano/yano/api/**'
+    exclude 'com/bloxbean/cardano/yano/appchain/composite/**'
+    exclude 'com/bloxbean/cardano/yano/appchain/stdlib/**'
+    // Logging is supplied by the host. Shipping another SLF4J API/provider in
+    // the product bundle breaks the parent-first plugin boundary and can make
+    // provider discovery depend on artifact ordering.
+    exclude 'org/slf4j/**'
+    exclude 'META-INF/maven/org.slf4j/**'
+    exclude 'META-INF/*.SF', 'META-INF/*.RSA', 'META-INF/*.DSA', 'module-info.class'
+}
+
+tasks.register('verifyBundleBoundary') {
+    dependsOn tasks.named('shadowJar')
+    inputs.file(tasks.named('shadowJar').flatMap { it.archiveFile })
+    doLast {
+        def forbidden = ['com/bloxbean/cardano/yano/api/',
+                         'com/bloxbean/cardano/yano/appchain/composite/',
+                         'com/bloxbean/cardano/yano/appchain/stdlib/',
+                         'org/slf4j/']
+        def entries = zipTree(tasks.named('shadowJar').get().archiveFile.get().asFile)
+                .matching { include '**/*.class' }.files
+        def bad = entries.findAll { file -> forbidden.any { file.path.replace('\\', '/').contains(it) } }
+        if (!bad.isEmpty()) throw new GradleException("Cardano History bundle contains host classes: ${bad}")
+    }
+}
+
+tasks.named('check') { dependsOn tasks.named('verifyBundleBoundary') }

@@ -1,0 +1,31 @@
+ext.runtimePluginBundleId =
+        'com.bloxbean.cardano.yano.appchain.authenticated-map-validators'
+ext.runtimePluginExcludedBundleIds = []
+apply from: rootProject.file('gradle/runtime-plugin-bundle.gradle')
+
+dependencies {
+    compileOnly(rootProject.ext.yanoModule('yano-core-api')) {
+        transitive = false
+    }
+    implementation project(':state-machines:stdlib-contracts')
+
+    testImplementation(rootProject.ext.yanoModule('yano-core-api')) {
+        transitive = false
+    }
+}
+
+java {
+    sourceCompatibility = 25
+    targetCompatibility = 25
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Yano Authenticated-Map Validators'
+                description = 'Trusted first-party authenticated-map validator plugin bundle'
+            }
+        }
+    }
+}

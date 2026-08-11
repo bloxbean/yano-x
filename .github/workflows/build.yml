@@ -1,0 +1,191 @@
+name: Build and verify Yano X
+
+on:
+  workflow_dispatch:
+    inputs:
+      scope:
+        description: Jobs to run manually
+        required: true
+        default: connector-runtime
+        type: choice
+        options:
+          - connector-runtime
+          - all
+      yano_version:
+        description: Published or staged Yano version (falls back to YANO_VERSION repository variable)
+        required: false
+        type: string
+      yano_jvm_dist_url:
+        description: Matching Yano JVM ZIP URL (falls back to YANO_JVM_DIST_URL repository variable)
+        required: false
+        type: string
+      yano_maven_repository_url:
+        description: Optional staged Yano Maven repository (falls back to YANO_MAVEN_REPOSITORY_URL)
+        required: false
+        type: string
+  schedule:
+    - cron: '23 3 * * 1'
+  push:
+    branches:
+      - main
+      - develop
+      - develop*
+      - release*
+      - next
+  pull_request:
+    branches:
+      - main
+      - develop
+      - develop*
+      - release*
+      - next
+
+permissions:
+  contents: read
+
+env:
+  YANO_VERSION: ${{ inputs.yano_version || vars.YANO_VERSION }}
+  YANO_JVM_DIST_URL: ${{ inputs.yano_jvm_dist_url || vars.YANO_JVM_DIST_URL }}
+  YANO_MAVEN_REPOSITORY_URL: ${{ inputs.yano_maven_repository_url || vars.YANO_MAVEN_REPOSITORY_URL }}
+
+jobs:
+  commit-build:
+    if: >-
+      github.event_name != 'schedule' &&
+      (github.event_name != 'workflow_dispatch' || inputs.scope == 'all')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - name: Set up JDK 25
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9
+        with:
+          java-version: '25'
+          distribution: 'temurin'
+          cache: 'gradle'
+      - name: Prepare exact Yano build inputs
+        run: bash .github/scripts/prepare-yano-inputs.sh
+      - name: Stage Yano X publications in the isolated build repository
+        run: ./gradlew publishAllPublicationsToInternalRepository -PskipSigning=true --stacktrace
+      - name: Build and test JVM extensions
+        run: ./gradlew check -PskipSigning=true --stacktrace
+      - name: Prepare packaged evidence-demo inputs
+        run: ./gradlew :distribution:jvm:prepareEvidenceDemoArtifacts -PskipSigning=true --stacktrace
+      - name: Verify evidence demo release contracts
+        run: bash products/evidence/harness/tests/release-contracts.sh
+
+  distribution-check:
+    if: >-
+      github.event_name != 'schedule' &&
+      (github.event_name != 'workflow_dispatch' || inputs.scope == 'all')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - name: Set up JDK 25
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9
+        with:
+          java-version: '25'
+          distribution: 'temurin'
+          cache: 'gradle'
+      - name: Prepare exact Yano build inputs
+        run: bash .github/scripts/prepare-yano-inputs.sh
+      - name: Stage Yano X publications in the isolated build repository
+        run: ./gradlew publishAllPublicationsToInternalRepository -PskipSigning=true --stacktrace
+      - name: Verify plugin pack and JVM distribution
+        run: ./gradlew distributionCheck -PskipSigning=true --stacktrace
+
+  connector-fault-matrix:
+    if: >-
+      github.event_name == 'schedule' ||
+      github.event_name != 'workflow_dispatch' ||
+      inputs.scope == 'connector-runtime' || inputs.scope == 'all'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - name: Set up JDK 25
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9
+        with:
+          java-version: '25'
+          distribution: 'temurin'
+          cache: 'gradle'
+      - name: Prepare exact Yano build inputs
+        run: bash .github/scripts/prepare-yano-inputs.sh
+      - name: Stage Yano X publications in the isolated build repository
+        run: ./gradlew publishAllPublicationsToInternalRepository -PskipSigning=true --stacktrace
+      - name: Run real connector restart and fault matrix
+        run: products/evidence/harness/tests/connector-fault-matrix.sh
+      - name: Run Kafka sink and executor over TLS and SASL/TLS
+        run: connectors/kafka/src/test/scripts/kafka-secure-integration.sh
+
+  effect-failover-e2e:
+    if: >-
+      github.event_name == 'schedule' ||
+      github.event_name != 'workflow_dispatch' ||
+      inputs.scope == 'connector-runtime' || inputs.scope == 'all'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - name: Set up JDK 25
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9
+        with:
+          java-version: '25'
+          distribution: 'temurin'
+          cache: 'gradle'
+      - name: Prepare exact Yano build inputs
+        run: bash .github/scripts/prepare-yano-inputs.sh
+      - name: Stage Yano X publications in the isolated build repository
+        run: ./gradlew publishAllPublicationsToInternalRepository -PskipSigning=true --stacktrace
+      - name: Prepare packaged evidence-demo inputs
+        run: ./gradlew :distribution:jvm:prepareEvidenceDemoArtifacts -PskipSigning=true --stacktrace
+      - name: Verify failover and deployment contracts
+        run: >-
+          products/evidence/harness/tests/effect-failover-contract.sh &&
+          products/evidence/harness/tests/deployment-parity-contract.sh
+      - name: Run mandatory isolated devnet effect failover E2E
+        env:
+          YANO_RUN_EFFECT_FAILOVER_E2E: 'true'
+        run: products/evidence/harness/tests/effect-failover-e2e.sh
+      - name: Run mandatory composite deployment parity E2E
+        env:
+          YANO_RUN_DEPLOYMENT_PARITY_E2E: 'true'
+          YANO_DEPLOYMENT_PARITY_CONTINUATION_MODE: direct
+          YANO_DEPLOYMENT_PARITY_MACHINE: composite
+        run: products/evidence/harness/tests/deployment-parity-e2e.sh
+      - name: Run mandatory role workflow and catch-up E2E
+        env:
+          YANO_RUN_ROLE_WORKFLOW_E2E: 'true'
+        run: products/evidence/harness/tests/role-workflow-e2e.sh
+
+  release-acceptance:
+    needs:
+      - commit-build
+      - distribution-check
+      - connector-fault-matrix
+      - effect-failover-e2e
+    if: >-
+      always() &&
+      github.event_name != 'schedule' &&
+      (github.event_name != 'workflow_dispatch' || inputs.scope == 'all')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Require every Yano X release gate
+        env:
+          COMMIT_BUILD_RESULT: ${{ needs.commit-build.result }}
+          DISTRIBUTION_CHECK_RESULT: ${{ needs.distribution-check.result }}
+          CONNECTOR_FAULT_RESULT: ${{ needs.connector-fault-matrix.result }}
+          EFFECT_FAILOVER_RESULT: ${{ needs.effect-failover-e2e.result }}
+        run: |
+          set -euo pipefail
+          test "$COMMIT_BUILD_RESULT" = success
+          test "$DISTRIBUTION_CHECK_RESULT" = success
+          test "$CONNECTOR_FAULT_RESULT" = success
+          test "$EFFECT_FAILOVER_RESULT" = success
+          printf '%s\n' 'PASS: Yano X release acceptance gates succeeded'
