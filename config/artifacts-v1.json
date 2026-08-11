@@ -1,0 +1,422 @@
+{
+  "schemaVersion": 1,
+  "group": "com.bloxbean.cardano",
+  "artifacts": [
+    {
+      "modulePath": ":state-machines:stdlib",
+      "directory": "state-machines/stdlib",
+      "artifactId": "yano-x-stdlib",
+      "publicationType": "runtime-plugin",
+      "pluginBundleId": "com.bloxbean.cardano.yano.appchain.stdlib",
+      "bundleArtifactId": "yano-x-stdlib-bundle"
+    },
+    {
+      "modulePath": ":state-machines:stdlib-contracts",
+      "directory": "state-machines/stdlib-contracts",
+      "artifactId": "yano-x-stdlib-contracts",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":capabilities:authenticated-map-validators",
+      "directory": "capabilities/authenticated-map-validators",
+      "artifactId": "yano-x-authenticated-map-validators",
+      "publicationType": "runtime-plugin",
+      "pluginBundleId": "com.bloxbean.cardano.yano.appchain.authenticated-map-validators",
+      "bundleArtifactId": "yano-x-authenticated-map-validators-bundle"
+    },
+    {
+      "modulePath": ":tooling:devtools",
+      "directory": "tooling/devtools",
+      "artifactId": "yano-x-devtools",
+      "publicationType": "tool",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":tooling:studio",
+      "directory": "tooling/studio",
+      "artifactId": "yano-x-studio",
+      "publicationType": "tool",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":composition:contracts",
+      "directory": "composition/contracts",
+      "artifactId": "yano-x-composite-contracts",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":composition:client",
+      "directory": "composition/client",
+      "artifactId": "yano-x-composite-client",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":composition:runtime",
+      "directory": "composition/runtime",
+      "artifactId": "yano-x-composite",
+      "publicationType": "runtime-plugin",
+      "pluginBundleId": "com.bloxbean.cardano.yano.appchain.composite",
+      "bundleArtifactId": "yano-x-composite-bundle"
+    },
+    {
+      "modulePath": ":capabilities:role-workflow-contracts",
+      "directory": "capabilities/role-workflow-contracts",
+      "artifactId": "yano-x-role-workflow-contracts",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":capabilities:role-workflow",
+      "directory": "capabilities/role-workflow",
+      "artifactId": "yano-x-role-workflow",
+      "publicationType": "runtime-plugin",
+      "pluginBundleId": "com.bloxbean.cardano.yano.appchain.role-workflow",
+      "bundleArtifactId": "yano-x-role-workflow-bundle"
+    },
+    {
+      "modulePath": ":sdk:effects-testkit",
+      "directory": "sdk/effects-testkit",
+      "artifactId": "yano-x-effects-testkit",
+      "publicationType": "test-library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":sdk:client",
+      "directory": "sdk/client",
+      "artifactId": "yano-x-client",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":sdk:proof-contracts",
+      "directory": "sdk/proof-contracts",
+      "artifactId": "yano-x-proof-contracts",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":sdk:proof-onchain",
+      "directory": "sdk/proof-onchain",
+      "artifactId": "yano-x-proof-onchain",
+      "publicationType": "onchain-artifact",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":sdk:integration-contracts",
+      "directory": "sdk/integration-contracts",
+      "artifactId": "yano-x-integration-contracts",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":products:evidence:contracts",
+      "directory": "products/evidence/contracts",
+      "artifactId": "yano-x-evidence-contracts",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":products:evidence:registry",
+      "directory": "products/evidence/registry",
+      "artifactId": "yano-x-evidence-registry",
+      "publicationType": "runtime-plugin",
+      "pluginBundleId": "com.bloxbean.cardano.yano.appchain.evidence-registry",
+      "bundleArtifactId": "yano-x-evidence-registry-bundle"
+    },
+    {
+      "modulePath": ":products:evidence:client",
+      "directory": "products/evidence/client",
+      "artifactId": "yano-x-evidence-client",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":products:evidence:profile",
+      "directory": "products/evidence/profile",
+      "artifactId": "yano-x-evidence-profile",
+      "publicationType": "runtime-plugin",
+      "pluginBundleId": "com.bloxbean.cardano.yano.appchain.evidence-profile",
+      "bundleArtifactId": "yano-x-evidence-profile-bundle"
+    },
+    {
+      "modulePath": ":products:cardano-history:runtime",
+      "directory": "products/cardano-history/runtime",
+      "artifactId": "yano-x-cardano-history",
+      "publicationType": "runtime-plugin",
+      "pluginBundleId": "com.bloxbean.cardano.yano.appchain.cardano-history",
+      "bundleArtifactId": "yano-x-cardano-history-bundle"
+    },
+    {
+      "modulePath": ":products:cardano-history:client",
+      "directory": "products/cardano-history/client",
+      "artifactId": "yano-x-cardano-history-client",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":products:cardano-history:cli",
+      "directory": "products/cardano-history/cli",
+      "artifactId": "yano-x-cardano-history-cli",
+      "publicationType": "tool",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":products:cardano-history:onchain",
+      "directory": "products/cardano-history/onchain",
+      "artifactId": "yano-x-cardano-history-onchain",
+      "publicationType": "onchain-artifact",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":products:evidence:demo-runner",
+      "directory": "products/evidence/demo-runner",
+      "artifactId": "yano-x-evidence-demo-runner",
+      "publicationType": "application",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":examples:showcase",
+      "directory": "examples/showcase",
+      "artifactId": "yano-x-showcase",
+      "publicationType": "runtime-plugin",
+      "pluginBundleId": "com.bloxbean.cardano.yano.appchain.showcase",
+      "bundleArtifactId": "yano-x-showcase-bundle"
+    },
+    {
+      "modulePath": ":examples:showcase-client",
+      "directory": "examples/showcase-client",
+      "artifactId": "yano-x-showcase-client",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":connectors:kafka",
+      "directory": "connectors/kafka",
+      "artifactId": "yano-x-kafka",
+      "publicationType": "runtime-plugin",
+      "pluginBundleId": "com.bloxbean.cardano.yano.appchain.kafka",
+      "bundleArtifactId": "yano-x-kafka-bundle"
+    },
+    {
+      "modulePath": ":connectors:objectstore-s3",
+      "directory": "connectors/objectstore-s3",
+      "artifactId": "yano-x-objectstore-s3",
+      "publicationType": "runtime-plugin",
+      "pluginBundleId": "com.bloxbean.cardano.yano.appchain.objectstore.s3",
+      "bundleArtifactId": "yano-x-objectstore-s3-bundle"
+    },
+    {
+      "modulePath": ":connectors:ipfs",
+      "directory": "connectors/ipfs",
+      "artifactId": "yano-x-ipfs",
+      "publicationType": "runtime-plugin",
+      "pluginBundleId": "com.bloxbean.cardano.yano.appchain.ipfs",
+      "bundleArtifactId": "yano-x-ipfs-bundle"
+    },
+    {
+      "modulePath": ":connectors:effects-cardano",
+      "directory": "connectors/effects-cardano",
+      "artifactId": "yano-x-effects-cardano",
+      "publicationType": "runtime-plugin",
+      "pluginBundleId": "com.bloxbean.cardano.yano.appchain.effects.cardano",
+      "bundleArtifactId": "yano-x-effects-cardano-bundle"
+    },
+    {
+      "modulePath": ":state-machines:zk",
+      "directory": "state-machines/zk",
+      "artifactId": "yano-x-zk",
+      "publicationType": "runtime-plugin",
+      "pluginBundleId": "com.bloxbean.cardano.yano.appchain.zk",
+      "bundleArtifactId": "yano-x-zk-bundle"
+    },
+    {
+      "modulePath": ":ledgers:eutxo:contracts",
+      "directory": "ledgers/eutxo/contracts",
+      "artifactId": "yano-x-eutxo-contracts",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":ledgers:eutxo:ledger",
+      "directory": "ledgers/eutxo/ledger",
+      "artifactId": "yano-x-eutxo-ledger",
+      "publicationType": "runtime-plugin",
+      "pluginBundleId": "com.bloxbean.cardano.yano.appchain.eutxo",
+      "bundleArtifactId": "yano-x-eutxo-ledger-bundle"
+    },
+    {
+      "modulePath": ":ledgers:eutxo:client",
+      "directory": "ledgers/eutxo/client",
+      "artifactId": "yano-x-eutxo-client",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":ledgers:eutxo:testkit",
+      "directory": "ledgers/eutxo/testkit",
+      "artifactId": "yano-x-eutxo-testkit",
+      "publicationType": "test-library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":ledgers:eutxo:demo",
+      "directory": "ledgers/eutxo/demo",
+      "artifactId": "yano-x-eutxo-demo",
+      "publicationType": "application",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":ledgers:eutxo:bridge-cardano",
+      "directory": "ledgers/eutxo/bridge-cardano",
+      "artifactId": "yano-x-eutxo-bridge-cardano",
+      "publicationType": "runtime-plugin",
+      "pluginBundleId": "com.bloxbean.cardano.yano.appchain.eutxo.bridge.cardano",
+      "bundleArtifactId": "yano-x-eutxo-bridge-cardano-bundle"
+    },
+    {
+      "modulePath": ":ledgers:eutxo:bridge-onchain",
+      "directory": "ledgers/eutxo/bridge-onchain",
+      "artifactId": "yano-x-eutxo-bridge-onchain",
+      "publicationType": "onchain-artifact",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":ledgers:eutxo:indexer-core",
+      "directory": "ledgers/eutxo/indexer-core",
+      "artifactId": "yano-x-eutxo-indexer-core",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":ledgers:eutxo:indexer-jdbc",
+      "directory": "ledgers/eutxo/indexer-jdbc",
+      "artifactId": "yano-x-eutxo-indexer-jdbc",
+      "publicationType": "runtime-plugin",
+      "pluginBundleId": "com.bloxbean.cardano.yano.appchain.eutxo.indexer",
+      "bundleArtifactId": "yano-x-eutxo-indexer-jdbc-bundle"
+    },
+    {
+      "modulePath": ":ledgers:eutxo-zk:contracts",
+      "directory": "ledgers/eutxo-zk/contracts",
+      "artifactId": "yano-x-eutxo-zk-contracts",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":ledgers:eutxo-zk:zeroj",
+      "directory": "ledgers/eutxo-zk/zeroj",
+      "artifactId": "yano-x-eutxo-zk-zeroj",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":ledgers:eutxo-zk:prover",
+      "directory": "ledgers/eutxo-zk/prover",
+      "artifactId": "yano-x-eutxo-zk-prover",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":ledgers:eutxo-zk:client",
+      "directory": "ledgers/eutxo-zk/client",
+      "artifactId": "yano-x-eutxo-zk-client",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":ledgers:eutxo-zk:onchain",
+      "directory": "ledgers/eutxo-zk/onchain",
+      "artifactId": "yano-x-eutxo-zk-onchain",
+      "publicationType": "onchain-artifact",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":ledgers:eutxo-zk:testkit",
+      "directory": "ledgers/eutxo-zk/testkit",
+      "artifactId": "yano-x-eutxo-zk-testkit",
+      "publicationType": "test-library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":ledgers:eutxo-zk:runtime",
+      "directory": "ledgers/eutxo-zk/runtime",
+      "artifactId": "yano-x-eutxo-zk-runtime",
+      "publicationType": "runtime-plugin",
+      "pluginBundleId": "com.bloxbean.cardano.yano.appchain.eutxo.zk.runtime",
+      "bundleArtifactId": "yano-x-eutxo-zk-runtime-bundle"
+    },
+    {
+      "modulePath": ":ledgers:eutxo-zk:lifecycle",
+      "directory": "ledgers/eutxo-zk/lifecycle",
+      "artifactId": "yano-x-eutxo-zk-lifecycle",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":ledgers:eutxo-zk:indexer",
+      "directory": "ledgers/eutxo-zk/indexer",
+      "artifactId": "yano-x-eutxo-zk-indexer",
+      "publicationType": "runtime-plugin",
+      "pluginBundleId": "com.bloxbean.cardano.yano.appchain.eutxo.zk.indexer",
+      "bundleArtifactId": "yano-x-eutxo-zk-indexer-bundle"
+    },
+    {
+      "modulePath": ":ledgers:eutxo-zk:demo",
+      "directory": "ledgers/eutxo-zk/demo",
+      "artifactId": "yano-x-eutxo-zk-demo",
+      "publicationType": "application",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":tooling:spring-boot-starter",
+      "directory": "tooling/spring-boot-starter",
+      "artifactId": "yano-x-spring-boot-starter",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":fixtures:eutxo-e2e",
+      "directory": "fixtures/eutxo-e2e",
+      "artifactId": "yano-x-eutxo-e2e",
+      "publicationType": "test-fixture",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    }
+  ]
+}

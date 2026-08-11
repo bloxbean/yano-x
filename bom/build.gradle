@@ -6,6 +6,8 @@ plugins {
 description = 'Version alignment platform for Yano X extensions and their Yano host'
 
 def yanoVersion = providers.gradleProperty('yanoVersion')
+def artifactInventory = new groovy.json.JsonSlurper().parse(
+        rootProject.file('config/artifacts-v1.json'))
 
 javaPlatform {
     allowDependencies()
@@ -13,6 +15,14 @@ javaPlatform {
 
 dependencies {
     api platform("com.bloxbean.cardano:yano-bom:${yanoVersion.getOrElse('unspecified')}")
+    constraints {
+        artifactInventory.artifacts.each { artifact ->
+            api "${artifactInventory.group}:${artifact.artifactId}:${project.version}"
+            if (artifact.bundleArtifactId != null) {
+                api "${artifactInventory.group}:${artifact.bundleArtifactId}:${project.version}"
+            }
+        }
+    }
 }
 
 publishing {

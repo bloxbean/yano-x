@@ -2,6 +2,10 @@ plugins {
     id 'base'
 }
 
+def artifactInventoryFile = layout.projectDirectory.file('config/artifacts-v1.json')
+def artifactInventory = new groovy.json.JsonSlurper().parse(
+        artifactInventoryFile.asFile)
+
 def localRepositoryValue = providers.gradleProperty('useMavenLocal')
         .getOrElse('false')
 if (!(localRepositoryValue in ['true', 'false'])) {
@@ -29,4 +33,79 @@ tasks.register('verifyPublishedContracts') {
     description = 'Verifies Yano Maven alignment and the explicit JVM distribution identity.'
     dependsOn ':bom:generatePomFileForMavenJavaPublication',
             ':distribution:jvm:verifyYanoInputs'
+}
+
+tasks.register('distributionCheck') {
+    group = 'verification'
+    description = 'Builds and verifies the Yano X plugin pack and JVM distribution.'
+    dependsOn ':distribution:jvm:verifyYanoXJvmDistribution'
+}
+
+tasks.register('verifyArtifactInventory') {
+    group = 'verification'
+    description = 'Validates Yano X module, artifact, and runtime-bundle identities.'
+    inputs.file(artifactInventoryFile)
+    doLast {
+        def failures = []
+        if (artifactInventory.schemaVersion != 1
+                || artifactInventory.group != 'com.bloxbean.cardano') {
+            failures.add('Artifact inventory identity must be schema 1 and com.bloxbean.cardano')
+        }
+        def artifacts = artifactInventory.artifacts
+        [
+                modulePath: artifacts*.modulePath,
+                directory: artifacts*.directory,
+                artifactId: artifacts*.artifactId
+        ].each { label, values ->
+            def duplicates = values.countBy { it }.findAll { ignored, count -> count > 1 }.keySet()
+            if (!duplicates.isEmpty()) {
+                failures.add("Duplicate ${label}: ${duplicates.sort()}")
+            }
+        }
+        artifacts.each { artifact ->
+            if (!artifact.modulePath?.startsWith(':')
+                    || !artifact.artifactId?.startsWith('yano-x-')) {
+                failures.add("Invalid Yano X artifact identity: ${artifact}")
+            }
+            if (artifact.publicationType == 'runtime-plugin') {
+                if (!artifact.pluginBundleId
+                        || artifact.bundleArtifactId != artifact.artifactId + '-bundle') {
+                    failures.add("Invalid runtime bundle identity: ${artifact}")
+                }
+            } else if (artifact.pluginBundleId != null
+                    || artifact.bundleArtifactId != null) {
+                failures.add("Non-runtime artifact declares a bundle identity: ${artifact}")
+            }
+        }
+        if (!failures.isEmpty()) {
+            throw new GradleException('Yano X artifact inventory failed:\n - '
+                    + failures.join('\n - '))
+        }
+        logger.lifecycle('Yano X artifact inventory verified: {} artifacts, {} runtime bundles',
+                artifacts.size(), artifacts.count { it.publicationType == 'runtime-plugin' })
+    }
+}
+
+tasks.register('verifyJvmOnlyBuild') {
+    group = 'verification'
+    description = 'Rejects native-image release tasks in the Yano X build.'
+    doLast {
+        def forbidden = allprojects.collectMany { candidate ->
+            candidate.tasks.collect { task -> task.path }
+        }.findAll { path ->
+            def normalized = path.toLowerCase(java.util.Locale.ROOT)
+            normalized.contains('nativeimage')
+                    || normalized.contains('nativecompile')
+                    || normalized.contains('nativedist')
+        }
+        if (!forbidden.isEmpty()) {
+            throw new GradleException(
+                    "Yano X is JVM-only but native release tasks exist: ${forbidden.sort()}")
+        }
+    }
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('verifyArtifactInventory'),
+            tasks.named('verifyJvmOnlyBuild')
 }

@@ -1,4 +1,5 @@
 import groovy.json.JsonOutput
+import groovy.json.JsonSlurper
 import java.security.MessageDigest
 import java.util.jar.JarInputStream
 import java.util.zip.ZipFile
@@ -88,6 +89,7 @@ tasks.register('verifyYanoInputs') {
         def expectedRoot = "yano-${distributionVersion}"
         def roots
         def implementationVersion
+        def distributionManifest
         new ZipFile(distribution).withCloseable { archive ->
             roots = archive.entries().collect { entry ->
                 entry.name.tokenize('/').find()
@@ -105,11 +107,31 @@ tasks.register('verifyYanoInputs') {
                 implementationVersion = runtimeJar.manifest?.mainAttributes
                         ?.getValue('Implementation-Version')
             }
+            def manifestEntry = archive.getEntry(
+                    "${expectedRoot}/yano-distribution-v1.json")
+            if (manifestEntry == null) {
+                throw new GradleException(
+                        'yanoJvmDist does not contain yano-distribution-v1.json')
+            }
+            distributionManifest = archive.getInputStream(manifestEntry)
+                    .withCloseable { stream -> new JsonSlurper().parse(stream) }
         }
         if (implementationVersion != expectedVersion) {
             throw new GradleException(
                     "yano.jar Implementation-Version ${implementationVersion} "
                             + "does not match ${expectedVersion}")
+        }
+        def expectedDistributionManifest = [
+                schemaVersion: 1,
+                product: 'yano',
+                distribution: 'core-jvm',
+                version: expectedVersion,
+                builtInStateMachines: ['ordered-log'],
+                pluginDirectorySupported: true
+        ]
+        if (distributionManifest != expectedDistributionManifest) {
+            throw new GradleException(
+                    "Unexpected Yano distribution contract: ${distributionManifest}")
         }
 
         def digest = MessageDigest.getInstance('SHA-256')
@@ -127,6 +149,7 @@ tasks.register('verifyYanoInputs') {
                 yanoVersion: expectedVersion,
                 distributionRoot: expectedRoot,
                 distributionImplementationVersion: implementationVersion,
+                distributionContract: distributionManifest,
                 distributionSha256: digest.digest().encodeHex().toString(),
                 resolvedArtifacts: yanoComponents
         ]
@@ -138,6 +161,9 @@ tasks.register('verifyYanoInputs') {
     }
 }
 
+apply from: file('plugin-pack.gradle')
+apply from: file('jvm-distribution.gradle')
+
 tasks.named('check') {
-    dependsOn tasks.named('verifyYanoInputs')
+    dependsOn tasks.named('verifyYanoXJvmDistribution')
 }

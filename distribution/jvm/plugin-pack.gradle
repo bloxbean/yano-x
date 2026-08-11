@@ -1,0 +1,140 @@
+import groovy.json.JsonOutput
+import groovy.json.JsonSlurper
+import java.security.MessageDigest
+import java.util.zip.ZipFile
+
+def inventory = new JsonSlurper().parse(
+        rootProject.file('config/artifacts-v1.json'))
+def runtimeBundleSpecifications = inventory.artifacts.findAll { artifact ->
+    artifact.publicationType == 'runtime-plugin'
+}
+def packVersion = project.version.toString().replaceAll('-SNAPSHOT', '')
+def generatedPackManifest = layout.buildDirectory.file(
+        'generated/distribution/plugin-pack/yano-x-plugin-pack-v1.json')
+
+configurations.create('yanoExtensionBundles') {
+    canBeConsumed = false
+    canBeResolved = true
+    description = 'Dependency-complete Yano X runtime plugin bundles'
+}
+
+dependencies {
+    runtimeBundleSpecifications.each { specification ->
+        yanoExtensionBundles(
+                "${inventory.group}:${specification.bundleArtifactId}:${project.version}")
+    }
+}
+
+def fileSha256 = { File input ->
+    def digest = MessageDigest.getInstance('SHA-256')
+    input.withInputStream { stream ->
+        byte[] buffer = new byte[64 * 1024]
+        int count
+        while ((count = stream.read(buffer)) >= 0) {
+            if (count > 0) {
+                digest.update(buffer, 0, count)
+            }
+        }
+    }
+    digest.digest().encodeHex().toString()
+}
+
+tasks.register('generatePluginPackManifest') {
+    group = 'distribution'
+    description = 'Validates runtime bundles and writes the plugin-pack manifest.'
+    inputs.files(configurations.yanoExtensionBundles)
+    inputs.property('yanoXVersion', project.version.toString())
+    outputs.file(generatedPackManifest)
+
+    doLast {
+        def expected = runtimeBundleSpecifications.collectEntries { specification ->
+            [(specification.bundleArtifactId.toString()): specification]
+        }
+        def resolved = configurations.yanoExtensionBundles.resolvedConfiguration
+                .resolvedArtifacts.findAll { artifact ->
+            artifact.moduleVersion.id.group == inventory.group
+        }
+        def byArtifactId = resolved.groupBy { artifact ->
+            artifact.moduleVersion.id.name
+        }
+        def failures = []
+        expected.each { artifactId, ignored ->
+            def candidates = byArtifactId[artifactId] ?: []
+            if (candidates.size() != 1) {
+                failures.add("${artifactId} resolved ${candidates.size()} artifacts")
+            }
+        }
+        def unexpected = byArtifactId.keySet().findAll { artifactId ->
+            !expected.containsKey(artifactId)
+        }
+        if (!unexpected.isEmpty()) {
+            failures.add("Unexpected bundle artifacts: ${unexpected.sort()}")
+        }
+        if (!failures.isEmpty()) {
+            throw new GradleException('Yano X bundle resolution failed:\n - '
+                    + failures.join('\n - '))
+        }
+
+        def bundles = expected.collect { artifactId, specification ->
+            def artifact = byArtifactId[artifactId].first()
+            def manifests = []
+            new ZipFile(artifact.file).withCloseable { archive ->
+                archive.entries().findAll { entry ->
+                    entry.name.startsWith('META-INF/yano/plugins/')
+                            && entry.name.endsWith('.json')
+                }.each { entry ->
+                    manifests.add(archive.getInputStream(entry).withCloseable { stream ->
+                        new JsonSlurper().parse(stream)
+                    })
+                }
+            }
+            if (manifests.size() != 1) {
+                throw new GradleException(
+                        "${artifactId} must contain exactly one plugin manifest")
+            }
+            def manifest = manifests.first()
+            if (manifest.id != specification.pluginBundleId
+                    || manifest.version != project.version.toString()) {
+                throw new GradleException(
+                        "${artifactId} plugin identity mismatch: ${manifest}")
+            }
+            [
+                    artifactId: artifactId,
+                    bundleId: specification.pluginBundleId,
+                    version: artifact.moduleVersion.id.version,
+                    file: artifact.file.name,
+                    sha256: fileSha256(artifact.file)
+            ]
+        }.sort { left, right -> left.bundleId <=> right.bundleId }
+
+        def output = generatedPackManifest.get().asFile
+        output.parentFile.mkdirs()
+        output.setText(JsonOutput.prettyPrint(JsonOutput.toJson([
+                schemaVersion: 1,
+                product: 'yano-x',
+                version: project.version.toString(),
+                bundles: bundles
+        ])) + '\n', 'UTF-8')
+    }
+}
+
+tasks.register('yanoXPluginPackZip', Zip) {
+    dependsOn tasks.named('generatePluginPackManifest')
+    group = 'distribution'
+    description = 'Creates the versioned Yano X runtime plugin pack.'
+    archiveFileName = "yano-x-plugin-pack-${packVersion}.zip"
+    destinationDirectory = layout.buildDirectory.dir('distributions')
+    reproducibleFileOrder = true
+    preserveFileTimestamps = false
+
+    into("yano-x-plugin-pack-${packVersion}") {
+        from(generatedPackManifest)
+        from(configurations.yanoExtensionBundles) {
+            into 'plugins'
+        }
+    }
+}
+
+ext.yanoXRuntimeBundleSpecifications = runtimeBundleSpecifications
+ext.yanoXPluginPackManifest = generatedPackManifest
+ext.yanoXFileSha256 = fileSha256
