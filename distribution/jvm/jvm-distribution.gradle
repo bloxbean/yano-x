@@ -1,0 +1,192 @@
+import groovy.json.JsonOutput
+import groovy.json.JsonSlurper
+import java.util.zip.ZipFile
+
+def requestedYanoVersion = providers.gradleProperty('yanoVersion')
+def baseYanoDistribution = providers.gradleProperty('yanoJvmDist').map { file(it) }
+def runtimeBundleSpecifications = project.ext.yanoXRuntimeBundleSpecifications
+def pluginPackManifest = project.ext.yanoXPluginPackManifest
+def fileSha256 = project.ext.yanoXFileSha256
+def distVersion = project.version.toString().replaceAll('-SNAPSHOT', '')
+def distributionRoot = "yano-x-jvm-${distVersion}"
+def generatedDistributionManifest = layout.buildDirectory.file(
+        'generated/distribution/jvm/yano-x-distribution-v1.json')
+
+tasks.register('generateYanoXDistributionManifest') {
+    dependsOn tasks.named('verifyYanoInputs'),
+            tasks.named('generatePluginPackManifest')
+    group = 'distribution'
+    description = 'Writes the JVM-only Yano X distribution identity.'
+    inputs.file(pluginPackManifest)
+    inputs.files(baseYanoDistribution).withPropertyName('yanoJvmDist').optional()
+    inputs.property('yanoVersion', requestedYanoVersion).optional(true)
+    outputs.file(generatedDistributionManifest)
+
+    doLast {
+        def pack = new JsonSlurper().parse(pluginPackManifest.get().asFile)
+        def output = generatedDistributionManifest.get().asFile
+        output.parentFile.mkdirs()
+        output.setText(JsonOutput.prettyPrint(JsonOutput.toJson([
+                schemaVersion: 1,
+                product: 'yano-x',
+                distribution: 'jvm',
+                version: project.version.toString(),
+                yanoVersion: requestedYanoVersion.get(),
+                baseDistributionSha256: fileSha256(baseYanoDistribution.get()),
+                pluginPackManifestSha256: fileSha256(pluginPackManifest.get().asFile),
+                pluginBundleCount: pack.bundles.size(),
+                nativeImageSupported: false
+        ])) + '\n', 'UTF-8')
+    }
+}
+
+def rebaseBaseRoot = { details ->
+    def segments = details.relativePath.segments.toList()
+    if (segments.size() <= 1) {
+        details.exclude()
+    } else {
+        details.relativePath = org.gradle.api.file.RelativePath.parse(
+                details.relativePath.file,
+                "${distributionRoot}/${segments.drop(1).join('/')}")
+    }
+}
+
+tasks.register('yanoXJvmDistZip', Zip) {
+    dependsOn tasks.named('generateYanoXDistributionManifest')
+    group = 'distribution'
+    description = 'Creates the batteries-included Yano X JVM distribution.'
+    archiveFileName = "yano-x-jvm-${distVersion}.zip"
+    destinationDirectory = layout.buildDirectory.dir('distributions')
+    reproducibleFileOrder = true
+    preserveFileTimestamps = false
+
+    from({ zipTree(baseYanoDistribution.get()) }) {
+        eachFile rebaseBaseRoot
+        includeEmptyDirs = false
+        filesMatching(['**/*.sh', '**/bin/*']) {
+            permissions { unix('755') }
+        }
+    }
+    into(distributionRoot) {
+        from(configurations.yanoExtensionBundles) {
+            into 'plugins'
+        }
+        from(pluginPackManifest)
+        from(generatedDistributionManifest)
+    }
+}
+
+tasks.register('verifyYanoXJvmDistribution') {
+    dependsOn tasks.named('yanoXPluginPackZip'),
+            tasks.named('yanoXJvmDistZip')
+    group = 'verification'
+    description = 'Verifies the Yano X plugin pack and JVM-only distribution.'
+    inputs.file(tasks.named('yanoXPluginPackZip', Zip).flatMap { it.archiveFile })
+    inputs.file(tasks.named('yanoXJvmDistZip', Zip).flatMap { it.archiveFile })
+
+    doLast {
+        def pack = new JsonSlurper().parse(pluginPackManifest.get().asFile)
+        def expectedPluginFiles = pack.bundles.collect { bundle ->
+            bundle.file
+        }.toSet()
+        def pluginPack = tasks.named('yanoXPluginPackZip', Zip).get()
+                .archiveFile.get().asFile
+        def packRoot = "yano-x-plugin-pack-${distVersion}"
+        new ZipFile(pluginPack).withCloseable { archive ->
+            def roots = archive.entries().collect { entry ->
+                entry.name.tokenize('/').find()
+            }.findAll { value -> value != null }.toSet()
+            if (roots != [packRoot] as Set) {
+                throw new GradleException(
+                        "Yano X plugin pack has unexpected roots: ${roots.sort()}")
+            }
+            def actualPluginFiles = archive.entries().findAll { entry ->
+                entry.name.startsWith("${packRoot}/plugins/")
+                        && entry.name.endsWith('.jar')
+            }.collect { entry -> entry.name.tokenize('/').last() }
+            if (actualPluginFiles.size() != expectedPluginFiles.size()
+                    || actualPluginFiles.toSet() != expectedPluginFiles) {
+                throw new GradleException(
+                        "Yano X plugin-pack set mismatch: expected=${expectedPluginFiles.sort()}, "
+                                + "actual=${actualPluginFiles.sort()}")
+            }
+            def manifestEntry = archive.getEntry(
+                    "${packRoot}/yano-x-plugin-pack-v1.json")
+            def packagedManifest = manifestEntry == null ? null
+                    : archive.getInputStream(manifestEntry).withCloseable { stream ->
+                        new JsonSlurper().parse(stream)
+                    }
+            if (packagedManifest != pack) {
+                throw new GradleException(
+                        'Yano X plugin-pack manifest is missing or differs from its input')
+            }
+        }
+        def distribution = tasks.named('yanoXJvmDistZip', Zip).get()
+                .archiveFile.get().asFile
+        def root = distributionRoot
+        new ZipFile(distribution).withCloseable { archive ->
+            def roots = archive.entries().collect { entry ->
+                entry.name.tokenize('/').find()
+            }.findAll { value -> value != null }.toSet()
+            if (roots != [root] as Set) {
+                throw new GradleException(
+                        "Yano X distribution has unexpected roots: ${roots.sort()}")
+            }
+            def actualPluginFiles = archive.entries().findAll { entry ->
+                entry.name.startsWith("${root}/plugins/") && entry.name.endsWith('.jar')
+            }.collect { entry -> entry.name.tokenize('/').last() }
+            if (actualPluginFiles.size() != expectedPluginFiles.size()
+                    || actualPluginFiles.toSet() != expectedPluginFiles) {
+                throw new GradleException(
+                        "Yano X plugin set mismatch: expected=${expectedPluginFiles.sort()}, "
+                                + "actual=${actualPluginFiles.sort()}")
+            }
+            def manifestEntry = archive.getEntry(
+                    "${root}/yano-x-distribution-v1.json")
+            if (manifestEntry == null) {
+                throw new GradleException('Yano X distribution manifest is missing')
+            }
+            def manifest = archive.getInputStream(manifestEntry).withCloseable { stream ->
+                new JsonSlurper().parse(stream)
+            }
+            def expectedManifest = [
+                    schemaVersion: 1,
+                    product: 'yano-x',
+                    distribution: 'jvm',
+                    version: project.version.toString(),
+                    yanoVersion: requestedYanoVersion.get(),
+                    baseDistributionSha256: fileSha256(baseYanoDistribution.get()),
+                    pluginPackManifestSha256: fileSha256(pluginPackManifest.get().asFile),
+                    pluginBundleCount: runtimeBundleSpecifications.size(),
+                    nativeImageSupported: false
+            ]
+            if (manifest != expectedManifest) {
+                throw new GradleException(
+                        "Unexpected Yano X distribution contract: ${manifest}")
+            }
+            def packManifestEntry = archive.getEntry(
+                    "${root}/yano-x-plugin-pack-v1.json")
+            def embeddedPack = packManifestEntry == null ? null
+                    : archive.getInputStream(packManifestEntry).withCloseable { stream ->
+                        new JsonSlurper().parse(stream)
+                    }
+            if (embeddedPack != pack) {
+                throw new GradleException(
+                        'Yano X distribution plugin-pack manifest is missing or mismatched')
+            }
+            def nativeEntries = archive.entries().findAll { entry ->
+                entry.name.endsWith('/yano') || entry.name.endsWith('.exe')
+            }
+            if (archive.getEntry("${root}/yano.jar") == null
+                    || !nativeEntries.isEmpty()) {
+                throw new GradleException(
+                        'Yano X JVM distribution is missing yano.jar or contains a native binary')
+            }
+        }
+    }
+}
+
+tasks.named('assemble') {
+    dependsOn tasks.named('yanoXPluginPackZip'),
+            tasks.named('yanoXJvmDistZip')
+}
