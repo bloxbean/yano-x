@@ -6,3 +6,4 @@
 | B | [Plugin seam](030-phase-b-plugin-seam.md) |
 | C | [Published contracts](030-phase-c-published-contracts.md) |
 | D | [Native/JVM distributions](030-phase-d-distributions.md) |
+| E | [History-preserving extraction](030-phase-e-extraction.md) |

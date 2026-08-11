@@ -11,6 +11,18 @@ def distVersion = project.version.toString().replaceAll('-SNAPSHOT', '')
 def distributionRoot = "yano-x-jvm-${distVersion}"
 def generatedDistributionManifest = layout.buildDirectory.file(
         'generated/distribution/jvm/yano-x-distribution-v1.json')
+def devtoolsInstallDirectory = project(':tooling:devtools').layout.buildDirectory.dir(
+        'install/yano-devtools')
+def studioDirectory = project(':tooling:studio').layout.buildDirectory.dir('studio')
+def devtoolsMetadata = project(':tooling:devtools').file(
+        'src/main/resources/appchain-dx/v1alpha1')
+def devtoolsSkill = project(':tooling:devtools').file(
+        'src/main/resources/appchain-dx/v1alpha1/skills/configure-yano-appchain')
+def eutxoZkAcceptance = rootProject.file('ledgers/eutxo-zk/acceptance')
+def evidenceDemoRunnerFile = project(':products:evidence:demo-runner').layout.buildDirectory.file(
+        "libs/yano-x-evidence-demo-runner-${project.version}-all.jar")
+def evidenceDemoArtifactDirectory = layout.buildDirectory.dir(
+        'prepared/evidence-demo-artifacts')
 
 tasks.register('generateYanoXDistributionManifest') {
     dependsOn tasks.named('verifyYanoInputs'),
@@ -52,7 +64,9 @@ def rebaseBaseRoot = { details ->
 }
 
 tasks.register('yanoXJvmDistZip', Zip) {
-    dependsOn tasks.named('generateYanoXDistributionManifest')
+    dependsOn tasks.named('generateYanoXDistributionManifest'),
+            ':tooling:devtools:installDist', ':tooling:studio:prepareStudio',
+            ':products:evidence:demo-runner:shadowJar'
     group = 'distribution'
     description = 'Creates the batteries-included Yano X JVM distribution.'
     archiveFileName = "yano-x-jvm-${distVersion}.zip"
@@ -73,6 +87,124 @@ tasks.register('yanoXJvmDistZip', Zip) {
         }
         from(pluginPackManifest)
         from(generatedDistributionManifest)
+        from(devtoolsInstallDirectory) {
+            into 'tools/yano-appchain'
+            filesMatching(['bin/*']) {
+                permissions { unix('755') }
+            }
+        }
+        from(studioDirectory) {
+            into 'studio'
+        }
+        from(devtoolsSkill) {
+            into 'skills/configure-yano-appchain'
+        }
+        from(devtoolsMetadata) {
+            into 'config/schema'
+            include '*.schema.json', 'appchain-release-acceptance-index.json'
+        }
+        from(eutxoZkAcceptance) {
+            into 'config/schema'
+            include '*.schema.json'
+        }
+        from(eutxoZkAcceptance) {
+            into 'evidence/eutxo-zk'
+            include '*-v1.json'
+            exclude '*.schema.json'
+        }
+        from(rootProject.file('scripts/appchain-cluster')) {
+            into 'examples/appchain-cluster'
+            exclude '.cluster-data/**', '**/*.log'
+            filesMatching(['**/*.sh', '**/*.py']) {
+                permissions { unix('755') }
+            }
+        }
+        from(rootProject.file('products/evidence/harness')) {
+            into 'examples/evidence'
+            exclude '.demo-data/**', '.demo-runtime/**', '.demo-secrets/**',
+                    '**/__pycache__/**', '**/*.pyc', '**/*.log'
+            filesMatching(['**/*.sh', '**/*.py']) {
+                permissions { unix('755') }
+            }
+        }
+        from(evidenceDemoRunnerFile) {
+            into 'examples/evidence'
+            rename { 'runner.jar' }
+        }
+        from(rootProject.file('docs')) {
+            into 'docs'
+            exclude '**/*.pptx', '**/*.pdf'
+        }
+        from(rootProject.file('docker/jvm/entrypoint.sh')) {
+            into 'docker/jvm'
+            filePermissions { unix('755') }
+        }
+    }
+}
+
+tasks.register('prepareEvidenceDemoArtifacts', Sync) {
+    dependsOn tasks.named('verifyYanoInputs'), ':products:evidence:demo-runner:shadowJar',
+            ':connectors:kafka:shadowJar', ':connectors:ipfs:shadowJar',
+            ':connectors:objectstore-s3:shadowJar', ':state-machines:stdlib:shadowJar',
+            ':composition:runtime:shadowJar', ':capabilities:role-workflow:shadowJar',
+            ':products:evidence:registry:shadowJar',
+            ':products:evidence:profile:shadowJar'
+    group = 'distribution'
+    description = 'Stages release-matched artifacts for the source evidence harness.'
+    into evidenceDemoArtifactDirectory
+
+    from(evidenceDemoRunnerFile) {
+        rename { 'runner.jar' }
+    }
+    from(project(':connectors:kafka').layout.buildDirectory.dir('libs')) {
+        include "yano-x-kafka-${project.version}-bundle.jar"
+        into 'plugins'
+    }
+    from(project(':connectors:ipfs').layout.buildDirectory.dir('libs')) {
+        include "yano-x-ipfs-${project.version}-bundle.jar"
+        into 'plugins'
+    }
+    from(project(':connectors:objectstore-s3').layout.buildDirectory.dir('libs')) {
+        include "yano-x-objectstore-s3-${project.version}-bundle.jar"
+        into 'plugins'
+    }
+    from(project(':state-machines:stdlib').layout.buildDirectory.dir('libs')) {
+        include "yano-x-stdlib-${project.version}-bundle.jar"
+        into 'plugins'
+    }
+    from(project(':composition:runtime').layout.buildDirectory.dir('libs')) {
+        include "yano-x-composite-${project.version}-bundle.jar"
+        into 'plugins'
+    }
+    from(project(':capabilities:role-workflow').layout.buildDirectory.dir('libs')) {
+        include "yano-x-role-workflow-${project.version}-bundle.jar"
+        into 'plugins'
+    }
+    from(project(':products:evidence:registry').layout.buildDirectory.dir('libs')) {
+        include "yano-x-evidence-registry-${project.version}-bundle.jar"
+        into 'plugins'
+    }
+    from(project(':products:evidence:profile').layout.buildDirectory.dir('libs')) {
+        include "yano-x-evidence-profile-${project.version}-bundle.jar"
+        into 'plugins'
+    }
+    from({ zipTree(baseYanoDistribution.get()) }) {
+        include '**/yano.jar', '**/config/**'
+        eachFile { details ->
+            def segments = details.relativePath.segments.toList()
+            if (segments.size() <= 1) {
+                details.exclude()
+            } else {
+                details.relativePath = org.gradle.api.file.RelativePath.parse(
+                        details.relativePath.file,
+                        "yano-context/yano/${segments.drop(1).join('/')}")
+            }
+        }
+        includeEmptyDirs = false
+    }
+    from(rootProject.file('docker/jvm/entrypoint.sh')) {
+        into 'yano-context'
+        filePermissions { unix('755') }
     }
 }
 
@@ -173,6 +305,24 @@ tasks.register('verifyYanoXJvmDistribution') {
             if (embeddedPack != pack) {
                 throw new GradleException(
                         'Yano X distribution plugin-pack manifest is missing or mismatched')
+            }
+            [
+                    'tools/yano-appchain/bin/yano-appchain',
+                    'studio/index.html',
+                    'skills/configure-yano-appchain/SKILL.md',
+                    'config/schema/appchain-metadata-trust.schema.json',
+                    'config/schema/eutxo-zk-network-acceptance.schema.json',
+                    'evidence/eutxo-zk/network-acceptance-v1.json',
+                    'examples/appchain-cluster/cluster.sh',
+                    'examples/evidence/demo.sh',
+                    'examples/evidence/runner.jar',
+                    'docs/appchain/README.md',
+                    'docker/jvm/entrypoint.sh'
+            ].each { relativePath ->
+                if (archive.getEntry("${root}/${relativePath}") == null) {
+                    throw new GradleException(
+                            "Yano X distribution is missing ${relativePath}")
+                }
             }
             def nativeEntries = archive.entries().findAll { entry ->
                 entry.name.endsWith('/yano') || entry.name.endsWith('.exe')

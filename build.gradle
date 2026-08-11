@@ -1,10 +1,28 @@
 plugins {
     id 'base'
+    id 'org.unbroken-dome.test-sets' version '4.1.0' apply false
+    id 'io.github.gradle-nexus.publish-plugin' version '2.0.0'
+    id 'com.gradleup.shadow' version '9.4.1' apply false
+}
+
+abstract class CryptoTestLock implements
+        org.gradle.api.services.BuildService<org.gradle.api.services.BuildServiceParameters.None> {
+}
+
+def cryptoTestLock = gradle.sharedServices.registerIfAbsent(
+        'yanoXCryptoTestLock', CryptoTestLock) {
+    maxParallelUsages = 1
 }
 
 def artifactInventoryFile = layout.projectDirectory.file('config/artifacts-v1.json')
 def artifactInventory = new groovy.json.JsonSlurper().parse(
         artifactInventoryFile.asFile)
+def artifactByPath = artifactInventory.artifacts.collectEntries { artifact ->
+    [(artifact.modulePath.toString()): artifact]
+}
+ext.artifactByPath = artifactByPath
+def yanoVersion = providers.gradleProperty('yanoVersion')
+        .getOrElse('unspecified')
 
 def localRepositoryValue = providers.gradleProperty('useMavenLocal')
         .getOrElse('false')
@@ -12,18 +30,262 @@ if (!(localRepositoryValue in ['true', 'false'])) {
     throw new GradleException('useMavenLocal must be true or false')
 }
 def useLocalRepository = Boolean.parseBoolean(localRepositoryValue)
+def internalRepository = providers.gradleProperty('internalRepository')
+def yanoRepository = providers.gradleProperty('yanoRepository')
 
 allprojects {
     group = providers.gradleProperty('group').get()
     version = providers.gradleProperty('version').get()
 
     repositories {
+        if (internalRepository.isPresent()) {
+            maven {
+                name = 'yanoXInternal'
+                url = uri(internalRepository.get())
+            }
+        }
+        if (yanoRepository.isPresent()) {
+            maven {
+                name = 'stagedYano'
+                url = uri(yanoRepository.get())
+            }
+        }
         if (useLocalRepository) {
             mavenLocal()
         }
         mavenCentral()
         maven {
             url = uri('https://central.sonatype.com/repository/maven-snapshots/')
+        }
+    }
+}
+
+ext.yanoModule = { String artifactId ->
+    "${project.group}:${artifactId}:${yanoVersion}"
+}
+
+def standardJavaProjects = subprojects.findAll { candidate ->
+    artifactByPath.containsKey(candidate.path)
+            && candidate.path != ':fixtures:eutxo-e2e'
+}
+
+standardJavaProjects.each { candidate ->
+    candidate.pluginManager.apply('java-library')
+    candidate.pluginManager.apply('maven-publish')
+    candidate.pluginManager.apply('signing')
+    candidate.pluginManager.apply('org.unbroken-dome.test-sets')
+
+    def allocation = artifactByPath[candidate.path]
+    candidate.group = "${rootProject.group}.yano-x-internal.${candidate.path.substring(1).replace(':', '.')}"
+    candidate.dependencies {
+        api candidate.libs.slf4j.api
+
+        compileOnly candidate.libs.lombok
+        annotationProcessor candidate.libs.lombok
+
+        testImplementation candidate.libs.junit.jupiter.api
+        testRuntimeOnly candidate.libs.junit.jupiter.engine
+        testRuntimeOnly candidate.libs.junit.platform.launcher
+        testImplementation candidate.libs.harmcrest.library
+        testImplementation candidate.libs.mockito.inline
+        testImplementation candidate.libs.mockito.junit.jupiter
+        testImplementation candidate.libs.assertj.core
+        testRuntimeOnly candidate.libs.slf4j.reload4j
+
+        testCompileOnly candidate.libs.lombok
+        testAnnotationProcessor candidate.libs.lombok
+    }
+
+    candidate.tasks.named('compileJava') {
+        sourceCompatibility = '25'
+        targetCompatibility = '25'
+        options.compilerArgs += ["-Aproject=${candidate.group}/${candidate.name}"]
+    }
+    candidate.tasks.withType(Test).configureEach {
+        useJUnitPlatform()
+        jvmArgs '--add-opens=java.base/java.lang=ALL-UNNAMED'
+        testLogging {
+            def verbose = rootProject.providers.gradleProperty('verboseTests')
+                    .map { it.toBoolean() }
+                    .getOrElse(false)
+            events(*(verbose
+                    ? ['started', 'passed', 'skipped', 'failed']
+                    : ['skipped', 'failed']))
+            exceptionFormat verbose ? 'full' : 'short'
+            showStandardStreams = verbose
+        }
+    }
+    candidate.tasks.withType(Javadoc).configureEach {
+        options.encoding = 'UTF-8'
+    }
+
+    def sourceJar = candidate.tasks.register('sourceJar', Jar) {
+        archiveClassifier = 'sources'
+        duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+        from candidate.sourceSets.main.allJava
+    }
+    def javadocJar = candidate.tasks.register('javadocJar', Jar) {
+        dependsOn candidate.tasks.named('javadoc')
+        archiveClassifier = 'javadoc'
+        from candidate.tasks.named('javadoc').map { it.destinationDir }
+    }
+
+    candidate.testSets {
+        integrationTest
+        cryptoTest
+        distributionTest
+    }
+    candidate.tasks.named('cryptoTest') {
+        usesService cryptoTestLock
+        maxParallelForks = 1
+    }
+
+    candidate.tasks.named('jar') {
+        archiveBaseName = allocation.artifactId.toString()
+    }
+    candidate.publishing {
+        publications {
+            mavenJava(MavenPublication) {
+                from candidate.components.java
+                groupId = rootProject.group.toString()
+                artifact(sourceJar) {
+                    classifier = 'sources'
+                }
+                artifact(javadocJar) {
+                    classifier = 'javadoc'
+                }
+                artifactId = allocation.artifactId.toString()
+                pom {
+                    name = allocation.artifactId.toString()
+                    description = "Yano X module ${candidate.path}"
+                    url = 'https://github.com/bloxbean/yano-x'
+                    licenses {
+                        license {
+                            name = 'The MIT License'
+                            url = 'https://opensource.org/licenses/mit-license.php'
+                        }
+                    }
+                    developers {
+                        developer {
+                            id = 'satran004'
+                            name = 'Satya'
+                        }
+                    }
+                    scm {
+                        connection = 'scm:git:git://github.com/bloxbean/yano-x.git'
+                        developerConnection = 'scm:git:ssh://git@github.com/bloxbean/yano-x.git'
+                        url = 'https://github.com/bloxbean/yano-x'
+                    }
+                }
+            }
+        }
+        repositories {
+            if (internalRepository.isPresent()) {
+                maven {
+                    name = 'internal'
+                    url = uri(internalRepository.get())
+                }
+            }
+            maven {
+                def releasesRepoUrl =
+                        'https://ossrh-staging-api.central.sonatype.com/service/local/staging/deploy/maven2/'
+                def snapshotsRepoUrl =
+                        'https://central.sonatype.com/repository/maven-snapshots/'
+                url = candidate.version.toString().endsWith('SNAPSHOT')
+                        ? snapshotsRepoUrl : releasesRepoUrl
+                credentials {
+                    username = System.getenv('MAVEN_USERNAME')
+                    password = System.getenv('MAVEN_PASSWORD')
+                }
+            }
+        }
+    }
+
+    if (!candidate.version.toString().endsWith('SNAPSHOT')
+            && !candidate.hasProperty('skipSigning')) {
+        candidate.signing.sign(candidate.publishing.publications)
+    }
+
+    candidate.tasks.matching { it.name == 'processResources' }.configureEach {
+        def pluginManifestVersion = candidate.version.toString()
+        inputs.property('pluginManifestVersion', pluginManifestVersion)
+        filesMatching('META-INF/yano/plugins/*.json') {
+            filter { line ->
+                line.replace('${pluginVersion}', pluginManifestVersion)
+            }
+        }
+    }
+}
+
+def adr013ReleaseScopes = [
+        runner: ':products:evidence:demo-runner',
+        'bundle-kafka': ':connectors:kafka',
+        'bundle-objectstore-s3': ':connectors:objectstore-s3',
+        'bundle-ipfs': ':connectors:ipfs',
+        'bundle-evidence-registry': ':products:evidence:registry',
+        'bundle-effects-cardano': ':connectors:effects-cardano',
+        'bundle-zk': ':state-machines:zk'
+]
+
+tasks.register('verifyAdr013JacksonAlignment') {
+    group = 'verification'
+    description = 'Rejects mixed Jackson versions in Yano X release closures.'
+    doLast {
+        def expectedPatchVersion = libs.versions.jackson.get()
+        def expectedAnnotationsVersion =
+                expectedPatchVersion.replaceFirst(/\.\d+$/, '')
+        def failures = []
+        adr013ReleaseScopes.each { scope, projectPath ->
+            project(projectPath).configurations.runtimeClasspath.incoming
+                    .resolutionResult.allComponents.findAll { component ->
+                component.id instanceof
+                        org.gradle.api.artifacts.component.ModuleComponentIdentifier
+                        && (component.id.group == 'com.fasterxml.jackson'
+                        || component.id.group.startsWith('com.fasterxml.jackson.'))
+            }.each { component ->
+                def id = component.id as
+                        org.gradle.api.artifacts.component.ModuleComponentIdentifier
+                def expected = id.module == 'jackson-annotations'
+                        ? expectedAnnotationsVersion : expectedPatchVersion
+                if (id.version != expected) {
+                    failures.add(
+                            "${scope} resolves ${id.group}:${id.module}:${id.version}; expected ${expected}")
+                }
+            }
+        }
+        if (!failures.isEmpty()) {
+            throw new GradleException('Jackson alignment failed:\n - '
+                    + failures.join('\n - '))
+        }
+    }
+}
+
+tasks.register('verifyAdr013Slf4jAlignment') {
+    group = 'verification'
+    description = 'Rejects mixed SLF4J APIs/providers in Yano X release closures.'
+    doLast {
+        def expectedVersion =
+                libs.slf4j.api.get().versionConstraint.requiredVersion
+        def failures = []
+        adr013ReleaseScopes.each { scope, projectPath ->
+            def modules = project(projectPath).configurations.runtimeClasspath.incoming
+                    .resolutionResult.allComponents.findAll { component ->
+                component.id instanceof
+                        org.gradle.api.artifacts.component.ModuleComponentIdentifier
+                        && component.id.group == 'org.slf4j'
+            }.collect { component ->
+                def id = component.id as
+                        org.gradle.api.artifacts.component.ModuleComponentIdentifier
+                [module: "${id.group}:${id.module}", version: id.version]
+            }
+            if ((modules*.module as Set) != ['org.slf4j:slf4j-api'] as Set
+                    || modules.any { it.version != expectedVersion }) {
+                failures.add("${scope} SLF4J inventory is ${modules}")
+            }
+        }
+        if (!failures.isEmpty()) {
+            throw new GradleException('SLF4J alignment failed:\n - '
+                    + failures.join('\n - '))
         }
     }
 }
@@ -57,14 +319,19 @@ tasks.register('verifyArtifactInventory') {
                 directory: artifacts*.directory,
                 artifactId: artifacts*.artifactId
         ].each { label, values ->
-            def duplicates = values.countBy { it }.findAll { ignored, count -> count > 1 }.keySet()
+            def duplicates = values.countBy { it }
+                    .findAll { ignored, count -> count > 1 }.keySet()
             if (!duplicates.isEmpty()) {
                 failures.add("Duplicate ${label}: ${duplicates.sort()}")
             }
         }
         artifacts.each { artifact ->
-            if (!artifact.modulePath?.startsWith(':')
-                    || !artifact.artifactId?.startsWith('yano-x-')) {
+            def candidate = findProject(artifact.modulePath.toString())
+            if (candidate == null
+                    || candidate.projectDir != file(artifact.directory.toString())) {
+                failures.add("Missing or misplaced Yano X project: ${artifact}")
+            }
+            if (!artifact.artifactId?.startsWith('yano-x-')) {
                 failures.add("Invalid Yano X artifact identity: ${artifact}")
             }
             if (artifact.publicationType == 'runtime-plugin') {
@@ -77,12 +344,26 @@ tasks.register('verifyArtifactInventory') {
                 failures.add("Non-runtime artifact declares a bundle identity: ${artifact}")
             }
         }
+        def infrastructure = [':bom', ':distribution', ':distribution:jvm'] as Set
+        artifactByPath.keySet().each { modulePath ->
+            def segments = modulePath.substring(1).tokenize(':')
+            (1..<segments.size()).each { count ->
+                infrastructure.add(':' + segments.take(count).join(':'))
+            }
+        }
+        def unexpectedProjects = subprojects*.path.findAll {
+            !(it in infrastructure) && !artifactByPath.containsKey(it)
+        }
+        if (!unexpectedProjects.isEmpty()) {
+            failures.add("Unallocated Yano X projects: ${unexpectedProjects.sort()}")
+        }
         if (!failures.isEmpty()) {
             throw new GradleException('Yano X artifact inventory failed:\n - '
                     + failures.join('\n - '))
         }
         logger.lifecycle('Yano X artifact inventory verified: {} artifacts, {} runtime bundles',
-                artifacts.size(), artifacts.count { it.publicationType == 'runtime-plugin' })
+                artifacts.size(),
+                artifacts.count { it.publicationType == 'runtime-plugin' })
     }
 }
 
@@ -102,10 +383,122 @@ tasks.register('verifyJvmOnlyBuild') {
             throw new GradleException(
                     "Yano X is JVM-only but native release tasks exist: ${forbidden.sort()}")
         }
+
+        def metadataDirectory = file(
+                'tooling/devtools/src/main/resources/appchain-dx/v1alpha1')
+        def parser = new groovy.json.JsonSlurper()
+        def capabilityCatalog = parser.parse(
+                new File(metadataDirectory, 'appchain-capability-catalog.json'))
+        def recipeCatalog = parser.parse(
+                new File(metadataDirectory, 'appchain-recipe-catalog.json'))
+        def releaseIndex = parser.parse(
+                new File(metadataDirectory, 'appchain-release-capability-index.json'))
+        def invalidEntries = []
+        capabilityCatalog.artifacts.findAll { it.id != 'yano-runtime' }.each { entry ->
+            if (entry.runtimeTypes != ['jvm'] || entry.nativePosture != 'unsupported') {
+                invalidEntries.add("artifact:${entry.id}")
+            }
+        }
+        capabilityCatalog.capabilities.findAll { entry ->
+            entry.artifacts.any { it.toString().startsWith('yano-x-') }
+        }.each { entry ->
+            if (entry.runtimeTypes != ['jvm'] || entry.nativePosture != 'unsupported') {
+                invalidEntries.add("capability:${entry.id}")
+            }
+        }
+        recipeCatalog.recipes.findAll { entry ->
+            entry.artifacts.any { it.toString().startsWith('yano-x-') }
+        }.each { entry ->
+            if (entry.runtimeTypes != ['jvm'] || entry.nativePosture != 'unsupported') {
+                invalidEntries.add("recipe:${entry.id}")
+            }
+        }
+        if (releaseIndex.runtimeTypes != ['jvm']
+                || releaseIndex.distributions*.runtimeType != ['jvm']
+                || !invalidEntries.isEmpty()) {
+            throw new GradleException(
+                    'Yano X metadata advertises a native extension/release path: '
+                            + invalidEntries.sort())
+        }
+    }
+}
+
+tasks.register('verifySourceExtractionProvenance') {
+    group = 'verification'
+    description = 'Validates the immutable Yano-to-Yano-X extraction mapping.'
+    def provenanceFile = layout.projectDirectory.file('config/source-extraction-v1.json')
+    inputs.file(provenanceFile)
+    doLast {
+        def provenance = new groovy.json.JsonSlurper().parse(provenanceFile.asFile)
+        def commit = ~/[0-9a-f]{40}/
+        if (provenance.schemaVersion != 1
+                || provenance.sourceRepository != 'https://github.com/bloxbean/yano'
+                || !(provenance.sourceCommit ==~ commit)
+                || !(provenance.filteredCommit ==~ commit)
+                || provenance.movedModuleCount != artifactInventory.artifacts.size()
+                || provenance.extractionTool != 'git-filter-repo') {
+            throw new GradleException(
+                    "Invalid source extraction provenance: ${provenance}")
+        }
+    }
+}
+
+gradle.projectsEvaluated {
+    artifactInventory.artifacts.findAll {
+        it.publicationType == 'runtime-plugin'
+    }.each { specification ->
+        def pluginProject = project(specification.modulePath.toString())
+        def shadowJar = pluginProject.tasks.named('shadowJar')
+        pluginProject.components.java.withVariantsFromConfiguration(
+                pluginProject.configurations.shadowRuntimeElements) {
+            skip()
+        }
+        def mainPublication = pluginProject.publishing.publications
+                .findByName('mavenJava') as MavenPublication
+        if (mainPublication == null) {
+            throw new GradleException(
+                    "Runtime plugin ${pluginProject.path} has no thin publication")
+        }
+        mainPublication.artifacts.findAll { artifact ->
+            artifact.classifier == 'bundle'
+        }.each { artifact -> mainPublication.artifacts.remove(artifact) }
+
+        def bundlePublication = pluginProject.publishing.publications
+                .create('pluginBundle', MavenPublication) {
+            groupId = rootProject.group.toString()
+            artifactId = specification.bundleArtifactId.toString()
+            artifact(shadowJar) {
+                classifier = null
+            }
+            pom {
+                name = "${specification.artifactId} deployable plugin bundle"
+                description =
+                        "Dependency-complete Yano X bundle for ${specification.pluginBundleId}"
+                url = 'https://github.com/bloxbean/yano-x'
+                licenses {
+                    license {
+                        name = 'The MIT License'
+                        url = 'https://opensource.org/licenses/mit-license.php'
+                    }
+                }
+                scm {
+                    connection = 'scm:git:git://github.com/bloxbean/yano-x.git'
+                    developerConnection = 'scm:git:ssh://git@github.com/bloxbean/yano-x.git'
+                    url = 'https://github.com/bloxbean/yano-x'
+                }
+            }
+        }
+        if (!pluginProject.version.toString().endsWith('SNAPSHOT')
+                && !pluginProject.hasProperty('skipSigning')) {
+            pluginProject.signing.sign(bundlePublication)
+        }
     }
 }
 
 tasks.named('check') {
     dependsOn tasks.named('verifyArtifactInventory'),
-            tasks.named('verifyJvmOnlyBuild')
+            tasks.named('verifyJvmOnlyBuild'),
+            tasks.named('verifySourceExtractionProvenance'),
+            tasks.named('verifyAdr013JacksonAlignment'),
+            tasks.named('verifyAdr013Slf4jAlignment')
 }

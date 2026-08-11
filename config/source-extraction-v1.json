@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "sourceRepository": "https://github.com/bloxbean/yano",
+  "sourceCommit": "162558945b3529619e6cda19cb6a10da9c029637",
+  "sourceTag": "adr-030-pre-extraction-20260811",
+  "sourceRecoveryBranch": "recovery/adr-030-pre-extraction",
+  "sourceAllocationManifest": "config/repository-split/allocation-v1.json",
+  "extractionTool": "git-filter-repo",
+  "filteredCommit": "1008faded33b743cee94a895ed88c354d954a1a3",
+  "importedHistoryRef": "history/adr030-yano-source",
+  "movedModuleCount": 52,
+  "cutoverCopiesSourceCommit": "162558945b3529619e6cda19cb6a10da9c029637"
+}

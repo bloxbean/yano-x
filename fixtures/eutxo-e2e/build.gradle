@@ -1,0 +1,68 @@
+plugins {
+    id 'io.quarkus' version "${quarkusPluginVersion}"
+}
+
+dependencies {
+    implementation enforcedPlatform(
+            "${quarkusPlatformGroupId}:${quarkusPlatformArtifactId}:${quarkusPlatformVersion}")
+    implementation rootProject.ext.yanoModule('yano-runtime')
+    testImplementation rootProject.ext.yanoModule('yano-plugin-catalog')
+    testImplementation rootProject.ext.yanoModule('yano-app-e2e-testkit')
+    testImplementation project(':composition:runtime')
+    testImplementation project(':products:evidence:profile')
+    testImplementation project(':ledgers:eutxo:client')
+    testImplementation project(':ledgers:eutxo:bridge-onchain')
+    testImplementation project(':ledgers:eutxo:demo')
+    testImplementation project(':ledgers:eutxo:testkit')
+    testImplementation project(':ledgers:eutxo-zk:onchain')
+    testImplementation project(':ledgers:eutxo-zk:zeroj')
+    testImplementation libs.cardano.client.lib
+    testImplementation libs.cardano.client.backend.blockfrost
+    testImplementation libs.cardano.client.quicktx
+    testImplementation libs.cardano.client.cip20
+    testImplementation libs.zeroj.circuit.lib
+    testImplementation libs.zeroj.onchain.julc
+    testImplementation "com.bloxbean.cardano:julc-stdlib:${libs.versions.julc.get()}"
+    testImplementation "com.bloxbean.cardano:julc-ledger-api:${libs.versions.julc.get()}"
+    testImplementation "com.bloxbean.cardano:julc-testkit:${libs.versions.julc.get()}"
+    testImplementation "com.bloxbean.cardano:julc-compiler:${libs.versions.julc.get()}"
+    testImplementation libs.julc.cardano.client.lib
+    testImplementation libs.scalus.bloxbean.ccl
+    testImplementation libs.scalus.cardano.ledger
+    testImplementation libs.scala3.library
+    testRuntimeOnly "com.bloxbean.cardano:julc-vm-java:${libs.versions.julc.get()}"
+    testImplementation 'io.quarkus:quarkus-junit'
+    testImplementation libs.junit.jupiter.api
+    testRuntimeOnly libs.junit.jupiter.engine
+    testRuntimeOnly libs.junit.platform.launcher
+}
+
+java {
+    sourceCompatibility = 25
+    targetCompatibility = 25
+}
+
+tasks.named('compileTestJava') {
+    options.compilerArgs.removeAll { it.startsWith('-Aproject=') }
+}
+
+tasks.named('test') {
+    systemProperty 'yano.e2e.sourceRoot', rootProject.projectDir.absolutePath
+    useJUnitPlatform {
+        excludeTags 'e2e'
+    }
+}
+
+tasks.register('e2eTest', Test) {
+    useJUnitPlatform {
+        includeTags 'e2e'
+    }
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    maxHeapSize = '4g'
+    systemProperty 'zeroj.allowInsecureTrustedSetup', 'true'
+    systemProperty 'yano.e2e.sourceRoot', rootProject.projectDir.absolutePath
+    if (System.getProperty('yano.e2e.baseUrl') != null) {
+        systemProperty 'yano.e2e.baseUrl', System.getProperty('yano.e2e.baseUrl')
+    }
+}

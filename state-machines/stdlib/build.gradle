@@ -1,0 +1,37 @@
+ext.runtimePluginBundleId = 'com.bloxbean.cardano.yano.appchain.stdlib'
+ext.runtimePluginExcludedBundleIds = [
+        'com.bloxbean.cardano.yano.appchain.composite',
+        'com.bloxbean.cardano.yano.appchain.role-workflow'
+]
+apply from: rootProject.file('gradle/runtime-plugin-bundle.gradle')
+
+dependencies {
+    api rootProject.ext.yanoModule('yano-core-api')
+    api project(':state-machines:stdlib-contracts')
+    api project(':composition:runtime')
+    api project(':capabilities:role-workflow')
+    implementation rootProject.ext.yanoModule('yano-appchain-config')
+
+    implementation libs.cbor
+    implementation libs.cardano.client.crypto
+    implementation libs.slf4j.api
+
+    testImplementation rootProject.ext.yanoModule('yano-runtime')
+    testImplementation project(':sdk:client')
+}
+
+java {
+    sourceCompatibility = 25
+    targetCompatibility = 25
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Yano App-Chain Standard Library'
+                description = 'Ready-to-use app-chain state machines (kv-registry, approvals, ...) for Yano'
+            }
+        }
+    }
+}

@@ -1,0 +1,49 @@
+plugins {
+    id 'base'
+    id 'com.github.node-gradle.node' version '7.1.0'
+}
+
+node {
+    version = '22.12.0'
+    download = true
+}
+
+def studioOutput = layout.buildDirectory.dir('studio')
+def metadataRoot = project(':tooling:devtools').file(
+        'src/main/resources/appchain-dx/v1alpha1')
+
+tasks.register('prepareStudio', Sync) {
+    from('src/main/web')
+    from(metadataRoot) {
+        into 'assets'
+        include 'appchain-blueprint.schema.json',
+                'appchain-capability-catalog.json',
+                'appchain-recipe-catalog.json',
+                'appchain-release-capability-index.json',
+                'appchain-release-acceptance-index.json'
+        filesMatching('appchain-release-capability-index.json') {
+            expand(yanoVersion: project.version.toString())
+        }
+    }
+    into studioOutput
+}
+
+tasks.register('studioZip', Zip) {
+    dependsOn tasks.named('prepareStudio')
+    archiveFileName = "yano-x-studio-${project.version}.zip"
+    destinationDirectory = layout.buildDirectory.dir('distributions')
+    from(studioOutput)
+}
+
+tasks.register('testStudio', NodeTask) {
+    options = ['--test']
+    script = file('src/test/studio.test.mjs')
+}
+
+tasks.named('assemble') {
+    dependsOn tasks.named('studioZip')
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('testStudio')
+}

@@ -41,3 +41,17 @@ plugin directory is supported.
 `mavenLocal()` is disabled unless `useMavenLocal=true`. A missing ZIP, a ZIP
 whose root build identity differs from `yanoVersion`, or Maven artifacts from
 another Yano version fail verification.
+
+CI stages Yano X's own publications in an empty, build-scoped Maven repository
+using `-PinternalRepository=<path>`. This exercises published POM and bundle
+coordinates without depending on global Maven Local state. Set
+`-PyanoRepository=<URL-or-path>` when the requested Yano version is in a staging
+repository rather than Maven Central; this read-only input is distinct from the
+build-scoped Yano X publication repository.
+
+See [Build and test](docs/BUILD_AND_TEST.md),
+[distributions](docs/BUILD_DISTRIBUTIONS.md), and the
+[app-chain documentation index](docs/appchain/README.md) for the independent
+Yano X workflows. The Java package namespace remains
+`com.bloxbean.cardano.yano.appchain.*`; the repository split does not rename
+the app-chain technical domain.

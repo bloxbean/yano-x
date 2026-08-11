@@ -1,0 +1,61 @@
+plugins {
+    id 'java-library'
+}
+
+dependencies {
+    api project(':sdk:client')
+    api project(':ledgers:eutxo:contracts')
+    implementation project(':ledgers:eutxo:client')
+    implementation project(':ledgers:eutxo:bridge-cardano')
+    // Deploy tooling: bundled unparameterized validator artifacts (resources
+    // only — validator classes are never loaded) + julc param application.
+    implementation project(':ledgers:eutxo:bridge-onchain')
+    implementation rootProject.ext.yanoModule('yano-appchain-anchor-onchain')
+    implementation "com.bloxbean.cardano:julc-cardano-client-lib:${libs.versions.julc.get()}"
+    implementation libs.cardano.client.backend.blockfrost
+    implementation libs.cardano.client.quicktx
+    implementation libs.cardano.client.core
+    implementation libs.cardano.client.crypto
+    implementation libs.jackson.databind
+    implementation libs.jackson.dataformat.yaml
+
+    testImplementation libs.junit.jupiter.api
+    testRuntimeOnly libs.junit.jupiter.engine
+    testRuntimeOnly libs.junit.platform.launcher
+    testImplementation libs.assertj.core
+}
+
+java {
+    sourceCompatibility = 25
+    targetCompatibility = 25
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Yano App-Chain EUTxO Demo'
+                description = 'Safe, resumable demo orchestration for Yano EUTxO scenarios'
+            }
+        }
+    }
+}
+
+tasks.register('verifyNoZerojDependency') {
+    group = 'verification'
+    doLast {
+        def forbidden = configurations.runtimeClasspath.resolvedConfiguration
+                .resolvedArtifacts.findAll {
+                    it.moduleVersion.id.group.contains('zeroj')
+                            || it.name.contains('eutxo-zk')
+                }
+        if (!forbidden.isEmpty()) {
+            throw new GradleException(
+                    "Base EUTxO demo must not load ZK artifacts: ${forbidden}")
+        }
+    }
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('verifyNoZerojDependency')
+}
