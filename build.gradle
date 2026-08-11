@@ -1,0 +1,32 @@
+plugins {
+    id 'base'
+}
+
+def localRepositoryValue = providers.gradleProperty('useMavenLocal')
+        .getOrElse('false')
+if (!(localRepositoryValue in ['true', 'false'])) {
+    throw new GradleException('useMavenLocal must be true or false')
+}
+def useLocalRepository = Boolean.parseBoolean(localRepositoryValue)
+
+allprojects {
+    group = providers.gradleProperty('group').get()
+    version = providers.gradleProperty('version').get()
+
+    repositories {
+        if (useLocalRepository) {
+            mavenLocal()
+        }
+        mavenCentral()
+        maven {
+            url = uri('https://central.sonatype.com/repository/maven-snapshots/')
+        }
+    }
+}
+
+tasks.register('verifyPublishedContracts') {
+    group = 'verification'
+    description = 'Verifies Yano Maven alignment and the explicit JVM distribution identity.'
+    dependsOn ':bom:generatePomFileForMavenJavaPublication',
+            ':distribution:jvm:verifyYanoInputs'
+}
