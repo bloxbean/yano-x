@@ -1,0 +1,143 @@
+import groovy.json.JsonOutput
+import java.security.MessageDigest
+import java.util.jar.JarInputStream
+import java.util.zip.ZipFile
+
+plugins {
+    id 'base'
+}
+
+description = 'Yano X JVM distribution assembly boundary'
+
+def yanoVersion = providers.gradleProperty('yanoVersion')
+def yanoJvmDist = providers.gradleProperty('yanoJvmDist').map { file(it) }
+
+configurations {
+    yanoHostRuntime {
+        canBeConsumed = false
+        canBeResolved = true
+        description = 'Published Yano host artifacts aligned by yano-bom'
+    }
+}
+
+dependencies {
+    yanoHostRuntime platform(
+            "com.bloxbean.cardano:yano-bom:${yanoVersion.getOrElse('unspecified')}")
+    yanoHostRuntime 'com.bloxbean.cardano:yano-core-api'
+    yanoHostRuntime 'com.bloxbean.cardano:yano-runtime'
+    yanoHostRuntime 'com.bloxbean.cardano:yano-appchain-config'
+    yanoHostRuntime 'com.bloxbean.cardano:yano-appchain-proof-verifier'
+}
+
+tasks.register('verifyYanoInputs') {
+    group = 'verification'
+    description = 'Rejects mismatched Yano Maven artifacts and JVM ZIP build identities.'
+    inputs.property('yanoVersion', yanoVersion).optional(true)
+    inputs.files(yanoJvmDist).withPropertyName('yanoJvmDist').optional()
+    def report = layout.buildDirectory.file('reports/yano-inputs.json')
+    outputs.file(report)
+
+    doLast {
+        if (!yanoVersion.isPresent()) {
+            throw new GradleException('yanoVersion is required')
+        }
+        if (!yanoJvmDist.isPresent()) {
+            throw new GradleException('yanoJvmDist is required')
+        }
+        def expectedVersion = yanoVersion.get()
+        def distribution = yanoJvmDist.get()
+        if (!distribution.isFile()) {
+            throw new GradleException("yanoJvmDist is not a file: ${distribution}")
+        }
+
+        def yanoComponents = configurations.yanoHostRuntime.incoming
+                .resolutionResult.allComponents.findAll { component ->
+                    component.id instanceof
+                            org.gradle.api.artifacts.component.ModuleComponentIdentifier
+                            && component.id.group == 'com.bloxbean.cardano'
+                            && component.id.module.startsWith('yano-')
+                }.collect { component ->
+                    def id = component.id as
+                            org.gradle.api.artifacts.component.ModuleComponentIdentifier
+                    [module: id.module, version: id.version]
+                }.sort { left, right -> left.module <=> right.module }
+        def mismatched = yanoComponents.findAll {
+            it.version != expectedVersion
+        }
+        if (!mismatched.isEmpty()) {
+            throw new GradleException(
+                    "Resolved Yano artifacts do not match ${expectedVersion}: ${mismatched}")
+        }
+        def requiredModules = [
+                'yano-bom',
+                'yano-core-api',
+                'yano-runtime',
+                'yano-appchain-config',
+                'yano-appchain-proof-verifier'
+        ] as Set
+        def missingModules = requiredModules - (yanoComponents*.module as Set)
+        if (!missingModules.isEmpty()) {
+            throw new GradleException(
+                    "Required Yano artifacts were not resolved: ${missingModules.sort()}")
+        }
+
+        def distributionVersion = expectedVersion.endsWith('-SNAPSHOT')
+                ? expectedVersion.substring(
+                        0, expectedVersion.length() - '-SNAPSHOT'.length())
+                : expectedVersion
+        def expectedRoot = "yano-${distributionVersion}"
+        def roots
+        def implementationVersion
+        new ZipFile(distribution).withCloseable { archive ->
+            roots = archive.entries().collect { entry ->
+                entry.name.tokenize('/').find()
+            }.findAll { it != null }.toSet()
+            if (roots != [expectedRoot] as Set) {
+                throw new GradleException(
+                        "yanoJvmDist root ${roots.sort()} does not match ${expectedRoot}")
+            }
+            def runtimeEntry = archive.getEntry("${expectedRoot}/yano.jar")
+            if (runtimeEntry == null) {
+                throw new GradleException(
+                        "yanoJvmDist does not contain ${expectedRoot}/yano.jar")
+            }
+            new JarInputStream(archive.getInputStream(runtimeEntry)).withCloseable { runtimeJar ->
+                implementationVersion = runtimeJar.manifest?.mainAttributes
+                        ?.getValue('Implementation-Version')
+            }
+        }
+        if (implementationVersion != expectedVersion) {
+            throw new GradleException(
+                    "yano.jar Implementation-Version ${implementationVersion} "
+                            + "does not match ${expectedVersion}")
+        }
+
+        def digest = MessageDigest.getInstance('SHA-256')
+        distribution.withInputStream { stream ->
+            byte[] buffer = new byte[64 * 1024]
+            int count
+            while ((count = stream.read(buffer)) >= 0) {
+                if (count > 0) {
+                    digest.update(buffer, 0, count)
+                }
+            }
+        }
+        def body = [
+                schemaVersion: 1,
+                yanoVersion: expectedVersion,
+                distributionRoot: expectedRoot,
+                distributionImplementationVersion: implementationVersion,
+                distributionSha256: digest.digest().encodeHex().toString(),
+                resolvedArtifacts: yanoComponents
+        ]
+        def output = report.get().asFile
+        output.parentFile.mkdirs()
+        output.setText(JsonOutput.prettyPrint(JsonOutput.toJson(body)) + '\n', 'UTF-8')
+        logger.lifecycle('Verified Yano {} against {} published artifacts and JVM ZIP {}',
+                expectedVersion, yanoComponents.size(), distribution.name)
+    }
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('verifyYanoInputs')
+}

@@ -1,0 +1,55 @@
+plugins {
+    id 'java-platform'
+    id 'maven-publish'
+}
+
+description = 'Version alignment platform for Yano X extensions and their Yano host'
+
+def yanoVersion = providers.gradleProperty('yanoVersion')
+
+javaPlatform {
+    allowDependencies()
+}
+
+dependencies {
+    api platform("com.bloxbean.cardano:yano-bom:${yanoVersion.getOrElse('unspecified')}")
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            artifactId = 'yano-x-bom'
+            from components.javaPlatform
+            pom {
+                name = 'Yano X BOM'
+                description = 'Version alignment for the Yano X JVM extension ecosystem'
+                url = 'https://github.com/bloxbean/yano-x'
+                licenses {
+                    license {
+                        name = 'The MIT License'
+                        url = 'https://opensource.org/licenses/mit-license.php'
+                    }
+                }
+                developers {
+                    developer {
+                        id = 'satran004'
+                        name = 'Satya'
+                    }
+                }
+                scm {
+                    connection = 'scm:git:git://github.com/bloxbean/yano-x.git'
+                    developerConnection = 'scm:git:ssh://git@github.com/bloxbean/yano-x.git'
+                    url = 'https://github.com/bloxbean/yano-x'
+                }
+            }
+        }
+    }
+}
+
+tasks.named('generatePomFileForMavenJavaPublication') {
+    doFirst {
+        if (!yanoVersion.isPresent()) {
+            throw new GradleException('yanoVersion is required')
+        }
+    }
+}
