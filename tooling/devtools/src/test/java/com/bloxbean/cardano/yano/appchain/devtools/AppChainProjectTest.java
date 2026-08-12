@@ -422,7 +422,7 @@ class AppChainProjectTest {
                         "0.1.0-pre10")
                 .containsEntry(
                         "yano.app-chain.chains[0].machines.eutxo.validity.julc-version",
-                        "0.1.0-pre14")
+                        "0.1.0-pre16")
                 .containsEntry(
                         "yano.app-chain.chains[0].machines.eutxo.validity."
                                 + "authorization-profile",

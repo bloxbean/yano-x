@@ -395,7 +395,7 @@
       "nativePosture": "unsupported",
       "externalPrerequisites": [
         "zeroj-0.1.0-pre10",
-        "julc-0.1.0-pre14",
+        "julc-0.1.0-pre16",
         "development-ceremony-bundle"
       ],
       "bootstrapRequirements": [
@@ -454,7 +454,7 @@
       "nativePosture": "unsupported",
       "externalPrerequisites": [
         "zeroj-0.1.0-pre10",
-        "julc-0.1.0-pre14",
+        "julc-0.1.0-pre16",
         "funded-testnet-operator-key-for-live-L1-operations"
       ],
       "bootstrapRequirements": [

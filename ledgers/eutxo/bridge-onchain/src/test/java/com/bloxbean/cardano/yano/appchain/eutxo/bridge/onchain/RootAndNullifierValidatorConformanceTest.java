@@ -15,6 +15,10 @@ import com.bloxbean.cardano.julc.ledger.TxOut;
 import com.bloxbean.cardano.julc.ledger.TxOutRef;
 import com.bloxbean.cardano.julc.ledger.Value;
 import com.bloxbean.cardano.julc.testkit.ContractTest;
+import com.bloxbean.cardano.julc.vm.EvalOptions;
+import com.bloxbean.cardano.julc.vm.EvalResult;
+import com.bloxbean.cardano.julc.vm.LedgerEvaluationTarget;
+import com.bloxbean.cardano.julc.vm.PlutusLanguage;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -24,6 +28,8 @@ import java.util.List;
 import java.util.Optional;
 
 class RootAndNullifierValidatorConformanceTest extends ContractTest {
+    private static final LedgerEvaluationTarget PV11_TARGET =
+            LedgerEvaluationTarget.pv11(PlutusLanguage.PLUTUS_V3);
     private static final byte[] ROOT_POLICY = fill(28, 41);
     private static final byte[] NULLIFIER_POLICY = fill(28, 42);
     private static final byte[] ROOT_SCRIPT = fill(28, 43);
@@ -37,6 +43,19 @@ class RootAndNullifierValidatorConformanceTest extends ContractTest {
     @BeforeAll
     static void crypto() {
         initCrypto();
+    }
+
+    @Override
+    protected EvalResult evaluate(Program program, PlutusData... args) {
+        if (args.length == 0) {
+            return vm().evaluate(program, PV11_TARGET);
+        }
+        return vm().evaluateWithArgs(
+                program,
+                PV11_TARGET,
+                List.of(args),
+                null,
+                EvalOptions.DEFAULT);
     }
 
     @Test

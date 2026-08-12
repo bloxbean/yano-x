@@ -1144,7 +1144,7 @@
       "nativePosture": "unsupported",
       "externalPrerequisites": [
         "zeroj-0.1.0-pre10",
-        "julc-0.1.0-pre14",
+        "julc-0.1.0-pre16",
         "development-or-reviewed-ceremony-bundle",
         "deployed-pinned-validity-root-vault-and-data-availability-contracts"
       ],
@@ -1174,7 +1174,7 @@
         "machines.eutxo.validity.proof-system": "groth16",
         "machines.eutxo.validity.curve": "bls12-381",
         "machines.eutxo.validity.zeroj-version": "0.1.0-pre10",
-        "machines.eutxo.validity.julc-version": "0.1.0-pre14",
+        "machines.eutxo.validity.julc-version": "0.1.0-pre16",
         "machines.eutxo.validity.authorization-profile": "zeroj-jubjub-dev-v1",
         "machines.eutxo.validity.authorization-profile-digest": "d4d23eb620057fa280616f8e117aa7b38f7895fc3be2626566a3fd06444cb035",
         "machines.eutxo.validity.authorization-trusted-prover-required": "true",

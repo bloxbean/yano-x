@@ -165,6 +165,19 @@ tasks.register('finalDistributionStockOutcomeAcceptance', Exec) {
     }
 }
 
+tasks.register('finalDistributionPluginCatalogAcceptance', Exec) {
+    group = 'verification'
+    description = 'Matches packaged Maven bundles to the directory-loaded JVM catalog.'
+    dependsOn finalYanoZip
+    inputs.file(finalYanoZip.flatMap { it.archiveFile })
+            .withPropertyName('yanoXJvmDist')
+    doFirst {
+        commandLine 'bash', file(
+                'src/test/scripts/final-distribution-plugin-catalog-acceptance.sh'),
+                finalYanoZip.get().archiveFile.get().asFile
+    }
+}
+
 tasks.register('verifySmallRyeConfigRuntimeParity') {
     group = 'verification'
     description = 'Verifies the devtools and Quarkus runtime select the same SmallRye Config engine'
@@ -334,5 +347,6 @@ tasks.register('appChainReleaseCandidateJvmAcceptance') {
     dependsOn tasks.named('appChainReleaseCandidateStaticCheck'),
             tasks.named('distributionTest'),
             tasks.named('finalDistributionRuntimeAcceptance'),
-            tasks.named('finalDistributionStockOutcomeAcceptance')
+            tasks.named('finalDistributionStockOutcomeAcceptance'),
+            tasks.named('finalDistributionPluginCatalogAcceptance')
 }

@@ -50,7 +50,7 @@ class EmitShowcaseYamlTest {
         // The parameterized validators are a pure function of the same plan,
         // so they ship WITH the distribution: a node must be able to start
         // its settlement chain before the L1 bootstrap has ever run.
-        Path packaged = Path.of("../../../examples/appchain-showcase"
+        Path packaged = Path.of("../../../examples/showcase"
                 + "/src/main/showcase/config/settlement");
         ShowcaseSettlementPlan.writeScripts(ShowcaseSettlementPlan.PLAN, packaged);
         System.out.println("[emit] " + packaged.toAbsolutePath());

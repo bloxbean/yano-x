@@ -27,5 +27,5 @@ Run:
 
 The profile digest is locked to
 `f2478e0573535b9c0de7e66d66a7e671565999c6c36096d1d7d1413fa2b0e406`.
-ZeroJ is pinned to `0.1.0-pre10`; Julc is pinned to `0.1.0-pre14`.
+ZeroJ is pinned to `0.1.0-pre10`; Julc is pinned to `0.1.0-pre16`.
 Development setup output is never accepted as a production ceremony artifact.

@@ -5,7 +5,11 @@ import java.util.zip.ZipFile
 def requestedYanoVersion = providers.gradleProperty('yanoVersion')
 def baseYanoDistribution = providers.gradleProperty('yanoJvmDist').map { file(it) }
 def runtimeBundleSpecifications = project.ext.yanoXRuntimeBundleSpecifications
+def defaultBundleIds = project.ext.yanoXDefaultBundleIds
+def optionalBundleIds = project.ext.yanoXOptionalBundleIds
+def canonicalBundleName = project.ext.yanoXCanonicalBundleName
 def pluginPackManifest = project.ext.yanoXPluginPackManifest
+def releaseSbom = project.ext.yanoXReleaseSbom
 def fileSha256 = project.ext.yanoXFileSha256
 def distVersion = project.version.toString().replaceAll('-SNAPSHOT', '')
 def distributionRoot = "yano-x-jvm-${distVersion}"
@@ -46,7 +50,9 @@ tasks.register('generateYanoXDistributionManifest') {
                 yanoVersion: requestedYanoVersion.get(),
                 baseDistributionSha256: fileSha256(baseYanoDistribution.get()),
                 pluginPackManifestSha256: fileSha256(pluginPackManifest.get().asFile),
-                pluginBundleCount: pack.bundles.size(),
+                availablePluginBundleCount: pack.bundles.size(),
+                installedPluginBundleCount: defaultBundleIds.size(),
+                optionalPluginBundleCount: optionalBundleIds.size(),
                 nativeImageSupported: false
         ])) + '\n', 'UTF-8')
     }
@@ -57,14 +63,19 @@ def rebaseBaseRoot = { details ->
     if (segments.size() <= 1) {
         details.exclude()
     } else {
+        def rebasedSegments = segments.drop(1)
+        if (rebasedSegments == ['LICENSE']) {
+            rebasedSegments = ['LICENSE.yano']
+        }
         details.relativePath = org.gradle.api.file.RelativePath.parse(
                 details.relativePath.file,
-                "${distributionRoot}/${segments.drop(1).join('/')}")
+                "${distributionRoot}/${rebasedSegments.join('/')}")
     }
 }
 
 tasks.register('yanoXJvmDistZip', Zip) {
     dependsOn tasks.named('generateYanoXDistributionManifest'),
+            tasks.named('normalizeYanoXReleaseSbom'),
             ':tooling:devtools:installDist', ':tooling:studio:prepareStudio',
             ':products:evidence:demo-runner:shadowJar'
     group = 'distribution'
@@ -82,8 +93,17 @@ tasks.register('yanoXJvmDistZip', Zip) {
         }
     }
     into(distributionRoot) {
-        from(configurations.yanoExtensionBundles) {
+        from(rootProject.file('LICENSE'))
+        from(releaseSbom) {
+            into 'sbom'
+        }
+        from(configurations.yanoDefaultExtensionBundles) {
             into 'plugins'
+            rename { name -> canonicalBundleName(name) }
+        }
+        from(configurations.yanoOptionalExtensionBundles) {
+            into 'optional-plugins'
+            rename { name -> canonicalBundleName(name) }
         }
         from(pluginPackManifest)
         from(generatedDistributionManifest)
@@ -113,7 +133,7 @@ tasks.register('yanoXJvmDistZip', Zip) {
             exclude '*.schema.json'
         }
         from(rootProject.file('scripts/appchain-cluster')) {
-            into 'examples/appchain-cluster'
+            into 'appchain-cluster'
             exclude '.cluster-data/**', '**/*.log'
             filesMatching(['**/*.sh', '**/*.py']) {
                 permissions { unix('755') }
@@ -218,9 +238,23 @@ tasks.register('verifyYanoXJvmDistribution') {
 
     doLast {
         def pack = new JsonSlurper().parse(pluginPackManifest.get().asFile)
+        def expectedSbom = new JsonSlurper().parse(releaseSbom.get().asFile)
         def expectedPluginFiles = pack.bundles.collect { bundle ->
             bundle.file
         }.toSet()
+        def expectedDefaultPluginFiles = pack.bundles.findAll { bundle ->
+            bundle.installMode == 'default'
+        }.collect { bundle -> bundle.file }.toSet()
+        def expectedOptionalPluginFiles = pack.bundles.findAll { bundle ->
+            bundle.installMode == 'optional'
+        }.collect { bundle -> bundle.file }.toSet()
+        if (expectedDefaultPluginFiles.size() != defaultBundleIds.size()
+                || expectedOptionalPluginFiles.size() != optionalBundleIds.size()
+                || expectedDefaultPluginFiles + expectedOptionalPluginFiles
+                != expectedPluginFiles) {
+            throw new GradleException(
+                    "Yano X plugin-pack selection mismatch: ${pack.bundles}")
+        }
         def pluginPack = tasks.named('yanoXPluginPackZip', Zip).get()
                 .archiveFile.get().asFile
         def packRoot = "yano-x-plugin-pack-${distVersion}"
@@ -232,18 +266,37 @@ tasks.register('verifyYanoXJvmDistribution') {
                 throw new GradleException(
                         "Yano X plugin pack has unexpected roots: ${roots.sort()}")
             }
-            def actualPluginFiles = archive.entries().findAll { entry ->
+            def actualDefaultPluginFiles = archive.entries().findAll { entry ->
                 entry.name.startsWith("${packRoot}/plugins/")
                         && entry.name.endsWith('.jar')
             }.collect { entry -> entry.name.tokenize('/').last() }
-            if (actualPluginFiles.size() != expectedPluginFiles.size()
-                    || actualPluginFiles.toSet() != expectedPluginFiles) {
+            def actualOptionalPluginFiles = archive.entries().findAll { entry ->
+                entry.name.startsWith("${packRoot}/optional-plugins/")
+                        && entry.name.endsWith('.jar')
+            }.collect { entry -> entry.name.tokenize('/').last() }
+            if (actualDefaultPluginFiles.size() != expectedDefaultPluginFiles.size()
+                    || actualDefaultPluginFiles.toSet() != expectedDefaultPluginFiles
+                    || actualOptionalPluginFiles.size() != expectedOptionalPluginFiles.size()
+                    || actualOptionalPluginFiles.toSet() != expectedOptionalPluginFiles) {
                 throw new GradleException(
-                        "Yano X plugin-pack set mismatch: expected=${expectedPluginFiles.sort()}, "
-                                + "actual=${actualPluginFiles.sort()}")
+                        'Yano X plugin-pack default/optional set mismatch: '
+                                + "default=${actualDefaultPluginFiles.sort()}, "
+                                + "optional=${actualOptionalPluginFiles.sort()}")
             }
             def manifestEntry = archive.getEntry(
                     "${packRoot}/yano-x-plugin-pack-v1.json")
+            if (archive.getEntry("${packRoot}/LICENSE") == null) {
+                throw new GradleException('Yano X plugin pack is missing LICENSE')
+            }
+            def sbomEntry = archive.getEntry("${packRoot}/sbom/yano-x.cdx.json")
+            def packagedSbom = sbomEntry == null ? null
+                    : archive.getInputStream(sbomEntry).withCloseable { stream ->
+                        new JsonSlurper().parse(stream)
+                    }
+            if (packagedSbom != expectedSbom) {
+                throw new GradleException(
+                        'Yano X plugin-pack SBOM is missing or differs from its input')
+            }
             def packagedManifest = manifestEntry == null ? null
                     : archive.getInputStream(manifestEntry).withCloseable { stream ->
                         new JsonSlurper().parse(stream)
@@ -264,17 +317,39 @@ tasks.register('verifyYanoXJvmDistribution') {
                 throw new GradleException(
                         "Yano X distribution has unexpected roots: ${roots.sort()}")
             }
-            def actualPluginFiles = archive.entries().findAll { entry ->
+            def actualDefaultPluginFiles = archive.entries().findAll { entry ->
                 entry.name.startsWith("${root}/plugins/") && entry.name.endsWith('.jar')
             }.collect { entry -> entry.name.tokenize('/').last() }
-            if (actualPluginFiles.size() != expectedPluginFiles.size()
-                    || actualPluginFiles.toSet() != expectedPluginFiles) {
+            def actualOptionalPluginFiles = archive.entries().findAll { entry ->
+                entry.name.startsWith("${root}/optional-plugins/")
+                        && entry.name.endsWith('.jar')
+            }.collect { entry -> entry.name.tokenize('/').last() }
+            if (actualDefaultPluginFiles.size() != expectedDefaultPluginFiles.size()
+                    || actualDefaultPluginFiles.toSet() != expectedDefaultPluginFiles
+                    || actualOptionalPluginFiles.size() != expectedOptionalPluginFiles.size()
+                    || actualOptionalPluginFiles.toSet() != expectedOptionalPluginFiles) {
                 throw new GradleException(
-                        "Yano X plugin set mismatch: expected=${expectedPluginFiles.sort()}, "
-                                + "actual=${actualPluginFiles.sort()}")
+                        'Yano X distribution default/optional set mismatch: '
+                                + "default=${actualDefaultPluginFiles.sort()}, "
+                                + "optional=${actualOptionalPluginFiles.sort()}")
             }
             def manifestEntry = archive.getEntry(
                     "${root}/yano-x-distribution-v1.json")
+            if (archive.getEntry("${root}/LICENSE") == null) {
+                throw new GradleException('Yano X JVM distribution is missing LICENSE')
+            }
+            if (archive.getEntry("${root}/LICENSE.yano") == null) {
+                throw new GradleException('Yano X JVM distribution is missing the Yano LICENSE')
+            }
+            def sbomEntry = archive.getEntry("${root}/sbom/yano-x.cdx.json")
+            def packagedSbom = sbomEntry == null ? null
+                    : archive.getInputStream(sbomEntry).withCloseable { stream ->
+                        new JsonSlurper().parse(stream)
+                    }
+            if (packagedSbom != expectedSbom) {
+                throw new GradleException(
+                        'Yano X JVM distribution SBOM is missing or differs from its input')
+            }
             if (manifestEntry == null) {
                 throw new GradleException('Yano X distribution manifest is missing')
             }
@@ -289,7 +364,9 @@ tasks.register('verifyYanoXJvmDistribution') {
                     yanoVersion: requestedYanoVersion.get(),
                     baseDistributionSha256: fileSha256(baseYanoDistribution.get()),
                     pluginPackManifestSha256: fileSha256(pluginPackManifest.get().asFile),
-                    pluginBundleCount: runtimeBundleSpecifications.size(),
+                    availablePluginBundleCount: runtimeBundleSpecifications.size(),
+                    installedPluginBundleCount: defaultBundleIds.size(),
+                    optionalPluginBundleCount: optionalBundleIds.size(),
                     nativeImageSupported: false
             ]
             if (manifest != expectedManifest) {
@@ -308,12 +385,13 @@ tasks.register('verifyYanoXJvmDistribution') {
             }
             [
                     'tools/yano-appchain/bin/yano-appchain',
+                    'sbom/yano.cdx.json',
                     'studio/index.html',
                     'skills/configure-yano-appchain/SKILL.md',
                     'config/schema/appchain-metadata-trust.schema.json',
                     'config/schema/eutxo-zk-network-acceptance.schema.json',
                     'evidence/eutxo-zk/network-acceptance-v1.json',
-                    'examples/appchain-cluster/cluster.sh',
+                    'appchain-cluster/cluster.sh',
                     'examples/evidence/demo.sh',
                     'examples/evidence/runner.jar',
                     'docs/appchain/README.md',
