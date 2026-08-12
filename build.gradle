@@ -3,6 +3,7 @@ plugins {
     id 'org.unbroken-dome.test-sets' version '4.1.0' apply false
     id 'io.github.gradle-nexus.publish-plugin' version '2.0.0'
     id 'com.gradleup.shadow' version '9.4.1' apply false
+    id 'org.cyclonedx.bom' version '3.3.0'
 }
 
 abstract class CryptoTestLock implements
@@ -59,6 +60,36 @@ allprojects {
         }
     }
 }
+
+def aggregateSbomJson = layout.buildDirectory.file(
+        "reports/cyclonedx/yano-x-${project.version}.cdx.json")
+def releaseSbomProjectPaths = (artifactByPath.keySet().findAll { path ->
+    path != ':fixtures:eutxo-e2e'
+} + [':distribution:jvm']) as Set
+allprojects { candidate ->
+    candidate.tasks.named('cyclonedxDirectBom') {
+        enabled = candidate == rootProject
+                || releaseSbomProjectPaths.contains(candidate.path)
+        includeConfigs = [
+                'runtimeClasspath',
+                'yanoExtensionBundles',
+                'yanoDefaultExtensionBundles',
+                'yanoOptionalExtensionBundles',
+                'yanoHostRuntime'
+        ]
+        includeBomSerialNumber = false
+        includeBuildSystem = false
+    }
+}
+tasks.named('cyclonedxBom') {
+    includeBomSerialNumber = false
+    includeBuildSystem = false
+    componentName = 'yano-x'
+    projectType = 'application'
+    jsonOutput = aggregateSbomJson
+    xmlOutput.convention((org.gradle.api.file.RegularFile) null)
+}
+ext.yanoXAggregateSbomJson = aggregateSbomJson
 
 ext.yanoModule = { String artifactId ->
     "${project.group}:${artifactId}:${yanoVersion}"
@@ -179,26 +210,6 @@ standardJavaProjects.each { candidate ->
                 }
             }
         }
-        repositories {
-            if (internalRepository.isPresent()) {
-                maven {
-                    name = 'internal'
-                    url = uri(internalRepository.get())
-                }
-            }
-            maven {
-                def releasesRepoUrl =
-                        'https://ossrh-staging-api.central.sonatype.com/service/local/staging/deploy/maven2/'
-                def snapshotsRepoUrl =
-                        'https://central.sonatype.com/repository/maven-snapshots/'
-                url = candidate.version.toString().endsWith('SNAPSHOT')
-                        ? snapshotsRepoUrl : releasesRepoUrl
-                credentials {
-                    username = System.getenv('MAVEN_USERNAME')
-                    password = System.getenv('MAVEN_PASSWORD')
-                }
-            }
-        }
     }
 
     if (!candidate.version.toString().endsWith('SNAPSHOT')
@@ -212,6 +223,35 @@ standardJavaProjects.each { candidate ->
         filesMatching('META-INF/yano/plugins/*.json') {
             filter { line ->
                 line.replace('${pluginVersion}', pluginManifestVersion)
+            }
+        }
+    }
+}
+
+// Publication repositories belong to the publication boundary, not only to
+// Java-library modules. This keeps the BOM and future non-Java publications in
+// the same isolated-staging and release workflow as thin and bundle artifacts.
+allprojects { candidate ->
+    candidate.pluginManager.withPlugin('maven-publish') {
+        candidate.publishing.repositories {
+            if (internalRepository.isPresent()) {
+                maven {
+                    name = 'internal'
+                    url = candidate.uri(internalRepository.get())
+                }
+            }
+            maven {
+                name = 'sonatype'
+                def releasesRepoUrl =
+                        'https://ossrh-staging-api.central.sonatype.com/service/local/staging/deploy/maven2/'
+                def snapshotsRepoUrl =
+                        'https://central.sonatype.com/repository/maven-snapshots/'
+                url = candidate.version.toString().endsWith('SNAPSHOT')
+                        ? snapshotsRepoUrl : releasesRepoUrl
+                credentials {
+                    username = System.getenv('MAVEN_USERNAME')
+                    password = System.getenv('MAVEN_PASSWORD')
+                }
             }
         }
     }

@@ -276,7 +276,7 @@ destinations, or datums into metric labels.
   and no ambiguous pending signing round.
 
 This path remains experimental. The source validators use Julc
-`0.1.0-pre14`; operators must pin and independently review compiled validator
+`0.1.0-pre16`; operators must pin and independently review compiled validator
 artifacts and script hashes before using funds. The runtime SPI has no
 plugin-owned deep-rollback callback, so the halt is an explicit governed
 operator action after `BridgeRollbackGuard` detects the condition.

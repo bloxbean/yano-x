@@ -17,7 +17,7 @@ public final class ZerojPoseidonValidityProvider
     public static final String TRANSACTION_FORMAT =
             "yano-eutxo-l2-envelope-v1";
     public static final String ZEROJ_VERSION = "0.1.0-pre10";
-    public static final String JULC_VERSION = "0.1.0-pre14";
+    public static final String JULC_VERSION = "0.1.0-pre16";
     private static final String PREFIX = "machines.eutxo.validity.";
 
     @Override

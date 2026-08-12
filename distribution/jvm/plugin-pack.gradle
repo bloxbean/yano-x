@@ -8,20 +8,71 @@ def inventory = new JsonSlurper().parse(
 def runtimeBundleSpecifications = inventory.artifacts.findAll { artifact ->
     artifact.publicationType == 'runtime-plugin'
 }
+def distributionSelectionFile = rootProject.file('config/jvm-distribution-v1.json')
+def distributionSelection = new JsonSlurper().parse(distributionSelectionFile)
+def runtimeBundleIds = runtimeBundleSpecifications*.pluginBundleId as Set
+def defaultBundleIds = distributionSelection.defaultBundleIds as Set
+def optionalBundleIds = distributionSelection.optionalBundleIds as Set
+if (distributionSelection.schemaVersion != 1
+        || defaultBundleIds.intersect(optionalBundleIds)
+        || defaultBundleIds + optionalBundleIds != runtimeBundleIds) {
+    throw new GradleException(
+            "Invalid JVM distribution bundle selection: ${distributionSelection}")
+}
+def bundleInstallMode = { specification ->
+    defaultBundleIds.contains(specification.pluginBundleId) ? 'default' : 'optional'
+}
+def canonicalBundleFileName = { specification ->
+    "${specification.bundleArtifactId}-${project.version}.jar"
+}
+def bundleSpecificationsByArtifactNameLength =
+        runtimeBundleSpecifications.toSorted { left, right ->
+            right.bundleArtifactId.toString().length() <=>
+                    left.bundleArtifactId.toString().length()
+        }
+def canonicalBundleNameForResolvedFile = { String resolvedName ->
+    def specification = bundleSpecificationsByArtifactNameLength.find { candidate ->
+        resolvedName.startsWith("${candidate.bundleArtifactId}-")
+    }
+    if (specification == null) {
+        throw new GradleException(
+                "Resolved plugin bundle has no artifact inventory entry: ${resolvedName}")
+    }
+    canonicalBundleFileName(specification)
+}
 def packVersion = project.version.toString().replaceAll('-SNAPSHOT', '')
 def generatedPackManifest = layout.buildDirectory.file(
         'generated/distribution/plugin-pack/yano-x-plugin-pack-v1.json')
+def aggregateSbom = rootProject.ext.yanoXAggregateSbomJson
+def releaseSbom = layout.buildDirectory.file(
+        'generated/distribution/sbom/yano-x.cdx.json')
 
 configurations.create('yanoExtensionBundles') {
     canBeConsumed = false
     canBeResolved = true
     description = 'Dependency-complete Yano X runtime plugin bundles'
 }
+configurations.create('yanoDefaultExtensionBundles') {
+    canBeConsumed = false
+    canBeResolved = true
+    description = 'Conflict-free Yano X bundles installed in the JVM plugin directory'
+}
+configurations.create('yanoOptionalExtensionBundles') {
+    canBeConsumed = false
+    canBeResolved = true
+    description = 'Alternative Yano X bundles shipped outside the active plugin directory'
+}
 
 dependencies {
     runtimeBundleSpecifications.each { specification ->
-        yanoExtensionBundles(
-                "${inventory.group}:${specification.bundleArtifactId}:${project.version}")
+        def coordinate =
+                "${inventory.group}:${specification.bundleArtifactId}:${project.version}"
+        yanoExtensionBundles(coordinate)
+        if (bundleInstallMode(specification) == 'default') {
+            yanoDefaultExtensionBundles(coordinate)
+        } else {
+            yanoOptionalExtensionBundles(coordinate)
+        }
     }
 }
 
@@ -37,6 +88,60 @@ def fileSha256 = { File input ->
         }
     }
     digest.digest().encodeHex().toString()
+}
+
+tasks.register('normalizeYanoXReleaseSbom') {
+    dependsOn rootProject.tasks.named('cyclonedxBom')
+    group = 'distribution'
+    description = 'Normalizes and license-checks the Yano X CycloneDX release SBOM.'
+    inputs.file(aggregateSbom)
+    inputs.file(rootProject.file('LICENSE'))
+    outputs.file(releaseSbom)
+
+    doLast {
+        def body = new JsonSlurper().parse(aggregateSbom.get().asFile)
+        if (body.bomFormat != 'CycloneDX' || body.specVersion != '1.6'
+                || body.metadata?.component?.name != 'yano-x'
+                || body.metadata.component.version != project.version.toString()
+                || !(body.components instanceof Collection)
+                || body.components.isEmpty()) {
+            throw new GradleException('Yano X aggregate SBOM identity is incomplete')
+        }
+        body.remove('serialNumber')
+        body.metadata.remove('timestamp')
+        def mitLicense = [[license: [id: 'MIT']]]
+        def repositoryReference = [[
+                type: 'vcs',
+                url: 'https://github.com/bloxbean/yano-x.git'
+        ]]
+        body.metadata.component.remove('licenses')
+        body.metadata.component.remove('externalReferences')
+        body.metadata.component.licenses = mitLicense
+        body.metadata.component.externalReferences = repositoryReference
+        body.components.findAll { component ->
+            component.group?.toString()?.startsWith('com.bloxbean.cardano')
+        }.each { component ->
+            component.remove('licenses')
+            component.remove('externalReferences')
+            component.licenses = mitLicense
+            component.externalReferences = repositoryReference
+        }
+        def externalWithoutLicense = body.components.findAll { component ->
+            !component.group?.toString()?.startsWith('com.bloxbean.cardano')
+                    && (!(component.licenses instanceof Collection)
+                    || component.licenses.isEmpty())
+        }.collect { component ->
+            "${component.group}:${component.name}:${component.version}"
+        }.sort()
+        if (!externalWithoutLicense.isEmpty()) {
+            throw new GradleException(
+                    'External SBOM components lack license metadata: '
+                            + externalWithoutLicense)
+        }
+        def output = releaseSbom.get().asFile
+        output.parentFile.mkdirs()
+        output.setText(JsonOutput.prettyPrint(JsonOutput.toJson(body)) + '\n', 'UTF-8')
+    }
 }
 
 tasks.register('generatePluginPackManifest') {
@@ -102,10 +207,42 @@ tasks.register('generatePluginPackManifest') {
                     artifactId: artifactId,
                     bundleId: specification.pluginBundleId,
                     version: artifact.moduleVersion.id.version,
-                    file: artifact.file.name,
-                    sha256: fileSha256(artifact.file)
+                    file: canonicalBundleFileName(specification),
+                    sha256: fileSha256(artifact.file),
+                    installMode: bundleInstallMode(specification),
+                    dependencies: (manifest.dependencies ?: []).collect { dependency ->
+                        dependency.id.toString()
+                    }.sort(),
+                    contributions: (manifest.contributions ?: []).collect { contribution ->
+                        "${contribution.kind}/${contribution.name}"
+                    }.sort()
             ]
         }.sort { left, right -> left.bundleId <=> right.bundleId }
+
+        def defaultBundles = bundles.findAll { bundle ->
+            bundle.installMode == 'default'
+        }
+        def selectedBundleIds = defaultBundles*.bundleId as Set
+        def missingDependencies = defaultBundles.collectMany { bundle ->
+            bundle.dependencies.findAll { dependency ->
+                !selectedBundleIds.contains(dependency)
+            }.collect { dependency -> "${bundle.bundleId}->${dependency}" }
+        }
+        def duplicateContributions = defaultBundles.collectMany { bundle ->
+            bundle.contributions.collect { contribution ->
+                [identity: contribution, bundleId: bundle.bundleId]
+            }
+        }.groupBy { contribution -> contribution.identity }
+                .findAll { ignored, owners -> owners.size() > 1 }
+                .collect { identity, owners ->
+                    "${identity}:${owners*.bundleId.sort()}"
+                }
+        if (!missingDependencies.isEmpty() || !duplicateContributions.isEmpty()) {
+            throw new GradleException(
+                    'Yano X default plugin selection is not activatable:'
+                            + " missingDependencies=${missingDependencies.sort()},"
+                            + " duplicateContributions=${duplicateContributions.sort()}")
+        }
 
         def output = generatedPackManifest.get().asFile
         output.parentFile.mkdirs()
@@ -119,7 +256,8 @@ tasks.register('generatePluginPackManifest') {
 }
 
 tasks.register('yanoXPluginPackZip', Zip) {
-    dependsOn tasks.named('generatePluginPackManifest')
+    dependsOn tasks.named('generatePluginPackManifest'),
+            tasks.named('normalizeYanoXReleaseSbom')
     group = 'distribution'
     description = 'Creates the versioned Yano X runtime plugin pack.'
     archiveFileName = "yano-x-plugin-pack-${packVersion}.zip"
@@ -128,13 +266,26 @@ tasks.register('yanoXPluginPackZip', Zip) {
     preserveFileTimestamps = false
 
     into("yano-x-plugin-pack-${packVersion}") {
+        from(rootProject.file('LICENSE'))
+        from(releaseSbom) {
+            into 'sbom'
+        }
         from(generatedPackManifest)
-        from(configurations.yanoExtensionBundles) {
+        from(configurations.yanoDefaultExtensionBundles) {
             into 'plugins'
+            rename { name -> canonicalBundleNameForResolvedFile(name) }
+        }
+        from(configurations.yanoOptionalExtensionBundles) {
+            into 'optional-plugins'
+            rename { name -> canonicalBundleNameForResolvedFile(name) }
         }
     }
 }
 
 ext.yanoXRuntimeBundleSpecifications = runtimeBundleSpecifications
+ext.yanoXDefaultBundleIds = defaultBundleIds
+ext.yanoXOptionalBundleIds = optionalBundleIds
 ext.yanoXPluginPackManifest = generatedPackManifest
+ext.yanoXReleaseSbom = releaseSbom
 ext.yanoXFileSha256 = fileSha256
+ext.yanoXCanonicalBundleName = canonicalBundleNameForResolvedFile

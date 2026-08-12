@@ -6,6 +6,15 @@ dependencies {
     api project(':ledgers:eutxo-zk:contracts')
     implementation libs.zeroj.onchain.julc
 
+    constraints {
+        // ZeroJ pre10 declares Julc pre14 transitively. Publish the reviewed
+        // Yano X alignment so consumers cannot resolve that older runtime.
+        implementation "com.bloxbean.cardano:julc-compiler:${libs.versions.julc.get()}"
+        implementation "com.bloxbean.cardano:julc-core:${libs.versions.julc.get()}"
+        implementation "com.bloxbean.cardano:julc-ledger-api:${libs.versions.julc.get()}"
+        implementation "com.bloxbean.cardano:julc-stdlib:${libs.versions.julc.get()}"
+    }
+
     compileOnly "com.bloxbean.cardano:julc-stdlib:${libs.versions.julc.get()}"
     compileOnly "com.bloxbean.cardano:julc-ledger-api:${libs.versions.julc.get()}"
 

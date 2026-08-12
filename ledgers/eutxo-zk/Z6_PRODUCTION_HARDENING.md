@@ -8,7 +8,7 @@ an accountable release decision are evidence supplied outside the build.
 ## What is enforced in code
 
 - `EutxoZkReleaseManifest` creates one canonical digest over the exact
-  profile, ZeroJ `0.1.0-pre10`, Julc `0.1.0-pre14`, circuit, proving key,
+  profile, ZeroJ `0.1.0-pre10`, Julc `0.1.0-pre16`, circuit, proving key,
   verification key, validators and other named release artifacts.
 - `EutxoCeremonyManifest` inventories every proving-key file. A backend loads
   a bundle only after its file digests, profile, circuit and verification-key

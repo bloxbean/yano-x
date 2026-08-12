@@ -10,7 +10,7 @@
   "identities": {
     "yanoVersion": "0.1.0-pre11",
     "zerojVersion": "0.1.0-pre10",
-    "julcVersion": "0.1.0-pre14",
+    "julcVersion": "0.1.0-pre16",
     "ledgerProfile": "yano-eutxo-v1",
     "ledgerProfileDigest": "2499d01ee7cb0d09d0d498040c6351accd9da83df31666cd4463d0b1722d1212",
     "transactionFormat": "yano-eutxo-l2-envelope-v1",
@@ -30,7 +30,7 @@
     "validatorIdentity": "project-pinned-at-contract-bootstrap"
   },
   "sourceDigests": {
-    "capabilityCatalogSha256": "a412d36647968ff81f238034e33a802adc34e328854b980e73c135be4ffee832",
+    "capabilityCatalogSha256": "5106cbf289547a0991877df4845d1ea2dcd48ed6c79ceb4e629f7a2ad4bdeb41",
     "networkAcceptanceSha256": "1e1705d4d14e46024d8468ba2e0ccbc7e9dd766d96b756dc19594b386762278c"
   },
   "compatibility": {

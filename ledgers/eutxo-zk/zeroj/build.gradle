@@ -11,6 +11,12 @@ dependencies {
     implementation libs.zeroj.crypto
     implementation libs.zeroj.mpf.poseidon
     implementation libs.zeroj.onchain.julc
+    // ZeroJ pre10 was published against Julc pre14. Keep the adapter and every
+    // downstream runtime on the reviewed public Julc line selected by Yano X.
+    implementation "com.bloxbean.cardano:julc-compiler:${libs.versions.julc.get()}"
+    implementation "com.bloxbean.cardano:julc-core:${libs.versions.julc.get()}"
+    implementation "com.bloxbean.cardano:julc-ledger-api:${libs.versions.julc.get()}"
+    implementation "com.bloxbean.cardano:julc-stdlib:${libs.versions.julc.get()}"
 
     testImplementation libs.zeroj.verifier.groth16
     testImplementation project(':ledgers:eutxo:testkit')
