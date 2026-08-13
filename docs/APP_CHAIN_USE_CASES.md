@@ -57,9 +57,10 @@ threshold = all (2-of-2, 3-of-3) for "everyone vouched for every entry", or
 n-of-m for availability. Anchor every N blocks. Suggested body: JSON
 `{"event":"access-granted","actor":"...","object":"...","ts":"..."}`.
 
-**Verification.** Auditor takes any entry, asks any node for
-`GET /state/proof/{messageId}`, fetches the anchor tx from Cardano, checks the MPF
-proof against the anchored `state_root`. Neither org — nor Yano — is trusted.
+**Verification.** Auditor takes any entry, asks any node for the
+`finalized-message-v1` typed proof subject using the public message ID, fetches
+the anchor tx from Cardano, and checks the MPF proof against the anchored
+`state_root`. Neither org — nor Yano — is trusted.
 
 ### A2. Neutral consortium message queue ("Kafka with neutrality")
 

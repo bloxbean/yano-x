@@ -11,7 +11,7 @@ demos, scaffolds, and documentation.
 
 Version 2 (2026-07-22) is a scope amendment: all post-deployment
 runtime-console UI concerns are carved out to root
-[ADR-028](../028-unified-console-ui-module.md) (the `console-ui` module).
+[ADR-028](https://github.com/bloxbean/yano/blob/main/adr/028-unified-console-ui-module.md) (the `console-ui` module).
 This ADR keeps the capability, reusability, catalog, and product-model
 decisions — including Studio's pre-deployment wizard behavior (§11) — while
 the runtime console's design, delivery, and capability-aware panels are
@@ -38,20 +38,20 @@ exists, is unrelated.
 
 ## Parent and related decisions
 
-- [ADR-005](005-yano-app-chain-framework.md) owns app-chain consensus,
+- [ADR-005](https://github.com/bloxbean/yano/blob/main/adr/app-layer/005-yano-app-chain-framework.md) owns app-chain consensus,
   deterministic state-machine execution, authenticated state, finality,
   storage, proofs, and Cardano anchoring.
 - [ADR-006](006-appchain-enterprise-extensions-and-zk.md) introduced the stock
   state machines, clients, sinks, operations, and experimental ZK direction.
-- [ADR-008.2](008.2-rotating-sequencer.md),
-  [ADR-008.3](008.3-chain-governed-membership.md), and
-  [ADR-008.4](008.4-script-anchors-l1view.md) own sequencing, membership, L1
+- [ADR-008.2](https://github.com/bloxbean/yano/blob/main/adr/app-layer/008.2-rotating-sequencer.md),
+  [ADR-008.3](https://github.com/bloxbean/yano/blob/main/adr/app-layer/008.3-chain-governed-membership.md), and
+  [ADR-008.4](https://github.com/bloxbean/yano/blob/main/adr/app-layer/008.4-script-anchors-l1view.md) own sequencing, membership, L1
   observers, and script-anchor choices.
-- [ADR-010](010-deterministic-effect-system.md) and
-  [ADR-010.1](010.1-emission-versioning.md) own deterministic effect intent,
+- [ADR-010](https://github.com/bloxbean/yano/blob/main/adr/app-layer/010-deterministic-effect-system.md) and
+  [ADR-010.1](https://github.com/bloxbean/yano/blob/main/adr/app-layer/010.1-emission-versioning.md) own deterministic effect intent,
   activation, execution, result incorporation, expiry, and proofs.
 - [ADR-011](011-plugin-architecture.md) through
-  [ADR-011.4](011.4-plugin-operations-and-observability.md) own plugin
+  [ADR-011.4](https://github.com/bloxbean/yano/blob/main/adr/app-layer/011.4-plugin-operations-and-observability.md) own plugin
   manifests, catalog identity, domain APIs, and operations surfaces.
 - [ADR-013](013-first-party-integration-connectors-and-effect-demo.md) owns the
   Kafka, S3-compatible object-store, and IPFS connectors and evidence demo.
@@ -59,7 +59,7 @@ exists, is unrelated.
   deterministic component composition.
 - [ADR-015](015-governed-composite-profile-evolution.md) owns governed profile
   evolution.
-- [ADR-016](016-authenticated-appchain-consensus-profile-and-typed-runtime-limits.md)
+- [ADR-016](https://github.com/bloxbean/yano/blob/main/adr/app-layer/016-authenticated-appchain-consensus-profile-and-typed-runtime-limits.md)
   owns the authenticated consensus-profile boundary.
 - [ADR-019](019-reusable-domain-actor-registry-and-role-aware-approvals.md)
   owns organizations, domain actors, keys, roles, policies, and the first
@@ -69,7 +69,7 @@ exists, is unrelated.
 - [ADR-DX-0001](dx/0001-unified-appchain-onboarding-configuration-and-lifecycle.md)
   owns configuration metadata, validation, blueprints, locks, rendering,
   Studio, lifecycle commands, drift, GitOps output, and release-pinned DX.
-- Root [ADR-028](../028-unified-console-ui-module.md) owns the runtime
+- Root [ADR-028](https://github.com/bloxbean/yano/blob/main/adr/028-unified-console-ui-module.md) owns the runtime
   console UI: the `console-ui` module, embedded and standalone serving, node
   identity display, and the generic capability-aware panels (effects,
   approvals via committed queries, evidence bundles, proofs). All

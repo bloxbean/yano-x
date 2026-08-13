@@ -290,27 +290,27 @@ Yano app-chain maintainers.
 
 ## Parent and related decisions
 
-- [ADR-005](../005-yano-app-chain-framework.md) owns app-chain consensus,
+- [ADR-005](https://github.com/bloxbean/yano/blob/main/adr/app-layer/005-yano-app-chain-framework.md) owns app-chain consensus,
   deterministic state-machine execution, authenticated state, finality,
   persistence, MPF proofs, L1 references, and anchoring.
-- [ADR-008.3](../008.3-chain-governed-membership.md) owns governed app-chain
+- [ADR-008.3](https://github.com/bloxbean/yano/blob/main/adr/app-layer/008.3-chain-governed-membership.md) owns governed app-chain
   membership.
-- [ADR-008.4](../008.4-script-anchors-l1view.md) owns script anchors and the
+- [ADR-008.4](https://github.com/bloxbean/yano/blob/main/adr/app-layer/008.4-script-anchors-l1view.md) owns script anchors and the
   follower-verified L1-observer framework. It explicitly treats bridges as
   products built on those primitives rather than as part of the anchor.
-- [ADR-010](../010-deterministic-effect-system.md) owns deterministic effect
+- [ADR-010](https://github.com/bloxbean/yano/blob/main/adr/app-layer/010-deterministic-effect-system.md) owns deterministic effect
   intent, node-local execution, result incorporation, and finality gates.
 - [ADR-011](../011-plugin-architecture.md) through
-  [ADR-011.4](../011.4-plugin-operations-and-observability.md) own the plugin
+  [ADR-011.4](https://github.com/bloxbean/yano/blob/main/adr/app-layer/011.4-plugin-operations-and-observability.md) own the plugin
   bundle, lifecycle, catalog, domain API, health, and metrics boundaries.
-- [ADR-016](../016-authenticated-appchain-consensus-profile-and-typed-runtime-limits.md)
+- [ADR-016](https://github.com/bloxbean/yano/blob/main/adr/app-layer/016-authenticated-appchain-consensus-profile-and-typed-runtime-limits.md)
   owns the authenticated consensus profile and versioned runtime limits.
 - [ADR-022](../022-out-of-box-appchain-capabilities-and-extensible-product-catalog.md)
   owns the product capability catalog and third-party capability metadata.
 - [ADR-DX-0001](../dx/0001-unified-appchain-onboarding-configuration-and-lifecycle.md)
   owns configuration generation, validation, project locks, lifecycle
   commands, and distribution-pinned onboarding.
-- Root [ADR-028](../../028-unified-console-ui-module.md) owns the runtime
+- Root [ADR-028](https://github.com/bloxbean/yano/blob/main/adr/028-unified-console-ui-module.md) owns the runtime
   console. This ADR may define EUTxO UI-hint metadata, but ADR-028 owns whether
   and how the console renders it.
 

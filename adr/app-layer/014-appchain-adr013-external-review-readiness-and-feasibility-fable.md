@@ -30,7 +30,7 @@ during the audit and passed on the working tree.
 - [ADR-013](013-first-party-integration-connectors-and-effect-demo.md)
 - [ADR-013.1](013.1-effect-runtime-framework-closure.md)
 - [ADR-013.2](013.2-deterministic-composite-state-machine.md)
-- Prior external reports in this series: [007](007-yano-appchain-implementation-codex-report.md), [009](009-yano-appchain-support-codex-review.md)
+- Prior external reports in this series: [007](https://github.com/bloxbean/yano/blob/main/adr/app-layer/007-yano-appchain-implementation-codex-report.md), [009](https://github.com/bloxbean/yano/blob/main/adr/app-layer/009-yano-appchain-support-codex-review.md)
 
 ---
 
@@ -588,7 +588,7 @@ CI evidence.
 | Review/disposition item | Status | Closure evidence or remaining owner |
 |---|---|---|
 | C1 / P0.1 unbounded app-chain CBOR | **Fixed locally.** | `CborStructurePreflight` is a dependency-free iterative scanner used at the audited untrusted protocol, command, nested-CBOR, effect, anchor, observation, stdlib, ZK, and webhook boundaries. Definite/indefinite, depth/item/length, trailing-data, validate/apply, no-op, wire, replay, and root-parity tests pass. |
-| C5 / P0.2 duplicated node-local consensus limits | **Fixed locally.** | [ADR-016](016-authenticated-appchain-consensus-profile-and-typed-runtime-limits.md) freezes and implements the typed immutable `AppChainConsensusProfile`, authenticated marker, compatible context accessor, retained-state checks, reserved namespace, and shared first-party limit validation. |
+| C5 / P0.2 duplicated node-local consensus limits | **Fixed locally.** | [ADR-016](https://github.com/bloxbean/yano/blob/main/adr/app-layer/016-authenticated-appchain-consensus-profile-and-typed-runtime-limits.md) freezes and implements the typed immutable `AppChainConsensusProfile`, authenticated marker, compatible context accessor, retained-state checks, reserved namespace, and shared first-party limit validation. |
 | D1 / P0.3 S3 prefix-sibling false failure | **Fixed locally.** | The exact-key history probe ignores prefix siblings, scans versions/delete markers across pages while exact-key evidence can continue, proves absence only after lexical progress, and otherwise returns `ACK_UNKNOWN`. Unit and real-service matrices cover the boundary. ADR-013 §7.6 is aligned. |
 | P0.4 release/durability certification | **Partially closed; `APP-009` remains open.** | The four cluster-safety suites, composite CDDL validation, release contracts, JVM packaging smoke, native packaging smoke, connector fault matrix, Kafka TLS/SASL integration, effect failover, and Compose/host retained-replay parity are green locally and wired in `build.yml`. The two external GitHub acceptance runs remain the release/process gate. |
 | Evidence workflow bypass / P1 gated preset | **Fixed locally.** | `evidence-v1-gated` is a distinct committed profile and the no-code demo default for new chains. Direct evidence publication is absent, while explicit `evidence-v1` remains available. Digest, route, identity, launcher, release-contract, and full deployment-parity tests pass. |

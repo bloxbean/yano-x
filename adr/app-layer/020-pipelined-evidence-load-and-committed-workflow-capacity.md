@@ -17,7 +17,7 @@ exists, is unrelated.
   connector contracts and the first no-code evidence scenario.
 - [ADR-013.2](013.2-deterministic-composite-state-machine.md) owns committed
   component/workflow effect quotas and the stock evidence composite.
-- [ADR-016](016-authenticated-appchain-consensus-profile-and-typed-runtime-limits.md)
+- [ADR-016](https://github.com/bloxbean/yano/blob/main/adr/app-layer/016-authenticated-appchain-consensus-profile-and-typed-runtime-limits.md)
   owns the framework-wide block and effect caps consumed here.
 - [ADR-018](018-evidence-demo-iteration-2-publish-republish-verify.md) owns the
   lifecycle commands and the first bounded full-workflow load command.

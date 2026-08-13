@@ -38,9 +38,9 @@ than pattern-matching.
 
 ## Related
 
-- [ADR-005](005-yano-app-chain-framework.md), [ADR-006](006-appchain-enterprise-extensions-and-zk.md), [ADR-008 series](008-appchain-next-iteration-plan.md)
-- [ADR-010](010-deterministic-effect-system.md)/[010.1](010.1-emission-versioning.md), [ADR-011 series](011-plugin-architecture.md), [ADR-013 series](013-first-party-integration-connectors-and-effect-demo.md)
-- [ADR-014 (prior external review)](014-appchain-adr013-external-review-readiness-and-feasibility-fable.md), [ADR-016](016-authenticated-appchain-consensus-profile-and-typed-runtime-limits.md), [ADR-019](019-reusable-domain-actor-registry-and-role-aware-approvals.md), [ADR-022](022-out-of-box-appchain-capabilities-and-extensible-product-catalog.md), [ADR-023](023-unified-appchain-showcase-distribution.md)
+- [ADR-005](https://github.com/bloxbean/yano/blob/main/adr/app-layer/005-yano-app-chain-framework.md), [ADR-006](006-appchain-enterprise-extensions-and-zk.md), [ADR-008 series](https://github.com/bloxbean/yano/blob/main/adr/app-layer/008-appchain-next-iteration-plan.md)
+- [ADR-010](https://github.com/bloxbean/yano/blob/main/adr/app-layer/010-deterministic-effect-system.md)/[010.1](https://github.com/bloxbean/yano/blob/main/adr/app-layer/010.1-emission-versioning.md), [ADR-011 series](011-plugin-architecture.md), [ADR-013 series](013-first-party-integration-connectors-and-effect-demo.md)
+- [ADR-014 (prior external review)](014-appchain-adr013-external-review-readiness-and-feasibility-fable.md), [ADR-016](https://github.com/bloxbean/yano/blob/main/adr/app-layer/016-authenticated-appchain-consensus-profile-and-typed-runtime-limits.md), [ADR-019](019-reusable-domain-actor-registry-and-role-aware-approvals.md), [ADR-022](022-out-of-box-appchain-capabilities-and-extensible-product-catalog.md), [ADR-023](023-unified-appchain-showcase-distribution.md)
 - Trackers: [open_item.md](open_item.md), [pending-tasks.md](pending-tasks.md)
 
 ---

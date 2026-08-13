@@ -16,10 +16,10 @@ unrelated preview-network feasibility document.
 - [ADR-013.2](013.2-deterministic-composite-state-machine.md) defines the
   implemented, genesis-fixed composite profile and its deterministic routing,
   namespace, quota, query, proof, workflow, and effect-ownership rules.
-- [ADR-010.1](010.1-emission-versioning.md) defines replay-stable, height-based
+- [ADR-010.1](https://github.com/bloxbean/yano/blob/main/adr/app-layer/010.1-emission-versioning.md) defines replay-stable, height-based
   activation and the rule that an operator configuration edit is not an
   upgrade protocol.
-- [ADR-008.3](008.3-chain-governed-membership.md) supplies the existing
+- [ADR-008.3](https://github.com/bloxbean/yano/blob/main/adr/app-layer/008.3-chain-governed-membership.md) supplies the existing
   threshold-approval and activation-lag pattern.
 - [ADR-014](014-appchain-adr013-external-review-readiness-and-feasibility-fable.md)
   identifies the genesis-frozen profile as a material long-lived-chain limit.
@@ -595,7 +595,7 @@ Most implementation belongs in `appchain-composite` and
 1. a deterministic, read-only membership-epoch snapshot/view keyed by app
    height, exposed to the state-machine construction/transition boundary; and
 2. the typed immutable consensus-limit view defined by
-   [ADR-016](016-authenticated-appchain-consensus-profile-and-typed-runtime-limits.md) so
+   [ADR-016](https://github.com/bloxbean/yano/blob/main/adr/app-layer/016-authenticated-appchain-consensus-profile-and-typed-runtime-limits.md) so
    composite quota validation does not parse duplicate settings/defaults. Its
    values come from the runtime's single resolved chain/effect configuration
    and its canonical bytes/digest are included in a framework-owned

@@ -16,7 +16,7 @@ Implementation closure: 2026-07-19
 
 ## Parent and related decisions
 
-- [ADR-005](005-yano-app-chain-framework.md) owns member-authenticated app
+- [ADR-005](https://github.com/bloxbean/yano/blob/main/adr/app-layer/005-yano-app-chain-framework.md) owns member-authenticated app
   messages, deterministic execution, finality, and authenticated state.
 - [ADR-006](006-appchain-enterprise-extensions-and-zk.md) introduced the
   standard approval machine and the broader enterprise identity roadmap.

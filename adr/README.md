@@ -10,8 +10,14 @@ does not require a sibling Yano checkout.
 | [ADR-030](refactoring/030-repository-split-yano-x-execution-plan.md) | Repository ownership, execution phases, naming, packaging, and release gates |
 | [ADR-011](app-layer/011-plugin-architecture.md) | Host/plugin SPI, catalog, compatibility, isolation, and lifecycle contract |
 | [ADR-031](app-layer/031-composable-state-machine-foundation-and-portable-proofs.md) | Reusable state-machine, capability, composition, and portable-proof contract |
-| [Phase evidence](refactoring/baselines/) | Executed baselines and regression evidence for Phases A-E |
+| [Phase evidence](refactoring/baselines/) | Executed baselines and regression evidence for Phases A-F |
 
 The canonical pre-split history remains in the Yano repository. After extraction, decisions owned
 by Yano X evolve here; host-contract changes that affect both repositories must be reflected in
 both decision sets.
+
+Commands, Gradle paths, and artifact IDs recorded in ADRs before ADR-030 are point-in-time
+pre-split evidence. Use the repository [build guide](../docs/BUILD_AND_TEST.md), current
+`settings.gradle`, and [artifact inventory](../config/artifacts-v1.json) for executable commands and
+published coordinates. Links to core-owned decisions intentionally point to the Yano repository;
+the decisions themselves were not duplicated into Yano X.

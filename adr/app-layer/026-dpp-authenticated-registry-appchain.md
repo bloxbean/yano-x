@@ -17,9 +17,9 @@ Yano currently implements or conforms to a Digital Product Passport standard.
 
 ## Related decisions and research
 
-- [ADR-005](005-yano-app-chain-framework.md) owns app blocks, threshold
+- [ADR-005](https://github.com/bloxbean/yano/blob/main/adr/app-layer/005-yano-app-chain-framework.md) owns app blocks, threshold
   finality, state, proofs, and L1 anchoring.
-- [ADR-010](010-deterministic-effect-system.md) owns finality-gated effects,
+- [ADR-010](https://github.com/bloxbean/yano/blob/main/adr/app-layer/010-deterministic-effect-system.md) owns finality-gated effects,
   receipts, retries, and deterministic result incorporation.
 - [ADR-013.2](013.2-deterministic-composite-state-machine.md) owns component
   isolation, declared workflows, effect ownership, and the one-state-machine-

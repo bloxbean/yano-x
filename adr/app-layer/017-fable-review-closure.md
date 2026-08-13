@@ -16,7 +16,7 @@ unrelated P2P relay roadmap.
 - [ADR-014](014-appchain-adr013-external-review-readiness-and-feasibility-fable.md)
   preserves the external review, reviewer corrections, and maintainer
   disposition.
-- [ADR-016](016-authenticated-appchain-consensus-profile-and-typed-runtime-limits.md)
+- [ADR-016](https://github.com/bloxbean/yano/blob/main/adr/app-layer/016-authenticated-appchain-consensus-profile-and-typed-runtime-limits.md)
   owns the implemented authenticated app-chain consensus profile and typed
   runtime limits required by the P0 response.
 - [ADR-015](015-governed-composite-profile-evolution.md) owns governed composite

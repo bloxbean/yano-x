@@ -30,6 +30,30 @@ The `yanoVersion` must identify the exact Yano API/runtime line against which
 Yano X is being built. `version` independently controls Yano X artifact and
 plugin versions.
 
+The command above is the source-and-test build and does not assemble every
+distribution. Gradle's root `build` lifecycle also validates the release
+archives, so it requires `yanoJvmDist` and a repository containing Yano X's
+published module and bundle coordinates. For a clean, from-scratch full build,
+use two invocations:
+
+```bash
+YANO_X_REPOSITORY=/absolute/path/to/empty/yano-x-staging
+
+./gradlew clean publishAllPublicationsToInternalRepository \
+  -PinternalRepository="$YANO_X_REPOSITORY" \
+  -PyanoVersion=<published-yano-version> \
+  -PuseMavenLocal=true -PskipSigning=true
+
+./gradlew build \
+  -PinternalRepository="$YANO_X_REPOSITORY" \
+  -PyanoVersion=<published-yano-version> \
+  -PyanoJvmDist=/absolute/path/to/yano-<build-identity>.zip \
+  -PuseMavenLocal=true -PskipSigning=true
+```
+
+Use an empty directory for each clean rehearsal. Do not run `clean` between
+the two invocations.
+
 ## Useful scopes
 
 ```bash

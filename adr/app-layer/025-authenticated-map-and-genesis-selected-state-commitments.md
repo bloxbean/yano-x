@@ -24,7 +24,7 @@ the algorithm and format, while CCL/ZeroJ compatibility is conformance metadata.
 No preview identifier migration or alias is required.
 
 If accepted and implemented, this ADR supersedes the state-commitment choice in
-[ADR-005 §D3](005-yano-app-chain-framework.md) for the supported app-chain
+[ADR-005 §D3](https://github.com/bloxbean/yano/blob/main/adr/app-layer/005-yano-app-chain-framework.md) for the supported app-chain
 baseline. Its earlier assumption that preview chains might retain their MPF
 history is replaced by ADR-031's fresh-start rule.
 
@@ -34,17 +34,17 @@ history is replaced by ADR-031's fresh-start rule.
 
 ## Related decisions and implementations
 
-- [ADR-005](005-yano-app-chain-framework.md) defines the app-chain block,
+- [ADR-005](https://github.com/bloxbean/yano/blob/main/adr/app-layer/005-yano-app-chain-framework.md) defines the app-chain block,
   threshold finality, current MPF state commitment, proof model, catch-up, and
   L1 anchoring.
-- [ADR-010](010-deterministic-effect-system.md) defines framework-owned effect
+- [ADR-010](https://github.com/bloxbean/yano/blob/main/adr/app-layer/010-deterministic-effect-system.md) defines framework-owned effect
   state under the app-chain state root.
 - [ADR-013.2](013.2-deterministic-composite-state-machine.md) defines
   deterministic logical namespaces and one atomic state root across composed
   components.
 - [ADR-015](015-governed-composite-profile-evolution.md) defines explicit
   governed activation of consensus-affecting application profiles.
-- [ADR-016](016-authenticated-appchain-consensus-profile-and-typed-runtime-limits.md)
+- [ADR-016](https://github.com/bloxbean/yano/blob/main/adr/app-layer/016-authenticated-appchain-consensus-profile-and-typed-runtime-limits.md)
   authenticates normalized consensus-affecting runtime settings in state.
 - [ADR-019](019-reusable-domain-actor-registry-and-role-aware-approvals.md)
   defines reusable actor and role authorization that an authenticated map may

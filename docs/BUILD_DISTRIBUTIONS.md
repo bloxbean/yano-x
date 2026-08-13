@@ -24,6 +24,11 @@ Then assemble and verify Yano X:
   -PuseMavenLocal=true --offline
 ```
 
+That command is sufficient when the required Yano X coordinates are already
+available from a configured repository. A from-scratch full `clean build`
+must first stage Yano X's own publications; use the two-step workflow in
+[BUILD_AND_TEST.md](BUILD_AND_TEST.md#normal-build).
+
 ## Outputs
 
 The outputs are written under `distribution/jvm/build/distributions`:

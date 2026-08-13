@@ -9,6 +9,7 @@ dependencies {
     // These APIs and generic products are supplied by the Yano JVM host. The
     // drop-in bundle contains only showcase-owned implementation classes.
     compileOnly rootProject.ext.yanoModule('yano-core-api')
+    compileOnly rootProject.ext.yanoModule('yano-plugin-catalog')
     compileOnly project(':composition:runtime')
     compileOnly project(':composition:contracts')
     compileOnly project(':state-machines:stdlib')
@@ -24,6 +25,7 @@ dependencies {
     compileOnly libs.slf4j.api
 
     testImplementation rootProject.ext.yanoModule('yano-core-api')
+    testImplementation rootProject.ext.yanoModule('yano-plugin-catalog')
     testImplementation project(':composition:runtime')
     testImplementation project(':composition:contracts')
     testImplementation project(':state-machines:stdlib')
@@ -75,7 +77,9 @@ tasks.named('shadowJar') {
     exclude 'META-INF/*.SF', 'META-INF/*.RSA', 'META-INF/*.DSA', 'module-info.class'
 }
 
-def appDistribution = providers.gradleProperty('yanoJvmDist').map { file(it) }
+evaluationDependsOn(':distribution:jvm')
+def yanoXJvmDistribution = project(':distribution:jvm').tasks.named('yanoXJvmDistZip', Zip)
+def appDistribution = yanoXJvmDistribution.flatMap { it.archiveFile }
 [
         ':products:cardano-history:runtime',
         ':products:cardano-history:cli',
@@ -103,7 +107,7 @@ tasks.register('generateShowcaseVersion') {
 }
 
 def embeddedYanoRoot = appDistribution.map {
-    it.name.replaceFirst(/\.zip$/, '')
+    it.asFile.name.replaceFirst(/\.zip$/, '')
 }
 def stripEmbeddedYanoRoot = { details ->
     def segments = details.relativePath.segments.toList()
@@ -164,6 +168,8 @@ distributions {
                 into 'yano'
                 eachFile stripEmbeddedYanoRoot
                 exclude '**/config/application-appchain.yml'
+                exclude '**/plugins/yano-x-showcase-bundle-*.jar'
+                exclude '**/plugins/yano-x-cardano-history-bundle-*.jar'
                 includeEmptyDirs = false
                 filesMatching(['**/*.sh', '**/*.py', '**/bin/*']) {
                     permissions { unix('755') }
@@ -190,12 +196,14 @@ distributions {
             }
             from(tasks.named('shadowJar').flatMap { it.archiveFile }) {
                 into 'yano/plugins'
+                rename { "yano-x-showcase-bundle-${project.version}.jar" }
             }
             from(tasks.named('shadowJar').flatMap { it.archiveFile }) {
                 into 'plugins'
             }
             from(cardanoHistoryBundle.flatMap { it.archiveFile }) {
                 into 'yano/plugins'
+                rename { "yano-x-cardano-history-bundle-${project.version}.jar" }
             }
             from(cardanoHistoryBundle.flatMap { it.archiveFile }) {
                 into 'plugins'
@@ -219,6 +227,15 @@ distributions {
                 filesMatching(['**/*.sh', '**/*.py']) {
                     permissions { unix('755') }
                 }
+            }
+            // The evidence harness resolves public-network genesis files
+            // relative to this packaged profile. Copy only public JSON inputs
+            // from the external Yano distribution; never copy devnet keys.
+            from({ zipTree(appDistribution.get()) }) {
+                into 'profiles/evidence'
+                eachFile stripEmbeddedYanoRoot
+                include '**/config/network/**/*.json'
+                includeEmptyDirs = false
             }
             evidenceBundles.each { bundleTask ->
                 from(bundleTask.flatMap { it.archiveFile }) {
@@ -246,7 +263,7 @@ distributions {
 }
 
 def showcaseDistributionInputs = [
-        appDistribution,
+        yanoXJvmDistribution,
         tasks.named('shadowJar'),
         cardanoHistoryBundle,
         cardanoHistoryCli,
@@ -256,6 +273,7 @@ def showcaseDistributionInputs = [
 
 tasks.named('distZip') {
     dependsOn showcaseDistributionInputs
+    inputs.file(appDistribution).withPropertyName('yanoJvmDist')
     archiveFileName = "yano-showcase-${project.version}.zip"
     reproducibleFileOrder = true
     preserveFileTimestamps = false
@@ -263,12 +281,14 @@ tasks.named('distZip') {
 
 tasks.named('distTar') {
     dependsOn showcaseDistributionInputs
+    inputs.file(appDistribution).withPropertyName('yanoJvmDist')
     reproducibleFileOrder = true
     preserveFileTimestamps = false
 }
 
 tasks.named('installDist') {
     dependsOn showcaseDistributionInputs
+    inputs.file(appDistribution).withPropertyName('yanoJvmDist')
 }
 
 def stateMachineService =

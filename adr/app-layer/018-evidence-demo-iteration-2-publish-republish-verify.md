@@ -17,7 +17,7 @@ exists, is unrelated.
   accepted first-party connectors and first no-code evidence scenario.
 - [ADR-013.2](013.2-deterministic-composite-state-machine.md) owns the stock
   gated composite profile used by the demo.
-- [ADR-010](010-deterministic-effect-system.md) owns deterministic effects and
+- [ADR-010](https://github.com/bloxbean/yano/blob/main/adr/app-layer/010-deterministic-effect-system.md) owns deterministic effects and
   exactly-once result incorporation over at-least-once execution.
 - [App-layer open items](open_item.md) records the completed ADR in its
   inventory; delivery was tracked as `INT-010` while active.

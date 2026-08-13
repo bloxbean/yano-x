@@ -52,10 +52,19 @@ coordinates without depending on global Maven Local state. Set
 repository rather than Maven Central; this read-only input is distinct from the
 build-scoped Yano X publication repository.
 
-Release rehearsal must disable Maven Local and pin every input explicitly:
+Release rehearsal must disable Maven Local and pin every input explicitly. For
+an empty build-scoped repository, publish Yano X first and then run the full
+build against those staged publications:
 
 ```bash
-./gradlew clean check distributionCheck \
+./gradlew clean publishAllPublicationsToInternalRepository \
+  -Pversion=<yano-x-version> \
+  -PinternalRepository=/absolute/path/to/yano-x-staging \
+  -PyanoRepository=/absolute/path/to/yano-staging \
+  -PyanoVersion=<staged-yano-version> \
+  -PuseMavenLocal=false
+
+./gradlew build \
   -Pversion=<yano-x-version> \
   -PinternalRepository=/absolute/path/to/yano-x-staging \
   -PyanoRepository=/absolute/path/to/yano-staging \
@@ -63,6 +72,9 @@ Release rehearsal must disable Maven Local and pin every input explicitly:
   -PyanoJvmDist=/absolute/path/to/yano-<build-identity>.zip \
   -PuseMavenLocal=false
 ```
+
+Do not insert another `clean` between these commands: the second invocation
+uses the first invocation's generated publication and release metadata.
 
 Both release ZIPs contain `LICENSE` and a normalized CycloneDX 1.6 SBOM under
 `sbom/`. Distribution verification rejects missing license metadata for any

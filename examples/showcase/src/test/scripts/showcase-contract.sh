@@ -12,9 +12,11 @@ cp -R "$MODULE/src/main/showcase/." "$ROOT/"
 cp "$MODULE/src/main/showcase/config/application-appchain.yml" "$ROOT/yano/config/"
 cp "$MODULE/src/main/showcase/config/showcase-catalog-v1.json" "$ROOT/catalog/"
 printf 'fake jar\n' > "$ROOT/yano/yano.jar"
-printf 'fake plugin\n' > "$ROOT/yano/plugins/yano-x-showcase-test-bundle.jar"
+printf 'fake plugin\n' > "$ROOT/yano/plugins/yano-x-showcase-bundle-test.jar"
 printf 'fake history plugin\n' > \
-  "$ROOT/yano/plugins/yano-x-cardano-history-test-bundle.jar"
+  "$ROOT/yano/plugins/yano-x-cardano-history-bundle-test.jar"
+printf 'fake authenticated-map validator plugin\n' > \
+  "$ROOT/yano/plugins/yano-x-authenticated-map-validators-bundle-test.jar"
 cat > "$ROOT/yano/appchain-cluster/cluster.sh" <<'SH'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >> "${SHOWCASE_STUB_LOG:?}"
