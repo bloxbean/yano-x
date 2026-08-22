@@ -6,6 +6,7 @@ yano.server.port=13337
 yano.storage.path=/app/chainstate
 yano.genesis.shelley-genesis-file=/run/demo/shelley-genesis.json
 @GENESIS_TIMESTAMP_SETTING@
+@BLOCK_PRODUCER_INTERVAL_SETTING@
 yano.relay.connection.source-port-reuse=false
 yano.relay.connection.max-connections-per-ip=500
 yano.app-chain.api.auth.enabled=false

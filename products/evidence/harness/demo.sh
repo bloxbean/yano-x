@@ -1473,11 +1473,13 @@ insert_node_settings() {
 }
 
 compose_node_config() {
-  local index="$1" seed="$2" peers="$3" extras="$4" base genesis_setting
+  local index="$1" seed="$2" peers="$3" extras="$4" base genesis_setting producer_interval_setting
   base="$RUNTIME_ROOT/node$index.base"
   genesis_setting="# public-network systemStart comes from the selected genesis"
+  producer_interval_setting="# public-network producer cadence comes from the selected genesis"
   if [ "$DEMO_NETWORK" = devnet ]; then
     genesis_setting="yano.block-producer.genesis-timestamp=$(read_secret "$GENESIS_TIMESTAMP_FILE")"
+    producer_interval_setting="yano.block-producer.block-time-millis=1000"
   fi
   render_template "$SCRIPT_DIR/config/templates/node-compose.properties.in" "$base" \
     API_KEY "$(read_secret "$API_KEY_FILE")" CHAIN_ID "$DEMO_CHAIN_ID" \
@@ -1488,7 +1490,8 @@ compose_node_config() {
     MACHINE_PRESET_SETTING "$MACHINE_PRESET_SETTING" \
     EVIDENCE_CAPACITY_PER_BLOCK "$EVIDENCE_CAPACITY_PER_BLOCK" \
     DIRECT_RESULT_ACTIVATION_SETTING "$DIRECT_RESULT_ACTIVATION_SETTING" \
-    GENESIS_TIMESTAMP_SETTING "$genesis_setting"
+    GENESIS_TIMESTAMP_SETTING "$genesis_setting" \
+    BLOCK_PRODUCER_INTERVAL_SETTING "$producer_interval_setting"
   insert_node_settings "$base" "$extras" "$NODE_CONFIG_DIR/node$index.properties"
   rm -f "$base"
 }
@@ -1587,7 +1590,7 @@ PY
 }
 
 prepare_host_configs() {
-  local executor follower base i access secret host_home genesis_setting
+  local executor follower base i access secret host_home genesis_setting producer_interval_setting
   resolve_host_target_ids
   mkdir -p "$NODE_CONFIG_DIR"
   chmod 700 "$NODE_CONFIG_DIR"
@@ -1604,8 +1607,10 @@ prepare_host_configs() {
     S3_EXECUTOR_ACCESS "$access" S3_EXECUTOR_SECRET "$secret"
   cp "$SCRIPT_DIR/config/templates/follower-host.properties.in" "$follower"
   genesis_setting="# public-network systemStart comes from the selected genesis"
+  producer_interval_setting="# public-network producer cadence comes from the selected genesis"
   if [ "$DEMO_NETWORK" = devnet ]; then
     genesis_setting="yano.block-producer.genesis-timestamp=$(read_secret "$GENESIS_TIMESTAMP_FILE")"
+    producer_interval_setting="yano.block-producer.block-time-millis=1000"
   fi
   for i in 0 1 2; do
     base="$RUNTIME_ROOT/node$i-host.base"
@@ -1617,6 +1622,7 @@ prepare_host_configs() {
       EVIDENCE_CAPACITY_PER_BLOCK "$EVIDENCE_CAPACITY_PER_BLOCK" \
       DIRECT_RESULT_ACTIVATION_SETTING "$DIRECT_RESULT_ACTIVATION_SETTING" \
       GENESIS_TIMESTAMP_SETTING "$genesis_setting" \
+      BLOCK_PRODUCER_INTERVAL_SETTING "$producer_interval_setting" \
       ANCHOR_MAX_INTERVAL_MINUTES "$PROFILE_ANCHOR_MAX_INTERVAL_MINUTES"
     insert_node_settings "$base" "$([ "$i" -eq 0 ] && printf '%s' "$executor" || printf '%s' "$follower")" \
       "$NODE_CONFIG_DIR/node$i.properties"
