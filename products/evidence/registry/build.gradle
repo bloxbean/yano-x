@@ -54,6 +54,7 @@ tasks.named('shadowJar') {
             'com.bloxbean.cardano.yano.appchain.examples.evidence.internal.contracts.v1deps.cbor'
     relocate 'org.bouncycastle',
             'com.bloxbean.cardano.yano.appchain.examples.evidence.internal.contracts.v1deps.bouncycastle'
+    exclude 'com/bloxbean/cardano/yano/appchain/evidence/profile/contracts/**'
     exclude 'com/bloxbean/cardano/yano/api/**'
     exclude 'META-INF/services/java.security.Provider'
     exclude 'META-INF/*.SF', 'META-INF/*.RSA', 'META-INF/*.DSA', 'module-info.class'
@@ -76,6 +77,8 @@ def relocatedEvidenceContractRoot =
         'com/bloxbean/cardano/yano/appchain/examples/internal/evidencecontracts/v1/'
 def relocatedEvidenceContractCodec =
         relocatedEvidenceContractRoot + 'command/EvidenceCommandCodec.class'
+def profileContracts =
+        'com/bloxbean/cardano/yano/appchain/evidence/profile/contracts/'
 def isOriginalEvidenceContract = { String entry ->
     entry == originalEvidenceContractRoot + 'EvidenceContract.class'
             || ['command/', 'event/', 'query/', 'state/'].any {
@@ -146,9 +149,10 @@ tasks.register('verifyEvidenceRegistryArtifactBoundaries') {
             throw new GradleException('Evidence registry thin artifact embeds implementation dependencies')
         }
         if (bundleEntries.any(isOriginalEvidenceContract)
+                || bundleEntries.any { it.startsWith(profileContracts) }
                 || !bundleEntries.containsAll(relocatedEvidenceContractEntries)) {
             throw new GradleException(
-                    'Evidence registry bundle does not privately relocate its evidence contracts')
+                    'Evidence registry bundle does not isolate its owned evidence contracts')
         }
         if (!executableRegistryEntries.every { bundleEntries.contains(it) }
                 || executableRegistryEntries.any { entry ->

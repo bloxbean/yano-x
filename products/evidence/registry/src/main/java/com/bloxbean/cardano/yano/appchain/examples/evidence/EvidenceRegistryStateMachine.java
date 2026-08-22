@@ -277,8 +277,19 @@ public final class EvidenceRegistryStateMachine implements AppStateMachine {
     }
 
     /** Shared deterministic precondition used by stock composite release workflows. */
-    public boolean canApplyStorage(AppMessage message, EvidenceCommandV1 command,
-                                   AppStateReader state) {
+    public boolean canApplyStorage(AppMessage message, AppStateReader state) {
+        if (message == null || state == null) return false;
+        final EvidenceCommandV1 command;
+        try {
+            command = EvidenceCommandCodec.decode(message.getBody());
+        } catch (RuntimeException malformed) {
+            return false;
+        }
+        return canApplyStorage(message, command, state);
+    }
+
+    private boolean canApplyStorage(AppMessage message, EvidenceCommandV1 command,
+                                    AppStateReader state) {
         if (message == null || command == null || state == null
                 || !EvidenceContract.COMMAND_TOPIC.equals(message.getTopic())
                 || !validSender(message.getSender())) return false;

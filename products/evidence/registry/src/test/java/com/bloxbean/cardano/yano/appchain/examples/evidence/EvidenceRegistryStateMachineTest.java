@@ -45,6 +45,21 @@ class EvidenceRegistryStateMachineTest {
     private static final byte[] FOREIGN = EvidenceFixtures.repeat(0x52);
 
     @Test
+    void storagePreconditionDecodesTheRoutedCommandBehindAStablePluginBoundary() {
+        EvidenceRegistryStateMachine machine = machine(Map.of());
+        MemoryState state = new MemoryState();
+        AppMessage submit = message(EvidenceFixtures.OWNER, 1,
+                EvidenceFixtures.submit().encode(), EvidenceFixtures.SUBMIT_MESSAGE);
+
+        assertThat(machine.canApplyStorage(submit, state)).isTrue();
+        assertThat(machine.canApplyStorage(message(EvidenceFixtures.OWNER, 2,
+                new byte[]{1, 2, 3}, EvidenceFixtures.repeat(0x46)), state)).isFalse();
+
+        execute(machine, block(10, submit), state, new CapturingEmitter(10));
+        assertThat(machine.canApplyStorage(submit, state)).isFalse();
+    }
+
+    @Test
     void submitResultsSameBlockNotifyAndRepublishFormOneDeterministicWorkflow() {
         EvidenceRegistryStateMachine machine = machine(Map.of(
                 "machines.evidence-registry.issuers", hex(EvidenceFixtures.OWNER),
