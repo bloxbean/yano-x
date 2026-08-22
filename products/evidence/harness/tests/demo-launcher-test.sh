@@ -42,6 +42,8 @@ fi
 if grep -Fq 'sed "s|@$key@|' "$DEMO_DIR/demo.sh"; then
   fail "template values can leak through an external sed command argument"
 fi
+[ "$(grep -Fc 'wait_for_anchor_bootstrapped "$base"' "$DEMO_DIR/demo.sh")" -eq 2 ] \
+  || fail "Compose and host startup must both await confirmed anchor bootstrap"
 
 # Invalid identity and numeric inputs must fail before creating any managed root.
 INVALID_ROOT="$TMP/invalid"

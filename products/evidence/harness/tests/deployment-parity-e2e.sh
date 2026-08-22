@@ -270,6 +270,18 @@ NODE_IMAGE_CLAIMED=true
 RUNNER_IMAGE_CLAIMED=true
 
 port_free() { ! lsof -nP -iTCP:"$1" -sTCP:LISTEN >/dev/null 2>&1; }
+published_port_accepting() {
+  python3 - "$1" <<'PY'
+import socket
+import sys
+
+try:
+    connection = socket.create_connection(("127.0.0.1", int(sys.argv[1])), timeout=3)
+except OSError:
+    raise SystemExit(1)
+connection.close()
+PY
+}
 PORTS="$COMPOSE_HTTP_BASE $((COMPOSE_HTTP_BASE + 1)) $((COMPOSE_HTTP_BASE + 2)) \
 $COMPOSE_UI_PORT $COMPOSE_SERVER_BASE $((COMPOSE_SERVER_BASE + 1)) $((COMPOSE_SERVER_BASE + 2)) \
 $HOST_HTTP_BASE $((HOST_HTTP_BASE + 1)) $((HOST_HTTP_BASE + 2)) \
@@ -1150,7 +1162,8 @@ assert_ui_latest compose-post-restart "$COMPOSE_UI_PORT" "$COMPOSE_POST_RESTART"
 # The Compose stack deliberately remains live here. Host mode reaches the same
 # connector instances only through their loopback-published normal endpoints.
 for port in "$CONNECTOR_KAFKA_PORT" "$CONNECTOR_S3_PORT" "$CONNECTOR_IPFS_PORT"; do
-  port_free "$port" && fail "Compose connector stopped before host parity: $port"
+  published_port_accepting "$port" \
+    || fail "Compose connector stopped before host parity: $port"
 done
 for service in kafka rustfs kubo; do
   container="$(dc_compose ps -q "$service")"

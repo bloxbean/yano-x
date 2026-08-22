@@ -2254,8 +2254,24 @@ reconcile_anchor_binding() {
   die "members were neither pristine-pending nor converged on one adopted anchor within 180 seconds"
 }
 
+wait_for_anchor_bootstrapped() {
+  local base="$1" status bootstrapped deadline
+  deadline=$((SECONDS + 120))
+  while [ "$SECONDS" -lt "$deadline" ]; do
+    status="$(curl --connect-timeout 3 --max-time 10 -fsS \
+      "$base/app-chain/chains/$DEMO_CHAIN_ID/status")"
+    bootstrapped="$(printf '%s' "$status" | python3 -c \
+      'import json,sys; print(str(bool(json.load(sys.stdin).get("anchor",{}).get("bootstrapped"))).lower())')"
+    if [ "$bootstrapped" = true ]; then
+      return
+    fi
+    sleep 2
+  done
+  die "script anchor did not confirm within 120 seconds"
+}
+
 compose_anchor_bootstrap() {
-  local base="http://127.0.0.1:$HTTP0/api/v1" status bootstrapped address deadline
+  local base="http://127.0.0.1:$HTTP0/api/v1" status bootstrapped address
   status="$(curl --connect-timeout 3 --max-time 10 -fsS \
     "$base/app-chain/chains/$DEMO_CHAIN_ID/status")"
   read -r bootstrapped address < <(printf '%s' "$status" | python3 -c '
@@ -2277,18 +2293,7 @@ print(str(bool(a.get("bootstrapped"))).lower(), a.get("walletAddress", ""))
   wait_for_anchor_wallet_funds "$base" "$address"
   api_curl -fsS -X POST \
     "$base/app-chain/chains/$DEMO_CHAIN_ID/admin/anchor/bootstrap" >/dev/null
-  deadline=$((SECONDS + 120))
-  while [ "$SECONDS" -lt "$deadline" ]; do
-    status="$(curl --connect-timeout 3 --max-time 10 -fsS \
-      "$base/app-chain/chains/$DEMO_CHAIN_ID/status")"
-    bootstrapped="$(printf '%s' "$status" | python3 -c \
-      'import json,sys; print(str(bool(json.load(sys.stdin).get("anchor",{}).get("bootstrapped"))).lower())')"
-    if [ "$bootstrapped" = true ]; then
-      return
-    fi
-    sleep 2
-  done
-  die "script anchor did not confirm within 120 seconds"
+  wait_for_anchor_bootstrapped "$base"
 }
 
 wait_for_anchor_bootstrap_visibility() {
@@ -2434,6 +2439,7 @@ print(str(bool(a.get("bootstrapped"))).lower(), a.get("walletAddress", ""))
     wait_for_anchor_wallet_funds "$base" "$address"
   fi
   host_cluster anchor-bootstrap "$DEMO_CHAIN_ID"
+  wait_for_anchor_bootstrapped "$base"
 }
 
 host_cluster() {
