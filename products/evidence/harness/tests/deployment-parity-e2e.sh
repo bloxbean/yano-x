@@ -102,7 +102,7 @@ CONNECTOR_KAFKA_IP="${YANO_DEPLOYMENT_PARITY_KAFKA_IP:-172.30.116.12}"
 SCENARIO_TIMEOUT="${YANO_DEPLOYMENT_PARITY_TIMEOUT_SECONDS:-600}"
 # A low, steady L1 heartbeat lets slow CI followers recover without flooding
 # them with the hundreds of empty blocks produced by the showcase cadence.
-export DEMO_DEVNET_BLOCK_TIME_MILLIS=5000
+export DEMO_DEVNET_BLOCK_TIME_MILLIS=10000
 
 # Validate every environment-controlled number before Bash arithmetic. Bash
 # arithmetic recursively evaluates input and therefore must never see raw text.

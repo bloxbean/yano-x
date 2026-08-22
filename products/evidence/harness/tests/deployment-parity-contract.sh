@@ -46,7 +46,7 @@ for required in (
         "coexisting deployment parity requires distinct external object keys",
         'CONTINUATION_MODE="${YANO_DEPLOYMENT_PARITY_CONTINUATION_MODE:-explicit}"',
         'MACHINE_MODE="${YANO_DEPLOYMENT_PARITY_MACHINE:-standalone}"',
-        'export DEMO_DEVNET_BLOCK_TIME_MILLIS=5000',
+        'export DEMO_DEVNET_BLOCK_TIME_MILLIS=10000',
         '--continuation "$CONTINUATION_MODE"',
         '--machine "$MACHINE_MODE"',
         'EXPECTED_STATE_MACHINE=composite',
