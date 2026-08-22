@@ -87,7 +87,7 @@ COMMAND="${1:-help}"
 MODE="${DEMO_MODE:-compose}"
 INSTANCE="${DEMO_INSTANCE:-default}"
 OBSERVABILITY="${DEMO_OBSERVABILITY:-false}"
-DEVNET_LAZY_PRODUCTION="${DEMO_DEVNET_LAZY_PRODUCTION:-false}"
+DEVNET_BLOCK_TIME_MILLIS="${DEMO_DEVNET_BLOCK_TIME_MILLIS:-1000}"
 CLEAN_SCOPE=""
 CLEAN_CONFIRMED=false
 ENABLE_MAINNET=false
@@ -251,10 +251,6 @@ if [ "$COMMAND" != load ]; then
     || die "--count, --concurrency, --id-prefix, --load-mode and --max-in-flight are valid only for load"
 fi
 case "$OBSERVABILITY" in true|false) ;; *) die "DEMO_OBSERVABILITY must be true or false";; esac
-case "$DEVNET_LAZY_PRODUCTION" in
-  true|false) ;;
-  *) die "DEMO_DEVNET_LAZY_PRODUCTION must be true or false";;
-esac
 case "$DEMO_CONTINUATION_MODE" in
   explicit|direct) ;;
   *) die "--continuation must be explicit or direct";;
@@ -295,6 +291,7 @@ validate_decimal DEMO_S3_PORT "$DEMO_S3_PORT" 1 65535
 validate_decimal DEMO_IPFS_PORT "$DEMO_IPFS_PORT" 1 65535
 validate_decimal DEMO_PROMETHEUS_PORT "$DEMO_PROMETHEUS_PORT" 1 65535
 validate_decimal DEMO_GRAFANA_PORT "$DEMO_GRAFANA_PORT" 1 65535
+validate_decimal DEMO_DEVNET_BLOCK_TIME_MILLIS "$DEVNET_BLOCK_TIME_MILLIS" 100 60000
 if [ "$COMMAND" = load ]; then
   validate_decimal --count "$LOAD_COUNT" 1 50000
   validate_decimal --concurrency "$LOAD_CONCURRENCY" 1 16
@@ -1501,10 +1498,8 @@ compose_node_config() {
 append_devnet_producer_settings() {
   local output="$1"
   [ "$DEMO_NETWORK" = devnet ] || return 0
-  {
-    printf '%s\n' 'yano.block-producer.block-time-millis=1000'
-    printf 'yano.block-producer.lazy=%s\n' "$DEVNET_LAZY_PRODUCTION"
-  } >> "$output"
+  printf 'yano.block-producer.block-time-millis=%s\n' \
+    "$DEVNET_BLOCK_TIME_MILLIS" >> "$output"
 }
 
 prepare_compose_configs() {
