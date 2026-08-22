@@ -47,26 +47,26 @@ final class EvidenceScenario {
     private final ReportStore reports;
     private final Clock clock;
     private final LoadWorkflowGates loadWorkflows;
-    private final LoadAnchorAdvancer loadAnchors;
+    private final LoadAnchorAdvancer anchors;
 
     EvidenceScenario(DemoEnvironment environment, ReportStore reports) {
-        this(environment, reports, Clock.systemUTC(), null, null);
+        this(environment, reports, Clock.systemUTC(), null, new LoadAnchorAdvancer());
     }
 
     EvidenceScenario(DemoEnvironment environment, ReportStore reports, Clock clock) {
-        this(environment, reports, clock, null, null);
+        this(environment, reports, clock, null, new LoadAnchorAdvancer());
     }
 
     EvidenceScenario(DemoEnvironment environment,
                      ReportStore reports,
                      Clock clock,
                      LoadWorkflowGates loadWorkflows,
-                     LoadAnchorAdvancer loadAnchors) {
+                     LoadAnchorAdvancer anchors) {
         this.environment = environment;
         this.reports = reports;
         this.clock = clock;
         this.loadWorkflows = loadWorkflows;
-        this.loadAnchors = loadAnchors;
+        this.anchors = anchors;
     }
 
     ScenarioReport run() {
@@ -1155,7 +1155,7 @@ final class EvidenceScenario {
                                           boolean storagePhase) {
         long deadline = System.nanoTime() + environment.config.timeout().toNanos();
         while (System.nanoTime() < deadline) {
-            advanceLoadAnchor(environment.yano.getFirst());
+            advanceAnchor(environment.yano.getFirst());
             try {
                 Optional<VerifiedEvidence> result = node.evidence().queryVerified(
                         evidenceId, businessVersion);
@@ -1263,7 +1263,7 @@ final class EvidenceScenario {
         }
         long deadline = System.nanoTime() + environment.config.timeout().toNanos();
         while (System.nanoTime() < deadline) {
-            advanceLoadAnchor(environment.yano.getFirst());
+            advanceAnchor(environment.yano.getFirst());
             try {
                 YanoAuditClient.Status first = null;
                 boolean covered = true;
@@ -1303,9 +1303,9 @@ final class EvidenceScenario {
         throw new DemoException(DemoError.ANCHOR_UNAVAILABLE);
     }
 
-    private void advanceLoadAnchor(YanoAuditClient leader) {
-        if (loadAnchors != null && environment.config.requireAnchor()) {
-            loadAnchors.advance(leader);
+    private void advanceAnchor(YanoAuditClient leader) {
+        if (anchors != null && environment.config.requireAnchor()) {
+            anchors.advance(leader);
         }
     }
 
