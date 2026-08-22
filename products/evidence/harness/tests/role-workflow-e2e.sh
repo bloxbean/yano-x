@@ -42,6 +42,8 @@ export DEMO_KAFKA_IP="${YANO_ROLE_WORKFLOW_KAFKA_IP:-172.30.118.12}"
 export DEMO_OBSERVABILITY=false
 export DEMO_SCENARIO_TIMEOUT_SECONDS="${YANO_ROLE_WORKFLOW_TIMEOUT_SECONDS:-600}"
 export DEMO_SCENARIO_POLL_INTERVAL_MILLIS=500
+# Keep a steady recovery heartbeat without flooding slow CI followers.
+export DEMO_DEVNET_BLOCK_TIME_MILLIS=10000
 
 require_decimal_range() {
   local name="$1" value="$2" minimum="$3" maximum="$4" number

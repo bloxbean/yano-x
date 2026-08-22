@@ -5,6 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd -P)"
 DEMO_DIR="$(cd "$SCRIPT_DIR/.." && pwd -P)"
 REPO_ROOT="$(cd "$DEMO_DIR/../../.." && pwd -P)"
 SOURCE="$SCRIPT_DIR/deployment-parity-e2e.sh"
+ROLE_SOURCE="$SCRIPT_DIR/role-workflow-e2e.sh"
 WORKFLOW="$REPO_ROOT/.github/workflows/build.yml"
 RELEASE_CONTRACTS="$SCRIPT_DIR/release-contracts.sh"
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/yano-deployment-parity-contract.XXXXXX")"
@@ -17,14 +18,18 @@ docker compose version >/dev/null 2>&1 || fail 'Docker Compose v2 is required'
 [ -x "$SOURCE" ] || fail 'deployment-parity E2E must be executable'
 bash -n "$SOURCE"
 
-python3 - "$SOURCE" "$WORKFLOW" "$RELEASE_CONTRACTS" <<'PY'
+python3 - "$SOURCE" "$ROLE_SOURCE" "$WORKFLOW" "$RELEASE_CONTRACTS" <<'PY'
 from pathlib import Path
 import re
 import sys
 
 source = Path(sys.argv[1]).read_text(encoding="utf-8")
-workflow = Path(sys.argv[2]).read_text(encoding="utf-8")
-release_contracts = Path(sys.argv[3]).read_text(encoding="utf-8")
+role_source = Path(sys.argv[2]).read_text(encoding="utf-8")
+workflow = Path(sys.argv[3]).read_text(encoding="utf-8")
+release_contracts = Path(sys.argv[4]).read_text(encoding="utf-8")
+
+if 'export DEMO_DEVNET_BLOCK_TIME_MILLIS=10000' not in role_source:
+    raise SystemExit("role workflow must pace its devnet producer for slow CI followers")
 
 for required in (
         '[ "${YANO_RUN_DEPLOYMENT_PARITY_E2E:-false}" = true ]',
