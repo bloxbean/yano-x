@@ -46,6 +46,9 @@ export DEMO_KUBO_IP="${YANO_EFFECT_FAILOVER_KUBO_IP:-172.30.114.11}"
 export DEMO_KAFKA_IP="${YANO_EFFECT_FAILOVER_KAFKA_IP:-172.30.114.12}"
 export DEMO_SCENARIO_TIMEOUT_SECONDS="${YANO_EFFECT_FAILOVER_TIMEOUT_SECONDS:-600}"
 export DEMO_SCENARIO_POLL_INTERVAL_MILLIS=500
+# Keep the producer active so replacement-sync readiness can prove new L1
+# progress, but do not overwhelm slower CI followers with empty blocks.
+export DEMO_DEVNET_BLOCK_TIME_MILLIS=5000
 
 # Bash arithmetic recursively evaluates variable contents. Validate every
 # environment-controlled number before the first $((...)) expansion, reject
@@ -810,6 +813,10 @@ wait_json \
   "http://127.0.0.1:$((DEMO_HTTP_BASE + 1))/api/v1/app-chain/chains/$CHAIN_ID/effects/$EFFECT_HEIGHT/$EFFECT_ORDINAL" \
   '.record.type == "kafka.publish" and .execution.status == "QUARANTINED"' \
   "$NODE1_EFFECT" || fail 'replacement did not quarantine the historical open effect'
+
+HANDOFF_STATE="$ROOT/post-handoff-cluster-state.json"
+wait_cluster_agreement post-handoff "$HANDOFF_STATE" \
+  || { scenario_failure_diagnostics; fail 'cluster did not converge after the fenced handoff'; }
 
 note "Replacement is sole owner; explicitly requeueing $EFFECT_HEIGHT/$EFFECT_ORDINAL"
 [ -f "$API_KEY_FILE" ] && [ ! -L "$API_KEY_FILE" ] \
