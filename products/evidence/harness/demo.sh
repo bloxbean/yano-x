@@ -87,6 +87,7 @@ COMMAND="${1:-help}"
 MODE="${DEMO_MODE:-compose}"
 INSTANCE="${DEMO_INSTANCE:-default}"
 OBSERVABILITY="${DEMO_OBSERVABILITY:-false}"
+DEVNET_LAZY_PRODUCTION="${DEMO_DEVNET_LAZY_PRODUCTION:-false}"
 CLEAN_SCOPE=""
 CLEAN_CONFIRMED=false
 ENABLE_MAINNET=false
@@ -250,6 +251,10 @@ if [ "$COMMAND" != load ]; then
     || die "--count, --concurrency, --id-prefix, --load-mode and --max-in-flight are valid only for load"
 fi
 case "$OBSERVABILITY" in true|false) ;; *) die "DEMO_OBSERVABILITY must be true or false";; esac
+case "$DEVNET_LAZY_PRODUCTION" in
+  true|false) ;;
+  *) die "DEMO_DEVNET_LAZY_PRODUCTION must be true or false";;
+esac
 case "$DEMO_CONTINUATION_MODE" in
   explicit|direct) ;;
   *) die "--continuation must be explicit or direct";;
@@ -1473,13 +1478,11 @@ insert_node_settings() {
 }
 
 compose_node_config() {
-  local index="$1" seed="$2" peers="$3" extras="$4" base genesis_setting producer_interval_setting
+  local index="$1" seed="$2" peers="$3" extras="$4" base genesis_setting
   base="$RUNTIME_ROOT/node$index.base"
   genesis_setting="# public-network systemStart comes from the selected genesis"
-  producer_interval_setting="# public-network producer cadence comes from the selected genesis"
   if [ "$DEMO_NETWORK" = devnet ]; then
     genesis_setting="yano.block-producer.genesis-timestamp=$(read_secret "$GENESIS_TIMESTAMP_FILE")"
-    producer_interval_setting="yano.block-producer.block-time-millis=1000"
   fi
   render_template "$SCRIPT_DIR/config/templates/node-compose.properties.in" "$base" \
     API_KEY "$(read_secret "$API_KEY_FILE")" CHAIN_ID "$DEMO_CHAIN_ID" \
@@ -1490,10 +1493,18 @@ compose_node_config() {
     MACHINE_PRESET_SETTING "$MACHINE_PRESET_SETTING" \
     EVIDENCE_CAPACITY_PER_BLOCK "$EVIDENCE_CAPACITY_PER_BLOCK" \
     DIRECT_RESULT_ACTIVATION_SETTING "$DIRECT_RESULT_ACTIVATION_SETTING" \
-    GENESIS_TIMESTAMP_SETTING "$genesis_setting" \
-    BLOCK_PRODUCER_INTERVAL_SETTING "$producer_interval_setting"
+    GENESIS_TIMESTAMP_SETTING "$genesis_setting"
   insert_node_settings "$base" "$extras" "$NODE_CONFIG_DIR/node$index.properties"
   rm -f "$base"
+}
+
+append_devnet_producer_settings() {
+  local output="$1"
+  [ "$DEMO_NETWORK" = devnet ] || return 0
+  {
+    printf '%s\n' 'yano.block-producer.block-time-millis=1000'
+    printf 'yano.block-producer.lazy=%s\n' "$DEVNET_LAZY_PRODUCTION"
+  } >> "$output"
 }
 
 prepare_compose_configs() {
@@ -1513,6 +1524,7 @@ prepare_compose_configs() {
     S3_EXECUTOR_ACCESS "$(read_secret "$S3_EXECUTOR_ACCESS_FILE")" \
     S3_EXECUTOR_SECRET "$(read_secret "$S3_EXECUTOR_SECRET_FILE")"
   cp "$executor" "$node0extra"
+  append_devnet_producer_settings "$node0extra"
   if [ "$ANCHOR_ENABLED" = true ]; then
     anchor_key="$ANCHOR_KEY_VALUE"
     {
@@ -1590,7 +1602,7 @@ PY
 }
 
 prepare_host_configs() {
-  local executor follower base i access secret host_home genesis_setting producer_interval_setting
+  local executor follower base i access secret host_home genesis_setting
   resolve_host_target_ids
   mkdir -p "$NODE_CONFIG_DIR"
   chmod 700 "$NODE_CONFIG_DIR"
@@ -1605,12 +1617,11 @@ prepare_host_configs() {
     S3_TARGET_ID "$HOST_S3_TARGET_ID" IPFS_TARGET_ID "$HOST_IPFS_TARGET_ID" \
     KAFKA_TARGET_ID "$HOST_KAFKA_TARGET_ID" \
     S3_EXECUTOR_ACCESS "$access" S3_EXECUTOR_SECRET "$secret"
+  append_devnet_producer_settings "$executor"
   cp "$SCRIPT_DIR/config/templates/follower-host.properties.in" "$follower"
   genesis_setting="# public-network systemStart comes from the selected genesis"
-  producer_interval_setting="# public-network producer cadence comes from the selected genesis"
   if [ "$DEMO_NETWORK" = devnet ]; then
     genesis_setting="yano.block-producer.genesis-timestamp=$(read_secret "$GENESIS_TIMESTAMP_FILE")"
-    producer_interval_setting="yano.block-producer.block-time-millis=1000"
   fi
   for i in 0 1 2; do
     base="$RUNTIME_ROOT/node$i-host.base"
@@ -1622,7 +1633,6 @@ prepare_host_configs() {
       EVIDENCE_CAPACITY_PER_BLOCK "$EVIDENCE_CAPACITY_PER_BLOCK" \
       DIRECT_RESULT_ACTIVATION_SETTING "$DIRECT_RESULT_ACTIVATION_SETTING" \
       GENESIS_TIMESTAMP_SETTING "$genesis_setting" \
-      BLOCK_PRODUCER_INTERVAL_SETTING "$producer_interval_setting" \
       ANCHOR_MAX_INTERVAL_MINUTES "$PROFILE_ANCHOR_MAX_INTERVAL_MINUTES"
     insert_node_settings "$base" "$([ "$i" -eq 0 ] && printf '%s' "$executor" || printf '%s' "$follower")" \
       "$NODE_CONFIG_DIR/node$i.properties"

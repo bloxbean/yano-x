@@ -575,8 +575,11 @@ configured="$(grep -h '^yano.block-producer.genesis-timestamp=' "$NODE_DIR"/*.pr
   | cut -d= -f2 | sort -u)"
 [ "$configured" = "$(cat "$timestamp")" ] || fail "nodes do not share the genesis timestamp"
 [ "$(grep -hFx 'yano.block-producer.block-time-millis=1000' \
-  "$NODE_DIR"/*.properties | wc -l | tr -d ' ')" -eq 3 ] \
-  || fail "devnet nodes do not use the catch-up-safe producer cadence"
+  "$NODE_DIR"/*.properties | wc -l | tr -d ' ')" -eq 1 ] \
+  || fail "devnet producer does not use the catch-up-safe cadence"
+[ "$(grep -hFx 'yano.block-producer.lazy=false' \
+  "$NODE_DIR"/*.properties | wc -l | tr -d ' ')" -eq 1 ] \
+  || fail "devnet producer does not declare the default continuous mode"
 expected_start="$(python3 - "$timestamp" <<'PY'
 from datetime import datetime, timezone
 from pathlib import Path
@@ -808,6 +811,9 @@ PREVIEW_NODE="$PREVIEW_SECRET/nodes-compose/node0.properties"
 PREVIEW_RUNNER="$PREVIEW_RUNTIME/runner-compose.properties"
 if grep -Fq 'yano.block-producer.block-time-millis=' "$PREVIEW_NODE"; then
   fail "preview producer cadence must remain genesis-driven"
+fi
+if grep -Fq 'yano.block-producer.lazy=' "$PREVIEW_NODE"; then
+  fail "preview block production mode must remain genesis-driven"
 fi
 grep -Fxq 'yano.app-chain.chains[0].machines.evidence-registry.storage-gate=app-final' \
   "$PREVIEW_NODE" || fail "preview does not default to APP_FINAL storage"

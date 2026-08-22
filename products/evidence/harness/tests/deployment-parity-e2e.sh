@@ -100,6 +100,10 @@ CONNECTOR_S3_IP="${YANO_DEPLOYMENT_PARITY_S3_IP:-172.30.116.10}"
 CONNECTOR_KUBO_IP="${YANO_DEPLOYMENT_PARITY_KUBO_IP:-172.30.116.11}"
 CONNECTOR_KAFKA_IP="${YANO_DEPLOYMENT_PARITY_KAFKA_IP:-172.30.116.12}"
 SCENARIO_TIMEOUT="${YANO_DEPLOYMENT_PARITY_TIMEOUT_SECONDS:-600}"
+# Parity scenarios do not need a stream of empty L1 blocks. Producing only
+# around submitted transactions keeps all three members close enough to prove
+# anchor visibility deterministically on slower CI hosts.
+export DEMO_DEVNET_LAZY_PRODUCTION=true
 
 # Validate every environment-controlled number before Bash arithmetic. Bash
 # arithmetic recursively evaluates input and therefore must never see raw text.
