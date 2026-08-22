@@ -1155,7 +1155,12 @@ final class EvidenceScenario {
                                           boolean storagePhase) {
         long deadline = System.nanoTime() + environment.config.timeout().toNanos();
         while (System.nanoTime() < deadline) {
-            advanceAnchor(environment.yano.getFirst());
+            // Load workers may be gated on an earlier L1 anchor. A normal
+            // scenario waits for three-member state agreement before asking
+            // for its terminal anchor, so it cannot race a recovering member.
+            if (loadWorkflows != null) {
+                advanceAnchor(environment.yano.getFirst());
+            }
             try {
                 Optional<VerifiedEvidence> result = node.evidence().queryVerified(
                         evidenceId, businessVersion);
