@@ -249,6 +249,56 @@ wait_json() {
   return 1
 }
 
+wait_l1_sync() {
+  local node="$1" seconds="$2" output="$3" deadline
+  local port=$((DEMO_HTTP_BASE + node))
+  local baseline="" local_tip remote_tip
+  deadline=$((SECONDS + seconds))
+  while [ "$SECONDS" -lt "$deadline" ]; do
+    if bounded_get "http://127.0.0.1:$port/api/v1/node/status" \
+        "$output" 1048576 2>/dev/null; then
+      read -r local_tip remote_tip < <(jq -r '
+        if (.localTipBlockNumber | type) == "number"
+            and (.remoteTipBlockNumber | type) == "number"
+        then [.localTipBlockNumber, .remoteTipBlockNumber] | @tsv
+        else "" end
+      ' "$output" 2>/dev/null || true)
+      if [[ "$local_tip" =~ ^[0-9]+$ && "$remote_tip" =~ ^[0-9]+$ ]]; then
+        [ -n "$baseline" ] || baseline="$local_tip"
+        if [ "$local_tip" -gt "$baseline" ] \
+            && [ $((local_tip + 2)) -ge "$remote_tip" ]; then
+          return 0
+        fi
+      fi
+    fi
+    sleep 1
+  done
+  return 1
+}
+
+scenario_failure_diagnostics() {
+  local node port app_status l1_status
+  note 'Scenario failure diagnostics follow:' >&2
+  for node in 0 1 2; do
+    port=$((DEMO_HTTP_BASE + node))
+    app_status="$ROOT/failure-node$node-app-status.json"
+    l1_status="$ROOT/failure-node$node-l1-status.json"
+    if bounded_get \
+        "http://127.0.0.1:$port/api/v1/app-chain/chains/$CHAIN_ID/status" \
+        "$app_status" 1048576 2>/dev/null; then
+      jq -c '{chainId,running,tipHeight,stateRoot,memberKey,anchor}' \
+        "$app_status" >&2 || true
+    fi
+    if bounded_get "http://127.0.0.1:$port/api/v1/node/status" \
+        "$l1_status" 1048576 2>/dev/null; then
+      jq -c '{initialSyncComplete,localTipBlockNumber,remoteTipBlockNumber}' \
+        "$l1_status" >&2 || true
+    fi
+  done
+  dc_failover logs --no-color --tail 160 yano-0 yano-1 yano-2 2>&1 \
+    | tail -n 480 >&2 || true
+}
+
 wait_authenticated_json() {
   local url="$1" expression="$2" output="$3" deadline=$((SECONDS + 180))
   while [ "$SECONDS" -lt "$deadline" ]; do
@@ -730,6 +780,16 @@ if docker inspect "$OLD_OWNER_ID" >/dev/null 2>&1; then
   fail 'old executor container still exists after fenced recreation'
 fi
 
+NODE1_L1_STATUS="$ROOT/node1-l1-after-handoff.json"
+if ! wait_l1_sync 1 30 "$NODE1_L1_STATUS"; then
+  note 'Replacement L1 sync did not become ready; reconnecting node 1 once.'
+  dc_failover up --detach --no-deps --force-recreate --wait --wait-timeout 180 yano-1
+  REPLACEMENT_ID="$(dc_failover ps -q yano-1)"
+  [ -n "$REPLACEMENT_ID" ] || fail 'reconnected replacement container is missing'
+  wait_l1_sync 1 180 "$NODE1_L1_STATUS" \
+    || { scenario_failure_diagnostics; fail 'replacement L1 sync did not recover'; }
+fi
+
 docker inspect "$NEW_NODE0_ID" | jq -e --arg source "$FENCED_CONFIG" '
   (.[0].Mounts | any(.Destination == "/run/demo/node.properties" and .Source == $source))
   and (.[0].Config.Env | all(contains("yano.test.effect-runtime") | not))
@@ -777,6 +837,7 @@ set -e
 RUN_PID=""
 if [ "$RUN_STATUS" -ne 0 ]; then
   sed -n '1,300p' "$RUN_OUTPUT" >&2
+  scenario_failure_diagnostics
   fail "scenario failed after fenced handoff (status $RUN_STATUS)"
 fi
 
