@@ -2286,7 +2286,9 @@ print(str(bool(a.get("bootstrapped"))).lower(), a.get("walletAddress", ""))
 }
 
 wait_for_anchor_bootstrap_visibility() {
-  local status address policy asset_unit deadline next_report i response visible summary
+  local status address policy asset_unit deadline next_report recovery_at i response visible summary
+  local recovery_attempted=false
+  local -a pending=()
   [ "$ANCHOR_ENABLED" = true ] || return 0
   status="$(curl --connect-timeout 3 --max-time 10 -fsS \
     "http://127.0.0.1:$HTTP0/api/v1/app-chain/chains/$DEMO_CHAIN_ID/status")"
@@ -2307,10 +2309,12 @@ PY
   )"
   deadline=$((SECONDS + 300))
   next_report=$SECONDS
+  recovery_at=$((SECONDS + 60))
   note "WAIT_ANCHOR_VISIBILITY: requiring the bootstrap thread UTxO on all three members."
   while [ "$SECONDS" -lt "$deadline" ]; do
     visible=true
     summary=""
+    pending=()
     for i in 0 1 2; do
       response="$(curl --connect-timeout 3 --max-time 10 --max-filesize 1048576 -fsS \
         "http://127.0.0.1:$((HTTP0 + i))/api/v1/addresses/$address/utxos/$asset_unit?count=50" \
@@ -2340,17 +2344,33 @@ raise SystemExit(1)
         summary="$summary node$i=visible"
       else
         visible=false
+        pending+=("$i")
         summary="$summary node$i=pending"
       fi
     done
     [ "$visible" = true ] \
       && { note "WAIT_ANCHOR_VISIBILITY complete:$summary"; return 0; }
+    if [ "$MODE" = compose ] && [ "$DEMO_NETWORK" = devnet ] \
+        && [ "$recovery_attempted" = false ] \
+        && [ "$SECONDS" -ge "$recovery_at" ]; then
+      recovery_attempted=true
+      for i in "${pending[@]}"; do
+        [ "$i" -ne 0 ] || continue
+        note "WAIT_ANCHOR_VISIBILITY: reconnecting stalled devnet follower node$i once."
+        dc up --detach --no-deps --force-recreate --wait --wait-timeout 180 "yano-$i" \
+          || die "failed to reconnect stalled devnet follower node$i"
+      done
+      continue
+    fi
     if [ "$SECONDS" -ge "$next_report" ]; then
       note "WAIT_ANCHOR_VISIBILITY progress:$summary"
       next_report=$((SECONDS + 60))
     fi
     sleep 2
   done
+  if [ "$MODE" = compose ]; then
+    dc logs --no-color --tail 120 yano-0 yano-1 yano-2 2>&1 | tail -n 360 >&2 || true
+  fi
   die "bootstrap thread UTxO was not visible on all three members within 300 seconds:$summary"
 }
 
