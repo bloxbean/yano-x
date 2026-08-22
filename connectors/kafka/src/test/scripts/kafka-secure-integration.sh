@@ -3,7 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd -P)"
 MODULE_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd -P)"
-ROOT_DIR="$(cd "$MODULE_DIR/../../.." && pwd -P)"
+ROOT_DIR="$(cd "$MODULE_DIR/../.." && pwd -P)"
 COMPOSE_FILE="$MODULE_DIR/src/test/resources/kafka-secure-integration.compose.yaml"
 # shellcheck disable=SC1091
 . "$ROOT_DIR/products/evidence/harness/config/images.env"

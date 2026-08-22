@@ -2565,7 +2565,12 @@ cmd_up() {
   verify_cached_key_material
   if [ "$MODE" = compose ]; then
     STARTUP_MAY_HAVE_SERVICES=true
-    dc up -d --wait --wait-timeout 360
+    if ! dc up -d --wait --wait-timeout 360; then
+      note "Compose startup failed; bounded Yano startup diagnostics follow." >&2
+      dc ps >&2 || true
+      dc logs --no-color --tail 200 yano-0 >&2 || true
+      return 1
+    fi
     verify_compose_loopback_surfaces
     wait_for_public_l1_sync
     [ "$ANCHOR_ENABLED" = false ] || compose_anchor_bootstrap

@@ -42,6 +42,8 @@ FENCE_KIND = "yano.demo.managed-process-launch"
 TEST_STOP_ENV = "YANO_MANAGED_PROCESS_TEST_STOP_AFTER"
 TEST_FAIL_ENV = "YANO_MANAGED_PROCESS_TEST_FAIL_AFTER"
 TEST_UNPROVEN_ENV = "YANO_MANAGED_PROCESS_TEST_CLEANUP_UNPROVEN"
+LINUX_SNAPSHOT_ATTEMPTS = 3
+LINUX_SNAPSHOT_RETRY_SECONDS = 0.01
 DARWIN_ARGV_SNAPSHOT_ATTEMPTS = 5
 DARWIN_ARGV_RETRY_SECONDS = 0.01
 
@@ -380,7 +382,7 @@ def validate_fence(
     )
 
 
-def linux_snapshot(pid: int, include_argv: bool) -> ProcessSnapshot | None:
+def linux_process_info(pid: int) -> tuple[int, str, bool] | None:
     try:
         raw_stat = Path(f"/proc/{pid}/stat").read_text(encoding="ascii")
         proc_info = os.stat(f"/proc/{pid}")
@@ -396,21 +398,42 @@ def linux_snapshot(pid: int, include_argv: bool) -> ProcessSnapshot | None:
         fail(f"kernel process identity is incomplete for PID {pid}")
     state = fields[0]
     token = f"linux:{fields[19]}"
-    argv: tuple[str, ...] | None = None
-    if include_argv and state != "Z":
+    return proc_info.st_uid, token, state == "Z"
+
+
+def linux_snapshot(pid: int, include_argv: bool) -> ProcessSnapshot | None:
+    """Capture one bounded, identity-consistent Linux process snapshot."""
+    for attempt in range(LINUX_SNAPSHOT_ATTEMPTS):
+        before = linux_process_info(pid)
+        if before is None:
+            return None
+        uid, token, zombie = before
+        if not include_argv or zombie:
+            return ProcessSnapshot(pid, uid, token, None, zombie)
         try:
             raw_argv = Path(f"/proc/{pid}/cmdline").read_bytes()
         except FileNotFoundError:
             return None
-        if not raw_argv:
-            argv = ()
-        else:
-            parts = raw_argv.rstrip(b"\0").split(b"\0")
-            try:
-                argv = tuple(os.fsdecode(item) for item in parts)
-            except UnicodeError as error:
-                raise ManagedProcessError(f"cannot decode argv for PID {pid}") from error
-    return ProcessSnapshot(pid, proc_info.st_uid, token, argv, state == "Z")
+        except OSError as error:
+            raise ManagedProcessError(f"cannot inspect process {pid}: {error}") from error
+        after = linux_process_info(pid)
+        if after is None:
+            return None
+        if after != before:
+            if attempt + 1 < LINUX_SNAPSHOT_ATTEMPTS:
+                time.sleep(LINUX_SNAPSHOT_RETRY_SECONDS)
+                continue
+            fail(f"cannot capture a consistent argv snapshot for PID {pid}")
+        if not raw_argv and attempt + 1 < LINUX_SNAPSHOT_ATTEMPTS:
+            time.sleep(LINUX_SNAPSHOT_RETRY_SECONDS)
+            continue
+        parts = raw_argv.rstrip(b"\0").split(b"\0") if raw_argv else []
+        try:
+            argv = tuple(os.fsdecode(item) for item in parts)
+        except UnicodeError as error:
+            raise ManagedProcessError(f"cannot decode argv for PID {pid}") from error
+        return ProcessSnapshot(pid, uid, token, argv, False)
+    raise AssertionError("unreachable")
 
 
 class DarwinBsdInfo(ctypes.Structure):

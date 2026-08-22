@@ -401,6 +401,7 @@ assert_plugin_operations_all_nodes() {
     wait_authenticated_json \
       "http://127.0.0.1:$port/api/v1/plugin-operations/bundles?limit=100" \
       '(.items | map(select(.selected)) | map(.id)) == [
+          "com.bloxbean.cardano.yano.appchain.composite",
           "com.bloxbean.cardano.yano.appchain.evidence-profile",
           "com.bloxbean.cardano.yano.appchain.evidence-registry",
           "com.bloxbean.cardano.yano.appchain.ipfs",
@@ -414,11 +415,11 @@ assert_plugin_operations_all_nodes() {
           and (.health == "UNKNOWN" or .health == "UP")
           and .failure.code == "NONE"
           and .metricsStale == false))
-        and ([.items[] | select(.selected) | .contributionCount] | add) == 23
+        and ([.items[] | select(.selected) | .contributionCount] | add) == 24
         and .nextAfter == null' "$bundles" \
       || fail "node $node plugin inventory is not the exact selected demo catalog"
     fingerprint="$(jq -r '.catalogFingerprint' "$summary")"
-    jq -e --arg fingerprint "$fingerprint" '
+    if ! jq -e --arg fingerprint "$fingerprint" '
       .catalogFingerprint == $fingerprint
       and (.generation | type == "number" and . >= 1)
       and (.capturedAtEpochMillis | type == "number" and . > 0)
@@ -428,7 +429,10 @@ assert_plugin_operations_all_nodes() {
       and .totals.failedBundles == 0
       and .totals.degradedBundles == 0
       and .totals.staleSources == 0
-    ' "$summary" >/dev/null || fail "node $node plugin operations snapshot is unhealthy"
+    ' "$summary" >/dev/null; then
+      jq -c '{pluginApiMajor, pluginApiLevel, totals}' "$summary" >&2 || true
+      fail "node $node plugin operations snapshot is unhealthy"
+    fi
     jq -e --arg fingerprint "$fingerprint" '.catalogFingerprint == $fingerprint' \
       "$bundles" >/dev/null || fail "node $node plugin inventory is from another catalog"
     if [ -z "$expected_fingerprint" ]; then
@@ -477,7 +481,7 @@ def sample(name, required_label):
 
 sample("yano_appchain_tip_height", f'chain="{chain}"')
 sample("yano_appchain_effects_open", f'chain="{chain}"')
-if sample("yano_plugin_bundles", 'state="selected"') != 7:
+if sample("yano_plugin_bundles", 'state="selected"') != 8:
     raise SystemExit(1)
 PY
   done

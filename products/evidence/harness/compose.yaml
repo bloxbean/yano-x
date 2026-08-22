@@ -58,9 +58,10 @@ x-yano: &yano
     QUARKUS_CONFIG_LOCATIONS: file:/run/demo/node.properties
     JAVA_OPTS: -XX:MaxRAMPercentage=75
   tmpfs:
-    # RocksDB extracts and loads its JNI library here. Keep this exec exception
+    # RocksDB extracts its JNI library here, and Yano snapshots the complete
+    # plugin directory before activation. Keep this bounded exec exception
     # scoped to Yano; every other service retains a noexec tmpfs.
-    - /tmp:size=128m,mode=1777,exec
+    - /tmp:size=512m,mode=1777,exec
   volumes:
     - type: bind
       source: ${DEMO_PLUGIN_DIR:?}
