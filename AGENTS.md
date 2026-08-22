@@ -105,27 +105,31 @@ Useful focused gates:
 ./gradlew cryptoTest -PyanoVersion=<yano-version>
 ```
 
-The root `build` verifies distributions and needs Yano X's own publications in
-an isolated repository. For a clean rehearsal use two invocations and do not
-clean between them:
+The root `build` verifies distributions from the same dependency-complete
+bundle JARs attached to Yano X's Maven publications. A released `yanoVersion`
+resolves its matching ordinary JVM ZIP from the `bloxbean/yano` GitHub release
+automatically:
+
+```bash
+./gradlew clean build \
+  -PyanoVersion=<published-yano-version> \
+  -PskipSigning=true
+```
+
+For a release rehearsal, also publish to a new empty isolated repository:
 
 ```bash
 YANO_X_STAGING=/absolute/path/to/new-empty-directory
 
-./gradlew clean publishAllPublicationsToInternalRepository \
+./gradlew publishAllPublicationsToInternalRepository \
   -PinternalRepository="$YANO_X_STAGING" \
   -PyanoVersion=<published-yano-version> \
-  -PuseMavenLocal=true -PskipSigning=true
-
-./gradlew build \
-  -PinternalRepository="$YANO_X_STAGING" \
-  -PyanoVersion=<published-yano-version> \
-  -PyanoJvmDist=/absolute/path/to/yano-<same-build-identity>.zip \
-  -PuseMavenLocal=true -PskipSigning=true
+  -PskipSigning=true
 ```
 
-Use a new empty staging directory for every clean rehearsal. The Yano Maven
-version and JVM ZIP identity must match exactly.
+The Yano Maven version and JVM ZIP identity must match exactly. For local or
+staged Yano development, explicitly supply the matching `-PyanoJvmDist` and
+enable the appropriate Maven Local or staging repository input.
 
 ## Testing expectations
 
@@ -138,7 +142,7 @@ cross-node behavior changed.
   or contribution change.
 - Run `verifyJvmOnlyBuild` for build topology changes.
 - Run integration/crypto suites when their domains change.
-- Run `distributionCheck` or the clean two-step `build` for dependency,
+- Run `distributionCheck` or a clean `build` for dependency,
   bundle, class-isolation, launch, or packaging changes.
 - Run showcase script and distribution contracts for showcase changes:
 

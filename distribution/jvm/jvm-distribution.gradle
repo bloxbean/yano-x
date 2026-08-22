@@ -3,10 +3,12 @@ import groovy.json.JsonSlurper
 import java.util.zip.ZipFile
 
 def requestedYanoVersion = providers.gradleProperty('yanoVersion')
-def baseYanoDistribution = providers.gradleProperty('yanoJvmDist').map { file(it) }
+def baseYanoDistribution = project.ext.yanoXBaseJvmDistribution
 def runtimeBundleSpecifications = project.ext.yanoXRuntimeBundleSpecifications
 def defaultBundleIds = project.ext.yanoXDefaultBundleIds
 def optionalBundleIds = project.ext.yanoXOptionalBundleIds
+def defaultBundleFiles = project.ext.yanoXDefaultBundleFiles
+def optionalBundleFiles = project.ext.yanoXOptionalBundleFiles
 def canonicalBundleName = project.ext.yanoXCanonicalBundleName
 def pluginPackManifest = project.ext.yanoXPluginPackManifest
 def releaseSbom = project.ext.yanoXReleaseSbom
@@ -97,11 +99,11 @@ tasks.register('yanoXJvmDistZip', Zip) {
         from(releaseSbom) {
             into 'sbom'
         }
-        from(configurations.yanoDefaultExtensionBundles) {
+        from(defaultBundleFiles) {
             into 'plugins'
             rename { name -> canonicalBundleName(name) }
         }
-        from(configurations.yanoOptionalExtensionBundles) {
+        from(optionalBundleFiles) {
             into 'optional-plugins'
             rename { name -> canonicalBundleName(name) }
         }

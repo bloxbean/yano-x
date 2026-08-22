@@ -31,7 +31,7 @@ Add the following according to scope:
 
 - `integrationTest` for multi-module or host/plugin integration.
 - `cryptoTest` for signing, hashes, commitments, proofs, or on-chain vectors.
-- `distributionCheck` or the clean two-step root `build` for publication,
+- `distributionCheck` or a clean root `build` for publication,
   bundle, catalog, isolation, launch, dependency, or packaging changes.
 - `:examples:showcase:showcaseScriptContract` for launcher/config changes.
 - `:examples:showcase:showcaseDistributionContract` for packaged showcase or

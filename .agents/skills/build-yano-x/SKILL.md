@@ -13,7 +13,9 @@ description: Build, test, publish locally, stage, and assemble the Java 25 JVM-o
    work and never commit automatically.
 3. Require Java 25.
 4. Resolve one exact Yano version and the ordinary JVM ZIP produced by that
-   same build. Never mix version identities.
+   same build. Released versions download through Gradle from the matching
+   `bloxbean/yano` GitHub release; local or staged builds use an explicit
+   `yanoJvmDist`. Never mix version identities.
 
 ## Select the build tier
 
@@ -39,31 +41,35 @@ Then opt in to Maven Local explicitly in Yano X:
   -PuseMavenLocal=true --offline
 ```
 
-For a clean full build, create a new empty staging repository and use two
-invocations without cleaning between them:
+For a clean full build against a released Yano version:
 
 ```bash
-./gradlew clean publishAllPublicationsToInternalRepository \
+./gradlew clean build \
+  -PyanoVersion=<published-yano-version> \
+  -PskipSigning=true
+```
+
+For a release rehearsal, publish all coordinates to a new empty staging
+repository after the clean build:
+
+```bash
+./gradlew publishAllPublicationsToInternalRepository \
   -PinternalRepository=<empty-staging-directory> \
   -PyanoVersion=<published-yano-version> \
-  -PuseMavenLocal=true -PskipSigning=true
-
-./gradlew build \
-  -PinternalRepository=<same-staging-directory> \
-  -PyanoVersion=<published-yano-version> \
-  -PyanoJvmDist=/absolute/path/to/yano-<same-build-identity>.zip \
-  -PuseMavenLocal=true -PskipSigning=true
+  -PskipSigning=true
 ```
 
 Use `distributionCheck` when only distribution gates are required. Do not
-invent a special lean base ZIP; Yano X consumes Yano's ordinary JVM ZIP.
+invent a special lean base ZIP; Yano X consumes Yano's ordinary JVM ZIP. Add
+`-PyanoJvmDist=/absolute/path/to/yano-<same-build-identity>.zip` for local or
+staged inputs.
 
 ## Diagnose failures
 
 - Treat `config/artifacts-v1.json` as the artifact and bundle identity source
   of truth.
-- If source tests pass but `build` fails, first check whether Yano X
-  publications were staged and whether `internalRepository` is supplied.
+- If source tests pass but `build` fails, inspect the distribution task and its
+  exact Yano Maven/ZIP inputs; Yano X bundles are built from project outputs.
 - If input verification fails, compare `yanoVersion`, the base ZIP root, the
   host JAR implementation version, and the Yano distribution manifest.
 - If bundle verification fails, inspect duplicate/missing contributions,

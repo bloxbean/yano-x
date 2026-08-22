@@ -6,6 +6,17 @@ JVM and GraalVM distributions; no special base ZIP exists for Yano X.
 ## Inputs
 
 Use the same exact Yano version for Maven dependencies and the base JVM ZIP.
+For a released version, Gradle resolves and caches the ordinary JVM ZIP from
+the matching GitHub release automatically:
+
+```bash
+./gradlew distributionCheck \
+  -Pversion=<yano-x-version> \
+  -PyanoVersion=<released-yano-version>
+```
+
+The release URL convention is
+`https://github.com/bloxbean/yano/releases/download/v<version>/yano-<version>.zip`.
 For local refactoring, publish and package Yano locally:
 
 ```bash
@@ -24,10 +35,10 @@ Then assemble and verify Yano X:
   -PuseMavenLocal=true --offline
 ```
 
-That command is sufficient when the required Yano X coordinates are already
-available from a configured repository. A from-scratch full `clean build`
-must first stage Yano X's own publications; use the two-step workflow in
-[BUILD_AND_TEST.md](BUILD_AND_TEST.md#normal-build).
+Yano X runtime bundles are assembled from the exact `shadowJar` outputs used by
+their Maven bundle publications. This keeps a from-scratch `clean build`
+self-contained while `verifyArtifactInventory` checks that every runtime bundle
+still has the expected independent publication.
 
 ## Outputs
 
@@ -58,7 +69,8 @@ or distribution manifest differs from `yanoVersion`. The final distribution
 check also rejects missing, duplicate, or unexpected plugin bundles and any
 native executable in the JVM archive. Manifest generation rejects a default
 selection with unresolved bundle dependencies or duplicate contribution
-identities before an archive is created.
+identities before an archive is created. Snapshot and locally staged versions
+must supply `yanoJvmDist`; they never fall back to a GitHub release asset.
 
 Yano X does not provide a native-image build. A future native extension model
 requires a separate architecture decision and build-time composition contract.
