@@ -841,6 +841,25 @@ assert_report() {
 }
 
 LAST_REPORT=""
+scenario_failure_diagnostics() {
+  local deployment="$1" base="$2" chain="$3" node port status
+  note "Scenario failure diagnostics for $deployment follow:" >&2
+  for node in 0 1 2; do
+    port=$((base + node))
+    status="$ROOT/failure-$deployment-node$node-status.json"
+    if bounded_get "http://127.0.0.1:$port/api/v1/app-chain/chains/$chain/status" \
+        "$status" 1048576 2>/dev/null; then
+      jq -c '{chainId,running,tipHeight,stateRoot,memberKey,anchor}' "$status" >&2 || true
+    else
+      note "$deployment node $node status unavailable" >&2
+    fi
+  done
+  if [ "$deployment" = compose ]; then
+    dc_compose logs --no-color --tail 120 yano-0 yano-1 yano-2 2>&1 \
+      | tail -n 360 >&2 || true
+  fi
+}
+
 run_and_capture() {
   local deployment="$1" report_dir="$2" evidence="$3" chain="$4" label="$5"
   local output scenario report
@@ -853,6 +872,7 @@ run_and_capture() {
         jq -c '{outcome, failureCode, checks}' \
           "$report_dir/latest.json" >&2 || true
       fi
+      scenario_failure_diagnostics compose "$COMPOSE_HTTP_BASE" "$chain"
       fail "$label scenario command failed"
     fi
   else
@@ -863,6 +883,7 @@ run_and_capture() {
         jq -c '{outcome, failureCode, checks}' \
           "$report_dir/latest.json" >&2 || true
       fi
+      scenario_failure_diagnostics host "$HOST_HTTP_BASE" "$chain"
       fail "$label scenario command failed"
     fi
   fi

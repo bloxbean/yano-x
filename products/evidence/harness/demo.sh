@@ -2285,6 +2285,75 @@ print(str(bool(a.get("bootstrapped"))).lower(), a.get("walletAddress", ""))
   die "script anchor did not confirm within 120 seconds"
 }
 
+wait_for_anchor_bootstrap_visibility() {
+  local status address policy asset_unit deadline next_report i response visible summary
+  [ "$ANCHOR_ENABLED" = true ] || return 0
+  status="$(curl --connect-timeout 3 --max-time 10 -fsS \
+    "http://127.0.0.1:$HTTP0/api/v1/app-chain/chains/$DEMO_CHAIN_ID/status")"
+  read -r address policy < <(printf '%s' "$status" | python3 -c '
+import json,sys
+anchor=json.load(sys.stdin).get("anchor", {})
+print(anchor.get("scriptAddress", ""), anchor.get("threadPolicyId", ""))
+  ')
+  [[ "$address" =~ ^addr(_test)?1[a-z0-9]{20,240}$ ]] \
+    || die "anchor bootstrap did not expose a valid script address"
+  [[ "$policy" =~ ^[0-9a-f]{56}$ ]] \
+    || die "anchor bootstrap did not expose a valid thread policy id"
+  asset_unit="$(python3 - "$policy" "$DEMO_CHAIN_ID" <<'PY'
+import sys
+policy, chain = sys.argv[1:]
+print(policy + chain.encode("utf-8")[:32].hex())
+PY
+  )"
+  deadline=$((SECONDS + 300))
+  next_report=$SECONDS
+  note "WAIT_ANCHOR_VISIBILITY: requiring the bootstrap thread UTxO on all three members."
+  while [ "$SECONDS" -lt "$deadline" ]; do
+    visible=true
+    summary=""
+    for i in 0 1 2; do
+      response="$(curl --connect-timeout 3 --max-time 10 --max-filesize 1048576 -fsS \
+        "http://127.0.0.1:$((HTTP0 + i))/api/v1/addresses/$address/utxos/$asset_unit?count=50" \
+        2>/dev/null || true)"
+      if printf '%s' "$response" | python3 -c '
+import json,sys
+address,unit=sys.argv[1:]
+try:
+    outputs=json.load(sys.stdin)
+except (json.JSONDecodeError,UnicodeDecodeError):
+    raise SystemExit(1)
+if not isinstance(outputs,list) or len(outputs)>50:
+    raise SystemExit(1)
+for output in outputs:
+    if not isinstance(output,dict) or output.get("address")!=address:
+        continue
+    datum=output.get("inline_datum")
+    amounts=output.get("amount")
+    if (isinstance(datum,str) and datum and isinstance(amounts,list)
+            and any(isinstance(amount,dict) and amount.get("unit")==unit
+                    and amount.get("quantity") in (1,"1")
+                    and not isinstance(amount.get("quantity"),bool) for amount in amounts)):
+        raise SystemExit(0)
+raise SystemExit(1)
+' "$address" "$asset_unit"
+      then
+        summary="$summary node$i=visible"
+      else
+        visible=false
+        summary="$summary node$i=pending"
+      fi
+    done
+    [ "$visible" = true ] \
+      && { note "WAIT_ANCHOR_VISIBILITY complete:$summary"; return 0; }
+    if [ "$SECONDS" -ge "$next_report" ]; then
+      note "WAIT_ANCHOR_VISIBILITY progress:$summary"
+      next_report=$((SECONDS + 60))
+    fi
+    sleep 2
+  done
+  die "bootstrap thread UTxO was not visible on all three members within 300 seconds:$summary"
+}
+
 wait_for_anchor_wallet_funds() {
   local base="$1" address="$2" deadline next_report response usable timeout
   if [ "$PROFILE_PUBLIC" = true ]; then
@@ -2573,7 +2642,10 @@ cmd_up() {
     fi
     verify_compose_loopback_surfaces
     wait_for_public_l1_sync
-    [ "$ANCHOR_ENABLED" = false ] || compose_anchor_bootstrap
+    if [ "$ANCHOR_ENABLED" = true ]; then
+      compose_anchor_bootstrap
+      wait_for_anchor_bootstrap_visibility
+    fi
     if [ "$DEMO_MACHINE_MODE" = role ]; then
       dc --profile tools run --rm scenario init --config /run/demo/runner.properties
     else
@@ -2589,7 +2661,10 @@ cmd_up() {
     STARTUP_MAY_HAVE_SERVICES=true
     host_cluster "${start_args[@]}"
     wait_for_public_l1_sync
-    [ "$ANCHOR_ENABLED" = false ] || host_anchor_bootstrap
+    if [ "$ANCHOR_ENABLED" = true ]; then
+      host_anchor_bootstrap
+      wait_for_anchor_bootstrap_visibility
+    fi
     if [ "$DEMO_MACHINE_MODE" = role ]; then runner_java init; else runner_java probe; fi
     start_host_ui
   fi
