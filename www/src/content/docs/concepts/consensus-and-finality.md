@@ -15,7 +15,7 @@ page is detail around that sentence.
 sequenceDiagram
     autonumber
     participant Client
-    participant Ingress as Any member (ingress)
+    participant Ingress as Any member
     participant Proposer
     participant Members
     Client->>Ingress: Signed app message
@@ -26,7 +26,7 @@ sequenceDiagram
     Members->>Members: Compare byte-for-byte with the proposed root
     Members-->>Proposer: Ed25519 vote, only on their own root
     Proposer->>Members: Finality certificate (threshold signatures)
-    Members->>Members: Commit; tip advances
+    Members->>Members: Commit and advance the tip
 ```
 
 Any member can be the ingress point. Submitting through a non-proposer is the

@@ -7,10 +7,11 @@
     "import": "node scripts/import-repo-docs.mjs",
     "dev": "npm run import && astro dev",
     "start": "npm run dev",
-    "build": "npm run import && astro build && npm run check:links",
+    "build": "npm run import && npm run check:mermaid && astro build && npm run check:links",
     "preview": "astro preview",
     "astro": "astro",
-    "check:links": "node scripts/check-links.mjs"
+    "check:links": "node scripts/check-links.mjs",
+    "check:mermaid": "node scripts/check-mermaid.mjs"
   },
   "dependencies": {
     "@astrojs/starlight": "^0.38.3",

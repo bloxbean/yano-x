@@ -349,17 +349,29 @@ www/
 
 ```
 npm run build
-  └─ node scripts/import-repo-docs.mjs      docs/ → src/content/docs/{tutorials,state-machines}
-  └─ astro build
-       ├─ Starlight renders HTML + Pagefind search index
-       └─ astro:build:done  (llms-integration)
-            ├─ generateCatalog()      JSON catalogs + gradle.properties
-            ├─ generateLlmsFiles()    llms.txt, llms-full.txt, raw /ai/*.md
-            └─ writeCatalog()         /ai/catalog.json
+  ├─ scripts/import-repo-docs.mjs   docs/ → src/content/docs/{tutorials,state-machines}
+  ├─ scripts/check-mermaid.mjs      gate: diagrams that would render as an error box
+  ├─ astro build
+  │    ├─ Starlight renders HTML + Pagefind search index
+  │    └─ astro:build:done  (llms-integration)
+  │         ├─ generateCatalog()    JSON catalogs + gradle.properties
+  │         ├─ generateLlmsFiles()  llms.txt, llms-full.txt, raw /ai/*.md
+  │         └─ writeCatalog()       /ai/catalog.json
+  └─ scripts/check-links.mjs        gate: internal links and anchors resolve
 ```
 
 In `astro dev` the same generators run behind a Vite middleware on the served
 paths, so `/llms.txt` and `/ai/catalog.json` work locally without a build.
+
+**Two gates, because both failure modes are silent.** A broken link and a
+malformed diagram both build successfully and only fail in front of a reader.
+`check-links.mjs` verifies every internal href and anchor in the rendered
+output. `check-mermaid.mjs` is a narrow lint rather than a parser — mermaid only
+parses in a browser — covering the constructs that have actually broken
+diagrams here: an unquoted `participant … as` alias containing brackets or
+separators, a `;` inside sequence message text (mermaid reads it as a statement
+separator), and an unrecognised diagram type. Anything subtler still needs a
+look in a browser.
 
 ### 7.3 Theme
 
