@@ -375,16 +375,25 @@ look in a browser.
 
 ### 7.3 Theme
 
-The Yano mark is a cyan → indigo → violet → magenta gradient. The site leans on
-the **violet/magenta end**, which is its distinctive half: a flat blue accent on
-a navy ground is the default look of every developer documentation site, and
-reads as generic. The ground is near-black with a violet cast (`#0b0818`), the
-accent is `#7c5cff` on dark and `#6d28d9` on light, and the four-stop gradient
-itself appears as the brand signature — under the site header, on the hero
-headline, and through the hero illustration.
+**Documentation pages** carry the Yano mark's colours on a violet-leaning
+accent (`#7c5cff` dark, `#6d28d9` light).
 
-The JuLC color-scheme picker is intentionally **not** carried over; one accent
-keeps the brand tighter.
+**The landing page is light and deliberately not gradient-led**: warm paper
+(`#fbfaf7`), near-black ink (`#14181c`), and a single deep teal accent
+(`#0e7490`) drawn from the cyan end of the mark, with a warm amber
+(`#b45309`) reserved for small emphases. Weight is carried by typography,
+whitespace and hairlines rather than by colour, and gradients are avoided —
+on a light ground they tend to read cheap.
+
+The earlier iterations are recorded because the reasoning matters: a violet
+gradient on near-black is the default look of an AI-generated site, and a flat
+blue on navy is the default look of a developer documentation site. Both were
+tried and both read as generic. Distinctiveness came from changing the *design*
+— ground, surface hierarchy, type scale, restraint with colour — not from
+swapping hex values inside the same dark-with-one-accent formula.
+
+The landing page does not follow the reader's theme; it is light unconditionally.
+The documentation pages remain fully theme-aware.
 
 Two implementation traps are worth recording, because both produce defects that
 look like design mistakes:
@@ -416,8 +425,17 @@ out.
 
 The three root chips are the point of the drawing, so they pulse in unison
 rather than in sequence — a staggered animation would imply replication, which
-is exactly the wrong mental model. All motion is disabled under
-`prefers-reduced-motion`.
+is exactly the wrong mental model.
+
+The page also reveals sections on scroll, counts the stat numbers up, and plays
+the quickstart terminal line by line, all driven by one `IntersectionObserver`.
+It is progressive enhancement: without JavaScript every element is simply
+visible, and all motion is disabled under `prefers-reduced-motion`.
+
+One caveat for anyone verifying this in an automated browser: a backgrounded tab
+suspends `requestAnimationFrame` and `IntersectionObserver`, so the counters
+appear frozen and nothing reveals. That is the harness, not the page — force a
+render (take a screenshot) to advance it.
 
 ### 7.5 Deployment
 

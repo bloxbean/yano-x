@@ -77,21 +77,21 @@ const stateCapabilities = catalog.capabilities.filter((c) => c.category === 'sta
         <HeroPipeline />
       </div>
 
-      <div class="stats hero-stats">
+      <div class="stats hero-stats reveal">
           <div>
-            <div class="stat-n">{counts.recipes}</div>
+            <div class="stat-n" data-count={counts.recipes}>0</div>
             <div class="stat-l">Reviewed recipes</div>
           </div>
           <div>
-            <div class="stat-n">{counts.capabilities}</div>
+            <div class="stat-n" data-count={counts.capabilities}>0</div>
             <div class="stat-l">Selectable capabilities</div>
           </div>
           <div>
-            <div class="stat-n">{counts.artifacts}</div>
+            <div class="stat-n" data-count={counts.artifacts}>0</div>
             <div class="stat-l">Runtime plugin bundles</div>
           </div>
           <div>
-            <div class="stat-n">{stateCapabilities}</div>
+            <div class="stat-n" data-count={stateCapabilities}>0</div>
             <div class="stat-l">State machines</div>
           </div>
         </div>
@@ -107,14 +107,14 @@ const stateCapabilities = catalog.capabilities.filter((c) => c.category === 'sta
           shared application layer, and Cardano supplies independently observable settlement
           for the state it commits to.
         </p>
-        <div class="grid">
+        <div class="grid reveal">
           <div class="card">
             <h3><span class="card-icon">◆</span> Deterministic execution</h3>
             <p>
               Every member applies the same ordered messages through the same state machine and
               derives the same state root, byte for byte. No operator's database is the truth.
             </p>
-            <a class="more" href="/concepts/determinism-rules/">Determinism rules →</a>
+            <a class="more" href="/concepts/determinism-rules/">Determinism rules</a>
           </div>
           <div class="card">
             <h3><span class="card-icon">✓</span> Threshold finality</h3>
@@ -122,7 +122,7 @@ const stateCapabilities = catalog.capabilities.filter((c) => c.category === 'sta
               A block is final only once the configured member threshold has signed the root it
               independently computed. Hash-linked history makes a rewrite detectable.
             </p>
-            <a class="more" href="/concepts/consensus-and-finality/">How finality works →</a>
+            <a class="more" href="/concepts/consensus-and-finality/">How finality works</a>
           </div>
           <div class="card">
             <h3><span class="card-icon">⌘</span> Provable state</h3>
@@ -130,7 +130,7 @@ const stateCapabilities = catalog.capabilities.filter((c) => c.category === 'sta
               State lives in an MPF trie. A client verifies a record — present or absent —
               against a finalized root without trusting the node that served it.
             </p>
-            <a class="more" href="/concepts/state-and-proofs/">State and proofs →</a>
+            <a class="more" href="/concepts/state-and-proofs/">State and proofs</a>
           </div>
           <div class="card">
             <h3><span class="card-icon">⚓</span> Cardano anchoring</h3>
@@ -138,7 +138,7 @@ const stateCapabilities = catalog.capabilities.filter((c) => c.category === 'sta
               A certified root can be written to a metadata or threshold-script anchor, binding
               app-chain evidence to public L1 history an auditor can check.
             </p>
-            <a class="more" href="/concepts/anchoring/">Anchoring →</a>
+            <a class="more" href="/concepts/anchoring/">Anchoring</a>
           </div>
           <div class="card">
             <h3><span class="card-icon">↗</span> Controlled side effects</h3>
@@ -147,7 +147,7 @@ const stateCapabilities = catalog.capabilities.filter((c) => c.category === 'sta
               Kafka, S3, IPFS, webhooks, and Cardano payments run outside consensus and report
               back exactly once.
             </p>
-            <a class="more" href="/concepts/effects/">The effect runtime →</a>
+            <a class="more" href="/concepts/effects/">The effect runtime</a>
           </div>
           <div class="card">
             <h3><span class="card-icon">⊞</span> Extend without forking</h3>
@@ -155,7 +155,7 @@ const stateCapabilities = catalog.capabilities.filter((c) => c.category === 'sta
               Ordering, finality, proofs, anchoring, and lifecycle stay in the host. Your domain
               logic ships as a signed, versioned plugin JAR.
             </p>
-            <a class="more" href="/plugins/">The plugin framework →</a>
+            <a class="more" href="/plugins/">The plugin framework</a>
           </div>
         </div>
       </div>
@@ -170,38 +170,21 @@ const stateCapabilities = catalog.capabilities.filter((c) => c.category === 'sta
           downloads the matching Yano <code>{versions.yanoVersion}</code> JVM distribution for
           you — no second checkout, no Maven Local, no flags.
         </p>
-        <div class="term">
+        <div class="term reveal">
           <div class="term-bar">
             <span class="b" style="background:#ff5f57"></span>
             <span class="b" style="background:#febc2e"></span>
             <span class="b" style="background:#28c840"></span>
             <span class="term-title">bash</span>
           </div>
-          <pre><code><span class="c"># 1. Build the batteries-included JVM distribution</span>
-<span class="p">$</span> git clone https://github.com/bloxbean/yano-x.git
-<span class="p">$</span> cd yano-x
-<span class="p">$</span> ./gradlew clean build -PskipSigning=true
-
-<span class="c"># 2. Unpack it</span>
-<span class="p">$</span> unzip distribution/jvm/build/distributions/yano-x-jvm-<span class="k">&lt;version&gt;</span>.zip -d ~/yano-x
-<span class="p">$</span> cd ~/yano-x/yano-x-jvm-<span class="k">&lt;version&gt;</span>
-
-<span class="c"># 3. Start a self-contained 3-member chain on a local devnet</span>
-<span class="p">$</span> ./yano.sh appchain cluster start 3
-<span class="p">$</span> ./yano.sh appchain cluster status
-<span class="o">orders-chain:   AGREED  (height 12, root 9f3c…a17b)</span>
-<span class="o">registry-chain: AGREED  (height 12, root 4d80…c2e9)</span>
-
-<span class="c"># 4. Submit a business event through a non-proposer member</span>
-<span class="p">$</span> ./yano.sh appchain cluster submit orders-chain orders \
-    <span class="k">'&lbrace;"event":"order-created","orderId":"A-1001"&rbrace;'</span> --node 1</code></pre>
+          <pre><code><span class="line" style={`animation-delay:0ms`}><span class="c"># 1. Build the batteries-included JVM distribution</span></span><span class="line" style={`animation-delay:90ms`}><span class="p">$</span> git clone https://github.com/bloxbean/yano-x.git</span><span class="line" style={`animation-delay:180ms`}><span class="p">$</span> cd yano-x</span><span class="line" style={`animation-delay:270ms`}><span class="p">$</span> ./gradlew clean build -PskipSigning=true</span><span class="line">&nbsp;</span><span class="line" style={`animation-delay:450ms`}><span class="c"># 2. Unpack it</span></span><span class="line" style={`animation-delay:540ms`}><span class="p">$</span> unzip distribution/jvm/build/distributions/yano-x-jvm-<span class="k">&lt;version&gt;</span>.zip -d ~/yano-x</span><span class="line" style={`animation-delay:630ms`}><span class="p">$</span> cd ~/yano-x/yano-x-jvm-<span class="k">&lt;version&gt;</span></span><span class="line">&nbsp;</span><span class="line" style={`animation-delay:810ms`}><span class="c"># 3. Start a self-contained 3-member chain on a local devnet</span></span><span class="line" style={`animation-delay:900ms`}><span class="p">$</span> ./yano.sh appchain cluster start 3</span><span class="line" style={`animation-delay:990ms`}><span class="p">$</span> ./yano.sh appchain cluster status</span><span class="line" style={`animation-delay:1080ms`}><span class="o">orders-chain:   AGREED  (height 12, root 9f3c…a17b)</span></span><span class="line" style={`animation-delay:1170ms`}><span class="o">registry-chain: AGREED  (height 12, root 4d80…c2e9)</span></span><span class="line">&nbsp;</span><span class="line" style={`animation-delay:1350ms`}><span class="c"># 4. Submit a business event through a non-proposer member</span></span><span class="line" style={`animation-delay:1440ms`}><span class="p">$</span> ./yano.sh appchain cluster submit orders-chain orders \</span><span class="line" style={`animation-delay:1530ms`}>    <span class="k">'&lbrace;"event":"order-created","orderId":"A-1001"&rbrace;'</span> --node 1</span></code></pre>
         </div>
-        <div class="steps" style="margin-top:2.5rem">
+        <div class="steps reveal" style="margin-top:2.5rem">
           <div class="step">
             <span class="badge">1</span>
             <h3>Build once</h3>
             <p>Java {versions.javaVersion} and Gradle. Everything else is resolved for you.</p>
-            <a class="more" href="/start-here/build-from-source/">Build from source →</a>
+            <a class="more" href="/start-here/build-from-source/">Build from source</a>
           </div>
           <div class="step">
             <span class="badge">2</span>
@@ -210,7 +193,7 @@ const stateCapabilities = catalog.capabilities.filter((c) => c.category === 'sta
               {bundledRecipes} bundled recipes cover audit logs, owned registries, approval
               workflows, and evidence ledgers without any code.
             </p>
-            <a class="more" href="/recipes/">Recipe catalog →</a>
+            <a class="more" href="/recipes/">Recipe catalog</a>
           </div>
           <div class="step">
             <span class="badge">3</span>
@@ -219,7 +202,7 @@ const stateCapabilities = catalog.capabilities.filter((c) => c.category === 'sta
               Pull an MPF proof for a record, verify it offline, and anchor the root on a
               Cardano test network.
             </p>
-            <a class="more" href="/tutorials/02-registry-and-proofs/">Registry and proofs →</a>
+            <a class="more" href="/tutorials/02-registry-and-proofs/">Registry and proofs</a>
           </div>
         </div>
       </div>
@@ -233,7 +216,7 @@ const stateCapabilities = catalog.capabilities.filter((c) => c.category === 'sta
           Most applications never write a line of consensus code. Yano X is organized so that
           the cheapest rung that models your outcome is the correct one.
         </p>
-        <div class="ladder">
+        <div class="ladder reveal">
           <div class="rung" style="--rung-color:#7fe5ff">
             <span class="num">0</span>
             <div>
@@ -293,7 +276,7 @@ const stateCapabilities = catalog.capabilities.filter((c) => c.category === 'sta
           published as agent-ingestible markdown, and the recipe, capability, module, and
           configuration catalogs are generated from the repository itself.
         </p>
-        <div class="grid">
+        <div class="grid reveal">
           <div class="card">
             <h3><span class="card-icon">◇</span> AI Starter Pack</h3>
             <p>
@@ -301,7 +284,7 @@ const stateCapabilities = catalog.capabilities.filter((c) => c.category === 'sta
               invariants agents get wrong — in one file.
             </p>
             <div class="inline-code" style="margin-top:0.875rem">curl -o CLAUDE.md https://yanox.dev/ai/starter-pack.md</div>
-            <a class="more" href="/ai/starter-pack/">Read it →</a>
+            <a class="more" href="/ai/starter-pack/">Read it</a>
           </div>
           <div class="card">
             <h3><span class="card-icon">≡</span> llms.txt</h3>
@@ -310,7 +293,7 @@ const stateCapabilities = catalog.capabilities.filter((c) => c.category === 'sta
               <code>llms-full.txt</code> with every page concatenated for full-coverage
               ingestion.
             </p>
-            <a class="more" href="/llms.txt">/llms.txt →</a>
+            <a class="more" href="/llms.txt">/llms.txt</a>
           </div>
           <div class="card">
             <h3><span class="card-icon">&#123;&#125;</span> catalog.json</h3>
@@ -319,7 +302,7 @@ const stateCapabilities = catalog.capabilities.filter((c) => c.category === 'sta
               Gradle modules, and {counts.configurationProperties} configuration properties as
               structured JSON.
             </p>
-            <a class="more" href="/ai/catalog.json">/ai/catalog.json →</a>
+            <a class="more" href="/ai/catalog.json">/ai/catalog.json</a>
           </div>
         </div>
       </div>
@@ -328,7 +311,7 @@ const stateCapabilities = catalog.capabilities.filter((c) => c.category === 'sta
     <!-- Status -->
     <section class="section">
       <div class="wrap wrap-narrow">
-        <div class="notice">
+        <div class="notice reveal">
           <span aria-hidden="true">▲</span>
           <span>
             <strong>Yano is pre-release.</strong> The architecture and devnet workflows
@@ -356,5 +339,55 @@ const stateCapabilities = catalog.capabilities.filter((c) => c.category === 'sta
       </div>
     </div>
   </footer>
+
+  <script>
+    // Progressive enhancement: everything is readable without this. It adds
+    // scroll reveals, counts the stat numbers up, and starts the terminal's
+    // line-by-line animation once it is actually on screen.
+    const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    function countUp(el: HTMLElement) {
+      // The stats container and each number are both observed, so this can be
+      // reached twice for the same element. Two concurrent loops would fight
+      // over the text and never settle, so run at most once.
+      if (el.dataset.counted === '1') return;
+      el.dataset.counted = '1';
+      const target = Number(el.dataset.count ?? '0');
+      if (!Number.isFinite(target) || target <= 0) return;
+      if (reduced) { el.textContent = String(target); return; }
+      const duration = 900;
+      const start = performance.now();
+      const tick = (now: number) => {
+        const t = Math.min(1, (now - start) / duration);
+        // easeOutCubic, so the number settles rather than stopping dead
+        const eased = 1 - Math.pow(1 - t, 3);
+        el.textContent = String(Math.round(target * eased));
+        if (t < 1) requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    }
+
+    if (!('IntersectionObserver' in window)) {
+      document.querySelectorAll('.reveal').forEach((n) => n.classList.add('is-in'));
+      document.querySelectorAll<HTMLElement>('[data-count]').forEach((n) => {
+        n.textContent = n.dataset.count ?? '0';
+      });
+    } else {
+      const io = new IntersectionObserver(
+        (entries) => {
+          for (const entry of entries) {
+            if (!entry.isIntersecting) continue;
+            const el = entry.target as HTMLElement;
+            el.classList.add('is-in');
+            el.querySelectorAll<HTMLElement>('[data-count]').forEach(countUp);
+            if (el.matches('[data-count]')) countUp(el);
+            io.unobserve(el);
+          }
+        },
+        { rootMargin: '0px 0px -12% 0px', threshold: 0.15 },
+      );
+      document.querySelectorAll('.reveal, [data-count]').forEach((n) => io.observe(n));
+    }
+  </script>
 </body>
 </html>

@@ -29,24 +29,24 @@
 
     <defs>
       <linearGradient id="hp-flow" x1="0" y1="0" x2="1" y2="0">
-        <stop offset="0%" stop-color="#67e8f9" />
-        <stop offset="45%" stop-color="#7c5cff" />
-        <stop offset="100%" stop-color="#ff4d9d" />
+        <stop offset="0%" stop-color="#22b8cf" />
+        <stop offset="45%" stop-color="#0e7490" />
+        <stop offset="100%" stop-color="#b45309" />
       </linearGradient>
       <linearGradient id="hp-card" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stop-color="#191338" />
-        <stop offset="100%" stop-color="#120e2a" />
+        <stop offset="0%" stop-color="#ffffff" />
+        <stop offset="100%" stop-color="#fcfbf9" />
       </linearGradient>
       <linearGradient id="hp-block" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0%" stop-color="#221a4d" />
-        <stop offset="100%" stop-color="#150f33" />
+        <stop offset="0%" stop-color="#ffffff" />
+        <stop offset="100%" stop-color="#f3f9fb" />
       </linearGradient>
       <radialGradient id="hp-glow" cx="50%" cy="50%" r="50%">
-        <stop offset="0%" stop-color="#7c5cff" stop-opacity="0.30" />
-        <stop offset="100%" stop-color="#7c5cff" stop-opacity="0" />
+        <stop offset="0%" stop-color="#0e7490" stop-opacity="0.13" />
+        <stop offset="100%" stop-color="#0e7490" stop-opacity="0" />
       </radialGradient>
       <filter id="hp-soft" x="-40%" y="-40%" width="180%" height="180%">
-        <feGaussianBlur stdDeviation="5" result="b" />
+        <feGaussianBlur stdDeviation="3" result="b" />
         <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
       </filter>
     </defs>
@@ -71,13 +71,13 @@
     <!-- ── 1 · signed command ────────────────────────────────────────── -->
     <text class="hp-step" x="8" y="72">1 · SIGNED COMMAND</text>
     <g transform="translate(8 84)">
-      <rect width="124" height="72" rx="11" fill="url(#hp-card)" stroke="#2e2560" />
-      <circle cx="18" cy="20" r="4.5" fill="#67e8f9" />
+      <rect width="124" height="72" rx="11" fill="url(#hp-card)" stroke="#e6e2da" />
+      <circle cx="18" cy="20" r="4.5" fill="#0e7490" />
       <text class="hp-label" x="31" y="24">orders-chain</text>
       <text class="hp-mono hp-dim" x="14" y="45">order-created</text>
       <g transform="translate(14 53)">
-        <rect width="58" height="14" rx="7" fill="#67e8f9" fill-opacity="0.12" stroke="#67e8f9" stroke-opacity="0.4" />
-        <text class="hp-pill" x="29" y="10" text-anchor="middle" fill="#8ceffd">ed25519</text>
+        <rect width="58" height="14" rx="7" fill="#fdf0e0" stroke="#eccfa4" />
+        <text class="hp-pill" x="29" y="10" text-anchor="middle" fill="#8a5210">ed25519</text>
       </g>
     </g>
 
@@ -85,30 +85,30 @@
     <text class="hp-step" x="178" y="12">2 · EVERY MEMBER RE-EXECUTES</text>
     <g transform="translate(178 24)">
       <g class="hp-member">
-        <rect width="184" height="56" rx="11" fill="url(#hp-card)" stroke="#2e2560" />
-        <circle cx="17" cy="19" r="4.5" fill="#7c5cff" />
+        <rect width="184" height="56" rx="11" fill="url(#hp-card)" stroke="#e6e2da" />
+        <circle cx="17" cy="19" r="4.5" fill="#0e7490" />
         <text class="hp-label" x="30" y="23">node-0 · proposer</text>
         <g class="hp-root" transform="translate(14 31)">
-          <rect width="156" height="16" rx="8" fill="#7c5cff" fill-opacity="0.12" stroke="#7c5cff" stroke-opacity="0.42" />
-          <text class="hp-mono" x="9" y="11.5" fill="#c3b5ff">root 9f3c…a17b</text>
+          <rect width="156" height="16" rx="8" fill="#e3f1f5" stroke="#a9d4e0" />
+          <text class="hp-mono" x="9" y="11.5" fill="#10556b">root 9f3c…a17b</text>
         </g>
       </g>
       <g class="hp-member" transform="translate(0 68)">
-        <rect width="184" height="56" rx="11" fill="url(#hp-card)" stroke="#2e2560" />
-        <circle cx="17" cy="19" r="4.5" fill="#7c5cff" />
+        <rect width="184" height="56" rx="11" fill="url(#hp-card)" stroke="#e6e2da" />
+        <circle cx="17" cy="19" r="4.5" fill="#0e7490" />
         <text class="hp-label" x="30" y="23">node-1</text>
         <g class="hp-root" transform="translate(14 31)">
-          <rect width="156" height="16" rx="8" fill="#7c5cff" fill-opacity="0.12" stroke="#7c5cff" stroke-opacity="0.42" />
-          <text class="hp-mono" x="9" y="11.5" fill="#c3b5ff">root 9f3c…a17b</text>
+          <rect width="156" height="16" rx="8" fill="#e3f1f5" stroke="#a9d4e0" />
+          <text class="hp-mono" x="9" y="11.5" fill="#10556b">root 9f3c…a17b</text>
         </g>
       </g>
       <g class="hp-member" transform="translate(0 136)">
-        <rect width="184" height="56" rx="11" fill="url(#hp-card)" stroke="#2e2560" />
-        <circle cx="17" cy="19" r="4.5" fill="#7c5cff" />
+        <rect width="184" height="56" rx="11" fill="url(#hp-card)" stroke="#e6e2da" />
+        <circle cx="17" cy="19" r="4.5" fill="#0e7490" />
         <text class="hp-label" x="30" y="23">node-2</text>
         <g class="hp-root" transform="translate(14 31)">
-          <rect width="156" height="16" rx="8" fill="#7c5cff" fill-opacity="0.12" stroke="#7c5cff" stroke-opacity="0.42" />
-          <text class="hp-mono" x="9" y="11.5" fill="#c3b5ff">root 9f3c…a17b</text>
+          <rect width="156" height="16" rx="8" fill="#e3f1f5" stroke="#a9d4e0" />
+          <text class="hp-mono" x="9" y="11.5" fill="#10556b">root 9f3c…a17b</text>
         </g>
       </g>
     </g>
@@ -117,38 +117,38 @@
     <!-- ── 3 · threshold finality ────────────────────────────────────── -->
     <text class="hp-step" x="404" y="65">3 · THRESHOLD-FINAL</text>
     <g transform="translate(404 77)">
-      <rect width="200" height="86" rx="13" fill="url(#hp-block)" stroke="#4a3a9e" filter="url(#hp-soft)" />
-      <text class="hp-label" x="16" y="26" fill="#efeafd">app block #1042</text>
+      <rect width="200" height="86" rx="13" fill="url(#hp-block)" stroke="#a9d4e0" filter="url(#hp-soft)" />
+      <text class="hp-label" x="16" y="26" fill="#14181c">app block #1042</text>
       <g transform="translate(16 36)">
-        <rect width="168" height="17" rx="8.5" fill="#0d0a20" stroke="#3b2f7d" />
-        <text class="hp-mono" x="9" y="12" fill="#c3b5ff">root 9f3c…a17b</text>
+        <rect width="168" height="17" rx="8.5" fill="#f4f9fb" stroke="#d9e8ee" />
+        <text class="hp-mono" x="9" y="12" fill="#10556b">root 9f3c…a17b</text>
       </g>
       <g class="hp-sigs" transform="translate(16 62)">
         <g class="hp-sig">
-          <circle cx="7" cy="7" r="7" fill="#22c55e" fill-opacity="0.16" stroke="#22c55e" stroke-opacity="0.55" />
-          <path d="M4 7.2 L6.2 9.4 L10.2 4.8" fill="none" stroke="#4ade80" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+          <circle cx="7" cy="7" r="7" fill="#e7f6ec" stroke="#8fcea4" />
+          <path d="M4 7.2 L6.2 9.4 L10.2 4.8" fill="none" stroke="#2f9e5f" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
         </g>
         <g class="hp-sig" transform="translate(19 0)">
-          <circle cx="7" cy="7" r="7" fill="#22c55e" fill-opacity="0.16" stroke="#22c55e" stroke-opacity="0.55" />
-          <path d="M4 7.2 L6.2 9.4 L10.2 4.8" fill="none" stroke="#4ade80" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+          <circle cx="7" cy="7" r="7" fill="#e7f6ec" stroke="#8fcea4" />
+          <path d="M4 7.2 L6.2 9.4 L10.2 4.8" fill="none" stroke="#2f9e5f" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
         </g>
         <g class="hp-sig" transform="translate(38 0)">
-          <circle cx="7" cy="7" r="7" fill="#22c55e" fill-opacity="0.16" stroke="#22c55e" stroke-opacity="0.55" />
-          <path d="M4 7.2 L6.2 9.4 L10.2 4.8" fill="none" stroke="#4ade80" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+          <circle cx="7" cy="7" r="7" fill="#e7f6ec" stroke="#8fcea4" />
+          <path d="M4 7.2 L6.2 9.4 L10.2 4.8" fill="none" stroke="#2f9e5f" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
         </g>
-        <text class="hp-pill" x="58" y="10" fill="#7fdca0">3 of 3 signed</text>
+        <text class="hp-pill" x="58" y="10" fill="#2f7d52">3 of 3 signed</text>
       </g>
     </g>
 
     <!-- ── settlement and effects ────────────────────────────────────── -->
     <g transform="translate(404 197)">
-      <rect class="hp-anchor" width="96" height="62" rx="11" fill="url(#hp-card)" stroke="#2e2560" />
+      <rect class="hp-anchor" width="96" height="62" rx="11" fill="url(#hp-card)" stroke="#e6e2da" />
       <text class="hp-label" x="14" y="24">Cardano</text>
       <text class="hp-label" x="14" y="37">anchor</text>
       <text class="hp-mono hp-dim" x="14" y="52">4d80…c2e9</text>
     </g>
     <g transform="translate(508 197)">
-      <rect width="96" height="62" rx="11" fill="url(#hp-card)" stroke="#2e2560" />
+      <rect width="96" height="62" rx="11" fill="url(#hp-card)" stroke="#e6e2da" />
       <text class="hp-label" x="14" y="24">Effects</text>
       <text class="hp-mono hp-dim" x="14" y="39">Kafka · S3</text>
       <text class="hp-mono hp-dim" x="14" y="51">IPFS · HTTP</text>
@@ -172,20 +172,20 @@
     font-family: var(--l-mono);
     font-size: 8.5px;
     letter-spacing: 0.11em;
-    fill: #7a6fae;
+    fill: #8a929a;
   }
 
   .hp-label {
     font-family: var(--l-sans);
     font-size: 11px;
     font-weight: 600;
-    fill: #ddd8f2;
+    fill: #14181c;
   }
 
   .hp-mono {
     font-family: var(--l-mono);
     font-size: 9.5px;
-    fill: #b3aad6;
+    fill: #55606a;
   }
 
   .hp-pill {
@@ -197,7 +197,7 @@
     font-family: var(--l-sans);
     font-size: 9.5px;
     font-style: italic;
-    fill: #7a6fae;
+    fill: #8a929a;
   }
 
   .hp-dim {
@@ -245,8 +245,8 @@
   }
 
   @keyframes hp-settle {
-    0%, 84%, 100% { stroke: #2e2560; }
-    92% { stroke: #7c5cff; }
+    0%, 84%, 100% { stroke: #e6e2da; }
+    92% { stroke: #0e7490; }
   }
 
   @media (prefers-reduced-motion: reduce) {
