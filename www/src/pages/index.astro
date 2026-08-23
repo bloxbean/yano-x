@@ -1,6 +1,7 @@
 ---
 import '../styles/landing.css';
 import { generateCatalog } from '../../scripts/generate-catalog.mjs';
+import HeroPipeline from '../components/landing/HeroPipeline.astro';
 
 // Counts and versions come straight from the repository's own catalogs, so the
 // landing page cannot advertise a number the build does not actually produce.
@@ -57,20 +58,26 @@ const stateCapabilities = catalog.capabilities.filter((c) => c.category === 'sta
     <!-- Hero -->
     <section class="hero">
       <div class="wrap hero-inner">
-        <span class="eyebrow"><span class="dot"></span> Pre-release · build from source</span>
-        <h1>Application ledgers that <span class="grad">prove themselves</span>.</h1>
-        <p class="lede">
-          A Yano app chain is a replicated, application-specific ledger run by a group of
-          organizations. Members agree on ordered commands, execute the same deterministic
-          state machine, sign the same state root, prove any record against it, and settle
-          that root on Cardano. Yano X is the Java extension ecosystem that makes it
+        <div class="hero-copy">
+          <span class="eyebrow"><span class="dot"></span> Pre-release · build from source</span>
+          <h1>Application ledgers that <span class="grad">prove themselves</span>.</h1>
+          <p class="lede">
+          Several organizations run one replicated ledger: the same ordered commands, the
+          same deterministic state machine, the same signed state root — provable by
+          anyone and settled on Cardano. Yano X is the Java ecosystem that makes it
           something you configure rather than build.
         </p>
-        <div class="hero-actions">
+          <div class="hero-actions">
           <a class="btn btn-primary" href="/start-here/quickstart/">Run a 3-member chain →</a>
           <a class="btn btn-ghost" href="/start-here/what-is-an-app-chain/">What is an app chain?</a>
         </div>
-        <div class="stats">
+        </div>
+
+      <div class="hero-art">
+        <HeroPipeline />
+      </div>
+
+      <div class="stats hero-stats">
           <div>
             <div class="stat-n">{counts.recipes}</div>
             <div class="stat-l">Reviewed recipes</div>
@@ -86,10 +93,6 @@ const stateCapabilities = catalog.capabilities.filter((c) => c.category === 'sta
           <div>
             <div class="stat-n">{stateCapabilities}</div>
             <div class="stat-l">State machines</div>
-          </div>
-          <div>
-            <div class="stat-n">Java {versions.javaVersion}</div>
-            <div class="stat-l">JVM-only, no native build</div>
           </div>
         </div>
       </div>

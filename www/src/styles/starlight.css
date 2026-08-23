@@ -1,31 +1,25 @@
 /*
  * Yano X brand overrides for Starlight.
  *
- * The palette is taken from the Yano mark (a cyan -> blue -> violet -> magenta
- * gradient on a deep indigo ground), so Yano X reads as part of Yano rather
- * than a separate product. See ADR-038 §6.3.
+ * The palette comes from the Yano mark — a cyan → indigo → violet → magenta
+ * gradient — and leans on the violet/magenta end, which is its distinctive
+ * half. See ADR-038 §7.3.
  */
 
+/* Brand tokens, independent of theme. */
 :root {
-  --yano-cyan: #7fe5ff;
-  --yano-blue: #3a7bff;
-  --yano-blue-deep: #1e5cff;
-  --yano-violet: #5b2bff;
-  --yano-magenta: #ff3b8a;
-  --yano-ground: #0e1230;
+  --yano-cyan: #67e8f9;
+  --yano-indigo: #5b6cff;
+  --yano-violet: #7c5cff;
+  --yano-magenta: #ff4d9d;
 
-  --sl-color-accent-low: #0d1638;
-  --sl-color-accent: #3a7bff;
-  --sl-color-accent-high: #a8c5ff;
-
-  --sl-color-white: #ffffff;
-  --sl-color-gray-1: #e9ecf5;
-  --sl-color-gray-2: #bec4d6;
-  --sl-color-gray-3: #868ea8;
-  --sl-color-gray-4: #525a75;
-  --sl-color-gray-5: #333a54;
-  --sl-color-gray-6: #212743;
-  --sl-color-black: #0e1230;
+  --yano-brand: linear-gradient(
+    100deg,
+    var(--yano-cyan),
+    var(--yano-indigo),
+    var(--yano-violet),
+    var(--yano-magenta)
+  );
 
   --sl-font-system: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
     Oxygen, Ubuntu, Cantarell, sans-serif;
@@ -33,42 +27,82 @@
     'Source Code Pro', Menlo, Consolas, monospace;
 }
 
-[data-theme='light'] {
-  --sl-color-accent-low: #e8efff;
-  --sl-color-accent: #1e5cff;
-  --sl-color-accent-high: #12336e;
+/*
+ * Both palettes must be declared, and each must mirror the selector Starlight
+ * itself uses.
+ *
+ * Starlight declares its colours inside `@layer starlight.base`, and unlayered
+ * CSS beats layered CSS regardless of specificity. A bare `:root` block here
+ * therefore overrides Starlight's *light* theme too, which produces a broken
+ * mix — a light nav above a dark page. Scope the dark values so they cannot
+ * leak into light mode, and give light a complete set of its own.
+ */
+
+/* Dark — Starlight's default when no explicit light choice is stored. */
+:root,
+::backdrop {
+  --sl-color-accent-low: #1b1440;
+  --sl-color-accent: #7c5cff;
+  --sl-color-accent-high: #c8bcff;
+
+  --sl-color-white: #ffffff;
+  --sl-color-gray-1: #ece9f7;
+  --sl-color-gray-2: #c3bddb;
+  --sl-color-gray-3: #8d85b3;
+  --sl-color-gray-4: #574f78;
+  --sl-color-gray-5: #36305a;
+  --sl-color-gray-6: #221d42;
+  --sl-color-black: #0b0818;
 }
 
-/* A thin brand gradient under the header ties every page to the mark. */
-.header {
+/* Light — inverted scale, mirroring Starlight's own light ramp. */
+:root[data-theme='light'],
+[data-theme='light'] ::backdrop {
+  --sl-color-accent-low: #e7e0ff;
+  --sl-color-accent: #6d28d9;
+  --sl-color-accent-high: #3b1f8f;
+
+  --sl-color-white: #14102b;
+  --sl-color-gray-1: #221d42;
+  --sl-color-gray-2: #36305a;
+  --sl-color-gray-3: #6b6392;
+  --sl-color-gray-4: #9990ba;
+  --sl-color-gray-5: #cfc9e4;
+  --sl-color-gray-6: #ebe7f7;
+  --sl-color-gray-7: #f6f4fc;
+  --sl-color-black: #ffffff;
+}
+
+/* ── Header ────────────────────────────────────────────────────────────────
+   One brand gradient, replacing the hairline under the site header.
+
+   The selector must stay this specific: `.header` is not unique in a Starlight
+   page. The site header, Starlight's inner header flex container, and *every*
+   Expressive Code code-block caption all carry that class, so a bare
+   `.header::after` paints a gradient on all of them. */
+
+.page > header.header {
   position: relative;
+  border-bottom-color: transparent;
 }
 
-.header::after {
+.page > header.header::after {
   content: '';
   position: absolute;
   inset-inline: 0;
-  bottom: -1px;
+  bottom: 0;
   height: 2px;
-  background: linear-gradient(
-    90deg,
-    var(--yano-cyan),
-    var(--yano-blue),
-    var(--yano-violet),
-    var(--yano-magenta)
-  );
-  opacity: 0.85;
+  background: var(--yano-brand);
 }
 
-/* Starlight sizes the site logo conservatively; the Yano mark reads better a
-   little larger and squared off. */
+/* The Yano mark reads better squared off than as a bare glyph. */
 .site-title img {
   border-radius: 6px;
 }
 
 /* ── Mermaid ───────────────────────────────────────────────────────────────
    Diagrams are injected as <pre class="mermaid"> by scripts/remark-mermaid.mjs
-   and rendered client-side. Until mermaid runs, the raw source would flash, so
+   and rendered client-side. Until mermaid runs the raw source would flash, so
    it stays hidden and is revealed once an <svg> child exists. */
 
 pre.mermaid {
@@ -93,7 +127,7 @@ pre.mermaid svg {
 }
 
 [data-theme='light'] pre.mermaid {
-  background: var(--sl-color-gray-7, #f6f7fb);
+  background: #f7f5ff;
 }
 
 /* ── Tables ────────────────────────────────────────────────────────────────

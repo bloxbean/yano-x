@@ -2,20 +2,32 @@
    pages are themed through src/styles/starlight.css. */
 
 :root {
-  --l-cyan: #7fe5ff;
-  --l-blue: #3a7bff;
-  --l-blue-deep: #1e5cff;
-  --l-violet: #5b2bff;
-  --l-magenta: #ff3b8a;
+  /* Drawn from the Yano mark: cyan → indigo → violet → magenta. The landing
+     page leans on the violet/magenta end, which is the distinctive half, and
+     sits on a near-black ground with a violet cast rather than a navy one. */
+  --l-cyan: #67e8f9;
+  --l-indigo: #5b6cff;
+  --l-violet: #7c5cff;
+  --l-violet-deep: #5b2bff;
+  --l-magenta: #ff4d9d;
 
-  --l-bg: #080b1d;
-  --l-bg-raised: #0e1230;
-  --l-panel: #141a3d;
-  --l-border: #262e58;
-  --l-text: #e9ecf7;
-  --l-muted: #99a2c4;
+  --l-bg: #08060f;
+  --l-bg-raised: #0d0a1c;
+  --l-panel: #171233;
+  --l-border: #2a2150;
+  --l-border-lit: #4a3a9e;
+  --l-text: #ece9f7;
+  --l-muted: #9d95c4;
   --l-mono: 'JetBrains Mono', ui-monospace, 'Cascadia Code', Menlo, Consolas, monospace;
   --l-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+
+  --l-brand: linear-gradient(
+    100deg,
+    var(--l-cyan),
+    var(--l-indigo),
+    var(--l-violet),
+    var(--l-magenta)
+  );
 }
 
 * { box-sizing: border-box; }
@@ -42,6 +54,9 @@ a { color: inherit; }
 
 .wrap-narrow { max-width: 54rem; }
 
+/* The hero carries an illustration, so it gets more room than a prose section. */
+.hero .wrap { max-width: 74rem; }
+
 /* ── Navbar ─────────────────────────────────────────────────────────────── */
 
 .nav {
@@ -49,7 +64,7 @@ a { color: inherit; }
   top: 0;
   z-index: 50;
   backdrop-filter: blur(12px);
-  background: rgba(8, 11, 29, 0.78);
+  background: rgba(8, 6, 15, 0.8);
   border-bottom: 1px solid var(--l-border);
 }
 
@@ -97,7 +112,7 @@ a { color: inherit; }
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.6875rem 1.25rem;
+  padding: 0.6875rem 1.1rem;
   border-radius: 0.5rem;
   font-weight: 600;
   font-size: 0.9375rem;
@@ -109,25 +124,25 @@ a { color: inherit; }
 .btn:hover { transform: translateY(-1px); }
 
 .btn-primary {
-  background: linear-gradient(135deg, var(--l-blue), var(--l-violet));
+  background: linear-gradient(135deg, var(--l-violet), var(--l-violet));
   color: #fff;
-  box-shadow: 0 6px 24px -8px rgba(58, 123, 255, 0.8);
+  box-shadow: 0 6px 24px -8px rgba(124, 92, 255, 0.8);
 }
 
 .btn-ghost {
   border-color: var(--l-border);
   color: var(--l-text);
-  background: rgba(20, 26, 61, 0.6);
+  background: rgba(23, 18, 51, 0.6);
 }
 
-.btn-ghost:hover { background: rgba(20, 26, 61, 1); }
+.btn-ghost:hover { background: rgba(23, 18, 51, 1); }
 
 /* ── Hero ───────────────────────────────────────────────────────────────── */
 
 .hero {
   position: relative;
   overflow: hidden;
-  padding: 5rem 0 4rem;
+  padding: 4rem 0 3.5rem;
   border-bottom: 1px solid var(--l-border);
 }
 
@@ -137,13 +152,33 @@ a { color: inherit; }
   inset: -40% 0 auto -10%;
   height: 42rem;
   background:
-    radial-gradient(38rem 26rem at 22% 30%, rgba(58, 123, 255, 0.22), transparent 70%),
-    radial-gradient(30rem 22rem at 78% 18%, rgba(91, 43, 255, 0.2), transparent 70%),
-    radial-gradient(24rem 18rem at 60% 70%, rgba(255, 59, 138, 0.12), transparent 70%);
+    radial-gradient(34rem 24rem at 16% 26%, rgba(91, 108, 255, 0.24), transparent 68%),
+    radial-gradient(30rem 22rem at 72% 22%, rgba(124, 92, 255, 0.26), transparent 68%),
+    radial-gradient(26rem 20rem at 88% 72%, rgba(255, 77, 157, 0.16), transparent 70%);
   pointer-events: none;
 }
 
-.hero-inner { position: relative; }
+.hero-inner {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 3rem;
+  align-items: center;
+}
+
+@media (min-width: 62rem) {
+  .hero-inner {
+    grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.18fr);
+    gap: 3rem;
+  }
+}
+
+.hero-copy,
+.hero-art { min-width: 0; }
+
+@media (max-width: 61.99rem) {
+  .hero-art { max-width: 40rem; margin-inline: auto; }
+}
 
 .eyebrow {
   display: inline-flex;
@@ -152,7 +187,7 @@ a { color: inherit; }
   padding: 0.3125rem 0.75rem;
   border: 1px solid var(--l-border);
   border-radius: 999px;
-  background: rgba(20, 26, 61, 0.7);
+  background: rgba(23, 18, 51, 0.7);
   font-size: 0.8125rem;
   color: var(--l-muted);
   margin-bottom: 1.5rem;
@@ -168,15 +203,15 @@ a { color: inherit; }
 
 .hero h1 {
   margin: 0 0 1.25rem;
-  font-size: clamp(2.25rem, 6vw, 3.75rem);
-  line-height: 1.08;
-  letter-spacing: -0.03em;
+  font-size: clamp(2.1rem, 4.4vw, 3.15rem);
+  line-height: 1.1;
+  letter-spacing: -0.028em;
   font-weight: 800;
-  max-width: 20ch;
+  max-width: 16ch;
 }
 
 .grad {
-  background: linear-gradient(120deg, var(--l-cyan), var(--l-blue), var(--l-violet), var(--l-magenta));
+  background: var(--l-brand);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -184,12 +219,21 @@ a { color: inherit; }
 
 .hero p.lede {
   margin: 0 0 2rem;
-  font-size: clamp(1.0625rem, 2vw, 1.25rem);
+  font-size: clamp(1rem, 1.5vw, 1.125rem);
   color: var(--l-muted);
-  max-width: 62ch;
+  max-width: 46ch;
 }
 
-.hero-actions { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 2.5rem; }
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 2.5rem;
+}
+
+.hero-actions .btn { white-space: nowrap; }
+
+.hero-stats { grid-column: 1 / -1; }
 
 .stats {
   display: grid;
@@ -203,7 +247,7 @@ a { color: inherit; }
   font-family: var(--l-mono);
   font-size: 1.625rem;
   font-weight: 700;
-  background: linear-gradient(120deg, var(--l-cyan), var(--l-blue));
+  background: linear-gradient(120deg, var(--l-cyan), var(--l-violet));
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -246,11 +290,11 @@ a { color: inherit; }
   padding: 1.5rem;
   border: 1px solid var(--l-border);
   border-radius: 0.875rem;
-  background: linear-gradient(180deg, rgba(20, 26, 61, 0.9), rgba(14, 18, 48, 0.6));
+  background: linear-gradient(180deg, rgba(23, 18, 51, 0.9), rgba(14, 18, 48, 0.6));
   transition: border-color 0.15s, transform 0.15s;
 }
 
-.card:hover { border-color: rgba(58, 123, 255, 0.55); transform: translateY(-2px); }
+.card:hover { border-color: var(--l-border-lit); transform: translateY(-2px); }
 
 .card h3 {
   margin: 0 0 0.5rem;
@@ -280,7 +324,7 @@ a { color: inherit; }
   width: 1.75rem;
   height: 1.75rem;
   border-radius: 0.5rem;
-  background: linear-gradient(135deg, rgba(58, 123, 255, 0.28), rgba(91, 43, 255, 0.28));
+  background: linear-gradient(135deg, rgba(124, 92, 255, 0.28), rgba(255, 77, 157, 0.28));
   border: 1px solid var(--l-border);
   font-size: 0.9375rem;
 }
@@ -296,16 +340,16 @@ a { color: inherit; }
   align-items: start;
   padding: 1.25rem 1.5rem;
   border: 1px solid var(--l-border);
-  border-left: 3px solid var(--rung-color, var(--l-blue));
+  border-left: 3px solid var(--rung-color, var(--l-violet));
   border-radius: 0.75rem;
-  background: rgba(20, 26, 61, 0.55);
+  background: rgba(23, 18, 51, 0.55);
 }
 
 .rung .num {
   font-family: var(--l-mono);
   font-size: 1.5rem;
   font-weight: 700;
-  color: var(--rung-color, var(--l-blue));
+  color: var(--rung-color, var(--l-violet));
   line-height: 1.2;
 }
 
@@ -371,7 +415,7 @@ a { color: inherit; }
   width: 1.875rem;
   height: 1.875rem;
   border-radius: 999px;
-  background: linear-gradient(135deg, var(--l-blue), var(--l-violet));
+  background: linear-gradient(135deg, var(--l-violet), var(--l-violet));
   font-family: var(--l-mono);
   font-size: 0.8125rem;
   font-weight: 700;

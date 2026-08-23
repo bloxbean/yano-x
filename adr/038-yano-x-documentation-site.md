@@ -363,13 +363,51 @@ paths, so `/llms.txt` and `/ai/catalog.json` work locally without a build.
 
 ### 7.3 Theme
 
-The Yano mark (`static/logo-dark.svg` in the Yano repository) is a
-cyan → blue → violet → magenta gradient on `#0e1230`. The site accent is drawn
-from it (`#3a7bff` primary) so Yano X reads as part of Yano rather than a
-separate product. The JuLC color-scheme picker is intentionally **not** carried
-over — it is a JuLC-specific flourish and one accent keeps the brand tighter.
+The Yano mark is a cyan → indigo → violet → magenta gradient. The site leans on
+the **violet/magenta end**, which is its distinctive half: a flat blue accent on
+a navy ground is the default look of every developer documentation site, and
+reads as generic. The ground is near-black with a violet cast (`#0b0818`), the
+accent is `#7c5cff` on dark and `#6d28d9` on light, and the four-stop gradient
+itself appears as the brand signature — under the site header, on the hero
+headline, and through the hero illustration.
 
-### 7.4 Deployment
+The JuLC color-scheme picker is intentionally **not** carried over; one accent
+keeps the brand tighter.
+
+Two implementation traps are worth recording, because both produce defects that
+look like design mistakes:
+
+**`.header` is not unique in a Starlight page.** The site header, Starlight's
+inner header flex container, and *every* Expressive Code code-block caption
+carry that class. A bare `.header::after` therefore paints the brand gradient on
+all of them. The rule is scoped to `.page > header.header`, which matches
+exactly one element per page.
+
+**Starlight's palette lives inside `@layer starlight.base`, and unlayered CSS
+beats layered CSS regardless of specificity.** A bare `:root` block of dark
+values in `customCss` therefore overrides Starlight's *light* theme too — even
+`:root[data-theme='light']` inside the layer loses to it. The result is a broken
+mix: Starlight's light nav background above a page whose `--sl-color-bg` is
+still dark. Both palettes must be declared here, each mirroring the selector
+Starlight itself uses (`:root, ::backdrop` for dark;
+`:root[data-theme='light'], [data-theme='light'] ::backdrop` for light), with a
+complete inverted gray ramp for light.
+
+### 7.4 The hero illustration
+
+The landing page leads with an inline SVG of the app-chain pipeline rather than
+a screenshot or an abstract graphic. It shows the one claim that separates an
+app chain from a shared database: a signed command reaches three members, each
+independently re-executes it and derives the **identical** state root, a
+threshold signs the block, and that root settles on Cardano while effects fan
+out.
+
+The three root chips are the point of the drawing, so they pulse in unison
+rather than in sequence — a staggered animation would imply replication, which
+is exactly the wrong mental model. All motion is disabled under
+`prefers-reduced-motion`.
+
+### 7.5 Deployment
 
 `.github/workflows/docs-deploy.yml`, triggered by `dv*` tags and
 `workflow_dispatch`. Node 22, `npm ci`, `npm run build`, publish `www/dist`
