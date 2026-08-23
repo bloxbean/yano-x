@@ -1,0 +1,3520 @@
+{
+  "schemaVersion": "yano-x-docsite-catalog-v1",
+  "source": "Generated from the Yano X repository at documentation build time.",
+  "versions": {
+    "yanoXVersion": "0.1.0-SNAPSHOT",
+    "yanoVersion": "0.1.0-pre13",
+    "group": "com.bloxbean.cardano",
+    "javaVersion": "25",
+    "yanoJvmZipUrl": "https://github.com/bloxbean/yano/releases/download/v0.1.0-pre13/yano-0.1.0-pre13.zip"
+  },
+  "counts": {
+    "recipes": 11,
+    "capabilities": 43,
+    "artifacts": 18,
+    "modules": 52,
+    "configurationProperties": 44,
+    "runtimePlugins": 18
+  },
+  "recipes": [
+    {
+      "id": "audit-log",
+      "name": "Replicated audit log",
+      "category": "application",
+      "availability": "BUNDLED",
+      "maturity": "stable",
+      "scope": "chain",
+      "description": "A replicated append-only log for opaque application records.",
+      "primaryOutcome": "One opaque record is threshold-finalized in the shared application order.",
+      "firstCommand": "submit <topic> <payload>",
+      "verificationQuery": "messages/{messageId} and state/proof/{messageId}",
+      "capabilities": [
+        "state:ordered-log",
+        "sequencer:fixed"
+      ],
+      "artifacts": [
+        "yano-runtime"
+      ],
+      "runtimeTypes": [
+        "jvm",
+        "native"
+      ],
+      "deploymentTargets": [
+        "host",
+        "docker-compose"
+      ],
+      "nativePosture": "bundled",
+      "externalPrerequisites": [],
+      "bootstrapRequirements": [],
+      "trustStatement": "First-party Yano recipe using only built-in packaged runtime capabilities.",
+      "documentation": "docs/core-host.md",
+      "documentationUrl": "https://github.com/bloxbean/yano-x/blob/main/docs/core-host.md"
+    },
+    {
+      "id": "owned-registry",
+      "name": "Owned registry",
+      "category": "application",
+      "availability": "BUNDLED",
+      "maturity": "stable",
+      "scope": "chain",
+      "description": "A first-writer-owned key/value registry with committed query proofs.",
+      "primaryOutcome": "The first writer owns a named value that is readable with a committed state proof.",
+      "firstCommand": "kv put <key> <value>",
+      "verificationQuery": "state/proof/{hex(key)} decodes to owner and value",
+      "capabilities": [
+        "state:kv-registry",
+        "sequencer:fixed"
+      ],
+      "artifacts": [
+        "yano-runtime",
+        "yano-x-stdlib"
+      ],
+      "runtimeTypes": [
+        "jvm"
+      ],
+      "deploymentTargets": [
+        "host",
+        "docker-compose"
+      ],
+      "nativePosture": "unsupported",
+      "externalPrerequisites": [],
+      "bootstrapRequirements": [],
+      "trustStatement": "First-party Yano recipe using the bundled standard-library registry.",
+      "documentation": "docs/appchain/state-machines/kv-registry.md",
+      "documentationUrl": "/state-machines/kv-registry/"
+    },
+    {
+      "id": "authenticated-map",
+      "name": "Authenticated map",
+      "category": "application",
+      "availability": "BUNDLED",
+      "maturity": "preview",
+      "scope": "chain",
+      "description": "A proof-oriented multi-collection registry with optional canonical-CBOR and declarative schema validation.",
+      "primaryOutcome": "A value accepted under a genesis-declared collection schema is committed and available with a state proof.",
+      "firstCommand": "appchain state validate --genesis-file config/authenticated-map-genesis.hex ...",
+      "verificationQuery": "appchain state validators --genesis-file config/authenticated-map-genesis.hex",
+      "capabilities": [
+        "state:authenticated-map",
+        "sequencer:fixed"
+      ],
+      "artifacts": [
+        "yano-runtime",
+        "yano-x-stdlib"
+      ],
+      "runtimeTypes": [
+        "jvm"
+      ],
+      "deploymentTargets": [
+        "host",
+        "docker-compose"
+      ],
+      "nativePosture": "unsupported",
+      "externalPrerequisites": [],
+      "bootstrapRequirements": [
+        "pin-all-genesis-member-identities"
+      ],
+      "trustStatement": "First-party Yano recipe whose collection, encoding, schema, and commitment identities are frozen in canonical genesis.",
+      "documentation": "docs/appchain/state-machines/authenticated-map.md",
+      "documentationUrl": "/state-machines/authenticated-map/"
+    },
+    {
+      "id": "approval-workflow",
+      "name": "Threshold approval workflow",
+      "category": "application",
+      "availability": "BUNDLED",
+      "maturity": "stable",
+      "scope": "chain",
+      "description": "Validator members propose, approve, reject, and prove terminal decisions.",
+      "primaryOutcome": "Distinct validator-member decisions produce a provable terminal approval or rejection.",
+      "firstCommand": "propose <itemId> <payload> <required>",
+      "verificationQuery": "state/proof/{hex(i/itemId)} decodes to the decision trail",
+      "capabilities": [
+        "state:approval-workflow",
+        "sequencer:fixed"
+      ],
+      "artifacts": [
+        "yano-runtime",
+        "yano-x-stdlib"
+      ],
+      "runtimeTypes": [
+        "jvm"
+      ],
+      "deploymentTargets": [
+        "host",
+        "docker-compose"
+      ],
+      "nativePosture": "unsupported",
+      "externalPrerequisites": [],
+      "bootstrapRequirements": [],
+      "trustStatement": "First-party Yano recipe using the bundled generic approval state machine.",
+      "documentation": "docs/appchain/state-machines/approvals.md",
+      "documentationUrl": "/state-machines/approvals/"
+    },
+    {
+      "id": "role-approval",
+      "name": "Governed role approvals",
+      "category": "application",
+      "availability": "BUNDLED",
+      "maturity": "preview",
+      "scope": "chain",
+      "description": "Governed organizations, actors, and policies approve arbitrary application payload hashes.",
+      "primaryOutcome": "A governed role policy accepts valid actor decisions and rejects an ineligible actor decision.",
+      "firstCommand": "apply the generated role bootstrap plan, then submit a signed proposal",
+      "verificationQuery": "plugin role-workflow proposals/{id} plus returned proof key",
+      "capabilities": [
+        "state:role-approvals",
+        "sequencer:fixed"
+      ],
+      "artifacts": [
+        "yano-runtime",
+        "yano-x-composite",
+        "yano-x-role-workflow"
+      ],
+      "runtimeTypes": [
+        "jvm"
+      ],
+      "deploymentTargets": [
+        "host",
+        "docker-compose"
+      ],
+      "nativePosture": "unsupported",
+      "externalPrerequisites": [],
+      "bootstrapRequirements": [
+        "governed-organizations",
+        "governed-actors",
+        "governed-policies"
+      ],
+      "trustStatement": "First-party generic role product; applications retain responsibility for acting on an approved payload hash.",
+      "documentation": "docs/appchain/tutorials/05-domain-role-approvals.md",
+      "documentationUrl": "https://github.com/bloxbean/yano-x/blob/main/docs/appchain/tutorials/05-domain-role-approvals.md"
+    },
+    {
+      "id": "evidence-ledger",
+      "name": "Role-aware evidence ledger",
+      "category": "application",
+      "availability": "BUNDLED",
+      "maturity": "preview",
+      "scope": "chain",
+      "description": "A role-aware evidence ledger that emits publication intents; add and provision explicit connector capabilities for external mutation.",
+      "primaryOutcome": "A role-authorized evidence record and its release decision are committed and queryable.",
+      "firstCommand": "apply the generated role bootstrap plan, then submit evidence and a signed release proposal",
+      "verificationQuery": "plugin evidence-profile evidence/{id} and proposals/{id}",
+      "capabilities": [
+        "state:role-evidence",
+        "sequencer:fixed"
+      ],
+      "artifacts": [
+        "yano-runtime",
+        "yano-x-stdlib",
+        "yano-x-evidence-registry",
+        "yano-x-composite",
+        "yano-x-role-workflow",
+        "yano-x-evidence-profile"
+      ],
+      "runtimeTypes": [
+        "jvm"
+      ],
+      "deploymentTargets": [
+        "host",
+        "docker-compose"
+      ],
+      "nativePosture": "unsupported",
+      "externalPrerequisites": [],
+      "bootstrapRequirements": [
+        "governed-organizations",
+        "governed-actors",
+        "governed-policies"
+      ],
+      "trustStatement": "First-party preview evidence profile; it records and authorizes evidence claims but does not prove real-world truth or external publication by itself.",
+      "documentation": "docs/appchain/tutorials/04-evidence-publication.md",
+      "documentationUrl": "/tutorials/04-evidence-publication/"
+    },
+    {
+      "id": "eutxo-ledger",
+      "name": "Scalus-backed EUTxO ledger",
+      "category": "application",
+      "availability": "FIRST_PARTY_OPTIONAL",
+      "maturity": "experimental",
+      "scope": "chain",
+      "description": "A deterministic Cardano-shaped test ledger funded by an explicit virtual genesis allocation.",
+      "primaryOutcome": "A signed key-controlled or bounded Plutus V3 transaction consumes virtual EUTxOs and creates MPF-proven outputs and receipts.",
+      "firstCommand": "./yano.sh appchain eutxo transaction submit tx.cbor --chain <chain-id>",
+      "verificationQuery": "./yano.sh appchain eutxo utxo get <tx-id#index> --chain <chain-id>",
+      "capabilities": [
+        "profile:eutxo-plutus-v3",
+        "funding:eutxo-genesis",
+        "sequencer:fixed"
+      ],
+      "artifacts": [
+        "yano-runtime",
+        "yano-x-eutxo-ledger"
+      ],
+      "runtimeTypes": [
+        "jvm"
+      ],
+      "deploymentTargets": [
+        "host",
+        "docker-compose"
+      ],
+      "nativePosture": "unsupported",
+      "externalPrerequisites": [],
+      "bootstrapRequirements": [
+        "use-test-keys-and-no-real-funds"
+      ],
+      "trustStatement": "Experimental no-real-funds recipe; bounded Plutus V3 execution does not make it a Cardano bridge, custody product, or rollup.",
+      "documentation": "ledgers/eutxo/README.md",
+      "documentationUrl": "https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/README.md"
+    },
+    {
+      "id": "eutxo-cardano-bridge",
+      "name": "Federated Cardano EUTxO bridge",
+      "category": "application",
+      "availability": "EXPERIMENTAL",
+      "maturity": "experimental",
+      "scope": "chain",
+      "description": "A Cardano-backed EUTxO ledger with stable deposits and claim-bound federated withdrawals through external signing or permissionless current-root proofs.",
+      "primaryOutcome": "Accepted stable deposits create mirrored EUTxOs; signed L2 spends create irrevocable claims that settle only through the configured signer path or a current accepted MPF root with single-use nullification.",
+      "firstCommand": "stage and accept a bounded deposit, then submit a signed withdrawal output carrying the bridge withdrawal datum",
+      "verificationQuery": "query bridge/deposits/record, bridge/withdrawals/record, bridge/reserve, and the root-fixed withdrawal commitment proof through appchain-eutxo-client",
+      "capabilities": [
+        "profile:eutxo-plutus-v3",
+        "bridge:cardano-federated",
+        "sequencer:fixed"
+      ],
+      "artifacts": [
+        "yano-runtime",
+        "yano-x-eutxo-ledger",
+        "yano-x-eutxo-bridge-cardano"
+      ],
+      "runtimeTypes": [
+        "jvm"
+      ],
+      "deploymentTargets": [
+        "host",
+        "docker-compose"
+      ],
+      "nativePosture": "unsupported",
+      "externalPrerequisites": [
+        "reviewed-staging-vault-root-nullifier-and-proof-contract-identities",
+        "stable-cardano-l1-feed",
+        "federated-vault-and-root-operators",
+        "external-threshold-or-hsm-settlement-signer-for-signer-mode"
+      ],
+      "bootstrapRequirements": [
+        "configure-durable-settlement-journal-for-signer-mode",
+        "pin-current-root-nullifier-and-proof-contract-identities-for-proof-mode",
+        "complete-real-funds-custody-review"
+      ],
+      "trustStatement": "Experimental real-funds federated custody path. Use only reviewed contract identities and bridge/root operators. Signer mode trusts an external threshold/HSM; proof mode trusts the threshold-accepted root. Virtual genesis and ZeroJ are deliberately excluded.",
+      "documentation": "ledgers/eutxo/README.md",
+      "documentationUrl": "https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/README.md"
+    },
+    {
+      "id": "eutxo-zeroj-validity",
+      "name": "ZeroJ EUTxO validity development profile",
+      "category": "application",
+      "availability": "EXPERIMENTAL",
+      "maturity": "experimental",
+      "scope": "chain",
+      "description": "A no-real-funds EUTxO ledger with the optional ZeroJ validity commitment and the interfaces needed to operate and test direct proof settlement.",
+      "primaryOutcome": "Bounded finalized EUTxO payments deterministically update both the Yano MPF root and the circuit-friendly validity root and can be proved against pinned development artifacts.",
+      "firstCommand": "submit a bounded key-payment batch, then run the separately provisioned prover and permissionless settlement relay",
+      "verificationQuery": "query the EUTxO validity-root record and compare it with the proof statement and L1 root datum",
+      "capabilities": [
+        "funding:eutxo-genesis",
+        "settlement:zeroj-validity",
+        "sequencer:fixed"
+      ],
+      "artifacts": [
+        "yano-runtime",
+        "yano-x-eutxo-ledger",
+        "yano-x-eutxo-zk-zeroj"
+      ],
+      "runtimeTypes": [
+        "jvm"
+      ],
+      "deploymentTargets": [
+        "host",
+        "docker-compose"
+      ],
+      "nativePosture": "unsupported",
+      "externalPrerequisites": [
+        "zeroj-0.1.0-pre10",
+        "julc-0.1.0-pre16",
+        "development-ceremony-bundle"
+      ],
+      "bootstrapRequirements": [
+        "use-test-keys-and-no-real-funds"
+      ],
+      "trustStatement": "Development/testnet recipe with virtual value and a restricted bounded-payment circuit. It is not production-funds ready, not a general Plutus prover, and not entitled to the rollup label.",
+      "documentation": "ledgers/eutxo-zk/README.md",
+      "documentationUrl": "https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/README.md"
+    },
+    {
+      "id": "eutxo-zeroj-preview",
+      "name": "ZeroJ EUTxO testnet lifecycle",
+      "category": "application",
+      "availability": "EXPERIMENTAL",
+      "maturity": "experimental",
+      "scope": "chain",
+      "description": "Packages the Cardano-shaped L2 client, measured b16 development circuit, durable lifecycle tooling, contract plans, prover artifacts, relay handoff, and recovery evidence as one JVM-only testnet project.",
+      "primaryOutcome": "A project can bootstrap pinned development artifacts, accept finalized Jubjub-authorized L2 transactions, produce a constant-size proof, and prepare idempotent Cardano deposit, settlement, withdrawal, and recovery operations.",
+      "firstCommand": "./yano.sh appchain validity bootstrap --project <project> --development-ceremony --yes",
+      "verificationQuery": "./yano.sh appchain validity doctor --project <project>",
+      "capabilities": [
+        "settlement:zeroj-validity",
+        "bridge:cardano-federated",
+        "l1:slot-feed",
+        "sequencer:fixed"
+      ],
+      "artifacts": [
+        "yano-runtime",
+        "yano-x-eutxo-ledger",
+        "yano-x-eutxo-bridge-cardano",
+        "yano-x-eutxo-zk-zeroj",
+        "yano-x-eutxo-zk-runtime",
+        "yano-x-eutxo-zk-lifecycle"
+      ],
+      "runtimeTypes": [
+        "jvm"
+      ],
+      "deploymentTargets": [
+        "host",
+        "docker-compose"
+      ],
+      "nativePosture": "unsupported",
+      "externalPrerequisites": [
+        "zeroj-0.1.0-pre10",
+        "julc-0.1.0-pre16",
+        "funded-testnet-operator-key-for-live-L1-operations"
+      ],
+      "bootstrapRequirements": [
+        "trusted-proof-submitter",
+        "development-ceremony-or-reviewed-testnet-ceremony",
+        "deployed-pinned-contract-identities",
+        "disposable-test-funds-only"
+      ],
+      "trustStatement": "Testnet lifecycle for zeroj-jubjub-dev-v1. It requires a trusted prover, permits disposable test funds only, rejects mainnet, and does not claim malicious-prover security or production rollup readiness.",
+      "documentation": "ledgers/eutxo-zk/GETTING_STARTED.md",
+      "documentationUrl": "https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/GETTING_STARTED.md"
+    },
+    {
+      "id": "custom-plugin",
+      "name": "Custom state-machine project",
+      "category": "custom-plugin",
+      "availability": "REFERENCE",
+      "maturity": "experimental",
+      "scope": "chain",
+      "description": "A generated project boundary for a separately reviewed custom state-machine plugin.",
+      "primaryOutcome": "The operator-defined state-machine contract is loaded from a reviewed pinned plugin bundle.",
+      "firstCommand": "install the reviewed bundle and submit its documented command",
+      "verificationQuery": "plugin-defined committed query or state proof",
+      "capabilities": [
+        "state:custom-plugin",
+        "sequencer:fixed"
+      ],
+      "artifacts": [
+        "yano-runtime"
+      ],
+      "runtimeTypes": [
+        "jvm"
+      ],
+      "deploymentTargets": [
+        "host",
+        "docker-compose"
+      ],
+      "nativePosture": "unsupported",
+      "externalPrerequisites": [
+        "reviewed-custom-plugin-bundle"
+      ],
+      "bootstrapRequirements": [
+        "plugin-metadata-trust-review"
+      ],
+      "trustStatement": "Advanced JVM-only path; the operator owns plugin implementation, code review, metadata trust, compatibility, and distribution.",
+      "documentation": "docs/appchain/tutorials/08-plugins-and-composites.md",
+      "documentationUrl": "/plugins/"
+    }
+  ],
+  "capabilities": [
+    {
+      "id": "state:ordered-log",
+      "name": "Ordered audit log",
+      "category": "state",
+      "availability": "BUNDLED",
+      "maturity": "stable",
+      "scope": "chain",
+      "selectable": true,
+      "description": "Append-only ordered application messages.",
+      "provides": [
+        "state-machine"
+      ],
+      "requires": [],
+      "implies": [],
+      "conflicts": [],
+      "artifacts": [
+        "yano-runtime"
+      ],
+      "runtimeTypes": [
+        "jvm",
+        "native"
+      ],
+      "nativePosture": "bundled",
+      "externalPrerequisites": [],
+      "properties": {
+        "state-machine": "ordered-log"
+      },
+      "documentation": "docs/core-host.md",
+      "documentationUrl": "https://github.com/bloxbean/yano-x/blob/main/docs/core-host.md"
+    },
+    {
+      "id": "state:kv-registry",
+      "name": "Owned key/value registry",
+      "category": "state",
+      "availability": "BUNDLED",
+      "maturity": "stable",
+      "scope": "chain",
+      "selectable": true,
+      "description": "First-writer-owned mutable key/value records with committed proofs.",
+      "provides": [
+        "state-machine"
+      ],
+      "requires": [],
+      "implies": [],
+      "conflicts": [],
+      "artifacts": [
+        "yano-runtime",
+        "yano-x-stdlib"
+      ],
+      "runtimeTypes": [
+        "jvm"
+      ],
+      "nativePosture": "unsupported",
+      "externalPrerequisites": [],
+      "properties": {
+        "state-machine": "kv-registry",
+        "machines.kv-registry.value-format": "utf8"
+      },
+      "documentation": "docs/appchain/state-machines/kv-registry.md",
+      "documentationUrl": "/state-machines/kv-registry/"
+    },
+    {
+      "id": "state:authenticated-map",
+      "name": "Authenticated map",
+      "category": "state",
+      "availability": "BUNDLED",
+      "maturity": "preview",
+      "scope": "chain",
+      "selectable": true,
+      "description": "Multi-collection authenticated records with basic, direct-role, and approval authorization plus optional canonical-CBOR and schema validation.",
+      "provides": [
+        "state-machine"
+      ],
+      "requires": [],
+      "implies": [],
+      "conflicts": [],
+      "artifacts": [
+        "yano-runtime",
+        "yano-x-stdlib",
+        "yano-x-role-workflow"
+      ],
+      "runtimeTypes": [
+        "jvm"
+      ],
+      "nativePosture": "unsupported",
+      "externalPrerequisites": [],
+      "properties": {
+        "state-machine": "authenticated-map"
+      },
+      "documentation": "docs/appchain/state-machines/authenticated-map.md",
+      "documentationUrl": "/state-machines/authenticated-map/"
+    },
+    {
+      "id": "state:approval-workflow",
+      "name": "Threshold approval workflow",
+      "category": "state",
+      "availability": "BUNDLED",
+      "maturity": "stable",
+      "scope": "chain",
+      "selectable": true,
+      "description": "Validator-member proposals, votes, and terminal threshold decisions.",
+      "provides": [
+        "state-machine"
+      ],
+      "requires": [],
+      "implies": [],
+      "conflicts": [],
+      "artifacts": [
+        "yano-runtime",
+        "yano-x-stdlib"
+      ],
+      "runtimeTypes": [
+        "jvm"
+      ],
+      "nativePosture": "unsupported",
+      "externalPrerequisites": [],
+      "properties": {
+        "state-machine": "approvals"
+      },
+      "documentation": "docs/appchain/state-machines/approvals.md",
+      "documentationUrl": "/state-machines/approvals/"
+    },
+    {
+      "id": "state:balances",
+      "name": "Member balances",
+      "category": "state",
+      "availability": "BUNDLED",
+      "maturity": "stable",
+      "scope": "chain",
+      "selectable": true,
+      "description": "Member-authorized mint and transfer accounts for bounded application balances.",
+      "provides": [
+        "state-machine"
+      ],
+      "requires": [],
+      "implies": [],
+      "conflicts": [],
+      "artifacts": [
+        "yano-runtime",
+        "yano-x-stdlib"
+      ],
+      "runtimeTypes": [
+        "jvm"
+      ],
+      "nativePosture": "unsupported",
+      "externalPrerequisites": [],
+      "properties": {
+        "state-machine": "balances"
+      },
+      "documentation": "docs/appchain/state-machines/balances.md",
+      "documentationUrl": "/state-machines/balances/"
+    },
+    {
+      "id": "state:doc-trail",
+      "name": "Document trail",
+      "category": "state",
+      "availability": "BUNDLED",
+      "maturity": "stable",
+      "scope": "chain",
+      "selectable": true,
+      "description": "Append-only per-entity document and event hash trails.",
+      "provides": [
+        "state-machine"
+      ],
+      "requires": [],
+      "implies": [],
+      "conflicts": [],
+      "artifacts": [
+        "yano-runtime",
+        "yano-x-stdlib"
+      ],
+      "runtimeTypes": [
+        "jvm"
+      ],
+      "nativePosture": "unsupported",
+      "externalPrerequisites": [],
+      "properties": {
+        "state-machine": "doc-trail"
+      },
+      "documentation": "docs/appchain/state-machines/doc-trail.md",
+      "documentationUrl": "/state-machines/doc-trail/"
+    },
+    {
+      "id": "state:evidence-registry",
+      "name": "Evidence registry",
+      "category": "state",
+      "availability": "BUNDLED",
+      "maturity": "preview",
+      "scope": "chain",
+      "selectable": true,
+      "description": "Inspection and compliance evidence records with exact committed query proofs.",
+      "provides": [
+        "state-machine"
+      ],
+      "requires": [],
+      "implies": [],
+      "conflicts": [],
+      "artifacts": [
+        "yano-runtime",
+        "yano-x-evidence-registry"
+      ],
+      "runtimeTypes": [
+        "jvm"
+      ],
+      "nativePosture": "unsupported",
+      "externalPrerequisites": [],
+      "properties": {
+        "state-machine": "evidence-registry"
+      },
+      "documentation": "docs/appchain/tutorials/04-evidence-publication.md",
+      "documentationUrl": "/tutorials/04-evidence-publication/"
+    },
+    {
+      "id": "state:role-approvals",
+      "name": "Role-gated payload approvals",
+      "category": "state",
+      "availability": "BUNDLED",
+      "maturity": "preview",
+      "scope": "chain",
+      "selectable": true,
+      "description": "Governed organizations, actors, policies, and signed approvals for arbitrary payload hashes.",
+      "provides": [
+        "state-machine"
+      ],
+      "requires": [],
+      "implies": [],
+      "conflicts": [],
+      "artifacts": [
+        "yano-runtime",
+        "yano-x-composite",
+        "yano-x-role-workflow"
+      ],
+      "runtimeTypes": [
+        "jvm"
+      ],
+      "nativePosture": "unsupported",
+      "externalPrerequisites": [],
+      "properties": {
+        "state-machine": "role-approvals",
+        "machines.composite.preset": "role-approvals-v1",
+        "machines.composite.profile-mode": "fixed",
+        "machines.composite.profile-governance.min-activation-lag": "20",
+        "machines.composite.profile-governance.proposal-ttl-blocks": "600",
+        "machines.composite.profile-governance.max-epochs": "1024",
+        "machines.composite.roles.maximum-mutation-lifetime-blocks": "1000"
+      },
+      "documentation": "docs/appchain/tutorials/05-domain-role-approvals.md",
+      "documentationUrl": "https://github.com/bloxbean/yano-x/blob/main/docs/appchain/tutorials/05-domain-role-approvals.md"
+    },
+    {
+      "id": "state:role-evidence",
+      "name": "Role-aware evidence workflow",
+      "category": "state",
+      "availability": "BUNDLED",
+      "maturity": "preview",
+      "scope": "chain",
+      "selectable": true,
+      "description": "Evidence registration combined with governed domain actors and role-aware release approval.",
+      "provides": [
+        "state-machine"
+      ],
+      "requires": [],
+      "implies": [],
+      "conflicts": [],
+      "artifacts": [
+        "yano-runtime",
+        "yano-x-stdlib",
+        "yano-x-evidence-registry",
+        "yano-x-composite",
+        "yano-x-role-workflow",
+        "yano-x-evidence-profile"
+      ],
+      "runtimeTypes": [
+        "jvm"
+      ],
+      "nativePosture": "unsupported",
+      "externalPrerequisites": [],
+      "properties": {
+        "state-machine": "role-evidence",
+        "block.max-messages": "100",
+        "effects.enabled": "true",
+        "effects.max-per-block": "200",
+        "effects.max-payload-bytes": "16384",
+        "effects.max-expiry-blocks": "100000",
+        "effects.result-window-blocks": "100000",
+        "effects.default-gate": "app-final",
+        "effects.outcome-commitment": "per-effect",
+        "effects.strict-reserved-prefix": "true",
+        "machines.kv-registry.value-format": "raw",
+        "machines.composite.preset": "role-evidence-v1",
+        "machines.composite.evidence-capacity-per-block": "8",
+        "machines.composite.profile-mode": "fixed",
+        "machines.composite.profile-governance.min-activation-lag": "20",
+        "machines.composite.profile-governance.proposal-ttl-blocks": "600",
+        "machines.composite.profile-governance.max-epochs": "1024",
+        "machines.composite.roles.maximum-mutation-lifetime-blocks": "1000",
+        "machines.evidence-registry.storage-gate": "app-final",
+        "machines.evidence-registry.storage-expiry-blocks": "0",
+        "machines.evidence-registry.notification-expiry-blocks": "0"
+      },
+      "documentation": "docs/appchain/tutorials/04-evidence-publication.md",
+      "documentationUrl": "/tutorials/04-evidence-publication/"
+    },
+    {
+      "id": "state:custom-plugin",
+      "name": "Custom JVM plugin state machine",
+      "category": "custom-plugin",
+      "availability": "REFERENCE",
+      "maturity": "experimental",
+      "scope": "chain",
+      "selectable": true,
+      "description": "Project boundary for a separately reviewed custom state-machine bundle.",
+      "provides": [
+        "state-machine"
+      ],
+      "requires": [],
+      "implies": [],
+      "conflicts": [],
+      "artifacts": [
+        "yano-runtime"
+      ],
+      "runtimeTypes": [
+        "jvm"
+      ],
+      "nativePosture": "unsupported",
+      "externalPrerequisites": [
+        "reviewed-custom-plugin-bundle"
+      ],
+      "properties": {
+        "state-machine": "${stateMachine}"
+      },
+      "documentation": "docs/appchain/tutorials/08-plugins-and-composites.md",
+      "documentationUrl": "/plugins/"
+    },
+    {
+      "id": "state:zk-gate",
+      "name": "Zero-knowledge proof gate",
+      "category": "state",
+      "availability": "EXPERIMENTAL",
+      "maturity": "experimental",
+      "scope": "chain",
+      "selectable": true,
+      "description": "Verifies configured Groth16 or Plonk proofs during deterministic state transition.",
+      "provides": [
+        "state-machine"
+      ],
+      "requires": [],
+      "implies": [],
+      "conflicts": [],
+      "artifacts": [
+        "yano-runtime",
+        "yano-x-zk"
+      ],
+      "runtimeTypes": [
+        "jvm"
+      ],
+      "nativePosture": "unsupported",
+      "externalPrerequisites": [
+        "reviewed-verification-key-file"
+      ],
+      "properties": {
+        "state-machine": "zk-gate",
+        "zk.circuits[0].id": "${circuitId}",
+        "zk.circuits[0].vk-file": "${verificationKeyFile}",
+        "zk.circuits[0].vk-hash": "${verificationKeyHash}",
+        "zk.circuits[0].proof-system": "${proofSystem}",
+        "zk.circuits[0].curve": "${curve}"
+      },
+      "documentation": "state-machines/zk/README.md",
+      "documentationUrl": "https://github.com/bloxbean/yano-x/blob/main/state-machines/zk/README.md"
+    },
+    {
+      "id": "state:zk-membership",
+      "name": "Anonymous ZK membership",
+      "category": "state",
+      "availability": "EXPERIMENTAL",
+      "maturity": "experimental",
+      "scope": "chain",
+      "selectable": true,
+      "description": "Membership authorization using a configured zero-knowledge circuit and nullifier deduplication.",
+      "provides": [
+        "state-machine"
+      ],
+      "requires": [],
+      "implies": [],
+      "conflicts": [],
+      "artifacts": [
+        "yano-runtime",
+        "yano-x-zk"
+      ],
+      "runtimeTypes": [
+        "jvm"
+      ],
+      "nativePosture": "unsupported",
+      "externalPrerequisites": [
+        "reviewed-membership-verification-key-file"
+      ],
+      "properties": {
+        "state-machine": "zk-membership",
+        "zk.circuits[0].id": "${circuitId}",
+        "zk.circuits[0].vk-file": "${verificationKeyFile}",
+        "zk.circuits[0].vk-hash": "${verificationKeyHash}",
+        "zk.circuits[0].proof-system": "${proofSystem}",
+        "zk.circuits[0].curve": "${curve}"
+      },
+      "documentation": "state-machines/zk/README.md",
+      "documentationUrl": "https://github.com/bloxbean/yano-x/blob/main/state-machines/zk/README.md"
+    },
+    {
+      "id": "state:credential-registry",
+      "name": "BBS credential registry",
+      "category": "state",
+      "availability": "EXPERIMENTAL",
+      "maturity": "experimental",
+      "scope": "chain",
+      "selectable": true,
+      "description": "Registry for selectively disclosed BBS credential statements from configured issuers.",
+      "provides": [
+        "state-machine"
+      ],
+      "requires": [],
+      "implies": [],
+      "conflicts": [],
+      "artifacts": [
+        "yano-runtime",
+        "yano-x-zk"
+      ],
+      "runtimeTypes": [
+        "jvm"
+      ],
+      "nativePosture": "unsupported",
+      "externalPrerequisites": [],
+      "properties": {
+        "state-machine": "credential-registry",
+        "zk.bbs.issuers[0].id": "${issuerId}",
+        "zk.bbs.issuers[0].public-key": "${issuerPublicKey}"
+      },
+      "documentation": "state-machines/zk/README.md",
+      "documentationUrl": "https://github.com/bloxbean/yano-x/blob/main/state-machines/zk/README.md"
+    },
+    {
+      "id": "state:eutxo-ledger",
+      "name": "Scalus-backed EUTxO ledger engine",
+      "category": "state",
+      "availability": "FIRST_PARTY_OPTIONAL",
+      "maturity": "experimental",
+      "scope": "chain",
+      "selectable": false,
+      "description": "Deterministic Cardano-shaped EUTxO state, root-fixed receipts, address indexes, and MPF-proven outputs under one explicitly selected ledger profile.",
+      "provides": [
+        "state-machine"
+      ],
+      "requires": [],
+      "implies": [],
+      "conflicts": [],
+      "artifacts": [
+        "yano-runtime",
+        "yano-x-eutxo-ledger"
+      ],
+      "runtimeTypes": [
+        "jvm"
+      ],
+      "nativePosture": "unsupported",
+      "externalPrerequisites": [],
+      "properties": {
+        "state-machine": "eutxo-ledger"
+      },
+      "documentation": "ledgers/eutxo/README.md",
+      "documentationUrl": "https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/README.md"
+    },
+    {
+      "id": "profile:eutxo-plutus-v3",
+      "name": "Bounded EUTxO Plutus V3 profile",
+      "category": "profile",
+      "availability": "FIRST_PARTY_OPTIONAL",
+      "maturity": "experimental",
+      "scope": "chain",
+      "selectable": true,
+      "description": "Pins the immutable yano-eutxo-v2-plutus-v3 ledger profile and every consensus-relevant bound.",
+      "provides": [
+        "eutxo-ledger-profile"
+      ],
+      "requires": [
+        "state:eutxo-ledger"
+      ],
+      "implies": [],
+      "conflicts": [],
+      "artifacts": [
+        "yano-runtime",
+        "yano-x-eutxo-ledger"
+      ],
+      "runtimeTypes": [
+        "jvm"
+      ],
+      "nativePosture": "unsupported",
+      "externalPrerequisites": [],
+      "properties": {
+        "machines.eutxo.profile": "yano-eutxo-v2-plutus-v3",
+        "machines.eutxo.expected-profile-digest": "8cd4adb72def2c31dc8551a02f67429ea468bb2024dbe85a1dc7300590c9d1bf"
+      },
+      "documentation": "ledgers/eutxo/README.md",
+      "documentationUrl": "https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/README.md"
+    },
+    {
+      "id": "profile:eutxo-bridge-settlement",
+      "name": "Governed bridge-settlement EUTxO profile",
+      "category": "profile",
+      "availability": "FIRST_PARTY_OPTIONAL",
+      "maturity": "experimental",
+      "scope": "chain",
+      "selectable": true,
+      "description": "Pins the immutable yano-eutxo-v3-bridge-settlement ledger profile (ADR-UTXO-009) and every consensus-relevant bound.",
+      "provides": [
+        "eutxo-ledger-profile"
+      ],
+      "requires": [
+        "state:eutxo-ledger"
+      ],
+      "implies": [],
+      "conflicts": [],
+      "artifacts": [
+        "yano-runtime",
+        "yano-x-eutxo-ledger"
+      ],
+      "runtimeTypes": [
+        "jvm"
+      ],
+      "nativePosture": "unsupported",
+      "externalPrerequisites": [],
+      "properties": {
+        "machines.eutxo.profile": "yano-eutxo-v3-bridge-settlement",
+        "machines.eutxo.expected-profile-digest": "71d7d7445118ef5c4761c847836075f3e5011a1336c5e8f2bfb3517ad8598f47"
+      },
+      "documentation": "ledgers/eutxo/README.md",
+      "documentationUrl": "https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/README.md"
+    },
+    {
+      "id": "profile:eutxo-key-payments",
+      "name": "Restricted EUTxO key-payment profile",
+      "category": "profile",
+      "availability": "FIRST_PARTY_OPTIONAL",
+      "maturity": "experimental",
+      "scope": "chain",
+      "selectable": true,
+      "description": "Pins the immutable yano-eutxo-v1 ledger profile used by the current bounded ZeroJ validity circuit.",
+      "provides": [
+        "eutxo-ledger-profile"
+      ],
+      "requires": [
+        "state:eutxo-ledger"
+      ],
+      "implies": [],
+      "conflicts": [],
+      "artifacts": [
+        "yano-runtime",
+        "yano-x-eutxo-ledger"
+      ],
+      "runtimeTypes": [
+        "jvm"
+      ],
+      "nativePosture": "unsupported",
+      "externalPrerequisites": [],
+      "properties": {
+        "machines.eutxo.profile": "yano-eutxo-v1",
+        "machines.eutxo.expected-profile-digest": "2499d01ee7cb0d09d0d498040c6351accd9da83df31666cd4463d0b1722d1212"
+      },
+      "documentation": "ledgers/eutxo/README.md",
+      "documentationUrl": "https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/README.md"
+    },
+    {
+      "id": "funding:eutxo-genesis",
+      "name": "Virtual EUTxO genesis allocation",
+      "category": "funding",
+      "availability": "FIRST_PARTY_OPTIONAL",
+      "maturity": "experimental",
+      "scope": "chain",
+      "selectable": true,
+      "description": "Bootstraps one explicit ADA-only virtual allocation for no-real-funds testing.",
+      "provides": [
+        "eutxo-genesis-funding"
+      ],
+      "requires": [
+        "state:eutxo-ledger"
+      ],
+      "implies": [],
+      "conflicts": [
+        "bridge:cardano-federated"
+      ],
+      "artifacts": [
+        "yano-runtime",
+        "yano-x-eutxo-ledger"
+      ],
+      "runtimeTypes": [
+        "jvm"
+      ],
+      "nativePosture": "unsupported",
+      "externalPrerequisites": [],
+      "properties": {
+        "machines.eutxo.genesis.address": "${eutxoGenesisAddress}",
+        "machines.eutxo.genesis.lovelace": "${eutxoGenesisLovelace}"
+      },
+      "documentation": "ledgers/eutxo/README.md",
+      "documentationUrl": "https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/README.md"
+    },
+    {
+      "id": "bridge:cardano-federated",
+      "name": "Federated Cardano EUTxO bridge",
+      "category": "bridge",
+      "availability": "EXPERIMENTAL",
+      "maturity": "experimental",
+      "scope": "chain",
+      "selectable": true,
+      "description": "Observes exact accepted vault deposits and settles irrevocable bounded claims through either exact external signing or permissionless current-root MPF proofs with an on-chain replay nullifier.",
+      "provides": [
+        "cardano-federated-bridge"
+      ],
+      "requires": [
+        "state:eutxo-ledger",
+        "l1:slot-feed"
+      ],
+      "implies": [],
+      "conflicts": [
+        "funding:eutxo-genesis"
+      ],
+      "artifacts": [
+        "yano-runtime",
+        "yano-x-eutxo-ledger",
+        "yano-x-eutxo-bridge-cardano"
+      ],
+      "runtimeTypes": [
+        "jvm"
+      ],
+      "nativePosture": "unsupported",
+      "externalPrerequisites": [
+        "reviewed-staging-vault-root-nullifier-and-proof-contract-identities",
+        "stable-cardano-l1-feed",
+        "federated-vault-and-root-operators",
+        "external-threshold-or-hsm-settlement-signer-for-signer-mode"
+      ],
+      "properties": {
+        "l1.stability-depth": "2",
+        "machines.eutxo.bridge.observer-id": "bridge-deposits",
+        "machines.eutxo.bridge.vault-address": "${bridgeVaultAddress}",
+        "machines.eutxo.bridge.vault-script-hash": "${bridgeVaultScriptHash}",
+        "machines.eutxo.bridge.confirmation-observer-id": "bridge-withdrawals",
+        "machines.eutxo.bridge.withdrawal-address": "${bridgeWithdrawalAddress}",
+        "machines.eutxo.bridge.epoch": "${bridgeEpoch}",
+        "machines.eutxo.bridge.max-withdrawal-lovelace": "${bridgeMaxWithdrawalLovelace}",
+        "machines.eutxo.bridge.max-pending-withdrawals": "${bridgeMaxPendingWithdrawals}",
+        "machines.eutxo.bridge.withdrawals-paused": "false",
+        "observers.bridge-deposits.type": "eutxo-vault-deposit-v1",
+        "observers.bridge-deposits.chain-id": "${chainId}",
+        "observers.bridge-deposits.vault-address": "${bridgeVaultAddress}",
+        "observers.bridge-deposits.vault-script-hash": "${bridgeVaultScriptHash}",
+        "observers.bridge-deposits.max-lovelace": "${bridgeMaxDepositLovelace}",
+        "observers.bridge-withdrawals.type": "eutxo-withdrawal-confirmation-v1",
+        "observers.bridge-withdrawals.chain-id": "${chainId}",
+        "observers.bridge-withdrawals.bridge-epoch": "${bridgeEpoch}",
+        "observers.bridge-withdrawals.vault-address": "${bridgeVaultAddress}"
+      },
+      "documentation": "ledgers/eutxo/README.md",
+      "documentationUrl": "https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/README.md"
+    },
+    {
+      "id": "settlement:zeroj-validity",
+      "name": "ZeroJ EUTxO validity settlement",
+      "category": "settlement",
+      "availability": "EXPERIMENTAL",
+      "maturity": "experimental",
+      "scope": "chain",
+      "selectable": true,
+      "description": "Adds a Yano L2 envelope with a Cardano-compatible body, registered Jubjub session-key authorization, optional Poseidon validity commitment, durable proving interfaces, proof-bound Cardano root advancement, bounded aggregate withdrawal and canonical L1 batch publication.",
+      "provides": [
+        "zeroj-validity-settlement"
+      ],
+      "requires": [
+        "profile:eutxo-key-payments"
+      ],
+      "implies": [],
+      "conflicts": [],
+      "artifacts": [
+        "yano-runtime",
+        "yano-x-eutxo-zk-zeroj",
+        "yano-x-eutxo-zk-runtime",
+        "yano-x-eutxo-zk-lifecycle"
+      ],
+      "runtimeTypes": [
+        "jvm"
+      ],
+      "nativePosture": "unsupported",
+      "externalPrerequisites": [
+        "zeroj-0.1.0-pre10",
+        "julc-0.1.0-pre16",
+        "development-or-reviewed-ceremony-bundle",
+        "deployed-pinned-validity-root-vault-and-data-availability-contracts"
+      ],
+      "properties": {
+        "machines.eutxo.network": "${network}",
+        "machines.eutxo.genesis.l2-address": "${eutxoL2Address}",
+        "machines.eutxo.genesis.l2-public-key": "${eutxoL2PublicKey}",
+        "machines.eutxo.genesis.l2-key-epoch": "1",
+        "machines.eutxo.validity.enabled": "true",
+        "machines.eutxo.validity.provider": "zeroj-poseidon-v1",
+        "machines.eutxo.validity.transaction-format": "yano-eutxo-l2-envelope-v1",
+        "machines.eutxo.validity.profile": "yano-eutxo-zk-z3",
+        "machines.eutxo.validity.expected-profile-digest": "cfe1767761cbe05c7e2b82f951222fbb9df34afa5eb1f39fb8a5c1cc2af87d45",
+        "machines.eutxo.validity.batch-profile": "cardano-payment-b16",
+        "machines.eutxo.validity.batch-profile-digest": "bd0835736116cb6338a82069e913f3815547008e4994508f110065c5dfc64747",
+        "machines.eutxo.validity.circuit-id": "eutxo-jubjub-batch-dev-b16-v4",
+        "machines.eutxo.validity.proof-system": "groth16",
+        "machines.eutxo.validity.curve": "bls12-381",
+        "machines.eutxo.validity.zeroj-version": "0.1.0-pre10",
+        "machines.eutxo.validity.julc-version": "0.1.0-pre16",
+        "machines.eutxo.validity.authorization-profile": "zeroj-jubjub-dev-v1",
+        "machines.eutxo.validity.authorization-profile-digest": "d4d23eb620057fa280616f8e117aa7b38f7895fc3be2626566a3fd06444cb035",
+        "machines.eutxo.validity.authorization-trusted-prover-required": "true",
+        "machines.eutxo.validity.authorization-point-checks": "host-only-development",
+        "machines.eutxo.validity.funds-policy": "disposable-test-funds-only"
+      },
+      "documentation": "ledgers/eutxo-zk/README.md",
+      "documentationUrl": "https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/README.md"
+    },
+    {
+      "id": "rollup:zeroj-cardano",
+      "name": "ZeroJ Cardano EUTxO rollup label",
+      "category": "product-label",
+      "availability": "EXPERIMENTAL",
+      "maturity": "experimental",
+      "scope": "chain",
+      "selectable": false,
+      "description": "Graduation label for a separately approved ZeroJ validity product; it does not add runtime behavior.",
+      "provides": [
+        "zeroj-cardano-rollup-label"
+      ],
+      "requires": [
+        "settlement:zeroj-validity"
+      ],
+      "implies": [],
+      "conflicts": [],
+      "artifacts": [
+        "yano-runtime",
+        "yano-x-eutxo-ledger",
+        "yano-x-eutxo-zk-zeroj"
+      ],
+      "runtimeTypes": [
+        "jvm"
+      ],
+      "nativePosture": "unsupported",
+      "externalPrerequisites": [
+        "all-adr-utxo-001-z5-z6-gates-passed"
+      ],
+      "properties": {},
+      "documentation": "ledgers/eutxo-zk/Z6_PRODUCTION_HARDENING.md",
+      "documentationUrl": "https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/Z6_PRODUCTION_HARDENING.md"
+    },
+    {
+      "id": "indexer:eutxo-lifecycle",
+      "name": "EUTxO lifecycle indexer",
+      "category": "indexer",
+      "availability": "FIRST_PARTY_OPTIONAL",
+      "maturity": "preview",
+      "scope": "node",
+      "selectable": false,
+      "description": "Indexes finalized EUTxO transactions, accounts, bridge lifecycle records, and optional validity batches for bounded APIs and the unified console.",
+      "provides": [
+        "eutxo-lifecycle-index"
+      ],
+      "requires": [],
+      "implies": [],
+      "conflicts": [],
+      "artifacts": [
+        "yano-runtime",
+        "yano-x-eutxo-indexer-core",
+        "yano-x-eutxo-indexer-jdbc"
+      ],
+      "runtimeTypes": [
+        "jvm"
+      ],
+      "nativePosture": "unsupported",
+      "externalPrerequisites": [],
+      "properties": {},
+      "documentation": "ledgers/eutxo/INDEXER_OPERATIONS.md",
+      "documentationUrl": "https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/INDEXER_OPERATIONS.md"
+    },
+    {
+      "id": "sequencer:fixed",
+      "name": "Fixed sequencer",
+      "category": "sequencer",
+      "availability": "BUNDLED",
+      "maturity": "stable",
+      "scope": "chain",
+      "selectable": true,
+      "description": "One declared member proposes application blocks.",
+      "provides": [
+        "sequencer"
+      ],
+      "requires": [],
+      "implies": [],
+      "conflicts": [
+        "sequencer:rotating"
+      ],
+      "artifacts": [
+        "yano-runtime"
+      ],
+      "runtimeTypes": [
+        "jvm",
+        "native"
+      ],
+      "nativePosture": "bundled",
+      "externalPrerequisites": [],
+      "properties": {
+        "sequencer.mode": "fixed",
+        "sequencer.proposer": "${proposer}"
+      },
+      "documentation": "docs/appchain/README.md",
+      "documentationUrl": "https://github.com/bloxbean/yano-x/blob/main/docs/appchain/README.md"
+    },
+    {
+      "id": "sequencer:rotating",
+      "name": "L1-window rotating sequencer",
+      "category": "sequencer",
+      "availability": "BUNDLED",
+      "maturity": "experimental",
+      "scope": "chain",
+      "selectable": true,
+      "description": "Rotates proposership across members using bounded L1 slot windows.",
+      "provides": [
+        "sequencer"
+      ],
+      "requires": [],
+      "implies": [
+        "l1:slot-feed"
+      ],
+      "conflicts": [
+        "sequencer:fixed"
+      ],
+      "artifacts": [
+        "yano-runtime"
+      ],
+      "runtimeTypes": [
+        "jvm",
+        "native"
+      ],
+      "nativePosture": "bundled",
+      "externalPrerequisites": [
+        "synchronized-l1-slot-view"
+      ],
+      "properties": {
+        "sequencer.mode": "rotating",
+        "sequencer.window-slots": "10"
+      },
+      "documentation": "docs/appchain/README.md",
+      "documentationUrl": "https://github.com/bloxbean/yano-x/blob/main/docs/appchain/README.md"
+    },
+    {
+      "id": "membership:static",
+      "name": "Static membership",
+      "category": "membership",
+      "availability": "BUNDLED",
+      "maturity": "stable",
+      "scope": "chain",
+      "selectable": true,
+      "description": "Pins the initial member set as the active set.",
+      "provides": [
+        "membership"
+      ],
+      "requires": [],
+      "implies": [],
+      "conflicts": [
+        "membership:governed"
+      ],
+      "artifacts": [
+        "yano-runtime"
+      ],
+      "runtimeTypes": [
+        "jvm",
+        "native"
+      ],
+      "nativePosture": "bundled",
+      "externalPrerequisites": [],
+      "properties": {
+        "membership.mode": "static"
+      },
+      "documentation": "docs/appchain/README.md",
+      "documentationUrl": "https://github.com/bloxbean/yano-x/blob/main/docs/appchain/README.md"
+    },
+    {
+      "id": "membership:governed",
+      "name": "Governed membership",
+      "category": "membership",
+      "availability": "BUNDLED",
+      "maturity": "preview",
+      "scope": "chain",
+      "selectable": true,
+      "description": "Allows authenticated member epochs to evolve through replicated governance.",
+      "provides": [
+        "membership"
+      ],
+      "requires": [],
+      "implies": [],
+      "conflicts": [
+        "membership:static"
+      ],
+      "artifacts": [
+        "yano-runtime"
+      ],
+      "runtimeTypes": [
+        "jvm",
+        "native"
+      ],
+      "nativePosture": "bundled",
+      "externalPrerequisites": [],
+      "properties": {
+        "membership.mode": "governed"
+      },
+      "documentation": "docs/appchain/README.md",
+      "documentationUrl": "https://github.com/bloxbean/yano-x/blob/main/docs/appchain/README.md"
+    },
+    {
+      "id": "l1:slot-feed",
+      "name": "L1 slot feed",
+      "category": "l1",
+      "availability": "BUNDLED",
+      "maturity": "stable",
+      "scope": "chain",
+      "selectable": true,
+      "description": "Supplies stable local Cardano slot observations to slot-aware app-chain behavior.",
+      "provides": [
+        "l1-slot-feed"
+      ],
+      "requires": [],
+      "implies": [],
+      "conflicts": [],
+      "artifacts": [
+        "yano-runtime"
+      ],
+      "runtimeTypes": [
+        "jvm",
+        "native"
+      ],
+      "nativePosture": "bundled",
+      "externalPrerequisites": [
+        "synchronized-l1-view"
+      ],
+      "properties": {},
+      "documentation": "docs/appchain/README.md",
+      "documentationUrl": "https://github.com/bloxbean/yano-x/blob/main/docs/appchain/README.md"
+    },
+    {
+      "id": "anchor:metadata",
+      "name": "Cardano metadata anchors",
+      "category": "anchor",
+      "availability": "BUNDLED",
+      "maturity": "stable",
+      "scope": "chain",
+      "selectable": true,
+      "description": "Commits finalized app-chain roots in Cardano transaction metadata.",
+      "provides": [
+        "anchor"
+      ],
+      "requires": [
+        "l1:slot-feed"
+      ],
+      "implies": [],
+      "conflicts": [
+        "anchor:script"
+      ],
+      "artifacts": [
+        "yano-runtime"
+      ],
+      "runtimeTypes": [
+        "jvm",
+        "native"
+      ],
+      "nativePosture": "bundled",
+      "externalPrerequisites": [
+        "funded-anchor-wallet"
+      ],
+      "properties": {
+        "anchor.enabled": "true",
+        "anchor.mode": "metadata"
+      },
+      "documentation": "docs/appchain/tutorials/07-anchors-and-verification.md",
+      "documentationUrl": "https://github.com/bloxbean/yano-x/blob/main/docs/appchain/tutorials/07-anchors-and-verification.md"
+    },
+    {
+      "id": "anchor:script",
+      "name": "Cardano threshold-script anchors",
+      "category": "anchor",
+      "availability": "BUNDLED",
+      "maturity": "preview",
+      "scope": "chain",
+      "selectable": true,
+      "description": "Advances an app-chain anchor thread through a reviewed Cardano script.",
+      "provides": [
+        "anchor"
+      ],
+      "requires": [
+        "l1:slot-feed"
+      ],
+      "implies": [],
+      "conflicts": [
+        "anchor:metadata"
+      ],
+      "artifacts": [
+        "yano-runtime"
+      ],
+      "runtimeTypes": [
+        "jvm",
+        "native"
+      ],
+      "nativePosture": "bundled",
+      "externalPrerequisites": [
+        "funded-anchor-wallet",
+        "reviewed-anchor-script"
+      ],
+      "properties": {
+        "anchor.enabled": "true",
+        "anchor.mode": "script",
+        "anchor.script.validator": "${anchorValidator}",
+        "anchor.script.thread-policy": "${anchorThreadPolicy}"
+      },
+      "documentation": "docs/appchain/tutorials/07-anchors-and-verification.md",
+      "documentationUrl": "https://github.com/bloxbean/yano-x/blob/main/docs/appchain/tutorials/07-anchors-and-verification.md"
+    },
+    {
+      "id": "observer:address-deposit",
+      "name": "Address deposit observer",
+      "category": "l1-observer",
+      "availability": "BUNDLED",
+      "maturity": "preview",
+      "scope": "chain",
+      "selectable": true,
+      "description": "Creates stable observations for lovelace paid to one configured Cardano address.",
+      "provides": [
+        "l1-observer:address-deposit"
+      ],
+      "requires": [
+        "l1:slot-feed"
+      ],
+      "implies": [],
+      "conflicts": [],
+      "artifacts": [
+        "yano-runtime"
+      ],
+      "runtimeTypes": [
+        "jvm",
+        "native"
+      ],
+      "nativePosture": "bundled",
+      "externalPrerequisites": [],
+      "properties": {
+        "observers.deposits.type": "address-deposit",
+        "observers.deposits.address": "${depositAddress}"
+      },
+      "documentation": "docs/appchain/README.md",
+      "documentationUrl": "https://github.com/bloxbean/yano-x/blob/main/docs/appchain/README.md"
+    },
+    {
+      "id": "observer:metadata-label",
+      "name": "Metadata label observer",
+      "category": "l1-observer",
+      "availability": "BUNDLED",
+      "maturity": "preview",
+      "scope": "chain",
+      "selectable": true,
+      "description": "Creates stable observations for one configured Cardano transaction metadata label.",
+      "provides": [
+        "l1-observer:metadata-label"
+      ],
+      "requires": [
+        "l1:slot-feed"
+      ],
+      "implies": [],
+      "conflicts": [],
+      "artifacts": [
+        "yano-runtime"
+      ],
+      "runtimeTypes": [
+        "jvm",
+        "native"
+      ],
+      "nativePosture": "bundled",
+      "externalPrerequisites": [],
+      "properties": {
+        "observers.metadata.type": "metadata-label",
+        "observers.metadata.label": "${metadataLabel}"
+      },
+      "documentation": "docs/appchain/README.md",
+      "documentationUrl": "https://github.com/bloxbean/yano-x/blob/main/docs/appchain/README.md"
+    },
+    {
+      "id": "effects:runtime",
+      "name": "Deterministic effects runtime",
+      "category": "effects-runtime",
+      "availability": "BUNDLED",
+      "maturity": "preview",
+      "scope": "chain",
+      "selectable": true,
+      "description": "Enables deterministic effect intents, gates, result incorporation, and proofs.",
+      "provides": [
+        "effects-runtime"
+      ],
+      "requires": [],
+      "implies": [],
+      "conflicts": [],
+      "artifacts": [
+        "yano-runtime"
+      ],
+      "runtimeTypes": [
+        "jvm",
+        "native"
+      ],
+      "nativePosture": "bundled",
+      "externalPrerequisites": [],
+      "properties": {
+        "effects.enabled": "true"
+      },
+      "documentation": "docs/appchain/tutorials/06-webhook-effects.md",
+      "documentationUrl": "https://github.com/bloxbean/yano-x/blob/main/docs/appchain/tutorials/06-webhook-effects.md"
+    },
+    {
+      "id": "effects:on-approved",
+      "name": "Generic on-approved effect",
+      "category": "effect-emission",
+      "availability": "BUNDLED",
+      "maturity": "preview",
+      "scope": "chain",
+      "selectable": true,
+      "description": "Emits one typed chain-result effect when a stock approval reaches its threshold.",
+      "provides": [
+        "effect-emission:on-approved"
+      ],
+      "requires": [
+        "state:approval-workflow",
+        "effects:runtime"
+      ],
+      "implies": [],
+      "conflicts": [],
+      "artifacts": [
+        "yano-runtime",
+        "yano-x-stdlib"
+      ],
+      "runtimeTypes": [
+        "jvm"
+      ],
+      "nativePosture": "unsupported",
+      "externalPrerequisites": [],
+      "properties": {
+        "machines.approvals.on-approved-effect.enabled": "true",
+        "machines.approvals.on-approved-effect.type": "${effectType}",
+        "machines.approvals.on-approved-effect.gate": "chain-default",
+        "machines.approvals.on-approved-effect.expiry-blocks": "0",
+        "machines.approvals.activations.on-approved-effect": "1"
+      },
+      "documentation": "docs/appchain/state-machines/approvals.md",
+      "documentationUrl": "/state-machines/approvals/"
+    },
+    {
+      "id": "executor:webhook",
+      "name": "Webhook effect executor",
+      "category": "effect-executor",
+      "availability": "BUNDLED",
+      "maturity": "preview",
+      "scope": "node",
+      "selectable": true,
+      "description": "Executes webhook.post effects against one node-local configured URL.",
+      "provides": [
+        "effect-executor:webhook"
+      ],
+      "requires": [
+        "effects:runtime"
+      ],
+      "implies": [],
+      "conflicts": [],
+      "artifacts": [
+        "yano-runtime"
+      ],
+      "runtimeTypes": [
+        "jvm",
+        "native"
+      ],
+      "nativePosture": "bundled",
+      "externalPrerequisites": [
+        "idempotent-webhook-target"
+      ],
+      "properties": {
+        "effects.executor.enabled": "true",
+        "effects.executors.webhook.url": "${webhookUrl}"
+      },
+      "documentation": "docs/appchain/tutorials/06-webhook-effects.md",
+      "documentationUrl": "https://github.com/bloxbean/yano-x/blob/main/docs/appchain/tutorials/06-webhook-effects.md"
+    },
+    {
+      "id": "sink:webhook",
+      "name": "Finalized webhook sink",
+      "category": "finalized-sink",
+      "availability": "BUNDLED",
+      "maturity": "stable",
+      "scope": "node",
+      "selectable": true,
+      "description": "Posts finalized application blocks to one configured node-local webhook endpoint.",
+      "provides": [
+        "finalized-sink:webhook"
+      ],
+      "requires": [],
+      "implies": [],
+      "conflicts": [],
+      "artifacts": [
+        "yano-runtime"
+      ],
+      "runtimeTypes": [
+        "jvm",
+        "native"
+      ],
+      "nativePosture": "bundled",
+      "externalPrerequisites": [
+        "idempotent-finalized-webhook-target"
+      ],
+      "properties": {
+        "webhooks": "${webhookSinkUrl}"
+      },
+      "documentation": "docs/appchain/README.md",
+      "documentationUrl": "https://github.com/bloxbean/yano-x/blob/main/docs/appchain/README.md"
+    },
+    {
+      "id": "executor:kafka",
+      "name": "Kafka effect executor",
+      "category": "effect-executor",
+      "availability": "FIRST_PARTY_OPTIONAL",
+      "maturity": "preview",
+      "scope": "node",
+      "selectable": true,
+      "description": "Executes kafka.publish intents through allowlisted node-local Kafka targets.",
+      "provides": [
+        "effect-executor:kafka"
+      ],
+      "requires": [
+        "effects:runtime"
+      ],
+      "implies": [],
+      "conflicts": [],
+      "artifacts": [
+        "yano-runtime",
+        "yano-x-kafka"
+      ],
+      "runtimeTypes": [
+        "jvm"
+      ],
+      "nativePosture": "unsupported",
+      "externalPrerequisites": [
+        "kafka-cluster",
+        "allowlisted-topic",
+        "node-local-kafka-security-profile"
+      ],
+      "properties": {},
+      "documentation": "connectors/kafka/README.md",
+      "documentationUrl": "https://github.com/bloxbean/yano-x/blob/main/connectors/kafka/README.md"
+    },
+    {
+      "id": "sink:kafka",
+      "name": "Kafka finalized sink",
+      "category": "finalized-sink",
+      "availability": "FIRST_PARTY_OPTIONAL",
+      "maturity": "preview",
+      "scope": "node",
+      "selectable": true,
+      "description": "Publishes finalized application blocks to a configured Kafka topic.",
+      "provides": [
+        "finalized-sink:kafka"
+      ],
+      "requires": [],
+      "implies": [],
+      "conflicts": [],
+      "artifacts": [
+        "yano-runtime",
+        "yano-x-kafka"
+      ],
+      "runtimeTypes": [
+        "jvm"
+      ],
+      "nativePosture": "unsupported",
+      "externalPrerequisites": [
+        "kafka-cluster",
+        "finalized-block-topic",
+        "node-local-kafka-security-profile"
+      ],
+      "properties": {},
+      "documentation": "connectors/kafka/README.md",
+      "documentationUrl": "https://github.com/bloxbean/yano-x/blob/main/connectors/kafka/README.md"
+    },
+    {
+      "id": "executor:objectstore-s3",
+      "name": "S3-compatible object executor",
+      "category": "effect-executor",
+      "availability": "FIRST_PARTY_OPTIONAL",
+      "maturity": "preview",
+      "scope": "node",
+      "selectable": true,
+      "description": "Executes immutable object.put promotion against allowlisted S3-compatible targets.",
+      "provides": [
+        "effect-executor:objectstore-s3"
+      ],
+      "requires": [
+        "effects:runtime"
+      ],
+      "implies": [],
+      "conflicts": [],
+      "artifacts": [
+        "yano-runtime",
+        "yano-x-objectstore-s3"
+      ],
+      "runtimeTypes": [
+        "jvm"
+      ],
+      "nativePosture": "unsupported",
+      "externalPrerequisites": [
+        "versioned-s3-compatible-buckets",
+        "node-local-storage-credentials"
+      ],
+      "properties": {},
+      "documentation": "connectors/objectstore-s3/README.md",
+      "documentationUrl": "https://github.com/bloxbean/yano-x/blob/main/connectors/objectstore-s3/README.md"
+    },
+    {
+      "id": "executor:ipfs",
+      "name": "IPFS pin executor",
+      "category": "effect-executor",
+      "availability": "FIRST_PARTY_OPTIONAL",
+      "maturity": "preview",
+      "scope": "node",
+      "selectable": true,
+      "description": "Executes reconciled ipfs.pin intents against allowlisted Kubo targets.",
+      "provides": [
+        "effect-executor:ipfs"
+      ],
+      "requires": [
+        "effects:runtime"
+      ],
+      "implies": [],
+      "conflicts": [],
+      "artifacts": [
+        "yano-runtime",
+        "yano-x-ipfs"
+      ],
+      "runtimeTypes": [
+        "jvm"
+      ],
+      "nativePosture": "unsupported",
+      "externalPrerequisites": [
+        "kubo-api",
+        "node-local-ipfs-security-profile"
+      ],
+      "properties": {},
+      "documentation": "connectors/ipfs/README.md",
+      "documentationUrl": "https://github.com/bloxbean/yano-x/blob/main/connectors/ipfs/README.md"
+    },
+    {
+      "id": "executor:cardano-payment",
+      "name": "Cardano payment executor",
+      "category": "effect-executor",
+      "availability": "FIRST_PARTY_OPTIONAL",
+      "maturity": "preview",
+      "scope": "node",
+      "selectable": true,
+      "description": "Executes bounded cardano.payment intents from an operator-controlled payer wallet.",
+      "provides": [
+        "effect-executor:cardano-payment"
+      ],
+      "requires": [
+        "effects:runtime"
+      ],
+      "implies": [],
+      "conflicts": [],
+      "artifacts": [
+        "yano-runtime",
+        "yano-x-effects-cardano"
+      ],
+      "runtimeTypes": [
+        "jvm"
+      ],
+      "nativePosture": "unsupported",
+      "externalPrerequisites": [
+        "funded-cardano-payer-wallet",
+        "trusted-cardano-backend"
+      ],
+      "properties": {},
+      "documentation": "connectors/effects-cardano/README.md",
+      "documentationUrl": "https://github.com/bloxbean/yano-x/blob/main/connectors/effects-cardano/README.md"
+    },
+    {
+      "id": "runtime:composite",
+      "name": "Composite state-machine framework",
+      "category": "distribution",
+      "availability": "BUNDLED",
+      "maturity": "preview",
+      "scope": "distribution",
+      "selectable": false,
+      "description": "Deterministic component, workflow, profile, query, quota, and profile-governance framework.",
+      "provides": [
+        "composite-framework"
+      ],
+      "requires": [],
+      "implies": [],
+      "conflicts": [],
+      "artifacts": [
+        "yano-x-composite"
+      ],
+      "runtimeTypes": [
+        "jvm"
+      ],
+      "nativePosture": "unsupported",
+      "externalPrerequisites": [],
+      "properties": {},
+      "documentation": "docs/appchain/tutorials/08-plugins-and-composites.md",
+      "documentationUrl": "/plugins/"
+    },
+    {
+      "id": "ui:console",
+      "name": "Embedded node console",
+      "category": "distribution",
+      "availability": "BUNDLED",
+      "maturity": "preview",
+      "scope": "node",
+      "selectable": false,
+      "description": "Embedded operational app-chain status console derived from the selected Yano distribution.",
+      "provides": [
+        "runtime-console"
+      ],
+      "requires": [],
+      "implies": [],
+      "conflicts": [],
+      "artifacts": [
+        "yano-runtime"
+      ],
+      "runtimeTypes": [
+        "jvm",
+        "native"
+      ],
+      "nativePosture": "bundled",
+      "externalPrerequisites": [],
+      "properties": {},
+      "documentation": "docs/console-ui.md",
+      "documentationUrl": "https://github.com/bloxbean/yano-x/blob/main/docs/console-ui.md"
+    },
+    {
+      "id": "observability:prometheus",
+      "name": "Prometheus observability companion",
+      "category": "distribution",
+      "availability": "FIRST_PARTY_OPTIONAL",
+      "maturity": "preview",
+      "scope": "distribution",
+      "selectable": false,
+      "description": "Optional one-command durable metrics history for the unified console.",
+      "provides": [
+        "durable-metrics-history"
+      ],
+      "requires": [
+        "ui:console"
+      ],
+      "implies": [],
+      "conflicts": [],
+      "artifacts": [
+        "yano-runtime"
+      ],
+      "runtimeTypes": [
+        "jvm",
+        "native"
+      ],
+      "nativePosture": "bundled",
+      "externalPrerequisites": [
+        "docker-compose-v2"
+      ],
+      "properties": {},
+      "documentation": "docs/console-ui.md",
+      "documentationUrl": "https://github.com/bloxbean/yano-x/blob/main/docs/console-ui.md"
+    }
+  ],
+  "artifacts": [
+    {
+      "id": "yano-runtime",
+      "availability": "BUNDLED",
+      "bundleId": "builtin:yano-runtime",
+      "nativePosture": "bundled",
+      "runtimeTypes": [
+        "jvm",
+        "native"
+      ],
+      "deploymentTargets": [
+        "host",
+        "docker-compose"
+      ]
+    },
+    {
+      "id": "yano-x-stdlib",
+      "availability": "BUNDLED",
+      "bundleId": "com.bloxbean.cardano.yano.appchain.stdlib",
+      "nativePosture": "unsupported",
+      "runtimeTypes": [
+        "jvm"
+      ],
+      "deploymentTargets": [
+        "host",
+        "docker-compose"
+      ]
+    },
+    {
+      "id": "yano-x-evidence-registry",
+      "availability": "BUNDLED",
+      "bundleId": "com.bloxbean.cardano.yano.appchain.evidence-registry",
+      "nativePosture": "unsupported",
+      "runtimeTypes": [
+        "jvm"
+      ],
+      "deploymentTargets": [
+        "host",
+        "docker-compose"
+      ]
+    },
+    {
+      "id": "yano-x-composite",
+      "availability": "BUNDLED",
+      "bundleId": "library:composition:runtime",
+      "nativePosture": "unsupported",
+      "runtimeTypes": [
+        "jvm"
+      ],
+      "deploymentTargets": [
+        "host",
+        "docker-compose"
+      ]
+    },
+    {
+      "id": "yano-x-role-workflow",
+      "availability": "BUNDLED",
+      "bundleId": "com.bloxbean.cardano.yano.appchain.role-workflow",
+      "nativePosture": "unsupported",
+      "runtimeTypes": [
+        "jvm"
+      ],
+      "deploymentTargets": [
+        "host",
+        "docker-compose"
+      ]
+    },
+    {
+      "id": "yano-x-evidence-profile",
+      "availability": "BUNDLED",
+      "bundleId": "com.bloxbean.cardano.yano.appchain.evidence-profile",
+      "nativePosture": "unsupported",
+      "runtimeTypes": [
+        "jvm"
+      ],
+      "deploymentTargets": [
+        "host",
+        "docker-compose"
+      ]
+    },
+    {
+      "id": "yano-x-kafka",
+      "availability": "FIRST_PARTY_OPTIONAL",
+      "bundleId": "com.bloxbean.cardano.yano.appchain.kafka",
+      "nativePosture": "unsupported",
+      "runtimeTypes": [
+        "jvm"
+      ],
+      "deploymentTargets": [
+        "host",
+        "docker-compose"
+      ]
+    },
+    {
+      "id": "yano-x-objectstore-s3",
+      "availability": "FIRST_PARTY_OPTIONAL",
+      "bundleId": "com.bloxbean.cardano.yano.appchain.objectstore.s3",
+      "nativePosture": "unsupported",
+      "runtimeTypes": [
+        "jvm"
+      ],
+      "deploymentTargets": [
+        "host",
+        "docker-compose"
+      ]
+    },
+    {
+      "id": "yano-x-ipfs",
+      "availability": "FIRST_PARTY_OPTIONAL",
+      "bundleId": "com.bloxbean.cardano.yano.appchain.ipfs",
+      "nativePosture": "unsupported",
+      "runtimeTypes": [
+        "jvm"
+      ],
+      "deploymentTargets": [
+        "host",
+        "docker-compose"
+      ]
+    },
+    {
+      "id": "yano-x-effects-cardano",
+      "availability": "FIRST_PARTY_OPTIONAL",
+      "bundleId": "com.bloxbean.cardano.yano.appchain.effects.cardano",
+      "nativePosture": "unsupported",
+      "runtimeTypes": [
+        "jvm"
+      ],
+      "deploymentTargets": [
+        "host",
+        "docker-compose"
+      ]
+    },
+    {
+      "id": "yano-x-zk",
+      "availability": "EXPERIMENTAL",
+      "bundleId": "com.bloxbean.cardano.yano.appchain.zk",
+      "nativePosture": "unsupported",
+      "runtimeTypes": [
+        "jvm"
+      ],
+      "deploymentTargets": [
+        "host",
+        "docker-compose"
+      ]
+    },
+    {
+      "id": "yano-x-eutxo-ledger",
+      "availability": "BUNDLED",
+      "bundleId": "com.bloxbean.cardano.yano.appchain.eutxo",
+      "nativePosture": "unsupported",
+      "runtimeTypes": [
+        "jvm"
+      ],
+      "deploymentTargets": [
+        "host",
+        "docker-compose"
+      ]
+    },
+    {
+      "id": "yano-x-eutxo-indexer-core",
+      "availability": "BUNDLED",
+      "bundleId": "com.bloxbean.cardano.yano.appchain.eutxo.indexer",
+      "nativePosture": "unsupported",
+      "runtimeTypes": [
+        "jvm"
+      ],
+      "deploymentTargets": [
+        "host",
+        "docker-compose"
+      ]
+    },
+    {
+      "id": "yano-x-eutxo-indexer-jdbc",
+      "availability": "BUNDLED",
+      "bundleId": "library:ledgers:eutxo:indexer-jdbc",
+      "nativePosture": "unsupported",
+      "runtimeTypes": [
+        "jvm"
+      ],
+      "deploymentTargets": [
+        "host",
+        "docker-compose"
+      ]
+    },
+    {
+      "id": "yano-x-eutxo-bridge-cardano",
+      "availability": "BUNDLED",
+      "bundleId": "com.bloxbean.cardano.yano.appchain.eutxo.bridge.cardano",
+      "nativePosture": "unsupported",
+      "runtimeTypes": [
+        "jvm"
+      ],
+      "deploymentTargets": [
+        "host",
+        "docker-compose"
+      ]
+    },
+    {
+      "id": "yano-x-eutxo-zk-zeroj",
+      "availability": "BUNDLED",
+      "bundleId": "library:ledgers:eutxo-zk:zeroj",
+      "nativePosture": "unsupported",
+      "runtimeTypes": [
+        "jvm"
+      ],
+      "deploymentTargets": [
+        "host",
+        "docker-compose"
+      ]
+    },
+    {
+      "id": "yano-x-eutxo-zk-runtime",
+      "availability": "BUNDLED",
+      "bundleId": "library:ledgers:eutxo-zk:runtime",
+      "nativePosture": "unsupported",
+      "runtimeTypes": [
+        "jvm"
+      ],
+      "deploymentTargets": [
+        "host",
+        "docker-compose"
+      ]
+    },
+    {
+      "id": "yano-x-eutxo-zk-lifecycle",
+      "availability": "BUNDLED",
+      "bundleId": "library:ledgers:eutxo-zk:lifecycle",
+      "nativePosture": "unsupported",
+      "runtimeTypes": [
+        "jvm"
+      ],
+      "deploymentTargets": [
+        "host",
+        "docker-compose"
+      ]
+    }
+  ],
+  "modules": [
+    {
+      "modulePath": ":state-machines:stdlib",
+      "directory": "state-machines/stdlib",
+      "artifactId": "yano-x-stdlib",
+      "publicationType": "runtime-plugin",
+      "pluginBundleId": "com.bloxbean.cardano.yano.appchain.stdlib",
+      "bundleArtifactId": "yano-x-stdlib-bundle",
+      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/state-machines/stdlib"
+    },
+    {
+      "modulePath": ":state-machines:stdlib-contracts",
+      "directory": "state-machines/stdlib-contracts",
+      "artifactId": "yano-x-stdlib-contracts",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null,
+      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/state-machines/stdlib-contracts"
+    },
+    {
+      "modulePath": ":capabilities:authenticated-map-validators",
+      "directory": "capabilities/authenticated-map-validators",
+      "artifactId": "yano-x-authenticated-map-validators",
+      "publicationType": "runtime-plugin",
+      "pluginBundleId": "com.bloxbean.cardano.yano.appchain.authenticated-map-validators",
+      "bundleArtifactId": "yano-x-authenticated-map-validators-bundle",
+      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/capabilities/authenticated-map-validators"
+    },
+    {
+      "modulePath": ":tooling:devtools",
+      "directory": "tooling/devtools",
+      "artifactId": "yano-x-devtools",
+      "publicationType": "tool",
+      "pluginBundleId": null,
+      "bundleArtifactId": null,
+      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/tooling/devtools"
+    },
+    {
+      "modulePath": ":tooling:studio",
+      "directory": "tooling/studio",
+      "artifactId": "yano-x-studio",
+      "publicationType": "tool",
+      "pluginBundleId": null,
+      "bundleArtifactId": null,
+      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/tooling/studio"
+    },
+    {
+      "modulePath": ":composition:contracts",
+      "directory": "composition/contracts",
+      "artifactId": "yano-x-composite-contracts",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null,
+      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/composition/contracts"
+    },
+    {
+      "modulePath": ":composition:client",
+      "directory": "composition/client",
+      "artifactId": "yano-x-composite-client",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null,
+      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/composition/client"
+    },
+    {
+      "modulePath": ":composition:runtime",
+      "directory": "composition/runtime",
+      "artifactId": "yano-x-composite",
+      "publicationType": "runtime-plugin",
+      "pluginBundleId": "com.bloxbean.cardano.yano.appchain.composite",
+      "bundleArtifactId": "yano-x-composite-bundle",
+      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/composition/runtime"
+    },
+    {
+      "modulePath": ":capabilities:role-workflow-contracts",
+      "directory": "capabilities/role-workflow-contracts",
+      "artifactId": "yano-x-role-workflow-contracts",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null,
+      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/capabilities/role-workflow-contracts"
+    },
+    {
+      "modulePath": ":capabilities:role-workflow",
+      "directory": "capabilities/role-workflow",
+      "artifactId": "yano-x-role-workflow",
+      "publicationType": "runtime-plugin",
+      "pluginBundleId": "com.bloxbean.cardano.yano.appchain.role-workflow",
+      "bundleArtifactId": "yano-x-role-workflow-bundle",
+      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/capabilities/role-workflow"
+    },
+    {
+      "modulePath": ":sdk:effects-testkit",
+      "directory": "sdk/effects-testkit",
+      "artifactId": "yano-x-effects-testkit",
+      "publicationType": "test-library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null,
+      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/sdk/effects-testkit"
+    },
+    {
+      "modulePath": ":sdk:client",
+      "directory": "sdk/client",
+      "artifactId": "yano-x-client",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null,
+      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/sdk/client"
+    },
+    {
+      "modulePath": ":sdk:proof-contracts",
+      "directory": "sdk/proof-contracts",
+      "artifactId": "yano-x-proof-contracts",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null,
+      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/sdk/proof-contracts"
+    },
+    {
+      "modulePath": ":sdk:proof-onchain",
+      "directory": "sdk/proof-onchain",
+      "artifactId": "yano-x-proof-onchain",
+      "publicationType": "onchain-artifact",
+      "pluginBundleId": null,
+      "bundleArtifactId": null,
+      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/sdk/proof-onchain"
+    },
+    {
+      "modulePath": ":sdk:integration-contracts",
+      "directory": "sdk/integration-contracts",
+      "artifactId": "yano-x-integration-contracts",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null,
+      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/sdk/integration-contracts"
+    },
+    {
+      "modulePath": ":products:evidence:contracts",
+      "directory": "products/evidence/contracts",
+      "artifactId": "yano-x-evidence-contracts",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null,
+      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/products/evidence/contracts"
+    },
+    {
+      "modulePath": ":products:evidence:registry",
+      "directory": "products/evidence/registry",
+      "artifactId": "yano-x-evidence-registry",
+      "publicationType": "runtime-plugin",
+      "pluginBundleId": "com.bloxbean.cardano.yano.appchain.evidence-registry",
+      "bundleArtifactId": "yano-x-evidence-registry-bundle",
+      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/products/evidence/registry"
+    },
+    {
+      "modulePath": ":products:evidence:client",
+      "directory": "products/evidence/client",
+      "artifactId": "yano-x-evidence-client",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null,
+      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/products/evidence/client"
+    },
+    {
+      "modulePath": ":products:evidence:profile",
+      "directory": "products/evidence/profile",
+      "artifactId": "yano-x-evidence-profile",
+      "publicationType": "runtime-plugin",
+      "pluginBundleId": "com.bloxbean.cardano.yano.appchain.evidence-profile",
+      "bundleArtifactId": "yano-x-evidence-profile-bundle",
+      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/products/evidence/profile"
+    },
+    {
+      "modulePath": ":products:cardano-history:runtime",
+      "directory": "products/cardano-history/runtime",
+      "artifactId": "yano-x-cardano-history",
+      "publicationType": "runtime-plugin",
+      "pluginBundleId": "com.bloxbean.cardano.yano.appchain.cardano-history",
+      "bundleArtifactId": "yano-x-cardano-history-bundle",
+      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/products/cardano-history/runtime"
+    },
+    {
+      "modulePath": ":products:cardano-history:client",
+      "directory": "products/cardano-history/client",
+      "artifactId": "yano-x-cardano-history-client",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null,
+      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/products/cardano-history/client"
+    },
+    {
+      "modulePath": ":products:cardano-history:cli",
+      "directory": "products/cardano-history/cli",
+      "artifactId": "yano-x-cardano-history-cli",
+      "publicationType": "tool",
+      "pluginBundleId": null,
+      "bundleArtifactId": null,
+      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/products/cardano-history/cli"
+    },
+    {
+      "modulePath": ":products:cardano-history:onchain",
+      "directory": "products/cardano-history/onchain",
+      "artifactId": "yano-x-cardano-history-onchain",
+      "publicationType": "onchain-artifact",
+      "pluginBundleId": null,
+      "bundleArtifactId": null,
+      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/products/cardano-history/onchain"
+    },
+    {
+      "modulePath": ":products:evidence:demo-runner",
+      "directory": "products/evidence/demo-runner",
+      "artifactId": "yano-x-evidence-demo-runner",
+      "publicationType": "application",
+      "pluginBundleId": null,
+      "bundleArtifactId": null,
+      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/products/evidence/demo-runner"
+    },
+    {
+      "modulePath": ":examples:showcase",
+      "directory": "examples/showcase",
+      "artifactId": "yano-x-showcase",
+      "publicationType": "runtime-plugin",
+      "pluginBundleId": "com.bloxbean.cardano.yano.appchain.showcase",
+      "bundleArtifactId": "yano-x-showcase-bundle",
+      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/examples/showcase"
+    },
+    {
+      "modulePath": ":examples:showcase-client",
+      "directory": "examples/showcase-client",
+      "artifactId": "yano-x-showcase-client",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null,
+      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/examples/showcase-client"
+    },
+    {
+      "modulePath": ":connectors:kafka",
+      "directory": "connectors/kafka",
+      "artifactId": "yano-x-kafka",
+      "publicationType": "runtime-plugin",
+      "pluginBundleId": "com.bloxbean.cardano.yano.appchain.kafka",
+      "bundleArtifactId": "yano-x-kafka-bundle",
+      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/connectors/kafka"
+    },
+    {
+      "modulePath": ":connectors:objectstore-s3",
+      "directory": "connectors/objectstore-s3",
+      "artifactId": "yano-x-objectstore-s3",
+      "publicationType": "runtime-plugin",
+      "pluginBundleId": "com.bloxbean.cardano.yano.appchain.objectstore.s3",
+      "bundleArtifactId": "yano-x-objectstore-s3-bundle",
+      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/connectors/objectstore-s3"
+    },
+    {
+      "modulePath": ":connectors:ipfs",
+      "directory": "connectors/ipfs",
+      "artifactId": "yano-x-ipfs",
+      "publicationType": "runtime-plugin",
+      "pluginBundleId": "com.bloxbean.cardano.yano.appchain.ipfs",
+      "bundleArtifactId": "yano-x-ipfs-bundle",
+      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/connectors/ipfs"
+    },
+    {
+      "modulePath": ":connectors:effects-cardano",
+      "directory": "connectors/effects-cardano",
+      "artifactId": "yano-x-effects-cardano",
+      "publicationType": "runtime-plugin",
+      "pluginBundleId": "com.bloxbean.cardano.yano.appchain.effects.cardano",
+      "bundleArtifactId": "yano-x-effects-cardano-bundle",
+      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/connectors/effects-cardano"
+    },
+    {
+      "modulePath": ":state-machines:zk",
+      "directory": "state-machines/zk",
+      "artifactId": "yano-x-zk",
+      "publicationType": "runtime-plugin",
+      "pluginBundleId": "com.bloxbean.cardano.yano.appchain.zk",
+      "bundleArtifactId": "yano-x-zk-bundle",
+      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/state-machines/zk"
+    },
+    {
+      "modulePath": ":ledgers:eutxo:contracts",
+      "directory": "ledgers/eutxo/contracts",
+      "artifactId": "yano-x-eutxo-contracts",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null,
+      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/contracts"
+    },
+    {
+      "modulePath": ":ledgers:eutxo:ledger",
+      "directory": "ledgers/eutxo/ledger",
+      "artifactId": "yano-x-eutxo-ledger",
+      "publicationType": "runtime-plugin",
+      "pluginBundleId": "com.bloxbean.cardano.yano.appchain.eutxo",
+      "bundleArtifactId": "yano-x-eutxo-ledger-bundle",
+      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/ledger"
+    },
+    {
+      "modulePath": ":ledgers:eutxo:client",
+      "directory": "ledgers/eutxo/client",
+      "artifactId": "yano-x-eutxo-client",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null,
+      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/client"
+    },
+    {
+      "modulePath": ":ledgers:eutxo:testkit",
+      "directory": "ledgers/eutxo/testkit",
+      "artifactId": "yano-x-eutxo-testkit",
+      "publicationType": "test-library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null,
+      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/testkit"
+    },
+    {
+      "modulePath": ":ledgers:eutxo:demo",
+      "directory": "ledgers/eutxo/demo",
+      "artifactId": "yano-x-eutxo-demo",
+      "publicationType": "application",
+      "pluginBundleId": null,
+      "bundleArtifactId": null,
+      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/demo"
+    },
+    {
+      "modulePath": ":ledgers:eutxo:bridge-cardano",
+      "directory": "ledgers/eutxo/bridge-cardano",
+      "artifactId": "yano-x-eutxo-bridge-cardano",
+      "publicationType": "runtime-plugin",
+      "pluginBundleId": "com.bloxbean.cardano.yano.appchain.eutxo.bridge.cardano",
+      "bundleArtifactId": "yano-x-eutxo-bridge-cardano-bundle",
+      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/bridge-cardano"
+    },
+    {
+      "modulePath": ":ledgers:eutxo:bridge-onchain",
+      "directory": "ledgers/eutxo/bridge-onchain",
+      "artifactId": "yano-x-eutxo-bridge-onchain",
+      "publicationType": "onchain-artifact",
+      "pluginBundleId": null,
+      "bundleArtifactId": null,
+      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/bridge-onchain"
+    },
+    {
+      "modulePath": ":ledgers:eutxo:indexer-core",
+      "directory": "ledgers/eutxo/indexer-core",
+      "artifactId": "yano-x-eutxo-indexer-core",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null,
+      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/indexer-core"
+    },
+    {
+      "modulePath": ":ledgers:eutxo:indexer-jdbc",
+      "directory": "ledgers/eutxo/indexer-jdbc",
+      "artifactId": "yano-x-eutxo-indexer-jdbc",
+      "publicationType": "runtime-plugin",
+      "pluginBundleId": "com.bloxbean.cardano.yano.appchain.eutxo.indexer",
+      "bundleArtifactId": "yano-x-eutxo-indexer-jdbc-bundle",
+      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/indexer-jdbc"
+    },
+    {
+      "modulePath": ":ledgers:eutxo-zk:contracts",
+      "directory": "ledgers/eutxo-zk/contracts",
+      "artifactId": "yano-x-eutxo-zk-contracts",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null,
+      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/contracts"
+    },
+    {
+      "modulePath": ":ledgers:eutxo-zk:zeroj",
+      "directory": "ledgers/eutxo-zk/zeroj",
+      "artifactId": "yano-x-eutxo-zk-zeroj",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null,
+      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/zeroj"
+    },
+    {
+      "modulePath": ":ledgers:eutxo-zk:prover",
+      "directory": "ledgers/eutxo-zk/prover",
+      "artifactId": "yano-x-eutxo-zk-prover",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null,
+      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/prover"
+    },
+    {
+      "modulePath": ":ledgers:eutxo-zk:client",
+      "directory": "ledgers/eutxo-zk/client",
+      "artifactId": "yano-x-eutxo-zk-client",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null,
+      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/client"
+    },
+    {
+      "modulePath": ":ledgers:eutxo-zk:onchain",
+      "directory": "ledgers/eutxo-zk/onchain",
+      "artifactId": "yano-x-eutxo-zk-onchain",
+      "publicationType": "onchain-artifact",
+      "pluginBundleId": null,
+      "bundleArtifactId": null,
+      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/onchain"
+    },
+    {
+      "modulePath": ":ledgers:eutxo-zk:testkit",
+      "directory": "ledgers/eutxo-zk/testkit",
+      "artifactId": "yano-x-eutxo-zk-testkit",
+      "publicationType": "test-library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null,
+      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/testkit"
+    },
+    {
+      "modulePath": ":ledgers:eutxo-zk:runtime",
+      "directory": "ledgers/eutxo-zk/runtime",
+      "artifactId": "yano-x-eutxo-zk-runtime",
+      "publicationType": "runtime-plugin",
+      "pluginBundleId": "com.bloxbean.cardano.yano.appchain.eutxo.zk.runtime",
+      "bundleArtifactId": "yano-x-eutxo-zk-runtime-bundle",
+      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/runtime"
+    },
+    {
+      "modulePath": ":ledgers:eutxo-zk:lifecycle",
+      "directory": "ledgers/eutxo-zk/lifecycle",
+      "artifactId": "yano-x-eutxo-zk-lifecycle",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null,
+      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/lifecycle"
+    },
+    {
+      "modulePath": ":ledgers:eutxo-zk:indexer",
+      "directory": "ledgers/eutxo-zk/indexer",
+      "artifactId": "yano-x-eutxo-zk-indexer",
+      "publicationType": "runtime-plugin",
+      "pluginBundleId": "com.bloxbean.cardano.yano.appchain.eutxo.zk.indexer",
+      "bundleArtifactId": "yano-x-eutxo-zk-indexer-bundle",
+      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/indexer"
+    },
+    {
+      "modulePath": ":ledgers:eutxo-zk:demo",
+      "directory": "ledgers/eutxo-zk/demo",
+      "artifactId": "yano-x-eutxo-zk-demo",
+      "publicationType": "application",
+      "pluginBundleId": null,
+      "bundleArtifactId": null,
+      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/demo"
+    },
+    {
+      "modulePath": ":tooling:spring-boot-starter",
+      "directory": "tooling/spring-boot-starter",
+      "artifactId": "yano-x-spring-boot-starter",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null,
+      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/tooling/spring-boot-starter"
+    },
+    {
+      "modulePath": ":fixtures:eutxo-e2e",
+      "directory": "fixtures/eutxo-e2e",
+      "artifactId": "yano-x-eutxo-e2e",
+      "publicationType": "test-fixture",
+      "pluginBundleId": null,
+      "bundleArtifactId": null,
+      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/fixtures/eutxo-e2e"
+    }
+  ],
+  "configuration": [
+    {
+      "key": "yano.app-chain.machines.approvals.on-approved-effect.enabled",
+      "owner": "yano-x-first-party/stdlib",
+      "type": "BOOLEAN",
+      "defaultValue": "false",
+      "allowedValues": [],
+      "scope": "CONSENSUS_SHARED",
+      "changePolicy": "GOVERNED_ACTIVATION",
+      "secret": false,
+      "coverage": "PARTIAL",
+      "description": "Emit one generic deterministic effect when a proposal is approved",
+      "constraints": {
+        "minimum": null,
+        "maximum": null,
+        "minimumUtf8Bytes": null,
+        "maximumUtf8Bytes": null,
+        "maximumItems": null
+      }
+    },
+    {
+      "key": "yano.app-chain.machines.approvals.on-approved-effect.expiry-blocks",
+      "owner": "yano-x-first-party/stdlib",
+      "type": "LONG",
+      "defaultValue": null,
+      "allowedValues": [],
+      "scope": "CONSENSUS_SHARED",
+      "changePolicy": "GOVERNED_ACTIVATION",
+      "secret": false,
+      "coverage": "PARTIAL",
+      "description": "Generic on-approved effect expiry in app-chain blocks",
+      "constraints": {
+        "minimum": 0,
+        "maximum": null,
+        "minimumUtf8Bytes": null,
+        "maximumUtf8Bytes": null,
+        "maximumItems": null
+      }
+    },
+    {
+      "key": "yano.app-chain.machines.approvals.on-approved-effect.gate",
+      "owner": "yano-x-first-party/stdlib",
+      "type": "STRING",
+      "defaultValue": null,
+      "allowedValues": [
+        "chain-default",
+        "app-final",
+        "l1-anchored",
+        "zk-settled"
+      ],
+      "scope": "CONSENSUS_SHARED",
+      "changePolicy": "GOVERNED_ACTIVATION",
+      "secret": false,
+      "coverage": "PARTIAL",
+      "description": "Finality gate for the generic on-approved effect",
+      "constraints": {
+        "minimum": null,
+        "maximum": null,
+        "minimumUtf8Bytes": null,
+        "maximumUtf8Bytes": null,
+        "maximumItems": null
+      }
+    },
+    {
+      "key": "yano.app-chain.machines.approvals.on-approved-effect.type",
+      "owner": "yano-x-first-party/stdlib",
+      "type": "STRING",
+      "defaultValue": null,
+      "allowedValues": [],
+      "scope": "CONSENSUS_SHARED",
+      "changePolicy": "GOVERNED_ACTIVATION",
+      "secret": false,
+      "coverage": "PARTIAL",
+      "description": "Exact executor routing type emitted after approval",
+      "constraints": {
+        "minimum": null,
+        "maximum": null,
+        "minimumUtf8Bytes": 1,
+        "maximumUtf8Bytes": null,
+        "maximumItems": null
+      }
+    },
+    {
+      "key": "yano.app-chain.machines.balances.minter",
+      "owner": "yano-x-first-party/stdlib",
+      "type": "STRING",
+      "defaultValue": null,
+      "allowedValues": [],
+      "scope": "CONSENSUS_SHARED",
+      "changePolicy": "NEW_CHAIN_REQUIRED",
+      "secret": false,
+      "coverage": "PARTIAL",
+      "description": "Optional 32-byte hexadecimal member identity allowed to mint balances",
+      "constraints": {
+        "minimum": null,
+        "maximum": null,
+        "minimumUtf8Bytes": null,
+        "maximumUtf8Bytes": 64,
+        "maximumItems": null
+      }
+    },
+    {
+      "key": "yano.app-chain.machines.composite.evidence-capacity-per-block",
+      "owner": "yano-x-first-party/composite",
+      "type": "INTEGER",
+      "defaultValue": "8",
+      "allowedValues": [],
+      "scope": "CONSENSUS_SHARED",
+      "changePolicy": "NEW_CHAIN_REQUIRED",
+      "secret": false,
+      "coverage": "PARTIAL",
+      "description": "Maximum evidence workflows evaluated in one block",
+      "constraints": {
+        "minimum": 1,
+        "maximum": null,
+        "minimumUtf8Bytes": null,
+        "maximumUtf8Bytes": null,
+        "maximumItems": null
+      }
+    },
+    {
+      "key": "yano.app-chain.machines.composite.preset",
+      "owner": "yano-x-first-party/composite",
+      "type": "STRING",
+      "defaultValue": "evidence-v1-gated",
+      "allowedValues": [
+        "evidence-v1",
+        "evidence-v1-gated",
+        "role-evidence-v1"
+      ],
+      "scope": "CONSENSUS_SHARED",
+      "changePolicy": "NEW_CHAIN_REQUIRED",
+      "secret": false,
+      "coverage": "PARTIAL",
+      "description": "Packaged deterministic composite profile preset",
+      "constraints": {
+        "minimum": null,
+        "maximum": null,
+        "minimumUtf8Bytes": null,
+        "maximumUtf8Bytes": null,
+        "maximumItems": null
+      }
+    },
+    {
+      "key": "yano.app-chain.machines.composite.profile-governance.max-epochs",
+      "owner": "yano-x-first-party/composite",
+      "type": "INTEGER",
+      "defaultValue": "1024",
+      "allowedValues": [],
+      "scope": "CONSENSUS_SHARED",
+      "changePolicy": "GOVERNED_ACTIVATION",
+      "secret": false,
+      "coverage": "PARTIAL",
+      "description": "Maximum retained composite profile epochs",
+      "constraints": {
+        "minimum": 1,
+        "maximum": 65536,
+        "minimumUtf8Bytes": null,
+        "maximumUtf8Bytes": null,
+        "maximumItems": null
+      }
+    },
+    {
+      "key": "yano.app-chain.machines.composite.profile-governance.min-activation-lag",
+      "owner": "yano-x-first-party/composite",
+      "type": "INTEGER",
+      "defaultValue": "20",
+      "allowedValues": [],
+      "scope": "CONSENSUS_SHARED",
+      "changePolicy": "GOVERNED_ACTIVATION",
+      "secret": false,
+      "coverage": "PARTIAL",
+      "description": "Minimum blocks between profile approval and activation",
+      "constraints": {
+        "minimum": 1,
+        "maximum": 100000,
+        "minimumUtf8Bytes": null,
+        "maximumUtf8Bytes": null,
+        "maximumItems": null
+      }
+    },
+    {
+      "key": "yano.app-chain.machines.composite.profile-governance.proposal-ttl-blocks",
+      "owner": "yano-x-first-party/composite",
+      "type": "INTEGER",
+      "defaultValue": "600",
+      "allowedValues": [],
+      "scope": "CONSENSUS_SHARED",
+      "changePolicy": "GOVERNED_ACTIVATION",
+      "secret": false,
+      "coverage": "PARTIAL",
+      "description": "Lifetime of a composite profile proposal",
+      "constraints": {
+        "minimum": 1,
+        "maximum": 1000000,
+        "minimumUtf8Bytes": null,
+        "maximumUtf8Bytes": null,
+        "maximumItems": null
+      }
+    },
+    {
+      "key": "yano.app-chain.machines.composite.profile-mode",
+      "owner": "yano-x-first-party/composite",
+      "type": "STRING",
+      "defaultValue": "fixed",
+      "allowedValues": [
+        "fixed",
+        "governed"
+      ],
+      "scope": "CONSENSUS_SHARED",
+      "changePolicy": "GOVERNED_ACTIVATION",
+      "secret": false,
+      "coverage": "PARTIAL",
+      "description": "Fixed or governed composite profile evolution",
+      "constraints": {
+        "minimum": null,
+        "maximum": null,
+        "minimumUtf8Bytes": null,
+        "maximumUtf8Bytes": null,
+        "maximumItems": null
+      }
+    },
+    {
+      "key": "yano.app-chain.machines.composite.roles.maximum-mutation-lifetime-blocks",
+      "owner": "yano-x-first-party/composite",
+      "type": "INTEGER",
+      "defaultValue": "1000",
+      "allowedValues": [],
+      "scope": "CONSENSUS_SHARED",
+      "changePolicy": "GOVERNED_ACTIVATION",
+      "secret": false,
+      "coverage": "PARTIAL",
+      "description": "Maximum lifetime of role-governance mutations",
+      "constraints": {
+        "minimum": 1,
+        "maximum": 1000000,
+        "minimumUtf8Bytes": null,
+        "maximumUtf8Bytes": null,
+        "maximumItems": null
+      }
+    },
+    {
+      "key": "yano.app-chain.machines.eutxo.bridge.confirmation-observer-id",
+      "owner": "yano-x-first-party/eutxo-bridge-cardano",
+      "type": "STRING",
+      "defaultValue": null,
+      "allowedValues": [],
+      "scope": "CONSENSUS_SHARED",
+      "changePolicy": "NEW_CHAIN_REQUIRED",
+      "secret": false,
+      "coverage": "PARTIAL",
+      "description": "Configured exact stable withdrawal-confirmation observer instance",
+      "constraints": {
+        "minimum": null,
+        "maximum": null,
+        "minimumUtf8Bytes": 1,
+        "maximumUtf8Bytes": 64,
+        "maximumItems": null
+      }
+    },
+    {
+      "key": "yano.app-chain.machines.eutxo.bridge.epoch",
+      "owner": "yano-x-first-party/eutxo-bridge-cardano",
+      "type": "LONG",
+      "defaultValue": "0",
+      "allowedValues": [],
+      "scope": "CONSENSUS_SHARED",
+      "changePolicy": "NEW_CHAIN_REQUIRED",
+      "secret": false,
+      "coverage": "PARTIAL",
+      "description": "Bridge migration epoch bound into every withdrawal claim",
+      "constraints": {
+        "minimum": "0",
+        "maximum": "9223372036854775807",
+        "minimumUtf8Bytes": null,
+        "maximumUtf8Bytes": null,
+        "maximumItems": null
+      }
+    },
+    {
+      "key": "yano.app-chain.machines.eutxo.bridge.max-pending-withdrawals",
+      "owner": "yano-x-first-party/eutxo-bridge-cardano",
+      "type": "INTEGER",
+      "defaultValue": "1024",
+      "allowedValues": [],
+      "scope": "CONSENSUS_SHARED",
+      "changePolicy": "NEW_CHAIN_REQUIRED",
+      "secret": false,
+      "coverage": "PARTIAL",
+      "description": "Maximum committed pending withdrawal claims",
+      "constraints": {
+        "minimum": "1",
+        "maximum": "100000",
+        "minimumUtf8Bytes": null,
+        "maximumUtf8Bytes": null,
+        "maximumItems": null
+      }
+    },
+    {
+      "key": "yano.app-chain.machines.eutxo.bridge.max-withdrawal-lovelace",
+      "owner": "yano-x-first-party/eutxo-bridge-cardano",
+      "type": "LONG",
+      "defaultValue": "45000000000000000",
+      "allowedValues": [],
+      "scope": "CONSENSUS_SHARED",
+      "changePolicy": "NEW_CHAIN_REQUIRED",
+      "secret": false,
+      "coverage": "PARTIAL",
+      "description": "Hard per-claim lovelace withdrawal limit",
+      "constraints": {
+        "minimum": "1",
+        "maximum": "45000000000000000",
+        "minimumUtf8Bytes": null,
+        "maximumUtf8Bytes": null,
+        "maximumItems": null
+      }
+    },
+    {
+      "key": "yano.app-chain.machines.eutxo.bridge.observer-id",
+      "owner": "yano-x-first-party/eutxo-bridge-cardano",
+      "type": "STRING",
+      "defaultValue": null,
+      "allowedValues": [],
+      "scope": "CONSENSUS_SHARED",
+      "changePolicy": "NEW_CHAIN_REQUIRED",
+      "secret": false,
+      "coverage": "PARTIAL",
+      "description": "Configured exact vault-deposit observer instance",
+      "constraints": {
+        "minimum": null,
+        "maximum": null,
+        "minimumUtf8Bytes": 1,
+        "maximumUtf8Bytes": 64,
+        "maximumItems": null
+      }
+    },
+    {
+      "key": "yano.app-chain.machines.eutxo.bridge.params.fallback-delay-slots",
+      "owner": "yano-x-first-party/eutxo-ledger",
+      "type": "LONG",
+      "defaultValue": null,
+      "allowedValues": [],
+      "scope": "CONSENSUS_SHARED",
+      "changePolicy": "NEW_CHAIN_REQUIRED",
+      "secret": false,
+      "coverage": "PARTIAL",
+      "description": "Genesis fallback arming delay in L1 slots (governed thereafter) (ADR-UTXO-009, v3 profiles only)",
+      "constraints": {
+        "minimum": "0",
+        "maximum": "9223372036854775807",
+        "minimumUtf8Bytes": null,
+        "maximumUtf8Bytes": null,
+        "maximumItems": null
+      }
+    },
+    {
+      "key": "yano.app-chain.machines.eutxo.bridge.params.fee-basis-points",
+      "owner": "yano-x-first-party/eutxo-ledger",
+      "type": "LONG",
+      "defaultValue": null,
+      "allowedValues": [],
+      "scope": "CONSENSUS_SHARED",
+      "changePolicy": "NEW_CHAIN_REQUIRED",
+      "secret": false,
+      "coverage": "PARTIAL",
+      "description": "Genesis basis-point executor bounty (governed thereafter) (ADR-UTXO-009, v3 profiles only)",
+      "constraints": {
+        "minimum": "0",
+        "maximum": "9223372036854775807",
+        "minimumUtf8Bytes": null,
+        "maximumUtf8Bytes": null,
+        "maximumItems": null
+      }
+    },
+    {
+      "key": "yano.app-chain.machines.eutxo.bridge.params.fee-flat-lovelace",
+      "owner": "yano-x-first-party/eutxo-ledger",
+      "type": "LONG",
+      "defaultValue": null,
+      "allowedValues": [],
+      "scope": "CONSENSUS_SHARED",
+      "changePolicy": "NEW_CHAIN_REQUIRED",
+      "secret": false,
+      "coverage": "PARTIAL",
+      "description": "Genesis flat executor bounty (governed thereafter) (ADR-UTXO-009, v3 profiles only)",
+      "constraints": {
+        "minimum": "0",
+        "maximum": "9223372036854775807",
+        "minimumUtf8Bytes": null,
+        "maximumUtf8Bytes": null,
+        "maximumItems": null
+      }
+    },
+    {
+      "key": "yano.app-chain.machines.eutxo.bridge.params.min-withdrawal-lovelace",
+      "owner": "yano-x-first-party/eutxo-ledger",
+      "type": "LONG",
+      "defaultValue": null,
+      "allowedValues": [],
+      "scope": "CONSENSUS_SHARED",
+      "changePolicy": "NEW_CHAIN_REQUIRED",
+      "secret": false,
+      "coverage": "PARTIAL",
+      "description": "Genesis minimum withdrawal payout (governed thereafter) (ADR-UTXO-009, v3 profiles only)",
+      "constraints": {
+        "minimum": "0",
+        "maximum": "9223372036854775807",
+        "minimumUtf8Bytes": null,
+        "maximumUtf8Bytes": null,
+        "maximumItems": null
+      }
+    },
+    {
+      "key": "yano.app-chain.machines.eutxo.bridge.params.rooting-blocks",
+      "owner": "yano-x-first-party/eutxo-ledger",
+      "type": "LONG",
+      "defaultValue": null,
+      "allowedValues": [],
+      "scope": "CONSENSUS_SHARED",
+      "changePolicy": "NEW_CHAIN_REQUIRED",
+      "secret": false,
+      "coverage": "PARTIAL",
+      "description": "Genesis rooting cadence in L2 blocks (governed thereafter) (ADR-UTXO-009, v3 profiles only)",
+      "constraints": {
+        "minimum": "0",
+        "maximum": "9223372036854775807",
+        "minimumUtf8Bytes": null,
+        "maximumUtf8Bytes": null,
+        "maximumItems": null
+      }
+    },
+    {
+      "key": "yano.app-chain.machines.eutxo.bridge.params.rooting-seconds",
+      "owner": "yano-x-first-party/eutxo-ledger",
+      "type": "LONG",
+      "defaultValue": null,
+      "allowedValues": [],
+      "scope": "CONSENSUS_SHARED",
+      "changePolicy": "NEW_CHAIN_REQUIRED",
+      "secret": false,
+      "coverage": "PARTIAL",
+      "description": "Genesis rooting cadence in seconds (governed thereafter) (ADR-UTXO-009, v3 profiles only)",
+      "constraints": {
+        "minimum": "0",
+        "maximum": "9223372036854775807",
+        "minimumUtf8Bytes": null,
+        "maximumUtf8Bytes": null,
+        "maximumItems": null
+      }
+    },
+    {
+      "key": "yano.app-chain.machines.eutxo.bridge.params.soft-batch-cap",
+      "owner": "yano-x-first-party/eutxo-ledger",
+      "type": "LONG",
+      "defaultValue": null,
+      "allowedValues": [],
+      "scope": "CONSENSUS_SHARED",
+      "changePolicy": "NEW_CHAIN_REQUIRED",
+      "secret": false,
+      "coverage": "PARTIAL",
+      "description": "Genesis soft settlement batch cap (governed thereafter) (ADR-UTXO-009, v3 profiles only)",
+      "constraints": {
+        "minimum": "0",
+        "maximum": "9223372036854775807",
+        "minimumUtf8Bytes": null,
+        "maximumUtf8Bytes": null,
+        "maximumItems": null
+      }
+    },
+    {
+      "key": "yano.app-chain.machines.eutxo.bridge.vault-address",
+      "owner": "yano-x-first-party/eutxo-bridge-cardano",
+      "type": "STRING",
+      "defaultValue": null,
+      "allowedValues": [],
+      "scope": "CONSENSUS_SHARED",
+      "changePolicy": "NEW_CHAIN_REQUIRED",
+      "secret": false,
+      "coverage": "PARTIAL",
+      "description": "Exact Cardano vault address accepted by the EUTxO ledger",
+      "constraints": {
+        "minimum": null,
+        "maximum": null,
+        "minimumUtf8Bytes": 1,
+        "maximumUtf8Bytes": 256,
+        "maximumItems": null
+      }
+    },
+    {
+      "key": "yano.app-chain.machines.eutxo.bridge.vault-script-hash",
+      "owner": "yano-x-first-party/eutxo-bridge-cardano",
+      "type": "STRING",
+      "defaultValue": null,
+      "allowedValues": [],
+      "scope": "CONSENSUS_SHARED",
+      "changePolicy": "NEW_CHAIN_REQUIRED",
+      "secret": false,
+      "coverage": "PARTIAL",
+      "description": "Pinned 28-byte bridge vault script hash",
+      "constraints": {
+        "minimum": null,
+        "maximum": null,
+        "minimumUtf8Bytes": 56,
+        "maximumUtf8Bytes": 56,
+        "maximumItems": null
+      }
+    },
+    {
+      "key": "yano.app-chain.machines.eutxo.bridge.withdrawal-address",
+      "owner": "yano-x-first-party/eutxo-bridge-cardano",
+      "type": "STRING",
+      "defaultValue": null,
+      "allowedValues": [],
+      "scope": "CONSENSUS_SHARED",
+      "changePolicy": "NEW_CHAIN_REQUIRED",
+      "secret": false,
+      "coverage": "PARTIAL",
+      "description": "L2 sink address whose signed outputs become irrevocable withdrawal claims",
+      "constraints": {
+        "minimum": null,
+        "maximum": null,
+        "minimumUtf8Bytes": 1,
+        "maximumUtf8Bytes": 256,
+        "maximumItems": null
+      }
+    },
+    {
+      "key": "yano.app-chain.machines.eutxo.bridge.withdrawals-paused",
+      "owner": "yano-x-first-party/eutxo-bridge-cardano",
+      "type": "BOOLEAN",
+      "defaultValue": "false",
+      "allowedValues": [],
+      "scope": "CONSENSUS_SHARED",
+      "changePolicy": "NEW_CHAIN_REQUIRED",
+      "secret": false,
+      "coverage": "PARTIAL",
+      "description": "Fail-closed consensus switch for new withdrawal claims",
+      "constraints": {
+        "minimum": null,
+        "maximum": null,
+        "minimumUtf8Bytes": null,
+        "maximumUtf8Bytes": null,
+        "maximumItems": null
+      }
+    },
+    {
+      "key": "yano.app-chain.machines.eutxo.expected-profile-digest",
+      "owner": "yano-x-first-party/eutxo-ledger",
+      "type": "STRING",
+      "defaultValue": null,
+      "allowedValues": [],
+      "scope": "CONSENSUS_SHARED",
+      "changePolicy": "NEW_CHAIN_REQUIRED",
+      "secret": false,
+      "coverage": "PARTIAL",
+      "description": "Expected digest of every consensus-relevant EUTxO profile field",
+      "constraints": {
+        "minimum": null,
+        "maximum": null,
+        "minimumUtf8Bytes": 64,
+        "maximumUtf8Bytes": 64,
+        "maximumItems": null
+      }
+    },
+    {
+      "key": "yano.app-chain.machines.eutxo.genesis.address",
+      "owner": "yano-x-first-party/eutxo-ledger",
+      "type": "STRING",
+      "defaultValue": null,
+      "allowedValues": [],
+      "scope": "CONSENSUS_SHARED",
+      "changePolicy": "NEW_CHAIN_REQUIRED",
+      "secret": false,
+      "coverage": "PARTIAL",
+      "description": "Testnet address receiving the first no-real-funds genesis allocation",
+      "constraints": {
+        "minimum": null,
+        "maximum": null,
+        "minimumUtf8Bytes": 1,
+        "maximumUtf8Bytes": 256,
+        "maximumItems": null
+      }
+    },
+    {
+      "key": "yano.app-chain.machines.eutxo.genesis.inline-datum-hex",
+      "owner": "yano-x-first-party/eutxo-ledger",
+      "type": "STRING",
+      "defaultValue": null,
+      "allowedValues": [],
+      "scope": "CONSENSUS_SHARED",
+      "changePolicy": "NEW_CHAIN_REQUIRED",
+      "secret": false,
+      "coverage": "PARTIAL",
+      "description": "Optional canonical lowercase Plutus datum CBOR for genesis output zero",
+      "constraints": {
+        "minimum": null,
+        "maximum": null,
+        "minimumUtf8Bytes": 2,
+        "maximumUtf8Bytes": 32768,
+        "maximumItems": null
+      }
+    },
+    {
+      "key": "yano.app-chain.machines.eutxo.genesis.l2-address",
+      "owner": "yano-x-first-party/eutxo-ledger",
+      "type": "STRING",
+      "defaultValue": null,
+      "allowedValues": [],
+      "scope": "CONSENSUS_SHARED",
+      "changePolicy": "NEW_CHAIN_REQUIRED",
+      "secret": false,
+      "coverage": "PARTIAL",
+      "description": "Key-controlled L2 address registered without creating virtual funds",
+      "constraints": {
+        "minimum": null,
+        "maximum": null,
+        "minimumUtf8Bytes": 1,
+        "maximumUtf8Bytes": 256,
+        "maximumItems": null
+      }
+    },
+    {
+      "key": "yano.app-chain.machines.eutxo.genesis.l2-key-epoch",
+      "owner": "yano-x-first-party/eutxo-ledger",
+      "type": "LONG",
+      "defaultValue": "1",
+      "allowedValues": [],
+      "scope": "CONSENSUS_SHARED",
+      "changePolicy": "NEW_CHAIN_REQUIRED",
+      "secret": false,
+      "coverage": "PARTIAL",
+      "description": "Initial consensus key epoch for the registered L2 Jubjub key",
+      "constraints": {
+        "minimum": 1,
+        "maximum": null,
+        "minimumUtf8Bytes": null,
+        "maximumUtf8Bytes": null,
+        "maximumItems": null
+      }
+    },
+    {
+      "key": "yano.app-chain.machines.eutxo.genesis.l2-public-key",
+      "owner": "yano-x-first-party/eutxo-ledger",
+      "type": "STRING",
+      "defaultValue": null,
+      "allowedValues": [],
+      "scope": "CONSENSUS_SHARED",
+      "changePolicy": "NEW_CHAIN_REQUIRED",
+      "secret": false,
+      "coverage": "PARTIAL",
+      "description": "Lowercase 32-byte Jubjub public key registered for the initial L2 address",
+      "constraints": {
+        "minimum": null,
+        "maximum": null,
+        "minimumUtf8Bytes": 64,
+        "maximumUtf8Bytes": 64,
+        "maximumItems": null
+      }
+    },
+    {
+      "key": "yano.app-chain.machines.eutxo.genesis.lovelace",
+      "owner": "yano-x-first-party/eutxo-ledger",
+      "type": "LONG",
+      "defaultValue": null,
+      "allowedValues": [],
+      "scope": "CONSENSUS_SHARED",
+      "changePolicy": "NEW_CHAIN_REQUIRED",
+      "secret": false,
+      "coverage": "PARTIAL",
+      "description": "Positive no-real-funds lovelace allocated to genesis output zero",
+      "constraints": {
+        "minimum": 1,
+        "maximum": null,
+        "minimumUtf8Bytes": null,
+        "maximumUtf8Bytes": null,
+        "maximumItems": null
+      }
+    },
+    {
+      "key": "yano.app-chain.machines.eutxo.profile",
+      "owner": "yano-x-first-party/eutxo-ledger",
+      "type": "STRING",
+      "defaultValue": "yano-eutxo-v2-plutus-v3",
+      "allowedValues": [
+        "yano-eutxo-v1",
+        "yano-eutxo-v2-plutus-v3",
+        "yano-eutxo-v3-bridge-settlement"
+      ],
+      "scope": "CONSENSUS_SHARED",
+      "changePolicy": "NEW_CHAIN_REQUIRED",
+      "secret": false,
+      "coverage": "PARTIAL",
+      "description": "Pinned deterministic EUTxO ledger profile",
+      "constraints": {
+        "minimum": null,
+        "maximum": null,
+        "minimumUtf8Bytes": null,
+        "maximumUtf8Bytes": null,
+        "maximumItems": null
+      }
+    },
+    {
+      "key": "yano.app-chain.machines.evidence-registry.issuers",
+      "owner": "yano-x-first-party/evidence-registry",
+      "type": "STRING_LIST",
+      "defaultValue": null,
+      "allowedValues": [],
+      "scope": "CONSENSUS_SHARED",
+      "changePolicy": "NEW_CHAIN_REQUIRED",
+      "secret": false,
+      "coverage": "PARTIAL",
+      "description": "Member public keys allowed to issue evidence",
+      "constraints": {
+        "minimum": null,
+        "maximum": null,
+        "minimumUtf8Bytes": null,
+        "maximumUtf8Bytes": null,
+        "maximumItems": 256
+      }
+    },
+    {
+      "key": "yano.app-chain.machines.evidence-registry.notification-expiry-blocks",
+      "owner": "yano-x-first-party/evidence-registry",
+      "type": "LONG",
+      "defaultValue": "0",
+      "allowedValues": [],
+      "scope": "CONSENSUS_SHARED",
+      "changePolicy": "GOVERNED_ACTIVATION",
+      "secret": false,
+      "coverage": "PARTIAL",
+      "description": "Evidence notification effect expiry in app-chain blocks",
+      "constraints": {
+        "minimum": 0,
+        "maximum": null,
+        "minimumUtf8Bytes": null,
+        "maximumUtf8Bytes": null,
+        "maximumItems": null
+      }
+    },
+    {
+      "key": "yano.app-chain.machines.evidence-registry.notify-senders",
+      "owner": "yano-x-first-party/evidence-registry",
+      "type": "STRING_LIST",
+      "defaultValue": null,
+      "allowedValues": [],
+      "scope": "CONSENSUS_SHARED",
+      "changePolicy": "NEW_CHAIN_REQUIRED",
+      "secret": false,
+      "coverage": "PARTIAL",
+      "description": "Member public keys allowed to emit notifications",
+      "constraints": {
+        "minimum": null,
+        "maximum": null,
+        "minimumUtf8Bytes": null,
+        "maximumUtf8Bytes": null,
+        "maximumItems": 256
+      }
+    },
+    {
+      "key": "yano.app-chain.machines.evidence-registry.storage-expiry-blocks",
+      "owner": "yano-x-first-party/evidence-registry",
+      "type": "LONG",
+      "defaultValue": "0",
+      "allowedValues": [],
+      "scope": "CONSENSUS_SHARED",
+      "changePolicy": "GOVERNED_ACTIVATION",
+      "secret": false,
+      "coverage": "PARTIAL",
+      "description": "Evidence storage effect expiry in app-chain blocks",
+      "constraints": {
+        "minimum": 0,
+        "maximum": null,
+        "minimumUtf8Bytes": null,
+        "maximumUtf8Bytes": null,
+        "maximumItems": null
+      }
+    },
+    {
+      "key": "yano.app-chain.machines.evidence-registry.storage-gate",
+      "owner": "yano-x-first-party/evidence-registry",
+      "type": "STRING",
+      "defaultValue": "app-final",
+      "allowedValues": [
+        "app-final",
+        "l1-anchored",
+        "app_final",
+        "l1_anchored"
+      ],
+      "scope": "CONSENSUS_SHARED",
+      "changePolicy": "GOVERNED_ACTIVATION",
+      "secret": false,
+      "coverage": "PARTIAL",
+      "description": "Finality gate required before evidence storage execution",
+      "constraints": {
+        "minimum": null,
+        "maximum": null,
+        "minimumUtf8Bytes": null,
+        "maximumUtf8Bytes": null,
+        "maximumItems": null
+      }
+    },
+    {
+      "key": "yano.app-chain.machines.kv-registry.value-format",
+      "owner": "yano-x-first-party/stdlib",
+      "type": "STRING",
+      "defaultValue": "raw",
+      "allowedValues": [
+        "raw",
+        "cbor",
+        "utf8"
+      ],
+      "scope": "CONSENSUS_SHARED",
+      "changePolicy": "NEW_CHAIN_REQUIRED",
+      "secret": false,
+      "coverage": "PARTIAL",
+      "description": "Encoding accepted by the packaged key-value registry state machine",
+      "constraints": {
+        "minimum": null,
+        "maximum": null,
+        "minimumUtf8Bytes": null,
+        "maximumUtf8Bytes": null,
+        "maximumItems": null
+      }
+    },
+    {
+      "key": "yano.app-chain.observers.bridge-deposits.type",
+      "owner": "yano-x-first-party/eutxo-bridge-cardano",
+      "type": "STRING",
+      "defaultValue": "eutxo-vault-deposit-v1",
+      "allowedValues": [
+        "eutxo-vault-deposit-v1"
+      ],
+      "scope": "CONSENSUS_SHARED",
+      "changePolicy": "NEW_CHAIN_REQUIRED",
+      "secret": false,
+      "coverage": "PARTIAL",
+      "description": "Exact accepted-vault deposit observer type",
+      "constraints": {
+        "minimum": null,
+        "maximum": null,
+        "minimumUtf8Bytes": null,
+        "maximumUtf8Bytes": null,
+        "maximumItems": null
+      }
+    },
+    {
+      "key": "yano.app-chain.observers.bridge-withdrawals.type",
+      "owner": "yano-x-first-party/eutxo-bridge-cardano",
+      "type": "STRING",
+      "defaultValue": "eutxo-withdrawal-confirmation-v1",
+      "allowedValues": [
+        "eutxo-withdrawal-confirmation-v1"
+      ],
+      "scope": "CONSENSUS_SHARED",
+      "changePolicy": "NEW_CHAIN_REQUIRED",
+      "secret": false,
+      "coverage": "PARTIAL",
+      "description": "Exact stable Cardano withdrawal-confirmation observer type",
+      "constraints": {
+        "minimum": null,
+        "maximum": null,
+        "minimumUtf8Bytes": null,
+        "maximumUtf8Bytes": null,
+        "maximumItems": null
+      }
+    }
+  ],
+  "distributions": [
+    {
+      "id": "yano-x-jvm",
+      "runtimeType": "jvm",
+      "archivePattern": "yano-x-jvm-{version}.zip",
+      "tooling": "bundled",
+      "platforms": [
+        "java-25"
+      ],
+      "artifacts": [
+        "yano-runtime",
+        "yano-x-stdlib",
+        "yano-x-evidence-registry",
+        "yano-x-composite",
+        "yano-x-role-workflow",
+        "yano-x-evidence-profile",
+        "yano-x-eutxo-ledger",
+        "yano-x-eutxo-indexer-core",
+        "yano-x-eutxo-indexer-jdbc",
+        "yano-x-eutxo-bridge-cardano",
+        "yano-x-eutxo-zk-zeroj",
+        "yano-x-eutxo-zk-runtime",
+        "yano-x-eutxo-zk-lifecycle"
+      ]
+    }
+  ],
+  "dxSchemaVersion": "v1alpha1",
+  "dxSchemaStatus": "alpha"
+}

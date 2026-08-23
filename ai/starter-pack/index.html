@@ -1,0 +1,598 @@
+<!DOCTYPE html><html lang="en" dir="ltr" data-theme="dark" data-has-toc data-has-sidebar class="astro-bguv2lll"> <head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><title>Yano X AI Starter Pack | Yano X</title><link rel="canonical" href="https://yanox.dev/ai/starter-pack/"/><link rel="sitemap" href="/sitemap-index.xml"/><link rel="shortcut icon" href="/favicon.svg" type="image/svg+xml"/><meta name="generator" content="Astro v6.4.8"/><meta name="generator" content="Starlight v0.38.5"/><meta property="og:title" content="Yano X AI Starter Pack"/><meta property="og:type" content="article"/><meta property="og:url" content="https://yanox.dev/ai/starter-pack/"/><meta property="og:locale" content="en"/><meta property="og:description" content="Everything an AI agent needs to work correctly in a Yano X repository on the first try. Ingest this before generating any Yano X code or configuration."/><meta property="og:site_name" content="Yano X"/><meta name="twitter:card" content="summary_large_image"/><meta name="description" content="Everything an AI agent needs to work correctly in a Yano X repository on the first try. Ingest this before generating any Yano X code or configuration."/><script type="module" src="/_astro/Head.astro_astro_type_script_index_0_lang.C9Wvx74L.js"></script><script>
+	window.StarlightThemeProvider = (() => {
+		const storedTheme =
+			typeof localStorage !== 'undefined' && localStorage.getItem('starlight-theme');
+		const theme =
+			storedTheme ||
+			(window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+		document.documentElement.dataset.theme = theme === 'light' ? 'light' : 'dark';
+		return {
+			updatePickers(theme = storedTheme || 'auto') {
+				document.querySelectorAll('starlight-theme-select').forEach((picker) => {
+					const select = picker.querySelector('select');
+					if (select) select.value = theme;
+					/** @type {HTMLTemplateElement | null} */
+					const tmpl = document.querySelector(`#theme-icons`);
+					const newIcon = tmpl && tmpl.content.querySelector('.' + theme);
+					if (newIcon) {
+						const oldIcon = picker.querySelector('svg.label-icon');
+						if (oldIcon) {
+							oldIcon.replaceChildren(...newIcon.cloneNode(true).childNodes);
+						}
+					}
+				});
+			},
+		};
+	})();
+</script><template id="theme-icons"><svg aria-hidden="true" class="light astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M5 12a1 1 0 0 0-1-1H3a1 1 0 0 0 0 2h1a1 1 0 0 0 1-1Zm.64 5-.71.71a1 1 0 0 0 0 1.41 1 1 0 0 0 1.41 0l.71-.71A1 1 0 0 0 5.64 17ZM12 5a1 1 0 0 0 1-1V3a1 1 0 0 0-2 0v1a1 1 0 0 0 1 1Zm5.66 2.34a1 1 0 0 0 .7-.29l.71-.71a1 1 0 1 0-1.41-1.41l-.66.71a1 1 0 0 0 0 1.41 1 1 0 0 0 .66.29Zm-12-.29a1 1 0 0 0 1.41 0 1 1 0 0 0 0-1.41l-.71-.71a1.004 1.004 0 1 0-1.43 1.41l.73.71ZM21 11h-1a1 1 0 0 0 0 2h1a1 1 0 0 0 0-2Zm-2.64 6A1 1 0 0 0 17 18.36l.71.71a1 1 0 0 0 1.41 0 1 1 0 0 0 0-1.41l-.76-.66ZM12 6.5a5.5 5.5 0 1 0 5.5 5.5A5.51 5.51 0 0 0 12 6.5Zm0 9a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7Zm0 3.5a1 1 0 0 0-1 1v1a1 1 0 0 0 2 0v-1a1 1 0 0 0-1-1Z"/></svg><svg aria-hidden="true" class="dark astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M21.64 13a1 1 0 0 0-1.05-.14 8.049 8.049 0 0 1-3.37.73 8.15 8.15 0 0 1-8.14-8.1 8.59 8.59 0 0 1 .25-2A1 1 0 0 0 8 2.36a10.14 10.14 0 1 0 14 11.69 1 1 0 0 0-.36-1.05Zm-9.5 6.69A8.14 8.14 0 0 1 7.08 5.22v.27a10.15 10.15 0 0 0 10.14 10.14 9.784 9.784 0 0 0 2.1-.22 8.11 8.11 0 0 1-7.18 4.32v-.04Z"/></svg><svg aria-hidden="true" class="auto astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M21 14h-1V7a3 3 0 0 0-3-3H7a3 3 0 0 0-3 3v7H3a1 1 0 0 0-1 1v2a3 3 0 0 0 3 3h14a3 3 0 0 0 3-3v-2a1 1 0 0 0-1-1ZM6 7a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v7H6V7Zm14 10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-1h16v1Z"/></svg></template><link rel="stylesheet" href="/_astro/print.DNXP8c50.css" media="print"><link rel="stylesheet" href="/_astro/common.CFAic18a.css"><script type="module" src="/_astro/page.B_tncCx8.js"></script></head> <body class="astro-bguv2lll"> <a href="#_top" class="astro-7q3lir66">Skip to content</a> <div class="page sl-flex astro-vrdttmbt"> <header class="header astro-vrdttmbt"><div class="header astro-kmkmnagf"> <div class="title-wrapper sl-flex astro-kmkmnagf"> <a href="/" class="site-title sl-flex astro-m46x6ez3">  <img class="astro-m46x6ez3" alt="Yano X" src="/_astro/logo.Cuhnq9Bg.svg" width="800" height="800">  <span class="astro-m46x6ez3" translate="no"> Yano X </span> </a> </div> <div class="sl-flex print:hidden astro-kmkmnagf"> <site-search class="astro-kmkmnagf astro-v37mnknz" data-translations="{&quot;placeholder&quot;:&quot;Search&quot;}"> <button data-open-modal disabled aria-label="Search" aria-keyshortcuts="Control+K" class="astro-v37mnknz"> <svg aria-hidden="true" class="astro-v37mnknz astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M21.71 20.29 18 16.61A9 9 0 1 0 16.61 18l3.68 3.68a.999.999 0 0 0 1.42 0 1 1 0 0 0 0-1.39ZM11 18a7 7 0 1 1 0-14 7 7 0 0 1 0 14Z"/></svg> <span class="sl-hidden md:sl-block astro-v37mnknz" aria-hidden="true">Search</span> <kbd class="sl-hidden md:sl-flex astro-v37mnknz" style="display: none;"> <kbd class="astro-v37mnknz">Ctrl</kbd><kbd class="astro-v37mnknz">K</kbd> </kbd> </button> <dialog style="padding:0" aria-label="Search" class="astro-v37mnknz"> <div class="dialog-frame sl-flex astro-v37mnknz">  <button data-close-modal class="sl-flex md:sl-hidden astro-v37mnknz"> Cancel </button> <div class="search-container astro-v37mnknz"> <div id="starlight__search" class="astro-v37mnknz"></div> </div> </div> </dialog> </site-search>  <script>
+	(() => {
+		const openBtn = document.querySelector('button[data-open-modal]');
+		const shortcut = openBtn?.querySelector('kbd');
+		if (!openBtn || !(shortcut instanceof HTMLElement)) return;
+		const platformKey = shortcut.querySelector('kbd');
+		if (platformKey && /(Mac|iPhone|iPod|iPad)/i.test(navigator.platform)) {
+			platformKey.textContent = '⌘';
+			openBtn.setAttribute('aria-keyshortcuts', 'Meta+K');
+		}
+		shortcut.style.display = '';
+	})();
+</script> <script type="module" src="/_astro/Search.astro_astro_type_script_index_0_lang.CZEeVnww.js"></script>  </div> <div class="sl-hidden md:sl-flex print:hidden right-group astro-kmkmnagf"> <div class="sl-flex social-icons astro-kmkmnagf"> <a href="https://github.com/bloxbean/yano-x" rel="me" class="sl-flex astro-wy4te6ga"><span class="sr-only astro-wy4te6ga">GitHub</span><svg aria-hidden="true" class="astro-wy4te6ga astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M12 .3a12 12 0 0 0-3.8 23.38c.6.12.83-.26.83-.57L9 21.07c-3.34.72-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.08-.74.09-.73.09-.73 1.2.09 1.83 1.24 1.83 1.24 1.08 1.83 2.81 1.3 3.5 1 .1-.78.42-1.31.76-1.61-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.14-.3-.54-1.52.1-3.18 0 0 1-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.28-1.55 3.29-1.23 3.29-1.23.64 1.66.24 2.88.12 3.18a4.65 4.65 0 0 1 1.23 3.22c0 4.61-2.8 5.63-5.48 5.92.42.36.81 1.1.81 2.22l-.01 3.29c0 .31.2.69.82.57A12 12 0 0 0 12 .3Z"/></svg></a> </div> <starlight-theme-select>  <label style="--sl-select-width: 6.25em" class="astro-4yphtoen"> <span class="sr-only astro-4yphtoen">Select theme</span> <svg aria-hidden="true" class="icon label-icon astro-4yphtoen astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M21 14h-1V7a3 3 0 0 0-3-3H7a3 3 0 0 0-3 3v7H3a1 1 0 0 0-1 1v2a3 3 0 0 0 3 3h14a3 3 0 0 0 3-3v-2a1 1 0 0 0-1-1ZM6 7a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v7H6V7Zm14 10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-1h16v1Z"/></svg> <select autocomplete="off" class="astro-4yphtoen"> <option value="dark" class="astro-4yphtoen">Dark</option><option value="light" class="astro-4yphtoen">Light</option><option value="auto" selected class="astro-4yphtoen">Auto</option> </select> <svg aria-hidden="true" class="icon caret astro-4yphtoen astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M17 9.17a1 1 0 0 0-1.41 0L12 12.71 8.46 9.17a1 1 0 1 0-1.41 1.42l4.24 4.24a1.002 1.002 0 0 0 1.42 0L17 10.59a1.002 1.002 0 0 0 0-1.42Z"/></svg> </label> </starlight-theme-select>  <script>
+	StarlightThemeProvider.updatePickers();
+</script> <script type="module">const r="starlight-theme",o=e=>e==="auto"||e==="dark"||e==="light"?e:"auto",c=()=>o(typeof localStorage<"u"&&localStorage.getItem(r));function n(e){typeof localStorage<"u"&&localStorage.setItem(r,e==="light"||e==="dark"?e:"")}const l=()=>matchMedia("(prefers-color-scheme: light)").matches?"light":"dark";function t(e){StarlightThemeProvider.updatePickers(e),document.documentElement.dataset.theme=e==="auto"?l():e,n(e)}matchMedia("(prefers-color-scheme: light)").addEventListener("change",()=>{c()==="auto"&&t("auto")});class s extends HTMLElement{constructor(){super(),t(c()),this.querySelector("select")?.addEventListener("change",a=>{a.currentTarget instanceof HTMLSelectElement&&t(o(a.currentTarget.value))})}}customElements.define("starlight-theme-select",s);</script> <script type="module">class s extends HTMLElement{constructor(){super();const e=this.querySelector("select");e&&(e.addEventListener("change",t=>{t.currentTarget instanceof HTMLSelectElement&&(window.location.pathname=t.currentTarget.value)}),window.addEventListener("pageshow",t=>{if(!t.persisted)return;const n=e.querySelector("option[selected]")?.index;n!==e.selectedIndex&&(e.selectedIndex=n??0)}))}}customElements.define("starlight-lang-select",s);</script> </div> </div></header> <nav class="sidebar print:hidden astro-vrdttmbt" aria-label="Main"> <starlight-menu-button class="print:hidden astro-jif73yzw"> <button aria-expanded="false" aria-label="Menu" aria-controls="starlight__sidebar" class="sl-flex md:sl-hidden astro-jif73yzw"> <svg aria-hidden="true" class="open-menu astro-jif73yzw astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M3 8h18a1 1 0 1 0 0-2H3a1 1 0 0 0 0 2Zm18 8H3a1 1 0 0 0 0 2h18a1 1 0 0 0 0-2Zm0-5H3a1 1 0 0 0 0 2h18a1 1 0 0 0 0-2Z"/></svg> <svg aria-hidden="true" class="close-menu astro-jif73yzw astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="m13.41 12 6.3-6.29a1.004 1.004 0 1 0-1.42-1.42L12 10.59l-6.29-6.3a1.004 1.004 0 0 0-1.42 1.42l6.3 6.29-6.3 6.29a1 1 0 0 0 0 1.42.998.998 0 0 0 1.42 0l6.29-6.3 6.29 6.3a.999.999 0 0 0 1.42 0 1 1 0 0 0 0-1.42L13.41 12Z"/></svg> </button> </starlight-menu-button> <script type="module">class s extends HTMLElement{constructor(){super(),this.btn=this.querySelector("button"),this.btn.addEventListener("click",()=>this.toggleExpanded());const t=this.closest("nav");t&&t.addEventListener("keyup",e=>this.closeOnEscape(e))}setExpanded(t){this.setAttribute("aria-expanded",String(t)),document.body.toggleAttribute("data-mobile-menu-expanded",t)}toggleExpanded(){this.setExpanded(this.getAttribute("aria-expanded")!=="true")}closeOnEscape(t){t.code==="Escape"&&(this.setExpanded(!1),this.btn.focus())}}customElements.define("starlight-menu-button",s);</script>  <div id="starlight__sidebar" class="sidebar-pane astro-vrdttmbt"> <div class="sidebar-content sl-flex astro-vrdttmbt"> <sl-sidebar-state-persist data-hash="1p5w7ue" class="astro-kku4brbg"> <script aria-hidden="true">
+		(() => {
+			try {
+				if (!matchMedia('(min-width: 50em)').matches) return;
+				/** @type {HTMLElement | null} */
+				const target = document.querySelector('sl-sidebar-state-persist');
+				const state = JSON.parse(sessionStorage.getItem('sl-sidebar-state') || '0');
+				if (!target || !state || target.dataset.hash !== state.hash) return;
+				window._starlightScrollRestore = state.scroll;
+				customElements.define(
+					'sl-sidebar-restore',
+					class SidebarRestore extends HTMLElement {
+						connectedCallback() {
+							try {
+								const idx = parseInt(this.dataset.index || '');
+								const details = this.closest('details');
+								if (details && typeof state.open[idx] === 'boolean') details.open = state.open[idx];
+							} catch {}
+						}
+					}
+				);
+			} catch {}
+		})();
+	</script>  <ul class="top-level astro-3ii7xxms"> <li class="astro-3ii7xxms"> <details open class="astro-3ii7xxms"> <summary class="astro-3ii7xxms"> <span class="group-label astro-3ii7xxms"> <span class="large astro-3ii7xxms">Start here</span>  </span> <svg aria-hidden="true" class="caret astro-3ii7xxms astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg> </summary> <sl-sidebar-restore data-index="0"></sl-sidebar-restore> <ul class="astro-3ii7xxms"> <li class="astro-3ii7xxms"> <a href="/start-here/what-is-an-app-chain/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">What is an app chain?</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/start-here/why-yano-x/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Why Yano X</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/start-here/build-from-source/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Build from source</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/start-here/quickstart/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Quickstart</span>  </a> </li> </ul> </details> </li><li class="astro-3ii7xxms"> <details open class="astro-3ii7xxms"> <summary class="astro-3ii7xxms"> <span class="group-label astro-3ii7xxms"> <span class="large astro-3ii7xxms">Concepts</span>  </span> <svg aria-hidden="true" class="caret astro-3ii7xxms astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg> </summary> <sl-sidebar-restore data-index="1"></sl-sidebar-restore> <ul class="astro-3ii7xxms"> <li class="astro-3ii7xxms"> <a href="/concepts/architecture/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Architecture</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/concepts/consensus-and-finality/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Consensus and finality</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/concepts/state-and-proofs/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">State and proofs</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/concepts/effects/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Effects</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/concepts/anchoring/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Cardano anchoring</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/concepts/determinism-rules/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Determinism rules</span>  </a> </li> </ul> </details> </li><li class="astro-3ii7xxms"> <details open class="astro-3ii7xxms"> <summary class="astro-3ii7xxms"> <span class="group-label astro-3ii7xxms"> <span class="large astro-3ii7xxms">Recipes</span>  </span> <svg aria-hidden="true" class="caret astro-3ii7xxms astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg> </summary> <sl-sidebar-restore data-index="2"></sl-sidebar-restore> <ul class="astro-3ii7xxms"> <li class="astro-3ii7xxms"> <a href="/recipes/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Recipe catalog</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/recipes/choosing-a-recipe/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Choosing a recipe</span>  </a> </li> </ul> </details> </li><li class="astro-3ii7xxms"> <details open class="astro-3ii7xxms"> <summary class="astro-3ii7xxms"> <span class="group-label astro-3ii7xxms"> <span class="large astro-3ii7xxms">Plugin framework</span>  </span> <svg aria-hidden="true" class="caret astro-3ii7xxms astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg> </summary> <sl-sidebar-restore data-index="3"></sl-sidebar-restore> <ul class="astro-3ii7xxms"> <li class="astro-3ii7xxms"> <a href="/plugins/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">The extension ladder</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/plugins/scaffold-sign-install/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Scaffold, sign, install</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/plugins/spi-and-manifest/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">SPI and manifest</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/plugins/consensus-rules/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Consensus rules</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/plugins/testing-and-deployment/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Testing and deployment</span>  </a> </li> </ul> </details> </li><li class="astro-3ii7xxms"> <details open class="astro-3ii7xxms"> <summary class="astro-3ii7xxms"> <span class="group-label astro-3ii7xxms"> <span class="large astro-3ii7xxms">Tutorials</span>  </span> <svg aria-hidden="true" class="caret astro-3ii7xxms astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg> </summary> <sl-sidebar-restore data-index="4"></sl-sidebar-restore> <ul class="astro-3ii7xxms"> <li class="astro-3ii7xxms"> <a href="/tutorials/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">App-Chain Tutorials</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/tutorials/01-first-app-chain/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Tutorial 1 — Your First App Chain</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/tutorials/02-registry-and-proofs/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Tutorial 2 — A Provable Shared Registry</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/tutorials/03-stock-state-machines/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Tutorial 3 — Choose a Stock State Machine</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/tutorials/04-evidence-publication/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Tutorial 4 — Publish and Verify Immutable Evidence</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/tutorials/05-domain-role-approvals/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Tutorial 5 — Generic Domain Actors and Role-Aware Approval</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/tutorials/06-webhook-effects/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Tutorial 6 — Invoke an External HTTP Endpoint Safely</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/tutorials/07-anchors-and-verification/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Tutorial 7 — Connect an App Proof to Cardano</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/tutorials/08-plugins-and-composites/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Tutorial 8 — Extend Yano Without Forking It</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/tutorials/09-from-demo-to-pilot/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Tutorial 9 — From Local Demo to a Permissioned Pilot</span>  </a> </li> </ul> </details> </li><li class="astro-3ii7xxms"> <details class="astro-3ii7xxms"> <summary class="astro-3ii7xxms"> <span class="group-label astro-3ii7xxms"> <span class="large astro-3ii7xxms">State machines</span>  </span> <svg aria-hidden="true" class="caret astro-3ii7xxms astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg> </summary> <sl-sidebar-restore data-index="5"></sl-sidebar-restore> <ul class="astro-3ii7xxms"> <li class="astro-3ii7xxms"> <a href="/state-machines/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">App-Chain State-Machine References</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/state-machines/approvals/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">`approvals` State Machine</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/state-machines/authenticated-map/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">`authenticated-map` State Machine</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/state-machines/authenticated-map-validation/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Authenticated-map value validation</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/state-machines/balances/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">`balances` State Machine</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/state-machines/doc-trail/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">`doc-trail` State Machine</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/state-machines/kv-registry/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">`kv-registry` State Machine</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/state-machines/role-approvals/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">`role-approvals` State Machine</span>  </a> </li> </ul> </details> </li><li class="astro-3ii7xxms"> <details class="astro-3ii7xxms"> <summary class="astro-3ii7xxms"> <span class="group-label astro-3ii7xxms"> <span class="large astro-3ii7xxms">Products</span>  </span> <svg aria-hidden="true" class="caret astro-3ii7xxms astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg> </summary> <sl-sidebar-restore data-index="6"></sl-sidebar-restore> <ul class="astro-3ii7xxms"> <li class="astro-3ii7xxms"> <a href="/products/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Overview</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/products/evidence/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Evidence</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/products/cardano-history/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Cardano History</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/products/eutxo-and-zk/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">eUTxO and ZK</span> <span class="sl-badge caution small  astro-3ii7xxms astro-avdet4wd">Experimental</span> </a> </li> </ul> </details> </li><li class="astro-3ii7xxms"> <details open class="astro-3ii7xxms"> <summary class="astro-3ii7xxms"> <span class="group-label astro-3ii7xxms"> <span class="large astro-3ii7xxms">AI agents</span>  </span> <svg aria-hidden="true" class="caret astro-3ii7xxms astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg> </summary> <sl-sidebar-restore data-index="7"></sl-sidebar-restore> <ul class="astro-3ii7xxms"> <li class="astro-3ii7xxms"> <a href="/ai/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Using Yano X with AI</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/ai/starter-pack/" aria-current="page" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">AI Starter Pack</span>  </a> </li> </ul> </details> </li><li class="astro-3ii7xxms"> <details class="astro-3ii7xxms"> <summary class="astro-3ii7xxms"> <span class="group-label astro-3ii7xxms"> <span class="large astro-3ii7xxms">Reference</span>  </span> <svg aria-hidden="true" class="caret astro-3ii7xxms astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg> </summary> <sl-sidebar-restore data-index="8"></sl-sidebar-restore> <ul class="astro-3ii7xxms"> <li class="astro-3ii7xxms"> <a href="/reference/cli/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">CLI</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/reference/rest-api/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">REST API</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/reference/capabilities/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Capability catalog</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/reference/configuration/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Configuration</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/reference/modules/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Modules and artifacts</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/reference/shelf/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Reference shelf</span>  </a> </li> </ul> </details> </li><li class="astro-3ii7xxms"> <details open class="astro-3ii7xxms"> <summary class="astro-3ii7xxms"> <span class="group-label astro-3ii7xxms"> <span class="large astro-3ii7xxms">Contributing</span>  </span> <svg aria-hidden="true" class="caret astro-3ii7xxms astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg> </summary> <sl-sidebar-restore data-index="9"></sl-sidebar-restore> <ul class="astro-3ii7xxms"> <li class="astro-3ii7xxms"> <a href="/contributing/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Developing Yano X</span>  </a> </li> </ul> </details> </li> </ul>  <script aria-hidden="true">
+		(() => {
+			const scroller = document.getElementById('starlight__sidebar');
+			if (!window._starlightScrollRestore || !scroller) return;
+			scroller.scrollTop = window._starlightScrollRestore;
+			delete window._starlightScrollRestore;
+		})();
+	</script> </sl-sidebar-state-persist> <div class="md:sl-hidden"> <div class="mobile-preferences sl-flex astro-wu23bvmt"> <div class="social-icons astro-wu23bvmt"> <a href="https://github.com/bloxbean/yano-x" rel="me" class="sl-flex astro-wy4te6ga"><span class="sr-only astro-wy4te6ga">GitHub</span><svg aria-hidden="true" class="astro-wy4te6ga astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M12 .3a12 12 0 0 0-3.8 23.38c.6.12.83-.26.83-.57L9 21.07c-3.34.72-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.08-.74.09-.73.09-.73 1.2.09 1.83 1.24 1.83 1.24 1.08 1.83 2.81 1.3 3.5 1 .1-.78.42-1.31.76-1.61-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.14-.3-.54-1.52.1-3.18 0 0 1-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.28-1.55 3.29-1.23 3.29-1.23.64 1.66.24 2.88.12 3.18a4.65 4.65 0 0 1 1.23 3.22c0 4.61-2.8 5.63-5.48 5.92.42.36.81 1.1.81 2.22l-.01 3.29c0 .31.2.69.82.57A12 12 0 0 0 12 .3Z"/></svg></a> </div> <starlight-theme-select>  <label style="--sl-select-width: 6.25em" class="astro-4yphtoen"> <span class="sr-only astro-4yphtoen">Select theme</span> <svg aria-hidden="true" class="icon label-icon astro-4yphtoen astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M21 14h-1V7a3 3 0 0 0-3-3H7a3 3 0 0 0-3 3v7H3a1 1 0 0 0-1 1v2a3 3 0 0 0 3 3h14a3 3 0 0 0 3-3v-2a1 1 0 0 0-1-1ZM6 7a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v7H6V7Zm14 10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-1h16v1Z"/></svg> <select autocomplete="off" class="astro-4yphtoen"> <option value="dark" class="astro-4yphtoen">Dark</option><option value="light" class="astro-4yphtoen">Light</option><option value="auto" selected class="astro-4yphtoen">Auto</option> </select> <svg aria-hidden="true" class="icon caret astro-4yphtoen astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M17 9.17a1 1 0 0 0-1.41 0L12 12.71 8.46 9.17a1 1 0 1 0-1.41 1.42l4.24 4.24a1.002 1.002 0 0 0 1.42 0L17 10.59a1.002 1.002 0 0 0 0-1.42Z"/></svg> </label> </starlight-theme-select>  <script>
+	StarlightThemeProvider.updatePickers();
+</script>   </div> </div> </div> </div> </nav> <div class="main-frame astro-vrdttmbt">  <script type="module">const a=document.getElementById("starlight__sidebar"),n=a?.querySelector("sl-sidebar-state-persist"),o="sl-sidebar-state",i=()=>{let t=[];const e=n?.dataset.hash||"";try{const s=sessionStorage.getItem(o),r=JSON.parse(s||"{}");Array.isArray(r.open)&&r.hash===e&&(t=r.open)}catch{}return{hash:e,open:t,scroll:a?.scrollTop||0}},c=t=>{try{sessionStorage.setItem(o,JSON.stringify(t))}catch{}},d=()=>c(i()),l=(t,e)=>{const s=i();s.open[e]=t,c(s)};n?.addEventListener("click",t=>{if(!(t.target instanceof Element))return;const e=t.target.closest("summary")?.closest("details");if(!e)return;const s=e.querySelector("sl-sidebar-restore"),r=parseInt(s?.dataset.index||"");isNaN(r)||l(!e.open,r)});addEventListener("visibilitychange",()=>{document.visibilityState==="hidden"&&d()});addEventListener("pageHide",d);</script> <div class="lg:sl-flex astro-67yu43on"> <aside class="right-sidebar-container print:hidden astro-67yu43on"> <div class="right-sidebar astro-67yu43on"> <div class="lg:sl-hidden astro-pb3aqygn"><mobile-starlight-toc data-min-h="2" data-max-h="3" class="astro-doynk5tl"><nav aria-labelledby="starlight__on-this-page--mobile" class="astro-doynk5tl"><details id="starlight__mobile-toc" class="astro-doynk5tl"><summary id="starlight__on-this-page--mobile" class="sl-flex astro-doynk5tl"><span class="toggle sl-flex astro-doynk5tl">On this page<svg aria-hidden="true" class="caret astro-doynk5tl astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg></span><span class="display-current astro-doynk5tl"></span></summary><div class="dropdown astro-doynk5tl"><ul class="isMobile astro-gnoq344e" style="--depth: 0;"> <li class="astro-gnoq344e" style="--depth: 0;"> <a href="#_top" class="astro-gnoq344e" style="--depth: 0;"> <span class="astro-gnoq344e" style="--depth: 0;">Overview</span> </a>  </li><li class="astro-gnoq344e" style="--depth: 0;"> <a href="#1-what-yano-x-is" class="astro-gnoq344e" style="--depth: 0;"> <span class="astro-gnoq344e" style="--depth: 0;">1. What Yano X is</span> </a> <ul class="isMobile astro-gnoq344e" style="--depth: 1;"> <li class="astro-gnoq344e" style="--depth: 1;"> <a href="#version-and-identity-facts" class="astro-gnoq344e" style="--depth: 1;"> <span class="astro-gnoq344e" style="--depth: 1;">Version and identity facts</span> </a>  </li> </ul> </li><li class="astro-gnoq344e" style="--depth: 0;"> <a href="#2-hard-invariants--violating-these-is-always-wrong" class="astro-gnoq344e" style="--depth: 0;"> <span class="astro-gnoq344e" style="--depth: 0;">2. Hard invariants — violating these is always wrong</span> </a>  </li><li class="astro-gnoq344e" style="--depth: 0;"> <a href="#3-the-extension-ladder--always-choose-the-smallest-rung" class="astro-gnoq344e" style="--depth: 0;"> <span class="astro-gnoq344e" style="--depth: 0;">3. The extension ladder — always choose the smallest rung</span> </a> <ul class="isMobile astro-gnoq344e" style="--depth: 1;"> <li class="astro-gnoq344e" style="--depth: 1;"> <a href="#stock-state-machines-rung-0" class="astro-gnoq344e" style="--depth: 1;"> <span class="astro-gnoq344e" style="--depth: 1;">Stock state machines (rung 0)</span> </a>  </li> </ul> </li><li class="astro-gnoq344e" style="--depth: 0;"> <a href="#4-determinism--the-rules-for-anything-inside-apply" class="astro-gnoq344e" style="--depth: 0;"> <span class="astro-gnoq344e" style="--depth: 0;">4. Determinism — the rules for anything inside apply()</span> </a>  </li><li class="astro-gnoq344e" style="--depth: 0;"> <a href="#5-effects--how-to-touch-the-outside-world" class="astro-gnoq344e" style="--depth: 0;"> <span class="astro-gnoq344e" style="--depth: 0;">5. Effects — how to touch the outside world</span> </a>  </li><li class="astro-gnoq344e" style="--depth: 0;"> <a href="#6-the-plugin-lifecycle--the-exact-commands" class="astro-gnoq344e" style="--depth: 0;"> <span class="astro-gnoq344e" style="--depth: 0;">6. The plugin lifecycle — the exact commands</span> </a>  </li><li class="astro-gnoq344e" style="--depth: 0;"> <a href="#7-evolving-a-live-chain--versioning-discipline" class="astro-gnoq344e" style="--depth: 0;"> <span class="astro-gnoq344e" style="--depth: 0;">7. Evolving a live chain — versioning discipline</span> </a>  </li><li class="astro-gnoq344e" style="--depth: 0;"> <a href="#8-configuration-scope--the-mistake-that-stalls-clusters" class="astro-gnoq344e" style="--depth: 0;"> <span class="astro-gnoq344e" style="--depth: 0;">8. Configuration scope — the mistake that stalls clusters</span> </a>  </li><li class="astro-gnoq344e" style="--depth: 0;"> <a href="#9-build-and-test-commands" class="astro-gnoq344e" style="--depth: 0;"> <span class="astro-gnoq344e" style="--depth: 0;">9. Build and test commands</span> </a>  </li><li class="astro-gnoq344e" style="--depth: 0;"> <a href="#10-coding-conventions" class="astro-gnoq344e" style="--depth: 0;"> <span class="astro-gnoq344e" style="--depth: 0;">10. Coding conventions</span> </a>  </li><li class="astro-gnoq344e" style="--depth: 0;"> <a href="#11-error-to-fix-table" class="astro-gnoq344e" style="--depth: 0;"> <span class="astro-gnoq344e" style="--depth: 0;">11. Error-to-fix table</span> </a>  </li><li class="astro-gnoq344e" style="--depth: 0;"> <a href="#12-where-to-look-things-up" class="astro-gnoq344e" style="--depth: 0;"> <span class="astro-gnoq344e" style="--depth: 0;">12. Where to look things up</span> </a>  </li><li class="astro-gnoq344e" style="--depth: 0;"> <a href="#13-agent-safety-rules" class="astro-gnoq344e" style="--depth: 0;"> <span class="astro-gnoq344e" style="--depth: 0;">13. Agent safety rules</span> </a>  </li> </ul></div></details></nav></mobile-starlight-toc><script type="module" src="/_astro/MobileTableOfContents.astro_astro_type_script_index_0_lang.hwBsy0Mo.js"></script></div><div class="right-sidebar-panel sl-hidden lg:sl-block astro-pb3aqygn"><div class="sl-container astro-pb3aqygn"><starlight-toc data-min-h="2" data-max-h="3"><nav aria-labelledby="starlight__on-this-page"><h2 id="starlight__on-this-page">On this page</h2><ul class="astro-gnoq344e" style="--depth: 0;"> <li class="astro-gnoq344e" style="--depth: 0;"> <a href="#_top" class="astro-gnoq344e" style="--depth: 0;"> <span class="astro-gnoq344e" style="--depth: 0;">Overview</span> </a>  </li><li class="astro-gnoq344e" style="--depth: 0;"> <a href="#1-what-yano-x-is" class="astro-gnoq344e" style="--depth: 0;"> <span class="astro-gnoq344e" style="--depth: 0;">1. What Yano X is</span> </a> <ul class="astro-gnoq344e" style="--depth: 1;"> <li class="astro-gnoq344e" style="--depth: 1;"> <a href="#version-and-identity-facts" class="astro-gnoq344e" style="--depth: 1;"> <span class="astro-gnoq344e" style="--depth: 1;">Version and identity facts</span> </a>  </li> </ul> </li><li class="astro-gnoq344e" style="--depth: 0;"> <a href="#2-hard-invariants--violating-these-is-always-wrong" class="astro-gnoq344e" style="--depth: 0;"> <span class="astro-gnoq344e" style="--depth: 0;">2. Hard invariants — violating these is always wrong</span> </a>  </li><li class="astro-gnoq344e" style="--depth: 0;"> <a href="#3-the-extension-ladder--always-choose-the-smallest-rung" class="astro-gnoq344e" style="--depth: 0;"> <span class="astro-gnoq344e" style="--depth: 0;">3. The extension ladder — always choose the smallest rung</span> </a> <ul class="astro-gnoq344e" style="--depth: 1;"> <li class="astro-gnoq344e" style="--depth: 1;"> <a href="#stock-state-machines-rung-0" class="astro-gnoq344e" style="--depth: 1;"> <span class="astro-gnoq344e" style="--depth: 1;">Stock state machines (rung 0)</span> </a>  </li> </ul> </li><li class="astro-gnoq344e" style="--depth: 0;"> <a href="#4-determinism--the-rules-for-anything-inside-apply" class="astro-gnoq344e" style="--depth: 0;"> <span class="astro-gnoq344e" style="--depth: 0;">4. Determinism — the rules for anything inside apply()</span> </a>  </li><li class="astro-gnoq344e" style="--depth: 0;"> <a href="#5-effects--how-to-touch-the-outside-world" class="astro-gnoq344e" style="--depth: 0;"> <span class="astro-gnoq344e" style="--depth: 0;">5. Effects — how to touch the outside world</span> </a>  </li><li class="astro-gnoq344e" style="--depth: 0;"> <a href="#6-the-plugin-lifecycle--the-exact-commands" class="astro-gnoq344e" style="--depth: 0;"> <span class="astro-gnoq344e" style="--depth: 0;">6. The plugin lifecycle — the exact commands</span> </a>  </li><li class="astro-gnoq344e" style="--depth: 0;"> <a href="#7-evolving-a-live-chain--versioning-discipline" class="astro-gnoq344e" style="--depth: 0;"> <span class="astro-gnoq344e" style="--depth: 0;">7. Evolving a live chain — versioning discipline</span> </a>  </li><li class="astro-gnoq344e" style="--depth: 0;"> <a href="#8-configuration-scope--the-mistake-that-stalls-clusters" class="astro-gnoq344e" style="--depth: 0;"> <span class="astro-gnoq344e" style="--depth: 0;">8. Configuration scope — the mistake that stalls clusters</span> </a>  </li><li class="astro-gnoq344e" style="--depth: 0;"> <a href="#9-build-and-test-commands" class="astro-gnoq344e" style="--depth: 0;"> <span class="astro-gnoq344e" style="--depth: 0;">9. Build and test commands</span> </a>  </li><li class="astro-gnoq344e" style="--depth: 0;"> <a href="#10-coding-conventions" class="astro-gnoq344e" style="--depth: 0;"> <span class="astro-gnoq344e" style="--depth: 0;">10. Coding conventions</span> </a>  </li><li class="astro-gnoq344e" style="--depth: 0;"> <a href="#11-error-to-fix-table" class="astro-gnoq344e" style="--depth: 0;"> <span class="astro-gnoq344e" style="--depth: 0;">11. Error-to-fix table</span> </a>  </li><li class="astro-gnoq344e" style="--depth: 0;"> <a href="#12-where-to-look-things-up" class="astro-gnoq344e" style="--depth: 0;"> <span class="astro-gnoq344e" style="--depth: 0;">12. Where to look things up</span> </a>  </li><li class="astro-gnoq344e" style="--depth: 0;"> <a href="#13-agent-safety-rules" class="astro-gnoq344e" style="--depth: 0;"> <span class="astro-gnoq344e" style="--depth: 0;">13. Agent safety rules</span> </a>  </li> </ul></nav></starlight-toc><script type="module" src="/_astro/TableOfContents.astro_astro_type_script_index_0_lang.FuRcXuRY.js"></script></div></div> </div> </aside> <div class="main-pane astro-67yu43on">  <main data-pagefind-body class="astro-bguv2lll" lang="en" dir="ltr">    <div class="content-panel astro-7nkwcw3z"> <div class="sl-container astro-7nkwcw3z"> <h1 id="_top" class="astro-j6tvhyss">Yano X AI Starter Pack</h1> </div> </div> <div class="content-panel astro-7nkwcw3z"> <div class="sl-container astro-7nkwcw3z"> <div class="sl-markdown-content"> <blockquote>
+<p><strong>Read this entire document before generating any Yano X code or
+configuration.</strong> It distills the architecture boundary, the extension ladder,
+the determinism rules, the plugin lifecycle, and the invariants that AI agents
+most reliably get wrong. Following it avoids the expensive failure mode: a
+change that compiles, passes unit tests, and stops a cluster from finalizing.</p>
+</blockquote>
+<p>This pack is optimized for AI ingestion, not for human onboarding. Humans should
+start at <a href="/start-here/what-is-an-app-chain/">What is an app chain?</a>.</p>
+<hr>
+<div class="sl-heading-wrapper level-h2"><h2 id="1-what-yano-x-is">1. What Yano X is</h2><a class="sl-anchor-link" href="#1-what-yano-x-is"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only" data-pagefind-ignore="">Section titled “1. What Yano X is”</span></a></div>
+<p>Yano X is the <strong>Java 25, JVM-only extension ecosystem</strong> for Yano app chains.</p>
+<p>An <strong>app chain</strong> is an application-specific replicated ledger run by a group of
+organizations: members agree on ordered commands, execute the same deterministic
+state machine, independently derive the same authenticated state root, prove
+records against it, and optionally settle that root on Cardano.</p>
+<p>Two repositories, one strict direction:</p>
+<div class="expressive-code"><link rel="stylesheet" href="/_astro/ec.v4551.css"><script type="module" src="/_astro/ec.0vx5m.js"></script><figure class="frame not-content"><figcaption class="header"></figcaption><pre data-language="text"><code><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">yano-x  ──depends on──▶  yano</span></div></div></code></pre><div class="copy"><div aria-live="polite"></div><button title="Copy to clipboard" data-copied="Copied!" data-code="yano-x  ──depends on──▶  yano"><div></div></button></div></figure></div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Owned by <strong>Yano</strong> (the host)</th><th>Owned by <strong>Yano X</strong></th></tr></thead><tbody><tr><td>Cardano data node, chain sync, chainstate</td><td>Every state machine except <code dir="auto">ordered-log</code></td></tr><tr><td>App-block sequencing, membership, threshold finality</td><td>Composition framework and governed profiles</td></tr><tr><td>Authenticated state, MPF proofs, catch-up, replay</td><td>Kafka / S3 / IPFS / Cardano-payment connectors</td></tr><tr><td>Cardano anchoring</td><td>Evidence, Cardano History, eUTxO and ZK products</td></tr><tr><td>Effect runtime</td><td>Java client SDK, Spring starter, testkits, Studio</td></tr><tr><td>Public plugin SPI, catalog, lifecycle, isolation</td><td>The batteries-included JVM distribution</td></tr><tr><td><code dir="auto">ordered-log</code> — the only built-in state machine</td><td></td></tr></tbody></table>
+<div class="sl-heading-wrapper level-h3"><h3 id="version-and-identity-facts">Version and identity facts</h3><a class="sl-anchor-link" href="#version-and-identity-facts"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only" data-pagefind-ignore="">Section titled “Version and identity facts”</span></a></div>
+<!-- catalog:versions-start -->
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Value</th><th>Current</th></tr></thead><tbody><tr><td>Yano X version</td><td><code dir="auto">0.1.0-SNAPSHOT</code></td></tr><tr><td>Yano host version</td><td><code dir="auto">0.1.0-pre13</code></td></tr><tr><td>Maven group</td><td><code dir="auto">com.bloxbean.cardano</code></td></tr><tr><td>Java</td><td><code dir="auto">25</code></td></tr><tr><td>Base Yano JVM ZIP</td><td><a href="https://github.com/bloxbean/yano/releases/download/v0.1.0-pre13/yano-0.1.0-pre13.zip"><code dir="auto">yano-0.1.0-pre13.zip</code></a></td></tr></tbody></table>
+<!-- catalog:versions-end -->
+<hr>
+<div class="sl-heading-wrapper level-h2"><h2 id="2-hard-invariants--violating-these-is-always-wrong">2. Hard invariants — violating these is always wrong</h2><a class="sl-anchor-link" href="#2-hard-invariants--violating-these-is-always-wrong"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only" data-pagefind-ignore="">Section titled “2. Hard invariants — violating these is always wrong”</span></a></div>
+<ol>
+<li><strong>Never</strong> add a source-checkout dependency, composite Gradle build, sibling
+task invocation, or generated-file dependency from Yano X to Yano. Consume an
+exact published Yano version and its matching ordinary JVM ZIP.</li>
+<li><strong>Java packages stay <code dir="auto">com.bloxbean.cardano.yano.appchain.*</code></strong> while
+repository and artifact names are <code dir="auto">yano-x</code>. This is deliberate. Do not
+“fix” it.</li>
+<li><strong>The plugin directory property is <code dir="auto">yano.plugins.directory</code>.</strong> Never
+<code dir="auto">yaci.plugins.directory</code> — that spelling was removed and must not return.</li>
+<li><strong>Yano X is JVM-only.</strong> Never add GraalVM/native-image tasks, reachability
+metadata, or native executables. <code dir="auto">verifyJvmOnlyBuild</code> enforces it.</li>
+<li><strong>Every optional runtime behavior crosses the plugin catalog boundary.</strong>
+Activation is <code dir="auto">PluginProviderRegistry</code> plus a schema-v1 plugin manifest.
+Never raw <code dir="auto">ServiceLoader</code> discovery by the host, direct host construction,
+product switches, or product-specific host CDI/REST activation.</li>
+<li><strong>Runtime plugins</strong> publish dependency-complete bundles, do not embed host
+SPI classes, declare compatible Yano API major and min/max levels, and have
+bounded lifecycle cleanup.</li>
+<li><strong>Do not duplicate the artifact inventory.</strong> Update
+<code dir="auto">config/artifacts-v1.json</code> and its verification tests when module identity
+changes.</li>
+<li><strong>The app-chain feature has not had a public release.</strong> Remove obsolete
+adapters, aliases, and duplicate activation paths rather than preserving
+accidental compatibility. Preserve documented Cardano node, OrderedLog,
+wire/storage, proof, replay, and distribution invariants.</li>
+<li><strong>Never stage or commit automatically.</strong> Inspect <code dir="auto">git status --short</code> before
+editing and preserve unrelated changes.</li>
+</ol>
+<hr>
+<div class="sl-heading-wrapper level-h2"><h2 id="3-the-extension-ladder--always-choose-the-smallest-rung">3. The extension ladder — always choose the smallest rung</h2><a class="sl-anchor-link" href="#3-the-extension-ladder--always-choose-the-smallest-rung"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only" data-pagefind-ignore="">Section titled “3. The extension ladder — always choose the smallest rung”</span></a></div>
+<div class="expressive-code"><figure class="frame not-content"><figcaption class="header"></figcaption><pre data-language="text"><code><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">Does a stock machine or profile already model the outcome?</span></div></div><div class="ec-line"><div class="code"><span class="indent"><span style="--0:#d6deeb;--1:#403f53">  </span></span><span style="--0:#d6deeb;--1:#403f53">├─ yes → rung 0: configuration only</span></div></div><div class="ec-line"><div class="code"><span class="indent"><span style="--0:#d6deeb;--1:#403f53">  </span></span><span style="--0:#d6deeb;--1:#403f53">└─ no</span></div></div><div class="ec-line"><div class="code"><span class="indent"><span style="--0:#d6deeb;--1:#403f53">      </span></span><span style="--0:#d6deeb;--1:#403f53">Are all required components already available?</span></div></div><div class="ec-line"><div class="code"><span class="indent"><span style="--0:#d6deeb;--1:#403f53">        </span></span><span style="--0:#d6deeb;--1:#403f53">├─ yes → rung 1: a small composite plugin</span></div></div><div class="ec-line"><div class="code"><span class="indent"><span style="--0:#d6deeb;--1:#403f53">        </span></span><span style="--0:#d6deeb;--1:#403f53">└─ no  → rung 2: a custom state-machine plugin</span></div></div></code></pre><div class="copy"><div aria-live="polite"></div><button title="Copy to clipboard" data-copied="Copied!" data-code="Does a stock machine or profile already model the outcome?  ├─ yes → rung 0: configuration only  └─ no      Are all required components already available?        ├─ yes → rung 1: a small composite plugin        └─ no  → rung 2: a custom state-machine plugin"><div></div></button></div></figure></div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Rung</th><th>What it is</th><th>Cost</th></tr></thead><tbody><tr><td>0</td><td>Select a built-in id: <code dir="auto">yano.app-chain.state-machine: kv-registry</code></td><td>No JAR, no build</td></tr><tr><td>1</td><td>A composite plugin declaring component ids, versions, deterministic order, routed topics, quotas, workflows, and one committed profile digest</td><td>Small but consensus-critical Java</td></tr><tr><td>2</td><td>A custom <code dir="auto">AppStateMachine</code> with new state and rules</td><td>Full consensus responsibility</td></tr><tr><td>3</td><td>Effect executors, sinks, domain APIs, signers, sequencer modes, L1 observers</td><td>Outside consensus; never affects the state root</td></tr></tbody></table>
+<p><strong>Default assumption: the answer is rung 0 or 1.</strong> Do not propose a custom state
+machine before checking <code dir="auto">./yano.sh appchain recipes</code> and
+<code dir="auto">./yano.sh appchain capabilities</code>.</p>
+<p>YAML cannot dynamically insert arbitrary component plugins into a frozen
+profile, because two members discovering a different order would derive
+different roots. Composite order is code, reviewed and signed.</p>
+<div class="sl-heading-wrapper level-h3"><h3 id="stock-state-machines-rung-0">Stock state machines (rung 0)</h3><a class="sl-anchor-link" href="#stock-state-machines-rung-0"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only" data-pagefind-ignore="">Section titled “Stock state machines (rung 0)”</span></a></div>
+<p><code dir="auto">ordered-log</code> (host), <code dir="auto">kv-registry</code>, <code dir="auto">authenticated-map</code>, <code dir="auto">approvals</code>,
+<code dir="auto">balances</code>, <code dir="auto">doc-trail</code>, <code dir="auto">role-approvals</code>, plus the <code dir="auto">evidence-v1-gated</code> and
+<code dir="auto">role-evidence</code> profiles.</p>
+<p>Live recipe and capability lists:
+<a href="/ai/catalog.json"><code dir="auto">/ai/catalog.json</code></a>, <a href="/recipes/"><code dir="auto">/recipes/</code></a>,
+<a href="/reference/capabilities/"><code dir="auto">/reference/capabilities/</code></a>.</p>
+<hr>
+<div class="sl-heading-wrapper level-h2"><h2 id="4-determinism--the-rules-for-anything-inside-apply">4. Determinism — the rules for anything inside <code dir="auto">apply()</code></h2><a class="sl-anchor-link" href="#4-determinism--the-rules-for-anything-inside-apply"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only" data-pagefind-ignore="">Section titled “4. Determinism — the rules for anything inside apply()”</span></a></div>
+<p>Every member executes the same messages and must derive the same state root
+<strong>byte for byte</strong>. Divergence does not heal; the chain stops finalizing.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Never</th><th>Because</th><th>Instead</th></tr></thead><tbody><tr><td><code dir="auto">Instant.now()</code>, <code dir="auto">System.currentTimeMillis()</code></td><td>Different per member</td><td>Block height, or an L1 slot carried in the block</td></tr><tr><td><code dir="auto">Math.random()</code>, <code dir="auto">new Random()</code>, <code dir="auto">UUID.randomUUID()</code></td><td>Unreproducible</td><td>Derive from message bytes, a hash, or a sequence number</td></tr><tr><td>Iterating <code dir="auto">HashMap</code> / <code dir="auto">HashSet</code></td><td>Order varies across JVMs and histories</td><td><code dir="auto">TreeMap</code> / <code dir="auto">LinkedHashMap</code>, or sort explicitly</td></tr><tr><td>Any network call</td><td>Latency and content differ per member</td><td>Emit an effect</td></tr><tr><td>Files, env vars, system properties</td><td>Node-local, therefore divergent</td><td>Consensus-shared config, or put it in the message</td></tr><tr><td>Locale/charset defaults</td><td><code dir="auto">toLowerCase()</code>, <code dir="auto">getBytes()</code> are platform sensitive</td><td><code dir="auto">Locale.ROOT</code>, <code dir="auto">StandardCharsets.UTF_8</code></td></tr><tr><td>Floating point for values</td><td>Rounding and formatting traps</td><td>Integers, or <code dir="auto">BigDecimal</code> with explicit scale and rounding</td></tr><tr><td><code dir="auto">Object.hashCode()</code> / identity</td><td>Varies per run</td><td>Compare and key on canonical bytes</td></tr><tr><td>Divergent exception handling</td><td>Different control flow per member</td><td>Validate deterministically; no-op or reject uniformly</td></tr><tr><td>Threads or concurrency in <code dir="auto">apply()</code></td><td>Scheduling is not reproducible</td><td>Keep <code dir="auto">apply()</code> single-threaded</td></tr><tr><td>Writing keys under <code dir="auto">~fx/</code></td><td>Reserved for the effect system from genesis</td><td>Use your own namespace</td></tr><tr><td>Hidden state in static fields or node-local storage</td><td>Not part of the authenticated root</td><td>Every write goes through the authenticated writer</td></tr></tbody></table>
+<p><strong>Reproducible ≠ identical.</strong> A <code dir="auto">HashMap</code> iteration is stable within one JVM run
+and differs across members: unit tests pass, the cluster stalls. Always validate
+on a real multi-node cluster.</p>
+<p><strong>Invalid finalized bytes must become deterministic no-ops</strong>, never escaping
+exceptions. <code dir="auto">validate()</code> at ingress is a hygiene filter, not a security
+boundary — a message can still reach <code dir="auto">apply()</code> through catch-up.</p>
+<p><strong>Bound everything</strong>: message byte length, decode depth and item count,
+collection sizes, state growth per transition, and work per block.</p>
+<hr>
+<div class="sl-heading-wrapper level-h2"><h2 id="5-effects--how-to-touch-the-outside-world">5. Effects — how to touch the outside world</h2><a class="sl-anchor-link" href="#5-effects--how-to-touch-the-outside-world"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only" data-pagefind-ignore="">Section titled “5. Effects — how to touch the outside world”</span></a></div>
+<blockquote>
+<p>A state machine never performs the action. It emits a record describing it.</p>
+</blockquote>
+<div class="expressive-code"><figure class="frame not-content"><figcaption class="header"></figcaption><pre data-language="java"><code><div class="ec-line"><div class="code"><span style="--0:#D6DEEB;--1:#403F53">@</span><span style="--0:#C792EA;--1:#8844AE">Override</span></div></div><div class="ec-line"><div class="code"><span style="--0:#C792EA;--1:#8844AE">public</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#C792EA;--1:#8844AE">void</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#82AAFF;--1:#3B61B0">apply</span><span style="--0:#D9F5DD;--1:#111111">(</span><span style="--0:#C792EA;--1:#8844AE">AppBlock</span><span style="--0:#82AAFF;--1:#3B61B0"> block, </span><span style="--0:#C792EA;--1:#8844AE">AppStateWriter</span><span style="--0:#82AAFF;--1:#3B61B0"> writer, </span><span style="--0:#C792EA;--1:#8844AE">AppEffectEmitter</span><span style="--0:#82AAFF;--1:#3B61B0"> effects</span><span style="--0:#D9F5DD;--1:#111111">)</span><span style="--0:#D6DEEB;--1:#403F53"> {</span></div></div><div class="ec-line"><div class="code"><span class="indent">    </span><span style="--0:#C792EA;--1:#8844AE">for</span><span style="--0:#D6DEEB;--1:#403F53"> (</span><span style="--0:#C792EA;--1:#8844AE">AppMessage</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#C5E478;--1:#3B61B0">m</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#C792EA;--1:#8844AE">:</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#C5E478;--1:#3B61B0">block</span><span style="--0:#D6DEEB;--1:#403F53">.</span><span style="--0:#82AAFF;--1:#3B61B0">messages</span><span style="--0:#D9F5DD;--1:#111111">()</span><span style="--0:#D6DEEB;--1:#403F53">) {</span></div></div><div class="ec-line"><div class="code"><span class="indent">        </span><span style="--0:#C792EA;--1:#8844AE">Order</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#C5E478;--1:#3B61B0">o</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#C792EA;--1:#8844AE">=</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#82AAFF;--1:#3B61B0">decode</span><span style="--0:#D9F5DD;--1:#111111">(</span><span style="--1:#3B61B0"><span style="--0:#C5E478">m</span><span style="--0:#82AAFF">.getBody</span></span><span style="--0:#D9F5DD;--1:#111111">())</span><span style="--0:#D6DEEB;--1:#403F53">;</span></div></div><div class="ec-line"><div class="code"><span class="indent">        </span><span style="--0:#C5E478;--1:#3B61B0">writer</span><span style="--0:#D6DEEB;--1:#403F53">.</span><span style="--0:#82AAFF;--1:#3B61B0">put</span><span style="--0:#D9F5DD;--1:#111111">(</span><span style="--0:#82AAFF;--1:#3B61B0">key</span><span style="--0:#D9F5DD;--1:#111111">(</span><span style="--1:#3B61B0"><span style="--0:#C5E478">o</span><span style="--0:#82AAFF">.id</span></span><span style="--0:#D9F5DD;--1:#111111">())</span><span style="--0:#D6DEEB;--1:#403F53">, </span><span style="--0:#C5E478;--1:#3B61B0">o</span><span style="--0:#D6DEEB;--1:#403F53">.</span><span style="--0:#82AAFF;--1:#3B61B0">toBytes</span><span style="--0:#D9F5DD;--1:#111111">())</span><span style="--0:#D6DEEB;--1:#403F53">;</span></div></div><div class="ec-line"><div class="code"><span class="indent">        </span><span style="--0:#C792EA;--1:#8844AE">if</span><span style="--0:#D6DEEB;--1:#403F53"> (</span><span style="--0:#C5E478;--1:#3B61B0">o</span><span style="--0:#D6DEEB;--1:#403F53">.</span><span style="--0:#82AAFF;--1:#3B61B0">isApproved</span><span style="--0:#D9F5DD;--1:#111111">()</span><span style="--0:#D6DEEB;--1:#403F53">) {</span></div></div><div class="ec-line"><div class="code"><span class="indent">            </span><span style="--0:#C5E478;--1:#3B61B0">effects</span><span style="--0:#D6DEEB;--1:#403F53">.</span><span style="--0:#82AAFF;--1:#3B61B0">emit</span><span style="--0:#D9F5DD;--1:#111111">(</span><span style="--0:#C5E478;--1:#3B61B0">EffectIntent</span><span style="--0:#D6DEEB;--1:#403F53">.</span><span style="--0:#82AAFF;--1:#3B61B0">of</span><span style="--0:#D9F5DD;--1:#111111">(</span><span style="--0:#D9F5DD;--1:#111111">"</span><span style="--0:#ECC48D;--1:#984E4D">webhook.post</span><span style="--0:#D9F5DD;--1:#111111">"</span><span style="--0:#D6DEEB;--1:#403F53">, </span><span style="--0:#C5E478;--1:#3B61B0">o</span><span style="--0:#D6DEEB;--1:#403F53">.</span><span style="--0:#82AAFF;--1:#3B61B0">fulfilmentJson</span><span style="--0:#D9F5DD;--1:#111111">())</span></div></div><div class="ec-line"><div class="code"><span class="indent"><span style="--0:#D6DEEB;--1:#403F53">                    </span></span><span style="--0:#D6DEEB;--1:#403F53">.</span><span style="--0:#82AAFF;--1:#3B61B0">scope</span><span style="--0:#D9F5DD;--1:#111111">(</span><span style="--0:#D9F5DD;--1:#111111">"</span><span style="--0:#ECC48D;--1:#984E4D">orders/</span><span style="--0:#D9F5DD;--1:#111111">"</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#C792EA;--1:#8844AE">+</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#C5E478;--1:#3B61B0">o</span><span style="--0:#D6DEEB;--1:#403F53">.</span><span style="--0:#82AAFF;--1:#3B61B0">id</span><span style="--0:#D9F5DD;--1:#111111">())</span><span style="--0:#D6DEEB;--1:#403F53">        </span><span style="--0:#919F9F;--1:#5D6376">// application idempotency scope</span></div></div><div class="ec-line"><div class="code"><span class="indent"><span style="--0:#D6DEEB;--1:#403F53">                    </span></span><span style="--0:#D6DEEB;--1:#403F53">.</span><span style="--0:#82AAFF;--1:#3B61B0">result</span><span style="--0:#D9F5DD;--1:#111111">(</span><span style="--0:#C5E478;--1:#3B61B0">ResultPolicy</span><span style="--0:#D6DEEB;--1:#403F53">.</span><span style="--1:#111111"><span style="--0:#FAF39F">CHAIN</span><span style="--0:#D9F5DD">)</span></span><span style="--0:#D6DEEB;--1:#403F53">       </span><span style="--0:#919F9F;--1:#5D6376">// outcome returns on-chain</span></div></div><div class="ec-line"><div class="code"><span class="indent"><span style="--0:#D6DEEB;--1:#403F53">                    </span></span><span style="--0:#D6DEEB;--1:#403F53">.</span><span style="--0:#82AAFF;--1:#3B61B0">gate</span><span style="--0:#D9F5DD;--1:#111111">(</span><span style="--0:#C5E478;--1:#3B61B0">FinalityGate</span><span style="--0:#D6DEEB;--1:#403F53">.</span><span style="--1:#111111"><span style="--0:#FAF39F">CHAIN_DEFAULT</span><span style="--0:#D9F5DD">)</span></span></div></div><div class="ec-line"><div class="code"><span class="indent"><span style="--0:#D6DEEB;--1:#403F53">                    </span></span><span style="--0:#D6DEEB;--1:#403F53">.</span><span style="--0:#82AAFF;--1:#3B61B0">expiryBlocks</span><span style="--0:#D9F5DD;--1:#111111">(</span><span style="--0:#F78C6C;--1:#AA0982">1000</span><span style="--0:#D9F5DD;--1:#111111">)</span><span style="--0:#D6DEEB;--1:#403F53">               </span><span style="--0:#919F9F;--1:#5D6376">// deterministic timeout; mandatory</span></div></div><div class="ec-line"><div class="code"><span class="indent"><span style="--0:#D6DEEB;--1:#403F53">                    </span></span><span style="--0:#D6DEEB;--1:#403F53">.</span><span style="--0:#82AAFF;--1:#3B61B0">sourceMessageId</span><span style="--0:#D9F5DD;--1:#111111">(</span><span style="--0:#C5E478;--1:#3B61B0">m</span><span style="--0:#D6DEEB;--1:#403F53">.</span><span style="--0:#82AAFF;--1:#3B61B0">getMessageId</span><span style="--0:#D9F5DD;--1:#111111">())</span></div></div><div class="ec-line"><div class="code"><span class="indent"><span style="--0:#D6DEEB;--1:#403F53">                    </span></span><span style="--0:#D6DEEB;--1:#403F53">.</span><span style="--0:#82AAFF;--1:#3B61B0">build</span><span style="--0:#D9F5DD;--1:#111111">())</span><span style="--0:#D6DEEB;--1:#403F53">;</span></div></div><div class="ec-line"><div class="code"><span class="indent"><span style="--0:#D6DEEB;--1:#403F53">        </span></span><span style="--0:#D6DEEB;--1:#403F53">}</span></div></div><div class="ec-line"><div class="code"><span class="indent"><span style="--0:#D6DEEB;--1:#403F53">    </span></span><span style="--0:#D6DEEB;--1:#403F53">}</span></div></div><div class="ec-line"><div class="code"><span style="--0:#D6DEEB;--1:#403F53">}</span></div></div><div class="ec-line"><div class="code">
+</div></div><div class="ec-line"><div class="code"><span style="--0:#D6DEEB;--1:#403F53">@</span><span style="--0:#C792EA;--1:#8844AE">Override</span></div></div><div class="ec-line"><div class="code"><span style="--0:#C792EA;--1:#8844AE">public</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#C792EA;--1:#8844AE">void</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#82AAFF;--1:#3B61B0">onEffectResult</span><span style="--0:#D9F5DD;--1:#111111">(</span><span style="--0:#C792EA;--1:#8844AE">AppBlock</span><span style="--0:#82AAFF;--1:#3B61B0"> block, </span><span style="--0:#C792EA;--1:#8844AE">EffectResult</span><span style="--0:#82AAFF;--1:#3B61B0"> result, </span><span style="--0:#C792EA;--1:#8844AE">AppStateWriter</span><span style="--0:#82AAFF;--1:#3B61B0"> writer</span><span style="--0:#D9F5DD;--1:#111111">)</span><span style="--0:#D6DEEB;--1:#403F53"> {</span></div></div><div class="ec-line"><div class="code"><span class="indent">    </span><span style="--0:#919F9F;--1:#5D6376">// Deterministic incorporation of CONFIRMED / FAILED / CANCELLED / EXPIRED.</span></div></div><div class="ec-line"><div class="code"><span style="--0:#D6DEEB;--1:#403F53">}</span></div></div></code></pre><div class="copy"><div aria-live="polite"></div><button title="Copy to clipboard" data-copied="Copied!" data-code="@Overridepublic void apply(AppBlock block, AppStateWriter writer, AppEffectEmitter effects) {    for (AppMessage m : block.messages()) {        Order o = decode(m.getBody());        writer.put(key(o.id()), o.toBytes());        if (o.isApproved()) {            effects.emit(EffectIntent.of(&#x22;webhook.post&#x22;, o.fulfilmentJson())                    .scope(&#x22;orders/&#x22; + o.id())        // application idempotency scope                    .result(ResultPolicy.CHAIN)       // outcome returns on-chain                    .gate(FinalityGate.CHAIN_DEFAULT)                    .expiryBlocks(1000)               // deterministic timeout; mandatory                    .sourceMessageId(m.getMessageId())                    .build());        }    }}@Overridepublic void onEffectResult(AppBlock block, EffectResult result, AppStateWriter writer) {    // Deterministic incorporation of CONFIRMED / FAILED / CANCELLED / EXPIRED.}"><div></div></button></div></figure></div>
+<p>Key facts:</p>
+<ul>
+<li>Guarantee is <strong>exactly-once incorporation, at-least-once execution</strong>. Every
+executor and receiver must be idempotent.</li>
+<li>Effects are <strong>off by default</strong>, and <code dir="auto">yano.app-chain.effects.*</code> caps are
+<strong>consensus parameters</strong> — identical on every member or the root diverges.</li>
+<li>Gates: <code dir="auto">app-final</code> (block committed), <code dir="auto">l1-anchored</code> (covered by a confirmed,
+stability-deep anchor), <code dir="auto">zk-settled</code> (reserved).</li>
+<li><strong>Expiry is mandatory</strong> for <code dir="auto">CHAIN</code> effects. <code dir="auto">EXPIRED</code> (“nobody answered”) is
+distinct from <code dir="auto">FAILED</code> (“the target answered no”).</li>
+<li>A result is a <strong>member attestation</strong>, not a verified fact. Narrow it with
+<code dir="auto">yano.app-chain.effects.result.signers</code>. For L1-visible facts prefer an L1
+observer.</li>
+<li>Duplicate, late, malformed, unknown, or out-of-window results are
+deterministic no-ops. A result can never stall the chain.</li>
+<li>Endpoints and credentials go in <strong>node-local</strong> executor configuration, never
+in replicated effect payloads.</li>
+</ul>
+<p>Bundled: <code dir="auto">webhook.post</code> executor and finalized webhook sink. First-party
+optional plugins: Kafka, S3-compatible <code dir="auto">object.put</code>, <code dir="auto">ipfs.pin</code>,
+<code dir="auto">cardano.payment</code>.</p>
+<hr>
+<div class="sl-heading-wrapper level-h2"><h2 id="6-the-plugin-lifecycle--the-exact-commands">6. The plugin lifecycle — the exact commands</h2><a class="sl-anchor-link" href="#6-the-plugin-lifecycle--the-exact-commands"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only" data-pagefind-ignore="">Section titled “6. The plugin lifecycle — the exact commands”</span></a></div>
+<div class="expressive-code"><figure class="frame is-terminal not-content"><figcaption class="header"><span class="title"></span><span class="sr-only">Terminal window</span></figcaption><pre data-language="bash"><code><div class="ec-line"><div class="code"><span style="--0:#919F9F;--1:#5F636F"># 1. Scaffold. Modes: state-machine | composite-role | effect-executor | sink</span></div></div><div class="ec-line"><div class="code"><span style="--0:#82AAFF;--1:#3B61B0">./yano.sh</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#ECC48D;--1:#3B61B0">appchain</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#ECC48D;--1:#3B61B0">plugin</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#ECC48D;--1:#3B61B0">scaffold</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#82AAFF;--1:#3B61B0">--mode</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#ECC48D;--1:#3B61B0">state-machine</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#82AAFF;--1:#3B61B0">--id</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#ECC48D;--1:#3B61B0">shipment</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#F78C6C;--1:#AA0982">\</span></div></div><div class="ec-line"><div class="code"><span class="indent">  </span><span style="--0:#82AAFF;--1:#3B61B0">--package</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#ECC48D;--1:#3B61B0">com.example.shipment</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#82AAFF;--1:#3B61B0">--output</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#ECC48D;--1:#3B61B0">shipment-plugin</span></div></div><div class="ec-line"><div class="code">
+</div></div><div class="ec-line"><div class="code"><span style="--0:#919F9F;--1:#5F636F"># 2. Implement and test.</span></div></div><div class="ec-line"><div class="code">
+</div></div><div class="ec-line"><div class="code"><span style="--0:#919F9F;--1:#5F636F"># 3. Sign the catalog, runtime manifest, and optional config metadata.</span></div></div><div class="ec-line"><div class="code"><span style="--0:#919F9F;--1:#5F636F">#    The 32-byte seed stays outside the repo and is passed BY FILE ONLY.</span></div></div><div class="ec-line"><div class="code"><span style="--0:#82AAFF;--1:#3B61B0">./yano.sh</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#ECC48D;--1:#3B61B0">appchain</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#ECC48D;--1:#3B61B0">plugin</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#ECC48D;--1:#3B61B0">sign</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#F78C6C;--1:#AA0982">\</span></div></div><div class="ec-line"><div class="code"><span class="indent">  </span><span style="--0:#82AAFF;--1:#3B61B0">--catalog</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#ECC48D;--1:#3B61B0">&#x3C;catalog.json></span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#82AAFF;--1:#3B61B0">--runtime-manifest</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#ECC48D;--1:#3B61B0">&#x3C;manifest.json></span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#F78C6C;--1:#AA0982">\</span></div></div><div class="ec-line"><div class="code"><span class="indent">  </span><span style="--0:#82AAFF;--1:#3B61B0">--seed-file</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#ECC48D;--1:#3B61B0">/secure/publisher.seed</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#82AAFF;--1:#3B61B0">--key-id</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#ECC48D;--1:#3B61B0">example-release-2026</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#F78C6C;--1:#AA0982">\</span></div></div><div class="ec-line"><div class="code"><span class="indent">  </span><span style="--0:#82AAFF;--1:#3B61B0">--output</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#ECC48D;--1:#3B61B0">&#x3C;catalog.sig.json></span></div></div><div class="ec-line"><div class="code">
+</div></div><div class="ec-line"><div class="code"><span style="--0:#919F9F;--1:#5F636F"># 4. Build and validate. Loads no plugin code.</span></div></div><div class="ec-line"><div class="code"><span style="--0:#82AAFF;--1:#3B61B0">./yano.sh</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#ECC48D;--1:#3B61B0">appchain</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#ECC48D;--1:#3B61B0">plugin</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#ECC48D;--1:#3B61B0">validate</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#ECC48D;--1:#3B61B0">&#x3C;jar></span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#82AAFF;--1:#3B61B0">--trust-key</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#ECC48D;--1:#3B61B0">&#x3C;key-id>=&#x3C;public-key-hex></span></div></div><div class="ec-line"><div class="code">
+</div></div><div class="ec-line"><div class="code"><span style="--0:#919F9F;--1:#5F636F"># 5. Pin into a project.</span></div></div><div class="ec-line"><div class="code"><span style="--0:#82AAFF;--1:#3B61B0">./yano.sh</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#ECC48D;--1:#3B61B0">appchain</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#ECC48D;--1:#3B61B0">init</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#82AAFF;--1:#3B61B0">--non-interactive</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#82AAFF;--1:#3B61B0">--recipe</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#ECC48D;--1:#3B61B0">custom-plugin</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#F78C6C;--1:#AA0982">\</span></div></div><div class="ec-line"><div class="code"><span class="indent">  </span><span style="--0:#82AAFF;--1:#3B61B0">--network</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#ECC48D;--1:#3B61B0">devnet</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#82AAFF;--1:#3B61B0">--members</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#F78C6C;--1:#AA0982">3</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#82AAFF;--1:#3B61B0">--runtime</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#ECC48D;--1:#3B61B0">jvm</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#F78C6C;--1:#AA0982">\</span></div></div><div class="ec-line"><div class="code"><span class="indent">  </span><span style="--0:#82AAFF;--1:#3B61B0">--capability</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#ECC48D;--1:#3B61B0">state:shipment</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#82AAFF;--1:#3B61B0">--plugin-jar</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#ECC48D;--1:#3B61B0">&#x3C;jar></span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#F78C6C;--1:#AA0982">\</span></div></div><div class="ec-line"><div class="code"><span class="indent">  </span><span style="--0:#82AAFF;--1:#3B61B0">--trust-key</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#ECC48D;--1:#3B61B0">&#x3C;key-id>=&#x3C;public-key-hex></span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#82AAFF;--1:#3B61B0">--output</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#ECC48D;--1:#3B61B0">shipment-chain</span></div></div><div class="ec-line"><div class="code">
+</div></div><div class="ec-line"><div class="code"><span style="--0:#919F9F;--1:#5F636F"># 6. Check readiness against a real distribution.</span></div></div><div class="ec-line"><div class="code"><span style="--0:#82AAFF;--1:#3B61B0">./yano.sh</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#ECC48D;--1:#3B61B0">appchain</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#ECC48D;--1:#3B61B0">doctor</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#ECC48D;--1:#3B61B0">shipment-chain</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#82AAFF;--1:#3B61B0">--distribution</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#ECC48D;--1:#3B61B0">/opt/yano-x</span></div></div><div class="ec-line"><div class="code">
+</div></div><div class="ec-line"><div class="code"><span style="--0:#919F9F;--1:#5F636F"># 7. Copy the exact pinned JAR into plugins/ on EVERY member, then validate.</span></div></div><div class="ec-line"><div class="code"><span style="--0:#82AAFF;--1:#3B61B0">tools/yano-plugins/bin/yano-plugins</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#ECC48D;--1:#3B61B0">validate</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#ECC48D;--1:#3B61B0">plugins/</span><span style="--0:#7FDBCA;--1:#096E72">*</span><span style="--0:#ECC48D;--1:#3B61B0">.jar</span></div></div></code></pre><div class="copy"><div aria-live="polite"></div><button title="Copy to clipboard" data-copied="Copied!" data-code="./yano.sh appchain plugin scaffold --mode state-machine --id shipment \  --package com.example.shipment --output shipment-plugin./yano.sh appchain plugin sign \  --catalog <catalog.json> --runtime-manifest <manifest.json> \  --seed-file /secure/publisher.seed --key-id example-release-2026 \  --output <catalog.sig.json>./yano.sh appchain plugin validate <jar> --trust-key <key-id>=<public-key-hex>./yano.sh appchain init --non-interactive --recipe custom-plugin \  --network devnet --members 3 --runtime jvm \  --capability state:shipment --plugin-jar <jar> \  --trust-key <key-id>=<public-key-hex> --output shipment-chain./yano.sh appchain doctor shipment-chain --distribution /opt/yano-xtools/yano-plugins/bin/yano-plugins validate plugins/*.jar"><div></div></button></div></figure></div>
+<p>The JAR carries three independent bounded contracts plus a signature:</p>
+<div class="expressive-code"><figure class="frame not-content"><figcaption class="header"></figcaption><pre data-language="text"><code><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">META-INF/yano/plugins/&#x3C;bundle-id>.json          runtime contributions + API levels</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">META-INF/yano/appchain-config-metadata-v1.json  typed configuration (optional)</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">META-INF/yano/appchain-component-catalog-v1.json selectable capabilities</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">META-INF/yano/appchain-component-catalog-v1.sig.json  Ed25519 trust envelope</span></div></div></code></pre><div class="copy"><div aria-live="polite"></div><button title="Copy to clipboard" data-copied="Copied!" data-code="META-INF/yano/plugins/<bundle-id>.json          runtime contributions + API levelsMETA-INF/yano/appchain-config-metadata-v1.json  typed configuration (optional)META-INF/yano/appchain-component-catalog-v1.json selectable capabilitiesMETA-INF/yano/appchain-component-catalog-v1.sig.json  Ed25519 trust envelope"><div></div></button></div></figure></div>
+<p><strong>Signing authenticates bytes; it does not approve code</strong> and does not elevate a
+custom component to <code dir="auto">BUNDLED</code>, <code dir="auto">stable</code>, or native. Custom entries stay JVM-only
+<code dir="auto">REFERENCE</code> or <code dir="auto">EXPERIMENTAL</code>. Release id, namespace, and artifact collisions
+fail closed.</p>
+<p>The custom state-machine shape:</p>
+<div class="expressive-code"><figure class="frame not-content"><figcaption class="header"></figcaption><pre data-language="java"><code><div class="ec-line"><div class="code"><span style="--0:#C792EA;--1:#8844AE">public</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#C792EA;--1:#8844AE">final</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#C792EA;--1:#8844AE">class</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#FFCB8B;--1:#111111">ShipmentStateMachine</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#C792EA;--1:#8844AE">implements</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#C5E478;--1:#3B61B0">AppStateMachine</span><span style="--0:#D6DEEB;--1:#403F53"> {</span></div></div><div class="ec-line"><div class="code"><span class="indent"><span style="--0:#D6DEEB;--1:#403F53">    </span></span><span style="--0:#D6DEEB;--1:#403F53">@</span><span style="--0:#C792EA;--1:#8844AE">Override</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#C792EA;--1:#8844AE">public</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#C792EA;--1:#8844AE">String</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#82AAFF;--1:#3B61B0">id</span><span style="--0:#D9F5DD;--1:#111111">()</span><span style="--0:#D6DEEB;--1:#403F53"> { </span><span style="--0:#C792EA;--1:#8844AE">return</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#D9F5DD;--1:#111111">"</span><span style="--0:#ECC48D;--1:#984E4D">shipment-v1</span><span style="--0:#D9F5DD;--1:#111111">"</span><span style="--0:#D6DEEB;--1:#403F53">; }</span></div></div><div class="ec-line"><div class="code">
+</div></div><div class="ec-line"><div class="code"><span class="indent"><span style="--0:#D6DEEB;--1:#403F53">    </span></span><span style="--0:#D6DEEB;--1:#403F53">@</span><span style="--0:#C792EA;--1:#8844AE">Override</span></div></div><div class="ec-line"><div class="code"><span class="indent">    </span><span style="--0:#C792EA;--1:#8844AE">public</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#C792EA;--1:#8844AE">AdmissionResult</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#82AAFF;--1:#3B61B0">validate</span><span style="--0:#D9F5DD;--1:#111111">(</span><span style="--0:#C792EA;--1:#8844AE">AppMessage</span><span style="--1:#403F53"><span style="--0:#D6DEEB"> </span><span style="--0:#D7DBE0">message</span></span><span style="--0:#D9F5DD;--1:#111111">)</span><span style="--0:#D6DEEB;--1:#403F53"> {</span></div></div><div class="ec-line"><div class="code"><span class="indent">        </span><span style="--0:#C792EA;--1:#8844AE">return</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#82AAFF;--1:#3B61B0">decodeSafely</span><span style="--0:#D9F5DD;--1:#111111">(</span><span style="--1:#3B61B0"><span style="--0:#C5E478">message</span><span style="--0:#82AAFF">.getBody</span></span><span style="--0:#D9F5DD;--1:#111111">())</span></div></div><div class="ec-line"><div class="code"><span class="indent">                </span><span style="--0:#C792EA;--1:#8844AE">?</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#C5E478;--1:#3B61B0">AdmissionResult</span><span style="--0:#D6DEEB;--1:#403F53">.</span><span style="--0:#82AAFF;--1:#3B61B0">accept</span><span style="--0:#D9F5DD;--1:#111111">()</span></div></div><div class="ec-line"><div class="code"><span class="indent">                </span><span style="--0:#C792EA;--1:#8844AE">:</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#C5E478;--1:#3B61B0">AdmissionResult</span><span style="--0:#D6DEEB;--1:#403F53">.</span><span style="--0:#82AAFF;--1:#3B61B0">reject</span><span style="--0:#D9F5DD;--1:#111111">(</span><span style="--0:#D9F5DD;--1:#111111">"</span><span style="--0:#ECC48D;--1:#984E4D">invalid shipment command</span><span style="--0:#D9F5DD;--1:#111111">"</span><span style="--0:#D9F5DD;--1:#111111">)</span><span style="--0:#D6DEEB;--1:#403F53">;</span></div></div><div class="ec-line"><div class="code"><span class="indent"><span style="--0:#D6DEEB;--1:#403F53">    </span></span><span style="--0:#D6DEEB;--1:#403F53">}</span></div></div><div class="ec-line"><div class="code">
+</div></div><div class="ec-line"><div class="code"><span class="indent"><span style="--0:#D6DEEB;--1:#403F53">    </span></span><span style="--0:#D6DEEB;--1:#403F53">@</span><span style="--0:#C792EA;--1:#8844AE">Override</span></div></div><div class="ec-line"><div class="code"><span class="indent">    </span><span style="--0:#C792EA;--1:#8844AE">public</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#C792EA;--1:#8844AE">void</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#82AAFF;--1:#3B61B0">apply</span><span style="--0:#D9F5DD;--1:#111111">(</span><span style="--0:#C792EA;--1:#8844AE">AppBlock</span><span style="--1:#403F53"><span style="--0:#D6DEEB"> </span><span style="--0:#D7DBE0">block</span><span style="--0:#D6DEEB">, </span></span><span style="--0:#C792EA;--1:#8844AE">AppStateWriter</span><span style="--1:#403F53"><span style="--0:#D6DEEB"> </span><span style="--0:#D7DBE0">state</span></span><span style="--0:#D9F5DD;--1:#111111">)</span><span style="--0:#D6DEEB;--1:#403F53"> {</span></div></div><div class="ec-line"><div class="code"><span class="indent">        </span><span style="--0:#919F9F;--1:#5D6376">// Deterministic bounded transitions only.</span></div></div><div class="ec-line"><div class="code"><span class="indent"><span style="--0:#D6DEEB;--1:#403F53">    </span></span><span style="--0:#D6DEEB;--1:#403F53">}</span></div></div><div class="ec-line"><div class="code"><span style="--0:#D6DEEB;--1:#403F53">}</span></div></div></code></pre><div class="copy"><div aria-live="polite"></div><button title="Copy to clipboard" data-copied="Copied!" data-code="public final class ShipmentStateMachine implements AppStateMachine {    @Override public String id() { return &#x22;shipment-v1&#x22;; }    @Override    public AdmissionResult validate(AppMessage message) {        return decodeSafely(message.getBody())                ? AdmissionResult.accept()                : AdmissionResult.reject(&#x22;invalid shipment command&#x22;);    }    @Override    public void apply(AppBlock block, AppStateWriter state) {        // Deterministic bounded transitions only.    }}"><div></div></button></div></figure></div>
+<p>Contribute it through <code dir="auto">AppStateMachineProvider</code>, add the service entry and the
+plugin manifest. Yano is never recompiled for a JVM deployment.</p>
+<hr>
+<div class="sl-heading-wrapper level-h2"><h2 id="7-evolving-a-live-chain--versioning-discipline">7. Evolving a live chain — versioning discipline</h2><a class="sl-anchor-link" href="#7-evolving-a-live-chain--versioning-discipline"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only" data-pagefind-ignore="">Section titled “7. Evolving a live chain — versioning discipline”</span></a></div>
+<p>A change to deterministic semantics is <strong>never</strong> an ordinary rolling code
+change. Semantic changes include: state encoding or key layout, transition
+logic, validation outcomes, what a transition emits, a commitment profile or
+component order, a proof subject descriptor, and genesis-selected configuration.</p>
+<p>Chain identity is pinned by:</p>
+<div class="expressive-code"><figure class="frame not-content"><figcaption class="header"></figcaption><pre data-language="text"><code><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">(commitment-profile, format-fingerprint, genesis-id)</span></div></div></code></pre><div class="copy"><div aria-live="polite"></div><button title="Copy to clipboard" data-copied="Copied!" data-code="(commitment-profile, format-fingerprint, genesis-id)"><div></div></button></div></figure></div>
+<p>A retained <code dir="auto">genesis-id</code> is never regenerated.</p>
+<p>Three legitimate options:</p>
+<ol>
+<li><strong>Governed profile activation</strong> — stage the reviewed current and dormant
+targets on every member, then threshold-authorize one exact digest and a
+future activation height. Editing YAML or swapping a JAR alone changes
+nothing.</li>
+<li><strong>A new component id or namespace</strong>, with a migration plan, for incompatible
+state.</li>
+<li><strong>A new chain</strong>, when identity itself must change.</li>
+</ol>
+<p><strong>Never silently change semantics behind an existing machine or component id.</strong>
+Rolling out edited transition logic member by member stalls the chain during the
+rollout and makes historical replay disagree with signed roots afterwards. That
+is unrecoverable without a new chain.</p>
+<hr>
+<div class="sl-heading-wrapper level-h2"><h2 id="8-configuration-scope--the-mistake-that-stalls-clusters">8. Configuration scope — the mistake that stalls clusters</h2><a class="sl-anchor-link" href="#8-configuration-scope--the-mistake-that-stalls-clusters"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only" data-pagefind-ignore="">Section titled “8. Configuration scope — the mistake that stalls clusters”</span></a></div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Scope</th><th>Meaning</th><th>Getting it wrong</th></tr></thead><tbody><tr><td><code dir="auto">CONSENSUS_SHARED</code></td><td>Identical on every member</td><td>The root diverges; the chain stops finalizing</td></tr><tr><td>Node-local</td><td>Ports, storage, credentials, executor placement</td><td>Only that node is affected</td></tr></tbody></table>
+<p>Consensus-shared includes: the state-machine id, the composite profile digest,
+all <code dir="auto">effects.*</code> caps, value formats, quotas, and
+<code dir="auto">message.enforce-sender-seq</code>.</p>
+<p><code dir="auto">NEW_CHAIN_REQUIRED</code> change policy means the value is part of chain identity.</p>
+<p>Five secret classes, kept separate: member signing keys, business-actor keys,
+API keys, effect/connector credentials, anchor wallet funds. Never place a
+credential in consensus-shared configuration or a replicated effect payload.</p>
+<hr>
+<div class="sl-heading-wrapper level-h2"><h2 id="9-build-and-test-commands">9. Build and test commands</h2><a class="sl-anchor-link" href="#9-build-and-test-commands"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only" data-pagefind-ignore="">Section titled “9. Build and test commands”</span></a></div>
+<div class="expressive-code"><figure class="frame is-terminal not-content"><figcaption class="header"><span class="title"></span><span class="sr-only">Terminal window</span></figcaption><pre data-language="bash"><code><div class="ec-line"><div class="code"><span style="--0:#919F9F;--1:#5F636F"># User track: a clean clone, one command. No flags, no Yano checkout.</span></div></div><div class="ec-line"><div class="code"><span style="--0:#82AAFF;--1:#3B61B0">./gradlew</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#ECC48D;--1:#3B61B0">clean</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#ECC48D;--1:#3B61B0">build</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#82AAFF;--1:#3B61B0">-PskipSigning=true</span></div></div><div class="ec-line"><div class="code"><span style="--0:#919F9F;--1:#5F636F">#  -> distribution/jvm/build/distributions/yano-x-jvm-&#x3C;version>.zip</span></div></div><div class="ec-line"><div class="code">
+</div></div><div class="ec-line"><div class="code"><span style="--0:#919F9F;--1:#5F636F"># Contributor track, coordinated Yano + Yano X development:</span></div></div><div class="ec-line"><div class="code"><span style="--0:#919F9F;--1:#5F636F">#   in the Yano repo:</span></div></div><div class="ec-line"><div class="code"><span style="--0:#82AAFF;--1:#3B61B0">./gradlew</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#ECC48D;--1:#3B61B0">publishToMavenLocal</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#ECC48D;--1:#3B61B0">:app:yanoDistZip</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#82AAFF;--1:#3B61B0">-PskipSigning=true</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#82AAFF;--1:#3B61B0">--no-parallel</span></div></div><div class="ec-line"><div class="code"><span style="--0:#919F9F;--1:#5F636F">#   in yano-x:</span></div></div><div class="ec-line"><div class="code"><span style="--0:#82AAFF;--1:#3B61B0">./gradlew</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#ECC48D;--1:#3B61B0">test</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#ECC48D;--1:#3B61B0">verifyArtifactInventory</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#ECC48D;--1:#3B61B0">verifyJvmOnlyBuild</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#F78C6C;--1:#AA0982">\</span></div></div><div class="ec-line"><div class="code"><span class="indent">  </span><span style="--0:#82AAFF;--1:#3B61B0">-PyanoVersion=&#x3C;published-yano-version></span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#82AAFF;--1:#3B61B0">-PuseMavenLocal=true</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#82AAFF;--1:#3B61B0">--offline</span></div></div><div class="ec-line"><div class="code">
+</div></div><div class="ec-line"><div class="code"><span style="--0:#919F9F;--1:#5F636F"># Focused gates</span></div></div><div class="ec-line"><div class="code"><span style="--0:#82AAFF;--1:#3B61B0">./gradlew</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#ECC48D;--1:#3B61B0">:state-machines:stdlib:test</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#82AAFF;--1:#3B61B0">-PyanoVersion=&#x3C;v></span></div></div><div class="ec-line"><div class="code"><span style="--0:#82AAFF;--1:#3B61B0">./gradlew</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#ECC48D;--1:#3B61B0">:tooling:devtools:test</span><span style="--0:#D6DEEB;--1:#403F53">      </span><span style="--0:#82AAFF;--1:#3B61B0">-PyanoVersion=&#x3C;v></span></div></div><div class="ec-line"><div class="code"><span style="--0:#82AAFF;--1:#3B61B0">./gradlew</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#ECC48D;--1:#3B61B0">integrationTest</span><span style="--0:#D6DEEB;--1:#403F53">             </span><span style="--0:#82AAFF;--1:#3B61B0">-PyanoVersion=&#x3C;v></span></div></div><div class="ec-line"><div class="code"><span style="--0:#82AAFF;--1:#3B61B0">./gradlew</span><span style="--0:#D6DEEB;--1:#403F53"> </span><span style="--0:#ECC48D;--1:#3B61B0">cryptoTest</span><span style="--0:#D6DEEB;--1:#403F53">                  </span><span style="--0:#82AAFF;--1:#3B61B0">-PyanoVersion=&#x3C;v></span></div></div></code></pre><div class="copy"><div aria-live="polite"></div><button title="Copy to clipboard" data-copied="Copied!" data-code="./gradlew clean build -PskipSigning=true./gradlew publishToMavenLocal :app:yanoDistZip -PskipSigning=true --no-parallel./gradlew test verifyArtifactInventory verifyJvmOnlyBuild \  -PyanoVersion=<published-yano-version> -PuseMavenLocal=true --offline./gradlew :state-machines:stdlib:test -PyanoVersion=<v>./gradlew :tooling:devtools:test      -PyanoVersion=<v>./gradlew integrationTest             -PyanoVersion=<v>./gradlew cryptoTest                  -PyanoVersion=<v>"><div></div></button></div></figure></div>
+<p><code dir="auto">mavenLocal()</code> is disabled unless <code dir="auto">-PuseMavenLocal=true</code>. For a released
+non-SNAPSHOT <code dir="auto">yanoVersion</code>, the base Yano JVM ZIP resolves from its GitHub
+release automatically; <code dir="auto">-PyanoJvmDist</code> only overrides that.</p>
+<p>Run <code dir="auto">verifyArtifactInventory</code> for any module, publication, manifest, bundle, or
+contribution change; <code dir="auto">verifyJvmOnlyBuild</code> for build topology changes;
+<code dir="auto">distributionCheck</code> or a clean <code dir="auto">build</code> for dependency, bundle, class-isolation,
+launch, or packaging changes.</p>
+<p><strong>Do not stop at unit tests</strong> when a plugin, catalog, distribution, persistence,
+consensus, proof, anchor, or cross-node behavior changed. Validate a real
+multi-node cluster: identical chain height, root, profile, genesis, and
+capability-manifest digest, plus finality certificates, proof retrieval,
+catch-up, restart, and anchor state.</p>
+<hr>
+<div class="sl-heading-wrapper level-h2"><h2 id="10-coding-conventions">10. Coding conventions</h2><a class="sl-anchor-link" href="#10-coding-conventions"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only" data-pagefind-ignore="">Section titled “10. Coding conventions”</span></a></div>
+<ul>
+<li>Java 25, four-space indentation, lines at most 120 characters.</li>
+<li>Prefer package imports to fully qualified names.</li>
+<li>SLF4J for logging.</li>
+<li>JUnit 5, Mockito, AssertJ. Unit tests in <code dir="auto">src/test/java</code>; integration tests in
+the configured integration source sets, named <code dir="auto">*IT</code>.</li>
+<li>License: MIT.</li>
+</ul>
+<hr>
+<div class="sl-heading-wrapper level-h2"><h2 id="11-error-to-fix-table">11. Error-to-fix table</h2><a class="sl-anchor-link" href="#11-error-to-fix-table"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only" data-pagefind-ignore="">Section titled “11. Error-to-fix table”</span></a></div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Symptom</th><th>Root cause</th><th>Fix</th></tr></thead><tbody><tr><td>Cluster stops finalizing after a deploy</td><td>Members run different bundles or different <code dir="auto">CONSENSUS_SHARED</code> values</td><td><code dir="auto">./yano.sh appchain drift &#x3C;project> --peer &#x3C;node-url></code>; align bundles and config</td></tr><tr><td>Root parity holds locally, fails on a cluster</td><td>Reproducible but not identical — usually <code dir="auto">HashMap</code> iteration or a wall clock</td><td>See §4; re-run under <code dir="auto">@AppChainCluster</code></td></tr><tr><td><code dir="auto">verifyJvmOnlyBuild</code> fails</td><td>A native-image build or distribution task crept in</td><td>Remove it. Yano X is JVM-only by decision</td></tr><tr><td><code dir="auto">verifyArtifactInventory</code> fails</td><td>Module identity changed without updating <code dir="auto">config/artifacts-v1.json</code></td><td>Update the inventory and its verification tests</td></tr><tr><td>Build tries to reach Maven Local</td><td><code dir="auto">-PuseMavenLocal=true</code> needed but that is the contributor track</td><td>Users need no flags at all</td></tr><tr><td>Missing release asset for <code dir="auto">yanoVersion</code></td><td>SNAPSHOT or staged Yano version</td><td>Supply <code dir="auto">-PyanoJvmDist</code> with the exact matching ZIP</td></tr><tr><td><code dir="auto">appchain doctor</code> reports incompatibility</td><td>Pointed at a native distribution</td><td>Yano X plugins target the JVM host</td></tr><tr><td>Node refuses to start with a catalog error</td><td>Two bundles provide the same contribution (classically both eUTxO runtimes)</td><td>Install exactly one; the other lives in <code dir="auto">optional-plugins/</code></td></tr><tr><td><code dir="auto">POST /messages</code> returns 429</td><td>Pending pool full — backpressure working</td><td>Back off and retry; tune <code dir="auto">pool.max-messages</code> deliberately</td></tr><tr><td>Message rejected, <code dir="auto">drops.stale_seq</code></td><td>Per-sender seq at or below the last finalized seq — a replay</td><td>Do not reuse envelopes; seq gaps are fine and meaningless</td></tr><tr><td>Product routes return 404, CLI exit code 3</td><td>Cardano History has no finalized fact yet</td><td>Wait for the next stable L1 epoch transition. Never synthesize a value</td></tr><tr><td>Proof says <code dir="auto">INTERNAL_CONSISTENCY_ONLY</code></td><td>The root is not pinned by the caller, a finality policy, or a checked L1 output</td><td>Pin the root, or verify the Cardano output independently</td></tr><tr><td>Proof unavailable for an old height</td><td>Pruned past <code dir="auto">oldestProvableHeight</code></td><td>Unavailable is not evidence of absence</td></tr><tr><td>Effect ran twice externally</td><td>Execution is at-least-once by design</td><td>Make the receiver idempotent under the supplied identity</td></tr><tr><td>Effect never completed</td><td>No result within the window</td><td>It becomes <code dir="auto">EXPIRED</code> deterministically; handle it in <code dir="auto">onEffectResult</code></td></tr></tbody></table>
+<hr>
+<div class="sl-heading-wrapper level-h2"><h2 id="12-where-to-look-things-up">12. Where to look things up</h2><a class="sl-anchor-link" href="#12-where-to-look-things-up"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only" data-pagefind-ignore="">Section titled “12. Where to look things up”</span></a></div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Need</th><th>Source</th></tr></thead><tbody><tr><td>Live recipes, capabilities, modules, config properties</td><td><a href="/ai/catalog.json"><code dir="auto">/ai/catalog.json</code></a></td></tr><tr><td>Everything on this site as one file</td><td><a href="/llms-full.txt"><code dir="auto">/llms-full.txt</code></a></td></tr><tr><td>Version-matched truth for a build</td><td><code dir="auto">./yano.sh appchain recipes</code>, <code dir="auto">./yano.sh appchain capabilities --format json</code></td></tr><tr><td>Project workflow for agents</td><td>The in-repo <code dir="auto">configure-yano-appchain</code> skill under <code dir="auto">tooling/devtools/src/main/resources/appchain-dx/v1alpha1/skills/</code> — <strong>it wins where it overlaps this pack</strong></td></tr><tr><td>Exhaustive reference</td><td><a href="/reference/shelf/">Reference shelf</a></td></tr><tr><td>Plugin SPI contract</td><td>ADR-011, in the repository’s <code dir="auto">adr/app-layer/</code> directory</td></tr><tr><td>Repository invariants</td><td><a href="https://github.com/bloxbean/yano-x/blob/main/AGENTS.md"><code dir="auto">AGENTS.md</code></a></td></tr></tbody></table>
+<hr>
+<div class="sl-heading-wrapper level-h2"><h2 id="13-agent-safety-rules">13. Agent safety rules</h2><a class="sl-anchor-link" href="#13-agent-safety-rules"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only" data-pagefind-ignore="">Section titled “13. Agent safety rules”</span></a></div>
+<ul>
+<li>Never request, print, copy, infer, or commit secret values. Refer only to
+documented environment-variable or secret-provider names.</li>
+<li>Never invent configuration keys, values, defaults, recipes, or compatibility
+claims. Report an unavailable capability as unsupported.</li>
+<li>Keep blueprint, resolved-config, release, plugin-catalog, and consensus
+identities distinct.</li>
+<li>Do not mutate a running node or call privileged runtime APIs unless explicitly
+asked.</li>
+<li>Treat custom-plugin metadata as <code dir="auto">PARTIAL</code> unless Yano reports <code dir="auto">FULL</code>.</li>
+<li>Never delete retained clusters, state, keys, or staging repositories without
+reviewing the exact path and obtaining explicit authorization. <code dir="auto">stop</code>
+preserves state; <code dir="auto">reset --yes</code> is destructive.</li>
+<li>Preprod operations submit real test-network transactions and spend test ADA.
+Require explicit authorization before deployment, anchor bootstrap, settlement
+bootstrap, or smoke traffic.</li>
+<li>Do not modify the sibling Yano repository as a side effect of a Yano X task.</li>
+</ul> </div> <footer class="sl-flex astro-3yyafb3n"> <div class="meta sl-flex astro-3yyafb3n"> <a href="https://github.com/bloxbean/yano-x/edit/main/www/src/content/docs/ai/starter-pack.md" class="sl-flex print:hidden astro-eez2twj6"><svg aria-hidden="true" class="astro-eez2twj6 astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.2em;"><path d="M22 7.24a1 1 0 0 0-.29-.71l-4.24-4.24a1 1 0 0 0-1.1-.22 1 1 0 0 0-.32.22l-2.83 2.83L2.29 16.05a1 1 0 0 0-.29.71V21a1 1 0 0 0 1 1h4.24a1 1 0 0 0 .76-.29l10.87-10.93L21.71 8c.1-.1.17-.2.22-.33a1 1 0 0 0 0-.24v-.14l.07-.05ZM6.83 20H4v-2.83l9.93-9.93 2.83 2.83L6.83 20ZM18.17 8.66l-2.83-2.83 1.42-1.41 2.82 2.82-1.41 1.42Z"/></svg>Edit page</a> <p>Last updated: <time datetime="2026-08-23T14:15:44.000Z">Aug 23, 2026</time></p> </div> <div class="pagination-links print:hidden astro-u2l5gyhi" dir="ltr"> <a href="/ai/" rel="prev" class="astro-u2l5gyhi"> <svg aria-hidden="true" class="astro-u2l5gyhi astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.5rem;"><path d="M17 11H9.41l3.3-3.29a1.004 1.004 0 1 0-1.42-1.42l-5 5a1 1 0 0 0-.21.33 1 1 0 0 0 0 .76 1 1 0 0 0 .21.33l5 5a1.002 1.002 0 0 0 1.639-.325 1 1 0 0 0-.219-1.095L9.41 13H17a1 1 0 0 0 0-2Z"/></svg> <span class="astro-u2l5gyhi"> Previous <br class="astro-u2l5gyhi"> <span class="link-title astro-u2l5gyhi">Using Yano X with AI</span> </span> </a> <a href="/reference/cli/" rel="next" class="astro-u2l5gyhi"> <svg aria-hidden="true" class="astro-u2l5gyhi astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.5rem;"><path d="M17.92 11.62a1.001 1.001 0 0 0-.21-.33l-5-5a1.003 1.003 0 1 0-1.42 1.42l3.3 3.29H7a1 1 0 0 0 0 2h7.59l-3.3 3.29a1.002 1.002 0 0 0 .325 1.639 1 1 0 0 0 1.095-.219l5-5a1 1 0 0 0 .21-.33 1 1 0 0 0 0-.76Z"/></svg> <span class="astro-u2l5gyhi"> Next <br class="astro-u2l5gyhi"> <span class="link-title astro-u2l5gyhi">CLI</span> </span> </a> </div>  </footer> </div> </div>  </main> </div> </div> </div> </div> </body></html>
