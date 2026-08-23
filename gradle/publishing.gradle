@@ -1,0 +1,109 @@
+import org.gradle.api.publish.maven.MavenPublication
+
+// Publication identity for every Yano X artifact: shared POM metadata, the
+// staging/release repositories, and the dependency-complete runtime plugin
+// bundle publications. Applied to the root project by build.gradle.
+
+def artifactInventory = rootProject.ext.yanoXArtifactInventory
+def internalRepository = providers.gradleProperty('internalRepository')
+
+def projectUrl = 'https://github.com/bloxbean/yano-x'
+
+// One POM identity for thin modules, runtime bundles, and the BOM. Runtime
+// bundles intentionally omit the developer block, so it stays opt-out.
+ext.yanoXPom = { pom, String pomName, String pomDescription,
+                boolean withDevelopers = true ->
+    pom.name = pomName
+    pom.description = pomDescription
+    pom.url = projectUrl
+    pom.licenses {
+        license {
+            name = 'The MIT License'
+            url = 'https://opensource.org/licenses/mit-license.php'
+        }
+    }
+    if (withDevelopers) {
+        pom.developers {
+            developer {
+                id = 'satran004'
+                name = 'Satya'
+            }
+        }
+    }
+    pom.scm {
+        connection = 'scm:git:git://github.com/bloxbean/yano-x.git'
+        developerConnection = 'scm:git:ssh://git@github.com/bloxbean/yano-x.git'
+        url = projectUrl
+    }
+}
+
+// Publication repositories belong to the publication boundary, not only to
+// Java-library modules. This keeps the BOM and future non-Java publications in
+// the same isolated-staging and release workflow as thin and bundle artifacts.
+allprojects { candidate ->
+    candidate.pluginManager.withPlugin('maven-publish') {
+        candidate.publishing.repositories {
+            if (internalRepository.isPresent()) {
+                maven {
+                    name = 'internal'
+                    url = candidate.uri(internalRepository.get())
+                }
+            }
+            maven {
+                name = 'sonatype'
+                def releasesRepoUrl =
+                        'https://ossrh-staging-api.central.sonatype.com/service/local/staging/deploy/maven2/'
+                def snapshotsRepoUrl =
+                        'https://central.sonatype.com/repository/maven-snapshots/'
+                url = candidate.version.toString().endsWith('SNAPSHOT')
+                        ? snapshotsRepoUrl : releasesRepoUrl
+                credentials {
+                    username = System.getenv('MAVEN_USERNAME')
+                    password = System.getenv('MAVEN_PASSWORD')
+                }
+            }
+        }
+    }
+}
+
+// Runtime plugin bundles are shadow jars published under their own coordinate,
+// and must never leak into the thin `mavenJava` publication.
+gradle.projectsEvaluated {
+    artifactInventory.artifacts.findAll {
+        it.publicationType == 'runtime-plugin'
+    }.each { specification ->
+        def pluginProject = project(specification.modulePath.toString())
+        def shadowJar = pluginProject.tasks.named('shadowJar')
+        pluginProject.components.java.withVariantsFromConfiguration(
+                pluginProject.configurations.shadowRuntimeElements) {
+            skip()
+        }
+        def mainPublication = pluginProject.publishing.publications
+                .findByName('mavenJava') as MavenPublication
+        if (mainPublication == null) {
+            throw new GradleException(
+                    "Runtime plugin ${pluginProject.path} has no thin publication")
+        }
+        mainPublication.artifacts.findAll { artifact ->
+            artifact.classifier == 'bundle'
+        }.each { artifact -> mainPublication.artifacts.remove(artifact) }
+
+        def bundlePublication = pluginProject.publishing.publications
+                .create('pluginBundle', MavenPublication) {
+            groupId = rootProject.group.toString()
+            artifactId = specification.bundleArtifactId.toString()
+            artifact(shadowJar) {
+                classifier = null
+            }
+            rootProject.ext.yanoXPom(
+                    pom,
+                    "${specification.artifactId} deployable plugin bundle",
+                    "Dependency-complete Yano X bundle for ${specification.pluginBundleId}",
+                    false)
+        }
+        if (!pluginProject.version.toString().endsWith('SNAPSHOT')
+                && !pluginProject.hasProperty('skipSigning')) {
+            pluginProject.signing.sign(bundlePublication)
+        }
+    }
+}

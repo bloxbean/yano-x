@@ -25,56 +25,39 @@ def bundleInstallMode = { specification ->
 def canonicalBundleFileName = { specification ->
     "${specification.bundleArtifactId}-${project.version}.jar"
 }
-def bundleSpecificationsByArtifactNameLength =
-        runtimeBundleSpecifications.toSorted { left, right ->
-            right.bundleArtifactId.toString().length() <=>
-                    left.bundleArtifactId.toString().length()
-        }
-def canonicalBundleNameForResolvedFile = { String resolvedName ->
-    def specification = bundleSpecificationsByArtifactNameLength.find { candidate ->
-        resolvedName.startsWith("${candidate.bundleArtifactId}-")
+def bundleFiles = runtimeBundleSpecifications.collectEntries { specification ->
+    def bundleFile = providers.provider {
+        project(specification.modulePath.toString()).tasks.named('shadowJar')
+                .get().archiveFile.get()
     }
+    [(specification.bundleArtifactId.toString()): bundleFile]
+}
+def bundleSpecificationForFile = { String fileName ->
+    runtimeBundleSpecifications.find { specification ->
+        bundleFiles[specification.bundleArtifactId.toString()].get().asFile.name == fileName
+    }
+}
+def canonicalBundleName = { String fileName ->
+    def specification = bundleSpecificationForFile(fileName)
     if (specification == null) {
         throw new GradleException(
-                "Resolved plugin bundle has no artifact inventory entry: ${resolvedName}")
+                "Built plugin bundle has no artifact inventory entry: ${fileName}")
     }
     canonicalBundleFileName(specification)
 }
+def allBundleFiles = files(bundleFiles.values())
+def defaultBundleFiles = files(runtimeBundleSpecifications.findAll { specification ->
+    bundleInstallMode(specification) == 'default'
+}.collect { specification -> bundleFiles[specification.bundleArtifactId.toString()] })
+def optionalBundleFiles = files(runtimeBundleSpecifications.findAll { specification ->
+    bundleInstallMode(specification) == 'optional'
+}.collect { specification -> bundleFiles[specification.bundleArtifactId.toString()] })
 def packVersion = project.version.toString().replaceAll('-SNAPSHOT', '')
 def generatedPackManifest = layout.buildDirectory.file(
         'generated/distribution/plugin-pack/yano-x-plugin-pack-v1.json')
 def aggregateSbom = rootProject.ext.yanoXAggregateSbomJson
 def releaseSbom = layout.buildDirectory.file(
         'generated/distribution/sbom/yano-x.cdx.json')
-
-configurations.create('yanoExtensionBundles') {
-    canBeConsumed = false
-    canBeResolved = true
-    description = 'Dependency-complete Yano X runtime plugin bundles'
-}
-configurations.create('yanoDefaultExtensionBundles') {
-    canBeConsumed = false
-    canBeResolved = true
-    description = 'Conflict-free Yano X bundles installed in the JVM plugin directory'
-}
-configurations.create('yanoOptionalExtensionBundles') {
-    canBeConsumed = false
-    canBeResolved = true
-    description = 'Alternative Yano X bundles shipped outside the active plugin directory'
-}
-
-dependencies {
-    runtimeBundleSpecifications.each { specification ->
-        def coordinate =
-                "${inventory.group}:${specification.bundleArtifactId}:${project.version}"
-        yanoExtensionBundles(coordinate)
-        if (bundleInstallMode(specification) == 'default') {
-            yanoDefaultExtensionBundles(coordinate)
-        } else {
-            yanoOptionalExtensionBundles(coordinate)
-        }
-    }
-}
 
 def fileSha256 = { File input ->
     def digest = MessageDigest.getInstance('SHA-256')
@@ -145,45 +128,21 @@ tasks.register('normalizeYanoXReleaseSbom') {
 }
 
 tasks.register('generatePluginPackManifest') {
+    dependsOn runtimeBundleSpecifications.collect { specification ->
+        "${specification.modulePath}:shadowJar"
+    }
     group = 'distribution'
     description = 'Validates runtime bundles and writes the plugin-pack manifest.'
-    inputs.files(configurations.yanoExtensionBundles)
+    inputs.files(allBundleFiles)
     inputs.property('yanoXVersion', project.version.toString())
     outputs.file(generatedPackManifest)
 
     doLast {
-        def expected = runtimeBundleSpecifications.collectEntries { specification ->
-            [(specification.bundleArtifactId.toString()): specification]
-        }
-        def resolved = configurations.yanoExtensionBundles.resolvedConfiguration
-                .resolvedArtifacts.findAll { artifact ->
-            artifact.moduleVersion.id.group == inventory.group
-        }
-        def byArtifactId = resolved.groupBy { artifact ->
-            artifact.moduleVersion.id.name
-        }
-        def failures = []
-        expected.each { artifactId, ignored ->
-            def candidates = byArtifactId[artifactId] ?: []
-            if (candidates.size() != 1) {
-                failures.add("${artifactId} resolved ${candidates.size()} artifacts")
-            }
-        }
-        def unexpected = byArtifactId.keySet().findAll { artifactId ->
-            !expected.containsKey(artifactId)
-        }
-        if (!unexpected.isEmpty()) {
-            failures.add("Unexpected bundle artifacts: ${unexpected.sort()}")
-        }
-        if (!failures.isEmpty()) {
-            throw new GradleException('Yano X bundle resolution failed:\n - '
-                    + failures.join('\n - '))
-        }
-
-        def bundles = expected.collect { artifactId, specification ->
-            def artifact = byArtifactId[artifactId].first()
+        def bundles = runtimeBundleSpecifications.collect { specification ->
+            def artifactId = specification.bundleArtifactId.toString()
+            def artifact = bundleFiles[artifactId].get().asFile
             def manifests = []
-            new ZipFile(artifact.file).withCloseable { archive ->
+            new ZipFile(artifact).withCloseable { archive ->
                 archive.entries().findAll { entry ->
                     entry.name.startsWith('META-INF/yano/plugins/')
                             && entry.name.endsWith('.json')
@@ -206,9 +165,9 @@ tasks.register('generatePluginPackManifest') {
             [
                     artifactId: artifactId,
                     bundleId: specification.pluginBundleId,
-                    version: artifact.moduleVersion.id.version,
+                    version: project.version.toString(),
                     file: canonicalBundleFileName(specification),
-                    sha256: fileSha256(artifact.file),
+                    sha256: fileSha256(artifact),
                     installMode: bundleInstallMode(specification),
                     dependencies: (manifest.dependencies ?: []).collect { dependency ->
                         dependency.id.toString()
@@ -271,13 +230,13 @@ tasks.register('yanoXPluginPackZip', Zip) {
             into 'sbom'
         }
         from(generatedPackManifest)
-        from(configurations.yanoDefaultExtensionBundles) {
+        from(defaultBundleFiles) {
             into 'plugins'
-            rename { name -> canonicalBundleNameForResolvedFile(name) }
+            rename { name -> canonicalBundleName(name) }
         }
-        from(configurations.yanoOptionalExtensionBundles) {
+        from(optionalBundleFiles) {
             into 'optional-plugins'
-            rename { name -> canonicalBundleNameForResolvedFile(name) }
+            rename { name -> canonicalBundleName(name) }
         }
     }
 }
@@ -288,4 +247,6 @@ ext.yanoXOptionalBundleIds = optionalBundleIds
 ext.yanoXPluginPackManifest = generatedPackManifest
 ext.yanoXReleaseSbom = releaseSbom
 ext.yanoXFileSha256 = fileSha256
-ext.yanoXCanonicalBundleName = canonicalBundleNameForResolvedFile
+ext.yanoXDefaultBundleFiles = defaultBundleFiles
+ext.yanoXOptionalBundleFiles = optionalBundleFiles
+ext.yanoXCanonicalBundleName = canonicalBundleName

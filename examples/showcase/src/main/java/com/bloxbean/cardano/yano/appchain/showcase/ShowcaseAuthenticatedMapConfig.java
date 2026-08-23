@@ -16,6 +16,7 @@ import com.bloxbean.cardano.yano.appchain.roles.contracts.RecordStatus;
 import com.bloxbean.cardano.yano.appchain.stdlib.AuthenticatedMapGenesisFactory;
 import com.bloxbean.cardano.yano.appchain.stdlib.contracts.AuthenticatedMapContract;
 import com.bloxbean.cardano.yano.appchain.stdlib.contracts.AuthenticatedMapSchema;
+import com.bloxbean.cardano.yano.catalog.CatalogDigests;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -62,8 +63,7 @@ public final class ShowcaseAuthenticatedMapConfig {
             Options options = Options.parse(arguments);
             Map<String, String> settings;
             String prefix;
-            byte[] closureDigest = catalogArtifactClosure(
-                    options.runtimeJar(), VALIDATOR_BUNDLE_ID);
+            byte[] closureDigest = validatorArtifactClosure(options.validatorBundle());
             if (JMT_CHAIN_ID.equals(options.chainId())) {
                 settings = jmtSettings(options.chainId(), options.members(),
                         options.threshold(), closureDigest);
@@ -285,6 +285,12 @@ public final class ShowcaseAuthenticatedMapConfig {
         }
     }
 
+    static byte[] validatorArtifactClosure(Path validatorBundle) throws IOException {
+        CatalogDigests.Digest closure = CatalogDigests.artifactClosure(
+                List.of(CatalogDigests.artifact(validatorBundle)));
+        return HexFormat.of().parseHex(closure.value().substring(SHA256_PREFIX.length()));
+    }
+
     static byte[] catalogArtifactClosure(byte[] encodedCatalog, String bundleId) {
         try {
             JsonNode root = JSON.readTree(encodedCatalog);
@@ -369,9 +375,10 @@ public final class ShowcaseAuthenticatedMapConfig {
             List<AuthenticatedMapContract.ValidatorDescriptor> validators) {
     }
 
-    private record Options(Path runtimeJar, String chainId, List<String> members, int threshold) {
+    private record Options(Path validatorBundle, String chainId,
+                           List<String> members, int threshold) {
         private static Options parse(String[] arguments) {
-            Path runtimeJar = null;
+            Path validatorBundle = null;
             String chainId = CHAIN_ID;
             List<String> members = null;
             Integer threshold = null;
@@ -381,7 +388,7 @@ public final class ShowcaseAuthenticatedMapConfig {
                 }
                 String value = arguments[index + 1];
                 switch (arguments[index]) {
-                    case "--runtime-jar" -> runtimeJar = Path.of(value);
+                    case "--validator-bundle" -> validatorBundle = Path.of(value);
                     case "--chain-id" -> chainId = value;
                     case "--members" -> members = List.of(value.split(",", -1));
                     case "--threshold" -> {
@@ -394,15 +401,15 @@ public final class ShowcaseAuthenticatedMapConfig {
                     default -> throw usage();
                 }
             }
-            if (runtimeJar == null || members == null || threshold == null) {
+            if (validatorBundle == null || members == null || threshold == null) {
                 throw usage();
             }
-            return new Options(runtimeJar, chainId, members, threshold);
+            return new Options(validatorBundle, chainId, members, threshold);
         }
 
         private static IllegalArgumentException usage() {
             return new IllegalArgumentException("usage: ShowcaseAuthenticatedMapConfig "
-                    + "--runtime-jar <yano.jar> --chain-id <id> "
+                    + "--validator-bundle <bundle.jar> --chain-id <id> "
                     + "--members <public-key,...> --threshold <n>");
         }
     }

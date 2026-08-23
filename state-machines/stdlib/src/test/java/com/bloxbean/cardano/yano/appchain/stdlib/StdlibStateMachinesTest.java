@@ -41,7 +41,7 @@ class StdlibStateMachinesTest {
     void tearDown() {
         for (AppChainSubsystem node : nodes) {
             try {
-                node.stop();
+                node.close();
             } catch (Exception ignored) {
             }
         }

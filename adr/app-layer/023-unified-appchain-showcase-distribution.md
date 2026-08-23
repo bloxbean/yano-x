@@ -17,12 +17,12 @@ BloxBean Team
 
 ## Parent and related decisions
 
-- [ADR-005](005-yano-app-chain-framework.md) owns deterministic app-chain
+- [ADR-005](https://github.com/bloxbean/yano/blob/main/adr/app-layer/005-yano-app-chain-framework.md) owns deterministic app-chain
   execution, consensus, authenticated state, proofs, finality, and Cardano
   anchoring.
-- [ADR-008.4](008.4-script-anchors-l1view.md) owns Cardano script anchors and
+- [ADR-008.4](https://github.com/bloxbean/yano/blob/main/adr/app-layer/008.4-script-anchors-l1view.md) owns Cardano script anchors and
   L1 observation.
-- [ADR-010](010-deterministic-effect-system.md) owns deterministic effect
+- [ADR-010](https://github.com/bloxbean/yano/blob/main/adr/app-layer/010-deterministic-effect-system.md) owns deterministic effect
   intent, execution, result incorporation, and proof boundaries.
 - [ADR-011](011-plugin-architecture.md) owns manifested plugin contributions
   and loading.
@@ -46,7 +46,7 @@ BloxBean Team
   detection.
 - [EUTxO ADR-002](utxo/002-unified-eutxo-demo-experience.md) owns the unified
   EUTxO demo experience.
-- Root [ADR-028](../028-unified-console-ui-module.md) owns the runtime console
+- Root [ADR-028](https://github.com/bloxbean/yano/blob/main/adr/028-unified-console-ui-module.md) owns the runtime console
   UI.
 
 ---

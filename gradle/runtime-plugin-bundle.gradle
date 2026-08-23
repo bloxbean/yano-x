@@ -50,8 +50,10 @@ tasks.named('shadowJar') {
             if (componentId instanceof
                     org.gradle.api.artifacts.component.ProjectComponentIdentifier) {
                 def dependencyProject = project.project(componentId.projectPath)
+                def dependencyAllocation =
+                        rootProject.ext.artifactByPath[dependencyProject.path]
                 if (dependencyProject != project
-                        && dependencyProject.hasProperty('runtimePluginBundleId')
+                        && dependencyAllocation?.publicationType == 'runtime-plugin'
                         && artifact.file.name.endsWith('.jar')) {
                     new java.util.zip.ZipFile(artifact.file).withCloseable { zip ->
                         zip.entries().each { entry ->

@@ -36,9 +36,18 @@ until FINALIZED="$(curl -fsS \
 done
 printf '%s\n' "$FINALIZED" | jq '{messageId,height,index,topic,bodyHex}'
 
-curl -fsS \
-  "$BASE/api/v1/app-chain/chains/orders-chain/state/proof/$MESSAGE_ID" | jq .
+curl -fsS -X POST \
+  "$BASE/api/v1/app-chain/chains/orders-chain/proof-subjects/finalized-message-v1/proof" \
+  -H 'Content-Type: application/json' \
+  -d "$(jq -nc --arg id "$MESSAGE_ID" '
+    {coordinates:{"message-id":$id}, view:"latest",
+     claim:{claimId:"recorded",operands:{}}, includeEvidence:false}')" \
+  | jq '{proof:.proof,position:.fact.fields,claim:.claimResult}'
 ```
+
+The typed subject resolves the public message ID to the reserved physical MPF
+key. The lower-level `state/proof/{keyHex}` route accepts that physical key,
+not the message ID.
 
 The packaged helper is the same operation, kept deliberately visible:
 

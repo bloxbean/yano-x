@@ -100,6 +100,9 @@ CONNECTOR_S3_IP="${YANO_DEPLOYMENT_PARITY_S3_IP:-172.30.116.10}"
 CONNECTOR_KUBO_IP="${YANO_DEPLOYMENT_PARITY_KUBO_IP:-172.30.116.11}"
 CONNECTOR_KAFKA_IP="${YANO_DEPLOYMENT_PARITY_KAFKA_IP:-172.30.116.12}"
 SCENARIO_TIMEOUT="${YANO_DEPLOYMENT_PARITY_TIMEOUT_SECONDS:-600}"
+# A low, steady L1 heartbeat lets slow CI followers recover without flooding
+# them with the hundreds of empty blocks produced by the showcase cadence.
+export DEMO_DEVNET_BLOCK_TIME_MILLIS=10000
 
 # Validate every environment-controlled number before Bash arithmetic. Bash
 # arithmetic recursively evaluates input and therefore must never see raw text.
@@ -270,6 +273,18 @@ NODE_IMAGE_CLAIMED=true
 RUNNER_IMAGE_CLAIMED=true
 
 port_free() { ! lsof -nP -iTCP:"$1" -sTCP:LISTEN >/dev/null 2>&1; }
+published_port_accepting() {
+  python3 - "$1" <<'PY'
+import socket
+import sys
+
+try:
+    connection = socket.create_connection(("127.0.0.1", int(sys.argv[1])), timeout=3)
+except OSError:
+    raise SystemExit(1)
+connection.close()
+PY
+}
 PORTS="$COMPOSE_HTTP_BASE $((COMPOSE_HTTP_BASE + 1)) $((COMPOSE_HTTP_BASE + 2)) \
 $COMPOSE_UI_PORT $COMPOSE_SERVER_BASE $((COMPOSE_SERVER_BASE + 1)) $((COMPOSE_SERVER_BASE + 2)) \
 $HOST_HTTP_BASE $((HOST_HTTP_BASE + 1)) $((HOST_HTTP_BASE + 2)) \
@@ -653,6 +668,7 @@ assert_plugin_inventory() {
     wait_authenticated_json \
       "http://127.0.0.1:$port/api/v1/plugin-operations/bundles?limit=100" \
       '(.items | map(select(.selected)) | map(.id)) == [
+          "com.bloxbean.cardano.yano.appchain.composite",
           "com.bloxbean.cardano.yano.appchain.evidence-profile",
           "com.bloxbean.cardano.yano.appchain.evidence-registry",
           "com.bloxbean.cardano.yano.appchain.ipfs",
@@ -665,16 +681,18 @@ assert_plugin_inventory() {
           and (.lifecycle == "VALIDATED" or .lifecycle == "ACTIVE")
           and (.health == "UNKNOWN" or .health == "UP")
           and .failure.code == "NONE" and .metricsStale == false))
-        and ([.items[] | select(.selected) | .contributionCount] | add) == 23
+        and ([.items[] | select(.selected) | .contributionCount] | add) == 24
         and .nextAfter == null' "$bundles" "$key_file" \
       || fail "$phase node $node plugin inventory differs from the demo catalog"
     fingerprint="$(jq -r '.catalogFingerprint' "$summary")"
-    jq -e --arg fingerprint "$fingerprint" '
+    if ! jq -e --arg fingerprint "$fingerprint" '
       .catalogFingerprint == $fingerprint and .pluginApiMajor == 3
       and .pluginApiLevel == 4 and .totals.selectedBundles == 8
       and .totals.failedBundles == 0 and .totals.degradedBundles == 0
-      and .totals.staleSources == 0' "$summary" >/dev/null \
-      || fail "$phase node $node plugin summary is unhealthy"
+      and .totals.staleSources == 0' "$summary" >/dev/null; then
+      jq -c '{pluginApiMajor, pluginApiLevel, totals}' "$summary" >&2 || true
+      fail "$phase node $node plugin summary is unhealthy"
+    fi
     jq -e --arg fingerprint "$fingerprint" '.catalogFingerprint == $fingerprint' \
       "$bundles" >/dev/null || fail "$phase node $node plugin snapshots disagree"
     if [ -z "$expected" ]; then expected="$fingerprint"; else
@@ -715,7 +733,7 @@ def sample(name, label):
 
 sample("yano_appchain_tip_height", f'chain="{chain}"')
 sample("yano_appchain_effects_open", f'chain="{chain}"')
-if sample("yano_plugin_bundles", 'state="selected"') != 7:
+if sample("yano_plugin_bundles", 'state="selected"') != 8:
     raise SystemExit(1)
 PY
   done
@@ -838,6 +856,25 @@ assert_report() {
 }
 
 LAST_REPORT=""
+scenario_failure_diagnostics() {
+  local deployment="$1" base="$2" chain="$3" node port status
+  note "Scenario failure diagnostics for $deployment follow:" >&2
+  for node in 0 1 2; do
+    port=$((base + node))
+    status="$ROOT/failure-$deployment-node$node-status.json"
+    if bounded_get "http://127.0.0.1:$port/api/v1/app-chain/chains/$chain/status" \
+        "$status" 1048576 2>/dev/null; then
+      jq -c '{chainId,running,tipHeight,stateRoot,memberKey,anchor}' "$status" >&2 || true
+    else
+      note "$deployment node $node status unavailable" >&2
+    fi
+  done
+  if [ "$deployment" = compose ]; then
+    dc_compose logs --no-color --tail 120 yano-0 yano-1 yano-2 2>&1 \
+      | tail -n 360 >&2 || true
+  fi
+}
+
 run_and_capture() {
   local deployment="$1" report_dir="$2" evidence="$3" chain="$4" label="$5"
   local output scenario report
@@ -850,6 +887,7 @@ run_and_capture() {
         jq -c '{outcome, failureCode, checks}' \
           "$report_dir/latest.json" >&2 || true
       fi
+      scenario_failure_diagnostics compose "$COMPOSE_HTTP_BASE" "$chain"
       fail "$label scenario command failed"
     fi
   else
@@ -860,6 +898,7 @@ run_and_capture() {
         jq -c '{outcome, failureCode, checks}' \
           "$report_dir/latest.json" >&2 || true
       fi
+      scenario_failure_diagnostics host "$HOST_HTTP_BASE" "$chain"
       fail "$label scenario command failed"
     fi
   fi
@@ -1126,7 +1165,8 @@ assert_ui_latest compose-post-restart "$COMPOSE_UI_PORT" "$COMPOSE_POST_RESTART"
 # The Compose stack deliberately remains live here. Host mode reaches the same
 # connector instances only through their loopback-published normal endpoints.
 for port in "$CONNECTOR_KAFKA_PORT" "$CONNECTOR_S3_PORT" "$CONNECTOR_IPFS_PORT"; do
-  port_free "$port" && fail "Compose connector stopped before host parity: $port"
+  published_port_accepting "$port" \
+    || fail "Compose connector stopped before host parity: $port"
 done
 for service in kafka rustfs kubo; do
   container="$(dc_compose ps -q "$service")"

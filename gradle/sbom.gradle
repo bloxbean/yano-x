@@ -1,0 +1,35 @@
+// CycloneDX release SBOM wiring. Applied to the root project by build.gradle.
+//
+// Only release-relevant projects contribute a direct BOM; the aggregate is
+// consumed by the distribution boundary via `yanoXAggregateSbomJson`.
+
+def artifactByPath = rootProject.ext.artifactByPath
+def aggregateSbomJson = layout.buildDirectory.file(
+        "reports/cyclonedx/yano-x-${project.version}.cdx.json")
+def releaseSbomProjectPaths = (artifactByPath.keySet().findAll { path ->
+    path != ':fixtures:eutxo-e2e'
+} + [':distribution:jvm']) as Set
+
+allprojects { candidate ->
+    candidate.tasks.named('cyclonedxDirectBom') {
+        enabled = candidate == rootProject
+                || releaseSbomProjectPaths.contains(candidate.path)
+        includeConfigs = [
+                'runtimeClasspath',
+                'yanoHostRuntime'
+        ]
+        includeBomSerialNumber = false
+        includeBuildSystem = false
+    }
+}
+
+tasks.named('cyclonedxBom') {
+    includeBomSerialNumber = false
+    includeBuildSystem = false
+    componentName = 'yano-x'
+    projectType = 'application'
+    jsonOutput = aggregateSbomJson
+    xmlOutput.convention((org.gradle.api.file.RegularFile) null)
+}
+
+ext.yanoXAggregateSbomJson = aggregateSbomJson

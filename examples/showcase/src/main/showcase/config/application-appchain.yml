@@ -9,6 +9,7 @@ yano:
       - com.bloxbean.cardano.yano.appchain.stdlib
       - com.bloxbean.cardano.yano.appchain.authenticated-map-validators
       - com.bloxbean.cardano.yano.appchain.role-workflow
+      - com.bloxbean.cardano.yano.appchain.composite
       - com.bloxbean.cardano.yano.appchain.eutxo
       # ADR-UTXO-009: L1 vault-deposit + BATCH withdrawal-confirmation
       # observers and the eutxo-settlement effect executor for

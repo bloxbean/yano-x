@@ -119,8 +119,7 @@ final class RoleEvidenceReleaseWorkflow implements CompositeWorkflow {
                     command.evidenceCommand());
             if (!documentMachine.validate(documentMessage).isAccepted()
                     || !evidenceMachine.validate(evidenceMessage).isAccepted()
-                    || !evidenceMachine.canApplyStorage(evidenceMessage,
-                    command.evidenceStorageCommand(), evidenceState)) continue;
+                    || !evidenceMachine.canApplyStorage(evidenceMessage, evidenceState)) continue;
             if (context.claim(command.releaseId(), command.commandHash())
                     != CompositeWorkflowContext.ClaimResult.CLAIMED) continue;
             TransitionPlans.commitIfApproved(documentTransitions.decide(

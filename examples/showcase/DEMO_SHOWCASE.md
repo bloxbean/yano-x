@@ -42,13 +42,24 @@ Last verified live: 2026-08-05 on a 3-node cluster.
 ## 1. Build and extract
 
 ```bash
-cd ~/work/bloxbean/yano
-./gradlew :examples:showcase:distZip
+cd ~/work/bloxbean/yano-x
+# For a clean checkout, first run the two-step full-build workflow so the
+# isolated repository below contains all Yano X bundle publications.
+./gradlew :examples:showcase:distZip \
+  -PinternalRepository=/absolute/path/to/yano-x-staging \
+  -PyanoVersion=<published-yano-version> \
+  -PyanoJvmDist=/absolute/path/to/yano-<build-identity>.zip \
+  -PuseMavenLocal=true
 # → examples/showcase/build/distributions/yano-showcase-<version>.zip
 
-unzip yano-showcase-*.zip -d ~/showcase && cd ~/showcase/yano-showcase-*
+unzip examples/showcase/build/distributions/yano-showcase-*.zip -d ~/showcase
+cd ~/showcase/yano-showcase-*
 ./showcase.sh doctor          # Java 25, Python 3, curl, jq, packaged artifacts
 ```
+
+For coordinated local development, first run `publishToMavenLocal` and
+`:app:yanoDistZip` in the matching Yano checkout as described in the repository
+[build guide](../../docs/BUILD_AND_TEST.md).
 
 ## 2. Start a cluster
 
@@ -157,8 +168,11 @@ Plain text messages, total ordering, per-message inclusion proof.
 
 ```bash
 ./showcase.sh run orders --instance demo
-# manual: submit text (above), then
-curl -s $BASE/app-chain/chains/orders-chain/state/proof/<messageIdHex> | jq '{committedHeight,stateRoot}'
+# manual: submit text (above), then use the typed proof subject
+curl -s -X POST $BASE/app-chain/chains/orders-chain/proof-subjects/finalized-message-v1/proof \
+  -H 'Content-Type: application/json' \
+  -d '{"coordinates":{"message-id":"<messageIdHex>"},"view":"latest","claim":{"claimId":"recorded","operands":{}},"includeEvidence":false}' \
+  | jq '{stateRoot:.proof.stateRoot,presence:.proof.presence,position:.fact.fields,claim:.claimResult.satisfied}'
 ```
 
 ### registry-chain — key/value

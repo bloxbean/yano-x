@@ -37,7 +37,7 @@ Yano maintainers and app-chain/EUTxO capability owners.
   isolation and lifecycle.
 - [ADR-022](../022-out-of-box-appchain-capabilities-and-extensible-product-catalog.md)
   owns the out-of-box capability catalog and extension model.
-- [ADR-028](../../028-unified-console-ui-module.md) owns runtime-console UI
+- [ADR-028](https://github.com/bloxbean/yano/blob/main/adr/028-unified-console-ui-module.md) owns runtime-console UI
   concerns. This ADR may provide links and public demo status, but it does not
   define new console architecture.
 

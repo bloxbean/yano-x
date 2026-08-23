@@ -6,8 +6,7 @@ plugins {
 description = 'Version alignment platform for Yano X extensions and their Yano host'
 
 def yanoVersion = providers.gradleProperty('yanoVersion')
-def artifactInventory = new groovy.json.JsonSlurper().parse(
-        rootProject.file('config/artifacts-v1.json'))
+def artifactInventory = rootProject.ext.yanoXArtifactInventory
 
 javaPlatform {
     allowDependencies()
@@ -30,28 +29,10 @@ publishing {
         mavenJava(MavenPublication) {
             artifactId = 'yano-x-bom'
             from components.javaPlatform
-            pom {
-                name = 'Yano X BOM'
-                description = 'Version alignment for the Yano X JVM extension ecosystem'
-                url = 'https://github.com/bloxbean/yano-x'
-                licenses {
-                    license {
-                        name = 'The MIT License'
-                        url = 'https://opensource.org/licenses/mit-license.php'
-                    }
-                }
-                developers {
-                    developer {
-                        id = 'satran004'
-                        name = 'Satya'
-                    }
-                }
-                scm {
-                    connection = 'scm:git:git://github.com/bloxbean/yano-x.git'
-                    developerConnection = 'scm:git:ssh://git@github.com/bloxbean/yano-x.git'
-                    url = 'https://github.com/bloxbean/yano-x'
-                }
-            }
+            rootProject.ext.yanoXPom(
+                    pom,
+                    'Yano X BOM',
+                    'Version alignment for the Yano X JVM extension ecosystem')
         }
     }
 }

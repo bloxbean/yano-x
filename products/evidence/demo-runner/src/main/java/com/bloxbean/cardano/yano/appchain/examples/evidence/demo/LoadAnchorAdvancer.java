@@ -3,7 +3,7 @@ package com.bloxbean.cardano.yano.appchain.examples.evidence.demo;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicLong;
 
-/** Throttles best-effort force-anchor requests shared by all load workers. */
+/** Throttles best-effort force-anchor requests for a scenario or shared load workers. */
 final class LoadAnchorAdvancer {
     private static final long MINIMUM_INTERVAL_NANOS = Duration.ofSeconds(2).toNanos();
 

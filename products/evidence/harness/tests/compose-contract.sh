@@ -142,7 +142,8 @@ jq -e '
   and .services."yano-1".depends_on."leader-warmup".condition == "service_completed_successfully"
   and .services."leader-warmup".depends_on."yano-0".condition == "service_healthy"
   and all([.services."yano-0",.services."yano-1",.services."yano-2"][];
-      .environment.QUARKUS_CONFIG_LOCATIONS == "file:/run/demo/node.properties")
+      .environment.QUARKUS_CONFIG_LOCATIONS == "file:/run/demo/node.properties"
+      and (.tmpfs | index("/tmp:size=512m,mode=1777,exec") != null))
 ' "$JSON" >/dev/null || fail "startup ordering/config/health contract is incorrect"
 
 ! grep -Eq 'apt-get|apt[[:space:]]+install|curl|wget' \

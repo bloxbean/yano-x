@@ -160,24 +160,24 @@ materially different architecture is being proposed.
 
 ## Related decisions and implementation surfaces
 
-- [ADR-005](../005-yano-app-chain-framework.md) defines the app-chain runtime,
+- [ADR-005](https://github.com/bloxbean/yano/blob/main/adr/app-layer/005-yano-app-chain-framework.md) defines the app-chain runtime,
   configuration, finality, storage, and anchoring foundation.
-- [ADR-008](../008-appchain-next-iteration-plan.md) identifies developer
+- [ADR-008](https://github.com/bloxbean/yano/blob/main/adr/app-layer/008-appchain-next-iteration-plan.md) identifies developer
   experience and enterprise polish as an app-chain delivery track.
-- [ADR-008.2](../008.2-rotating-sequencer.md),
-  [ADR-008.3](../008.3-chain-governed-membership.md), and
-  [ADR-008.4](../008.4-script-anchors-l1view.md) define sequencing,
+- [ADR-008.2](https://github.com/bloxbean/yano/blob/main/adr/app-layer/008.2-rotating-sequencer.md),
+  [ADR-008.3](https://github.com/bloxbean/yano/blob/main/adr/app-layer/008.3-chain-governed-membership.md), and
+  [ADR-008.4](https://github.com/bloxbean/yano/blob/main/adr/app-layer/008.4-script-anchors-l1view.md) define sequencing,
   membership, and settlement choices that onboarding must model safely.
-- [ADR-010](../010-deterministic-effect-system.md) defines deterministic
+- [ADR-010](https://github.com/bloxbean/yano/blob/main/adr/app-layer/010-deterministic-effect-system.md) defines deterministic
   effect intent, execution roles, gates, outcomes, and retention.
-- [ADR-011.2](../011.2-manifested-bundle-catalog.md) defines the strict runtime
+- [ADR-011.2](https://github.com/bloxbean/yano/blob/main/adr/app-layer/011.2-manifested-bundle-catalog.md) defines the strict runtime
   plugin manifest and catalog contract.
 - [ADR-013](../013-first-party-integration-connectors-and-effect-demo.md)
   defines first-party connector bundles and the complete evidence demo.
 - [ADR-013.2](../013.2-deterministic-composite-state-machine.md) and
   [ADR-015](../015-governed-composite-profile-evolution.md) define committed
   composite profiles and governed evolution.
-- [ADR-016](../016-authenticated-appchain-consensus-profile-and-typed-runtime-limits.md)
+- [ADR-016](https://github.com/bloxbean/yano/blob/main/adr/app-layer/016-authenticated-appchain-consensus-profile-and-typed-runtime-limits.md)
   defines authenticated consensus-profile values and bounded runtime limits.
 - [ADR-019](../019-reusable-domain-actor-registry-and-role-aware-approvals.md)
   defines business-actor identities and role-aware evidence workflows.

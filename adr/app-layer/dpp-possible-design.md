@@ -8,10 +8,10 @@
 - **Purpose:** Preserve a possible Digital Product Passport (DPP) design for later ADR and implementation work
 - **Primary source:** [Cardano Foundation DPP Blueprint for Cardano v0.1](https://github.com/cardano-foundation/cardano-dpp-standards/blob/main/DPP-Blueprint-Cardano-v0.1.md)
 - **Related Yano ADRs:**
-  [ADR-005](../app-layer/005-yano-app-chain-framework.md),
+  [ADR-005](https://github.com/bloxbean/yano/blob/main/adr/app-layer/005-yano-app-chain-framework.md),
   [ADR-006](../app-layer/006-appchain-enterprise-extensions-and-zk.md),
-  [ADR-010](../app-layer/010-deterministic-effect-system.md),
-  [ADR-010.1](../app-layer/010.1-emission-versioning.md),
+  [ADR-010](https://github.com/bloxbean/yano/blob/main/adr/app-layer/010-deterministic-effect-system.md),
+  [ADR-010.1](https://github.com/bloxbean/yano/blob/main/adr/app-layer/010.1-emission-versioning.md),
   [ADR-011](../app-layer/011-plugin-architecture.md), and
   [ADR-012](../app-layer/012-multi-source-oracle-and-cardano-publication.md)
 

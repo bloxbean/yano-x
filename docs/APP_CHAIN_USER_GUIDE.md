@@ -39,7 +39,7 @@ yaci `core/src/main/cddl/appmsg/` and yano `core-api/src/main/cddl/appchain/`.
 The default distribution bundles the app-chain core, standard state machines,
 generic composite and role products, and the preview evidence product. Client
 libraries are application dependencies; Kafka, S3, IPFS, Cardano and ZK are
-separately installed or build-time-included plugins (group id
+separately installed JVM plugin bundles (group id
 `com.bloxbean.cardano`):
 
 | Artifact | Repo path | Purpose |
@@ -768,10 +768,11 @@ The plugin template ships this test pre-wired (`CounterConformanceTest`).
 
 ServiceLoader-only legacy providers remain a temporary compatibility path for
 self-contained JARs loaded from the JVM plugin directory (and for explicit
-library compatibility mode). Packaged JVM/native build-time inclusion requires
-the bundle manifest: strict index generation cannot safely assign an
-unmanifested provider's external dependencies to a bundle closure and tells
-the developer to add a manifest or use the JVM directory bundle.
+library compatibility mode). Packaged JVM inclusion requires the bundle
+manifest: strict index generation cannot safely assign an unmanifested
+provider's external dependencies to a bundle closure and tells the developer
+to add a manifest or use the JVM directory bundle. Yano X does not publish
+native extension bundles.
 
 ### 6.2 Embed programmatically (library mode)
 

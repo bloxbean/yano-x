@@ -1,0 +1,4 @@
+interface:
+  display_name: "Build Yano X"
+  short_description: "Build and stage Yano X against Yano"
+  default_prompt: "Use $build-yano-x to run the appropriate clean build and verification workflow."

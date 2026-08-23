@@ -11,13 +11,35 @@ plugins {
 description = 'Yano X JVM distribution assembly boundary'
 
 def yanoVersion = providers.gradleProperty('yanoVersion')
-def yanoJvmDist = providers.gradleProperty('yanoJvmDist').map { file(it) }
+def configuredYanoJvmDist = providers.gradleProperty('yanoJvmDist').map { file(it) }
 
 configurations {
     yanoHostRuntime {
         canBeConsumed = false
         canBeResolved = true
         description = 'Published Yano host artifacts aligned by yano-bom'
+    }
+    yanoReleaseJvmDist {
+        canBeConsumed = false
+        canBeResolved = true
+        transitive = false
+        description = 'Ordinary Yano JVM ZIP from the matching GitHub release'
+    }
+}
+
+repositories {
+    ivy {
+        name = 'yanoGitHubReleases'
+        url = uri('https://github.com/bloxbean/yano/releases/download')
+        patternLayout {
+            artifact 'v[revision]/[artifact]-[revision].[ext]'
+        }
+        metadataSources {
+            artifact()
+        }
+        content {
+            includeModule 'com.bloxbean.cardano.yano-release', 'yano'
+        }
     }
 }
 
@@ -28,12 +50,32 @@ dependencies {
     yanoHostRuntime 'com.bloxbean.cardano:yano-runtime'
     yanoHostRuntime 'com.bloxbean.cardano:yano-appchain-config'
     yanoHostRuntime 'com.bloxbean.cardano:yano-appchain-proof-verifier'
+    yanoReleaseJvmDist(
+            "com.bloxbean.cardano.yano-release:yano:"
+                    + "${yanoVersion.getOrElse('unspecified')}@zip")
 }
+
+def releasedYanoJvmDist = providers.provider {
+    def requestedVersion = yanoVersion.getOrNull()
+    if (requestedVersion == null) {
+        throw new GradleException('yanoVersion is required')
+    }
+    if (requestedVersion.endsWith('-SNAPSHOT')) {
+        throw new GradleException(
+                'yanoJvmDist is required for snapshot or locally staged Yano versions')
+    }
+    configurations.yanoReleaseJvmDist.singleFile
+}
+def yanoJvmDist = configuredYanoJvmDist.orElse(releasedYanoJvmDist)
+def yanoJvmDistSource = configuredYanoJvmDist.map { 'local-override' }
+        .orElse(providers.provider { 'github-release' })
+ext.yanoXBaseJvmDistribution = yanoJvmDist
 
 tasks.register('verifyYanoInputs') {
     group = 'verification'
-    description = 'Rejects mismatched Yano Maven artifacts and JVM ZIP build identities.'
+    description = 'Resolves and verifies matching Yano Maven and JVM ZIP build identities.'
     inputs.property('yanoVersion', yanoVersion).optional(true)
+    inputs.property('yanoJvmDistSource', yanoJvmDistSource)
     inputs.files(yanoJvmDist).withPropertyName('yanoJvmDist').optional()
     def report = layout.buildDirectory.file('reports/yano-inputs.json')
     outputs.file(report)
@@ -41,9 +83,6 @@ tasks.register('verifyYanoInputs') {
     doLast {
         if (!yanoVersion.isPresent()) {
             throw new GradleException('yanoVersion is required')
-        }
-        if (!yanoJvmDist.isPresent()) {
-            throw new GradleException('yanoJvmDist is required')
         }
         def expectedVersion = yanoVersion.get()
         def distribution = yanoJvmDist.get()
@@ -151,13 +190,16 @@ tasks.register('verifyYanoInputs') {
                 distributionImplementationVersion: implementationVersion,
                 distributionContract: distributionManifest,
                 distributionSha256: digest.digest().encodeHex().toString(),
+                distributionSource: yanoJvmDistSource.get(),
                 resolvedArtifacts: yanoComponents
         ]
         def output = report.get().asFile
         output.parentFile.mkdirs()
         output.setText(JsonOutput.prettyPrint(JsonOutput.toJson(body)) + '\n', 'UTF-8')
-        logger.lifecycle('Verified Yano {} against {} published artifacts and JVM ZIP {}',
-                expectedVersion, yanoComponents.size(), distribution.name)
+        logger.lifecycle(
+                'Verified Yano {} against {} published artifacts and JVM ZIP {} ({})',
+                expectedVersion, yanoComponents.size(), distribution.name,
+                yanoJvmDistSource.get())
     }
 }
 

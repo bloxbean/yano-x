@@ -42,6 +42,8 @@ fi
 if grep -Fq 'sed "s|@$key@|' "$DEMO_DIR/demo.sh"; then
   fail "template values can leak through an external sed command argument"
 fi
+[ "$(grep -Fc 'wait_for_anchor_bootstrapped "$base"' "$DEMO_DIR/demo.sh")" -eq 2 ] \
+  || fail "Compose and host startup must both await confirmed anchor bootstrap"
 
 # Invalid identity and numeric inputs must fail before creating any managed root.
 INVALID_ROOT="$TMP/invalid"
@@ -572,6 +574,9 @@ timestamp="$SHARED_GENESIS_ROOT/genesis-timestamp"
 configured="$(grep -h '^yano.block-producer.genesis-timestamp=' "$NODE_DIR"/*.properties \
   | cut -d= -f2 | sort -u)"
 [ "$configured" = "$(cat "$timestamp")" ] || fail "nodes do not share the genesis timestamp"
+[ "$(grep -hFx 'yano.block-producer.block-time-millis=1000' \
+  "$NODE_DIR"/*.properties | wc -l | tr -d ' ')" -eq 1 ] \
+  || fail "devnet producer does not use the catch-up-safe cadence"
 expected_start="$(python3 - "$timestamp" <<'PY'
 from datetime import datetime, timezone
 from pathlib import Path
@@ -801,6 +806,9 @@ PREVIEW_SECRET="$TMP/secrets/networks/preview/preview-safe/compose"
 PREVIEW_RUNTIME="$TMP/runtime/networks/preview/preview-safe/compose"
 PREVIEW_NODE="$PREVIEW_SECRET/nodes-compose/node0.properties"
 PREVIEW_RUNNER="$PREVIEW_RUNTIME/runner-compose.properties"
+if grep -Fq 'yano.block-producer.block-time-millis=' "$PREVIEW_NODE"; then
+  fail "preview producer cadence must remain genesis-driven"
+fi
 grep -Fxq 'yano.app-chain.chains[0].machines.evidence-registry.storage-gate=app-final' \
   "$PREVIEW_NODE" || fail "preview does not default to APP_FINAL storage"
 grep -Fxq 'scenario.require-anchor=false' "$PREVIEW_RUNNER" \

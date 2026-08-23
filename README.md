@@ -2,9 +2,19 @@
 
 Yano X is the JVM extension and application ecosystem for Yano.
 
-The build consumes published Yano artifacts and an explicit Yano JVM ZIP. It
-does not invoke tasks in, copy sources from, or assume the location of a Yano
-checkout.
+The build consumes published Yano artifacts and the matching ordinary Yano JVM
+ZIP. For a released `yanoVersion`, Gradle downloads and caches the ZIP from the
+matching `bloxbean/yano` GitHub release. `yanoJvmDist` remains an explicit
+override for local or staged builds. The build does not invoke tasks in, copy
+sources from, or assume the location of a Yano checkout.
+
+For a released Yano version:
+
+```bash
+./gradlew distributionCheck \
+  -Pversion=<yano-x-version> \
+  -PyanoVersion=<released-yano-version>
+```
 
 ## Local development
 
@@ -41,26 +51,34 @@ Yano X is JVM-only. `verifyJvmOnlyBuild` rejects native-image build or
 distribution tasks, while the Yano base ZIP contract records whether its
 plugin directory is supported.
 
-`mavenLocal()` is disabled unless `useMavenLocal=true`. A missing ZIP, a ZIP
-whose root build identity differs from `yanoVersion`, or Maven artifacts from
-another Yano version fail verification.
+`mavenLocal()` is disabled unless `useMavenLocal=true`. A missing release asset,
+a ZIP whose root build identity differs from `yanoVersion`, or Maven artifacts
+from another Yano version fail verification.
 
-CI stages Yano X's own publications in an empty, build-scoped Maven repository
-using `-PinternalRepository=<path>`. This exercises published POM and bundle
-coordinates without depending on global Maven Local state. Set
+Distributions use the dependency-complete bundle outputs that are attached to
+Yano X's Maven publications, so `./gradlew clean build` does not first need to
+resolve the project's own artifacts. CI also stages all publications in an
+empty, build-scoped Maven repository using `-PinternalRepository=<path>`. Set
 `-PyanoRepository=<URL-or-path>` when the requested Yano version is in a staging
 repository rather than Maven Central; this read-only input is distinct from the
 build-scoped Yano X publication repository.
 
-Release rehearsal must disable Maven Local and pin every input explicitly:
+Release rehearsal must disable Maven Local and pin every input explicitly. For
+an empty build-scoped repository, run the clean build and publication gates:
 
 ```bash
-./gradlew clean check distributionCheck \
+./gradlew clean build \
+  -Pversion=<yano-x-version> \
+  -PyanoRepository=/absolute/path/to/yano-staging \
+  -PyanoVersion=<staged-yano-version> \
+  -PyanoJvmDist=/absolute/path/to/yano-<build-identity>.zip \
+  -PuseMavenLocal=false
+
+./gradlew publishAllPublicationsToInternalRepository \
   -Pversion=<yano-x-version> \
   -PinternalRepository=/absolute/path/to/yano-x-staging \
   -PyanoRepository=/absolute/path/to/yano-staging \
   -PyanoVersion=<staged-yano-version> \
-  -PyanoJvmDist=/absolute/path/to/yano-<build-identity>.zip \
   -PuseMavenLocal=false
 ```
 

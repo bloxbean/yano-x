@@ -3,7 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd -P)"
 MODULE_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd -P)"
-ROOT_DIR="$(cd "$MODULE_DIR/../../.." && pwd -P)"
+ROOT_DIR="$(cd "$MODULE_DIR/../.." && pwd -P)"
 COMPOSE_FILE="$MODULE_DIR/src/test/resources/kafka-secure-integration.compose.yaml"
 # shellcheck disable=SC1091
 . "$ROOT_DIR/products/evidence/harness/config/images.env"
@@ -76,6 +76,9 @@ printf '%s\n' "$KAFKA_SECURE_STORE_PASSWORD" > "$CERT_DIR/store-password"
 chmod 600 "$CERT_DIR"/* "$WORK/store-password" "$WORK/sasl-password"
 chmod 644 "$CERT_DIR/broker.p12" "$CERT_DIR/truststore.p12" \
   "$CERT_DIR/store-password" "$CERT_DIR/kafka_server_jaas.conf"
+# The broker runs as uid 1000, which differs from the hosted runner uid. Allow
+# traversal without directory listing; private source keys remain mode 0600.
+chmod 711 "$CERT_DIR"
 
 docker compose -p "$KAFKA_SECURE_PROJECT" -f "$COMPOSE_FILE" up \
   --detach --wait --wait-timeout 120

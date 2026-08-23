@@ -169,8 +169,9 @@ or a remembered manual session.
 
 - **JVM distribution:** supports plugin-directory installation and is the
   simplest extensible pilot shape.
-- **Native image:** plugins must be included at build time; validate each
-  advertised runtime/platform and plugin contribution.
+- **Yano native image:** runs the core ordered-log capability only. Yano X
+  plugins are JVM-only and cannot be installed into that image; choose the JVM
+  distribution for a Yano X pilot.
 - **Embedded library:** appropriate when an application team owns lifecycle,
   configuration, APIs, and dependency integration in one Java service.
 

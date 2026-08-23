@@ -30,6 +30,13 @@ java {
     targetCompatibility = 25
 }
 
+tasks.withType(Test).configureEach {
+    def regeneratePlutus = System.getProperty('yano.regenerate.plutus')
+    if (regeneratePlutus != null) {
+        systemProperty 'yano.regenerate.plutus', regeneratePlutus
+    }
+}
+
 publishing {
     publications {
         mavenJava(MavenPublication) {

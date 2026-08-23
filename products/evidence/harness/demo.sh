@@ -87,6 +87,7 @@ COMMAND="${1:-help}"
 MODE="${DEMO_MODE:-compose}"
 INSTANCE="${DEMO_INSTANCE:-default}"
 OBSERVABILITY="${DEMO_OBSERVABILITY:-false}"
+DEVNET_BLOCK_TIME_MILLIS="${DEMO_DEVNET_BLOCK_TIME_MILLIS:-1000}"
 CLEAN_SCOPE=""
 CLEAN_CONFIRMED=false
 ENABLE_MAINNET=false
@@ -290,6 +291,7 @@ validate_decimal DEMO_S3_PORT "$DEMO_S3_PORT" 1 65535
 validate_decimal DEMO_IPFS_PORT "$DEMO_IPFS_PORT" 1 65535
 validate_decimal DEMO_PROMETHEUS_PORT "$DEMO_PROMETHEUS_PORT" 1 65535
 validate_decimal DEMO_GRAFANA_PORT "$DEMO_GRAFANA_PORT" 1 65535
+validate_decimal DEMO_DEVNET_BLOCK_TIME_MILLIS "$DEVNET_BLOCK_TIME_MILLIS" 100 60000
 if [ "$COMMAND" = load ]; then
   validate_decimal --count "$LOAD_COUNT" 1 50000
   validate_decimal --concurrency "$LOAD_CONCURRENCY" 1 16
@@ -1493,6 +1495,13 @@ compose_node_config() {
   rm -f "$base"
 }
 
+append_devnet_producer_settings() {
+  local output="$1"
+  [ "$DEMO_NETWORK" = devnet ] || return 0
+  printf 'yano.block-producer.block-time-millis=%s\n' \
+    "$DEVNET_BLOCK_TIME_MILLIS" >> "$output"
+}
+
 prepare_compose_configs() {
   local executor follower node0extra anchor_key
   validate_target_id compose-S3-target-id "$COMPOSE_S3_TARGET_ID"
@@ -1510,6 +1519,7 @@ prepare_compose_configs() {
     S3_EXECUTOR_ACCESS "$(read_secret "$S3_EXECUTOR_ACCESS_FILE")" \
     S3_EXECUTOR_SECRET "$(read_secret "$S3_EXECUTOR_SECRET_FILE")"
   cp "$executor" "$node0extra"
+  append_devnet_producer_settings "$node0extra"
   if [ "$ANCHOR_ENABLED" = true ]; then
     anchor_key="$ANCHOR_KEY_VALUE"
     {
@@ -1602,6 +1612,7 @@ prepare_host_configs() {
     S3_TARGET_ID "$HOST_S3_TARGET_ID" IPFS_TARGET_ID "$HOST_IPFS_TARGET_ID" \
     KAFKA_TARGET_ID "$HOST_KAFKA_TARGET_ID" \
     S3_EXECUTOR_ACCESS "$access" S3_EXECUTOR_SECRET "$secret"
+  append_devnet_producer_settings "$executor"
   cp "$SCRIPT_DIR/config/templates/follower-host.properties.in" "$follower"
   genesis_setting="# public-network systemStart comes from the selected genesis"
   if [ "$DEMO_NETWORK" = devnet ]; then
@@ -2248,8 +2259,24 @@ reconcile_anchor_binding() {
   die "members were neither pristine-pending nor converged on one adopted anchor within 180 seconds"
 }
 
+wait_for_anchor_bootstrapped() {
+  local base="$1" status bootstrapped deadline
+  deadline=$((SECONDS + 120))
+  while [ "$SECONDS" -lt "$deadline" ]; do
+    status="$(curl --connect-timeout 3 --max-time 10 -fsS \
+      "$base/app-chain/chains/$DEMO_CHAIN_ID/status")"
+    bootstrapped="$(printf '%s' "$status" | python3 -c \
+      'import json,sys; print(str(bool(json.load(sys.stdin).get("anchor",{}).get("bootstrapped"))).lower())')"
+    if [ "$bootstrapped" = true ]; then
+      return
+    fi
+    sleep 2
+  done
+  die "script anchor did not confirm within 120 seconds"
+}
+
 compose_anchor_bootstrap() {
-  local base="http://127.0.0.1:$HTTP0/api/v1" status bootstrapped address deadline
+  local base="http://127.0.0.1:$HTTP0/api/v1" status bootstrapped address
   status="$(curl --connect-timeout 3 --max-time 10 -fsS \
     "$base/app-chain/chains/$DEMO_CHAIN_ID/status")"
   read -r bootstrapped address < <(printf '%s' "$status" | python3 -c '
@@ -2271,18 +2298,96 @@ print(str(bool(a.get("bootstrapped"))).lower(), a.get("walletAddress", ""))
   wait_for_anchor_wallet_funds "$base" "$address"
   api_curl -fsS -X POST \
     "$base/app-chain/chains/$DEMO_CHAIN_ID/admin/anchor/bootstrap" >/dev/null
-  deadline=$((SECONDS + 120))
+  wait_for_anchor_bootstrapped "$base"
+}
+
+wait_for_anchor_bootstrap_visibility() {
+  local status address policy asset_unit deadline next_report recovery_at i response visible summary
+  local recovery_attempted=false
+  local -a pending=()
+  [ "$ANCHOR_ENABLED" = true ] || return 0
+  status="$(curl --connect-timeout 3 --max-time 10 -fsS \
+    "http://127.0.0.1:$HTTP0/api/v1/app-chain/chains/$DEMO_CHAIN_ID/status")"
+  read -r address policy < <(printf '%s' "$status" | python3 -c '
+import json,sys
+anchor=json.load(sys.stdin).get("anchor", {})
+print(anchor.get("scriptAddress", ""), anchor.get("threadPolicyId", ""))
+  ')
+  [[ "$address" =~ ^addr(_test)?1[a-z0-9]{20,240}$ ]] \
+    || die "anchor bootstrap did not expose a valid script address"
+  [[ "$policy" =~ ^[0-9a-f]{56}$ ]] \
+    || die "anchor bootstrap did not expose a valid thread policy id"
+  asset_unit="$(python3 - "$policy" "$DEMO_CHAIN_ID" <<'PY'
+import sys
+policy, chain = sys.argv[1:]
+print(policy + chain.encode("utf-8")[:32].hex())
+PY
+  )"
+  deadline=$((SECONDS + 300))
+  next_report=$SECONDS
+  recovery_at=$((SECONDS + 60))
+  note "WAIT_ANCHOR_VISIBILITY: requiring the bootstrap thread UTxO on all three members."
   while [ "$SECONDS" -lt "$deadline" ]; do
-    status="$(curl --connect-timeout 3 --max-time 10 -fsS \
-      "$base/app-chain/chains/$DEMO_CHAIN_ID/status")"
-    bootstrapped="$(printf '%s' "$status" | python3 -c \
-      'import json,sys; print(str(bool(json.load(sys.stdin).get("anchor",{}).get("bootstrapped"))).lower())')"
-    if [ "$bootstrapped" = true ]; then
-      return
+    visible=true
+    summary=""
+    pending=()
+    for i in 0 1 2; do
+      response="$(curl --connect-timeout 3 --max-time 10 --max-filesize 1048576 -fsS \
+        "http://127.0.0.1:$((HTTP0 + i))/api/v1/addresses/$address/utxos/$asset_unit?count=50" \
+        2>/dev/null || true)"
+      if printf '%s' "$response" | python3 -c '
+import json,sys
+address,unit=sys.argv[1:]
+try:
+    outputs=json.load(sys.stdin)
+except (json.JSONDecodeError,UnicodeDecodeError):
+    raise SystemExit(1)
+if not isinstance(outputs,list) or len(outputs)>50:
+    raise SystemExit(1)
+for output in outputs:
+    if not isinstance(output,dict) or output.get("address")!=address:
+        continue
+    datum=output.get("inline_datum")
+    amounts=output.get("amount")
+    if (isinstance(datum,str) and datum and isinstance(amounts,list)
+            and any(isinstance(amount,dict) and amount.get("unit")==unit
+                    and amount.get("quantity") in (1,"1")
+                    and not isinstance(amount.get("quantity"),bool) for amount in amounts)):
+        raise SystemExit(0)
+raise SystemExit(1)
+' "$address" "$asset_unit"
+      then
+        summary="$summary node$i=visible"
+      else
+        visible=false
+        pending+=("$i")
+        summary="$summary node$i=pending"
+      fi
+    done
+    [ "$visible" = true ] \
+      && { note "WAIT_ANCHOR_VISIBILITY complete:$summary"; return 0; }
+    if [ "$MODE" = compose ] && [ "$DEMO_NETWORK" = devnet ] \
+        && [ "$recovery_attempted" = false ] \
+        && [ "$SECONDS" -ge "$recovery_at" ]; then
+      recovery_attempted=true
+      for i in "${pending[@]}"; do
+        [ "$i" -ne 0 ] || continue
+        note "WAIT_ANCHOR_VISIBILITY: reconnecting stalled devnet follower node$i once."
+        dc up --detach --no-deps --force-recreate --wait --wait-timeout 180 "yano-$i" \
+          || die "failed to reconnect stalled devnet follower node$i"
+      done
+      continue
+    fi
+    if [ "$SECONDS" -ge "$next_report" ]; then
+      note "WAIT_ANCHOR_VISIBILITY progress:$summary"
+      next_report=$((SECONDS + 60))
     fi
     sleep 2
   done
-  die "script anchor did not confirm within 120 seconds"
+  if [ "$MODE" = compose ]; then
+    dc logs --no-color --tail 120 yano-0 yano-1 yano-2 2>&1 | tail -n 360 >&2 || true
+  fi
+  die "bootstrap thread UTxO was not visible on all three members within 300 seconds:$summary"
 }
 
 wait_for_anchor_wallet_funds() {
@@ -2339,6 +2444,7 @@ print(str(bool(a.get("bootstrapped"))).lower(), a.get("walletAddress", ""))
     wait_for_anchor_wallet_funds "$base" "$address"
   fi
   host_cluster anchor-bootstrap "$DEMO_CHAIN_ID"
+  wait_for_anchor_bootstrapped "$base"
 }
 
 host_cluster() {
@@ -2565,10 +2671,18 @@ cmd_up() {
   verify_cached_key_material
   if [ "$MODE" = compose ]; then
     STARTUP_MAY_HAVE_SERVICES=true
-    dc up -d --wait --wait-timeout 360
+    if ! dc up -d --wait --wait-timeout 360; then
+      note "Compose startup failed; bounded Yano startup diagnostics follow." >&2
+      dc ps >&2 || true
+      dc logs --no-color --tail 200 yano-0 >&2 || true
+      return 1
+    fi
     verify_compose_loopback_surfaces
     wait_for_public_l1_sync
-    [ "$ANCHOR_ENABLED" = false ] || compose_anchor_bootstrap
+    if [ "$ANCHOR_ENABLED" = true ]; then
+      compose_anchor_bootstrap
+      wait_for_anchor_bootstrap_visibility
+    fi
     if [ "$DEMO_MACHINE_MODE" = role ]; then
       dc --profile tools run --rm scenario init --config /run/demo/runner.properties
     else
@@ -2584,7 +2698,10 @@ cmd_up() {
     STARTUP_MAY_HAVE_SERVICES=true
     host_cluster "${start_args[@]}"
     wait_for_public_l1_sync
-    [ "$ANCHOR_ENABLED" = false ] || host_anchor_bootstrap
+    if [ "$ANCHOR_ENABLED" = true ]; then
+      host_anchor_bootstrap
+      wait_for_anchor_bootstrap_visibility
+    fi
     if [ "$DEMO_MACHINE_MODE" = role ]; then runner_java init; else runner_java probe; fi
     start_host_ui
   fi

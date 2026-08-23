@@ -1,0 +1,4 @@
+interface:
+  display_name: "Validate Yano X App Chains"
+  short_description: "Run app-chain regression and boundary gates"
+  default_prompt: "Use $validate-yano-x-appchain to select and run the app-chain regression gates for this change."

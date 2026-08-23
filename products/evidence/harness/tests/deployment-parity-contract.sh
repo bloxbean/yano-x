@@ -5,6 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd -P)"
 DEMO_DIR="$(cd "$SCRIPT_DIR/.." && pwd -P)"
 REPO_ROOT="$(cd "$DEMO_DIR/../../.." && pwd -P)"
 SOURCE="$SCRIPT_DIR/deployment-parity-e2e.sh"
+ROLE_SOURCE="$SCRIPT_DIR/role-workflow-e2e.sh"
 WORKFLOW="$REPO_ROOT/.github/workflows/build.yml"
 RELEASE_CONTRACTS="$SCRIPT_DIR/release-contracts.sh"
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/yano-deployment-parity-contract.XXXXXX")"
@@ -17,14 +18,18 @@ docker compose version >/dev/null 2>&1 || fail 'Docker Compose v2 is required'
 [ -x "$SOURCE" ] || fail 'deployment-parity E2E must be executable'
 bash -n "$SOURCE"
 
-python3 - "$SOURCE" "$WORKFLOW" "$RELEASE_CONTRACTS" <<'PY'
+python3 - "$SOURCE" "$ROLE_SOURCE" "$WORKFLOW" "$RELEASE_CONTRACTS" <<'PY'
 from pathlib import Path
 import re
 import sys
 
 source = Path(sys.argv[1]).read_text(encoding="utf-8")
-workflow = Path(sys.argv[2]).read_text(encoding="utf-8")
-release_contracts = Path(sys.argv[3]).read_text(encoding="utf-8")
+role_source = Path(sys.argv[2]).read_text(encoding="utf-8")
+workflow = Path(sys.argv[3]).read_text(encoding="utf-8")
+release_contracts = Path(sys.argv[4]).read_text(encoding="utf-8")
+
+if 'export DEMO_DEVNET_BLOCK_TIME_MILLIS=10000' not in role_source:
+    raise SystemExit("role workflow must pace its devnet producer for slow CI followers")
 
 for required in (
         '[ "${YANO_RUN_DEPLOYMENT_PARITY_E2E:-false}" = true ]',
@@ -46,6 +51,7 @@ for required in (
         "coexisting deployment parity requires distinct external object keys",
         'CONTINUATION_MODE="${YANO_DEPLOYMENT_PARITY_CONTINUATION_MODE:-explicit}"',
         'MACHINE_MODE="${YANO_DEPLOYMENT_PARITY_MACHINE:-standalone}"',
+        'export DEMO_DEVNET_BLOCK_TIME_MILLIS=10000',
         '--continuation "$CONTINUATION_MODE"',
         '--machine "$MACHINE_MODE"',
         'EXPECTED_STATE_MACHINE=composite',
@@ -116,6 +122,9 @@ for required in (
         'Compose retained replay did not produce exactly three attempt reports',
         'host retained replay did not produce exactly three attempt reports',
         'Compose and host connector target identities are not six distinct aliases',
+        'published_port_accepting() {',
+        'socket.create_connection(("127.0.0.1", int(sys.argv[1])), timeout=3)',
+        'published_port_accepting "$port"',
         'host workflow restarted or stopped the isolated Compose connector',
         'Compose and host reports are not semantically equivalent PASS outcomes',
         'fresh isolated Compose broker did not assign the first exact Kafka offset',

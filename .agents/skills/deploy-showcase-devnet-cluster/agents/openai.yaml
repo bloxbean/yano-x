@@ -1,0 +1,4 @@
+interface:
+  display_name: "Deploy Showcase Devnet Cluster"
+  short_description: "Operate and validate the Yano X devnet"
+  default_prompt: "Use $deploy-showcase-devnet-cluster to build, deploy, or validate the Yano X three-node devnet showcase."

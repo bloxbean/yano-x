@@ -35,14 +35,14 @@ ROOT="$1"
 [ -f "$ROOT/yano/yano.jar" ]
 [ -f "$ROOT/yano/config/application-appchain.yml" ]
 [ -f "$ROOT/yano/config/application-appchain-standard.yml" ]
-[ "$(find "$ROOT/yano/plugins" -maxdepth 1 -name 'yano-x-showcase-*-bundle.jar' | wc -l | tr -d ' ')" = 1 ]
-[ "$(find "$ROOT/yano/plugins" -maxdepth 1 -name 'yano-x-cardano-history-*-bundle.jar' | wc -l | tr -d ' ')" = 1 ]
+[ "$(find "$ROOT/yano/plugins" -maxdepth 1 -name 'yano-x-showcase-bundle-*.jar' | wc -l | tr -d ' ')" = 1 ]
+[ "$(find "$ROOT/yano/plugins" -maxdepth 1 -name 'yano-x-cardano-history-bundle-*.jar' | wc -l | tr -d ' ')" = 1 ]
 [ "$(find "$ROOT/plugins" -maxdepth 1 -name 'yano-x-cardano-history-*-bundle.jar' | wc -l | tr -d ' ')" = 1 ]
 [ -x "$ROOT/tools/cardano-history/bin/yano-cardano-history" ]
 [ -f "$ROOT/profiles/evidence/artifacts/runner.jar" ]
 [ -f "$ROOT/profiles/evidence/artifacts/yano-context/yano/yano.jar" ]
 [ "$(find "$ROOT/profiles/evidence/artifacts/plugins" -name '*-bundle.jar' | wc -l | tr -d ' ')" = 3 ]
-ROLE_DIGEST="$(java -cp "$ROOT/profiles/evidence/artifacts/yano-context/yano/yano.jar" \
+ROLE_DIGEST="$(java -cp "$ROOT/profiles/evidence/artifacts/yano-context/yano/yano.jar:$ROOT/profiles/evidence/artifacts/yano-context/yano/plugins/*" \
   com.bloxbean.cardano.yano.appchain.evidence.profile.RoleEvidenceProfileCli \
   --chain evidence-chain-contract \
   --members 8a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c,8139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394,ed4928c628d1c2c6eae90338905995612959273a5c63f93636c14614ac8737d1 \
@@ -87,7 +87,7 @@ MAP_ROOT="$ROOT/data/showcase/distribution-contract"
 jq -e '.schemaVersion == 1 and .profileId == "light-v1" and (.chains | length) == 13' \
   "$ROOT/catalog/showcase-catalog-v1.json" >/dev/null
 CARDANO_HISTORY_BUNDLE="$(find "$ROOT/yano/plugins" -maxdepth 1 \
-  -name 'yano-x-cardano-history-*-bundle.jar' -print -quit)"
+  -name 'yano-x-cardano-history-bundle-*.jar' -print -quit)"
 unzip -p "$CARDANO_HISTORY_BUNDLE" \
   META-INF/yano/plugins/com.bloxbean.cardano.yano.appchain.cardano-history.json \
   | jq -e '

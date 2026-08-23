@@ -1,0 +1,120 @@
+// Conventions for every Yano X module listed in config/artifacts-v1.json.
+// Applied per project by build.gradle; see gradle/runtime-plugin-bundle.gradle
+// for the additional shadow-bundle layer that runtime plugins add on top.
+
+def allocation = rootProject.ext.artifactByPath[project.path]
+
+pluginManager.apply('java-library')
+pluginManager.apply('maven-publish')
+pluginManager.apply('signing')
+pluginManager.apply('org.unbroken-dome.test-sets')
+
+// Modules resolve each other by project path; the internal group keeps them
+// from colliding with the published `com.bloxbean.cardano` coordinates.
+group = "${rootProject.group}.yano-x-internal.${project.path.substring(1).replace(':', '.')}"
+
+dependencies {
+    api project.libs.slf4j.api
+
+    compileOnly project.libs.lombok
+    annotationProcessor project.libs.lombok
+
+    testImplementation project.libs.junit.jupiter.api
+    testRuntimeOnly project.libs.junit.jupiter.engine
+    testRuntimeOnly project.libs.junit.platform.launcher
+    testImplementation project.libs.harmcrest.library
+    testImplementation project.libs.mockito.inline
+    testImplementation project.libs.mockito.junit.jupiter
+    testImplementation project.libs.assertj.core
+    testRuntimeOnly project.libs.slf4j.reload4j
+
+    testCompileOnly project.libs.lombok
+    testAnnotationProcessor project.libs.lombok
+}
+
+tasks.named('compileJava') {
+    sourceCompatibility = '25'
+    targetCompatibility = '25'
+    options.compilerArgs += ["-Aproject=${project.group}/${project.name}"]
+}
+
+tasks.withType(Test).configureEach {
+    useJUnitPlatform()
+    jvmArgs '--add-opens=java.base/java.lang=ALL-UNNAMED'
+    testLogging {
+        def verbose = rootProject.providers.gradleProperty('verboseTests')
+                .map { it.toBoolean() }
+                .getOrElse(false)
+        events(*(verbose
+                ? ['started', 'passed', 'skipped', 'failed']
+                : ['skipped', 'failed']))
+        exceptionFormat verbose ? 'full' : 'short'
+        showStandardStreams = verbose
+    }
+}
+
+tasks.withType(Javadoc).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+def sourceJar = tasks.register('sourceJar', Jar) {
+    archiveClassifier = 'sources'
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    from project.sourceSets.main.allJava
+}
+def javadocJar = tasks.register('javadocJar', Jar) {
+    dependsOn tasks.named('javadoc')
+    archiveClassifier = 'javadoc'
+    from tasks.named('javadoc').map { it.destinationDir }
+}
+
+testSets {
+    integrationTest
+    cryptoTest
+    distributionTest
+}
+tasks.named('cryptoTest') {
+    usesService rootProject.ext.yanoXCryptoTestLock
+    maxParallelForks = 1
+}
+
+tasks.named('jar') {
+    archiveBaseName = allocation.artifactId.toString()
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            from project.components.java
+            groupId = rootProject.group.toString()
+            artifact(sourceJar) {
+                classifier = 'sources'
+            }
+            artifact(javadocJar) {
+                classifier = 'javadoc'
+            }
+            artifactId = allocation.artifactId.toString()
+            rootProject.ext.yanoXPom(
+                    pom,
+                    allocation.artifactId.toString(),
+                    "Yano X module ${project.path}")
+        }
+    }
+}
+
+if (!project.version.toString().endsWith('SNAPSHOT')
+        && !project.hasProperty('skipSigning')) {
+    signing.sign(publishing.publications)
+}
+
+// Plugin manifests ship a `${pluginVersion}` placeholder so the descriptor
+// version always tracks the built artifact version.
+tasks.matching { it.name == 'processResources' }.configureEach {
+    def pluginManifestVersion = project.version.toString()
+    inputs.property('pluginManifestVersion', pluginManifestVersion)
+    filesMatching('META-INF/yano/plugins/*.json') {
+        filter { line ->
+            line.replace('${pluginVersion}', pluginManifestVersion)
+        }
+    }
+}

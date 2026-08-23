@@ -404,8 +404,9 @@ The implemented devnet acceptance path covers:
   restart, reconciliation, and conflict paths;
 - executor fencing and failover after an external acknowledgement;
 - fresh and retained deployments through Compose and ordinary host processes;
-- JVM plugin-directory packaging and build-time native plugin inclusion;
-- Linux ARM64 native startup with the stock governed composite profile;
+- JVM plugin-directory packaging and runtime catalog validation;
+- Yano core native startup with the built-in ordered-log capability (Yano X
+  extensions are JVM-only);
 - authenticated governed-profile activation, retired-generation effect
   callbacks, replay/restart/snapshot recovery, and governance-aware proofs; and
 - independent consensus/determinism and plugin/security reviews with no

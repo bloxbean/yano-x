@@ -22,13 +22,13 @@ exists, is unrelated.
 
 ## Parent and related decisions
 
-- [ADR-005](005-yano-app-chain-framework.md) owns deterministic state-machine
+- [ADR-005](https://github.com/bloxbean/yano/blob/main/adr/app-layer/005-yano-app-chain-framework.md) owns deterministic state-machine
   execution, authenticated state, finality, and replay.
 - [ADR-006](006-appchain-enterprise-extensions-and-zk.md) introduced the
   standard member-approval state machine.
-- [ADR-010](010-deterministic-effect-system.md) owns effect intents, gates,
+- [ADR-010](https://github.com/bloxbean/yano/blob/main/adr/app-layer/010-deterministic-effect-system.md) owns effect intents, gates,
   execution, result incorporation, expiry, and proofs.
-- [ADR-010.1](010.1-emission-versioning.md) requires height-gated,
+- [ADR-010.1](https://github.com/bloxbean/yano/blob/main/adr/app-layer/010.1-emission-versioning.md) requires height-gated,
   replay-stable transition and emission changes.
 - [ADR-013](013-first-party-integration-connectors-and-effect-demo.md) owns the
   first-party executor types and maintained effect demonstrations.

@@ -5,6 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd -P)"
 DEMO_DIR="$(cd "$SCRIPT_DIR/.." && pwd -P)"
 TOOL="$DEMO_DIR/tools/managed_process.py"
 DARWIN_SNAPSHOT_TEST="$SCRIPT_DIR/managed_process_darwin_snapshot_test.py"
+LINUX_SNAPSHOT_TEST="$SCRIPT_DIR/managed_process_linux_snapshot_test.py"
 TEST_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/yano-managed-process-test.XXXXXX")"
 PIDS_FILE="$TEST_ROOT/test-pids"
 
@@ -20,6 +21,7 @@ cleanup() {
 trap cleanup EXIT HUP INT TERM
 
 python3 "$DARWIN_SNAPSHOT_TEST"
+python3 "$LINUX_SNAPSHOT_TEST"
 
 fail() {
   echo "FAIL: $*" >&2

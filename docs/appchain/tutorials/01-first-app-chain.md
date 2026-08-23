@@ -120,13 +120,18 @@ echo "$RESPONSE" | jq .
 MESSAGE_ID=$(echo "$RESPONSE" | jq -r .messageId)
 sleep 3
 
-curl -s \
-  "http://127.0.0.1:7070/api/v1/app-chain/chains/orders-chain/state/proof/$MESSAGE_ID" \
-  | jq .
+curl -s -X POST \
+  "http://127.0.0.1:7070/api/v1/app-chain/chains/orders-chain/proof-subjects/finalized-message-v1/proof" \
+  -H 'Content-Type: application/json' \
+  -d "$(jq -nc --arg id "$MESSAGE_ID" '
+    {coordinates:{"message-id":$id}, view:"latest",
+     claim:{claimId:"recorded",operands:{}}, includeEvidence:false}')" \
+  | jq '{stateRoot:.proof.stateRoot,presence:.proof.presence,position:.fact.fields,claim:.claimResult.satisfied}'
 ```
 
-The proof response connects the message state key to the member's committed
-state root. Tutorial 7 connects that root to a Cardano anchor.
+The typed subject resolves the public message ID to its namespaced physical
+state key and connects that record to the member's committed state root.
+Tutorial 7 connects that root to a Cardano anchor.
 
 ## 5. Run a small `ordered-log` load test
 

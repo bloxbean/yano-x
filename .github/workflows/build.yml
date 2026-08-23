@@ -16,7 +16,7 @@ on:
         required: false
         type: string
       yano_jvm_dist_url:
-        description: Matching Yano JVM ZIP URL (falls back to YANO_JVM_DIST_URL repository variable)
+        description: Optional matching Yano JVM ZIP URL override (falls back to YANO_JVM_DIST_URL)
         required: false
         type: string
       yano_maven_repository_url:

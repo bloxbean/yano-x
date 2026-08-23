@@ -345,16 +345,23 @@ authenticated_map_jmt_properties() { printf '%s/authenticated-map-jmt.properties
 authenticated_map_jmt_genesis() { printf '%s/authenticated-map-jmt-genesis.hex' "$(instance_root)"; }
 
 plugin_file() {
-  local matches=("$YANO_HOME"/plugins/yano-x-showcase-*-bundle.jar)
+  local matches=("$YANO_HOME"/plugins/yano-x-showcase-bundle-*.jar)
   [ "${#matches[@]}" -eq 1 ] && [ -f "${matches[0]}" ] \
     || die "expected exactly one showcase plugin bundle"
   printf '%s' "${matches[0]}"
 }
 
 cardano_history_plugin_file() {
-  local matches=("$YANO_HOME"/plugins/yano-x-cardano-history-*-bundle.jar)
+  local matches=("$YANO_HOME"/plugins/yano-x-cardano-history-bundle-*.jar)
   [ "${#matches[@]}" -eq 1 ] && [ -f "${matches[0]}" ] \
     || die "expected exactly one Cardano History product bundle"
+  printf '%s' "${matches[0]}"
+}
+
+authenticated_map_validator_plugin_file() {
+  local matches=("$YANO_HOME"/plugins/yano-x-authenticated-map-validators-bundle-*.jar)
+  [ "${#matches[@]}" -eq 1 ] && [ -f "${matches[0]}" ] \
+    || die "expected exactly one authenticated-map validator bundle"
   printf '%s' "${matches[0]}"
 }
 
@@ -375,8 +382,8 @@ generate_authmap_candidate() {
   [ -n "$members" ] || die "could not derive authenticated-map bootstrap member keys"
   candidate="$(mktemp "$root/.$chain_id.properties.XXXXXX")"
   chmod 600 "$candidate"
-  if ! java -cp "$(plugin_file):$YANO_HOME/yano.jar" "$AUTHMAP_GENERATOR" \
-      --runtime-jar "$YANO_HOME/yano.jar" \
+  if ! java -cp "$YANO_HOME/yano.jar:$YANO_HOME/plugins/*" "$AUTHMAP_GENERATOR" \
+      --validator-bundle "$(authenticated_map_validator_plugin_file)" \
       --chain-id "$chain_id" \
       --members "$members" \
       --threshold "$THRESHOLD" > "$candidate"; then
@@ -844,6 +851,19 @@ proof_key() {
   curl -fsS "http://127.0.0.1:$((HTTP_BASE + NODE))/api/v1/app-chain/chains/$1/state/proof/$2"
 }
 
+finalized_message_proof() {
+  local chain="$1" message_id="$2"
+  curl -fsS -X POST \
+    "http://127.0.0.1:$((HTTP_BASE + NODE))/api/v1/app-chain/chains/$chain/proof-subjects/finalized-message-v1/proof" \
+    -H 'Content-Type: application/json' \
+    -d "$(jq -nc --arg id "$message_id" '{
+      coordinates:{"message-id":$id},
+      view:"latest",
+      claim:{claimId:"recorded",operands:{}},
+      includeEvidence:false
+    }')"
+}
+
 snapshot_operation() {
   local action="${1:-status}" chain="${2:-$CARDANO_HISTORY_CHAIN_ID}"
   local series="${3:-}" sequence="${4:-}" idempotency="${5:-showcase-$(date +%s)}"
@@ -878,10 +898,18 @@ run_cardano_history() {
 }
 
 run_orders() {
-  local value="${1:-showcase-order-$(date +%s)}" id finalized
+  local value="${1:-showcase-order-$(date +%s)}" id finalized proof
   id="$(submit_text orders-chain orders.command.v1 "$value")"
   finalized="$(wait_message orders-chain "$id")"
-  proof_key orders-chain "$id" | jq '{chainId,committedHeight,stateRoot,finalizedAtHeight}'
+  proof="$(finalized_message_proof orders-chain "$id")"
+  printf '%s' "$proof" | jq -e \
+    '.proof.presence == "PRESENT" and .claimResult.evaluated == true and
+     .claimResult.satisfied == true and .fact.fields.height >= 1' >/dev/null \
+    || die "ordered-log finalized-message proof is not a present, satisfied claim"
+  printf '%s' "$proof" | jq \
+    '{chainId:.proof.chainId,committedHeight:.proof.version,
+      stateRoot:.proof.stateRoot,presence:.proof.presence,
+      finalizedPosition:.fact.fields,claimSatisfied:.claimResult.satisfied}'
   note "ORDERED: message finalized at height $(printf '%s' "$finalized" | jq -r .height)"
 }
 

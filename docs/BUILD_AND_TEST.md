@@ -28,7 +28,35 @@ publish the matching Yano version first, then opt in explicitly:
 
 The `yanoVersion` must identify the exact Yano API/runtime line against which
 Yano X is being built. `version` independently controls Yano X artifact and
-plugin versions.
+plugin versions. For a non-SNAPSHOT `yanoVersion`, distribution tasks resolve
+and cache `yano-<version>.zip` from the matching `v<version>` release in
+`bloxbean/yano`. Set `yanoJvmDist` only to override that release asset with an
+exact local or staged ZIP.
+
+The command above is the source-and-test build and does not assemble every
+distribution. Gradle's root `build` lifecycle also validates the release
+archives. It consumes the same dependency-complete bundle JARs attached to the
+runtime plugins' Maven publications, so a clean full build is one invocation:
+
+```bash
+./gradlew clean build \
+  -PyanoVersion=<published-yano-version> \
+  -PskipSigning=true
+```
+
+For a release rehearsal, publish every coordinate to a new empty isolated
+repository after the clean build:
+
+```bash
+./gradlew publishAllPublicationsToInternalRepository \
+  -PinternalRepository=/absolute/path/to/empty/yano-x-staging \
+  -PyanoVersion=<published-yano-version> \
+  -PskipSigning=true
+```
+
+For coordinated local or staged Yano development, retain
+`-PuseMavenLocal=true` or `-PyanoRepository=<URL-or-path>` as appropriate on
+both commands, and add the matching `-PyanoJvmDist` to the clean build.
 
 ## Useful scopes
 
