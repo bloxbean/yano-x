@@ -1,0 +1,57 @@
+---
+/**
+ * Starlight <Head> override.
+ *
+ * Adds lazy client-side mermaid rendering for the `<pre class="mermaid">`
+ * blocks produced by scripts/remark-mermaid.mjs. The mermaid bundle is loaded
+ * with a dynamic import, so pages without a diagram never fetch it.
+ */
+const { head } = Astro.locals.starlightRoute;
+---
+
+{head.map(({ tag: Tag, attrs, content }) => <Tag {...attrs} set:html={content} />)}
+
+<script>
+  const blocks = () => Array.from(document.querySelectorAll('pre.mermaid'));
+
+  async function renderDiagrams() {
+    const nodes = blocks();
+    if (nodes.length === 0) return;
+
+    const { default: mermaid } = await import('mermaid');
+    const dark = document.documentElement.dataset.theme !== 'light';
+
+    // Keep the original source around so a theme switch can re-render from it
+    // rather than from mermaid's already-generated SVG.
+    for (const node of nodes) {
+      if (!node.dataset.source) node.dataset.source = node.textContent ?? '';
+      node.innerHTML = node.dataset.source;
+      node.removeAttribute('data-processed');
+    }
+
+    mermaid.initialize({
+      startOnLoad: false,
+      securityLevel: 'strict',
+      theme: dark ? 'dark' : 'default',
+      themeVariables: {
+        primaryColor: dark ? '#182046' : '#eef2ff',
+        primaryTextColor: dark ? '#e8ecff' : '#131735',
+        primaryBorderColor: '#3a7bff',
+        lineColor: dark ? '#7fa8ff' : '#3a5bd0',
+        fontFamily: 'var(--sl-font-system), system-ui, sans-serif',
+      },
+      flowchart: { curve: 'basis', useMaxWidth: true },
+      sequence: { useMaxWidth: true },
+    });
+
+    await mermaid.run({ nodes });
+  }
+
+  renderDiagrams();
+  document.addEventListener('astro:after-swap', renderDiagrams);
+
+  // Starlight's theme select flips data-theme on <html>.
+  new MutationObserver((records) => {
+    if (records.some((r) => r.attributeName === 'data-theme')) renderDiagrams();
+  }).observe(document.documentElement, { attributes: true });
+</script>

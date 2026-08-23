@@ -1,0 +1,167 @@
+---
+title: Modules and artifacts
+description: Every Gradle module in Yano X with its published artifact id, publication type, and plugin bundle id — generated from config/artifacts-v1.json.
+sidebar:
+  order: 5
+---
+
+Yano X publishes each module under the group `com.bloxbean.cardano`. This page
+is generated at documentation build time from `config/artifacts-v1.json`, which
+is the repository's single source of truth for artifact identity — the build
+verifies it with `verifyArtifactInventory`.
+
+<!-- catalog:versions-start -->
+
+| Value | Current |
+|---|---|
+| Yano X version | `0.1.0-SNAPSHOT` |
+| Yano host version | `0.1.0-pre13` |
+| Maven group | `com.bloxbean.cardano` |
+| Java | `25` |
+| Base Yano JVM ZIP | [`yano-0.1.0-pre13.zip`](https://github.com/bloxbean/yano/releases/download/v0.1.0-pre13/yano-0.1.0-pre13.zip) |
+
+<!-- catalog:versions-end -->
+
+## Publication types
+
+| Type | Meaning |
+|---|---|
+| `runtime-plugin` | Activated by the host through `PluginProviderRegistry` and a schema-v1 manifest. Publishes both a normal JAR and a dependency-complete **bundle** JAR. |
+| `library` | An ordinary JAR — contracts, clients, codecs, testkits, CLIs, on-chain artifacts, deterministic helpers. Never loaded as a plugin. |
+
+The distinction is the architectural boundary described in
+[Why Yano X](/start-here/why-yano-x/): every optional behavior a running node
+can independently select or manage is a runtime plugin; everything else is a
+library.
+
+`verifyArtifactInventory` checks that each module has exactly one declared
+artifact identity and that every runtime plugin has a bundle publication.
+
+## Modules
+
+<!-- catalog:modules-start -->
+
+### `runtime-plugin` (18)
+
+| Gradle module | Artifact id | Plugin bundle id | Source |
+|---|---|---|---|
+| `:state-machines:stdlib` | `yano-x-stdlib` | `com.bloxbean.cardano.yano.appchain.stdlib` | [state-machines/stdlib](https://github.com/bloxbean/yano-x/blob/main/state-machines/stdlib) |
+| `:capabilities:authenticated-map-validators` | `yano-x-authenticated-map-validators` | `com.bloxbean.cardano.yano.appchain.authenticated-map-validators` | [capabilities/authenticated-map-validators](https://github.com/bloxbean/yano-x/blob/main/capabilities/authenticated-map-validators) |
+| `:composition:runtime` | `yano-x-composite` | `com.bloxbean.cardano.yano.appchain.composite` | [composition/runtime](https://github.com/bloxbean/yano-x/blob/main/composition/runtime) |
+| `:capabilities:role-workflow` | `yano-x-role-workflow` | `com.bloxbean.cardano.yano.appchain.role-workflow` | [capabilities/role-workflow](https://github.com/bloxbean/yano-x/blob/main/capabilities/role-workflow) |
+| `:products:evidence:registry` | `yano-x-evidence-registry` | `com.bloxbean.cardano.yano.appchain.evidence-registry` | [products/evidence/registry](https://github.com/bloxbean/yano-x/blob/main/products/evidence/registry) |
+| `:products:evidence:profile` | `yano-x-evidence-profile` | `com.bloxbean.cardano.yano.appchain.evidence-profile` | [products/evidence/profile](https://github.com/bloxbean/yano-x/blob/main/products/evidence/profile) |
+| `:products:cardano-history:runtime` | `yano-x-cardano-history` | `com.bloxbean.cardano.yano.appchain.cardano-history` | [products/cardano-history/runtime](https://github.com/bloxbean/yano-x/blob/main/products/cardano-history/runtime) |
+| `:examples:showcase` | `yano-x-showcase` | `com.bloxbean.cardano.yano.appchain.showcase` | [examples/showcase](https://github.com/bloxbean/yano-x/blob/main/examples/showcase) |
+| `:connectors:kafka` | `yano-x-kafka` | `com.bloxbean.cardano.yano.appchain.kafka` | [connectors/kafka](https://github.com/bloxbean/yano-x/blob/main/connectors/kafka) |
+| `:connectors:objectstore-s3` | `yano-x-objectstore-s3` | `com.bloxbean.cardano.yano.appchain.objectstore.s3` | [connectors/objectstore-s3](https://github.com/bloxbean/yano-x/blob/main/connectors/objectstore-s3) |
+| `:connectors:ipfs` | `yano-x-ipfs` | `com.bloxbean.cardano.yano.appchain.ipfs` | [connectors/ipfs](https://github.com/bloxbean/yano-x/blob/main/connectors/ipfs) |
+| `:connectors:effects-cardano` | `yano-x-effects-cardano` | `com.bloxbean.cardano.yano.appchain.effects.cardano` | [connectors/effects-cardano](https://github.com/bloxbean/yano-x/blob/main/connectors/effects-cardano) |
+| `:state-machines:zk` | `yano-x-zk` | `com.bloxbean.cardano.yano.appchain.zk` | [state-machines/zk](https://github.com/bloxbean/yano-x/blob/main/state-machines/zk) |
+| `:ledgers:eutxo:ledger` | `yano-x-eutxo-ledger` | `com.bloxbean.cardano.yano.appchain.eutxo` | [ledgers/eutxo/ledger](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/ledger) |
+| `:ledgers:eutxo:bridge-cardano` | `yano-x-eutxo-bridge-cardano` | `com.bloxbean.cardano.yano.appchain.eutxo.bridge.cardano` | [ledgers/eutxo/bridge-cardano](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/bridge-cardano) |
+| `:ledgers:eutxo:indexer-jdbc` | `yano-x-eutxo-indexer-jdbc` | `com.bloxbean.cardano.yano.appchain.eutxo.indexer` | [ledgers/eutxo/indexer-jdbc](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/indexer-jdbc) |
+| `:ledgers:eutxo-zk:runtime` | `yano-x-eutxo-zk-runtime` | `com.bloxbean.cardano.yano.appchain.eutxo.zk.runtime` | [ledgers/eutxo-zk/runtime](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/runtime) |
+| `:ledgers:eutxo-zk:indexer` | `yano-x-eutxo-zk-indexer` | `com.bloxbean.cardano.yano.appchain.eutxo.zk.indexer` | [ledgers/eutxo-zk/indexer](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/indexer) |
+
+### `library` (20)
+
+| Gradle module | Artifact id | Plugin bundle id | Source |
+|---|---|---|---|
+| `:state-machines:stdlib-contracts` | `yano-x-stdlib-contracts` | — | [state-machines/stdlib-contracts](https://github.com/bloxbean/yano-x/blob/main/state-machines/stdlib-contracts) |
+| `:composition:contracts` | `yano-x-composite-contracts` | — | [composition/contracts](https://github.com/bloxbean/yano-x/blob/main/composition/contracts) |
+| `:composition:client` | `yano-x-composite-client` | — | [composition/client](https://github.com/bloxbean/yano-x/blob/main/composition/client) |
+| `:capabilities:role-workflow-contracts` | `yano-x-role-workflow-contracts` | — | [capabilities/role-workflow-contracts](https://github.com/bloxbean/yano-x/blob/main/capabilities/role-workflow-contracts) |
+| `:sdk:client` | `yano-x-client` | — | [sdk/client](https://github.com/bloxbean/yano-x/blob/main/sdk/client) |
+| `:sdk:proof-contracts` | `yano-x-proof-contracts` | — | [sdk/proof-contracts](https://github.com/bloxbean/yano-x/blob/main/sdk/proof-contracts) |
+| `:sdk:integration-contracts` | `yano-x-integration-contracts` | — | [sdk/integration-contracts](https://github.com/bloxbean/yano-x/blob/main/sdk/integration-contracts) |
+| `:products:evidence:contracts` | `yano-x-evidence-contracts` | — | [products/evidence/contracts](https://github.com/bloxbean/yano-x/blob/main/products/evidence/contracts) |
+| `:products:evidence:client` | `yano-x-evidence-client` | — | [products/evidence/client](https://github.com/bloxbean/yano-x/blob/main/products/evidence/client) |
+| `:products:cardano-history:client` | `yano-x-cardano-history-client` | — | [products/cardano-history/client](https://github.com/bloxbean/yano-x/blob/main/products/cardano-history/client) |
+| `:examples:showcase-client` | `yano-x-showcase-client` | — | [examples/showcase-client](https://github.com/bloxbean/yano-x/blob/main/examples/showcase-client) |
+| `:ledgers:eutxo:contracts` | `yano-x-eutxo-contracts` | — | [ledgers/eutxo/contracts](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/contracts) |
+| `:ledgers:eutxo:client` | `yano-x-eutxo-client` | — | [ledgers/eutxo/client](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/client) |
+| `:ledgers:eutxo:indexer-core` | `yano-x-eutxo-indexer-core` | — | [ledgers/eutxo/indexer-core](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/indexer-core) |
+| `:ledgers:eutxo-zk:contracts` | `yano-x-eutxo-zk-contracts` | — | [ledgers/eutxo-zk/contracts](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/contracts) |
+| `:ledgers:eutxo-zk:zeroj` | `yano-x-eutxo-zk-zeroj` | — | [ledgers/eutxo-zk/zeroj](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/zeroj) |
+| `:ledgers:eutxo-zk:prover` | `yano-x-eutxo-zk-prover` | — | [ledgers/eutxo-zk/prover](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/prover) |
+| `:ledgers:eutxo-zk:client` | `yano-x-eutxo-zk-client` | — | [ledgers/eutxo-zk/client](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/client) |
+| `:ledgers:eutxo-zk:lifecycle` | `yano-x-eutxo-zk-lifecycle` | — | [ledgers/eutxo-zk/lifecycle](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/lifecycle) |
+| `:tooling:spring-boot-starter` | `yano-x-spring-boot-starter` | — | [tooling/spring-boot-starter](https://github.com/bloxbean/yano-x/blob/main/tooling/spring-boot-starter) |
+
+### `application` (3)
+
+| Gradle module | Artifact id | Plugin bundle id | Source |
+|---|---|---|---|
+| `:products:evidence:demo-runner` | `yano-x-evidence-demo-runner` | — | [products/evidence/demo-runner](https://github.com/bloxbean/yano-x/blob/main/products/evidence/demo-runner) |
+| `:ledgers:eutxo:demo` | `yano-x-eutxo-demo` | — | [ledgers/eutxo/demo](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/demo) |
+| `:ledgers:eutxo-zk:demo` | `yano-x-eutxo-zk-demo` | — | [ledgers/eutxo-zk/demo](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/demo) |
+
+### `tool` (3)
+
+| Gradle module | Artifact id | Plugin bundle id | Source |
+|---|---|---|---|
+| `:tooling:devtools` | `yano-x-devtools` | — | [tooling/devtools](https://github.com/bloxbean/yano-x/blob/main/tooling/devtools) |
+| `:tooling:studio` | `yano-x-studio` | — | [tooling/studio](https://github.com/bloxbean/yano-x/blob/main/tooling/studio) |
+| `:products:cardano-history:cli` | `yano-x-cardano-history-cli` | — | [products/cardano-history/cli](https://github.com/bloxbean/yano-x/blob/main/products/cardano-history/cli) |
+
+### `test-library` (3)
+
+| Gradle module | Artifact id | Plugin bundle id | Source |
+|---|---|---|---|
+| `:sdk:effects-testkit` | `yano-x-effects-testkit` | — | [sdk/effects-testkit](https://github.com/bloxbean/yano-x/blob/main/sdk/effects-testkit) |
+| `:ledgers:eutxo:testkit` | `yano-x-eutxo-testkit` | — | [ledgers/eutxo/testkit](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/testkit) |
+| `:ledgers:eutxo-zk:testkit` | `yano-x-eutxo-zk-testkit` | — | [ledgers/eutxo-zk/testkit](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/testkit) |
+
+### `onchain-artifact` (4)
+
+| Gradle module | Artifact id | Plugin bundle id | Source |
+|---|---|---|---|
+| `:sdk:proof-onchain` | `yano-x-proof-onchain` | — | [sdk/proof-onchain](https://github.com/bloxbean/yano-x/blob/main/sdk/proof-onchain) |
+| `:products:cardano-history:onchain` | `yano-x-cardano-history-onchain` | — | [products/cardano-history/onchain](https://github.com/bloxbean/yano-x/blob/main/products/cardano-history/onchain) |
+| `:ledgers:eutxo:bridge-onchain` | `yano-x-eutxo-bridge-onchain` | — | [ledgers/eutxo/bridge-onchain](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/bridge-onchain) |
+| `:ledgers:eutxo-zk:onchain` | `yano-x-eutxo-zk-onchain` | — | [ledgers/eutxo-zk/onchain](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/onchain) |
+
+### `test-fixture` (1)
+
+| Gradle module | Artifact id | Plugin bundle id | Source |
+|---|---|---|---|
+| `:fixtures:eutxo-e2e` | `yano-x-eutxo-e2e` | — | [fixtures/eutxo-e2e](https://github.com/bloxbean/yano-x/blob/main/fixtures/eutxo-e2e) |
+
+<!-- catalog:modules-end -->
+
+## Using an artifact
+
+```groovy
+repositories { mavenCentral() }
+
+dependencies {
+    // The Java client SDK: REST, SSE, and client-side proof verification.
+    implementation 'com.bloxbean.cardano:yano-x-client'
+
+    // Contracts libraries are plain JARs, safe to use off-chain.
+    implementation 'com.bloxbean.cardano:yano-x-evidence-contracts'
+
+    // Tests.
+    testImplementation 'com.bloxbean.cardano:yano-appchain-core-testkit'
+    testImplementation 'com.bloxbean.cardano:yano-x-effects-testkit'
+}
+```
+
+:::caution[No published release yet]
+Yano X has no published release, so these coordinates are not yet on Maven
+Central. Until then, build from source and publish to Maven Local or to a
+staged repository — see [Developing Yano X](/contributing/).
+:::
+
+Runtime plugin bundles are **not** application dependencies. They are installed
+into `plugins/` in a distribution, not added to a build file.
+
+## Related
+
+- [Capability catalog](/reference/capabilities/) — which capabilities each
+  runtime artifact provides.
+- [Build from source](/start-here/build-from-source/) — producing the
+  distribution that contains them.
+- [`config/artifacts-v1.json`](https://github.com/bloxbean/yano-x/blob/main/config/artifacts-v1.json)
+  — the source of truth for this page.

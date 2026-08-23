@@ -94,6 +94,26 @@ the ZK implementation, remove the standard eUTxO ledger bundle and copy the ZK
 runtime bundle from `optional-plugins/` into `plugins/` on every member. Validate
 the resulting set with `tools/yano-plugins/bin/yano-plugins validate plugins/*.jar`.
 
+## Documentation
+
+The public documentation site lives in [`www/`](www/) and is published at
+[yanox.dev](https://yanox.dev). It covers app-chain concepts, a build-and-run
+quickstart, the plugin framework, the generated recipe/capability/configuration
+catalogs, the imported tutorials, and an AI ingestion layer
+(`/llms.txt`, `/llms-full.txt`, `/ai/starter-pack.md`, `/ai/catalog.json`).
+
+```bash
+cd www && npm ci && npm run dev
+```
+
+It is built from the markdown in [`docs/`](docs/), which remains the source of
+truth: the site imports the tutorials and state-machine references at build
+time and links to the rest.
+
+See [ADR-038](adr/038-yano-x-documentation-site.md) for its content strategy.
+
+## Repository documents
+
 See [Build and test](docs/BUILD_AND_TEST.md),
 [distributions](docs/BUILD_DISTRIBUTIONS.md), and the
 [app-chain documentation index](docs/appchain/README.md) for the independent

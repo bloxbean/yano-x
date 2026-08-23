@@ -1,0 +1,22 @@
+{
+  "name": "yano-x-docsite",
+  "type": "module",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "import": "node scripts/import-repo-docs.mjs",
+    "dev": "npm run import && astro dev",
+    "start": "npm run dev",
+    "build": "npm run import && astro build && npm run check:links",
+    "preview": "astro preview",
+    "astro": "astro",
+    "check:links": "node scripts/check-links.mjs"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "^0.38.3",
+    "astro": "^6.0.1",
+    "mermaid": "^11.17.0",
+    "sharp": "^0.34.2",
+    "typescript": "^5.9.3"
+  }
+}

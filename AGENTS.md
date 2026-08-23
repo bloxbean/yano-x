@@ -52,6 +52,17 @@ published Yano version and its matching ordinary JVM ZIP.
   do not preserve accidental compatibility. Preserve documented Cardano node,
   OrderedLog, wire/storage, proof, replay, and distribution invariants.
 
+## Documentation layout
+
+- `docs/` is the markdown documentation corpus and the **source of truth**. It
+  also ships inside the JVM distribution. Edit documentation here.
+- `www/` is the published Astro + Starlight site (yanox.dev). It imports the
+  tutorials and state-machine references from `docs/` at build time and
+  generates its catalog tables from the JSON catalogs, so never hand-edit an
+  imported page or content between `<!-- catalog:... -->` anchors.
+
+See `adr/038-yano-x-documentation-site.md`.
+
 ## Sources of truth
 
 Read only the references relevant to the task:

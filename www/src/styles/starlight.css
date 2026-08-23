@@ -1,0 +1,124 @@
+/*
+ * Yano X brand overrides for Starlight.
+ *
+ * The palette is taken from the Yano mark (a cyan -> blue -> violet -> magenta
+ * gradient on a deep indigo ground), so Yano X reads as part of Yano rather
+ * than a separate product. See ADR-038 §6.3.
+ */
+
+:root {
+  --yano-cyan: #7fe5ff;
+  --yano-blue: #3a7bff;
+  --yano-blue-deep: #1e5cff;
+  --yano-violet: #5b2bff;
+  --yano-magenta: #ff3b8a;
+  --yano-ground: #0e1230;
+
+  --sl-color-accent-low: #0d1638;
+  --sl-color-accent: #3a7bff;
+  --sl-color-accent-high: #a8c5ff;
+
+  --sl-color-white: #ffffff;
+  --sl-color-gray-1: #e9ecf5;
+  --sl-color-gray-2: #bec4d6;
+  --sl-color-gray-3: #868ea8;
+  --sl-color-gray-4: #525a75;
+  --sl-color-gray-5: #333a54;
+  --sl-color-gray-6: #212743;
+  --sl-color-black: #0e1230;
+
+  --sl-font-system: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    Oxygen, Ubuntu, Cantarell, sans-serif;
+  --sl-font-system-mono: 'JetBrains Mono', ui-monospace, 'Cascadia Code',
+    'Source Code Pro', Menlo, Consolas, monospace;
+}
+
+[data-theme='light'] {
+  --sl-color-accent-low: #e8efff;
+  --sl-color-accent: #1e5cff;
+  --sl-color-accent-high: #12336e;
+}
+
+/* A thin brand gradient under the header ties every page to the mark. */
+.header {
+  position: relative;
+}
+
+.header::after {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  bottom: -1px;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    var(--yano-cyan),
+    var(--yano-blue),
+    var(--yano-violet),
+    var(--yano-magenta)
+  );
+  opacity: 0.85;
+}
+
+/* Starlight sizes the site logo conservatively; the Yano mark reads better a
+   little larger and squared off. */
+.site-title img {
+  border-radius: 6px;
+}
+
+/* ── Mermaid ───────────────────────────────────────────────────────────────
+   Diagrams are injected as <pre class="mermaid"> by scripts/remark-mermaid.mjs
+   and rendered client-side. Until mermaid runs, the raw source would flash, so
+   it stays hidden and is revealed once an <svg> child exists. */
+
+pre.mermaid {
+  visibility: hidden;
+  margin: 1.5rem 0;
+  padding: 1rem;
+  border: 1px solid var(--sl-color-gray-5);
+  border-radius: 0.5rem;
+  background: var(--sl-color-black);
+  overflow-x: auto;
+  text-align: center;
+  line-height: 1;
+}
+
+pre.mermaid:has(svg) {
+  visibility: visible;
+}
+
+pre.mermaid svg {
+  max-width: 100%;
+  height: auto;
+}
+
+[data-theme='light'] pre.mermaid {
+  background: var(--sl-color-gray-7, #f6f7fb);
+}
+
+/* ── Tables ────────────────────────────────────────────────────────────────
+   The generated catalog pages are table-heavy and some are wide. Let them
+   scroll inside their own container instead of stretching the page. */
+
+.sl-markdown-content table {
+  display: block;
+  width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+}
+
+.sl-markdown-content th {
+  white-space: nowrap;
+}
+
+.sl-markdown-content td code,
+.sl-markdown-content th code {
+  white-space: nowrap;
+}
+
+/* Inline code in the generated catalog tables carries most of their content;
+   a slightly smaller size keeps wide rows readable. */
+
+.sl-markdown-content td code {
+  font-size: 0.8125rem;
+}
