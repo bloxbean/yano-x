@@ -36,6 +36,12 @@ import {
 const GITHUB_BLOB = `${GITHUB_REPO}/blob/main`;
 const GITHUB_TREE = `${GITHUB_REPO}/tree/main`;
 
+// Repository paths that are internal and must never become a published link.
+// A link resolving into one of these is reduced to its plain label text rather
+// than rewritten to a GitHub URL: ADRs are point-in-time decisions, not
+// documentation, and several are explicitly marked pre-split evidence.
+const UNLINKED_PREFIXES = ['adr/'];
+
 // Directories this script owns completely. They are wiped before each import
 // so a renamed source file cannot leave a stale page behind.
 const OWNED_DIRS = ['tutorials', 'state-machines'];
@@ -182,7 +188,13 @@ async function rewriteLinks(body, sourceRel) {
       continue;
     }
 
-    // 3. Anything else in the repository: link to GitHub.
+    // 3. Internal-only paths lose their link and keep just their text.
+    if (UNLINKED_PREFIXES.some((prefix) => resolved.startsWith(prefix))) {
+      replacements.set(target, null);
+      continue;
+    }
+
+    // 4. Anything else in the repository: link to GitHub.
     const kind = await classifyRepoPath(resolved);
     if (kind === 'missing') {
       unresolved.push({ target, reason: `no such path in the repository (${resolved})` });
@@ -193,8 +205,11 @@ async function rewriteLinks(body, sourceRel) {
   }
 
   const rewritten = body.replace(linkPattern, (whole, label, target) => {
+    if (!replacements.has(target)) return whole;
     const next = replacements.get(target);
-    return next ? `${label}(${next})` : whole;
+    // null means "internal path": drop the link, keep the label text.
+    if (next === null) return label.replace(/^!?\[(.*)\]$/s, '$1');
+    return `${label}(${next})`;
   });
 
   return { body: rewritten, unresolved };

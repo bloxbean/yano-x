@@ -141,9 +141,8 @@ digest all match. Resolution must be deterministic and side-effect free — see
 
 ## Deeper reading
 
-- [ADR-011 — plugin architecture](https://github.com/bloxbean/yano-x/blob/main/adr/app-layer/011-plugin-architecture.md)
-  — the host/plugin SPI, catalog, compatibility, isolation, and lifecycle
-  contract.
+- ADR-011 in the repository's `adr/app-layer/` directory — the host/plugin SPI,
+  catalog, compatibility, isolation, and lifecycle contract.
 - [`core-host.md`](https://github.com/bloxbean/yano-x/blob/main/docs/core-host.md)
   — plugin query and domain API contract, plugin operations.
 - [Composite implementation guide](https://github.com/bloxbean/yano-x/blob/main/composition/runtime/README.md)

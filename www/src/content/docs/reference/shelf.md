@@ -65,18 +65,11 @@ repository disagree.
 
 ## Decisions
 
-Architecture decision records are point-in-time decisions, not documentation —
-several are explicitly marked pre-split evidence. Read them for rationale, and
-trust the code and this site for current behavior.
-
-| Decision | Subject |
-|---|---|
-| [ADR index](https://github.com/bloxbean/yano-x/blob/main/adr/README.md) | What is retained in Yano X and why. |
-| [ADR-011](https://github.com/bloxbean/yano-x/blob/main/adr/app-layer/011-plugin-architecture.md) | Host/plugin SPI, catalog, compatibility, isolation, lifecycle. |
-| [ADR-030](https://github.com/bloxbean/yano-x/blob/main/adr/refactoring/030-repository-split-yano-x-execution-plan.md) | Repository ownership, packaging, and release gates. |
-| [ADR-031](https://github.com/bloxbean/yano-x/blob/main/adr/app-layer/031-composable-state-machine-foundation-and-portable-proofs.md) | Composition and portable-proof contract. |
-| [ADR-038](https://github.com/bloxbean/yano-x/blob/main/adr/038-yano-x-documentation-site.md) | This documentation site. |
-| [Open work tracker](https://github.com/bloxbean/yano-x/blob/main/adr/app-layer/open_item.md) | The canonical list of known gaps. |
+Architecture decision records live in the `adr/` directory of the repository.
+They are point-in-time decisions rather than documentation — several are
+explicitly marked pre-split evidence — so they are deliberately not published
+here. Read them in the repository when you need the rationale behind a
+contract; trust this site and the code for current behaviour.
 
 ## The upstream host
 

@@ -179,8 +179,8 @@ Edit the sources under `docs/` for imported pages, and
 `docsite/src/content/docs/` for authored ones. Never hand-edit content between
 catalog anchors — it is regenerated.
 
-See [ADR-038](https://github.com/bloxbean/yano-x/blob/main/adr/038-yano-x-documentation-site.md)
-for the site's content strategy and design decisions.
+The site's content strategy and design decisions are recorded in ADR-038, in
+the repository's `adr/` directory.
 
 ## Sources of truth
 
@@ -188,10 +188,10 @@ Read only what the task needs:
 
 | Topic | Source |
 |---|---|
-| Repository split and ownership | [ADR-030](https://github.com/bloxbean/yano-x/blob/main/adr/refactoring/030-repository-split-yano-x-execution-plan.md) |
-| Plugin SPI and lifecycle | [ADR-011](https://github.com/bloxbean/yano-x/blob/main/adr/app-layer/011-plugin-architecture.md) |
-| Composition and portable proofs | [ADR-031](https://github.com/bloxbean/yano-x/blob/main/adr/app-layer/031-composable-state-machine-foundation-and-portable-proofs.md) |
+| Repository split and ownership | ADR-030, in `adr/refactoring/` |
+| Plugin SPI and lifecycle | ADR-011, in `adr/app-layer/` |
+| Composition and portable proofs | ADR-031, in `adr/app-layer/` |
 | Module topology | [`settings.gradle`](https://github.com/bloxbean/yano-x/blob/main/settings.gradle) |
 | Artifact ids and bundle ids | [`config/artifacts-v1.json`](https://github.com/bloxbean/yano-x/blob/main/config/artifacts-v1.json) |
 | Build workflows | [BUILD_AND_TEST](https://github.com/bloxbean/yano-x/blob/main/docs/BUILD_AND_TEST.md), [BUILD_DISTRIBUTIONS](https://github.com/bloxbean/yano-x/blob/main/docs/BUILD_DISTRIBUTIONS.md) |
-| Open work | [`adr/app-layer/open_item.md`](https://github.com/bloxbean/yano-x/blob/main/adr/app-layer/open_item.md) |
+| Open work | `adr/app-layer/open_item.md` |

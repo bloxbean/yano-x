@@ -413,7 +413,7 @@ catch-up, restart, and anchor state.
 | Version-matched truth for a build | `./yano.sh appchain recipes`, `./yano.sh appchain capabilities --format json` |
 | Project workflow for agents | The in-repo `configure-yano-appchain` skill under `tooling/devtools/src/main/resources/appchain-dx/v1alpha1/skills/` — **it wins where it overlaps this pack** |
 | Exhaustive reference | [Reference shelf](/reference/shelf/) |
-| Plugin SPI contract | [ADR-011](https://github.com/bloxbean/yano-x/blob/main/adr/app-layer/011-plugin-architecture.md) |
+| Plugin SPI contract | ADR-011, in the repository's `adr/app-layer/` directory |
 | Repository invariants | [`AGENTS.md`](https://github.com/bloxbean/yano-x/blob/main/AGENTS.md) |
 
 ---
