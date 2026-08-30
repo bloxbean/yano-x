@@ -1,0 +1,192 @@
+---
+- name: Prove a Yano X stale round is safe to unlock
+  hosts: all
+  gather_facts: false
+  any_errors_fatal: true
+  tasks:
+    - name: Require an exact chain and height confirmation
+      ansible.builtin.assert:
+        that:
+          - yano_unlock_chain_id is defined
+          - (yano_unlock_chain_id | default('')) is match('^[a-z][a-z0-9-]{0,62}$')
+          - yano_unlock_height is defined
+          - (yano_unlock_height | default(0) | int) > 0
+          - yano_confirm_stale_unlock is defined
+          - >-
+            (yano_confirm_stale_unlock | default(''))
+            == (yano_unlock_chain_id | default('')) ~ '@'
+            ~ (yano_unlock_height | default(0) | string)
+        fail_msg: >-
+          Pass yano_unlock_chain_id, yano_unlock_height, and the exact
+          yano_confirm_stale_unlock=<chain>@<height> only after reviewing the target.
+      run_once: true
+
+    - name: Require fixed sequencing for ordered follower-first recovery
+      ansible.builtin.assert:
+        that:
+          - sequencer_mode == 'fixed'
+          - sequencer_proposer_node in groups['all']
+        fail_msg: >-
+          This playbook only automates fixed-proposer recovery. Review rotating or custom modes manually.
+      run_once: true
+
+    - name: Inspect the controller-side full API key
+      ansible.builtin.stat:
+        path: "{{ api_key_file }}"
+      delegate_to: localhost
+      register: yano_unlock_api_key
+      run_once: true
+
+    - name: Require a private controller-side full API key
+      ansible.builtin.assert:
+        that:
+          - (api_key_file | length) > 0
+          - yano_unlock_api_key.stat.exists
+          - yano_unlock_api_key.stat.isreg
+          - not yano_unlock_api_key.stat.roth
+          - not yano_unlock_api_key.stat.woth
+        fail_msg: >-
+          Configure api_key_file as a private controller-side full API key before recovery.
+      run_once: true
+
+    - name: Read the local chain status before unlocking
+      ansible.builtin.uri:
+        url: >-
+          http://127.0.0.1:{{ http_port }}/api/v1/app-chain/chains/
+          {{- yano_unlock_chain_id }}/status
+        return_content: true
+        status_code: 200
+      register: yano_unlock_status_before
+
+    - name: Prove the target is the next unfinalized stale height
+      ansible.builtin.assert:
+        that:
+          - yano_unlock_status_before.json.running | bool
+          - (yano_unlock_status_before.json.tipHeight | int) == (yano_unlock_height | int) - 1
+          - >-
+            (yano_unlock_status_before.json.sequencer.staleLockedHeight | default(0) | int)
+            == (yano_unlock_height | int)
+          - yano_unlock_status_before.json.sequencer.mode == 'fixed'
+          - (yano_unlock_status_before.json.threshold | int) == (consensus_threshold | int)
+          - >-
+            yano_unlock_status_before.json.peers | dict2items
+            | selectattr('value', 'equalto', true) | list | length == validator_count - 1
+        fail_msg: >-
+          {{ inventory_hostname }} is not at the confirmed stale next height with a complete peer mesh.
+
+    - name: Prove no member has stored the target block or certificate
+      ansible.builtin.uri:
+        url: >-
+          http://127.0.0.1:{{ http_port }}/api/v1/app-chain/chains/
+          {{- yano_unlock_chain_id }}/blocks/{{ yano_unlock_height }}
+        status_code: 404
+      register: yano_unlock_absent_block
+
+    - name: Require retained identity and root parity on every member
+      ansible.builtin.assert:
+        that:
+          - >-
+            yano_unlock_status_before.json.tipHeight
+            == hostvars[sequencer_proposer_node].yano_unlock_status_before.json.tipHeight
+          - >-
+            yano_unlock_status_before.json.stateRoot
+            == hostvars[sequencer_proposer_node].yano_unlock_status_before.json.stateRoot
+          - >-
+            yano_unlock_status_before.json.stateCommitment.genesisId
+            == hostvars[sequencer_proposer_node].yano_unlock_status_before.json.stateCommitment.genesisId
+          - >-
+            yano_unlock_status_before.json.stateCommitment.formatFingerprint
+            == hostvars[sequencer_proposer_node].yano_unlock_status_before.json.stateCommitment.formatFingerprint
+          - >-
+            yano_unlock_status_before.json.consensusProfile.digest
+            == hostvars[sequencer_proposer_node].yano_unlock_status_before.json.consensusProfile.digest
+          - >-
+            yano_unlock_status_before.json.capabilityManifest.manifestDigest
+            == hostvars[sequencer_proposer_node].yano_unlock_status_before.json.capabilityManifest.manifestDigest
+        fail_msg: >-
+          {{ inventory_hostname }} disagrees with the fixed proposer on retained chain identity or state.
+
+- name: Unlock stale followers while the fixed proposer remains locked
+  hosts: all
+  gather_facts: false
+  any_errors_fatal: true
+  serial: 1
+  tasks:
+    - name: Unlock this stale follower
+      ansible.builtin.uri:
+        url: >-
+          http://127.0.0.1:{{ http_port }}/api/v1/app-chain/chains/
+          {{- yano_unlock_chain_id }}/admin/unlock-stale-round
+        method: POST
+        headers:
+          X-API-Key: "{{ lookup('file', api_key_file) | trim }}"
+        return_content: true
+        status_code: 200
+      register: yano_follower_unlock
+      no_log: true
+      when: inventory_hostname != sequencer_proposer_node
+
+    - name: Require the follower lock to be removed
+      ansible.builtin.assert:
+        that:
+          - yano_follower_unlock.json.unlocked | bool
+      no_log: true
+      when: inventory_hostname != sequencer_proposer_node
+
+- name: Unlock the fixed proposer last
+  hosts: all
+  gather_facts: false
+  any_errors_fatal: true
+  tasks:
+    - name: Unlock the fixed proposer's stale round
+      ansible.builtin.uri:
+        url: >-
+          http://127.0.0.1:{{ http_port }}/api/v1/app-chain/chains/
+          {{- yano_unlock_chain_id }}/admin/unlock-stale-round
+        method: POST
+        headers:
+          X-API-Key: "{{ lookup('file', api_key_file) | trim }}"
+        return_content: true
+        status_code: 200
+      register: yano_proposer_unlock
+      no_log: true
+      when: inventory_hostname == sequencer_proposer_node
+
+    - name: Require the proposer lock to be removed
+      ansible.builtin.assert:
+        that:
+          - yano_proposer_unlock.json.unlocked | bool
+      no_log: true
+      when: inventory_hostname == sequencer_proposer_node
+
+- name: Verify stale-round recovery on every member
+  hosts: all
+  gather_facts: false
+  any_errors_fatal: true
+  tasks:
+    - name: Wait for the stale lock to clear or the recovered height to finalize
+      ansible.builtin.uri:
+        url: >-
+          http://127.0.0.1:{{ http_port }}/api/v1/app-chain/chains/
+          {{- yano_unlock_chain_id }}/status
+        return_content: true
+        status_code: 200
+      register: yano_unlock_status_after
+      retries: 30
+      delay: 2
+      until: >-
+        (yano_unlock_status_after.json.tipHeight | int) >= (yano_unlock_height | int)
+        or (yano_unlock_status_after.json.sequencer.staleLockedHeight | default(0) | int) == 0
+
+    - name: Report sanitized recovery result
+      ansible.builtin.debug:
+        msg:
+          node: "{{ inventory_hostname }}"
+          chainId: "{{ yano_unlock_chain_id }}"
+          tipHeight: "{{ yano_unlock_status_after.json.tipHeight }}"
+          staleLockedHeight: >-
+            {{ yano_unlock_status_after.json.sequencer.staleLockedHeight | default(none) }}
+          sequencerMode: "{{ yano_unlock_status_after.json.sequencer.mode }}"
+          connectedPeers: >-
+            {{ yano_unlock_status_after.json.peers | dict2items
+            | selectattr('value', 'equalto', true) | list | length }}

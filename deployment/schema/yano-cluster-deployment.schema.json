@@ -1,0 +1,299 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://yano.bloxbean.com/schema/deployment/v1alpha1/yano-cluster-deployment.schema.json",
+  "title": "Yano X cluster deployment",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "kind", "metadata", "spec"],
+  "properties": {
+    "apiVersion": {"const": "yano.bloxbean.com/v1alpha1"},
+    "kind": {"const": "YanoClusterDeployment"},
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name"],
+      "properties": {
+        "name": {"type": "string", "pattern": "^[a-z][a-z0-9-]{0,62}$"}
+      }
+    },
+    "spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["identity", "l1", "providers", "nodes", "consensus", "network", "runtime", "access"],
+      "properties": {
+        "identity": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["clusterId"],
+          "properties": {"clusterId": {"type": "string", "format": "uuid"}}
+        },
+        "l1": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["network"],
+          "properties": {
+            "network": {"type": "string", "pattern": "^[a-z][a-z0-9-]{0,62}$"},
+            "profile": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]{0,62}(,[a-z][a-z0-9-]{0,62})*$"
+            }
+          }
+        },
+        "infrastructure": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "openTofuVersion": {"type": "string", "minLength": 1},
+            "state": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "backendType": {"type": "string", "not": {"const": "local"}},
+                "backendConfigFile": {"type": "string", "minLength": 1}
+              }
+            }
+          }
+        },
+        "providers": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/provider"}
+        },
+        "nodes": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 32,
+          "items": {"$ref": "#/$defs/node"}
+        },
+        "consensus": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["threshold", "sequencer"],
+          "properties": {
+            "threshold": {"type": "integer", "minimum": 2, "maximum": 7},
+            "sequencer": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["mode", "proposerNode"],
+                  "properties": {
+                    "mode": {"const": "fixed"},
+                    "proposerNode": {"type": "string", "pattern": "^[a-z][a-z0-9-]{0,62}$"}
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["mode"],
+                  "properties": {
+                    "mode": {"const": "rotating"},
+                    "windowSlots": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 1000000,
+                      "default": 60
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "network": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["p2pPort", "httpPort"],
+          "properties": {
+            "p2pPort": {"type": "integer", "minimum": 1024, "maximum": 65535},
+            "httpPort": {"type": "integer", "minimum": 1024, "maximum": 65535}
+          }
+        },
+        "runtime": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["artifact"],
+          "properties": {
+            "artifact": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["kind", "file", "sha256"],
+              "properties": {
+                "kind": {"const": "local-showcase-zip"},
+                "file": {"type": "string"},
+                "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+              }
+            }
+          }
+        },
+        "application": {"$ref": "#/$defs/application"},
+        "monitoring": {"$ref": "#/$defs/monitoring"},
+        "access": {"$ref": "#/$defs/access"},
+        "destructionProtection": {"type": "boolean", "default": true}
+      }
+    }
+  },
+  "$defs": {
+    "provider": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "type"],
+      "properties": {
+        "name": {"type": "string", "pattern": "^[a-z][a-z0-9-]{0,62}$"},
+        "type": {"enum": ["contabo", "hetzner-cloud", "digitalocean", "existing"]},
+        "providerVersion": {"type": "string"},
+        "settings": {"type": "object"}
+      }
+    },
+    "node": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "index", "providerRef", "sshUser", "roles", "memberPublicKey", "memberPrivateKeyFile"],
+      "properties": {
+        "name": {"type": "string", "pattern": "^[a-z][a-z0-9-]{0,62}$"},
+        "index": {"type": "integer", "minimum": 0, "maximum": 31},
+        "providerRef": {"type": "string"},
+        "region": {"type": "string"},
+        "address": {"type": "string"},
+        "advertisedAddress": {"type": "string"},
+        "hostname": {
+          "type": "string",
+          "pattern": "^(?=.{1,253}$)(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\\.)+[a-zA-Z]{2,63}$"
+        },
+        "sshUser": {"type": "string", "minLength": 1},
+        "sshPort": {"type": "integer", "minimum": 1, "maximum": 65535, "default": 22},
+        "instanceType": {"type": "string"},
+        "image": {"type": "string"},
+        "roles": {"type": "array", "items": {"enum": ["validator", "api-gateway", "monitoring"]}, "uniqueItems": true},
+        "memberPublicKey": {"type": "string", "pattern": "^[0-9a-fA-F]{64}$"},
+        "memberPrivateKeyFile": {"type": "string", "minLength": 1}
+      }
+    },
+    "application": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["profile", "anchoring", "settlement"],
+      "properties": {
+        "profile": {"const": "distributed-showcase-preprod-anchored-settlement-v1"},
+        "anchoring": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["mode", "chains", "leaderNode", "seedFile", "everyBlocks", "maxIntervalMinutes"],
+          "properties": {
+            "mode": {"const": "script"},
+            "chains": {"const": "all"},
+            "leaderNode": {"type": "string"},
+            "seedFile": {"type": "string", "minLength": 1},
+            "chainSeedFiles": {
+              "type": "object",
+              "propertyNames": {"pattern": "^[a-z][a-z0-9-]{0,62}$"},
+              "additionalProperties": {"type": "string", "minLength": 1},
+              "default": {}
+            },
+            "everyBlocks": {"type": "integer", "minimum": 1},
+            "maxIntervalMinutes": {"type": "integer", "minimum": 1}
+          }
+        },
+        "settlement": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["mode", "chainId", "ownerNode", "operatorSeedFile", "deploymentRecordFile"],
+          "properties": {
+            "mode": {"const": "preprod"},
+            "chainId": {"const": "payment-chain-settlement"},
+            "ownerNode": {"type": "string"},
+            "operatorSeedFile": {"type": "string", "minLength": 1},
+            "deploymentRecordFile": {"type": "string", "minLength": 1}
+          }
+        }
+      }
+    },
+    "access": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ssh", "api"],
+      "properties": {
+        "ssh": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["mode", "sourceCidrs"],
+          "properties": {
+            "mode": {"enum": ["allowlist", "public-key-only"]},
+            "sourceCidrs": {"type": "array", "items": {"type": "string"}}
+          },
+          "allOf": [
+            {
+              "if": {"properties": {"mode": {"const": "allowlist"}}},
+              "then": {"properties": {"sourceCidrs": {"minItems": 1}}}
+            },
+            {
+              "if": {"properties": {"mode": {"const": "public-key-only"}}},
+              "then": {"properties": {"sourceCidrs": {"maxItems": 0}}}
+            }
+          ]
+        },
+        "api": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["exposure", "sourceCidrs"],
+          "properties": {
+            "exposure": {"enum": ["disabled", "allowlist", "public-https"]},
+            "sourceCidrs": {"type": "array", "items": {"type": "string"}},
+            "proxy": {"enum": ["direct", "cloudflare"]},
+            "apiKeyFile": {"type": "string"},
+            "rateLimit": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "average": {"type": "integer", "minimum": 1, "maximum": 10000, "default": 20},
+                "burst": {"type": "integer", "minimum": 1, "maximum": 20000, "default": 40}
+              }
+            },
+            "tls": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "certificateFile": {"type": "string"},
+                "privateKeyFile": {"type": "string"}
+              }
+            }
+          },
+          "allOf": [
+            {
+              "if": {"properties": {"exposure": {"const": "public-https"}}},
+              "then": {"properties": {"sourceCidrs": {"maxItems": 0}}}
+            }
+          ]
+        }
+      }
+    },
+    "monitoring": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["mode"],
+          "properties": {"mode": {"const": "none"}}
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["mode", "node", "hostname", "exposure", "proxy", "retention", "retentionSize"],
+          "properties": {
+            "mode": {"const": "central-prometheus"},
+            "node": {"type": "string", "pattern": "^[a-z][a-z0-9-]{0,62}$"},
+            "hostname": {
+              "type": "string",
+              "pattern": "^(?=.{1,253}$)(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\\.)+[a-zA-Z]{2,63}$"
+            },
+            "exposure": {"const": "public-https"},
+            "proxy": {"enum": ["direct", "cloudflare"]},
+            "retention": {"type": "string", "pattern": "^[1-9][0-9]*(?:h|d)$"},
+            "retentionSize": {"type": "string", "pattern": "^[1-9][0-9]*(?:MB|GB)$"},
+            "scrapePort": {"type": "integer", "minimum": 1024, "maximum": 65535, "default": 9091}
+          }
+        }
+      ]
+    }
+  }
+}

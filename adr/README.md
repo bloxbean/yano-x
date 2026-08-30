@@ -11,6 +11,10 @@ does not require a sibling Yano checkout.
 | [ADR-011](app-layer/011-plugin-architecture.md) | Host/plugin SPI, catalog, compatibility, isolation, and lifecycle contract |
 | [ADR-031](app-layer/031-composable-state-machine-foundation-and-portable-proofs.md) | Reusable state-machine, capability, composition, and portable-proof contract |
 | [ADR-038](038-yano-x-documentation-site.md) | Public documentation site, its content strategy, and the AI ingestion layer |
+| [ADR-039](039-geographically-distributed-deployment-automation.md) | Provider-neutral deployment to Contabo, Hetzner Cloud, DigitalOcean, existing VMs, or mixed placement using a locally promoted showcase ZIP |
+| [ADR-040](040-product-specific-user-interfaces.md) | Separately deployable Yano X product UIs with runtime node discovery, beginning with EUTxO |
+| [ADR-041](041-trust-preserving-l1-observation-delivery-and-consensus-recovery.md) | Quorum-certified recovery and durable L1 observation delivery without adding an operator or external oracle as a new authority |
+| [ADR-042](042-l1-observation-and-eutxo-settlement-lifecycle.md) | End-to-end L1 observation, different-tip consensus behavior, and EUTxO deposit/withdrawal settlement lifecycle |
 | [Phase evidence](refactoring/baselines/) | Executed baselines and regression evidence for Phases A-F |
 
 The canonical pre-split history remains in the Yano repository. After extraction, decisions owned

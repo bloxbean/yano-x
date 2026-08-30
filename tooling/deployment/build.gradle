@@ -1,0 +1,56 @@
+plugins {
+    id 'application'
+}
+
+dependencies {
+    implementation project(':ledgers:eutxo:demo')
+    implementation libs.jackson.databind
+    implementation libs.jackson.dataformat.yaml
+}
+
+application {
+    applicationName = 'yano-x-deploy'
+    mainClass = 'com.bloxbean.cardano.yano.appchain.deployment.YanoDeploymentCli'
+    applicationDefaultJvmArgs = ['-Xmx512m']
+}
+
+distributions {
+    main {
+        distributionBaseName = 'yano-x-deploy'
+        contents {
+            from('README.md')
+            from(rootProject.file('deployment')) {
+                into 'deployment'
+            }
+        }
+    }
+}
+
+java {
+    sourceCompatibility = 25
+    targetCompatibility = 25
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Yano X Deployment Tool'
+                description = 'Provider-neutral OpenTofu and Ansible deployment compiler for Yano X app chains'
+            }
+        }
+    }
+}
+
+tasks.named('jar') {
+    manifest {
+        attributes('Implementation-Version': project.version)
+    }
+}
+
+tasks.named('test') {
+    systemProperty 'yano.test.repo-root', rootProject.projectDir.absolutePath
+    if (System.getProperty('yano.test.showcase-zip')) {
+        systemProperty 'yano.test.showcase-zip', System.getProperty('yano.test.showcase-zip')
+    }
+}

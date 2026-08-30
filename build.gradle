@@ -71,11 +71,12 @@ allprojects {
 apply from: file('gradle/sbom.gradle')
 apply from: file('gradle/publishing.gradle')
 
-// Every inventoried module except the end-to-end fixture is an ordinary
-// published Java library.
+// Every inventoried module except the end-to-end fixture and static web
+// applications is an ordinary published Java library.
 subprojects.findAll { candidate ->
     artifactByPath.containsKey(candidate.path)
             && candidate.path != ':fixtures:eutxo-e2e'
+            && artifactByPath[candidate.path].publicationType != 'web-application'
 }.each { candidate ->
     candidate.apply from: rootProject.file('gradle/yano-x-module.gradle')
 }
