@@ -224,6 +224,25 @@ cardano_history_chain_index() {
   return 1
 }
 
+l1_network_genesis_id() {
+  local retained="$(cluster_dir)/node0/shelley-genesis.json" source
+  if [ -f "$retained" ]; then
+    source="$retained"
+  elif [ "$NETWORK" = devnet ] && [ -n "${YANO_CLUSTER_DEVNET_GENESIS_FILE:-}" ]; then
+    source="$YANO_CLUSTER_DEVNET_GENESIS_FILE"
+  else
+    source="$YANO_HOME/config/network/$NETWORK/shelley-genesis.json"
+  fi
+  [ -f "$source" ] || die "L1 Shelley genesis file is missing: $source"
+  python3 - "$source" <<'PY'
+import hashlib
+import sys
+
+with open(sys.argv[1], "rb") as stream:
+    print(hashlib.sha256(stream.read()).hexdigest())
+PY
+}
+
 l1_source_snapshot_retention_file() {
   printf '%s/l1-source-snapshot-retention-epochs' "$(instance_root)"
 }
@@ -581,6 +600,8 @@ adopt_marker() {
 
 write_node_configs() {
   local count="$1" directory="$(node_config_dir)" i file cardano_history_index=""
+  local l1_genesis_id
+  l1_genesis_id="$(l1_network_genesis_id)"
   if [ "$CARDANO_HISTORY_ENABLED" = true ]; then
     cardano_history_index="$(cardano_history_chain_index)" \
       || die "Cardano History is enabled but absent from the retained chain set"
@@ -597,6 +618,14 @@ write_node_configs() {
       if [ -n "$L1_SOURCE_SNAPSHOT_RETENTION_EPOCHS" ]; then
         printf 'yano.account-state.snapshot-retention-epochs=%s\n' \
           "$L1_SOURCE_SNAPSHOT_RETENTION_EPOCHS"
+      fi
+      if [ "${LIGHT_CHAINS[$SETTLEMENT_CHAIN_INDEX]:-}" = "$SETTLEMENT_CHAIN_ID" ]; then
+        printf 'yano.app-chain.chains[%d].observation.l1-network-genesis-id=%s\n' \
+          "$SETTLEMENT_CHAIN_INDEX" "$l1_genesis_id"
+      fi
+      if [ "$CARDANO_HISTORY_ENABLED" = true ]; then
+        printf 'yano.app-chain.chains[%d].observation.l1-network-genesis-id=%s\n' \
+          "$cardano_history_index" "$l1_genesis_id"
       fi
       if [ "$i" -eq 0 ]; then
         printf 'yano.app-chain.chains[5].effects.executor.enabled=true\n'
