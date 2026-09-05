@@ -15,7 +15,7 @@ public final class EpochStakeObserverProvider implements L1EpochObserverProvider
     public L1ObserverConsensusIdentity consensusIdentity(
             String observerId, Map<String, String> settings) {
         int chunkEntries = chunkEntries(settings);
-        return ObserverConsensusIdentity.of("epoch-stake-observation-v1",
+        return ObserverConsensusIdentity.of("epoch-stake-observation-v2",
                 "chunk-entries", Integer.toString(chunkEntries));
     }
 

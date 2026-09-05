@@ -29,4 +29,20 @@ class ObserverConsensusIdentityTest {
                 "stake", Map.of("chunk-entries", "1000")).canonicalIdentityBytes())
                 .isNotEqualTo(defaults);
     }
+
+    @Test
+    void governanceIdentityPinsPreConwayEmptyDatasetSemantics() {
+        var actual = new EpochGovernanceObserverProvider()
+                .consensusIdentity("governance", Map.of());
+
+        assertThat(actual.claimSchema()).isEqualTo("epoch-governance-observation-v2");
+    }
+
+    @Test
+    void stakeIdentityPinsPreShelleyEmptyDatasetSemantics() {
+        var actual = new EpochStakeObserverProvider()
+                .consensusIdentity("stake", Map.of());
+
+        assertThat(actual.claimSchema()).isEqualTo("epoch-stake-observation-v2");
+    }
 }

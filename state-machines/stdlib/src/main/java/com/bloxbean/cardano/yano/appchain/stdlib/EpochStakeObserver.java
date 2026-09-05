@@ -5,6 +5,7 @@ import com.bloxbean.cardano.yano.api.appchain.l1view.L1EpochBoundary;
 import com.bloxbean.cardano.yano.api.appchain.l1view.L1EpochObservationSink;
 import com.bloxbean.cardano.yano.api.appchain.l1view.L1EpochObserver;
 import com.bloxbean.cardano.yano.api.appchain.l1view.L1EpochState;
+import com.bloxbean.cardano.yano.api.appchain.l1view.ProtocolParamsCanonicalCodec;
 import com.bloxbean.cardano.yano.appchain.stdlib.contracts.EpochStakeContract;
 
 import java.util.ArrayList;
@@ -34,9 +35,11 @@ public final class EpochStakeObserver implements L1EpochObserver {
     @Override
     public EpochObservationManifest prepare(L1EpochBoundary boundary, L1EpochState state) {
         long epoch = boundary.previousEpoch();
-        requireSnapshot(state, epoch);
         ChunkAccumulator accumulator = new ChunkAccumulator(chunkEntries, null, null);
-        state.forEachStakeEntry(epoch, accumulator::add);
+        if (stakeEra(state, epoch)) {
+            requireSnapshot(state, epoch);
+            state.forEachStakeEntry(epoch, accumulator::add);
+        }
         accumulator.finish();
         return new EpochObservationManifest(EpochObservationManifest.VERSION, observerId,
                 boundary.previousEpoch(), boundary.newEpoch(), epoch,
@@ -48,13 +51,15 @@ public final class EpochStakeObserver implements L1EpochObserver {
     public void writeObservations(EpochObservationManifest manifest,
                                   L1EpochState state,
                                   L1EpochObservationSink sink) {
-        requireSnapshot(state, manifest.datasetEpoch());
         EpochStakeContract.Manifest claimManifest = new EpochStakeContract.Manifest(
                 manifest.datasetEpoch(), manifest.totalEntries(), manifest.chunkEntries(),
                 manifest.chunkCount(), manifest.snapshotRoot());
         sink.write(0, EpochStakeContract.encodeManifest(claimManifest));
         ChunkAccumulator accumulator = new ChunkAccumulator(chunkEntries, claimManifest, sink);
-        state.forEachStakeEntry(manifest.datasetEpoch(), accumulator::add);
+        if (stakeEra(state, manifest.datasetEpoch())) {
+            requireSnapshot(state, manifest.datasetEpoch());
+            state.forEachStakeEntry(manifest.datasetEpoch(), accumulator::add);
+        }
         accumulator.finish();
         byte[] root = EpochStakeContract.snapshotRoot(accumulator.chunkHashes);
         if (accumulator.totalEntries != manifest.totalEntries()
@@ -70,10 +75,22 @@ public final class EpochStakeObserver implements L1EpochObserver {
     }
 
     private static void requireSnapshot(L1EpochState state, long epoch) {
-        if (state.previousEpoch() != epoch || !state.hasStakeSnapshot(epoch)) {
+        if (!state.hasStakeSnapshot(epoch)) {
             throw new NoSuchElementException(
                     "L1_EPOCH_DATASET_UNAVAILABLE: end-of-epoch stake snapshot for epoch " + epoch);
         }
+    }
+
+    private static boolean stakeEra(L1EpochState state, long epoch) {
+        if (state.previousEpoch() != epoch) {
+            throw new IllegalStateException("Stake dataset epoch is not the completed epoch");
+        }
+        var params = state.protocolParams(epoch);
+        if (params.effectiveEpoch() != epoch) {
+            throw new IllegalStateException("Protocol parameter view has the wrong effective epoch");
+        }
+        return ProtocolParamsCanonicalCodec.field(
+                epoch, params.canonicalCbor(), "key-deposit").isPresent();
     }
 
     private static final class ChunkAccumulator {

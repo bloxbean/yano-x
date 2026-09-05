@@ -18,7 +18,7 @@ public final class EpochGovernanceObserverProvider implements L1EpochObserverPro
     public L1ObserverConsensusIdentity consensusIdentity(
             String observerId, Map<String, String> settings) {
         Config config = config(settings);
-        return ObserverConsensusIdentity.of("epoch-governance-observation-v1",
+        return ObserverConsensusIdentity.of("epoch-governance-observation-v2",
                 "include-proposals", Boolean.toString(config.proposals()),
                 "include-drep-distribution", Boolean.toString(config.dreps()),
                 "drep-chunk-entries", Integer.toString(config.chunks()));
