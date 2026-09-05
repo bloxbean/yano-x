@@ -5,6 +5,8 @@ import com.bloxbean.cardano.yano.api.appchain.AppChainConfig;
 import com.bloxbean.cardano.yano.appchain.roles.contracts.ActorKeyEpochV1;
 import com.bloxbean.cardano.yano.appchain.roles.contracts.ActorKeyProofV1;
 import com.bloxbean.cardano.yano.appchain.roles.contracts.ActorRecordV1;
+import com.bloxbean.cardano.yano.appchain.roles.contracts.ApprovalPolicyV1;
+import com.bloxbean.cardano.yano.appchain.roles.contracts.DirectRolePolicyV1;
 import com.bloxbean.cardano.yano.appchain.roles.contracts.AdministratorAuthorityV1;
 import com.bloxbean.cardano.yano.appchain.roles.contracts.GenesisActorV1;
 import com.bloxbean.cardano.yano.appchain.roles.contracts.GovernedAuthorizationLimitsV1;
@@ -367,6 +369,21 @@ public final class TrustRegistryGenesis {
     }
 
     public static GovernedGenesisV1 governedGenesis(Descriptor descriptor) {
+        return governedGenesis(descriptor, TrustRegistryProfile.directPolicies(),
+                List.of(TrustRegistryProfile.onboardingPolicy()));
+    }
+
+    /**
+     * The governed genesis of the descriptor's organizations, actors, and authority under
+     * another profile's policies; the ADR-051 DPP starter shares the descriptor format and
+     * this builder.
+     */
+    public static GovernedGenesisV1 governedGenesis(
+            Descriptor descriptor,
+            List<DirectRolePolicyV1> directPolicies,
+            List<ApprovalPolicyV1> approvalPolicies) {
+        Objects.requireNonNull(directPolicies, "directPolicies");
+        Objects.requireNonNull(approvalPolicies, "approvalPolicies");
         List<OrganizationRecordV1> organizations = new ArrayList<>();
         for (Organization organization : descriptor.organizations()) {
             organizations.add(new OrganizationRecordV1(
@@ -399,8 +416,7 @@ public final class TrustRegistryGenesis {
                 descriptor.authority().distinctActorThreshold(),
                 descriptor.authority().maximumLifetimeBlocks());
         return new GovernedGenesisV1(descriptor.chainId(), authority, organizations, actors,
-                TrustRegistryProfile.directPolicies(),
-                List.of(TrustRegistryProfile.onboardingPolicy()),
+                List.copyOf(directPolicies), List.copyOf(approvalPolicies),
                 GovernedAuthorizationLimitsV1.defaults());
     }
 

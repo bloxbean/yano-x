@@ -1,0 +1,5 @@
+{
+  "chainId" : "dpp-starter-golden",
+  "threshold" : 2,
+  "memberKeysHex" : [ "2da2790c06bf4aad026ed82099dd47a78a17c9577968d7c861e0b63ed044cc51", "67681453771b46c3c8bef16c4063742ff5dec3ae23c523ed6cc30229be98b07d", "56694cdd684f3d1ac15f34c56ea96c33b6526f1233fd37ad22123696186b581e" ]
+}

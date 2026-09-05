@@ -91,6 +91,7 @@ export default defineConfig({
             { label: 'Evidence Desk', slug: 'products/evidence-desk' },
             { label: 'Trust Registry', slug: 'products/trust-registry' },
             { label: 'Verifiable Explorer', slug: 'products/explorer' },
+            { label: 'DPP Starter', slug: 'products/dpp-starter' },
             {
               label: 'eUTxO and ZK',
               slug: 'products/eutxo-and-zk',

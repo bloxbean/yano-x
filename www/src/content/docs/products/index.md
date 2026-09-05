@@ -18,6 +18,7 @@ about a use case.
 | [Evidence Desk](/products/evidence-desk/) | Browser workbench for the role workflow and the evidence product: propose, approve with in-browser actor keys, release once, and read every record back with its proof. | `preview` |
 | [Trust Registry](/products/trust-registry/) | Trust and status registry on the governed authenticated map: proof-bound status answers, Bitstring Status Lists and TRQP answers served from a replayed projection, offline verification, and a console. | `preview` |
 | [Verifiable Explorer](/products/explorer/) | Verify-on-ingest index over stock app chains: timelines, decoded commands, entity trails with a proof-backed state check, search, a content archiver, and row bundles that verify offline. | `preview` |
+| [DPP Starter](/products/dpp-starter/) | Digital Product Passport prototype on the governed authenticated map: governed product, version, claim, and event records, a certification round with independent auditors, committed claims with out-of-band disclosure, a public portal with a GS1 Digital Link resolver, an operator gateway, and passports that verify offline. Not the DPP product of ADR-026. | `reference` (prototype) |
 | [eUTxO and ZK](/products/eutxo-and-zk/) | A deterministic Cardano-shaped UTxO ledger, an optional Cardano bridge, and an optional ZK validity/rollup path. | `experimental` |
 
 ## What products have in common

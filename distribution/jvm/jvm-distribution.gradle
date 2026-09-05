@@ -40,6 +40,9 @@ def explorerUiSbom = project(':products:explorer:ui').layout.projectDirectory.fi
         'build/explorer-ui.cdx.json')
 def explorerCliInstallDirectory = project(':products:explorer:cli').layout.buildDirectory.dir(
         'install/yano-explorer')
+def dppUiDirectory = project(':products:dpp:ui').layout.projectDirectory.dir('build/site')
+def dppUiSbom = project(':products:dpp:ui').layout.projectDirectory.file('build/dpp-ui.cdx.json')
+def dppCliInstallDirectory = project(':products:dpp:cli').layout.buildDirectory.dir('install/yano-dpp')
 def eutxoUiDirectory = project(':products:eutxo:ui').layout.projectDirectory.dir('build/site')
 def eutxoUiSbom = project(':products:eutxo:ui').layout.projectDirectory.file(
         'build/eutxo-ui.cdx.json')
@@ -109,6 +112,8 @@ tasks.register('yanoXJvmDistZip', Zip) {
             ':products:trust-registry:cli:installDist',
             ':products:explorer:ui:frontendBuild', ':products:explorer:ui:frontendSbom',
             ':products:explorer:cli:installDist',
+            ':products:dpp:ui:frontendBuild', ':products:dpp:ui:frontendSbom',
+            ':products:dpp:cli:installDist',
             ':tooling:devtools:installDist', ':tooling:deployment:installDist',
             ':tooling:studio:prepareStudio',
             ':products:eutxo:ui:frontendBuild', ':products:eutxo:ui:frontendSbom',
@@ -213,6 +218,24 @@ tasks.register('yanoXJvmDistZip', Zip) {
         }
         from(rootProject.file('products/explorer/harness')) {
             into 'examples/explorer'
+            filesMatching(['**/*.sh']) {
+                permissions { unix('755') }
+            }
+        }
+        from(dppUiDirectory) {
+            into 'product-ui/dpp'
+        }
+        from(dppUiSbom) {
+            into 'sbom'
+        }
+        from(dppCliInstallDirectory) {
+            into 'tools/yano-dpp'
+            filesMatching(['bin/*']) {
+                permissions { unix('755') }
+            }
+        }
+        from(rootProject.file('products/dpp/harness')) {
+            into 'examples/dpp'
             filesMatching(['**/*.sh']) {
                 permissions { unix('755') }
             }
@@ -509,6 +532,11 @@ tasks.register('verifyYanoXJvmDistribution') {
                     'sbom/explorer-ui.cdx.json',
                     'tools/yano-explorer/bin/yano-explorer',
                     'examples/explorer/explorer.sh',
+                    'product-ui/dpp/index.html',
+                    'product-ui/dpp/dpp-ui-config.json',
+                    'sbom/dpp-ui.cdx.json',
+                    'tools/yano-dpp/bin/yano-dpp',
+                    'examples/dpp/dpp.sh',
                     'skills/configure-yano-appchain/SKILL.md',
                     'config/schema/appchain-metadata-trust.schema.json',
                     'config/schema/eutxo-zk-network-acceptance.schema.json',

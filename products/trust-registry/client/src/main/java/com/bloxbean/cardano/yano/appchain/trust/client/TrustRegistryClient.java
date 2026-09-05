@@ -9,6 +9,7 @@ import com.bloxbean.cardano.yano.appchain.client.AppChainClient;
 import com.bloxbean.cardano.yano.appchain.client.AuthenticatedMapProofBundle;
 import com.bloxbean.cardano.yano.appchain.composite.contracts.CompositeCommitmentV1;
 import com.bloxbean.cardano.yano.appchain.roles.contracts.ActorRecordV1;
+import com.bloxbean.cardano.yano.appchain.roles.contracts.ApprovalPolicyV1;
 import com.bloxbean.cardano.yano.appchain.roles.contracts.DirectRolePolicyV1;
 import com.bloxbean.cardano.yano.appchain.roles.contracts.RoleWorkflowIdentifiers;
 import com.bloxbean.cardano.yano.appchain.roles.contracts.RoleWorkflowKeys;
@@ -300,6 +301,19 @@ public final class TrustRegistryClient {
             return DirectRolePolicyV1.decode(value);
         } catch (RuntimeException malformed) {
             throw malformed("policy record of " + policyId + " is malformed", malformed);
+        }
+    }
+
+    /** Current approval policy record, resolved through its current pointer at the tip. */
+    public ApprovalPolicyV1 approvalPolicy(String policyId) {
+        long revision = pointer(componentKey(COMPONENT_APPROVALS,
+                RoleWorkflowKeys.policyCurrent(policyId)), "approval policy " + policyId);
+        byte[] value = presentValue(componentKey(COMPONENT_APPROVALS,
+                RoleWorkflowKeys.policyRevision(policyId, revision)), "approval policy " + policyId);
+        try {
+            return ApprovalPolicyV1.decode(value);
+        } catch (RuntimeException malformed) {
+            throw malformed("approval policy record of " + policyId + " is malformed", malformed);
         }
     }
 

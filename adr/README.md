@@ -23,6 +23,7 @@ does not require a sibling Yano checkout.
 | [ADR-048](048-evidence-desk.md) | Evidence Desk: browser UI for the role workflow and the evidence product, with in-browser actor signing, proof-bound records, and a document-review release adapter |
 | [ADR-049](049-trust-and-status-registry.md) | Trust and Status Registry: config-only registry chain on the governed authenticated map, proof-answering client and CLI, Bitstring Status List and TRQP service, verifier console |
 | [ADR-050](050-verifiable-explorer.md) | Verifiable Explorer: verify-on-ingest indexer core and stock modules over the public REST API, content archiver, row and state bundles verified offline, read service, CLI, and console |
+| [ADR-051](051-digital-product-passport-starter.md) | DPP Starter: configuration-only Digital Product Passport prototype on the governed authenticated map, certification round, committed claims with disclosure, public portal with GS1 Digital Link resolver, operator gateway, offline-verifiable passports, console; not the DPP product of ADR-026 |
 | [Phase evidence](refactoring/baselines/) | Executed baselines and regression evidence for Phases A-F |
 
 The canonical pre-split history remains in the Yano repository. After extraction, decisions owned

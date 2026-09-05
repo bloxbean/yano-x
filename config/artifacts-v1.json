@@ -355,6 +355,38 @@
       "bundleArtifactId": null
     },
     {
+      "modulePath": ":products:dpp:profile",
+      "directory": "products/dpp/profile",
+      "artifactId": "yano-x-dpp-profile",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":products:dpp:client",
+      "directory": "products/dpp/client",
+      "artifactId": "yano-x-dpp-client",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":products:dpp:cli",
+      "directory": "products/dpp/cli",
+      "artifactId": "yano-x-dpp-cli",
+      "publicationType": "tool",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":products:dpp:ui",
+      "directory": "products/dpp/ui",
+      "artifactId": "yano-x-dpp-ui",
+      "publicationType": "web-application",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
       "modulePath": ":ledgers:eutxo:contracts",
       "directory": "ledgers/eutxo/contracts",
       "artifactId": "yano-x-eutxo-contracts",

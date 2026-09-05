@@ -1,0 +1,40 @@
+dependencies {
+    api project(':state-machines:stdlib-contracts')
+    api project(':capabilities:role-workflow-contracts')
+    api project(':products:trust-registry:profile')
+    implementation project(':state-machines:stdlib')
+    implementation libs.jackson.databind
+    implementation libs.cbor
+    implementation libs.cardano.client.crypto
+
+    testImplementation libs.junit.jupiter.api
+    testRuntimeOnly libs.junit.jupiter.engine
+    testRuntimeOnly libs.junit.platform.launcher
+    testImplementation libs.assertj.core
+}
+
+java {
+    sourceCompatibility = 25
+    targetCompatibility = 25
+}
+
+tasks.named('compileJava') {
+    options.compilerArgs.removeAll { it.startsWith('-Aproject=') }
+}
+
+tasks.withType(Test).configureEach {
+    // ADR-051 §5: the runtime classpath the firewall test scans.
+    systemProperty 'yano.dpp.firewall.classpath',
+            configurations.runtimeClasspath.asPath
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Yano DPP Starter Profile'
+                description = 'Digital Product Passport starter profile (prototype): collections, value codecs, claim commitments, and genesis generator over the governed authenticated map'
+            }
+        }
+    }
+}
