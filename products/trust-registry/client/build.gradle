@@ -1,0 +1,51 @@
+dependencies {
+    api project(':products:trust-registry:profile')
+    api project(':sdk:client')
+    api project(':composition:contracts')
+    api project(':products:attest:client')
+    implementation libs.jackson.databind
+    implementation libs.cbor
+    implementation libs.cardano.client.crypto
+
+    testImplementation libs.junit.jupiter.api
+    testRuntimeOnly libs.junit.jupiter.engine
+    testRuntimeOnly libs.junit.platform.launcher
+    testImplementation libs.assertj.core
+    testImplementation project(':state-machines:stdlib')
+    testImplementation rootProject.ext.yanoModule('yano-appchain-core-testkit')
+}
+
+java {
+    sourceCompatibility = 25
+    targetCompatibility = 25
+}
+
+tasks.named('compileJava') {
+    options.compilerArgs.removeAll { it.startsWith('-Aproject=') }
+}
+
+tasks.withType(Test).configureEach {
+    // ./gradlew :products:trust-registry:client:test -PtrustGoldenWrite=true regenerates the
+    // committed golden answer, list document, and members file for the CLI and console tests.
+    systemProperty 'yano.trust.golden.write',
+            providers.gradleProperty('trustGoldenWrite').getOrElse('false')
+    systemProperty 'yano.trust.golden.dir',
+            layout.projectDirectory.dir('src/test/resources/golden').asFile.absolutePath
+    systemProperty 'yano.trust.cli.golden.dir',
+            rootProject.file('products/trust-registry/cli/src/test/resources/golden').absolutePath
+    systemProperty 'yano.trust.ui.golden.dir',
+            rootProject.file('products/trust-registry/ui/src/lib/fixtures').absolutePath
+    systemProperty 'yano.trust.firewall.classpath',
+            configurations.runtimeClasspath.asPath
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Yano Trust Registry Client'
+                description = 'Proof-answering client, verifier, signer, and standards service for the trust and status registry'
+            }
+        }
+    }
+}

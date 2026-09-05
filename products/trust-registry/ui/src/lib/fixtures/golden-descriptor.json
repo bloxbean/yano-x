@@ -1,0 +1,54 @@
+{
+  "schemaVersion" : 1,
+  "chainId" : "trust-registry-golden",
+  "organizations" : [ {
+    "id" : "registry-operator"
+  }, {
+    "id" : "registrar-guild-b"
+  }, {
+    "id" : "issuer-org-a"
+  } ],
+  "actors" : [ {
+    "id" : "registry-admin-a",
+    "organizationId" : "registry-operator",
+    "roles" : [ "registry-admin" ],
+    "keyId" : "registry-admin-a-k1",
+    "publicKeyHex" : "e04af6b439efa29da8ed467d0f77cf7f4306707dfc7689fc2f0a022f4de7b28d",
+    "keyProofHex" : "86017574727573742d72656769737472792d676f6c64656e7072656769737472792d61646d696e2d6101857372656769737472792d61646d696e2d612d6b315820e04af6b439efa29da8ed467d0f77cf7f4306707dfc7689fc2f0a022f4de7b28d01000058407fd12eca9524ad33acf33fcda9153c6aad7e20fd41fb25adfa55ca75f5ea36ef66b0bcd18faec5d051da94b23af8d7fa3bc79d9a1fc8173785da7b9957dffb08"
+  }, {
+    "id" : "registrar-a",
+    "organizationId" : "registry-operator",
+    "roles" : [ "registrar" ],
+    "keyId" : "registrar-a-k1",
+    "publicKeyHex" : "57369eb9a478f7ac5f6df2253960e56e22de416989ad49d427048e33d909b82c",
+    "keyProofHex" : "86017574727573742d72656769737472792d676f6c64656e6b7265676973747261722d6101856e7265676973747261722d612d6b31582057369eb9a478f7ac5f6df2253960e56e22de416989ad49d427048e33d909b82c0100005840d86c72ce19a215187fd2074209ef7ab6a845b74e3c67653d73917ad208814bb86a38238ffd98a885c2b3d9843dace30d780507be6fc547330fd409cdbe342a09"
+  }, {
+    "id" : "registrar-b",
+    "organizationId" : "registrar-guild-b",
+    "roles" : [ "registrar" ],
+    "keyId" : "registrar-b-k1",
+    "publicKeyHex" : "647dc881b65555b9e44bb70b10bc479f43bba77a823b79fe19c1a15a436e47b1",
+    "keyProofHex" : "86017574727573742d72656769737472792d676f6c64656e6b7265676973747261722d6201856e7265676973747261722d622d6b315820647dc881b65555b9e44bb70b10bc479f43bba77a823b79fe19c1a15a436e47b10100005840d6302c75cf0e342adc3ddc77334873e7bb8155eb650d37cec2c0aa4190db260917d951e63d354d4ac83ce63cdc5ea4406b5bef76dacc9c2c67b44972b29b3206"
+  }, {
+    "id" : "issuer-a",
+    "organizationId" : "issuer-org-a",
+    "roles" : [ "issuer" ],
+    "keyId" : "issuer-a-k1",
+    "publicKeyHex" : "832a18956c1fd9a9c3693076c6783a2db6127d7a4764ea2611126eff9751c8e6",
+    "keyProofHex" : "86017574727573742d72656769737472792d676f6c64656e686973737565722d6101856b6973737565722d612d6b315820832a18956c1fd9a9c3693076c6783a2db6127d7a4764ea2611126eff9751c8e60100005840c01c3a0dc6e40529c58574d78a8acf9f3d118dd20ee969803dd04e286230385ef34e8476001844a59aa7dca467a7cf970529c11a4e04be6430a04dde3198820f"
+  } ],
+  "authority" : {
+    "id" : "registry-admins",
+    "administratorActorIds" : [ "registry-admin-a" ],
+    "distinctActorThreshold" : 1,
+    "maximumLifetimeBlocks" : 1000
+  },
+  "issuers" : [ {
+    "entityId" : "issuer-a",
+    "framework" : "yano-demo-framework-v1",
+    "authorizations" : [ "issue:credential", "revoke:credential" ],
+    "validFromHeight" : 1,
+    "validUntilHeight" : 0
+  } ],
+  "schemas" : [ ]
+}

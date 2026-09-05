@@ -1,0 +1,5 @@
+{
+  "chainId" : "trust-registry-golden",
+  "threshold" : 2,
+  "memberKeysHex" : [ "208e92869a9bb4f677398a9ca9387c388fc890e9962330f50c1a5992a5e944d6", "82222b44764e7089116021b093b6b79bf223956b85d08aaea780b7e2a3eed1b6", "b06ac21009bb97fc00e660a7b79aaefd7291b077e77a31610eb0848b0fb467c5" ]
+}

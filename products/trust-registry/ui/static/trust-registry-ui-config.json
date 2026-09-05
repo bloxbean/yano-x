@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "productId": "trust-registry",
+  "endpoints": [],
+  "defaultChainId": "",
+  "expectedNetwork": "",
+  "allowEndpointOverride": true,
+  "serviceUrl": ""
+}

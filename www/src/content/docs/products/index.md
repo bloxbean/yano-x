@@ -16,6 +16,7 @@ about a use case.
 | [Cardano History](/products/cardano-history/) | Query and prove historical Cardano protocol parameters, epoch stake, DRep distribution, and proposal history. | `preview` |
 | [Attest](/products/attest/) | Record a document digest on a doc-trail chain and hand out a portable certificate that verifies offline against member keys or a Cardano anchor. | `preview` |
 | [Evidence Desk](/products/evidence-desk/) | Browser workbench for the role workflow and the evidence product: propose, approve with in-browser actor keys, release once, and read every record back with its proof. | `preview` |
+| [Trust Registry](/products/trust-registry/) | Trust and status registry on the governed authenticated map: proof-bound status answers, Bitstring Status Lists and TRQP answers served from a replayed projection, offline verification, and a console. | `preview` |
 | [eUTxO and ZK](/products/eutxo-and-zk/) | A deterministic Cardano-shaped UTxO ledger, an optional Cardano bridge, and an optional ZK validity/rollup path. | `experimental` |
 
 ## What products have in common

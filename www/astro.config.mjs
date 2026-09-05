@@ -89,6 +89,7 @@ export default defineConfig({
             { label: 'Cardano History', slug: 'products/cardano-history' },
             { label: 'Attest', slug: 'products/attest' },
             { label: 'Evidence Desk', slug: 'products/evidence-desk' },
+            { label: 'Trust Registry', slug: 'products/trust-registry' },
             {
               label: 'eUTxO and ZK',
               slug: 'products/eutxo-and-zk',

@@ -30,6 +30,11 @@ def attestCliInstallDirectory = project(':products:attest:cli').layout.buildDire
 def evidenceUiDirectory = project(':products:evidence:ui').layout.projectDirectory.dir('build/site')
 def evidenceUiSbom = project(':products:evidence:ui').layout.projectDirectory.file(
         'build/evidence-ui.cdx.json')
+def trustRegistryUiDirectory = project(':products:trust-registry:ui').layout.projectDirectory.dir('build/site')
+def trustRegistryUiSbom = project(':products:trust-registry:ui').layout.projectDirectory.file(
+        'build/trust-registry-ui.cdx.json')
+def trustRegistryCliInstallDirectory = project(':products:trust-registry:cli').layout.buildDirectory.dir(
+        'install/yano-trust')
 def eutxoUiDirectory = project(':products:eutxo:ui').layout.projectDirectory.dir('build/site')
 def eutxoUiSbom = project(':products:eutxo:ui').layout.projectDirectory.file(
         'build/eutxo-ui.cdx.json')
@@ -95,6 +100,8 @@ tasks.register('yanoXJvmDistZip', Zip) {
             ':products:attest:ui:frontendBuild', ':products:attest:ui:frontendSbom',
             ':products:attest:cli:installDist',
             ':products:evidence:ui:frontendBuild', ':products:evidence:ui:frontendSbom',
+            ':products:trust-registry:ui:frontendBuild', ':products:trust-registry:ui:frontendSbom',
+            ':products:trust-registry:cli:installDist',
             ':tooling:devtools:installDist', ':tooling:deployment:installDist',
             ':tooling:studio:prepareStudio',
             ':products:eutxo:ui:frontendBuild', ':products:eutxo:ui:frontendSbom',
@@ -166,6 +173,24 @@ tasks.register('yanoXJvmDistZip', Zip) {
         }
         from(eutxoUiSbom) {
             into 'sbom'
+        }
+        from(trustRegistryUiDirectory) {
+            into 'product-ui/trust-registry'
+        }
+        from(trustRegistryUiSbom) {
+            into 'sbom'
+        }
+        from(trustRegistryCliInstallDirectory) {
+            into 'tools/yano-trust'
+            filesMatching(['bin/*']) {
+                permissions { unix('755') }
+            }
+        }
+        from(rootProject.file('products/trust-registry/harness')) {
+            into 'examples/trust-registry'
+            filesMatching(['**/*.sh']) {
+                permissions { unix('755') }
+            }
         }
         from(devtoolsSkill) {
             into 'skills/configure-yano-appchain'
@@ -449,6 +474,11 @@ tasks.register('verifyYanoXJvmDistribution') {
                     'product-ui/eutxo/index.html',
                     'product-ui/eutxo/eutxo-ui-config.json',
                     'sbom/eutxo-ui.cdx.json',
+                    'product-ui/trust-registry/index.html',
+                    'product-ui/trust-registry/trust-registry-ui-config.json',
+                    'sbom/trust-registry-ui.cdx.json',
+                    'tools/yano-trust/bin/yano-trust',
+                    'examples/trust-registry/registry.sh',
                     'skills/configure-yano-appchain/SKILL.md',
                     'config/schema/appchain-metadata-trust.schema.json',
                     'config/schema/eutxo-zk-network-acceptance.schema.json',

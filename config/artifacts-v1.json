@@ -299,6 +299,38 @@
       "bundleArtifactId": null
     },
     {
+      "modulePath": ":products:trust-registry:profile",
+      "directory": "products/trust-registry/profile",
+      "artifactId": "yano-x-trust-registry-profile",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":products:trust-registry:client",
+      "directory": "products/trust-registry/client",
+      "artifactId": "yano-x-trust-registry-client",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":products:trust-registry:cli",
+      "directory": "products/trust-registry/cli",
+      "artifactId": "yano-x-trust-registry-cli",
+      "publicationType": "tool",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":products:trust-registry:ui",
+      "directory": "products/trust-registry/ui",
+      "artifactId": "yano-x-trust-registry-ui",
+      "publicationType": "web-application",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
       "modulePath": ":ledgers:eutxo:contracts",
       "directory": "ledgers/eutxo/contracts",
       "artifactId": "yano-x-eutxo-contracts",

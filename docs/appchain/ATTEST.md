@@ -59,7 +59,7 @@ cd examples/showcase/src/main/showcase
 Node REST bases are `http://127.0.0.1:7070/api/v1`, `7071`, and `7072` (one per member). The API
 key defaults to `yano-local-cluster-full-key` and can be changed with `YANO_CLUSTER_API_KEY`. The
 chain id is `documents-chain`. If port 7070 is taken, add `--http-base 7170 --server-base 9170`
-(any free ranges) and use those ports below. `./showcase.sh down --instance demo` stops the
+(any free ranges) and use those ports below. `./showcase.sh stop --instance demo` stops the
 instance.
 
 ### Option B: your own chain

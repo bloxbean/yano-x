@@ -51,7 +51,7 @@ cd examples/showcase/src/main/showcase
 
 Node REST bases are `http://127.0.0.1:7070/api/v1`, `7071`, and `7072`. The API key defaults to
 `yano-local-cluster-full-key`. If port 7070 is taken, add `--http-base 7170 --server-base 9170`.
-`./showcase.sh down --instance demo` stops the instance.
+`./showcase.sh stop --instance demo` stops the instance.
 
 The showcase actors sign with deterministic demo seeds, showcase-only material derived as
 `sha256("yano-showcase-demo-actor:" + actorId)`:
