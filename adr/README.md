@@ -15,6 +15,10 @@ does not require a sibling Yano checkout.
 | [ADR-040](040-product-specific-user-interfaces.md) | Separately deployable Yano X product UIs with runtime node discovery, beginning with EUTxO |
 | [ADR-041](041-trust-preserving-l1-observation-delivery-and-consensus-recovery.md) | Quorum-certified recovery and durable L1 observation delivery without adding an operator or external oracle as a new authority |
 | [ADR-042](042-l1-observation-and-eutxo-settlement-lifecycle.md) | End-to-end L1 observation, different-tip consensus behavior, and EUTxO deposit/withdrawal settlement lifecycle |
+| [ADR-043](043-late-bound-l1-epoch-observer-activation.md) | Additive, forward-only activation design for new epoch observers without resetting retained chains |
+| [ADR-044](044-yano-x-independent-review-and-gaps.md) | Independent implementation review, closure audit, and remaining gaps |
+| [ADR-045](045-yano-x-release-readiness.md) | Release and deployment-posture readiness assessment |
+| [ADR-046](046-out-of-the-box-product-portfolio.md) | Candidate out-of-the-box products under `products/`, selection criteria, capability coverage, and sequencing, for discussion |
 | [Phase evidence](refactoring/baselines/) | Executed baselines and regression evidence for Phases A-F |
 
 The canonical pre-split history remains in the Yano repository. After extraction, decisions owned
