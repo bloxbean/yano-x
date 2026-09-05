@@ -34,6 +34,7 @@ credentials unless a guide explicitly says otherwise.
 | Reuse stock transitions and verify portable proofs | [Composable state and proofs](COMPOSABLE_STATE_AND_PROOFS.md) | Java/configuration |
 | Archive and prove large immutable period datasets | [Authenticated snapshots](AUTHENTICATED_SNAPSHOTS.md) | Configuration/API |
 | Query and prove historical Cardano parameters, stake, and governance | [Cardano History product](CARDANO_HISTORY.md) | Plugin configuration/CLI |
+| Attest a document digest and hand out a portable, offline-verifiable certificate | [Attest product](ATTEST.md) | No; CLI or browser UI |
 | Prepare a pilot deployment | [From demo to pilot](tutorials/09-from-demo-to-pilot.md) | Operations work |
 | Trace an experimental EUTxO ZK round trip on devnet | [EUTxO ZK devnet walkthrough](../../ledgers/eutxo-zk/DEVNET_WALKTHROUGH.md) | Cardano builder integration |
 

@@ -83,6 +83,7 @@ def appDistribution = yanoXJvmDistribution.flatMap { it.archiveFile }
 [
         ':products:cardano-history:runtime',
         ':products:cardano-history:cli',
+        ':products:attest:cli',
         ':products:evidence:demo-runner',
         ':connectors:kafka',
         ':connectors:objectstore-s3',
@@ -90,6 +91,7 @@ def appDistribution = yanoXJvmDistribution.flatMap { it.archiveFile }
 ].each { evaluationDependsOn(it) }
 def cardanoHistoryBundle = project(':products:cardano-history:runtime').tasks.named('shadowJar')
 def cardanoHistoryCli = project(':products:cardano-history:cli').tasks.named('distZip', Zip)
+def attestCli = project(':products:attest:cli').tasks.named('distZip', Zip)
 def evidenceRunner = project(':products:evidence:demo-runner').tasks.named('shadowJar')
 def evidenceBundles = [
         project(':connectors:kafka').tasks.named('shadowJar'),
@@ -121,6 +123,21 @@ def stripEmbeddedYanoRoot = { details ->
     }
     // Keep any CopySpec destination prefixes (for example "yano") and
     // remove only the root directory that belongs to the embedded ZIP.
+    def rewritten = segments.take(rootIndex) + segments.drop(rootIndex + 1)
+    details.relativePath = org.gradle.api.file.RelativePath.parse(
+            details.relativePath.file,
+            rewritten.join('/'))
+}
+def stripAttestCliRoot = { details ->
+    def segments = details.relativePath.segments.toList()
+    def rootIndex = segments.findIndexOf { it.startsWith('yano-attest-') }
+    if (rootIndex < 0) {
+        throw new GradleException("Unexpected Attest CLI path: ${segments.join('/')}")
+    }
+    if (rootIndex == segments.size() - 1) {
+        details.exclude()
+        return
+    }
     def rewritten = segments.take(rootIndex) + segments.drop(rootIndex + 1)
     details.relativePath = org.gradle.api.file.RelativePath.parse(
             details.relativePath.file,
@@ -216,6 +233,14 @@ distributions {
                     permissions { unix('755') }
                 }
             }
+            from({ zipTree(attestCli.get().archiveFile.get().asFile) }) {
+                into 'tools/attest'
+                eachFile stripAttestCliRoot
+                includeEmptyDirs = false
+                filesMatching(['**/bin/*']) {
+                    permissions { unix('755') }
+                }
+            }
 
             // Maintained evidence harness plus immutable, already-built
             // artifacts. The harness stages these through
@@ -267,6 +292,7 @@ def showcaseDistributionInputs = [
         tasks.named('shadowJar'),
         cardanoHistoryBundle,
         cardanoHistoryCli,
+        attestCli,
         evidenceRunner,
         tasks.named('generateShowcaseVersion')
 ] + evidenceBundles

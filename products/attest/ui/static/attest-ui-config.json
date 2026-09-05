@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "productId": "attest",
+  "endpoints": [],
+  "defaultChainId": "",
+  "expectedNetwork": "",
+  "allowEndpointOverride": true
+}

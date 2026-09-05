@@ -1,0 +1,47 @@
+dependencies {
+    api project(':sdk:client')
+    api project(':state-machines:stdlib-contracts')
+    implementation libs.jackson.databind
+    implementation libs.cbor
+    implementation libs.cardano.client.crypto
+
+    testImplementation libs.junit.jupiter.api
+    testRuntimeOnly libs.junit.jupiter.engine
+    testRuntimeOnly libs.junit.platform.launcher
+    testImplementation libs.assertj.core
+    testImplementation project(':state-machines:stdlib')
+    testImplementation rootProject.ext.yanoModule('yano-appchain-core-testkit')
+}
+
+java {
+    sourceCompatibility = 25
+    targetCompatibility = 25
+}
+
+tasks.named('compileJava') {
+    options.compilerArgs.removeAll { it.startsWith('-Aproject=') }
+}
+
+tasks.withType(Test).configureEach {
+    // ./gradlew :products:attest:client:test -PattestGoldenWrite=true regenerates the
+    // committed golden certificate, members file, and document for the client, CLI, and UI tests.
+    systemProperty 'yano.attest.golden.write',
+            providers.gradleProperty('attestGoldenWrite').getOrElse('false')
+    systemProperty 'yano.attest.golden.dir',
+            layout.projectDirectory.dir('src/test/resources/golden').asFile.absolutePath
+    systemProperty 'yano.attest.cli.golden.dir',
+            rootProject.file('products/attest/cli/src/test/resources/golden').absolutePath
+    systemProperty 'yano.attest.ui.golden.dir',
+            rootProject.file('products/attest/ui/src/lib/fixtures').absolutePath
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Yano Attest Client'
+                description = 'Document attestation certificates and offline verification over doc-trail app chains'
+            }
+        }
+    }
+}

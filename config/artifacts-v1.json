@@ -187,6 +187,30 @@
       "bundleArtifactId": null
     },
     {
+      "modulePath": ":products:attest:client",
+      "directory": "products/attest/client",
+      "artifactId": "yano-x-attest-client",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":products:attest:cli",
+      "directory": "products/attest/cli",
+      "artifactId": "yano-x-attest-cli",
+      "publicationType": "tool",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":products:attest:ui",
+      "directory": "products/attest/ui",
+      "artifactId": "yano-x-attest-ui",
+      "publicationType": "web-application",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
       "modulePath": ":products:evidence:demo-runner",
       "directory": "products/evidence/demo-runner",
       "artifactId": "yano-x-evidence-demo-runner",
