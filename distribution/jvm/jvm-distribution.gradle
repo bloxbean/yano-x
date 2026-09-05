@@ -25,6 +25,9 @@ def attestUiSbom = project(':products:attest:ui').layout.projectDirectory.file(
         'build/attest-ui.cdx.json')
 def attestCliInstallDirectory = project(':products:attest:cli').layout.buildDirectory.dir(
         'install/yano-attest')
+def evidenceUiDirectory = project(':products:evidence:ui').layout.projectDirectory.dir('build/site')
+def evidenceUiSbom = project(':products:evidence:ui').layout.projectDirectory.file(
+        'build/evidence-ui.cdx.json')
 def devtoolsMetadata = project(':tooling:devtools').file(
         'src/main/resources/appchain-dx/v1alpha1')
 def devtoolsSkill = project(':tooling:devtools').file(
@@ -86,6 +89,7 @@ tasks.register('yanoXJvmDistZip', Zip) {
             ':tooling:devtools:installDist', ':tooling:studio:prepareStudio',
             ':products:attest:ui:frontendBuild', ':products:attest:ui:frontendSbom',
             ':products:attest:cli:installDist',
+            ':products:evidence:ui:frontendBuild', ':products:evidence:ui:frontendSbom',
             ':products:evidence:demo-runner:shadowJar'
     group = 'distribution'
     description = 'Creates the batteries-included Yano X JVM distribution.'
@@ -129,6 +133,12 @@ tasks.register('yanoXJvmDistZip', Zip) {
             into 'product-ui/attest'
         }
         from(attestUiSbom) {
+            into 'sbom'
+        }
+        from(evidenceUiDirectory) {
+            into 'product-ui/evidence'
+        }
+        from(evidenceUiSbom) {
             into 'sbom'
         }
         from(attestCliInstallDirectory) {
@@ -412,6 +422,9 @@ tasks.register('verifyYanoXJvmDistribution') {
                     'product-ui/attest/attest-ui-config.json',
                     'sbom/attest-ui.cdx.json',
                     'tools/yano-attest/bin/yano-attest',
+                    'product-ui/evidence/index.html',
+                    'product-ui/evidence/evidence-ui-config.json',
+                    'sbom/evidence-ui.cdx.json',
                     'skills/configure-yano-appchain/SKILL.md',
                     'config/schema/appchain-metadata-trust.schema.json',
                     'config/schema/eutxo-zk-network-acceptance.schema.json',

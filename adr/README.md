@@ -14,6 +14,7 @@ does not require a sibling Yano checkout.
 | [ADR-040](040-product-specific-user-interfaces.md) | Separately deployable Yano X product UIs with runtime node discovery, beginning with EUTxO (brought forward verbatim from the feature branch that introduced it) |
 | [ADR-046](046-out-of-the-box-product-portfolio.md) | Candidate out-of-the-box products under `products/`, selection criteria, capability coverage, and sequencing, for discussion |
 | [ADR-047](047-attestation-and-certificate-service.md) | Attestation and Certificate Service: certificate format, offline verification model, CLI, and browser UI over a stock doc-trail chain |
+| [ADR-048](048-evidence-desk.md) | Evidence Desk: browser UI for the role workflow and the evidence product, with in-browser actor signing, proof-bound records, and a document-review release adapter |
 | [Phase evidence](refactoring/baselines/) | Executed baselines and regression evidence for Phases A-F |
 
 The canonical pre-split history remains in the Yano repository. After extraction, decisions owned

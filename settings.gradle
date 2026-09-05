@@ -34,6 +34,7 @@ def yanoXModules = [
         ':products:attest:client': 'products/attest/client',
         ':products:attest:cli': 'products/attest/cli',
         ':products:attest:ui': 'products/attest/ui',
+        ':products:evidence:ui': 'products/evidence/ui',
         ':products:evidence:demo-runner': 'products/evidence/demo-runner',
         ':examples:showcase': 'examples/showcase',
         ':examples:showcase-client': 'examples/showcase-client',

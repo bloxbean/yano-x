@@ -211,6 +211,14 @@
       "bundleArtifactId": null
     },
     {
+      "modulePath": ":products:evidence:ui",
+      "directory": "products/evidence/ui",
+      "artifactId": "yano-x-evidence-ui",
+      "publicationType": "web-application",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
       "modulePath": ":products:evidence:demo-runner",
       "directory": "products/evidence/demo-runner",
       "artifactId": "yano-x-evidence-demo-runner",
