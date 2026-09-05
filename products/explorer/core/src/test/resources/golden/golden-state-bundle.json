@@ -1,0 +1,91 @@
+{
+  "schema" : "explorer-state-proof-v1",
+  "chainId" : "explorer-documents",
+  "applicationId" : "doc-trail",
+  "profile" : "mpf-blake2b256-v1",
+  "stateGenesisId" : "8a9323fa18a47c638ecbc7cb8b25066e9d68ac36b61b2d9b51a45defa3475017",
+  "height" : 3,
+  "blockHash" : "915b1b47a06b72336d44282b61b4d3fedde0187d55cda424612f6e157dab47c4",
+  "stateRoot" : "efde59101fca88e96212551cb26b787e573b66ca93cf99daca06b7331d1573fc",
+  "subjectId" : "document-head-v1",
+  "coordinates" : {
+    "entity-id" : "case-1"
+  },
+  "componentId" : "",
+  "keyHex" : "652f636173652d31",
+  "proof" : {
+    "schemaVersion" : 1,
+    "profile" : "mpf-blake2b256-v1",
+    "backend" : "mpf",
+    "commitmentFormatId" : "mpf-blake2b256-format-v1",
+    "proofEncodingId" : "mpf-proof-wire-v1",
+    "nativeVersioning" : false,
+    "physicalDelete" : true,
+    "formatFingerprint" : "91ee14091200f1e24659112d640e877e9177779dcc81dd06117f013e9190082b",
+    "genesisId" : "8a9323fa18a47c638ecbc7cb8b25066e9d68ac36b61b2d9b51a45defa3475017",
+    "version" : 3,
+    "stateRoot" : "efde59101fca88e96212551cb26b787e573b66ca93cf99daca06b7331d1573fc",
+    "oldestProvableHeight" : 1,
+    "proofSchemaVersion" : 1,
+    "key" : "652f636173652d31",
+    "chainId" : "explorer-documents",
+    "committedHeight" : 3,
+    "presence" : "PRESENT",
+    "valueHex" : "820258205f1b4172d5195955069e4fcfa1d1bef46532d54025fa2dfcd90f5a58ca6b9011",
+    "blockHash" : "915b1b47a06b72336d44282b61b4d3fedde0187d55cda424612f6e157dab47c4",
+    "proofWireHex" : "82d8798200588018862a7e925465096ca9777a58fdaab951d1b37f60d3588107fb1a555a371f3b78d054bd4cae8a004237dffc348d971c7b49c70d1af869a35dcd1c70b33b42000eb923b0cbd24df54401d998531feead35a47a99f4deed205de4af81120f97610000000000000000000000000000000000000000000000000000000000000000d87982005880b22df1a126b5ba4e33c16fd6157507610e55ffce20dae7ac44cae168a463612a85c09af929492a871e4fae32d9d5c36e352471cd659bcdb61de08f1722acc3b1332a59b49458a328c4822bc9ed68c6093167d6c4804683bae489f26582f56d290000000000000000000000000000000000000000000000000000000000000000",
+    "block" : {
+      "version" : 3,
+      "height" : 3,
+      "prevHash" : "ec3f9438376016cab588506ce2b3457dee1e2bbcf9c3d65671589d586a5acebf",
+      "l1Slot" : 0,
+      "l1BlockHash" : "",
+      "timestamp" : 1788638229874,
+      "messagesRoot" : "de2b69eb772e121fcae91d812337b719c9eeb0022918fb96a082f3fff02a405a",
+      "stateRoot" : "efde59101fca88e96212551cb26b787e573b66ca93cf99daca06b7331d1573fc",
+      "blockHash" : "915b1b47a06b72336d44282b61b4d3fedde0187d55cda424612f6e157dab47c4"
+    },
+    "finalityCertificate" : {
+      "scheme" : 0,
+      "signatures" : [ {
+        "signer" : "46ae022a8205dd67b2f6e3938ecd71b86d2f377b2c47e8572b2da6154c9d93c2",
+        "signature" : "894f09ed5df62dd10a99068f65155ea9ba09bc9667422b1bbeecb652531d90af424ce87ba347bd58b7e1f37b929e27d3630fae68ef2ba429fd32ccf4e694200b"
+      }, {
+        "signer" : "b5eeff837df07ae5545338deca97efe88344882c1a769ff87c2e8d816aa394fb",
+        "signature" : "cefa0a684e6e195386fe6f417fa90f3004a1bfef97a8381d3cfde13743e3c0e5a800f982e42a0513692d583bcfd04b41e6dd79f96ffec18588d891a8f8deb20d"
+      } ]
+    }
+  },
+  "evidence" : {
+    "chainId" : "explorer-documents",
+    "messageId" : "de2b69eb772e121fcae91d812337b719c9eeb0022918fb96a082f3fff02a405a",
+    "blocksCbor" : [ "8f03726578706c6f7265722d646f63756d656e7473035820b487b159cc2ca818e3397fe3c594de8b6de20ff659ea6a09c3f4013152f5a3fe005820ec3f9438376016cab588506ce2b3457dee1e2bbcf9c3d65671589d586a5acebf00401b000001a0732575725820de2b69eb772e121fcae91d812337b719c9eeb0022918fb96a082f3fff02a405a5820efde59101fca88e96212551cb26b787e573b66ca93cf99daca06b7331d1573fc8189025820de2b69eb772e121fcae91d812337b719c9eeb0022918fb96a082f3fff02a405a726578706c6f7265722d646f63756d656e747374646f632d747261696c2e636f6d6d616e642e7631582035642f7a3e0c68b12f12092038e70ff20f0f37e3e7b682ba4643fa7b03e092d41b000001a0732555d61a6a9c766d582b8366636173652d3258208905e40d39dedbf78c4bb2b14c261deb4a95a4b0cc08ccf2efdef63267c509d260820058400f83bcd576a3f94115f75c3c8181000e1e7facab1099b00788ccf9b92836de758fef278001afccd364de0d1c038ed1846f76ed608ba6af9dffa4e815dd2b9908582035642f7a3e0c68b12f12092038e70ff20f0f37e3e7b682ba4643fa7b03e092d44082008282582046ae022a8205dd67b2f6e3938ecd71b86d2f377b2c47e8572b2da6154c9d93c25840894f09ed5df62dd10a99068f65155ea9ba09bc9667422b1bbeecb652531d90af424ce87ba347bd58b7e1f37b929e27d3630fae68ef2ba429fd32ccf4e694200b825820b5eeff837df07ae5545338deca97efe88344882c1a769ff87c2e8d816aa394fb5840cefa0a684e6e195386fe6f417fa90f3004a1bfef97a8381d3cfde13743e3c0e5a800f982e42a0513692d583bcfd04b41e6dd79f96ffec18588d891a8f8deb20d" ],
+    "members" : [ "b5eeff837df07ae5545338deca97efe88344882c1a769ff87c2e8d816aa394fb", "35642f7a3e0c68b12f12092038e70ff20f0f37e3e7b682ba4643fa7b03e092d4", "46ae022a8205dd67b2f6e3938ecd71b86d2f377b2c47e8572b2da6154c9d93c2" ],
+    "threshold" : 2,
+    "stateCommitment" : {
+      "schemaVersion" : 1,
+      "profile" : "mpf-blake2b256-v1",
+      "backend" : "mpf",
+      "commitmentFormatId" : "mpf-blake2b256-format-v1",
+      "proofEncodingId" : "mpf-proof-wire-v1",
+      "nativeVersioning" : false,
+      "physicalDelete" : true,
+      "formatFingerprint" : "91ee14091200f1e24659112d640e877e9177779dcc81dd06117f013e9190082b",
+      "genesisId" : "8a9323fa18a47c638ecbc7cb8b25066e9d68ac36b61b2d9b51a45defa3475017",
+      "version" : 3,
+      "stateRoot" : "efde59101fca88e96212551cb26b787e573b66ca93cf99daca06b7331d1573fc"
+    }
+  },
+  "decodedFact" : {
+    "revision" : 2,
+    "headDigestHex" : "5f1b4172d5195955069e4fcfa1d1bef46532d54025fa2dfcd90f5a58ca6b9011"
+  },
+  "verification" : {
+    "consistent" : true,
+    "certSignatures" : 2,
+    "checks" : [ "finality certificate consistent with the bundle's own 2 signature(s): internal consistency only", "proof key equals the canonical key derived from the coordinates", "native mpf-blake2b256-v1 proof verified at the certified root (PRESENT)", "decoded fact equals the bundle's decoded fact" ],
+    "trustLevel" : "INTERNAL_CONSISTENCY_ONLY",
+    "failures" : [ ],
+    "note" : "explanatory only; importers recompute"
+  }
+}

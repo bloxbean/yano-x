@@ -1,0 +1,90 @@
+plugins {
+    id 'base'
+    id 'com.github.node-gradle.node' version '7.1.0'
+    id 'maven-publish'
+    id 'signing'
+}
+
+node {
+    version = '22.12.0'
+    download = true
+}
+
+tasks.named('npmInstall') {
+    inputs.file('package-lock.json')
+    outputs.dir('node_modules')
+}
+
+def frontendCheck = tasks.register('frontendCheck', NpmTask) {
+    dependsOn tasks.named('npmInstall')
+    args = ['run', 'check']
+    inputs.files(fileTree('src'), 'package.json', 'package-lock.json',
+            'svelte.config.js', 'tsconfig.json', 'vite.config.ts')
+    outputs.dir('.svelte-kit')
+}
+
+def frontendTest = tasks.register('frontendTest', NpmTask) {
+    dependsOn tasks.named('npmInstall')
+    args = ['test']
+    inputs.files(fileTree('src'), 'package.json', 'package-lock.json',
+            'svelte.config.js', 'tsconfig.json', 'vite.config.ts')
+}
+
+def frontendBuild = tasks.register('frontendBuild', NpmTask) {
+    dependsOn tasks.named('npmInstall'), frontendCheck, frontendTest
+    args = ['run', 'build']
+    inputs.files(fileTree('src'), fileTree('static'), 'package.json', 'package-lock.json',
+            'svelte.config.js', 'tsconfig.json', 'vite.config.ts')
+    outputs.dir('build/site')
+}
+
+def frontendSbom = tasks.register('frontendSbom', NpmTask) {
+    dependsOn frontendBuild
+    args = ['run', 'sbom']
+    inputs.files('package.json', 'package-lock.json')
+    outputs.file('build/explorer-ui.cdx.json')
+}
+
+def uiZip = tasks.register('uiZip', Zip) {
+    dependsOn frontendBuild, frontendSbom
+    archiveBaseName = 'yano-x-explorer-ui'
+    archiveVersion = project.version.toString()
+    destinationDirectory = layout.buildDirectory.dir('distributions')
+    reproducibleFileOrder = true
+    preserveFileTimestamps = false
+    into("yano-x-explorer-ui-${project.version}") {
+        from('build/site')
+        from('build/explorer-ui.cdx.json') {
+            into 'sbom'
+        }
+    }
+}
+
+tasks.named('assemble') {
+    dependsOn uiZip
+}
+
+tasks.named('check') {
+    dependsOn frontendCheck, frontendTest
+}
+
+publishing {
+    publications {
+        web(MavenPublication) {
+            groupId = rootProject.group.toString()
+            artifactId = 'yano-x-explorer-ui'
+            artifact(uiZip) {
+                extension = 'zip'
+            }
+            rootProject.ext.yanoXPom(
+                    pom,
+                    'yano-x-explorer-ui',
+                    'Portable browser console for the Yano X Verifiable Explorer product')
+        }
+    }
+}
+
+if (!project.version.toString().endsWith('SNAPSHOT')
+        && !project.hasProperty('skipSigning')) {
+    signing.sign(publishing.publications.web)
+}

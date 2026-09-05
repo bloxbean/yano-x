@@ -90,6 +90,7 @@ export default defineConfig({
             { label: 'Attest', slug: 'products/attest' },
             { label: 'Evidence Desk', slug: 'products/evidence-desk' },
             { label: 'Trust Registry', slug: 'products/trust-registry' },
+            { label: 'Verifiable Explorer', slug: 'products/explorer' },
             {
               label: 'eUTxO and ZK',
               slug: 'products/eutxo-and-zk',

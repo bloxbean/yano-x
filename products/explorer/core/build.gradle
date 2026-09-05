@@ -1,0 +1,52 @@
+dependencies {
+    api project(':sdk:client')
+    api project(':state-machines:stdlib-contracts')
+    api project(':composition:contracts')
+    api project(':products:attest:client')
+    implementation libs.jackson.databind
+    implementation libs.cbor
+    implementation libs.cardano.client.crypto
+    implementation libs.sqlite.jdbc
+
+    testImplementation libs.junit.jupiter.api
+    testRuntimeOnly libs.junit.jupiter.engine
+    testRuntimeOnly libs.junit.platform.launcher
+    testImplementation libs.assertj.core
+    testImplementation project(':state-machines:stdlib')
+    testImplementation rootProject.ext.yanoModule('yano-appchain-core-testkit')
+}
+
+java {
+    sourceCompatibility = 25
+    targetCompatibility = 25
+}
+
+tasks.named('compileJava') {
+    options.compilerArgs.removeAll { it.startsWith('-Aproject=') }
+}
+
+tasks.withType(Test).configureEach {
+    // ./gradlew :products:explorer:core:test -PexplorerGoldenWrite=true regenerates the committed
+    // golden row bundle, state bundle, and export for the CLI and console tests.
+    systemProperty 'yano.explorer.golden.write',
+            providers.gradleProperty('explorerGoldenWrite').getOrElse('false')
+    systemProperty 'yano.explorer.golden.dir',
+            layout.projectDirectory.dir('src/test/resources/golden').asFile.absolutePath
+    systemProperty 'yano.explorer.cli.golden.dir',
+            rootProject.file('products/explorer/cli/src/test/resources/golden').absolutePath
+    systemProperty 'yano.explorer.ui.golden.dir',
+            rootProject.file('products/explorer/ui/src/lib/fixtures').absolutePath
+    systemProperty 'yano.explorer.firewall.classpath',
+            configurations.runtimeClasspath.asPath
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Yano X Verifiable Explorer Core'
+                description = 'Verify-on-ingest indexer core, stock state-machine modules, content archiver, row verifier, and read service for the Verifiable Explorer'
+            }
+        }
+    }
+}

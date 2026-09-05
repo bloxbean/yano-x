@@ -1,0 +1,7 @@
+{
+  "chainId" : "explorer-documents",
+  "threshold" : 2,
+  "memberKeysHex" : [ "35642f7a3e0c68b12f12092038e70ff20f0f37e3e7b682ba4643fa7b03e092d4", "b5eeff837df07ae5545338deca97efe88344882c1a769ff87c2e8d816aa394fb", "46ae022a8205dd67b2f6e3938ecd71b86d2f377b2c47e8572b2da6154c9d93c2" ],
+  "profile" : "mpf-blake2b256-v1",
+  "genesisIdHex" : "8a9323fa18a47c638ecbc7cb8b25066e9d68ac36b61b2d9b51a45defa3475017"
+}

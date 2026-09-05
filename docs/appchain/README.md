@@ -37,6 +37,7 @@ credentials unless a guide explicitly says otherwise.
 | Attest a document digest and hand out a portable, offline-verifiable certificate | [Attest product](ATTEST.md) | No; CLI or browser UI |
 | Propose, approve, and release through the role workflow from a browser, with in-browser actor signing and proof-bound records | [Evidence Desk](EVIDENCE_DESK.md) | No; browser UI |
 | Run a trust and status registry: proof-bound status answers, Bitstring Status Lists, TRQP answers, offline verification | [Trust Registry](TRUST_REGISTRY.md) | No; launcher, CLI, service, browser UI |
+| Browse, search, and prove the rows of stock app chains: a verify-on-ingest index, entity trails with a state check, a content archiver, offline-verifiable row bundles | [Verifiable Explorer](EXPLORER.md) | No; CLI, service, browser UI |
 | Prepare a pilot deployment | [From demo to pilot](tutorials/09-from-demo-to-pilot.md) | Operations work |
 | Trace an experimental EUTxO ZK round trip on devnet | [EUTxO ZK devnet walkthrough](../../ledgers/eutxo-zk/DEVNET_WALKTHROUGH.md) | Cardano builder integration |
 

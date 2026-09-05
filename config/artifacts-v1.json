@@ -331,6 +331,30 @@
       "bundleArtifactId": null
     },
     {
+      "modulePath": ":products:explorer:core",
+      "directory": "products/explorer/core",
+      "artifactId": "yano-x-explorer-core",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":products:explorer:cli",
+      "directory": "products/explorer/cli",
+      "artifactId": "yano-x-explorer-cli",
+      "publicationType": "tool",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":products:explorer:ui",
+      "directory": "products/explorer/ui",
+      "artifactId": "yano-x-explorer-ui",
+      "publicationType": "web-application",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
       "modulePath": ":ledgers:eutxo:contracts",
       "directory": "ledgers/eutxo/contracts",
       "artifactId": "yano-x-eutxo-contracts",
