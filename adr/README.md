@@ -11,7 +11,13 @@ does not require a sibling Yano checkout.
 | [ADR-011](app-layer/011-plugin-architecture.md) | Host/plugin SPI, catalog, compatibility, isolation, and lifecycle contract |
 | [ADR-031](app-layer/031-composable-state-machine-foundation-and-portable-proofs.md) | Reusable state-machine, capability, composition, and portable-proof contract |
 | [ADR-038](038-yano-x-documentation-site.md) | Public documentation site, its content strategy, and the AI ingestion layer |
-| [ADR-040](040-product-specific-user-interfaces.md) | Separately deployable Yano X product UIs with runtime node discovery, beginning with EUTxO (brought forward verbatim from the feature branch that introduced it) |
+| [ADR-039](039-geographically-distributed-deployment-automation.md) | Provider-neutral deployment to Contabo, Hetzner Cloud, DigitalOcean, existing VMs, or mixed placement using a locally promoted showcase ZIP |
+| [ADR-040](040-product-specific-user-interfaces.md) | Separately deployable Yano X product UIs with runtime node discovery, beginning with EUTxO |
+| [ADR-041](041-trust-preserving-l1-observation-delivery-and-consensus-recovery.md) | Quorum-certified recovery and durable L1 observation delivery without adding an operator or external oracle as a new authority |
+| [ADR-042](042-l1-observation-and-eutxo-settlement-lifecycle.md) | End-to-end L1 observation, different-tip consensus behavior, and EUTxO deposit/withdrawal settlement lifecycle |
+| [ADR-043](043-late-bound-l1-epoch-observer-activation.md) | Additive, forward-only activation design for new epoch observers without resetting retained chains |
+| [ADR-044](044-yano-x-independent-review-and-gaps.md) | Independent implementation review, closure audit, and remaining gaps |
+| [ADR-045](045-yano-x-release-readiness.md) | Release and deployment-posture readiness assessment |
 | [ADR-046](046-out-of-the-box-product-portfolio.md) | Candidate out-of-the-box products under `products/`, selection criteria, capability coverage, and sequencing, for discussion |
 | [ADR-047](047-attestation-and-certificate-service.md) | Attestation and Certificate Service: certificate format, offline verification model, CLI, and browser UI over a stock doc-trail chain |
 | [ADR-048](048-evidence-desk.md) | Evidence Desk: browser UI for the role workflow and the evidence product, with in-browser actor signing, proof-bound records, and a document-review release adapter |

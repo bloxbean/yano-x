@@ -19,6 +19,8 @@ def generatedDistributionManifest = layout.buildDirectory.file(
         'generated/distribution/jvm/yano-x-distribution-v1.json')
 def devtoolsInstallDirectory = project(':tooling:devtools').layout.buildDirectory.dir(
         'install/yano-devtools')
+def deploymentInstallDirectory = project(':tooling:deployment').layout.buildDirectory.dir(
+        'install/yano-x-deploy')
 def studioDirectory = project(':tooling:studio').layout.buildDirectory.dir('studio')
 def attestUiDirectory = project(':products:attest:ui').layout.projectDirectory.dir('build/site')
 def attestUiSbom = project(':products:attest:ui').layout.projectDirectory.file(
@@ -28,6 +30,9 @@ def attestCliInstallDirectory = project(':products:attest:cli').layout.buildDire
 def evidenceUiDirectory = project(':products:evidence:ui').layout.projectDirectory.dir('build/site')
 def evidenceUiSbom = project(':products:evidence:ui').layout.projectDirectory.file(
         'build/evidence-ui.cdx.json')
+def eutxoUiDirectory = project(':products:eutxo:ui').layout.projectDirectory.dir('build/site')
+def eutxoUiSbom = project(':products:eutxo:ui').layout.projectDirectory.file(
+        'build/eutxo-ui.cdx.json')
 def devtoolsMetadata = project(':tooling:devtools').file(
         'src/main/resources/appchain-dx/v1alpha1')
 def devtoolsSkill = project(':tooling:devtools').file(
@@ -90,6 +95,9 @@ tasks.register('yanoXJvmDistZip', Zip) {
             ':products:attest:ui:frontendBuild', ':products:attest:ui:frontendSbom',
             ':products:attest:cli:installDist',
             ':products:evidence:ui:frontendBuild', ':products:evidence:ui:frontendSbom',
+            ':tooling:devtools:installDist', ':tooling:deployment:installDist',
+            ':tooling:studio:prepareStudio',
+            ':products:eutxo:ui:frontendBuild', ':products:eutxo:ui:frontendSbom',
             ':products:evidence:demo-runner:shadowJar'
     group = 'distribution'
     description = 'Creates the batteries-included Yano X JVM distribution.'
@@ -126,6 +134,12 @@ tasks.register('yanoXJvmDistZip', Zip) {
                 permissions { unix('755') }
             }
         }
+        from(deploymentInstallDirectory) {
+            into 'tools/yano-deploy'
+            filesMatching(['bin/*']) {
+                permissions { unix('755') }
+            }
+        }
         from(studioDirectory) {
             into 'studio'
         }
@@ -146,6 +160,12 @@ tasks.register('yanoXJvmDistZip', Zip) {
             filesMatching(['bin/*']) {
                 permissions { unix('755') }
             }
+        }
+        from(eutxoUiDirectory) {
+            into 'product-ui/eutxo'
+        }
+        from(eutxoUiSbom) {
+            into 'sbom'
         }
         from(devtoolsSkill) {
             into 'skills/configure-yano-appchain'
@@ -416,6 +436,7 @@ tasks.register('verifyYanoXJvmDistribution') {
             }
             [
                     'tools/yano-appchain/bin/yano-appchain',
+                    'tools/yano-deploy/bin/yano-x-deploy',
                     'sbom/yano.cdx.json',
                     'studio/index.html',
                     'product-ui/attest/index.html',
@@ -425,6 +446,9 @@ tasks.register('verifyYanoXJvmDistribution') {
                     'product-ui/evidence/index.html',
                     'product-ui/evidence/evidence-ui-config.json',
                     'sbom/evidence-ui.cdx.json',
+                    'product-ui/eutxo/index.html',
+                    'product-ui/eutxo/eutxo-ui-config.json',
+                    'sbom/eutxo-ui.cdx.json',
                     'skills/configure-yano-appchain/SKILL.md',
                     'config/schema/appchain-metadata-trust.schema.json',
                     'config/schema/eutxo-zk-network-acceptance.schema.json',

@@ -277,6 +277,10 @@ The Java codec enforces exact field sets, canonical lowercase hex, and a 44 MiB 
 cd products/attest/ui && npm ci && npm run check && npm test && npm run build
 ```
 
+Add the Yano version properties the repository currently requires (see `docs/BUILD_AND_TEST.md`;
+since PR #4 `main` builds against a Yano pre14 snapshot with `-PuseMavenLocal=true`). The golden
+fixtures are produced by that Yano version's codecs; regenerate them after a Yano bump.
+
 The client test starts a real three-node doc-trail cluster in process, attests through the same
 REST paths the node exposes, verifies in every trust mode, and mutates each section to show that
 only the matching check fails. `./gradlew :products:attest:client:test -PattestGoldenWrite=true`

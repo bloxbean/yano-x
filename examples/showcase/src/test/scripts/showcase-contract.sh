@@ -5,11 +5,14 @@ REPO="$(cd "$MODULE/../../.." && pwd -P)"
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/yano-showcase-contract.XXXXXX")"
 trap 'rm -rf "$WORK"' EXIT INT TERM
 ROOT="$WORK/showcase"
-mkdir -p "$ROOT/yano/appchain-cluster" "$ROOT/yano/config" "$ROOT/yano/plugins" "$ROOT/tools" \
+mkdir -p "$ROOT/yano/appchain-cluster" "$ROOT/yano/config/network/devnet" \
+  "$ROOT/yano/config/network/preprod" "$ROOT/yano/plugins" "$ROOT/tools" \
   "$ROOT/catalog" \
   "$ROOT/profiles/evidence/demo/config" "$ROOT/profiles/evidence/artifacts" "$WORK/bin"
 cp -R "$MODULE/src/main/showcase/." "$ROOT/"
 cp "$MODULE/src/main/showcase/config/application-appchain.yml" "$ROOT/yano/config/"
+printf '{"network":"devnet"}\n' > "$ROOT/yano/config/network/devnet/shelley-genesis.json"
+printf '{"network":"preprod"}\n' > "$ROOT/yano/config/network/preprod/shelley-genesis.json"
 cp "$MODULE/src/main/showcase/config/showcase-catalog-v1.json" "$ROOT/catalog/"
 printf 'fake jar\n' > "$ROOT/yano/yano.jar"
 printf 'fake plugin\n' > "$ROOT/yano/plugins/yano-x-showcase-bundle-test.jar"
@@ -131,6 +134,10 @@ grep -q 'chains\[8\].machines.authenticated-map.genesis-cbor-hex=' \
 [ -s "$ROOT/data/showcase/three/authenticated-map-genesis.hex" ]
 [ -s "$ROOT/data/showcase/three/authenticated-map-jmt-genesis.hex" ]
 grep -q 'chains\[9\].machines.authenticated-map.genesis-cbor-hex=' \
+  "$ROOT/data/showcase/three/node-config/node0.properties"
+grep -Eq 'chains\[10\].observation.l1-network-genesis-id=[0-9a-f]{64}$' \
+  "$ROOT/data/showcase/three/node-config/node0.properties"
+grep -Eq 'chains\[12\].observation.l1-network-genesis-id=[0-9a-f]{64}$' \
   "$ROOT/data/showcase/three/node-config/node0.properties"
 ! grep -R 'signing-key\|api-key' "$ROOT/data/showcase/three/node-config" >/dev/null
 ! grep -R 'authenticated-snapshots.enabled=true' \

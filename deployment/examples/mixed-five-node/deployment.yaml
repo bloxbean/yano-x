@@ -1,0 +1,53 @@
+apiVersion: yano.bloxbean.com/v1alpha1
+kind: YanoClusterDeployment
+metadata:
+  name: yano-preprod-mixed
+spec:
+  identity:
+    clusterId: "00000000-0000-0000-0000-000000000001"
+  l1:
+    network: preprod
+    profile: preprod
+  infrastructure:
+    openTofuVersion: "<tested-exact-version>"
+    state:
+      backendType: s3
+      backendConfigFile: secrets/backend.hcl
+  providers:
+    - name: contabo
+      type: contabo
+      providerVersion: "0.1.44"
+      settings: {sshKeyIds: ["<numeric-secret-id>"]}
+    - name: hetzner
+      type: hetzner-cloud
+      providerVersion: "<tested-exact-version>"
+      settings: {sshKeys: ["<ssh-key-name-or-id>"]}
+    - name: digitalocean
+      type: digitalocean
+      providerVersion: "<tested-exact-version>"
+      settings: {sshKeys: ["<ssh-key-fingerprint-or-id>"]}
+    - name: internal
+      type: existing
+  nodes:
+    - {name: node-0, index: 0, providerRef: contabo, region: "<live-region>", instanceType: "<product-id>", image: "<image-id>", sshUser: admin, sshPort: 22, roles: [validator, api-gateway], memberPublicKey: "<64-hex>", memberPrivateKeyFile: secrets/node-0.seed}
+    - {name: node-1, index: 1, providerRef: hetzner, region: "<live-location>", instanceType: "<server-type>", image: "<image-name-or-id>", sshUser: admin, sshPort: 22, roles: [validator], memberPublicKey: "<64-hex>", memberPrivateKeyFile: secrets/node-1.seed}
+    - {name: node-2, index: 2, providerRef: digitalocean, region: "<live-region>", instanceType: "<droplet-size>", image: "<image-slug-or-id>", sshUser: admin, sshPort: 22, roles: [validator], memberPublicKey: "<64-hex>", memberPrivateKeyFile: secrets/node-2.seed}
+    - {name: node-3, index: 3, providerRef: internal, address: "203.0.113.13", sshUser: admin, sshPort: 22, roles: [validator], memberPublicKey: "<64-hex>", memberPrivateKeyFile: secrets/node-3.seed}
+    - {name: node-4, index: 4, providerRef: internal, address: "203.0.113.14", sshUser: admin, sshPort: 22, roles: [validator], memberPublicKey: "<64-hex>", memberPrivateKeyFile: secrets/node-4.seed}
+  consensus:
+    threshold: 4
+    sequencer: {mode: fixed, proposerNode: node-0}
+  network:
+    p2pPort: 13337
+    httpPort: 7070
+  runtime:
+    artifact: {kind: local-showcase-zip, file: "", sha256: ""}
+  access:
+    ssh:
+      mode: allowlist
+      sourceCidrs: ["198.51.100.0/24"]
+    api:
+      exposure: disabled
+      sourceCidrs: []
+      rateLimit: {average: 20, burst: 40}
+  destructionProtection: true

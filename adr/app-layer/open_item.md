@@ -1,6 +1,6 @@
 # App-Layer Open Items
 
-**Last updated:** 2026-07-19
+**Last updated:** 2026-08-23
 
 **Purpose:** canonical live index of app-layer work that is open, in progress,
 blocked, or intentionally deferred.
@@ -88,7 +88,7 @@ These are the recommended next items after ADR-013 release closure.
 | INT-003 | P3 | Deferred | `ipfs.add-and-pin` with frozen DAG/chunking/codec/hash and ingress/security rules. | ADR-013 §21.4 |
 | INT-004 | P3 | Deferred | IPFS unpin with retention, authorization, reference counting, and legal/evidence policy. | ADR-013 §21.5 |
 | INT-005 | P3 | Deferred | Object deletion/overwrite semantics. | ADR-013 §21.6; outside immutable `object.put` |
-| INT-006 | P2 | Deferred | Kubernetes/Helm/cloud provisioning for the packaged demo/runtime contracts. | ADR-013 §21.7; revive for managed deployment work |
+| INT-006 | P1 | Implemented; live qualification pending | Provider-neutral public-network deployment for Contabo, Hetzner Cloud, DigitalOcean, existing VMs, and mixed five-node clusters. | [ADR-039](../039-geographically-distributed-deployment-automation.md); ADR-013 §21.7 |
 | INT-007 | P2 | Deferred | Shared connector-support library to reduce repeated lifecycle/config boilerplate before a fourth connector. | ADR-014 §4.3 |
 | INT-008 | P2 | Proposed | Complete DPP product profile: actor/credential schemas, gated workflow, portal, policy, and Cardano publication. | [DPP possible design](dpp-possible-design.md); consumes ADR-013/015/019 and FX-002 |
 | INT-009 | P2 | Deferred | A generic migration-precondition/workflow contract for state-incompatible composite upgrades. | ADR-015 §9.2; revive with the first concrete migration consumer |
@@ -141,7 +141,7 @@ missing v1 acceptance criteria.
 | DX-006 | P1 | Ready | `AppStateMachine.stateVersion()` or successor fail-fast state-format marker with migration diagnostics. | ADR-008 I4.5 |
 | DX-007 | P2 | Deferred | SDK/public-source anchor verification loop rather than relying only on the cluster's own L1 view. | ADR-008 DX; ADR-014 demo finding |
 | DX-008 | P2 | Ready | Operator/developer handbooks for upgrade activation, effect operation, governed membership/profile changes, anchors, and failure recovery. | Cross-ADR discussion; required before beta positioning |
-| DX-009 | P2 | Deferred | Container-native generic app-chain cluster topology, distinct from the ADR-013 scenario Compose demo. | `pending-tasks.md` DX track; revive for quick-network/product evaluation |
+| DX-009 | P1 | Implemented for JVM hosts | Host-native generic distributed app-chain topology, distinct from the ADR-013 scenario Compose demo. | [ADR-039](../039-geographically-distributed-deployment-automation.md); `pending-tasks.md` DX track |
 
 ## 9. Protocol, consensus, and L1 backlog
 
@@ -161,7 +161,7 @@ revival conditions.
 | CON-008 | P2 | Deferred | Benchmark and define per-chain versus shared executor/scheduler resource isolation for many chains on one node. | ADR-005 §12.4; revive for multi-chain capacity work |
 | CON-009 | P3 | Deferred | Wire-conformant CIP-137/DMQ interoperability mode. | ADR-005 §12.5; revive only with ecosystem demand |
 | CON-010 | P2 | Deferred | App-chain message/body pruning and archival policy while preserving header/root/proof guarantees. | ADR-005 §12.6; revive when retained history becomes operationally expensive |
-| CON-011 | P2 | Deferred | First-class read-only observer role that verifies/serves but never votes. | ADR-005 §12.7; revive with a concrete observer deployment |
+| CON-011 | P1 | Proposed | First-class read-only observer role that verifies/serves but never votes; required before external app-chain observers can join through bootstrap nodes. | [ADR-039](../039-geographically-distributed-deployment-automation.md); ADR-005 §12.7 |
 | L1-001 | P3 | Blocked | Historical `L1View` via commitment history and archival JMT proofs. | Benchmark + CCL JMT maturity + archival-role design |
 | L1-002 | P3 | Deferred | Complete checkpoint observations at anchor cadence. | Delta-window feasibility work |
 | L1-003 | P2 | Deferred | Anchor leader election/failover under sequencer rotation. | Anchor-leader liveness becomes material |

@@ -648,6 +648,10 @@ yano:
   app-chain:
     l1:
       stability-depth: 36          # observers REQUIRE stability-depth > 0
+    observation:
+      # SHA-256 of the exact Shelley genesis file for this L1 network.
+      # Required when any block or epoch observer is configured.
+      l1-network-genesis-id: "0123456789abcdef...64 lowercase hex characters"
     observers:
       deposits:
         type: address-deposit      # built-in: watch an address for deposits
@@ -657,10 +661,32 @@ yano:
         label: "20250712"
 ```
 
-Observer config must be **identical on every member** (it is
-consensus-critical). Custom observers implement `L1ObserverProvider`
-(ServiceLoader, same plugin pattern as state machines). Read observations
-like any messages: `GET .../messages/by-topic/~l1%2Fdeposits`.
+Observer config and `observation.l1-network-genesis-id` must be **identical on
+every member** (they are consensus-critical). The genesis id is a 32-byte
+network identity encoded as 64 lowercase hex characters; use the SHA-256 of
+the exact Shelley genesis file shared by the members. It prevents otherwise
+identical observer profiles on different L1 networks from sharing an app-chain
+consensus identity. Startup fails when an observer is configured without it.
+
+Custom block observers implement `L1ObserverProvider`; custom epoch observers
+implement `L1EpochObserverProvider` (ServiceLoader, same plugin pattern as
+state machines). Every custom provider must override
+`consensusIdentity(observerId, settings)` and return an
+`L1ObserverConsensusIdentity` containing:
+
+- a positive observer ABI version;
+- the canonical claim schema identifier;
+- a positive canonical ordering version; and
+- deterministic, unambiguous identity bytes for every setting that can change
+  emitted claims or their order.
+
+Normalize and length-delimit variable fields. Do not include credentials,
+URLs, paths, retry limits, timeouts, or other operational settings that cannot
+change deterministic observation output. The default SPI method deliberately
+throws, so a custom provider cannot start until it declares this contract.
+
+Read observations like any messages:
+`GET .../messages/by-topic/~l1%2Fdeposits`.
 
 ---
 
@@ -819,6 +845,7 @@ Flat (single-chain) keys. The same suffixes apply per chain under
 | `anchor.script.validator` | `builtin:aiken` | Script mode: anchor validator artifact — `builtin:aiken`, `file:/path` (blueprint or raw hex) or `hex:...` |
 | `anchor.script.thread-policy` | `builtin:aiken` | Script mode: thread-policy artifact (same forms) |
 | `observers.<id>.type` | — | L1 observer instance (§5.5): `address-deposit`, `metadata-label`, or a plugin provider id. Further `observers.<id>.*` keys are provider settings (e.g. `address`, `label`). Must be identical on all members; requires `l1.stability-depth > 0` |
+| `observation.l1-network-genesis-id` | — | Required when any block or epoch observer is configured: 32-byte L1 network genesis identity as 64 lowercase hex characters. Use the SHA-256 of the exact Shelley genesis file and configure the same value on every member (§5.5) |
 | `anchor.validity-slots` | `7200` | Anchor tx TTL = current L1 slot + this; a resubmitted anchor can never race a late-landing original |
 | `anchor.fallback-fee-lovelace` | `300000` | Anchor tx fee when protocol parameters are unavailable; normally the fee is computed from the node's current params by tx size |
 | `l1.stability-depth` | `0` | Depth of the stable L1 reference in app blocks (0 = off). When > 0, followers verify each proposal's L1 ref against their **own** L1 view (monotonic, hash-matched at depth; brief proposer lead is retried, a fabricated ref is rejected fail-closed) and the node refuses to start without an L1 event feed |

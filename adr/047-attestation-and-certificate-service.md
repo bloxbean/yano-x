@@ -275,10 +275,11 @@ Security rules from ADR-040 §7 apply: file bytes never leave the browser, API k
 domain responses are validated against bounded schemas, and no remote content is executed.
 
 The scaffold, runtime configuration loader, connection panel, and styling are copied from the
-EUTxO UI as committed on the feature branch that carries ADR-040, because that UI is not yet on
-`main`. ADR-040 is brought into this branch verbatim for the same reason. AGENTS.md still says
-product UIs stay in Yano; that sentence is amended when ADR-040 merges, and this product follows
-ADR-040 in the meantime.
+EUTxO UI as committed on the feature branch that carries ADR-040. That branch merged to `main`
+in pull request #4 on 2026-09-06, after this product was implemented, and `main` was merged back
+into the product branch; the copies are byte-identical to what merged. AGENTS.md still says
+product UIs stay in Yano; that sentence is out of date now that ADR-040 is on `main`, and this
+product follows ADR-040.
 
 ## 9. Chain discovery
 
@@ -378,3 +379,4 @@ Deviations from the proposal:
 | Golden fixtures | The cluster test writes a certificate, members file, and document once (`-PattestGoldenWrite=true`); the CLI and UI tests verify the committed copies, and the cluster test re-verifies them on every run. |
 | Packaging | The attest CLI joins the Cardano History CLI in the showcase zip under `tools/attest`; the JVM distribution carries the CLI under `tools/yano-attest` and the built UI under `product-ui/attest`, following the feature branch's EUTxO UI wiring. |
 | Discovery (§9) | A chain is eligible when `stateMachine == "doc-trail"` or when its manifest lists a `doc-trail` component whose `stateNamespace` is `application/v1`, the namespace of a standalone stdlib component. Composite embeddings carry their own namespace and are excluded, as §9 requires. |
+| Yano pre14 (merge of `main` after PR #4, 2026-09-06) | `main` now needs the unreleased Yano pre14 (`L1ObserverConsensusIdentity`), built with `-PuseMavenLocal=true -PyanoVersion=0.1.0-pre14-ba9ac62-SNAPSHOT -PyanoJvmDist=<local yano-0.1.0-pre14-ba9ac62.zip>` as ADR-045 records. Pre14 blocks are version 3 (15 items, with consensus context digest, view, and justification); the JVM verifier follows the core codec, and the browser walker now selects the layout by block version (v2 and v3). The golden fixtures were regenerated under pre14 and all gates re-run against it; the pre13 showcase walkthrough above was not repeated on pre14. |

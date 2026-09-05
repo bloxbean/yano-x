@@ -184,6 +184,7 @@ does not re-verify them.
 cd products/evidence/ui && npm ci && npm run check && npm test && npm run build
 ```
 
+Add the Yano version properties the repository currently requires (see `docs/BUILD_AND_TEST.md`).
 The golden test writes the fixture with `-PevidenceGoldenWrite=true` and verifies the committed
 copy otherwise. The UI suite also carries an opt-in live run of the whole flow, including the
 negative cases, against a running chain:

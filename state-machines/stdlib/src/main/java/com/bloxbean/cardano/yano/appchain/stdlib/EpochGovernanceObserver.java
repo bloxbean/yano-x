@@ -5,6 +5,7 @@ import com.bloxbean.cardano.yano.api.appchain.l1view.L1EpochBoundary;
 import com.bloxbean.cardano.yano.api.appchain.l1view.L1EpochObservationSink;
 import com.bloxbean.cardano.yano.api.appchain.l1view.L1EpochObserver;
 import com.bloxbean.cardano.yano.api.appchain.l1view.L1EpochState;
+import com.bloxbean.cardano.yano.api.appchain.l1view.ProtocolParamsCanonicalCodec;
 import com.bloxbean.cardano.yano.appchain.stdlib.contracts.EpochGovernanceContract;
 
 import java.util.ArrayList;
@@ -80,6 +81,9 @@ public final class EpochGovernanceObserver implements L1EpochObserver {
                       java.util.function.Consumer<EpochGovernanceContract.DRepChunk> drepSink,
                       byte[] emissionDrepRoot) {
         Pass pass = new Pass();
+        if (!governanceEra(state, epoch)) {
+            return pass;
+        }
         if (includeProposals) {
             if (!state.hasProposalStatusSnapshot(epoch))
                 throw new NoSuchElementException(
@@ -115,6 +119,15 @@ public final class EpochGovernanceObserver implements L1EpochObserver {
                 pass.flushDReps(epoch, emit, drepSink, emissionDrepRoot);
         }
         return pass;
+    }
+
+    private static boolean governanceEra(L1EpochState state, long epoch) {
+        var params = state.protocolParams(epoch);
+        if (params.effectiveEpoch() != epoch) {
+            throw new IllegalStateException("Protocol parameter view has the wrong effective epoch");
+        }
+        return ProtocolParamsCanonicalCodec.field(
+                epoch, params.canonicalCbor(), "drep-deposit").isPresent();
     }
 
     private final class Pass {

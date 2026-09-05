@@ -1,4 +1,4 @@
-import { asArray, asBytes, asText, asUnsigned, decodeCbor, encodeCbor, fromHex, toHex, utf8 } from './cbor';
+import { asArray, asBytes, asText, asUnsigned, decodeCbor, encodeCbor, fromHex, toHex, utf8, type CborValue } from './cbor';
 import { blake2b256 } from './message-proof';
 import type { AppendCommand, SignedEnvelope, TrailHeadValue } from './types';
 
@@ -45,15 +45,35 @@ export function validateEntityId(entityId: string): void {
 }
 
 /**
+ * Block layouts the walker understands, by block version (item 0):
+ * v2 (Yano pre13, 12 items): [version, chainId, height, prevHash, l1Slot, l1BlockHash, timestamp,
+ *   messagesRoot, stateRoot, messages, proposer, cert]
+ * v3 (Yano pre14, 15 items): [version, chainId, height, consensusContextDigest, view, prevHash,
+ *   l1Slot, l1BlockHash, timestamp, messagesRoot, stateRoot, messages, proposer, justification, cert]
+ * Each message is [version, messageId, chainId, topic, sender, senderSeq, expiresAt, body,
+ * [authScheme, authProof]] in both.
+ */
+const BLOCK_LAYOUTS: Record<number, { items: number; stateRoot: number; messages: number }> = {
+  2: { items: 12, stateRoot: 8, messages: 9 },
+  3: { items: 15, stateRoot: 10, messages: 11 }
+};
+
+function decodeBlock(blockCborHex: string): { block: CborValue[]; layout: { items: number; stateRoot: number; messages: number } } {
+  const block = asArray(decodeCbor(fromHex(blockCborHex)));
+  const version = asUnsigned(block[0]);
+  const layout = BLOCK_LAYOUTS[version];
+  if (!layout) throw new Error(`Unsupported block version ${version}`);
+  asArray(block, layout.items);
+  return { block, layout };
+}
+
+/**
  * Reads the signed envelope at one message index out of a canonical block,
- * without hashing the block or touching its certificate. The block layout is
- * [version, chainId, height, prevHash, l1Slot, l1BlockHash, timestamp,
- * messagesRoot, stateRoot, messages, proposer, cert] and each message is
- * [version, messageId, chainId, topic, sender, senderSeq, expiresAt, body, [authScheme, authProof]].
+ * without hashing the block or touching its certificate.
  */
 export function extractEnvelope(blockCborHex: string, index: number): SignedEnvelope {
-  const block = asArray(decodeCbor(fromHex(blockCborHex)), 12);
-  const messages = asArray(block[9]);
+  const { block, layout } = decodeBlock(blockCborHex);
+  const messages = asArray(block[layout.messages]);
   if (!Number.isInteger(index) || index < 0 || index >= messages.length) {
     throw new Error('The message index is outside the evidence block');
   }
@@ -73,10 +93,10 @@ export function extractEnvelope(blockCborHex: string, index: number): SignedEnve
   };
 }
 
-/** State root (item 8) of a canonical block, used for the derived anchor reference. */
+/** State root of a canonical block, used for the derived anchor reference. */
 export function extractBlockStateRootHex(blockCborHex: string): string {
-  const block = asArray(decodeCbor(fromHex(blockCborHex)), 12);
-  return toHex(asBytes(block[8], 32));
+  const { block, layout } = decodeBlock(blockCborHex);
+  return toHex(asBytes(block[layout.stateRoot], 32));
 }
 
 /** Canonical signed body: [chainId, topic, sender, senderSeq, expiresAt, body]. */
