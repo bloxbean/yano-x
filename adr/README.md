@@ -11,6 +11,9 @@ does not require a sibling Yano checkout.
 | [ADR-011](app-layer/011-plugin-architecture.md) | Host/plugin SPI, catalog, compatibility, isolation, and lifecycle contract |
 | [ADR-031](app-layer/031-composable-state-machine-foundation-and-portable-proofs.md) | Reusable state-machine, capability, composition, and portable-proof contract |
 | [ADR-038](038-yano-x-documentation-site.md) | Public documentation site, its content strategy, and the AI ingestion layer |
+| [ADR-040](040-product-specific-user-interfaces.md) | Separately deployable Yano X product UIs with runtime node discovery, beginning with EUTxO (brought forward verbatim from the feature branch that introduced it) |
+| [ADR-046](046-out-of-the-box-product-portfolio.md) | Candidate out-of-the-box products under `products/`, selection criteria, capability coverage, and sequencing, for discussion |
+| [ADR-047](047-attestation-and-certificate-service.md) | Attestation and Certificate Service: certificate format, offline verification model, CLI, and browser UI over a stock doc-trail chain |
 | [Phase evidence](refactoring/baselines/) | Executed baselines and regression evidence for Phases A-F |
 
 The canonical pre-split history remains in the Yano repository. After extraction, decisions owned

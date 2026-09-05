@@ -4,3 +4,7 @@ build/
 **/yaci_error.log
 **/__pycache__/
 **/*.pyc
+**/node_modules/
+**/.svelte-kit/
+**/.env.local
+**/.env.*.local
