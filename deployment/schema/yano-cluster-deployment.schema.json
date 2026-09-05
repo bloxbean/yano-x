@@ -19,7 +19,7 @@
     "spec": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["identity", "l1", "providers", "nodes", "consensus", "network", "runtime", "access"],
+      "required": ["identity", "l1", "providers", "nodes", "consensus", "network", "runtime", "application", "access"],
       "properties": {
         "identity": {
           "type": "object",
@@ -62,7 +62,7 @@
         "nodes": {
           "type": "array",
           "minItems": 3,
-          "maxItems": 32,
+          "maxItems": 7,
           "items": {"$ref": "#/$defs/node"}
         },
         "consensus": {
@@ -121,7 +121,7 @@
               "properties": {
                 "kind": {"const": "local-showcase-zip"},
                 "file": {"type": "string"},
-                "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+                "sha256": {"type": "string", "pattern": "^(?:|[0-9a-f]{64})$"}
               }
             }
           }
@@ -164,7 +164,12 @@
         "sshPort": {"type": "integer", "minimum": 1, "maximum": 65535, "default": 22},
         "instanceType": {"type": "string"},
         "image": {"type": "string"},
-        "roles": {"type": "array", "items": {"enum": ["validator", "api-gateway", "monitoring"]}, "uniqueItems": true},
+        "roles": {
+          "type": "array",
+          "contains": {"const": "validator"},
+          "items": {"enum": ["validator", "l1-bootstrap", "api-gateway", "monitoring"]},
+          "uniqueItems": true
+        },
         "memberPublicKey": {"type": "string", "pattern": "^[0-9a-fA-F]{64}$"},
         "memberPrivateKeyFile": {"type": "string", "minLength": 1}
       }
@@ -175,6 +180,33 @@
       "required": ["profile", "anchoring", "settlement"],
       "properties": {
         "profile": {"const": "distributed-showcase-preprod-anchored-settlement-v1"},
+        "cardanoHistory": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "l1Observations": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "contains": {"const": "l1-epoch-params-v1"},
+              "items": {
+                "enum": [
+                  "l1-epoch-params-v1",
+                  "l1-epoch-stake-v1",
+                  "l1-epoch-governance-v1"
+                ]
+              },
+              "default": ["l1-epoch-params-v1"]
+            },
+            "genesisId": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+            "sourceSnapshotRetentionEpochs": {
+              "type": "integer",
+              "minimum": 2,
+              "maximum": 1000,
+              "default": 50
+            }
+          }
+        },
         "anchoring": {
           "type": "object",
           "additionalProperties": false,
@@ -247,6 +279,19 @@
               "properties": {
                 "average": {"type": "integer", "minimum": 1, "maximum": 10000, "default": 20},
                 "burst": {"type": "integer", "minimum": 1, "maximum": 20000, "default": 40}
+              }
+            },
+            "cors": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "allowedOrigins": {
+                  "type": "array",
+                  "maxItems": 16,
+                  "uniqueItems": true,
+                  "items": {"type": "string"},
+                  "default": []
+                }
               }
             },
             "tls": {

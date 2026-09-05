@@ -4,8 +4,19 @@ plugins {
 
 dependencies {
     implementation project(':ledgers:eutxo:demo')
+    implementation libs.cardano.client.crypto
     implementation libs.jackson.databind
     implementation libs.jackson.dataformat.yaml
+    implementation libs.json.schema.validator
+}
+
+sourceSets {
+    main {
+        resources {
+            srcDir rootProject.file('deployment/schema')
+            include 'yano-cluster-deployment.schema.json'
+        }
+    }
 }
 
 application {

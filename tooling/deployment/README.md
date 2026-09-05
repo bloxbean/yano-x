@@ -8,6 +8,7 @@ or a mixture of them.
 yano-x-deploy init ./cluster
 yano-x-deploy artifact import ./cluster --file ./yano-showcase-<version>.zip
 yano-x-deploy validate ./cluster
+yano-x-deploy doctor ./cluster
 yano-x-deploy render ./cluster
 yano-x-deploy plan ./cluster
 yano-x-deploy apply ./cluster --confirm <cluster-id>
@@ -15,10 +16,15 @@ yano-x-deploy bootstrap-anchors ./cluster --confirm-network preprod
 yano-x-deploy gateway ./cluster
 yano-x-deploy monitoring ./cluster
 yano-x-deploy status ./cluster
+yano-x-deploy wait ./cluster --for l1-tip --timeout-seconds 3600
+yano-x-deploy reset ./cluster --scope appchain --confirm <cluster-id>
 ```
 
 `render` is offline. `plan` and `apply` require OpenTofu for cloud nodes;
-`apply` also requires Ansible. Contabo credentials use the provider-native
+`apply` also requires Ansible. `doctor` verifies the local locks and tools and,
+for resolved hosts, SSH/sudo, platform, capacity, and clock readiness. Apply
+keeps public gateways closed until node, observer, peer-mesh, and consensus-
+identity checks pass, and journals each completed phase. Contabo credentials use the provider-native
 `CNTB_OAUTH2_*` environment variables. Existing VMs are never created, reinstalled, or
 destroyed by the tool. Credentials stay in provider environment variables and
 member signing seeds are read from controller-side files referenced by the

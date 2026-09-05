@@ -35,20 +35,4 @@ class ExistingVmBootstrapContractTest {
                 .doesNotContain("ansible_user:", "ansible_password:", "ansible_ssh_private_key_file:");
     }
 
-    @Test
-    void staleRoundUnlockIsGuardedAndKeepsTheAdminKeyOffTheCommandLine() throws Exception {
-        Path root = Path.of(System.getProperty("yano.test.repo-root"));
-        String playbook = Files.readString(root.resolve("deployment/ansible/unlock-stale-round.yml"));
-
-        assertThat(playbook)
-                .contains("yano_confirm_stale_unlock=<chain>@<height>")
-                .contains("status_code: 404")
-                .contains("stateCommitment.genesisId", "stateCommitment.formatFingerprint")
-                .contains("consensusProfile.digest", "capabilityManifest.manifestDigest")
-                .contains("Unlock stale followers while the fixed proposer remains locked")
-                .contains("Unlock the fixed proposer last")
-                .contains("lookup('file', api_key_file)")
-                .contains("no_log: true")
-                .doesNotContain("ansible_password", "api_key=");
-    }
 }

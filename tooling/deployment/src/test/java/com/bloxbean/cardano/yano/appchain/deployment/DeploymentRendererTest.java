@@ -6,6 +6,8 @@ import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -13,6 +15,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class DeploymentRendererTest {
     private static final List<String> PUBLIC_KEYS = List.of(
@@ -44,10 +47,14 @@ class DeploymentRendererTest {
         DeploymentRenderer renderer = new DeploymentRenderer((artifact, members, threshold) ->
                 fakeAuthenticatedMapProperties());
         DeploymentRenderer.Rendered rendered = renderer.render(document, output);
+        String fixtureL1GenesisId = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                .digest("{\"network\":\"preprod\"}\n".getBytes(java.nio.charset.StandardCharsets.UTF_8)));
         assertThat(rendered.nodes()).isEqualTo(5);
         assertThat(rendered.cloudNodes()).isEqualTo(3);
         assertThat(Files.readString(output.resolve("tofu/main.tf")))
                 .contains("contabo/contabo", "hetznercloud/hcloud", "digitalocean/digitalocean")
+                .contains("${hcloud_server.node_1.ipv4_address}/32",
+                        "${digitalocean_droplet.node_2.ipv4_address}/32", "203.0.113.20/32")
                 .contains("prevent_destroy = true")
                 .doesNotContain("oauth2_client_secret", "contabo_client_secret");
         assertThat(Files.readString(output.resolve("ansible/inventory.yml")))
@@ -60,9 +67,14 @@ class DeploymentRendererTest {
                 .doesNotContain("TOFU_PENDING");
         assertThat(Files.readString(output.resolve("ansible/files/application-appchain.yml")))
                 .contains("payment-chain-settlement", "yano-eutxo-v3-bridge-settlement")
+                .contains("preset: \"params-only-v1\"")
                 .doesNotContain("kafka", "objectstore-s3", "ipfs");
         assertThat(Files.readString(output.resolve("ansible/templates/node.properties.j2")))
                 .contains("yano.server.enabled=true")
+                .contains("yano.account-state.snapshot-retention-epochs=50")
+                .contains("chains[10].observation.l1-network-genesis-id=" + fixtureL1GenesisId)
+                .contains("chains[12].observation.l1-network-genesis-id=" + fixtureL1GenesisId)
+                .doesNotContain("yano.app-chain.observation.l1-network-genesis-id=")
                 .contains("yano.relay.connection.max-connections-per-ip=17")
                 .contains("yano.relay.connection.max-inbound-connections=100")
                 .contains("chains[8].machines.authenticated-map.genesis-cbor-hex=")
@@ -88,15 +100,31 @@ class DeploymentRendererTest {
                         "showcase_effect_owner: true");
         assertThat(Files.readString(output.resolve("ansible/deploy.yml")))
                 .contains("'*effects-cardano*'", "'*eutxo-zk*'")
+                .contains("Atomically install immutable digest release",
+                        "/.yano-artifact-sha256", "Create filtered active plugin directory")
                 .contains("/var/lib/yano/appchain-effects/showcase-outbox")
                 .contains("Install settlement operator seed on its sole owner",
                         "Install parameterized settlement validators",
                         "Ensure Yano X is running without activating pending configuration",
-                        "state: started");
+                        "state: started")
+                .doesNotContain("Delete forbidden integration bundles");
+        assertThat(Files.readString(output.resolve("ansible/status.yml")))
+                .contains("runtimeDegraded", "epochObservers.healthy", "observers.healthy",
+                        "stateCommitment.genesisId", "stateCommitment.formatFingerprint",
+                        "consensusProfile.digest", "capabilityManifest.manifestDigest",
+                        "Require one consensus identity across the cluster");
         assertThat(Files.readString(output.resolve("ansible/mesh-recover.yml")))
                 .contains("Cleanly stop every member", "Start every member in parallel",
                         "Require every chain to connect to every other member")
                 .contains("selectattr('value', 'equalto', true)");
+        assertThat(Files.readString(output.resolve("ansible/reset.yml")))
+                .contains("Require immutable cluster identity and explicit reset scope",
+                        "yano_confirm_reset_cluster", "yano_reset_scope",
+                        "/var/lib/yano/chainstate", "/var/lib/yano/appchain-chainstate",
+                        "/var/lib/yano/appchain-indexers", "/var/lib/yano/appchain-effects",
+                        "/var/lib/yano/appchain-snapshot-archives",
+                        "yano_start_after_reset | default(false)")
+                .doesNotContain("/etc/yano", "/opt/yano");
         assertThat(Files.readString(output.resolve("ansible/bootstrap-anchors.yml")))
                 .contains("Require explicit public-network spend authorization",
                         "any_errors_fatal: true",
@@ -123,7 +151,80 @@ class DeploymentRendererTest {
                         "\"connectionsPerPeer\" : 17", "\"meshRecovery\"",
                         "\"accountStrategy\" : \"shared-default-with-per-chain-overrides\"",
                         "\"mode\" : \"fixed\"", "\"proposerNode\" : \"node-0\"",
-                        "\"rendererRevision\" : 25");
+                "\"rendererRevision\" : 30", "\"preset\" : \"params-only-v1\"");
+        verifyGeneratedSyntaxIfInstalled(output);
+        Files.writeString(output.resolve("ansible/status.yml"), "# tampered\n",
+                java.nio.file.StandardOpenOption.APPEND);
+        DeploymentDocument lockedDocument = document;
+        assertThatThrownBy(() -> renderer.verifyRendered(lockedDocument, output))
+                .isInstanceOf(java.io.IOException.class)
+                .hasMessageContaining("generated deployment file differs from its lock");
+    }
+
+    @Test
+    void rendersSelectedCardanoHistoryObservers(@TempDir Path temporary) throws Exception {
+        Path cluster = Files.createDirectories(temporary.resolve("cluster"));
+        Path secrets = Files.createDirectories(cluster.resolve("secrets"));
+        for (int index = 0; index < 5; index++) {
+            Files.writeString(secrets.resolve("node-" + index + ".seed"),
+                    "%02x".formatted(index + 1).repeat(32));
+        }
+        writeApplicationSecrets(secrets);
+        String genesisId = "ab".repeat(32);
+        Files.writeString(cluster.resolve("deployment.yaml"), manifest().replace(
+                "    profile: distributed-showcase-preprod-anchored-settlement-v1\n",
+                "    profile: distributed-showcase-preprod-anchored-settlement-v1\n"
+                        + "    cardanoHistory:\n"
+                        + "      l1Observations:\n"
+                        + "        - l1-epoch-params-v1\n"
+                        + "        - l1-epoch-stake-v1\n"
+                        + "        - l1-epoch-governance-v1\n"
+                        + "      genesisId: " + genesisId + "\n"
+                        + "      sourceSnapshotRetentionEpochs: 400\n"));
+        DeploymentLoader loader = new DeploymentLoader();
+        DeploymentDocument document = loader.load(cluster);
+        assertThat(document.validate(false)).isEmpty();
+        new ShowcaseArtifact().importInto(document, fixtureArchive(temporary.resolve("showcase.zip")));
+        loader.write(document);
+        document = loader.load(cluster);
+
+        Path output = temporary.resolve("rendered");
+        new DeploymentRenderer((artifact, members, threshold) -> fakeAuthenticatedMapProperties()
+                + "yano.app-chain.chains[12].state.genesis-id=" + "ef".repeat(32) + "\n")
+                .render(document, output);
+
+        assertThat(Files.readString(output.resolve("ansible/files/application-appchain.yml")))
+                .contains("genesis-id: \"" + genesisId + "\"",
+                        "preset: \"full-v1\"",
+                        "epoch-stake:", "type: \"l1-epoch-stake-v1\"",
+                        "epoch-governance:", "type: \"l1-epoch-governance-v1\"",
+                        "include-proposals: \"true\"", "include-drep-distribution: \"true\"",
+                        "chunk-entries: \"25000\"", "drep-chunk-entries: \"25000\"",
+                        "max-message-bytes: \"6291456\"", "max-bytes: \"8388608\"",
+                        "authenticated-snapshots:", "enabled: \"true\"",
+                        "series: \"l1-epoch-stake-v1.distribution,"
+                                + "l1-epoch-governance-v1.drep-distribution\"",
+                        "archive-directory: \"/var/lib/yano/appchain-snapshot-archives\"");
+        String nodeProperties = Files.readString(output.resolve("ansible/templates/node.properties.j2"));
+        assertThat(nodeProperties)
+                .contains("yano.account-state.snapshot-retention-epochs=400")
+                .endsWith("yano.app-chain.chains[12].state.genesis-id=" + genesisId + "\n");
+        assertThat(Files.readString(output.resolve("deployment.lock.json")))
+                .contains("\"preset\" : \"full-v1\"", "\"genesisId\" : \"" + genesisId + "\"",
+                        "l1-epoch-params-v1", "l1-epoch-stake-v1", "l1-epoch-governance-v1",
+                        "\"sourceSnapshotRetentionEpochs\" : 400");
+    }
+
+    @Test
+    void rejectsCardanoHistoryObserversWithoutEpochParams(@TempDir Path temporary) throws Exception {
+        Files.writeString(temporary.resolve("deployment.yaml"), manifest().replace(
+                "    profile: distributed-showcase-preprod-anchored-settlement-v1\n",
+                "    profile: distributed-showcase-preprod-anchored-settlement-v1\n"
+                        + "    cardanoHistory:\n"
+                        + "      l1Observations: [l1-epoch-stake-v1]\n"));
+
+        assertThat(new DeploymentLoader().load(temporary).validate(false))
+                .contains("Cardano History l1Observations must include l1-epoch-params-v1");
     }
 
     @Test
@@ -268,8 +369,9 @@ class DeploymentRendererTest {
         assertThat(Files.readString(output.resolve("ansible/deploy.yml")))
                 .contains("Download exact Traefik release", "Retain ACME account and certificate state",
                         "name: traefik", "Disable the legacy Nginx gateway", "name: nginx",
-                        "port 80 proto tcp", "port 443 proto tcp", "Wait for the local HTTPS gateway route")
-                .doesNotContain("nginx-yano");
+                        "Keep API reverse proxy stopped until cluster health is validated")
+                .doesNotContain("ufw allow from {{ cidr }} to any port 80",
+                        "Wait for the local HTTPS gateway route", "nginx-yano");
         assertThat(Files.readString(output.resolve("ansible/templates/traefik-yano.yml.j2")))
                 .contains("Host(`{{ api_hostname }}`)", "certResolver: letsencrypt",
                         "http://127.0.0.1:{{ http_port }}", "Cache-Control: \"no-store\"",
@@ -280,7 +382,9 @@ class DeploymentRendererTest {
                         "accessControlAllowOriginList:", "{{ origin }}");
         assertThat(Files.readString(output.resolve("ansible/gateway.yml")))
                 .contains("Reconcile Yano X API gateways", "Install generated Traefik API routes",
-                        "state: started", "Wait for the reconciled local HTTPS gateway route")
+                        "Open API ingress only after cluster validation", "port 80 proto tcp",
+                        "port 443 proto tcp", "state: started",
+                        "Wait for the reconciled local HTTPS gateway route")
                 .doesNotContain("yano-x.service", "state: restarted");
         assertThat(Files.readString(output.resolve("ansible/files/traefik.service")))
                 .contains("CAP_NET_BIND_SERVICE", "ProtectSystem=strict");
@@ -503,10 +607,34 @@ class DeploymentRendererTest {
         files.put("showcase.sh", "#!/bin/sh\n");
         files.put("yano/yano.sh", "#!/bin/sh\n");
         files.put("yano/yano.jar", "fixture");
-        files.put("yano/yano-distribution-v1.json", "{\"schemaVersion\":1,\"version\":\"test\"}\n");
-        files.put("yano/yano-x-distribution-v1.json", "{\"schemaVersion\":1,\"version\":\"test\"}\n");
+        files.put("yano/yano-distribution-v1.json", """
+                {"schemaVersion":1,"product":"yano","distribution":"core-jvm","version":"test",
+                 "pluginDirectorySupported":true}
+                """);
+        String bundle = "fixture-bundle";
+        String bundleFile = "fixture-bundle-test.jar";
+        files.put("yano/plugins/" + bundleFile, bundle);
+        String pluginPack = """
+                {"schemaVersion":1,"product":"yano-x","version":"test","bundles":[
+                  {"artifactId":"fixture-bundle","bundleId":"fixture","version":"test",
+                   "file":"%s","sha256":"%s","installMode":"default",
+                   "dependencies":[],"contributions":[]}]}
+                """.formatted(bundleFile, sha256(bundle));
+        files.put("yano/yano-x-plugin-pack-v1.json", pluginPack);
+        files.put("yano/yano-x-distribution-v1.json", """
+                {"schemaVersion":1,"product":"yano-x","distribution":"jvm","version":"test",
+                 "yanoVersion":"test","baseDistributionSha256":"%s",
+                 "pluginPackManifestSha256":"%s","availablePluginBundleCount":1,
+                 "installedPluginBundleCount":1,"optionalPluginBundleCount":0,
+                 "nativeImageSupported":false}
+                """.formatted("00".repeat(32), sha256(pluginPack)));
+        files.put("yano/sbom/yano.cdx.json",
+                "{\"bomFormat\":\"CycloneDX\",\"specVersion\":\"1.6\",\"components\":[]}");
+        files.put("yano/sbom/yano-x.cdx.json",
+                "{\"bomFormat\":\"CycloneDX\",\"specVersion\":\"1.6\",\"components\":[]}");
         files.put("catalog/showcase-catalog-v1.json", catalog());
         files.put("yano/config/application-appchain.yml", application());
+        files.put("yano/config/network/preprod/shelley-genesis.json", "{\"network\":\"preprod\"}\n");
         try (ZipOutputStream zip = new ZipOutputStream(Files.newOutputStream(path))) {
             for (Map.Entry<String, String> entry : files.entrySet()) {
                 zip.putNextEntry(new ZipEntry(root + entry.getKey()));
@@ -515,6 +643,11 @@ class DeploymentRendererTest {
             }
         }
         return path;
+    }
+
+    private String sha256(String value) throws Exception {
+        return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                .digest(value.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
     }
 
     private String catalog() throws Exception {
@@ -541,6 +674,9 @@ class DeploymentRendererTest {
         for (int index = 0; index < chains.size(); index++) {
             result.append("    chains[").append(index).append("]:\n      chain-id: ")
                     .append(chains.get(index)).append("\n      state-machine: ordered-log\n");
+            if (index == 10 || index == 12) {
+                result.append("      observers:\n        fixture:\n          type: fixture-v1\n");
+            }
         }
         return result.toString();
     }
@@ -555,6 +691,35 @@ class DeploymentRendererTest {
                     .append(prefix).append("machines.authenticated-map.genesis-cbor-hex=00\n");
         }
         return result.toString();
+    }
+
+    private void verifyGeneratedSyntaxIfInstalled(Path output) throws Exception {
+        if (available("tofu")) {
+            run(output.resolve("tofu"), "tofu", "fmt", "-write=false", "main.tf");
+        }
+        if (available("ansible-playbook")) {
+            for (String playbook : List.of("preflight.yml", "deploy.yml", "mesh-recover.yml", "status.yml",
+                    "gateway.yml", "monitoring.yml", "reset.yml", "bootstrap-anchors.yml")) {
+                run(output.resolve("ansible"), "ansible-playbook", "-i", "inventory.yml",
+                        playbook, "--syntax-check");
+            }
+        }
+    }
+
+    private boolean available(String executable) {
+        try {
+            Process process = new ProcessBuilder(executable, "--version")
+                    .redirectErrorStream(true).redirectOutput(ProcessBuilder.Redirect.DISCARD).start();
+            return process.waitFor() == 0;
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    private void run(Path directory, String... command) throws Exception {
+        Process process = new ProcessBuilder(command).directory(directory.toFile()).redirectErrorStream(true).start();
+        String output = new String(process.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+        assertThat(process.waitFor()).as("%s%n%s", String.join(" ", command), output).isZero();
     }
 
     private String manifest() {

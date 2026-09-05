@@ -15,6 +15,7 @@ tools/yano-deploy/bin/yano-x-deploy init ./preprod-cluster
 tools/yano-deploy/bin/yano-x-deploy artifact import ./preprod-cluster \
   --file ./yano-showcase-<version>.zip
 tools/yano-deploy/bin/yano-x-deploy validate ./preprod-cluster
+tools/yano-deploy/bin/yano-x-deploy doctor ./preprod-cluster
 tools/yano-deploy/bin/yano-x-deploy plan ./preprod-cluster
 tools/yano-deploy/bin/yano-x-deploy apply ./preprod-cluster \
   --confirm <cluster-id-from-deployment.yaml>
@@ -22,13 +23,27 @@ tools/yano-deploy/bin/yano-x-deploy bootstrap-anchors ./preprod-cluster \
   --confirm-network preprod
 tools/yano-deploy/bin/yano-x-deploy monitoring ./preprod-cluster
 tools/yano-deploy/bin/yano-x-deploy status ./preprod-cluster
+tools/yano-deploy/bin/yano-x-deploy wait ./preprod-cluster \
+  --for l1-tip --timeout-seconds 3600
 ```
+
+`doctor` validates the strict JSON Schema, artifact/import lock, generated-file
+lock, required local executables, SSH/sudo reachability, operating system,
+architecture, memory, disk capacity, and clock synchronization. Cloud hosts
+that do not exist yet receive local checks during `doctor` and the full host
+preflight immediately after provisioning.
 
 `apply` is non-interactive after the exact cluster ID is supplied. It renders
 immutable inputs, initializes the configured remote OpenTofu backend, rejects
 any delete/replace action, applies cloud resources, resolves public addresses,
-and runs the generated Ansible playbook. For an existing-VM-only cluster it
-skips OpenTofu and starts directly with host configuration.
+and runs the generated Ansible playbooks. It closes gateways before mutation,
+preflights every host, deploys a content-addressed immutable release, rebuilds
+the mesh, verifies node/observer health and cross-node consensus identities,
+and only then starts and opens HTTPS ingress. Each successful phase is written
+to `deployment.journal.json`, keyed to the exact render lock. Re-running apply
+revalidates live state and safely repeats idempotent phases. For an
+existing-VM-only cluster it skips OpenTofu and starts directly with host
+preflight and configuration.
 
 ## Provider credentials
 
@@ -159,13 +174,75 @@ removed when the pinned Yano artifact includes reconnect-safe dedicated peer
 lifecycle behavior. It never resets or replaces any retained store.
 
 Artifact import verifies the showcase archive shape, both embedded
-distribution identities, its 13-chain catalog, and the whole-file SHA-256.
+distribution identities and their exact Yano version match, both CycloneDX
+SBOMs, the plugin-pack manifest and every bundle checksum, its 13-chain
+catalog, and the whole-file SHA-256. `artifact.lock.json` is mandatory after
+import; render and every lifecycle command reject any mismatch.
 Render compiles authenticated-map genesis from the exact archive and selected
 member public keys. The deployed profile activates all 13 demonstration chains,
 replacing the packaged devnet-only settlement identity with the operator's
 preprod deployment record and parameterized validators. SCRIPT anchoring is
 enabled for every chain. Kafka, S3, IPFS, evidence, generic Cardano-effect, and
 ZK bundles remain outside the active profile.
+
+Cardano History observations are selected declaratively. Omitting
+`cardanoHistory` retains the low-cost protocol-parameters-only default. Every
+explicit list must include protocol parameters; stake and governance may be
+selected independently or together:
+
+```yaml
+application:
+  profile: distributed-showcase-preprod-anchored-settlement-v1
+  cardanoHistory:
+    l1Observations:
+      - l1-epoch-params-v1
+      - l1-epoch-stake-v1
+      - l1-epoch-governance-v1
+    genesisId: <64-lower-case-hex>
+    sourceSnapshotRetentionEpochs: 400
+```
+
+The renderer maps the four valid combinations to the canonical
+`params-only-v1`, `params-stake-v1`, `params-governance-v1`, or `full-v1`
+presets and records the selection in `deployment.lock.json`. Stake and DRep
+distributions use the canonical 25,000-entry chunks and Cardano History's
+bounded 6 MiB message/8 MiB block limits. Selecting either large dataset also
+enables its required authenticated-snapshot series in the node-local
+`/var/lib/yano/appchain-snapshot-archives` store. Source snapshot retention
+accepts 2..1000 epochs; size it for the full L1 replay window that observers
+must traverse. Changing observations or `genesisId` changes consensus-selected
+configuration and therefore requires a reviewed app-chain reset. A full L1
+history rebuild additionally requires the `all` reset scope below.
+
+## Reset retained state
+
+Every render includes `ansible/reset.yml`, wrapped by the normal CLI. It is reusable for existing-host or
+provisioned clusters because all targets come from that render's resolved
+inventory. The playbook refuses to mutate anything unless its immutable
+cluster ID and an exact scope are supplied. It deletes only the selected paths
+below `/var/lib/yano`; it preserves binaries, configuration, credentials,
+member keys, and infrastructure.
+
+Reset only app-chain authoritative state, derived indexes/effects, and local
+snapshot archives:
+
+```bash
+tools/yano-deploy/bin/yano-x-deploy reset ./preprod-cluster \
+  --scope appchain --confirm <cluster-id>
+```
+
+Reset those stores plus L1 `chainstate` so Cardano resynchronizes from genesis:
+
+```bash
+tools/yano-deploy/bin/yano-x-deploy reset ./preprod-cluster \
+  --scope all --confirm <cluster-id>
+```
+
+Nodes remain stopped by default, which is the safe choice when applying a new
+artifact or chain identity immediately afterward. Add
+`--start` only when the installed configuration is already the intended
+configuration; the playbook then waits for readiness and verifies the complete
+cross-node app-chain mesh.
 
 The exact application profile is
 `distributed-showcase-preprod-anchored-settlement-v1`. Render verifies that the
@@ -194,43 +271,16 @@ next chain, avoiding shared-wallet input races. Already bootstrapped and
 currently pending chains are resumed idempotently. `--chain <chain-id>` narrows
 the operation for recovery; the default is all chains.
 
-### Recover a proven stale consensus round
-
-`ansible/unlock-stale-round.yml` wraps Yano's emergency
-`admin/unlock-stale-round` endpoint. It is intentionally not part of normal
-`apply`: clearing a persisted vote lock trades one-vote-per-height safety for
-liveness and is valid only after proving that no finality certificate exists.
-
-Use the inventory from the exact active render and provide an exact
-`<chain>@<height>` confirmation:
-
-```bash
-ansible-playbook -i /absolute/path/to/render/ansible/inventory.yml \
-  /absolute/path/to/yano-x/deployment/ansible/unlock-stale-round.yml \
-  -e yano_unlock_chain_id=payment-chain-settlement \
-  -e yano_unlock_height=1 \
-  -e yano_confirm_stale_unlock=payment-chain-settlement@1
-```
-
-The playbook fails before mutation unless every member is running fixed
-sequencing, has the complete peer mesh, reports the same next stale height,
-root, genesis ID, commitment format, consensus profile, and capability
-manifest, and returns `404` for the target block. It reads the full API key
-from the controller-side `api_key_file`, suppresses the authenticated responses,
-unlocks followers serially, unlocks the fixed proposer last, and verifies the
-lock clears on every member.
-
-Unlocking does not replay an expired L1 observation, refund an L1 deposit, or
-reset finalized app-chain state. Those require their own reviewed recovery
-mechanism.
-
 API exposure is `disabled`, `allowlist`, or `public-https`. A node is exposed
 only when it has both the `api-gateway` role and its own `hostname`. Yano HTTP
 always remains bound to loopback. The deployment installs a checksum-pinned
 Traefik gateway: `public-https` obtains and renews a Let's Encrypt certificate,
 while `allowlist` uses supplied TLS certificate/key files and requires a Yano
 API-key file. `proxy: cloudflare` restricts origin ports 80/443 to Cloudflare's
-published proxy ranges; P2P port 13337 continues directly between nodes.
+published proxy ranges. App-chain P2P port 13337 is limited to the declared
+peer node addresses in both generated cloud and host firewalls. A node carrying
+the explicit `l1-bootstrap` role is the only exception and accepts public P2P
+ingress; this role does not change validator membership.
 
 SSH access defaults to `mode: allowlist` with explicit non-wildcard source
 CIDRs. Operators whose management address is genuinely dynamic may explicitly
@@ -243,6 +293,8 @@ or data-center firewall attached outside this deployment remains externally
 managed. API exposure is unaffected and stays disabled unless separately
 configured. Cloudflare-proxied API hostnames are not valid P2P endpoints;
 validators retain their direct advertised IP or DNS addresses on port 13337.
+CIDR values are parsed as numeric IPv4/IPv6 networks before they can reach a
+generated firewall command.
 
 The public API gateway uses a per-client token bucket. Its default is 20
 requests per second with a burst of 40 and can be adjusted declaratively:

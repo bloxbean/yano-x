@@ -6,6 +6,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -24,14 +26,19 @@ final class DeploymentLifecycle {
                 + "-r" + DeploymentRenderer.RENDER_REVISION;
         Path output = document.directory().resolve(".yano-deploy/render-" + identity);
         if (Files.exists(output.resolve("deployment.lock.json"))) {
+            renderer.verifyRendered(document, output);
+            verifyJournal(output);
             return output;
         }
         renderer.render(document, output);
+        renderer.verifyRendered(document, output);
+        verifyJournal(output);
         return output;
     }
 
     Path plan(DeploymentDocument document) throws IOException {
         Path output = ensureRendered(document);
+        verifyJournal(output);
         if (cloudNodes(document).isEmpty()) {
             System.out.println("No cloud resources: OpenTofu plan is empty; existing hosts remain externally managed.");
             return output;
@@ -74,15 +81,32 @@ final class DeploymentLifecycle {
             }
         }
         renderer.resolveInventory(document, output, addresses);
+        verifyJournal(output);
         Path ansible = output.resolve("ansible");
+        run(ansible, List.of("ansible-playbook", "-i", "inventory.yml", "preflight.yml", "--syntax-check"));
+        run(ansible, List.of("ansible-playbook", "-i", "inventory.yml", "preflight.yml"));
+        recordPhase(output, "host-preflight");
         run(ansible, List.of("ansible-playbook", "-i", "inventory.yml", "deploy.yml", "--syntax-check"));
         run(ansible, List.of(
                 "ansible-playbook", "-i", "inventory.yml", "mesh-recover.yml", "--syntax-check"));
+        run(ansible, List.of("ansible-playbook", "-i", "inventory.yml", "status.yml", "--syntax-check"));
+        if (!"disabled".equals(document.apiExposure())) {
+            run(ansible, List.of("ansible-playbook", "-i", "inventory.yml", "gateway.yml", "--syntax-check"));
+        }
         run(ansible, List.of("ansible-playbook", "-i", "inventory.yml", "deploy.yml"));
+        recordPhase(output, "runtime-deployed");
         run(ansible, List.of("ansible-playbook", "-i", "inventory.yml", "mesh-recover.yml"));
+        recordPhase(output, "mesh-recovered");
+        run(ansible, List.of("ansible-playbook", "-i", "inventory.yml", "status.yml"));
+        recordPhase(output, "cluster-healthy");
+        if (!"disabled".equals(document.apiExposure())) {
+            run(ansible, List.of("ansible-playbook", "-i", "inventory.yml", "gateway.yml"));
+            recordPhase(output, "ingress-enabled");
+        }
         if (document.monitoringEnabled()) {
             run(ansible, List.of("ansible-playbook", "-i", "inventory.yml", "monitoring.yml", "--syntax-check"));
             run(ansible, List.of("ansible-playbook", "-i", "inventory.yml", "monitoring.yml"));
+            recordPhase(output, "monitoring-enabled");
         }
         return output;
     }
@@ -94,8 +118,11 @@ final class DeploymentLifecycle {
         Path output = ensureRendered(document);
         requireResolvedInventory(output);
         Path ansible = output.resolve("ansible");
+        run(ansible, List.of("ansible-playbook", "-i", "inventory.yml", "status.yml", "--syntax-check"));
         run(ansible, List.of("ansible-playbook", "-i", "inventory.yml", "monitoring.yml", "--syntax-check"));
+        run(ansible, List.of("ansible-playbook", "-i", "inventory.yml", "status.yml"));
         run(ansible, List.of("ansible-playbook", "-i", "inventory.yml", "monitoring.yml"));
+        recordPhase(output, "monitoring-enabled");
         return output;
     }
 
@@ -106,8 +133,11 @@ final class DeploymentLifecycle {
         Path output = ensureRendered(document);
         requireResolvedInventory(output);
         Path ansible = output.resolve("ansible");
+        run(ansible, List.of("ansible-playbook", "-i", "inventory.yml", "status.yml", "--syntax-check"));
         run(ansible, List.of("ansible-playbook", "-i", "inventory.yml", "gateway.yml", "--syntax-check"));
+        run(ansible, List.of("ansible-playbook", "-i", "inventory.yml", "status.yml"));
         run(ansible, List.of("ansible-playbook", "-i", "inventory.yml", "gateway.yml"));
+        recordPhase(output, "ingress-enabled");
         return output;
     }
 
@@ -116,6 +146,68 @@ final class DeploymentLifecycle {
         requireResolvedInventory(output);
         run(output.resolve("ansible"),
                 List.of("ansible-playbook", "-i", "inventory.yml", "status.yml"));
+    }
+
+    Path doctor(DeploymentDocument document) throws IOException {
+        requireExecutable("ansible-playbook");
+        if (!cloudNodes(document).isEmpty()) {
+            requireExecutable("tofu");
+        }
+        Path output = ensureRendered(document);
+        Path inventory = output.resolve("ansible/inventory.yml");
+        if (!Files.readString(inventory).contains("TOFU_PENDING")) {
+            Path ansible = output.resolve("ansible");
+            run(ansible, List.of("ansible-playbook", "-i", "inventory.yml", "preflight.yml", "--syntax-check"));
+            run(ansible, List.of("ansible-playbook", "-i", "inventory.yml", "preflight.yml"));
+        }
+        return output;
+    }
+
+    void waitForTip(DeploymentDocument document, int timeoutSeconds) throws IOException {
+        if (timeoutSeconds < 10 || timeoutSeconds > 86_400) {
+            throw new IllegalArgumentException("--timeout-seconds must be between 10 and 86400");
+        }
+        Path output = ensureRendered(document);
+        requireResolvedInventory(output);
+        int delay = 5;
+        int retries = Math.max(1, (timeoutSeconds + delay - 1) / delay);
+        run(output.resolve("ansible"), List.of(
+                "ansible-playbook", "-i", "inventory.yml", "status.yml",
+                "-e", "yano_require_l1_tip=true",
+                "-e", "yano_status_retries_override=" + retries,
+                "-e", "yano_status_delay_override=" + delay));
+    }
+
+    Path reset(DeploymentDocument document, String confirmation, String scope, boolean start) throws IOException {
+        if (!document.clusterId().equals(confirmation)) {
+            throw new IllegalArgumentException("--confirm must equal the immutable clusterId");
+        }
+        if (!List.of("appchain", "all").contains(scope)) {
+            throw new IllegalArgumentException("--scope must be appchain or all");
+        }
+        Path output = ensureRendered(document);
+        requireResolvedInventory(output);
+        Path ansible = output.resolve("ansible");
+        run(ansible, List.of("ansible-playbook", "-i", "inventory.yml", "reset.yml", "--syntax-check"));
+        run(ansible, List.of(
+                "ansible-playbook", "-i", "inventory.yml", "reset.yml",
+                "-e", "yano_confirm_reset_cluster=" + confirmation,
+                "-e", "yano_reset_scope=" + scope,
+                "-e", "yano_start_after_reset=" + start));
+        recordPhase(output, "reset-" + scope + (start ? "-started" : "-stopped"));
+        if (start) {
+            run(ansible, List.of("ansible-playbook", "-i", "inventory.yml", "status.yml"));
+            recordPhase(output, "cluster-healthy");
+            if (!"disabled".equals(document.apiExposure())) {
+                run(ansible, List.of("ansible-playbook", "-i", "inventory.yml", "gateway.yml"));
+                recordPhase(output, "ingress-enabled");
+            }
+            if (document.monitoringEnabled()) {
+                run(ansible, List.of("ansible-playbook", "-i", "inventory.yml", "monitoring.yml"));
+                recordPhase(output, "monitoring-enabled");
+            }
+        }
+        return output;
     }
 
     Path bootstrapAnchors(DeploymentDocument document, String confirmedNetwork, String chain) throws IOException {
@@ -142,6 +234,61 @@ final class DeploymentLifecycle {
         Path inventory = output.resolve("ansible/inventory.yml");
         if (Files.readString(inventory).contains("TOFU_PENDING")) {
             throw new IllegalStateException("inventory has unresolved cloud addresses; run apply first");
+        }
+    }
+
+    private void requireExecutable(String executable) throws IOException {
+        Process process;
+        try {
+            process = new ProcessBuilder(executable, "--version")
+                    .redirectErrorStream(true).redirectOutput(ProcessBuilder.Redirect.DISCARD).start();
+        } catch (IOException failure) {
+            throw new IOException(executable + " is not installed or is not on PATH", failure);
+        }
+        try {
+            if (process.waitFor() != 0) {
+                throw new IOException(executable + " --version failed");
+            }
+        } catch (InterruptedException failure) {
+            Thread.currentThread().interrupt();
+            throw new IOException(executable + " version check was interrupted", failure);
+        }
+    }
+
+    private void verifyJournal(Path output) throws IOException {
+        Path journal = output.resolve("deployment.journal.json");
+        if (!Files.exists(journal)) {
+            return;
+        }
+        JsonNode root = json.readTree(journal.toFile());
+        String lockDigest = ShowcaseArtifact.digest(output.resolve("deployment.lock.json"));
+        if (!"YanoClusterDeploymentJournal".equals(root.path("kind").asText())
+                || root.path("schemaVersion").asInt() != 1
+                || !lockDigest.equals(root.path("deploymentLockSha256").asText())) {
+            throw new IOException("deployment journal does not match the active render lock");
+        }
+    }
+
+    private void recordPhase(Path output, String phase) throws IOException {
+        verifyJournal(output);
+        Path journal = output.resolve("deployment.journal.json");
+        com.fasterxml.jackson.databind.node.ObjectNode root;
+        if (Files.isRegularFile(journal)) {
+            root = (com.fasterxml.jackson.databind.node.ObjectNode) json.readTree(journal.toFile());
+        } else {
+            root = json.createObjectNode();
+            root.put("schemaVersion", 1);
+            root.put("kind", "YanoClusterDeploymentJournal");
+            root.put("deploymentLockSha256", ShowcaseArtifact.digest(output.resolve("deployment.lock.json")));
+            root.putObject("phases");
+        }
+        root.withObject("/phases").put(phase, Instant.now().toString());
+        Path temporary = Files.createTempFile(output, ".journal-", ".tmp");
+        try {
+            json.writerWithDefaultPrettyPrinter().writeValue(temporary.toFile(), root);
+            Files.move(temporary, journal, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+        } finally {
+            Files.deleteIfExists(temporary);
         }
     }
 

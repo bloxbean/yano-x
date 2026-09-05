@@ -2,8 +2,11 @@ package com.bloxbean.cardano.yano.appchain.deployment;
 
 import com.fasterxml.jackson.databind.JsonNode;
 
+import java.net.Inet6Address;
+import java.net.InetAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.net.UnknownHostException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -18,6 +21,14 @@ import java.util.regex.Pattern;
 final class DeploymentDocument {
     static final Set<String> PROVIDER_TYPES = Set.of(
             "contabo", "hetzner-cloud", "digitalocean", "existing");
+    static final String EPOCH_PARAMS_OBSERVER = "l1-epoch-params-v1";
+    static final String EPOCH_STAKE_OBSERVER = "l1-epoch-stake-v1";
+    static final String EPOCH_GOVERNANCE_OBSERVER = "l1-epoch-governance-v1";
+    static final Set<String> CARDANO_HISTORY_OBSERVERS = Set.of(
+            EPOCH_PARAMS_OBSERVER, EPOCH_STAKE_OBSERVER, EPOCH_GOVERNANCE_OBSERVER);
+    static final Set<String> NODE_ROLES = Set.of(
+            "validator", "l1-bootstrap", "api-gateway", "monitoring");
+    private static final DeploymentSchemaValidator SCHEMA = new DeploymentSchemaValidator();
     private static final Pattern NAME = Pattern.compile("[a-z][a-z0-9-]{0,62}");
     private static final Pattern PROFILE_LIST = Pattern.compile(
             "[a-z][a-z0-9-]{0,62}(,[a-z][a-z0-9-]{0,62})*");
@@ -214,6 +225,34 @@ final class DeploymentDocument {
         return text("/spec/application/profile");
     }
 
+    List<String> cardanoHistoryL1Observations() {
+        List<String> configured = strings("/spec/application/cardanoHistory/l1Observations");
+        return configured.isEmpty() ? List.of(EPOCH_PARAMS_OBSERVER) : configured;
+    }
+
+    String cardanoHistoryPreset() {
+        Set<String> observations = Set.copyOf(cardanoHistoryL1Observations());
+        if (observations.contains(EPOCH_STAKE_OBSERVER)
+                && observations.contains(EPOCH_GOVERNANCE_OBSERVER)) {
+            return "full-v1";
+        }
+        if (observations.contains(EPOCH_STAKE_OBSERVER)) {
+            return "params-stake-v1";
+        }
+        if (observations.contains(EPOCH_GOVERNANCE_OBSERVER)) {
+            return "params-governance-v1";
+        }
+        return "params-only-v1";
+    }
+
+    String cardanoHistoryGenesisId() {
+        return text("/spec/application/cardanoHistory/genesisId").toLowerCase(Locale.ROOT);
+    }
+
+    int cardanoHistorySourceSnapshotRetentionEpochs() {
+        return integer("/spec/application/cardanoHistory/sourceSnapshotRetentionEpochs", 50);
+    }
+
     String anchoringMode() {
         return text("/spec/application/anchoring/mode");
     }
@@ -331,6 +370,7 @@ final class DeploymentDocument {
 
     List<String> validate(boolean requireArtifact) {
         List<String> errors = new ArrayList<>();
+        errors.addAll(SCHEMA.validate(root));
         if (!"yano.bloxbean.com/v1alpha1".equals(text("/apiVersion"))) {
             errors.add("apiVersion must be yano.bloxbean.com/v1alpha1");
         }
@@ -402,6 +442,8 @@ final class DeploymentDocument {
                 && (sshCidrs().isEmpty() || sshCidrs().stream().anyMatch(DeploymentDocument::wildcardCidr))) {
             errors.add("allowlisted SSH requires non-wildcard source CIDRs");
         }
+        sshCidrs().stream().filter(cidr -> !validCidr(cidr))
+                .forEach(cidr -> errors.add("invalid SSH source CIDR: " + cidr));
         if ("public-key-only".equals(sshAccessMode()) && !sshCidrs().isEmpty()) {
             errors.add("public-key-only SSH requires an empty sourceCidrs list");
         }
@@ -412,6 +454,8 @@ final class DeploymentDocument {
         if ("public-https".equals(apiExposure()) && !apiCidrs().isEmpty()) {
             errors.add("public-https API exposure derives ingress policy and requires empty sourceCidrs");
         }
+        apiCidrs().stream().filter(cidr -> !validCidr(cidr))
+                .forEach(cidr -> errors.add("invalid API source CIDR: " + cidr));
         List<Node> gateways = nodes().stream().filter(node -> node.roles().contains("api-gateway")).toList();
         if (!"disabled".equals(apiExposure())
                 && (gateways.isEmpty() || gateways.stream().anyMatch(node -> node.hostname().isBlank()))) {
@@ -454,6 +498,23 @@ final class DeploymentDocument {
         }
         if (!"preprod".equals(network())) {
             errors.add("the anchored-settlement profile initially supports only preprod");
+        }
+        List<String> historyObservers = cardanoHistoryL1Observations();
+        if (historyObservers.stream().anyMatch(observer -> !CARDANO_HISTORY_OBSERVERS.contains(observer))) {
+            errors.add("Cardano History l1Observations contains an unsupported observer");
+        }
+        if (new HashSet<>(historyObservers).size() != historyObservers.size()) {
+            errors.add("Cardano History l1Observations must be unique");
+        }
+        if (!historyObservers.contains(EPOCH_PARAMS_OBSERVER)) {
+            errors.add("Cardano History l1Observations must include l1-epoch-params-v1");
+        }
+        if (!cardanoHistoryGenesisId().isBlank() && !SHA256.matcher(cardanoHistoryGenesisId()).matches()) {
+            errors.add("Cardano History genesisId must contain 64 lower-case hexadecimal characters");
+        }
+        int sourceRetention = cardanoHistorySourceSnapshotRetentionEpochs();
+        if (sourceRetention < 2 || sourceRetention > 1_000) {
+            errors.add("Cardano History sourceSnapshotRetentionEpochs must be in 2..1000");
         }
         if (!"script".equals(anchoringMode()) || !"all".equals(anchoredChains())) {
             errors.add("the anchored-settlement profile requires SCRIPT anchoring for all chains");
@@ -597,8 +658,22 @@ final class DeploymentDocument {
             if (node.sshPort() < 1 || node.sshPort() > 65535 || node.sshUser().isBlank()) {
                 errors.add("node " + node.name() + " requires a valid sshUser and sshPort");
             }
+            if (node.roles().isEmpty() || node.roles().stream().anyMatch(role -> !NODE_ROLES.contains(role))) {
+                errors.add("node " + node.name() + " contains an unsupported or empty role set");
+            }
+            if (!node.roles().contains("validator")) {
+                errors.add("version one requires every managed node to have the validator role");
+            }
             if ("existing".equals(provider.type()) && node.address().isBlank()) {
                 errors.add("existing node " + node.name() + " requires a stable address");
+            }
+            if (!node.address().isBlank() && !validIpAddress(node.address())) {
+                errors.add("node " + node.name() + " address must be a numeric IPv4 or IPv6 address");
+            }
+            if (!node.advertisedAddress().isBlank()
+                    && !validIpAddress(node.advertisedAddress())
+                    && !HOSTNAME.matcher(node.advertisedAddress()).matches()) {
+                errors.add("node " + node.name() + " advertisedAddress must be an IP address or hostname");
             }
             if (!"existing".equals(provider.type())
                     && (node.region().isBlank() || node.instanceType().isBlank() || node.image().isBlank())) {
@@ -671,6 +746,60 @@ final class DeploymentDocument {
 
     private static boolean wildcardCidr(String cidr) {
         return Set.of("0.0.0.0/0", "::/0").contains(cidr);
+    }
+
+    private static boolean validCidr(String value) {
+        if (value == null || value.isBlank() || value.indexOf('/') <= 0
+                || value.indexOf('/') != value.lastIndexOf('/')) {
+            return false;
+        }
+        String[] parts = value.split("/", -1);
+        try {
+            int prefix = Integer.parseInt(parts[1]);
+            if (parts[0].contains(":")) {
+                if (!parts[0].matches("[0-9a-fA-F:.]+")) {
+                    return false;
+                }
+                InetAddress parsed = InetAddress.getByName(parts[0]);
+                return parsed instanceof Inet6Address && prefix >= 0 && prefix <= 128;
+            }
+            String[] octets = parts[0].split("\\.", -1);
+            if (octets.length != 4 || prefix < 0 || prefix > 32) {
+                return false;
+            }
+            for (String octet : octets) {
+                if (octet.isEmpty() || !octet.matches("[0-9]{1,3}")
+                        || Integer.parseInt(octet) > 255) {
+                    return false;
+                }
+            }
+            return true;
+        } catch (NumberFormatException | UnknownHostException ignored) {
+            return false;
+        }
+    }
+
+    private static boolean validIpAddress(String value) {
+        if (value == null || value.isBlank()) {
+            return false;
+        }
+        try {
+            if (value.contains(":")) {
+                return value.matches("[0-9a-fA-F:.]+") && InetAddress.getByName(value) instanceof Inet6Address;
+            }
+            String[] octets = value.split("\\.", -1);
+            if (octets.length != 4) {
+                return false;
+            }
+            for (String octet : octets) {
+                if (octet.isEmpty() || !octet.matches("[0-9]{1,3}") || Integer.parseInt(octet) > 255) {
+                    return false;
+                }
+            }
+            return true;
+        } catch (NumberFormatException | UnknownHostException ignored) {
+            return false;
+        }
     }
 
     private static boolean validCorsOrigin(String origin) {

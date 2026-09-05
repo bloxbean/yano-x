@@ -1,12 +1,17 @@
 package com.bloxbean.cardano.yano.appchain.deployment;
 
+import com.bloxbean.cardano.client.crypto.KeyGenUtil;
+
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.PosixFilePermissions;
+import java.security.SecureRandom;
 import java.util.Arrays;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.UUID;
 
@@ -18,9 +23,10 @@ public final class YanoDeploymentCli {
     static final int EXIT_IO = 74;
 
     private static final String USAGE = """
-            Usage: yano-x-deploy init <cluster-directory>
+            Usage: yano-x-deploy init <cluster-directory> [--nodes <3|5|7>]
                or: yano-x-deploy artifact import <cluster-directory> --file <showcase.zip>
                or: yano-x-deploy validate <cluster-directory>
+               or: yano-x-deploy doctor <cluster-directory>
                or: yano-x-deploy render <cluster-directory> [--output <empty-directory>]
                or: yano-x-deploy plan <cluster-directory>
                or: yano-x-deploy apply <cluster-directory> --confirm <cluster-id>
@@ -29,6 +35,9 @@ public final class YanoDeploymentCli {
                or: yano-x-deploy gateway <cluster-directory>
                or: yano-x-deploy monitoring <cluster-directory>
                or: yano-x-deploy status <cluster-directory>
+               or: yano-x-deploy wait <cluster-directory> --for l1-tip [--timeout-seconds <seconds>]
+               or: yano-x-deploy reset <cluster-directory> --scope <appchain|all>
+                       --confirm <cluster-id> [--start]
 
             Provider credentials are accepted only through the providers' environment variables
             (CNTB_OAUTH2_* for Contabo). This CLI never accepts secret values as arguments.
@@ -65,9 +74,10 @@ public final class YanoDeploymentCli {
 
     private int dispatch(String[] args, PrintWriter out) throws IOException {
         return switch (args[0]) {
-            case "init" -> init(requireDirectory(args, 1), out);
+            case "init" -> init(args, out);
             case "artifact" -> artifact(args, out);
             case "validate" -> validate(loader.load(requireDirectory(args, 1)), out);
+            case "doctor" -> doctor(loader.load(requireDirectory(args, 1)), out);
             case "render" -> render(args, out);
             case "plan" -> plan(loader.load(requireDirectory(args, 1)), out);
             case "apply" -> apply(args, out);
@@ -75,11 +85,19 @@ public final class YanoDeploymentCli {
             case "gateway" -> gateway(loader.load(requireDirectory(args, 1)), out);
             case "monitoring" -> monitoring(loader.load(requireDirectory(args, 1)), out);
             case "status" -> status(loader.load(requireDirectory(args, 1)), out);
+            case "wait" -> waitFor(args, out);
+            case "reset" -> reset(args, out);
             default -> throw new IllegalArgumentException("unknown command; use --help");
         };
     }
 
-    private int init(Path directory, PrintWriter out) throws IOException {
+    private int init(String[] args, PrintWriter out) throws IOException {
+        Path directory = requireDirectory(args, 1);
+        int nodeCount = hasOption(args, "--nodes")
+                ? Integer.parseInt(option(args, "--nodes").toString()) : 5;
+        if (!List.of(3, 5, 7).contains(nodeCount)) {
+            throw new IllegalArgumentException("--nodes must be 3, 5, or 7");
+        }
         Path target = directory.toAbsolutePath().normalize();
         if (Files.exists(target, LinkOption.NOFOLLOW_LINKS)) {
             if (!Files.isDirectory(target, LinkOption.NOFOLLOW_LINKS) || Files.isSymbolicLink(target)) {
@@ -93,14 +111,46 @@ public final class YanoDeploymentCli {
         } else {
             Files.createDirectories(target);
         }
-        String manifest = template(UUID.randomUUID().toString());
+        Path secrets = Files.createDirectory(target.resolve("secrets"));
+        setPrivateDirectory(secrets);
+        SecureRandom random = new SecureRandom();
+        List<String> publicKeys = new java.util.ArrayList<>();
+        for (int index = 0; index < nodeCount; index++) {
+            byte[] seed = random.generateSeed(32);
+            writeSecret(secrets.resolve("node-" + index + ".seed"), seed);
+            publicKeys.add(HexFormat.of().formatHex(KeyGenUtil.getPublicKeyFromPrivateKey(seed)));
+        }
+        writeSecret(secrets.resolve("anchor.seed"), random.generateSeed(32));
+        writeSecret(secrets.resolve("settlement-operator.seed"), random.generateSeed(32));
+        String manifest = template(UUID.randomUUID().toString(), publicKeys);
         Files.writeString(target.resolve("deployment.yaml"), manifest,
                 StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
         Files.writeString(target.resolve(".gitignore"), "artifacts/\n.yano-deploy/\nsecrets/\n",
                 StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
         out.println("Initialized " + target);
-        out.println("Edit deployment.yaml, place member seeds outside version control, then import the showcase ZIP.");
+        out.printf("Generated %d independent member identities and owner-only anchor/settlement seeds.%n", nodeCount);
+        out.println("Edit documentation addresses/CIDRs and create the referenced Preprod "
+                + "settlement deployment record.");
+        out.println("Then import the exact showcase ZIP and run doctor.");
         return EXIT_OK;
+    }
+
+    private void writeSecret(Path path, byte[] seed) throws IOException {
+        Files.writeString(path, HexFormat.of().formatHex(seed) + System.lineSeparator(),
+                StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
+        try {
+            Files.setPosixFilePermissions(path, PosixFilePermissions.fromString("rw-------"));
+        } catch (UnsupportedOperationException failure) {
+            throw new IOException("deployment identity generation requires owner-only POSIX file permissions", failure);
+        }
+    }
+
+    private void setPrivateDirectory(Path path) throws IOException {
+        try {
+            Files.setPosixFilePermissions(path, PosixFilePermissions.fromString("rwx------"));
+        } catch (UnsupportedOperationException failure) {
+            throw new IOException("deployment identity generation requires owner-only POSIX file permissions", failure);
+        }
     }
 
     private int artifact(String[] args, PrintWriter out) throws IOException {
@@ -162,7 +212,35 @@ public final class YanoDeploymentCli {
 
     private int status(DeploymentDocument document, PrintWriter out) throws IOException {
         lifecycle.status(document);
-        out.println("All queried members returned status.");
+        out.println("All members and chains passed health, mesh, observer, and consensus-identity checks.");
+        return EXIT_OK;
+    }
+
+    private int doctor(DeploymentDocument document, PrintWriter out) throws IOException {
+        Path output = lifecycle.doctor(document);
+        out.println("Local inputs, tools, render lock, and all reachable target preflights are valid: " + output);
+        return EXIT_OK;
+    }
+
+    private int waitFor(String[] args, PrintWriter out) throws IOException {
+        DeploymentDocument document = loader.load(requireDirectory(args, 1));
+        String condition = option(args, "--for").toString();
+        if (!"l1-tip".equals(condition)) {
+            throw new IllegalArgumentException("--for currently supports only l1-tip");
+        }
+        int timeout = hasOption(args, "--timeout-seconds")
+                ? Integer.parseInt(option(args, "--timeout-seconds").toString()) : 3_600;
+        lifecycle.waitForTip(document, timeout);
+        out.println("Every member is healthy, consensus-compatible, fully meshed, and at the L1 tip.");
+        return EXIT_OK;
+    }
+
+    private int reset(String[] args, PrintWriter out) throws IOException {
+        DeploymentDocument document = loader.load(requireDirectory(args, 1));
+        String scope = option(args, "--scope").toString();
+        String confirmation = option(args, "--confirm").toString();
+        Path output = lifecycle.reset(document, confirmation, scope, hasOption(args, "--start"));
+        out.printf("Reset scope %s completed from %s; start=%s%n", scope, output, hasOption(args, "--start"));
         return EXIT_OK;
     }
 
@@ -211,12 +289,25 @@ public final class YanoDeploymentCli {
         if (value == null || value.isBlank()) {
             return "no diagnostic";
         }
-        String sanitized = value.lines().findFirst().orElse("no diagnostic")
-                .replaceAll("[\\p{Cntrl}]", "?");
-        return sanitized.substring(0, Math.min(500, sanitized.length()));
+        String sanitized = value.replaceAll("[\\p{Cntrl}&&[^\\r\\n\\t]]", "?");
+        return sanitized.substring(0, Math.min(4_000, sanitized.length()));
     }
 
-    private String template(String clusterId) {
+    private String template(String clusterId, List<String> publicKeys) {
+        StringBuilder nodes = new StringBuilder();
+        for (int index = 0; index < publicKeys.size(); index++) {
+            nodes.append("                    - name: node-").append(index).append('\n')
+                    .append("                      index: ").append(index).append('\n')
+                    .append("                      providerRef: internal\n")
+                    .append("                      address: \"").append("192.0.2.").append(10 + index).append("\"\n")
+                    .append("                      sshUser: yano-admin\n")
+                    .append("                      roles: [validator")
+                    .append(index == 0 ? ", l1-bootstrap, api-gateway" : "").append("]\n")
+                    .append("                      memberPublicKey: ").append(publicKeys.get(index)).append('\n')
+                    .append("                      memberPrivateKeyFile: secrets/node-")
+                    .append(index).append(".seed\n");
+        }
+        int threshold = publicKeys.size() * 2 / 3 + 1;
         return """
                 apiVersion: yano.bloxbean.com/v1alpha1
                 kind: YanoClusterDeployment
@@ -231,48 +322,9 @@ public final class YanoDeploymentCli {
                     - name: internal
                       type: existing
                   nodes:
-                    - name: node-0
-                      index: 0
-                      providerRef: internal
-                      address: "192.0.2.10"
-                      sshUser: yano-admin
-                      roles: [validator, api-gateway]
-                      memberPublicKey: "<64-hex>"
-                      memberPrivateKeyFile: secrets/node-0.seed
-                    - name: node-1
-                      index: 1
-                      providerRef: internal
-                      address: "192.0.2.11"
-                      sshUser: yano-admin
-                      roles: [validator, api-gateway]
-                      memberPublicKey: "<64-hex>"
-                      memberPrivateKeyFile: secrets/node-1.seed
-                    - name: node-2
-                      index: 2
-                      providerRef: internal
-                      address: "192.0.2.12"
-                      sshUser: yano-admin
-                      roles: [validator]
-                      memberPublicKey: "<64-hex>"
-                      memberPrivateKeyFile: secrets/node-2.seed
-                    - name: node-3
-                      index: 3
-                      providerRef: internal
-                      address: "192.0.2.13"
-                      sshUser: yano-admin
-                      roles: [validator]
-                      memberPublicKey: "<64-hex>"
-                      memberPrivateKeyFile: secrets/node-3.seed
-                    - name: node-4
-                      index: 4
-                      providerRef: internal
-                      address: "192.0.2.14"
-                      sshUser: yano-admin
-                      roles: [validator]
-                      memberPublicKey: "<64-hex>"
-                      memberPrivateKeyFile: secrets/node-4.seed
+                %s
                   consensus:
-                    threshold: 4
+                    threshold: %d
                     sequencer: {mode: fixed, proposerNode: node-0}
                   network:
                     p2pPort: 13337
@@ -282,6 +334,23 @@ public final class YanoDeploymentCli {
                       kind: local-showcase-zip
                       file: ""
                       sha256: ""
+                  application:
+                    profile: distributed-showcase-preprod-anchored-settlement-v1
+                    anchoring:
+                      mode: script
+                      chains: all
+                      leaderNode: node-0
+                      seedFile: secrets/anchor.seed
+                      everyBlocks: 30
+                      maxIntervalMinutes: 60
+                    settlement:
+                      mode: preprod
+                      chainId: payment-chain-settlement
+                      ownerNode: node-0
+                      operatorSeedFile: secrets/settlement-operator.seed
+                      deploymentRecordFile: secrets/settlement-deployment-payment-chain-settlement.properties
+                  monitoring:
+                    mode: none
                   access:
                     ssh:
                       mode: allowlist
@@ -292,6 +361,6 @@ public final class YanoDeploymentCli {
                       rateLimit: {average: 20, burst: 40}
                       cors: {allowedOrigins: []}
                   destructionProtection: true
-                """.formatted(clusterId);
+                """.formatted(clusterId, nodes, threshold);
     }
 }

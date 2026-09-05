@@ -27,7 +27,8 @@ import java.util.Set;
 import java.util.TreeMap;
 
 final class DeploymentRenderer {
-    static final int RENDER_REVISION = 25;
+    static final int RENDER_REVISION = 30;
+    private static final String CARDANO_HISTORY_CHAIN = "cardano-history-chain";
     private static final String SETTLEMENT_CHAIN = "payment-chain-settlement";
     private static final String WORKFLOW_CHAIN = "workflow-chain";
     private static final String TRAEFIK_VERSION = "3.7.11";
@@ -82,6 +83,7 @@ final class DeploymentRenderer {
         if (!document.artifactSha256().equals(artifact.sha256())) {
             throw new IllegalArgumentException("imported showcase archive does not match its locked SHA-256");
         }
+        artifacts.verifyImportLock(document, artifact);
         List<String> unknownAnchorAccounts = document.anchorChainSeedFiles().keySet().stream()
                 .filter(chainId -> !artifact.chains().contains(chainId)).sorted().toList();
         if (!unknownAnchorAccounts.isEmpty()) {
@@ -103,9 +105,11 @@ final class DeploymentRenderer {
         write(ansible.resolve("gateway.yml"), gatewayPlaybook());
         write(ansible.resolve("monitoring.yml"), monitoringPlaybook());
         write(ansible.resolve("mesh-recover.yml"), meshRecoveryPlaybook());
+        write(ansible.resolve("preflight.yml"), preflightPlaybook());
         write(ansible.resolve("bootstrap-anchors.yml"), anchorBootstrapPlaybook());
         write(ansible.resolve("bootstrap-one-anchor.yml"), anchorBootstrapChainTasks());
         write(ansible.resolve("status.yml"), statusPlaybook());
+        write(ansible.resolve("reset.yml"), resetPlaybook());
         write(ansible.resolve("files/yano-x.service"), serviceUnit(document));
         write(ansible.resolve("files/yano-x.env"), jvmEnvironment());
         write(ansible.resolve("files/traefik.service"), traefikServiceUnit());
@@ -114,7 +118,8 @@ final class DeploymentRenderer {
         write(ansible.resolve("templates/traefik.yml.j2"), traefikConfiguration());
         write(ansible.resolve("templates/traefik-yano.yml.j2"), traefikYanoConfiguration());
         write(ansible.resolve("templates/prometheus.yml.j2"), prometheusConfiguration());
-        write(ansible.resolve("files/application-appchain.yml"), sanitizedApplication(artifact, settlement));
+        write(ansible.resolve("files/application-appchain.yml"),
+                sanitizedApplication(document, artifact, settlement));
         write(ansible.resolve("files/active-plugin-policy.txt"), activePluginPolicy());
 
         Map<String, String> checksums = checksums(output);
@@ -149,6 +154,11 @@ final class DeploymentRenderer {
         lock.put("yanoIdentitySha256", artifact.yanoIdentitySha256());
         lock.put("yanoXIdentitySha256", artifact.yanoXIdentitySha256());
         lock.put("applicationProfile", document.applicationProfile());
+        lock.put("cardanoHistory", Map.of(
+                "l1Observations", document.cardanoHistoryL1Observations(),
+                "preset", document.cardanoHistoryPreset(),
+                "genesisId", document.cardanoHistoryGenesisId(),
+                "sourceSnapshotRetentionEpochs", document.cardanoHistorySourceSnapshotRetentionEpochs()));
         lock.put("activeChainIds", artifact.chains());
         lock.put("excludedChainIds", List.of());
         lock.put("excludedIntegrations", List.of("kafka", "s3-effects", "ipfs"));
@@ -195,6 +205,47 @@ final class DeploymentRenderer {
     void resolveInventory(DeploymentDocument document, Path output, Map<String, String> addresses)
             throws IOException {
         replace(output.resolve("ansible/inventory.yml"), inventory(document, addresses));
+        refreshLockedFile(output, "ansible/inventory.yml");
+        verifyRendered(document, output);
+    }
+
+    void verifyRendered(DeploymentDocument document, Path output) throws IOException {
+        Path normalized = output.toAbsolutePath().normalize();
+        Path lockPath = normalized.resolve("deployment.lock.json");
+        if (!Files.isRegularFile(lockPath, LinkOption.NOFOLLOW_LINKS)) {
+            throw new IOException("deployment render lock is missing or is not a regular file");
+        }
+        JsonNode lock = json.readTree(lockPath.toFile());
+        if (lock.path("schemaVersion").asInt() != 1
+                || !"YanoClusterDeploymentLock".equals(lock.path("kind").asText())
+                || lock.path("rendererRevision").asInt() != RENDER_REVISION
+                || !document.clusterId().equals(lock.path("clusterId").asText())
+                || !document.artifactSha256().equals(lock.path("artifactSha256").asText())
+                || !ShowcaseArtifact.digest(document.directory().resolve("deployment.yaml"))
+                        .equals(lock.path("manifestSha256").asText())) {
+            throw new IOException("deployment render lock does not match the current manifest, artifact, or renderer");
+        }
+        JsonNode files = lock.path("files");
+        if (!files.isObject() || files.isEmpty()) {
+            throw new IOException("deployment render lock contains no generated-file checksums");
+        }
+        var entries = files.fields();
+        while (entries.hasNext()) {
+            var entry = entries.next();
+            Path file = normalized.resolve(entry.getKey()).normalize();
+            if (!file.startsWith(normalized) || !Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS)
+                    || !entry.getValue().asText().equals(ShowcaseArtifact.digest(file))) {
+                throw new IOException("generated deployment file differs from its lock: " + entry.getKey());
+            }
+        }
+    }
+
+    private void refreshLockedFile(Path output, String relative) throws IOException {
+        Path lockPath = output.resolve("deployment.lock.json");
+        ObjectNode lock = (ObjectNode) json.readTree(lockPath.toFile());
+        ObjectNode files = (ObjectNode) lock.path("files");
+        files.put(relative, ShowcaseArtifact.digest(output.resolve(relative)));
+        replaceBytes(lockPath, canonicalJson(lock));
     }
 
     private Path prepareOutput(Path requested) throws IOException {
@@ -277,14 +328,15 @@ final class DeploymentRenderer {
             DeploymentDocument.Provider provider, DeploymentDocument.Node node, String resource) {
         hcl.append("resource \"hcloud_firewall\" \"").append(resource).append("\" {\n")
                 .append(attribute("name", document.name() + "-" + node.name()))
-                .append(hcloudRules(document, node)).append("}\n\n")
+                .append(hcloudRules(document, node))
+                .append("  apply_to { server = hcloud_server.").append(resource).append(".id }\n")
+                .append("}\n\n")
                 .append("resource \"hcloud_server\" \"").append(resource).append("\" {\n")
                 .append(attribute("name", document.name() + "-" + node.name()))
                 .append(attribute("server_type", node.instanceType()))
                 .append(attribute("image", node.image()))
                 .append(attribute("location", node.region()))
                 .append(stringList("ssh_keys", provider.settings().path("sshKeys")))
-                .append("  firewall_ids = [hcloud_firewall.").append(resource).append(".id]\n")
                 .append(attribute("user_data", CLOUD_INIT))
                 .append("  delete_protection = true\n  rebuild_protection = true\n")
                 .append(lifecycle(document)).append("}\n\n")
@@ -313,8 +365,8 @@ final class DeploymentRenderer {
         for (String cidr : effectiveSshCidrs(document)) {
             rules.append(contaboInbound("TCP", Integer.toString(node.sshPort()), cidr));
         }
-        rules.append(contaboInbound("TCP", Integer.toString(document.p2pPort()), "0.0.0.0/0"));
-        rules.append(contaboInbound("TCP", Integer.toString(document.p2pPort()), "::/0"));
+        p2pSources(document, node).forEach(cidr -> rules.append(
+                contaboInbound("TCP", Integer.toString(document.p2pPort()), cidr)));
         if (apiGateway(document, node)) {
             effectiveApiCidrs(document).forEach(cidr -> {
                 rules.append(contaboInbound("TCP", "80", cidr));
@@ -326,16 +378,21 @@ final class DeploymentRenderer {
 
     private String contaboInbound(String protocol, String port, String cidr) {
         String family = cidr.contains(":") ? "ipv6" : "ipv4";
-        return "    inbound { protocol = \"" + protocol + "\", action = \"allow\", status = \"enabled\", "
-                + "dest_ports = [\"" + port + "\"], src_cidr { " + family + " = [\""
-                + escape(cidr) + "\"] } }\n";
+        return "    inbound {\n"
+                + "      protocol = \"" + protocol + "\"\n"
+                + "      action = \"allow\"\n"
+                + "      status = \"enabled\"\n"
+                + "      dest_ports = [\"" + port + "\"]\n"
+                + "      src_cidr {\n"
+                + "        " + family + " = [\"" + escape(cidr) + "\"]\n"
+                + "      }\n"
+                + "    }\n";
     }
 
     private String hcloudRules(DeploymentDocument document, DeploymentDocument.Node node) {
         StringBuilder rules = new StringBuilder();
         effectiveSshCidrs(document).forEach(cidr -> rules.append(hcloudRule(node.sshPort(), cidr)));
-        rules.append(hcloudRule(document.p2pPort(), "0.0.0.0/0"));
-        rules.append(hcloudRule(document.p2pPort(), "::/0"));
+        p2pSources(document, node).forEach(cidr -> rules.append(hcloudRule(document.p2pPort(), cidr)));
         if (apiGateway(document, node)) {
             effectiveApiCidrs(document).forEach(cidr -> {
                 rules.append(hcloudRule(80, cidr));
@@ -346,31 +403,61 @@ final class DeploymentRenderer {
     }
 
     private String hcloudRule(int port, String cidr) {
-        return "  rule { direction = \"in\", protocol = \"tcp\", port = \"" + port
-                + "\", source_ips = [\"" + escape(cidr) + "\"] }\n";
+        return "  rule {\n"
+                + "    direction = \"in\"\n"
+                + "    protocol = \"tcp\"\n"
+                + "    port = \"" + port + "\"\n"
+                + "    source_ips = [\"" + escape(cidr) + "\"]\n"
+                + "  }\n";
     }
 
     private String digitalOceanRules(DeploymentDocument document, DeploymentDocument.Node node) {
         StringBuilder rules = new StringBuilder();
         effectiveSshCidrs(document).forEach(cidr -> rules.append(doInbound(node.sshPort(), cidr)));
-        rules.append(doInbound(document.p2pPort(), "0.0.0.0/0"));
-        rules.append(doInbound(document.p2pPort(), "::/0"));
+        p2pSources(document, node).forEach(cidr -> rules.append(doInbound(document.p2pPort(), cidr)));
         if (apiGateway(document, node)) {
             effectiveApiCidrs(document).forEach(cidr -> {
                 rules.append(doInbound(80, cidr));
                 rules.append(doInbound(443, cidr));
             });
         }
-        rules.append("  outbound_rule { protocol = \"tcp\", port_range = \"1-65535\", "
-                + "destination_addresses = [\"0.0.0.0/0\", \"::/0\"] }\n")
-                .append("  outbound_rule { protocol = \"udp\", port_range = \"1-65535\", "
-                        + "destination_addresses = [\"0.0.0.0/0\", \"::/0\"] }\n");
+        rules.append(doOutbound("tcp")).append(doOutbound("udp"));
         return rules.toString();
     }
 
     private String doInbound(int port, String cidr) {
-        return "  inbound_rule { protocol = \"tcp\", port_range = \"" + port
-                + "\", source_addresses = [\"" + escape(cidr) + "\"] }\n";
+        return "  inbound_rule {\n"
+                + "    protocol = \"tcp\"\n"
+                + "    port_range = \"" + port + "\"\n"
+                + "    source_addresses = [\"" + escape(cidr) + "\"]\n"
+                + "  }\n";
+    }
+
+    private String doOutbound(String protocol) {
+        return "  outbound_rule {\n"
+                + "    protocol = \"" + protocol + "\"\n"
+                + "    port_range = \"1-65535\"\n"
+                + "    destination_addresses = [\"0.0.0.0/0\", \"::/0\"]\n"
+                + "  }\n";
+    }
+
+    private List<String> p2pSources(DeploymentDocument document, DeploymentDocument.Node target) {
+        if (target.roles().contains("l1-bootstrap")) {
+            return List.of("0.0.0.0/0", "::/0");
+        }
+        Map<String, DeploymentDocument.Provider> providers = document.providersByName();
+        return document.nodes().stream().filter(node -> !node.name().equals(target.name())).map(node -> {
+            if (!node.address().isBlank()) {
+                return node.address() + (node.address().contains(":") ? "/128" : "/32");
+            }
+            String resource = node.name().replace('-', '_');
+            return switch (providers.get(node.providerRef()).type()) {
+                case "contabo" -> "${contabo_instance." + resource + ".ip_config[0].v4[0].ip}/32";
+                case "hetzner-cloud" -> "${hcloud_server." + resource + ".ipv4_address}/32";
+                case "digitalocean" -> "${digitalocean_droplet." + resource + ".ipv4_address}/32";
+                default -> throw new IllegalArgumentException("P2P peer address is unresolved for " + node.name());
+            };
+        }).toList();
     }
 
     private List<String> effectiveSshCidrs(DeploymentDocument document) {
@@ -416,7 +503,8 @@ final class DeploymentRenderer {
         return Math.max(100, (document.validators().size() - 1) * appConnectionsPerPeer(artifact) + 32);
     }
 
-    private String inventory(DeploymentDocument document, Map<String, String> resolved) {
+    private String inventory(DeploymentDocument document, Map<String, String> resolved) throws IOException {
+        ShowcaseArtifact.Metadata artifact = artifacts.inspect(document.artifactPath());
         String monitoringAddress = document.nodes().stream()
                 .filter(node -> node.name().equals(document.monitoringNode()))
                 .map(node -> resolved.getOrDefault(node.name(), node.address()))
@@ -437,6 +525,14 @@ final class DeploymentRenderer {
                 .append(yamlQuote(document.sequencerProposerPublicKey())).append('\n')
                 .append("    sequencer_window_slots: ").append(document.sequencerWindowSlots()).append('\n')
                 .append("    validator_count: ").append(document.validators().size()).append('\n')
+                .append("    locked_chain_count: ").append(artifact.chains().size())
+                .append('\n')
+                .append("    plugin_bundle_sha256:\n");
+        new TreeMap<>(artifact.pluginBundleSha256()).forEach((path, digest) -> result
+                .append("      ").append(yamlQuote(path)).append(": ").append(yamlQuote(digest)).append('\n'));
+        result
+                .append("    yano_jar_sha256: ")
+                .append(yamlQuote(artifacts.digestEntry(artifact, "yano/yano.jar"))).append('\n')
                 .append("    showcase_archive: ").append(yamlQuote(document.artifactPath().toString())).append('\n')
                 .append("    showcase_sha256: ").append(yamlQuote(document.artifactSha256())).append('\n')
                 .append("    api_exposure: ").append(yamlQuote(document.apiExposure())).append('\n')
@@ -507,6 +603,8 @@ final class DeploymentRenderer {
         for (DeploymentDocument.Node node : document.nodes()) {
             String address = resolved.getOrDefault(node.name(), node.address());
             String advertised = node.advertisedAddress().isBlank() ? address : node.advertisedAddress();
+            String p2pSourceCidr = address.isBlank() ? "TOFU_PENDING"
+                    : address + (address.contains(":") ? "/128" : "/32");
             result.append("    ").append(node.name()).append(":\n")
                     .append("      ansible_host: ")
                     .append(yamlQuote(address.isBlank() ? "TOFU_PENDING" : address)).append('\n')
@@ -514,6 +612,8 @@ final class DeploymentRenderer {
                     .append("      ansible_port: ").append(node.sshPort()).append('\n')
                     .append("      yano_advertised_address: ")
                     .append(yamlQuote(advertised.isBlank() ? "TOFU_PENDING" : advertised)).append('\n')
+                    .append("      p2p_source_cidr: ").append(yamlQuote(p2pSourceCidr)).append('\n')
+                    .append("      l1_bootstrap: ").append(node.roles().contains("l1-bootstrap")).append('\n')
                     .append("      node_index: ").append(node.index()).append('\n')
                     .append("      provider_ref: ").append(yamlQuote(node.providerRef())).append('\n')
                     .append("      api_hostname: ").append(yamlQuote(node.hostname())).append('\n')
@@ -571,6 +671,7 @@ final class DeploymentRenderer {
     }
 
     private String sanitizedApplication(
+            DeploymentDocument document,
             ShowcaseArtifact.Metadata artifact,
             SettlementProfileCompiler.Compiled settlement) throws IOException {
         JsonNode parsed = yaml.readTree(artifacts.readEntry(artifact, "yano/config/application-appchain.yml"));
@@ -609,9 +710,61 @@ final class DeploymentRenderer {
             if (config == null) {
                 throw new IOException("showcase config is missing catalog chain: " + chain);
             }
+            if ("cardano-history-chain".equals(chain)) {
+                configureCardanoHistory((ObjectNode) config, document);
+            }
             appChain.set("chains[" + index + "]", config);
         }
         return yaml.writeValueAsString(parsed);
+    }
+
+    private void configureCardanoHistory(ObjectNode chain, DeploymentDocument document) {
+        ObjectNode state = chain.withObject("state");
+        if (!document.cardanoHistoryGenesisId().isBlank()) {
+            state.put("genesis-id", document.cardanoHistoryGenesisId());
+        }
+        chain.put("max-message-bytes", "6291456");
+        chain.withObject("block").put("max-bytes", "8388608");
+
+        ObjectNode machines = chain.withObject("machines");
+        machines.withObject("cardano-history").put("preset", document.cardanoHistoryPreset());
+        machines.remove("epoch-stake");
+        machines.remove("epoch-governance");
+
+        ObjectNode observers = chain.withObject("observers");
+        observers.remove("epoch-stake");
+        observers.remove("epoch-governance");
+        ObjectNode capabilities = chain.withObject("capabilities");
+        capabilities.remove("authenticated-snapshots");
+        List<String> snapshotSeries = new ArrayList<>();
+        if (document.cardanoHistoryL1Observations().contains(DeploymentDocument.EPOCH_STAKE_OBSERVER)) {
+            machines.withObject("epoch-stake")
+                    .put("chunk-entries", "25000")
+                    .put("snapshot-profile", "mpf-blake2b256-v1");
+            observers.withObject("epoch-stake")
+                    .put("type", DeploymentDocument.EPOCH_STAKE_OBSERVER)
+                    .put("chain-id", "cardano-history-chain")
+                    .put("chunk-entries", "25000");
+            snapshotSeries.add("l1-epoch-stake-v1.distribution");
+        }
+        if (document.cardanoHistoryL1Observations().contains(DeploymentDocument.EPOCH_GOVERNANCE_OBSERVER)) {
+            machines.withObject("epoch-governance")
+                    .put("drep-chunk-entries", "25000")
+                    .put("drep-snapshot-profile", "mpf-blake2b256-v1");
+            observers.withObject("epoch-governance")
+                    .put("type", DeploymentDocument.EPOCH_GOVERNANCE_OBSERVER)
+                    .put("chain-id", "cardano-history-chain")
+                    .put("include-proposals", "true")
+                    .put("include-drep-distribution", "true")
+                    .put("drep-chunk-entries", "25000");
+            snapshotSeries.add("l1-epoch-governance-v1.drep-distribution");
+        }
+        if (!snapshotSeries.isEmpty()) {
+            capabilities.withObject("authenticated-snapshots")
+                    .put("enabled", "true")
+                    .put("series", String.join(",", snapshotSeries))
+                    .put("archive-directory", "/var/lib/yano/appchain-snapshot-archives");
+        }
     }
 
     private String nodeProperties(DeploymentDocument document, ShowcaseArtifact.Metadata artifact)
@@ -620,6 +773,9 @@ final class DeploymentRenderer {
         String members = validators.stream().map(DeploymentDocument.Node::memberPublicKey)
                 .collect(java.util.stream.Collectors.joining(","));
         List<String> activeChains = artifact.chains();
+        Set<String> observerChains = observerChains(artifact);
+        String l1NetworkGenesisId = artifacts.digestEntry(artifact,
+                "yano/config/network/" + document.network() + "/shelley-genesis.json");
         StringBuilder properties = new StringBuilder()
                 .append("quarkus.http.host=127.0.0.1\n")
                 .append("quarkus.http.port=").append(document.httpPort()).append('\n')
@@ -631,7 +787,9 @@ final class DeploymentRenderer {
                 .append(maxInboundConnections(document, artifact)).append('\n')
                 .append("yano.storage.path=/var/lib/yano/chainstate\n")
                 .append("yano.app-chain.storage.path=/var/lib/yano/appchain-chainstate\n")
-                .append("yano.plugins.directory=/opt/yano/current/yano/plugins\n")
+                .append("yano.account-state.snapshot-retention-epochs=")
+                .append(document.cardanoHistorySourceSnapshotRetentionEpochs()).append('\n')
+                .append("yano.plugins.directory=/opt/yano/active/{{ showcase_sha256 }}-r30/plugins\n")
                 .append("yano.plugins.bundle.\"com.bloxbean.cardano.yano.appchain.eutxo.indexer\".storage-path=")
                 .append("/var/lib/yano/appchain-indexers\n");
         if (!document.apiKeyFile().isBlank()) {
@@ -650,6 +808,10 @@ final class DeploymentRenderer {
             } else {
                 properties.append(prefix).append("sequencer.window-slots=")
                         .append(document.sequencerWindowSlots()).append('\n');
+            }
+            if (observerChains.contains(activeChains.get(index))) {
+                properties.append(prefix).append("observation.l1-network-genesis-id=")
+                        .append(l1NetworkGenesisId).append('\n');
             }
             if (SETTLEMENT_CHAIN.equals(activeChains.get(index))) {
                 properties.append(prefix)
@@ -683,22 +845,66 @@ final class DeploymentRenderer {
         }
         properties.append(profileCompiler.compile(artifact,
                 validators.stream().map(DeploymentDocument.Node::memberPublicKey).toList(), document.threshold()));
+        if (!document.cardanoHistoryGenesisId().isBlank()) {
+            int historyIndex = activeChains.indexOf(CARDANO_HISTORY_CHAIN);
+            if (historyIndex < 0) {
+                throw new IllegalStateException("Cardano History chain is unavailable in the selected artifact");
+            }
+            // The profile compiler emits a generated genesis for every authenticated chain. Keep
+            // the operator-pinned Cardano History identity last so it wins property resolution.
+            properties.append("yano.app-chain.chains[").append(historyIndex)
+                    .append("].state.genesis-id=").append(document.cardanoHistoryGenesisId()).append('\n');
+        }
         return properties.toString();
+    }
+
+    private Set<String> observerChains(ShowcaseArtifact.Metadata artifact) throws IOException {
+        JsonNode parsed = yaml.readTree(artifacts.readEntry(artifact, "yano/config/application-appchain.yml"));
+        Set<String> result = new java.util.LinkedHashSet<>();
+        parsed.path("yano").path("app-chain").fields().forEachRemaining(entry -> {
+            JsonNode chain = entry.getValue();
+            if (entry.getKey().startsWith("chains[") && chain.path("observers").size() > 0) {
+                result.add(chain.path("chain-id").asText());
+            }
+        });
+        return Set.copyOf(result);
     }
 
     private String playbook() {
         return """
                 ---
+                - name: Close public gateways before changing any cluster member
+                  hosts: all
+                  become: true
+                  gather_facts: false
+                  tasks:
+                    - name: Stop a previously installed Traefik gateway
+                      ansible.builtin.systemd_service:
+                        name: traefik
+                        state: stopped
+                      when: api_gateway
+                      failed_when: false
+                    - name: Stop a legacy Nginx gateway
+                      ansible.builtin.systemd_service:
+                        name: nginx
+                        state: stopped
+                      when: api_gateway
+                      failed_when: false
+
                 - name: Deploy Yano X app-chain members
                   hosts: all
                   become: true
                   serial: 1
                   vars:
                     yano_release: "/opt/yano/releases/{{ showcase_sha256 }}"
+                    yano_active_plugins: "/opt/yano/active/{{ showcase_sha256 }}-r30"
                     yano_peer_csv: >-
                       {{ groups['all'] | reject('equalto', inventory_hostname)
                          | map('extract', hostvars, 'yano_advertised_address')
                          | map('regex_replace', '$', ':' ~ p2p_port) | join(',') }}
+                    yano_peer_cidrs: >-
+                      {{ groups['all'] | reject('equalto', inventory_hostname)
+                         | map('extract', hostvars, 'p2p_source_cidr') | list }}
                     ssh_client_address: >-
                       {{ (ansible_facts.env.SSH_CONNECTION | default('0.0.0.0')).split() | first }}
                   pre_tasks:
@@ -810,12 +1016,14 @@ final class DeploymentRenderer {
                         mode: "{{ item.mode }}"
                       loop:
                         - {path: /opt/yano/releases, owner: root, mode: '0755'}
+                        - {path: /opt/yano/active, owner: root, mode: '0755'}
                         - {path: /etc/yano, owner: root, mode: '0750'}
                         - {path: /etc/yano/credentials, owner: root, mode: '0750'}
                         - {path: /etc/yano/settlement, owner: yano, mode: '0700'}
                         - {path: /var/lib/yano/chainstate, owner: yano, mode: '0700'}
                         - {path: /var/lib/yano/appchain-chainstate, owner: yano, mode: '0700'}
                         - {path: /var/lib/yano/appchain-indexers, owner: yano, mode: '0700'}
+                        - {path: /var/lib/yano/appchain-snapshot-archives, owner: yano, mode: '0700'}
                         - {path: /var/lib/yano/appchain-effects/showcase-outbox, owner: yano, mode: '0700'}
                     - name: Create Traefik gateway directories
                       ansible.builtin.file:
@@ -892,30 +1100,133 @@ final class DeploymentRenderer {
                     - name: Require the exact imported showcase bytes
                       ansible.builtin.assert:
                         that: remote_showcase.stat.checksum == showcase_sha256
-                    - name: Extract immutable release
-                      ansible.builtin.unarchive:
-                        src: "/opt/yano/{{ showcase_sha256 }}.zip"
-                        dest: /opt/yano/releases
-                        remote_src: true
-                        creates: "{{ yano_release }}"
-                    - name: Locate extracted showcase root
-                      ansible.builtin.find:
-                        paths: /opt/yano/releases
-                        patterns: 'yano-showcase-*'
-                        file_type: directory
-                      register: showcase_roots
-                    - name: Require one extracted showcase root
+                    - name: Inspect immutable release marker
+                      ansible.builtin.stat:
+                        path: "{{ yano_release }}/.yano-artifact-sha256"
+                      register: yano_release_marker
+                    - name: Inspect an existing digest release path
+                      ansible.builtin.stat:
+                        path: "{{ yano_release }}"
+                        follow: false
+                      register: yano_release_path
+                    - name: Reject an unmarked release directory
                       ansible.builtin.assert:
-                        that: showcase_roots.matched >= 1
-                    - name: Point release digest at extracted tree
+                        that: >-
+                          not yano_release_path.stat.exists
+                          or yano_release_path.stat.islnk | default(false)
+                          or yano_release_marker.stat.exists
+                        fail_msg: >-
+                          Refusing to reuse an unmarked release directory at {{ yano_release }}.
+                    - name: Remove the legacy mutable release symlink
                       ansible.builtin.file:
-                        src: "{{ (showcase_roots.files | sort(attribute='path') | last).path }}"
-                        dest: "{{ yano_release }}"
-                        state: link
-                    - name: Remove forbidden integration bundles
+                        path: "{{ yano_release }}"
+                        state: absent
+                      when: >-
+                        not yano_release_marker.stat.exists
+                        and yano_release_path.stat.islnk | default(false)
+                    - name: Recreate clean release staging directory
+                      when: not yano_release_marker.stat.exists
+                      block:
+                        - name: Remove incomplete release staging directory
+                          ansible.builtin.file:
+                            path: "/opt/yano/releases/.{{ showcase_sha256 }}.staging"
+                            state: absent
+                        - name: Create release staging directory
+                          ansible.builtin.file:
+                            path: "/opt/yano/releases/.{{ showcase_sha256 }}.staging"
+                            state: directory
+                            owner: root
+                            group: root
+                            mode: '0755'
+                        - name: Extract archive into release staging directory
+                          ansible.builtin.unarchive:
+                            src: "/opt/yano/{{ showcase_sha256 }}.zip"
+                            dest: "/opt/yano/releases/.{{ showcase_sha256 }}.staging"
+                            remote_src: true
+                        - name: Locate the single staged showcase root
+                          ansible.builtin.find:
+                            paths: "/opt/yano/releases/.{{ showcase_sha256 }}.staging"
+                            patterns: 'yano-showcase-*'
+                            file_type: directory
+                            recurse: false
+                          register: staged_showcase_roots
+                        - name: Require exactly one staged showcase root
+                          ansible.builtin.assert:
+                            that: staged_showcase_roots.matched == 1
+                        - name: Mark staged release with its archive identity
+                          ansible.builtin.copy:
+                            content: "{{ showcase_sha256 }}\n"
+                            dest: >-
+                              {{ staged_showcase_roots.files[0].path }}/.yano-artifact-sha256
+                            owner: root
+                            group: root
+                            mode: '0444'
+                        - name: Atomically install immutable digest release
+                          ansible.builtin.command:
+                            argv:
+                              - mv
+                              - -T
+                              - "{{ staged_showcase_roots.files[0].path }}"
+                              - "{{ yano_release }}"
+                          args:
+                            creates: "{{ yano_release }}/.yano-artifact-sha256"
+                        - name: Remove empty release staging directory
+                          ansible.builtin.file:
+                            path: "/opt/yano/releases/.{{ showcase_sha256 }}.staging"
+                            state: absent
+                    - name: Read immutable release marker
+                      ansible.builtin.slurp:
+                        src: "{{ yano_release }}/.yano-artifact-sha256"
+                      register: installed_release_marker
+                    - name: Require immutable release identity to match the archive
+                      ansible.builtin.assert:
+                        that: >-
+                          (installed_release_marker.content | b64decode | trim) == showcase_sha256
+                    - name: Verify every immutable plugin bundle checksum
+                      ansible.builtin.stat:
+                        path: "{{ yano_release }}/yano/{{ item.key }}"
+                        checksum_algorithm: sha256
+                      loop: "{{ plugin_bundle_sha256 | dict2items }}"
+                      loop_control:
+                        label: "{{ item.key }}"
+                      register: installed_plugin_bundles
+                    - name: Verify immutable Yano runtime checksum
+                      ansible.builtin.stat:
+                        path: "{{ yano_release }}/yano/yano.jar"
+                        checksum_algorithm: sha256
+                      register: installed_yano_runtime
+                    - name: Reject a missing or modified Yano runtime
+                      ansible.builtin.assert:
+                        that:
+                          - installed_yano_runtime.stat.exists
+                          - installed_yano_runtime.stat.isreg
+                          - installed_yano_runtime.stat.checksum == yano_jar_sha256
+                    - name: Reject missing or modified immutable plugin bundles
+                      ansible.builtin.assert:
+                        that:
+                          - item.stat.exists
+                          - item.stat.isreg
+                          - item.stat.checksum == item.item.value
+                        fail_msg: "Immutable plugin bundle differs from the imported artifact: {{ item.item.key }}"
+                      loop: "{{ installed_plugin_bundles.results }}"
+                      loop_control:
+                        label: "{{ item.item.key }}"
+                    - name: Remove the previous filtered plugin view
+                      ansible.builtin.file:
+                        path: "{{ yano_active_plugins }}"
+                        state: absent
+                    - name: Create filtered active plugin directory
+                      ansible.builtin.file:
+                        path: "{{ yano_active_plugins }}/plugins"
+                        state: directory
+                        owner: root
+                        group: yano
+                        mode: '0755'
+                    - name: Locate permitted runtime bundles in the immutable release
                       ansible.builtin.find:
                         paths: "{{ yano_release }}/yano/plugins"
-                        patterns:
+                        patterns: '*.jar'
+                        excludes:
                           - '*kafka*'
                           - '*objectstore-s3*'
                           - '*ipfs*'
@@ -924,12 +1235,23 @@ final class DeploymentRenderer {
                           - '*effects-cardano*'
                           - '*eutxo-zk*'
                         file_type: file
-                      register: forbidden_plugins
-                    - name: Delete forbidden integration bundles
-                      ansible.builtin.file:
-                        path: "{{ item.path }}"
-                        state: absent
-                      loop: "{{ forbidden_plugins.files }}"
+                      register: permitted_plugins
+                    - name: Copy permitted bundles into the active plugin view
+                      ansible.builtin.copy:
+                        src: "{{ item.path }}"
+                        dest: "{{ yano_active_plugins }}/plugins/{{ item.path | basename }}"
+                        remote_src: true
+                        owner: root
+                        group: yano
+                        mode: '0444'
+                      loop: "{{ permitted_plugins.files }}"
+                    - name: Mark the complete active plugin view
+                      ansible.builtin.copy:
+                        content: "{{ showcase_sha256 }}\n"
+                        dest: "{{ yano_active_plugins }}/.yano-artifact-sha256"
+                        owner: root
+                        group: root
+                        mode: '0444'
                     - name: Install shared app-chain configuration
                       ansible.builtin.copy:
                         src: files/application-appchain.yml
@@ -1045,15 +1367,16 @@ final class DeploymentRenderer {
                         ufw allow from {{ cidr }} to any port {{ ansible_port }} proto tcp
                         {% endfor %}
                         {% endif %}
+                        ufw delete allow {{ p2p_port }}/tcp 2>/dev/null || true
+                        {% if l1_bootstrap %}
                         ufw allow {{ p2p_port }}/tcp
-                        ufw delete allow 80/tcp 2>/dev/null || true
-                        ufw delete allow 443/tcp 2>/dev/null || true
-                        {% if api_gateway %}
-                        {% for cidr in api_ingress_cidrs %}
-                        ufw allow from {{ cidr }} to any port 80 proto tcp
-                        ufw allow from {{ cidr }} to any port 443 proto tcp
+                        {% else %}
+                        {% for cidr in yano_peer_cidrs %}
+                        ufw allow from {{ cidr }} to any port {{ p2p_port }} proto tcp
                         {% endfor %}
                         {% endif %}
+                        ufw delete allow 80/tcp 2>/dev/null || true
+                        ufw delete allow 443/tcp 2>/dev/null || true
                         ufw --force enable
                       args:
                         executable: /bin/sh
@@ -1064,11 +1387,11 @@ final class DeploymentRenderer {
                         enabled: true
                         state: started
                         daemon_reload: true
-                    - name: Start API reverse proxy when enabled
+                    - name: Keep API reverse proxy stopped until cluster health is validated
                       ansible.builtin.systemd_service:
                         name: traefik
-                        enabled: true
-                        state: restarted
+                        enabled: false
+                        state: stopped
                         daemon_reload: true
                       when: api_gateway
                     - name: Wait for local readiness
@@ -1079,18 +1402,6 @@ final class DeploymentRenderer {
                       retries: 90
                       delay: 2
                       until: ready.status == 200
-                    - name: Wait for the local HTTPS gateway route
-                      ansible.builtin.uri:
-                        url: "https://127.0.0.1/q/health/ready"
-                        headers:
-                          Host: "{{ api_hostname }}"
-                        validate_certs: false
-                        status_code: 200
-                      register: gateway_ready
-                      retries: 30
-                      delay: 2
-                      until: gateway_ready.status == 200
-                      when: api_gateway
                 """;
     }
 
@@ -1308,6 +1619,20 @@ final class DeploymentRenderer {
                       retries: 30
                       delay: 2
                       until: gateway_ready.status == 200
+                      when: api_gateway
+                    - name: Open API ingress only after cluster validation
+                      ansible.builtin.shell: |
+                        set -eu
+                        ufw delete allow 80/tcp 2>/dev/null || true
+                        ufw delete allow 443/tcp 2>/dev/null || true
+                        {% for cidr in api_ingress_cidrs %}
+                        ufw allow from {{ cidr }} to any port 80 proto tcp
+                        ufw allow from {{ cidr }} to any port 443 proto tcp
+                        {% endfor %}
+                        ufw --force enable
+                      args:
+                        executable: /bin/sh
+                      changed_when: false
                       when: api_gateway
                 """;
     }
@@ -1908,26 +2233,317 @@ final class DeploymentRenderer {
     private String statusPlaybook() {
         return """
                 ---
-                - name: Validate Yano X members
+                - name: Validate every Yano X member and hosted chain
                   hosts: all
                   gather_facts: false
+                  any_errors_fatal: true
+                  vars:
+                    yano_status_retries: "{{ yano_status_retries_override | default(30) }}"
+                    yano_status_delay: "{{ yano_status_delay_override | default(2) }}"
                   tasks:
                     - name: Read readiness
                       ansible.builtin.uri:
                         url: "http://127.0.0.1:{{ http_port }}/q/health/ready"
                         return_content: true
+                        status_code: 200
                       register: ready
+                      retries: "{{ yano_status_retries | int }}"
+                      delay: "{{ yano_status_delay | int }}"
+                      until: ready.status == 200
+                    - name: Read L1 node status
+                      ansible.builtin.uri:
+                        url: "http://127.0.0.1:{{ http_port }}/api/v1/node/status"
+                        return_content: true
+                        status_code: 200
+                      register: yano_node_status
+                      retries: "{{ yano_status_retries | int }}"
+                      delay: "{{ yano_status_delay | int }}"
+                      until: >-
+                        (yano_node_status.json.running | default(false) | bool)
+                        and not (yano_node_status.json.runtimeDegraded | default(false) | bool)
+                        and ((yano_node_status.json.localTipBlockNumber | default(0) | int) > 0)
+                        and (not (yano_require_l1_tip | default(false) | bool)
+                        or ((yano_node_status.json.inSync | default(false) | bool)
+                        and ((yano_node_status.json.localTipBlockNumber | default(0) | int) > 0)
+                        and (((yano_node_status.json.remoteTipBlockNumber | default(0) | int)
+                        - (yano_node_status.json.localTipBlockNumber | default(0) | int)) | abs)
+                        <= (yano_l1_tip_lag_tolerance_blocks | default(5) | int)))
                     - name: Read chain catalog
                       ansible.builtin.uri:
                         url: "http://127.0.0.1:{{ http_port }}/api/v1/app-chain/chains"
                         return_content: true
+                        status_code: 200
                       register: chains
+                    - name: Require the locked chain count
+                      ansible.builtin.assert:
+                        that: (chains.json | length) == (locked_chain_count | int)
+                        fail_msg: >-
+                          {{ inventory_hostname }} does not host the artifact-locked chain catalog.
+                    - name: Read every hosted chain status
+                      ansible.builtin.uri:
+                        url: >-
+                          http://127.0.0.1:{{ http_port }}/api/v1/app-chain/chains/{{ item.chainId }}/status
+                        return_content: true
+                        status_code: 200
+                      loop: "{{ chains.json }}"
+                      loop_control:
+                        label: "{{ item.chainId }}"
+                      register: yano_chain_statuses
+                    - name: Require healthy fully connected chains and observers
+                      ansible.builtin.assert:
+                        that:
+                          - item.json.running | bool
+                          - (item.json.tipHeight | default(0) | int) > 0
+                          - (item.json.peers | length) == ((groups['all'] | length) - 1)
+                          - >-
+                            (item.json.peers | dict2items
+                            | selectattr('value', 'equalto', true) | list | length)
+                            == ((groups['all'] | length) - 1)
+                          - item.json.observers.healthy | default(true) | bool
+                          - item.json.epochObservers.healthy | default(true) | bool
+                          - item.json.consensusProfile.digest | default('') | length > 0
+                          - item.json.capabilityManifest.manifestDigest | default('') | length > 0
+                        fail_msg: >-
+                          {{ inventory_hostname }} chain {{ item.json.chainId }} is unhealthy,
+                          disconnected, or has an unhealthy L1 observer.
+                      loop: "{{ yano_chain_statuses.results }}"
+                      loop_control:
+                        label: "{{ item.json.chainId }}"
+                    - name: Record consensus identities for cross-member comparison
+                      ansible.builtin.set_fact:
+                        yano_chain_ids: >-
+                          {{ yano_chain_statuses.results | map(attribute='json.chainId') | list }}
+                        yano_genesis_ids: >-
+                          {{ yano_chain_statuses.results
+                          | map(attribute='json.stateCommitment.genesisId') | list }}
+                        yano_format_fingerprints: >-
+                          {{ yano_chain_statuses.results
+                          | map(attribute='json.stateCommitment.formatFingerprint') | list }}
+                        yano_consensus_digests: >-
+                          {{ yano_chain_statuses.results
+                          | map(attribute='json.consensusProfile.digest') | list }}
+                        yano_capability_digests: >-
+                          {{ yano_chain_statuses.results
+                          | map(attribute='json.capabilityManifest.manifestDigest') | list }}
+                        yano_tip_heights: >-
+                          {{ yano_chain_statuses.results | map(attribute='json.tipHeight') | list }}
+                        yano_state_roots: >-
+                          {{ yano_chain_statuses.results | map(attribute='json.stateRoot') | list }}
                     - name: Report sanitized member status
                       ansible.builtin.debug:
                         msg:
                           node: "{{ inventory_hostname }}"
                           ready: "{{ ready.status == 200 }}"
-                          chains: "{{ chains.json | map(attribute='chainId') | list }}"
+                          l1_running: "{{ yano_node_status.json.running | default(false) }}"
+                          l1_in_sync: "{{ yano_node_status.json.inSync | default(false) }}"
+                          l1_local_tip: "{{ yano_node_status.json.localTipBlockNumber | default(0) }}"
+                          l1_remote_tip: "{{ yano_node_status.json.remoteTipBlockNumber | default(0) }}"
+                          chains: "{{ yano_chain_ids }}"
+
+                - name: Require one consensus identity across the cluster
+                  hosts: all
+                  gather_facts: false
+                  any_errors_fatal: true
+                  tasks:
+                    - name: Compare every member with the first inventory member
+                      ansible.builtin.assert:
+                        that:
+                          - hostvars[item].yano_chain_ids == hostvars[groups['all'][0]].yano_chain_ids
+                          - hostvars[item].yano_genesis_ids == hostvars[groups['all'][0]].yano_genesis_ids
+                          - >-
+                            hostvars[item].yano_format_fingerprints
+                            == hostvars[groups['all'][0]].yano_format_fingerprints
+                          - >-
+                            hostvars[item].yano_consensus_digests
+                            == hostvars[groups['all'][0]].yano_consensus_digests
+                          - >-
+                            hostvars[item].yano_capability_digests
+                            == hostvars[groups['all'][0]].yano_capability_digests
+                          - >-
+                            hostvars[item].yano_tip_heights
+                            != hostvars[groups['all'][0]].yano_tip_heights
+                            or hostvars[item].yano_state_roots
+                            == hostvars[groups['all'][0]].yano_state_roots
+                        fail_msg: Consensus identity differs on {{ item }}.
+                      loop: "{{ groups['all'] }}"
+                      run_once: true
+                """;
+    }
+
+    private String preflightPlaybook() {
+        return """
+                ---
+                - name: Validate target hosts before deployment
+                  hosts: all
+                  become: true
+                  gather_facts: true
+                  any_errors_fatal: true
+                  tasks:
+                    - name: Require a supported systemd Linux host
+                      ansible.builtin.assert:
+                        that:
+                          - ansible_facts.service_mgr == 'systemd'
+                          - ansible_facts.os_family == 'Debian'
+                          - ansible_facts.architecture in ['x86_64', 'aarch64']
+                          - (ansible_facts.memtotal_mb | int) >= 2048
+                        fail_msg: >-
+                          Yano X requires Debian-family systemd Linux, amd64/arm64, and at least 2 GiB RAM.
+                    - name: Read root filesystem capacity
+                      ansible.builtin.command:
+                        argv: [df, -Pk, /var/lib]
+                      register: yano_disk_capacity
+                      changed_when: false
+                    - name: Require at least 20 GiB free for initial operation
+                      ansible.builtin.assert:
+                        that: (yano_disk_capacity.stdout_lines[-1].split()[3] | int) >= 20971520
+                        fail_msg: /var/lib has less than 20 GiB free.
+                    - name: Read network time synchronization state
+                      ansible.builtin.command:
+                        argv: [timedatectl, show, --property=NTPSynchronized, --value]
+                      register: yano_ntp_state
+                      changed_when: false
+                    - name: Require synchronized host clocks
+                      ansible.builtin.assert:
+                        that: (yano_ntp_state.stdout | trim | lower) == 'yes'
+                        fail_msg: Host clock is not synchronized.
+                    - name: Report sanitized host capacity
+                      ansible.builtin.debug:
+                        msg:
+                          node: "{{ inventory_hostname }}"
+                          distribution: "{{ ansible_facts.distribution }} {{ ansible_facts.distribution_version }}"
+                          architecture: "{{ ansible_facts.architecture }}"
+                          memory_mb: "{{ ansible_facts.memtotal_mb }}"
+                          ntp_synchronized: "{{ yano_ntp_state.stdout | trim }}"
+                """;
+    }
+
+    private String resetPlaybook() {
+        return """
+                ---
+                - name: Reset explicitly selected Yano retained stores
+                  hosts: all
+                  become: true
+                  gather_facts: false
+                  any_errors_fatal: true
+                  vars:
+                    yano_appchain_reset_paths:
+                      - /var/lib/yano/appchain-chainstate
+                      - /var/lib/yano/appchain-indexers
+                      - /var/lib/yano/appchain-effects
+                      - /var/lib/yano/appchain-snapshot-archives
+                    yano_l1_reset_paths:
+                      - /var/lib/yano/chainstate
+                  pre_tasks:
+                    - name: Require immutable cluster identity and explicit reset scope
+                      ansible.builtin.assert:
+                        that:
+                          - (yano_confirm_reset_cluster | default('')) == cluster_id
+                          - (yano_reset_scope | default('')) in ['appchain', 'all']
+                        fail_msg: >-
+                          Set yano_confirm_reset_cluster to the inventory cluster_id and
+                          yano_reset_scope to appchain or all. This operation deletes retained state.
+                    - name: Select exact retained store paths
+                      ansible.builtin.set_fact:
+                        yano_selected_reset_paths: >-
+                          {{ yano_appchain_reset_paths
+                             + (yano_l1_reset_paths
+                                if (yano_reset_scope == 'all') else []) }}
+                    - name: Report exact reset targets
+                      ansible.builtin.debug:
+                        msg:
+                          cluster: "{{ cluster_id }}"
+                          scope: "{{ yano_reset_scope }}"
+                          paths: "{{ yano_selected_reset_paths }}"
+                          restart_after_reset: "{{ yano_start_after_reset | default(false) | bool }}"
+                  tasks:
+                    - name: Stop public gateway before destructive state reset
+                      ansible.builtin.systemd_service:
+                        name: traefik
+                        state: stopped
+                        enabled: false
+                      when: api_gateway
+                      failed_when: false
+                    - name: Close API firewall ports before destructive state reset
+                      ansible.builtin.shell: |
+                        ufw delete allow 80/tcp 2>/dev/null || true
+                        ufw delete allow 443/tcp 2>/dev/null || true
+                      args:
+                        executable: /bin/sh
+                      changed_when: false
+                      when: api_gateway
+                    - name: Stop Yano X before deleting retained state
+                      ansible.builtin.systemd_service:
+                        name: yano-x
+                        state: stopped
+                    - name: Delete only the selected retained stores
+                      ansible.builtin.file:
+                        path: "{{ item }}"
+                        state: absent
+                      loop: "{{ yano_selected_reset_paths }}"
+                    - name: Recreate selected retained store roots
+                      ansible.builtin.file:
+                        path: "{{ item }}"
+                        state: directory
+                        owner: yano
+                        group: yano
+                        mode: '0700'
+                      loop: "{{ yano_selected_reset_paths }}"
+                    - name: Recreate the showcase outbox after an app-chain reset
+                      ansible.builtin.file:
+                        path: /var/lib/yano/appchain-effects/showcase-outbox
+                        state: directory
+                        owner: yano
+                        group: yano
+                        mode: '0700'
+
+                - name: Optionally restart reset members and verify the full mesh
+                  hosts: all
+                  become: true
+                  gather_facts: false
+                  any_errors_fatal: true
+                  tasks:
+                    - name: Start every reset member together
+                      ansible.builtin.systemd_service:
+                        name: yano-x
+                        enabled: true
+                        state: started
+                      when: yano_start_after_reset | default(false) | bool
+                    - name: Wait for local readiness after reset
+                      ansible.builtin.uri:
+                        url: "http://127.0.0.1:{{ http_port }}/q/health/ready"
+                        status_code: 200
+                      register: reset_ready
+                      retries: 90
+                      delay: 2
+                      until: reset_ready.status == 200
+                      when: yano_start_after_reset | default(false) | bool
+                    - name: Read hosted chains after reset
+                      ansible.builtin.uri:
+                        url: "http://127.0.0.1:{{ http_port }}/api/v1/app-chain/chains"
+                        return_content: true
+                        status_code: 200
+                      register: reset_hosted_chains
+                      when: yano_start_after_reset | default(false) | bool
+                    - name: Require every reset chain to reconnect to every other member
+                      ansible.builtin.uri:
+                        url: >-
+                          http://127.0.0.1:{{ http_port }}/api/v1/app-chain/chains/{{ item.chainId }}/status
+                        return_content: true
+                        status_code: 200
+                      loop: "{{ reset_hosted_chains.json | default([]) }}"
+                      loop_control:
+                        label: "{{ item.chainId }}"
+                      register: reset_mesh_status
+                      retries: 60
+                      delay: 2
+                      until:
+                        - reset_mesh_status.json.running | bool
+                        - (reset_mesh_status.json.peers | length) == ((groups['all'] | length) - 1)
+                        - >-
+                          (reset_mesh_status.json.peers | dict2items
+                           | selectattr('value', 'equalto', true) | list | length)
+                          == ((groups['all'] | length) - 1)
+                      when: yano_start_after_reset | default(false) | bool
                 """;
     }
 
@@ -2158,6 +2774,17 @@ final class DeploymentRenderer {
         try {
             Files.writeString(temporary, value, StandardCharsets.UTF_8,
                     StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE);
+            Files.move(temporary, path, StandardCopyOption.ATOMIC_MOVE,
+                    StandardCopyOption.REPLACE_EXISTING);
+        } finally {
+            Files.deleteIfExists(temporary);
+        }
+    }
+
+    private static void replaceBytes(Path path, byte[] value) throws IOException {
+        Path temporary = Files.createTempFile(path.getParent(), ".lock-", ".tmp");
+        try {
+            Files.write(temporary, value, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE);
             Files.move(temporary, path, StandardCopyOption.ATOMIC_MOVE,
                     StandardCopyOption.REPLACE_EXISTING);
         } finally {
