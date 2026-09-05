@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 1,
+  "productId": "attestation-feed",
+  "serviceUrl": "http://127.0.0.1:8680",
+  "gatewayUrl": "http://127.0.0.1:8690",
+  "allowServiceOverride": true
+}

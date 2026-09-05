@@ -43,6 +43,9 @@ def explorerCliInstallDirectory = project(':products:explorer:cli').layout.build
 def dppUiDirectory = project(':products:dpp:ui').layout.projectDirectory.dir('build/site')
 def dppUiSbom = project(':products:dpp:ui').layout.projectDirectory.file('build/dpp-ui.cdx.json')
 def dppCliInstallDirectory = project(':products:dpp:cli').layout.buildDirectory.dir('install/yano-dpp')
+def feedUiDirectory = project(':products:attestation-feed:ui').layout.projectDirectory.dir('build/site')
+def feedUiSbom = project(':products:attestation-feed:ui').layout.projectDirectory.file('build/feed-ui.cdx.json')
+def feedCliInstallDirectory = project(':products:attestation-feed:cli').layout.buildDirectory.dir('install/yano-feed')
 def eutxoUiDirectory = project(':products:eutxo:ui').layout.projectDirectory.dir('build/site')
 def eutxoUiSbom = project(':products:eutxo:ui').layout.projectDirectory.file(
         'build/eutxo-ui.cdx.json')
@@ -114,6 +117,8 @@ tasks.register('yanoXJvmDistZip', Zip) {
             ':products:explorer:cli:installDist',
             ':products:dpp:ui:frontendBuild', ':products:dpp:ui:frontendSbom',
             ':products:dpp:cli:installDist',
+            ':products:attestation-feed:ui:frontendBuild', ':products:attestation-feed:ui:frontendSbom',
+            ':products:attestation-feed:cli:installDist',
             ':tooling:devtools:installDist', ':tooling:deployment:installDist',
             ':tooling:studio:prepareStudio',
             ':products:eutxo:ui:frontendBuild', ':products:eutxo:ui:frontendSbom',
@@ -236,6 +241,24 @@ tasks.register('yanoXJvmDistZip', Zip) {
         }
         from(rootProject.file('products/dpp/harness')) {
             into 'examples/dpp'
+            filesMatching(['**/*.sh']) {
+                permissions { unix('755') }
+            }
+        }
+        from(feedUiDirectory) {
+            into 'product-ui/attestation-feed'
+        }
+        from(feedUiSbom) {
+            into 'sbom'
+        }
+        from(feedCliInstallDirectory) {
+            into 'tools/yano-feed'
+            filesMatching(['bin/*']) {
+                permissions { unix('755') }
+            }
+        }
+        from(rootProject.file('products/attestation-feed/harness')) {
+            into 'examples/attestation-feed'
             filesMatching(['**/*.sh']) {
                 permissions { unix('755') }
             }
@@ -537,6 +560,11 @@ tasks.register('verifyYanoXJvmDistribution') {
                     'sbom/dpp-ui.cdx.json',
                     'tools/yano-dpp/bin/yano-dpp',
                     'examples/dpp/dpp.sh',
+                    'product-ui/attestation-feed/index.html',
+                    'product-ui/attestation-feed/feed-ui-config.json',
+                    'sbom/feed-ui.cdx.json',
+                    'tools/yano-feed/bin/yano-feed',
+                    'examples/attestation-feed/feed.sh',
                     'skills/configure-yano-appchain/SKILL.md',
                     'config/schema/appchain-metadata-trust.schema.json',
                     'config/schema/eutxo-zk-network-acceptance.schema.json',

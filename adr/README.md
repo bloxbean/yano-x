@@ -24,6 +24,7 @@ does not require a sibling Yano checkout.
 | [ADR-049](049-trust-and-status-registry.md) | Trust and Status Registry: config-only registry chain on the governed authenticated map, proof-answering client and CLI, Bitstring Status List and TRQP service, verifier console |
 | [ADR-050](050-verifiable-explorer.md) | Verifiable Explorer: verify-on-ingest indexer core and stock modules over the public REST API, content archiver, row and state bundles verified offline, read service, CLI, and console |
 | [ADR-051](051-digital-product-passport-starter.md) | DPP Starter: configuration-only Digital Product Passport prototype on the governed authenticated map, certification round, committed claims with disclosure, public portal with GS1 Digital Link resolver, operator gateway, offline-verifiable passports, console; not the DPP product of ADR-026 |
+| [ADR-052](052-data-attestation-feed-starter.md) | Data Attestation Feed Starter: configuration-only observation ledger on the governed authenticated map, source-signed observations, the feed-aggregation-v1 rule recomputed by every verifier, round records closed through an approval round with independent publishers, candidate datum for the deferred Cardano executor, portal, gateway, console; not the oracle pipeline of ADR app-layer/012 |
 | [Phase evidence](refactoring/baselines/) | Executed baselines and regression evidence for Phases A-F |
 
 The canonical pre-split history remains in the Yano repository. After extraction, decisions owned
