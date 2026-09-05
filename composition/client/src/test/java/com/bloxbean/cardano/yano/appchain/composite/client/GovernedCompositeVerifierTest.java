@@ -8,6 +8,7 @@ import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
 import com.bloxbean.cardano.yano.api.appchain.AppBlock;
 import com.bloxbean.cardano.yano.api.appchain.FinalityCert;
 import com.bloxbean.cardano.yano.api.appchain.codec.AppBlockCodec;
+import com.bloxbean.cardano.yano.api.appchain.consensus.ConsensusDigests;
 import com.bloxbean.cardano.yano.api.appchain.evidence.EvidenceBundle;
 import com.bloxbean.cardano.yano.api.appchain.evidence.EvidenceVerifier;
 import com.bloxbean.cardano.yano.appchain.client.AppChainClient;
@@ -153,7 +154,7 @@ class GovernedCompositeVerifierTest {
                 AppBlockCodec.messagesRoot(List.of(message)), root,
                 List.of(message), PUBLIC_KEY, FinalityCert.empty());
         byte[] signature = CryptoConfiguration.INSTANCE.getSigningProvider()
-                .sign(AppBlockCodec.blockHash(unsigned), PRIVATE_KEY);
+                .sign(ConsensusDigests.commit(unsigned), PRIVATE_KEY);
         AppBlock finalized = unsigned.withCert(new FinalityCert(
                 FinalityCert.SCHEME_ED25519,
                 List.of(new FinalityCert.Signature(PUBLIC_KEY, signature))));

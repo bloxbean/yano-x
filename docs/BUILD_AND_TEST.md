@@ -63,6 +63,7 @@ both commands, and add the matching `-PyanoJvmDist` to the clean build.
 ```bash
 ./gradlew :state-machines:stdlib:test -PyanoVersion=<yano-version>
 ./gradlew :tooling:devtools:test -PyanoVersion=<yano-version>
+./gradlew :tooling:deployment:test -PyanoVersion=<yano-version>
 ./gradlew integrationTest -PyanoVersion=<yano-version>
 ./gradlew cryptoTest -PyanoVersion=<yano-version>
 ```

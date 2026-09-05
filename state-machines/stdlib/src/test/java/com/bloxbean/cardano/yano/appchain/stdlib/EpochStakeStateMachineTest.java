@@ -52,6 +52,26 @@ class EpochStakeStateMachineTest {
     }
 
     @Test
+    void preShelleyEpochEmitsCanonicalEmptyManifestWithoutReadingStakeSnapshot() {
+        EpochStakeObserver observer = new EpochStakeObserver("stake-source", CHUNK_ENTRIES);
+        L1EpochBoundary boundary = new L1EpochBoundary(3, 4, 1_000, new byte[32], 100);
+        Source source = new Source(List.of());
+        source.previousEpoch = 3;
+        source.stakeEra = false;
+        source.failOnStakeAccess = true;
+
+        var manifest = observer.prepare(boundary, source);
+        List<byte[]> claims = new ArrayList<>();
+        observer.writeObservations(manifest, source, (index, claim) -> claims.add(claim));
+
+        assertThat(manifest.datasetEpoch()).isEqualTo(3);
+        assertThat(manifest.totalEntries()).isZero();
+        assertThat(manifest.chunkCount()).isZero();
+        assertThat(claims).hasSize(1);
+        assertThat(EpochStakeContract.decodeManifest(claims.getFirst()).epoch()).isEqualTo(3);
+    }
+
+    @Test
     void observerRejectsNonCanonicalHostIteration() {
         EpochStakeObserver observer = new EpochStakeObserver("stake-source", CHUNK_ENTRIES);
         L1EpochBoundary boundary = new L1EpochBoundary(41, 42, 1_000, new byte[32], 100);
@@ -217,14 +237,27 @@ class EpochStakeStateMachineTest {
 
     private static final class Source implements L1EpochState {
         private final List<EpochStakeContract.Entry> entries;
+        private long previousEpoch = 41;
+        private boolean stakeEra = true;
+        private boolean failOnStakeAccess;
         private Source(List<EpochStakeContract.Entry> entries) { this.entries = entries; }
-        @Override public long previousEpoch() { return 41; }
-        @Override public long newEpoch() { return 42; }
-        @Override public ProtocolParamsView protocolParams(long epoch) { throw new UnsupportedOperationException(); }
-        @Override public boolean hasStakeSnapshot(long epoch) { return epoch == 41; }
+        @Override public long previousEpoch() { return previousEpoch; }
+        @Override public long newEpoch() { return previousEpoch + 1; }
+        @Override public ProtocolParamsView protocolParams(long epoch) {
+            return stakeEra ? EpochProtocolParamsFixtures.preConway(epoch)
+                    : EpochProtocolParamsFixtures.byron(epoch);
+        }
+        @Override public boolean hasStakeSnapshot(long epoch) {
+            touchStake();
+            return epoch == previousEpoch;
+        }
         @Override public void forEachStakeEntry(long epoch, StakeEntryConsumer consumer) {
+            touchStake();
             entries.forEach(value -> consumer.accept(value.credType(), value.credHash(),
                     value.coin(), value.poolHash()));
+        }
+        private void touchStake() {
+            if (failOnStakeAccess) throw new AssertionError("stake snapshot access forbidden");
         }
         @Override public boolean hasProposalStatusSnapshot(long epoch) { return false; }
         @Override public boolean hasDRepDistributionSnapshot(long epoch) { return false; }

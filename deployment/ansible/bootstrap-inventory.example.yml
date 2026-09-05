@@ -1,0 +1,18 @@
+---
+yano_bootstrap:
+  hosts:
+    yano-preprod-0:
+      ansible_host: 192.0.2.10
+      ansible_port: 22
+    yano-preprod-1:
+      ansible_host: 192.0.2.11
+      ansible_port: 22
+    yano-preprod-2:
+      ansible_host: 192.0.2.12
+      ansible_port: 22
+    yano-preprod-3:
+      ansible_host: 192.0.2.13
+      ansible_port: 22
+    yano-preprod-4:
+      ansible_host: 192.0.2.14
+      ansible_port: 22

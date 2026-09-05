@@ -37,6 +37,27 @@ class EpochGovernanceStateMachineTest {
     }
 
     @Test
+    void preConwayEpochEmitsCanonicalEmptyHeaderWithoutReadingGovernanceSnapshots() {
+        Source source = source(4);
+        source.governanceEra = false;
+        source.failOnGovernanceAccess = true;
+        EpochGovernanceObserver observer = new EpochGovernanceObserver(
+                "governance-source", true, true, CHUNK_ENTRIES);
+
+        var manifest = observer.prepare(boundary(4), source);
+        List<byte[]> claims = new ArrayList<>();
+        observer.writeObservations(manifest, source, (index, claim) -> claims.add(claim));
+
+        assertThat(manifest.totalEntries()).isZero();
+        assertThat(manifest.chunkCount()).isZero();
+        assertThat(claims).hasSize(1);
+        var header = EpochGovernanceContract.decodeHeader(claims.getFirst());
+        assertThat(header.epoch()).isEqualTo(4);
+        assertThat(header.proposalCount()).isZero();
+        assertThat(header.drepCount()).isZero();
+    }
+
+    @Test
     void proposalAndDRepCompletenessAreIndependentAndQueriesFailClosed() {
         Dataset dataset = dataset(42);
         var machine = new EpochGovernanceStateMachine("governance-source", true, true, CHUNK_ENTRIES);
@@ -164,22 +185,32 @@ class EpochGovernanceStateMachineTest {
         private final long epoch; private final List<EpochGovernanceContract.Proposal> proposals;
         private final List<EpochGovernanceContract.DRepEntry> dreps; private int drepAccesses;
         private boolean failOnDRepAccess;
+        private boolean failOnGovernanceAccess;
+        private boolean governanceEra = true;
         private Source(long epoch, List<EpochGovernanceContract.Proposal> proposals,
                        List<EpochGovernanceContract.DRepEntry> dreps) { this.epoch = epoch;
             this.proposals = proposals; this.dreps = dreps; }
         @Override public long previousEpoch() { return epoch - 1; }
         @Override public long newEpoch() { return epoch; }
-        @Override public ProtocolParamsView protocolParams(long e) { throw new UnsupportedOperationException(); }
+        @Override public ProtocolParamsView protocolParams(long e) {
+            return governanceEra ? EpochProtocolParamsFixtures.conway(e)
+                    : EpochProtocolParamsFixtures.preConway(e);
+        }
         @Override public boolean hasStakeSnapshot(long e) { return false; }
         @Override public void forEachStakeEntry(long e, StakeEntryConsumer c) { throw new UnsupportedOperationException(); }
-        @Override public boolean hasProposalStatusSnapshot(long e) { return e == epoch; }
-        @Override public boolean hasDRepDistributionSnapshot(long e) { touchDReps(); return e == epoch; }
-        @Override public void forEachProposalStatus(long e, ProposalStatusConsumer c) { proposals.forEach(p -> c.accept(
+        @Override public boolean hasProposalStatusSnapshot(long e) { touchGovernance(); return e == epoch; }
+        @Override public boolean hasDRepDistributionSnapshot(long e) {
+            touchGovernance(); touchDReps(); return e == epoch;
+        }
+        @Override public void forEachProposalStatus(long e, ProposalStatusConsumer c) { touchGovernance(); proposals.forEach(p -> c.accept(
                 p.transactionId(), p.governanceActionIndex(), GovernanceActionType.valueOf(p.actionType().name()),
                 GovernanceProposalStatus.valueOf(p.status().name()), GovernanceProposalStatusReason.valueOf(p.reason().name()),
                 p.proposedEpoch(), p.expiresAfterEpoch())); }
-        @Override public void forEachDRepDistributionEntry(long e, DRepDistributionConsumer c) { touchDReps();
+        @Override public void forEachDRepDistributionEntry(long e, DRepDistributionConsumer c) { touchGovernance(); touchDReps();
             dreps.forEach(d -> c.accept(d.drepType(), d.drepHash(), d.coin())); }
+        private void touchGovernance() {
+            if (failOnGovernanceAccess) throw new AssertionError("governance snapshot access forbidden");
+        }
         private void touchDReps() { drepAccesses++; if (failOnDRepAccess) throw new AssertionError("DRep traversal forbidden"); }
     }
     private static final class TestState implements AppStateWriter, AppQueryContext {

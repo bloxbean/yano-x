@@ -12,6 +12,8 @@
 #   ./loadtest.sh orders-chain -n 5000 --spread  # spread submits across all nodes
 #   ./loadtest.sh orders-chain -n 2000 -s 512  # 512-byte payloads
 #   ./loadtest.sh registry-chain --kv -n 2000  # kv-registry chain: real PUTs
+#   ./loadtest.sh orders-chain --base-url https://node0.example.org \
+#     --confirm-network preprod -n 100 -c 5 -t orders.loadtest.v1
 #
 # Plain mode targets any-bytes (ordered-log) chains — a kv-registry chain
 # rejects unstructured payloads at admission. --kv submits real CBOR PUT
@@ -25,6 +27,8 @@ HTTP_BASE="${YANO_CLUSTER_HTTP_BASE:-7070}"
 
 CHAIN=""; TOTAL=1000; CONC=20; SIZE=0; TOPIC="load"; TARGET="0"   # node index or "spread"
 KV=0                                                              # --kv: CBOR PUT commands
+REMOTE_BASE=""; CONFIRM_NETWORK=""; DRY_RUN=0
+HEADER_FILE=""
 
 c_grn() { printf '\033[32m%s\033[0m\n' "$*"; }
 c_ylw() { printf '\033[33m%s\033[0m\n' "$*"; }
@@ -33,7 +37,24 @@ die()   { c_red "error: $*" >&2; exit 1; }
 now()   { python3 -c 'import time;print(time.time())'; }        # fractional seconds
 http_port() { echo $(( HTTP_BASE + $1 )); }
 
-ready() { curl -sf "http://localhost:$(http_port "$1")/q/health/ready" >/dev/null 2>&1; }
+api_url() {
+  local node="$1" suffix="$2"
+  if [ -n "$REMOTE_BASE" ]; then
+    printf '%s/%s' "${REMOTE_BASE%/}" "${suffix#/}"
+  else
+    printf 'http://localhost:%s/%s' "$(http_port "$node")" "${suffix#/}"
+  fi
+}
+
+curl_request() {
+  if [ -n "$HEADER_FILE" ]; then
+    curl -H "@$HEADER_FILE" "$@"
+  else
+    curl "$@"
+  fi
+}
+
+ready() { curl_request -sf "$(api_url "$1" q/health/ready)" >/dev/null 2>&1; }
 
 # Discover ready node indices (contiguous from 0).
 ready_nodes() {
@@ -42,9 +63,10 @@ ready_nodes() {
   printf '%s\n' "${out[@]:-}"
 }
 
-tip_of() { curl -s "http://localhost:$(http_port "$1")/api/v1/app-chain/chains" 2>/dev/null \
+tip_of() { curl_request -s "$(api_url "$1" api/v1/app-chain/chains)" 2>/dev/null \
   | jq -r --arg c "$CHAIN" '.[]|select(.chainId==$c)|.tipHeight' 2>/dev/null; }
-pool_of() { curl -s "http://localhost:$(http_port "$1")/api/v1/app-chain/chains/$CHAIN/status" 2>/dev/null \
+pool_of() { curl_request -s \
+  "$(api_url "$1" "api/v1/app-chain/chains/$CHAIN/status")" 2>/dev/null \
   | jq -r '[.. | .poolSize? // empty] | first // 0' 2>/dev/null; }
 
 usage() {
@@ -59,29 +81,83 @@ Usage: ./loadtest.sh <chain-id> [options]
                  keys (-s sizes the value). Required for kv-registry chains.
   --node <i>     submit all to node i              (default 0)
   --spread       round-robin submits across all ready nodes
+  --base-url <u> submit to one remote HTTPS node instead of localhost
+  --confirm-network <name>
+                 required authorization for a remote run; records the public
+                 network whose anchored app-chain fees you accept
+  --dry-run      check the remote node and chain without submitting messages
   -h, --help
+
+Remote authentication is read from YANO_APP_CHAIN_API_KEY when set. The key is
+loaded through a mode-600 temporary header file and is never printed.
 EOF
 }
 
+[ "${1:-}" != "-h" ] && [ "${1:-}" != "--help" ] || { usage; exit 0; }
 [ $# -ge 1 ] || { usage; exit 1; }
 CHAIN="$1"; shift
 while [ $# -gt 0 ]; do case "$1" in
-  -n) TOTAL="$2"; shift 2;;
-  -c) CONC="$2"; shift 2;;
-  -s) SIZE="$2"; shift 2;;
-  -t) TOPIC="$2"; shift 2;;
+  -n) [ $# -ge 2 ] || die "-n requires a value"; TOTAL="$2"; shift 2;;
+  -c) [ $# -ge 2 ] || die "-c requires a value"; CONC="$2"; shift 2;;
+  -s) [ $# -ge 2 ] || die "-s requires a value"; SIZE="$2"; shift 2;;
+  -t) [ $# -ge 2 ] || die "-t requires a value"; TOPIC="$2"; shift 2;;
   --kv) KV=1; shift;;
-  --node) TARGET="$2"; shift 2;;
+  --node) [ $# -ge 2 ] || die "--node requires a value"; TARGET="$2"; shift 2;;
   --spread) TARGET="spread"; shift;;
+  --base-url) [ $# -ge 2 ] || die "--base-url requires a value"; REMOTE_BASE="$2"; shift 2;;
+  --confirm-network) [ $# -ge 2 ] || die "--confirm-network requires a value"; CONFIRM_NETWORK="$2"; shift 2;;
+  --dry-run) DRY_RUN=1; shift;;
   -h|--help) usage; exit 0;;
   *) die "unknown option: $1";;
 esac; done
 [[ "$TOTAL" =~ ^[0-9]+$ && "$TOTAL" -ge 1 ]] || die "-n must be a positive integer"
 [[ "$CONC"  =~ ^[0-9]+$ && "$CONC"  -ge 1 ]] || die "-c must be a positive integer"
+[[ "$SIZE"  =~ ^[0-9]+$ && "$SIZE" -le 65536 ]] || die "-s must be between 0 and 65536"
+command -v curl >/dev/null 2>&1 || die "curl is required"
+command -v jq >/dev/null 2>&1 || die "jq is required"
+command -v python3 >/dev/null 2>&1 || die "python3 is required"
 
-ready 0 || die "no running cluster on http $(http_port 0) — start one with ./cluster.sh start"
+if [ -n "$REMOTE_BASE" ]; then
+  case "$REMOTE_BASE" in
+    https://*) ;;
+    http://127.0.0.1:*|http://localhost:*) ;;
+    *) die "--base-url must use HTTPS (HTTP is allowed only for localhost)";;
+  esac
+  [[ "$CHAIN" =~ ^[A-Za-z0-9._-]+$ ]] || die "invalid chain id for remote URL"
+  [[ "$TOPIC" =~ ^[A-Za-z0-9._:-]+$ ]] || die "invalid topic for remote JSON payload"
+  [ "$TARGET" = "0" ] || die "--node and --spread cannot be combined with --base-url"
+  if [ "$DRY_RUN" != "1" ]; then
+    [ -n "$CONFIRM_NETWORK" ] || die \
+      "remote submission requires --confirm-network <name> (for example preprod)"
+    [[ "$CONFIRM_NETWORK" =~ ^[A-Za-z0-9._-]+$ ]] || die "invalid --confirm-network value"
+    [ "$TOTAL" -le 10000 ] || die "remote runs are capped at 10000 messages per invocation"
+    [ "$CONC" -le 50 ] || die "remote runs are capped at concurrency 50"
+  fi
+fi
+
+WORK="$(mktemp -d "${TMPDIR:-/tmp}/yano-loadtest.XXXXXX")"
+trap 'rm -rf "$WORK"' EXIT
+if [ -n "${YANO_APP_CHAIN_API_KEY:-}" ]; then
+  case "$YANO_APP_CHAIN_API_KEY" in
+    *$'\r'*|*$'\n'*) die "YANO_APP_CHAIN_API_KEY must not contain a line break";;
+  esac
+  umask 077
+  HEADER_FILE="$WORK/headers"
+  printf 'X-API-Key: %s\n' "$YANO_APP_CHAIN_API_KEY" > "$HEADER_FILE"
+fi
+
+if ! ready 0; then
+  if [ -n "$REMOTE_BASE" ]; then
+    die "remote node is not ready or cannot be reached: ${REMOTE_BASE%/}"
+  fi
+  die "no running cluster on http $(http_port 0) — start one with ./cluster.sh start"
+fi
 NODES=()   # bash 3.2 (macOS) has no mapfile — read the list into an array
-while IFS= read -r n; do [ -n "$n" ] && NODES+=("$n"); done < <(ready_nodes)
+if [ -n "$REMOTE_BASE" ]; then
+  NODES=(0)
+else
+  while IFS= read -r n; do [ -n "$n" ] && NODES+=("$n"); done < <(ready_nodes)
+fi
 [ "${#NODES[@]}" -ge 1 ] || die "no ready nodes found"
 [ "$TARGET" = "spread" ] || ready "$TARGET" || die "node $TARGET not ready"
 
@@ -103,12 +179,25 @@ if [ "$KV" = "1" ]; then
   elif [ "$vlen" -lt 256 ]; then VALUE_BSTR="$(printf '58%02x' "$vlen")$VALUE_HEX"
   else                           VALUE_BSTR="$(printf '59%04x' "$vlen")$VALUE_HEX"; fi
 fi
+PLAIN_RUN_TAG="$(date -u +%Y%m%dT%H%M%SZ)-$$"
 
-WORK="$(mktemp -d)"; trap 'rm -rf "$WORK"' EXIT
+if [ -n "$REMOTE_BASE" ]; then
+  DISPLAY_TARGET="${REMOTE_BASE%/}"
+else
+  DISPLAY_TARGET="$([ "$TARGET" = spread ] && echo "spread(${#NODES[@]} nodes)" || echo "node $TARGET")"
+fi
 
-echo "Load test: chain=$CHAIN  total=$TOTAL  concurrency=$CONC  payload≈${SIZE:-8}B  target=$([ "$TARGET" = spread ] && echo "spread(${#NODES[@]} nodes)" || echo "node $TARGET")"
+echo "Load test: chain=$CHAIN  total=$TOTAL  concurrency=$CONC  payload≈${SIZE:-8}B  target=$DISPLAY_TARGET"
 
 H0="$(tip_of 0)"; [ -n "$H0" ] || die "cannot read tip for chain '$CHAIN' (does it exist?)"
+[ "$H0" != "null" ] || die "cannot read tip for chain '$CHAIN' (does it exist?)"
+if [ "$DRY_RUN" = "1" ]; then
+  c_grn "dry run passed: node is ready and '$CHAIN' is running at height $H0"
+  exit 0
+fi
+if [ -n "$REMOTE_BASE" ]; then
+  c_ylw "authorized remote run on network '$CONFIRM_NETWORK'; accepted messages may trigger configured L1 anchors and fees"
+fi
 T_START="$(now)"
 
 # Fire TOTAL submits with CONC in flight. We run CONC worker processes in
@@ -126,10 +215,10 @@ for (( w=0; w<CONC; w++ )); do
       if [ "$KV" = "1" ]; then
         data="$(printf '{"topic":"%s","bodyHex":"830048%s%08x%s"}' "$TOPIC" "$RUN_TAG" "$s" "$VALUE_BSTR")"
       else
-        data="{\"topic\":\"$TOPIC\",\"body\":\"$s-$PAD\"}"
+        data="{\"topic\":\"$TOPIC\",\"body\":\"$PLAIN_RUN_TAG-$s-$PAD\"}"
       fi
-      curl -s -o /dev/null -w '%{http_code}\n' --max-time 30 \
-        -X POST "http://localhost:$(( HTTP_BASE + node ))/api/v1/app-chain/chains/$CHAIN/messages" \
+      curl_request -s -o /dev/null -w '%{http_code}\n' --max-time 30 \
+        -X POST "$(api_url "$node" "api/v1/app-chain/chains/$CHAIN/messages")" \
         -H 'Content-Type: application/json' \
         -d "$data"
     done
@@ -164,7 +253,8 @@ FINALIZED=0; BLOCKS=$(( H1 - H0 )); TS_FIRST=""; TS_LAST=""
 if [ "$BLOCKS" -gt 0 ]; then
   from=$(( H0 + 1 ))
   while [ "$from" -le "$H1" ]; do
-    page="$(curl -s "http://localhost:$(http_port 0)/api/v1/app-chain/chains/$CHAIN/blocks?from=$from&limit=200" 2>/dev/null)"
+    page="$(curl_request -s \
+      "$(api_url 0 "api/v1/app-chain/chains/$CHAIN/blocks?from=$from&limit=200")" 2>/dev/null)"
     counts="$(printf '%s' "$page" | jq -r '.blocks[]? | "\(.messageCount) \(.timestamp)"' 2>/dev/null)"
     [ -n "$counts" ] || break
     while read -r mc ts; do

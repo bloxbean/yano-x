@@ -109,6 +109,16 @@ tasks.register('normalizeYanoXReleaseSbom') {
             component.licenses = mitLicense
             component.externalReferences = repositoryReference
         }
+        def externalLicenseOverrides = [
+                'com.networknt:json-schema-validator': [[license: [id: 'Apache-2.0']]]
+        ]
+        body.components.each { component ->
+            def coordinate = "${component.group}:${component.name}".toString()
+            if ((!(component.licenses instanceof Collection) || component.licenses.isEmpty())
+                    && externalLicenseOverrides.containsKey(coordinate)) {
+                component.licenses = externalLicenseOverrides[coordinate]
+            }
+        }
         def externalWithoutLicense = body.components.findAll { component ->
             !component.group?.toString()?.startsWith('com.bloxbean.cardano')
                     && (!(component.licenses instanceof Collection)

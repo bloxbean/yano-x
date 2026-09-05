@@ -323,6 +323,26 @@ in certified blocks — the real chain throughput), plus backpressure drops:
 # (or run ./loadtest.sh directly with the same args)
 ```
 
+To target a deployed HTTPS node, use remote mode. It requires explicit public-
+network confirmation because accepted messages can advance an anchored chain
+and cause its configured anchor account to spend network fees:
+
+```bash
+./loadtest.sh orders-chain \
+  --base-url https://node0-showcase.example.org \
+  --confirm-network preprod \
+  -n 100 -c 5 -s 256 -t orders.loadtest.v1
+```
+
+Use `--dry-run` first to check node readiness and the chain without submitting
+anything. If API authentication is enabled, export `YANO_APP_CHAIN_API_KEY`;
+the loader reads it through a private temporary header file and never prints
+the value. Remote invocations are bounded to 10,000 messages and concurrency
+50. Start small, observe `429` backpressure and finalization rate, and increase
+one dimension at a time. The finalized count is the total observed in blocks
+created during the test window, so unrelated concurrent traffic can contribute
+to it.
+
 Example report:
 
 ```
