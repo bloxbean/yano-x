@@ -73,7 +73,8 @@ overrides, unpinned or failed runs, unsafe checksum paths and tampered files.
 The runner must have authenticated read access to the host Actions artifacts.
 It does not enable Maven Local or a sibling source checkout.
 
-Staged inputs expire after 14 days. Record provenance and expiry; this is
+The workflow requests 14-day retention, but repository policy may shorten it.
+Record provenance and the artifact API's actual `expires_at` deadline; this is
 temporary qualification, not a permanent publication channel or a substitute
 for passing the complete CI suite. Without staging inputs, the normal
 release/default version selection remains unchanged.

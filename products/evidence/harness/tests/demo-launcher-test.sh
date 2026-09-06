@@ -32,6 +32,10 @@ for profile in devnet preview preprod mainnet; do
 done
 
 bash -n "$DEMO_DIR/demo.sh"
+for template in node-compose.properties.in node-host.properties.in; do
+  grep -Fxq 'yano.history.projection.enabled=false' "$DEMO_DIR/config/templates/$template" \
+    || fail "$template must explicitly disable unprovisioned Cardano historical projection storage"
+done
 grep -Fq 'tools/render_template.py' "$DEMO_DIR/demo.sh" \
   || fail "launcher does not use the stdin-based template renderer"
 grep -Fq 'tools/managed_process.py' "$DEMO_DIR/demo.sh" \
