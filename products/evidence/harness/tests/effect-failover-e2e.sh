@@ -468,7 +468,7 @@ assert_plugin_operations_all_nodes() {
           and (.health == "UNKNOWN" or .health == "UP")
           and .failure.code == "NONE"
           and .metricsStale == false))
-        and ([.items[] | select(.selected) | .contributionCount] | add) == 24
+        and ([.items[] | select(.selected) | .contributionCount] | add) == 26
         and .nextAfter == null' "$bundles" \
       || fail "node $node plugin inventory is not the exact selected demo catalog"
     fingerprint="$(jq -r '.catalogFingerprint' "$summary")"
@@ -477,7 +477,7 @@ assert_plugin_operations_all_nodes() {
       and (.generation | type == "number" and . >= 1)
       and (.capturedAtEpochMillis | type == "number" and . > 0)
       and .pluginApiMajor == 3
-      and .pluginApiLevel == 4
+      and .pluginApiLevel == 8
       and .totals.selectedBundles == 8
       and .totals.failedBundles == 0
       and .totals.degradedBundles == 0

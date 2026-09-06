@@ -9,6 +9,7 @@ import com.bloxbean.cardano.yano.appchain.stdlib.contracts.AuthenticatedMapAutho
 import com.bloxbean.cardano.yano.appchain.stdlib.contracts.AuthenticatedMapContract;
 import com.bloxbean.cardano.yano.runtime.appchain.AppChainSubsystem;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.function.Executable;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.io.TempDir;
@@ -24,6 +25,7 @@ import java.util.Set;
 import java.util.function.BooleanSupplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertAll;
 
 @Timeout(90)
 class AuthenticatedMapRuntimeTest {
@@ -37,12 +39,7 @@ class AuthenticatedMapRuntimeTest {
 
     @AfterEach
     void tearDown() {
-        for (AppChainSubsystem node : nodes) {
-            try {
-                node.stop();
-            } catch (Exception ignored) {
-            }
-        }
+        assertAll(nodes.stream().<Executable>map(node -> node::close));
     }
 
     @Test

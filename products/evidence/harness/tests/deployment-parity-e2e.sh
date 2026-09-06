@@ -681,13 +681,13 @@ assert_plugin_inventory() {
           and (.lifecycle == "VALIDATED" or .lifecycle == "ACTIVE")
           and (.health == "UNKNOWN" or .health == "UP")
           and .failure.code == "NONE" and .metricsStale == false))
-        and ([.items[] | select(.selected) | .contributionCount] | add) == 24
+        and ([.items[] | select(.selected) | .contributionCount] | add) == 26
         and .nextAfter == null' "$bundles" "$key_file" \
       || fail "$phase node $node plugin inventory differs from the demo catalog"
     fingerprint="$(jq -r '.catalogFingerprint' "$summary")"
     if ! jq -e --arg fingerprint "$fingerprint" '
       .catalogFingerprint == $fingerprint and .pluginApiMajor == 3
-      and .pluginApiLevel == 4 and .totals.selectedBundles == 8
+      and .pluginApiLevel == 8 and .totals.selectedBundles == 8
       and .totals.failedBundles == 0 and .totals.degradedBundles == 0
       and .totals.staleSources == 0' "$summary" >/dev/null; then
       jq -c '{pluginApiMajor, pluginApiLevel, totals}' "$summary" >&2 || true
