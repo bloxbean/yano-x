@@ -14,6 +14,29 @@ export interface RuntimeConfig {
   allowEndpointOverride: boolean;
   /** Base URL of a `yano-trust serve` instance whose status lists the console checks. */
   serviceUrl: string;
+  /** Base URL of a `yano-trust gateway` instance that signs the operator view's writes. */
+  gatewayUrl: string;
+}
+
+/** An actor the gateway holds a seed for, with the organization and roles read from the chain. */
+export interface GatewayActor {
+  actorId: string;
+  organizationId?: string;
+  roles?: string[];
+  note?: string;
+}
+
+/** What a governed write did, as both the gateway and the CLI report it. */
+export interface GatewayReceipt {
+  messageId: string;
+  height: number;
+  status: 'APPLIED' | 'REJECTED';
+  errorCode: number;
+  results: Array<{ collection: string; key: string; revision: number; status: string }>;
+  replayedHeight?: number;
+  setCount?: number;
+  listSha256?: string;
+  mutationCount?: number;
 }
 
 export interface ActiveConnection {

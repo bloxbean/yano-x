@@ -5,7 +5,9 @@ import com.bloxbean.cardano.yano.appchain.attest.client.AttestTrust;
 import com.bloxbean.cardano.yano.appchain.roles.contracts.DirectRolePolicyV1;
 import com.bloxbean.cardano.yano.appchain.stdlib.contracts.AuthenticatedMapContract;
 import com.bloxbean.cardano.yano.appchain.trust.client.AnswerCodec;
+import com.bloxbean.cardano.yano.appchain.trust.client.RegistryGatewayService;
 import com.bloxbean.cardano.yano.appchain.trust.client.RegistryService;
+import com.bloxbean.cardano.yano.appchain.trust.client.RegistryWriter;
 import com.bloxbean.cardano.yano.appchain.trust.client.StatusAnswer;
 import com.bloxbean.cardano.yano.appchain.trust.client.StatusListDocument;
 import com.bloxbean.cardano.yano.appchain.trust.client.TrustRegistryClient;
@@ -85,6 +87,7 @@ public final class TrustCli {
                 case "revoke" -> revoke(input);
                 case "publish-list" -> publishList(input);
                 case "serve" -> serve(input);
+                case "gateway" -> gateway(input);
                 default -> throw new UsageException("unknown command " + input.command());
             };
         } catch (UsageException failure) {
@@ -323,52 +326,31 @@ public final class TrustCli {
                     + "use the stock role-workflow CLIs (see the guide)");
         }
         String actorId = input.required("actor");
-        byte[] seed = seed(input);
-        long tip = client.tipHeight();
-        TrustRegistrySigner.ActorContext actor;
-        long policyRevision;
-        long lifetime = TrustRegistryProfile.DIRECT_AUTHORIZATION_LIFETIME_BLOCKS;
-        byte[] genesisId;
-        if (tip < 1) {
-            // First write on a fresh chain: no block, no readable records yet.
-            if (!input.has("genesis-id")) {
-                throw new UsageException("the chain has no block yet; pass --genesis-id "
-                        + "(the generated state.genesis-id) and, if not <actor>-k1, --key-id");
-            }
-            genesisId = hex32(input.required("genesis-id"), "genesis-id");
-            byte[] publicKey = com.bloxbean.cardano.client.crypto.KeyGenUtil
-                    .getPublicKeyFromPrivateKey(seed);
-            actor = new TrustRegistrySigner.ActorContext(actorId, 1,
-                    input.option("key-id", actorId + "-k1"), publicKey, seed);
-            policyRevision = 1;
-        } else {
-            genesisId = input.has("genesis-id")
-                    ? hex32(input.required("genesis-id"), "genesis-id") : client.mapGenesisId();
-            actor = TrustRegistrySigner.actorContext(client.actor(actorId), seed, tip);
-            DirectRolePolicyV1 policy = client.directPolicy(policyId);
-            policyRevision = policy.revision();
-            lifetime = Math.min(lifetime, policy.maximumAuthorizationLifetimeBlocks());
-        }
-        long issued = Math.max(tip, 1);
-        byte[] bytes = TrustRegistrySigner.governedCommand(command, policyId, policyRevision,
-                actor, client.chainId(), genesisId, issued, issued + lifetime,
-                TrustRegistrySigner.randomAuthorizationId());
-        String messageId = client.submit(bytes);
-        out.println("Submitted message " + messageId + " as " + actorId + " under policy "
-                + policyId + " revision " + policyRevision);
-        Duration timeout = Duration.ofSeconds(input.longValue("timeout-seconds", 60));
-        AuthenticatedMapContract.Receipt receipt = client.awaitReceipt(messageId, timeout);
-        if (receipt.status() != AuthenticatedMapContract.RECEIPT_APPLIED) {
+        RegistryWriter writer = new RegistryWriter(client,
+                Duration.ofSeconds(input.longValue("timeout-seconds", 60)));
+        RegistryWriter.Signer signer = new RegistryWriter.Signer(actorId, seed(input),
+                input.has("genesis-id") ? hex32Hex(input.required("genesis-id")) : null,
+                input.has("key-id") ? input.required("key-id") : null);
+        RegistryWriter.WriteResult result = writer.submitGoverned(signer, policyId, command);
+        return report(result, actorId, policyId);
+    }
+
+    /** Prints what one governed write did; the receipt is the same one the gateway returns. */
+    private int report(RegistryWriter.WriteResult result, String actorId, String policyId) {
+        out.println("Submitted message " + result.messageIdHex() + " as " + actorId
+                + " under policy " + policyId);
+        AuthenticatedMapContract.Receipt receipt = result.receipt();
+        if (!result.applied()) {
             err.println("Finalized at height " + receipt.height() + " but REJECTED with error code "
                     + receipt.errorCode() + " (" + errorName(receipt.errorCode()) + ")");
             return INVALID;
         }
         out.println("Applied at height " + receipt.height() + ":");
-        for (AuthenticatedMapContract.MutationResult result : receipt.results()) {
-            out.println("  " + result.collectionId() + "/"
-                    + new String(result.applicationKey(), StandardCharsets.US_ASCII)
-                    + " revision " + result.revision() + " "
-                    + (result.status() == AuthenticatedMapContract.STATUS_ACTIVE ? "ACTIVE" : "REVOKED"));
+        for (AuthenticatedMapContract.MutationResult mutation : receipt.results()) {
+            out.println("  " + mutation.collectionId() + "/"
+                    + new String(mutation.applicationKey(), StandardCharsets.US_ASCII)
+                    + " revision " + mutation.revision() + " "
+                    + (mutation.status() == AuthenticatedMapContract.STATUS_ACTIVE ? "ACTIVE" : "REVOKED"));
         }
         return OK;
     }
@@ -386,6 +368,40 @@ public final class TrustCli {
             out.println("  GET /entries/{collection}/{keyHex}[?height=]");
             out.println("  GET /healthz");
             Thread.currentThread().join();
+        }
+        return OK;
+    }
+
+    /**
+     * The operator gateway (ADR-053 §2.2). It holds the seeds it was started with and signs for
+     * any of them, so it belongs on the operator's own machine, on loopback, with a token the
+     * console keeps in memory.
+     */
+    private int gateway(Arguments input) throws Exception {
+        TrustRegistryClient client = client(input);
+        Path seedDirectory = Path.of(input.required("seeds"));
+        Map<String, byte[]> seeds = RegistryGatewayService.loadSeeds(seedDirectory);
+        String token = input.has("token-file")
+                ? readText(Path.of(input.required("token-file"))).trim()
+                : RegistryGatewayService.randomToken();
+        String bind = input.option("bind", "127.0.0.1");
+        int port = (int) input.longValue("port", 8481);
+        boolean allowRemote = input.flag("allow-remote");
+        try (RegistryGatewayService service = RegistryGatewayService.start(
+                new RegistryWriter(client), seeds,
+                token, input.has("genesis-id") ? hex32Hex(input.required("genesis-id")) : null,
+                new InetSocketAddress(bind, port), allowRemote)) {
+            out.println("Trust registry operator gateway for chain " + client.chainId() + " on "
+                    + service.baseUrl() + " signing for " + String.join(" ", service.actorIds()));
+            if (!input.has("token-file")) {
+                out.println("  token: " + service.token());
+            }
+            out.println("  GET  /healthz, /operator/actors");
+            out.println("  POST /operator/status, /operator/status/revoke, /operator/subjects,");
+            out.println("       /operator/subjects/revoke, /operator/schemas, /operator/lists/publish");
+            Thread.currentThread().join();
+        } finally {
+            seeds.values().forEach(seed -> java.util.Arrays.fill(seed, (byte) 0));
         }
         return OK;
     }
@@ -607,6 +623,12 @@ public final class TrustCli {
         return HEX.parseHex(value);
     }
 
+    /** The same check, kept as text for the signer's genesis id override. */
+    private static String hex32Hex(String value) {
+        hex32(value, "genesis-id");
+        return value;
+    }
+
     static String errorName(int code) {
         Map<Integer, String> names = new LinkedHashMap<>();
         names.put(AuthenticatedMapContract.ERROR_UNKNOWN_COLLECTION, "UNKNOWN_COLLECTION");
@@ -664,8 +686,10 @@ public final class TrustCli {
                   revoke       <entry>
                   publish-list --list <id> [--purpose revocation] [--bit-length 131072]
 
-                Service:
+                Services:
                   serve        [--bind 127.0.0.1] [--port 8480]
+                  gateway      --seeds <dir of <actor>.seed> [--bind 127.0.0.1] [--port 8481]
+                               [--token-file <f>] [--genesis-id <hex>] [--allow-remote]
 
                 <entry> is --subject <id> | --issuer <id> | --list <id> | --list <id> --index <n>
                 | --schema <id> | --collection <c> (--key <text> | --key-hex <hex>).

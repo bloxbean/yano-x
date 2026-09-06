@@ -35,7 +35,8 @@ export const DEFAULT_RUNTIME_CONFIG: RuntimeConfig = {
   defaultChainId: '',
   expectedNetwork: '',
   allowEndpointOverride: true,
-  serviceUrl: ''
+  serviceUrl: '',
+  gatewayUrl: ''
 };
 
 export async function loadRuntimeConfig(fetcher: typeof fetch = fetch): Promise<RuntimeConfig> {
@@ -69,6 +70,8 @@ export function parseRuntimeConfig(value: unknown): RuntimeConfig {
   }
   const serviceUrl = value.serviceUrl === undefined ? '' : boundedString(value.serviceUrl, 'serviceUrl', true);
   if (serviceUrl) normalizeServiceUrl(serviceUrl);
+  const gatewayUrl = value.gatewayUrl === undefined ? '' : boundedString(value.gatewayUrl, 'gatewayUrl', true);
+  if (gatewayUrl) normalizeServiceUrl(gatewayUrl);
   return {
     schemaVersion: 1,
     productId: 'trust-registry',
@@ -76,7 +79,8 @@ export function parseRuntimeConfig(value: unknown): RuntimeConfig {
     defaultChainId,
     expectedNetwork,
     allowEndpointOverride: value.allowEndpointOverride,
-    serviceUrl
+    serviceUrl,
+    gatewayUrl
   };
 }
 

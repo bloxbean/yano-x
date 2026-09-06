@@ -30,7 +30,7 @@ the repository.
 | `yano-x-trust-registry-profile` | `products/trust-registry/profile` | Collections, schemas, policies, value codecs, genesis generator, bitstring projection, TRQP evaluator |
 | `yano-x-trust-registry-client` | `products/trust-registry/client` | Node client, answer assembly, signer, verifier, standards service |
 | `yano-x-trust-registry-cli` | `products/trust-registry/cli` | `yano-trust` (`tools/yano-trust` in the JVM distribution) |
-| `yano-x-trust-registry-ui` | `products/trust-registry/ui` | Static SvelteKit console (`product-ui/trust-registry` in the JVM distribution) |
+| `yano-x-trust-registry-ui` | `products/trust-registry/ui` | Static SvelteKit console (`product-ui/trust-registry` in the JVM distribution), read views plus the guided write view |
 | launcher | `products/trust-registry/harness/registry.sh` (`examples/trust-registry` in the distribution) | Three-member registry on the packaged cluster launcher |
 
 ## Data model
@@ -141,8 +141,9 @@ npx --yes serve build/site
 ```
 
 `trust-registry-ui-config.json` next to `index.html` may pin endpoints, a default chain, an
-expected network, and `serviceUrl`, the base URL of a `yano-trust serve` instance whose lists the
-console checks. A node that is not same-origin with the console must allow the UI origin through
+expected network, `serviceUrl`, the base URL of a `yano-trust serve` instance whose lists the
+console checks, and `gatewayUrl`, the base URL of a `yano-trust gateway` the write view signs
+through. A node that is not same-origin with the console must allow the UI origin through
 CORS; hosting the console behind the node's reverse proxy avoids CORS entirely.
 
 ## Walkthrough on the launcher
@@ -182,6 +183,13 @@ Every command takes `--url $YANO_TRUST_URL --chain $YANO_TRUST_CHAIN`; the API k
 7. **Console.** Connect to `http://127.0.0.1:7270`, pick `trust-registry-chain` (marked
    `registry profile`), look up `list-1` index 5, build the export and verify it with the CLI;
    under *Status lists* enter `list-1` and the service URL to see `matches chain`.
+8. **Write from the browser.** `registry.sh gateway` starts the operator gateway on port 8481 with
+   the demo seeds and prints a token. In the console's *Write entries* view, enter the gateway URL
+   and that token, then pick the actor to sign as. The view guides the writes: record a subject,
+   set a credential status, publish the list, revoke an index, register a schema. Each step shows
+   the role it needs, what the chain answers for the list and index you entered, and a *Sign as*
+   shortcut to an actor that holds the role. Steps stay clickable when the role is wrong, because
+   the chain is the authority: the write is signed, submitted, and refused with its error code.
 
 A wrong seed is refused before submission (`the seed does not match an active key`), and a
 finalized command the chain rejects is reported with its error code (`REJECTED with error code

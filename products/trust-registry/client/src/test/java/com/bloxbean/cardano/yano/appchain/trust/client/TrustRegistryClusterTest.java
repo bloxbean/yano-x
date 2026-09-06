@@ -12,6 +12,7 @@ import com.bloxbean.cardano.yano.appchain.trust.profile.TrustRegistryProfile;
 import com.bloxbean.cardano.yano.appchain.trust.profile.TrustRegistryValues;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -22,11 +23,15 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.Base64;
 import java.util.HexFormat;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -357,7 +362,111 @@ class TrustRegistryClusterTest {
                 .containsExactlyElementsOf(TrustRegistryGenesis.DEMO_ACTOR_IDS);
     }
 
+    @Test
+    void gatewayPerformsEveryWriteForTheConsole() throws Exception {
+        Map<String, byte[]> seeds = new LinkedHashMap<>();
+        for (String actorId : TrustRegistryGenesis.DEMO_ACTOR_IDS) {
+            seeds.put(actorId, TrustRegistryGenesis.demoActorSeed(actorId));
+        }
+        try (RegistryGatewayService gateway = RegistryGatewayService.start(new RegistryWriter(client),
+                seeds, null, null, new InetSocketAddress("127.0.0.1", 0), false)) {
+            HttpClient http = HttpClient.newHttpClient();
+            String base = gateway.baseUrl();
+
+            // The token is required on every operator route, and healthz never asks for it.
+            assertThat(http.send(HttpRequest.newBuilder(URI.create(base + "/healthz")).GET().build(),
+                    HttpResponse.BodyHandlers.ofString()).statusCode()).isEqualTo(200);
+            assertThat(http.send(HttpRequest.newBuilder(URI.create(base + "/operator/actors")).GET().build(),
+                    HttpResponse.BodyHandlers.ofString()).statusCode()).isEqualTo(401);
+
+            JsonNode actors = gatewayGet(gateway, "/operator/actors");
+            assertThat(actors.path("chainId").asText()).isEqualTo(cluster.chainId());
+            assertThat(actors.path("actors")).hasSize(TrustRegistryGenesis.DEMO_ACTOR_IDS.size());
+            JsonNode issuer = actors.path("actors").get(
+                    TrustRegistryGenesis.DEMO_ACTOR_IDS.indexOf("issuer-a"));
+            assertThat(issuer.path("organizationId").asText()).isEqualTo("issuer-org-a");
+            assertThat(issuer.path("roles").get(0).asText()).isEqualTo(TrustRegistryProfile.ISSUER_ROLE);
+
+            // Every write route, each answered with the receipt the CLI prints.
+            ObjectNode status = JSON.createObjectNode().put("actorId", "issuer-a")
+                    .put("listId", "list-2").put("index", 12).put("bit", 1).put("reasonCode", 3);
+            JsonNode wrote = gatewayPost(gateway, "/operator/status", status, 200);
+            assertThat(wrote.path("status").asText()).isEqualTo("APPLIED");
+            assertThat(wrote.path("results").get(0).path("key").asText()).isEqualTo("list-2/12");
+            assertThat(wrote.path("results").get(0).path("revision").asLong()).isEqualTo(1);
+
+            ObjectNode subject = JSON.createObjectNode().put("actorId", "registrar-a")
+                    .put("subjectId", "did:example:gateway-1").put("controllerOrganizationId", "registry-operator")
+                    .put("kind", "product").put("metadataHashHex", "11".repeat(32));
+            assertThat(gatewayPost(gateway, "/operator/subjects", subject, 200).path("status").asText())
+                    .isEqualTo("APPLIED");
+
+            ObjectNode schema = JSON.createObjectNode().put("actorId", "registrar-a")
+                    .put("schemaId", "schema-gw-1")
+                    .put("valueBase64", Base64.getEncoder().encodeToString("{}".getBytes(StandardCharsets.UTF_8)));
+            assertThat(gatewayPost(gateway, "/operator/schemas", schema, 200).path("status").asText())
+                    .isEqualTo("APPLIED");
+
+            ObjectNode publish = JSON.createObjectNode().put("actorId", "issuer-a").put("listId", "list-2");
+            JsonNode published = gatewayPost(gateway, "/operator/lists/publish", publish, 200);
+            assertThat(published.path("status").asText()).isEqualTo("APPLIED");
+            assertThat(published.path("setCount").asLong()).isEqualTo(1);
+            assertThat(published.path("listSha256").asText()).hasSize(64);
+
+            ObjectNode revoke = JSON.createObjectNode().put("actorId", "issuer-a")
+                    .put("listId", "list-2").put("index", 12);
+            assertThat(gatewayPost(gateway, "/operator/status/revoke", revoke, 200)
+                    .path("results").get(0).path("status").asText()).isEqualTo("REVOKED");
+            assertThat(gatewayPost(gateway, "/operator/status/revoke", revoke, 409).path("error").asText())
+                    .as("revocation is terminal").contains("REVOKED");
+
+            // The chain, not the gateway, decides what a role may write: a registrar writing a
+            // status entry is signed, submitted, and refused by the map.
+            ObjectNode wrongRole = JSON.createObjectNode().put("actorId", "registrar-a")
+                    .put("listId", "list-2").put("index", 13).put("bit", 1);
+            JsonNode refused = gatewayPost(gateway, "/operator/status", wrongRole, 200);
+            assertThat(refused.path("status").asText()).isEqualTo("REJECTED");
+            assertThat(refused.path("errorCode").asInt()).isPositive();
+
+            // Bad requests are answered before anything is signed.
+            ObjectNode unknownActor = JSON.createObjectNode().put("actorId", "nobody")
+                    .put("listId", "list-2").put("index", 1).put("bit", 1);
+            assertThat(gatewayPost(gateway, "/operator/status", unknownActor, 400).path("error").asText())
+                    .contains("holds no seed");
+            ObjectNode missingField = JSON.createObjectNode().put("actorId", "issuer-a").put("listId", "list-2");
+            assertThat(gatewayPost(gateway, "/operator/status", missingField, 400).path("error").asText())
+                    .contains("required");
+            assertThat(gatewayPost(gateway, "/operator/unknown", missingField, 404).path("error").asText())
+                    .contains("unknown path");
+
+            // The gateway never hands back a seed.
+            assertThat(actors.toString()).doesNotContain(HEX.formatHex(
+                    TrustRegistryGenesis.demoActorSeed("issuer-a")));
+        }
+    }
+
     // ------------------------------------------------------------------ helpers
+
+    private JsonNode gatewayGet(RegistryGatewayService gateway, String path) throws Exception {
+        HttpResponse<String> response = HttpClient.newHttpClient().send(
+                HttpRequest.newBuilder(URI.create(gateway.baseUrl() + path))
+                        .header(RegistryGatewayService.TOKEN_HEADER, gateway.token()).GET().build(),
+                HttpResponse.BodyHandlers.ofString());
+        assertThat(response.statusCode()).isEqualTo(200);
+        return JSON.readTree(response.body());
+    }
+
+    private JsonNode gatewayPost(RegistryGatewayService gateway, String path, JsonNode body,
+                                 int expectedStatus) throws Exception {
+        HttpResponse<String> response = HttpClient.newHttpClient().send(
+                HttpRequest.newBuilder(URI.create(gateway.baseUrl() + path))
+                        .header(RegistryGatewayService.TOKEN_HEADER, gateway.token())
+                        .header("Content-Type", "application/json")
+                        .POST(HttpRequest.BodyPublishers.ofString(body.toString())).build(),
+                HttpResponse.BodyHandlers.ofString());
+        assertThat(response.statusCode()).as(path + " -> " + response.body()).isEqualTo(expectedStatus);
+        return JSON.readTree(response.body());
+    }
 
     private AuthenticatedMapContract.Receipt write(String actorId, String policyId,
                                                    AuthenticatedMapContract.Command command) {

@@ -6,6 +6,8 @@ import type {
   ChainSummary,
   DiscoveredChain,
   FinalizedBlock,
+  GatewayActor,
+  GatewayReceipt,
   NodeConfig,
   NodeStatus,
   QueryResult,
@@ -170,6 +172,65 @@ export class YanoApi {
       return JSON.parse(text) as T;
     } catch {
       throw new ApiError('The Yano node returned an invalid JSON response', response.status, '', path);
+    }
+  }
+}
+
+/**
+ * The operator gateway (ADR-053 §2.2). It runs on the operator's machine with the actor seeds and
+ * signs what this console asks for; the token is held in memory by the caller and never stored.
+ */
+export class GatewayApi {
+  static readonly TOKEN_HEADER = 'X-Gateway-Token';
+
+  constructor(
+    readonly baseUrl: string,
+    private readonly token: string,
+    private readonly fetcher: typeof fetch = fetch
+  ) {}
+
+  actors(): Promise<{ chainId: string; actors: GatewayActor[] }> {
+    return this.request('/operator/actors', { method: 'GET' });
+  }
+
+  write(route: string, body: Record<string, unknown>): Promise<GatewayReceipt> {
+    return this.request(route, {
+      method: 'POST',
+      body: JSON.stringify(body),
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
+  private async request<T>(path: string, init: RequestInit): Promise<T> {
+    const url = `${this.baseUrl}${path}`;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    let response: Response;
+    const headers = new Headers(init.headers);
+    headers.set('Accept', 'application/json');
+    headers.set(GatewayApi.TOKEN_HEADER, this.token);
+    try {
+      response = await this.fetcher(url, {
+        ...init, headers, signal: controller.signal, credentials: 'omit',
+        redirect: 'error', referrerPolicy: 'no-referrer'
+      });
+    } catch {
+      throw new ApiError('The gateway could not be reached. Check its URL and that it is running.', 0, 'NETWORK_ERROR', url);
+    } finally {
+      clearTimeout(timeout);
+    }
+    const text = await response.text();
+    if (text.length > MAX_RESPONSE_BYTES) {
+      throw new ApiError('The gateway returned an oversized response', response.status, 'TOO_LARGE', url);
+    }
+    if (!response.ok) {
+      const failure = parseFailure(text);
+      throw new ApiError(failure.message, response.status, failure.code, url);
+    }
+    try {
+      return JSON.parse(text) as T;
+    } catch {
+      throw new ApiError('The gateway returned an invalid JSON response', response.status, '', url);
     }
   }
 }

@@ -16,6 +16,7 @@ NODES="${TRUST_REGISTRY_NODES:-3}"
 THRESHOLD="${TRUST_REGISTRY_THRESHOLD:-2}"
 HTTP_BASE="${TRUST_REGISTRY_HTTP_BASE:-7270}"
 SERVER_BASE="${TRUST_REGISTRY_SERVER_BASE:-9270}"
+GATEWAY_PORT="${TRUST_REGISTRY_GATEWAY_PORT:-8481}"
 DATA_DIR="${TRUST_REGISTRY_DATA_DIR:-$HOME/.yano-x/trust-registry}"
 DEMO_ACTORS=(registry-admin-a registrar-a registrar-b issuer-a)
 
@@ -26,10 +27,11 @@ need() { command -v "$1" >/dev/null 2>&1 || die "missing required tool: $1"; }
 usage() {
   cat <<'USAGE'
 usage: registry.sh <command> [--instance <name>] [--nodes <n>] [--threshold <n>]
-                             [--http-base <port>] [--server-base <port>]
+                             [--http-base <port>] [--server-base <port>] [--gateway-port <n>]
 
   up       generate the demo genesis, write the node configuration, start the members
   status   cluster status
+  gateway  start the operator gateway (yano-trust gateway) with the demo seeds, in the background
   env      print the node URL, API key, chain id, and map genesis id as shell exports
   seeds    write the demo actor seed files (owner-only) and print their paths
   stop     stop the members (data is kept)
@@ -223,6 +225,35 @@ PY
   YANO_HOME="$YANO_HOME_DIST"; resolve_yano_home; YANO_HOME_DIST="$YANO_HOME"
 }
 
+stop_gateway() {
+  local pidfile="$(instance_root)/gateway.pid"
+  [ -f "$pidfile" ] || return 0
+  kill "$(cat "$pidfile")" 2>/dev/null && note "stopped the gateway (pid $(cat "$pidfile"))"
+  rm -f "$pidfile"
+}
+
+# The operator gateway (ADR-053 §2.2), started in the background with the demo seeds.
+cmd_gateway() {
+  adopt
+  local log="$(instance_root)/gateway.log" pidfile="$(instance_root)/gateway.pid"
+  if [ -f "$pidfile" ] && kill -0 "$(cat "$pidfile")" 2>/dev/null; then
+    die "the gateway is already running (pid $(cat "$pidfile"))"
+  fi
+  [ -d "$(seed_dir)" ] || write_seeds
+  YANO_API_KEY="$(cat "$(api_key_file)")" nohup "$CLI" gateway \
+    --url "http://127.0.0.1:$HTTP_BASE/api/v1" --chain "$CHAIN_ID" \
+    --seeds "$(seed_dir)" --port "$GATEWAY_PORT" > "$log" 2>&1 &
+  echo $! > "$pidfile"
+  sleep 4
+  kill -0 "$(cat "$pidfile")" 2>/dev/null || { rm -f "$pidfile"; die "the gateway failed to start; see $log"; }
+  local token
+  token="$(grep -m 1 'token:' "$log" | awk '{print $2}')"
+  (umask 077; printf '%s\n' "$token" > "$(instance_root)/gateway-token")
+  note "gateway on http://127.0.0.1:$GATEWAY_PORT signing for ${DEMO_ACTORS[*]} (log $log)"
+  note "  token: $token"
+  note "  the console's Write entries view takes this URL and token."
+}
+
 cmd_env() {
   adopt
   printf 'export YANO_TRUST_URL=%q\n' "http://127.0.0.1:$HTTP_BASE/api/v1"
@@ -231,6 +262,9 @@ cmd_env() {
   printf 'export YANO_TRUST_GENESIS_ID=%q\n' "$(genesis_id)"
   printf 'export YANO_TRUST_SEEDS=%q\n' "$(seed_dir)"
   printf 'export YANO_TRUST_MEMBERS=%q\n' "$(instance_root)/members.json"
+  printf 'export TRUST_GATEWAY_URL=%q\n' "http://127.0.0.1:$GATEWAY_PORT"
+  [ ! -f "$(instance_root)/gateway-token" ] \
+    || printf 'export TRUST_GATEWAY_TOKEN=%q\n' "$(cat "$(instance_root)/gateway-token")"
 }
 
 main() {
@@ -242,6 +276,7 @@ main() {
       --threshold) THRESHOLD="${2:?}"; shift 2;;
       --http-base) HTTP_BASE="${2:?}"; shift 2;;
       --server-base) SERVER_BASE="${2:?}"; shift 2;;
+      --gateway-port) GATEWAY_PORT="${2:?}"; shift 2;;
       -h|--help) usage; exit 0;;
       *) die "unknown option: $1";;
     esac
@@ -253,10 +288,11 @@ main() {
   case "$command" in
     up) cmd_up;;
     status) adopt; cluster_env; "$CLUSTER" status;;
+    gateway) cmd_gateway;;
     env) cmd_env;;
     seeds) adopt; write_seeds; ls -1 "$(seed_dir)";;
-    stop) adopt; cluster_env; "$CLUSTER" stop;;
-    clean) adopt; cluster_env; "$CLUSTER" clean || true; rm -rf -- "$(instance_root)"; note "removed $(instance_root)";;
+    stop) adopt; stop_gateway; cluster_env; "$CLUSTER" stop;;
+    clean) adopt; stop_gateway; cluster_env; "$CLUSTER" clean || true; rm -rf -- "$(instance_root)"; note "removed $(instance_root)";;
     ""|help|-h|--help) usage;;
     *) die "unknown command: $command";;
   esac

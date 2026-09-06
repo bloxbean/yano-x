@@ -1,30 +1,45 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { exportAnswer, readAnswer } from '$lib/answer';
-  import { YanoApi, fetchStatusListDocument } from '$lib/api';
+  import { GatewayApi, YanoApi, fetchStatusListDocument } from '$lib/api';
   import { DEFAULT_RUNTIME_CONFIG, loadRuntimeConfig, normalizeServiceUrl } from '$lib/config';
   import { sha256Hex } from '$lib/hash';
   import { failureMessage, short } from '$lib/model';
   import { applicationKey, bitAt, decodeEncodedList, evaluateTrqp, setCount, type TrqpAnswer } from '$lib/registry';
   import ConnectionPanel from '$lib/components/ConnectionPanel.svelte';
   import CopyValue from '$lib/components/CopyValue.svelte';
+  import {
+    EMPTY_PROGRESS,
+    deriveWriteSteps,
+    publishBody,
+    revokeBody,
+    schemaBody,
+    statusBody,
+    subjectBody,
+    type RegistryProgress,
+    type WriteStep,
+    type WriteStepId
+  } from '$lib/write';
   import type {
     ActiveConnection,
     Collection,
     DiscoveredChain,
+    GatewayActor,
+    GatewayReceipt,
     NodeConfig,
     NodeStatus,
     RegistryAnswer,
     RuntimeConfig
   } from '$lib/types';
 
-  type View = 'lookup' | 'lists' | 'trqp' | 'about';
+  type View = 'lookup' | 'lists' | 'trqp' | 'operator' | 'about';
   type LookupKind = 'subject' | 'status' | 'list' | 'issuer' | 'schema';
 
   const views: Array<{ id: View; code: string; label: string }> = [
     { id: 'lookup', code: 'LK', label: 'Look up an entry' },
     { id: 'lists', code: 'SL', label: 'Status lists' },
     { id: 'trqp', code: 'TQ', label: 'Authorization (TRQP)' },
+    { id: 'operator', code: 'OP', label: 'Write entries' },
     { id: 'about', code: '??', label: 'What this proves' }
   ];
   const kinds: Array<{ id: LookupKind; label: string; collection: Collection }> = [
@@ -78,6 +93,37 @@
   let trqpAnswer: RegistryAnswer | null = null;
   let trqpResult: TrqpAnswer | null = null;
 
+  // Operator (ADR-053 §2.2): the gateway signs; this console never holds a seed in GATEWAY mode.
+  let gatewayUrl = '';
+  let gatewayToken = '';
+  let gateway: GatewayApi | null = null;
+  let gatewayChainId = '';
+  let actors: GatewayActor[] = [];
+  let actorId = '';
+  let gatewayError = '';
+  let gatewayBusy = false;
+  let activeWrite: WriteStepId = 'status';
+  let writeResult: GatewayReceipt | null = null;
+  let writeError = '';
+  let writeBusy = false;
+  let progress: RegistryProgress = EMPTY_PROGRESS;
+  let progressBusy = false;
+  let progressError = '';
+  let opListId = 'list-1';
+  let opIndex = '5';
+  let opBit = '1';
+  let opReason = '3';
+  let opPurpose = 'revocation';
+  let opSubjectId = 'did:example:subject-2';
+  let opController = '';
+  let opKind = 'product';
+  let opMetadataHash = '11'.repeat(32);
+  let opSchemaId = 'schema-1';
+  let opSchemaValue = '{}';
+
+  $: selectedActor = actors.find((actor) => actor.actorId === actorId) ?? null;
+  $: writeSteps = deriveWriteSteps(progress, actors, actorId);
+  $: activeWriteStep = writeSteps.find((step) => step.id === activeWrite) ?? null;
   $: selectedChain = chains.find((chain) => chain.summary.chainId === selectedChainId) ?? null;
   $: tipHeight = selectedChain?.summary.tipHeight ?? 0;
   $: listMatches = served && listEntry?.decoded?.kind === 'status-list'
@@ -89,6 +135,7 @@
     void loadRuntimeConfig().then((loaded) => {
       runtimeConfig = loaded;
       serviceUrl = loaded.serviceUrl;
+      gatewayUrl = loaded.gatewayUrl;
       configReady = true;
     });
   });
@@ -192,6 +239,109 @@
     } finally {
       lookupBusy = false;
     }
+  }
+
+  // ------------------------------------------------------------------ operator
+
+  async function connectGateway() {
+    gatewayBusy = true;
+    gatewayError = '';
+    try {
+      const api = new GatewayApi(normalizeServiceUrl(gatewayUrl), gatewayToken.trim());
+      const listed = await api.actors();
+      gateway = api;
+      gatewayChainId = listed.chainId;
+      actors = listed.actors;
+      actorId = actors[0]?.actorId ?? '';
+      gatewayToken = '';
+      await readProgress();
+    } catch (cause) {
+      gateway = null;
+      gatewayError = failureMessage(cause, 'The gateway could not be reached');
+    } finally {
+      gatewayBusy = false;
+    }
+  }
+
+  function disconnectGateway() {
+    gateway = null;
+    actors = [];
+    actorId = '';
+    writeResult = null;
+    writeError = '';
+    progress = EMPTY_PROGRESS;
+  }
+
+  /**
+   * Reads the entry and the published list for the guide. Both are ordinary proof-bound answers,
+   * read with the console's own node connection, so the guide never depends on the gateway.
+   */
+  async function readProgress() {
+    if (!api || !selectedChain || !opListId.trim()) return;
+    progressBusy = true;
+    progressError = '';
+    try {
+      const indexText = opIndex.trim();
+      let indexPresence: RegistryProgress['indexPresence'] = '';
+      if (/^[0-9]{1,19}$/.test(indexText)) {
+        const entry = await readAnswer(api, selectedChain, 'status',
+          applicationKey('status', opListId.trim(), Number(indexText)), undefined);
+        indexPresence = entry.presence as RegistryProgress['indexPresence'];
+      }
+      const list = await readAnswer(api, selectedChain, 'status-lists',
+        applicationKey('status-lists', opListId.trim()), undefined);
+      progress = {
+        listId: opListId.trim(),
+        index: indexText,
+        indexPresence,
+        listPublished: list.presence === 'ACTIVE',
+        publishedHeight: list.decoded?.kind === 'status-list' ? list.decoded.value.publishedHeight : 0
+      };
+    } catch (cause) {
+      progressError = failureMessage(cause, 'The entries could not be read');
+    } finally {
+      progressBusy = false;
+    }
+  }
+
+  function openWrite(step: WriteStep) {
+    activeWrite = step.id;
+    writeResult = null;
+    writeError = '';
+  }
+
+  /** Every write goes through the gateway and refreshes the guide with what the chain now says. */
+  async function runWrite(route: string, build: () => Record<string, unknown>) {
+    if (!gateway) return;
+    writeBusy = true;
+    writeError = '';
+    writeResult = null;
+    try {
+      writeResult = await gateway.write(route, build());
+      await readProgress();
+    } catch (cause) {
+      writeError = failureMessage(cause, 'The gateway refused the request');
+    } finally {
+      writeBusy = false;
+    }
+  }
+
+  const writeStatus = () => runWrite('/operator/status',
+    () => statusBody(actorId, opListId, opIndex, opBit, opReason));
+  const writeRevoke = () => runWrite('/operator/status/revoke',
+    () => revokeBody(actorId, opListId, opIndex));
+  const writeSubject = () => runWrite('/operator/subjects',
+    () => subjectBody(actorId, opSubjectId, opController || selectedActor?.organizationId || '',
+      opKind, opMetadataHash));
+  const writeSchema = () => runWrite('/operator/schemas',
+    () => schemaBody(actorId, opSchemaId, opSchemaValue));
+  const writePublish = () => runWrite('/operator/lists/publish',
+    () => publishBody(actorId, opListId, opPurpose));
+
+  function writePill(status: string): string {
+    if (status === 'READY') return 'pill pill-ok';
+    if (status === 'NEEDS_ROLE') return 'pill pill-warn';
+    return 'pill';
   }
 
   function buildExport() {
@@ -519,6 +669,128 @@
               {/if}
               <div class="mt-3 text-xs text-[#b7cbc4]"><span class="pill mr-2">{trqpAnswer.provenance.kind}</span>{provenanceText(trqpAnswer)}</div>
             </div>
+          {/if}
+        </section>
+
+      {:else if activeView === 'operator'}
+        <section class="glass p-5">
+          <div class="eyebrow">Operator</div>
+          <h1 class="mb-0 mt-2 text-2xl font-semibold tracking-tight">Write entries through the gateway</h1>
+          <p class="mt-3 max-w-3xl text-sm leading-6 text-[#8ea8a0]">
+            A registry write carries a one-use authorization signed with the actor's key. The gateway
+            runs on the operator's machine with those seeds and signs what this console asks for; the
+            token is the only secret the browser holds, in memory. The chain decides what each actor
+            may write, so a step this guide marks as needing another role is still refused on chain.
+          </p>
+          {#if !gateway}
+            <form class="mt-5 grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]" onsubmit={(event) => { event.preventDefault(); void connectGateway(); }}>
+              <div><label class="text-xs font-semibold text-[#a9beb7]" for="gateway-url">Gateway URL</label><input id="gateway-url" class="field mono mt-2" bind:value={gatewayUrl} /></div>
+              <div><label class="text-xs font-semibold text-[#a9beb7]" for="gateway-token">Gateway token</label><input id="gateway-token" class="field mono mt-2" type="password" autocomplete="off" bind:value={gatewayToken} placeholder="printed by yano-trust gateway" /></div>
+              <div class="flex items-end"><button class="button-primary" type="submit" disabled={gatewayBusy || !gatewayToken.trim()}>{gatewayBusy ? 'Connecting…' : 'Connect'}</button></div>
+            </form>
+            {#if gatewayError}<div class="notice notice-error mt-4">{gatewayError}</div>{/if}
+          {:else}
+            <div class="mt-5 flex flex-wrap items-center gap-3">
+              <span class="pill pill-warn">SIGNING MODE GATEWAY</span>
+              <label class="text-xs font-semibold text-[#a9beb7]" for="actor-picker">Sign as</label>
+              <select id="actor-picker" class="field w-auto" bind:value={actorId}>
+                {#each actors as actor}<option value={actor.actorId}>{actor.actorId}{actor.organizationId ? ` (${actor.organizationId}${actor.roles ? ': ' + actor.roles.join(', ') : ''})` : ''}</option>{/each}
+              </select>
+              <span class="text-xs text-[#8ea8a0]">chain <span class="mono">{gatewayChainId}</span></span>
+              <button class="button-quiet min-h-0 py-2" type="button" onclick={disconnectGateway}>Disconnect</button>
+            </div>
+
+            <div class="panel mt-4 p-4">
+              <div class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+                <div><label class="text-xs font-semibold text-[#a9beb7]" for="op-list">List id</label><input id="op-list" class="field mono mt-2" bind:value={opListId} /></div>
+                <div><label class="text-xs font-semibold text-[#a9beb7]" for="op-index">Index</label><input id="op-index" class="field mono mt-2" bind:value={opIndex} /></div>
+                <div class="flex items-end"><button class="button-secondary" type="button" disabled={progressBusy || !opListId.trim()} onclick={() => void readProgress()}>{progressBusy ? 'Reading…' : 'Read progress'}</button></div>
+              </div>
+              <p class="mt-3 text-xs leading-5 text-[#8ea8a0]">
+                The guide reads this list and index with the console's own node connection, so what it
+                shows is the chain's answer, not the gateway's word.
+              </p>
+              {#if progressError}<div class="notice notice-error mt-3">{progressError}</div>{/if}
+              {#if progress.indexPresence || progress.listPublished}
+                <div class="mt-3 flex flex-wrap items-center gap-2">
+                  {#if progress.indexPresence}<span class="pill">{progress.listId}/{progress.index} {progress.indexPresence}</span>{/if}
+                  <span class={progress.listPublished ? 'pill pill-ok' : 'pill'}>{progress.listPublished ? `list published at height ${progress.publishedHeight}` : 'list not published'}</span>
+                </div>
+              {/if}
+            </div>
+
+            <ol class="mt-3 grid gap-2">
+              {#each writeSteps as step}
+                <li class="panel p-4">
+                  <div class="flex flex-wrap items-center gap-2">
+                    <span class="metric-label">Step {step.order}</span>
+                    <span class="text-sm font-semibold text-[#e6f2ee]">{step.label}</span>
+                    <span class={writePill(step.status)}>{step.status === 'NEEDS_ROLE' ? `NEEDS ${step.role.toUpperCase()}` : step.status}</span>
+                    <span class="pill mono">role {step.role}</span>
+                    <button class="button-quiet ml-auto min-h-0 py-1" type="button" onclick={() => openWrite(step)}>{activeWrite === step.id ? 'Showing' : 'Open'}</button>
+                  </div>
+                  <div class="mt-2 text-xs leading-5 text-[#8ea8a0]">{step.purpose}</div>
+                  <div class="mt-1 text-xs leading-5 text-[#b7cbc4]">{#if step.detail}<span class="mono">{step.detail}</span>. {/if}{step.hint}</div>
+                  {#if step.status === 'NEEDS_ROLE' && step.candidates.length}
+                    <div class="mt-2 flex flex-wrap gap-2">
+                      {#each step.candidates as candidate}
+                        <button class="button-quiet min-h-0 py-1" type="button" onclick={() => { actorId = candidate; openWrite(step); }}>Sign as {candidate}</button>
+                      {/each}
+                    </div>
+                  {/if}
+                </li>
+              {/each}
+            </ol>
+
+            <div class="panel mt-3 p-4">
+              <div class="metric-label">{activeWriteStep ? `Step ${activeWriteStep.order}: ${activeWriteStep.label}` : 'Write'}</div>
+              {#if activeWriteStep && activeWriteStep.status !== 'READY'}
+                <div class="notice notice-warn mt-3 text-xs">{activeWriteStep.hint}</div>
+              {/if}
+              <div class="mt-3 grid gap-3 sm:grid-cols-2">
+                {#if activeWrite === 'status'}
+                  <div><label class="text-xs font-semibold text-[#a9beb7]" for="op-bit">Bit</label><select id="op-bit" class="field mt-2" bind:value={opBit}><option value="1">1 (set)</option><option value="0">0 (clear)</option></select></div>
+                  <div><label class="text-xs font-semibold text-[#a9beb7]" for="op-reason">Reason code</label><input id="op-reason" class="field mono mt-2" bind:value={opReason} /></div>
+                  <div class="flex items-end"><button class="button-primary" type="button" disabled={writeBusy} onclick={() => void writeStatus()}>Write status (issuer)</button></div>
+                {:else if activeWrite === 'revoke'}
+                  <div class="sm:col-span-2 text-xs leading-5 text-[#b7cbc4]">Revoking <span class="mono">{opListId}/{opIndex}</span> is terminal: the entry keeps its last value hash as a tombstone and can never be active again.</div>
+                  <div class="flex items-end"><button class="button-danger" type="button" disabled={writeBusy} onclick={() => void writeRevoke()}>Revoke index (issuer)</button></div>
+                {:else if activeWrite === 'publish'}
+                  <div><label class="text-xs font-semibold text-[#a9beb7]" for="op-purpose">Purpose</label><input id="op-purpose" class="field mono mt-2" bind:value={opPurpose} /></div>
+                  <div class="sm:col-span-2 text-xs leading-5 text-[#b7cbc4]">The gateway replays the chain's applied status writes, hashes the raw bitstring, and records the hash. Publish again after later status writes, or a served list will not match the chain.</div>
+                  <div class="flex items-end"><button class="button-primary" type="button" disabled={writeBusy} onclick={() => void writePublish()}>Publish list (issuer)</button></div>
+                {:else if activeWrite === 'subject'}
+                  <div class="sm:col-span-2"><label class="text-xs font-semibold text-[#a9beb7]" for="op-subject">Subject id</label><input id="op-subject" class="field mono mt-2" bind:value={opSubjectId} /></div>
+                  <div><label class="text-xs font-semibold text-[#a9beb7]" for="op-controller">Controller organization</label><input id="op-controller" class="field mono mt-2" bind:value={opController} placeholder={selectedActor?.organizationId ?? ''} /></div>
+                  <div><label class="text-xs font-semibold text-[#a9beb7]" for="op-kind">Kind</label><input id="op-kind" class="field mono mt-2" bind:value={opKind} /></div>
+                  <div class="sm:col-span-2"><label class="text-xs font-semibold text-[#a9beb7]" for="op-metadata">Metadata hash (32 bytes hex)</label><input id="op-metadata" class="field mono mt-2" bind:value={opMetadataHash} /></div>
+                  <div class="flex items-end"><button class="button-primary" type="button" disabled={writeBusy} onclick={() => void writeSubject()}>Record subject (registrar)</button></div>
+                {:else}
+                  <div><label class="text-xs font-semibold text-[#a9beb7]" for="op-schema">Schema id</label><input id="op-schema" class="field mono mt-2" bind:value={opSchemaId} /></div>
+                  <div class="sm:col-span-2"><label class="text-xs font-semibold text-[#a9beb7]" for="op-schema-value">Schema bytes</label><textarea id="op-schema-value" class="field mono mt-2 min-h-24" bind:value={opSchemaValue}></textarea></div>
+                  <div class="flex items-end"><button class="button-primary" type="button" disabled={writeBusy} onclick={() => void writeSchema()}>Register schema (registrar)</button></div>
+                {/if}
+              </div>
+            </div>
+
+            {#if writeError}<div class="notice notice-error mt-4">{writeError}</div>{/if}
+            {#if writeResult}
+              <div class="panel mt-4 p-4">
+                <div class="flex flex-wrap items-center gap-2">
+                  <div class="metric-label">Result</div>
+                  <span class={writeResult.status === 'APPLIED' ? 'pill pill-ok' : 'pill pill-bad'}>{writeResult.status}</span>
+                  <span class="pill">height {writeResult.height}</span>
+                  {#if writeResult.status !== 'APPLIED'}<span class="pill pill-bad">error code {writeResult.errorCode}</span>{/if}
+                  <span class="text-xs text-[#b7cbc4]">message <CopyValue value={writeResult.messageId} width={24} /></span>
+                </div>
+                {#each writeResult.results as row}
+                  <div class="mt-2 text-xs text-[#b7cbc4]"><span class="mono">{row.collection}/{row.key}</span> revision {row.revision} {row.status}</div>
+                {/each}
+                {#if writeResult.listSha256}
+                  <div class="mt-2 text-xs text-[#b7cbc4]">replayed {writeResult.mutationCount} write(s) to height {writeResult.replayedHeight}; {writeResult.setCount} set bit(s), hash <CopyValue value={writeResult.listSha256} width={32} /></div>
+                {/if}
+              </div>
+            {/if}
           {/if}
         </section>
 
