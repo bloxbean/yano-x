@@ -301,6 +301,7 @@ grep -q '^PASS command=role-lifecycle actor=recovery-probe revision=3 ' \
   "$ROOT/post-restart-lifecycle.out" || fail 'retained lifecycle rerun is not idempotent'
 assert_role_api post-restart
 
+qualification_diagnostics
 demo stop >/dev/null
 PREPARED=false
 [ -z "$(docker ps -a --filter "label=com.docker.compose.project=$PROJECT_NAME" -q)" ] \

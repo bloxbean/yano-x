@@ -42,6 +42,8 @@ for required in ('Bounded role anchor/status diagnostics before cleanup (success
 role_cleanup = role_source[role_source.index("\ncleanup() {"):role_source.index("trap cleanup EXIT INT TERM")]
 if role_cleanup.index("qualification_diagnostics") > role_cleanup.index("demo stop"):
     raise SystemExit("role failure diagnostics must run before stopping the containers")
+if '\nqualification_diagnostics\ndemo stop >/dev/null\n' not in role_source:
+    raise SystemExit("role success diagnostics must run before explicit cleanup bypasses the exit trap")
 
 for required in (
         '[ "${YANO_RUN_DEPLOYMENT_PARITY_E2E:-false}" = true ]',
