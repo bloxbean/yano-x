@@ -132,6 +132,14 @@ failure_diagnostics() {
         '{node:$node,chainId,tipHeight,stateRoot,anchor,sequencer,peers}' \
         "$ROOT/failure-node$node.json" >&2
     fi
+    if bounded_get "http://127.0.0.1:$port/api/v1/node/status" \
+        "$ROOT/failure-node$node-l1.json"; then
+      jq -c --argjson node "$node" '{node:$node,localTipSlot,localTipBlockNumber,
+        remoteTipSlot,blocksProcessed,runtimeDegraded,peerState,peerRecoveryReason,
+        peerApplicationProgressAgeMillis,peerBodyFetchInProgress,
+        peerBodyFetchInProgressAgeMillis,peerKeepAliveAgeMillis,upstreamValidationLevel}' \
+        "$ROOT/failure-node$node-l1.json" >&2
+    fi
   done
   dc logs --no-color --since 30m yano-0 yano-1 yano-2 2>&1 \
     | awk '/Script-anchor|script-anchor|anchor identity|anchoring configured/' \

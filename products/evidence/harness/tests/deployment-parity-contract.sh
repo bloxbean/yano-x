@@ -32,6 +32,8 @@ if 'export DEMO_DEVNET_BLOCK_TIME_MILLIS=10000' not in role_source:
     raise SystemExit("role workflow must pace its devnet producer for slow CI followers")
 
 for required in ('Bounded role anchor/status diagnostics before cleanup:',
+                 'peerApplicationProgressAgeMillis,peerBodyFetchInProgress',
+                 '/api/v1/node/status',
                  'logs --no-color --since 30m yano-0 yano-1 yano-2',
                  'if [ "$status" -ne 0 ]; then failure_diagnostics; fi'):
     if required not in role_source:
@@ -67,6 +69,9 @@ for required in (
         'EXPECTED_STATE_MACHINE=role-evidence',
         'EXPECTED_WORKFLOW_CHECK=COMPOSITE_EVIDENCE_RELEASE_WORKFLOW',
         'Bounded script-anchor adoption diagnostics',
+        'Bounded L1 sync/recovery diagnostics (no validation settings changed):',
+        'peerApplicationProgressAgeMillis,peerBodyFetchInProgress',
+        '/api/v1/node/status',
         'logs --no-color --since 30m yano-0 yano-1 yano-2',
         'tail -n 180 >&2',
         'EXPECTED_WORKFLOW_CHECK=ROLE_GATED_EVIDENCE_RELEASE_WORKFLOW',
