@@ -82,8 +82,14 @@ public final class ObservationQualificationMembership {
             }
             JsonNode value = JSON.readTree(history.toFile());
             JsonNode manifest = JSON.readTree(root.resolve("qualification.json").toFile());
+            Map<String, String> pinned = new LinkedHashMap<>();
+            manifest.path("chainSettings").properties()
+                    .forEach(entry -> pinned.put(entry.getKey(), entry.getValue().asText()));
+            String genesis = HEX.formatHex(ObservationQualificationConfig.effectiveIdentity(pinned).genesisId());
             if (!ObservationQualificationConfig.CHAIN_ID.equals(value.path("chainId").asText())
-                    || !manifest.path("effectiveGenesisId").asText().equals(value.path("genesisId").asText())) {
+                    || !genesis.equals(value.path("genesisId").asText())
+                    || manifest.has("effectiveGenesisId")
+                        && !genesis.equals(manifest.path("effectiveGenesisId").asText())) {
                 throw new IllegalArgumentException("Membership trust pin identifies another fixture");
             }
             List<Epoch> epochs = new ArrayList<>();
@@ -104,7 +110,10 @@ public final class ObservationQualificationMembership {
     }
 
     public static void main(String[] args) throws Exception {
-        if (args.length != 1) throw new IllegalArgumentException("Expected qualification directory");
+        boolean recover = args.length == 2 && "recover-add-approvals".equals(args[1]);
+        if (args.length != 1 && !recover) {
+            throw new IllegalArgumentException("Expected qualification directory, optional recover-add-approvals");
+        }
         Path root = Path.of(args[0]).toRealPath();
         JsonNode manifest = JSON.readTree(root.resolve("qualification.json").toFile());
         Map<String, String> settings = new LinkedHashMap<>();
@@ -129,7 +138,9 @@ public final class ObservationQualificationMembership {
                     .chainId(ObservationQualificationConfig.CHAIN_ID).apiKey(apiKey).build());
         }
         long initial = clients.getFirst().status().path("tipHeight").asLong();
-        if (initial != 53) throw new IllegalStateException("This bounded drill starts after round 5 at height 53");
+        if (recover ? initial < 54 || initial >= 62 : initial != 53) {
+            throw new IllegalStateException("Requires height 53, or explicit add-approval recovery before round 6");
+        }
         byte[] latest = null;
         for (var client : clients) {
             var status = client.status();
@@ -146,20 +157,32 @@ public final class ObservationQualificationMembership {
             }
             latest = certified;
         }
-        byte[] seed = new byte[32];
-        new SecureRandom().nextBytes(seed);
-        String spare = HEX.formatHex(KeyGenUtil.getPublicKeyFromPrivateKey(seed));
-        Arrays.fill(seed, (byte) 0); // The absent sixth member never signs; no new operational key is installed.
         List<Epoch> epochs = new ArrayList<>(List.of(new Epoch(0, original)));
         selectMembers(epochs, original, initial);
-        Files.writeString(root.resolve("membership-plan.json"), JSON.writeValueAsString(Map.of(
-                "initialHeight", initial, "sparePublicKey", spare, "scope", "5 -> 6 -> 5, q=4 f=1")),
-                StandardOpenOption.CREATE_NEW);
-        writeHistory(root, epochs, genesis, true);
+        String spare;
+        if (recover) {
+            JsonNode plan = JSON.readTree(root.resolve("membership-plan.json").toFile());
+            JsonNode history = JSON.readTree(root.resolve("membership-epochs.json").toFile());
+            spare = plan.path("sparePublicKey").asText();
+            if (plan.path("initialHeight").asLong(-1) != 53 || !spare.matches("[0-9a-f]{64}")
+                    || original.contains(spare) || history.path("epochs").size() != 1
+                    || !membersAt(root, original, initial).equals(original.stream().sorted().toList())) {
+                throw new IllegalStateException("Recovery requires the original pending add plan and trust pins");
+            }
+        } else {
+            byte[] seed = new byte[32];
+            new SecureRandom().nextBytes(seed);
+            spare = HEX.formatHex(KeyGenUtil.getPublicKeyFromPrivateKey(seed));
+            Arrays.fill(seed, (byte) 0); // The absent sixth member never signs; no operational key is installed.
+            Files.writeString(root.resolve("membership-plan.json"), JSON.writeValueAsString(Map.of(
+                    "initialHeight", initial, "sparePublicKey", spare, "scope", "5 -> 6 -> 5, q=4 f=1")),
+                    StandardOpenOption.CREATE_NEW);
+            writeHistory(root, epochs, genesis, true);
+        }
         try (HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build()) {
             for (boolean add : List.of(true, false)) {
                 long approvalHeight = transition(root, clients, http, port, apiKey, original, spare, add,
-                        genesis, consensus, profile.digest());
+                        genesis, consensus, profile.digest(), recover && add);
                 List<String> updated = new ArrayList<>(original);
                 if (add) updated.add(spare);
                 epochs.add(new Epoch(approvalHeight + 10, updated));
@@ -179,10 +202,10 @@ public final class ObservationQualificationMembership {
 
     private static long transition(Path root, List<AppChainClient> clients, HttpClient http, int port,
                                    String apiKey, List<String> original, String spare, boolean add,
-                                   byte[] genesis, byte[] consensus, byte[] profile) throws Exception {
-        long start = clients.getFirst().status().path("tipHeight").asLong();
+                                   byte[] genesis, byte[] consensus, byte[] profile, boolean recover) throws Exception {
+        long start = recover ? 53 : clients.getFirst().status().path("tipHeight").asLong();
         byte[] expected = command(add, HEX.parseHex(spare));
-        for (int node = 0; node < 4; node++) {
+        for (int node = 0; !recover && node < 4; node++) {
             exchange(http, port + node, apiKey, "admin/members/" + (add ? "add" : "remove"),
                     JSON.writeValueAsString(Map.of("publicKey", spare)));
         }

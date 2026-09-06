@@ -2,6 +2,7 @@ package com.bloxbean.cardano.yano.appchain.devtools;
 
 import com.bloxbean.cardano.yano.appchain.config.AppChainConfigParser;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -10,6 +11,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.util.LinkedHashMap;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 import java.util.jar.JarEntry;
 import java.util.jar.JarOutputStream;
@@ -66,6 +70,24 @@ class ObservationQualificationConfigTest {
                 target, host, plugins, "fixture-version", 18070, 18337))
                 .isInstanceOf(FileAlreadyExistsException.class);
         assertThat(Files.readString(target.resolve("qualification.json"))).isEqualTo(manifestText);
+
+        // Retained manifests may predate the redundant effectiveGenesisId field.
+        // Membership pins must derive identity from the same original chain settings.
+        var validators = new ArrayList<String>();
+        manifest.path("validators").forEach(key -> validators.add(key.asText()));
+        var mapper = new ObjectMapper();
+        Files.writeString(target.resolve("membership-epochs.json"), mapper.writeValueAsString(Map.of(
+                "chainId", ObservationQualificationConfig.CHAIN_ID,
+                "genesisId", manifest.path("effectiveGenesisId").asText(),
+                "epochs", List.of(new ObservationQualificationMembership.Epoch(0, validators)))));
+        ((ObjectNode) manifest).remove("effectiveGenesisId");
+        Files.writeString(target.resolve("qualification.json"), mapper.writeValueAsString(manifest));
+        assertThat(ObservationQualificationMembership.membersAt(target, validators, 53))
+                .containsExactlyElementsOf(validators.stream().sorted().toList());
+        ((ObjectNode) manifest).put("effectiveGenesisId", "00".repeat(32));
+        Files.writeString(target.resolve("qualification.json"), mapper.writeValueAsString(manifest));
+        assertThatThrownBy(() -> ObservationQualificationMembership.membersAt(target, validators, 53))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test

@@ -153,6 +153,16 @@ cadence proof contexts select its height-specific members independently of node
 responses. Preserve the plan, approval proof packages, epoch history and result.
 An interrupted drill is not automatically restarted or reset.
 
+For an interruption after submitting the initial add commands but before
+recording their approval proofs, `ObservationQualificationMembership <directory>
+recover-add-approvals` is an explicit bounded recovery. It requires all nodes
+converged at height 54..61 with no open round, the original height-53 plan and
+only the initial membership trust epoch. It verifies already-finalized approvals
+from height 54 without resubmitting commands or generating another member key.
+Existing proof files are never overwritten. Other interruption points still
+require separate reconciliation. The effective genesis is always derived from
+the pinned chain settings; a redundant manifest identity, if present, must agree.
+
 ## Directed app-peer partitions
 
 `ObservationQualificationProxy <proxy-base> <node-server-base>` opens 20 bounded
