@@ -23,6 +23,14 @@ on:
         description: Optional staged Yano Maven repository (falls back to YANO_MAVEN_REPOSITORY_URL)
         required: false
         type: string
+      yano_inputs_run_id:
+        description: Optional successful bloxbean/yano staging run containing exact Maven/JVM inputs
+        required: false
+        type: string
+      yano_inputs_commit:
+        description: Independently pinned full host commit for the staging run (required with run ID)
+        required: false
+        type: string
   schedule:
     - cron: '23 3 * * 1'
   push:
@@ -42,11 +50,14 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 env:
   YANO_VERSION: ${{ inputs.yano_version || vars.YANO_VERSION }}
   YANO_JVM_DIST_URL: ${{ inputs.yano_jvm_dist_url || vars.YANO_JVM_DIST_URL }}
   YANO_MAVEN_REPOSITORY_URL: ${{ inputs.yano_maven_repository_url || vars.YANO_MAVEN_REPOSITORY_URL }}
+  YANO_INPUTS_RUN_ID: ${{ inputs.yano_inputs_run_id }}
+  YANO_INPUTS_COMMIT: ${{ inputs.yano_inputs_commit }}
 
 jobs:
   commit-build:
@@ -64,7 +75,11 @@ jobs:
           java-version: '25'
           distribution: 'temurin'
           cache: 'gradle'
+      - name: Test pinned input preparation
+        run: bash .github/scripts/tests/prepare-yano-inputs-test.sh
       - name: Prepare exact Yano build inputs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: bash .github/scripts/prepare-yano-inputs.sh
       - name: Stage Yano X publications in the isolated build repository
         run: ./gradlew publishAllPublicationsToInternalRepository -PskipSigning=true --stacktrace
@@ -91,6 +106,8 @@ jobs:
           distribution: 'temurin'
           cache: 'gradle'
       - name: Prepare exact Yano build inputs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: bash .github/scripts/prepare-yano-inputs.sh
       - name: Stage Yano X publications in the isolated build repository
         run: ./gradlew publishAllPublicationsToInternalRepository -PskipSigning=true --stacktrace
@@ -114,6 +131,8 @@ jobs:
           distribution: 'temurin'
           cache: 'gradle'
       - name: Prepare exact Yano build inputs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: bash .github/scripts/prepare-yano-inputs.sh
       - name: Stage Yano X publications in the isolated build repository
         run: ./gradlew publishAllPublicationsToInternalRepository -PskipSigning=true --stacktrace
@@ -139,6 +158,8 @@ jobs:
           distribution: 'temurin'
           cache: 'gradle'
       - name: Prepare exact Yano build inputs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: bash .github/scripts/prepare-yano-inputs.sh
       - name: Stage Yano X publications in the isolated build repository
         run: ./gradlew publishAllPublicationsToInternalRepository -PskipSigning=true --stacktrace
