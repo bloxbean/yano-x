@@ -96,6 +96,14 @@ packaged tool classpath shown above. It requires five ready nodes at one height,
 before the next round opens, and verifies the preceding certified result first.
 It never resets keys/state or resumes an already open, partially signed round.
 
+An interrupted opening can be resumed only through the explicit one-round mode
+`ObservationQualificationCadence <directory> 1 recover-open-round`. All five
+nodes must be at exactly the scheduled opening height with exactly one open
+round. Their independently pinned certified round proofs must agree before
+signing. Existing honest journals remain authoritative; conflicting previous
+signatures fail closed. Recovery is marked in the evidence, and an existing
+evidence file is never overwritten. Later-height recovery needs separate review.
+
 The repeating four-round plan withholds one source, splits that source's
 reporters below quorum, delays the fourth reporter by one committed height,
 then submits a complete report set. The first two must produce authenticated
@@ -128,3 +136,35 @@ qualification cases. A timeout
 preserves partial state/evidence for diagnosis and is not a passing result.
 Checkpoint waits are bounded at five minutes to allow multiple consensus views
 during L1 catch-up; this changes no report deadline or protocol acceptance rule.
+
+## Governed membership drill
+
+`ObservationQualificationMembership <directory>` is a bounded, create-new drill
+starting after round 5 at height 53. It adds an absent sixth test member with
+four independently signed governance approvals, preserving `q=4,f=1`, runs two
+rounds across activation, removes that member with four approvals, and runs two
+more rounds. No sixth node or operational signing key is installed.
+
+Before recording activation at approval height + 10, the tool verifies each
+expected command's full signed envelope and its inclusion against certified
+block-message-root records on all five nodes. The resulting
+`membership-epochs.json` is a caller-owned trust pin, like `qualification.json`;
+cadence proof contexts select its height-specific members independently of node
+responses. Preserve the plan, approval proof packages, epoch history and result.
+An interrupted drill is not automatically restarted or reset.
+
+## Directed app-peer partitions
+
+`ObservationQualificationProxy <proxy-base> <node-server-base>` opens 20 bounded
+loopback TCP routes for a five-node fixture. Source `i` connects to target `j`
+through port `proxy-base + 5*i + j` (omit `i == j`), forwarding only to the local
+node server port `node-server-base + j`. Check both ranges before starting, and
+change only the fixture's app-peer addresses; leave the public L1 upstream alone.
+
+The process reads `status`, `partition 4`, `partition 3,4`, `heal`, or `quit`
+from its retained control terminal. A partition closes existing links in both
+directions and rejects reconnections involving isolated nodes. Healing permits
+normal peer reconnection. It bounds concurrent tunnels at 80 and exposes byte
+and rejection counts without inspecting or logging payloads. Preserve its control
+transcript alongside node logs and independently certified before/after roots.
+This is a network harness, not a production plugin or a validation override.

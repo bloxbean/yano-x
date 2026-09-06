@@ -60,15 +60,21 @@ public final class ObservationQualificationCadence {
         return scenario == Scenario.SOURCE_UNAVAILABLE || scenario == Scenario.SOURCE_DISAGREEMENT;
     }
 
+    static boolean validStartingBoundary(long height, long round, long openRounds, boolean recover) {
+        long opening = Math.addExact(2, Math.multiplyExact(10, round));
+        return recover ? height == opening && openRounds == 1 : height < opening && openRounds == 0;
+    }
+
     public static void main(String[] args) throws Exception {
         if (args.length < 2 || args.length > 3) {
-            throw new IllegalArgumentException("Expected directory, round count, optional equivocating-reporter");
+            throw new IllegalArgumentException("Expected directory, round count, optional explicit fault/recovery mode");
         }
         int count = Integer.parseInt(args[1]);
         if (count < 1 || count > 99) throw new IllegalArgumentException("Round count must be 1..99");
-        boolean equivocating = args.length == 3;
-        if (equivocating && (!"equivocating-reporter".equals(args[2]) || count != 1)) {
-            throw new IllegalArgumentException("Explicit equivocating-reporter mode requires exactly one round");
+        boolean equivocating = args.length == 3 && "equivocating-reporter".equals(args[2]);
+        boolean recovering = args.length == 3 && "recover-open-round".equals(args[2]);
+        if (args.length == 3 && ((!equivocating && !recovering) || count != 1)) {
+            throw new IllegalArgumentException("Explicit fault/recovery mode requires exactly one round");
         }
         Path root = Path.of(args[0]).toRealPath();
         var manifest = JSON.readTree(root.resolve("qualification.json").toFile());
@@ -98,7 +104,7 @@ public final class ObservationQualificationCadence {
                     .apiKey(secrets.getProperty("api-key")).build());
         }
         var previous = ObservationResult.decode(clients.getFirst().query("latest", new byte[0]).payload());
-        verifyResult(clients, previous, members, genesis, consensus, profile);
+        verifyResult(root, clients, previous, members, genesis, consensus, profile);
         long firstRound = previous.roundNumber() + 1;
         long lastRound = Math.addExact(firstRound, count - 1L);
         scenario(lastRound);
@@ -107,9 +113,9 @@ public final class ObservationQualificationCadence {
             var status = client.status();
             if (!status.path("running").asBoolean() || !status.path("genericObservations").path("ready").asBoolean()
                     || status.path("tipHeight").asLong() != initialHeight
-                    || initialHeight >= 2 + 10 * firstRound
-                    || status.path("genericObservations").path("openRounds").asLong() != 0) {
-                throw new IllegalStateException("Requires converged, ready nodes before the next round opens");
+                    || !validStartingBoundary(initialHeight, firstRound,
+                            status.path("genericObservations").path("openRounds").asLong(), recovering)) {
+                throw new IllegalStateException("Requires converged, ready nodes at the explicit starting boundary");
             }
         }
         Path evidence = root.resolve("cadence-rounds-" + firstRound + "-" + lastRound + ".jsonl");
@@ -119,9 +125,17 @@ public final class ObservationQualificationCadence {
             for (long height = clients.getFirst().status().path("tipHeight").asLong() + 1;
                  height <= opening; height++) ObservationQualificationBaseline.advance(clients, height);
             byte[] subscription = previous.subscriptionId();
+            List<String> roundMembers = ObservationQualificationMembership.membersAt(root, members, opening);
             var round = ObservationRound.decode(ObservationQualificationBaseline.prove(clients.getFirst(),
-                    ObservationKeys.round(subscription, number), opening, members, genesis, consensus, profile.digest()));
-            if (round.memberCount() != 5 || round.finalityQuorum() != 4 || round.maxByzantineMembers() != 1
+                    ObservationKeys.round(subscription, number), opening, roundMembers, genesis, consensus, profile.digest()));
+            for (var client : clients) {
+                byte[] proofValue = ObservationQualificationBaseline.prove(client,
+                        ObservationKeys.round(subscription, number), opening, roundMembers, genesis, consensus, profile.digest());
+                if (!Arrays.equals(proofValue, round.encode())) {
+                    throw new IllegalStateException("Certified opening rounds differ");
+                }
+            }
+            if (round.memberCount() != roundMembers.size() || round.finalityQuorum() != 4 || round.maxByzantineMembers() != 1
                     || round.roundNumber() != number || round.openingHeight() != opening) {
                 throw new IllegalStateException("Authenticated round changed the pinned quorum/schedule");
             }
@@ -195,10 +209,11 @@ public final class ObservationQualificationCadence {
             if (result.status() != expectedStatus || (expectedStatus == ObservationResultStatus.VALUE
                     && (!Arrays.equals(result.value(), ObservationFixedPoint.parse("0.501000", 6).encode())
                         || result.sourceCount() != 3))) throw new IllegalStateException("Unexpected fault outcome");
-            String stateRoot = verifyResult(clients, result, members, genesis, consensus, profile);
+            String stateRoot = verifyResult(root, clients, result, members, genesis, consensus, profile);
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("round", number);
             row.put("scenario", scenarioName);
+            row.put("explicitOpeningRecovery", recovering);
             row.put("status", result.status().name());
             row.put("height", result.finalizedHeight());
             row.put("resultId", HEX.formatHex(result.resultId()));
@@ -234,12 +249,14 @@ public final class ObservationQualificationCadence {
                 report.freshnessAnchorType(), report.freshnessAnchor(), signature);
     }
 
-    private static String verifyResult(List<AppChainClient> clients, ObservationResult result, List<String> members,
+    private static String verifyResult(Path directory, List<AppChainClient> clients,
+                                       ObservationResult result, List<String> members,
                                        byte[] genesis, byte[] consensus, ObservationProfileV1 profile) {
         String root = null;
         for (var client : clients) {
             byte[] value = ObservationQualificationBaseline.prove(client, LATEST, result.finalizedHeight(),
-                    members, genesis, consensus, profile.digest());
+                    ObservationQualificationMembership.membersAt(directory, members, result.finalizedHeight()),
+                    genesis, consensus, profile.digest());
             if (!Arrays.equals(value, result.encode())) throw new IllegalStateException("Certified results differ");
             var block = client.block(result.finalizedHeight()).orElseThrow();
             if (root != null && !root.equals(block.stateRootHex())) throw new IllegalStateException("Roots differ");

@@ -12,6 +12,17 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ObservationQualificationCadenceTest {
     @Test
+    void recoveryRequiresExactlyTheOpeningBoundaryAndOneOpenRound() {
+        assertThat(ObservationQualificationCadence.validStartingBoundary(42, 4, 1, true)).isTrue();
+        assertThat(ObservationQualificationCadence.validStartingBoundary(41, 4, 0, false)).isTrue();
+        assertThat(ObservationQualificationCadence.validStartingBoundary(42, 4, 1, false)).isFalse();
+        assertThat(ObservationQualificationCadence.validStartingBoundary(41, 4, 1, true)).isFalse();
+        assertThat(ObservationQualificationCadence.validStartingBoundary(43, 4, 1, true)).isFalse();
+        assertThat(ObservationQualificationCadence.validStartingBoundary(42, 4, 0, true)).isFalse();
+        assertThat(ObservationQualificationCadence.validStartingBoundary(42, 4, 2, true)).isFalse();
+    }
+
+    @Test
     void adversarialModeSignsTwoConflictingClaimsForOnlyOnePinnedSubject() {
         byte[] seed = new byte[32];
         seed[0] = 17;

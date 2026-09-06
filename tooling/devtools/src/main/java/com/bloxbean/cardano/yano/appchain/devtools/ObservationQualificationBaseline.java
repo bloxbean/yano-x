@@ -151,7 +151,7 @@ public final class ObservationQualificationBaseline {
                                 byte[] genesis, byte[] consensus, byte[] observationProfile) {
         // Derive context independently from pinned fixture inputs, never from the proof's own header.
         byte[] context = new ConsensusContext(3, ObservationQualificationConfig.CHAIN_ID, genesis, height,
-                new ConsensusQuorum(5, 4, 1), members.stream().map(HEX::parseHex).toList(), consensus,
+                new ConsensusQuorum(members.size(), 4, 1), members.stream().map(HEX::parseHex).toList(), consensus,
                 noObserverProfileDigest(1), observationProfile).digest();
         var proof = client.proof(key, height).orElseThrow();
         var trust = new ProofVerifier.FinalityTrustContext(ObservationQualificationConfig.CHAIN_ID,
