@@ -15,6 +15,13 @@
     type BundleCheck,
     type DisclosureOutcome
   } from '$lib/passport';
+  import {
+    certificationProgress,
+    deriveWorkflow,
+    nextStep,
+    type Approval,
+    type WorkflowStep
+  } from '$lib/workflow';
   import CopyValue from '$lib/components/CopyValue.svelte';
   import type {
     CertificationRequestDocument,
@@ -33,14 +40,6 @@
     { id: 'passport', code: 'PP', label: 'Passport' },
     { id: 'operator', code: 'OP', label: 'Operator' },
     { id: 'about', code: '??', label: 'What this proves' }
-  ];
-  const forms: Array<{ id: OperatorForm; label: string }> = [
-    { id: 'register', label: 'Register product' },
-    { id: 'version', label: 'Publish version' },
-    { id: 'status', label: 'Status and revocation' },
-    { id: 'claim', label: 'Attach claim' },
-    { id: 'event', label: 'Append event' },
-    { id: 'certify', label: 'Certification round' }
   ];
 
   let runtimeConfig: RuntimeConfig = DEFAULT_RUNTIME_CONFIG;
@@ -108,7 +107,20 @@
   let requestText = '';
   let requestUrl = '';
 
+  // Guided lifecycle: what the portal already shows for this product, and where a certification
+  // round stands in this browser session. Guidance only; the chain authorizes every write.
+  let operatorView: PassportView | null = null;
+  let progressBusy = false;
+  let progressError = '';
+  let progressLoaded = false;
+  let approvals: Approval[] = [];
+  let certificateApplied = false;
+
   $: selectedActor = actors.find((actor) => actor.actorId === actorId) ?? null;
+  $: steps = deriveWorkflow(operatorView, actors, actorId);
+  $: suggestedStep = nextStep(steps);
+  $: activeStep = steps.find((step) => step.id === activeForm) ?? null;
+  $: certProgress = certificationProgress(!!parsedRequest, approvals, certificateApplied);
   $: disclosurePresent = !!bundle && bundle.answers.some((answer) => answer.collection === 'claims'
     && !!answer.entry && answer.entry.valueHex.length > 0);
   $: digitalLink = view && portal ? (digitalLinkPath(view.productId) ? `${portal.baseUrl}${digitalLinkPath(view.productId)}` : '') : '';
@@ -253,11 +265,49 @@
     result = null;
     try {
       result = await action();
+      await loadProgress();
     } catch (cause) {
       resultError = failureMessage(cause, 'The gateway refused the request');
     } finally {
       formBusy = false;
     }
+  }
+
+  /**
+   * Reads the product's public passport from the portal to show where the lifecycle stands.
+   * A product with no passport yet is not an error: it means step one has not run.
+   */
+  async function loadProgress() {
+    const trimmed = productId.trim();
+    if (!trimmed) {
+      operatorView = null;
+      progressLoaded = false;
+      return;
+    }
+    progressBusy = true;
+    progressError = '';
+    try {
+      const api = new PortalApi(normalizeServiceUrl(portalUrl, 'portal'));
+      operatorView = await api.passport(parseProductInput(trimmed));
+      progressLoaded = true;
+    } catch (cause) {
+      const message = failureMessage(cause, '');
+      if (/404|not found|absent/i.test(message)) {
+        operatorView = null;
+        progressLoaded = true;
+      } else {
+        progressError = failureMessage(cause, 'The portal could not be reached');
+      }
+    } finally {
+      progressBusy = false;
+    }
+  }
+
+  /** Moves the guide to a step and clears the previous result. */
+  function openStep(step: WorkflowStep) {
+    activeForm = step.id;
+    result = null;
+    resultError = '';
   }
 
   async function pickVersionFile(event: Event) {
@@ -358,17 +408,35 @@
   }
 
   function decide(approve: boolean) {
+    const decidingAs = selectedActor;
     return submit(async () => {
       if (!parsedRequest) throw new Error('Paste a dpp-certification-request-v1 document');
-      return (await gateway!.decide(approve, actorId, parsedRequest)) as unknown as Record<string, unknown>;
+      const decision = await gateway!.decide(approve, actorId, parsedRequest);
+      if (approve && decidingAs) {
+        approvals = [
+          ...approvals.filter((entry) => entry.actorId !== decidingAs.actorId),
+          { actorId: decidingAs.actorId, organizationId: decidingAs.organizationId ?? '' }
+        ];
+      }
+      return decision as unknown as Record<string, unknown>;
     });
   }
 
   function apply() {
     return submit(async () => {
       if (!parsedRequest) throw new Error('Paste a dpp-certification-request-v1 document');
-      return gateway!.apply(parsedRequest);
+      const applied = await gateway!.apply(parsedRequest);
+      certificateApplied = true;
+      return applied;
     });
+  }
+
+  /** A new certification round starts with no approvals collected in this session. */
+  function resetCertificationRound() {
+    approvals = [];
+    certificateApplied = false;
+    requestText = '';
+    refreshRequestUrl();
   }
 
   function parseRequest(text: string): CertificationRequestDocument | null {
@@ -397,6 +465,17 @@
 
   function resultText(receipt: unknown): string {
     return JSON.stringify(receipt, null, 2);
+  }
+
+  function stepPill(status: string): string {
+    if (status === 'DONE') return 'pill pill-ok';
+    if (status === 'NEEDS_ROLE') return 'pill pill-warn';
+    return 'pill';
+  }
+
+  function stepStatusText(step: WorkflowStep): string {
+    if (step.status === 'NEEDS_ROLE') return `NEEDS ${step.role.toUpperCase()}`;
+    return step.status;
   }
 </script>
 
@@ -631,15 +710,80 @@
               </select>
               <button class="button-quiet min-h-0 py-2" type="button" onclick={disconnectGateway}>Disconnect</button>
             </div>
-            <div class="mt-4 flex flex-wrap gap-1">
-              {#each forms as form}
-                <button class="nav-item {activeForm === form.id ? 'active' : ''}" type="button" onclick={() => { activeForm = form.id; result = null; resultError = ''; }}>{form.label}</button>
-              {/each}
+            <div class="panel mt-4 p-4">
+              <div class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
+                <div>
+                  <label class="text-xs font-semibold text-[#a9beb7]" for="op-product">Product id</label>
+                  <input id="op-product" class="field mono mt-2" bind:value={productId}
+                         oninput={() => { progressLoaded = false; operatorView = null; }} />
+                </div>
+                <div class="flex items-end">
+                  <button class="button-secondary" type="button" disabled={progressBusy || !productId.trim()}
+                          onclick={() => void loadProgress()}>{progressBusy ? 'Reading…' : 'Read progress'}</button>
+                </div>
+              </div>
+              <p class="mt-3 text-xs leading-5 text-[#8ea8a0]">
+                The guide reads this product's public passport from the portal and shows what is already on
+                chain, which step comes next, and which role each step needs. It is guidance only: the chain
+                authorizes every write by the actor's signature under its policy.
+              </p>
+              {#if progressError}<div class="notice notice-error mt-3">{progressError}</div>{/if}
+              {#if progressLoaded && !operatorView}
+                <div class="notice notice-warn mt-3 text-xs">No passport on chain for this product id yet. Start with step 1.</div>
+              {/if}
+              {#if operatorView}
+                <div class="mt-3 flex flex-wrap items-center gap-2">
+                  <span class={pillFor(operatorView.status)}>{operatorView.status}</span>
+                  <span class="pill">height {operatorView.height}</span>
+                  <span class="pill">{operatorView.versions.length} version(s)</span>
+                  <span class="pill">{operatorView.claims.length} claim(s)</span>
+                  <span class="pill">{operatorView.events.length} event(s)</span>
+                  <span class="pill">{operatorView.certificates.length} certificate(s)</span>
+                </div>
+              {/if}
             </div>
 
-            <div class="panel mt-4 p-4">
-              <div class="grid gap-3 sm:grid-cols-2">
-                <div class="sm:col-span-2"><label class="text-xs font-semibold text-[#a9beb7]" for="op-product">Product id</label><input id="op-product" class="field mono mt-2" bind:value={productId} /></div>
+            <ol class="mt-3 grid gap-2">
+              {#each steps as step}
+                <li class="panel p-4 {activeForm === step.id ? 'border-[#3f6f62]' : ''}">
+                  <div class="flex flex-wrap items-center gap-2">
+                    <span class="metric-label">Step {step.order}</span>
+                    <span class="text-sm font-semibold text-[#e6f2ee]">{step.label}</span>
+                    <span class={stepPill(step.status)}>{stepStatusText(step)}</span>
+                    {#if step.optional}<span class="pill">optional</span>{/if}
+                    <span class="pill mono">role {step.role}</span>
+                    {#if suggestedStep?.id === step.id}<span class="pill pill-ok">do this next</span>{/if}
+                    <button class="button-quiet ml-auto min-h-0 py-1" type="button" onclick={() => openStep(step)}>
+                      {activeForm === step.id ? 'Showing' : 'Open'}
+                    </button>
+                  </div>
+                  <div class="mt-2 text-xs leading-5 text-[#8ea8a0]">{step.purpose}</div>
+                  <div class="mt-1 text-xs leading-5 text-[#b7cbc4]">
+                    {#if step.detail}<span class="mono">{step.detail}</span>. {/if}{step.hint}
+                  </div>
+                  {#if step.status === 'NEEDS_ROLE' && step.candidates.length}
+                    <div class="mt-2 flex flex-wrap gap-2">
+                      {#each step.candidates as candidate}
+                        <button class="button-quiet min-h-0 py-1" type="button"
+                                onclick={() => { actorId = candidate; openStep(step); }}>Sign as {candidate}</button>
+                      {/each}
+                    </div>
+                  {/if}
+                </li>
+              {/each}
+            </ol>
+
+            <div class="panel mt-3 p-4">
+              <div class="metric-label">{activeStep ? `Step ${activeStep.order}: ${activeStep.label}` : 'Form'}</div>
+              {#if activeStep && activeStep.status === 'NEEDS_ROLE'}
+                <div class="notice notice-warn mt-3 text-xs">
+                  {actorId} does not hold the {activeStep.role} role. The chain will refuse this write.
+                  {activeStep.candidates.length ? `Sign as ${activeStep.candidates.join(' or ')}.` : ''}
+                </div>
+              {:else if activeStep && activeStep.status === 'BLOCKED'}
+                <div class="notice notice-warn mt-3 text-xs">{activeStep.hint}</div>
+              {/if}
+              <div class="mt-3 grid gap-3 sm:grid-cols-2">
                 {#if activeForm === 'register'}
                   <div><label class="text-xs font-semibold text-[#a9beb7]" for="op-manufacturer">Manufacturer organization</label><input id="op-manufacturer" class="field mono mt-2" bind:value={manufacturerOrg} placeholder={selectedActor?.organizationId ?? ''} /></div>
                   <div><label class="text-xs font-semibold text-[#a9beb7]" for="op-profile">Passport profile</label><input id="op-profile" class="field mono mt-2" bind:value={passportProfile} /></div>
@@ -676,6 +820,22 @@
                   <div class="sm:col-span-2"><label class="text-xs font-semibold text-[#a9beb7]" for="op-event-note">Note</label><input id="op-event-note" class="field mt-2" bind:value={eventNote} /></div>
                   <div class="flex items-end"><button class="button-primary" type="button" disabled={formBusy} onclick={() => void appendEvent()}>Append event (operator)</button></div>
                 {:else}
+                  <div class="sm:col-span-2">
+                    <div class="flex flex-wrap items-center gap-2">
+                      <span class="metric-label">Round</span>
+                      <span class={certProgress.stage === 'done' ? 'pill pill-ok' : 'pill'}>
+                        {certProgress.stage === 'propose' ? '1. PROPOSE' : certProgress.stage === 'approve' ? '2. APPROVE' : certProgress.stage === 'apply' ? '3. APPLY' : 'APPLIED'}
+                      </span>
+                      {#each certProgress.organizations as organizationId}
+                        <span class="pill pill-ok mono">approved by {organizationId}</span>
+                      {/each}
+                      {#if certProgress.remaining > 0 && certProgress.stage !== 'propose'}
+                        <span class="pill pill-warn">{certProgress.remaining} more organization(s)</span>
+                      {/if}
+                      <button class="button-quiet ml-auto min-h-0 py-1" type="button" onclick={resetCertificationRound}>New round</button>
+                    </div>
+                    <div class="mt-2 text-xs leading-5 text-[#b7cbc4]">{certProgress.message}</div>
+                  </div>
                   <div class="flex items-center gap-2 sm:col-span-2"><input id="op-cert-revoke" type="checkbox" bind:checked={certificateRevoke} /><label class="text-xs text-[#a9beb7]" for="op-cert-revoke">Propose a revocation instead of a new certificate</label></div>
                   <div><label class="text-xs font-semibold text-[#a9beb7]" for="op-cert-id">Certificate id</label><input id="op-cert-id" class="field mono mt-2" bind:value={certificateId} /></div>
                   {#if !certificateRevoke}

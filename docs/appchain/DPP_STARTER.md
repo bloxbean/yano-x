@@ -195,11 +195,18 @@ Portal routes: `GET /passports/{id}[?height=]`, `GET /passports/{id}/proof`,
   timeline, certificates, and a proof-rows table with one row per record. Every record and every
   fact is checked to name the bundle's chain, genesis, height, root, and block, and every key to
   belong to the product; "Download passport bundle" exports what `yano-dpp verify` accepts.
-- **Operator** connects to a gateway with its token (kept in memory) and runs the forms:
-  register, publish a version (the document is hashed in the browser before it is sent), set
-  status or revoke, attach a claim (the disclosure document comes back once for committed
-  claims), append an event, and the certification round with the request document passed
-  between the certifier, the auditors, and whoever applies. Every result shows the receipt.
+- **Operator** connects to a gateway with its token (kept in memory) and guides the lifecycle
+  step by step, so an operator does not need this document open to run a demo. Enter a product id
+  and press *Read progress*: the console reads that product's public passport from the portal and
+  marks each step `DONE`, `READY`, `NEEDS <role>`, or `BLOCKED`, names the role the step needs,
+  says which step to do next, and offers a *Sign as* shortcut to the actors that hold the role.
+  The steps are register, publish a version (the document is hashed in the browser before it is
+  sent), attach a claim (the disclosure document comes back once for committed claims), append an
+  event, run a certification round, and change status or revoke. Certification shows where the
+  round stands: propose, then approve until two distinct organizations have signed, then apply.
+  Every write refreshes the progress, and every result shows the receipt. The guide reflects what
+  the chain already holds; it never authorizes anything, because the chain checks the actor's
+  signature and policy on every write and refuses a step the role does not permit.
 - **What this proves** explains the rows.
 
 ## Proof story, flags, and trust levels
