@@ -53,6 +53,8 @@ class ObservationQualificationConfigTest {
                     .containsKey("observations.profile-cbor-hex");
             assertThat(manifestText).doesNotContain(parsed.signingKeyHex());
             assertThat(config.getProperty("quarkus.http.host")).isEqualTo("127.0.0.1");
+            assertThat(config.stringPropertyNames())
+                    .noneMatch(key -> key.startsWith("yano.upstream.validation."));
             assertThat(config.getProperty("yano.app-chain.api.auth.enabled")).isEqualTo("true");
             assertThat(config.getProperty("yano.plugins.allow-list"))
                     .isEqualTo("com.bloxbean.cardano.yano.appchain.stdlib,fixture-dependency");

@@ -127,9 +127,6 @@ public final class ObservationQualificationConfig {
             properties.setProperty("yano.plugins.allow-list", allowList);
             properties.setProperty("yano.relay.connection.source-port-reuse", "false");
             properties.setProperty("yano.relay.connection.max-connections-per-ip", "100");
-            properties.setProperty("yano.upstream.validation.level", "praos-ledger");
-            properties.setProperty("yano.upstream.validation.body-level", "none");
-            properties.setProperty("yano.upstream.validation.opcert-counter-mode", "compat");
             properties.setProperty("yano.network", "preprod");
             properties.setProperty("yano.remote.host", "preprod-node.world.dev.cardano.org");
             properties.setProperty("yano.remote.port", "30000");

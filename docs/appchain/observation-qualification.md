@@ -50,9 +50,11 @@ Never copy a live RocksDB store or modify the retained source. Start the exact
 host `yano.jar` with `-Dquarkus.profile=preprod` and
 `-Dquarkus.config.locations=<absolute-node-properties>` from that node's directory.
 Record the precise JVM command, artifact hashes, ports, PIDs and log paths.
-The configuration selects `praos-ledger`, body validation `none`, and compatible
-operational-certificate counters. Do not describe this as full Cardano
-transaction/script validation. Verify actual L1 progress and nonce restoration
+The configuration inherits Yano's default validation settings and syncs from
+the Preprod profile's public upstream. It does not select `praos-ledger` or
+override body validation or operational-certificate checks. This is observation
+framework qualification, not qualification of stricter L1 validation modes.
+Verify actual L1 progress and nonce restoration
 before treating a node as part of a Preprod experiment.
 
 Before traffic, compare runtime identities against the public fixture pins,
@@ -83,8 +85,8 @@ uses create-new semantics, and a partial failure preserves state and journals
 for inspection; do not reset the chain to hide a failure.
 
 The baseline is distinct from live-L1 qualification. Record L1 progress and
-validation-start activation separately: historical catch-up before the pinned
-Conway validation checkpoint is not evidence of post-checkpoint validation.
+the effective validation settings separately; successful default-mode sync is
+not evidence that stricter Praos validation has been qualified.
 
 ## Retained fault/cadence rounds
 
