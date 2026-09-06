@@ -1,14 +1,11 @@
 package com.bloxbean.cardano.yano.appchain.client;
 
-import co.nstant.in.cbor.CborEncoder;
-import co.nstant.in.cbor.model.Array;
-import co.nstant.in.cbor.model.ByteString;
-import co.nstant.in.cbor.model.UnicodeString;
-import co.nstant.in.cbor.model.UnsignedInteger;
-import com.bloxbean.cardano.client.crypto.Blake2bUtil;
 import com.bloxbean.cardano.client.crypto.KeyGenUtil;
 import com.bloxbean.cardano.client.crypto.config.CryptoConfiguration;
 import com.bloxbean.cardano.yano.api.appchain.AppBlock;
+import com.bloxbean.cardano.yano.api.appchain.AppBlockHeader;
+import com.bloxbean.cardano.yano.api.appchain.FinalityCert;
+import com.bloxbean.cardano.yano.api.appchain.consensus.ConsensusDigests;
 import com.bloxbean.cardano.vds.core.api.NodeStore;
 import com.bloxbean.cardano.vds.jmt.JellyfishMerkleTree;
 import com.bloxbean.cardano.vds.jmt.JmtProfile;
@@ -16,9 +13,9 @@ import com.bloxbean.cardano.vds.jmt.store.InMemoryJmtStore;
 import com.bloxbean.cardano.vds.mpf.MpfTrie;
 import org.junit.jupiter.api.Test;
 
-import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -74,17 +71,14 @@ class ProofVerifierProfileTest {
         byte[] root = trie.getRootHash();
         byte[] wire = trie.getProofWire(key).orElseThrow();
 
-        AppChainClient.CertifiedBlockHeader unsignedHeader = new AppChainClient.CertifiedBlockHeader(
-                AppBlock.BLOCK_VERSION, 1, "00".repeat(32), 0, "", 1234,
-                "33".repeat(32), Hex.encode(root), "00".repeat(32));
-        byte[] blockHash = blockHash(CHAIN, unsignedHeader);
-        AppChainClient.CertifiedBlockHeader header = new AppChainClient.CertifiedBlockHeader(
-                AppBlock.BLOCK_VERSION, 1, unsignedHeader.prevHashHex(), 0, "", 1234,
-                unsignedHeader.messagesRootHex(), Hex.encode(root), Hex.encode(blockHash));
         byte[] seed = new byte[32];
-        java.util.Arrays.fill(seed, (byte) 7);
+        Arrays.fill(seed, (byte) 7);
         byte[] publicKey = KeyGenUtil.getPublicKeyFromPrivateKey(seed);
-        byte[] signature = CryptoConfiguration.INSTANCE.getSigningProvider().sign(blockHash, seed);
+        AppBlock block = new AppBlock(AppBlock.BLOCK_VERSION, CHAIN, 1, Hex.decode("44".repeat(32)), 2,
+                new byte[32], 0, new byte[0], 1234, Hex.decode("33".repeat(32)), root, List.of(), publicKey,
+                new byte[]{1, 2, 3}, FinalityCert.empty());
+        AppChainClient.CertifiedBlockHeader header = header(block);
+        byte[] signature = CryptoConfiguration.INSTANCE.getSigningProvider().sign(ConsensusDigests.commit(block), seed);
         AppChainClient.FinalityCertificate certificate = new AppChainClient.FinalityCertificate(
                 0, List.of(new AppChainClient.FinalitySignature(
                 Hex.encode(publicKey), Hex.encode(signature))));
@@ -98,16 +92,20 @@ class ProofVerifierProfileTest {
                 AppChainClient.ProofPresence.PRESENT, header, certificate);
         ProofVerifier.FinalityTrustContext trust = new ProofVerifier.FinalityTrustContext(
                 CHAIN, ProofVerifier.MPF_BLAKE2B256_V1, GENESIS,
-                Set.of(Hex.encode(publicKey)), 1);
+                Set.of(Hex.encode(publicKey)), 1, "44".repeat(32));
 
         assertThat(ProofVerifier.verifyCertified(proof, trust)).isTrue();
         assertThat(ProofVerifier.verifyCertified(proof,
                 new ProofVerifier.FinalityTrustContext(CHAIN,
                         ProofVerifier.MPF_BLAKE2B256_V1, "55".repeat(32),
-                        Set.of(Hex.encode(publicKey)), 1))).isFalse();
+                        Set.of(Hex.encode(publicKey)), 1, "44".repeat(32)))).isFalse();
+        assertThat(ProofVerifier.verifyCertified(proof,
+                new ProofVerifier.FinalityTrustContext(CHAIN, ProofVerifier.MPF_BLAKE2B256_V1, GENESIS,
+                        Set.of(Hex.encode(publicKey)), 1, "45".repeat(32)))).isFalse();
         AppChainClient.CertifiedBlockHeader wrongRoot = new AppChainClient.CertifiedBlockHeader(
                 AppBlock.BLOCK_VERSION, 1, header.prevHashHex(), 0, "", 1234, header.messagesRootHex(),
-                "66".repeat(32), header.blockHashHex());
+                "66".repeat(32), header.blockHashHex(), header.view(), header.consensusContextDigestHex(),
+                header.proposerHex(), header.justificationDigestHex());
         AppChainClient.Proof substituted = new AppChainClient.Proof(
                 proof.keyHex(), proof.chainId(), proof.stateRootHex(), proof.proofWireHex(),
                 proof.valueHex(), null, 1L, 1, proof.profile(), proof.backend(),
@@ -115,6 +113,16 @@ class ProofVerifierProfileTest {
                 proof.proofEncodingId(), false, true, 1L,
                 proof.presence(), wrongRoot, certificate);
         assertThat(ProofVerifier.verifyCertified(substituted, trust)).isFalse();
+        byte[] bareSignature = CryptoConfiguration.INSTANCE.getSigningProvider()
+                .sign(Hex.decode(header.blockHashHex()), seed);
+        AppChainClient.FinalityCertificate bareCertificate = new AppChainClient.FinalityCertificate(0,
+                List.of(new AppChainClient.FinalitySignature(Hex.encode(publicKey), Hex.encode(bareSignature))));
+        AppChainClient.Proof bareHashProof = new AppChainClient.Proof(
+                proof.keyHex(), proof.chainId(), proof.stateRootHex(), proof.proofWireHex(), proof.valueHex(),
+                null, 1L, 1, proof.profile(), proof.backend(), proof.commitmentFormatId(),
+                proof.formatFingerprintHex(), proof.genesisIdHex(), proof.proofEncodingId(), false, true, 1L,
+                proof.presence(), header, bareCertificate);
+        assertThat(ProofVerifier.verifyCertified(bareHashProof, trust)).isFalse();
     }
 
     private static AppChainClient.Proof proof(
@@ -143,23 +151,13 @@ class ProofVerifierProfileTest {
                 ProofVerifier.TrustedRootSource.CALLER_PINNED);
     }
 
-    private static byte[] blockHash(
-            String chainId,
-            AppChainClient.CertifiedBlockHeader block
-    ) throws Exception {
-        Array header = new Array();
-        header.add(new UnsignedInteger(block.version()));
-        header.add(new UnicodeString(chainId));
-        header.add(new UnsignedInteger(block.height()));
-        header.add(new ByteString(Hex.decode(block.prevHashHex())));
-        header.add(new UnsignedInteger(block.l1Slot()));
-        header.add(new ByteString(Hex.decode(block.l1BlockHashHex())));
-        header.add(new UnsignedInteger(block.timestamp()));
-        header.add(new ByteString(Hex.decode(block.messagesRootHex())));
-        header.add(new ByteString(Hex.decode(block.stateRootHex())));
-        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-        new CborEncoder(bytes).encode(header);
-        return Blake2bUtil.blake2bHash256(bytes.toByteArray());
+    private static AppChainClient.CertifiedBlockHeader header(AppBlock block) {
+        AppBlockHeader header = AppBlockHeader.from(block);
+        return new AppChainClient.CertifiedBlockHeader(header.version(), header.height(), Hex.encode(header.prevHash()),
+                header.l1Slot(), Hex.encode(header.l1BlockHash()), header.timestamp(), Hex.encode(header.messagesRoot()),
+                Hex.encode(header.stateRoot()), Hex.encode(header.blockHash()), header.view(),
+                Hex.encode(header.consensusContextDigest()), Hex.encode(header.proposer()),
+                Hex.encode(header.justificationDigest()));
     }
 
     private static final class MemoryNodeStore implements NodeStore {
