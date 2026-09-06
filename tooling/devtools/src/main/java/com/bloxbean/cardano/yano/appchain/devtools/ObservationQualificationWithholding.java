@@ -143,9 +143,14 @@ public final class ObservationQualificationWithholding {
                 "round", number, "node", withheld, "view", view, "leader", leader)));
         ObservationQualificationBaseline.await(() ->
                 linksMatch(clients.stream().map(AppChainClient::status).toList(), withheld, proxyBase));
-        if (!leader.equals(clients.get(withheld).status().path("sequencer").path("leader").asText())) {
+        var partitionSequencer = clients.get(withheld).status().path("sequencer");
+        long partitionView = partitionSequencer.path("currentView").asLong(-1);
+        if (!leader.equals(partitionSequencer.path("leader").asText()) || partitionView < view) {
             throw new IllegalStateException("Selected node ceased being proposer before isolation; preserve attempt");
         }
+        // Operator response may span a full leader cycle. Pin the view actually isolated,
+        // not only the earlier advertised selection view, before signing any reports.
+        write(attempt.resolve("partition-view.json"), Map.of("leader", leader, "view", partitionView));
         long readyBefore = clients.get(withheld).status().path("genericObservations")
                 .path("certificatesReady").asLong();
         List<ObservationReport> signed = new ArrayList<>();
@@ -192,7 +197,7 @@ public final class ObservationQualificationWithholding {
         }
         List<AppChainClient.Proof> proofs = prove(honest, result, members, genesis, consensus, profile);
         if (proofs.stream().anyMatch(proof ->
-                leader.equals(proof.block().proposerHex()) || proof.block().view() <= view)
+                leader.equals(proof.block().proposerHex()) || proof.block().view() <= partitionView)
                 || clients.get(withheld).status().path("tipHeight").asLong() != opening
                 || !linksMatch(clients.stream().map(AppChainClient::status).toList(), withheld, proxyBase)) {
             throw new IllegalStateException("Honest finality did not precede healing the withholding proposer");

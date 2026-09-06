@@ -213,6 +213,11 @@ validators must certify the expected median in a higher view, with a different
 proposer, while the withheld node remains at the opening height. Those four
 independently verified proof packages are saved before `heal-required` is printed.
 
+The selected member must still be the current proposer when isolation is
+observed. If operator response spans a full leader cycle, `partition-view.json`
+pins the actual isolated view before signing; honest finality must be strictly
+later than that view, not merely later than the earlier selection prompt.
+
 Send `heal` only after that checkpoint. The helper verifies and retains all
 five certified result proofs after catch-up. Preserve the complete
 `withholding-round-<n>/` directory and proxy transcript. This simulates omission
