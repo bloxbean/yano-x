@@ -36,10 +36,15 @@ FIELDS = {
     "chainId", "threadPolicyId", "scriptHash", "scriptAddress",
     "verificationState", "verifiedHeight", "verifiedMembers", "verifiedAtMillis",
 }
-PRISTINE_COUNTERS = (
+PROGRESS_COUNTERS = (
     "tipHeight", "poolSize", "submitted", "received", "relayed", "duplicates",
     "seenIds", "storedMessages",
 )
+# Transport counters include automatic ~consensus/* and ~anchor/* diffusion.
+# They cannot distinguish application activity from an idle, pristine chain.
+# Accepted ordinary/governance messages are pooled and recorded by the host;
+# local submissions are additionally counted, and committed activity advances tip/root.
+PRISTINE_COUNTERS = ("tipHeight", "poolSize", "submitted", "storedMessages")
 
 
 class BindingError(ValueError):
@@ -224,16 +229,17 @@ def anchor_identity(anchor: Any) -> dict[str, str]:
 
 
 def pristine_statuses(documents: list[dict[str, Any]]) -> bool:
+    pristine = True
     for document in documents:
-        for key in PRISTINE_COUNTERS:
+        for key in PROGRESS_COUNTERS:
             counter = document.get(key)
             if not bounded_int(counter):
                 raise BindingError(f"member status counter is malformed: {key}")
-            if counter != 0:
-                return False
+            if key in PRISTINE_COUNTERS and counter != 0:
+                pristine = False
         if document.get("stateRoot") != "0" * 64:
-            return False
-    return True
+            pristine = False
+    return pristine
 
 
 def progress_summary(documents: list[dict[str, Any]]) -> str:
@@ -242,7 +248,7 @@ def progress_summary(documents: list[dict[str, Any]]) -> str:
     for document in documents:
         anchor = document.get("anchor")
         row = {key: value if bounded_int(value := document.get(key)) else None
-               for key in PRISTINE_COUNTERS}
+               for key in PROGRESS_COUNTERS}
         row["zeroRoot"] = document.get("stateRoot") == "0" * 64
         row["anchorPresent"] = isinstance(anchor, dict)
         if isinstance(anchor, dict):
