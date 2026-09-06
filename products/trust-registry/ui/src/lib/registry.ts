@@ -315,9 +315,10 @@ export interface Discovery { registry: boolean; collections: string[] | null; ma
  */
 export function discoverRegistry(genesisHex: string | null): Discovery {
   if (!genesisHex) return { registry: false, collections: null, mapGenesisIdHex: null };
+  const mapGenesisIdHex = mapGenesisId(genesisHex);
   try {
     const items = asArray(decodeCbor(fromHex(genesisHex)));
-    if (items.length < 12) return { registry: false, collections: [], mapGenesisIdHex: null };
+    if (items.length < 12) return { registry: false, collections: [], mapGenesisIdHex };
     const declared = new Map<string, { authorization: number; policyId: string }>();
     for (const item of asArray(items[11])) {
       const fields = asArray(item);
@@ -329,9 +330,28 @@ export function discoverRegistry(genesisHex: string | null): Discovery {
       if (!entry || entry.policyId !== POLICY_OF[collection]) return false;
       return collection === 'issuers' ? entry.authorization === AUTH_APPROVAL : entry.authorization === AUTH_GOVERNED_ROLE;
     });
-    return { registry, collections: [...declared.keys()], mapGenesisIdHex: null };
+    return { registry, collections: [...declared.keys()], mapGenesisIdHex };
   } catch {
-    return { registry: false, collections: [], mapGenesisIdHex: null };
+    return { registry: false, collections: [], mapGenesisIdHex };
+  }
+}
+
+/**
+ * The map genesis id: blake2b-256 over the domain `yano-appchain-genesis-v1\0` and the genesis
+ * bytes, which is what `AuthenticatedMapContract.genesisId` computes and what actor
+ * authorizations are signed with. It is not the chain's state commitment identity: on a composite
+ * runtime that identity is the application-profile-bound derivative of this id.
+ */
+export function mapGenesisId(genesisHex: string): string | null {
+  try {
+    const genesis = fromHex(genesisHex);
+    const domain = new Uint8Array([...'yano-appchain-genesis-v1'].map((c) => c.charCodeAt(0)).concat(0));
+    const input = new Uint8Array(domain.length + genesis.length);
+    input.set(domain);
+    input.set(genesis, domain.length);
+    return toHex(blake2b256(input));
+  } catch {
+    return null;
   }
 }
 

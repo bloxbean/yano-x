@@ -2,10 +2,45 @@
   import { onMount } from 'svelte';
   import { exportAnswer, readAnswer } from '$lib/answer';
   import { GatewayApi, YanoApi, fetchStatusListDocument } from '$lib/api';
+  import {
+    RECORD_ACTIVE,
+    activeKey,
+    actorCurrentKey,
+    actorRevisionKey,
+    decodeActorRecord,
+    decodeDirectPolicy,
+    decodePointer,
+    directPolicyCurrentKey,
+    directPolicyRevisionKey
+  } from '$lib/actor-context';
+  import { encodeCbor, toHex } from '$lib/cbor';
+  import {
+    asciiKey,
+    createSigner,
+    hexToBytes,
+    parseSeed,
+    put,
+    randomAuthorizationId,
+    signCommand,
+    webCryptoEd25519Available,
+    type ActorSigner,
+    type CommandContext,
+    type Mutation
+  } from '$lib/signer';
   import { DEFAULT_RUNTIME_CONFIG, loadRuntimeConfig, normalizeServiceUrl } from '$lib/config';
   import { sha256Hex } from '$lib/hash';
   import { failureMessage, short } from '$lib/model';
-  import { applicationKey, bitAt, decodeEncodedList, evaluateTrqp, setCount, type TrqpAnswer } from '$lib/registry';
+  import {
+    COMMAND_TOPIC,
+    applicationKey,
+    bitAt,
+    decodeEncodedList,
+    decodeReceiptResult,
+    encodeReceiptQueryHex,
+    evaluateTrqp,
+    setCount,
+    type TrqpAnswer
+  } from '$lib/registry';
   import ConnectionPanel from '$lib/components/ConnectionPanel.svelte';
   import CopyValue from '$lib/components/CopyValue.svelte';
   import {
@@ -120,6 +155,11 @@
   let opMetadataHash = '11'.repeat(32);
   let opSchemaId = 'schema-1';
   let opSchemaValue = '{}';
+  // BROWSER_KEY: the key is unlocked in this tab only, and the seed never leaves it.
+  let signingMode: 'gateway' | 'browser' = 'gateway';
+  let seedInput = '';
+  let signer: ActorSigner | null = null;
+  let browserError = '';
 
   $: selectedActor = actors.find((actor) => actor.actorId === actorId) ?? null;
   $: writeSteps = deriveWriteSteps(progress, actors, actorId);
@@ -324,6 +364,170 @@
     } finally {
       writeBusy = false;
     }
+  }
+
+  // -------------------------------------------------------------- browser key
+
+  /** Unlocks the actor's key in this tab. The seed is parsed, imported, and zeroed at once. */
+  async function unlockKey() {
+    browserError = '';
+    try {
+      if (!webCryptoEd25519Available()) {
+        throw new Error('This browser cannot sign with Ed25519 through WebCrypto; use the CLI');
+      }
+      const parsed = parseSeed(seedInput);
+      seedInput = '';
+      signer?.release();
+      signer = await createSigner(parsed);
+      await loadBrowserActor();
+    } catch (cause) {
+      signer = null;
+      browserError = failureMessage(cause, 'The key could not be unlocked');
+    }
+  }
+
+  function lockKey() {
+    signer?.release();
+    signer = null;
+    seedInput = '';
+    if (!gateway) actors = [];
+  }
+
+  /**
+   * Reads the unlocked actor's own record so the guide knows its organization and roles, and so
+   * the console can refuse a key that is not the one the chain has for that actor.
+   */
+  async function loadBrowserActor() {
+    if (!api || !selectedChain || !signer || !actorId.trim()) return;
+    browserError = '';
+    try {
+      const revision = decodePointer(await presentValue(actorCurrentKey(actorId), `actor ${actorId}`));
+      const record = decodeActorRecord(await presentValue(
+        actorRevisionKey(actorId, revision), `actor ${actorId} revision ${revision}`));
+      const key = activeKey(record, BigInt(selectedChain.summary.tipHeight));
+      if (key.publicKeyHex !== signer.publicKeyHex) {
+        throw new Error(`The unlocked key is not ${actorId}'s registered key ${key.keyId}`);
+      }
+      actors = [{ actorId: record.actorId, organizationId: record.organizationId, roles: record.roles }];
+      await readProgress();
+    } catch (cause) {
+      actors = [];
+      browserError = failureMessage(cause, 'The actor could not be read');
+    }
+  }
+
+  async function pickSeedFile(event: Event) {
+    const input = event.currentTarget as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+    seedInput = new TextDecoder().decode(new Uint8Array(await file.arrayBuffer()));
+    await unlockKey();
+    input.value = '';
+  }
+
+  /** Reads one present state value, or throws with what was missing. */
+  async function presentValue(keyBytes: Uint8Array, what: string): Promise<string> {
+    const envelope = await api!.stateProof(selectedChainId, toHex(keyBytes));
+    if (!envelope || envelope.presence !== 'PRESENT' || !envelope.valueHex) {
+      throw new Error(`${what} is not readable on this chain`);
+    }
+    return envelope.valueHex;
+  }
+
+  /** The actor's current record and the policy's current revision, read from the chain. */
+  async function readSigningContext(policyId: string): Promise<CommandContext> {
+    if (!api || !selectedChain) throw new Error('Connect a node first');
+    const tip = BigInt(selectedChain.summary.tipHeight);
+    const actorRevision = decodePointer(await presentValue(actorCurrentKey(actorId), `actor ${actorId}`));
+    const record = decodeActorRecord(await presentValue(
+      actorRevisionKey(actorId, actorRevision), `actor ${actorId} revision ${actorRevision}`));
+    if (record.status !== RECORD_ACTIVE) throw new Error(`${actorId} is not active on this chain`);
+    const key = activeKey(record, tip);
+    if (signer && key.publicKeyHex !== signer.publicKeyHex) {
+      throw new Error(`The unlocked key is not ${actorId}'s registered key ${key.keyId}`);
+    }
+    const policyRevision = decodePointer(await presentValue(
+      directPolicyCurrentKey(policyId), `policy ${policyId}`));
+    const policy = decodeDirectPolicy(await presentValue(
+      directPolicyRevisionKey(policyId, policyRevision), `policy ${policyId} revision ${policyRevision}`));
+    const genesisIdHex = selectedChain.mapGenesisIdHex ?? '';
+    if (!/^[0-9a-f]{64}$/.test(genesisIdHex)) {
+      throw new Error('The map genesis id is not readable yet; the chain has no block');
+    }
+    const issued = tip > 0n ? tip : 1n;
+    const lifetime = policy.maximumAuthorizationLifetimeBlocks > 0n
+      ? policy.maximumAuthorizationLifetimeBlocks : 100n;
+    return {
+      chainId: selectedChainId,
+      genesisId: hexToBytes(genesisIdHex),
+      policyId,
+      policyRevision: policy.revision,
+      actorId,
+      actorRevision: record.revision,
+      keyId: key.keyId,
+      issuedHeight: issued,
+      deadlineHeight: issued + (lifetime < 100n ? lifetime : 100n),
+      authorizationId: randomAuthorizationId()
+    };
+  }
+
+  /** Signs in the tab, submits the bytes, and waits for the map's receipt. */
+  async function runBrowserWrite(policyId: string, build: () => Mutation[]) {
+    if (!signer || !api) return;
+    writeBusy = true;
+    writeError = '';
+    writeResult = null;
+    try {
+      const mutations = build();
+      const context = await readSigningContext(policyId);
+      const command = await signCommand(signer, mutations, context);
+      const submitted = await api.submitMessage(selectedChainId, COMMAND_TOPIC, toHex(command));
+      writeResult = await awaitReceipt(submitted.messageId);
+      await readProgress();
+    } catch (cause) {
+      writeError = failureMessage(cause, 'The write could not be signed or submitted');
+    } finally {
+      writeBusy = false;
+    }
+  }
+
+  async function awaitReceipt(messageIdHex: string): Promise<GatewayReceipt> {
+    for (let attempt = 0; attempt < 30; attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      try {
+        const result = await api!.query(selectedChainId, 'authenticated-map/receipt-v1',
+          encodeReceiptQueryHex(messageIdHex));
+        const receipt = decodeReceiptResult(result.payloadHex);
+        if (receipt) {
+          return {
+            messageId: receipt.messageIdHex,
+            height: receipt.height,
+            status: receipt.applied ? 'APPLIED' : 'REJECTED',
+            errorCode: receipt.errorCode,
+            results: receipt.results.map((row) => ({
+              collection: row.collection,
+              key: new TextDecoder().decode(hexToBytes(row.keyHex)),
+              revision: row.revision,
+              status: row.status
+            }))
+          };
+        }
+      } catch {
+        // The receipt is queryable only once the command is finalized; keep waiting.
+      }
+    }
+    throw new Error('The command was submitted but no receipt appeared before the timeout');
+  }
+
+  const browserStatus = () => runBrowserWrite('issuer-write', () => {
+    const body = statusBody(actorId, opListId, opIndex, opBit, opReason);
+    return [put('status', asciiKey(`${body.listId}/${body.index}`),
+      encodeStatusValue(body.bit, body.reasonCode))];
+  });
+
+  /** `[1, bit, reasonCode]`, the profile's status value. */
+  function encodeStatusValue(bit: number, reasonCode: number): Uint8Array {
+    return encodeCbor([1n, BigInt(bit), BigInt(reasonCode)]);
   }
 
   const writeStatus = () => runWrite('/operator/status',
@@ -682,22 +886,72 @@
             token is the only secret the browser holds, in memory. The chain decides what each actor
             may write, so a step this guide marks as needing another role is still refused on chain.
           </p>
-          {#if !gateway}
+          <div class="mt-5 flex flex-wrap items-center gap-2">
+            <span class="metric-label">Signing mode</span>
+            <button class="nav-item {signingMode === 'gateway' ? 'active' : ''}" type="button"
+                    onclick={() => { signingMode = 'gateway'; lockKey(); }}>Gateway</button>
+            <button class="nav-item {signingMode === 'browser' ? 'active' : ''}" type="button"
+                    onclick={() => { signingMode = 'browser'; disconnectGateway(); }}>Browser key</button>
+            <span class="text-xs leading-5 text-[#8ea8a0]">
+              {signingMode === 'gateway'
+                ? 'The gateway holds every seed it was started with and signs for any of them, so a proof says the gateway signed as this actor.'
+                : 'The key is unlocked in this tab only and the seed never leaves it, so a proof says this key signed. Nothing is stored: closing the tab locks it.'}
+            </span>
+          </div>
+
+          {#if signingMode === 'browser'}
+            <div class="panel mt-4 p-4">
+              <div class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+                <div><label class="text-xs font-semibold text-[#a9beb7]" for="browser-actor">Actor id</label><input id="browser-actor" class="field mono mt-2" bind:value={actorId} placeholder="issuer-a" /></div>
+                <div><label class="text-xs font-semibold text-[#a9beb7]" for="browser-seed">Seed (32 bytes hex)</label><input id="browser-seed" class="field mono mt-2" type="password" autocomplete="off" bind:value={seedInput} /></div>
+                <div class="flex items-end gap-2">
+                  <button class="button-primary" type="button" disabled={!seedInput.trim() || !actorId.trim()} onclick={() => void unlockKey()}>Unlock</button>
+                  {#if signer}<button class="button-quiet" type="button" onclick={lockKey}>Lock</button>{/if}
+                </div>
+              </div>
+              <div class="mt-3 grid gap-3 sm:grid-cols-[auto_minmax(0,1fr)]">
+                <label class="text-xs font-semibold text-[#a9beb7]" for="browser-seed-file">or a seed file</label>
+                <input id="browser-seed-file" class="field mt-1" type="file" onchange={(event) => void pickSeedFile(event)} />
+              </div>
+              {#if browserError}<div class="notice notice-error mt-3">{browserError}</div>{/if}
+              {#if signer}
+                <div class="mt-3 flex flex-wrap items-center gap-2">
+                  <span class="pill pill-ok">KEY UNLOCKED IN THIS TAB</span>
+                  <span class="text-xs text-[#b7cbc4]">public key <CopyValue value={signer.publicKeyHex} width={24} /></span>
+                  {#if selectedActor}<span class="pill mono">{selectedActor.organizationId}: {(selectedActor.roles ?? []).join(', ')}</span>{/if}
+                </div>
+              {:else}
+                <p class="mt-3 text-xs leading-5 text-[#8ea8a0]">
+                  The seed is parsed, imported through WebCrypto, and zeroed at once. It is never sent
+                  anywhere: the browser signs the authorization and only the finished command bytes
+                  reach the node, which still checks the signature, the role, and the policy.
+                </p>
+              {/if}
+            </div>
+          {/if}
+
+          {#if signingMode === 'gateway' && !gateway}
             <form class="mt-5 grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]" onsubmit={(event) => { event.preventDefault(); void connectGateway(); }}>
               <div><label class="text-xs font-semibold text-[#a9beb7]" for="gateway-url">Gateway URL</label><input id="gateway-url" class="field mono mt-2" bind:value={gatewayUrl} /></div>
               <div><label class="text-xs font-semibold text-[#a9beb7]" for="gateway-token">Gateway token</label><input id="gateway-token" class="field mono mt-2" type="password" autocomplete="off" bind:value={gatewayToken} placeholder="printed by yano-trust gateway" /></div>
               <div class="flex items-end"><button class="button-primary" type="submit" disabled={gatewayBusy || !gatewayToken.trim()}>{gatewayBusy ? 'Connecting…' : 'Connect'}</button></div>
             </form>
             {#if gatewayError}<div class="notice notice-error mt-4">{gatewayError}</div>{/if}
-          {:else}
-            <div class="mt-5 flex flex-wrap items-center gap-3">
-              <span class="pill pill-warn">SIGNING MODE GATEWAY</span>
-              <label class="text-xs font-semibold text-[#a9beb7]" for="actor-picker">Sign as</label>
-              <select id="actor-picker" class="field w-auto" bind:value={actorId}>
-                {#each actors as actor}<option value={actor.actorId}>{actor.actorId}{actor.organizationId ? ` (${actor.organizationId}${actor.roles ? ': ' + actor.roles.join(', ') : ''})` : ''}</option>{/each}
-              </select>
-              <span class="text-xs text-[#8ea8a0]">chain <span class="mono">{gatewayChainId}</span></span>
-              <button class="button-quiet min-h-0 py-2" type="button" onclick={disconnectGateway}>Disconnect</button>
+          {/if}
+
+          {#if gateway || signer}
+            <div class="mt-4 flex flex-wrap items-center gap-3">
+              <span class={signingMode === 'gateway' ? 'pill pill-warn' : 'pill pill-ok'}>SIGNING MODE {signingMode === 'gateway' ? 'GATEWAY' : 'BROWSER KEY'}</span>
+              {#if gateway}
+                <label class="text-xs font-semibold text-[#a9beb7]" for="actor-picker">Sign as</label>
+                <select id="actor-picker" class="field w-auto" bind:value={actorId}>
+                  {#each actors as actor}<option value={actor.actorId}>{actor.actorId}{actor.organizationId ? ` (${actor.organizationId}${actor.roles ? ': ' + actor.roles.join(', ') : ''})` : ''}</option>{/each}
+                </select>
+                <span class="text-xs text-[#8ea8a0]">chain <span class="mono">{gatewayChainId}</span></span>
+                <button class="button-quiet min-h-0 py-2" type="button" onclick={disconnectGateway}>Disconnect</button>
+              {:else}
+                <span class="text-xs text-[#8ea8a0]">signing as <span class="mono">{actorId}</span> on <span class="mono">{selectedChainId}</span></span>
+              {/if}
             </div>
 
             <div class="panel mt-4 p-4">
@@ -751,7 +1005,10 @@
                 {#if activeWrite === 'status'}
                   <div><label class="text-xs font-semibold text-[#a9beb7]" for="op-bit">Bit</label><select id="op-bit" class="field mt-2" bind:value={opBit}><option value="1">1 (set)</option><option value="0">0 (clear)</option></select></div>
                   <div><label class="text-xs font-semibold text-[#a9beb7]" for="op-reason">Reason code</label><input id="op-reason" class="field mono mt-2" bind:value={opReason} /></div>
-                  <div class="flex items-end"><button class="button-primary" type="button" disabled={writeBusy} onclick={() => void writeStatus()}>Write status (issuer)</button></div>
+                  <div class="flex items-end"><button class="button-primary" type="button" disabled={writeBusy} onclick={() => void (signingMode === 'browser' ? browserStatus() : writeStatus())}>Write status (issuer)</button></div>
+                  {#if signingMode === 'browser'}
+                    <div class="sm:col-span-2 text-xs leading-5 text-[#8ea8a0]">Browser signing covers the status write in this version; the other steps go through a gateway.</div>
+                  {/if}
                 {:else if activeWrite === 'revoke'}
                   <div class="sm:col-span-2 text-xs leading-5 text-[#b7cbc4]">Revoking <span class="mono">{opListId}/{opIndex}</span> is terminal: the entry keeps its last value hash as a tombstone and can never be active again.</div>
                   <div class="flex items-end"><button class="button-danger" type="button" disabled={writeBusy} onclick={() => void writeRevoke()}>Revoke index (issuer)</button></div>

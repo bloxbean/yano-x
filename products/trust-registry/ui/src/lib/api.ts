@@ -118,6 +118,14 @@ export class YanoApi {
     }
   }
 
+  /**
+   * Submits one message. This is the console's only write to the node, and it carries bytes the
+   * browser signed: the node verifies the actor's signature and policy before applying anything.
+   */
+  submitMessage(chainId: string, topic: string, bodyHex: string): Promise<{ messageId: string }> {
+    return this.post(chainPath(chainId, '/messages'), { topic, bodyHex });
+  }
+
   private get<T>(path: string): Promise<T> {
     return this.request(path);
   }
@@ -174,6 +182,20 @@ export class YanoApi {
       throw new ApiError('The Yano node returned an invalid JSON response', response.status, '', path);
     }
   }
+}
+
+/**
+ * Submits one signed command to the node (ADR-053 §2.1, BROWSER_KEY). The console signs first and
+ * only the finished bytes leave the tab; the node still checks the signature, the actor's role,
+ * and the policy before anything is applied.
+ */
+export async function submitCommand(
+  api: YanoApi,
+  chainId: string,
+  topic: string,
+  bodyHex: string
+): Promise<{ messageId: string }> {
+  return api.submitMessage(chainId, topic, bodyHex);
 }
 
 /**

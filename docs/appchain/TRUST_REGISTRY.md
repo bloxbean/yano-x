@@ -190,6 +190,15 @@ Every command takes `--url $YANO_TRUST_URL --chain $YANO_TRUST_CHAIN`; the API k
    the role it needs, what the chain answers for the list and index you entered, and a *Sign as*
    shortcut to an actor that holds the role. Steps stay clickable when the role is wrong, because
    the chain is the authority: the write is signed, submitted, and refused with its error code.
+9. **Sign in the browser instead.** The write view has two signing modes, and shows which is
+   active. *Gateway* is the demo path above: the gateway holds every seed it was started with and
+   signs for any of them, so a proof says the gateway signed as that actor. *Browser key* unlocks
+   one actor's key in the tab, from pasted hex or a seed file. The seed is imported through
+   WebCrypto and zeroed at once, never stored and never sent anywhere; the console reads the
+   actor's record, active key, and policy revision from the chain, refuses to continue if the
+   unlocked key is not the one the chain holds for that actor, signs the authorization in the tab,
+   and submits only the finished command bytes. Closing the tab locks the key. Browser signing
+   covers the status write in this version; the other steps use a gateway.
 
 A wrong seed is refused before submission (`the seed does not match an active key`), and a
 finalized command the chain rejects is reported with its error code (`REJECTED with error code

@@ -1,6 +1,7 @@
 # ADR-053: Console signing modes and guided operation
 
-- **Status:** Proposed (2026-09-06)
+- **Status:** Accepted (2026-09-06), implemented on `feat/products-oob`; §7 records what landed and
+  what §5 still defers
 - **Classification:** `FIRST_PARTY_OPTIONAL`, maturity `preview`, inheriting the devnet posture
   of the products it touches. The DPP starter stays a labelled prototype and the attestation feed
   stays experimental; this decision changes how their consoles are operated, not what they claim.
@@ -193,4 +194,34 @@ the Java contracts, which the vector tests exist to catch.
 
 ## 7. Implementation record
 
-To be written when the implementation lands.
+**Status:** §2.2 and §2.3 are implemented in full. §2.1 is implemented for the trust registry
+console, where `BROWSER_KEY` signs and submits a status write; the other registry steps and the
+DPP and feed consoles keep `GATEWAY` only, and §5 now carries the rest.
+
+**Gates.** `:products:trust-registry:client:test` (12: the cluster test drives every gateway route,
+the token refusal, an unknown actor, a missing field, terminal revocation, and a wrong-role write
+refused on chain; `BrowserSigningVectorTest` pins the action bytes, the commitment, the statement,
+and the signed command), `:products:trust-registry:cli:test` (5), console `npm run check` 0 errors,
+`npm test` 38, `npm run build`.
+
+**Live on a three-member cluster.** In `GATEWAY` mode an empty list blocked publish and revoke, a
+status write applied and unblocked both, publishing recorded the bitstring hash, and `issuer-a`
+recording a subject was refused with error code 16, which is the guide showing rather than gating.
+In `BROWSER_KEY` mode the console unlocked `issuer-a`'s key in the tab, read that actor's record
+and roles from the chain, refused to continue when the key did not match the registered one,
+signed a status write in the browser, submitted it to the node, and the map applied it at height
+12. The gateway was not running for that path.
+
+**What the vectors caught.** Three encoding facts that a guess would have got wrong, each found by
+a failing test or a live refusal rather than by reading: `AUTH_GOVERNED_ROLE` is 3, not 1;
+`RecordStatus.ACTIVE` is 0, not 1; and the map genesis id is a blake2b-256 over the domain
+`yano-appchain-genesis-v1\0` and the genesis bytes, which the console now computes itself rather
+than reading the state commitment identity, since on a composite runtime the two differ.
+
+**Deviations from the text above.**
+
+| Section | Deviation |
+|---|---|
+| §2.1 | `BROWSER_KEY` covers the status write only in this version. The console says so next to the button, and §5 carries the rest. |
+| §2.1 | The registry console reads the actor's record, its active key epoch, and the policy revision itself, so browser signing needs no gateway; the DPP and feed consoles would need the node connection §2.1 describes, which they do not have yet. |
+| §2.2 | The gateway also serves `/operator/subjects/revoke`, and `publishList` returns the replay counts so the console can show what was hashed. |
