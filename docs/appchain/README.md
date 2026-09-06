@@ -28,6 +28,7 @@ credentials unless a guide explicitly says otherwise.
 | Approve arbitrary payload hashes using application-defined roles | [`role-approvals` reference](state-machines/role-approvals.md) | Configuration + actor integration |
 | Require manufacturers, auditors, and regulators to sign evidence by role | [Domain-role approvals](tutorials/05-domain-role-approvals.md) | No for the stock scenario |
 | Call an ERP/API after a finalized decision | [Webhook effects](tutorials/06-webhook-effects.md) | Configuration; emission is stock or plugin logic |
+| Learn certified external reports and multi-source aggregation | [ADA/USD observation reference](ada-usd-observation-reference.md) | Java reference; preview, synthetic sources |
 | Understand and verify Cardano settlement | [Anchors and independent verification](tutorials/07-anchors-and-verification.md) | No |
 | Build or independently verify portable message and typed state proofs | [Proof Lab guide](PROOF_LAB.md) | No for stock subjects; Java for custom subjects |
 | Implement new business rules without forking Yano | [Plugins and composites](tutorials/08-plugins-and-composites.md) | Small Java plugin |

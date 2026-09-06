@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "com.bloxbean.cardano.yano.appchain.stdlib",
   "version": "${pluginVersion}",
-  "yanoApi": { "min": 3, "max": 3, "minLevel": 4 },
+  "yanoApi": { "min": 3, "max": 3, "minLevel": 6 },
   "dependencies": [
     {
       "id": "com.bloxbean.cardano.yano.appchain.composite",
@@ -16,6 +16,7 @@
     }
   ],
   "contributions": [
+    { "kind": "app-state-machine", "name": "ada-usd-reference-v1", "provider": "com.bloxbean.cardano.yano.appchain.stdlib.StdlibStateMachineProviders$AdaUsdReferenceProvider" },
     { "kind": "app-state-machine", "name": "authenticated-map", "provider": "com.bloxbean.cardano.yano.appchain.stdlib.StdlibStateMachineProviders$AuthenticatedMapProvider" },
     { "kind": "app-state-machine", "name": "approvals", "provider": "com.bloxbean.cardano.yano.appchain.stdlib.StdlibStateMachineProviders$ApprovalsProvider" },
     { "kind": "app-state-machine", "name": "balances", "provider": "com.bloxbean.cardano.yano.appchain.stdlib.StdlibStateMachineProviders$BalancesProvider" },

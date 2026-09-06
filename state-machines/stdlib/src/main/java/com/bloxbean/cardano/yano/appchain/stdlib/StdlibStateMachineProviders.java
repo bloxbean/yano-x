@@ -35,6 +35,25 @@ public final class StdlibStateMachineProviders {
     private StdlibStateMachineProviders() {
     }
 
+    public static final class AdaUsdReferenceProvider implements AppStateMachineProvider {
+        @Override public String id() { return AdaUsdReferenceStateMachine.ID; }
+
+        @Override public AppStateMachine create() {
+            throw new IllegalArgumentException("ADA/USD reference requires a genesis-pinned observation profile");
+        }
+
+        @Override public AppStateMachine create(AppStateMachineContext context) {
+            var profile = context.observationProfile().orElseThrow(() ->
+                    new IllegalArgumentException("Missing observation profile"));
+            if (!profile.enabled() || profile.roundRulesVersion() != 2) {
+                throw new IllegalArgumentException("ADA/USD reference requires enabled v2 observation scheduling");
+            }
+            return new AdaUsdReferenceStateMachine(profile.definitions().stream()
+                    .filter(definition -> AdaUsdReferenceStateMachine.DEFINITION_ID.equals(definition.id()))
+                    .findFirst().orElseThrow(() -> new IllegalArgumentException("Missing ADA/USD definition")));
+        }
+    }
+
     public static final class AuthenticatedMapProvider implements AppStateMachineProvider {
         @Override
         public String id() {
