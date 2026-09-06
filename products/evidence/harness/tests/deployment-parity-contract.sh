@@ -31,15 +31,16 @@ release_contracts = Path(sys.argv[4]).read_text(encoding="utf-8")
 if 'export DEMO_DEVNET_BLOCK_TIME_MILLIS=10000' not in role_source:
     raise SystemExit("role workflow must pace its devnet producer for slow CI followers")
 
-for required in ('Bounded role anchor/status diagnostics before cleanup:',
+for required in ('Bounded role anchor/status diagnostics before cleanup (success or failure):',
+                 'Bounded L1 sync/recovery diagnostics (no validation settings changed):',
                  'peerApplicationProgressAgeMillis,peerBodyFetchInProgress',
                  '/api/v1/node/status',
                  'logs --no-color --since 30m yano-0 yano-1 yano-2',
-                 'if [ "$status" -ne 0 ]; then failure_diagnostics; fi'):
+                 '\n  qualification_diagnostics\n'):
     if required not in role_source:
         raise SystemExit(f"role failure diagnostics are missing: {required}")
 role_cleanup = role_source[role_source.index("\ncleanup() {"):role_source.index("trap cleanup EXIT INT TERM")]
-if role_cleanup.index("failure_diagnostics") > role_cleanup.index("demo stop"):
+if role_cleanup.index("qualification_diagnostics") > role_cleanup.index("demo stop"):
     raise SystemExit("role failure diagnostics must run before stopping the containers")
 
 for required in (
@@ -285,8 +286,10 @@ for required in (
         "timeout-minutes: 240",
         "YANO_RUN_DEPLOYMENT_PARITY_E2E: 'true'",
         "YANO_DEPLOYMENT_PARITY_CONTINUATION_MODE: direct",
+        "YANO_DEPLOYMENT_PARITY_TIMEOUT_SECONDS: '900'",
         "run: products/evidence/harness/tests/deployment-parity-e2e.sh",
         "YANO_RUN_ROLE_WORKFLOW_E2E: 'true'",
+        "YANO_ROLE_WORKFLOW_TIMEOUT_SECONDS: '900'",
         "run: products/evidence/harness/tests/role-workflow-e2e.sh",
 ):
     if required not in e2e_job:

@@ -178,10 +178,14 @@ jobs:
           YANO_RUN_DEPLOYMENT_PARITY_E2E: 'true'
           YANO_DEPLOYMENT_PARITY_CONTINUATION_MODE: direct
           YANO_DEPLOYMENT_PARITY_MACHINE: composite
+          # Allow the default 600s no-progress watchdog, its 30s poll and recovery.
+          # This changes only the test deadline, not node policy or acceptance checks.
+          YANO_DEPLOYMENT_PARITY_TIMEOUT_SECONDS: '900'
         run: products/evidence/harness/tests/deployment-parity-e2e.sh
       - name: Run mandatory role workflow and catch-up E2E
         env:
           YANO_RUN_ROLE_WORKFLOW_E2E: 'true'
+          YANO_ROLE_WORKFLOW_TIMEOUT_SECONDS: '900'
         run: products/evidence/harness/tests/role-workflow-e2e.sh
 
   release-acceptance:
