@@ -236,6 +236,23 @@ def pristine_statuses(documents: list[dict[str, Any]]) -> bool:
     return True
 
 
+def progress_summary(documents: list[dict[str, Any]]) -> str:
+    """Bounded public counters only; never echo full status/configuration into logs."""
+    summary = []
+    for document in documents:
+        anchor = document.get("anchor")
+        row = {key: value if bounded_int(value := document.get(key)) else None
+               for key in PRISTINE_COUNTERS}
+        row["zeroRoot"] = document.get("stateRoot") == "0" * 64
+        row["anchorPresent"] = isinstance(anchor, dict)
+        if isinstance(anchor, dict):
+            row["bootstrapped"] = anchor.get("bootstrapped") is True
+            height = anchor.get("lastAnchoredHeight")
+            row["anchoredHeight"] = height if bounded_int(height) else None
+        summary.append(row)
+    return json.dumps(summary, separators=(",", ":"))
+
+
 def validate_topology(documents: list[dict[str, Any]],
                       expected_members: list[str], expected_state_machine: str) -> None:
     expected_roles = ("proposer", "member", "member")
@@ -290,7 +307,8 @@ def live_candidate(documents: list[dict[str, Any]], allow_pending: bool,
         heights = [anchor.get("lastAnchoredHeight") for anchor in anchors]
         if (any(not bounded_int(height) for height in heights)
                 or len(set(heights)) != 1 or heights[0] < 1):
-            raise NotConverged("members have not adopted one non-genesis anchor height")
+            raise NotConverged("members have not adopted one non-genesis anchor height: "
+                               + progress_summary(documents))
         tips = [document.get("tipHeight") for document in documents]
         if any(not bounded_int(tip) or tip < heights[0] for tip in tips):
             raise NotConverged("member app-chain tips do not cover the adopted anchor")
@@ -312,7 +330,8 @@ def live_candidate(documents: list[dict[str, Any]], allow_pending: bool,
             "verifiedMembers": 1,
         }
     raise NotConverged(
-        "followers are not fully adopted and the cluster is not a pristine pending genesis")
+        "followers are not fully adopted and the cluster is not a pristine pending genesis: "
+        + progress_summary(documents))
 
 
 def private_parent(path: Path) -> Path:

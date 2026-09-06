@@ -11,6 +11,9 @@ import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.util.LinkedHashMap;
 import java.util.Properties;
+import java.util.jar.JarEntry;
+import java.util.jar.JarOutputStream;
+import java.nio.charset.StandardCharsets;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -21,12 +24,16 @@ class ObservationQualificationConfigTest {
             throws Exception {
         Path host = host(directory);
         Path plugins = Files.createDirectory(directory.resolve("plugins"));
+        plugin(plugins.resolve("stdlib.jar"), "com.bloxbean.cardano.yano.appchain.stdlib", "fixture-dependency");
+        plugin(plugins.resolve("dependency.jar"), "fixture-dependency", null);
         Path target = directory.resolve("qualification");
         ObservationQualificationConfig.prepare(target, host, plugins, "fixture-version", 18070, 18337);
         String manifestText = Files.readString(target.resolve("qualification.json"));
         var manifest = new ObjectMapper().readTree(manifestText);
         assertThat(manifest.path("validators").size()).isEqualTo(5);
         assertThat(manifest.path("reporters").size()).isEqualTo(5);
+        assertThat(manifest.path("effectiveGenesisId").asText()).hasSize(64)
+                .isNotEqualTo(manifest.path("chainSettings").path("state.genesis-id").asText());
         assertThat(Files.getPosixFilePermissions(target))
                 .isEqualTo(PosixFilePermissions.fromString("rwx------"));
         for (int index = 0; index < 5; index++) {
@@ -42,9 +49,13 @@ class ObservationQualificationConfigTest {
             assertThat(parsed.memberKeysHex()).hasSize(5);
             assertThat(parsed.threshold()).isEqualTo(4);
             assertThat(parsed.pluginSettings()).containsEntry("consensus.max-byzantine-members", "1")
+                    .containsEntry("membership.mode", "governed")
                     .containsKey("observations.profile-cbor-hex");
             assertThat(manifestText).doesNotContain(parsed.signingKeyHex());
             assertThat(config.getProperty("quarkus.http.host")).isEqualTo("127.0.0.1");
+            assertThat(config.getProperty("yano.app-chain.api.auth.enabled")).isEqualTo("true");
+            assertThat(config.getProperty("yano.plugins.allow-list"))
+                    .isEqualTo("com.bloxbean.cardano.yano.appchain.stdlib,fixture-dependency");
             assertThat(chain).containsEntry("anchor.enabled", "false").containsEntry("effects.enabled", "false");
         }
         Properties secrets = read(target.resolve("reporters.private.properties"));
@@ -53,6 +64,18 @@ class ObservationQualificationConfigTest {
                 target, host, plugins, "fixture-version", 18070, 18337))
                 .isInstanceOf(FileAlreadyExistsException.class);
         assertThat(Files.readString(target.resolve("qualification.json"))).isEqualTo(manifestText);
+    }
+
+    @Test
+    void missingCatalogDependencyFailsBeforeCreatingDeployment(@TempDir Path directory) throws Exception {
+        Path host = host(directory);
+        Path plugins = Files.createDirectory(directory.resolve("plugins"));
+        plugin(plugins.resolve("stdlib.jar"), "com.bloxbean.cardano.yano.appchain.stdlib", "missing-dependency");
+        Path target = directory.resolve("qualification");
+        assertThatThrownBy(() -> ObservationQualificationConfig.prepare(
+                target, host, plugins, "fixture-version", 18070, 18337))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("missing-dependency");
+        assertThat(target).doesNotExist();
     }
 
     @Test
@@ -83,5 +106,15 @@ class ObservationQualificationConfigTest {
             values.load(reader);
         }
         return values;
+    }
+
+    private static void plugin(Path path, String id, String dependency) throws Exception {
+        try (var output = new JarOutputStream(Files.newOutputStream(path))) {
+            output.putNextEntry(new JarEntry("META-INF/yano/plugins/" + id + ".json"));
+            String dependencies = dependency == null ? "[]" : "[{\"id\":\"" + dependency + "\"}]";
+            output.write(("{\"id\":\"" + id + "\",\"dependencies\":" + dependencies + "}")
+                    .getBytes(StandardCharsets.UTF_8));
+            output.closeEntry();
+        }
     }
 }

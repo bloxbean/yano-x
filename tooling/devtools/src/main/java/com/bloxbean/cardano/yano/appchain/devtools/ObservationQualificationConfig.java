@@ -8,6 +8,8 @@ import com.bloxbean.cardano.yano.api.appchain.observation.ObservationProfileV1;
 import com.bloxbean.cardano.yano.api.appchain.observation.ObservationReporterMode;
 import com.bloxbean.cardano.yano.api.appchain.state.StateCommitmentIdentity;
 import com.bloxbean.cardano.yano.api.appchain.state.StateCommitmentProfiles;
+import com.bloxbean.cardano.yano.api.appchain.transition.FinalizedBlockMessageRootIndexedStateMachine;
+import com.bloxbean.cardano.yano.api.appchain.transition.FinalizedMessageIndexedStateMachine;
 import com.bloxbean.cardano.yano.appchain.config.AppChainConfigParser;
 import com.bloxbean.cardano.yano.appchain.config.AppChainEffectsConfig;
 import com.bloxbean.cardano.yano.appchain.stdlib.AdaUsdReferenceStateMachine;
@@ -21,11 +23,15 @@ import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.security.SecureRandom;
 import java.util.ArrayList;
+import java.util.ArrayDeque;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.TreeMap;
+import java.util.TreeSet;
+import java.util.jar.JarFile;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -61,6 +67,7 @@ public final class ObservationQualificationConfig {
                 || !Files.isRegularFile(host.resolve("yano.jar")) || !Files.isDirectory(plugins)) {
             throw new IllegalArgumentException("Exact ordinary JVM host and plugin directory required");
         }
+        String allowList = pluginClosure(plugins, "com.bloxbean.cardano.yano.appchain.stdlib");
         // Atomic create refuses existing deployments, including symlinks. Fail closed on non-POSIX storage.
         Files.createDirectory(target, PosixFilePermissions.asFileAttribute(
                 PosixFilePermissions.fromString("rwx------")));
@@ -84,6 +91,7 @@ public final class ObservationQualificationConfig {
         shared.put("consensus.max-byzantine-members", "1");
         shared.put("consensus.round-timeout-ms", "5000");
         shared.put("sequencer.mode", "rotating");
+        shared.put("membership.mode", "governed");
         shared.put("block.interval-ms", "500");
         shared.put("l1.stability-depth", "10");
         shared.put("state-machine", AdaUsdReferenceStateMachine.ID);
@@ -114,8 +122,9 @@ public final class ObservationQualificationConfig {
             properties.setProperty("yano.app-chain.storage.path", node.resolve("appchain-chainstate").toString());
             properties.setProperty("yano.app-chain.enabled", "true");
             properties.setProperty("yano.app-chain.api.keys", token);
+            properties.setProperty("yano.app-chain.api.auth.enabled", "true");
             properties.setProperty("yano.plugins.directory", plugins.toString());
-            properties.setProperty("yano.plugins.allow-list", "com.bloxbean.cardano.yano.appchain.stdlib");
+            properties.setProperty("yano.plugins.allow-list", allowList);
             properties.setProperty("yano.relay.connection.source-port-reuse", "false");
             properties.setProperty("yano.relay.connection.max-connections-per-ip", "100");
             properties.setProperty("yano.upstream.validation.level", "praos-ledger");
@@ -145,11 +154,13 @@ public final class ObservationQualificationConfig {
         manifest.put("hostVersion", expectedHostVersion);
         manifest.put("hostDirectory", host.toString());
         manifest.put("pluginDirectory", plugins.toString());
+        manifest.put("pluginAllowList", allowList);
         manifest.put("httpBase", httpBase);
         manifest.put("n2nBase", n2nBase);
         manifest.put("validators", validators);
         manifest.put("reporters", reporters);
         manifest.put("chainSettings", shared);
+        manifest.put("effectiveGenesisId", HEX.formatHex(effectiveIdentity(shared).genesisId()));
         manifest.put("observationProfileDigest", HEX.formatHex(profile.digest()));
         var parsed = AppChainConfigParser.parse(shared);
         manifest.put("consensusProfileDigest", HEX.formatHex(AppChainConsensusProfileCommitment.digest(
@@ -166,6 +177,63 @@ public final class ObservationQualificationConfig {
                 1, 4, 3, true, "external-reporters-v1", parameters.sourceSetDigest(), "fixed-point-v1",
                 "external-reporter-claim-v1", "complete-source-median-v1", parameters.digest(), digest("round-v2"),
                 "pinned-groups-v1", "round-anchor-v1", "inline-v1", 1, 128, 18, 0, 15, 3);
+    }
+
+    static StateCommitmentIdentity effectiveIdentity(Map<String, String> settings) {
+        if (Boolean.parseBoolean(settings.getOrDefault("capabilities.authenticated-snapshots.enabled", "false"))) {
+            throw new IllegalArgumentException("Qualification fixture does not select authenticated snapshots");
+        }
+        var config = AppChainConfigParser.parse(settings);
+        int maxMessages = AppChainEffectsConfig.from(config).consensusProfile(config).maxBlockMessages();
+        var identity = StateCommitmentIdentity.fromSettings(settings).withApplicationProfile(
+                FinalizedBlockMessageRootIndexedStateMachine.configuration(settings, maxMessages).digest());
+        return FinalizedMessageIndexedStateMachine.configuration(settings, maxMessages)
+                .map(index -> identity.withApplicationProfile(index.digest())).orElse(identity);
+    }
+
+    /** Read declarative dependencies without loading or activating any plugin implementation. */
+    static String pluginClosure(Path directory, String root) throws IOException {
+        Map<String, List<String>> dependencies = new TreeMap<>();
+        List<Path> jars;
+        try (var entries = Files.list(directory)) {
+            jars = entries.filter(path -> path.getFileName().toString().endsWith(".jar")).limit(65).toList();
+        }
+        if (jars.size() > 64) throw new IllegalArgumentException("Qualification plugin directory exceeds 64 JARs");
+        for (Path path : jars) {
+            try (JarFile jar = new JarFile(path.toFile())) {
+                var manifests = jar.stream().filter(entry -> entry.getName().startsWith("META-INF/yano/plugins/")
+                        && entry.getName().endsWith(".json")).limit(65).toList();
+                if (manifests.size() > 64) throw new IllegalArgumentException("Too many plugin manifests");
+                for (var entry : manifests) {
+                    byte[] encoded;
+                    try (var input = jar.getInputStream(entry)) { encoded = input.readNBytes(65_537); }
+                    if (encoded.length > 65_536) throw new IllegalArgumentException("Oversized plugin manifest");
+                    var metadata = JSON.readTree(encoded);
+                    String id = metadata.path("id").asText();
+                    if (!id.matches("[A-Za-z0-9_.-]{1,256}")) {
+                        throw new IllegalArgumentException("Invalid plugin identity");
+                    }
+                    List<String> required = new ArrayList<>();
+                    for (var dependency : metadata.path("dependencies")) {
+                        required.add(dependency.path("id").asText());
+                    }
+                    if (dependencies.putIfAbsent(id, required) != null) {
+                        throw new IllegalArgumentException("Duplicate plugin identity: " + id);
+                    }
+                }
+            }
+        }
+        var selected = new TreeSet<String>();
+        var pending = new ArrayDeque<String>();
+        pending.add(root);
+        while (!pending.isEmpty()) {
+            String id = pending.removeFirst();
+            if (!selected.add(id)) continue;
+            var required = dependencies.get(id);
+            if (required == null) throw new IllegalArgumentException("Missing required plugin: " + id);
+            pending.addAll(required);
+        }
+        return String.join(",", selected);
     }
 
     private static byte[] digest(String text) {

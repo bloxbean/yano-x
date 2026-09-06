@@ -2253,6 +2253,10 @@ reconcile_anchor_binding() {
     fi
     sleep 2
   done
+  if [ -s "$error_file" ]; then
+    binding_error="$(tr '\n' ' ' < "$error_file")"
+    note "Last anchor reconciliation diagnostic: $binding_error"
+  fi
   if [ "$require_adopted" = true ]; then
     die "members did not converge on one adopted anchor identity/height within 180 seconds"
   fi
