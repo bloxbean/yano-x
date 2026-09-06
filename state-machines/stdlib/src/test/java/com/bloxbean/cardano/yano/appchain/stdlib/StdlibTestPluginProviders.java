@@ -14,6 +14,7 @@ final class StdlibTestPluginProviders {
     private static final Map<String, AppStateMachineProvider> MACHINES = List.of(
                     new StdlibStateMachineProviders.AuthenticatedMapProvider(),
                     new StdlibStateMachineProviders.AdaUsdReferenceProvider(),
+                    new StdlibStateMachineProviders.ShipmentWorkflowReferenceProvider(),
                     new StdlibStateMachineProviders.ApprovalsProvider(),
                     new StdlibStateMachineProviders.BalancesProvider(),
                     new StdlibStateMachineProviders.DocTrailProvider(),

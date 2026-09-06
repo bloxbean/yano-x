@@ -35,6 +35,40 @@ public final class StdlibStateMachineProviders {
     private StdlibStateMachineProviders() {
     }
 
+    public static final class ShipmentWorkflowReferenceProvider implements AppStateMachineProvider {
+        @Override public String id() { return ShipmentWorkflowReferenceStateMachine.ID; }
+
+        @Override public AppStateMachine create() {
+            throw new IllegalArgumentException("Shipment reference requires pinned observation and L1 profiles");
+        }
+
+        @Override public AppStateMachine create(AppStateMachineContext context) {
+            var profile = context.observationProfile().orElseThrow(() ->
+                    new IllegalArgumentException("Missing observation profile"));
+            var consensus = context.consensusProfile().orElseThrow(() ->
+                    new IllegalArgumentException("Missing consensus profile"));
+            if (!profile.enabled() || !consensus.effectsEnabled() || consensus.l1StabilityDepth() <= 0) {
+                throw new IllegalArgumentException("Shipment reference requires observations, effects and stable L1");
+            }
+            for (String observer : new String[]{ShipmentWorkflowReferenceStateMachine.PAYMENT_OBSERVER,
+                    ShipmentWorkflowReferenceStateMachine.SETTLEMENT_OBSERVER}) {
+                if (!"address-deposit".equals(context.settings().get("observers." + observer + ".type"))) {
+                    throw new IllegalArgumentException(
+                            "Shipment reference requires address-deposit observer " + observer);
+                }
+            }
+            String prefix = "machines." + id() + ".";
+            var configuration = new ShipmentWorkflowReferenceStateMachine.Configuration(
+                    context.settings().get("observers.shipment-payment.address"),
+                    context.settings().get("observers.shipment-settlement.address"),
+                    Long.parseLong(context.settings().getOrDefault(prefix + "minimum-payment-lovelace", "0")),
+                    Long.parseLong(context.settings().getOrDefault(prefix + "release-lovelace", "0")));
+            return new ShipmentWorkflowReferenceStateMachine(configuration, profile.definitions().stream()
+                    .filter(definition -> ShipmentWorkflowReferenceStateMachine.DEFINITION_ID.equals(definition.id()))
+                    .findFirst().orElseThrow(() -> new IllegalArgumentException("Missing shipment definition")));
+        }
+    }
+
     public static final class AdaUsdReferenceProvider implements AppStateMachineProvider {
         @Override public String id() { return AdaUsdReferenceStateMachine.ID; }
 
