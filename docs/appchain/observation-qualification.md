@@ -192,3 +192,32 @@ normal peer reconnection. It bounds concurrent tunnels at 80 and exposes byte
 and rejection counts without inspecting or logging payloads. Preserve its control
 transcript alongside node logs and independently certified before/after roots.
 This is a network harness, not a production plugin or a validation override.
+
+### Ready-certificate withholding with certified view change
+
+After the 5 -> 6 -> 5 membership drill, use
+`ObservationQualificationWithholding <directory> <next-round> <proxy-base>`
+for a create-new omission attempt (round 10..99). Start only with all five nodes
+converged and all twenty directed proxy links connected; preferably complete
+historical L1 catch-up first. The helper authenticates the previous result and
+new opening on all nodes, then prints `partition-required` with the actual
+certified-consensus leader's node index and view. This is not the legacy
+rotating-window proposer display.
+
+Send `partition <node>` to the retained proxy control terminal. The helper
+verifies every expected directed connection state and rejects bypass addresses.
+It first sends twelve journaled reports only to the isolated proposer, waits
+for its certificate-ready counter to increase, and retains that status. Only
+then does it send the identical signed wires to an honest gateway. Four honest
+validators must certify the expected median in a higher view, with a different
+proposer, while the withheld node remains at the opening height. Those four
+independently verified proof packages are saved before `heal-required` is printed.
+
+Send `heal` only after that checkpoint. The helper verifies and retains all
+five certified result proofs after catch-up. Preserve the complete
+`withholding-round-<n>/` directory and proxy transcript. This simulates omission
+by withholding all app-peer traffic from a certificate-holding proposer; the
+host's separate five-node TCP regression covers selective certificate omission
+inside a successfully finalized empty-result block. Neither test may be
+reported as passed until its actual asserted outcome is retained. An interrupted
+attempt is never automatically resumed or overwritten.

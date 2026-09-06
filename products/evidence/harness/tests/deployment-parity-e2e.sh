@@ -870,6 +870,10 @@ scenario_failure_diagnostics() {
     fi
   done
   if [ "$deployment" = compose ]; then
+    note 'Bounded script-anchor adoption diagnostics (including earlier co-sign rounds):' >&2
+    dc_compose logs --no-color --since 30m yano-0 yano-1 yano-2 2>&1 \
+      | awk '/Script-anchor|script-anchor|anchor identity|anchoring configured/' \
+      | tail -n 180 >&2 || true
     dc_compose logs --no-color --tail 120 yano-0 yano-1 yano-2 2>&1 \
       | tail -n 360 >&2 || true
   fi

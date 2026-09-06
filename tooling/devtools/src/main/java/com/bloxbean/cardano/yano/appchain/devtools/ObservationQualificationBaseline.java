@@ -149,6 +149,12 @@ public final class ObservationQualificationBaseline {
 
     static byte[] prove(AppChainClient client, byte[] key, long height, List<String> members,
                                 byte[] genesis, byte[] consensus, byte[] observationProfile) {
+        return HEX.parseHex(certifiedProof(client, key, height, members,
+                genesis, consensus, observationProfile).valueHex());
+    }
+
+    static AppChainClient.Proof certifiedProof(AppChainClient client, byte[] key, long height, List<String> members,
+                                               byte[] genesis, byte[] consensus, byte[] observationProfile) {
         // Derive context independently from pinned fixture inputs, never from the proof's own header.
         byte[] context = new ConsensusContext(3, ObservationQualificationConfig.CHAIN_ID, genesis, height,
                 new ConsensusQuorum(members.size(), 4, 1), members.stream().map(HEX::parseHex).toList(), consensus,
@@ -160,7 +166,7 @@ public final class ObservationQualificationBaseline {
         if (proof.presence() != AppChainClient.ProofPresence.PRESENT) {
             throw new IllegalStateException("Required authenticated value is absent");
         }
-        return HEX.parseHex(proof.valueHex());
+        return proof;
     }
 
     static void advance(List<AppChainClient> clients, long height) throws Exception {
