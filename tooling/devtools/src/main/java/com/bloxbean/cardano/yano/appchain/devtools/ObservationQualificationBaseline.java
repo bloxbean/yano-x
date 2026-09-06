@@ -24,6 +24,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HexFormat;
@@ -146,7 +147,7 @@ public final class ObservationQualificationBaseline {
                 .put(profileDomain).put(network).array());
     }
 
-    private static byte[] prove(AppChainClient client, byte[] key, long height, List<String> members,
+    static byte[] prove(AppChainClient client, byte[] key, long height, List<String> members,
                                 byte[] genesis, byte[] consensus, byte[] observationProfile) {
         // Derive context independently from pinned fixture inputs, never from the proof's own header.
         byte[] context = new ConsensusContext(3, ObservationQualificationConfig.CHAIN_ID, genesis, height,
@@ -162,13 +163,14 @@ public final class ObservationQualificationBaseline {
         return HEX.parseHex(proof.valueHex());
     }
 
-    private static void advance(List<AppChainClient> clients, long height) throws Exception {
+    static void advance(List<AppChainClient> clients, long height) throws Exception {
         clients.getFirst().submit(AdaUsdReferenceStateMachine.ADVANCE_TOPIC, new byte[]{1});
         await(() -> clients.stream().allMatch(client -> client.status().path("tipHeight").asLong() >= height));
     }
 
-    private static void await(BooleanSupplier condition) throws Exception {
-        long deadline = System.nanoTime() + 90_000_000_000L;
+    static void await(BooleanSupplier condition) throws Exception {
+        // A bounded multi-view wait: live L1 catch-up can outlast the first 90 seconds.
+        long deadline = System.nanoTime() + Duration.ofMinutes(5).toNanos();
         while (System.nanoTime() < deadline) {
             if (condition.getAsBoolean()) return;
             Thread.sleep(200);

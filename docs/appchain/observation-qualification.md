@@ -85,3 +85,27 @@ for inspection; do not reset the chain to hide a failure.
 The baseline is distinct from live-L1 qualification. Record L1 progress and
 validation-start activation separately: historical catch-up before the pinned
 Conway validation checkpoint is not evidence of post-checkpoint validation.
+
+## Retained fault/cadence rounds
+
+After the baseline, `ObservationQualificationCadence <directory> <round-count>`
+continues the existing subscription for 1–99 remaining rounds. Use the same
+packaged tool classpath shown above. It requires five ready nodes at one height,
+before the next round opens, and verifies the preceding certified result first.
+It never resets keys/state or resumes an already open, partially signed round.
+
+The repeating four-round plan withholds one source, splits that source's
+reporters below quorum, delays the fourth reporter by one committed height,
+then submits a complete report set. The first two must produce authenticated
+`EXPIRED` results; the latter two must produce the synthetic median `0.501000`.
+Every round checks all five certified result proofs and same-height roots, and
+appends public outcome/resource counters to a create-new
+`cadence-rounds-<first>-<last>.jsonl` evidence file. Honest reporters use their
+retained signing journals; no double signing or wake hint is introduced.
+
+This driver tests withholding and report disagreement, not malicious double
+signing, a transport-level partition, proposer omission, membership transition,
+or process crash recovery. Those remain separate qualification cases. A timeout
+preserves partial state/evidence for diagnosis and is not a passing result.
+Checkpoint waits are bounded at five minutes to allow multiple consensus views
+during L1 catch-up; this changes no report deadline or protocol acceptance rule.

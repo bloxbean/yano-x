@@ -106,7 +106,7 @@ class AuthenticatedMapRuntimeTest {
 
         Path snapshot = tempDir.resolve("snapshot");
         assertThat(first.snapshot(snapshot.toString())).isEqualTo(finalizedHeight);
-        first.stop();
+        first.close(); // A new subsystem below owns the retained ledger after this one is fully released.
         nodes.remove(first);
 
         AppChainSubsystem restarted = start(config, ledgerBase);

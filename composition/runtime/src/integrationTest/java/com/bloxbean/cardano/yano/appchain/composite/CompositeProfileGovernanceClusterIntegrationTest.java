@@ -24,6 +24,7 @@ import com.bloxbean.cardano.yano.appchain.composite.contracts.CompositeProfileGo
 import com.bloxbean.cardano.yano.appchain.testkit.AppChainTestProfiles;
 import com.bloxbean.cardano.yano.runtime.appchain.AppChainSubsystem;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.function.Executable;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.io.TempDir;
@@ -44,9 +45,11 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.BooleanSupplier;
+import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertAll;
 
 @Timeout(180)
 class CompositeProfileGovernanceClusterIntegrationTest {
@@ -90,12 +93,9 @@ class CompositeProfileGovernanceClusterIntegrationTest {
 
     @AfterEach
     void tearDown() {
-        new ArrayList<>(nodes.values()).forEach(node -> {
-            try { node.stop(); } catch (Exception ignored) { }
-        });
-        new ArrayList<>(servers.values()).forEach(server -> {
-            try { server.shutdown(); } catch (Exception ignored) { }
-        });
+        assertAll(Stream.concat(
+                new ArrayList<>(nodes.values()).stream().<Executable>map(node -> node::close),
+                new ArrayList<>(servers.values()).stream().<Executable>map(server -> server::shutdown)));
     }
 
     @Test
@@ -297,7 +297,7 @@ class CompositeProfileGovernanceClusterIntegrationTest {
 
     private void stop(String name) throws InterruptedException {
         AppChainSubsystem node = nodes.remove(name);
-        if (node != null) node.stop();
+        if (node != null) node.close();
         NodeServer server = servers.remove(name);
         if (server != null) server.shutdown();
         Thread.sleep(700);
