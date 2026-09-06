@@ -103,9 +103,26 @@ appends public outcome/resource counters to a create-new
 `cadence-rounds-<first>-<last>.jsonl` evidence file. Honest reporters use their
 retained signing journals; no double signing or wake hint is introduced.
 
-This driver tests withholding and report disagreement, not malicious double
-signing, a transport-level partition, proposer omission, membership transition,
-or process crash recovery. Those remain separate qualification cases. A timeout
+For a deliberate Byzantine reporter case, run exactly one round with an
+explicit third argument:
+
+```text
+ObservationQualificationCadence <directory> 1 equivocating-reporter
+```
+
+This overrides that round's normal scenario with a complete honest report set
+plus two conflicting claims from the pinned fifth test reporter. Only this
+explicit fault mode bypasses a reporter journal; all four honest reporters keep
+their normal durable signing protections. Both adversarial signed wires are
+retained with create-new semantics in `equivocation-round-<n>.json` before either
+is submitted to two different nodes. No private signing material is written to
+that evidence file. Queue admission is not evidence of acceptance: the required
+outcome is still five independently verified proofs of the honest median.
+Never reuse this deliberate double-signing tool with operational reporter keys.
+
+The driver does not exercise a transport-level partition, proposer omission,
+membership transition, or process crash recovery. Those remain separate
+qualification cases. A timeout
 preserves partial state/evidence for diagnosis and is not a passing result.
 Checkpoint waits are bounded at five minutes to allow multiple consensus views
 during L1 catch-up; this changes no report deadline or protocol acceptance rule.

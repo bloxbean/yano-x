@@ -1,5 +1,8 @@
 package com.bloxbean.cardano.yano.appchain.devtools;
 
+import com.bloxbean.cardano.client.crypto.KeyGenUtil;
+import com.bloxbean.cardano.client.crypto.config.CryptoConfiguration;
+import com.bloxbean.cardano.yano.api.appchain.observation.ObservationReport;
 import org.junit.jupiter.api.Test;
 
 import java.util.HashSet;
@@ -8,6 +11,29 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ObservationQualificationCadenceTest {
+    @Test
+    void adversarialModeSignsTwoConflictingClaimsForOnlyOnePinnedSubject() {
+        byte[] seed = new byte[32];
+        seed[0] = 17;
+        byte[] key = KeyGenUtil.getPublicKeyFromPrivateKey(seed);
+        var template = new ObservationReport(1, new byte[32], "fixture", new byte[32], new byte[32],
+                new byte[32], new byte[32], 5, new byte[32], new byte[32], key,
+                new byte[]{2}, new byte[]{1}, new byte[0], new byte[]{1}, 0, 52, new byte[64]);
+        var reports = ObservationQualificationCadence.adversarialReports(template, seed);
+        assertThat(reports).hasSize(2);
+        assertThat(reports.get(0).value()).isNotEqualTo(reports.get(1).value());
+        for (var report : reports) {
+            assertThat(report.reporterPublicKey()).isEqualTo(key);
+            assertThat(report.sourceId()).isEqualTo(template.sourceId());
+            assertThat(report.roundNumber()).isEqualTo(5);
+            assertThat(report.subscriptionId()).isEqualTo(template.subscriptionId());
+            assertThat(CryptoConfiguration.INSTANCE.getSigningProvider().verify(
+                    report.signature(), report.signingDigest(), key)).isTrue();
+        }
+        assertThatThrownBy(() -> ObservationQualificationCadence.adversarialReports(template, new byte[32]))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("does not match");
+    }
+
     @Test
     void faultPlansNeverAccidentallySignTwiceForTheSameReporterSource() {
         for (var scenario : ObservationQualificationCadence.Scenario.values()) {

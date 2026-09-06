@@ -61,9 +61,15 @@ public final class ObservationQualificationCadence {
     }
 
     public static void main(String[] args) throws Exception {
-        if (args.length != 2) throw new IllegalArgumentException("Expected qualification directory and round count");
+        if (args.length < 2 || args.length > 3) {
+            throw new IllegalArgumentException("Expected directory, round count, optional equivocating-reporter");
+        }
         int count = Integer.parseInt(args[1]);
         if (count < 1 || count > 99) throw new IllegalArgumentException("Round count must be 1..99");
+        boolean equivocating = args.length == 3;
+        if (equivocating && (!"equivocating-reporter".equals(args[2]) || count != 1)) {
+            throw new IllegalArgumentException("Explicit equivocating-reporter mode requires exactly one round");
+        }
         Path root = Path.of(args[0]).toRealPath();
         var manifest = JSON.readTree(root.resolve("qualification.json").toFile());
         var settings = manifest.path("chainSettings");
@@ -119,9 +125,31 @@ public final class ObservationQualificationCadence {
                     || round.roundNumber() != number || round.openingHeight() != opening) {
                 throw new IllegalStateException("Authenticated round changed the pinned quorum/schedule");
             }
-            Scenario selected = scenario(number);
+            Scenario selected = equivocating ? Scenario.COMPLETE : scenario(number);
+            String scenarioName = equivocating ? "EQUIVOCATING_REPORTER" : selected.name();
             System.out.println(JSON.writeValueAsString(Map.of("checkpoint", "authenticated-round",
-                    "round", number, "height", opening, "scenario", selected.name())));
+                    "round", number, "height", opening, "scenario", scenarioName)));
+            if (equivocating) {
+                byte[] seed = HEX.parseHex(secrets.getProperty("reporter.4"));
+                byte[] key = KeyGenUtil.getPublicKeyFromPrivateKey(seed);
+                if (!HEX.formatHex(key).equals(manifest.path("reporters").get(4).asText())) {
+                    throw new IllegalStateException("Adversarial reporter differs from pinned fifth fixture key");
+                }
+                var template = new ObservationReport(1, genesis, ObservationQualificationConfig.CHAIN_ID,
+                        consensus, profile.digest(), definition.digest(), subscription, number, round.membershipDigest(),
+                        round.reporterSetDigest(), key, AdaUsdReferenceStateMachine.parameters().sources().get(2).id(),
+                        ObservationFixedPoint.parse("0.503000", 6).encode(), new byte[0], new byte[]{1},
+                        0, round.dueAnchor(), new byte[64]);
+                var faults = adversarialReports(template, seed);
+                // This deliberate Byzantine signer is separate from all four honest signing journals.
+                // Retain both signed wires before any submission; never silently recreate a partial attempt.
+                Files.writeString(root.resolve("equivocation-round-" + number + ".json"),
+                        JSON.writeValueAsString(Map.of("round", number, "reporter", HEX.formatHex(key),
+                                "reports", faults.stream().map(report -> HEX.formatHex(report.encode())).toList())),
+                        StandardOpenOption.CREATE_NEW);
+                clients.get(0).submitObservationReport(faults.get(0));
+                clients.get(4).submitObservationReport(faults.get(1));
+            }
             for (Claim claim : claims(selected)) {
                 if (selected == Scenario.DELAYED_REPORTER && claim.reporter() == 3 && claim.source() == 0) {
                     // Move one committed height with only three reporters per source. A quorum needs four.
@@ -170,7 +198,7 @@ public final class ObservationQualificationCadence {
             String stateRoot = verifyResult(clients, result, members, genesis, consensus, profile);
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("round", number);
-            row.put("scenario", selected.name());
+            row.put("scenario", scenarioName);
             row.put("status", result.status().name());
             row.put("height", result.finalizedHeight());
             row.put("resultId", HEX.formatHex(result.resultId()));
@@ -183,6 +211,27 @@ public final class ObservationQualificationCadence {
             System.out.println(line);
             previous = result;
         }
+    }
+
+    static List<ObservationReport> adversarialReports(ObservationReport template, byte[] seed) {
+        if (!Arrays.equals(template.reporterPublicKey(), KeyGenUtil.getPublicKeyFromPrivateKey(seed))) {
+            throw new IllegalArgumentException("Adversarial signing seed does not match report");
+        }
+        List<ObservationReport> reports = new ArrayList<>();
+        for (String value : List.of("0.503000", "0.504000")) {
+            var unsigned = copyClaim(template, ObservationFixedPoint.parse(value, 6).encode(), new byte[64]);
+            byte[] signature = CryptoConfiguration.INSTANCE.getSigningProvider().sign(unsigned.signingDigest(), seed);
+            reports.add(copyClaim(unsigned, unsigned.value(), signature));
+        }
+        return List.copyOf(reports);
+    }
+
+    private static ObservationReport copyClaim(ObservationReport report, byte[] value, byte[] signature) {
+        return new ObservationReport(report.version(), report.chainGenesisId(), report.chainId(),
+                report.consensusProfileDigest(), report.observationProfileDigest(), report.definitionDigest(),
+                report.subscriptionId(), report.roundNumber(), report.membershipDigest(), report.reporterSetDigest(),
+                report.reporterPublicKey(), report.sourceId(), value, report.evidence(), report.sourceVersion(),
+                report.freshnessAnchorType(), report.freshnessAnchor(), signature);
     }
 
     private static String verifyResult(List<AppChainClient> clients, ObservationResult result, List<String> members,
