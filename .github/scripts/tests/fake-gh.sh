@@ -5,7 +5,7 @@ if [[ "${1:-}" == api ]]; then
     --arg conclusion "${TEST_RUN_CONCLUSION:-success}" \
     --arg repository "${TEST_RUN_REPOSITORY:-bloxbean/yano}" \
     '{head_sha:$commit,status:"completed",conclusion:$conclusion,event:"workflow_dispatch",
-      path:".github/workflows/integration.yml",repository:{full_name:$repository}}'
+      path:".github/workflows/stage-consumer-inputs.yml",repository:{full_name:$repository}}'
 elif [[ "${1:-}" == run && "${2:-}" == download ]]; then
   destination=''
   while (($#)); do
