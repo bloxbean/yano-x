@@ -80,6 +80,45 @@
       "acceptanceScenario": "recipe-owned-registry"
     },
     {
+      "id": "document-trail",
+      "version": "1",
+      "name": "Document trail",
+      "category": "application",
+      "availability": "BUNDLED",
+      "maturity": "preview",
+      "scope": "chain",
+      "selectable": true,
+      "trustStatement": "First-party Yano recipe using the bundled standard-library registry.",
+      "description": "Append document hashes to a provable trail for each product, case, or shipment.",
+      "primaryOutcome": "A document hash advances an entity trail; its count and head have a committed state proof.",
+      "firstCommand": "doc append <entity-id> <document-hash> [reference]",
+      "verificationQuery": "state proof for UTF8(e/<entity-id>) returns the trail count and head",
+      "capabilities": [
+        "state:doc-trail",
+        "sequencer:fixed"
+      ],
+      "recommended": {
+        "blockIntervalMs": "2000"
+      },
+      "runtimeTypes": [
+        "jvm"
+      ],
+      "deploymentTargets": [
+        "host",
+        "docker-compose"
+      ],
+      "artifacts": [
+        "yano-runtime",
+        "yano-x-stdlib"
+      ],
+      "nativePosture": "unsupported",
+      "externalPrerequisites": [],
+      "bootstrapRequirements": [],
+      "nonSecretAnswers": [],
+      "documentation": "docs/appchain/state-machines/doc-trail.md",
+      "acceptanceScenario": "recipe-document-trail"
+    },
+    {
       "id": "authenticated-map",
       "version": "1",
       "name": "Authenticated map",

@@ -1,6 +1,6 @@
 # `doc-trail` State Machine
 
-`doc-trail` is Yano's built-in append-only trail per business entity. Each
+`doc-trail` is Yano X's stock append-only trail per business entity. Each
 command appends an application-level document or event hash to one entity's
 running chained head. The current count and head are replicated,
 threshold-finalized, and individually provable against the app-chain state
@@ -85,8 +85,8 @@ yano:
 ```
 
 The default local demo does not include a standalone `doc-trail` chain. Add a
-new chain to the shared configuration before starting a fresh cluster, or use
-the app-chain configuration generator for a new project. Do not reinterpret
+chain through the [add-chain workflow](../deployment/add-chain.md), or select
+the `document-trail` recipe in a new project. Do not reinterpret
 retained data from another state machine as `doc-trail` state.
 
 ## Hash and submit a document through REST
@@ -95,11 +95,11 @@ The application selects the document hash algorithm represented by
 `entryHashBytes`. SHA-256 is a common application choice; the running trail
 head itself always uses Blake2b-256.
 
-From the source checkout's `app/` directory, create a sample document hash and
-encode the command with the tutorial helper:
+From the extracted Yano X JVM release, create a sample document hash and
+encode the command with the bundled tutorial helper:
 
 ```bash
-TOOL=../docs/appchain/tutorials/tools/stdlib_command.py
+TOOL=./docs/appchain/tutorials/tools/stdlib_command.py
 ENTITY=product-42
 
 ENTRY_HASH=$(python3 -c \

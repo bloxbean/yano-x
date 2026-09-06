@@ -202,6 +202,27 @@
       ]
     },
     {
+      "id": "document-trail",
+      "maturity": "preview",
+      "availability": "BUNDLED",
+      "runtimeTypes": [
+        "jvm"
+      ],
+      "deploymentTargets": [
+        "host",
+        "docker-compose"
+      ],
+      "gitOpsTargets": [
+        "helm",
+        "kustomize"
+      ],
+      "outcomeLevel": "MODULE_OUTCOME_AND_PACKAGED_PROVIDER",
+      "acceptanceScenario": "recipe-document-trail",
+      "evidence": [
+        "tooling/devtools/src/test/java/com/bloxbean/cardano/yano/appchain/devtools/AppChainMultiChainProjectTest.java#documentTrailRecipeUsesStockProvider"
+      ]
+    },
+    {
       "id": "authenticated-map",
       "maturity": "preview",
       "availability": "BUNDLED",

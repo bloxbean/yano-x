@@ -97,11 +97,12 @@ artifact identity and that every runtime plugin has a bundle publication.
 | `:ledgers:eutxo:demo` | `yano-x-eutxo-demo` | — | [ledgers/eutxo/demo](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/demo) |
 | `:ledgers:eutxo-zk:demo` | `yano-x-eutxo-zk-demo` | — | [ledgers/eutxo-zk/demo](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/demo) |
 
-### `tool` (3)
+### `tool` (4)
 
 | Gradle module | Artifact id | Plugin bundle id | Source |
 |---|---|---|---|
 | `:tooling:devtools` | `yano-x-devtools` | — | [tooling/devtools](https://github.com/bloxbean/yano-x/blob/main/tooling/devtools) |
+| `:tooling:deployment` | `yano-x-deployment` | — | [tooling/deployment](https://github.com/bloxbean/yano-x/blob/main/tooling/deployment) |
 | `:tooling:studio` | `yano-x-studio` | — | [tooling/studio](https://github.com/bloxbean/yano-x/blob/main/tooling/studio) |
 | `:products:cardano-history:cli` | `yano-x-cardano-history-cli` | — | [products/cardano-history/cli](https://github.com/bloxbean/yano-x/blob/main/products/cardano-history/cli) |
 
@@ -121,6 +122,12 @@ artifact identity and that every runtime plugin has a bundle publication.
 | `:products:cardano-history:onchain` | `yano-x-cardano-history-onchain` | — | [products/cardano-history/onchain](https://github.com/bloxbean/yano-x/blob/main/products/cardano-history/onchain) |
 | `:ledgers:eutxo:bridge-onchain` | `yano-x-eutxo-bridge-onchain` | — | [ledgers/eutxo/bridge-onchain](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/bridge-onchain) |
 | `:ledgers:eutxo-zk:onchain` | `yano-x-eutxo-zk-onchain` | — | [ledgers/eutxo-zk/onchain](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/onchain) |
+
+### `web-application` (1)
+
+| Gradle module | Artifact id | Plugin bundle id | Source |
+|---|---|---|---|
+| `:products:eutxo:ui` | `yano-x-eutxo-ui` | — | [products/eutxo/ui](https://github.com/bloxbean/yano-x/blob/main/products/eutxo/ui) |
 
 ### `test-fixture` (1)
 

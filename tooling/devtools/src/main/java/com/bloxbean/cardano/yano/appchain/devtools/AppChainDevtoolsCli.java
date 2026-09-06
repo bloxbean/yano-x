@@ -51,7 +51,7 @@ public final class AppChainDevtoolsCli {
                or: ./yano.sh appchain doctor [project-directory] [--distribution <path>]
                or: ./yano.sh appchain diff <old.lock> <new.lock>
                or: ./yano.sh appchain drift [project-directory] --peer <url> [--peer <url> ...]
-               or: ./yano.sh appchain gitops [project-directory] --target helm|kustomize --output <empty-dir>
+               or: ./yano.sh appchain gitops [project-directory] --target helm|kustomize|ansible --output <empty-dir>
                or: ./yano.sh appchain plugin inspect|validate|sign|scaffold [options]
                or: ./yano.sh appchain metadata verify <plugin.jar> --trust-key <key-id=64-hex-public-key>
                or: ./yano.sh appchain migrate [project-directory] [--dry-run]
@@ -636,7 +636,7 @@ public final class AppChainDevtoolsCli {
         int cursor = args.length > 0 && "appchain".equals(args[0]) ? 1 : 0;
         if (cursor >= args.length) return false;
         return switch (args[cursor]) {
-            case "init", "render", "recipes", "capabilities", "doctor", "diff", "drift",
+            case "chain", "prepare", "plan", "apply", "start-check", "init", "render", "recipes", "capabilities", "doctor", "diff", "drift",
                     "gitops", "plugin", "metadata", "migrate" -> true;
             default -> false;
         };

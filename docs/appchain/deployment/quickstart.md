@@ -1,13 +1,4 @@
----
-title: "Start a local Yano X showcase"
-description: "Run three nodes, submit useful data, and inspect proofs without a source checkout, wallet, public-network funds, or external Cardano node."
-editUrl: false
----
-
-:::note[Imported page]
-This page is generated from [`docs/appchain/deployment/quickstart.md`](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/deployment/quickstart.md)
-in the Yano X repository, which is its source of truth.
-:::
+# Start a local Yano X showcase
 
 Run three nodes, submit useful data, and inspect proofs without a source checkout,
 wallet, public-network funds, or external Cardano node.
@@ -18,7 +9,7 @@ From the [Yano X releases page](https://github.com/bloxbean/yano-x/releases), se
 one release and download its `yano-showcase-<version>.zip` and published checksum.
 Use the checksum from that same release. If a release does not publish a showcase
 archive, use a qualified build from your team or the
-[distribution build instructions](/start-here/build-from-source/); do not substitute
+[distribution build instructions](../../BUILD_DISTRIBUTIONS.md); do not substitute
 an unrelated Yano ZIP.
 
 Extract into a new directory and open a terminal in the directory containing
@@ -56,7 +47,7 @@ printed console URL to inspect messages, chain state, and effects.
 
 A successful HTTP submission is admission to the message pool. Finality and a
 successful application transition are later results. See the
-[HTTP submission walkthrough](https://github.com/bloxbean/yano-x/blob/main/examples/showcase/docs/MESSAGE_SUBMISSION.md)
+[HTTP submission walkthrough](../../../examples/showcase/docs/MESSAGE_SUBMISSION.md)
 for the actual requests, message lookup, and typed proof route.
 
 ## 3. Keep your state and resume
@@ -72,5 +63,5 @@ Retrieve the same order after restart. Do not reset an instance to fix a startup
 error. Run `./showcase.sh logs --instance first-demo` and inspect the first failure;
 keep the generated identity and data directories together.
 
-Continue with [your own application profile](/deployment/configure/), or explore the
-[complete showcase](https://github.com/bloxbean/yano-x/blob/main/examples/showcase/docs/MASTER_DEMO.md).
+Continue with [your own application profile](configure.md), or explore the
+[complete showcase](../../../examples/showcase/docs/MASTER_DEMO.md).

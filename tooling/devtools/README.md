@@ -1,5 +1,12 @@
 # Yano app-chain developer tools
 
+Start with the [deployment guides](../../docs/appchain/deployment/README.md).
+Projects support up to 32 chains sharing member placement. `prepare` creates
+local devnet identities once; `chain add`, `plan`, and `apply --plan <digest>`
+provide a reviewed, state-preserving local configuration revision. A restart
+is required. Optional/custom plugin installation and remote application-profile
+rollouts require separate qualification.
+
 This module provides the internal offline `yano-appchain` engine used by
 `yano.sh appchain`; users should treat `yano.sh` as the public CLI. It supports
 project initialization and deterministic

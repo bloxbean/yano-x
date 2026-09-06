@@ -1,6 +1,10 @@
 # Yano X deployment experience: independent review and design plan
 
-Status: proposal for review; not an implemented deployment contract.
+Status: original review and roadmap. The implementation follow-up is
+[ADR-047](../../adr/047-cohesive-application-deployment.md); current user workflows
+are documented in the [deployment guides](deployment/README.md). Remaining roadmap
+items below are not implied to be implemented. See the
+[implementation validation record](DEPLOYMENT_EXPERIENCE_VALIDATION.md) for executed checks.
 
 Reviewed on 2026-09-06 against Yano X commit
 `366950619c0decdd95add0e0ee192b52241d6699`. Upstream host inspection was read-only,
