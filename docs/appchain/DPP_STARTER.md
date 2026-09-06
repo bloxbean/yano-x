@@ -186,6 +186,10 @@ Portal routes: `GET /passports/{id}[?height=]`, `GET /passports/{id}/proof`,
 `/operator/certifications/propose|approve|reject|apply` (the request document travels in the
 `request` field). Every write answers with the message id and the receipt.
 
+Running this in front of an audience: [DPP demonstration](DPP_DEMO.md) covers the cast, where the
+roles come from, how the keys are held, and the browser walkthrough. Taking it further:
+[Production deployment](PRODUCTION_DEPLOYMENT.md).
+
 ## The console
 
 - **Passport** reads the portal only. Enter a product id, paste a Digital Link, or arrive on
