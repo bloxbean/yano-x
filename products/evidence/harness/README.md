@@ -32,6 +32,14 @@ operator-authorized supplemental evidence rather than an automatic test.
 
 ## Quick start (Docker Compose)
 
+Anchor startup waits for the bootstrap thread UTxO on all three members before
+running a scenario. `DEMO_ANCHOR_VISIBILITY_TIMEOUT_SECONDS` controls that wait
+(default 300, range 60–3600 seconds), separately from the scenario timeout.
+Qualification CI uses 900 seconds to allow the unchanged default node
+no-progress watchdog to recover. Pending and failed waits print bounded,
+allowlisted L1 status diagnostics for both Compose and host mode. A larger
+deadline does not relax the all-member visibility check or change node policy.
+
 Prerequisites are JDK 25, Docker with Compose v2, `curl`, `jq`, `openssl`, and
 Python 3. In an extracted Yano X JVM distribution, run from
 `examples/evidence`:

@@ -284,6 +284,8 @@ def job_block(name):
 
 
 e2e_job = job_block("effect-failover-e2e")
+if e2e_job.count("DEMO_ANCHOR_VISIBILITY_TIMEOUT_SECONDS: '900'") != 2:
+    raise SystemExit("parity and role startup must both allow the default node recovery window")
 for required in (
         "timeout-minutes: 240",
         "YANO_RUN_DEPLOYMENT_PARITY_E2E: 'true'",
