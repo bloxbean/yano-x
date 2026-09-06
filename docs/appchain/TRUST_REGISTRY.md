@@ -193,7 +193,7 @@ Every command takes `--url $YANO_TRUST_URL --chain $YANO_TRUST_CHAIN`; the API k
 9. **Sign in the browser instead.** The write view has two signing modes, and shows which is
    active. *Gateway* is the demo path above: the gateway holds every seed it was started with and
    signs for any of them, so a proof says the gateway signed as that actor. *Browser key* unlocks
-   one actor's key in the tab, from pasted hex or a seed file. The seed is imported through
+   one actor's key in the tab, from pasted hex or a file holding that hex. The seed is imported through
    WebCrypto and zeroed at once, never stored and never sent anywhere; the console reads the
    actor's record, active key, and policy revision from the chain, refuses to continue if the
    unlocked key is not the one the chain holds for that actor, signs the authorization in the tab,

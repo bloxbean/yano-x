@@ -156,10 +156,12 @@
   let opSchemaId = 'schema-1';
   let opSchemaValue = '{}';
   // BROWSER_KEY: the key is unlocked in this tab only, and the seed never leaves it.
+  const DEMO_SEED_PREFIX = 'yano-trust-registry-demo-actor:';
   let signingMode: 'gateway' | 'browser' = 'gateway';
   let seedInput = '';
   let signer: ActorSigner | null = null;
   let browserError = '';
+  let browserWarning = '';
 
   $: selectedActor = actors.find((actor) => actor.actorId === actorId) ?? null;
   $: writeSteps = deriveWriteSteps(progress, actors, actorId);
@@ -377,6 +379,7 @@
       }
       const parsed = parseSeed(seedInput);
       seedInput = '';
+      browserWarning = await demoSeedWarning(parsed, actorId);
       signer?.release();
       signer = await createSigner(parsed);
       await loadBrowserActor();
@@ -386,10 +389,27 @@
     }
   }
 
+  /**
+   * The launcher derives every demo seed from a public string, so a key unlocked from one is known
+   * to anyone who can read the harness. Say so rather than let a demo key look like a real one.
+   */
+  async function demoSeedWarning(seed: Uint8Array, actor: string): Promise<string> {
+    if (!actor.trim()) return '';
+    try {
+      const derived = await sha256Hex(asciiKey(`${DEMO_SEED_PREFIX}${actor.trim()}`));
+      if (derived !== toHex(seed)) return '';
+    } catch {
+      return '';
+    }
+    return 'This is the launcher\'s demonstration key for this actor, derived from a public string. '
+      + 'Anyone can recompute it, so a signature made with it proves nothing outside the demo.';
+  }
+
   function lockKey() {
     signer?.release();
     signer = null;
     seedInput = '';
+    browserWarning = '';
     if (!gateway) actors = [];
   }
 
@@ -437,7 +457,9 @@
   /** The actor's current record and the policy's current revision, read from the chain. */
   async function readSigningContext(policyId: string): Promise<CommandContext> {
     if (!api || !selectedChain) throw new Error('Connect a node first');
-    const tip = BigInt(selectedChain.summary.tipHeight);
+    // The height bounds the authorization, so read it now rather than reuse the discovery value.
+    const live = await api.chainStatus(selectedChainId).catch(() => null);
+    const tip = BigInt(live?.tipHeight ?? selectedChain.summary.tipHeight);
     const actorRevision = decodePointer(await presentValue(actorCurrentKey(actorId), `actor ${actorId}`));
     const record = decodeActorRecord(await presentValue(
       actorRevisionKey(actorId, actorRevision), `actor ${actorId} revision ${actorRevision}`));
@@ -914,6 +936,7 @@
                 <input id="browser-seed-file" class="field mt-1" type="file" onchange={(event) => void pickSeedFile(event)} />
               </div>
               {#if browserError}<div class="notice notice-error mt-3">{browserError}</div>{/if}
+              {#if browserWarning}<div class="notice notice-warn mt-3">{browserWarning}</div>{/if}
               {#if signer}
                 <div class="mt-3 flex flex-wrap items-center gap-2">
                   <span class="pill pill-ok">KEY UNLOCKED IN THIS TAB</span>

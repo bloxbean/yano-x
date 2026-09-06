@@ -10,8 +10,9 @@ The Trust and Status Registry is a config-only product on the stock governed
 published status lists, issuers, and schemas; the `yano-trust` CLI answers
 status questions with proofs bound to a certified block; `yano-trust serve`
 speaks W3C Bitstring Status List and a TRQP-shaped authorization query without
-ever processing JSON-LD; and a browser console reads it all back. Nothing in it
-executes on chain.
+ever processing JSON-LD; and a browser console reads it all back and, through an
+operator gateway or a key unlocked in the tab itself, writes to it. Nothing in
+it executes on chain.
 
 ## The journey
 
