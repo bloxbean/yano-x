@@ -4,6 +4,8 @@ import com.bloxbean.cardano.client.crypto.KeyGenUtil;
 import com.bloxbean.cardano.client.crypto.config.CryptoConfiguration;
 import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
 import com.bloxbean.cardano.yano.api.appchain.observation.ObservationProfileV1;
+import com.bloxbean.cardano.yano.api.appchain.observation.ObservationResult;
+import com.bloxbean.cardano.yano.api.appchain.observation.ObservationResultStatus;
 import com.bloxbean.cardano.yano.api.appchain.transition.FinalizedBlockMessageRootIndex;
 import com.bloxbean.cardano.yano.appchain.client.AppChainClient;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -39,6 +41,12 @@ public final class ObservationQualificationMembership {
     private static final int LIMIT = 4 * 1024 * 1024;
 
     private ObservationQualificationMembership() { }
+
+    static boolean validStart(long height, boolean recoverAdd, boolean removeOnly) {
+        if (recoverAdd && removeOnly) return false;
+        if (removeOnly) return height == 74;
+        return recoverAdd ? height >= 54 && height < 62 : height == 53;
+    }
 
     record Epoch(long fromHeight, List<String> members) {
         Epoch { members = members.stream().sorted().toList(); }
@@ -111,8 +119,9 @@ public final class ObservationQualificationMembership {
 
     public static void main(String[] args) throws Exception {
         boolean recover = args.length == 2 && "recover-add-approvals".equals(args[1]);
-        if (args.length != 1 && !recover) {
-            throw new IllegalArgumentException("Expected qualification directory, optional recover-add-approvals");
+        boolean removeOnly = args.length == 2 && "remove-after-rounds".equals(args[1]);
+        if (args.length != 1 && !recover && !removeOnly) {
+            throw new IllegalArgumentException("Expected directory, optional recover-add-approvals or remove-after-rounds");
         }
         Path root = Path.of(args[0]).toRealPath();
         JsonNode manifest = JSON.readTree(root.resolve("qualification.json").toFile());
@@ -138,8 +147,8 @@ public final class ObservationQualificationMembership {
                     .chainId(ObservationQualificationConfig.CHAIN_ID).apiKey(apiKey).build());
         }
         long initial = clients.getFirst().status().path("tipHeight").asLong();
-        if (recover ? initial < 54 || initial >= 62 : initial != 53) {
-            throw new IllegalStateException("Requires height 53, or explicit add-approval recovery before round 6");
+        if (!validStart(initial, recover, removeOnly)) {
+            throw new IllegalStateException("Wrong retained checkpoint for the selected membership drill stage");
         }
         byte[] latest = null;
         for (var client : clients) {
@@ -151,23 +160,37 @@ public final class ObservationQualificationMembership {
             }
             byte[] certified = ObservationQualificationBaseline.prove(client,
                     "ada-usd/latest-result".getBytes(StandardCharsets.UTF_8), initial,
-                    original, genesis, consensus, profile.digest());
+                    removeOnly ? membersAt(root, original, initial) : original, genesis, consensus, profile.digest());
             if (latest != null && !Arrays.equals(latest, certified)) {
                 throw new IllegalStateException("Initial certified results differ");
             }
             latest = certified;
         }
+        if (removeOnly) {
+            var result = ObservationResult.decode(latest);
+            if (result.roundNumber() != 7 || result.finalizedHeight() != 74
+                    || result.status() != ObservationResultStatus.VALUE) {
+                throw new IllegalStateException("Removal recovery requires the certified round-7 VALUE checkpoint");
+            }
+        }
         List<Epoch> epochs = new ArrayList<>(List.of(new Epoch(0, original)));
         selectMembers(epochs, original, initial);
         String spare;
-        if (recover) {
+        if (recover || removeOnly) {
             JsonNode plan = JSON.readTree(root.resolve("membership-plan.json").toFile());
             JsonNode history = JSON.readTree(root.resolve("membership-epochs.json").toFile());
             spare = plan.path("sparePublicKey").asText();
             if (plan.path("initialHeight").asLong(-1) != 53 || !spare.matches("[0-9a-f]{64}")
-                    || original.contains(spare) || history.path("epochs").size() != 1
-                    || !membersAt(root, original, initial).equals(original.stream().sorted().toList())) {
+                    || original.contains(spare) || history.path("epochs").size() != (removeOnly ? 2 : 1)) {
                 throw new IllegalStateException("Recovery requires the original pending add plan and trust pins");
+            }
+            List<String> expected = new ArrayList<>(original);
+            if (removeOnly) expected.add(spare);
+            if (!membersAt(root, original, initial).equals(expected.stream().sorted().toList())) {
+                throw new IllegalStateException("Retained membership does not match the original add plan");
+            }
+            if (removeOnly) {
+                epochs.add(new Epoch(history.path("epochs").get(1).path("fromHeight").asLong(), expected));
             }
         } else {
             byte[] seed = new byte[32];
@@ -181,6 +204,7 @@ public final class ObservationQualificationMembership {
         }
         try (HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build()) {
             for (boolean add : List.of(true, false)) {
+                if (removeOnly && add) continue;
                 long approvalHeight = transition(root, clients, http, port, apiKey, original, spare, add,
                         genesis, consensus, profile.digest(), recover && add);
                 List<String> updated = new ArrayList<>(original);

@@ -12,6 +12,16 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ObservationQualificationCadenceTest {
     @Test
+    void operatorWaitBudgetIsBoundedWithoutChangingLogicalRoundDeadlines() {
+        assertThat(ObservationQualificationBaseline.checkpointTimeout("300").toSeconds()).isEqualTo(300);
+        assertThat(ObservationQualificationBaseline.checkpointTimeout("1800").toSeconds()).isEqualTo(1800);
+        for (String invalid : new String[]{"0", "-1", "1801", "unbounded"}) {
+            assertThatThrownBy(() -> ObservationQualificationBaseline.checkpointTimeout(invalid))
+                    .isInstanceOf(IllegalArgumentException.class);
+        }
+    }
+
+    @Test
     void recoveryRequiresExactlyTheOpeningBoundaryAndOneOpenRound() {
         assertThat(ObservationQualificationCadence.validStartingBoundary(42, 4, 1, true)).isTrue();
         assertThat(ObservationQualificationCadence.validStartingBoundary(41, 4, 0, false)).isTrue();

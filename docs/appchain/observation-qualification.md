@@ -153,6 +153,13 @@ cadence proof contexts select its height-specific members independently of node
 responses. Preserve the plan, approval proof packages, epoch history and result.
 An interrupted drill is not automatically restarted or reset.
 
+The drivers wait five minutes per convergence checkpoint by default. During
+historical L1 catch-up, `-Dyano.qualification.checkpoint-timeout-seconds=1800`
+allows a bounded 30-minute observation wait (accepted range 1..1800 seconds).
+This changes only the operator's waiting budget, never report windows, result
+grace, consensus timeouts or L1 validation. Inspect progress and preserve the
+failed attempt before restarting; a larger wait does not repair stalled nodes.
+
 For an interruption after submitting the initial add commands but before
 recording their approval proofs, `ObservationQualificationMembership <directory>
 recover-add-approvals` is an explicit bounded recovery. It requires all nodes
@@ -162,6 +169,13 @@ from height 54 without resubmitting commands or generating another member key.
 Existing proof files are never overwritten. Other interruption points still
 require separate reconciliation. The effective genesis is always derived from
 the pinned chain settings; a redundant manifest identity, if present, must agree.
+
+If approval verification completed but its subsequent cadence run was interrupted,
+reconcile the cadence separately using the retained membership pins. Once all
+five nodes certify the end of round 7 at height 74, the explicit
+`remove-after-rounds` mode verifies that checkpoint and the retained six-member
+epoch against the original add plan, then executes only the removal and final
+two cadence rounds. It never resubmits the completed add transition.
 
 ## Directed app-peer partitions
 

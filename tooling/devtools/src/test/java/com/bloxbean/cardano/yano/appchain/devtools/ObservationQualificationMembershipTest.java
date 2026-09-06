@@ -20,6 +20,19 @@ class ObservationQualificationMembershipTest {
             .mapToObj(i -> "%064x".formatted(i)).toList();
 
     @Test
+    void recoveryStagesCannotCrossUnreviewedOpenRoundBoundaries() {
+        assertThat(ObservationQualificationMembership.validStart(53, false, false)).isTrue();
+        assertThat(ObservationQualificationMembership.validStart(54, true, false)).isTrue();
+        assertThat(ObservationQualificationMembership.validStart(61, true, false)).isTrue();
+        assertThat(ObservationQualificationMembership.validStart(62, true, false)).isFalse();
+        assertThat(ObservationQualificationMembership.validStart(53, true, false)).isFalse();
+        assertThat(ObservationQualificationMembership.validStart(74, false, true)).isTrue();
+        assertThat(ObservationQualificationMembership.validStart(73, false, true)).isFalse();
+        assertThat(ObservationQualificationMembership.validStart(75, false, true)).isFalse();
+        assertThat(ObservationQualificationMembership.validStart(74, true, true)).isFalse();
+    }
+
+    @Test
     void membershipSelectionPinsBothSidesOfEachActivationHeight() {
         var added = new ArrayList<>(ORIGINAL);
         added.add("06".repeat(32));

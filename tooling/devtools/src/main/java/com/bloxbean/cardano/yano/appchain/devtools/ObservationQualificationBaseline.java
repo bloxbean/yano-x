@@ -170,11 +170,18 @@ public final class ObservationQualificationBaseline {
 
     static void await(BooleanSupplier condition) throws Exception {
         // A bounded multi-view wait: live L1 catch-up can outlast the first 90 seconds.
-        long deadline = System.nanoTime() + Duration.ofMinutes(5).toNanos();
+        long deadline = System.nanoTime() + checkpointTimeout(System.getProperty(
+                "yano.qualification.checkpoint-timeout-seconds", "300")).toNanos();
         while (System.nanoTime() < deadline) {
             if (condition.getAsBoolean()) return;
             Thread.sleep(200);
         }
         throw new IllegalStateException("Qualification checkpoint timed out; preserve state and inspect nodes");
+    }
+
+    static Duration checkpointTimeout(String seconds) {
+        int value = Integer.parseInt(seconds);
+        if (value < 1 || value > 1800) throw new IllegalArgumentException("Checkpoint timeout must be 1..1800 seconds");
+        return Duration.ofSeconds(value);
     }
 }
