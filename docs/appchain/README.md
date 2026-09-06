@@ -157,6 +157,7 @@ need full detail:
 - [Domain actors and role-aware approvals](../APP_CHAIN_DOMAIN_ROLES.md)
 - [Plugin query and domain API contract](../core-host.md)
 - [Release acceptance and schema status](RELEASE_ACCEPTANCE.md)
+- [Deployment experience review and design plan (proposal)](DEPLOYMENT_EXPERIENCE_REVIEW_AND_PLAN.md)
 - [Canonical open-work tracker](../../adr/app-layer/open_item.md)
 
 ## A note on “no code”
