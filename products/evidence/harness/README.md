@@ -40,6 +40,13 @@ no-progress watchdog to recover. Pending and failed waits print bounded,
 allowlisted L1 status diagnostics for both Compose and host mode. A larger
 deadline does not relax the all-member visibility check or change node policy.
 
+The isolated role-workflow E2E uses HTTP 30070–30072, app peers 30337–30339,
+UI 30080, and connector/observability ports 31000, 31001, 31030, 31090 and 31092.
+These defaults avoid Linux's default automatic client-port range. On Linux the
+test reads the actual `ip_local_port_range` and rejects overlapping listener
+overrides; it does not modify sysctls or terminate processes occupying a port.
+The usual `YANO_ROLE_WORKFLOW_*` overrides remain available for other free ports.
+
 Prerequisites are JDK 25, Docker with Compose v2, `curl`, `jq`, `openssl`, and
 Python 3. In an extracted Yano X JVM distribution, run from
 `examples/evidence`:

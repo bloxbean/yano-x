@@ -21,12 +21,34 @@ bash -n "$SOURCE"
 python3 - "$SOURCE" "$ROLE_SOURCE" "$WORKFLOW" "$RELEASE_CONTRACTS" <<'PY'
 from pathlib import Path
 import re
+import subprocess
 import sys
 
 source = Path(sys.argv[1]).read_text(encoding="utf-8")
 role_source = Path(sys.argv[2]).read_text(encoding="utf-8")
 workflow = Path(sys.argv[3]).read_text(encoding="utf-8")
 release_contracts = Path(sys.argv[4]).read_text(encoding="utf-8")
+
+role_ports = dict(re.findall(
+    r'export DEMO_(\w+)="\$\{YANO_ROLE_WORKFLOW_\w+:-([0-9]+)\}"', role_source))
+listeners = []
+for name in ('HTTP_BASE', 'UI_PORT', 'SERVER_BASE', 'KAFKA_PORT', 'S3_PORT',
+             'IPFS_PORT', 'PROMETHEUS_PORT', 'GRAFANA_PORT'):
+    base = int(role_ports[name])
+    listeners.extend(range(base, base + (3 if name.endswith('_BASE') else 1)))
+if len(set(listeners)) != len(listeners) or not all(1024 <= port < 32768 for port in listeners):
+    raise SystemExit('role default listeners must be distinct and below the default Linux client-port range')
+guard = 'reject_ephemeral_listener() {' + role_source.split(
+    'reject_ephemeral_listener() {', 1)[1].split('\nfor port in ', 1)[0]
+for first, last, port, expected in ((32768, 60999, 48070, 1), (32768, 60999, 30070, 0),
+                                    (30000, 60000, 30070, 1), (0, 0, 30070, 0)):
+    result = subprocess.run(['bash', '-c', 'fail() { exit 1; };\n' + guard
+                             + f'\nEPHEMERAL_FIRST={first}; EPHEMERAL_LAST={last}; '
+                             + f'reject_ephemeral_listener {port}'], check=False)
+    if result.returncode != expected:
+        raise SystemExit('role client-port overlap guard is incorrect')
+if 'reject_ephemeral_listener "$port"' not in role_source:
+    raise SystemExit('role startup must apply its port-range guard')
 
 if 'export DEMO_DEVNET_BLOCK_TIME_MILLIS=10000' not in role_source:
     raise SystemExit("role workflow must pace its devnet producer for slow CI followers")

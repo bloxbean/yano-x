@@ -27,14 +27,15 @@ EVIDENCE_ID="${YANO_ROLE_WORKFLOW_EVIDENCE_ID:-role-$(openssl rand -hex 6)}"
 [[ "$CHAIN_ID" =~ ^[a-z][a-z0-9-]{0,62}$ ]] || fail 'chain id is malformed'
 [[ "$EVIDENCE_ID" =~ ^[a-z][a-z0-9-]{0,62}$ ]] || fail 'evidence id is malformed'
 
-export DEMO_HTTP_BASE="${YANO_ROLE_WORKFLOW_HTTP_BASE:-48070}"
-export DEMO_UI_PORT="${YANO_ROLE_WORKFLOW_UI_PORT:-48080}"
-export DEMO_SERVER_BASE="${YANO_ROLE_WORKFLOW_SERVER_BASE:-48337}"
-export DEMO_KAFKA_PORT="${YANO_ROLE_WORKFLOW_KAFKA_PORT:-49092}"
-export DEMO_S3_PORT="${YANO_ROLE_WORKFLOW_S3_PORT:-49000}"
-export DEMO_IPFS_PORT="${YANO_ROLE_WORKFLOW_IPFS_PORT:-45001}"
-export DEMO_PROMETHEUS_PORT="${YANO_ROLE_WORKFLOW_PROMETHEUS_PORT:-49090}"
-export DEMO_GRAFANA_PORT="${YANO_ROLE_WORKFLOW_GRAFANA_PORT:-43000}"
+# Keep listeners outside Linux's default automatic client-port range.
+export DEMO_HTTP_BASE="${YANO_ROLE_WORKFLOW_HTTP_BASE:-30070}"
+export DEMO_UI_PORT="${YANO_ROLE_WORKFLOW_UI_PORT:-30080}"
+export DEMO_SERVER_BASE="${YANO_ROLE_WORKFLOW_SERVER_BASE:-30337}"
+export DEMO_KAFKA_PORT="${YANO_ROLE_WORKFLOW_KAFKA_PORT:-31092}"
+export DEMO_S3_PORT="${YANO_ROLE_WORKFLOW_S3_PORT:-31000}"
+export DEMO_IPFS_PORT="${YANO_ROLE_WORKFLOW_IPFS_PORT:-31001}"
+export DEMO_PROMETHEUS_PORT="${YANO_ROLE_WORKFLOW_PROMETHEUS_PORT:-31090}"
+export DEMO_GRAFANA_PORT="${YANO_ROLE_WORKFLOW_GRAFANA_PORT:-31030}"
 export DEMO_CONNECTOR_SUBNET="${YANO_ROLE_WORKFLOW_SUBNET:-172.30.118.0/24}"
 export DEMO_S3_IP="${YANO_ROLE_WORKFLOW_S3_IP:-172.30.118.10}"
 export DEMO_KUBO_IP="${YANO_ROLE_WORKFLOW_KUBO_IP:-172.30.118.11}"
@@ -172,10 +173,27 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
+EPHEMERAL_FIRST=0
+EPHEMERAL_LAST=0
+if [ -r /proc/sys/net/ipv4/ip_local_port_range ]; then
+  read -r EPHEMERAL_FIRST EPHEMERAL_LAST < /proc/sys/net/ipv4/ip_local_port_range
+  require_decimal_range EPHEMERAL_FIRST "$EPHEMERAL_FIRST" 1 65535
+  require_decimal_range EPHEMERAL_LAST "$EPHEMERAL_LAST" 1 65535
+  note "Host automatic client-port range: $EPHEMERAL_FIRST-$EPHEMERAL_LAST"
+fi
+reject_ephemeral_listener() {
+  local port="$1"
+  if [ "$EPHEMERAL_FIRST" -ne 0 ] && [ "$port" -ge "$EPHEMERAL_FIRST" ] \
+      && [ "$port" -le "$EPHEMERAL_LAST" ]; then
+    fail "test listener $port overlaps automatic client-port range; choose another YANO_ROLE_WORKFLOW port"
+  fi
+}
+
 for port in "$DEMO_HTTP_BASE" "$((DEMO_HTTP_BASE + 1))" "$((DEMO_HTTP_BASE + 2))" \
   "$DEMO_UI_PORT" "$DEMO_SERVER_BASE" "$((DEMO_SERVER_BASE + 1))" \
   "$((DEMO_SERVER_BASE + 2))" "$DEMO_KAFKA_PORT" "$DEMO_S3_PORT" \
   "$DEMO_IPFS_PORT" "$DEMO_PROMETHEUS_PORT" "$DEMO_GRAFANA_PORT"; do
+  reject_ephemeral_listener "$port"
   ! lsof -nP -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1 \
     || fail "isolated test port is already in use: $port"
 done
