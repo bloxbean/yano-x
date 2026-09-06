@@ -120,10 +120,29 @@ shutil.rmtree(resolved)
 PY
 }
 
+failure_diagnostics() {
+  local node port
+  [ -n "$PROJECT_NAME" ] && [ -f "$ENV_FILE" ] || return 0
+  note 'Bounded role anchor/status diagnostics before cleanup:' >&2
+  for node in 0 1 2; do
+    port=$((DEMO_HTTP_BASE + node))
+    if bounded_get "http://127.0.0.1:$port/api/v1/app-chain/chains/$CHAIN_ID/status" \
+        "$ROOT/failure-node$node.json"; then
+      jq -c --argjson node "$node" \
+        '{node:$node,chainId,tipHeight,stateRoot,anchor,sequencer,peers}' \
+        "$ROOT/failure-node$node.json" >&2
+    fi
+  done
+  dc logs --no-color --since 30m yano-0 yano-1 yano-2 2>&1 \
+    | awk '/Script-anchor|script-anchor|anchor identity|anchoring configured/' \
+    | tail -n 180 >&2 || true
+}
+
 cleanup() {
   local status="$?" uncertain=false remaining=""
   trap - EXIT INT TERM
   set +e
+  if [ "$status" -ne 0 ]; then failure_diagnostics; fi
   if [ "$PREPARED" = true ]; then demo stop >/dev/null 2>&1 || uncertain=true; fi
   if [ -n "$PROJECT_NAME" ]; then
     remaining="$(docker ps -a --filter \

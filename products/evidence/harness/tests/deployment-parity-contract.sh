@@ -31,6 +31,15 @@ release_contracts = Path(sys.argv[4]).read_text(encoding="utf-8")
 if 'export DEMO_DEVNET_BLOCK_TIME_MILLIS=10000' not in role_source:
     raise SystemExit("role workflow must pace its devnet producer for slow CI followers")
 
+for required in ('Bounded role anchor/status diagnostics before cleanup:',
+                 'logs --no-color --since 30m yano-0 yano-1 yano-2',
+                 'if [ "$status" -ne 0 ]; then failure_diagnostics; fi'):
+    if required not in role_source:
+        raise SystemExit(f"role failure diagnostics are missing: {required}")
+role_cleanup = role_source[role_source.index("\ncleanup() {"):role_source.index("trap cleanup EXIT INT TERM")]
+if role_cleanup.index("failure_diagnostics") > role_cleanup.index("demo stop"):
+    raise SystemExit("role failure diagnostics must run before stopping the containers")
+
 for required in (
         '[ "${YANO_RUN_DEPLOYMENT_PARITY_E2E:-false}" = true ]',
         'yano-deployment-parity-e2e-v1',
