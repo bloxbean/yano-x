@@ -2234,10 +2234,12 @@ import json, sys
 try:
     status = json.load(sys.stdin)
     anchor = status.get("anchor") if isinstance(status, dict) else None
-    fields = ("leader", "bootstrapped", "identityCandidatePending", "lastAnchoredHeight")
-    print(json.dumps({"node": int(sys.argv[1]), "tipHeight": status.get("tipHeight"),
-                      "stateRoot": status.get("stateRoot"),
-                      "anchor": {key: anchor.get(key) for key in fields}
+    anchor_fields = ("leader", "bootstrapped", "identityCandidatePending", "lastAnchoredHeight")
+    counter_fields = ("tipHeight", "poolSize", "submitted", "received", "relayed",
+                      "duplicates", "seenIds", "storedMessages", "stateRoot")
+    print(json.dumps({"node": int(sys.argv[1]),
+                      "counters": {key: status.get(key) for key in counter_fields},
+                      "anchor": {key: anchor.get(key) for key in anchor_fields}
                                 if isinstance(anchor, dict) else None}))
 except (ValueError, TypeError, AttributeError):
     print("node" + sys.argv[1] + " status unavailable")

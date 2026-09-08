@@ -67,10 +67,12 @@ def pending_follower():
         "lastAnchoredHeight": 0,
     }
 
-height = 0 if mode in ("pending", "pending-candidate", "nonzero-pending",
+height = 0 if mode in ("pending", "pending-object", "pending-candidate", "transport-pending", "nonzero-pending",
+                       "pool-pending", "stored-pending", "tip-pending", "root-pending",
                        "pending-follower-height", "pending-disabled", "pending-wrong-mode") else int(mode[-1]) \
     if mode.startswith("adopted") else 1
-tip = 0 if mode in ("pending", "pending-candidate", "pending-follower-height",
+tip = 0 if mode in ("pending", "pending-object", "pending-candidate", "transport-pending", "pending-follower-height",
+                    "pool-pending", "stored-pending", "tip-pending", "root-pending",
                     "pending-disabled", "pending-wrong-mode") else max(1, height)
 root = "0" * 64 if tip == 0 else "33" * 32
 documents = []
@@ -96,7 +98,10 @@ for index in range(3):
     }
     if index == 0:
         document["anchor"] = anchor(True, height)
-    elif mode in ("pending", "pending-candidate", "nonzero-pending",
+    elif mode in ("pending", "transport-pending"):
+        document["anchor"] = None
+    elif mode in ("pending-object", "pending-candidate", "nonzero-pending",
+                  "pool-pending", "stored-pending", "tip-pending", "root-pending",
                   "pending-follower-height", "pending-disabled", "pending-wrong-mode"):
         document["anchor"] = pending_follower()
         document["anchor"]["identityCandidatePending"] = mode == "pending-candidate"
@@ -109,12 +114,26 @@ for index in range(3):
 
 if mode == "nonzero-pending":
     documents[0]["submitted"] = 1
+if mode == "transport-pending":
+    for document in documents:
+        document["received"] = 4
+        document["relayed"] = 3
+        document["duplicates"] = 2
+        document["seenIds"] = 1
 if mode == "pending-follower-height":
     documents[1]["anchor"]["lastAnchoredHeight"] = 1
 if mode == "pending-disabled":
     documents[1]["anchor"]["enabled"] = False
 if mode == "pending-wrong-mode":
     documents[1]["anchor"]["mode"] = "metadata"
+if mode == "pool-pending":
+    documents[0]["poolSize"] = 1
+if mode == "stored-pending":
+    documents[0]["storedMessages"] = 1
+if mode == "tip-pending":
+    documents[0]["tipHeight"] = 1
+if mode == "root-pending":
+    documents[0]["stateRoot"] = "33" * 32
 
 for index, document in enumerate(documents):
     path = directory / f"node{index}.json"
@@ -155,6 +174,8 @@ elif mutation == "boolean-tip":
     documents[0]["tipHeight"] = False
 elif mutation == "boolean-anchor-height":
     documents[0]["anchor"]["lastAnchoredHeight"] = False
+elif mutation == "boolean-transport-counter":
+    documents[0]["received"] = False
 else:
     raise SystemExit("unknown mutation")
 for path, document in zip(paths, documents):
@@ -187,13 +208,23 @@ python3 "$TOOL" validate "${common_args[@]}" >/dev/null \
   || fail 'canonical pending binding did not validate'
 cp "$BINDING" "$TMP/pending-binding.json"
 
+write_statuses pending-object
+state="$(python3 "$TOOL" reconcile "${common_args[@]}" \
+  "${member_args[@]}" --allow-pristine-pending "${status_args[@]}")"
+[ "$state" = pending-genesis ] || fail 'explicit unbootstrapped followers were not recorded as pending'
+
+write_statuses transport-pending
+state="$(python3 "$TOOL" reconcile "${common_args[@]}" \
+  "${member_args[@]}" --allow-pristine-pending "${status_args[@]}")"
+[ "$state" = pending-genesis ] || fail 'transport activity incorrectly blocked pending genesis'
+
 write_statuses pending-candidate
 state="$(python3 "$TOOL" reconcile "${common_args[@]}" \
   "${member_args[@]}" --allow-pristine-pending "${status_args[@]}")"
 [ "$state" = pending-genesis ] || fail 'unbootstrapped candidate followers were not recorded as pending'
 cp "$BINDING" "$TMP/pending-binding.json"
 
-write_statuses pending
+write_statuses pending-object
 python3 - "$STATUS_DIR/node2.json" <<'PY'
 import json
 import os
@@ -276,6 +307,7 @@ expect_fatal_status_mutation multiple-anchor-leaders 'multiple script-anchor lea
 expect_fatal_status_mutation boolean-counter 'boolean pristine counter'
 expect_fatal_status_mutation boolean-tip 'boolean app-chain tip'
 expect_fatal_status_mutation boolean-anchor-height 'boolean anchor height'
+expect_fatal_status_mutation boolean-transport-counter 'boolean transport counter'
 
 result=0
 write_statuses pending
@@ -311,6 +343,18 @@ for invalid_pending in pending-follower-height pending-disabled pending-wrong-mo
   [ "$result" -eq 3 ] || fail "$invalid_pending state did not fail closed as transient"
   cmp -s "$BINDING" "$TMP/pending-binding.json" \
     || fail "$invalid_pending state modified the binding"
+done
+
+for invalid_application in pool-pending stored-pending tip-pending root-pending; do
+  write_statuses "$invalid_application"
+  result=0
+  if python3 "$TOOL" reconcile "${common_args[@]}" "${member_args[@]}" \
+      --allow-pristine-pending "${status_args[@]}" >"$TMP/$invalid_application.out" 2>&1; then
+    fail "$invalid_application state was accepted as pending genesis"
+  else
+    result=$?
+  fi
+  [ "$result" -eq 3 ] || fail "$invalid_application state did not fail closed as transient"
 done
 
 write_statuses mixed
