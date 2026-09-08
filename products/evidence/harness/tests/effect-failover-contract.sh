@@ -23,6 +23,58 @@ command -v jq >/dev/null 2>&1 || fail 'jq is required'
 docker compose version >/dev/null 2>&1 || fail 'Docker Compose v2 is required'
 
 bash -n "$SCRIPT_DIR/effect-failover-e2e.sh"
+python3 - "$SCRIPT_DIR/effect-failover-e2e.sh" <<'PY'
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+
+source = Path(sys.argv[1]).read_text(encoding="utf-8")
+start = source.index("wait_l1_sync() {")
+end = source.index("\nwait_authenticated_json() {", start)
+function = source[start:end]
+script = f'''#!/usr/bin/env bash
+set -euo pipefail
+DEMO_HTTP_BASE=38070
+CALLS=0
+CASE=reject
+bounded_get() {{
+  CALLS=$((CALLS + 1))
+  case "$CASE:$CALLS" in
+    missing:1|missing:2)
+      printf '{{"localTipBlockNumber":25,"remoteTipBlockNumber":25}}\\n' > "$2" ;;
+    accept:1)
+      printf '{{"initialSyncComplete":true,"localTipBlockNumber":25,"remoteTipBlockNumber":25}}\\n' > "$2" ;;
+    accept:2)
+      printf '{{"initialSyncComplete":true,"localTipBlockNumber":26,"remoteTipBlockNumber":26}}\\n' > "$2" ;;
+    *)
+      printf '{{"initialSyncComplete":false,"localTipBlockNumber":%s,"remoteTipBlockNumber":%s}}\\n' "$((24 + CALLS))" "$((24 + CALLS))" > "$2" ;;
+  esac
+}}
+sleep() {{ SECONDS=$((SECONDS + 1)); }}
+{function}
+run_case() {{
+  CASE="$1"; CALLS=0; SECONDS=0
+  if wait_l1_sync 1 2 "$TMP_STATUS"; then
+    [ "$CASE" = accept ] || exit 11
+  else
+    [ "$CASE" != accept ] || exit 12
+  fi
+}}
+run_case reject
+run_case accept
+run_case missing
+'''
+with tempfile.TemporaryDirectory() as directory:
+    path = Path(directory) / "readiness.sh"
+    status = Path(directory) / "status.json"
+    path.write_text(script.replace("$TMP_STATUS", str(status)), encoding="utf-8")
+    path.chmod(0o700)
+    result = subprocess.run([str(path)], capture_output=True, text=True)
+    if result.returncode:
+        raise SystemExit(
+            f"replacement L1 readiness fixture failed ({result.returncode}): {result.stderr}")
+PY
 python3 - "$SCRIPT_DIR/effect-failover-e2e.sh" "$WORKFLOW" \
   "$DEMO_DIR/demo.sh" "$RELEASE_CONTRACTS" <<'PY'
 from pathlib import Path

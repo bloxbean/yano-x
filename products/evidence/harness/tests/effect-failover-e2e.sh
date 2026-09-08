@@ -255,18 +255,20 @@ wait_json() {
 wait_l1_sync() {
   local node="$1" seconds="$2" output="$3" deadline
   local port=$((DEMO_HTTP_BASE + node))
-  local baseline="" local_tip remote_tip
+  local baseline="" initial_sync="" local_tip remote_tip
   deadline=$((SECONDS + seconds))
   while [ "$SECONDS" -lt "$deadline" ]; do
     if bounded_get "http://127.0.0.1:$port/api/v1/node/status" \
         "$output" 1048576 2>/dev/null; then
-      read -r local_tip remote_tip < <(jq -r '
-        if (.localTipBlockNumber | type) == "number"
+      read -r initial_sync local_tip remote_tip < <(jq -r '
+        if (.initialSyncComplete | type) == "boolean"
+            and (.localTipBlockNumber | type) == "number"
             and (.remoteTipBlockNumber | type) == "number"
-        then [.localTipBlockNumber, .remoteTipBlockNumber] | @tsv
-        else "" end
+        then [.initialSyncComplete, .localTipBlockNumber, .remoteTipBlockNumber] | @tsv
+        else ["", "", ""] | @tsv end
       ' "$output" 2>/dev/null || true)
-      if [[ "$local_tip" =~ ^[0-9]+$ && "$remote_tip" =~ ^[0-9]+$ ]]; then
+      if [ "$initial_sync" = true ] \
+          && [[ "$local_tip" =~ ^[0-9]+$ && "$remote_tip" =~ ^[0-9]+$ ]]; then
         [ -n "$baseline" ] || baseline="$local_tip"
         if [ "$local_tip" -gt "$baseline" ] \
             && [ $((local_tip + 2)) -ge "$remote_tip" ]; then
@@ -294,7 +296,10 @@ scenario_failure_diagnostics() {
     fi
     if bounded_get "http://127.0.0.1:$port/api/v1/node/status" \
         "$l1_status" 1048576 2>/dev/null; then
-      jq -c '{initialSyncComplete,localTipBlockNumber,remoteTipBlockNumber}' \
+      jq -c '{initialSyncComplete,localTipBlockNumber,remoteTipBlockNumber,
+        syncMode,peerName,upstreamMode,upstreamConfiguredPeerCount,
+        upstreamHotPeerCount,upstreamObserverPeerCount,upstreamKnownPeerCount,
+        upstreamCandidateHeaderCount,upstreamActivePeer}' \
         "$l1_status" >&2 || true
     fi
   done
