@@ -18,7 +18,9 @@ if [[ -n "${YANO_INPUTS_RUN_ID:-}${YANO_INPUTS_COMMIT:-}" ]]; then
   run_metadata="$(gh api "repos/bloxbean/yano/actions/runs/$YANO_INPUTS_RUN_ID")"
   jq -e --arg commit "$YANO_INPUTS_COMMIT" '
     .head_sha == $commit and .status == "completed" and .conclusion == "success"
-    and .event == "workflow_dispatch" and .path == ".github/workflows/integration.yml"
+    and .event == "workflow_dispatch"
+    and (.path == ".github/workflows/stage-consumer-inputs.yml"
+         or .path == ".github/workflows/integration.yml")
     and .repository.full_name == "bloxbean/yano"
   ' <<< "$run_metadata" >/dev/null || fail 'Staging run provenance does not match the pin'
   staged_inputs="$(mktemp -d "$input_dir/staged.XXXXXX")"

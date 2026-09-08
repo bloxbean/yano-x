@@ -49,10 +49,14 @@ configuration type only checks bounded ASCII text, not address validity.
 The enabled, genesis-pinned observation profile must contain definition
 `shipment-delivery`, verifier `ed25519-merkle-inclusion-v1`, and the active-member
 exact-value policy. Configure the host's `https-attested-merkle-v1` adapter,
-public HTTPS endpoint, and authorized attestor keys. Commit the canonical
-endpoint/method/key-set digest with
-`ObservationSourceConfiguration.merkleAttestedHttpsSourceDigest`. Configure
-normal definition/profile evidence, report, and source bounds. There is no
+public HTTPS endpoint, authorized attestor keys and an explicit
+`observations.providers.<definition>.source-id`. Bind that
+same logical source ID into `merkleAttestedHttpsSourceDigest(url, method, sourceId, keys)`.
+The attestation and leaf must identify that source; a valid signature for
+another source is insufficient. Review remediation requires host
+`0.1.0-pre14-60622092b` or a corresponding later release, with matching Maven/JVM
+inputs. Existing preview profiles must be regenerated for a new generation.
+Configure normal definition/profile evidence, report, and source bounds. There is no
 runtime mutation of this profile by the example.
 
 The subscription parameter bytes are the original payment transaction hash.
