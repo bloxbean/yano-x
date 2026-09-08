@@ -58,7 +58,34 @@ For coordinated local or staged Yano development, retain
 `-PuseMavenLocal=true` or `-PyanoRepository=<URL-or-path>` as appropriate on
 both commands, and add the matching `-PyanoJvmDist` to the clean build.
 
-## Useful scopes
+## Coordinated CI staging (not a release)
+
+The host `integration.yml` workflow can stage a clean, exact-commit Maven
+repository and ordinary JVM ZIP using `stage_inputs_only=true`. After the
+host run succeeds, dispatch this repository's `build.yml` with `scope=all`,
+`yano_inputs_run_id` and an independently pinned full `yano_inputs_commit`.
+An explicitly supplied `yano_version` must match the staged manifest.
+
+The preparation step checks the host repository/workflow, successful run,
+commit, artifact name, manifest and SHA-256 inventory before enabling the
+downloaded file repository and matching ZIP. It rejects mixed URL/repository
+overrides, unpinned or failed runs, unsafe checksum paths and tampered files.
+The runner must have authenticated read access to the host Actions artifacts.
+It does not enable Maven Local or a sibling source checkout.
+
+The workflow requests 14-day retention, but repository policy may shorten it.
+Record provenance and the artifact API's actual `expires_at` deadline; this is
+temporary qualification, not a permanent publication channel or a substitute
+for passing the complete CI suite. Without staging inputs, the normal
+release/default version selection remains unchanged.
+
+Run the offline input-preparation contract fixtures with:
+
+```bash
+bash .github/scripts/tests/prepare-yano-inputs-test.sh
+```
+
+## Focused task commands
 
 ```bash
 ./gradlew :state-machines:stdlib:test -PyanoVersion=<yano-version>

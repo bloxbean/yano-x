@@ -94,7 +94,7 @@ class ShipmentWorkflowRuntimeTest {
                 hash(1), hash(2), hash(3), hash(4), ObservationReporterMode.ACTIVE_MEMBERS,
                 ObservationHashes.reporterSetDigest(members.stream().map(HexUtil::decodeHexString).toList()),
                 0, nodeCount, 1, false,
-                ADAPTER, ObservationSourceConfiguration.attestorSetDigest(List.of(ATTESTOR)), "identity-v1",
+                ADAPTER, ObservationSourceConfiguration.attestedSourceDigest("carrier", List.of(ATTESTOR)), "identity-v1",
                 ObservationMerkleEvidence.VERIFIER_ID, "exact-value-quorum-v1", hash(6), hash(7),
                 "one-source-v1", "source-version-v1", "inline-v1", 1, 1024, 1024, 1024, nodeCount, 1);
         ObservationProfileV1 profile = new ObservationProfileV1(1, true, 1, 1, 1, 1, 1, 1, 1,
@@ -104,6 +104,7 @@ class ShipmentWorkflowRuntimeTest {
         settings.put("observations.profile-cbor-hex", HexUtil.encodeHexString(profile.encode()));
         settings.put("observations.attestors.shipment-delivery", HexUtil.encodeHexString(ATTESTOR));
         settings.put("observations.providers.shipment-delivery.type", ADAPTER);
+        settings.put("observations.providers.shipment-delivery.source-id", "carrier");
         settings.put("observers.shipment-payment.type", "address-deposit");
         settings.put("observers.shipment-payment.address", "fixture-escrow");
         settings.put("observers.shipment-settlement.type", "address-deposit");
@@ -297,7 +298,7 @@ class ShipmentWorkflowRuntimeTest {
             @Override public ObservationProvider create(String id, Map<String, String> settings) {
                 return request -> {
                     byte[] value = "DELIVERED".getBytes(StandardCharsets.US_ASCII);
-                    byte[] source = hash(20);
+                    byte[] source = "carrier".getBytes(StandardCharsets.US_ASCII);
                     byte[] leaf = ObservationMerkleEvidence.leafHash(request.round().parametersDigest(), source, value);
                     byte[] sibling = hash(21);
                     byte[] root = ObservationMerkleEvidence.branchHash(sibling, leaf);

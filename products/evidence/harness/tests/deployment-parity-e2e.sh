@@ -681,13 +681,13 @@ assert_plugin_inventory() {
           and (.lifecycle == "VALIDATED" or .lifecycle == "ACTIVE")
           and (.health == "UNKNOWN" or .health == "UP")
           and .failure.code == "NONE" and .metricsStale == false))
-        and ([.items[] | select(.selected) | .contributionCount] | add) == 24
+        and ([.items[] | select(.selected) | .contributionCount] | add) == 26
         and .nextAfter == null' "$bundles" "$key_file" \
       || fail "$phase node $node plugin inventory differs from the demo catalog"
     fingerprint="$(jq -r '.catalogFingerprint' "$summary")"
     if ! jq -e --arg fingerprint "$fingerprint" '
       .catalogFingerprint == $fingerprint and .pluginApiMajor == 3
-      and .pluginApiLevel == 4 and .totals.selectedBundles == 8
+      and .pluginApiLevel == 8 and .totals.selectedBundles == 8
       and .totals.failedBundles == 0 and .totals.degradedBundles == 0
       and .totals.staleSources == 0' "$summary" >/dev/null; then
       jq -c '{pluginApiMajor, pluginApiLevel, totals}' "$summary" >&2 || true
@@ -868,8 +868,24 @@ scenario_failure_diagnostics() {
     else
       note "$deployment node $node status unavailable" >&2
     fi
+    if bounded_get "http://127.0.0.1:$port/api/v1/node/status" \
+        "$ROOT/failure-$deployment-node$node-l1.json" 1048576 2>/dev/null; then
+      jq -c --argjson node "$node" '{node:$node,localTipSlot,localTipBlockNumber,
+        remoteTipSlot,blocksProcessed,runtimeDegraded,peerState,peerRecoveryReason,
+        peerApplicationProgressAgeMillis,peerBodyFetchInProgress,
+        peerBodyFetchInProgressAgeMillis,peerKeepAliveAgeMillis,upstreamValidationLevel}' \
+        "$ROOT/failure-$deployment-node$node-l1.json" >&2 || true
+    fi
   done
   if [ "$deployment" = compose ]; then
+    note 'Bounded script-anchor adoption diagnostics (including earlier co-sign rounds):' >&2
+    dc_compose logs --no-color --since 30m yano-0 yano-1 yano-2 2>&1 \
+      | awk '/Script-anchor|script-anchor|anchor identity|anchoring configured/' \
+      | tail -n 180 >&2 || true
+    note 'Bounded L1 sync/recovery diagnostics (no validation settings changed):' >&2
+    dc_compose logs --no-color --since 30m yano-0 yano-1 yano-2 2>&1 \
+      | awk '/WARN|ERROR|Peer session|Upstream peer|body fetch|Body fetch|Nonce state/' \
+      | tail -n 120 >&2 || true
     dc_compose logs --no-color --tail 120 yano-0 yano-1 yano-2 2>&1 \
       | tail -n 360 >&2 || true
   fi
