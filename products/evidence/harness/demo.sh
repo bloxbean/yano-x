@@ -2222,6 +2222,28 @@ reconcile_anchor_binding() {
   for status_file in "${statuses[@]}"; do
     binding_command+=(--status "$status_file")
   done
+  anchor_reconciliation_diagnostics() {
+    local i response
+    note 'Last anchor reconciliation diagnostics (allowlisted fields):' >&2
+    for i in 0 1 2; do
+      response="$(curl --connect-timeout 3 --max-time 10 -fsS \
+        "http://127.0.0.1:$((HTTP0 + i))/api/v1/app-chain/chains/$DEMO_CHAIN_ID/status" \
+        2>/dev/null || true)"
+      printf '%s' "$response" | python3 -c '
+import json, sys
+try:
+    status = json.load(sys.stdin)
+    anchor = status.get("anchor") if isinstance(status, dict) else None
+    fields = ("leader", "bootstrapped", "identityCandidatePending", "lastAnchoredHeight")
+    print(json.dumps({"node": int(sys.argv[1]), "tipHeight": status.get("tipHeight"),
+                      "stateRoot": status.get("stateRoot"),
+                      "anchor": {key: anchor.get(key) for key in fields}
+                                if isinstance(anchor, dict) else None}))
+except (ValueError, TypeError, AttributeError):
+    print("node" + sys.argv[1] + " status unavailable")
+' "$i" >&2 || true
+    done
+  }
   deadline=$((SECONDS + 180))
   if [ "$require_adopted" = true ]; then
     note "WAIT_ANCHOR_ADOPTION: requiring one adopted script identity and height on all members."
@@ -2255,6 +2277,11 @@ reconcile_anchor_binding() {
     fi
     sleep 2
   done
+  if [ -s "$error_file" ]; then
+    binding_error="$(tr '\n' ' ' < "$error_file")"
+    note "Last anchor reconciliation error: $binding_error" >&2
+  fi
+  anchor_reconciliation_diagnostics
   if [ "$require_adopted" = true ]; then
     die "members did not converge on one adopted anchor identity/height within 180 seconds"
   fi

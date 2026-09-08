@@ -57,9 +57,21 @@ def anchor(leader, height, script_hash=script):
         "lastAnchoredHeight": height,
     }
 
-height = 0 if mode in ("pending", "nonzero-pending") else int(mode[-1]) \
+def pending_follower():
+    return {
+        "enabled": True,
+        "mode": "script",
+        "leader": False,
+        "bootstrapped": False,
+        "identityCandidatePending": False,
+        "lastAnchoredHeight": 0,
+    }
+
+height = 0 if mode in ("pending", "pending-candidate", "nonzero-pending",
+                       "pending-follower-height", "pending-disabled", "pending-wrong-mode") else int(mode[-1]) \
     if mode.startswith("adopted") else 1
-tip = 0 if mode == "pending" else max(1, height)
+tip = 0 if mode in ("pending", "pending-candidate", "pending-follower-height",
+                    "pending-disabled", "pending-wrong-mode") else max(1, height)
 root = "0" * 64 if tip == 0 else "33" * 32
 documents = []
 for index in range(3):
@@ -84,6 +96,10 @@ for index in range(3):
     }
     if index == 0:
         document["anchor"] = anchor(True, height)
+    elif mode in ("pending", "pending-candidate", "nonzero-pending",
+                  "pending-follower-height", "pending-disabled", "pending-wrong-mode"):
+        document["anchor"] = pending_follower()
+        document["anchor"]["identityCandidatePending"] = mode == "pending-candidate"
     elif mode.startswith("adopted") or mode == "identity-mismatch":
         document["anchor"] = anchor(False, height,
             "44" * 28 if mode == "identity-mismatch" and index == 2 else script)
@@ -93,6 +109,12 @@ for index in range(3):
 
 if mode == "nonzero-pending":
     documents[0]["submitted"] = 1
+if mode == "pending-follower-height":
+    documents[1]["anchor"]["lastAnchoredHeight"] = 1
+if mode == "pending-disabled":
+    documents[1]["anchor"]["enabled"] = False
+if mode == "pending-wrong-mode":
+    documents[1]["anchor"]["mode"] = "metadata"
 
 for index, document in enumerate(documents):
     path = directory / f"node{index}.json"
@@ -164,6 +186,38 @@ jq -e '.schemaVersion == 2 and .verificationState == "pending-genesis"
 python3 "$TOOL" validate "${common_args[@]}" >/dev/null \
   || fail 'canonical pending binding did not validate'
 cp "$BINDING" "$TMP/pending-binding.json"
+
+write_statuses pending-candidate
+state="$(python3 "$TOOL" reconcile "${common_args[@]}" \
+  "${member_args[@]}" --allow-pristine-pending "${status_args[@]}")"
+[ "$state" = pending-genesis ] || fail 'unbootstrapped candidate followers were not recorded as pending'
+cp "$BINDING" "$TMP/pending-binding.json"
+
+write_statuses pending
+python3 - "$STATUS_DIR/node2.json" <<'PY'
+import json
+import os
+import sys
+
+path = sys.argv[1]
+with open(path, encoding="utf-8") as stream:
+    document = json.load(stream)
+document["anchor"]["threadPolicyId"] = "ff" * 28
+with open(path, "w", encoding="utf-8") as stream:
+    json.dump(document, stream, sort_keys=True, separators=(",", ":"))
+    stream.write("\n")
+os.chmod(path, 0o600)
+PY
+result=0
+if python3 "$TOOL" reconcile "${common_args[@]}" \
+    "${member_args[@]}" --allow-pristine-pending "${status_args[@]}" \
+    >"$TMP/pending-identity-mismatch.out" 2>&1; then
+  fail 'pending follower identity mismatch unexpectedly succeeded'
+else
+  result=$?
+fi
+[ "$result" -eq 2 ] || fail 'pending follower identity mismatch was not fatal'
+write_statuses pending
 
 # The same binding topology validator accepts the other immutable stock demo
 # provider only when all member statuses and the expected provider agree.
@@ -244,6 +298,20 @@ fi
 [ "$result" -eq 3 ] || fail 'nonzero pending state did not fail closed as transient'
 cmp -s "$BINDING" "$TMP/pending-binding.json" \
   || fail 'rejected nonzero pending state modified the binding'
+
+for invalid_pending in pending-follower-height pending-disabled pending-wrong-mode; do
+  write_statuses "$invalid_pending"
+  result=0
+  if python3 "$TOOL" reconcile "${common_args[@]}" "${member_args[@]}" \
+      --allow-pristine-pending "${status_args[@]}" >"$TMP/$invalid_pending.out" 2>&1; then
+    fail "$invalid_pending state was accepted as pending genesis"
+  else
+    result=$?
+  fi
+  [ "$result" -eq 3 ] || fail "$invalid_pending state did not fail closed as transient"
+  cmp -s "$BINDING" "$TMP/pending-binding.json" \
+    || fail "$invalid_pending state modified the binding"
+done
 
 write_statuses mixed
 result=0
