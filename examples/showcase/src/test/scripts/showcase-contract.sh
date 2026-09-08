@@ -125,6 +125,10 @@ jq -e '.authenticatedMapJmtConfigSha256 | test("^[0-9a-f]{64}$")' \
 jq -e '.cardanoHistory.enabled == true and .cardanoHistory.profile == "params-only-v1" and (.cardanoHistory.bundleSha256 | test("^[0-9a-f]{64}$"))' \
   "$ROOT/data/showcase/three/showcase-identity.json" >/dev/null
 [ "$(find "$ROOT/data/showcase/three/node-config" -type f -name 'node*.properties' | wc -l | tr -d ' ')" = 3 ]
+for node in 0 1 2; do
+  grep -Fxq "yano.history.dir=$(cd "$ROOT" && pwd -P)/data/showcase/three/cluster/node$node/history" \
+    "$ROOT/data/showcase/three/node-config/node$node.properties"
+done
 grep -q 'showcase-outbox.enabled=true' "$ROOT/data/showcase/three/node-config/node0.properties"
 grep -q 'showcase-outbox.enabled=false' "$ROOT/data/showcase/three/node-config/node1.properties"
 grep -q 'effects.executor.enabled=true' "$ROOT/data/showcase/three/node-config/node0.properties"

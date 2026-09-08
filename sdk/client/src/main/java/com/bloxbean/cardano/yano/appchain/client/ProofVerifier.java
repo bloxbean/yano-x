@@ -1,10 +1,5 @@
 package com.bloxbean.cardano.yano.appchain.client;
 
-import co.nstant.in.cbor.CborEncoder;
-import co.nstant.in.cbor.model.Array;
-import co.nstant.in.cbor.model.ByteString;
-import co.nstant.in.cbor.model.UnicodeString;
-import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.client.crypto.Blake2bUtil;
 import com.bloxbean.cardano.client.crypto.config.CryptoConfiguration;
 import com.bloxbean.cardano.vds.core.api.NodeStore;
@@ -292,7 +287,7 @@ public final class ProofVerifier {
 
     /**
      * Verify the signed block header, threshold certificate, commitment
-     * identity, and native proof against a caller-pinned membership epoch.
+     * identity, and native proof against caller-pinned membership and height-specific consensus context.
      */
     public static boolean verifyCertified(
             AppChainClient.Proof proof,
@@ -313,7 +308,11 @@ public final class ProofVerifier {
                     || !proof.stateRootHex().equals(block.stateRootHex())) {
                 return false;
             }
-            byte[] calculatedBlockHash = certifiedBlockHash(proof.chainId(), block);
+            if (!trustContext.consensusContextDigestHex().equals(block.consensusContextDigestHex())) {
+                return false;
+            }
+            var canonicalHeader = block.canonicalHeader(proof.chainId());
+            byte[] calculatedBlockHash = canonicalHeader.blockHash();
             if (!Arrays.equals(calculatedBlockHash, Hex.decode(block.blockHashHex()))) {
                 return false;
             }
@@ -334,7 +333,7 @@ public final class ProofVerifier {
                 byte[] signer = Hex.decode(signature.signerHex());
                 byte[] signatureBytes = Hex.decode(signature.signatureHex());
                 if (!CryptoConfiguration.INSTANCE.getSigningProvider()
-                        .verify(signatureBytes, calculatedBlockHash, signer)) {
+                        .verify(signatureBytes, canonicalHeader.commitDigest(), signer)) {
                     return false;
                 }
                 valid++;
@@ -457,34 +456,6 @@ public final class ProofVerifier {
             case JMT_POSEIDON_BLS12381_V1 -> false;
             default -> false;
         };
-    }
-
-    private static byte[] certifiedBlockHash(
-            String chainId,
-            AppChainClient.CertifiedBlockHeader block
-    ) throws Exception {
-        if (chainId == null || chainId.isBlank()
-                || !canonicalHex(block.prevHashHex(), HASH_BYTES)
-                || !canonicalHex(block.messagesRootHex(), HASH_BYTES)
-                || !canonicalHex(block.stateRootHex(), HASH_BYTES)
-                || !canonicalHex(block.blockHashHex(), HASH_BYTES)
-                || !(block.l1BlockHashHex().isEmpty()
-                || canonicalHex(block.l1BlockHashHex(), HASH_BYTES))) {
-            throw new IllegalArgumentException("invalid certified block header");
-        }
-        Array header = new Array();
-        header.add(new UnsignedInteger(block.version()));
-        header.add(new UnicodeString(chainId));
-        header.add(new UnsignedInteger(block.height()));
-        header.add(new ByteString(Hex.decode(block.prevHashHex())));
-        header.add(new UnsignedInteger(block.l1Slot()));
-        header.add(new ByteString(Hex.decode(block.l1BlockHashHex())));
-        header.add(new UnsignedInteger(block.timestamp()));
-        header.add(new ByteString(Hex.decode(block.messagesRootHex())));
-        header.add(new ByteString(Hex.decode(block.stateRootHex())));
-        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-        new CborEncoder(bytes).encode(header);
-        return Blake2bUtil.blake2bHash256(bytes.toByteArray());
     }
 
     private static ProfileMetadata profile(
@@ -614,13 +585,17 @@ public final class ProofVerifier {
             String profile,
             String genesisIdHex,
             Set<String> memberKeysHex,
-            int threshold
+            int threshold,
+            String consensusContextDigestHex
     ) {
         public FinalityTrustContext {
             chainId = requireText(chainId, "chainId");
             profile = requireIdentifier(profile, "profile");
             if (profileMetadata(profile).isEmpty()) {
                 throw new IllegalArgumentException("unsupported state commitment profile");
+            }
+            if (!canonicalHex(consensusContextDigestHex, HASH_BYTES)) {
+                throw new IllegalArgumentException("invalid trusted consensus context digest");
             }
             genesisIdHex = Objects.requireNonNull(genesisIdHex, "genesisIdHex");
             if (!canonicalHex(genesisIdHex, HASH_BYTES)) {

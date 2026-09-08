@@ -85,3 +85,73 @@ No retained showcase cluster was modified, no public-network transaction was
 submitted, and no remote VM was provisioned or changed. Remote firewall, service,
 backup/restore, and cross-node qualification must be completed before an operator
 uses the new export as a production deployment procedure.
+
+## Yano main revalidation — 2026-09-08
+
+The follow-up build consumed Yano main commit
+`310b9f37bae6fb3f23b9026d2f6b115ab7c79a68`, published locally as
+`0.1.0-pre14-310b9f37b-SNAPSHOT`, with its matching ordinary JVM ZIP.
+The host was built in a clean detached worktree, preserving existing sibling
+checkout changes. Java 25 and an 8 GB Gradle heap were used. The repository's
+default dependency version was not changed to this unpublished snapshot.
+
+Validation exposed and fixed three compatibility gaps:
+
+- The SDK and CLI now retain the complete version-3 certified block header and
+  verify the host's canonical, domain-separated commit digest. Trust inputs
+  include the independently pinned consensus-context digest for the target
+  height. A captured public certificate and header-substitution regressions
+  exercise the real main-branch wire format.
+- Configuration metadata expectations include the new `consensus.` and
+  `observations.` namespaces. The existing document-trail recipe is now listed
+  in the capability guide.
+- The showcase now assigns each JVM its own `nodeN/history/` directory. Main's
+  enabled devnet projections otherwise cause a shared DuckLake writer lock.
+  The generated-overlay contract covers all three paths.
+
+The full `build integrationTest cryptoTest` invocation passed: 1,239 unit tests,
+one integration test, and 14 crypto tests passed; two unit tests and 16 opt-in
+integration tests were skipped. External Kafka, S3, and IPFS integrations were
+not qualified without their configured services. Artifact inventory, JVM-only,
+distribution checks, isolated publication staging, and the docsite build passed.
+After the showcase fix, its unit, script, and distribution contracts also passed.
+
+The packaged three-node additive acceptance passed again, including preservation
+of existing records/proofs, registry addition, catch-up, and restart. The packaged
+SDK separately verified the captured main-branch certificate. A fresh showcase
+passed `doctor`, `quickstart`, resume, an additional orders submission, and
+`verify all`: all 13 chains agreed, while orders, workflow, and authenticated map
+reached heights 1, 6, and 11 with 2-of-3 certificates. The workflow's local devnet
+L1 anchor was confirmed. Quickstart does not submit traffic to every chain.
+
+### Remaining host issue
+
+Follower logs reported a durable host projection capture failure at block 309 /
+slot 336: `address-transaction projection could not resolve consumed output`.
+Canonical L1 application continued, but the history projection drain paused.
+The app-chain results above do not qualify follower L1 history completeness.
+This upstream issue remains unresolved; no sibling source changes or disabling
+of history were used to hide it.
+
+### Reproduction and artifacts
+
+After publishing the exact host inputs, run:
+
+```bash
+./gradlew build integrationTest cryptoTest \
+  -PyanoVersion=0.1.0-pre14-310b9f37b-SNAPSHOT \
+  -PyanoJvmDist=/absolute/path/to/yano-0.1.0-pre14-310b9f37b.zip \
+  -PuseMavenLocal=true -PskipSigning=true --offline --no-parallel \
+  '-Dorg.gradle.jvmargs=-Xmx8g -XX:MaxMetaspaceSize=1g'
+```
+
+| Archive | SHA-256 |
+|---|---|
+| `yano-x-jvm-0.1.0.zip` | `752fd77814649b7707e2ee1f9e20058f1d783796bc613f6fa75328156a1109b2` |
+| `yano-showcase-0.1.0-SNAPSHOT.zip` | `be6c7edfaa82c4af01b660496990c1eadc6c5ebd7f0c7be83066c348a24be005` |
+
+Local evidence and the test runbook are retained at
+`/Users/satya/Downloads/yano-cluster/yano-x-main-310b9f37b-q3u2qjo1/VALIDATION.md`.
+The corrected extraction is under `showcase-qualified/`; its `main-check`
+instance uses HTTP 19180–19182 and N2N 24537–24539. The older retained showcase
+was untouched. No public-network transactions or remote VM changes occurred.
