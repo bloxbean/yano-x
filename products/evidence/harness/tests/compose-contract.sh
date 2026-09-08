@@ -219,6 +219,9 @@ jq -e '
 ' "$JSON" >/dev/null || fail "scenario tooling received the full Yano admin key"
 
 NODE_DIR="$TMP/secrets/networks/devnet/contract/compose/nodes-compose"
+[ "$(grep -hFx 'yano.history.projection.enabled=false' \
+  "$NODE_DIR"/*.properties | wc -l | tr -d ' ')" -eq 3 ] \
+  || fail "Evidence members must explicitly disable unselected Cardano history projections"
 [ "$(grep -hF 'effects.executor.enabled=true' "$NODE_DIR"/*.properties | wc -l | tr -d ' ')" -eq 1 ] \
   || fail "exactly one node must own the executor"
 grep -Fxq 'yano.app-chain.chains[0].anchor.max-interval-minutes=60' \

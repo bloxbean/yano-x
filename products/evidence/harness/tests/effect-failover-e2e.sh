@@ -502,8 +502,10 @@ assert_metrics_all_nodes() {
   for node in 0 1 2; do
     port=$((DEMO_HTTP_BASE + node))
     output="$ROOT/$phase-node$node-metrics.prom"
-    bounded_get "http://127.0.0.1:$port/q/metrics" "$output" 4194304 \
-      || fail "node $node metrics endpoint is unavailable or exceeds its bound"
+    if ! bounded_get "http://127.0.0.1:$port/q/metrics" "$output" 4194304; then
+      scenario_failure_diagnostics
+      fail "node $node metrics endpoint is unavailable or exceeds its bound"
+    fi
     python3 - "$output" "$CHAIN_ID" <<'PY' \
       || fail "node $node is missing app-chain, effect, or plugin metrics evidence"
 import math

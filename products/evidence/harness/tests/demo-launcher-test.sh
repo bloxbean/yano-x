@@ -1420,6 +1420,8 @@ grep -Fq 'effects.executor.enabled=false' "$HOST_NODES/node1.properties" \
   || fail "host node overlays do not use the same profile safety interval"
 [ "$(grep -h '^yano.history.dir=' "$HOST_NODES"/*.properties | sort -u | wc -l | tr -d ' ')" -eq 3 ] \
   || fail "host node overlays do not isolate history archives"
+[ "$(grep -hFx 'yano.history.projection.enabled=false' "$HOST_NODES"/*.properties | wc -l | tr -d ' ')" -eq 3 ] \
+  || fail "Evidence host members must disable unselected Cardano history projections"
 
 # Host preparation intentionally releases its lease. Even then, malformed
 # cluster lifecycle state is active/uncertain: cleanup preserves runtime and
