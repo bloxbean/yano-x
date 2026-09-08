@@ -888,7 +888,7 @@ prepare_directories() {
   prepare_private_state_directory "$DATA_ROOT/connectors/ipfs"
   prepare_private_state_directory "$REPORT_DIR"
   for i in 0 1 2; do
-    for dir in "$L1_ROOT/node$i" "$DATA_ROOT/app-chain/node$i" \
+    for dir in "$L1_ROOT/node$i" "$L1_ROOT/node$i/history" "$DATA_ROOT/app-chain/node$i" \
       "$DATA_ROOT/logs/node$i"; do
       mkdir -p "$dir"
       chmod u+rwx "$dir"
@@ -1627,6 +1627,7 @@ prepare_host_configs() {
       RESULT_SIGNERS "$RESULT_SIGNERS" STORAGE_GATE "$STORAGE_GATE" \
       EVIDENCE_CAPACITY_PER_BLOCK "$EVIDENCE_CAPACITY_PER_BLOCK" \
       DIRECT_RESULT_ACTIVATION_SETTING "$DIRECT_RESULT_ACTIVATION_SETTING" \
+      HISTORY_DIR "$L1_ROOT/node$i/history" \
       GENESIS_TIMESTAMP_SETTING "$genesis_setting" \
       ANCHOR_MAX_INTERVAL_MINUTES "$PROFILE_ANCHOR_MAX_INTERVAL_MINUTES"
     insert_node_settings "$base" "$([ "$i" -eq 0 ] && printf '%s' "$executor" || printf '%s' "$follower")" \
@@ -1732,6 +1733,7 @@ write_compose_env() {
       for i in 0 1 2; do
         printf 'DEMO_NODE%s_CONFIG=%s\n' "$i" "$NODE_CONFIG_DIR/node$i.properties"
         printf 'DEMO_YANO%s_DATA_DIR=%s\n' "$i" "$L1_ROOT/node$i"
+        printf 'DEMO_YANO%s_HISTORY_DIR=%s\n' "$i" "$L1_ROOT/node$i/history"
         printf 'DEMO_YANO%s_APP_DATA_DIR=%s\n' "$i" "$DATA_ROOT/app-chain/node$i"
         printf 'DEMO_YANO%s_LOG_DIR=%s\n' "$i" "$DATA_ROOT/logs/node$i"
       done

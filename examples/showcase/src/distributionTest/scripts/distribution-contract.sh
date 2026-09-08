@@ -147,7 +147,7 @@ grep -q 'com.bloxbean.cardano.yano.appchain.eutxo.bridge.cardano' \
   "$ROOT/yano/config/application-appchain.yml"
 grep -q 'com.bloxbean.cardano.yano.appchain.eutxo.indexer' \
   "$ROOT/yano/config/application-appchain.yml"
-grep -q 'vault-address: "addr_test1wrtud9a98k7dg83n03eupu9trnqz2ltwfsr9enhvvgtlpqg8hz26h"' \
+grep -q 'vault-address: "addr_test1wpwhmf5cd5pm9gsg5y8xnkyk3xue2u35ral098gd8u49g3gjpdqgr"' \
   "$ROOT/yano/config/application-appchain.yml"
 grep -q 'withdrawal-address: "addr_test1vrf4896s3htkc8pzytgvvm07c2e489rtcg42f23zk5r2mjs8ge5ef"' \
   "$ROOT/yano/config/application-appchain.yml"
