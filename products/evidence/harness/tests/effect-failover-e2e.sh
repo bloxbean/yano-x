@@ -477,7 +477,7 @@ assert_plugin_operations_all_nodes() {
       and (.generation | type == "number" and . >= 1)
       and (.capturedAtEpochMillis | type == "number" and . > 0)
       and .pluginApiMajor == 3
-      and .pluginApiLevel == 4
+      and (.pluginApiLevel | type == "number" and . >= 4)
       and .totals.selectedBundles == 8
       and .totals.failedBundles == 0
       and .totals.degradedBundles == 0

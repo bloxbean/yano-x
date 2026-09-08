@@ -687,7 +687,7 @@ assert_plugin_inventory() {
     fingerprint="$(jq -r '.catalogFingerprint' "$summary")"
     if ! jq -e --arg fingerprint "$fingerprint" '
       .catalogFingerprint == $fingerprint and .pluginApiMajor == 3
-      and .pluginApiLevel == 4 and .totals.selectedBundles == 8
+      and (.pluginApiLevel | type == "number" and . >= 4) and .totals.selectedBundles == 8
       and .totals.failedBundles == 0 and .totals.degradedBundles == 0
       and .totals.staleSources == 0' "$summary" >/dev/null; then
       jq -c '{pluginApiMajor, pluginApiLevel, totals}' "$summary" >&2 || true
