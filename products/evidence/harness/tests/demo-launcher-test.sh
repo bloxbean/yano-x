@@ -18,6 +18,10 @@ assert_absent() { [ ! -e "$1" ] || fail "unexpected path exists: $1"; }
 
 command -v docker >/dev/null 2>&1 || fail "docker is required for Compose config validation"
 docker compose version >/dev/null 2>&1 || fail "docker compose is required"
+grep -Fq 'if [ -x "$APP_DIR/appchain-cluster/cluster.sh" ]; then' "$DEMO_DIR/demo.sh" \
+  || fail "host launcher does not use the packaged appchain-cluster path"
+! grep -Fq '$REPO_DIR/scripts/appchain-cluster/cluster.sh' "$DEMO_DIR/demo.sh" \
+  || fail "host launcher retains a source-checkout cluster fallback"
 command -v jq >/dev/null 2>&1 || fail "jq is required"
 
 export DEMO_SKIP_BUILD=true

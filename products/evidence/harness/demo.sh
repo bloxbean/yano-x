@@ -2449,10 +2449,8 @@ print(str(bool(a.get("bootstrapped"))).lower(), a.get("walletAddress", ""))
 
 host_cluster() {
   local cluster="" key="" devnet_genesis=""
-  if [ -x "$APP_DIR/examples/appchain-cluster/cluster.sh" ]; then
-    cluster="$APP_DIR/examples/appchain-cluster/cluster.sh"
-  elif [ -n "$REPO_DIR" ] && [ -x "$REPO_DIR/scripts/appchain-cluster/cluster.sh" ]; then
-    cluster="$REPO_DIR/scripts/appchain-cluster/cluster.sh"
+  if [ -x "$APP_DIR/appchain-cluster/cluster.sh" ]; then
+    cluster="$APP_DIR/appchain-cluster/cluster.sh"
   fi
   [ -x "$cluster" ] || die "cluster launcher not executable: $cluster"
   case "${1:-}" in
