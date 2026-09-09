@@ -267,11 +267,17 @@ wait_l1_sync() {
         then [.initialSyncComplete, .localTipBlockNumber, .remoteTipBlockNumber] | @tsv
         else ["", "", ""] | @tsv end
       ' "$output" 2>/dev/null || true)
-      if [ "$initial_sync" = true ] \
-          && [[ "$local_tip" =~ ^[0-9]+$ && "$remote_tip" =~ ^[0-9]+$ ]]; then
+      if [[ "$local_tip" =~ ^[0-9]+$ && "$remote_tip" =~ ^[0-9]+$ ]]; then
         [ -n "$baseline" ] || baseline="$local_tip"
+        # Yano 0.1.0-pre14 may leave initialSyncComplete=false after restart/intersection
+        # recovery despite catching up. Use observable progress + tip convergence.
+        # Remove this workaround after upgrading to a release with the SyncSubsystem fix.
         if [ "$local_tip" -gt "$baseline" ] \
             && [ $((local_tip + 2)) -ge "$remote_tip" ]; then
+          if [ "$initial_sync" != true ]; then
+            printf 'WARNING: replacement node %s recovered L1 (baseline=%s local=%s remote=%s), but initialSyncComplete=%s; Yano 0.1.0-pre14 may leave this flag false after restart/intersection recovery.\n' \
+              "$node" "$baseline" "$local_tip" "$remote_tip" "$initial_sync" >&2
+          fi
           return 0
         fi
       fi

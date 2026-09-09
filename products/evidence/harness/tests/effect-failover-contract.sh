@@ -37,33 +37,58 @@ script = f'''#!/usr/bin/env bash
 set -euo pipefail
 DEMO_HTTP_BASE=38070
 CALLS=0
-CASE=reject
+# Replacement readiness uses L1 forward progress and tip convergence;
+# initialSyncComplete remains diagnostic for Yano 0.1.0-pre14.
+CASE=accept
 bounded_get() {{
   CALLS=$((CALLS + 1))
-  case "$CASE:$CALLS" in
-    missing:1|missing:2)
-      printf '{{"localTipBlockNumber":25,"remoteTipBlockNumber":25}}\\n' > "$2" ;;
-    accept:1)
-      printf '{{"initialSyncComplete":true,"localTipBlockNumber":25,"remoteTipBlockNumber":25}}\\n' > "$2" ;;
-    accept:2)
-      printf '{{"initialSyncComplete":true,"localTipBlockNumber":26,"remoteTipBlockNumber":26}}\\n' > "$2" ;;
-    *)
-      printf '{{"initialSyncComplete":false,"localTipBlockNumber":%s,"remoteTipBlockNumber":%s}}\\n' "$((24 + CALLS))" "$((24 + CALLS))" > "$2" ;;
+  local local_tip=$((24 + CALLS)) remote_tip=$((24 + CALLS)) flag=true
+  case "$CASE" in
+    stale) flag=false ;;
+    tolerance) remote_tip=$((local_tip + 2)); flag=false ;;
+    no-progress) local_tip=25; remote_tip=25 ;;
+    behind) remote_tip=$((local_tip + 3)) ;;
+    malformed-local) local_tip='"bad"' ;;
+    malformed-remote) remote_tip='"bad"' ;;
+    missing-local)
+      printf '{{"initialSyncComplete":true,"remoteTipBlockNumber":%s}}\\n' "$remote_tip" > "$2"; return ;;
+    missing-remote)
+      printf '{{"initialSyncComplete":true,"localTipBlockNumber":%s}}\\n' "$local_tip" > "$2"; return ;;
+    missing-flag)
+      printf '{{"localTipBlockNumber":%s,"remoteTipBlockNumber":%s}}\\n' \
+        "$local_tip" "$remote_tip" > "$2"; return ;;
   esac
+  printf '{{"initialSyncComplete":%s,"localTipBlockNumber":%s,"remoteTipBlockNumber":%s}}\\n' \
+    "$flag" "$local_tip" "$remote_tip" > "$2"
 }}
 sleep() {{ SECONDS=$((SECONDS + 1)); }}
 {function}
 run_case() {{
   CASE="$1"; CALLS=0; SECONDS=0
-  if wait_l1_sync 1 2 "$TMP_STATUS"; then
-    [ "$CASE" = accept ] || exit 11
+  if wait_l1_sync 1 2 "$TMP_STATUS" 2> "$TMP_STATUS.stderr"; then
+    [ "$2" = accept ] || {{ printf 'unexpected readiness: %s\\n' "$CASE" >&2; exit 11; }}
+    [ "$CALLS" -ge 2 ] || exit 13
   else
-    [ "$CASE" != accept ] || exit 12
+    [ "$2" = reject ] || {{ printf 'unexpected timeout: %s\\n' "$CASE" >&2; exit 12; }}
+  fi
+  if [ "$CASE" = stale ] || [ "$CASE" = tolerance ]; then
+    grep -Fq 'WARNING: replacement node 1 recovered L1 (baseline=25 local=26' "$TMP_STATUS.stderr"
+    grep -Fq 'initialSyncComplete=false; Yano 0.1.0-pre14' "$TMP_STATUS.stderr"
+    grep -Fq 'restart/intersection recovery' "$TMP_STATUS.stderr"
+  else
+    [ ! -s "$TMP_STATUS.stderr" ] || exit 14
   fi
 }}
-run_case reject
-run_case accept
-run_case missing
+run_case accept accept
+run_case stale accept
+run_case tolerance accept
+run_case no-progress reject
+run_case behind reject
+run_case malformed-local reject
+run_case malformed-remote reject
+run_case missing-local reject
+run_case missing-remote reject
+run_case missing-flag reject
 '''
 with tempfile.TemporaryDirectory() as directory:
     path = Path(directory) / "readiness.sh"
