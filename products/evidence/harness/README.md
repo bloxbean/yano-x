@@ -786,6 +786,11 @@ evidence report directory. A busy host port is never silently reassigned by
 this demo; change the corresponding `DEMO_*_PORT` so external receipts and URLs
 remain explicit and reproducible.
 
+`DEMO_ANCHOR_ADOPTION_TIMEOUT_SECONDS` bounds the wait for all three members
+to adopt the same anchor identity and height (default 180 seconds, range 60–3600).
+CI uses 900 seconds to allow Yano's 600-second L1 no-progress watchdog and recovery;
+the identity and convergence checks remain mandatory.
+
 ### Cardano historical projections
 
 The Evidence profile disables `yano.history.projection.enabled` in both host

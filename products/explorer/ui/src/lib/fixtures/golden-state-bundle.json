@@ -43,7 +43,11 @@
       "timestamp" : 1788638229874,
       "messagesRoot" : "de2b69eb772e121fcae91d812337b719c9eeb0022918fb96a082f3fff02a405a",
       "stateRoot" : "efde59101fca88e96212551cb26b787e573b66ca93cf99daca06b7331d1573fc",
-      "blockHash" : "915b1b47a06b72336d44282b61b4d3fedde0187d55cda424612f6e157dab47c4"
+      "blockHash" : "915b1b47a06b72336d44282b61b4d3fedde0187d55cda424612f6e157dab47c4",
+      "view" : 0,
+      "consensusContextDigest" : "b487b159cc2ca818e3397fe3c594de8b6de20ff659ea6a09c3f4013152f5a3fe",
+      "proposer" : "35642f7a3e0c68b12f12092038e70ff20f0f37e3e7b682ba4643fa7b03e092d4",
+      "justificationDigest" : "0e5751c026e543b2e8ab2eb06099daa1d1e5df47778f7787faab45cdf12fe3a8"
     },
     "finalityCertificate" : {
       "scheme" : 0,

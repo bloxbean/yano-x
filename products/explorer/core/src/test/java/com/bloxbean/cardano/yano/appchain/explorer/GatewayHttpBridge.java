@@ -2,6 +2,7 @@ package com.bloxbean.cardano.yano.appchain.explorer;
 
 import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
 import com.bloxbean.cardano.yano.api.appchain.AppBlock;
+import com.bloxbean.cardano.yano.api.appchain.AppBlockHeader;
 import com.bloxbean.cardano.yano.api.appchain.AppChainGateway;
 import com.bloxbean.cardano.yano.api.appchain.AppQueryResult;
 import com.bloxbean.cardano.yano.api.appchain.FinalityCert;
@@ -274,6 +275,10 @@ final class GatewayHttpBridge implements AutoCloseable {
         result.put("messagesRoot", HEX.formatHex(block.messagesRoot()));
         result.put("stateRoot", HEX.formatHex(block.stateRoot()));
         result.put("blockHash", HEX.formatHex(blockHash));
+        result.put("view", block.view());
+        result.put("consensusContextDigest", HEX.formatHex(block.consensusContextDigest()));
+        result.put("proposer", HEX.formatHex(block.proposer()));
+        result.put("justificationDigest", HEX.formatHex(AppBlockHeader.from(block).justificationDigest()));
         return result;
     }
 
