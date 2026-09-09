@@ -80,6 +80,7 @@ const SECTIONS = [
   },
   // Imported sections are derived from IMPORTED_DOCS rather than retyped, so
   // adding a tutorial is a one-place edit in repo-sources.mjs.
+  { title: 'Deployment', files: importedFiles('deployment') },
   { title: 'Tutorials', files: importedFiles('tutorials') },
   { title: 'State machines', files: importedFiles('state-machines') },
   {

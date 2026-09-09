@@ -5,6 +5,7 @@ import com.bloxbean.cardano.yaci.core.util.HexUtil;
 import com.bloxbean.cardano.yano.api.appchain.AppChainConfig;
 import com.bloxbean.cardano.yano.runtime.appchain.AppChainSubsystem;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.function.Executable;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.io.TempDir;
@@ -21,6 +22,7 @@ import java.util.Set;
 import java.util.function.BooleanSupplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertAll;
 
 /**
  * ADR-006 E2.3/E2.4: balances and doc-trail standard-library machines driving
@@ -39,12 +41,7 @@ class BalancesAndDocTrailTest {
 
     @AfterEach
     void tearDown() {
-        for (AppChainSubsystem node : nodes) {
-            try {
-                node.stop();
-            } catch (Exception ignored) {
-            }
-        }
+        assertAll(nodes.stream().<Executable>map(node -> node::close));
     }
 
     @Test

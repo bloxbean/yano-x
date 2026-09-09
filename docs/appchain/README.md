@@ -9,6 +9,9 @@ two kinds of reader:
   to state proofs, L1 anchoring, deterministic composition, effects, plugins,
   governance, and operational boundaries.
 
+Start with the [deployment guide](deployment/README.md) for released archives,
+Studio configuration, local chain additions, and VM operations.
+
 The tutorials use the current source tree. Yano is still pre-release; use local
 devnet or a Cardano test network, disposable application data, and non-production
 credentials unless a guide explicitly says otherwise.
@@ -28,6 +31,8 @@ credentials unless a guide explicitly says otherwise.
 | Approve arbitrary payload hashes using application-defined roles | [`role-approvals` reference](state-machines/role-approvals.md) | Configuration + actor integration |
 | Require manufacturers, auditors, and regulators to sign evidence by role | [Domain-role approvals](tutorials/05-domain-role-approvals.md) | No for the stock scenario |
 | Call an ERP/API after a finalized decision | [Webhook effects](tutorials/06-webhook-effects.md) | Configuration; emission is stock or plugin logic |
+| Learn certified external reports and multi-source aggregation | [ADA/USD observation reference](ada-usd-observation-reference.md) | Java reference; preview, synthetic sources |
+| Link payment, certified shipment, release, and settlement | [Shipment observation reference](shipment-observation-reference.md) | Preview; bounded signed Merkle receipts |
 | Understand and verify Cardano settlement | [Anchors and independent verification](tutorials/07-anchors-and-verification.md) | No |
 | Build or independently verify portable message and typed state proofs | [Proof Lab guide](PROOF_LAB.md) | No for stock subjects; Java for custom subjects |
 | Implement new business rules without forking Yano | [Plugins and composites](tutorials/08-plugins-and-composites.md) | Small Java plugin |
@@ -132,11 +137,9 @@ business meaning.
 - Java 25 when building from source.
 - Docker Desktop for the complete evidence/connector demo.
 - `bash`, `curl`, `jq`, `python3`, and `openssl`.
-- From source, build the runnable application once:
-
-```bash
-./gradlew :app:quarkusBuild -PskipSigning=true
-```
+- From source, follow [the Yano X distribution build](../BUILD_DISTRIBUTIONS.md),
+  then run the extracted JVM distribution. The upstream Yano `:app` build is
+  not a task in this repository.
 
 The cluster launcher can also use a released Yano tree; see
 [`scripts/appchain-cluster/README.md`](../../scripts/appchain-cluster/README.md).
@@ -165,6 +168,7 @@ need full detail:
 - [Domain actors and role-aware approvals](../APP_CHAIN_DOMAIN_ROLES.md)
 - [Plugin query and domain API contract](../core-host.md)
 - [Release acceptance and schema status](RELEASE_ACCEPTANCE.md)
+- [Deployment experience review and design plan (proposal)](DEPLOYMENT_EXPERIENCE_REVIEW_AND_PLAN.md)
 - [Canonical open-work tracker](../../adr/app-layer/open_item.md)
 
 ## A note on “no code”

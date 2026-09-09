@@ -129,15 +129,17 @@ class AppChainClientStateProofTest {
                  "genesisId":"%s","proofEncodingId":"%s",
                  "nativeVersioning":true,"physicalDelete":false,"version":42,
                  "oldestProvableHeight":2,"presence":"PRESENT","blockHash":"%s",
-                 "block":{"version":1,"height":42,"prevHash":"%s","l1Slot":0,
+                 "block":{"version":3,"height":42,"prevHash":"%s","l1Slot":0,
                    "l1BlockHash":"","timestamp":1,"messagesRoot":"%s",
-                   "stateRoot":"%s","blockHash":"%s"},
+                   "stateRoot":"%s","blockHash":"%s","view":0,
+                   "consensusContextDigest":"%s","proposer":"%s","justificationDigest":"%s"},
                  "finalityCertificate":{"scheme":0,"signatures":[
                    {"signer":"%s","signature":"%s"}]}}
                 """.formatted(ROOT, profile.id(), profile.backend(),
                 profile.commitmentFormatId(), profile.formatFingerprintHex(),
                 "11".repeat(32), profile.proofEncodingId(), blockHash,
                 "00".repeat(32), "33".repeat(32), ROOT, blockHash,
+                "66".repeat(32), "77".repeat(32), "88".repeat(32),
                 "44".repeat(32), "55".repeat(64));
         AtomicReference<String> response = new AtomicReference<>(tagged);
         start(exchange -> respond(exchange, 200, response.get()));
@@ -148,6 +150,13 @@ class AppChainClientStateProofTest {
         assertThat(proof.backend()).isEqualTo("jmt");
         assertThat(proof.oldestProvableHeight()).isEqualTo(2);
         assertThat(proof.block().height()).isEqualTo(42);
+        assertThat(proof.block().consensusContextDigestHex()).isEqualTo("66".repeat(32));
+        response.set(tagged.replace("\"view\":0,", ""));
+        assertThatThrownBy(() -> client().proof(new byte[]{1}))
+                .hasMessageContaining("Invalid certified app-chain block header");
+        response.set(tagged.replace("\"view\":0", "\"view\":-1"));
+        assertThatThrownBy(() -> client().proof(new byte[]{1}))
+                .isInstanceOf(AppChainClient.AppChainClientException.class);
         response.set(tagged.replace("\"backend\":\"jmt\"", "\"backend\":\"mpf\""));
         assertThatThrownBy(() -> client().proof(new byte[]{1}))
                 .isInstanceOf(AppChainClient.AppChainClientException.class)
@@ -222,6 +231,13 @@ class AppChainClientStateProofTest {
                 INCLUSION.replace("\"proofWireHex\":\"80\"", "\"proofWireHex\":\"\""),
                 INCLUSION.replace("\"committedHeight\":42", "\"committedHeight\":-1"),
                 INCLUSION.replace("\"finalizedAtHeight\":3", "\"finalizedAtHeight\":43"),
+                INCLUSION.replace("\"version\":3", "\"version\":1"),
+                INCLUSION.replace(",\"view\":0", ""),
+                INCLUSION.replace("\"view\":0", "\"view\":-1"),
+                INCLUSION.replace("\"consensusContextDigest\":\"" + "66".repeat(32) + "\"",
+                        "\"consensusContextDigest\":\"00\""),
+                INCLUSION.replace(",\"proposer\":\"" + "77".repeat(32) + "\"", ""),
+                INCLUSION.replace(",\"justificationDigest\":\"" + "88".repeat(32) + "\"", ""),
                 duplicate,
                 unknown,
                 INCLUSION + "{}"
@@ -308,15 +324,17 @@ class AppChainClientStateProofTest {
                  "formatFingerprint":"%s","genesisId":"%s",
                  "proofEncodingId":"%s","nativeVersioning":%s,"physicalDelete":%s,
                  "version":42,"oldestProvableHeight":2,"presence":"%s","blockHash":"%s",
-                 "block":{"version":1,"height":42,"prevHash":"%s","l1Slot":0,
+                 "block":{"version":3,"height":42,"prevHash":"%s","l1Slot":0,
                    "l1BlockHash":"","timestamp":1,"messagesRoot":"%s",
-                   "stateRoot":"%s","blockHash":"%s"},
+                   "stateRoot":"%s","blockHash":"%s","view":0,
+                   "consensusContextDigest":"%s","proposer":"%s","justificationDigest":"%s"},
                  "finalityCertificate":{"scheme":0,"signatures":[
                    {"signer":"%s","signature":"%s"}]}}
                 """.formatted(ROOT, valueAndFinalityFields, profile.id(), profile.backend(),
                 profile.commitmentFormatId(), profile.formatFingerprintHex(), "11".repeat(32),
                 profile.proofEncodingId(), profile.nativeVersioning(), profile.physicalDelete(),
                 presence, BLOCK_HASH, "00".repeat(32), "33".repeat(32), ROOT, BLOCK_HASH,
+                "66".repeat(32), "77".repeat(32), "88".repeat(32),
                 "44".repeat(32), "55".repeat(64));
     }
 

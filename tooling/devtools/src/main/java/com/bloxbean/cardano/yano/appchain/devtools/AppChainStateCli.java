@@ -379,6 +379,10 @@ final class AppChainStateCli {
                 blockNode.put("messagesRoot", block.messagesRootHex());
                 blockNode.put("stateRoot", block.stateRootHex());
                 blockNode.put("blockHash", block.blockHashHex());
+                blockNode.put("view", block.view());
+                blockNode.put("consensusContextDigest", block.consensusContextDigestHex());
+                blockNode.put("proposer", block.proposerHex());
+                blockNode.put("justificationDigest", block.justificationDigestHex());
                 ObjectNode certificate = node.putObject("finalityCertificate");
                 certificate.put("scheme", proof.finalityCertificate().scheme());
                 ArrayNode signatures = certificate.putArray("signatures");

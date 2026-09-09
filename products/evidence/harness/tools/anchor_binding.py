@@ -36,10 +36,15 @@ FIELDS = {
     "chainId", "threadPolicyId", "scriptHash", "scriptAddress",
     "verificationState", "verifiedHeight", "verifiedMembers", "verifiedAtMillis",
 }
-PRISTINE_COUNTERS = (
+PROGRESS_COUNTERS = (
     "tipHeight", "poolSize", "submitted", "received", "relayed", "duplicates",
     "seenIds", "storedMessages",
 )
+# Transport counters include automatic ~consensus/* and ~anchor/* diffusion.
+# They cannot distinguish application activity from an idle, pristine chain.
+# Accepted ordinary/governance messages are pooled and recorded by the host;
+# local submissions are additionally counted, and committed activity advances tip/root.
+PRISTINE_COUNTERS = ("tipHeight", "poolSize", "submitted", "storedMessages")
 
 
 class BindingError(ValueError):
@@ -224,16 +229,34 @@ def anchor_identity(anchor: Any) -> dict[str, str]:
 
 
 def pristine_statuses(documents: list[dict[str, Any]]) -> bool:
+    pristine = True
     for document in documents:
-        for key in PRISTINE_COUNTERS:
+        for key in PROGRESS_COUNTERS:
             counter = document.get(key)
             if not bounded_int(counter):
                 raise BindingError(f"member status counter is malformed: {key}")
-            if counter != 0:
-                return False
+            if key in PRISTINE_COUNTERS and counter != 0:
+                pristine = False
         if document.get("stateRoot") != "0" * 64:
-            return False
-    return True
+            pristine = False
+    return pristine
+
+
+def progress_summary(documents: list[dict[str, Any]]) -> str:
+    """Bounded public counters only; never echo full status/configuration into logs."""
+    summary = []
+    for document in documents:
+        anchor = document.get("anchor")
+        row = {key: value if bounded_int(value := document.get(key)) else None
+               for key in PROGRESS_COUNTERS}
+        row["zeroRoot"] = document.get("stateRoot") == "0" * 64
+        row["anchorPresent"] = isinstance(anchor, dict)
+        if isinstance(anchor, dict):
+            row["bootstrapped"] = anchor.get("bootstrapped") is True
+            height = anchor.get("lastAnchoredHeight")
+            row["anchoredHeight"] = height if bounded_int(height) else None
+        summary.append(row)
+    return json.dumps(summary, separators=(",", ":"))
 
 
 def validate_topology(documents: list[dict[str, Any]],
@@ -290,7 +313,8 @@ def live_candidate(documents: list[dict[str, Any]], allow_pending: bool,
         heights = [anchor.get("lastAnchoredHeight") for anchor in anchors]
         if (any(not bounded_int(height) for height in heights)
                 or len(set(heights)) != 1 or heights[0] < 1):
-            raise NotConverged("members have not adopted one non-genesis anchor height")
+            raise NotConverged("members have not adopted one non-genesis anchor height: "
+                               + progress_summary(documents))
         tips = [document.get("tipHeight") for document in documents]
         if any(not bounded_int(tip) or tip < heights[0] for tip in tips):
             raise NotConverged("member app-chain tips do not cover the adopted anchor")
@@ -301,7 +325,25 @@ def live_candidate(documents: list[dict[str, Any]], allow_pending: bool,
             "verifiedMembers": 3,
         }
 
-    followers_unadopted = anchors[1] is None and anchors[2] is None
+    def pending_follower(anchor: Any) -> bool:
+        if not isinstance(anchor, dict):
+            return False
+        if (anchor.get("enabled") is not True or anchor.get("mode") != "script"
+                or anchor.get("leader") is not False
+                or anchor.get("bootstrapped") is not False
+                or not isinstance(anchor.get("identityCandidatePending"), bool)
+                or anchor.get("lastAnchoredHeight") != 0):
+            return False
+        identity_fields = ("threadPolicyId", "scriptHash", "scriptAddress")
+        present = [field for field in identity_fields if field in anchor]
+        if present and set(present) != set(identity_fields):
+            raise BindingError("pending follower script-anchor identity is incomplete")
+        if present and any(anchor[field] != leader_identity[field] for field in identity_fields):
+            raise BindingError("pending follower script-anchor identity differs from leader")
+        return True
+
+    followers_unadopted = all(anchor is None or pending_follower(anchor)
+                               for anchor in anchors[1:])
     leader_height = anchors[0].get("lastAnchoredHeight")
     if (allow_pending and followers_unadopted and leader_height == 0
             and pristine_statuses(documents)):
@@ -312,7 +354,8 @@ def live_candidate(documents: list[dict[str, Any]], allow_pending: bool,
             "verifiedMembers": 1,
         }
     raise NotConverged(
-        "followers are not fully adopted and the cluster is not a pristine pending genesis")
+        "followers are not fully adopted and the cluster is not a pristine pending genesis: "
+        + progress_summary(documents))
 
 
 def private_parent(path: Path) -> Path:

@@ -26,6 +26,10 @@ java {
     targetCompatibility = 25
 }
 
+tasks.named('test') {
+    systemProperty 'yano.x.test.runtime-classpath', sourceSets.test.runtimeClasspath.asPath
+}
+
 publishing {
     publications {
         mavenJava(MavenPublication) {

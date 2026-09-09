@@ -50,9 +50,10 @@ class AppChainStateCliTest {
                  "proofEncodingId":"%s","nativeVersioning":%s,
                  "physicalDelete":%s,"version":1,"oldestProvableHeight":1,
                  "presence":"PRESENT","blockHash":"%s",
-                 "block":{"version":1,"height":1,"prevHash":"%s","l1Slot":0,
+                 "block":{"version":3,"height":1,"prevHash":"%s","l1Slot":0,
                    "l1BlockHash":"","timestamp":1,"messagesRoot":"%s",
-                   "stateRoot":"%s","blockHash":"%s"},
+                   "stateRoot":"%s","blockHash":"%s","view":0,
+                   "consensusContextDigest":"%s","proposer":"%s","justificationDigest":"%s"},
                  "finalityCertificate":{"scheme":0,"signatures":[
                    {"signer":"%s","signature":"%s"}]}}
                 """.formatted(Hex.encode(key), root,
@@ -61,6 +62,7 @@ class AppChainStateCliTest {
                 profile.formatFingerprintHex(), genesis, profile.proofEncodingId(),
                 profile.nativeVersioning(), profile.physicalDelete(), blockHash,
                 "00".repeat(32), "33".repeat(32), root, blockHash,
+                "66".repeat(32), "44".repeat(32), "77".repeat(32),
                 "44".repeat(32), "55".repeat(64)));
 
         Result valid = run("state", "verify",

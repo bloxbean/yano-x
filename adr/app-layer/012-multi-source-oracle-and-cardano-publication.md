@@ -2,7 +2,12 @@
 
 ## Status
 
-Proposed — design for review before implementation
+Proposed — publication design; generic report/round layer migrated to Yano ADR-037.
+
+Sections 7–8 and the O-M1 roadmap supersede the original application-owned
+report/round plan. References elsewhere to report decisions or closure are
+subject to this host-owned boundary; they do not authorize rebuilding that
+protocol. This revision does not claim independent review or production readiness.
 
 The number is local to the `adr/app-layer` series. Root-level ADR-012 is an
 unrelated node-mode ADR.
@@ -539,276 +544,148 @@ signature verification. O-M0 freezes exact CDDL and golden bytes.
 
 ## 7. Observation and signature contract
 
-### 7.1 Logical report v1
+### 7.1 Host-owned report protocol
 
-The implementation MUST freeze a canonical CBOR/CDDL representation before
-the first implementation release. Its logical fields are:
+The generic report/round layer is superseded by
+[Yano ADR-037](https://github.com/bloxbean/yano/blob/feat/generic-observation-framework-adr/adr/app-layer/037-certified-generic-observation-framework.md).
+Cross-repository migration is tracked in
+[yano-x#5](https://github.com/bloxbean/yano-x/issues/5).
 
-```text
-oracle-report-v1 = {
-  version:                1,
-  app-chain-id:           tstr,
-  feed-id:                tstr,
-  value-policy-version:  uint,
-  round:                  uint,
-  source-id:              tstr,
-  reporter-key:           bstr .size 32,
-  observed-for-l1-slot:   uint,
-  value:                  int,
-  scale:                  uint,
-  source-evidence-hash:   bstr .size 32,
-  source-assertion:       bstr / null,
-  reporter-signature:     bstr .size 64
-}
-```
+Do not implement `oracle-report-v1`, the `yano/oracle/report/v1` signature
+domain, ordinary application-message report ingestion, or a second oracle
+round journal. Reporters consume the host's canonical round descriptor and
+sign its canonical `ObservationReport` identity. An active-member gateway
+performs bounded admission/diffusion without gaining external reporter weight.
+Followers verify the self-contained result certificate in the host system-input
+kernel; the oracle application consumes finalized `ObservationResult` callbacks.
 
-`value × 10^-scale` is the reported quantity. Floating point, exponent
-notation, `NaN`, infinity, implicit currencies, and implicit unit conversion
-are forbidden. Values are decoded into arbitrary-precision integers and are
-bounded before arithmetic.
+External reporter keys and their `p,g,r` safety envelope are definition/profile
+committed, independently of app-chain `n,f,q`. Report signatures bind chain,
+consensus and observation profiles, subscription, round, definition, membership,
+reporter set, source, exact value, evidence and freshness. Reporters durably lock
+one complete signed choice per subscription/round/source before signing.
+A gateway may not synthesize or repair that durability obligation.
 
-`source-evidence-hash` commits to the exact upstream response, sensor frame,
-or signed source assertion retained by the reporter. Large or private source
-bodies remain outside the effect and datum. If they must be independently
-auditable, they can be encrypted in evidence storage and addressed by this
-hash or by a separately committed object-store reference. A hash proves
-integrity if the body is later available; it does not prove availability.
+### 7.2 Source evidence and supersession
 
-### 7.2 Domain-separated reporter signature
+A source assertion must be complete, bounded and independently verifiable
+without I/O. Evidence hashes prove integrity, not availability or truth.
+A reporter-attested source instead makes the explicitly weaker claim that the
+authorized reporter quorum attested to those bytes.
 
-V1 reporter signatures are Ed25519 over a 32-byte digest. The reporter signs:
+The former latest-source-time/sequence selection is removed. The initial
+migration accepts exactly one terminal source claim backed by an intersecting
+reporter quorum. Two conflicting claims cannot both reach that quorum under
+the pinned fault bound and honest no-double-signing. Different honest reports
+may prevent any quorum; they do not authorize selecting whichever subset
+arrives first. A later report never replaces a previously certified claim.
 
-```text
-blake2b-256(
-    "yano/oracle/report/v1" || canonicalReportWithoutReporterSignature
-)
-```
+Supporting arbitrary latest assertions, partial source coverage or a
+reporter-median over differing claims requires a separately sequenced, bounded,
+follower-verifiable closure protocol. Such policies remain disabled until that
+protocol and its adversarial tests are reviewed. Arrival order and a local
+deadline are not closure proofs.
 
-The signed bytes bind the app chain, feed, value-policy version, round,
-source, reporter, claimed observation slot, numeric representation, and source
-evidence. A valid signature from another chain, configuration, source, or
-round cannot be replayed.
+### 7.3 Admission and evidence visibility
 
-When an upstream source supplies native authentication, `source-assertion`
-contains the complete bounded canonical signed assertion needed by consensus.
-It may not be a signature over unavailable bytes. The versioned source-auth
-profile in feed configuration defines:
-
-- deterministic signature algorithm and source verification key;
-- maximum assertion bytes and canonical encoding;
-- extraction of source identity, unit, integer value, scale, source timestamp
-  or sequence, and replay identity;
-- mapping of source time/sequence to the oracle round; and
-- equality and latest-assertion selection within a round.
-
-`apply()` verifies the assertion without I/O and requires every extracted field
-to match the report. When present, `source-evidence-hash` must equal the
-following value:
-
-```text
-blake2b-256("yano/oracle/source-evidence/v1" || canonicalSourceAssertion)
-```
-
-V1 selects the valid assertion with the greatest source-native sequence/time
-within the round; equal sequence/time with
-different signed bodies makes that source `AMBIGUOUS` for the round. An old
-assertion cannot be relabelled with a current `observedForL1Slot`.
-
-Without a supported self-contained source-auth profile, the source is
-`REPORTER_ATTESTED`: the reporter attests what it observed and the trust is in
-the reporter, not cryptographic proof from the upstream source.
-
-### 7.3 Admission is not consensus validation
-
-`AppStateMachine.validate()` may cheaply reject malformed, oversized, or
-obviously unauthorized reports, but admission results are not consensus
-state. `apply()` MUST repeat every signature, configuration, round, bounds,
-deduplication, and policy check deterministically before a report affects the
-aggregate or evidence root.
-
-Every report receives a deterministic disposition such as `ACCEPTED`,
-`DUPLICATE`, `EQUIVOCATION`, `BAD_SIGNATURE`, `UNKNOWN_SOURCE`,
-`UNAUTHORIZED_REPORTER`, `WRONG_VALUE_POLICY`, `WRONG_ROUND`, `STALE`, `FUTURE`,
-`OUT_OF_RANGE`, `AMBIGUOUS_SOURCE`, `CAPACITY_REJECTED`, or `OUTLIER`. Any
-non-byte-identical signed report under the same unique report key is
-equivocation, even when its numeric value is unchanged. Public APIs may expose
-bounded reason codes, not unbounded exception text.
-
-The inner report is signed by the reporter key. A reporter submits it to an
-authorized Yano gateway/member, which verifies bounded admission and wraps it
-in the ordinary member-signed app-message envelope. Reporter keys do not
-implicitly become app-chain membership keys. Consensus safety comes from
-revalidation of the inner signature and policy in `apply()`.
+Diffused reports are not ordinary application inputs or committed oracle state.
+Bounded local rejection/equivocation diagnostics must not be presented as an
+exhaustive consensus record of every report. A result commits its exact
+certificate and accepted evidence. Byte-identical retries add no weight;
+conflicting reports cannot retroactively revoke a finalized result.
+Application publication decisions use only finalized host callbacks.
 
 ## 8. Deterministic rounds and aggregation
 
-### 8.1 Round clock
+### 8.1 Host subscriptions and policy migration
 
-Production rounds use the verified `AppBlock.l1Slot` from ADR-008.4, not a
-node's wall clock or an adapter's local arrival time:
+Use ADR-037 recurring subscriptions and its verified-L1-slot high-water clock,
+bounded member heartbeat, due indexes, explicit round snapshots and app-height
+inclusion grace. Do not implement `oracle/tick.v1` or an application-owned
+report/closure pre-scan. Zero L1 references retain the host high-water slot.
+No app-height cadence may be described as elapsed minutes.
 
-```text
-round(slot) = floor((slot - roundStartL1Slot) / roundLengthSlots)
-roundEnd(r) = roundStartL1Slot + ((r + 1) * roundLengthSlots) - 1
-closeAt(r)  = roundEnd(r) + reportGraceSlots
-```
+The initial integration uses explicit cancel-and-re-watch policy migration.
+Governance selects a profile-authorized bounded definition/policy before the
+future feed round and cancels/replaces the subscription atomically in its
+deterministic callback. An open round retains its old pinned policy or is
+explicitly cancelled; it is never silently reinterpreted. Maintain an
+authenticated mapping from feed/policy epoch to subscription ID and framework
+round number. Reject unsupported policy changes rather than freezing a
+governed policy indefinitely at subscription creation.
 
-The feed is inactive before `roundStartL1Slot`; negative rounds do not exist.
-Every add/multiply is checked against the protocol's unsigned-integer bounds.
+### 8.2 Complete-source exact-quorum aggregation
 
-The value policy with the greatest `effectiveRound` not exceeding the round
-governs it. Because policy updates must finalize before their future effective
-round, a change cannot take effect halfway through an open round.
+The initial bounded policy requires the entire definition-pinned source set.
+Each logical source has a canonical identity and a declared independence group.
+The certificate contains exactly `r` distinct authorized reporters agreeing
+on the complete terminal claim for every source; `2r-p>g` and `r<=p-g`.
+All sources must be present, with no additional source or duplicate
+reporter/source pair. Five validators querying one source still provide only
+one source, not five independent sources.
 
-The machine maintains a committed monotonic oracle L1 high-water mark:
+This is a certificate-monotonic construction, not a general non-monotonic
+median. Any two valid per-source certificates intersect in more than `g`
+reporters; at least one honest reporter would have to double-sign to prove
+different source claims. Full source coverage therefore fixes the complete
+source-value vector, and all valid sufficient subsets yield the same aggregate.
+The ordinary sequenced host result carries this complete coverage proof.
+Flexible coverage and latest-assertion policies still require separate closure.
 
-```text
-effectiveStableSlot = max(previousStableSlot, block.l1Slot)
-```
+Missing, stale or disagreeing required sources prevent a VALUE certificate.
+There is no implicit unavailability claim, invented price, local first-response
+choice, or fallback to the previous price. Host expiry produces no publication.
 
-A zero `block.l1Slot` does not move the high-water mark. Reports are rejected
-with `NO_L1_REF` only while no nonzero stable slot has ever been committed.
-For every finalized app block, the state machine uses this order:
+### 8.3 Fixed-point normalization
 
-1. If `effectiveStableSlot == 0`, reject oracle reports as `NO_L1_REF`. A zero
-   slot in the current block reuses a previously committed nonzero high-water
-   mark.
-2. Pre-scan every report message in the block, independent of its position
-   relative to tick or governance messages.
-3. If `observedForL1Slot > effectiveStableSlot`, record `FUTURE`. If
-   `effectiveStableSlot - observedForL1Slot` exceeds the active value policy's
-   `maximumObservationAgeSlots`, record `STALE`.
-4. Otherwise map `observedForL1Slot` to its round and value policy.
-5. Accept a report only when `effectiveStableSlot` is no later than the round
-   end plus `reportGraceSlots`; otherwise record `LATE`.
-6. After all reports are processed, close due rounds oldest-feed/oldest-round
-   first, up to `maximumRoundsClosedPerBlock`.
+Each numeric claim has an explicit canonical scale and signed bounded integer.
+Parse strict base-10 decimals, reject ambiguous notation and scale mismatch,
+and use checked/bounded integer arithmetic. No floating point, locale parsing,
+exponents, NaN, infinities, implicit currency or lossy rounding is allowed.
+The registered policy fixes integer size, scale and maximum source cardinality.
 
-A report in a block whose effective stable slot equals the close boundary is
-eligible; closure happens at end-of-block. Reports in a later block never
-reopen the round. This removes message-order ambiguity.
+### 8.4 Deterministic source-group aggregation
 
-Slot passage alone does not create app-chain blocks. Redundant members submit
-bounded, member-signed `oracle/tick.v1` messages when a round is due and no
-ordinary report is likely to create a block. A tick contains no trusted time;
-it merely triggers a block whose verified `l1Slot` drives closure. Duplicate
-ticks are harmless. If closure work reaches the per-block cap, subsequent
-ticks deterministically continue with the oldest due rounds. Missing ticks
-affect liveness, not safety, and health exposes the closure lag.
+After complete-source exact reconciliation:
 
-### 8.2 Duplicate and equivocation rules
+1. Group source values by their pinned independence-group IDs. Source aliases
+   in one group contribute one lower-median group value.
+2. Require the pinned minimum number of independent groups.
+3. Compute the preliminary lower median at index `floor((n-1)/2)`.
+4. Discard groups whose absolute deviation exceeds
+   `max(absoluteLimit, floor(abs(median)*ppmLimit/1_000_000))`.
+5. Recheck minimum independent groups and compute the final lower median.
+6. Enforce pinned value bounds and encode the exact fixed-point result.
 
-The unique report key is `(feedId, valuePolicyVersion, round, sourceId,
-reporterId)`.
+Canonical byte order breaks equal-value identity ties. Even counts never
+average. The full pre-filter source vector remains proven by the certificate;
+outlier removal does not permit omitting inconvenient sources from the proof.
+The policy parameters and source/group identities are committed, not supplied
+as unconstrained executable application code.
 
-- Byte-identical resubmission is a duplicate and has no additional weight.
-- Any non-byte-identical signed report under the same key is reporter
-  equivocation, even when the numeric value matches.
-- Equivocation excludes every report from that reporter for that feed and
-  round, across all sources, and records both hashes for audit.
-- Iteration and output ordering use canonical byte ordering, never map
-  insertion order.
+### 8.5 Domain circuit breaker and publication
 
-These rules make retries harmless and prevent a reporter from multiplying its
-weight by submitting many messages.
+The Yano X oracle, not the generic host, applies the prior-value jump limit:
+`max(maximumRoundJumpAbsolute, floor(abs(prior)*maximumRoundJumpPpm/1_000_000))`.
+A violating finalized observation produces domain `CIRCUIT_OPEN`, no Cardano
+update, and no misleading refresh of the previous datum's validity.
+No-quorum/expired rounds likewise emit no publication.
 
-### 8.3 Normalization
+Feed governance, evidence presentation, publication policy, canonical thread
+UTxO, exact datum construction, effect execution and stable-L1 confirmation
+remain owned by this ADR. Once a result is selected for publication, derive
+the transition/effect from the then-current authenticated predecessor and
+publication policy; never re-evaluate the finalized observation.
 
-Each report is converted to the configured `canonicalScale` using exact base
-10 integer arithmetic:
+### 8.6 Bounds and retention
 
-- scaling up multiplies by a checked power of ten;
-- scaling down is allowed only when the discarded digits are all zero in v1;
-- a lossy rounding policy requires a future configuration/schema version;
-- normalized values outside configured integer or value bounds are rejected;
-  and
-- no platform primitive overflow is permitted; implementations use bounded
-  `BigInteger`-equivalent arithmetic.
-
-### 8.4 Two-axis aggregation algorithm
-
-When a round closes, every member performs these exact steps:
-
-1. Select the value policy active at round start.
-2. Remove invalid, duplicate, equivocated, stale, future, unauthorized, and
-   out-of-range reports.
-3. Group the remaining reports by `sourceId`, then by the source's declared
-   `independenceGroup`.
-4. For a source-authenticated source, select the latest valid self-contained
-   assertion according to its source-auth profile. Collapse identical relays
-   while retaining each distinct valid relay reporter for availability
-   accounting. Conflicting assertions with the same source sequence/time make
-   that source ambiguous and exclude it.
-5. For a `REPORTER_ATTESTED` source, require
-   `minimumReportersPerSource` distinct non-equivocating reporters and derive
-   the source value as the lower median of their normalized values. A policy
-   claiming tolerance of `g` faulty reporters for that source requires
-   `minimumReportersPerSource >= 2g + 1`.
-6. If several source aliases share one `independenceGroup`, derive one group
-   value as the lower median of their source values. One group contributes one
-   aggregate vote regardless of alias or relay count.
-7. Count retained independence groups and distinct contributing reporters.
-   Require both `minimumSourceGroups` and `minimumReporters`. Reporter count
-   for source-authenticated assertions is relay availability, not additional
-   truth weight.
-8. Sort group values numerically, breaking equal values by canonical group id,
-   and compute the preliminary lower median at index
-   `floor((n - 1) / 2)`.
-9. For reference value `m`, define the permitted source deviation as
-   `max(maximumSourceDeviationAbsolute,
-   floor(abs(m) * maximumSourceDeviationPpm / 1_000_000))`. Reject an entire
-   group when its deviation exceeds that value. This remains meaningful for
-   zero and negative-valued feeds.
-10. Recompute source-group and reporter quorum after outlier removal. Reports
-    from an outlier group do not count toward either threshold.
-11. Compute the final aggregate as the lower median of retained group values.
-12. Enforce `minimumValue` and `maximumValue`. When a prior valid aggregate
-    `p` exists, permit a round jump of at most
-    `max(maximumRoundJumpAbsolute,
-    floor(abs(p) * maximumRoundJumpPpm / 1_000_000))`. The first valid round
-    has no prior-value jump check.
-13. Canonically order retained reports, calculate both evidence commitments,
-    and atomically record the round result. When that result later becomes the
-    next eligible publication, construct its exact Live successor, transition
-    id, and effect from the then-current canonical predecessor and active
-    publication policy. A finalized aggregate is never re-evaluated.
-
-The lower median is intentionally specified for even counts; implementations
-must not silently average, round, use floating point, or select according to
-arrival order. Weighted aggregation, TWAP, VWAP, and cross-feed formulas are
-future versioned policies.
-
-### 8.5 No quorum and circuit breakers
-
-If either quorum is missing after filtering, the round becomes `NO_QUORUM` and
-no Cardano update is emitted. If a value exceeds the absolute/relative jump
-limit, the round becomes `CIRCUIT_OPEN` and no update is emitted. The previous
-Cardano datum is not rewritten with a misleading fresh timestamp; it expires
-at its existing `validUntilL1Slot` so consumers can fail closed.
-
-A later configuration may explicitly define a degraded policy, but v1 does
-not silently publish a last-known-good value as if it were current. Pause,
-override, or circuit reset is an authenticated configuration/governance action
-with a future effective round, never an operator-local switch that changes
-consensus behavior.
-
-### 8.6 Consensus resource bounds
-
-The implementation validates exact global and per-feed limits for report body
-bytes, source assertion bytes, feeds, configured sources/groups/reporters,
-open rounds, accepted reports per round, governance updates, evidence leaves,
-and rounds closed per block.
-
-Accepted report cardinality is bounded by the configured
-`(sourceId, reporterId)` matrix. Invalid or unauthorized reports do not create
-one persistent state key each. The machine updates fixed-size disposition
-counters and a rolling decision commitment, retaining at most a configured
-number of samples selected by lowest canonical message id. Overflow is a
-deterministic `CAPACITY_REJECTED` disposition, not an allocation failure.
-
-Closed-round details follow deterministic retention. Aggregate, value-policy
-hash, counts, accepted evidence root, round-decision commitment, publication
-identity, and pruning boundary remain after detailed report pruning.
+The host enforces profile bounds for source/reporter matrices, report and
+certificate bytes, open rounds, scheduling and durable local journals. Yano X
+adds feed/governance/publication and retained-domain-history bounds. Invalid
+diffusion traffic must not allocate one committed state record per report.
+Queries distinguish committed certificate evidence from local diagnostic
+samples. Detailed retention cannot erase the result/policy identity or imply
+that omitted local reports were consensus rejected.
 
 ## 9. Authenticated evidence and app-chain state
 
@@ -1853,10 +1730,11 @@ updates stop.
 
 ### O-M1 — Deterministic oracle bundle
 
-- implement feed identity/policy state, signed report ingestion, round clock,
-  duplicate/equivocation handling, normalization, quorum, outlier, circuit,
-  lower median, dual evidence commitments, resource caps, tick closure, and
-  committed queries;
+- implement feed identity/policy state, host subscription and finalized-result
+  integration, explicit policy migration, domain circuit breakers, certificate
+  evidence presentation, publication state and committed queries;
+- consume the exact-version ADR-037 external-reporter/complete-source policy
+  implementation and reporter client; do not fork ingestion, journals or ticks;
 - add height-activated code and effective-round policy replay
   compatibility; and
 - provide sample external reporter clients with deterministic fixtures.

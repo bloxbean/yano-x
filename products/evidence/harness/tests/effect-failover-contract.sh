@@ -23,9 +23,87 @@ command -v jq >/dev/null 2>&1 || fail 'jq is required'
 docker compose version >/dev/null 2>&1 || fail 'Docker Compose v2 is required'
 
 bash -n "$SCRIPT_DIR/effect-failover-e2e.sh"
+python3 - "$SCRIPT_DIR/effect-failover-e2e.sh" <<'PY'
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+
+source = Path(sys.argv[1]).read_text(encoding="utf-8")
+start = source.index("wait_l1_sync() {")
+end = source.index("\nwait_authenticated_json() {", start)
+function = source[start:end]
+script = f'''#!/usr/bin/env bash
+set -euo pipefail
+DEMO_HTTP_BASE=38070
+CALLS=0
+# Replacement readiness uses L1 forward progress and tip convergence;
+# initialSyncComplete remains diagnostic for Yano 0.1.0-pre14.
+CASE=accept
+bounded_get() {{
+  CALLS=$((CALLS + 1))
+  local local_tip=$((24 + CALLS)) remote_tip=$((24 + CALLS)) flag=true
+  case "$CASE" in
+    stale) flag=false ;;
+    tolerance) remote_tip=$((local_tip + 2)); flag=false ;;
+    no-progress) local_tip=25; remote_tip=25 ;;
+    behind) remote_tip=$((local_tip + 3)) ;;
+    malformed-local) local_tip='"bad"' ;;
+    malformed-remote) remote_tip='"bad"' ;;
+    missing-local)
+      printf '{{"initialSyncComplete":true,"remoteTipBlockNumber":%s}}\\n' "$remote_tip" > "$2"; return ;;
+    missing-remote)
+      printf '{{"initialSyncComplete":true,"localTipBlockNumber":%s}}\\n' "$local_tip" > "$2"; return ;;
+    missing-flag)
+      printf '{{"localTipBlockNumber":%s,"remoteTipBlockNumber":%s}}\\n' \
+        "$local_tip" "$remote_tip" > "$2"; return ;;
+  esac
+  printf '{{"initialSyncComplete":%s,"localTipBlockNumber":%s,"remoteTipBlockNumber":%s}}\\n' \
+    "$flag" "$local_tip" "$remote_tip" > "$2"
+}}
+sleep() {{ SECONDS=$((SECONDS + 1)); }}
+{function}
+run_case() {{
+  CASE="$1"; CALLS=0; SECONDS=0
+  if wait_l1_sync 1 2 "$TMP_STATUS" 2> "$TMP_STATUS.stderr"; then
+    [ "$2" = accept ] || {{ printf 'unexpected readiness: %s\\n' "$CASE" >&2; exit 11; }}
+    [ "$CALLS" -ge 2 ] || exit 13
+  else
+    [ "$2" = reject ] || {{ printf 'unexpected timeout: %s\\n' "$CASE" >&2; exit 12; }}
+  fi
+  if [ "$CASE" = stale ] || [ "$CASE" = tolerance ]; then
+    grep -Fq 'WARNING: replacement node 1 recovered L1 (baseline=25 local=26' "$TMP_STATUS.stderr"
+    grep -Fq 'initialSyncComplete=false; Yano 0.1.0-pre14' "$TMP_STATUS.stderr"
+    grep -Fq 'restart/intersection recovery' "$TMP_STATUS.stderr"
+  else
+    [ ! -s "$TMP_STATUS.stderr" ] || exit 14
+  fi
+}}
+run_case accept accept
+run_case stale accept
+run_case tolerance accept
+run_case no-progress reject
+run_case behind reject
+run_case malformed-local reject
+run_case malformed-remote reject
+run_case missing-local reject
+run_case missing-remote reject
+run_case missing-flag reject
+'''
+with tempfile.TemporaryDirectory() as directory:
+    path = Path(directory) / "readiness.sh"
+    status = Path(directory) / "status.json"
+    path.write_text(script.replace("$TMP_STATUS", str(status)), encoding="utf-8")
+    path.chmod(0o700)
+    result = subprocess.run([str(path)], capture_output=True, text=True)
+    if result.returncode:
+        raise SystemExit(
+            f"replacement L1 readiness fixture failed ({result.returncode}): {result.stderr}")
+PY
 python3 - "$SCRIPT_DIR/effect-failover-e2e.sh" "$WORKFLOW" \
   "$DEMO_DIR/demo.sh" "$RELEASE_CONTRACTS" <<'PY'
 from pathlib import Path
+import json
 import re
 import sys
 
@@ -33,6 +111,27 @@ source = Path(sys.argv[1]).read_text(encoding="utf-8")
 workflow = Path(sys.argv[2]).read_text(encoding="utf-8")
 demo = Path(sys.argv[3]).read_text(encoding="utf-8")
 release_contracts = Path(sys.argv[4]).read_text(encoding="utf-8")
+
+# Check both exact live inventories against source manifests. The host API
+# minimum comes from the selected manifests, never from the live response.
+repo = Path(sys.argv[2]).resolve().parents[2]
+inventory = source.split("assert_plugin_operations_all_nodes() {", 1)[1].split("and (.items", 1)[0]
+selected = set(re.findall(r'"(com\.bloxbean\.cardano\.yano\.appchain\.[a-z0-9.-]+)"', inventory))
+manifests = {}
+for path in repo.glob("**/src/main/resources/META-INF/yano/plugins/*.json"):
+    document = json.loads(path.read_text(encoding="utf-8"))
+    if document["id"] in selected:
+        if document["id"] in manifests:
+            raise SystemExit("duplicate selected source manifest")
+        manifests[document["id"]] = document
+if len(selected) != 8 or set(manifests) != selected:
+    raise SystemExit("exact demo selection does not match source manifests")
+contributions = sum(len(document["contributions"]) for document in manifests.values())
+for script in (source, (Path(sys.argv[1]).parent / "deployment-parity-e2e.sh").read_text(encoding="utf-8")):
+    if f"and ([.items[] | select(.selected) | .contributionCount] | add) == {contributions}" not in script:
+        raise SystemExit("live demo contribution count drifted from its selected manifests")
+    if 'and (.pluginApiLevel | type == "number" and . >= 8)' not in script:
+        raise SystemExit("live demo must require the selected plugins' API level 8")
 preflight = '"$DEMO_DIR/demo.sh" config --deployment compose'
 resolve = 'PROJECT_NAME="$(sed -n \'s/^DEMO_PROJECT_NAME=//p\' "$ENV_FILE")"'
 startup = '"$DEMO_DIR/demo.sh" up --deployment compose'
@@ -188,7 +287,7 @@ def job_block(name):
     return "\n".join(lines[start:end])
 
 
-e2e_job = job_block("effect-failover-e2e")
+e2e_job = job_block("evidence-e2e")
 for required in (
         "runs-on: ubuntu-24.04",
         "timeout-minutes: 240",
@@ -235,7 +334,7 @@ required_acceptance_needs = {
     "commit-build",
     "distribution-check",
     "connector-fault-matrix",
-    "effect-failover-e2e",
+    "evidence-e2e",
 }
 missing_acceptance_needs = required_acceptance_needs - actual_acceptance_needs
 if missing_acceptance_needs:
@@ -249,11 +348,11 @@ for required in (
         "COMMIT_BUILD_RESULT: ${{ needs.commit-build.result }}",
         "DISTRIBUTION_CHECK_RESULT: ${{ needs.distribution-check.result }}",
         "CONNECTOR_FAULT_RESULT: ${{ needs.connector-fault-matrix.result }}",
-        "EFFECT_FAILOVER_RESULT: ${{ needs.effect-failover-e2e.result }}",
+        "EVIDENCE_E2E_RESULT: ${{ needs.evidence-e2e.result }}",
         'test "$COMMIT_BUILD_RESULT" = success',
         'test "$DISTRIBUTION_CHECK_RESULT" = success',
         'test "$CONNECTOR_FAULT_RESULT" = success',
-        'test "$EFFECT_FAILOVER_RESULT" = success'):
+        'test "$EVIDENCE_E2E_RESULT" = success'):
     if required not in acceptance_job:
         raise SystemExit(f"Milestone 1 acceptance is missing fail-closed evidence: {required}")
 

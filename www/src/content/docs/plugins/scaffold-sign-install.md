@@ -25,7 +25,7 @@ flowchart LR
   --mode state-machine \
   --id shipment \
   --package com.example.shipment \
-  --yano-version 0.1.0-pre13 \
+  --yano-version 0.1.0-pre14 \
   --output shipment-plugin
 ```
 

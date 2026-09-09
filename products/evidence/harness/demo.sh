@@ -315,6 +315,7 @@ fi
 validate_decimal DEMO_SCENARIO_TIMEOUT_SECONDS "$DEMO_SCENARIO_TIMEOUT_SECONDS" 1 86400
 validate_decimal DEMO_SCENARIO_POLL_INTERVAL_MILLIS "$DEMO_SCENARIO_POLL_INTERVAL_MILLIS" 1 60000
 validate_decimal DEMO_ANCHOR_FUND_TIMEOUT_SECONDS "$DEMO_ANCHOR_FUND_TIMEOUT_SECONDS" 60 86400
+validate_decimal DEMO_ANCHOR_VISIBILITY_TIMEOUT_SECONDS "$DEMO_ANCHOR_VISIBILITY_TIMEOUT_SECONDS" 60 3600
 
 load_network_profile() {
   local file="$SCRIPT_DIR/config/networks/$DEMO_NETWORK.env" line key value seen="|"
@@ -888,7 +889,7 @@ prepare_directories() {
   prepare_private_state_directory "$DATA_ROOT/connectors/ipfs"
   prepare_private_state_directory "$REPORT_DIR"
   for i in 0 1 2; do
-    for dir in "$L1_ROOT/node$i" "$DATA_ROOT/app-chain/node$i" \
+    for dir in "$L1_ROOT/node$i" "$L1_ROOT/node$i/history" "$DATA_ROOT/app-chain/node$i" \
       "$DATA_ROOT/logs/node$i"; do
       mkdir -p "$dir"
       chmod u+rwx "$dir"
@@ -1627,6 +1628,7 @@ prepare_host_configs() {
       RESULT_SIGNERS "$RESULT_SIGNERS" STORAGE_GATE "$STORAGE_GATE" \
       EVIDENCE_CAPACITY_PER_BLOCK "$EVIDENCE_CAPACITY_PER_BLOCK" \
       DIRECT_RESULT_ACTIVATION_SETTING "$DIRECT_RESULT_ACTIVATION_SETTING" \
+      HISTORY_DIR "$L1_ROOT/node$i/history" \
       GENESIS_TIMESTAMP_SETTING "$genesis_setting" \
       ANCHOR_MAX_INTERVAL_MINUTES "$PROFILE_ANCHOR_MAX_INTERVAL_MINUTES"
     insert_node_settings "$base" "$([ "$i" -eq 0 ] && printf '%s' "$executor" || printf '%s' "$follower")" \
@@ -1732,6 +1734,7 @@ write_compose_env() {
       for i in 0 1 2; do
         printf 'DEMO_NODE%s_CONFIG=%s\n' "$i" "$NODE_CONFIG_DIR/node$i.properties"
         printf 'DEMO_YANO%s_DATA_DIR=%s\n' "$i" "$L1_ROOT/node$i"
+        printf 'DEMO_YANO%s_HISTORY_DIR=%s\n' "$i" "$L1_ROOT/node$i/history"
         printf 'DEMO_YANO%s_APP_DATA_DIR=%s\n' "$i" "$DATA_ROOT/app-chain/node$i"
         printf 'DEMO_YANO%s_LOG_DIR=%s\n' "$i" "$DATA_ROOT/logs/node$i"
       done
@@ -2220,6 +2223,30 @@ reconcile_anchor_binding() {
   for status_file in "${statuses[@]}"; do
     binding_command+=(--status "$status_file")
   done
+  anchor_reconciliation_diagnostics() {
+    local i response
+    note 'Last anchor reconciliation diagnostics (allowlisted fields):' >&2
+    for i in 0 1 2; do
+      response="$(curl --connect-timeout 3 --max-time 10 -fsS \
+        "http://127.0.0.1:$((HTTP0 + i))/api/v1/app-chain/chains/$DEMO_CHAIN_ID/status" \
+        2>/dev/null || true)"
+      printf '%s' "$response" | python3 -c '
+import json, sys
+try:
+    status = json.load(sys.stdin)
+    anchor = status.get("anchor") if isinstance(status, dict) else None
+    anchor_fields = ("leader", "bootstrapped", "identityCandidatePending", "lastAnchoredHeight")
+    counter_fields = ("tipHeight", "poolSize", "submitted", "received", "relayed",
+                      "duplicates", "seenIds", "storedMessages", "stateRoot")
+    print(json.dumps({"node": int(sys.argv[1]),
+                      "counters": {key: status.get(key) for key in counter_fields},
+                      "anchor": {key: anchor.get(key) for key in anchor_fields}
+                                if isinstance(anchor, dict) else None}))
+except (ValueError, TypeError, AttributeError):
+    print("node" + sys.argv[1] + " status unavailable")
+' "$i" >&2 || true
+    done
+  }
   deadline=$((SECONDS + 180))
   if [ "$require_adopted" = true ]; then
     note "WAIT_ANCHOR_ADOPTION: requiring one adopted script identity and height on all members."
@@ -2253,6 +2280,11 @@ reconcile_anchor_binding() {
     fi
     sleep 2
   done
+  if [ -s "$error_file" ]; then
+    binding_error="$(tr '\n' ' ' < "$error_file")"
+    note "Last anchor reconciliation error: $binding_error" >&2
+  fi
+  anchor_reconciliation_diagnostics
   if [ "$require_adopted" = true ]; then
     die "members did not converge on one adopted anchor identity/height within 180 seconds"
   fi
@@ -2301,6 +2333,29 @@ print(str(bool(a.get("bootstrapped"))).lower(), a.get("walletAddress", ""))
   wait_for_anchor_bootstrapped "$base"
 }
 
+anchor_visibility_diagnostics() {
+  local i response
+  note 'Bounded anchor-startup L1 diagnostics (node policy unchanged):' >&2
+  for i in 0 1 2; do
+    response="$(curl --connect-timeout 3 --max-time 10 --max-filesize 1048576 -fsS \
+      "http://127.0.0.1:$((HTTP0 + i))/api/v1/node/status" 2>/dev/null || true)"
+    printf '%s' "$response" | python3 -c '
+import json,sys
+try:
+    status=json.load(sys.stdin)
+    if not isinstance(status,dict):
+        raise ValueError("not an object")
+    fields=("localTipSlot", "localTipBlockNumber", "remoteTipSlot", "blocksProcessed",
+            "runtimeDegraded", "peerState", "peerRecoveryReason",
+            "peerApplicationProgressAgeMillis", "peerBodyFetchInProgress",
+            "peerBodyFetchInProgressAgeMillis", "peerKeepAliveAgeMillis", "upstreamValidationLevel")
+    print(json.dumps(dict(node=int(sys.argv[1]), **{key:status.get(key) for key in fields})))
+except (ValueError,UnicodeDecodeError):
+    print("node" + sys.argv[1] + " L1 status unavailable")
+' "$i" >&2 || true
+  done
+}
+
 wait_for_anchor_bootstrap_visibility() {
   local status address policy asset_unit deadline next_report recovery_at i response visible summary
   local recovery_attempted=false
@@ -2323,7 +2378,7 @@ policy, chain = sys.argv[1:]
 print(policy + chain.encode("utf-8")[:32].hex())
 PY
   )"
-  deadline=$((SECONDS + 300))
+  deadline=$((SECONDS + 10#$DEMO_ANCHOR_VISIBILITY_TIMEOUT_SECONDS))
   next_report=$SECONDS
   recovery_at=$((SECONDS + 60))
   note "WAIT_ANCHOR_VISIBILITY: requiring the bootstrap thread UTxO on all three members."
@@ -2380,14 +2435,17 @@ raise SystemExit(1)
     fi
     if [ "$SECONDS" -ge "$next_report" ]; then
       note "WAIT_ANCHOR_VISIBILITY progress:$summary"
+      anchor_visibility_diagnostics
       next_report=$((SECONDS + 60))
     fi
     sleep 2
   done
+  anchor_visibility_diagnostics
   if [ "$MODE" = compose ]; then
     dc logs --no-color --tail 120 yano-0 yano-1 yano-2 2>&1 | tail -n 360 >&2 || true
   fi
-  die "bootstrap thread UTxO was not visible on all three members within 300 seconds:$summary"
+  die "bootstrap thread UTxO was not visible on all three members within" \
+    "$DEMO_ANCHOR_VISIBILITY_TIMEOUT_SECONDS seconds:$summary"
 }
 
 wait_for_anchor_wallet_funds() {
@@ -2449,10 +2507,8 @@ print(str(bool(a.get("bootstrapped"))).lower(), a.get("walletAddress", ""))
 
 host_cluster() {
   local cluster="" key="" devnet_genesis=""
-  if [ -x "$APP_DIR/examples/appchain-cluster/cluster.sh" ]; then
-    cluster="$APP_DIR/examples/appchain-cluster/cluster.sh"
-  elif [ -n "$REPO_DIR" ] && [ -x "$REPO_DIR/scripts/appchain-cluster/cluster.sh" ]; then
-    cluster="$REPO_DIR/scripts/appchain-cluster/cluster.sh"
+  if [ -x "$APP_DIR/appchain-cluster/cluster.sh" ]; then
+    cluster="$APP_DIR/appchain-cluster/cluster.sh"
   fi
   [ -x "$cluster" ] || die "cluster launcher not executable: $cluster"
   case "${1:-}" in

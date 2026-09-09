@@ -29,20 +29,17 @@ The commands in every tutorial run `./yano.sh` from the directory that contains
 it. Choose one setup:
 
 From an extracted release distribution, run this in its top-level directory
-(the directory containing `yano.sh` and `yano.jar` or the native executable):
+(the directory containing `yano.sh` and `yano.jar`):
 
 ```bash
-cd /path/to/extracted/yano-{version}
+cd /path/to/extracted/yano-x-jvm-{version}
 ./yano.sh appchain help
 ```
 
-From a source checkout, run this from the repository root:
-
-```bash
-./gradlew :app:quarkusBuild -PskipSigning=true
-cd app
-./yano.sh appchain help
-```
+From a source checkout, first follow the
+[Yano X distribution build](../../BUILD_DISTRIBUTIONS.md), extract the resulting
+JVM archive, and use its top-level directory. No `:app` task exists in Yano X.
+For the curated thirteen-chain demo, use the [showcase quickstart](../deployment/quickstart.md).
 
 The remaining commands are identical for either setup:
 

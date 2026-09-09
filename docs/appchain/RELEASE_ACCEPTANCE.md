@@ -24,6 +24,7 @@ missing references fail the build.
 |---|---|---|---|
 | `audit-log` | stable | packaged runtime | Finalized record, proof, restart, root parity, and drift |
 | `owned-registry` | stable | packaged runtime | Owner-controlled value and state proof |
+| `document-trail` | preview | configuration + stock provider | Multi-chain selection of the existing document-trail provider; live release qualification remains required |
 | `approval-workflow` | stable | packaged runtime | Terminal approval plus generic effect completion |
 | `role-approval` | preview | module outcome + packaged provider | Eligible/ineligible actor decisions and provider discovery |
 | `evidence-ledger` | preview | module outcome + packaged provider | Role-authorized release workflow and provider discovery |

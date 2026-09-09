@@ -615,6 +615,9 @@ write_node_configs() {
     file="$directory/node$i.properties"
     {
       printf 'config_ordinal=275\n'
+      # Devnet enables the host projection archive. Each JVM needs its own
+      # archive; the default relative path would share a DuckLake writer lock.
+      printf 'yano.history.dir=%s/node%d/history\n' "$(cluster_dir)" "$i"
       if [ -n "$L1_SOURCE_SNAPSHOT_RETENTION_EPOCHS" ]; then
         printf 'yano.account-state.snapshot-retention-epochs=%s\n' \
           "$L1_SOURCE_SNAPSHOT_RETENTION_EPOCHS"

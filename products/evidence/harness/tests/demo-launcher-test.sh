@@ -18,6 +18,10 @@ assert_absent() { [ ! -e "$1" ] || fail "unexpected path exists: $1"; }
 
 command -v docker >/dev/null 2>&1 || fail "docker is required for Compose config validation"
 docker compose version >/dev/null 2>&1 || fail "docker compose is required"
+grep -Fq 'if [ -x "$APP_DIR/appchain-cluster/cluster.sh" ]; then' "$DEMO_DIR/demo.sh" \
+  || fail "host launcher does not use the packaged appchain-cluster path"
+! grep -Fq '$REPO_DIR/scripts/appchain-cluster/cluster.sh' "$DEMO_DIR/demo.sh" \
+  || fail "host launcher retains a source-checkout cluster fallback"
 command -v jq >/dev/null 2>&1 || fail "jq is required"
 
 export DEMO_SKIP_BUILD=true
@@ -32,6 +36,85 @@ for profile in devnet preview preprod mainnet; do
 done
 
 bash -n "$DEMO_DIR/demo.sh"
+python3 - "$DEMO_DIR/demo.sh" <<'PY'
+from pathlib import Path
+import json
+import os
+import subprocess
+import sys
+
+source = Path(sys.argv[1]).read_text()
+diagnostics = source.split("anchor_visibility_diagnostics() {", 1)[1].split(
+    "\nwait_for_anchor_bootstrap_visibility() {", 1)[0]
+function = "anchor_visibility_diagnostics() {" + diagnostics
+for response in ('{"localTipSlot":123,"upstreamValidationLevel":"none","secret":"never-print"}',
+                 'invalid', '[]'):
+    result = subprocess.run(["bash", "-c", '''
+set -euo pipefail
+HTTP0=18070
+note() { printf '%s\\n' "$*"; }
+curl() { printf '%s' "$TEST_RESPONSE"; }
+''' + function + '\nanchor_visibility_diagnostics', "test"],
+        env={**os.environ, "TEST_RESPONSE": response},
+        capture_output=True, text=True, check=True)
+    assert not result.stdout
+    assert "never-print" not in result.stderr
+    lines = result.stderr.splitlines()[1:]
+    assert len(lines) == 3
+    if response.startswith('{'):
+        records = [json.loads(line) for line in lines]
+        assert [record['node'] for record in records] == [0, 1, 2]
+        assert all(record['localTipSlot'] == 123 for record in records)
+    else:
+        assert lines == [f"node{i} L1 status unavailable" for i in range(3)]
+
+# Simulate a follower becoming visible after the unchanged watchdog window.
+# The short deadline must fail; the explicit CI budget must still check every member.
+visibility = "wait_for_anchor_bootstrap_visibility() {" + source.split(
+    "wait_for_anchor_bootstrap_visibility() {", 1)[1].split("\nwait_for_anchor_wallet_funds() {", 1)[0]
+address = "addr_test1" + "a" * 30
+policy = "a" * 56
+bootstrap = json.dumps({"anchor": {"scriptAddress": address, "threadPolicyId": policy}})
+utxos = json.dumps([{"address": address, "inline_datum": "00",
+                     "amount": [{"unit": policy + b"test".hex(), "quantity": "1"}]}])
+for budget, expected in ((300, 1), (900, 0)):
+    result = subprocess.run(["bash", "-c", '''
+set -euo pipefail
+SECONDS=0
+HTTP0=18070
+ANCHOR_ENABLED=true
+MODE=host
+DEMO_NETWORK=devnet
+DEMO_CHAIN_ID=test
+note() { printf '%s\\n' "$*"; }
+die() { printf '%s\\n' "$*" >&2; exit 1; }
+anchor_visibility_diagnostics() { :; }
+sleep() { SECONDS=650; }
+curl() {
+  case "$*" in
+    */utxos/*)
+      if [[ "$*" == *:18071/* ]] && [ "$SECONDS" -lt 650 ]; then
+        printf '[]'
+      else
+        printf '%s' "$TEST_UTXOS"
+      fi;;
+    *) printf '%s' "$TEST_BOOTSTRAP";;
+  esac
+}
+''' + visibility + '\nwait_for_anchor_bootstrap_visibility'],
+        env={**os.environ, "DEMO_ANCHOR_VISIBILITY_TIMEOUT_SECONDS": str(budget),
+             "TEST_BOOTSTRAP": bootstrap, "TEST_UTXOS": utxos},
+        capture_output=True, text=True, timeout=10)
+    assert result.returncode == expected, result.stderr
+    if expected:
+        assert 'node1=pending' in result.stderr
+    else:
+        assert 'complete: node0=visible node1=visible node2=visible' in result.stdout
+PY
+for template in node-compose.properties.in node-host.properties.in; do
+  grep -Fxq 'yano.history.projection.enabled=false' "$DEMO_DIR/config/templates/$template" \
+    || fail "$template must explicitly disable unprovisioned Cardano historical projection storage"
+done
 grep -Fq 'tools/render_template.py' "$DEMO_DIR/demo.sh" \
   || fail "launcher does not use the stdin-based template renderer"
 grep -Fq 'tools/managed_process.py' "$DEMO_DIR/demo.sh" \
@@ -47,6 +130,17 @@ fi
 
 # Invalid identity and numeric inputs must fail before creating any managed root.
 INVALID_ROOT="$TMP/invalid"
+for invalid_timeout in 59 3601 invalid '1+600'; do
+  if DEMO_ANCHOR_VISIBILITY_TIMEOUT_SECONDS="$invalid_timeout" \
+      DEMO_DATA_ROOT="$INVALID_ROOT/data" DEMO_SECRET_ROOT="$INVALID_ROOT/secrets" \
+      DEMO_RUNTIME_ROOT="$INVALID_ROOT/runtime" \
+      "$DEMO_DIR/demo.sh" config >"$TMP/invalid-visibility-timeout.out" 2>&1; then
+    fail "invalid anchor visibility timeout unexpectedly succeeded: $invalid_timeout"
+  fi
+  grep -Fq 'DEMO_ANCHOR_VISIBILITY_TIMEOUT_SECONDS' "$TMP/invalid-visibility-timeout.out" \
+    || fail 'anchor visibility timeout rejection is unclear'
+  assert_absent "$INVALID_ROOT"
+done
 if DEMO_DATA_ROOT="$INVALID_ROOT/data" DEMO_SECRET_ROOT="$INVALID_ROOT/secrets" \
     DEMO_RUNTIME_ROOT="$INVALID_ROOT/runtime" \
     "$DEMO_DIR/demo.sh" config --network not-a-network \
@@ -1414,6 +1508,10 @@ grep -Fq 'effects.executor.enabled=false' "$HOST_NODES/node1.properties" \
 [ "$(grep -hFx 'yano.app-chain.chains[0].anchor.max-interval-minutes=60' \
   "$HOST_NODES"/*.properties | wc -l | tr -d ' ')" -eq 3 ] \
   || fail "host node overlays do not use the same profile safety interval"
+[ "$(grep -h '^yano.history.dir=' "$HOST_NODES"/*.properties | sort -u | wc -l | tr -d ' ')" -eq 3 ] \
+  || fail "host node overlays do not isolate history archives"
+[ "$(grep -hFx 'yano.history.projection.enabled=false' "$HOST_NODES"/*.properties | wc -l | tr -d ' ')" -eq 3 ] \
+  || fail "Evidence host members must disable unselected Cardano history projections"
 
 # Host preparation intentionally releases its lease. Even then, malformed
 # cluster lifecycle state is active/uncertain: cleanup preserves runtime and

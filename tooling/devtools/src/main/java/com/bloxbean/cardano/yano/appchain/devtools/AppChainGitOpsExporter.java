@@ -19,7 +19,7 @@ final class AppChainGitOpsExporter {
     static final String LOCK_FILE = "gitops.lock";
 
     enum Target {
-        HELM("helm"), KUSTOMIZE("kustomize");
+        HELM("helm"), KUSTOMIZE("kustomize"), ANSIBLE("ansible");
 
         private final String id;
 
@@ -35,7 +35,7 @@ final class AppChainGitOpsExporter {
             for (Target target : values()) {
                 if (target.id.equals(value)) return target;
             }
-            throw new IllegalArgumentException("GitOps target must be helm or kustomize");
+            throw new IllegalArgumentException("GitOps target must be helm, kustomize, or ansible");
         }
     }
 
@@ -64,12 +64,13 @@ final class AppChainGitOpsExporter {
                     "GitOps export requires preview, preprod, or mainnet; devnet has ephemeral genesis inputs");
         }
         AppChainProjectModel.Resolution resolution = resolver.resolve(blueprint);
+        TreeMap<String, byte[]> files = switch (target) {
+            case HELM -> helm(resolution, validation.lock());
+            case KUSTOMIZE -> kustomize(resolution, validation.lock());
+            case ANSIBLE -> AppChainAnsibleExporter.files(resolution, validation.lock());
+        };
         Path root = safeEmptyOutput(output);
         Files.createDirectories(root);
-
-        TreeMap<String, byte[]> files = target == Target.HELM
-                ? helm(resolution, validation.lock())
-                : kustomize(resolution, validation.lock());
         TreeMap<String, String> digests = new TreeMap<>();
         for (Map.Entry<String, byte[]> file : files.entrySet()) {
             write(root, file.getKey(), file.getValue());

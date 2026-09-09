@@ -89,7 +89,9 @@ export function normalizeIntent(raw, recipes, release, capabilities=[]) {
     sequencing:String(source.sequencing || 'fixed'), membership:String(source.membership || 'static'),
     runtime:String(source.runtime || 'jvm'), deployment:String(source.deployment || 'host'),
     name:String(source.name || 'my-appchain'), chainId:String(source.chainId || source.name || 'my-appchain'),
-    capabilities:list(source.capabilities), answers:answers(source.answers)
+    capabilities:list(source.capabilities), answers:answers(source.answers),
+    memberKeys:String(source.memberKeys || '').split(/[\s,]+/).filter(Boolean),
+    nodeHosts:String(source.nodeHosts || '').split(/[\s,]+/).filter(Boolean)
   };
   intent.componentCatalogs=Array.isArray(source.componentCatalogs)
     ? source.componentCatalogs.map(value=>({...value})) : [];
@@ -100,6 +102,12 @@ export function normalizeIntent(raw, recipes, release, capabilities=[]) {
   if (!recipe || !release.recipes.includes(intent.recipe)) errors.push('Recipe is not supported by this release.');
   for (const [key, values] of Object.entries(ENUMS)) if (!values.includes(intent[key])) errors.push(`${key} is invalid.`);
   if (!Number.isInteger(intent.members) || intent.members < 1 || intent.members > 32) errors.push('Members must be from 1 to 32.');
+  if(intent.memberKeys.length && (intent.memberKeys.length!==members
+      || new Set(intent.memberKeys).size!==members || intent.memberKeys.some(key=>!/^([a-fA-F0-9]{64})$/.test(key))))
+    errors.push('Provide one distinct public member key per node, in node order.');
+  if(intent.nodeHosts.length && (intent.deployment!=='host' || intent.nodeHosts.length!==members
+      || new Set(intent.nodeHosts).size!==members || intent.nodeHosts.some(host=>! /^[A-Za-z0-9][A-Za-z0-9.-]{0,252}$/.test(host))))
+    errors.push('Provide one distinct hostname per node for host deployment.');
   if (!SAFE_ID.test(intent.name) || !SAFE_ID.test(intent.chainId)) errors.push('Project name and chain ID must be safe lowercase identifiers.');
   if (recipe && !recipe.runtimeTypes.includes(intent.runtime)) errors.push(`${recipe.id} does not support the ${intent.runtime} runtime.`);
   if (recipe && !recipe.deploymentTargets.includes(intent.deployment)) errors.push(`${recipe.id} does not support ${intent.deployment}.`);
@@ -159,12 +167,29 @@ ${catalogYaml}  chains:
       answers:${answerYaml}
       topology:
         members: ${intent.members}
-        memberKeys: []
-        nodeHosts: []
+        memberKeys: ${JSON.stringify(intent.memberKeys || [])}
+        nodeHosts: ${JSON.stringify(intent.nodeHosts || [])}
         finality: ${quote(intent.finality)}
         sequencing: ${quote(intent.sequencing)}
         membership: ${quote(intent.membership || 'static')}
 `;
+}
+
+/** Multi-chain authoring shares placement while each recipe resolves independently. */
+export function projectBlueprintYaml(intents, yanoVersion) {
+  if(!Array.isArray(intents) || !intents.length || intents.length>32)
+    throw new Error('Choose between 1 and 32 chains.');
+  if(new Set(intents.map(intent=>intent.chainId)).size!==intents.length)
+    throw new Error('Each chain needs a unique ID.');
+  const first=intents[0];
+  const shared=['network','members','runtime','deployment','name','memberKeys','nodeHosts'];
+  for(const intent of intents) for(const key of shared)
+    if(JSON.stringify(intent[key])!==JSON.stringify(first[key]))
+      throw new Error(`All chains must share ${key}.`);
+  const documents=intents.map(intent=>blueprintYaml(intent,yanoVersion));
+  const separator='  chains:\n';
+  return documents[0].split(separator)[0]+separator
+    +documents.map(document=>document.split(separator)[1]).join('');
 }
 
 const CATALOG_ID=/^[a-z][a-z0-9.-]{0,127}$/;

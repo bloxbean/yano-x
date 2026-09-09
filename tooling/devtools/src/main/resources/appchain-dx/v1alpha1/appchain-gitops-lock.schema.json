@@ -16,7 +16,7 @@
   "properties": {
     "apiVersion": {"const": "yano.bloxbean.com/v1alpha1"},
     "kind": {"const": "AppChainGitOpsLock"},
-    "target": {"enum": ["helm", "kustomize"]},
+    "target": {"enum": ["helm", "kustomize", "ansible"]},
     "sourceBlueprintDigest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "sourceResolvedConfigDigest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "sourceReleaseCatalogDigest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},

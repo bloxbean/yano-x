@@ -183,3 +183,17 @@ test('local custom catalog import rejects tampering collisions and tier escalati
   await assert.rejects(importComponentCatalogSnapshot(
     elevated.text,elevated.publicKey,capabilities,[],webcrypto),/unsupported trust or runtime claim/);
 });
+
+test('multi-chain export preserves each recipe and public member order',async()=>{
+  const {projectBlueprintYaml}=await import('../main/web/studio-core.mjs');
+  const keys=['ab'.repeat(32),'cd'.repeat(32),'ef'.repeat(32)];
+  const first=normalizeIntent({chainId:'orders',memberKeys:keys.join('\n')},recipes,release,capabilities);
+  const second=normalizeIntent({...first.intent,recipe:'document-trail',chainId:'documents'},recipes,release,capabilities);
+  assert.deepEqual(first.errors,[]); assert.deepEqual(second.errors,[]);
+  const yaml=projectBlueprintYaml([first.intent,second.intent],release.yanoVersion);
+  assert.equal((yaml.match(/    - chainId:/g)||[]).length,2);
+  assert.match(yaml,/recipe: "document-trail"/);
+  assert.ok(yaml.indexOf(keys[0])<yaml.indexOf(keys[1]));
+  assert.throws(()=>projectBlueprintYaml([first.intent,first.intent],release.yanoVersion),/unique/);
+  assert.throws(()=>projectBlueprintYaml([first.intent,{...second.intent,members:5}],release.yanoVersion),/share/);
+});

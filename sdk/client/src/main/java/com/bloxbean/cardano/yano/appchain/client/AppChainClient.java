@@ -1,9 +1,13 @@
 package com.bloxbean.cardano.yano.appchain.client;
 
+import com.bloxbean.cardano.yano.api.appchain.AppBlock;
+import com.bloxbean.cardano.yano.api.appchain.AppBlockHeader;
 import com.bloxbean.cardano.yano.api.appchain.state.StateProofSubject;
 import com.bloxbean.cardano.yano.api.appchain.evidence.MessageInclusionProof;
 import com.bloxbean.cardano.yano.api.appchain.snapshot.SnapshotCanonicalCodec;
 import com.bloxbean.cardano.yano.api.appchain.snapshot.SnapshotDescriptorV1;
+import com.bloxbean.cardano.yano.api.appchain.observation.ObservationHashes;
+import com.bloxbean.cardano.yano.api.appchain.observation.ObservationReport;
 import com.fasterxml.jackson.core.StreamReadFeature;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -129,7 +133,8 @@ public final class AppChainClient {
             "oldestProvableHeight", "blockHash");
     private static final Set<String> CERTIFIED_BLOCK_FIELDS = Set.of(
             "version", "height", "prevHash", "l1Slot", "l1BlockHash",
-            "timestamp", "messagesRoot", "stateRoot", "blockHash");
+            "timestamp", "messagesRoot", "stateRoot", "blockHash",
+            "view", "consensusContextDigest", "proposer", "justificationDigest");
     private static final Set<String> FINALITY_CERTIFICATE_FIELDS = Set.of(
             "scheme", "signatures");
     private static final Set<String> FINALITY_SIGNATURE_FIELDS = Set.of(
@@ -744,7 +749,9 @@ public final class AppChainClient {
         Long height = optionalNonNegativeLong(block, "height");
         Long l1Slot = optionalNonNegativeLong(block, "l1Slot");
         Long timestamp = optionalNonNegativeLong(block, "timestamp");
-        if (height == null || height <= 0 || l1Slot == null || timestamp == null) {
+        Long view = optionalNonNegativeLong(block, "view");
+        if (version != AppBlock.BLOCK_VERSION || height == null || height <= 0
+                || l1Slot == null || timestamp == null || view == null) {
             throw new AppChainClientException("Invalid certified app-chain block header");
         }
         return new CertifiedBlockHeader(version, height,
@@ -752,7 +759,10 @@ public final class AppChainClient {
                 requiredCanonicalBoundedHex(block, "l1BlockHash", 0, 32), timestamp,
                 requiredCanonicalBoundedHex(block, "messagesRoot", 32, 32),
                 requiredCanonicalBoundedHex(block, "stateRoot", 32, 32),
-                requiredCanonicalBoundedHex(block, "blockHash", 32, 32));
+                requiredCanonicalBoundedHex(block, "blockHash", 32, 32), view,
+                requiredCanonicalBoundedHex(block, "consensusContextDigest", 32, 32),
+                requiredCanonicalBoundedHex(block, "proposer", 32, 32),
+                requiredCanonicalBoundedHex(block, "justificationDigest", 32, 32));
     }
 
     private static FinalityCertificate parseFinalityCertificate(JsonNode certificate) {
@@ -1107,6 +1117,79 @@ public final class AppChainClient {
             throw new AppChainClientException("App-chain query was interrupted", e);
         } catch (Exception e) {
             throw new AppChainClientException("App-chain query request failed", e);
+        }
+    }
+
+    /** Returns only a queue-admission receipt, never an assertion of durability or finality. */
+    public String submitObservationReport(ObservationReport report) {
+        Objects.requireNonNull(report, "report");
+        if (chainId == null || !chainId.equals(report.chainId())) {
+            throw new IllegalArgumentException("Reporter and client chain identities differ");
+        }
+        byte[] body = report.encode();
+        String expectedDigest = Hex.encode(ObservationHashes.digest(body));
+        try {
+            HttpRequest request = requestBuilder(chainPath("/observations/reports"))
+                    .header("Content-Type", "application/octet-stream")
+                    .header("Accept", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofByteArray(body)).build();
+            HttpResponse<byte[]> response = sendBounded(request, 2048, "Observation report");
+            if (response.statusCode() != 202) {
+                throw new AppChainClientException("Observation report admission returned HTTP " + response.statusCode());
+            }
+            JsonNode receipt = STRICT_RESPONSE_JSON.readTree(response.body());
+            if (receipt == null || !receipt.isObject() || receipt.size() != 3
+                    || !receipt.path("status").isTextual() || !receipt.path("chainId").isTextual()
+                    || !receipt.path("reportDigest").isTextual()
+                    || !"QUEUED".equals(receipt.path("status").asText())
+                    || !chainId.equals(receipt.path("chainId").asText())
+                    || !expectedDigest.equals(receipt.path("reportDigest").asText())) {
+                throw new AppChainClientException("Invalid observation queue receipt");
+            }
+            return expectedDigest;
+        } catch (AppChainClientException failure) {
+            throw failure;
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            throw new AppChainClientException("Observation report submission interrupted", interrupted);
+        } catch (Exception failure) {
+            throw new AppChainClientException("Observation report submission failed", failure);
+        }
+    }
+
+    /**
+     * Requests a best-effort local acquisition wake for an existing subscription.
+     * Acceptance is not a report, certificate, freshness guarantee, or promise of work;
+     * periodic acquisition remains the fallback, and only an authenticated result establishes an outcome.
+     */
+    public void wakeObservation(byte[] subscriptionId) {
+        if (chainId == null || subscriptionId == null || subscriptionId.length != 32) {
+            throw new IllegalArgumentException("A chain-scoped client and 32-byte subscription ID are required");
+        }
+        byte[] body = subscriptionId.clone();
+        try {
+            HttpRequest request = requestBuilder(chainPath("/observations/wake"))
+                    .header("Content-Type", "application/octet-stream")
+                    .header("Accept", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofByteArray(body)).build();
+            HttpResponse<byte[]> response = sendBounded(request, 2048, "Observation wake");
+            if (response.statusCode() != 202) {
+                throw new AppChainClientException("Observation wake returned HTTP " + response.statusCode());
+            }
+            JsonNode receipt = STRICT_RESPONSE_JSON.readTree(response.body());
+            if (receipt == null || !receipt.isObject() || receipt.size() != 2
+                    || !receipt.path("status").isTextual() || !receipt.path("chainId").isTextual()
+                    || !"HINT_ACCEPTED".equals(receipt.path("status").asText())
+                    || !chainId.equals(receipt.path("chainId").asText())) {
+                throw new AppChainClientException("Invalid observation wake receipt");
+            }
+        } catch (AppChainClientException failure) {
+            throw failure;
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            throw new AppChainClientException("Observation wake interrupted", interrupted);
+        } catch (Exception failure) {
+            throw new AppChainClientException("Observation wake failed", failure);
         }
     }
 
@@ -2250,7 +2333,7 @@ public final class AppChainClient {
         }
     }
 
-    /** Canonical fields signed indirectly through {@code blockHashHex}. */
+    /** Complete canonical header authenticated by a version-3 commit certificate. */
     public record CertifiedBlockHeader(
             int version,
             long height,
@@ -2260,7 +2343,17 @@ public final class AppChainClient {
             long timestamp,
             String messagesRootHex,
             String stateRootHex,
-            String blockHashHex) {
+            String blockHashHex,
+            long view,
+            String consensusContextDigestHex,
+            String proposerHex,
+            String justificationDigestHex) {
+        AppBlockHeader canonicalHeader(String chainId) {
+            return new AppBlockHeader(version, chainId, height, Hex.decode(consensusContextDigestHex), view,
+                    Hex.decode(prevHashHex), l1Slot, Hex.decode(l1BlockHashHex), timestamp,
+                    Hex.decode(messagesRootHex), Hex.decode(stateRootHex), Hex.decode(proposerHex),
+                    Hex.decode(justificationDigestHex));
+        }
     }
 
     public record FinalityCertificate(int scheme, List<FinalitySignature> signatures) {

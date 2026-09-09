@@ -79,7 +79,11 @@ Verification has an explicit trust boundary:
 2. `ProofVerifier.verify(proof, TrustedStateRoot)` additionally pins chain, genesis, profile,
    fingerprint, height, and root obtained independently.
 3. `ProofVerifier.verifyCertified(proof, FinalityTrustContext)` authenticates the finalized block
-   with a pinned member/threshold policy.
+   with pinned genesis, profile, member/threshold policy and height-specific consensus-context
+   digest. Resolve the digest independently from trusted configuration and membership history;
+   never copy it from the untrusted response. API level 8 supplies the complete block-v3 header
+   (including view, context, proposer and justification digest). Verification uses the shared
+   `AppBlockHeader` COMMIT digest; obsolete headers and bare-block-hash signatures fail closed.
 4. `PortableProofBundle` can combine a messages-root proof, optional supplied signed message, and
    an optional typed state fact. It deliberately reports that data availability is not proven.
 
@@ -149,3 +153,11 @@ proof, endpoint, retention, and operational details.
   finality substitution, and anchor identity substitution.
 - For on-chain MPF consumers, mutate every claim/key/value/fold/root/profile/anchor field and keep a
   published execution-budget vector.
+
+
+Certified proof verification requires a release-matched version-3 header. Pin the
+consensus-context digest in `FinalityTrustContext` together with the chain,
+profile, genesis, member keys, and threshold. Obtain this digest from the reviewed
+consensus configuration or another independently trusted source, not from the
+proof being verified. The SDK uses Yano's shared header codec and domain-separated
+commit digest; a signature over the raw block hash is not a current commit certificate.

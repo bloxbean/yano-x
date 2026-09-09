@@ -32,6 +32,21 @@ operator-authorized supplemental evidence rather than an automatic test.
 
 ## Quick start (Docker Compose)
 
+Anchor startup waits for the bootstrap thread UTxO on all three members before
+running a scenario. `DEMO_ANCHOR_VISIBILITY_TIMEOUT_SECONDS` controls that wait
+(default 300, range 60–3600 seconds), separately from the scenario timeout.
+Qualification CI uses 900 seconds to allow the unchanged default node
+no-progress watchdog to recover. Pending and failed waits print bounded,
+allowlisted L1 status diagnostics for both Compose and host mode. A larger
+deadline does not relax the all-member visibility check or change node policy.
+
+The isolated role-workflow E2E uses HTTP 30070–30072, app peers 30337–30339,
+UI 30080, and connector/observability ports 31000, 31001, 31030, 31090 and 31092.
+These defaults avoid Linux's default automatic client-port range. On Linux the
+test reads the actual `ip_local_port_range` and rejects overlapping listener
+overrides; it does not modify sysctls or terminate processes occupying a port.
+The usual `YANO_ROLE_WORKFLOW_*` overrides remain available for other free ports.
+
 Prerequisites are JDK 25, Docker with Compose v2, `curl`, `jq`, `openssl`, and
 Python 3. In an extracted Yano X JVM distribution, run from
 `examples/evidence`:
@@ -770,3 +785,12 @@ the `WAIT_L1_SYNC`, `WAIT_ANCHOR_FUNDS`, `WAIT_ANCHOR_ADOPTION`, and
 evidence report directory. A busy host port is never silently reassigned by
 this demo; change the corresponding `DEMO_*_PORT` so external receipts and URLs
 remain explicit and reproducible.
+
+### Cardano historical projections
+
+The Evidence profile disables `yano.history.projection.enabled` in both host
+and Compose deployments. It uses canonical L1 state for anchoring and app-chain
+state for evidence; Cardano historical projections are a separate workload.
+This also keeps optional history projection work out of the demo's metrics
+scrapes. Per-node history directories remain isolated for deployments that
+explicitly enable that workload.

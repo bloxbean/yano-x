@@ -1,0 +1,227 @@
+# Observation qualification fixture (preview)
+
+This helper prepares configuration only. It does not launch processes, copy
+chainstate, submit Cardano transactions, bootstrap anchors, or mark any
+qualification gate passed. The full qualification matrix remains in Yano
+ADR-037 and its observation qualification runbook.
+
+Use released Yano `0.1.0-pre14` Maven inputs and its matching ordinary JVM
+ZIP to build and verify the Yano X distribution. Extract both into a dedicated artifact area.
+Use the plugin directory from that tested Yano X distribution. Do not point
+the helper at a source build's loose classes or an existing deployment.
+
+```bash
+./gradlew :tooling:devtools:prepareObservationQualification \
+  -PyanoVersion=0.1.0-pre14 \
+  -PqualificationDirectory=/absolute/path/to/new-qualification \
+  -PqualificationHostDirectory=/absolute/path/to/extracted-host \
+  -PqualificationPluginDirectory=/absolute/path/to/extracted-yano-x/plugins \
+  -PqualificationHttpBase=18070 -PqualificationN2nBase=18337
+```
+
+Maven Local and a staging repository are not required for the released inputs.
+The host distribution marker must match `yanoVersion`. This marker check does not replace artifact
+checksum/provenance and packaged plugin checks.
+
+The target must not exist. Preparation creates a private POSIX directory,
+five node configuration files, and a private reporter/API-key file. Every
+signing file is mode 0600 and no secrets are printed. `qualification.json`
+contains only public pins and settings. Never publish `node.properties` or
+`reporters.private.properties`, and never regenerate an existing identity to
+work around a startup failure.
+
+The allow-list is the transitive dependency set read from the packaged stdlib
+manifest, not just the stdlib ID. Missing dependencies fail before creating
+the target. Normal runtime catalog/version/provider checks still apply.
+
+The fixture uses five fresh validator keys with `q=4, f=1`, rotating proposers,
+five independent test reporter keys, the ADA/USD reference plugin's three
+synthetic source groups, authenticated state, and a fresh genesis ID. These are
+synthetic price claims, not statements about an actual market. HTTP listens on
+loopback; check both five-port ranges are free before starting any process.
+Effects and anchors are explicitly disabled; no spending key is requested.
+App-chain API-key authentication is explicitly enabled. Membership is governed
+from genesis so the qualification can exercise approved membership epochs.
+
+Each node has separate `chainstate` and `appchain-chainstate` paths. Seed the
+former only from an offline-consistent copy or perform a dedicated clean sync.
+Never copy a live RocksDB store or modify the retained source. Start the exact
+host `yano.jar` with `-Dquarkus.profile=preprod` and
+`-Dquarkus.config.locations=<absolute-node-properties>` from that node's directory.
+Record the precise JVM command, artifact hashes, ports, PIDs and log paths.
+The configuration inherits Yano's default validation settings and syncs from
+the Preprod profile's public upstream. It does not select `praos-ledger` or
+override body validation or operational-certificate checks. This is observation
+framework qualification, not qualification of stricter L1 validation modes.
+Verify actual L1 progress and nonce restoration
+before treating a node as part of a Preprod experiment.
+
+Before traffic, compare runtime identities against the public fixture pins,
+including enabled observation profile and fault bound. After traffic, verify
+same-height roots and certified SDK proofs across nodes. Finality context pins
+must be independently derived for the active membership/height; an untrusted
+proof response is never its own trust anchor. Process restarts, report faults,
+membership transition, cadence/soak and the operator recovery drill still need
+explicit evidence; successful configuration generation proves none of them.
+
+## First certified round
+
+`ObservationQualificationBaseline` is a one-shot driver for a pristine fixture:
+
+```bash
+java -cp '/absolute/path/to/yano-x/tools/yano-appchain/lib/*' \
+  com.bloxbean.cardano.yano.appchain.devtools.ObservationQualificationBaseline \
+  /absolute/path/to/qualification
+```
+
+It derives the effective genesis from the base seed and mandatory authenticated
+index profiles using the public codecs. It does not trust a node-supplied
+genesis/context as its own pin. It verifies certified subscription and round
+proofs before signing, durably journals four test reporters' claims for three
+synthetic sources, and requires identical certified result proofs across all
+five nodes. No wake hint or Cardano transaction is submitted. The result file
+uses create-new semantics, and a partial failure preserves state and journals
+for inspection; do not reset the chain to hide a failure.
+
+The baseline is distinct from live-L1 qualification. Record L1 progress and
+the effective validation settings separately; successful default-mode sync is
+not evidence that stricter Praos validation has been qualified.
+
+## Retained fault/cadence rounds
+
+After the baseline, `ObservationQualificationCadence <directory> <round-count>`
+continues the existing subscription for 1–99 remaining rounds. Use the same
+packaged tool classpath shown above. It requires five ready nodes at one height,
+before the next round opens, and verifies the preceding certified result first.
+It never resets keys/state or resumes an already open, partially signed round.
+
+An interrupted opening can be resumed only through the explicit one-round mode
+`ObservationQualificationCadence <directory> 1 recover-open-round`. All five
+nodes must be at exactly the scheduled opening height with exactly one open
+round. Their independently pinned certified round proofs must agree before
+signing. Existing honest journals remain authoritative; conflicting previous
+signatures fail closed. Recovery is marked in the evidence, and an existing
+evidence file is never overwritten. Later-height recovery needs separate review.
+
+The repeating four-round plan withholds one source, splits that source's
+reporters below quorum, delays the fourth reporter by one committed height,
+then submits a complete report set. The first two must produce authenticated
+`EXPIRED` results; the latter two must produce the synthetic median `0.501000`.
+Every round checks all five certified result proofs and same-height roots, and
+appends public outcome/resource counters to a create-new
+`cadence-rounds-<first>-<last>.jsonl` evidence file. Honest reporters use their
+retained signing journals; no double signing or wake hint is introduced.
+
+For a deliberate Byzantine reporter case, run exactly one round with an
+explicit third argument:
+
+```text
+ObservationQualificationCadence <directory> 1 equivocating-reporter
+```
+
+This overrides that round's normal scenario with a complete honest report set
+plus two conflicting claims from the pinned fifth test reporter. Only this
+explicit fault mode bypasses a reporter journal; all four honest reporters keep
+their normal durable signing protections. Both adversarial signed wires are
+retained with create-new semantics in `equivocation-round-<n>.json` before either
+is submitted to two different nodes. No private signing material is written to
+that evidence file. Queue admission is not evidence of acceptance: the required
+outcome is still five independently verified proofs of the honest median.
+Never reuse this deliberate double-signing tool with operational reporter keys.
+
+The driver does not exercise a transport-level partition, proposer omission,
+membership transition, or process crash recovery. Those remain separate
+qualification cases. A timeout
+preserves partial state/evidence for diagnosis and is not a passing result.
+Checkpoint waits are bounded at five minutes to allow multiple consensus views
+during L1 catch-up; this changes no report deadline or protocol acceptance rule.
+
+## Governed membership drill
+
+`ObservationQualificationMembership <directory>` is a bounded, create-new drill
+starting after round 5 at height 53. It adds an absent sixth test member with
+four independently signed governance approvals, preserving `q=4,f=1`, runs two
+rounds across activation, removes that member with four approvals, and runs two
+more rounds. No sixth node or operational signing key is installed.
+
+Before recording activation at approval height + 10, the tool verifies each
+expected command's full signed envelope and its inclusion against certified
+block-message-root records on all five nodes. The resulting
+`membership-epochs.json` is a caller-owned trust pin, like `qualification.json`;
+cadence proof contexts select its height-specific members independently of node
+responses. Preserve the plan, approval proof packages, epoch history and result.
+An interrupted drill is not automatically restarted or reset.
+
+The drivers wait five minutes per convergence checkpoint by default. During
+historical L1 catch-up, `-Dyano.qualification.checkpoint-timeout-seconds=1800`
+allows a bounded 30-minute observation wait (accepted range 1..1800 seconds).
+This changes only the operator's waiting budget, never report windows, result
+grace, consensus timeouts or L1 validation. Inspect progress and preserve the
+failed attempt before restarting; a larger wait does not repair stalled nodes.
+
+For an interruption after submitting the initial add commands but before
+recording their approval proofs, `ObservationQualificationMembership <directory>
+recover-add-approvals` is an explicit bounded recovery. It requires all nodes
+converged at height 54..61 with no open round, the original height-53 plan and
+only the initial membership trust epoch. It verifies already-finalized approvals
+from height 54 without resubmitting commands or generating another member key.
+Existing proof files are never overwritten. Other interruption points still
+require separate reconciliation. The effective genesis is always derived from
+the pinned chain settings; a redundant manifest identity, if present, must agree.
+
+If approval verification completed but its subsequent cadence run was interrupted,
+reconcile the cadence separately using the retained membership pins. Once all
+five nodes certify the end of round 7 at height 74, the explicit
+`remove-after-rounds` mode verifies that checkpoint and the retained six-member
+epoch against the original add plan, then executes only the removal and final
+two cadence rounds. It never resubmits the completed add transition.
+
+## Directed app-peer partitions
+
+`ObservationQualificationProxy <proxy-base> <node-server-base>` opens 20 bounded
+loopback TCP routes for a five-node fixture. Source `i` connects to target `j`
+through port `proxy-base + 5*i + j` (omit `i == j`), forwarding only to the local
+node server port `node-server-base + j`. Check both ranges before starting, and
+change only the fixture's app-peer addresses; leave the public L1 upstream alone.
+
+The process reads `status`, `partition 4`, `partition 3,4`, `heal`, or `quit`
+from its retained control terminal. A partition closes existing links in both
+directions and rejects reconnections involving isolated nodes. Healing permits
+normal peer reconnection. It bounds concurrent tunnels at 80 and exposes byte
+and rejection counts without inspecting or logging payloads. Preserve its control
+transcript alongside node logs and independently certified before/after roots.
+This is a network harness, not a production plugin or a validation override.
+
+### Ready-certificate withholding with certified view change
+
+After the 5 -> 6 -> 5 membership drill, use
+`ObservationQualificationWithholding <directory> <next-round> <proxy-base>`
+for a create-new omission attempt (round 10..99). Start only with all five nodes
+converged and all twenty directed proxy links connected; preferably complete
+historical L1 catch-up first. The helper authenticates the previous result and
+new opening on all nodes, then prints `partition-required` with the actual
+certified-consensus leader's node index and view. This is not the legacy
+rotating-window proposer display.
+
+Send `partition <node>` to the retained proxy control terminal. The helper
+verifies every expected directed connection state and rejects bypass addresses.
+It first sends twelve journaled reports only to the isolated proposer, waits
+for its certificate-ready counter to increase, and retains that status. Only
+then does it send the identical signed wires to an honest gateway. Four honest
+validators must certify the expected median in a higher view, with a different
+proposer, while the withheld node remains at the opening height. Those four
+independently verified proof packages are saved before `heal-required` is printed.
+
+The selected member must still be the current proposer when isolation is
+observed. If operator response spans a full leader cycle, `partition-view.json`
+pins the actual isolated view before signing; honest finality must be strictly
+later than that view, not merely later than the earlier selection prompt.
+
+Send `heal` only after that checkpoint. The helper verifies and retains all
+five certified result proofs after catch-up. Preserve the complete
+`withholding-round-<n>/` directory and proxy transcript. This simulates omission
+by withholding all app-peer traffic from a certificate-holding proposer; the
+host's separate five-node TCP regression covers selective certificate omission
+inside a successfully finalized empty-result block. Neither test may be
+reported as passed until its actual asserted outcome is retained. An interrupted
+attempt is never automatically resumed or overwritten.
