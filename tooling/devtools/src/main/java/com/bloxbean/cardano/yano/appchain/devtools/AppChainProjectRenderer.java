@@ -102,7 +102,31 @@ final class AppChainProjectRenderer {
         } else {
             verifyGeneratedFiles(root, prior.generatedFiles());
         }
+        Path active = root.resolve(".deployment/active.lock");
+        if (Files.exists(active)) {
+            var deployed = json.readValue(boundedFile(active, MAX_BLUEPRINT_BYTES, "active lock"),
+                    AppChainProjectModel.Lock.class);
+            var resolved = resolver.resolve(blueprint);
+            if (!deployed.consensusValues().equals(resolved.consensusProperties())
+                    || !deployed.blueprintDigest().equals(AppChainProjectCatalog.sha256(blueprintBytes))) {
+                throw new IOException("Retained deployment changed. Run appchain plan, stop the nodes, "
+                        + "then appchain apply with the reviewed plan digest");
+            }
+        }
         return render(root, blueprint, prior, blueprintBytes);
+    }
+
+    void verifyPriorOutputs(Path project) throws IOException {
+        Path root = safeRoot(project);
+        verifyGeneratedFiles(root, readPriorLock(root).generatedFiles());
+    }
+
+    AppChainProjectModel.Lock renderPrepared(Path project) throws IOException {
+        Path root = safeRoot(project);
+        var blueprint = readBlueprint(root);
+        var prior = Files.exists(root.resolve(LOCK_FILE)) ? readPriorLock(root) : null;
+        if (prior != null) verifyGeneratedFiles(root, prior.generatedFiles());
+        return render(root, blueprint, prior, Files.readAllBytes(root.resolve(BLUEPRINT_FILE)));
     }
 
     AppChainProjectModel.Blueprint readBlueprint(Path project) throws IOException {
@@ -128,7 +152,7 @@ final class AppChainProjectRenderer {
         requireEqual("runtime", blueprint.spec().runtime().type(), lock.runtime());
         requireEqual("deployment", blueprint.spec().deployment().target(), lock.deployment());
         requireEqual("network", blueprint.spec().network(), lock.network());
-        requireEqual("recipe", resolution.recipe().id() + ":" + resolution.recipe().version(),
+        requireEqual("recipe", resolution.recipeIdentity(),
                 lock.recipe());
         requireEqual("selected capabilities", resolution.selectedCapabilities(),
                 lock.selectedCapabilities());
@@ -187,7 +211,7 @@ final class AppChainProjectRenderer {
                 blueprint.spec().runtime().type(),
                 blueprint.spec().deployment().target(),
                 blueprint.spec().network(),
-                resolution.recipe().id() + ":" + resolution.recipe().version(),
+                resolution.recipeIdentity(),
                 resolution.selectedCapabilities(),
                 resolution.impliedCapabilities(),
                 resolution.artifacts(),
@@ -238,7 +262,7 @@ final class AppChainProjectRenderer {
         String authenticatedMapGenesis = resolution.consensusProperties().get(
                 "yano.app-chain.chains[0]."
                         + StdlibStateMachineProviders.AUTHENTICATED_MAP_GENESIS_SETTING);
-        if (authenticatedMapGenesis != null) {
+        if (authenticatedMapGenesis != null && resolution.chains().size() == 1) {
             outputs.put("config/authenticated-map-genesis.hex",
                     utf8(authenticatedMapGenesis + "\n"));
             outputs.put("docs/VALUE_VALIDATION.md",
@@ -259,6 +283,7 @@ final class AppChainProjectRenderer {
             outputs.put("secrets/node" + index + ".env.example",
                     utf8(secretExample(resolution, index)));
         }
+        outputs.put(".gitignore", utf8("data/\nrun/\nlogs/\nruntime/\n.deployment/\nsecrets/*.env\n"));
         outputs.put("secrets/README.md", utf8(secretsReadme(resolution)));
         outputs.put("secrets/.gitignore", utf8("*.env\n!.gitignore\n!*.env.example\n"));
         outputs.put("README.md", utf8(readme(resolution)));
@@ -294,6 +319,39 @@ final class AppChainProjectRenderer {
                     : hostStartScript(resolution, members)));
             outputs.put("scripts/stop", utf8(hostStopScript()));
             outputs.put("scripts/status", utf8(hostStatusScript(members)));
+        }
+        if (resolution.chains().size() > 1) {
+            StringBuilder overview = new StringBuilder("# " + resolution.blueprint().metadata().name()
+                    + "\n\nThis project runs " + resolution.chains().size() + " chains on " + members
+                    + " members. Each chain keeps its own state and consensus policy.\n\n"
+                    + "| Chain | Recipe | Instructions |\n|---|---|---|\n");
+            for (var chain : resolution.chains()) {
+                String id = chain.blueprint().spec().chains().getFirst().chainId();
+                var details = outputs(chain, resolvedConfigDigest);
+                for (var entry : details.entrySet()) {
+                    if (entry.getKey().startsWith("docs/") || entry.getKey().startsWith("bootstrap/")
+                            || entry.getKey().startsWith("config/authenticated-map")) {
+                        outputs.put("chains/" + id + "/" + entry.getKey(), entry.getValue());
+                    }
+                }
+                overview.append("| ").append(id).append(" | ").append(chain.recipe().id())
+                        .append(" | [Verify](chains/").append(id).append("/docs/VERIFY.md) |\n");
+            }
+            overview.append("\nSet `YANO_HOME` to the matching extracted JVM distribution. "
+                    + "Run `scripts/validate`, complete `docs/BOOTSTRAP.md`, then `scripts/start`. "
+                    + "Use `scripts/stop` to preserve state. Never change retained genesis to add a chain.\n");
+            outputs.put("README.md", utf8(overview.toString()));
+            StringBuilder links = new StringBuilder("# Per-chain instructions\n\n");
+            for (var chain : resolution.chains()) {
+                String id = chain.blueprint().spec().chains().getFirst().chainId();
+                links.append("- **").append(id).append("**: [verification](../chains/").append(id)
+                        .append("/docs/VERIFY.md), [trust](../chains/").append(id)
+                        .append("/docs/TRUST.md), [prerequisites](../chains/").append(id)
+                        .append("/docs/PREREQUISITES.md).\n");
+            }
+            outputs.put("docs/VERIFY.md", utf8(links.toString()));
+            outputs.put("docs/TRUST.md", utf8(links.toString()));
+            outputs.keySet().removeIf(name -> name.startsWith("bootstrap/"));
         }
         return outputs;
     }
@@ -343,12 +401,18 @@ final class AppChainProjectRenderer {
             peers.add(peerHost + ":" + peerPort);
         }
         TreeMap<String, String> values = new TreeMap<>();
-        values.put("quarkus.http.host", "0.0.0.0");
+        values.put("quarkus.http.host", distributed || compose || kubernetes ? "0.0.0.0" : "127.0.0.1");
         values.put("quarkus.http.port", Integer.toString(httpPort));
         values.put("yano.server.port", Integer.toString(serverPort));
         values.put("yano.storage.path", kubernetes ? "/var/lib/yano/chainstate"
                 : compose ? "/app/chainstate"
                 : "${YANO_APPCHAIN_DATA_ROOT}/node" + node + "/chainstate");
+        values.put("yano.history.dir", kubernetes ? "/var/lib/yano/history"
+                : compose ? "/app/history"
+                : "${YANO_APPCHAIN_DATA_ROOT}/node" + node + "/history");
+        values.put("quarkus.log.file.path", kubernetes ? "/var/lib/yano/yano.log"
+                : compose ? "/app/yano.log"
+                : "${YANO_APPCHAIN_DATA_ROOT}/node" + node + "/yano.log");
         values.put("yano.app-chain.storage.path", kubernetes
                 ? "/var/lib/yano/appchain-chainstate"
                 : compose ? "/app/appchain-chainstate"
@@ -391,8 +455,9 @@ final class AppChainProjectRenderer {
                     compose || kubernetes ? 13337 : serverBase));
         }
         values.putAll(resolution.nodePropertyTemplate());
-        String prefix = "yano.app-chain.chains[0].";
-        values.put(prefix + "peers", String.join(",", peers));
+        for (int index = 0; index < resolution.chains().size(); index++) {
+            values.put("yano.app-chain.chains[" + index + "].peers", String.join(",", peers));
+        }
         return yamlConfig(values);
     }
 
@@ -415,11 +480,18 @@ final class AppChainProjectRenderer {
         Map<String, Object> plan = new LinkedHashMap<>();
         plan.put("apiVersion", AppChainProjectModel.API_VERSION);
         plan.put("kind", "AppChainPrerequisitePlan");
-        plan.put("recipe", resolution.recipe().id());
-        plan.put("primaryOutcome", resolution.recipe().primaryOutcome());
-        plan.put("firstCommand", resolution.recipe().firstCommand());
-        plan.put("verificationQuery", resolution.recipe().verificationQuery());
-        plan.put("acceptanceScenario", resolution.recipe().acceptanceScenario());
+        plan.put("recipe", resolution.recipeIdentity());
+        plan.put("chains", resolution.chains().stream().map(chain -> Map.of(
+                "chainId", chain.blueprint().spec().chains().getFirst().chainId(),
+                "recipe", chain.recipe().id(), "primaryOutcome", chain.recipe().primaryOutcome(),
+                "firstCommand", chain.recipe().firstCommand(),
+                "verificationQuery", chain.recipe().verificationQuery())).toList());
+        if (resolution.chains().size() == 1) {
+            plan.put("primaryOutcome", resolution.recipe().primaryOutcome());
+            plan.put("firstCommand", resolution.recipe().firstCommand());
+            plan.put("verificationQuery", resolution.recipe().verificationQuery());
+            plan.put("acceptanceScenario", resolution.recipe().acceptanceScenario());
+        }
         List<Map<String, Object>> artifacts = new ArrayList<>();
         for (String artifactId : resolution.artifacts()) {
             AppChainProjectModel.Artifact artifact = catalog.artifact(artifactId);
@@ -464,7 +536,10 @@ final class AppChainProjectRenderer {
                 and `EXPERIMENTAL` artifacts require explicit installation (or native-image
                 inclusion) and remain pending until `doctor` verifies the final distribution.
                 """);
-        document.append("Primary outcome: ")
+        if (resolution.chains().size() > 1) {
+            document.append("Complete the command and verification for every entry in `plans/prerequisites.yaml`.\n\n");
+        }
+        document.append(resolution.chains().size() > 1 ? "First chain outcome: " : "Primary outcome: ")
                 .append(resolution.recipe().primaryOutcome()).append("\n\n")
                 .append("First command: `").append(resolution.recipe().firstCommand())
                 .append("`\n\nVerification: `")
@@ -633,8 +708,8 @@ final class AppChainProjectRenderer {
                 # Bootstrap
 
                 1. Collect one public member identity from each operator.
-                2. Put the identities in `spec.chains[0].topology.memberKeys` in the same reviewed
-                   order on every machine.
+                2. Put the identities in every chain's `topology.memberKeys` in the same reviewed
+                   order on every machine. For local devnet, `appchain prepare` handles this.
                 3. Run `./yano.sh appchain config validate --mode project .` and review `appchain.lock`.
                 4. Copy the project to each machine; provision only that node's `secrets/nodeN.env`.
                 5. Start each node with `scripts/start-node N` or use the generated Compose project.
@@ -1021,7 +1096,7 @@ final class AppChainProjectRenderer {
                 set -euo pipefail
                 root="$(cd "$(dirname "$0")/.." && pwd)"
                 : "${YANO_HOME:?Set YANO_HOME to the extracted Yano distribution}"
-                exec "$YANO_HOME/yano.sh" appchain render "$root"
+                exec "$YANO_HOME/yano.sh" appchain config validate --mode project "$root"
                 """;
     }
 
@@ -1033,6 +1108,7 @@ final class AppChainProjectRenderer {
                 node="${1:?Usage: start-node NODE_INDEX}"
                 root="$(cd "$(dirname "$0")/.." && pwd)"
                 : "${YANO_HOME:?Set YANO_HOME to the extracted Yano distribution}"
+                "$YANO_HOME/yano.sh" appchain start-check "$root"
                 secret="$root/secrets/node${node}.env"
                 config="$root/config/nodes/node${node}.yaml"
                 [ -f "$secret" ] || { echo "Missing $secret" >&2; exit 1; }
@@ -1079,6 +1155,13 @@ final class AppChainProjectRenderer {
                 root="$(cd "$(dirname "$0")/.." && pwd)"
                 : "${YANO_HOME:?Set YANO_HOME to the extracted Yano distribution}"
                 mkdir -p "$root/run" "$root/logs"
+                for record in "$root"/run/node*.pid; do
+                  [ -f "$record" ] || continue
+                  if kill -0 "$(cat "$record")" 2>/dev/null; then
+                    echo "A project node is already running. Use scripts/status, or scripts/stop before restart." >&2
+                    exit 1
+                  fi
+                done
                 "$root/scripts/validate"
                 %s
                 for node in $(seq 0 %d); do
@@ -1363,7 +1446,7 @@ final class AppChainProjectRenderer {
         Files.write(path, bytes, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
     }
 
-    private static Path resolveGenerated(Path root, String name) throws IOException {
+    static Path resolveGenerated(Path root, String name) throws IOException {
         Path path = root.resolve(name).normalize();
         if (!path.startsWith(root) || name.startsWith("/") || name.contains("..")) {
             throw new IOException("Generated file path is unsafe");

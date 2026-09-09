@@ -51,6 +51,8 @@ class AppChainMetadataExporterTest {
         assertThat(catalogJson.path("properties")).hasSize(registry.definitions().size());
         assertThat(catalogJson.path("dynamicNamespaces"))
                 .hasSize(registry.dynamicNamespaces().size());
+        assertThat(catalogJson.path("dynamicNamespaces").findValuesAsText("prefix"))
+                .contains("consensus.", "observations.");
     }
 
     private String resource(String name) throws Exception {

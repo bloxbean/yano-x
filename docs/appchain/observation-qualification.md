@@ -5,23 +5,22 @@ chainstate, submit Cardano transactions, bootstrap anchors, or mark any
 qualification gate passed. The full qualification matrix remains in Yano
 ADR-037 and its observation qualification runbook.
 
-First build and verify the exact host Maven inputs and ordinary JVM ZIP, then
-the matching Yano X distribution. Extract both into a dedicated artifact area.
+Use released Yano `0.1.0-pre14` Maven inputs and its matching ordinary JVM
+ZIP to build and verify the Yano X distribution. Extract both into a dedicated artifact area.
 Use the plugin directory from that tested Yano X distribution. Do not point
 the helper at a source build's loose classes or an existing deployment.
 
 ```bash
 ./gradlew :tooling:devtools:prepareObservationQualification \
-  -PyanoVersion=<exact-host-version> \
+  -PyanoVersion=0.1.0-pre14 \
   -PqualificationDirectory=/absolute/path/to/new-qualification \
   -PqualificationHostDirectory=/absolute/path/to/extracted-host \
   -PqualificationPluginDirectory=/absolute/path/to/extracted-yano-x/plugins \
   -PqualificationHttpBase=18070 -PqualificationN2nBase=18337
 ```
 
-Supply the normal exact staging repository option, or explicit
-`-PuseMavenLocal=true` for already published local inputs. The host distribution
-marker must match `yanoVersion`. This marker check does not replace artifact
+Maven Local and a staging repository are not required for the released inputs.
+The host distribution marker must match `yanoVersion`. This marker check does not replace artifact
 checksum/provenance and packaged plugin checks.
 
 The target must not exist. Preparation creates a private POSIX directory,

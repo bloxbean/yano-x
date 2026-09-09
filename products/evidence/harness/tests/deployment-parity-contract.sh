@@ -305,7 +305,7 @@ def job_block(name):
     return "\n".join(lines[start:end])
 
 
-e2e_job = job_block("effect-failover-e2e")
+e2e_job = job_block("evidence-e2e")
 if e2e_job.count("DEMO_ANCHOR_VISIBILITY_TIMEOUT_SECONDS: '900'") != 2:
     raise SystemExit("parity and role startup must both allow the default node recovery window")
 for required in (
@@ -326,7 +326,7 @@ if failover_run >= parity_run:
     raise SystemExit("deployment parity must run after the fenced-failover E2E")
 if workflow.count("run: products/evidence/harness/tests/deployment-parity-e2e.sh") != 1:
     raise SystemExit("mandatory deployment parity must have exactly one workflow invocation")
-if "- effect-failover-e2e" not in job_block("release-acceptance"):
+if "- evidence-e2e" not in job_block("release-acceptance"):
     raise SystemExit("release join no longer requires the job containing deployment parity")
 if release_contracts.count("deployment-parity-contract.sh") != 1 \
         or 'bash "$SCRIPT_DIR/$test"' not in release_contracts:

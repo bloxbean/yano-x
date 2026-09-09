@@ -1,5 +1,5 @@
 import {blueprintYaml,compatibleCapabilityOptions,decodeDeepLink,encodeDeepLink,
-  importComponentCatalogSnapshot,normalizeIntent} from './studio-core.mjs';
+  importComponentCatalogSnapshot,normalizeIntent,projectBlueprintYaml} from './studio-core.mjs';
 
 const form = document.querySelector('#intent-form');
 const recipeSelect = document.querySelector('#recipe');
@@ -7,6 +7,7 @@ const releaseLabel = document.querySelector('#release');
 const capabilityChooser = document.querySelector('#capability-chooser');
 const answerFields = document.querySelector('#answer-fields');
 let recipes=[]; let builtCapabilities=[]; let capabilities=[]; let builtArtifacts=[];
+let chainDrafts=[]; let selectedChain=0;
 let customCatalogs=[]; let release={recipes:[],yanoVersion:'unknown'}; let yaml='';
 
 const load = path => fetch(path,{cache:'no-store'}).then(response => {
@@ -22,8 +23,8 @@ function readForm(forcedCapabilities) {
 }
 function writeForm(values) {
   for (const [key,value] of Object.entries(values)) {
-    if(['capabilities','answers'].includes(key)) continue;
-    const field=form.elements.namedItem(key); if(field) field.value=value;
+    if(['capabilities','answers','componentCatalogs'].includes(key)) continue;
+    const field=form.elements.namedItem(key); if(field) field.value=Array.isArray(value)?value.join('\n'):value;
   }
 }
 function title(value) { return String(value).split(/[-:]/).map(part=>part[0]?.toUpperCase()+part.slice(1)).join(' '); }
@@ -94,13 +95,25 @@ function update(forcedCapabilities, forcedStateMachine) {
     Object.assign(document.createElement('li'),{textContent:value})));
   document.querySelector('#diagnostics').textContent=resolved.errors.join(' ');
   const status=document.querySelector('#validity'); status.textContent=resolved.errors.length?'Review':'Ready'; status.classList.toggle('error',Boolean(resolved.errors.length));
-  yaml=resolved.errors.length?'':blueprintYaml(intent,release.yanoVersion);
+  chainDrafts[selectedChain]=intent;
+  const shared=['network','members','runtime','deployment','name','memberKeys','nodeHosts','componentCatalogs'];
+  chainDrafts=chainDrafts.map(chain=>({...chain,...Object.fromEntries(shared.map(key=>[key,intent[key]]))}));
+  const projectErrors=chainDrafts.flatMap(chain=>normalizeIntent({...chain,
+    memberKeys:chain.memberKeys.join(' '),nodeHosts:chain.nodeHosts.join(' ')},recipes,release,capabilities).errors
+    .map(error=>`${chain.chainId}: ${error}`));
+  try { yaml=projectErrors.length?'':projectBlueprintYaml(chainDrafts,release.yanoVersion); }
+  catch(error) { projectErrors.push(error.message); yaml=''; }
+  document.querySelector('#diagnostics').textContent=projectErrors.join(' ');
+  status.textContent=projectErrors.length?'Review':'Configuration ready';
+  status.classList.toggle('error',Boolean(projectErrors.length));
+  renderChainList();
   document.querySelector('#preview').textContent=yaml || '# Resolve the items above to preview the blueprint.';
-  document.querySelector('#download').disabled=Boolean(resolved.errors.length);
+  document.querySelector('#download').disabled=!yaml;
+  document.querySelector('#share').disabled=chainDrafts.length>1;
   const share=document.querySelector('#share');
-  share.disabled=Boolean(resolved.errors.length || customCatalogs.length);
+  share.disabled=Boolean(projectErrors.length || customCatalogs.length || chainDrafts.length>1);
   share.title=customCatalogs.length?'Custom catalogs are local and deliberately excluded from links.':'';
-  if (!resolved.errors.length && !customCatalogs.length)
+  if (!projectErrors.length && !customCatalogs.length && chainDrafts.length===1)
     history.replaceState(null,'',encodeDeepLink(intent));
 }
 
@@ -111,10 +124,41 @@ Promise.all([
   recipes=recipeCatalog.recipes; builtCapabilities=capabilityCatalog.capabilities;
   capabilities=[...builtCapabilities]; builtArtifacts=capabilityCatalog.artifacts; release=releaseIndex;
   recipeSelect.replaceChildren(...recipes.map(recipe=>Object.assign(document.createElement('option'),{value:recipe.id,textContent:recipe.name})));
-  releaseLabel.textContent=`Yano ${release.yanoVersion} · ${release.schemaStatus}`;
+  releaseLabel.textContent=`Yano X ${release.yanoVersion} · ${release.schemaStatus}`;
   const deepLink=decodeDeepLink(location.hash); writeForm(deepLink);
   update(deepLink.capabilities || [],deepLink.stateMachine);
 }).catch(error=>{ document.querySelector('#diagnostics').textContent=error.message; });
+
+function renderChainList() {
+  const container=document.querySelector('#chain-list');
+  container.replaceChildren(...chainDrafts.map((chain,index)=>{
+    const button=document.createElement('button'); button.type='button'; button.className='secondary';
+    button.textContent=`${index+1}. ${chain.chainId}`;
+    button.setAttribute('aria-pressed',String(index===selectedChain));
+    button.addEventListener('click',()=>{
+      selectedChain=index; writeForm(chain);
+      renderAnswers(normalizeIntent({...chain,memberKeys:chain.memberKeys.join(' '),
+        nodeHosts:chain.nodeHosts.join(' ')},recipes,release,capabilities).plan.requiredAnswers,chain.answers);
+      update(chain.capabilities,chain.answers?.stateMachine);
+    }); return button;
+  }));
+  document.querySelector('#remove-chain').disabled=chainDrafts.length<=1;
+  document.querySelector('#add-chain').disabled=chainDrafts.length>=32;
+  document.querySelector('#chain-count').textContent=`${chainDrafts.length} chain${chainDrafts.length===1?'':'s'}`;
+}
+document.querySelector('#add-chain').addEventListener('click',()=>{
+  if(chainDrafts.length>=32) return;
+  update(); selectedChain=chainDrafts.length;
+  let suffix=selectedChain+1;
+  while(chainDrafts.some(chain=>chain.chainId===`chain-${suffix}`)) suffix++;
+  writeForm({recipe:'audit-log',chainId:`chain-${suffix}`}); renderAnswers([],{}); update([]);
+});
+document.querySelector('#remove-chain').addEventListener('click',()=>{
+  if(chainDrafts.length<=1) return;
+  chainDrafts.splice(selectedChain,1); selectedChain=Math.min(selectedChain,chainDrafts.length-1);
+  const chain=chainDrafts[selectedChain]; writeForm(chain);
+  renderAnswers(Object.keys(chain.answers),chain.answers); update(chain.capabilities,chain.answers?.stateMachine);
+});
 
 document.querySelector('#catalog-import').addEventListener('click',async()=>{
   const file=document.querySelector('#catalog-file').files[0];

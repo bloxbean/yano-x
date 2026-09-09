@@ -2,6 +2,14 @@
 
 Yano X is the JVM extension and application ecosystem for Yano.
 
+Start with the [local showcase](docs/appchain/deployment/quickstart.md),
+[configure your own application](docs/appchain/deployment/configure.md), or
+follow the [VM operator guide](docs/appchain/deployment/operators.md).
+The [deployment guide](docs/appchain/deployment/README.md) connects these paths,
+including how to add a chain while preserving existing state.
+
+The build instructions below are for contributors and release preparation.
+
 The build consumes published Yano artifacts and the matching ordinary Yano JVM
 ZIP. For a released `yanoVersion`, Gradle downloads and caches the ZIP from the
 matching `bloxbean/yano` GitHub release. `yanoJvmDist` remains an explicit

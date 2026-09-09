@@ -90,6 +90,7 @@ bash .github/scripts/tests/prepare-yano-inputs-test.sh
 ```bash
 ./gradlew :state-machines:stdlib:test -PyanoVersion=<yano-version>
 ./gradlew :tooling:devtools:test -PyanoVersion=<yano-version>
+./gradlew :tooling:deployment:test -PyanoVersion=<yano-version>
 ./gradlew integrationTest -PyanoVersion=<yano-version>
 ./gradlew cryptoTest -PyanoVersion=<yano-version>
 ```
@@ -100,3 +101,23 @@ artifact identity and that runtime plugins have bundle publications.
 
 Distribution assembly additionally needs Yano's ordinary JVM ZIP; see
 [BUILD_DISTRIBUTIONS.md](BUILD_DISTRIBUTIONS.md).
+
+## Reproduce settlement artifacts
+
+The bundled settlement validators must reproduce with the published Julc
+compiler selected in `gradle/libs.versions.toml`. Release builds must keep Maven
+Local disabled: a locally republished compiler with the same version can emit
+different script bytes and addresses.
+
+For the Yano `0.1.0-pre14` baseline, the compiler is Maven Central
+`com.bloxbean.cardano:julc-compiler:0.1.0-pre16`, with JAR SHA-256
+`04c9c2c75dfa38e14206b27f1b55def0106aa859a74c96adfb4ca5f6db7c1336`.
+`SettlementArtifactBundleTest` compares the bundled templates with a fresh
+source compile. The showcase tests also verify that its parameterized scripts
+and configuration agree with the derived settlement plan.
+
+Regenerating templates is a script-identity change, even when the Java source
+is unchanged. Review the parameterized scripts, addresses, hashes, and genesis
+identity together. Updated defaults are for fresh demo deployments; they are
+not an in-place migration for an existing settlement chain. Retained deployments
+must preserve their pinned scripts and chain identity.

@@ -27,6 +27,7 @@ binary in your hands:
 |---|---|---|---|---|
 | [`audit-log`](https://github.com/bloxbean/yano-x/blob/main/docs/core-host.md) | Replicated audit log | `BUNDLED` | `stable` | One opaque record is threshold-finalized in the shared application order. |
 | [`owned-registry`](/state-machines/kv-registry/) | Owned registry | `BUNDLED` | `stable` | The first writer owns a named value that is readable with a committed state proof. |
+| [`document-trail`](/state-machines/doc-trail/) | Document trail | `BUNDLED` | `preview` | A document hash advances an entity trail; its count and head have a committed state proof. |
 | [`authenticated-map`](/state-machines/authenticated-map/) | Authenticated map | `BUNDLED` | `preview` | A value accepted under a genesis-declared collection schema is committed and available with a state proof. |
 | [`approval-workflow`](/state-machines/approvals/) | Threshold approval workflow | `BUNDLED` | `stable` | Distinct validator-member decisions produce a provable terminal approval or rejection. |
 | [`role-approval`](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/tutorials/05-domain-role-approvals.md) | Governed role approvals | `BUNDLED` | `preview` | A governed role policy accepts valid actor decisions and rejects an ineligible actor decision. |
@@ -138,6 +139,23 @@ A first-writer-owned key/value registry with committed query proofs.
 ./yano.sh appchain init --non-interactive \
   --recipe owned-registry --network devnet --members 3 --runtime jvm \
   --output owned-registry-chain
+```
+
+### `document-trail` — Document trail
+
+Append document hashes to a provable trail for each product, case, or shipment.
+
+- **Outcome:** A document hash advances an entity trail; its count and head have a committed state proof.
+- **Availability / maturity:** `BUNDLED` / `preview`
+- **Capabilities:** `state:doc-trail`, `sequencer:fixed`
+- **Runtime artifacts:** `yano-runtime`, `yano-x-stdlib`
+- **Runtimes:** `jvm` · **Deployment:** `host`, `docker-compose`
+- **Reference:** [/state-machines/doc-trail/](/state-machines/doc-trail/)
+
+```bash
+./yano.sh appchain init --non-interactive \
+  --recipe document-trail --network devnet --members 3 --runtime jvm \
+  --output document-trail-chain
 ```
 
 ### `authenticated-map` — Authenticated map

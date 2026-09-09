@@ -21,14 +21,23 @@
   <main>
     <section class="intro">
       <p class="eyebrow">Intent first. Runtime-safe output.</p>
-      <h1>Shape an app chain<br>without memorizing config.</h1>
-      <p class="lede">Choose the outcome, topology, and operating model. Studio creates a
+      <h1>Your chains. Your capabilities.<br>One deployment profile.</h1>
+      <p class="lede">Start with one chain, then add the capabilities your application needs. Studio creates a
         non-secret blueprint for the version-matched Yano CLI to validate and render.</p>
       <div class="guardrail"><span aria-hidden="true">✓</span> Studio never requests or stores private keys.</div>
     </section>
 
     <section class="workspace" aria-label="App-chain configuration">
       <form id="intent-form" class="config-panel" novalidate>
+        <section aria-label="Application chains">
+          <h2>Application chains <span id="chain-count" class="note">1 chain</span></h2>
+          <div id="chain-list" class="actions"></div>
+          <div class="actions">
+            <button id="add-chain" type="button" class="secondary">Add a chain</button>
+            <button id="remove-chain" type="button" class="secondary" disabled>Remove selected chain</button>
+          </div>
+          <p class="note">Each chain has its own state and recipe. Chains share the same member nodes and ports.</p>
+        </section>
         <div class="step"><span>01</span><div><h2>Application outcome</h2><p>Start from a maintained recipe.</p></div></div>
         <label>Recipe<select id="recipe" name="recipe"></select></label>
         <div id="recipe-note" class="note"></div>
@@ -68,11 +77,19 @@
 
         <div class="step"><span>04</span><div><h2>Runtime and delivery</h2><p>Choose how operators receive it.</p></div></div>
         <div class="field-grid">
-          <label>Runtime<select name="runtime"><option value="jvm">JVM</option><option value="native">Native</option></select></label>
+          <label>Runtime<select name="runtime"><option value="jvm">JVM</option></select></label>
           <label>Deployment<select name="deployment"><option value="host">Host processes</option><option value="docker-compose">Docker Compose</option></select></label>
           <label>Project name<input name="name" value="my-appchain" pattern="[a-z][a-z0-9-]{1,62}"></label>
           <label>Chain ID<input name="chainId" value="my-appchain" pattern="[a-z][a-z0-9-]{1,62}"></label>
         </div>
+        <details>
+          <summary>Operator placement and public identities</summary>
+          <p class="note">Leave these empty for local devnet preparation. Private keys stay on your computer.</p>
+          <label>Public member keys, in node order<textarea name="memberKeys" rows="3"
+            placeholder="One public key per line"></textarea></label>
+          <label>VM hostnames, in node order<textarea name="nodeHosts" rows="3"
+            placeholder="One hostname per line; leave empty for local processes"></textarea></label>
+        </details>
       </form>
 
       <aside class="review-panel">
@@ -88,7 +105,11 @@
         </div>
         <p class="next-step">Next: place the blueprint in an empty directory. For every
           custom entry, copy the original snapshot to the exact <code>component-catalogs/</code>
-          path shown in the blueprint. Then run <code>./yano.sh appchain render .</code>.</p>
+          path shown in the blueprint. For local devnet run <code>./yano.sh appchain prepare .</code>,
+          then <code>./scripts/start</code>. For VMs, supply public identities and run
+          <code>./yano.sh appchain render .</code>, then follow the generated operator instructions.
+          Configuration readiness does not mean a cluster is deployed. Safe links describe one chain;
+          download the blueprint to keep a multi-chain configuration.</p>
       </aside>
     </section>
   </main>

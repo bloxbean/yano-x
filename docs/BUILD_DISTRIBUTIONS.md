@@ -49,7 +49,9 @@ The outputs are written under `distribution/jvm/build/distributions`:
   conflict-free default set; alternative implementations live under
   `optional-plugins/`.
 - `yano-x-jvm-<version>.zip` overlays those bundles on the supplied ordinary
-  Yano JVM ZIP and includes both Yano and Yano X identity manifests.
+  Yano JVM ZIP and includes both Yano and Yano X identity manifests. It also
+  packages the provider-neutral deployment CLI under `tools/yano-deploy`,
+  including its schema, documentation, and mixed-provider example.
 
 Both archives include the repository `LICENSE` and a normalized CycloneDX 1.6
 SBOM at `sbom/yano-x.cdx.json`. The release task fills the MIT declaration for

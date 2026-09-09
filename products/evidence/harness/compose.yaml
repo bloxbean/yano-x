@@ -290,6 +290,9 @@ services:
         source: ${DEMO_YANO0_DATA_DIR:?}
         target: /app/chainstate
       - type: bind
+        source: ${DEMO_YANO0_HISTORY_DIR:?}
+        target: /app/history
+      - type: bind
         source: ${DEMO_YANO0_APP_DATA_DIR:?}
         target: /app/appchain-chainstate
       - type: bind
@@ -325,6 +328,9 @@ services:
       - type: bind
         source: ${DEMO_YANO1_DATA_DIR:?}
         target: /app/chainstate
+      - type: bind
+        source: ${DEMO_YANO1_HISTORY_DIR:?}
+        target: /app/history
       - type: bind
         source: ${DEMO_YANO1_APP_DATA_DIR:?}
         target: /app/appchain-chainstate
@@ -374,6 +380,9 @@ services:
       - type: bind
         source: ${DEMO_YANO2_DATA_DIR:?}
         target: /app/chainstate
+      - type: bind
+        source: ${DEMO_YANO2_HISTORY_DIR:?}
+        target: /app/history
       - type: bind
         source: ${DEMO_YANO2_APP_DATA_DIR:?}
         target: /app/appchain-chainstate

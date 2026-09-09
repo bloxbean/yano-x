@@ -62,8 +62,7 @@ class EpochHistoryThousandEpochDeterminismTest {
 
         @Override
         public ProtocolParamsView protocolParams(long effectiveEpoch) {
-            return new ProtocolParamsView(effectiveEpoch,
-                    ByteBuffer.allocate(Long.BYTES).putLong(effectiveEpoch).array());
+            return EpochProtocolParamsFixtures.conway(effectiveEpoch);
         }
 
         @Override public boolean hasStakeSnapshot(long snapshotEpoch) {

@@ -49,10 +49,10 @@ That is the whole thing. No `-PyanoVersion`, no `-PuseMavenLocal`, no
 | Value | Current |
 |---|---|
 | Yano X version | `0.1.0-SNAPSHOT` |
-| Yano host version | `0.1.0-pre13` |
+| Yano host version | `0.1.0-pre14` |
 | Maven group | `com.bloxbean.cardano` |
 | Java | `25` |
-| Base Yano JVM ZIP | [`yano-0.1.0-pre13.zip`](https://github.com/bloxbean/yano/releases/download/v0.1.0-pre13/yano-0.1.0-pre13.zip) |
+| Base Yano JVM ZIP | [`yano-0.1.0-pre14.zip`](https://github.com/bloxbean/yano/releases/download/v0.1.0-pre14/yano-0.1.0-pre14.zip) |
 
 <!-- catalog:versions-end -->
 

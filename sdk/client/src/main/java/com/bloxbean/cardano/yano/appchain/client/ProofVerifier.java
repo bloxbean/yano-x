@@ -288,7 +288,7 @@ public final class ProofVerifier {
 
     /**
      * Verify the signed block header, threshold certificate, commitment
-     * identity, and native proof against a caller-pinned membership epoch.
+     * identity, and native proof against caller-pinned membership and height-specific consensus context.
      */
     public static boolean verifyCertified(
             AppChainClient.Proof proof,
@@ -474,11 +474,7 @@ public final class ProofVerifier {
                 || canonicalHex(block.l1BlockHashHex(), HASH_BYTES))) {
             throw new IllegalArgumentException("invalid certified block header");
         }
-        return new AppBlockHeader(block.version(), chainId, block.height(),
-                Hex.decode(block.consensusContextDigestHex()), block.view(), Hex.decode(block.prevHashHex()),
-                block.l1Slot(), Hex.decode(block.l1BlockHashHex()), block.timestamp(),
-                Hex.decode(block.messagesRootHex()), Hex.decode(block.stateRootHex()), Hex.decode(block.proposerHex()),
-                Hex.decode(block.justificationDigestHex()));
+        return block.canonicalHeader(chainId);
     }
 
     private static ProfileMetadata profile(

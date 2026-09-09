@@ -94,6 +94,7 @@ capabilities first; users may then add only compatible selectable capabilities.
 |---|---|---|---|---|---|---|
 | `audit-log` | `BUNDLED` | `stable` | JVM, native | `bundled` | `yano-runtime` | [Yano core host](../core-host.md) |
 | `owned-registry` | `BUNDLED` | `stable` | JVM | `unsupported` | `yano-runtime`, `yano-x-stdlib` | [KV registry](state-machines/kv-registry.md) |
+| `document-trail` | `BUNDLED` | `preview` | JVM | `unsupported` | `yano-runtime`, `yano-x-stdlib` | [Document trail](state-machines/doc-trail.md) |
 | `authenticated-map` | `BUNDLED` | `preview` | JVM | `unsupported` | `yano-runtime`, `yano-x-stdlib` | [Authenticated map](state-machines/authenticated-map.md) |
 | `approval-workflow` | `BUNDLED` | `stable` | JVM | `unsupported` | `yano-runtime`, `yano-x-stdlib` | [Approvals](state-machines/approvals.md) |
 | `role-approval` | `BUNDLED` | `preview` | JVM | `unsupported` | `yano-runtime`, `yano-x-composite`, `yano-x-role-workflow` | [Generic role approvals](state-machines/role-approvals.md) |

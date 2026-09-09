@@ -7,6 +7,7 @@ import com.bloxbean.cardano.yaci.core.model.TransactionOutput;
 import com.bloxbean.cardano.yaci.core.util.HexUtil;
 import com.bloxbean.cardano.yano.api.appchain.l1view.L1Observation;
 import com.bloxbean.cardano.yano.api.appchain.l1view.L1Observer;
+import com.bloxbean.cardano.yano.api.appchain.l1view.L1ObserverConsensusIdentity;
 import com.bloxbean.cardano.yano.appchain.eutxo.contracts.EutxoBatchSettlementMarker;
 import com.bloxbean.cardano.yano.appchain.eutxo.contracts.EutxoBatchWithdrawalConfirmation;
 import com.bloxbean.cardano.yano.appchain.eutxo.contracts.EutxoOutpoint;
@@ -52,6 +53,13 @@ final class BatchWithdrawalConfirmationObserver implements L1Observer {
     @Override
     public String observerId() {
         return observerId;
+    }
+
+    L1ObserverConsensusIdentity consensusIdentity() {
+        return ObserverConsensusIdentity.of("eutxo-batch-withdrawal-confirmation-v1",
+                "chain-id", chainId,
+                "bridge-epoch", Long.toString(bridgeEpoch),
+                "vault-address", vaultAddress);
     }
 
     @Override

@@ -6,7 +6,7 @@ are synthetic fixtures. Their independence labels do not authenticate a real
 exchange or prove economic independence.
 
 The standard-library plugin contributes `ada-usd-reference-v1` through its
-normal schema-v1 manifest and provider registry. It requires Yano API level 6
+normal schema-v1 manifest and provider registry. The bundle requires Yano API level 8
 and an enabled v2 observation profile. Do not install it into an existing
 chain: its fixed application semantics start at genesis.
 
@@ -53,17 +53,16 @@ g=1, r=4`). Host consensus membership and external reporter authority are
 different sets. Yano's companion five-networked-validator test covers host
 `n=5, q=4, f=1` with the same external quorum rule.
 
-First publish a commit-identified Yano Maven version and its matching JVM ZIP,
-following `docs/BUILD_AND_TEST.md`. Then, from the Yano X worktree:
+Use released Yano `0.1.0-pre14` Maven artifacts and its matching ordinary JVM
+ZIP, following `docs/BUILD_AND_TEST.md`. From the Yano X worktree:
 
 ```sh
 ./gradlew :sdk:client:test :state-machines:stdlib:test \
   --tests '*Observation*' --tests '*AdaUsdReference*' \
-  -PyanoVersion=0.1.0-pre14-1d9a6a7ff -PuseMavenLocal=true --offline
+  -PyanoVersion=0.1.0-pre14
 ```
 
-The example version above is a coordinated local development checkpoint, not
-a public release. Use the exact version actually published in your rehearsal.
+Maven Local is not required and remains disabled by default.
 The production provider checks that the definition's policy and source-set
 digests match `AdaUsdReferenceStateMachine.parameters()`; changing these
 semantics requires a new application/profile identity, not an operator-local

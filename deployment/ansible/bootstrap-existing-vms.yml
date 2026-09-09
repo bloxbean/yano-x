@@ -1,0 +1,150 @@
+---
+- name: Bootstrap existing Linux VMs for Yano X
+  hosts: yano_bootstrap
+  become: true
+  gather_facts: true
+  serial: 1
+  any_errors_fatal: true
+  vars:
+    yano_admin_user: admin
+    yano_admin_public_key_file: ""
+    yano_harden_ssh: false
+
+  pre_tasks:
+    - name: Require a supported Debian-family host
+      ansible.builtin.assert:
+        that:
+          - ansible_os_family == 'Debian'
+          - ansible_service_mgr == 'systemd'
+        fail_msg: This bootstrap currently supports systemd-based Debian and Ubuntu hosts only.
+
+    - name: Validate bootstrap inputs
+      ansible.builtin.assert:
+        that:
+          - yano_admin_user is match('^[a-z_][a-z0-9_-]{0,31}$')
+          - yano_admin_public_key_file | length > 0
+        fail_msg: Set an admin user and an absolute controller-side public-key path.
+
+    - name: Inspect the controller-side public key
+      ansible.builtin.stat:
+        path: "{{ yano_admin_public_key_file }}"
+      register: yano_public_key_file
+      delegate_to: localhost
+      become: false
+
+    - name: Require a regular controller-side public-key file
+      ansible.builtin.assert:
+        that:
+          - yano_public_key_file.stat.exists
+          - yano_public_key_file.stat.isreg
+        fail_msg: The configured public-key file does not exist or is not a regular file.
+
+    - name: Read the controller-side public key
+      ansible.builtin.set_fact:
+        yano_admin_public_key: >-
+          {{ lookup('ansible.builtin.file', yano_admin_public_key_file) | trim }}
+
+    - name: Require an OpenSSH public key
+      ansible.builtin.assert:
+        that:
+          - yano_admin_public_key is match('^(ssh-ed25519|ssh-rsa|ecdsa-sha2-nistp(256|384|521)) [A-Za-z0-9+/]+={0,3}( .*)?$')
+        fail_msg: The configured file does not contain one supported OpenSSH public key.
+
+    - name: Require the verified admin connection before SSH hardening
+      ansible.builtin.assert:
+        that:
+          - (ansible_user | default('')) == yano_admin_user
+        fail_msg: >-
+          SSH hardening is a second-phase operation. Re-run this playbook through the verified
+          admin key account and set yano_harden_ssh=true.
+      when: yano_harden_ssh | bool
+
+  tasks:
+    - name: Install bootstrap packages
+      ansible.builtin.apt:
+        name:
+          - openssh-server
+          - sudo
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Create the administrative account
+      ansible.builtin.user:
+        name: "{{ yano_admin_user }}"
+        groups: sudo
+        append: true
+        create_home: true
+        password_lock: true
+        shell: /bin/bash
+        state: present
+
+    - name: Create the administrative SSH directory
+      ansible.builtin.file:
+        path: "/home/{{ yano_admin_user }}/.ssh"
+        state: directory
+        owner: "{{ yano_admin_user }}"
+        group: "{{ yano_admin_user }}"
+        mode: "0700"
+
+    - name: Install the administrative public key
+      ansible.builtin.copy:
+        content: "{{ yano_admin_public_key }}\n"
+        dest: "/home/{{ yano_admin_user }}/.ssh/authorized_keys"
+        owner: "{{ yano_admin_user }}"
+        group: "{{ yano_admin_user }}"
+        mode: "0600"
+
+    - name: Grant passwordless administrative sudo
+      ansible.builtin.copy:
+        content: "{{ yano_admin_user }} ALL=(ALL:ALL) NOPASSWD: ALL\n"
+        dest: /etc/sudoers.d/90-yano-admin
+        owner: root
+        group: root
+        mode: "0440"
+        validate: /usr/sbin/visudo -cf %s
+
+    - name: Check for the Debian SSH configuration include
+      ansible.builtin.command:
+        argv:
+          - grep
+          - -Eq
+          - ^[[:space:]]*Include[[:space:]]+/etc/ssh/sshd_config.d/\*.conf
+          - /etc/ssh/sshd_config
+      register: yano_sshd_include
+      changed_when: false
+      failed_when: false
+      when: yano_harden_ssh | bool
+
+    - name: Require the SSH drop-in include before hardening
+      ansible.builtin.assert:
+        that: yano_sshd_include.rc == 0
+        fail_msg: The host SSH configuration does not include /etc/ssh/sshd_config.d/*.conf.
+      when: yano_harden_ssh | bool
+
+    - name: Disable password and direct root SSH login
+      ansible.builtin.copy:
+        content: |
+          PubkeyAuthentication yes
+          PasswordAuthentication no
+          KbdInteractiveAuthentication no
+          PermitEmptyPasswords no
+          PermitRootLogin no
+        dest: /etc/ssh/sshd_config.d/00-yano-hardening.conf
+        owner: root
+        group: root
+        mode: "0644"
+        validate: /usr/sbin/sshd -t -f %s
+      notify: Reload SSH
+      when: yano_harden_ssh | bool
+
+    - name: Validate the complete effective SSH configuration
+      ansible.builtin.command: /usr/sbin/sshd -t
+      changed_when: false
+      when: yano_harden_ssh | bool
+
+  handlers:
+    - name: Reload SSH
+      ansible.builtin.service:
+        name: ssh
+        state: reloaded

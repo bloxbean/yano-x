@@ -57,9 +57,23 @@ def anchor(leader, height, script_hash=script):
         "lastAnchoredHeight": height,
     }
 
-height = 0 if mode in ("pending", "nonzero-pending") else int(mode[-1]) \
+def pending_follower():
+    return {
+        "enabled": True,
+        "mode": "script",
+        "leader": False,
+        "bootstrapped": False,
+        "identityCandidatePending": False,
+        "lastAnchoredHeight": 0,
+    }
+
+height = 0 if mode in ("pending", "pending-object", "pending-candidate", "transport-pending", "nonzero-pending",
+                       "pool-pending", "stored-pending", "tip-pending", "root-pending",
+                       "pending-follower-height", "pending-disabled", "pending-wrong-mode") else int(mode[-1]) \
     if mode.startswith("adopted") else 1
-tip = 0 if mode == "pending" else max(1, height)
+tip = 0 if mode in ("pending", "pending-object", "pending-candidate", "transport-pending", "pending-follower-height",
+                    "pool-pending", "stored-pending", "tip-pending", "root-pending",
+                    "pending-disabled", "pending-wrong-mode") else max(1, height)
 root = "0" * 64 if tip == 0 else "33" * 32
 documents = []
 for index in range(3):
@@ -84,6 +98,13 @@ for index in range(3):
     }
     if index == 0:
         document["anchor"] = anchor(True, height)
+    elif mode in ("pending", "transport-pending"):
+        document["anchor"] = None
+    elif mode in ("pending-object", "pending-candidate", "nonzero-pending",
+                  "pool-pending", "stored-pending", "tip-pending", "root-pending",
+                  "pending-follower-height", "pending-disabled", "pending-wrong-mode"):
+        document["anchor"] = pending_follower()
+        document["anchor"]["identityCandidatePending"] = mode == "pending-candidate"
     elif mode.startswith("adopted") or mode == "identity-mismatch":
         document["anchor"] = anchor(False, height,
             "44" * 28 if mode == "identity-mismatch" and index == 2 else script)
@@ -93,6 +114,26 @@ for index in range(3):
 
 if mode == "nonzero-pending":
     documents[0]["submitted"] = 1
+if mode == "transport-pending":
+    for document in documents:
+        document["received"] = 4
+        document["relayed"] = 3
+        document["duplicates"] = 2
+        document["seenIds"] = 1
+if mode == "pending-follower-height":
+    documents[1]["anchor"]["lastAnchoredHeight"] = 1
+if mode == "pending-disabled":
+    documents[1]["anchor"]["enabled"] = False
+if mode == "pending-wrong-mode":
+    documents[1]["anchor"]["mode"] = "metadata"
+if mode == "pool-pending":
+    documents[0]["poolSize"] = 1
+if mode == "stored-pending":
+    documents[0]["storedMessages"] = 1
+if mode == "tip-pending":
+    documents[0]["tipHeight"] = 1
+if mode == "root-pending":
+    documents[0]["stateRoot"] = "33" * 32
 
 for index, document in enumerate(documents):
     path = directory / f"node{index}.json"
@@ -135,6 +176,8 @@ elif mutation == "boolean-tip":
     documents[0]["tipHeight"] = False
 elif mutation == "boolean-anchor-height":
     documents[0]["anchor"]["lastAnchoredHeight"] = False
+elif mutation == "boolean-transport-counter":
+    documents[0]["received"] = False
 else:
     raise SystemExit("unknown mutation")
 for path, document in zip(paths, documents):
@@ -203,6 +246,48 @@ write_statuses pending
 # Reconciliation updates only the timestamp; retain the new pending baseline.
 cp "$BINDING" "$TMP/pending-binding.json"
 
+write_statuses pending-object
+state="$(python3 "$TOOL" reconcile "${common_args[@]}" \
+  "${member_args[@]}" --allow-pristine-pending "${status_args[@]}")"
+[ "$state" = pending-genesis ] || fail 'explicit unbootstrapped followers were not recorded as pending'
+
+write_statuses transport-pending
+state="$(python3 "$TOOL" reconcile "${common_args[@]}" \
+  "${member_args[@]}" --allow-pristine-pending "${status_args[@]}")"
+[ "$state" = pending-genesis ] || fail 'transport activity incorrectly blocked pending genesis'
+
+write_statuses pending-candidate
+state="$(python3 "$TOOL" reconcile "${common_args[@]}" \
+  "${member_args[@]}" --allow-pristine-pending "${status_args[@]}")"
+[ "$state" = pending-genesis ] || fail 'unbootstrapped candidate followers were not recorded as pending'
+cp "$BINDING" "$TMP/pending-binding.json"
+
+write_statuses pending-object
+python3 - "$STATUS_DIR/node2.json" <<'PY'
+import json
+import os
+import sys
+
+path = sys.argv[1]
+with open(path, encoding="utf-8") as stream:
+    document = json.load(stream)
+document["anchor"]["threadPolicyId"] = "ff" * 28
+with open(path, "w", encoding="utf-8") as stream:
+    json.dump(document, stream, sort_keys=True, separators=(",", ":"))
+    stream.write("\n")
+os.chmod(path, 0o600)
+PY
+result=0
+if python3 "$TOOL" reconcile "${common_args[@]}" \
+    "${member_args[@]}" --allow-pristine-pending "${status_args[@]}" \
+    >"$TMP/pending-identity-mismatch.out" 2>&1; then
+  fail 'pending follower identity mismatch unexpectedly succeeded'
+else
+  result=$?
+fi
+[ "$result" -eq 2 ] || fail 'pending follower identity mismatch was not fatal'
+write_statuses pending
+
 # The same binding topology validator accepts the other immutable stock demo
 # provider only when all member statuses and the expected provider agree.
 COMPOSITE_BINDING="$TMP/composite-anchor-binding.json"
@@ -261,6 +346,7 @@ expect_fatal_status_mutation boolean-counter 'boolean pristine counter'
 expect_fatal_status_mutation boolean-transport-counter 'boolean transport counter'
 expect_fatal_status_mutation boolean-tip 'boolean app-chain tip'
 expect_fatal_status_mutation boolean-anchor-height 'boolean anchor height'
+expect_fatal_status_mutation boolean-transport-counter 'boolean transport counter'
 
 result=0
 write_statuses pending
@@ -283,6 +369,32 @@ fi
 [ "$result" -eq 3 ] || fail 'nonzero pending state did not fail closed as transient'
 cmp -s "$BINDING" "$TMP/pending-binding.json" \
   || fail 'rejected nonzero pending state modified the binding'
+
+for invalid_pending in pending-follower-height pending-disabled pending-wrong-mode; do
+  write_statuses "$invalid_pending"
+  result=0
+  if python3 "$TOOL" reconcile "${common_args[@]}" "${member_args[@]}" \
+      --allow-pristine-pending "${status_args[@]}" >"$TMP/$invalid_pending.out" 2>&1; then
+    fail "$invalid_pending state was accepted as pending genesis"
+  else
+    result=$?
+  fi
+  [ "$result" -eq 3 ] || fail "$invalid_pending state did not fail closed as transient"
+  cmp -s "$BINDING" "$TMP/pending-binding.json" \
+    || fail "$invalid_pending state modified the binding"
+done
+
+for invalid_application in pool-pending stored-pending tip-pending root-pending; do
+  write_statuses "$invalid_application"
+  result=0
+  if python3 "$TOOL" reconcile "${common_args[@]}" "${member_args[@]}" \
+      --allow-pristine-pending "${status_args[@]}" >"$TMP/$invalid_application.out" 2>&1; then
+    fail "$invalid_application state was accepted as pending genesis"
+  else
+    result=$?
+  fi
+  [ "$result" -eq 3 ] || fail "$invalid_application state did not fail closed as transient"
+done
 
 write_statuses mixed
 result=0

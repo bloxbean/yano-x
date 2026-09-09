@@ -23,8 +23,8 @@ wallet. No private key is held in application state.
 
 Use the ordinary Yano JVM distribution and the dependency-complete Yano X
 stdlib plugin bundle through the plugin catalog. The plugin requires host API
-major 3, level 8. The current coordinated development host is
-`0.1.0-pre14-d3adba688`; local publication is not a public release.
+major 3, level 8. Use released Yano `0.1.0-pre14` with its matching Maven
+artifacts and ordinary JVM ZIP; Maven Local is not required.
 
 Select `shipment-workflow-reference-v1` as the state machine. The suffix-keyed
 chain settings must include:
@@ -53,9 +53,9 @@ public HTTPS endpoint, authorized attestor keys and an explicit
 `observations.providers.<definition>.source-id`. Bind that
 same logical source ID into `merkleAttestedHttpsSourceDigest(url, method, sourceId, keys)`.
 The attestation and leaf must identify that source; a valid signature for
-another source is insufficient. Review remediation requires host
-`0.1.0-pre14-60622092b` or a corresponding later release, with matching Maven/JVM
-inputs. Existing preview profiles must be regenerated for a new generation.
+another source is insufficient. The source-binding review remediation is included in Yano `0.1.0-pre14`.
+Older preview profiles require an explicitly prepared new generation; never
+regenerate the identity or profile of a retained deployment in place.
 Configure normal definition/profile evidence, report, and source bounds. There is no
 runtime mutation of this profile by the example.
 

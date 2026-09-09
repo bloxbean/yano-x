@@ -1,6 +1,7 @@
 package com.bloxbean.cardano.yano.appchain.eutxo.bridge.cardano;
 
 import com.bloxbean.cardano.yano.api.appchain.l1view.L1Observer;
+import com.bloxbean.cardano.yano.api.appchain.l1view.L1ObserverConsensusIdentity;
 import com.bloxbean.cardano.yano.api.appchain.l1view.L1ObserverProvider;
 
 import java.util.Map;
@@ -12,6 +13,12 @@ public final class CardanoBridgeObserverProvider implements L1ObserverProvider {
     @Override
     public String type() {
         return TYPE;
+    }
+
+    @Override
+    public L1ObserverConsensusIdentity consensusIdentity(
+            String observerId, Map<String, String> settings) {
+        return new AcceptedVaultDepositObserver(observerId, settings).consensusIdentity();
     }
 
     @Override

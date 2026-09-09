@@ -70,7 +70,10 @@ class TypedStateMachineTest {
 
     @AfterEach
     void tearDown() {
-        if (node != null) node.close();
+        if (node != null) {
+            // Final teardown must await deferred store cleanup before @TempDir deletion.
+            node.close();
+        }
     }
 
     @Test

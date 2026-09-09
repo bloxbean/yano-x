@@ -37,44 +37,6 @@ tasks.withType(Test).configureEach {
     }
 }
 
-// Published pre15 reproduces the retained deployment templates. The local
-// artifact previously labelled pre14 was a later development build and is not
-// byte-identical to published pre14 (caught by exact-input remote CI).
-// A compiler upgrade
-// is not an implicit authorization to change script hashes. Reproduce those
-// exact bytes in an isolated test runtime; current conformance tests still use
-// the repository's current compiler/VM (including its newer ledger APIs).
-def settlementArtifactCompilerVersion = '0.1.0-pre15'
-def settlementArtifactRuntime = configurations.create('settlementArtifactRuntimeClasspath') {
-    canBeConsumed = false
-    canBeResolved = true
-    extendsFrom configurations.testRuntimeClasspath
-}
-configurations.testRuntimeClasspath.attributes.keySet().each { key ->
-    settlementArtifactRuntime.attributes.attribute(key,
-            configurations.testRuntimeClasspath.attributes.getAttribute(key))
-}
-settlementArtifactRuntime.resolutionStrategy.eachDependency { details ->
-    if (details.requested.group == 'com.bloxbean.cardano'
-            && details.requested.name.startsWith('julc-')) {
-        details.useVersion settlementArtifactCompilerVersion
-        details.because 'Reproduce retained settlement deployment templates without changing script hashes'
-    }
-}
-tasks.register('verifySettlementArtifacts', Test) {
-    group = 'verification'
-    description = 'Reproduces retained settlement templates with their pinned Julc compiler.'
-    dependsOn tasks.named('testClasses')
-    testClassesDirs = sourceSets.test.output.classesDirs
-    classpath = sourceSets.test.output + sourceSets.main.output + settlementArtifactRuntime
-    include '**/SettlementArtifactBundleTest.class'
-    inputs.property('settlementArtifactCompilerVersion', settlementArtifactCompilerVersion)
-}
-tasks.named('test', Test) {
-    dependsOn tasks.named('verifySettlementArtifacts')
-    exclude '**/SettlementArtifactBundleTest.class'
-}
-
 publishing {
     publications {
         mavenJava(MavenPublication) {

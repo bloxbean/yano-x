@@ -1,189 +1,76 @@
 ---
-title: Quickstart
-description: Start a three-member app chain on a self-contained devnet, submit a business event, confirm every member agrees, and pull a proof — in about ten minutes.
-sidebar:
-  order: 4
+title: "Start a local Yano X showcase"
+description: "Run three nodes, submit useful data, and inspect proofs without a source checkout, wallet, public-network funds, or external Cardano node."
+editUrl: false
 ---
 
-Ten minutes, three members, one agreed state root, and one verifiable proof.
-No external Cardano node, no wallet, no funds, no Kafka, no plugin of your own.
-
-This page assumes you have already
-[built and unpacked the distribution](/start-here/build-from-source/). Every
-command runs from the directory that contains `yano.sh`.
-
-```bash
-cd ~/yano-x/yano-x-jvm-*
-./yano.sh appchain help
-```
-
-## 1. Start three members
-
-```bash
-export YANO_CLUSTER_DIR=/tmp/yano-quickstart
-./yano.sh appchain cluster start 3
-```
-
-:::caution[Always set `YANO_CLUSTER_DIR` explicitly]
-Without it the launcher uses its default location, which may already hold a
-cluster you care about. Setting it makes this quickstart's state disposable and
-keeps `stop`, `clean`, and `reset` pointed somewhere harmless.
+:::note[Imported page]
+This page is generated from [`docs/appchain/deployment/quickstart.md`](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/deployment/quickstart.md)
+in the Yano X repository, which is its source of truth.
 :::
 
-The launcher starts a self-contained Cardano devnet and a three-member app
-chain:
+Run three nodes, submit useful data, and inspect proofs without a source checkout,
+wallet, public-network funds, or external Cardano node.
 
-- node 0 is the local L1 block producer and the app-chain proposer;
-- nodes 1 and 2 are app-chain voting members;
-- three chains come up — `orders-chain` (`ordered-log`), `registry-chain`
-  (`kv-registry`), and `effects-chain` (`approvals`).
+## 1. Get the matching archive
 
-The expected HTTP ports are `7070`, `7071`, and `7072`. If those are busy the
-launcher prints the range it chose instead; use that range below.
+From the [Yano X releases page](https://github.com/bloxbean/yano-x/releases), select
+one release and download its `yano-showcase-<version>.zip` and published checksum.
+Use the checksum from that same release. If a release does not publish a showcase
+archive, use a qualified build from your team or the
+[distribution build instructions](/start-here/build-from-source/); do not substitute
+an unrelated Yano ZIP.
 
-## 2. Confirm the members agree
-
-```bash
-./yano.sh appchain cluster status
-```
-
-Look for:
-
-```text
-orders-chain: AGREED (...)
-registry-chain: AGREED (...)
-```
-
-`AGREED` means every member exposes the **same authenticated application
-root** — not merely that three processes are alive. That distinction is the
-whole point.
-
-There is a status page per node if you prefer a UI:
-
-- `http://127.0.0.1:7070/ui/app-chain/`
-- `http://127.0.0.1:7071/ui/app-chain/`
-- `http://127.0.0.1:7072/ui/app-chain/`
-
-## 3. Submit a business event
-
-Submit through member 1, not the proposer, so the gossip path is exercised:
+Extract into a new directory and open a terminal in the directory containing
+`showcase.sh`. Keep this directory for later restarts. Install Java 25, Python 3,
+`curl`, and `jq`; Python uses only its standard library. Docker is needed only
+for the separate evidence demo.
 
 ```bash
-./yano.sh appchain cluster submit orders-chain orders \
-  '{"event":"order-created","orderId":"A-1001","quantity":4}' \
-  --node 1
+./showcase.sh doctor --profile light
+./showcase.sh quickstart --profile light --nodes 3 --instance first-demo
 ```
 
-Member 1 authenticates the envelope and gossips it. The proposer orders it into
-a block, a threshold of members signs that block, and all three apply the same
-bytes.
+Quickstart starts a private devnet and thirteen application chains. It runs a
+composite workflow and authenticated-map demonstration, checks convergence, and
+prints the console address. Use the printed ports if the default ports are busy.
 
-Wait a couple of seconds, then look at the finalized history and agreement:
+The light profile demonstrates logs, registries, document trails, approvals,
+authenticated maps, effects, and more. Optional external connectors and ZK have
+separate prerequisites. Quickstart bootstraps the workflow chain's **devnet**
+anchor; it does not mean every chain is independently anchored on a public network.
+
+## 2. Insert data and inspect the result
 
 ```bash
-curl -s http://127.0.0.1:7070/api/v1/app-chain/chains/orders-chain/blocks | jq .
-./yano.sh appchain cluster status
+./demos/submit-orders.sh first-demo '{"order":"A-100","event":"created"}'
+./demos/submit-documents.sh first-demo document-A-100
+./showcase.sh verify all --instance first-demo
+./showcase.sh ui --instance first-demo
 ```
 
-The tip advances on every member and the roots stay equal.
+The order command prints a finalized position and proof claim. The document
+scenario appends to a trail. Verification checks node readiness, converged tips
+and roots, and certificate counts for chains with finalized blocks. Open the
+printed console URL to inspect messages, chain state, and effects.
 
-## 4. Prove it
+A successful HTTP submission is admission to the message pool. Finality and a
+successful application transition are later results. See the
+[HTTP submission walkthrough](https://github.com/bloxbean/yano-x/blob/main/examples/showcase/docs/MESSAGE_SUBMISSION.md)
+for the actual requests, message lookup, and typed proof route.
 
-Submit through the public API so you capture a message id, then ask for a proof
-bound to the committed root:
+## 3. Keep your state and resume
 
 ```bash
-RESPONSE=$(curl -s -X POST \
-  http://127.0.0.1:7072/api/v1/app-chain/chains/orders-chain/messages \
-  -H 'Content-Type: application/json' \
-  -d '{"topic":"orders","body":"{\"event\":\"packed\",\"orderId\":\"A-1001\"}"}')
-
-MESSAGE_ID=$(echo "$RESPONSE" | jq -r .messageId)
-sleep 3
-
-curl -s -X POST \
-  "http://127.0.0.1:7070/api/v1/app-chain/chains/orders-chain/proof-subjects/finalized-message-v1/proof" \
-  -H 'Content-Type: application/json' \
-  -d "$(jq -nc --arg id "$MESSAGE_ID" '
-    {coordinates:{"message-id":$id}, view:"latest",
-     claim:{claimId:"recorded",operands:{}}, includeEvidence:false}')" \
-  | jq '{stateRoot:.proof.stateRoot,presence:.proof.presence,position:.fact.fields,claim:.claimResult.satisfied}'
+./showcase.sh config paths --instance first-demo
+./showcase.sh stop --instance first-demo
+./showcase.sh restart --instance first-demo
+./showcase.sh verify all --instance first-demo
 ```
 
-Two things worth noticing:
+Retrieve the same order after restart. Do not reset an instance to fix a startup
+error. Run `./showcase.sh logs --instance first-demo` and inspect the first failure;
+keep the generated identity and data directories together.
 
-- The proof was requested from node **0** for a message submitted to node
-  **2**. Any member can serve it, and the proof is checkable without trusting
-  the one that did.
-- The typed subject `finalized-message-v1` resolved the public message id to
-  its namespaced physical state key. You did not need to know the trie layout.
-
-## 5. Restart without losing agreement
-
-```bash
-./yano.sh appchain cluster stop     # preserves state
-./yano.sh appchain cluster start 3
-./yano.sh appchain cluster status
-```
-
-Members reload their retained history, re-verify hash chains, certificates, and
-re-executed state roots, and return to `AGREED`. Recovery never means trusting
-a database copy.
-
-:::caution
-`stop` preserves state. `clean` is `stop` plus a wipe, and
-`reset --yes` is destructive. Do not point either at a deployment you care
-about.
-:::
-
-## 6. Optional: load, effects, and membership
-
-```bash
-# A bounded load test: 500 messages, 10 concurrent submitters, ~256-byte bodies.
-./yano.sh appchain cluster loadtest orders-chain -n 500 -c 10 -s 256
-
-# Spread submissions across every member's ingress.
-./yano.sh appchain cluster loadtest orders-chain -n 1000 -c 20 -s 256 --spread
-
-# Emit and externally execute one effect, with no broker or credentials.
-./yano.sh appchain cluster effect demo
-
-# Govern, start, and catch up a fourth member.
-./yano.sh appchain cluster node join 3
-```
-
-The load test reports a **SUBMIT rate** (how fast a REST ingress accepts
-messages) and a **FINALIZE rate** (how fast messages enter threshold-certified
-blocks). The second one is the meaningful chain-throughput number. Entries
-under `dropped (429 pool)` mean backpressure worked; `errors` are real failures
-worth investigating.
-
-## What you just proved
-
-- Three independent processes finalized the same ordered history and derived
-  the same authenticated root.
-- A message submitted to one member was ordered, threshold-signed, and applied
-  identically by all of them.
-- A record can be proved against a committed root by any member, and the proof
-  is verifiable without trusting the server.
-- State survives a restart and is re-verified rather than re-trusted.
-
-## Where to go next
-
-| You want to… | Go to |
-|---|---|
-| Understand what just happened | [Architecture](/concepts/architecture/) |
-| Store owner-controlled data and prove it | [Tutorial 2 — registry and proofs](/tutorials/02-registry-and-proofs/) |
-| Pick a state machine for your own use case | [Recipe catalog](/recipes/) |
-| Connect a finalized decision to an ERP or webhook | [Tutorial 6 — webhook effects](/tutorials/06-webhook-effects/) |
-| Settle a root on Cardano and verify it | [Tutorial 7 — anchors and verification](/tutorials/07-anchors-and-verification/) |
-| Write business rules Yano does not ship | [The plugin framework](/plugins/) |
-| Turn a demo into a pilot | [Tutorial 9 — from demo to pilot](/tutorials/09-from-demo-to-pilot/) |
-
-:::note[This is a single-host launcher]
-`appchain cluster` runs every member as a process on one machine. Real keys and
-a public network make it capable, but one host is not three failure domains.
-Distributed deployments use generated per-machine project overlays and your
-normal orchestration layer — see
-[Tutorial 9](/tutorials/09-from-demo-to-pilot/).
-:::
+Continue with [your own application profile](/deployment/configure/), or explore the
+[complete showcase](https://github.com/bloxbean/yano-x/blob/main/examples/showcase/docs/MASTER_DEMO.md).

@@ -35,6 +35,14 @@
       "bundleArtifactId": null
     },
     {
+      "modulePath": ":tooling:deployment",
+      "directory": "tooling/deployment",
+      "artifactId": "yano-x-deployment",
+      "publicationType": "tool",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
       "modulePath": ":tooling:studio",
       "directory": "tooling/studio",
       "artifactId": "yano-x-studio",
@@ -249,6 +257,14 @@
       "publicationType": "runtime-plugin",
       "pluginBundleId": "com.bloxbean.cardano.yano.appchain.zk",
       "bundleArtifactId": "yano-x-zk-bundle"
+    },
+    {
+      "modulePath": ":products:eutxo:ui",
+      "directory": "products/eutxo/ui",
+      "artifactId": "yano-x-eutxo-ui",
+      "publicationType": "web-application",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
     },
     {
       "modulePath": ":ledgers:eutxo:contracts",

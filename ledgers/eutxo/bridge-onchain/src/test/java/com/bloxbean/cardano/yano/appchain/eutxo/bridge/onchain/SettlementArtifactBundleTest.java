@@ -19,9 +19,6 @@ import static org.assertj.core.api.Assertions.assertThat;
  * ({@code src/main/resources/META-INF/plutus/*.plutus.json}) are the exact
  * UNPARAMETERIZED templates a deployment parameterizes (the anchor pattern —
  * deploy tooling loads the bundled artifact, never compiles from source).
- * The mandatory {@code verifySettlementArtifacts} task runs this test with
- * their original pinned Julc compiler; normal conformance tests use the current
- * compiler/VM. No template is implicitly migrated on a compiler upgrade.
  * This test pins them: a drift between the bundle and a fresh source compile
  * fails until the bundle is regenerated with
  * {@code -Dyano.regenerate.plutus=true}.

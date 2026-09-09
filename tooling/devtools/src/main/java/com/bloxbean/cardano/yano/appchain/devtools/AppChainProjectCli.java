@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 
 /** Guided and non-interactive project initialization/render commands. */
 final class AppChainProjectCli {
@@ -34,12 +35,16 @@ final class AppChainProjectCli {
     static final String USAGE = """
             Usage: ./yano.sh appchain init [options]
                or: ./yano.sh appchain render [project-directory] [--format text|json]
+               or: ./yano.sh appchain chain add <project> --chain-id <id> --recipe <recipe>
+               or: ./yano.sh appchain prepare [project-directory]
+               or: ./yano.sh appchain plan [project-directory]
+               or: ./yano.sh appchain apply [project-directory] --plan <reviewed-digest>
                or: ./yano.sh appchain recipes [--format text|json]
                or: ./yano.sh appchain capabilities [--format text|json]
                or: ./yano.sh appchain doctor [project-directory] [--distribution <path>]
                or: ./yano.sh appchain diff <old.lock> <new.lock> [--format text|json]
                or: ./yano.sh appchain drift [project-directory] --peer <url> [--peer <url> ...]
-               or: ./yano.sh appchain gitops [project-directory] --target helm|kustomize --output <empty-dir>
+               or: ./yano.sh appchain gitops [project-directory] --target helm|kustomize|ansible --output <empty-dir>
                or: ./yano.sh appchain plugin inspect|validate|sign|scaffold [options]
                or: ./yano.sh appchain metadata verify <plugin.jar> --trust-key <key-id=64-hex-public-key>
                or: ./yano.sh appchain migrate [project-directory] [--dry-run]
@@ -74,7 +79,7 @@ final class AppChainProjectCli {
               --peer <http(s)-base-url>     repeat for every node to compare
               --api-key-env <variable>      read the privileged API key from this environment variable
             GitOps options:
-              --target <helm|kustomize>     deterministic derivative deployment format
+              --target <helm|kustomize|ansible>     deterministic derivative deployment format
               --output <directory>          missing or empty destination directory
             Metadata verification options:
               --trust-key <id=public-key>   repeatable trusted Ed25519 raw public key
@@ -134,6 +139,8 @@ final class AppChainProjectCli {
             return AppChainDevtoolsCli.EXIT_OK;
         }
         return switch (command) {
+            case "chain" -> addChain(remaining);
+            case "prepare", "plan", "apply", "start-check" -> operation(command, remaining);
             case "init" -> initialize(parseInit(remaining));
             case "render" -> render(parseRender(remaining));
             case "recipes" -> recipes(parseFormatOnly(remaining));
@@ -147,6 +154,69 @@ final class AppChainProjectCli {
             case "migrate" -> migrate(parseMigrate(remaining));
             default -> throw new Usage("Unknown appchain project command: " + safe(command));
         };
+    }
+
+    private int addChain(String[] arguments) throws IOException {
+        if (arguments.length < 2 || !"add".equals(arguments[0])) {
+            throw new Usage("chain add <project> --chain-id <id> --recipe <recipe>");
+        }
+        Path project = path(arguments[1]);
+        String id = null;
+        String recipe = null;
+        List<String> capabilities = new ArrayList<>();
+        Map<String, String> answers = new TreeMap<>();
+        for (int index = 2; index < arguments.length; index++) {
+            String argument = arguments[index];
+            switch (argument) {
+                case "--chain-id" -> id = once(id, value(arguments, ++index, argument), argument);
+                case "--recipe" -> recipe = once(recipe, value(arguments, ++index, argument), argument);
+                case "--capability" -> capabilities.add(value(arguments, ++index, argument));
+                case "--answer" -> parseAnswer(value(arguments, ++index, argument), answers);
+                default -> throw new Usage("Unknown chain add option");
+            }
+        }
+        if (id == null || recipe == null) throw new Usage("chain add requires --chain-id and --recipe");
+        new AppChainProjectOperations(properties).addChain(project, id, recipe, List.copyOf(capabilities),
+                Map.copyOf(answers));
+        out.println("CHAIN_PROPOSED: appchain.yaml updated. Run appchain plan before applying; "
+                + "the running configuration and retained state are unchanged.");
+        return AppChainDevtoolsCli.EXIT_OK;
+    }
+
+    private int operation(String command, String[] arguments) throws IOException {
+        Path project = Path.of(".");
+        String digest = null;
+        boolean directorySet = false;
+        for (int index = 0; index < arguments.length; index++) {
+            if ("--plan".equals(arguments[index]) && "apply".equals(command) && digest == null) {
+                digest = value(arguments, ++index, "--plan");
+            } else if (!arguments[index].startsWith("-") && !directorySet) {
+                project = path(arguments[index]);
+                directorySet = true;
+            } else throw new Usage("Unexpected " + command + " option");
+        }
+        project = project.toAbsolutePath().normalize();
+        var operations = new AppChainProjectOperations(properties);
+        switch (command) {
+            case "plan" -> {
+                var plan = operations.plan(project);
+                out.println(json.writerWithDefaultPrettyPrinter().writeValueAsString(plan));
+                return plan.blockers().isEmpty() ? AppChainDevtoolsCli.EXIT_OK : AppChainDevtoolsCli.EXIT_INVALID_CONFIG;
+            }
+            case "prepare" -> {
+                operations.prepare(project);
+                out.println("PREPARED: public member keys pinned; private files stay in secrets/. "
+                        + "Set YANO_HOME to this release, then run scripts/start and appchain drift.");
+            }
+            case "apply" -> {
+                operations.apply(project, digest);
+                out.println("APPLIED: configuration revision installed; retained state preserved. "
+                        + "Run scripts/start, then verify every chain before accepting traffic.");
+            }
+            case "start-check" -> operations.startCheck(project, true);
+            default -> throw new Usage("Unknown operation");
+        }
+        return AppChainDevtoolsCli.EXIT_OK;
     }
 
     private int doctor(DoctorOptions options) throws IOException {

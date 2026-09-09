@@ -1,7 +1,8 @@
 package com.bloxbean.cardano.yano.appchain.client;
 
-import com.bloxbean.cardano.yano.api.appchain.state.StateProofSubject;
 import com.bloxbean.cardano.yano.api.appchain.AppBlock;
+import com.bloxbean.cardano.yano.api.appchain.AppBlockHeader;
+import com.bloxbean.cardano.yano.api.appchain.state.StateProofSubject;
 import com.bloxbean.cardano.yano.api.appchain.evidence.MessageInclusionProof;
 import com.bloxbean.cardano.yano.api.appchain.snapshot.SnapshotCanonicalCodec;
 import com.bloxbean.cardano.yano.api.appchain.snapshot.SnapshotDescriptorV1;
@@ -132,8 +133,8 @@ public final class AppChainClient {
             "oldestProvableHeight", "blockHash");
     private static final Set<String> CERTIFIED_BLOCK_FIELDS = Set.of(
             "version", "height", "prevHash", "l1Slot", "l1BlockHash",
-            "timestamp", "messagesRoot", "stateRoot", "blockHash", "view",
-            "consensusContextDigest", "proposer", "justificationDigest");
+            "timestamp", "messagesRoot", "stateRoot", "blockHash",
+            "view", "consensusContextDigest", "proposer", "justificationDigest");
     private static final Set<String> FINALITY_CERTIFICATE_FIELDS = Set.of(
             "scheme", "signatures");
     private static final Set<String> FINALITY_SIGNATURE_FIELDS = Set.of(
@@ -2332,7 +2333,7 @@ public final class AppChainClient {
         }
     }
 
-    /** Canonical fields signed indirectly through {@code blockHashHex}. */
+    /** Complete canonical header authenticated by a version-3 commit certificate. */
     public record CertifiedBlockHeader(
             int version,
             long height,
@@ -2347,6 +2348,12 @@ public final class AppChainClient {
             String consensusContextDigestHex,
             String proposerHex,
             String justificationDigestHex) {
+        AppBlockHeader canonicalHeader(String chainId) {
+            return new AppBlockHeader(version, chainId, height, Hex.decode(consensusContextDigestHex), view,
+                    Hex.decode(prevHashHex), l1Slot, Hex.decode(l1BlockHashHex), timestamp,
+                    Hex.decode(messagesRootHex), Hex.decode(stateRootHex), Hex.decode(proposerHex),
+                    Hex.decode(justificationDigestHex));
+        }
     }
 
     public record FinalityCertificate(int scheme, List<FinalitySignature> signatures) {

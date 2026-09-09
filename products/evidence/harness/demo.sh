@@ -889,7 +889,7 @@ prepare_directories() {
   prepare_private_state_directory "$DATA_ROOT/connectors/ipfs"
   prepare_private_state_directory "$REPORT_DIR"
   for i in 0 1 2; do
-    for dir in "$L1_ROOT/node$i" "$DATA_ROOT/app-chain/node$i" \
+    for dir in "$L1_ROOT/node$i" "$L1_ROOT/node$i/history" "$DATA_ROOT/app-chain/node$i" \
       "$DATA_ROOT/logs/node$i"; do
       mkdir -p "$dir"
       chmod u+rwx "$dir"
@@ -1628,6 +1628,7 @@ prepare_host_configs() {
       RESULT_SIGNERS "$RESULT_SIGNERS" STORAGE_GATE "$STORAGE_GATE" \
       EVIDENCE_CAPACITY_PER_BLOCK "$EVIDENCE_CAPACITY_PER_BLOCK" \
       DIRECT_RESULT_ACTIVATION_SETTING "$DIRECT_RESULT_ACTIVATION_SETTING" \
+      HISTORY_DIR "$L1_ROOT/node$i/history" \
       GENESIS_TIMESTAMP_SETTING "$genesis_setting" \
       ANCHOR_MAX_INTERVAL_MINUTES "$PROFILE_ANCHOR_MAX_INTERVAL_MINUTES"
     insert_node_settings "$base" "$([ "$i" -eq 0 ] && printf '%s' "$executor" || printf '%s' "$follower")" \
@@ -1733,6 +1734,7 @@ write_compose_env() {
       for i in 0 1 2; do
         printf 'DEMO_NODE%s_CONFIG=%s\n' "$i" "$NODE_CONFIG_DIR/node$i.properties"
         printf 'DEMO_YANO%s_DATA_DIR=%s\n' "$i" "$L1_ROOT/node$i"
+        printf 'DEMO_YANO%s_HISTORY_DIR=%s\n' "$i" "$L1_ROOT/node$i/history"
         printf 'DEMO_YANO%s_APP_DATA_DIR=%s\n' "$i" "$DATA_ROOT/app-chain/node$i"
         printf 'DEMO_YANO%s_LOG_DIR=%s\n' "$i" "$DATA_ROOT/logs/node$i"
       done
@@ -2221,6 +2223,30 @@ reconcile_anchor_binding() {
   for status_file in "${statuses[@]}"; do
     binding_command+=(--status "$status_file")
   done
+  anchor_reconciliation_diagnostics() {
+    local i response
+    note 'Last anchor reconciliation diagnostics (allowlisted fields):' >&2
+    for i in 0 1 2; do
+      response="$(curl --connect-timeout 3 --max-time 10 -fsS \
+        "http://127.0.0.1:$((HTTP0 + i))/api/v1/app-chain/chains/$DEMO_CHAIN_ID/status" \
+        2>/dev/null || true)"
+      printf '%s' "$response" | python3 -c '
+import json, sys
+try:
+    status = json.load(sys.stdin)
+    anchor = status.get("anchor") if isinstance(status, dict) else None
+    anchor_fields = ("leader", "bootstrapped", "identityCandidatePending", "lastAnchoredHeight")
+    counter_fields = ("tipHeight", "poolSize", "submitted", "received", "relayed",
+                      "duplicates", "seenIds", "storedMessages", "stateRoot")
+    print(json.dumps({"node": int(sys.argv[1]),
+                      "counters": {key: status.get(key) for key in counter_fields},
+                      "anchor": {key: anchor.get(key) for key in anchor_fields}
+                                if isinstance(anchor, dict) else None}))
+except (ValueError, TypeError, AttributeError):
+    print("node" + sys.argv[1] + " status unavailable")
+' "$i" >&2 || true
+    done
+  }
   deadline=$((SECONDS + 180))
   if [ "$require_adopted" = true ]; then
     note "WAIT_ANCHOR_ADOPTION: requiring one adopted script identity and height on all members."
@@ -2256,8 +2282,9 @@ reconcile_anchor_binding() {
   done
   if [ -s "$error_file" ]; then
     binding_error="$(tr '\n' ' ' < "$error_file")"
-    note "Last anchor reconciliation diagnostic: $binding_error"
+    note "Last anchor reconciliation error: $binding_error" >&2
   fi
+  anchor_reconciliation_diagnostics
   if [ "$require_adopted" = true ]; then
     die "members did not converge on one adopted anchor identity/height within 180 seconds"
   fi
@@ -2480,10 +2507,8 @@ print(str(bool(a.get("bootstrapped"))).lower(), a.get("walletAddress", ""))
 
 host_cluster() {
   local cluster="" key="" devnet_genesis=""
-  if [ -x "$APP_DIR/examples/appchain-cluster/cluster.sh" ]; then
-    cluster="$APP_DIR/examples/appchain-cluster/cluster.sh"
-  elif [ -n "$REPO_DIR" ] && [ -x "$REPO_DIR/scripts/appchain-cluster/cluster.sh" ]; then
-    cluster="$REPO_DIR/scripts/appchain-cluster/cluster.sh"
+  if [ -x "$APP_DIR/appchain-cluster/cluster.sh" ]; then
+    cluster="$APP_DIR/appchain-cluster/cluster.sh"
   fi
   [ -x "$cluster" ] || die "cluster launcher not executable: $cluster"
   case "${1:-}" in

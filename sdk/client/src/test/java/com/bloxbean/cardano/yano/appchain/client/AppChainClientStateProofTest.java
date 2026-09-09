@@ -139,7 +139,7 @@ class AppChainClientStateProofTest {
                 profile.commitmentFormatId(), profile.formatFingerprintHex(),
                 "11".repeat(32), profile.proofEncodingId(), blockHash,
                 "00".repeat(32), "33".repeat(32), ROOT, blockHash,
-                "66".repeat(32), "44".repeat(32), "77".repeat(32),
+                "66".repeat(32), "77".repeat(32), "88".repeat(32),
                 "44".repeat(32), "55".repeat(64));
         AtomicReference<String> response = new AtomicReference<>(tagged);
         start(exchange -> respond(exchange, 200, response.get()));
@@ -150,6 +150,13 @@ class AppChainClientStateProofTest {
         assertThat(proof.backend()).isEqualTo("jmt");
         assertThat(proof.oldestProvableHeight()).isEqualTo(2);
         assertThat(proof.block().height()).isEqualTo(42);
+        assertThat(proof.block().consensusContextDigestHex()).isEqualTo("66".repeat(32));
+        response.set(tagged.replace("\"view\":0,", ""));
+        assertThatThrownBy(() -> client().proof(new byte[]{1}))
+                .hasMessageContaining("Invalid certified app-chain block header");
+        response.set(tagged.replace("\"view\":0", "\"view\":-1"));
+        assertThatThrownBy(() -> client().proof(new byte[]{1}))
+                .isInstanceOf(AppChainClient.AppChainClientException.class);
         response.set(tagged.replace("\"backend\":\"jmt\"", "\"backend\":\"mpf\""));
         assertThatThrownBy(() -> client().proof(new byte[]{1}))
                 .isInstanceOf(AppChainClient.AppChainClientException.class)
@@ -229,8 +236,8 @@ class AppChainClientStateProofTest {
                 INCLUSION.replace("\"view\":0", "\"view\":-1"),
                 INCLUSION.replace("\"consensusContextDigest\":\"" + "66".repeat(32) + "\"",
                         "\"consensusContextDigest\":\"00\""),
-                INCLUSION.replace(",\"proposer\":\"" + "44".repeat(32) + "\"", ""),
-                INCLUSION.replace(",\"justificationDigest\":\"" + "77".repeat(32) + "\"", ""),
+                INCLUSION.replace(",\"proposer\":\"" + "77".repeat(32) + "\"", ""),
+                INCLUSION.replace(",\"justificationDigest\":\"" + "88".repeat(32) + "\"", ""),
                 duplicate,
                 unknown,
                 INCLUSION + "{}"
@@ -327,7 +334,7 @@ class AppChainClientStateProofTest {
                 profile.commitmentFormatId(), profile.formatFingerprintHex(), "11".repeat(32),
                 profile.proofEncodingId(), profile.nativeVersioning(), profile.physicalDelete(),
                 presence, BLOCK_HASH, "00".repeat(32), "33".repeat(32), ROOT, BLOCK_HASH,
-                "66".repeat(32), "44".repeat(32), "77".repeat(32),
+                "66".repeat(32), "77".repeat(32), "88".repeat(32),
                 "44".repeat(32), "55".repeat(64));
     }
 

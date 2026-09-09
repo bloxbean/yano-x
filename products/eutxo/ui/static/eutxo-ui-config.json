@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "productId": "eutxo",
+  "endpoints": [],
+  "defaultChainId": "",
+  "expectedNetwork": "",
+  "allowEndpointOverride": true
+}

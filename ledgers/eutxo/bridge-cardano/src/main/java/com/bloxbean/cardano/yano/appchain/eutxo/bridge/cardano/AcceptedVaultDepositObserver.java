@@ -11,6 +11,7 @@ import com.bloxbean.cardano.yaci.core.model.TransactionOutput;
 import com.bloxbean.cardano.yaci.core.util.HexUtil;
 import com.bloxbean.cardano.yano.api.appchain.l1view.L1Observation;
 import com.bloxbean.cardano.yano.api.appchain.l1view.L1Observer;
+import com.bloxbean.cardano.yano.api.appchain.l1view.L1ObserverConsensusIdentity;
 import com.bloxbean.cardano.yano.appchain.eutxo.contracts.EutxoDepositClaim;
 import com.bloxbean.cardano.yano.appchain.eutxo.contracts.EutxoOutpoint;
 import com.bloxbean.cardano.yano.appchain.eutxo.contracts.EutxoSettlementDatum;
@@ -58,6 +59,14 @@ final class AcceptedVaultDepositObserver implements L1Observer {
     @Override
     public String observerId() {
         return observerId;
+    }
+
+    L1ObserverConsensusIdentity consensusIdentity() {
+        return ObserverConsensusIdentity.of("eutxo-deposit-claim-v1",
+                "chain-id", chainId,
+                "vault-address", vaultAddress,
+                "vault-script-hash", vaultScriptHash,
+                "max-lovelace", maxLovelace.toString());
     }
 
     @Override

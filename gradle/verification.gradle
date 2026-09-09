@@ -228,7 +228,10 @@ tasks.register('verifySourceExtractionProvenance') {
                 || provenance.sourceRepository != 'https://github.com/bloxbean/yano'
                 || !(provenance.sourceCommit ==~ commit)
                 || !(provenance.filteredCommit ==~ commit)
-                || provenance.movedModuleCount != artifactInventory.artifacts.size()
+                // The extraction count is an immutable split-time baseline.
+                // New, post-split Yano X modules legitimately increase the
+                // current inventory but removing an extracted module fails.
+                || provenance.movedModuleCount > artifactInventory.artifacts.size()
                 || provenance.extractionTool != 'git-filter-repo') {
             throw new GradleException(
                     "Invalid source extraction provenance: ${provenance}")

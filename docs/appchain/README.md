@@ -9,6 +9,9 @@ two kinds of reader:
   to state proofs, L1 anchoring, deterministic composition, effects, plugins,
   governance, and operational boundaries.
 
+Start with the [deployment guide](deployment/README.md) for released archives,
+Studio configuration, local chain additions, and VM operations.
+
 The tutorials use the current source tree. Yano is still pre-release; use local
 devnet or a Cardano test network, disposable application data, and non-production
 credentials unless a guide explicitly says otherwise.
@@ -126,11 +129,9 @@ business meaning.
 - Java 25 when building from source.
 - Docker Desktop for the complete evidence/connector demo.
 - `bash`, `curl`, `jq`, `python3`, and `openssl`.
-- From source, build the runnable application once:
-
-```bash
-./gradlew :app:quarkusBuild -PskipSigning=true
-```
+- From source, follow [the Yano X distribution build](../BUILD_DISTRIBUTIONS.md),
+  then run the extracted JVM distribution. The upstream Yano `:app` build is
+  not a task in this repository.
 
 The cluster launcher can also use a released Yano tree; see
 [`scripts/appchain-cluster/README.md`](../../scripts/appchain-cluster/README.md).
@@ -159,6 +160,7 @@ need full detail:
 - [Domain actors and role-aware approvals](../APP_CHAIN_DOMAIN_ROLES.md)
 - [Plugin query and domain API contract](../core-host.md)
 - [Release acceptance and schema status](RELEASE_ACCEPTANCE.md)
+- [Deployment experience review and design plan (proposal)](DEPLOYMENT_EXPERIENCE_REVIEW_AND_PLAN.md)
 - [Canonical open-work tracker](../../adr/app-layer/open_item.md)
 
 ## A note on “no code”
