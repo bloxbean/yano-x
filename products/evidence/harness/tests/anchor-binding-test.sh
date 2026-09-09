@@ -170,6 +170,8 @@ elif mutation == "multiple-anchor-leaders":
     documents[1]["anchor"] = dict(documents[0]["anchor"])
 elif mutation == "boolean-counter":
     documents[0]["submitted"] = False
+elif mutation == "boolean-transport-counter":
+    documents[0]["received"] = False
 elif mutation == "boolean-tip":
     documents[0]["tipHeight"] = False
 elif mutation == "boolean-anchor-height":
@@ -206,6 +208,42 @@ jq -e '.schemaVersion == 2 and .verificationState == "pending-genesis"
   || fail 'pending binding schema is incorrect'
 python3 "$TOOL" validate "${common_args[@]}" >/dev/null \
   || fail 'canonical pending binding did not validate'
+cp "$BINDING" "$TMP/pending-binding.json"
+
+# Automatic consensus/anchor diffusion is not application activity. Reproduce
+# the real five-minute startup sample without allowing any pooled/stored input.
+python3 - "$STATUS_DIR" <<'PY'
+import json
+from pathlib import Path
+import sys
+for path in Path(sys.argv[1]).glob("node*.json"):
+    document = json.loads(path.read_text())
+    document.update(received=14, relayed=20, duplicates=26, seenIds=20)
+    path.write_text(json.dumps(document) + "\n")
+PY
+state="$(python3 "$TOOL" reconcile "${common_args[@]}" \
+  "${member_args[@]}" --allow-pristine-pending "${status_args[@]}")"
+[ "$state" = pending-genesis ] || fail 'control-only diffusion blocked pending genesis'
+
+# Each application-state guard must still reject independently at height zero.
+for activity in poolSize submitted storedMessages stateRoot; do
+  write_statuses pending
+  python3 - "$STATUS_DIR/node1.json" "$activity" <<'PY'
+import json
+from pathlib import Path
+import sys
+path = Path(sys.argv[1])
+document = json.loads(path.read_text())
+document[sys.argv[2]] = "33" * 32 if sys.argv[2] == "stateRoot" else 1
+path.write_text(json.dumps(document) + "\n")
+PY
+  result=0
+  python3 "$TOOL" reconcile "${common_args[@]}" "${member_args[@]}" \
+    --allow-pristine-pending "${status_args[@]}" >"$TMP/activity.out" 2>&1 || result=$?
+  [ "$result" -eq 3 ] || fail "$activity activity was accepted as pristine"
+done
+write_statuses pending
+# Reconciliation updates only the timestamp; retain the new pending baseline.
 cp "$BINDING" "$TMP/pending-binding.json"
 
 write_statuses pending-object
@@ -305,6 +343,7 @@ expect_fatal_status_mutation wrong-state-machine 'wrong state machine'
 expect_fatal_status_mutation wrong-role 'wrong node role'
 expect_fatal_status_mutation multiple-anchor-leaders 'multiple script-anchor leaders'
 expect_fatal_status_mutation boolean-counter 'boolean pristine counter'
+expect_fatal_status_mutation boolean-transport-counter 'boolean transport counter'
 expect_fatal_status_mutation boolean-tip 'boolean app-chain tip'
 expect_fatal_status_mutation boolean-anchor-height 'boolean anchor height'
 expect_fatal_status_mutation boolean-transport-counter 'boolean transport counter'

@@ -231,6 +231,13 @@ class AppChainClientStateProofTest {
                 INCLUSION.replace("\"proofWireHex\":\"80\"", "\"proofWireHex\":\"\""),
                 INCLUSION.replace("\"committedHeight\":42", "\"committedHeight\":-1"),
                 INCLUSION.replace("\"finalizedAtHeight\":3", "\"finalizedAtHeight\":43"),
+                INCLUSION.replace("\"version\":3", "\"version\":1"),
+                INCLUSION.replace(",\"view\":0", ""),
+                INCLUSION.replace("\"view\":0", "\"view\":-1"),
+                INCLUSION.replace("\"consensusContextDigest\":\"" + "66".repeat(32) + "\"",
+                        "\"consensusContextDigest\":\"00\""),
+                INCLUSION.replace(",\"proposer\":\"" + "77".repeat(32) + "\"", ""),
+                INCLUSION.replace(",\"justificationDigest\":\"" + "88".repeat(32) + "\"", ""),
                 duplicate,
                 unknown,
                 INCLUSION + "{}"

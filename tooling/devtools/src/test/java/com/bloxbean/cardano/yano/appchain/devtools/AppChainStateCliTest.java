@@ -53,9 +53,7 @@ class AppChainStateCliTest {
                  "block":{"version":3,"height":1,"prevHash":"%s","l1Slot":0,
                    "l1BlockHash":"","timestamp":1,"messagesRoot":"%s",
                    "stateRoot":"%s","blockHash":"%s","view":0,
-                   "consensusContextDigest":"6666666666666666666666666666666666666666666666666666666666666666",
-                   "proposer":"7777777777777777777777777777777777777777777777777777777777777777",
-                   "justificationDigest":"8888888888888888888888888888888888888888888888888888888888888888"},
+                   "consensusContextDigest":"%s","proposer":"%s","justificationDigest":"%s"},
                  "finalityCertificate":{"scheme":0,"signatures":[
                    {"signer":"%s","signature":"%s"}]}}
                 """.formatted(Hex.encode(key), root,
@@ -64,6 +62,7 @@ class AppChainStateCliTest {
                 profile.formatFingerprintHex(), genesis, profile.proofEncodingId(),
                 profile.nativeVersioning(), profile.physicalDelete(), blockHash,
                 "00".repeat(32), "33".repeat(32), root, blockHash,
+                "66".repeat(32), "44".repeat(32), "77".repeat(32),
                 "44".repeat(32), "55".repeat(64)));
 
         Result valid = run("state", "verify",

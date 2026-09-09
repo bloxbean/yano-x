@@ -6,6 +6,7 @@ import com.bloxbean.cardano.vds.core.api.NodeStore;
 import com.bloxbean.cardano.vds.jmt.JmtProfile;
 import com.bloxbean.cardano.vds.mpf.MpfTrie;
 import com.bloxbean.cardano.yano.api.appchain.AppBlock;
+import com.bloxbean.cardano.yano.api.appchain.AppBlockHeader;
 import com.bloxbean.cardano.yano.api.appchain.anchor.AnchorDatumV1;
 import com.bloxbean.cardano.yano.api.appchain.snapshot.SnapshotCanonicalCodec;
 import com.bloxbean.cardano.yano.api.appchain.snapshot.AuthenticatedSnapshotProofBundleCodec;
@@ -305,14 +306,12 @@ public final class ProofVerifier {
             if (block.version() != AppBlock.BLOCK_VERSION
                     || block.height() != proof.committedHeight()
                     || block.height() <= 0 || block.l1Slot() < 0 || block.timestamp() < 0
-                    || !proof.stateRootHex().equals(block.stateRootHex())) {
+                    || !proof.stateRootHex().equals(block.stateRootHex())
+                    || !trustContext.consensusContextDigestHex().equals(block.consensusContextDigestHex())) {
                 return false;
             }
-            if (!trustContext.consensusContextDigestHex().equals(block.consensusContextDigestHex())) {
-                return false;
-            }
-            var canonicalHeader = block.canonicalHeader(proof.chainId());
-            byte[] calculatedBlockHash = canonicalHeader.blockHash();
+            AppBlockHeader header = certifiedHeader(proof.chainId(), block);
+            byte[] calculatedBlockHash = header.blockHash();
             if (!Arrays.equals(calculatedBlockHash, Hex.decode(block.blockHashHex()))) {
                 return false;
             }
@@ -322,6 +321,7 @@ public final class ProofVerifier {
                 return false;
             }
             Set<String> seen = new HashSet<>();
+            byte[] commitDigest = header.commitDigest();
             int valid = 0;
             for (AppChainClient.FinalitySignature signature : certificate.signatures()) {
                 if (signature == null || !canonicalHex(signature.signerHex(), HASH_BYTES)
@@ -333,7 +333,7 @@ public final class ProofVerifier {
                 byte[] signer = Hex.decode(signature.signerHex());
                 byte[] signatureBytes = Hex.decode(signature.signatureHex());
                 if (!CryptoConfiguration.INSTANCE.getSigningProvider()
-                        .verify(signatureBytes, canonicalHeader.commitDigest(), signer)) {
+                        .verify(signatureBytes, commitDigest, signer)) {
                     return false;
                 }
                 valid++;
@@ -458,6 +458,25 @@ public final class ProofVerifier {
         };
     }
 
+    private static AppBlockHeader certifiedHeader(
+            String chainId,
+            AppChainClient.CertifiedBlockHeader block
+    ) {
+        if (chainId == null || chainId.isBlank()
+                || !canonicalHex(block.prevHashHex(), HASH_BYTES)
+                || !canonicalHex(block.messagesRootHex(), HASH_BYTES)
+                || !canonicalHex(block.stateRootHex(), HASH_BYTES)
+                || !canonicalHex(block.blockHashHex(), HASH_BYTES)
+                || !canonicalHex(block.consensusContextDigestHex(), HASH_BYTES)
+                || !canonicalHex(block.proposerHex(), HASH_BYTES)
+                || !canonicalHex(block.justificationDigestHex(), HASH_BYTES)
+                || !(block.l1BlockHashHex().isEmpty()
+                || canonicalHex(block.l1BlockHashHex(), HASH_BYTES))) {
+            throw new IllegalArgumentException("invalid certified block header");
+        }
+        return block.canonicalHeader(chainId);
+    }
+
     private static ProfileMetadata profile(
             String id,
             String backend,
@@ -579,7 +598,12 @@ public final class ProofVerifier {
         }
     }
 
-    /** Independently pinned membership epoch and commitment identity. */
+    /**
+     * Independently pinned membership, commitment identity and height-specific
+     * consensus context. Resolve the context from trusted chain configuration
+     * and membership history; never copy it from the proof being verified.
+     * Current headers use domain-separated COMMIT signatures, not bare hashes.
+     */
     public record FinalityTrustContext(
             String chainId,
             String profile,
@@ -594,12 +618,12 @@ public final class ProofVerifier {
             if (profileMetadata(profile).isEmpty()) {
                 throw new IllegalArgumentException("unsupported state commitment profile");
             }
-            if (!canonicalHex(consensusContextDigestHex, HASH_BYTES)) {
-                throw new IllegalArgumentException("invalid trusted consensus context digest");
-            }
             genesisIdHex = Objects.requireNonNull(genesisIdHex, "genesisIdHex");
             if (!canonicalHex(genesisIdHex, HASH_BYTES)) {
                 throw new IllegalArgumentException("invalid genesis identity");
+            }
+            if (!canonicalHex(consensusContextDigestHex, HASH_BYTES)) {
+                throw new IllegalArgumentException("A pinned consensus context digest is required");
             }
             if (memberKeysHex == null || memberKeysHex.isEmpty()
                     || memberKeysHex.size() > MAX_MEMBERS) {

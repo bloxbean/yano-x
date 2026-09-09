@@ -71,9 +71,7 @@ class StdlibAuthenticatedMapProofCompositeTest {
                      "block":{"version":3,"height":1,"prevHash":"%s","l1Slot":0,
                        "l1BlockHash":"","timestamp":1,"messagesRoot":"%s",
                        "stateRoot":"%s","blockHash":"%s","view":0,
-                       "consensusContextDigest":"6666666666666666666666666666666666666666666666666666666666666666",
-                       "proposer":"7777777777777777777777777777777777777777777777777777777777777777",
-                       "justificationDigest":"8888888888888888888888888888888888888888888888888888888888888888"},
+                       "consensusContextDigest":"%s","proposer":"%s","justificationDigest":"%s"},
                      "finalityCertificate":{"scheme":0,"signatures":[
                        {"signer":"%s","signature":"%s"}]}}
                     """.formatted(Hex.encode(compositeKey), rootHex, proofWire,
@@ -81,6 +79,7 @@ class StdlibAuthenticatedMapProofCompositeTest {
                     profile.commitmentFormatId(), profile.formatFingerprintHex(),
                     "11".repeat(32), profile.proofEncodingId(), blockHash,
                     "00".repeat(32), "33".repeat(32), rootHex, blockHash,
+                    "66".repeat(32), "44".repeat(32), "77".repeat(32),
                     "44".repeat(32), "55".repeat(64)))
                     .getBytes(StandardCharsets.UTF_8);
             exchange.getResponseHeaders().set("Content-Type", "application/json");

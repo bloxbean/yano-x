@@ -21,6 +21,7 @@ bash -n "$SOURCE"
 python3 - "$SOURCE" "$ROLE_SOURCE" "$WORKFLOW" "$RELEASE_CONTRACTS" <<'PY'
 from pathlib import Path
 import re
+import subprocess
 import sys
 
 source = Path(sys.argv[1]).read_text(encoding="utf-8")
@@ -28,8 +29,43 @@ role_source = Path(sys.argv[2]).read_text(encoding="utf-8")
 workflow = Path(sys.argv[3]).read_text(encoding="utf-8")
 release_contracts = Path(sys.argv[4]).read_text(encoding="utf-8")
 
+role_ports = dict(re.findall(
+    r'export DEMO_(\w+)="\$\{YANO_ROLE_WORKFLOW_\w+:-([0-9]+)\}"', role_source))
+listeners = []
+for name in ('HTTP_BASE', 'UI_PORT', 'SERVER_BASE', 'KAFKA_PORT', 'S3_PORT',
+             'IPFS_PORT', 'PROMETHEUS_PORT', 'GRAFANA_PORT'):
+    base = int(role_ports[name])
+    listeners.extend(range(base, base + (3 if name.endswith('_BASE') else 1)))
+if len(set(listeners)) != len(listeners) or not all(1024 <= port < 32768 for port in listeners):
+    raise SystemExit('role default listeners must be distinct and below the default Linux client-port range')
+guard = 'reject_ephemeral_listener() {' + role_source.split(
+    'reject_ephemeral_listener() {', 1)[1].split('\nfor port in ', 1)[0]
+for first, last, port, expected in ((32768, 60999, 48070, 1), (32768, 60999, 30070, 0),
+                                    (30000, 60000, 30070, 1), (0, 0, 30070, 0)):
+    result = subprocess.run(['bash', '-c', 'fail() { exit 1; };\n' + guard
+                             + f'\nEPHEMERAL_FIRST={first}; EPHEMERAL_LAST={last}; '
+                             + f'reject_ephemeral_listener {port}'], check=False)
+    if result.returncode != expected:
+        raise SystemExit('role client-port overlap guard is incorrect')
+if 'reject_ephemeral_listener "$port"' not in role_source:
+    raise SystemExit('role startup must apply its port-range guard')
+
 if 'export DEMO_DEVNET_BLOCK_TIME_MILLIS=10000' not in role_source:
     raise SystemExit("role workflow must pace its devnet producer for slow CI followers")
+
+for required in ('Bounded role anchor/status diagnostics before cleanup (success or failure):',
+                 'Bounded L1 sync/recovery diagnostics (no validation settings changed):',
+                 'peerApplicationProgressAgeMillis,peerBodyFetchInProgress',
+                 '/api/v1/node/status',
+                 'logs --no-color --since 30m yano-0 yano-1 yano-2',
+                 '\n  qualification_diagnostics\n'):
+    if required not in role_source:
+        raise SystemExit(f"role failure diagnostics are missing: {required}")
+role_cleanup = role_source[role_source.index("\ncleanup() {"):role_source.index("trap cleanup EXIT INT TERM")]
+if role_cleanup.index("qualification_diagnostics") > role_cleanup.index("demo stop"):
+    raise SystemExit("role failure diagnostics must run before stopping the containers")
+if '\nqualification_diagnostics\ndemo stop >/dev/null\n' not in role_source:
+    raise SystemExit("role success diagnostics must run before explicit cleanup bypasses the exit trap")
 
 for required in (
         '[ "${YANO_RUN_DEPLOYMENT_PARITY_E2E:-false}" = true ]',
@@ -57,6 +93,12 @@ for required in (
         'EXPECTED_STATE_MACHINE=composite',
         'EXPECTED_STATE_MACHINE=role-evidence',
         'EXPECTED_WORKFLOW_CHECK=COMPOSITE_EVIDENCE_RELEASE_WORKFLOW',
+        'Bounded script-anchor adoption diagnostics',
+        'Bounded L1 sync/recovery diagnostics (no validation settings changed):',
+        'peerApplicationProgressAgeMillis,peerBodyFetchInProgress',
+        '/api/v1/node/status',
+        'logs --no-color --since 30m yano-0 yano-1 yano-2',
+        'tail -n 180 >&2',
         'EXPECTED_WORKFLOW_CHECK=ROLE_GATED_EVIDENCE_RELEASE_WORKFLOW',
         'EXPECTED_WORKFLOW_CHECK=DIRECT_EVIDENCE_SUBMISSION',
         'EXPECTED_CONTINUATION_CHECK=DIRECT_RESULT_CONTINUATION',
@@ -264,12 +306,16 @@ def job_block(name):
 
 
 e2e_job = job_block("evidence-e2e")
+if e2e_job.count("DEMO_ANCHOR_VISIBILITY_TIMEOUT_SECONDS: '900'") != 2:
+    raise SystemExit("parity and role startup must both allow the default node recovery window")
 for required in (
         "timeout-minutes: 240",
         "YANO_RUN_DEPLOYMENT_PARITY_E2E: 'true'",
         "YANO_DEPLOYMENT_PARITY_CONTINUATION_MODE: direct",
+        "YANO_DEPLOYMENT_PARITY_TIMEOUT_SECONDS: '900'",
         "run: products/evidence/harness/tests/deployment-parity-e2e.sh",
         "YANO_RUN_ROLE_WORKFLOW_E2E: 'true'",
+        "YANO_ROLE_WORKFLOW_TIMEOUT_SECONDS: '900'",
         "run: products/evidence/harness/tests/role-workflow-e2e.sh",
 ):
     if required not in e2e_job:

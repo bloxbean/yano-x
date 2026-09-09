@@ -103,6 +103,7 @@ PY
 python3 - "$SCRIPT_DIR/effect-failover-e2e.sh" "$WORKFLOW" \
   "$DEMO_DIR/demo.sh" "$RELEASE_CONTRACTS" <<'PY'
 from pathlib import Path
+import json
 import re
 import sys
 
@@ -110,6 +111,27 @@ source = Path(sys.argv[1]).read_text(encoding="utf-8")
 workflow = Path(sys.argv[2]).read_text(encoding="utf-8")
 demo = Path(sys.argv[3]).read_text(encoding="utf-8")
 release_contracts = Path(sys.argv[4]).read_text(encoding="utf-8")
+
+# Check both exact live inventories against source manifests. The host API
+# minimum comes from the selected manifests, never from the live response.
+repo = Path(sys.argv[2]).resolve().parents[2]
+inventory = source.split("assert_plugin_operations_all_nodes() {", 1)[1].split("and (.items", 1)[0]
+selected = set(re.findall(r'"(com\.bloxbean\.cardano\.yano\.appchain\.[a-z0-9.-]+)"', inventory))
+manifests = {}
+for path in repo.glob("**/src/main/resources/META-INF/yano/plugins/*.json"):
+    document = json.loads(path.read_text(encoding="utf-8"))
+    if document["id"] in selected:
+        if document["id"] in manifests:
+            raise SystemExit("duplicate selected source manifest")
+        manifests[document["id"]] = document
+if len(selected) != 8 or set(manifests) != selected:
+    raise SystemExit("exact demo selection does not match source manifests")
+contributions = sum(len(document["contributions"]) for document in manifests.values())
+for script in (source, (Path(sys.argv[1]).parent / "deployment-parity-e2e.sh").read_text(encoding="utf-8")):
+    if f"and ([.items[] | select(.selected) | .contributionCount] | add) == {contributions}" not in script:
+        raise SystemExit("live demo contribution count drifted from its selected manifests")
+    if 'and (.pluginApiLevel | type == "number" and . >= 8)' not in script:
+        raise SystemExit("live demo must require the selected plugins' API level 8")
 preflight = '"$DEMO_DIR/demo.sh" config --deployment compose'
 resolve = 'PROJECT_NAME="$(sed -n \'s/^DEMO_PROJECT_NAME=//p\' "$ENV_FILE")"'
 startup = '"$DEMO_DIR/demo.sh" up --deployment compose'

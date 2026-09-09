@@ -37,6 +37,22 @@ application {
     applicationDefaultJvmArgs = ['-Xmx4g']
 }
 
+tasks.register('prepareObservationQualification', JavaExec) {
+    group = 'verification'
+    description = 'Creates a fresh non-spending five-validator Preprod observation fixture; never starts nodes'
+    dependsOn tasks.named('classes')
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'com.bloxbean.cardano.yano.appchain.devtools.ObservationQualificationConfig'
+    doFirst {
+        args providers.gradleProperty('qualificationDirectory').get(),
+                providers.gradleProperty('qualificationHostDirectory').get(),
+                providers.gradleProperty('qualificationPluginDirectory').get(),
+                providers.gradleProperty('yanoVersion').get(),
+                providers.gradleProperty('qualificationHttpBase').get(),
+                providers.gradleProperty('qualificationN2nBase').get()
+    }
+}
+
 tasks.register('printAuthenticatedMapSchemaGoldenVectors', JavaExec) {
     group = 'verification'
     description = 'Prints deterministic ADR-025.1 schema compiler/evaluator vectors'

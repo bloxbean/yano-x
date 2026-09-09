@@ -6,6 +6,8 @@ import com.bloxbean.cardano.yano.api.appchain.state.StateProofSubject;
 import com.bloxbean.cardano.yano.api.appchain.evidence.MessageInclusionProof;
 import com.bloxbean.cardano.yano.api.appchain.snapshot.SnapshotCanonicalCodec;
 import com.bloxbean.cardano.yano.api.appchain.snapshot.SnapshotDescriptorV1;
+import com.bloxbean.cardano.yano.api.appchain.observation.ObservationHashes;
+import com.bloxbean.cardano.yano.api.appchain.observation.ObservationReport;
 import com.fasterxml.jackson.core.StreamReadFeature;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -1115,6 +1117,79 @@ public final class AppChainClient {
             throw new AppChainClientException("App-chain query was interrupted", e);
         } catch (Exception e) {
             throw new AppChainClientException("App-chain query request failed", e);
+        }
+    }
+
+    /** Returns only a queue-admission receipt, never an assertion of durability or finality. */
+    public String submitObservationReport(ObservationReport report) {
+        Objects.requireNonNull(report, "report");
+        if (chainId == null || !chainId.equals(report.chainId())) {
+            throw new IllegalArgumentException("Reporter and client chain identities differ");
+        }
+        byte[] body = report.encode();
+        String expectedDigest = Hex.encode(ObservationHashes.digest(body));
+        try {
+            HttpRequest request = requestBuilder(chainPath("/observations/reports"))
+                    .header("Content-Type", "application/octet-stream")
+                    .header("Accept", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofByteArray(body)).build();
+            HttpResponse<byte[]> response = sendBounded(request, 2048, "Observation report");
+            if (response.statusCode() != 202) {
+                throw new AppChainClientException("Observation report admission returned HTTP " + response.statusCode());
+            }
+            JsonNode receipt = STRICT_RESPONSE_JSON.readTree(response.body());
+            if (receipt == null || !receipt.isObject() || receipt.size() != 3
+                    || !receipt.path("status").isTextual() || !receipt.path("chainId").isTextual()
+                    || !receipt.path("reportDigest").isTextual()
+                    || !"QUEUED".equals(receipt.path("status").asText())
+                    || !chainId.equals(receipt.path("chainId").asText())
+                    || !expectedDigest.equals(receipt.path("reportDigest").asText())) {
+                throw new AppChainClientException("Invalid observation queue receipt");
+            }
+            return expectedDigest;
+        } catch (AppChainClientException failure) {
+            throw failure;
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            throw new AppChainClientException("Observation report submission interrupted", interrupted);
+        } catch (Exception failure) {
+            throw new AppChainClientException("Observation report submission failed", failure);
+        }
+    }
+
+    /**
+     * Requests a best-effort local acquisition wake for an existing subscription.
+     * Acceptance is not a report, certificate, freshness guarantee, or promise of work;
+     * periodic acquisition remains the fallback, and only an authenticated result establishes an outcome.
+     */
+    public void wakeObservation(byte[] subscriptionId) {
+        if (chainId == null || subscriptionId == null || subscriptionId.length != 32) {
+            throw new IllegalArgumentException("A chain-scoped client and 32-byte subscription ID are required");
+        }
+        byte[] body = subscriptionId.clone();
+        try {
+            HttpRequest request = requestBuilder(chainPath("/observations/wake"))
+                    .header("Content-Type", "application/octet-stream")
+                    .header("Accept", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofByteArray(body)).build();
+            HttpResponse<byte[]> response = sendBounded(request, 2048, "Observation wake");
+            if (response.statusCode() != 202) {
+                throw new AppChainClientException("Observation wake returned HTTP " + response.statusCode());
+            }
+            JsonNode receipt = STRICT_RESPONSE_JSON.readTree(response.body());
+            if (receipt == null || !receipt.isObject() || receipt.size() != 2
+                    || !receipt.path("status").isTextual() || !receipt.path("chainId").isTextual()
+                    || !"HINT_ACCEPTED".equals(receipt.path("status").asText())
+                    || !chainId.equals(receipt.path("chainId").asText())) {
+                throw new AppChainClientException("Invalid observation wake receipt");
+            }
+        } catch (AppChainClientException failure) {
+            throw failure;
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            throw new AppChainClientException("Observation wake interrupted", interrupted);
+        } catch (Exception failure) {
+            throw new AppChainClientException("Observation wake failed", failure);
         }
     }
 
