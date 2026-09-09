@@ -43,13 +43,8 @@ Last verified live: 2026-08-05 on a 3-node cluster.
 
 ```bash
 cd ~/work/bloxbean/yano-x
-# For a clean checkout, first run the two-step full-build workflow so the
-# isolated repository below contains all Yano X bundle publications.
-./gradlew :examples:showcase:distZip \
-  -PinternalRepository=/absolute/path/to/yano-x-staging \
-  -PyanoVersion=<published-yano-version> \
-  -PyanoJvmDist=/absolute/path/to/yano-<build-identity>.zip \
-  -PuseMavenLocal=true
+# Uses the released Yano version in gradle.properties and its matching JVM ZIP.
+./gradlew build -PskipSigning=true
 # → examples/showcase/build/distributions/yano-showcase-<version>.zip
 
 unzip examples/showcase/build/distributions/yano-showcase-*.zip -d ~/showcase
@@ -57,8 +52,11 @@ cd ~/showcase/yano-showcase-*
 ./showcase.sh doctor          # Java 25, Python 3, curl, jq, packaged artifacts
 ```
 
-For coordinated local development, first run `publishToMavenLocal` and
-`:app:yanoDistZip` in the matching Yano checkout as described in the repository
+Release users can download `yano-showcase-<version>.zip` directly and skip the
+build step. To assemble only the showcase, use
+`./gradlew :examples:showcase:distZip -PskipSigning=true`; use
+`:examples:showcase:showcaseDistributionContract` to also verify the archive.
+For coordinated unpublished Yano inputs, follow the repository
 [build guide](../../docs/BUILD_AND_TEST.md).
 
 ## 2. Start a cluster

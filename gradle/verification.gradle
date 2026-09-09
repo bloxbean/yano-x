@@ -87,8 +87,9 @@ tasks.register('verifyPublishedContracts') {
 
 tasks.register('distributionCheck') {
     group = 'verification'
-    description = 'Builds and verifies the Yano X plugin pack and JVM distribution.'
-    dependsOn ':distribution:jvm:verifyYanoXJvmDistribution'
+    description = 'Builds and verifies the Yano X plugin pack, JVM distribution, and showcase ZIP.'
+    dependsOn ':distribution:jvm:verifyYanoXJvmDistribution',
+            ':examples:showcase:showcaseDistributionContract'
 }
 
 tasks.register('verifyArtifactInventory') {

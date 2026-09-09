@@ -44,6 +44,11 @@ runtime plugins' Maven publications, so a clean full build is one invocation:
   -PskipSigning=true
 ```
 
+This includes the plugin pack, complete JVM distribution, and the separate
+showcase ZIP for a three-node quickstart. Their locations and download-and-run
+instructions are in [BUILD_DISTRIBUTIONS.md](BUILD_DISTRIBUTIONS.md).
+`yanoVersion` defaults to `gradle.properties` when the override is omitted.
+
 For a release rehearsal, publish every coordinate to a new empty isolated
 repository after the clean build:
 
