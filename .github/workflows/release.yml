@@ -68,34 +68,8 @@ jobs:
           done
           (cd release-assets && sha256sum *.zip > SHA256SUMS)
 
-      - name: Rehearse reusable Maven publications
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          STAGING="$RUNNER_TEMP/yano-x-maven-release"
-          ./gradlew publishMavenReleaseToInternalRepository \
-            -PinternalRepository="$STAGING" -PskipSigning=true --stacktrace
-          test -f "$STAGING/com/bloxbean/cardano/yano-x-bom/$VERSION/yano-x-bom-$VERSION.pom"
-          EXPECTED="$RUNNER_TEMP/expected-maven-coordinates"
-          ACTUAL="$RUNNER_TEMP/actual-maven-coordinates"
-          {
-            echo yano-x-bom
-            jq -r '.artifacts[] |
-              select(.publicationType == "runtime-plugin" or
-                     .publicationType == "library" or
-                     .publicationType == "test-library" or
-                     .publicationType == "onchain-artifact") |
-              .artifactId, (.bundleArtifactId // empty)' config/artifacts-v1.json
-          } | sort > "$EXPECTED"
-          find "$STAGING/com/bloxbean/cardano" -mindepth 1 -maxdepth 1 \
-            -type d -printf '%f\n' | sort > "$ACTUAL"
-          diff -u "$EXPECTED" "$ACTUAL"
-          if find "$STAGING" -type f \( -name '*.zip' -o -name '*.tar' \) | grep -q .; then
-            echo 'Distribution archives must not be published to Maven Central' >&2
-            exit 1
-          fi
+      - name: Verify reusable Maven publication scope
+        run: ./gradlew verifyMavenReleasePublicationScope -PskipSigning=true
 
       - name: Decode GPG key
         env:
@@ -119,14 +93,8 @@ jobs:
           --warn --stacktrace
 
       - name: Create GitHub release with five distributions
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PRERELEASE: ${{ steps.version.outputs.prerelease }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          ARGS=(--verify-tag --title "$GITHUB_REF_NAME")
-          if [[ "$PRERELEASE" == true ]]; then
-            ARGS+=(--prerelease)
-          fi
-          gh release create "$GITHUB_REF_NAME" release-assets/* "${ARGS[@]}"
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-assets/*
+          generate_release_notes: false
+          prerelease: ${{ steps.version.outputs.prerelease == 'true' }}
