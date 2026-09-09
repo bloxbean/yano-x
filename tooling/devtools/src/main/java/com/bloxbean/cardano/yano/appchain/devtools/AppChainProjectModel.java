@@ -405,7 +405,26 @@ final class AppChainProjectModel {
             int threshold,
             boolean bootstrapRequired,
             String maturity,
-            String validationCoverage) {
+            String validationCoverage,
+            List<Resolution> chainResolutions) {
+
+        Resolution(Blueprint blueprint, Recipe recipe, List<String> selectedCapabilities,
+                   List<String> impliedCapabilities, List<String> artifacts,
+                   Map<String, String> consensusProperties, Map<String, String> nodePropertyTemplate,
+                   int threshold, boolean bootstrapRequired, String maturity, String validationCoverage) {
+            this(blueprint, recipe, selectedCapabilities, impliedCapabilities, artifacts,
+                    consensusProperties, nodePropertyTemplate, threshold, bootstrapRequired,
+                    maturity, validationCoverage, List.of());
+        }
+
+        List<Resolution> chains() {
+            return chainResolutions.isEmpty() ? List.of(this) : chainResolutions;
+        }
+
+        String recipeIdentity() {
+            return chains().stream().map(chain -> chain.recipe().id() + ":" + chain.recipe().version())
+                    .collect(java.util.stream.Collectors.joining(","));
+        }
     }
 
     record Lock(

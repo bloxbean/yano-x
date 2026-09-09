@@ -73,9 +73,12 @@ boolean verified = ProofVerifier.verify(proof.orElseThrow(), trusted);
 
 When an envelope carries its finalized block header and certificate,
 `ProofVerifier.verifyCertified(...)` can authenticate the root directly under
-a caller-pinned membership set and threshold. The verifier recomputes the
-canonical block hash, verifies distinct Ed25519 signers, binds the exact
-commitment identity, and then dispatches the native proof by profile.
+a caller-pinned membership set, threshold, and consensus-context digest for the
+target height. Obtain these trust inputs independently of the proof envelope.
+The verifier uses the release-matched version-3 header and domain-separated
+commit digest from Yano core, verifies distinct Ed25519 signers, binds the exact
+commitment identity, and then dispatches the native proof by profile. All header
+commitments, including view, proposer, and justification digest, are authenticated.
 
 Effect emissions have a composed proof from canonical record bytes through
 the block's ordered effects root into that block's historical state root:

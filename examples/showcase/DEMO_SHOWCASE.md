@@ -89,6 +89,10 @@ chmod 600 ./private-anchor/anchor.seed
 Node 0's API is `http://127.0.0.1:7070/api/v1` (`--http-base` shifts it).
 All thirteen chains report at `GET /api/v1/app-chain/chains`.
 
+Each node keeps the host projection archive in its own `nodeN/history/`
+directory, alongside its state stores. Separate archive directories prevent
+DuckLake writer-lock conflicts between local JVMs.
+
 ### The ADR-031 capability story
 
 Present the chains as foundations plus a small number of meaningful

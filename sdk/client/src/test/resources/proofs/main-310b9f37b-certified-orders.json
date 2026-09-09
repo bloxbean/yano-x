@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "profile": "mpf-blake2b256-v1",
+  "backend": "mpf",
+  "commitmentFormatId": "mpf-blake2b256-format-v1",
+  "proofEncodingId": "mpf-proof-wire-v1",
+  "nativeVersioning": false,
+  "physicalDelete": true,
+  "formatFingerprint": "91ee14091200f1e24659112d640e877e9177779dcc81dd06117f013e9190082b",
+  "implementation": {
+    "compatibility": "Cardano Client Lib MPF compatible",
+    "testedImplementations": [
+      "cardano-client-lib"
+    ],
+    "verifierAvailable": true,
+    "verificationTarget": "off-chain-and-on-chain"
+  },
+  "genesisId": "65102305e1a681d0fc8e0223c387923f724e0c5bd321d3f487cdd5d247a5785f",
+  "version": 1,
+  "stateRoot": "e3df1d71b7af56a1ef6744d02197244a9c141fc1619badf82a85251433afa4ea",
+  "oldestProvableHeight": 1,
+  "proofSchemaVersion": 1,
+  "key": "832d72267383dd1d066b452012b7731dfdd69d2a0bf60a3840381c5521dcc5df",
+  "chainId": "orders",
+  "committedHeight": 1,
+  "presence": "PRESENT",
+  "valueHex": "85010100666f726465727358203efd3d32ef4ad6c5577b50f6415601d11a637c65f9baa28ccffd3cf194e7f725",
+  "blockHash": "5eaef4fcfef1e96e98bcf17f4dc0608d1fb3799d897728ad120bf21a002ba7c2",
+  "proofWireHex": "81d879820058804462b6a3ad84f484385c861ff17b4f96a79ce4007ef68cf5e3d12fb1c9b8b6d30c07acc9054657ffb89274ac87fcd70c8ba394df0368c9409fe540941f96c5e3b672cbf4510029901870905940c583c4473400debde0013712406eb11ea1b0a80000000000000000000000000000000000000000000000000000000000000000",
+  "block": {
+    "version": 3,
+    "height": 1,
+    "prevHash": "0000000000000000000000000000000000000000000000000000000000000000",
+    "l1Slot": 0,
+    "l1BlockHash": "",
+    "timestamp": 1788878835370,
+    "messagesRoot": "265f8808b988ec69fcbb1533b606a99041436ffd1285af9beb30f36bc5afdcef",
+    "stateRoot": "e3df1d71b7af56a1ef6744d02197244a9c141fc1619badf82a85251433afa4ea",
+    "blockHash": "5eaef4fcfef1e96e98bcf17f4dc0608d1fb3799d897728ad120bf21a002ba7c2",
+    "view": 0,
+    "consensusContextDigest": "96381c1eda9868c40ca2735bf8100c5878fa3882ae8be4976cb8f7593954fe90",
+    "proposer": "0792078bec62e68fba7e99e4378f6f0f2b29c3a6be5d8bbbcb10c3c9ef252fe3",
+    "justificationDigest": "0e5751c026e543b2e8ab2eb06099daa1d1e5df47778f7787faab45cdf12fe3a8"
+  },
+  "finalityCertificate": {
+    "scheme": 0,
+    "signatures": [
+      {
+        "signature": "f3164d17f67053fafc86f47d2d1faa27f1eb509a4a31d770ff138e1ef7039f5a2fd7f1eb2db7536485574087afc936a1353af62b9ee061d07c927e51fde23403",
+        "signer": "0792078bec62e68fba7e99e4378f6f0f2b29c3a6be5d8bbbcb10c3c9ef252fe3"
+      },
+      {
+        "signature": "139c9da12dbfb7cccd8494384905fce0ed81d14aba4f064c3da16997e70331689f4c1fbfe71b3b75ea02dd73ebc301bd9ac9a9aafdf1b8341bd698bbb787310d",
+        "signer": "3efd3d32ef4ad6c5577b50f6415601d11a637c65f9baa28ccffd3cf194e7f725"
+      }
+    ]
+  }
+}

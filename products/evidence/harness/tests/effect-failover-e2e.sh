@@ -255,21 +255,29 @@ wait_json() {
 wait_l1_sync() {
   local node="$1" seconds="$2" output="$3" deadline
   local port=$((DEMO_HTTP_BASE + node))
-  local baseline="" local_tip remote_tip
+  local baseline="" initial_sync="" local_tip remote_tip
   deadline=$((SECONDS + seconds))
   while [ "$SECONDS" -lt "$deadline" ]; do
     if bounded_get "http://127.0.0.1:$port/api/v1/node/status" \
         "$output" 1048576 2>/dev/null; then
-      read -r local_tip remote_tip < <(jq -r '
-        if (.localTipBlockNumber | type) == "number"
+      read -r initial_sync local_tip remote_tip < <(jq -r '
+        if (.initialSyncComplete | type) == "boolean"
+            and (.localTipBlockNumber | type) == "number"
             and (.remoteTipBlockNumber | type) == "number"
-        then [.localTipBlockNumber, .remoteTipBlockNumber] | @tsv
-        else "" end
+        then [.initialSyncComplete, .localTipBlockNumber, .remoteTipBlockNumber] | @tsv
+        else ["", "", ""] | @tsv end
       ' "$output" 2>/dev/null || true)
       if [[ "$local_tip" =~ ^[0-9]+$ && "$remote_tip" =~ ^[0-9]+$ ]]; then
         [ -n "$baseline" ] || baseline="$local_tip"
+        # Yano 0.1.0-pre14 may leave initialSyncComplete=false after restart/intersection
+        # recovery despite catching up. Use observable progress + tip convergence.
+        # Remove this workaround after upgrading to a release with the SyncSubsystem fix.
         if [ "$local_tip" -gt "$baseline" ] \
             && [ $((local_tip + 2)) -ge "$remote_tip" ]; then
+          if [ "$initial_sync" != true ]; then
+            printf 'WARNING: replacement node %s recovered L1 (baseline=%s local=%s remote=%s), but initialSyncComplete=%s; Yano 0.1.0-pre14 may leave this flag false after restart/intersection recovery.\n' \
+              "$node" "$baseline" "$local_tip" "$remote_tip" "$initial_sync" >&2
+          fi
           return 0
         fi
       fi
@@ -294,7 +302,10 @@ scenario_failure_diagnostics() {
     fi
     if bounded_get "http://127.0.0.1:$port/api/v1/node/status" \
         "$l1_status" 1048576 2>/dev/null; then
-      jq -c '{initialSyncComplete,localTipBlockNumber,remoteTipBlockNumber}' \
+      jq -c '{initialSyncComplete,localTipBlockNumber,remoteTipBlockNumber,
+        syncMode,peerName,upstreamMode,upstreamConfiguredPeerCount,
+        upstreamHotPeerCount,upstreamObserverPeerCount,upstreamKnownPeerCount,
+        upstreamCandidateHeaderCount,upstreamActivePeer}' \
         "$l1_status" >&2 || true
     fi
   done
@@ -477,7 +488,7 @@ assert_plugin_operations_all_nodes() {
       and (.generation | type == "number" and . >= 1)
       and (.capturedAtEpochMillis | type == "number" and . > 0)
       and .pluginApiMajor == 3
-      and .pluginApiLevel == 4
+      and (.pluginApiLevel | type == "number" and . >= 4)
       and .totals.selectedBundles == 8
       and .totals.failedBundles == 0
       and .totals.degradedBundles == 0
@@ -502,8 +513,10 @@ assert_metrics_all_nodes() {
   for node in 0 1 2; do
     port=$((DEMO_HTTP_BASE + node))
     output="$ROOT/$phase-node$node-metrics.prom"
-    bounded_get "http://127.0.0.1:$port/q/metrics" "$output" 4194304 \
-      || fail "node $node metrics endpoint is unavailable or exceeds its bound"
+    if ! bounded_get "http://127.0.0.1:$port/q/metrics" "$output" 4194304; then
+      scenario_failure_diagnostics
+      fail "node $node metrics endpoint is unavailable or exceeds its bound"
+    fi
     python3 - "$output" "$CHAIN_ID" <<'PY' \
       || fail "node $node is missing app-chain, effect, or plugin metrics evidence"
 import math

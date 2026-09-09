@@ -45,7 +45,7 @@ class AppChainProjectTest {
                 blueprint("evidence-ledger", "rotating", List.of()));
 
         assertThat(catalog.recipes()).extracting(AppChainProjectModel.Recipe::id)
-                .containsExactly("audit-log", "owned-registry", "authenticated-map",
+                .containsExactly("audit-log", "owned-registry", "document-trail", "authenticated-map",
                         "approval-workflow",
                         "role-approval", "evidence-ledger", "eutxo-ledger",
                         "eutxo-cardano-bridge", "eutxo-zeroj-validity",

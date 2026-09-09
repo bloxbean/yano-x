@@ -770,3 +770,12 @@ the `WAIT_L1_SYNC`, `WAIT_ANCHOR_FUNDS`, `WAIT_ANCHOR_ADOPTION`, and
 evidence report directory. A busy host port is never silently reassigned by
 this demo; change the corresponding `DEMO_*_PORT` so external receipts and URLs
 remain explicit and reproducible.
+
+### Cardano historical projections
+
+The Evidence profile disables `yano.history.projection.enabled` in both host
+and Compose deployments. It uses canonical L1 state for anchoring and app-chain
+state for evidence; Cardano historical projections are a separate workload.
+This also keeps optional history projection work out of the demo's metrics
+scrapes. Per-node history directories remain isolated for deployments that
+explicitly enable that workload.

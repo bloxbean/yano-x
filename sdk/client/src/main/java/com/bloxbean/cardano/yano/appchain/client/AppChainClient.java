@@ -1,5 +1,7 @@
 package com.bloxbean.cardano.yano.appchain.client;
 
+import com.bloxbean.cardano.yano.api.appchain.AppBlock;
+import com.bloxbean.cardano.yano.api.appchain.AppBlockHeader;
 import com.bloxbean.cardano.yano.api.appchain.state.StateProofSubject;
 import com.bloxbean.cardano.yano.api.appchain.evidence.MessageInclusionProof;
 import com.bloxbean.cardano.yano.api.appchain.snapshot.SnapshotCanonicalCodec;
@@ -129,7 +131,8 @@ public final class AppChainClient {
             "oldestProvableHeight", "blockHash");
     private static final Set<String> CERTIFIED_BLOCK_FIELDS = Set.of(
             "version", "height", "prevHash", "l1Slot", "l1BlockHash",
-            "timestamp", "messagesRoot", "stateRoot", "blockHash");
+            "timestamp", "messagesRoot", "stateRoot", "blockHash",
+            "view", "consensusContextDigest", "proposer", "justificationDigest");
     private static final Set<String> FINALITY_CERTIFICATE_FIELDS = Set.of(
             "scheme", "signatures");
     private static final Set<String> FINALITY_SIGNATURE_FIELDS = Set.of(
@@ -744,7 +747,9 @@ public final class AppChainClient {
         Long height = optionalNonNegativeLong(block, "height");
         Long l1Slot = optionalNonNegativeLong(block, "l1Slot");
         Long timestamp = optionalNonNegativeLong(block, "timestamp");
-        if (height == null || height <= 0 || l1Slot == null || timestamp == null) {
+        Long view = optionalNonNegativeLong(block, "view");
+        if (version != AppBlock.BLOCK_VERSION || height == null || height <= 0
+                || l1Slot == null || timestamp == null || view == null) {
             throw new AppChainClientException("Invalid certified app-chain block header");
         }
         return new CertifiedBlockHeader(version, height,
@@ -752,7 +757,10 @@ public final class AppChainClient {
                 requiredCanonicalBoundedHex(block, "l1BlockHash", 0, 32), timestamp,
                 requiredCanonicalBoundedHex(block, "messagesRoot", 32, 32),
                 requiredCanonicalBoundedHex(block, "stateRoot", 32, 32),
-                requiredCanonicalBoundedHex(block, "blockHash", 32, 32));
+                requiredCanonicalBoundedHex(block, "blockHash", 32, 32), view,
+                requiredCanonicalBoundedHex(block, "consensusContextDigest", 32, 32),
+                requiredCanonicalBoundedHex(block, "proposer", 32, 32),
+                requiredCanonicalBoundedHex(block, "justificationDigest", 32, 32));
     }
 
     private static FinalityCertificate parseFinalityCertificate(JsonNode certificate) {
@@ -2250,7 +2258,7 @@ public final class AppChainClient {
         }
     }
 
-    /** Canonical fields signed indirectly through {@code blockHashHex}. */
+    /** Complete canonical header authenticated by a version-3 commit certificate. */
     public record CertifiedBlockHeader(
             int version,
             long height,
@@ -2260,7 +2268,17 @@ public final class AppChainClient {
             long timestamp,
             String messagesRootHex,
             String stateRootHex,
-            String blockHashHex) {
+            String blockHashHex,
+            long view,
+            String consensusContextDigestHex,
+            String proposerHex,
+            String justificationDigestHex) {
+        AppBlockHeader canonicalHeader(String chainId) {
+            return new AppBlockHeader(version, chainId, height, Hex.decode(consensusContextDigestHex), view,
+                    Hex.decode(prevHashHex), l1Slot, Hex.decode(l1BlockHashHex), timestamp,
+                    Hex.decode(messagesRootHex), Hex.decode(stateRootHex), Hex.decode(proposerHex),
+                    Hex.decode(justificationDigestHex));
+        }
     }
 
     public record FinalityCertificate(int scheme, List<FinalitySignature> signatures) {

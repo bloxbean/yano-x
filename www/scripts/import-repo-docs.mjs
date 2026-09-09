@@ -44,7 +44,7 @@ const UNLINKED_PREFIXES = ['adr/'];
 
 // Directories this script owns completely. They are wiped before each import
 // so a renamed source file cannot leave a stale page behind.
-const OWNED_DIRS = ['tutorials', 'state-machines'];
+const OWNED_DIRS = ['tutorials', 'state-machines', 'deployment'];
 
 // Section landing pages get an explicit sidebar order.
 const ORDER = {
@@ -373,7 +373,7 @@ async function main() {
 
     const destPath = path.join(CONTENT_ROOT, destinationFor(route));
     await fs.mkdir(path.dirname(destPath), { recursive: true });
-    await fs.writeFile(destPath, `${frontmatter}${body.trimStart()}\n`, 'utf8');
+    await fs.writeFile(destPath, `${frontmatter}${body.trim()}\n`, 'utf8');
     written += 1;
   }
 

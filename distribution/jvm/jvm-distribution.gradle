@@ -243,6 +243,14 @@ tasks.register('prepareEvidenceDemoArtifacts', Sync) {
         }
         includeEmptyDirs = false
     }
+    // The source harness uses this release-matched home for host-mode contracts too.
+    from(rootProject.file('scripts/appchain-cluster')) {
+        into 'yano-context/yano/appchain-cluster'
+        exclude '.cluster-data/**', '**/*.log'
+        filesMatching(['**/*.sh', '**/*.py']) {
+            permissions { unix('755') }
+        }
+    }
     from(rootProject.file('docker/jvm/entrypoint.sh')) {
         into 'yano-context'
         filePermissions { unix('755') }

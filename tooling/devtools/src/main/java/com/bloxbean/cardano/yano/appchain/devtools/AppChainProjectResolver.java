@@ -68,6 +68,10 @@ final class AppChainProjectResolver {
     }
 
     AppChainProjectModel.Resolution resolve(AppChainProjectModel.Blueprint blueprint) {
+        if (blueprint != null && blueprint.spec() != null && blueprint.spec().chains() != null
+                && blueprint.spec().chains().size() > 1) {
+            return resolveMultiple(blueprint);
+        }
         AppChainProjectModel.ChainIntent chain = validateBlueprint(blueprint);
         AppChainProjectModel.Spec spec = blueprint.spec();
         AppChainProjectModel.Recipe recipe = catalog.recipe(chain.recipe());
@@ -218,6 +222,67 @@ final class AppChainProjectResolver {
                 bootstrapRequired,
                 maturity,
                 "PARTIAL");
+    }
+
+    static AppChainProjectModel.Blueprint forChain(
+            AppChainProjectModel.Blueprint blueprint, AppChainProjectModel.ChainIntent chain) {
+        var spec = blueprint.spec();
+        return new AppChainProjectModel.Blueprint(blueprint.apiVersion(), blueprint.kind(), blueprint.metadata(),
+                new AppChainProjectModel.Spec(spec.yanoVersion(), spec.network(), spec.runtime(), spec.deployment(),
+                        List.of(chain), spec.componentCatalogs(), spec.acknowledgements()));
+    }
+
+    private AppChainProjectModel.Resolution resolveMultiple(AppChainProjectModel.Blueprint blueprint) {
+        if (blueprint.spec().chains().size() > 32) {
+            throw new IllegalArgumentException("A project supports at most 32 chains; capacity must be qualified");
+        }
+        List<AppChainProjectModel.Resolution> chains = new ArrayList<>();
+        Set<String> ids = new LinkedHashSet<>();
+        for (var intent : blueprint.spec().chains()) {
+            if (intent == null || intent.chainId() == null
+                    || !intent.chainId().matches("[A-Za-z0-9][A-Za-z0-9._~-]{0,127}")
+                    || !ids.add(intent.chainId())) {
+                throw new IllegalArgumentException("Every chain requires a unique, path-safe chainId");
+            }
+            chains.add(resolve(forChain(blueprint, intent)));
+        }
+        var first = chains.getFirst();
+        var topology = blueprint.spec().chains().getFirst().topology();
+        Map<String, String> consensus = new TreeMap<>();
+        Map<String, String> nodes = new TreeMap<>();
+        Set<String> selected = new TreeSet<>();
+        Set<String> implied = new TreeSet<>();
+        Set<String> artifacts = new TreeSet<>();
+        String maturity = first.maturity();
+        for (int index = 0; index < chains.size(); index++) {
+            var chain = chains.get(index);
+            var peerTopology = chain.blueprint().spec().chains().getFirst().topology();
+            if (topology.members() != peerTopology.members()
+                    || !normalizedMemberKeys(topology).equals(normalizedMemberKeys(peerTopology))
+                    || !safeList(topology.nodeHosts()).equals(safeList(peerTopology.nodeHosts()))
+                    || !java.util.Objects.equals(topology.httpPortBase(), peerTopology.httpPortBase())
+                    || !java.util.Objects.equals(topology.serverPortBase(), peerTopology.serverPortBase())) {
+                throw new IllegalArgumentException("Chains sharing a node must use the same members, member keys, "
+                        + "node hosts, and port bases; finality and membership policies may differ");
+            }
+            String prefix = "yano.app-chain.chains[" + index + "].";
+            chain.consensusProperties().forEach((key, value) ->
+                    consensus.put(reindex(key, prefix), value));
+            chain.nodePropertyTemplate().forEach((key, value) -> nodes.put(reindex(key, prefix), value));
+            selected.addAll(chain.selectedCapabilities());
+            implied.addAll(chain.impliedCapabilities());
+            artifacts.addAll(chain.artifacts());
+            maturity = leastMature(maturity, chain.maturity());
+        }
+        return new AppChainProjectModel.Resolution(blueprint, first.recipe(), List.copyOf(selected),
+                List.copyOf(implied), List.copyOf(artifacts), Map.copyOf(consensus), Map.copyOf(nodes),
+                first.threshold(), chains.stream().anyMatch(AppChainProjectModel.Resolution::bootstrapRequired),
+                maturity, "PARTIAL", List.copyOf(chains));
+    }
+
+    private static String reindex(String key, String prefix) {
+        String initial = "yano.app-chain.chains[0].";
+        return key.startsWith(initial) ? prefix + key.substring(initial.length()) : key;
     }
 
     private AppChainProjectModel.ChainIntent validateBlueprint(

@@ -50,9 +50,12 @@ class AppChainStateCliTest {
                  "proofEncodingId":"%s","nativeVersioning":%s,
                  "physicalDelete":%s,"version":1,"oldestProvableHeight":1,
                  "presence":"PRESENT","blockHash":"%s",
-                 "block":{"version":1,"height":1,"prevHash":"%s","l1Slot":0,
+                 "block":{"version":3,"height":1,"prevHash":"%s","l1Slot":0,
                    "l1BlockHash":"","timestamp":1,"messagesRoot":"%s",
-                   "stateRoot":"%s","blockHash":"%s"},
+                   "stateRoot":"%s","blockHash":"%s","view":0,
+                   "consensusContextDigest":"6666666666666666666666666666666666666666666666666666666666666666",
+                   "proposer":"7777777777777777777777777777777777777777777777777777777777777777",
+                   "justificationDigest":"8888888888888888888888888888888888888888888888888888888888888888"},
                  "finalityCertificate":{"scheme":0,"signatures":[
                    {"signer":"%s","signature":"%s"}]}}
                 """.formatted(Hex.encode(key), root,

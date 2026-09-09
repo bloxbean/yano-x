@@ -18,6 +18,10 @@ assert_absent() { [ ! -e "$1" ] || fail "unexpected path exists: $1"; }
 
 command -v docker >/dev/null 2>&1 || fail "docker is required for Compose config validation"
 docker compose version >/dev/null 2>&1 || fail "docker compose is required"
+grep -Fq 'if [ -x "$APP_DIR/appchain-cluster/cluster.sh" ]; then' "$DEMO_DIR/demo.sh" \
+  || fail "host launcher does not use the packaged appchain-cluster path"
+! grep -Fq '$REPO_DIR/scripts/appchain-cluster/cluster.sh' "$DEMO_DIR/demo.sh" \
+  || fail "host launcher retains a source-checkout cluster fallback"
 command -v jq >/dev/null 2>&1 || fail "jq is required"
 
 export DEMO_SKIP_BUILD=true
@@ -1414,6 +1418,10 @@ grep -Fq 'effects.executor.enabled=false' "$HOST_NODES/node1.properties" \
 [ "$(grep -hFx 'yano.app-chain.chains[0].anchor.max-interval-minutes=60' \
   "$HOST_NODES"/*.properties | wc -l | tr -d ' ')" -eq 3 ] \
   || fail "host node overlays do not use the same profile safety interval"
+[ "$(grep -h '^yano.history.dir=' "$HOST_NODES"/*.properties | sort -u | wc -l | tr -d ' ')" -eq 3 ] \
+  || fail "host node overlays do not isolate history archives"
+[ "$(grep -hFx 'yano.history.projection.enabled=false' "$HOST_NODES"/*.properties | wc -l | tr -d ' ')" -eq 3 ] \
+  || fail "Evidence host members must disable unselected Cardano history projections"
 
 # Host preparation intentionally releases its lease. Even then, malformed
 # cluster lifecycle state is active/uncertain: cleanup preserves runtime and

@@ -36,10 +36,9 @@ FIELDS = {
     "chainId", "threadPolicyId", "scriptHash", "scriptAddress",
     "verificationState", "verifiedHeight", "verifiedMembers", "verifiedAtMillis",
 }
-PRISTINE_COUNTERS = (
-    "tipHeight", "poolSize", "submitted", "received", "relayed", "duplicates",
-    "seenIds", "storedMessages",
-)
+# Transport diffusion can legitimately occur before the first app message.
+TRANSPORT_COUNTERS = ("received", "relayed", "duplicates", "seenIds")
+APPLICATION_PRISTINE = ("tipHeight", "poolSize", "submitted", "storedMessages")
 
 
 class BindingError(ValueError):
@@ -225,12 +224,16 @@ def anchor_identity(anchor: Any) -> dict[str, str]:
 
 def pristine_statuses(documents: list[dict[str, Any]]) -> bool:
     for document in documents:
-        for key in PRISTINE_COUNTERS:
+        for key in APPLICATION_PRISTINE:
             counter = document.get(key)
             if not bounded_int(counter):
                 raise BindingError(f"member status counter is malformed: {key}")
             if counter != 0:
                 return False
+        for key in TRANSPORT_COUNTERS:
+            counter = document.get(key)
+            if not bounded_int(counter):
+                raise BindingError(f"member status counter is malformed: {key}")
         if document.get("stateRoot") != "0" * 64:
             return False
     return True
@@ -301,7 +304,25 @@ def live_candidate(documents: list[dict[str, Any]], allow_pending: bool,
             "verifiedMembers": 3,
         }
 
-    followers_unadopted = anchors[1] is None and anchors[2] is None
+    def pending_follower(anchor: Any) -> bool:
+        if not isinstance(anchor, dict):
+            return False
+        if (anchor.get("enabled") is not True or anchor.get("mode") != "script"
+                or anchor.get("leader") is not False
+                or anchor.get("bootstrapped") is not False
+                or not isinstance(anchor.get("identityCandidatePending"), bool)
+                or anchor.get("lastAnchoredHeight") != 0):
+            return False
+        identity_fields = ("threadPolicyId", "scriptHash", "scriptAddress")
+        present = [field for field in identity_fields if field in anchor]
+        if present and set(present) != set(identity_fields):
+            raise BindingError("pending follower script-anchor identity is incomplete")
+        if present and any(anchor[field] != leader_identity[field] for field in identity_fields):
+            raise BindingError("pending follower script-anchor identity differs from leader")
+        return True
+
+    followers_unadopted = all(anchor is None or pending_follower(anchor)
+                               for anchor in anchors[1:])
     leader_height = anchors[0].get("lastAnchoredHeight")
     if (allow_pending and followers_unadopted and leader_height == 0
             and pristine_statuses(documents)):

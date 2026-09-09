@@ -136,14 +136,17 @@ final class AppChainProjectLifecycle {
         if (project != null) {
             try {
                 AppChainProjectModel.Blueprint blueprint = renderer.readBlueprint(project);
-                AppChainProjectModel.DoctorCheck schemaEncoding =
-                        authenticatedMapSchemaEncoding(blueprint);
-                checks.add(schemaEncoding);
-                schemaEncodingFailure = "FAIL".equals(schemaEncoding.status());
-                AppChainProjectModel.DoctorCheck governedReadiness =
-                        authenticatedMapGovernedReadiness(blueprint);
-                checks.add(governedReadiness);
-                governedReadinessFailure = "FAIL".equals(governedReadiness.status());
+                for (var chain : blueprint.spec().chains()) {
+                    var single = AppChainProjectResolver.forChain(blueprint, chain);
+                    var schemaEncoding = authenticatedMapSchemaEncoding(single);
+                    var governedReadiness = authenticatedMapGovernedReadiness(single);
+                    String prefix = blueprint.spec().chains().size() == 1 ? "" : chain.chainId() + "/";
+                    checks.add(check(prefix + schemaEncoding.id(), schemaEncoding.status(), schemaEncoding.detail()));
+                    checks.add(check(prefix + governedReadiness.id(), governedReadiness.status(),
+                            governedReadiness.detail()));
+                    schemaEncodingFailure |= "FAIL".equals(schemaEncoding.status());
+                    governedReadinessFailure |= "FAIL".equals(governedReadiness.status());
+                }
             } catch (IOException | RuntimeException failure) {
                 checks.add(check("authenticated-map-schema-encoding", "FAIL",
                         "blueprint could not be inspected: " + safeMessage(failure)));
@@ -308,14 +311,20 @@ final class AppChainProjectLifecycle {
         Path root = projectRoot(project);
         AppChainProjectModel.ProjectValidation validation = renderer.validate(root);
         AppChainProjectModel.Blueprint blueprint = renderer.readBlueprint(root);
-        if (blueprint.spec() == null || blueprint.spec().chains() == null
-                || blueprint.spec().chains().size() != 1) {
-            throw new IllegalArgumentException(
-                    "drift currently requires exactly one chain in the project blueprint");
+        List<AppChainProjectModel.DriftCheck> checks = new ArrayList<>();
+        String status = "DRIFT_OK";
+        for (var chain : blueprint.spec().chains()) {
+            var report = new AppChainDriftClient().compare(validation.lock(), chain.chainId(), peers, apiKey);
+            for (var check : report.checks()) {
+                checks.add(new AppChainProjectModel.DriftCheck(
+                        (blueprint.spec().chains().size() == 1 ? "" : chain.chainId() + "/") + check.category(), check.peer(), check.status()));
+            }
+            if ("DRIFT_DETECTED".equals(report.status())) status = "DRIFT_DETECTED";
+            else if (!"DRIFT_DETECTED".equals(status) && !"DRIFT_OK".equals(report.status())) {
+                status = "DRIFT_INCOMPLETE";
+            }
         }
-        String chainId = blueprint.spec().chains().getFirst().chainId();
-        return new AppChainDriftClient().compare(
-                validation.lock(), chainId, peers, apiKey);
+        return new AppChainProjectModel.DriftReport(status, peers.size(), List.copyOf(checks));
     }
 
     AppChainProjectModel.GitOpsResult gitOps(

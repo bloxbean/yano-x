@@ -168,8 +168,16 @@ jq -e '
 
 EXPECTED_L1="$TMP/data/networks/devnet/l1/compose"
 EXPECTED_APP="$TMP/data/networks/devnet/instances/contract/compose/app-chain"
+EXPECTED_HISTORY="$TMP/data/networks/devnet/l1/compose"
 EXPECTED_GENESIS="$TMP/data/networks/devnet/l1/shared/shelley-genesis.json"
-jq -e --arg l1 "$EXPECTED_L1" --arg app "$EXPECTED_APP" --arg genesis "$EXPECTED_GENESIS" '
+for i in 0 1 2; do
+  history_dir="$EXPECTED_HISTORY/node$i/history"
+  [ -d "$history_dir" ] && [ -w "$history_dir" ] \
+    || fail "node$i history directory is missing or not writable"
+  find "$history_dir" -maxdepth 0 -user "$(id -un)" -print | grep -q . \
+    || fail "node$i history directory is not owned by the invoking user"
+done
+jq -e --arg l1 "$EXPECTED_L1" --arg app "$EXPECTED_APP" --arg history "$EXPECTED_HISTORY" --arg genesis "$EXPECTED_GENESIS" '
   . as $root
   | all([0,1,2][]; . as $i
       | ($i | tostring) as $n
@@ -177,6 +185,8 @@ jq -e --arg l1 "$EXPECTED_L1" --arg app "$EXPECTED_APP" --arg genesis "$EXPECTED
           | any(.source == ($l1 + "/node" + $n) and .target == "/app/chainstate"))
         and ($root.services["yano-" + $n].volumes
           | any(.source == ($app + "/node" + $n) and .target == "/app/appchain-chainstate"))
+        and ($root.services["yano-" + $n].volumes
+          | any(.source == ($history + "/node" + $n + "/history") and .target == "/app/history"))
         and ($root.services["yano-" + $n].volumes
           | any(.source == $genesis and .target == "/run/demo/shelley-genesis.json"
               and .read_only == true)))
@@ -209,6 +219,9 @@ jq -e '
 ' "$JSON" >/dev/null || fail "scenario tooling received the full Yano admin key"
 
 NODE_DIR="$TMP/secrets/networks/devnet/contract/compose/nodes-compose"
+[ "$(grep -hFx 'yano.history.projection.enabled=false' \
+  "$NODE_DIR"/*.properties | wc -l | tr -d ' ')" -eq 3 ] \
+  || fail "Evidence members must explicitly disable unselected Cardano history projections"
 [ "$(grep -hF 'effects.executor.enabled=true' "$NODE_DIR"/*.properties | wc -l | tr -d ' ')" -eq 1 ] \
   || fail "exactly one node must own the executor"
 grep -Fxq 'yano.app-chain.chains[0].anchor.max-interval-minutes=60' \
