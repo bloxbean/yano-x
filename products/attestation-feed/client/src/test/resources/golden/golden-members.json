@@ -1,0 +1,5 @@
+{
+  "chainId" : "attestation-feed-golden",
+  "threshold" : 2,
+  "memberKeysHex" : [ "481cc6c4765a54b5022e8258e20c7c96c2375c2ccff4c7e1a83e0e51783f0301", "2cf4b18be19c8637cb614c273a69336fc44e1d22d8d07c32a392e2898edd7f20", "ff909f28b1ec5d4cb8cdbafdb3ab200641105c40d36be74055f045119960b241" ]
+}

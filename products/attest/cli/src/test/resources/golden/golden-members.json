@@ -1,0 +1,5 @@
+{
+  "chainId" : "attest-golden",
+  "threshold" : 3,
+  "memberKeysHex" : [ "cc1ecb469a06151eb71c78427d14fa9dbfcbca52d2409723e905bed30637cb01", "c04c3a325aa7d488fd71cc28b0799659ac64e27c3235f0bee1c9fb8bf0210d6e", "ccc966b16220f6c4b8951799762eca37ec450685b454fd06d06226538a364d1c" ]
+}

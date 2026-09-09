@@ -1,0 +1,25 @@
+{
+  "schemaVersion" : 1,
+  "type" : "feed-round-request-v1",
+  "chainId" : "attestation-feed-golden",
+  "genesisId" : "c22a02d5ad52c138795d36b67cb4453901c7acdef7e008d280eddb41104e8d4d",
+  "policyId" : "round-close",
+  "policyRevision" : 1,
+  "proposalId" : "round-083adb1754c0c3d5",
+  "commandHex" : "83010081870166726f756e64734e636f6c6473746f72652d372f31345867880101182339070d02826c736f757263652d616c7068616b736f757263652d626574615820c811cde6f8d93b77e55e80860bf8601482fe1a80ffce235deccd23c7ca10b8665820eac15e36a09841cd48c109ce7a2a9db8df51b6c65775a7ec05d1c8f81f0b415e004040",
+  "payloadHash" : "338f937679a4e09ff92ccd213aa6a1c49eacc381857d763ae20a78ec3bb81f6f",
+  "deadlineHeight" : 635,
+  "feedId" : "coldstore-7",
+  "round" : 14,
+  "proposeMessageId" : "adbdd4d599240a9adaab5e4b1054171ac3178a08ebc6c9ff8249dbda50276a11",
+  "record" : {
+    "status" : "CLOSED",
+    "closedAtHeight" : 35,
+    "aggregate" : -1806,
+    "decimal" : "-18.06",
+    "scale" : 2,
+    "acceptedSources" : [ "source-alpha", "source-beta" ],
+    "policySha256" : "c811cde6f8d93b77e55e80860bf8601482fe1a80ffce235deccd23c7ca10b866",
+    "datumSha256" : "eac15e36a09841cd48c109ce7a2a9db8df51b6c65775a7ec05d1c8f81f0b415e"
+  }
+}

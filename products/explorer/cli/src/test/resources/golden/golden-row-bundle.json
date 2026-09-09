@@ -1,0 +1,112 @@
+{
+  "schema" : "explorer-row-proof-v1",
+  "chainId" : "explorer-documents",
+  "applicationId" : "doc-trail",
+  "profile" : "mpf-blake2b256-v1",
+  "stateGenesisId" : "8a9323fa18a47c638ecbc7cb8b25066e9d68ac36b61b2d9b51a45defa3475017",
+  "height" : 2,
+  "index" : 0,
+  "blockHash" : "ec3f9438376016cab588506ce2b3457dee1e2bbcf9c3d65671589d586a5acebf",
+  "stateRoot" : "65ee0e9df731a3c2243787bd628d8d3ec64a69849220066500f9152310fe6c99",
+  "message" : {
+    "messageId" : "727c427d9b3b8ab606861a86a1e4c0130aeda0d882c3dc0a68574792d9112fbf",
+    "height" : 2,
+    "index" : 0,
+    "topic" : "doc-trail.command.v1",
+    "sender" : "35642f7a3e0c68b12f12092038e70ff20f0f37e3e7b682ba4643fa7b03e092d4",
+    "senderSeq" : 1788638221776,
+    "expiresAt" : 1788638828,
+    "bodyHex" : "8366636173652d3158208d25a01faa24886f3f218e21813715b53dbbe1e13a2596910fd25aa587fd81dc781e68747470733a2f2f646f63732e6578616d706c652f636173652d312f7632",
+    "authScheme" : 0,
+    "authProofHex" : "4dc8954fc89523ad700d723397ad2fb620637a2039c76fb756c6bcaef0c1de2ef05910cf29e14932f281094e0e0d2ed89d025a83525badb89d9f6fb6305b9f05",
+    "state" : "FULL"
+  },
+  "inclusionProof" : {
+    "schemaVersion" : 1,
+    "treeId" : "binary-merkle-blake2b256-v1",
+    "chainId" : "explorer-documents",
+    "blockHeight" : 2,
+    "blockHash" : "ec3f9438376016cab588506ce2b3457dee1e2bbcf9c3d65671589d586a5acebf",
+    "messagesRoot" : "727c427d9b3b8ab606861a86a1e4c0130aeda0d882c3dc0a68574792d9112fbf",
+    "messageId" : "727c427d9b3b8ab606861a86a1e4c0130aeda0d882c3dc0a68574792d9112fbf",
+    "messageIndex" : 0,
+    "leafCount" : 1,
+    "siblings" : [ ]
+  },
+  "blockRecordProof" : {
+    "schemaVersion" : 1,
+    "profile" : "mpf-blake2b256-v1",
+    "backend" : "mpf",
+    "commitmentFormatId" : "mpf-blake2b256-format-v1",
+    "proofEncodingId" : "mpf-proof-wire-v1",
+    "nativeVersioning" : false,
+    "physicalDelete" : true,
+    "formatFingerprint" : "91ee14091200f1e24659112d640e877e9177779dcc81dd06117f013e9190082b",
+    "genesisId" : "8a9323fa18a47c638ecbc7cb8b25066e9d68ac36b61b2d9b51a45defa3475017",
+    "version" : 2,
+    "stateRoot" : "65ee0e9df731a3c2243787bd628d8d3ec64a69849220066500f9152310fe6c99",
+    "oldestProvableHeight" : 1,
+    "proofSchemaVersion" : 1,
+    "key" : "ca2b2402406ef195ccb49cc413651723c289bb4cc429d570ae95f078c007119e",
+    "chainId" : "explorer-documents",
+    "committedHeight" : 2,
+    "presence" : "PRESENT",
+    "valueHex" : "8401025820727c427d9b3b8ab606861a86a1e4c0130aeda0d882c3dc0a68574792d9112fbf01",
+    "blockHash" : "ec3f9438376016cab588506ce2b3457dee1e2bbcf9c3d65671589d586a5acebf",
+    "proofWireHex" : "81d879820058808992f77d7afccc5798ec61ecaeb958149cd12b4c2c6db72299c6fc2143dabf805ffe2dfd4e8528e03f68b0ccca4a7a257b02c7f28c6c52b4537f3afe02b42baa0eb923b0cbd24df54401d998531feead35a47a99f4deed205de4af81120f97610000000000000000000000000000000000000000000000000000000000000000",
+    "block" : {
+      "version" : 3,
+      "height" : 2,
+      "prevHash" : "b54fea18708b6568644faa9741bf4fbaa76ed664ecf8b45d596325cf8a3d2a28",
+      "l1Slot" : 0,
+      "l1BlockHash" : "",
+      "timestamp" : 1788638229253,
+      "messagesRoot" : "727c427d9b3b8ab606861a86a1e4c0130aeda0d882c3dc0a68574792d9112fbf",
+      "stateRoot" : "65ee0e9df731a3c2243787bd628d8d3ec64a69849220066500f9152310fe6c99",
+      "blockHash" : "ec3f9438376016cab588506ce2b3457dee1e2bbcf9c3d65671589d586a5acebf",
+      "view" : 0,
+      "consensusContextDigest" : "64ac94a92543f54472724c65956f9c2f9218fc2a0723ac303ff6a09465854bf0",
+      "proposer" : "35642f7a3e0c68b12f12092038e70ff20f0f37e3e7b682ba4643fa7b03e092d4",
+      "justificationDigest" : "0e5751c026e543b2e8ab2eb06099daa1d1e5df47778f7787faab45cdf12fe3a8"
+    },
+    "finalityCertificate" : {
+      "scheme" : 0,
+      "signatures" : [ {
+        "signer" : "46ae022a8205dd67b2f6e3938ecd71b86d2f377b2c47e8572b2da6154c9d93c2",
+        "signature" : "e80df181f142da48f0bbe6ad271163fbb660b6e5aa07e29913c37bf287776c7a11144f11e1c32968bd975da3d38bc16f481f1509a3d399808303e64225c0760f"
+      }, {
+        "signer" : "35642f7a3e0c68b12f12092038e70ff20f0f37e3e7b682ba4643fa7b03e092d4",
+        "signature" : "4cf30d46f8ae1c341fe79e5be779e44aa6ae9db8b87f9cf39587c95c5a66d43a51b4328b506166fa361340b489d9bef2a40e081a894882850e32f682c254470c"
+      } ]
+    }
+  },
+  "evidence" : {
+    "chainId" : "explorer-documents",
+    "messageId" : "727c427d9b3b8ab606861a86a1e4c0130aeda0d882c3dc0a68574792d9112fbf",
+    "blocksCbor" : [ "8f03726578706c6f7265722d646f63756d656e747302582064ac94a92543f54472724c65956f9c2f9218fc2a0723ac303ff6a09465854bf0005820b54fea18708b6568644faa9741bf4fbaa76ed664ecf8b45d596325cf8a3d2a2800401b000001a0732573055820727c427d9b3b8ab606861a86a1e4c0130aeda0d882c3dc0a68574792d9112fbf582065ee0e9df731a3c2243787bd628d8d3ec64a69849220066500f9152310fe6c998189025820727c427d9b3b8ab606861a86a1e4c0130aeda0d882c3dc0a68574792d9112fbf726578706c6f7265722d646f63756d656e747374646f632d747261696c2e636f6d6d616e642e7631582035642f7a3e0c68b12f12092038e70ff20f0f37e3e7b682ba4643fa7b03e092d41b000001a0732555d01a6a9c766c584a8366636173652d3158208d25a01faa24886f3f218e21813715b53dbbe1e13a2596910fd25aa587fd81dc781e68747470733a2f2f646f63732e6578616d706c652f636173652d312f7632820058404dc8954fc89523ad700d723397ad2fb620637a2039c76fb756c6bcaef0c1de2ef05910cf29e14932f281094e0e0d2ed89d025a83525badb89d9f6fb6305b9f05582035642f7a3e0c68b12f12092038e70ff20f0f37e3e7b682ba4643fa7b03e092d44082008282582046ae022a8205dd67b2f6e3938ecd71b86d2f377b2c47e8572b2da6154c9d93c25840e80df181f142da48f0bbe6ad271163fbb660b6e5aa07e29913c37bf287776c7a11144f11e1c32968bd975da3d38bc16f481f1509a3d399808303e64225c0760f82582035642f7a3e0c68b12f12092038e70ff20f0f37e3e7b682ba4643fa7b03e092d458404cf30d46f8ae1c341fe79e5be779e44aa6ae9db8b87f9cf39587c95c5a66d43a51b4328b506166fa361340b489d9bef2a40e081a894882850e32f682c254470c" ],
+    "members" : [ "b5eeff837df07ae5545338deca97efe88344882c1a769ff87c2e8d816aa394fb", "35642f7a3e0c68b12f12092038e70ff20f0f37e3e7b682ba4643fa7b03e092d4", "46ae022a8205dd67b2f6e3938ecd71b86d2f377b2c47e8572b2da6154c9d93c2" ],
+    "threshold" : 2,
+    "stateCommitment" : {
+      "schemaVersion" : 1,
+      "profile" : "mpf-blake2b256-v1",
+      "backend" : "mpf",
+      "commitmentFormatId" : "mpf-blake2b256-format-v1",
+      "proofEncodingId" : "mpf-proof-wire-v1",
+      "nativeVersioning" : false,
+      "physicalDelete" : true,
+      "formatFingerprint" : "91ee14091200f1e24659112d640e877e9177779dcc81dd06117f013e9190082b",
+      "genesisId" : "8a9323fa18a47c638ecbc7cb8b25066e9d68ac36b61b2d9b51a45defa3475017",
+      "version" : 2,
+      "stateRoot" : "65ee0e9df731a3c2243787bd628d8d3ec64a69849220066500f9152310fe6c99"
+    }
+  },
+  "ingestLevel" : "VERIFIED_DECLARED",
+  "verification" : {
+    "consistent" : true,
+    "certSignatures" : 2,
+    "checks" : [ "finality certificate consistent with the bundle's own 2 signature(s): internal consistency only", "compact path recomputes the certified block's messages root at index 0", "message copy equals the certified envelope; id recomputes from the signed body; sender signature verified", "authenticated block record [height, messagesRoot, count] verified at the certified root" ],
+    "trustLevel" : "INTERNAL_CONSISTENCY_ONLY",
+    "failures" : [ ],
+    "note" : "explanatory only; importers recompute"
+  }
+}

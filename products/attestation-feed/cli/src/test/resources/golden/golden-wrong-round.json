@@ -1,0 +1,1848 @@
+{
+  "schemaVersion" : 1,
+  "type" : "feed-round-v1",
+  "chainId" : "attestation-feed-golden",
+  "profile" : "mpf-blake2b256-v1",
+  "genesisId" : "9d662349d6c7e2778eb7c59dfe410c0bb52cc68909d521d5d512b2e4ce74e5f1",
+  "feedId" : "coldstore-7",
+  "round" : 12,
+  "observationHeight" : 29,
+  "recordHeight" : 33,
+  "stateRoot" : "af18c7fed874bc596c36100cd629135be7cc8f8ff7840ff6d855740429de6f80",
+  "status" : "CLOSED",
+  "starter" : "Attestation feed starter: a configuration-only observation ledger on the stock authenticated map (ADR-052). Not the oracle pipeline of ADR app-layer/012; aggregates are recomputed by verifiers, nothing is published to Cardano.",
+  "answers" : [ {
+    "schemaVersion" : 1,
+    "type" : "trust-registry-answer-v1",
+    "chainId" : "attestation-feed-golden",
+    "profile" : "mpf-blake2b256-v1",
+    "genesisId" : "9d662349d6c7e2778eb7c59dfe410c0bb52cc68909d521d5d512b2e4ce74e5f1",
+    "height" : 29,
+    "stateRoot" : "af18c7fed874bc596c36100cd629135be7cc8f8ff7840ff6d855740429de6f80",
+    "blockHash" : "914d538fd8f3d89c4c61dc2fb71c4a1917f07e00df494c264b06654363ab7454",
+    "collection" : "feeds",
+    "keyHex" : "636f6c6473746f72652d37",
+    "key" : "coldstore-7",
+    "presence" : "ACTIVE",
+    "entry" : {
+      "status" : "ACTIVE",
+      "revision" : 1,
+      "controllerHex" : "",
+      "valueHex" : "8d01781c436f6c642073746f72652037206169722074656d70657261747572656464656743021a6ab13b80183c836c736f757263652d616c7068616b736f757263652d626574616c736f757263652d67616d6d6102194e201832390f9f1903e800",
+      "logicalValueHash" : "c54454ad1ec5a7372792981c78f21f78e449e22e5389b2c5e17613a8c81930ca",
+      "createdHeight" : 1,
+      "lastMutationHeight" : 1
+    },
+    "provenance" : {
+      "kind" : "DIRECT_ROLE",
+      "messageId" : "8bfdbfef6ab0784712a732d7f0ed0b6c6c37a08a994fd12edb4b56d44ab47e8c",
+      "appliedHeight" : 1,
+      "actorId" : "feed-admin-a",
+      "organizationId" : "feed-consortium",
+      "keyId" : "feed-admin-a-k1",
+      "policyId" : "feed-admin-write",
+      "policyRevision" : 1,
+      "role" : "feed-admin"
+    },
+    "actionCommitmentHex" : "2de7a179cb456469b52855f47c898bff5cea9d0fe6ed0f8f42d24cef204e2104",
+    "authorizationEvidenceHex" : "830158d88f01582040b015fe5fc47f2862d9c68a5a4df576457f38c99025e810d846e14d5e996417776174746573746174696f6e2d666565642d676f6c64656e5820c22a02d5ad52c138795d36b67cb4453901c7acdef7e008d280eddb41104e8d4d58202de7a179cb456469b52855f47c898bff5cea9d0fe6ed0f8f42d24cef204e2104810070666565642d61646d696e2d7772697465016c666565642d61646d696e2d61016f666565642d61646d696e2d612d6b315820197b2256b08059b61121f0c5cb10dd067823725145c5d20fa0f081f897224a4901186500584087632d3633f4ee01bdc7a6118bacb8eddd583a1b73f7738bd2c179d1641d149b62f9e23b05893195da5609ecab9117711761878aabef7672664080a119aad600",
+    "facts" : [ {
+      "name" : "entry",
+      "keyHex" : "79616e6f2d636f6d706f736974652d73746174652d7631001161757468656e746963617465642d6d617000180101000566656564730000000b636f6c6473746f72652d37",
+      "valueHex" : "880100014058618d01781c436f6c642073746f72652037206169722074656d70657261747572656464656743021a6ab13b80183c836c736f757263652d616c7068616b736f757263652d626574616c736f757263652d67616d6d6102194e201832390f9f1903e8005820c54454ad1ec5a7372792981c78f21f78e449e22e5389b2c5e17613a8c81930ca0101",
+      "proof" : {
+        "schemaVersion" : 1,
+        "profile" : "mpf-blake2b256-v1",
+        "backend" : "mpf",
+        "commitmentFormatId" : "mpf-blake2b256-format-v1",
+        "proofEncodingId" : "mpf-proof-wire-v1",
+        "nativeVersioning" : false,
+        "physicalDelete" : true,
+        "formatFingerprint" : "91ee14091200f1e24659112d640e877e9177779dcc81dd06117f013e9190082b",
+        "genesisId" : "9d662349d6c7e2778eb7c59dfe410c0bb52cc68909d521d5d512b2e4ce74e5f1",
+        "version" : 29,
+        "stateRoot" : "af18c7fed874bc596c36100cd629135be7cc8f8ff7840ff6d855740429de6f80",
+        "oldestProvableHeight" : 1,
+        "proofSchemaVersion" : 1,
+        "key" : "79616e6f2d636f6d706f736974652d73746174652d7631001161757468656e746963617465642d6d617000180101000566656564730000000b636f6c6473746f72652d37",
+        "chainId" : "attestation-feed-golden",
+        "committedHeight" : 29,
+        "presence" : "PRESENT",
+        "valueHex" : "880100014058618d01781c436f6c642073746f72652037206169722074656d70657261747572656464656743021a6ab13b80183c836c736f757263652d616c7068616b736f757263652d626574616c736f757263652d67616d6d6102194e201832390f9f1903e8005820c54454ad1ec5a7372792981c78f21f78e449e22e5389b2c5e17613a8c81930ca0101",
+        "blockHash" : "914d538fd8f3d89c4c61dc2fb71c4a1917f07e00df494c264b06654363ab7454",
+        "proofWireHex" : "82d87982005880575f4fe350c0070537d261425dc9934bc4cf463f08f3e3b0a2ee0614031261fe8c68bf001d1752ac1b687b6f4e8f8cfb937f2d4121c45a7809d4e6d9252fa04bc1a04c1934f834ca7f8f205866d211e65e02f46fda028e724586447b54739ae7225eec134e05befcedbbb5cf9a153e171d77a38bd94f0bedaef55ff736e7f573d8798200588004e84d6f1fedda2c52aa4b55a7f15427482ebf67652be6f0a34e06d4e279b1206ac948cfad50c926e4afaedcd824e296a1b45c6fc208c2ade06350d3c8b8a7430eb923b0cbd24df54401d998531feead35a47a99f4deed205de4af81120f97610000000000000000000000000000000000000000000000000000000000000000",
+        "block" : {
+          "version" : 3,
+          "height" : 29,
+          "prevHash" : "78835c91b5953d3fefd755318d2c58a5f80286db549a6e0d7fc705efeee215f0",
+          "l1Slot" : 0,
+          "l1BlockHash" : "",
+          "timestamp" : 1788645055433,
+          "messagesRoot" : "925e6edcb35365ca9302b4c8ae1c1f50a88d1f6c490837b47522552dfc6ffdf2",
+          "stateRoot" : "af18c7fed874bc596c36100cd629135be7cc8f8ff7840ff6d855740429de6f80",
+          "blockHash" : "914d538fd8f3d89c4c61dc2fb71c4a1917f07e00df494c264b06654363ab7454",
+          "view" : 0,
+          "consensusContextDigest" : "75dfcdd6f149b5d4e68dfdb5b4c919b45f548da6692d284d297150d731fea207",
+          "proposer" : "481cc6c4765a54b5022e8258e20c7c96c2375c2ccff4c7e1a83e0e51783f0301",
+          "justificationDigest" : "0e5751c026e543b2e8ab2eb06099daa1d1e5df47778f7787faab45cdf12fe3a8"
+        },
+        "finalityCertificate" : {
+          "scheme" : 0,
+          "signatures" : [ {
+            "signer" : "ff909f28b1ec5d4cb8cdbafdb3ab200641105c40d36be74055f045119960b241",
+            "signature" : "a06a2648c6bb9c8b451547c3dfa8391ce4d549685ac1b9f2e659d82d7185b38ee6eec516a7b7eaeaaea8deeb13e21df33434a9a7612289d30f12c9b4dabe600b"
+          }, {
+            "signer" : "2cf4b18be19c8637cb614c273a69336fc44e1d22d8d07c32a392e2898edd7f20",
+            "signature" : "95203cafc83d4883d332f06acc35ba595c29b101c2ef4be6aefa66e40c16d26d1808fcd64afc8cef72a935a325427bac1e5c80bfda2d524c9504f228501e4304"
+          } ]
+        }
+      }
+    }, {
+      "name" : "receipt",
+      "keyHex" : "79616e6f2d636f6d706f736974652d73746174652d7631001161757468656e746963617465642d6d6170004a0100002279616e6f2d61757468656e746963617465642d6d61702d72656365697074732d7631000000208bfdbfef6ab0784712a732d7f0ed0b6c6c37a08a994fd12edb4b56d44ab47e8c",
+      "valueHex" : "880158208bfdbfef6ab0784712a732d7f0ed0b6c6c37a08a994fd12edb4b56d44ab47e8c01000058202de7a179cb456469b52855f47c898bff5cea9d0fe6ed0f8f42d24cef204e210458200fb86a9a1ba940dab4ade303066f4a5f6b590887494b3f7db55a7b6b545a5a8281856566656564734b636f6c6473746f72652d3700015820c54454ad1ec5a7372792981c78f21f78e449e22e5389b2c5e17613a8c81930ca",
+      "proof" : {
+        "schemaVersion" : 1,
+        "profile" : "mpf-blake2b256-v1",
+        "backend" : "mpf",
+        "commitmentFormatId" : "mpf-blake2b256-format-v1",
+        "proofEncodingId" : "mpf-proof-wire-v1",
+        "nativeVersioning" : false,
+        "physicalDelete" : true,
+        "formatFingerprint" : "91ee14091200f1e24659112d640e877e9177779dcc81dd06117f013e9190082b",
+        "genesisId" : "9d662349d6c7e2778eb7c59dfe410c0bb52cc68909d521d5d512b2e4ce74e5f1",
+        "version" : 29,
+        "stateRoot" : "af18c7fed874bc596c36100cd629135be7cc8f8ff7840ff6d855740429de6f80",
+        "oldestProvableHeight" : 1,
+        "proofSchemaVersion" : 1,
+        "key" : "79616e6f2d636f6d706f736974652d73746174652d7631001161757468656e746963617465642d6d6170004a0100002279616e6f2d61757468656e746963617465642d6d61702d72656365697074732d7631000000208bfdbfef6ab0784712a732d7f0ed0b6c6c37a08a994fd12edb4b56d44ab47e8c",
+        "chainId" : "attestation-feed-golden",
+        "committedHeight" : 29,
+        "presence" : "PRESENT",
+        "valueHex" : "880158208bfdbfef6ab0784712a732d7f0ed0b6c6c37a08a994fd12edb4b56d44ab47e8c01000058202de7a179cb456469b52855f47c898bff5cea9d0fe6ed0f8f42d24cef204e210458200fb86a9a1ba940dab4ade303066f4a5f6b590887494b3f7db55a7b6b545a5a8281856566656564734b636f6c6473746f72652d3700015820c54454ad1ec5a7372792981c78f21f78e449e22e5389b2c5e17613a8c81930ca",
+        "blockHash" : "914d538fd8f3d89c4c61dc2fb71c4a1917f07e00df494c264b06654363ab7454",
+        "proofWireHex" : "82d879820058800374cea37728c7f2a2005f1cec827bb7321319ffccedbe81fbb1b2800c55770ac31889cefda5f21bd7baeda62bbe1439507ac0c28133b4c86c0c91d2219931cee0ad4016507f92e38c37215c38d50c68c1ec94efab8df4f8800ac278ff019441d88d23850c48053c73801f65e9fb82de91acdbe97cfb6fe3c93decfd79a529d8d87982005880531854a5db4e8e067eec21c54fcddd00f3a57757f0c7b24dbf5ff6ff9949079f0a7930772516a76bc70f0759a27a4ccf1aa763e8eed46e0234f65f5e025b2a3780bcd95e720d21b663afe758253ba4c44f1505dda818fda5bdc99c9cf36dc73b0000000000000000000000000000000000000000000000000000000000000000",
+        "block" : {
+          "version" : 3,
+          "height" : 29,
+          "prevHash" : "78835c91b5953d3fefd755318d2c58a5f80286db549a6e0d7fc705efeee215f0",
+          "l1Slot" : 0,
+          "l1BlockHash" : "",
+          "timestamp" : 1788645055433,
+          "messagesRoot" : "925e6edcb35365ca9302b4c8ae1c1f50a88d1f6c490837b47522552dfc6ffdf2",
+          "stateRoot" : "af18c7fed874bc596c36100cd629135be7cc8f8ff7840ff6d855740429de6f80",
+          "blockHash" : "914d538fd8f3d89c4c61dc2fb71c4a1917f07e00df494c264b06654363ab7454",
+          "view" : 0,
+          "consensusContextDigest" : "75dfcdd6f149b5d4e68dfdb5b4c919b45f548da6692d284d297150d731fea207",
+          "proposer" : "481cc6c4765a54b5022e8258e20c7c96c2375c2ccff4c7e1a83e0e51783f0301",
+          "justificationDigest" : "0e5751c026e543b2e8ab2eb06099daa1d1e5df47778f7787faab45cdf12fe3a8"
+        },
+        "finalityCertificate" : {
+          "scheme" : 0,
+          "signatures" : [ {
+            "signer" : "ff909f28b1ec5d4cb8cdbafdb3ab200641105c40d36be74055f045119960b241",
+            "signature" : "a06a2648c6bb9c8b451547c3dfa8391ce4d549685ac1b9f2e659d82d7185b38ee6eec516a7b7eaeaaea8deeb13e21df33434a9a7612289d30f12c9b4dabe600b"
+          }, {
+            "signer" : "2cf4b18be19c8637cb614c273a69336fc44e1d22d8d07c32a392e2898edd7f20",
+            "signature" : "95203cafc83d4883d332f06acc35ba595c29b101c2ef4be6aefa66e40c16d26d1808fcd64afc8cef72a935a325427bac1e5c80bfda2d524c9504f228501e4304"
+          } ]
+        }
+      }
+    }, {
+      "name" : "direct-consumption",
+      "keyHex" : "79616e6f2d636f6d706f736974652d73746174652d7631001161757468656e746963617465642d6d617000630100002c79616e6f2d61757468656e746963617465642d6d61702d6469726563742d636f6e73756d7074696f6e2d76310000002f01000c666565642d61646d696e2d6140b015fe5fc47f2862d9c68a5a4df576457f38c99025e810d846e14d5e996417",
+      "valueHex" : "90016c666565642d61646d696e2d61582040b015fe5fc47f2862d9c68a5a4df576457f38c99025e810d846e14d5e99641758202de7a179cb456469b52855f47c898bff5cea9d0fe6ed0f8f42d24cef204e21040158208bfdbfef6ab0784712a732d7f0ed0b6c6c37a08a994fd12edb4b56d44ab47e8c810070666565642d61646d696e2d777269746501016f666565642d636f6e736f727469756d016a666565642d61646d696e6f666565642d61646d696e2d612d6b3158200616235f2d6023492788bd7912b841ae8d8227502e846e63c1a5516d921c5d8758208b11bfeb8b3a02b1aae29ef0ada9dee16d3445e17503f2b77f0de1a24b525d5e",
+      "proof" : {
+        "schemaVersion" : 1,
+        "profile" : "mpf-blake2b256-v1",
+        "backend" : "mpf",
+        "commitmentFormatId" : "mpf-blake2b256-format-v1",
+        "proofEncodingId" : "mpf-proof-wire-v1",
+        "nativeVersioning" : false,
+        "physicalDelete" : true,
+        "formatFingerprint" : "91ee14091200f1e24659112d640e877e9177779dcc81dd06117f013e9190082b",
+        "genesisId" : "9d662349d6c7e2778eb7c59dfe410c0bb52cc68909d521d5d512b2e4ce74e5f1",
+        "version" : 29,
+        "stateRoot" : "af18c7fed874bc596c36100cd629135be7cc8f8ff7840ff6d855740429de6f80",
+        "oldestProvableHeight" : 1,
+        "proofSchemaVersion" : 1,
+        "key" : "79616e6f2d636f6d706f736974652d73746174652d7631001161757468656e746963617465642d6d617000630100002c79616e6f2d61757468656e746963617465642d6d61702d6469726563742d636f6e73756d7074696f6e2d76310000002f01000c666565642d61646d696e2d6140b015fe5fc47f2862d9c68a5a4df576457f38c99025e810d846e14d5e996417",
+        "chainId" : "attestation-feed-golden",
+        "committedHeight" : 29,
+        "presence" : "PRESENT",
+        "valueHex" : "90016c666565642d61646d696e2d61582040b015fe5fc47f2862d9c68a5a4df576457f38c99025e810d846e14d5e99641758202de7a179cb456469b52855f47c898bff5cea9d0fe6ed0f8f42d24cef204e21040158208bfdbfef6ab0784712a732d7f0ed0b6c6c37a08a994fd12edb4b56d44ab47e8c810070666565642d61646d696e2d777269746501016f666565642d636f6e736f727469756d016a666565642d61646d696e6f666565642d61646d696e2d612d6b3158200616235f2d6023492788bd7912b841ae8d8227502e846e63c1a5516d921c5d8758208b11bfeb8b3a02b1aae29ef0ada9dee16d3445e17503f2b77f0de1a24b525d5e",
+        "blockHash" : "914d538fd8f3d89c4c61dc2fb71c4a1917f07e00df494c264b06654363ab7454",
+        "proofWireHex" : "82d87982005880575f4fe350c0070537d261425dc9934bc4cf463f08f3e3b0a2ee0614031261fe8c68bf001d1752ac1b687b6f4e8f8cfb937f2d4121c45a7809d4e6d9252fa04bbcaae7990aaa24f5ce34a94d3d13f650a326cd63dff67b241d5dfee79847bde9e12c5867e14b8ed817532ac324a4cb1595e88c6414b77f2f12d17618724b8e4dd879820058803f8c7e57f01b714de07fce0185c63fea9693ff7afe3f3500fc62ed1eda9ebf805916fa13881aa8c67c71f475a6f3077d377b4ca87d3f0b5504836087f8f39695a6a074632b127ab94367dd90b0f0d6e3d43cdc889644d90f05e069d68b95f1960000000000000000000000000000000000000000000000000000000000000000",
+        "block" : {
+          "version" : 3,
+          "height" : 29,
+          "prevHash" : "78835c91b5953d3fefd755318d2c58a5f80286db549a6e0d7fc705efeee215f0",
+          "l1Slot" : 0,
+          "l1BlockHash" : "",
+          "timestamp" : 1788645055433,
+          "messagesRoot" : "925e6edcb35365ca9302b4c8ae1c1f50a88d1f6c490837b47522552dfc6ffdf2",
+          "stateRoot" : "af18c7fed874bc596c36100cd629135be7cc8f8ff7840ff6d855740429de6f80",
+          "blockHash" : "914d538fd8f3d89c4c61dc2fb71c4a1917f07e00df494c264b06654363ab7454",
+          "view" : 0,
+          "consensusContextDigest" : "75dfcdd6f149b5d4e68dfdb5b4c919b45f548da6692d284d297150d731fea207",
+          "proposer" : "481cc6c4765a54b5022e8258e20c7c96c2375c2ccff4c7e1a83e0e51783f0301",
+          "justificationDigest" : "0e5751c026e543b2e8ab2eb06099daa1d1e5df47778f7787faab45cdf12fe3a8"
+        },
+        "finalityCertificate" : {
+          "scheme" : 0,
+          "signatures" : [ {
+            "signer" : "ff909f28b1ec5d4cb8cdbafdb3ab200641105c40d36be74055f045119960b241",
+            "signature" : "a06a2648c6bb9c8b451547c3dfa8391ce4d549685ac1b9f2e659d82d7185b38ee6eec516a7b7eaeaaea8deeb13e21df33434a9a7612289d30f12c9b4dabe600b"
+          }, {
+            "signer" : "2cf4b18be19c8637cb614c273a69336fc44e1d22d8d07c32a392e2898edd7f20",
+            "signature" : "95203cafc83d4883d332f06acc35ba595c29b101c2ef4be6aefa66e40c16d26d1808fcd64afc8cef72a935a325427bac1e5c80bfda2d524c9504f228501e4304"
+          } ]
+        }
+      }
+    }, {
+      "name" : "direct-policy",
+      "keyHex" : "79616e6f2d636f6d706f736974652d73746174652d7631000e726f6c652d617070726f76616c730016642f666565642d61646d696e2d77726974652f722f31",
+      "valueHex" : "860170666565642d61646d696e2d777269746501006a666565642d61646d696e1864",
+      "proof" : {
+        "schemaVersion" : 1,
+        "profile" : "mpf-blake2b256-v1",
+        "backend" : "mpf",
+        "commitmentFormatId" : "mpf-blake2b256-format-v1",
+        "proofEncodingId" : "mpf-proof-wire-v1",
+        "nativeVersioning" : false,
+        "physicalDelete" : true,
+        "formatFingerprint" : "91ee14091200f1e24659112d640e877e9177779dcc81dd06117f013e9190082b",
+        "genesisId" : "9d662349d6c7e2778eb7c59dfe410c0bb52cc68909d521d5d512b2e4ce74e5f1",
+        "version" : 29,
+        "stateRoot" : "af18c7fed874bc596c36100cd629135be7cc8f8ff7840ff6d855740429de6f80",
+        "oldestProvableHeight" : 1,
+        "proofSchemaVersion" : 1,
+        "key" : "79616e6f2d636f6d706f736974652d73746174652d7631000e726f6c652d617070726f76616c730016642f666565642d61646d696e2d77726974652f722f31",
+        "chainId" : "attestation-feed-golden",
+        "committedHeight" : 29,
+        "presence" : "PRESENT",
+        "valueHex" : "860170666565642d61646d696e2d777269746501006a666565642d61646d696e1864",
+        "blockHash" : "914d538fd8f3d89c4c61dc2fb71c4a1917f07e00df494c264b06654363ab7454",
+        "proofWireHex" : "83d879820058800374cea37728c7f2a2005f1cec827bb7321319ffccedbe81fbb1b2800c55770ac31889cefda5f21bd7baeda62bbe1439507ac0c28133b4c86c0c91d2219931cee0ad4016507f92e38c37215c38d50c68c1ec94efab8df4f8800ac278ff019441d88d23850c48053c73801f65e9fb82de91acdbe97cfb6fe3c93decfd79a529d8d87982005880531854a5db4e8e067eec21c54fcddd00f3a57757f0c7b24dbf5ff6ff9949079fea13873e98510ad7017e40e46648ff4462a0b71fd6e68107f93110d62fbf89f90eb923b0cbd24df54401d998531feead35a47a99f4deed205de4af81120f97610000000000000000000000000000000000000000000000000000000000000000d8798200588002b5bab98e38d060cfbcb9d1794357c2974c92da5cd85b8f2a4825a215559b1b85c09af929492a871e4fae32d9d5c36e352471cd659bcdb61de08f1722acc3b10eb923b0cbd24df54401d998531feead35a47a99f4deed205de4af81120f97610000000000000000000000000000000000000000000000000000000000000000",
+        "block" : {
+          "version" : 3,
+          "height" : 29,
+          "prevHash" : "78835c91b5953d3fefd755318d2c58a5f80286db549a6e0d7fc705efeee215f0",
+          "l1Slot" : 0,
+          "l1BlockHash" : "",
+          "timestamp" : 1788645055433,
+          "messagesRoot" : "925e6edcb35365ca9302b4c8ae1c1f50a88d1f6c490837b47522552dfc6ffdf2",
+          "stateRoot" : "af18c7fed874bc596c36100cd629135be7cc8f8ff7840ff6d855740429de6f80",
+          "blockHash" : "914d538fd8f3d89c4c61dc2fb71c4a1917f07e00df494c264b06654363ab7454",
+          "view" : 0,
+          "consensusContextDigest" : "75dfcdd6f149b5d4e68dfdb5b4c919b45f548da6692d284d297150d731fea207",
+          "proposer" : "481cc6c4765a54b5022e8258e20c7c96c2375c2ccff4c7e1a83e0e51783f0301",
+          "justificationDigest" : "0e5751c026e543b2e8ab2eb06099daa1d1e5df47778f7787faab45cdf12fe3a8"
+        },
+        "finalityCertificate" : {
+          "scheme" : 0,
+          "signatures" : [ {
+            "signer" : "ff909f28b1ec5d4cb8cdbafdb3ab200641105c40d36be74055f045119960b241",
+            "signature" : "a06a2648c6bb9c8b451547c3dfa8391ce4d549685ac1b9f2e659d82d7185b38ee6eec516a7b7eaeaaea8deeb13e21df33434a9a7612289d30f12c9b4dabe600b"
+          }, {
+            "signer" : "2cf4b18be19c8637cb614c273a69336fc44e1d22d8d07c32a392e2898edd7f20",
+            "signature" : "95203cafc83d4883d332f06acc35ba595c29b101c2ef4be6aefa66e40c16d26d1808fcd64afc8cef72a935a325427bac1e5c80bfda2d524c9504f228501e4304"
+          } ]
+        }
+      }
+    }, {
+      "name" : "direct-policy-current",
+      "keyHex" : "79616e6f2d636f6d706f736974652d73746174652d7631000e726f6c652d617070726f76616c73001a642f666565642d61646d696e2d77726974652f63757272656e74",
+      "valueHex" : "0000000000000001",
+      "proof" : {
+        "schemaVersion" : 1,
+        "profile" : "mpf-blake2b256-v1",
+        "backend" : "mpf",
+        "commitmentFormatId" : "mpf-blake2b256-format-v1",
+        "proofEncodingId" : "mpf-proof-wire-v1",
+        "nativeVersioning" : false,
+        "physicalDelete" : true,
+        "formatFingerprint" : "91ee14091200f1e24659112d640e877e9177779dcc81dd06117f013e9190082b",
+        "genesisId" : "9d662349d6c7e2778eb7c59dfe410c0bb52cc68909d521d5d512b2e4ce74e5f1",
+        "version" : 29,
+        "stateRoot" : "af18c7fed874bc596c36100cd629135be7cc8f8ff7840ff6d855740429de6f80",
+        "oldestProvableHeight" : 1,
+        "proofSchemaVersion" : 1,
+        "key" : "79616e6f2d636f6d706f736974652d73746174652d7631000e726f6c652d617070726f76616c73001a642f666565642d61646d696e2d77726974652f63757272656e74",
+        "chainId" : "attestation-feed-golden",
+        "committedHeight" : 29,
+        "presence" : "PRESENT",
+        "valueHex" : "0000000000000001",
+        "blockHash" : "914d538fd8f3d89c4c61dc2fb71c4a1917f07e00df494c264b06654363ab7454",
+        "proofWireHex" : "82d87982005880575f4fe350c0070537d261425dc9934bc4cf463f08f3e3b0a2ee0614031261fe8c68bf001d1752ac1b687b6f4e8f8cfb937f2d4121c45a7809d4e6d9252fa04bc1a04c1934f834ca7f8f205866d211e65e02f46fda028e724586447b54739ae7225eec134e05befcedbbb5cf9a153e171d77a38bd94f0bedaef55ff736e7f573d8798200588004e84d6f1fedda2c52aa4b55a7f15427482ebf67652be6f0a34e06d4e279b1209ec77d04a70fe35b0c427de8a0b34fd5670f8bab75dfa630049524e822206a7aa64dacb520926d1bf42fa3a553e64fe17190785bce4e93f791e98a656e37caec0000000000000000000000000000000000000000000000000000000000000000",
+        "block" : {
+          "version" : 3,
+          "height" : 29,
+          "prevHash" : "78835c91b5953d3fefd755318d2c58a5f80286db549a6e0d7fc705efeee215f0",
+          "l1Slot" : 0,
+          "l1BlockHash" : "",
+          "timestamp" : 1788645055433,
+          "messagesRoot" : "925e6edcb35365ca9302b4c8ae1c1f50a88d1f6c490837b47522552dfc6ffdf2",
+          "stateRoot" : "af18c7fed874bc596c36100cd629135be7cc8f8ff7840ff6d855740429de6f80",
+          "blockHash" : "914d538fd8f3d89c4c61dc2fb71c4a1917f07e00df494c264b06654363ab7454",
+          "view" : 0,
+          "consensusContextDigest" : "75dfcdd6f149b5d4e68dfdb5b4c919b45f548da6692d284d297150d731fea207",
+          "proposer" : "481cc6c4765a54b5022e8258e20c7c96c2375c2ccff4c7e1a83e0e51783f0301",
+          "justificationDigest" : "0e5751c026e543b2e8ab2eb06099daa1d1e5df47778f7787faab45cdf12fe3a8"
+        },
+        "finalityCertificate" : {
+          "scheme" : 0,
+          "signatures" : [ {
+            "signer" : "ff909f28b1ec5d4cb8cdbafdb3ab200641105c40d36be74055f045119960b241",
+            "signature" : "a06a2648c6bb9c8b451547c3dfa8391ce4d549685ac1b9f2e659d82d7185b38ee6eec516a7b7eaeaaea8deeb13e21df33434a9a7612289d30f12c9b4dabe600b"
+          }, {
+            "signer" : "2cf4b18be19c8637cb614c273a69336fc44e1d22d8d07c32a392e2898edd7f20",
+            "signature" : "95203cafc83d4883d332f06acc35ba595c29b101c2ef4be6aefa66e40c16d26d1808fcd64afc8cef72a935a325427bac1e5c80bfda2d524c9504f228501e4304"
+          } ]
+        }
+      }
+    }, {
+      "name" : "actor",
+      "keyHex" : "79616e6f2d636f6d706f736974652d73746174652d7631000d646f6d61696e2d6163746f72730012612f666565642d61646d696e2d612f722f31",
+      "valueHex" : "88016c666565642d61646d696e2d616f666565642d636f6e736f727469756d0100816a666565642d61646d696e81856f666565642d61646d696e2d612d6b315820197b2256b08059b61121f0c5cb10dd067823725145c5d20fa0f081f897224a4901000040",
+      "proof" : {
+        "schemaVersion" : 1,
+        "profile" : "mpf-blake2b256-v1",
+        "backend" : "mpf",
+        "commitmentFormatId" : "mpf-blake2b256-format-v1",
+        "proofEncodingId" : "mpf-proof-wire-v1",
+        "nativeVersioning" : false,
+        "physicalDelete" : true,
+        "formatFingerprint" : "91ee14091200f1e24659112d640e877e9177779dcc81dd06117f013e9190082b",
+        "genesisId" : "9d662349d6c7e2778eb7c59dfe410c0bb52cc68909d521d5d512b2e4ce74e5f1",
+        "version" : 29,
+        "stateRoot" : "af18c7fed874bc596c36100cd629135be7cc8f8ff7840ff6d855740429de6f80",
+        "oldestProvableHeight" : 1,
+        "proofSchemaVersion" : 1,
+        "key" : "79616e6f2d636f6d706f736974652d73746174652d7631000d646f6d61696e2d6163746f72730012612f666565642d61646d696e2d612f722f31",
+        "chainId" : "attestation-feed-golden",
+        "committedHeight" : 29,
+        "presence" : "PRESENT",
+        "valueHex" : "88016c666565642d61646d696e2d616f666565642d636f6e736f727469756d0100816a666565642d61646d696e81856f666565642d61646d696e2d612d6b315820197b2256b08059b61121f0c5cb10dd067823725145c5d20fa0f081f897224a4901000040",
+        "blockHash" : "914d538fd8f3d89c4c61dc2fb71c4a1917f07e00df494c264b06654363ab7454",
+        "proofWireHex" : "83d879820058800374cea37728c7f2a2005f1cec827bb7321319ffccedbe81fbb1b2800c55770aaa0f14e54cd3945684b1883f748c2d6c9f795e63ca196a2d4ddaf34d94fa5f9234d471b40db08053bf0a33f2aaea827882e8d012282c29132f44920a6096438fe54f3c25c3746d50f3020380fd484e4711436b5a067ae7a5f9b2900179e28e4dd87982005880a46c5354148faa263cbe97fbf14f69300e0e5f82d4f9d7f4c03701ddde86596d2e0f61ff74525098fd52da4fa14aeaa03c4db186298df31ded137e12b0b4a54e77908deb19a3f6b376010efeb724e3dbfb7d7d7af26f1dbdf24a7aaf8a0929952b9a801eb462db0a2bcbe4598c6391621bb6a335b9d748f35294829b0430bfa9d87982005880a9d4e6ae563de4a4a2025b7e8740b369ca335512618348e5db0c92c6385b3ce185c09af929492a871e4fae32d9d5c36e352471cd659bcdb61de08f1722acc3b10eb923b0cbd24df54401d998531feead35a47a99f4deed205de4af81120f97610000000000000000000000000000000000000000000000000000000000000000",
+        "block" : {
+          "version" : 3,
+          "height" : 29,
+          "prevHash" : "78835c91b5953d3fefd755318d2c58a5f80286db549a6e0d7fc705efeee215f0",
+          "l1Slot" : 0,
+          "l1BlockHash" : "",
+          "timestamp" : 1788645055433,
+          "messagesRoot" : "925e6edcb35365ca9302b4c8ae1c1f50a88d1f6c490837b47522552dfc6ffdf2",
+          "stateRoot" : "af18c7fed874bc596c36100cd629135be7cc8f8ff7840ff6d855740429de6f80",
+          "blockHash" : "914d538fd8f3d89c4c61dc2fb71c4a1917f07e00df494c264b06654363ab7454",
+          "view" : 0,
+          "consensusContextDigest" : "75dfcdd6f149b5d4e68dfdb5b4c919b45f548da6692d284d297150d731fea207",
+          "proposer" : "481cc6c4765a54b5022e8258e20c7c96c2375c2ccff4c7e1a83e0e51783f0301",
+          "justificationDigest" : "0e5751c026e543b2e8ab2eb06099daa1d1e5df47778f7787faab45cdf12fe3a8"
+        },
+        "finalityCertificate" : {
+          "scheme" : 0,
+          "signatures" : [ {
+            "signer" : "ff909f28b1ec5d4cb8cdbafdb3ab200641105c40d36be74055f045119960b241",
+            "signature" : "a06a2648c6bb9c8b451547c3dfa8391ce4d549685ac1b9f2e659d82d7185b38ee6eec516a7b7eaeaaea8deeb13e21df33434a9a7612289d30f12c9b4dabe600b"
+          }, {
+            "signer" : "2cf4b18be19c8637cb614c273a69336fc44e1d22d8d07c32a392e2898edd7f20",
+            "signature" : "95203cafc83d4883d332f06acc35ba595c29b101c2ef4be6aefa66e40c16d26d1808fcd64afc8cef72a935a325427bac1e5c80bfda2d524c9504f228501e4304"
+          } ]
+        }
+      }
+    }, {
+      "name" : "actor-current",
+      "keyHex" : "79616e6f2d636f6d706f736974652d73746174652d7631000d646f6d61696e2d6163746f72730016612f666565642d61646d696e2d612f63757272656e74",
+      "valueHex" : "0000000000000001",
+      "proof" : {
+        "schemaVersion" : 1,
+        "profile" : "mpf-blake2b256-v1",
+        "backend" : "mpf",
+        "commitmentFormatId" : "mpf-blake2b256-format-v1",
+        "proofEncodingId" : "mpf-proof-wire-v1",
+        "nativeVersioning" : false,
+        "physicalDelete" : true,
+        "formatFingerprint" : "91ee14091200f1e24659112d640e877e9177779dcc81dd06117f013e9190082b",
+        "genesisId" : "9d662349d6c7e2778eb7c59dfe410c0bb52cc68909d521d5d512b2e4ce74e5f1",
+        "version" : 29,
+        "stateRoot" : "af18c7fed874bc596c36100cd629135be7cc8f8ff7840ff6d855740429de6f80",
+        "oldestProvableHeight" : 1,
+        "proofSchemaVersion" : 1,
+        "key" : "79616e6f2d636f6d706f736974652d73746174652d7631000d646f6d61696e2d6163746f72730016612f666565642d61646d696e2d612f63757272656e74",
+        "chainId" : "attestation-feed-golden",
+        "committedHeight" : 29,
+        "presence" : "PRESENT",
+        "valueHex" : "0000000000000001",
+        "blockHash" : "914d538fd8f3d89c4c61dc2fb71c4a1917f07e00df494c264b06654363ab7454",
+        "proofWireHex" : "83d87982005880575f4fe350c0070537d261425dc9934bc4cf463f08f3e3b0a2ee0614031261fe147d260cf6478631ba6d10b37c65f4c2677e866abba6eac4fa7b3a0cf24d6c9bb829301b7e0807f7bd05c23660829f5776d1d02608cbc84962ffc99f1cff3cbe0c798b3ca7bd00ef0e129dfd806a4f80cbdfe528361d51c06e6e0ee2a3a049b6d8798200588020f6a59c2f97c2827282134500b8958d5b60ec97c70328e297f9d62d55595d4ad638b314b0d4bb55fb0d5e49963176baf165452b7d962a9075e9907b7b915e6fdfc3908fd6f054ef0c5a531ced8d2c6bbbbc453408f26c7a4eff3baed1a11c160000000000000000000000000000000000000000000000000000000000000000d879820058808288ca3c330c29020b336a85780224b9a8794c8bb733a6cdeaafe6844fa1032485c09af929492a871e4fae32d9d5c36e352471cd659bcdb61de08f1722acc3b10eb923b0cbd24df54401d998531feead35a47a99f4deed205de4af81120f97614fa229a7e43f4a59d802c5e933f42ee252b8c0c9fff8ec439dc6c9f23f8aba7b",
+        "block" : {
+          "version" : 3,
+          "height" : 29,
+          "prevHash" : "78835c91b5953d3fefd755318d2c58a5f80286db549a6e0d7fc705efeee215f0",
+          "l1Slot" : 0,
+          "l1BlockHash" : "",
+          "timestamp" : 1788645055433,
+          "messagesRoot" : "925e6edcb35365ca9302b4c8ae1c1f50a88d1f6c490837b47522552dfc6ffdf2",
+          "stateRoot" : "af18c7fed874bc596c36100cd629135be7cc8f8ff7840ff6d855740429de6f80",
+          "blockHash" : "914d538fd8f3d89c4c61dc2fb71c4a1917f07e00df494c264b06654363ab7454",
+          "view" : 0,
+          "consensusContextDigest" : "75dfcdd6f149b5d4e68dfdb5b4c919b45f548da6692d284d297150d731fea207",
+          "proposer" : "481cc6c4765a54b5022e8258e20c7c96c2375c2ccff4c7e1a83e0e51783f0301",
+          "justificationDigest" : "0e5751c026e543b2e8ab2eb06099daa1d1e5df47778f7787faab45cdf12fe3a8"
+        },
+        "finalityCertificate" : {
+          "scheme" : 0,
+          "signatures" : [ {
+            "signer" : "ff909f28b1ec5d4cb8cdbafdb3ab200641105c40d36be74055f045119960b241",
+            "signature" : "a06a2648c6bb9c8b451547c3dfa8391ce4d549685ac1b9f2e659d82d7185b38ee6eec516a7b7eaeaaea8deeb13e21df33434a9a7612289d30f12c9b4dabe600b"
+          }, {
+            "signer" : "2cf4b18be19c8637cb614c273a69336fc44e1d22d8d07c32a392e2898edd7f20",
+            "signature" : "95203cafc83d4883d332f06acc35ba595c29b101c2ef4be6aefa66e40c16d26d1808fcd64afc8cef72a935a325427bac1e5c80bfda2d524c9504f228501e4304"
+          } ]
+        }
+      }
+    }, {
+      "name" : "organization",
+      "keyHex" : "79616e6f2d636f6d706f736974652d73746174652d7631000d646f6d61696e2d6163746f727300156f2f666565642d636f6e736f727469756d2f722f31",
+      "valueHex" : "85016f666565642d636f6e736f727469756d010040",
+      "proof" : {
+        "schemaVersion" : 1,
+        "profile" : "mpf-blake2b256-v1",
+        "backend" : "mpf",
+        "commitmentFormatId" : "mpf-blake2b256-format-v1",
+        "proofEncodingId" : "mpf-proof-wire-v1",
+        "nativeVersioning" : false,
+        "physicalDelete" : true,
+        "formatFingerprint" : "91ee14091200f1e24659112d640e877e9177779dcc81dd06117f013e9190082b",
+        "genesisId" : "9d662349d6c7e2778eb7c59dfe410c0bb52cc68909d521d5d512b2e4ce74e5f1",
+        "version" : 29,
+        "stateRoot" : "af18c7fed874bc596c36100cd629135be7cc8f8ff7840ff6d855740429de6f80",
+        "oldestProvableHeight" : 1,
+        "proofSchemaVersion" : 1,
+        "key" : "79616e6f2d636f6d706f736974652d73746174652d7631000d646f6d61696e2d6163746f727300156f2f666565642d636f6e736f727469756d2f722f31",
+        "chainId" : "attestation-feed-golden",
+        "committedHeight" : 29,
+        "presence" : "PRESENT",
+        "valueHex" : "85016f666565642d636f6e736f727469756d010040",
+        "blockHash" : "914d538fd8f3d89c4c61dc2fb71c4a1917f07e00df494c264b06654363ab7454",
+        "proofWireHex" : "82d879820058800374cea37728c7f2a2005f1cec827bb7321319ffccedbe81fbb1b2800c55770ac31889cefda5f21bd7baeda62bbe1439507ac0c28133b4c86c0c91d2219931ced9c7d15d84d798981e8d36ec317bfa18f904a3290ab7664f934462afbbd7c91a2221b7e75046b375039fcf715ff89ad52fe057b98c1c871c6e7b9faeb41589cdd87982005880f770d8331c45f8f76bda86ed74a5fae38b0136f1b6e4ea276ed14c59d3b4e1e5b41546b18ce2704af242d9ab62f93f039aae042ee797ce7b3f365634c9eb635bfdf00c8e9f155395509d44f58671de13efc5fce750e9f3c207b932f900b802250a43444c128c2524c8424383def2d0026904fe5e1b482b4126deb74d211220a0",
+        "block" : {
+          "version" : 3,
+          "height" : 29,
+          "prevHash" : "78835c91b5953d3fefd755318d2c58a5f80286db549a6e0d7fc705efeee215f0",
+          "l1Slot" : 0,
+          "l1BlockHash" : "",
+          "timestamp" : 1788645055433,
+          "messagesRoot" : "925e6edcb35365ca9302b4c8ae1c1f50a88d1f6c490837b47522552dfc6ffdf2",
+          "stateRoot" : "af18c7fed874bc596c36100cd629135be7cc8f8ff7840ff6d855740429de6f80",
+          "blockHash" : "914d538fd8f3d89c4c61dc2fb71c4a1917f07e00df494c264b06654363ab7454",
+          "view" : 0,
+          "consensusContextDigest" : "75dfcdd6f149b5d4e68dfdb5b4c919b45f548da6692d284d297150d731fea207",
+          "proposer" : "481cc6c4765a54b5022e8258e20c7c96c2375c2ccff4c7e1a83e0e51783f0301",
+          "justificationDigest" : "0e5751c026e543b2e8ab2eb06099daa1d1e5df47778f7787faab45cdf12fe3a8"
+        },
+        "finalityCertificate" : {
+          "scheme" : 0,
+          "signatures" : [ {
+            "signer" : "ff909f28b1ec5d4cb8cdbafdb3ab200641105c40d36be74055f045119960b241",
+            "signature" : "a06a2648c6bb9c8b451547c3dfa8391ce4d549685ac1b9f2e659d82d7185b38ee6eec516a7b7eaeaaea8deeb13e21df33434a9a7612289d30f12c9b4dabe600b"
+          }, {
+            "signer" : "2cf4b18be19c8637cb614c273a69336fc44e1d22d8d07c32a392e2898edd7f20",
+            "signature" : "95203cafc83d4883d332f06acc35ba595c29b101c2ef4be6aefa66e40c16d26d1808fcd64afc8cef72a935a325427bac1e5c80bfda2d524c9504f228501e4304"
+          } ]
+        }
+      }
+    }, {
+      "name" : "genesis-marker",
+      "keyHex" : "79616e6f2d636f6d706f736974652d73746174652d7631001161757468656e746963617465642d6d617000310100002279616e6f2d61757468656e746963617465642d6d61702d696e7465726e616c2d76310000000767656e65736973",
+      "valueHex" : "c22a02d5ad52c138795d36b67cb4453901c7acdef7e008d280eddb41104e8d4d",
+      "proof" : {
+        "schemaVersion" : 1,
+        "profile" : "mpf-blake2b256-v1",
+        "backend" : "mpf",
+        "commitmentFormatId" : "mpf-blake2b256-format-v1",
+        "proofEncodingId" : "mpf-proof-wire-v1",
+        "nativeVersioning" : false,
+        "physicalDelete" : true,
+        "formatFingerprint" : "91ee14091200f1e24659112d640e877e9177779dcc81dd06117f013e9190082b",
+        "genesisId" : "9d662349d6c7e2778eb7c59dfe410c0bb52cc68909d521d5d512b2e4ce74e5f1",
+        "version" : 29,
+        "stateRoot" : "af18c7fed874bc596c36100cd629135be7cc8f8ff7840ff6d855740429de6f80",
+        "oldestProvableHeight" : 1,
+        "proofSchemaVersion" : 1,
+        "key" : "79616e6f2d636f6d706f736974652d73746174652d7631001161757468656e746963617465642d6d617000310100002279616e6f2d61757468656e746963617465642d6d61702d696e7465726e616c2d76310000000767656e65736973",
+        "chainId" : "attestation-feed-golden",
+        "committedHeight" : 29,
+        "presence" : "PRESENT",
+        "valueHex" : "c22a02d5ad52c138795d36b67cb4453901c7acdef7e008d280eddb41104e8d4d",
+        "blockHash" : "914d538fd8f3d89c4c61dc2fb71c4a1917f07e00df494c264b06654363ab7454",
+        "proofWireHex" : "82d87982005880575f4fe350c0070537d261425dc9934bc4cf463f08f3e3b0a2ee0614031261fe147d260cf6478631ba6d10b37c65f4c2677e866abba6eac4fa7b3a0cf24d6c9b4fad4bf9061bf702395befe2b13fee10334419eee8de082517bcc981ef4ba592993f56348f532d134802b34181d44f3ee3bd2ff25935cc62a69917019ee3439ed8798200588068168bf5eb933e346fa1dba6d81503cb69ad2083ae9839951025226aeb12b27327a294789b46216d084f4d6753d7adf8d001833971bd11a81daa1149b633e429f15959a5f833712242e45deb230996afdbab0d69040a4c948d5f4a9b6cd32326d11c33ab137c3b6dd2b15692f603e8b98a1bf0880464487ec510b3a366a07d5e",
+        "block" : {
+          "version" : 3,
+          "height" : 29,
+          "prevHash" : "78835c91b5953d3fefd755318d2c58a5f80286db549a6e0d7fc705efeee215f0",
+          "l1Slot" : 0,
+          "l1BlockHash" : "",
+          "timestamp" : 1788645055433,
+          "messagesRoot" : "925e6edcb35365ca9302b4c8ae1c1f50a88d1f6c490837b47522552dfc6ffdf2",
+          "stateRoot" : "af18c7fed874bc596c36100cd629135be7cc8f8ff7840ff6d855740429de6f80",
+          "blockHash" : "914d538fd8f3d89c4c61dc2fb71c4a1917f07e00df494c264b06654363ab7454",
+          "view" : 0,
+          "consensusContextDigest" : "75dfcdd6f149b5d4e68dfdb5b4c919b45f548da6692d284d297150d731fea207",
+          "proposer" : "481cc6c4765a54b5022e8258e20c7c96c2375c2ccff4c7e1a83e0e51783f0301",
+          "justificationDigest" : "0e5751c026e543b2e8ab2eb06099daa1d1e5df47778f7787faab45cdf12fe3a8"
+        },
+        "finalityCertificate" : {
+          "scheme" : 0,
+          "signatures" : [ {
+            "signer" : "ff909f28b1ec5d4cb8cdbafdb3ab200641105c40d36be74055f045119960b241",
+            "signature" : "a06a2648c6bb9c8b451547c3dfa8391ce4d549685ac1b9f2e659d82d7185b38ee6eec516a7b7eaeaaea8deeb13e21df33434a9a7612289d30f12c9b4dabe600b"
+          }, {
+            "signer" : "2cf4b18be19c8637cb614c273a69336fc44e1d22d8d07c32a392e2898edd7f20",
+            "signature" : "95203cafc83d4883d332f06acc35ba595c29b101c2ef4be6aefa66e40c16d26d1808fcd64afc8cef72a935a325427bac1e5c80bfda2d524c9504f228501e4304"
+          } ]
+        }
+      }
+    } ],
+    "evidence" : {
+      "chainId" : "attestation-feed-golden",
+      "messageId" : "925e6edcb35365ca9302b4c8ae1c1f50a88d1f6c490837b47522552dfc6ffdf2",
+      "blocksCbor" : [ "8f03776174746573746174696f6e2d666565642d676f6c64656e181d582075dfcdd6f149b5d4e68dfdb5b4c919b45f548da6692d284d297150d731fea20700582078835c91b5953d3fefd755318d2c58a5f80286db549a6e0d7fc705efeee215f000401b000001a0738d9bc95820925e6edcb35365ca9302b4c8ae1c1f50a88d1f6c490837b47522552dfc6ffdf25820af18c7fed874bc596c36100cd629135be7cc8f8ff7840ff6d855740429de6f808189025820925e6edcb35365ca9302b4c8ae1c1f50a88d1f6c490837b47522552dfc6ffdf2776174746573746174696f6e2d666565642d676f6c64656e781c61757468656e746963617465642d6d61702e636f6d6d616e642e76315820ff909f28b1ec5d4cb8cdbafdb3ab200641105c40d36be74055f045119960b2411b000001a0738d11bb1a6a9c9116590174830158518401008187016c6f62736572766174696f6e73581a636f6c6473746f72652d372f31322f736f757263652d626574614c85013907071a6ab13e834060004040818400036c736f757263652d777269746501818200590119830158d38f01582031156afa8d256fedb802014556954a6b1ce5419d1027aabfaa1c2f5e7553d59c776174746573746174696f6e2d666565642d676f6c64656e5820c22a02d5ad52c138795d36b67cb4453901c7acdef7e008d280eddb41104e8d4d5820a766bd2acd18a7781f7efe5b9de030d85603de840d12db8aca83403e8975db8481006c736f757263652d7772697465016b736f757263652d62657461016e736f757263652d626574612d6b315820ce5b96c753490cce34290a6b42818b55407d182275fa97cab9c45a4955dd4747181c18800058403a5940b366c2c610bebc92dada29a0a5bc060d9f14e30138628e19fce5438e77f15bef4b02f7eb0e06b30774f82dde2e4faeb44a113e79369d91c8e960be0e0182005840d4830fe9bb6f4b202f4db52edf4976ee768e6b8277d12c333aae528a0c5770830adaedd96e36547423c73c3bfed1c9e7c873c91c22fe1539b8f6f7721d7ce6085820481cc6c4765a54b5022e8258e20c7c96c2375c2ccff4c7e1a83e0e51783f030140820082825820ff909f28b1ec5d4cb8cdbafdb3ab200641105c40d36be74055f045119960b2415840a06a2648c6bb9c8b451547c3dfa8391ce4d549685ac1b9f2e659d82d7185b38ee6eec516a7b7eaeaaea8deeb13e21df33434a9a7612289d30f12c9b4dabe600b8258202cf4b18be19c8637cb614c273a69336fc44e1d22d8d07c32a392e2898edd7f20584095203cafc83d4883d332f06acc35ba595c29b101c2ef4be6aefa66e40c16d26d1808fcd64afc8cef72a935a325427bac1e5c80bfda2d524c9504f228501e4304" ],
+      "members" : [ "ff909f28b1ec5d4cb8cdbafdb3ab200641105c40d36be74055f045119960b241", "481cc6c4765a54b5022e8258e20c7c96c2375c2ccff4c7e1a83e0e51783f0301", "2cf4b18be19c8637cb614c273a69336fc44e1d22d8d07c32a392e2898edd7f20" ],
+      "threshold" : 2,
+      "stateCommitment" : {
+        "schemaVersion" : 1,
+        "profile" : "mpf-blake2b256-v1",
+        "backend" : "mpf",
+        "commitmentFormatId" : "mpf-blake2b256-format-v1",
+        "proofEncodingId" : "mpf-proof-wire-v1",
+        "nativeVersioning" : false,
+        "physicalDelete" : true,
+        "formatFingerprint" : "91ee14091200f1e24659112d640e877e9177779dcc81dd06117f013e9190082b",
+        "genesisId" : "9d662349d6c7e2778eb7c59dfe410c0bb52cc68909d521d5d512b2e4ce74e5f1",
+        "version" : 29,
+        "stateRoot" : "af18c7fed874bc596c36100cd629135be7cc8f8ff7840ff6d855740429de6f80"
+      }
+    }
+  }, {
+    "schemaVersion" : 1,
+    "type" : "trust-registry-answer-v1",
+    "chainId" : "attestation-feed-golden",
+    "profile" : "mpf-blake2b256-v1",
+    "genesisId" : "9d662349d6c7e2778eb7c59dfe410c0bb52cc68909d521d5d512b2e4ce74e5f1",
+    "height" : 29,
+    "stateRoot" : "af18c7fed874bc596c36100cd629135be7cc8f8ff7840ff6d855740429de6f80",
+    "blockHash" : "914d538fd8f3d89c4c61dc2fb71c4a1917f07e00df494c264b06654363ab7454",
+    "collection" : "observations",
+    "keyHex" : "636f6c6473746f72652d372f31322f736f757263652d616c706861",
+    "key" : "coldstore-7/12/source-alpha",
+    "presence" : "ACTIVE",
+    "entry" : {
+      "status" : "ACTIVE",
+      "revision" : 1,
+      "controllerHex" : "",
+      "valueHex" : "85013907071a6ab13e824060",
+      "logicalValueHash" : "d4388bc3adcce17ed443e19bb25c34dbed4da5012c422c2d09b3cf5daf385ef9",
+      "createdHeight" : 28,
+      "lastMutationHeight" : 28
+    },
+    "provenance" : {
+      "kind" : "DIRECT_ROLE",
+      "messageId" : "78f7bb332113b4a11cbd5fead85cefd574c4fe39eb1628dae9a26fe70652a30c",
+      "appliedHeight" : 28,
+      "actorId" : "source-alpha",
+      "organizationId" : "coldchain-alpha",
+      "keyId" : "source-alpha-k1",
+      "policyId" : "source-write",
+      "policyRevision" : 1,
+      "role" : "source"
+    },
+    "actionCommitmentHex" : "c3a4ac1963315990897f739e5363aadd86232566c6c578bca9382410c06fa98e",
+    "authorizationEvidenceHex" : "830158d58f015820086ea43d4fe4145337373e408027a0748f0894836fc85103fb4f45f6ff963b0e776174746573746174696f6e2d666565642d676f6c64656e5820c22a02d5ad52c138795d36b67cb4453901c7acdef7e008d280eddb41104e8d4d5820c3a4ac1963315990897f739e5363aadd86232566c6c578bca9382410c06fa98e81006c736f757263652d7772697465016c736f757263652d616c706861016f736f757263652d616c7068612d6b315820dbb676ce9af9bfd6dd02d6e274728ca827c010b7f8a74f284f5295b89765dea4181b187f0058404c51d80d7c95fd46ae7a54afe5031a0be681ee0d4f8e2e879ba805e14c422f5f887e7a5ab5981912fec4033e4e9e3536141222eaebd87ce8bac9fc6d4a2dd00d",
+    "facts" : [ {
+      "name" : "entry",
+      "keyHex" : "79616e6f2d636f6d706f736974652d73746174652d7631001161757468656e746963617465642d6d6170002f0101000c6f62736572766174696f6e730000001b636f6c6473746f72652d372f31322f736f757263652d616c706861",
+      "valueHex" : "88010001404c85013907071a6ab13e8240605820d4388bc3adcce17ed443e19bb25c34dbed4da5012c422c2d09b3cf5daf385ef9181c181c",
+      "proof" : {
+        "schemaVersion" : 1,
+        "profile" : "mpf-blake2b256-v1",
+        "backend" : "mpf",
+        "commitmentFormatId" : "mpf-blake2b256-format-v1",
+        "proofEncodingId" : "mpf-proof-wire-v1",
+        "nativeVersioning" : false,
+        "physicalDelete" : true,
+        "formatFingerprint" : "91ee14091200f1e24659112d640e877e9177779dcc81dd06117f013e9190082b",
+        "genesisId" : "9d662349d6c7e2778eb7c59dfe410c0bb52cc68909d521d5d512b2e4ce74e5f1",
+        "version" : 29,
+        "stateRoot" : "af18c7fed874bc596c36100cd629135be7cc8f8ff7840ff6d855740429de6f80",
+        "oldestProvableHeight" : 1,
+        "proofSchemaVersion" : 1,
+        "key" : "79616e6f2d636f6d706f736974652d73746174652d7631001161757468656e746963617465642d6d6170002f0101000c6f62736572766174696f6e730000001b636f6c6473746f72652d372f31322f736f757263652d616c706861",
+        "chainId" : "attestation-feed-golden",
+        "committedHeight" : 29,
+        "presence" : "PRESENT",
+        "valueHex" : "88010001404c85013907071a6ab13e8240605820d4388bc3adcce17ed443e19bb25c34dbed4da5012c422c2d09b3cf5daf385ef9181c181c",
+        "blockHash" : "914d538fd8f3d89c4c61dc2fb71c4a1917f07e00df494c264b06654363ab7454",
+        "proofWireHex" : "82d87982005880575f4fe350c0070537d261425dc9934bc4cf463f08f3e3b0a2ee0614031261fe147d260cf6478631ba6d10b37c65f4c2677e866abba6eac4fa7b3a0cf24d6c9b4fad4bf9061bf702395befe2b13fee10334419eee8de082517bcc981ef4ba592993f56348f532d134802b34181d44f3ee3bd2ff25935cc62a69917019ee3439ed8798200588068168bf5eb933e346fa1dba6d81503cb69ad2083ae9839951025226aeb12b273b23410b36a515718add7343bbf010ad73d9642c5f7b47cdebe62f7430c48e418d7dff50f04094cc4ef2dfb618949492a71e04ae29b2f2632a0542dae61aac067855928b3182ce4809d888d18bac7b82616648f17e5d70d0ae6adf555903a4659",
+        "block" : {
+          "version" : 3,
+          "height" : 29,
+          "prevHash" : "78835c91b5953d3fefd755318d2c58a5f80286db549a6e0d7fc705efeee215f0",
+          "l1Slot" : 0,
+          "l1BlockHash" : "",
+          "timestamp" : 1788645055433,
+          "messagesRoot" : "925e6edcb35365ca9302b4c8ae1c1f50a88d1f6c490837b47522552dfc6ffdf2",
+          "stateRoot" : "af18c7fed874bc596c36100cd629135be7cc8f8ff7840ff6d855740429de6f80",
+          "blockHash" : "914d538fd8f3d89c4c61dc2fb71c4a1917f07e00df494c264b06654363ab7454",
+          "view" : 0,
+          "consensusContextDigest" : "75dfcdd6f149b5d4e68dfdb5b4c919b45f548da6692d284d297150d731fea207",
+          "proposer" : "481cc6c4765a54b5022e8258e20c7c96c2375c2ccff4c7e1a83e0e51783f0301",
+          "justificationDigest" : "0e5751c026e543b2e8ab2eb06099daa1d1e5df47778f7787faab45cdf12fe3a8"
+        },
+        "finalityCertificate" : {
+          "scheme" : 0,
+          "signatures" : [ {
+            "signer" : "ff909f28b1ec5d4cb8cdbafdb3ab200641105c40d36be74055f045119960b241",
+            "signature" : "a06a2648c6bb9c8b451547c3dfa8391ce4d549685ac1b9f2e659d82d7185b38ee6eec516a7b7eaeaaea8deeb13e21df33434a9a7612289d30f12c9b4dabe600b"
+          }, {
+            "signer" : "2cf4b18be19c8637cb614c273a69336fc44e1d22d8d07c32a392e2898edd7f20",
+            "signature" : "95203cafc83d4883d332f06acc35ba595c29b101c2ef4be6aefa66e40c16d26d1808fcd64afc8cef72a935a325427bac1e5c80bfda2d524c9504f228501e4304"
+          } ]
+        }
+      }
+    }, {
+      "name" : "receipt",
+      "keyHex" : "79616e6f2d636f6d706f736974652d73746174652d7631001161757468656e746963617465642d6d6170004a0100002279616e6f2d61757468656e746963617465642d6d61702d72656365697074732d76310000002078f7bb332113b4a11cbd5fead85cefd574c4fe39eb1628dae9a26fe70652a30c",
+      "valueHex" : "8801582078f7bb332113b4a11cbd5fead85cefd574c4fe39eb1628dae9a26fe70652a30c181c00005820c3a4ac1963315990897f739e5363aadd86232566c6c578bca9382410c06fa98e582072d172d95bdd8a9b9c2070059887d8483212cec23f6f860b7083bf8d7f38c74e81856c6f62736572766174696f6e73581b636f6c6473746f72652d372f31322f736f757263652d616c70686100015820d4388bc3adcce17ed443e19bb25c34dbed4da5012c422c2d09b3cf5daf385ef9",
+      "proof" : {
+        "schemaVersion" : 1,
+        "profile" : "mpf-blake2b256-v1",
+        "backend" : "mpf",
+        "commitmentFormatId" : "mpf-blake2b256-format-v1",
+        "proofEncodingId" : "mpf-proof-wire-v1",
+        "nativeVersioning" : false,
+        "physicalDelete" : true,
+        "formatFingerprint" : "91ee14091200f1e24659112d640e877e9177779dcc81dd06117f013e9190082b",
+        "genesisId" : "9d662349d6c7e2778eb7c59dfe410c0bb52cc68909d521d5d512b2e4ce74e5f1",
+        "version" : 29,
+        "stateRoot" : "af18c7fed874bc596c36100cd629135be7cc8f8ff7840ff6d855740429de6f80",
+        "oldestProvableHeight" : 1,
+        "proofSchemaVersion" : 1,
+        "key" : "79616e6f2d636f6d706f736974652d73746174652d7631001161757468656e746963617465642d6d6170004a0100002279616e6f2d61757468656e746963617465642d6d61702d72656365697074732d76310000002078f7bb332113b4a11cbd5fead85cefd574c4fe39eb1628dae9a26fe70652a30c",
+        "chainId" : "attestation-feed-golden",
+        "committedHeight" : 29,
+        "presence" : "PRESENT",
+        "valueHex" : "8801582078f7bb332113b4a11cbd5fead85cefd574c4fe39eb1628dae9a26fe70652a30c181c00005820c3a4ac1963315990897f739e5363aadd86232566c6c578bca9382410c06fa98e582072d172d95bdd8a9b9c2070059887d8483212cec23f6f860b7083bf8d7f38c74e81856c6f62736572766174696f6e73581b636f6c6473746f72652d372f31322f736f757263652d616c70686100015820d4388bc3adcce17ed443e19bb25c34dbed4da5012c422c2d09b3cf5daf385ef9",
+        "blockHash" : "914d538fd8f3d89c4c61dc2fb71c4a1917f07e00df494c264b06654363ab7454",
+        "proofWireHex" : "82d879820058800374cea37728c7f2a2005f1cec827bb7321319ffccedbe81fbb1b2800c55770aaa0f14e54cd3945684b1883f748c2d6c9f795e63ca196a2d4ddaf34d94fa5f9234d471b40db08053bf0a33f2aaea827882e8d012282c29132f44920a6096438fe54f3c25c3746d50f3020380fd484e4711436b5a067ae7a5f9b2900179e28e4dd87982005880a46c5354148faa263cbe97fbf14f69300e0e5f82d4f9d7f4c03701ddde86596d2e0f61ff74525098fd52da4fa14aeaa03c4db186298df31ded137e12b0b4a54e77908deb19a3f6b376010efeb724e3dbfb7d7d7af26f1dbdf24a7aaf8a092995465a2ccec723e9c435b75e0f3e95743d5c038568871630fef786a15b8ed8b3e2",
+        "block" : {
+          "version" : 3,
+          "height" : 29,
+          "prevHash" : "78835c91b5953d3fefd755318d2c58a5f80286db549a6e0d7fc705efeee215f0",
+          "l1Slot" : 0,
+          "l1BlockHash" : "",
+          "timestamp" : 1788645055433,
+          "messagesRoot" : "925e6edcb35365ca9302b4c8ae1c1f50a88d1f6c490837b47522552dfc6ffdf2",
+          "stateRoot" : "af18c7fed874bc596c36100cd629135be7cc8f8ff7840ff6d855740429de6f80",
+          "blockHash" : "914d538fd8f3d89c4c61dc2fb71c4a1917f07e00df494c264b06654363ab7454",
+          "view" : 0,
+          "consensusContextDigest" : "75dfcdd6f149b5d4e68dfdb5b4c919b45f548da6692d284d297150d731fea207",
+          "proposer" : "481cc6c4765a54b5022e8258e20c7c96c2375c2ccff4c7e1a83e0e51783f0301",
+          "justificationDigest" : "0e5751c026e543b2e8ab2eb06099daa1d1e5df47778f7787faab45cdf12fe3a8"
+        },
+        "finalityCertificate" : {
+          "scheme" : 0,
+          "signatures" : [ {
+            "signer" : "ff909f28b1ec5d4cb8cdbafdb3ab200641105c40d36be74055f045119960b241",
+            "signature" : "a06a2648c6bb9c8b451547c3dfa8391ce4d549685ac1b9f2e659d82d7185b38ee6eec516a7b7eaeaaea8deeb13e21df33434a9a7612289d30f12c9b4dabe600b"
+          }, {
+            "signer" : "2cf4b18be19c8637cb614c273a69336fc44e1d22d8d07c32a392e2898edd7f20",
+            "signature" : "95203cafc83d4883d332f06acc35ba595c29b101c2ef4be6aefa66e40c16d26d1808fcd64afc8cef72a935a325427bac1e5c80bfda2d524c9504f228501e4304"
+          } ]
+        }
+      }
+    }, {
+      "name" : "direct-consumption",
+      "keyHex" : "79616e6f2d636f6d706f736974652d73746174652d7631001161757468656e746963617465642d6d617000630100002c79616e6f2d61757468656e746963617465642d6d61702d6469726563742d636f6e73756d7074696f6e2d76310000002f01000c736f757263652d616c706861086ea43d4fe4145337373e408027a0748f0894836fc85103fb4f45f6ff963b0e",
+      "valueHex" : "90016c736f757263652d616c7068615820086ea43d4fe4145337373e408027a0748f0894836fc85103fb4f45f6ff963b0e5820c3a4ac1963315990897f739e5363aadd86232566c6c578bca9382410c06fa98e181c582078f7bb332113b4a11cbd5fead85cefd574c4fe39eb1628dae9a26fe70652a30c81006c736f757263652d777269746501016f636f6c64636861696e2d616c7068610166736f757263656f736f757263652d616c7068612d6b315820f4cb090298ddec6edee6fef53a6f5bc7d595c34e8ac55045ee16ed556aecdf71582009e2868af58b876d438f43658da8e3b82c18cc27593cfbeff63fb3dc99139b8d",
+      "proof" : {
+        "schemaVersion" : 1,
+        "profile" : "mpf-blake2b256-v1",
+        "backend" : "mpf",
+        "commitmentFormatId" : "mpf-blake2b256-format-v1",
+        "proofEncodingId" : "mpf-proof-wire-v1",
+        "nativeVersioning" : false,
+        "physicalDelete" : true,
+        "formatFingerprint" : "91ee14091200f1e24659112d640e877e9177779dcc81dd06117f013e9190082b",
+        "genesisId" : "9d662349d6c7e2778eb7c59dfe410c0bb52cc68909d521d5d512b2e4ce74e5f1",
+        "version" : 29,
+        "stateRoot" : "af18c7fed874bc596c36100cd629135be7cc8f8ff7840ff6d855740429de6f80",
+        "oldestProvableHeight" : 1,
+        "proofSchemaVersion" : 1,
+        "key" : "79616e6f2d636f6d706f736974652d73746174652d7631001161757468656e746963617465642d6d617000630100002c79616e6f2d61757468656e746963617465642d6d61702d6469726563742d636f6e73756d7074696f6e2d76310000002f01000c736f757263652d616c706861086ea43d4fe4145337373e408027a0748f0894836fc85103fb4f45f6ff963b0e",
+        "chainId" : "attestation-feed-golden",
+        "committedHeight" : 29,
+        "presence" : "PRESENT",
+        "valueHex" : "90016c736f757263652d616c7068615820086ea43d4fe4145337373e408027a0748f0894836fc85103fb4f45f6ff963b0e5820c3a4ac1963315990897f739e5363aadd86232566c6c578bca9382410c06fa98e181c582078f7bb332113b4a11cbd5fead85cefd574c4fe39eb1628dae9a26fe70652a30c81006c736f757263652d777269746501016f636f6c64636861696e2d616c7068610166736f757263656f736f757263652d616c7068612d6b315820f4cb090298ddec6edee6fef53a6f5bc7d595c34e8ac55045ee16ed556aecdf71582009e2868af58b876d438f43658da8e3b82c18cc27593cfbeff63fb3dc99139b8d",
+        "blockHash" : "914d538fd8f3d89c4c61dc2fb71c4a1917f07e00df494c264b06654363ab7454",
+        "proofWireHex" : "82d879820058800374cea37728c7f2a2005f1cec827bb7321319ffccedbe81fbb1b2800c55770ac31889cefda5f21bd7baeda62bbe1439507ac0c28133b4c86c0c91d2219931ced9c7d15d84d798981e8d36ec317bfa18f904a3290ab7664f934462afbbd7c91a2221b7e75046b375039fcf715ff89ad52fe057b98c1c871c6e7b9faeb41589cdd87982005880f770d8331c45f8f76bda86ed74a5fae38b0136f1b6e4ea276ed14c59d3b4e1e5d0fe7520522801d0e1b18e9d4d1712051d8f6e1ed30b2496fadf6a57c8bf32950eb923b0cbd24df54401d998531feead35a47a99f4deed205de4af81120f97610000000000000000000000000000000000000000000000000000000000000000",
+        "block" : {
+          "version" : 3,
+          "height" : 29,
+          "prevHash" : "78835c91b5953d3fefd755318d2c58a5f80286db549a6e0d7fc705efeee215f0",
+          "l1Slot" : 0,
+          "l1BlockHash" : "",
+          "timestamp" : 1788645055433,
+          "messagesRoot" : "925e6edcb35365ca9302b4c8ae1c1f50a88d1f6c490837b47522552dfc6ffdf2",
+          "stateRoot" : "af18c7fed874bc596c36100cd629135be7cc8f8ff7840ff6d855740429de6f80",
+          "blockHash" : "914d538fd8f3d89c4c61dc2fb71c4a1917f07e00df494c264b06654363ab7454",
+          "view" : 0,
+          "consensusContextDigest" : "75dfcdd6f149b5d4e68dfdb5b4c919b45f548da6692d284d297150d731fea207",
+          "proposer" : "481cc6c4765a54b5022e8258e20c7c96c2375c2ccff4c7e1a83e0e51783f0301",
+          "justificationDigest" : "0e5751c026e543b2e8ab2eb06099daa1d1e5df47778f7787faab45cdf12fe3a8"
+        },
+        "finalityCertificate" : {
+          "scheme" : 0,
+          "signatures" : [ {
+            "signer" : "ff909f28b1ec5d4cb8cdbafdb3ab200641105c40d36be74055f045119960b241",
+            "signature" : "a06a2648c6bb9c8b451547c3dfa8391ce4d549685ac1b9f2e659d82d7185b38ee6eec516a7b7eaeaaea8deeb13e21df33434a9a7612289d30f12c9b4dabe600b"
+          }, {
+            "signer" : "2cf4b18be19c8637cb614c273a69336fc44e1d22d8d07c32a392e2898edd7f20",
+            "signature" : "95203cafc83d4883d332f06acc35ba595c29b101c2ef4be6aefa66e40c16d26d1808fcd64afc8cef72a935a325427bac1e5c80bfda2d524c9504f228501e4304"
+          } ]
+        }
+      }
+    }, {
+      "name" : "direct-policy",
+      "keyHex" : "79616e6f2d636f6d706f736974652d73746174652d7631000e726f6c652d617070726f76616c730012642f736f757263652d77726974652f722f31",
+      "valueHex" : "86016c736f757263652d7772697465010066736f757263651864",
+      "proof" : {
+        "schemaVersion" : 1,
+        "profile" : "mpf-blake2b256-v1",
+        "backend" : "mpf",
+        "commitmentFormatId" : "mpf-blake2b256-format-v1",
+        "proofEncodingId" : "mpf-proof-wire-v1",
+        "nativeVersioning" : false,
+        "physicalDelete" : true,
+        "formatFingerprint" : "91ee14091200f1e24659112d640e877e9177779dcc81dd06117f013e9190082b",
+        "genesisId" : "9d662349d6c7e2778eb7c59dfe410c0bb52cc68909d521d5d512b2e4ce74e5f1",
+        "version" : 29,
+        "stateRoot" : "af18c7fed874bc596c36100cd629135be7cc8f8ff7840ff6d855740429de6f80",
+        "oldestProvableHeight" : 1,
+        "proofSchemaVersion" : 1,
+        "key" : "79616e6f2d636f6d706f736974652d73746174652d7631000e726f6c652d617070726f76616c730012642f736f757263652d77726974652f722f31",
+        "chainId" : "attestation-feed-golden",
+        "committedHeight" : 29,
+        "presence" : "PRESENT",
+        "valueHex" : "86016c736f757263652d7772697465010066736f757263651864",
+        "blockHash" : "914d538fd8f3d89c4c61dc2fb71c4a1917f07e00df494c264b06654363ab7454",
+        "proofWireHex" : "82d879820058800374cea37728c7f2a2005f1cec827bb7321319ffccedbe81fbb1b2800c55770aaa0f14e54cd3945684b1883f748c2d6c9f795e63ca196a2d4ddaf34d94fa5f9234d471b40db08053bf0a33f2aaea827882e8d012282c29132f44920a6096438f76e4604ac010ff5d929f522b8b0c17b5d21ab5c995c611a2ed2e6077d87467a4d879820058805be57a403684b98b477cf532125fd87a4d320fdafb0d4a15c29567c391bf1d4dd36095cb410f65c79108d1e3d15d896ca7a8788fb25554e9f7db9429190ada760eb923b0cbd24df54401d998531feead35a47a99f4deed205de4af81120f97610000000000000000000000000000000000000000000000000000000000000000",
+        "block" : {
+          "version" : 3,
+          "height" : 29,
+          "prevHash" : "78835c91b5953d3fefd755318d2c58a5f80286db549a6e0d7fc705efeee215f0",
+          "l1Slot" : 0,
+          "l1BlockHash" : "",
+          "timestamp" : 1788645055433,
+          "messagesRoot" : "925e6edcb35365ca9302b4c8ae1c1f50a88d1f6c490837b47522552dfc6ffdf2",
+          "stateRoot" : "af18c7fed874bc596c36100cd629135be7cc8f8ff7840ff6d855740429de6f80",
+          "blockHash" : "914d538fd8f3d89c4c61dc2fb71c4a1917f07e00df494c264b06654363ab7454",
+          "view" : 0,
+          "consensusContextDigest" : "75dfcdd6f149b5d4e68dfdb5b4c919b45f548da6692d284d297150d731fea207",
+          "proposer" : "481cc6c4765a54b5022e8258e20c7c96c2375c2ccff4c7e1a83e0e51783f0301",
+          "justificationDigest" : "0e5751c026e543b2e8ab2eb06099daa1d1e5df47778f7787faab45cdf12fe3a8"
+        },
+        "finalityCertificate" : {
+          "scheme" : 0,
+          "signatures" : [ {
+            "signer" : "ff909f28b1ec5d4cb8cdbafdb3ab200641105c40d36be74055f045119960b241",
+            "signature" : "a06a2648c6bb9c8b451547c3dfa8391ce4d549685ac1b9f2e659d82d7185b38ee6eec516a7b7eaeaaea8deeb13e21df33434a9a7612289d30f12c9b4dabe600b"
+          }, {
+            "signer" : "2cf4b18be19c8637cb614c273a69336fc44e1d22d8d07c32a392e2898edd7f20",
+            "signature" : "95203cafc83d4883d332f06acc35ba595c29b101c2ef4be6aefa66e40c16d26d1808fcd64afc8cef72a935a325427bac1e5c80bfda2d524c9504f228501e4304"
+          } ]
+        }
+      }
+    }, {
+      "name" : "direct-policy-current",
+      "keyHex" : "79616e6f2d636f6d706f736974652d73746174652d7631000e726f6c652d617070726f76616c730016642f736f757263652d77726974652f63757272656e74",
+      "valueHex" : "0000000000000001",
+      "proof" : {
+        "schemaVersion" : 1,
+        "profile" : "mpf-blake2b256-v1",
+        "backend" : "mpf",
+        "commitmentFormatId" : "mpf-blake2b256-format-v1",
+        "proofEncodingId" : "mpf-proof-wire-v1",
+        "nativeVersioning" : false,
+        "physicalDelete" : true,
+        "formatFingerprint" : "91ee14091200f1e24659112d640e877e9177779dcc81dd06117f013e9190082b",
+        "genesisId" : "9d662349d6c7e2778eb7c59dfe410c0bb52cc68909d521d5d512b2e4ce74e5f1",
+        "version" : 29,
+        "stateRoot" : "af18c7fed874bc596c36100cd629135be7cc8f8ff7840ff6d855740429de6f80",
+        "oldestProvableHeight" : 1,
+        "proofSchemaVersion" : 1,
+        "key" : "79616e6f2d636f6d706f736974652d73746174652d7631000e726f6c652d617070726f76616c730016642f736f757263652d77726974652f63757272656e74",
+        "chainId" : "attestation-feed-golden",
+        "committedHeight" : 29,
+        "presence" : "PRESENT",
+        "valueHex" : "0000000000000001",
+        "blockHash" : "914d538fd8f3d89c4c61dc2fb71c4a1917f07e00df494c264b06654363ab7454",
+        "proofWireHex" : "83d879820058800374cea37728c7f2a2005f1cec827bb7321319ffccedbe81fbb1b2800c55770aaa0f14e54cd3945684b1883f748c2d6c9f795e63ca196a2d4ddaf34d94fa5f925362b301f561565d2a0694032e48965a803ca64fcc32f5d74611932ff1fa9f93f29cf81011e4516a0b76bd786a1b60af5758a55a17ca1bb15f35f2eece9bbdc1d879820058805081175450cc8d7dc126c3f3d4b7d891575691299f5b6637dde0d15eab763db285c09af929492a871e4fae32d9d5c36e352471cd659bcdb61de08f1722acc3b10eb923b0cbd24df54401d998531feead35a47a99f4deed205de4af81120f97610000000000000000000000000000000000000000000000000000000000000000d879820058808def828dd7944411a12f662564a5d621d6291be9354c885d6f3c680d445eb77b85c09af929492a871e4fae32d9d5c36e352471cd659bcdb61de08f1722acc3b10eb923b0cbd24df54401d998531feead35a47a99f4deed205de4af81120f97610000000000000000000000000000000000000000000000000000000000000000",
+        "block" : {
+          "version" : 3,
+          "height" : 29,
+          "prevHash" : "78835c91b5953d3fefd755318d2c58a5f80286db549a6e0d7fc705efeee215f0",
+          "l1Slot" : 0,
+          "l1BlockHash" : "",
+          "timestamp" : 1788645055433,
+          "messagesRoot" : "925e6edcb35365ca9302b4c8ae1c1f50a88d1f6c490837b47522552dfc6ffdf2",
+          "stateRoot" : "af18c7fed874bc596c36100cd629135be7cc8f8ff7840ff6d855740429de6f80",
+          "blockHash" : "914d538fd8f3d89c4c61dc2fb71c4a1917f07e00df494c264b06654363ab7454",
+          "view" : 0,
+          "consensusContextDigest" : "75dfcdd6f149b5d4e68dfdb5b4c919b45f548da6692d284d297150d731fea207",
+          "proposer" : "481cc6c4765a54b5022e8258e20c7c96c2375c2ccff4c7e1a83e0e51783f0301",
+          "justificationDigest" : "0e5751c026e543b2e8ab2eb06099daa1d1e5df47778f7787faab45cdf12fe3a8"
+        },
+        "finalityCertificate" : {
+          "scheme" : 0,
+          "signatures" : [ {
+            "signer" : "ff909f28b1ec5d4cb8cdbafdb3ab200641105c40d36be74055f045119960b241",
+            "signature" : "a06a2648c6bb9c8b451547c3dfa8391ce4d549685ac1b9f2e659d82d7185b38ee6eec516a7b7eaeaaea8deeb13e21df33434a9a7612289d30f12c9b4dabe600b"
+          }, {
+            "signer" : "2cf4b18be19c8637cb614c273a69336fc44e1d22d8d07c32a392e2898edd7f20",
+            "signature" : "95203cafc83d4883d332f06acc35ba595c29b101c2ef4be6aefa66e40c16d26d1808fcd64afc8cef72a935a325427bac1e5c80bfda2d524c9504f228501e4304"
+          } ]
+        }
+      }
+    }, {
+      "name" : "actor",
+      "keyHex" : "79616e6f2d636f6d706f736974652d73746174652d7631000d646f6d61696e2d6163746f72730012612f736f757263652d616c7068612f722f31",
+      "valueHex" : "88016c736f757263652d616c7068616f636f6c64636861696e2d616c70686101008166736f7572636581856f736f757263652d616c7068612d6b315820dbb676ce9af9bfd6dd02d6e274728ca827c010b7f8a74f284f5295b89765dea401000040",
+      "proof" : {
+        "schemaVersion" : 1,
+        "profile" : "mpf-blake2b256-v1",
+        "backend" : "mpf",
+        "commitmentFormatId" : "mpf-blake2b256-format-v1",
+        "proofEncodingId" : "mpf-proof-wire-v1",
+        "nativeVersioning" : false,
+        "physicalDelete" : true,
+        "formatFingerprint" : "91ee14091200f1e24659112d640e877e9177779dcc81dd06117f013e9190082b",
+        "genesisId" : "9d662349d6c7e2778eb7c59dfe410c0bb52cc68909d521d5d512b2e4ce74e5f1",
+        "version" : 29,
+        "stateRoot" : "af18c7fed874bc596c36100cd629135be7cc8f8ff7840ff6d855740429de6f80",
+        "oldestProvableHeight" : 1,
+        "proofSchemaVersion" : 1,
+        "key" : "79616e6f2d636f6d706f736974652d73746174652d7631000d646f6d61696e2d6163746f72730012612f736f757263652d616c7068612f722f31",
+        "chainId" : "attestation-feed-golden",
+        "committedHeight" : 29,
+        "presence" : "PRESENT",
+        "valueHex" : "88016c736f757263652d616c7068616f636f6c64636861696e2d616c70686101008166736f7572636581856f736f757263652d616c7068612d6b315820dbb676ce9af9bfd6dd02d6e274728ca827c010b7f8a74f284f5295b89765dea401000040",
+        "blockHash" : "914d538fd8f3d89c4c61dc2fb71c4a1917f07e00df494c264b06654363ab7454",
+        "proofWireHex" : "82d879820058800374cea37728c7f2a2005f1cec827bb7321319ffccedbe81fbb1b2800c55770aaa0f14e54cd3945684b1883f748c2d6c9f795e63ca196a2d4ddaf34d94fa5f925362b301f561565d2a0694032e48965a803ca64fcc32f5d74611932ff1fa9f93f29cf81011e4516a0b76bd786a1b60af5758a55a17ca1bb15f35f2eece9bbdc1d879820058800afadbd026e9145dae842ae2e24da7802f4ba5eeca410c3546b505ff6985d94185c09af929492a871e4fae32d9d5c36e352471cd659bcdb61de08f1722acc3b10eb923b0cbd24df54401d998531feead35a47a99f4deed205de4af81120f97610000000000000000000000000000000000000000000000000000000000000000",
+        "block" : {
+          "version" : 3,
+          "height" : 29,
+          "prevHash" : "78835c91b5953d3fefd755318d2c58a5f80286db549a6e0d7fc705efeee215f0",
+          "l1Slot" : 0,
+          "l1BlockHash" : "",
+          "timestamp" : 1788645055433,
+          "messagesRoot" : "925e6edcb35365ca9302b4c8ae1c1f50a88d1f6c490837b47522552dfc6ffdf2",
+          "stateRoot" : "af18c7fed874bc596c36100cd629135be7cc8f8ff7840ff6d855740429de6f80",
+          "blockHash" : "914d538fd8f3d89c4c61dc2fb71c4a1917f07e00df494c264b06654363ab7454",
+          "view" : 0,
+          "consensusContextDigest" : "75dfcdd6f149b5d4e68dfdb5b4c919b45f548da6692d284d297150d731fea207",
+          "proposer" : "481cc6c4765a54b5022e8258e20c7c96c2375c2ccff4c7e1a83e0e51783f0301",
+          "justificationDigest" : "0e5751c026e543b2e8ab2eb06099daa1d1e5df47778f7787faab45cdf12fe3a8"
+        },
+        "finalityCertificate" : {
+          "scheme" : 0,
+          "signatures" : [ {
+            "signer" : "ff909f28b1ec5d4cb8cdbafdb3ab200641105c40d36be74055f045119960b241",
+            "signature" : "a06a2648c6bb9c8b451547c3dfa8391ce4d549685ac1b9f2e659d82d7185b38ee6eec516a7b7eaeaaea8deeb13e21df33434a9a7612289d30f12c9b4dabe600b"
+          }, {
+            "signer" : "2cf4b18be19c8637cb614c273a69336fc44e1d22d8d07c32a392e2898edd7f20",
+            "signature" : "95203cafc83d4883d332f06acc35ba595c29b101c2ef4be6aefa66e40c16d26d1808fcd64afc8cef72a935a325427bac1e5c80bfda2d524c9504f228501e4304"
+          } ]
+        }
+      }
+    }, {
+      "name" : "actor-current",
+      "keyHex" : "79616e6f2d636f6d706f736974652d73746174652d7631000d646f6d61696e2d6163746f72730016612f736f757263652d616c7068612f63757272656e74",
+      "valueHex" : "0000000000000001",
+      "proof" : {
+        "schemaVersion" : 1,
+        "profile" : "mpf-blake2b256-v1",
+        "backend" : "mpf",
+        "commitmentFormatId" : "mpf-blake2b256-format-v1",
+        "proofEncodingId" : "mpf-proof-wire-v1",
+        "nativeVersioning" : false,
+        "physicalDelete" : true,
+        "formatFingerprint" : "91ee14091200f1e24659112d640e877e9177779dcc81dd06117f013e9190082b",
+        "genesisId" : "9d662349d6c7e2778eb7c59dfe410c0bb52cc68909d521d5d512b2e4ce74e5f1",
+        "version" : 29,
+        "stateRoot" : "af18c7fed874bc596c36100cd629135be7cc8f8ff7840ff6d855740429de6f80",
+        "oldestProvableHeight" : 1,
+        "proofSchemaVersion" : 1,
+        "key" : "79616e6f2d636f6d706f736974652d73746174652d7631000d646f6d61696e2d6163746f72730016612f736f757263652d616c7068612f63757272656e74",
+        "chainId" : "attestation-feed-golden",
+        "committedHeight" : 29,
+        "presence" : "PRESENT",
+        "valueHex" : "0000000000000001",
+        "blockHash" : "914d538fd8f3d89c4c61dc2fb71c4a1917f07e00df494c264b06654363ab7454",
+        "proofWireHex" : "82d879820058800374cea37728c7f2a2005f1cec827bb7321319ffccedbe81fbb1b2800c55770ac31889cefda5f21bd7baeda62bbe1439507ac0c28133b4c86c0c91d2219931ced9c7d15d84d798981e8d36ec317bfa18f904a3290ab7664f934462afbbd7c91a2221b7e75046b375039fcf715ff89ad52fe057b98c1c871c6e7b9faeb41589cdd8798200588052ef8ab0eb901ac8cb4ad9830046c0adbb2a550ef81185c305e09577b5ee421acdbebd5646293e3273b6b172e938c64db0fb8fb8dcb0677a88263189a121120f59e2e4372ae88a84e61fdda7a636b775acb4d657456be8ddd8739a60ce7995fd0000000000000000000000000000000000000000000000000000000000000000",
+        "block" : {
+          "version" : 3,
+          "height" : 29,
+          "prevHash" : "78835c91b5953d3fefd755318d2c58a5f80286db549a6e0d7fc705efeee215f0",
+          "l1Slot" : 0,
+          "l1BlockHash" : "",
+          "timestamp" : 1788645055433,
+          "messagesRoot" : "925e6edcb35365ca9302b4c8ae1c1f50a88d1f6c490837b47522552dfc6ffdf2",
+          "stateRoot" : "af18c7fed874bc596c36100cd629135be7cc8f8ff7840ff6d855740429de6f80",
+          "blockHash" : "914d538fd8f3d89c4c61dc2fb71c4a1917f07e00df494c264b06654363ab7454",
+          "view" : 0,
+          "consensusContextDigest" : "75dfcdd6f149b5d4e68dfdb5b4c919b45f548da6692d284d297150d731fea207",
+          "proposer" : "481cc6c4765a54b5022e8258e20c7c96c2375c2ccff4c7e1a83e0e51783f0301",
+          "justificationDigest" : "0e5751c026e543b2e8ab2eb06099daa1d1e5df47778f7787faab45cdf12fe3a8"
+        },
+        "finalityCertificate" : {
+          "scheme" : 0,
+          "signatures" : [ {
+            "signer" : "ff909f28b1ec5d4cb8cdbafdb3ab200641105c40d36be74055f045119960b241",
+            "signature" : "a06a2648c6bb9c8b451547c3dfa8391ce4d549685ac1b9f2e659d82d7185b38ee6eec516a7b7eaeaaea8deeb13e21df33434a9a7612289d30f12c9b4dabe600b"
+          }, {
+            "signer" : "2cf4b18be19c8637cb614c273a69336fc44e1d22d8d07c32a392e2898edd7f20",
+            "signature" : "95203cafc83d4883d332f06acc35ba595c29b101c2ef4be6aefa66e40c16d26d1808fcd64afc8cef72a935a325427bac1e5c80bfda2d524c9504f228501e4304"
+          } ]
+        }
+      }
+    }, {
+      "name" : "organization",
+      "keyHex" : "79616e6f2d636f6d706f736974652d73746174652d7631000d646f6d61696e2d6163746f727300156f2f636f6c64636861696e2d616c7068612f722f31",
+      "valueHex" : "85016f636f6c64636861696e2d616c706861010040",
+      "proof" : {
+        "schemaVersion" : 1,
+        "profile" : "mpf-blake2b256-v1",
+        "backend" : "mpf",
+        "commitmentFormatId" : "mpf-blake2b256-format-v1",
+        "proofEncodingId" : "mpf-proof-wire-v1",
+        "nativeVersioning" : false,
+        "physicalDelete" : true,
+        "formatFingerprint" : "91ee14091200f1e24659112d640e877e9177779dcc81dd06117f013e9190082b",
+        "genesisId" : "9d662349d6c7e2778eb7c59dfe410c0bb52cc68909d521d5d512b2e4ce74e5f1",
+        "version" : 29,
+        "stateRoot" : "af18c7fed874bc596c36100cd629135be7cc8f8ff7840ff6d855740429de6f80",
+        "oldestProvableHeight" : 1,
+        "proofSchemaVersion" : 1,
+        "key" : "79616e6f2d636f6d706f736974652d73746174652d7631000d646f6d61696e2d6163746f727300156f2f636f6c64636861696e2d616c7068612f722f31",
+        "chainId" : "attestation-feed-golden",
+        "committedHeight" : 29,
+        "presence" : "PRESENT",
+        "valueHex" : "85016f636f6c64636861696e2d616c706861010040",
+        "blockHash" : "914d538fd8f3d89c4c61dc2fb71c4a1917f07e00df494c264b06654363ab7454",
+        "proofWireHex" : "82d87982005880575f4fe350c0070537d261425dc9934bc4cf463f08f3e3b0a2ee0614031261fe147d260cf6478631ba6d10b37c65f4c2677e866abba6eac4fa7b3a0cf24d6c9bb829301b7e0807f7bd05c23660829f5776d1d02608cbc84962ffc99f1cff3cbe0c798b3ca7bd00ef0e129dfd806a4f80cbdfe528361d51c06e6e0ee2a3a049b6d8798200588020f6a59c2f97c2827282134500b8958d5b60ec97c70328e297f9d62d55595d4ad638b314b0d4bb55fb0d5e49963176baf165452b7d962a9075e9907b7b915e6f9c69f63b2941501a57c43adfa958b2a29600d06b319b64b0510f0fdf9c0a09b50000000000000000000000000000000000000000000000000000000000000000",
+        "block" : {
+          "version" : 3,
+          "height" : 29,
+          "prevHash" : "78835c91b5953d3fefd755318d2c58a5f80286db549a6e0d7fc705efeee215f0",
+          "l1Slot" : 0,
+          "l1BlockHash" : "",
+          "timestamp" : 1788645055433,
+          "messagesRoot" : "925e6edcb35365ca9302b4c8ae1c1f50a88d1f6c490837b47522552dfc6ffdf2",
+          "stateRoot" : "af18c7fed874bc596c36100cd629135be7cc8f8ff7840ff6d855740429de6f80",
+          "blockHash" : "914d538fd8f3d89c4c61dc2fb71c4a1917f07e00df494c264b06654363ab7454",
+          "view" : 0,
+          "consensusContextDigest" : "75dfcdd6f149b5d4e68dfdb5b4c919b45f548da6692d284d297150d731fea207",
+          "proposer" : "481cc6c4765a54b5022e8258e20c7c96c2375c2ccff4c7e1a83e0e51783f0301",
+          "justificationDigest" : "0e5751c026e543b2e8ab2eb06099daa1d1e5df47778f7787faab45cdf12fe3a8"
+        },
+        "finalityCertificate" : {
+          "scheme" : 0,
+          "signatures" : [ {
+            "signer" : "ff909f28b1ec5d4cb8cdbafdb3ab200641105c40d36be74055f045119960b241",
+            "signature" : "a06a2648c6bb9c8b451547c3dfa8391ce4d549685ac1b9f2e659d82d7185b38ee6eec516a7b7eaeaaea8deeb13e21df33434a9a7612289d30f12c9b4dabe600b"
+          }, {
+            "signer" : "2cf4b18be19c8637cb614c273a69336fc44e1d22d8d07c32a392e2898edd7f20",
+            "signature" : "95203cafc83d4883d332f06acc35ba595c29b101c2ef4be6aefa66e40c16d26d1808fcd64afc8cef72a935a325427bac1e5c80bfda2d524c9504f228501e4304"
+          } ]
+        }
+      }
+    }, {
+      "name" : "genesis-marker",
+      "keyHex" : "79616e6f2d636f6d706f736974652d73746174652d7631001161757468656e746963617465642d6d617000310100002279616e6f2d61757468656e746963617465642d6d61702d696e7465726e616c2d76310000000767656e65736973",
+      "valueHex" : "c22a02d5ad52c138795d36b67cb4453901c7acdef7e008d280eddb41104e8d4d",
+      "proof" : {
+        "schemaVersion" : 1,
+        "profile" : "mpf-blake2b256-v1",
+        "backend" : "mpf",
+        "commitmentFormatId" : "mpf-blake2b256-format-v1",
+        "proofEncodingId" : "mpf-proof-wire-v1",
+        "nativeVersioning" : false,
+        "physicalDelete" : true,
+        "formatFingerprint" : "91ee14091200f1e24659112d640e877e9177779dcc81dd06117f013e9190082b",
+        "genesisId" : "9d662349d6c7e2778eb7c59dfe410c0bb52cc68909d521d5d512b2e4ce74e5f1",
+        "version" : 29,
+        "stateRoot" : "af18c7fed874bc596c36100cd629135be7cc8f8ff7840ff6d855740429de6f80",
+        "oldestProvableHeight" : 1,
+        "proofSchemaVersion" : 1,
+        "key" : "79616e6f2d636f6d706f736974652d73746174652d7631001161757468656e746963617465642d6d617000310100002279616e6f2d61757468656e746963617465642d6d61702d696e7465726e616c2d76310000000767656e65736973",
+        "chainId" : "attestation-feed-golden",
+        "committedHeight" : 29,
+        "presence" : "PRESENT",
+        "valueHex" : "c22a02d5ad52c138795d36b67cb4453901c7acdef7e008d280eddb41104e8d4d",
+        "blockHash" : "914d538fd8f3d89c4c61dc2fb71c4a1917f07e00df494c264b06654363ab7454",
+        "proofWireHex" : "82d87982005880575f4fe350c0070537d261425dc9934bc4cf463f08f3e3b0a2ee0614031261fe147d260cf6478631ba6d10b37c65f4c2677e866abba6eac4fa7b3a0cf24d6c9b4fad4bf9061bf702395befe2b13fee10334419eee8de082517bcc981ef4ba592993f56348f532d134802b34181d44f3ee3bd2ff25935cc62a69917019ee3439ed8798200588068168bf5eb933e346fa1dba6d81503cb69ad2083ae9839951025226aeb12b27327a294789b46216d084f4d6753d7adf8d001833971bd11a81daa1149b633e429f15959a5f833712242e45deb230996afdbab0d69040a4c948d5f4a9b6cd32326d11c33ab137c3b6dd2b15692f603e8b98a1bf0880464487ec510b3a366a07d5e",
+        "block" : {
+          "version" : 3,
+          "height" : 29,
+          "prevHash" : "78835c91b5953d3fefd755318d2c58a5f80286db549a6e0d7fc705efeee215f0",
+          "l1Slot" : 0,
+          "l1BlockHash" : "",
+          "timestamp" : 1788645055433,
+          "messagesRoot" : "925e6edcb35365ca9302b4c8ae1c1f50a88d1f6c490837b47522552dfc6ffdf2",
+          "stateRoot" : "af18c7fed874bc596c36100cd629135be7cc8f8ff7840ff6d855740429de6f80",
+          "blockHash" : "914d538fd8f3d89c4c61dc2fb71c4a1917f07e00df494c264b06654363ab7454",
+          "view" : 0,
+          "consensusContextDigest" : "75dfcdd6f149b5d4e68dfdb5b4c919b45f548da6692d284d297150d731fea207",
+          "proposer" : "481cc6c4765a54b5022e8258e20c7c96c2375c2ccff4c7e1a83e0e51783f0301",
+          "justificationDigest" : "0e5751c026e543b2e8ab2eb06099daa1d1e5df47778f7787faab45cdf12fe3a8"
+        },
+        "finalityCertificate" : {
+          "scheme" : 0,
+          "signatures" : [ {
+            "signer" : "ff909f28b1ec5d4cb8cdbafdb3ab200641105c40d36be74055f045119960b241",
+            "signature" : "a06a2648c6bb9c8b451547c3dfa8391ce4d549685ac1b9f2e659d82d7185b38ee6eec516a7b7eaeaaea8deeb13e21df33434a9a7612289d30f12c9b4dabe600b"
+          }, {
+            "signer" : "2cf4b18be19c8637cb614c273a69336fc44e1d22d8d07c32a392e2898edd7f20",
+            "signature" : "95203cafc83d4883d332f06acc35ba595c29b101c2ef4be6aefa66e40c16d26d1808fcd64afc8cef72a935a325427bac1e5c80bfda2d524c9504f228501e4304"
+          } ]
+        }
+      }
+    } ],
+    "evidence" : {
+      "chainId" : "attestation-feed-golden",
+      "messageId" : "925e6edcb35365ca9302b4c8ae1c1f50a88d1f6c490837b47522552dfc6ffdf2",
+      "blocksCbor" : [ "8f03776174746573746174696f6e2d666565642d676f6c64656e181d582075dfcdd6f149b5d4e68dfdb5b4c919b45f548da6692d284d297150d731fea20700582078835c91b5953d3fefd755318d2c58a5f80286db549a6e0d7fc705efeee215f000401b000001a0738d9bc95820925e6edcb35365ca9302b4c8ae1c1f50a88d1f6c490837b47522552dfc6ffdf25820af18c7fed874bc596c36100cd629135be7cc8f8ff7840ff6d855740429de6f808189025820925e6edcb35365ca9302b4c8ae1c1f50a88d1f6c490837b47522552dfc6ffdf2776174746573746174696f6e2d666565642d676f6c64656e781c61757468656e746963617465642d6d61702e636f6d6d616e642e76315820ff909f28b1ec5d4cb8cdbafdb3ab200641105c40d36be74055f045119960b2411b000001a0738d11bb1a6a9c9116590174830158518401008187016c6f62736572766174696f6e73581a636f6c6473746f72652d372f31322f736f757263652d626574614c85013907071a6ab13e834060004040818400036c736f757263652d777269746501818200590119830158d38f01582031156afa8d256fedb802014556954a6b1ce5419d1027aabfaa1c2f5e7553d59c776174746573746174696f6e2d666565642d676f6c64656e5820c22a02d5ad52c138795d36b67cb4453901c7acdef7e008d280eddb41104e8d4d5820a766bd2acd18a7781f7efe5b9de030d85603de840d12db8aca83403e8975db8481006c736f757263652d7772697465016b736f757263652d62657461016e736f757263652d626574612d6b315820ce5b96c753490cce34290a6b42818b55407d182275fa97cab9c45a4955dd4747181c18800058403a5940b366c2c610bebc92dada29a0a5bc060d9f14e30138628e19fce5438e77f15bef4b02f7eb0e06b30774f82dde2e4faeb44a113e79369d91c8e960be0e0182005840d4830fe9bb6f4b202f4db52edf4976ee768e6b8277d12c333aae528a0c5770830adaedd96e36547423c73c3bfed1c9e7c873c91c22fe1539b8f6f7721d7ce6085820481cc6c4765a54b5022e8258e20c7c96c2375c2ccff4c7e1a83e0e51783f030140820082825820ff909f28b1ec5d4cb8cdbafdb3ab200641105c40d36be74055f045119960b2415840a06a2648c6bb9c8b451547c3dfa8391ce4d549685ac1b9f2e659d82d7185b38ee6eec516a7b7eaeaaea8deeb13e21df33434a9a7612289d30f12c9b4dabe600b8258202cf4b18be19c8637cb614c273a69336fc44e1d22d8d07c32a392e2898edd7f20584095203cafc83d4883d332f06acc35ba595c29b101c2ef4be6aefa66e40c16d26d1808fcd64afc8cef72a935a325427bac1e5c80bfda2d524c9504f228501e4304" ],
+      "members" : [ "ff909f28b1ec5d4cb8cdbafdb3ab200641105c40d36be74055f045119960b241", "481cc6c4765a54b5022e8258e20c7c96c2375c2ccff4c7e1a83e0e51783f0301", "2cf4b18be19c8637cb614c273a69336fc44e1d22d8d07c32a392e2898edd7f20" ],
+      "threshold" : 2,
+      "stateCommitment" : {
+        "schemaVersion" : 1,
+        "profile" : "mpf-blake2b256-v1",
+        "backend" : "mpf",
+        "commitmentFormatId" : "mpf-blake2b256-format-v1",
+        "proofEncodingId" : "mpf-proof-wire-v1",
+        "nativeVersioning" : false,
+        "physicalDelete" : true,
+        "formatFingerprint" : "91ee14091200f1e24659112d640e877e9177779dcc81dd06117f013e9190082b",
+        "genesisId" : "9d662349d6c7e2778eb7c59dfe410c0bb52cc68909d521d5d512b2e4ce74e5f1",
+        "version" : 29,
+        "stateRoot" : "af18c7fed874bc596c36100cd629135be7cc8f8ff7840ff6d855740429de6f80"
+      }
+    }
+  }, {
+    "schemaVersion" : 1,
+    "type" : "trust-registry-answer-v1",
+    "chainId" : "attestation-feed-golden",
+    "profile" : "mpf-blake2b256-v1",
+    "genesisId" : "9d662349d6c7e2778eb7c59dfe410c0bb52cc68909d521d5d512b2e4ce74e5f1",
+    "height" : 29,
+    "stateRoot" : "af18c7fed874bc596c36100cd629135be7cc8f8ff7840ff6d855740429de6f80",
+    "blockHash" : "914d538fd8f3d89c4c61dc2fb71c4a1917f07e00df494c264b06654363ab7454",
+    "collection" : "observations",
+    "keyHex" : "636f6c6473746f72652d372f31322f736f757263652d62657461",
+    "key" : "coldstore-7/12/source-beta",
+    "presence" : "ACTIVE",
+    "entry" : {
+      "status" : "ACTIVE",
+      "revision" : 1,
+      "controllerHex" : "",
+      "valueHex" : "85013907071a6ab13e834060",
+      "logicalValueHash" : "cd12f65f0e58e5cf77b83f07d73aca434744b0f47e49a36d23d4823582bed288",
+      "createdHeight" : 29,
+      "lastMutationHeight" : 29
+    },
+    "provenance" : {
+      "kind" : "DIRECT_ROLE",
+      "messageId" : "925e6edcb35365ca9302b4c8ae1c1f50a88d1f6c490837b47522552dfc6ffdf2",
+      "appliedHeight" : 29,
+      "actorId" : "source-beta",
+      "organizationId" : "coldchain-beta",
+      "keyId" : "source-beta-k1",
+      "policyId" : "source-write",
+      "policyRevision" : 1,
+      "role" : "source"
+    },
+    "actionCommitmentHex" : "a766bd2acd18a7781f7efe5b9de030d85603de840d12db8aca83403e8975db84",
+    "authorizationEvidenceHex" : "830158d38f01582031156afa8d256fedb802014556954a6b1ce5419d1027aabfaa1c2f5e7553d59c776174746573746174696f6e2d666565642d676f6c64656e5820c22a02d5ad52c138795d36b67cb4453901c7acdef7e008d280eddb41104e8d4d5820a766bd2acd18a7781f7efe5b9de030d85603de840d12db8aca83403e8975db8481006c736f757263652d7772697465016b736f757263652d62657461016e736f757263652d626574612d6b315820ce5b96c753490cce34290a6b42818b55407d182275fa97cab9c45a4955dd4747181c18800058403a5940b366c2c610bebc92dada29a0a5bc060d9f14e30138628e19fce5438e77f15bef4b02f7eb0e06b30774f82dde2e4faeb44a113e79369d91c8e960be0e01",
+    "facts" : [ {
+      "name" : "entry",
+      "keyHex" : "79616e6f2d636f6d706f736974652d73746174652d7631001161757468656e746963617465642d6d6170002e0101000c6f62736572766174696f6e730000001a636f6c6473746f72652d372f31322f736f757263652d62657461",
+      "valueHex" : "88010001404c85013907071a6ab13e8340605820cd12f65f0e58e5cf77b83f07d73aca434744b0f47e49a36d23d4823582bed288181d181d",
+      "proof" : {
+        "schemaVersion" : 1,
+        "profile" : "mpf-blake2b256-v1",
+        "backend" : "mpf",
+        "commitmentFormatId" : "mpf-blake2b256-format-v1",
+        "proofEncodingId" : "mpf-proof-wire-v1",
+        "nativeVersioning" : false,
+        "physicalDelete" : true,
+        "formatFingerprint" : "91ee14091200f1e24659112d640e877e9177779dcc81dd06117f013e9190082b",
+        "genesisId" : "9d662349d6c7e2778eb7c59dfe410c0bb52cc68909d521d5d512b2e4ce74e5f1",
+        "version" : 29,
+        "stateRoot" : "af18c7fed874bc596c36100cd629135be7cc8f8ff7840ff6d855740429de6f80",
+        "oldestProvableHeight" : 1,
+        "proofSchemaVersion" : 1,
+        "key" : "79616e6f2d636f6d706f736974652d73746174652d7631001161757468656e746963617465642d6d6170002e0101000c6f62736572766174696f6e730000001a636f6c6473746f72652d372f31322f736f757263652d62657461",
+        "chainId" : "attestation-feed-golden",
+        "committedHeight" : 29,
+        "presence" : "PRESENT",
+        "valueHex" : "88010001404c85013907071a6ab13e8340605820cd12f65f0e58e5cf77b83f07d73aca434744b0f47e49a36d23d4823582bed288181d181d",
+        "blockHash" : "914d538fd8f3d89c4c61dc2fb71c4a1917f07e00df494c264b06654363ab7454",
+        "proofWireHex" : "83d879820058800374cea37728c7f2a2005f1cec827bb7321319ffccedbe81fbb1b2800c55770aaa0f14e54cd3945684b1883f748c2d6c9f795e63ca196a2d4ddaf34d94fa5f925362b301f561565d2a0694032e48965a803ca64fcc32f5d74611932ff1fa9f931b6fbda18fc861fc9648f232d59527936d085491d4fa38894b0e046cf68181efd8798200588079436924eb3dd1939aa1010f08e9fda442f763ccd2f3bf7236eadfa5d3d94b0a0bea540cf2644b3d465a4459f9dc9e1c7ca6ac30370ac133c095f7b62b843b80de78a7462d0e19c568b011f32933d7acb51672eeb1a0f7504373babdc27e139e9d7ef28358f2e3cc7e222650cd2cb6a14b519187a083d114d2466d1aed004169d879820058808911713a303335aa10a1e84fcda6745152e29eac525a1a5721a16a672564559785c09af929492a871e4fae32d9d5c36e352471cd659bcdb61de08f1722acc3b10eb923b0cbd24df54401d998531feead35a47a99f4deed205de4af81120f97610000000000000000000000000000000000000000000000000000000000000000",
+        "block" : {
+          "version" : 3,
+          "height" : 29,
+          "prevHash" : "78835c91b5953d3fefd755318d2c58a5f80286db549a6e0d7fc705efeee215f0",
+          "l1Slot" : 0,
+          "l1BlockHash" : "",
+          "timestamp" : 1788645055433,
+          "messagesRoot" : "925e6edcb35365ca9302b4c8ae1c1f50a88d1f6c490837b47522552dfc6ffdf2",
+          "stateRoot" : "af18c7fed874bc596c36100cd629135be7cc8f8ff7840ff6d855740429de6f80",
+          "blockHash" : "914d538fd8f3d89c4c61dc2fb71c4a1917f07e00df494c264b06654363ab7454",
+          "view" : 0,
+          "consensusContextDigest" : "75dfcdd6f149b5d4e68dfdb5b4c919b45f548da6692d284d297150d731fea207",
+          "proposer" : "481cc6c4765a54b5022e8258e20c7c96c2375c2ccff4c7e1a83e0e51783f0301",
+          "justificationDigest" : "0e5751c026e543b2e8ab2eb06099daa1d1e5df47778f7787faab45cdf12fe3a8"
+        },
+        "finalityCertificate" : {
+          "scheme" : 0,
+          "signatures" : [ {
+            "signer" : "ff909f28b1ec5d4cb8cdbafdb3ab200641105c40d36be74055f045119960b241",
+            "signature" : "a06a2648c6bb9c8b451547c3dfa8391ce4d549685ac1b9f2e659d82d7185b38ee6eec516a7b7eaeaaea8deeb13e21df33434a9a7612289d30f12c9b4dabe600b"
+          }, {
+            "signer" : "2cf4b18be19c8637cb614c273a69336fc44e1d22d8d07c32a392e2898edd7f20",
+            "signature" : "95203cafc83d4883d332f06acc35ba595c29b101c2ef4be6aefa66e40c16d26d1808fcd64afc8cef72a935a325427bac1e5c80bfda2d524c9504f228501e4304"
+          } ]
+        }
+      }
+    }, {
+      "name" : "receipt",
+      "keyHex" : "79616e6f2d636f6d706f736974652d73746174652d7631001161757468656e746963617465642d6d6170004a0100002279616e6f2d61757468656e746963617465642d6d61702d72656365697074732d763100000020925e6edcb35365ca9302b4c8ae1c1f50a88d1f6c490837b47522552dfc6ffdf2",
+      "valueHex" : "88015820925e6edcb35365ca9302b4c8ae1c1f50a88d1f6c490837b47522552dfc6ffdf2181d00005820a766bd2acd18a7781f7efe5b9de030d85603de840d12db8aca83403e8975db845820108aaf6d929be7cd02597e22d190b120cc6346c949f3301c17047c6126f687ca81856c6f62736572766174696f6e73581a636f6c6473746f72652d372f31322f736f757263652d6265746100015820cd12f65f0e58e5cf77b83f07d73aca434744b0f47e49a36d23d4823582bed288",
+      "proof" : {
+        "schemaVersion" : 1,
+        "profile" : "mpf-blake2b256-v1",
+        "backend" : "mpf",
+        "commitmentFormatId" : "mpf-blake2b256-format-v1",
+        "proofEncodingId" : "mpf-proof-wire-v1",
+        "nativeVersioning" : false,
+        "physicalDelete" : true,
+        "formatFingerprint" : "91ee14091200f1e24659112d640e877e9177779dcc81dd06117f013e9190082b",
+        "genesisId" : "9d662349d6c7e2778eb7c59dfe410c0bb52cc68909d521d5d512b2e4ce74e5f1",
+        "version" : 29,
+        "stateRoot" : "af18c7fed874bc596c36100cd629135be7cc8f8ff7840ff6d855740429de6f80",
+        "oldestProvableHeight" : 1,
+        "proofSchemaVersion" : 1,
+        "key" : "79616e6f2d636f6d706f736974652d73746174652d7631001161757468656e746963617465642d6d6170004a0100002279616e6f2d61757468656e746963617465642d6d61702d72656365697074732d763100000020925e6edcb35365ca9302b4c8ae1c1f50a88d1f6c490837b47522552dfc6ffdf2",
+        "chainId" : "attestation-feed-golden",
+        "committedHeight" : 29,
+        "presence" : "PRESENT",
+        "valueHex" : "88015820925e6edcb35365ca9302b4c8ae1c1f50a88d1f6c490837b47522552dfc6ffdf2181d00005820a766bd2acd18a7781f7efe5b9de030d85603de840d12db8aca83403e8975db845820108aaf6d929be7cd02597e22d190b120cc6346c949f3301c17047c6126f687ca81856c6f62736572766174696f6e73581a636f6c6473746f72652d372f31322f736f757263652d6265746100015820cd12f65f0e58e5cf77b83f07d73aca434744b0f47e49a36d23d4823582bed288",
+        "blockHash" : "914d538fd8f3d89c4c61dc2fb71c4a1917f07e00df494c264b06654363ab7454",
+        "proofWireHex" : "82d87982005880575f4fe350c0070537d261425dc9934bc4cf463f08f3e3b0a2ee0614031261fe147d260cf6478631ba6d10b37c65f4c2677e866abba6eac4fa7b3a0cf24d6c9b4fad4bf9061bf702395befe2b13fee10334419eee8de082517bcc981ef4ba592993f56348f532d134802b34181d44f3ee3bd2ff25935cc62a69917019ee3439ed8798200588042cba71ae71d4b53b6c89d9627866b7abb03aab04d7f9883183719f2626cb0266e1701bf2f901547bdc44bef53fd779d326137ccb0c34359e5f9fe85b388b1970eb923b0cbd24df54401d998531feead35a47a99f4deed205de4af81120f9761d4a4adc0260c0f56b76b0f04dacbde711caa6c27f2b30ef11e0a397680b93241",
+        "block" : {
+          "version" : 3,
+          "height" : 29,
+          "prevHash" : "78835c91b5953d3fefd755318d2c58a5f80286db549a6e0d7fc705efeee215f0",
+          "l1Slot" : 0,
+          "l1BlockHash" : "",
+          "timestamp" : 1788645055433,
+          "messagesRoot" : "925e6edcb35365ca9302b4c8ae1c1f50a88d1f6c490837b47522552dfc6ffdf2",
+          "stateRoot" : "af18c7fed874bc596c36100cd629135be7cc8f8ff7840ff6d855740429de6f80",
+          "blockHash" : "914d538fd8f3d89c4c61dc2fb71c4a1917f07e00df494c264b06654363ab7454",
+          "view" : 0,
+          "consensusContextDigest" : "75dfcdd6f149b5d4e68dfdb5b4c919b45f548da6692d284d297150d731fea207",
+          "proposer" : "481cc6c4765a54b5022e8258e20c7c96c2375c2ccff4c7e1a83e0e51783f0301",
+          "justificationDigest" : "0e5751c026e543b2e8ab2eb06099daa1d1e5df47778f7787faab45cdf12fe3a8"
+        },
+        "finalityCertificate" : {
+          "scheme" : 0,
+          "signatures" : [ {
+            "signer" : "ff909f28b1ec5d4cb8cdbafdb3ab200641105c40d36be74055f045119960b241",
+            "signature" : "a06a2648c6bb9c8b451547c3dfa8391ce4d549685ac1b9f2e659d82d7185b38ee6eec516a7b7eaeaaea8deeb13e21df33434a9a7612289d30f12c9b4dabe600b"
+          }, {
+            "signer" : "2cf4b18be19c8637cb614c273a69336fc44e1d22d8d07c32a392e2898edd7f20",
+            "signature" : "95203cafc83d4883d332f06acc35ba595c29b101c2ef4be6aefa66e40c16d26d1808fcd64afc8cef72a935a325427bac1e5c80bfda2d524c9504f228501e4304"
+          } ]
+        }
+      }
+    }, {
+      "name" : "direct-consumption",
+      "keyHex" : "79616e6f2d636f6d706f736974652d73746174652d7631001161757468656e746963617465642d6d617000620100002c79616e6f2d61757468656e746963617465642d6d61702d6469726563742d636f6e73756d7074696f6e2d76310000002e01000b736f757263652d6265746131156afa8d256fedb802014556954a6b1ce5419d1027aabfaa1c2f5e7553d59c",
+      "valueHex" : "90016b736f757263652d62657461582031156afa8d256fedb802014556954a6b1ce5419d1027aabfaa1c2f5e7553d59c5820a766bd2acd18a7781f7efe5b9de030d85603de840d12db8aca83403e8975db84181d5820925e6edcb35365ca9302b4c8ae1c1f50a88d1f6c490837b47522552dfc6ffdf281006c736f757263652d777269746501016e636f6c64636861696e2d626574610166736f757263656e736f757263652d626574612d6b31582089caa028f8e27accb068e54271d49c382e557a7bda1b2731af6292b1e35f12f15820500c9a78e8b9fad131577109be7f5938e21c026eaac204e9ca9d53ad5a2f1ed3",
+      "proof" : {
+        "schemaVersion" : 1,
+        "profile" : "mpf-blake2b256-v1",
+        "backend" : "mpf",
+        "commitmentFormatId" : "mpf-blake2b256-format-v1",
+        "proofEncodingId" : "mpf-proof-wire-v1",
+        "nativeVersioning" : false,
+        "physicalDelete" : true,
+        "formatFingerprint" : "91ee14091200f1e24659112d640e877e9177779dcc81dd06117f013e9190082b",
+        "genesisId" : "9d662349d6c7e2778eb7c59dfe410c0bb52cc68909d521d5d512b2e4ce74e5f1",
+        "version" : 29,
+        "stateRoot" : "af18c7fed874bc596c36100cd629135be7cc8f8ff7840ff6d855740429de6f80",
+        "oldestProvableHeight" : 1,
+        "proofSchemaVersion" : 1,
+        "key" : "79616e6f2d636f6d706f736974652d73746174652d7631001161757468656e746963617465642d6d617000620100002c79616e6f2d61757468656e746963617465642d6d61702d6469726563742d636f6e73756d7074696f6e2d76310000002e01000b736f757263652d6265746131156afa8d256fedb802014556954a6b1ce5419d1027aabfaa1c2f5e7553d59c",
+        "chainId" : "attestation-feed-golden",
+        "committedHeight" : 29,
+        "presence" : "PRESENT",
+        "valueHex" : "90016b736f757263652d62657461582031156afa8d256fedb802014556954a6b1ce5419d1027aabfaa1c2f5e7553d59c5820a766bd2acd18a7781f7efe5b9de030d85603de840d12db8aca83403e8975db84181d5820925e6edcb35365ca9302b4c8ae1c1f50a88d1f6c490837b47522552dfc6ffdf281006c736f757263652d777269746501016e636f6c64636861696e2d626574610166736f757263656e736f757263652d626574612d6b31582089caa028f8e27accb068e54271d49c382e557a7bda1b2731af6292b1e35f12f15820500c9a78e8b9fad131577109be7f5938e21c026eaac204e9ca9d53ad5a2f1ed3",
+        "blockHash" : "914d538fd8f3d89c4c61dc2fb71c4a1917f07e00df494c264b06654363ab7454",
+        "proofWireHex" : "82d87982005880575f4fe350c0070537d261425dc9934bc4cf463f08f3e3b0a2ee0614031261fe8c68bf001d1752ac1b687b6f4e8f8cfb937f2d4121c45a7809d4e6d9252fa04bbcaae7990aaa24f5ce34a94d3d13f650a326cd63dff67b241d5dfee79847bde9a0abf61086a725d5bcd3ff9bd6b5362662a957aef890ba79291133fc712ca462d87982005880963b552ca9f3e41ab41d9e8df51837b99d16a0b8383d6a6291a5bf29e50414d485c09af929492a871e4fae32d9d5c36e352471cd659bcdb61de08f1722acc3b10eb923b0cbd24df54401d998531feead35a47a99f4deed205de4af81120f97610000000000000000000000000000000000000000000000000000000000000000",
+        "block" : {
+          "version" : 3,
+          "height" : 29,
+          "prevHash" : "78835c91b5953d3fefd755318d2c58a5f80286db549a6e0d7fc705efeee215f0",
+          "l1Slot" : 0,
+          "l1BlockHash" : "",
+          "timestamp" : 1788645055433,
+          "messagesRoot" : "925e6edcb35365ca9302b4c8ae1c1f50a88d1f6c490837b47522552dfc6ffdf2",
+          "stateRoot" : "af18c7fed874bc596c36100cd629135be7cc8f8ff7840ff6d855740429de6f80",
+          "blockHash" : "914d538fd8f3d89c4c61dc2fb71c4a1917f07e00df494c264b06654363ab7454",
+          "view" : 0,
+          "consensusContextDigest" : "75dfcdd6f149b5d4e68dfdb5b4c919b45f548da6692d284d297150d731fea207",
+          "proposer" : "481cc6c4765a54b5022e8258e20c7c96c2375c2ccff4c7e1a83e0e51783f0301",
+          "justificationDigest" : "0e5751c026e543b2e8ab2eb06099daa1d1e5df47778f7787faab45cdf12fe3a8"
+        },
+        "finalityCertificate" : {
+          "scheme" : 0,
+          "signatures" : [ {
+            "signer" : "ff909f28b1ec5d4cb8cdbafdb3ab200641105c40d36be74055f045119960b241",
+            "signature" : "a06a2648c6bb9c8b451547c3dfa8391ce4d549685ac1b9f2e659d82d7185b38ee6eec516a7b7eaeaaea8deeb13e21df33434a9a7612289d30f12c9b4dabe600b"
+          }, {
+            "signer" : "2cf4b18be19c8637cb614c273a69336fc44e1d22d8d07c32a392e2898edd7f20",
+            "signature" : "95203cafc83d4883d332f06acc35ba595c29b101c2ef4be6aefa66e40c16d26d1808fcd64afc8cef72a935a325427bac1e5c80bfda2d524c9504f228501e4304"
+          } ]
+        }
+      }
+    }, {
+      "name" : "direct-policy",
+      "keyHex" : "79616e6f2d636f6d706f736974652d73746174652d7631000e726f6c652d617070726f76616c730012642f736f757263652d77726974652f722f31",
+      "valueHex" : "86016c736f757263652d7772697465010066736f757263651864",
+      "proof" : {
+        "schemaVersion" : 1,
+        "profile" : "mpf-blake2b256-v1",
+        "backend" : "mpf",
+        "commitmentFormatId" : "mpf-blake2b256-format-v1",
+        "proofEncodingId" : "mpf-proof-wire-v1",
+        "nativeVersioning" : false,
+        "physicalDelete" : true,
+        "formatFingerprint" : "91ee14091200f1e24659112d640e877e9177779dcc81dd06117f013e9190082b",
+        "genesisId" : "9d662349d6c7e2778eb7c59dfe410c0bb52cc68909d521d5d512b2e4ce74e5f1",
+        "version" : 29,
+        "stateRoot" : "af18c7fed874bc596c36100cd629135be7cc8f8ff7840ff6d855740429de6f80",
+        "oldestProvableHeight" : 1,
+        "proofSchemaVersion" : 1,
+        "key" : "79616e6f2d636f6d706f736974652d73746174652d7631000e726f6c652d617070726f76616c730012642f736f757263652d77726974652f722f31",
+        "chainId" : "attestation-feed-golden",
+        "committedHeight" : 29,
+        "presence" : "PRESENT",
+        "valueHex" : "86016c736f757263652d7772697465010066736f757263651864",
+        "blockHash" : "914d538fd8f3d89c4c61dc2fb71c4a1917f07e00df494c264b06654363ab7454",
+        "proofWireHex" : "82d879820058800374cea37728c7f2a2005f1cec827bb7321319ffccedbe81fbb1b2800c55770aaa0f14e54cd3945684b1883f748c2d6c9f795e63ca196a2d4ddaf34d94fa5f9234d471b40db08053bf0a33f2aaea827882e8d012282c29132f44920a6096438f76e4604ac010ff5d929f522b8b0c17b5d21ab5c995c611a2ed2e6077d87467a4d879820058805be57a403684b98b477cf532125fd87a4d320fdafb0d4a15c29567c391bf1d4dd36095cb410f65c79108d1e3d15d896ca7a8788fb25554e9f7db9429190ada760eb923b0cbd24df54401d998531feead35a47a99f4deed205de4af81120f97610000000000000000000000000000000000000000000000000000000000000000",
+        "block" : {
+          "version" : 3,
+          "height" : 29,
+          "prevHash" : "78835c91b5953d3fefd755318d2c58a5f80286db549a6e0d7fc705efeee215f0",
+          "l1Slot" : 0,
+          "l1BlockHash" : "",
+          "timestamp" : 1788645055433,
+          "messagesRoot" : "925e6edcb35365ca9302b4c8ae1c1f50a88d1f6c490837b47522552dfc6ffdf2",
+          "stateRoot" : "af18c7fed874bc596c36100cd629135be7cc8f8ff7840ff6d855740429de6f80",
+          "blockHash" : "914d538fd8f3d89c4c61dc2fb71c4a1917f07e00df494c264b06654363ab7454",
+          "view" : 0,
+          "consensusContextDigest" : "75dfcdd6f149b5d4e68dfdb5b4c919b45f548da6692d284d297150d731fea207",
+          "proposer" : "481cc6c4765a54b5022e8258e20c7c96c2375c2ccff4c7e1a83e0e51783f0301",
+          "justificationDigest" : "0e5751c026e543b2e8ab2eb06099daa1d1e5df47778f7787faab45cdf12fe3a8"
+        },
+        "finalityCertificate" : {
+          "scheme" : 0,
+          "signatures" : [ {
+            "signer" : "ff909f28b1ec5d4cb8cdbafdb3ab200641105c40d36be74055f045119960b241",
+            "signature" : "a06a2648c6bb9c8b451547c3dfa8391ce4d549685ac1b9f2e659d82d7185b38ee6eec516a7b7eaeaaea8deeb13e21df33434a9a7612289d30f12c9b4dabe600b"
+          }, {
+            "signer" : "2cf4b18be19c8637cb614c273a69336fc44e1d22d8d07c32a392e2898edd7f20",
+            "signature" : "95203cafc83d4883d332f06acc35ba595c29b101c2ef4be6aefa66e40c16d26d1808fcd64afc8cef72a935a325427bac1e5c80bfda2d524c9504f228501e4304"
+          } ]
+        }
+      }
+    }, {
+      "name" : "direct-policy-current",
+      "keyHex" : "79616e6f2d636f6d706f736974652d73746174652d7631000e726f6c652d617070726f76616c730016642f736f757263652d77726974652f63757272656e74",
+      "valueHex" : "0000000000000001",
+      "proof" : {
+        "schemaVersion" : 1,
+        "profile" : "mpf-blake2b256-v1",
+        "backend" : "mpf",
+        "commitmentFormatId" : "mpf-blake2b256-format-v1",
+        "proofEncodingId" : "mpf-proof-wire-v1",
+        "nativeVersioning" : false,
+        "physicalDelete" : true,
+        "formatFingerprint" : "91ee14091200f1e24659112d640e877e9177779dcc81dd06117f013e9190082b",
+        "genesisId" : "9d662349d6c7e2778eb7c59dfe410c0bb52cc68909d521d5d512b2e4ce74e5f1",
+        "version" : 29,
+        "stateRoot" : "af18c7fed874bc596c36100cd629135be7cc8f8ff7840ff6d855740429de6f80",
+        "oldestProvableHeight" : 1,
+        "proofSchemaVersion" : 1,
+        "key" : "79616e6f2d636f6d706f736974652d73746174652d7631000e726f6c652d617070726f76616c730016642f736f757263652d77726974652f63757272656e74",
+        "chainId" : "attestation-feed-golden",
+        "committedHeight" : 29,
+        "presence" : "PRESENT",
+        "valueHex" : "0000000000000001",
+        "blockHash" : "914d538fd8f3d89c4c61dc2fb71c4a1917f07e00df494c264b06654363ab7454",
+        "proofWireHex" : "83d879820058800374cea37728c7f2a2005f1cec827bb7321319ffccedbe81fbb1b2800c55770aaa0f14e54cd3945684b1883f748c2d6c9f795e63ca196a2d4ddaf34d94fa5f925362b301f561565d2a0694032e48965a803ca64fcc32f5d74611932ff1fa9f93f29cf81011e4516a0b76bd786a1b60af5758a55a17ca1bb15f35f2eece9bbdc1d879820058805081175450cc8d7dc126c3f3d4b7d891575691299f5b6637dde0d15eab763db285c09af929492a871e4fae32d9d5c36e352471cd659bcdb61de08f1722acc3b10eb923b0cbd24df54401d998531feead35a47a99f4deed205de4af81120f97610000000000000000000000000000000000000000000000000000000000000000d879820058808def828dd7944411a12f662564a5d621d6291be9354c885d6f3c680d445eb77b85c09af929492a871e4fae32d9d5c36e352471cd659bcdb61de08f1722acc3b10eb923b0cbd24df54401d998531feead35a47a99f4deed205de4af81120f97610000000000000000000000000000000000000000000000000000000000000000",
+        "block" : {
+          "version" : 3,
+          "height" : 29,
+          "prevHash" : "78835c91b5953d3fefd755318d2c58a5f80286db549a6e0d7fc705efeee215f0",
+          "l1Slot" : 0,
+          "l1BlockHash" : "",
+          "timestamp" : 1788645055433,
+          "messagesRoot" : "925e6edcb35365ca9302b4c8ae1c1f50a88d1f6c490837b47522552dfc6ffdf2",
+          "stateRoot" : "af18c7fed874bc596c36100cd629135be7cc8f8ff7840ff6d855740429de6f80",
+          "blockHash" : "914d538fd8f3d89c4c61dc2fb71c4a1917f07e00df494c264b06654363ab7454",
+          "view" : 0,
+          "consensusContextDigest" : "75dfcdd6f149b5d4e68dfdb5b4c919b45f548da6692d284d297150d731fea207",
+          "proposer" : "481cc6c4765a54b5022e8258e20c7c96c2375c2ccff4c7e1a83e0e51783f0301",
+          "justificationDigest" : "0e5751c026e543b2e8ab2eb06099daa1d1e5df47778f7787faab45cdf12fe3a8"
+        },
+        "finalityCertificate" : {
+          "scheme" : 0,
+          "signatures" : [ {
+            "signer" : "ff909f28b1ec5d4cb8cdbafdb3ab200641105c40d36be74055f045119960b241",
+            "signature" : "a06a2648c6bb9c8b451547c3dfa8391ce4d549685ac1b9f2e659d82d7185b38ee6eec516a7b7eaeaaea8deeb13e21df33434a9a7612289d30f12c9b4dabe600b"
+          }, {
+            "signer" : "2cf4b18be19c8637cb614c273a69336fc44e1d22d8d07c32a392e2898edd7f20",
+            "signature" : "95203cafc83d4883d332f06acc35ba595c29b101c2ef4be6aefa66e40c16d26d1808fcd64afc8cef72a935a325427bac1e5c80bfda2d524c9504f228501e4304"
+          } ]
+        }
+      }
+    }, {
+      "name" : "actor",
+      "keyHex" : "79616e6f2d636f6d706f736974652d73746174652d7631000d646f6d61696e2d6163746f72730011612f736f757263652d626574612f722f31",
+      "valueHex" : "88016b736f757263652d626574616e636f6c64636861696e2d6265746101008166736f7572636581856e736f757263652d626574612d6b315820ce5b96c753490cce34290a6b42818b55407d182275fa97cab9c45a4955dd474701000040",
+      "proof" : {
+        "schemaVersion" : 1,
+        "profile" : "mpf-blake2b256-v1",
+        "backend" : "mpf",
+        "commitmentFormatId" : "mpf-blake2b256-format-v1",
+        "proofEncodingId" : "mpf-proof-wire-v1",
+        "nativeVersioning" : false,
+        "physicalDelete" : true,
+        "formatFingerprint" : "91ee14091200f1e24659112d640e877e9177779dcc81dd06117f013e9190082b",
+        "genesisId" : "9d662349d6c7e2778eb7c59dfe410c0bb52cc68909d521d5d512b2e4ce74e5f1",
+        "version" : 29,
+        "stateRoot" : "af18c7fed874bc596c36100cd629135be7cc8f8ff7840ff6d855740429de6f80",
+        "oldestProvableHeight" : 1,
+        "proofSchemaVersion" : 1,
+        "key" : "79616e6f2d636f6d706f736974652d73746174652d7631000d646f6d61696e2d6163746f72730011612f736f757263652d626574612f722f31",
+        "chainId" : "attestation-feed-golden",
+        "committedHeight" : 29,
+        "presence" : "PRESENT",
+        "valueHex" : "88016b736f757263652d626574616e636f6c64636861696e2d6265746101008166736f7572636581856e736f757263652d626574612d6b315820ce5b96c753490cce34290a6b42818b55407d182275fa97cab9c45a4955dd474701000040",
+        "blockHash" : "914d538fd8f3d89c4c61dc2fb71c4a1917f07e00df494c264b06654363ab7454",
+        "proofWireHex" : "83d879820058800374cea37728c7f2a2005f1cec827bb7321319ffccedbe81fbb1b2800c55770ac31889cefda5f21bd7baeda62bbe1439507ac0c28133b4c86c0c91d2219931ced9c7d15d84d798981e8d36ec317bfa18f904a3290ab7664f934462afbbd7c91a2221b7e75046b375039fcf715ff89ad52fe057b98c1c871c6e7b9faeb41589cdd87982005880f770d8331c45f8f76bda86ed74a5fae38b0136f1b6e4ea276ed14c59d3b4e1e5b41546b18ce2704af242d9ab62f93f039aae042ee797ce7b3f365634c9eb635bfdf00c8e9f155395509d44f58671de13efc5fce750e9f3c207b932f900b8022596d1a984e09970ccbb5e10bb18be1d8738425e7c2b964306c357b6d19bb57becd87982005880b22df1a126b5ba4e33c16fd6157507610e55ffce20dae7ac44cae168a463612a9bd68feac1ecd67232fd8168f9fa3d068787a16276b8fa6f0efad5d0ca6cdf9902abf9b3e14bf3d8d07db3c2a2addf5fb33b3533d6421ccc5634577185d91eb80000000000000000000000000000000000000000000000000000000000000000",
+        "block" : {
+          "version" : 3,
+          "height" : 29,
+          "prevHash" : "78835c91b5953d3fefd755318d2c58a5f80286db549a6e0d7fc705efeee215f0",
+          "l1Slot" : 0,
+          "l1BlockHash" : "",
+          "timestamp" : 1788645055433,
+          "messagesRoot" : "925e6edcb35365ca9302b4c8ae1c1f50a88d1f6c490837b47522552dfc6ffdf2",
+          "stateRoot" : "af18c7fed874bc596c36100cd629135be7cc8f8ff7840ff6d855740429de6f80",
+          "blockHash" : "914d538fd8f3d89c4c61dc2fb71c4a1917f07e00df494c264b06654363ab7454",
+          "view" : 0,
+          "consensusContextDigest" : "75dfcdd6f149b5d4e68dfdb5b4c919b45f548da6692d284d297150d731fea207",
+          "proposer" : "481cc6c4765a54b5022e8258e20c7c96c2375c2ccff4c7e1a83e0e51783f0301",
+          "justificationDigest" : "0e5751c026e543b2e8ab2eb06099daa1d1e5df47778f7787faab45cdf12fe3a8"
+        },
+        "finalityCertificate" : {
+          "scheme" : 0,
+          "signatures" : [ {
+            "signer" : "ff909f28b1ec5d4cb8cdbafdb3ab200641105c40d36be74055f045119960b241",
+            "signature" : "a06a2648c6bb9c8b451547c3dfa8391ce4d549685ac1b9f2e659d82d7185b38ee6eec516a7b7eaeaaea8deeb13e21df33434a9a7612289d30f12c9b4dabe600b"
+          }, {
+            "signer" : "2cf4b18be19c8637cb614c273a69336fc44e1d22d8d07c32a392e2898edd7f20",
+            "signature" : "95203cafc83d4883d332f06acc35ba595c29b101c2ef4be6aefa66e40c16d26d1808fcd64afc8cef72a935a325427bac1e5c80bfda2d524c9504f228501e4304"
+          } ]
+        }
+      }
+    }, {
+      "name" : "actor-current",
+      "keyHex" : "79616e6f2d636f6d706f736974652d73746174652d7631000d646f6d61696e2d6163746f72730015612f736f757263652d626574612f63757272656e74",
+      "valueHex" : "0000000000000001",
+      "proof" : {
+        "schemaVersion" : 1,
+        "profile" : "mpf-blake2b256-v1",
+        "backend" : "mpf",
+        "commitmentFormatId" : "mpf-blake2b256-format-v1",
+        "proofEncodingId" : "mpf-proof-wire-v1",
+        "nativeVersioning" : false,
+        "physicalDelete" : true,
+        "formatFingerprint" : "91ee14091200f1e24659112d640e877e9177779dcc81dd06117f013e9190082b",
+        "genesisId" : "9d662349d6c7e2778eb7c59dfe410c0bb52cc68909d521d5d512b2e4ce74e5f1",
+        "version" : 29,
+        "stateRoot" : "af18c7fed874bc596c36100cd629135be7cc8f8ff7840ff6d855740429de6f80",
+        "oldestProvableHeight" : 1,
+        "proofSchemaVersion" : 1,
+        "key" : "79616e6f2d636f6d706f736974652d73746174652d7631000d646f6d61696e2d6163746f72730015612f736f757263652d626574612f63757272656e74",
+        "chainId" : "attestation-feed-golden",
+        "committedHeight" : 29,
+        "presence" : "PRESENT",
+        "valueHex" : "0000000000000001",
+        "blockHash" : "914d538fd8f3d89c4c61dc2fb71c4a1917f07e00df494c264b06654363ab7454",
+        "proofWireHex" : "83d879820058800374cea37728c7f2a2005f1cec827bb7321319ffccedbe81fbb1b2800c55770ac31889cefda5f21bd7baeda62bbe1439507ac0c28133b4c86c0c91d2219931ced9c7d15d84d798981e8d36ec317bfa18f904a3290ab7664f934462afbbd7c91a2221b7e75046b375039fcf715ff89ad52fe057b98c1c871c6e7b9faeb41589cdd87982005880f770d8331c45f8f76bda86ed74a5fae38b0136f1b6e4ea276ed14c59d3b4e1e5b41546b18ce2704af242d9ab62f93f039aae042ee797ce7b3f365634c9eb635bfdf00c8e9f155395509d44f58671de13efc5fce750e9f3c207b932f900b8022596d1a984e09970ccbb5e10bb18be1d8738425e7c2b964306c357b6d19bb57becd87982005880b22df1a126b5ba4e33c16fd6157507610e55ffce20dae7ac44cae168a463612a9bd68feac1ecd67232fd8168f9fa3d068787a16276b8fa6f0efad5d0ca6cdf99fe7731171dabe3cb9ae3829afc3b114adba7d1a295b1ed17680e3bba90fa36110000000000000000000000000000000000000000000000000000000000000000",
+        "block" : {
+          "version" : 3,
+          "height" : 29,
+          "prevHash" : "78835c91b5953d3fefd755318d2c58a5f80286db549a6e0d7fc705efeee215f0",
+          "l1Slot" : 0,
+          "l1BlockHash" : "",
+          "timestamp" : 1788645055433,
+          "messagesRoot" : "925e6edcb35365ca9302b4c8ae1c1f50a88d1f6c490837b47522552dfc6ffdf2",
+          "stateRoot" : "af18c7fed874bc596c36100cd629135be7cc8f8ff7840ff6d855740429de6f80",
+          "blockHash" : "914d538fd8f3d89c4c61dc2fb71c4a1917f07e00df494c264b06654363ab7454",
+          "view" : 0,
+          "consensusContextDigest" : "75dfcdd6f149b5d4e68dfdb5b4c919b45f548da6692d284d297150d731fea207",
+          "proposer" : "481cc6c4765a54b5022e8258e20c7c96c2375c2ccff4c7e1a83e0e51783f0301",
+          "justificationDigest" : "0e5751c026e543b2e8ab2eb06099daa1d1e5df47778f7787faab45cdf12fe3a8"
+        },
+        "finalityCertificate" : {
+          "scheme" : 0,
+          "signatures" : [ {
+            "signer" : "ff909f28b1ec5d4cb8cdbafdb3ab200641105c40d36be74055f045119960b241",
+            "signature" : "a06a2648c6bb9c8b451547c3dfa8391ce4d549685ac1b9f2e659d82d7185b38ee6eec516a7b7eaeaaea8deeb13e21df33434a9a7612289d30f12c9b4dabe600b"
+          }, {
+            "signer" : "2cf4b18be19c8637cb614c273a69336fc44e1d22d8d07c32a392e2898edd7f20",
+            "signature" : "95203cafc83d4883d332f06acc35ba595c29b101c2ef4be6aefa66e40c16d26d1808fcd64afc8cef72a935a325427bac1e5c80bfda2d524c9504f228501e4304"
+          } ]
+        }
+      }
+    }, {
+      "name" : "organization",
+      "keyHex" : "79616e6f2d636f6d706f736974652d73746174652d7631000d646f6d61696e2d6163746f727300146f2f636f6c64636861696e2d626574612f722f31",
+      "valueHex" : "85016e636f6c64636861696e2d62657461010040",
+      "proof" : {
+        "schemaVersion" : 1,
+        "profile" : "mpf-blake2b256-v1",
+        "backend" : "mpf",
+        "commitmentFormatId" : "mpf-blake2b256-format-v1",
+        "proofEncodingId" : "mpf-proof-wire-v1",
+        "nativeVersioning" : false,
+        "physicalDelete" : true,
+        "formatFingerprint" : "91ee14091200f1e24659112d640e877e9177779dcc81dd06117f013e9190082b",
+        "genesisId" : "9d662349d6c7e2778eb7c59dfe410c0bb52cc68909d521d5d512b2e4ce74e5f1",
+        "version" : 29,
+        "stateRoot" : "af18c7fed874bc596c36100cd629135be7cc8f8ff7840ff6d855740429de6f80",
+        "oldestProvableHeight" : 1,
+        "proofSchemaVersion" : 1,
+        "key" : "79616e6f2d636f6d706f736974652d73746174652d7631000d646f6d61696e2d6163746f727300146f2f636f6c64636861696e2d626574612f722f31",
+        "chainId" : "attestation-feed-golden",
+        "committedHeight" : 29,
+        "presence" : "PRESENT",
+        "valueHex" : "85016e636f6c64636861696e2d62657461010040",
+        "blockHash" : "914d538fd8f3d89c4c61dc2fb71c4a1917f07e00df494c264b06654363ab7454",
+        "proofWireHex" : "83d879820058800374cea37728c7f2a2005f1cec827bb7321319ffccedbe81fbb1b2800c55770aaa0f14e54cd3945684b1883f748c2d6c9f795e63ca196a2d4ddaf34d94fa5f925362b301f561565d2a0694032e48965a803ca64fcc32f5d74611932ff1fa9f931b6fbda18fc861fc9648f232d59527936d085491d4fa38894b0e046cf68181efd87982005880738bbb467f9580edcf74863e5ab36fe25fb15116e5b371ecd9b60b18bd217b74a1d4e77af71a2cb48e666535fb9308b4878dcf14cb3353132fe66219cd1f79daa97756bb5c7de017a29ec1ad3d163833b4a4682fa699a10fb49a99c19c9867eb4295c3325d85e84e5f32dc16091c5c1bf5ba0de84ca139489a5878f4db90b03bd879820058808809a333a7f32239cb62da90ad0aba4e445323f02916353986d719d8e6295c8fceb1711734bb8ac4594d7ee640cb1cdca6bee08503bb75b15c0d7a35ccea47b60eb923b0cbd24df54401d998531feead35a47a99f4deed205de4af81120f97610000000000000000000000000000000000000000000000000000000000000000",
+        "block" : {
+          "version" : 3,
+          "height" : 29,
+          "prevHash" : "78835c91b5953d3fefd755318d2c58a5f80286db549a6e0d7fc705efeee215f0",
+          "l1Slot" : 0,
+          "l1BlockHash" : "",
+          "timestamp" : 1788645055433,
+          "messagesRoot" : "925e6edcb35365ca9302b4c8ae1c1f50a88d1f6c490837b47522552dfc6ffdf2",
+          "stateRoot" : "af18c7fed874bc596c36100cd629135be7cc8f8ff7840ff6d855740429de6f80",
+          "blockHash" : "914d538fd8f3d89c4c61dc2fb71c4a1917f07e00df494c264b06654363ab7454",
+          "view" : 0,
+          "consensusContextDigest" : "75dfcdd6f149b5d4e68dfdb5b4c919b45f548da6692d284d297150d731fea207",
+          "proposer" : "481cc6c4765a54b5022e8258e20c7c96c2375c2ccff4c7e1a83e0e51783f0301",
+          "justificationDigest" : "0e5751c026e543b2e8ab2eb06099daa1d1e5df47778f7787faab45cdf12fe3a8"
+        },
+        "finalityCertificate" : {
+          "scheme" : 0,
+          "signatures" : [ {
+            "signer" : "ff909f28b1ec5d4cb8cdbafdb3ab200641105c40d36be74055f045119960b241",
+            "signature" : "a06a2648c6bb9c8b451547c3dfa8391ce4d549685ac1b9f2e659d82d7185b38ee6eec516a7b7eaeaaea8deeb13e21df33434a9a7612289d30f12c9b4dabe600b"
+          }, {
+            "signer" : "2cf4b18be19c8637cb614c273a69336fc44e1d22d8d07c32a392e2898edd7f20",
+            "signature" : "95203cafc83d4883d332f06acc35ba595c29b101c2ef4be6aefa66e40c16d26d1808fcd64afc8cef72a935a325427bac1e5c80bfda2d524c9504f228501e4304"
+          } ]
+        }
+      }
+    }, {
+      "name" : "genesis-marker",
+      "keyHex" : "79616e6f2d636f6d706f736974652d73746174652d7631001161757468656e746963617465642d6d617000310100002279616e6f2d61757468656e746963617465642d6d61702d696e7465726e616c2d76310000000767656e65736973",
+      "valueHex" : "c22a02d5ad52c138795d36b67cb4453901c7acdef7e008d280eddb41104e8d4d",
+      "proof" : {
+        "schemaVersion" : 1,
+        "profile" : "mpf-blake2b256-v1",
+        "backend" : "mpf",
+        "commitmentFormatId" : "mpf-blake2b256-format-v1",
+        "proofEncodingId" : "mpf-proof-wire-v1",
+        "nativeVersioning" : false,
+        "physicalDelete" : true,
+        "formatFingerprint" : "91ee14091200f1e24659112d640e877e9177779dcc81dd06117f013e9190082b",
+        "genesisId" : "9d662349d6c7e2778eb7c59dfe410c0bb52cc68909d521d5d512b2e4ce74e5f1",
+        "version" : 29,
+        "stateRoot" : "af18c7fed874bc596c36100cd629135be7cc8f8ff7840ff6d855740429de6f80",
+        "oldestProvableHeight" : 1,
+        "proofSchemaVersion" : 1,
+        "key" : "79616e6f2d636f6d706f736974652d73746174652d7631001161757468656e746963617465642d6d617000310100002279616e6f2d61757468656e746963617465642d6d61702d696e7465726e616c2d76310000000767656e65736973",
+        "chainId" : "attestation-feed-golden",
+        "committedHeight" : 29,
+        "presence" : "PRESENT",
+        "valueHex" : "c22a02d5ad52c138795d36b67cb4453901c7acdef7e008d280eddb41104e8d4d",
+        "blockHash" : "914d538fd8f3d89c4c61dc2fb71c4a1917f07e00df494c264b06654363ab7454",
+        "proofWireHex" : "82d87982005880575f4fe350c0070537d261425dc9934bc4cf463f08f3e3b0a2ee0614031261fe147d260cf6478631ba6d10b37c65f4c2677e866abba6eac4fa7b3a0cf24d6c9b4fad4bf9061bf702395befe2b13fee10334419eee8de082517bcc981ef4ba592993f56348f532d134802b34181d44f3ee3bd2ff25935cc62a69917019ee3439ed8798200588068168bf5eb933e346fa1dba6d81503cb69ad2083ae9839951025226aeb12b27327a294789b46216d084f4d6753d7adf8d001833971bd11a81daa1149b633e429f15959a5f833712242e45deb230996afdbab0d69040a4c948d5f4a9b6cd32326d11c33ab137c3b6dd2b15692f603e8b98a1bf0880464487ec510b3a366a07d5e",
+        "block" : {
+          "version" : 3,
+          "height" : 29,
+          "prevHash" : "78835c91b5953d3fefd755318d2c58a5f80286db549a6e0d7fc705efeee215f0",
+          "l1Slot" : 0,
+          "l1BlockHash" : "",
+          "timestamp" : 1788645055433,
+          "messagesRoot" : "925e6edcb35365ca9302b4c8ae1c1f50a88d1f6c490837b47522552dfc6ffdf2",
+          "stateRoot" : "af18c7fed874bc596c36100cd629135be7cc8f8ff7840ff6d855740429de6f80",
+          "blockHash" : "914d538fd8f3d89c4c61dc2fb71c4a1917f07e00df494c264b06654363ab7454",
+          "view" : 0,
+          "consensusContextDigest" : "75dfcdd6f149b5d4e68dfdb5b4c919b45f548da6692d284d297150d731fea207",
+          "proposer" : "481cc6c4765a54b5022e8258e20c7c96c2375c2ccff4c7e1a83e0e51783f0301",
+          "justificationDigest" : "0e5751c026e543b2e8ab2eb06099daa1d1e5df47778f7787faab45cdf12fe3a8"
+        },
+        "finalityCertificate" : {
+          "scheme" : 0,
+          "signatures" : [ {
+            "signer" : "ff909f28b1ec5d4cb8cdbafdb3ab200641105c40d36be74055f045119960b241",
+            "signature" : "a06a2648c6bb9c8b451547c3dfa8391ce4d549685ac1b9f2e659d82d7185b38ee6eec516a7b7eaeaaea8deeb13e21df33434a9a7612289d30f12c9b4dabe600b"
+          }, {
+            "signer" : "2cf4b18be19c8637cb614c273a69336fc44e1d22d8d07c32a392e2898edd7f20",
+            "signature" : "95203cafc83d4883d332f06acc35ba595c29b101c2ef4be6aefa66e40c16d26d1808fcd64afc8cef72a935a325427bac1e5c80bfda2d524c9504f228501e4304"
+          } ]
+        }
+      }
+    } ],
+    "evidence" : {
+      "chainId" : "attestation-feed-golden",
+      "messageId" : "925e6edcb35365ca9302b4c8ae1c1f50a88d1f6c490837b47522552dfc6ffdf2",
+      "blocksCbor" : [ "8f03776174746573746174696f6e2d666565642d676f6c64656e181d582075dfcdd6f149b5d4e68dfdb5b4c919b45f548da6692d284d297150d731fea20700582078835c91b5953d3fefd755318d2c58a5f80286db549a6e0d7fc705efeee215f000401b000001a0738d9bc95820925e6edcb35365ca9302b4c8ae1c1f50a88d1f6c490837b47522552dfc6ffdf25820af18c7fed874bc596c36100cd629135be7cc8f8ff7840ff6d855740429de6f808189025820925e6edcb35365ca9302b4c8ae1c1f50a88d1f6c490837b47522552dfc6ffdf2776174746573746174696f6e2d666565642d676f6c64656e781c61757468656e746963617465642d6d61702e636f6d6d616e642e76315820ff909f28b1ec5d4cb8cdbafdb3ab200641105c40d36be74055f045119960b2411b000001a0738d11bb1a6a9c9116590174830158518401008187016c6f62736572766174696f6e73581a636f6c6473746f72652d372f31322f736f757263652d626574614c85013907071a6ab13e834060004040818400036c736f757263652d777269746501818200590119830158d38f01582031156afa8d256fedb802014556954a6b1ce5419d1027aabfaa1c2f5e7553d59c776174746573746174696f6e2d666565642d676f6c64656e5820c22a02d5ad52c138795d36b67cb4453901c7acdef7e008d280eddb41104e8d4d5820a766bd2acd18a7781f7efe5b9de030d85603de840d12db8aca83403e8975db8481006c736f757263652d7772697465016b736f757263652d62657461016e736f757263652d626574612d6b315820ce5b96c753490cce34290a6b42818b55407d182275fa97cab9c45a4955dd4747181c18800058403a5940b366c2c610bebc92dada29a0a5bc060d9f14e30138628e19fce5438e77f15bef4b02f7eb0e06b30774f82dde2e4faeb44a113e79369d91c8e960be0e0182005840d4830fe9bb6f4b202f4db52edf4976ee768e6b8277d12c333aae528a0c5770830adaedd96e36547423c73c3bfed1c9e7c873c91c22fe1539b8f6f7721d7ce6085820481cc6c4765a54b5022e8258e20c7c96c2375c2ccff4c7e1a83e0e51783f030140820082825820ff909f28b1ec5d4cb8cdbafdb3ab200641105c40d36be74055f045119960b2415840a06a2648c6bb9c8b451547c3dfa8391ce4d549685ac1b9f2e659d82d7185b38ee6eec516a7b7eaeaaea8deeb13e21df33434a9a7612289d30f12c9b4dabe600b8258202cf4b18be19c8637cb614c273a69336fc44e1d22d8d07c32a392e2898edd7f20584095203cafc83d4883d332f06acc35ba595c29b101c2ef4be6aefa66e40c16d26d1808fcd64afc8cef72a935a325427bac1e5c80bfda2d524c9504f228501e4304" ],
+      "members" : [ "ff909f28b1ec5d4cb8cdbafdb3ab200641105c40d36be74055f045119960b241", "481cc6c4765a54b5022e8258e20c7c96c2375c2ccff4c7e1a83e0e51783f0301", "2cf4b18be19c8637cb614c273a69336fc44e1d22d8d07c32a392e2898edd7f20" ],
+      "threshold" : 2,
+      "stateCommitment" : {
+        "schemaVersion" : 1,
+        "profile" : "mpf-blake2b256-v1",
+        "backend" : "mpf",
+        "commitmentFormatId" : "mpf-blake2b256-format-v1",
+        "proofEncodingId" : "mpf-proof-wire-v1",
+        "nativeVersioning" : false,
+        "physicalDelete" : true,
+        "formatFingerprint" : "91ee14091200f1e24659112d640e877e9177779dcc81dd06117f013e9190082b",
+        "genesisId" : "9d662349d6c7e2778eb7c59dfe410c0bb52cc68909d521d5d512b2e4ce74e5f1",
+        "version" : 29,
+        "stateRoot" : "af18c7fed874bc596c36100cd629135be7cc8f8ff7840ff6d855740429de6f80"
+      }
+    }
+  }, {
+    "schemaVersion" : 1,
+    "type" : "trust-registry-answer-v1",
+    "chainId" : "attestation-feed-golden",
+    "profile" : "mpf-blake2b256-v1",
+    "genesisId" : "9d662349d6c7e2778eb7c59dfe410c0bb52cc68909d521d5d512b2e4ce74e5f1",
+    "height" : 29,
+    "stateRoot" : "af18c7fed874bc596c36100cd629135be7cc8f8ff7840ff6d855740429de6f80",
+    "blockHash" : "914d538fd8f3d89c4c61dc2fb71c4a1917f07e00df494c264b06654363ab7454",
+    "collection" : "observations",
+    "keyHex" : "636f6c6473746f72652d372f31322f736f757263652d67616d6d61",
+    "key" : "coldstore-7/12/source-gamma",
+    "presence" : "ABSENT",
+    "provenance" : {
+      "kind" : "NONE"
+    },
+    "facts" : [ {
+      "name" : "entry",
+      "keyHex" : "79616e6f2d636f6d706f736974652d73746174652d7631001161757468656e746963617465642d6d6170002f0101000c6f62736572766174696f6e730000001b636f6c6473746f72652d372f31322f736f757263652d67616d6d61",
+      "proof" : {
+        "schemaVersion" : 1,
+        "profile" : "mpf-blake2b256-v1",
+        "backend" : "mpf",
+        "commitmentFormatId" : "mpf-blake2b256-format-v1",
+        "proofEncodingId" : "mpf-proof-wire-v1",
+        "nativeVersioning" : false,
+        "physicalDelete" : true,
+        "formatFingerprint" : "91ee14091200f1e24659112d640e877e9177779dcc81dd06117f013e9190082b",
+        "genesisId" : "9d662349d6c7e2778eb7c59dfe410c0bb52cc68909d521d5d512b2e4ce74e5f1",
+        "version" : 29,
+        "stateRoot" : "af18c7fed874bc596c36100cd629135be7cc8f8ff7840ff6d855740429de6f80",
+        "oldestProvableHeight" : 1,
+        "proofSchemaVersion" : 1,
+        "key" : "79616e6f2d636f6d706f736974652d73746174652d7631001161757468656e746963617465642d6d6170002f0101000c6f62736572766174696f6e730000001b636f6c6473746f72652d372f31322f736f757263652d67616d6d61",
+        "chainId" : "attestation-feed-golden",
+        "committedHeight" : 29,
+        "presence" : "ABSENT",
+        "blockHash" : "914d538fd8f3d89c4c61dc2fb71c4a1917f07e00df494c264b06654363ab7454",
+        "proofWireHex" : "82d879820058800374cea37728c7f2a2005f1cec827bb7321319ffccedbe81fbb1b2800c55770aaa0f14e54cd3945684b1883f748c2d6c9f795e63ca196a2d4ddaf34d94fa5f925362b301f561565d2a0694032e48965a803ca64fcc32f5d74611932ff1fa9f93f29cf81011e4516a0b76bd786a1b60af5758a55a17ca1bb15f35f2eece9bbdc1d879820058805081175450cc8d7dc126c3f3d4b7d891575691299f5b6637dde0d15eab763db2f4fb38bc78d3bf46df2d54d62637d322646b68fc6d0a98b02014e4bcdb0547000eb923b0cbd24df54401d998531feead35a47a99f4deed205de4af81120f97610000000000000000000000000000000000000000000000000000000000000000",
+        "block" : {
+          "version" : 3,
+          "height" : 29,
+          "prevHash" : "78835c91b5953d3fefd755318d2c58a5f80286db549a6e0d7fc705efeee215f0",
+          "l1Slot" : 0,
+          "l1BlockHash" : "",
+          "timestamp" : 1788645055433,
+          "messagesRoot" : "925e6edcb35365ca9302b4c8ae1c1f50a88d1f6c490837b47522552dfc6ffdf2",
+          "stateRoot" : "af18c7fed874bc596c36100cd629135be7cc8f8ff7840ff6d855740429de6f80",
+          "blockHash" : "914d538fd8f3d89c4c61dc2fb71c4a1917f07e00df494c264b06654363ab7454",
+          "view" : 0,
+          "consensusContextDigest" : "75dfcdd6f149b5d4e68dfdb5b4c919b45f548da6692d284d297150d731fea207",
+          "proposer" : "481cc6c4765a54b5022e8258e20c7c96c2375c2ccff4c7e1a83e0e51783f0301",
+          "justificationDigest" : "0e5751c026e543b2e8ab2eb06099daa1d1e5df47778f7787faab45cdf12fe3a8"
+        },
+        "finalityCertificate" : {
+          "scheme" : 0,
+          "signatures" : [ {
+            "signer" : "ff909f28b1ec5d4cb8cdbafdb3ab200641105c40d36be74055f045119960b241",
+            "signature" : "a06a2648c6bb9c8b451547c3dfa8391ce4d549685ac1b9f2e659d82d7185b38ee6eec516a7b7eaeaaea8deeb13e21df33434a9a7612289d30f12c9b4dabe600b"
+          }, {
+            "signer" : "2cf4b18be19c8637cb614c273a69336fc44e1d22d8d07c32a392e2898edd7f20",
+            "signature" : "95203cafc83d4883d332f06acc35ba595c29b101c2ef4be6aefa66e40c16d26d1808fcd64afc8cef72a935a325427bac1e5c80bfda2d524c9504f228501e4304"
+          } ]
+        }
+      }
+    } ],
+    "evidence" : {
+      "chainId" : "attestation-feed-golden",
+      "messageId" : "925e6edcb35365ca9302b4c8ae1c1f50a88d1f6c490837b47522552dfc6ffdf2",
+      "blocksCbor" : [ "8f03776174746573746174696f6e2d666565642d676f6c64656e181d582075dfcdd6f149b5d4e68dfdb5b4c919b45f548da6692d284d297150d731fea20700582078835c91b5953d3fefd755318d2c58a5f80286db549a6e0d7fc705efeee215f000401b000001a0738d9bc95820925e6edcb35365ca9302b4c8ae1c1f50a88d1f6c490837b47522552dfc6ffdf25820af18c7fed874bc596c36100cd629135be7cc8f8ff7840ff6d855740429de6f808189025820925e6edcb35365ca9302b4c8ae1c1f50a88d1f6c490837b47522552dfc6ffdf2776174746573746174696f6e2d666565642d676f6c64656e781c61757468656e746963617465642d6d61702e636f6d6d616e642e76315820ff909f28b1ec5d4cb8cdbafdb3ab200641105c40d36be74055f045119960b2411b000001a0738d11bb1a6a9c9116590174830158518401008187016c6f62736572766174696f6e73581a636f6c6473746f72652d372f31322f736f757263652d626574614c85013907071a6ab13e834060004040818400036c736f757263652d777269746501818200590119830158d38f01582031156afa8d256fedb802014556954a6b1ce5419d1027aabfaa1c2f5e7553d59c776174746573746174696f6e2d666565642d676f6c64656e5820c22a02d5ad52c138795d36b67cb4453901c7acdef7e008d280eddb41104e8d4d5820a766bd2acd18a7781f7efe5b9de030d85603de840d12db8aca83403e8975db8481006c736f757263652d7772697465016b736f757263652d62657461016e736f757263652d626574612d6b315820ce5b96c753490cce34290a6b42818b55407d182275fa97cab9c45a4955dd4747181c18800058403a5940b366c2c610bebc92dada29a0a5bc060d9f14e30138628e19fce5438e77f15bef4b02f7eb0e06b30774f82dde2e4faeb44a113e79369d91c8e960be0e0182005840d4830fe9bb6f4b202f4db52edf4976ee768e6b8277d12c333aae528a0c5770830adaedd96e36547423c73c3bfed1c9e7c873c91c22fe1539b8f6f7721d7ce6085820481cc6c4765a54b5022e8258e20c7c96c2375c2ccff4c7e1a83e0e51783f030140820082825820ff909f28b1ec5d4cb8cdbafdb3ab200641105c40d36be74055f045119960b2415840a06a2648c6bb9c8b451547c3dfa8391ce4d549685ac1b9f2e659d82d7185b38ee6eec516a7b7eaeaaea8deeb13e21df33434a9a7612289d30f12c9b4dabe600b8258202cf4b18be19c8637cb614c273a69336fc44e1d22d8d07c32a392e2898edd7f20584095203cafc83d4883d332f06acc35ba595c29b101c2ef4be6aefa66e40c16d26d1808fcd64afc8cef72a935a325427bac1e5c80bfda2d524c9504f228501e4304" ],
+      "members" : [ "ff909f28b1ec5d4cb8cdbafdb3ab200641105c40d36be74055f045119960b241", "481cc6c4765a54b5022e8258e20c7c96c2375c2ccff4c7e1a83e0e51783f0301", "2cf4b18be19c8637cb614c273a69336fc44e1d22d8d07c32a392e2898edd7f20" ],
+      "threshold" : 2,
+      "stateCommitment" : {
+        "schemaVersion" : 1,
+        "profile" : "mpf-blake2b256-v1",
+        "backend" : "mpf",
+        "commitmentFormatId" : "mpf-blake2b256-format-v1",
+        "proofEncodingId" : "mpf-proof-wire-v1",
+        "nativeVersioning" : false,
+        "physicalDelete" : true,
+        "formatFingerprint" : "91ee14091200f1e24659112d640e877e9177779dcc81dd06117f013e9190082b",
+        "genesisId" : "9d662349d6c7e2778eb7c59dfe410c0bb52cc68909d521d5d512b2e4ce74e5f1",
+        "version" : 29,
+        "stateRoot" : "af18c7fed874bc596c36100cd629135be7cc8f8ff7840ff6d855740429de6f80"
+      }
+    }
+  }, {
+    "schemaVersion" : 1,
+    "type" : "trust-registry-answer-v1",
+    "chainId" : "attestation-feed-golden",
+    "profile" : "mpf-blake2b256-v1",
+    "genesisId" : "9d662349d6c7e2778eb7c59dfe410c0bb52cc68909d521d5d512b2e4ce74e5f1",
+    "height" : 33,
+    "stateRoot" : "b838730f91f7d26b4982114e36b3f49d3c4f5453a5a49b5139cdb0fbaa2ce6e4",
+    "blockHash" : "b4cccbbe26d2255fdf0ea29339e90c099e376f962439bac62177a908915b85c4",
+    "collection" : "rounds",
+    "keyHex" : "636f6c6473746f72652d372f3132",
+    "key" : "coldstore-7/12",
+    "presence" : "ACTIVE",
+    "entry" : {
+      "status" : "ACTIVE",
+      "revision" : 1,
+      "controllerHex" : "",
+      "valueHex" : "880101181d39070602826c736f757263652d616c7068616b736f757263652d626574615820c811cde6f8d93b77e55e80860bf8601482fe1a80ffce235deccd23c7ca10b8665820b0f18d8169404ad8298db2e93e0f8181686625b6c29bcd1ce6cc9b09f4d3c0cf",
+      "logicalValueHash" : "4bd784bc79903a90de91a0b419751d17cb461faa6aabe368db85e3ea9d4da48d",
+      "createdHeight" : 33,
+      "lastMutationHeight" : 33
+    },
+    "provenance" : {
+      "kind" : "RECEIPT",
+      "messageId" : "b6c6191a5f658dcc11013a4e318d23e07334d70c800859f3009aceda32c60749",
+      "appliedHeight" : 33
+    },
+    "actionCommitmentHex" : "3975ae2c63002963b6343d0f12d4e12b03111f7745ebcf5035c5897a3ee110cb",
+    "facts" : [ {
+      "name" : "entry",
+      "keyHex" : "79616e6f2d636f6d706f736974652d73746174652d7631001161757468656e746963617465642d6d6170001c01010006726f756e64730000000e636f6c6473746f72652d372f3132",
+      "valueHex" : "88010001405867880101181d39070602826c736f757263652d616c7068616b736f757263652d626574615820c811cde6f8d93b77e55e80860bf8601482fe1a80ffce235deccd23c7ca10b8665820b0f18d8169404ad8298db2e93e0f8181686625b6c29bcd1ce6cc9b09f4d3c0cf58204bd784bc79903a90de91a0b419751d17cb461faa6aabe368db85e3ea9d4da48d18211821",
+      "proof" : {
+        "schemaVersion" : 1,
+        "profile" : "mpf-blake2b256-v1",
+        "backend" : "mpf",
+        "commitmentFormatId" : "mpf-blake2b256-format-v1",
+        "proofEncodingId" : "mpf-proof-wire-v1",
+        "nativeVersioning" : false,
+        "physicalDelete" : true,
+        "formatFingerprint" : "91ee14091200f1e24659112d640e877e9177779dcc81dd06117f013e9190082b",
+        "genesisId" : "9d662349d6c7e2778eb7c59dfe410c0bb52cc68909d521d5d512b2e4ce74e5f1",
+        "version" : 33,
+        "stateRoot" : "b838730f91f7d26b4982114e36b3f49d3c4f5453a5a49b5139cdb0fbaa2ce6e4",
+        "oldestProvableHeight" : 1,
+        "proofSchemaVersion" : 1,
+        "key" : "79616e6f2d636f6d706f736974652d73746174652d7631001161757468656e746963617465642d6d6170001c01010006726f756e64730000000e636f6c6473746f72652d372f3132",
+        "chainId" : "attestation-feed-golden",
+        "committedHeight" : 33,
+        "presence" : "PRESENT",
+        "valueHex" : "88010001405867880101181d39070602826c736f757263652d616c7068616b736f757263652d626574615820c811cde6f8d93b77e55e80860bf8601482fe1a80ffce235deccd23c7ca10b8665820b0f18d8169404ad8298db2e93e0f8181686625b6c29bcd1ce6cc9b09f4d3c0cf58204bd784bc79903a90de91a0b419751d17cb461faa6aabe368db85e3ea9d4da48d18211821",
+        "blockHash" : "b4cccbbe26d2255fdf0ea29339e90c099e376f962439bac62177a908915b85c4",
+        "proofWireHex" : "83d87982005880b125924f071f740c78ac653ee49d200e29cf5f573b1e4717141a110d073c7034a6403065ed505d02624cff5f785901b64377230c1cf39e4f16162171ce92321cbaea5701d880abb8287acac22fea2636dab045b2a957d9217e86d836de82c43ef29cf81011e4516a0b76bd786a1b60af5758a55a17ca1bb15f35f2eece9bbdc1d879820058805081175450cc8d7dc126c3f3d4b7d891575691299f5b6637dde0d15eab763db23261c5c2df0fb3b28dd08a0b7b24ecd0412fa68c9c85c4579a45ddff6480d6730eb923b0cbd24df54401d998531feead35a47a99f4deed205de4af81120f97617ac45824831b4be62dded5afeb8052874581b0d0305317a758ece3c8b56e68e0d8798200588069d5b164dbdfa6edd90e71f4720f2f60ce666304890cabce343997ff4072ec4e85c09af929492a871e4fae32d9d5c36e352471cd659bcdb61de08f1722acc3b10eb923b0cbd24df54401d998531feead35a47a99f4deed205de4af81120f97610000000000000000000000000000000000000000000000000000000000000000",
+        "block" : {
+          "version" : 3,
+          "height" : 33,
+          "prevHash" : "4c72d38828a116833a6f16d73773a3ecddd972ec0461d7d12e6c32c929b3bf72",
+          "l1Slot" : 0,
+          "l1BlockHash" : "",
+          "timestamp" : 1788645059459,
+          "messagesRoot" : "b6c6191a5f658dcc11013a4e318d23e07334d70c800859f3009aceda32c60749",
+          "stateRoot" : "b838730f91f7d26b4982114e36b3f49d3c4f5453a5a49b5139cdb0fbaa2ce6e4",
+          "blockHash" : "b4cccbbe26d2255fdf0ea29339e90c099e376f962439bac62177a908915b85c4",
+          "view" : 0,
+          "consensusContextDigest" : "04b755767fd354604c426572c720886c456f0543cc5345259bcaa79ce5ae7695",
+          "proposer" : "481cc6c4765a54b5022e8258e20c7c96c2375c2ccff4c7e1a83e0e51783f0301",
+          "justificationDigest" : "0e5751c026e543b2e8ab2eb06099daa1d1e5df47778f7787faab45cdf12fe3a8"
+        },
+        "finalityCertificate" : {
+          "scheme" : 0,
+          "signatures" : [ {
+            "signer" : "ff909f28b1ec5d4cb8cdbafdb3ab200641105c40d36be74055f045119960b241",
+            "signature" : "841a8d41825aef4b8b53d16c28faec78e7e35b3ef75bbe8a71fb5f256c7d5a79f36b2ba473298369dfa3f052944cde09569fd6aa68e6ac18768001dfd9078d0b"
+          }, {
+            "signer" : "2cf4b18be19c8637cb614c273a69336fc44e1d22d8d07c32a392e2898edd7f20",
+            "signature" : "a0638a0148eb751943b0240c27db555d41b47ab1f647a731678890447ac72ead6b9cac3634782ed803248a43ed440402c98c6cad2088360cc71a01c50d63540e"
+          } ]
+        }
+      }
+    }, {
+      "name" : "receipt",
+      "keyHex" : "79616e6f2d636f6d706f736974652d73746174652d7631001161757468656e746963617465642d6d6170004a0100002279616e6f2d61757468656e746963617465642d6d61702d72656365697074732d763100000020b6c6191a5f658dcc11013a4e318d23e07334d70c800859f3009aceda32c60749",
+      "valueHex" : "88015820b6c6191a5f658dcc11013a4e318d23e07334d70c800859f3009aceda32c607491821000058203975ae2c63002963b6343d0f12d4e12b03111f7745ebcf5035c5897a3ee110cb5820a336e8985933735c07fe0ae886f954b043930fe69d02e86ca3e39136d415b33f818566726f756e64734e636f6c6473746f72652d372f3132000158204bd784bc79903a90de91a0b419751d17cb461faa6aabe368db85e3ea9d4da48d",
+      "proof" : {
+        "schemaVersion" : 1,
+        "profile" : "mpf-blake2b256-v1",
+        "backend" : "mpf",
+        "commitmentFormatId" : "mpf-blake2b256-format-v1",
+        "proofEncodingId" : "mpf-proof-wire-v1",
+        "nativeVersioning" : false,
+        "physicalDelete" : true,
+        "formatFingerprint" : "91ee14091200f1e24659112d640e877e9177779dcc81dd06117f013e9190082b",
+        "genesisId" : "9d662349d6c7e2778eb7c59dfe410c0bb52cc68909d521d5d512b2e4ce74e5f1",
+        "version" : 33,
+        "stateRoot" : "b838730f91f7d26b4982114e36b3f49d3c4f5453a5a49b5139cdb0fbaa2ce6e4",
+        "oldestProvableHeight" : 1,
+        "proofSchemaVersion" : 1,
+        "key" : "79616e6f2d636f6d706f736974652d73746174652d7631001161757468656e746963617465642d6d6170004a0100002279616e6f2d61757468656e746963617465642d6d61702d72656365697074732d763100000020b6c6191a5f658dcc11013a4e318d23e07334d70c800859f3009aceda32c60749",
+        "chainId" : "attestation-feed-golden",
+        "committedHeight" : 33,
+        "presence" : "PRESENT",
+        "valueHex" : "88015820b6c6191a5f658dcc11013a4e318d23e07334d70c800859f3009aceda32c607491821000058203975ae2c63002963b6343d0f12d4e12b03111f7745ebcf5035c5897a3ee110cb5820a336e8985933735c07fe0ae886f954b043930fe69d02e86ca3e39136d415b33f818566726f756e64734e636f6c6473746f72652d372f3132000158204bd784bc79903a90de91a0b419751d17cb461faa6aabe368db85e3ea9d4da48d",
+        "blockHash" : "b4cccbbe26d2255fdf0ea29339e90c099e376f962439bac62177a908915b85c4",
+        "proofWireHex" : "82d879820058800478ddcd35f25901755175f6c45bce1e06e0ce57969454f431a2a341f2f909dfe62fb5ed9e05478264be27a46be15a2b63e5afb8013d51c0c86d33822a56f1164fad4bf9061bf702395befe2b13fee10334419eee8de082517bcc981ef4ba5923a95183c48ddbc605e3166180ab2a3f604464fffa68e803388d9632bc1d78717d8798200588042cba71ae71d4b53b6c89d9627866b7abb03aab04d7f9883183719f2626cb0269f5fbacd6f81bfe07c3e97a25cf72e0504923a357e96121b8ebdb5b6a606545388e3d64151579a2ce9aaa80d7b0f582adaec53e91f02636e071cbdc915bd34b27f09fa52935a600d4ba12040f456f92e51f01b96da99e3899e7d126261f2c1e8",
+        "block" : {
+          "version" : 3,
+          "height" : 33,
+          "prevHash" : "4c72d38828a116833a6f16d73773a3ecddd972ec0461d7d12e6c32c929b3bf72",
+          "l1Slot" : 0,
+          "l1BlockHash" : "",
+          "timestamp" : 1788645059459,
+          "messagesRoot" : "b6c6191a5f658dcc11013a4e318d23e07334d70c800859f3009aceda32c60749",
+          "stateRoot" : "b838730f91f7d26b4982114e36b3f49d3c4f5453a5a49b5139cdb0fbaa2ce6e4",
+          "blockHash" : "b4cccbbe26d2255fdf0ea29339e90c099e376f962439bac62177a908915b85c4",
+          "view" : 0,
+          "consensusContextDigest" : "04b755767fd354604c426572c720886c456f0543cc5345259bcaa79ce5ae7695",
+          "proposer" : "481cc6c4765a54b5022e8258e20c7c96c2375c2ccff4c7e1a83e0e51783f0301",
+          "justificationDigest" : "0e5751c026e543b2e8ab2eb06099daa1d1e5df47778f7787faab45cdf12fe3a8"
+        },
+        "finalityCertificate" : {
+          "scheme" : 0,
+          "signatures" : [ {
+            "signer" : "ff909f28b1ec5d4cb8cdbafdb3ab200641105c40d36be74055f045119960b241",
+            "signature" : "841a8d41825aef4b8b53d16c28faec78e7e35b3ef75bbe8a71fb5f256c7d5a79f36b2ba473298369dfa3f052944cde09569fd6aa68e6ac18768001dfd9078d0b"
+          }, {
+            "signer" : "2cf4b18be19c8637cb614c273a69336fc44e1d22d8d07c32a392e2898edd7f20",
+            "signature" : "a0638a0148eb751943b0240c27db555d41b47ab1f647a731678890447ac72ead6b9cac3634782ed803248a43ed440402c98c6cad2088360cc71a01c50d63540e"
+          } ]
+        }
+      }
+    }, {
+      "name" : "approval-consumption",
+      "keyHex" : "79616e6f2d636f6d706f736974652d73746174652d7631001161757468656e746963617465642d6d6170004c0100002e79616e6f2d61757468656e746963617465642d6d61702d617070726f76616c2d636f6e73756d7074696f6e2d763100000016726f756e642d66396138623664626239613737636235",
+      "valueHex" : "880176726f756e642d6639613862366462623961373763623558203975ae2c63002963b6343d0f12d4e12b03111f7745ebcf5035c5897a3ee110cb18215820b6c6191a5f658dcc11013a4e318d23e07334d70c800859f3009aceda32c6074981006b726f756e642d636c6f736501",
+      "proof" : {
+        "schemaVersion" : 1,
+        "profile" : "mpf-blake2b256-v1",
+        "backend" : "mpf",
+        "commitmentFormatId" : "mpf-blake2b256-format-v1",
+        "proofEncodingId" : "mpf-proof-wire-v1",
+        "nativeVersioning" : false,
+        "physicalDelete" : true,
+        "formatFingerprint" : "91ee14091200f1e24659112d640e877e9177779dcc81dd06117f013e9190082b",
+        "genesisId" : "9d662349d6c7e2778eb7c59dfe410c0bb52cc68909d521d5d512b2e4ce74e5f1",
+        "version" : 33,
+        "stateRoot" : "b838730f91f7d26b4982114e36b3f49d3c4f5453a5a49b5139cdb0fbaa2ce6e4",
+        "oldestProvableHeight" : 1,
+        "proofSchemaVersion" : 1,
+        "key" : "79616e6f2d636f6d706f736974652d73746174652d7631001161757468656e746963617465642d6d6170004c0100002e79616e6f2d61757468656e746963617465642d6d61702d617070726f76616c2d636f6e73756d7074696f6e2d763100000016726f756e642d66396138623664626239613737636235",
+        "chainId" : "attestation-feed-golden",
+        "committedHeight" : 33,
+        "presence" : "PRESENT",
+        "valueHex" : "880176726f756e642d6639613862366462623961373763623558203975ae2c63002963b6343d0f12d4e12b03111f7745ebcf5035c5897a3ee110cb18215820b6c6191a5f658dcc11013a4e318d23e07334d70c800859f3009aceda32c6074981006b726f756e642d636c6f736501",
+        "blockHash" : "b4cccbbe26d2255fdf0ea29339e90c099e376f962439bac62177a908915b85c4",
+        "proofWireHex" : "82d879820058800478ddcd35f25901755175f6c45bce1e06e0ce57969454f431a2a341f2f909df38eaa851e9baaabf3fc1c246470be344af8a60e4ee9d288c8ecf34c7e1cefb26af40542c58ca1b55d921362ef9bf86624308f0205a0e61c2a9d97991b149572da0abf61086a725d5bcd3ff9bd6b5362662a957aef890ba79291133fc712ca462d87982005880963b552ca9f3e41ab41d9e8df51837b99d16a0b8383d6a6291a5bf29e50414d485c09af929492a871e4fae32d9d5c36e352471cd659bcdb61de08f1722acc3b10eb923b0cbd24df54401d998531feead35a47a99f4deed205de4af81120f976111f6b7bda36be0f3487decf06ffa515f525d4aa3f9049eb4c7f3153845e9b911",
+        "block" : {
+          "version" : 3,
+          "height" : 33,
+          "prevHash" : "4c72d38828a116833a6f16d73773a3ecddd972ec0461d7d12e6c32c929b3bf72",
+          "l1Slot" : 0,
+          "l1BlockHash" : "",
+          "timestamp" : 1788645059459,
+          "messagesRoot" : "b6c6191a5f658dcc11013a4e318d23e07334d70c800859f3009aceda32c60749",
+          "stateRoot" : "b838730f91f7d26b4982114e36b3f49d3c4f5453a5a49b5139cdb0fbaa2ce6e4",
+          "blockHash" : "b4cccbbe26d2255fdf0ea29339e90c099e376f962439bac62177a908915b85c4",
+          "view" : 0,
+          "consensusContextDigest" : "04b755767fd354604c426572c720886c456f0543cc5345259bcaa79ce5ae7695",
+          "proposer" : "481cc6c4765a54b5022e8258e20c7c96c2375c2ccff4c7e1a83e0e51783f0301",
+          "justificationDigest" : "0e5751c026e543b2e8ab2eb06099daa1d1e5df47778f7787faab45cdf12fe3a8"
+        },
+        "finalityCertificate" : {
+          "scheme" : 0,
+          "signatures" : [ {
+            "signer" : "ff909f28b1ec5d4cb8cdbafdb3ab200641105c40d36be74055f045119960b241",
+            "signature" : "841a8d41825aef4b8b53d16c28faec78e7e35b3ef75bbe8a71fb5f256c7d5a79f36b2ba473298369dfa3f052944cde09569fd6aa68e6ac18768001dfd9078d0b"
+          }, {
+            "signer" : "2cf4b18be19c8637cb614c273a69336fc44e1d22d8d07c32a392e2898edd7f20",
+            "signature" : "a0638a0148eb751943b0240c27db555d41b47ab1f647a731678890447ac72ead6b9cac3634782ed803248a43ed440402c98c6cad2088360cc71a01c50d63540e"
+          } ]
+        }
+      }
+    } ],
+    "evidence" : {
+      "chainId" : "attestation-feed-golden",
+      "messageId" : "b6c6191a5f658dcc11013a4e318d23e07334d70c800859f3009aceda32c60749",
+      "blocksCbor" : [ "8f03776174746573746174696f6e2d666565642d676f6c64656e1821582004b755767fd354604c426572c720886c456f0543cc5345259bcaa79ce5ae76950058204c72d38828a116833a6f16d73773a3ecddd972ec0461d7d12e6c32c929b3bf7200401b000001a0738dab835820b6c6191a5f658dcc11013a4e318d23e07334d70c800859f3009aceda32c607495820b838730f91f7d26b4982114e36b3f49d3c4f5453a5a49b5139cdb0fbaa2ce6e48189025820b6c6191a5f658dcc11013a4e318d23e07334d70c800859f3009aceda32c60749776174746573746174696f6e2d666565642d676f6c64656e781c61757468656e746963617465642d6d61702e636f6d6d616e642e76315820ff909f28b1ec5d4cb8cdbafdb3ab200641105c40d36be74055f045119960b2411b000001a0738d11cf1a6a9c911a58ec8301589984010081870166726f756e64734e636f6c6473746f72652d372f31325867880101181d39070602826c736f757263652d616c7068616b736f757263652d626574615820c811cde6f8d93b77e55e80860bf8601482fe1a80ffce235deccd23c7ca10b8665820b0f18d8169404ad8298db2e93e0f8181686625b6c29bcd1ce6cc9b09f4d3c0cf004040818400046b726f756e642d636c6f736501818201584a860176726f756e642d6639613862366462623961373763623558203975ae2c63002963b6343d0f12d4e12b03111f7745ebcf5035c5897a3ee110cb81006b726f756e642d636c6f73650182005840fe77c4153715d22983a1a8b1049fcbd63347abef7dfeeb103a0e84f9088257de345da715b4615ae02ac03566b5b539f1f413bb6b28d5e655d3caef7b9fb369025820481cc6c4765a54b5022e8258e20c7c96c2375c2ccff4c7e1a83e0e51783f030140820082825820ff909f28b1ec5d4cb8cdbafdb3ab200641105c40d36be74055f045119960b2415840841a8d41825aef4b8b53d16c28faec78e7e35b3ef75bbe8a71fb5f256c7d5a79f36b2ba473298369dfa3f052944cde09569fd6aa68e6ac18768001dfd9078d0b8258202cf4b18be19c8637cb614c273a69336fc44e1d22d8d07c32a392e2898edd7f205840a0638a0148eb751943b0240c27db555d41b47ab1f647a731678890447ac72ead6b9cac3634782ed803248a43ed440402c98c6cad2088360cc71a01c50d63540e" ],
+      "members" : [ "ff909f28b1ec5d4cb8cdbafdb3ab200641105c40d36be74055f045119960b241", "481cc6c4765a54b5022e8258e20c7c96c2375c2ccff4c7e1a83e0e51783f0301", "2cf4b18be19c8637cb614c273a69336fc44e1d22d8d07c32a392e2898edd7f20" ],
+      "threshold" : 2,
+      "stateCommitment" : {
+        "schemaVersion" : 1,
+        "profile" : "mpf-blake2b256-v1",
+        "backend" : "mpf",
+        "commitmentFormatId" : "mpf-blake2b256-format-v1",
+        "proofEncodingId" : "mpf-proof-wire-v1",
+        "nativeVersioning" : false,
+        "physicalDelete" : true,
+        "formatFingerprint" : "91ee14091200f1e24659112d640e877e9177779dcc81dd06117f013e9190082b",
+        "genesisId" : "9d662349d6c7e2778eb7c59dfe410c0bb52cc68909d521d5d512b2e4ce74e5f1",
+        "version" : 33,
+        "stateRoot" : "b838730f91f7d26b4982114e36b3f49d3c4f5453a5a49b5139cdb0fbaa2ce6e4"
+      }
+    }
+  } ]
+}

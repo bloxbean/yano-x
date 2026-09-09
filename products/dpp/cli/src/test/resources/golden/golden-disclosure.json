@@ -1,0 +1,11 @@
+{
+  "schemaVersion" : 1,
+  "type" : "dpp-disclosure-v1",
+  "chainId" : "dpp-starter-golden",
+  "productId" : "gtin:09506000134352",
+  "claimType" : "carbon-footprint",
+  "claimId" : "cf-1",
+  "saltHex" : "a6045972656d5222f1b68b802497a2d90e0bc912f7af65a6d04f97a2f65ab78d",
+  "text" : "12.5 kgCO2e",
+  "commitment" : "319ffeca154d236e36e06daba8bcc7af09d14070d8ca94ac1aae5ffd255a0d28"
+}

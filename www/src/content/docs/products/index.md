@@ -14,6 +14,12 @@ about a use case.
 |---|---|---|
 | [Evidence](/products/evidence/) | Publish an immutable document through a threshold-approved workflow, preserve it in object storage and IPFS, notify Kafka, and prove the whole chain. | `preview` |
 | [Cardano History](/products/cardano-history/) | Query and prove historical Cardano protocol parameters, epoch stake, DRep distribution, and proposal history. | `preview` |
+| [Attest](/products/attest/) | Record a document digest on a doc-trail chain and hand out a portable certificate that verifies offline against member keys or a Cardano anchor. | `preview` |
+| [Evidence Desk](/products/evidence-desk/) | Browser workbench for the role workflow and the evidence product: propose, approve with in-browser actor keys, release once, and read every record back with its proof. | `preview` |
+| [Trust Registry](/products/trust-registry/) | Trust and status registry on the governed authenticated map: proof-bound status answers, Bitstring Status Lists and TRQP answers served from a replayed projection, offline verification, and a console. | `preview` |
+| [Verifiable Explorer](/products/explorer/) | Verify-on-ingest index over stock app chains: timelines, decoded commands, entity trails with a proof-backed state check, search, a content archiver, and row bundles that verify offline. | `preview` |
+| [DPP Starter](/products/dpp-starter/) | Digital Product Passport prototype on the governed authenticated map: governed product, version, claim, and event records, a certification round with independent auditors, committed claims with out-of-band disclosure, a public portal with a GS1 Digital Link resolver, an operator gateway, and passports that verify offline. Not the DPP product of ADR-026. | `reference` (prototype) |
+| [Attestation Feed](/products/attestation-feed/) | Consortium observation ledger on the governed authenticated map: source-signed observations per round, a deterministic lower-median aggregation with outlier and quorum rules that every verifier recomputes, round records closed through an approval round with two independent publishers, a candidate datum for the deferred Cardano executor, a public portal, a signing gateway, and round bundles that verify offline. Not the oracle pipeline of ADR app-layer/012. | `experimental` (starter) |
 | [eUTxO and ZK](/products/eutxo-and-zk/) | A deterministic Cardano-shaped UTxO ledger, an optional Cardano bridge, and an optional ZK validity/rollup path. | `experimental` |
 
 ## What products have in common

@@ -195,6 +195,38 @@
       "bundleArtifactId": null
     },
     {
+      "modulePath": ":products:attest:client",
+      "directory": "products/attest/client",
+      "artifactId": "yano-x-attest-client",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":products:attest:cli",
+      "directory": "products/attest/cli",
+      "artifactId": "yano-x-attest-cli",
+      "publicationType": "tool",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":products:attest:ui",
+      "directory": "products/attest/ui",
+      "artifactId": "yano-x-attest-ui",
+      "publicationType": "web-application",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":products:evidence:ui",
+      "directory": "products/evidence/ui",
+      "artifactId": "yano-x-evidence-ui",
+      "publicationType": "web-application",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
       "modulePath": ":products:evidence:demo-runner",
       "directory": "products/evidence/demo-runner",
       "artifactId": "yano-x-evidence-demo-runner",
@@ -262,6 +294,126 @@
       "modulePath": ":products:eutxo:ui",
       "directory": "products/eutxo/ui",
       "artifactId": "yano-x-eutxo-ui",
+      "publicationType": "web-application",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":products:trust-registry:profile",
+      "directory": "products/trust-registry/profile",
+      "artifactId": "yano-x-trust-registry-profile",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":products:trust-registry:client",
+      "directory": "products/trust-registry/client",
+      "artifactId": "yano-x-trust-registry-client",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":products:trust-registry:cli",
+      "directory": "products/trust-registry/cli",
+      "artifactId": "yano-x-trust-registry-cli",
+      "publicationType": "tool",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":products:trust-registry:ui",
+      "directory": "products/trust-registry/ui",
+      "artifactId": "yano-x-trust-registry-ui",
+      "publicationType": "web-application",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":products:explorer:core",
+      "directory": "products/explorer/core",
+      "artifactId": "yano-x-explorer-core",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":products:explorer:cli",
+      "directory": "products/explorer/cli",
+      "artifactId": "yano-x-explorer-cli",
+      "publicationType": "tool",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":products:explorer:ui",
+      "directory": "products/explorer/ui",
+      "artifactId": "yano-x-explorer-ui",
+      "publicationType": "web-application",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":products:dpp:profile",
+      "directory": "products/dpp/profile",
+      "artifactId": "yano-x-dpp-profile",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":products:dpp:client",
+      "directory": "products/dpp/client",
+      "artifactId": "yano-x-dpp-client",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":products:dpp:cli",
+      "directory": "products/dpp/cli",
+      "artifactId": "yano-x-dpp-cli",
+      "publicationType": "tool",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":products:dpp:ui",
+      "directory": "products/dpp/ui",
+      "artifactId": "yano-x-dpp-ui",
+      "publicationType": "web-application",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":products:attestation-feed:profile",
+      "directory": "products/attestation-feed/profile",
+      "artifactId": "yano-x-attestation-feed-profile",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":products:attestation-feed:client",
+      "directory": "products/attestation-feed/client",
+      "artifactId": "yano-x-attestation-feed-client",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":products:attestation-feed:cli",
+      "directory": "products/attestation-feed/cli",
+      "artifactId": "yano-x-attestation-feed-cli",
+      "publicationType": "tool",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":products:attestation-feed:ui",
+      "directory": "products/attestation-feed/ui",
+      "artifactId": "yano-x-attestation-feed-ui",
       "publicationType": "web-application",
       "pluginBundleId": null,
       "bundleArtifactId": null

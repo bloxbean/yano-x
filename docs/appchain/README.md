@@ -39,6 +39,14 @@ credentials unless a guide explicitly says otherwise.
 | Reuse stock transitions and verify portable proofs | [Composable state and proofs](COMPOSABLE_STATE_AND_PROOFS.md) | Java/configuration |
 | Archive and prove large immutable period datasets | [Authenticated snapshots](AUTHENTICATED_SNAPSHOTS.md) | Configuration/API |
 | Query and prove historical Cardano parameters, stake, and governance | [Cardano History product](CARDANO_HISTORY.md) | Plugin configuration/CLI |
+| Attest a document digest and hand out a portable, offline-verifiable certificate | [Attest product](ATTEST.md) | No; CLI or browser UI |
+| Propose, approve, and release through the role workflow from a browser, with in-browser actor signing and proof-bound records | [Evidence Desk](EVIDENCE_DESK.md) | No; browser UI |
+| Run a trust and status registry: proof-bound status answers, Bitstring Status Lists, TRQP answers, offline verification | [Trust Registry](TRUST_REGISTRY.md) | No; launcher, CLI, service, browser UI |
+| Browse, search, and prove the rows of stock app chains: a verify-on-ingest index, entity trails with a state check, a content archiver, offline-verifiable row bundles | [Verifiable Explorer](EXPLORER.md) | No; CLI, service, browser UI |
+| Run a Digital Product Passport prototype: governed product records, versions, claims, events, a certification round, a public portal, an operator gateway, offline-verifiable passports | [DPP Starter](DPP_STARTER.md) | No; launcher, CLI, portal, gateway, browser UI (prototype) |
+| Run a consortium data feed: source-signed observations, rounds aggregated by a deterministic rule every verifier recomputes, round records closed by independent publishers, a candidate Cardano datum, a public portal, a signing gateway, offline-verifiable round bundles | [Attestation Feed](ATTESTATION_FEED.md) | No; launcher, CLI, portal, gateway, browser UI (experimental starter) |
+| Demonstrate the DPP starter end to end: the cast and where its roles come from, how keys are held, the lifecycle in the browser, and what the proof says | [DPP demonstration](DPP_DEMO.md) | No; launcher, gateway, browser UI |
+| Take any of these products from a demonstration to a deployment: the genesis ceremony, members and threshold, where keys live, what each service may reach, anchoring, and what the demo does that production must not | [Production deployment](PRODUCTION_DEPLOYMENT.md) | Operations and governance work |
 | Prepare a pilot deployment | [From demo to pilot](tutorials/09-from-demo-to-pilot.md) | Operations work |
 | Trace an experimental EUTxO ZK round trip on devnet | [EUTxO ZK devnet walkthrough](../../ledgers/eutxo-zk/DEVNET_WALKTHROUGH.md) | Cardano builder integration |
 

@@ -1,0 +1,35 @@
+plugins {
+    id 'application'
+}
+
+dependencies {
+    implementation project(':products:dpp:client')
+    implementation libs.jackson.databind
+    runtimeOnly libs.slf4j.nop
+
+    testImplementation libs.junit.jupiter.api
+    testRuntimeOnly libs.junit.jupiter.engine
+    testRuntimeOnly libs.junit.platform.launcher
+    testImplementation libs.assertj.core
+}
+
+application {
+    mainClass = 'com.bloxbean.cardano.yano.appchain.dpp.cli.DppCli'
+    applicationName = 'yano-dpp'
+}
+
+java {
+    sourceCompatibility = 25
+    targetCompatibility = 25
+}
+
+tasks.named('compileJava') {
+    options.compilerArgs.removeAll { it.startsWith('-Aproject=') }
+}
+
+tasks.withType(Test).configureEach {
+    systemProperty 'yano.dpp.cli.golden.dir',
+            layout.projectDirectory.dir('src/test/resources/golden').asFile.absolutePath
+    systemProperty 'yano.dpp.firewall.classpath',
+            configurations.runtimeClasspath.asPath
+}

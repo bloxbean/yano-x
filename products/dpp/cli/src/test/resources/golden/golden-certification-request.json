@@ -1,0 +1,16 @@
+{
+  "schemaVersion" : 1,
+  "type" : "dpp-certification-request-v1",
+  "chainId" : "dpp-starter-golden",
+  "genesisId" : "170d097b7f4c1af94be28d8220f08b7b01239135403fdb614c7ba8fa89c8309a",
+  "policyId" : "certification",
+  "policyRevision" : 1,
+  "proposalId" : "cert-577ecbb3d6bc3dea",
+  "commandHex" : "8301008187016c6365727469666963617465734b636572742d676f6c64656e584d8701736774696e3a303935303630303031333433353266676f6c64656e6b636572742d626f64792d61582000000000000000000000000000000000000000000000000000000000000000000000004040",
+  "payloadHash" : "7b8c2c64c928d2c683e0ed469d80b32b7de01ca9cf92c146be0ea5253f270a24",
+  "deadlineHeight" : 629,
+  "productId" : "gtin:09506000134352",
+  "certificateId" : "cert-golden",
+  "operation" : "PUT_IF_ABSENT",
+  "proposeMessageId" : "e75dd4f32def67ae1dbd3faa5c9b41257acbebfdd385a5e5bdedf6a71c7f12f1"
+}

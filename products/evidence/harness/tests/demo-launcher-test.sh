@@ -110,6 +110,62 @@ curl() {
         assert 'node1=pending' in result.stderr
     else:
         assert 'complete: node0=visible node1=visible node2=visible' in result.stdout
+
+# Exercise the real adoption polling loop with a simulated 600s recovery window.
+# The binding validator's strict identity/root/height checks have separate fixtures.
+import tempfile
+adoption = "reconcile_anchor_binding() {" + source.split(
+    "reconcile_anchor_binding() {", 1)[1].split("\nwait_for_anchor_bootstrapped() {", 1)[0]
+for budget, outcome, expected in ((180, "delayed", 1), (900, "delayed", 0),
+                                   (900, "stuck", 1), (900, "invalid", 1)):
+    with tempfile.TemporaryDirectory() as root:
+        result = subprocess.run(["bash", "-c", r'''
+set -euo pipefail
+SECONDS=0
+HTTP0=18070
+ANCHOR_ENABLED=true
+SCRIPT_DIR=unused
+ANCHOR_BINDING=unused
+DEMO_NETWORK=devnet
+INSTANCE=test
+MODE=compose
+DEMO_CHAIN_ID=test
+STATE_MACHINE_ID=role-evidence
+MEMBER_KEYS=unused
+note() { printf '%s\n' "$*"; }
+die() { printf '%s\n' "$*" >&2; exit 1; }
+temporary_file() { LAST_TEMP_FILE="$(mktemp "$TEST_ROOT/status.XXXXXX")"; }
+anchor_visibility_diagnostics() { :; }
+curl() { printf '{}'; }
+sleep() { SECONDS=$((SECONDS + 650)); }
+python3() {
+  if [ "$1" = unused/tools/anchor_binding.py ]; then
+    if [ "$TEST_OUTCOME" = invalid ]; then
+      printf 'invalid identity\n' >&2
+      return 2
+    fi
+    if [ "$TEST_OUTCOME" = delayed ] && [ "$SECONDS" -ge 650 ]; then
+      printf 'member-adopted\n'
+      return 0
+    fi
+    printf 'members have not converged\n' >&2
+    return 3
+  fi
+  command python3 "$@"
+}
+''' + adoption + '\nreconcile_anchor_binding true'],
+            env={**os.environ, "TEST_ROOT": root, "TEST_OUTCOME": outcome,
+                 "DEMO_ANCHOR_ADOPTION_TIMEOUT_SECONDS": str(budget)},
+            capture_output=True, text=True, timeout=10)
+        assert result.returncode == expected, result.stderr
+        if outcome == "invalid":
+            assert "failed closed: invalid identity" in result.stderr
+            assert "within" not in result.stderr
+        elif expected:
+            assert f"within {budget} seconds" in result.stderr
+            assert "member-adopted" not in result.stdout
+        else:
+            assert "recorded as member-adopted" in result.stdout
 PY
 for template in node-compose.properties.in node-host.properties.in; do
   grep -Fxq 'yano.history.projection.enabled=false' "$DEMO_DIR/config/templates/$template" \

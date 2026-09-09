@@ -316,6 +316,7 @@ validate_decimal DEMO_SCENARIO_TIMEOUT_SECONDS "$DEMO_SCENARIO_TIMEOUT_SECONDS" 
 validate_decimal DEMO_SCENARIO_POLL_INTERVAL_MILLIS "$DEMO_SCENARIO_POLL_INTERVAL_MILLIS" 1 60000
 validate_decimal DEMO_ANCHOR_FUND_TIMEOUT_SECONDS "$DEMO_ANCHOR_FUND_TIMEOUT_SECONDS" 60 86400
 validate_decimal DEMO_ANCHOR_VISIBILITY_TIMEOUT_SECONDS "$DEMO_ANCHOR_VISIBILITY_TIMEOUT_SECONDS" 60 3600
+validate_decimal DEMO_ANCHOR_ADOPTION_TIMEOUT_SECONDS "$DEMO_ANCHOR_ADOPTION_TIMEOUT_SECONDS" 60 3600
 
 load_network_profile() {
   local file="$SCRIPT_DIR/config/networks/$DEMO_NETWORK.env" line key value seen="|"
@@ -2247,7 +2248,7 @@ except (ValueError, TypeError, AttributeError):
 ' "$i" >&2 || true
     done
   }
-  deadline=$((SECONDS + 180))
+  deadline=$((SECONDS + 10#$DEMO_ANCHOR_ADOPTION_TIMEOUT_SECONDS))
   if [ "$require_adopted" = true ]; then
     note "WAIT_ANCHOR_ADOPTION: requiring one adopted script identity and height on all members."
   else
@@ -2285,10 +2286,11 @@ except (ValueError, TypeError, AttributeError):
     note "Last anchor reconciliation error: $binding_error" >&2
   fi
   anchor_reconciliation_diagnostics
+  anchor_visibility_diagnostics
   if [ "$require_adopted" = true ]; then
-    die "members did not converge on one adopted anchor identity/height within 180 seconds"
+    die "members did not converge on one adopted anchor identity/height within $DEMO_ANCHOR_ADOPTION_TIMEOUT_SECONDS seconds"
   fi
-  die "members were neither pristine-pending nor converged on one adopted anchor within 180 seconds"
+  die "members were neither pristine-pending nor converged on one adopted anchor within $DEMO_ANCHOR_ADOPTION_TIMEOUT_SECONDS seconds"
 }
 
 wait_for_anchor_bootstrapped() {
