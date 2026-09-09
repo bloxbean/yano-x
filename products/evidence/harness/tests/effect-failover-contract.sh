@@ -265,7 +265,7 @@ def job_block(name):
     return "\n".join(lines[start:end])
 
 
-e2e_job = job_block("effect-failover-e2e")
+e2e_job = job_block("evidence-e2e")
 for required in (
         "runs-on: ubuntu-24.04",
         "timeout-minutes: 240",
@@ -312,7 +312,7 @@ required_acceptance_needs = {
     "commit-build",
     "distribution-check",
     "connector-fault-matrix",
-    "effect-failover-e2e",
+    "evidence-e2e",
 }
 missing_acceptance_needs = required_acceptance_needs - actual_acceptance_needs
 if missing_acceptance_needs:
@@ -326,11 +326,11 @@ for required in (
         "COMMIT_BUILD_RESULT: ${{ needs.commit-build.result }}",
         "DISTRIBUTION_CHECK_RESULT: ${{ needs.distribution-check.result }}",
         "CONNECTOR_FAULT_RESULT: ${{ needs.connector-fault-matrix.result }}",
-        "EFFECT_FAILOVER_RESULT: ${{ needs.effect-failover-e2e.result }}",
+        "EVIDENCE_E2E_RESULT: ${{ needs.evidence-e2e.result }}",
         'test "$COMMIT_BUILD_RESULT" = success',
         'test "$DISTRIBUTION_CHECK_RESULT" = success',
         'test "$CONNECTOR_FAULT_RESULT" = success',
-        'test "$EFFECT_FAILOVER_RESULT" = success'):
+        'test "$EVIDENCE_E2E_RESULT" = success'):
     if required not in acceptance_job:
         raise SystemExit(f"Milestone 1 acceptance is missing fail-closed evidence: {required}")
 

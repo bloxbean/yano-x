@@ -122,7 +122,7 @@ jobs:
       - name: Run Kafka sink and executor over TLS and SASL/TLS
         run: connectors/kafka/src/test/scripts/kafka-secure-integration.sh
 
-  effect-failover-e2e:
+  evidence-e2e:
     if: >-
       github.event_name == 'schedule' ||
       github.event_name != 'workflow_dispatch' ||
@@ -168,7 +168,7 @@ jobs:
       - commit-build
       - distribution-check
       - connector-fault-matrix
-      - effect-failover-e2e
+      - evidence-e2e
     if: >-
       always() &&
       github.event_name != 'schedule' &&
@@ -181,11 +181,11 @@ jobs:
           COMMIT_BUILD_RESULT: ${{ needs.commit-build.result }}
           DISTRIBUTION_CHECK_RESULT: ${{ needs.distribution-check.result }}
           CONNECTOR_FAULT_RESULT: ${{ needs.connector-fault-matrix.result }}
-          EFFECT_FAILOVER_RESULT: ${{ needs.effect-failover-e2e.result }}
+          EVIDENCE_E2E_RESULT: ${{ needs.evidence-e2e.result }}
         run: |
           set -euo pipefail
           test "$COMMIT_BUILD_RESULT" = success
           test "$DISTRIBUTION_CHECK_RESULT" = success
           test "$CONNECTOR_FAULT_RESULT" = success
-          test "$EFFECT_FAILOVER_RESULT" = success
+          test "$EVIDENCE_E2E_RESULT" = success
           printf '%s\n' 'PASS: Yano X release acceptance gates succeeded'
