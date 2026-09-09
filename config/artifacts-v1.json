@@ -246,7 +246,7 @@
       "modulePath": ":examples:showcase-client",
       "directory": "examples/showcase-client",
       "artifactId": "yano-x-showcase-client",
-      "publicationType": "library",
+      "publicationType": "application",
       "pluginBundleId": null,
       "bundleArtifactId": null
     },

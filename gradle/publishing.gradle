@@ -37,9 +37,8 @@ ext.yanoXPom = { pom, String pomName, String pomDescription,
     }
 }
 
-// Publication repositories belong to the publication boundary, not only to
-// Java-library modules. This keeps the BOM and future non-Java publications in
-// the same isolated-staging and release workflow as thin and bundle artifacts.
+// The internal repository is used to rehearse and verify a release without
+// writing to an external service.
 allprojects { candidate ->
     candidate.pluginManager.withPlugin('maven-publish') {
         candidate.publishing.repositories {
@@ -49,19 +48,18 @@ allprojects { candidate ->
                     url = candidate.uri(internalRepository.get())
                 }
             }
-            maven {
-                name = 'sonatype'
-                def releasesRepoUrl =
-                        'https://ossrh-staging-api.central.sonatype.com/service/local/staging/deploy/maven2/'
-                def snapshotsRepoUrl =
-                        'https://central.sonatype.com/repository/maven-snapshots/'
-                url = candidate.version.toString().endsWith('SNAPSHOT')
-                        ? snapshotsRepoUrl : releasesRepoUrl
-                credentials {
-                    username = System.getenv('MAVEN_USERNAME')
-                    password = System.getenv('MAVEN_PASSWORD')
-                }
-            }
+        }
+    }
+}
+
+nexusPublishing {
+    repositories {
+        sonatype {
+            nexusUrl = uri('https://ossrh-staging-api.central.sonatype.com/service/local/')
+            snapshotRepositoryUrl = uri(
+                    'https://central.sonatype.com/repository/maven-snapshots/')
+            username = System.getenv('MAVEN_USERNAME')
+            password = System.getenv('MAVEN_PASSWORD')
         }
     }
 }
@@ -104,6 +102,46 @@ gradle.projectsEvaluated {
         if (!pluginProject.version.toString().endsWith('SNAPSHOT')
                 && !pluginProject.hasProperty('skipSigning')) {
             pluginProject.signing.sign(bundlePublication)
+        }
+    }
+
+    def releaseSpecifications = artifactInventory.artifacts.findAll {
+        rootProject.ext.yanoXMavenReleasePublicationTypes.contains(
+                it.publicationType.toString())
+    }
+    def releaseProjects = releaseSpecifications.collect {
+        project(it.modulePath.toString())
+    } + project(':bom')
+
+    tasks.register('verifyMavenReleasePublicationScope') {
+        group = 'verification'
+        description = 'Verifies the Maven release contains reusable coordinates only.'
+        doLast {
+            releaseProjects.each { candidate ->
+                if (!candidate.pluginManager.hasPlugin('maven-publish')
+                        || candidate.publishing.publications.isEmpty()) {
+                    throw new GradleException(
+                            "Release project ${candidate.path} has no Maven publication")
+                }
+            }
+        }
+    }
+
+    tasks.register('publishMavenReleaseToInternalRepository') {
+        group = 'publishing'
+        description = 'Publishes reusable Yano X modules and the BOM to an isolated repository.'
+        dependsOn tasks.named('verifyMavenReleasePublicationScope')
+        dependsOn releaseProjects.collect { candidate ->
+            "${candidate.path}:publishAllPublicationsToInternalRepository"
+        }
+    }
+
+    tasks.register('publishMavenReleaseToSonatypeRepository') {
+        group = 'publishing'
+        description = 'Publishes reusable Yano X modules and the BOM to Maven Central staging.'
+        dependsOn tasks.named('verifyMavenReleasePublicationScope')
+        dependsOn releaseProjects.collect { candidate ->
+            "${candidate.path}:publishAllPublicationsToSonatypeRepository"
         }
     }
 }

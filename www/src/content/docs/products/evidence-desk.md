@@ -1,6 +1,6 @@
 ---
 title: Evidence Desk
-description: A browser workbench for role-gated release on a Yano app chain: propose, approve with actor keys that never leave the browser, release once, and read every record back with its proof.
+description: "A browser workbench for role-gated release on a Yano app chain: propose, approve with actor keys that never leave the browser, release once, and read every record back with its proof."
 sidebar:
   order: 5
 ---

@@ -22,6 +22,12 @@ def artifactByPath = artifactInventory.artifacts.collectEntries { artifact ->
 
 ext.yanoXArtifactInventory = artifactInventory
 ext.artifactByPath = artifactByPath
+ext.yanoXMavenReleasePublicationTypes = [
+        'runtime-plugin',
+        'library',
+        'test-library',
+        'onchain-artifact'
+] as Set
 ext.yanoXCryptoTestLock = gradle.sharedServices.registerIfAbsent(
         'yanoXCryptoTestLock', CryptoTestLock) {
     maxParallelUsages = 1

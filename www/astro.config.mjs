@@ -39,6 +39,7 @@ export default defineConfig({
           items: [
             { label: 'What is an app chain?', slug: 'start-here/what-is-an-app-chain' },
             { label: 'Why Yano X', slug: 'start-here/why-yano-x' },
+            { label: 'Release downloads', slug: 'start-here/release-downloads' },
             { label: 'Local showcase', slug: 'start-here/quickstart' },
             { label: 'Choose a deployment path', slug: 'deployment' },
             { label: 'Build from source', slug: 'start-here/build-from-source' },

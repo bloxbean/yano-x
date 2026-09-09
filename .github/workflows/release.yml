@@ -1,0 +1,132 @@
+name: Release Yano X
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9
+        with:
+          java-version: '25'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: Validate release tag
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION=$(./gradlew -q properties | awk '/^version:/ { print $2; exit }')
+          if [[ "$GITHUB_REF_NAME" != "v${VERSION}" ]]; then
+            echo "Git tag $GITHUB_REF_NAME does not match Gradle version $VERSION" >&2
+            exit 1
+          fi
+          if [[ "$VERSION" == *-SNAPSHOT* ]]; then
+            echo "Release tags require a non-SNAPSHOT version. Got: $VERSION" >&2
+            exit 1
+          fi
+          PRERELEASE=true
+          if [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            PRERELEASE=false
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$PRERELEASE" >> "$GITHUB_OUTPUT"
+
+      - name: Build and verify all release distributions
+        run: ./gradlew clean build -PskipSigning=true --stacktrace
+
+      - name: Stage release assets
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir release-assets
+          cp "distribution/jvm/build/distributions/yano-x-jvm-${VERSION}.zip" release-assets/
+          cp "distribution/jvm/build/distributions/yano-x-plugin-pack-${VERSION}.zip" release-assets/
+          cp "examples/showcase/build/distributions/yano-showcase-${VERSION}.zip" release-assets/
+          cp "tooling/studio/build/distributions/yano-x-studio-${VERSION}.zip" release-assets/
+          cp "tooling/deployment/build/distributions/yano-x-deploy-${VERSION}.zip" release-assets/
+          for archive in release-assets/*.zip; do
+            unzip -tq "$archive"
+          done
+          (cd release-assets && sha256sum *.zip > SHA256SUMS)
+
+      - name: Rehearse reusable Maven publications
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          STAGING="$RUNNER_TEMP/yano-x-maven-release"
+          ./gradlew publishMavenReleaseToInternalRepository \
+            -PinternalRepository="$STAGING" -PskipSigning=true --stacktrace
+          test -f "$STAGING/com/bloxbean/cardano/yano-x-bom/$VERSION/yano-x-bom-$VERSION.pom"
+          EXPECTED="$RUNNER_TEMP/expected-maven-coordinates"
+          ACTUAL="$RUNNER_TEMP/actual-maven-coordinates"
+          {
+            echo yano-x-bom
+            jq -r '.artifacts[] |
+              select(.publicationType == "runtime-plugin" or
+                     .publicationType == "library" or
+                     .publicationType == "test-library" or
+                     .publicationType == "onchain-artifact") |
+              .artifactId, (.bundleArtifactId // empty)' config/artifacts-v1.json
+          } | sort > "$EXPECTED"
+          find "$STAGING/com/bloxbean/cardano" -mindepth 1 -maxdepth 1 \
+            -type d -printf '%f\n' | sort > "$ACTUAL"
+          diff -u "$EXPECTED" "$ACTUAL"
+          if find "$STAGING" -type f \( -name '*.zip' -o -name '*.tar' \) | grep -q .; then
+            echo 'Distribution archives must not be published to Maven Central' >&2
+            exit 1
+          fi
+
+      - name: Decode GPG key
+        env:
+          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.gradle"
+          printf '%s' "$SIGNING_KEY" | base64 --decode > "$HOME/.gradle/secring.gpg"
+
+      - name: Publish reusable libraries and plugin bundles to Maven Central
+        env:
+          MAVEN_USERNAME: ${{ secrets.OSSRH_USERNAME }}
+          MAVEN_PASSWORD: ${{ secrets.OSSRH_TOKEN }}
+        run: >-
+          ./gradlew publishMavenReleaseToSonatypeRepository
+          closeAndReleaseSonatypeStagingRepository
+          -Psigning.keyId=${{ secrets.SIGNING_KEY_ID }}
+          -Psigning.password=${{ secrets.SIGNING_PASSWORD }}
+          -Psigning.secretKeyRingFile=$HOME/.gradle/secring.gpg
+          --warn --stacktrace
+
+      - name: Create GitHub release with five distributions
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PRERELEASE: ${{ steps.version.outputs.prerelease }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          ARGS=(--verify-tag --title "$GITHUB_REF_NAME")
+          if [[ "$PRERELEASE" == true ]]; then
+            ARGS+=(--prerelease)
+          fi
+          gh release create "$GITHUB_REF_NAME" release-assets/* "${ARGS[@]}"

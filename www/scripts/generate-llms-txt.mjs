@@ -49,6 +49,7 @@ const SECTIONS = [
     files: [
       'start-here/what-is-an-app-chain.md',
       'start-here/why-yano-x.md',
+      'start-here/release-downloads.md',
       'start-here/build-from-source.md',
       'start-here/quickstart.md',
     ],
@@ -87,9 +88,15 @@ const SECTIONS = [
     title: 'Products',
     files: [
       'products/index.md',
+      'products/attest.md',
+      'products/attestation-feed.md',
       'products/evidence.md',
+      'products/evidence-desk.md',
       'products/cardano-history.md',
+      'products/dpp-starter.md',
       'products/eutxo-and-zk.md',
+      'products/explorer.md',
+      'products/trust-registry.md',
     ],
   },
   {
