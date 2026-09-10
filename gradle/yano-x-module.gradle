@@ -10,7 +10,7 @@ pluginManager.apply('signing')
 pluginManager.apply('org.unbroken-dome.test-sets')
 
 // Modules resolve each other by project path; the internal group keeps them
-// from colliding with the published `com.bloxbean.cardano` coordinates.
+// from colliding with the published Yano X coordinates.
 group = "${rootProject.group}.yano-x-internal.${project.path.substring(1).replace(':', '.')}"
 
 dependencies {

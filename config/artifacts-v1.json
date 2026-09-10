@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "group": "com.bloxbean.cardano",
+  "group": "org.yanoproject.x",
   "artifacts": [
     {
       "modulePath": ":state-machines:stdlib",

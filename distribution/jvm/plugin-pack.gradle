@@ -97,12 +97,13 @@ tasks.register('normalizeYanoXReleaseSbom') {
                 type: 'vcs',
                 url: 'https://github.com/bloxbean/yano-x.git'
         ]]
+        def yanoXGroupPrefix = rootProject.group.toString()
         body.metadata.component.remove('licenses')
         body.metadata.component.remove('externalReferences')
         body.metadata.component.licenses = mitLicense
         body.metadata.component.externalReferences = repositoryReference
         body.components.findAll { component ->
-            component.group?.toString()?.startsWith('com.bloxbean.cardano')
+            component.group?.toString()?.startsWith(yanoXGroupPrefix)
         }.each { component ->
             component.remove('licenses')
             component.remove('externalReferences')
@@ -120,7 +121,7 @@ tasks.register('normalizeYanoXReleaseSbom') {
             }
         }
         def externalWithoutLicense = body.components.findAll { component ->
-            !component.group?.toString()?.startsWith('com.bloxbean.cardano')
+            !component.group?.toString()?.startsWith(yanoXGroupPrefix)
                     && (!(component.licenses instanceof Collection)
                     || component.licenses.isEmpty())
         }.collect { component ->
