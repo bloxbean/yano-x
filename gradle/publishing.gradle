@@ -9,8 +9,9 @@ def internalRepository = providers.gradleProperty('internalRepository')
 
 def projectUrl = 'https://github.com/bloxbean/yano-x'
 
-// One POM identity for thin modules, runtime bundles, and the BOM. Runtime
-// bundles intentionally omit the developer block, so it stays opt-out.
+// One POM identity for thin modules, runtime bundles, and the BOM. Maven
+// Central rejects any published component missing developer info, so every
+// publication supplies it.
 ext.yanoXPom = { pom, String pomName, String pomDescription,
                 boolean withDevelopers = true ->
     pom.name = pomName
@@ -93,11 +94,16 @@ gradle.projectsEvaluated {
             artifact(shadowJar) {
                 classifier = null
             }
+            artifact(pluginProject.tasks.named('sourceJar')) {
+                classifier = 'sources'
+            }
+            artifact(pluginProject.tasks.named('javadocJar')) {
+                classifier = 'javadoc'
+            }
             rootProject.ext.yanoXPom(
                     pom,
                     "${specification.artifactId} deployable plugin bundle",
-                    "Dependency-complete Yano X bundle for ${specification.pluginBundleId}",
-                    false)
+                    "Dependency-complete Yano X bundle for ${specification.pluginBundleId}")
         }
         if (!pluginProject.version.toString().endsWith('SNAPSHOT')
                 && !pluginProject.hasProperty('skipSigning')) {
