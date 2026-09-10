@@ -130,6 +130,7 @@ export const loadArtifactInventory = () => readJson('config/artifacts-v1.json');
  * mapping has exactly one definition.
  */
 export const IMPORTED_DOCS = {
+  'docs/RELEASE_DOWNLOADS.md': '/start-here/release-downloads/',
   'docs/appchain/deployment/README.md': '/deployment/',
   'docs/appchain/deployment/quickstart.md': '/start-here/quickstart/',
   'docs/appchain/deployment/configure.md': '/deployment/configure/',

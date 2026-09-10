@@ -391,11 +391,14 @@ tasks.named('check') {
             tasks.named('showcaseScriptContract')
 }
 
-// The distribution plugin normally wires ZIP and TAR assembly into every
-// ordinary build. The showcase archive is verified explicitly by the root
-// distributionCheck tier, so keep default iteration on classes and bundles.
+// Ship the quickstart ZIP with ordinary builds; TAR remains an explicit task.
 tasks.named('assemble') {
-    setDependsOn([tasks.named('jar'), tasks.named('shadowJar')])
+    setDependsOn([tasks.named('jar'), tasks.named('shadowJar'), tasks.named('distZip')])
+}
+
+// Verify the extracted release artifact without adding packaging to unit-test checks.
+tasks.named('build') {
+    dependsOn tasks.named('showcaseDistributionContract')
 }
 
 // ADR-048: the Evidence Desk golden fixture is produced by the Java contracts here.

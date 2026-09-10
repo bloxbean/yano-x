@@ -64,7 +64,7 @@ artifact identity and that every runtime plugin has a bundle publication.
 | `:ledgers:eutxo-zk:runtime` | `yano-x-eutxo-zk-runtime` | `com.bloxbean.cardano.yano.appchain.eutxo.zk.runtime` | [ledgers/eutxo-zk/runtime](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/runtime) |
 | `:ledgers:eutxo-zk:indexer` | `yano-x-eutxo-zk-indexer` | `com.bloxbean.cardano.yano.appchain.eutxo.zk.indexer` | [ledgers/eutxo-zk/indexer](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/indexer) |
 
-### `library` (20)
+### `library` (27)
 
 | Gradle module | Artifact id | Plugin bundle id | Source |
 |---|---|---|---|
@@ -78,7 +78,14 @@ artifact identity and that every runtime plugin has a bundle publication.
 | `:products:evidence:contracts` | `yano-x-evidence-contracts` | — | [products/evidence/contracts](https://github.com/bloxbean/yano-x/blob/main/products/evidence/contracts) |
 | `:products:evidence:client` | `yano-x-evidence-client` | — | [products/evidence/client](https://github.com/bloxbean/yano-x/blob/main/products/evidence/client) |
 | `:products:cardano-history:client` | `yano-x-cardano-history-client` | — | [products/cardano-history/client](https://github.com/bloxbean/yano-x/blob/main/products/cardano-history/client) |
-| `:examples:showcase-client` | `yano-x-showcase-client` | — | [examples/showcase-client](https://github.com/bloxbean/yano-x/blob/main/examples/showcase-client) |
+| `:products:attest:client` | `yano-x-attest-client` | — | [products/attest/client](https://github.com/bloxbean/yano-x/blob/main/products/attest/client) |
+| `:products:trust-registry:profile` | `yano-x-trust-registry-profile` | — | [products/trust-registry/profile](https://github.com/bloxbean/yano-x/blob/main/products/trust-registry/profile) |
+| `:products:trust-registry:client` | `yano-x-trust-registry-client` | — | [products/trust-registry/client](https://github.com/bloxbean/yano-x/blob/main/products/trust-registry/client) |
+| `:products:explorer:core` | `yano-x-explorer-core` | — | [products/explorer/core](https://github.com/bloxbean/yano-x/blob/main/products/explorer/core) |
+| `:products:dpp:profile` | `yano-x-dpp-profile` | — | [products/dpp/profile](https://github.com/bloxbean/yano-x/blob/main/products/dpp/profile) |
+| `:products:dpp:client` | `yano-x-dpp-client` | — | [products/dpp/client](https://github.com/bloxbean/yano-x/blob/main/products/dpp/client) |
+| `:products:attestation-feed:profile` | `yano-x-attestation-feed-profile` | — | [products/attestation-feed/profile](https://github.com/bloxbean/yano-x/blob/main/products/attestation-feed/profile) |
+| `:products:attestation-feed:client` | `yano-x-attestation-feed-client` | — | [products/attestation-feed/client](https://github.com/bloxbean/yano-x/blob/main/products/attestation-feed/client) |
 | `:ledgers:eutxo:contracts` | `yano-x-eutxo-contracts` | — | [ledgers/eutxo/contracts](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/contracts) |
 | `:ledgers:eutxo:client` | `yano-x-eutxo-client` | — | [ledgers/eutxo/client](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/client) |
 | `:ledgers:eutxo:indexer-core` | `yano-x-eutxo-indexer-core` | — | [ledgers/eutxo/indexer-core](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/indexer-core) |
@@ -89,15 +96,16 @@ artifact identity and that every runtime plugin has a bundle publication.
 | `:ledgers:eutxo-zk:lifecycle` | `yano-x-eutxo-zk-lifecycle` | — | [ledgers/eutxo-zk/lifecycle](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/lifecycle) |
 | `:tooling:spring-boot-starter` | `yano-x-spring-boot-starter` | — | [tooling/spring-boot-starter](https://github.com/bloxbean/yano-x/blob/main/tooling/spring-boot-starter) |
 
-### `application` (3)
+### `application` (4)
 
 | Gradle module | Artifact id | Plugin bundle id | Source |
 |---|---|---|---|
 | `:products:evidence:demo-runner` | `yano-x-evidence-demo-runner` | — | [products/evidence/demo-runner](https://github.com/bloxbean/yano-x/blob/main/products/evidence/demo-runner) |
+| `:examples:showcase-client` | `yano-x-showcase-client` | — | [examples/showcase-client](https://github.com/bloxbean/yano-x/blob/main/examples/showcase-client) |
 | `:ledgers:eutxo:demo` | `yano-x-eutxo-demo` | — | [ledgers/eutxo/demo](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/demo) |
 | `:ledgers:eutxo-zk:demo` | `yano-x-eutxo-zk-demo` | — | [ledgers/eutxo-zk/demo](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/demo) |
 
-### `tool` (4)
+### `tool` (9)
 
 | Gradle module | Artifact id | Plugin bundle id | Source |
 |---|---|---|---|
@@ -105,6 +113,11 @@ artifact identity and that every runtime plugin has a bundle publication.
 | `:tooling:deployment` | `yano-x-deployment` | — | [tooling/deployment](https://github.com/bloxbean/yano-x/blob/main/tooling/deployment) |
 | `:tooling:studio` | `yano-x-studio` | — | [tooling/studio](https://github.com/bloxbean/yano-x/blob/main/tooling/studio) |
 | `:products:cardano-history:cli` | `yano-x-cardano-history-cli` | — | [products/cardano-history/cli](https://github.com/bloxbean/yano-x/blob/main/products/cardano-history/cli) |
+| `:products:attest:cli` | `yano-x-attest-cli` | — | [products/attest/cli](https://github.com/bloxbean/yano-x/blob/main/products/attest/cli) |
+| `:products:trust-registry:cli` | `yano-x-trust-registry-cli` | — | [products/trust-registry/cli](https://github.com/bloxbean/yano-x/blob/main/products/trust-registry/cli) |
+| `:products:explorer:cli` | `yano-x-explorer-cli` | — | [products/explorer/cli](https://github.com/bloxbean/yano-x/blob/main/products/explorer/cli) |
+| `:products:dpp:cli` | `yano-x-dpp-cli` | — | [products/dpp/cli](https://github.com/bloxbean/yano-x/blob/main/products/dpp/cli) |
+| `:products:attestation-feed:cli` | `yano-x-attestation-feed-cli` | — | [products/attestation-feed/cli](https://github.com/bloxbean/yano-x/blob/main/products/attestation-feed/cli) |
 
 ### `test-library` (3)
 
@@ -123,11 +136,17 @@ artifact identity and that every runtime plugin has a bundle publication.
 | `:ledgers:eutxo:bridge-onchain` | `yano-x-eutxo-bridge-onchain` | — | [ledgers/eutxo/bridge-onchain](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/bridge-onchain) |
 | `:ledgers:eutxo-zk:onchain` | `yano-x-eutxo-zk-onchain` | — | [ledgers/eutxo-zk/onchain](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/onchain) |
 
-### `web-application` (1)
+### `web-application` (7)
 
 | Gradle module | Artifact id | Plugin bundle id | Source |
 |---|---|---|---|
+| `:products:attest:ui` | `yano-x-attest-ui` | — | [products/attest/ui](https://github.com/bloxbean/yano-x/blob/main/products/attest/ui) |
+| `:products:evidence:ui` | `yano-x-evidence-ui` | — | [products/evidence/ui](https://github.com/bloxbean/yano-x/blob/main/products/evidence/ui) |
 | `:products:eutxo:ui` | `yano-x-eutxo-ui` | — | [products/eutxo/ui](https://github.com/bloxbean/yano-x/blob/main/products/eutxo/ui) |
+| `:products:trust-registry:ui` | `yano-x-trust-registry-ui` | — | [products/trust-registry/ui](https://github.com/bloxbean/yano-x/blob/main/products/trust-registry/ui) |
+| `:products:explorer:ui` | `yano-x-explorer-ui` | — | [products/explorer/ui](https://github.com/bloxbean/yano-x/blob/main/products/explorer/ui) |
+| `:products:dpp:ui` | `yano-x-dpp-ui` | — | [products/dpp/ui](https://github.com/bloxbean/yano-x/blob/main/products/dpp/ui) |
+| `:products:attestation-feed:ui` | `yano-x-attestation-feed-ui` | — | [products/attestation-feed/ui](https://github.com/bloxbean/yano-x/blob/main/products/attestation-feed/ui) |
 
 ### `test-fixture` (1)
 

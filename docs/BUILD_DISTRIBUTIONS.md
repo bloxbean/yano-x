@@ -5,6 +5,16 @@ JVM and GraalVM distributions; no special base ZIP exists for Yano X.
 
 ## Inputs
 
+The default build creates and verifies all five release ZIPs:
+
+```bash
+./gradlew build -PskipSigning=true
+```
+
+The default Yano version comes from `gradle.properties`; `-PyanoVersion=...`
+overrides it. Use `-Pversion=<release-version>` to name the Yano X release artifacts.
+`distributionCheck` runs the archive verification tier without the full unit-test suite.
+
 Use the same exact Yano version for Maven dependencies and the base JVM ZIP.
 For a released version, Gradle resolves and caches the ordinary JVM ZIP from
 the matching GitHub release automatically:
@@ -42,7 +52,10 @@ still has the expected independent publication.
 
 ## Outputs
 
-The outputs are written under `distribution/jvm/build/distributions`:
+See [Choose a Yano X release download](RELEASE_DOWNLOADS.md) for the user-facing
+comparison and quickstarts for all five ZIPs.
+
+The two core outputs are written under `distribution/jvm/build/distributions`:
 
 - `yano-x-plugin-pack-<version>.zip` contains the dependency-complete runtime
   plugin bundles and their checksummed manifest. Its `plugins/` directory is a
@@ -58,6 +71,36 @@ SBOM at `sbom/yano-x.cdx.json`. The release task fills the MIT declaration for
 repository-owned components and fails if an external Maven component lacks
 license metadata. The combined JVM archive also preserves the base host's
 license as `LICENSE.yano` and its independent `sbom/yano.cdx.json` inventory.
+
+The showcase release artifact is
+`examples/showcase/build/distributions/yano-showcase-<version>.zip`.
+It includes the JVM distribution, demo plugins, configuration, scripts, and
+guides for a local multi-node demo. Both `build` and `distributionCheck` run
+`showcaseDistributionContract` against the extracted ZIP. Publish this ZIP
+alongside the two main ZIPs in GitHub releases so users need no source checkout
+or Gradle installation to try the showcase.
+
+With Java 25, Python 3, `curl`, and `jq` installed, extract it into a new directory:
+
+```bash
+unzip yano-showcase-<version>.zip
+cd yano-showcase-<version>
+./showcase.sh doctor
+./showcase.sh quickstart --profile light --nodes 3 --instance demo
+./showcase.sh status --instance demo
+./showcase.sh ui --instance demo
+./showcase.sh stop --instance demo
+```
+
+The light profile runs a self-contained local devnet; `stop` preserves instance
+data. See the included `DEMO_SHOWCASE.md` for scenarios and restart operations.
+
+The remaining release artifacts are:
+
+- `tooling/studio/build/distributions/yano-x-studio-<version>.zip`, the static
+  App-Chain Studio site;
+- `tooling/deployment/build/distributions/yano-x-deploy-<version>.zip`, the
+  deployment CLI with its OpenTofu and Ansible material.
 
 All 18 runtime bundles remain independently published and are represented in
 the manifest. The default distribution activates 17. The eUTxO ZK runtime is
