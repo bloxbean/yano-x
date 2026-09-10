@@ -87,6 +87,25 @@ gradle.projectsEvaluated {
             artifact.classifier == 'bundle'
         }.each { artifact -> mainPublication.artifacts.remove(artifact) }
 
+        // Dedicated Jar tasks, not the mavenJava publication's sourceJar/
+        // javadocJar: two publications signing the same underlying jar file
+        // would make both Sign tasks claim the same output .asc path, which
+        // Gradle rejects as an undeclared, order-dependent producer clash.
+        def bundleSourceJar = pluginProject.tasks.register(
+                'pluginBundleSourceJar', Jar) {
+            archiveBaseName = specification.bundleArtifactId.toString()
+            archiveClassifier = 'sources'
+            duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+            from pluginProject.sourceSets.main.allJava
+        }
+        def bundleJavadocJar = pluginProject.tasks.register(
+                'pluginBundleJavadocJar', Jar) {
+            dependsOn pluginProject.tasks.named('javadoc')
+            archiveBaseName = specification.bundleArtifactId.toString()
+            archiveClassifier = 'javadoc'
+            from pluginProject.tasks.named('javadoc').map { it.destinationDir }
+        }
+
         def bundlePublication = pluginProject.publishing.publications
                 .create('pluginBundle', MavenPublication) {
             groupId = rootProject.group.toString()
@@ -94,10 +113,10 @@ gradle.projectsEvaluated {
             artifact(shadowJar) {
                 classifier = null
             }
-            artifact(pluginProject.tasks.named('sourceJar')) {
+            artifact(bundleSourceJar) {
                 classifier = 'sources'
             }
-            artifact(pluginProject.tasks.named('javadocJar')) {
+            artifact(bundleJavadocJar) {
                 classifier = 'javadoc'
             }
             rootProject.ext.yanoXPom(
