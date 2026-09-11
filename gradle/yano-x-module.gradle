@@ -59,6 +59,11 @@ tasks.withType(Test).configureEach {
 
 tasks.withType(Javadoc).configureEach {
     options.encoding = 'UTF-8'
+    // JDK 21+ embeds ~4 MB of DejaVu web fonts in every javadoc output. Across
+    // the published modules that was 291 MB of identical bytes, roughly half the
+    // Central deployment. The pages fall back to system fonts and are otherwise
+    // unchanged. Also fixes the bundle javadoc jars, which reuse this output.
+    options.addBooleanOption('-no-fonts', true)
 }
 
 def sourceJar = tasks.register('sourceJar', Jar) {
