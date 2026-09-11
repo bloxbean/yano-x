@@ -170,6 +170,16 @@ gradle.projectsEvaluated {
                     "${specification.artifactId} deployable plugin bundle",
                     "Dependency-complete Yano X bundle for ${specification.pluginBundleId}")
         }
+        // The bundle is a dependency-complete shadow jar delivered through the
+        // plugin pack in the GitHub release, not through Maven. Publishing it to
+        // Central as well duplicated 307 MB across 18 coordinates for artifacts
+        // no downstream build resolves. The publication itself stays so the
+        // internal repository and gradle/verification.gradle keep working; only
+        // the Central deployment drops it.
+        pluginProject.tasks.matching {
+            it.name == 'publishPluginBundlePublicationToNmcpRepository'
+        }.configureEach { enabled = false }
+
         if (!pluginProject.version.toString().endsWith('SNAPSHOT')
                 && !pluginProject.hasProperty('skipSigning')) {
             pluginProject.signing.sign(bundlePublication)
@@ -197,6 +207,17 @@ gradle.projectsEvaluated {
                     throw new GradleException(
                             "Release project ${candidate.path} does not apply com.gradleup.nmcp "
                                     + 'and would be dropped from the Central deployment')
+                }
+            }
+            // Bundles must never reappear in the deployment: they are 20x the
+            // size of the thin jars and are delivered through the plugin pack.
+            releaseProjects.each { candidate ->
+                def bundleTask = candidate.tasks.findByName(
+                        'publishPluginBundlePublicationToNmcpRepository')
+                if (bundleTask != null && bundleTask.enabled) {
+                    throw new GradleException(
+                            "Runtime bundle for ${candidate.path} would be published to Maven "
+                                    + 'Central; bundles ship in the plugin pack instead')
                 }
             }
             // The deployment must contain the release scope and nothing else;

@@ -23,10 +23,10 @@ dependencies {
             rootProject.ext.yanoXMavenReleasePublicationTypes.contains(
                     artifact.publicationType.toString())
         }.each { artifact ->
+            // Bundle coordinates are deliberately absent: the shadow bundles ship
+            // in the plugin pack, not on Maven Central, so constraining them here
+            // would advertise coordinates that cannot be resolved.
             api "${artifactInventory.group}:${artifact.artifactId}:${project.version}"
-            if (artifact.bundleArtifactId != null) {
-                api "${artifactInventory.group}:${artifact.bundleArtifactId}:${project.version}"
-            }
         }
     }
 }
