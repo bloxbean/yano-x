@@ -59,7 +59,7 @@ business identity. Query the terminal proposal and its proof-oriented fields:
 ```bash
 curl -sS \
   -H "X-API-Key: $YANO_APPCHAIN_API_KEY" \
-  "http://127.0.0.1:7070/api/v1/plugins/com.bloxbean.cardano.yano.appchain.role-workflow/proposals/order-a-1001?chain=role-approval" | jq .
+  "http://127.0.0.1:7070/api/v1/plugins/org.yanoproject.x.role-workflow/proposals/order-a-1001?chain=role-approval" | jq .
 ```
 
 The generic machine proves the approved payload domain/hash and emits no

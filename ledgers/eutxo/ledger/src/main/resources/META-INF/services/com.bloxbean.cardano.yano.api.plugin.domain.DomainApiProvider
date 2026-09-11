@@ -1,1 +1,1 @@
-com.bloxbean.cardano.yano.appchain.eutxo.ledger.EutxoDomainApiProvider
+org.yanoproject.x.eutxo.ledger.EutxoDomainApiProvider

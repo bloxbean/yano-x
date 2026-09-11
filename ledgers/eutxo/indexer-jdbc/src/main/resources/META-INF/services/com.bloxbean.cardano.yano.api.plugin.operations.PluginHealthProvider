@@ -1,1 +1,1 @@
-com.bloxbean.cardano.yano.appchain.eutxo.indexer.jdbc.EutxoIndexerHealthProvider
+org.yanoproject.x.eutxo.indexer.jdbc.EutxoIndexerHealthProvider

@@ -25,7 +25,7 @@ primary-MPF facts and do not need a redundant secondary snapshot.
 ## Read API
 
 The plugin contributes bounded, read-only routes below
-`/api/v1/plugins/com.bloxbean.cardano.yano.appchain.cardano-history/`. Every request requires
+`/api/v1/plugins/org.yanoproject.x.cardano-history/`. Every request requires
 `chain=<chain-id>`. Routes cover status, epochs, protocol parameters, stake, DRep distribution, and
 proposal history.
 

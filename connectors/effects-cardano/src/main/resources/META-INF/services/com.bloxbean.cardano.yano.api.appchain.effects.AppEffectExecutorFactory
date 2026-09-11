@@ -1,1 +1,1 @@
-com.bloxbean.cardano.yano.appchain.effects.cardano.CardanoEffectExecutorFactory
+org.yanoproject.x.effects.cardano.CardanoEffectExecutorFactory

@@ -1,1 +1,1 @@
-com.bloxbean.cardano.yano.appchain.authmap.validators.Gs1GtinValidatorFactory
+org.yanoproject.x.authmap.validators.Gs1GtinValidatorFactory

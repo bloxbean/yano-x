@@ -711,14 +711,14 @@ The Compose and host demos are JVM deployments. `prepare` builds each
 self-contained `*-bundle.jar` and stages exactly these plugin ids:
 
 ```text
-com.bloxbean.cardano.yano.appchain.kafka
-com.bloxbean.cardano.yano.appchain.objectstore.s3
-com.bloxbean.cardano.yano.appchain.ipfs
-com.bloxbean.cardano.yano.appchain.composite
-com.bloxbean.cardano.yano.appchain.stdlib
-com.bloxbean.cardano.yano.appchain.role-workflow
-com.bloxbean.cardano.yano.appchain.evidence-registry
-com.bloxbean.cardano.yano.appchain.evidence-profile
+org.yanoproject.x.kafka
+org.yanoproject.x.objectstore.s3
+org.yanoproject.x.ipfs
+org.yanoproject.x.composite
+org.yanoproject.x.stdlib
+org.yanoproject.x.role-workflow
+org.yanoproject.x.evidence-registry
+org.yanoproject.x.evidence-profile
 ```
 
 Yano X is JVM-only. Native Yano intentionally contains only the core host and

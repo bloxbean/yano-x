@@ -1,1 +1,1 @@
-com.bloxbean.cardano.yano.appchain.history.CardanoHistoryStateMachineProvider
+org.yanoproject.x.history.CardanoHistoryStateMachineProvider

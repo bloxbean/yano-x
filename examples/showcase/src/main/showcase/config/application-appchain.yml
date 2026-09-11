@@ -6,19 +6,19 @@ yano:
     # Validator plugins are trusted consensus code. Listing the reference
     # bundle explicitly is required before authenticated-map can resolve it.
     allow-list:
-      - com.bloxbean.cardano.yano.appchain.stdlib
-      - com.bloxbean.cardano.yano.appchain.authenticated-map-validators
-      - com.bloxbean.cardano.yano.appchain.role-workflow
-      - com.bloxbean.cardano.yano.appchain.composite
-      - com.bloxbean.cardano.yano.appchain.eutxo
+      - org.yanoproject.x.stdlib
+      - org.yanoproject.x.authenticated-map-validators
+      - org.yanoproject.x.role-workflow
+      - org.yanoproject.x.composite
+      - org.yanoproject.x.eutxo
       # ADR-UTXO-009: L1 vault-deposit + BATCH withdrawal-confirmation
       # observers and the eutxo-settlement effect executor for
       # payment-chain-settlement, plus the lifecycle-index domain routes
       # used by the eutxo console explorer and the settlement tooling.
-      - com.bloxbean.cardano.yano.appchain.eutxo.bridge.cardano
-      - com.bloxbean.cardano.yano.appchain.eutxo.indexer
-      - com.bloxbean.cardano.yano.appchain.cardano-history
-      - com.bloxbean.cardano.yano.appchain.showcase
+      - org.yanoproject.x.eutxo.bridge.cardano
+      - org.yanoproject.x.eutxo.indexer
+      - org.yanoproject.x.cardano-history
+      - org.yanoproject.x.showcase
   app-chain:
     chains[0]:
       chain-id: "orders-chain"

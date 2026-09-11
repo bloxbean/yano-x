@@ -13,7 +13,7 @@ dependencies {
 }
 
 application {
-    mainClass = 'com.bloxbean.cardano.yano.appchain.history.cli.CardanoHistoryCli'
+    mainClass = 'org.yanoproject.x.history.cli.CardanoHistoryCli'
     applicationName = 'yano-cardano-history'
 }
 

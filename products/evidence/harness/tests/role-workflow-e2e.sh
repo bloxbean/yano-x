@@ -259,7 +259,7 @@ assert_role_api() {
   stats="$ROOT/$label-stats.json"
   actor="$ROOT/$label-actor.json"
   authenticated_get \
-    "http://127.0.0.1:$DEMO_HTTP_BASE/api/v1/plugins/com.bloxbean.cardano.yano.appchain.evidence-profile/stats?chain=$CHAIN_ID" \
+    "http://127.0.0.1:$DEMO_HTTP_BASE/api/v1/plugins/org.yanoproject.x.evidence-profile/stats?chain=$CHAIN_ID" \
     "$stats" || fail "$label role statistics API is unavailable"
   jq -e '.record.type == "approval-stats" and .record.created == 3
     and .record.pending == 0 and .record.approved == 1
@@ -268,7 +268,7 @@ assert_role_api() {
     and (.recordValue | test("^[0-9a-f]+$"))' "$stats" >/dev/null \
     || fail "$label authenticated proposal statistics are incorrect"
   authenticated_get \
-    "http://127.0.0.1:$DEMO_HTTP_BASE/api/v1/plugins/com.bloxbean.cardano.yano.appchain.evidence-profile/actors/recovery-probe?chain=$CHAIN_ID" \
+    "http://127.0.0.1:$DEMO_HTTP_BASE/api/v1/plugins/org.yanoproject.x.evidence-profile/actors/recovery-probe?chain=$CHAIN_ID" \
     "$actor" || fail "$label current actor API is unavailable"
   jq -e '.record.actorId == "recovery-probe" and .record.revision == 3
     and .record.status == "REVOKED"

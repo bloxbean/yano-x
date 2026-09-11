@@ -1,9 +1,9 @@
-ext.runtimePluginBundleId = 'com.bloxbean.cardano.yano.appchain.evidence-profile'
+ext.runtimePluginBundleId = 'org.yanoproject.x.evidence-profile'
 ext.runtimePluginExcludedBundleIds = [
-        'com.bloxbean.cardano.yano.appchain.composite',
-        'com.bloxbean.cardano.yano.appchain.role-workflow',
-        'com.bloxbean.cardano.yano.appchain.stdlib',
-        'com.bloxbean.cardano.yano.appchain.evidence-registry'
+        'org.yanoproject.x.composite',
+        'org.yanoproject.x.role-workflow',
+        'org.yanoproject.x.stdlib',
+        'org.yanoproject.x.evidence-registry'
 ]
 apply from: rootProject.file('gradle/runtime-plugin-bundle.gradle')
 
@@ -42,7 +42,7 @@ tasks.register('roleEvidenceProfileDigest', JavaExec) {
     group = 'application'
     description = 'Prints the exact role-evidence composite profile digest'
     classpath = sourceSets.main.runtimeClasspath
-    mainClass = 'com.bloxbean.cardano.yano.appchain.evidence.profile.RoleEvidenceProfileCli'
+    mainClass = 'org.yanoproject.x.evidence.profile.RoleEvidenceProfileCli'
 }
 
 tasks.register('verifyEvidenceProfileArtifact') {
@@ -58,9 +58,9 @@ tasks.register('verifyEvidenceProfileArtifact') {
             def required = [
                     'META-INF/services/com.bloxbean.cardano.yano.api.appchain.AppStateMachineProvider',
                     'META-INF/services/com.bloxbean.cardano.yano.api.plugin.domain.DomainApiProvider',
-                    'META-INF/yano/plugins/com.bloxbean.cardano.yano.appchain.evidence-profile.json',
-                    'com/bloxbean/cardano/yano/appchain/evidence/profile/EvidenceCompositeStateMachineProvider.class',
-                    'com/bloxbean/cardano/yano/appchain/evidence/profile/RoleEvidenceStateMachineProvider.class'
+                    'META-INF/yano/plugins/org.yanoproject.x.evidence-profile.json',
+                    'org/yanoproject/x/evidence/profile/EvidenceCompositeStateMachineProvider.class',
+                    'org/yanoproject/x/evidence/profile/RoleEvidenceStateMachineProvider.class'
             ]
             if (!entries.containsAll(required)) {
                 throw new GradleException(

@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "id": "org.yanoproject.x.evidence-profile",
+  "version": "${pluginVersion}",
+  "yanoApi": { "min": 3, "max": 3, "minLevel": 4 },
+  "dependencies": [
+    {
+      "id": "org.yanoproject.x.composite",
+      "minVersion": "${pluginVersion}",
+      "maxVersionExclusive": "0.2.0"
+    },
+    {
+      "id": "org.yanoproject.x.stdlib",
+      "minVersion": "${pluginVersion}",
+      "maxVersionExclusive": "0.2.0"
+    },
+    {
+      "id": "org.yanoproject.x.evidence-registry",
+      "minVersion": "${pluginVersion}",
+      "maxVersionExclusive": "0.2.0"
+    },
+    {
+      "id": "org.yanoproject.x.role-workflow",
+      "minVersion": "${pluginVersion}",
+      "maxVersionExclusive": "0.2.0"
+    }
+  ],
+  "contributions": [
+    {
+      "kind": "app-state-machine",
+      "name": "composite",
+      "provider": "org.yanoproject.x.evidence.profile.EvidenceCompositeStateMachineProvider"
+    },
+    {
+      "kind": "app-state-machine",
+      "name": "role-evidence",
+      "provider": "org.yanoproject.x.evidence.profile.RoleEvidenceStateMachineProvider"
+    },
+    {
+      "kind": "domain-api",
+      "name": "org.yanoproject.x.evidence-profile",
+      "provider": "org.yanoproject.x.evidence.profile.RoleEvidenceDomainApiProvider"
+    }
+  ]
+}

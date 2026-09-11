@@ -5,9 +5,9 @@ import com.bloxbean.cardano.client.address.Credential;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.crypto.Blake2bUtil;
 import com.bloxbean.cardano.client.crypto.KeyGenUtil;
-import com.bloxbean.cardano.yano.appchain.eutxo.contracts.EutxoOutpoint;
-import com.bloxbean.cardano.yano.appchain.eutxo.contracts.EutxoProfile;
-import com.bloxbean.cardano.yano.appchain.eutxo.demo.SettlementBootstrapPlan;
+import org.yanoproject.x.eutxo.contracts.EutxoOutpoint;
+import org.yanoproject.x.eutxo.contracts.EutxoProfile;
+import org.yanoproject.x.eutxo.demo.SettlementBootstrapPlan;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
@@ -217,7 +217,7 @@ public final class EutxoSettlementDevnetE2ETestProfile extends DevnetTestProfile
 
     /** The L2 address whose incoming funds FORM withdrawal claims. */
     static String withdrawalL2Address() {
-        return com.bloxbean.cardano.yano.appchain.eutxo.testkit.EutxoTestWallet
+        return org.yanoproject.x.eutxo.testkit.EutxoTestWallet
                 .fromSeed(filled(0x0D, 32)).address();
     }
 

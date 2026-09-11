@@ -1,1 +1,1 @@
-com.bloxbean.cardano.yano.appchain.stdlib.AuthenticatedMapDomainApiProvider
+org.yanoproject.x.stdlib.AuthenticatedMapDomainApiProvider

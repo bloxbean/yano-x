@@ -21,7 +21,7 @@ dependencies {
 }
 
 application {
-    mainClass = 'com.bloxbean.cardano.yano.appchain.showcase.client.ShowcaseClientDemos'
+    mainClass = 'org.yanoproject.x.showcase.client.ShowcaseClientDemos'
 }
 
 shadowJar {

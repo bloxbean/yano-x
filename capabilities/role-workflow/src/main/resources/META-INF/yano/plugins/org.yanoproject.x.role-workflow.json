@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "id": "org.yanoproject.x.role-workflow",
+  "version": "${pluginVersion}",
+  "yanoApi": { "min": 3, "max": 3, "minLevel": 4 },
+  "dependencies": [
+    {
+      "id": "org.yanoproject.x.composite",
+      "minVersion": "${pluginVersion}",
+      "maxVersionExclusive": "0.2.0"
+    }
+  ],
+  "contributions": [
+    {
+      "kind": "app-state-machine",
+      "name": "role-approvals",
+      "provider": "org.yanoproject.x.roles.RoleApprovalsStateMachineProvider"
+    },
+    {
+      "kind": "domain-api",
+      "name": "org.yanoproject.x.role-workflow",
+      "provider": "org.yanoproject.x.roles.RoleApprovalsDomainApiProvider"
+    }
+  ]
+}

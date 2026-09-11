@@ -1,2 +1,2 @@
-com.bloxbean.cardano.yano.appchain.showcase.ShowcaseCompositeStateMachineProvider
-com.bloxbean.cardano.yano.appchain.showcase.DocumentReviewStateMachineProvider
+org.yanoproject.x.showcase.ShowcaseCompositeStateMachineProvider
+org.yanoproject.x.showcase.DocumentReviewStateMachineProvider

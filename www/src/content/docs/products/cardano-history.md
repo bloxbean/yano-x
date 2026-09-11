@@ -42,7 +42,7 @@ and need no redundant secondary snapshot.
 The read API contributes bounded, read-only routes below:
 
 ```text
-/api/v1/plugins/com.bloxbean.cardano.yano.appchain.cardano-history/
+/api/v1/plugins/org.yanoproject.x.cardano-history/
 ```
 
 Every request requires `chain=<chain-id>`. Routes cover status, epochs,

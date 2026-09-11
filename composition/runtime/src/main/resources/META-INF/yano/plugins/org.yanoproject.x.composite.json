@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "org.yanoproject.x.composite",
+  "version": "${pluginVersion}",
+  "yanoApi": { "min": 3, "max": 3, "minLevel": 4 },
+  "dependencies": [],
+  "contributions": [
+    {
+      "kind": "domain-api",
+      "name": "org.yanoproject.x.composite",
+      "provider": "org.yanoproject.x.composite.CompositeGovernanceDomainApiProvider"
+    }
+  ]
+}

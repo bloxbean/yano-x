@@ -21,7 +21,7 @@ tasks.register('printAuthenticatedMapGoldenVectors', JavaExec) {
     description = 'Prints deterministic ADR-025 Phase 0 golden vectors for review/update'
     dependsOn tasks.named('testClasses')
     classpath = sourceSets.test.runtimeClasspath
-    mainClass = 'com.bloxbean.cardano.yano.appchain.stdlib.contracts.AuthenticatedMapGoldenVectorGenerator'
+    mainClass = 'org.yanoproject.x.stdlib.contracts.AuthenticatedMapGoldenVectorGenerator'
 }
 
 tasks.register('printAuthenticatedMapAuthorizationGoldenVectors', JavaExec) {
@@ -29,7 +29,7 @@ tasks.register('printAuthenticatedMapAuthorizationGoldenVectors', JavaExec) {
     description = 'Prints deterministic ADR-025.2 Phase A governance vectors'
     dependsOn tasks.named('testClasses')
     classpath = sourceSets.test.runtimeClasspath
-    mainClass = 'com.bloxbean.cardano.yano.appchain.stdlib.contracts.' +
+    mainClass = 'org.yanoproject.x.stdlib.contracts.' +
             'AuthenticatedMapAuthorizationGoldenVectorGenerator'
 }
 
@@ -63,7 +63,7 @@ tasks.register('benchmarkAuthenticatedMapContracts', JavaExec) {
     description = 'Runs the comparable ADR-025 MPF/classic-JMT contract baseline benchmark'
     dependsOn tasks.named('testClasses')
     classpath = sourceSets.test.runtimeClasspath
-    mainClass = 'com.bloxbean.cardano.yano.appchain.stdlib.contracts.StateCommitmentBaselineBenchmark'
+    mainClass = 'org.yanoproject.x.stdlib.contracts.StateCommitmentBaselineBenchmark'
     def report = layout.buildDirectory.file('reports/adr025/phase0-baseline.json')
     args report.get().asFile.absolutePath,
             providers.gradleProperty('adr025BenchmarkKeys').getOrElse('100000'),
@@ -76,7 +76,7 @@ tasks.register('benchmarkEpochStakeMpf', JavaExec) {
     description = 'Runs the ADR-028 M4 mainnet-scale direct-MPF feasibility workload'
     dependsOn tasks.named('testClasses')
     classpath = sourceSets.test.runtimeClasspath
-    mainClass = 'com.bloxbean.cardano.yano.appchain.stdlib.contracts.EpochStakeMpfBenchmark'
+    mainClass = 'org.yanoproject.x.stdlib.contracts.EpochStakeMpfBenchmark'
     maxHeapSize = '4g'
     def report = layout.buildDirectory.file('reports/adr028/m4-epoch-stake-mpf.json')
     args report.get().asFile.absolutePath,
@@ -90,7 +90,7 @@ tasks.register('benchmarkEpochStakeMpfPruned', JavaExec) {
     description = 'Runs ADR-028 MPF workload and reachability-prunes to its retained final root'
     dependsOn tasks.named('testClasses')
     classpath = sourceSets.test.runtimeClasspath
-    mainClass = 'com.bloxbean.cardano.yano.appchain.stdlib.contracts.EpochStakeMpfBenchmark'
+    mainClass = 'org.yanoproject.x.stdlib.contracts.EpochStakeMpfBenchmark'
     maxHeapSize = '4g'
     def report = layout.buildDirectory.file('reports/adr028/m4-epoch-stake-mpf-pruned.json')
     args report.get().asFile.absolutePath,
@@ -105,7 +105,7 @@ tasks.register('benchmarkEpochStakeJmt', JavaExec) {
     description = 'Runs the ADR-028 mainnet-scale classic-JMT off-chain feasibility workload'
     dependsOn tasks.named('testClasses')
     classpath = sourceSets.test.runtimeClasspath
-    mainClass = 'com.bloxbean.cardano.yano.appchain.stdlib.contracts.EpochStakeJmtBenchmark'
+    mainClass = 'org.yanoproject.x.stdlib.contracts.EpochStakeJmtBenchmark'
     maxHeapSize = '4g'
     def report = layout.buildDirectory.file('reports/adr028/m4-epoch-stake-jmt.json')
     args report.get().asFile.absolutePath,
@@ -127,7 +127,7 @@ tasks.register('benchmarkAuthenticatedMapSchema', JavaExec) {
     description = 'Measures ADR-025.1 canonical encoding and representative schema evaluation'
     dependsOn tasks.named('testClasses')
     classpath = sourceSets.test.runtimeClasspath
-    mainClass = 'com.bloxbean.cardano.yano.appchain.stdlib.contracts.AuthenticatedMapSchemaBenchmark'
+    mainClass = 'org.yanoproject.x.stdlib.contracts.AuthenticatedMapSchemaBenchmark'
     def report = layout.buildDirectory.file('reports/adr025/phase-b-schema.json')
     args report.get().asFile.absolutePath,
             providers.gradleProperty('adr025SchemaBenchmarkIterations').getOrElse('500000')
@@ -139,7 +139,7 @@ tasks.register('benchmarkAuthenticatedMapAuthorizationCrypto', JavaExec) {
     description = 'Measures ADR-025.2 dual-verification work and the frozen block cap'
     dependsOn tasks.named('testClasses')
     classpath = sourceSets.test.runtimeClasspath
-    mainClass = 'com.bloxbean.cardano.yano.appchain.stdlib.contracts.' +
+    mainClass = 'org.yanoproject.x.stdlib.contracts.' +
             'AuthenticatedMapCryptoWorkBenchmark'
     def report = layout.buildDirectory.file('reports/adr0252/phase-a-crypto-work.json')
     args report.get().asFile.absolutePath,

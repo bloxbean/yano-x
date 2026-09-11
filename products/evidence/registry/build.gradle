@@ -36,25 +36,25 @@ tasks.named('shadowJar') {
     reproducibleFileOrder = true
     preserveFileTimestamps = false
     mergeServiceFiles()
-    relocate 'com.bloxbean.cardano.yano.appchain.examples.evidence.EvidenceContract',
-            'com.bloxbean.cardano.yano.appchain.examples.internal.evidencecontracts.v1.EvidenceContract'
-    relocate 'com.bloxbean.cardano.yano.appchain.examples.evidence.command',
-            'com.bloxbean.cardano.yano.appchain.examples.internal.evidencecontracts.v1.command'
-    relocate 'com.bloxbean.cardano.yano.appchain.examples.evidence.event',
-            'com.bloxbean.cardano.yano.appchain.examples.internal.evidencecontracts.v1.event'
-    relocate 'com.bloxbean.cardano.yano.appchain.examples.evidence.query',
-            'com.bloxbean.cardano.yano.appchain.examples.internal.evidencecontracts.v1.query'
-    relocate 'com.bloxbean.cardano.yano.appchain.examples.evidence.state',
-            'com.bloxbean.cardano.yano.appchain.examples.internal.evidencecontracts.v1.state'
-    relocate 'com.bloxbean.cardano.yano.appchain.examples.evidence.internal.EvidenceValidation',
-            'com.bloxbean.cardano.yano.appchain.examples.internal.evidencecontracts.v1.internal.EvidenceValidation'
-    relocate 'com.bloxbean.cardano.yano.appchain.integration',
-            'com.bloxbean.cardano.yano.appchain.examples.evidence.internal.contracts.v1'
+    relocate 'org.yanoproject.x.examples.evidence.EvidenceContract',
+            'org.yanoproject.x.examples.internal.evidencecontracts.v1.EvidenceContract'
+    relocate 'org.yanoproject.x.examples.evidence.command',
+            'org.yanoproject.x.examples.internal.evidencecontracts.v1.command'
+    relocate 'org.yanoproject.x.examples.evidence.event',
+            'org.yanoproject.x.examples.internal.evidencecontracts.v1.event'
+    relocate 'org.yanoproject.x.examples.evidence.query',
+            'org.yanoproject.x.examples.internal.evidencecontracts.v1.query'
+    relocate 'org.yanoproject.x.examples.evidence.state',
+            'org.yanoproject.x.examples.internal.evidencecontracts.v1.state'
+    relocate 'org.yanoproject.x.examples.evidence.internal.EvidenceValidation',
+            'org.yanoproject.x.examples.internal.evidencecontracts.v1.internal.EvidenceValidation'
+    relocate 'org.yanoproject.x.integration',
+            'org.yanoproject.x.examples.evidence.internal.contracts.v1'
     relocate 'co.nstant.in.cbor',
-            'com.bloxbean.cardano.yano.appchain.examples.evidence.internal.contracts.v1deps.cbor'
+            'org.yanoproject.x.examples.evidence.internal.contracts.v1deps.cbor'
     relocate 'org.bouncycastle',
-            'com.bloxbean.cardano.yano.appchain.examples.evidence.internal.contracts.v1deps.bouncycastle'
-    exclude 'com/bloxbean/cardano/yano/appchain/evidence/profile/contracts/**'
+            'org.yanoproject.x.examples.evidence.internal.contracts.v1deps.bouncycastle'
+    exclude 'org/yanoproject/x/evidence/profile/contracts/**'
     exclude 'com/bloxbean/cardano/yano/api/**'
     exclude 'META-INF/services/java.security.Provider'
     exclude 'META-INF/*.SF', 'META-INF/*.RSA', 'META-INF/*.DSA', 'module-info.class'
@@ -65,20 +65,20 @@ def stateMachineService =
 def domainApiService =
         'META-INF/services/com.bloxbean.cardano.yano.api.plugin.domain.DomainApiProvider'
 def pluginManifest =
-        'META-INF/yano/plugins/com.bloxbean.cardano.yano.appchain.evidence-registry.json'
-def unrelocatedContracts = 'com/bloxbean/cardano/yano/appchain/integration/'
+        'META-INF/yano/plugins/org.yanoproject.x.evidence-registry.json'
+def unrelocatedContracts = 'org/yanoproject/x/integration/'
 def relocatedContracts =
-        'com/bloxbean/cardano/yano/appchain/examples/evidence/internal/contracts/v1/'
+        'org/yanoproject/x/examples/evidence/internal/contracts/v1/'
 def relocatedCbor =
-        'com/bloxbean/cardano/yano/appchain/examples/evidence/internal/contracts/v1deps/cbor/'
+        'org/yanoproject/x/examples/evidence/internal/contracts/v1deps/cbor/'
 def originalEvidenceContractRoot =
-        'com/bloxbean/cardano/yano/appchain/examples/evidence/'
+        'org/yanoproject/x/examples/evidence/'
 def relocatedEvidenceContractRoot =
-        'com/bloxbean/cardano/yano/appchain/examples/internal/evidencecontracts/v1/'
+        'org/yanoproject/x/examples/internal/evidencecontracts/v1/'
 def relocatedEvidenceContractCodec =
         relocatedEvidenceContractRoot + 'command/EvidenceCommandCodec.class'
 def profileContracts =
-        'com/bloxbean/cardano/yano/appchain/evidence/profile/contracts/'
+        'org/yanoproject/x/evidence/profile/contracts/'
 def isOriginalEvidenceContract = { String entry ->
     entry == originalEvidenceContractRoot + 'EvidenceContract.class'
             || ['command/', 'event/', 'query/', 'state/'].any {
@@ -103,9 +103,9 @@ def executableRegistryEntries = [
         originalEvidenceContractRoot + 'EvidenceRegistryStateMachineProvider.class'
 ]
 def stateMachineProvider =
-        'com.bloxbean.cardano.yano.appchain.examples.evidence.EvidenceRegistryStateMachineProvider'
+        'org.yanoproject.x.examples.evidence.EvidenceRegistryStateMachineProvider'
 def domainApiProvider =
-        'com.bloxbean.cardano.yano.appchain.examples.evidence.EvidenceRegistryDomainApiProvider'
+        'org.yanoproject.x.examples.evidence.EvidenceRegistryDomainApiProvider'
 def allowedBundleServices = [stateMachineService, domainApiService] as Set
 def forbiddenBundlePrefixes = [
         'com/bloxbean/cardano/yaci/',
@@ -205,7 +205,7 @@ tasks.register('verifyEvidenceRegistryArtifactBoundaries') {
                 || manifest == null || !manifest.contains(stateMachineProvider)
                 || !manifest.contains(domainApiProvider)
                 || manifest.contains(
-                'com.bloxbean.cardano.yano.appchain.examples.internal.evidencecontracts')) {
+                'org.yanoproject.x.examples.internal.evidencecontracts')) {
             throw new GradleException(
                     'Evidence registry host-facing provider names were rewritten by relocation')
         }

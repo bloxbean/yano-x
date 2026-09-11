@@ -53,7 +53,7 @@ the epoch implementation from ADR-028.
 ## 2. Decision summary
 
 Yano will ship an optional plugin bundle with plugin ID
-`com.bloxbean.cardano.yano.appchain.cardano-history`. The bundle contributes one
+`org.yanoproject.x.cardano-history`. The bundle contributes one
 `AppStateMachineProvider`, with state-machine ID `cardano-history`, and one read-only domain API.
 The state machine is a configured composition of ADR-028 stdlib components, not a new epoch-state
 implementation.
@@ -165,7 +165,7 @@ contents, `ServiceLoader` descriptors, and duplicate classes.
 
 The bundle manifest declares exactly:
 
-* plugin ID `com.bloxbean.cardano.yano.appchain.cardano-history`;
+* plugin ID `org.yanoproject.x.cardano-history`;
 * one `state-machine` contribution for `cardano-history`;
 * one `domain-api` contribution for read-only convenience queries; and
 * required foundation compatibility versions.
@@ -379,7 +379,7 @@ proposals/{transaction-id}/{index}
 ```
 
 For example, the host exposes the parameter route as
-`GET /plugins/com.bloxbean.cardano.yano.appchain.cardano-history/epochs/170/parameters?chain=cardano-history-chain`.
+`GET /plugins/org.yanoproject.x.cardano-history/epochs/170/parameters?chain=cardano-history-chain`.
 
 `chain` is mandatory where the host domain API does not already bind it. Collection routes use
 bounded `limit` and opaque cursors. Hash lengths, discriminators, epoch ranges, and response sizes
@@ -492,7 +492,7 @@ The Cardano History plugin contributes its page; `console-ui` contains only the 
 host. When the runtime catalog contains a compatible Cardano History UI contribution and the
 selected chain satisfies its declared capabilities, the shell adds a compact navigation entry and
 mounts it below a host route such as
-`/ui/app-chain/extensions/com.bloxbean.cardano.yano.appchain.cardano-history/cardano-history`.
+`/ui/app-chain/extensions/org.yanoproject.x.cardano-history/cardano-history`.
 The URL is a shell route, not a product page compiled into the console. The general Reference
 Capability Matrix remains on its separate tab.
 

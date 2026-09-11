@@ -43,7 +43,7 @@ java {
 }
 
 application {
-    mainClass = 'com.bloxbean.cardano.yano.appchain.examples.evidence.demo.EvidenceDemoMain'
+    mainClass = 'org.yanoproject.x.examples.evidence.demo.EvidenceDemoMain'
     applicationDefaultJvmArgs = ['--add-modules=jdk.httpserver']
 }
 
@@ -96,9 +96,9 @@ def pluginMetadataPrefixes = [
 ]
 def forbiddenClassPrefixes = [
         'com/bloxbean/cardano/yano/runtime/',
-        'com/bloxbean/cardano/yano/appchain/kafka/',
-        'com/bloxbean/cardano/yano/appchain/ipfs/',
-        'com/bloxbean/cardano/yano/appchain/objectstore/s3/'
+        'org/yanoproject/x/kafka/',
+        'org/yanoproject/x/ipfs/',
+        'org/yanoproject/x/objectstore/s3/'
 ]
 
 tasks.register('verifyDemoRunnerArtifactBoundary') {

@@ -1,1 +1,1 @@
-com.bloxbean.cardano.yano.appchain.eutxo.indexer.jdbc.EutxoJdbcIndexDomainApiProvider
+org.yanoproject.x.eutxo.indexer.jdbc.EutxoJdbcIndexDomainApiProvider

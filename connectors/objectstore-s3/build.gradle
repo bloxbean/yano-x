@@ -74,29 +74,29 @@ tasks.named('shadowJar') {
     mergeServiceFiles()
     // Directory-loaded connector bundles own private copies of the frozen
     // byte-contract implementation. Only CBOR bytes cross the host SPI.
-    relocate 'com.bloxbean.cardano.yano.appchain.integration',
-            'com.bloxbean.cardano.yano.appchain.objectstore.s3.internal.contracts.v1'
+    relocate 'org.yanoproject.x.integration',
+            'org.yanoproject.x.objectstore.s3.internal.contracts.v1'
     relocate 'co.nstant.in.cbor',
-            'com.bloxbean.cardano.yano.appchain.objectstore.s3.internal.contracts.v1deps.cbor'
+            'org.yanoproject.x.objectstore.s3.internal.contracts.v1deps.cbor'
     relocate 'org.bouncycastle',
-            'com.bloxbean.cardano.yano.appchain.objectstore.s3.internal.contracts.v1deps.bouncycastle'
+            'org.yanoproject.x.objectstore.s3.internal.contracts.v1deps.bouncycastle'
     exclude 'com/bloxbean/cardano/yano/api/**'
     exclude 'META-INF/*.SF', 'META-INF/*.RSA', 'META-INF/*.DSA', 'module-info.class'
 }
 
 def unrelocatedContractPrefix =
-        'com/bloxbean/cardano/yano/appchain/integration/'
+        'org/yanoproject/x/integration/'
 def relocatedContractPrefix =
-        'com/bloxbean/cardano/yano/appchain/objectstore/s3/internal/contracts/v1/'
+        'org/yanoproject/x/objectstore/s3/internal/contracts/v1/'
 def relocatedCborPrefix =
-        'com/bloxbean/cardano/yano/appchain/objectstore/s3/internal/contracts/v1deps/cbor/'
+        'org/yanoproject/x/objectstore/s3/internal/contracts/v1deps/cbor/'
 def relocatedBouncyCastlePrefix =
-        'com/bloxbean/cardano/yano/appchain/objectstore/s3/internal/contracts/v1deps/bouncycastle/'
+        'org/yanoproject/x/objectstore/s3/internal/contracts/v1deps/bouncycastle/'
 def effectService =
         'META-INF/services/com.bloxbean.cardano.yano.api.appchain.effects.AppEffectExecutorFactory'
 def pluginManifest =
-        'META-INF/yano/plugins/com.bloxbean.cardano.yano.appchain.objectstore.s3.json'
-def factoryClass = ('com.bloxbean.cardano.yano.appchain.objectstore.s3.effects.'
+        'META-INF/yano/plugins/org.yanoproject.x.objectstore.s3.json'
+def factoryClass = ('org.yanoproject.x.objectstore.s3.effects.'
         + 'ObjectStoreS3EffectExecutorFactory')
 
 tasks.register('verifyObjectStoreS3ArtifactBoundaries') {
@@ -208,7 +208,7 @@ tasks.register('verifyObjectStoreS3ArtifactBoundaries') {
             def contributions = manifest.contributions.collect {
                 "${it.kind}:${it.name}:${it.provider}"
             }
-            if (manifest.id != 'com.bloxbean.cardano.yano.appchain.objectstore.s3'
+            if (manifest.id != 'org.yanoproject.x.objectstore.s3'
                     || contributions != ["effect-executor:objectstore-s3:${factoryClass}"]) {
                 throw new GradleException(
                         "Unexpected object-store manifest in ${artifact.name}")

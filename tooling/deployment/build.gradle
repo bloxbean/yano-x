@@ -21,7 +21,7 @@ sourceSets {
 
 application {
     applicationName = 'yano-x-deploy'
-    mainClass = 'com.bloxbean.cardano.yano.appchain.deployment.YanoDeploymentCli'
+    mainClass = 'org.yanoproject.x.deployment.YanoDeploymentCli'
     applicationDefaultJvmArgs = ['-Xmx512m']
 }
 

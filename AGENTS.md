@@ -39,7 +39,7 @@ published Yano version and its matching ordinary JVM ZIP.
   classes, declare compatible Yano API major/min/max-level constraints, and
   have bounded lifecycle cleanup.
 - Package names intentionally remain under
-  `com.bloxbean.cardano.yano.appchain.*`; repository and artifact names use
+  `org.yanoproject.x.*`; repository and artifact names use
   `yano-x`.
 - The plugin directory property is `yano.plugins.directory`. Do not reintroduce
   `yaci.plugins.directory`.

@@ -1,1 +1,1 @@
-com.bloxbean.cardano.yano.appchain.showcase.ShowcaseOutboxExecutorFactory
+org.yanoproject.x.showcase.ShowcaseOutboxExecutorFactory

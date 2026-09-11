@@ -178,8 +178,8 @@ implementation "com.bloxbean.cardano:yano-x-client:${yanoVersion}"
 The client provides portable contracts and a typed proof-verifying facade:
 
 ```java
-import com.bloxbean.cardano.yano.appchain.client.AppChainClient;
-import com.bloxbean.cardano.yano.appchain.client.StdlibAppChainClient;
+import org.yanoproject.x.client.AppChainClient;
+import org.yanoproject.x.client.StdlibAppChainClient;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;

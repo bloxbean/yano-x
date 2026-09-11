@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "id": "org.yanoproject.x.showcase",
+  "version": "${pluginVersion}",
+  "yanoApi": { "min": 3, "max": 3, "minLevel": 4 },
+  "dependencies": [
+    {
+      "id": "org.yanoproject.x.stdlib",
+      "minVersion": "${pluginVersion}",
+      "maxVersionExclusive": "0.2.0"
+    },
+    {
+      "id": "org.yanoproject.x.role-workflow",
+      "minVersion": "${pluginVersion}",
+      "maxVersionExclusive": "0.2.0"
+    }
+  ],
+  "contributions": [
+    {
+      "kind": "app-state-machine",
+      "name": "showcase-composite",
+      "provider": "org.yanoproject.x.showcase.ShowcaseCompositeStateMachineProvider"
+    },
+    {
+      "kind": "app-state-machine",
+      "name": "document-review",
+      "provider": "org.yanoproject.x.showcase.DocumentReviewStateMachineProvider"
+    },
+    {
+      "kind": "effect-executor",
+      "name": "showcase-outbox",
+      "provider": "org.yanoproject.x.showcase.ShowcaseOutboxExecutorFactory"
+    }
+  ]
+}

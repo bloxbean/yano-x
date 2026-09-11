@@ -1,2 +1,2 @@
-com.bloxbean.cardano.yano.appchain.evidence.profile.EvidenceCompositeStateMachineProvider
-com.bloxbean.cardano.yano.appchain.evidence.profile.RoleEvidenceStateMachineProvider
+org.yanoproject.x.evidence.profile.EvidenceCompositeStateMachineProvider
+org.yanoproject.x.evidence.profile.RoleEvidenceStateMachineProvider

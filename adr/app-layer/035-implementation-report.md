@@ -16,7 +16,7 @@ The v1 contract is frozen before runtime wiring:
 
 | Contract | Frozen value |
 |---|---|
-| Bundle ID | `com.bloxbean.cardano.yano.appchain.cardano-history` |
+| Bundle ID | `org.yanoproject.x.cardano-history` |
 | State machine/application | `cardano-history` |
 | Presets | `params-only-v1`, `params-stake-v1`, `params-governance-v1`, `full-v1` |
 | UI ownership | native Yano console; no plugin-provided frontend assets |

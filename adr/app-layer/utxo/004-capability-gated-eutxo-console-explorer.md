@@ -65,9 +65,9 @@ The EUTxO plugin contributes a read-only domain API beneath its manifested
 bundle namespace:
 
 ```text
-GET /api/v1/plugins/com.bloxbean.cardano.yano.appchain.eutxo/transactions
-GET /api/v1/plugins/com.bloxbean.cardano.yano.appchain.eutxo/transactions/{transactionId}
-GET /api/v1/plugins/com.bloxbean.cardano.yano.appchain.eutxo/messages/{messageId}
+GET /api/v1/plugins/org.yanoproject.x.eutxo/transactions
+GET /api/v1/plugins/org.yanoproject.x.eutxo/transactions/{transactionId}
+GET /api/v1/plugins/org.yanoproject.x.eutxo/messages/{messageId}
 ```
 
 `chain`, `limit`, and `before` are bounded query parameters. Responses include

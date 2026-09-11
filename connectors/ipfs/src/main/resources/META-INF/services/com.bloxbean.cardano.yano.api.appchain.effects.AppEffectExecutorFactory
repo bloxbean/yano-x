@@ -1,1 +1,1 @@
-com.bloxbean.cardano.yano.appchain.ipfs.effects.IpfsEffectExecutorFactory
+org.yanoproject.x.ipfs.effects.IpfsEffectExecutorFactory

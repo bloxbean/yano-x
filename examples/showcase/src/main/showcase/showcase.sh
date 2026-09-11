@@ -14,7 +14,7 @@ API_KEY="${YANO_CLUSTER_API_KEY:-yano-local-cluster-full-key}"
 LIGHT_CHAINS=()
 while IFS= read -r chain_id; do LIGHT_CHAINS+=("$chain_id"); done \
   < <(python3 "$CATALOG_TOOL" "$CATALOG" list)
-AUTHMAP_GENERATOR=com.bloxbean.cardano.yano.appchain.showcase.ShowcaseAuthenticatedMapConfig
+AUTHMAP_GENERATOR=org.yanoproject.x.showcase.ShowcaseAuthenticatedMapConfig
 AUTHMAP_CHAIN_INDEX=8
 AUTHMAP_JMT_CHAIN_INDEX=9
 SETTLEMENT_CHAIN_ID=payment-chain-settlement
@@ -864,7 +864,7 @@ expect_authenticated_map_filtered() {
   [ "$status" = 404 ] || die "$label unexpectedly finalized (HTTP $status)"
   # Prove the exact composite physical key the domain API reports; the
   # map-local state-key is not a leaf on composite chains.
-  state_key="$(curl -fsS "http://127.0.0.1:$((HTTP_BASE + NODE))/api/v1/plugins/com.bloxbean.cardano.yano.appchain.stdlib/authenticated-map/entries/$collection/$(printf '%s' "$key" | od -An -v -tx1 | tr -d ' \n')?chain=authenticated-map-chain" \
+  state_key="$(curl -fsS "http://127.0.0.1:$((HTTP_BASE + NODE))/api/v1/plugins/org.yanoproject.x.stdlib/authenticated-map/entries/$collection/$(printf '%s' "$key" | od -An -v -tx1 | tr -d ' \n')?chain=authenticated-map-chain" \
     | jq -r .proofKey)"
   proof="$(proof_key authenticated-map-chain "$state_key")"
   printf '%s' "$proof" | jq -e \
@@ -932,7 +932,7 @@ snapshot_operation() {
 
 run_cardano_history() {
   [ "$CARDANO_HISTORY_ENABLED" = true ] || die "Cardano History is disabled for this instance"
-  curl -fsS "http://127.0.0.1:$((HTTP_BASE + NODE))/api/v1/plugins/com.bloxbean.cardano.yano.appchain.cardano-history/status?chain=$CARDANO_HISTORY_CHAIN_ID" \
+  curl -fsS "http://127.0.0.1:$((HTTP_BASE + NODE))/api/v1/plugins/org.yanoproject.x.cardano-history/status?chain=$CARDANO_HISTORY_CHAIN_ID" \
     | jq .
 }
 
@@ -1004,7 +1004,7 @@ run_authenticated_map() {
   note "root-attested schema-validated product entry:"
   printf '%s' "$result" | jq '{chainId,stateMachineId,committedHeight,stateRoot,payloadHex}'
 
-  state_key="$(curl -fsS "http://127.0.0.1:$((HTTP_BASE + NODE))/api/v1/plugins/com.bloxbean.cardano.yano.appchain.stdlib/authenticated-map/entries/products/$(printf '%s' "$key" | od -An -v -tx1 | tr -d ' \n')?chain=authenticated-map-chain" \
+  state_key="$(curl -fsS "http://127.0.0.1:$((HTTP_BASE + NODE))/api/v1/plugins/org.yanoproject.x.stdlib/authenticated-map/entries/products/$(printf '%s' "$key" | od -An -v -tx1 | tr -d ' \n')?chain=authenticated-map-chain" \
     | jq -r .proofKey)"
   note "native proof for the product collection entry (composite physical key):"
   proof_key authenticated-map-chain "$state_key" \
@@ -1182,7 +1182,7 @@ print(hashlib.sha256(("yano-showcase-demo-actor:"+sys.argv[1]).encode()).hexdige
 }
 
 authmap_domain() {
-  curl -fsS "http://127.0.0.1:$((HTTP_BASE + NODE))/api/v1/plugins/com.bloxbean.cardano.yano.appchain.stdlib/$1?chain=$AUTHMAP_CHAIN"
+  curl -fsS "http://127.0.0.1:$((HTTP_BASE + NODE))/api/v1/plugins/org.yanoproject.x.stdlib/$1?chain=$AUTHMAP_CHAIN"
 }
 
 authmap_tip_height() {
@@ -1599,7 +1599,7 @@ run_soak_test() {
 
 eutxo_tool() {
   java -cp "$YANO_HOME/yano.jar:$(plugin_file)" \
-    com.bloxbean.cardano.yano.appchain.showcase.ShowcaseEutxoTransactions "$@"
+    org.yanoproject.x.showcase.ShowcaseEutxoTransactions "$@"
 }
 
 eutxo_current_outpoint() {

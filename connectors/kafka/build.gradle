@@ -84,30 +84,30 @@ tasks.named('shadowJar') {
     // A directory-loaded bundle is self-contained and may coexist with
     // independently versioned connector bundles. Keep its contract classes
     // private; only frozen CBOR bytes cross the host SPI boundary.
-    relocate 'com.bloxbean.cardano.yano.appchain.integration',
-            'com.bloxbean.cardano.yano.appchain.kafka.internal.contracts.v1'
+    relocate 'org.yanoproject.x.integration',
+            'org.yanoproject.x.kafka.internal.contracts.v1'
     relocate 'co.nstant.in.cbor',
-            'com.bloxbean.cardano.yano.appchain.kafka.internal.contracts.v1deps.cbor'
+            'org.yanoproject.x.kafka.internal.contracts.v1deps.cbor'
     relocate 'org.bouncycastle',
-            'com.bloxbean.cardano.yano.appchain.kafka.internal.contracts.v1deps.bouncycastle'
+            'org.yanoproject.x.kafka.internal.contracts.v1deps.bouncycastle'
     exclude 'com/bloxbean/cardano/yano/api/**'
     exclude 'META-INF/*.SF', 'META-INF/*.RSA', 'META-INF/*.DSA', 'module-info.class'
 }
 
 def unrelocatedContractPrefix =
-        'com/bloxbean/cardano/yano/appchain/integration/'
+        'org/yanoproject/x/integration/'
 def relocatedContractPrefix =
-        'com/bloxbean/cardano/yano/appchain/kafka/internal/contracts/v1/'
+        'org/yanoproject/x/kafka/internal/contracts/v1/'
 def relocatedCborPrefix =
-        'com/bloxbean/cardano/yano/appchain/kafka/internal/contracts/v1deps/cbor/'
+        'org/yanoproject/x/kafka/internal/contracts/v1deps/cbor/'
 def relocatedBouncyCastlePrefix =
-        'com/bloxbean/cardano/yano/appchain/kafka/internal/contracts/v1deps/bouncycastle/'
+        'org/yanoproject/x/kafka/internal/contracts/v1deps/bouncycastle/'
 def kafkaSinkService =
         'META-INF/services/com.bloxbean.cardano.yano.api.appchain.sink.FinalizedStreamSinkFactory'
 def kafkaEffectService =
         'META-INF/services/com.bloxbean.cardano.yano.api.appchain.effects.AppEffectExecutorFactory'
 def kafkaManifest =
-        'META-INF/yano/plugins/com.bloxbean.cardano.yano.appchain.kafka.json'
+        'META-INF/yano/plugins/org.yanoproject.x.kafka.json'
 
 tasks.register('verifyKafkaArtifactBoundaries') {
     group = 'verification'
@@ -218,9 +218,9 @@ tasks.register('verifyKafkaArtifactBoundaries') {
         }
         def expectedServices = [
                 (kafkaSinkService):
-                        'com.bloxbean.cardano.yano.appchain.kafka.KafkaSinkFactory',
+                        'org.yanoproject.x.kafka.KafkaSinkFactory',
                 (kafkaEffectService):
-                        'com.bloxbean.cardano.yano.appchain.kafka.effects.'
+                        'org.yanoproject.x.kafka.effects.'
                                 + 'KafkaEffectExecutorFactory'
         ]
         [thin, bundle].each { artifact ->
@@ -240,11 +240,11 @@ tasks.register('verifyKafkaArtifactBoundaries') {
             }.toSet()
             def expectedContributions = Set.of(
                     'finalized-sink:kafka:'
-                            + 'com.bloxbean.cardano.yano.appchain.kafka.KafkaSinkFactory',
+                            + 'org.yanoproject.x.kafka.KafkaSinkFactory',
                     'effect-executor:kafka:'
-                            + 'com.bloxbean.cardano.yano.appchain.kafka.effects.'
+                            + 'org.yanoproject.x.kafka.effects.'
                             + 'KafkaEffectExecutorFactory')
-            if (manifest.id != 'com.bloxbean.cardano.yano.appchain.kafka'
+            if (manifest.id != 'org.yanoproject.x.kafka'
                     || manifest.contributions.size() != 2
                     || contributions != expectedContributions) {
                 throw new GradleException(

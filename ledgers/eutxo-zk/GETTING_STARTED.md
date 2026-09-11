@@ -378,7 +378,7 @@ The bounded proof regression is:
 ```bash
 ./gradlew :ledgers:eutxo-zk:zeroj:test \
   --tests \
-  'com.bloxbean.cardano.yano.appchain.eutxo.zk.zeroj.EutxoJubjubBatchCircuitTest.b16MaximumBatchProducesOneRealConstantSizeProof' \
+  'org.yanoproject.x.eutxo.zk.zeroj.EutxoJubjubBatchCircuitTest.b16MaximumBatchProducesOneRealConstantSizeProof' \
   --rerun-tasks
 ```
 
@@ -387,7 +387,7 @@ The proof-bound L1 validator regression is:
 ```bash
 ./gradlew :ledgers:eutxo-zk:onchain:test \
   --tests \
-  'com.bloxbean.cardano.yano.appchain.eutxo.zk.onchain.EutxoValidityRootValidatorTest.rootAdvanceRequiresOneExactProofBoundDataPublication' \
+  'org.yanoproject.x.eutxo.zk.onchain.EutxoValidityRootValidatorTest.rootAdvanceRequiresOneExactProofBoundDataPublication' \
   --rerun-tasks
 ```
 

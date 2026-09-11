@@ -3,7 +3,7 @@ plugins {
 }
 
 ext.runtimePluginBundleId =
-        'com.bloxbean.cardano.yano.appchain.eutxo.zk.indexer'
+        'org.yanoproject.x.eutxo.zk.indexer'
 ext.runtimePluginExcludedBundleIds = []
 apply from: rootProject.file('gradle/runtime-plugin-bundle.gradle')
 

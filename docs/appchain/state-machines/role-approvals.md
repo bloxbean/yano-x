@@ -147,7 +147,7 @@ The generic bundle exposes read-only JSON projections:
 
 ```bash
 BASE=http://127.0.0.1:7070/api/v1
-BUNDLE=com.bloxbean.cardano.yano.appchain.role-workflow
+BUNDLE=org.yanoproject.x.role-workflow
 
 curl -sS \
   -H "X-API-Key: $YANO_APPCHAIN_API_KEY" \

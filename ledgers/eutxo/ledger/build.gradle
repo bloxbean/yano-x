@@ -80,9 +80,9 @@ tasks.register('verifyEutxoLedgerArtifactBoundaries') {
                             + forbidden.toList().sort().take(10))
         }
         def contractClass =
-                'com/bloxbean/cardano/yano/appchain/eutxo/contracts/EutxoRecord.class'
+                'org/yanoproject/x/eutxo/contracts/EutxoRecord.class'
         def providerClass =
-                'com/bloxbean/cardano/yano/appchain/eutxo/ledger/EutxoStateMachineProvider.class'
+                'org/yanoproject/x/eutxo/ledger/EutxoStateMachineProvider.class'
         if (thinEntries.contains(contractClass) || !bundleEntries.contains(contractClass)
                 || !thinEntries.contains(providerClass) || !bundleEntries.contains(providerClass)) {
             throw new GradleException('EUTxO thin/bundle class boundary is incomplete')

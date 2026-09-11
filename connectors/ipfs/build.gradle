@@ -53,30 +53,30 @@ tasks.named('shadowJar') {
     mergeServiceFiles()
     // A directory-loaded bundle owns a private contract copy; only frozen CBOR
     // bytes and the host effect SPI cross its class boundary.
-    relocate 'com.bloxbean.cardano.yano.appchain.integration',
-            'com.bloxbean.cardano.yano.appchain.ipfs.internal.contracts.v1'
+    relocate 'org.yanoproject.x.integration',
+            'org.yanoproject.x.ipfs.internal.contracts.v1'
     relocate 'co.nstant.in.cbor',
-            'com.bloxbean.cardano.yano.appchain.ipfs.internal.contracts.v1deps.cbor'
+            'org.yanoproject.x.ipfs.internal.contracts.v1deps.cbor'
     relocate 'org.bouncycastle',
-            'com.bloxbean.cardano.yano.appchain.ipfs.internal.contracts.v1deps.bouncycastle'
+            'org.yanoproject.x.ipfs.internal.contracts.v1deps.bouncycastle'
     exclude 'com/bloxbean/cardano/yano/api/**'
     exclude 'META-INF/*.SF', 'META-INF/*.RSA', 'META-INF/*.DSA', 'module-info.class'
 }
 
 def unrelocatedContractPrefix =
-        'com/bloxbean/cardano/yano/appchain/integration/'
+        'org/yanoproject/x/integration/'
 def relocatedContractPrefix =
-        'com/bloxbean/cardano/yano/appchain/ipfs/internal/contracts/v1/'
+        'org/yanoproject/x/ipfs/internal/contracts/v1/'
 def relocatedCborPrefix =
-        'com/bloxbean/cardano/yano/appchain/ipfs/internal/contracts/v1deps/cbor/'
+        'org/yanoproject/x/ipfs/internal/contracts/v1deps/cbor/'
 def relocatedBouncyCastlePrefix =
-        'com/bloxbean/cardano/yano/appchain/ipfs/internal/contracts/v1deps/bouncycastle/'
+        'org/yanoproject/x/ipfs/internal/contracts/v1deps/bouncycastle/'
 def forbiddenRuntimePrefixes = ['com/fasterxml/jackson/', 'net/bytebuddy/']
 def effectService =
         'META-INF/services/com.bloxbean.cardano.yano.api.appchain.effects.AppEffectExecutorFactory'
 def pluginManifest =
-        'META-INF/yano/plugins/com.bloxbean.cardano.yano.appchain.ipfs.json'
-def factoryClass = 'com.bloxbean.cardano.yano.appchain.ipfs.effects.IpfsEffectExecutorFactory'
+        'META-INF/yano/plugins/org.yanoproject.x.ipfs.json'
+def factoryClass = 'org.yanoproject.x.ipfs.effects.IpfsEffectExecutorFactory'
 def factoryEntry = factoryClass.replace('.', '/') + '.class'
 
 tasks.register('verifyIpfsArtifactBoundaries') {
@@ -175,7 +175,7 @@ tasks.register('verifyIpfsArtifactBoundaries') {
             def contributions = manifest.contributions.collect {
                 "${it.kind}:${it.name}:${it.provider}"
             }
-            if (manifest.id != 'com.bloxbean.cardano.yano.appchain.ipfs'
+            if (manifest.id != 'org.yanoproject.x.ipfs'
                     || contributions != ["effect-executor:ipfs:${factoryClass}"]) {
                 throw new GradleException(
                         "Unexpected IPFS manifest in ${artifact.name}")

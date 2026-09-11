@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "id": "org.yanoproject.x.evidence-registry",
+  "version": "${pluginVersion}",
+  "yanoApi": { "min": 3, "max": 3, "minLevel": 4 },
+  "dependencies": [],
+  "contributions": [
+    {
+      "kind": "app-state-machine",
+      "name": "evidence-registry",
+      "provider": "org.yanoproject.x.examples.evidence.EvidenceRegistryStateMachineProvider"
+    },
+    {
+      "kind": "domain-api",
+      "name": "org.yanoproject.x.evidence-registry",
+      "provider": "org.yanoproject.x.examples.evidence.EvidenceRegistryDomainApiProvider"
+    }
+  ]
+}

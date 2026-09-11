@@ -35,11 +35,11 @@ public final class PluginBundleLaunchProbe {
     private static final String EVIDENCE_BUNDLE_ID =
             "com.bloxbean.cardano.yano.appchain.evidence-registry";
     private static final String ORIGINAL_EVIDENCE_CONTRACT_PACKAGE =
-            "com.bloxbean.cardano.yano.appchain.examples.evidence.";
+            "org.yanoproject.x.examples.evidence.";
     private static final String RELOCATED_EVIDENCE_CONTRACT_PACKAGE =
             "com.bloxbean.cardano.yano.appchain.examples.internal.evidencecontracts.v1.";
     private static final String RELOCATED_CONNECTOR_PACKAGE =
-            "com.bloxbean.cardano.yano.appchain.examples.evidence.internal.contracts.v1.";
+            "org.yanoproject.x.examples.evidence.internal.contracts.v1.";
     private static final String EVIDENCE_GOLDEN_VECTORS =
             "META-INF/yano/contracts/evidence/v1/golden-vectors.properties";
     private static final Set<String> EXPECTED_BUNDLES = Set.of(
@@ -207,48 +207,48 @@ public final class PluginBundleLaunchProbe {
                         "org.apache.kafka.clients.producer.KafkaProducer",
                         "com.bloxbean.cardano.yano.appchain.kafka");
                 requireOwnedClass(environment,
-                        "com.bloxbean.cardano.yano.appchain.kafka.internal.contracts.v1."
+                        "org.yanoproject.x.kafka.internal.contracts.v1."
                                 + "kafka.KafkaPublishCommandV1",
                         "com.bloxbean.cardano.yano.appchain.kafka");
                 requireOwnedClass(environment,
-                        "com.bloxbean.cardano.yano.appchain.kafka.internal.contracts."
+                        "org.yanoproject.x.kafka.internal.contracts."
                                 + "v1deps.cbor.CborDecoder",
                         "com.bloxbean.cardano.yano.appchain.kafka");
                 requireOwnedClass(environment,
-                        "com.bloxbean.cardano.yano.appchain.kafka.internal.contracts."
+                        "org.yanoproject.x.kafka.internal.contracts."
                                 + "v1deps.bouncycastle.crypto.digests.Blake2bDigest",
                         "com.bloxbean.cardano.yano.appchain.kafka");
                 requireAbsentClass(environment,
-                        "com.bloxbean.cardano.yano.appchain.integration.kafka."
+                        "org.yanoproject.x.integration.kafka."
                                 + "KafkaPublishCommandV1");
                 requireOwnedClass(environment,
                         "software.amazon.awssdk.services.s3.S3Client",
                         "com.bloxbean.cardano.yano.appchain.objectstore.s3");
                 requireOwnedClass(environment,
-                        "com.bloxbean.cardano.yano.appchain.objectstore.s3.internal.contracts."
+                        "org.yanoproject.x.objectstore.s3.internal.contracts."
                                 + "v1.objectstore.ObjectPutCommandV1",
                         "com.bloxbean.cardano.yano.appchain.objectstore.s3");
                 requireOwnedClass(environment,
-                        "com.bloxbean.cardano.yano.appchain.objectstore.s3.internal.contracts."
+                        "org.yanoproject.x.objectstore.s3.internal.contracts."
                                 + "v1deps.cbor.CborDecoder",
                         "com.bloxbean.cardano.yano.appchain.objectstore.s3");
                 requireOwnedClass(environment,
-                        "com.bloxbean.cardano.yano.appchain.objectstore.s3.internal.contracts."
+                        "org.yanoproject.x.objectstore.s3.internal.contracts."
                                 + "v1deps.bouncycastle.crypto.digests.Blake2bDigest",
                         "com.bloxbean.cardano.yano.appchain.objectstore.s3");
                 requireAbsentClass(environment,
-                        "com.bloxbean.cardano.yano.appchain.integration.objectstore."
+                        "org.yanoproject.x.integration.objectstore."
                                 + "ObjectPutCommandV1");
                 requireOwnedClass(environment,
-                        "com.bloxbean.cardano.yano.appchain.ipfs.internal.contracts."
+                        "org.yanoproject.x.ipfs.internal.contracts."
                                 + "v1.ipfs.CanonicalCid",
                         "com.bloxbean.cardano.yano.appchain.ipfs");
                 requireInitializedOwnedClass(environment,
-                        "com.bloxbean.cardano.yano.appchain.ipfs.internal.kubo."
+                        "org.yanoproject.x.ipfs.internal.kubo."
                                 + "KuboIpfsPinClient",
                         "com.bloxbean.cardano.yano.appchain.ipfs");
                 requireAbsentClass(environment,
-                        "com.bloxbean.cardano.yano.appchain.integration.ipfs.CanonicalCid");
+                        "org.yanoproject.x.integration.ipfs.CanonicalCid");
                 requireOwnedClass(environment,
                         RELOCATED_EVIDENCE_CONTRACT_PACKAGE + "EvidenceContract",
                         EVIDENCE_BUNDLE_ID);
@@ -257,15 +257,15 @@ public final class PluginBundleLaunchProbe {
                                 + "internal.EvidenceValidation",
                         EVIDENCE_BUNDLE_ID);
                 requireOwnedClass(environment,
-                        "com.bloxbean.cardano.yano.appchain.examples.evidence.internal.contracts."
+                        "org.yanoproject.x.examples.evidence.internal.contracts."
                                 + "v1.ConnectorTypes",
                         "com.bloxbean.cardano.yano.appchain.evidence-registry");
                 requireOwnedClass(environment,
-                        "com.bloxbean.cardano.yano.appchain.examples.evidence.internal.contracts."
+                        "org.yanoproject.x.examples.evidence.internal.contracts."
                                 + "v1deps.cbor.CborDecoder",
                         "com.bloxbean.cardano.yano.appchain.evidence-registry");
                 requireOwnedClass(environment,
-                        "com.bloxbean.cardano.yano.appchain.examples.evidence.internal.contracts."
+                        "org.yanoproject.x.examples.evidence.internal.contracts."
                                 + "v1deps.bouncycastle.crypto.digests.Blake2bDigest",
                         "com.bloxbean.cardano.yano.appchain.evidence-registry");
                 requireOwnedClass(environment,

@@ -11,9 +11,9 @@ import com.bloxbean.cardano.client.quicktx.Tx;
 import com.bloxbean.cardano.client.function.helper.SignerProviders;
 import com.bloxbean.cardano.client.api.model.Result;
 import com.bloxbean.cardano.client.transaction.spec.Asset;
-import com.bloxbean.cardano.yano.appchain.eutxo.contracts.EutxoOutpoint;
-import com.bloxbean.cardano.yano.appchain.eutxo.contracts.EutxoShardDatum;
-import com.bloxbean.cardano.yano.appchain.eutxo.demo.SettlementBootstrapPlan;
+import org.yanoproject.x.eutxo.contracts.EutxoOutpoint;
+import org.yanoproject.x.eutxo.contracts.EutxoShardDatum;
+import org.yanoproject.x.eutxo.demo.SettlementBootstrapPlan;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
@@ -221,8 +221,8 @@ class EutxoSettlementBootstrapDevnetE2ETest extends BaseE2ETest {
                                 claimData(1, claimTwo, destination, payoutTwo, bounty)));
 
         // --- shard 0 insert plan from the SP-M4 mirror --------------------
-        com.bloxbean.cardano.yano.appchain.eutxo.client.NullifierShardMirror
-                mirror = new com.bloxbean.cardano.yano.appchain.eutxo.client
+        org.yanoproject.x.eutxo.client.NullifierShardMirror
+                mirror = new org.yanoproject.x.eutxo.client
                 .NullifierShardMirror();
         var insertPlan = mirror.planInserts(0, List.of(claimOne, claimTwo));
         List<PlutusData> inserts = new ArrayList<>();
@@ -251,9 +251,9 @@ class EutxoSettlementBootstrapDevnetE2ETest extends BaseE2ETest {
         BigInteger remainder = BigInteger.valueOf(VAULT_GENESIS_LOVELACE)
                 .subtract(payoutOne).subtract(payoutTwo)
                 .subtract(bounty).subtract(bounty);
-        com.bloxbean.cardano.yano.appchain.eutxo.contracts
+        org.yanoproject.x.eutxo.contracts
                 .EutxoBatchSettlementMarker marker =
-                new com.bloxbean.cardano.yano.appchain.eutxo.contracts
+                new org.yanoproject.x.eutxo.contracts
                         .EutxoBatchSettlementMarker(1, List.of(
                         HexFormat.of().formatHex(claimOne),
                         HexFormat.of().formatHex(claimTwo)));
@@ -397,8 +397,8 @@ class EutxoSettlementBootstrapDevnetE2ETest extends BaseE2ETest {
                         com.bloxbean.cardano.client.plutus.spec.ListPlutusData
                                 .of(exits.toArray(new PlutusData[0])));
 
-        com.bloxbean.cardano.yano.appchain.eutxo.client.NullifierShardMirror
-                mirror = new com.bloxbean.cardano.yano.appchain.eutxo.client
+        org.yanoproject.x.eutxo.client.NullifierShardMirror
+                mirror = new org.yanoproject.x.eutxo.client
                 .NullifierShardMirror();
         var insertPlan = mirror.planInserts(0, List.of(claimOne, claimTwo));
         List<PlutusData> inserts = new ArrayList<>();
@@ -425,9 +425,9 @@ class EutxoSettlementBootstrapDevnetE2ETest extends BaseE2ETest {
         BigInteger remainder = BigInteger.valueOf(VAULT_GENESIS_LOVELACE)
                 .subtract(payoutOne).subtract(payoutTwo)
                 .subtract(bounty).subtract(bounty);
-        com.bloxbean.cardano.yano.appchain.eutxo.contracts
+        org.yanoproject.x.eutxo.contracts
                 .EutxoBatchSettlementMarker marker =
-                new com.bloxbean.cardano.yano.appchain.eutxo.contracts
+                new org.yanoproject.x.eutxo.contracts
                         .EutxoBatchSettlementMarker(1, List.of(
                         HexFormat.of().formatHex(claimOne),
                         HexFormat.of().formatHex(claimTwo)));

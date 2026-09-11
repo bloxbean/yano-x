@@ -99,7 +99,7 @@ build-time composition contract.
 
 Two invariants surprise almost everyone, including coding agents:
 
-- **Java packages stay `com.bloxbean.cardano.yano.appchain.*`** while
+- **Java packages stay `org.yanoproject.x.*`** while
   repository and artifact names are `yano-x`. The repository split deliberately
   did not rename the app-chain technical domain.
 - **The plugin directory property is `yano.plugins.directory`.** The older

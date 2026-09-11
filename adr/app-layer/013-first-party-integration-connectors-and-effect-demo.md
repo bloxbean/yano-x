@@ -146,8 +146,8 @@ at-least-once delivery keyed by `(chainId, height)`.
 Its current technical identity is already technology-wide rather than
 sink-specific:
 
-- Java package: `com.bloxbean.cardano.yano.appchain.kafka`;
-- plugin id: `com.bloxbean.cardano.yano.appchain.kafka`;
+- Java package: `org.yanoproject.x.kafka`;
+- plugin id: `org.yanoproject.x.kafka`;
 - sink scheme: `kafka`; and
 - configuration: `yano.app-chain.sinks.kafka.*`.
 
@@ -234,8 +234,8 @@ vendor SDKs remain outside the connector.
 Gradle project :appchain-kafka
 artifact       yano-appchain-kafka-<version>.jar
 bundle         yano-appchain-kafka-<version>-bundle.jar
-plugin id      com.bloxbean.cardano.yano.appchain.kafka  (unchanged)
-Java package   com.bloxbean.cardano.yano.appchain.kafka  (unchanged)
+plugin id      org.yanoproject.x.kafka  (unchanged)
+Java package   org.yanoproject.x.kafka  (unchanged)
 sink scheme    kafka                                     (unchanged)
 sink config    yano.app-chain.sinks.kafka.*              (unchanged)
 ```
@@ -770,7 +770,7 @@ through an incorporated result or its deterministic chain-wide expiry.
 The renamed bundle contains:
 
 ```text
-com.bloxbean.cardano.yano.appchain.kafka
+org.yanoproject.x.kafka
 ├── sink/       finalized-block export
 ├── effects/    kafka.publish executor and codec
 ├── config/     strict Kafka property and alias parsing

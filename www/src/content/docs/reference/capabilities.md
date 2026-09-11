@@ -180,20 +180,20 @@ in the distribution's checksummed bundle list.
 | Artifact | Availability | Plugin bundle id | Runtimes | Native posture |
 |---|---|---|---|---|
 | `yano-runtime` | `BUNDLED` | `builtin:yano-runtime` | `jvm`, `native` | `bundled` |
-| `yano-x-stdlib` | `BUNDLED` | `com.bloxbean.cardano.yano.appchain.stdlib` | `jvm` | `unsupported` |
-| `yano-x-evidence-registry` | `BUNDLED` | `com.bloxbean.cardano.yano.appchain.evidence-registry` | `jvm` | `unsupported` |
+| `yano-x-stdlib` | `BUNDLED` | `org.yanoproject.x.stdlib` | `jvm` | `unsupported` |
+| `yano-x-evidence-registry` | `BUNDLED` | `org.yanoproject.x.evidence-registry` | `jvm` | `unsupported` |
 | `yano-x-composite` | `BUNDLED` | `library:composition:runtime` | `jvm` | `unsupported` |
-| `yano-x-role-workflow` | `BUNDLED` | `com.bloxbean.cardano.yano.appchain.role-workflow` | `jvm` | `unsupported` |
-| `yano-x-evidence-profile` | `BUNDLED` | `com.bloxbean.cardano.yano.appchain.evidence-profile` | `jvm` | `unsupported` |
-| `yano-x-kafka` | `FIRST_PARTY_OPTIONAL` | `com.bloxbean.cardano.yano.appchain.kafka` | `jvm` | `unsupported` |
-| `yano-x-objectstore-s3` | `FIRST_PARTY_OPTIONAL` | `com.bloxbean.cardano.yano.appchain.objectstore.s3` | `jvm` | `unsupported` |
-| `yano-x-ipfs` | `FIRST_PARTY_OPTIONAL` | `com.bloxbean.cardano.yano.appchain.ipfs` | `jvm` | `unsupported` |
-| `yano-x-effects-cardano` | `FIRST_PARTY_OPTIONAL` | `com.bloxbean.cardano.yano.appchain.effects.cardano` | `jvm` | `unsupported` |
-| `yano-x-zk` | `EXPERIMENTAL` | `com.bloxbean.cardano.yano.appchain.zk` | `jvm` | `unsupported` |
-| `yano-x-eutxo-ledger` | `BUNDLED` | `com.bloxbean.cardano.yano.appchain.eutxo` | `jvm` | `unsupported` |
-| `yano-x-eutxo-indexer-core` | `BUNDLED` | `com.bloxbean.cardano.yano.appchain.eutxo.indexer` | `jvm` | `unsupported` |
+| `yano-x-role-workflow` | `BUNDLED` | `org.yanoproject.x.role-workflow` | `jvm` | `unsupported` |
+| `yano-x-evidence-profile` | `BUNDLED` | `org.yanoproject.x.evidence-profile` | `jvm` | `unsupported` |
+| `yano-x-kafka` | `FIRST_PARTY_OPTIONAL` | `org.yanoproject.x.kafka` | `jvm` | `unsupported` |
+| `yano-x-objectstore-s3` | `FIRST_PARTY_OPTIONAL` | `org.yanoproject.x.objectstore.s3` | `jvm` | `unsupported` |
+| `yano-x-ipfs` | `FIRST_PARTY_OPTIONAL` | `org.yanoproject.x.ipfs` | `jvm` | `unsupported` |
+| `yano-x-effects-cardano` | `FIRST_PARTY_OPTIONAL` | `org.yanoproject.x.effects.cardano` | `jvm` | `unsupported` |
+| `yano-x-zk` | `EXPERIMENTAL` | `org.yanoproject.x.zk` | `jvm` | `unsupported` |
+| `yano-x-eutxo-ledger` | `BUNDLED` | `org.yanoproject.x.eutxo` | `jvm` | `unsupported` |
+| `yano-x-eutxo-indexer-core` | `BUNDLED` | `org.yanoproject.x.eutxo.indexer` | `jvm` | `unsupported` |
 | `yano-x-eutxo-indexer-jdbc` | `BUNDLED` | `library:ledgers:eutxo:indexer-jdbc` | `jvm` | `unsupported` |
-| `yano-x-eutxo-bridge-cardano` | `BUNDLED` | `com.bloxbean.cardano.yano.appchain.eutxo.bridge.cardano` | `jvm` | `unsupported` |
+| `yano-x-eutxo-bridge-cardano` | `BUNDLED` | `org.yanoproject.x.eutxo.bridge.cardano` | `jvm` | `unsupported` |
 | `yano-x-eutxo-zk-zeroj` | `BUNDLED` | `library:ledgers:eutxo-zk:zeroj` | `jvm` | `unsupported` |
 | `yano-x-eutxo-zk-runtime` | `BUNDLED` | `library:ledgers:eutxo-zk:runtime` | `jvm` | `unsupported` |
 | `yano-x-eutxo-zk-lifecycle` | `BUNDLED` | `library:ledgers:eutxo-zk:lifecycle` | `jvm` | `unsupported` |

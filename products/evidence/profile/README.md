@@ -47,7 +47,7 @@ role artifact.
 The bundle-owned read-only JSON API is served below:
 
 ```text
-/api/v1/plugins/com.bloxbean.cardano.yano.appchain.evidence-profile/
+/api/v1/plugins/org.yanoproject.x.evidence-profile/
 ```
 
 It exposes `organizations/{id}`, `actors/{id}`, `policies/{id}`,

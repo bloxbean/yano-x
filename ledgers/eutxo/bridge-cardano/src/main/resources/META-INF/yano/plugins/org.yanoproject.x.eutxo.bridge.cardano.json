@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "id": "org.yanoproject.x.eutxo.bridge.cardano",
+  "version": "${pluginVersion}",
+  "yanoApi": { "min": 3, "max": 3, "minLevel": 4 },
+  "dependencies": [
+    {
+      "id": "org.yanoproject.x.eutxo",
+      "minVersion": "${pluginVersion}",
+      "maxVersionExclusive": "0.2.0"
+    }
+  ],
+  "contributions": [
+    {
+      "kind": "l1-observer",
+      "name": "eutxo-vault-deposit-v1",
+      "provider": "org.yanoproject.x.eutxo.bridge.cardano.CardanoBridgeObserverProvider"
+    },
+    {
+      "kind": "l1-observer",
+      "name": "eutxo-withdrawal-confirmation-v1",
+      "provider": "org.yanoproject.x.eutxo.bridge.cardano.CardanoWithdrawalConfirmationObserverProvider"
+    },
+    {
+      "kind": "l1-observer",
+      "name": "eutxo-batch-withdrawal-confirmation-v1",
+      "provider": "org.yanoproject.x.eutxo.bridge.cardano.CardanoBatchWithdrawalConfirmationObserverProvider"
+    },
+    {
+      "kind": "effect-executor",
+      "name": "eutxo-settlement",
+      "provider": "org.yanoproject.x.eutxo.bridge.cardano.EutxoSettlementExecutorFactory"
+    },
+    {
+      "kind": "domain-api",
+      "name": "org.yanoproject.x.eutxo.bridge.cardano",
+      "provider": "org.yanoproject.x.eutxo.bridge.cardano.EutxoBridgeDomainApiProvider"
+    }
+  ]
+}

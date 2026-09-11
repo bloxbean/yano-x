@@ -21,7 +21,7 @@ def forbiddenPluginPrefixes = [
         'META-INF/yano/plugins/',
         'META-INF/services/'
 ]
-def forbiddenEvidencePrefix = 'com/bloxbean/cardano/yano/appchain/evidence/'
+def forbiddenEvidencePrefix = 'org/yanoproject/x/evidence/'
 
 tasks.register('verifyCompositeContractArtifact') {
     group = 'verification'
@@ -45,8 +45,8 @@ tasks.register('verifyCompositeContractArtifact') {
             }
             if (entries.any { entry ->
                 entry.startsWith('com/bloxbean/cardano/yano/api/')
-                        || entry.startsWith('com/bloxbean/cardano/yano/appchain/composite/Composite')
-                        || entry.startsWith('com/bloxbean/cardano/yano/appchain/composite/stock/')
+                        || entry.startsWith('org/yanoproject/x/composite/Composite')
+                        || entry.startsWith('org/yanoproject/x/composite/stock/')
             }) {
                 throw new GradleException(
                         'Composite contracts must not embed framework or plugin implementation classes')

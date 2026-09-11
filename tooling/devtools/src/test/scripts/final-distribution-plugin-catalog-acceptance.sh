@@ -31,10 +31,10 @@ jq -e -n --slurpfile manifest "$manifest" --slurpfile catalog "$catalog" '
   and ($expected | length) == 17
   and ($manifest[0].bundles | map(select(.installMode == "optional")) | length) == 1
   and ([
-      "com.bloxbean.cardano.yano.appchain.stdlib",
-      "com.bloxbean.cardano.yano.appchain.kafka",
-      "com.bloxbean.cardano.yano.appchain.evidence-profile",
-      "com.bloxbean.cardano.yano.appchain.eutxo"
+      "org.yanoproject.x.stdlib",
+      "org.yanoproject.x.kafka",
+      "org.yanoproject.x.evidence-profile",
+      "org.yanoproject.x.eutxo"
     ] - ($actual | map(.id)) | length) == 0
 ' >/dev/null
 

@@ -43,7 +43,7 @@ supported only for a node with one EUTxO chain. SQLite files must be on a local
 filesystem, not NFS or another network filesystem.
 
 Set
-`yano.plugins.bundle."com.bloxbean.cardano.yano.appchain.eutxo.indexer".enabled=false`
+`yano.plugins.bundle."org.yanoproject.x.eutxo.indexer".enabled=false`
 to disable the derived view.
 The chain continues to validate and finalize normally.
 
@@ -52,14 +52,14 @@ The chain continues to validate and finalize normally.
 The manifested plugin base is:
 
 ```text
-/api/v1/plugins/com.bloxbean.cardano.yano.appchain.eutxo.indexer/index/v1
+/api/v1/plugins/org.yanoproject.x.eutxo.indexer/index/v1
 ```
 
 Examples for a chain named `payments-eutxo`:
 
 ```bash
 BASE=http://127.0.0.1:7070
-INDEX="$BASE/api/v1/plugins/com.bloxbean.cardano.yano.appchain.eutxo.indexer/index/v1"
+INDEX="$BASE/api/v1/plugins/org.yanoproject.x.eutxo.indexer/index/v1"
 
 curl "$INDEX/status?chain=payments-eutxo"
 curl "$INDEX/transactions?chain=payments-eutxo&limit=25"

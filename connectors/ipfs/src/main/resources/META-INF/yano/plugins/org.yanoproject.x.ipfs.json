@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "id": "org.yanoproject.x.ipfs",
+  "version": "${pluginVersion}",
+  "yanoApi": { "min": 3, "max": 3, "minLevel": 4 },
+  "dependencies": [],
+  "contributions": [
+    { "kind": "effect-executor", "name": "ipfs", "provider": "org.yanoproject.x.ipfs.effects.IpfsEffectExecutorFactory" }
+  ]
+}

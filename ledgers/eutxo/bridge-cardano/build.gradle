@@ -85,9 +85,9 @@ tasks.register('verifyEutxoBridgeArtifactBoundaries') {
                             + forbidden.toList().sort().take(10))
         }
         def contractClass =
-                'com/bloxbean/cardano/yano/appchain/eutxo/contracts/EutxoDepositClaim.class'
+                'org/yanoproject/x/eutxo/contracts/EutxoDepositClaim.class'
         def providerClass =
-                'com/bloxbean/cardano/yano/appchain/eutxo/bridge/cardano/CardanoBridgeObserverProvider.class'
+                'org/yanoproject/x/eutxo/bridge/cardano/CardanoBridgeObserverProvider.class'
         if (thinEntries.contains(contractClass) || !bundleEntries.contains(contractClass)
                 || !thinEntries.contains(providerClass) || !bundleEntries.contains(providerClass)) {
             throw new GradleException('EUTxO bridge thin/bundle class boundary is incomplete')

@@ -1,25 +1,25 @@
 {
   "schemaVersion": 1,
   "defaultBundleIds": [
-    "com.bloxbean.cardano.yano.appchain.authenticated-map-validators",
-    "com.bloxbean.cardano.yano.appchain.cardano-history",
-    "com.bloxbean.cardano.yano.appchain.composite",
-    "com.bloxbean.cardano.yano.appchain.effects.cardano",
-    "com.bloxbean.cardano.yano.appchain.eutxo",
-    "com.bloxbean.cardano.yano.appchain.eutxo.bridge.cardano",
-    "com.bloxbean.cardano.yano.appchain.eutxo.indexer",
-    "com.bloxbean.cardano.yano.appchain.eutxo.zk.indexer",
-    "com.bloxbean.cardano.yano.appchain.evidence-profile",
-    "com.bloxbean.cardano.yano.appchain.evidence-registry",
-    "com.bloxbean.cardano.yano.appchain.ipfs",
-    "com.bloxbean.cardano.yano.appchain.kafka",
-    "com.bloxbean.cardano.yano.appchain.objectstore.s3",
-    "com.bloxbean.cardano.yano.appchain.role-workflow",
-    "com.bloxbean.cardano.yano.appchain.showcase",
-    "com.bloxbean.cardano.yano.appchain.stdlib",
-    "com.bloxbean.cardano.yano.appchain.zk"
+    "org.yanoproject.x.authenticated-map-validators",
+    "org.yanoproject.x.cardano-history",
+    "org.yanoproject.x.composite",
+    "org.yanoproject.x.effects.cardano",
+    "org.yanoproject.x.eutxo",
+    "org.yanoproject.x.eutxo.bridge.cardano",
+    "org.yanoproject.x.eutxo.indexer",
+    "org.yanoproject.x.eutxo.zk.indexer",
+    "org.yanoproject.x.evidence-profile",
+    "org.yanoproject.x.evidence-registry",
+    "org.yanoproject.x.ipfs",
+    "org.yanoproject.x.kafka",
+    "org.yanoproject.x.objectstore.s3",
+    "org.yanoproject.x.role-workflow",
+    "org.yanoproject.x.showcase",
+    "org.yanoproject.x.stdlib",
+    "org.yanoproject.x.zk"
   ],
   "optionalBundleIds": [
-    "com.bloxbean.cardano.yano.appchain.eutxo.zk.runtime"
+    "org.yanoproject.x.eutxo.zk.runtime"
   ]
 }

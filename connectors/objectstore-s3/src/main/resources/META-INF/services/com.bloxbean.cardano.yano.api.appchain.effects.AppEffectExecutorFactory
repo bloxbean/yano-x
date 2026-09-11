@@ -1,1 +1,1 @@
-com.bloxbean.cardano.yano.appchain.objectstore.s3.effects.ObjectStoreS3EffectExecutorFactory
+org.yanoproject.x.objectstore.s3.effects.ObjectStoreS3EffectExecutorFactory

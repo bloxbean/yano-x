@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "id": "org.yanoproject.x.zk",
+  "version": "${pluginVersion}",
+  "yanoApi": { "min": 3, "max": 3, "minLevel": 4 },
+  "dependencies": [],
+  "contributions": [
+    { "kind": "app-state-machine", "name": "credential-registry", "provider": "org.yanoproject.x.zk.CredentialRegistryProvider" },
+    { "kind": "app-state-machine", "name": "zk-gate", "provider": "org.yanoproject.x.zk.ZkGateProvider" },
+    { "kind": "app-state-machine", "name": "zk-membership", "provider": "org.yanoproject.x.zk.ZkMembershipProvider" }
+  ]
+}

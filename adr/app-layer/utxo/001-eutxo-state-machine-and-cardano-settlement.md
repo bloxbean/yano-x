@@ -940,10 +940,10 @@ the user-facing capability or module.
 The bundle IDs should use stable reverse-DNS identities such as:
 
 ```text
-com.bloxbean.cardano.yano.appchain.eutxo
-com.bloxbean.cardano.yano.appchain.eutxo.bridge.cardano
-com.bloxbean.cardano.yano.appchain.eutxo.zk.zeroj
-com.bloxbean.cardano.yano.appchain.eutxo.zk.prover
+org.yanoproject.x.eutxo
+org.yanoproject.x.eutxo.bridge.cardano
+org.yanoproject.x.eutxo.zk.zeroj
+org.yanoproject.x.eutxo.zk.prover
 ```
 
 The modules may evolve independently, but the release index and plugin

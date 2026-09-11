@@ -7,7 +7,7 @@
       "directory": "state-machines/stdlib",
       "artifactId": "yano-x-stdlib",
       "publicationType": "runtime-plugin",
-      "pluginBundleId": "com.bloxbean.cardano.yano.appchain.stdlib",
+      "pluginBundleId": "org.yanoproject.x.stdlib",
       "bundleArtifactId": "yano-x-stdlib-bundle"
     },
     {
@@ -23,7 +23,7 @@
       "directory": "capabilities/authenticated-map-validators",
       "artifactId": "yano-x-authenticated-map-validators",
       "publicationType": "runtime-plugin",
-      "pluginBundleId": "com.bloxbean.cardano.yano.appchain.authenticated-map-validators",
+      "pluginBundleId": "org.yanoproject.x.authenticated-map-validators",
       "bundleArtifactId": "yano-x-authenticated-map-validators-bundle",
       "publishToCentral": false
     },
@@ -72,7 +72,7 @@
       "directory": "composition/runtime",
       "artifactId": "yano-x-composite",
       "publicationType": "runtime-plugin",
-      "pluginBundleId": "com.bloxbean.cardano.yano.appchain.composite",
+      "pluginBundleId": "org.yanoproject.x.composite",
       "bundleArtifactId": "yano-x-composite-bundle"
     },
     {
@@ -88,7 +88,7 @@
       "directory": "capabilities/role-workflow",
       "artifactId": "yano-x-role-workflow",
       "publicationType": "runtime-plugin",
-      "pluginBundleId": "com.bloxbean.cardano.yano.appchain.role-workflow",
+      "pluginBundleId": "org.yanoproject.x.role-workflow",
       "bundleArtifactId": "yano-x-role-workflow-bundle"
     },
     {
@@ -153,7 +153,7 @@
       "directory": "products/evidence/registry",
       "artifactId": "yano-x-evidence-registry",
       "publicationType": "runtime-plugin",
-      "pluginBundleId": "com.bloxbean.cardano.yano.appchain.evidence-registry",
+      "pluginBundleId": "org.yanoproject.x.evidence-registry",
       "bundleArtifactId": "yano-x-evidence-registry-bundle",
       "publishToCentral": false
     },
@@ -171,7 +171,7 @@
       "directory": "products/evidence/profile",
       "artifactId": "yano-x-evidence-profile",
       "publicationType": "runtime-plugin",
-      "pluginBundleId": "com.bloxbean.cardano.yano.appchain.evidence-profile",
+      "pluginBundleId": "org.yanoproject.x.evidence-profile",
       "bundleArtifactId": "yano-x-evidence-profile-bundle",
       "publishToCentral": false
     },
@@ -180,7 +180,7 @@
       "directory": "products/cardano-history/runtime",
       "artifactId": "yano-x-cardano-history",
       "publicationType": "runtime-plugin",
-      "pluginBundleId": "com.bloxbean.cardano.yano.appchain.cardano-history",
+      "pluginBundleId": "org.yanoproject.x.cardano-history",
       "bundleArtifactId": "yano-x-cardano-history-bundle",
       "publishToCentral": false
     },
@@ -255,7 +255,7 @@
       "directory": "examples/showcase",
       "artifactId": "yano-x-showcase",
       "publicationType": "runtime-plugin",
-      "pluginBundleId": "com.bloxbean.cardano.yano.appchain.showcase",
+      "pluginBundleId": "org.yanoproject.x.showcase",
       "bundleArtifactId": "yano-x-showcase-bundle",
       "publishToCentral": false
     },
@@ -272,7 +272,7 @@
       "directory": "connectors/kafka",
       "artifactId": "yano-x-kafka",
       "publicationType": "runtime-plugin",
-      "pluginBundleId": "com.bloxbean.cardano.yano.appchain.kafka",
+      "pluginBundleId": "org.yanoproject.x.kafka",
       "bundleArtifactId": "yano-x-kafka-bundle",
       "publishToCentral": false
     },
@@ -281,7 +281,7 @@
       "directory": "connectors/objectstore-s3",
       "artifactId": "yano-x-objectstore-s3",
       "publicationType": "runtime-plugin",
-      "pluginBundleId": "com.bloxbean.cardano.yano.appchain.objectstore.s3",
+      "pluginBundleId": "org.yanoproject.x.objectstore.s3",
       "bundleArtifactId": "yano-x-objectstore-s3-bundle",
       "publishToCentral": false
     },
@@ -290,7 +290,7 @@
       "directory": "connectors/ipfs",
       "artifactId": "yano-x-ipfs",
       "publicationType": "runtime-plugin",
-      "pluginBundleId": "com.bloxbean.cardano.yano.appchain.ipfs",
+      "pluginBundleId": "org.yanoproject.x.ipfs",
       "bundleArtifactId": "yano-x-ipfs-bundle",
       "publishToCentral": false
     },
@@ -299,7 +299,7 @@
       "directory": "connectors/effects-cardano",
       "artifactId": "yano-x-effects-cardano",
       "publicationType": "runtime-plugin",
-      "pluginBundleId": "com.bloxbean.cardano.yano.appchain.effects.cardano",
+      "pluginBundleId": "org.yanoproject.x.effects.cardano",
       "bundleArtifactId": "yano-x-effects-cardano-bundle",
       "publishToCentral": false
     },
@@ -308,7 +308,7 @@
       "directory": "state-machines/zk",
       "artifactId": "yano-x-zk",
       "publicationType": "runtime-plugin",
-      "pluginBundleId": "com.bloxbean.cardano.yano.appchain.zk",
+      "pluginBundleId": "org.yanoproject.x.zk",
       "bundleArtifactId": "yano-x-zk-bundle",
       "publishToCentral": false
     },
@@ -460,7 +460,7 @@
       "directory": "ledgers/eutxo/ledger",
       "artifactId": "yano-x-eutxo-ledger",
       "publicationType": "runtime-plugin",
-      "pluginBundleId": "com.bloxbean.cardano.yano.appchain.eutxo",
+      "pluginBundleId": "org.yanoproject.x.eutxo",
       "bundleArtifactId": "yano-x-eutxo-ledger-bundle",
       "publishToCentral": false
     },
@@ -493,7 +493,7 @@
       "directory": "ledgers/eutxo/bridge-cardano",
       "artifactId": "yano-x-eutxo-bridge-cardano",
       "publicationType": "runtime-plugin",
-      "pluginBundleId": "com.bloxbean.cardano.yano.appchain.eutxo.bridge.cardano",
+      "pluginBundleId": "org.yanoproject.x.eutxo.bridge.cardano",
       "bundleArtifactId": "yano-x-eutxo-bridge-cardano-bundle",
       "publishToCentral": false
     },
@@ -519,7 +519,7 @@
       "directory": "ledgers/eutxo/indexer-jdbc",
       "artifactId": "yano-x-eutxo-indexer-jdbc",
       "publicationType": "runtime-plugin",
-      "pluginBundleId": "com.bloxbean.cardano.yano.appchain.eutxo.indexer",
+      "pluginBundleId": "org.yanoproject.x.eutxo.indexer",
       "bundleArtifactId": "yano-x-eutxo-indexer-jdbc-bundle",
       "publishToCentral": false
     },
@@ -582,7 +582,7 @@
       "directory": "ledgers/eutxo-zk/runtime",
       "artifactId": "yano-x-eutxo-zk-runtime",
       "publicationType": "runtime-plugin",
-      "pluginBundleId": "com.bloxbean.cardano.yano.appchain.eutxo.zk.runtime",
+      "pluginBundleId": "org.yanoproject.x.eutxo.zk.runtime",
       "bundleArtifactId": "yano-x-eutxo-zk-runtime-bundle",
       "publishToCentral": false
     },
@@ -600,7 +600,7 @@
       "directory": "ledgers/eutxo-zk/indexer",
       "artifactId": "yano-x-eutxo-zk-indexer",
       "publicationType": "runtime-plugin",
-      "pluginBundleId": "com.bloxbean.cardano.yano.appchain.eutxo.zk.indexer",
+      "pluginBundleId": "org.yanoproject.x.eutxo.zk.indexer",
       "bundleArtifactId": "yano-x-eutxo-zk-indexer-bundle",
       "publishToCentral": false
     },

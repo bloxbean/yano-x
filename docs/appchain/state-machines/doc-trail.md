@@ -152,8 +152,8 @@ implementation "com.bloxbean.cardano:yano-x-client:${yanoVersion}"
 Hash the exact application bytes, encode the stock command, and submit it:
 
 ```java
-import com.bloxbean.cardano.yano.appchain.client.AppChainClient;
-import com.bloxbean.cardano.yano.appchain.client.StdlibAppChainClient;
+import org.yanoproject.x.client.AppChainClient;
+import org.yanoproject.x.client.StdlibAppChainClient;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;

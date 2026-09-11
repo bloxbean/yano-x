@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "id": "org.yanoproject.x.eutxo.indexer",
+  "version": "${pluginVersion}",
+  "yanoApi": { "min": 3, "max": 3, "minLevel": 4 },
+  "dependencies": [],
+  "contributions": [
+    {
+      "kind": "domain-api",
+      "name": "org.yanoproject.x.eutxo.indexer",
+      "provider": "org.yanoproject.x.eutxo.indexer.jdbc.EutxoJdbcIndexDomainApiProvider"
+    },
+    {
+      "kind": "local-read-model",
+      "name": "org.yanoproject.x.eutxo.indexer",
+      "provider": "org.yanoproject.x.eutxo.indexer.jdbc.EutxoLifecycleIndexerProvider"
+    },
+    {
+      "kind": "health",
+      "name": "org.yanoproject.x.eutxo.indexer",
+      "provider": "org.yanoproject.x.eutxo.indexer.jdbc.EutxoIndexerHealthProvider"
+    },
+    {
+      "kind": "metrics",
+      "name": "org.yanoproject.x.eutxo.indexer",
+      "provider": "org.yanoproject.x.eutxo.indexer.jdbc.EutxoIndexerMetricsProvider"
+    }
+  ]
+}

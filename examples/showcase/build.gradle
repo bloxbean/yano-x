@@ -322,7 +322,7 @@ def stateMachineService =
 def effectExecutorService =
         'META-INF/services/com.bloxbean.cardano.yano.api.appchain.effects.AppEffectExecutorFactory'
 def pluginManifest =
-        'META-INF/yano/plugins/com.bloxbean.cardano.yano.appchain.showcase.json'
+        'META-INF/yano/plugins/org.yanoproject.x.showcase.json'
 
 tasks.register('verifyShowcasePluginArtifact') {
     group = 'verification'
@@ -340,11 +340,11 @@ tasks.register('verifyShowcasePluginArtifact') {
                         stateMachineService,
                         effectExecutorService,
                         pluginManifest,
-                        'com/bloxbean/cardano/yano/appchain/showcase/ShowcaseCompositeStateMachineProvider.class',
-                        'com/bloxbean/cardano/yano/appchain/showcase/DocumentReviewStateMachineProvider.class',
-                        'com/bloxbean/cardano/yano/appchain/showcase/ShowcaseAuthenticatedMapConfig.class',
-                        'com/bloxbean/cardano/yano/appchain/showcase/ShowcaseOutboxExecutorFactory.class',
-                        'com/bloxbean/cardano/yano/appchain/showcase/ShowcaseEutxoTransactions.class'
+                        'org/yanoproject/x/showcase/ShowcaseCompositeStateMachineProvider.class',
+                        'org/yanoproject/x/showcase/DocumentReviewStateMachineProvider.class',
+                        'org/yanoproject/x/showcase/ShowcaseAuthenticatedMapConfig.class',
+                        'org/yanoproject/x/showcase/ShowcaseOutboxExecutorFactory.class',
+                        'org/yanoproject/x/showcase/ShowcaseEutxoTransactions.class'
                 ]
                 if (!names.containsAll(required)) {
                     throw new GradleException(
@@ -359,7 +359,7 @@ tasks.register('verifyShowcasePluginArtifact') {
                 def contributions = manifest.contributions.collect {
                     "${it.kind}:${it.name}"
                 }.toSet()
-                if (manifest.id != 'com.bloxbean.cardano.yano.appchain.showcase'
+                if (manifest.id != 'org.yanoproject.x.showcase'
                         || manifest.version != project.version.toString()
                         || contributions != Set.of(
                         'app-state-machine:showcase-composite',

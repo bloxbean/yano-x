@@ -5,9 +5,9 @@ import com.bloxbean.cardano.client.address.AddressProvider;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.crypto.VerificationKey;
 import com.bloxbean.cardano.client.transaction.spec.script.ScriptPubkey;
-import com.bloxbean.cardano.yano.appchain.eutxo.contracts.EutxoProfile;
-import com.bloxbean.cardano.yano.appchain.eutxo.zk.contracts.EutxoZkBatchProfile;
-import com.bloxbean.cardano.yano.appchain.eutxo.zk.zeroj.ZerojPoseidonValidityProvider;
+import org.yanoproject.x.eutxo.contracts.EutxoProfile;
+import org.yanoproject.x.eutxo.zk.contracts.EutxoZkBatchProfile;
+import org.yanoproject.x.eutxo.zk.zeroj.ZerojPoseidonValidityProvider;
 import com.bloxbean.cardano.zeroj.circuit.lib.jubjub.EdDSAJubjub;
 
 import java.math.BigInteger;
