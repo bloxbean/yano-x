@@ -529,7 +529,8 @@
       "artifactId": "yano-x-eutxo-zk-contracts",
       "publicationType": "library",
       "pluginBundleId": null,
-      "bundleArtifactId": null
+      "bundleArtifactId": null,
+      "publishToCentral": false
     },
     {
       "modulePath": ":ledgers:eutxo-zk:zeroj",
@@ -555,7 +556,8 @@
       "artifactId": "yano-x-eutxo-zk-client",
       "publicationType": "library",
       "pluginBundleId": null,
-      "bundleArtifactId": null
+      "bundleArtifactId": null,
+      "publishToCentral": false
     },
     {
       "modulePath": ":ledgers:eutxo-zk:onchain",
@@ -563,7 +565,8 @@
       "artifactId": "yano-x-eutxo-zk-onchain",
       "publicationType": "onchain-artifact",
       "pluginBundleId": null,
-      "bundleArtifactId": null
+      "bundleArtifactId": null,
+      "publishToCentral": false
     },
     {
       "modulePath": ":ledgers:eutxo-zk:testkit",
@@ -571,7 +574,8 @@
       "artifactId": "yano-x-eutxo-zk-testkit",
       "publicationType": "test-library",
       "pluginBundleId": null,
-      "bundleArtifactId": null
+      "bundleArtifactId": null,
+      "publishToCentral": false
     },
     {
       "modulePath": ":ledgers:eutxo-zk:runtime",
