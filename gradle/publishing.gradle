@@ -226,6 +226,26 @@ gradle.projectsEvaluated {
                                     + 'Central; bundles ship in the plugin pack instead')
                 }
             }
+            // A published POM may only name coordinates that are themselves
+            // published. Neither Gradle nor the Central Portal checks this:
+            // marking a module non-publishable while something published still
+            // depends on it produces a POM referencing an artifact that will
+            // never exist, and the failure surfaces at the consumer's dependency
+            // resolution rather than in this build.
+            def publishable = releaseProjects.collect { it.path } as Set
+            releaseProjects.each { candidate ->
+                ['api', 'implementation'].each { name ->
+                    def configuration = candidate.configurations.findByName(name)
+                    configuration?.dependencies?.withType(ProjectDependency)?.each { dependency ->
+                        if (!publishable.contains(dependency.path)) {
+                            throw new GradleException(
+                                    "${candidate.path} is published but its POM would depend on "
+                                            + "${dependency.path}, which is not. Publish that module, "
+                                            + 'aggregate it, or move the dependency to compileOnly.')
+                        }
+                    }
+                }
+            }
             // The deployment must contain the release scope and nothing else;
             // an extra project here would publish a non-reusable coordinate.
             if (aggregated != expected) {
