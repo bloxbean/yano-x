@@ -6,6 +6,10 @@ def allocation = rootProject.ext.artifactByPath[project.path]
 
 pluginManager.apply('java-library')
 pluginManager.apply('maven-publish')
+// Exposes this project's publications to the root nmcpAggregation. Which of
+// them actually reach Maven Central is decided by the aggregation dependencies
+// in gradle/publishing.gradle, not by this line.
+pluginManager.apply('com.gradleup.nmcp')
 pluginManager.apply('signing')
 pluginManager.apply('org.unbroken-dome.test-sets')
 

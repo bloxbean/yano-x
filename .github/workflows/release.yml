@@ -80,17 +80,56 @@ jobs:
           mkdir -p "$HOME/.gradle"
           printf '%s' "$SIGNING_KEY" | base64 --decode > "$HOME/.gradle/secring.gpg"
 
-      - name: Publish reusable libraries and plugin bundles to Maven Central
+      # Uploads a USER_MANAGED deployment and waits for Sonatype validation. It
+      # stops there: nothing is on Maven Central until a human publishes it, via
+      # publish-central.yml or the portal. See gradle/publishing.gradle.
+      - name: Upload deployment to Maven Central staging
+        id: upload
         env:
           MAVEN_USERNAME: ${{ secrets.OSSRH_USERNAME }}
           MAVEN_PASSWORD: ${{ secrets.OSSRH_TOKEN }}
-        run: >-
-          ./gradlew publishMavenReleaseToSonatypeRepository
-          closeAndReleaseSonatypeStagingRepository
-          -Psigning.keyId=${{ secrets.SIGNING_KEY_ID }}
-          -Psigning.password=${{ secrets.SIGNING_PASSWORD }}
-          -Psigning.secretKeyRingFile=$HOME/.gradle/secring.gpg
-          --warn --stacktrace
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Do not add --warn here. It lowers Gradle below LIFECYCLE, which is
+          # the level nmcp reports the deployment id at, and the grep below
+          # would then fail every release after a successful upload.
+          ./gradlew publishAggregationToCentralPortal \
+            -Psigning.keyId=${{ secrets.SIGNING_KEY_ID }} \
+            -Psigning.password=${{ secrets.SIGNING_PASSWORD }} \
+            -Psigning.secretKeyRingFile=$HOME/.gradle/secring.gpg \
+            --stacktrace 2>&1 | tee upload.log
+          # The deployment id exists only in nmcp's output. Fail loudly if the
+          # log format changes rather than reporting a release with no id.
+          id=$(grep -oE "deployment bundle '[0-9a-f-]{36}'" upload.log \
+            | head -1 | grep -oE '[0-9a-f-]{36}' || true)
+          if [[ -z "$id" ]]; then
+            echo "::error::Upload succeeded but no deployment id was found in the log." >&2
+            exit 1
+          fi
+          echo "deployment-id=$id" >> "$GITHUB_OUTPUT"
+
+      - name: Record the pending deployment
+        env:
+          DEPLOYMENT_ID: ${{ steps.upload.outputs.deployment-id }}
+          VERSION: ${{ steps.version.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "## Maven Central deployment staged - NOT published"
+            echo
+            echo "Deployment \`$DEPLOYMENT_ID\` (\`yano-x:$VERSION\`) passed validation"
+            echo "and is waiting for a human."
+            echo
+            echo "Publish it through the approval-gated workflow:"
+            echo "https://github.com/$GITHUB_REPOSITORY/actions/workflows/publish-central.yml"
+            echo
+            echo "Or from the portal: https://central.sonatype.com/publishing/deployments"
+            echo
+            echo "Note: the GitHub release created below is already public."
+            echo "Maven Central is not, until the deployment above is published."
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Create GitHub release with five distributions
         uses: softprops/action-gh-release@v2

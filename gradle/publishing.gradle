@@ -53,16 +53,62 @@ allprojects { candidate ->
     }
 }
 
-nexusPublishing {
-    repositories {
-        sonatype {
-            nexusUrl = uri('https://ossrh-staging-api.central.sonatype.com/service/local/')
-            snapshotRepositoryUrl = uri(
-                    'https://central.sonatype.com/repository/maven-snapshots/')
-            username = System.getenv('MAVEN_USERNAME')
-            password = System.getenv('MAVEN_PASSWORD')
-        }
+// The Maven release scope: every inventoried artifact whose publication type is
+// reusable, plus the BOM. This drives both the Central deployment contents and
+// verifyMavenReleasePublicationScope, so the two can never disagree.
+def releaseSpecifications = artifactInventory.artifacts.findAll {
+    rootProject.ext.yanoXMavenReleasePublicationTypes.contains(
+            it.publicationType.toString())
+}
+def releaseProjects = releaseSpecifications.collect {
+    project(it.modulePath.toString())
+} + project(':bom')
+
+// Central Portal publishing via the native publisher API. `USER_MANAGED` uploads
+// the deployment and stops at VALIDATED: nothing reaches Maven Central until a
+// human publishes it, either from the portal UI or through the approval-gated
+// .github/workflows/publish-central.yml. Do not set `publishingTimeout` here --
+// nmcp rejects it under USER_MANAGED.
+nmcpAggregation {
+    // Product modules deliberately reuse leaf names (products/*/ui, */cli,
+    // */runtime and six more), so the aggregation is keyed on full project
+    // paths instead. verifyMavenReleasePublicationScope asserts the resolved
+    // deployment still matches the artifact inventory exactly.
+    allowDuplicateProjectNames = true
+    centralPortal {
+        username = System.getenv('MAVEN_USERNAME')
+        password = System.getenv('MAVEN_PASSWORD')
+        publishingType = 'USER_MANAGED'
+        // Names the pending deployment in the portal list. The deployment id
+        // itself is assigned by the server and reported by the upload task.
+        publicationName = "yano-x:${project.version}"
+        // The aggregate zip carries every module plus the shadow bundles; the
+        // 10 minute default validation wait is tight for it.
+        validationTimeout = java.time.Duration.ofMinutes(30)
     }
+}
+
+// Only these projects reach Maven Central. Applying `com.gradleup.nmcp` more
+// broadly (gradle/yano-x-module.gradle) is harmless because the deployment
+// contents are decided here.
+dependencies {
+    releaseProjects.each { candidate ->
+        nmcpAggregation(project(candidate.path))
+    }
+}
+
+// The scope check must gate the work itself, not the lifecycle alias.
+// `publishAggregationToCentralPortal` is an alias whose dependencies are
+// unordered relative to each other, so hanging the check off it lets the upload
+// run first. Attaching it to the zip -- which every portal task depends on --
+// puts the check ahead of both the bundle and the network calls, and covers the
+// `nmcp`-prefixed task names when invoked directly.
+tasks.matching {
+    it.name in ['nmcpZipAggregation',
+                'nmcpPublishAggregationToCentralPortal',
+                'nmcpPublishAggregationToCentralPortalSnapshots']
+}.configureEach {
+    dependsOn 'verifyMavenReleasePublicationScope'
 }
 
 // Runtime plugin bundles are shadow jars published under their own coordinate,
@@ -130,17 +176,13 @@ gradle.projectsEvaluated {
         }
     }
 
-    def releaseSpecifications = artifactInventory.artifacts.findAll {
-        rootProject.ext.yanoXMavenReleasePublicationTypes.contains(
-                it.publicationType.toString())
-    }
-    def releaseProjects = releaseSpecifications.collect {
-        project(it.modulePath.toString())
-    } + project(':bom')
-
     tasks.register('verifyMavenReleasePublicationScope') {
         group = 'verification'
         description = 'Verifies the Maven release contains reusable coordinates only.'
+        def expected = releaseProjects.collect { it.path } as Set
+        def aggregated = configurations.nmcpAggregation.dependencies
+                .findAll { it instanceof ProjectDependency }
+                .collect { it.path } as Set
         doLast {
             releaseProjects.each { candidate ->
                 if (!candidate.pluginManager.hasPlugin('maven-publish')
@@ -148,6 +190,21 @@ gradle.projectsEvaluated {
                     throw new GradleException(
                             "Release project ${candidate.path} has no Maven publication")
                 }
+                // nmcp aggregation is lenient: a project without the plugin is
+                // skipped silently rather than failing, which would ship a BOM
+                // referencing coordinates that were never uploaded.
+                if (!candidate.pluginManager.hasPlugin('com.gradleup.nmcp')) {
+                    throw new GradleException(
+                            "Release project ${candidate.path} does not apply com.gradleup.nmcp "
+                                    + 'and would be dropped from the Central deployment')
+                }
+            }
+            // The deployment must contain the release scope and nothing else;
+            // an extra project here would publish a non-reusable coordinate.
+            if (aggregated != expected) {
+                throw new GradleException(
+                        'Central deployment scope drifted from the artifact inventory. '
+                                + "Unexpected: ${aggregated - expected}; missing: ${expected - aggregated}")
             }
         }
     }
@@ -158,15 +215,6 @@ gradle.projectsEvaluated {
         dependsOn tasks.named('verifyMavenReleasePublicationScope')
         dependsOn releaseProjects.collect { candidate ->
             "${candidate.path}:publishAllPublicationsToInternalRepository"
-        }
-    }
-
-    tasks.register('publishMavenReleaseToSonatypeRepository') {
-        group = 'publishing'
-        description = 'Publishes reusable Yano X modules and the BOM to Maven Central staging.'
-        dependsOn tasks.named('verifyMavenReleasePublicationScope')
-        dependsOn releaseProjects.collect { candidate ->
-            "${candidate.path}:publishAllPublicationsToSonatypeRepository"
         }
     }
 }

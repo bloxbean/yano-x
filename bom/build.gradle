@@ -1,6 +1,9 @@
 plugins {
     id 'java-platform'
     id 'maven-publish'
+    // The BOM is not in config/artifacts-v1.json, so gradle/yano-x-module.gradle
+    // never reaches it; without this it would drop out of the Central deployment.
+    id 'com.gradleup.nmcp'
     id 'signing'
 }
 
