@@ -59,6 +59,12 @@ allprojects { candidate ->
 def releaseSpecifications = artifactInventory.artifacts.findAll {
     rootProject.ext.yanoXMavenReleasePublicationTypes.contains(
             it.publicationType.toString())
+            // Modules folded into an aggregate coordinate still build and still
+            // reach the internal repository; only the aggregate goes to Central.
+            && it.aggregatedInto == null
+            // Demos, examples and product-specific runtimes ship in the GitHub
+            // release and the plugin pack, not as downstream dependencies.
+            && it.publishToCentral != false
 }
 def releaseProjects = releaseSpecifications.collect {
     project(it.modulePath.toString())

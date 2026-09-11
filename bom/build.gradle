@@ -22,6 +22,8 @@ dependencies {
         artifactInventory.artifacts.findAll { artifact ->
             rootProject.ext.yanoXMavenReleasePublicationTypes.contains(
                     artifact.publicationType.toString())
+                    && artifact.aggregatedInto == null
+                    && artifact.publishToCentral != false
         }.each { artifact ->
             // Bundle coordinates are deliberately absent: the shadow bundles ship
             // in the plugin pack, not on Maven Central, so constraining them here

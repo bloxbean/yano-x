@@ -131,12 +131,21 @@
       "bundleArtifactId": null
     },
     {
+      "modulePath": ":products:client",
+      "directory": "products/client",
+      "artifactId": "yano-x-products-client",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
       "modulePath": ":products:evidence:contracts",
       "directory": "products/evidence/contracts",
       "artifactId": "yano-x-evidence-contracts",
       "publicationType": "library",
       "pluginBundleId": null,
-      "bundleArtifactId": null
+      "bundleArtifactId": null,
+      "publishToCentral": false
     },
     {
       "modulePath": ":products:evidence:registry",
@@ -144,7 +153,8 @@
       "artifactId": "yano-x-evidence-registry",
       "publicationType": "runtime-plugin",
       "pluginBundleId": "com.bloxbean.cardano.yano.appchain.evidence-registry",
-      "bundleArtifactId": "yano-x-evidence-registry-bundle"
+      "bundleArtifactId": "yano-x-evidence-registry-bundle",
+      "publishToCentral": false
     },
     {
       "modulePath": ":products:evidence:client",
@@ -152,7 +162,8 @@
       "artifactId": "yano-x-evidence-client",
       "publicationType": "library",
       "pluginBundleId": null,
-      "bundleArtifactId": null
+      "bundleArtifactId": null,
+      "publishToCentral": false
     },
     {
       "modulePath": ":products:evidence:profile",
@@ -160,7 +171,8 @@
       "artifactId": "yano-x-evidence-profile",
       "publicationType": "runtime-plugin",
       "pluginBundleId": "com.bloxbean.cardano.yano.appchain.evidence-profile",
-      "bundleArtifactId": "yano-x-evidence-profile-bundle"
+      "bundleArtifactId": "yano-x-evidence-profile-bundle",
+      "publishToCentral": false
     },
     {
       "modulePath": ":products:cardano-history:runtime",
@@ -168,7 +180,8 @@
       "artifactId": "yano-x-cardano-history",
       "publicationType": "runtime-plugin",
       "pluginBundleId": "com.bloxbean.cardano.yano.appchain.cardano-history",
-      "bundleArtifactId": "yano-x-cardano-history-bundle"
+      "bundleArtifactId": "yano-x-cardano-history-bundle",
+      "publishToCentral": false
     },
     {
       "modulePath": ":products:cardano-history:client",
@@ -176,7 +189,8 @@
       "artifactId": "yano-x-cardano-history-client",
       "publicationType": "library",
       "pluginBundleId": null,
-      "bundleArtifactId": null
+      "bundleArtifactId": null,
+      "aggregatedInto": "yano-x-products-client"
     },
     {
       "modulePath": ":products:cardano-history:cli",
@@ -200,7 +214,8 @@
       "artifactId": "yano-x-attest-client",
       "publicationType": "library",
       "pluginBundleId": null,
-      "bundleArtifactId": null
+      "bundleArtifactId": null,
+      "aggregatedInto": "yano-x-products-client"
     },
     {
       "modulePath": ":products:attest:cli",
@@ -240,7 +255,8 @@
       "artifactId": "yano-x-showcase",
       "publicationType": "runtime-plugin",
       "pluginBundleId": "com.bloxbean.cardano.yano.appchain.showcase",
-      "bundleArtifactId": "yano-x-showcase-bundle"
+      "bundleArtifactId": "yano-x-showcase-bundle",
+      "publishToCentral": false
     },
     {
       "modulePath": ":examples:showcase-client",
@@ -304,7 +320,8 @@
       "artifactId": "yano-x-trust-registry-profile",
       "publicationType": "library",
       "pluginBundleId": null,
-      "bundleArtifactId": null
+      "bundleArtifactId": null,
+      "aggregatedInto": "yano-x-products-client"
     },
     {
       "modulePath": ":products:trust-registry:client",
@@ -312,7 +329,8 @@
       "artifactId": "yano-x-trust-registry-client",
       "publicationType": "library",
       "pluginBundleId": null,
-      "bundleArtifactId": null
+      "bundleArtifactId": null,
+      "aggregatedInto": "yano-x-products-client"
     },
     {
       "modulePath": ":products:trust-registry:cli",
@@ -336,7 +354,8 @@
       "artifactId": "yano-x-explorer-core",
       "publicationType": "library",
       "pluginBundleId": null,
-      "bundleArtifactId": null
+      "bundleArtifactId": null,
+      "publishToCentral": false
     },
     {
       "modulePath": ":products:explorer:cli",
@@ -360,7 +379,8 @@
       "artifactId": "yano-x-dpp-profile",
       "publicationType": "library",
       "pluginBundleId": null,
-      "bundleArtifactId": null
+      "bundleArtifactId": null,
+      "aggregatedInto": "yano-x-products-client"
     },
     {
       "modulePath": ":products:dpp:client",
@@ -368,7 +388,8 @@
       "artifactId": "yano-x-dpp-client",
       "publicationType": "library",
       "pluginBundleId": null,
-      "bundleArtifactId": null
+      "bundleArtifactId": null,
+      "aggregatedInto": "yano-x-products-client"
     },
     {
       "modulePath": ":products:dpp:cli",
@@ -392,7 +413,8 @@
       "artifactId": "yano-x-attestation-feed-profile",
       "publicationType": "library",
       "pluginBundleId": null,
-      "bundleArtifactId": null
+      "bundleArtifactId": null,
+      "aggregatedInto": "yano-x-products-client"
     },
     {
       "modulePath": ":products:attestation-feed:client",
@@ -400,7 +422,8 @@
       "artifactId": "yano-x-attestation-feed-client",
       "publicationType": "library",
       "pluginBundleId": null,
-      "bundleArtifactId": null
+      "bundleArtifactId": null,
+      "aggregatedInto": "yano-x-products-client"
     },
     {
       "modulePath": ":products:attestation-feed:cli",

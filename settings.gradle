@@ -24,6 +24,7 @@ def yanoXModules = [
         ':sdk:proof-contracts': 'sdk/proof-contracts',
         ':sdk:proof-onchain': 'sdk/proof-onchain',
         ':sdk:integration-contracts': 'sdk/integration-contracts',
+        ':products:client': 'products/client',
         ':products:evidence:contracts': 'products/evidence/contracts',
         ':products:evidence:registry': 'products/evidence/registry',
         ':products:evidence:client': 'products/evidence/client',
