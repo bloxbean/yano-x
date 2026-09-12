@@ -1,10 +1,10 @@
 package org.yanoproject.x.examples.evidence;
 
-import com.bloxbean.cardano.yano.api.appchain.AppChainConsensusProfile;
-import com.bloxbean.cardano.yano.api.appchain.AppStateMachineContext;
-import com.bloxbean.cardano.yano.api.appchain.effects.ActivationSchedule;
-import com.bloxbean.cardano.yano.api.appchain.effects.EffectOutcomeCommitment;
-import com.bloxbean.cardano.yano.api.appchain.effects.FinalityGate;
+import org.yanoproject.api.appchain.AppChainConsensusProfile;
+import org.yanoproject.api.appchain.AppStateMachineContext;
+import org.yanoproject.api.appchain.effects.ActivationSchedule;
+import org.yanoproject.api.appchain.effects.EffectOutcomeCommitment;
+import org.yanoproject.api.appchain.effects.FinalityGate;
 import org.yanoproject.x.integration.objectstore.ObjectPutCommandV1;
 
 import java.util.HexFormat;

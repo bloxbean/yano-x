@@ -1,13 +1,13 @@
 package org.yanoproject.x.client;
 
-import com.bloxbean.cardano.yano.api.appchain.AppBlock;
-import com.bloxbean.cardano.yano.api.appchain.AppBlockHeader;
-import com.bloxbean.cardano.yano.api.appchain.state.StateProofSubject;
-import com.bloxbean.cardano.yano.api.appchain.evidence.MessageInclusionProof;
-import com.bloxbean.cardano.yano.api.appchain.snapshot.SnapshotCanonicalCodec;
-import com.bloxbean.cardano.yano.api.appchain.snapshot.SnapshotDescriptorV1;
-import com.bloxbean.cardano.yano.api.appchain.observation.ObservationHashes;
-import com.bloxbean.cardano.yano.api.appchain.observation.ObservationReport;
+import org.yanoproject.api.appchain.AppBlock;
+import org.yanoproject.api.appchain.AppBlockHeader;
+import org.yanoproject.api.appchain.state.StateProofSubject;
+import org.yanoproject.api.appchain.evidence.MessageInclusionProof;
+import org.yanoproject.api.appchain.snapshot.SnapshotCanonicalCodec;
+import org.yanoproject.api.appchain.snapshot.SnapshotDescriptorV1;
+import org.yanoproject.api.appchain.observation.ObservationHashes;
+import org.yanoproject.api.appchain.observation.ObservationReport;
 import com.fasterxml.jackson.core.StreamReadFeature;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;

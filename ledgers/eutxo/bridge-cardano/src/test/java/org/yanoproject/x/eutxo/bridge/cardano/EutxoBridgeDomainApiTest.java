@@ -1,13 +1,13 @@
 package org.yanoproject.x.eutxo.bridge.cardano;
 
-import com.bloxbean.cardano.yano.api.appchain.AppQueryResult;
-import com.bloxbean.cardano.yano.api.plugin.domain.DomainApiContext;
-import com.bloxbean.cardano.yano.api.plugin.domain.DomainApiRequest;
-import com.bloxbean.cardano.yano.api.plugin.domain.DomainHttpMethod;
-import com.bloxbean.cardano.yano.api.plugin.domain.DomainQueryService;
-import com.bloxbean.cardano.yano.api.plugin.domain.L1TransactionBuilderService;
-import com.bloxbean.cardano.yano.api.plugin.domain.LocalReadModelQueryService;
-import com.bloxbean.cardano.yano.api.plugin.domain.PrivilegedSystemMessageService;
+import org.yanoproject.api.appchain.AppQueryResult;
+import org.yanoproject.api.plugin.domain.DomainApiContext;
+import org.yanoproject.api.plugin.domain.DomainApiRequest;
+import org.yanoproject.api.plugin.domain.DomainHttpMethod;
+import org.yanoproject.api.plugin.domain.DomainQueryService;
+import org.yanoproject.api.plugin.domain.L1TransactionBuilderService;
+import org.yanoproject.api.plugin.domain.LocalReadModelQueryService;
+import org.yanoproject.api.plugin.domain.PrivilegedSystemMessageService;
 import org.yanoproject.x.eutxo.contracts.EutxoBridgeInfo;
 import org.yanoproject.x.eutxo.contracts.EutxoQueryCodec;
 import org.yanoproject.x.eutxo.client.EutxoKeyWallet;

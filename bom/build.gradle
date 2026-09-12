@@ -17,7 +17,7 @@ javaPlatform {
 }
 
 dependencies {
-    api platform("com.bloxbean.cardano:yano-bom:${yanoVersion.getOrElse('unspecified')}")
+    api platform("org.yanoproject:yano-bom:${yanoVersion.getOrElse('unspecified')}")
     constraints {
         artifactInventory.artifacts.findAll { artifact ->
             rootProject.ext.yanoXMavenReleasePublicationTypes.contains(

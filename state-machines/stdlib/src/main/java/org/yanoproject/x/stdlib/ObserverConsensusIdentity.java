@@ -1,6 +1,6 @@
 package org.yanoproject.x.stdlib;
 
-import com.bloxbean.cardano.yano.api.appchain.l1view.L1ObserverConsensusIdentity;
+import org.yanoproject.api.appchain.l1view.L1ObserverConsensusIdentity;
 
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;

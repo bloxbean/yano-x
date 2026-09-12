@@ -1,9 +1,9 @@
-package com.bloxbean.cardano.yano.app;
+package org.yanoproject.app;
 
-import com.bloxbean.cardano.yano.api.appchain.AppChainConfig;
-import com.bloxbean.cardano.yano.api.appchain.AppChainConsensusProfile;
-import com.bloxbean.cardano.yano.api.appchain.effects.EffectOutcomeCommitment;
-import com.bloxbean.cardano.yano.api.appchain.effects.FinalityGate;
+import org.yanoproject.api.appchain.AppChainConfig;
+import org.yanoproject.api.appchain.AppChainConsensusProfile;
+import org.yanoproject.api.appchain.effects.EffectOutcomeCommitment;
+import org.yanoproject.api.appchain.effects.FinalityGate;
 
 import java.util.List;
 

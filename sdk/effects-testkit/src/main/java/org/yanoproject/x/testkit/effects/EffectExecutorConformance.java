@@ -1,6 +1,6 @@
 package org.yanoproject.x.testkit.effects;
 
-import com.bloxbean.cardano.yano.api.appchain.effects.EffectExecution;
+import org.yanoproject.api.appchain.effects.EffectExecution;
 import org.yanoproject.x.integration.ConnectorErrorCode;
 import org.yanoproject.x.integration.ConnectorTypes;
 import org.yanoproject.x.integration.detail.ConnectorDetailDocumentV1;

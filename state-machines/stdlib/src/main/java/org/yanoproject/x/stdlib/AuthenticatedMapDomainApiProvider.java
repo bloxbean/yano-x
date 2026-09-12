@@ -1,8 +1,8 @@
 package org.yanoproject.x.stdlib;
 
-import com.bloxbean.cardano.yano.api.plugin.domain.DomainApi;
-import com.bloxbean.cardano.yano.api.plugin.domain.DomainApiContext;
-import com.bloxbean.cardano.yano.api.plugin.domain.DomainApiProvider;
+import org.yanoproject.api.plugin.domain.DomainApi;
+import org.yanoproject.api.plugin.domain.DomainApiContext;
+import org.yanoproject.api.plugin.domain.DomainApiProvider;
 
 /** Bounded domain projection for the first-party authenticated-map profile. */
 public final class AuthenticatedMapDomainApiProvider implements DomainApiProvider {

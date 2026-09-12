@@ -80,7 +80,7 @@ tasks.named('shadowJar') {
             'org.yanoproject.x.objectstore.s3.internal.contracts.v1deps.cbor'
     relocate 'org.bouncycastle',
             'org.yanoproject.x.objectstore.s3.internal.contracts.v1deps.bouncycastle'
-    exclude 'com/bloxbean/cardano/yano/api/**'
+    exclude 'org/yanoproject/api/**'
     exclude 'META-INF/*.SF', 'META-INF/*.RSA', 'META-INF/*.DSA', 'module-info.class'
 }
 
@@ -93,7 +93,7 @@ def relocatedCborPrefix =
 def relocatedBouncyCastlePrefix =
         'org/yanoproject/x/objectstore/s3/internal/contracts/v1deps/bouncycastle/'
 def effectService =
-        'META-INF/services/com.bloxbean.cardano.yano.api.appchain.effects.AppEffectExecutorFactory'
+        'META-INF/services/org.yanoproject.api.appchain.effects.AppEffectExecutorFactory'
 def pluginManifest =
         'META-INF/yano/plugins/org.yanoproject.x.objectstore.s3.json'
 def factoryClass = ('org.yanoproject.x.objectstore.s3.effects.'
@@ -176,7 +176,7 @@ tasks.register('verifyObjectStoreS3ArtifactBoundaries') {
             throw new GradleException(
                     'Object-store drop-in bundle does not privately relocate BLAKE2b')
         }
-        if (bundleEntries.any { it.startsWith('com/bloxbean/cardano/yano/api/') }) {
+        if (bundleEntries.any { it.startsWith('org/yanoproject/api/') }) {
             throw new GradleException('Object-store bundle embeds host Yano API classes')
         }
         [thin, bundle].each { artifact ->

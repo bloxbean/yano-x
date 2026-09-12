@@ -1,7 +1,7 @@
 package org.yanoproject.x.history;
 
-import com.bloxbean.cardano.yano.api.appchain.AppStateMachineContext;
-import com.bloxbean.cardano.yano.api.appchain.state.StateCommitmentProfile;
+import org.yanoproject.api.appchain.AppStateMachineContext;
+import org.yanoproject.api.appchain.state.StateCommitmentProfile;
 import org.yanoproject.x.composite.ComponentDescriptor;
 import org.yanoproject.x.composite.ComposableAppStateMachine;
 import org.yanoproject.x.composite.CompositeStateMachine;

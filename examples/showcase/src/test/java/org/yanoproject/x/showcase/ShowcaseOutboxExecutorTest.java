@@ -1,11 +1,11 @@
 package org.yanoproject.x.showcase;
 
-import com.bloxbean.cardano.yano.api.appchain.effects.EffectExecution;
-import com.bloxbean.cardano.yano.api.appchain.effects.EffectExecutionContext;
-import com.bloxbean.cardano.yano.api.appchain.effects.EffectRecord;
-import com.bloxbean.cardano.yano.api.appchain.effects.FinalityGate;
-import com.bloxbean.cardano.yano.api.appchain.effects.PendingEffect;
-import com.bloxbean.cardano.yano.api.appchain.effects.ResultPolicy;
+import org.yanoproject.api.appchain.effects.EffectExecution;
+import org.yanoproject.api.appchain.effects.EffectExecutionContext;
+import org.yanoproject.api.appchain.effects.EffectRecord;
+import org.yanoproject.api.appchain.effects.FinalityGate;
+import org.yanoproject.api.appchain.effects.PendingEffect;
+import org.yanoproject.api.appchain.effects.ResultPolicy;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 

@@ -5,7 +5,7 @@ import com.bloxbean.cardano.vds.jmt.JmtProfile;
 import com.bloxbean.cardano.vds.jmt.store.InMemoryJmtStore;
 import com.bloxbean.cardano.vds.mpf.MpfTrie;
 import com.bloxbean.cardano.vds.mpf.internal.TestNodeStore;
-import com.bloxbean.cardano.yano.api.appchain.state.StateCommitmentProfiles;
+import org.yanoproject.api.appchain.state.StateCommitmentProfiles;
 
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;

@@ -1,7 +1,7 @@
 package org.yanoproject.x.eutxo.testkit;
 
-import com.bloxbean.cardano.yano.api.appchain.AppQueryContext;
-import com.bloxbean.cardano.yano.api.appchain.AppStateWriter;
+import org.yanoproject.api.appchain.AppQueryContext;
+import org.yanoproject.api.appchain.AppStateWriter;
 
 import java.util.Arrays;
 import java.util.HexFormat;

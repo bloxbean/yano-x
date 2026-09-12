@@ -1,6 +1,6 @@
 package org.yanoproject.x.client;
 
-import com.bloxbean.cardano.yano.api.appchain.observation.ObservationHashes;
+import org.yanoproject.api.appchain.observation.ObservationHashes;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.Test;
 

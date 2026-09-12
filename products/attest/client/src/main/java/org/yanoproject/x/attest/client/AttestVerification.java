@@ -1,6 +1,6 @@
 package org.yanoproject.x.attest.client;
 
-import com.bloxbean.cardano.yano.api.appchain.proof.ProofLabVocabulary;
+import org.yanoproject.api.appchain.proof.ProofLabVocabulary;
 
 import java.util.List;
 import java.util.Objects;

@@ -1,6 +1,6 @@
 package org.yanoproject.x.devtools;
 
-import com.bloxbean.cardano.yano.appchain.config.EffectiveConfigValue;
+import org.yanoproject.appchain.config.EffectiveConfigValue;
 
 import java.util.List;
 import java.util.Map;

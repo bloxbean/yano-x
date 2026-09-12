@@ -1,7 +1,7 @@
 package org.yanoproject.x.stdlib;
 
-import com.bloxbean.cardano.yano.api.appchain.proof.ProofSubjectProvider;
-import com.bloxbean.cardano.yano.api.appchain.proof.ProofSubjectRegistry;
+import org.yanoproject.api.appchain.proof.ProofSubjectProvider;
+import org.yanoproject.api.appchain.proof.ProofSubjectRegistry;
 import org.yanoproject.x.stdlib.contracts.BalancesContract;
 import org.junit.jupiter.api.Test;
 

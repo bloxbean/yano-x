@@ -134,7 +134,7 @@ The following paths are in the **upstream Yano repository**, not Yano X:
 | `runtime/.../appchain/AppChainSubsystem.java`, `startOwnedResources()` | Opens the retained store, verifies integrity, and honors persisted governance |
 
 All paths above begin with
-`runtime/src/main/java/com/bloxbean/cardano/yano/`.
+`runtime/src/main/java/org/yanoproject/`.
 
 Per-chain storage makes state-preserving addition plausible. It does not prove
 that editing YAML and restarting the exact released host is a supported upgrade.

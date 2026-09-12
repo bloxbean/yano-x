@@ -1,13 +1,13 @@
 package org.yanoproject.x.history;
 
-import com.bloxbean.cardano.yano.api.appchain.AppQueryResult;
-import com.bloxbean.cardano.yano.api.appchain.l1view.ProtocolParamsCanonicalCodec;
-import com.bloxbean.cardano.yano.api.plugin.domain.DomainApiContext;
-import com.bloxbean.cardano.yano.api.plugin.domain.DomainApiException;
-import com.bloxbean.cardano.yano.api.plugin.domain.DomainApiRequest;
-import com.bloxbean.cardano.yano.api.plugin.domain.DomainHttpMethod;
-import com.bloxbean.cardano.yano.api.plugin.domain.DomainQueryService;
-import com.bloxbean.cardano.yano.api.util.CardanoBech32Ids;
+import org.yanoproject.api.appchain.AppQueryResult;
+import org.yanoproject.api.appchain.l1view.ProtocolParamsCanonicalCodec;
+import org.yanoproject.api.plugin.domain.DomainApiContext;
+import org.yanoproject.api.plugin.domain.DomainApiException;
+import org.yanoproject.api.plugin.domain.DomainApiRequest;
+import org.yanoproject.api.plugin.domain.DomainHttpMethod;
+import org.yanoproject.api.plugin.domain.DomainQueryService;
+import org.yanoproject.api.util.CardanoBech32Ids;
 import org.yanoproject.x.composite.contracts.AggregateQueryCodecV1;
 import org.yanoproject.x.composite.contracts.AggregateQueryLimitsV1;
 import org.yanoproject.x.stdlib.contracts.EpochParamsContract;

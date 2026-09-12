@@ -1,9 +1,9 @@
 package org.yanoproject.x.composite;
 
-import com.bloxbean.cardano.yano.api.appchain.AppCapabilityManifest;
-import com.bloxbean.cardano.yano.api.appchain.proof.ProofLabVocabulary;
-import com.bloxbean.cardano.yano.api.appchain.proof.ProofSubjectDescriptorV1;
-import com.bloxbean.cardano.yano.api.appchain.proof.ProofSubjectProvider;
+import org.yanoproject.api.appchain.AppCapabilityManifest;
+import org.yanoproject.api.appchain.proof.ProofLabVocabulary;
+import org.yanoproject.api.appchain.proof.ProofSubjectDescriptorV1;
+import org.yanoproject.api.appchain.proof.ProofSubjectProvider;
 import org.yanoproject.x.composite.contracts.CompositeCommitmentV1;
 
 import java.util.HexFormat;

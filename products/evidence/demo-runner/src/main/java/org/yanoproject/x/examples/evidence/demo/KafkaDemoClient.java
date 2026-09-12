@@ -1,6 +1,6 @@
 package org.yanoproject.x.examples.evidence.demo;
 
-import com.bloxbean.cardano.yano.api.appchain.effects.EffectRecord;
+import org.yanoproject.api.appchain.effects.EffectRecord;
 import org.yanoproject.x.examples.evidence.event.EvidenceAvailableEventV1;
 import org.yanoproject.x.examples.evidence.state.EvidenceRecordV1;
 import org.yanoproject.x.integration.kafka.KafkaPublishCommandV1;

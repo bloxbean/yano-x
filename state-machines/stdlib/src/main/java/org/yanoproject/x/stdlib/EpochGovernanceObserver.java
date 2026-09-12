@@ -1,11 +1,11 @@
 package org.yanoproject.x.stdlib;
 
-import com.bloxbean.cardano.yano.api.appchain.l1view.EpochObservationManifest;
-import com.bloxbean.cardano.yano.api.appchain.l1view.L1EpochBoundary;
-import com.bloxbean.cardano.yano.api.appchain.l1view.L1EpochObservationSink;
-import com.bloxbean.cardano.yano.api.appchain.l1view.L1EpochObserver;
-import com.bloxbean.cardano.yano.api.appchain.l1view.L1EpochState;
-import com.bloxbean.cardano.yano.api.appchain.l1view.ProtocolParamsCanonicalCodec;
+import org.yanoproject.api.appchain.l1view.EpochObservationManifest;
+import org.yanoproject.api.appchain.l1view.L1EpochBoundary;
+import org.yanoproject.api.appchain.l1view.L1EpochObservationSink;
+import org.yanoproject.api.appchain.l1view.L1EpochObserver;
+import org.yanoproject.api.appchain.l1view.L1EpochState;
+import org.yanoproject.api.appchain.l1view.ProtocolParamsCanonicalCodec;
 import org.yanoproject.x.stdlib.contracts.EpochGovernanceContract;
 
 import java.util.ArrayList;

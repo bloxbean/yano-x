@@ -1,10 +1,10 @@
 package com.example.appchain;
 
 import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
-import com.bloxbean.cardano.yano.api.appchain.AppBlock;
-import com.bloxbean.cardano.yano.api.appchain.AppQueryContext;
-import com.bloxbean.cardano.yano.api.appchain.AppQueryException;
-import com.bloxbean.cardano.yano.api.appchain.AppStateWriter;
+import org.yanoproject.api.appchain.AppBlock;
+import org.yanoproject.api.appchain.AppQueryContext;
+import org.yanoproject.api.appchain.AppQueryException;
+import org.yanoproject.api.appchain.AppStateWriter;
 import org.junit.jupiter.api.Test;
 
 import java.nio.charset.StandardCharsets;
@@ -68,7 +68,7 @@ class CounterStateMachineTest {
                 .toList();
         return new AppBlock(2, "t", 1, new byte[32], 0, new byte[0], 0L,
                 new byte[32], new byte[32], messages, new byte[32],
-                new com.bloxbean.cardano.yano.api.appchain.FinalityCert(0, List.of()));
+                new org.yanoproject.api.appchain.FinalityCert(0, List.of()));
     }
 
     /** Minimal AppStateWriter backed by a HashMap. */

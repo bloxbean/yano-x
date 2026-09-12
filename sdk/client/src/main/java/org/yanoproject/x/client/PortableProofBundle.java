@@ -2,9 +2,9 @@ package org.yanoproject.x.client;
 
 import com.bloxbean.cardano.client.crypto.config.CryptoConfiguration;
 import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
-import com.bloxbean.cardano.yano.api.appchain.evidence.MessageInclusionProof;
-import com.bloxbean.cardano.yano.api.appchain.proof.ProofLabVocabulary;
-import com.bloxbean.cardano.yano.api.appchain.state.StateProofSubject;
+import org.yanoproject.api.appchain.evidence.MessageInclusionProof;
+import org.yanoproject.api.appchain.proof.ProofLabVocabulary;
+import org.yanoproject.api.appchain.state.StateProofSubject;
 
 import java.util.Arrays;
 import java.util.Objects;

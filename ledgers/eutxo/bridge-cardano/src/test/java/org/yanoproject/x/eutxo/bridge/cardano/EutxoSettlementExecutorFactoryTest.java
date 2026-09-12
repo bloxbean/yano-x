@@ -1,9 +1,9 @@
 package org.yanoproject.x.eutxo.bridge.cardano;
 
-import com.bloxbean.cardano.yano.api.appchain.effects.AppChainEffectContext;
-import com.bloxbean.cardano.yano.api.appchain.effects.AppEffectExecutor;
-import com.bloxbean.cardano.yano.api.appchain.l1view.BridgeDiffusionHandler;
-import com.bloxbean.cardano.yano.api.appchain.signer.SignerProvider;
+import org.yanoproject.api.appchain.effects.AppChainEffectContext;
+import org.yanoproject.api.appchain.effects.AppEffectExecutor;
+import org.yanoproject.api.appchain.l1view.BridgeDiffusionHandler;
+import org.yanoproject.api.appchain.signer.SignerProvider;
 import org.junit.jupiter.api.Test;
 
 import java.util.HashMap;
@@ -115,14 +115,14 @@ class EutxoSettlementExecutorFactoryTest {
             }
 
             @Override
-            public com.bloxbean.cardano.yano.api.appchain.AppQueryResult query(
+            public org.yanoproject.api.appchain.AppQueryResult query(
                     String path, byte[] request) {
                 return null;
             }
 
             @Override
             public java.util.function.Supplier<
-                    com.bloxbean.cardano.yano.api.utxo.UtxoState> l1UtxoView() {
+                    org.yanoproject.api.utxo.UtxoState> l1UtxoView() {
                 return () -> null;
             }
 
@@ -133,7 +133,7 @@ class EutxoSettlementExecutorFactoryTest {
             }
 
             @Override
-            public com.bloxbean.cardano.yano.api.TxEvaluationGateway txEvaluation() {
+            public org.yanoproject.api.TxEvaluationGateway txEvaluation() {
                 return null;
             }
 

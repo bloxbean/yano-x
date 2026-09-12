@@ -1,7 +1,7 @@
 package org.yanoproject.x.objectstore.s3.effects;
 
-import com.bloxbean.cardano.yano.api.appchain.effects.AppEffectExecutor;
-import com.bloxbean.cardano.yano.api.appchain.effects.EffectExecution;
+import org.yanoproject.api.appchain.effects.AppEffectExecutor;
+import org.yanoproject.api.appchain.effects.EffectExecution;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 

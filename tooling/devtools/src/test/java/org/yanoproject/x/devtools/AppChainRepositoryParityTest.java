@@ -1,6 +1,6 @@
 package org.yanoproject.x.devtools;
 
-import com.bloxbean.cardano.yano.appchain.config.TemplateContract;
+import org.yanoproject.appchain.config.TemplateContract;
 import org.junit.jupiter.api.Test;
 
 import java.nio.file.Files;

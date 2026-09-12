@@ -13,8 +13,8 @@ import com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet;
 import com.bloxbean.cardano.client.transaction.util.TransactionUtil;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
-import com.bloxbean.cardano.yano.api.appchain.l1view.BridgeDiffusionHandler;
-import com.bloxbean.cardano.yano.api.appchain.signer.SignerProvider;
+import org.yanoproject.api.appchain.l1view.BridgeDiffusionHandler;
+import org.yanoproject.api.appchain.signer.SignerProvider;
 
 import java.time.Duration;
 import java.util.List;

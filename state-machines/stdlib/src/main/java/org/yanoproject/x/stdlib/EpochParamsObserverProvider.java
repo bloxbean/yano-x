@@ -1,8 +1,8 @@
 package org.yanoproject.x.stdlib;
 
-import com.bloxbean.cardano.yano.api.appchain.l1view.L1EpochObserver;
-import com.bloxbean.cardano.yano.api.appchain.l1view.L1EpochObserverProvider;
-import com.bloxbean.cardano.yano.api.appchain.l1view.L1ObserverConsensusIdentity;
+import org.yanoproject.api.appchain.l1view.L1EpochObserver;
+import org.yanoproject.api.appchain.l1view.L1EpochObserverProvider;
+import org.yanoproject.api.appchain.l1view.L1ObserverConsensusIdentity;
 import org.yanoproject.x.stdlib.contracts.EpochParamsContract;
 
 import java.util.Map;

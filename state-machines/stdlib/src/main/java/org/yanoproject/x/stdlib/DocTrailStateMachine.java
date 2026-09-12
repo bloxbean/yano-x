@@ -1,18 +1,18 @@
 package org.yanoproject.x.stdlib;
 
 import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
-import com.bloxbean.cardano.yano.api.appchain.AppBlock;
-import com.bloxbean.cardano.yano.api.appchain.AppCapabilityManifest;
-import com.bloxbean.cardano.yano.api.appchain.AppBlockExecutionContext;
-import com.bloxbean.cardano.yano.api.appchain.AppQueryContext;
-import com.bloxbean.cardano.yano.api.appchain.AppQueryException;
-import com.bloxbean.cardano.yano.api.appchain.AppStateMachine;
-import com.bloxbean.cardano.yano.api.appchain.AppStateWriter;
-import com.bloxbean.cardano.yano.api.appchain.effects.AppEffectEmitter;
-import com.bloxbean.cardano.yano.api.appchain.proof.ProofSubjectProvider;
-import com.bloxbean.cardano.yano.api.appchain.transition.TransitionContext;
-import com.bloxbean.cardano.yano.api.appchain.transition.TransitionDecision;
-import com.bloxbean.cardano.yano.api.appchain.transition.TransitionPlans;
+import org.yanoproject.api.appchain.AppBlock;
+import org.yanoproject.api.appchain.AppCapabilityManifest;
+import org.yanoproject.api.appchain.AppBlockExecutionContext;
+import org.yanoproject.api.appchain.AppQueryContext;
+import org.yanoproject.api.appchain.AppQueryException;
+import org.yanoproject.api.appchain.AppStateMachine;
+import org.yanoproject.api.appchain.AppStateWriter;
+import org.yanoproject.api.appchain.effects.AppEffectEmitter;
+import org.yanoproject.api.appchain.proof.ProofSubjectProvider;
+import org.yanoproject.api.appchain.transition.TransitionContext;
+import org.yanoproject.api.appchain.transition.TransitionDecision;
+import org.yanoproject.api.appchain.transition.TransitionPlans;
 import org.yanoproject.x.stdlib.contracts.DocTrailContract;
 
 import java.util.List;

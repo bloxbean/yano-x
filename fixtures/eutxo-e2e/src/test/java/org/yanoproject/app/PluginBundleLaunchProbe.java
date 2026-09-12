@@ -1,21 +1,21 @@
-package com.bloxbean.cardano.yano.app;
+package org.yanoproject.app;
 
 import com.bloxbean.cardano.client.crypto.Blake2bUtil;
 import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
 import com.bloxbean.cardano.yaci.core.util.HexUtil;
-import com.bloxbean.cardano.yano.api.appchain.AppStateMachine;
-import com.bloxbean.cardano.yano.api.appchain.AppStateMachineContext;
-import com.bloxbean.cardano.yano.api.appchain.AppStateMachineProvider;
-import com.bloxbean.cardano.yano.api.appchain.AppQueryResult;
-import com.bloxbean.cardano.yano.api.appchain.effects.AppEffectExecutorFactory;
-import com.bloxbean.cardano.yano.api.appchain.sink.FinalizedStreamSinkFactory;
-import com.bloxbean.cardano.yano.api.config.PluginsOptions;
-import com.bloxbean.cardano.yano.api.plugin.domain.DomainApi;
-import com.bloxbean.cardano.yano.api.plugin.domain.DomainApiContext;
-import com.bloxbean.cardano.yano.api.plugin.domain.DomainApiProvider;
-import com.bloxbean.cardano.yano.api.plugin.domain.DomainQueryService;
-import com.bloxbean.cardano.yano.runtime.plugins.PluginLoaderHandle;
-import com.bloxbean.cardano.yano.runtime.plugins.PluginRuntimeEnvironment;
+import org.yanoproject.api.appchain.AppStateMachine;
+import org.yanoproject.api.appchain.AppStateMachineContext;
+import org.yanoproject.api.appchain.AppStateMachineProvider;
+import org.yanoproject.api.appchain.AppQueryResult;
+import org.yanoproject.api.appchain.effects.AppEffectExecutorFactory;
+import org.yanoproject.api.appchain.sink.FinalizedStreamSinkFactory;
+import org.yanoproject.api.config.PluginsOptions;
+import org.yanoproject.api.plugin.domain.DomainApi;
+import org.yanoproject.api.plugin.domain.DomainApiContext;
+import org.yanoproject.api.plugin.domain.DomainApiProvider;
+import org.yanoproject.api.plugin.domain.DomainQueryService;
+import org.yanoproject.runtime.plugins.PluginLoaderHandle;
+import org.yanoproject.runtime.plugins.PluginRuntimeEnvironment;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -33,22 +33,22 @@ import java.util.zip.ZipFile;
 /** Process-level probe for the documented self-contained plugin-directory layout. */
 public final class PluginBundleLaunchProbe {
     private static final String EVIDENCE_BUNDLE_ID =
-            "com.bloxbean.cardano.yano.appchain.evidence-registry";
+            "org.yanoproject.appchain.evidence-registry";
     private static final String ORIGINAL_EVIDENCE_CONTRACT_PACKAGE =
             "org.yanoproject.x.examples.evidence.";
     private static final String RELOCATED_EVIDENCE_CONTRACT_PACKAGE =
-            "com.bloxbean.cardano.yano.appchain.examples.internal.evidencecontracts.v1.";
+            "org.yanoproject.appchain.examples.internal.evidencecontracts.v1.";
     private static final String RELOCATED_CONNECTOR_PACKAGE =
             "org.yanoproject.x.examples.evidence.internal.contracts.v1.";
     private static final String EVIDENCE_GOLDEN_VECTORS =
             "META-INF/yano/contracts/evidence/v1/golden-vectors.properties";
     private static final Set<String> EXPECTED_BUNDLES = Set.of(
-            "com.bloxbean.cardano.yano.appchain.kafka",
-            "com.bloxbean.cardano.yano.appchain.objectstore.s3",
-            "com.bloxbean.cardano.yano.appchain.ipfs",
+            "org.yanoproject.appchain.kafka",
+            "org.yanoproject.appchain.objectstore.s3",
+            "org.yanoproject.appchain.ipfs",
             EVIDENCE_BUNDLE_ID,
-            "com.bloxbean.cardano.yano.appchain.effects.cardano",
-            "com.bloxbean.cardano.yano.appchain.zk");
+            "org.yanoproject.appchain.effects.cardano",
+            "org.yanoproject.appchain.zk");
 
     private PluginBundleLaunchProbe() {
     }
@@ -171,7 +171,7 @@ public final class PluginBundleLaunchProbe {
                                         "effects.max-payload-bytes", "4096");
                             }
                             @Override
-                            public java.util.Optional<com.bloxbean.cardano.yano.api.appchain.AppChainConsensusProfile>
+                            public java.util.Optional<org.yanoproject.api.appchain.AppChainConsensusProfile>
                             consensusProfile() {
                                 return java.util.Optional.of(
                                         AppTestConsensusProfiles.enabledEffects(8, 4096));
@@ -183,7 +183,7 @@ public final class PluginBundleLaunchProbe {
                 }
                 DomainApiProvider evidenceDomainProvider = require(
                         environment, DomainApiProvider.class,
-                        "com.bloxbean.cardano.yano.appchain.evidence-registry");
+                        "org.yanoproject.appchain.evidence-registry");
                 try (DomainApi evidenceApi = evidenceDomainProvider.create(
                         new DomainApiContext(Map.of(), new DomainQueryService() {
                             @Override public List<String> chainIds() { return List.of("probe"); }
@@ -205,48 +205,48 @@ public final class PluginBundleLaunchProbe {
                 // from each bundle, not a coincidental host dependency.
                 requireOwnedClass(environment,
                         "org.apache.kafka.clients.producer.KafkaProducer",
-                        "com.bloxbean.cardano.yano.appchain.kafka");
+                        "org.yanoproject.appchain.kafka");
                 requireOwnedClass(environment,
                         "org.yanoproject.x.kafka.internal.contracts.v1."
                                 + "kafka.KafkaPublishCommandV1",
-                        "com.bloxbean.cardano.yano.appchain.kafka");
+                        "org.yanoproject.appchain.kafka");
                 requireOwnedClass(environment,
                         "org.yanoproject.x.kafka.internal.contracts."
                                 + "v1deps.cbor.CborDecoder",
-                        "com.bloxbean.cardano.yano.appchain.kafka");
+                        "org.yanoproject.appchain.kafka");
                 requireOwnedClass(environment,
                         "org.yanoproject.x.kafka.internal.contracts."
                                 + "v1deps.bouncycastle.crypto.digests.Blake2bDigest",
-                        "com.bloxbean.cardano.yano.appchain.kafka");
+                        "org.yanoproject.appchain.kafka");
                 requireAbsentClass(environment,
                         "org.yanoproject.x.integration.kafka."
                                 + "KafkaPublishCommandV1");
                 requireOwnedClass(environment,
                         "software.amazon.awssdk.services.s3.S3Client",
-                        "com.bloxbean.cardano.yano.appchain.objectstore.s3");
+                        "org.yanoproject.appchain.objectstore.s3");
                 requireOwnedClass(environment,
                         "org.yanoproject.x.objectstore.s3.internal.contracts."
                                 + "v1.objectstore.ObjectPutCommandV1",
-                        "com.bloxbean.cardano.yano.appchain.objectstore.s3");
+                        "org.yanoproject.appchain.objectstore.s3");
                 requireOwnedClass(environment,
                         "org.yanoproject.x.objectstore.s3.internal.contracts."
                                 + "v1deps.cbor.CborDecoder",
-                        "com.bloxbean.cardano.yano.appchain.objectstore.s3");
+                        "org.yanoproject.appchain.objectstore.s3");
                 requireOwnedClass(environment,
                         "org.yanoproject.x.objectstore.s3.internal.contracts."
                                 + "v1deps.bouncycastle.crypto.digests.Blake2bDigest",
-                        "com.bloxbean.cardano.yano.appchain.objectstore.s3");
+                        "org.yanoproject.appchain.objectstore.s3");
                 requireAbsentClass(environment,
                         "org.yanoproject.x.integration.objectstore."
                                 + "ObjectPutCommandV1");
                 requireOwnedClass(environment,
                         "org.yanoproject.x.ipfs.internal.contracts."
                                 + "v1.ipfs.CanonicalCid",
-                        "com.bloxbean.cardano.yano.appchain.ipfs");
+                        "org.yanoproject.appchain.ipfs");
                 requireInitializedOwnedClass(environment,
                         "org.yanoproject.x.ipfs.internal.kubo."
                                 + "KuboIpfsPinClient",
-                        "com.bloxbean.cardano.yano.appchain.ipfs");
+                        "org.yanoproject.appchain.ipfs");
                 requireAbsentClass(environment,
                         "org.yanoproject.x.integration.ipfs.CanonicalCid");
                 requireOwnedClass(environment,
@@ -259,21 +259,21 @@ public final class PluginBundleLaunchProbe {
                 requireOwnedClass(environment,
                         "org.yanoproject.x.examples.evidence.internal.contracts."
                                 + "v1.ConnectorTypes",
-                        "com.bloxbean.cardano.yano.appchain.evidence-registry");
+                        "org.yanoproject.appchain.evidence-registry");
                 requireOwnedClass(environment,
                         "org.yanoproject.x.examples.evidence.internal.contracts."
                                 + "v1deps.cbor.CborDecoder",
-                        "com.bloxbean.cardano.yano.appchain.evidence-registry");
+                        "org.yanoproject.appchain.evidence-registry");
                 requireOwnedClass(environment,
                         "org.yanoproject.x.examples.evidence.internal.contracts."
                                 + "v1deps.bouncycastle.crypto.digests.Blake2bDigest",
-                        "com.bloxbean.cardano.yano.appchain.evidence-registry");
+                        "org.yanoproject.appchain.evidence-registry");
                 requireOwnedClass(environment,
                         "com.bloxbean.cardano.client.backend.blockfrost.service.BFBackendService",
-                        "com.bloxbean.cardano.yano.appchain.effects.cardano");
+                        "org.yanoproject.appchain.effects.cardano");
                 requireOwnedClass(environment,
                         "com.bloxbean.cardano.zeroj.verifier.core.VerifierOrchestrator",
-                        "com.bloxbean.cardano.yano.appchain.zk");
+                        "org.yanoproject.appchain.zk");
 
                 // Exercise the real ZeroJ default-ServiceLoader path through a
                 // plugin factory callback. The context assertion proves the
@@ -310,7 +310,7 @@ public final class PluginBundleLaunchProbe {
                 }
                 requireTccl(callerTccl, "ZK provider and state-machine callbacks");
                 instantiateZkVerifierBackends(environment,
-                        "com.bloxbean.cardano.yano.appchain.zk");
+                        "org.yanoproject.appchain.zk");
                 requireTccl(callerTccl, "ZK backend probe");
             }
             requireTccl(callerTccl, "plugin environment close");

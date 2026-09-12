@@ -1,6 +1,6 @@
 package org.yanoproject.x.eutxo.bridge.cardano;
 
-import com.bloxbean.cardano.yano.api.utxo.UtxoState;
+import org.yanoproject.api.utxo.UtxoState;
 
 import java.util.Objects;
 import java.util.function.Function;

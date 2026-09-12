@@ -1,12 +1,12 @@
 package org.yanoproject.x.stdlib;
 
 import com.bloxbean.cardano.client.crypto.Blake2bUtil;
-import com.bloxbean.cardano.yano.api.appchain.AppCapabilityManifest;
-import com.bloxbean.cardano.yano.api.appchain.proof.ProofLabVocabulary;
-import com.bloxbean.cardano.yano.api.appchain.proof.ProofSubjectDescriptorV1;
-import com.bloxbean.cardano.yano.api.appchain.proof.ProofSubjectProvider;
-import com.bloxbean.cardano.yano.api.appchain.proof.ProofSubjectProvider.ClaimRequest;
-import com.bloxbean.cardano.yano.api.appchain.proof.ProofSubjectProvider.ClaimResult;
+import org.yanoproject.api.appchain.AppCapabilityManifest;
+import org.yanoproject.api.appchain.proof.ProofLabVocabulary;
+import org.yanoproject.api.appchain.proof.ProofSubjectDescriptorV1;
+import org.yanoproject.api.appchain.proof.ProofSubjectProvider;
+import org.yanoproject.api.appchain.proof.ProofSubjectProvider.ClaimRequest;
+import org.yanoproject.api.appchain.proof.ProofSubjectProvider.ClaimResult;
 import org.yanoproject.x.stdlib.contracts.ApprovalsContract;
 import org.yanoproject.x.stdlib.contracts.AuthenticatedMapContract;
 import org.yanoproject.x.stdlib.contracts.BalancesContract;

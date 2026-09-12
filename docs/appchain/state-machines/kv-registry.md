@@ -171,7 +171,7 @@ also be isolated.
 Use the client artifact with the node version:
 
 ```groovy
-implementation "com.bloxbean.cardano:yano-x-client:${yanoVersion}"
+implementation "org.yanoproject:yano-x-client:${yanoVersion}"
 ```
 
 The client includes the portable no-SPI stock contracts and a typed facade:

@@ -9,7 +9,7 @@ import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.client.transaction.util.TransactionUtil;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
-import com.bloxbean.cardano.yano.api.appchain.signer.SignerProvider;
+import org.yanoproject.api.appchain.signer.SignerProvider;
 import org.yanoproject.x.eutxo.contracts.EutxoOutpoint;
 import org.yanoproject.x.eutxo.contracts.EutxoWithdrawalClaim;
 import org.yanoproject.x.eutxo.testkit.EutxoTestWallet;

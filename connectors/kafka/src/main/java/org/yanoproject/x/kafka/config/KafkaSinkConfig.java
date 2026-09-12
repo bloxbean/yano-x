@@ -1,6 +1,6 @@
 package org.yanoproject.x.kafka.config;
 
-import com.bloxbean.cardano.yano.api.appchain.AppChainConfig;
+import org.yanoproject.api.appchain.AppChainConfig;
 import org.apache.kafka.clients.producer.ProducerConfig;
 
 import java.time.Duration;

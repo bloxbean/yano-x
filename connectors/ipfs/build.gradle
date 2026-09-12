@@ -59,7 +59,7 @@ tasks.named('shadowJar') {
             'org.yanoproject.x.ipfs.internal.contracts.v1deps.cbor'
     relocate 'org.bouncycastle',
             'org.yanoproject.x.ipfs.internal.contracts.v1deps.bouncycastle'
-    exclude 'com/bloxbean/cardano/yano/api/**'
+    exclude 'org/yanoproject/api/**'
     exclude 'META-INF/*.SF', 'META-INF/*.RSA', 'META-INF/*.DSA', 'module-info.class'
 }
 
@@ -73,7 +73,7 @@ def relocatedBouncyCastlePrefix =
         'org/yanoproject/x/ipfs/internal/contracts/v1deps/bouncycastle/'
 def forbiddenRuntimePrefixes = ['com/fasterxml/jackson/', 'net/bytebuddy/']
 def effectService =
-        'META-INF/services/com.bloxbean.cardano.yano.api.appchain.effects.AppEffectExecutorFactory'
+        'META-INF/services/org.yanoproject.api.appchain.effects.AppEffectExecutorFactory'
 def pluginManifest =
         'META-INF/yano/plugins/org.yanoproject.x.ipfs.json'
 def factoryClass = 'org.yanoproject.x.ipfs.effects.IpfsEffectExecutorFactory'
@@ -139,7 +139,7 @@ tasks.register('verifyIpfsArtifactBoundaries') {
             throw new GradleException(
                     'IPFS bundle does not privately relocate BLAKE2b')
         }
-        if (bundleEntries.any { it.startsWith('com/bloxbean/cardano/yano/api/') }) {
+        if (bundleEntries.any { it.startsWith('org/yanoproject/api/') }) {
             throw new GradleException('IPFS bundle embeds host Yano API classes')
         }
         [thin, bundle].each { artifact ->

@@ -1,6 +1,6 @@
 package org.yanoproject.x.roles.internal;
 
-import com.bloxbean.cardano.yano.api.appchain.AppStateWriter;
+import org.yanoproject.api.appchain.AppStateWriter;
 
 import java.util.Arrays;
 import java.util.HashMap;

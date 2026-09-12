@@ -1,9 +1,9 @@
 package org.yanoproject.x.stdlib;
 
 import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
-import com.bloxbean.cardano.yano.api.appchain.AppBlock;
-import com.bloxbean.cardano.yano.api.appchain.AppBlockExecutionContext;
-import com.bloxbean.cardano.yano.api.appchain.AppStateMachine;
+import org.yanoproject.api.appchain.AppBlock;
+import org.yanoproject.api.appchain.AppBlockExecutionContext;
+import org.yanoproject.api.appchain.AppStateMachine;
 import org.yanoproject.x.composite.ComponentGeneration;
 import org.yanoproject.x.composite.CompositeWorkflow;
 import org.yanoproject.x.composite.CompositeWorkflowContext;

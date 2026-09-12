@@ -1,8 +1,8 @@
 package org.yanoproject.x.authmap.validators;
 
-import com.bloxbean.cardano.yano.api.appchain.authmap.AuthenticatedMapValueValidator;
-import com.bloxbean.cardano.yano.api.appchain.authmap.ValidatorInitContext;
-import com.bloxbean.cardano.yano.api.appchain.authmap.ValidatorVerdict;
+import org.yanoproject.api.appchain.authmap.AuthenticatedMapValueValidator;
+import org.yanoproject.api.appchain.authmap.ValidatorInitContext;
+import org.yanoproject.api.appchain.authmap.ValidatorVerdict;
 import org.yanoproject.x.stdlib.contracts.AuthenticatedMapContract;
 import org.junit.jupiter.api.Test;
 

@@ -1,7 +1,7 @@
 package org.yanoproject.x.roles;
 
-import com.bloxbean.cardano.yano.api.appchain.AppChainMembershipEpoch;
-import com.bloxbean.cardano.yano.api.appchain.AppStateMachineContext;
+import org.yanoproject.api.appchain.AppChainMembershipEpoch;
+import org.yanoproject.api.appchain.AppStateMachineContext;
 import org.yanoproject.x.roles.contracts.RoleWorkflowLimits;
 
 import java.nio.ByteBuffer;

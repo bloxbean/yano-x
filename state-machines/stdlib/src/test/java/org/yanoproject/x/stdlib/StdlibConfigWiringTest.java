@@ -2,9 +2,9 @@ package org.yanoproject.x.stdlib;
 
 import com.bloxbean.cardano.client.crypto.KeyGenUtil;
 import com.bloxbean.cardano.yaci.core.util.HexUtil;
-import com.bloxbean.cardano.yano.api.appchain.AppChainConfig;
-import com.bloxbean.cardano.yano.api.appchain.AppStateMachineContext;
-import com.bloxbean.cardano.yano.runtime.appchain.AppChainSubsystem;
+import org.yanoproject.api.appchain.AppChainConfig;
+import org.yanoproject.api.appchain.AppStateMachineContext;
+import org.yanoproject.runtime.appchain.AppChainSubsystem;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.function.Executable;
 import org.junit.jupiter.api.Test;

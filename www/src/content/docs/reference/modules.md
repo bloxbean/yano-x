@@ -163,14 +163,14 @@ repositories { mavenCentral() }
 
 dependencies {
     // The Java client SDK: REST, SSE, and client-side proof verification.
-    implementation 'com.bloxbean.cardano:yano-x-client'
+    implementation 'org.yanoproject:yano-x-client'
 
     // Contracts libraries are plain JARs, safe to use off-chain.
-    implementation 'com.bloxbean.cardano:yano-x-evidence-contracts'
+    implementation 'org.yanoproject:yano-x-evidence-contracts'
 
     // Tests.
-    testImplementation 'com.bloxbean.cardano:yano-appchain-core-testkit'
-    testImplementation 'com.bloxbean.cardano:yano-x-effects-testkit'
+    testImplementation 'org.yanoproject:yano-appchain-core-testkit'
+    testImplementation 'org.yanoproject:yano-x-effects-testkit'
 }
 ```
 

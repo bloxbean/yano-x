@@ -1,7 +1,7 @@
 package org.yanoproject.x.roles.internal;
 
-import com.bloxbean.cardano.yano.api.appchain.AppStateReader;
-import com.bloxbean.cardano.yano.api.appchain.AppStateWriter;
+import org.yanoproject.api.appchain.AppStateReader;
+import org.yanoproject.api.appchain.AppStateWriter;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;

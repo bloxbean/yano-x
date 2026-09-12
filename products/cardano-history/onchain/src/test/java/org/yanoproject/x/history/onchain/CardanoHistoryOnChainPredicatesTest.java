@@ -4,7 +4,7 @@ import org.yanoproject.x.composite.contracts.CompositeCommitmentV1;
 import org.yanoproject.x.proofs.onchain.AuthenticatedSnapshotOnChainVerifier;
 import org.yanoproject.x.proofs.onchain.MpfOnChainVerifier;
 import org.yanoproject.x.proofs.onchain.MpfPairOnChainVerifier;
-import com.bloxbean.cardano.yano.api.appchain.l1view.ProtocolParamsCanonicalCodec;
+import org.yanoproject.api.appchain.l1view.ProtocolParamsCanonicalCodec;
 import com.bloxbean.cardano.julc.core.types.JulcList;
 import com.bloxbean.cardano.julc.testkit.ContractTest;
 import com.bloxbean.cardano.client.crypto.Blake2bUtil;

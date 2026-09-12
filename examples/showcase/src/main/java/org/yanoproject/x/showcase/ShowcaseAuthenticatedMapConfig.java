@@ -1,7 +1,7 @@
 package org.yanoproject.x.showcase;
 
 import com.bloxbean.cardano.client.crypto.KeyGenUtil;
-import com.bloxbean.cardano.yano.api.appchain.AppChainConfig;
+import org.yanoproject.api.appchain.AppChainConfig;
 import org.yanoproject.x.roles.contracts.ActorKeyEpochV1;
 import org.yanoproject.x.roles.contracts.ActorKeyProofV1;
 import org.yanoproject.x.roles.contracts.ActorRecordV1;
@@ -16,7 +16,7 @@ import org.yanoproject.x.roles.contracts.RecordStatus;
 import org.yanoproject.x.stdlib.AuthenticatedMapGenesisFactory;
 import org.yanoproject.x.stdlib.contracts.AuthenticatedMapContract;
 import org.yanoproject.x.stdlib.contracts.AuthenticatedMapSchema;
-import com.bloxbean.cardano.yano.catalog.CatalogDigests;
+import org.yanoproject.catalog.CatalogDigests;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 

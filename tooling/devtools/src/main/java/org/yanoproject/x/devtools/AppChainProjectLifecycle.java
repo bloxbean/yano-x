@@ -1,7 +1,7 @@
 package org.yanoproject.x.devtools;
 
-import com.bloxbean.cardano.yano.appchain.config.AppChainPropertyRegistry;
-import com.bloxbean.cardano.yano.appchain.config.ChangePolicy;
+import org.yanoproject.appchain.config.AppChainPropertyRegistry;
+import org.yanoproject.appchain.config.ChangePolicy;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;

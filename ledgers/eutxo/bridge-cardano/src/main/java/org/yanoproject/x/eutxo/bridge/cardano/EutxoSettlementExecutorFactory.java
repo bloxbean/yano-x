@@ -2,9 +2,9 @@ package org.yanoproject.x.eutxo.bridge.cardano;
 
 import com.bloxbean.cardano.client.plutus.spec.PlutusV3Script;
 import com.bloxbean.cardano.client.quicktx.QuickTxBuilder;
-import com.bloxbean.cardano.yano.api.appchain.effects.AppChainEffectContext;
-import com.bloxbean.cardano.yano.api.appchain.effects.AppEffectExecutor;
-import com.bloxbean.cardano.yano.api.appchain.effects.AppEffectExecutorFactory;
+import org.yanoproject.api.appchain.effects.AppChainEffectContext;
+import org.yanoproject.api.appchain.effects.AppEffectExecutor;
+import org.yanoproject.api.appchain.effects.AppEffectExecutorFactory;
 
 import java.util.List;
 import java.util.Map;

@@ -1,7 +1,7 @@
 package org.yanoproject.x.kafka;
 
-import com.bloxbean.cardano.yano.api.appchain.sink.FinalizedStreamSink;
-import com.bloxbean.cardano.yano.api.appchain.sink.FinalizedStreamSinkFactory;
+import org.yanoproject.api.appchain.sink.FinalizedStreamSink;
+import org.yanoproject.api.appchain.sink.FinalizedStreamSinkFactory;
 import org.yanoproject.x.kafka.config.KafkaSinkConfig;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.common.serialization.StringSerializer;

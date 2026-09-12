@@ -1,6 +1,6 @@
 package org.yanoproject.x.evidence.profile;
 
-import com.bloxbean.cardano.yano.api.appchain.AppStateMachineContext;
+import org.yanoproject.api.appchain.AppStateMachineContext;
 import org.yanoproject.x.composite.ComponentDescriptor;
 import org.yanoproject.x.composite.ComponentGeneration;
 import org.yanoproject.x.composite.ComposableAppStateMachine;

@@ -1,10 +1,10 @@
 package org.yanoproject.x.examples.evidence.demo;
 
-import com.bloxbean.cardano.yano.api.appchain.effects.EffectRecord;
-import com.bloxbean.cardano.yano.api.appchain.anchor.AnchorDatumV1;
-import com.bloxbean.cardano.yano.api.appchain.evidence.EvidenceBundle;
-import com.bloxbean.cardano.yano.api.appchain.evidence.EvidenceBundleCodec;
-import com.bloxbean.cardano.yano.api.appchain.evidence.EvidenceVerifier;
+import org.yanoproject.api.appchain.effects.EffectRecord;
+import org.yanoproject.api.appchain.anchor.AnchorDatumV1;
+import org.yanoproject.api.appchain.evidence.EvidenceBundle;
+import org.yanoproject.api.appchain.evidence.EvidenceBundleCodec;
+import org.yanoproject.api.appchain.evidence.EvidenceVerifier;
 import org.yanoproject.x.client.AppChainClient;
 import org.yanoproject.x.client.EffectProofVerifier;
 import org.yanoproject.x.composite.contracts.CompositeCommitmentV1;
@@ -429,7 +429,7 @@ final class YanoAuditClient {
                     : Digests.hex(bundle.blocks().getLast().stateRoot());
             Map<Long, String> certifiedStateRoots = bundle.blocks().stream()
                     .collect(Collectors.toUnmodifiableMap(
-                            com.bloxbean.cardano.yano.api.appchain.AppBlock::height,
+                            org.yanoproject.api.appchain.AppBlock::height,
                             block -> Digests.hex(block.stateRoot())));
             return new FinalityAudit(result.certSignatures(), threshold,
                     Set.copyOf(memberKeys), result.anchoredToL1(), anchoredHeight,
@@ -482,7 +482,7 @@ final class YanoAuditClient {
         long previousHeight = 0;
         for (int index = 0; index < bundle.blocks().size(); index++) {
             var block = bundle.blocks().get(index);
-            if (block == null || block.version() != com.bloxbean.cardano.yano.api.appchain.AppBlock.BLOCK_VERSION
+            if (block == null || block.version() != org.yanoproject.api.appchain.AppBlock.BLOCK_VERSION
                     || !expectedChainId.equals(block.chainId()) || block.height() < 1
                     || index > 0 && (previousHeight == Long.MAX_VALUE
                     || block.height() != previousHeight + 1)

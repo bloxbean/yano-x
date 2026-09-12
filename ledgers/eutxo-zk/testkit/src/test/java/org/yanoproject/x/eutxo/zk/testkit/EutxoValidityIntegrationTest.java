@@ -1,13 +1,13 @@
 package org.yanoproject.x.eutxo.zk.testkit;
 
 import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
-import com.bloxbean.cardano.yano.api.appchain.AppBlock;
-import com.bloxbean.cardano.yano.api.appchain.AppBlockExecutionContext;
-import com.bloxbean.cardano.yano.api.appchain.AppStateMachine;
-import com.bloxbean.cardano.yano.api.appchain.AppStateMachineContext;
-import com.bloxbean.cardano.yano.api.appchain.FinalityCert;
-import com.bloxbean.cardano.yano.api.appchain.effects.AppEffectEmitter;
-import com.bloxbean.cardano.yano.api.appchain.l1view.L1Observation;
+import org.yanoproject.api.appchain.AppBlock;
+import org.yanoproject.api.appchain.AppBlockExecutionContext;
+import org.yanoproject.api.appchain.AppStateMachine;
+import org.yanoproject.api.appchain.AppStateMachineContext;
+import org.yanoproject.api.appchain.FinalityCert;
+import org.yanoproject.api.appchain.effects.AppEffectEmitter;
+import org.yanoproject.api.appchain.l1view.L1Observation;
 import org.yanoproject.x.eutxo.contracts.EutxoContract;
 import org.yanoproject.x.eutxo.contracts.EutxoDepositClaim;
 import org.yanoproject.x.eutxo.contracts.EutxoL2Authorization;

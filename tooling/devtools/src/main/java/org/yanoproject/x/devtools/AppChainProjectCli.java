@@ -1,6 +1,6 @@
 package org.yanoproject.x.devtools;
 
-import com.bloxbean.cardano.yano.appchain.config.AppChainPropertyRegistry;
+import org.yanoproject.appchain.config.AppChainPropertyRegistry;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.io.BufferedReader;
@@ -106,9 +106,9 @@ final class AppChainProjectCli {
     }
 
     private static AppChainPropertyRegistry builtInRegistry() throws IOException {
-        List<com.bloxbean.cardano.yano.appchain.config.AppChainMetadataSource> sources =
+        List<org.yanoproject.appchain.config.AppChainMetadataSource> sources =
                 new AppChainDescriptorLoader().loadBuiltInMetadata().stream()
-                        .map(com.bloxbean.cardano.yano.appchain.config.AppChainMetadataDescriptor::toSource)
+                        .map(org.yanoproject.appchain.config.AppChainMetadataDescriptor::toSource)
                         .toList();
         return AppChainPropertyRegistry.withSources(sources);
     }

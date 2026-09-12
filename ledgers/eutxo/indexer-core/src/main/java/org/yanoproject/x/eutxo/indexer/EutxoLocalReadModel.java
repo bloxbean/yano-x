@@ -1,8 +1,8 @@
 package org.yanoproject.x.eutxo.indexer;
 
-import com.bloxbean.cardano.yano.api.plugin.domain.LocalReadModelHost;
-import com.bloxbean.cardano.yano.api.plugin.domain.LocalReadModelQueryService;
-import com.bloxbean.cardano.yano.api.plugin.domain.LocalReadModelResult;
+import org.yanoproject.api.plugin.domain.LocalReadModelHost;
+import org.yanoproject.api.plugin.domain.LocalReadModelQueryService;
+import org.yanoproject.api.plugin.domain.LocalReadModelResult;
 import org.yanoproject.x.eutxo.contracts.EutxoDepositRecord;
 import org.yanoproject.x.eutxo.contracts.EutxoTransactionSummary;
 import org.yanoproject.x.eutxo.contracts.EutxoWithdrawalRecord;

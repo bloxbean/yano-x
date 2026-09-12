@@ -1,6 +1,6 @@
 package org.yanoproject.x.roles;
 
-import com.bloxbean.cardano.yano.api.appchain.AppStateWriter;
+import org.yanoproject.api.appchain.AppStateWriter;
 import org.yanoproject.x.roles.contracts.ActorKeyEpochV1;
 import org.yanoproject.x.roles.contracts.ActorRecordV1;
 import org.yanoproject.x.roles.contracts.ApprovalPolicyV1;

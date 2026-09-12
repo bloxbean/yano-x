@@ -1,6 +1,6 @@
 package org.yanoproject.x.devtools;
 
-import com.bloxbean.cardano.yano.appchain.config.AppChainPropertyRegistry;
+import org.yanoproject.appchain.config.AppChainPropertyRegistry;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;

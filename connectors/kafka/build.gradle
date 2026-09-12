@@ -90,7 +90,7 @@ tasks.named('shadowJar') {
             'org.yanoproject.x.kafka.internal.contracts.v1deps.cbor'
     relocate 'org.bouncycastle',
             'org.yanoproject.x.kafka.internal.contracts.v1deps.bouncycastle'
-    exclude 'com/bloxbean/cardano/yano/api/**'
+    exclude 'org/yanoproject/api/**'
     exclude 'META-INF/*.SF', 'META-INF/*.RSA', 'META-INF/*.DSA', 'module-info.class'
 }
 
@@ -103,9 +103,9 @@ def relocatedCborPrefix =
 def relocatedBouncyCastlePrefix =
         'org/yanoproject/x/kafka/internal/contracts/v1deps/bouncycastle/'
 def kafkaSinkService =
-        'META-INF/services/com.bloxbean.cardano.yano.api.appchain.sink.FinalizedStreamSinkFactory'
+        'META-INF/services/org.yanoproject.api.appchain.sink.FinalizedStreamSinkFactory'
 def kafkaEffectService =
-        'META-INF/services/com.bloxbean.cardano.yano.api.appchain.effects.AppEffectExecutorFactory'
+        'META-INF/services/org.yanoproject.api.appchain.effects.AppEffectExecutorFactory'
 def kafkaManifest =
         'META-INF/yano/plugins/org.yanoproject.x.kafka.json'
 
@@ -200,7 +200,7 @@ tasks.register('verifyKafkaArtifactBoundaries') {
             throw new GradleException(
                     'Kafka drop-in bundle does not privately relocate the BLAKE2b provider')
         }
-        if (bundleEntries.any { it.startsWith('com/bloxbean/cardano/yano/api/') }) {
+        if (bundleEntries.any { it.startsWith('org/yanoproject/api/') }) {
             throw new GradleException('Kafka drop-in bundle embeds host Yano API classes')
         }
         [kafkaSinkService, kafkaEffectService, kafkaManifest].each { entry ->

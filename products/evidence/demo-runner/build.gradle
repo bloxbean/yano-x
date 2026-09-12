@@ -92,10 +92,10 @@ tasks.named('shadowJar') {
 
 def pluginMetadataPrefixes = [
         'META-INF/yano/plugins/',
-        'META-INF/services/com.bloxbean.cardano.yano.api.'
+        'META-INF/services/org.yanoproject.api.'
 ]
 def forbiddenClassPrefixes = [
-        'com/bloxbean/cardano/yano/runtime/',
+        'org/yanoproject/runtime/',
         'org/yanoproject/x/kafka/',
         'org/yanoproject/x/ipfs/',
         'org/yanoproject/x/objectstore/s3/'

@@ -28,17 +28,17 @@ sourceSets {
 
 dependencies {
     // The node provides the public SPI at runtime — never package it in the plugin.
-    compileOnly "com.bloxbean.cardano:yano-core-api:${yanoVersion}"
+    compileOnly "org.yanoproject:yano-core-api:${yanoVersion}"
 
-    testImplementation "com.bloxbean.cardano:yano-core-api:${yanoVersion}"
+    testImplementation "org.yanoproject:yano-core-api:${yanoVersion}"
     // StateMachineConformance is a runtime test utility, not part of core-api.
-    testImplementation "com.bloxbean.cardano:yano-runtime:${yanoVersion}"
+    testImplementation "org.yanoproject:yano-runtime:${yanoVersion}"
     testImplementation platform('org.junit:junit-bom:5.10.2')
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testImplementation 'org.assertj:assertj-core:3.25.3'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 
-    catalogProbeImplementation "com.bloxbean.cardano:yano-runtime:${yanoVersion}"
+    catalogProbeImplementation "org.yanoproject:yano-runtime:${yanoVersion}"
 }
 
 java {
@@ -69,13 +69,13 @@ tasks.register('verifyPluginJar') {
         def archive = tasks.named('jar').get().archiveFile.get().asFile
         def contents = zipTree(archive)
         def stateMachineServicePath = 'META-INF/services/' +
-                'com.bloxbean.cardano.yano.api.appchain.AppStateMachineProvider'
+                'org.yanoproject.api.appchain.AppStateMachineProvider'
         def domainApiServicePath = 'META-INF/services/' +
-                'com.bloxbean.cardano.yano.api.plugin.domain.DomainApiProvider'
+                'org.yanoproject.api.plugin.domain.DomainApiProvider'
         def healthServicePath = 'META-INF/services/' +
-                'com.bloxbean.cardano.yano.api.plugin.operations.PluginHealthProvider'
+                'org.yanoproject.api.plugin.operations.PluginHealthProvider'
         def metricsServicePath = 'META-INF/services/' +
-                'com.bloxbean.cardano.yano.api.plugin.operations.PluginMetricsProvider'
+                'org.yanoproject.api.plugin.operations.PluginMetricsProvider'
         def manifestPath = 'META-INF/yano/plugins/com.example.appchain.counter.json'
         [stateMachineServicePath, domainApiServicePath, healthServicePath,
          metricsServicePath, manifestPath].each { requiredPath ->
@@ -170,7 +170,7 @@ tasks.register('verifyPluginJar') {
                     "Plugin manifest version ${manifest.version} must match project version "
                             + project.version)
         }
-        if (!contents.matching { include 'com/bloxbean/cardano/yano/**' }.isEmpty()) {
+        if (!contents.matching { include 'org/yanoproject/**' }.isEmpty()) {
             throw new GradleException('Plugin jar must not package Yano API/runtime classes')
         }
     }

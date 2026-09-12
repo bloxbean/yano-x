@@ -1,8 +1,8 @@
 package org.yanoproject.x.ipfs.effects;
 
-import com.bloxbean.cardano.yano.api.appchain.effects.AppEffectExecutor;
-import com.bloxbean.cardano.yano.api.appchain.effects.EffectExecutionContext;
-import com.bloxbean.cardano.yano.api.appchain.effects.PendingEffect;
+import org.yanoproject.api.appchain.effects.AppEffectExecutor;
+import org.yanoproject.api.appchain.effects.EffectExecutionContext;
+import org.yanoproject.api.appchain.effects.PendingEffect;
 import org.yanoproject.x.integration.ConnectorErrorCode;
 import org.yanoproject.x.integration.ConnectorTypes;
 import org.yanoproject.x.integration.detail.ConnectorDetailDocumentV1;

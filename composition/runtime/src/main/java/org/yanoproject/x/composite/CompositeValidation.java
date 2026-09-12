@@ -37,7 +37,7 @@ final class CompositeValidation {
     static String route(String value, String field) {
         printable(value, field);
         if (value.startsWith("~")) {
-            String l1Prefix = com.bloxbean.cardano.yano.api.appchain.l1view
+            String l1Prefix = org.yanoproject.api.appchain.l1view
                     .L1Observation.TOPIC_PREFIX;
             boolean topicField = field.toLowerCase(java.util.Locale.ROOT).contains("topic");
             boolean declaredL1Observer = topicField

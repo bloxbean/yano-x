@@ -1,13 +1,13 @@
 package com.example.appchain;
 
-import com.bloxbean.cardano.yano.api.appchain.AppQueryException;
-import com.bloxbean.cardano.yano.api.appchain.AppQueryResult;
-import com.bloxbean.cardano.yano.api.plugin.domain.DomainApi;
-import com.bloxbean.cardano.yano.api.plugin.domain.DomainApiContext;
-import com.bloxbean.cardano.yano.api.plugin.domain.DomainApiException;
-import com.bloxbean.cardano.yano.api.plugin.domain.DomainApiRequest;
-import com.bloxbean.cardano.yano.api.plugin.domain.DomainHttpMethod;
-import com.bloxbean.cardano.yano.api.plugin.domain.DomainQueryService;
+import org.yanoproject.api.appchain.AppQueryException;
+import org.yanoproject.api.appchain.AppQueryResult;
+import org.yanoproject.api.plugin.domain.DomainApi;
+import org.yanoproject.api.plugin.domain.DomainApiContext;
+import org.yanoproject.api.plugin.domain.DomainApiException;
+import org.yanoproject.api.plugin.domain.DomainApiRequest;
+import org.yanoproject.api.plugin.domain.DomainHttpMethod;
+import org.yanoproject.api.plugin.domain.DomainQueryService;
 import org.junit.jupiter.api.Test;
 
 import java.nio.charset.StandardCharsets;

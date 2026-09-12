@@ -1,6 +1,6 @@
 package org.yanoproject.x.feed.client;
 
-import com.bloxbean.cardano.yano.api.appchain.proof.ProofLabVocabulary;
+import org.yanoproject.api.appchain.proof.ProofLabVocabulary;
 import org.yanoproject.x.attest.client.AttestTrust;
 import org.yanoproject.x.feed.profile.Aggregation;
 import org.yanoproject.x.feed.profile.FeedGenesis;

@@ -1,8 +1,8 @@
 package org.yanoproject.x.eutxo.indexer.jdbc;
 
-import com.bloxbean.cardano.yano.api.plugin.domain.DomainApi;
-import com.bloxbean.cardano.yano.api.plugin.domain.DomainApiContext;
-import com.bloxbean.cardano.yano.api.plugin.domain.DomainApiProvider;
+import org.yanoproject.api.plugin.domain.DomainApi;
+import org.yanoproject.api.plugin.domain.DomainApiContext;
+import org.yanoproject.api.plugin.domain.DomainApiProvider;
 import org.yanoproject.x.eutxo.indexer.api.EutxoIndexDomainApiProvider;
 
 /** Bundle-local provider entry point for the storage-neutral index domain API. */

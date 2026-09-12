@@ -1,12 +1,12 @@
 package org.yanoproject.x.eutxo.zk.indexer;
 
-import com.bloxbean.cardano.yano.api.appchain.AppBlock;
-import com.bloxbean.cardano.yano.api.appchain.AppQueryResult;
-import com.bloxbean.cardano.yano.api.appchain.state.StateCommitmentIdentity;
-import com.bloxbean.cardano.yano.api.plugin.domain.FinalizedChainView;
-import com.bloxbean.cardano.yano.api.plugin.domain.LocalReadModelContext;
-import com.bloxbean.cardano.yano.api.plugin.domain.LocalReadModelHost;
-import com.bloxbean.cardano.yano.api.plugin.domain.LocalReadModelResult;
+import org.yanoproject.api.appchain.AppBlock;
+import org.yanoproject.api.appchain.AppQueryResult;
+import org.yanoproject.api.appchain.state.StateCommitmentIdentity;
+import org.yanoproject.api.plugin.domain.FinalizedChainView;
+import org.yanoproject.api.plugin.domain.LocalReadModelContext;
+import org.yanoproject.api.plugin.domain.LocalReadModelHost;
+import org.yanoproject.api.plugin.domain.LocalReadModelResult;
 import org.yanoproject.x.eutxo.indexer.EutxoIndexRequest;
 import org.yanoproject.x.eutxo.indexer.EutxoLocalReadModel;
 import org.yanoproject.x.eutxo.indexer.EutxoValidityLocalReadModel;

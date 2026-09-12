@@ -1,14 +1,14 @@
 package org.yanoproject.x.evidence.profile;
 
-import com.bloxbean.cardano.yano.api.appchain.AppQueryResult;
-import com.bloxbean.cardano.yano.api.plugin.domain.DomainApiAccess;
-import com.bloxbean.cardano.yano.api.plugin.domain.DomainApiContext;
-import com.bloxbean.cardano.yano.api.plugin.domain.DomainApiException;
-import com.bloxbean.cardano.yano.api.plugin.domain.DomainApiRequest;
-import com.bloxbean.cardano.yano.api.plugin.domain.DomainApiResponse;
-import com.bloxbean.cardano.yano.api.plugin.domain.DomainHttpMethod;
+import org.yanoproject.api.appchain.AppQueryResult;
+import org.yanoproject.api.plugin.domain.DomainApiAccess;
+import org.yanoproject.api.plugin.domain.DomainApiContext;
+import org.yanoproject.api.plugin.domain.DomainApiException;
+import org.yanoproject.api.plugin.domain.DomainApiRequest;
+import org.yanoproject.api.plugin.domain.DomainApiResponse;
+import org.yanoproject.api.plugin.domain.DomainHttpMethod;
 import org.yanoproject.x.composite.contracts.CompositeCommitmentV1;
-import com.bloxbean.cardano.yano.api.plugin.domain.DomainQueryService;
+import org.yanoproject.api.plugin.domain.DomainQueryService;
 import org.yanoproject.x.roles.DomainActorRegistryComponent;
 import org.yanoproject.x.roles.RoleAwareApprovalsComponent;
 import org.yanoproject.x.roles.contracts.ActorKeyEpochV1;

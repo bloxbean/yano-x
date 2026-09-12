@@ -1,7 +1,7 @@
 package org.yanoproject.x.stdlib;
 
-import com.bloxbean.cardano.yano.api.appchain.AppStateMachineProvider;
-import com.bloxbean.cardano.yano.runtime.plugins.PluginProviderRegistry;
+import org.yanoproject.api.appchain.AppStateMachineProvider;
+import org.yanoproject.runtime.plugins.PluginProviderRegistry;
 
 import java.util.List;
 import java.util.Map;

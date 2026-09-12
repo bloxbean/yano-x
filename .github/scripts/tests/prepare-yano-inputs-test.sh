@@ -5,17 +5,17 @@ test_directory="$(mktemp -d "${TMPDIR:-/tmp}/yano-input-tests.XXXXXX")"
 commit=1111111111111111111111111111111111111111
 version=0.0.0-111111111
 fixture="$test_directory/fixture"
-mkdir -p "$test_directory/bin" "$fixture/maven/com/bloxbean/cardano/yano-core-api/$version"
+mkdir -p "$test_directory/bin" "$fixture/maven/org/yanoproject/yano-core-api/$version"
 cp "$scripts_dir/tests/fake-gh.sh" "$test_directory/bin/gh"
 chmod +x "$test_directory/bin/gh"
-printf '<project/>\n' > "$fixture/maven/com/bloxbean/cardano/yano-core-api/$version/yano-core-api-$version.pom"
+printf '<project/>\n' > "$fixture/maven/org/yanoproject/yano-core-api/$version/yano-core-api-$version.pom"
 printf 'fixture ZIP bytes\n' > "$fixture/yano-$version.zip"
 jq -n --arg commit "$commit" --arg version "$version" \
   '{schemaVersion:1,repository:"bloxbean/yano",commit:$commit,version:$version,
     distribution:("yano-"+$version+".zip"),mavenDirectory:"maven"}' > "$fixture/yano-inputs.json"
 (
   cd "$fixture"
-  sha256sum "maven/com/bloxbean/cardano/yano-core-api/$version/yano-core-api-$version.pom" \
+  sha256sum "maven/org/yanoproject/yano-core-api/$version/yano-core-api-$version.pom" \
     "yano-$version.zip" yano-inputs.json
 ) > "$fixture/SHA256SUMS"
 

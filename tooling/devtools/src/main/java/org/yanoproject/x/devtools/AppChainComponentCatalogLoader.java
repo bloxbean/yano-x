@@ -2,8 +2,8 @@ package org.yanoproject.x.devtools;
 
 import com.bloxbean.cardano.client.crypto.KeyGenUtil;
 import org.yanoproject.x.roles.contracts.internal.RoleWorkflowEd25519;
-import com.bloxbean.cardano.yano.appchain.config.AppChainMetadataSource;
-import com.bloxbean.cardano.yano.appchain.config.AppChainPropertyRegistry;
+import org.yanoproject.appchain.config.AppChainMetadataSource;
+import org.yanoproject.appchain.config.AppChainPropertyRegistry;
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.StreamReadFeature;
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -76,7 +76,7 @@ final class AppChainComponentCatalogLoader {
                     uniqueRuntimeManifest(archive, manifestPath), "runtime manifest");
             validateRuntimeManifest(manifestBytes, catalog.bundleId(), catalog.bundleVersion());
             ZipEntry metadataEntry = uniqueOptional(
-                    archive, com.bloxbean.cardano.yano.appchain.config
+                    archive, org.yanoproject.appchain.config
                             .AppChainMetadataDescriptor.RESOURCE_PATH);
             byte[] metadataBytes = metadataEntry == null ? new byte[0]
                     : readBounded(archive, metadataEntry, "configuration metadata");

@@ -1,9 +1,9 @@
 package org.yanoproject.x.eutxo.indexer;
 
-import com.bloxbean.cardano.yano.api.appchain.AppBlock;
-import com.bloxbean.cardano.yano.api.appchain.AppQueryException;
-import com.bloxbean.cardano.yano.api.plugin.domain.FinalizedChainView;
-import com.bloxbean.cardano.yano.api.appchain.codec.AppBlockCodec;
+import org.yanoproject.api.appchain.AppBlock;
+import org.yanoproject.api.appchain.AppQueryException;
+import org.yanoproject.api.plugin.domain.FinalizedChainView;
+import org.yanoproject.api.appchain.codec.AppBlockCodec;
 import org.yanoproject.x.eutxo.contracts.EutxoDepositRecord;
 import org.yanoproject.x.eutxo.contracts.EutxoQueryCodec;
 import org.yanoproject.x.eutxo.contracts.EutxoTransactionSummary;

@@ -700,7 +700,7 @@ non-member business actors. The evidence-profile bundle supplies the complete
 `role-evidence` preset; see
 [Domain Actors and Role-Aware Approvals](APP_CHAIN_DOMAIN_ROLES.md).
 For everything else, implement
-`com.bloxbean.cardano.yano.api.appchain.AppStateMachine`:
+`org.yanoproject.api.appchain.AppStateMachine`:
 
 ```java
 public class OrderBookStateMachine implements AppStateMachine {
@@ -759,7 +759,7 @@ The plugin template ships this test pre-wired (`CounterConformanceTest`).
    }
    ```
 2. Add the ServiceLoader entry to your jar:
-   `META-INF/services/com.bloxbean.cardano.yano.api.appchain.AppStateMachineProvider`
+   `META-INF/services/org.yanoproject.api.appchain.AppStateMachineProvider`
    containing the provider class name.
 3. Add the bundle manifest
    `META-INF/yano/plugins/<bundle-id>.json`; its contribution kind, name and
@@ -803,7 +803,7 @@ native extension bundles.
 ### 6.2 Embed programmatically (library mode)
 
 For fully custom nodes, `AppChainSubsystem` (module `runtime`,
-`com.bloxbean.cardano.yano.runtime.appchain`) is a public kernel `Subsystem`
+`org.yanoproject.runtime.appchain`) is a public kernel `Subsystem`
 whose constructor accepts your `AppStateMachine` instance directly. A
 first-class `YanoAssembly.appChain(spec)` builder is planned; until then the
 plugin-jar route is the recommended packaging for custom chains.
@@ -1378,7 +1378,7 @@ blocks finalized before a node upgraded to this feature are not retro-indexed.
 
 ## 16. Client libraries (Java SDK, Spring Boot starter, testkit)
 
-**Java SDK** (`com.bloxbean.cardano:yano-x-client`) — typed access
+**Java SDK** (`org.yanoproject:yano-x-client`) — typed access
 with client-side proof verification, dependency-light:
 
 ```java
@@ -1422,7 +1422,7 @@ class Orders {
 Listener methods take `StreamedMessage`, `byte[]` or `String`; all beans are
 `@ConditionalOnMissingBean`, so anything can be overridden.
 
-**Testkit** (`com.bloxbean.cardano:yano-appchain-core-testkit`, test scope) —
+**Testkit** (`org.yanoproject:yano-appchain-core-testkit`, test scope) —
 embedded multi-node chains for CI: generated keys, real sockets, temp ledgers:
 
 ```java
@@ -2006,7 +2006,7 @@ public class CredentialExecutorFactory implements AppEffectExecutorFactory {
 ```
 
 Register it via
-`META-INF/services/com.bloxbean.cardano.yano.api.appchain.effects.AppEffectExecutorFactory`
+`META-INF/services/org.yanoproject.api.appchain.effects.AppEffectExecutorFactory`
 (one line: the factory's fully-qualified name), and add
 `META-INF/yano/plugins/com.example.credential.json`:
 

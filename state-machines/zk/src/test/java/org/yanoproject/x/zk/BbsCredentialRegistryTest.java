@@ -2,8 +2,8 @@ package org.yanoproject.x.zk;
 
 import com.bloxbean.cardano.client.crypto.KeyGenUtil;
 import com.bloxbean.cardano.yaci.core.util.HexUtil;
-import com.bloxbean.cardano.yano.api.appchain.AppChainConfig;
-import com.bloxbean.cardano.yano.runtime.appchain.AppChainSubsystem;
+import org.yanoproject.api.appchain.AppChainConfig;
+import org.yanoproject.runtime.appchain.AppChainSubsystem;
 import com.bloxbean.cardano.zeroj.bbs.BbsKeyPair;
 import com.bloxbean.cardano.zeroj.bbs.BbsPublicKey;
 import org.junit.jupiter.api.AfterEach;

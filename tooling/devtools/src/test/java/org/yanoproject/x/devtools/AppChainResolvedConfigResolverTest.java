@@ -1,9 +1,9 @@
 package org.yanoproject.x.devtools;
 
-import com.bloxbean.cardano.yano.api.appchain.state.StateCommitmentProfiles;
-import com.bloxbean.cardano.yano.appchain.config.AppChainPropertyRegistry;
-import com.bloxbean.cardano.yano.appchain.config.AppChainResolvedValidator;
-import com.bloxbean.cardano.yano.appchain.config.ConfigSourceKind;
+import org.yanoproject.api.appchain.state.StateCommitmentProfiles;
+import org.yanoproject.appchain.config.AppChainPropertyRegistry;
+import org.yanoproject.appchain.config.AppChainResolvedValidator;
+import org.yanoproject.appchain.config.ConfigSourceKind;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 

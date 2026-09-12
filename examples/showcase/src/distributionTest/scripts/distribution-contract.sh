@@ -101,7 +101,7 @@ unzip -p "$CARDANO_HISTORY_BUNDLE" \
     ' >/dev/null
 ! unzip -Z1 "$CARDANO_HISTORY_BUNDLE" | grep -q '^META-INF/yano/ui/'
 ! unzip -Z1 "$CARDANO_HISTORY_BUNDLE" \
-  | grep -Eq '^(com/bloxbean/cardano/yano/api/|org/yanoproject/x/(composite|stdlib)/|org/slf4j/)'
+  | grep -Eq '^(org/yanoproject/api/|org/yanoproject/x/(composite|stdlib)/|org/slf4j/)'
 grep -q 'chain-id: "document-review-chain"' "$ROOT/yano/config/application-appchain.yml"
 grep -q 'document-review-chain' "$ROOT/docs/CAPABILITY_CATALOG.md"
 [ -s "$MAP_ROOT/authenticated-map.properties" ]

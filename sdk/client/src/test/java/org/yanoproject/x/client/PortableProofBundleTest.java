@@ -3,11 +3,11 @@ package org.yanoproject.x.client;
 import com.bloxbean.cardano.client.crypto.config.CryptoConfiguration;
 import com.bloxbean.cardano.client.crypto.KeyGenUtil;
 import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
-import com.bloxbean.cardano.yano.api.appchain.AppBlock;
-import com.bloxbean.cardano.yano.api.appchain.FinalityCert;
-import com.bloxbean.cardano.yano.api.appchain.codec.AppBlockCodec;
-import com.bloxbean.cardano.yano.api.appchain.evidence.MessageInclusionProof;
-import com.bloxbean.cardano.yano.api.appchain.proof.ProofLabVocabulary;
+import org.yanoproject.api.appchain.AppBlock;
+import org.yanoproject.api.appchain.FinalityCert;
+import org.yanoproject.api.appchain.codec.AppBlockCodec;
+import org.yanoproject.api.appchain.evidence.MessageInclusionProof;
+import org.yanoproject.api.appchain.proof.ProofLabVocabulary;
 import org.junit.jupiter.api.Test;
 
 import java.nio.charset.StandardCharsets;

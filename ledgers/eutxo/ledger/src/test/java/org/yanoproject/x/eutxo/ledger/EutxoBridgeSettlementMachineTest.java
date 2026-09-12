@@ -6,19 +6,19 @@ import com.bloxbean.cardano.client.transaction.spec.TransactionOutput;
 import com.bloxbean.cardano.client.transaction.spec.Value;
 import com.bloxbean.cardano.client.transaction.util.TransactionUtil;
 import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
-import com.bloxbean.cardano.yano.api.appchain.AppBlock;
-import com.bloxbean.cardano.yano.api.appchain.AppBlockExecutionContext;
-import com.bloxbean.cardano.yano.api.appchain.AppChainMembershipEpoch;
-import com.bloxbean.cardano.yano.api.appchain.AppChainMembershipView;
-import com.bloxbean.cardano.yano.api.appchain.AppStateMachineContext;
-import com.bloxbean.cardano.yano.api.appchain.FinalityCert;
-import com.bloxbean.cardano.yano.api.appchain.effects.AppEffectEmitter;
-import com.bloxbean.cardano.yano.api.appchain.effects.EffectId;
-import com.bloxbean.cardano.yano.api.appchain.effects.EffectIntent;
-import com.bloxbean.cardano.yano.api.appchain.effects.EffectOutcome;
-import com.bloxbean.cardano.yano.api.appchain.effects.EffectResult;
+import org.yanoproject.api.appchain.AppBlock;
+import org.yanoproject.api.appchain.AppBlockExecutionContext;
+import org.yanoproject.api.appchain.AppChainMembershipEpoch;
+import org.yanoproject.api.appchain.AppChainMembershipView;
+import org.yanoproject.api.appchain.AppStateMachineContext;
+import org.yanoproject.api.appchain.FinalityCert;
+import org.yanoproject.api.appchain.effects.AppEffectEmitter;
+import org.yanoproject.api.appchain.effects.EffectId;
+import org.yanoproject.api.appchain.effects.EffectIntent;
+import org.yanoproject.api.appchain.effects.EffectOutcome;
+import org.yanoproject.api.appchain.effects.EffectResult;
 import org.yanoproject.x.eutxo.contracts.EutxoSettlementBatch;
-import com.bloxbean.cardano.yano.api.appchain.l1view.L1Observation;
+import org.yanoproject.api.appchain.l1view.L1Observation;
 import org.yanoproject.x.eutxo.contracts.EutxoBatchWithdrawalConfirmation;
 import org.yanoproject.x.eutxo.contracts.EutxoBridgeParams;
 import org.yanoproject.x.eutxo.contracts.EutxoBridgeParamsGovernanceV1;
@@ -123,7 +123,7 @@ class EutxoBridgeSettlementMachineTest {
                 .version(1)
                 .messageId(fill(32, 99))
                 .chainId("eutxo-test")
-                .topic(com.bloxbean.cardano.yano.api.appchain.effects
+                .topic(org.yanoproject.api.appchain.effects
                         .FxResultBody.TOPIC)
                 .sender(new byte[32])
                 .senderSeq(99)
@@ -439,9 +439,9 @@ class EutxoBridgeSettlementMachineTest {
                 EutxoProfile.V3.digestHex(),
                 "machines.eutxo.genesis.address", ALICE.address(),
                 "machines.eutxo.genesis.lovelace", "100");
-        List<com.bloxbean.cardano.yano.runtime.appchain.StateMachineConformance
+        List<org.yanoproject.runtime.appchain.StateMachineConformance
                 .CorpusMessage> corpus = List.of(
-                new com.bloxbean.cardano.yano.runtime.appchain
+                new org.yanoproject.runtime.appchain
                         .StateMachineConformance.CorpusMessage(
                         EutxoBridgeParamsGovernanceV1.TOPIC,
                         new EutxoBridgeParamsGovernanceV1.Command(
@@ -450,11 +450,11 @@ class EutxoBridgeSettlementMachineTest {
                                         2_000_000L, 8, 100L, 3_600L,
                                         86_400L, 0L),
                                 1).encode()),
-                new com.bloxbean.cardano.yano.runtime.appchain
+                new org.yanoproject.runtime.appchain
                         .StateMachineConformance.CorpusMessage(
                         EutxoBridgeParamsGovernanceV1.TOPIC,
                         new byte[] {0x01}),
-                new com.bloxbean.cardano.yano.runtime.appchain
+                new org.yanoproject.runtime.appchain
                         .StateMachineConformance.CorpusMessage(
                         EutxoBridgeParamsGovernanceV1.TOPIC,
                         new EutxoBridgeParamsGovernanceV1.Command(
@@ -463,7 +463,7 @@ class EutxoBridgeSettlementMachineTest {
                                         2_000_000L, 4, 50L, 1_800L,
                                         86_400L, 0L),
                                 2).encode()),
-                new com.bloxbean.cardano.yano.runtime.appchain
+                new org.yanoproject.runtime.appchain
                         .StateMachineConformance.CorpusMessage(
                         EutxoBridgeParamsGovernanceV1.TOPIC,
                         new EutxoBridgeParamsGovernanceV1.Command(
@@ -472,8 +472,8 @@ class EutxoBridgeSettlementMachineTest {
                                         2_000_000L, 8, 100L, 3_600L,
                                         86_400L, 0L),
                                 1).encode()));
-        com.bloxbean.cardano.yano.runtime.appchain.StateMachineConformance.Result
-                result = com.bloxbean.cardano.yano.runtime.appchain
+        org.yanoproject.runtime.appchain.StateMachineConformance.Result
+                result = org.yanoproject.runtime.appchain
                 .StateMachineConformance.builder(new EutxoStateMachineProvider())
                 .chainId("eutxo-conformance")
                 .settings(settings)

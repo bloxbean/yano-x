@@ -1,7 +1,7 @@
 package org.yanoproject.x.devtools;
 
 import com.bloxbean.cardano.client.crypto.KeyGenUtil;
-import com.bloxbean.cardano.yano.appchain.config.AppChainPropertyRegistry;
+import org.yanoproject.appchain.config.AppChainPropertyRegistry;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 

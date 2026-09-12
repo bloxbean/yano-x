@@ -31,7 +31,7 @@ public final class MpfProofConverter {
 
     /** Convert the canonical in-process proof envelope used by typed proof packages. */
     public static MpfNormalizedProof convert(
-            com.bloxbean.cardano.yano.api.appchain.state.StateProof proof) {
+            org.yanoproject.api.appchain.state.StateProof proof) {
         Objects.requireNonNull(proof, "proof");
         var profile = proof.snapshot().identity().profile();
         return convert(new AppChainClient.Proof(

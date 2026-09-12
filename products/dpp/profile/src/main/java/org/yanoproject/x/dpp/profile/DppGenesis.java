@@ -1,6 +1,6 @@
 package org.yanoproject.x.dpp.profile;
 
-import com.bloxbean.cardano.yano.api.appchain.AppChainConfig;
+import org.yanoproject.api.appchain.AppChainConfig;
 import org.yanoproject.x.roles.contracts.GovernedGenesisV1;
 import org.yanoproject.x.stdlib.AuthenticatedMapGenesisFactory;
 import org.yanoproject.x.stdlib.contracts.AuthenticatedMapContract;

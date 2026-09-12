@@ -1,7 +1,7 @@
 package org.yanoproject.x.kafka;
 
-import com.bloxbean.cardano.yano.api.appchain.AppBlock;
-import com.bloxbean.cardano.yano.api.appchain.FinalityCert;
+import org.yanoproject.api.appchain.AppBlock;
+import org.yanoproject.api.appchain.FinalityCert;
 import org.apache.kafka.clients.producer.MockProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.serialization.StringSerializer;

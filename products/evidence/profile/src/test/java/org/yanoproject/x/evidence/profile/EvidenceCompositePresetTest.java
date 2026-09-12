@@ -3,20 +3,20 @@ package org.yanoproject.x.evidence.profile;
 import org.yanoproject.x.evidence.profile.contracts.EvidenceReleaseCommandV1;
 import org.yanoproject.x.evidence.profile.contracts.EvidenceReleasePrerequisiteCommandsV1;
 import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
-import com.bloxbean.cardano.yano.api.appchain.AppBlock;
-import com.bloxbean.cardano.yano.api.appchain.AppBlockExecutionContext;
-import com.bloxbean.cardano.yano.api.appchain.AppQueryContext;
-import com.bloxbean.cardano.yano.api.appchain.AppStateMachineContext;
-import com.bloxbean.cardano.yano.api.appchain.AppStateWriter;
-import com.bloxbean.cardano.yano.api.appchain.FinalityCert;
-import com.bloxbean.cardano.yano.api.appchain.effects.AppEffectEmitter;
-import com.bloxbean.cardano.yano.api.appchain.effects.EffectId;
-import com.bloxbean.cardano.yano.api.appchain.effects.EffectIntent;
-import com.bloxbean.cardano.yano.api.appchain.effects.EffectOutcome;
-import com.bloxbean.cardano.yano.api.appchain.effects.EffectResult;
+import org.yanoproject.api.appchain.AppBlock;
+import org.yanoproject.api.appchain.AppBlockExecutionContext;
+import org.yanoproject.api.appchain.AppQueryContext;
+import org.yanoproject.api.appchain.AppStateMachineContext;
+import org.yanoproject.api.appchain.AppStateWriter;
+import org.yanoproject.api.appchain.FinalityCert;
+import org.yanoproject.api.appchain.effects.AppEffectEmitter;
+import org.yanoproject.api.appchain.effects.EffectId;
+import org.yanoproject.api.appchain.effects.EffectIntent;
+import org.yanoproject.api.appchain.effects.EffectOutcome;
+import org.yanoproject.api.appchain.effects.EffectResult;
 import org.yanoproject.x.composite.CompositeStateKeys;
 import org.yanoproject.x.composite.CompositeStateMachine;
-import com.bloxbean.cardano.yano.appchain.config.AppChainApprovalsConfig;
+import org.yanoproject.appchain.config.AppChainApprovalsConfig;
 import org.yanoproject.x.examples.evidence.EvidenceContract;
 import org.yanoproject.x.examples.evidence.command.NotifyEvidenceCommandV1;
 import org.yanoproject.x.examples.evidence.command.RepublishEvidenceCommandV1;
@@ -35,7 +35,7 @@ import org.yanoproject.x.integration.objectstore.ObjectPutCommandV1;
 import org.yanoproject.x.stdlib.ApprovalsStateMachine;
 import org.yanoproject.x.stdlib.DocTrailStateMachine;
 import org.yanoproject.x.stdlib.KvRegistryStateMachine;
-import com.bloxbean.cardano.yano.appchain.testkit.AppChainTestProfiles;
+import org.yanoproject.appchain.testkit.AppChainTestProfiles;
 import org.junit.jupiter.api.Test;
 
 import java.nio.charset.StandardCharsets;
@@ -473,14 +473,14 @@ class EvidenceCompositePresetTest {
             @Override public String chainId() { return CHAIN; }
             @Override public Map<String, String> settings() { return Map.copyOf(settings); }
             @Override
-            public Optional<com.bloxbean.cardano.yano.api.appchain.AppChainConsensusProfile>
+            public Optional<org.yanoproject.api.appchain.AppChainConsensusProfile>
             consensusProfile() {
                 return Optional.of(AppChainTestProfiles.enabledEffects(effectCap, 8));
             }
             @Override
-            public Optional<com.bloxbean.cardano.yano.api.appchain.AppChainMembershipView>
+            public Optional<org.yanoproject.api.appchain.AppChainMembershipView>
             membershipView() {
-                var epoch = new com.bloxbean.cardano.yano.api.appchain.AppChainMembershipEpoch(
+                var epoch = new org.yanoproject.api.appchain.AppChainMembershipEpoch(
                         0, List.of(HexFormat.of().formatHex(SENDER)), 1);
                 return Optional.of(ignored -> epoch);
             }

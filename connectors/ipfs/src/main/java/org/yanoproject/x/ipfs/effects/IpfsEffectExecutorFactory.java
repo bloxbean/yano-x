@@ -1,7 +1,7 @@
 package org.yanoproject.x.ipfs.effects;
 
-import com.bloxbean.cardano.yano.api.appchain.effects.AppEffectExecutor;
-import com.bloxbean.cardano.yano.api.appchain.effects.AppEffectExecutorFactory;
+import org.yanoproject.api.appchain.effects.AppEffectExecutor;
+import org.yanoproject.api.appchain.effects.AppEffectExecutorFactory;
 import org.yanoproject.x.integration.detail.ConnectorDetailArchive;
 import org.yanoproject.x.integration.detail.FileConnectorDetailArchive;
 import org.yanoproject.x.ipfs.config.IpfsEffectConfig;

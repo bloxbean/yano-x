@@ -1,8 +1,8 @@
 package org.yanoproject.x.eutxo.zk.indexer;
 
-import com.bloxbean.cardano.yano.api.plugin.domain.FinalizedChainView;
-import com.bloxbean.cardano.yano.api.plugin.domain.LocalReadModelContext;
-import com.bloxbean.cardano.yano.api.plugin.domain.LocalReadModelProvider;
+import org.yanoproject.api.plugin.domain.FinalizedChainView;
+import org.yanoproject.api.plugin.domain.LocalReadModelContext;
+import org.yanoproject.api.plugin.domain.LocalReadModelProvider;
 import org.yanoproject.x.eutxo.indexer.EutxoValidityBatchRecord;
 import org.yanoproject.x.eutxo.indexer.EutxoValidityIndexSource;
 import org.yanoproject.x.eutxo.indexer.EutxoValidityLocalReadModel;

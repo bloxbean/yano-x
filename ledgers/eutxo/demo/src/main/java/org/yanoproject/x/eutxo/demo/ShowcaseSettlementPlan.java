@@ -16,8 +16,8 @@ import com.bloxbean.cardano.client.transaction.spec.Value;
 import com.bloxbean.cardano.client.transaction.util.TransactionUtil;
 import org.yanoproject.x.eutxo.contracts.EutxoOutpoint;
 import org.yanoproject.x.eutxo.contracts.EutxoProfile;
-import com.bloxbean.cardano.yano.api.appchain.state.StateCommitmentIdentity;
-import com.bloxbean.cardano.yano.api.appchain.state.StateCommitmentProfiles;
+import org.yanoproject.api.appchain.state.StateCommitmentIdentity;
+import org.yanoproject.api.appchain.state.StateCommitmentProfiles;
 
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;

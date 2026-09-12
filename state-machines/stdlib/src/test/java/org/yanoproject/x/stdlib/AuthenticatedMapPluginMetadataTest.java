@@ -1,6 +1,6 @@
 package org.yanoproject.x.stdlib;
 
-import com.bloxbean.cardano.yano.api.plugin.domain.DomainApiProvider;
+import org.yanoproject.api.plugin.domain.DomainApiProvider;
 import org.junit.jupiter.api.Test;
 
 import java.util.ServiceLoader;

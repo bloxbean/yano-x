@@ -1,12 +1,12 @@
 package org.yanoproject.x.composite;
 
 import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
-import com.bloxbean.cardano.yano.api.appchain.AppBlock;
-import com.bloxbean.cardano.yano.api.appchain.AppChainMembershipEpoch;
-import com.bloxbean.cardano.yano.api.appchain.AppChainMembershipView;
-import com.bloxbean.cardano.yano.api.appchain.AppStateReader;
-import com.bloxbean.cardano.yano.api.appchain.AppStateWriter;
-import com.bloxbean.cardano.yano.api.appchain.codec.internal.CborStructurePreflight;
+import org.yanoproject.api.appchain.AppBlock;
+import org.yanoproject.api.appchain.AppChainMembershipEpoch;
+import org.yanoproject.api.appchain.AppChainMembershipView;
+import org.yanoproject.api.appchain.AppStateReader;
+import org.yanoproject.api.appchain.AppStateWriter;
+import org.yanoproject.api.appchain.codec.internal.CborStructurePreflight;
 import org.yanoproject.x.composite.contracts.CompositeCommitmentV1;
 import org.yanoproject.x.composite.contracts.CompositeGovernanceStatusV1;
 import org.yanoproject.x.composite.contracts.CompositeProfileEpochV1;
@@ -249,13 +249,13 @@ final class CompositeProfileGovernanceRuntime {
         } else if (params.length == Long.BYTES) {
             number = ByteBuffer.wrap(params).getLong();
             if (number < 0 || number > currentEpoch(state)) {
-                throw new com.bloxbean.cardano.yano.api.appchain.AppQueryException(
-                        com.bloxbean.cardano.yano.api.appchain.AppQueryException.Code.INVALID_REQUEST,
+                throw new org.yanoproject.api.appchain.AppQueryException(
+                        org.yanoproject.api.appchain.AppQueryException.Code.INVALID_REQUEST,
                         "profile epoch is outside retained history");
             }
         } else {
-            throw new com.bloxbean.cardano.yano.api.appchain.AppQueryException(
-                    com.bloxbean.cardano.yano.api.appchain.AppQueryException.Code.INVALID_REQUEST,
+            throw new org.yanoproject.api.appchain.AppQueryException(
+                    org.yanoproject.api.appchain.AppQueryException.Code.INVALID_REQUEST,
                     "profile epoch query expects zero or eight bytes");
         }
         return epoch(state, number).encode();

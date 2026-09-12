@@ -72,7 +72,7 @@ public final class CompositeStateKeys {
                 Arrays.copyOfRange(key, 0, COMPONENT_DOMAIN.length));
     }
 
-    static byte[] effectOwnerKey(com.bloxbean.cardano.yano.api.appchain.effects.EffectId effectId) {
+    static byte[] effectOwnerKey(org.yanoproject.api.appchain.effects.EffectId effectId) {
         byte[] hash = Objects.requireNonNull(effectId, "effectId").hash();
         return ByteBuffer.allocate(EFFECT_OWNER_DOMAIN.length + hash.length)
                 .put(EFFECT_OWNER_DOMAIN).put(hash).array();

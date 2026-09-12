@@ -1,16 +1,16 @@
 package org.yanoproject.x.devtools;
 
-import com.bloxbean.cardano.yano.appchain.config.AppChainMetadataSource;
-import com.bloxbean.cardano.yano.appchain.config.AppChainPropertyDefinition;
-import com.bloxbean.cardano.yano.appchain.config.AppChainPropertyRegistry;
-import com.bloxbean.cardano.yano.appchain.config.AppChainResolvedValidator;
-import com.bloxbean.cardano.yano.appchain.config.AppChainTemplateValidator;
-import com.bloxbean.cardano.yano.appchain.config.DynamicNamespaceDefinition;
-import com.bloxbean.cardano.yano.appchain.config.EffectiveConfigValue;
-import com.bloxbean.cardano.yano.appchain.config.ResolvedValidationResult;
-import com.bloxbean.cardano.yano.appchain.config.TemplateContract;
-import com.bloxbean.cardano.yano.appchain.config.TemplateValidationResult;
-import com.bloxbean.cardano.yano.appchain.config.ValidationDiagnostic;
+import org.yanoproject.appchain.config.AppChainMetadataSource;
+import org.yanoproject.appchain.config.AppChainPropertyDefinition;
+import org.yanoproject.appchain.config.AppChainPropertyRegistry;
+import org.yanoproject.appchain.config.AppChainResolvedValidator;
+import org.yanoproject.appchain.config.AppChainTemplateValidator;
+import org.yanoproject.appchain.config.DynamicNamespaceDefinition;
+import org.yanoproject.appchain.config.EffectiveConfigValue;
+import org.yanoproject.appchain.config.ResolvedValidationResult;
+import org.yanoproject.appchain.config.TemplateContract;
+import org.yanoproject.appchain.config.TemplateValidationResult;
+import org.yanoproject.appchain.config.ValidationDiagnostic;
 import org.yanoproject.x.roles.contracts.RoleWorkflowCli;
 import org.yanoproject.x.stdlib.contracts.AuthenticatedMapAuthorizationCli;
 import org.yanoproject.x.eutxo.client.EutxoCli;
@@ -209,7 +209,7 @@ public final class AppChainDevtoolsCli {
     private AppChainPropertyRegistry registry(List<Path> descriptors) throws IOException {
         List<AppChainMetadataSource> sources = new ArrayList<>();
         descriptorLoader.loadBuiltInMetadata().stream()
-                .map(com.bloxbean.cardano.yano.appchain.config.AppChainMetadataDescriptor::toSource)
+                .map(org.yanoproject.appchain.config.AppChainMetadataDescriptor::toSource)
                 .forEach(sources::add);
         for (Path descriptor : descriptors) {
             sources.add(descriptorLoader.loadMetadata(descriptor).toSource());

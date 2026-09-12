@@ -1,9 +1,9 @@
 package org.yanoproject.x.examples.evidence;
 
-import com.bloxbean.cardano.yano.api.appchain.AppStateMachineProvider;
-import com.bloxbean.cardano.yano.api.plugin.domain.DomainApiProvider;
-import com.bloxbean.cardano.yano.catalog.BundleManifestParser;
-import com.bloxbean.cardano.yano.catalog.ContributionKind;
+import org.yanoproject.api.appchain.AppStateMachineProvider;
+import org.yanoproject.api.plugin.domain.DomainApiProvider;
+import org.yanoproject.catalog.BundleManifestParser;
+import org.yanoproject.catalog.ContributionKind;
 import org.junit.jupiter.api.Test;
 
 import java.io.InputStream;

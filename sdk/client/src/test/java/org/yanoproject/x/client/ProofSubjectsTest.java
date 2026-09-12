@@ -1,8 +1,8 @@
 package org.yanoproject.x.client;
 
 import org.yanoproject.x.composite.contracts.CompositeCommitmentV1;
-import com.bloxbean.cardano.yano.api.appchain.transition.FinalizedMessageIndex;
-import com.bloxbean.cardano.yano.api.appchain.transition.FinalizedBlockMessageRootIndex;
+import org.yanoproject.api.appchain.transition.FinalizedMessageIndex;
+import org.yanoproject.api.appchain.transition.FinalizedBlockMessageRootIndex;
 import org.yanoproject.x.roles.contracts.ApprovalPolicyV1;
 import org.yanoproject.x.roles.contracts.ApprovalProposalV1;
 import org.yanoproject.x.roles.contracts.RecordStatus;

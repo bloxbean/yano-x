@@ -1,11 +1,11 @@
 package org.yanoproject.x.stdlib;
 
 import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
-import com.bloxbean.cardano.yano.api.appchain.*;
-import com.bloxbean.cardano.yano.api.appchain.effects.AppEffectEmitter;
-import com.bloxbean.cardano.yano.api.appchain.l1view.*;
+import org.yanoproject.api.appchain.*;
+import org.yanoproject.api.appchain.effects.AppEffectEmitter;
+import org.yanoproject.api.appchain.l1view.*;
 import org.yanoproject.x.stdlib.contracts.EpochGovernanceContract;
-import com.bloxbean.cardano.yano.runtime.appchain.StateMachineConformance;
+import org.yanoproject.runtime.appchain.StateMachineConformance;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigInteger;

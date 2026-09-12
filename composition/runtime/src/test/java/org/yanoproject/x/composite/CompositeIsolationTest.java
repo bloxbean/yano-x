@@ -2,16 +2,16 @@ package org.yanoproject.x.composite;
 
 import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
 import org.yanoproject.x.composite.contracts.AggregateQueryLimitsV1;
-import com.bloxbean.cardano.yano.api.appchain.AppBlock;
-import com.bloxbean.cardano.yano.api.appchain.AppBlockExecutionContext;
-import com.bloxbean.cardano.yano.api.appchain.AppStateMachine;
-import com.bloxbean.cardano.yano.api.appchain.AppStateMachineContext;
-import com.bloxbean.cardano.yano.appchain.testkit.AppChainTestProfiles;
-import com.bloxbean.cardano.yano.api.appchain.AppStateWriter;
-import com.bloxbean.cardano.yano.api.appchain.FinalityCert;
-import com.bloxbean.cardano.yano.api.appchain.snapshot.AuthenticatedSnapshotSeriesDescriptorV1;
-import com.bloxbean.cardano.yano.api.appchain.state.StateCommitmentProfiles;
-import com.bloxbean.cardano.yano.api.appchain.effects.AppEffectEmitter;
+import org.yanoproject.api.appchain.AppBlock;
+import org.yanoproject.api.appchain.AppBlockExecutionContext;
+import org.yanoproject.api.appchain.AppStateMachine;
+import org.yanoproject.api.appchain.AppStateMachineContext;
+import org.yanoproject.appchain.testkit.AppChainTestProfiles;
+import org.yanoproject.api.appchain.AppStateWriter;
+import org.yanoproject.api.appchain.FinalityCert;
+import org.yanoproject.api.appchain.snapshot.AuthenticatedSnapshotSeriesDescriptorV1;
+import org.yanoproject.api.appchain.state.StateCommitmentProfiles;
+import org.yanoproject.api.appchain.effects.AppEffectEmitter;
 import org.junit.jupiter.api.Test;
 
 import java.nio.charset.StandardCharsets;
@@ -228,7 +228,7 @@ class CompositeIsolationTest {
                 return Map.of("effects.max-per-block", Integer.toString(effectCap));
             }
             @Override
-            public java.util.Optional<com.bloxbean.cardano.yano.api.appchain.AppChainConsensusProfile>
+            public java.util.Optional<org.yanoproject.api.appchain.AppChainConsensusProfile>
             consensusProfile() {
                 return java.util.Optional.of(AppChainTestProfiles.enabledEffects(effectCap));
             }

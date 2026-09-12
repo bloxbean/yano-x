@@ -34,7 +34,7 @@ executable source test and named in the canonical D5 evidence row:
 ```bash
 ./gradlew :app:e2eTest \
   --tests \
-  'com.bloxbean.cardano.yano.app.e2e.EutxoZkRollupDevnetE2ETest' \
+  'org.yanoproject.app.e2e.EutxoZkRollupDevnetE2ETest' \
   --rerun-tasks
 ```
 

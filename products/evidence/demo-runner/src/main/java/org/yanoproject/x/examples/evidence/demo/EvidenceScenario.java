@@ -1,6 +1,6 @@
 package org.yanoproject.x.examples.evidence.demo;
 
-import com.bloxbean.cardano.yano.api.appchain.effects.EffectRecord;
+import org.yanoproject.api.appchain.effects.EffectRecord;
 import org.yanoproject.x.client.AppChainClient;
 import org.yanoproject.x.evidence.profile.contracts.EvidenceReleaseCommandV1;
 import org.yanoproject.x.evidence.profile.contracts.EvidenceReleasePrerequisiteCommandsV1;

@@ -1,8 +1,8 @@
 package org.yanoproject.x.stdlib;
 
-import com.bloxbean.cardano.yano.api.appchain.l1view.ProtocolParamsCanonicalCodec;
-import com.bloxbean.cardano.yano.api.appchain.l1view.ProtocolParamsView;
-import com.bloxbean.cardano.yano.api.model.ProtocolParamsSnapshot;
+import org.yanoproject.api.appchain.l1view.ProtocolParamsCanonicalCodec;
+import org.yanoproject.api.appchain.l1view.ProtocolParamsView;
+import org.yanoproject.api.model.ProtocolParamsSnapshot;
 
 import java.math.BigInteger;
 

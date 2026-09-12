@@ -19,11 +19,11 @@ import com.bloxbean.cardano.client.plutus.spec.RedeemerTag;
 import com.bloxbean.cardano.client.plutus.util.ScriptDataHashGenerator;
 import com.bloxbean.cardano.client.spec.NetworkId;
 import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
-import com.bloxbean.cardano.yano.api.appchain.AppBlock;
-import com.bloxbean.cardano.yano.api.appchain.AppBlockExecutionContext;
-import com.bloxbean.cardano.yano.api.appchain.AppStateMachineContext;
-import com.bloxbean.cardano.yano.api.appchain.FinalityCert;
-import com.bloxbean.cardano.yano.api.appchain.l1view.L1Observation;
+import org.yanoproject.api.appchain.AppBlock;
+import org.yanoproject.api.appchain.AppBlockExecutionContext;
+import org.yanoproject.api.appchain.AppStateMachineContext;
+import org.yanoproject.api.appchain.FinalityCert;
+import org.yanoproject.api.appchain.l1view.L1Observation;
 import org.yanoproject.x.eutxo.contracts.EutxoDepositClaim;
 import org.yanoproject.x.eutxo.contracts.EutxoDepositRecord;
 import org.yanoproject.x.eutxo.contracts.EutxoOutpoint;
@@ -41,7 +41,7 @@ import org.yanoproject.x.eutxo.contracts.EutxoWithdrawalRecord;
 import org.yanoproject.x.eutxo.testkit.EutxoTestWallet;
 import org.yanoproject.x.eutxo.testkit.EutxoTransactionFixtures;
 import org.yanoproject.x.eutxo.testkit.MemoryAppState;
-import com.bloxbean.cardano.yano.runtime.appchain.StateMachineConformance;
+import org.yanoproject.runtime.appchain.StateMachineConformance;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigInteger;
@@ -777,7 +777,7 @@ class EutxoStateMachineTest {
             MemoryAppState state
     ) {
         machine.apply(AppBlockExecutionContext.fromValidatedBlock(block), state,
-                com.bloxbean.cardano.yano.api.appchain.effects.AppEffectEmitter
+                org.yanoproject.api.appchain.effects.AppEffectEmitter
                         .rejecting("unused"));
     }
 

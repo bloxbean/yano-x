@@ -1,9 +1,9 @@
 package org.yanoproject.x.devtools;
 
-import com.bloxbean.cardano.yano.api.appchain.authmap.AuthenticatedMapValueValidator;
-import com.bloxbean.cardano.yano.api.appchain.authmap.AuthenticatedMapValueValidatorFactory;
-import com.bloxbean.cardano.yano.api.appchain.authmap.ValidatorInitContext;
-import com.bloxbean.cardano.yano.api.appchain.authmap.ValidatorVerdict;
+import org.yanoproject.api.appchain.authmap.AuthenticatedMapValueValidator;
+import org.yanoproject.api.appchain.authmap.AuthenticatedMapValueValidatorFactory;
+import org.yanoproject.api.appchain.authmap.ValidatorInitContext;
+import org.yanoproject.api.appchain.authmap.ValidatorVerdict;
 import org.yanoproject.x.devtools.AuthenticatedMapValidatorConformance.Report;
 import org.yanoproject.x.devtools.AuthenticatedMapValidatorConformance.ValidationCase;
 import org.yanoproject.x.devtools.fixture.ClassLoaderSensitiveValidatorFactory;

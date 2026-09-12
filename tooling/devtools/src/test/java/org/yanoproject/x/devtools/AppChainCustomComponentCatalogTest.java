@@ -1,14 +1,14 @@
 package org.yanoproject.x.devtools;
 
-import com.bloxbean.cardano.yano.api.appchain.AppStateMachineProvider;
-import com.bloxbean.cardano.yano.appchain.config.AppChainPropertyRegistry;
-import com.bloxbean.cardano.yano.appchain.config.AppChainMetadataDescriptor;
-import com.bloxbean.cardano.yano.appchain.config.AppChainPropertyDefinition;
-import com.bloxbean.cardano.yano.appchain.config.ChangePolicy;
-import com.bloxbean.cardano.yano.appchain.config.ConstraintProvenance;
-import com.bloxbean.cardano.yano.appchain.config.PropertyScope;
-import com.bloxbean.cardano.yano.appchain.config.PropertyType;
-import com.bloxbean.cardano.yano.appchain.config.ValidationCoverage;
+import org.yanoproject.api.appchain.AppStateMachineProvider;
+import org.yanoproject.appchain.config.AppChainPropertyRegistry;
+import org.yanoproject.appchain.config.AppChainMetadataDescriptor;
+import org.yanoproject.appchain.config.AppChainPropertyDefinition;
+import org.yanoproject.appchain.config.ChangePolicy;
+import org.yanoproject.appchain.config.ConstraintProvenance;
+import org.yanoproject.appchain.config.PropertyScope;
+import org.yanoproject.appchain.config.PropertyType;
+import org.yanoproject.appchain.config.ValidationCoverage;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;

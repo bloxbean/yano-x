@@ -6,8 +6,8 @@ def yanoSource = providers.gradleProperty('yanoSource')
 if (yanoSource.present) {
     includeBuild(file(yanoSource.get())) {
         dependencySubstitution {
-            substitute module('com.bloxbean.cardano:yano-core-api') using project(':core-api')
-            substitute module('com.bloxbean.cardano:yano-runtime') using project(':runtime')
+            substitute module('org.yanoproject:yano-core-api') using project(':core-api')
+            substitute module('org.yanoproject:yano-runtime') using project(':runtime')
         }
     }
 }

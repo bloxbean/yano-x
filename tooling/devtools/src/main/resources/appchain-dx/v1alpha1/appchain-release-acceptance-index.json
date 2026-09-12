@@ -88,44 +88,44 @@
       "ledgers/eutxo/indexer-core/src/test/java/org/yanoproject/x/eutxo/indexer/EutxoIndexCoordinatorTest.java#slowStoreCoalescesNotificationBurstsWithoutBlockingFinality"
     ],
     "sequencer:fixed": [
-      "yano:runtime/src/integrationTest/java/com/bloxbean/cardano/yano/runtime/appchain/AppChainSequencingIntegrationTest.java#sequencer_finalizesBlocks_identicalRoots_andSurvivesRestart"
+      "yano:runtime/src/integrationTest/java/org/yanoproject/runtime/appchain/AppChainSequencingIntegrationTest.java#sequencer_finalizesBlocks_identicalRoots_andSurvivesRestart"
     ],
     "sequencer:rotating": [
-      "yano:runtime/src/integrationTest/java/com/bloxbean/cardano/yano/runtime/appchain/AppChainRotationIntegrationTest.java#rotation_survivesProposerCrash"
+      "yano:runtime/src/integrationTest/java/org/yanoproject/runtime/appchain/AppChainRotationIntegrationTest.java#rotation_survivesProposerCrash"
     ],
     "membership:static": [
-      "yano:runtime/src/test/java/com/bloxbean/cardano/yano/runtime/appchain/AppChainTwoNodeSmokeTest.java#twoNodes_exchangeAuthenticatedMessages_bothDirections"
+      "yano:runtime/src/test/java/org/yanoproject/runtime/appchain/AppChainTwoNodeSmokeTest.java#twoNodes_exchangeAuthenticatedMessages_bothDirections"
     ],
     "membership:governed": [
-      "yano:runtime/src/integrationTest/java/com/bloxbean/cardano/yano/runtime/appchain/GovernedMembershipIntegrationTest.java#thresholdApproval_activates_andLateJoinerDerivesHistory"
+      "yano:runtime/src/integrationTest/java/org/yanoproject/runtime/appchain/GovernedMembershipIntegrationTest.java#thresholdApproval_activates_andLateJoinerDerivesHistory"
     ],
     "l1:slot-feed": [
-      "yano:runtime/src/integrationTest/java/com/bloxbean/cardano/yano/runtime/appchain/AppChainRotationIntegrationTest.java#feedSlot"
+      "yano:runtime/src/integrationTest/java/org/yanoproject/runtime/appchain/AppChainRotationIntegrationTest.java#feedSlot"
     ],
     "anchor:metadata": [
-      "yano:runtime/src/test/java/com/bloxbean/cardano/yano/runtime/appchain/AnchorServiceTest.java#observedConfirmationRetriesOnTickWithoutReplayOrResubmit"
+      "yano:runtime/src/test/java/org/yanoproject/runtime/appchain/AnchorServiceTest.java#observedConfirmationRetriesOnTickWithoutReplayOrResubmit"
     ],
     "anchor:script": [
-      "yano:runtime/src/test/java/com/bloxbean/cardano/yano/runtime/appchain/ScriptAnchorServiceTest.java#First real anchor"
+      "yano:runtime/src/test/java/org/yanoproject/runtime/appchain/ScriptAnchorServiceTest.java#First real anchor"
     ],
     "observer:address-deposit": [
-      "yano:runtime/src/test/java/com/bloxbean/cardano/yano/runtime/appchain/L1ObservationServiceTest.java#observers_computeDepositAndMetadataClaims"
+      "yano:runtime/src/test/java/org/yanoproject/runtime/appchain/L1ObservationServiceTest.java#observers_computeDepositAndMetadataClaims"
     ],
     "observer:metadata-label": [
-      "yano:runtime/src/test/java/com/bloxbean/cardano/yano/runtime/appchain/L1ObservationServiceTest.java#observers_computeDepositAndMetadataClaims"
+      "yano:runtime/src/test/java/org/yanoproject/runtime/appchain/L1ObservationServiceTest.java#observers_computeDepositAndMetadataClaims"
     ],
     "effects:runtime": [
-      "yano:runtime/src/test/java/com/bloxbean/cardano/yano/runtime/appchain/FxEffectsM2Test.java#retry",
-      "yano:runtime/src/test/java/com/bloxbean/cardano/yano/runtime/appchain/FxEffectsM3Test.java#expiry"
+      "yano:runtime/src/test/java/org/yanoproject/runtime/appchain/FxEffectsM2Test.java#retry",
+      "yano:runtime/src/test/java/org/yanoproject/runtime/appchain/FxEffectsM3Test.java#expiry"
     ],
     "effects:on-approved": [
       "state-machines/stdlib/src/test/java/org/yanoproject/x/stdlib/ApprovalsGenericEffectTest.java#allTerminalOutcomesPreserveApprovedDecisionAndExactEvidence"
     ],
     "executor:webhook": [
-      "yano:runtime/src/test/java/com/bloxbean/cardano/yano/runtime/appchain/AppChainWebhookTest.java#webhookSink_deliversInOrder_withRetry_andListenerFires"
+      "yano:runtime/src/test/java/org/yanoproject/runtime/appchain/AppChainWebhookTest.java#webhookSink_deliversInOrder_withRetry_andListenerFires"
     ],
     "sink:webhook": [
-      "yano:runtime/src/test/java/com/bloxbean/cardano/yano/runtime/appchain/AppChainWebhookTest.java#webhookSink_deliversInOrder_withRetry_andListenerFires"
+      "yano:runtime/src/test/java/org/yanoproject/runtime/appchain/AppChainWebhookTest.java#webhookSink_deliversInOrder_withRetry_andListenerFires"
     ],
     "executor:kafka": [
       "connectors/kafka/src/test/java/org/yanoproject/x/kafka/effects/KafkaEffectExecutorConformanceTest.java#conformance"
@@ -146,7 +146,7 @@
       "composition/runtime/src/test/java/org/yanoproject/x/composite/CompositeRoutingAndEffectsTest.java#routesOnlyExactActiveTopicsInProfileOrderAndEnforcesPhysicalNamespaces"
     ],
     "ui:console": [
-      "yano:app/src/test/java/com/bloxbean/cardano/yano/app/AppChainStatusPageTest.java#appChainStatusPage_isServed"
+      "yano:app/src/test/java/org/yanoproject/app/AppChainStatusPageTest.java#appChainStatusPage_isServed"
     ],
     "observability:prometheus": [
       "yano:app/observability/tests/contract.sh#observability-launcher-contract"
@@ -354,7 +354,7 @@
         "ledgers/eutxo/bridge-cardano/src/test/java/org/yanoproject/x/eutxo/bridge/cardano/ProofWithdrawalTransactionBuilderTest.java#permissionlessRelayReturnsExactReusableSignedBytes",
         "ledgers/eutxo/bridge-onchain/src/test/java/org/yanoproject/x/eutxo/bridge/onchain/ProofVaultValidatorConformanceTest.java#realMpfClaimSettlesPermissionlesslyWithinBudget",
         "ledgers/eutxo/bridge-onchain/src/test/java/org/yanoproject/x/eutxo/bridge/onchain/BridgeValidatorSourceCompileTest.java#releasePinnedJulcCompilesAllBridgeValidators",
-        "fixtures/eutxo-e2e/src/test/java/com/bloxbean/cardano/yano/app/e2e/EutxoZkRollupDevnetE2ETest.java#depositFinalizeProveSettleAndWithdrawOnDevnet"
+        "fixtures/eutxo-e2e/src/test/java/org/yanoproject/app/e2e/EutxoZkRollupDevnetE2ETest.java#depositFinalizeProveSettleAndWithdrawOnDevnet"
       ]
     },
     {
@@ -399,7 +399,7 @@
       "acceptanceScenario": "recipe-eutxo-zeroj-preview",
       "evidence": [
         "ledgers/eutxo-zk/lifecycle/src/test/java/org/yanoproject/x/eutxo/zk/lifecycle/EutxoValidityLifecycleTest.java#bootstrapIsIdempotentAndFailClosedByNetwork",
-        "fixtures/eutxo-e2e/src/test/java/com/bloxbean/cardano/yano/app/e2e/EutxoZkRollupDevnetE2ETest.java#depositFinalizeProveSettleAndWithdrawOnDevnet",
+        "fixtures/eutxo-e2e/src/test/java/org/yanoproject/app/e2e/EutxoZkRollupDevnetE2ETest.java#depositFinalizeProveSettleAndWithdrawOnDevnet",
         "ledgers/eutxo-zk/D5_ACCEPTANCE.md#network-evidence",
         "ledgers/eutxo-zk/D6_RELEASE_DECISION.md#release-decision"
       ]

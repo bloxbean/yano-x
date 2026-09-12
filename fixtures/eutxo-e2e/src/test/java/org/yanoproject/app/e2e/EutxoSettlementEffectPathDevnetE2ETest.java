@@ -1,4 +1,4 @@
-package com.bloxbean.cardano.yano.app.e2e;
+package org.yanoproject.app.e2e;
 
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.api.model.Result;
@@ -37,15 +37,15 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static com.bloxbean.cardano.yano.app.e2e.EutxoSettlementDevnetE2ETestProfile.CHAIN_ID;
-import static com.bloxbean.cardano.yano.app.e2e.EutxoSettlementDevnetE2ETestProfile.DEPOSIT_LOVELACE;
-import static com.bloxbean.cardano.yano.app.e2e.EutxoSettlementDevnetE2ETestProfile.OPERATOR_ADDRESS;
-import static com.bloxbean.cardano.yano.app.e2e.EutxoSettlementDevnetE2ETestProfile.OPERATOR_SEED;
-import static com.bloxbean.cardano.yano.app.e2e.EutxoSettlementDevnetE2ETestProfile.PAYOUT_ADDRESS;
-import static com.bloxbean.cardano.yano.app.e2e.EutxoSettlementDevnetE2ETestProfile.PLAN;
-import static com.bloxbean.cardano.yano.app.e2e.EutxoSettlementDevnetE2ETestProfile.ROOT_TOKEN;
-import static com.bloxbean.cardano.yano.app.e2e.EutxoSettlementDevnetE2ETestProfile.SEED_ONE;
-import static com.bloxbean.cardano.yano.app.e2e.EutxoSettlementDevnetE2ETestProfile.SEED_ZERO;
+import static org.yanoproject.app.e2e.EutxoSettlementDevnetE2ETestProfile.CHAIN_ID;
+import static org.yanoproject.app.e2e.EutxoSettlementDevnetE2ETestProfile.DEPOSIT_LOVELACE;
+import static org.yanoproject.app.e2e.EutxoSettlementDevnetE2ETestProfile.OPERATOR_ADDRESS;
+import static org.yanoproject.app.e2e.EutxoSettlementDevnetE2ETestProfile.OPERATOR_SEED;
+import static org.yanoproject.app.e2e.EutxoSettlementDevnetE2ETestProfile.PAYOUT_ADDRESS;
+import static org.yanoproject.app.e2e.EutxoSettlementDevnetE2ETestProfile.PLAN;
+import static org.yanoproject.app.e2e.EutxoSettlementDevnetE2ETestProfile.ROOT_TOKEN;
+import static org.yanoproject.app.e2e.EutxoSettlementDevnetE2ETestProfile.SEED_ONE;
+import static org.yanoproject.app.e2e.EutxoSettlementDevnetE2ETestProfile.SEED_ZERO;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 

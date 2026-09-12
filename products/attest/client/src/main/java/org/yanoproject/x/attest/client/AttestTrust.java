@@ -1,7 +1,7 @@
 package org.yanoproject.x.attest.client;
 
-import com.bloxbean.cardano.yano.api.appchain.anchor.AnchorDatumV1;
-import com.bloxbean.cardano.yano.api.appchain.proof.ProofLabVocabulary;
+import org.yanoproject.api.appchain.anchor.AnchorDatumV1;
+import org.yanoproject.api.appchain.proof.ProofLabVocabulary;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 

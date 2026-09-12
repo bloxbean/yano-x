@@ -1,11 +1,11 @@
 package org.yanoproject.x.kafka.effects;
 
-import com.bloxbean.cardano.yano.api.appchain.effects.AppEffectExecutor;
-import com.bloxbean.cardano.yano.api.appchain.effects.EffectExecution;
-import com.bloxbean.cardano.yano.api.appchain.effects.EffectExecutionContext;
-import com.bloxbean.cardano.yano.api.appchain.effects.EffectExecutorOperationalSnapshot;
-import com.bloxbean.cardano.yano.api.appchain.effects.EffectExecutorOperationsTracker;
-import com.bloxbean.cardano.yano.api.appchain.effects.PendingEffect;
+import org.yanoproject.api.appchain.effects.AppEffectExecutor;
+import org.yanoproject.api.appchain.effects.EffectExecution;
+import org.yanoproject.api.appchain.effects.EffectExecutionContext;
+import org.yanoproject.api.appchain.effects.EffectExecutorOperationalSnapshot;
+import org.yanoproject.api.appchain.effects.EffectExecutorOperationsTracker;
+import org.yanoproject.api.appchain.effects.PendingEffect;
 import org.yanoproject.x.integration.ConnectorContractException;
 import org.yanoproject.x.integration.ConnectorErrorCode;
 import org.yanoproject.x.integration.detail.ConnectorDetailArchive;

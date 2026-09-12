@@ -1,9 +1,9 @@
 package org.yanoproject.x.stdlib;
 
-import com.bloxbean.cardano.yano.api.appchain.l1view.L1Observation;
-import com.bloxbean.cardano.yano.api.appchain.l1view.ProtocolParamsCanonicalCodec;
+import org.yanoproject.api.appchain.l1view.L1Observation;
+import org.yanoproject.api.appchain.l1view.ProtocolParamsCanonicalCodec;
 import org.yanoproject.x.stdlib.contracts.EpochParamsContract;
-import com.bloxbean.cardano.yano.runtime.appchain.StateMachineConformance;
+import org.yanoproject.runtime.appchain.StateMachineConformance;
 import co.nstant.in.cbor.CborEncoder;
 import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.UnsignedInteger;

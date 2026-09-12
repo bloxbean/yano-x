@@ -1,24 +1,24 @@
 package org.yanoproject.x.composite;
 
-import com.bloxbean.cardano.yano.api.appchain.AppBlock;
-import com.bloxbean.cardano.yano.api.appchain.AppBlockExecutionContext;
-import com.bloxbean.cardano.yano.api.appchain.AppChainInfo;
-import com.bloxbean.cardano.yano.api.appchain.AppCapabilityIds;
-import com.bloxbean.cardano.yano.api.appchain.AppCapabilityManifest;
-import com.bloxbean.cardano.yano.api.appchain.AppQueryContext;
-import com.bloxbean.cardano.yano.api.appchain.AppQueryException;
-import com.bloxbean.cardano.yano.api.appchain.AppStateMachine;
-import com.bloxbean.cardano.yano.api.appchain.AppStateReader;
-import com.bloxbean.cardano.yano.api.appchain.AppStateWriter;
+import org.yanoproject.api.appchain.AppBlock;
+import org.yanoproject.api.appchain.AppBlockExecutionContext;
+import org.yanoproject.api.appchain.AppChainInfo;
+import org.yanoproject.api.appchain.AppCapabilityIds;
+import org.yanoproject.api.appchain.AppCapabilityManifest;
+import org.yanoproject.api.appchain.AppQueryContext;
+import org.yanoproject.api.appchain.AppQueryException;
+import org.yanoproject.api.appchain.AppStateMachine;
+import org.yanoproject.api.appchain.AppStateReader;
+import org.yanoproject.api.appchain.AppStateWriter;
 import org.yanoproject.x.composite.contracts.AggregateQueryCodecV1;
-import com.bloxbean.cardano.yano.api.appchain.AppStateMachineContext;
-import com.bloxbean.cardano.yano.api.appchain.effects.AppEffectEmitter;
-import com.bloxbean.cardano.yano.api.appchain.effects.EffectId;
-import com.bloxbean.cardano.yano.api.appchain.effects.EffectIntent;
-import com.bloxbean.cardano.yano.api.appchain.effects.EffectResult;
-import com.bloxbean.cardano.yano.api.appchain.effects.FxResultBody;
-import com.bloxbean.cardano.yano.api.appchain.effects.ResultPolicy;
-import com.bloxbean.cardano.yano.api.appchain.proof.ProofSubjectProvider;
+import org.yanoproject.api.appchain.AppStateMachineContext;
+import org.yanoproject.api.appchain.effects.AppEffectEmitter;
+import org.yanoproject.api.appchain.effects.EffectId;
+import org.yanoproject.api.appchain.effects.EffectIntent;
+import org.yanoproject.api.appchain.effects.EffectResult;
+import org.yanoproject.api.appchain.effects.FxResultBody;
+import org.yanoproject.api.appchain.effects.ResultPolicy;
+import org.yanoproject.api.appchain.proof.ProofSubjectProvider;
 
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
@@ -141,7 +141,7 @@ public final class CompositeStateMachine implements AppStateMachine {
             byte[] initialProfileDigest,
             int frameworkMaxEffects,
             CompositeGovernanceConfig governanceConfig,
-            com.bloxbean.cardano.yano.api.appchain.AppChainMembershipView membershipView
+            org.yanoproject.api.appchain.AppChainMembershipView membershipView
     ) {
         this.machineId = CompositeValidation.id(machineId, "machineId");
         this.catalog = Objects.requireNonNull(catalog, "catalog");
@@ -223,9 +223,9 @@ public final class CompositeStateMachine implements AppStateMachine {
     }
 
     @Override
-    public List<com.bloxbean.cardano.yano.api.appchain.snapshot
+    public List<org.yanoproject.api.appchain.snapshot
             .AuthenticatedSnapshotSeriesDescriptorV1> authenticatedSnapshotSeries() {
-        Map<String, com.bloxbean.cardano.yano.api.appchain.snapshot
+        Map<String, org.yanoproject.api.appchain.snapshot
                 .AuthenticatedSnapshotSeriesDescriptorV1> declared = new LinkedHashMap<>();
         for (ComponentBinding component : allComponents) {
             String componentId = component.descriptor().componentId();
@@ -239,14 +239,14 @@ public final class CompositeStateMachine implements AppStateMachine {
             }
         }
         return declared.values().stream().sorted(
-                java.util.Comparator.comparing(com.bloxbean.cardano.yano.api.appchain.snapshot
+                java.util.Comparator.comparing(org.yanoproject.api.appchain.snapshot
                         .AuthenticatedSnapshotSeriesDescriptorV1::seriesId)).toList();
     }
 
     @Override
-    public List<com.bloxbean.cardano.yano.api.appchain.snapshot
+    public List<org.yanoproject.api.appchain.snapshot
             .AuthenticatedSnapshotSourceCommitmentV1> authenticatedSnapshotSourceCommitments() {
-        Map<String, com.bloxbean.cardano.yano.api.appchain.snapshot
+        Map<String, org.yanoproject.api.appchain.snapshot
                 .AuthenticatedSnapshotSourceCommitmentV1> declared = new LinkedHashMap<>();
         for (ComponentBinding component : allComponents) {
             String componentId = component.descriptor().componentId();
@@ -264,7 +264,7 @@ public final class CompositeStateMachine implements AppStateMachine {
             }
         }
         return declared.values().stream().sorted(java.util.Comparator.comparing(
-                com.bloxbean.cardano.yano.api.appchain.snapshot
+                org.yanoproject.api.appchain.snapshot
                         .AuthenticatedSnapshotSourceCommitmentV1::seriesId)).toList();
     }
 
@@ -330,7 +330,7 @@ public final class CompositeStateMachine implements AppStateMachine {
                 .filter(workflow -> workflow.descriptor().topic().equals(topic))
                 .toList();
         if (topic != null && topic.startsWith("~")
-                && !topic.startsWith(com.bloxbean.cardano.yano.api.appchain.l1view
+                && !topic.startsWith(org.yanoproject.api.appchain.l1view
                 .L1Observation.TOPIC_PREFIX)
                 && candidates.isEmpty()) {
             return AdmissionResult.reject("Unsupported composite framework topic");

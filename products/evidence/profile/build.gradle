@@ -56,8 +56,8 @@ tasks.register('verifyEvidenceProfileArtifact') {
         new java.util.zip.ZipFile(archive).withCloseable { jar ->
             def entries = jar.entries().collect { entry -> entry.name }.toSet()
             def required = [
-                    'META-INF/services/com.bloxbean.cardano.yano.api.appchain.AppStateMachineProvider',
-                    'META-INF/services/com.bloxbean.cardano.yano.api.plugin.domain.DomainApiProvider',
+                    'META-INF/services/org.yanoproject.api.appchain.AppStateMachineProvider',
+                    'META-INF/services/org.yanoproject.api.plugin.domain.DomainApiProvider',
                     'META-INF/yano/plugins/org.yanoproject.x.evidence-profile.json',
                     'org/yanoproject/x/evidence/profile/EvidenceCompositeStateMachineProvider.class',
                     'org/yanoproject/x/evidence/profile/RoleEvidenceStateMachineProvider.class'

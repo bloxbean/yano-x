@@ -1,8 +1,8 @@
 package org.yanoproject.x.examples.evidence;
 
-import com.bloxbean.cardano.yano.api.plugin.domain.DomainApi;
-import com.bloxbean.cardano.yano.api.plugin.domain.DomainApiContext;
-import com.bloxbean.cardano.yano.api.plugin.domain.DomainApiProvider;
+import org.yanoproject.api.plugin.domain.DomainApi;
+import org.yanoproject.api.plugin.domain.DomainApiContext;
+import org.yanoproject.api.plugin.domain.DomainApiProvider;
 
 import java.util.Objects;
 

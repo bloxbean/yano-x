@@ -1,7 +1,7 @@
 package org.yanoproject.x.devtools;
 
-import com.bloxbean.cardano.yano.api.appchain.AppStateMachine;
-import com.bloxbean.cardano.yano.api.appchain.AppStateMachineProvider;
+import org.yanoproject.api.appchain.AppStateMachine;
+import org.yanoproject.api.appchain.AppStateMachineProvider;
 
 /** Public no-argument fixture used to prove a reviewed JVM artifact is ServiceLoader-visible. */
 public final class CustomCatalogFixtureProvider implements AppStateMachineProvider {

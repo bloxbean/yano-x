@@ -1,6 +1,6 @@
 package org.yanoproject.x.eutxo.ledger;
 
-import com.bloxbean.cardano.yano.api.appchain.AppStateMachineContext;
+import org.yanoproject.api.appchain.AppStateMachineContext;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;

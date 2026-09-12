@@ -1,12 +1,12 @@
 package org.yanoproject.x.eutxo.indexer.api;
 
-import com.bloxbean.cardano.yano.api.appchain.AppQueryException;
-import com.bloxbean.cardano.yano.api.plugin.domain.DomainApiContext;
-import com.bloxbean.cardano.yano.api.plugin.domain.DomainApiException;
-import com.bloxbean.cardano.yano.api.plugin.domain.DomainApiRequest;
-import com.bloxbean.cardano.yano.api.plugin.domain.DomainHttpMethod;
-import com.bloxbean.cardano.yano.api.plugin.domain.DomainQueryService;
-import com.bloxbean.cardano.yano.api.plugin.domain.LocalReadModelResult;
+import org.yanoproject.api.appchain.AppQueryException;
+import org.yanoproject.api.plugin.domain.DomainApiContext;
+import org.yanoproject.api.plugin.domain.DomainApiException;
+import org.yanoproject.api.plugin.domain.DomainApiRequest;
+import org.yanoproject.api.plugin.domain.DomainHttpMethod;
+import org.yanoproject.api.plugin.domain.DomainQueryService;
+import org.yanoproject.api.plugin.domain.LocalReadModelResult;
 import org.yanoproject.x.eutxo.indexer.EutxoIndexEvent;
 import org.yanoproject.x.eutxo.indexer.EutxoLocalReadModel;
 import org.yanoproject.x.eutxo.indexer.EutxoProjector;
@@ -229,7 +229,7 @@ class EutxoIndexDomainApiTest {
             }
 
             @Override
-            public com.bloxbean.cardano.yano.api.appchain.AppQueryResult query(
+            public org.yanoproject.api.appchain.AppQueryResult query(
                     String chainId,
                     String path,
                     byte[] params
@@ -274,7 +274,7 @@ class EutxoIndexDomainApiTest {
     }
 
     private static String body(
-            com.bloxbean.cardano.yano.api.plugin.domain.DomainApiResponse response
+            org.yanoproject.api.plugin.domain.DomainApiResponse response
     ) {
         return new String(response.body(), StandardCharsets.UTF_8);
     }

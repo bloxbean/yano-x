@@ -43,8 +43,8 @@ tasks.register('verifyGenericRoleWorkflowBoundary') {
             }
             def servicePrefix = 'META-INF/services/'
             def allowedServices = [
-                    servicePrefix + 'com.bloxbean.cardano.yano.api.appchain.AppStateMachineProvider',
-                    servicePrefix + 'com.bloxbean.cardano.yano.api.plugin.domain.DomainApiProvider'
+                    servicePrefix + 'org.yanoproject.api.appchain.AppStateMachineProvider',
+                    servicePrefix + 'org.yanoproject.api.plugin.domain.DomainApiProvider'
             ].toSet()
             def services = entries.findAll { entry ->
                 !entry.endsWith('/') && entry.startsWith(servicePrefix)

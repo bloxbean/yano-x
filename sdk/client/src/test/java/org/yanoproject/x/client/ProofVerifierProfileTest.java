@@ -2,7 +2,7 @@ package org.yanoproject.x.client;
 
 import com.bloxbean.cardano.client.crypto.KeyGenUtil;
 import com.bloxbean.cardano.client.crypto.config.CryptoConfiguration;
-import com.bloxbean.cardano.yano.api.appchain.AppBlock;
+import org.yanoproject.api.appchain.AppBlock;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.bloxbean.cardano.vds.core.api.NodeStore;

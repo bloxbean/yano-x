@@ -1,7 +1,7 @@
 package org.yanoproject.x.zk;
 
-import com.bloxbean.cardano.yano.api.appchain.AppChainConfig;
-import com.bloxbean.cardano.yano.api.appchain.codec.internal.CborStructurePreflight;
+import org.yanoproject.api.appchain.AppChainConfig;
+import org.yanoproject.api.appchain.codec.internal.CborStructurePreflight;
 
 /** Frozen structural bounds for member-supplied first-party ZK envelopes. */
 final class ZkCbor {

@@ -1,11 +1,11 @@
 package org.yanoproject.x.devtools;
 
-import com.bloxbean.cardano.yano.appchain.config.AppChainMetadataSource;
-import com.bloxbean.cardano.yano.appchain.config.AppChainPropertyDefinition;
-import com.bloxbean.cardano.yano.appchain.config.AppChainPropertyRegistry;
-import com.bloxbean.cardano.yano.appchain.config.DynamicNamespaceDefinition;
-import com.bloxbean.cardano.yano.appchain.config.PropertyType;
-import com.bloxbean.cardano.yano.appchain.config.ValidationCoverage;
+import org.yanoproject.appchain.config.AppChainMetadataSource;
+import org.yanoproject.appchain.config.AppChainPropertyDefinition;
+import org.yanoproject.appchain.config.AppChainPropertyRegistry;
+import org.yanoproject.appchain.config.DynamicNamespaceDefinition;
+import org.yanoproject.appchain.config.PropertyType;
+import org.yanoproject.appchain.config.ValidationCoverage;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;

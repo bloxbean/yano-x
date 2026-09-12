@@ -36,7 +36,7 @@ ext.yanoXCryptoTestLock = gradle.sharedServices.registerIfAbsent(
 // Yano host coordinates are pinned to the upstream Yano group, independent
 // of the Yano X group above.
 ext.yanoModule = { String artifactId ->
-    "com.bloxbean.cardano:${artifactId}:${yanoVersion}"
+    "org.yanoproject:${artifactId}:${yanoVersion}"
 }
 
 // Dependency resolution. Maven Local is opt-in only, so a coordinated local

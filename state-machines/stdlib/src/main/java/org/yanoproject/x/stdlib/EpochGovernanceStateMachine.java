@@ -1,20 +1,20 @@
 package org.yanoproject.x.stdlib;
 
-import com.bloxbean.cardano.yano.api.appchain.AppBlockExecutionContext;
-import com.bloxbean.cardano.yano.api.appchain.AppCapabilityManifest;
-import com.bloxbean.cardano.yano.api.appchain.AppQueryContext;
-import com.bloxbean.cardano.yano.api.appchain.AppQueryException;
-import com.bloxbean.cardano.yano.api.appchain.AppStateMachine;
-import com.bloxbean.cardano.yano.api.appchain.AppStateWriter;
-import com.bloxbean.cardano.yano.api.appchain.effects.AppEffectEmitter;
-import com.bloxbean.cardano.yano.api.appchain.l1view.L1Observation;
-import com.bloxbean.cardano.yano.api.appchain.snapshot.AuthenticatedSnapshotSeriesDescriptorV1;
-import com.bloxbean.cardano.yano.api.appchain.snapshot.AuthenticatedSnapshotSourceCommitmentV1;
-import com.bloxbean.cardano.yano.api.appchain.snapshot.SnapshotEntry;
-import com.bloxbean.cardano.yano.api.appchain.snapshot.SnapshotBuildTokenV1;
-import com.bloxbean.cardano.yano.api.appchain.snapshot.SnapshotSeriesHandle;
-import com.bloxbean.cardano.yano.api.appchain.snapshot.SnapshotSourceBoundary;
-import com.bloxbean.cardano.yano.api.appchain.state.StateCommitmentProfiles;
+import org.yanoproject.api.appchain.AppBlockExecutionContext;
+import org.yanoproject.api.appchain.AppCapabilityManifest;
+import org.yanoproject.api.appchain.AppQueryContext;
+import org.yanoproject.api.appchain.AppQueryException;
+import org.yanoproject.api.appchain.AppStateMachine;
+import org.yanoproject.api.appchain.AppStateWriter;
+import org.yanoproject.api.appchain.effects.AppEffectEmitter;
+import org.yanoproject.api.appchain.l1view.L1Observation;
+import org.yanoproject.api.appchain.snapshot.AuthenticatedSnapshotSeriesDescriptorV1;
+import org.yanoproject.api.appchain.snapshot.AuthenticatedSnapshotSourceCommitmentV1;
+import org.yanoproject.api.appchain.snapshot.SnapshotEntry;
+import org.yanoproject.api.appchain.snapshot.SnapshotBuildTokenV1;
+import org.yanoproject.api.appchain.snapshot.SnapshotSeriesHandle;
+import org.yanoproject.api.appchain.snapshot.SnapshotSourceBoundary;
+import org.yanoproject.api.appchain.state.StateCommitmentProfiles;
 import org.yanoproject.x.stdlib.contracts.EpochGovernanceContract;
 
 import java.util.ArrayList;
@@ -78,7 +78,7 @@ public final class EpochGovernanceStateMachine implements AppStateMachine {
             @Override public String seriesId() { return DREP_SNAPSHOT_SERIES_ID; }
             @Override public String algorithm() { return "blake2b256"; }
             @Override public String wireVersion() { return "epoch-drep-source-v1"; }
-            @Override public byte[] initial(com.bloxbean.cardano.yano.api.appchain.snapshot.SnapshotDescriptorDraftV1 draft) {
+            @Override public byte[] initial(org.yanoproject.api.appchain.snapshot.SnapshotDescriptorDraftV1 draft) {
                 return EpochGovernanceContract.initialDRepRoot();
             }
             @Override public byte[] append(byte[] accumulator, long chunkIndex, List<SnapshotEntry> entries) {

@@ -1,8 +1,8 @@
 package org.yanoproject.x.ipfs.effects;
 
-import com.bloxbean.cardano.yano.api.appchain.effects.AppEffectExecutor;
-import com.bloxbean.cardano.yano.api.appchain.effects.AppEffectExecutorFactory;
-import com.bloxbean.cardano.yano.api.appchain.effects.EffectExecution;
+import org.yanoproject.api.appchain.effects.AppEffectExecutor;
+import org.yanoproject.api.appchain.effects.AppEffectExecutorFactory;
+import org.yanoproject.api.appchain.effects.EffectExecution;
 import org.yanoproject.x.ipfs.internal.kubo.KuboClientConfig;
 import org.yanoproject.x.ipfs.internal.PinState;
 import org.junit.jupiter.api.Test;

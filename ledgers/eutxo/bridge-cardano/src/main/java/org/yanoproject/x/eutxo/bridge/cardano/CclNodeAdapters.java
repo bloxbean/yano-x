@@ -11,9 +11,9 @@ import com.bloxbean.cardano.client.api.model.Result;
 import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.plutus.spec.ExUnits;
 import com.bloxbean.cardano.client.plutus.spec.RedeemerTag;
-import com.bloxbean.cardano.yano.api.TxEvaluationGateway;
-import com.bloxbean.cardano.yano.api.model.TxEvaluationResult;
-import com.bloxbean.cardano.yano.api.utxo.UtxoState;
+import org.yanoproject.api.TxEvaluationGateway;
+import org.yanoproject.api.model.TxEvaluationResult;
+import org.yanoproject.api.utxo.UtxoState;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -163,7 +163,7 @@ final class CclNodeAdapters {
         };
     }
 
-    static Utxo convert(com.bloxbean.cardano.yano.api.utxo.model.Utxo utxo) {
+    static Utxo convert(org.yanoproject.api.utxo.model.Utxo utxo) {
         List<Amount> amounts = new ArrayList<>();
         amounts.add(new Amount("lovelace", utxo.lovelace()));
         if (utxo.assets() != null) {

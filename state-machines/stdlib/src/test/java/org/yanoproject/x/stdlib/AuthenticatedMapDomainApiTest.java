@@ -1,11 +1,11 @@
 package org.yanoproject.x.stdlib;
 
-import com.bloxbean.cardano.yano.api.appchain.AppQueryResult;
-import com.bloxbean.cardano.yano.api.plugin.domain.DomainApiContext;
-import com.bloxbean.cardano.yano.api.plugin.domain.DomainApiException;
-import com.bloxbean.cardano.yano.api.plugin.domain.DomainApiRequest;
-import com.bloxbean.cardano.yano.api.plugin.domain.DomainHttpMethod;
-import com.bloxbean.cardano.yano.api.plugin.domain.DomainQueryService;
+import org.yanoproject.api.appchain.AppQueryResult;
+import org.yanoproject.api.plugin.domain.DomainApiContext;
+import org.yanoproject.api.plugin.domain.DomainApiException;
+import org.yanoproject.api.plugin.domain.DomainApiRequest;
+import org.yanoproject.api.plugin.domain.DomainHttpMethod;
+import org.yanoproject.api.plugin.domain.DomainQueryService;
 import org.yanoproject.x.roles.RoleAwareApprovalsComponent;
 import org.yanoproject.x.roles.contracts.DirectRolePolicyV1;
 import org.yanoproject.x.roles.contracts.RecordStatus;
@@ -147,7 +147,7 @@ class AuthenticatedMapDomainApiTest {
                 path, query, new byte[0]);
     }
 
-    private static String body(com.bloxbean.cardano.yano.api.plugin.domain.DomainApiResponse value) {
+    private static String body(org.yanoproject.api.plugin.domain.DomainApiResponse value) {
         assertThat(value.status()).isEqualTo(200);
         return new String(value.body(), StandardCharsets.UTF_8);
     }

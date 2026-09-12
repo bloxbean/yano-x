@@ -1,4 +1,4 @@
-package com.bloxbean.cardano.yano.app.e2e;
+package org.yanoproject.app.e2e;
 
 import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.address.AddressProvider;

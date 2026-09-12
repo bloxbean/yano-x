@@ -110,7 +110,7 @@ export async function resolveVersions() {
     yanoXVersion: props.version ?? 'unknown',
     /** The exact Yano host line Yano X is built against. */
     yanoVersion,
-    group: props.group ?? 'com.bloxbean.cardano',
+    group: props.group ?? 'org.yanoproject.x',
     javaVersion: '25',
     /** Resolved automatically by the Gradle build for a released yanoVersion. */
     yanoJvmZipUrl: `${YANO_REPO}/releases/download/v${yanoVersion}/yano-${yanoVersion}.zip`,

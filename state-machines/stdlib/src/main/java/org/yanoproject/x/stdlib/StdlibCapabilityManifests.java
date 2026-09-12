@@ -1,6 +1,6 @@
 package org.yanoproject.x.stdlib;
 
-import com.bloxbean.cardano.yano.api.appchain.AppCapabilityManifest;
+import org.yanoproject.api.appchain.AppCapabilityManifest;
 
 import java.util.List;
 

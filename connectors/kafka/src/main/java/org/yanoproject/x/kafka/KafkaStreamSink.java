@@ -1,8 +1,8 @@
 package org.yanoproject.x.kafka;
 
-import com.bloxbean.cardano.yano.api.appchain.AppBlock;
-import com.bloxbean.cardano.yano.api.appchain.sink.AppBlockJson;
-import com.bloxbean.cardano.yano.api.appchain.sink.FinalizedStreamSink;
+import org.yanoproject.api.appchain.AppBlock;
+import org.yanoproject.api.appchain.sink.AppBlockJson;
+import org.yanoproject.api.appchain.sink.FinalizedStreamSink;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.clients.producer.RecordMetadata;

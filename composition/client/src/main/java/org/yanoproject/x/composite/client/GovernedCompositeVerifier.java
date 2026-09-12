@@ -1,8 +1,8 @@
 package org.yanoproject.x.composite.client;
 
-import com.bloxbean.cardano.yano.api.appchain.AppBlock;
-import com.bloxbean.cardano.yano.api.appchain.evidence.EvidenceBundle;
-import com.bloxbean.cardano.yano.api.appchain.evidence.EvidenceVerifier;
+import org.yanoproject.api.appchain.AppBlock;
+import org.yanoproject.api.appchain.evidence.EvidenceBundle;
+import org.yanoproject.api.appchain.evidence.EvidenceVerifier;
 import org.yanoproject.x.client.AppChainClient;
 import org.yanoproject.x.client.ProofVerifier;
 import org.yanoproject.x.composite.contracts.CompositeCommitmentV1;

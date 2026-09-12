@@ -1,7 +1,7 @@
 package org.yanoproject.x.stdlib.contracts;
 
 import com.bloxbean.cardano.vds.jmt.JmtProfile;
-import com.bloxbean.cardano.yano.api.appchain.state.StateCommitmentProfiles;
+import org.yanoproject.api.appchain.state.StateCommitmentProfiles;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigInteger;

@@ -1,10 +1,10 @@
 package org.yanoproject.x.client;
 
-import com.bloxbean.cardano.yano.api.appchain.observation.ObservationAnchorType;
-import com.bloxbean.cardano.yano.api.appchain.observation.ObservationFixedPoint;
-import com.bloxbean.cardano.yano.api.appchain.observation.ObservationReport;
-import com.bloxbean.cardano.yano.api.appchain.observation.ObservationReporterMode;
-import com.bloxbean.cardano.yano.api.appchain.observation.ObservationRound;
+import org.yanoproject.api.appchain.observation.ObservationAnchorType;
+import org.yanoproject.api.appchain.observation.ObservationFixedPoint;
+import org.yanoproject.api.appchain.observation.ObservationReport;
+import org.yanoproject.api.appchain.observation.ObservationReporterMode;
+import org.yanoproject.api.appchain.observation.ObservationRound;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 

@@ -1,7 +1,7 @@
 package org.yanoproject.x.composite;
 
-import com.bloxbean.cardano.yano.api.appchain.AppStateWriter;
-import com.bloxbean.cardano.yano.api.appchain.effects.AppEffectEmitter;
+import org.yanoproject.api.appchain.AppStateWriter;
+import org.yanoproject.api.appchain.effects.AppEffectEmitter;
 
 /** Capability-limited views for only the participant generations declared by a workflow. */
 public interface CompositeWorkflowContext {

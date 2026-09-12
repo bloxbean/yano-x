@@ -1,11 +1,11 @@
 package org.yanoproject.x.eutxo.indexer.jdbc;
 
-import com.bloxbean.cardano.yano.api.plugin.domain.LocalReadModelContext;
-import com.bloxbean.cardano.yano.api.plugin.domain.LocalReadModelHost;
-import com.bloxbean.cardano.yano.api.plugin.operations.PluginGaugeValue;
-import com.bloxbean.cardano.yano.api.plugin.operations.PluginHealthContext;
-import com.bloxbean.cardano.yano.api.plugin.operations.PluginHealthStatus;
-import com.bloxbean.cardano.yano.api.plugin.operations.PluginMetricsContext;
+import org.yanoproject.api.plugin.domain.LocalReadModelContext;
+import org.yanoproject.api.plugin.domain.LocalReadModelHost;
+import org.yanoproject.api.plugin.operations.PluginGaugeValue;
+import org.yanoproject.api.plugin.operations.PluginHealthContext;
+import org.yanoproject.api.plugin.operations.PluginHealthStatus;
+import org.yanoproject.api.plugin.operations.PluginMetricsContext;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;

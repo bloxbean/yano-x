@@ -17,11 +17,11 @@ import com.bloxbean.cardano.julc.ledger.TxOut;
 import com.bloxbean.cardano.julc.ledger.TxOutRef;
 import com.bloxbean.cardano.julc.ledger.Value;
 import com.bloxbean.cardano.julc.testkit.ContractTest;
-import com.bloxbean.cardano.yano.api.appchain.snapshot.AuthenticatedSnapshotSeriesDescriptorV1;
-import com.bloxbean.cardano.yano.api.appchain.snapshot.SnapshotCanonicalCodec;
-import com.bloxbean.cardano.yano.api.appchain.snapshot.SnapshotDescriptorV1;
-import com.bloxbean.cardano.yano.api.appchain.snapshot.SnapshotSourceBoundary;
-import com.bloxbean.cardano.yano.api.appchain.state.StateCommitmentProfiles;
+import org.yanoproject.api.appchain.snapshot.AuthenticatedSnapshotSeriesDescriptorV1;
+import org.yanoproject.api.appchain.snapshot.SnapshotCanonicalCodec;
+import org.yanoproject.api.appchain.snapshot.SnapshotDescriptorV1;
+import org.yanoproject.api.appchain.snapshot.SnapshotSourceBoundary;
+import org.yanoproject.api.appchain.state.StateCommitmentProfiles;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeAll;
 

@@ -1,8 +1,8 @@
 package org.yanoproject.x.client;
 
-import com.bloxbean.cardano.yano.api.appchain.observation.ObservationHashes;
-import com.bloxbean.cardano.yano.api.appchain.observation.ObservationReport;
-import com.bloxbean.cardano.yano.api.appchain.observation.ObservationRound;
+import org.yanoproject.api.appchain.observation.ObservationHashes;
+import org.yanoproject.api.appchain.observation.ObservationReport;
+import org.yanoproject.api.appchain.observation.ObservationRound;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;

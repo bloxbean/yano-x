@@ -1,9 +1,9 @@
 package org.yanoproject.x.devtools;
 
-import com.bloxbean.cardano.yano.appchain.config.AppChainPropertyDefinition;
-import com.bloxbean.cardano.yano.appchain.config.AppChainPropertyRegistry;
-import com.bloxbean.cardano.yano.appchain.config.ConfigSourceKind;
-import com.bloxbean.cardano.yano.appchain.config.EffectiveConfigValue;
+import org.yanoproject.appchain.config.AppChainPropertyDefinition;
+import org.yanoproject.appchain.config.AppChainPropertyRegistry;
+import org.yanoproject.appchain.config.ConfigSourceKind;
+import org.yanoproject.appchain.config.EffectiveConfigValue;
 import io.smallrye.config.ConfigValue;
 import io.smallrye.config.EnvConfigSource;
 import io.smallrye.config.SmallRyeConfig;

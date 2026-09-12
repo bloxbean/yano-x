@@ -55,15 +55,15 @@ tasks.named('shadowJar') {
     relocate 'org.bouncycastle',
             'org.yanoproject.x.examples.evidence.internal.contracts.v1deps.bouncycastle'
     exclude 'org/yanoproject/x/evidence/profile/contracts/**'
-    exclude 'com/bloxbean/cardano/yano/api/**'
+    exclude 'org/yanoproject/api/**'
     exclude 'META-INF/services/java.security.Provider'
     exclude 'META-INF/*.SF', 'META-INF/*.RSA', 'META-INF/*.DSA', 'module-info.class'
 }
 
 def stateMachineService =
-        'META-INF/services/com.bloxbean.cardano.yano.api.appchain.AppStateMachineProvider'
+        'META-INF/services/org.yanoproject.api.appchain.AppStateMachineProvider'
 def domainApiService =
-        'META-INF/services/com.bloxbean.cardano.yano.api.plugin.domain.DomainApiProvider'
+        'META-INF/services/org.yanoproject.api.plugin.domain.DomainApiProvider'
 def pluginManifest =
         'META-INF/yano/plugins/org.yanoproject.x.evidence-registry.json'
 def unrelocatedContracts = 'org/yanoproject/x/integration/'
@@ -109,7 +109,7 @@ def domainApiProvider =
 def allowedBundleServices = [stateMachineService, domainApiService] as Set
 def forbiddenBundlePrefixes = [
         'com/bloxbean/cardano/yaci/',
-        'com/bloxbean/cardano/yano/api/',
+        'org/yanoproject/api/',
         'com/fasterxml/jackson/',
         'io/netty/',
         'org/reactivestreams/',

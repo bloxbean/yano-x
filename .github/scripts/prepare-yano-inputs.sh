@@ -40,7 +40,7 @@ if [[ -n "${YANO_INPUTS_RUN_ID:-}${YANO_INPUTS_COMMIT:-}" ]]; then
     [[ "$checksum_path" != /* && "/$checksum_path/" != *"/../"* ]] || fail 'Unsafe checksum path'
   done < "$staged_inputs/SHA256SUMS"
   (cd "$staged_inputs" && sha256sum --check --strict SHA256SUMS) || fail 'Staged input checksum mismatch'
-  [[ -f "$staged_inputs/maven/com/bloxbean/cardano/yano-core-api/$staged_version/yano-core-api-$staged_version.pom" ]] \
+  [[ -f "$staged_inputs/maven/org/yanoproject/yano-core-api/$staged_version/yano-core-api-$staged_version.pom" ]] \
     || fail 'Missing core API publication'
   [[ -f "$staged_inputs/yano-$staged_version.zip" ]] || fail 'Missing JVM distribution'
   YANO_VERSION="$staged_version"

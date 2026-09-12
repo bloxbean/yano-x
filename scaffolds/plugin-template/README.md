@@ -20,10 +20,10 @@ plugin-template/
     └── JsonSupport.java               # safe JSON string encoding
 └── src/main/resources/META-INF/
     ├── services/
-    │   ├── com.bloxbean.cardano.yano.api.appchain.AppStateMachineProvider
-    │   ├── com.bloxbean.cardano.yano.api.plugin.domain.DomainApiProvider
-    │   ├── com.bloxbean.cardano.yano.api.plugin.operations.PluginHealthProvider
-    │   └── com.bloxbean.cardano.yano.api.plugin.operations.PluginMetricsProvider
+    │   ├── org.yanoproject.api.appchain.AppStateMachineProvider
+    │   ├── org.yanoproject.api.plugin.domain.DomainApiProvider
+    │   ├── org.yanoproject.api.plugin.operations.PluginHealthProvider
+    │   └── org.yanoproject.api.plugin.operations.PluginMetricsProvider
     └── yano/plugins/
         └── com.example.appchain.counter.json
 ```
@@ -100,7 +100,7 @@ global API level is at least `minLevel`, rejecting an incompatible bundle
 before provider construction.
 
 If the plugin uses third-party runtime dependencies, publish a reproducible
-shaded JAR (without `com/bloxbean/cardano/yano/api/**`) so the artifact is a
+shaded JAR (without `org/yanoproject/api/**`) so the artifact is a
 self-contained deployment unit and its catalog digest covers all executable
 plugin code. Thin plugin JARs are intentionally rejected when their provider
 class cannot be correlated to the same artifact.

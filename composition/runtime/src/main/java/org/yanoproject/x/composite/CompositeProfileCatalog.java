@@ -1,6 +1,6 @@
 package org.yanoproject.x.composite;
 
-import com.bloxbean.cardano.yano.api.appchain.AppStateMachine;
+import org.yanoproject.api.appchain.AppStateMachine;
 
 import java.util.ArrayList;
 import java.util.Collections;

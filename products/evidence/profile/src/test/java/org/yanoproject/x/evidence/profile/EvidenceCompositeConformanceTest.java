@@ -14,10 +14,10 @@ import org.yanoproject.x.integration.ipfs.IpfsPinCommandV1;
 import org.yanoproject.x.integration.objectstore.DigestAlgorithm;
 import org.yanoproject.x.integration.objectstore.ObjectPutCommandV1;
 import org.yanoproject.x.stdlib.ApprovalsStateMachine;
-import com.bloxbean.cardano.yano.api.appchain.effects.EffectOutcome;
-import com.bloxbean.cardano.yano.api.appchain.effects.FxResultBody;
+import org.yanoproject.api.appchain.effects.EffectOutcome;
+import org.yanoproject.api.appchain.effects.FxResultBody;
 import org.yanoproject.x.stdlib.KvRegistryStateMachine;
-import com.bloxbean.cardano.yano.runtime.appchain.StateMachineConformance;
+import org.yanoproject.runtime.appchain.StateMachineConformance;
 import org.junit.jupiter.api.Test;
 
 import java.nio.charset.StandardCharsets;

@@ -31,7 +31,7 @@ describe('Yano EUTxO API client', () => {
     const [url, init] = fetcher.mock.calls[0];
     expect(url).toBe(
       'https://node.example.com/api/v1/plugins/'
-      + 'com.bloxbean.cardano.yano.appchain.eutxo.bridge.cardano/'
+      + 'org.yanoproject.appchain.eutxo.bridge.cardano/'
       + 'chains/payments/bridge/info'
     );
     expect(new Headers(init?.headers).get('X-API-Key')).toBe('memory-only');

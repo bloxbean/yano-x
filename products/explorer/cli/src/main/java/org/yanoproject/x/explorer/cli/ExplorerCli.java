@@ -9,7 +9,7 @@ import org.yanoproject.x.explorer.ExplorerService;
 import org.yanoproject.x.explorer.Follower;
 import org.yanoproject.x.explorer.IndexStore;
 import org.yanoproject.x.explorer.RowVerifier;
-import com.bloxbean.cardano.yano.api.appchain.proof.ProofLabVocabulary;
+import org.yanoproject.api.appchain.proof.ProofLabVocabulary;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.io.IOException;

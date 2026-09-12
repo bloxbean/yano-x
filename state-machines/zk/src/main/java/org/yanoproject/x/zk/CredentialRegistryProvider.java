@@ -2,9 +2,9 @@ package org.yanoproject.x.zk;
 
 import com.bloxbean.cardano.yaci.core.util.HexUtil;
 import com.bloxbean.cardano.zeroj.bbs.BbsPublicKey;
-import com.bloxbean.cardano.yano.api.appchain.AppStateMachine;
-import com.bloxbean.cardano.yano.api.appchain.AppStateMachineContext;
-import com.bloxbean.cardano.yano.api.appchain.AppStateMachineProvider;
+import org.yanoproject.api.appchain.AppStateMachine;
+import org.yanoproject.api.appchain.AppStateMachineContext;
+import org.yanoproject.api.appchain.AppStateMachineProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

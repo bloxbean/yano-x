@@ -1,6 +1,6 @@
 package org.yanoproject.x.stdlib;
 
-import com.bloxbean.cardano.yano.api.appchain.AppStateWriter;
+import org.yanoproject.api.appchain.AppStateWriter;
 import org.yanoproject.x.roles.GovernedCryptoWork;
 import org.yanoproject.x.roles.RoleAuthorizationCapability;
 import org.yanoproject.x.roles.contracts.GovernedAuthorizationLimitsV1;

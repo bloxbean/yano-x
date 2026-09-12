@@ -1,8 +1,8 @@
 package org.yanoproject.x.composite;
 
-import com.bloxbean.cardano.yano.api.plugin.domain.DomainApi;
-import com.bloxbean.cardano.yano.api.plugin.domain.DomainApiContext;
-import com.bloxbean.cardano.yano.api.plugin.domain.DomainApiProvider;
+import org.yanoproject.api.plugin.domain.DomainApi;
+import org.yanoproject.api.plugin.domain.DomainApiContext;
+import org.yanoproject.api.plugin.domain.DomainApiProvider;
 
 /** Cataloged operator API for governed composite-profile commands. */
 public final class CompositeGovernanceDomainApiProvider

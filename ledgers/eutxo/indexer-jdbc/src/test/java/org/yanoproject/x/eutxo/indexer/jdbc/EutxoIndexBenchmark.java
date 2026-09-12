@@ -1,10 +1,10 @@
 package org.yanoproject.x.eutxo.indexer.jdbc;
 
-import com.bloxbean.cardano.yano.api.appchain.AppBlock;
-import com.bloxbean.cardano.yano.api.plugin.domain.FinalizedChainView;
-import com.bloxbean.cardano.yano.api.appchain.AppQueryResult;
-import com.bloxbean.cardano.yano.api.appchain.FinalityCert;
-import com.bloxbean.cardano.yano.api.appchain.codec.AppBlockCodec;
+import org.yanoproject.api.appchain.AppBlock;
+import org.yanoproject.api.plugin.domain.FinalizedChainView;
+import org.yanoproject.api.appchain.AppQueryResult;
+import org.yanoproject.api.appchain.FinalityCert;
+import org.yanoproject.api.appchain.codec.AppBlockCodec;
 import org.yanoproject.x.eutxo.contracts.EutxoOutpoint;
 import org.yanoproject.x.eutxo.contracts.EutxoQueryCodec;
 import org.yanoproject.x.eutxo.contracts.EutxoTransactionSummary;

@@ -1,11 +1,11 @@
 package org.yanoproject.x.history;
 
-import com.bloxbean.cardano.yano.api.appchain.AppStateMachineContext;
-import com.bloxbean.cardano.yano.api.appchain.AppChainConsensusProfile;
-import com.bloxbean.cardano.yano.api.appchain.state.StateCommitmentIdentity;
-import com.bloxbean.cardano.yano.api.appchain.state.StateCommitmentProfiles;
+import org.yanoproject.api.appchain.AppStateMachineContext;
+import org.yanoproject.api.appchain.AppChainConsensusProfile;
+import org.yanoproject.api.appchain.state.StateCommitmentIdentity;
+import org.yanoproject.api.appchain.state.StateCommitmentProfiles;
 import org.yanoproject.x.stdlib.contracts.EpochParamsContract;
-import com.bloxbean.cardano.yano.appchain.testkit.AppChainTestProfiles;
+import org.yanoproject.appchain.testkit.AppChainTestProfiles;
 import org.junit.jupiter.api.Test;
 
 import java.util.LinkedHashMap;

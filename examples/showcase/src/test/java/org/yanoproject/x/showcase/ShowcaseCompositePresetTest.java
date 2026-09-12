@@ -1,9 +1,9 @@
 package org.yanoproject.x.showcase;
 
-import com.bloxbean.cardano.yano.api.appchain.AppChainConsensusProfile;
-import com.bloxbean.cardano.yano.api.appchain.AppStateMachineContext;
+import org.yanoproject.api.appchain.AppChainConsensusProfile;
+import org.yanoproject.api.appchain.AppStateMachineContext;
 import org.yanoproject.x.composite.CompositeStateMachine;
-import com.bloxbean.cardano.yano.appchain.testkit.AppChainTestProfiles;
+import org.yanoproject.appchain.testkit.AppChainTestProfiles;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;

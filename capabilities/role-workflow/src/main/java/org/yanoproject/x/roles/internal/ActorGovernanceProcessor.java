@@ -1,7 +1,7 @@
 package org.yanoproject.x.roles.internal;
 
-import com.bloxbean.cardano.yano.api.appchain.AppStateReader;
-import com.bloxbean.cardano.yano.api.appchain.AppStateWriter;
+import org.yanoproject.api.appchain.AppStateReader;
+import org.yanoproject.api.appchain.AppStateWriter;
 import org.yanoproject.x.roles.GovernedCryptoWork;
 import org.yanoproject.x.roles.contracts.AcceptedAdministratorVoteV1;
 import org.yanoproject.x.roles.contracts.ActorGovernanceCommandV1;

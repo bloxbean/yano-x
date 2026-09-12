@@ -71,12 +71,12 @@ record EutxoBridgeConfig(
     }
 
     String topic() {
-        return com.bloxbean.cardano.yano.api.appchain.l1view.L1Observation.TOPIC_PREFIX
+        return org.yanoproject.api.appchain.l1view.L1Observation.TOPIC_PREFIX
                 + observerId;
     }
 
     String confirmationTopic() {
-        return com.bloxbean.cardano.yano.api.appchain.l1view.L1Observation.TOPIC_PREFIX
+        return org.yanoproject.api.appchain.l1view.L1Observation.TOPIC_PREFIX
                 + confirmationObserverId;
     }
 

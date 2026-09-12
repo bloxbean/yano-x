@@ -3,7 +3,7 @@ package org.yanoproject.x.proofs.onchain;
 import com.bloxbean.cardano.client.crypto.Blake2bUtil;
 import com.bloxbean.cardano.julc.core.types.JulcList;
 import com.bloxbean.cardano.julc.testkit.ContractTest;
-import com.bloxbean.cardano.yano.api.appchain.transition.FinalizedBlockMessageRootIndex;
+import org.yanoproject.api.appchain.transition.FinalizedBlockMessageRootIndex;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 

@@ -140,7 +140,7 @@ the validators or submit transactions to a live Cardano network.
 ```bash
 ./gradlew :app:e2eTest \
   --tests \
-  'com.bloxbean.cardano.yano.app.e2e.EutxoZkRollupDevnetE2ETest' \
+  'org.yanoproject.app.e2e.EutxoZkRollupDevnetE2ETest' \
   --rerun-tasks
 ```
 

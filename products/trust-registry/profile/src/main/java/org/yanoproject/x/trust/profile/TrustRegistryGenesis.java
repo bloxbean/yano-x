@@ -1,7 +1,7 @@
 package org.yanoproject.x.trust.profile;
 
 import com.bloxbean.cardano.client.crypto.KeyGenUtil;
-import com.bloxbean.cardano.yano.api.appchain.AppChainConfig;
+import org.yanoproject.api.appchain.AppChainConfig;
 import org.yanoproject.x.roles.contracts.ActorKeyEpochV1;
 import org.yanoproject.x.roles.contracts.ActorKeyProofV1;
 import org.yanoproject.x.roles.contracts.ActorRecordV1;

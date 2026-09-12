@@ -1,10 +1,10 @@
 package org.yanoproject.x.objectstore.s3.effects;
 
-import com.bloxbean.cardano.yano.api.appchain.effects.EffectExecutionContext;
-import com.bloxbean.cardano.yano.api.appchain.effects.EffectRecord;
-import com.bloxbean.cardano.yano.api.appchain.effects.FinalityGate;
-import com.bloxbean.cardano.yano.api.appchain.effects.PendingEffect;
-import com.bloxbean.cardano.yano.api.appchain.effects.ResultPolicy;
+import org.yanoproject.api.appchain.effects.EffectExecutionContext;
+import org.yanoproject.api.appchain.effects.EffectRecord;
+import org.yanoproject.api.appchain.effects.FinalityGate;
+import org.yanoproject.api.appchain.effects.PendingEffect;
+import org.yanoproject.api.appchain.effects.ResultPolicy;
 import org.yanoproject.x.integration.ConnectorErrorCode;
 import org.yanoproject.x.integration.detail.ConnectorDetailArchive;
 import org.yanoproject.x.integration.detail.ConnectorDetailDocumentV1;

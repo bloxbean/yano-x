@@ -1,15 +1,15 @@
 package org.yanoproject.x.stdlib;
 
-import com.bloxbean.cardano.yano.api.appchain.AppChainConsensusProfile;
-import com.bloxbean.cardano.yano.api.appchain.AppChainConsensusProfileCommitment;
-import com.bloxbean.cardano.yano.api.appchain.AppChainMembershipView;
-import com.bloxbean.cardano.yano.api.appchain.AppStateMachine;
-import com.bloxbean.cardano.yano.api.appchain.AppStateMachineContext;
-import com.bloxbean.cardano.yano.api.appchain.AppStateMachineProvider;
-import com.bloxbean.cardano.yano.api.appchain.state.StateCommitmentProfile;
-import com.bloxbean.cardano.yano.api.appchain.state.StateCommitmentIdentity;
-import com.bloxbean.cardano.yano.api.appchain.state.StateCommitmentProfiles;
-import com.bloxbean.cardano.yano.appchain.config.AppChainApprovalsConfig;
+import org.yanoproject.api.appchain.AppChainConsensusProfile;
+import org.yanoproject.api.appchain.AppChainConsensusProfileCommitment;
+import org.yanoproject.api.appchain.AppChainMembershipView;
+import org.yanoproject.api.appchain.AppStateMachine;
+import org.yanoproject.api.appchain.AppStateMachineContext;
+import org.yanoproject.api.appchain.AppStateMachineProvider;
+import org.yanoproject.api.appchain.state.StateCommitmentProfile;
+import org.yanoproject.api.appchain.state.StateCommitmentIdentity;
+import org.yanoproject.api.appchain.state.StateCommitmentProfiles;
+import org.yanoproject.appchain.config.AppChainApprovalsConfig;
 import org.yanoproject.x.stdlib.contracts.AuthenticatedMapContract;
 import org.yanoproject.x.stdlib.contracts.EpochParamsContract;
 import org.yanoproject.x.stdlib.contracts.EpochGovernanceContract;
@@ -211,7 +211,7 @@ public final class StdlibStateMachineProviders {
         public AppStateMachine create(AppStateMachineContext context) {
             return new ApprovalsStateMachine(
                     AppChainApprovalsConfig.fromSettings(context.settings()),
-                    com.bloxbean.cardano.yano.api.appchain.effects.ActivationSchedule
+                    org.yanoproject.api.appchain.effects.ActivationSchedule
                             .from(context.settings(), ApprovalsStateMachine.ID));
         }
     }

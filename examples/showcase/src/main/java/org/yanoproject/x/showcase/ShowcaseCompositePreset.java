@@ -1,14 +1,14 @@
 package org.yanoproject.x.showcase;
 
-import com.bloxbean.cardano.yano.api.appchain.AppStateMachineContext;
-import com.bloxbean.cardano.yano.api.appchain.effects.ActivationSchedule;
+import org.yanoproject.api.appchain.AppStateMachineContext;
+import org.yanoproject.api.appchain.effects.ActivationSchedule;
 import org.yanoproject.x.composite.ComponentDescriptor;
 import org.yanoproject.x.composite.ComponentGeneration;
 import org.yanoproject.x.composite.ComposableAppStateMachine;
 import org.yanoproject.x.composite.CompositeStateMachine;
 import org.yanoproject.x.composite.CompositeWorkflow;
 import org.yanoproject.x.composite.WorkflowDescriptor;
-import com.bloxbean.cardano.yano.appchain.config.AppChainApprovalsConfig;
+import org.yanoproject.appchain.config.AppChainApprovalsConfig;
 import org.yanoproject.x.stdlib.ApprovalsStateMachine;
 import org.yanoproject.x.stdlib.DocTrailStateMachine;
 import org.yanoproject.x.stdlib.KvRegistryStateMachine;

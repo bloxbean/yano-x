@@ -1,10 +1,10 @@
 package org.yanoproject.x.history.client;
 
-import com.bloxbean.cardano.yano.api.appchain.snapshot.AuthenticatedSnapshotProofBundleCodec;
-import com.bloxbean.cardano.yano.api.appchain.snapshot.AuthenticatedSnapshotProofBundleV1;
-import com.bloxbean.cardano.yano.api.appchain.snapshot.SnapshotCanonicalCodec;
-import com.bloxbean.cardano.yano.api.appchain.snapshot.SnapshotSourceBoundary;
-import com.bloxbean.cardano.yano.api.appchain.state.StateProof;
+import org.yanoproject.api.appchain.snapshot.AuthenticatedSnapshotProofBundleCodec;
+import org.yanoproject.api.appchain.snapshot.AuthenticatedSnapshotProofBundleV1;
+import org.yanoproject.api.appchain.snapshot.SnapshotCanonicalCodec;
+import org.yanoproject.api.appchain.snapshot.SnapshotSourceBoundary;
+import org.yanoproject.api.appchain.state.StateProof;
 import org.yanoproject.x.client.AppChainClient;
 import org.yanoproject.x.client.ProofVerifier;
 import org.yanoproject.x.stdlib.contracts.EpochStakeContract;

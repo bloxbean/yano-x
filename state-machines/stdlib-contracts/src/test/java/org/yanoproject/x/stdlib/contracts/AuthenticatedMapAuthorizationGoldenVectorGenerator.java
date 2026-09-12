@@ -1,7 +1,7 @@
 package org.yanoproject.x.stdlib.contracts;
 
 import com.bloxbean.cardano.client.crypto.KeyGenUtil;
-import com.bloxbean.cardano.yano.api.appchain.state.StateCommitmentProfiles;
+import org.yanoproject.api.appchain.state.StateCommitmentProfiles;
 import org.yanoproject.x.roles.contracts.ActorGovernanceCommandV1;
 import org.yanoproject.x.roles.contracts.ActorKeyEpochV1;
 import org.yanoproject.x.roles.contracts.ActorKeyProofV1;

@@ -1,6 +1,6 @@
 package org.yanoproject.x.examples.evidence.demo;
 
-import com.bloxbean.cardano.yano.api.appchain.evidence.EvidenceBundleCodec;
+import org.yanoproject.api.appchain.evidence.EvidenceBundleCodec;
 import org.yanoproject.x.composite.contracts.CompositeCommitmentV1;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;

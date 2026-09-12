@@ -2,26 +2,26 @@ package org.yanoproject.x.stdlib;
 
 import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
 import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AuthScheme;
-import com.bloxbean.cardano.yano.api.appchain.AppBlock;
-import com.bloxbean.cardano.yano.api.appchain.AppBlockExecutionContext;
-import com.bloxbean.cardano.yano.api.appchain.AppChainInfo;
-import com.bloxbean.cardano.yano.api.appchain.AppChainConfig;
-import com.bloxbean.cardano.yano.api.appchain.AppChainMembershipEpoch;
-import com.bloxbean.cardano.yano.api.appchain.AppQueryContext;
-import com.bloxbean.cardano.yano.api.appchain.AppStateMachineContext;
-import com.bloxbean.cardano.yano.api.appchain.AppStateWriter;
-import com.bloxbean.cardano.yano.api.appchain.FinalityCert;
-import com.bloxbean.cardano.yano.api.appchain.effects.AppEffectEmitter;
-import com.bloxbean.cardano.yano.api.appchain.authmap.AuthenticatedMapValidatorResolver;
-import com.bloxbean.cardano.yano.api.appchain.authmap.ValidatorVerdict;
-import com.bloxbean.cardano.yano.api.appchain.state.StateCommitmentProfiles;
-import com.bloxbean.cardano.yano.appchain.config.AppChainEffectsConfig;
+import org.yanoproject.api.appchain.AppBlock;
+import org.yanoproject.api.appchain.AppBlockExecutionContext;
+import org.yanoproject.api.appchain.AppChainInfo;
+import org.yanoproject.api.appchain.AppChainConfig;
+import org.yanoproject.api.appchain.AppChainMembershipEpoch;
+import org.yanoproject.api.appchain.AppQueryContext;
+import org.yanoproject.api.appchain.AppStateMachineContext;
+import org.yanoproject.api.appchain.AppStateWriter;
+import org.yanoproject.api.appchain.FinalityCert;
+import org.yanoproject.api.appchain.effects.AppEffectEmitter;
+import org.yanoproject.api.appchain.authmap.AuthenticatedMapValidatorResolver;
+import org.yanoproject.api.appchain.authmap.ValidatorVerdict;
+import org.yanoproject.api.appchain.state.StateCommitmentProfiles;
+import org.yanoproject.appchain.config.AppChainEffectsConfig;
 import org.yanoproject.x.stdlib.contracts.AuthenticatedMapContract;
 import org.yanoproject.x.stdlib.contracts.AuthenticatedMapSchema;
 import org.yanoproject.x.composite.CompositeStateMachine;
 import org.yanoproject.x.composite.CompositeStateKeys;
 import org.yanoproject.x.stdlib.contracts.AuthenticatedMapAuthorizationContract;
-import com.bloxbean.cardano.yano.runtime.appchain.StateMachineConformance;
+import org.yanoproject.runtime.appchain.StateMachineConformance;
 import org.junit.jupiter.api.Test;
 
 import java.nio.charset.StandardCharsets;
@@ -561,7 +561,7 @@ class AuthenticatedMapStateMachineTest {
 
     private static AuthenticatedMapStateMachine pluginMachine(
             AuthenticatedMapContract.ValidatorDescriptor descriptor,
-            com.bloxbean.cardano.yano.api.appchain.authmap.AuthenticatedMapValueValidator validator,
+            org.yanoproject.api.appchain.authmap.AuthenticatedMapValueValidator validator,
             List<AuthenticatedMapContract.GenesisEntry> initialEntries
     ) {
         AuthenticatedMapContract.Genesis genesis = new AuthenticatedMapContract.Genesis(
@@ -577,7 +577,7 @@ class AuthenticatedMapStateMachineTest {
 
     private static AuthenticatedMapValidatorResolver resolver(
             AuthenticatedMapContract.ValidatorDescriptor descriptor,
-            com.bloxbean.cardano.yano.api.appchain.authmap.AuthenticatedMapValueValidator validator
+            org.yanoproject.api.appchain.authmap.AuthenticatedMapValueValidator validator
     ) {
         return (digest, context) -> {
             assertThat(digest).isEqualTo(descriptor.definition());
@@ -604,13 +604,13 @@ class AuthenticatedMapStateMachineTest {
             @Override public String chainId() { return config.chainId(); }
             @Override public Map<String, String> settings() { return settings; }
             @Override
-            public Optional<com.bloxbean.cardano.yano.api.appchain.AppChainConsensusProfile>
+            public Optional<org.yanoproject.api.appchain.AppChainConsensusProfile>
             consensusProfile() {
                 return Optional.of(AppChainEffectsConfig.from(config)
                         .consensusProfile(config));
             }
             @Override
-            public Optional<com.bloxbean.cardano.yano.api.appchain.AppChainMembershipView>
+            public Optional<org.yanoproject.api.appchain.AppChainMembershipView>
             membershipView() {
                 return Optional.of(height -> membership);
             }

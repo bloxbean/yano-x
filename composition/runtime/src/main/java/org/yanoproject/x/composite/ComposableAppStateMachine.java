@@ -1,7 +1,7 @@
 package org.yanoproject.x.composite;
 
-import com.bloxbean.cardano.yano.api.appchain.AppStateMachine;
-import com.bloxbean.cardano.yano.api.appchain.AppStateMachineContext;
+import org.yanoproject.api.appchain.AppStateMachine;
+import org.yanoproject.api.appchain.AppStateMachineContext;
 import org.yanoproject.x.composite.contracts.AggregateQueryLimitsV1;
 
 import java.util.ArrayList;

@@ -1,7 +1,7 @@
 package org.yanoproject.x.devtools;
 
-import com.bloxbean.cardano.yano.appchain.config.AppChainMetadataDescriptor;
-import com.bloxbean.cardano.yano.appchain.config.ValidationCoverage;
+import org.yanoproject.appchain.config.AppChainMetadataDescriptor;
+import org.yanoproject.appchain.config.ValidationCoverage;
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.StreamReadFeature;
 import com.fasterxml.jackson.databind.DeserializationFeature;

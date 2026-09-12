@@ -50,7 +50,7 @@ tasks.named('shadowJar') {
     archiveClassifier.set('bundle')
     reproducibleFileOrder = true
     preserveFileTimestamps = false
-    exclude 'com/bloxbean/cardano/yano/api/**'
+    exclude 'org/yanoproject/api/**'
     exclude 'META-INF/yano/plugins/org.yanoproject.x.eutxo.json'
     exclude 'META-INF/services/org.yanoproject.x.eutxo.contracts.EutxoValidityCommitmentProvider'
     exclude 'META-INF/*.SF', 'META-INF/*.RSA', 'META-INF/*.DSA', 'module-info.class'
@@ -69,7 +69,7 @@ tasks.register('verifyEutxoZkRuntimeBundle') {
             [
                     'org/yanoproject/x/eutxo/zk/runtime/EutxoZkStateMachineProvider.class',
                     'org/yanoproject/x/eutxo/zk/zeroj/ZerojPoseidonValidityProvider.class',
-                    'META-INF/services/com.bloxbean.cardano.yano.api.appchain.AppStateMachineProvider'
+                    'META-INF/services/org.yanoproject.api.appchain.AppStateMachineProvider'
             ].each { required ->
                 if (!entries.contains(required)) {
                     throw new GradleException(
@@ -77,7 +77,7 @@ tasks.register('verifyEutxoZkRuntimeBundle') {
                 }
             }
             def providerEntry = zip.getEntry(
-                    'META-INF/services/com.bloxbean.cardano.yano.api.appchain.AppStateMachineProvider')
+                    'META-INF/services/org.yanoproject.api.appchain.AppStateMachineProvider')
             def providers = zip.getInputStream(providerEntry).getText('UTF-8')
                     .readLines().findAll { !it.isBlank() }
             if (providers != [

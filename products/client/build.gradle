@@ -11,7 +11,7 @@
 // Deliberately NOT aggregated:
 //   :products:evidence:*  The evidence client is the one product client that does
 //       not reference the node/runtime SPI (zero imports of
-//       com.bloxbean.cardano.yano.api, against 12 files across the others), and
+//       org.yanoproject.api, against 12 files across the others), and
 //       verifyEvidenceClientArtifactBoundary enforces that its POM and runtime
 //       closure stay free of core-api. Merging it with clients that do use
 //       core-api would silently break that guarantee.

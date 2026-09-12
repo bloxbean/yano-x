@@ -1,8 +1,8 @@
 package org.yanoproject.x.examples.evidence;
 
-import com.bloxbean.cardano.yano.api.appchain.AppStateMachine;
-import com.bloxbean.cardano.yano.api.appchain.AppStateMachineContext;
-import com.bloxbean.cardano.yano.api.appchain.AppStateMachineProvider;
+import org.yanoproject.api.appchain.AppStateMachine;
+import org.yanoproject.api.appchain.AppStateMachineContext;
+import org.yanoproject.api.appchain.AppStateMachineProvider;
 
 /** ServiceLoader entry point for one configured evidence-registry chain. */
 public final class EvidenceRegistryStateMachineProvider implements AppStateMachineProvider {

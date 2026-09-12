@@ -1,16 +1,16 @@
 package org.yanoproject.x.evidence.profile;
 
 import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
-import com.bloxbean.cardano.yano.api.appchain.AppBlock;
-import com.bloxbean.cardano.yano.api.appchain.AppBlockExecutionContext;
-import com.bloxbean.cardano.yano.api.appchain.AppQueryContext;
-import com.bloxbean.cardano.yano.api.appchain.AppChainMembershipEpoch;
-import com.bloxbean.cardano.yano.api.appchain.AppStateMachineContext;
-import com.bloxbean.cardano.yano.api.appchain.AppStateWriter;
-import com.bloxbean.cardano.yano.api.appchain.FinalityCert;
-import com.bloxbean.cardano.yano.api.appchain.effects.AppEffectEmitter;
-import com.bloxbean.cardano.yano.api.appchain.effects.EffectId;
-import com.bloxbean.cardano.yano.api.appchain.effects.EffectIntent;
+import org.yanoproject.api.appchain.AppBlock;
+import org.yanoproject.api.appchain.AppBlockExecutionContext;
+import org.yanoproject.api.appchain.AppQueryContext;
+import org.yanoproject.api.appchain.AppChainMembershipEpoch;
+import org.yanoproject.api.appchain.AppStateMachineContext;
+import org.yanoproject.api.appchain.AppStateWriter;
+import org.yanoproject.api.appchain.FinalityCert;
+import org.yanoproject.api.appchain.effects.AppEffectEmitter;
+import org.yanoproject.api.appchain.effects.EffectId;
+import org.yanoproject.api.appchain.effects.EffectIntent;
 import org.yanoproject.x.composite.CompositeStateKeys;
 import org.yanoproject.x.composite.CompositeStateMachine;
 import org.yanoproject.x.evidence.profile.contracts.RoleEvidenceKeys;
@@ -26,7 +26,7 @@ import org.yanoproject.x.roles.contracts.ApprovalPolicyV1;
 import org.yanoproject.x.roles.contracts.ApprovalProposalV1;
 import org.yanoproject.x.roles.contracts.RecordStatus;
 import org.yanoproject.x.roles.contracts.RoleWorkflowKeys;
-import com.bloxbean.cardano.yano.appchain.testkit.AppChainTestProfiles;
+import org.yanoproject.appchain.testkit.AppChainTestProfiles;
 import org.junit.jupiter.api.Test;
 
 import java.nio.charset.StandardCharsets;
@@ -80,7 +80,7 @@ class RoleEvidencePresetTest {
     @Test
     void providerIsDiscoverableAndRequiresContext() {
         assertThat(java.util.ServiceLoader.load(
-                com.bloxbean.cardano.yano.api.appchain.AppStateMachineProvider.class).stream()
+                org.yanoproject.api.appchain.AppStateMachineProvider.class).stream()
                 .map(provider -> provider.get().id()))
                 .contains(RoleEvidenceStateMachineProvider.ID);
     }
@@ -160,12 +160,12 @@ class RoleEvidencePresetTest {
                 return Map.of("effects.enabled", "true", "effects.max-per-block", "32");
             }
             @Override
-            public Optional<com.bloxbean.cardano.yano.api.appchain.AppChainConsensusProfile>
+            public Optional<org.yanoproject.api.appchain.AppChainConsensusProfile>
             consensusProfile() {
                 return Optional.of(AppChainTestProfiles.enabledEffects(32, 8));
             }
             @Override
-            public Optional<com.bloxbean.cardano.yano.api.appchain.AppChainMembershipView>
+            public Optional<org.yanoproject.api.appchain.AppChainMembershipView>
             membershipView() {
                 AppChainMembershipEpoch epoch = new AppChainMembershipEpoch(
                         0, List.of(member), 1);

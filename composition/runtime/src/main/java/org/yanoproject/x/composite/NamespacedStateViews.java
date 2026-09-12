@@ -1,9 +1,9 @@
 package org.yanoproject.x.composite;
 
-import com.bloxbean.cardano.yano.api.appchain.AppQueryContext;
-import com.bloxbean.cardano.yano.api.appchain.AppStateReader;
-import com.bloxbean.cardano.yano.api.appchain.AppStateWriter;
-import com.bloxbean.cardano.yano.api.appchain.AppStateCapabilities;
+import org.yanoproject.api.appchain.AppQueryContext;
+import org.yanoproject.api.appchain.AppStateReader;
+import org.yanoproject.api.appchain.AppStateWriter;
+import org.yanoproject.api.appchain.AppStateCapabilities;
 
 import java.util.Optional;
 

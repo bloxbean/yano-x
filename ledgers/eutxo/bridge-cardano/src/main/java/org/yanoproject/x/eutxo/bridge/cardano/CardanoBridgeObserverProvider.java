@@ -1,8 +1,8 @@
 package org.yanoproject.x.eutxo.bridge.cardano;
 
-import com.bloxbean.cardano.yano.api.appchain.l1view.L1Observer;
-import com.bloxbean.cardano.yano.api.appchain.l1view.L1ObserverConsensusIdentity;
-import com.bloxbean.cardano.yano.api.appchain.l1view.L1ObserverProvider;
+import org.yanoproject.api.appchain.l1view.L1Observer;
+import org.yanoproject.api.appchain.l1view.L1ObserverConsensusIdentity;
+import org.yanoproject.api.appchain.l1view.L1ObserverProvider;
 
 import java.util.Map;
 

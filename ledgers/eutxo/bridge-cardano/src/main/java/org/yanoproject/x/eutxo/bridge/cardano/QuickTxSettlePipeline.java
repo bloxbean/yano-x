@@ -64,7 +64,7 @@ final class QuickTxSettlePipeline {
     private final NodeSettlementBackend backend;
     private final QuickTxBuilder quickTxBuilder;
     private final java.util.function.Supplier<
-            com.bloxbean.cardano.yano.api.utxo.UtxoState> utxoView;
+            org.yanoproject.api.utxo.UtxoState> utxoView;
     private final java.util.function.Supplier<java.util.Set<String>> members;
     private final PlutusV3Script vaultScript;
     private final PlutusV3Script shardScript;
@@ -76,7 +76,7 @@ final class QuickTxSettlePipeline {
             NodeSettlementBackend backend,
             QuickTxBuilder quickTxBuilder,
             java.util.function.Supplier<
-                    com.bloxbean.cardano.yano.api.utxo.UtxoState> utxoView,
+                    org.yanoproject.api.utxo.UtxoState> utxoView,
             java.util.function.Supplier<java.util.Set<String>> members,
             PlutusV3Script vaultScript,
             PlutusV3Script shardScript) {
@@ -303,7 +303,7 @@ final class QuickTxSettlePipeline {
     }
 
     private static Utxo tokenUtxo(
-            com.bloxbean.cardano.yano.api.utxo.UtxoState view,
+            org.yanoproject.api.utxo.UtxoState view,
             String address, String unit) {
         for (var utxo : view.getUtxosByAddress(address, 1, 100)) {
             Utxo converted = CclNodeAdapters.convert(utxo);
@@ -318,7 +318,7 @@ final class QuickTxSettlePipeline {
     }
 
     private static List<Utxo> lovelaceOnly(
-            List<com.bloxbean.cardano.yano.api.utxo.model.Utxo> utxos) {
+            List<org.yanoproject.api.utxo.model.Utxo> utxos) {
         List<Utxo> result = new ArrayList<>();
         for (var utxo : utxos) {
             if (utxo.assets() == null || utxo.assets().isEmpty()) {

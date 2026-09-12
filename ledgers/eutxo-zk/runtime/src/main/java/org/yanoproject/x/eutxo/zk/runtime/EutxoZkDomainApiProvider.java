@@ -1,8 +1,8 @@
 package org.yanoproject.x.eutxo.zk.runtime;
 
-import com.bloxbean.cardano.yano.api.plugin.domain.DomainApi;
-import com.bloxbean.cardano.yano.api.plugin.domain.DomainApiContext;
-import com.bloxbean.cardano.yano.api.plugin.domain.DomainApiProvider;
+import org.yanoproject.api.plugin.domain.DomainApi;
+import org.yanoproject.api.plugin.domain.DomainApiContext;
+import org.yanoproject.api.plugin.domain.DomainApiProvider;
 import org.yanoproject.x.eutxo.ledger.EutxoDomainApi;
 
 /** EUTxO query surface owned by the integrated ZeroJ runtime bundle. */

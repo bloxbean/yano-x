@@ -1,10 +1,10 @@
 package org.yanoproject.x.eutxo.indexer.jdbc;
 
-import com.bloxbean.cardano.yano.api.appchain.AppQueryException;
-import com.bloxbean.cardano.yano.api.plugin.domain.FinalizedChainView;
-import com.bloxbean.cardano.yano.api.plugin.domain.LocalReadModelHost;
-import com.bloxbean.cardano.yano.api.plugin.domain.LocalReadModelContext;
-import com.bloxbean.cardano.yano.api.plugin.domain.LocalReadModelProvider;
+import org.yanoproject.api.appchain.AppQueryException;
+import org.yanoproject.api.plugin.domain.FinalizedChainView;
+import org.yanoproject.api.plugin.domain.LocalReadModelHost;
+import org.yanoproject.api.plugin.domain.LocalReadModelContext;
+import org.yanoproject.api.plugin.domain.LocalReadModelProvider;
 import org.yanoproject.x.eutxo.contracts.EutxoL2ParameterSnapshot;
 import org.yanoproject.x.eutxo.contracts.EutxoQueryCodec;
 import org.yanoproject.x.eutxo.indexer.EutxoIndexCoordinator;

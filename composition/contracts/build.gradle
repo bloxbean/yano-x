@@ -44,7 +44,7 @@ tasks.register('verifyCompositeContractArtifact') {
                         'Composite contracts must not contain evidence-product contracts')
             }
             if (entries.any { entry ->
-                entry.startsWith('com/bloxbean/cardano/yano/api/')
+                entry.startsWith('org/yanoproject/api/')
                         || entry.startsWith('org/yanoproject/x/composite/Composite')
                         || entry.startsWith('org/yanoproject/x/composite/stock/')
             }) {

@@ -1,8 +1,8 @@
 package org.yanoproject.x.history;
 
-import com.bloxbean.cardano.yano.api.appchain.AppStateMachine;
-import com.bloxbean.cardano.yano.api.appchain.AppStateMachineContext;
-import com.bloxbean.cardano.yano.api.appchain.AppStateMachineProvider;
+import org.yanoproject.api.appchain.AppStateMachine;
+import org.yanoproject.api.appchain.AppStateMachineContext;
+import org.yanoproject.api.appchain.AppStateMachineProvider;
 
 /** Thin product provider that resolves a released preset to reusable ADR-028 components. */
 public final class CardanoHistoryStateMachineProvider implements AppStateMachineProvider {

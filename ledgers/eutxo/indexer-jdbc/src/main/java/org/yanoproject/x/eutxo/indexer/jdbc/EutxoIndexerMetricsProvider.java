@@ -1,14 +1,14 @@
 package org.yanoproject.x.eutxo.indexer.jdbc;
 
-import com.bloxbean.cardano.yano.api.plugin.operations.PluginCounterValue;
-import com.bloxbean.cardano.yano.api.plugin.operations.PluginGaugeValue;
-import com.bloxbean.cardano.yano.api.plugin.operations.PluginMetricDescriptor;
-import com.bloxbean.cardano.yano.api.plugin.operations.PluginMetricSnapshot;
-import com.bloxbean.cardano.yano.api.plugin.operations.PluginMetricType;
-import com.bloxbean.cardano.yano.api.plugin.operations.PluginMetricsContext;
-import com.bloxbean.cardano.yano.api.plugin.operations.PluginMetricsProvider;
-import com.bloxbean.cardano.yano.api.plugin.operations.PluginMetricsSource;
-import com.bloxbean.cardano.yano.api.plugin.operations.PluginTimerValue;
+import org.yanoproject.api.plugin.operations.PluginCounterValue;
+import org.yanoproject.api.plugin.operations.PluginGaugeValue;
+import org.yanoproject.api.plugin.operations.PluginMetricDescriptor;
+import org.yanoproject.api.plugin.operations.PluginMetricSnapshot;
+import org.yanoproject.api.plugin.operations.PluginMetricType;
+import org.yanoproject.api.plugin.operations.PluginMetricsContext;
+import org.yanoproject.api.plugin.operations.PluginMetricsProvider;
+import org.yanoproject.api.plugin.operations.PluginMetricsSource;
+import org.yanoproject.api.plugin.operations.PluginTimerValue;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -51,7 +51,7 @@ public final class EutxoIndexerMetricsProvider implements PluginMetricsProvider 
             @Override
             public PluginMetricSnapshot snapshot() {
                 List<EutxoIndexerTelemetry.Sample> samples = EutxoIndexerTelemetry.samples();
-                Map<String, com.bloxbean.cardano.yano.api.plugin.operations.PluginMetricValue>
+                Map<String, org.yanoproject.api.plugin.operations.PluginMetricValue>
                         values = new LinkedHashMap<>();
                 values.put("indexed-height", new PluginGaugeValue(samples.stream()
                         .mapToLong(sample -> sample.coordinator().health()

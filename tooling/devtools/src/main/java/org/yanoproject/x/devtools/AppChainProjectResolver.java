@@ -1,16 +1,16 @@
 package org.yanoproject.x.devtools;
 
-import com.bloxbean.cardano.yano.api.appchain.AppChainConfig;
-import com.bloxbean.cardano.yano.api.appchain.state.StateCommitmentIdentity;
-import com.bloxbean.cardano.yano.api.appchain.state.StateCommitmentProfile;
-import com.bloxbean.cardano.yano.api.appchain.state.StateCommitmentProfiles;
-import com.bloxbean.cardano.yano.appchain.config.AppChainConfigParser;
-import com.bloxbean.cardano.yano.appchain.config.AppChainConfigSemantics;
-import com.bloxbean.cardano.yano.appchain.config.AppChainApprovalsConfig;
-import com.bloxbean.cardano.yano.appchain.config.AppChainEffectsConfig;
-import com.bloxbean.cardano.yano.appchain.config.AppChainPropertyDefinition;
-import com.bloxbean.cardano.yano.appchain.config.AppChainPropertyRegistry;
-import com.bloxbean.cardano.yano.appchain.config.PropertyScope;
+import org.yanoproject.api.appchain.AppChainConfig;
+import org.yanoproject.api.appchain.state.StateCommitmentIdentity;
+import org.yanoproject.api.appchain.state.StateCommitmentProfile;
+import org.yanoproject.api.appchain.state.StateCommitmentProfiles;
+import org.yanoproject.appchain.config.AppChainConfigParser;
+import org.yanoproject.appchain.config.AppChainConfigSemantics;
+import org.yanoproject.appchain.config.AppChainApprovalsConfig;
+import org.yanoproject.appchain.config.AppChainEffectsConfig;
+import org.yanoproject.appchain.config.AppChainPropertyDefinition;
+import org.yanoproject.appchain.config.AppChainPropertyRegistry;
+import org.yanoproject.appchain.config.PropertyScope;
 import org.yanoproject.x.roles.contracts.ActorKeyEpochV1;
 import org.yanoproject.x.roles.contracts.ActorKeyProofV1;
 import org.yanoproject.x.roles.contracts.ActorRecordV1;
