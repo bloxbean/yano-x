@@ -71,6 +71,39 @@ def yanoJvmDistSource = configuredYanoJvmDist.map { 'local-override' }
         .orElse(providers.provider { 'github-release' })
 ext.yanoXBaseJvmDistribution = yanoJvmDist
 
+// Lists every file in the host yano.jar. Runtime plugin bundles leave these
+// out; see gradle/plugin-bundle-host-classes.gradle.
+def yanoHostEntries = layout.buildDirectory.file('yano-host/yano-jar-entries.txt')
+tasks.register('extractYanoHostEntries') {
+    group = 'distribution'
+    description = 'Lists the files in the host yano.jar that runtime plugin bundles omit.'
+    inputs.files(yanoJvmDist).withPropertyName('yanoJvmDist')
+    outputs.file(yanoHostEntries)
+
+    doLast {
+        def names = new TreeSet<String>()
+        new ZipFile(yanoJvmDist.get()).withCloseable { archive ->
+            def runtimeEntry = archive.entries().find { entry ->
+                entry.name.tokenize('/').size() == 2 && entry.name.endsWith('/yano.jar')
+            }
+            if (runtimeEntry == null) {
+                throw new GradleException('yanoJvmDist does not contain yano.jar')
+            }
+            new JarInputStream(archive.getInputStream(runtimeEntry)).withCloseable { runtimeJar ->
+                def entry
+                while ((entry = runtimeJar.nextEntry) != null) {
+                    if (!entry.directory) {
+                        names.add(entry.name)
+                    }
+                }
+            }
+        }
+        def output = yanoHostEntries.get().asFile
+        output.parentFile.mkdirs()
+        output.setText(names.join('\n') + '\n', 'UTF-8')
+    }
+}
+
 tasks.register('verifyYanoInputs') {
     group = 'verification'
     description = 'Resolves and verifies matching Yano Maven and JVM ZIP build identities.'
