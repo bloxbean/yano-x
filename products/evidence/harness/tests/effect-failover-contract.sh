@@ -126,6 +126,14 @@ for path in repo.glob("**/src/main/resources/META-INF/yano/plugins/*.json"):
         manifests[document["id"]] = document
 if len(selected) != 8 or set(manifests) != selected:
     raise SystemExit("exact demo selection does not match source manifests")
+# The node templates admit plugins by id; an unknown id fails catalog
+# activation only at node startup, so pin them to the same selection.
+templates = Path(sys.argv[3]).parent / "config" / "templates"
+for template in ("node-compose.properties.in", "node-host.properties.in"):
+    allow_list = re.search(r"^yano\.plugins\.allow-list=(.*)$",
+                           (templates / template).read_text(encoding="utf-8"), re.MULTILINE)
+    if allow_list is None or set(allow_list.group(1).split(",")) != selected:
+        raise SystemExit(f"{template} plugin allow-list does not match the selected source manifests")
 contributions = sum(len(document["contributions"]) for document in manifests.values())
 for script in (source, (Path(sys.argv[1]).parent / "deployment-parity-e2e.sh").read_text(encoding="utf-8")):
     if f"and ([.items[] | select(.selected) | .contributionCount] | add) == {contributions}" not in script:

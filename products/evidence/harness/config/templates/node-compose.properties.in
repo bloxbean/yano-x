@@ -15,7 +15,7 @@ yano.app-chain.api.auth.enabled=false
 yano.app-chain.api.keys=@API_KEY@
 yano.plugins.enabled=true
 yano.plugins.directory=/app/plugins
-yano.plugins.allow-list=org.yanoproject.appchain.kafka,org.yanoproject.appchain.ipfs,org.yanoproject.appchain.objectstore.s3,org.yanoproject.appchain.composite,org.yanoproject.appchain.evidence-registry,org.yanoproject.appchain.role-workflow,org.yanoproject.appchain.stdlib,org.yanoproject.appchain.evidence-profile
+yano.plugins.allow-list=org.yanoproject.x.kafka,org.yanoproject.x.ipfs,org.yanoproject.x.objectstore.s3,org.yanoproject.x.composite,org.yanoproject.x.evidence-registry,org.yanoproject.x.role-workflow,org.yanoproject.x.stdlib,org.yanoproject.x.evidence-profile
 
 yano.app-chain.chains[0].chain-id=@CHAIN_ID@
 yano.app-chain.chains[0].state-machine=@STATE_MACHINE@

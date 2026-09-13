@@ -5,10 +5,10 @@ import type {
   EutxoTransactionEntry
 } from './types';
 
-export const EUTXO_BUNDLE_ID = 'org.yanoproject.appchain.eutxo';
-export const EUTXO_INDEX_BUNDLE_ID = 'org.yanoproject.appchain.eutxo.indexer';
+export const EUTXO_BUNDLE_ID = 'org.yanoproject.x.eutxo';
+export const EUTXO_INDEX_BUNDLE_ID = 'org.yanoproject.x.eutxo.indexer';
 export const EUTXO_BRIDGE_BUNDLE_ID =
-  'org.yanoproject.appchain.eutxo.bridge.cardano';
+  'org.yanoproject.x.eutxo.bridge.cardano';
 export const EUTXO_STATE_MACHINE_ID = 'eutxo-ledger';
 
 const IDENTIFIER = /^[0-9a-f]{64}$/;

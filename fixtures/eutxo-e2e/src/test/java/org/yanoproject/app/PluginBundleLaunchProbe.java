@@ -33,22 +33,22 @@ import java.util.zip.ZipFile;
 /** Process-level probe for the documented self-contained plugin-directory layout. */
 public final class PluginBundleLaunchProbe {
     private static final String EVIDENCE_BUNDLE_ID =
-            "org.yanoproject.appchain.evidence-registry";
+            "org.yanoproject.x.evidence-registry";
     private static final String ORIGINAL_EVIDENCE_CONTRACT_PACKAGE =
             "org.yanoproject.x.examples.evidence.";
     private static final String RELOCATED_EVIDENCE_CONTRACT_PACKAGE =
-            "org.yanoproject.appchain.examples.internal.evidencecontracts.v1.";
+            "org.yanoproject.x.examples.internal.evidencecontracts.v1.";
     private static final String RELOCATED_CONNECTOR_PACKAGE =
             "org.yanoproject.x.examples.evidence.internal.contracts.v1.";
     private static final String EVIDENCE_GOLDEN_VECTORS =
             "META-INF/yano/contracts/evidence/v1/golden-vectors.properties";
     private static final Set<String> EXPECTED_BUNDLES = Set.of(
-            "org.yanoproject.appchain.kafka",
-            "org.yanoproject.appchain.objectstore.s3",
-            "org.yanoproject.appchain.ipfs",
+            "org.yanoproject.x.kafka",
+            "org.yanoproject.x.objectstore.s3",
+            "org.yanoproject.x.ipfs",
             EVIDENCE_BUNDLE_ID,
-            "org.yanoproject.appchain.effects.cardano",
-            "org.yanoproject.appchain.zk");
+            "org.yanoproject.x.effects.cardano",
+            "org.yanoproject.x.zk");
 
     private PluginBundleLaunchProbe() {
     }
@@ -183,7 +183,7 @@ public final class PluginBundleLaunchProbe {
                 }
                 DomainApiProvider evidenceDomainProvider = require(
                         environment, DomainApiProvider.class,
-                        "org.yanoproject.appchain.evidence-registry");
+                        "org.yanoproject.x.evidence-registry");
                 try (DomainApi evidenceApi = evidenceDomainProvider.create(
                         new DomainApiContext(Map.of(), new DomainQueryService() {
                             @Override public List<String> chainIds() { return List.of("probe"); }
@@ -205,48 +205,48 @@ public final class PluginBundleLaunchProbe {
                 // from each bundle, not a coincidental host dependency.
                 requireOwnedClass(environment,
                         "org.apache.kafka.clients.producer.KafkaProducer",
-                        "org.yanoproject.appchain.kafka");
+                        "org.yanoproject.x.kafka");
                 requireOwnedClass(environment,
                         "org.yanoproject.x.kafka.internal.contracts.v1."
                                 + "kafka.KafkaPublishCommandV1",
-                        "org.yanoproject.appchain.kafka");
+                        "org.yanoproject.x.kafka");
                 requireOwnedClass(environment,
                         "org.yanoproject.x.kafka.internal.contracts."
                                 + "v1deps.cbor.CborDecoder",
-                        "org.yanoproject.appchain.kafka");
+                        "org.yanoproject.x.kafka");
                 requireOwnedClass(environment,
                         "org.yanoproject.x.kafka.internal.contracts."
                                 + "v1deps.bouncycastle.crypto.digests.Blake2bDigest",
-                        "org.yanoproject.appchain.kafka");
+                        "org.yanoproject.x.kafka");
                 requireAbsentClass(environment,
                         "org.yanoproject.x.integration.kafka."
                                 + "KafkaPublishCommandV1");
                 requireOwnedClass(environment,
                         "software.amazon.awssdk.services.s3.S3Client",
-                        "org.yanoproject.appchain.objectstore.s3");
+                        "org.yanoproject.x.objectstore.s3");
                 requireOwnedClass(environment,
                         "org.yanoproject.x.objectstore.s3.internal.contracts."
                                 + "v1.objectstore.ObjectPutCommandV1",
-                        "org.yanoproject.appchain.objectstore.s3");
+                        "org.yanoproject.x.objectstore.s3");
                 requireOwnedClass(environment,
                         "org.yanoproject.x.objectstore.s3.internal.contracts."
                                 + "v1deps.cbor.CborDecoder",
-                        "org.yanoproject.appchain.objectstore.s3");
+                        "org.yanoproject.x.objectstore.s3");
                 requireOwnedClass(environment,
                         "org.yanoproject.x.objectstore.s3.internal.contracts."
                                 + "v1deps.bouncycastle.crypto.digests.Blake2bDigest",
-                        "org.yanoproject.appchain.objectstore.s3");
+                        "org.yanoproject.x.objectstore.s3");
                 requireAbsentClass(environment,
                         "org.yanoproject.x.integration.objectstore."
                                 + "ObjectPutCommandV1");
                 requireOwnedClass(environment,
                         "org.yanoproject.x.ipfs.internal.contracts."
                                 + "v1.ipfs.CanonicalCid",
-                        "org.yanoproject.appchain.ipfs");
+                        "org.yanoproject.x.ipfs");
                 requireInitializedOwnedClass(environment,
                         "org.yanoproject.x.ipfs.internal.kubo."
                                 + "KuboIpfsPinClient",
-                        "org.yanoproject.appchain.ipfs");
+                        "org.yanoproject.x.ipfs");
                 requireAbsentClass(environment,
                         "org.yanoproject.x.integration.ipfs.CanonicalCid");
                 requireOwnedClass(environment,
@@ -259,21 +259,21 @@ public final class PluginBundleLaunchProbe {
                 requireOwnedClass(environment,
                         "org.yanoproject.x.examples.evidence.internal.contracts."
                                 + "v1.ConnectorTypes",
-                        "org.yanoproject.appchain.evidence-registry");
+                        "org.yanoproject.x.evidence-registry");
                 requireOwnedClass(environment,
                         "org.yanoproject.x.examples.evidence.internal.contracts."
                                 + "v1deps.cbor.CborDecoder",
-                        "org.yanoproject.appchain.evidence-registry");
+                        "org.yanoproject.x.evidence-registry");
                 requireOwnedClass(environment,
                         "org.yanoproject.x.examples.evidence.internal.contracts."
                                 + "v1deps.bouncycastle.crypto.digests.Blake2bDigest",
-                        "org.yanoproject.appchain.evidence-registry");
+                        "org.yanoproject.x.evidence-registry");
                 requireOwnedClass(environment,
                         "com.bloxbean.cardano.client.backend.blockfrost.service.BFBackendService",
-                        "org.yanoproject.appchain.effects.cardano");
+                        "org.yanoproject.x.effects.cardano");
                 requireOwnedClass(environment,
                         "com.bloxbean.cardano.zeroj.verifier.core.VerifierOrchestrator",
-                        "org.yanoproject.appchain.zk");
+                        "org.yanoproject.x.zk");
 
                 // Exercise the real ZeroJ default-ServiceLoader path through a
                 // plugin factory callback. The context assertion proves the
@@ -310,7 +310,7 @@ public final class PluginBundleLaunchProbe {
                 }
                 requireTccl(callerTccl, "ZK provider and state-machine callbacks");
                 instantiateZkVerifierBackends(environment,
-                        "org.yanoproject.appchain.zk");
+                        "org.yanoproject.x.zk");
                 requireTccl(callerTccl, "ZK backend probe");
             }
             requireTccl(callerTccl, "plugin environment close");
