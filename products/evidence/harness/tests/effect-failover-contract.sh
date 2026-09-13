@@ -116,7 +116,7 @@ release_contracts = Path(sys.argv[4]).read_text(encoding="utf-8")
 # minimum comes from the selected manifests, never from the live response.
 repo = Path(sys.argv[2]).resolve().parents[2]
 inventory = source.split("assert_plugin_operations_all_nodes() {", 1)[1].split("and (.items", 1)[0]
-selected = set(re.findall(r'"(com\.bloxbean\.cardano\.yano\.appchain\.[a-z0-9.-]+)"', inventory))
+selected = set(re.findall(r'"(org\.yanoproject\.x\.[a-z0-9.-]+)"', inventory))
 manifests = {}
 for path in repo.glob("**/src/main/resources/META-INF/yano/plugins/*.json"):
     document = json.loads(path.read_text(encoding="utf-8"))
