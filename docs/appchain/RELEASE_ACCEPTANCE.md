@@ -64,6 +64,15 @@ Run the static and packaged JVM gates with:
 ./gradlew :tooling:devtools:appChainReleaseCandidateJvmAcceptance
 ```
 
+The packaged JVM gates start real multi-node devnet clusters and are not part
+of `build` or CI. Before tagging, run them together with a live showcase
+restart against the exact release ZIP:
+
+```bash
+.agents/skills/smoke-yano-x-release/scripts/smoke_release_zip.sh \
+  distribution/jvm/build/distributions/yano-x-jvm-<version>.zip
+```
+
 Run Yano's native release gates in the matching Yano checkout or staged release
 pipeline. They validate the core host and OrderedLog; they do not include Yano X
 bundles.

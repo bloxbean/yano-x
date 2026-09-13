@@ -45,23 +45,17 @@ Then pass the exact published version and ZIP to Yano X:
 ```
 
 The default `./gradlew build -PskipSigning=true` and the focused
-`distributionCheck` tier produce three release ZIPs. The two main artifacts
-are under `distribution/jvm/build/distributions`:
+`distributionCheck` tier produce one release archive,
+`distribution/jvm/build/distributions/yano-x-jvm-<version>.zip`. It contains
+the standard Yano JVM distribution, 17 conflict-free default plugin bundles
+under `plugins/`, the alternative eUTxO ZK runtime under `optional-plugins/`, a
+checksummed manifest covering all 18 runtime plugin bundles, the command-line
+and deployment tools, App-Chain Studio, and Yano/Yano X identity manifests.
 
-- `yano-x-plugin-pack-<version>.zip`, containing 17 conflict-free default
-  bundles under `plugins/`, the alternative eUTxO ZK runtime under
-  `optional-plugins/`, and a checksummed manifest covering all 18 independently
-  versioned runtime plugin bundles.
-- `yano-x-jvm-<version>.zip`, containing the standard Yano JVM distribution,
-  the same default and optional plugin layout, and Yano/Yano X identity
-  manifests.
-
-The third is `examples/showcase/build/distributions/yano-showcase-<version>.zip`,
-a self-contained multi-node demo with the JVM runtime, showcase plugins, and
-configuration. Extract it and run
-`./showcase.sh quickstart --profile light --nodes 3 --instance demo`.
+The multi-node showcase ships inside the same archive. Extract it and run
+`examples/showcase/showcase.sh quickstart --profile light --nodes 3 --instance demo`.
 See [distribution instructions](docs/BUILD_DISTRIBUTIONS.md) for prerequisites
-and lifecycle commands. All three ZIPs can be attached to a GitHub release.
+and lifecycle commands. The GitHub release attaches this one archive.
 
 Yano X is JVM-only. `verifyJvmOnlyBuild` rejects native-image build or
 distribution tasks, while the Yano base ZIP contract records whether its

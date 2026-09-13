@@ -1,0 +1,4 @@
+interface:
+  display_name: "Smoke-Test Yano X Release"
+  short_description: "Verify a release ZIP, clusters, and showcase"
+  default_prompt: "Use $smoke-yano-x-release to smoke-test the built Yano X JVM release ZIP before tagging."

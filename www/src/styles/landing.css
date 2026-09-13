@@ -790,6 +790,8 @@ footer p {
   .hero-copy { padding-top: 28px; }
 }
 .example-intro p { min-height: 48px; }
-@media (max-width: 380px) {
+/* Four tabs overflow a phone-width column with wider system fonts (Linux
+   Chromium falls back to DejaVu Sans), so phones get two rows of two. */
+@media (max-width: 480px) {
   .example-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }

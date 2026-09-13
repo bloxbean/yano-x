@@ -32,8 +32,9 @@ state machine applies governed writes and authorization rules on the app chain.
 ## Run it
 
 ```bash
-./gradlew :examples:showcase:installDist :products:trust-registry:cli:installDist
-export TRUST_REGISTRY_YANO_HOME=$PWD/examples/showcase/build/install/yano-showcase/yano
+./gradlew :distribution:jvm:yanoXJvmDistZip :products:trust-registry:cli:installDist
+unzip -qo distribution/jvm/build/distributions/yano-x-jvm-*.zip -d build/yano-x
+export TRUST_REGISTRY_YANO_HOME=$(echo "$PWD"/build/yano-x/yano-x-jvm-*)
 products/trust-registry/harness/registry.sh up
 eval "$(products/trust-registry/harness/registry.sh env)"
 yano-trust put --url $YANO_TRUST_URL --chain $YANO_TRUST_CHAIN --actor issuer-a \

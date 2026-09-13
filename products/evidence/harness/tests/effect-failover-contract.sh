@@ -61,11 +61,13 @@ bounded_get() {{
   printf '{{"initialSyncComplete":%s,"localTipBlockNumber":%s,"remoteTipBlockNumber":%s}}\\n' \
     "$flag" "$local_tip" "$remote_tip" > "$2"
 }}
+# Fake sleep advances SECONDS, but SECONDS also counts real time. The 10-second
+# window keeps a slow runner from exhausting the deadline before the second poll.
 sleep() {{ SECONDS=$((SECONDS + 1)); }}
 {function}
 run_case() {{
   CASE="$1"; CALLS=0; SECONDS=0
-  if wait_l1_sync 1 2 "$TMP_STATUS" 2> "$TMP_STATUS.stderr"; then
+  if wait_l1_sync 1 10 "$TMP_STATUS" 2> "$TMP_STATUS.stderr"; then
     [ "$2" = accept ] || {{ printf 'unexpected readiness: %s\\n' "$CASE" >&2; exit 11; }}
     [ "$CALLS" -ge 2 ] || exit 13
   else

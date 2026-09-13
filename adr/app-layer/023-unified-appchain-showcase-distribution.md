@@ -4,6 +4,13 @@
 
 Accepted and implemented — 2026-07-31
 
+Amended 2026-09-13: the showcase no longer ships as a separate
+`yano-showcase-<version>.zip`. It ships inside the Yano X JVM distribution at
+`examples/showcase/`, whose `yano/` home holds only the demo configuration and
+links everything else back to the distribution root. The evidence profile uses
+the distribution's `examples/evidence/` instead of `profiles/evidence/`. The
+layout sections below record the original single-archive design.
+
 The number is local to the `adr/app-layer` series. A root-level ADR-023, if one
 exists, is unrelated.
 

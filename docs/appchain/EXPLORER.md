@@ -63,10 +63,10 @@ value. Role-approval commands are indexed as generic rows in this slice.
 ### Option A: the showcase and the launcher
 
 ```bash
-# 1. Start a showcase instance and give it traffic (pre14 distribution)
-cd examples/showcase/build/install/yano-showcase        # or the extracted showcase ZIP
-./showcase.sh up --profile light --instance demo
-./showcase.sh run all --instance demo
+# 1. Start a showcase instance and give it traffic
+cd yano-x-jvm-<version>                                  # the extracted Yano X JVM ZIP
+examples/showcase/showcase.sh up --profile light --instance demo
+examples/showcase/showcase.sh run all --instance demo
 
 # 2. Start the explorer service against node 0 (default key: the cluster launcher's)
 tools/yano-explorer/bin/yano-explorer chains --url http://127.0.0.1:7070
@@ -77,8 +77,8 @@ eval "$(examples/explorer/explorer.sh env --instance demo)"
 ```
 
 From a source checkout the launcher finds `products/explorer/cli/build/install/yano-explorer`
-after `./gradlew :products:explorer:cli:installDist`, and the showcase under
-`examples/showcase/build/install`. Pass `--api-key-file` for a node with its own key, and
+after `./gradlew :products:explorer:cli:installDist`, and the showcase of a distribution
+extracted to `build/yano-x` (see [Build distributions](../BUILD_DISTRIBUTIONS.md)). Pass `--api-key-file` for a node with its own key, and
 `--members members.json` (`{"chainId", "memberKeysHex": [...], "threshold"}`) to label blocks
 `VERIFIED_PINNED` instead of `VERIFIED_DECLARED`.
 

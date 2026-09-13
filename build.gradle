@@ -90,4 +90,5 @@ subprojects.findAll { candidate ->
     candidate.apply from: rootProject.file('gradle/yano-x-module.gradle')
 }
 
+apply from: file('gradle/plugin-bundle-host-classes.gradle')
 apply from: file('gradle/verification.gradle')

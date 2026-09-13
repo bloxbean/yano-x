@@ -30,7 +30,7 @@ plugin_runtime_classpath() {
   while IFS= read -r jar; do
     classpath="$classpath:$jar"
     count=$((count + 1))
-  done < <(find "$directory" -maxdepth 1 -type f -name '*-bundle.jar' -print | sort)
+  done < <(find "$directory" -maxdepth 1 -type f -name '*-bundle*.jar' -print | sort)
   [ "$count" -gt 0 ] || die "no plugin bundles found in $directory"
   printf '%s' "$classpath"
 }
@@ -1761,7 +1761,7 @@ prepare_configuration() {
     if [ -n "${DEMO_PREBUILT_ARTIFACT_ROOT:-}" ]; then
       local calculator
       calculator="$(unique_artifact "$DEMO_PREBUILT_ARTIFACT_ROOT/plugins" \
-        '*yano-x-evidence-profile*-bundle.jar' 'evidence profile bundle')"
+        '*yano-x-evidence-profile*-bundle*.jar' 'evidence profile bundle')"
       require java
       [ -f "$calculator" ] || die "prebuilt role-evidence profile calculator is missing"
       COMPOSITE_PROFILE_DIGEST="$(java -cp "$(plugin_runtime_classpath \
@@ -1775,7 +1775,7 @@ prepare_configuration() {
     else
       local calculator
       calculator="$(unique_artifact "$APP_DIR/plugins" \
-        '*yano-x-evidence-profile*-bundle.jar' 'evidence profile bundle')"
+        '*yano-x-evidence-profile*-bundle*.jar' 'evidence profile bundle')"
       require java
       COMPOSITE_PROFILE_DIGEST="$(java -cp "$(plugin_runtime_classpath "$APP_DIR/plugins")" \
         org.yanoproject.x.evidence.profile.RoleEvidenceProfileCli \
@@ -1901,7 +1901,7 @@ build_artifacts() {
     for name in yano-x-kafka yano-x-ipfs yano-x-objectstore-s3 \
       yano-x-composite yano-x-stdlib yano-x-role-workflow yano-x-evidence-registry \
       yano-x-evidence-profile; do
-      source="$(unique_artifact "$prebuilt/plugins" "*${name}*-bundle.jar" "$name bundle")"
+      source="$(unique_artifact "$prebuilt/plugins" "*${name}*-bundle*.jar" "$name bundle")"
       install -m 0644 "$source" "$PLUGIN_DIR/$name-bundle.jar"
     done
     install -m 0644 "$prebuilt/runner.jar" "$RUNTIME_ROOT/runner.jar"
@@ -1917,7 +1917,7 @@ build_artifacts() {
   for name in yano-x-kafka yano-x-ipfs yano-x-objectstore-s3 \
     yano-x-composite yano-x-stdlib yano-x-role-workflow yano-x-evidence-registry \
     yano-x-evidence-profile; do
-    source="$(unique_artifact "$APP_DIR/plugins" "*${name}*-bundle.jar" "$name bundle")"
+    source="$(unique_artifact "$APP_DIR/plugins" "*${name}*-bundle*.jar" "$name bundle")"
     install -m 0644 "$source" "$PLUGIN_DIR/$name-bundle.jar"
   done
   runner="$SCRIPT_DIR/runner.jar"

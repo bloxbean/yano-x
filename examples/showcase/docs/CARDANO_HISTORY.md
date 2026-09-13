@@ -106,19 +106,19 @@ exported claim package as an on-chain redeemer.
 
 ## Standalone CLI
 
-The ZIP includes `tools/cardano-history/bin/yano-cardano-history`. Always provide the actual node
+The distribution includes `tools/yano-cardano-history/bin/yano-cardano-history`, reachable from this showcase as `yano/tools/yano-cardano-history/bin/yano-cardano-history`. Always provide the actual node
 URL; the CLI never maps an arbitrary instance name to port 7070.
 
 ```bash
-tools/cardano-history/bin/yano-cardano-history status \
+yano/tools/yano-cardano-history/bin/yano-cardano-history status \
   --url http://127.0.0.1:7070/api/v1 --chain cardano-history-chain \
   --api-key "$YANO_CLUSTER_API_KEY"
 
-tools/cardano-history/bin/yano-cardano-history query params --epoch 1 \
+yano/tools/yano-cardano-history/bin/yano-cardano-history query params --epoch 1 \
   --url http://127.0.0.1:7070/api/v1 --chain cardano-history-chain \
   --api-key "$YANO_CLUSTER_API_KEY"
 
-tools/cardano-history/bin/yano-cardano-history proof params --epoch 1 \
+yano/tools/yano-cardano-history/bin/yano-cardano-history proof params --epoch 1 \
   --output params-proof.json \
   --url http://127.0.0.1:7070/api/v1 --chain cardano-history-chain \
   --api-key "$YANO_CLUSTER_API_KEY"

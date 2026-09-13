@@ -28,20 +28,13 @@ tasks.register('prepareStudio', Sync) {
     into studioOutput
 }
 
-tasks.register('studioZip', Zip) {
-    dependsOn tasks.named('prepareStudio')
-    archiveFileName = "yano-x-studio-${project.version}.zip"
-    destinationDirectory = layout.buildDirectory.dir('distributions')
-    from(studioOutput)
-}
-
 tasks.register('testStudio', NodeTask) {
     options = ['--test']
     script = file('src/test/studio.test.mjs')
 }
 
 tasks.named('assemble') {
-    dependsOn tasks.named('studioZip')
+    dependsOn tasks.named('prepareStudio')
 }
 
 tasks.named('check') {

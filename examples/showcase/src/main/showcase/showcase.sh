@@ -3,6 +3,11 @@
 set -euo pipefail
 
 SHOWCASE_HOME="$(cd "$(dirname "$0")" && pwd -P)"
+# The showcase ships at examples/showcase inside the Yano X JVM distribution.
+# Its yano/ home carries only the demo configuration; link_yano_home points
+# every other entry back at the distribution root, so the demo never edits the
+# distribution's own config.
+YANO_X_HOME="$(cd "$SHOWCASE_HOME/../.." && pwd -P)"
 YANO_HOME="$SHOWCASE_HOME/yano"
 CLUSTER="$YANO_HOME/appchain-cluster/cluster.sh"
 CODEC="$SHOWCASE_HOME/tools/showcase_codec.py"
@@ -24,6 +29,22 @@ CARDANO_HISTORY_CHAIN_ID=cardano-history-chain
 die() { printf 'error: %s\n' "$*" >&2; exit 1; }
 note() { printf '%s\n' "$*"; }
 need() { command -v "$1" >/dev/null 2>&1 || die "required command not found: $1"; }
+
+link_yano_home() {
+  local entry name
+  [ -f "$YANO_X_HOME/yano.jar" ] && [ -d "$YANO_HOME/config" ] \
+    || die "run showcase.sh from examples/showcase in an extracted Yano X JVM distribution"
+  for entry in "$YANO_X_HOME"/*; do
+    name="${entry##*/}"
+    case "$name" in config|examples) continue;; esac
+    [ -e "$YANO_HOME/$name" ] || [ -L "$YANO_HOME/$name" ] \
+      || ln -s "../../../$name" "$YANO_HOME/$name"
+  done
+}
+link_yano_home
+# The node refuses a symlinked plugin directory, so it loads the distribution's
+# plugins/ by its real path. Scripts that only read jars may use the link.
+export YANO_PLUGINS_DIRECTORY="$YANO_X_HOME/plugins"
 
 PROFILE="light"
 VARIANT="default"
@@ -630,13 +651,10 @@ write_node_configs() {
         printf 'yano.app-chain.chains[%d].observation.l1-network-genesis-id=%s\n' \
           "$cardano_history_index" "$l1_genesis_id"
       fi
-      if [ "$i" -gt 0 ]; then
-        # Yano pre14 devnet nodes project L1 history into <home>/history; the
-        # members share one home with the producer, and a fresh member chainstate
-        # cannot adopt the producer's archive (RUNTIME_INITIALIZATION_FAILED).
-        # Only node 0 keeps the projection; historical REST reads stay on it.
-        printf 'yano.history.projection.enabled=false\n'
-      fi
+      # The showcase reads no L1 history. Keep the devnet projection off on
+      # every node: members share one home with the producer, and the Yano JVM
+      # ZIP cannot load DuckLake off linux_amd64 (bloxbean/yano#137).
+      printf 'yano.history.projection.enabled=false\n'
       if [ "$i" -eq 0 ]; then
         printf 'yano.app-chain.chains[5].effects.executor.enabled=true\n'
         printf 'yano.app-chain.chains[5].effects.executors.showcase-outbox.enabled=true\n'
@@ -932,8 +950,16 @@ snapshot_operation() {
 
 run_cardano_history() {
   [ "$CARDANO_HISTORY_ENABLED" = true ] || die "Cardano History is disabled for this instance"
-  curl -fsS "http://127.0.0.1:$((HTTP_BASE + NODE))/api/v1/plugins/org.yanoproject.x.cardano-history/status?chain=$CARDANO_HISTORY_CHAIN_ID" \
-    | jq .
+  local url status waiting="" deadline=$(( $(date +%s) + 300 ))
+  url="http://127.0.0.1:$((HTTP_BASE + NODE))/api/v1/plugins/org.yanoproject.x.cardano-history/status?chain=$CARDANO_HISTORY_CHAIN_ID"
+  # The chain records its first epoch only after the L1 epoch-stability depth
+  # (about two devnet epochs); until then the route has nothing to serve.
+  until status="$(curl -fsS "$url" 2>/dev/null)"; do
+    [ "$(date +%s)" -le "$deadline" ] || die "Cardano History recorded no stable L1 epoch within 300s"
+    [ -n "$waiting" ] || { note "waiting for the first stable L1 epoch observation"; waiting=1; }
+    sleep 5
+  done
+  printf '%s' "$status" | jq .
 }
 
 run_orders() {
@@ -1598,7 +1624,11 @@ run_soak_test() {
 }
 
 eutxo_tool() {
-  java -cp "$YANO_HOME/yano.jar:$(plugin_file)" \
+  # The helper's eUTxO contract types ship in the ledger bundle, not the showcase bundle.
+  local ledger=("$YANO_HOME"/plugins/yano-x-eutxo-ledger-bundle-*.jar)
+  [ "${#ledger[@]}" -eq 1 ] && [ -f "${ledger[0]}" ] \
+    || die "expected exactly one eUTxO ledger plugin bundle"
+  java -cp "$YANO_HOME/yano.jar:$(plugin_file):${ledger[0]}" \
     org.yanoproject.x.showcase.ShowcaseEutxoTransactions "$@"
 }
 
@@ -1816,7 +1846,7 @@ verify_light() {
 }
 
 delegate_evidence() {
-  local command="$1" demo="$SHOWCASE_HOME/profiles/evidence/demo/demo.sh" machine args=()
+  local command="$1" demo="$YANO_X_HOME/examples/evidence/demo.sh" machine args=()
   local evidence_id
   [ -x "$demo" ] || die "packaged evidence harness is missing"
   case "$VARIANT" in composite|default) machine=composite;; role) machine=role;;
@@ -1824,14 +1854,15 @@ delegate_evidence() {
   if [ "$machine" = role ]; then
     case "$command" in run) command=role-lifecycle;; verify) command=probe;; esac
   fi
-  export DEMO_PREBUILT_ARTIFACT_ROOT="$SHOWCASE_HOME/profiles/evidence/artifacts"
+  unset DEMO_PREBUILT_ARTIFACT_ROOT
+  export DEMO_YANO_HOME="$YANO_X_HOME"
   args=("$command" --deployment compose --machine "$machine" --network "$NETWORK"
     --instance "$INSTANCE" --data-dir "$(instance_root)/evidence")
   [ -z "$ANCHOR_KEY_FILE" ] || args+=(--anchor-key-file "$ANCHOR_KEY_FILE")
   [ -z "$PUBLIC_CONFIRM" ] || args+=(--confirm-public-anchor "$PUBLIC_CONFIRM")
   if [ "$command" = verify ]; then
     evidence_id="$(sed -n 's/^DEMO_EVIDENCE_ID=//p' \
-      "$SHOWCASE_HOME/profiles/evidence/demo/config/common.env")"
+      "$YANO_X_HOME/examples/evidence/config/common.env")"
     [ -n "$evidence_id" ] || die "packaged evidence default id is missing"
     args+=(--evidence-id "$evidence_id")
   fi
@@ -2356,7 +2387,7 @@ PY
     [ -x "$YANO_HOME/appchain-cluster/soaktest.sh" ] || die "packaged soak driver missing"
     plugin_file >/dev/null
     cardano_history_plugin_file >/dev/null
-    [ -x "$SHOWCASE_HOME/tools/cardano-history/bin/yano-cardano-history" ] \
+    [ -x "$YANO_HOME/tools/yano-cardano-history/bin/yano-cardano-history" ] \
       || die "packaged Cardano History CLI missing"
     [ "$PROFILE" != evidence ] || need docker
     [ "$PROFILE" != eutxo ] || [ -x "$YANO_HOME/yano.sh" ] || die "maintained EUTxO CLI missing"

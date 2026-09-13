@@ -175,9 +175,11 @@ tasks.register('finalDistributionStockOutcomeAcceptance', Exec) {
     dependsOn finalYanoZip
     inputs.file(finalYanoZip.flatMap { it.archiveFile })
             .withPropertyName('yanoXJvmDist')
+    def stockAppChainConfig = rootProject.file('config/application-appchain.yml')
+    inputs.file(stockAppChainConfig).withPropertyName('stockAppChainConfig')
     doFirst {
         commandLine 'bash', file('src/test/scripts/final-distribution-stock-outcomes.sh'),
-                finalYanoZip.get().archiveFile.get().asFile
+                finalYanoZip.get().archiveFile.get().asFile, stockAppChainConfig
     }
 }
 

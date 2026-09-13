@@ -6,7 +6,7 @@ or a mixture of them.
 
 ```bash
 yano-x-deploy init ./cluster
-yano-x-deploy artifact import ./cluster --file ./yano-showcase-<version>.zip
+yano-x-deploy artifact import ./cluster --file ./yano-x-jvm-<version>.zip
 yano-x-deploy validate ./cluster
 yano-x-deploy doctor ./cluster
 yano-x-deploy render ./cluster

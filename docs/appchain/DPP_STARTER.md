@@ -68,14 +68,15 @@ The demo consortium: `acme-manufacturing` (`maker-a`: manufacturer and operator)
 
 ### Option A: the launcher
 
-The launcher needs an extracted Yano X JVM distribution or the showcase's `yano` directory
-(`yano.jar`, `plugins/`, `config/`, `appchain-cluster/cluster.sh`). From the repository, build
-the showcase distribution and the CLI once (add the Yano version properties the repository
+The launcher needs an extracted Yano X JVM distribution (`yano.jar`, `plugins/`, `config/`,
+`appchain-cluster/cluster.sh`). From the repository, build and extract the distribution and build
+the CLI once (add the Yano version properties the repository
 currently requires, see `docs/BUILD_AND_TEST.md`):
 
 ```bash
-./gradlew :examples:showcase:installDist :products:dpp:cli:installDist
-export DPP_YANO_HOME=$PWD/examples/showcase/build/install/yano-showcase/yano
+./gradlew :distribution:jvm:yanoXJvmDistZip :products:dpp:cli:installDist
+unzip -qo distribution/jvm/build/distributions/yano-x-jvm-*.zip -d build/yano-x
+export DPP_YANO_HOME=$(echo "$PWD"/build/yano-x/yano-x-jvm-*)
 products/dpp/harness/dpp.sh up
 products/dpp/harness/dpp.sh demo
 products/dpp/harness/dpp.sh portal

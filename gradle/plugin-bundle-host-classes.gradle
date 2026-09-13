@@ -1,0 +1,39 @@
+// Runtime plugin bundles leave out every class the host yano.jar already
+// provides. Yano loads plugins through a parent-first class loader (ADR-011),
+// so a bundled copy of a host class is never loaded: removing it changes no
+// runtime behaviour and cut the bundles by about 160 MB. A bundle keeps its own
+// code and every library the host does not ship, and is therefore tied to the
+// Yano release it was built against, which the distribution already pins.
+//
+// Two kinds of entry always stay with the bundle: anything under META-INF
+// (service files, plugin manifests, licences, multi-release classes), and any
+// path the bundle relocates into its own namespace. A relocated library is a
+// private copy by design (ADR-013) and does not collide with the host once
+// renamed. Applied to the root project by build.gradle.
+
+def hostEntriesTask = ':distribution:jvm:extractYanoHostEntries'
+def hostEntriesFile = project(':distribution:jvm').layout.buildDirectory
+        .file('yano-host/yano-jar-entries.txt')
+
+gradle.projectsEvaluated {
+    rootProject.ext.yanoXArtifactInventory.artifacts.findAll {
+        it.publicationType == 'runtime-plugin'
+    }.each { specification ->
+        project(specification.modulePath.toString()).tasks.named('shadowJar') {
+            def hostEntries = new HashSet<String>()
+            def bundleRelocators = []
+            dependsOn hostEntriesTask
+            inputs.file(hostEntriesFile).withPropertyName('yanoHostEntries')
+            doFirst {
+                hostEntries.addAll(hostEntriesFile.get().asFile.readLines('UTF-8'))
+                bundleRelocators.addAll(relocators.get())
+            }
+            exclude { details ->
+                def path = details.path
+                !path.startsWith('META-INF/')
+                        && hostEntries.contains(path)
+                        && !bundleRelocators.any { it.canRelocatePath(path) }
+            }
+        }
+    }
+}

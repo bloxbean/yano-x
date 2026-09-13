@@ -46,7 +46,7 @@ resolve_yano_home() {
   YANO_HOME="${TRUST_REGISTRY_YANO_HOME:-}"
   if [ -z "$YANO_HOME" ]; then
     local candidate
-    for candidate in "$SCRIPT_DIR/../.." "$SCRIPT_DIR/../../../examples/showcase/build/install/yano-showcase/yano"; do
+    for candidate in "$SCRIPT_DIR/../.." "$SCRIPT_DIR"/../../../build/yano-x/yano-x-jvm-*; do
       if [ -f "$candidate/yano.jar" ] && [ -d "$candidate/plugins" ]; then
         YANO_HOME="$(cd "$candidate" && pwd -P)"
         break

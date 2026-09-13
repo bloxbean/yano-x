@@ -46,7 +46,7 @@ final class ShowcaseProfileCompiler {
 
     private List<Path> extractClasspath(ShowcaseArtifact.Metadata artifact, Path target) throws IOException {
         List<Path> result = new ArrayList<>();
-        String prefix = artifact.rootDirectory() + "/yano/";
+        String prefix = artifact.rootDirectory() + "/";
         try (ZipFile zip = new ZipFile(artifact.path().toFile())) {
             for (ZipEntry entry : java.util.Collections.list(zip.entries())) {
                 String relative = entry.getName().startsWith(prefix)
@@ -65,7 +65,7 @@ final class ShowcaseProfileCompiler {
             }
         }
         if (result.stream().noneMatch(path -> "yano.jar".equals(path.getFileName().toString()))) {
-            throw new IOException("showcase archive does not contain yano/yano.jar");
+            throw new IOException("distribution archive does not contain yano.jar");
         }
         return List.copyOf(result);
     }
