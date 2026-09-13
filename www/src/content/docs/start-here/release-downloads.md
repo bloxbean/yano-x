@@ -41,6 +41,12 @@ cd yano-x-jvm-<version>
 This starts one Yano node with app-chain support. Review the included
 configuration before using a public Cardano network.
 
+On devnet, `config/application-devnet.yml` turns off Yano's L1 history
+projection, which cannot load outside Linux x64 in this Yano release
+([bloxbean/yano#137](https://github.com/bloxbean/yano/issues/137)). App chains
+and the showcase do not need it; Yano's address, account, and reward history
+endpoints return 503 on devnet until it is re-enabled.
+
 ## Run the local multi-node showcase
 
 The showcase lives in `examples/showcase/` and runs on the distribution it

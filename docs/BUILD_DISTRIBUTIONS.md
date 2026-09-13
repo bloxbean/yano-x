@@ -78,6 +78,10 @@ both Yano and Yano X identity manifests:
   carries only the demo configuration; `showcase.sh` links everything else back
   to the distribution root on first run and never edits the distribution's own
   `config/`.
+- `config/application-devnet.yml` (also in the showcase's `yano/config/`) turns
+  off the devnet L1 history projection. Yano's JVM ZIP ships DuckLake extensions
+  for Linux x64 only ([bloxbean/yano#137](https://github.com/bloxbean/yano/issues/137));
+  remove the overlay from `distribution/jvm/config/` once Yano fixes that.
 
 The archive includes the repository `LICENSE` and a normalized CycloneDX 1.6
 SBOM at `sbom/yano-x.cdx.json`. The release task fills the MIT declaration for

@@ -121,6 +121,10 @@ def rebaseBaseRoot = { details ->
     }
 }
 
+// Keeps the devnet L1 history projection off until Yano ships DuckDB extensions
+// for every JVM platform (bloxbean/yano#137). Remove with the upstream fix.
+def devnetProfileOverlay = file('config/application-devnet.yml')
+
 // The showcase ships at examples/showcase. Its yano/ home holds only the demo
 // configuration (the Yano config tree with the showcase app-chain file and
 // settlement scripts); showcase.sh links everything else back to the
@@ -170,6 +174,9 @@ tasks.register('prepareShowcase', Sync) {
         into 'yano/config/settlement'
     }
     from(new File(showcaseSources, 'config/application-appchain.yml')) {
+        into 'yano/config'
+    }
+    from(devnetProfileOverlay) {
         into 'yano/config'
     }
 }
@@ -313,6 +320,9 @@ tasks.register('yanoXJvmDistZip', Zip) {
         }
         from(devtoolsSkill) {
             into 'skills/configure-yano-appchain'
+        }
+        from(devnetProfileOverlay) {
+            into 'config'
         }
         from(devtoolsMetadata) {
             into 'config/schema'
@@ -585,7 +595,9 @@ tasks.register('verifyYanoXJvmDistribution') {
                     'examples/showcase/showcase.sh',
                     'examples/showcase/VERSION',
                     'examples/showcase/catalog/showcase-catalog-v1.json',
+                    'config/application-devnet.yml',
                     'examples/showcase/yano/config/application-appchain.yml',
+                    'examples/showcase/yano/config/application-devnet.yml',
                     'examples/showcase/yano/config/network/devnet/shelley-genesis.json',
                     'docs/appchain/README.md',
                     'docker/jvm/entrypoint.sh'

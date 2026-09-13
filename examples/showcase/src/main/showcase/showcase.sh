@@ -651,13 +651,10 @@ write_node_configs() {
         printf 'yano.app-chain.chains[%d].observation.l1-network-genesis-id=%s\n' \
           "$cardano_history_index" "$l1_genesis_id"
       fi
-      if [ "$i" -gt 0 ]; then
-        # Yano pre14 devnet nodes project L1 history into <home>/history; the
-        # members share one home with the producer, and a fresh member chainstate
-        # cannot adopt the producer's archive (RUNTIME_INITIALIZATION_FAILED).
-        # Only node 0 keeps the projection; historical REST reads stay on it.
-        printf 'yano.history.projection.enabled=false\n'
-      fi
+      # The showcase reads no L1 history. Keep the devnet projection off on
+      # every node: members share one home with the producer, and the Yano JVM
+      # ZIP cannot load DuckLake off linux_amd64 (bloxbean/yano#137).
+      printf 'yano.history.projection.enabled=false\n'
       if [ "$i" -eq 0 ]; then
         printf 'yano.app-chain.chains[5].effects.executor.enabled=true\n'
         printf 'yano.app-chain.chains[5].effects.executors.showcase-outbox.enabled=true\n'
