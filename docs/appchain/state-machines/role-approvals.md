@@ -177,8 +177,8 @@ establishes that it was current.
 Use the dependency-light contracts plus the generic client:
 
 ```groovy
-implementation "org.yanoproject:yano-x-client:${yanoVersion}"
-implementation "org.yanoproject:yano-x-role-workflow-contracts:${yanoVersion}"
+implementation "org.yanoproject.x:yano-x-client:${yanoXVersion}"
+implementation "org.yanoproject.x:yano-x-role-workflow-contracts:${yanoXVersion}"
 ```
 
 ```java

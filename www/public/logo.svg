@@ -1,15 +1,14 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="800" height="800">
-    <defs>
-      <linearGradient id="t2" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#7fe5ff"></stop><stop offset="100%" stop-color="#1e5cff"></stop></linearGradient>
-      <linearGradient id="b2" x1="0" y1="0" x2="0.5" y2="1"><stop offset="0%" stop-color="#3a7bff"></stop><stop offset="100%" stop-color="#5b2bff"></stop></linearGradient>
-      <linearGradient id="r2" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#5b2bff"></stop><stop offset="100%" stop-color="#ff3b8a"></stop></linearGradient>
-    </defs>
-    <rect width="400" height="400" fill="#0e1230"></rect>
-    <g transform="translate(90 90) scale(1.05)">
-      <path d="M 110 30 L 200 90 L 130 110 L 110 80 Z" fill="url(#t2)"></path>
-      <path d="M 110 30 L 30 100 L 90 100 L 110 80 Z" fill="url(#t2)" opacity="0.85"></path>
-      <path d="M 110 80 L 130 110 L 90 160 L 70 130 Z" fill="url(#b2)"></path>
-      <path d="M 130 110 L 200 90 L 150 150 Z" fill="url(#r2)" opacity="0.95"></path>
-      <path d="M 110 30 L 110 80 L 90 160" stroke="rgba(255,255,255,0.55)" stroke-width="2.5" fill="none"></path>
-    </g>
-  </svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <linearGradient id="top" x2="1" y2="1"><stop stop-color="#d5fff0"/><stop offset="1" stop-color="#9af0d4"/></linearGradient>
+    <linearGradient id="fold" x2=".5" y2="1"><stop stop-color="#69c9ac"/><stop offset="1" stop-color="#267b68"/></linearGradient>
+    <linearGradient id="wing" x2="1" y2="1"><stop stop-color="#267b68"/><stop offset="1" stop-color="#9af0d4"/></linearGradient>
+  </defs>
+  <g transform="translate(-2.5 3.5) scale(.3)">
+    <path d="M110 30 200 90 130 110 110 80Z" fill="url(#top)"/>
+    <path d="M110 30 30 100 90 100 110 80Z" fill="url(#top)" opacity=".85"/>
+    <path d="M110 80 130 110 90 160 70 130Z" fill="url(#fold)"/>
+    <path d="M130 110 200 90 150 150Z" fill="url(#wing)"/>
+    <path d="M110 30V80L90 160" stroke="#e5fff6" stroke-opacity=".65" stroke-width="2.5" fill="none"/>
+  </g>
+</svg>

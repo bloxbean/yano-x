@@ -13,12 +13,15 @@ Use the public launcher to create one small, buildable starting point. The
 four modes share the same runtime manifest, signed product-catalog, and
 ServiceLoader conventions:
 
+Use the exact host version from your distribution manifest for
+`<matching-yano-host-version>`; the host and Yano X have separate versions.
+
 ```bash
 ./yano.sh appchain plugin scaffold \
   --mode state-machine \
   --id shipment \
   --package com.example.shipment \
-  --yano-version 0.1.0-pre9 \
+  --yano-version <matching-yano-host-version> \
   --output shipment-plugin
 ```
 

@@ -1,14 +1,8 @@
 ---
 title: "Add a chain without resetting your application"
 description: "An independent chain can be added to a generated local JVM host project through a reviewed configuration revision and controlled restart. Existing chains…"
-editUrl: false
+editUrl: "https://github.com/bloxbean/yano-x/edit/main/docs/appchain/deployment/add-chain.md"
 ---
-
-:::note[Imported page]
-This page is generated from [`docs/appchain/deployment/add-chain.md`](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/deployment/add-chain.md)
-in the Yano X repository, which is its source of truth.
-:::
-
 An independent chain can be added to a generated local JVM host project through
 a reviewed configuration revision and controlled restart. Existing chains retain
 their genesis, state, member policy, and history. Adding without a process restart

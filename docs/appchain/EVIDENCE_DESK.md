@@ -45,11 +45,12 @@ three organizations, four actors, and the `document-release` policy (an `issuer`
 `auditor`s from distinct organizations approve).
 
 ```bash
-cd examples/showcase/src/main/showcase
-./showcase.sh quickstart --instance demo
+# From a newly extracted yano-showcase-<version> archive
+./showcase.sh quickstart --profile light --nodes 3 --instance demo
 ```
 
-Node REST bases are `http://127.0.0.1:7070/api/v1`, `7071`, and `7072`. The API key defaults to
+Use the REST bases printed by the launcher. With the default ports these are
+`http://127.0.0.1:7070/api/v1`, `7071`, and `7072`. The API key defaults to
 `yano-local-cluster-full-key`. If port 7070 is taken, add `--http-base 7170 --server-base 9170`.
 `./showcase.sh stop --instance demo` stops the instance.
 

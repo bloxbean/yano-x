@@ -1,14 +1,8 @@
 ---
 title: "Start a local Yano X showcase"
 description: "Run three nodes, submit useful data, and inspect proofs without a source checkout, wallet, public-network funds, or external Cardano node."
-editUrl: false
+editUrl: "https://github.com/bloxbean/yano-x/edit/main/docs/appchain/deployment/quickstart.md"
 ---
-
-:::note[Imported page]
-This page is generated from [`docs/appchain/deployment/quickstart.md`](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/deployment/quickstart.md)
-in the Yano X repository, which is its source of truth.
-:::
-
 Run three nodes, submit useful data, and inspect proofs without a source checkout,
 wallet, public-network funds, or external Cardano node.
 

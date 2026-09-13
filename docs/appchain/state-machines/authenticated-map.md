@@ -1,6 +1,6 @@
 # `authenticated-map` State Machine
 
-`authenticated-map` is Yano's built-in, proof-oriented registry for multiple
+`authenticated-map` is Yano X's plugin-provided, proof-oriented registry for multiple
 named collections. Each collection has its own authorization policy, key/value
 bounds, value encoding, and optional value validator. Every active entry or
 revocation tombstone is threshold-finalized and individually provable against

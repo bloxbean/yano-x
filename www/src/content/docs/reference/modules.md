@@ -1,11 +1,11 @@
 ---
-title: Modules and artifacts
-description: Every Gradle module in Yano X with its published artifact id, publication type, and plugin bundle id — generated from config/artifacts-v1.json.
-sidebar:
-  order: 5
+title: "Modules and artifacts"
+description: "Yano X Maven publications use the group org.yanoproject.x. This inventory also includes tools, distributions, and fixtures that are not Maven Central…"
+editUrl: "https://github.com/bloxbean/yano-x/edit/main/docs/site/modules.md"
 ---
-
-Yano X publishes each module under the group `com.bloxbean.cardano`. This page
+Yano X Maven publications use the group `org.yanoproject.x`. This inventory
+also includes tools, distributions, and fixtures that are not Maven Central
+libraries. This page
 is generated at documentation build time from `config/artifacts-v1.json`, which
 is the repository's single source of truth for artifact identity — the build
 verifies it with `verifyArtifactInventory`.
@@ -14,11 +14,11 @@ verifies it with `verifyArtifactInventory`.
 
 | Value | Current |
 |---|---|
-| Yano X version | `0.1.0-SNAPSHOT` |
-| Yano host version | `0.1.0-pre14` |
-| Maven group | `com.bloxbean.cardano` |
+| Yano X version | `0.1.0-pre1-SNAPSHOT` |
+| Yano host version | `0.1.0-pre15` |
+| Maven group | `org.yanoproject.x` |
 | Java | `25` |
-| Base Yano JVM ZIP | [`yano-0.1.0-pre14.zip`](https://github.com/bloxbean/yano/releases/download/v0.1.0-pre14/yano-0.1.0-pre14.zip) |
+| Base Yano JVM ZIP | [`yano-0.1.0-pre15.zip`](https://github.com/bloxbean/yano/releases/download/v0.1.0-pre15/yano-0.1.0-pre15.zip) |
 
 <!-- catalog:versions-end -->
 
@@ -64,7 +64,7 @@ artifact identity and that every runtime plugin has a bundle publication.
 | `:ledgers:eutxo-zk:runtime` | `yano-x-eutxo-zk-runtime` | `org.yanoproject.x.eutxo.zk.runtime` | [ledgers/eutxo-zk/runtime](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/runtime) |
 | `:ledgers:eutxo-zk:indexer` | `yano-x-eutxo-zk-indexer` | `org.yanoproject.x.eutxo.zk.indexer` | [ledgers/eutxo-zk/indexer](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/indexer) |
 
-### `library` (27)
+### `library` (28)
 
 | Gradle module | Artifact id | Plugin bundle id | Source |
 |---|---|---|---|
@@ -75,6 +75,7 @@ artifact identity and that every runtime plugin has a bundle publication.
 | `:sdk:client` | `yano-x-client` | — | [sdk/client](https://github.com/bloxbean/yano-x/blob/main/sdk/client) |
 | `:sdk:proof-contracts` | `yano-x-proof-contracts` | — | [sdk/proof-contracts](https://github.com/bloxbean/yano-x/blob/main/sdk/proof-contracts) |
 | `:sdk:integration-contracts` | `yano-x-integration-contracts` | — | [sdk/integration-contracts](https://github.com/bloxbean/yano-x/blob/main/sdk/integration-contracts) |
+| `:products:client` | `yano-x-products-client` | — | [products/client](https://github.com/bloxbean/yano-x/blob/main/products/client) |
 | `:products:evidence:contracts` | `yano-x-evidence-contracts` | — | [products/evidence/contracts](https://github.com/bloxbean/yano-x/blob/main/products/evidence/contracts) |
 | `:products:evidence:client` | `yano-x-evidence-client` | — | [products/evidence/client](https://github.com/bloxbean/yano-x/blob/main/products/evidence/client) |
 | `:products:cardano-history:client` | `yano-x-cardano-history-client` | — | [products/cardano-history/client](https://github.com/bloxbean/yano-x/blob/main/products/cardano-history/client) |
@@ -161,24 +162,27 @@ artifact identity and that every runtime plugin has a bundle publication.
 ```groovy
 repositories { mavenCentral() }
 
+// Define yanoXVersion in gradle.properties using your chosen Yano X release.
+// The Yano X BOM imports the matching Yano host BOM.
 dependencies {
+    implementation platform("org.yanoproject.x:yano-x-bom:${yanoXVersion}")
     // The Java client SDK: REST, SSE, and client-side proof verification.
-    implementation 'org.yanoproject:yano-x-client'
+    implementation 'org.yanoproject.x:yano-x-client'
 
     // Contracts libraries are plain JARs, safe to use off-chain.
-    implementation 'org.yanoproject:yano-x-evidence-contracts'
+    implementation 'org.yanoproject.x:yano-x-evidence-contracts'
 
     // Tests.
     testImplementation 'org.yanoproject:yano-appchain-core-testkit'
-    testImplementation 'org.yanoproject:yano-x-effects-testkit'
+    testImplementation 'org.yanoproject.x:yano-x-effects-testkit'
 }
 ```
 
-:::caution[No published release yet]
-Yano X has no published release, so these coordinates are not yet on Maven
-Central. Until then, build from source and publish to Maven Local or to a
-staged repository — see [Developing Yano X](/contributing/).
-:::
+Use the [release download guide](/start-here/release-downloads/) to select a
+published release. The catalog above describes this checkout; an older release
+can have different coordinates and bundles. For unpublished changes, use a
+staged repository or explicitly enabled Maven Local as described in
+[Developing Yano X](/contributing/).
 
 Runtime plugin bundles are **not** application dependencies. They are installed
 into `plugins/` in a distribution, not added to a build file.

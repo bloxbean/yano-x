@@ -146,7 +146,7 @@ also differ and are incorporated into the trail head.
 Use the client artifact with the node version:
 
 ```groovy
-implementation "org.yanoproject:yano-x-client:${yanoVersion}"
+implementation "org.yanoproject.x:yano-x-client:${yanoXVersion}"
 ```
 
 Hash the exact application bytes, encode the stock command, and submit it:

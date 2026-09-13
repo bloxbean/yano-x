@@ -47,6 +47,7 @@ const SECTIONS = [
   {
     title: 'Start here',
     files: [
+      'start-here/index.md',
       'start-here/what-is-an-app-chain.md',
       'start-here/why-yano-x.md',
       'start-here/release-downloads.md',
@@ -61,6 +62,7 @@ const SECTIONS = [
       'concepts/consensus-and-finality.md',
       'concepts/state-and-proofs.md',
       'concepts/effects.md',
+      'concepts/observations.md',
       'concepts/anchoring.md',
       'concepts/determinism-rules.md',
     ],
@@ -217,11 +219,11 @@ function keyFacts(catalog) {
     '  direction is strictly `yano-x -> yano` and must never be inverted, nor satisfied',
     '  with a composite Gradle build or a sibling source checkout.',
     `- **Versions:** Yano X \`${v.yanoXVersion}\` builds against Yano \`${v.yanoVersion}\`, Java ${v.javaVersion}.`,
-    '  There is no published Yano X release yet; users build from source.',
+    '  Start with a matching release archive; build from source for unpublished changes.',
     '- **Yano X is JVM-only.** Never add GraalVM/native-image tasks, reachability',
     '  metadata, or native executables. `verifyJvmOnlyBuild` enforces this.',
-    '- **Package names stay `org.yanoproject.x.*`** even though',
-    '  repository and artifact names are `yano-x`. This is deliberate, not a leftover.',
+    '- **Yano X uses group `org.yanoproject.x` and packages `org.yanoproject.x.*`.**',
+    '  Yano host artifacts use `org.yanoproject`; retain third-party library namespaces.',
     '- **The plugin directory property is `yano.plugins.directory`.** Never',
     '  `yaci.plugins.directory`.',
     '- **Every optional runtime behavior crosses the plugin catalog boundary** and is',
@@ -409,7 +411,7 @@ export async function generateLlmsFiles({ outDir, logger, catalog }) {
   log(`[llms-txt] wrote ${llmsTxtPath} (${index.length} lines, ${indexBytes} bytes)`);
   log(`[llms-txt] wrote ${llmsFullPath} (${full.length} lines, ${fullBytes} bytes)`);
 
-  // Raw markdown copies, so `curl -o CLAUDE.md https://yanox.dev/ai/starter-pack.md`
+  // Raw markdown copies, so `curl -o CLAUDE.md https://yano-x.io/ai/starter-pack.md`
   // returns markdown rather than rendered HTML.
   for (const rel of ['ai/starter-pack.md', 'ai/index.md']) {
     const d = await readDoc(rel);

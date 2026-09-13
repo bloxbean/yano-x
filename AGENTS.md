@@ -56,7 +56,7 @@ published Yano version and its matching ordinary JVM ZIP.
 
 - `docs/` is the markdown documentation corpus and the **source of truth**. It
   also ships inside the JVM distribution. Edit documentation here.
-- `www/` is the published Astro + Starlight site (yanox.dev). It imports the
+- `www/` is the published Astro + Starlight site (yano-x.io). It imports the
   tutorials and state-machine references from `docs/` at build time and
   generates its catalog tables from the JSON catalogs, so never hand-edit an
   imported page or content between `<!-- catalog:... -->` anchors.

@@ -35,3 +35,7 @@ pnpm-debug.log*
 
 # Mirrored from tooling/studio by scripts/import-repo-docs.mjs
 public/studio/
+
+# Browser validation output
+test-results/
+playwright-report/

@@ -328,7 +328,7 @@ repositories { mavenLocal(); mavenCentral() }
 java { sourceCompatibility = 21; targetCompatibility = 21 }
 
 dependencies {
-    compileOnly 'org.yanoproject:yano-core-api:0.1.0-pre9'   // AppStateMachine SPI
+    compileOnly 'org.yanoproject:yano-core-api:0.1.0-pre15'   // AppStateMachine SPI
     // yaci-core (AppMessage) comes in transitively via yano-core-api
 }
 ```
@@ -341,7 +341,8 @@ dependencies {
 package com.example.kvchain;
 
 import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
-import org.yanoproject.api.appchain.AppBlock;
+import org.yanoproject.api.appchain.AppBlockExecutionContext;
+import org.yanoproject.api.appchain.effects.AppEffectEmitter;
 import org.yanoproject.api.appchain.AppStateMachine;
 import org.yanoproject.api.appchain.AppStateWriter;
 
@@ -377,8 +378,8 @@ public class KvStateMachine implements AppStateMachine {
      * the proposer's byte-for-byte, or the block is rejected.
      */
     @Override
-    public void apply(AppBlock block, AppStateWriter writer) {
-        for (AppMessage message : block.messages()) {
+    public void apply(AppBlockExecutionContext context, AppStateWriter writer, AppEffectEmitter effects) {
+        for (AppMessage message : context.messages()) {
             String body = new String(message.getBody(), StandardCharsets.UTF_8);
             if (body.startsWith("set:")) {
                 int eq = body.indexOf('=');

@@ -1,10 +1,8 @@
 ---
-title: Products
-description: The complete, opinionated applications Yano X ships on top of the app-chain platform — Evidence, Cardano History, and the experimental eUTxO and ZK ledgers.
-sidebar:
-  order: 1
+title: "Products"
+description: "A product is a step above a recipe. Where a recipe selects capabilities, a product assembles a state machine or composite profile, a domain contract, a…"
+editUrl: "https://github.com/bloxbean/yano-x/edit/main/docs/site/products-overview.md"
 ---
-
 A **product** is a step above a recipe. Where a recipe selects capabilities, a
 product assembles a state machine or composite profile, a domain contract, a
 read API, a client, and often a CLI into one installable thing with an opinion
@@ -24,22 +22,22 @@ about a use case.
 
 ## What products have in common
 
-Each one:
+Products reuse the platform's state machines, authenticated state, and proof
+verification, but their packaging differs:
 
-- ships as one or more **runtime plugin bundles** in the Yano X distribution or
-  under `optional-plugins/`;
-- selects a **state machine or composite profile** whose identity is part of
-  chain identity;
-- publishes a **no-SPI contracts library** so off-chain code can build and
-  decode the same canonical bytes the chain uses;
-- contributes **bounded, read-only domain routes** under
-  `/api/v1/plugins/<bundle-id>/`; and
-- defines **proof subjects** so its facts are provable in application language
-  rather than trie keys.
+- Evidence and Cardano History add runtime plugin behavior.
+- Attest is a client, CLI, and UI over the existing `doc-trail` capability.
+- Trust Registry, DPP Starter, and Attestation Feed configure the governed
+  authenticated map and add application tooling outside consensus.
+- Verifiable Explorer maintains a derived read index and its own service.
 
-That last point matters most. A product's value is not that it stores data —
-it is that it makes a specific claim provable to someone who does not trust the
-node that served it.
+Runtime contributions use the plugin catalog. Plain clients, CLIs, static UIs,
+and configuration-only products do not need a new runtime plugin. Product
+services can expose their own APIs; `/api/v1/plugins/<bundle-id>/` is the host
+route for plugin-contributed APIs, not the route for every product.
+
+A proof establishes a specific recorded claim under a stated trust policy.
+It does not establish the truth of the underlying business event.
 
 ## Choosing one
 

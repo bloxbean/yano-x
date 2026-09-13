@@ -286,11 +286,11 @@ const ANCHOR_PATTERN = /<!--\s*catalog:([a-z-]+)-start\s*-->/g;
  * of anchors is rewritten, which is how the repository's own generated tables
  * already work.
  */
-async function injectCatalogs(catalog, problems) {
+async function injectCatalogs(catalog, problems, directory = CONTENT_ROOT) {
   let updated = 0;
   let blocks = 0;
 
-  for await (const file of walkMarkdown(CONTENT_ROOT)) {
+  for await (const file of walkMarkdown(directory)) {
     const before = await fs.readFile(file, 'utf8');
     const names = [...before.matchAll(ANCHOR_PATTERN)].map((m) => m[1]);
     if (names.length === 0) continue;
@@ -332,6 +332,9 @@ async function main() {
   }
 
   const problems = [];
+  const catalog = await generateCatalog({ logger: { info: (m) => console.log(m) } });
+  // Refresh canonical tables before importing their pages.
+  await injectCatalogs(catalog, problems, repoPath('docs/site'));
   let written = 0;
 
   for (const [sourceRel, route] of Object.entries(IMPORTED_DOCS)) {
@@ -360,14 +363,8 @@ async function main() {
       ...(ORDER[route] !== undefined
         ? ['sidebar:', `  order: ${ORDER[route]}`]
         : []),
-      'editUrl: false',
+      `editUrl: ${yamlQuote(`${GITHUB_REPO}/edit/main/${sourceRel}`)}`,
       '---',
-      '',
-      `:::note[Imported page]`,
-      `This page is generated from [\`${sourceRel}\`](${GITHUB_BLOB}/${sourceRel})`,
-      `in the Yano X repository, which is its source of truth.`,
-      `:::`,
-      '',
       '',
     ].join('\n');
 
@@ -379,7 +376,6 @@ async function main() {
 
   const studioFiles = await mirrorStudio(versions);
 
-  const catalog = await generateCatalog({ logger: { info: (m) => console.log(m) } });
   const { updated, blocks } = await injectCatalogs(catalog, problems);
 
   if (problems.length > 0) {

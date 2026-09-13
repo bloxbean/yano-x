@@ -172,7 +172,7 @@ Use the client artifact with the same Yano version as
 the nodes:
 
 ```groovy
-implementation "org.yanoproject:yano-x-client:${yanoVersion}"
+implementation "org.yanoproject.x:yano-x-client:${yanoXVersion}"
 ```
 
 The client provides portable contracts and a typed proof-verifying facade:

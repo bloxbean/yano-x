@@ -1,61 +1,83 @@
-name: Deploy docsite to GitHub Pages
+name: Documentation
 
-# The documentation site ships independently of code releases: it reads
-# repository text files only and needs no Java, Gradle, or Yano artifacts.
-# Tag with `dv<n>` to publish.
 on:
+  pull_request:
+    paths: ['www/**', 'gradle.properties']
   push:
-    tags:
-      - 'dv*'
+    branches: [main]
+    paths: ['www/**', 'gradle.properties']
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: docs-deploy
-  cancel-in-progress: false
+  group: docs-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  deploy:
-    name: Build and publish
+  build:
+    name: Build documentation
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
+    defaults:
+      run:
+        working-directory: www
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: '24'
           cache: npm
           cache-dependency-path: www/package-lock.json
 
       - name: Install dependencies
-        working-directory: www
         run: npm ci
 
       - name: Build site
-        working-directory: www
         env:
-          # Fail the build if a page is missing from the curated llms.txt
-          # sections, rather than silently appending it to "Other".
+          # Fail if a page is absent from the curated llms.txt sections.
           YANO_X_REQUIRE_LISTED_DOCS: '1'
         run: npm run build
 
-      - name: Verify the AI artifacts were published
-        working-directory: www
+      - name: Verify rendered diagrams and navigation
+        run: |
+          npx playwright install --with-deps chromium
+          npm run check:browser
+
+      - name: Verify AI artifacts
         run: |
           set -euo pipefail
           for f in llms.txt llms-full.txt ai/catalog.json ai/starter-pack.md ai/index.md; do
             test -s "dist/$f" || { echo "missing or empty: dist/$f"; exit 1; }
           done
           test -s dist/studio/index.html || { echo "missing: dist/studio/index.html"; exit 1; }
-          echo "AI artifacts and Studio present."
 
-      - name: Deploy to GitHub Pages
+      - uses: actions/upload-artifact@v4
+        with:
+          name: yano-x-docs-preview
+          path: www/dist
+
+  publish:
+    name: Publish documentation
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: https://yano-x.io
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: yano-x-docs-preview
+          path: site
+
+      - name: Publish documentation to gh-pages
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./www/dist
-          cname: yanox.dev
+          publish_branch: gh-pages
+          publish_dir: ./site
+          cname: yano-x.io

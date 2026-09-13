@@ -1,10 +1,8 @@
 ---
-title: Cardano anchoring
-description: Committing a certified app-chain root to Cardano — metadata versus threshold-script anchors, the anchor wallet, why the anchor leader is not a trust point, and what an anchor does and does not prove.
-sidebar:
-  order: 5
+title: "Cardano anchoring"
+description: "Anchoring periodically commits the app chain's position — height, block hash, and state root — onto Cardano. The node builds, signs, and submits the…"
+editUrl: "https://github.com/bloxbean/yano-x/edit/main/docs/site/concepts-anchoring.md"
 ---
-
 Anchoring periodically commits the app chain's position — height, block hash,
 and **state root** — onto Cardano. The node builds, signs, and submits the
 transaction through its own mempool and tx diffusion, and confirms it through
@@ -20,7 +18,7 @@ its own L1 sync. No external API or provider is involved.
 | What L1 enforces | Nothing — a data-only commitment | Monotonic height, stable chain id, and m-of-n member signatures on every advance |
 | Signing | Anchor wallet only | Wallet plus threshold co-signed member witnesses |
 | Setup | Fund the wallet | Fund, then one-time `admin/anchor/bootstrap` per chain |
-| Approximate cost | 0.17–0.2 ADA per anchor | ~0.35 ADA per anchor (script execution) |
+| Fees | Depend on the transaction size and current protocol parameters | Also include script execution costs |
 
 Both modes work on the devnet and on public networks. Script anchors are proven
 on preprod with a real Plutus V3 mint and validator-enforced co-signed
@@ -81,8 +79,9 @@ In script mode the leader has no unilateral power:
 - the on-chain validator independently re-enforces the member threshold and
   monotonic height.
 
-The worst a dead or compromised leader can do is **stop anchoring** — a
-liveness issue, never a safety one. The app chain keeps finalizing and
+An unavailable leader can **stop anchoring** while app-chain finality
+continues. Threshold checks prevent unilateral script-state advances, but a
+compromised leader can also endanger its fee wallet and disrupt operations. The app chain keeps finalizing and
 `lagBlocks` climbs visibly. Recovery is operational: enable `anchor.*` with the
 wallet key on another member and restart it. The on-chain identity is persisted
 on L1 and members adopt it from sign requests, so the new leader resumes where
@@ -104,7 +103,7 @@ yano:
 ```
 
 Keep the anchor seed separate from member signing keys, API keys, and effect
-credentials. They are five distinct secrets with five distinct blast radii.
+credentials. These credentials serve different roles and should have separate access controls.
 
 ## What an anchor proves — and what it does not
 

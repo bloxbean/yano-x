@@ -11,7 +11,8 @@
     "preview": "astro preview",
     "astro": "astro",
     "check:links": "node scripts/check-links.mjs",
-    "check:mermaid": "node scripts/check-mermaid.mjs"
+    "check:mermaid": "node scripts/check-mermaid.mjs",
+    "check:browser": "playwright test"
   },
   "dependencies": {
     "@astrojs/starlight": "^0.38.3",
@@ -19,5 +20,8 @@
     "mermaid": "^11.17.0",
     "sharp": "^0.34.2",
     "typescript": "^5.9.3"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0"
   }
 }

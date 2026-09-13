@@ -76,7 +76,7 @@ install path.
 ## 2. Decision
 
 Build `www/`, an Astro 6 + Starlight documentation site for Yano X,
-deployed to **`yanox.dev`** via GitHub Pages, with an AI-first ingestion layer
+deployed to **`yano-x.io`** via GitHub Pages, with an AI-first ingestion layer
 generated at build time from the repository's own canonical sources.
 
 ### 2.1 Decisions in brief
@@ -85,7 +85,7 @@ generated at build time from the repository's own canonical sources.
 |---|---|---|
 | D1 | The site lives at `www/`; the `docs/` markdown corpus is left where it is | The corpus has ~150 inbound references across READMEs, ADRs, release-gated catalogs, a Gradle packaging task, and a cross-repo link. When two things collide on a name, the one with fewer inbound references moves — and that is the brand-new site. See §3 |
 | D2 | Astro 6 + Starlight 0.38, matching JuLC | Proven in-org; search, dark mode, MDX, and content collections without bespoke work |
-| D3 | Custom domain `yanox.dev`; `site` set, **no `base`** | Keeps every generated absolute URL prefix-free; a project-page `base` would have to be threaded through every generated artifact |
+| D3 | Custom domain `yano-x.io`; `site` set, **no `base`** | Keeps every generated absolute URL prefix-free; a project-page `base` would have to be threaded through every generated artifact |
 | D4 | Curated authored pages **plus** a build-time import of the tutorial and state-machine corpus | Full hands-on coverage without hand-copying files that then diverge |
 | D5 | The 113 KB user guide and other exhaustive references are **linked, not imported** | Duplicating it guarantees drift; a Reference Shelf page deep-links to GitHub blobs |
 | D6 | All catalog/version data is **generated** from existing JSON + `gradle.properties` | The repository already publishes machine-readable catalogs; prose tables would rot |
@@ -323,7 +323,7 @@ and the starter pack quotes it.
 
 ```
 www/
-├── astro.config.mjs           site: https://yanox.dev, sidebar, integrations
+├── astro.config.mjs           site: https://yano-x.io, sidebar, integrations
 ├── package.json               dev/build run the importer first
 ├── tsconfig.json
 ├── .gitignore                 dist/, .astro/, node_modules/, imported + generated content
@@ -439,11 +439,12 @@ render (take a screenshot) to advance it.
 
 ### 7.5 Deployment
 
-`.github/workflows/docs-deploy.yml`, triggered by `dv*` tags and
-`workflow_dispatch`. Node 22, `npm ci`, `npm run build`, publish `www/dist`
-to GitHub Pages with `cname: yanox.dev`. No Gradle, no Java, no Yano artifact
-resolution — the site build reads repository text files only, so it is fast and
-cannot be broken by an upstream Yano release.
+`.github/workflows/docs-deploy.yml`, triggered for pull requests and `main`
+pushes that change `www/**` or `gradle.properties`, plus `workflow_dispatch`.
+Node 24, `npm ci`, `npm run build`, browser verification, and an artifact handoff
+to a protected publish job. After environment approval, the job publishes to
+GitHub Pages with `cname: yano-x.io`. No Gradle, no Java, or Yano artifact
+resolution is required.
 
 ## 8. Consequences
 
@@ -469,9 +470,8 @@ cannot be broken by an upstream Yano release.
 - **Node/npm enters the repository toolchain**, but only under `docs/` and
   only in the docs workflow. The Gradle build is untouched, and
   `verifyJvmOnlyBuild` is unaffected.
-- **`yanox.dev` must be registered and pointed at GitHub Pages** before the
-  first `dv*` tag. Until then the workflow can be run manually and the artifact
-  previewed locally.
+- **`yano-x.io` must be registered and pointed at GitHub Pages** before the
+  first deployment. Until then the workflow artifact can be previewed locally.
 - **The starter pack is hand-authored** and can drift from the SPI. Mitigated
   by sourcing its hard invariants from `AGENTS.md` and ADR-011, both of which
   change rarely and are reviewed when they do.
@@ -518,3 +518,47 @@ section.
 - `docs/BUILD_AND_TEST.md`, `docs/BUILD_DISTRIBUTIONS.md` — build tracks
 - `tooling/devtools/.../skills/configure-yano-appchain/SKILL.md` — existing AI contract
 - `bloxbean/julc` `docs/` — reference implementation of the Astro + AI stack
+
+## September 2026: guided entry and Yano visual alignment
+
+The landing page now leads with shared application rules and verifiable state,
+then explains the Yano host / Yano X extension boundary. A manually controlled
+command walkthrough distinguishes admission, execution, member certification,
+and optional L1 anchoring. Outcome selectors introduce records, approvals, and
+effects without exposing the full catalog at once. Controls work with native
+keyboard interaction; examples remain readable without JavaScript, and reduced
+motion disables animation and automatic replay progression.
+
+The default learning path is release showcase → proofs → recipe → extension or
+operations. Advanced sidebar groups are collapsed initially. Release downloads
+replace the original source-only entry assumption. The docs retain the existing
+Astro/Starlight, GitHub Pages, Studio, search, and AI ingestion workflows.
+
+New introductory documentation and revised namespace/build/module guides live
+in `docs/site/` and are imported at their existing routes. Generated catalog
+blocks there are refreshed by the same generator before import. Imported pages
+link their edit action to the canonical source rather than opening with an
+implementation notice. Namespaces distinguish `org.yanoproject.x` extensions
+from `org.yanoproject` host artifacts; versions still come from build metadata.
+
+The landing page uses “shared application platform” and “verifiable results”
+to introduce the product through application outcomes. “App chain” remains the
+technical term in the guides; this wording does not change the architecture.
+
+### Yano X identity and application examples
+
+The website mark retains Yano's folded geometry and uses the mint Yano X
+palette without an additional X symbol. The favicon uses the same mark on an ink tile. Landing and docs
+headers share a lowercase Space Grotesk wordmark component, matching the Yano
+site's typography while keeping the X in the wordmark.
+
+The hero offers four manually selected illustrations: OrderedLog events,
+authenticated-map records, domain-role approvals, and generic observations.
+Each changes the input, relevant checks, result, explanation, and guide link;
+the shared member agreement diagram remains constant. Keyboard arrows and
+Home/End navigate tabs. Switching examples stops replay; reduced motion uses
+manual step advancement. Illustrations are explicitly example data.
+
+The observation copy distinguishes source-attested evidence from physical-world
+truth, and domain approval from member finality. The concise observation guide
+lives in `docs/site/observations.md` and links to the current preview references.

@@ -1,10 +1,8 @@
 ---
-title: Evidence Desk
-description: "A browser workbench for role-gated release on a Yano app chain: propose, approve with actor keys that never leave the browser, release once, and read every record back with its proof."
-sidebar:
-  order: 5
+title: "Evidence Desk"
+description: "The Evidence Desk is the user interface for the role workflow and the Evidence product. It runs against any app chain whose composite carries the…"
+editUrl: "https://github.com/bloxbean/yano-x/edit/main/docs/site/products-evidence-desk.md"
 ---
-
 The Evidence Desk is the user interface for the role workflow and the
 [Evidence](/products/evidence/) product. It runs against any app chain whose
 composite carries the `domain-actors` and `role-approvals` components, which
@@ -56,14 +54,27 @@ every one, and the desk shows it rather than assuming acceptance.
 
 ## Run it
 
+Start with the [local showcase quickstart](/start-here/quickstart/) and keep
+its extracted directory. From the directory containing `showcase.sh`:
+
 ```bash
-cd examples/showcase/src/main/showcase && ./showcase.sh quickstart --instance demo
-cd products/evidence/ui && npm ci && npm run build && npx --yes serve build/site
+./showcase.sh quickstart --profile light --nodes 3 --instance demo
+./showcase.sh ui --instance demo
 ```
 
-Connect to `http://127.0.0.1:7070`, choose `document-review-chain`, and follow
-the walkthrough in the [user guide](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/EVIDENCE_DESK.md),
-which also lists the showcase demo actors and how their seeds are derived.
+Use the node URL printed for that instance, which may differ from port 7070.
+The Evidence Desk assets are packaged under `yano/product-ui/evidence` in the
+showcase archive. Serve that directory with a static web server and choose
+`document-review-chain` in the desk. For example, in another terminal from the
+same extracted showcase directory:
+
+```bash
+python3 -m http.server 8088 --directory yano/product-ui/evidence
+```
+
+Open `http://localhost:8088`. Follow the
+[user guide](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/EVIDENCE_DESK.md)
+for demo actors, key handling, and the source-build alternative.
 
 ## Not yet
 

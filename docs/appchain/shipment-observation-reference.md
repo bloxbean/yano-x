@@ -23,7 +23,7 @@ wallet. No private key is held in application state.
 
 Use the ordinary Yano JVM distribution and the dependency-complete Yano X
 stdlib plugin bundle through the plugin catalog. The plugin requires host API
-major 3, level 8. Use released Yano `0.1.0-pre14` with its matching Maven
+major 3, level 8. Use released Yano `0.1.0-pre15` with its matching Maven
 artifacts and ordinary JVM ZIP; Maven Local is not required.
 
 Select `shipment-workflow-reference-v1` as the state machine. The suffix-keyed

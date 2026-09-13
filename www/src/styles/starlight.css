@@ -1,9 +1,8 @@
 /*
  * Yano X brand overrides for Starlight.
  *
- * The palette comes from the Yano mark — a cyan → indigo → violet → magenta
- * gradient — and leans on the violet/magenta end, which is its distinctive
- * half. See ADR-038 §7.3.
+ * Ink surfaces and mint accents connect the docs to the landing page.
+ * The original logo gradient remains the ecosystem mark. See ADR-038.
  */
 
 /* Brand tokens, independent of theme. */
@@ -13,14 +12,9 @@
   --yano-violet: #7c5cff;
   --yano-magenta: #ff4d9d;
 
-  --yano-brand: linear-gradient(
-    100deg,
-    var(--yano-cyan),
-    var(--yano-indigo),
-    var(--yano-violet),
-    var(--yano-magenta)
-  );
+  --yano-brand: linear-gradient(100deg, #267b68, #9af0d4);
 
+  --sl-content-width: 48rem;
   --sl-font-system: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
     Oxygen, Ubuntu, Cantarell, sans-serif;
   --sl-font-system-mono: 'JetBrains Mono', ui-monospace, 'Cascadia Code',
@@ -41,35 +35,35 @@
 /* Dark — Starlight's default when no explicit light choice is stored. */
 :root,
 ::backdrop {
-  --sl-color-accent-low: #1b1440;
-  --sl-color-accent: #7c5cff;
-  --sl-color-accent-high: #c8bcff;
+  --sl-color-accent-low: #12352e;
+  --sl-color-accent: #359d80;
+  --sl-color-accent-high: #9af0d4;
 
   --sl-color-white: #ffffff;
-  --sl-color-gray-1: #ece9f7;
-  --sl-color-gray-2: #c3bddb;
-  --sl-color-gray-3: #8d85b3;
-  --sl-color-gray-4: #574f78;
-  --sl-color-gray-5: #36305a;
-  --sl-color-gray-6: #221d42;
-  --sl-color-black: #0b0818;
+  --sl-color-gray-1: #eef4f5;
+  --sl-color-gray-2: #bdd0d8;
+  --sl-color-gray-3: #91a8b3;
+  --sl-color-gray-4: #536b76;
+  --sl-color-gray-5: #2b3b43;
+  --sl-color-gray-6: #17242c;
+  --sl-color-black: #0b1115;
 }
 
 /* Light — inverted scale, mirroring Starlight's own light ramp. */
 :root[data-theme='light'],
 [data-theme='light'] ::backdrop {
-  --sl-color-accent-low: #e7e0ff;
-  --sl-color-accent: #6d28d9;
-  --sl-color-accent-high: #3b1f8f;
+  --sl-color-accent-low: #def7ee;
+  --sl-color-accent: #146b54;
+  --sl-color-accent-high: #124e40;
 
-  --sl-color-white: #14102b;
-  --sl-color-gray-1: #221d42;
-  --sl-color-gray-2: #36305a;
-  --sl-color-gray-3: #6b6392;
-  --sl-color-gray-4: #9990ba;
-  --sl-color-gray-5: #cfc9e4;
-  --sl-color-gray-6: #ebe7f7;
-  --sl-color-gray-7: #f6f4fc;
+  --sl-color-white: #101f25;
+  --sl-color-gray-1: #17242c;
+  --sl-color-gray-2: #2b3b43;
+  --sl-color-gray-3: #526b75;
+  --sl-color-gray-4: #91a7b1;
+  --sl-color-gray-5: #c8d8dd;
+  --sl-color-gray-6: #e9f1f3;
+  --sl-color-gray-7: #f5f9fa;
   --sl-color-black: #ffffff;
 }
 
@@ -117,7 +111,8 @@ pre.mermaid {
   line-height: 1;
 }
 
-pre.mermaid:has(svg) {
+pre.mermaid:has(svg),
+pre.mermaid[data-render-error] {
   visibility: visible;
 }
 
@@ -127,7 +122,7 @@ pre.mermaid svg {
 }
 
 [data-theme='light'] pre.mermaid {
-  background: #f7f5ff;
+  background: #f5f9fa;
 }
 
 /* ── Tables ────────────────────────────────────────────────────────────────

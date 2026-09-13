@@ -53,13 +53,13 @@ g=1, r=4`). Host consensus membership and external reporter authority are
 different sets. Yano's companion five-networked-validator test covers host
 `n=5, q=4, f=1` with the same external quorum rule.
 
-Use released Yano `0.1.0-pre14` Maven artifacts and its matching ordinary JVM
+Use released Yano `0.1.0-pre15` Maven artifacts and its matching ordinary JVM
 ZIP, following `docs/BUILD_AND_TEST.md`. From the Yano X worktree:
 
 ```sh
 ./gradlew :sdk:client:test :state-machines:stdlib:test \
   --tests '*Observation*' --tests '*AdaUsdReference*' \
-  -PyanoVersion=0.1.0-pre14
+  -PyanoVersion=0.1.0-pre15
 ```
 
 Maven Local is not required and remains disabled by default.

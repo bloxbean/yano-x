@@ -57,7 +57,7 @@ export const DOCSITE_ROOT = path.join(REPO_ROOT, 'www');
 /** `www/src/content/docs` */
 export const CONTENT_ROOT = path.join(DOCSITE_ROOT, 'src/content/docs');
 
-export const SITE_URL = 'https://yanox.dev';
+export const SITE_URL = 'https://yano-x.io';
 export const GITHUB_REPO = 'https://github.com/bloxbean/yano-x';
 export const GITHUB_BLOB = `${GITHUB_REPO}/blob/main`;
 export const YANO_REPO = 'https://github.com/bloxbean/yano';
@@ -130,6 +130,43 @@ export const loadArtifactInventory = () => readJson('config/artifacts-v1.json');
  * mapping has exactly one definition.
  */
 export const IMPORTED_DOCS = {
+  'docs/site/observations.md': '/concepts/observations/',
+  'docs/site/ai-starter-pack.md': '/ai/starter-pack/',
+
+  'docs/site/concepts-effects.md': '/concepts/effects/',
+
+  'docs/site/plugins-overview.md': '/plugins/',
+
+  'docs/site/plugins-consensus-rules.md': '/plugins/consensus-rules/',
+
+  'docs/site/concepts-anchoring.md': '/concepts/anchoring/',
+
+  'docs/site/start-here-what-is-an-app-chain.md': '/start-here/what-is-an-app-chain/',
+
+  'docs/site/plugins-spi-and-manifest.md': '/plugins/spi-and-manifest/',
+
+  'docs/site/reference-configuration.md': '/reference/configuration/',
+
+  'docs/site/concepts-state-and-proofs.md': '/concepts/state-and-proofs/',
+
+  'docs/site/reference-rest-api.md': '/reference/rest-api/',
+
+  'docs/site/products-trust-registry.md': '/products/trust-registry/',
+
+  'docs/site/products-evidence-desk.md': '/products/evidence-desk/',
+
+  'docs/site/products-overview.md': '/products/',
+
+  'docs/site/ai-overview.md': '/ai/',
+
+  'docs/site/contributing-overview.md': '/contributing/',
+
+  'docs/site/start-here.md': '/start-here/',
+  'docs/site/why-yano-x.md': '/start-here/why-yano-x/',
+  'docs/site/build-from-source.md': '/start-here/build-from-source/',
+  'docs/site/modules.md': '/reference/modules/',
+  'docs/site/scaffold-sign-install.md': '/plugins/scaffold-sign-install/',
+
   'docs/RELEASE_DOWNLOADS.md': '/start-here/release-downloads/',
   'docs/appchain/deployment/README.md': '/deployment/',
   'docs/appchain/deployment/quickstart.md': '/start-here/quickstart/',

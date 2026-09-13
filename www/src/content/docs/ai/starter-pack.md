@@ -1,10 +1,8 @@
 ---
-title: Yano X AI Starter Pack
-description: Everything an AI agent needs to work correctly in a Yano X repository on the first try. Ingest this before generating any Yano X code or configuration.
-sidebar:
-  order: 2
+title: "Yano X AI Starter Pack"
+description: "This pack is optimized for AI ingestion, not for human onboarding. Humans should start at What is an app chain?."
+editUrl: "https://github.com/bloxbean/yano-x/edit/main/docs/site/ai-starter-pack.md"
 ---
-
 > **Read this entire document before generating any Yano X code or
 > configuration.** It distills the architecture boundary, the extension ladder,
 > the determinism rules, the plugin lifecycle, and the invariants that AI agents
@@ -47,11 +45,11 @@ yano-x  ──depends on──▶  yano
 
 | Value | Current |
 |---|---|
-| Yano X version | `0.1.0-SNAPSHOT` |
-| Yano host version | `0.1.0-pre14` |
-| Maven group | `com.bloxbean.cardano` |
+| Yano X version | `0.1.0-pre1-SNAPSHOT` |
+| Yano host version | `0.1.0-pre15` |
+| Maven group | `org.yanoproject.x` |
 | Java | `25` |
-| Base Yano JVM ZIP | [`yano-0.1.0-pre14.zip`](https://github.com/bloxbean/yano/releases/download/v0.1.0-pre14/yano-0.1.0-pre14.zip) |
+| Base Yano JVM ZIP | [`yano-0.1.0-pre15.zip`](https://github.com/bloxbean/yano/releases/download/v0.1.0-pre15/yano-0.1.0-pre15.zip) |
 
 <!-- catalog:versions-end -->
 
@@ -165,8 +163,8 @@ collection sizes, state growth per transition, and work per block.
 
 ```java
 @Override
-public void apply(AppBlock block, AppStateWriter writer, AppEffectEmitter effects) {
-    for (AppMessage m : block.messages()) {
+public void apply(AppBlockExecutionContext context, AppStateWriter writer, AppEffectEmitter effects) {
+    for (AppMessage m : context.messages()) {
         Order o = decode(m.getBody());
         writer.put(key(o.id()), o.toBytes());
         if (o.isApproved()) {
@@ -182,7 +180,8 @@ public void apply(AppBlock block, AppStateWriter writer, AppEffectEmitter effect
 }
 
 @Override
-public void onEffectResult(AppBlock block, EffectResult result, AppStateWriter writer) {
+public void onEffectResult(AppBlockExecutionContext context, EffectResult result,
+                               AppStateWriter writer, AppEffectEmitter effects) {
     // Deterministic incorporation of CONFIRMED / FAILED / CANCELLED / EXPIRED.
 }
 ```
@@ -271,7 +270,7 @@ public final class ShipmentStateMachine implements AppStateMachine {
     }
 
     @Override
-    public void apply(AppBlock block, AppStateWriter state) {
+    public void apply(AppBlockExecutionContext context, AppStateWriter state, AppEffectEmitter effects) {
         // Deterministic bounded transitions only.
     }
 }
