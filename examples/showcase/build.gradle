@@ -1,6 +1,5 @@
 plugins {
     id 'com.gradleup.shadow'
-    id 'distribution'
 }
 
 description = 'Demo-only unified Yano app-chain showcase and plugin bundle'
@@ -77,245 +76,8 @@ tasks.named('shadowJar') {
     exclude 'META-INF/*.SF', 'META-INF/*.RSA', 'META-INF/*.DSA', 'module-info.class'
 }
 
-evaluationDependsOn(':distribution:jvm')
-def yanoXJvmDistribution = project(':distribution:jvm').tasks.named('yanoXJvmDistZip', Zip)
-def appDistribution = yanoXJvmDistribution.flatMap { it.archiveFile }
-[
-        ':products:cardano-history:runtime',
-        ':products:cardano-history:cli',
-        ':products:attest:cli',
-        ':products:evidence:demo-runner',
-        ':connectors:kafka',
-        ':connectors:objectstore-s3',
-        ':connectors:ipfs'
-].each { evaluationDependsOn(it) }
-def cardanoHistoryBundle = project(':products:cardano-history:runtime').tasks.named('shadowJar')
-def cardanoHistoryCli = project(':products:cardano-history:cli').tasks.named('distZip', Zip)
-def attestCli = project(':products:attest:cli').tasks.named('distZip', Zip)
-def evidenceRunner = project(':products:evidence:demo-runner').tasks.named('shadowJar')
-def evidenceBundles = [
-        project(':connectors:kafka').tasks.named('shadowJar'),
-        project(':connectors:objectstore-s3').tasks.named('shadowJar'),
-        project(':connectors:ipfs').tasks.named('shadowJar')
-]
-def generatedVersionFile = layout.buildDirectory.file('generated/showcase/VERSION')
-tasks.register('generateShowcaseVersion') {
-    outputs.file(generatedVersionFile)
-    doLast {
-        def target = generatedVersionFile.get().asFile
-        target.parentFile.mkdirs()
-        target.text = project.version.toString() + '\n'
-    }
-}
-
-def embeddedYanoRoot = appDistribution.map {
-    it.asFile.name.replaceFirst(/\.zip$/, '')
-}
-def stripEmbeddedYanoRoot = { details ->
-    def segments = details.relativePath.segments.toList()
-    def rootIndex = segments.findIndexOf { it == embeddedYanoRoot.get() }
-    if (rootIndex < 0) {
-        throw new GradleException("Unexpected Yano distribution path: ${segments.join('/')}")
-    }
-    if (rootIndex == segments.size() - 1) {
-        details.exclude()
-        return
-    }
-    // Keep any CopySpec destination prefixes (for example "yano") and
-    // remove only the root directory that belongs to the embedded ZIP.
-    def rewritten = segments.take(rootIndex) + segments.drop(rootIndex + 1)
-    details.relativePath = org.gradle.api.file.RelativePath.parse(
-            details.relativePath.file,
-            rewritten.join('/'))
-}
-def stripAttestCliRoot = { details ->
-    def segments = details.relativePath.segments.toList()
-    def rootIndex = segments.findIndexOf { it.startsWith('yano-attest-') }
-    if (rootIndex < 0) {
-        throw new GradleException("Unexpected Attest CLI path: ${segments.join('/')}")
-    }
-    if (rootIndex == segments.size() - 1) {
-        details.exclude()
-        return
-    }
-    def rewritten = segments.take(rootIndex) + segments.drop(rootIndex + 1)
-    details.relativePath = org.gradle.api.file.RelativePath.parse(
-            details.relativePath.file,
-            rewritten.join('/'))
-}
-def stripCardanoHistoryCliRoot = { details ->
-    def segments = details.relativePath.segments.toList()
-    def rootIndex = segments.findIndexOf { it.startsWith('yano-cardano-history-') }
-    if (rootIndex < 0) {
-        throw new GradleException("Unexpected Cardano History CLI path: ${segments.join('/')}")
-    }
-    if (rootIndex == segments.size() - 1) {
-        details.exclude()
-        return
-    }
-    def rewritten = segments.take(rootIndex) + segments.drop(rootIndex + 1)
-    details.relativePath = org.gradle.api.file.RelativePath.parse(
-            details.relativePath.file, rewritten.join('/'))
-}
-
-distributions {
-    main {
-        distributionBaseName = 'yano-showcase'
-        contents {
-            from('README.md')
-            from('DEMO_SHOWCASE.md')
-            from('docs') {
-                into 'docs'
-            }
-            from(generatedVersionFile)
-            from('src/main/showcase/showcase.sh') {
-                filePermissions { unix('755') }
-            }
-            from('src/main/showcase/tools') {
-                into 'tools'
-                include '*.py', '*.sh'
-                filePermissions { unix('755') }
-            }
-            from('src/main/showcase/demos') {
-                into 'demos'
-                include '*.sh'
-                filePermissions { unix('755') }
-            }
-            from({ zipTree(appDistribution.get()) }) {
-                into 'yano'
-                eachFile stripEmbeddedYanoRoot
-                exclude '**/config/application-appchain.yml'
-                exclude '**/plugins/yano-x-showcase-bundle-*.jar'
-                exclude '**/plugins/yano-x-cardano-history-bundle-*.jar'
-                includeEmptyDirs = false
-                filesMatching(['**/*.sh', '**/*.py', '**/bin/*']) {
-                    permissions { unix('755') }
-                }
-            }
-            // ADR-UTXO-009: the settlement chain's parameterized validators
-            // are derived from the packaged plan and must be present before
-            // the L1 bootstrap runs, or the chain cannot start.
-            from('src/main/showcase/config/settlement') {
-                into 'yano/config/settlement'
-            }
-            from('src/main/showcase/config/application-appchain.yml') {
-                into 'yano/config'
-            }
-            from('src/main/showcase/config/showcase-catalog-v1.json') {
-                into 'catalog'
-            }
-            from({ zipTree(appDistribution.get()) }) {
-                into 'yano'
-                eachFile stripEmbeddedYanoRoot
-                include '**/config/application-appchain.yml'
-                includeEmptyDirs = false
-                rename { 'application-appchain-standard.yml' }
-            }
-            from(tasks.named('shadowJar').flatMap { it.archiveFile }) {
-                into 'yano/plugins'
-                rename { "yano-x-showcase-bundle-${project.version}.jar" }
-            }
-            from(tasks.named('shadowJar').flatMap { it.archiveFile }) {
-                into 'plugins'
-            }
-            from(cardanoHistoryBundle.flatMap { it.archiveFile }) {
-                into 'yano/plugins'
-                rename { "yano-x-cardano-history-bundle-${project.version}.jar" }
-            }
-            from(cardanoHistoryBundle.flatMap { it.archiveFile }) {
-                into 'plugins'
-            }
-            from({ zipTree(cardanoHistoryCli.get().archiveFile.get().asFile) }) {
-                into 'tools/cardano-history'
-                eachFile stripCardanoHistoryCliRoot
-                includeEmptyDirs = false
-                filesMatching(['**/bin/*']) {
-                    permissions { unix('755') }
-                }
-            }
-            from({ zipTree(attestCli.get().archiveFile.get().asFile) }) {
-                into 'tools/attest'
-                eachFile stripAttestCliRoot
-                includeEmptyDirs = false
-                filesMatching(['**/bin/*']) {
-                    permissions { unix('755') }
-                }
-            }
-
-            // Maintained evidence harness plus immutable, already-built
-            // artifacts. The harness stages these through
-            // DEMO_PREBUILT_ARTIFACT_ROOT instead of reaching into a checkout.
-            from(rootProject.file('products/evidence/harness')) {
-                into 'profiles/evidence/demo'
-                exclude '.demo-data/**', '.demo-runtime/**', '.demo-secrets/**',
-                        '**/__pycache__/**', '**/*.pyc'
-                filesMatching(['**/*.sh', '**/*.py']) {
-                    permissions { unix('755') }
-                }
-            }
-            // The evidence harness resolves public-network genesis files
-            // relative to this packaged profile. Copy only public JSON inputs
-            // from the external Yano distribution; never copy devnet keys.
-            from({ zipTree(appDistribution.get()) }) {
-                into 'profiles/evidence'
-                eachFile stripEmbeddedYanoRoot
-                include '**/config/network/**/*.json'
-                includeEmptyDirs = false
-            }
-            evidenceBundles.each { bundleTask ->
-                from(bundleTask.flatMap { it.archiveFile }) {
-                    into 'profiles/evidence/artifacts/plugins'
-                }
-            }
-            from(evidenceRunner.flatMap { it.archiveFile }) {
-                into 'profiles/evidence/artifacts'
-                rename { 'runner.jar' }
-            }
-            from({ zipTree(appDistribution.get()) }) {
-                into 'profiles/evidence/artifacts/yano-context/yano'
-                eachFile stripEmbeddedYanoRoot
-                includeEmptyDirs = false
-                filesMatching(['**/*.sh', '**/*.py', '**/bin/*']) {
-                    permissions { unix('755') }
-                }
-            }
-            from(rootProject.file('docker/jvm/entrypoint.sh')) {
-                into 'profiles/evidence/artifacts/yano-context'
-                filePermissions { unix('755') }
-            }
-        }
-    }
-}
-
-def showcaseDistributionInputs = [
-        yanoXJvmDistribution,
-        tasks.named('shadowJar'),
-        cardanoHistoryBundle,
-        cardanoHistoryCli,
-        attestCli,
-        evidenceRunner,
-        tasks.named('generateShowcaseVersion')
-] + evidenceBundles
-
-tasks.named('distZip') {
-    dependsOn showcaseDistributionInputs
-    inputs.file(appDistribution).withPropertyName('yanoJvmDist')
-    archiveFileName = "yano-showcase-${project.version}.zip"
-    reproducibleFileOrder = true
-    preserveFileTimestamps = false
-}
-
-tasks.named('distTar') {
-    dependsOn showcaseDistributionInputs
-    inputs.file(appDistribution).withPropertyName('yanoJvmDist')
-    reproducibleFileOrder = true
-    preserveFileTimestamps = false
-}
-
-tasks.named('installDist') {
-    dependsOn showcaseDistributionInputs
-    inputs.file(appDistribution).withPropertyName('yanoJvmDist')
-}
+// The showcase ships inside the Yano X JVM distribution at examples/showcase;
+// distribution/jvm/jvm-distribution.gradle assembles it from these sources.
 
 def stateMachineService =
         'META-INF/services/org.yanoproject.api.appchain.AppStateMachineProvider'
@@ -378,22 +140,20 @@ tasks.register('showcaseScriptContract', Exec) {
     commandLine 'bash', file('src/test/scripts/showcase-contract.sh')
 }
 
+def jvmDistribution = project(':distribution:jvm').layout.buildDirectory.file(
+        "distributions/yano-x-jvm-${project.version.toString().replaceAll('-SNAPSHOT', '')}.zip")
 tasks.register('showcaseDistributionContract', Exec) {
     group = 'verification'
-    description = 'Checks the final copied/extracted showcase archive and documentation inventory'
-    dependsOn tasks.named('distZip')
+    description = 'Checks the showcase as extracted from the final Yano X JVM distribution'
+    dependsOn ':distribution:jvm:yanoXJvmDistZip'
+    inputs.file(jvmDistribution)
     commandLine 'bash', file('src/distributionTest/scripts/distribution-contract.sh'),
-            tasks.named('distZip').flatMap { it.archiveFile }.get().asFile
+            jvmDistribution.get().asFile
 }
 
 tasks.named('check') {
     dependsOn tasks.named('verifyShowcasePluginArtifact'),
             tasks.named('showcaseScriptContract')
-}
-
-// Ship the quickstart ZIP with ordinary builds; TAR remains an explicit task.
-tasks.named('assemble') {
-    setDependsOn([tasks.named('jar'), tasks.named('shadowJar'), tasks.named('distZip')])
 }
 
 // Verify the extracted release artifact without adding packaging to unit-test checks.

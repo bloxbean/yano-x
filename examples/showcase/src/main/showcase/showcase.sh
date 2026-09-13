@@ -3,6 +3,11 @@
 set -euo pipefail
 
 SHOWCASE_HOME="$(cd "$(dirname "$0")" && pwd -P)"
+# The showcase ships at examples/showcase inside the Yano X JVM distribution.
+# Its yano/ home carries only the demo configuration; link_yano_home points
+# every other entry back at the distribution root, so the demo never edits the
+# distribution's own config.
+YANO_X_HOME="$(cd "$SHOWCASE_HOME/../.." && pwd -P)"
 YANO_HOME="$SHOWCASE_HOME/yano"
 CLUSTER="$YANO_HOME/appchain-cluster/cluster.sh"
 CODEC="$SHOWCASE_HOME/tools/showcase_codec.py"
@@ -24,6 +29,22 @@ CARDANO_HISTORY_CHAIN_ID=cardano-history-chain
 die() { printf 'error: %s\n' "$*" >&2; exit 1; }
 note() { printf '%s\n' "$*"; }
 need() { command -v "$1" >/dev/null 2>&1 || die "required command not found: $1"; }
+
+link_yano_home() {
+  local entry name
+  [ -f "$YANO_X_HOME/yano.jar" ] && [ -d "$YANO_HOME/config" ] \
+    || die "run showcase.sh from examples/showcase in an extracted Yano X JVM distribution"
+  for entry in "$YANO_X_HOME"/*; do
+    name="${entry##*/}"
+    case "$name" in config|examples) continue;; esac
+    [ -e "$YANO_HOME/$name" ] || [ -L "$YANO_HOME/$name" ] \
+      || ln -s "../../../$name" "$YANO_HOME/$name"
+  done
+}
+link_yano_home
+# The node refuses a symlinked plugin directory, so it loads the distribution's
+# plugins/ by its real path. Scripts that only read jars may use the link.
+export YANO_PLUGINS_DIRECTORY="$YANO_X_HOME/plugins"
 
 PROFILE="light"
 VARIANT="default"
@@ -1816,7 +1837,7 @@ verify_light() {
 }
 
 delegate_evidence() {
-  local command="$1" demo="$SHOWCASE_HOME/profiles/evidence/demo/demo.sh" machine args=()
+  local command="$1" demo="$YANO_X_HOME/examples/evidence/demo.sh" machine args=()
   local evidence_id
   [ -x "$demo" ] || die "packaged evidence harness is missing"
   case "$VARIANT" in composite|default) machine=composite;; role) machine=role;;
@@ -1824,14 +1845,15 @@ delegate_evidence() {
   if [ "$machine" = role ]; then
     case "$command" in run) command=role-lifecycle;; verify) command=probe;; esac
   fi
-  export DEMO_PREBUILT_ARTIFACT_ROOT="$SHOWCASE_HOME/profiles/evidence/artifacts"
+  unset DEMO_PREBUILT_ARTIFACT_ROOT
+  export DEMO_YANO_HOME="$YANO_X_HOME"
   args=("$command" --deployment compose --machine "$machine" --network "$NETWORK"
     --instance "$INSTANCE" --data-dir "$(instance_root)/evidence")
   [ -z "$ANCHOR_KEY_FILE" ] || args+=(--anchor-key-file "$ANCHOR_KEY_FILE")
   [ -z "$PUBLIC_CONFIRM" ] || args+=(--confirm-public-anchor "$PUBLIC_CONFIRM")
   if [ "$command" = verify ]; then
     evidence_id="$(sed -n 's/^DEMO_EVIDENCE_ID=//p' \
-      "$SHOWCASE_HOME/profiles/evidence/demo/config/common.env")"
+      "$YANO_X_HOME/examples/evidence/config/common.env")"
     [ -n "$evidence_id" ] || die "packaged evidence default id is missing"
     args+=(--evidence-id "$evidence_id")
   fi
@@ -2356,7 +2378,7 @@ PY
     [ -x "$YANO_HOME/appchain-cluster/soaktest.sh" ] || die "packaged soak driver missing"
     plugin_file >/dev/null
     cardano_history_plugin_file >/dev/null
-    [ -x "$SHOWCASE_HOME/tools/cardano-history/bin/yano-cardano-history" ] \
+    [ -x "$YANO_HOME/tools/yano-cardano-history/bin/yano-cardano-history" ] \
       || die "packaged Cardano History CLI missing"
     [ "$PROFILE" != evidence ] || need docker
     [ "$PROFILE" != eutxo ] || [ -x "$YANO_HOME/yano.sh" ] || die "maintained EUTxO CLI missing"

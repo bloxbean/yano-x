@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
-ZIP="${1:?showcase zip required}"
+ZIP="${1:?Yano X JVM distribution zip required}"
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/yano-showcase-dist.XXXXXX")"
 trap 'rm -rf "$WORK"' EXIT INT TERM
 unzip -q "$ZIP" -d "$WORK"
-set -- "$WORK"/yano-showcase-*
+set -- "$WORK"/yano-x-jvm-*
 [ "$#" -eq 1 ] && [ -d "$1" ]
-ROOT="$1"
+DIST="$1"
+ROOT="$DIST/examples/showcase"
 [ "$(find "$WORK" -mindepth 1 -maxdepth 1 -type d -print | wc -l | tr -d ' ')" = 1 ]
 [ -x "$ROOT/showcase.sh" ]
 [ -x "$ROOT/demos/master-demo.sh" ]
@@ -15,13 +16,6 @@ ROOT="$1"
 [ -x "$ROOT/demos/submit-message-curl.sh" ]
 [ -x "$ROOT/demos/submit-authenticated-map.sh" ]
 [ -x "$ROOT/tools/showcase_codec.py" ]
-[ -x "$ROOT/yano/yano.sh" ]
-[ -x "$ROOT/yano/appchain-cluster/cluster.sh" ]
-[ -x "$ROOT/yano/appchain-cluster/loadtest.sh" ]
-[ -x "$ROOT/yano/appchain-cluster/soaktest.sh" ]
-[ -x "$ROOT/profiles/evidence/demo/demo.sh" ]
-[ -x "$ROOT/profiles/evidence/artifacts/yano-context/yano/yano.sh" ]
-[ -f "$ROOT/profiles/evidence/config/network/devnet/shelley-genesis.json" ]
 [ -f "$ROOT/docs/MASTER_DEMO.md" ]
 [ -f "$ROOT/docs/MASTER_DEMO_CURL.md" ]
 [ -f "$ROOT/docs/MESSAGE_SUBMISSION.md" ]
@@ -32,29 +26,36 @@ ROOT="$1"
 [ -f "$ROOT/docs/GOVERNANCE_DEMO.md" ]
 [ -f "$ROOT/docs/PREPROD_ANCHORING.md" ]
 [ -f "$ROOT/docs/CARDANO_HISTORY.md" ]
-[ -f "$ROOT/yano/yano.jar" ]
 [ -f "$ROOT/yano/config/application-appchain.yml" ]
-[ -f "$ROOT/yano/config/application-appchain-standard.yml" ]
-[ "$(find "$ROOT/yano/plugins" -maxdepth 1 -name 'yano-x-showcase-bundle-*.jar' | wc -l | tr -d ' ')" = 1 ]
-[ "$(find "$ROOT/yano/plugins" -maxdepth 1 -name 'yano-x-cardano-history-bundle-*.jar' | wc -l | tr -d ' ')" = 1 ]
-[ "$(find "$ROOT/plugins" -maxdepth 1 -name 'yano-x-cardano-history-*-bundle.jar' | wc -l | tr -d ' ')" = 1 ]
-[ -x "$ROOT/tools/cardano-history/bin/yano-cardano-history" ]
-[ -f "$ROOT/profiles/evidence/artifacts/runner.jar" ]
-[ -f "$ROOT/profiles/evidence/artifacts/yano-context/yano/yano.jar" ]
-[ "$(find "$ROOT/profiles/evidence/artifacts/plugins" -name '*-bundle.jar' | wc -l | tr -d ' ')" = 3 ]
-ROLE_DIGEST="$(java -cp "$ROOT/profiles/evidence/artifacts/yano-context/yano/yano.jar:$ROOT/profiles/evidence/artifacts/yano-context/yano/plugins/*" \
+[ -f "$ROOT/yano/config/network/devnet/shelley-genesis.json" ]
+# The showcase carries no runtime of its own: yano.jar, plugins, tools, and the
+# evidence harness come from the enclosing distribution.
+[ ! -e "$ROOT/yano/yano.jar" ] && [ ! -e "$ROOT/yano/plugins" ]
+[ -x "$DIST/examples/evidence/demo.sh" ]
+[ -f "$DIST/examples/evidence/runner.jar" ]
+[ -x "$DIST/tools/yano-cardano-history/bin/yano-cardano-history" ]
+! grep -R '/Users/satya/work/bloxbean/yano' "$ROOT" --include='*.sh' --include='*.md' >/dev/null
+! find "$ROOT" -type f \( -name '*.skey' -o -name '*.seed' -o -name 'operator.seed' \) \
+  -print -quit | grep -q .
+DIST_CONFIG_SHA="$(shasum -a 256 "$DIST/config/application-appchain.yml")"
+PROFILES="$("$ROOT/showcase.sh" profiles)"
+HELP="$("$ROOT/showcase.sh" help)"
+# The first run links the showcase's Yano home back to the distribution.
+[ -x "$ROOT/yano/yano.sh" ]
+[ -f "$ROOT/yano/yano.jar" ]
+[ -x "$ROOT/yano/appchain-cluster/cluster.sh" ]
+[ -x "$ROOT/yano/appchain-cluster/loadtest.sh" ]
+[ -x "$ROOT/yano/appchain-cluster/soaktest.sh" ]
+[ "$(find -L "$ROOT/yano/plugins" -maxdepth 1 -name 'yano-x-showcase-bundle-*.jar' | wc -l | tr -d ' ')" = 1 ]
+[ "$(find -L "$ROOT/yano/plugins" -maxdepth 1 -name 'yano-x-cardano-history-bundle-*.jar' | wc -l | tr -d ' ')" = 1 ]
+ROLE_DIGEST="$(java -cp "$DIST/yano.jar:$DIST/plugins/*" \
   org.yanoproject.x.evidence.profile.RoleEvidenceProfileCli \
   --chain evidence-chain-contract \
   --members 8a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c,8139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394,ed4928c628d1c2c6eae90338905995612959273a5c63f93636c14614ac8737d1 \
   --threshold 2 --storage-gate app-final --continuation explicit \
   --evidence-capacity 8)"
 [[ "$ROLE_DIGEST" =~ ^[0-9a-f]{64}$ ]]
-! grep -R '/Users/satya/work/bloxbean/yano' "$ROOT" --include='*.sh' --include='*.md' >/dev/null
-! find "$ROOT" -type f \( -name '*.skey' -o -name '*.seed' -o -name 'operator.seed' \) \
-  -print -quit | grep -q .
-PROFILES="$("$ROOT/showcase.sh" profiles)"
-HELP="$("$ROOT/showcase.sh" help)"
-HISTORY_HELP="$("$ROOT/tools/cardano-history/bin/yano-cardano-history" --help)"
+HISTORY_HELP="$("$DIST/tools/yano-cardano-history/bin/yano-cardano-history" --help)"
 grep -q '^light' <<< "$PROFILES"
 grep -q 'config show|paths|export' <<< "$HELP"
 grep -q 'verify' <<< "$HISTORY_HELP"
@@ -86,7 +87,7 @@ grep -q 'Python 3 standard library only' "$ROOT/README.md"
 MAP_ROOT="$ROOT/data/showcase/distribution-contract"
 jq -e '.schemaVersion == 1 and .profileId == "light-v1" and (.chains | length) == 13' \
   "$ROOT/catalog/showcase-catalog-v1.json" >/dev/null
-CARDANO_HISTORY_BUNDLE="$(find "$ROOT/yano/plugins" -maxdepth 1 \
+CARDANO_HISTORY_BUNDLE="$(find -L "$ROOT/yano/plugins" -maxdepth 1 \
   -name 'yano-x-cardano-history-bundle-*.jar' -print -quit)"
 unzip -p "$CARDANO_HISTORY_BUNDLE" \
   META-INF/yano/plugins/org.yanoproject.x.cardano-history.json \
@@ -151,4 +152,6 @@ grep -q 'vault-address: "addr_test1wpwhmf5cd5pm9gsg5y8xnkyk3xue2u35ral098gd8u49g
   "$ROOT/yano/config/application-appchain.yml"
 grep -q 'withdrawal-address: "addr_test1vrf4896s3htkc8pzytgvvm07c2e489rtcg42f23zk5r2mjs8ge5ef"' \
   "$ROOT/yano/config/application-appchain.yml"
-echo "PASS: copied showcase ZIP is self-contained and documents every demo path"
+# Running the showcase edits only its own configuration.
+[ "$(shasum -a 256 "$DIST/config/application-appchain.yml")" = "$DIST_CONFIG_SHA" ]
+echo "PASS: the showcase in the JVM distribution runs against it and documents every demo path"

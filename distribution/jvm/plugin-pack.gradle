@@ -225,33 +225,6 @@ tasks.register('generatePluginPackManifest') {
     }
 }
 
-tasks.register('yanoXPluginPackZip', Zip) {
-    dependsOn tasks.named('generatePluginPackManifest'),
-            tasks.named('normalizeYanoXReleaseSbom')
-    group = 'distribution'
-    description = 'Creates the versioned Yano X runtime plugin pack.'
-    archiveFileName = "yano-x-plugin-pack-${packVersion}.zip"
-    destinationDirectory = layout.buildDirectory.dir('distributions')
-    reproducibleFileOrder = true
-    preserveFileTimestamps = false
-
-    into("yano-x-plugin-pack-${packVersion}") {
-        from(rootProject.file('LICENSE'))
-        from(releaseSbom) {
-            into 'sbom'
-        }
-        from(generatedPackManifest)
-        from(defaultBundleFiles) {
-            into 'plugins'
-            rename { name -> canonicalBundleName(name) }
-        }
-        from(optionalBundleFiles) {
-            into 'optional-plugins'
-            rename { name -> canonicalBundleName(name) }
-        }
-    }
-}
-
 ext.yanoXRuntimeBundleSpecifications = runtimeBundleSpecifications
 ext.yanoXDefaultBundleIds = defaultBundleIds
 ext.yanoXOptionalBundleIds = optionalBundleIds

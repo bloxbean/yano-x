@@ -46,6 +46,21 @@ def dppCliInstallDirectory = project(':products:dpp:cli').layout.buildDirectory.
 def feedUiDirectory = project(':products:attestation-feed:ui').layout.projectDirectory.dir('build/site')
 def feedUiSbom = project(':products:attestation-feed:ui').layout.projectDirectory.file('build/feed-ui.cdx.json')
 def feedCliInstallDirectory = project(':products:attestation-feed:cli').layout.buildDirectory.dir('install/yano-feed')
+def cardanoHistoryCliInstallDirectory = project(':products:cardano-history:cli').layout.buildDirectory.dir(
+        'install/yano-cardano-history')
+// Command-line tools share one tools/lib directory. Each launcher keeps its
+// exact classpath, rebased onto the shared directory, so a tool still loads
+// only its own jars. Jars with the same file name are the same artifact.
+def cliToolInstallDirectories = [
+        'yano-appchain': devtoolsInstallDirectory,
+        'yano-deploy': deploymentInstallDirectory,
+        'yano-attest': attestCliInstallDirectory,
+        'yano-trust': trustRegistryCliInstallDirectory,
+        'yano-explorer': explorerCliInstallDirectory,
+        'yano-dpp': dppCliInstallDirectory,
+        'yano-feed': feedCliInstallDirectory,
+        'yano-cardano-history': cardanoHistoryCliInstallDirectory
+]
 def eutxoUiDirectory = project(':products:eutxo:ui').layout.projectDirectory.dir('build/site')
 def eutxoUiSbom = project(':products:eutxo:ui').layout.projectDirectory.file(
         'build/eutxo-ui.cdx.json')
@@ -58,6 +73,8 @@ def evidenceDemoRunnerFile = project(':products:evidence:demo-runner').layout.bu
         "libs/yano-x-evidence-demo-runner-${project.version}-all.jar")
 def evidenceDemoArtifactDirectory = layout.buildDirectory.dir(
         'prepared/evidence-demo-artifacts')
+def showcaseSources = project(':examples:showcase').file('src/main/showcase')
+def preparedShowcaseDirectory = layout.buildDirectory.dir('prepared/showcase')
 
 tasks.register('generateYanoXDistributionManifest') {
     dependsOn tasks.named('verifyYanoInputs'),
@@ -104,6 +121,59 @@ def rebaseBaseRoot = { details ->
     }
 }
 
+// The showcase ships at examples/showcase. Its yano/ home holds only the demo
+// configuration (the Yano config tree with the showcase app-chain file and
+// settlement scripts); showcase.sh links everything else back to the
+// distribution root on first run.
+tasks.register('prepareShowcase', Sync) {
+    group = 'distribution'
+    description = 'Stages the showcase that ships inside the JVM distribution.'
+    into preparedShowcaseDirectory
+
+    from(project(':examples:showcase').file('README.md'))
+    from(project(':examples:showcase').file('DEMO_SHOWCASE.md'))
+    from(project(':examples:showcase').file('docs')) {
+        into 'docs'
+    }
+    from(resources.text.fromString(project.version.toString() + '\n')) {
+        rename { 'VERSION' }
+    }
+    from(new File(showcaseSources, 'showcase.sh')) {
+        filePermissions { unix('755') }
+    }
+    from(new File(showcaseSources, 'tools')) {
+        into 'tools'
+        include '*.py', '*.sh'
+        filePermissions { unix('755') }
+    }
+    from(new File(showcaseSources, 'demos')) {
+        into 'demos'
+        include '*.sh'
+        filePermissions { unix('755') }
+    }
+    from(new File(showcaseSources, 'config/showcase-catalog-v1.json')) {
+        into 'catalog'
+    }
+    from({ zipTree(baseYanoDistribution.get()) }) {
+        include '*/config/**'
+        exclude '*/config/application-appchain.yml'
+        eachFile { details ->
+            details.relativePath = org.gradle.api.file.RelativePath.parse(
+                    details.relativePath.file,
+                    "yano/${details.relativePath.segments.drop(1).join('/')}")
+        }
+        includeEmptyDirs = false
+    }
+    // ADR-UTXO-009: the settlement chain's parameterized validators are derived
+    // from the packaged plan and must be present before the L1 bootstrap runs.
+    from(new File(showcaseSources, 'config/settlement')) {
+        into 'yano/config/settlement'
+    }
+    from(new File(showcaseSources, 'config/application-appchain.yml')) {
+        into 'yano/config'
+    }
+}
+
 tasks.register('yanoXJvmDistZip', Zip) {
     dependsOn tasks.named('generateYanoXDistributionManifest'),
             tasks.named('normalizeYanoXReleaseSbom'),
@@ -119,10 +189,12 @@ tasks.register('yanoXJvmDistZip', Zip) {
             ':products:dpp:cli:installDist',
             ':products:attestation-feed:ui:frontendBuild', ':products:attestation-feed:ui:frontendSbom',
             ':products:attestation-feed:cli:installDist',
+            ':products:cardano-history:cli:installDist',
             ':tooling:devtools:installDist', ':tooling:deployment:installDist',
             ':tooling:studio:prepareStudio',
             ':products:eutxo:ui:frontendBuild', ':products:eutxo:ui:frontendSbom',
-            ':products:evidence:demo-runner:shadowJar'
+            ':products:evidence:demo-runner:shadowJar',
+            tasks.named('prepareShowcase')
     group = 'distribution'
     description = 'Creates the batteries-included Yano X JVM distribution.'
     archiveFileName = "yano-x-jvm-${distVersion}.zip"
@@ -152,16 +224,22 @@ tasks.register('yanoXJvmDistZip', Zip) {
         }
         from(pluginPackManifest)
         from(generatedDistributionManifest)
-        from(devtoolsInstallDirectory) {
-            into 'tools/yano-appchain'
-            filesMatching(['bin/*']) {
-                permissions { unix('755') }
+        cliToolInstallDirectories.each { toolName, installDirectory ->
+            from(installDirectory) {
+                exclude 'lib/**'
+                into "tools/${toolName}"
+                filesMatching(['bin/*']) {
+                    permissions { unix('755') }
+                    filter { line ->
+                        line.replace('$APP_HOME/lib/', '$APP_HOME/../lib/')
+                                .replace('%APP_HOME%\\lib\\', '%APP_HOME%\\..\\lib\\')
+                    }
+                }
             }
-        }
-        from(deploymentInstallDirectory) {
-            into 'tools/yano-deploy'
-            filesMatching(['bin/*']) {
-                permissions { unix('755') }
+            from(installDirectory) {
+                include 'lib/**'
+                into 'tools'
+                duplicatesStrategy = DuplicatesStrategy.EXCLUDE
             }
         }
         from(studioDirectory) {
@@ -179,12 +257,6 @@ tasks.register('yanoXJvmDistZip', Zip) {
         from(evidenceUiSbom) {
             into 'sbom'
         }
-        from(attestCliInstallDirectory) {
-            into 'tools/yano-attest'
-            filesMatching(['bin/*']) {
-                permissions { unix('755') }
-            }
-        }
         from(eutxoUiDirectory) {
             into 'product-ui/eutxo'
         }
@@ -196,12 +268,6 @@ tasks.register('yanoXJvmDistZip', Zip) {
         }
         from(trustRegistryUiSbom) {
             into 'sbom'
-        }
-        from(trustRegistryCliInstallDirectory) {
-            into 'tools/yano-trust'
-            filesMatching(['bin/*']) {
-                permissions { unix('755') }
-            }
         }
         from(rootProject.file('products/trust-registry/harness')) {
             into 'examples/trust-registry'
@@ -215,12 +281,6 @@ tasks.register('yanoXJvmDistZip', Zip) {
         from(explorerUiSbom) {
             into 'sbom'
         }
-        from(explorerCliInstallDirectory) {
-            into 'tools/yano-explorer'
-            filesMatching(['bin/*']) {
-                permissions { unix('755') }
-            }
-        }
         from(rootProject.file('products/explorer/harness')) {
             into 'examples/explorer'
             filesMatching(['**/*.sh']) {
@@ -233,12 +293,6 @@ tasks.register('yanoXJvmDistZip', Zip) {
         from(dppUiSbom) {
             into 'sbom'
         }
-        from(dppCliInstallDirectory) {
-            into 'tools/yano-dpp'
-            filesMatching(['bin/*']) {
-                permissions { unix('755') }
-            }
-        }
         from(rootProject.file('products/dpp/harness')) {
             into 'examples/dpp'
             filesMatching(['**/*.sh']) {
@@ -250,12 +304,6 @@ tasks.register('yanoXJvmDistZip', Zip) {
         }
         from(feedUiSbom) {
             into 'sbom'
-        }
-        from(feedCliInstallDirectory) {
-            into 'tools/yano-feed'
-            filesMatching(['bin/*']) {
-                permissions { unix('755') }
-            }
         }
         from(rootProject.file('products/attestation-feed/harness')) {
             into 'examples/attestation-feed'
@@ -297,6 +345,12 @@ tasks.register('yanoXJvmDistZip', Zip) {
         from(evidenceDemoRunnerFile) {
             into 'examples/evidence'
             rename { 'runner.jar' }
+        }
+        from(preparedShowcaseDirectory) {
+            into 'examples/showcase'
+            filesMatching(['*.sh', 'tools/*.sh', 'tools/*.py', 'demos/*.sh']) {
+                permissions { unix('755') }
+            }
         }
         from(rootProject.file('docs')) {
             into 'docs'
@@ -384,11 +438,9 @@ tasks.register('prepareEvidenceDemoArtifacts', Sync) {
 }
 
 tasks.register('verifyYanoXJvmDistribution') {
-    dependsOn tasks.named('yanoXPluginPackZip'),
-            tasks.named('yanoXJvmDistZip')
+    dependsOn tasks.named('yanoXJvmDistZip')
     group = 'verification'
-    description = 'Verifies the Yano X plugin pack and JVM-only distribution.'
-    inputs.file(tasks.named('yanoXPluginPackZip', Zip).flatMap { it.archiveFile })
+    description = 'Verifies the JVM-only Yano X distribution.'
     inputs.file(tasks.named('yanoXJvmDistZip', Zip).flatMap { it.archiveFile })
 
     doLast {
@@ -409,57 +461,6 @@ tasks.register('verifyYanoXJvmDistribution') {
                 != expectedPluginFiles) {
             throw new GradleException(
                     "Yano X plugin-pack selection mismatch: ${pack.bundles}")
-        }
-        def pluginPack = tasks.named('yanoXPluginPackZip', Zip).get()
-                .archiveFile.get().asFile
-        def packRoot = "yano-x-plugin-pack-${distVersion}"
-        new ZipFile(pluginPack).withCloseable { archive ->
-            def roots = archive.entries().collect { entry ->
-                entry.name.tokenize('/').find()
-            }.findAll { value -> value != null }.toSet()
-            if (roots != [packRoot] as Set) {
-                throw new GradleException(
-                        "Yano X plugin pack has unexpected roots: ${roots.sort()}")
-            }
-            def actualDefaultPluginFiles = archive.entries().findAll { entry ->
-                entry.name.startsWith("${packRoot}/plugins/")
-                        && entry.name.endsWith('.jar')
-            }.collect { entry -> entry.name.tokenize('/').last() }
-            def actualOptionalPluginFiles = archive.entries().findAll { entry ->
-                entry.name.startsWith("${packRoot}/optional-plugins/")
-                        && entry.name.endsWith('.jar')
-            }.collect { entry -> entry.name.tokenize('/').last() }
-            if (actualDefaultPluginFiles.size() != expectedDefaultPluginFiles.size()
-                    || actualDefaultPluginFiles.toSet() != expectedDefaultPluginFiles
-                    || actualOptionalPluginFiles.size() != expectedOptionalPluginFiles.size()
-                    || actualOptionalPluginFiles.toSet() != expectedOptionalPluginFiles) {
-                throw new GradleException(
-                        'Yano X plugin-pack default/optional set mismatch: '
-                                + "default=${actualDefaultPluginFiles.sort()}, "
-                                + "optional=${actualOptionalPluginFiles.sort()}")
-            }
-            def manifestEntry = archive.getEntry(
-                    "${packRoot}/yano-x-plugin-pack-v1.json")
-            if (archive.getEntry("${packRoot}/LICENSE") == null) {
-                throw new GradleException('Yano X plugin pack is missing LICENSE')
-            }
-            def sbomEntry = archive.getEntry("${packRoot}/sbom/yano-x.cdx.json")
-            def packagedSbom = sbomEntry == null ? null
-                    : archive.getInputStream(sbomEntry).withCloseable { stream ->
-                        new JsonSlurper().parse(stream)
-                    }
-            if (packagedSbom != expectedSbom) {
-                throw new GradleException(
-                        'Yano X plugin-pack SBOM is missing or differs from its input')
-            }
-            def packagedManifest = manifestEntry == null ? null
-                    : archive.getInputStream(manifestEntry).withCloseable { stream ->
-                        new JsonSlurper().parse(stream)
-                    }
-            if (packagedManifest != pack) {
-                throw new GradleException(
-                        'Yano X plugin-pack manifest is missing or differs from its input')
-            }
         }
         def distribution = tasks.named('yanoXJvmDistZip', Zip).get()
                 .archiveFile.get().asFile
@@ -572,6 +573,7 @@ tasks.register('verifyYanoXJvmDistribution') {
                     'product-ui/attestation-feed/feed-ui-config.json',
                     'sbom/feed-ui.cdx.json',
                     'tools/yano-feed/bin/yano-feed',
+                    'tools/yano-cardano-history/bin/yano-cardano-history',
                     'examples/attestation-feed/feed.sh',
                     'skills/configure-yano-appchain/SKILL.md',
                     'config/schema/appchain-metadata-trust.schema.json',
@@ -580,12 +582,32 @@ tasks.register('verifyYanoXJvmDistribution') {
                     'appchain-cluster/cluster.sh',
                     'examples/evidence/demo.sh',
                     'examples/evidence/runner.jar',
+                    'examples/showcase/showcase.sh',
+                    'examples/showcase/VERSION',
+                    'examples/showcase/catalog/showcase-catalog-v1.json',
+                    'examples/showcase/yano/config/application-appchain.yml',
+                    'examples/showcase/yano/config/network/devnet/shelley-genesis.json',
                     'docs/appchain/README.md',
                     'docker/jvm/entrypoint.sh'
             ].each { relativePath ->
                 if (archive.getEntry("${root}/${relativePath}") == null) {
                     throw new GradleException(
                             "Yano X distribution is missing ${relativePath}")
+                }
+            }
+            cliToolInstallDirectories.keySet().each { toolName ->
+                def launcher = archive.getEntry("${root}/tools/${toolName}/bin/${toolName == 'yano-deploy' ? 'yano-x-deploy' : toolName}")
+                if (launcher == null) {
+                    throw new GradleException("Yano X distribution is missing the ${toolName} launcher")
+                }
+                def classpath = archive.getInputStream(launcher).getText('UTF-8')
+                        .findAll('\\$APP_HOME/\\.\\./lib/([^:"\\s]+\\.jar)') { match, jar -> jar }
+                def missing = classpath.findAll { jar ->
+                    archive.getEntry("${root}/tools/lib/${jar}") == null
+                }
+                if (classpath.isEmpty() || !missing.isEmpty()) {
+                    throw new GradleException(
+                            "${toolName} launcher classpath is not in tools/lib: ${classpath.isEmpty() ? 'empty' : missing}")
                 }
             }
             def nativeEntries = archive.entries().findAll { entry ->
@@ -601,6 +623,5 @@ tasks.register('verifyYanoXJvmDistribution') {
 }
 
 tasks.named('assemble') {
-    dependsOn tasks.named('yanoXPluginPackZip'),
-            tasks.named('yanoXJvmDistZip')
+    dependsOn tasks.named('yanoXJvmDistZip')
 }
