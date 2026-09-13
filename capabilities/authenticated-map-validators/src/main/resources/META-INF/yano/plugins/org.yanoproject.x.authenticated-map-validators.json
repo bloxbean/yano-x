@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "id": "org.yanoproject.x.authenticated-map-validators",
+  "version": "${pluginVersion}",
+  "yanoApi": { "min": 3, "max": 3, "minLevel": 4 },
+  "dependencies": [],
+  "contributions": [
+    { "kind": "authenticated-map-validator", "name": "gs1-gtin-v1", "provider": "org.yanoproject.x.authmap.validators.Gs1GtinValidatorFactory" }
+  ]
+}

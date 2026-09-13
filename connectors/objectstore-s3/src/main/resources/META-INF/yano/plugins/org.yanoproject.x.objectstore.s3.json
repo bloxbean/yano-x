@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "id": "org.yanoproject.x.objectstore.s3",
+  "version": "${pluginVersion}",
+  "yanoApi": { "min": 3, "max": 3, "minLevel": 4 },
+  "dependencies": [],
+  "contributions": [
+    { "kind": "effect-executor", "name": "objectstore-s3", "provider": "org.yanoproject.x.objectstore.s3.effects.ObjectStoreS3EffectExecutorFactory" }
+  ]
+}

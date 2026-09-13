@@ -18,7 +18,7 @@
     {
       "id": "yano-x-stdlib",
       "availability": "BUNDLED",
-      "bundleId": "com.bloxbean.cardano.yano.appchain.stdlib",
+      "bundleId": "org.yanoproject.x.stdlib",
       "nativePosture": "unsupported",
       "runtimeTypes": [
         "jvm"
@@ -31,7 +31,7 @@
     {
       "id": "yano-x-evidence-registry",
       "availability": "BUNDLED",
-      "bundleId": "com.bloxbean.cardano.yano.appchain.evidence-registry",
+      "bundleId": "org.yanoproject.x.evidence-registry",
       "nativePosture": "unsupported",
       "runtimeTypes": [
         "jvm"
@@ -57,7 +57,7 @@
     {
       "id": "yano-x-role-workflow",
       "availability": "BUNDLED",
-      "bundleId": "com.bloxbean.cardano.yano.appchain.role-workflow",
+      "bundleId": "org.yanoproject.x.role-workflow",
       "nativePosture": "unsupported",
       "runtimeTypes": [
         "jvm"
@@ -70,7 +70,7 @@
     {
       "id": "yano-x-evidence-profile",
       "availability": "BUNDLED",
-      "bundleId": "com.bloxbean.cardano.yano.appchain.evidence-profile",
+      "bundleId": "org.yanoproject.x.evidence-profile",
       "nativePosture": "unsupported",
       "runtimeTypes": [
         "jvm"
@@ -83,7 +83,7 @@
     {
       "id": "yano-x-kafka",
       "availability": "FIRST_PARTY_OPTIONAL",
-      "bundleId": "com.bloxbean.cardano.yano.appchain.kafka",
+      "bundleId": "org.yanoproject.x.kafka",
       "nativePosture": "unsupported",
       "runtimeTypes": [
         "jvm"
@@ -96,7 +96,7 @@
     {
       "id": "yano-x-objectstore-s3",
       "availability": "FIRST_PARTY_OPTIONAL",
-      "bundleId": "com.bloxbean.cardano.yano.appchain.objectstore.s3",
+      "bundleId": "org.yanoproject.x.objectstore.s3",
       "nativePosture": "unsupported",
       "runtimeTypes": [
         "jvm"
@@ -109,7 +109,7 @@
     {
       "id": "yano-x-ipfs",
       "availability": "FIRST_PARTY_OPTIONAL",
-      "bundleId": "com.bloxbean.cardano.yano.appchain.ipfs",
+      "bundleId": "org.yanoproject.x.ipfs",
       "nativePosture": "unsupported",
       "runtimeTypes": [
         "jvm"
@@ -122,7 +122,7 @@
     {
       "id": "yano-x-effects-cardano",
       "availability": "FIRST_PARTY_OPTIONAL",
-      "bundleId": "com.bloxbean.cardano.yano.appchain.effects.cardano",
+      "bundleId": "org.yanoproject.x.effects.cardano",
       "nativePosture": "unsupported",
       "runtimeTypes": [
         "jvm"
@@ -135,7 +135,7 @@
     {
       "id": "yano-x-zk",
       "availability": "EXPERIMENTAL",
-      "bundleId": "com.bloxbean.cardano.yano.appchain.zk",
+      "bundleId": "org.yanoproject.x.zk",
       "nativePosture": "unsupported",
       "runtimeTypes": [
         "jvm"
@@ -148,7 +148,7 @@
     {
       "id": "yano-x-eutxo-ledger",
       "availability": "BUNDLED",
-      "bundleId": "com.bloxbean.cardano.yano.appchain.eutxo",
+      "bundleId": "org.yanoproject.x.eutxo",
       "nativePosture": "unsupported",
       "runtimeTypes": [
         "jvm"
@@ -161,7 +161,7 @@
     {
       "id": "yano-x-eutxo-indexer-core",
       "availability": "BUNDLED",
-      "bundleId": "com.bloxbean.cardano.yano.appchain.eutxo.indexer",
+      "bundleId": "org.yanoproject.x.eutxo.indexer",
       "nativePosture": "unsupported",
       "runtimeTypes": [
         "jvm"
@@ -187,7 +187,7 @@
     {
       "id": "yano-x-eutxo-bridge-cardano",
       "availability": "BUNDLED",
-      "bundleId": "com.bloxbean.cardano.yano.appchain.eutxo.bridge.cardano",
+      "bundleId": "org.yanoproject.x.eutxo.bridge.cardano",
       "nativePosture": "unsupported",
       "runtimeTypes": [
         "jvm"

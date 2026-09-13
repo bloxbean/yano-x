@@ -111,9 +111,9 @@ additive change while retaining the old checks for unplanned drift.
 
 ### F3 — Multi-chain hosting exists; multi-chain project authoring does not
 
-[AppChainProjectResolver](../../tooling/devtools/src/main/java/com/bloxbean/cardano/yano/appchain/devtools/AppChainProjectResolver.java)
+[AppChainProjectResolver](../../tooling/devtools/src/main/java/org/yanoproject/x/devtools/AppChainProjectResolver.java)
 explicitly rejects `spec.chains().size() != 1` and renders chain index zero.
-[AppChainProjectLifecycle](../../tooling/devtools/src/main/java/com/bloxbean/cardano/yano/appchain/devtools/AppChainProjectLifecycle.java)
+[AppChainProjectLifecycle](../../tooling/devtools/src/main/java/org/yanoproject/x/devtools/AppChainProjectLifecycle.java)
 also limits drift inspection to one chain. Its `migrate` method validates the
 current schema and returns `NO_MIGRATION_REQUIRED`; it is not a runtime upgrade
 or state migration implementation.
@@ -134,7 +134,7 @@ The following paths are in the **upstream Yano repository**, not Yano X:
 | `runtime/.../appchain/AppChainSubsystem.java`, `startOwnedResources()` | Opens the retained store, verifies integrity, and honors persisted governance |
 
 All paths above begin with
-`runtime/src/main/java/com/bloxbean/cardano/yano/`.
+`runtime/src/main/java/org/yanoproject/`.
 
 Per-chain storage makes state-preserving addition plausible. It does not prove
 that editing YAML and restarting the exact released host is a supported upgrade.
@@ -149,10 +149,10 @@ resource ownership, and failure cleanup must all see the same lifecycle state.
 fixes the application profile to
 `distributed-showcase-preprod-anchored-settlement-v1`, requires anchoring and
 settlement, and selects all chains for anchoring.
-[DeploymentRenderer](../../tooling/deployment/src/main/java/com/bloxbean/cardano/yano/appchain/deployment/DeploymentRenderer.java)
+[DeploymentRenderer](../../tooling/deployment/src/main/java/org/yanoproject/x/deployment/DeploymentRenderer.java)
 renders that catalog, special-cases named chains, and uses fixed positions for
 some generated settings.
-[ShowcaseProfileCompiler](../../tooling/deployment/src/main/java/com/bloxbean/cardano/yano/appchain/deployment/ShowcaseProfileCompiler.java)
+[ShowcaseProfileCompiler](../../tooling/deployment/src/main/java/org/yanoproject/x/deployment/ShowcaseProfileCompiler.java)
 invokes the release-matched showcase compiler for specific map chains.
 
 This is useful showcase automation; it is not yet a general deployer for the
@@ -160,7 +160,7 @@ user's two-chain profile or Studio output. Requiring settlement records and
 anchoring inputs for an ordinary log/document application creates unnecessary
 setup work.
 
-[DeploymentLifecycle](../../tooling/deployment/src/main/java/com/bloxbean/cardano/yano/appchain/deployment/DeploymentLifecycle.java)
+[DeploymentLifecycle](../../tooling/deployment/src/main/java/org/yanoproject/x/deployment/DeploymentLifecycle.java)
 already provides artifact/manifest-bound rendering, plan/apply, destructive-plan
 rejection, and a journal. Extend these mechanisms.
 

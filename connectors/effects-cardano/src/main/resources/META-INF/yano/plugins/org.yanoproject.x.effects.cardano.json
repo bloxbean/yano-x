@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "id": "org.yanoproject.x.effects.cardano",
+  "version": "${pluginVersion}",
+  "yanoApi": { "min": 3, "max": 3, "minLevel": 4 },
+  "dependencies": [],
+  "contributions": [
+    { "kind": "effect-executor", "name": "cardano", "provider": "org.yanoproject.x.effects.cardano.CardanoEffectExecutorFactory" }
+  ]
+}

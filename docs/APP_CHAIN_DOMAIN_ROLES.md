@@ -275,8 +275,8 @@ Exact committed queries are:
 The generic and evidence profiles expose separate read-only JSON APIs:
 
 ```text
-/api/v1/plugins/com.bloxbean.cardano.yano.appchain.role-workflow/
-/api/v1/plugins/com.bloxbean.cardano.yano.appchain.evidence-profile/
+/api/v1/plugins/org.yanoproject.x.role-workflow/
+/api/v1/plugins/org.yanoproject.x.evidence-profile/
 ```
 
 Both expose organizations, actors, policies, proposals and stats. Only the

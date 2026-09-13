@@ -34,7 +34,7 @@ executable source test and named in the canonical D5 evidence row:
 ```bash
 ./gradlew :app:e2eTest \
   --tests \
-  'com.bloxbean.cardano.yano.app.e2e.EutxoZkRollupDevnetE2ETest' \
+  'org.yanoproject.app.e2e.EutxoZkRollupDevnetE2ETest' \
   --rerun-tasks
 ```
 
@@ -73,7 +73,7 @@ absence is represented as `NOT_EXERCISED`, not as a build failure or a pass.
 ```bash
 ./gradlew :tooling:devtools:distributionTest \
   --tests \
-  'com.bloxbean.cardano.yano.appchain.devtools.AppChainFinalDistributionAcceptanceTest.finalDistributionRunsEutxoValidityLifecyclePolicy'
+  'org.yanoproject.x.devtools.AppChainFinalDistributionAcceptanceTest.finalDistributionRunsEutxoValidityLifecyclePolicy'
 ```
 
 The test extracts the final `yano-{version}.zip`, then verifies:

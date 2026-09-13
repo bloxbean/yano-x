@@ -3,7 +3,7 @@
 This module contains trusted first-party validator implementations for the
 authenticated-map state machine. The public SPI is deliberately not defined
 here: applications implement
-`com.bloxbean.cardano.yano.api.appchain.authmap.AuthenticatedMapValueValidatorFactory`
+`org.yanoproject.api.appchain.authmap.AuthenticatedMapValueValidatorFactory`
 from `core-api`, while genesis descriptors remain in
 `yano-x-stdlib-contracts`.
 

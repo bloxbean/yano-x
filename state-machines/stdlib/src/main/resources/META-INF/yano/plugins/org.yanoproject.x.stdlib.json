@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "id": "org.yanoproject.x.stdlib",
+  "version": "${pluginVersion}",
+  "yanoApi": { "min": 3, "max": 3, "minLevel": 8 },
+  "dependencies": [
+    {
+      "id": "org.yanoproject.x.composite",
+      "minVersion": "${pluginVersion}",
+      "maxVersionExclusive": "0.2.0"
+    },
+    {
+      "id": "org.yanoproject.x.role-workflow",
+      "minVersion": "${pluginVersion}",
+      "maxVersionExclusive": "0.2.0"
+    }
+  ],
+  "contributions": [
+    { "kind": "app-state-machine", "name": "shipment-workflow-reference-v1", "provider": "org.yanoproject.x.stdlib.StdlibStateMachineProviders$ShipmentWorkflowReferenceProvider" },
+    { "kind": "app-state-machine", "name": "ada-usd-reference-v1", "provider": "org.yanoproject.x.stdlib.StdlibStateMachineProviders$AdaUsdReferenceProvider" },
+    { "kind": "app-state-machine", "name": "authenticated-map", "provider": "org.yanoproject.x.stdlib.StdlibStateMachineProviders$AuthenticatedMapProvider" },
+    { "kind": "app-state-machine", "name": "approvals", "provider": "org.yanoproject.x.stdlib.StdlibStateMachineProviders$ApprovalsProvider" },
+    { "kind": "app-state-machine", "name": "balances", "provider": "org.yanoproject.x.stdlib.StdlibStateMachineProviders$BalancesProvider" },
+    { "kind": "app-state-machine", "name": "doc-trail", "provider": "org.yanoproject.x.stdlib.StdlibStateMachineProviders$DocTrailProvider" },
+    { "kind": "app-state-machine", "name": "epoch-params", "provider": "org.yanoproject.x.stdlib.StdlibStateMachineProviders$EpochParamsProvider" },
+    { "kind": "app-state-machine", "name": "epoch-governance", "provider": "org.yanoproject.x.stdlib.StdlibStateMachineProviders$EpochGovernanceProvider" },
+    { "kind": "app-state-machine", "name": "epoch-stake", "provider": "org.yanoproject.x.stdlib.StdlibStateMachineProviders$EpochStakeProvider" },
+    { "kind": "app-state-machine", "name": "kv-registry", "provider": "org.yanoproject.x.stdlib.StdlibStateMachineProviders$KvRegistryProvider" },
+    { "kind": "l1-epoch-observer", "name": "l1-epoch-params-v1", "provider": "org.yanoproject.x.stdlib.EpochParamsObserverProvider" },
+    { "kind": "l1-epoch-observer", "name": "l1-epoch-governance-v1", "provider": "org.yanoproject.x.stdlib.EpochGovernanceObserverProvider" },
+    { "kind": "l1-epoch-observer", "name": "l1-epoch-stake-v1", "provider": "org.yanoproject.x.stdlib.EpochStakeObserverProvider" },
+    { "kind": "domain-api", "name": "org.yanoproject.x.stdlib", "provider": "org.yanoproject.x.stdlib.AuthenticatedMapDomainApiProvider" }
+  ]
+}

@@ -45,24 +45,24 @@ artifact identity and that every runtime plugin has a bundle publication.
 
 | Gradle module | Artifact id | Plugin bundle id | Source |
 |---|---|---|---|
-| `:state-machines:stdlib` | `yano-x-stdlib` | `com.bloxbean.cardano.yano.appchain.stdlib` | [state-machines/stdlib](https://github.com/bloxbean/yano-x/blob/main/state-machines/stdlib) |
-| `:capabilities:authenticated-map-validators` | `yano-x-authenticated-map-validators` | `com.bloxbean.cardano.yano.appchain.authenticated-map-validators` | [capabilities/authenticated-map-validators](https://github.com/bloxbean/yano-x/blob/main/capabilities/authenticated-map-validators) |
-| `:composition:runtime` | `yano-x-composite` | `com.bloxbean.cardano.yano.appchain.composite` | [composition/runtime](https://github.com/bloxbean/yano-x/blob/main/composition/runtime) |
-| `:capabilities:role-workflow` | `yano-x-role-workflow` | `com.bloxbean.cardano.yano.appchain.role-workflow` | [capabilities/role-workflow](https://github.com/bloxbean/yano-x/blob/main/capabilities/role-workflow) |
-| `:products:evidence:registry` | `yano-x-evidence-registry` | `com.bloxbean.cardano.yano.appchain.evidence-registry` | [products/evidence/registry](https://github.com/bloxbean/yano-x/blob/main/products/evidence/registry) |
-| `:products:evidence:profile` | `yano-x-evidence-profile` | `com.bloxbean.cardano.yano.appchain.evidence-profile` | [products/evidence/profile](https://github.com/bloxbean/yano-x/blob/main/products/evidence/profile) |
-| `:products:cardano-history:runtime` | `yano-x-cardano-history` | `com.bloxbean.cardano.yano.appchain.cardano-history` | [products/cardano-history/runtime](https://github.com/bloxbean/yano-x/blob/main/products/cardano-history/runtime) |
-| `:examples:showcase` | `yano-x-showcase` | `com.bloxbean.cardano.yano.appchain.showcase` | [examples/showcase](https://github.com/bloxbean/yano-x/blob/main/examples/showcase) |
-| `:connectors:kafka` | `yano-x-kafka` | `com.bloxbean.cardano.yano.appchain.kafka` | [connectors/kafka](https://github.com/bloxbean/yano-x/blob/main/connectors/kafka) |
-| `:connectors:objectstore-s3` | `yano-x-objectstore-s3` | `com.bloxbean.cardano.yano.appchain.objectstore.s3` | [connectors/objectstore-s3](https://github.com/bloxbean/yano-x/blob/main/connectors/objectstore-s3) |
-| `:connectors:ipfs` | `yano-x-ipfs` | `com.bloxbean.cardano.yano.appchain.ipfs` | [connectors/ipfs](https://github.com/bloxbean/yano-x/blob/main/connectors/ipfs) |
-| `:connectors:effects-cardano` | `yano-x-effects-cardano` | `com.bloxbean.cardano.yano.appchain.effects.cardano` | [connectors/effects-cardano](https://github.com/bloxbean/yano-x/blob/main/connectors/effects-cardano) |
-| `:state-machines:zk` | `yano-x-zk` | `com.bloxbean.cardano.yano.appchain.zk` | [state-machines/zk](https://github.com/bloxbean/yano-x/blob/main/state-machines/zk) |
-| `:ledgers:eutxo:ledger` | `yano-x-eutxo-ledger` | `com.bloxbean.cardano.yano.appchain.eutxo` | [ledgers/eutxo/ledger](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/ledger) |
-| `:ledgers:eutxo:bridge-cardano` | `yano-x-eutxo-bridge-cardano` | `com.bloxbean.cardano.yano.appchain.eutxo.bridge.cardano` | [ledgers/eutxo/bridge-cardano](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/bridge-cardano) |
-| `:ledgers:eutxo:indexer-jdbc` | `yano-x-eutxo-indexer-jdbc` | `com.bloxbean.cardano.yano.appchain.eutxo.indexer` | [ledgers/eutxo/indexer-jdbc](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/indexer-jdbc) |
-| `:ledgers:eutxo-zk:runtime` | `yano-x-eutxo-zk-runtime` | `com.bloxbean.cardano.yano.appchain.eutxo.zk.runtime` | [ledgers/eutxo-zk/runtime](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/runtime) |
-| `:ledgers:eutxo-zk:indexer` | `yano-x-eutxo-zk-indexer` | `com.bloxbean.cardano.yano.appchain.eutxo.zk.indexer` | [ledgers/eutxo-zk/indexer](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/indexer) |
+| `:state-machines:stdlib` | `yano-x-stdlib` | `org.yanoproject.x.stdlib` | [state-machines/stdlib](https://github.com/bloxbean/yano-x/blob/main/state-machines/stdlib) |
+| `:capabilities:authenticated-map-validators` | `yano-x-authenticated-map-validators` | `org.yanoproject.x.authenticated-map-validators` | [capabilities/authenticated-map-validators](https://github.com/bloxbean/yano-x/blob/main/capabilities/authenticated-map-validators) |
+| `:composition:runtime` | `yano-x-composite` | `org.yanoproject.x.composite` | [composition/runtime](https://github.com/bloxbean/yano-x/blob/main/composition/runtime) |
+| `:capabilities:role-workflow` | `yano-x-role-workflow` | `org.yanoproject.x.role-workflow` | [capabilities/role-workflow](https://github.com/bloxbean/yano-x/blob/main/capabilities/role-workflow) |
+| `:products:evidence:registry` | `yano-x-evidence-registry` | `org.yanoproject.x.evidence-registry` | [products/evidence/registry](https://github.com/bloxbean/yano-x/blob/main/products/evidence/registry) |
+| `:products:evidence:profile` | `yano-x-evidence-profile` | `org.yanoproject.x.evidence-profile` | [products/evidence/profile](https://github.com/bloxbean/yano-x/blob/main/products/evidence/profile) |
+| `:products:cardano-history:runtime` | `yano-x-cardano-history` | `org.yanoproject.x.cardano-history` | [products/cardano-history/runtime](https://github.com/bloxbean/yano-x/blob/main/products/cardano-history/runtime) |
+| `:examples:showcase` | `yano-x-showcase` | `org.yanoproject.x.showcase` | [examples/showcase](https://github.com/bloxbean/yano-x/blob/main/examples/showcase) |
+| `:connectors:kafka` | `yano-x-kafka` | `org.yanoproject.x.kafka` | [connectors/kafka](https://github.com/bloxbean/yano-x/blob/main/connectors/kafka) |
+| `:connectors:objectstore-s3` | `yano-x-objectstore-s3` | `org.yanoproject.x.objectstore.s3` | [connectors/objectstore-s3](https://github.com/bloxbean/yano-x/blob/main/connectors/objectstore-s3) |
+| `:connectors:ipfs` | `yano-x-ipfs` | `org.yanoproject.x.ipfs` | [connectors/ipfs](https://github.com/bloxbean/yano-x/blob/main/connectors/ipfs) |
+| `:connectors:effects-cardano` | `yano-x-effects-cardano` | `org.yanoproject.x.effects.cardano` | [connectors/effects-cardano](https://github.com/bloxbean/yano-x/blob/main/connectors/effects-cardano) |
+| `:state-machines:zk` | `yano-x-zk` | `org.yanoproject.x.zk` | [state-machines/zk](https://github.com/bloxbean/yano-x/blob/main/state-machines/zk) |
+| `:ledgers:eutxo:ledger` | `yano-x-eutxo-ledger` | `org.yanoproject.x.eutxo` | [ledgers/eutxo/ledger](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/ledger) |
+| `:ledgers:eutxo:bridge-cardano` | `yano-x-eutxo-bridge-cardano` | `org.yanoproject.x.eutxo.bridge.cardano` | [ledgers/eutxo/bridge-cardano](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/bridge-cardano) |
+| `:ledgers:eutxo:indexer-jdbc` | `yano-x-eutxo-indexer-jdbc` | `org.yanoproject.x.eutxo.indexer` | [ledgers/eutxo/indexer-jdbc](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/indexer-jdbc) |
+| `:ledgers:eutxo-zk:runtime` | `yano-x-eutxo-zk-runtime` | `org.yanoproject.x.eutxo.zk.runtime` | [ledgers/eutxo-zk/runtime](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/runtime) |
+| `:ledgers:eutxo-zk:indexer` | `yano-x-eutxo-zk-indexer` | `org.yanoproject.x.eutxo.zk.indexer` | [ledgers/eutxo-zk/indexer](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/indexer) |
 
 ### `library` (27)
 
@@ -163,14 +163,14 @@ repositories { mavenCentral() }
 
 dependencies {
     // The Java client SDK: REST, SSE, and client-side proof verification.
-    implementation 'com.bloxbean.cardano:yano-x-client'
+    implementation 'org.yanoproject:yano-x-client'
 
     // Contracts libraries are plain JARs, safe to use off-chain.
-    implementation 'com.bloxbean.cardano:yano-x-evidence-contracts'
+    implementation 'org.yanoproject:yano-x-evidence-contracts'
 
     // Tests.
-    testImplementation 'com.bloxbean.cardano:yano-appchain-core-testkit'
-    testImplementation 'com.bloxbean.cardano:yano-x-effects-testkit'
+    testImplementation 'org.yanoproject:yano-appchain-core-testkit'
+    testImplementation 'org.yanoproject:yano-x-effects-testkit'
 }
 ```
 

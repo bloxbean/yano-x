@@ -1,5 +1,5 @@
 ext.runtimePluginBundleId =
-        'com.bloxbean.cardano.yano.appchain.authenticated-map-validators'
+        'org.yanoproject.x.authenticated-map-validators'
 ext.runtimePluginExcludedBundleIds = []
 apply from: rootProject.file('gradle/runtime-plugin-bundle.gradle')
 

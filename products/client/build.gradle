@@ -1,0 +1,80 @@
+// One published coordinate for the out-of-the-box product integration surface.
+// Downstream applications add `yano-x-products-client` instead of tracking eight
+// separate coordinates, and Maven Central carries one artifact set instead of
+// eight.
+//
+// The aggregated modules keep their own compilation and their internal-repository
+// publication; only their Maven Central publication is replaced by this jar. They
+// carry `aggregatedInto` in config/artifacts-v1.json, which is what removes them
+// from the release scope -- this list and that field must agree.
+//
+// Deliberately NOT aggregated:
+//   :products:evidence:*  The evidence client is the one product client that does
+//       not reference the node/runtime SPI (zero imports of
+//       org.yanoproject.api, against 12 files across the others), and
+//       verifyEvidenceClientArtifactBoundary enforces that its POM and runtime
+//       closure stay free of core-api. Merging it with clients that do use
+//       core-api would silently break that guarantee.
+//   :products:cardano-history:onchain  A julc-compiled on-chain artifact, not a
+//       client class library; it has its own compileOnly julc toolchain.
+def aggregatedModules = [
+        ':products:attest:client',
+        ':products:attestation-feed:client',
+        ':products:attestation-feed:profile',
+        ':products:cardano-history:client',
+        ':products:dpp:client',
+        ':products:dpp:profile',
+        ':products:trust-registry:client',
+        ':products:trust-registry:profile',
+]
+
+sourceSets {
+    main {
+        java {
+            srcDirs = aggregatedModules.collect { project(it).file('src/main/java') }
+        }
+        resources {
+            srcDirs = aggregatedModules.collect { project(it).file('src/main/resources') }
+        }
+    }
+}
+
+dependencies {
+    // The union of the aggregated modules' external `api` dependencies. Their
+    // dependencies on each other dissolve into this jar and are not declared.
+    api project(':sdk:client')
+    api project(':state-machines:stdlib-contracts')
+    api project(':capabilities:role-workflow-contracts')
+    api project(':composition:contracts')
+
+    // Runtime scope in the published POM. The product profiles already contribute
+    // yano-x-stdlib to their clients this way, so consumers see no new dependency.
+    implementation project(':state-machines:stdlib')
+    implementation libs.jackson.databind
+    implementation libs.cbor
+    implementation libs.cardano.client.crypto
+}
+
+java {
+    sourceCompatibility = 25
+    targetCompatibility = 25
+}
+
+// Matches every aggregated module: no annotation processor here consumes the
+// -Aproject option the module convention adds, and javac warns about it.
+tasks.named('compileJava') {
+    options.compilerArgs.removeAll { it.startsWith('-Aproject=') }
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Yano X Products Client'
+                description = 'Client and profile APIs for the out-of-the-box Yano X ' +
+                        'products: attestation, attestation feed, trust registry, ' +
+                        'digital product passport, and Cardano history'
+            }
+        }
+    }
+}

@@ -147,7 +147,7 @@ The generic bundle exposes read-only JSON projections:
 
 ```bash
 BASE=http://127.0.0.1:7070/api/v1
-BUNDLE=com.bloxbean.cardano.yano.appchain.role-workflow
+BUNDLE=org.yanoproject.x.role-workflow
 
 curl -sS \
   -H "X-API-Key: $YANO_APPCHAIN_API_KEY" \
@@ -177,8 +177,8 @@ establishes that it was current.
 Use the dependency-light contracts plus the generic client:
 
 ```groovy
-implementation "com.bloxbean.cardano:yano-x-client:${yanoVersion}"
-implementation "com.bloxbean.cardano:yano-x-role-workflow-contracts:${yanoVersion}"
+implementation "org.yanoproject:yano-x-client:${yanoVersion}"
+implementation "org.yanoproject:yano-x-role-workflow-contracts:${yanoVersion}"
 ```
 
 ```java

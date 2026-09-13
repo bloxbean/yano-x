@@ -70,7 +70,7 @@ explicit evidence; successful configuration generation proves none of them.
 
 ```bash
 java -cp '/absolute/path/to/yano-x/tools/yano-appchain/lib/*' \
-  com.bloxbean.cardano.yano.appchain.devtools.ObservationQualificationBaseline \
+  org.yanoproject.x.devtools.ObservationQualificationBaseline \
   /absolute/path/to/qualification
 ```
 

@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "id": "org.yanoproject.x.kafka",
+  "version": "${pluginVersion}",
+  "yanoApi": { "min": 3, "max": 3, "minLevel": 4 },
+  "dependencies": [],
+  "contributions": [
+    { "kind": "finalized-sink", "name": "kafka", "provider": "org.yanoproject.x.kafka.KafkaSinkFactory" },
+    { "kind": "effect-executor", "name": "kafka", "provider": "org.yanoproject.x.kafka.effects.KafkaEffectExecutorFactory" }
+  ]
+}

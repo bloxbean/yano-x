@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "id": "org.yanoproject.x.cardano-history",
+  "version": "${pluginVersion}",
+  "yanoApi": { "min": 3, "max": 3, "minLevel": 4 },
+  "dependencies": [
+    {
+      "id": "org.yanoproject.x.stdlib",
+      "minVersion": "${pluginVersion}",
+      "maxVersionExclusive": "0.2.0"
+    }
+  ],
+  "contributions": [
+    {
+      "kind": "app-state-machine",
+      "name": "cardano-history",
+      "provider": "org.yanoproject.x.history.CardanoHistoryStateMachineProvider"
+    },
+    {
+      "kind": "domain-api",
+      "name": "org.yanoproject.x.cardano-history",
+      "provider": "org.yanoproject.x.history.CardanoHistoryDomainApiProvider"
+    }
+  ]
+}

@@ -134,5 +134,5 @@ See [Build and test](docs/BUILD_AND_TEST.md),
 [distributions](docs/BUILD_DISTRIBUTIONS.md), and the
 [app-chain documentation index](docs/appchain/README.md) for the independent
 Yano X workflows. The Java package namespace remains
-`com.bloxbean.cardano.yano.appchain.*`; the repository split does not rename
+`org.yanoproject.x.*`; the repository split does not rename
 the app-chain technical domain.

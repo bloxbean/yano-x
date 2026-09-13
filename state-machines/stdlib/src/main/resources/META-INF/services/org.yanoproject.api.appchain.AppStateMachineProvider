@@ -1,0 +1,10 @@
+org.yanoproject.x.stdlib.StdlibStateMachineProviders$AuthenticatedMapProvider
+org.yanoproject.x.stdlib.StdlibStateMachineProviders$AdaUsdReferenceProvider
+org.yanoproject.x.stdlib.StdlibStateMachineProviders$ShipmentWorkflowReferenceProvider
+org.yanoproject.x.stdlib.StdlibStateMachineProviders$KvRegistryProvider
+org.yanoproject.x.stdlib.StdlibStateMachineProviders$ApprovalsProvider
+org.yanoproject.x.stdlib.StdlibStateMachineProviders$BalancesProvider
+org.yanoproject.x.stdlib.StdlibStateMachineProviders$DocTrailProvider
+org.yanoproject.x.stdlib.StdlibStateMachineProviders$EpochParamsProvider
+org.yanoproject.x.stdlib.StdlibStateMachineProviders$EpochStakeProvider
+org.yanoproject.x.stdlib.StdlibStateMachineProviders$EpochGovernanceProvider

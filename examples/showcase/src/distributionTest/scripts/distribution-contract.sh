@@ -43,7 +43,7 @@ ROOT="$1"
 [ -f "$ROOT/profiles/evidence/artifacts/yano-context/yano/yano.jar" ]
 [ "$(find "$ROOT/profiles/evidence/artifacts/plugins" -name '*-bundle.jar' | wc -l | tr -d ' ')" = 3 ]
 ROLE_DIGEST="$(java -cp "$ROOT/profiles/evidence/artifacts/yano-context/yano/yano.jar:$ROOT/profiles/evidence/artifacts/yano-context/yano/plugins/*" \
-  com.bloxbean.cardano.yano.appchain.evidence.profile.RoleEvidenceProfileCli \
+  org.yanoproject.x.evidence.profile.RoleEvidenceProfileCli \
   --chain evidence-chain-contract \
   --members 8a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c,8139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394,ed4928c628d1c2c6eae90338905995612959273a5c63f93636c14614ac8737d1 \
   --threshold 2 --storage-gate app-final --continuation explicit \
@@ -66,7 +66,7 @@ grep -q 'state-machine: authenticated-map' "$ROOT/yano/config/application-appcha
 grep -q 'chain-id: "cardano-history-chain"' "$ROOT/yano/config/application-appchain.yml"
 grep -q 'state-machine: "cardano-history"' "$ROOT/yano/config/application-appchain.yml"
 grep -q 'preset: "params-only-v1"' "$ROOT/yano/config/application-appchain.yml"
-grep -q 'com.bloxbean.cardano.yano.appchain.authenticated-map-validators' \
+grep -q 'org.yanoproject.x.authenticated-map-validators' \
   "$ROOT/yano/config/application-appchain.yml"
 grep -q 'addr_test1vrld3msldls64ax7c06vu85nvhk70260q970cssxzjh0hlchc79qg' \
   "$ROOT/yano/config/application-appchain.yml"
@@ -89,10 +89,10 @@ jq -e '.schemaVersion == 1 and .profileId == "light-v1" and (.chains | length) =
 CARDANO_HISTORY_BUNDLE="$(find "$ROOT/yano/plugins" -maxdepth 1 \
   -name 'yano-x-cardano-history-bundle-*.jar' -print -quit)"
 unzip -p "$CARDANO_HISTORY_BUNDLE" \
-  META-INF/yano/plugins/com.bloxbean.cardano.yano.appchain.cardano-history.json \
+  META-INF/yano/plugins/org.yanoproject.x.cardano-history.json \
   | jq -e '
       .id as $id |
-      $id == "com.bloxbean.cardano.yano.appchain.cardano-history" and
+      $id == "org.yanoproject.x.cardano-history" and
       any(.contributions[];
         .kind == "app-state-machine" and .name == "cardano-history") and
       any(.contributions[];
@@ -101,7 +101,7 @@ unzip -p "$CARDANO_HISTORY_BUNDLE" \
     ' >/dev/null
 ! unzip -Z1 "$CARDANO_HISTORY_BUNDLE" | grep -q '^META-INF/yano/ui/'
 ! unzip -Z1 "$CARDANO_HISTORY_BUNDLE" \
-  | grep -Eq '^(com/bloxbean/cardano/yano/api/|com/bloxbean/cardano/yano/appchain/(composite|stdlib)/|org/slf4j/)'
+  | grep -Eq '^(org/yanoproject/api/|org/yanoproject/x/(composite|stdlib)/|org/slf4j/)'
 grep -q 'chain-id: "document-review-chain"' "$ROOT/yano/config/application-appchain.yml"
 grep -q 'document-review-chain' "$ROOT/docs/CAPABILITY_CATALOG.md"
 [ -s "$MAP_ROOT/authenticated-map.properties" ]
@@ -143,9 +143,9 @@ printf '%s' "$JMT_INFO" | jq -e '
 # deterministic demo vault identity and the bundles its observers/routes need.
 grep -q 'chain-id: "payment-chain-settlement"' \
   "$ROOT/yano/config/application-appchain.yml"
-grep -q 'com.bloxbean.cardano.yano.appchain.eutxo.bridge.cardano' \
+grep -q 'org.yanoproject.x.eutxo.bridge.cardano' \
   "$ROOT/yano/config/application-appchain.yml"
-grep -q 'com.bloxbean.cardano.yano.appchain.eutxo.indexer' \
+grep -q 'org.yanoproject.x.eutxo.indexer' \
   "$ROOT/yano/config/application-appchain.yml"
 grep -q 'vault-address: "addr_test1wpwhmf5cd5pm9gsg5y8xnkyk3xue2u35ral098gd8u49g3gjpdqgr"' \
   "$ROOT/yano/config/application-appchain.yml"

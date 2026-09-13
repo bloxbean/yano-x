@@ -124,9 +124,9 @@ write_home() {
 yano:
   plugins:
     allow-list:
-      - com.bloxbean.cardano.yano.appchain.stdlib
-      - com.bloxbean.cardano.yano.appchain.role-workflow
-      - com.bloxbean.cardano.yano.appchain.composite
+      - org.yanoproject.x.stdlib
+      - org.yanoproject.x.role-workflow
+      - org.yanoproject.x.composite
   app-chain:
     chains[0]:
       chain-id: "$CHAIN_ID"

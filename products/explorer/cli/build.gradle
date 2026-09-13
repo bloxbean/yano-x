@@ -14,7 +14,7 @@ dependencies {
 }
 
 application {
-    mainClass = 'com.bloxbean.cardano.yano.appchain.explorer.cli.ExplorerCli'
+    mainClass = 'org.yanoproject.x.explorer.cli.ExplorerCli'
     applicationName = 'yano-explorer'
 }
 

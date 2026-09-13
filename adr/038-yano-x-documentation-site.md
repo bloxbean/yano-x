@@ -302,7 +302,7 @@ Starter-pack content (the invariants an agent gets wrong without it):
    environment-dependent iteration order, network I/O, or node-local mutable
    decisions. External work is an emitted effect record, never a call.
 5. **Invariants that look like typos.** Packages stay
-   `com.bloxbean.cardano.yano.appchain.*` while artifacts are `yano-x-*`; the
+   `org.yanoproject.x.*` while artifacts are `yano-x-*`; the
    property is `yano.plugins.directory` and never `yaci.plugins.directory`;
    Yano X is JVM-only and `verifyJvmOnlyBuild` enforces it.
 6. **The real workflow.** `scaffold → implement → sign → validate → init

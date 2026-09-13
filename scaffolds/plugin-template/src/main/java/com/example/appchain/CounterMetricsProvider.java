@@ -1,12 +1,12 @@
 package com.example.appchain;
 
-import com.bloxbean.cardano.yano.api.plugin.operations.PluginCounterValue;
-import com.bloxbean.cardano.yano.api.plugin.operations.PluginMetricDescriptor;
-import com.bloxbean.cardano.yano.api.plugin.operations.PluginMetricSnapshot;
-import com.bloxbean.cardano.yano.api.plugin.operations.PluginMetricType;
-import com.bloxbean.cardano.yano.api.plugin.operations.PluginMetricsContext;
-import com.bloxbean.cardano.yano.api.plugin.operations.PluginMetricsProvider;
-import com.bloxbean.cardano.yano.api.plugin.operations.PluginMetricsSource;
+import org.yanoproject.api.plugin.operations.PluginCounterValue;
+import org.yanoproject.api.plugin.operations.PluginMetricDescriptor;
+import org.yanoproject.api.plugin.operations.PluginMetricSnapshot;
+import org.yanoproject.api.plugin.operations.PluginMetricType;
+import org.yanoproject.api.plugin.operations.PluginMetricsContext;
+import org.yanoproject.api.plugin.operations.PluginMetricsProvider;
+import org.yanoproject.api.plugin.operations.PluginMetricsSource;
 
 import java.util.List;
 import java.util.Map;

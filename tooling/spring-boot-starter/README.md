@@ -32,7 +32,7 @@ yano.appchain.client.connect-timeout-seconds=10
 ## Template Usage
 
 ```java
-import com.bloxbean.cardano.yano.appchain.spring.AppChainTemplate;
+import org.yanoproject.x.spring.AppChainTemplate;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -52,8 +52,8 @@ class Orders {
 ## Listener Usage
 
 ```java
-import com.bloxbean.cardano.yano.appchain.client.AppChainClient;
-import com.bloxbean.cardano.yano.appchain.spring.AppChainListener;
+import org.yanoproject.x.client.AppChainClient;
+import org.yanoproject.x.spring.AppChainListener;
 import org.springframework.stereotype.Component;
 
 @Component

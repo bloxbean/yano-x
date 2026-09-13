@@ -235,7 +235,7 @@ equity to protect. `artifactId = 'yano-' + project.name`, and the modules that w
 
 | Rank | Name | Story | Downsides |
 |---|---|---|---|
-| **1** | **`yano-appchain`** | Mirrors `yaci` → `yaci-store`. **Zero coordinate churn** — packages (`com.bloxbean.cardano.yano.appchain`, 958 files), config keys (`yano.app-chain.*`, 131 files), the `yano.sh appchain` CLI, `docs/appchain/`, and the artifact prefix all already agree | "Appchain" is mentally owned by Cosmos SDK / Polygon CDK — permissionless rollups. This is a **permissioned consortium ledger**. Fight that in the tagline, not the coordinates |
+| **1** | **`yano-appchain`** | Mirrors `yaci` → `yaci-store`. **Zero coordinate churn** — packages (`org.yanoproject.x`, 958 files), config keys (`yano.app-chain.*`, 131 files), the `yano.sh appchain` CLI, `docs/appchain/`, and the artifact prefix all already agree | "Appchain" is mentally owned by Cosmos SDK / Polygon CDK — permissionless rollups. This is a **permissioned consortium ledger**. Fight that in the tagline, not the coordinates |
 | 2 | `yano-suite` | "The batteries" — fits Option 1's framing | Enterprise-bland; repo name ≠ artifact prefix; invites scope creep |
 | 3 | `yano-apps` | Shortest honest name | Undersells a 10-module EUTxO ledger; **collides in speech with the existing `app/` module** |
 | 4 | `yano-labs` | Honest about eutxo-zk maturity | Kills the enterprise conversation; the pilot-readiness work is explicitly not lab work |

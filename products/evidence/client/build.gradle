@@ -3,7 +3,7 @@ dependencies {
     // does not activate the node/runtime SPI carried by core-api. Keep the rest
     // of the lightweight client verifier closure transitive.
     api(project(':sdk:client')) {
-        exclude group: 'com.bloxbean.cardano', module: 'yano-core-api'
+        exclude group: 'org.yanoproject', module: 'yano-core-api'
     }
     compileOnly rootProject.ext.yanoModule('yano-core-api')
     api project(':products:evidence:contracts')
@@ -40,7 +40,7 @@ tasks.register('verifyEvidenceClientArtifactBoundary') {
     doLast {
         def forbiddenPrefixes = [
                 'META-INF/yano/plugins/',
-                'META-INF/services/com.bloxbean.cardano.yano.api.'
+                'META-INF/services/org.yanoproject.api.'
         ]
         def containsEntries = { File artifact, Collection<String> prefixes ->
             if (artifact.isDirectory()) {
@@ -102,7 +102,7 @@ tasks.register('verifyEvidenceClientArtifactBoundary') {
 
         def forbiddenRuntimeClassPrefixes = [
                 'com/bloxbean/cardano/yaci/',
-                'com/bloxbean/cardano/yano/api/',
+                'org/yanoproject/api/',
                 'io/netty/',
                 'org/reactivestreams/',
                 'reactor/'

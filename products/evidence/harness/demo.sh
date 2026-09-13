@@ -1766,7 +1766,7 @@ prepare_configuration() {
       [ -f "$calculator" ] || die "prebuilt role-evidence profile calculator is missing"
       COMPOSITE_PROFILE_DIGEST="$(java -cp "$(plugin_runtime_classpath \
         "$DEMO_PREBUILT_ARTIFACT_ROOT/plugins")" \
-        com.bloxbean.cardano.yano.appchain.evidence.profile.RoleEvidenceProfileCli \
+        org.yanoproject.x.evidence.profile.RoleEvidenceProfileCli \
         "${digest_args[@]}" | tail -n 1)"
     elif [ -n "$REPO_DIR" ]; then
       COMPOSITE_PROFILE_DIGEST="$("$REPO_DIR/gradlew" -q -p "$REPO_DIR" --no-daemon \
@@ -1778,7 +1778,7 @@ prepare_configuration() {
         '*yano-x-evidence-profile*-bundle.jar' 'evidence profile bundle')"
       require java
       COMPOSITE_PROFILE_DIGEST="$(java -cp "$(plugin_runtime_classpath "$APP_DIR/plugins")" \
-        com.bloxbean.cardano.yano.appchain.evidence.profile.RoleEvidenceProfileCli \
+        org.yanoproject.x.evidence.profile.RoleEvidenceProfileCli \
         "${digest_args[@]}" | tail -n 1)"
     fi
     [[ "$COMPOSITE_PROFILE_DIGEST" =~ ^[0-9a-f]{64}$ ]] \

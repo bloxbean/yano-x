@@ -62,7 +62,7 @@ yano-x  ──depends on──▶  yano
 1. **Never** add a source-checkout dependency, composite Gradle build, sibling
    task invocation, or generated-file dependency from Yano X to Yano. Consume an
    exact published Yano version and its matching ordinary JVM ZIP.
-2. **Java packages stay `com.bloxbean.cardano.yano.appchain.*`** while
+2. **Java packages stay `org.yanoproject.x.*`** while
    repository and artifact names are `yano-x`. This is deliberate. Do not
    "fix" it.
 3. **The plugin directory property is `yano.plugins.directory`.** Never

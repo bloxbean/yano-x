@@ -220,7 +220,7 @@ function keyFacts(catalog) {
     '  There is no published Yano X release yet; users build from source.',
     '- **Yano X is JVM-only.** Never add GraalVM/native-image tasks, reachability',
     '  metadata, or native executables. `verifyJvmOnlyBuild` enforces this.',
-    '- **Package names stay `com.bloxbean.cardano.yano.appchain.*`** even though',
+    '- **Package names stay `org.yanoproject.x.*`** even though',
     '  repository and artifact names are `yano-x`. This is deliberate, not a leftover.',
     '- **The plugin directory property is `yano.plugins.directory`.** Never',
     '  `yaci.plugins.directory`.',

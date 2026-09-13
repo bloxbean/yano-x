@@ -1,0 +1,3 @@
+org.yanoproject.x.eutxo.bridge.cardano.CardanoBridgeObserverProvider
+org.yanoproject.x.eutxo.bridge.cardano.CardanoWithdrawalConfirmationObserverProvider
+org.yanoproject.x.eutxo.bridge.cardano.CardanoBatchWithdrawalConfirmationObserverProvider

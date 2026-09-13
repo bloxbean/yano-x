@@ -1,6 +1,9 @@
 plugins {
     id 'java-platform'
     id 'maven-publish'
+    // The BOM is not in config/artifacts-v1.json, so gradle/yano-x-module.gradle
+    // never reaches it; without this it would drop out of the Central deployment.
+    id 'com.gradleup.nmcp'
     id 'signing'
 }
 
@@ -14,16 +17,18 @@ javaPlatform {
 }
 
 dependencies {
-    api platform("com.bloxbean.cardano:yano-bom:${yanoVersion.getOrElse('unspecified')}")
+    api platform("org.yanoproject:yano-bom:${yanoVersion.getOrElse('unspecified')}")
     constraints {
         artifactInventory.artifacts.findAll { artifact ->
             rootProject.ext.yanoXMavenReleasePublicationTypes.contains(
                     artifact.publicationType.toString())
+                    && artifact.aggregatedInto == null
+                    && artifact.publishToCentral != false
         }.each { artifact ->
+            // Bundle coordinates are deliberately absent: the shadow bundles ship
+            // in the plugin pack, not on Maven Central, so constraining them here
+            // would advertise coordinates that cannot be resolved.
             api "${artifactInventory.group}:${artifact.artifactId}:${project.version}"
-            if (artifact.bundleArtifactId != null) {
-                api "${artifactInventory.group}:${artifact.bundleArtifactId}:${project.version}"
-            }
         }
     }
 }

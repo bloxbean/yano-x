@@ -98,7 +98,7 @@ validators, a real Groth16 proof, and the generic appchain REST path:
 ```bash
 ./gradlew :app:e2eTest \
   --tests \
-  'com.bloxbean.cardano.yano.app.e2e.EutxoZkRollupDevnetE2ETest' \
+  'org.yanoproject.app.e2e.EutxoZkRollupDevnetE2ETest' \
   --rerun-tasks
 ```
 
@@ -119,7 +119,7 @@ EUTXO_ZK_DEVNET_ROUND_TRIP_PASS
 This is the fastest way to observe the full protocol today. The manual
 sections below expose the same boundaries one operation at a time. When
 implementing an external Cardano builder, use
-`app/src/test/java/com/bloxbean/cardano/yano/app/e2e/`
+`app/src/test/java/org/yanoproject/app/e2e/`
 `EutxoZkRollupDevnetE2ETest.java` as the executable Cardano Client Lib
 reference for script compilation, datum/redeemer construction, fees,
 collateral, reference scripts, and signing.

@@ -14,7 +14,7 @@ dependencies {
 }
 
 application {
-    mainClass = 'com.bloxbean.cardano.yano.appchain.attest.cli.AttestCli'
+    mainClass = 'org.yanoproject.x.attest.cli.AttestCli'
     applicationName = 'yano-attest'
 }
 

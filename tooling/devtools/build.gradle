@@ -33,7 +33,7 @@ dependencies {
 
 application {
     applicationName = 'yano-appchain'
-    mainClass = 'com.bloxbean.cardano.yano.appchain.devtools.AppChainDevtoolsCli'
+    mainClass = 'org.yanoproject.x.devtools.AppChainDevtoolsCli'
     applicationDefaultJvmArgs = ['-Xmx4g']
 }
 
@@ -42,7 +42,7 @@ tasks.register('prepareObservationQualification', JavaExec) {
     description = 'Creates a fresh non-spending five-validator Preprod observation fixture; never starts nodes'
     dependsOn tasks.named('classes')
     classpath = sourceSets.main.runtimeClasspath
-    mainClass = 'com.bloxbean.cardano.yano.appchain.devtools.ObservationQualificationConfig'
+    mainClass = 'org.yanoproject.x.devtools.ObservationQualificationConfig'
     doFirst {
         args providers.gradleProperty('qualificationDirectory').get(),
                 providers.gradleProperty('qualificationHostDirectory').get(),
@@ -58,7 +58,7 @@ tasks.register('printAuthenticatedMapSchemaGoldenVectors', JavaExec) {
     description = 'Prints deterministic ADR-025.1 schema compiler/evaluator vectors'
     dependsOn tasks.named('testClasses')
     classpath = sourceSets.test.runtimeClasspath
-    mainClass = 'com.bloxbean.cardano.yano.appchain.devtools.AuthenticatedMapSchemaGoldenVectorGenerator'
+    mainClass = 'org.yanoproject.x.devtools.AuthenticatedMapSchemaGoldenVectorGenerator'
 }
 
 def generatedMetadataDirectory = layout.buildDirectory.dir('generated/appchain-metadata')
@@ -81,7 +81,7 @@ distributions {
 tasks.register('generateAppChainMetadata', JavaExec) {
     dependsOn tasks.named('compileJava')
     classpath = files(sourceSets.main.output.classesDirs) + configurations.runtimeClasspath
-    mainClass = 'com.bloxbean.cardano.yano.appchain.devtools.AppChainMetadataExportMain'
+    mainClass = 'org.yanoproject.x.devtools.AppChainMetadataExportMain'
     args generatedMetadataDirectory.get().asFile.absolutePath
     inputs.files(sourceSets.main.allJava)
     inputs.dir('src/main/resources/appchain-dx/v1alpha1')

@@ -58,7 +58,7 @@ tasks.register('verifyEvidenceContractArtifact') {
                         'Evidence contracts must not contribute app-chain plugin services')
             }
             if (entries.any { entry ->
-                entry.startsWith('com/bloxbean/cardano/yano/api/')
+                entry.startsWith('org/yanoproject/api/')
                         || entry.startsWith('com/bloxbean/cardano/yaci/')
             }) {
                 throw new GradleException(

@@ -469,7 +469,7 @@ What happens underneath the one-liners — full anatomy against
 BASE=http://127.0.0.1:7070/api/v1
 CHAIN=authenticated-map-chain
 CODEC=tools/showcase_codec.py
-DOMAIN=$BASE/plugins/com.bloxbean.cardano.yano.appchain.stdlib
+DOMAIN=$BASE/plugins/org.yanoproject.x.stdlib
 
 # Wrap a codec-built command into the final v1 envelope the chain admits.
 # kind = open | owner | member (the collection's authorization mode)

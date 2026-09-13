@@ -492,7 +492,7 @@ policy revision or silently signs with a node/member key.
 ## Domain API and composite proofs
 
 The first-party bundle publishes read-only routes below
-`/api/v1/plugins/com.bloxbean.cardano.yano.appchain.stdlib/`. Set `chain=<id>`
+`/api/v1/plugins/org.yanoproject.x.stdlib/`. Set `chain=<id>`
 when a node hosts more than one app chain. Important routes include:
 
 | Route | Result |

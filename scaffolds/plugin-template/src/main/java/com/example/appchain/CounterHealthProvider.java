@@ -1,12 +1,12 @@
 package com.example.appchain;
 
-import com.bloxbean.cardano.yano.api.plugin.operations.PluginHealthCheckDescriptor;
-import com.bloxbean.cardano.yano.api.plugin.operations.PluginHealthContext;
-import com.bloxbean.cardano.yano.api.plugin.operations.PluginHealthProvider;
-import com.bloxbean.cardano.yano.api.plugin.operations.PluginHealthReport;
-import com.bloxbean.cardano.yano.api.plugin.operations.PluginHealthSnapshot;
-import com.bloxbean.cardano.yano.api.plugin.operations.PluginHealthSource;
-import com.bloxbean.cardano.yano.api.plugin.operations.PluginHealthStatus;
+import org.yanoproject.api.plugin.operations.PluginHealthCheckDescriptor;
+import org.yanoproject.api.plugin.operations.PluginHealthContext;
+import org.yanoproject.api.plugin.operations.PluginHealthProvider;
+import org.yanoproject.api.plugin.operations.PluginHealthReport;
+import org.yanoproject.api.plugin.operations.PluginHealthSnapshot;
+import org.yanoproject.api.plugin.operations.PluginHealthSource;
+import org.yanoproject.api.plugin.operations.PluginHealthStatus;
 
 import java.util.List;
 

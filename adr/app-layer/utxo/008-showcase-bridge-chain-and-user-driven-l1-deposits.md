@@ -80,7 +80,7 @@ target so the two modes cannot be mixed on one workspace.
   `observers.*` blocks and `l1.stability-depth: 2`).
 - NO `machines.eutxo.genesis.*` — `funding:eutxo-genesis` conflicts with
   `bridge:cardano-federated`; all L2 funds enter via deposits.
-- Plugin allow-list gains `com.bloxbean.cardano.yano.appchain.eutxo.bridge.cardano`
+- Plugin allow-list gains `org.yanoproject.x.eutxo.bridge.cardano`
   (without it the node fails startup: configured observer type not selected).
 - Vault v1 = the demo shape: native script over a deterministic showcase
   operator key (same public-demo-key posture as other showcase identities).
@@ -248,7 +248,7 @@ zeroed, breaking the module's secret-hygiene convention (now zeroed in
 Deferred to BR-M2/M3: live attached run (needs the bridge chain on a light
 cluster) and the indexer allow-list note — `round-trip`/`verify` await index
 readiness on the target, so the light profile must allow-list
-`com.bloxbean.cardano.yano.appchain.eutxo.indexer`.
+`org.yanoproject.x.eutxo.indexer`.
 
 ### BR-M2 — payment-chain-l1bridge in the light profile (2026-08-05, branch feat/adr-utxo-008-br-m2)
 

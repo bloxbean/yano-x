@@ -1,0 +1,3 @@
+org.yanoproject.x.stdlib.EpochParamsObserverProvider
+org.yanoproject.x.stdlib.EpochStakeObserverProvider
+org.yanoproject.x.stdlib.EpochGovernanceObserverProvider

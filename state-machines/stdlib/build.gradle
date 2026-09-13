@@ -1,7 +1,7 @@
-ext.runtimePluginBundleId = 'com.bloxbean.cardano.yano.appchain.stdlib'
+ext.runtimePluginBundleId = 'org.yanoproject.x.stdlib'
 ext.runtimePluginExcludedBundleIds = [
-        'com.bloxbean.cardano.yano.appchain.composite',
-        'com.bloxbean.cardano.yano.appchain.role-workflow'
+        'org.yanoproject.x.composite',
+        'org.yanoproject.x.role-workflow'
 ]
 apply from: rootProject.file('gradle/runtime-plugin-bundle.gradle')
 

@@ -100,7 +100,7 @@ Epoch-boundary state has three properties arbitrary "state at slot S" lacks:
 Mirrors `L1ObserverProvider` exactly (ServiceLoader, `observers.<id>.*` config, plugin jar).
 
 ```java
-package com.bloxbean.cardano.yano.api.appchain.l1view;
+package org.yanoproject.api.appchain.l1view;
 
 /**
  * An epoch-boundary observer: a PURE function from a finalized L1 epoch

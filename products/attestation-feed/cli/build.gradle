@@ -14,7 +14,7 @@ dependencies {
 }
 
 application {
-    mainClass = 'com.bloxbean.cardano.yano.appchain.feed.cli.FeedCli'
+    mainClass = 'org.yanoproject.x.feed.cli.FeedCli'
     applicationName = 'yano-feed'
 }
 

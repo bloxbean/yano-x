@@ -114,7 +114,7 @@ These are the rules a reviewer will hold you to. The full list lives in
 - Runtime plugins publish dependency-complete bundles, do not embed host SPI
   classes, declare compatible Yano API major and min/max levels, and have
   bounded lifecycle cleanup.
-- Package names remain `com.bloxbean.cardano.yano.appchain.*`; repository and
+- Package names remain `org.yanoproject.x.*`; repository and
   artifact names use `yano-x`.
 - The plugin directory property is `yano.plugins.directory`. Do not reintroduce
   `yaci.plugins.directory`.

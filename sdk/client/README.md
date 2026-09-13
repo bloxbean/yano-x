@@ -28,10 +28,10 @@ See also:
 ## Usage
 
 ```java
-import com.bloxbean.cardano.yano.appchain.client.AppChainClient;
-import com.bloxbean.cardano.yano.appchain.client.EffectProofVerifier;
-import com.bloxbean.cardano.yano.appchain.client.Hex;
-import com.bloxbean.cardano.yano.appchain.client.ProofVerifier;
+import org.yanoproject.x.client.AppChainClient;
+import org.yanoproject.x.client.EffectProofVerifier;
+import org.yanoproject.x.client.Hex;
+import org.yanoproject.x.client.ProofVerifier;
 
 AppChainClient client = AppChainClient.builder("http://localhost:7070/api/v1")
         .chainId("orders-chain")       // optional for single-chain nodes

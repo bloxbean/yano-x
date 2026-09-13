@@ -112,9 +112,9 @@ owner-only files under the seed directory.
    yano:
      plugins:
        allow-list:
-         - com.bloxbean.cardano.yano.appchain.stdlib
-         - com.bloxbean.cardano.yano.appchain.role-workflow
-         - com.bloxbean.cardano.yano.appchain.composite
+         - org.yanoproject.x.stdlib
+         - org.yanoproject.x.role-workflow
+         - org.yanoproject.x.composite
      app-chain:
        chains[N]:
          chain-id: "trust-registry-chain"

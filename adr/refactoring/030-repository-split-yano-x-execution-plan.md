@@ -465,7 +465,7 @@ requires its own ADR and must not be hidden in extraction commits.
 
 The repository and Maven-coordinate change does not rename the app-chain technical domain. Keep:
 
-- Java packages: `com.bloxbean.cardano.yano.appchain.*`;
+- Java packages: `org.yanoproject.x.*`;
 - host/engine configuration: `yano.app-chain.*`;
 - existing state-machine ids, plugin bundle ids, contribution names, consensus/profile identifiers,
   REST paths, and persisted state keys.
@@ -690,5 +690,5 @@ artifacts. Pure contracts, clients, testkits, CLIs, on-chain artifacts, and tool
 bundle unless they contain a runtime plugin contribution.
 
 Changing a Maven artifact id does not change a plugin manifest id. Existing reverse-DNS bundle ids
-under `com.bloxbean.cardano.yano.appchain.*` remain stable unless a separate compatibility ADR
+under `org.yanoproject.x.*` remain stable unless a separate compatibility ADR
 changes their runtime identity.

@@ -44,11 +44,11 @@ the command line:
 chmod 600 manufacturer.seed
 
 java -cp yano.jar \
-  com.bloxbean.cardano.yano.appchain.roles.contracts.RoleWorkflowCli \
+  org.yanoproject.x.roles.contracts.RoleWorkflowCli \
   public-key --seed-file manufacturer.seed
 
 java -cp yano.jar \
-  com.bloxbean.cardano.yano.appchain.roles.contracts.RoleWorkflowCli \
+  org.yanoproject.x.roles.contracts.RoleWorkflowCli \
   sign \
   --action propose \
   --chain evidence-chain \
@@ -73,7 +73,7 @@ proof-of-possession:
 
 ```bash
 java -cp yano.jar \
-  com.bloxbean.cardano.yano.appchain.roles.contracts.RoleWorkflowCli \
+  org.yanoproject.x.roles.contracts.RoleWorkflowCli \
   key-proof \
   --chain evidence-chain \
   --actor auditor-a \
@@ -91,17 +91,17 @@ the three threshold-governance envelopes:
 
 ```bash
 java -cp yano.jar \
-  com.bloxbean.cardano.yano.appchain.roles.contracts.RoleWorkflowCli \
+  org.yanoproject.x.roles.contracts.RoleWorkflowCli \
   govern-propose \
   --mutation-id actor-a-v2 --mutation-hex <mutation-hex> --expiry-height 900
 
 java -cp yano.jar \
-  com.bloxbean.cardano.yano.appchain.roles.contracts.RoleWorkflowCli \
+  org.yanoproject.x.roles.contracts.RoleWorkflowCli \
   govern-approve \
   --mutation-id actor-a-v2 --mutation-hash <32-byte-mutation-hash>
 
 java -cp yano.jar \
-  com.bloxbean.cardano.yano.appchain.roles.contracts.RoleWorkflowCli \
+  org.yanoproject.x.roles.contracts.RoleWorkflowCli \
   govern-activate \
   --mutation-id actor-a-v2 --mutation-hash <32-byte-mutation-hash>
 ```

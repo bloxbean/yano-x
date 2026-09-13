@@ -83,7 +83,7 @@ particular:
   PluginProviderRegistry plus a schema-v1 manifest. Never raw ServiceLoader.
 - Code inside apply() must be deterministic: no wall clock, no randomness, no
   ambient iteration order, no I/O. External work is an emitted effect.
-- Packages are com.bloxbean.cardano.yano.appchain.* even though artifacts are
+- Packages are org.yanoproject.x.* even though artifacts are
   yano-x-*. The plugin directory property is yano.plugins.directory.
 - Yano X is JVM-only. Never add GraalVM or native-image tasks.
 ```

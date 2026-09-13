@@ -19,7 +19,7 @@ tasks.register('runNoFundsDemo', JavaExec) {
     group = 'application'
     description = 'Prints a deterministic public test address for the no-funds EUTxO recipe'
     classpath = sourceSets.main.runtimeClasspath
-    mainClass = 'com.bloxbean.cardano.yano.appchain.eutxo.testkit.EutxoNoFundsDemo'
+    mainClass = 'org.yanoproject.x.eutxo.testkit.EutxoNoFundsDemo'
 }
 
 publishing {

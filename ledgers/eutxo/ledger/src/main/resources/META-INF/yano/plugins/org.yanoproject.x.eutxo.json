@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "id": "org.yanoproject.x.eutxo",
+  "version": "${pluginVersion}",
+  "yanoApi": { "min": 3, "max": 3, "minLevel": 4 },
+  "dependencies": [],
+  "contributions": [
+    {
+      "kind": "app-state-machine",
+      "name": "eutxo-ledger",
+      "provider": "org.yanoproject.x.eutxo.ledger.EutxoStateMachineProvider"
+    },
+    {
+      "kind": "domain-api",
+      "name": "org.yanoproject.x.eutxo",
+      "provider": "org.yanoproject.x.eutxo.ledger.EutxoDomainApiProvider"
+    }
+  ]
+}

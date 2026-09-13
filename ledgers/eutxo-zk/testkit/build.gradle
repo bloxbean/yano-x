@@ -5,7 +5,9 @@ plugins {
 dependencies {
     api project(':ledgers:eutxo-zk:contracts')
     api project(':ledgers:eutxo-zk:client')
-    implementation project(':ledgers:eutxo-zk:zeroj')
+    // Test-only: the published testkit classes do not reference the prover
+    // engine, so it must not appear in this artifact's POM.
+    testImplementation project(':ledgers:eutxo-zk:zeroj')
     implementation libs.zeroj.circuit.lib
 
     testImplementation project(':ledgers:eutxo:ledger')

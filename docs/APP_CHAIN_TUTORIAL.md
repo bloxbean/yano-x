@@ -305,7 +305,7 @@ kv-appchain-plugin/
     │   └── KvStateMachineProvider.java
     └── resources/META-INF/
         ├── services/
-        │   └── com.bloxbean.cardano.yano.api.appchain.AppStateMachineProvider
+        │   └── org.yanoproject.api.appchain.AppStateMachineProvider
         └── yano/plugins/
             └── com.example.kvchain.json
 ```
@@ -328,7 +328,7 @@ repositories { mavenLocal(); mavenCentral() }
 java { sourceCompatibility = 21; targetCompatibility = 21 }
 
 dependencies {
-    compileOnly 'com.bloxbean.cardano:yano-core-api:0.1.0-pre9'   // AppStateMachine SPI
+    compileOnly 'org.yanoproject:yano-core-api:0.1.0-pre9'   // AppStateMachine SPI
     // yaci-core (AppMessage) comes in transitively via yano-core-api
 }
 ```
@@ -341,9 +341,9 @@ dependencies {
 package com.example.kvchain;
 
 import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
-import com.bloxbean.cardano.yano.api.appchain.AppBlock;
-import com.bloxbean.cardano.yano.api.appchain.AppStateMachine;
-import com.bloxbean.cardano.yano.api.appchain.AppStateWriter;
+import org.yanoproject.api.appchain.AppBlock;
+import org.yanoproject.api.appchain.AppStateMachine;
+import org.yanoproject.api.appchain.AppStateWriter;
 
 import java.nio.charset.StandardCharsets;
 
@@ -397,8 +397,8 @@ public class KvStateMachine implements AppStateMachine {
 ```java
 package com.example.kvchain;
 
-import com.bloxbean.cardano.yano.api.appchain.AppStateMachine;
-import com.bloxbean.cardano.yano.api.appchain.AppStateMachineProvider;
+import org.yanoproject.api.appchain.AppStateMachine;
+import org.yanoproject.api.appchain.AppStateMachineProvider;
 
 public class KvStateMachineProvider implements AppStateMachineProvider {
     @Override
@@ -414,7 +414,7 @@ public class KvStateMachineProvider implements AppStateMachineProvider {
 ```
 
 The ServiceLoader manifest —
-`src/main/resources/META-INF/services/com.bloxbean.cardano.yano.api.appchain.AppStateMachineProvider`:
+`src/main/resources/META-INF/services/org.yanoproject.api.appchain.AppStateMachineProvider`:
 
 ```
 com.example.kvchain.KvStateMachineProvider

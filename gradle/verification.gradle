@@ -99,8 +99,9 @@ tasks.register('verifyArtifactInventory') {
     doLast {
         def failures = []
         if (artifactInventory.schemaVersion != 1
-                || artifactInventory.group != 'com.bloxbean.cardano') {
-            failures.add('Artifact inventory identity must be schema 1 and com.bloxbean.cardano')
+                || artifactInventory.group != rootProject.group.toString()) {
+            failures.add(
+                    "Artifact inventory identity must be schema 1 and ${rootProject.group}")
         }
         def artifacts = artifactInventory.artifacts
         [
@@ -132,9 +133,17 @@ tasks.register('verifyArtifactInventory') {
                         ?.findByName('pluginBundle')
                 def expectedBundle = candidate?.tasks?.findByName('shadowJar')
                         ?.archiveFile?.get()?.asFile
+                def bundleArtifact = publication?.artifacts
+                        ?.find { it.classifier == null }
+                def sourcesArtifact = publication?.artifacts
+                        ?.find { it.classifier == 'sources' }
+                def javadocArtifact = publication?.artifacts
+                        ?.find { it.classifier == 'javadoc' }
                 if (publication == null
                         || publication.artifactId != artifact.bundleArtifactId
-                        || publication.artifacts*.file != [expectedBundle]) {
+                        || bundleArtifact?.file != expectedBundle
+                        || sourcesArtifact == null
+                        || javadocArtifact == null) {
                     failures.add(
                             "Invalid runtime bundle publication: ${artifact.modulePath}")
                 }

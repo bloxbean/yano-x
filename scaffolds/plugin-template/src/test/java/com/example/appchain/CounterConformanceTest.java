@@ -1,6 +1,6 @@
 package com.example.appchain;
 
-import com.bloxbean.cardano.yano.runtime.appchain.StateMachineConformance;
+import org.yanoproject.runtime.appchain.StateMachineConformance;
 import org.junit.jupiter.api.Test;
 
 import java.nio.charset.StandardCharsets;

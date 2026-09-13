@@ -14,7 +14,7 @@ dependencies {
 }
 
 application {
-    mainClass = 'com.bloxbean.cardano.yano.appchain.dpp.cli.DppCli'
+    mainClass = 'org.yanoproject.x.dpp.cli.DppCli'
     applicationName = 'yano-dpp'
 }
 

@@ -1,0 +1,3 @@
+org.yanoproject.x.zk.ZkGateProvider
+org.yanoproject.x.zk.CredentialRegistryProvider
+org.yanoproject.x.zk.ZkMembershipProvider

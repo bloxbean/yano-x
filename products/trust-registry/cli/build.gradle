@@ -14,7 +14,7 @@ dependencies {
 }
 
 application {
-    mainClass = 'com.bloxbean.cardano.yano.appchain.trust.cli.TrustCli'
+    mainClass = 'org.yanoproject.x.trust.cli.TrustCli'
     applicationName = 'yano-trust'
 }
 

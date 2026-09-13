@@ -1,4 +1,4 @@
-ext.runtimePluginBundleId = 'com.bloxbean.cardano.yano.appchain.composite'
+ext.runtimePluginBundleId = 'org.yanoproject.x.composite'
 ext.runtimePluginExcludedBundleIds = []
 apply from: rootProject.file('gradle/runtime-plugin-bundle.gradle')
 
@@ -30,7 +30,7 @@ tasks.register('verifyGenericCompositeBoundary') {
             def entries = jar.entries().collect { entry -> entry.name }
             if (entries.any { entry ->
                 !entry.endsWith('/')
-                        && entry.startsWith('com/bloxbean/cardano/yano/appchain/evidence/')
+                        && entry.startsWith('org/yanoproject/x/evidence/')
             }) {
                 throw new GradleException(
                         'Generic composite artifact contains evidence or plugin-owned entries')

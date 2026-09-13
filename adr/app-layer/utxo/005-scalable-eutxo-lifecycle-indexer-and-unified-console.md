@@ -757,13 +757,13 @@ The index is discarded and rebuilt when:
 The indexer contributes a manifested, read-only domain API:
 
 ```text
-com.bloxbean.cardano.yano.appchain.eutxo.indexer
+org.yanoproject.x.eutxo.indexer
 ```
 
 Base path:
 
 ```text
-/api/v1/plugins/com.bloxbean.cardano.yano.appchain.eutxo.indexer/index/v1
+/api/v1/plugins/org.yanoproject.x.eutxo.indexer/index/v1
 ```
 
 The version belongs to the API contract, not the SQLite schema.

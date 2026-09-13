@@ -9,8 +9,9 @@ def internalRepository = providers.gradleProperty('internalRepository')
 
 def projectUrl = 'https://github.com/bloxbean/yano-x'
 
-// One POM identity for thin modules, runtime bundles, and the BOM. Runtime
-// bundles intentionally omit the developer block, so it stays opt-out.
+// One POM identity for thin modules, runtime bundles, and the BOM. Maven
+// Central rejects any published component missing developer info, so every
+// publication supplies it.
 ext.yanoXPom = { pom, String pomName, String pomDescription,
                 boolean withDevelopers = true ->
     pom.name = pomName
@@ -52,16 +53,68 @@ allprojects { candidate ->
     }
 }
 
-nexusPublishing {
-    repositories {
-        sonatype {
-            nexusUrl = uri('https://ossrh-staging-api.central.sonatype.com/service/local/')
-            snapshotRepositoryUrl = uri(
-                    'https://central.sonatype.com/repository/maven-snapshots/')
-            username = System.getenv('MAVEN_USERNAME')
-            password = System.getenv('MAVEN_PASSWORD')
-        }
+// The Maven release scope: every inventoried artifact whose publication type is
+// reusable, plus the BOM. This drives both the Central deployment contents and
+// verifyMavenReleasePublicationScope, so the two can never disagree.
+def releaseSpecifications = artifactInventory.artifacts.findAll {
+    rootProject.ext.yanoXMavenReleasePublicationTypes.contains(
+            it.publicationType.toString())
+            // Modules folded into an aggregate coordinate still build and still
+            // reach the internal repository; only the aggregate goes to Central.
+            && it.aggregatedInto == null
+            // Demos, examples and product-specific runtimes ship in the GitHub
+            // release and the plugin pack, not as downstream dependencies.
+            && it.publishToCentral != false
+}
+def releaseProjects = releaseSpecifications.collect {
+    project(it.modulePath.toString())
+} + project(':bom')
+
+// Central Portal publishing via the native publisher API. `USER_MANAGED` uploads
+// the deployment and stops at VALIDATED: nothing reaches Maven Central until a
+// human publishes it, either from the portal UI or through the approval-gated
+// .github/workflows/publish-central.yml. Do not set `publishingTimeout` here --
+// nmcp rejects it under USER_MANAGED.
+nmcpAggregation {
+    // Product modules deliberately reuse leaf names (products/*/ui, */cli,
+    // */runtime and six more), so the aggregation is keyed on full project
+    // paths instead. verifyMavenReleasePublicationScope asserts the resolved
+    // deployment still matches the artifact inventory exactly.
+    allowDuplicateProjectNames = true
+    centralPortal {
+        username = System.getenv('MAVEN_USERNAME')
+        password = System.getenv('MAVEN_PASSWORD')
+        publishingType = 'USER_MANAGED'
+        // Names the pending deployment in the portal list. The deployment id
+        // itself is assigned by the server and reported by the upload task.
+        publicationName = "yano-x:${project.version}"
+        // The aggregate zip carries every module plus the shadow bundles; the
+        // 10 minute default validation wait is tight for it.
+        validationTimeout = java.time.Duration.ofMinutes(30)
     }
+}
+
+// Only these projects reach Maven Central. Applying `com.gradleup.nmcp` more
+// broadly (gradle/yano-x-module.gradle) is harmless because the deployment
+// contents are decided here.
+dependencies {
+    releaseProjects.each { candidate ->
+        nmcpAggregation(project(candidate.path))
+    }
+}
+
+// The scope check must gate the work itself, not the lifecycle alias.
+// `publishAggregationToCentralPortal` is an alias whose dependencies are
+// unordered relative to each other, so hanging the check off it lets the upload
+// run first. Attaching it to the zip -- which every portal task depends on --
+// puts the check ahead of both the bundle and the network calls, and covers the
+// `nmcp`-prefixed task names when invoked directly.
+tasks.matching {
+    it.name in ['nmcpZipAggregation',
+                'nmcpPublishAggregationToCentralPortal',
+                'nmcpPublishAggregationToCentralPortalSnapshots']
+}.configureEach {
+    dependsOn 'verifyMavenReleasePublicationScope'
 }
 
 // Runtime plugin bundles are shadow jars published under their own coordinate,
@@ -86,6 +139,25 @@ gradle.projectsEvaluated {
             artifact.classifier == 'bundle'
         }.each { artifact -> mainPublication.artifacts.remove(artifact) }
 
+        // Dedicated Jar tasks, not the mavenJava publication's sourceJar/
+        // javadocJar: two publications signing the same underlying jar file
+        // would make both Sign tasks claim the same output .asc path, which
+        // Gradle rejects as an undeclared, order-dependent producer clash.
+        def bundleSourceJar = pluginProject.tasks.register(
+                'pluginBundleSourceJar', Jar) {
+            archiveBaseName = specification.bundleArtifactId.toString()
+            archiveClassifier = 'sources'
+            duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+            from pluginProject.sourceSets.main.allJava
+        }
+        def bundleJavadocJar = pluginProject.tasks.register(
+                'pluginBundleJavadocJar', Jar) {
+            dependsOn pluginProject.tasks.named('javadoc')
+            archiveBaseName = specification.bundleArtifactId.toString()
+            archiveClassifier = 'javadoc'
+            from pluginProject.tasks.named('javadoc').map { it.destinationDir }
+        }
+
         def bundlePublication = pluginProject.publishing.publications
                 .create('pluginBundle', MavenPublication) {
             groupId = rootProject.group.toString()
@@ -93,29 +165,40 @@ gradle.projectsEvaluated {
             artifact(shadowJar) {
                 classifier = null
             }
+            artifact(bundleSourceJar) {
+                classifier = 'sources'
+            }
+            artifact(bundleJavadocJar) {
+                classifier = 'javadoc'
+            }
             rootProject.ext.yanoXPom(
                     pom,
                     "${specification.artifactId} deployable plugin bundle",
-                    "Dependency-complete Yano X bundle for ${specification.pluginBundleId}",
-                    false)
+                    "Dependency-complete Yano X bundle for ${specification.pluginBundleId}")
         }
+        // The bundle is a dependency-complete shadow jar delivered through the
+        // plugin pack in the GitHub release, not through Maven. Publishing it to
+        // Central as well duplicated 307 MB across 18 coordinates for artifacts
+        // no downstream build resolves. The publication itself stays so the
+        // internal repository and gradle/verification.gradle keep working; only
+        // the Central deployment drops it.
+        pluginProject.tasks.matching {
+            it.name == 'publishPluginBundlePublicationToNmcpRepository'
+        }.configureEach { enabled = false }
+
         if (!pluginProject.version.toString().endsWith('SNAPSHOT')
                 && !pluginProject.hasProperty('skipSigning')) {
             pluginProject.signing.sign(bundlePublication)
         }
     }
 
-    def releaseSpecifications = artifactInventory.artifacts.findAll {
-        rootProject.ext.yanoXMavenReleasePublicationTypes.contains(
-                it.publicationType.toString())
-    }
-    def releaseProjects = releaseSpecifications.collect {
-        project(it.modulePath.toString())
-    } + project(':bom')
-
     tasks.register('verifyMavenReleasePublicationScope') {
         group = 'verification'
         description = 'Verifies the Maven release contains reusable coordinates only.'
+        def expected = releaseProjects.collect { it.path } as Set
+        def aggregated = configurations.nmcpAggregation.dependencies
+                .findAll { it instanceof ProjectDependency }
+                .collect { it.path } as Set
         doLast {
             releaseProjects.each { candidate ->
                 if (!candidate.pluginManager.hasPlugin('maven-publish')
@@ -123,6 +206,52 @@ gradle.projectsEvaluated {
                     throw new GradleException(
                             "Release project ${candidate.path} has no Maven publication")
                 }
+                // nmcp aggregation is lenient: a project without the plugin is
+                // skipped silently rather than failing, which would ship a BOM
+                // referencing coordinates that were never uploaded.
+                if (!candidate.pluginManager.hasPlugin('com.gradleup.nmcp')) {
+                    throw new GradleException(
+                            "Release project ${candidate.path} does not apply com.gradleup.nmcp "
+                                    + 'and would be dropped from the Central deployment')
+                }
+            }
+            // Bundles must never reappear in the deployment: they are 20x the
+            // size of the thin jars and are delivered through the plugin pack.
+            releaseProjects.each { candidate ->
+                def bundleTask = candidate.tasks.findByName(
+                        'publishPluginBundlePublicationToNmcpRepository')
+                if (bundleTask != null && bundleTask.enabled) {
+                    throw new GradleException(
+                            "Runtime bundle for ${candidate.path} would be published to Maven "
+                                    + 'Central; bundles ship in the plugin pack instead')
+                }
+            }
+            // A published POM may only name coordinates that are themselves
+            // published. Neither Gradle nor the Central Portal checks this:
+            // marking a module non-publishable while something published still
+            // depends on it produces a POM referencing an artifact that will
+            // never exist, and the failure surfaces at the consumer's dependency
+            // resolution rather than in this build.
+            def publishable = releaseProjects.collect { it.path } as Set
+            releaseProjects.each { candidate ->
+                ['api', 'implementation'].each { name ->
+                    def configuration = candidate.configurations.findByName(name)
+                    configuration?.dependencies?.withType(ProjectDependency)?.each { dependency ->
+                        if (!publishable.contains(dependency.path)) {
+                            throw new GradleException(
+                                    "${candidate.path} is published but its POM would depend on "
+                                            + "${dependency.path}, which is not. Publish that module, "
+                                            + 'aggregate it, or move the dependency to compileOnly.')
+                        }
+                    }
+                }
+            }
+            // The deployment must contain the release scope and nothing else;
+            // an extra project here would publish a non-reusable coordinate.
+            if (aggregated != expected) {
+                throw new GradleException(
+                        'Central deployment scope drifted from the artifact inventory. '
+                                + "Unexpected: ${aggregated - expected}; missing: ${expected - aggregated}")
             }
         }
     }
@@ -133,15 +262,6 @@ gradle.projectsEvaluated {
         dependsOn tasks.named('verifyMavenReleasePublicationScope')
         dependsOn releaseProjects.collect { candidate ->
             "${candidate.path}:publishAllPublicationsToInternalRepository"
-        }
-    }
-
-    tasks.register('publishMavenReleaseToSonatypeRepository') {
-        group = 'publishing'
-        description = 'Publishes reusable Yano X modules and the BOM to Maven Central staging.'
-        dependsOn tasks.named('verifyMavenReleasePublicationScope')
-        dependsOn releaseProjects.collect { candidate ->
-            "${candidate.path}:publishAllPublicationsToSonatypeRepository"
         }
     }
 }

@@ -90,7 +90,7 @@ for CHAIN in payments-chain payment-chain-settlement; do
   if jq -e --arg chain "$CHAIN" '.chainIds | index($chain) != null' \
       "$MARKER" >/dev/null; then
     INDEX_STATUS="$(curl -fsS \
-      "http://127.0.0.1:$HTTP_BASE/api/v1/plugins/com.bloxbean.cardano.yano.appchain.eutxo.indexer/index/v1/status?chain=$CHAIN")"
+      "http://127.0.0.1:$HTTP_BASE/api/v1/plugins/org.yanoproject.x.eutxo.indexer/index/v1/status?chain=$CHAIN")"
     printf '%s' "$INDEX_STATUS" | jq -e \
       '.projection.status != "FAILED" and
        .projection.indexedHeight <= .projection.finalizedHeight' >/dev/null
