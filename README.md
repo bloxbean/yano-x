@@ -113,7 +113,7 @@ the resulting set with `tools/yano-plugins/bin/yano-plugins validate plugins/*.j
 ## Documentation
 
 The public documentation site lives in [`www/`](www/) and is published at
-[yanox.dev](https://yanox.dev). It covers app-chain concepts, a build-and-run
+[yano-x.io](https://yano-x.io). It covers app-chain concepts, a build-and-run
 quickstart, the plugin framework, the generated recipe/capability/configuration
 catalogs, the imported tutorials, and an AI ingestion layer
 (`/llms.txt`, `/llms-full.txt`, `/ai/starter-pack.md`, `/ai/catalog.json`).

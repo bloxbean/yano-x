@@ -29,7 +29,7 @@ catalogs and pages.
 Drop a `CLAUDE.md` into the root of your project:
 
 ```bash
-curl -o CLAUDE.md https://yanox.dev/ai/starter-pack.md
+curl -o CLAUDE.md https://yano-x.io/ai/starter-pack.md
 ```
 
 Claude Code reads `CLAUDE.md` at the start of every session, so the agent always
@@ -40,14 +40,14 @@ For multi-project setups, reference the hosted version from your global
 
 ```markdown
 When working in a Yano or Yano X project, follow the rules at
-https://yanox.dev/ai/starter-pack/
+https://yano-x.io/ai/starter-pack/
 ```
 
 ### Cursor
 
 ```bash
 mkdir -p .cursor/rules
-curl -o .cursor/rules/yano-x.mdc https://yanox.dev/ai/starter-pack.md
+curl -o .cursor/rules/yano-x.mdc https://yano-x.io/ai/starter-pack.md
 ```
 
 Cursor applies rules in `.cursor/rules/` automatically when working in the
@@ -60,7 +60,7 @@ project.
   "contextProviders": [
     {
       "name": "url",
-      "params": { "url": "https://yanox.dev/llms-full.txt" }
+      "params": { "url": "https://yano-x.io/llms-full.txt" }
     }
   ]
 }
@@ -73,7 +73,7 @@ For a one-off conversation, paste this at the start:
 ```text
 I'm working with Yano X, the Java 25 JVM extension ecosystem for Yano app chains
 (application-specific replicated ledgers on Cardano). Read the Yano X AI Starter
-Pack at https://yanox.dev/ai/starter-pack and follow its rules strictly. In
+Pack at https://yano-x.io/ai/starter-pack and follow its rules strictly. In
 particular:
 - Dependency direction is strictly yano-x -> yano. Never propose a composite
   Gradle build or a source dependency on a Yano checkout.
@@ -86,7 +86,7 @@ particular:
 - Yano X is JVM-only. Never add GraalVM or native-image tasks.
 ```
 
-For long-lived projects, attach `https://yanox.dev/llms-full.txt` to your
+For long-lived projects, attach `https://yano-x.io/llms-full.txt` to your
 project files or custom GPT.
 
 ### Any agent with tool access
@@ -94,9 +94,9 @@ project files or custom GPT.
 Point it at the catalog and let it read structured data instead of guessing:
 
 ```bash
-curl -s https://yanox.dev/ai/catalog.json | jq '.recipes[].id'
-curl -s https://yanox.dev/ai/catalog.json | jq '.capabilities[] | select(.category=="state")'
-curl -s https://yanox.dev/ai/catalog.json | jq '.configuration[] | select(.scope=="CONSENSUS_SHARED")'
+curl -s https://yano-x.io/ai/catalog.json | jq '.recipes[].id'
+curl -s https://yano-x.io/ai/catalog.json | jq '.capabilities[] | select(.category=="state")'
+curl -s https://yano-x.io/ai/catalog.json | jq '.configuration[] | select(.scope=="CONSENSUS_SHARED")'
 ```
 
 ## The in-repo agent skill

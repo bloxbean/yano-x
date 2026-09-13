@@ -76,7 +76,7 @@ install path.
 ## 2. Decision
 
 Build `www/`, an Astro 6 + Starlight documentation site for Yano X,
-deployed to **`yanox.dev`** via GitHub Pages, with an AI-first ingestion layer
+deployed to **`yano-x.io`** via GitHub Pages, with an AI-first ingestion layer
 generated at build time from the repository's own canonical sources.
 
 ### 2.1 Decisions in brief
@@ -85,7 +85,7 @@ generated at build time from the repository's own canonical sources.
 |---|---|---|
 | D1 | The site lives at `www/`; the `docs/` markdown corpus is left where it is | The corpus has ~150 inbound references across READMEs, ADRs, release-gated catalogs, a Gradle packaging task, and a cross-repo link. When two things collide on a name, the one with fewer inbound references moves — and that is the brand-new site. See §3 |
 | D2 | Astro 6 + Starlight 0.38, matching JuLC | Proven in-org; search, dark mode, MDX, and content collections without bespoke work |
-| D3 | Custom domain `yanox.dev`; `site` set, **no `base`** | Keeps every generated absolute URL prefix-free; a project-page `base` would have to be threaded through every generated artifact |
+| D3 | Custom domain `yano-x.io`; `site` set, **no `base`** | Keeps every generated absolute URL prefix-free; a project-page `base` would have to be threaded through every generated artifact |
 | D4 | Curated authored pages **plus** a build-time import of the tutorial and state-machine corpus | Full hands-on coverage without hand-copying files that then diverge |
 | D5 | The 113 KB user guide and other exhaustive references are **linked, not imported** | Duplicating it guarantees drift; a Reference Shelf page deep-links to GitHub blobs |
 | D6 | All catalog/version data is **generated** from existing JSON + `gradle.properties` | The repository already publishes machine-readable catalogs; prose tables would rot |
@@ -323,7 +323,7 @@ and the starter pack quotes it.
 
 ```
 www/
-├── astro.config.mjs           site: https://yanox.dev, sidebar, integrations
+├── astro.config.mjs           site: https://yano-x.io, sidebar, integrations
 ├── package.json               dev/build run the importer first
 ├── tsconfig.json
 ├── .gitignore                 dist/, .astro/, node_modules/, imported + generated content
@@ -439,11 +439,12 @@ render (take a screenshot) to advance it.
 
 ### 7.5 Deployment
 
-`.github/workflows/docs-deploy.yml`, triggered by `dv*` tags and
-`workflow_dispatch`. Node 22, `npm ci`, `npm run build`, publish `www/dist`
-to GitHub Pages with `cname: yanox.dev`. No Gradle, no Java, no Yano artifact
-resolution — the site build reads repository text files only, so it is fast and
-cannot be broken by an upstream Yano release.
+`.github/workflows/docs-deploy.yml`, triggered for pull requests and `main`
+pushes that change `www/**` or `gradle.properties`, plus `workflow_dispatch`.
+Node 24, `npm ci`, `npm run build`, browser verification, and an artifact handoff
+to a protected publish job. After environment approval, the job publishes to
+GitHub Pages with `cname: yano-x.io`. No Gradle, no Java, or Yano artifact
+resolution is required.
 
 ## 8. Consequences
 
@@ -469,9 +470,8 @@ cannot be broken by an upstream Yano release.
 - **Node/npm enters the repository toolchain**, but only under `docs/` and
   only in the docs workflow. The Gradle build is untouched, and
   `verifyJvmOnlyBuild` is unaffected.
-- **`yanox.dev` must be registered and pointed at GitHub Pages** before the
-  first `dv*` tag. Until then the workflow can be run manually and the artifact
-  previewed locally.
+- **`yano-x.io` must be registered and pointed at GitHub Pages** before the
+  first deployment. Until then the workflow artifact can be previewed locally.
 - **The starter pack is hand-authored** and can drift from the SPI. Mitigated
   by sourcing its hard invariants from `AGENTS.md` and ADR-011, both of which
   change rarely and are reviewed when they do.

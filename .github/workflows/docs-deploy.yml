@@ -65,7 +65,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: github-pages
-      url: https://yanox.dev
+      url: https://yano-x.io
     permissions:
       contents: write
     steps:
@@ -80,4 +80,4 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_branch: gh-pages
           publish_dir: ./site
-          cname: yanox.dev
+          cname: yano-x.io

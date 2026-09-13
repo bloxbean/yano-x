@@ -6,7 +6,7 @@ import llmsIntegration from './scripts/llms-integration.mjs';
 import remarkMermaid from './scripts/remark-mermaid.mjs';
 
 export default defineConfig({
-  site: 'https://yanox.dev',
+  site: 'https://yano-x.io',
   markdown: {
     processor: unified({ remarkPlugins: [remarkMermaid] }),
   },

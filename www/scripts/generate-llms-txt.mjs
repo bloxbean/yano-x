@@ -411,7 +411,7 @@ export async function generateLlmsFiles({ outDir, logger, catalog }) {
   log(`[llms-txt] wrote ${llmsTxtPath} (${index.length} lines, ${indexBytes} bytes)`);
   log(`[llms-txt] wrote ${llmsFullPath} (${full.length} lines, ${fullBytes} bytes)`);
 
-  // Raw markdown copies, so `curl -o CLAUDE.md https://yanox.dev/ai/starter-pack.md`
+  // Raw markdown copies, so `curl -o CLAUDE.md https://yano-x.io/ai/starter-pack.md`
   // returns markdown rather than rendered HTML.
   for (const rel of ['ai/starter-pack.md', 'ai/index.md']) {
     const d = await readDoc(rel);

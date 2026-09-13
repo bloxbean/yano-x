@@ -1,7 +1,7 @@
 # Yano X documentation site
 
 The public documentation site for Yano X, published at
-[yanox.dev](https://yanox.dev). Built with [Astro](https://astro.build) and
+[yano-x.io](https://yano-x.io). Built with [Astro](https://astro.build) and
 [Starlight](https://starlight.astro.build).
 
 Design decisions, content strategy, and rationale are in
@@ -111,12 +111,10 @@ lazily only on pages that have a diagram, and re-rendered on a theme switch.
 ## Deployment
 
 `.github/workflows/docs-deploy.yml` publishes `www/dist` to GitHub Pages
-with the `yanox.dev` CNAME. It triggers on a `dv*` tag, or manually via
-`workflow_dispatch`:
-
-```bash
-git tag dv1 && git push origin dv1
-```
+with the `yano-x.io` CNAME. Pull requests that change `www/**` or
+`gradle.properties` build a preview artifact. A matching change merged to
+`main` builds the site and waits for approval through the protected
+`github-pages` environment before publishing. It can also be run manually.
 
 Documentation ships independently of code releases. The site describes the
 current checkout; release archives retain their own versioned manifests.

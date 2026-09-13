@@ -57,7 +57,7 @@ export const DOCSITE_ROOT = path.join(REPO_ROOT, 'www');
 /** `www/src/content/docs` */
 export const CONTENT_ROOT = path.join(DOCSITE_ROOT, 'src/content/docs');
 
-export const SITE_URL = 'https://yanox.dev';
+export const SITE_URL = 'https://yano-x.io';
 export const GITHUB_REPO = 'https://github.com/bloxbean/yano-x';
 export const GITHUB_BLOB = `${GITHUB_REPO}/blob/main`;
 export const YANO_REPO = 'https://github.com/bloxbean/yano';
