@@ -71,16 +71,14 @@ publishing.
 
 ## What you get
 
-Two reproducible archives under `distribution/jvm/build/distributions`:
+One reproducible archive, `distribution/jvm/build/distributions/yano-x-jvm-<version>.zip`:
+the standard Yano JVM distribution, the default and optional Yano X plugin
+layout, the command-line and deployment tools, App-Chain Studio, the local
+showcase, and identity manifests for both projects. **This is what you run.**
 
-| Archive | Contents |
-|---|---|
-| `yano-x-jvm-<version>.zip` | The standard Yano JVM distribution, the default and optional Yano X plugin layout, and identity manifests for both projects. **This is what you run.** |
-| `yano-x-plugin-pack-<version>.zip` | The plugin bundles only, with a checksummed manifest — for adding Yano X to a Yano distribution you already operate. |
-
-Both include the repository `LICENSE` and a normalized CycloneDX 1.6 SBOM under
-`sbom/`. The combined JVM archive also preserves the host's license as
-`LICENSE.yano` and its SBOM as `sbom/yano.cdx.json`.
+It includes the repository `LICENSE` and a normalized CycloneDX 1.6 SBOM under
+`sbom/`, and preserves the host's license as `LICENSE.yano` and its SBOM as
+`sbom/yano.cdx.json`.
 
 Inside the JVM archive, everything sits under a single `yano-x-jvm-<version>/`
 directory (a `-SNAPSHOT` suffix is stripped from that directory name, so a
@@ -95,12 +93,16 @@ yano-x-jvm-<version>/
 ├── plugins/                      # the default, conflict-free bundle selection
 ├── optional-plugins/             # alternatives you opt into explicitly
 ├── tools/
+│   ├── lib/                      # jars shared by the Yano X command-line tools
 │   ├── yano-plugins/             # plugin catalog validator (from the Yano host)
-│   └── yano-appchain/            # the offline engine behind `yano.sh appchain`
+│   ├── yano-appchain/            # the offline engine behind `yano.sh appchain`
+│   └── yano-deploy/ …            # deployment CLI and product CLIs
 ├── studio/                       # App-Chain Studio, the blueprint builder
 ├── skills/configure-yano-appchain/   # the first-party AI agent skill
 ├── appchain-cluster/             # the single-host cluster launcher scripts
-├── examples/evidence/            # the evidence demo harness and runner
+├── examples/
+│   ├── showcase/                 # the local multi-node showcase
+│   └── evidence/                 # the evidence demo harness and runner
 ├── docs/                         # the repository documentation set
 ├── sbom/
 └── LICENSE, LICENSE.yano
@@ -127,10 +129,8 @@ authoritative answer for your version — the [recipe catalog](/recipes/) and
 the same source files, but the binary in your hands always wins.
 
 This archive runs a node with `./yano.sh start:devnet,appchain`.
-The [local showcase quickstart](/start-here/quickstart/) uses the separate
-`yano-showcase-<version>.zip`. To build that archive, run
-`./gradlew :examples:showcase:distZip -PskipSigning=true`; find it under
-`examples/showcase/build/distributions/`.
+The [local showcase quickstart](/start-here/quickstart/) runs from
+`examples/showcase/` inside the same archive.
 
 ## The default plugin selection
 

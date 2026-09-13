@@ -6,14 +6,14 @@ wallet, public-network funds, or external Cardano node.
 ## 1. Get the matching archive
 
 From the [Yano X releases page](https://github.com/bloxbean/yano-x/releases), select
-one release and download its `yano-showcase-<version>.zip` and published checksum.
-Use the checksum from that same release. If a release does not publish a showcase
-archive, use a qualified build from your team or the
-[distribution build instructions](../../BUILD_DISTRIBUTIONS.md); do not substitute
-an unrelated Yano ZIP.
+one release and download its `yano-x-jvm-<version>.zip` and published checksum.
+Use the checksum from that same release. Without a release, use a qualified build
+from your team or the [distribution build instructions](../../BUILD_DISTRIBUTIONS.md);
+do not substitute an unrelated Yano ZIP.
 
-Extract into a new directory and open a terminal in the directory containing
-`showcase.sh`. Keep this directory for later restarts. Install Java 25, Python 3,
+Extract into a new directory and open a terminal in
+`yano-x-jvm-<version>/examples/showcase`, the directory containing `showcase.sh`.
+Keep this directory for later restarts. Install Java 25, Python 3,
 `curl`, and `jq`; Python uses only its standard library. Docker is needed only
 for the separate evidence demo.
 

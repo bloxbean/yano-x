@@ -1,0 +1,13 @@
+# Yano X devnet profile overlay.
+#
+# Yano's devnet profile turns on the DuckLake L1 history projection, but the
+# Yano JVM ZIP bundles DuckDB extensions only for linux_amd64, so devnet nodes
+# fail to start on macOS, Windows, and Linux arm64
+# (https://github.com/bloxbean/yano/issues/137). Yano X app chains and the
+# showcase do not read L1 history, so the projection stays off until that is
+# fixed. Address, account, and reward history endpoints return 503 meanwhile.
+
+yano:
+  history:
+    projection:
+      enabled: false

@@ -4,11 +4,14 @@ MODULE="$(cd "$(dirname "$0")/../../.." && pwd -P)"
 REPO="$(cd "$MODULE/../../.." && pwd -P)"
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/yano-showcase-contract.XXXXXX")"
 trap 'rm -rf "$WORK"' EXIT INT TERM
-ROOT="$WORK/showcase"
+# The showcase lives at examples/showcase inside a Yano X distribution root.
+DIST="$WORK/yano-x-jvm"
+ROOT="$DIST/examples/showcase"
+EVIDENCE="$DIST/examples/evidence"
 mkdir -p "$ROOT/yano/appchain-cluster" "$ROOT/yano/config/network/devnet" \
   "$ROOT/yano/config/network/preprod" "$ROOT/yano/plugins" "$ROOT/tools" \
-  "$ROOT/catalog" \
-  "$ROOT/profiles/evidence/demo/config" "$ROOT/profiles/evidence/artifacts" "$WORK/bin"
+  "$ROOT/catalog" "$EVIDENCE/config" "$WORK/bin"
+printf 'fake distribution jar\n' > "$DIST/yano.jar"
 cp -R "$MODULE/src/main/showcase/." "$ROOT/"
 cp "$MODULE/src/main/showcase/config/application-appchain.yml" "$ROOT/yano/config/"
 printf '{"network":"devnet"}\n' > "$ROOT/yano/config/network/devnet/shelley-genesis.json"
@@ -46,7 +49,7 @@ cat > "$ROOT/yano/yano.sh" <<'SH'
 printf 'yano %s\n' "$*" >> "${SHOWCASE_STUB_LOG:?}"
 exit 0
 SH
-cat > "$ROOT/profiles/evidence/demo/demo.sh" <<'SH'
+cat > "$EVIDENCE/demo.sh" <<'SH'
 #!/usr/bin/env bash
 printf 'evidence %s\n' "$*" >> "${SHOWCASE_STUB_LOG:?}"
 exit 0
@@ -82,12 +85,12 @@ case "$*" in
 esac
 SH
 printf 'DEMO_EVIDENCE_ID=showcase-contract\n' > \
-  "$ROOT/profiles/evidence/demo/config/common.env"
+  "$EVIDENCE/config/common.env"
 chmod +x "$ROOT/showcase.sh" "$ROOT/tools/"*.py "$ROOT/demos/"*.sh "$WORK/bin/curl" \
   "$WORK/bin/java" \
   "$ROOT/yano/appchain-cluster/cluster.sh" "$ROOT/yano/appchain-cluster/loadtest.sh" \
   "$ROOT/yano/appchain-cluster/soaktest.sh" "$ROOT/yano/yano.sh" \
-  "$ROOT/profiles/evidence/demo/demo.sh"
+  "$EVIDENCE/demo.sh"
 export SHOWCASE_STUB_LOG="$WORK/cluster.log"
 export PATH="$WORK/bin:$PATH"
 

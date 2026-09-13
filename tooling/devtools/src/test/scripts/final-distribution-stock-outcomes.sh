@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-archive="${1:?Usage: final-distribution-stock-outcomes.sh YANO_ZIP}"
+archive="${1:?Usage: final-distribution-stock-outcomes.sh YANO_ZIP STOCK_APPCHAIN_CONFIG}"
+stock_config="${2:?Usage: final-distribution-stock-outcomes.sh YANO_ZIP STOCK_APPCHAIN_CONFIG}"
 work="$(mktemp -d "${TMPDIR:-/tmp}/yano-stock-outcomes.XXXXXX")"
 export YANO_CLUSTER_DIR="$work/cluster-state"
 export YANO_CLUSTER_HTTP_BASE="${YANO_STOCK_ACCEPTANCE_HTTP_BASE:-19070}"
@@ -14,10 +15,14 @@ cleanup() {
   rm -rf "$work"
 }
 trap cleanup EXIT
+trap 'echo "FAIL: line $LINENO: $BASH_COMMAND" >&2' ERR
 
 unzip -q "$archive" -d "$work/distribution"
 yano_home="$(find "$work/distribution" -mindepth 1 -maxdepth 1 -type d | head -1)"
 export YANO_HOME="$yano_home"
+# The Yano home ships a one-chain app-chain config. These recipes need the
+# Yano X stock cluster chains: orders, registry, and effects.
+cp "$stock_config" "$yano_home/config/application-appchain.yml"
 
 "$yano_home/yano.sh" appchain cluster start 3 >/dev/null
 api="http://127.0.0.1:${YANO_CLUSTER_HTTP_BASE}/api/v1/app-chain/chains"

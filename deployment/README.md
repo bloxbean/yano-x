@@ -7,13 +7,14 @@ Provider placement never changes the Yano consensus configuration.
 
 ## Fast path
 
-Build the exact showcase ZIP using the repository build procedure, then:
+Build the exact Yano X JVM ZIP (it carries the showcase profile under
+`examples/showcase/`) using the repository build procedure, then:
 
 ```bash
 tools/yano-deploy/bin/yano-x-deploy init ./preprod-cluster
 # edit deployment.yaml and create the referenced secret files
 tools/yano-deploy/bin/yano-x-deploy artifact import ./preprod-cluster \
-  --file ./yano-showcase-<version>.zip
+  --file ./yano-x-jvm-<version>.zip
 tools/yano-deploy/bin/yano-x-deploy validate ./preprod-cluster
 tools/yano-deploy/bin/yano-x-deploy doctor ./preprod-cluster
 tools/yano-deploy/bin/yano-x-deploy plan ./preprod-cluster
@@ -173,7 +174,8 @@ connected. This causes a bounded full-cluster interruption during apply and is
 removed when the pinned Yano artifact includes reconnect-safe dedicated peer
 lifecycle behavior. It never resets or replaces any retained store.
 
-Artifact import verifies the showcase archive shape, both embedded
+Artifact import verifies the JVM archive shape and its `examples/showcase/`
+profile, both embedded
 distribution identities and their exact Yano version match, both CycloneDX
 SBOMs, the plugin-pack manifest and every bundle checksum, its 13-chain
 catalog, and the whole-file SHA-256. `artifact.lock.json` is mandatory after

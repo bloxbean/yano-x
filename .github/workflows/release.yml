@@ -48,9 +48,11 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "prerelease=$PRERELEASE" >> "$GITHUB_OUTPUT"
 
-      - name: Build and verify all release distributions
+      - name: Build and verify the release distribution
         run: ./gradlew clean build -PskipSigning=true --stacktrace
 
+      # One archive: the JVM distribution carries the plugins, CLI tools, deploy
+      # tool, Studio, and the showcase under examples/showcase.
       - name: Stage release assets
         env:
           VERSION: ${{ steps.version.outputs.version }}
@@ -59,13 +61,7 @@ jobs:
           set -euo pipefail
           mkdir release-assets
           cp "distribution/jvm/build/distributions/yano-x-jvm-${VERSION}.zip" release-assets/
-          cp "distribution/jvm/build/distributions/yano-x-plugin-pack-${VERSION}.zip" release-assets/
-          cp "examples/showcase/build/distributions/yano-showcase-${VERSION}.zip" release-assets/
-          cp "tooling/studio/build/distributions/yano-x-studio-${VERSION}.zip" release-assets/
-          cp "tooling/deployment/build/distributions/yano-x-deploy-${VERSION}.zip" release-assets/
-          for archive in release-assets/*.zip; do
-            unzip -tq "$archive"
-          done
+          unzip -tq "release-assets/yano-x-jvm-${VERSION}.zip"
           (cd release-assets && sha256sum *.zip > SHA256SUMS)
 
       - name: Verify reusable Maven publication scope
@@ -131,7 +127,7 @@ jobs:
             echo "Maven Central is not, until the deployment above is published."
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Create GitHub release with five distributions
+      - name: Create GitHub release with the JVM distribution
         uses: softprops/action-gh-release@v2
         with:
           files: release-assets/*

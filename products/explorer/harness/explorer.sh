@@ -63,7 +63,7 @@ resolve_showcase() {
   SHOWCASE=""
   local candidate
   for candidate in "$SCRIPT_DIR/../showcase/showcase.sh" "$SCRIPT_DIR/../../showcase.sh" \
-      "$SCRIPT_DIR/../../../examples/showcase/build/install/yano-showcase/showcase.sh"; do
+      "$SCRIPT_DIR"/../../../build/yano-x/yano-x-jvm-*/examples/showcase/showcase.sh; do
     if [ -x "$candidate" ]; then SHOWCASE="$candidate"; break; fi
   done
 }

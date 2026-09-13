@@ -532,7 +532,7 @@ final class DeploymentRenderer {
                 .append("      ").append(yamlQuote(path)).append(": ").append(yamlQuote(digest)).append('\n'));
         result
                 .append("    yano_jar_sha256: ")
-                .append(yamlQuote(artifacts.digestEntry(artifact, "yano/yano.jar"))).append('\n')
+                .append(yamlQuote(artifacts.digestEntry(artifact, "yano.jar"))).append('\n')
                 .append("    showcase_archive: ").append(yamlQuote(document.artifactPath().toString())).append('\n')
                 .append("    showcase_sha256: ").append(yamlQuote(document.artifactSha256())).append('\n')
                 .append("    api_exposure: ").append(yamlQuote(document.apiExposure())).append('\n')
@@ -674,7 +674,7 @@ final class DeploymentRenderer {
             DeploymentDocument document,
             ShowcaseArtifact.Metadata artifact,
             SettlementProfileCompiler.Compiled settlement) throws IOException {
-        JsonNode parsed = yaml.readTree(artifacts.readEntry(artifact, "yano/config/application-appchain.yml"));
+        JsonNode parsed = yaml.readTree(artifacts.readEntry(artifact, ShowcaseArtifact.SHOWCASE_APPLICATION));
         ObjectNode yano = (ObjectNode) parsed.path("yano");
         ArrayNode allowList = (ArrayNode) yano.path("plugins").path("allow-list");
         List<String> allowed = new ArrayList<>();
@@ -775,7 +775,7 @@ final class DeploymentRenderer {
         List<String> activeChains = artifact.chains();
         Set<String> observerChains = observerChains(artifact);
         String l1NetworkGenesisId = artifacts.digestEntry(artifact,
-                "yano/config/network/" + document.network() + "/shelley-genesis.json");
+                "config/network/" + document.network() + "/shelley-genesis.json");
         StringBuilder properties = new StringBuilder()
                 .append("quarkus.http.host=127.0.0.1\n")
                 .append("quarkus.http.port=").append(document.httpPort()).append('\n')
@@ -859,7 +859,7 @@ final class DeploymentRenderer {
     }
 
     private Set<String> observerChains(ShowcaseArtifact.Metadata artifact) throws IOException {
-        JsonNode parsed = yaml.readTree(artifacts.readEntry(artifact, "yano/config/application-appchain.yml"));
+        JsonNode parsed = yaml.readTree(artifacts.readEntry(artifact, ShowcaseArtifact.SHOWCASE_APPLICATION));
         Set<String> result = new java.util.LinkedHashSet<>();
         parsed.path("yano").path("app-chain").fields().forEachRemaining(entry -> {
             JsonNode chain = entry.getValue();
@@ -1146,7 +1146,7 @@ final class DeploymentRenderer {
                         - name: Locate the single staged showcase root
                           ansible.builtin.find:
                             paths: "/opt/yano/releases/.{{ showcase_sha256 }}.staging"
-                            patterns: 'yano-showcase-*'
+                            patterns: 'yano-x-jvm-*'
                             file_type: directory
                             recurse: false
                           register: staged_showcase_roots
@@ -1184,7 +1184,7 @@ final class DeploymentRenderer {
                           (installed_release_marker.content | b64decode | trim) == showcase_sha256
                     - name: Verify every immutable plugin bundle checksum
                       ansible.builtin.stat:
-                        path: "{{ yano_release }}/yano/{{ item.key }}"
+                        path: "{{ yano_release }}/{{ item.key }}"
                         checksum_algorithm: sha256
                       loop: "{{ plugin_bundle_sha256 | dict2items }}"
                       loop_control:
@@ -1192,7 +1192,7 @@ final class DeploymentRenderer {
                       register: installed_plugin_bundles
                     - name: Verify immutable Yano runtime checksum
                       ansible.builtin.stat:
-                        path: "{{ yano_release }}/yano/yano.jar"
+                        path: "{{ yano_release }}/yano.jar"
                         checksum_algorithm: sha256
                       register: installed_yano_runtime
                     - name: Reject a missing or modified Yano runtime
@@ -1224,7 +1224,7 @@ final class DeploymentRenderer {
                         mode: '0755'
                     - name: Locate permitted runtime bundles in the immutable release
                       ansible.builtin.find:
-                        paths: "{{ yano_release }}/yano/plugins"
+                        paths: "{{ yano_release }}/plugins"
                         patterns: '*.jar'
                         excludes:
                           - '*kafka*'
@@ -1291,6 +1291,38 @@ final class DeploymentRenderer {
                         src: "{{ yano_release }}"
                         dest: /opt/yano/current
                         state: link
+                    - name: Create the showcase Yano home
+                      ansible.builtin.file:
+                        path: /opt/yano/home
+                        state: directory
+                        owner: root
+                        group: yano
+                        mode: '0755'
+                    # yano.sh runs from the directory it sits in, and the node reads
+                    # config/ from there. The home puts the showcase configuration in
+                    # front of the release runtime instead of the distribution's own.
+                    - name: Link the showcase Yano home to the active release runtime
+                      ansible.builtin.file:
+                        src: "/opt/yano/current/{{ item }}"
+                        dest: "/opt/yano/home/{{ item }}"
+                        state: link
+                        force: true
+                      loop:
+                        - yano.sh
+                        - yano.jar
+                    - name: Remove the previous showcase configuration
+                      ansible.builtin.file:
+                        path: /opt/yano/home/config
+                        state: absent
+                    - name: Install the showcase configuration from the active release
+                      ansible.builtin.copy:
+                        src: "{{ yano_release }}/examples/showcase/yano/config/"
+                        dest: /opt/yano/home/config/
+                        remote_src: true
+                        owner: root
+                        group: yano
+                        directory_mode: '0755'
+                        mode: '0644'
                     - name: Install systemd service
                       ansible.builtin.copy:
                         src: files/yano-x.service
@@ -2616,9 +2648,9 @@ final class DeploymentRenderer {
                 Type=simple
                 User=yano
                 Group=yano
-                WorkingDirectory=/opt/yano/current/yano
+                WorkingDirectory=/opt/yano/home
                 EnvironmentFile=/etc/yano/yano-x.env
-                ExecStart=/opt/yano/current/yano/yano.sh start:%s
+                ExecStart=/opt/yano/home/yano.sh start:%s
                 Restart=on-failure
                 RestartSec=10
                 TimeoutStopSec=120

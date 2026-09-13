@@ -60,14 +60,15 @@ Identifiers are hashes or opaque ids. No personal data belongs on chain.
 
 ### Option A: the launcher
 
-The launcher needs an extracted Yano X JVM distribution or the showcase's `yano` directory: it
-must hold `yano.jar`, `plugins/`, `config/`, and `appchain-cluster/cluster.sh`. From the
-repository, build the showcase distribution and the CLI once (add the Yano version properties the
+The launcher needs an extracted Yano X JVM distribution holding `yano.jar`, `plugins/`,
+`config/`, and `appchain-cluster/cluster.sh`. From the repository, build and extract the
+distribution and build the CLI once (add the Yano version properties the
 repository currently requires, see `docs/BUILD_AND_TEST.md`):
 
 ```bash
-./gradlew :examples:showcase:installDist :products:trust-registry:cli:installDist
-export TRUST_REGISTRY_YANO_HOME=$PWD/examples/showcase/build/install/yano-showcase/yano
+./gradlew :distribution:jvm:yanoXJvmDistZip :products:trust-registry:cli:installDist
+unzip -qo distribution/jvm/build/distributions/yano-x-jvm-*.zip -d build/yano-x
+export TRUST_REGISTRY_YANO_HOME=$(echo "$PWD"/build/yano-x/yano-x-jvm-*)
 products/trust-registry/harness/registry.sh up
 ```
 

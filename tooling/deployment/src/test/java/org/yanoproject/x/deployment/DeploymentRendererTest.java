@@ -143,8 +143,14 @@ class DeploymentRendererTest {
         assertThat(Files.readString(output.resolve("ansible/files/yano-x.env")))
                 .contains("-Dquarkus.log.file.enabled=false");
         assertThat(Files.readString(output.resolve("ansible/files/yano-x.service")))
-                .contains("yano.sh start:preprod")
+                .contains("WorkingDirectory=/opt/yano/home", "ExecStart=/opt/yano/home/yano.sh start:preprod")
                 .doesNotContain("relay", "praos-lite");
+        assertThat(Files.readString(output.resolve("ansible/deploy.yml")))
+                .contains("patterns: 'yano-x-jvm-*'",
+                        "src: \"{{ yano_release }}/examples/showcase/yano/config/\"")
+                .doesNotContain("{{ yano_release }}/yano/");
+        assertThat(Files.readString(output.resolve("ansible/files/application-appchain.yml")))
+                .doesNotContain("standard-only-chain");
         assertThat(Files.readString(output.resolve("deployment.lock.json")))
                 .contains("YanoClusterDeploymentLock", "payment-chain-settlement",
                         "\"anchoring\"", "\"settlement\"", "\"l1LaunchProfile\" : \"preprod\"",
@@ -602,39 +608,47 @@ class DeploymentRendererTest {
     }
 
     private Path fixtureArchive(Path path) throws Exception {
-        String root = "yano-showcase-test/";
+        String root = "yano-x-jvm-test/";
         Map<String, String> files = new LinkedHashMap<>();
-        files.put("showcase.sh", "#!/bin/sh\n");
-        files.put("yano/yano.sh", "#!/bin/sh\n");
-        files.put("yano/yano.jar", "fixture");
-        files.put("yano/yano-distribution-v1.json", """
+        files.put("examples/showcase/showcase.sh", "#!/bin/sh\n");
+        files.put("yano.sh", "#!/bin/sh\n");
+        files.put("yano.jar", "fixture");
+        // The distribution's own single-chain config must never reach a showcase node.
+        files.put("config/application-appchain.yml", """
+                yano:
+                  app-chain:
+                    chains[0]:
+                      chain-id: "standard-only-chain"
+                      threshold: 1
+                """);
+        files.put("yano-distribution-v1.json", """
                 {"schemaVersion":1,"product":"yano","distribution":"core-jvm","version":"test",
                  "pluginDirectorySupported":true}
                 """);
         String bundle = "fixture-bundle";
         String bundleFile = "fixture-bundle-test.jar";
-        files.put("yano/plugins/" + bundleFile, bundle);
+        files.put("plugins/" + bundleFile, bundle);
         String pluginPack = """
                 {"schemaVersion":1,"product":"yano-x","version":"test","bundles":[
                   {"artifactId":"fixture-bundle","bundleId":"fixture","version":"test",
                    "file":"%s","sha256":"%s","installMode":"default",
                    "dependencies":[],"contributions":[]}]}
                 """.formatted(bundleFile, sha256(bundle));
-        files.put("yano/yano-x-plugin-pack-v1.json", pluginPack);
-        files.put("yano/yano-x-distribution-v1.json", """
+        files.put("yano-x-plugin-pack-v1.json", pluginPack);
+        files.put("yano-x-distribution-v1.json", """
                 {"schemaVersion":1,"product":"yano-x","distribution":"jvm","version":"test",
                  "yanoVersion":"test","baseDistributionSha256":"%s",
                  "pluginPackManifestSha256":"%s","availablePluginBundleCount":1,
                  "installedPluginBundleCount":1,"optionalPluginBundleCount":0,
                  "nativeImageSupported":false}
                 """.formatted("00".repeat(32), sha256(pluginPack)));
-        files.put("yano/sbom/yano.cdx.json",
+        files.put("sbom/yano.cdx.json",
                 "{\"bomFormat\":\"CycloneDX\",\"specVersion\":\"1.6\",\"components\":[]}");
-        files.put("yano/sbom/yano-x.cdx.json",
+        files.put("sbom/yano-x.cdx.json",
                 "{\"bomFormat\":\"CycloneDX\",\"specVersion\":\"1.6\",\"components\":[]}");
-        files.put("catalog/showcase-catalog-v1.json", catalog());
-        files.put("yano/config/application-appchain.yml", application());
-        files.put("yano/config/network/preprod/shelley-genesis.json", "{\"network\":\"preprod\"}\n");
+        files.put("examples/showcase/catalog/showcase-catalog-v1.json", catalog());
+        files.put("examples/showcase/yano/config/application-appchain.yml", application());
+        files.put("config/network/preprod/shelley-genesis.json", "{\"network\":\"preprod\"}\n");
         try (ZipOutputStream zip = new ZipOutputStream(Files.newOutputStream(path))) {
             for (Map.Entry<String, String> entry : files.entrySet()) {
                 zip.putNextEntry(new ZipEntry(root + entry.getKey()));

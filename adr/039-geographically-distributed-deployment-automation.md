@@ -1,6 +1,11 @@
 # ADR-039 — Provider-neutral deployment automation for cloud and existing VMs
 
 - **Status:** Accepted — offline compiler and lifecycle implementation complete; live-provider qualification pending
+- **Amended 2026-09-13:** the imported artifact is the Yano X JVM ZIP
+  (`yano-x-jvm-<version>.zip`), which carries the showcase profile under
+  `examples/showcase/`; the separate showcase ZIP named below is no longer built.
+  Nodes run from `/opt/yano/home`, which pairs the release runtime with the
+  showcase configuration.
 - **Date:** 2026-08-23
 - **Owner:** Yano X
 - **Scope:** Declarative provisioning and operation of a new geographically distributed,

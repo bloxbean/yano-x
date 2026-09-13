@@ -18,8 +18,9 @@
 ## 1. What this profile demonstrates
 
 The evidence profile delegates to the maintained `appchain-effects-demo`
-harness packaged inside the ZIP (`profiles/evidence/demo/`, with release-built
-runner and connector bundles under `profiles/evidence/artifacts/`). It does
+harness the distribution ships at `examples/evidence/` (next to this showcase,
+as `../evidence/`), with the release-built runner and the distribution's own
+plugin bundles. It does
 not copy or reimplement the evidence state machine or the connectors — the
 showcase is a thin facade over the real product harness, and nothing reaches
 back into a source checkout or runs Gradle.
@@ -188,7 +189,7 @@ Always `source evidence.env` first; always repeat `--profile evidence
 Data lives under `data/showcase/<instance>/evidence/` (node logs in
 `…/instances/<instance>/compose/logs/node{0,1,2}`, JSON reports in
 `…/reports/`). Secrets and staged runtime live inside the packaged harness at
-`profiles/evidence/demo/.demo-secrets/` and `.demo-runtime/` — **not** under
+`../evidence/.demo-secrets/` and `.demo-runtime/` — **not** under
 the instance directory. The node API key is printed by `up`
 (`API key file: …/yano-api-key`).
 
@@ -201,23 +202,22 @@ Not available for this profile: `restart`, `logs`, `config`, `anchor`,
 The showcase facade only exposes the guided scenario. For individual records
 — new ids, explicit versions, historical verification — call the packaged
 harness directly. It is the same maintained CLI; you only replicate the two
-things the facade sets (the prebuilt-artifact root and the common flags):
+thing the facade sets, the common flags:
 
 ```bash
 source evidence.env
-export DEMO_PREBUILT_ARTIFACT_ROOT="$PWD/profiles/evidence/artifacts"
-DEMO=profiles/evidence/demo/demo.sh
+DEMO=../evidence/demo.sh
 COMMON=(--deployment compose --machine composite --network devnet \
         --instance evidence --data-dir "$PWD/data/showcase/evidence/evidence")
 
 # publish a NEW evidence id (always creates business version 1)
 "$DEMO" publish "${COMMON[@]}" --evidence-id inspection-product-b \
-  --sample-file profiles/evidence/demo/samples/inspection-certificate-product-b.json
+  --sample-file ../evidence/samples/inspection-certificate-product-b.json
 
 # create the exact next immutable version of an existing id
 "$DEMO" republish "${COMMON[@]}" --evidence-id inspection-product-b \
   --business-version 2 \
-  --sample-file profiles/evidence/demo/samples/inspection-certificate-product-a-v2.json
+  --sample-file ../evidence/samples/inspection-certificate-product-a-v2.json
 
 # read-only verification — latest, or any retained historical version
 "$DEMO" verify "${COMMON[@]}" --evidence-id inspection-product-b
@@ -226,7 +226,7 @@ COMMON=(--deployment compose --machine composite --network devnet \
 # explicitly finalize an accepted command as a deterministic no-op
 "$DEMO" replay "${COMMON[@]}" --evidence-id inspection-product-b \
   --business-version 2 \
-  --sample-file profiles/evidence/demo/samples/inspection-certificate-product-a-v2.json
+  --sample-file ../evidence/samples/inspection-certificate-product-a-v2.json
 ```
 
 Rules: evidence ids match `[a-z][a-z0-9-]{0,62}`; `publish` rejects
@@ -245,12 +245,12 @@ capacity is 8 releases per block). Same setup as §6:
 ```bash
 # 8 full publish workflows, 3 workers, ids lifecycle-aug-000001…000008
 "$DEMO" load "${COMMON[@]}" --count 8 --concurrency 3 --id-prefix lifecycle-aug \
-  --sample-file profiles/evidence/demo/samples/inspection-certificate.json
+  --sample-file ../evidence/samples/inspection-certificate.json
 
 # staged pipeline mode (composite only): higher in-flight bound
 "$DEMO" load "${COMMON[@]}" --load-mode pipeline --count 8 --concurrency 8 \
   --max-in-flight 8 --id-prefix pipeline-aug \
-  --sample-file profiles/evidence/demo/samples/inspection-certificate.json
+  --sample-file ../evidence/samples/inspection-certificate.json
 ```
 
 Result line:
@@ -290,8 +290,7 @@ starts completely fresh:
 
 ```bash
 source evidence.env
-export DEMO_PREBUILT_ARTIFACT_ROOT="$PWD/profiles/evidence/artifacts"
-profiles/evidence/demo/demo.sh reset-devnet --yes
+../evidence/demo.sh reset-devnet --yes
 
 ./showcase.sh quickstart --profile evidence --variant composite --instance evidence
 ```
@@ -324,7 +323,7 @@ If you use it at all, run `./showcase.sh stop …` first.
 
 ## 10. Deeper reading
 
-- `profiles/evidence/demo/README.md` — the authoritative harness document:
+- `../evidence/README.md` — the authoritative harness document:
   load semantics, composite and role profiles, port table, persistence
   layout, cleanup, host deployment, public-network (preview/preprod) anchor
   profiles with `--anchor-key-file` / `--confirm-public-anchor`.

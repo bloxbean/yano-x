@@ -29,17 +29,22 @@ final class ShowcaseArtifact {
     private static final long MAX_EXPANDED_BYTES = 16L * 1024 * 1024 * 1024;
     private static final int MAX_ENTRIES = 50_000;
     private static final long MAX_JSON_ENTRY_BYTES = 64L * 1024 * 1024;
+    // The showcase ships inside the Yano X JVM distribution at examples/showcase.
+    // Its yano/ home holds only the demo configuration; the runtime is the
+    // distribution root.
+    static final String SHOWCASE = "examples/showcase/";
+    static final String SHOWCASE_APPLICATION = SHOWCASE + "yano/config/application-appchain.yml";
     private static final Set<String> REQUIRED = Set.of(
-            "showcase.sh",
-            "catalog/showcase-catalog-v1.json",
-            "yano/yano.sh",
-            "yano/yano.jar",
-            "yano/config/application-appchain.yml",
-            "yano/yano-distribution-v1.json",
-            "yano/yano-x-distribution-v1.json",
-            "yano/yano-x-plugin-pack-v1.json",
-            "yano/sbom/yano.cdx.json",
-            "yano/sbom/yano-x.cdx.json");
+            SHOWCASE + "showcase.sh",
+            SHOWCASE + "catalog/showcase-catalog-v1.json",
+            SHOWCASE_APPLICATION,
+            "yano.sh",
+            "yano.jar",
+            "yano-distribution-v1.json",
+            "yano-x-distribution-v1.json",
+            "yano-x-plugin-pack-v1.json",
+            "sbom/yano.cdx.json",
+            "sbom/yano-x.cdx.json");
     private static final String SETTLEMENT_CHAIN = "payment-chain-settlement";
 
     private final ObjectMapper json = new ObjectMapper();
@@ -81,8 +86,8 @@ final class ShowcaseArtifact {
                     }
                 }
             }
-            if (roots.size() != 1 || !roots.first().startsWith("yano-showcase-")) {
-                throw new IOException("showcase archive root must be exactly one yano-showcase-* directory");
+            if (roots.size() != 1 || !roots.first().startsWith("yano-x-jvm-")) {
+                throw new IOException("showcase archive root must be exactly one yano-x-jvm-* directory");
             }
             if (!relativeEntries.containsAll(REQUIRED)) {
                 TreeSet<String> missing = new TreeSet<>(REQUIRED);
@@ -90,18 +95,18 @@ final class ShowcaseArtifact {
                 throw new IOException("showcase archive is missing required entries: " + missing);
             }
             String root = roots.first();
-            JsonNode catalog = readJson(zip, root + "/catalog/showcase-catalog-v1.json");
+            JsonNode catalog = readJson(zip, root + "/" + SHOWCASE + "catalog/showcase-catalog-v1.json");
             List<String> chains = new ArrayList<>();
             catalog.path("chains").forEach(chain -> chains.add(chain.path("chainId").asText()));
             if (catalog.path("schemaVersion").asInt() != 1 || chains.size() != 13
                     || !chains.contains(SETTLEMENT_CHAIN)) {
                 throw new IOException("showcase catalog must be schema v1 with the expected 13-chain profile");
             }
-            JsonNode yano = readJson(zip, root + "/yano/yano-distribution-v1.json");
-            JsonNode yanoX = readJson(zip, root + "/yano/yano-x-distribution-v1.json");
+            JsonNode yano = readJson(zip, root + "/yano-distribution-v1.json");
+            JsonNode yanoX = readJson(zip, root + "/yano-x-distribution-v1.json");
             validateDistributionIdentities(yano, yanoX);
-            validateSbom(readJson(zip, root + "/yano/sbom/yano.cdx.json"), "Yano");
-            validateSbom(readJson(zip, root + "/yano/sbom/yano-x.cdx.json"), "Yano X");
+            validateSbom(readJson(zip, root + "/sbom/yano.cdx.json"), "Yano");
+            validateSbom(readJson(zip, root + "/sbom/yano-x.cdx.json"), "Yano X");
             Map<String, String> pluginChecksums = validatePluginPack(zip, root, yanoX);
             return new Metadata(file, sha256, archiveSize, root, List.copyOf(chains),
                     digestJson(yano), digestJson(yanoX), pluginChecksums);
@@ -143,7 +148,7 @@ final class ShowcaseArtifact {
     void verifyImportLock(DeploymentDocument document, Metadata metadata) throws IOException {
         Path lockPath = document.directory().resolve("artifact.lock.json");
         if (!Files.isRegularFile(lockPath, LinkOption.NOFOLLOW_LINKS)) {
-            throw new IOException("artifact.lock.json is missing or is not a regular file; import the showcase ZIP");
+            throw new IOException("artifact.lock.json is missing or is not a regular file; import the Yano X JVM ZIP");
         }
         JsonNode lock = json.readTree(lockPath.toFile());
         String expectedFile = document.directory().relativize(metadata.path()).toString();
@@ -262,7 +267,7 @@ final class ShowcaseArtifact {
     }
 
     private Map<String, String> validatePluginPack(ZipFile zip, String root, JsonNode yanoX) throws IOException {
-        String manifestPath = root + "/yano/yano-x-plugin-pack-v1.json";
+        String manifestPath = root + "/yano-x-plugin-pack-v1.json";
         JsonNode manifest = readJson(zip, manifestPath);
         if (manifest.path("schemaVersion").asInt() != 1
                 || !"yano-x".equals(manifest.path("product").asText())
@@ -281,7 +286,7 @@ final class ShowcaseArtifact {
                 throw new IOException("plugin-pack manifest contains an invalid bundle record");
             }
             String directory = "optional".equals(installMode) ? "optional-plugins" : "plugins";
-            String path = root + "/yano/" + directory + "/" + file;
+            String path = root + "/" + directory + "/" + file;
             if (!bundle.path("sha256").asText().equals(entryDigest(zip, path))) {
                 throw new IOException("plugin bundle checksum differs from manifest: " + file);
             }

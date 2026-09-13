@@ -37,7 +37,7 @@ Yano X publications into a new empty internal repository as described by
 ```bash
 ./gradlew :examples:showcase:test \
   :examples:showcase:showcaseScriptContract \
-  :examples:showcase:distZip \
+  :distribution:jvm:yanoXJvmDistZip \
   :examples:showcase:showcaseDistributionContract \
   -PinternalRepository=<yano-x-staging> \
   -PyanoVersion=<published-yano-version> \
@@ -46,7 +46,8 @@ Yano X publications into a new empty internal repository as described by
 ```
 
 The archive is
-`examples/showcase/build/distributions/yano-showcase-<yano-x-version>.zip`.
+`distribution/jvm/build/distributions/yano-x-jvm-<yano-x-version>.zip`; the
+showcase runs from its `examples/showcase/` directory.
 Do not overwrite an extracted retained deployment with it. Stage a fresh
 archive under a new reviewed target, or make an explicit preservation plan for
 the existing `data/` and generated configuration.
