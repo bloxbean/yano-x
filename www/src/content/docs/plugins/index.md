@@ -1,10 +1,8 @@
 ---
-title: The extension ladder
-description: Yano X's central design idea — climb only as far as you need, from configuration to a composite plugin to a custom state machine, and never fork the consensus runtime.
-sidebar:
-  order: 1
+title: "The extension ladder"
+description: "Yano's core provides ordering, threshold finality, deterministic state, proofs, anchoring, effects, plugin lifecycle, health, and metrics. Application…"
+editUrl: "https://github.com/bloxbean/yano-x/edit/main/docs/site/plugins-overview.md"
 ---
-
 Yano's core provides ordering, threshold finality, deterministic state, proofs,
 anchoring, effects, plugin lifecycle, health, and metrics. Application teams
 extend the **application layer**, not the consensus runtime.
@@ -84,7 +82,7 @@ public final class ShipmentStateMachine implements AppStateMachine {
     }
 
     @Override
-    public void apply(AppBlock block, AppStateWriter state) {
+    public void apply(AppBlockExecutionContext context, AppStateWriter state, AppEffectEmitter effects) {
         // Deterministic bounded transitions only.
     }
 }

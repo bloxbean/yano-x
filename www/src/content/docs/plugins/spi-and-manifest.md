@@ -1,10 +1,8 @@
 ---
-title: SPI and manifest
-description: The three bounded contracts a Yano X plugin JAR carries, the Ed25519 trust envelope over them, how activation works, and what signing does and does not mean.
-sidebar:
-  order: 3
+title: "SPI and manifest"
+description: "A plugin JAR is not just code with a ServiceLoader entry. It carries three independent, bounded contracts, and an Ed25519 envelope that binds them."
+editUrl: "https://github.com/bloxbean/yano-x/edit/main/docs/site/plugins-spi-and-manifest.md"
 ---
-
 A plugin JAR is not just code with a `ServiceLoader` entry. It carries three
 independent, bounded contracts, and an Ed25519 envelope that binds them.
 
@@ -118,7 +116,7 @@ And the change policy:
 
 | Policy | Meaning |
 |---|---|
-| `NEW_CHAIN_REQUIRED` | The value is part of chain identity. Changing it means a new chain, or a governed activation. |
+| `NEW_CHAIN_REQUIRED` | The value is part of chain identity. Changing it requires a new chain. Governed activation applies only to settings that explicitly support it. |
 | Others | See the generated [configuration reference](/reference/configuration/). |
 
 ## Which SPI do you need?

@@ -1,18 +1,16 @@
 ---
-title: Trust Registry
-description: A trust and status registry on the governed authenticated map, answering status, list, and authorization questions with proofs, serving Bitstring Status Lists and TRQP answers, and verifying offline.
-sidebar:
-  order: 6
+title: "Trust Registry"
+description: "The Trust and Status Registry is a config-only product on the stock governed authenticated-map state machine. Its chain holds subjects, credential status…"
+editUrl: "https://github.com/bloxbean/yano-x/edit/main/docs/site/products-trust-registry.md"
 ---
-
 The Trust and Status Registry is a config-only product on the stock governed
 `authenticated-map` state machine. Its chain holds subjects, credential status,
 published status lists, issuers, and schemas; the `yano-trust` CLI answers
 status questions with proofs bound to a certified block; `yano-trust serve`
 speaks W3C Bitstring Status List and a TRQP-shaped authorization query without
 ever processing JSON-LD; and a browser console reads it all back and, through an
-operator gateway or a key unlocked in the tab itself, writes to it. Nothing in
-it executes on chain.
+operator gateway or a key unlocked in the tab itself, writes to it. Its domain tooling runs outside consensus; the stock authenticated-map
+state machine applies governed writes and authorization rules on the app chain.
 
 ## The journey
 

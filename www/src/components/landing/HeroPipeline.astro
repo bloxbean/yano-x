@@ -1,261 +1,144 @@
 ---
-/**
- * The app-chain pipeline, as the landing page's hero illustration.
- *
- * It shows the one claim that distinguishes an app chain from a shared
- * database: three organizations independently execute the same command and
- * derive the *same* state root, a threshold signs it, and that root settles on
- * Cardano while effects fan out to external systems.
- *
- * The three identical root chips are the point of the drawing, so they pulse in
- * unison rather than in sequence.
- */
+const examples = [
+  {
+    id: 'log', tab: 'Event log', title: 'Record what happened.',
+    technology: 'OrderedLog', intro: 'Keep a shared, verifiable history of application events.',
+    commandLabel: 'SIGNED APPLICATION EVENT', command: 'order.created', value: '#A-100',
+    facts: [['Record', 'Order A-100 was created'], ['Claim', 'This event appears in the agreed history']],
+    root: '9f3c…a17b', result: 'One event. One agreed history.', href: '/tutorials/01-first-app-chain/',
+    stages: [
+      ['Submit', 'A signed command is submitted to the application. Acceptance does not yet mean members have agreed on the result.'],
+      ['Execute', 'Every member records the same ordered events and computes the same state root.'],
+      ['Certify', 'The configured member threshold certifies the result. A proof can establish that this event was recorded.'],
+      ['Anchor', 'Optionally publish a certified commitment to Cardano. Cardano confirmation is separate from member agreement.'],
+    ],
+  },
+  {
+    id: 'map', tab: 'Registry', title: 'Verify the current record.',
+    technology: 'Authenticated map', intro: 'Manage named collections with controlled updates and proofs of their state.',
+    commandLabel: 'AUTHORIZED REGISTRY UPDATE', command: 'assets / A-100', value: 'revision 2',
+    facts: [['Check', 'Writer is authorized; revision matches'], ['Record', 'Asset A-100 · status ACTIVE']],
+    root: '7ba2…c940', result: 'A record you can independently verify.', href: '/state-machines/authenticated-map/',
+    stages: [
+      ['Submit', 'An authorized writer requests an update to asset A-100 at its expected revision.'],
+      ['Execute', 'Every member checks the collection policy and revision before applying the same update.'],
+      ['Certify', 'A proof binds this entry and its revision to the certified state. Absence and revocation are distinct states.'],
+      ['Anchor', 'Optionally publish the certified commitment to Cardano. The proof establishes the recorded state, not the truth of an asset description.'],
+    ],
+  },
+  {
+    id: 'roles', tab: 'Roles', title: 'The right people approve.',
+    technology: 'Domain roles + approval workflows', intro: 'Business roles belong to people and organizations, independently of node operators.',
+    commandLabel: 'ACTOR-SIGNED APPROVALS', command: 'document / D-204', value: 'release request',
+    facts: [['Issuer', 'Proposes this exact document digest'], ['Auditors', 'Two distinct organizations approve']],
+    root: 'a812…6f04', result: 'Approval bound to the exact action.', href: '/tutorials/05-domain-role-approvals/',
+    stages: [
+      ['Propose', 'An issuer proposes a document release. The policy identifies the roles and organizations whose approval is required.'],
+      ['Check', 'Every member checks actor signatures, current roles, and the distinct-organization requirement.'],
+      ['Certify', 'The approved action is recorded under the shared rules. Business approval and the member finality threshold are separate checks.'],
+      ['Anchor', 'Optionally anchor the commitment to the approved record. This proves the recorded approvals, not the truth of the document.'],
+    ],
+  },
+  {
+    id: 'observe', tab: 'Observations', title: 'Use outside evidence.',
+    technology: 'Generic observations · preview example', intro: 'Bring a signed delivery report into a workflow without making network calls inside application rules.',
+    commandLabel: 'SOURCE-ATTESTED DELIVERY REPORT', command: 'shipment / A-100', value: 'DELIVERED',
+    facts: [['Source', 'Authorized attestor signs a commitment'], ['Evidence', 'Delivery claim is bound to this shipment']],
+    root: 'c320…d5e1', result: 'Certified input for the next decision.', href: '/concepts/observations/',
+    stages: [
+      ['Request', 'The application requests a delivery observation tied to the payment for this shipment. Acquisition happens outside deterministic execution.'],
+      ['Check', 'The host checks the source signature, inclusion evidence, and the pinned observation policy. Members agree on the accepted result.'],
+      ['Certify', 'The application consumes the finalized observation result. The signed report establishes what the attestor committed, not that a parcel physically arrived.'],
+      ['Anchor', 'Optionally anchor the resulting application commitment. Observations bring information in; effects authorize actions outside the application.'],
+    ],
+  },
+];
+const first = examples[0];
 ---
-
-<div class="hero-pipeline">
-  <svg
-    viewBox="0 0 620 300"
-    role="img"
-    aria-labelledby="pipeline-title pipeline-desc"
-    xmlns="http://www.w3.org/2000/svg"
-  >
-    <title id="pipeline-title">How a Yano app chain finalizes a command</title>
-    <desc id="pipeline-desc">
-      A signed command is relayed to three member nodes. Each independently
-      re-executes it and derives the identical state root 9f3c…a17b. A
-      threshold-signed app block commits that root, which is then anchored on
-      Cardano and released to external effect executors.
-    </desc>
-
-    <defs>
-      <linearGradient id="hp-flow" x1="0" y1="0" x2="1" y2="0">
-        <stop offset="0%" stop-color="#22b8cf" />
-        <stop offset="45%" stop-color="#0e7490" />
-        <stop offset="100%" stop-color="#b45309" />
-      </linearGradient>
-      <linearGradient id="hp-card" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stop-color="#ffffff" />
-        <stop offset="100%" stop-color="#fcfbf9" />
-      </linearGradient>
-      <linearGradient id="hp-block" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0%" stop-color="#ffffff" />
-        <stop offset="100%" stop-color="#f3f9fb" />
-      </linearGradient>
-      <radialGradient id="hp-glow" cx="50%" cy="50%" r="50%">
-        <stop offset="0%" stop-color="#0e7490" stop-opacity="0.13" />
-        <stop offset="100%" stop-color="#0e7490" stop-opacity="0" />
-      </radialGradient>
-      <filter id="hp-soft" x="-40%" y="-40%" width="180%" height="180%">
-        <feGaussianBlur stdDeviation="3" result="b" />
-        <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
-      </filter>
-    </defs>
-
-    <ellipse cx="504" cy="120" rx="150" ry="110" fill="url(#hp-glow)" />
-
-    <!-- ── connectors ────────────────────────────────────────────────── -->
-    <g class="hp-wires" fill="none" stroke="url(#hp-flow)" stroke-width="1.6">
-      <!-- relay: command → each member -->
-      <path class="hp-wire" d="M132 120 C 156 120, 156 52, 178 52" />
-      <path class="hp-wire" d="M132 120 L 178 120" />
-      <path class="hp-wire" d="M132 120 C 156 120, 156 188, 178 188" />
-      <!-- agreement: each member → the block -->
-      <path class="hp-wire" d="M362 52  C 384 52, 384 120, 404 120" />
-      <path class="hp-wire" d="M362 120 L 404 120" />
-      <path class="hp-wire" d="M362 188 C 384 188, 384 120, 404 120" />
-      <!-- release: block → anchor and effects -->
-      <path class="hp-wire" d="M504 163 C 504 182, 452 178, 452 197" />
-      <path class="hp-wire" d="M504 163 C 504 182, 556 178, 556 197" />
-    </g>
-
-    <!-- ── 1 · signed command ────────────────────────────────────────── -->
-    <text class="hp-step" x="8" y="72">1 · SIGNED COMMAND</text>
-    <g transform="translate(8 84)">
-      <rect width="124" height="72" rx="11" fill="url(#hp-card)" stroke="#e6e2da" />
-      <circle cx="18" cy="20" r="4.5" fill="#0e7490" />
-      <text class="hp-label" x="31" y="24">orders-chain</text>
-      <text class="hp-mono hp-dim" x="14" y="45">order-created</text>
-      <g transform="translate(14 53)">
-        <rect width="58" height="14" rx="7" fill="#fdf0e0" stroke="#eccfa4" />
-        <text class="hp-pill" x="29" y="10" text-anchor="middle" fill="#8a5210">ed25519</text>
-      </g>
-    </g>
-
-    <!-- ── 2 · deterministic execution ───────────────────────────────── -->
-    <text class="hp-step" x="178" y="12">2 · EVERY MEMBER RE-EXECUTES</text>
-    <g transform="translate(178 24)">
-      <g class="hp-member">
-        <rect width="184" height="56" rx="11" fill="url(#hp-card)" stroke="#e6e2da" />
-        <circle cx="17" cy="19" r="4.5" fill="#0e7490" />
-        <text class="hp-label" x="30" y="23">node-0 · proposer</text>
-        <g class="hp-root" transform="translate(14 31)">
-          <rect width="156" height="16" rx="8" fill="#e3f1f5" stroke="#a9d4e0" />
-          <text class="hp-mono" x="9" y="11.5" fill="#10556b">root 9f3c…a17b</text>
-        </g>
-      </g>
-      <g class="hp-member" transform="translate(0 68)">
-        <rect width="184" height="56" rx="11" fill="url(#hp-card)" stroke="#e6e2da" />
-        <circle cx="17" cy="19" r="4.5" fill="#0e7490" />
-        <text class="hp-label" x="30" y="23">node-1</text>
-        <g class="hp-root" transform="translate(14 31)">
-          <rect width="156" height="16" rx="8" fill="#e3f1f5" stroke="#a9d4e0" />
-          <text class="hp-mono" x="9" y="11.5" fill="#10556b">root 9f3c…a17b</text>
-        </g>
-      </g>
-      <g class="hp-member" transform="translate(0 136)">
-        <rect width="184" height="56" rx="11" fill="url(#hp-card)" stroke="#e6e2da" />
-        <circle cx="17" cy="19" r="4.5" fill="#0e7490" />
-        <text class="hp-label" x="30" y="23">node-2</text>
-        <g class="hp-root" transform="translate(14 31)">
-          <rect width="156" height="16" rx="8" fill="#e3f1f5" stroke="#a9d4e0" />
-          <text class="hp-mono" x="9" y="11.5" fill="#10556b">root 9f3c…a17b</text>
-        </g>
-      </g>
-    </g>
-    <text class="hp-note" x="270" y="232" text-anchor="middle">identical, byte for byte</text>
-
-    <!-- ── 3 · threshold finality ────────────────────────────────────── -->
-    <text class="hp-step" x="404" y="65">3 · THRESHOLD-FINAL</text>
-    <g transform="translate(404 77)">
-      <rect width="200" height="86" rx="13" fill="url(#hp-block)" stroke="#a9d4e0" filter="url(#hp-soft)" />
-      <text class="hp-label" x="16" y="26" fill="#14181c">app block #1042</text>
-      <g transform="translate(16 36)">
-        <rect width="168" height="17" rx="8.5" fill="#f4f9fb" stroke="#d9e8ee" />
-        <text class="hp-mono" x="9" y="12" fill="#10556b">root 9f3c…a17b</text>
-      </g>
-      <g class="hp-sigs" transform="translate(16 62)">
-        <g class="hp-sig">
-          <circle cx="7" cy="7" r="7" fill="#e7f6ec" stroke="#8fcea4" />
-          <path d="M4 7.2 L6.2 9.4 L10.2 4.8" fill="none" stroke="#2f9e5f" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-        </g>
-        <g class="hp-sig" transform="translate(19 0)">
-          <circle cx="7" cy="7" r="7" fill="#e7f6ec" stroke="#8fcea4" />
-          <path d="M4 7.2 L6.2 9.4 L10.2 4.8" fill="none" stroke="#2f9e5f" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-        </g>
-        <g class="hp-sig" transform="translate(38 0)">
-          <circle cx="7" cy="7" r="7" fill="#e7f6ec" stroke="#8fcea4" />
-          <path d="M4 7.2 L6.2 9.4 L10.2 4.8" fill="none" stroke="#2f9e5f" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-        </g>
-        <text class="hp-pill" x="58" y="10" fill="#2f7d52">3 of 3 signed</text>
-      </g>
-    </g>
-
-    <!-- ── settlement and effects ────────────────────────────────────── -->
-    <g transform="translate(404 197)">
-      <rect class="hp-anchor" width="96" height="62" rx="11" fill="url(#hp-card)" stroke="#e6e2da" />
-      <text class="hp-label" x="14" y="24">Cardano</text>
-      <text class="hp-label" x="14" y="37">anchor</text>
-      <text class="hp-mono hp-dim" x="14" y="52">4d80…c2e9</text>
-    </g>
-    <g transform="translate(508 197)">
-      <rect width="96" height="62" rx="11" fill="url(#hp-card)" stroke="#e6e2da" />
-      <text class="hp-label" x="14" y="24">Effects</text>
-      <text class="hp-mono hp-dim" x="14" y="39">Kafka · S3</text>
-      <text class="hp-mono hp-dim" x="14" y="51">IPFS · HTTP</text>
-    </g>
-  </svg>
+<div class="chain-demo" data-stage="2">
+  <div class="demo-heading"><span>EXPLORE A SHARED APPLICATION</span><span class="demo-label">ILLUSTRATION</span></div>
+  <div class="example-tabs" role="tablist" aria-label="Application illustrations" hidden>
+    {examples.map((example, i) => <button role="tab" id={`example-${example.id}`} data-example={i}
+      aria-selected={i === 0} aria-controls="example-panel" tabindex={i === 0 ? 0 : -1}>{example.tab}</button>)}
+  </div>
+  <div id="example-panel" role="tabpanel" aria-labelledby="example-log" tabindex="0">
+    <div class="example-intro"><h2>{first.title}</h2><p>{first.intro}</p></div>
+    <div class="command"><span>{first.commandLabel}</span><code><span data-command>{first.command}</span> <b>{first.value}</b></code></div>
+    <dl class="example-facts">{first.facts.map(([label, value]) => <div><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
+    <div class="flow-wire" aria-hidden="true"></div>
+    <div class="members">{['Member A', 'Member B', 'Member C'].map(name => <div class="member"><span>{name}</span><div class="node-mark" aria-hidden="true">◇</div><code>{first.root}</code><small>same state root</small></div>)}</div>
+    <div class="flow-wire" aria-hidden="true"></div>
+    <div class="certificate"><span>MEMBER-CERTIFIED RESULT</span><strong>{first.result}</strong></div>
+    <div class="demo-controls" role="group" aria-label="Walk through an application command" hidden>
+      {first.stages.map(([title], i) => <button data-stage-button={i} aria-pressed={i === 2} aria-controls="stage-description"><span>0{i + 1}</span><span data-stage-label>{title}</span></button>)}
+    </div>
+    <p id="stage-description" aria-live="polite" aria-atomic="true">{first.stages[2][1]}</p>
+    <div class="example-footer"><button class="replay" hidden>Replay the flow ↻</button><a data-guide href={first.href}>{first.technology} ↗</a></div>
+    <p class="example-disclaimer">Example data · optional Cardano anchoring</p>
+  </div>
+  <noscript><p class="example-disclaimer">Explore more examples: <a href="/state-machines/authenticated-map/">registries</a>, <a href="/tutorials/05-domain-role-approvals/">roles</a>, and <a href="/concepts/observations/">observations</a>.</p></noscript>
+  <script define:vars={{ examples }}>
+    const demo = document.querySelector('.chain-demo');
+    const panel = demo.querySelector('#example-panel');
+    const tabs = [...demo.querySelectorAll('[data-example]')];
+    const controls = demo.querySelector('.demo-controls');
+    const replay = demo.querySelector('.replay');
+    demo.querySelector('.example-tabs').hidden = controls.hidden = replay.hidden = false;
+    let selected = 0;
+    let timer;
+    let playing = false;
+    const reduced = matchMedia('(prefers-reduced-motion: reduce)');
+    function stop() {
+      clearTimeout(timer); playing = false;
+      replay.textContent = reduced.matches ? 'Next step →' : 'Replay the flow ↻';
+    }
+    function show(index) {
+      demo.dataset.stage = String(index);
+      controls.querySelectorAll('button').forEach(button => button.setAttribute('aria-pressed', String(Number(button.dataset.stageButton) === index)));
+      demo.querySelector('#stage-description').textContent = examples[selected].stages[index][1];
+    }
+    function selectExample(index) {
+      stop(); selected = index;
+      const example = examples[index];
+      tabs.forEach((tab, i) => { tab.setAttribute('aria-selected', String(i === index)); tab.tabIndex = i === index ? 0 : -1; });
+      panel.setAttribute('aria-labelledby', tabs[index].id);
+      demo.querySelector('.example-intro h2').textContent = example.title;
+      demo.querySelector('.example-intro p').textContent = example.intro;
+      demo.querySelector('.command > span').textContent = example.commandLabel;
+      demo.querySelector('[data-command]').textContent = example.command;
+      demo.querySelector('.command b').textContent = example.value;
+      demo.querySelectorAll('.example-facts div').forEach((row, i) => {
+        row.querySelector('dt').textContent = example.facts[i][0];
+        row.querySelector('dd').textContent = example.facts[i][1];
+      });
+      demo.querySelectorAll('.member code').forEach(node => node.textContent = example.root);
+      demo.querySelector('.certificate strong').textContent = example.result;
+      demo.querySelectorAll('[data-stage-label]').forEach((label, i) => label.textContent = example.stages[i][0]);
+      const guide = demo.querySelector('[data-guide]');
+      guide.textContent = example.technology + ' ↗'; guide.href = example.href;
+      show(2);
+    }
+    tabs.forEach((tab, index) => {
+      tab.addEventListener('click', () => selectExample(index));
+      tab.addEventListener('keydown', event => {
+        const next = event.key === 'ArrowRight' ? (index + 1) % tabs.length
+          : event.key === 'ArrowLeft' ? (index + tabs.length - 1) % tabs.length
+          : event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : null;
+        if (next === null) return;
+        event.preventDefault(); selectExample(next); tabs[next].focus();
+      });
+    });
+    controls.querySelectorAll('button').forEach(button => button.addEventListener('click', () => { stop(); show(Number(button.dataset.stageButton)); }));
+    replay.addEventListener('click', () => {
+      if (playing) { stop(); return; }
+      if (reduced.matches) { show((Number(demo.dataset.stage) + 1) % 4); return; }
+      playing = true; replay.textContent = 'Pause the flow';
+      let index = 0; show(index);
+      const next = () => { if (++index < 4) { show(index); timer = setTimeout(next, 2200); } else stop(); };
+      timer = setTimeout(next, 2200);
+    });
+    stop();
+    document.addEventListener('visibilitychange', () => { if (document.hidden) stop(); });
+    reduced.addEventListener('change', stop);
+  </script>
 </div>
-
-<style>
-  .hero-pipeline {
-    width: 100%;
-  }
-
-  .hero-pipeline svg {
-    width: 100%;
-    height: auto;
-    overflow: visible;
-  }
-
-  /* Type inside the illustration */
-  .hp-step {
-    font-family: var(--l-mono);
-    font-size: 8.5px;
-    letter-spacing: 0.11em;
-    fill: #8a929a;
-  }
-
-  .hp-label {
-    font-family: var(--l-sans);
-    font-size: 11px;
-    font-weight: 600;
-    fill: #14181c;
-  }
-
-  .hp-mono {
-    font-family: var(--l-mono);
-    font-size: 9.5px;
-    fill: #55606a;
-  }
-
-  .hp-pill {
-    font-family: var(--l-mono);
-    font-size: 8.5px;
-  }
-
-  .hp-note {
-    font-family: var(--l-sans);
-    font-size: 9.5px;
-    font-style: italic;
-    fill: #8a929a;
-  }
-
-  .hp-dim {
-    opacity: 0.72;
-  }
-
-  /* Flow along the wires */
-  .hp-wire {
-    stroke-dasharray: 5 7;
-    animation: hp-flow 1.4s linear infinite;
-  }
-
-  @keyframes hp-flow {
-    to {
-      stroke-dashoffset: -12;
-    }
-  }
-
-  /* The three roots agree, so they breathe together — never staggered. */
-  .hp-root {
-    animation: hp-agree 3.2s ease-in-out infinite;
-  }
-
-  @keyframes hp-agree {
-    0%, 62%, 100% { opacity: 0.78; }
-    76% { opacity: 1; }
-  }
-
-  .hp-sig {
-    animation: hp-sign 3.2s ease-in-out infinite;
-    transform-box: fill-box;
-    transform-origin: center;
-  }
-
-  .hp-sigs .hp-sig:nth-child(2) { animation-delay: 0.12s; }
-  .hp-sigs .hp-sig:nth-child(3) { animation-delay: 0.24s; }
-
-  @keyframes hp-sign {
-    0%, 70%, 100% { opacity: 0.55; }
-    82% { opacity: 1; }
-  }
-
-  .hp-anchor {
-    animation: hp-settle 3.2s ease-in-out infinite;
-  }
-
-  @keyframes hp-settle {
-    0%, 84%, 100% { stroke: #e6e2da; }
-    92% { stroke: #0e7490; }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .hp-wire,
-    .hp-root,
-    .hp-sig,
-    .hp-anchor {
-      animation: none;
-    }
-    .hp-wire { stroke-dasharray: none; }
-  }
-</style>

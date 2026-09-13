@@ -1,10 +1,8 @@
 ---
-title: Effects
-description: How a finalized state transition triggers work outside the chain — emit-not-execute, finality gates, mandatory expiry, exactly-once incorporation, and executor trust.
-sidebar:
-  order: 4
+title: "Effects"
+description: "Everything else in an app chain keeps state inside the chain. Effects let a finalized transition trigger an action outside it — call an ERP or webhook…"
+editUrl: "https://github.com/bloxbean/yano-x/edit/main/docs/site/concepts-effects.md"
 ---
-
 Everything else in an app chain keeps state inside the chain. **Effects** let a
 finalized transition trigger an action outside it — call an ERP or webhook,
 publish to Kafka, store an object, pin to IPFS, submit a Cardano payment —
@@ -61,8 +59,8 @@ public class OrderStateMachine implements AppStateMachine {
     @Override public String id() { return "orders"; }
 
     @Override
-    public void apply(AppBlock block, AppStateWriter writer, AppEffectEmitter effects) {
-        for (AppMessage m : block.messages()) {
+    public void apply(AppBlockExecutionContext context, AppStateWriter writer, AppEffectEmitter effects) {
+        for (AppMessage m : context.messages()) {
             Order o = decode(m.getBody());
             writer.put(key(o.id()), o.toBytes());          // ordinary state
             if (o.isApproved()) {
@@ -79,7 +77,8 @@ public class OrderStateMachine implements AppStateMachine {
 
     // Called deterministically when a CHAIN effect's outcome is incorporated.
     @Override
-    public void onEffectResult(AppBlock block, EffectResult result, AppStateWriter writer) {
+    public void onEffectResult(AppBlockExecutionContext context, EffectResult result,
+                               AppStateWriter writer, AppEffectEmitter effects) {
         if (!result.scope().startsWith("orders/")) return;
         String id = result.scope().substring("orders/".length());
         writer.put(fulfilledKey(id), result.externalRef());

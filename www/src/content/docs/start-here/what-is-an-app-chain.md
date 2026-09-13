@@ -1,15 +1,13 @@
 ---
-title: What is an app chain?
-description: An app chain is an application-specific replicated ledger run by a group of organizations, with deterministic state, threshold finality, proofs, and optional Cardano settlement.
-sidebar:
-  order: 1
+title: "What is an app chain?"
+description: "An app chain is an application-specific, replicated ledger that a group of organizations runs together. Members agree on the order of application…"
+editUrl: "https://github.com/bloxbean/yano-x/edit/main/docs/site/start-here-what-is-an-app-chain.md"
 ---
-
 An **app chain** is an application-specific, replicated ledger that a group of
 organizations runs together. Members agree on the order of application
 messages, execute the same deterministic state machine over them, and each
-independently derive the same authenticated state root. Any record can then be
-proved against that root, and the root itself can be settled on Cardano.
+independently derive the same authenticated state root. Supported state claims can then be proved against that root, and the root
+can optionally be anchored on Cardano.
 
 The shortest description:
 
@@ -121,7 +119,7 @@ finalized, and a tampered block fails the state-root re-execution check.
 
 | Term | Meaning |
 |---|---|
-| **Chain id** | The name of your app chain. One group of participants = one chain id. A node can host several chains. |
+| **Chain id** | The name of your app chain. The same members may run multiple independent chain ids. A node can host several chains. |
 | **Member** | A participant identified by an Ed25519 public key. Only members' messages are accepted, and members co-sign blocks. The v1 profile supports at most 32 members. |
 | **Proposer / sequencer** | The member that orders messages into blocks — either a configured fixed proposer, or the member deterministically selected for the current L1-slot window in rotating mode. |
 | **Threshold** | How many member signatures a finality certificate requires. |
@@ -131,11 +129,11 @@ finalized, and a tampered block fails the state-root re-execution check.
 | **State root** | The Merkle Patricia Forestry root after applying a block. Identical on every member, anchorable to L1, and provable. |
 | **State machine** | The only component that interprets message bodies. |
 | **Effect** | An immutable record emitted by a transition, authorizing external work that an executor performs after finality. |
-| **Anchor leader** | The single node that builds, pays for, and submits anchor transactions. A coordination role, not a trust point. |
+| **Anchor leader** | The single node that builds, pays for, and submits anchor transactions. Its powers depend on anchor mode; script advances require member co-signatures. |
 
 ## When an app chain is the right answer
 
-An app chain fits when **all** of the following are true:
+An app chain is useful when several of these needs apply:
 
 - several organizations must agree on the same sequence of application records;
 - no single participant should own the authoritative database;

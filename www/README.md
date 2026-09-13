@@ -118,5 +118,53 @@ with the `yanox.dev` CNAME. It triggers on a `dv*` tag, or manually via
 git tag dv1 && git push origin dv1
 ```
 
-Documentation ships independently of code releases, which matters while Yano X
-is unreleased.
+Documentation ships independently of code releases. The site describes the
+current checkout; release archives retain their own versioned manifests.
+
+## Guided landing and canonical introductory pages
+
+The landing page uses the Yano visual direction with ink surfaces, mint accents,
+an interactive command walkthrough, and three outcome selectors. Controls are
+native buttons; without JavaScript all outcome examples remain readable.
+Reduced-motion preferences disable entrance animation and make replay advance
+one step at a time. The illustration contains example data, not live node status.
+
+The learning path and revised build, namespace, module, and scaffold guides are
+owned by `../docs/site/` and imported into stable routes. Edit those source
+files, not their generated site copies. Catalog blocks in `docs/site/` are
+regenerated before import, using the same catalog renderer as other pages.
+
+## Browser validation
+
+The Mermaid source lint is a quick pattern check, not a parser or a rendering
+test. Before publishing, validate the built site with Chromium:
+
+```bash
+npm run build
+npx playwright install chromium
+npm run check:browser
+```
+
+`tests/docs.spec.mjs` discovers every built page containing Mermaid, exercises
+actual parsing and SVG rendering in light and dark themes, and changes themes
+rapidly to catch asynchronous render races. It also checks the landing-page
+controls and documentation entry on mobile. The GitHub Pages workflow installs
+Chromium and runs this gate before deployment.
+
+The renderer preserves the original diagram text, serializes rendering, and
+passes the text directly to Mermaid's render API. It does not feed generated
+SVG or HTML-decoded source back into the parser. If rendering fails, the source
+remains readable and the browser check fails.
+
+## Brand and illustration examples
+
+`public/logo.svg` adapts the Yano folded mark with a mint palette;
+`public/favicon.svg` places it on a dark tile. The shared
+`src/components/shared/Brand.astro` wordmark is used on the landing page and
+through Starlight's `SiteTitle` override.
+
+`HeroPipeline.astro` owns the four illustrated examples and their stage copy.
+Keep them explicitly illustrative, preserve the difference between role
+approval, member finality, and source evidence, and link each example to a
+guide. Browser checks cover tab navigation, mobile layout, reduced motion,
+and matching branding on documentation pages.

@@ -40,7 +40,7 @@ The default distribution bundles the app-chain core, standard state machines,
 generic composite and role products, and the preview evidence product. Client
 libraries are application dependencies; Kafka, S3, IPFS, Cardano and ZK are
 separately installed JVM plugin bundles (group id
-`com.bloxbean.cardano`):
+`org.yanoproject.x`):
 
 | Artifact | Repo path | Purpose |
 |---|---|---|
@@ -360,7 +360,7 @@ a single-chain convenience.
 | `GET /tip` | `{chainId, height, stateRoot}` of the last finalized block. |
 | `GET /blocks/{height}` | Finalized block: hashes, roots, proposer, cert signature count, full message list. |
 | `GET /blocks?from=&limit=` | Paged block summaries, ascending (default: window ending at the tip) (§15). |
-| `GET /state/proof/{keyHex}` | MPF inclusion proof (wire format) for a state key against the committed root. For `ordered-log` the key **is** the message id; the response includes the value and `finalizedAtHeight`. |
+| `GET /state/proof/{keyHex}` | MPF inclusion proof (wire format) for a state key against the committed root. OrderedLog derives a canonical key from its namespace and message id; prefer the `finalized-message-v1` typed proof subject. The endpoint supports retained `?height=` queries. |
 | `GET /evidence/{messageIdHex}` | Portable, offline-verifiable evidence bundle for a finalized message (§13). |
 | `GET /stream?fromHeight=&topic=` | SSE stream of finalized messages: replay, then live (§10). |
 | `POST /snapshot` | Atomic ledger snapshot for fast member onboarding (§14). Body: `{"path": "<fresh dir>"}`. |
@@ -714,11 +714,11 @@ public class OrderBookStateMachine implements AppStateMachine {
     }
 
     @Override
-    public void apply(AppBlock block, AppStateWriter writer) {
+    public void apply(AppBlockExecutionContext context, AppStateWriter writer, AppEffectEmitter effects) {
         // deterministic! called once per finalized block, in order, on every node.
         // everything written here is committed atomically with the block and
         // becomes part of the MPF state root.
-        for (AppMessage m : block.messages()) {
+        for (AppMessage m : context.messages()) {
             MyOrder order = decode(m.getBody());          // your codec
             writer.put(order.idBytes(), order.toBytes());
         }
@@ -729,7 +729,7 @@ public class OrderBookStateMachine implements AppStateMachine {
 Rules: `apply` must be **deterministic** — every member re-executes it and
 the resulting state root must match the proposer's byte-for-byte, or the block
 is rejected (and your chain stalls at that height). Forbidden inside
-`apply()`: wall-clock time (use `block.timestamp()`), randomness, network or
+`apply()`: wall-clock time (use `context.block().timestamp()`), randomness, network or
 file I/O, environment reads, iteration over unordered collections
 (`HashMap`/`HashSet` — use ordered ones), and locale/charset-dependent or
 library-default serialization. Note that `validate()` runs at the proposer's
@@ -792,13 +792,10 @@ The plugin template ships this test pre-wired (`CounterConformanceTest`).
    `AppMessage`, `AppStateWriter` live there / in `yaci-core`).
    A ready Gradle project for this is `scaffolds/plugin-template`.
 
-ServiceLoader-only legacy providers remain a temporary compatibility path for
-self-contained JARs loaded from the JVM plugin directory (and for explicit
-library compatibility mode). Packaged JVM inclusion requires the bundle
-manifest: strict index generation cannot safely assign an unmanifested
-provider's external dependencies to a bundle closure and tells the developer
-to add a manifest or use the JVM directory bundle. Yano X does not publish
-native extension bundles.
+Runtime activation requires a schema-v1 plugin manifest and passes through
+`PluginProviderRegistry`. A ServiceLoader entry alone is not a supported
+activation path. The provider entry, manifest contribution, and dependency
+closure must agree; the bundle must not embed host SPI classes.
 
 ### 6.2 Embed programmatically (library mode)
 
@@ -1378,7 +1375,7 @@ blocks finalized before a node upgraded to this feature are not retro-indexed.
 
 ## 16. Client libraries (Java SDK, Spring Boot starter, testkit)
 
-**Java SDK** (`org.yanoproject:yano-x-client`) — typed access
+**Java SDK** (`org.yanoproject.x:yano-x-client`) — typed access
 with client-side proof verification, dependency-light:
 
 ```java
@@ -1559,8 +1556,8 @@ public class OrderStateMachine implements AppStateMachine {
     @Override public String id() { return "orders"; }
 
     @Override
-    public void apply(AppBlock block, AppStateWriter writer, AppEffectEmitter effects) {
-        for (AppMessage m : block.messages()) {
+    public void apply(AppBlockExecutionContext context, AppStateWriter writer, AppEffectEmitter effects) {
+        for (AppMessage m : context.messages()) {
             Order o = decode(m.getBody());
             writer.put(key(o.id()), o.toBytes());          // ordinary state
             if (o.isApproved()) {
@@ -1577,7 +1574,8 @@ public class OrderStateMachine implements AppStateMachine {
 
     // Called deterministically when a CHAIN effect's outcome is incorporated.
     @Override
-    public void onEffectResult(AppBlock block, EffectResult result, AppStateWriter writer) {
+    public void onEffectResult(AppBlockExecutionContext context, EffectResult result,
+                               AppStateWriter writer, AppEffectEmitter effects) {
         if (!result.scope().startsWith("orders/")) return;
         String id = result.scope().substring("orders/".length());
         // result.confirmed(), result.outcome() (CONFIRMED/FAILED/CANCELLED/EXPIRED),

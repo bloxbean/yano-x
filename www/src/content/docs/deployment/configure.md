@@ -1,14 +1,8 @@
 ---
 title: "Configure your application"
 description: "Use the App-Chain Studio to choose recipes and capabilities, or use the CLI from an extracted Yano X JVM release. Studio ships in the release under…"
-editUrl: false
+editUrl: "https://github.com/bloxbean/yano-x/edit/main/docs/appchain/deployment/configure.md"
 ---
-
-:::note[Imported page]
-This page is generated from [`docs/appchain/deployment/configure.md`](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/deployment/configure.md)
-in the Yano X repository, which is its source of truth.
-:::
-
 Use the [App-Chain Studio](/studio/index.html) to
 choose recipes and capabilities, or use the CLI from an extracted Yano X JVM
 release. Studio ships in the release under `studio/` and is also served by the

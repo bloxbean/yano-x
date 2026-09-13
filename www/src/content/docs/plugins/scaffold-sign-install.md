@@ -1,10 +1,8 @@
 ---
-title: Scaffold, sign, install
-description: The full plugin lifecycle command by command — scaffold a bounded starting point, implement, sign the catalog, validate, pin it into a project, and install it on every member.
-sidebar:
-  order: 2
+title: "Scaffold, sign, install"
+description: "Seven steps from nothing to a running plugin. None of them require touching Yano."
+editUrl: "https://github.com/bloxbean/yano-x/edit/main/docs/site/scaffold-sign-install.md"
 ---
-
 Seven steps from nothing to a running plugin. None of them require touching
 Yano.
 
@@ -25,9 +23,13 @@ flowchart LR
   --mode state-machine \
   --id shipment \
   --package com.example.shipment \
-  --yano-version 0.1.0-pre14 \
+  --yano-version <matching-yano-host-version> \
   --output shipment-plugin
 ```
+
+Replace `<matching-yano-host-version>` with the exact Yano version in your
+distribution manifest (see the [current version table](/reference/modules/)).
+This is the host version, not the Yano X plugin version.
 
 Modes are `state-machine`, `composite-role`, `effect-executor`, and `sink`. All
 four share the same runtime manifest, signed product catalog, and ServiceLoader

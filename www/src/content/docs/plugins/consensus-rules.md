@@ -1,10 +1,8 @@
 ---
-title: Consensus rules for plugins
-description: What plugin code may and may not do inside consensus, how to bound hostile input, and how to evolve a live chain's semantics without forking it.
-sidebar:
-  order: 4
+title: "Consensus rules for plugins"
+description: "Plugin code that runs inside apply() is consensus code. Every member executes it and must derive the same state root. This page is the contract."
+editUrl: "https://github.com/bloxbean/yano-x/edit/main/docs/site/plugins-consensus-rules.md"
 ---
-
 Plugin code that runs inside `apply()` is consensus code. Every member executes
 it and must derive the same state root. This page is the contract.
 
@@ -42,7 +40,7 @@ public AdmissionResult validate(AppMessage message) {
 }
 
 @Override
-public void apply(AppBlock block, AppStateWriter state) {
+public void apply(AppBlockExecutionContext context, AppStateWriter state, AppEffectEmitter effects) {
     // Deterministic bounded transitions only.
 }
 ```

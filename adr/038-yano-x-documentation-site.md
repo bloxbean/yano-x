@@ -518,3 +518,47 @@ section.
 - `docs/BUILD_AND_TEST.md`, `docs/BUILD_DISTRIBUTIONS.md` — build tracks
 - `tooling/devtools/.../skills/configure-yano-appchain/SKILL.md` — existing AI contract
 - `bloxbean/julc` `docs/` — reference implementation of the Astro + AI stack
+
+## September 2026: guided entry and Yano visual alignment
+
+The landing page now leads with shared application rules and verifiable state,
+then explains the Yano host / Yano X extension boundary. A manually controlled
+command walkthrough distinguishes admission, execution, member certification,
+and optional L1 anchoring. Outcome selectors introduce records, approvals, and
+effects without exposing the full catalog at once. Controls work with native
+keyboard interaction; examples remain readable without JavaScript, and reduced
+motion disables animation and automatic replay progression.
+
+The default learning path is release showcase → proofs → recipe → extension or
+operations. Advanced sidebar groups are collapsed initially. Release downloads
+replace the original source-only entry assumption. The docs retain the existing
+Astro/Starlight, GitHub Pages, Studio, search, and AI ingestion workflows.
+
+New introductory documentation and revised namespace/build/module guides live
+in `docs/site/` and are imported at their existing routes. Generated catalog
+blocks there are refreshed by the same generator before import. Imported pages
+link their edit action to the canonical source rather than opening with an
+implementation notice. Namespaces distinguish `org.yanoproject.x` extensions
+from `org.yanoproject` host artifacts; versions still come from build metadata.
+
+The landing page uses “shared application platform” and “verifiable results”
+to introduce the product through application outcomes. “App chain” remains the
+technical term in the guides; this wording does not change the architecture.
+
+### Yano X identity and application examples
+
+The website mark retains Yano's folded geometry and uses the mint Yano X
+palette without an additional X symbol. The favicon uses the same mark on an ink tile. Landing and docs
+headers share a lowercase Space Grotesk wordmark component, matching the Yano
+site's typography while keeping the X in the wordmark.
+
+The hero offers four manually selected illustrations: OrderedLog events,
+authenticated-map records, domain-role approvals, and generic observations.
+Each changes the input, relevant checks, result, explanation, and guide link;
+the shared member agreement diagram remains constant. Keyboard arrows and
+Home/End navigate tabs. Switching examples stops replay; reduced motion uses
+manual step advancement. Illustrations are explicitly example data.
+
+The observation copy distinguishes source-attested evidence from physical-world
+truth, and domain approval from member finality. The concise observation guide
+lives in `docs/site/observations.md` and links to the current preview references.

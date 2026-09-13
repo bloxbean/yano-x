@@ -1,38 +1,22 @@
 ---
-title: Why Yano X
-description: Yano is the app-chain host; Yano X is the JVM extension ecosystem that turns it into something you configure rather than build. This page draws the boundary.
-sidebar:
-  order: 2
+title: "Why Yano X"
+description: "Choose Yano X when several organizations need shared records, workflows, or integrations with independently verifiable results. Start with existing…"
+editUrl: "https://github.com/bloxbean/yano-x/edit/main/docs/site/why-yano-x.md"
 ---
+Choose Yano X when several organizations need shared records, workflows, or
+integrations with independently verifiable results. Start with existing
+capabilities, then add custom Java rules only where your application needs them.
 
-Yano and Yano X are two repositories with one strict dependency direction:
-`yano-x → yano`. Understanding which side owns what is the single most useful
-thing to know before you start.
+Yano supplies the host. Yano X adds application behavior through JVM plugins
+and reusable libraries. Their dependency direction is `yano-x → yano`.
 
 ## The boundary
 
 ```mermaid
 flowchart TB
-    subgraph X["Yano X — JVM extensions (this project)"]
-        SM["Stock state machines<br/>kv-registry · approvals · balances<br/>doc-trail · authenticated-map · role-approvals"]
-        COMP["Composition framework<br/>deterministic composite profiles"]
-        CONN["Connectors<br/>Kafka · S3 · IPFS · Cardano payments"]
-        PROD["Products<br/>Evidence · Cardano History · eUTxO/ZK"]
-        SDK["SDKs, testkits, CLIs, Studio"]
-        DIST["Batteries-included JVM distribution"]
-    end
-
-    subgraph Y["Yano — the host"]
-        NODE["Cardano data node"]
-        CONS["App-block sequencing<br/>membership · threshold finality"]
-        STATE["Authenticated state · MPF proofs"]
-        ANCH["Cardano anchoring"]
-        EFF["Effect runtime"]
-        SPI["Public plugin SPI · catalog · lifecycle"]
-        OL["ordered-log — the only built-in state machine"]
-    end
-
-    X -->|depends on| Y
+    X["Yano X: application behavior<br/>State machines, workflows, integrations"]
+    Y["Yano: shared foundation<br/>Ordering, finality, proofs, optional anchors"]
+    X -->|extends through the plugin catalog| Y
 ```
 
 | Concern | Owned by |
@@ -53,7 +37,9 @@ flowchart TB
 
 ## What "batteries included" actually means
 
-Building Yano X produces two archives:
+For a first run, choose the [local showcase](/start-here/quickstart/).
+The [release download guide](/start-here/release-downloads/) explains all five ZIPs.
+The two main runtime archives are:
 
 - **`yano-x-jvm-<version>.zip`** — the standard Yano JVM distribution with the
   Yano X plugin bundles already laid out, plus identity manifests for both
@@ -95,13 +81,14 @@ incompatibility if you point a Yano X project at it.
 A future native extension model would need its own architecture decision and a
 build-time composition contract.
 
-## Two names that look like mistakes but are not
+## Namespaces and compatibility
 
-Two invariants surprise almost everyone, including coding agents:
+Use the namespace belonging to the artifact you consume:
 
-- **Java packages stay `org.yanoproject.x.*`** while
-  repository and artifact names are `yano-x`. The repository split deliberately
-  did not rename the app-chain technical domain.
+- **Yano X uses Maven group `org.yanoproject.x` and Java packages
+  `org.yanoproject.x.*`.** Yano host artifacts use `org.yanoproject` and host
+  packages use `org.yanoproject.*`. Third-party Cardano libraries retain their
+  own groups, including `com.bloxbean.cardano`.
 - **The plugin directory property is `yano.plugins.directory`.** The older
   `yaci.plugins.directory` spelling is gone and must not come back.
 
@@ -117,4 +104,5 @@ Whatever you build, the surface is the same:
 - The [App-Chain Studio](/studio/) for building and exporting a blueprint
   visually.
 
-Next: [Build from source](/start-here/build-from-source/).
+Next: [Try the local showcase](/start-here/quickstart/), then
+[choose a recipe](/recipes/choosing-a-recipe/).

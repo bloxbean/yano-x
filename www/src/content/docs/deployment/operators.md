@@ -1,14 +1,8 @@
 ---
 title: "Deploy and operate remote VMs"
 description: "The packaged tools/yano-deploy/bin/yano-x-deploy automates a qualified showcase profile on existing Linux VMs, Contabo, Hetzner Cloud, DigitalOcean, or…"
-editUrl: false
+editUrl: "https://github.com/bloxbean/yano-x/edit/main/docs/appchain/deployment/operators.md"
 ---
-
-:::note[Imported page]
-This page is generated from [`docs/appchain/deployment/operators.md`](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/deployment/operators.md)
-in the Yano X repository, which is its source of truth.
-:::
-
 The packaged `tools/yano-deploy/bin/yano-x-deploy` automates a qualified showcase
 profile on existing Linux VMs, Contabo, Hetzner Cloud, DigitalOcean, or mixed
 placement. It generates OpenTofu and Ansible inputs, configures systemd and

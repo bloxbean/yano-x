@@ -171,7 +171,7 @@ also be isolated.
 Use the client artifact with the node version:
 
 ```groovy
-implementation "org.yanoproject:yano-x-client:${yanoVersion}"
+implementation "org.yanoproject.x:yano-x-client:${yanoXVersion}"
 ```
 
 The client includes the portable no-SPI stock contracts and a typed facade:

@@ -1,13 +1,11 @@
 ---
-title: Build from source
-description: Yano X has no published release yet. Build the batteries-included JVM distribution from a clean clone with one Gradle command — no second checkout and no flags.
-sidebar:
-  order: 3
+title: "Build from source"
+description: "For a first run, use a release download. Build from source when you want the current checkout or need to change Yano X. The build resolves the matching…"
+editUrl: "https://github.com/bloxbean/yano-x/edit/main/docs/site/build-from-source.md"
 ---
-
-Yano X has **no published release**, so the install path is a source build.
-That sounds heavier than it is: from a clean clone it is one command, because
-the build resolves the matching Yano host distribution for you.
+For a first run, use a [release download](/start-here/release-downloads/).
+Build from source when you want the current checkout or need to change Yano X.
+The build resolves the matching Yano host distribution automatically.
 
 :::note[Two different build tracks]
 This page is the **user** track: build the distribution, run it, move on. If
@@ -48,11 +46,11 @@ That is the whole thing. No `-PyanoVersion`, no `-PuseMavenLocal`, no
 
 | Value | Current |
 |---|---|
-| Yano X version | `0.1.0-SNAPSHOT` |
-| Yano host version | `0.1.0-pre14` |
-| Maven group | `com.bloxbean.cardano` |
+| Yano X version | `0.1.0-pre1-SNAPSHOT` |
+| Yano host version | `0.1.0-pre15` |
+| Maven group | `org.yanoproject.x` |
 | Java | `25` |
-| Base Yano JVM ZIP | [`yano-0.1.0-pre14.zip`](https://github.com/bloxbean/yano/releases/download/v0.1.0-pre14/yano-0.1.0-pre14.zip) |
+| Base Yano JVM ZIP | [`yano-0.1.0-pre15.zip`](https://github.com/bloxbean/yano/releases/download/v0.1.0-pre15/yano-0.1.0-pre15.zip) |
 
 <!-- catalog:versions-end -->
 
@@ -128,7 +126,11 @@ authoritative answer for your version — the [recipe catalog](/recipes/) and
 [capability catalog](/reference/capabilities/) on this site are generated from
 the same source files, but the binary in your hands always wins.
 
-You are ready for the [Quickstart](/start-here/quickstart/).
+This archive runs a node with `./yano.sh start:devnet,appchain`.
+The [local showcase quickstart](/start-here/quickstart/) uses the separate
+`yano-showcase-<version>.zip`. To build that archive, run
+`./gradlew :examples:showcase:distZip -PskipSigning=true`; find it under
+`examples/showcase/build/distributions/`.
 
 ## The default plugin selection
 

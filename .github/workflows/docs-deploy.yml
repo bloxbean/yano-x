@@ -43,6 +43,12 @@ jobs:
           YANO_X_REQUIRE_LISTED_DOCS: '1'
         run: npm run build
 
+      - name: Verify rendered diagrams and navigation
+        working-directory: www
+        run: |
+          npx playwright install --with-deps chromium
+          npm run check:browser
+
       - name: Verify the AI artifacts were published
         working-directory: www
         run: |

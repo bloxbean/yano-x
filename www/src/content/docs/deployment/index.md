@@ -1,14 +1,8 @@
 ---
 title: "Deploy Yano X"
 description: "Start with a local demonstration, configure an application when you are ready, and use the operator workflow when you need remote machines."
-editUrl: false
+editUrl: "https://github.com/bloxbean/yano-x/edit/main/docs/appchain/deployment/README.md"
 ---
-
-:::note[Imported page]
-This page is generated from [`docs/appchain/deployment/README.md`](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/deployment/README.md)
-in the Yano X repository, which is its source of truth.
-:::
-
 Start with a local demonstration, configure an application when you are ready,
 and use the operator workflow when you need remote machines.
 

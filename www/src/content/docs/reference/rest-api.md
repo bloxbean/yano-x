@@ -1,10 +1,8 @@
 ---
-title: REST API
-description: The public app-chain HTTP surface — submission, reads, proofs, streaming, and admin — plus the submission limits, backpressure, and replay-protection rules that govern it.
-sidebar:
-  order: 2
+title: "REST API"
+description: "Base path: <artifact-api-prefix>/app-chain, by default /api/v1/app-chain."
+editUrl: "https://github.com/bloxbean/yano-x/edit/main/docs/site/reference-rest-api.md"
 ---
-
 Base path: `<artifact-api-prefix>/app-chain`, by default `/api/v1/app-chain`.
 
 The prefix is fixed into each JVM, native, or container artifact at build time
@@ -55,7 +53,7 @@ When API-key authentication is enabled, every request needs `X-API-Key`.
 |---|---|
 | `GET /blocks/{height}` | Hashes, roots, proposer, certificate signature count, full message list. |
 | `GET /blocks?from=&limit=` | Paged block summaries, ascending. Defaults to a window ending at the tip. |
-| `GET /state/proof/{keyHex}` | MPF inclusion proof for a state key against the committed root. For `ordered-log` the key **is** the message id, and the response includes the value and `finalizedAtHeight`. |
+| `GET /state/proof/{keyHex}` | Profile-tagged inclusion or exclusion proof for a canonical state key at the tip or a retained `?height=`. OrderedLog derives its key from a namespace and message id; use the `finalized-message-v1` typed proof subject to avoid constructing it yourself. |
 | `POST /proof-subjects/{subjectId}/proof` | Typed proof in application language. See [State and proofs](/concepts/state-and-proofs/). |
 | `GET /evidence/{messageIdHex}` | A portable, offline-verifiable evidence bundle for a finalized message. |
 

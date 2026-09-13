@@ -1,10 +1,8 @@
 ---
-title: Configuration reference
-description: The typed configuration properties owned by Yano X first-party plugins, with their scope, change policy, and metadata coverage — generated from the repository.
-sidebar:
-  order: 4
+title: "Configuration reference"
+description: "Yano X plugins declare their configuration as typed metadata, not as prose. That metadata is what makes appchain config validate and appchain explain…"
+editUrl: "https://github.com/bloxbean/yano-x/edit/main/docs/site/reference-configuration.md"
 ---
-
 Yano X plugins declare their configuration as **typed metadata**, not as prose.
 That metadata is what makes `appchain config validate` and `appchain explain`
 work, and it is what this page is generated from at documentation build time.
@@ -25,7 +23,8 @@ safe to differ, and generally *should* differ.
 
 | Policy | What it means |
 |---|---|
-| `NEW_CHAIN_REQUIRED` | The value is part of chain identity. Changing it on a live chain is not an upgrade; it is a different chain. Use a governed profile activation, or bootstrap fresh. |
+| `GOVERNED_ACTIVATION` | Change only through the supported, approved activation procedure; all members must apply the same committed change. |
+| `NEW_CHAIN_REQUIRED` | The value is part of chain identity. Changing it requires a new chain; a YAML edit or generic governance action cannot override that constraint. |
 
 Anything genesis-selected — a commitment profile, a state encoding, a proof
 subject descriptor, an enabled state index — falls into this class. See

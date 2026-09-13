@@ -1,14 +1,12 @@
 ---
-title: Using Yano X with AI agents
-description: How to point Claude Code, Cursor, Continue, ChatGPT, or any coding agent at Yano X — the starter pack, llms.txt, the machine-readable catalog, and the in-repo agent skill.
-sidebar:
-  order: 1
+title: "Using Yano X with AI agents"
+description: "Give coding agents the documentation for your exact Yano X version. Common mistakes include bypassing the plugin catalog with raw ServiceLoader, using…"
+editUrl: "https://github.com/bloxbean/yano-x/edit/main/docs/site/ai-overview.md"
 ---
-
-Yano X is new enough that no model has trained on it. An agent asked to "write a
-Yano plugin" will confidently invent a `ServiceLoader` entry point, put
-`Instant.now()` inside `apply()`, and name the plugin directory property
-`yaci.plugins.directory`. All three are wrong, and none of them fail loudly.
+Give coding agents the documentation for your exact Yano X version. Common
+mistakes include bypassing the plugin catalog with raw `ServiceLoader`, using
+`Instant.now()` inside `apply()`, and using the obsolete plugin-directory
+property. The guides below explain the supported contracts and checks.
 
 So this site publishes everything an agent needs, in formats agents can ingest.
 

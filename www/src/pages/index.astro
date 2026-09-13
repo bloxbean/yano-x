@@ -1,393 +1,105 @@
 ---
 import '../styles/landing.css';
-import { generateCatalog } from '../../scripts/generate-catalog.mjs';
+import Brand from '../components/shared/Brand.astro';
 import HeroPipeline from '../components/landing/HeroPipeline.astro';
-
-// Counts and versions come straight from the repository's own catalogs, so the
-// landing page cannot advertise a number the build does not actually produce.
-const catalog = await generateCatalog({ logger: { info: () => {} } });
-const { counts, versions } = catalog;
-
-const bundledRecipes = catalog.recipes.filter((r) => r.availability === 'BUNDLED').length;
-const stateCapabilities = catalog.capabilities.filter((c) => c.category === 'state').length;
+import { generateCatalog } from '../../scripts/generate-catalog.mjs';
+const { counts, versions } = await generateCatalog({ logger: { info: () => {} } });
+const paths = [
+  { id: 'record', label: 'Shared records', title: 'One record. Every member agrees.', text: 'Track ownership, documents, or attestations across organizations. Start with a registry or document trail, then retrieve a proof of the recorded state.', machine: 'Registry · Document trail', steps: ['Submit a signed update', 'Apply the same rules on every member', 'Verify a record against the certified root'], href: '/tutorials/02-registry-and-proofs/', cta: 'Build a registry' },
+  { id: 'coordinate', label: 'Approval workflows', title: 'Make the rules part of the record.', text: 'Give people business roles — issuer, reviewer, auditor — separate from the members running the software. Require approval from the right roles and organizations before an action proceeds.', machine: 'Role approvals · Composition', steps: ['Define participants and roles', 'Collect the required approvals', 'Record the authorized transition'], href: '/tutorials/05-domain-role-approvals/', cta: 'Explore role approvals' },
+  { id: 'observe', label: 'External observations', title: 'Bring outside evidence into shared decisions.', text: 'Receive a signed delivery report or another supported external input. Members check the evidence against agreed source and acceptance rules before your application uses the certified result. A source report is evidence of its claim, not proof of physical delivery.', machine: 'Generic observations · Signed source evidence', steps: ['Request an external observation', 'Check source evidence and acceptance rules', 'Apply the certified result'], href: '/concepts/observations/', cta: 'Understand observations' },
+  { id: 'connect', label: 'External actions', title: 'Connect decisions to the real world.', text: 'Authorize a webhook, publication, or payment from a finalized transition. Executors handle network work outside consensus; results return as sequenced messages.', machine: 'Effects · Connectors', steps: ['Commit an effect request', 'Execute outside consensus', 'Incorporate the reported result'], href: '/tutorials/06-webhook-effects/', cta: 'Connect a webhook' },
+];
 ---
-
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Yano X — App chains for Cardano, in Java</title>
-  <meta
-    name="description"
-    content="Yano X is the JVM extension ecosystem for Yano app chains: application-specific replicated ledgers with deterministic state, threshold finality, MPF proofs, Cardano anchoring, and controlled external effects."
-  />
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-  <link rel="canonical" href="https://yanox.dev/" />
-  <meta property="og:title" content="Yano X — App chains for Cardano, in Java" />
-  <meta
-    property="og:description"
-    content="Application-specific replicated ledgers with deterministic state, threshold finality, proofs, and Cardano anchoring. Extend without forking."
-  />
-  <meta property="og:type" content="website" />
-  <meta property="og:url" content="https://yanox.dev/" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link
-    href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600;700;800&display=swap"
-    rel="stylesheet"
-  />
-</head>
-<body>
-  <nav class="nav">
-    <div class="wrap nav-inner">
-      <a class="nav-brand" href="/">
-        <img src="/logo.svg" alt="" width="28" height="28" />
-        <span>Yano&nbsp;X</span>
-      </a>
-      <div class="nav-links">
-        <a class="nav-hide-sm" href="/start-here/what-is-an-app-chain/">Docs</a>
-        <a class="nav-hide-sm" href="/tutorials/01-first-app-chain/">Tutorials</a>
-        <a class="nav-hide-sm" href="/plugins/">Plugins</a>
-        <a class="nav-hide-sm" href="/ai/">AI</a>
-        <a href="https://github.com/bloxbean/yano-x">GitHub</a>
-      </div>
-    </div>
-  </nav>
-
-  <main>
-    <!-- Hero -->
-    <section class="hero">
-      <div class="wrap hero-inner">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Yano X — Your application. Shared rules. Verifiable results.</title>
+    <meta name="description" content="Yano X is a shared application platform for Java. Build shared records, approval workflows, and integrations with independently verifiable results and optional Cardano commitments." />
+    <meta name="theme-color" content="#0b1115" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="canonical" href="https://yanox.dev/" />
+    <meta property="og:title" content="Yano X — Your application. Shared rules. Verifiable results." />
+    <meta property="og:description" content="A shared application platform for Java. Start with shared records and workflows. Grow into your own rules." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://yanox.dev/" />
+    <link rel="alternate" type="text/plain" href="/llms.txt" title="AI documentation index" />
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
+    <header class="site-header wrap">
+      <Brand />
+      <nav aria-label="Main navigation"><a href="/start-here/">Docs</a><a href="#explore">Explore</a><a href="/ai/">For AI</a><a href="https://github.com/bloxbean/yano-x">GitHub ↗</a></nav>
+    </header>
+    <main id="main">
+      <section class="hero wrap">
         <div class="hero-copy">
-          <span class="eyebrow"><span class="dot"></span> Pre-release · build from source</span>
-          <h1>Application ledgers that <span class="grad">prove themselves</span>.</h1>
-          <p class="lede">
-          Several organizations run one replicated ledger: the same ordered commands, the
-          same deterministic state machine, the same signed state root — provable by
-          anyone and settled on Cardano. Yano X is the Java ecosystem that makes it
-          something you configure rather than build.
-        </p>
-          <div class="hero-actions">
-          <a class="btn btn-primary" href="/start-here/quickstart/">Run a 3-member chain →</a>
-          <a class="btn btn-ghost" href="/start-here/what-is-an-app-chain/">What is an app chain?</a>
+          <a class="eyebrow release" href="/start-here/release-downloads/">OPEN SOURCE <span>↗</span></a>
+          <h1>Your application.<br />Shared rules.<br /><em>Verifiable results.</em></h1>
+          <p class="lede">Yano X is a shared application platform for Java. Build applications that organizations run together, with shared records, approval workflows, and integrations — and results participants can independently verify.</p>
+          <div class="actions"><a class="button primary" href="/start-here/quickstart/">Try the local demo <span>↗</span></a><a class="button secondary" href="#explore">Explore what you can build →</a></div>
+          <p class="hero-meta">JAVA {versions.javaVersion} <span>/</span> JVM PLUGINS <span>/</span> CARDANO ANCHORING</p>
         </div>
-        </div>
-
-      <div class="hero-art">
         <HeroPipeline />
-      </div>
-
-      <div class="stats hero-stats reveal">
-          <div>
-            <div class="stat-n" data-count={counts.recipes}>0</div>
-            <div class="stat-l">Reviewed recipes</div>
-          </div>
-          <div>
-            <div class="stat-n" data-count={counts.capabilities}>0</div>
-            <div class="stat-l">Selectable capabilities</div>
-          </div>
-          <div>
-            <div class="stat-n" data-count={counts.artifacts}>0</div>
-            <div class="stat-l">Runtime plugin bundles</div>
-          </div>
-          <div>
-            <div class="stat-n" data-count={stateCapabilities}>0</div>
-            <div class="stat-l">State machines</div>
-          </div>
+      </section>
+      <section class="foundation wrap" aria-label="Yano and Yano X">
+        <p><span class="eyebrow">ONE FOUNDATION. YOUR EXTENSIONS.</span><strong><a href="https://getyano.dev/">Yano</a> provides the foundation.<br /><span>Yano X makes it yours.</span></strong></p>
+        <p>Powered by Yano, with optional commitments published to Cardano. Yano coordinates member agreement and provides verifiable records. Yano X adds your application rules and integrations as JVM plugins. Connect over HTTP from any language.</p>
+        <a class="text-link" href="/start-here/why-yano-x/">Understand the relationship ↗</a>
+      </section>
+      <section class="section wrap" id="why">
+        <div class="section-heading"><span class="eyebrow">WHY SHARED APPLICATIONS?</span><h2>Less reconciliation.<br /><span>More shared certainty.</span></h2><p>When several organizations need to agree on what happened, a shared API alone is not the whole answer.</p></div>
+        <div class="values">
+          <article><span class="index">01 / AGREE</span><h3>The same rules.<br />On every member.</h3><p>Members independently execute ordered commands and certify the resulting state. Agreement follows the configured member threshold.</p><a href="/concepts/consensus-and-finality/">Understand finality ↗</a></article>
+          <article><span class="index">02 / VERIFY</span><h3>Evidence you<br />can check.</h3><p>Verify supported state claims against a certified root. Optionally anchor commitments on Cardano for an independently observable L1 record.</p><a href="/concepts/state-and-proofs/">Explore proofs ↗</a></article>
+          <article><span class="index">03 / EXTEND</span><h3>Your domain.<br />Without a host fork.</h3><p>Choose existing capabilities, compose workflows, or build Java plugins. Keep application rules separate from the infrastructure that coordinates members.</p><a href="/plugins/">Meet the plugin framework ↗</a></article>
         </div>
-      </div>
-    </section>
+      </section>
+      <section class="explore section" id="explore"><div class="wrap">
+        <div class="section-heading"><span class="eyebrow">WHAT WILL YOU BUILD?</span><h2>Start with the outcome.</h2><p>Explore a path. You can learn the underlying machinery as you go.</p></div>
+        <div class="path-buttons" role="group" aria-label="Explore application examples" hidden>{paths.map((p, i) => <button data-path={p.id} aria-pressed={i === 0} aria-controls={`path-${p.id}`}>{p.label}</button>)}</div>
+        {paths.map((p, i) => <article class="path-panel" id={`path-${p.id}`} data-panel={p.id}>
+          <div><span class="eyebrow">0{i + 1} / {p.machine}</span><h3>{p.title}</h3><p>{p.text}</p><a class="button secondary" href={p.href}>{p.cta} ↗</a></div>
+          <ol class="flow-list">{p.steps.map((step, j) => <li><span>0{j + 1}</span>{step}</li>)}</ol>
+        </article>)}
+      </div></section>
+      <section class="section wrap" id="start">
+        <div class="section-heading"><span class="eyebrow">A SMALL FIRST STEP</span><h2>See it work.<br /><span>Then make it yours.</span></h2><p>Start on a private local devnet. No public-network wallet or test ADA needed.</p></div>
+        <div class="start-grid"><ol class="learning-path">
+          <li><span>01</span><div><h3>Run the local demo</h3><p>Download the showcase archive, check prerequisites, and start three members.</p><a href="/start-here/quickstart/">Follow the local quickstart →</a></div></li>
+          <li><span>02</span><div><h3>Submit. Inspect. Verify.</h3><p>Send an event, compare member state, and understand what a proof establishes.</p><a href="/tutorials/">Continue with guided tutorials →</a></div></li>
+          <li><span>03</span><div><h3>Choose your own rules</h3><p>Pick a recipe, configure your application, then extend only where you need to.</p><a href="/recipes/choosing-a-recipe/">Choose a recipe →</a></div></li>
+        </ol><div class="terminal"><div class="terminal-bar"><span>LOCAL DEMO</span><span>bash</span></div><p>After extracting <code>yano-showcase-&lt;version&gt;.zip</code></p><pre><code># Check Java 25 and local prerequisites
+./showcase.sh doctor --profile light
 
-    <!-- What you get -->
-    <section class="section">
-      <div class="wrap">
-        <h2>What an app chain gives you</h2>
-        <p class="sub">
-          Not every business event belongs on a public blockchain. An app chain supplies the
-          shared application layer, and Cardano supplies independently observable settlement
-          for the state it commits to.
-        </p>
-        <div class="grid reveal">
-          <div class="card">
-            <h3><span class="card-icon">◆</span> Deterministic execution</h3>
-            <p>
-              Every member applies the same ordered messages through the same state machine and
-              derives the same state root, byte for byte. No operator's database is the truth.
-            </p>
-            <a class="more" href="/concepts/determinism-rules/">Determinism rules</a>
-          </div>
-          <div class="card">
-            <h3><span class="card-icon">✓</span> Threshold finality</h3>
-            <p>
-              A block is final only once the configured member threshold has signed the root it
-              independently computed. Hash-linked history makes a rewrite detectable.
-            </p>
-            <a class="more" href="/concepts/consensus-and-finality/">How finality works</a>
-          </div>
-          <div class="card">
-            <h3><span class="card-icon">⌘</span> Provable state</h3>
-            <p>
-              State lives in an MPF trie. A client verifies a record — present or absent —
-              against a finalized root without trusting the node that served it.
-            </p>
-            <a class="more" href="/concepts/state-and-proofs/">State and proofs</a>
-          </div>
-          <div class="card">
-            <h3><span class="card-icon">⚓</span> Cardano anchoring</h3>
-            <p>
-              A certified root can be written to a metadata or threshold-script anchor, binding
-              app-chain evidence to public L1 history an auditor can check.
-            </p>
-            <a class="more" href="/concepts/anchoring/">Anchoring</a>
-          </div>
-          <div class="card">
-            <h3><span class="card-icon">↗</span> Controlled side effects</h3>
-            <p>
-              State machines authorize external work by emitting immutable effect records.
-              Kafka, S3, IPFS, webhooks, and Cardano payments run outside consensus and report
-              back exactly once.
-            </p>
-            <a class="more" href="/concepts/effects/">The effect runtime</a>
-          </div>
-          <div class="card">
-            <h3><span class="card-icon">⊞</span> Extend without forking</h3>
-            <p>
-              Ordering, finality, proofs, anchoring, and lifecycle stay in the host. Your domain
-              logic ships as a signed, versioned plugin JAR.
-            </p>
-            <a class="more" href="/plugins/">The plugin framework</a>
-          </div>
-        </div>
-      </div>
-    </section>
+# Start a private three-member devnet
+./showcase.sh quickstart \
+  --profile light --nodes 3 --instance first-demo
 
-    <!-- Quickstart -->
-    <section class="section section-alt">
-      <div class="wrap">
-        <h2>Three members, one command</h2>
-        <p class="sub">
-          Yano X has no published release yet, so you build it once from source. The build
-          downloads the matching Yano <code>{versions.yanoVersion}</code> JVM distribution for
-          you — no second checkout, no Maven Local, no flags.
-        </p>
-        <div class="term reveal">
-          <div class="term-bar">
-            <span class="b" style="background:#ff5f57"></span>
-            <span class="b" style="background:#febc2e"></span>
-            <span class="b" style="background:#28c840"></span>
-            <span class="term-title">bash</span>
-          </div>
-          <pre><code><span class="line" style={`animation-delay:0ms`}><span class="c"># 1. Build the batteries-included JVM distribution</span></span><span class="line" style={`animation-delay:90ms`}><span class="p">$</span> git clone https://github.com/bloxbean/yano-x.git</span><span class="line" style={`animation-delay:180ms`}><span class="p">$</span> cd yano-x</span><span class="line" style={`animation-delay:270ms`}><span class="p">$</span> ./gradlew clean build -PskipSigning=true</span><span class="line">&nbsp;</span><span class="line" style={`animation-delay:450ms`}><span class="c"># 2. Unpack it</span></span><span class="line" style={`animation-delay:540ms`}><span class="p">$</span> unzip distribution/jvm/build/distributions/yano-x-jvm-<span class="k">&lt;version&gt;</span>.zip -d ~/yano-x</span><span class="line" style={`animation-delay:630ms`}><span class="p">$</span> cd ~/yano-x/yano-x-jvm-<span class="k">&lt;version&gt;</span></span><span class="line">&nbsp;</span><span class="line" style={`animation-delay:810ms`}><span class="c"># 3. Start a self-contained 3-member chain on a local devnet</span></span><span class="line" style={`animation-delay:900ms`}><span class="p">$</span> ./yano.sh appchain cluster start 3</span><span class="line" style={`animation-delay:990ms`}><span class="p">$</span> ./yano.sh appchain cluster status</span><span class="line" style={`animation-delay:1080ms`}><span class="o">orders-chain:   AGREED  (height 12, root 9f3c…a17b)</span></span><span class="line" style={`animation-delay:1170ms`}><span class="o">registry-chain: AGREED  (height 12, root 4d80…c2e9)</span></span><span class="line">&nbsp;</span><span class="line" style={`animation-delay:1350ms`}><span class="c"># 4. Submit a business event through a non-proposer member</span></span><span class="line" style={`animation-delay:1440ms`}><span class="p">$</span> ./yano.sh appchain cluster submit orders-chain orders \</span><span class="line" style={`animation-delay:1530ms`}>    <span class="k">'&lbrace;"event":"order-created","orderId":"A-1001"&rbrace;'</span> --node 1</span></code></pre>
-        </div>
-        <div class="steps reveal" style="margin-top:2.5rem">
-          <div class="step">
-            <span class="badge">1</span>
-            <h3>Build once</h3>
-            <p>Java {versions.javaVersion} and Gradle. Everything else is resolved for you.</p>
-            <a class="more" href="/start-here/build-from-source/">Build from source</a>
-          </div>
-          <div class="step">
-            <span class="badge">2</span>
-            <h3>Pick a recipe</h3>
-            <p>
-              {bundledRecipes} bundled recipes cover audit logs, owned registries, approval
-              workflows, and evidence ledgers without any code.
-            </p>
-            <a class="more" href="/recipes/">Recipe catalog</a>
-          </div>
-          <div class="step">
-            <span class="badge">3</span>
-            <h3>Prove it</h3>
-            <p>
-              Pull an MPF proof for a record, verify it offline, and anchor the root on a
-              Cardano test network.
-            </p>
-            <a class="more" href="/tutorials/02-registry-and-proofs/">Registry and proofs</a>
-          </div>
-        </div>
-      </div>
-    </section>
+# Check agreement, then open the console
+./showcase.sh verify all --instance first-demo
+./showcase.sh ui --instance first-demo
 
-    <!-- Extension ladder -->
-    <section class="section">
-      <div class="wrap wrap-narrow">
-        <h2>Climb only as far as you need</h2>
-        <p class="sub">
-          Most applications never write a line of consensus code. Yano X is organized so that
-          the cheapest rung that models your outcome is the correct one.
-        </p>
-        <div class="ladder reveal">
-          <div class="rung" style="--rung-color:#7fe5ff">
-            <span class="num">0</span>
-            <div>
-              <h3>Configuration only</h3>
-              <p>
-                Select a stock state machine or a committed composite profile identically on
-                every member — <code>yano.app-chain.state-machine: kv-registry</code>. No JAR,
-                no build.
-              </p>
-            </div>
-          </div>
-          <div class="rung" style="--rung-color:#3a7bff">
-            <span class="num">1</span>
-            <div>
-              <h3>A small composite plugin</h3>
-              <p>
-                All the components you need already exist, but you need a new ordering, routed
-                topics, quotas, or terminal transitions. Declare the composition; reuse the
-                transitions.
-              </p>
-            </div>
-          </div>
-          <div class="rung" style="--rung-color:#5b2bff">
-            <span class="num">2</span>
-            <div>
-              <h3>A custom state-machine plugin</h3>
-              <p>
-                Genuinely new state or rules. <code>./yano.sh appchain plugin scaffold</code>
-                generates a buildable, closed-by-default provider; you implement, sign, pin, and
-                install it on every member.
-              </p>
-            </div>
-          </div>
-          <div class="rung" style="--rung-color:#ff3b8a">
-            <span class="num">3</span>
-            <div>
-              <h3>Executors, sinks, APIs, observers</h3>
-              <p>
-                Independent SPIs for external delivery and read surfaces. These run outside
-                consensus, so they never affect the state root.
-              </p>
-            </div>
-          </div>
-        </div>
-        <p style="margin-top:1.75rem">
-          <a class="btn btn-ghost" href="/plugins/">Read the plugin framework guide →</a>
-        </p>
-      </div>
-    </section>
-
-    <!-- AI -->
-    <section class="section section-alt">
-      <div class="wrap">
-        <h2>Built for coding agents too</h2>
-        <p class="sub">
-          Yano X is new enough that no model has trained on it. Every page here is also
-          published as agent-ingestible markdown, and the recipe, capability, module, and
-          configuration catalogs are generated from the repository itself.
-        </p>
-        <div class="grid reveal">
-          <div class="card">
-            <h3><span class="card-icon">◇</span> AI Starter Pack</h3>
-            <p>
-              The extension ladder, the determinism rules, the plugin lifecycle, and the
-              invariants agents get wrong — in one file.
-            </p>
-            <div class="inline-code" style="margin-top:0.875rem">curl -o CLAUDE.md https://yanox.dev/ai/starter-pack.md</div>
-            <a class="more" href="/ai/starter-pack/">Read it</a>
-          </div>
-          <div class="card">
-            <h3><span class="card-icon">≡</span> llms.txt</h3>
-            <p>
-              A curated index following the llmstxt.org convention, plus
-              <code>llms-full.txt</code> with every page concatenated for full-coverage
-              ingestion.
-            </p>
-            <a class="more" href="/llms.txt">/llms.txt</a>
-          </div>
-          <div class="card">
-            <h3><span class="card-icon">&#123;&#125;</span> catalog.json</h3>
-            <p>
-              {counts.recipes} recipes, {counts.capabilities} capabilities, {counts.modules}
-              Gradle modules, and {counts.configurationProperties} configuration properties as
-              structured JSON.
-            </p>
-            <a class="more" href="/ai/catalog.json">/ai/catalog.json</a>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Status -->
-    <section class="section">
-      <div class="wrap wrap-narrow">
-        <div class="notice reveal">
-          <span aria-hidden="true">▲</span>
-          <span>
-            <strong>Yano is pre-release.</strong> The architecture and devnet workflows
-            documented here are implemented and tested, and there is no published Yano X
-            release yet — you build from source. Production rollout still needs the normal
-            network, security, operations, load, and domain validation. Use a local devnet or a
-            Cardano test network with disposable data and non-production credentials.
-          </span>
-        </div>
-      </div>
-    </section>
-  </main>
-
-  <footer class="foot">
-    <div class="wrap foot-inner">
-      <div>
-        Yano X {versions.yanoXVersion} · built against Yano {versions.yanoVersion} · MIT licensed
-      </div>
-      <div class="foot-links">
-        <a href="/start-here/what-is-an-app-chain/">Docs</a>
-        <a href="/reference/shelf/">Reference shelf</a>
-        <a href="/studio/">App-Chain Studio</a>
-        <a href="https://github.com/bloxbean/yano-x">Yano X</a>
-        <a href="https://github.com/bloxbean/yano">Yano</a>
-      </div>
-    </div>
-  </footer>
-
-  <script>
-    // Progressive enhancement: everything is readable without this. It adds
-    // scroll reveals, counts the stat numbers up, and starts the terminal's
-    // line-by-line animation once it is actually on screen.
-    const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-    function countUp(el: HTMLElement) {
-      // The stats container and each number are both observed, so this can be
-      // reached twice for the same element. Two concurrent loops would fight
-      // over the text and never settle, so run at most once.
-      if (el.dataset.counted === '1') return;
-      el.dataset.counted = '1';
-      const target = Number(el.dataset.count ?? '0');
-      if (!Number.isFinite(target) || target <= 0) return;
-      if (reduced) { el.textContent = String(target); return; }
-      const duration = 900;
-      const start = performance.now();
-      const tick = (now: number) => {
-        const t = Math.min(1, (now - start) / duration);
-        // easeOutCubic, so the number settles rather than stopping dead
-        const eased = 1 - Math.pow(1 - t, 3);
-        el.textContent = String(Math.round(target * eased));
-        if (t < 1) requestAnimationFrame(tick);
-      };
-      requestAnimationFrame(tick);
-    }
-
-    if (!('IntersectionObserver' in window)) {
-      document.querySelectorAll('.reveal').forEach((n) => n.classList.add('is-in'));
-      document.querySelectorAll<HTMLElement>('[data-count]').forEach((n) => {
-        n.textContent = n.dataset.count ?? '0';
-      });
-    } else {
-      const io = new IntersectionObserver(
-        (entries) => {
-          for (const entry of entries) {
-            if (!entry.isIntersecting) continue;
-            const el = entry.target as HTMLElement;
-            el.classList.add('is-in');
-            el.querySelectorAll<HTMLElement>('[data-count]').forEach(countUp);
-            if (el.matches('[data-count]')) countUp(el);
-            io.unobserve(el);
-          }
-        },
-        { rootMargin: '0px 0px -12% 0px', threshold: 0.15 },
-      );
-      document.querySelectorAll('.reveal, [data-count]').forEach((n) => io.observe(n));
-    }
-  </script>
-</body>
+# Keep your data for next time
+./showcase.sh stop --instance first-demo</code></pre><a href="/start-here/release-downloads/">Choose the right download ↗</a></div></div>
+      </section>
+      <section class="section resources wrap"><div><span class="eyebrow">WHEN YOU ARE READY</span><h2>Room to go deeper.</h2><p>Keep learning at your pace. The reference is here when you need it.</p></div><div class="resource-links"><a href="/plugins/"><span>Build a plugin<small>Custom rules, composition, and integrations</small></span>↗</a><a href="/deployment/"><span>Plan a deployment<small>Configuration, operations, and member lifecycle</small></span>↗</a><a href="/studio/"><span>Design in Studio<small>Explore and export an application blueprint</small></span>↗</a><a href="/ai/"><span>Work with a coding agent<small>Guides, machine-readable catalogs, and llms.txt</small></span>↗</a></div></section>
+      <div class="catalog-strip wrap"><span>{counts.recipes} recipes</span><span>{counts.capabilities} capabilities</span><a href="/reference/modules/">Explore the generated catalog →</a></div>
+      <p class="release-note wrap">Yano X is pre-release. Begin with local development and validate security, operations, and domain behavior before production use. Documentation follows this checkout; use the identities and manifests shipped with your downloaded release.</p>
+    </main>
+    <footer class="wrap"><Brand caption={false} /><p>Yano X {versions.yanoXVersion} · Yano {versions.yanoVersion} · MIT</p><a href="https://getyano.dev/">Explore Yano ↗</a><a href="/reference/modules/">{versions.group}</a></footer>
+    <script>
+      const buttons = document.querySelectorAll<HTMLButtonElement>('[data-path]');
+      const panels = document.querySelectorAll<HTMLElement>('[data-panel]');
+      document.querySelector<HTMLElement>('.path-buttons')!.hidden = false;
+      function selectPath(id: string) {
+        buttons.forEach(button => button.setAttribute('aria-pressed', String(button.dataset.path === id)));
+        panels.forEach(panel => panel.hidden = panel.dataset.panel !== id);
+      }
+      buttons.forEach(button => button.addEventListener('click', () => selectPath(button.dataset.path!)));
+      selectPath('record');
+    </script>
+  </body>
 </html>

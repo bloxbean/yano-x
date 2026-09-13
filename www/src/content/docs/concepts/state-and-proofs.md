@@ -1,10 +1,8 @@
 ---
-title: State and proofs
-description: How app-chain state is committed to an MPF root, what a typed proof subject actually asserts, and the difference between a reconstructed root and a trusted one.
-sidebar:
-  order: 3
+title: "State and proofs"
+description: "Application state lives in an authenticated trie. Every finalized block produces one root that commits to all of it, identical on every member. A client…"
+editUrl: "https://github.com/bloxbean/yano-x/edit/main/docs/site/concepts-state-and-proofs.md"
 ---
-
 Application state lives in an authenticated trie. Every finalized block
 produces one root that commits to all of it, identical on every member. A
 client can then verify an individual record against that root without trusting
@@ -122,14 +120,22 @@ client-side, and the composite client (`yano-x-composite-client`) additionally
 verifies governed-profile finality, one-root MPF, epoch chains, and
 authorization policy.
 
-Offline verification from the CLI:
+Retrieve a proof from a node, then verify the saved proof offline:
 
 ```bash
-./yano.sh appchain state entry --url http://node:8080/api/v1 \
-  --chain registry --key 0123
+# Online: save the proof for a canonical key at a retained height.
 ./yano.sh appchain state proof --url http://node:8080/api/v1 \
-  --chain registry --key 0123
+  --chain registry --key <canonical-key-hex> --height <height> > proof.json
+
+# Offline: supply a root and identity authenticated independently of that file.
+./yano.sh appchain state verify --proof-file proof.json \
+  --trusted-root <root-hex> --profile <profile-id> \
+  --genesis-id <64-hex-genesis-id> --chain registry --height <height> \
+  --root-source caller-pinned
 ```
+
+Do not take the trusted root from the unverified proof itself. Obtain it from
+an independently authenticated block, finality policy, or Cardano commitment.
 
 For custom subjects, implement `ProofSubjectProvider` next to the module that
 owns the canonical key and value codec. Each descriptor is closed data —

@@ -1,14 +1,8 @@
 ---
 title: "Choose a Yano X release download"
 description: "Each Yano X GitHub release publishes five ZIP files. Download the files you need and SHA256SUMS from the same release. If you download all five ZIPs…"
-editUrl: false
+editUrl: "https://github.com/bloxbean/yano-x/edit/main/docs/RELEASE_DOWNLOADS.md"
 ---
-
-:::note[Imported page]
-This page is generated from [`docs/RELEASE_DOWNLOADS.md`](https://github.com/bloxbean/yano-x/blob/main/docs/RELEASE_DOWNLOADS.md)
-in the Yano X repository, which is its source of truth.
-:::
-
 Each Yano X GitHub release publishes five ZIP files. Download the files you
 need and `SHA256SUMS` from the same release. If you download all five ZIPs,
 verify them before extraction:

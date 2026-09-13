@@ -1,7 +1,7 @@
 // Catch mermaid diagrams that will render as a "Syntax error" box.
 //
-// Mermaid only parses in a browser, so the build cannot run its real parser
-// without pulling in a headless DOM. This is a deliberately narrow lint over
+// This fast source check does not run Mermaid. Actual parsing and rendering
+// are checked by npm run check:browser before deployment. This lint covers
 // the constructs that have actually broken diagrams here, run after the
 // importer so it covers imported pages too.
 //
@@ -132,7 +132,7 @@ async function main() {
     process.exit(1);
   }
 
-  console.log(`[check-mermaid] ${blocks} diagram(s) across ${files} page(s) look parseable.`);
+  console.log(`[check-mermaid] ${blocks} diagram(s) across ${files} page(s) pass source lint (run check:browser for rendering).`);
 }
 
 await main();

@@ -12,46 +12,78 @@ const { head } = Astro.locals.starlightRoute;
 {head.map(({ tag: Tag, attrs, content }) => <Tag {...attrs} set:html={content} />)}
 
 <script>
-  const blocks = () => Array.from(document.querySelectorAll('pre.mermaid'));
+  let rendering = false;
+  let pending = false;
+  let diagramId = 0;
 
-  async function renderDiagrams() {
-    const nodes = blocks();
-    if (nodes.length === 0) return;
-
-    const { default: mermaid } = await import('mermaid');
-    const dark = document.documentElement.dataset.theme !== 'light';
-
-    // Keep the original source around so a theme switch can re-render from it
-    // rather than from mermaid's already-generated SVG.
+  // Preserve source as text before any asynchronous render can replace it.
+  function blocks() {
+    const nodes = Array.from(document.querySelectorAll<HTMLElement>('pre.mermaid'));
     for (const node of nodes) {
-      if (!node.dataset.source) node.dataset.source = node.textContent ?? '';
-      node.innerHTML = node.dataset.source;
-      node.removeAttribute('data-processed');
+      node.dataset.source ??= node.textContent ?? '';
     }
-
-    mermaid.initialize({
-      startOnLoad: false,
-      securityLevel: 'strict',
-      theme: dark ? 'dark' : 'default',
-      themeVariables: {
-        primaryColor: dark ? '#182046' : '#eef2ff',
-        primaryTextColor: dark ? '#e8ecff' : '#131735',
-        primaryBorderColor: '#3a7bff',
-        lineColor: dark ? '#7fa8ff' : '#3a5bd0',
-        fontFamily: 'var(--sl-font-system), system-ui, sans-serif',
-      },
-      flowchart: { curve: 'basis', useMaxWidth: true },
-      sequence: { useMaxWidth: true },
-    });
-
-    await mermaid.run({ nodes });
+    return nodes;
   }
 
-  renderDiagrams();
-  document.addEventListener('astro:after-swap', renderDiagrams);
+  async function renderDiagrams() {
+    blocks();
+    pending = true;
+    if (rendering) return;
+    rendering = true;
+    try {
+      while (pending) {
+        pending = false;
+        const nodes = blocks();
+        if (nodes.length === 0) continue;
+        const { default: mermaid } = await import('mermaid');
+        const theme = document.documentElement.dataset.theme === 'light' ? 'light' : 'dark';
+        const dark = theme === 'dark';
+        mermaid.initialize({
+          startOnLoad: false,
+          securityLevel: 'strict',
+          suppressErrorRendering: true,
+          theme: dark ? 'dark' : 'default',
+          themeVariables: {
+            primaryColor: dark ? '#17242c' : '#e9f1f3',
+            primaryTextColor: dark ? '#eef4f5' : '#101f25',
+            primaryBorderColor: dark ? '#9af0d4' : '#146b54',
+            lineColor: dark ? '#9af0d4' : '#146b54',
+            fontFamily: 'system-ui, sans-serif',
+          },
+          flowchart: { curve: 'basis', useMaxWidth: true },
+          sequence: { useMaxWidth: true },
+        });
+        for (const node of nodes) {
+          if (!node.isConnected || node.dataset.renderedTheme === theme) continue;
+          try {
+            // Do not put source through innerHTML or mermaid.run(): HTML entity
+            // decoding changes labels, and overlapping runs can read an SVG as source.
+            const { svg, bindFunctions } = await mermaid.render(
+              `yano-diagram-${++diagramId}`, node.dataset.source ?? '',
+            );
+            if (!node.isConnected) continue;
+            node.innerHTML = svg;
+            bindFunctions?.(node);
+            node.dataset.renderedTheme = theme;
+            delete node.dataset.renderError;
+          } catch (error) {
+            node.textContent = node.dataset.source ?? '';
+            node.dataset.renderError = 'true';
+            console.error('Unable to render documentation diagram', error);
+          }
+        }
+      }
+    } catch (error) {
+      for (const node of blocks()) node.dataset.renderError = 'true';
+      console.error('Unable to load documentation diagrams', error);
+    } finally {
+      rendering = false;
+    }
+  }
 
-  // Starlight's theme select flips data-theme on <html>.
+  void renderDiagrams();
+  document.addEventListener('astro:after-swap', renderDiagrams);
   new MutationObserver((records) => {
-    if (records.some((r) => r.attributeName === 'data-theme')) renderDiagrams();
+    if (records.some((record) => record.attributeName === 'data-theme')) void renderDiagrams();
   }).observe(document.documentElement, { attributes: true });
 </script>

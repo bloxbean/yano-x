@@ -30,6 +30,7 @@ export default defineConfig({
       },
       components: {
         Head: './src/components/overrides/Head.astro',
+        SiteTitle: './src/components/overrides/SiteTitle.astro',
       },
       customCss: ['./src/styles/starlight.css'],
       lastUpdated: true,
@@ -37,31 +38,35 @@ export default defineConfig({
         {
           label: 'Start here',
           items: [
+            { label: 'Your learning path', slug: 'start-here' },
             { label: 'What is an app chain?', slug: 'start-here/what-is-an-app-chain' },
             { label: 'Why Yano X', slug: 'start-here/why-yano-x' },
             { label: 'Release downloads', slug: 'start-here/release-downloads' },
             { label: 'Local showcase', slug: 'start-here/quickstart' },
-            { label: 'Choose a deployment path', slug: 'deployment' },
             { label: 'Build from source', slug: 'start-here/build-from-source' },
           ],
         },
         {
           label: 'Deployment',
+          collapsed: true,
           autogenerate: { directory: 'deployment' },
         },
         {
           label: 'Concepts',
+          collapsed: true,
           items: [
             { label: 'Architecture', slug: 'concepts/architecture' },
             { label: 'Consensus and finality', slug: 'concepts/consensus-and-finality' },
             { label: 'State and proofs', slug: 'concepts/state-and-proofs' },
             { label: 'Effects', slug: 'concepts/effects' },
+            { label: 'External observations', slug: 'concepts/observations' },
             { label: 'Cardano anchoring', slug: 'concepts/anchoring' },
             { label: 'Determinism rules', slug: 'concepts/determinism-rules' },
           ],
         },
         {
           label: 'Recipes',
+          collapsed: true,
           items: [
             { label: 'Recipe catalog', slug: 'recipes' },
             { label: 'Choosing a recipe', slug: 'recipes/choosing-a-recipe' },
@@ -69,6 +74,7 @@ export default defineConfig({
         },
         {
           label: 'Plugin framework',
+          collapsed: true,
           items: [
             { label: 'The extension ladder', slug: 'plugins' },
             { label: 'Scaffold, sign, install', slug: 'plugins/scaffold-sign-install' },
@@ -79,6 +85,7 @@ export default defineConfig({
         },
         {
           label: 'Tutorials',
+          collapsed: true,
           autogenerate: { directory: 'tutorials' },
         },
         {
@@ -108,6 +115,7 @@ export default defineConfig({
         },
         {
           label: 'AI agents',
+          collapsed: true,
           items: [
             { label: 'Using Yano X with AI', slug: 'ai' },
             { label: 'AI Starter Pack', slug: 'ai/starter-pack' },
@@ -127,6 +135,7 @@ export default defineConfig({
         },
         {
           label: 'Contributing',
+          collapsed: true,
           items: [{ label: 'Developing Yano X', slug: 'contributing' }],
         },
       ],

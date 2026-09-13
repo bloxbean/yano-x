@@ -1,13 +1,11 @@
 ---
-title: Developing Yano X
-description: The contributor track — coordinated Yano and Yano X development, the verification gates, architecture invariants, and working-tree safety rules.
-sidebar:
-  order: 1
+title: "Developing Yano X"
+description: "This is the contributor track. If you only want to run Yano X, you want Release downloads instead. Build from source is available for unpublished changes."
+editUrl: "https://github.com/bloxbean/yano-x/edit/main/docs/site/contributing-overview.md"
 ---
-
 This is the **contributor** track. If you only want to run Yano X, you want
-[Build from source](/start-here/build-from-source/) instead — it needs no flags
-and no Yano checkout.
+[Release downloads](/start-here/release-downloads/) instead.
+[Build from source](/start-here/build-from-source/) is available for unpublished changes.
 
 You are here because you are changing Yano X itself, or changing Yano and Yano X
 together.
@@ -159,11 +157,11 @@ commitment profile, proof subject, or genesis-selected configuration — see
 
 ## Working on this documentation site
 
-The site lives in `docsite/` and is independent of the Gradle build — it reads
+The site lives in `www/` and is independent of the Gradle build — it reads
 repository text files only, so it needs no Java and no Yano artifacts.
 
 ```bash
-cd docsite
+cd www
 npm ci
 npm run dev      # imports repo docs, then serves on localhost:4321
 npm run build    # imports, builds to dist/, generates the AI artifacts
@@ -176,7 +174,7 @@ relative link in an imported document **fails the build** rather than shipping a
 404.
 
 Edit the sources under `docs/` for imported pages, and
-`docsite/src/content/docs/` for authored ones. Never hand-edit content between
+`www/src/content/docs/` for authored ones. Never hand-edit content between
 catalog anchors — it is regenerated.
 
 The site's content strategy and design decisions are recorded in ADR-038, in
