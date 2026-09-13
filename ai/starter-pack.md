@@ -1,4 +1,4 @@
-<!-- yanoXVersion: 0.1.0-SNAPSHOT; yanoVersion: 0.1.0-pre13 -->
+<!-- yanoXVersion: 0.1.0-pre1-SNAPSHOT; yanoVersion: 0.1.0-pre15 -->
 
 > **Read this entire document before generating any Yano X code or
 > configuration.** It distills the architecture boundary, the extension ladder,
@@ -7,7 +7,7 @@
 > change that compiles, passes unit tests, and stops a cluster from finalizing.
 
 This pack is optimized for AI ingestion, not for human onboarding. Humans should
-start at [What is an app chain?](https://yanox.dev/start-here/what-is-an-app-chain/).
+start at [What is an app chain?](https://yano-x.io/start-here/what-is-an-app-chain/).
 
 ---
 
@@ -42,11 +42,11 @@ yano-x  ──depends on──▶  yano
 
 | Value | Current |
 |---|---|
-| Yano X version | `0.1.0-SNAPSHOT` |
-| Yano host version | `0.1.0-pre13` |
-| Maven group | `com.bloxbean.cardano` |
+| Yano X version | `0.1.0-pre1-SNAPSHOT` |
+| Yano host version | `0.1.0-pre15` |
+| Maven group | `org.yanoproject.x` |
 | Java | `25` |
-| Base Yano JVM ZIP | [`yano-0.1.0-pre13.zip`](https://github.com/bloxbean/yano/releases/download/v0.1.0-pre13/yano-0.1.0-pre13.zip) |
+| Base Yano JVM ZIP | [`yano-0.1.0-pre15.zip`](https://github.com/bloxbean/yano/releases/download/v0.1.0-pre15/yano-0.1.0-pre15.zip) |
 
 <!-- catalog:versions-end -->
 
@@ -57,7 +57,7 @@ yano-x  ──depends on──▶  yano
 1. **Never** add a source-checkout dependency, composite Gradle build, sibling
    task invocation, or generated-file dependency from Yano X to Yano. Consume an
    exact published Yano version and its matching ordinary JVM ZIP.
-2. **Java packages stay `com.bloxbean.cardano.yano.appchain.*`** while
+2. **Java packages stay `org.yanoproject.x.*`** while
    repository and artifact names are `yano-x`. This is deliberate. Do not
    "fix" it.
 3. **The plugin directory property is `yano.plugins.directory`.** Never
@@ -116,8 +116,8 @@ different roots. Composite order is code, reviewed and signed.
 `role-evidence` profiles.
 
 Live recipe and capability lists:
-[`/ai/catalog.json`](https://yanox.dev/ai/catalog.json), [`/recipes/`](https://yanox.dev/recipes/),
-[`/reference/capabilities/`](https://yanox.dev/reference/capabilities/).
+[`/ai/catalog.json`](https://yano-x.io/ai/catalog.json), [`/recipes/`](https://yano-x.io/recipes/),
+[`/reference/capabilities/`](https://yano-x.io/reference/capabilities/).
 
 ---
 
@@ -160,8 +160,8 @@ collection sizes, state growth per transition, and work per block.
 
 ```java
 @Override
-public void apply(AppBlock block, AppStateWriter writer, AppEffectEmitter effects) {
-    for (AppMessage m : block.messages()) {
+public void apply(AppBlockExecutionContext context, AppStateWriter writer, AppEffectEmitter effects) {
+    for (AppMessage m : context.messages()) {
         Order o = decode(m.getBody());
         writer.put(key(o.id()), o.toBytes());
         if (o.isApproved()) {
@@ -177,7 +177,8 @@ public void apply(AppBlock block, AppStateWriter writer, AppEffectEmitter effect
 }
 
 @Override
-public void onEffectResult(AppBlock block, EffectResult result, AppStateWriter writer) {
+public void onEffectResult(AppBlockExecutionContext context, EffectResult result,
+                               AppStateWriter writer, AppEffectEmitter effects) {
     // Deterministic incorporation of CONFIRMED / FAILED / CANCELLED / EXPIRED.
 }
 ```
@@ -266,7 +267,7 @@ public final class ShipmentStateMachine implements AppStateMachine {
     }
 
     @Override
-    public void apply(AppBlock block, AppStateWriter state) {
+    public void apply(AppBlockExecutionContext context, AppStateWriter state, AppEffectEmitter effects) {
         // Deterministic bounded transitions only.
     }
 }
@@ -403,11 +404,11 @@ catch-up, restart, and anchor state.
 
 | Need | Source |
 |---|---|
-| Live recipes, capabilities, modules, config properties | [`/ai/catalog.json`](https://yanox.dev/ai/catalog.json) |
-| Everything on this site as one file | [`/llms-full.txt`](https://yanox.dev/llms-full.txt) |
+| Live recipes, capabilities, modules, config properties | [`/ai/catalog.json`](https://yano-x.io/ai/catalog.json) |
+| Everything on this site as one file | [`/llms-full.txt`](https://yano-x.io/llms-full.txt) |
 | Version-matched truth for a build | `./yano.sh appchain recipes`, `./yano.sh appchain capabilities --format json` |
 | Project workflow for agents | The in-repo `configure-yano-appchain` skill under `tooling/devtools/src/main/resources/appchain-dx/v1alpha1/skills/` — **it wins where it overlaps this pack** |
-| Exhaustive reference | [Reference shelf](https://yanox.dev/reference/shelf/) |
+| Exhaustive reference | [Reference shelf](https://yano-x.io/reference/shelf/) |
 | Plugin SPI contract | ADR-011, in the repository's `adr/app-layer/` directory |
 | Repository invariants | [`AGENTS.md`](https://github.com/bloxbean/yano-x/blob/main/AGENTS.md) |
 

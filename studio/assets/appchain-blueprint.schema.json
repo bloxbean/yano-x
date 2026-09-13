@@ -57,7 +57,7 @@
         "chains": {
           "type": "array",
           "minItems": 1,
-          "maxItems": 1,
+          "maxItems": 32,
           "items": {
             "type": "object",
             "required": ["chainId", "recipe", "topology"],

@@ -1,7 +1,7 @@
-Yano X is new enough that no model has trained on it. An agent asked to "write a
-Yano plugin" will confidently invent a `ServiceLoader` entry point, put
-`Instant.now()` inside `apply()`, and name the plugin directory property
-`yaci.plugins.directory`. All three are wrong, and none of them fail loudly.
+Give coding agents the documentation for your exact Yano X version. Common
+mistakes include bypassing the plugin catalog with raw `ServiceLoader`, using
+`Instant.now()` inside `apply()`, and using the obsolete plugin-directory
+property. The guides below explain the supported contracts and checks.
 
 So this site publishes everything an agent needs, in formats agents can ingest.
 
@@ -9,10 +9,10 @@ So this site publishes everything an agent needs, in formats agents can ingest.
 
 | Artifact | When to use it |
 |---|---|
-| **[`/ai/starter-pack/`](https://yanox.dev/ai/starter-pack/)** | The single highest-leverage file. The extension ladder, determinism rules, the plugin lifecycle, the invariants that look like typos, and an error-to-fix table. Ingest this before generating anything. |
-| **[`/llms.txt`](https://yanox.dev/llms.txt)** | A curated index following [llmstxt.org](https://llmstxt.org/), with the key facts inline. Small and agent-friendly. |
-| **[`/llms-full.txt`](https://yanox.dev/llms-full.txt)** | Every page on this site concatenated as one markdown file — including all nine tutorials and the state-machine references. Ingest for full coverage. |
-| **[`/ai/catalog.json`](https://yanox.dev/ai/catalog.json)** | Machine-readable recipes, capabilities, runtime artifacts, Gradle modules, configuration properties, and versions. Generated from the repository at build time, so it never drifts. |
+| **[`/ai/starter-pack/`](https://yano-x.io/ai/starter-pack/)** | The single highest-leverage file. The extension ladder, determinism rules, the plugin lifecycle, the invariants that look like typos, and an error-to-fix table. Ingest this before generating anything. |
+| **[`/llms.txt`](https://yano-x.io/llms.txt)** | A curated index following [llmstxt.org](https://llmstxt.org/), with the key facts inline. Small and agent-friendly. |
+| **[`/llms-full.txt`](https://yano-x.io/llms-full.txt)** | Every page on this site concatenated as one markdown file — including all nine tutorials and the state-machine references. Ingest for full coverage. |
+| **[`/ai/catalog.json`](https://yano-x.io/ai/catalog.json)** | Machine-readable recipes, capabilities, runtime artifacts, Gradle modules, configuration properties, and versions. Generated from the repository at build time, so it never drifts. |
 
 All four are regenerated on every documentation build from the repository's own
 catalogs and pages.
@@ -24,7 +24,7 @@ catalogs and pages.
 Drop a `CLAUDE.md` into the root of your project:
 
 ```bash
-curl -o CLAUDE.md https://yanox.dev/ai/starter-pack.md
+curl -o CLAUDE.md https://yano-x.io/ai/starter-pack.md
 ```
 
 Claude Code reads `CLAUDE.md` at the start of every session, so the agent always
@@ -35,14 +35,14 @@ For multi-project setups, reference the hosted version from your global
 
 ```markdown
 When working in a Yano or Yano X project, follow the rules at
-https://yanox.dev/ai/starter-pack/
+https://yano-x.io/ai/starter-pack/
 ```
 
 ### Cursor
 
 ```bash
 mkdir -p .cursor/rules
-curl -o .cursor/rules/yano-x.mdc https://yanox.dev/ai/starter-pack.md
+curl -o .cursor/rules/yano-x.mdc https://yano-x.io/ai/starter-pack.md
 ```
 
 Cursor applies rules in `.cursor/rules/` automatically when working in the
@@ -55,7 +55,7 @@ project.
   "contextProviders": [
     {
       "name": "url",
-      "params": { "url": "https://yanox.dev/llms-full.txt" }
+      "params": { "url": "https://yano-x.io/llms-full.txt" }
     }
   ]
 }
@@ -68,7 +68,7 @@ For a one-off conversation, paste this at the start:
 ```text
 I'm working with Yano X, the Java 25 JVM extension ecosystem for Yano app chains
 (application-specific replicated ledgers on Cardano). Read the Yano X AI Starter
-Pack at https://yanox.dev/ai/starter-pack and follow its rules strictly. In
+Pack at https://yano-x.io/ai/starter-pack and follow its rules strictly. In
 particular:
 - Dependency direction is strictly yano-x -> yano. Never propose a composite
   Gradle build or a source dependency on a Yano checkout.
@@ -76,12 +76,12 @@ particular:
   PluginProviderRegistry plus a schema-v1 manifest. Never raw ServiceLoader.
 - Code inside apply() must be deterministic: no wall clock, no randomness, no
   ambient iteration order, no I/O. External work is an emitted effect.
-- Packages are com.bloxbean.cardano.yano.appchain.* even though artifacts are
+- Packages are org.yanoproject.x.* even though artifacts are
   yano-x-*. The plugin directory property is yano.plugins.directory.
 - Yano X is JVM-only. Never add GraalVM or native-image tasks.
 ```
 
-For long-lived projects, attach `https://yanox.dev/llms-full.txt` to your
+For long-lived projects, attach `https://yano-x.io/llms-full.txt` to your
 project files or custom GPT.
 
 ### Any agent with tool access
@@ -89,9 +89,9 @@ project files or custom GPT.
 Point it at the catalog and let it read structured data instead of guessing:
 
 ```bash
-curl -s https://yanox.dev/ai/catalog.json | jq '.recipes[].id'
-curl -s https://yanox.dev/ai/catalog.json | jq '.capabilities[] | select(.category=="state")'
-curl -s https://yanox.dev/ai/catalog.json | jq '.configuration[] | select(.scope=="CONSENSUS_SHARED")'
+curl -s https://yano-x.io/ai/catalog.json | jq '.recipes[].id'
+curl -s https://yano-x.io/ai/catalog.json | jq '.capabilities[] | select(.category=="state")'
+curl -s https://yano-x.io/ai/catalog.json | jq '.configuration[] | select(.scope=="CONSENSUS_SHARED")'
 ```
 
 ## The in-repo agent skill

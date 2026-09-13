@@ -1,8 +1,8 @@
 # Yano X
 
-yanoXVersion: 0.1.0-SNAPSHOT
-yanoVersion: 0.1.0-pre13
-generatedAt: 2026-08-23T14:17:11.400Z
+yanoXVersion: 0.1.0-pre1-SNAPSHOT
+yanoVersion: 0.1.0-pre15
+generatedAt: 2026-09-13T12:26:33.637Z
 
 > Yano X is the Java 25, JVM-only extension ecosystem for Yano app chains. An app chain is an application-specific replicated ledger with deterministic state, threshold finality, MPF proofs, optional Cardano anchoring, and controlled external effects. Yano X supplies the stock state machines, capabilities, connectors, products, SDKs, and the batteries-included JVM distribution that run on top of the Yano host.
 
@@ -13,12 +13,12 @@ Key facts an AI agent should know before generating Yano X code or configuration
   products, SDKs, and the batteries-included JVM distribution. The dependency
   direction is strictly `yano-x -> yano` and must never be inverted, nor satisfied
   with a composite Gradle build or a sibling source checkout.
-- **Versions:** Yano X `0.1.0-SNAPSHOT` builds against Yano `0.1.0-pre13`, Java 25.
-  There is no published Yano X release yet; users build from source.
+- **Versions:** Yano X `0.1.0-pre1-SNAPSHOT` builds against Yano `0.1.0-pre15`, Java 25.
+  Start with a matching release archive; build from source for unpublished changes.
 - **Yano X is JVM-only.** Never add GraalVM/native-image tasks, reachability
   metadata, or native executables. `verifyJvmOnlyBuild` enforces this.
-- **Package names stay `com.bloxbean.cardano.yano.appchain.*`** even though
-  repository and artifact names are `yano-x`. This is deliberate, not a leftover.
+- **Yano X uses group `org.yanoproject.x` and packages `org.yanoproject.x.*`.**
+  Yano host artifacts use `org.yanoproject`; retain third-party library namespaces.
 - **The plugin directory property is `yano.plugins.directory`.** Never
   `yaci.plugins.directory`.
 - **Every optional runtime behavior crosses the plugin catalog boundary** and is
@@ -29,7 +29,7 @@ Key facts an AI agent should know before generating Yano X code or configuration
   environment-dependent iteration order, network calls, or node-local mutable
   decisions. External work is emitted as an effect record and executed later by
   the effect runtime, never called during `apply`.
-- **Choose the smallest extension:** configuration (11 stock recipes,
+- **Choose the smallest extension:** configuration (12 stock recipes,
   43 capabilities) -> a small composite plugin -> a custom
   state-machine plugin. Only the last one adds new consensus semantics.
 - **The public CLI is `./yano.sh appchain …`**, shipped inside the Yano X JVM
@@ -39,93 +39,109 @@ Key facts an AI agent should know before generating Yano X code or configuration
 
 ## Start here for AI agents
 
-- [AI Starter Pack](https://yanox.dev/ai/starter-pack/): the single best file to ingest. The extension ladder, the determinism rules, the plugin lifecycle, the invariants that look like typos, and the error-to-fix table.
-- [llms-full.txt](https://yanox.dev/llms-full.txt): every page concatenated into one markdown file. Ingest for full coverage.
-- [catalog.json](https://yanox.dev/ai/catalog.json): machine-readable recipes, capabilities, runtime artifacts, Gradle modules, configuration properties, and versions, generated from the repository at build time.
-- [Using Yano X with AI agents](https://yanox.dev/ai/): install snippets for Claude Code, Cursor, Continue, and ChatGPT.
+- [AI Starter Pack](https://yano-x.io/ai/starter-pack/): the single best file to ingest. The extension ladder, the determinism rules, the plugin lifecycle, the invariants that look like typos, and the error-to-fix table.
+- [llms-full.txt](https://yano-x.io/llms-full.txt): every page concatenated into one markdown file. Ingest for full coverage.
+- [catalog.json](https://yano-x.io/ai/catalog.json): machine-readable recipes, capabilities, runtime artifacts, Gradle modules, configuration properties, and versions, generated from the repository at build time.
+- [Using Yano X with AI agents](https://yano-x.io/ai/): install snippets for Claude Code, Cursor, Continue, and ChatGPT.
 
 ## AI
 
-- [Using Yano X with AI agents](https://yanox.dev/ai/): How to point Claude Code, Cursor, Continue, ChatGPT, or any coding agent at Yano X — the starter pack, llms.txt, the machine-readable catalog, and the in-repo agent skill.
-- [Yano X AI Starter Pack](https://yanox.dev/ai/starter-pack/): Everything an AI agent needs to work correctly in a Yano X repository on the first try. Ingest this before generating any Yano X code or configuration.
+- [Using Yano X with AI agents](https://yano-x.io/ai/): Give coding agents the documentation for your exact Yano X version. Common mistakes include bypassing the plugin catalog with raw ServiceLoader, using…
+- [Yano X AI Starter Pack](https://yano-x.io/ai/starter-pack/): This pack is optimized for AI ingestion, not for human onboarding. Humans should start at What is an app chain?.
 
 ## Start here
 
-- [What is an app chain?](https://yanox.dev/start-here/what-is-an-app-chain/): An app chain is an application-specific replicated ledger run by a group of organizations, with deterministic state, threshold finality, proofs, and optional Cardano settlement.
-- [Why Yano X](https://yanox.dev/start-here/why-yano-x/): Yano is the app-chain host; Yano X is the JVM extension ecosystem that turns it into something you configure rather than build. This page draws the boundary.
-- [Build from source](https://yanox.dev/start-here/build-from-source/): Yano X has no published release yet. Build the batteries-included JVM distribution from a clean clone with one Gradle command — no second checkout and no flags.
-- [Quickstart](https://yanox.dev/start-here/quickstart/): Start a three-member app chain on a self-contained devnet, submit a business event, confirm every member agrees, and pull a proof — in about ten minutes.
+- [Your path through Yano X](https://yano-x.io/start-here/): Start with a working example. Learn one concept at a time, then bring your own application rules.
+- [What is an app chain?](https://yano-x.io/start-here/what-is-an-app-chain/): An app chain is an application-specific, replicated ledger that a group of organizations runs together. Members agree on the order of application…
+- [Why Yano X](https://yano-x.io/start-here/why-yano-x/): Choose Yano X when several organizations need shared records, workflows, or integrations with independently verifiable results. Start with existing…
+- [Download a Yano X release](https://yano-x.io/start-here/release-downloads/): Each Yano X GitHub release publishes one ZIP file, yano-x-jvm-<version>.zip, and its SHA256SUMS. Verify the archive before extraction:
+- [Build from source](https://yano-x.io/start-here/build-from-source/): For a first run, use a release download. Build from source when you want the current checkout or need to change Yano X. The build resolves the matching…
+- [Start a local Yano X showcase](https://yano-x.io/start-here/quickstart/): Run three nodes, submit useful data, and inspect proofs without a source checkout, wallet, public-network funds, or external Cardano node.
 
 ## Concepts
 
-- [Architecture](https://yanox.dev/concepts/architecture/): The four layers of an app chain, the two-plane separation between deterministic intent and non-deterministic execution, and the components that implement them.
-- [Consensus and finality](https://yanox.dev/concepts/consensus-and-finality/): How a submitted message becomes a threshold-certified app block — sequencing modes, the fail-closed verification chain, membership governance, and catch-up.
-- [State and proofs](https://yanox.dev/concepts/state-and-proofs/): How app-chain state is committed to an MPF root, what a typed proof subject actually asserts, and the difference between a reconstructed root and a trusted one.
-- [Effects](https://yanox.dev/concepts/effects/): How a finalized state transition triggers work outside the chain — emit-not-execute, finality gates, mandatory expiry, exactly-once incorporation, and executor trust.
-- [Cardano anchoring](https://yanox.dev/concepts/anchoring/): Committing a certified app-chain root to Cardano — metadata versus threshold-script anchors, the anchor wallet, why the anchor leader is not a trust point, and what an anchor does and does not prove.
-- [Determinism rules](https://yanox.dev/concepts/determinism-rules/): The hard constraints on code that runs inside consensus — no wall clock, no randomness, no ambient ordering, no I/O — and the versioning discipline that applies when any of it changes.
+- [Architecture](https://yano-x.io/concepts/architecture/): The four layers of an app chain, the two-plane separation between deterministic intent and non-deterministic execution, and the components that implement them.
+- [Consensus and finality](https://yano-x.io/concepts/consensus-and-finality/): How a submitted message becomes a threshold-certified app block — sequencing modes, the fail-closed verification chain, membership governance, and catch-up.
+- [State and proofs](https://yano-x.io/concepts/state-and-proofs/): Application state lives in an authenticated trie. Every finalized block produces one root that commits to all of it, identical on every member. A client…
+- [Effects](https://yano-x.io/concepts/effects/): Everything else in an app chain keeps state inside the chain. Effects let a finalized transition trigger an action outside it — call an ERP or webhook…
+- [Bring external evidence into your application](https://yano-x.io/concepts/observations/): Generic observations let an application use external information through a shared verification policy. For example, a workflow can wait for a signed…
+- [Cardano anchoring](https://yano-x.io/concepts/anchoring/): Anchoring periodically commits the app chain's position — height, block hash, and state root — onto Cardano. The node builds, signs, and submits the…
+- [Determinism rules](https://yano-x.io/concepts/determinism-rules/): The hard constraints on code that runs inside consensus — no wall clock, no randomness, no ambient ordering, no I/O — and the versioning discipline that applies when any of it changes.
 
 ## Recipes
 
-- [Recipe catalog](https://yanox.dev/recipes/): Reviewed starting points for an app chain, generated from the release-pinned recipe catalog in the Yano X repository.
-- [Choosing a recipe](https://yanox.dev/recipes/choosing-a-recipe/): A decision path from business outcome to a concrete recipe, state machine, and extension level — including when configuration is not enough.
+- [Recipe catalog](https://yano-x.io/recipes/): Reviewed starting points for an app chain, generated from the release-pinned recipe catalog in the Yano X repository.
+- [Choosing a recipe](https://yano-x.io/recipes/choosing-a-recipe/): A decision path from business outcome to a concrete recipe, state machine, and extension level — including when configuration is not enough.
 
 ## Plugin framework
 
-- [The extension ladder](https://yanox.dev/plugins/): Yano X's central design idea — climb only as far as you need, from configuration to a composite plugin to a custom state machine, and never fork the consensus runtime.
-- [Scaffold, sign, install](https://yanox.dev/plugins/scaffold-sign-install/): The full plugin lifecycle command by command — scaffold a bounded starting point, implement, sign the catalog, validate, pin it into a project, and install it on every member.
-- [SPI and manifest](https://yanox.dev/plugins/spi-and-manifest/): The three bounded contracts a Yano X plugin JAR carries, the Ed25519 trust envelope over them, how activation works, and what signing does and does not mean.
-- [Consensus rules for plugins](https://yanox.dev/plugins/consensus-rules/): What plugin code may and may not do inside consensus, how to bound hostile input, and how to evolve a live chain's semantics without forking it.
-- [Testing and deployment](https://yanox.dev/plugins/testing-and-deployment/): The seven-rung testing ladder for a Yano X plugin, the effect failure modes worth testing explicitly, and the operational rules for running plugins in production.
+- [The extension ladder](https://yano-x.io/plugins/): Yano's core provides ordering, threshold finality, deterministic state, proofs, anchoring, effects, plugin lifecycle, health, and metrics. Application…
+- [Scaffold, sign, install](https://yano-x.io/plugins/scaffold-sign-install/): Seven steps from nothing to a running plugin. None of them require touching Yano.
+- [SPI and manifest](https://yano-x.io/plugins/spi-and-manifest/): A plugin JAR is not just code with a ServiceLoader entry. It carries three independent, bounded contracts, and an Ed25519 envelope that binds them.
+- [Consensus rules for plugins](https://yano-x.io/plugins/consensus-rules/): Plugin code that runs inside apply() is consensus code. Every member executes it and must derive the same state root. This page is the contract.
+- [Testing and deployment](https://yano-x.io/plugins/testing-and-deployment/): The seven-rung testing ladder for a Yano X plugin, the effect failure modes worth testing explicitly, and the operational rules for running plugins in production.
+
+## Deployment
+
+- [Deploy Yano X](https://yano-x.io/deployment/): Start with a local demonstration, configure an application when you are ready, and use the operator workflow when you need remote machines.
+- [Add a chain without resetting your application](https://yano-x.io/deployment/add-chain/): An independent chain can be added to a generated local JVM host project through a reviewed configuration revision and controlled restart. Existing chains…
+- [Configure your application](https://yano-x.io/deployment/configure/): Use the App-Chain Studio to choose recipes and capabilities, or use the CLI from an extracted Yano X JVM release. Studio ships in the release under…
+- [Deploy and operate remote VMs](https://yano-x.io/deployment/operators/): The packaged tools/yano-deploy/bin/yano-x-deploy automates a qualified showcase profile on existing Linux VMs, Contabo, Hetzner Cloud, DigitalOcean, or…
 
 ## Tutorials
 
-- [App-Chain Tutorials](https://yanox.dev/tutorials/): These tutorials are progressive but independently usable. Each one has a beginner path and a Go deeper section for readers who want the trust, consensus…
-- [Tutorial 1 — Your First App Chain](https://yanox.dev/tutorials/01-first-app-chain/): Three members finalize the same ordered event and expose the same state root.
-- [Tutorial 2 — A Provable Shared Registry](https://yanox.dev/tutorials/02-registry-and-proofs/): Write owner-controlled data, demonstrate an unauthorized no-op, and retrieve an MPF proof for the current value.
-- [Tutorial 3 — Choose a Stock State Machine](https://yanox.dev/tutorials/03-stock-state-machines/): Choose the smallest built-in deterministic model that matches your application before writing a plugin.
-- [Tutorial 4 — Publish and Verify Immutable Evidence](https://yanox.dev/tutorials/04-evidence-publication/): Publish one immutable document through a threshold-approved workflow, preserve it in S3-compatible storage and IPFS, notify Kafka, and verify the chain…
-- [Tutorial 5 — Generic Domain Actors and Role-Aware Approval](https://yanox.dev/tutorials/05-domain-role-approvals/): Authorize an application payload hash with governed business actors and organization-distinct roles, then see how the evidence product consumes the same…
-- [Tutorial 6 — Invoke an External HTTP Endpoint Safely](https://yanox.dev/tutorials/06-webhook-effects/): Understand when to use a finalized-block webhook sink versus an acknowledged webhook.post effect, and run the latter from a stock approval transition.
-- [Tutorial 7 — Connect an App Proof to Cardano](https://yanox.dev/tutorials/07-anchors-and-verification/): Bootstrap a threshold-enforced script anchor, advance it after app blocks finalize, and understand the independent verification chain.
-- [Tutorial 8 — Extend Yano Without Forking It](https://yanox.dev/tutorials/08-plugins-and-composites/): Choose the correct extension level and deploy versioned business logic as a plugin JAR on the standard JVM distribution.
-- [Tutorial 9 — From Local Demo to a Permissioned Pilot](https://yanox.dev/tutorials/09-from-demo-to-pilot/): Turn a successful tutorial into an explicit deployment plan without inheriting local-demo assumptions.
+- [App-Chain Tutorials](https://yano-x.io/tutorials/): These tutorials are progressive but independently usable. Each one has a beginner path and a Go deeper section for readers who want the trust, consensus…
+- [Tutorial 1 — Your First App Chain](https://yano-x.io/tutorials/01-first-app-chain/): Three members finalize the same ordered event and expose the same state root.
+- [Tutorial 2 — A Provable Shared Registry](https://yano-x.io/tutorials/02-registry-and-proofs/): Write owner-controlled data, demonstrate an unauthorized no-op, and retrieve an MPF proof for the current value.
+- [Tutorial 3 — Choose a Stock State Machine](https://yano-x.io/tutorials/03-stock-state-machines/): Choose the smallest built-in deterministic model that matches your application before writing a plugin.
+- [Tutorial 4 — Publish and Verify Immutable Evidence](https://yano-x.io/tutorials/04-evidence-publication/): Publish one immutable document through a threshold-approved workflow, preserve it in S3-compatible storage and IPFS, notify Kafka, and verify the chain…
+- [Tutorial 5 — Generic Domain Actors and Role-Aware Approval](https://yano-x.io/tutorials/05-domain-role-approvals/): Authorize an application payload hash with governed business actors and organization-distinct roles, then see how the evidence product consumes the same…
+- [Tutorial 6 — Invoke an External HTTP Endpoint Safely](https://yano-x.io/tutorials/06-webhook-effects/): Understand when to use a finalized-block webhook sink versus an acknowledged webhook.post effect, and run the latter from a stock approval transition.
+- [Tutorial 7 — Connect an App Proof to Cardano](https://yano-x.io/tutorials/07-anchors-and-verification/): Bootstrap a threshold-enforced script anchor, advance it after app blocks finalize, and understand the independent verification chain.
+- [Tutorial 8 — Extend Yano Without Forking It](https://yano-x.io/tutorials/08-plugins-and-composites/): Choose the correct extension level and deploy versioned business logic as a plugin JAR on the standard JVM distribution.
+- [Tutorial 9 — From Local Demo to a Permissioned Pilot](https://yano-x.io/tutorials/09-from-demo-to-pilot/): Turn a successful tutorial into an explicit deployment plan without inheriting local-demo assumptions.
 
 ## State machines
 
-- [App-Chain State-Machine References](https://yanox.dev/state-machines/): These pages are capability references for Yano's deterministic application state machines. Use the stock state-machine cookbook for a quick comparison.
-- [`approvals` State Machine](https://yanox.dev/state-machines/approvals/): Approvals is Yano's built-in member-signature workflow for deterministic k-of-n decisions. A proposer creates an item, distinct app-chain members approve…
-- [Authenticated-map value validation](https://yanox.dev/state-machines/authenticated-map-validation/): The authenticated-map state machine is a proof-oriented, multi-collection registry. Each collection independently chooses its authorization policy, key…
-- [`authenticated-map` State Machine](https://yanox.dev/state-machines/authenticated-map/): authenticated-map is Yano's built-in, proof-oriented registry for multiple named collections. Each collection has its own authorization policy, key/value…
-- [`balances` State Machine](https://yanox.dev/state-machines/balances/): Balances is Yano's stock non-negative account ledger. A configured member may mint units to an application account, and each app-chain member may transfer…
-- [`doc-trail` State Machine](https://yanox.dev/state-machines/doc-trail/): doc-trail is Yano's built-in append-only trail per business entity. Each command appends an application-level document or event hash to one entity's…
-- [`kv-registry` State Machine](https://yanox.dev/state-machines/kv-registry/): kv-registry is Yano's built-in mutable key/value registry with deterministic first-writer ownership. The member that first creates a key becomes its…
-- [`role-approvals` State Machine](https://yanox.dev/state-machines/role-approvals/): role-approvals is Yano's application-neutral authorization product for cases where business actors are not the app-chain validator members. Governed…
+- [App-Chain State-Machine References](https://yano-x.io/state-machines/): These pages are capability references for Yano's deterministic application state machines. Use the stock state-machine cookbook for a quick comparison.
+- [`approvals` State Machine](https://yano-x.io/state-machines/approvals/): Approvals is Yano's built-in member-signature workflow for deterministic k-of-n decisions. A proposer creates an item, distinct app-chain members approve…
+- [Authenticated-map value validation](https://yano-x.io/state-machines/authenticated-map-validation/): The authenticated-map state machine is a proof-oriented, multi-collection registry. Each collection independently chooses its authorization policy, key…
+- [`authenticated-map` State Machine](https://yano-x.io/state-machines/authenticated-map/): authenticated-map is Yano X's plugin-provided, proof-oriented registry for multiple named collections. Each collection has its own authorization policy…
+- [`balances` State Machine](https://yano-x.io/state-machines/balances/): Balances is Yano's stock non-negative account ledger. A configured member may mint units to an application account, and each app-chain member may transfer…
+- [`doc-trail` State Machine](https://yano-x.io/state-machines/doc-trail/): doc-trail is Yano X's stock append-only trail per business entity. Each command appends an application-level document or event hash to one entity's…
+- [`kv-registry` State Machine](https://yano-x.io/state-machines/kv-registry/): kv-registry is Yano's built-in mutable key/value registry with deterministic first-writer ownership. The member that first creates a key becomes its…
+- [`role-approvals` State Machine](https://yano-x.io/state-machines/role-approvals/): role-approvals is Yano's application-neutral authorization product for cases where business actors are not the app-chain validator members. Governed…
 
 ## Products
 
-- [Products](https://yanox.dev/products/): The complete, opinionated applications Yano X ships on top of the app-chain platform — Evidence, Cardano History, and the experimental eUTxO and ZK ledgers.
-- [Evidence](https://yanox.dev/products/evidence/): Publish an immutable document through a threshold-approved workflow, preserve it in object storage and IPFS, notify Kafka, and prove state, effects, finality, and the Cardano anchor together.
-- [Cardano History](https://yanox.dev/products/cardano-history/): Query and prove historical Cardano protocol parameters, epoch stake, DRep distribution, and proposal history — as compact, root-fixed proofs rather than trusted API responses.
-- [eUTxO and ZK](https://yanox.dev/products/eutxo-and-zk/): An experimental deterministic Cardano-shaped UTxO ledger, an optional federated Cardano bridge, and an optional ZeroJ validity and rollup path.
+- [Products](https://yano-x.io/products/): A product is a step above a recipe. Where a recipe selects capabilities, a product assembles a state machine or composite profile, a domain contract, a…
+- [Attest](https://yano-x.io/products/attest/): Record a document digest on a threshold-finalized doc-trail chain and hand out a portable certificate that anyone can verify offline against member keys or a Cardano anchor.
+- [Attestation Feed](https://yano-x.io/products/attestation-feed/): An experimental, configuration-only consortium observation ledger on the governed authenticated map, with a deterministic aggregation every verifier recomputes, approval-closed rounds, a candidate Cardano datum, a portal, a gateway, and a console.
+- [Evidence](https://yano-x.io/products/evidence/): Publish an immutable document through a threshold-approved workflow, preserve it in object storage and IPFS, notify Kafka, and prove state, effects, finality, and the Cardano anchor together.
+- [Evidence Desk](https://yano-x.io/products/evidence-desk/): The Evidence Desk is the user interface for the role workflow and the Evidence product. It runs against any app chain whose composite carries the…
+- [Cardano History](https://yano-x.io/products/cardano-history/): Query and prove historical Cardano protocol parameters, epoch stake, DRep distribution, and proposal history — as compact, root-fixed proofs rather than trusted API responses.
+- [DPP Starter](https://yano-x.io/products/dpp-starter/): A configuration-only Digital Product Passport prototype on the governed authenticated map, with proof-bound passports, a certification round, a public portal, an operator gateway, and a console.
+- [eUTxO and ZK](https://yano-x.io/products/eutxo-and-zk/): An experimental deterministic Cardano-shaped UTxO ledger, an optional federated Cardano bridge, and an optional ZeroJ validity and rollup path.
+- [Verifiable Explorer](https://yano-x.io/products/explorer/): A derived, verify-on-ingest index over stock app chains with a read service, a CLI, and a console; every row keeps its evidence and can be proven offline.
+- [Trust Registry](https://yano-x.io/products/trust-registry/): The Trust and Status Registry is a config-only product on the stock governed authenticated-map state machine. Its chain holds subjects, credential status…
 
 ## Reference
 
-- [CLI reference](https://yanox.dev/reference/cli/): The ./yano.sh appchain command surface — project lifecycle, cluster operation, plugin tooling, and authenticated-state inspection.
-- [REST API](https://yanox.dev/reference/rest-api/): The public app-chain HTTP surface — submission, reads, proofs, streaming, and admin — plus the submission limits, backpressure, and replay-protection rules that govern it.
-- [Capability catalog](https://yanox.dev/reference/capabilities/): Every selectable app-chain capability in this release — state machines, profiles, sequencing, membership, anchoring, effects, executors, sinks, and observability — generated from the repository catalog.
-- [Configuration reference](https://yanox.dev/reference/configuration/): The typed configuration properties owned by Yano X first-party plugins, with their scope, change policy, and metadata coverage — generated from the repository.
-- [Modules and artifacts](https://yanox.dev/reference/modules/): Every Gradle module in Yano X with its published artifact id, publication type, and plugin bundle id — generated from config/artifacts-v1.json.
-- [Reference shelf](https://yanox.dev/reference/shelf/): Deep links to the exhaustive guides that live in the Yano X repository — the 113 KB user guide, state-machine references, connector guides, ADRs, and demo scripts.
+- [CLI reference](https://yano-x.io/reference/cli/): The ./yano.sh appchain command surface — project lifecycle, cluster operation, plugin tooling, and authenticated-state inspection.
+- [REST API](https://yano-x.io/reference/rest-api/): Base path: <artifact-api-prefix>/app-chain, by default /api/v1/app-chain.
+- [Capability catalog](https://yano-x.io/reference/capabilities/): Every selectable app-chain capability in this release — state machines, profiles, sequencing, membership, anchoring, effects, executors, sinks, and observability — generated from the repository catalog.
+- [Configuration reference](https://yano-x.io/reference/configuration/): Yano X plugins declare their configuration as typed metadata, not as prose. That metadata is what makes appchain config validate and appchain explain…
+- [Modules and artifacts](https://yano-x.io/reference/modules/): Yano X Maven publications use the group org.yanoproject.x. This inventory also includes tools, distributions, and fixtures that are not Maven Central…
+- [Reference shelf](https://yano-x.io/reference/shelf/): Deep links to the exhaustive guides that live in the Yano X repository — the 113 KB user guide, state-machine references, connector guides, ADRs, and demo scripts.
 
 ## Contributing
 
-- [Developing Yano X](https://yanox.dev/contributing/): The contributor track — coordinated Yano and Yano X development, the verification gates, architecture invariants, and working-tree safety rules.
+- [Developing Yano X](https://yano-x.io/contributing/): This is the contributor track. If you only want to run Yano X, you want Release downloads instead. Build from source is available for unpublished changes.
 
 ## Source code
 
 - Yano X: https://github.com/bloxbean/yano-x
 - Yano (host): https://github.com/bloxbean/yano
-- Base Yano JVM distribution: https://github.com/bloxbean/yano/releases/download/v0.1.0-pre13/yano-0.1.0-pre13.zip
-- App-Chain Studio (blueprint builder): https://yanox.dev/studio/
+- Base Yano JVM distribution: https://github.com/bloxbean/yano/releases/download/v0.1.0-pre15/yano-0.1.0-pre15.zip
+- App-Chain Studio (blueprint builder): https://yano-x.io/studio/
 
