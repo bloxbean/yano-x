@@ -950,8 +950,16 @@ snapshot_operation() {
 
 run_cardano_history() {
   [ "$CARDANO_HISTORY_ENABLED" = true ] || die "Cardano History is disabled for this instance"
-  curl -fsS "http://127.0.0.1:$((HTTP_BASE + NODE))/api/v1/plugins/org.yanoproject.x.cardano-history/status?chain=$CARDANO_HISTORY_CHAIN_ID" \
-    | jq .
+  local url status waiting="" deadline=$(( $(date +%s) + 300 ))
+  url="http://127.0.0.1:$((HTTP_BASE + NODE))/api/v1/plugins/org.yanoproject.x.cardano-history/status?chain=$CARDANO_HISTORY_CHAIN_ID"
+  # The chain records its first epoch only after the L1 epoch-stability depth
+  # (about two devnet epochs); until then the route has nothing to serve.
+  until status="$(curl -fsS "$url" 2>/dev/null)"; do
+    [ "$(date +%s)" -le "$deadline" ] || die "Cardano History recorded no stable L1 epoch within 300s"
+    [ -n "$waiting" ] || { note "waiting for the first stable L1 epoch observation"; waiting=1; }
+    sleep 5
+  done
+  printf '%s' "$status" | jq .
 }
 
 run_orders() {
@@ -1616,7 +1624,11 @@ run_soak_test() {
 }
 
 eutxo_tool() {
-  java -cp "$YANO_HOME/yano.jar:$(plugin_file)" \
+  # The helper's eUTxO contract types ship in the ledger bundle, not the showcase bundle.
+  local ledger=("$YANO_HOME"/plugins/yano-x-eutxo-ledger-bundle-*.jar)
+  [ "${#ledger[@]}" -eq 1 ] && [ -f "${ledger[0]}" ] \
+    || die "expected exactly one eUTxO ledger plugin bundle"
+  java -cp "$YANO_HOME/yano.jar:$(plugin_file):${ledger[0]}" \
     org.yanoproject.x.showcase.ShowcaseEutxoTransactions "$@"
 }
 
