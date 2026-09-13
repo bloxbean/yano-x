@@ -168,6 +168,11 @@ cross-node behavior changed.
 - Persistence changes require apply, rollback, replay, restart, and root-parity
   checks. Derived indexes must never advance beyond authoritative app-chain
   state and must remain separate from L1 `chainstate`.
+- Before a release, and after distribution or Yano version changes, smoke-test
+  the built ZIP with
+  `.agents/skills/smoke-yano-x-release/scripts/smoke_release_zip.sh`. It runs
+  the packaged multi-node acceptance gates, which `build` and CI do not, plus a
+  live showcase with restart.
 
 The pre-split low-level `test-app-chain-*` skills in the Yano repository are
 historical evidence, not directly runnable Yano X procedures. Port their
