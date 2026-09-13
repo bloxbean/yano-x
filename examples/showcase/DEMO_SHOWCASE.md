@@ -45,17 +45,19 @@ Last verified live: 2026-08-05 on a 3-node cluster.
 cd ~/work/bloxbean/yano-x
 # Uses the released Yano version in gradle.properties and its matching JVM ZIP.
 ./gradlew build -PskipSigning=true
-# → examples/showcase/build/distributions/yano-showcase-<version>.zip
+# → distribution/jvm/build/distributions/yano-x-jvm-<version>.zip
 
-unzip examples/showcase/build/distributions/yano-showcase-*.zip -d ~/showcase
-cd ~/showcase/yano-showcase-*
+unzip distribution/jvm/build/distributions/yano-x-jvm-*.zip -d ~/showcase
+cd ~/showcase/yano-x-jvm-*/examples/showcase
 ./showcase.sh doctor          # Java 25, Python 3, curl, jq, packaged artifacts
 ```
 
-Release users can download `yano-showcase-<version>.zip` directly and skip the
-build step. To assemble only the showcase, use
-`./gradlew :examples:showcase:distZip -PskipSigning=true`; use
-`:examples:showcase:showcaseDistributionContract` to also verify the archive.
+The showcase ships inside the Yano X JVM distribution and runs on it. Release
+users can download `yano-x-jvm-<version>.zip` directly and skip the build step.
+To assemble only the archive, use
+`./gradlew :distribution:jvm:yanoXJvmDistZip -PskipSigning=true`; use
+`:examples:showcase:showcaseDistributionContract` to also verify the showcase
+inside it.
 For coordinated unpublished Yano inputs, follow the repository
 [build guide](../../docs/BUILD_AND_TEST.md).
 

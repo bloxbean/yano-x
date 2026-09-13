@@ -1,8 +1,7 @@
-# Choose a Yano X release download
+# Download a Yano X release
 
-Each Yano X GitHub release publishes five ZIP files. Download the files you
-need and `SHA256SUMS` from the same release. If you download all five ZIPs,
-verify them before extraction:
+Each Yano X GitHub release publishes one ZIP file, `yano-x-jvm-<version>.zip`,
+and its `SHA256SUMS`. Verify the archive before extraction:
 
 ```bash
 sha256sum --check SHA256SUMS
@@ -10,21 +9,25 @@ sha256sum --check SHA256SUMS
 
 On macOS, use `shasum -a 256 --check SHA256SUMS`.
 
-| ZIP | Use it when | First command after extraction |
-| --- | --- | --- |
-| `yano-x-jvm-<version>.zip` | You want one production-shaped Yano JVM node with the standard Yano X plugin set. | `./yano.sh start:devnet,appchain` |
-| `yano-x-plugin-pack-<version>.zip` | You already operate the matching Yano JVM release and want to select Yano X runtime bundles yourself. | Copy reviewed bundles from `plugins/` into the node plugin directory. |
-| `yano-showcase-<version>.zip` | You want the quickest local three-node, multi-app-chain demonstration. | `./showcase.sh quickstart --profile light --nodes 3 --instance demo` |
-| `yano-x-studio-<version>.zip` | You want the browser-based blueprint editor. It is a static site. | `python3 -m http.server 8080` |
-| `yano-x-deploy-<version>.zip` | You want to render and apply multi-node OpenTofu and Ansible deployments. | `bin/yano-x-deploy init ./cluster` |
+The same archive serves a production node, the local showcase, the deployment
+CLI, and App-Chain Studio. It needs Java 25; the showcase also needs Python 3,
+`curl`, and `jq`.
 
-All five files use the Yano X release version. The combined JVM and plugin-pack
-archives also embed the exact compatible Yano host identity. Do not mix a
-plugin pack with a different Yano release.
+| Path in the archive | Use it when | First command, from the extracted directory |
+| --- | --- | --- |
+| `yano.sh` | You want one production-shaped Yano JVM node with the standard Yano X plugin set. | `./yano.sh start:devnet,appchain` |
+| `examples/showcase/` | You want the quickest local three-node, multi-app-chain demonstration. | `examples/showcase/showcase.sh quickstart --profile light --nodes 3 --instance demo` |
+| `tools/yano-deploy/` | You want to render and apply multi-node OpenTofu and Ansible deployments. | `tools/yano-deploy/bin/yano-x-deploy init ./cluster` |
+| `studio/` | You want the browser-based blueprint editor. It is a static site. | `cd studio && python3 -m http.server 8080` |
+| `plugins/`, `optional-plugins/` | You already operate the matching Yano JVM release and want to select Yano X runtime bundles yourself. | Copy reviewed bundles into the node plugin directory. |
+
+The archive embeds the exact compatible Yano host identity in
+`yano-x-distribution-v1.json`. Do not mix its plugins with a different Yano
+release.
 
 ## Run one node
 
-The combined JVM archive is the normal starting point for a single node:
+The archive is the normal starting point for a single node:
 
 ```bash
 unzip yano-x-jvm-<version>.zip
@@ -37,13 +40,12 @@ configuration before using a public Cardano network.
 
 ## Run the local multi-node showcase
 
-The showcase archive contains its own combined JVM runtime, demo plugins,
-configuration, scripts, and guides. It needs Java 25, Python 3, `curl`, and
-`jq`:
+The showcase lives in `examples/showcase/` and runs on the distribution it
+ships in. It keeps its own demo configuration under `examples/showcase/yano/`
+and never edits the distribution's `config/`:
 
 ```bash
-unzip yano-showcase-<version>.zip
-cd yano-showcase-<version>
+cd yano-x-jvm-<version>/examples/showcase
 ./showcase.sh doctor --profile light
 ./showcase.sh quickstart --profile light --nodes 3 --instance demo
 ./showcase.sh verify all --instance demo
@@ -59,42 +61,47 @@ it can be restarted later. Continue with the [local showcase guide](appchain/dep
 Studio is a static browser application and has no server-side component:
 
 ```bash
-unzip yano-x-studio-<version>.zip
+cd yano-x-jvm-<version>/studio
 python3 -m http.server 8080
 ```
 
 Open `http://localhost:8080`, create a blueprint, and download `appchain.yaml`.
-Validate the downloaded intent with the CLI from the matching Yano X release.
+Validate the downloaded intent with the CLI from the same release.
 
 ## Use the deployment CLI
 
-The deployment archive contains the CLI, schema, provider-neutral OpenTofu and
-Ansible material, and examples:
+The deployment CLI ships in `tools/yano-deploy/` with its schema,
+provider-neutral OpenTofu and Ansible material, and examples. A deployment
+imports the whole release archive, which carries the showcase profile it
+deploys:
 
 ```bash
-unzip yano-x-deploy-<version>.zip
-cd yano-x-deploy-<version>
-bin/yano-x-deploy init ./cluster
-bin/yano-x-deploy artifact import ./cluster \
-  --file /path/to/yano-showcase-<version>.zip
-bin/yano-x-deploy validate ./cluster
-bin/yano-x-deploy doctor ./cluster
-bin/yano-x-deploy render ./cluster
+cd yano-x-jvm-<version>
+tools/yano-deploy/bin/yano-x-deploy init ./cluster
+tools/yano-deploy/bin/yano-x-deploy artifact import ./cluster \
+  --file /path/to/yano-x-jvm-<version>.zip
+tools/yano-deploy/bin/yano-x-deploy validate ./cluster
+tools/yano-deploy/bin/yano-x-deploy doctor ./cluster
+tools/yano-deploy/bin/yano-x-deploy render ./cluster
 ```
 
 `render` is offline. Cloud planning and application require the provider tools
-and credentials described in the archive's `README.md` and deployment guide.
+and credentials described in `tools/yano-deploy/README.md` and the deployment
+guide.
 
-## Use the plugin pack
+## Add Yano X plugins to an existing node
 
-The plugin pack is for operators assembling a custom node from the matching
-ordinary Yano JVM distribution. Its `plugins/` directory contains the
-conflict-free default set. Alternative implementations are under
-`optional-plugins/`; review the manifest before selecting one. Copying both
-implementations of the same contribution into the active plugin directory is a
-catalog error.
+Operators assembling a custom node from the matching ordinary Yano JVM
+distribution can take bundles from the archive. `plugins/` contains the
+conflict-free default set; alternative implementations are under
+`optional-plugins/`, and `yano-x-plugin-pack-v1.json` lists every bundle with
+its checksum. Copying both implementations of the same contribution into the
+active plugin directory is a catalog error.
 
-Application developers can instead consume reusable Yano X libraries and
-runtime plugin bundles from Maven Central with the `yano-x-bom`. CLI programs,
-web applications, demos, and the five ZIP distributions are delivered through
-GitHub Releases rather than Maven Central.
+Bundles leave out the classes the host `yano.jar` already provides, so they run
+only on the Yano release named in `yano-x-distribution-v1.json`.
+
+Application developers can instead consume reusable Yano X libraries from Maven
+Central with the `yano-x-bom`. Runtime plugin bundles, CLI programs, web
+applications, and demos are delivered through the GitHub release rather than
+Maven Central.

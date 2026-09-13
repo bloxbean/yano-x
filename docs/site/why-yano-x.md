@@ -36,15 +36,13 @@ flowchart TB
 ## What "batteries included" actually means
 
 For a first run, choose the [local showcase](/start-here/quickstart/).
-The [release download guide](/start-here/release-downloads/) explains all five ZIPs.
-The two main runtime archives are:
-
-- **`yano-x-jvm-<version>.zip`** — the standard Yano JVM distribution with the
-  Yano X plugin bundles already laid out, plus identity manifests for both
-  projects. This is what you run.
-- **`yano-x-plugin-pack-<version>.zip`** — just the plugin bundles and a
-  checksummed manifest, for adding Yano X to a Yano distribution you already
-  operate.
+Each release ships one archive, **`yano-x-jvm-<version>.zip`**: the standard
+Yano JVM distribution with the Yano X plugin bundles already laid out, the
+command-line and deployment tools, App-Chain Studio, the local showcase, and
+identity manifests for both projects. The
+[release download guide](/start-here/release-downloads/) shows where each part
+lives. Operators who already run the matching Yano release can take bundles
+from its `plugins/` directory.
 
 The default `plugins/` directory is a deliberate, conflict-free **selection**,
 not a copy of every published bundle. Alternative implementations that would

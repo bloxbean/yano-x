@@ -45,7 +45,7 @@ three organizations, four actors, and the `document-release` policy (an `issuer`
 `auditor`s from distinct organizations approve).
 
 ```bash
-# From a newly extracted yano-showcase-<version> archive
+# From examples/showcase in a newly extracted yano-x-jvm-<version> archive
 ./showcase.sh quickstart --profile light --nodes 3 --instance demo
 ```
 

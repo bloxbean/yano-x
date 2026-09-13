@@ -5,7 +5,7 @@ JVM and GraalVM distributions; no special base ZIP exists for Yano X.
 
 ## Inputs
 
-The default build creates and verifies all five release ZIPs:
+The default build creates and verifies the release ZIP:
 
 ```bash
 ./gradlew build -PskipSigning=true
@@ -46,45 +46,51 @@ Then assemble and verify Yano X:
 ```
 
 Yano X runtime bundles are assembled from the exact `shadowJar` outputs used by
-their Maven bundle publications. This keeps a from-scratch `clean build`
+their internal bundle publications. This keeps a from-scratch `clean build`
 self-contained while `verifyArtifactInventory` checks that every runtime bundle
 still has the expected independent publication.
 
+Bundles leave out every class and resource the host `yano.jar` already
+provides (`gradle/plugin-bundle-host-classes.gradle`). Yano loads plugins
+parent-first, so those copies were never loaded. `META-INF` metadata and
+libraries a bundle relocates into its own namespace always stay. A bundle is
+therefore tied to the Yano release it was built against.
+
 ## Outputs
 
-See [Choose a Yano X release download](RELEASE_DOWNLOADS.md) for the user-facing
-comparison and quickstarts for all five ZIPs.
+See [Download a Yano X release](RELEASE_DOWNLOADS.md) for the user-facing
+quickstarts.
 
-The two core outputs are written under `distribution/jvm/build/distributions`:
+The build writes one release archive,
+`distribution/jvm/build/distributions/yano-x-jvm-<version>.zip`. It overlays
+the Yano X runtime bundles on the supplied ordinary Yano JVM ZIP and includes
+both Yano and Yano X identity manifests:
 
-- `yano-x-plugin-pack-<version>.zip` contains the dependency-complete runtime
-  plugin bundles and their checksummed manifest. Its `plugins/` directory is a
-  conflict-free default set; alternative implementations live under
-  `optional-plugins/`.
-- `yano-x-jvm-<version>.zip` overlays those bundles on the supplied ordinary
-  Yano JVM ZIP and includes both Yano and Yano X identity manifests. It also
-  packages the provider-neutral deployment CLI under `tools/yano-deploy`,
-  including its schema, documentation, and mixed-provider example.
+- `plugins/` holds the conflict-free default bundle set and `optional-plugins/`
+  the alternative implementations. `yano-x-plugin-pack-v1.json` lists every
+  bundle with its checksum.
+- `tools/` holds the command-line tools, including the deployment CLI under
+  `tools/yano-deploy` with its schema, documentation, and mixed-provider
+  example. The tools share `tools/lib`; each launcher keeps its exact classpath,
+  so a tool loads only its own jars.
+- `studio/` holds the static App-Chain Studio site.
+- `examples/showcase/` holds the local multi-node showcase. Its `yano/` home
+  carries only the demo configuration; `showcase.sh` links everything else back
+  to the distribution root on first run and never edits the distribution's own
+  `config/`.
 
-Both archives include the repository `LICENSE` and a normalized CycloneDX 1.6
+The archive includes the repository `LICENSE` and a normalized CycloneDX 1.6
 SBOM at `sbom/yano-x.cdx.json`. The release task fills the MIT declaration for
 repository-owned components and fails if an external Maven component lacks
-license metadata. The combined JVM archive also preserves the base host's
-license as `LICENSE.yano` and its independent `sbom/yano.cdx.json` inventory.
+license metadata. It also preserves the base host's license as `LICENSE.yano`
+and its independent `sbom/yano.cdx.json` inventory.
 
-The showcase release artifact is
-`examples/showcase/build/distributions/yano-showcase-<version>.zip`.
-It includes the JVM distribution, demo plugins, configuration, scripts, and
-guides for a local multi-node demo. Both `build` and `distributionCheck` run
-`showcaseDistributionContract` against the extracted ZIP. Publish this ZIP
-alongside the two main ZIPs in GitHub releases so users need no source checkout
-or Gradle installation to try the showcase.
-
-With Java 25, Python 3, `curl`, and `jq` installed, extract it into a new directory:
+Both `build` and `distributionCheck` run `showcaseDistributionContract` against
+the extracted archive. With Java 25, Python 3, `curl`, and `jq` installed:
 
 ```bash
-unzip yano-showcase-<version>.zip
-cd yano-showcase-<version>
+unzip yano-x-jvm-<version>.zip
+cd yano-x-jvm-<version>/examples/showcase
 ./showcase.sh doctor
 ./showcase.sh quickstart --profile light --nodes 3 --instance demo
 ./showcase.sh status --instance demo
@@ -93,14 +99,8 @@ cd yano-showcase-<version>
 ```
 
 The light profile runs a self-contained local devnet; `stop` preserves instance
-data. See the included `DEMO_SHOWCASE.md` for scenarios and restart operations.
-
-The remaining release artifacts are:
-
-- `tooling/studio/build/distributions/yano-x-studio-<version>.zip`, the static
-  App-Chain Studio site;
-- `tooling/deployment/build/distributions/yano-x-deploy-<version>.zip`, the
-  deployment CLI with its OpenTofu and Ansible material.
+data. See `examples/showcase/DEMO_SHOWCASE.md` for scenarios and restart
+operations.
 
 All 18 runtime bundles remain independently published and are represented in
 the manifest. The default distribution activates 17. The eUTxO ZK runtime is
@@ -111,8 +111,9 @@ hard catalog error.
 
 `verifyYanoInputs` rejects a base ZIP whose root, JAR implementation version,
 or distribution manifest differs from `yanoVersion`. The final distribution
-check also rejects missing, duplicate, or unexpected plugin bundles and any
-native executable in the JVM archive. Manifest generation rejects a default
+check also rejects missing, duplicate, or unexpected plugin bundles, a tool
+launcher whose classpath is missing from `tools/lib`, and any native executable
+in the archive. Manifest generation rejects a default
 selection with unresolved bundle dependencies or duplicate contribution
 identities before an archive is created. Snapshot and locally staged versions
 must supply `yanoJvmDist`; they never fall back to a GitHub release asset.
