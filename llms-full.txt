@@ -2,9 +2,9 @@
 
 > Single-file dump of the Yano X docsite, suitable for AI agent ingestion.
 
-yanoXVersion: 0.1.0-pre1-SNAPSHOT
+yanoXVersion: 0.1.0-pre1
 yanoVersion: 0.1.0-pre15
-Generated: 2026-09-13T12:26:33.637Z
+Generated: 2026-09-13T12:35:06.570Z
 Site: https://yano-x.io
 Repo: https://github.com/bloxbean/yano-x
 
@@ -15,7 +15,7 @@ Repo: https://github.com/bloxbean/yano-x
   products, SDKs, and the batteries-included JVM distribution. The dependency
   direction is strictly `yano-x -> yano` and must never be inverted, nor satisfied
   with a composite Gradle build or a sibling source checkout.
-- **Versions:** Yano X `0.1.0-pre1-SNAPSHOT` builds against Yano `0.1.0-pre15`, Java 25.
+- **Versions:** Yano X `0.1.0-pre1` builds against Yano `0.1.0-pre15`, Java 25.
   Start with a matching release archive; build from source for unpublished changes.
 - **Yano X is JVM-only.** Never add GraalVM/native-image tasks, reachability
   metadata, or native executables. `verifyJvmOnlyBuild` enforces this.
@@ -326,7 +326,7 @@ yano-x  ──depends on──▶  yano
 
 | Value | Current |
 |---|---|
-| Yano X version | `0.1.0-pre1-SNAPSHOT` |
+| Yano X version | `0.1.0-pre1` |
 | Yano host version | `0.1.0-pre15` |
 | Maven group | `org.yanoproject.x` |
 | Java | `25` |
@@ -1217,7 +1217,7 @@ That is the whole thing. No `-PyanoVersion`, no `-PuseMavenLocal`, no
 
 | Value | Current |
 |---|---|
-| Yano X version | `0.1.0-pre1-SNAPSHOT` |
+| Yano X version | `0.1.0-pre1` |
 | Yano host version | `0.1.0-pre15` |
 | Maven group | `org.yanoproject.x` |
 | Java | `25` |
@@ -9648,7 +9648,7 @@ verifies it with `verifyArtifactInventory`.
 
 | Value | Current |
 |---|---|
-| Yano X version | `0.1.0-pre1-SNAPSHOT` |
+| Yano X version | `0.1.0-pre1` |
 | Yano host version | `0.1.0-pre15` |
 | Maven group | `org.yanoproject.x` |
 | Java | `25` |

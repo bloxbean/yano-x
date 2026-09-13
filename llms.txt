@@ -1,8 +1,8 @@
 # Yano X
 
-yanoXVersion: 0.1.0-pre1-SNAPSHOT
+yanoXVersion: 0.1.0-pre1
 yanoVersion: 0.1.0-pre15
-generatedAt: 2026-09-13T12:26:33.637Z
+generatedAt: 2026-09-13T12:35:06.570Z
 
 > Yano X is the Java 25, JVM-only extension ecosystem for Yano app chains. An app chain is an application-specific replicated ledger with deterministic state, threshold finality, MPF proofs, optional Cardano anchoring, and controlled external effects. Yano X supplies the stock state machines, capabilities, connectors, products, SDKs, and the batteries-included JVM distribution that run on top of the Yano host.
 
@@ -13,7 +13,7 @@ Key facts an AI agent should know before generating Yano X code or configuration
   products, SDKs, and the batteries-included JVM distribution. The dependency
   direction is strictly `yano-x -> yano` and must never be inverted, nor satisfied
   with a composite Gradle build or a sibling source checkout.
-- **Versions:** Yano X `0.1.0-pre1-SNAPSHOT` builds against Yano `0.1.0-pre15`, Java 25.
+- **Versions:** Yano X `0.1.0-pre1` builds against Yano `0.1.0-pre15`, Java 25.
   Start with a matching release archive; build from source for unpublished changes.
 - **Yano X is JVM-only.** Never add GraalVM/native-image tasks, reachability
   metadata, or native executables. `verifyJvmOnlyBuild` enforces this.

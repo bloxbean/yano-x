@@ -1,4 +1,4 @@
-<!-- yanoXVersion: 0.1.0-pre1-SNAPSHOT; yanoVersion: 0.1.0-pre15 -->
+<!-- yanoXVersion: 0.1.0-pre1; yanoVersion: 0.1.0-pre15 -->
 
 > **Read this entire document before generating any Yano X code or
 > configuration.** It distills the architecture boundary, the extension ladder,
@@ -42,7 +42,7 @@ yano-x  ──depends on──▶  yano
 
 | Value | Current |
 |---|---|
-| Yano X version | `0.1.0-pre1-SNAPSHOT` |
+| Yano X version | `0.1.0-pre1` |
 | Yano host version | `0.1.0-pre15` |
 | Maven group | `org.yanoproject.x` |
 | Java | `25` |
