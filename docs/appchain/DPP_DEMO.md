@@ -72,8 +72,9 @@ guide replaces the shared gateway with per-organization signing.
 ## Setting the demo up
 
 ```bash
-./gradlew :examples:showcase:installDist :products:dpp:cli:installDist :products:dpp:ui:frontendBuild
-export DPP_YANO_HOME=$PWD/examples/showcase/build/install/yano-showcase/yano
+./gradlew :distribution:jvm:yanoXJvmDistZip :products:dpp:cli:installDist :products:dpp:ui:frontendBuild
+unzip -qo distribution/jvm/build/distributions/yano-x-jvm-*.zip -d build/yano-x
+export DPP_YANO_HOME=$(echo "$PWD"/build/yano-x/yano-x-jvm-*)
 products/dpp/harness/dpp.sh up            # three members on 7470..7472
 products/dpp/harness/dpp.sh portal        # public portal on 8580
 products/dpp/harness/dpp.sh gateway       # operator gateway on 8590, prints the token
