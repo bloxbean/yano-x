@@ -48,7 +48,7 @@ publishing {
 
 if (!project.version.toString().endsWith('SNAPSHOT')
         && !project.hasProperty('skipSigning')) {
-    signing.sign(publishing.publications)
+    rootProject.ext.configureReleaseSigning(project)
 }
 
 tasks.named('generatePomFileForMavenJavaPublication') {

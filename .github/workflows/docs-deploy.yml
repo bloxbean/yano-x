@@ -24,6 +24,8 @@ jobs:
         working-directory: www
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-node@v4
         with:
@@ -63,9 +65,9 @@ jobs:
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     needs: build
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: https://yano-x.io
+    # No `environment:` here. The live site only changes once GitHub's own pages-build-deployment run for
+    # this gh-pages push is approved in the `github-pages` environment; naming the environment on this job
+    # as well would ask for two approvals per deploy.
     permissions:
       contents: write
     steps:
@@ -75,9 +77,22 @@ jobs:
           path: site
 
       - name: Publish documentation to gh-pages
-        uses: peaceiris/actions-gh-pages@v4
+        uses: peaceiris/actions-gh-pages@84c30a85c19949d7eee79c4ff27748b70285e453 # v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_branch: gh-pages
           publish_dir: ./site
           cname: yano-x.io
+
+      - name: Record the pending Pages deployment
+        shell: bash
+        run: |
+          {
+            echo "## Pushed to gh-pages - waiting for approval"
+            echo
+            echo "The site updates after the \`pages-build-deployment\` run for this push is approved in the"
+            echo "\`github-pages\` environment:"
+            echo "https://github.com/$GITHUB_REPOSITORY/actions/workflows/pages/pages-build-deployment"
+            echo
+            echo "If several are waiting, approve the newest and reject the older ones."
+          } >> "$GITHUB_STEP_SUMMARY"

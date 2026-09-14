@@ -113,7 +113,7 @@ publishing {
 
 if (!project.version.toString().endsWith('SNAPSHOT')
         && !project.hasProperty('skipSigning')) {
-    signing.sign(publishing.publications)
+    rootProject.ext.configureReleaseSigning(project)
 }
 
 // Plugin manifests ship a `${pluginVersion}` placeholder so the descriptor
