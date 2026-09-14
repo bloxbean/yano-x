@@ -2,7 +2,7 @@
   "schemaVersion": "yano-x-docsite-catalog-v1",
   "source": "Generated from the Yano X repository at documentation build time.",
   "versions": {
-    "yanoXVersion": "0.1.0-pre1",
+    "yanoXVersion": "0.1.0-pre2-dev1",
     "yanoVersion": "0.1.0-pre15",
     "group": "org.yanoproject.x",
     "javaVersion": "25",
