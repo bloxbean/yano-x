@@ -7,10 +7,12 @@ Each Yano X GitHub release publishes `yano-x-jvm-<version>.zip`, three
 standalone archives, and `SHA256SUMS`. Verify an archive before extraction:
 
 ```bash
-sha256sum --check SHA256SUMS
+sha256sum --check --ignore-missing SHA256SUMS
 ```
 
-On macOS, use `shasum -a 256 --check SHA256SUMS`.
+On macOS, use `shasum -a 256 --check --ignore-missing SHA256SUMS`.
+`--ignore-missing` checks only the archives you downloaded; each one must
+report `OK`.
 
 The same archive serves a production node, the local showcase, the deployment
 CLI, and App-Chain Studio. It needs Java 25; the showcase also needs Python 3,
