@@ -1,7 +1,7 @@
 # Download a Yano X release
 
-Each Yano X GitHub release publishes one ZIP file, `yano-x-jvm-<version>.zip`,
-and its `SHA256SUMS`. Verify the archive before extraction:
+Each Yano X GitHub release publishes `yano-x-jvm-<version>.zip`, three
+standalone archives, and `SHA256SUMS`. Verify an archive before extraction:
 
 ```bash
 sha256sum --check SHA256SUMS
@@ -24,6 +24,15 @@ CLI, and App-Chain Studio. It needs Java 25; the showcase also needs Python 3,
 The archive embeds the exact compatible Yano host identity in
 `yano-x-distribution-v1.json`. Do not mix its plugins with a different Yano
 release.
+
+If you need only one part, download it on its own. Each standalone archive
+carries the same files as the matching path in the JVM archive:
+
+| Standalone archive | Contents |
+| --- | --- |
+| `yano-x-plugin-pack-<version>.zip` | `plugins/`, `optional-plugins/`, `yano-x-plugin-pack-v1.json`, the SBOM, and a README naming the one Yano release the bundles run on |
+| `yano-x-deploy-<version>.zip` | The deployment CLI (`bin/yano-x-deploy`) with its own libraries and the provider-neutral deployment material |
+| `yano-x-studio-<version>.zip` | App-Chain Studio as a static site |
 
 ## Run one node
 
@@ -98,7 +107,8 @@ guide.
 ## Add Yano X plugins to an existing node
 
 Operators assembling a custom node from the matching ordinary Yano JVM
-distribution can take bundles from the archive. `plugins/` contains the
+distribution can take bundles from the JVM archive or from
+`yano-x-plugin-pack-<version>.zip`. `plugins/` contains the
 conflict-free default set; alternative implementations are under
 `optional-plugins/`, and `yano-x-plugin-pack-v1.json` lists every bundle with
 its checksum. Copying both implementations of the same contribution into the

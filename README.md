@@ -55,7 +55,9 @@ and deployment tools, App-Chain Studio, and Yano/Yano X identity manifests.
 The multi-node showcase ships inside the same archive. Extract it and run
 `examples/showcase/showcase.sh quickstart --profile light --nodes 3 --instance demo`.
 See [distribution instructions](docs/BUILD_DISTRIBUTIONS.md) for prerequisites
-and lifecycle commands. The GitHub release attaches this one archive.
+and lifecycle commands. The GitHub release attaches this archive and, for users
+who need only one part, the standalone plugin pack, deployment tool, and Studio
+archives.
 
 Yano X is JVM-only. `verifyJvmOnlyBuild` rejects native-image build or
 distribution tasks, while the Yano base ZIP contract records whether its
