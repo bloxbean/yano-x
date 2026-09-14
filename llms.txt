@@ -2,7 +2,7 @@
 
 yanoXVersion: 0.1.0-pre1
 yanoVersion: 0.1.0-pre15
-generatedAt: 2026-09-13T12:35:06.570Z
+generatedAt: 2026-09-14T14:10:41.117Z
 
 > Yano X is the Java 25, JVM-only extension ecosystem for Yano app chains. An app chain is an application-specific replicated ledger with deterministic state, threshold finality, MPF proofs, optional Cardano anchoring, and controlled external effects. Yano X supplies the stock state machines, capabilities, connectors, products, SDKs, and the batteries-included JVM distribution that run on top of the Yano host.
 
@@ -54,7 +54,7 @@ Key facts an AI agent should know before generating Yano X code or configuration
 - [Your path through Yano X](https://yano-x.io/start-here/): Start with a working example. Learn one concept at a time, then bring your own application rules.
 - [What is an app chain?](https://yano-x.io/start-here/what-is-an-app-chain/): An app chain is an application-specific, replicated ledger that a group of organizations runs together. Members agree on the order of application…
 - [Why Yano X](https://yano-x.io/start-here/why-yano-x/): Choose Yano X when several organizations need shared records, workflows, or integrations with independently verifiable results. Start with existing…
-- [Download a Yano X release](https://yano-x.io/start-here/release-downloads/): Each Yano X GitHub release publishes one ZIP file, yano-x-jvm-<version>.zip, and its SHA256SUMS. Verify the archive before extraction:
+- [Download a Yano X release](https://yano-x.io/start-here/release-downloads/): Each Yano X GitHub release publishes yano-x-jvm-<version>.zip, three standalone archives, and SHA256SUMS. Verify an archive before extraction:
 - [Build from source](https://yano-x.io/start-here/build-from-source/): For a first run, use a release download. Build from source when you want the current checkout or need to change Yano X. The build resolves the matching…
 - [Start a local Yano X showcase](https://yano-x.io/start-here/quickstart/): Run three nodes, submit useful data, and inspect proofs without a source checkout, wallet, public-network funds, or external Cardano node.
 
