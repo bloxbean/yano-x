@@ -225,6 +225,56 @@ tasks.register('generatePluginPackManifest') {
     }
 }
 
+// Bundles leave out the host yano.jar classes, so the pack names the one Yano
+// release it runs on.
+def pluginPackReadme = { String hostVersion ->
+    """# Yano X plugin pack ${packVersion}
+
+Runtime plugin bundles for an existing Yano JVM node. They run only on
+Yano ${hostVersion}: each bundle omits the classes that release's yano.jar
+already provides.
+
+- `plugins/` holds the conflict-free default set.
+- `optional-plugins/` holds alternative implementations. Never activate two
+  implementations of the same contribution.
+- `yano-x-plugin-pack-v1.json` lists every bundle with its SHA-256.
+
+Copy the reviewed bundles into the node's plugin directory and restart it.
+For a ready-to-run node with these bundles, use yano-x-jvm-${packVersion}.zip.
+""".toString()
+}
+
+tasks.register('yanoXPluginPackZip', Zip) {
+    dependsOn tasks.named('generatePluginPackManifest'),
+            tasks.named('normalizeYanoXReleaseSbom')
+    group = 'distribution'
+    description = 'Creates the standalone Yano X runtime plugin pack.'
+    archiveFileName = "yano-x-plugin-pack-${packVersion}.zip"
+    destinationDirectory = layout.buildDirectory.dir('distributions')
+    reproducibleFileOrder = true
+    preserveFileTimestamps = false
+
+    into("yano-x-plugin-pack-${packVersion}") {
+        from(rootProject.file('LICENSE'))
+        from(resources.text.fromString(
+                pluginPackReadme(providers.gradleProperty('yanoVersion').get()))) {
+            rename { 'README.md' }
+        }
+        from(releaseSbom) {
+            into 'sbom'
+        }
+        from(generatedPackManifest)
+        from(defaultBundleFiles) {
+            into 'plugins'
+            rename { name -> canonicalBundleName(name) }
+        }
+        from(optionalBundleFiles) {
+            into 'optional-plugins'
+            rename { name -> canonicalBundleName(name) }
+        }
+    }
+}
+
 ext.yanoXRuntimeBundleSpecifications = runtimeBundleSpecifications
 ext.yanoXDefaultBundleIds = defaultBundleIds
 ext.yanoXOptionalBundleIds = optionalBundleIds
