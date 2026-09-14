@@ -61,8 +61,16 @@ therefore tied to the Yano release it was built against.
 See [Download a Yano X release](RELEASE_DOWNLOADS.md) for the user-facing
 quickstarts.
 
-The build writes one release archive,
-`distribution/jvm/build/distributions/yano-x-jvm-<version>.zip`. It overlays
+The build writes the main release archive,
+`distribution/jvm/build/distributions/yano-x-jvm-<version>.zip`, and three
+standalone archives with the same content for users who need only one part:
+`distribution/jvm/build/distributions/yano-x-plugin-pack-<version>.zip`,
+`tooling/deployment/build/distributions/yano-x-deploy-<version>.zip`, and
+`tooling/studio/build/distributions/yano-x-studio-<version>.zip`.
+`verifyYanoXJvmDistribution` checks that the plugin pack carries exactly the
+bundles, manifest, and SBOM of the JVM archive.
+
+The JVM archive overlays
 the Yano X runtime bundles on the supplied ordinary Yano JVM ZIP and includes
 both Yano and Yano X identity manifests:
 

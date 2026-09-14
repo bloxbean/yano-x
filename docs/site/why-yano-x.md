@@ -42,7 +42,8 @@ command-line and deployment tools, App-Chain Studio, the local showcase, and
 identity manifests for both projects. The
 [release download guide](/start-here/release-downloads/) shows where each part
 lives. Operators who already run the matching Yano release can take bundles
-from its `plugins/` directory.
+from its `plugins/` directory or download the standalone plugin pack; the
+deployment tool and Studio also ship as standalone archives.
 
 The default `plugins/` directory is a deliberate, conflict-free **selection**,
 not a copy of every published bundle. Alternative implementations that would

@@ -448,9 +448,11 @@ tasks.register('prepareEvidenceDemoArtifacts', Sync) {
 }
 
 tasks.register('verifyYanoXJvmDistribution') {
-    dependsOn tasks.named('yanoXJvmDistZip')
+    dependsOn tasks.named('yanoXPluginPackZip'),
+            tasks.named('yanoXJvmDistZip')
     group = 'verification'
-    description = 'Verifies the JVM-only Yano X distribution.'
+    description = 'Verifies the Yano X plugin pack and JVM-only distribution.'
+    inputs.file(tasks.named('yanoXPluginPackZip', Zip).flatMap { it.archiveFile })
     inputs.file(tasks.named('yanoXJvmDistZip', Zip).flatMap { it.archiveFile })
 
     doLast {
@@ -471,6 +473,59 @@ tasks.register('verifyYanoXJvmDistribution') {
                 != expectedPluginFiles) {
             throw new GradleException(
                     "Yano X plugin-pack selection mismatch: ${pack.bundles}")
+        }
+        def pluginPack = tasks.named('yanoXPluginPackZip', Zip).get()
+                .archiveFile.get().asFile
+        def packRoot = "yano-x-plugin-pack-${distVersion}"
+        new ZipFile(pluginPack).withCloseable { archive ->
+            def roots = archive.entries().collect { entry ->
+                entry.name.tokenize('/').find()
+            }.findAll { value -> value != null }.toSet()
+            if (roots != [packRoot] as Set) {
+                throw new GradleException(
+                        "Yano X plugin pack has unexpected roots: ${roots.sort()}")
+            }
+            def actualDefaultPluginFiles = archive.entries().findAll { entry ->
+                entry.name.startsWith("${packRoot}/plugins/")
+                        && entry.name.endsWith('.jar')
+            }.collect { entry -> entry.name.tokenize('/').last() }
+            def actualOptionalPluginFiles = archive.entries().findAll { entry ->
+                entry.name.startsWith("${packRoot}/optional-plugins/")
+                        && entry.name.endsWith('.jar')
+            }.collect { entry -> entry.name.tokenize('/').last() }
+            if (actualDefaultPluginFiles.size() != expectedDefaultPluginFiles.size()
+                    || actualDefaultPluginFiles.toSet() != expectedDefaultPluginFiles
+                    || actualOptionalPluginFiles.size() != expectedOptionalPluginFiles.size()
+                    || actualOptionalPluginFiles.toSet() != expectedOptionalPluginFiles) {
+                throw new GradleException(
+                        'Yano X plugin-pack default/optional set mismatch: '
+                                + "default=${actualDefaultPluginFiles.sort()}, "
+                                + "optional=${actualOptionalPluginFiles.sort()}")
+            }
+            ['LICENSE', 'README.md'].each { name ->
+                if (archive.getEntry("${packRoot}/${name}") == null) {
+                    throw new GradleException("Yano X plugin pack is missing ${name}")
+                }
+            }
+            def manifestEntry = archive.getEntry(
+                    "${packRoot}/yano-x-plugin-pack-v1.json")
+            def sbomEntry = archive.getEntry("${packRoot}/sbom/yano-x.cdx.json")
+            def packagedSbom = sbomEntry == null ? null
+                    : archive.getInputStream(sbomEntry).withCloseable { stream ->
+                        new JsonSlurper().parse(stream)
+                    }
+            if (packagedSbom != expectedSbom) {
+                throw new GradleException(
+                        'Yano X plugin-pack SBOM is missing or differs from its input')
+            }
+            def packagedManifest = manifestEntry == null ? null
+                    : archive.getInputStream(manifestEntry).withCloseable { stream ->
+                        new JsonSlurper().parse(stream)
+                    }
+            if (packagedManifest != pack) {
+                throw new GradleException(
+                        'Yano X plugin-pack manifest is missing or differs from its input')
+            }
         }
         def distribution = tasks.named('yanoXJvmDistZip', Zip).get()
                 .archiveFile.get().asFile
@@ -635,5 +690,6 @@ tasks.register('verifyYanoXJvmDistribution') {
 }
 
 tasks.named('assemble') {
-    dependsOn tasks.named('yanoXJvmDistZip')
+    dependsOn tasks.named('yanoXPluginPackZip'),
+            tasks.named('yanoXJvmDistZip')
 }

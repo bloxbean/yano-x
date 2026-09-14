@@ -44,7 +44,7 @@ That is the whole thing. No `-PyanoVersion`, no `-PuseMavenLocal`, no
 
 | Value | Current |
 |---|---|
-| Yano X version | `0.1.0-pre1-SNAPSHOT` |
+| Yano X version | `0.1.0-pre1` |
 | Yano host version | `0.1.0-pre15` |
 | Maven group | `org.yanoproject.x` |
 | Java | `25` |
