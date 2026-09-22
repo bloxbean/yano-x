@@ -68,7 +68,11 @@ allprojects {
             }
         }
         if (useLocalRepository) {
-            mavenLocal()
+            // Coordinated development consumes the exact local host, not locally republished
+            // third-party compilers whose same-version bytes can change on-chain identities.
+            mavenLocal {
+                content { includeGroup('org.yanoproject') }
+            }
         }
         mavenCentral()
         maven {

@@ -18,6 +18,16 @@ dependencies {
 
     testImplementation rootProject.ext.yanoModule('yano-runtime')
     testImplementation project(':sdk:client')
+    testImplementation project(':products:dpp:profile')
+    testImplementation project(':products:attestation-feed:profile')
+}
+
+tasks.register('printBindingProductExamples', JavaExec) {
+    description = 'Prints deterministic public DPP/feed binding fixtures for checked-in example verification'
+    group = 'verification'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'org.yanoproject.x.stdlib.BindingProductFixtures'
 }
 
 java {

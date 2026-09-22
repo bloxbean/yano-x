@@ -15,6 +15,16 @@ public interface CompositeWorkflowContext {
 
     AppEffectEmitter effects(ComponentGeneration owner);
 
+    /** Authenticated state scoped to the workflow id, retained across profile epochs. */
+    default AppStateWriter workflowState() {
+        throw new UnsupportedOperationException("workflow state is unavailable");
+    }
+
+    /** Remaining reserved quota, including effects emitted by prior cascades in this block. */
+    default int remainingEffectCapacity() {
+        throw new UnsupportedOperationException("workflow quota view is unavailable");
+    }
+
     /**
      * Claim one stable workflow operation id inside the current atomic block.
      * The existing claim is never overwritten. Callers must treat both replay

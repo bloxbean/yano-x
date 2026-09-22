@@ -45,7 +45,7 @@ separately installed JVM plugin bundles (group id
 | Artifact | Repo path | Purpose |
 |---|---|---|
 | `yano-x-stdlib` | `state-machines/stdlib` | Ready state machines, selected by id (§9); ships in the distribution |
-| `yano-x-composite` | `composition/runtime` | Bundled generic deterministic composition/profile framework; not arbitrary YAML composition |
+| `yano-x-composite` | `composition/runtime` | Deterministic composition/profile framework and experimental catalog-backed `declarative-composite` provider |
 | `yano-x-role-workflow` | `capabilities/role-workflow` | Bundled preview `role-approvals` provider and generic role domain API |
 | `yano-x-evidence-profile` | `products/evidence/profile` | Bundled preview evidence and role-evidence profiles |
 | `yano-x-client` | `sdk/client` | Java client SDK: REST + SSE + client-side proof verification (§16) |
@@ -1752,6 +1752,24 @@ provider and manifest. The builder generates the canonical profile and checks
 component/workflow reservations against the real `effects.max-per-block`.
 There is no second component lifecycle SPI or state-machine adapter. Do not
 publish arbitrary profiles under the stock `composite` identity.
+
+For configuration-only coordination of existing kernel-enabled machines, the
+experimental `declarative-composite` selector is a separate catalog contribution.
+Authors compile a bounded YAML binding document into canonical IR, validate it
+against the exact manifested plugin catalog, and commit its normalized component
+configuration, event-to-command edges, and limits in a schema-v2 profile.
+Restricted CEL expressions provide scalar calculations and conditions; nodes
+execute the versioned IR interpreter, not YAML or a general scripting engine.
+Bindings cannot add new domain rules or bypass the target machine's authorization.
+See the [declarative binding guide](appchain/DECLARATIVE_BINDINGS.md) and
+[offline CLI guide](appchain/DECLARATIVE_BINDINGS_CLI.md).
+
+The role/map binding path uses explicit leaf selectors with genesis-fixed actor
+registry data; it does not replace the dynamic actor governance of `role-evidence`.
+Derived commands are not separately signed finalized-message envelopes, so
+legacy certificate verifiers and envelope-replaying product projections do not
+automatically support them. The binding guide describes the qualified proof
+and product boundaries.
 
 Replacement generations may change a committed `configurationId` only while
 retaining the same `stateAndResultCompatibilityId`. Generations with one

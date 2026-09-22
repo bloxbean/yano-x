@@ -64,3 +64,26 @@ for vector_name in epoch.zero status.scheduled; do
 done
 
 echo "Validated ${#VECTOR_NAMES[@]} composite governance CBOR vectors with ${CDDL_BIN}."
+
+# Binding IR, receipt and restricted-expression envelopes share one published schema.
+SCHEMA="${MODULE_DIR}/src/main/resources/cddl/declarative-bindings-v1.cddl"
+VECTORS="${MODULE_DIR}/src/main/resources/cddl/declarative-bindings-v1-golden-vectors.properties"
+"${CDDL_BIN}" --ci compile-cddl --cddl "${SCHEMA}"
+VECTOR_NAMES=(ir.forward expression.threshold receipt.accepted receipt.rejected)
+for vector_name in "${VECTOR_NAMES[@]}"; do
+    root="$(property "${vector_name}.cddl-root")"
+    value="$(property "${vector_name}")"
+    if [[ -z "${root}" || -z "${value}" ]]; then
+        echo "error: incomplete CDDL metadata for ${vector_name}" >&2
+        exit 1
+    fi
+    vector_schema="${WORK_DIR}/${vector_name}.cddl"
+    binary="${WORK_DIR}/${vector_name}.cbor"
+    {
+        printf 'binding-vector-root = %s\n\n' "${root}"
+        sed -n '1,$p' "${SCHEMA}"
+    } >"${vector_schema}"
+    printf '%s' "${value}" | xxd -r -p >"${binary}"
+    "${CDDL_BIN}" --ci validate --cddl "${vector_schema}" --cbor "${binary}"
+done
+echo "Validated ${#VECTOR_NAMES[@]} declarative binding CBOR vectors with ${CDDL_BIN}."

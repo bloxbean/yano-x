@@ -5,10 +5,32 @@ single `AppStateMachine` boundary. It owns exact message routing, binary state
 namespaces, query dispatch, effect quotas and result ownership, atomic
 cross-component workflows, and fixed or governed profile evolution.
 
-It intentionally contains no evidence classes, stock product preset,
-ServiceLoader provider, or plugin manifest. First-party evidence assemblies
+It contains no evidence classes or stock product preset. It also publishes the
+manifested, experimental `declarative-composite` state-machine provider, activated
+through the host plugin catalog. First-party evidence assemblies
 live in [`yano-x-evidence-profile`](../../products/evidence/profile/README.md).
 Custom products may use this framework without inheriting evidence behavior.
+
+## Configuration-only event bindings
+
+The `declarative-composite` provider selects existing kernel-enabled machines
+from the host catalog, with the built-in `ordered-log` resolved by the host.
+Offline tooling compiles YAML into a bounded canonical binding IR, including
+normalized component settings, event edges, mappings, restricted CEL expressions,
+and deterministic work limits. The resulting schema-v2 profile commits the exact
+program; nodes do not execute YAML or discover implicit component order.
+
+The runtime plans each source cascade against participant-scoped read-your-writes
+views, preflights effects and receipts, then commits business changes atomically.
+Target authorization is unchanged; bindings cannot fabricate evidence. Rejected
+cascades retain their receipt and non-refundable work accounting. Storage or
+invariant failures propagate to the enclosing host block transaction.
+
+Use the [binding guide](../../docs/appchain/DECLARATIVE_BINDINGS.md) and
+[CLI guide](../../docs/appchain/DECLARATIVE_BINDINGS_CLI.md) for the experimental
+authoring path. Explicit role/map leaves use genesis-fixed actor registry data;
+they do not provide dynamic actor governance parity. Derived commands do not
+automatically work with legacy signed-envelope certificates or projections.
 
 ## Routing, state, and queries
 
@@ -66,7 +88,7 @@ CompositeStateMachine machine = CompositeStateMachine.create(
 The product owns its `AppStateMachineProvider`, plugin manifest, presets, and
 product-specific contracts. Add this module as a normal build dependency;
 declare manifest dependencies only for executable plugin bundles used by the
-product. Native deployments include the product at application build time.
+product. Yano X bundles target the Java 25 JVM distribution, not native deployments.
 
 Important compatibility rules:
 

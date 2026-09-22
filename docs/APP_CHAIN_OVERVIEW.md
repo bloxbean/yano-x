@@ -236,6 +236,13 @@ actor/key revisions, role policies, organization-distinct quorums, and
 portable actor signatures. See the
 [domain-role guide](APP_CHAIN_DOMAIN_ROLES.md).
 
+The experimental `declarative-composite` provider also connects existing
+kernel-enabled machines without a Java coordinator. Authors declare ordered
+event bindings, bounded conditions and mappings, then compile YAML into canonical
+IR validated against the selected plugin catalog. This is configuration-only
+coordination of existing transitions, not a language for inventing arbitrary
+business rules. Start with the [binding guide](appchain/DECLARATIVE_BINDINGS.md).
+
 ### Plugin path
 
 A Yano X JVM deployment loads a self-contained manifested bundle from its plugin
@@ -252,9 +259,10 @@ A custom bundle can contribute typed capabilities such as:
 - plugin health, metrics, and operational actions.
 
 The unit selected by Yano is the complete state machine or composite plugin.
-Reusable composite components are normal Java libraries instantiated by that
-plugin. This keeps the consensus-visible order, routes, namespaces, versions,
-workflows, and quotas explicit.
+Java-authored composites instantiate reusable components explicitly;
+declarative composites resolve kernel-enabled machines through the selected
+catalog, with `ordered-log` provided by the host. Both keep consensus-visible
+order, routes, namespaces, versions, workflows, and quotas explicit.
 
 ## 7. Composite state machines
 
@@ -290,8 +298,16 @@ activation height. YAML or JAR changes alone never change consensus behavior.
 
 Components cannot read or write sibling namespaces directly. Cross-component
 changes use a declared deterministic workflow. Existing `AppStateMachine`
-implementations can be wrapped as components when they obey routed-block and
+implementations can be registered as components when they obey routed-block and
 namespaced-state boundaries.
+
+Declarative bindings use participant-scoped reads and pure transition plans;
+one source cascade commits its business changes and effect intents atomically.
+Rejected cascades retain a diagnostic receipt and non-refundable work accounting,
+not their business writes. Target authorization and one-use consumption remain
+mandatory. The experimental role/map leaf path has genesis-fixed actor data;
+legacy signed-envelope certificate and product-projection compatibility is not
+implied by successful composition.
 
 ## 8. A complete example: evidence publication
 

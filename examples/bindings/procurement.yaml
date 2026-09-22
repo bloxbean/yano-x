@@ -1,0 +1,51 @@
+# Register the supplier's sender bytes as a key in suppliers before submitting an order.
+# Order keys become lowercase hexadecimal approval IDs; votes use the ordinary approvals codec.
+# Enable consensus effects for the durable test outbox intent; this recipe does not dispatch HTTP.
+composite:
+  components:
+    - id: suppliers
+      machine: kv-registry
+      config: {value-format: utf8}
+    - id: orders
+      machine: kv-registry
+    - id: reviews
+      machine: approvals
+    - id: audit
+      machine: doc-trail
+      maxEffectsPerBlock: 1
+  bindings:
+    - id: order-to-review
+      from: {component: orders, event: kv-registry.entry-put.v1}
+      when:
+        - {field: valueLength, le: 2048}
+        - lookup: {component: suppliers, key: {field: owner}, exists: true}
+      to:
+        component: reviews
+        command: propose
+        map:
+          itemId: {fn: hex, args: [{field: key}]}
+          payload: {field: value}
+          required: {literal: 2}
+          deadlineMillis: {literal: 0}
+    - id: review-to-audit
+      from: {component: reviews, event: approvals.item-approved.v1}
+      when:
+        - {expr: 'event.approverCount >= 2'}
+      to:
+        component: audit
+        command: append
+        map:
+          entityId: {field: itemId}
+          entryHash: {field: payloadHash}
+          reference: {fn: concat, args: [{literal: 'procurement-approved:'}, {field: itemId}]}
+    - id: audit-to-outbox
+      from: {component: audit, event: doc-trail.entry-appended.v1}
+      to:
+        effect:
+          type: test
+          gate: app-final
+          result: none
+          map: identity
+  limits:
+    maxCascadeDepth: 8
+    maxDerivedPerSourceMessage: 32

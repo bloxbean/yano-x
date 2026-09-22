@@ -2,6 +2,8 @@ package org.yanoproject.x.stdlib;
 
 import org.yanoproject.api.appchain.AppStateMachineProvider;
 import org.yanoproject.runtime.plugins.PluginProviderRegistry;
+import org.yanoproject.x.composite.bindings.DeclarativeCompositeProvider;
+import org.yanoproject.x.roles.DeclarativeRoleProviders;
 
 import java.util.List;
 import java.util.Map;
@@ -12,7 +14,11 @@ import java.util.stream.Collectors;
 /** Direct test registry mirroring the stdlib bundle's manifested machines. */
 final class StdlibTestPluginProviders {
     private static final Map<String, AppStateMachineProvider> MACHINES = List.of(
+                    new DeclarativeCompositeProvider(),
                     new StdlibStateMachineProviders.AuthenticatedMapProvider(),
+                    new StdlibStateMachineProviders.AuthenticatedMapComponentProvider(),
+                    new DeclarativeRoleProviders.Actors(),
+                    new DeclarativeRoleProviders.Approvals(),
                     new StdlibStateMachineProviders.AdaUsdReferenceProvider(),
                     new StdlibStateMachineProviders.ShipmentWorkflowReferenceProvider(),
                     new StdlibStateMachineProviders.ApprovalsProvider(),

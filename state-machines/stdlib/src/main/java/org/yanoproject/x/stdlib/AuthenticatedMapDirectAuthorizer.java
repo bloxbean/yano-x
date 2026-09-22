@@ -1,6 +1,7 @@
 package org.yanoproject.x.stdlib;
 
 import org.yanoproject.api.appchain.AppStateWriter;
+import org.yanoproject.api.appchain.AppStateReader;
 import org.yanoproject.x.roles.GovernedCryptoWork;
 import org.yanoproject.x.roles.RoleAuthorizationCapability;
 import org.yanoproject.x.roles.contracts.GovernedAuthorizationLimitsV1;
@@ -49,6 +50,22 @@ final class AuthenticatedMapDirectAuthorizer {
             return AuthorizationResult.rejected(
                     AuthenticatedMapContract.ERROR_CRYPTO_WORK_EXCEEDED);
         }
+
+        return authorizeReserved(command, height, messageId, actorState, approvalState, mapState);
+    }
+
+    /**
+     * Verifies evidence and constructs map-owned consumption plans after the caller has reserved crypto work.
+     * Readers may be cascade overlays; no authorization record or replay marker is changed by this method.
+     */
+    AuthorizationResult authorizeReserved(
+            AuthenticatedMapCommandV1 command,
+            long height,
+            byte[] messageId,
+            AppStateReader actorState,
+            AppStateReader approvalState,
+            AppStateReader mapState
+    ) {
 
         List<RoleAuthorizationCapability.ConsumptionPlan> consumptions = new ArrayList<>();
         Set<Integer> governedIndexes = new LinkedHashSet<>();

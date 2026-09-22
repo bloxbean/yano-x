@@ -18,7 +18,7 @@ class RoleApprovalsPluginMetadataTest {
             "META-INF/yano/plugins/" + BUNDLE_ID + ".json";
 
     @Test
-    void servicesAndManifestExposeOnlyTheGenericRoleProduct() throws Exception {
+    void servicesAndManifestExposeGenericRoleProductAndExplicitDeclarativeLeaves() throws Exception {
         AppStateMachineProvider machine = ServiceLoader.load(AppStateMachineProvider.class)
                 .stream().map(ServiceLoader.Provider::get)
                 .filter(provider -> RoleApprovalsStateMachineProvider.ID.equals(provider.id()))
@@ -34,7 +34,13 @@ class RoleApprovalsPluginMetadataTest {
             assertThat(input).isNotNull();
             var manifest = new BundleManifestParser().parse(MANIFEST, input);
             assertThat(manifest.id()).isEqualTo(BUNDLE_ID);
-            assertThat(manifest.contributions()).hasSize(2);
+            assertThat(manifest.yanoApi().minLevel()).isEqualTo(10);
+            assertThat(manifest.contributions()).hasSize(4);
+            assertThat(manifest.contributions().stream()
+                    .filter(contribution -> contribution.kind() == ContributionKind.APP_STATE_MACHINE)
+                    .map(contribution -> contribution.name()))
+                    .containsExactlyInAnyOrder(RoleApprovalsStateMachineProvider.ID,
+                            DeclarativeRoleProviders.ACTORS_ID, DeclarativeRoleProviders.APPROVALS_ID);
             assertThat(manifest.contributions()).anySatisfy(contribution -> {
                 assertThat(contribution.kind()).isEqualTo(ContributionKind.APP_STATE_MACHINE);
                 assertThat(contribution.name())

@@ -97,6 +97,14 @@
         <p id="trust" class="trust"></p>
         <h3>Capabilities</h3><div id="capabilities" class="chips"></div>
         <h3>Artifacts</h3><ul id="artifacts" class="artifact-list"></ul>
+        <details>
+          <summary>Inspect a declarative binding graph</summary>
+          <p class="note">Import a capability-manifest JSON snapshot. This local, read-only preview does not
+            verify chain identity, install plugins, or change your blueprint.</p>
+          <label>Manifest snapshot<input id="binding-manifest" type="file" accept="application/json,.json"></label>
+          <p id="binding-graph-status" class="note" role="status" aria-live="polite"></p>
+          <div id="binding-graph" class="binding-graph"></div>
+        </details>
         <div id="diagnostics" class="diagnostics" role="status" aria-live="polite"></div>
         <details><summary>Blueprint preview</summary><pre id="preview"></pre></details>
         <div class="actions">

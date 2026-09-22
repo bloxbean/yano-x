@@ -32,6 +32,7 @@ public final class ComposableAppStateMachine {
         private final List<CompositeWorkflow> workflows = new ArrayList<>();
         private final List<LegacyQueryAlias> aliases = new ArrayList<>();
         private AggregateQueryLimitsV1 aggregateLimits = AggregateQueryLimitsV1.DEFAULT;
+        private byte[] bindingIr;
 
         private Builder(
                 String machineId,
@@ -70,9 +71,15 @@ public final class ComposableAppStateMachine {
             List<WorkflowDescriptor> workflowDescriptors = workflows.stream()
                     .map(CompositeWorkflow::descriptor).toList();
             CompositeProfile profile = new CompositeProfile(
-                    CompositeProfile.SCHEMA_VERSION, profileId, profileVersion,
-                    descriptors, workflowDescriptors, aliases, aggregateLimits);
+                    bindingIr == null ? 1 : CompositeProfile.SCHEMA_VERSION, profileId, profileVersion,
+                    descriptors, workflowDescriptors, aliases, aggregateLimits,
+                    bindingIr == null ? new byte[0] : bindingIr);
             return CompositeStateMachine.create(machineId, context, profile, machines, workflows);
+        }
+
+        public Builder bindingIr(byte[] canonicalIr) {
+            this.bindingIr = Objects.requireNonNull(canonicalIr, "canonicalIr").clone();
+            return this;
         }
     }
 }

@@ -1,18 +1,20 @@
 package org.yanoproject.x.stdlib;
 
 import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
-import com.bloxbean.cardano.yaci.core.util.HexUtil;
-import org.yanoproject.api.appchain.AppBlock;
 import org.yanoproject.api.appchain.AppCapabilityManifest;
 import org.yanoproject.api.appchain.AppBlockExecutionContext;
 import org.yanoproject.api.appchain.AppStateMachine;
 import org.yanoproject.api.appchain.AppStateWriter;
 import org.yanoproject.api.appchain.effects.AppEffectEmitter;
 import org.yanoproject.api.appchain.proof.ProofSubjectProvider;
+import org.yanoproject.api.appchain.transition.TransitionContext;
+import org.yanoproject.api.appchain.transition.TransitionKernel;
+import org.yanoproject.api.appchain.transition.TransitionPlans;
 import org.yanoproject.x.stdlib.contracts.BalancesContract;
 
 import java.math.BigInteger;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Standard-library state machine {@code balances} (ADR app-layer/006 E2.3):
@@ -46,8 +48,7 @@ public final class BalancesStateMachine implements AppStateMachine {
     public static final int OP_MINT = 0;
     public static final int OP_TRANSFER = 1;
 
-    /** Optional minter public key hex; empty = any member may mint. */
-    private final String minterHex;
+    private final BalancesTransitions transitions;
     private static final ProofSubjectProvider PROOF_SUBJECT =
             StdlibProofSubjectProviders.balances();
 
@@ -61,7 +62,12 @@ public final class BalancesStateMachine implements AppStateMachine {
             throw new IllegalArgumentException(
                     "machines.balances.minter must be a 32-byte hex Ed25519 member public key: " + minterHex);
         }
-        this.minterHex = normalized;
+        this.transitions = new BalancesTransitions(normalized);
+    }
+
+    /** Exposes the same pure decision used by standalone execution, with the versioned composition event schema. */
+    @Override public Optional<TransitionKernel<?, ?>> transitionKernel() {
+        return Optional.of(StockTransitionKernels.balances(transitions));
     }
 
     @Override
@@ -96,29 +102,18 @@ public final class BalancesStateMachine implements AppStateMachine {
     @Override
     public void apply(AppBlockExecutionContext context, AppStateWriter writer,
                       AppEffectEmitter effects) {
-        AppBlock block = context.block();
+        int visibleIndex = 0;
         for (AppMessage message : context.messages()) {
-            Command command;
+            int originalIndex = context.originalMessageIndex(visibleIndex++);
+            BalancesContract.Command command;
             try {
-                command = Command.decode(message.getBody());
+                command = BalancesContract.decodeCommand(message.getBody());
             } catch (Exception e) {
                 continue;
             }
-            String senderAccount = HexUtil.encodeHexString(message.getSender());
-
-            if (command.op() == OP_MINT) {
-                if (!minterHex.isEmpty() && !minterHex.equals(senderAccount)) {
-                    continue; // not the authorized minter — deterministic no-op
-                }
-                credit(writer, command.to(), command.amount());
-            } else if (command.op() == OP_TRANSFER) {
-                BigInteger from = balance(writer, senderAccount);
-                if (from.compareTo(command.amount()) < 0) {
-                    continue; // insufficient funds — no-op, never negative
-                }
-                setBalance(writer, senderAccount, from.subtract(command.amount()));
-                credit(writer, command.to(), command.amount());
-            }
+            TransitionContext transition = TransitionContext.of(context.block(), originalIndex, message);
+            TransitionPlans.commitIfApproved(transitions.decide(command, transition,
+                    BalancesTransitions.facts(command, transition, writer)), writer, effects);
         }
     }
 
@@ -143,23 +138,6 @@ public final class BalancesStateMachine implements AppStateMachine {
     }
 
     // ------------------------------------------------------------------
-
-    private static BigInteger balance(AppStateWriter writer, String account) {
-        return writer.get(accountKey(account)).map(b -> new BigInteger(1, b)).orElse(BigInteger.ZERO);
-    }
-
-    private static void credit(AppStateWriter writer, String account, BigInteger amount) {
-        setBalance(writer, account, balance(writer, account).add(amount));
-    }
-
-    private static void setBalance(AppStateWriter writer, String account, BigInteger value) {
-        byte[] key = accountKey(account);
-        if (value.signum() == 0) {
-            writer.delete(key);
-        } else {
-            writer.put(key, value.toByteArray());
-        }
-    }
 
     record Command(int op, String to, BigInteger amount) {
         static Command decode(byte[] body) {

@@ -16,6 +16,9 @@ import org.yanoproject.api.appchain.authmap.AuthenticatedMapValidatorResolver;
 import org.yanoproject.api.appchain.authmap.AuthenticatedMapValueValidator;
 import org.yanoproject.api.appchain.authmap.ValidatorInitContext;
 import org.yanoproject.api.appchain.authmap.ValidatorVerdict;
+import org.yanoproject.api.appchain.transition.StateMutation;
+import org.yanoproject.api.appchain.transition.TransitionPlan;
+import org.yanoproject.api.appchain.transition.TransitionPlans;
 import org.yanoproject.x.roles.RoleAuthorizationCapability;
 import org.yanoproject.x.stdlib.contracts.AuthenticatedMapContract;
 import org.yanoproject.x.stdlib.contracts.AuthenticatedMapContract.CollectionDescriptor;
@@ -409,7 +412,7 @@ public final class AuthenticatedMapStateMachine implements AppStateMachine {
         }
     }
 
-    private void validateCommandBounds(Command command) {
+    void validateCommandBounds(Command command) {
         if (command.mutations().size() > genesis.maxBatchItems()) {
             throw new IllegalArgumentException("command exceeds genesis item limit");
         }
@@ -425,7 +428,7 @@ public final class AuthenticatedMapStateMachine implements AppStateMachine {
         }
     }
 
-    private void validateCommandValues(Command command) {
+    void validateCommandValues(Command command) {
         for (Mutation mutation : command.mutations()) {
             if (!valueBearing(mutation.operation())) {
                 continue;
@@ -457,7 +460,7 @@ public final class AuthenticatedMapStateMachine implements AppStateMachine {
                         || descriptor.authorization() == AuthenticatedMapContract.AUTH_APPROVAL);
     }
 
-    private void validateAuthorizationAssignments(AuthenticatedMapCommandV1 command) {
+    void validateAuthorizationAssignments(AuthenticatedMapCommandV1 command) {
         for (int index = 0; index < command.action().mutations().size(); index++) {
             Mutation mutation = command.action().mutations().get(index);
             CollectionDescriptor descriptor = collections.get(mutation.collectionId());
@@ -472,7 +475,7 @@ public final class AuthenticatedMapStateMachine implements AppStateMachine {
         }
     }
 
-    private static Command legacyCommand(AuthenticatedMapCommandV1 command) {
+    static Command legacyCommand(AuthenticatedMapCommandV1 command) {
         return new Command(command.action().batch(), command.action().mutations());
     }
 
@@ -499,18 +502,60 @@ public final class AuthenticatedMapStateMachine implements AppStateMachine {
             Set<Integer> governedMutationIndexes,
             List<RoleAuthorizationCapability.ConsumptionPlan> consumptions
     ) {
+        MapFacts facts = commandFacts(height, message.getSender(), command, consumptions, writer);
+        MapDecision decision = decideCommand(height, message.getSender(), message.getMessageId(), command,
+                batchCommitment, governedMutationIndexes, consumptions, facts);
+        TransitionPlans.commit(decision.plan(), writer, AppEffectEmitter.rejecting("map plans have no effects"));
+    }
+
+    /**
+     * Captures only keys named by this command and its authorization consumptions. Membership is sampled
+     * at the candidate height, not from a node-local current-member cache. The returned snapshot is read-only
+     * and can originate from committed state or a cascade overlay.
+     */
+    MapFacts commandFacts(long height, byte[] sender, Command command,
+                                   List<RoleAuthorizationCapability.ConsumptionPlan> consumptions, AppStateReader state) {
+        Map<ByteKey, Entry> entries = new LinkedHashMap<>();
+        for (Mutation mutation : command.mutations()) {
+            byte[] key = AuthenticatedMapContract.canonicalKey(mutation.collectionId(), mutation.applicationKey());
+            state.get(key).map(AuthenticatedMapContract::decodeEntry)
+                    .ifPresent(entry -> entries.put(new ByteKey(key), entry));
+        }
+        Set<ByteKey> used = new HashSet<>();
+        for (var consumption : consumptions) {
+            if (state.get(consumption.replayKey()).isPresent()) used.add(new ByteKey(consumption.replayKey()));
+        }
+        return new MapFacts(entries, used, isMember(sender, height));
+    }
+
+    /**
+     * Constructs the complete domain result without a writer or effect emitter. Standalone execution commits
+     * rejection receipts as before; a cascade adapter may instead reject the source cascade and retain only
+     * its enclosing binding receipt. Validated one-use consumptions are separate from domain mutations so
+     * the cascade can detect conflicts before either is committed. Validator callbacks are the existing
+     * deterministic, catalog-selected value validators and are invoked in the same mutation order.
+     */
+    MapDecision decideCommand(
+            long height,
+            byte[] sender,
+            byte[] messageId,
+            Command command,
+            byte[] batchCommitment,
+            Set<Integer> governedMutationIndexes,
+            List<RoleAuthorizationCapability.ConsumptionPlan> consumptions,
+            MapFacts facts
+    ) {
         Set<ByteKey> consumptionKeys = new HashSet<>();
         for (RoleAuthorizationCapability.ConsumptionPlan consumption : consumptions) {
             byte[] key = consumption.replayKey();
-            if (!consumptionKeys.add(new ByteKey(key)) || writer.get(key).isPresent()) {
+            if (!consumptionKeys.add(new ByteKey(key)) || facts.usedConsumptions().contains(new ByteKey(key))) {
                 int errorCode = consumption.replayFailure()
                         == RoleAuthorizationCapability.Failure.DIRECT_REPLAY
                         ? AuthenticatedMapContract.ERROR_DIRECT_AUTHORIZATION_REPLAY
                         : AuthenticatedMapContract.ERROR_APPROVAL_REPLAY;
-                Receipt receipt = Receipt.rejected(message.getMessageId(), height,
+                Receipt receipt = Receipt.rejected(messageId, height,
                         batchCommitment, errorCode);
-                writer.put(receiptKey, AuthenticatedMapContract.encodeReceipt(receipt));
-                return;
+                return mapDecision(List.of(), List.of(), receipt);
             }
         }
         List<PendingMutation> pending = new ArrayList<>(command.mutations().size());
@@ -519,28 +564,27 @@ public final class AuthenticatedMapStateMachine implements AppStateMachine {
                 Mutation mutation = command.mutations().get(index);
                 byte[] key = AuthenticatedMapContract.canonicalKey(
                         mutation.collectionId(), mutation.applicationKey());
-                Entry current = writer.get(key)
-                        .map(AuthenticatedMapContract::decodeEntry)
-                        .orElse(null);
-                Entry next = transition(height, message.getSender(), mutation,
+                Entry current = facts.entries().get(new ByteKey(key));
+                Entry next = transition(height, sender, mutation,
                         collections.get(mutation.collectionId()), current,
-                        governedMutationIndexes.contains(index));
+                        governedMutationIndexes.contains(index), facts.senderMember());
                 pending.add(new PendingMutation(key, mutation, next));
             }
         } catch (TransitionFailure rejected) {
-            Receipt receipt = Receipt.rejected(message.getMessageId(), height,
+            Receipt receipt = Receipt.rejected(messageId, height,
                     batchCommitment, rejected.errorCode());
-            writer.put(receiptKey, AuthenticatedMapContract.encodeReceipt(receipt));
-            return;
+            return mapDecision(List.of(), List.of(), receipt);
         }
 
+        List<StateMutation> consumptionWrites = new ArrayList<>();
         for (RoleAuthorizationCapability.ConsumptionPlan consumption : consumptions) {
-            writer.put(consumption.replayKey(), consumption.applicationReceipt());
+            consumptionWrites.add(StateMutation.put(consumption.replayKey(), consumption.applicationReceipt()));
         }
+        List<StateMutation> mutations = new ArrayList<>();
         List<MutationResult> results = new ArrayList<>(pending.size());
         for (PendingMutation mutation : pending) {
-            writer.put(mutation.canonicalKey(),
-                    AuthenticatedMapContract.encodeEntry(mutation.entry()));
+            mutations.add(StateMutation.put(mutation.canonicalKey(),
+                    AuthenticatedMapContract.encodeEntry(mutation.entry())));
             results.add(new MutationResult(
                     mutation.mutation().collectionId(),
                     mutation.mutation().applicationKey(),
@@ -548,10 +592,25 @@ public final class AuthenticatedMapStateMachine implements AppStateMachine {
                     mutation.entry().revision(),
                     mutation.entry().logicalValueHash()));
         }
-        Receipt receipt = Receipt.applied(message.getMessageId(), height,
+        Receipt receipt = Receipt.applied(messageId, height,
                 batchCommitment, results);
-        writer.put(receiptKey, AuthenticatedMapContract.encodeReceipt(receipt));
+        return mapDecision(mutations, consumptionWrites, receipt);
     }
+
+    private static MapDecision mapDecision(List<StateMutation> mutations, List<StateMutation> consumptions,
+                                            Receipt receipt) {
+        StateMutation receiptWrite = StateMutation.put(AuthenticatedMapContract.receiptKey(receipt.messageId()),
+                AuthenticatedMapContract.encodeReceipt(receipt));
+        return new MapDecision(new TransitionPlan(mutations, List.of(), consumptions, List.of(receiptWrite)), receipt);
+    }
+
+    record MapFacts(Map<ByteKey, Entry> entries, Set<ByteKey> usedConsumptions, boolean senderMember) {
+        MapFacts {
+            entries = Map.copyOf(entries);
+            usedConsumptions = Set.copyOf(usedConsumptions);
+        }
+    }
+    record MapDecision(TransitionPlan plan, Receipt receipt) { }
 
     private Entry transition(
             long height,
@@ -559,15 +618,16 @@ public final class AuthenticatedMapStateMachine implements AppStateMachine {
             Mutation mutation,
             CollectionDescriptor descriptor,
             Entry current,
-            boolean governedAuthorized
+            boolean governedAuthorized,
+            boolean senderMember
     ) {
         if (sender == null || sender.length != 32) {
             throw failure(AuthenticatedMapContract.ERROR_UNAUTHORIZED);
         }
         if (current == null) {
-            return create(height, sender, mutation, descriptor, governedAuthorized);
+            return create(height, sender, mutation, descriptor, governedAuthorized, senderMember);
         }
-        authorize(height, sender, descriptor, current, governedAuthorized);
+        authorize(sender, descriptor, current, governedAuthorized, senderMember);
         if (current.status() == AuthenticatedMapContract.STATUS_REVOKED) {
             if (mutation.operation() != AuthenticatedMapContract.OP_RESTORE) {
                 throw failure(AuthenticatedMapContract.ERROR_REVOKED);
@@ -615,14 +675,15 @@ public final class AuthenticatedMapStateMachine implements AppStateMachine {
             byte[] sender,
             Mutation mutation,
             CollectionDescriptor descriptor,
-            boolean governedAuthorized
+            boolean governedAuthorized,
+            boolean senderMember
     ) {
         if (mutation.operation() != AuthenticatedMapContract.OP_PUT
                 && mutation.operation() != AuthenticatedMapContract.OP_PUT_IF_ABSENT) {
             throw failure(AuthenticatedMapContract.ERROR_ABSENT);
         }
         if (descriptor.authorization() == AuthenticatedMapContract.AUTH_MEMBER
-                && !isMember(sender, height)) {
+                && !senderMember) {
             throw failure(AuthenticatedMapContract.ERROR_UNAUTHORIZED);
         }
         if ((descriptor.authorization() == AuthenticatedMapContract.AUTH_GOVERNED_ROLE
@@ -695,11 +756,11 @@ public final class AuthenticatedMapStateMachine implements AppStateMachine {
     }
 
     private void authorize(
-            long height,
             byte[] sender,
             CollectionDescriptor descriptor,
             Entry current,
-            boolean governedAuthorized
+            boolean governedAuthorized,
+            boolean senderMember
     ) {
         switch (descriptor.authorization()) {
             case AuthenticatedMapContract.AUTH_OPEN -> {
@@ -711,7 +772,7 @@ public final class AuthenticatedMapStateMachine implements AppStateMachine {
                 }
             }
             case AuthenticatedMapContract.AUTH_MEMBER -> {
-                if (!isMember(sender, height)) {
+                if (!senderMember) {
                     throw failure(AuthenticatedMapContract.ERROR_UNAUTHORIZED);
                 }
             }

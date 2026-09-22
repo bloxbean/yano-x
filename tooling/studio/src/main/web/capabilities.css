@@ -70,3 +70,10 @@
     grid-template-columns: 1fr;
   }
 }
+/* Read-only manifest graph; edges and labels never depend on external assets. */
+.binding-graph { overflow-x: auto; }
+.binding-graph svg { min-width: 500px; width: 100%; }
+.binding-edge { fill: none; stroke: #7c8da3; stroke-width: 2; }
+.binding-node { fill: #152d42; stroke: #62b7bc; }
+.binding-effect { stroke-dasharray: 5 3; }
+.binding-label { fill: #f5f8fc; font: 13px sans-serif; }

@@ -3,6 +3,7 @@ package org.yanoproject.x.composite;
 import org.yanoproject.x.composite.contracts.AggregateQueryLimitsV1;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
@@ -18,15 +19,16 @@ public record CompositeProfile(
         List<ComponentDescriptor> components,
         List<WorkflowDescriptor> workflows,
         List<LegacyQueryAlias> queryAliases,
-        AggregateQueryLimitsV1 aggregateQueryLimits
+        AggregateQueryLimitsV1 aggregateQueryLimits,
+        byte[] bindingIr
 ) {
-    public static final int SCHEMA_VERSION = 1;
+    public static final int SCHEMA_VERSION = 2;
     public static final int MAX_COMPONENTS = 64;
     public static final int MAX_WORKFLOWS = 32;
     public static final int MAX_ALIASES = 64;
 
     public CompositeProfile {
-        if (schemaVersion != SCHEMA_VERSION) {
+        if (schemaVersion != 1 && schemaVersion != SCHEMA_VERSION) {
             throw new IllegalArgumentException("unsupported composite profile schemaVersion: " + schemaVersion);
         }
         profileId = CompositeValidation.id(profileId, "profileId");
@@ -39,6 +41,12 @@ public record CompositeProfile(
                 .sorted(Comparator.comparing(LegacyQueryAlias::aliasPath))
                 .toList();
         aggregateQueryLimits = Objects.requireNonNull(aggregateQueryLimits, "aggregateQueryLimits");
+        bindingIr = Objects.requireNonNull(bindingIr, "bindingIr").clone();
+        if (bindingIr.length > 65_536) throw new IllegalArgumentException("binding IR exceeds profile cap");
+        if (schemaVersion == 1 && (bindingIr.length != 0
+                || workflows.stream().anyMatch(workflow -> workflow.topics().size() != 1))) {
+            throw new IllegalArgumentException("schema v1 cannot contain bindings or multi-topic workflows");
+        }
         validateBounds(components, workflows, queryAliases);
         validateComponents(components);
         validateWorkflows(components, workflows);
@@ -50,12 +58,34 @@ public record CompositeProfile(
             String profileVersion,
             List<ComponentDescriptor> components
     ) {
-        return new CompositeProfile(SCHEMA_VERSION, profileId, profileVersion, components,
+        return new CompositeProfile(1, profileId, profileVersion, components,
                 List.of(), List.of(), AggregateQueryLimitsV1.DEFAULT);
     }
 
     public byte[] canonicalBytes() {
         return CompositeProfileCodec.encode(this);
+    }
+
+    public CompositeProfile(int schemaVersion, String profileId, String profileVersion,
+                            List<ComponentDescriptor> components, List<WorkflowDescriptor> workflows,
+                            List<LegacyQueryAlias> queryAliases, AggregateQueryLimitsV1 aggregateQueryLimits) {
+        this(schemaVersion, profileId, profileVersion, components, workflows, queryAliases,
+                aggregateQueryLimits, new byte[0]);
+    }
+
+    @Override public byte[] bindingIr() { return bindingIr.clone(); }
+
+    @Override public boolean equals(Object other) {
+        return other instanceof CompositeProfile that
+                && schemaVersion == that.schemaVersion && profileId.equals(that.profileId)
+                && profileVersion.equals(that.profileVersion) && components.equals(that.components)
+                && workflows.equals(that.workflows) && queryAliases.equals(that.queryAliases)
+                && aggregateQueryLimits.equals(that.aggregateQueryLimits) && Arrays.equals(bindingIr, that.bindingIr);
+    }
+
+    @Override public int hashCode() {
+        return 31 * Objects.hash(schemaVersion, profileId, profileVersion, components, workflows,
+                queryAliases, aggregateQueryLimits) + Arrays.hashCode(bindingIr);
     }
 
     public byte[] digest() {
@@ -230,11 +260,11 @@ public record CompositeProfile(
                 }
             }
             for (ComponentDescriptor component : components) {
-                if (component.topics().contains(workflow.topic())
+                if (component.topics().stream().anyMatch(workflow.topics()::contains)
                         && CompositeValidation.overlaps(workflow.fromHeight(), workflow.untilHeight(),
                         component.fromHeight(), component.untilHeight())) {
                     throw new IllegalArgumentException("workflow topic overlaps component route: "
-                            + workflow.topic());
+                            + workflow.topics());
                 }
             }
         }
@@ -248,10 +278,10 @@ public record CompositeProfile(
                     throw new IllegalArgumentException("overlapping generations for workflow "
                             + left.workflowId());
                 }
-                if (left.topic().equals(right.topic())
+                if (left.topics().stream().anyMatch(right.topics()::contains)
                         && CompositeValidation.overlaps(left.fromHeight(), left.untilHeight(),
                         right.fromHeight(), right.untilHeight())) {
-                    throw new IllegalArgumentException("overlapping workflow topic ownership: " + left.topic());
+                    throw new IllegalArgumentException("overlapping workflow topic ownership: " + left.topics());
                 }
             }
         }

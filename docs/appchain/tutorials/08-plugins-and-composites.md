@@ -93,9 +93,12 @@ teams normally extend the application layer, not the consensus runtime.
 Does a stock machine/profile already model the outcome?
   ├─ yes → configuration only
   └─ no
-      Are all required components already available?
-        ├─ yes → small composite plugin
-        └─ no  → custom state-machine component/plugin
+      Do existing kernel-enabled machines and bounded bindings express it?
+        ├─ yes → experimental declarative composite (configuration only)
+        └─ no
+            Are all domain transitions already available?
+              ├─ yes → small Java composite plugin
+              └─ no  → custom state-machine component/plugin
 ```
 
 Other independent plugin SPIs cover effect executors, finalized stream sinks,
@@ -113,6 +116,23 @@ For stock composite/role profiles, the profile identifier and configuration
 digest become part of chain identity. Select them only for a fresh chain or a
 governed activation.
 
+For a new combination of existing commands, the experimental
+`declarative-composite` provider accepts canonical IR compiled from a binding
+document. Components are resolved from the real plugin catalog (plus the host's
+built-in `ordered-log`) and must expose the public `TransitionKernel` contract.
+The document declares ordered components, conditions, mappings, and bounded
+event-to-command/effect edges; restricted CEL handles scalar expressions.
+No application-specific Java coordinator is needed for these combinations.
+Follow the [binding guide](../DECLARATIVE_BINDINGS.md) and
+[compile/validate/dry-run workflow](../DECLARATIVE_BINDINGS_CLI.md).
+
+This is not arbitrary code loading from YAML. The catalog, descriptors, evidence
+rules, graph, normalized settings, and limits are validated before profile use,
+and target authorization still runs. The explicit role/map leaf path currently
+uses genesis-fixed actor data, not dynamic actor governance. Legacy certificates
+and projections that require signed original command envelopes are not implicitly
+compatible with derived commands.
+
 ## Path B — a small composite plugin
 
 A composite explicitly defines:
@@ -124,9 +144,11 @@ A composite explicitly defines:
 - workflow transitions between components; and
 - one committed profile identity/digest.
 
-This Java class is intentionally small but consensus-critical. YAML cannot
-dynamically insert arbitrary component plugins into a frozen profile, because
-two members discovering a different order would derive different roots.
+This Java class is intentionally small but consensus-critical. Use this path
+when the bounded declarative language does not express the required coordination.
+Neither a Java bundle update nor an edited binding document can dynamically
+change a frozen profile: the exact ordered profile is committed, and a governed
+replacement requires authorization and readiness for a future activation height.
 
 Reuse the effect-gated evidence and role-evidence presets as reference
 implementations. Package the provider, manifest, service entry, and components

@@ -37,6 +37,7 @@ credentials unless a guide explicitly says otherwise.
 | Build or independently verify portable message and typed state proofs | [Proof Lab guide](PROOF_LAB.md) | No for stock subjects; Java for custom subjects |
 | Implement new business rules without forking Yano | [Plugins and composites](tutorials/08-plugins-and-composites.md) | Small Java plugin |
 | Reuse stock transitions and verify portable proofs | [Composable state and proofs](COMPOSABLE_STATE_AND_PROOFS.md) | Java/configuration |
+| Connect stock machines through bounded event bindings | [Declarative bindings](DECLARATIVE_BINDINGS.md) | Configuration + typed commands; experimental |
 | Archive and prove large immutable period datasets | [Authenticated snapshots](AUTHENTICATED_SNAPSHOTS.md) | Configuration/API |
 | Query and prove historical Cardano parameters, stake, and governance | [Cardano History product](CARDANO_HISTORY.md) | Plugin configuration/CLI |
 | Attest a document digest and hand out a portable, offline-verifiable certificate | [Attest product](ATTEST.md) | No; CLI or browser UI |
@@ -116,8 +117,9 @@ business meaning.
 
 1. Choose a stock machine or committed composite profile.
 2. Use the Java client or REST API for typed commands and proof queries.
-3. Add a small composite plugin when existing components need new ordering or
-   terminal transitions.
+3. Use [experimental declarative bindings](DECLARATIVE_BINDINGS.md) when existing
+   kernel-enabled machines support the required event-to-command coordination;
+   use a small Java composite plugin for coordination outside that bounded model.
 4. Add a custom state-machine plugin only for genuinely new state or rules.
 5. Treat any change to deterministic application semantics as a versioned
    consensus upgrade, not an ordinary rolling code change.
@@ -173,8 +175,12 @@ need full detail:
 
 ## A note on “no code”
 
-No-code means the required state machine, composite, connector, and launcher
-already ship with Yano. A real application still sends typed commands and owns
+No-code means the required state machines, connectors, and launcher already ship
+with Yano X or the host. A real application still sends typed commands and owns
 its UI, identity onboarding, key custody, and business data. Configuration
-cannot invent arbitrary consensus transitions. New combinations use a small
-composite plugin; new domain logic uses a custom state-machine plugin.
+cannot invent arbitrary consensus transitions. Experimental declarative bindings
+can connect existing kernel-enabled machines without application-specific Java;
+other coordination needs a Java composite plugin, and new domain rules need a
+custom state-machine plugin. See the [binding guide](DECLARATIVE_BINDINGS.md) for
+catalog validation, genesis-fixed role leaves, and the explicit limits on legacy
+certificate and product-projection compatibility.

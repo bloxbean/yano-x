@@ -39,6 +39,7 @@ select it explicitly.
 <!-- capability-catalog:start -->
 | ID | Category | Availability | Maturity | Scope | Selectable | Runtimes | Native posture | Required artifacts | Reference |
 |---|---|---|---|---|---:|---|---|---|---|
+| `state:declarative-composite` | `state` | `BUNDLED` | `preview` | `chain` | yes | JVM | `unsupported` | `yano-runtime`, `yano-x-composite`, `yano-x-stdlib`, `yano-x-role-workflow` | [Declarative bindings](DECLARATIVE_BINDINGS_CLI.md) |
 | `state:ordered-log` | `state` | `BUNDLED` | `stable` | `chain` | yes | JVM, native | `bundled` | `yano-runtime` | [Yano core host](../core-host.md) |
 | `state:kv-registry` | `state` | `BUNDLED` | `stable` | `chain` | yes | JVM | `unsupported` | `yano-runtime`, `yano-x-stdlib` | [KV registry](state-machines/kv-registry.md) |
 | `state:authenticated-map` | `state` | `BUNDLED` | `preview` | `chain` | yes | JVM | `unsupported` | `yano-runtime`, `yano-x-stdlib`, `yano-x-role-workflow` | [Authenticated map](state-machines/authenticated-map.md) |
@@ -92,6 +93,7 @@ capabilities first; users may then add only compatible selectable capabilities.
 <!-- recipe-catalog:start -->
 | Recipe | Availability | Maturity | Runtimes | Native posture | Required artifacts | Reference |
 |---|---|---|---|---|---|---|
+| `declarative-composite` | `BUNDLED` | `preview` | JVM | `unsupported` | `yano-runtime`, `yano-x-composite`, `yano-x-stdlib`, `yano-x-role-workflow` | [Declarative bindings](DECLARATIVE_BINDINGS_CLI.md) |
 | `audit-log` | `BUNDLED` | `stable` | JVM, native | `bundled` | `yano-runtime` | [Yano core host](../core-host.md) |
 | `owned-registry` | `BUNDLED` | `stable` | JVM | `unsupported` | `yano-runtime`, `yano-x-stdlib` | [KV registry](state-machines/kv-registry.md) |
 | `document-trail` | `BUNDLED` | `preview` | JVM | `unsupported` | `yano-runtime`, `yano-x-stdlib` | [Document trail](state-machines/doc-trail.md) |

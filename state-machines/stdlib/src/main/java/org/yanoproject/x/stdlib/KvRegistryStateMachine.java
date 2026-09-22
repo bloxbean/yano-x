@@ -11,11 +11,13 @@ import org.yanoproject.api.appchain.proof.ProofSubjectProvider;
 import org.yanoproject.api.appchain.transition.TransitionContext;
 import org.yanoproject.api.appchain.transition.TransitionDecision;
 import org.yanoproject.api.appchain.transition.TransitionPlans;
+import org.yanoproject.api.appchain.transition.TransitionKernel;
 import org.yanoproject.x.stdlib.contracts.KvRegistryContract;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.List;
+import java.util.Optional;
 
 
 /**
@@ -60,6 +62,10 @@ public final class KvRegistryStateMachine implements AppStateMachine {
     @Override
     public String id() {
         return ID;
+    }
+
+    @Override public Optional<TransitionKernel<?, ?>> transitionKernel() {
+        return Optional.of(StockTransitionKernels.registry(transitions));
     }
 
     @Override

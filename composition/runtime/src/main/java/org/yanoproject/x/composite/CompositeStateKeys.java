@@ -37,6 +37,27 @@ public final class CompositeStateKeys {
     private CompositeStateKeys() {
     }
 
+    /**
+     * Maps a workflow-local key into its reserved authenticated namespace.
+     * The encoding is the ASCII prefix {@code ~composite/workflow-state/v1/<workflowId>/} followed by the
+     * unchanged local bytes. It intentionally excludes the generation height so receipts and one-use state
+     * survive governed workflow replacement. Component keys cannot collide with this reserved namespace.
+     *
+     * @param workflowId validated logical workflow id
+     * @param localKey nonempty local key, such as a 32-byte source-message id
+     * @return a fresh physical key of at most {@link #MAX_PHYSICAL_KEY_BYTES} bytes
+     * @throws IllegalArgumentException if either identifier or combined key length is invalid
+     */
+    public static byte[] workflowStateKey(String workflowId, byte[] localKey) {
+        CompositeValidation.id(workflowId, "workflowId");
+        byte[] prefix = ("~composite/workflow-state/v1/" + workflowId + "/")
+                .getBytes(StandardCharsets.US_ASCII);
+        if (localKey == null || localKey.length == 0 || prefix.length + localKey.length > MAX_PHYSICAL_KEY_BYTES) {
+            throw new IllegalArgumentException("workflow state key exceeds bound");
+        }
+        return ByteBuffer.allocate(prefix.length + localKey.length).put(prefix).put(localKey).array();
+    }
+
     /** Reserved authenticated key containing the canonical effective profile. */
     public static byte[] profileMarkerKey() {
         return CompositeCommitmentV1.profileMarkerKey();

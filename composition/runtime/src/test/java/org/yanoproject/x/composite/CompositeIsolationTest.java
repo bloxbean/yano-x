@@ -141,7 +141,7 @@ class CompositeIsolationTest {
 
         assertThat(machine.id()).isEqualTo("document-service");
         assertThat(machine.profile()).isEqualTo(new CompositeProfile(
-                CompositeProfile.SCHEMA_VERSION, "document-profile", "1",
+                1, "document-profile", "1",
                 List.of(descriptor), List.of(), List.of(), AggregateQueryLimitsV1.DEFAULT));
         assertThat(state.get(CompositeStateKeys.componentKey("documents", LOCAL_KEY)))
                 .hasValue(bytes("version-1"));

@@ -4,6 +4,8 @@ import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
 import org.yanoproject.api.appchain.AppBlockExecutionContext;
 import org.yanoproject.api.appchain.AppStateMachine;
 
+import java.util.Map;
+
 /**
  * Declared deterministic coordinator for one versioned cross-component command route.
  * Expected business-precondition failures, duplicate commands, and conflicts
@@ -15,6 +17,9 @@ import org.yanoproject.api.appchain.AppStateMachine;
  */
 public interface CompositeWorkflow {
     WorkflowDescriptor descriptor();
+
+    /** Cached diagnostics only; implementations must never consult this map for a consensus decision. */
+    default Map<String, Object> operationalStatus() { return Map.of(); }
 
     default AppStateMachine.AdmissionResult validate(AppMessage routedMessage) {
         return AppStateMachine.AdmissionResult.accept();

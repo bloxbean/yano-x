@@ -2,9 +2,14 @@
   "schemaVersion": 1,
   "id": "org.yanoproject.x.composite",
   "version": "${pluginVersion}",
-  "yanoApi": { "min": 3, "max": 3, "minLevel": 4 },
+  "yanoApi": { "min": 3, "max": 3, "minLevel": 10 },
   "dependencies": [],
   "contributions": [
+    {
+      "kind": "app-state-machine",
+      "name": "declarative-composite",
+      "provider": "org.yanoproject.x.composite.bindings.DeclarativeCompositeProvider"
+    },
     {
       "kind": "domain-api",
       "name": "org.yanoproject.x.composite",

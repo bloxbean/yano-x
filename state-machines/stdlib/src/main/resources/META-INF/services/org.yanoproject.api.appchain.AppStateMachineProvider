@@ -1,4 +1,5 @@
 org.yanoproject.x.stdlib.StdlibStateMachineProviders$AuthenticatedMapProvider
+org.yanoproject.x.stdlib.StdlibStateMachineProviders$AuthenticatedMapComponentProvider
 org.yanoproject.x.stdlib.StdlibStateMachineProviders$AdaUsdReferenceProvider
 org.yanoproject.x.stdlib.StdlibStateMachineProviders$ShipmentWorkflowReferenceProvider
 org.yanoproject.x.stdlib.StdlibStateMachineProviders$KvRegistryProvider

@@ -12,6 +12,7 @@
     "docker-compose"
   ],
   "recipes": [
+    "declarative-composite",
     "audit-log",
     "owned-registry",
     "document-trail",

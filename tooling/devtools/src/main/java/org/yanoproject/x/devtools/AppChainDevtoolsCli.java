@@ -60,6 +60,7 @@ public final class AppChainDevtoolsCli {
                or: ./yano.sh appchain eutxo transaction|utxo|proof|doctor|demo [options]
                or: ./yano.sh appchain validity bootstrap|status|prove|proof|doctor|... [options]
                or: ./yano.sh appchain state entry|proof|verify|identity|integrity|snapshot|oldest [options]
+               or: ./yano.sh appchain bindings compile|validate|graph|dry-run <document> [options]
             Options:
               --config <yml|yaml>                        repeatable, later source wins
               --format text|json                         validate/explain
@@ -98,6 +99,9 @@ public final class AppChainDevtoolsCli {
         Objects.requireNonNull(args, "args");
         Objects.requireNonNull(out, "out");
         Objects.requireNonNull(err, "err");
+        if (args.length > 0 && "bindings".equals(args[0])) {
+            return new BindingCli().run(java.util.Arrays.copyOfRange(args, 1, args.length), out, err);
+        }
         if (args.length > 1 && "eutxo".equals(args[0]) && "demo".equals(args[1])) {
             return EutxoDemoCli.run(
                     java.util.Arrays.copyOfRange(args, 2, args.length), out, err);

@@ -41,7 +41,8 @@ public final class CompositeProfileCodec {
             for (WorkflowDescriptor workflow : profile.workflows()) {
                 writeString(out, workflow.workflowId());
                 writeString(out, workflow.semanticVersion());
-                writeString(out, workflow.topic());
+                if (profile.schemaVersion() == 1) writeString(out, workflow.topic());
+                else writeStrings(out, workflow.topics());
                 out.writeLong(workflow.fromHeight());
                 out.writeLong(workflow.untilHeight());
                 out.writeInt(workflow.participants().size());
@@ -62,6 +63,11 @@ public final class CompositeProfileCodec {
             out.writeInt(limits.maxSubqueries());
             out.writeInt(limits.maxParameterBytes());
             out.writeInt(limits.maxResponseBytes());
+            if (profile.schemaVersion() == 2) {
+                byte[] ir = profile.bindingIr();
+                out.writeInt(ir.length);
+                out.write(ir);
+            }
             out.flush();
             byte[] encoded = bytes.toByteArray();
             if (encoded.length > CompositeCommitmentV1.MAX_PROFILE_BYTES) {
@@ -87,6 +93,7 @@ public final class CompositeProfileCodec {
         try {
             DataInputStream in = new DataInputStream(new ByteArrayInputStream(bytes));
             int schema = in.readInt();
+            if (schema != 1 && schema != 2) throw new IllegalArgumentException("unsupported profile schema");
             String profileId = readString(in);
             String profileVersion = readString(in);
             int componentCount = readCount(in, CompositeProfile.MAX_COMPONENTS, "components");
@@ -105,7 +112,8 @@ public final class CompositeProfileCodec {
             for (int index = 0; index < workflowCount; index++) {
                 String workflowId = readString(in);
                 String semanticVersion = readString(in);
-                String topic = readString(in);
+                List<String> topics = schema == 1 ? List.of(readString(in))
+                        : readStrings(in, 64, "workflow topics");
                 long fromHeight = readUnsignedLong(in, "workflow fromHeight");
                 long untilHeight = readUnsignedLong(in, "workflow untilHeight");
                 int participantCount = readCount(in, 16, "workflow participants");
@@ -117,7 +125,7 @@ public final class CompositeProfileCodec {
                     participants.add(new ComponentGeneration(readString(in), readString(in),
                             readUnsignedLong(in, "participant fromHeight")));
                 }
-                workflows.add(new WorkflowDescriptor(workflowId, semanticVersion, topic,
+                workflows.add(new WorkflowDescriptor(workflowId, semanticVersion, topics,
                         fromHeight, untilHeight, participants,
                         readNonNegativeInt(in, "workflow maxEffectsPerBlock")));
             }
@@ -130,11 +138,17 @@ public final class CompositeProfileCodec {
                     readNonNegativeInt(in, "aggregate maxSubqueries"),
                     readNonNegativeInt(in, "aggregate maxParameterBytes"),
                     readNonNegativeInt(in, "aggregate maxResponseBytes"));
+            byte[] bindingIr = new byte[0];
+            if (schema == 2) {
+                int size = readCount(in, CompositeCommitmentV1.MAX_PROFILE_BYTES, "binding IR");
+                if (size > in.available()) throw new IllegalArgumentException("truncated binding IR");
+                bindingIr = in.readNBytes(size);
+            }
             if (in.available() != 0) {
                 throw new IllegalArgumentException("trailing canonical composite profile bytes");
             }
             CompositeProfile profile = new CompositeProfile(schema, profileId, profileVersion,
-                    components, workflows, aliases, limits);
+                    components, workflows, aliases, limits, bindingIr);
             if (!Arrays.equals(bytes, encode(profile))) {
                 throw new IllegalArgumentException("non-canonical composite profile encoding");
             }

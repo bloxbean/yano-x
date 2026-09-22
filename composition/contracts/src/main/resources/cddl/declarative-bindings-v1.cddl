@@ -1,0 +1,83 @@
+; ADR-031.1 canonical data-only binding contracts. The first rule accepts each envelope.
+; Implementations additionally require definite-length, shortest-form CBOR, canonical map-key
+; ordering, no tags/floats, one root, valid UTF-8, signed-int64 values and <=65536 encoded bytes.
+; CDDL describes wire shape, not authorization or executable profile validation. Java codecs
+; enforce unique component/route/binding/assignment names, <=64 config entries, generation
+; ordering, expression <=512 nodes/depth32, and bounded scalar/code text (UTF-16 code units).
+; Runtime descriptors enforce types, evidence flow, acyclic graphs, function arity and tighter
+; committed limits. No textual CEL or plugin implementation class is encoded here.
+declarative-bindings-v1 = binding-ir-v1 / binding-receipt-v1 / binding-expression-v1
+
+binding-int64 = 0..9223372036854775807 / (nint .ge -9223372036854775808)
+binding-height = 1..9223372036854775807
+binding-scalar = binding-int64 / tstr / (bstr .size (0..65536)) / bool
+binding-name = tstr .regexp "[a-zA-Z][a-zA-Z0-9_.-]{0,126}"
+binding-id = tstr .regexp "[a-z][a-z0-9-]{0,62}"
+
+binding-ir-v1 = [version: 1, functions: "yano-x-binding-functions-v1", dialect: "yano-x-cel-v1",
+                from-height: binding-height, components: [1*16 binding-component],
+                bindings: binding-edges, limits: binding-limits]
+binding-edges = [] / [1*256 binding-edge]
+; Topic is nonblank, <=127 UTF-16 units, and may not start with '~'. Config values are
+; unwrapped scalars (NOT tagged binding-source literals), with all descriptor defaults included.
+binding-component = [id: binding-id, machine: binding-id, topic: tstr,
+                     config: ({} / {1*64 binding-name => binding-scalar}),
+                     max-effects: 0..1048576, from-height: binding-height]
+binding-edge = [id: binding-id, source: binding-id, event: binding-name,
+                when: binding-conditions, target: binding-target]
+binding-conditions = [] / [1*8 binding-clause]
+binding-clause = [0, field: binding-name, op: 0..5, value: binding-scalar]
+               / [0, field: binding-name, 6, values: ([] / [1*64 binding-scalar])]
+               / [0, field: binding-name, op: 7..8]
+               / [1, component: binding-id, key: binding-source, expected: binding-lookup-expectation]
+               / [2, expression: [1, 3, root: binding-expression-node]]
+; Field operators: eq=0 ne=1 lt=2 le=3 gt=4 ge=5 in=6 exists=7 absent=8.
+binding-lookup-expectation = [0] / [1] / [2, value: bstr .size (0..65536)] / [3, field: binding-name]
+binding-target = [0, component: binding-id, command: binding-name, mapping: binding-command-mapping]
+               / [1, effect: binding-name, gate: binding-gate, "none", 0, mapping: binding-mapping]
+               / [1, effect: binding-name, gate: binding-gate, "chain",
+                  expiry: 0..9223372036854775807, mapping: binding-mapping]
+binding-gate = "app-final" / "l1-final"
+binding-command-mapping = [1, 1*16 binding-assignment] / [2, field: binding-name]
+binding-mapping = [0] / binding-command-mapping
+binding-assignment = [field: binding-name, source: binding-source]
+binding-source = binding-simple-source / binding-function / [3, binding-expression-v1]
+binding-simple-source = [0, field: binding-name] / [1, value: binding-scalar]
+; At most two function levels; expressions may not be nested inside stock functions.
+; Function catalog membership and per-function argument types are runtime program checks.
+binding-function = [2, function: binding-name, args: [1*8 (binding-simple-source / binding-inner-function)]]
+binding-inner-function = [2, function: binding-name, args: [1*8 binding-simple-source]]
+binding-limits = [1..32, 1..256, 1..65536, 1..65536, 1..4, 1..16,
+                  1..65536, 1..512, 1..32, 1..65536, 1..4194304, 1..67108864]
+; Limits order: depth, derived/source, derived/block, event bytes, lookups/condition,
+; functions/mapping, function input bytes, expression nodes/depth/value bytes,
+; binding-language work/cascade, binding-language work/block.
+
+binding-expression-v1 = [1, type: 0..3, root: binding-expression-node]
+; Result types: signed int64=0, text=1, bytes=2, boolean=3.
+binding-expression-node = [0, value: binding-scalar] / [1, field: binding-name]
+                        / [2, op: ("not" / "neg"), args: [binding-expression-node]]
+                        / [2, "if", args: [condition: binding-expression-node,
+                                          yes: binding-expression-node, no: binding-expression-node]]
+                        / [2, op: binding-binary-operator,
+                           args: [left: binding-expression-node, right: binding-expression-node]]
+binding-binary-operator = "eq" / "ne" / "lt" / "le" / "gt" / "ge" / "and" / "or"
+                        / "add" / "sub" / "mul" / "div" / "mod" / "concat"
+
+binding-receipt-v1 = [1, bstr .size 32, 0..9223372036854775807, "ACCEPTED", null, "",
+                      steps: binding-steps]
+                   / [1, bstr .size 32, 0..9223372036854775807, "REJECTED", 0..256,
+                      tstr, steps: binding-steps]
+binding-steps = [] / [1*257 binding-step]
+; Rejected receipt code must be nonempty; receipt/step codes have <=127 UTF-16 units.
+; Capacity fallback may omit non-failed history and then failed-step event names.
+; The failed step itself and all its visited condition records are always preserved.
+binding-step = [ordinal: 0..256, depth: 0..33, binding: binding-name / null, component: binding-name,
+                message-id: bstr .size 32, events: binding-event-ids,
+                conditions: binding-outcomes,
+                status: "PLANNED" / "EFFECT_PLANNED" / "REJECTED", code: tstr, raw-body: bool]
+; Condition ordinal -1 means all clauses matched (or binding precharge failed before entry);
+; otherwise 0..7 names the first false/error clause. Step rejection code distinguishes errors.
+binding-condition = [binding: binding-name, failed-clause: -1 / 0..7]
+binding-event-ids = [] / [1*257 binding-name]
+binding-outcomes = [] / [1*256 binding-condition]

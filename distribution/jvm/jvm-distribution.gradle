@@ -160,7 +160,7 @@ tasks.register('prepareShowcase', Sync) {
     }
     from({ zipTree(baseYanoDistribution.get()) }) {
         include '*/config/**'
-        exclude '*/config/application-appchain.yml'
+        exclude '*/config/application-appchain.yml', '*/config/application-devnet.yml'
         eachFile { details ->
             details.relativePath = org.gradle.api.file.RelativePath.parse(
                     details.relativePath.file,
@@ -210,6 +210,8 @@ tasks.register('yanoXJvmDistZip', Zip) {
     preserveFileTimestamps = false
 
     from({ zipTree(baseYanoDistribution.get()) }) {
+        // The explicit X devnet overlay below owns this path; retain all other host files.
+        exclude '*/config/application-devnet.yml'
         eachFile rebaseBaseRoot
         includeEmptyDirs = false
         filesMatching(['**/*.sh', '**/bin/*']) {
@@ -361,6 +363,10 @@ tasks.register('yanoXJvmDistZip', Zip) {
             filesMatching(['*.sh', 'tools/*.sh', 'tools/*.py', 'demos/*.sh']) {
                 permissions { unix('755') }
             }
+        }
+        from(rootProject.file('examples/bindings')) {
+            into 'examples/bindings'
+            include '*.yaml', '*.md'
         }
         from(rootProject.file('docs')) {
             into 'docs'
@@ -655,6 +661,12 @@ tasks.register('verifyYanoXJvmDistribution') {
                     'examples/showcase/yano/config/application-devnet.yml',
                     'examples/showcase/yano/config/network/devnet/shelley-genesis.json',
                     'docs/appchain/README.md',
+                    'docs/appchain/DECLARATIVE_BINDINGS.md',
+                    'docs/appchain/DECLARATIVE_BINDINGS_CLI.md',
+                    'examples/bindings/procurement.yaml',
+                    'examples/bindings/attestation.yaml',
+                    'examples/bindings/dpp-approval.yaml',
+                    'examples/bindings/feed-approval.yaml',
                     'docker/jvm/entrypoint.sh'
             ].each { relativePath ->
                 if (archive.getEntry("${root}/${relativePath}") == null) {

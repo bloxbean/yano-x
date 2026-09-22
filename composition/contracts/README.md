@@ -14,7 +14,18 @@ Public v1 surfaces are:
   bounded `composite/aggregate-v1` request/response wire used by both clients
   and runtime; and
 - profile epoch/governance records and verification helpers used by any
-  governed composite product.
+  governed composite product;
+- experimental ADR-031.1 `BindingIrV1`, `BindingSourceV1`, and
+  `BindingExpressionV1` canonical authoring contracts, plus `BindingReceiptV1`
+  for authenticated cascade explanations. The contracts contain no CEL engine
+  or plugin implementation. See the [binding guide](../../docs/appchain/DECLARATIVE_BINDINGS.md).
+
+The binding wire shapes and frozen vectors ship in
+`cddl/declarative-bindings-v1.cddl` and its adjacent properties resource.
+`BindingPublishedVectorsTest` pins codecs to those bytes;
+`scripts/verify-cddl.sh` additionally checks the published schemas with the
+external CDDL validator. Shape conformance alone does not establish executable
+types, authorization, acyclicity, or finality.
 
 Example aggregate request:
 

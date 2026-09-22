@@ -34,6 +34,50 @@ class AppChainFinalDistributionAcceptanceTest {
     Path temporary;
 
     @Test
+    void finalZipBindingsCompileValidateAndDryRunWithoutTestRuntimeDependencies() throws Exception {
+        Path release = extractRelease(Path.of(System.getProperty("yano.test.final-yano-dist-zip")),
+                temporary.resolve("binding-release"));
+        Path launcher = release.resolve("yano.sh");
+        assertThat(release.resolve("tools/yano-appchain/bin/yano-appchain").toFile().setExecutable(true)).isTrue();
+        // Use the shipped manual itself as fixture input so its copy/paste examples are also exercised.
+        String manual = Files.readString(release.resolve("docs/appchain/DECLARATIVE_BINDINGS_CLI.md"));
+        Path document = temporary.resolve("bindings.yaml");
+        Path context = temporary.resolve("context.json");
+        Path fixture = temporary.resolve("fixture.json");
+        Files.writeString(document, fencedBlock(manual, "yaml", 0));
+        Files.writeString(context, fencedBlock(manual, "json", 0));
+        Files.writeString(fixture, fencedBlock(manual, "json", 1));
+        List<String> common = List.of(document.toString(), "--plugins-directory", release.resolve("plugins").toString(),
+                "--context", context.toString());
+        for (String command : List.of("compile", "validate", "dry-run")) {
+            List<String> args = new ArrayList<>(List.of("appchain", "bindings", command));
+            args.addAll(common);
+            if (command.equals("dry-run")) args.addAll(List.of("--fixture", fixture.toString()));
+            Result result = run(launcher, args);
+            assertThat(result.exit()).as("%s stdout=%s stderr=%s", command, result.output(), result.error()).isZero();
+            if (command.equals("compile")) assertThat(result.output().strip()).matches("[0-9a-f]+");
+            else if (command.equals("validate")) {
+                assertThat(new ObjectMapper().readTree(result.output()).path("valid").booleanValue()).isTrue();
+            } else {
+                String receipt = new ObjectMapper().readTree(result.output()).path("receipts")
+                        .get(0).path("receiptHex").textValue();
+                var decoded = org.yanoproject.x.composite.contracts.BindingReceiptV1.decode(
+                        java.util.HexFormat.of().parseHex(receipt));
+                assertThat(decoded.accepted()).isTrue();
+                assertThat(decoded.steps()).hasSize(2);
+            }
+        }
+    }
+
+    /** Extract a documented fenced example without depending on any production runtime fixture helpers. */
+    private static String fencedBlock(String markdown, String language, int index) {
+        var blocks = java.util.regex.Pattern.compile("```" + language + "\\R(.*?)\\R```",
+                java.util.regex.Pattern.DOTALL).matcher(markdown);
+        for (int found = 0; blocks.find(); found++) if (found == index) return blocks.group(1);
+        throw new AssertionError("missing documented " + language + " fixture " + index);
+    }
+
+    @Test
     void finalDistributionGeneratesAndValidatesEveryAdvertisedCombination() throws Exception {
         Path archive = Path.of(System.getProperty("yano.test.final-yano-dist-zip"))
                 .toAbsolutePath().normalize();
@@ -84,7 +128,13 @@ class AppChainFinalDistributionAcceptanceTest {
                         init.add("--member-key");
                         init.add(memberKey);
                     }
-                    if ("custom-plugin".equals(recipe.id())) {
+                    if ("declarative-composite".equals(recipe.id())) {
+                        Path bindings = temporary.resolve("matrix-bindings.yaml");
+                        Files.writeString(bindings, fencedBlock(Files.readString(
+                                release.resolve("docs/appchain/DECLARATIVE_BINDINGS_CLI.md")), "yaml", 0));
+                        init.addAll(List.of("--bindings", bindings.toString(), "--plugins-directory",
+                                release.resolve("plugins").toString()));
+                    } else if ("custom-plugin".equals(recipe.id())) {
                         init.add("--answer");
                         init.add("stateMachine=com.example.acceptance");
                     } else if ("eutxo-zeroj-preview".equals(recipe.id())) {

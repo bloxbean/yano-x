@@ -114,6 +114,12 @@ compiler selected in `gradle/libs.versions.toml`. Release builds must keep Maven
 Local disabled: a locally republished compiler with the same version can emit
 different script bytes and addresses.
 
+For coordinated host development, `-PuseMavenLocal=true` now scopes Maven Local
+to the exact `org.yanoproject` host group. Third-party compilers and other
+dependencies still resolve from the configured published repositories. Do not
+broaden that filter to make an on-chain artifact mismatch disappear or regenerate
+settlement templates to match an unreviewed local compiler.
+
 For the Yano `0.1.0-pre14` baseline, the compiler is Maven Central
 `com.bloxbean.cardano:julc-compiler:0.1.0-pre16`, with JAR SHA-256
 `04c9c2c75dfa38e14206b27f1b55def0106aa859a74c96adfb4ca5f6db7c1336`.

@@ -3,6 +3,15 @@ plugins {
 }
 
 dependencies {
+    // Offline binding validation uses the same manifested catalog boundary as a running host.
+    implementation(rootProject.ext.yanoModule('yano-runtime')) {
+        transitive = false
+    }
+    implementation(rootProject.ext.yanoModule('yano-plugin-catalog')) {
+        transitive = false
+    }
+    implementation libs.cel
+    implementation project(':composition:runtime')
     implementation project(':sdk:client')
     implementation project(':ledgers:eutxo:client')
     implementation project(':ledgers:eutxo:demo')
@@ -29,6 +38,8 @@ dependencies {
         transitive = false
     }
     testImplementation project(':capabilities:authenticated-map-validators')
+    // Live receipt-parity tests boot the real host subsystem, unlike the lightweight offline CLI.
+    integrationTestRuntimeOnly(rootProject.ext.yanoModule('yano-runtime'))
 }
 
 application {
@@ -140,6 +151,19 @@ def finalYanoZip = project(':distribution:jvm').tasks.named(
 
 tasks.named('test') {
     systemProperty 'yano.test.repo-root', rootProject.projectDir.absolutePath
+}
+
+// These tests deliberately open the published bundle shape, not direct first-party provider instances.
+tasks.named('integrationTest') {
+    def bindingBundles = [':composition:runtime', ':capabilities:role-workflow', ':state-machines:stdlib']
+            .collect { project(it).tasks.named('shadowJar') }
+    dependsOn bindingBundles
+    doFirst {
+        systemProperty 'yano.test.binding-bundles', bindingBundles.collect {
+            it.get().archiveFile.get().asFile.absolutePath
+        }.join(File.pathSeparator)
+        systemProperty 'yano.test.binding-classpath', sourceSets.main.runtimeClasspath.asPath
+    }
 }
 
 tasks.named('distributionTest') {

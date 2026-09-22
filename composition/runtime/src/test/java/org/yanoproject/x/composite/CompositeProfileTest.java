@@ -10,6 +10,26 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class CompositeProfileTest {
+    @Test
+    void schemaTwoCommitsAllWorkflowRoutesAndIrWithoutChangingLegacyProfiles() {
+        ComponentDescriptor component = new ComponentDescriptor("source", "1", "cfg", "state-v1",
+                1, 0, List.of(), List.of(), 0);
+        WorkflowDescriptor workflow = new WorkflowDescriptor("bindings", "1", List.of("z", "a"),
+                1, 0, List.of(component.generation()), 0);
+        byte[] ir = {(byte) 0x80};
+        CompositeProfile profile = new CompositeProfile(2, "bindings", "1", List.of(component),
+                List.of(workflow), List.of(), AggregateQueryLimitsV1.DEFAULT, ir);
+        ir[0] = 0;
+        assertThat(profile.bindingIr()).containsExactly((byte) 0x80);
+        assertThat(CompositeProfileCodec.decode(profile.canonicalBytes())).isEqualTo(profile);
+        assertThat(profile.workflows().getFirst().topics()).containsExactly("a", "z");
+        assertThatThrownBy(() -> new CompositeProfile(1, "bindings", "1", List.of(component),
+                List.of(workflow), List.of(), AggregateQueryLimitsV1.DEFAULT))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new WorkflowDescriptor("bindings", "1", List.of("a", "a"),
+                1, 0, List.of(component.generation()), 0)).isInstanceOf(IllegalArgumentException.class);
+    }
+
 
     @Test
     void canonicalProfileStrictlyRoundTripsAndRejectsTrailingOrCorruptLengths() {
