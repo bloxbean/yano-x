@@ -11,7 +11,9 @@ import org.yanoproject.api.appchain.transition.TransitionContext;
 import org.yanoproject.api.appchain.transition.TransitionDecision;
 import org.yanoproject.api.appchain.transition.TransitionKernel;
 import org.yanoproject.api.appchain.transition.TransitionScalars;
+import org.yanoproject.x.composite.contracts.BindingExpressionV1;
 import org.yanoproject.x.composite.contracts.BindingIrV1;
+import org.yanoproject.x.composite.contracts.BindingSourceV1;
 
 import java.util.List;
 import java.util.Map;
@@ -32,7 +34,125 @@ class BindingProgramTest {
 
         assertThatThrownBy(() -> new BindingProgram(document("source", "read"),
                 Map.of("source", source, "target", target)))
-                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("BINDING_EVIDENCE_UNSATISFIABLE");
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("binding 'forward' (source/composite.command-accepted.v1): raw body field 'body', "
+                        + "target command 'approve' evidence field 'signature': BINDING_EVIDENCE_UNSATISFIABLE");
+    }
+
+    @Test
+    void destinationMismatchIdentifiesOnlyTheOffendingAssignment() {
+        assertThatThrownBy(() -> mappedProgram(List.of(), BindingIrV1.Mapping.fields(List.of(
+                assignment("first", new BindingSourceV1.Field("body")),
+                assignment("second", new BindingSourceV1.Literal("private-value"))))))
+                .hasMessage(context() + "target field 'second': binding type mismatch")
+                .hasMessageNotContaining("private-value");
+    }
+
+    @Test
+    void unknownAssignmentsAreNamedInDeclarationOrder() {
+        assertThatThrownBy(() -> mappedProgram(List.of(), BindingIrV1.Mapping.fields(List.of(
+                assignment("first", new BindingSourceV1.Field("body")),
+                assignment("unexpectedB", new BindingSourceV1.Literal("private-value")),
+                assignment("unexpectedA", new BindingSourceV1.Field("body"))))))
+                .hasMessage(context() + "unknown target fields: unexpectedB, unexpectedA");
+    }
+
+    @Test
+    void nestedFunctionFailureRetainsAssignmentAndArgumentPath() {
+        var invalid = new BindingSourceV1.Function("concat", List.of(new BindingSourceV1.Field("body"),
+                new BindingSourceV1.Function("hex", List.of(new BindingSourceV1.Literal("private-value")))));
+        assertThatThrownBy(() -> mappedProgram(List.of(), BindingIrV1.Mapping.fields(List.of(
+                assignment("first", new BindingSourceV1.Field("body")), assignment("second", invalid)))))
+                .hasMessage(context() + "mapping field 'second': function 'concat': argument[1]: "
+                        + "function 'hex': binding type mismatch");
+    }
+
+    @Test
+    void expressionFailureRetainsTheOffendingAssignment() {
+        var expression = new BindingSourceV1.Expression(invalidExpression());
+        assertThatThrownBy(() -> mappedProgram(List.of(), BindingIrV1.Mapping.fields(List.of(
+                assignment("first", new BindingSourceV1.Field("body")), assignment("second", expression)))))
+                .hasMessage(context() + "mapping field 'second': expression: expression operand type mismatch")
+                .hasMessageNotContaining("private-value");
+    }
+
+    @Test
+    void repeatedConditionFieldsRetainTheExactClauseIndex() {
+        var valid = new BindingIrV1.FieldClause("topic", BindingIrV1.Operator.EQ,
+                List.of(new BindingSourceV1.Literal("private-value")));
+        var invalid = new BindingIrV1.FieldClause("topic", BindingIrV1.Operator.EQ,
+                List.of(new BindingSourceV1.Literal(7L)));
+        assertThatThrownBy(() -> mappedProgram(List.of(valid, invalid), validMapping()))
+                .hasMessage(context() + "condition[1] field 'topic': binding type mismatch");
+    }
+
+    @Test
+    void nestedExpressionFailureRetainsTheExactConditionIndex() {
+        var valid = new BindingIrV1.ExpressionClause(new BindingExpressionV1(BindingExpressionV1.Type.BOOLEAN,
+                new BindingExpressionV1.Literal(true)));
+        assertThatThrownBy(() -> mappedProgram(List.of(valid,
+                new BindingIrV1.ExpressionClause(invalidExpression())), validMapping()))
+                .hasMessage(context() + "condition[1]: expression: expression operand type mismatch")
+                .hasMessageNotContaining("private-value");
+    }
+
+    @Test
+    void lookupFailuresDistinguishKeyAndOperandInTheExactClause() {
+        var valid = new BindingIrV1.LookupClause("source", new BindingSourceV1.Field("body"),
+                BindingIrV1.Expectation.EXISTS, null);
+        var invalidKey = new BindingIrV1.LookupClause("source", new BindingSourceV1.Field("topic"),
+                BindingIrV1.Expectation.EXISTS, null);
+        var invalidOperand = new BindingIrV1.LookupClause("source", new BindingSourceV1.Field("body"),
+                BindingIrV1.Expectation.EQUAL_EVENT, new BindingSourceV1.Field("topic"));
+        assertThatThrownBy(() -> mappedProgram(List.of(valid, invalidKey), validMapping()))
+                .hasMessage(context() + "condition[1]: lookup key: binding type mismatch");
+        assertThatThrownBy(() -> mappedProgram(List.of(valid, invalidOperand), validMapping()))
+                .hasMessage(context() + "condition[1]: lookup operand: binding type mismatch");
+    }
+
+    @Test
+    void rawMappingMismatchIdentifiesTheBodyField() {
+        assertThatThrownBy(() -> mappedProgram(List.of(), BindingIrV1.Mapping.raw("topic")))
+                .hasMessage(context() + "raw body field 'topic': binding type mismatch");
+    }
+
+    @Test
+    void unknownSourceFieldRetainsItsAssignment() {
+        assertThatThrownBy(() -> mappedProgram(List.of(), BindingIrV1.Mapping.fields(List.of(
+                assignment("first", new BindingSourceV1.Field("body")),
+                assignment("second", new BindingSourceV1.Field("missing"))))))
+                .hasMessage(context() + "mapping field 'second': source: unknown event field: missing");
+    }
+
+    private static BindingExpressionV1 invalidExpression() {
+        return new BindingExpressionV1(BindingExpressionV1.Type.BOOLEAN,
+                new BindingExpressionV1.Call("and", List.of(new BindingExpressionV1.Literal(true),
+                        new BindingExpressionV1.Call("eq", List.of(new BindingExpressionV1.Field("body"),
+                                new BindingExpressionV1.Literal("private-value"))))));
+    }
+
+    private static String context() {
+        return "binding 'forward' (source/composite.command-accepted.v1): ";
+    }
+
+    private static BindingIrV1.Assignment assignment(String field, BindingSourceV1 source) {
+        return new BindingIrV1.Assignment(field, source);
+    }
+
+    private static BindingIrV1.Mapping validMapping() {
+        return BindingIrV1.Mapping.fields(List.of(assignment("first", new BindingSourceV1.Field("body"))));
+    }
+
+    private static BindingProgram mappedProgram(List<BindingIrV1.Clause> conditions, BindingIrV1.Mapping mapping) {
+        var base = document("source", "copy");
+        var ir = new BindingIrV1(base.components(), List.of(new BindingIrV1.Binding("forward", "source",
+                BindingProgram.BASELINE, conditions, new BindingIrV1.CommandTarget("target", "copy", mapping))),
+                base.limits());
+        var command = new CommandDescriptor("copy", CommandDescriptor.Layout.MAP, 0, List.of(
+                new CommandDescriptor.Field("first", TransitionScalars.Type.BYTES, true, CommandDescriptor.Role.DATA),
+                new CommandDescriptor.Field("second", TransitionScalars.Type.BYTES, false,
+                        CommandDescriptor.Role.DATA)));
+        return new BindingProgram(ir, Map.of("source", kernel(List.of()), "target", kernel(List.of(command))));
     }
 
     @Test

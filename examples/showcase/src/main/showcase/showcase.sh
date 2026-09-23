@@ -861,25 +861,22 @@ submit_hex() {
   printf '%s' "$id"
 }
 
-expect_authenticated_map_filtered() {
+expect_authenticated_map_admission_rejected() {
   local body="$1" collection="$2" key="$3" label="$4"
-  local rejected_id barrier_key barrier_value barrier_body barrier_id status state_key proof
-  rejected_id="$(submit_hex authenticated-map-chain authenticated-map.command.v1 "$body")"
-
-  # HTTP 202 is ingress/pool acceptance. A later valid message is the barrier
-  # proving the candidate-height validator had an opportunity to filter the
-  # invalid message before we assert non-finalization and state absence.
-  barrier_key="validation-barrier-${rejected_id:0:16}"
-  barrier_value="$(python3 "$CODEC" authmap-value opaque "$barrier_key")"
-  barrier_body="$(authmap_basic_body owner "$(python3 "$CODEC" authmap put attachments \
-    "$barrier_key" "$barrier_value")")"
-  barrier_id="$(submit_hex authenticated-map-chain \
-    authenticated-map.command.v1 "$barrier_body")"
-  wait_message authenticated-map-chain "$barrier_id" >/dev/null
-
-  status="$(curl -sS -o /dev/null -w '%{http_code}' \
-    "http://127.0.0.1:$HTTP_BASE/api/v1/app-chain/chains/authenticated-map-chain/messages/$rejected_id")"
-  [ "$status" = 404 ] || die "$label unexpectedly finalized (HTTP $status)"
+  local response status state_key proof
+  response="$(curl -sS --connect-timeout 2 --max-time 10 -w '\n%{http_code}' -X POST \
+    "http://127.0.0.1:$((HTTP_BASE + NODE))/api/v1/app-chain/chains/authenticated-map-chain/messages" \
+    -H 'Content-Type: application/json' \
+    -d "$(jq -nc --arg body "$body" '{topic:"authenticated-map.command.v1",bodyHex:$body}')")" \
+    || die "$label admission request failed"
+  status="${response##*$'\n'}"
+  response="${response%$'\n'*}"
+  [ "$status" = 400 ] || die "$label expected immediate HTTP 400, got HTTP $status"
+  # Legacy map validation returns prose; the host deliberately exposes only its
+  # safe symbolic fallback, never plugin diagnostics or a pooled message id.
+  printf '%s' "$response" | jq -e \
+    'keys == ["code"] and .code == "APPLICATION_REJECTED"' >/dev/null \
+    || die "$label returned an unexpected admission response: $response"
   # Prove the exact composite physical key the domain API reports; the
   # map-local state-key is not a leaf on composite chains.
   state_key="$(curl -fsS "http://127.0.0.1:$((HTTP_BASE + NODE))/api/v1/plugins/org.yanoproject.x.stdlib/authenticated-map/entries/$collection/$(printf '%s' "$key" | od -An -v -tx1 | tr -d ' \n')?chain=authenticated-map-chain" \
@@ -888,7 +885,7 @@ expect_authenticated_map_filtered() {
   printf '%s' "$proof" | jq -e \
     '.presence == "ABSENT" and .valueHex == null and (.proofWireHex | length > 0)' \
     >/dev/null || die "$label changed authenticated state"
-  note "REJECTED before finalization as expected: $label"
+  note "REJECTED at admission (HTTP 400 APPLICATION_REJECTED): $label"
 }
 
 submit_text() {
@@ -1014,12 +1011,12 @@ run_authenticated_map() {
 
   value="$(python3 "$CODEC" authmap-value product invalid-sku 5 unknown)"
   body="$(authmap_basic_body owner "$(python3 "$CODEC" authmap put products invalid-sku "$value")")"
-  expect_authenticated_map_filtered \
+  expect_authenticated_map_admission_rejected \
     "$body" products invalid-sku "product schema violation"
 
   value="$(python3 "$CODEC" authmap-value gtin 95012345)"
   body="$(authmap_basic_body owner "$(python3 "$CODEC" authmap put gtins 95012345 "$value")")"
-  expect_authenticated_map_filtered \
+  expect_authenticated_map_admission_rejected \
     "$body" gtins 95012345 "custom GTIN validator violation"
 
   query="$(python3 "$CODEC" authmap query products "$key")"

@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "org.yanoproject.x.composite",
   "version": "${pluginVersion}",
-  "yanoApi": { "min": 3, "max": 3, "minLevel": 10 },
+  "yanoApi": { "min": 3, "max": 3, "minLevel": 11 },
   "dependencies": [],
   "contributions": [
     {

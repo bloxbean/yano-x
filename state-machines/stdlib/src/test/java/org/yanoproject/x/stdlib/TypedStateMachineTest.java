@@ -5,6 +5,7 @@ import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
 import com.bloxbean.cardano.yaci.core.util.HexUtil;
 import org.yanoproject.api.appchain.AppBlock;
 import org.yanoproject.api.appchain.AppChainConfig;
+import org.yanoproject.api.appchain.AppSubmissionRejectedException;
 import org.yanoproject.api.appchain.AppStateWriter;
 import org.yanoproject.api.appchain.TypedAppStateMachine;
 import org.yanoproject.api.appchain.codec.JacksonCborCodec;
@@ -23,6 +24,7 @@ import java.util.Set;
 import java.util.function.BooleanSupplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * ADR-006 E1.3: a TypedAppStateMachine driving a real chain with typed CBOR
@@ -102,7 +104,8 @@ class TypedStateMachineTest {
 
         // Malformed / non-decodable body rejected at admission
         long tip = node.tipHeight();
-        node.submit("counters", "not-cbor-garbage".getBytes(StandardCharsets.UTF_8));
+        assertThatThrownBy(() -> node.submit("counters", "not-cbor-garbage".getBytes(StandardCharsets.UTF_8)))
+                .isInstanceOf(AppSubmissionRejectedException.class);
         Thread.sleep(1500);
         assertThat(node.tipHeight()).isEqualTo(tip);
 

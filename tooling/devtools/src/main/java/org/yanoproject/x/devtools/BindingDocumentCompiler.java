@@ -160,7 +160,7 @@ public final class BindingDocumentCompiler {
             if (composite.has("composite")) throw fail("$.composite", "nested wrappers are not supported");
             try { return compile(composite, catalog); }
             catch (IllegalArgumentException error) {
-                String message = error.getMessage();
+                String message = error.getMessage() == null ? error.getClass().getSimpleName() : error.getMessage();
                 throw new IllegalArgumentException(message.startsWith("$")
                         ? "$.composite" + message.substring(1) : "$.composite: " + message, error);
             }
@@ -184,12 +184,11 @@ public final class BindingDocumentCompiler {
                         scalar(entry.getValue(), path + ".config." + entry.getKey())));
             }
             Map<String, BindingSourceV1.Literal> normalized = new LinkedHashMap<>();
-            try {
+            at(path + ".config", () -> {
                 catalog.configuration(machine, Map.copyOf(supplied)).normalize(supplied).forEach((key, value) ->
                         normalized.put(key, new BindingSourceV1.Literal(value)));
-            } catch (IllegalArgumentException error) {
-                throw fail(path + ".config", error.getMessage());
-            }
+                return normalized;
+            });
             Component component = at(path, () -> new Component(id, machine,
                     optionalText(node, "topic", id + ".command.v1", path), normalized,
                     integer(node, "maxEffectsPerBlock", 0, path), number(node, "fromHeight", 1, path)));
@@ -422,9 +421,11 @@ public final class BindingDocumentCompiler {
 
     private static <T> T at(String path, Supplier<T> action) {
         try { return action.get(); }
-        catch (IllegalArgumentException error) {
-            if (error.getMessage() != null && error.getMessage().startsWith("$")) throw error;
-            throw new IllegalArgumentException(path + ": " + error.getMessage(), error);
+        catch (RuntimeException error) {
+            if (error instanceof IllegalArgumentException argument && error.getMessage() != null
+                    && error.getMessage().startsWith("$")) throw argument;
+            String message = error.getMessage() == null ? error.getClass().getSimpleName() : error.getMessage();
+            throw new IllegalArgumentException(path + ": " + message, error);
         }
     }
 }

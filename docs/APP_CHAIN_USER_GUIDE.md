@@ -1115,6 +1115,18 @@ client.submitTyped("orders", new Order("o-1", 5), codec::encode);
 client.subscribeTyped(-1, "orders", codec::decode, (order, msg) -> handle(order));
 ```
 
+Submission acceptance is not application success. The host checks application
+admission against a coherent next-candidate height/state before pooling local
+messages. A rejection returns HTTP 400 with a bounded symbolic `code` rather
+than an accepted message ID; the SDK raises an exception containing that code.
+Correct the command before resubmitting. Pool backpressure remains HTTP 429.
+
+After HTTP 202, wait for finalization and inspect the application's outcome.
+For declarative composites, a rejected cascade has an authenticated binding
+receipt and no committed business changes. Retrying that outcome requires a
+fresh signed message ID and corrected preconditions; replaying its original ID
+does not execute it again. See [binding submission and retry](appchain/DECLARATIVE_BINDINGS.md#submission-validity-and-retry).
+
 Node side (custom state machines): extend `TypedAppStateMachine<T>` with a
 `MessageCodec<T>` — default `JacksonCborCodec`, in core-api — and implement
 typed validate/apply instead of parsing bytes yourself. The client `CborCodec`

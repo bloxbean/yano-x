@@ -243,7 +243,7 @@ in the [phase evidence ledger](031.1-implementation-progress.md).
 
 | Milestone | State | Evidence / release boundary |
 |---|---|---|
-| BIND-000: host contracts | Implemented | Kernel/descriptors/events, catalog resolver and bounded owner-scoped work accounting; host API level 10; exact local Maven/ZIP inputs |
+| BIND-000: host contracts | Implemented | Kernel/descriptors/events, catalog resolver, bounded owner-scoped work accounting and stateless admission; host API level 11; exact local Maven/ZIP inputs |
 | BIND-001: contracts and foundation | Implemented | Canonical IR, expressions, receipts, CDDL/vectors, profile v2, kernel descriptors and routing |
 | BIND-002: atomic cascades and stock kernels | Implemented | Plan-form stock transitions, overlays, receipts, replay/conflict checks and retained attempted-work accounting |
 | BIND-003: language, effects and evidence | Implemented | Restricted CEL, bounded functions/lookups, deterministic outbox and governed approval-to-map evidence pass-through |

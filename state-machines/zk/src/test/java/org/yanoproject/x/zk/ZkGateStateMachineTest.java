@@ -4,6 +4,7 @@ import com.bloxbean.cardano.client.crypto.Blake2bUtil;
 import com.bloxbean.cardano.client.crypto.KeyGenUtil;
 import com.bloxbean.cardano.yaci.core.util.HexUtil;
 import org.yanoproject.api.appchain.AppChainConfig;
+import org.yanoproject.api.appchain.AppSubmissionRejectedException;
 import org.yanoproject.runtime.appchain.AppChainSubsystem;
 import com.bloxbean.cardano.zeroj.verifier.core.VerifierRegistry;
 import org.junit.jupiter.api.AfterEach;
@@ -24,6 +25,7 @@ import java.util.Set;
 import java.util.function.BooleanSupplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * ADR-006 E7.1: the ZK gate verifies an in-body proof at admission (and
@@ -92,19 +94,22 @@ class ZkGateStateMachineTest {
         long tip = node.tipHeight();
         byte[] invalidBody = new ZkProofBody("demo", "groth16", "bls12381",
                 "FORGED".getBytes(StandardCharsets.UTF_8), List.of(BigInteger.ONE)).encode();
-        node.submit("kyc", invalidBody);
+        assertThatThrownBy(() -> node.submit("kyc", invalidBody))
+                .isInstanceOf(AppSubmissionRejectedException.class);
         Thread.sleep(1500);
         assertThat(node.tipHeight()).isEqualTo(tip);
 
         // Unknown circuit → rejected
         byte[] unknownCircuit = new ZkProofBody("no-such", "groth16", "bls12381",
                 "VALID".getBytes(StandardCharsets.UTF_8), List.of()).encode();
-        node.submit("kyc", unknownCircuit);
+        assertThatThrownBy(() -> node.submit("kyc", unknownCircuit))
+                .isInstanceOf(AppSubmissionRejectedException.class);
         Thread.sleep(1000);
         assertThat(node.tipHeight()).isEqualTo(tip);
 
         // Non-proof garbage → rejected
-        node.submit("kyc", "not-a-proof".getBytes(StandardCharsets.UTF_8));
+        assertThatThrownBy(() -> node.submit("kyc", "not-a-proof".getBytes(StandardCharsets.UTF_8)))
+                .isInstanceOf(AppSubmissionRejectedException.class);
         Thread.sleep(1000);
         assertThat(node.tipHeight()).isEqualTo(tip);
     }

@@ -47,6 +47,8 @@ import java.util.Optional;
  */
 public final class DeclarativeCompositeProvider implements AppStateMachineProvider {
     public static final String ID = "declarative-composite";
+    /** Pins admission payload bounds and pre-kernel mandatory-work reservation in the committed profile. */
+    public static final String EXECUTION_VERSION = "1.1.0";
     public static final String IR_SETTING = "machines.composite.binding-ir";
     @Override public String id() { return ID; }
     @Override public AppStateMachine create() {
@@ -156,7 +158,7 @@ public final class DeclarativeCompositeProvider implements AppStateMachineProvid
             effects = Math.addExact(effects, component.maxEffectsPerBlock());
         }
         BindingProgram program = new BindingProgram(ir, kernels);
-        WorkflowDescriptor workflowDescriptor = new WorkflowDescriptor(EventBindingWorkflow.ID, "1.0.0",
+        WorkflowDescriptor workflowDescriptor = new WorkflowDescriptor(EventBindingWorkflow.ID, EXECUTION_VERSION,
                 ir.components().stream().map(BindingIrV1.Component::ingressTopic).toList(), ir.workflowFromHeight(), 0,
                 components.stream().map(ComponentDescriptor::generation).toList(), effects);
         var consensus = context.consensusProfile().orElseThrow();
@@ -168,8 +170,8 @@ public final class DeclarativeCompositeProvider implements AppStateMachineProvid
         var workflow = existing == null
                 ? new EventBindingWorkflow(program, workflowDescriptor, generations, consensus) : existing.workflow();
         assembly.workflows.putIfAbsent(ir.workflowFromHeight(), new WorkflowProduct(document, workflow));
-        CompositeProfile profile = new CompositeProfile(2, ID, "1.0.0", components, List.of(workflowDescriptor),
-                List.of(), AggregateQueryLimitsV1.DEFAULT, ir.encode());
+        CompositeProfile profile = new CompositeProfile(2, ID, EXECUTION_VERSION, components,
+                List.of(workflowDescriptor), List.of(), AggregateQueryLimitsV1.DEFAULT, ir.encode());
         profile.validateEffectBudget(consensus.effectsMaxPerBlock());
         return new CompositeProfileCatalog.Entry(profile, machines, List.of(workflow));
     }

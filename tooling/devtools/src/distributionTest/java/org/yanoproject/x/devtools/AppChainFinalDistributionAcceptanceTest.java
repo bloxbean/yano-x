@@ -2,6 +2,17 @@ package org.yanoproject.x.devtools;
 
 import org.yanoproject.appchain.config.AppChainPropertyRegistry;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.yanoproject.x.composite.CompositeProfile;
+import org.yanoproject.x.composite.CompositeProfileCodec;
+import org.yanoproject.x.composite.contracts.CompositeCommitmentV1;
+import org.yanoproject.x.dpp.profile.DppGenesis;
+import org.yanoproject.x.feed.profile.FeedGenesis;
+import org.yanoproject.x.trust.profile.TrustRegistryGenesis;
+import org.yanoproject.x.stdlib.contracts.ApprovalsContract;
+import org.yanoproject.x.stdlib.contracts.DocTrailContract;
+import org.yanoproject.x.composite.contracts.BindingReceiptV1;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -13,7 +24,10 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.HexFormat;
+import java.util.LinkedHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
@@ -49,6 +63,8 @@ class AppChainFinalDistributionAcceptanceTest {
         Files.writeString(fixture, fencedBlock(manual, "json", 1));
         List<String> common = List.of(document.toString(), "--plugins-directory", release.resolve("plugins").toString(),
                 "--context", context.toString());
+        ObjectMapper json = new ObjectMapper();
+        JsonNode rehearsal = null;
         for (String command : List.of("compile", "validate", "dry-run")) {
             List<String> args = new ArrayList<>(List.of("appchain", "bindings", command));
             args.addAll(common);
@@ -59,7 +75,9 @@ class AppChainFinalDistributionAcceptanceTest {
             else if (command.equals("validate")) {
                 assertThat(new ObjectMapper().readTree(result.output()).path("valid").booleanValue()).isTrue();
             } else {
-                String receipt = new ObjectMapper().readTree(result.output()).path("receipts")
+                rehearsal = json.readTree(result.output());
+                Files.writeString(temporary.resolve("full-rehearsal.json"), result.output());
+                String receipt = rehearsal.path("receipts")
                         .get(0).path("receiptHex").textValue();
                 var decoded = org.yanoproject.x.composite.contracts.BindingReceiptV1.decode(
                         java.util.HexFormat.of().parseHex(receipt));
@@ -67,12 +85,185 @@ class AppChainFinalDistributionAcceptanceTest {
                 assertThat(decoded.steps()).hasSize(2);
             }
         }
+        assertThat(rehearsal).isNotNull();
+        Map<String, String> postState = new LinkedHashMap<>();
+        for (JsonNode entry : rehearsal.path("postState")) {
+            assertThat(postState.put(entry.path("keyHex").textValue(), entry.path("valueHex").textValue())).isNull();
+        }
+        String sourceId = rehearsal.path("receipts").get(0).path("messageIdHex").textValue();
+        JsonNode discovered = json.readTree(successfulBindings(launcher, List.of("receipt-key", sourceId)).output());
+        assertThat(postState).containsEntry(discovered.path("stateKeyHex").textValue(),
+                rehearsal.path("receipts").get(0).path("receiptHex").textValue());
+        assertThat(discovered.path("receiptQueryPath").textValue())
+                .isEqualTo("composite/binding-receipt-v1/" + sourceId);
+
+        // The public marker coordinate identifies the exact authoritative profile leaf; no guessed CBOR offsets
+        // or scanning for values that happen to look like profiles is involved.
+        String canonical = postState.get(HexFormat.of().formatHex(CompositeCommitmentV1.profileMarkerKey()));
+        assertThat(canonical).isNotBlank();
+        CompositeProfile expected = CompositeProfileCodec.decode(HexFormat.of().parseHex(canonical));
+        Path profiles = temporary.resolve("retained-profiles.json");
+        json.writeValue(profiles.toFile(), List.of(canonical));
+        List<String> preflight = List.of("profile-check", "--profiles", profiles.toString(), "--context",
+                context.toString(), "--plugins-directory", release.resolve("plugins").toString());
+        JsonNode reproduced = json.readTree(successfulBindings(launcher, preflight).output());
+        assertThat(reproduced.path("reproducesProfiles").booleanValue()).isTrue();
+        assertThat(reproduced.at("/profiles/0/expectedDigest").textValue())
+                .isEqualTo(HexFormat.of().formatHex(expected.digest()));
+        var incompatible = new CompositeProfile(2, expected.profileId(), "1.0.0", expected.components(),
+                expected.workflows(), expected.queryAliases(), expected.aggregateQueryLimits(), expected.bindingIr());
+        json.writeValue(profiles.toFile(), List.of(HexFormat.of().formatHex(incompatible.canonicalBytes())));
+        var mismatchArgs = new ArrayList<>(List.of("appchain", "bindings"));
+        mismatchArgs.addAll(preflight);
+        Result mismatch = run(launcher, mismatchArgs);
+        assertThat(mismatch.exit()).as(mismatch.error()).isEqualTo(AppChainDevtoolsCli.EXIT_INVALID_CONFIG);
+        JsonNode rejected = json.readTree(mismatch.output());
+        assertThat(rejected.path("reproducesProfiles").booleanValue()).isFalse();
+        assertThat(rejected.at("/profiles/0/expectedDigest").textValue())
+                .isEqualTo(HexFormat.of().formatHex(incompatible.digest()));
+
+        var compactArgs = new ArrayList<>(List.of("dry-run"));
+        compactArgs.addAll(common);
+        compactArgs.addAll(List.of("--fixture", fixture.toString(), "--continuation-only"));
+        Result compact = successfulBindings(launcher, compactArgs);
+        JsonNode continuation = json.readTree(compact.output());
+        assertThat(continuation.has("receipts")).isFalse();
+        assertThat(continuation.path("postState")).isEqualTo(rehearsal.path("postState"));
+        Path prior = temporary.resolve("continuation.json");
+        Files.writeString(prior, compact.output());
+        ObjectNode next = (ObjectNode) json.readTree(fixture.toFile());
+        next.put("height", next.path("height").longValue() + 1);
+        next.put("timestamp", next.path("timestamp").longValue() + 1);
+        json.writeValue(fixture.toFile(), next);
+        var replayArgs = new ArrayList<>(List.of("dry-run"));
+        replayArgs.addAll(common);
+        replayArgs.addAll(List.of("--fixture", fixture.toString(), "--prior-result", prior.toString()));
+        JsonNode replay = json.readTree(successfulBindings(launcher, replayArgs).output());
+        assertThat(replay.path("receipts")).isEqualTo(rehearsal.path("receipts"));
+        assertThat(replay.path("postState")).isEqualTo(rehearsal.path("postState"));
+        assertThat(replay.path("assurance").textValue()).contains("not authenticated", "no post-state root");
+
+        // Only public descriptor/proof bytes leave this test fixture. Each real command runs with the packaged
+        // launcher classpath, so source/test dependencies cannot conceal missing product profile libraries.
+        for (String recipe : List.of("dpp", "feed")) {
+            String chain = "packaged-customer-" + recipe;
+            var descriptor = recipe.equals("dpp") ? DppGenesis.demo(chain) : FeedGenesis.demo(chain);
+            Path actors = temporary.resolve(recipe + "-actors.json");
+            Path members = temporary.resolve(recipe + "-members.json");
+            Files.writeString(actors, TrustRegistryGenesis.toJson(descriptor));
+            json.writeValue(members.toFile(), List.of(MEMBER_KEYS));
+            JsonNode generated = json.readTree(successfulBindings(launcher, List.of("recipe", recipe,
+                    "--descriptor", actors.toString(), "--members", members.toString(), "--threshold", "2"))
+                    .output());
+            assertThat(generated.at("/context/chainId").textValue()).isEqualTo(chain);
+            Path recipeDocument = temporary.resolve(recipe + "-bindings.yaml");
+            Path recipeContext = temporary.resolve(recipe + "-context.json");
+            json.writeValue(recipeDocument.toFile(), generated.path("document"));
+            json.writeValue(recipeContext.toFile(), generated.path("context"));
+            JsonNode valid = json.readTree(successfulBindings(launcher, List.of("validate", recipeDocument.toString(),
+                    "--context", recipeContext.toString(), "--plugins-directory",
+                    release.resolve("plugins").toString()))
+                    .output());
+            assertThat(valid.path("valid").booleanValue()).isTrue();
+        }
+    }
+
+    /** Executes only the extracted packaged launcher and retains complete failures for dependency diagnostics. */
+    private Result successfulBindings(Path launcher, List<String> arguments) throws Exception {
+        var command = new ArrayList<>(List.of("appchain", "bindings"));
+        command.addAll(arguments);
+        Result result = run(launcher, command);
+        assertThat(result.exit()).as("%s stdout=%s stderr=%s", arguments.getFirst(), result.output(), result.error())
+                .isZero();
+        return result;
+    }
+
+    /** Rehearses the shipped worked example with fresh commands and processes an explicit idle block. */
+    @Test
+    void packagedProposalAndTwoVotesCarryStateAndRejectSkippedEmptyHeights() throws Exception {
+        Path release = extractRelease(Path.of(System.getProperty("yano.test.final-yano-dist-zip")),
+                temporary.resolve("continuation-release"));
+        Path launcher = release.resolve("yano.sh");
+        assertThat(release.resolve("tools/yano-appchain/bin/yano-appchain").toFile().setExecutable(true)).isTrue();
+        String manual = Files.readString(release.resolve("docs/appchain/DECLARATIVE_BINDINGS_CLI.md"));
+        var json = new ObjectMapper();
+        Path document = temporary.resolve("approval.yml");
+        Files.writeString(document, fencedBlock(manual, "yaml", 1));
+        Path context = temporary.resolve("approval-context.json");
+        ObjectNode input = (ObjectNode) json.readTree(fencedBlock(manual, "json", 0));
+        ((ObjectNode) input.path("membership")).put("threshold", 2)
+                .putArray("members").add("22".repeat(32)).add("33".repeat(32));
+        json.writeValue(context.toFile(), input);
+        ObjectNode fixture = (ObjectNode) json.readTree(fencedBlock(manual, "json", 2));
+        assertThat(fixture.at("/messages/0/bodyHex").textValue())
+                .isEqualTo(HexFormat.of().formatHex(ApprovalsContract.propose("a", new byte[]{1}, 2, 0)));
+        Path fixturePath = temporary.resolve("block.json");
+        Path prior = temporary.resolve("prior.json");
+        String itemKey = HexFormat.of().formatHex(CompositeCommitmentV1.componentKey(
+                "reviews", ApprovalsContract.itemKey("a")));
+        String auditKey = HexFormat.of().formatHex(CompositeCommitmentV1.componentKey(
+                "audit", DocTrailContract.entityKey("a")));
+        var retainedReceipts = new LinkedHashMap<String, String>();
+        Map<String, String> finalState = null;
+        for (int height = 1; height <= 4; height++) {
+            fixture.put("height", height).put("timestamp", height * 100);
+            if (height == 4) fixture.putArray("messages");
+            else if (height > 1) {
+                ((ObjectNode) fixture.path("messages").get(0))
+                        .put("messageIdHex", (height == 2 ? "44" : "55").repeat(32))
+                        .put("senderHex", (height == 2 ? "22" : "33").repeat(32))
+                        .put("senderSeq", height == 2 ? 2 : 1)
+                        .put("bodyHex", HexFormat.of().formatHex(ApprovalsContract.approve("a")));
+            }
+            json.writeValue(fixturePath.toFile(), fixture);
+            var arguments = new ArrayList<>(List.of("dry-run", document.toString(), "--context", context.toString(),
+                    "--plugins-directory", release.resolve("plugins").toString(), "--fixture", fixturePath.toString()));
+            if (height > 1) arguments.addAll(List.of("--prior-result", prior.toString()));
+            if (height == 4) {
+                fixture.put("height", 5);
+                json.writeValue(fixturePath.toFile(), fixture);
+                var skipped = new ArrayList<>(List.of("appchain", "bindings"));
+                skipped.addAll(arguments);
+                Result rejection = run(launcher, skipped);
+                assertThat(rejection.exit()).isEqualTo(AppChainDevtoolsCli.EXIT_INVALID_CONFIG);
+                assertThat(rejection.error()).contains("consecutive");
+                fixture.put("height", 4);
+                json.writeValue(fixturePath.toFile(), fixture);
+            }
+            Result execution = successfulBindings(launcher, arguments);
+            JsonNode result = json.readTree(execution.output());
+            Map<String, String> state = new LinkedHashMap<>();
+            result.path("postState").forEach(entry -> state.put(entry.path("keyHex").textValue(),
+                    entry.path("valueHex").textValue()));
+            var item = ApprovalsContract.decodeItem(HexFormat.of().parseHex(state.get(itemKey)));
+            assertThat(item.status()).isEqualTo(height < 3 ? 0 : 1);
+            assertThat(item.approvers()).hasSize(Math.min(height - 1, 2));
+            if (height < 3) assertThat(state).doesNotContainKey(auditKey);
+            else assertThat(DocTrailContract.decodeHead(HexFormat.of().parseHex(state.get(auditKey))).count())
+                    .isEqualTo(1);
+            if (height == 4) {
+                assertThat(result.path("receipts").size()).isZero();
+                assertThat(result.path("effects").size()).isZero();
+                assertThat(state).containsAllEntriesOf(finalState);
+            } else {
+                JsonNode receipt = result.path("receipts").get(0);
+                var decoded = BindingReceiptV1.decode(HexFormat.of().parseHex(receipt.path("receiptHex").textValue()));
+                assertThat(decoded.accepted()).isTrue();
+                assertThat(decoded.steps()).hasSize(height == 3 ? 2 : 1);
+                JsonNode key = json.readTree(successfulBindings(launcher,
+                        List.of("receipt-key", receipt.path("messageIdHex").textValue())).output());
+                retainedReceipts.put(key.path("stateKeyHex").textValue(), receipt.path("receiptHex").textValue());
+            }
+            assertThat(state).containsAllEntriesOf(retainedReceipts);
+            finalState = state;
+            Files.writeString(prior, execution.output());
+        }
     }
 
     /** Extract a documented fenced example without depending on any production runtime fixture helpers. */
     private static String fencedBlock(String markdown, String language, int index) {
-        var blocks = java.util.regex.Pattern.compile("```" + language + "\\R(.*?)\\R```",
-                java.util.regex.Pattern.DOTALL).matcher(markdown);
+        var blocks = Pattern.compile("```" + language + "\\R(.*?)\\R```",
+                Pattern.DOTALL).matcher(markdown);
         for (int found = 0; blocks.find(); found++) if (found == index) return blocks.group(1);
         throw new AssertionError("missing documented " + language + " fixture " + index);
     }
@@ -485,14 +676,17 @@ class AppChainFinalDistributionAcceptanceTest {
         command.addAll(arguments);
         ProcessBuilder builder = new ProcessBuilder(command).directory(temporary.toFile());
         builder.environment().putAll(environment);
+        // Genesis recipes can exceed an OS pipe buffer; waiting before draining pipes would deadlock.
+        Path stdout = Files.createTempFile(temporary, "packaged-cli-", ".out");
+        Path stderr = Files.createTempFile(temporary, "packaged-cli-", ".err");
+        builder.redirectOutput(stdout.toFile()).redirectError(stderr.toFile());
         Process process = builder.start();
         if (!process.waitFor(PROCESS_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS)) {
             process.destroyForcibly();
             fail("final-distribution CLI exceeded " + PROCESS_TIMEOUT);
         }
         return new Result(process.exitValue(),
-                new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8),
-                new String(process.getErrorStream().readAllBytes(), StandardCharsets.UTF_8));
+                Files.readString(stdout, StandardCharsets.UTF_8), Files.readString(stderr, StandardCharsets.UTF_8));
     }
 
     private record Result(int exit, String output, String error) {

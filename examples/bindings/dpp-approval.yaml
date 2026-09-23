@@ -2,7 +2,8 @@
 # Chain: binding-dpp-demo; membership.mode=governed; threshold=2; blockIntervalMs=1000
 # Proposer: 12c1a89644d1e06f5f6aab065ed3735e2b86a830aaab42116b0a3c6b953b4add
 # Members: 12c1a89644d1e06f5f6aab065ed3735e2b86a830aaab42116b0a3c6b953b4add,890e4f3dda368399adc33a19ab7f2792ebebcaf775bcd4468e050d58f6869d6f,f5533b9a2f584c1c557a73d915da95860d635fe418841097aab872cba0a919ac
-# Regenerate/check public bytes: :state-machines:stdlib:printBindingProductExamples
+# Source-checkout fixture regeneration: :state-machines:stdlib:printBindingProductExamples
+# Your own chain: yano.sh appchain bindings recipe dpp|feed (see docs/appchain/DECLARATIVE_BINDINGS_CLI.md).
 # Qualifications: existing product schemas/policies; known-key certified state/consumption proofs.
 # Does not claim existing portal projection or legacy AttestCertificate compatibility.
 composite:
@@ -34,4 +35,3 @@ composite:
         map:
           action: { field: action }
           approvalReference: { field: proposalId }
-

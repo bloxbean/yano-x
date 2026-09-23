@@ -105,21 +105,85 @@ node-local tuning overrides; changing them changes the profile.
 | `maxCascadeDepth` | 8 | 32 |
 | `maxDerivedPerSourceMessage` | 32 | 256 |
 | `maxDerivedPerBlock` | 4,096 | 65,536 |
-| `maxEventPayloadBytes` | 4,096 | 65,536 |
+| `maxEventPayloadBytes` | 65,536 | 65,536 |
 | `maxLookupsPerCondition` | 2 | 4 |
 | `maxFunctionCallsPerMapping` | 8 | 16 |
-| `maxFunctionInputBytes` | 4,096 | 65,536 |
+| `maxFunctionInputBytes` | 65,536 | 65,536 |
 | `maxExpressionNodes` | 128 | 512 |
 | `maxExpressionDepth` | 16 | 32 |
-| `maxExpressionValueBytes` | 4,096 | 65,536 |
-| `maxExpressionWorkPerCascade` | 262,144 | 4,194,304 |
-| `maxExpressionWorkPerBlock` | 4,194,304 | 67,108,864 |
+| `maxExpressionValueBytes` | 65,536 | 65,536 |
+| `maxExpressionWorkPerCascade` | 1,048,576 | 4,194,304 |
+| `maxExpressionWorkPerBlock` | 33,554,432 | 67,108,864 |
 
 Documents additionally cap components at 16, bindings at 256, clauses per
 binding at 8, and assignments per mapping at 16. IR and receipts each cap
 encoded bytes at 65,536. A profile's enclosing encoding can impose a tighter
 effective IR size. Work counters charge attempted work even when a cascade
 rejects; receipt replay does not repeat the work.
+
+Size and work are separate bounds. The defaults accommodate a near-64-KiB
+baseline raw-body tee, not arbitrary maximum-size fan-out. For a synthetic
+`source.v1` command with 65,369 body bytes, one raw-body forward to an unbound
+target costs 392,650 cascade units and 196,278 shared block units. With no other
+binding work, the default block allowance fits 170 such cascades. A selected
+60-KiB native event alone costs at least 61,441 shared units to decode, allowing
+at most 546 per default block; conditions, mappings and derived execution reduce
+that number. Unselected events from an original source do not charge shared
+decoding work; derived-step event decoding still does, even without subscribers.
+Test the intended payloads, fan-out and block throughput together before pinning
+the profile. Explicit old limits remain unchanged when decoded.
+
+## Submission validity and retry
+
+The event limit covers encoded **body plus metadata**, not just raw command
+bytes. The baseline event's body, topic, sender, message ID, hash and length are
+materialized only when a binding subscribes to `composite.command-accepted.v1`.
+For those subscribers, the default event cap allows slightly less than 64 KiB of
+command bytes, depending on metadata length. Without baseline subscribers, there
+is no wrapper-induced command cap: normal host and kernel limits still apply.
+No truncation occurs. Native events embedding a value have their own overhead;
+near-maximum inputs can still produce an execution-time native-event rejection.
+
+There are two different outcomes:
+
+| Outcome | Meaning | What the client should do |
+|---|---|---|
+| HTTP 400 with `COMMAND_PAYLOAD_TOO_LARGE` | The source's baseline event cannot fit; nothing was pooled or relayed | Reduce the encoded command and submit again |
+| HTTP 400 with `COMMAND_WORK_EXCEEDED` | Mandatory source work cannot fit even an empty allowance | Reduce the command or revise the authored profile for a new deployment/qualified upgrade |
+| HTTP 202 | Submission accepted into the host's processing path, not business success | Wait for finalization and inspect the binding receipt |
+| Finalized rejected receipt | Dynamic state, a derived command/event, or remaining work/effect capacity rejected the cascade | Correct the cause, then submit a fresh signed message; a capacity retry may succeed in a later block |
+
+Application admission uses the active candidate-height profile; block admission
+checks again. The binding admission check does not simulate stateful authorization
+or future derived execution and does not reserve node-local block capacity.
+It checks the codec and the kernel's separate stateless admission hook for
+command/configuration-only bounds. Context-dependent admission still runs during
+execution; no synthetic block context is invented. These bundles require host
+plugin API level 11 and its matching published/staged build.
+
+A finalized rejection rolls back all business changes and effects for that source,
+not the whole block. The receipt remains terminal for its message ID. Replaying
+the identical ID returns the original result; a new ID does not bypass business
+idempotency, authorization, or one-use approval rules. Ordinary REST resubmission
+creates a newly signed envelope/ID.
+
+Command preparation is reserved before kernel facts/decisions. Fixed source work
+charges the per-cascade budget only; the host already bounds source message bytes
+and count. Selected-event decoding and binding conditions, lookups, mappings,
+functions and expressions also charge the shared block budget. All derived-command
+dispatch and preparation remain block-charged, including targets with no outgoing
+bindings, because host input limits do not bound internal amplification.
+
+Work is never refunded on rejection. Exhausted binding work does not prevent an
+independent source with no bindings from proceeding; the next block starts fresh.
+The larger authoring defaults above accommodate the advertised full-size tee.
+Not every maximum-size cascade fits: select and test event, mapping, fan-out
+and work limits together.
+
+This reservation order is pinned by declarative workflow/profile version 1.1.0.
+Explicit IR limits are preserved on decode. Recompiling YAML with omitted limits
+uses the defaults above and changes the committed identity; do not replace a
+retained 1.0.0 deployment in place.
 
 ## Why did a binding not fire?
 
@@ -139,6 +203,8 @@ it does not authenticate the fixture or prove its root.
 
 | Codes | Meaning / next check |
 |---|---|
+| `COMMAND_PAYLOAD_TOO_LARGE`, `COMMAND_WORK_EXCEEDED` | Command baseline cannot fit its encoded event or mandatory work allowance; source admission rejects early, derived commands reject the cascade |
+| `MALFORMED_SOURCE_COMMAND` | The source codec rejected its bytes; correct the encoding before resubmission |
 | `LIMIT_DEPTH`, `LIMIT_FANOUT`, `CAPACITY_EXCEEDED` | Cascade depth, source fan-out, or block derivation budget exhausted |
 | `EXPRESSION_CAPACITY_EXCEEDED` | Binding-language work budget exhausted, including non-CEL operations |
 | `EVENT_PAYLOAD_TOO_LARGE`, `RECEIPT_CAPACITY_EXCEEDED` | Event or authenticated trace exceeded its byte/record cap |
@@ -193,6 +259,15 @@ events, and condition results. Retrieve a state proof of its authenticated
 workflow key and verify against caller-pinned chain identity and finality.
 A dry-run receipt is an explanation, not a finality certificate or an L1 anchor.
 
+Find the exact physical proof key with `bindings receipt-key <source-message-id-hex>`
+or query `composite/binding-receipt-key-v1/<source-message-id-hex>` with empty
+parameters. The query returns raw key bytes: the generic query response's
+`payloadHex` is the key to pass to the state-proof endpoint. The workflow ID is
+`event-bindings`; key derivation uses `CompositeStateKeys.workflowStateKey` with
+that ID and the 32-byte source message ID. The key does not include a workflow
+version or generation height. Discovering a key does not establish receipt
+presence, authenticate its value, or prove finality.
+
 Capability metadata exposes `declarative-event-bindings` with the
 `yano-x-binding-graph-v1` schema. Studio can preview a locally imported manifest
 as a graph; the preview does not authenticate the manifest or modify a blueprint.
@@ -221,6 +296,13 @@ upgrade a running chain. Use the existing governed profile-epoch activation
 workflow. Changed component configuration requires a new component generation;
 changed bindings require a new workflow generation. Retained genesis identity
 and historical receipts must remain intact.
+
+See [upgrade and retained-chain preflight](DECLARATIVE_BINDINGS_UPGRADES.md)
+before changing a stock bundle, application version, query catalog or default
+setting. A governed epoch alone cannot make a new binary execute an old profile;
+the candidate runtime must reproduce every profile required for startup/replay.
+Use the [CLI authoring guide](DECLARATIVE_BINDINGS_CLI.md) for chain-specific
+governed recipe generation and multi-block dry-run continuation.
 
 Generation changes do not migrate genesis-bound state. If a leaf's stored
 genesis/configuration cannot change in place, allocate a new component instance

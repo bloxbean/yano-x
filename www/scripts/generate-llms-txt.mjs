@@ -105,6 +105,9 @@ const SECTIONS = [
     title: 'Reference',
     files: [
       'reference/cli.md',
+      'reference/declarative-bindings.md',
+      'reference/declarative-bindings-cli.md',
+      'reference/declarative-bindings-upgrades.md',
       'reference/rest-api.md',
       'reference/capabilities.md',
       'reference/configuration.md',
@@ -346,7 +349,9 @@ export async function generateLlmsFiles({ outDir, logger, catalog }) {
   index.push('');
   index.push(`- Yano X: ${GITHUB_REPO}`);
   index.push(`- Yano (host): ${YANO_REPO}`);
-  index.push(`- Base Yano JVM distribution: ${v.yanoJvmZipUrl}`);
+  index.push(v.yanoJvmZipUrl
+    ? `- Base Yano JVM distribution: ${v.yanoJvmZipUrl}`
+    : `- Base Yano JVM distribution: local build required; ${SITE_URL}/start-here/build-from-source/`);
   index.push(
     `- App-Chain Studio (blueprint builder): ${SITE_URL}/studio/`,
   );

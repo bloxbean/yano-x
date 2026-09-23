@@ -2,6 +2,7 @@
 set -euo pipefail
 MODULE="$(cd "$(dirname "$0")/../../.." && pwd -P)"
 REPO="$(cd "$MODULE/../../.." && pwd -P)"
+bash "$MODULE/src/test/scripts/showcase-admission-contract.sh"
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/yano-showcase-contract.XXXXXX")"
 trap 'rm -rf "$WORK"' EXIT INT TERM
 # The showcase lives at examples/showcase inside a Yano X distribution root.

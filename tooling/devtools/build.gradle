@@ -23,6 +23,9 @@ dependencies {
     }
     implementation project(':capabilities:role-workflow-contracts')
     implementation project(':state-machines:stdlib')
+    // Pure, public genesis/profile builders; optional runtime activation still crosses the catalog.
+    implementation project(':products:dpp:profile')
+    implementation project(':products:attestation-feed:profile')
     implementation libs.cardano.client.crypto
     compileOnly(rootProject.ext.yanoModule('yano-core-api')) {
         transitive = false

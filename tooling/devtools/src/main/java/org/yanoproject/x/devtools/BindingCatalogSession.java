@@ -20,6 +20,7 @@ import org.yanoproject.x.composite.contracts.BindingIrV1;
 
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -40,8 +41,9 @@ final class BindingCatalogSession implements BindingDocumentCompiler.DescriptorC
     /**
      * Explicit offline context. No secrets, signing material, node defaults, or environment lookups are needed.
      * Settings carry the exact state identity and optional host membership settings; component settings belong
-     * in the authoring document and are deliberately rejected here. This context validates a fixed genesis
-     * composite, not a composite-profile governance activation.
+     * in the authoring document and are deliberately rejected here. Ordinary authoring validates a fixed
+     * genesis profile; profile-check can reconstruct an explicitly supplied executable catalog, but neither
+     * operation qualifies a composite-profile governance activation or supplies retained application state.
      */
     record ContextInput(String chainId, Map<String, String> settings, AppChainConsensusProfile consensusProfile,
                         AppChainMembershipEpoch membership) {
@@ -97,6 +99,27 @@ final class BindingCatalogSession implements BindingDocumentCompiler.DescriptorC
     AppStateMachine validate(BindingIrV1 ir) {
         Map<String, String> settings = new LinkedHashMap<>(input.settings());
         settings.put(IR_SETTING, HexFormat.of().formatHex(ir.encode()));
+        return resolve(MACHINE, new Context(settings, true));
+    }
+
+    /** Reconstructs a bounded retained-profile catalog through the selected bundle, never local implementation code. */
+    AppStateMachine validateCatalog(List<BindingIrV1> profiles) {
+        profiles = List.copyOf(profiles);
+        if (profiles.isEmpty() || profiles.size() > 64) {
+            throw new IllegalArgumentException("profile catalog requires 1-64 entries");
+        }
+        if (profiles.size() > 1 && !"governed".equals(input.settings().get("membership.mode"))) {
+            throw new IllegalArgumentException("multiple profiles require explicit membership.mode=governed");
+        }
+        Map<String, String> settings = new LinkedHashMap<>(input.settings());
+        settings.put(IR_SETTING, HexFormat.of().formatHex(profiles.getFirst().encode()));
+        if (profiles.size() > 1) {
+            settings.put("machines.composite.profile-mode", "governed");
+            for (int index = 1; index < profiles.size(); index++) {
+                settings.put("machines.composite.binding-ir-catalog[" + (index - 1) + "]",
+                        HexFormat.of().formatHex(profiles.get(index).encode()));
+            }
+        }
         return resolve(MACHINE, new Context(settings, true));
     }
 

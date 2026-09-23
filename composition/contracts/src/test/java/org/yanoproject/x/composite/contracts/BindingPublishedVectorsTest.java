@@ -30,7 +30,8 @@ class BindingPublishedVectorsTest {
                 new BindingIrV1.Component("target", "test", "target.v1", Map.of(), 0)),
                 List.of(new BindingIrV1.Binding("forward", "source", "composite.command-accepted.v1", List.of(),
                         new BindingIrV1.CommandTarget("target", "append", BindingIrV1.Mapping.raw("body")))),
-                BindingIrV1.Limits.DEFAULT);
+                // Published wire examples retain their explicitly encoded original limits across default changes.
+                new BindingIrV1.Limits(8, 32, 4096, 4096, 2, 8, 4096, 128, 16, 4096, 262144, 4194304));
         var accepted = new BindingReceiptV1(new byte[32], 1, true, null, "", List.of());
         var rejected = new BindingReceiptV1(new byte[32], 1, false, 1, "AUTHORIZATION", List.of(
                 new BindingReceiptV1.Step(1, 1, "forward", "target", new byte[32], List.of(), List.of(),

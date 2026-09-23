@@ -38,6 +38,8 @@ import java.util.function.Function;
  * types, and command-derivation cycles. Validation cannot guarantee that an optional event field is present
  * or that data-dependent decoding succeeds; those cases are rejected during evaluation with a stable code.
  * This class never writes state, emits effects, or grants authority to a mapped command.
+ * Construction diagnostics retain binding context and identify mapping fields or zero-based condition
+ * and function-argument indexes. They describe declarations, never literal or evaluated values.
  */
 public final class BindingProgram {
     public static final String BASELINE = "composite.command-accepted.v1";
@@ -115,7 +117,7 @@ public final class BindingProgram {
         for (Binding binding : ir.bindings()) {
             try { validate(binding); }
             catch (IllegalArgumentException invalid) {
-                throw new IllegalArgumentException("binding " + binding.id() + " (" + binding.sourceComponent()
+                throw new IllegalArgumentException("binding '" + binding.id() + "' (" + binding.sourceComponent()
                         + "/" + binding.eventId() + "): " + invalid.getMessage(), invalid);
             }
         }
@@ -169,42 +171,64 @@ public final class BindingProgram {
     private void validate(Binding binding) {
         Map<String, Type> schema = schema(binding.sourceComponent(), binding.eventId());
         int lookups = 0;
-        for (var clause : binding.conditions()) {
-            if (clause instanceof FieldClause field) {
-                Type type = requireField(schema, field.field());
-                for (var operand : field.operands()) {
-                    if (BindingExpressionEvaluator.type(operand.value()) != type) throw invalidType();
+        for (int index = 0; index < binding.conditions().size(); index++) {
+            var clause = binding.conditions().get(index);
+            String location = "condition[" + index + "]";
+            if (clause instanceof FieldClause field) location += " field '" + field.field() + "'";
+            try {
+                if (clause instanceof FieldClause field) {
+                    Type type = requireField(schema, field.field());
+                    for (var operand : field.operands()) {
+                        if (BindingExpressionEvaluator.type(operand.value()) != type) throw invalidType();
+                    }
+                    boolean valid = switch (field.operator()) {
+                        case LT, LE, GT, GE -> type == Type.INTEGER;
+                        case IN, EXISTS, ABSENT -> type != Type.BOOLEAN;
+                        default -> true;
+                    };
+                    if (!valid) throw invalidType();
+                } else if (clause instanceof LookupClause lookup) {
+                    kernel(lookup.participant());
+                    if (++lookups > ir.limits().maxLookupsPerCondition())
+                        throw new IllegalArgumentException("lookup limit");
+                    validateAt("lookup key", () -> {
+                        if (sourceType(lookup.key(), schema) != Type.BYTES) throw invalidType();
+                    });
+                    if (lookup.operand() != null) validateAt("lookup operand", () -> {
+                        if (sourceType(lookup.operand(), schema) != Type.BYTES) throw invalidType();
+                    });
+                } else if (clause instanceof ExpressionClause expression) {
+                    validateAt("expression", () ->
+                            BindingExpressionEvaluator.validate(expression.expression(), schema, ir.limits()));
                 }
-                boolean valid = switch (field.operator()) {
-                    case LT, LE, GT, GE -> type == Type.INTEGER;
-                    case IN, EXISTS, ABSENT -> type != Type.BOOLEAN;
-                    default -> true;
-                };
-                if (!valid) throw invalidType();
-            } else if (clause instanceof LookupClause lookup) {
-                kernel(lookup.participant());
-                if (++lookups > ir.limits().maxLookupsPerCondition()
-                        || sourceType(lookup.key(), schema) != Type.BYTES) throw invalidType();
-                if (lookup.operand() != null && sourceType(lookup.operand(), schema) != Type.BYTES) throw invalidType();
-            } else if (clause instanceof ExpressionClause expression) {
-                BindingExpressionEvaluator.validate(expression.expression(), schema, ir.limits());
+            } catch (IllegalArgumentException invalid) {
+                throw at(location, invalid);
             }
         }
         var mapping = binding.target().mapping();
         int calls = mapping.fields().stream().mapToInt(field -> functionCount(field.source())).sum();
         if (calls > ir.limits().maxFunctionCallsPerMapping())
                 throw new IllegalArgumentException("mapping function limit");
-        if (mapping.kind() == BindingIrV1.MappingKind.RAW_BODY
-                && requireField(schema, mapping.bodyField()) != Type.BYTES) throw invalidType();
-        mapping.fields().forEach(field -> sourceType(field.source(), schema));
+        if (mapping.kind() == BindingIrV1.MappingKind.RAW_BODY) {
+            validateAt("raw body field '" + mapping.bodyField() + "'", () -> {
+                if (requireField(schema, mapping.bodyField()) != Type.BYTES) throw invalidType();
+            });
+        }
+        mapping.fields().forEach(field -> validateAt("mapping field '" + field.field() + "'",
+                () -> sourceType(field.source(), schema)));
         if (binding.target() instanceof CommandTarget target) {
             CommandDescriptor command = command(target);
             if (mapping.kind() == BindingIrV1.MappingKind.RAW_BODY) {
                 // Raw bytes can select any opcode understood by the target codec, not just the
                 // command named in the binding. Never let a harmless descriptor hide an evidence path.
-                if (kernel(target.component()).commands().stream().flatMap(candidate -> candidate.fields().stream())
-                        .anyMatch(field -> field.role() == CommandDescriptor.Role.EVIDENCE)) {
-                    throw new IllegalArgumentException("BINDING_EVIDENCE_UNSATISFIABLE");
+                for (var candidate : kernel(target.component()).commands()) {
+                    for (var field : candidate.fields()) {
+                        if (field.role() == CommandDescriptor.Role.EVIDENCE) {
+                            throw new IllegalArgumentException("raw body field '" + mapping.bodyField()
+                                    + "', target command '" + candidate.commandName() + "' evidence field '"
+                                    + field.name() + "': BINDING_EVIDENCE_UNSATISFIABLE");
+                        }
+                    }
                 }
                 return;
             }
@@ -214,22 +238,38 @@ public final class BindingProgram {
                     throw new IllegalArgumentException("raw target requires raw mapping");
             for (CommandDescriptor.Field field : command.fields()) {
                 BindingSourceV1 source = assigned.remove(field.name());
-                if (field.role() == CommandDescriptor.Role.EVIDENCE && !(source instanceof BindingSourceV1.Field)) {
-                    throw new IllegalArgumentException("BINDING_EVIDENCE_UNSATISFIABLE");
-                }
-                if (source == null && (field.required() || command.layout() != CommandDescriptor.Layout.MAP)) {
-                    throw new IllegalArgumentException("missing mapped field: " + field.name());
-                }
-                if (source != null) {
-                    Type type = sourceType(source, schema);
-                    if (type != null && !type.name().equals(field.type().name())) throw invalidType();
-                }
+                validateAt("target field '" + field.name() + "'"
+                        + (field.role() == CommandDescriptor.Role.EVIDENCE ? " (evidence)" : ""), () -> {
+                    if (field.role() == CommandDescriptor.Role.EVIDENCE
+                            && !(source instanceof BindingSourceV1.Field)) {
+                        throw new IllegalArgumentException("BINDING_EVIDENCE_UNSATISFIABLE");
+                    }
+                    if (source == null && (field.required() || command.layout() != CommandDescriptor.Layout.MAP)) {
+                        throw new IllegalArgumentException("missing mapped field: " + field.name());
+                    }
+                    if (source != null) {
+                        Type type = sourceType(source, schema);
+                        if (type != null && !type.name().equals(field.type().name())) throw invalidType();
+                    }
+                });
             }
-            if (!assigned.isEmpty()) throw new IllegalArgumentException("unknown target fields");
+            if (!assigned.isEmpty()) throw new IllegalArgumentException(
+                    "unknown target fields: " + String.join(", ", assigned.keySet()));
         }
     }
 
     private Type sourceType(BindingSourceV1 source, Map<String, Type> schema) {
+        String location = source instanceof BindingSourceV1.Function function
+                ? "function '" + function.functionId() + "'"
+                : source instanceof BindingSourceV1.Expression ? "expression" : "source";
+        try {
+            return sourceTypeAt(source, schema);
+        } catch (IllegalArgumentException invalid) {
+            throw at(location, invalid);
+        }
+    }
+
+    private Type sourceTypeAt(BindingSourceV1 source, Map<String, Type> schema) {
         if (source instanceof BindingSourceV1.Field field) return requireField(schema, field.name());
         if (source instanceof BindingSourceV1.Literal literal) return BindingExpressionEvaluator.type(literal.value());
         if (source instanceof BindingSourceV1.Expression expression) {
@@ -237,7 +277,14 @@ public final class BindingProgram {
             return expression.expression().resultType();
         }
         var function = (BindingSourceV1.Function) source;
-        List<Type> args = function.arguments().stream().map(argument -> sourceType(argument, schema)).toList();
+        List<Type> args = new ArrayList<>();
+        for (int index = 0; index < function.arguments().size(); index++) {
+            try {
+                args.add(sourceType(function.arguments().get(index), schema));
+            } catch (IllegalArgumentException invalid) {
+                throw at("argument[" + index + "]", invalid);
+            }
+        }
         Type first = args.getFirst();
         return switch (function.functionId()) {
             case "blake2b-256", "sha-256", "byte-length" -> {
@@ -485,5 +532,15 @@ public final class BindingProgram {
     }
     private static IllegalArgumentException invalidType() {
         return new IllegalArgumentException("binding type mismatch");
+    }
+
+    /** Adds declaration-only context without rendering source records, which may contain private literals. */
+    private static void validateAt(String location, Runnable validation) {
+        try { validation.run(); }
+        catch (IllegalArgumentException invalid) { throw at(location, invalid); }
+    }
+
+    private static IllegalArgumentException at(String location, IllegalArgumentException invalid) {
+        return new IllegalArgumentException(location + ": " + invalid.getMessage(), invalid);
     }
 }

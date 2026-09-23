@@ -52,6 +52,7 @@ import java.util.TreeMap;
 import java.util.function.BooleanSupplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Compiles checked-in author recipes through real catalog bundles, executes them on three actual N2N hosts,
@@ -66,6 +67,9 @@ class BindingRecipesIT {
     @Test void attestationYamlHasLiveAndOfflineReceiptParity() throws Exception { qualify("attestation"); }
     @Test void dppYamlHasLiveAndOfflineReceiptParity() throws Exception { qualify("dpp-approval"); }
     @Test void feedYamlHasLiveAndOfflineReceiptParity() throws Exception { qualify("feed-approval"); }
+    @Test void payloadAdmissionAndLazyBaselineHaveLiveAndOfflineReceiptParity() throws Exception {
+        qualify("payload-admission");
+    }
 
     private void qualify(String recipe) throws Exception {
         Path plugins = Files.createDirectory(temporary.resolve("plugins"));
@@ -73,7 +77,16 @@ class BindingRecipesIT {
             Path source = Path.of(bundle);
             Files.copy(source, plugins.resolve(source.getFileName()));
         }
-        String yaml = Files.readString(Path.of("..", "..", "examples", "bindings", recipe + ".yaml"));
+        String yaml = recipe.equals("payload-admission") ? """
+                composite:
+                  components:
+                    - {id: source, machine: ordered-log}
+                    - {id: target, machine: ordered-log}
+                  bindings:
+                    - id: copy
+                      from: {component: source, event: composite.command-accepted.v1}
+                      to: {component: target, command: append, rawBody: body}
+                """ : Files.readString(Path.of("..", "..", "examples", "bindings", recipe + ".yaml"));
         var genesis = productGenesis(yaml);
         String chain = genesis == null ? "binding-" + recipe + "-parity" : genesis.chainId();
         List<byte[]> seeds = memberSeeds();
@@ -181,10 +194,12 @@ class BindingRecipesIT {
                 assertThat(comparedEffects).isEqualTo(recipe.equals("procurement") ? 1 : 0);
                 retainedOutbox = cluster.nodes[0].effects(1, 100);
                 String last = sourceIds.getLast();
-                receiptProofKey = HexFormat.of().parseHex(state.entrySet().stream()
-                        .filter(entry -> entry.getValue().equals(retainedReceipts.get(last)))
-                        .map(Map.Entry::getKey).findFirst().orElseThrow());
+                receiptProofKey = cluster.nodes[0].query(
+                        "composite/binding-receipt-key-v1/" + last, new byte[0]).payload();
+                assertThat(state.get(hex(receiptProofKey))).isEqualTo(retainedReceipts.get(last));
                 for (var node : cluster.nodes) {
+                    assertThat(node.query("composite/binding-receipt-key-v1/" + last, new byte[0]).payload())
+                            .containsExactly(receiptProofKey);
                     verifyReceiptProof(node, receiptProofKey, new LinkedHashSet<>(members), chain,
                             pinnedIdentity, pinnedFinalizedContext);
                 }
@@ -233,7 +248,24 @@ class BindingRecipesIT {
     private static List<String> submitRecipe(String recipe, AuthenticatedMapContract.Genesis genesis,
                                               Cluster cluster, List<byte[]> seeds) throws Exception {
         List<String> ids = new ArrayList<>();
-        if (recipe.equals("procurement")) {
+        if (recipe.equals("payload-admission")) {
+            // A valid host-sized command whose baseline envelope cannot fit must fail at submission,
+            // not disappear from the pool later or masquerade as a finalized business outcome.
+            assertThatThrownBy(() -> cluster.nodes[0].submit("source.command.v1", new byte[65_536]))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("COMMAND_PAYLOAD_TOO_LARGE");
+            // No baseline subscriber: the full host-sized command needs no body-carrying event.
+            ids.add(submit(cluster, 0, "target.command.v1", new byte[65_536]));
+            String topic = "source.command.v1";
+            int overhead = TransitionScalars.encode(Map.of("topic", topic, "sender", new byte[32],
+                    "messageId", new byte[32], "body", new byte[65000], "bodyHash", new byte[32],
+                    "bodyLength", 65000L)).length - 65000;
+            ids.add(submitWithFollowerCatchup(cluster, 0, topic, new byte[65_536 - overhead]));
+        } else if (recipe.equals("procurement")) {
+            // The recipe's eligibility guard is false for this large value, but the ordinary KV write
+            // still commits. This catches the old accidental ~3.8 KiB cap on non-deriving commands.
+            ids.add(submit(cluster, 0, "orders.command.v1",
+                    KvRegistryContract.put(new byte[]{2}, new byte[60 * 1024])));
             ids.add(submit(cluster, 0, "suppliers.command.v1", KvRegistryContract.put(
                     KeyGenUtil.getPublicKeyFromPrivateKey(seeds.getFirst()),
                     "approved".getBytes(StandardCharsets.UTF_8))));

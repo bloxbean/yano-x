@@ -37,6 +37,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -77,16 +78,39 @@ public final class EventBindingWorkflow implements CompositeWorkflow {
     /** Returns the last locally completed apply's counters, never read by execution or persisted as authority. */
     @Override public Map<String, Object> operationalStatus() { return diagnostics; }
 
-    /** Rejects malformed source wire input before pooling; stateful authorization remains in the cascade. */
+    /**
+     * Rejects malformed commands and statically impossible subscribed-baseline size/work before pooling.
+     * Uses full committed allowances, never a node-local remaining-block counter; stateful authorization,
+     * native event output and dynamic fan-out remain authoritative apply-time checks.
+     */
     @Override public AdmissionResult validate(AppMessage source) {
         String component = ingress.get(source.getTopic());
         if (component == null) return AdmissionResult.reject("UNKNOWN_BINDING_SOURCE");
         try {
-            program.kernel(component).codec().decode(source.getBody());
-            return AdmissionResult.accept();
-        } catch (IllegalArgumentException malformed) {
+            var limits = program.ir().limits();
+            var baseline = baselineEstimate(component, source.getTopic(), source.getSender(), source.getMessageId(),
+                    source.getBody());
+            long mandatory = mandatoryWork(source.getBody(), baseline);
+            if (mandatory > limits.maxExpressionWorkPerCascade()
+                    || baseline != null && baseline.decodingWork() > limits.maxExpressionWorkPerBlock()) {
+                return AdmissionResult.reject("COMMAND_WORK_EXCEEDED");
+            }
+        } catch (BindingFailure predictable) {
+            return AdmissionResult.reject(predictable.code());
+        }
+        return validateKernel(program.kernel(component), source.getBody());
+    }
+
+    /** Decoding failures are bad input; failures in the stateless admission implementation are not. */
+    private static <C> AdmissionResult validateKernel(TransitionKernel<C, ?> kernel, byte[] body) {
+        var codec = kernel.codec();
+        C command;
+        try {
+            command = codec.decode(body);
+        } catch (RuntimeException malformed) {
             return AdmissionResult.reject("MALFORMED_SOURCE_COMMAND");
         }
+        return Objects.requireNonNull(kernel.admit(command), "kernel returned null stateless admission");
     }
 
     /**
@@ -108,6 +132,27 @@ public final class EventBindingWorkflow implements CompositeWorkflow {
         diagnostics = Map.of("height", execution.block().height(), "accepted", work.accepted,
                 "rejected", work.rejected, "replayed", work.replayed, "derived", work.derived,
                 "evaluationWork", work.expressions.used());
+    }
+
+    /** Only subscribed baseline events need a scalar envelope; native-only commands retain host body capacity. */
+    private BindingPayload.Estimate baselineEstimate(String component, String topic, byte[] sender,
+                                                     byte[] messageId, byte[] body) {
+        return program.bindings(component, BindingProgram.BASELINE).isEmpty() ? null
+                : BindingPayload.estimate(topic, sender, messageId, body, program.ir().limits().maxEventPayloadBytes());
+    }
+
+    private static long mandatoryWork(byte[] body, BindingPayload.Estimate baseline) {
+        return 1L + body.length + (baseline == null ? 0 : baseline.preparationWork() + baseline.decodingWork());
+    }
+
+    /**
+     * Host-bounded source preparation spends only cascade work. Binding-selected processing and all derived
+     * dispatches spend shared block work as well, preventing derived amplification from escaping that budget.
+     */
+    private static void chargeStep(long units, boolean shared, BindingExpressionEvaluator.Budget cascade,
+                                   BindingExpressionEvaluator.Budget block) {
+        if (shared) BindingWork.charge(units, cascade, block);
+        else cascade.charge(units);
     }
 
     private void cascade(AppMessage source, TransitionContext origin, CompositeWorkflowContext context, Work work) {
@@ -143,6 +188,25 @@ public final class EventBindingWorkflow implements CompositeWorkflow {
                 currentEvents = List.of();
                 conditions = new ArrayList<>();
                 if (current.depth > limits.maxCascadeDepth()) throw new BindingFailure("LIMIT_DEPTH");
+                var baselineEstimate = baselineEstimate(current.component, current.context.topic(), origin.sender(),
+                        current.context.messageId(), current.body);
+                try {
+                    long mandatory = mandatoryWork(current.body, baselineEstimate);
+                    if (mandatory > limits.maxExpressionWorkPerCascade()) {
+                        chargeStep(mandatory, current.depth > 0, expressionBudget, work.expressions);
+                        throw new BindingFailure("COMMAND_WORK_EXCEEDED");
+                    }
+                    if (baselineEstimate != null
+                            && baselineEstimate.decodingWork() > limits.maxExpressionWorkPerBlock()) {
+                        BindingWork.charge(baselineEstimate.decodingWork(), expressionBudget, work.expressions);
+                        throw new BindingFailure("COMMAND_WORK_EXCEEDED");
+                    }
+                } catch (BindingFailure exhausted) {
+                    throw new BindingFailure("COMMAND_WORK_EXCEEDED");
+                }
+                chargeStep(1L + current.body.length
+                                + (baselineEstimate == null ? 0 : baselineEstimate.preparationWork()),
+                        current.depth > 0, expressionBudget, work.expressions);
                 Map<String, AppStateReader> participants = new LinkedHashMap<>();
                 for (String id : program.readParticipants(current.component)) participants.put(id, overlays.get(id));
                 TransitionDecision decision = decide(program.kernel(current.component), current,
@@ -157,30 +221,25 @@ public final class EventBindingWorkflow implements CompositeWorkflow {
                 if (events.stream().anyMatch(event -> BindingProgram.BASELINE.equals(event.eventId()))) {
                     throw new BindingFailure("RESERVED_EVENT_ID");
                 }
-                byte[] body = current.body;
-                if (body.length > limits.maxEventPayloadBytes()) throw new BindingFailure("EVENT_PAYLOAD_TOO_LARGE");
-                byte[] baseline;
-                try {
-                    Map<String, Object> baselineFields = Map.of("topic", current.context.topic(),
-                            "sender", origin.sender(), "messageId", current.context.messageId(), "body", body,
-                            "bodyHash", new byte[32], "bodyLength", (long) body.length);
-                    BindingWork.charge(body.length + BindingWork.encoding(baselineFields),
-                            expressionBudget, work.expressions);
-                    baseline = TransitionScalars.encode(Map.of("topic", current.context.topic(),
+                if (baselineEstimate != null) {
+                    byte[] body = current.body;
+                    byte[] baseline = TransitionScalars.encode(Map.of("topic", current.context.topic(),
                             "sender", origin.sender(), "messageId", current.context.messageId(), "body", body,
                             "bodyHash", Blake2bUtil.blake2bHash256(body), "bodyLength", (long) body.length));
-                } catch (IllegalArgumentException tooLarge) {
-                    throw new BindingFailure("EVENT_PAYLOAD_TOO_LARGE");
+                    events.add(new TransitionEvent(BindingProgram.BASELINE, baseline));
                 }
-                events.add(new TransitionEvent(BindingProgram.BASELINE, baseline));
-                currentEvents = events.stream().map(TransitionEvent::eventId).toList();
+                // The semantic event exists even when no subscriber requires its expensive scalar payload.
+                currentEvents = new ArrayList<>(plan.events().stream().map(TransitionEvent::eventId).toList());
+                currentEvents.add(BindingProgram.BASELINE);
                 for (TransitionEvent event : events) {
                     if (event.payload().length > limits.maxEventPayloadBytes())
                             throw new BindingFailure("EVENT_PAYLOAD_TOO_LARGE");
-                    BindingWork.charge(1L + event.payload().length, expressionBudget, work.expressions);
+                    var selected = program.bindings(current.component, event.eventId());
+                    chargeStep(1L + event.payload().length, current.depth > 0 || !selected.isEmpty(),
+                            expressionBudget, work.expressions);
                     Map<String, Object> values = TransitionScalars.decode(event.payload());
                     validateEvent(current.component, event.eventId(), values);
-                    for (var binding : program.bindings(current.component, event.eventId())) {
+                    for (var binding : selected) {
                         if (conditions.size() == BindingReceiptV1.MAX_CONDITION_RECORDS) {
                             throw new BindingFailure("RECEIPT_CAPACITY_EXCEEDED");
                         }
@@ -244,8 +303,7 @@ public final class EventBindingWorkflow implements CompositeWorkflow {
                     }
                 }
                 trace.add(new BindingReceiptV1.Step(current.ordinal, current.depth, current.binding,
-                        current.component, current.context.messageId(),
-                                events.stream().map(TransitionEvent::eventId).toList(),
+                        current.component, current.context.messageId(), currentEvents,
                         conditions, "PLANNED", "", current.raw));
                 // Fail before any commit if the trace no longer fits its authenticated-state contract.
                 try { receipt(source, origin, true, null, "", trace).encode(); }
@@ -339,9 +397,16 @@ public final class EventBindingWorkflow implements CompositeWorkflow {
                                             Map<String, AppStateReader> participants,
                                             CompositeWorkflowContext context) {
         C command;
-        try { command = kernel.codec().decode(step.body); }
-        catch (IllegalArgumentException malformed) { throw new BindingFailure("MALFORMED_DERIVED_COMMAND"); }
-        if (!kernel.admit(command, step.context).isAccepted()) throw new BindingFailure("ADMISSION");
+        var codec = kernel.codec();
+        try { command = codec.decode(step.body); }
+        catch (RuntimeException malformed) {
+            throw new BindingFailure(step.depth == 0 ? "MALFORMED_SOURCE_COMMAND" : "MALFORMED_DERIVED_COMMAND");
+        }
+        // Both hooks are pure/repeatable: the default contextual hook delegates to stateless admission,
+        // but an override must not bypass configured command bounds for derived messages.
+        if (!kernel.admit(command).isAccepted() || !kernel.admit(command, step.context).isAccepted()) {
+            throw new BindingFailure("ADMISSION");
+        }
         kernel.workRequest(command, step.context).ifPresent(request -> {
             var budget = program.workBudget(step.component, request.reference());
             var owner = generations.get(request.reference().participantId());

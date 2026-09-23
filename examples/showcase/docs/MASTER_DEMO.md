@@ -46,7 +46,7 @@ Expected checkpoints:
 - all thirteen catalog chains expose deterministic capability manifests;
 - every named chain reports the same root on all nodes;
 - opaque, canonical-CBOR, schema-validated, and plugin-validated map values
-  finalize while two deliberately invalid values are filtered before
+  finalize while two deliberately invalid values are rejected at HTTP admission before
   finalization;
 - the release effect becomes confirmed;
 - exactly one JSON receipt appears below the instance outbox; and
@@ -115,7 +115,8 @@ the key; a different member’s update is a deterministic no-op.
 The scenario writes an opaque attachment, a canonical-CBOR event, a product
 that matches the genesis-bound schema, and a GTIN accepted by the first-party
 validator plugin. It then proves that an unknown product status and an invalid
-GTIN check digit are filtered before finalization and leave exclusion proofs.
+GTIN check digit receive immediate HTTP `400` with `APPLICATION_REJECTED`,
+without a pooled message ID, and leave authenticated exclusion proofs.
 Finally it prints both the root-attested product query and the native MPF proof
 for the physical collection/key leaf.
 

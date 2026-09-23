@@ -218,8 +218,12 @@ public record BindingIrV1(List<Component> components, List<Binding> bindings, Li
                          int maxEventPayloadBytes, int maxLookupsPerCondition, int maxFunctionCallsPerMapping,
                          int maxFunctionInputBytes, int maxExpressionNodes, int maxExpressionDepth,
                          int maxExpressionValueBytes, int maxExpressionWorkPerCascade, int maxExpressionWorkPerBlock) {
-        public static final Limits DEFAULT = new Limits(8, 32, 4096, 4096, 2, 8, 4096,
-                128, 16, 4096, 262144, 4194304);
+        /**
+         * Authoring defaults with room for a near-64-KiB baseline tee and bounded downstream work.
+         * These are not an arbitrary-fan-out guarantee; decoding preserves every explicit committed limit.
+         */
+        public static final Limits DEFAULT = new Limits(8, 32, 4096, 65536, 2, 8, 65536,
+                128, 16, 65536, 1048576, 33554432);
         public Limits {
             int[] actual = {maxCascadeDepth, maxDerivedPerSourceMessage, maxDerivedPerBlock, maxEventPayloadBytes,
                     maxLookupsPerCondition, maxFunctionCallsPerMapping, maxFunctionInputBytes, maxExpressionNodes,

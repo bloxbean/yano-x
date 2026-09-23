@@ -3,6 +3,7 @@ package org.yanoproject.x.stdlib;
 import com.bloxbean.cardano.client.crypto.KeyGenUtil;
 import com.bloxbean.cardano.yaci.core.util.HexUtil;
 import org.yanoproject.api.appchain.AppChainConfig;
+import org.yanoproject.api.appchain.AppSubmissionRejectedException;
 import org.yanoproject.api.appchain.AppStateMachineContext;
 import org.yanoproject.runtime.appchain.AppChainSubsystem;
 import org.junit.jupiter.api.AfterEach;
@@ -97,7 +98,7 @@ class StdlibConfigWiringTest {
     }
 
     @Test
-    void kvRegistry_valueFormatCbor_nonConformingPutIsNoOp() throws Exception {
+    void kvRegistry_valueFormatCbor_nonConformingPutIsRejectedBeforePooling() throws Exception {
         AppChainSubsystem node = startNode("kvcbor", KvRegistryStateMachine.ID,
                 Map.of("machines.kv-registry.value-format", "cbor"));
 
@@ -107,12 +108,13 @@ class StdlibConfigWiringTest {
         node.submit("reg", KvRegistryStateMachine.put(goodKey, cborValue));
         awaitTrue("conforming PUT finalized", () -> node.stateValue(goodKey).isPresent());
 
-        // Malformed value is rejected at admission (filtered before proposal,
-        // same pattern as malformed commands) — key never appears
+        // Malformed value is rejected before pooling, just like malformed commands.
         byte[] badKey = "k2".getBytes(StandardCharsets.UTF_8);
         long tip = node.tipHeight();
         // 0x82 = definite-length array(2) with only one element — truncated CBOR
-        node.submit("reg", KvRegistryStateMachine.put(badKey, new byte[]{(byte) 0x82, 0x01}));
+        assertThatThrownBy(() -> node.submit("reg",
+                KvRegistryStateMachine.put(badKey, new byte[]{(byte) 0x82, 0x01})))
+                .isInstanceOf(AppSubmissionRejectedException.class);
         Thread.sleep(1500);
         assertThat(node.tipHeight()).isEqualTo(tip);
         assertThat(node.stateValue(badKey)).isEmpty();

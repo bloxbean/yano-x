@@ -48,7 +48,7 @@ final class BindingDryRun {
     record Message(String messageIdHex, String senderHex, long senderSeq, long expiresAt,
                    String topic, String bodyHex, String authProofHex) { }
 
-    /** One block, preserving list order as the original global message indexes. */
+    /** One explicit block, including an empty block; always executes the machine's complete block lifecycle. */
     record Fixture(long height, long timestamp, String stateRootHex, long pendingEffects,
                    List<Entry> state, List<Message> messages) {
         Fixture {
@@ -57,7 +57,7 @@ final class BindingDryRun {
             }
             state = List.copyOf(Objects.requireNonNull(state, "state"));
             messages = List.copyOf(Objects.requireNonNull(messages, "messages"));
-            if (state.size() > MAX_ENTRIES || messages.isEmpty() || messages.size() > 4096) {
+            if (state.size() > MAX_ENTRIES || messages.size() > 4096) {
                 throw new IllegalArgumentException("fixture entry/message count limit");
             }
             hex(stateRootHex, 32, 32);
@@ -66,7 +66,7 @@ final class BindingDryRun {
 
     /** JSON-ready rehearsal output, with canonical receipt bytes and decoded diagnostic fields. */
     record Result(String assurance, List<Map<String, Object>> receipts, List<Map<String, Object>> effects,
-                  List<Entry> stateChanges) { }
+                  List<Entry> stateChanges, List<Entry> postState) { }
 
     static Result execute(AppStateMachine machine, BindingCatalogSession.ContextInput context, Fixture fixture) {
         AppChainConsensusProfile consensus = context.consensusProfile();
@@ -135,7 +135,7 @@ final class BindingDryRun {
                     "receipt", jsonValue(BindingCbor.decode(encoded, 65536))));
         }
         return new Result("execution-only; fixture inputs are not authenticated; no post-state root or finality claim",
-                List.copyOf(receipts), List.copyOf(effects), state.changes());
+                List.copyOf(receipts), List.copyOf(effects), state.changes(), state.snapshot());
     }
 
     private static Object jsonValue(Object value) {
@@ -206,6 +206,11 @@ final class BindingDryRun {
         }
         List<Entry> changes() {
             return changed.entrySet().stream().map(entry -> new Entry(entry.getKey(), entry.getValue())).toList();
+        }
+        /** Complete physical rehearsal state, never an authenticated node export or calculated root. */
+        List<Entry> snapshot() {
+            return values.entrySet().stream().map(entry -> new Entry(entry.getKey(),
+                    HexFormat.of().formatHex(entry.getValue()))).toList();
         }
     }
 }

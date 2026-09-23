@@ -61,6 +61,7 @@ public final class AppChainDevtoolsCli {
                or: ./yano.sh appchain validity bootstrap|status|prove|proof|doctor|... [options]
                or: ./yano.sh appchain state entry|proof|verify|identity|integrity|snapshot|oldest [options]
                or: ./yano.sh appchain bindings compile|validate|graph|dry-run <document> [options]
+               or: ./yano.sh appchain bindings receipt-key|recipe|profile-check [options]
             Options:
               --config <yml|yaml>                        repeatable, later source wins
               --format text|json                         validate/explain

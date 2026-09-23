@@ -38,6 +38,7 @@ fails closed rather than picking one.
 
 | Capability | Availability | Maturity | Runtimes | Requires artifacts | Description |
 |---|---|---|---|---|---|
+| [`state:declarative-composite`](/reference/declarative-bindings-cli/) | `BUNDLED` | `preview` | `jvm` | `yano-runtime`, `yano-x-composite`, `yano-x-stdlib`, `yano-x-role-workflow` | Committed bounded event-to-command and event-to-effect workflows. |
 | [`state:ordered-log`](https://github.com/bloxbean/yano-x/blob/main/docs/core-host.md) | `BUNDLED` | `stable` | `jvm`, `native` | `yano-runtime` | Append-only ordered application messages. |
 | [`state:kv-registry`](/state-machines/kv-registry/) | `BUNDLED` | `stable` | `jvm` | `yano-runtime`, `yano-x-stdlib` | First-writer-owned mutable key/value records with committed proofs. |
 | [`state:authenticated-map`](/state-machines/authenticated-map/) | `BUNDLED` | `preview` | `jvm` | `yano-runtime`, `yano-x-stdlib`, `yano-x-role-workflow` | Multi-collection authenticated records with basic, direct-role, and approval authorization plus optional canonical-CBOR and schema validation. |
@@ -45,7 +46,7 @@ fails closed rather than picking one.
 | [`state:balances`](/state-machines/balances/) | `BUNDLED` | `stable` | `jvm` | `yano-runtime`, `yano-x-stdlib` | Member-authorized mint and transfer accounts for bounded application balances. |
 | [`state:doc-trail`](/state-machines/doc-trail/) | `BUNDLED` | `stable` | `jvm` | `yano-runtime`, `yano-x-stdlib` | Append-only per-entity document and event hash trails. |
 | [`state:evidence-registry`](/tutorials/04-evidence-publication/) | `BUNDLED` | `preview` | `jvm` | `yano-runtime`, `yano-x-evidence-registry` | Inspection and compliance evidence records with exact committed query proofs. |
-| [`state:role-approvals`](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/tutorials/05-domain-role-approvals.md) | `BUNDLED` | `preview` | `jvm` | `yano-runtime`, `yano-x-composite`, `yano-x-role-workflow` | Governed organizations, actors, policies, and signed approvals for arbitrary payload hashes. |
+| [`state:role-approvals`](/tutorials/05-domain-role-approvals/) | `BUNDLED` | `preview` | `jvm` | `yano-runtime`, `yano-x-composite`, `yano-x-role-workflow` | Governed organizations, actors, policies, and signed approvals for arbitrary payload hashes. |
 | [`state:role-evidence`](/tutorials/04-evidence-publication/) | `BUNDLED` | `preview` | `jvm` | `yano-runtime`, `yano-x-stdlib`, `yano-x-evidence-registry`, `yano-x-composite`, `yano-x-role-workflow`, `yano-x-evidence-profile` | Evidence registration combined with governed domain actors and role-aware release approval. |
 | [`state:zk-gate`](https://github.com/bloxbean/yano-x/blob/main/state-machines/zk/README.md) | `EXPERIMENTAL` | `experimental` | `jvm` | `yano-runtime`, `yano-x-zk` | Verifies configured Groth16 or Plonk proofs during deterministic state transition. |
 | [`state:zk-membership`](https://github.com/bloxbean/yano-x/blob/main/state-machines/zk/README.md) | `EXPERIMENTAL` | `experimental` | `jvm` | `yano-runtime`, `yano-x-zk` | Membership authorization using a configured zero-knowledge circuit and nullifier deduplication. |
@@ -120,8 +121,8 @@ fails closed rather than picking one.
 
 | Capability | Availability | Maturity | Runtimes | Requires artifacts | Description |
 |---|---|---|---|---|---|
-| [`anchor:metadata`](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/tutorials/07-anchors-and-verification.md) | `BUNDLED` | `stable` | `jvm`, `native` | `yano-runtime` | Commits finalized app-chain roots in Cardano transaction metadata. |
-| [`anchor:script`](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/tutorials/07-anchors-and-verification.md) | `BUNDLED` | `preview` | `jvm`, `native` | `yano-runtime` | Advances an app-chain anchor thread through a reviewed Cardano script. |
+| [`anchor:metadata`](/tutorials/07-anchors-and-verification/) | `BUNDLED` | `stable` | `jvm`, `native` | `yano-runtime` | Commits finalized app-chain roots in Cardano transaction metadata. |
+| [`anchor:script`](/tutorials/07-anchors-and-verification/) | `BUNDLED` | `preview` | `jvm`, `native` | `yano-runtime` | Advances an app-chain anchor thread through a reviewed Cardano script. |
 
 ### `l1-observer`
 
@@ -134,7 +135,7 @@ fails closed rather than picking one.
 
 | Capability | Availability | Maturity | Runtimes | Requires artifacts | Description |
 |---|---|---|---|---|---|
-| [`effects:runtime`](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/tutorials/06-webhook-effects.md) | `BUNDLED` | `preview` | `jvm`, `native` | `yano-runtime` | Enables deterministic effect intents, gates, result incorporation, and proofs. |
+| [`effects:runtime`](/tutorials/06-webhook-effects/) | `BUNDLED` | `preview` | `jvm`, `native` | `yano-runtime` | Enables deterministic effect intents, gates, result incorporation, and proofs. |
 
 ### `effect-emission`
 
@@ -146,7 +147,7 @@ fails closed rather than picking one.
 
 | Capability | Availability | Maturity | Runtimes | Requires artifacts | Description |
 |---|---|---|---|---|---|
-| [`executor:webhook`](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/tutorials/06-webhook-effects.md) | `BUNDLED` | `preview` | `jvm`, `native` | `yano-runtime` | Executes webhook.post effects against one node-local configured URL. |
+| [`executor:webhook`](/tutorials/06-webhook-effects/) | `BUNDLED` | `preview` | `jvm`, `native` | `yano-runtime` | Executes webhook.post effects against one node-local configured URL. |
 | [`executor:kafka`](https://github.com/bloxbean/yano-x/blob/main/connectors/kafka/README.md) | `FIRST_PARTY_OPTIONAL` | `preview` | `jvm` | `yano-runtime`, `yano-x-kafka` | Executes kafka.publish intents through allowlisted node-local Kafka targets. |
 | [`executor:objectstore-s3`](https://github.com/bloxbean/yano-x/blob/main/connectors/objectstore-s3/README.md) | `FIRST_PARTY_OPTIONAL` | `preview` | `jvm` | `yano-runtime`, `yano-x-objectstore-s3` | Executes immutable object.put promotion against allowlisted S3-compatible targets. |
 | [`executor:ipfs`](https://github.com/bloxbean/yano-x/blob/main/connectors/ipfs/README.md) | `FIRST_PARTY_OPTIONAL` | `preview` | `jvm` | `yano-runtime`, `yano-x-ipfs` | Executes reconciled ipfs.pin intents against allowlisted Kubo targets. |

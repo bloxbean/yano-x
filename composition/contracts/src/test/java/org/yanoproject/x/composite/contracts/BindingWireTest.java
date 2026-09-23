@@ -13,6 +13,23 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class BindingWireTest {
     @Test
+    void authoringDefaultsGrowWithoutRewritingExplicitOlderLimits() {
+        var defaults = BindingIrV1.Limits.DEFAULT;
+        assertThat(defaults.maxEventPayloadBytes()).isEqualTo(65536);
+        assertThat(defaults.maxFunctionInputBytes()).isEqualTo(65536);
+        assertThat(defaults.maxExpressionValueBytes()).isEqualTo(65536);
+        assertThat(defaults.maxExpressionWorkPerCascade()).isEqualTo(1048576);
+        assertThat(defaults.maxExpressionWorkPerBlock()).isEqualTo(33554432);
+        var older = new BindingIrV1.Limits(8, 32, 4096, 4096, 2, 8, 4096,
+                128, 16, 4096, 262144, 4194304);
+        var document = new BindingIrV1(List.of(
+                new BindingIrV1.Component("source", "test", "source.v1", Map.of(), 0)), List.of(), older);
+        var decoded = BindingIrV1.decode(document.encode());
+        assertThat(decoded.limits()).isEqualTo(older).isNotEqualTo(defaults);
+        assertThat(decoded.encode()).containsExactly(document.encode());
+    }
+
+    @Test
     void scalarGoldenVectorsAndCanonicalMapOrdering() {
         assertThat(hex(BindingCbor.encode(Map.of("long", true, "a", 42L))))
                 .isEqualTo("a26161182a646c6f6e67f5");

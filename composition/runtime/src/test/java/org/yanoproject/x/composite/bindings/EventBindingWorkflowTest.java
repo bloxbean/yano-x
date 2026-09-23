@@ -6,6 +6,7 @@ import org.yanoproject.api.appchain.AppBlock;
 import org.yanoproject.api.appchain.AppBlockExecutionContext;
 import org.yanoproject.api.appchain.AppStateReader;
 import org.yanoproject.api.appchain.AppStateWriter;
+import org.yanoproject.api.appchain.AppStateMachine.AdmissionResult;
 import org.yanoproject.api.appchain.FinalityCert;
 import org.yanoproject.api.appchain.codec.MessageCodec;
 import org.yanoproject.api.appchain.effects.AppEffectEmitter;
@@ -21,6 +22,7 @@ import org.yanoproject.api.appchain.transition.TransitionContext;
 import org.yanoproject.api.appchain.transition.TransitionDecision;
 import org.yanoproject.api.appchain.transition.TransitionKernel;
 import org.yanoproject.api.appchain.transition.TransitionPlan;
+import org.yanoproject.api.appchain.transition.TransitionScalars;
 import org.yanoproject.api.appchain.transition.TransitionWorkBudget;
 import org.yanoproject.api.appchain.transition.TransitionWorkReference;
 import org.yanoproject.api.appchain.transition.TransitionWorkRequest;
@@ -33,6 +35,7 @@ import org.yanoproject.x.composite.contracts.BindingExpressionV1;
 import org.yanoproject.x.composite.contracts.BindingReceiptV1;
 import org.yanoproject.x.composite.contracts.BindingSourceV1;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HexFormat;
 import java.util.List;
@@ -50,6 +53,301 @@ class EventBindingWorkflowTest {
     private static final byte[] WORK_KEY = {9};
 
     @Test
+    void baselineSizingMatchesCanonicalEncodingAndRejectsExactlyBeyondCommittedLimit() {
+        for (String topic : List.of("source.v1", "a-topic-with-more-than-23-characters.v1")) {
+            for (int size : List.of(0, 23, 24, 255, 256, 32768, 65000)) {
+                byte[] body = new byte[size];
+                int actual = baseline(topic, body).length;
+                assertThat(BindingPayload.estimate(topic, MESSAGE_ID, MESSAGE_ID, body, actual).encodedBytes())
+                        .isEqualTo(actual);
+                assertThat(BindingPayload.estimate(topic, MESSAGE_ID, MESSAGE_ID, body, actual + 1).encodedBytes())
+                        .isEqualTo(actual);
+                assertThatThrownBy(() -> BindingPayload.estimate(topic, MESSAGE_ID, MESSAGE_ID, body, actual - 1))
+                        .isInstanceOf(BindingFailure.class).hasMessage("COMMAND_PAYLOAD_TOO_LARGE");
+            }
+            int overhead = baseline(topic, new byte[65000]).length - 65000;
+            byte[] exact = new byte[65536 - overhead];
+            assertThat(BindingPayload.estimate(topic, MESSAGE_ID, MESSAGE_ID, exact, 65536).encodedBytes())
+                    .isEqualTo(65536);
+            for (int size : List.of(exact.length + 1, 65535, 65536)) {
+                assertThatThrownBy(() -> BindingPayload.estimate(topic, MESSAGE_ID, MESSAGE_ID,
+                        new byte[size], 65536)).hasMessage("COMMAND_PAYLOAD_TOO_LARGE");
+            }
+        }
+    }
+
+    private static byte[] baseline(String topic, byte[] body) {
+        return TransitionScalars.encode(Map.of("topic", topic, "sender", MESSAGE_ID, "messageId", MESSAGE_ID,
+                "body", body, "bodyHash", new byte[32], "bodyLength", (long) body.length));
+    }
+
+    @Test
+    void largeRawSourceAndDerivedBodySucceedWithoutTruncation() {
+        Fixture fixture = new Fixture(false);
+        byte[] body = new byte[32768];
+        Arrays.fill(body, (byte) 42);
+        AppMessage message = bodyMessage(1, body);
+        assertThat(fixture.engine.validate(message).isAccepted()).isTrue();
+        fixture.apply(1, List.of(message));
+        var receipt = BindingReceiptV1.decode(fixture.workflow.get(message.getMessageId()).orElseThrow());
+        assertThat(receipt.accepted()).isTrue();
+        assertThat(receipt.steps()).hasSize(2);
+        assertThat(fixture.source.get(KEY)).hasValue(body);
+        assertThat(fixture.target.get(KEY)).hasValue(body);
+    }
+
+    @Test
+    void maximumBaselineBodyForwardsUnderDefaultsAndPinsTheWholeTeeWorkBoundary() {
+        int overhead = baseline("source.v1", new byte[65000]).length - 65000;
+        byte[] body = new byte[65536 - overhead];
+        Arrays.fill(body, (byte) 42);
+        assertThat(body).hasSize(65369);
+        assertThat(baseline("source.v1", body)).hasSize(65536);
+        AppMessage message = bodyMessage(1, body);
+        Fixture defaults = new Fixture(false);
+        assertThat(defaults.engine.validate(message).isAccepted()).isTrue();
+        defaults.apply(1, List.of(message));
+        assertThat(BindingReceiptV1.decode(defaults.workflow.get(message.getMessageId()).orElseThrow()).accepted())
+                .isTrue();
+        assertThat(defaults.source.get(KEY)).hasValue(body);
+        assertThat(defaults.target.get(KEY)).hasValue(body);
+
+        // Selected-event decode + candidate + raw mapping + derived dispatch. Source preparation is not shared.
+        long shared = 65537L + 1 + (1 + body.length) + (1 + body.length);
+        assertThat(defaults.engine.operationalStatus()).containsEntry("evaluationWork", shared);
+        var estimate = BindingPayload.estimate("source.v1", MESSAGE_ID, MESSAGE_ID, body, 65536);
+        int total = Math.toIntExact(1L + body.length + estimate.preparationWork() + shared);
+        assertThat(total).isEqualTo(392650)
+                .isLessThan(BindingIrV1.Limits.DEFAULT.maxExpressionWorkPerCascade());
+        for (int allowance : List.of(total - 1, total)) {
+            Fixture boundary = new Fixture(false, false, false, List.of(forward()),
+                    payloadLimits(65536, allowance, 33554432));
+            assertThat(boundary.engine.validate(message).isAccepted()).isTrue();
+            boundary.apply(1, List.of(message));
+            var receipt = BindingReceiptV1.decode(boundary.workflow.get(message.getMessageId()).orElseThrow());
+            assertThat(receipt.accepted()).isEqualTo(allowance == total);
+            if (allowance < total) {
+                assertThat(receipt.code()).isEqualTo("EXPRESSION_CAPACITY_EXCEEDED");
+                assertThat(boundary.source.values).isEmpty();
+                assertThat(boundary.target.values).isEmpty();
+            }
+        }
+        for (int allowance : List.of(Math.toIntExact(shared - 1), Math.toIntExact(shared))) {
+            Fixture boundary = new Fixture(false, false, false, List.of(forward()),
+                    payloadLimits(65536, 1048576, allowance));
+            assertThat(boundary.engine.validate(message).isAccepted()).isTrue();
+            boundary.apply(1, List.of(message));
+            var receipt = BindingReceiptV1.decode(boundary.workflow.get(message.getMessageId()).orElseThrow());
+            assertThat(receipt.accepted()).isEqualTo(allowance == shared);
+            assertThat(boundary.engine.operationalStatus()).containsEntry("evaluationWork", (long) allowance);
+            if (allowance < shared) {
+                assertThat(receipt.code()).isEqualTo("EXPRESSION_CAPACITY_EXCEEDED");
+                assertThat(boundary.source.values).isEmpty();
+                assertThat(boundary.target.values).isEmpty();
+                assertThat(boundary.targetKernel.lastContext).isNull();
+            }
+        }
+        var second = new BindingIrV1.Binding("second-tee", "source", BindingProgram.BASELINE, List.of(),
+                new BindingIrV1.CommandTarget("target", "put", BindingIrV1.Mapping.raw("body")));
+        Fixture fanout = new Fixture(false, false, false, List.of(forward(), second));
+        fanout.apply(1, List.of(message));
+        var receipt = BindingReceiptV1.decode(fanout.workflow.get(message.getMessageId()).orElseThrow());
+        assertThat(receipt.accepted()).isTrue();
+        assertThat(receipt.steps()).hasSize(3);
+        assertThat(fanout.target.get(KEY)).hasValue(body);
+        assertThat(fanout.engine.operationalStatus()).containsEntry("evaluationWork", shared + 130741L);
+    }
+
+    @Test
+    void admissionAndApplyRejectPredictablePayloadBeforeCodecOrKernel() {
+        int exact = baseline("source.v1", BODY).length;
+        for (int cap : List.of(exact - 1, exact, exact + 1)) {
+            Fixture fixture = new Fixture(false, false, false, List.of(forward()),
+                    payloadLimits(cap, 1048576, 16777216));
+            AppMessage message = bodyMessage(1, BODY);
+            if (cap < exact) fixture.sourceKernel.corruptCodec = true;
+            assertThat(fixture.engine.validate(message).isAccepted()).isEqualTo(cap >= exact);
+            if (cap < exact) assertThat(fixture.engine.validate(message).reason())
+                    .isEqualTo("COMMAND_PAYLOAD_TOO_LARGE");
+            fixture.apply(1, List.of(message));
+            var receipt = BindingReceiptV1.decode(fixture.workflow.get(message.getMessageId()).orElseThrow());
+            assertThat(receipt.accepted()).isEqualTo(cap >= exact);
+            if (cap < exact) {
+                assertThat(receipt.code()).isEqualTo("COMMAND_PAYLOAD_TOO_LARGE");
+                assertThat(fixture.sourceKernel.lastContext).isNull();
+            }
+        }
+    }
+
+    @Test
+    void mandatoryWorkAdmissionUsesBothAllowancesAndApplySaturatesWithoutCallingKernel() {
+        var estimate = BindingPayload.estimate("source.v1", MESSAGE_ID, MESSAGE_ID, BODY, 65536);
+        int mandatory = (int) (1 + BODY.length + estimate.preparationWork() + estimate.decodingWork());
+        for (var limits : List.of(payloadLimits(65536, mandatory - 1, mandatory * 3),
+                payloadLimits(65536, mandatory * 3, (int) estimate.decodingWork() - 1))) {
+            Fixture fixture = new Fixture(false, false, false, List.of(forward()), limits);
+            fixture.sourceKernel.corruptCodec = true;
+            AppMessage message = bodyMessage(1, BODY);
+            assertThat(fixture.engine.validate(message).reason()).isEqualTo("COMMAND_WORK_EXCEEDED");
+            fixture.apply(1, List.of(message));
+            assertThat(BindingReceiptV1.decode(fixture.workflow.get(message.getMessageId()).orElseThrow()).code())
+                    .isEqualTo("COMMAND_WORK_EXCEEDED");
+            assertThat(fixture.sourceKernel.lastContext).isNull();
+        }
+        AppMessage first = bodyMessage(1, BODY);
+        AppMessage second = bodyMessage(2, BODY);
+        Fixture probe = new Fixture(false);
+        probe.apply(1, List.of(first));
+        int blockWork = ((Number) probe.engine.operationalStatus().get("evaluationWork")).intValue();
+        Fixture fixture = new Fixture(false, false, false, List.of(forward()),
+                payloadLimits(65536, 262144, blockWork));
+        AppMessage unbound = message(4, "target.v1", 47);
+        fixture.apply(1, List.of(first, second, unbound));
+        byte[] retained = fixture.workflow.get(first.getMessageId()).orElseThrow();
+        assertThat(BindingReceiptV1.decode(retained).accepted()).isTrue();
+        assertThat(BindingReceiptV1.decode(fixture.workflow.get(second.getMessageId()).orElseThrow()).code())
+                .isEqualTo("EXPRESSION_CAPACITY_EXCEEDED");
+        assertThat(BindingReceiptV1.decode(fixture.workflow.get(unbound.getMessageId()).orElseThrow()).accepted())
+                .isTrue();
+        assertThat(fixture.target.get(KEY)).hasValue(new byte[]{47});
+        assertThat(fixture.engine.operationalStatus()).containsEntry("evaluationWork", (long) blockWork);
+        fixture.sourceKernel.lastContext = null;
+        AppMessage fresh = bodyMessage(3, BODY);
+        fixture.apply(2, List.of(first, fresh));
+        assertThat(fixture.workflow.get(first.getMessageId())).hasValue(retained);
+        assertThat(BindingReceiptV1.decode(fixture.workflow.get(fresh.getMessageId()).orElseThrow()).accepted())
+                .isTrue();
+        assertThat(fixture.sourceKernel.lastContext.messageId()).containsExactly(fresh.getMessageId());
+        assertThat(fixture.engine.operationalStatus()).containsEntry("replayed", 1);
+        assertThat(fixture.workflow.get("expression-work".getBytes(java.nio.charset.StandardCharsets.US_ASCII)))
+                .isEmpty();
+    }
+
+    @Test
+    void unboundSourceAcceptsFullHostBodyWithTinyEventAndSharedWorkLimits() {
+        Fixture fixture = new Fixture(false, false, false, List.of(), payloadLimits(1, 262144, 1));
+        byte[] body = new byte[65536];
+        AppMessage message = bodyMessage(1, body);
+        assertThat(fixture.engine.validate(message).isAccepted()).isTrue();
+        fixture.apply(1, List.of(message));
+        var receipt = BindingReceiptV1.decode(fixture.workflow.get(message.getMessageId()).orElseThrow());
+        assertThat(receipt.accepted()).isTrue();
+        assertThat(receipt.steps().getFirst().eventsProduced()).containsExactly(BindingProgram.BASELINE);
+        assertThat(fixture.source.get(KEY)).hasValue(body);
+        assertThat(fixture.engine.operationalStatus()).containsEntry("evaluationWork", 0L);
+    }
+
+    @Test
+    void derivedDispatchWithoutSubscribersStillReservesBlockWorkBeforeItsCodecAndFacts() {
+        AppMessage message = bodyMessage(1, BODY);
+        Fixture probe = new Fixture(false);
+        probe.apply(1, List.of(message));
+        int blockWork = ((Number) probe.engine.operationalStatus().get("evaluationWork")).intValue();
+        Fixture fixture = new Fixture(false, false, false, List.of(forward()),
+                payloadLimits(65536, 262144, blockWork - 1));
+        fixture.targetKernel.corruptCodec = true;
+        fixture.apply(1, List.of(message));
+        var receipt = BindingReceiptV1.decode(fixture.workflow.get(message.getMessageId()).orElseThrow());
+        assertThat(receipt.code()).isEqualTo("EXPRESSION_CAPACITY_EXCEEDED");
+        assertThat(fixture.targetKernel.lastContext).isNull();
+        assertThat(fixture.source.values).isEmpty();
+        assertThat(fixture.target.values).isEmpty();
+        assertThat(fixture.engine.operationalStatus()).containsEntry("evaluationWork", (long) blockWork - 1);
+    }
+
+    @Test
+    void nonArgumentCodecFailuresBecomeMalformedRejectionsButFatalErrorsPropagate() {
+        AppMessage message = bodyMessage(1, BODY);
+        Fixture sourceFailure = new Fixture(false);
+        sourceFailure.sourceKernel.decodeFailure = new IllegalStateException("bad wire");
+        assertThat(sourceFailure.engine.validate(message).reason()).isEqualTo("MALFORMED_SOURCE_COMMAND");
+        sourceFailure.apply(1, List.of(message));
+        assertThat(BindingReceiptV1.decode(sourceFailure.workflow.get(message.getMessageId()).orElseThrow()).code())
+                .isEqualTo("MALFORMED_SOURCE_COMMAND");
+        assertThat(sourceFailure.sourceKernel.lastContext).isNull();
+
+        Fixture derivedFailure = new Fixture(false);
+        derivedFailure.targetKernel.decodeFailure = new IndexOutOfBoundsException("bad derived wire");
+        derivedFailure.apply(1, List.of(message));
+        assertThat(BindingReceiptV1.decode(derivedFailure.workflow.get(message.getMessageId()).orElseThrow()).code())
+                .isEqualTo("MALFORMED_DERIVED_COMMAND");
+        assertThat(derivedFailure.source.values).isEmpty();
+        assertThat(derivedFailure.targetKernel.lastContext).isNull();
+
+        Fixture fatal = new Fixture(false);
+        fatal.sourceKernel.decodeFatal = true;
+        assertThatThrownBy(() -> fatal.engine.validate(message)).isInstanceOf(AssertionError.class);
+        assertThatThrownBy(() -> fatal.apply(1, List.of(message))).isInstanceOf(AssertionError.class);
+        assertThat(fatal.workflow.get(message.getMessageId())).isEmpty();
+    }
+
+    @Test
+    void statelessAdmissionRunsAfterDecodeAndContextualChecksRemainApplyOnly() {
+        AppMessage message = bodyMessage(1, BODY);
+        Fixture rejected = new Fixture(false);
+        rejected.sourceKernel.statelessRejection = "CONFIGURED_BOUND";
+        assertThat(rejected.engine.validate(message).reason()).isEqualTo("CONFIGURED_BOUND");
+        assertThat(rejected.sourceKernel.statelessCalls).isEqualTo(1);
+        assertThat(rejected.sourceKernel.contextualCalls).isZero();
+        rejected.sourceKernel.decodeFailure = new IllegalStateException("wire failure precedes admission");
+        assertThat(rejected.engine.validate(message).reason()).isEqualTo("MALFORMED_SOURCE_COMMAND");
+        assertThat(rejected.sourceKernel.statelessCalls).isEqualTo(1);
+
+        Fixture contextual = new Fixture(false);
+        contextual.sourceKernel.contextualRejection = true;
+        assertThat(contextual.engine.validate(message).isAccepted()).isTrue();
+        assertThat(contextual.sourceKernel.contextualCalls).isZero();
+        contextual.apply(1, List.of(message));
+        assertThat(contextual.sourceKernel.contextualCalls).isEqualTo(1);
+        assertThat(BindingReceiptV1.decode(contextual.workflow.get(message.getMessageId()).orElseThrow()).code())
+                .isEqualTo("ADMISSION");
+        assertThat(contextual.sourceKernel.lastContext).isNull();
+    }
+
+    @Test
+    void unexpectedStatelessAdmissionFailuresAreNotMisclassifiedAsMalformedCommands() {
+        Fixture fixture = new Fixture(false);
+        AppMessage message = bodyMessage(1, BODY);
+        fixture.sourceKernel.admissionFailure = new IllegalArgumentException("broken admission implementation");
+        assertThatThrownBy(() -> fixture.engine.validate(message)).isSameAs(fixture.sourceKernel.admissionFailure);
+        fixture.sourceKernel.admissionFailure = null;
+        fixture.sourceKernel.nullAdmission = true;
+        assertThatThrownBy(() -> fixture.engine.validate(message)).isInstanceOf(NullPointerException.class)
+                .hasMessage("kernel returned null stateless admission");
+    }
+
+    @Test
+    void contextualOverrideCannotBypassStatelessAdmissionForDerivedCommands() {
+        Fixture fixture = new Fixture(false);
+        fixture.targetKernel.statelessRejection = "CONFIGURED_BOUND";
+        fixture.targetKernel.contextualAccept = true;
+        AppMessage message = bodyMessage(1, BODY);
+        fixture.apply(1, List.of(message));
+        var receipt = BindingReceiptV1.decode(fixture.workflow.get(message.getMessageId()).orElseThrow());
+        assertThat(receipt.code()).isEqualTo("ADMISSION");
+        assertThat(receipt.failedStepOrdinal()).isEqualTo(1);
+        assertThat(fixture.targetKernel.statelessCalls).isEqualTo(1);
+        assertThat(fixture.targetKernel.contextualCalls).isZero();
+        assertThat(fixture.targetKernel.lastContext).isNull();
+        assertThat(fixture.source.values).isEmpty();
+        assertThat(fixture.target.values).isEmpty();
+    }
+
+    private static BindingIrV1.Limits payloadLimits(int bytes, int cascade, int block) {
+        var defaults = BindingIrV1.Limits.DEFAULT;
+        return new BindingIrV1.Limits(8, 32, 4096, bytes, 2, 8, defaults.maxFunctionInputBytes(),
+                128, 16, defaults.maxExpressionValueBytes(), cascade, block);
+    }
+
+    private static AppMessage bodyMessage(int identity, byte[] body) {
+        byte[] id = new byte[32];
+        id[31] = (byte) identity;
+        return AppMessage.builder().messageId(id).chainId("chain").topic("source.v1").sender(new byte[32])
+                .senderSeq(identity).expiresAt(Long.MAX_VALUE).body(body)
+                .authScheme(0).authProof(new byte[]{1}).build();
+    }
+
+    @Test
     void reachableResourceLimitsRejectWithoutCommittingEarlierBusinessPlansOrCallingEmitter() {
         var ordinary = BindingIrV1.Limits.DEFAULT;
         var cases = List.of(
@@ -59,7 +357,7 @@ class EventBindingWorkflowTest {
                         new BindingIrV1.Binding("too-deep", "target", BindingProgram.BASELINE, List.of(),
                                 new BindingIrV1.EffectTarget("test", "app-final", "none", 0,
                                         BindingIrV1.Mapping.identity())))),
-                new LimitCase("EVENT_PAYLOAD_TOO_LARGE", limits(8, 32, 1, 4096), List.of(forward())),
+                new LimitCase("COMMAND_PAYLOAD_TOO_LARGE", limits(8, 32, 1, 4096), List.of(forward())),
                 new LimitCase("FUNCTION_INPUT_LIMIT", limits(8, 32, 4096, 1), List.of(
                         calculatedEffect(new BindingSourceV1.Function("sha-256",
                                 List.of(new BindingSourceV1.Field("bodyHash")))))),
@@ -82,7 +380,11 @@ class EventBindingWorkflowTest {
             var receipt = BindingReceiptV1.decode(fixture.workflow.get(MESSAGE_ID).orElseThrow());
             assertThat(receipt.accepted()).as(test.code()).isFalse();
             assertThat(receipt.code()).as(test.code()).isEqualTo(test.code());
-            assertThat(fixture.sourceKernel.lastContext).as("source plan was evaluated: " + test.code()).isNotNull();
+            if (test.code().equals("COMMAND_PAYLOAD_TOO_LARGE")) {
+                assertThat(fixture.sourceKernel.lastContext).isNull();
+            } else {
+                assertThat(fixture.sourceKernel.lastContext).as("source plan evaluated: " + test.code()).isNotNull();
+            }
             assertThat(fixture.source.values).as(test.code()).isEmpty();
             assertThat(fixture.target.values).as(test.code()).isEmpty();
             assertThat(fixture.emitted).as(test.code()).isEmpty();
@@ -446,6 +748,16 @@ class EventBindingWorkflowTest {
         private final boolean reject;
         private final boolean readSource;
         private boolean corruptFacts;
+        private boolean corruptCodec;
+        private RuntimeException decodeFailure;
+        private boolean decodeFatal;
+        private String statelessRejection;
+        private boolean contextualRejection;
+        private boolean contextualAccept;
+        private RuntimeException admissionFailure;
+        private boolean nullAdmission;
+        private int statelessCalls;
+        private int contextualCalls;
         private boolean ownsBudget;
         private boolean requestsBudget;
         private boolean writeAccountingKey;
@@ -455,9 +767,33 @@ class EventBindingWorkflowTest {
         private java.util.function.Consumer<TransitionContext> observer = ignored -> { };
         PutKernel(boolean reject) { this(reject, false); }
         PutKernel(boolean reject, boolean readSource) { this.reject = reject; this.readSource = readSource; }
-        @Override public MessageCodec<byte[]> codec() { return new OrderedLogKernel().codec(); }
+        @Override public MessageCodec<byte[]> codec() {
+            if (corruptCodec) throw new AssertionError("predictable admission must precede codec access");
+            var delegate = new OrderedLogKernel().codec();
+            return new MessageCodec<>() {
+                @Override public byte[] encode(byte[] value) { return delegate.encode(value); }
+                @Override public byte[] decode(byte[] body) {
+                    if (decodeFatal) throw new AssertionError("fatal codec failure");
+                    if (decodeFailure != null) throw decodeFailure;
+                    return delegate.decode(body);
+                }
+                @Override public Class<byte[]> type() { return byte[].class; }
+            };
+        }
         @Override public List<TransitionWorkBudget> workBudgets() {
             return ownsBudget ? List.of(new TransitionWorkBudget("crypto", WORK_KEY, 1)) : List.of();
+        }
+        @Override public AdmissionResult admit(byte[] command) {
+            statelessCalls++;
+            if (admissionFailure != null) throw admissionFailure;
+            if (nullAdmission) return null;
+            return statelessRejection == null ? AdmissionResult.accept() : AdmissionResult.reject(statelessRejection);
+        }
+        @Override public AdmissionResult admit(byte[] command, TransitionContext context) {
+            contextualCalls++;
+            if (contextualAccept) return AdmissionResult.accept();
+            return contextualRejection ? AdmissionResult.reject("CONTEXTUAL_BOUND")
+                    : TransitionKernel.super.admit(command, context);
         }
         @Override public List<TransitionWorkReference> workReferences() {
             return requestsBudget ? List.of(new TransitionWorkReference("source", "crypto")) : List.of();

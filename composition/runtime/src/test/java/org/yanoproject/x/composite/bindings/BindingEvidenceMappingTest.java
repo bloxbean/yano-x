@@ -25,6 +25,14 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 /** Evidence declarations constrain mappings even when their computed bytes could look like a valid signature. */
 class BindingEvidenceMappingTest {
     @Test
+    void evidenceTypeMismatchIdentifiesTheEvidenceFieldAfterAValidDataAssignment() {
+        assertThatThrownBy(() -> program(new BindingSourceV1.Field("topic"), true))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("binding 'authorize' (source/composite.command-accepted.v1): "
+                        + "target field 'signature' (evidence): binding type mismatch");
+    }
+
+    @Test
     void literalFunctionExpressionAndMissingEvidenceFailConstructionIncludingOptionalEvidence() {
         List<BindingSourceV1> manufactured = List.of(new BindingSourceV1.Literal(new byte[32]),
                 new BindingSourceV1.Function("sha-256", List.of(new BindingSourceV1.Field("body"))),
@@ -34,13 +42,13 @@ class BindingEvidenceMappingTest {
             for (BindingSourceV1 source : manufactured) {
                 assertThatThrownBy(() -> program(source, required))
                         .isInstanceOf(IllegalArgumentException.class)
-                        .hasMessage("binding authorize (source/composite.command-accepted.v1): "
-                                + "BINDING_EVIDENCE_UNSATISFIABLE");
+                        .hasMessage("binding 'authorize' (source/composite.command-accepted.v1): "
+                                + "target field 'signature' (evidence): BINDING_EVIDENCE_UNSATISFIABLE");
             }
             assertThatThrownBy(() -> program(null, required))
                     .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessage("binding authorize (source/composite.command-accepted.v1): "
-                            + "BINDING_EVIDENCE_UNSATISFIABLE");
+                    .hasMessage("binding 'authorize' (source/composite.command-accepted.v1): "
+                            + "target field 'signature' (evidence): BINDING_EVIDENCE_UNSATISFIABLE");
             assertThatCode(() -> program(new BindingSourceV1.Field("body"), required))
                     .doesNotThrowAnyException();
         }

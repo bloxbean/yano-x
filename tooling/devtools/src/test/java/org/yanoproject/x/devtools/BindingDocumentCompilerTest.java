@@ -18,6 +18,20 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class BindingDocumentCompilerTest {
+    @Test
+    void providerConstructionFailuresRetainFullAuthoredLocationAndCause() {
+        var failure = new IllegalStateException("provider construction failed");
+        var catalog = new BindingDocumentCompiler.DescriptorCatalog() {
+            @Override public ConfigurationDescriptor configuration(String machine) { throw failure; }
+            @Override public Map<String, Type> eventFields(Component component, String event) { return Map.of(); }
+        };
+        assertThatThrownBy(() -> BindingDocumentCompiler.compile("""
+                composite:
+                  components: [{id: source, machine: fixture}]
+                  bindings: []
+                """, catalog)).isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("$.composite.components[0].config: provider construction failed");
+    }
     private static final BindingDocumentCompiler.DescriptorCatalog CATALOG =
             new BindingDocumentCompiler.DescriptorCatalog() {
                 @Override

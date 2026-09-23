@@ -8,7 +8,14 @@ and `bodyHex` carries canonical binary bytes.
 POST /api/v1/app-chain/chains/{chainId}/messages
 ```
 
-The node returns HTTP `202` with `messageId`, `chainId`, and `topic`. HTTP `429`
+An admitted submission returns HTTP `202` with `messageId`, `chainId`, and `topic`;
+this is not a finalized application receipt. Predictable application admission
+rejections return HTTP `400` with a safe symbolic `code`, without pooling or
+relaying the message. Correct the command before retrying. Legacy validators
+that return prose expose `APPLICATION_REJECTED`, not their diagnostic text.
+State-dependent execution can still reject a command after admission.
+
+HTTP `429`
 means the pending pool applied backpressure and did not retain the message;
 HTTP `503` means the chain is not currently accepting submissions. A client
 should retry those responses with bounded exponential backoff and should keep

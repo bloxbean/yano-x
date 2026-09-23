@@ -112,9 +112,18 @@ export async function resolveVersions() {
     yanoVersion,
     group: props.group ?? 'org.yanoproject.x',
     javaVersion: '25',
-    /** Resolved automatically by the Gradle build for a released yanoVersion. */
-    yanoJvmZipUrl: `${YANO_REPO}/releases/download/v${yanoVersion}/yano-${yanoVersion}.zip`,
+    /** No release asset is advertised for snapshot, unknown, or local build identities. */
+    yanoJvmZipUrl: yanoJvmReleaseUrl(yanoVersion),
   };
+}
+
+/** Conventional release URL, or null when the version requires exact locally supplied inputs. */
+export function yanoJvmReleaseUrl(version) {
+  if (!version || version === 'unknown' || /-SNAPSHOT$/i.test(version)
+      || /(?:^|-)local(?:-|$)/i.test(version)
+      // Yano's stage-consumer-inputs script suffixes the base version with a nine-character commit prefix.
+      || /-[0-9a-f]{9}$/i.test(version)) return null;
+  return `${YANO_REPO}/releases/download/v${version}/yano-${version}.zip`;
 }
 
 export const loadRecipeCatalog = () => readJson(`${DX_DIR}/appchain-recipe-catalog.json`);
@@ -130,6 +139,9 @@ export const loadArtifactInventory = () => readJson('config/artifacts-v1.json');
  * mapping has exactly one definition.
  */
 export const IMPORTED_DOCS = {
+  'docs/appchain/DECLARATIVE_BINDINGS.md': '/reference/declarative-bindings/',
+  'docs/appchain/DECLARATIVE_BINDINGS_CLI.md': '/reference/declarative-bindings-cli/',
+  'docs/appchain/DECLARATIVE_BINDINGS_UPGRADES.md': '/reference/declarative-bindings-upgrades/',
   'docs/site/observations.md': '/concepts/observations/',
   'docs/site/ai-starter-pack.md': '/ai/starter-pack/',
 

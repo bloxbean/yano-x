@@ -12,6 +12,9 @@ node_modules/
 # are regenerated on every `npm run dev` / `npm run build`.
 src/content/docs/tutorials/
 src/content/docs/state-machines/
+src/content/docs/reference/declarative-bindings.md
+src/content/docs/reference/declarative-bindings-cli.md
+src/content/docs/reference/declarative-bindings-upgrades.md
 
 # Generated at build time by scripts/generate-llms-txt.mjs and
 # scripts/generate-catalog.mjs. Written into dist/ during `astro build` and

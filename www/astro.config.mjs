@@ -126,6 +126,9 @@ export default defineConfig({
           collapsed: true,
           items: [
             { label: 'CLI', slug: 'reference/cli' },
+            { label: 'Declarative bindings', slug: 'reference/declarative-bindings' },
+            { label: 'Bindings authoring CLI', slug: 'reference/declarative-bindings-cli' },
+            { label: 'Bindings upgrade preflight', slug: 'reference/declarative-bindings-upgrades' },
             { label: 'REST API', slug: 'reference/rest-api' },
             { label: 'Capability catalog', slug: 'reference/capabilities' },
             { label: 'Configuration', slug: 'reference/configuration' },

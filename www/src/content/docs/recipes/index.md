@@ -25,12 +25,13 @@ binary in your hands:
 
 | Recipe | Name | Availability | Maturity | Primary outcome |
 |---|---|---|---|---|
+| [`declarative-composite`](/reference/declarative-bindings-cli/) | Declarative event workflow | `BUNDLED` | `preview` | A source command and its event-derived commands commit atomically with an auditable receipt. |
 | [`audit-log`](https://github.com/bloxbean/yano-x/blob/main/docs/core-host.md) | Replicated audit log | `BUNDLED` | `stable` | One opaque record is threshold-finalized in the shared application order. |
 | [`owned-registry`](/state-machines/kv-registry/) | Owned registry | `BUNDLED` | `stable` | The first writer owns a named value that is readable with a committed state proof. |
 | [`document-trail`](/state-machines/doc-trail/) | Document trail | `BUNDLED` | `preview` | A document hash advances an entity trail; its count and head have a committed state proof. |
 | [`authenticated-map`](/state-machines/authenticated-map/) | Authenticated map | `BUNDLED` | `preview` | A value accepted under a genesis-declared collection schema is committed and available with a state proof. |
 | [`approval-workflow`](/state-machines/approvals/) | Threshold approval workflow | `BUNDLED` | `stable` | Distinct validator-member decisions produce a provable terminal approval or rejection. |
-| [`role-approval`](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/tutorials/05-domain-role-approvals.md) | Governed role approvals | `BUNDLED` | `preview` | A governed role policy accepts valid actor decisions and rejects an ineligible actor decision. |
+| [`role-approval`](/tutorials/05-domain-role-approvals/) | Governed role approvals | `BUNDLED` | `preview` | A governed role policy accepts valid actor decisions and rejects an ineligible actor decision. |
 | [`evidence-ledger`](/tutorials/04-evidence-publication/) | Role-aware evidence ledger | `BUNDLED` | `preview` | A role-authorized evidence record and its release decision are committed and queryable. |
 | [`eutxo-ledger`](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/README.md) | Scalus-backed EUTxO ledger | `FIRST_PARTY_OPTIONAL` | `experimental` | A signed key-controlled or bounded Plutus V3 transaction consumes virtual EUTxOs and creates MPF-proven outputs and receipts. |
 | [`eutxo-cardano-bridge`](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/README.md) | Federated Cardano EUTxO bridge | `EXPERIMENTAL` | `experimental` | Accepted stable deposits create mirrored EUTxOs; signed L2 spends create irrevocable claims that settle only through the configured signer path or a current accepted MPF root with single-use nullification. |
@@ -106,6 +107,25 @@ You can also build a blueprint visually in the
 ## Each recipe in detail
 
 <!-- catalog:recipe-details-start -->
+
+### `declarative-composite` — Declarative event workflow
+
+Compile bounded event bindings into one committed atomic composite profile.
+
+- **Outcome:** A source command and its event-derived commands commit atomically with an auditable receipt.
+- **Availability / maturity:** `BUNDLED` / `preview`
+- **Capabilities:** `state:declarative-composite`, `sequencer:fixed`
+- **Runtime artifacts:** `yano-runtime`, `yano-x-composite`, `yano-x-stdlib`, `yano-x-role-workflow`
+- **Runtimes:** `jvm` · **Deployment:** `host`, `docker-compose`
+- **External prerequisites:** `Exact manifested authoring plugin directory`
+- **Bootstrap requirements:** `Pinned public member keys and normalized component configuration`
+- **Reference:** [/reference/declarative-bindings-cli/](/reference/declarative-bindings-cli/)
+
+```bash
+./yano.sh appchain init --non-interactive \
+  --recipe declarative-composite --network devnet --members 3 --runtime jvm \
+  --output declarative-composite-chain
+```
 
 ### `audit-log` — Replicated audit log
 
@@ -203,7 +223,7 @@ Governed organizations, actors, and policies approve arbitrary application paylo
 - **Runtime artifacts:** `yano-runtime`, `yano-x-composite`, `yano-x-role-workflow`
 - **Runtimes:** `jvm` · **Deployment:** `host`, `docker-compose`
 - **Bootstrap requirements:** `governed-organizations`, `governed-actors`, `governed-policies`
-- **Reference:** [docs/appchain/tutorials/05-domain-role-approvals.md](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/tutorials/05-domain-role-approvals.md)
+- **Reference:** [/tutorials/05-domain-role-approvals/](/tutorials/05-domain-role-approvals/)
 
 ```bash
 ./yano.sh appchain init --non-interactive \

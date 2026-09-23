@@ -619,6 +619,11 @@ public final class CompositeStateMachine implements AppStateMachine {
         writer.delete(ownerKey);
     }
 
+    /**
+     * Serves root-fixed component and composite queries. The binding-receipt-key query returns the raw
+     * physical state-key bytes for a source message, not a receipt or proof of its presence. Its key is
+     * independent of workflow generation so historical receipts remain discoverable after a cutover.
+     */
     @Override
     public byte[] query(String path, byte[] params, AppQueryContext state) {
         Objects.requireNonNull(path, "path");
@@ -631,17 +636,20 @@ public final class CompositeStateMachine implements AppStateMachine {
             }
             return runtime.profile().canonicalBytes();
         }
-        if (path.startsWith("composite/binding-receipt-v1/")) {
+        boolean receiptKey = path.startsWith("composite/binding-receipt-key-v1/");
+        if (receiptKey || path.startsWith("composite/binding-receipt-v1/")) {
             if (safeParams.length != 0) throw new AppQueryException(AppQueryException.Code.INVALID_REQUEST,
                     "binding receipt query takes no parameters");
             byte[] id;
             try {
-                id = HexFormat.of().parseHex(path.substring("composite/binding-receipt-v1/".length()));
+                String prefix = receiptKey ? "composite/binding-receipt-key-v1/" : "composite/binding-receipt-v1/";
+                id = HexFormat.of().parseHex(path.substring(prefix.length()));
                 if (id.length != 32) throw new IllegalArgumentException("message id length");
             } catch (IllegalArgumentException invalid) {
                 throw new AppQueryException(AppQueryException.Code.INVALID_REQUEST, "invalid source message id");
             }
-            return state.get(CompositeStateKeys.workflowStateKey("event-bindings", id)).orElse(new byte[0]);
+            byte[] key = CompositeStateKeys.workflowStateKey("event-bindings", id);
+            return receiptKey ? key : state.get(key).orElse(new byte[0]);
         }
         if ("composite/profile-epoch-v1".equals(path)) {
             if (governance == null) {

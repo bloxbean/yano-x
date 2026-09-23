@@ -19,6 +19,7 @@ import {
   loadFirstPartyMetadata,
   loadArtifactInventory,
   githubUrl,
+  IMPORTED_DOCS,
 } from './repo-sources.mjs';
 
 // ---------------------------------------------------------------------------
@@ -47,7 +48,7 @@ const DOC_ROUTES = {
 
 function docLink(docPath) {
   if (!docPath) return null;
-  return DOC_ROUTES[docPath] ?? githubUrl(docPath);
+  return DOC_ROUTES[docPath] ?? IMPORTED_DOCS[docPath] ?? githubUrl(docPath);
 }
 
 export async function generateCatalog({ logger } = {}) {
@@ -385,7 +386,10 @@ export function renderVersions(catalog) {
       ['Yano host version', code(v.yanoVersion)],
       ['Maven group', code(v.group)],
       ['Java', code(v.javaVersion)],
-      ['Base Yano JVM ZIP', `[\`yano-${v.yanoVersion}.zip\`](${v.yanoJvmZipUrl})`],
+      ['Base Yano JVM ZIP', v.yanoJvmZipUrl
+        ? `[\`yano-${v.yanoVersion}.zip\`](${v.yanoJvmZipUrl})`
+        : 'Local build required; supply matching Maven artifacts and '
+          + '`-PyanoJvmDist` ([instructions](/start-here/build-from-source/)).'],
     ],
   );
 }

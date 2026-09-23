@@ -131,7 +131,9 @@ public final class BindingProductFixtures {
                 .append("; membership.mode=governed; threshold=2; blockIntervalMs=1000\n");
         text.append("# Proposer: ").append(members().getFirst()).append('\n');
         text.append("# Members: ").append(String.join(",", members())).append('\n');
-        text.append("# Regenerate/check public bytes: :state-machines:stdlib:printBindingProductExamples\n");
+        text.append("# Source-checkout fixture regeneration: :state-machines:stdlib:printBindingProductExamples\n");
+        text.append("# Your own chain: yano.sh appchain bindings recipe dpp|feed "
+                + "(see docs/appchain/DECLARATIVE_BINDINGS_CLI.md).\n");
         text.append("# Qualifications: existing product schemas/policies; "
                 + "known-key certified state/consumption proofs.\n");
         text.append("# Does not claim existing portal projection or legacy AttestCertificate compatibility.\n");

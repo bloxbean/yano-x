@@ -166,6 +166,31 @@ logical namespaces, use explicit keys such as `suppliers/acme` and
 `schemas/order/v2`, or separate chains when membership and operations should
 also be isolated.
 
+## Declarative binding: delete
+
+The binding command `delete` still uses the canonical positional wire
+`[1, keyBytes, emptyBytes]`. Its mapping therefore requires **both** `key` and
+`value`; supply an empty byte literal for `value`, not an empty text string or
+an omitted field:
+
+```yaml
+bindings:
+  - id: delete-record
+    from: {component: requests, event: kv-registry.entry-put.v1}
+    to:
+      component: records
+      command: delete
+      map:
+        key: {field: key}
+        value: {literal: {bytesHex: ''}}
+```
+
+Here `requests` and `records` are declared `kv-registry` component instances.
+The derived command retains the source sender's authority: that sender must own
+the target entry. A nonempty byte value is malformed for delete, rejects the
+derived command, and rolls back the cascade's business writes. This mapping does
+not change the standalone three-slot command contract.
+
 ## Submit from Java
 
 Use the client artifact with the node version:

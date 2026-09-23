@@ -95,6 +95,18 @@ class AppChainClientSubmitTest {
     }
 
     @Test
+    void admissionFailureExposesSafeCodeInsteadOfAnAcceptedMessageId() throws Exception {
+        start(exchange -> {
+            exchange.getRequestBody().readAllBytes();
+            respond(exchange, 400, "{\"code\":\"COMMAND_PAYLOAD_TOO_LARGE\"}");
+        });
+        assertThatThrownBy(() -> client(null).submit("source.command.v1", new byte[65_536]))
+                .isInstanceOf(AppChainClient.AppChainClientException.class)
+                .hasMessage("App-chain submit failed with HTTP 400 (COMMAND_PAYLOAD_TOO_LARGE)")
+                .hasNoCause();
+    }
+
+    @Test
     void submitFailureNeverReflectsResponseOrApiKey() throws Exception {
         String secret = "submit-api-key-canary";
         start(exchange -> {

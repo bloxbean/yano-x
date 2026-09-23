@@ -106,7 +106,8 @@ final class AuthenticatedMapTransitionKernel implements
         };
     }
 
-    @Override public AdmissionResult admit(Command command, TransitionContext context) {
+    /** Checks configured command bounds and canonical values without fabricating a block execution context. */
+    @Override public AdmissionResult admit(Command command) {
         try {
             var legacy = new AuthenticatedMapContract.Command(command.action().batch(), command.action().mutations());
             map.validateCommandBounds(legacy);
