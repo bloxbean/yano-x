@@ -44,7 +44,7 @@ const UNLINKED_PREFIXES = ['adr/'];
 
 // Directories this script owns completely. They are wiped before each import
 // so a renamed source file cannot leave a stale page behind.
-const OWNED_DIRS = ['tutorials', 'state-machines', 'deployment'];
+const OWNED_DIRS = ['tutorials', 'state-machines', 'deployment', 'bindings'];
 
 // Section landing pages get an explicit sidebar order.
 const ORDER = {

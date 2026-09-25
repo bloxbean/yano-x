@@ -139,6 +139,12 @@ export const loadArtifactInventory = () => readJson('config/artifacts-v1.json');
  * mapping has exactly one definition.
  */
 export const IMPORTED_DOCS = {
+  'docs/appchain/bindings/README.md': '/bindings/',
+  'docs/appchain/bindings/01-first-workflow.md': '/bindings/first-workflow/',
+  'docs/appchain/bindings/02-conditions-and-mappings.md': '/bindings/conditions-and-mappings/',
+  'docs/appchain/bindings/03-approval-workflows.md': '/bindings/approval-workflows/',
+  'docs/appchain/bindings/04-java-integration.md': '/bindings/java-integration/',
+  'docs/appchain/bindings/05-operations-and-upgrades.md': '/bindings/operations-and-upgrades/',
   'docs/appchain/DECLARATIVE_BINDINGS.md': '/reference/declarative-bindings/',
   'docs/appchain/DECLARATIVE_BINDINGS_CLI.md': '/reference/declarative-bindings-cli/',
   'docs/appchain/DECLARATIVE_BINDINGS_UPGRADES.md': '/reference/declarative-bindings-upgrades/',

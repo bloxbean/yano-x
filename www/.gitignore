@@ -11,6 +11,7 @@ node_modules/
 # The repository markdown under ../docs is the source of truth; these copies
 # are regenerated on every `npm run dev` / `npm run build`.
 src/content/docs/tutorials/
+src/content/docs/bindings/
 src/content/docs/state-machines/
 src/content/docs/reference/declarative-bindings.md
 src/content/docs/reference/declarative-bindings-cli.md

@@ -9,6 +9,12 @@
 
 ## Start from a bounded scaffold
 
+Before writing a coordinator plugin, check the
+[declarative binding learning path](../bindings/README.md). If existing machines
+already expose the required commands and events, you can connect them in YAML.
+Use the plugin path below when you need new transitions or coordination outside
+the bounded binding language.
+
 Use the public launcher to create one small, buildable starting point. The
 four modes share the same runtime manifest, signed product-catalog, and
 ServiceLoader conventions:

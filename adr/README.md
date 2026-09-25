@@ -10,6 +10,7 @@ does not require a sibling Yano checkout.
 | [ADR-030](refactoring/030-repository-split-yano-x-execution-plan.md) | Repository ownership, execution phases, naming, packaging, and release gates |
 | [ADR-011](app-layer/011-plugin-architecture.md) | Host/plugin SPI, catalog, compatibility, isolation, and lifecycle contract |
 | [ADR-031](app-layer/031-composable-state-machine-foundation-and-portable-proofs.md) | Reusable state-machine, capability, composition, and portable-proof contract |
+| [ADR-031.2](app-layer/031.2-guided-declarative-binding-editor.md) | Proposed: catalog-driven binding authoring in Studio, safe YAML round trips, CLI-authoritative validation and rehearsal explanation; no runtime or deployment authority in the editor |
 | [ADR-038](038-yano-x-documentation-site.md) | Public documentation site, its content strategy, and the AI ingestion layer |
 | [ADR-039](039-geographically-distributed-deployment-automation.md) | Provider-neutral deployment to Contabo, Hetzner Cloud, DigitalOcean, existing VMs, or mixed placement using a locally promoted showcase ZIP |
 | [ADR-040](040-product-specific-user-interfaces.md) | Separately deployable Yano X product UIs with runtime node discovery, beginning with EUTxO |

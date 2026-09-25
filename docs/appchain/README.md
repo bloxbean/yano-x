@@ -27,7 +27,7 @@ credentials unless a guide explicitly says otherwise.
 | Collect member approvals and optionally trigger an action | [`approvals` reference](state-machines/approvals.md) | Configuration + typed commands |
 | Maintain a document-hash trail per product or case | [`doc-trail` reference](state-machines/doc-trail.md) | Configuration + typed commands |
 | Select a stock ledger/workflow capability | [Stock state-machine cookbook](tutorials/03-stock-state-machines.md) | Configuration + typed commands |
-| Connect stock components with deterministic event bindings | [Declarative bindings](DECLARATIVE_BINDINGS.md), [authoring CLI](DECLARATIVE_BINDINGS_CLI.md), [upgrade preflight](DECLARATIVE_BINDINGS_UPGRADES.md) | YAML; public actor proofs for governed recipes |
+| Connect stock components with deterministic event bindings | [Beginner-to-advanced developer learning path](bindings/README.md) | YAML; public actor proofs for governed recipes |
 | Publish immutable evidence to object storage/IPFS and notify Kafka | [Evidence publication](tutorials/04-evidence-publication.md) | No for the demo; optional connector plugins in deployments |
 | Approve arbitrary payload hashes using application-defined roles | [`role-approvals` reference](state-machines/role-approvals.md) | Configuration + actor integration |
 | Require manufacturers, auditors, and regulators to sign evidence by role | [Domain-role approvals](tutorials/05-domain-role-approvals.md) | No for the stock scenario |
@@ -38,7 +38,6 @@ credentials unless a guide explicitly says otherwise.
 | Build or independently verify portable message and typed state proofs | [Proof Lab guide](PROOF_LAB.md) | No for stock subjects; Java for custom subjects |
 | Implement new business rules without forking Yano | [Plugins and composites](tutorials/08-plugins-and-composites.md) | Small Java plugin |
 | Reuse stock transitions and verify portable proofs | [Composable state and proofs](COMPOSABLE_STATE_AND_PROOFS.md) | Java/configuration |
-| Connect stock machines through bounded event bindings | [Declarative bindings](DECLARATIVE_BINDINGS.md) | Configuration + typed commands; experimental |
 | Archive and prove large immutable period datasets | [Authenticated snapshots](AUTHENTICATED_SNAPSHOTS.md) | Configuration/API |
 | Query and prove historical Cardano parameters, stake, and governance | [Cardano History product](CARDANO_HISTORY.md) | Plugin configuration/CLI |
 | Attest a document digest and hand out a portable, offline-verifiable certificate | [Attest product](ATTEST.md) | No; CLI or browser UI |

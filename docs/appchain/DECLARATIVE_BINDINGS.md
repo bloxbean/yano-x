@@ -1,5 +1,8 @@
 # Declarative event bindings
 
+New to bindings? Follow the [beginner-to-advanced developer learning path](bindings/README.md)
+for runnable examples, Java integration, graphical tooling and deployment guidance.
+
 Status: experimental, undergoing ADR-031.1 qualification. Do not use this
 profile as a production compatibility promise.
 

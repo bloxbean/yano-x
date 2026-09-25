@@ -34,6 +34,7 @@ Work through [Registry and proofs](/tutorials/02-registry-and-proofs/), then con
 | Your next task | Continue here |
 | --- | --- |
 | Follow examples in order | [Guided tutorials](/tutorials/) |
+| Connect existing machines using YAML | [Declarative bindings: beginner to advanced](/bindings/) |
 | Combine existing rules or add custom Java logic | [Plugin framework](/plugins/) |
 | Deliver webhooks or other external actions | [Effects](/concepts/effects/) |
 | Plan a multi-node deployment | [Deployment guide](/deployment/) |

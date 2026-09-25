@@ -1,5 +1,9 @@
 # Declarative binding authoring commands
 
+For a guided introduction, start with [your first workflow](bindings/01-first-workflow.md).
+The [learning path](bindings/README.md) explains separate YAML versus inline
+blueprints and the current read-only Studio graph viewer.
+
 `appchain bindings` compiles and checks ADR-031.1 documents against the actual
 plugin bundles selected for the application. It does not start a node or submit
 transactions. Use the matching Yano X CLI, Yano host API, and dependency-complete

@@ -9,6 +9,13 @@ Studio has no backend, telemetry, persistence, or secret inputs. The downloaded
 `appchain.yaml` is rendered and semantically validated by the version-matched
 `yano appchain` CLI, which remains authoritative.
 
+For declarative bindings, Studio currently provides a **read-only graph viewer**:
+import a capability-manifest JSON snapshot under **Inspect a declarative binding
+graph**. It is not a drag-and-drop binding editor, does not change the blueprint,
+and does not authenticate the imported chain identity. Author bindings in YAML
+and validate them with the CLI; see the
+[developer learning path](../../docs/appchain/bindings/README.md).
+
 Build with `./gradlew :tooling:studio:assemble`. Serve the generated
 `build/studio` directory with any static HTTP server.
 

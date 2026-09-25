@@ -28,11 +28,13 @@ import { generateCatalog } from './generate-catalog.mjs';
  * Content paths for every page imported into one section, index first.
  * Derived from IMPORTED_DOCS so the two lists cannot drift apart.
  */
-function importedFiles(section) {
-  return Object.values(IMPORTED_DOCS)
+function importedFiles(section, preserveOrder = false) {
+  const files = Object.values(IMPORTED_DOCS)
     .filter((route) => route.startsWith(`/${section}/`))
-    .map(contentPathForRoute)
-    .sort((a, b) => {
+    .map(contentPathForRoute);
+  // The binding source map is already in pedagogical order; route names are
+  // deliberately unnumbered and alphabetical sorting would scramble chapters.
+  return preserveOrder ? files : files.sort((a, b) => {
       const ai = a.endsWith('/index.md') ? 0 : 1;
       const bi = b.endsWith('/index.md') ? 0 : 1;
       return ai - bi || a.localeCompare(b);
@@ -85,6 +87,7 @@ const SECTIONS = [
   // adding a tutorial is a one-place edit in repo-sources.mjs.
   { title: 'Deployment', files: importedFiles('deployment') },
   { title: 'Tutorials', files: importedFiles('tutorials') },
+  { title: 'Declarative bindings', files: importedFiles('bindings', true) },
   { title: 'State machines', files: importedFiles('state-machines') },
   {
     title: 'Products',
