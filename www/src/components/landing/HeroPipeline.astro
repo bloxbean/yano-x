@@ -65,9 +65,9 @@ const first = examples[0];
     <div class="example-intro"><h2>{first.title}</h2><p>{first.intro}</p></div>
     <div class="command"><span>{first.commandLabel}</span><code><span data-command>{first.command}</span> <b>{first.value}</b></code></div>
     <dl class="example-facts">{first.facts.map(([label, value]) => <div><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
-    <div class="flow-wire" aria-hidden="true"></div>
+    <div class="flow-wire" aria-hidden="true"><img class="wire-plane" src="/logo-flying.svg" alt="" width="12" height="12" /></div>
     <div class="members">{['Member A', 'Member B', 'Member C'].map(name => <div class="member"><span>{name}</span><div class="node-mark" aria-hidden="true">◇</div><code>{first.root}</code><small>same state root</small></div>)}</div>
-    <div class="flow-wire" aria-hidden="true"></div>
+    <div class="flow-wire" aria-hidden="true"><img class="wire-plane" src="/logo-flying.svg" alt="" width="12" height="12" /></div>
     <div class="certificate"><span>MEMBER-CERTIFIED RESULT</span><strong>{first.result}</strong></div>
     <div class="demo-controls" role="group" aria-label="Walk through an application command" hidden>
       {first.stages.map(([title], i) => <button data-stage-button={i} aria-pressed={i === 2} aria-controls="stage-description"><span>0{i + 1}</span><span data-stage-label>{title}</span></button>)}
