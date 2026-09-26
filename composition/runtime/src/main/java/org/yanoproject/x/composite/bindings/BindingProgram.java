@@ -62,24 +62,24 @@ public final class BindingProgram {
         this.kernels = Map.copyOf(kernels);
         Set<String> components = new HashSet<>();
         ir.components().forEach(component -> components.add(component.id()));
-        if (!components.equals(kernels.keySet())) throw new IllegalArgumentException("kernel/component mismatch");
+        if (!components.equals(kernels.keySet())) throw invalid("KERNEL_CONTRACT_INVALID", "kernel/component mismatch");
         Map<String, List<String>> participantReads = new LinkedHashMap<>();
         for (var entry : this.kernels.entrySet()) {
             var kernel = entry.getValue();
             List<String> reads = List.copyOf(kernel.readParticipants());
             if (reads.size() > components.size() || reads.stream().distinct().count() != reads.size()
                     || reads.contains(entry.getKey()) || !components.containsAll(reads)) {
-                throw new IllegalArgumentException("invalid kernel read participants: " + entry.getKey());
+                throw invalid("KERNEL_CONTRACT_INVALID", "invalid kernel read participants: " + entry.getKey());
             }
             participantReads.put(entry.getKey(), reads);
             var events = kernel.events();
             if (events.stream().anyMatch(event -> BASELINE.equals(event.eventId()))
                     || events.stream().map(event -> event.eventId()).distinct().count() != events.size()) {
-                throw new IllegalArgumentException("reserved or duplicate native event id");
+                throw invalid("KERNEL_CONTRACT_INVALID", "reserved or duplicate native event id");
             }
             var commands = kernel.commands();
             if (commands.stream().map(CommandDescriptor::commandName).distinct().count() != commands.size()) {
-                throw new IllegalArgumentException("duplicate command name");
+                throw invalid("KERNEL_CONTRACT_INVALID", "duplicate command name");
             }
         }
         this.readParticipants = Map.copyOf(participantReads);
@@ -89,14 +89,14 @@ public final class BindingProgram {
             Set<String> keys = new HashSet<>();
             var declared = List.copyOf(entry.getValue().workBudgets());
             if (declared.size() > TransitionWorkBudget.MAX_DECLARATIONS) {
-                throw new IllegalArgumentException("too many work budgets");
+                throw invalid("KERNEL_CONTRACT_INVALID", "too many work budgets");
             }
             for (var budget : declared) {
                 CompositeStateKeys.componentKey(entry.getKey(), budget.key());
                 var reference = new TransitionWorkReference(entry.getKey(), budget.id());
                 if (budgets.putIfAbsent(reference, budget) != null
                         || !keys.add(HexFormat.of().formatHex(budget.key()))) {
-                    throw new IllegalArgumentException("duplicate work budget id or key");
+                    throw invalid("KERNEL_CONTRACT_INVALID", "duplicate work budget id or key");
                 }
             }
             reserved.put(entry.getKey(), Set.copyOf(keys));
@@ -107,18 +107,20 @@ public final class BindingProgram {
             if (declared.size() > TransitionWorkBudget.MAX_DECLARATIONS
                     || new HashSet<>(declared).size() != declared.size()
                     || !budgets.keySet().containsAll(declared)) {
-                throw new IllegalArgumentException("invalid kernel work references: " + entry.getKey());
+                throw invalid("KERNEL_CONTRACT_INVALID", "invalid kernel work references: " + entry.getKey());
             }
             references.put(entry.getKey(), Set.copyOf(declared));
         }
         this.workBudgets = Map.copyOf(budgets);
         this.workReferences = Map.copyOf(references);
         this.accountingKeys = Map.copyOf(reserved);
-        for (Binding binding : ir.bindings()) {
+        for (int index = 0; index < ir.bindings().size(); index++) {
+            Binding binding = ir.bindings().get(index);
             try { validate(binding); }
             catch (IllegalArgumentException invalid) {
-                throw new IllegalArgumentException("binding '" + binding.id() + "' (" + binding.sourceComponent()
-                        + "/" + binding.eventId() + "): " + invalid.getMessage(), invalid);
+                throw BindingValidationException.wrap("binding '" + binding.id() + "' (" + binding.sourceComponent()
+                        + "/" + binding.eventId() + ")", invalid, "UNCLASSIFIED",
+                        new BindingValidationException.Context(index, binding.id(), null, null, null, null));
             }
         }
         for (String component : components) visit(component, new HashSet<>(), new HashSet<>());
@@ -144,7 +146,7 @@ public final class BindingProgram {
     }
     public TransitionKernel<?, ?> kernel(String component) {
         TransitionKernel<?, ?> kernel = kernels.get(component);
-        if (kernel == null) throw new IllegalArgumentException("unknown component: " + component);
+        if (kernel == null) throw invalid("UNKNOWN_COMPONENT", "unknown component: " + component);
         return kernel;
     }
     public List<Binding> bindings(String component, String eventId) {
@@ -156,7 +158,7 @@ public final class BindingProgram {
         if (BASELINE.equals(eventId)) return Map.of("topic", Type.TEXT, "sender", Type.BYTES,
                 "messageId", Type.BYTES, "body", Type.BYTES, "bodyHash", Type.BYTES, "bodyLength", Type.INTEGER);
         var events = kernel(component).events().stream().filter(event -> event.eventId().equals(eventId)).toList();
-        if (events.size() != 1) throw new IllegalArgumentException("unknown or duplicate event: " + eventId);
+        if (events.size() != 1) throw invalid("UNKNOWN_EVENT", "unknown or duplicate event: " + eventId);
         Map<String, Type> result = new LinkedHashMap<>();
         events.getFirst().fields().forEach(field -> result.put(field.name(), Type.valueOf(field.type().name())));
         return Map.copyOf(result);
@@ -164,12 +166,17 @@ public final class BindingProgram {
     public CommandDescriptor command(CommandTarget target) {
         var commands = kernel(target.component()).commands().stream()
                 .filter(command -> command.commandName().equals(target.command())).toList();
-        if (commands.size() != 1) throw new IllegalArgumentException("unknown or duplicate target command");
+        if (commands.size() != 1) throw invalid("UNKNOWN_TARGET_COMMAND", "unknown or duplicate target command");
         return commands.getFirst();
     }
 
     private void validate(Binding binding) {
-        Map<String, Type> schema = schema(binding.sourceComponent(), binding.eventId());
+        Map<String, Type> schema;
+        try { schema = schema(binding.sourceComponent(), binding.eventId()); }
+        catch (IllegalArgumentException invalid) {
+            throw BindingValidationException.annotate(invalid,
+                    BindingValidationException.Context.part("source-event"));
+        }
         int lookups = 0;
         for (int index = 0; index < binding.conditions().size(); index++) {
             var clause = binding.conditions().get(index);
@@ -190,43 +197,58 @@ public final class BindingProgram {
                 } else if (clause instanceof LookupClause lookup) {
                     kernel(lookup.participant());
                     if (++lookups > ir.limits().maxLookupsPerCondition())
-                        throw new IllegalArgumentException("lookup limit");
-                    validateAt("lookup key", () -> {
-                        if (sourceType(lookup.key(), schema) != Type.BYTES) throw invalidType();
-                    });
-                    if (lookup.operand() != null) validateAt("lookup operand", () -> {
-                        if (sourceType(lookup.operand(), schema) != Type.BYTES) throw invalidType();
-                    });
+                        throw invalid("LOOKUP_LIMIT", "lookup limit");
+                    validateAt("lookup key", "UNCLASSIFIED", BindingValidationException.Context.part("lookup-key"),
+                            () -> {
+                                if (sourceType(lookup.key(), schema) != Type.BYTES) throw invalidType();
+                            });
+                    if (lookup.operand() != null) validateAt("lookup operand", "UNCLASSIFIED",
+                            BindingValidationException.Context.part("lookup-operand"), () -> {
+                                if (sourceType(lookup.operand(), schema) != Type.BYTES) throw invalidType();
+                            });
                 } else if (clause instanceof ExpressionClause expression) {
-                    validateAt("expression", () ->
+                    validateAt("expression", "EXPRESSION_INVALID",
+                            BindingValidationException.Context.part("expression"), () ->
                             BindingExpressionEvaluator.validate(expression.expression(), schema, ir.limits()));
                 }
             } catch (IllegalArgumentException invalid) {
-                throw at(location, invalid);
+                throw at(location, invalid, "UNCLASSIFIED",
+                        new BindingValidationException.Context(null, null, index, "condition", null, null));
             }
         }
         var mapping = binding.target().mapping();
         int calls = mapping.fields().stream().mapToInt(field -> functionCount(field.source())).sum();
-        if (calls > ir.limits().maxFunctionCallsPerMapping())
-                throw new IllegalArgumentException("mapping function limit");
-        if (mapping.kind() == BindingIrV1.MappingKind.RAW_BODY) {
-            validateAt("raw body field '" + mapping.bodyField() + "'", () -> {
-                if (requireField(schema, mapping.bodyField()) != Type.BYTES) throw invalidType();
-            });
+        if (calls > ir.limits().maxFunctionCallsPerMapping()) {
+            throw BindingValidationException.annotate(invalid("FUNCTION_CALL_LIMIT", "mapping function limit"),
+                    BindingValidationException.Context.part("mapping"));
         }
-        mapping.fields().forEach(field -> validateAt("mapping field '" + field.field() + "'",
+        if (mapping.kind() == BindingIrV1.MappingKind.RAW_BODY) {
+            validateAt("raw body field '" + mapping.bodyField() + "'", "UNCLASSIFIED",
+                    BindingValidationException.Context.part("raw-body"), () -> {
+                        if (requireField(schema, mapping.bodyField()) != Type.BYTES) throw invalidType();
+                    });
+        }
+        mapping.fields().forEach(field -> validateAt("mapping field '" + field.field() + "'", "UNCLASSIFIED",
+                BindingValidationException.Context.field("mapping", field.field()),
                 () -> sourceType(field.source(), schema)));
         if (binding.target() instanceof CommandTarget target) {
-            CommandDescriptor command = command(target);
+            CommandDescriptor command;
+            try { command = command(target); }
+            catch (IllegalArgumentException invalid) {
+                throw BindingValidationException.annotate(invalid,
+                        BindingValidationException.Context.part("target-command"));
+            }
             if (mapping.kind() == BindingIrV1.MappingKind.RAW_BODY) {
                 // Raw bytes can select any opcode understood by the target codec, not just the
                 // command named in the binding. Never let a harmless descriptor hide an evidence path.
                 for (var candidate : kernel(target.component()).commands()) {
                     for (var field : candidate.fields()) {
                         if (field.role() == CommandDescriptor.Role.EVIDENCE) {
-                            throw new IllegalArgumentException("raw body field '" + mapping.bodyField()
-                                    + "', target command '" + candidate.commandName() + "' evidence field '"
-                                    + field.name() + "': BINDING_EVIDENCE_UNSATISFIABLE");
+                            throw BindingValidationException.annotate(invalid("BINDING_EVIDENCE_UNSATISFIABLE",
+                                    "raw body field '" + mapping.bodyField() + "', target command '"
+                                            + candidate.commandName() + "' evidence field '" + field.name()
+                                            + "': BINDING_EVIDENCE_UNSATISFIABLE"),
+                                    BindingValidationException.Context.part("raw-body"));
                         }
                     }
                 }
@@ -234,18 +256,21 @@ public final class BindingProgram {
             }
             Map<String, BindingSourceV1> assigned = new LinkedHashMap<>();
             mapping.fields().forEach(field -> assigned.put(field.field(), field.source()));
-            if (command.layout() == CommandDescriptor.Layout.RAW_BYTES)
-                    throw new IllegalArgumentException("raw target requires raw mapping");
+            if (command.layout() == CommandDescriptor.Layout.RAW_BYTES) {
+                throw BindingValidationException.annotate(invalid("RAW_TARGET_REQUIRES_RAW_MAPPING",
+                        "raw target requires raw mapping"), BindingValidationException.Context.part("target"));
+            }
             for (CommandDescriptor.Field field : command.fields()) {
                 BindingSourceV1 source = assigned.remove(field.name());
                 validateAt("target field '" + field.name() + "'"
-                        + (field.role() == CommandDescriptor.Role.EVIDENCE ? " (evidence)" : ""), () -> {
+                        + (field.role() == CommandDescriptor.Role.EVIDENCE ? " (evidence)" : ""), "UNCLASSIFIED",
+                        BindingValidationException.Context.field("target-field", field.name()), () -> {
                     if (field.role() == CommandDescriptor.Role.EVIDENCE
                             && !(source instanceof BindingSourceV1.Field)) {
-                        throw new IllegalArgumentException("BINDING_EVIDENCE_UNSATISFIABLE");
+                        throw invalid("BINDING_EVIDENCE_UNSATISFIABLE", "BINDING_EVIDENCE_UNSATISFIABLE");
                     }
                     if (source == null && (field.required() || command.layout() != CommandDescriptor.Layout.MAP)) {
-                        throw new IllegalArgumentException("missing mapped field: " + field.name());
+                        throw invalid("MISSING_TARGET_FIELD", "missing mapped field: " + field.name());
                     }
                     if (source != null) {
                         Type type = sourceType(source, schema);
@@ -253,8 +278,11 @@ public final class BindingProgram {
                     }
                 });
             }
-            if (!assigned.isEmpty()) throw new IllegalArgumentException(
-                    "unknown target fields: " + String.join(", ", assigned.keySet()));
+            if (!assigned.isEmpty()) {
+                throw BindingValidationException.annotate(invalid("UNKNOWN_TARGET_FIELD",
+                        "unknown target fields: " + String.join(", ", assigned.keySet())),
+                        BindingValidationException.Context.field("target-field", assigned.keySet().iterator().next()));
+            }
         }
     }
 
@@ -265,7 +293,8 @@ public final class BindingProgram {
         try {
             return sourceTypeAt(source, schema);
         } catch (IllegalArgumentException invalid) {
-            throw at(location, invalid);
+            throw at(location, invalid, source instanceof BindingSourceV1.Expression ? "EXPRESSION_INVALID"
+                    : "UNCLASSIFIED", BindingValidationException.Context.NONE);
         }
     }
 
@@ -282,7 +311,8 @@ public final class BindingProgram {
             try {
                 args.add(sourceType(function.arguments().get(index), schema));
             } catch (IllegalArgumentException invalid) {
-                throw at("argument[" + index + "]", invalid);
+                throw at("argument[" + index + "]", invalid, "UNCLASSIFIED",
+                        BindingValidationException.Context.argument(index));
             }
         }
         Type first = args.getFirst();
@@ -303,13 +333,13 @@ public final class BindingProgram {
                 if (args.size() != 2 || first != Type.BYTES || args.get(1) != Type.TEXT) throw invalidType();
                 yield null; // Schema-opaque field: destination type must be checked on the resulting value.
             }
-            default -> throw new IllegalArgumentException("unknown binding function: " + function.functionId());
+            default -> throw invalid("UNKNOWN_FUNCTION", "unknown binding function: " + function.functionId());
         };
     }
 
     private void visit(String component, Set<String> active, Set<String> done) {
         if (done.contains(component)) return;
-        if (!active.add(component)) throw new IllegalArgumentException("cyclic binding graph");
+        if (!active.add(component)) throw invalid("CYCLIC_BINDING_GRAPH", "cyclic binding graph");
         for (Binding binding : ir.bindings()) {
             if (binding.sourceComponent().equals(component) && binding.target() instanceof CommandTarget target) {
                 visit(target.component(), active, done);
@@ -511,7 +541,7 @@ public final class BindingProgram {
     }
     private static Type requireField(Map<String, Type> fields, String name) {
         Type type = fields.get(name);
-        if (type == null) throw new IllegalArgumentException("unknown event field: " + name);
+        if (type == null) throw invalid("UNKNOWN_EVENT_FIELD", "unknown event field: " + name);
         return type;
     }
     private static int functionCount(BindingSourceV1 source) {
@@ -531,16 +561,23 @@ public final class BindingProgram {
         catch (NoSuchAlgorithmException impossible) { throw new IllegalStateException(impossible); }
     }
     private static IllegalArgumentException invalidType() {
-        return new IllegalArgumentException("binding type mismatch");
+        return invalid("BINDING_TYPE_MISMATCH", "binding type mismatch");
+    }
+
+    private static BindingValidationException invalid(String code, String message) {
+        return BindingValidationException.of(code, message);
     }
 
     /** Adds declaration-only context without rendering source records, which may contain private literals. */
-    private static void validateAt(String location, Runnable validation) {
+    private static void validateAt(String location, String fallbackCode, BindingValidationException.Context context,
+                                   Runnable validation) {
         try { validation.run(); }
-        catch (IllegalArgumentException invalid) { throw at(location, invalid); }
+        catch (IllegalArgumentException invalid) { throw at(location, invalid, fallbackCode, context); }
     }
 
-    private static IllegalArgumentException at(String location, IllegalArgumentException invalid) {
-        return new IllegalArgumentException(location + ": " + invalid.getMessage(), invalid);
+    /** Historical {@code "<location>: <message>"} wrapping, retaining a stable code and structured context. */
+    private static IllegalArgumentException at(String location, IllegalArgumentException invalid, String fallbackCode,
+                                               BindingValidationException.Context context) {
+        return BindingValidationException.wrap(location, invalid, fallbackCode, context);
     }
 }

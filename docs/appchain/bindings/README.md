@@ -24,6 +24,7 @@ archive includes the feature.
 | Intermediate | [3. Approval workflows](03-approval-workflows.md) | Propose, approve twice, and carry state across blocks |
 | Application developer | [4. Java integration](04-java-integration.md) | Submit normal commands with the Java APIs and inspect the workflow outcome |
 | Advanced | [5. Operations and upgrades](05-operations-and-upgrades.md) | Diagnose rejections, discover proof keys, size budgets and plan safe evolution |
+| Any level | [6. Author bindings in the Studio editor](06-guided-editor.md) | Build the same documents with catalog-guided forms, hand them to the CLI and read its reports |
 
 Start with chapter 1; it needs Java 25 and an extracted matching JVM distribution,
 but no Cardano funds, node cluster or private keys. Familiarity with YAML is enough.
@@ -75,15 +76,22 @@ and [upgrade planning](05-operations-and-upgrades.md#changing-a-workflow).
 
 ## Can I define bindings graphically?
 
-Not yet. Studio has a **read-only graph viewer**, not a drag-and-drop binding
-editor. It does not author conditions, field mappings or a new composite profile.
+Yes, with guided forms. Studio's **Bindings** page edits the same composite
+document you would write in YAML: components, bindings, conditions, typed
+mappings and limits, with a synchronized YAML view and dependency graph. An
+authoring catalog exported from your plugin bundles supplies the events,
+commands and fields. See [chapter 6](06-guided-editor.md).
 
-Today the workflow is: edit YAML, validate with the CLI, then inspect the graph.
-The CLI's `graph` command exports Graphviz DOT. Studio's
-**Inspect a declarative binding graph** panel accepts a capability-manifest JSON
-snapshot and displays components and edges. The next chapter shows how to
-produce the snapshot. Neither graph authenticates chain identity or authorizes
-an upgrade; Studio does not modify your blueprint when importing it.
+The editor is not a separate workflow language or a drag-to-connect designer.
+The YAML document and its compiled IR stay authoritative, graph positions are
+presentation only, and Studio never compiles, runs or deploys anything: you hand
+the document to the version-matched CLI and import its reports to see
+diagnostics and rehearsal outcomes. Imported reports are unauthenticated files.
+
+Studio also keeps its **read-only graph viewer** for a capability-manifest
+snapshot, such as the one chapter 1 extracts from `validate` output. The CLI's `graph` command
+exports Graphviz DOT. Neither graph authenticates chain identity or authorizes an
+upgrade.
 
 ## When to use Java instead
 

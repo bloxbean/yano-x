@@ -366,7 +366,7 @@ tasks.register('yanoXJvmDistZip', Zip) {
         }
         from(rootProject.file('examples/bindings')) {
             into 'examples/bindings'
-            include '*.yaml', '*.md'
+            include '*.yaml', '*.md', 'fixtures/*/fixture-*.json'
         }
         from(rootProject.file('docs')) {
             into 'docs'
@@ -615,6 +615,13 @@ tasks.register('verifyYanoXJvmDistribution') {
                     'tools/yano-deploy/bin/yano-x-deploy',
                     'sbom/yano.cdx.json',
                     'studio/index.html',
+                    'studio/bindings.html',
+                    'studio/binding-authoring-catalog.json',
+                    'studio/binding-authoring-context.json',
+                    'studio/assets/bindings/registry-to-audit.yaml',
+                    'studio/assets/bindings/approval-to-audit.yaml',
+                    'studio/assets/bindings/fixtures/approval-to-audit/fixture-4.json',
+                    'examples/bindings/fixtures/registry-to-audit/fixture-1.json',
                     'product-ui/attest/index.html',
                     'product-ui/attest/attest-ui-config.json',
                     'sbom/attest-ui.cdx.json',

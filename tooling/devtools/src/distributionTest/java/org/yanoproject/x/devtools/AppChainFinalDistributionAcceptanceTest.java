@@ -178,6 +178,50 @@ class AppChainFinalDistributionAcceptanceTest {
         return result;
     }
 
+    /**
+     * ADR-031.2 C1 and M3: the reference authoring catalog shipped in the archive's Studio is exactly what the
+     * archive's own launcher exports for the tutorial context over the three first-party composable bundles,
+     * identity included, so reports from that tool and those bundles match it. The documented {@code catalog} and
+     * {@code --report} paths are exercised through {@code yano.sh}.
+     */
+    @Test
+    void shippedStudioCatalogIsWhatTheArchiveLauncherExports() throws Exception {
+        Path release = extractRelease(Path.of(System.getProperty("yano.test.final-yano-dist-zip")),
+                temporary.resolve("studio-catalog-release"));
+        Path launcher = release.resolve("yano.sh");
+        assertThat(release.resolve("tools/yano-appchain/bin/yano-appchain").toFile().setExecutable(true)).isTrue();
+        Path plugins = Files.createDirectory(temporary.resolve("studio-catalog-plugins"));
+        List<String> bundles = List.of("yano-x-composite-bundle-", "yano-x-role-workflow-bundle-",
+                "yano-x-stdlib-bundle-");
+        for (String bundle : bundles) {
+            try (var files = Files.list(release.resolve("plugins"))) {
+                Path jar = files.filter(file -> file.getFileName().toString().startsWith(bundle)).findFirst()
+                        .orElseThrow(() -> new AssertionError("missing packaged bundle " + bundle));
+                Files.copy(jar, plugins.resolve(jar.getFileName()));
+            }
+        }
+        Path context = release.resolve("studio/binding-authoring-context.json");
+        Result catalog = run(launcher, List.of("appchain", "bindings", "catalog", "--plugins-directory",
+                plugins.toString(), "--context", context.toString(), "--all"));
+        assertThat(catalog.exit()).as(catalog.error()).isZero();
+        ObjectMapper json = new ObjectMapper();
+        JsonNode exported = json.readTree(catalog.output());
+        JsonNode shipped = json.readTree(release.resolve("studio/binding-authoring-catalog.json").toFile());
+        assertThat(exported).as("regenerate with ./gradlew :tooling:devtools:regenerateStudioFixtures")
+                .isEqualTo(shipped);
+
+        Path report = temporary.resolve("studio-validate-report.json");
+        Result validate = run(launcher, List.of("appchain", "bindings", "validate",
+                release.resolve("studio/assets/bindings/registry-to-audit.yaml").toString(), "--plugins-directory",
+                plugins.toString(), "--context", context.toString(), "--report", report.toString()));
+        assertThat(validate.exit()).as(validate.error()).isZero();
+        JsonNode written = json.readTree(report.toFile());
+        assertThat(written.path("schema").textValue()).isEqualTo("yano-x-binding-report-v1");
+        assertThat(written.path("operationOutcome").textValue()).isEqualTo("completed");
+        assertThat(written.path("catalog")).isEqualTo(shipped.path("catalog"));
+        assertThat(written.path("producer")).isEqualTo(shipped.path("producer"));
+    }
+
     /** Rehearses the shipped worked example with fresh commands and processes an explicit idle block. */
     @Test
     void packagedProposalAndTwoVotesCarryStateAndRejectSkippedEmptyHeights() throws Exception {

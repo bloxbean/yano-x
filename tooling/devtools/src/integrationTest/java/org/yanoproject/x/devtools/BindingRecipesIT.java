@@ -382,7 +382,29 @@ class BindingRecipesIT {
         assertThat(ProofVerifier.verifyCertified(proof, trust)).isTrue();
     }
 
-    private static AuthenticatedMapContract.Genesis productGenesis(String yaml) throws Exception {
+    /**
+     * The exact offline catalog context the live recipe qualification uses for {@code recipe}: product genesis
+     * chains are governed, procurement enables effects. Shared with the Studio round-trip test.
+     */
+    static BindingCatalogSession.ContextInput recipeContext(String recipe, String yaml) throws Exception {
+        var genesis = productGenesis(yaml);
+        String chain = genesis == null ? "binding-" + recipe + "-parity" : genesis.chainId();
+        List<byte[]> seeds = memberSeeds();
+        List<String> members = seeds.stream().map(KeyGenUtil::getPublicKeyFromPrivateKey)
+                .map(BindingRecipesIT::hex).sorted().toList();
+        var identity = StateCommitmentIdentity.explicit(StateCommitmentProfiles.MPF,
+                MessageDigest.getInstance("SHA-256").digest(chain.getBytes(StandardCharsets.UTF_8)));
+        Map<String, String> hostSettings = genesis != null ? Map.of("membership.mode", "governed")
+                : recipe.equals("procurement") ? Map.of("effects.enabled", "true") : Map.of();
+        long interval = genesis == null ? 100 : 1000;
+        var base = configuration(chain, seeds.getFirst(), members, identity, hostSettings, interval, List.of());
+        var contextSettings = new LinkedHashMap<>(identity.settings());
+        contextSettings.putAll(hostSettings);
+        return new BindingCatalogSession.ContextInput(chain, contextSettings,
+                AppChainEffectsConfig.from(base).consensusProfile(base), new AppChainMembershipEpoch(0, members, 2));
+    }
+
+    static AuthenticatedMapContract.Genesis productGenesis(String yaml) throws Exception {
         var document = new ObjectMapper(new YAMLFactory()).readTree(yaml);
         for (var component : document.path("composite").path("components")) {
             if (component.path("machine").asText().equals("authenticated-map-component")) {
@@ -393,7 +415,7 @@ class BindingRecipesIT {
         return null;
     }
 
-    private static AppChainConfig configuration(String chain, byte[] seed, List<String> members,
+    static AppChainConfig configuration(String chain, byte[] seed, List<String> members,
                                                   StateCommitmentIdentity identity, Map<String, String> settings,
                                                   long interval, List<AppChainConfig.AppPeer> peers) {
         return AppChainConfig.builder(chain).signingKeyHex(hex(seed)).memberKeysHex(new LinkedHashSet<>(members))
@@ -401,7 +423,7 @@ class BindingRecipesIT {
                 .stateCommitmentIdentity(identity).stateMachineId(BindingCatalogSession.MACHINE)
                 .pluginSettings(settings).build();
     }
-    private static List<byte[]> memberSeeds() {
+    static List<byte[]> memberSeeds() {
         List<byte[]> values = new ArrayList<>();
         for (int index = 0; index < 3; index++) {
             byte[] seed = new byte[32]; seed[0] = (byte) (111 + index); values.add(seed);
@@ -413,7 +435,7 @@ class BindingRecipesIT {
         while (values.size() < 3) try (ServerSocket socket = new ServerSocket(0)) { values.add(socket.getLocalPort()); }
         return List.copyOf(values);
     }
-    private static String hex(byte[] bytes) { return HexFormat.of().formatHex(bytes); }
+    static String hex(byte[] bytes) { return HexFormat.of().formatHex(bytes); }
     private static void await(BooleanSupplier ready) throws Exception {
         long deadline = System.nanoTime() + 30_000_000_000L;
         while (System.nanoTime() < deadline) {

@@ -15,6 +15,10 @@
       <span class="brand-mark" aria-hidden="true"></span>
       <span>Yano <strong>App-Chain Studio</strong></span>
     </a>
+    <nav class="studio-nav" aria-label="Studio">
+      <a href="index.html" aria-current="page">Blueprint</a>
+      <a href="bindings.html">Bindings</a>
+    </nav>
     <span id="release" class="release">Loading release…</span>
   </header>
 
@@ -100,7 +104,8 @@
         <details>
           <summary>Inspect a declarative binding graph</summary>
           <p class="note">Import a capability-manifest JSON snapshot. This local, read-only preview does not
-            verify chain identity, install plugins, or change your blueprint.</p>
+            verify chain identity, install plugins, or change your blueprint. To author or change bindings, use the
+            <a href="bindings.html">binding editor</a>.</p>
           <label>Manifest snapshot<input id="binding-manifest" type="file" accept="application/json,.json"></label>
           <p id="binding-graph-status" class="note" role="status" aria-live="polite"></p>
           <div id="binding-graph" class="binding-graph"></div>

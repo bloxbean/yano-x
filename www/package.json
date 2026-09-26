@@ -13,7 +13,8 @@
     "astro": "astro",
     "check:links": "node scripts/check-links.mjs",
     "check:mermaid": "node scripts/check-mermaid.mjs",
-    "check:browser": "playwright test"
+    "check:browser": "playwright test",
+    "check:studio": "playwright test -c playwright.studio.config.mjs"
   },
   "dependencies": {
     "@astrojs/starlight": "^0.38.3",
@@ -23,6 +24,7 @@
     "typescript": "^5.9.3"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
     "@playwright/test": "^1.63.0"
   }
 }

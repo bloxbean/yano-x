@@ -107,6 +107,43 @@ artifact identity and that runtime plugins have bundle publications.
 Distribution assembly additionally needs Yano's ordinary JVM ZIP; see
 [BUILD_DISTRIBUTIONS.md](BUILD_DISTRIBUTIONS.md).
 
+### Studio binding editor gates
+
+```bash
+./gradlew :tooling:studio:testStudio            # Node unit, contract and differential tests
+./gradlew :tooling:studio:browserTestStudio     # Chromium, keyboard and axe accessibility tests
+./gradlew :tooling:devtools:integrationTest --tests '*Studio*' --tests '*BindingEditorToolingIT' \
+  --tests '*CliCompatibilityIT'
+./gradlew :tooling:devtools:distributionTest     # includes the shipped-catalog regeneration gate
+./gradlew :tooling:devtools:finalDistributionBindingEditorAcceptance
+```
+
+`testStudio` checks Studio's YAML and receipt decoders against oracles produced by
+the Java parser and decoder. `browserTestStudio` uses the docsite's Playwright
+installation (run `npm ci` and `npx playwright install chromium` in `www/` once)
+and the packaged CLI to recompile and rehearse documents exported from the
+browser. `CliCompatibilityIT` requires the current CLI to reproduce outputs
+recorded from the launcher before the editor tooling existed.
+`finalDistributionBindingEditorAcceptance` runs the keyboard-authored document and
+its CLI-authored equivalent, one after the other, on fresh three-node devnets from
+the final archive on ports 29870–29872 and 29470–29472. Both must pin the same IR,
+profile and plugin catalog; within each run the three nodes and a restarted node
+must agree on the receipt bytes and root; across the runs the finalized height and
+the decoded receipt must be equal apart from the message ids the node assigns to
+each submission. It needs `bash`, `curl`, `jq`, `lsof`, `unzip` and
+`node`, clears `YANO_*`/`QUARKUS_*` overrides from its environment, refuses the
+retained deployment's ports and never touches an existing deployment.
+
+`distributionTest` also checks that the reference catalog shipped in the archive's
+Studio is exactly what the archive's own launcher exports for the tutorial context
+over the three first-party composable bundles.
+
+The shipped reference catalog and the Studio test fixtures are generated from the
+real CLI: `./gradlew :tooling:devtools:regenerateStudioFixtures` (it refuses
+Maven Local, staging repositories and SNAPSHOT host versions). Drift is checked by
+`StudioFixturesIT`; the starter fixtures it writes to `examples/bindings/fixtures/`
+ship with Studio and the distribution.
+
 ## Reproduce settlement artifacts
 
 The bundled settlement validators must reproduce with the published Julc

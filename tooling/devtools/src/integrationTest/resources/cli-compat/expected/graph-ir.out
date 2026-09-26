@@ -1,0 +1,6 @@
+digraph bindings {
+  rankdir=LR;
+  "records" [label="records\nkv-registry"];
+  "audit" [label="audit\ndoc-trail"];
+  "records" -> "audit" [label="audit-record\nkv-registry.entry-put.v1 → append\nconditions=1"];
+}

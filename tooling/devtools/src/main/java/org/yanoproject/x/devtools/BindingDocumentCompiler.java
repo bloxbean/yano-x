@@ -1,6 +1,7 @@
 package org.yanoproject.x.devtools;
 
 import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.StreamReadConstraints;
 import com.fasterxml.jackson.core.StreamReadFeature;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -8,6 +9,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.dataformat.yaml.YAMLParser;
 import org.yanoproject.api.appchain.transition.ConfigurationDescriptor;
+import org.yanoproject.x.composite.contracts.BindingExpressionV1;
 import org.yanoproject.x.composite.contracts.BindingExpressionV1.Type;
 import org.yanoproject.x.composite.contracts.BindingIrV1;
 import org.yanoproject.x.composite.contracts.BindingIrV1.Assignment;
@@ -93,12 +95,15 @@ public final class BindingDocumentCompiler {
         Map<String, Type> eventFields(Component component, String eventId);
     }
 
-    private static final List<String> LIMIT_NAMES = List.of("maxCascadeDepth", "maxDerivedPerSourceMessage",
+    /** Limit field names in {@code LimitsV1} wire order; shared with the authoring-language export. */
+    static final List<String> LIMIT_NAMES = List.of("maxCascadeDepth", "maxDerivedPerSourceMessage",
             "maxDerivedPerBlock", "maxEventPayloadBytes", "maxLookupsPerCondition", "maxFunctionCallsPerMapping",
             "maxFunctionInputBytes", "maxExpressionNodes", "maxExpressionDepth", "maxExpressionValueBytes",
             "maxExpressionWorkPerCascade", "maxExpressionWorkPerBlock");
-    private static final Set<String> FUNCTIONS = Set.of("blake2b-256", "sha-256", "concat", "utf8-bytes",
+    /** Function identifiers accepted by authoring; profile construction still validates signatures. */
+    static final Set<String> FUNCTIONS = Set.of("blake2b-256", "sha-256", "concat", "utf8-bytes",
             "hex", "byte-length", "cbor-encode", "cbor-field");
+    private static final BindingDocumentPath ROOT = BindingDocumentPath.ROOT;
 
     private BindingDocumentCompiler() { }
 
@@ -115,9 +120,14 @@ public final class BindingDocumentCompiler {
         return compile(parseDocument(yaml), catalog);
     }
 
-    /** Retains authored values for a blueprint while enforcing the same lexical bounds as direct compilation. */
+    /**
+     * Retains authored values for a blueprint while enforcing the same lexical bounds as direct compilation.
+     * Failures are {@link BindingAuthoringException}s with one-based UTF-16 source positions where known.
+     */
     static JsonNode parseDocument(String yaml) {
-        if (yaml == null || yaml.length() > MAX_SOURCE_CHARACTERS) throw fail("$", "source limit exceeded");
+        if (yaml == null || yaml.length() > MAX_SOURCE_CHARACTERS) {
+            throw fail("DOCUMENT_TOO_LARGE", ROOT, "source limit exceeded");
+        }
         YAMLFactory factory = YAMLFactory.builder()
                 .streamReadConstraints(StreamReadConstraints.builder().maxNestingDepth(48)
                         .maxStringLength(65_536).maxNumberLength(32).build())
@@ -127,20 +137,25 @@ public final class BindingDocumentCompiler {
         try (YAMLParser scan = factory.createParser(yaml)) {
             int count = 0;
             while (scan.nextToken() != null) {
-                if (++count > 32_768) throw fail("$", "document token limit");
+                if (++count > 32_768) throw fail("DOCUMENT_TOO_LARGE", ROOT, "document token limit");
                 if (scan.isCurrentAlias() || scan.getCurrentAnchor() != null || scan.getTypeId() != null) {
-                    throw fail("$", "YAML aliases, anchors, and explicit tags are not supported");
+                    throw located(fail("YAML_FORBIDDEN_CONSTRUCT", ROOT,
+                            "YAML aliases, anchors, and explicit tags are not supported"), scan.currentLocation(),
+                            yaml);
                 }
             }
         } catch (IOException error) {
-            throw new IllegalArgumentException("$: invalid binding YAML: " + error.getMessage(), error);
+            throw yamlFailure(error, yaml);
         }
         try (JsonParser parser = factory.createParser(yaml)) {
             JsonNode root = mapper.readTree(parser);
-            if (parser.nextToken() != null) throw fail("$", "only one YAML document is allowed");
+            if (parser.nextToken() != null) {
+                throw located(fail("YAML_MULTIPLE_DOCUMENTS", ROOT, "only one YAML document is allowed"),
+                        parser.currentLocation(), yaml);
+            }
             return root;
         } catch (IOException error) {
-            throw new IllegalArgumentException("$: invalid binding YAML: " + error.getMessage(), error);
+            throw yamlFailure(error, yaml);
         }
     }
 
@@ -155,179 +170,250 @@ public final class BindingDocumentCompiler {
     public static BindingIrV1 compile(JsonNode root, DescriptorCatalog catalog) {
         Objects.requireNonNull(catalog, "catalog");
         if (root != null && root.has("composite")) {
-            object(root, "$", "composite");
+            object(root, ROOT, "composite");
             JsonNode composite = root.get("composite");
-            if (composite.has("composite")) throw fail("$.composite", "nested wrappers are not supported");
+            if (composite.has("composite")) {
+                throw fail("NESTED_WRAPPER", ROOT.field("composite"), "nested wrappers are not supported");
+            }
             try { return compile(composite, catalog); }
             catch (IllegalArgumentException error) {
                 String message = error.getMessage() == null ? error.getClass().getSimpleName() : error.getMessage();
-                throw new IllegalArgumentException(message.startsWith("$")
-                        ? "$.composite" + message.substring(1) : "$.composite: " + message, error);
+                String rerooted = message.startsWith("$") ? "$.composite" + message.substring(1)
+                        : "$.composite: " + message;
+                if (error instanceof BindingAuthoringException authored) throw authored.under("composite", rerooted);
+                throw new BindingAuthoringException("UNCLASSIFIED", ROOT.field("composite"), rerooted, error);
             }
         }
-        object(root, "$", "components", "bindings", "limits", "workflowFromHeight");
-        Limits limits = at("$.limits", () -> limits(root.get("limits")));
+        object(root, ROOT, "components", "bindings", "limits", "workflowFromHeight");
+        Limits limits = at("DOCUMENT_STRUCTURE_INVALID", ROOT.field("limits"), () -> limits(root.get("limits")));
         List<Component> components = new ArrayList<>();
         Map<String, Component> byId = new LinkedHashMap<>();
-        JsonNode componentNodes = array(required(root, "components", "$"), "$.components", 16);
+        JsonNode componentNodes = array(required(root, "components", ROOT), ROOT.field("components"), 16);
         for (int i = 0; i < componentNodes.size(); i++) {
-            String path = "$.components[" + i + "]";
-            JsonNode node = componentNodes.get(i);
-            object(node, path, "id", "machine", "topic", "config", "maxEffectsPerBlock", "fromHeight");
-            String id = text(required(node, "id", path), path + ".id");
-            String machine = text(required(node, "machine", path), path + ".machine");
-            Map<String, Object> supplied = new LinkedHashMap<>();
-            if (node.has("config")) {
-                JsonNode config = node.get("config");
-                if (!config.isObject() || config.size() > 64) throw fail(path + ".config", "expected bounded map");
-                config.properties().forEach(entry -> supplied.put(entry.getKey(),
-                        scalar(entry.getValue(), path + ".config." + entry.getKey())));
-            }
+            // Read and normalize each component before the next, preserving historical first-error order.
+            AuthoredComponent authored = authoredComponent(componentNodes.get(i), i);
+            BindingDocumentPath path = authored.path();
+            JsonNode node = authored.node();
+            Map<String, Object> supplied = authored.configuration();
             Map<String, BindingSourceV1.Literal> normalized = new LinkedHashMap<>();
-            at(path + ".config", () -> {
-                catalog.configuration(machine, Map.copyOf(supplied)).normalize(supplied).forEach((key, value) ->
-                        normalized.put(key, new BindingSourceV1.Literal(value)));
+            at("COMPONENT_CONFIGURATION_INVALID", path.field("config"), () -> {
+                catalog.configuration(authored.machine(), Map.copyOf(supplied)).normalize(supplied)
+                        .forEach((key, value) -> normalized.put(key, new BindingSourceV1.Literal(value)));
                 return normalized;
             });
-            Component component = at(path, () -> new Component(id, machine,
-                    optionalText(node, "topic", id + ".command.v1", path), normalized,
+            Component component = at("DOCUMENT_STRUCTURE_INVALID", path, () -> new Component(authored.id(),
+                    authored.machine(), optionalText(node, "topic", authored.id() + ".command.v1", path), normalized,
                     integer(node, "maxEffectsPerBlock", 0, path), number(node, "fromHeight", 1, path)));
-            if (byId.putIfAbsent(id, component) != null) throw fail(path + ".id", "duplicate component");
+            if (byId.putIfAbsent(authored.id(), component) != null) {
+                throw fail("DUPLICATE_COMPONENT", path.field("id"), "duplicate component");
+            }
             components.add(component);
         }
         List<Binding> bindings = new ArrayList<>();
-        JsonNode bindingNodes = array(required(root, "bindings", "$"), "$.bindings", 256);
+        JsonNode bindingNodes = array(required(root, "bindings", ROOT), ROOT.field("bindings"), 256);
         for (int i = 0; i < bindingNodes.size(); i++) {
-            String path = "$.bindings[" + i + "]";
+            BindingDocumentPath path = ROOT.field("bindings").index(i);
             JsonNode node = bindingNodes.get(i);
             object(node, path, "id", "from", "when", "to");
             JsonNode from = required(node, "from", path);
-            object(from, path + ".from", "component", "event");
-            String source = text(required(from, "component", path + ".from"), path + ".from.component");
-            String event = text(required(from, "event", path + ".from"), path + ".from.event");
+            object(from, path.field("from"), "component", "event");
+            String source = text(required(from, "component", path.field("from")),
+                    path.field("from").field("component"));
+            String event = text(required(from, "event", path.field("from")), path.field("from").field("event"));
             Component component = byId.get(source);
-            if (component == null) throw fail(path + ".from.component", "unknown component");
-            Map<String, Type> fields = at(path + ".from.event",
+            if (component == null) {
+                throw fail("UNKNOWN_COMPONENT", path.field("from").field("component"), "unknown component");
+            }
+            Map<String, Type> fields = at("EVENT_UNAVAILABLE", path.field("from").field("event"),
                     () -> Map.copyOf(catalog.eventFields(component, event)));
             List<Clause> clauses = new ArrayList<>();
             if (node.has("when")) {
-                JsonNode conditions = array(node.get("when"), path + ".when", 8);
+                JsonNode conditions = array(node.get("when"), path.field("when"), 8);
                 for (int c = 0; c < conditions.size(); c++) {
-                    String clausePath = path + ".when[" + c + "]";
+                    BindingDocumentPath clausePath = path.field("when").index(c);
                     JsonNode condition = conditions.get(c);
-                    clauses.add(at(clausePath, () -> clause(condition, clausePath, fields, limits)));
+                    clauses.add(at("DOCUMENT_STRUCTURE_INVALID", clausePath,
+                            () -> clause(condition, clausePath, fields, limits)));
                 }
             }
-            Target target = at(path + ".to", () -> target(required(node, "to", path), path + ".to", fields, limits));
+            Target target = at("DOCUMENT_STRUCTURE_INVALID", path.field("to"),
+                    () -> target(required(node, "to", path), path.field("to"), fields, limits));
             if (target instanceof CommandTarget command && !byId.containsKey(command.component())) {
-                throw fail(path + ".to.component", "unknown component");
+                throw fail("UNKNOWN_COMPONENT", path.field("to").field("component"), "unknown component");
             }
             for (Clause clause : clauses) {
                 if (clause instanceof LookupClause lookup && !byId.containsKey(lookup.participant())) {
-                    throw fail(path + ".when", "unknown lookup component");
+                    throw fail("UNKNOWN_COMPONENT", path.field("when"), "unknown lookup component");
                 }
             }
-            bindings.add(at(path, () -> new Binding(text(required(node, "id", path), path + ".id"),
-                    source, event, clauses, target)));
+            bindings.add(at("DOCUMENT_STRUCTURE_INVALID", path, () -> new Binding(
+                    text(required(node, "id", path), path.field("id")), source, event, clauses, target)));
         }
-        BindingIrV1 ir = at("$", () -> new BindingIrV1(components, bindings, limits,
-                number(root, "workflowFromHeight", 1, "$")));
-        at("$", ir::encode); // Enforce the canonical envelope byte limit before returning an apparently valid result.
+        BindingIrV1 ir = at("DOCUMENT_STRUCTURE_INVALID", ROOT, () -> new BindingIrV1(components, bindings, limits,
+                number(root, "workflowFromHeight", 1, ROOT)));
+        // Enforce the canonical envelope byte limit before returning an apparently valid result.
+        at("DOCUMENT_SIZE_LIMIT", ROOT, ir::encode);
         return ir;
     }
 
-    private static Clause clause(JsonNode node, String path, Map<String, Type> fields, Limits limits) {
+    /**
+     * One authored component before catalog normalization: exact machine id and exact typed configuration as
+     * written. Used for descriptor probing; it never materializes defaults.
+     *
+     * @param index zero-based position in {@code components}
+     * @param path exact document path of the component object
+     * @param id authored instance id
+     * @param machine authored machine selector
+     * @param configuration authored settings in document order (values are Long, String, Boolean or byte[])
+     * @param node the authored component object
+     */
+    record AuthoredComponent(int index, BindingDocumentPath path, String id, String machine,
+                             Map<String, Object> configuration, JsonNode node) { }
+
+    /**
+     * Reads the authored components of a composite body (not the wrapper) with the compiler's own structural rules,
+     * without consulting any catalog.
+     */
+    static List<AuthoredComponent> authoredComponents(JsonNode root) {
+        if (root != null && root.has("composite")) {
+            object(root, ROOT, "composite");
+            try { return authoredComponents(root.get("composite")); }
+            catch (BindingAuthoringException error) {
+                String message = error.getMessage();
+                throw error.under("composite", message.startsWith("$") ? "$.composite" + message.substring(1)
+                        : "$.composite: " + message);
+            }
+        }
+        object(root, ROOT, "components", "bindings", "limits", "workflowFromHeight");
+        List<AuthoredComponent> result = new ArrayList<>();
+        JsonNode componentNodes = array(required(root, "components", ROOT), ROOT.field("components"), 16);
+        for (int i = 0; i < componentNodes.size(); i++) result.add(authoredComponent(componentNodes.get(i), i));
+        return List.copyOf(result);
+    }
+
+    private static AuthoredComponent authoredComponent(JsonNode node, int index) {
+        BindingDocumentPath path = ROOT.field("components").index(index);
+        object(node, path, "id", "machine", "topic", "config", "maxEffectsPerBlock", "fromHeight");
+        String id = text(required(node, "id", path), path.field("id"));
+        String machine = text(required(node, "machine", path), path.field("machine"));
+        Map<String, Object> supplied = new LinkedHashMap<>();
+        if (node.has("config")) {
+            JsonNode config = node.get("config");
+            if (!config.isObject() || config.size() > 64) {
+                throw fail("EXPECTED_OBJECT", path.field("config"), "expected bounded map");
+            }
+            config.properties().forEach(entry -> supplied.put(entry.getKey(),
+                    scalar(entry.getValue(), path.field("config").field(entry.getKey()))));
+        }
+        return new AuthoredComponent(index, path, id, machine, java.util.Collections.unmodifiableMap(supplied), node);
+    }
+
+    private static Clause clause(JsonNode node, BindingDocumentPath path, Map<String, Type> fields, Limits limits) {
         if (node != null && node.has("expr")) {
             object(node, path, "expr");
-            return new ExpressionClause(BindingExpressionCompiler.compile(
-                    text(node.get("expr"), path + ".expr"), fields, limits));
+            // Historical messages name the clause, not its expr field; the location still records the field.
+            String source = text(node.get("expr"), path.field("expr"));
+            return new ExpressionClause(at("EXPRESSION_INVALID", path, path.field("expr"),
+                    () -> BindingExpressionCompiler.compile(source, fields, limits)));
         }
         if (node != null && node.has("lookup")) {
             object(node, path, "lookup");
             JsonNode lookup = node.get("lookup");
-            object(lookup, path + ".lookup", "component", "key", "exists", "absent", "eq");
-            String operator = exactlyOne(lookup, path + ".lookup", List.of("exists", "absent", "eq"));
+            BindingDocumentPath lookupPath = path.field("lookup");
+            object(lookup, lookupPath, "component", "key", "exists", "absent", "eq");
+            String operator = exactlyOne(lookup, lookupPath, List.of("exists", "absent", "eq"));
             Expectation expectation;
             BindingSourceV1 operand = null;
             if (operator.equals("eq")) {
-                operand = source(lookup.get(operator), path + ".lookup.eq", fields, limits, 0);
+                operand = source(lookup.get(operator), lookupPath.field("eq"), fields, limits, 0);
                 expectation = operand instanceof BindingSourceV1.Field ? Expectation.EQUAL_EVENT
                         : Expectation.EQUAL_LITERAL;
             } else {
-                requireTrue(lookup.get(operator), path + ".lookup." + operator);
+                requireTrue(lookup.get(operator), lookupPath.field(operator));
                 expectation = operator.equals("exists") ? Expectation.EXISTS : Expectation.ABSENT;
             }
-            return new LookupClause(text(required(lookup, "component", path), path + ".lookup.component"),
-                    source(required(lookup, "key", path), path + ".lookup.key", fields, limits, 0),
+            return new LookupClause(text(required(lookup, "component", path), lookupPath.field("component")),
+                    source(required(lookup, "key", path), lookupPath.field("key"), fields, limits, 0),
                     expectation, operand);
         }
         object(node, path, "field", "eq", "ne", "lt", "le", "gt", "ge", "in", "exists", "absent");
         String operator = exactlyOne(node, path, List.of("eq", "ne", "lt", "le", "gt", "ge", "in",
                 "exists", "absent"));
-        String field = text(required(node, "field", path), path + ".field");
-        if (!fields.containsKey(field)) throw fail(path + ".field", "unknown event field");
+        String field = text(required(node, "field", path), path.field("field"));
+        if (!fields.containsKey(field)) throw fail("UNKNOWN_EVENT_FIELD", path.field("field"), "unknown event field");
         List<BindingSourceV1.Literal> values = new ArrayList<>();
         if (operator.equals("in")) {
-            JsonNode options = array(node.get(operator), path + ".in", 64);
-            for (JsonNode option : options) values.add(new BindingSourceV1.Literal(scalar(option, path + ".in")));
+            JsonNode options = array(node.get(operator), path.field("in"), 64);
+            for (JsonNode option : options) values.add(new BindingSourceV1.Literal(scalar(option, path.field("in"))));
         } else if (operator.equals("exists") || operator.equals("absent")) {
-            requireTrue(node.get(operator), path + "." + operator);
-        } else values.add(new BindingSourceV1.Literal(scalar(node.get(operator), path + "." + operator)));
+            requireTrue(node.get(operator), path.field(operator));
+        } else values.add(new BindingSourceV1.Literal(scalar(node.get(operator), path.field(operator))));
         return new FieldClause(field, Operator.valueOf(operator.toUpperCase(Locale.ROOT)), values);
     }
 
-    private static Target target(JsonNode node, String path, Map<String, Type> fields, Limits limits) {
+    private static Target target(JsonNode node, BindingDocumentPath path, Map<String, Type> fields, Limits limits) {
         if (node != null && node.has("effect")) {
             object(node, path, "effect");
             JsonNode effect = node.get("effect");
-            object(effect, path + ".effect", "type", "gate", "result", "expiryBlocks", "map", "rawBody");
-            return new EffectTarget(text(required(effect, "type", path), path + ".effect.type"),
+            BindingDocumentPath effectPath = path.field("effect");
+            object(effect, effectPath, "type", "gate", "result", "expiryBlocks", "map", "rawBody");
+            return new EffectTarget(text(required(effect, "type", path), effectPath.field("type")),
                     optionalText(effect, "gate", "app-final", path), optionalText(effect, "result", "none", path),
-                    number(effect, "expiryBlocks", 0, path), mapping(effect, path + ".effect", fields, limits));
+                    number(effect, "expiryBlocks", 0, path), mapping(effect, effectPath, fields, limits));
         }
         object(node, path, "component", "command", "map", "rawBody");
-        return new CommandTarget(text(required(node, "component", path), path + ".component"),
-                text(required(node, "command", path), path + ".command"), mapping(node, path, fields, limits));
+        return new CommandTarget(text(required(node, "component", path), path.field("component")),
+                text(required(node, "command", path), path.field("command")), mapping(node, path, fields, limits));
     }
 
-    private static Mapping mapping(JsonNode parent, String path, Map<String, Type> fields, Limits limits) {
+    private static Mapping mapping(JsonNode parent, BindingDocumentPath path, Map<String, Type> fields, Limits limits) {
         String kind = exactlyOne(parent, path, List.of("map", "rawBody"));
         JsonNode node = parent.get(kind);
         if (kind.equals("rawBody")) {
-            String field = text(node, path + ".rawBody");
-            if (fields.get(field) != Type.BYTES) throw fail(path + ".rawBody", "expected bytes-typed event field");
+            String field = text(node, path.field("rawBody"));
+            if (fields.get(field) != Type.BYTES) {
+                throw fail("BINDING_TYPE_MISMATCH", path.field("rawBody"), "expected bytes-typed event field");
+            }
             return Mapping.raw(field);
         }
         if (node.isTextual() && node.textValue().equals("identity")) return Mapping.identity();
-        if (!node.isObject() || node.isEmpty() || node.size() > 16) throw fail(path + ".map", "expected field map");
+        if (!node.isObject() || node.isEmpty() || node.size() > 16) {
+            throw fail("EXPECTED_OBJECT", path.field("map"), "expected field map");
+        }
         List<Assignment> assignments = node.properties().stream().sorted(Map.Entry.comparingByKey())
                 .map(entry -> new Assignment(entry.getKey(),
-                        source(entry.getValue(), path + ".map." + entry.getKey(), fields, limits, 0))).toList();
+                        source(entry.getValue(), path.field("map").field(entry.getKey()), fields, limits, 0))).toList();
         return Mapping.fields(assignments);
     }
 
-    private static BindingSourceV1 source(JsonNode node, String path, Map<String, Type> fields,
+    private static BindingSourceV1 source(JsonNode node, BindingDocumentPath path, Map<String, Type> fields,
                                            Limits limits, int depth) {
-        if (depth > 2) throw fail(path, "function nesting limit");
+        if (depth > 2) throw fail("FUNCTION_NESTING_LIMIT", path, "function nesting limit");
         object(node, path, "field", "literal", "fn", "args", "expr");
         String kind = exactlyOne(node, path, List.of("field", "literal", "fn", "expr"));
-        if (!kind.equals("fn") && node.has("args")) throw fail(path + ".args", "only functions accept args");
+        if (!kind.equals("fn") && node.has("args")) {
+            throw fail("ONLY_FUNCTIONS_ACCEPT_ARGS", path.field("args"), "only functions accept args");
+        }
         return switch (kind) {
             case "field" -> {
-                String field = text(node.get(kind), path + ".field");
-                if (!fields.containsKey(field)) throw fail(path, "unknown event field: " + field);
+                String field = text(node.get(kind), path.field("field"));
+                if (!fields.containsKey(field)) {
+                    throw fail("UNKNOWN_EVENT_FIELD", path, "unknown event field: " + field);
+                }
                 yield new BindingSourceV1.Field(field);
             }
-            case "literal" -> new BindingSourceV1.Literal(scalar(node.get(kind), path + ".literal"));
-            case "expr" -> at(path + ".expr", () -> new BindingSourceV1.Expression(BindingExpressionCompiler.compile(
-                    text(node.get(kind), path + ".expr"), fields, limits)));
+            case "literal" -> new BindingSourceV1.Literal(scalar(node.get(kind), path.field("literal")));
+            case "expr" -> new BindingSourceV1.Expression(expression(node.get(kind), path.field("expr"), fields,
+                    limits));
             case "fn" -> {
-                String function = text(node.get(kind), path + ".fn");
-                if (!FUNCTIONS.contains(function)) throw fail(path + ".fn", "unknown function: " + function);
+                String function = text(node.get(kind), path.field("fn"));
+                if (!FUNCTIONS.contains(function)) {
+                    throw fail("UNKNOWN_FUNCTION", path.field("fn"), "unknown function: " + function);
+                }
                 List<BindingSourceV1> arguments = new ArrayList<>();
-                JsonNode args = array(required(node, "args", path), path + ".args", 8);
+                JsonNode args = array(required(node, "args", path), path.field("args"), 8);
                 for (int i = 0; i < args.size(); i++) {
-                    arguments.add(source(args.get(i), path + ".args[" + i + "]", fields, limits, depth + 1));
+                    arguments.add(source(args.get(i), path.field("args").index(i), fields, limits, depth + 1));
                 }
                 yield new BindingSourceV1.Function(function, arguments);
             }
@@ -335,9 +421,17 @@ public final class BindingDocumentCompiler {
         };
     }
 
+    /** Compiles restricted CEL text found at {@code path}; failures keep their expression-relative position. */
+    private static BindingExpressionV1 expression(JsonNode node, BindingDocumentPath path, Map<String, Type> fields,
+                                                  Limits limits) {
+        String source = text(node, path);
+        return at("EXPRESSION_INVALID", path, path, () -> BindingExpressionCompiler.compile(source, fields, limits));
+    }
+
     private static Limits limits(JsonNode node) {
         if (node == null) return Limits.DEFAULT;
-        object(node, "$.limits", LIMIT_NAMES.toArray(String[]::new));
+        BindingDocumentPath path = ROOT.field("limits");
+        object(node, path, LIMIT_NAMES.toArray(String[]::new));
         Limits defaults = Limits.DEFAULT;
         int[] values = {defaults.maxCascadeDepth(), defaults.maxDerivedPerSourceMessage(),
                 defaults.maxDerivedPerBlock(), defaults.maxEventPayloadBytes(), defaults.maxLookupsPerCondition(),
@@ -345,87 +439,136 @@ public final class BindingDocumentCompiler {
                 defaults.maxFunctionInputBytes(), defaults.maxExpressionNodes(), defaults.maxExpressionDepth(),
                 defaults.maxExpressionValueBytes(), defaults.maxExpressionWorkPerCascade(),
                 defaults.maxExpressionWorkPerBlock()};
-        for (int i = 0; i < values.length; i++) values[i] = integer(node, LIMIT_NAMES.get(i), values[i], "$.limits");
+        for (int i = 0; i < values.length; i++) values[i] = integer(node, LIMIT_NAMES.get(i), values[i], path);
         return new Limits(values[0], values[1], values[2], values[3], values[4], values[5], values[6], values[7],
                 values[8], values[9], values[10], values[11]);
     }
 
-    private static Object scalar(JsonNode node, String path) {
-        if (node == null) throw fail(path, "missing scalar");
+    private static Object scalar(JsonNode node, BindingDocumentPath path) {
+        if (node == null) throw fail("EXPECTED_SCALAR", path, "missing scalar");
         if (node.isTextual()) return node.textValue();
         if (node.isBoolean()) return node.booleanValue();
         if (node.isIntegralNumber() && node.canConvertToLong()) return node.longValue();
         if (node.isObject()) {
             object(node, path, "bytesHex");
-            String hex = text(required(node, "bytesHex", path), path + ".bytesHex");
-            if (hex.length() > 131_072) throw fail(path, "byte literal limit");
+            String hex = text(required(node, "bytesHex", path), path.field("bytesHex"));
+            if (hex.length() > 131_072) throw fail("INVALID_BYTES_LITERAL", path, "byte literal limit");
             try { return HexFormat.of().parseHex(hex); }
-            catch (IllegalArgumentException error) { throw fail(path, "invalid bytesHex literal"); }
+            catch (IllegalArgumentException error) {
+                throw fail("INVALID_BYTES_LITERAL", path, "invalid bytesHex literal");
+            }
         }
-        throw fail(path, "expected int64, text, boolean, or {bytesHex: hexadecimal-text}");
+        throw fail("EXPECTED_SCALAR", path, "expected int64, text, boolean, or {bytesHex: hexadecimal-text}");
     }
 
-    private static void object(JsonNode node, String path, String... allowed) {
-        if (node == null || !node.isObject()) throw fail(path, "expected object");
+    private static void object(JsonNode node, BindingDocumentPath path, String... allowed) {
+        if (node == null || !node.isObject()) throw fail("EXPECTED_OBJECT", path, "expected object");
         Set<String> names = Set.of(allowed);
         node.fieldNames().forEachRemaining(name -> {
-            if (!names.contains(name)) throw fail(path + "." + name, "unknown field");
+            if (!names.contains(name)) throw fail("UNKNOWN_FIELD", path.field(name), "unknown field");
         });
     }
 
-    private static JsonNode array(JsonNode node, String path, int maximum) {
-        if (node == null || !node.isArray() || node.size() > maximum) throw fail(path, "expected bounded array");
+    private static JsonNode array(JsonNode node, BindingDocumentPath path, int maximum) {
+        if (node == null || !node.isArray() || node.size() > maximum) {
+            throw fail("EXPECTED_ARRAY", path, "expected bounded array");
+        }
         return node;
     }
 
-    private static JsonNode required(JsonNode node, String key, String path) {
-        if (!node.has(key)) throw fail(path + "." + key, "required field");
+    private static JsonNode required(JsonNode node, String key, BindingDocumentPath path) {
+        if (!node.has(key)) throw fail("REQUIRED_FIELD", path.field(key), "required field");
         return node.get(key);
     }
 
-    private static String text(JsonNode node, String path) {
-        if (node == null || !node.isTextual()) throw fail(path, "expected text");
+    private static String text(JsonNode node, BindingDocumentPath path) {
+        if (node == null || !node.isTextual()) throw fail("EXPECTED_TEXT", path, "expected text");
         return node.textValue();
     }
 
-    private static String optionalText(JsonNode node, String key, String fallback, String path) {
-        return node.has(key) ? text(node.get(key), path + "." + key) : fallback;
+    private static String optionalText(JsonNode node, String key, String fallback, BindingDocumentPath path) {
+        return node.has(key) ? text(node.get(key), path.field(key)) : fallback;
     }
 
-    private static long number(JsonNode node, String key, long fallback, String path) {
+    private static long number(JsonNode node, String key, long fallback, BindingDocumentPath path) {
         if (!node.has(key)) return fallback;
         JsonNode value = node.get(key);
-        if (!value.isIntegralNumber() || !value.canConvertToLong()) throw fail(path + "." + key, "expected int64");
+        if (!value.isIntegralNumber() || !value.canConvertToLong()) {
+            throw fail("EXPECTED_INTEGER", path.field(key), "expected int64");
+        }
         return value.longValue();
     }
 
-    private static int integer(JsonNode node, String key, int fallback, String path) {
+    private static int integer(JsonNode node, String key, int fallback, BindingDocumentPath path) {
         long value = number(node, key, fallback, path);
-        if (value < Integer.MIN_VALUE || value > Integer.MAX_VALUE) throw fail(path + "." + key, "expected int32");
+        if (value < Integer.MIN_VALUE || value > Integer.MAX_VALUE) {
+            throw fail("EXPECTED_INTEGER", path.field(key), "expected int32");
+        }
         return (int) value;
     }
 
-    private static String exactlyOne(JsonNode node, String path, List<String> options) {
+    private static String exactlyOne(JsonNode node, BindingDocumentPath path, List<String> options) {
         List<String> present = options.stream().filter(node::has).toList();
-        if (present.size() != 1) throw fail(path, "expected exactly one of " + options);
+        if (present.size() != 1) throw fail("EXACTLY_ONE_REQUIRED", path, "expected exactly one of " + options);
         return present.getFirst();
     }
 
-    private static void requireTrue(JsonNode node, String path) {
-        if (!node.isBoolean() || !node.booleanValue()) throw fail(path, "must be true; use the opposite operator");
+    private static void requireTrue(JsonNode node, BindingDocumentPath path) {
+        if (!node.isBoolean() || !node.booleanValue()) {
+            throw fail("MUST_BE_TRUE", path, "must be true; use the opposite operator");
+        }
     }
 
-    private static IllegalArgumentException fail(String path, String message) {
-        return new IllegalArgumentException(path + ": " + message);
+    private static BindingAuthoringException fail(String code, BindingDocumentPath path, String message) {
+        return new BindingAuthoringException(code, path, path + ": " + message, null);
     }
 
-    private static <T> T at(String path, Supplier<T> action) {
+    /**
+     * Adds the parser's source position, converted from SnakeYAML code points to one-based UTF-16 units. SnakeYAML
+     * also breaks lines at CR, NEL, LS and PS; positions are omitted for such sources rather than misreported.
+     */
+    private static BindingAuthoringException located(BindingAuthoringException error,
+                                                     com.fasterxml.jackson.core.JsonLocation location, String yaml) {
+        if (location == null || location.getLineNr() < 1 || location.getColumnNr() < 1) return error;
+        if (BindingExpressionCompiler.hasNonLineFeedBreak(yaml)) return error;
+        Integer column = BindingExpressionCompiler.utf16Column(yaml, location.getLineNr(), location.getColumnNr() - 1);
+        return error.at(location.getLineNr(), column);
+    }
+
+    private static BindingAuthoringException yamlFailure(IOException error, String yaml) {
+        String detail = error instanceof JsonProcessingException processing ? processing.getOriginalMessage()
+                : error.getMessage();
+        String code = detail != null && detail.startsWith("Duplicate field") ? "YAML_DUPLICATE_KEY" : "YAML_SYNTAX";
+        var location = error instanceof JsonProcessingException processing ? processing.getLocation() : null;
+        BindingAuthoringException failure = new BindingAuthoringException(code, ROOT,
+                "$: invalid binding YAML: " + error.getMessage(), error, null, null, null, null, true);
+        return located(failure, location, yaml);
+    }
+
+    /**
+     * Runs a construction step, attaching the path and the given code to failures that lack a document path.
+     * Restricted-CEL failures always use {@code EXPRESSION_INVALID} and keep their expression position.
+     */
+    private static <T> T at(String code, BindingDocumentPath path, Supplier<T> action) {
+        return at(code, path, path, action);
+    }
+
+    /** As {@link #at(String, BindingDocumentPath, Supplier)}, with a message path that may be an ancestor. */
+    private static <T> T at(String code, BindingDocumentPath messagePath, BindingDocumentPath path,
+                            Supplier<T> action) {
         try { return action.get(); }
         catch (RuntimeException error) {
-            if (error instanceof IllegalArgumentException argument && error.getMessage() != null
-                    && error.getMessage().startsWith("$")) throw argument;
+            if (error instanceof BindingAuthoringException authored) throw authored;
             String message = error.getMessage() == null ? error.getClass().getSimpleName() : error.getMessage();
-            throw new IllegalArgumentException(path + ": " + message, error);
+            if (error instanceof IllegalArgumentException && message.startsWith("$")) {
+                throw new BindingAuthoringException(code, path, message, error);
+            }
+            if (error instanceof BindingExpressionCompiler.ExpressionException expression) {
+                throw new BindingAuthoringException("EXPRESSION_INVALID", path, messagePath + ": " + message, error,
+                        null, null, expression.line(), expression.column(), true);
+            }
+            throw new BindingAuthoringException(code, path, messagePath + ": " + message, error, null, null, null, null,
+                    "COMPONENT_CONFIGURATION_INVALID".equals(code) || "EVENT_UNAVAILABLE".equals(code));
         }
     }
 }

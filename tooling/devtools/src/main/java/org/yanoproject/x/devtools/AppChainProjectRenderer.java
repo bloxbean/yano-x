@@ -1555,7 +1555,8 @@ final class AppChainProjectRenderer {
         return values == null ? Map.of() : values;
     }
 
-    private static ObjectMapper configured(ObjectMapper mapper) {
+    /** Shared by the Studio YAML differential oracle so it tests the exact blueprint parser configuration. */
+    static ObjectMapper configured(ObjectMapper mapper) {
         return mapper.enable(JsonParser.Feature.STRICT_DUPLICATE_DETECTION)
                 .enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
                 .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS)

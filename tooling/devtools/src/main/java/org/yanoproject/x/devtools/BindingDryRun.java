@@ -12,6 +12,8 @@ import org.yanoproject.api.appchain.FinalityCert;
 import org.yanoproject.api.appchain.effects.AppEffectEmitter;
 import org.yanoproject.api.appchain.effects.EffectId;
 import org.yanoproject.api.appchain.effects.EffectIntent;
+import org.yanoproject.x.composite.CompositeStateKeys;
+import org.yanoproject.x.composite.bindings.EventBindingWorkflow;
 import org.yanoproject.x.composite.contracts.BindingCbor;
 import org.yanoproject.x.composite.contracts.BindingReceiptV1;
 
@@ -64,9 +66,14 @@ final class BindingDryRun {
         }
     }
 
-    /** JSON-ready rehearsal output, with canonical receipt bytes and decoded diagnostic fields. */
+    /**
+     * JSON-ready rehearsal output, with canonical receipt bytes and decoded diagnostic fields.
+     * {@code dispositions} is report-only metadata aligned with fixture message order: {@code executed},
+     * {@code replay-existing-receipt} (the receipt already existed before this block, so the returned receipt is not
+     * this block's outcome) or {@code duplicate-in-fixture}. It is never part of the legacy standard output.
+     */
     record Result(String assurance, List<Map<String, Object>> receipts, List<Map<String, Object>> effects,
-                  List<Entry> stateChanges, List<Entry> postState) { }
+                  List<Entry> stateChanges, List<Entry> postState, List<String> dispositions) { }
 
     static Result execute(AppStateMachine machine, BindingCatalogSession.ContextInput context, Fixture fixture) {
         AppChainConsensusProfile consensus = context.consensusProfile();
@@ -89,6 +96,16 @@ final class BindingDryRun {
                     .senderSeq(input.senderSeq()).expiresAt(input.expiresAt()).body(body).authScheme(0)
                     .authProof(input.authProofHex() == null ? new byte[0]
                             : hex(input.authProofHex(), 0, 4096)).build());
+        }
+        // Replays return the original receipt without executing; record that before the block runs.
+        List<String> dispositions = new ArrayList<>();
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        for (AppMessage message : messages) {
+            String id = HexFormat.of().formatHex(message.getMessageId());
+            if (!seen.add(id)) dispositions.add("duplicate-in-fixture");
+            else if (state.get(CompositeStateKeys.workflowStateKey(EventBindingWorkflow.ID, message.getMessageId()))
+                    .isPresent()) dispositions.add("replay-existing-receipt");
+            else dispositions.add("executed");
         }
         String member = context.membership().members().getFirst();
         machine.init(state, new AppChainInfo(context.chainId(), member, context.membership().members().size()));
@@ -135,7 +152,8 @@ final class BindingDryRun {
                     "receipt", jsonValue(BindingCbor.decode(encoded, 65536))));
         }
         return new Result("execution-only; fixture inputs are not authenticated; no post-state root or finality claim",
-                List.copyOf(receipts), List.copyOf(effects), state.changes(), state.snapshot());
+                List.copyOf(receipts), List.copyOf(effects), state.changes(), state.snapshot(),
+                List.copyOf(dispositions));
     }
 
     private static Object jsonValue(Object value) {

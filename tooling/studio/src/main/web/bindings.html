@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta name="description" content="Author declarative composite binding documents with catalog-guided forms, then hand them to the Yano CLI.">
+  <title>Binding Editor · Yano App-Chain Studio</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="bindings.css">
+</head>
+<body class="bindings-page">
+  <a class="skip-link" href="#editor">Skip to the editor</a>
+  <header class="masthead">
+    <a class="brand" href="index.html" aria-label="Yano App-Chain Studio home">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <span>Yano <strong>App-Chain Studio</strong></span>
+    </a>
+    <nav class="studio-nav" aria-label="Studio">
+      <a href="index.html">Blueprint</a>
+      <a href="bindings.html" aria-current="page">Bindings</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="bindings-intro">
+      <p class="eyebrow">Declarative composites</p>
+      <h1>Binding editor</h1>
+      <p class="lede">Connect component events to commands and effects with forms guided by an authoring catalog.
+        Studio edits the same YAML the CLI compiles; the version-matched CLI decides validity.</p>
+      <ul class="guardrails">
+        <li>No network submission, plugin installation, signing or deployment.</li>
+        <li>Nothing is stored in the browser. Download your work.</li>
+        <li>Checks here are advisory. <code>appchain bindings validate</code> is the authority.</li>
+      </ul>
+    </section>
+
+    <div class="editor-shell">
+      <div class="outline">
+        <section id="document-panel" class="panel" aria-labelledby="document-heading"></section>
+        <section id="catalog-panel" class="panel" aria-labelledby="catalog-heading"></section>
+        <section class="panel" aria-labelledby="components-heading">
+          <h2 id="components-heading">Components</h2>
+          <p class="note">Named instances in declaration order. Two instances of one machine stay distinct.</p>
+          <ol id="component-list" class="item-list"></ol>
+          <button id="add-component" type="button" class="secondary">Add component</button>
+        </section>
+        <section class="panel" aria-labelledby="bindings-heading">
+          <h2 id="bindings-heading">Bindings</h2>
+          <p class="note">Execution order. Reordering changes the committed program.</p>
+          <ol id="binding-list" class="item-list"></ol>
+          <button id="add-binding" type="button" class="secondary">Add binding</button>
+        </section>
+        <section class="panel" aria-labelledby="settings-heading">
+          <h2 id="settings-heading">Settings</h2>
+          <ul class="item-list">
+            <li><button id="select-limits" type="button" class="item">Limits and activation</button></li>
+          </ul>
+        </section>
+      </div>
+
+      <section id="editor" class="editor" aria-labelledby="editor-title" tabindex="-1">
+        <div class="editor-heading">
+          <h2 id="editor-title">Document</h2>
+          <span id="mode-badge" class="badge"></span>
+        </div>
+        <div id="mode-banner" class="banner" hidden></div>
+        <div class="tabs" role="tablist" aria-label="Editor views">
+          <button id="tab-form" role="tab" type="button" aria-controls="panel-form" aria-selected="true">Form</button>
+          <button id="tab-yaml" role="tab" type="button" aria-controls="panel-yaml" aria-selected="false" tabindex="-1">YAML</button>
+          <button id="tab-graph" role="tab" type="button" aria-controls="panel-graph" aria-selected="false" tabindex="-1">Graph</button>
+          <button id="tab-validate" role="tab" type="button" aria-controls="panel-validate" aria-selected="false" tabindex="-1">Validate</button>
+        </div>
+        <div id="panel-form" role="tabpanel" aria-labelledby="tab-form" class="tab-panel"></div>
+        <div id="panel-yaml" role="tabpanel" aria-labelledby="tab-yaml" class="tab-panel" hidden>
+          <label for="yaml-text">Binding document YAML</label>
+          <p id="yaml-state" class="note" aria-live="polite"></p>
+          <textarea id="yaml-text" spellcheck="false" autocomplete="off" rows="28"></textarea>
+          <div class="actions">
+            <button id="revert-text" type="button" class="secondary">Revert to the last valid draft</button>
+          </div>
+        </div>
+        <div id="panel-graph" role="tabpanel" aria-labelledby="tab-graph" class="tab-panel" hidden></div>
+        <div id="panel-validate" role="tabpanel" aria-labelledby="tab-validate" class="tab-panel" hidden></div>
+      </section>
+
+      <aside class="inspector" aria-label="Checks and export">
+        <section class="panel" aria-labelledby="checks-heading">
+          <h2 id="checks-heading">Advisory checks</h2>
+          <p class="note">Local hints only. They never mark a document valid.</p>
+          <ul id="checks" class="check-list"></ul>
+        </section>
+        <section id="export-panel" class="panel" aria-labelledby="export-heading"></section>
+      </aside>
+    </div>
+    <p id="status" class="status-line" role="status" aria-live="polite"></p>
+    <p id="alert" class="visually-hidden" role="alert"></p>
+  </main>
+  <dialog id="dialog" aria-labelledby="dialog-title"></dialog>
+  <footer>Static editor · no telemetry · authoritative validation stays in the CLI</footer>
+  <script type="module" src="bindings-app.mjs"></script>
+</body>
+</html>

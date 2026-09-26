@@ -34,7 +34,7 @@ public final class BindingExpressionCompiler {
      * @throws IllegalArgumentException if parsing, type checking, dialect lowering, or bounds validation fails
      */
     public static BindingExpressionV1 compile(String source, Map<String, Type> fields, Limits limits) {
-        if (source == null || source.length() > 8192) throw new IllegalArgumentException("expression source limit");
+        if (source == null || source.length() > 8192) throw new ExpressionException("expression source limit", null);
         var builder = CelCompilerFactory.standardCelCompilerBuilder().setStandardMacros()
                 .setOptions(CelOptions.current().maxExpressionCodePointSize(8192)
                         .maxParseRecursionDepth(64).maxParseExpressionNodeCount(1024).build());
@@ -46,8 +46,64 @@ public final class BindingExpressionCompiler {
             BindingExpressionEvaluator.validate(expression, fields, limits);
             return expression;
         } catch (CelValidationException failure) {
-            throw new IllegalArgumentException("invalid binding expression: " + failure.getMessage(), failure);
+            var issues = failure.getErrors();
+            var location = issues.isEmpty() ? null : issues.getFirst().getSourceLocation();
+            int line = location == null ? -1 : location.getLine();
+            int column = location == null ? -1 : location.getColumn();
+            boolean positioned = line >= 1 && column >= 0 && !hasNonLineFeedBreak(source);
+            throw new ExpressionException("invalid binding expression: " + failure.getMessage(), failure,
+                    positioned ? line : null, positioned ? utf16Column(source, line, column) : null);
+        } catch (ExpressionException failure) {
+            throw failure;
+        } catch (IllegalArgumentException failure) {
+            throw new ExpressionException(failure.getMessage(), failure);
         }
+    }
+
+    /**
+     * Restricted-CEL authoring failure. The message is the historical text; positions are one-based, relative to
+     * the expression source, and measured in UTF-16 code units. They are omitted when CEL reports no position.
+     */
+    public static final class ExpressionException extends IllegalArgumentException {
+        private final Integer line;
+        private final Integer column;
+
+        ExpressionException(String message, Throwable cause) { this(message, cause, null, null); }
+
+        ExpressionException(String message, Throwable cause, Integer line, Integer column) {
+            super(message, cause);
+            this.line = line;
+            this.column = column;
+        }
+
+        /** One-based source line within the expression, or {@code null}. */
+        public Integer line() { return line; }
+
+        /** One-based UTF-16 column within that line, or {@code null}. */
+        public Integer column() { return column; }
+    }
+
+    /** Converts CEL's zero-based code-point column into a one-based UTF-16 column on the same line. */
+    static Integer utf16Column(String source, int line, int codePointColumn) {
+        if (hasNonLineFeedBreak(source)) return null;
+        int start = 0;
+        for (int current = 1; current < line; current++) {
+            int next = source.indexOf('\n', start);
+            if (next < 0) return null;
+            start = next + 1;
+        }
+        int offset = start;
+        for (int index = 0; index < codePointColumn; index++) {
+            if (offset >= source.length()) return null;
+            offset += Character.charCount(source.codePointAt(offset));
+        }
+        return offset - start + 1;
+    }
+
+    /** Whether the source has a line break other than LF, which position conversion does not model. */
+    static boolean hasNonLineFeedBreak(String source) {
+        return source.chars().anyMatch(character -> character == '\r' || character == 0x85 || character == 0x2028
+                || character == 0x2029);
     }
 
     private static Node lower(CelExpr expression, CelAbstractSyntaxTree ast, int depth) {

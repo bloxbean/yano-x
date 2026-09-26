@@ -164,5 +164,6 @@ upgrade such retained chains in place or rewrite their identity markers.
   message-attestation certificates.
 - Keep backups and rehearse upgrades without modifying retained production state.
 
-Return to the [learning path](README.md) or continue with the
-[retained-chain upgrade reference](../DECLARATIVE_BINDINGS_UPGRADES.md).
+Return to the [learning path](README.md), continue with the
+[retained-chain upgrade reference](../DECLARATIVE_BINDINGS_UPGRADES.md), or author the
+same documents with guided forms in [chapter 6](06-guided-editor.md).

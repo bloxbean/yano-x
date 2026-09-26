@@ -6,8 +6,8 @@ import { IMPORTED_DOCS, contentPathForRoute, repoPath } from './repo-sources.mjs
 test('binding learning chapters have canonical sources and distinct site routes', async () => {
   const chapters = Object.entries(IMPORTED_DOCS)
     .filter(([source]) => source.startsWith('docs/appchain/bindings/'));
-  assert.equal(chapters.length, 6);
-  assert.equal(new Set(chapters.map(([, route]) => route)).size, 6);
+  assert.equal(chapters.length, 7);
+  assert.equal(new Set(chapters.map(([, route]) => route)).size, 7);
   assert.equal(contentPathForRoute('/bindings/'), 'bindings/index.md');
   for (const [source, route] of chapters) {
     assert.ok(route.startsWith('/bindings/'));

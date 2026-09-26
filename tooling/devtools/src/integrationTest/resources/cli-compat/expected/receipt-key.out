@@ -1,0 +1,6 @@
+{
+  "keyQueryPath" : "composite/binding-receipt-key-v1/abababababababababababababababababababababababababababababababab",
+  "receiptQueryPath" : "composite/binding-receipt-v1/abababababababababababababababababababababababababababababababab",
+  "stateKeyHex" : "7e636f6d706f736974652f776f726b666c6f772d73746174652f76312f6576656e742d62696e64696e67732fabababababababababababababababababababababababababababababababab",
+  "workflowId" : "event-bindings"
+}

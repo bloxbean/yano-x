@@ -194,9 +194,11 @@ jq '.manifest' validated.json > manifest.json
 
 Then open
 **Inspect a declarative binding graph** and select that file. Use the manifest
-object itself, not the enclosing validation result. Studio is read-only here:
+object itself, not the enclosing validation result. This viewer is read-only:
 it shows components and edges but cannot edit bindings, conditions or mappings.
-An imported snapshot is not authenticated chain evidence.
+An imported snapshot is not authenticated chain evidence. To author the document
+itself with guided forms, use Studio's **Bindings** page
+([chapter 6](06-guided-editor.md)).
 
 ## From rehearsal to a project
 

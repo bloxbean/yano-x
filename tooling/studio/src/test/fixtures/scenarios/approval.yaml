@@ -1,0 +1,17 @@
+# Studio starter: member k-of-n approval followed by an audit entry.
+# A proposal waits in approval state; each vote is a separate signed message. The approving
+# vote's cascade appends the audit entry. Two browser users are not two consensus members.
+composite:
+  components:
+    - {id: reviews, machine: approvals}
+    - {id: audit, machine: doc-trail}
+  bindings:
+    - id: record-approved
+      from: {component: reviews, event: approvals.item-approved.v1}
+      to:
+        component: audit
+        command: append
+        map:
+          entityId: {field: itemId}
+          entryHash: {field: payloadHash}
+          reference: {literal: approved}

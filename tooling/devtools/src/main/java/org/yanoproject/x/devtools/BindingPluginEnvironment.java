@@ -48,6 +48,9 @@ final class BindingPluginEnvironment implements AutoCloseable {
 
     String fingerprint() { return runtime.catalog().fingerprint(); }
 
+    /** Exact validated catalog view: plugin API level, fingerprint and bundle inventory. */
+    org.yanoproject.api.plugin.PluginCatalogView catalog() { return runtime.catalog(); }
+
     @Override public void close() { runtime.close(); }
 
     /** Parent-first SPI identities are shared; all snapshotted implementation entries remain bundle-owned. */

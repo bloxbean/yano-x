@@ -2,7 +2,9 @@
 
 For a guided introduction, start with [your first workflow](bindings/01-first-workflow.md).
 The [learning path](bindings/README.md) explains separate YAML versus inline
-blueprints and the current read-only Studio graph viewer.
+blueprints, and the [Studio editor chapter](bindings/06-guided-editor.md) shows the
+guided editor that uses the catalog and report files described
+[below](#editor-catalogs-and-reports).
 
 `appchain bindings` compiles and checks ADR-031.1 documents against the actual
 plugin bundles selected for the application. It does not start a node or submit
@@ -87,6 +89,83 @@ is verified. Do not import `postState` into a running chain. Keep predecessor
 root and pending-effect assumptions appropriate to the scenario being rehearsed.
 Continuation input is capped at 64 MiB and still obeys the fixture's independent
 state-entry and memory bounds; it is intended for bounded application rehearsals.
+
+## Editor catalogs and reports
+
+Two additions serve Studio's guided editor. Neither changes what the commands
+above print, their diagnostics or their exit codes; only the usage text gains the
+new command and option.
+
+### `bindings catalog`
+
+```bash
+./yano.sh appchain bindings catalog [bindings.yaml] \
+  --plugins-directory /absolute/path/to/plugins --context context.json \
+  [--machine <selector>]... [--all] > catalog.json
+```
+
+This writes `yano-x-binding-authoring-catalog-v1` JSON (at most 8 MiB; larger
+output fails rather than truncating). It lists every installed machine selector
+without constructing it, then describes only the instances you ask for: the
+components of the given document with their exact authored configuration, each
+`--machine` with empty configuration, or every selector with `--all`. Each
+instance records its status (`available`, `requires-configuration`,
+`construction-failed`, `descriptor-failed` or `not-composable`), configuration
+descriptor, normalized configuration, events, commands and whether raw bodies may
+target it. The file also carries the binding language tables (functions,
+expression operators, limits, the baseline event and receipt codes) and the
+identity of the tool, host, plugin catalog and context digest.
+
+Probing constructs your installed plugins exactly as compilation does, running
+their code unsandboxed, so export catalogs only from bundles you trust. The
+catalog installs, activates and trusts nothing, and describes descriptors for this
+plugin catalog, context and configuration only. Reports match only a catalog
+exported by the same tool from the same plugin directory and context. Studio never normalizes
+configuration: a component whose settings differ from a described instance is
+shown as not described, so export the catalog again from the edited document.
+
+### `--report <file>`
+
+`compile`, `validate` and `dry-run` accept `--report <file>` and then also write a
+`yano-x-binding-report-v1` JSON file for Studio. Standard output, standard error
+and the exit status stay exactly as without the option (the report is written
+before standard output). The report is not written for usage errors (exit 64) or
+unreadable inputs (exit 74). Writing it fails with exit 74 and no standard output
+if the file cannot be written or would exceed 16 MiB. The target must not be one
+of the inputs or inside the plugin directory, and it is replaced atomically with
+owner-only permissions where the filesystem supports them.
+
+A report records:
+
+- the operation and whether it completed or failed;
+- the producer, host and plugin-catalog identities (versions, JAR digests and the
+  catalog fingerprint) and the authoring-environment id;
+- each input's role, read state, byte count and the SHA-256 of its exact bytes;
+- for success: canonical IR hex and its SHA-256, the active profile digest and
+  execution version, and component/binding counts;
+- for `dry-run`: the assumed height, timestamp, prior root and pending effects,
+  every source message with its disposition (`executed`, `replay-existing-receipt`
+  or `duplicate-in-fixture`), canonical receipt hex and decoded view, effects, the
+  number of state changes and a post-state digest;
+- structured diagnostics: a stable code, controlled text, the bounded historical
+  detail with absolute paths redacted, and the exact authored location when known;
+- the receipt-code table used to explain outcomes.
+
+The post-state digest is SHA-256 over the ASCII bytes `yano-x-binding-post-state-v1`,
+a zero byte, and then, for each post-state entry in ascending unsigned byte order of
+its key (the order of the lowercase hexadecimal keys), the
+4-byte big-endian key length, the key bytes, the 4-byte big-endian value length
+and the value bytes. A continued rehearsal records the previous result's digest so
+Studio can check that consecutive reports form one sequence.
+
+Reports are ordinary, unauthenticated files. Studio decodes every receipt from
+its canonical bytes and rejects reports that contradict themselves. It treats a
+report as describing the current draft only when the document digest, the context
+digest, the tool and host identities and the plugin catalog all match. A dry-run's
+rehearsal is verified only when, in addition, the fixture file is imported and
+matches its recorded digest, and every earlier block it continues is verified in
+the same way. A match shows the same inputs were used; it is not an attestation, a
+finality certificate or deployment approval.
 
 ## Generate governed recipes for your own chain
 

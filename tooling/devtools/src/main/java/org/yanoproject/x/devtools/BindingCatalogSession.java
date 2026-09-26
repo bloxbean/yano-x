@@ -16,14 +16,19 @@ import org.yanoproject.runtime.plugins.CatalogAuthenticatedMapValidatorResolver;
 import org.yanoproject.runtime.plugins.PluginProviderRegistry;
 import org.yanoproject.runtime.appchain.OrderedLogStateMachine;
 import org.yanoproject.x.composite.contracts.BindingExpressionV1.Type;
+import org.yanoproject.api.plugin.PluginCatalogView;
+import org.yanoproject.x.composite.bindings.BindingValidationException;
+import org.yanoproject.x.composite.bindings.DeclarativeCompositeProvider;
 import org.yanoproject.x.composite.contracts.BindingIrV1;
 
+import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Descriptor and profile construction bridge using the explicitly selected host catalog for optional machines.
@@ -125,15 +130,83 @@ final class BindingCatalogSession implements BindingDocumentCompiler.DescriptorC
 
     ContextInput input() { return input; }
 
+    /**
+     * Explains an authoritative profile-construction failure with the linked provider's structured location.
+     *
+     * <p>Runs only for report requests, after the catalog-selected provider has failed. The linked
+     * {@code DeclarativeCompositeProvider}
+     * rebuilds the same IR under the same context and resolver; its {@link BindingValidationException} is accepted
+     * only when its complete message equals a message in the authoritative failure's bounded cause chain (so known
+     * host activation wrappers are looked through) and the selected composite bundle has this tool's version.
+     * Any other outcome returns empty: the caller then reports the failure without a guessed location. The
+     * authoritative pass/fail decision is never changed.
+     *
+     * @param ir the IR the provider rejected
+     * @param authoritative the provider failure
+     * @param catalog validated plugin catalog used for the version check
+     * @return the matching structured failure, or empty
+     */
+    Optional<BindingValidationException> explainProfileFailure(BindingIrV1 ir, Throwable authoritative,
+                                                               PluginCatalogView catalog) {
+        var owner = providers.contributionProvenance(AppStateMachineProvider.class, MACHINE);
+        if (owner.isEmpty()) return Optional.empty();
+        String bundleId = owner.get().bundleId();
+        boolean sameVersion = catalog.bundles().stream().anyMatch(bundle -> bundle.id().equals(bundleId)
+                && bundle.version().equals(BindingToolIdentity.toolVersion()));
+        if (!sameVersion) return Optional.empty();
+        Set<String> messages = new HashSet<>();
+        Throwable current = authoritative;
+        for (int depth = 0; current != null && depth < 16; depth++) {
+            if (current.getMessage() != null) messages.add(current.getMessage());
+            current = current.getCause() == current ? null : current.getCause();
+        }
+        Map<String, String> settings = new LinkedHashMap<>(input.settings());
+        settings.put(IR_SETTING, HexFormat.of().formatHex(ir.encode()));
+        try {
+            DeclarativeCompositeProvider.entry(new Context(settings, true), ir);
+            return Optional.empty();
+        } catch (BindingValidationException local) {
+            return messages.contains(local.getMessage()) ? Optional.of(local) : Optional.empty();
+        } catch (Throwable unrelated) {
+            // Explanation is advisory: only JVM resource exhaustion may escape it.
+            if (unrelated instanceof VirtualMachineError error && !(unrelated instanceof StackOverflowError)) {
+                throw error;
+            }
+            return Optional.empty();
+        }
+    }
+
     private TransitionKernel<?, ?> kernel(String machineId, Map<String, Object> values) {
+        return component(machineId, values).transitionKernel().orElseThrow(() ->
+                new IllegalArgumentException("catalog component has no transition kernel: " + machineId));
+    }
+
+    /**
+     * Constructs one catalog-selected component exactly as authoring does: state-identity settings plus
+     * {@code machines.<machine>.*} settings from the supplied configuration, with no child resolver.
+     * This executes trusted installed plugin code; it is not a sandbox for untrusted bundles.
+     */
+    AppStateMachine component(String machineId, Map<String, Object> values) {
         if (MACHINE.equals(machineId)) {
             throw new IllegalArgumentException("nested declarative composites are unsupported");
         }
         Map<String, String> settings = new LinkedHashMap<>(identity.settings());
         values.forEach((key, value) -> settings.put("machines." + machineId + "." + key,
                 value instanceof byte[] bytes ? HexFormat.of().formatHex(bytes) : value.toString()));
-        return resolve(machineId, new Context(settings, false)).transitionKernel().orElseThrow(() ->
-                new IllegalArgumentException("catalog component has no transition kernel: " + machineId));
+        return resolve(machineId, new Context(settings, false));
+    }
+
+    /** Catalog selector enumeration without constructing providers; includes the host builtin. */
+    List<String> selectors() {
+        java.util.TreeSet<String> names = new java.util.TreeSet<>(providers.names(AppStateMachineProvider.class));
+        names.add(OrderedLogStateMachine.ID);
+        return List.copyOf(names);
+    }
+
+    /** Bundle provenance of a selector, or empty for the host builtin. */
+    Optional<PluginProviderRegistry.ContributionProvenance> provenance(String machineId) {
+        if (OrderedLogStateMachine.ID.equals(machineId)) return Optional.empty();
+        return providers.contributionProvenance(AppStateMachineProvider.class, machineId);
     }
 
     private AppStateMachine resolve(String id, AppStateMachineContext context) {

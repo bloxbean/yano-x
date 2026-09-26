@@ -1,0 +1,66 @@
+# Every field operator, lookup expectation and restricted-CEL clause over a registry-to-audit flow.
+composite:
+  components:
+    - {id: records, machine: kv-registry}
+    - id: audit
+      machine: doc-trail
+  bindings:
+    - id: compare-integers
+      from: {component: records, event: kv-registry.entry-put.v1}
+      when:
+        - {field: valueLength, eq: 3}
+        - {field: valueLength, ne: 4}
+        - {field: valueLength, lt: 100}
+        - {field: valueLength, le: 99}
+        - {field: height, gt: 0}
+        - {field: height, ge: 1}
+        - {field: valueLength, in: [1, 2, 3, -9223372036854775808, 9223372036854775807]}
+      to:
+        component: audit
+        command: append
+        map:
+          entityId: {fn: hex, args: [{field: key}]}
+          entryHash: {field: valueHash}
+          reference: {literal: integers}
+    - id: compare-bytes
+      from: {component: records, event: kv-registry.entry-put.v1}
+      when:
+        - {field: key, ne: {bytesHex: '00'}}
+        - {field: key, in: [{bytesHex: '0102'}, {bytesHex: 'ff'}]}
+        - {field: previousValueHash, absent: true}
+        - {field: owner, exists: true}
+      to:
+        component: audit
+        command: append
+        map:
+          reference: {literal: "bytes and presence"}
+          entryHash: {field: valueHash}
+          entityId: {fn: hex, args: [{field: key}]}
+    - id: lookups
+      from: {component: records, event: kv-registry.entry-put.v1}
+      when:
+        - lookup: {component: records, key: {field: key}, exists: true}
+        - lookup: {component: audit, key: {fn: utf8-bytes, args: [{literal: missing-entity}]}, absent: true}
+        - lookup: {component: records, key: {field: key}, eq: {field: value}}
+        - lookup: {component: records, key: {fn: sha-256, args: [{field: key}]}, eq: {literal: {bytesHex: '01'}}}
+      to:
+        component: audit
+        command: append
+        map:
+          entityId: {literal: lookup}
+          entryHash: {field: valueHash}
+          reference: {literal: "lookup ok"}
+    - id: expressions
+      from: {component: records, event: kv-registry.entry-put.v1}
+      when:
+        - {expr: 'event.valueLength > 0 && (event.height >= 1 || !(event.valueLength == 0))'}
+        - {expr: 'event.valueLength % 2 == 1 ? event.height > 0 : event.height > 1'}
+      to:
+        component: audit
+        command: append
+        map:
+          entityId: {expr: 'event.valueLength > 1 ? "entity-" + "large" : "entity-small"'}
+          entryHash: {field: valueHash}
+          reference: {literal: expressions}
+  limits:
+    maxLookupsPerCondition: 4

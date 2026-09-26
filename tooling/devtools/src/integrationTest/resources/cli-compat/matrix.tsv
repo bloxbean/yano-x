@@ -1,0 +1,30 @@
+help	bindings	--help
+no-arguments	bindings
+compile	bindings	compile	inputs/bindings.yaml	--plugins-directory	plugins	--context	inputs/context.json
+validate	bindings	validate	inputs/bindings.yaml	--plugins-directory	plugins	--context	inputs/context.json
+graph	bindings	graph	inputs/bindings.yaml	--plugins-directory	plugins	--context	inputs/context.json
+dry-run	bindings	dry-run	inputs/bindings.yaml	--plugins-directory	plugins	--context	inputs/context.json	--fixture	inputs/fixture.json
+dry-run-continued	bindings	dry-run	inputs/bindings.yaml	--plugins-directory	plugins	--context	inputs/context.json	--fixture	inputs/fixture-2.json	--prior-result	outputs/dry-run.out
+dry-run-continuation-only	bindings	dry-run	inputs/bindings.yaml	--plugins-directory	plugins	--context	inputs/context.json	--fixture	inputs/fixture.json	--continuation-only
+dry-run-height-jump	bindings	dry-run	inputs/bindings.yaml	--plugins-directory	plugins	--context	inputs/context.json	--fixture	inputs/fixture-jump.json	--prior-result	outputs/dry-run.out
+dry-run-malformed-message	bindings	dry-run	inputs/bindings.yaml	--plugins-directory	plugins	--context	inputs/context.json	--fixture	inputs/fixture-malformed.json
+compile-ir	bindings	compile	outputs/compile.out	--ir	--plugins-directory	plugins	--context	inputs/context.json
+graph-ir	bindings	graph	outputs/compile.out	--ir
+graph-bad-ir	bindings	graph	inputs/bad.hex	--ir
+unknown-event-field	bindings	compile	inputs/unknown-field.yaml	--plugins-directory	plugins	--context	inputs/context.json
+profile-type-mismatch	bindings	validate	inputs/mismatch.yaml	--plugins-directory	plugins	--context	inputs/context.json
+cycle	bindings	validate	inputs/cycle.yaml	--plugins-directory	plugins	--context	inputs/context.json
+unknown-key	bindings	compile	inputs/unknown-key.yaml	--plugins-directory	plugins	--context	inputs/context.json
+alias	bindings	compile	inputs/alias.yaml	--plugins-directory	plugins	--context	inputs/context.json
+context-duplicate-key	bindings	validate	inputs/bindings.yaml	--plugins-directory	plugins	--context	inputs/context-duplicate.json
+context-blank-chain	bindings	validate	inputs/bindings.yaml	--plugins-directory	plugins	--context	inputs/context-blank-chain.json
+missing-document	bindings	compile	inputs/absent.yaml	--plugins-directory	plugins	--context	inputs/context.json
+missing-plugin-option	bindings	compile	inputs/bindings.yaml	--context	inputs/context.json
+empty-plugin-directory	bindings	validate	inputs/bindings.yaml	--plugins-directory	inputs	--context	inputs/context.json
+unknown-command	bindings	explode	inputs/bindings.yaml
+dry-run-without-fixture	bindings	dry-run	inputs/bindings.yaml	--plugins-directory	plugins	--context	inputs/context.json
+graph-ir-prior-result	bindings	graph	outputs/compile.out	--ir	--prior-result	outputs/dry-run.out
+receipt-key	bindings	receipt-key	abababababababababababababababababababababababababababababababab
+receipt-key-invalid	bindings	receipt-key	zz
+recipe-missing-options	bindings	recipe	dpp
+profile-check-usage	bindings	profile-check	--profiles

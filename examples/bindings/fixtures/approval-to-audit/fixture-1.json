@@ -1,0 +1,16 @@
+{
+  "height" : 1,
+  "timestamp" : 1000,
+  "stateRootHex" : "0000000000000000000000000000000000000000000000000000000000000000",
+  "pendingEffects" : 0,
+  "state" : [ ],
+  "messages" : [ {
+    "messageIdHex" : "4141414141414141414141414141414141414141414141414141414141414141",
+    "senderHex" : "5151515151515151515151515151515151515151515151515151515151515151",
+    "senderSeq" : 1,
+    "expiresAt" : 9223372036854775807,
+    "topic" : "reviews.command.v1",
+    "bodyHex" : "8500666974656d2d31420909021b7fffffffffffffff",
+    "authProofHex" : "00"
+  } ]
+}

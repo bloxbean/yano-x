@@ -98,6 +98,7 @@ export default defineConfig({
             { label: '3. Approval workflows', slug: 'bindings/approval-workflows' },
             { label: '4. Java integration', slug: 'bindings/java-integration' },
             { label: '5. Operations and upgrades', slug: 'bindings/operations-and-upgrades' },
+            { label: '6. Studio editor', slug: 'bindings/guided-editor' },
           ],
         },
         {

@@ -1,0 +1,46 @@
+# Effect targets, explicit optional fields, component quotas and every committed limit.
+composite:
+  workflowFromHeight: 1
+  components:
+    - id: records
+      machine: kv-registry
+      topic: records.custom.v1
+      config: {value-format: utf8}
+      maxEffectsPerBlock: 2
+      fromHeight: 1
+    - {id: audit, machine: doc-trail, maxEffectsPerBlock: 1}
+  bindings:
+    - id: notify-default
+      from: {component: records, event: kv-registry.entry-put.v1}
+      to:
+        effect:
+          type: webhook.post
+          map: identity
+    - id: notify-explicit
+      from: {component: records, event: kv-registry.entry-deleted.v1}
+      to:
+        effect:
+          type: webhook.delete
+          gate: l1-final
+          result: chain
+          expiryBlocks: 20
+          map:
+            key: {field: key}
+            owner: {field: owner}
+    - id: forward-body
+      from: {component: audit, event: composite.command-accepted.v1}
+      to:
+        effect: {type: archive.put, gate: app-final, result: none, rawBody: body}
+  limits:
+    maxCascadeDepth: 4
+    maxDerivedPerSourceMessage: 16
+    maxDerivedPerBlock: 1024
+    maxEventPayloadBytes: 32768
+    maxLookupsPerCondition: 1
+    maxFunctionCallsPerMapping: 4
+    maxFunctionInputBytes: 16384
+    maxExpressionNodes: 64
+    maxExpressionDepth: 8
+    maxExpressionValueBytes: 4096
+    maxExpressionWorkPerCascade: 524288
+    maxExpressionWorkPerBlock: 16777216

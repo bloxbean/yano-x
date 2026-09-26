@@ -1,0 +1,401 @@
+{
+  "schema" : "yano-x-binding-report-v1",
+  "operation" : "dry-run",
+  "operationOutcome" : "completed",
+  "assurance" : "Unauthenticated local tool output. Matching digests show that the same inputs were used; they do not identify the producer, prove finality or approve a deployment.",
+  "producer" : {
+    "tool" : "yano-x-devtools",
+    "version" : "0.1.0-pre2",
+    "jarSha256" : "c6a54f4eaf74e12d2cd3cdcf80684476bc686b42f59bc2229cafddcfcf1a2e5c",
+    "linkedCompositeJarSha256" : "ac7554151dc4a47b7d8e43d9d47f65731e2b34f0f5051f8cc482740ca7a6ade4"
+  },
+  "host" : {
+    "version" : "0.1.0-pre17",
+    "coreApiJarSha256" : "85bd0c91c37d716d917526ba5e4d9871add2bcf752cd05dfea90d0f155ad5a96",
+    "runtimeJarSha256" : "f78e43e059576d16e1c24ef185122a736da00f711a5bc0646501a84e92f97732"
+  },
+  "authoringEnvironment" : "yano-x-binding-authoring-environment-v1",
+  "catalog" : {
+    "fingerprint" : "sha256:128015618c1048515440b7323fc1db510436396f0c14a1d19821be7af17b7f09",
+    "pluginApi" : {
+      "major" : 3,
+      "level" : 11
+    },
+    "bundles" : [ {
+      "id" : "org.yanoproject.x.composite",
+      "version" : "0.1.0-pre2",
+      "digest" : "sha256:308db9cec88247bba29a99569cc9465e659a3f6022d9b10146f05b51c0725d31",
+      "digestMode" : "ARTIFACT_CLOSURE",
+      "selected" : true
+    }, {
+      "id" : "org.yanoproject.x.role-workflow",
+      "version" : "0.1.0-pre2",
+      "digest" : "sha256:4113e25527a6e7da0d5cdb85ac9ccfefa8b15adbdd755ab054f613af9baae78e",
+      "digestMode" : "ARTIFACT_CLOSURE",
+      "selected" : true
+    }, {
+      "id" : "org.yanoproject.x.stdlib",
+      "version" : "0.1.0-pre2",
+      "digest" : "sha256:3b118673de03e97cd5b6f502993965fff0c5ab7ed9661d13d554e01d19d36a2b",
+      "digestMode" : "ARTIFACT_CLOSURE",
+      "selected" : true
+    } ]
+  },
+  "inputs" : [ {
+    "role" : "document",
+    "state" : "read",
+    "bytes" : "639",
+    "sha256" : "37898e472cc4a2b63c727a30109de7f16bfb815dc084d512b9c7aabdc1e5c77d"
+  }, {
+    "role" : "context",
+    "state" : "read",
+    "bytes" : "991",
+    "sha256" : "fd1059233408f30a8e02a62f5f8708ece723ceccf99cc4b0fe2744e8dac73539"
+  }, {
+    "role" : "fixture",
+    "state" : "read",
+    "bytes" : "860",
+    "sha256" : "425bc16e8102a73542698c2037848b9a319bef115de800639063772578469304"
+  } ],
+  "documentFormat" : "yaml",
+  "result" : {
+    "irHex" : "8701781b79616e6f2d782d62696e64696e672d66756e6374696f6e732d76316d79616e6f2d782d63656c2d7631018286677265636f7264736b6b762d7265676973747279727265636f7264732e636f6d6d616e642e7631a16c76616c75652d666f726d61746372617700018665617564697469646f632d747261696c7061756469742e636f6d6d616e642e7631a0000181856c61756469742d7265636f7264677265636f72647378186b762d72656769737472792e656e7472792d7075742e76318182028301038302626c748282016b76616c75654c656e67746882001864840065617564697466617070656e6484018268656e746974794964830263686578818200636b65798269656e7472794861736882007170726576696f757356616c75654861736882697265666572656e63658201697075626c69736865648c0818201910001a0001000002081a000100001880101a000100001a001000001a02000000",
+    "irSha256" : "2076cbc6d9b1421705fffb68744da43f4ded8e029d2c350e21d0ddcd8b19aa84",
+    "profile" : {
+      "digestHex" : "08c93347a740f225f6bab724f6aa043e2943361f2a99b51ffdb8dd45b2d8d0ef",
+      "schemaVersion" : 2,
+      "executionVersion" : "1.1.0"
+    },
+    "counts" : {
+      "components" : 2,
+      "bindings" : 1
+    },
+    "rehearsal" : {
+      "continuationOnly" : false,
+      "fromPriorResult" : false,
+      "priorPostStateSha256" : null,
+      "assumptions" : {
+        "height" : "1",
+        "timestamp" : "1000",
+        "stateRootHex" : "0000000000000000000000000000000000000000000000000000000000000000",
+        "pendingEffects" : "0"
+      },
+      "executionIdentity" : "136a726517d7486c37e1f462f55af409727ef51c2f13c94ccc0f22a6382060d2",
+      "assurance" : "execution-only; fixture inputs are not authenticated; no post-state root or finality claim",
+      "postStateSha256" : "0a54e368fb784c18e30ad40ef0a789ad67db84359031a3f7ed6181aa567421d3",
+      "stateChangeCount" : 8,
+      "messages" : [ {
+        "messageIndex" : 0,
+        "messageIdHex" : "2121212121212121212121212121212121212121212121212121212121212121",
+        "topic" : "records.command.v1",
+        "disposition" : "executed",
+        "receiptHex" : "870158202121212121212121212121212121212121212121212121212121212121212121016852454a454354454401754d415050494e475f4d495353494e475f4649454c44828a0000f6677265636f726473582021212121212121212121212121212121212121212121212121212121212121218278186b762d72656769737472792e656e7472792d7075742e7631781d636f6d706f736974652e636f6d6d616e642d61636365707465642e763181826c61756469742d7265636f72642067504c414e4e454460f48a01016c61756469742d7265636f7264656175646974582036c736b3aeebc3c842433bbe3eeb29fc2433ca49b774421bd3567e55a59418ef80806852454a4543544544754d415050494e475f4d495353494e475f4649454c44f4",
+        "receipt" : {
+          "version" : 1,
+          "sourceMessageIdHex" : "2121212121212121212121212121212121212121212121212121212121212121",
+          "height" : "1",
+          "status" : "REJECTED",
+          "failedStepOrdinal" : 1,
+          "code" : "MAPPING_MISSING_FIELD",
+          "steps" : [ {
+            "ordinal" : 0,
+            "depth" : 0,
+            "bindingId" : null,
+            "targetComponentId" : "records",
+            "messageIdHex" : "2121212121212121212121212121212121212121212121212121212121212121",
+            "eventsProduced" : [ "kv-registry.entry-put.v1", "composite.command-accepted.v1" ],
+            "conditions" : [ {
+              "bindingId" : "audit-record",
+              "failedClause" : -1
+            } ],
+            "status" : "PLANNED",
+            "code" : "",
+            "rawBody" : false
+          }, {
+            "ordinal" : 1,
+            "depth" : 1,
+            "bindingId" : "audit-record",
+            "targetComponentId" : "audit",
+            "messageIdHex" : "36c736b3aeebc3c842433bbe3eeb29fc2433ca49b774421bd3567e55a59418ef",
+            "eventsProduced" : [ ],
+            "conditions" : [ ],
+            "status" : "REJECTED",
+            "code" : "MAPPING_MISSING_FIELD",
+            "rawBody" : false
+          } ]
+        }
+      }, {
+        "messageIndex" : 1,
+        "messageIdHex" : "2222222222222222222222222222222222222222222222222222222222222222",
+        "topic" : "records.command.v1",
+        "disposition" : "executed",
+        "receiptHex" : "870158202222222222222222222222222222222222222222222222222222222222222222016852454a454354454401754d415050494e475f4d495353494e475f4649454c44828a0000f6677265636f726473582022222222222222222222222222222222222222222222222222222222222222228278186b762d72656769737472792e656e7472792d7075742e7631781d636f6d706f736974652e636f6d6d616e642d61636365707465642e763181826c61756469742d7265636f72642067504c414e4e454460f48a01016c61756469742d7265636f726465617564697458206e121f7a757c118342271960fefa51ce06317bd36d2d3d464074cc93c75e954580806852454a4543544544754d415050494e475f4d495353494e475f4649454c44f4",
+        "receipt" : {
+          "version" : 1,
+          "sourceMessageIdHex" : "2222222222222222222222222222222222222222222222222222222222222222",
+          "height" : "1",
+          "status" : "REJECTED",
+          "failedStepOrdinal" : 1,
+          "code" : "MAPPING_MISSING_FIELD",
+          "steps" : [ {
+            "ordinal" : 0,
+            "depth" : 0,
+            "bindingId" : null,
+            "targetComponentId" : "records",
+            "messageIdHex" : "2222222222222222222222222222222222222222222222222222222222222222",
+            "eventsProduced" : [ "kv-registry.entry-put.v1", "composite.command-accepted.v1" ],
+            "conditions" : [ {
+              "bindingId" : "audit-record",
+              "failedClause" : -1
+            } ],
+            "status" : "PLANNED",
+            "code" : "",
+            "rawBody" : false
+          }, {
+            "ordinal" : 1,
+            "depth" : 1,
+            "bindingId" : "audit-record",
+            "targetComponentId" : "audit",
+            "messageIdHex" : "6e121f7a757c118342271960fefa51ce06317bd36d2d3d464074cc93c75e9545",
+            "eventsProduced" : [ ],
+            "conditions" : [ ],
+            "status" : "REJECTED",
+            "code" : "MAPPING_MISSING_FIELD",
+            "rawBody" : false
+          } ]
+        }
+      } ],
+      "effects" : [ ]
+    }
+  },
+  "diagnostics" : [ ],
+  "receiptCodes" : [ {
+    "code" : "ADMISSION",
+    "category" : "target-rejection",
+    "origin" : "either",
+    "levels" : [ "step" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "MALFORMED_SOURCE_COMMAND",
+    "category" : "target-rejection",
+    "origin" : "either",
+    "levels" : [ "source" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "MALFORMED_DERIVED_COMMAND",
+    "category" : "target-rejection",
+    "origin" : "either",
+    "levels" : [ "step" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "CAPACITY_EXCEEDED",
+    "category" : "resource-exhaustion",
+    "origin" : "either",
+    "levels" : [ "source", "condition" ],
+    "locatesLastCondition" : "ambiguous"
+  }, {
+    "code" : "COMMAND_PAYLOAD_TOO_LARGE",
+    "category" : "resource-exhaustion",
+    "origin" : "either",
+    "levels" : [ "step" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "COMMAND_WORK_EXCEEDED",
+    "category" : "resource-exhaustion",
+    "origin" : "either",
+    "levels" : [ "step" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "CRYPTO_WORK_EXCEEDED",
+    "category" : "resource-exhaustion",
+    "origin" : "either",
+    "levels" : [ "step" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "EVENT_PAYLOAD_TOO_LARGE",
+    "category" : "resource-exhaustion",
+    "origin" : "either",
+    "levels" : [ "step" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "EXPRESSION_CAPACITY_EXCEEDED",
+    "category" : "resource-exhaustion",
+    "origin" : "either",
+    "levels" : [ "source", "step", "condition", "mapping", "effect" ],
+    "locatesLastCondition" : "ambiguous"
+  }, {
+    "code" : "LIMIT_DEPTH",
+    "category" : "resource-exhaustion",
+    "origin" : "either",
+    "levels" : [ "step" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "LIMIT_FANOUT",
+    "category" : "resource-exhaustion",
+    "origin" : "either",
+    "levels" : [ "condition" ],
+    "locatesLastCondition" : "ambiguous"
+  }, {
+    "code" : "RECEIPT_CAPACITY_EXCEEDED",
+    "category" : "resource-exhaustion",
+    "origin" : "either",
+    "levels" : [ "source" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "EFFECT_CAPACITY_EXCEEDED",
+    "category" : "resource-exhaustion",
+    "origin" : "either",
+    "levels" : [ "effect" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "EFFECT_PAYLOAD_LIMIT",
+    "category" : "resource-exhaustion",
+    "origin" : "either",
+    "levels" : [ "effect" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "EFFECT_EXPIRY_LIMIT",
+    "category" : "resource-exhaustion",
+    "origin" : "either",
+    "levels" : [ "effect" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "EVENT_TYPE_ERROR",
+    "category" : "evaluation-error",
+    "origin" : "either",
+    "levels" : [ "step", "condition" ],
+    "locatesLastCondition" : "ambiguous"
+  }, {
+    "code" : "EVENT_MISSING_FIELD",
+    "category" : "contract-violation",
+    "origin" : "either",
+    "levels" : [ "step" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "EXPRESSION_DIVISION_BY_ZERO",
+    "category" : "evaluation-error",
+    "origin" : "either",
+    "levels" : [ "condition", "mapping" ],
+    "locatesLastCondition" : "ambiguous"
+  }, {
+    "code" : "EXPRESSION_MISSING_FIELD",
+    "category" : "evaluation-error",
+    "origin" : "either",
+    "levels" : [ "condition", "mapping" ],
+    "locatesLastCondition" : "ambiguous"
+  }, {
+    "code" : "EXPRESSION_OVERFLOW",
+    "category" : "evaluation-error",
+    "origin" : "either",
+    "levels" : [ "condition", "mapping" ],
+    "locatesLastCondition" : "ambiguous"
+  }, {
+    "code" : "EXPRESSION_TYPE_ERROR",
+    "category" : "evaluation-error",
+    "origin" : "either",
+    "levels" : [ "condition", "mapping" ],
+    "locatesLastCondition" : "ambiguous"
+  }, {
+    "code" : "EXPRESSION_VALUE_LIMIT",
+    "category" : "evaluation-error",
+    "origin" : "either",
+    "levels" : [ "condition", "mapping" ],
+    "locatesLastCondition" : "ambiguous"
+  }, {
+    "code" : "FUNCTION_INPUT_LIMIT",
+    "category" : "evaluation-error",
+    "origin" : "either",
+    "levels" : [ "condition", "mapping" ],
+    "locatesLastCondition" : "ambiguous"
+  }, {
+    "code" : "FUNCTION_INVALID_CBOR",
+    "category" : "evaluation-error",
+    "origin" : "either",
+    "levels" : [ "condition", "mapping" ],
+    "locatesLastCondition" : "ambiguous"
+  }, {
+    "code" : "FUNCTION_MISSING_FIELD",
+    "category" : "evaluation-error",
+    "origin" : "either",
+    "levels" : [ "condition", "mapping" ],
+    "locatesLastCondition" : "ambiguous"
+  }, {
+    "code" : "FUNCTION_OUTPUT_LIMIT",
+    "category" : "evaluation-error",
+    "origin" : "either",
+    "levels" : [ "condition", "mapping" ],
+    "locatesLastCondition" : "ambiguous"
+  }, {
+    "code" : "INVALID_UNICODE",
+    "category" : "evaluation-error",
+    "origin" : "either",
+    "levels" : [ "condition", "mapping" ],
+    "locatesLastCondition" : "ambiguous"
+  }, {
+    "code" : "LOOKUP_KEY_INVALID",
+    "category" : "evaluation-error",
+    "origin" : "either",
+    "levels" : [ "condition" ],
+    "locatesLastCondition" : "always"
+  }, {
+    "code" : "LOOKUP_KEY_LIMIT",
+    "category" : "evaluation-error",
+    "origin" : "either",
+    "levels" : [ "condition" ],
+    "locatesLastCondition" : "always"
+  }, {
+    "code" : "LOOKUP_KEY_TYPE",
+    "category" : "evaluation-error",
+    "origin" : "either",
+    "levels" : [ "condition" ],
+    "locatesLastCondition" : "always"
+  }, {
+    "code" : "MAPPING_MISSING_FIELD",
+    "category" : "evaluation-error",
+    "origin" : "either",
+    "levels" : [ "condition", "mapping" ],
+    "locatesLastCondition" : "ambiguous"
+  }, {
+    "code" : "MAPPING_TYPE_ERROR",
+    "category" : "evaluation-error",
+    "origin" : "either",
+    "levels" : [ "mapping" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "CONSUMPTION_CONFLICT",
+    "category" : "replay-or-conflict",
+    "origin" : "either",
+    "levels" : [ "step" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "REPLAY_OR_CONFLICT",
+    "category" : "replay-or-conflict",
+    "origin" : "either",
+    "levels" : [ "source" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "RESERVED_ACCOUNTING_KEY",
+    "category" : "contract-violation",
+    "origin" : "either",
+    "levels" : [ "step" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "RESERVED_EVENT_ID",
+    "category" : "contract-violation",
+    "origin" : "either",
+    "levels" : [ "step" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "STATE_KEY_LIMIT",
+    "category" : "contract-violation",
+    "origin" : "either",
+    "levels" : [ "step" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "UNDECLARED_WORK_REFERENCE",
+    "category" : "contract-violation",
+    "origin" : "either",
+    "levels" : [ "step" ],
+    "locatesLastCondition" : "never"
+  } ]
+}
