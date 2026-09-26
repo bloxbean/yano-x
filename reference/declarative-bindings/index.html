@@ -1,0 +1,528 @@
+<!DOCTYPE html><html lang="en" dir="ltr" data-theme="dark" data-has-toc data-has-sidebar class="astro-bguv2lll"> <head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><title>Declarative event bindings | Yano X</title><link rel="canonical" href="https://yano-x.io/reference/declarative-bindings/"/><link rel="sitemap" href="/sitemap-index.xml"/><link rel="shortcut icon" href="/favicon.svg" type="image/svg+xml"/><meta name="generator" content="Astro v6.4.8"/><meta name="generator" content="Starlight v0.38.5"/><meta property="og:title" content="Declarative event bindings"/><meta property="og:type" content="article"/><meta property="og:url" content="https://yano-x.io/reference/declarative-bindings/"/><meta property="og:locale" content="en"/><meta property="og:description" content="New to bindings? Follow the beginner-to-advanced developer learning path for runnable examples, Java integration, graphical tooling and deployment guidance."/><meta property="og:site_name" content="Yano X"/><meta name="twitter:card" content="summary_large_image"/><meta name="description" content="New to bindings? Follow the beginner-to-advanced developer learning path for runnable examples, Java integration, graphical tooling and deployment guidance."/><script type="module" src="/_astro/Head.astro_astro_type_script_index_0_lang.Bc9wfo_o.js"></script><script>
+	window.StarlightThemeProvider = (() => {
+		const storedTheme =
+			typeof localStorage !== 'undefined' && localStorage.getItem('starlight-theme');
+		const theme =
+			storedTheme ||
+			(window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+		document.documentElement.dataset.theme = theme === 'light' ? 'light' : 'dark';
+		return {
+			updatePickers(theme = storedTheme || 'auto') {
+				document.querySelectorAll('starlight-theme-select').forEach((picker) => {
+					const select = picker.querySelector('select');
+					if (select) select.value = theme;
+					/** @type {HTMLTemplateElement | null} */
+					const tmpl = document.querySelector(`#theme-icons`);
+					const newIcon = tmpl && tmpl.content.querySelector('.' + theme);
+					if (newIcon) {
+						const oldIcon = picker.querySelector('svg.label-icon');
+						if (oldIcon) {
+							oldIcon.replaceChildren(...newIcon.cloneNode(true).childNodes);
+						}
+					}
+				});
+			},
+		};
+	})();
+</script><template id="theme-icons"><svg aria-hidden="true" class="light astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M5 12a1 1 0 0 0-1-1H3a1 1 0 0 0 0 2h1a1 1 0 0 0 1-1Zm.64 5-.71.71a1 1 0 0 0 0 1.41 1 1 0 0 0 1.41 0l.71-.71A1 1 0 0 0 5.64 17ZM12 5a1 1 0 0 0 1-1V3a1 1 0 0 0-2 0v1a1 1 0 0 0 1 1Zm5.66 2.34a1 1 0 0 0 .7-.29l.71-.71a1 1 0 1 0-1.41-1.41l-.66.71a1 1 0 0 0 0 1.41 1 1 0 0 0 .66.29Zm-12-.29a1 1 0 0 0 1.41 0 1 1 0 0 0 0-1.41l-.71-.71a1.004 1.004 0 1 0-1.43 1.41l.73.71ZM21 11h-1a1 1 0 0 0 0 2h1a1 1 0 0 0 0-2Zm-2.64 6A1 1 0 0 0 17 18.36l.71.71a1 1 0 0 0 1.41 0 1 1 0 0 0 0-1.41l-.76-.66ZM12 6.5a5.5 5.5 0 1 0 5.5 5.5A5.51 5.51 0 0 0 12 6.5Zm0 9a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7Zm0 3.5a1 1 0 0 0-1 1v1a1 1 0 0 0 2 0v-1a1 1 0 0 0-1-1Z"/></svg><svg aria-hidden="true" class="dark astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M21.64 13a1 1 0 0 0-1.05-.14 8.049 8.049 0 0 1-3.37.73 8.15 8.15 0 0 1-8.14-8.1 8.59 8.59 0 0 1 .25-2A1 1 0 0 0 8 2.36a10.14 10.14 0 1 0 14 11.69 1 1 0 0 0-.36-1.05Zm-9.5 6.69A8.14 8.14 0 0 1 7.08 5.22v.27a10.15 10.15 0 0 0 10.14 10.14 9.784 9.784 0 0 0 2.1-.22 8.11 8.11 0 0 1-7.18 4.32v-.04Z"/></svg><svg aria-hidden="true" class="auto astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M21 14h-1V7a3 3 0 0 0-3-3H7a3 3 0 0 0-3 3v7H3a1 1 0 0 0-1 1v2a3 3 0 0 0 3 3h14a3 3 0 0 0 3-3v-2a1 1 0 0 0-1-1ZM6 7a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v7H6V7Zm14 10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-1h16v1Z"/></svg></template><link rel="stylesheet" href="/_astro/print.DNXP8c50.css" media="print"><link rel="stylesheet" href="/_astro/common.DF_dmrJd.css"><style>@import"https://fonts.googleapis.com/css2?family=DM+Sans:wght@500&family=Space+Grotesk:wght@400;700&display=swap";.yano-brand:where(.astro-jmtqbhzu){display:flex;min-width:0;align-items:center;gap:10px;color:inherit;text-decoration:none;white-space:nowrap}img:where(.astro-jmtqbhzu){width:38px;height:38px;flex:0 0 auto;object-fit:contain}.wordmark:where(.astro-jmtqbhzu){font-family:Space Grotesk,system-ui,sans-serif;font-size:2rem;font-weight:700;line-height:1;letter-spacing:-2px}.extension:where(.astro-jmtqbhzu){display:inline-block;margin-left:5px;color:var(--sl-color-accent-high, #9af0d4)}.slash:where(.astro-jmtqbhzu){padding-inline:8px;color:var(--sl-color-gray-4, #536b76);font:400 2rem/1 Space Grotesk,system-ui,sans-serif}.caption:where(.astro-jmtqbhzu){color:var(--sl-color-gray-3, #a7bac3);font:500 .625rem/1.4 DM Sans,system-ui,sans-serif;letter-spacing:1.5px}@media(max-width:80rem){.slash:where(.astro-jmtqbhzu),.caption:where(.astro-jmtqbhzu){display:none}}
+</style><script type="module" src="/_astro/page.B_tncCx8.js"></script></head> <body class="astro-bguv2lll"> <a href="#_top" class="astro-7q3lir66">Skip to content</a> <div class="page sl-flex astro-vrdttmbt"> <header class="header astro-vrdttmbt"><div class="header astro-kmkmnagf"> <div class="title-wrapper sl-flex astro-kmkmnagf"> <a class="yano-brand astro-jmtqbhzu" href="/" aria-label="Yano X home"> <img src="/logo.svg" width="38" height="38" alt="" class="astro-jmtqbhzu"> <span class="wordmark astro-jmtqbhzu" translate="no">yano<span class="extension astro-jmtqbhzu">x</span></span> <span class="slash astro-jmtqbhzu" aria-hidden="true">/</span><span class="caption astro-jmtqbhzu">BUILD SHARED TRUST</span> </a> </div> <div class="sl-flex print:hidden astro-kmkmnagf"> <site-search class="astro-kmkmnagf astro-v37mnknz" data-translations="{&quot;placeholder&quot;:&quot;Search&quot;}"> <button data-open-modal disabled aria-label="Search" aria-keyshortcuts="Control+K" class="astro-v37mnknz"> <svg aria-hidden="true" class="astro-v37mnknz astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M21.71 20.29 18 16.61A9 9 0 1 0 16.61 18l3.68 3.68a.999.999 0 0 0 1.42 0 1 1 0 0 0 0-1.39ZM11 18a7 7 0 1 1 0-14 7 7 0 0 1 0 14Z"/></svg> <span class="sl-hidden md:sl-block astro-v37mnknz" aria-hidden="true">Search</span> <kbd class="sl-hidden md:sl-flex astro-v37mnknz" style="display: none;"> <kbd class="astro-v37mnknz">Ctrl</kbd><kbd class="astro-v37mnknz">K</kbd> </kbd> </button> <dialog style="padding:0" aria-label="Search" class="astro-v37mnknz"> <div class="dialog-frame sl-flex astro-v37mnknz">  <button data-close-modal class="sl-flex md:sl-hidden astro-v37mnknz"> Cancel </button> <div class="search-container astro-v37mnknz"> <div id="starlight__search" class="astro-v37mnknz"></div> </div> </div> </dialog> </site-search>  <script>
+	(() => {
+		const openBtn = document.querySelector('button[data-open-modal]');
+		const shortcut = openBtn?.querySelector('kbd');
+		if (!openBtn || !(shortcut instanceof HTMLElement)) return;
+		const platformKey = shortcut.querySelector('kbd');
+		if (platformKey && /(Mac|iPhone|iPod|iPad)/i.test(navigator.platform)) {
+			platformKey.textContent = '⌘';
+			openBtn.setAttribute('aria-keyshortcuts', 'Meta+K');
+		}
+		shortcut.style.display = '';
+	})();
+</script> <script type="module" src="/_astro/Search.astro_astro_type_script_index_0_lang.CZEeVnww.js"></script>  </div> <div class="sl-hidden md:sl-flex print:hidden right-group astro-kmkmnagf"> <div class="sl-flex social-icons astro-kmkmnagf"> <a href="https://github.com/bloxbean/yano-x" rel="me" class="sl-flex astro-wy4te6ga"><span class="sr-only astro-wy4te6ga">GitHub</span><svg aria-hidden="true" class="astro-wy4te6ga astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M12 .3a12 12 0 0 0-3.8 23.38c.6.12.83-.26.83-.57L9 21.07c-3.34.72-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.08-.74.09-.73.09-.73 1.2.09 1.83 1.24 1.83 1.24 1.08 1.83 2.81 1.3 3.5 1 .1-.78.42-1.31.76-1.61-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.14-.3-.54-1.52.1-3.18 0 0 1-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.28-1.55 3.29-1.23 3.29-1.23.64 1.66.24 2.88.12 3.18a4.65 4.65 0 0 1 1.23 3.22c0 4.61-2.8 5.63-5.48 5.92.42.36.81 1.1.81 2.22l-.01 3.29c0 .31.2.69.82.57A12 12 0 0 0 12 .3Z"/></svg></a> </div> <starlight-theme-select>  <label style="--sl-select-width: 6.25em" class="astro-4yphtoen"> <span class="sr-only astro-4yphtoen">Select theme</span> <svg aria-hidden="true" class="icon label-icon astro-4yphtoen astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M21 14h-1V7a3 3 0 0 0-3-3H7a3 3 0 0 0-3 3v7H3a1 1 0 0 0-1 1v2a3 3 0 0 0 3 3h14a3 3 0 0 0 3-3v-2a1 1 0 0 0-1-1ZM6 7a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v7H6V7Zm14 10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-1h16v1Z"/></svg> <select autocomplete="off" class="astro-4yphtoen"> <option value="dark" class="astro-4yphtoen">Dark</option><option value="light" class="astro-4yphtoen">Light</option><option value="auto" selected class="astro-4yphtoen">Auto</option> </select> <svg aria-hidden="true" class="icon caret astro-4yphtoen astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M17 9.17a1 1 0 0 0-1.41 0L12 12.71 8.46 9.17a1 1 0 1 0-1.41 1.42l4.24 4.24a1.002 1.002 0 0 0 1.42 0L17 10.59a1.002 1.002 0 0 0 0-1.42Z"/></svg> </label> </starlight-theme-select>  <script>
+	StarlightThemeProvider.updatePickers();
+</script> <script type="module">const r="starlight-theme",o=e=>e==="auto"||e==="dark"||e==="light"?e:"auto",c=()=>o(typeof localStorage<"u"&&localStorage.getItem(r));function n(e){typeof localStorage<"u"&&localStorage.setItem(r,e==="light"||e==="dark"?e:"")}const l=()=>matchMedia("(prefers-color-scheme: light)").matches?"light":"dark";function t(e){StarlightThemeProvider.updatePickers(e),document.documentElement.dataset.theme=e==="auto"?l():e,n(e)}matchMedia("(prefers-color-scheme: light)").addEventListener("change",()=>{c()==="auto"&&t("auto")});class s extends HTMLElement{constructor(){super(),t(c()),this.querySelector("select")?.addEventListener("change",a=>{a.currentTarget instanceof HTMLSelectElement&&t(o(a.currentTarget.value))})}}customElements.define("starlight-theme-select",s);</script> <script type="module">class s extends HTMLElement{constructor(){super();const e=this.querySelector("select");e&&(e.addEventListener("change",t=>{t.currentTarget instanceof HTMLSelectElement&&(window.location.pathname=t.currentTarget.value)}),window.addEventListener("pageshow",t=>{if(!t.persisted)return;const n=e.querySelector("option[selected]")?.index;n!==e.selectedIndex&&(e.selectedIndex=n??0)}))}}customElements.define("starlight-lang-select",s);</script> </div> </div></header> <nav class="sidebar print:hidden astro-vrdttmbt" aria-label="Main"> <starlight-menu-button class="print:hidden astro-jif73yzw"> <button aria-expanded="false" aria-label="Menu" aria-controls="starlight__sidebar" class="sl-flex md:sl-hidden astro-jif73yzw"> <svg aria-hidden="true" class="open-menu astro-jif73yzw astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M3 8h18a1 1 0 1 0 0-2H3a1 1 0 0 0 0 2Zm18 8H3a1 1 0 0 0 0 2h18a1 1 0 0 0 0-2Zm0-5H3a1 1 0 0 0 0 2h18a1 1 0 0 0 0-2Z"/></svg> <svg aria-hidden="true" class="close-menu astro-jif73yzw astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="m13.41 12 6.3-6.29a1.004 1.004 0 1 0-1.42-1.42L12 10.59l-6.29-6.3a1.004 1.004 0 0 0-1.42 1.42l6.3 6.29-6.3 6.29a1 1 0 0 0 0 1.42.998.998 0 0 0 1.42 0l6.29-6.3 6.29 6.3a.999.999 0 0 0 1.42 0 1 1 0 0 0 0-1.42L13.41 12Z"/></svg> </button> </starlight-menu-button> <script type="module">class s extends HTMLElement{constructor(){super(),this.btn=this.querySelector("button"),this.btn.addEventListener("click",()=>this.toggleExpanded());const t=this.closest("nav");t&&t.addEventListener("keyup",e=>this.closeOnEscape(e))}setExpanded(t){this.setAttribute("aria-expanded",String(t)),document.body.toggleAttribute("data-mobile-menu-expanded",t)}toggleExpanded(){this.setExpanded(this.getAttribute("aria-expanded")!=="true")}closeOnEscape(t){t.code==="Escape"&&(this.setExpanded(!1),this.btn.focus())}}customElements.define("starlight-menu-button",s);</script>  <div id="starlight__sidebar" class="sidebar-pane astro-vrdttmbt"> <div class="sidebar-content sl-flex astro-vrdttmbt"> <sl-sidebar-state-persist data-hash="1v93kr6" class="astro-kku4brbg"> <script aria-hidden="true">
+		(() => {
+			try {
+				if (!matchMedia('(min-width: 50em)').matches) return;
+				/** @type {HTMLElement | null} */
+				const target = document.querySelector('sl-sidebar-state-persist');
+				const state = JSON.parse(sessionStorage.getItem('sl-sidebar-state') || '0');
+				if (!target || !state || target.dataset.hash !== state.hash) return;
+				window._starlightScrollRestore = state.scroll;
+				customElements.define(
+					'sl-sidebar-restore',
+					class SidebarRestore extends HTMLElement {
+						connectedCallback() {
+							try {
+								const idx = parseInt(this.dataset.index || '');
+								const details = this.closest('details');
+								if (details && typeof state.open[idx] === 'boolean') details.open = state.open[idx];
+							} catch {}
+						}
+					}
+				);
+			} catch {}
+		})();
+	</script>  <ul class="top-level astro-3ii7xxms"> <li class="astro-3ii7xxms"> <details open class="astro-3ii7xxms"> <summary class="astro-3ii7xxms"> <span class="group-label astro-3ii7xxms"> <span class="large astro-3ii7xxms">Start here</span>  </span> <svg aria-hidden="true" class="caret astro-3ii7xxms astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg> </summary> <sl-sidebar-restore data-index="0"></sl-sidebar-restore> <ul class="astro-3ii7xxms"> <li class="astro-3ii7xxms"> <a href="/start-here/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Your learning path</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/start-here/what-is-an-app-chain/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">What is an app chain?</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/start-here/why-yano-x/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Why Yano X</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/start-here/release-downloads/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Release downloads</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/start-here/quickstart/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Local showcase</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/start-here/build-from-source/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Build from source</span>  </a> </li> </ul> </details> </li><li class="astro-3ii7xxms"> <details class="astro-3ii7xxms"> <summary class="astro-3ii7xxms"> <span class="group-label astro-3ii7xxms"> <span class="large astro-3ii7xxms">Deployment</span>  </span> <svg aria-hidden="true" class="caret astro-3ii7xxms astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg> </summary> <sl-sidebar-restore data-index="1"></sl-sidebar-restore> <ul class="astro-3ii7xxms"> <li class="astro-3ii7xxms"> <a href="/deployment/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Deploy Yano X</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/deployment/add-chain/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Add a chain without resetting your application</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/deployment/configure/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Configure your application</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/deployment/operators/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Deploy and operate remote VMs</span>  </a> </li> </ul> </details> </li><li class="astro-3ii7xxms"> <details class="astro-3ii7xxms"> <summary class="astro-3ii7xxms"> <span class="group-label astro-3ii7xxms"> <span class="large astro-3ii7xxms">Concepts</span>  </span> <svg aria-hidden="true" class="caret astro-3ii7xxms astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg> </summary> <sl-sidebar-restore data-index="2"></sl-sidebar-restore> <ul class="astro-3ii7xxms"> <li class="astro-3ii7xxms"> <a href="/concepts/architecture/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Architecture</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/concepts/consensus-and-finality/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Consensus and finality</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/concepts/state-and-proofs/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">State and proofs</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/concepts/effects/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Effects</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/concepts/observations/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">External observations</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/concepts/anchoring/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Cardano anchoring</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/concepts/determinism-rules/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Determinism rules</span>  </a> </li> </ul> </details> </li><li class="astro-3ii7xxms"> <details class="astro-3ii7xxms"> <summary class="astro-3ii7xxms"> <span class="group-label astro-3ii7xxms"> <span class="large astro-3ii7xxms">Recipes</span>  </span> <svg aria-hidden="true" class="caret astro-3ii7xxms astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg> </summary> <sl-sidebar-restore data-index="3"></sl-sidebar-restore> <ul class="astro-3ii7xxms"> <li class="astro-3ii7xxms"> <a href="/recipes/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Recipe catalog</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/recipes/choosing-a-recipe/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Choosing a recipe</span>  </a> </li> </ul> </details> </li><li class="astro-3ii7xxms"> <details class="astro-3ii7xxms"> <summary class="astro-3ii7xxms"> <span class="group-label astro-3ii7xxms"> <span class="large astro-3ii7xxms">Plugin framework</span>  </span> <svg aria-hidden="true" class="caret astro-3ii7xxms astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg> </summary> <sl-sidebar-restore data-index="4"></sl-sidebar-restore> <ul class="astro-3ii7xxms"> <li class="astro-3ii7xxms"> <a href="/plugins/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">The extension ladder</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/plugins/scaffold-sign-install/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Scaffold, sign, install</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/plugins/spi-and-manifest/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">SPI and manifest</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/plugins/consensus-rules/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Consensus rules</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/plugins/testing-and-deployment/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Testing and deployment</span>  </a> </li> </ul> </details> </li><li class="astro-3ii7xxms"> <details class="astro-3ii7xxms"> <summary class="astro-3ii7xxms"> <span class="group-label astro-3ii7xxms"> <span class="large astro-3ii7xxms">Tutorials</span>  </span> <svg aria-hidden="true" class="caret astro-3ii7xxms astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg> </summary> <sl-sidebar-restore data-index="5"></sl-sidebar-restore> <ul class="astro-3ii7xxms"> <li class="astro-3ii7xxms"> <a href="/tutorials/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">App-Chain Tutorials</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/tutorials/01-first-app-chain/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Tutorial 1 — Your First App Chain</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/tutorials/02-registry-and-proofs/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Tutorial 2 — A Provable Shared Registry</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/tutorials/03-stock-state-machines/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Tutorial 3 — Choose a Stock State Machine</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/tutorials/04-evidence-publication/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Tutorial 4 — Publish and Verify Immutable Evidence</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/tutorials/05-domain-role-approvals/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Tutorial 5 — Generic Domain Actors and Role-Aware Approval</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/tutorials/06-webhook-effects/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Tutorial 6 — Invoke an External HTTP Endpoint Safely</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/tutorials/07-anchors-and-verification/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Tutorial 7 — Connect an App Proof to Cardano</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/tutorials/08-plugins-and-composites/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Tutorial 8 — Extend Yano Without Forking It</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/tutorials/09-from-demo-to-pilot/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Tutorial 9 — From Local Demo to a Permissioned Pilot</span>  </a> </li> </ul> </details> </li><li class="astro-3ii7xxms"> <details class="astro-3ii7xxms"> <summary class="astro-3ii7xxms"> <span class="group-label astro-3ii7xxms"> <span class="large astro-3ii7xxms">Declarative bindings</span>  </span> <svg aria-hidden="true" class="caret astro-3ii7xxms astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg> </summary> <sl-sidebar-restore data-index="6"></sl-sidebar-restore> <ul class="astro-3ii7xxms"> <li class="astro-3ii7xxms"> <a href="/bindings/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Learning path</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/bindings/first-workflow/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">1. Your first workflow</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/bindings/conditions-and-mappings/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">2. Conditions and mappings</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/bindings/approval-workflows/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">3. Approval workflows</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/bindings/java-integration/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">4. Java integration</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/bindings/operations-and-upgrades/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">5. Operations and upgrades</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/bindings/guided-editor/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">6. Studio editor</span>  </a> </li> </ul> </details> </li><li class="astro-3ii7xxms"> <details class="astro-3ii7xxms"> <summary class="astro-3ii7xxms"> <span class="group-label astro-3ii7xxms"> <span class="large astro-3ii7xxms">State machines</span>  </span> <svg aria-hidden="true" class="caret astro-3ii7xxms astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg> </summary> <sl-sidebar-restore data-index="7"></sl-sidebar-restore> <ul class="astro-3ii7xxms"> <li class="astro-3ii7xxms"> <a href="/state-machines/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">App-Chain State-Machine References</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/state-machines/approvals/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">`approvals` State Machine</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/state-machines/authenticated-map/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">`authenticated-map` State Machine</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/state-machines/authenticated-map-validation/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Authenticated-map value validation</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/state-machines/balances/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">`balances` State Machine</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/state-machines/doc-trail/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">`doc-trail` State Machine</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/state-machines/kv-registry/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">`kv-registry` State Machine</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/state-machines/role-approvals/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">`role-approvals` State Machine</span>  </a> </li> </ul> </details> </li><li class="astro-3ii7xxms"> <details class="astro-3ii7xxms"> <summary class="astro-3ii7xxms"> <span class="group-label astro-3ii7xxms"> <span class="large astro-3ii7xxms">Products</span>  </span> <svg aria-hidden="true" class="caret astro-3ii7xxms astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg> </summary> <sl-sidebar-restore data-index="8"></sl-sidebar-restore> <ul class="astro-3ii7xxms"> <li class="astro-3ii7xxms"> <a href="/products/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Overview</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/products/evidence/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Evidence</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/products/cardano-history/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Cardano History</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/products/attest/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Attest</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/products/evidence-desk/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Evidence Desk</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/products/trust-registry/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Trust Registry</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/products/explorer/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Verifiable Explorer</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/products/dpp-starter/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">DPP Starter</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/products/attestation-feed/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Attestation Feed</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/products/eutxo-and-zk/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">eUTxO and ZK</span> <span class="sl-badge caution small  astro-3ii7xxms astro-avdet4wd">Experimental</span> </a> </li> </ul> </details> </li><li class="astro-3ii7xxms"> <details class="astro-3ii7xxms"> <summary class="astro-3ii7xxms"> <span class="group-label astro-3ii7xxms"> <span class="large astro-3ii7xxms">AI agents</span>  </span> <svg aria-hidden="true" class="caret astro-3ii7xxms astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg> </summary> <sl-sidebar-restore data-index="9"></sl-sidebar-restore> <ul class="astro-3ii7xxms"> <li class="astro-3ii7xxms"> <a href="/ai/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Using Yano X with AI</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/ai/starter-pack/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">AI Starter Pack</span>  </a> </li> </ul> </details> </li><li class="astro-3ii7xxms"> <details open class="astro-3ii7xxms"> <summary class="astro-3ii7xxms"> <span class="group-label astro-3ii7xxms"> <span class="large astro-3ii7xxms">Reference</span>  </span> <svg aria-hidden="true" class="caret astro-3ii7xxms astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg> </summary> <sl-sidebar-restore data-index="10"></sl-sidebar-restore> <ul class="astro-3ii7xxms"> <li class="astro-3ii7xxms"> <a href="/reference/cli/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">CLI</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/reference/declarative-bindings/" aria-current="page" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Declarative bindings</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/reference/declarative-bindings-cli/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Bindings authoring CLI</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/reference/declarative-bindings-upgrades/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Bindings upgrade preflight</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/reference/rest-api/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">REST API</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/reference/capabilities/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Capability catalog</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/reference/configuration/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Configuration</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/reference/modules/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Modules and artifacts</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/reference/shelf/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Reference shelf</span>  </a> </li> </ul> </details> </li><li class="astro-3ii7xxms"> <details class="astro-3ii7xxms"> <summary class="astro-3ii7xxms"> <span class="group-label astro-3ii7xxms"> <span class="large astro-3ii7xxms">Contributing</span>  </span> <svg aria-hidden="true" class="caret astro-3ii7xxms astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg> </summary> <sl-sidebar-restore data-index="11"></sl-sidebar-restore> <ul class="astro-3ii7xxms"> <li class="astro-3ii7xxms"> <a href="/contributing/" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Developing Yano X</span>  </a> </li> </ul> </details> </li> </ul>  <script aria-hidden="true">
+		(() => {
+			const scroller = document.getElementById('starlight__sidebar');
+			if (!window._starlightScrollRestore || !scroller) return;
+			scroller.scrollTop = window._starlightScrollRestore;
+			delete window._starlightScrollRestore;
+		})();
+	</script> </sl-sidebar-state-persist> <div class="md:sl-hidden"> <div class="mobile-preferences sl-flex astro-wu23bvmt"> <div class="social-icons astro-wu23bvmt"> <a href="https://github.com/bloxbean/yano-x" rel="me" class="sl-flex astro-wy4te6ga"><span class="sr-only astro-wy4te6ga">GitHub</span><svg aria-hidden="true" class="astro-wy4te6ga astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M12 .3a12 12 0 0 0-3.8 23.38c.6.12.83-.26.83-.57L9 21.07c-3.34.72-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.08-.74.09-.73.09-.73 1.2.09 1.83 1.24 1.83 1.24 1.08 1.83 2.81 1.3 3.5 1 .1-.78.42-1.31.76-1.61-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.14-.3-.54-1.52.1-3.18 0 0 1-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.28-1.55 3.29-1.23 3.29-1.23.64 1.66.24 2.88.12 3.18a4.65 4.65 0 0 1 1.23 3.22c0 4.61-2.8 5.63-5.48 5.92.42.36.81 1.1.81 2.22l-.01 3.29c0 .31.2.69.82.57A12 12 0 0 0 12 .3Z"/></svg></a> </div> <starlight-theme-select>  <label style="--sl-select-width: 6.25em" class="astro-4yphtoen"> <span class="sr-only astro-4yphtoen">Select theme</span> <svg aria-hidden="true" class="icon label-icon astro-4yphtoen astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M21 14h-1V7a3 3 0 0 0-3-3H7a3 3 0 0 0-3 3v7H3a1 1 0 0 0-1 1v2a3 3 0 0 0 3 3h14a3 3 0 0 0 3-3v-2a1 1 0 0 0-1-1ZM6 7a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v7H6V7Zm14 10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-1h16v1Z"/></svg> <select autocomplete="off" class="astro-4yphtoen"> <option value="dark" class="astro-4yphtoen">Dark</option><option value="light" class="astro-4yphtoen">Light</option><option value="auto" selected class="astro-4yphtoen">Auto</option> </select> <svg aria-hidden="true" class="icon caret astro-4yphtoen astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M17 9.17a1 1 0 0 0-1.41 0L12 12.71 8.46 9.17a1 1 0 1 0-1.41 1.42l4.24 4.24a1.002 1.002 0 0 0 1.42 0L17 10.59a1.002 1.002 0 0 0 0-1.42Z"/></svg> </label> </starlight-theme-select>  <script>
+	StarlightThemeProvider.updatePickers();
+</script>   </div> </div> </div> </div> </nav> <div class="main-frame astro-vrdttmbt">  <script type="module">const a=document.getElementById("starlight__sidebar"),n=a?.querySelector("sl-sidebar-state-persist"),o="sl-sidebar-state",i=()=>{let t=[];const e=n?.dataset.hash||"";try{const s=sessionStorage.getItem(o),r=JSON.parse(s||"{}");Array.isArray(r.open)&&r.hash===e&&(t=r.open)}catch{}return{hash:e,open:t,scroll:a?.scrollTop||0}},c=t=>{try{sessionStorage.setItem(o,JSON.stringify(t))}catch{}},d=()=>c(i()),l=(t,e)=>{const s=i();s.open[e]=t,c(s)};n?.addEventListener("click",t=>{if(!(t.target instanceof Element))return;const e=t.target.closest("summary")?.closest("details");if(!e)return;const s=e.querySelector("sl-sidebar-restore"),r=parseInt(s?.dataset.index||"");isNaN(r)||l(!e.open,r)});addEventListener("visibilitychange",()=>{document.visibilityState==="hidden"&&d()});addEventListener("pageHide",d);</script> <div class="lg:sl-flex astro-67yu43on"> <aside class="right-sidebar-container print:hidden astro-67yu43on"> <div class="right-sidebar astro-67yu43on"> <div class="lg:sl-hidden astro-pb3aqygn"><mobile-starlight-toc data-min-h="2" data-max-h="3" class="astro-doynk5tl"><nav aria-labelledby="starlight__on-this-page--mobile" class="astro-doynk5tl"><details id="starlight__mobile-toc" class="astro-doynk5tl"><summary id="starlight__on-this-page--mobile" class="sl-flex astro-doynk5tl"><span class="toggle sl-flex astro-doynk5tl">On this page<svg aria-hidden="true" class="caret astro-doynk5tl astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg></span><span class="display-current astro-doynk5tl"></span></summary><div class="dropdown astro-doynk5tl"><ul class="isMobile astro-gnoq344e" style="--depth: 0;"> <li class="astro-gnoq344e" style="--depth: 0;"> <a href="#_top" class="astro-gnoq344e" style="--depth: 0;"> <span class="astro-gnoq344e" style="--depth: 0;">Overview</span> </a>  </li><li class="astro-gnoq344e" style="--depth: 0;"> <a href="#mental-model" class="astro-gnoq344e" style="--depth: 0;"> <span class="astro-gnoq344e" style="--depth: 0;">Mental model</span> </a>  </li><li class="astro-gnoq344e" style="--depth: 0;"> <a href="#authoring-rules" class="astro-gnoq344e" style="--depth: 0;"> <span class="astro-gnoq344e" style="--depth: 0;">Authoring rules</span> </a>  </li><li class="astro-gnoq344e" style="--depth: 0;"> <a href="#language-reference" class="astro-gnoq344e" style="--depth: 0;"> <span class="astro-gnoq344e" style="--depth: 0;">Language reference</span> </a>  </li><li class="astro-gnoq344e" style="--depth: 0;"> <a href="#submission-validity-and-retry" class="astro-gnoq344e" style="--depth: 0;"> <span class="astro-gnoq344e" style="--depth: 0;">Submission validity and retry</span> </a>  </li><li class="astro-gnoq344e" style="--depth: 0;"> <a href="#why-did-a-binding-not-fire" class="astro-gnoq344e" style="--depth: 0;"> <span class="astro-gnoq344e" style="--depth: 0;">Why did a binding not fire?</span> </a>  </li><li class="astro-gnoq344e" style="--depth: 0;"> <a href="#governed-map-actions" class="astro-gnoq344e" style="--depth: 0;"> <span class="astro-gnoq344e" style="--depth: 0;">Governed map actions</span> </a>  </li><li class="astro-gnoq344e" style="--depth: 0;"> <a href="#receipts-proofs-and-product-boundaries" class="astro-gnoq344e" style="--depth: 0;"> <span class="astro-gnoq344e" style="--depth: 0;">Receipts, proofs, and product boundaries</span> </a>  </li><li class="astro-gnoq344e" style="--depth: 0;"> <a href="#evolution-and-operation" class="astro-gnoq344e" style="--depth: 0;"> <span class="astro-gnoq344e" style="--depth: 0;">Evolution and operation</span> </a>  </li> </ul></div></details></nav></mobile-starlight-toc><script type="module" src="/_astro/MobileTableOfContents.astro_astro_type_script_index_0_lang.hwBsy0Mo.js"></script></div><div class="right-sidebar-panel sl-hidden lg:sl-block astro-pb3aqygn"><div class="sl-container astro-pb3aqygn"><starlight-toc data-min-h="2" data-max-h="3"><nav aria-labelledby="starlight__on-this-page"><h2 id="starlight__on-this-page">On this page</h2><ul class="astro-gnoq344e" style="--depth: 0;"> <li class="astro-gnoq344e" style="--depth: 0;"> <a href="#_top" class="astro-gnoq344e" style="--depth: 0;"> <span class="astro-gnoq344e" style="--depth: 0;">Overview</span> </a>  </li><li class="astro-gnoq344e" style="--depth: 0;"> <a href="#mental-model" class="astro-gnoq344e" style="--depth: 0;"> <span class="astro-gnoq344e" style="--depth: 0;">Mental model</span> </a>  </li><li class="astro-gnoq344e" style="--depth: 0;"> <a href="#authoring-rules" class="astro-gnoq344e" style="--depth: 0;"> <span class="astro-gnoq344e" style="--depth: 0;">Authoring rules</span> </a>  </li><li class="astro-gnoq344e" style="--depth: 0;"> <a href="#language-reference" class="astro-gnoq344e" style="--depth: 0;"> <span class="astro-gnoq344e" style="--depth: 0;">Language reference</span> </a>  </li><li class="astro-gnoq344e" style="--depth: 0;"> <a href="#submission-validity-and-retry" class="astro-gnoq344e" style="--depth: 0;"> <span class="astro-gnoq344e" style="--depth: 0;">Submission validity and retry</span> </a>  </li><li class="astro-gnoq344e" style="--depth: 0;"> <a href="#why-did-a-binding-not-fire" class="astro-gnoq344e" style="--depth: 0;"> <span class="astro-gnoq344e" style="--depth: 0;">Why did a binding not fire?</span> </a>  </li><li class="astro-gnoq344e" style="--depth: 0;"> <a href="#governed-map-actions" class="astro-gnoq344e" style="--depth: 0;"> <span class="astro-gnoq344e" style="--depth: 0;">Governed map actions</span> </a>  </li><li class="astro-gnoq344e" style="--depth: 0;"> <a href="#receipts-proofs-and-product-boundaries" class="astro-gnoq344e" style="--depth: 0;"> <span class="astro-gnoq344e" style="--depth: 0;">Receipts, proofs, and product boundaries</span> </a>  </li><li class="astro-gnoq344e" style="--depth: 0;"> <a href="#evolution-and-operation" class="astro-gnoq344e" style="--depth: 0;"> <span class="astro-gnoq344e" style="--depth: 0;">Evolution and operation</span> </a>  </li> </ul></nav></starlight-toc><script type="module" src="/_astro/TableOfContents.astro_astro_type_script_index_0_lang.FuRcXuRY.js"></script></div></div> </div> </aside> <div class="main-pane astro-67yu43on">  <main data-pagefind-body class="astro-bguv2lll" lang="en" dir="ltr">    <div class="content-panel astro-7nkwcw3z"> <div class="sl-container astro-7nkwcw3z"> <h1 id="_top" class="astro-j6tvhyss">Declarative event bindings</h1> </div> </div> <div class="content-panel astro-7nkwcw3z"> <div class="sl-container astro-7nkwcw3z"> <div class="sl-markdown-content"> <p>New to bindings? Follow the <a href="/bindings/">beginner-to-advanced developer learning path</a>
+for runnable examples, Java integration, graphical tooling and deployment guidance.</p>
+<p>Status: experimental, undergoing ADR-031.1 qualification. Do not use this
+profile as a production compatibility promise.</p>
+<p>Declarative composites connect existing state-machine commands through bounded
+event bindings. For example, registering an order can open an approval round;
+the threshold-reaching vote can append an audit entry in the same atomic
+cascade. Application authors configure these connections without implementing
+a Java coordinator. Nodes execute canonical binary IR, not YAML or a scripting
+engine.</p>
+<p>Start with <a href="https://github.com/bloxbean/yano-x/blob/main/examples/bindings/procurement.yaml">procurement</a> or
+<a href="https://github.com/bloxbean/yano-x/blob/main/examples/bindings/attestation.yaml">approval-gated attestation</a>.
+See <a href="/reference/declarative-bindings-cli/">the CLI guide</a> for compilation, validation,
+graphing, and deterministic fixture execution.</p>
+<div class="sl-heading-wrapper level-h2"><h2 id="mental-model">Mental model</h2><a class="sl-anchor-link" href="#mental-model"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only" data-pagefind-ignore="">Section titled “Mental model”</span></a></div>
+<p>Each component has an instance id, its own state namespace, a catalog-selected
+machine, normalized committed settings, and a distinct ingress topic. Two
+instances of the same machine remain independent. A binding selects a source
+component and event, optionally checks conditions, then builds a command for
+another component or an effect intent.</p>
+<p>One source message and its derived commands form one breadth-first cascade.
+Later commands see earlier planned changes. All business writes and effect
+intents commit only if every step succeeds. A rejection discards those plans
+and stores an authenticated explanation. Work already attempted remains
+charged, so repeatedly failing cascades cannot evade block limits. Storage
+corruption or infrastructure errors abort the host block transaction; they
+are not ordinary business rejections.</p>
+<p>Human approval is not synchronous: the proposal commits in one cascade, votes
+arrive in later source messages, and only a threshold-reaching vote produces
+the approved event. An external effect is an outbox boundary, not a synchronous
+call or exactly-once delivery guarantee.</p>
+<div class="sl-heading-wrapper level-h2"><h2 id="authoring-rules">Authoring rules</h2><a class="sl-anchor-link" href="#authoring-rules"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only" data-pagefind-ignore="">Section titled “Authoring rules”</span></a></div>
+<ul>
+<li>YAML order controls component and binding order. Changing either changes
+the committed program. Configuration defaults are normalized before hashing.</li>
+<li>Event fields are signed 64-bit integers, booleans, text, or bytes. Nested
+values travel as canonical CBOR bytes. There is no implicit bytes/text
+conversion: use <code dir="auto">hex</code>, <code dir="auto">utf8-bytes</code>, or a documented codec explicitly.</li>
+<li><code dir="auto">when</code> clauses are a short-circuiting conjunction. <code dir="auto">expr</code> accepts the
+restricted <code dir="auto">yano-x-cel-v1</code> profile: checked integer arithmetic, comparisons,
+boolean logic, a lazy conditional, and bounded concatenation. Loops,
+comprehensions, floating point, arbitrary functions, and Java access are
+rejected.</li>
+<li>Lookups read one logical key from a named participant, including earlier
+cascade writes. The owner converts the logical key to its canonical local
+key. Map lookups use canonical <code dir="auto">[collectionId, applicationKey]</code> bytes.
+Lookups cannot enumerate or read another namespace implicitly.</li>
+<li>Every evidence field must copy an event field directly. A literal, function,
+or expression cannot manufacture an actor signature or approval reference.
+The target still verifies the action, signer, policy, deadline, and one-use
+consumption. Raw command forwarding is forbidden if any target command
+accepts evidence.</li>
+<li>Command edges must be acyclic. All byte, depth, fan-out, function, and work
+limits are committed in the IR. The expression-named work budgets also
+cover non-CEL conditions, functions, lookups, event decoding, and copies.</li>
+</ul>
+<p>Standalone balances retain their existing arbitrary-precision behavior. The
+declarative native-event path rejects values outside signed int64 with
+<code dir="auto">BALANCE_EVENT_RANGE</code>; it never rounds or truncates them. Approvals configured
+with the legacy on-approved effect do not expose a composable kernel: use an
+explicit effect binding instead of enabling both activation paths.</p>
+<div class="sl-heading-wrapper level-h2"><h2 id="language-reference">Language reference</h2><a class="sl-anchor-link" href="#language-reference"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only" data-pagefind-ignore="">Section titled “Language reference”</span></a></div>
+<p>Field clauses support <code dir="auto">eq</code>/<code dir="auto">ne</code> on equal scalar types, <code dir="auto">lt</code>/<code dir="auto">le</code>/<code dir="auto">gt</code>/<code dir="auto">ge</code> on
+integers, and <code dir="auto">in</code>/<code dir="auto">exists</code>/<code dir="auto">absent</code> on text, bytes, or integers. <code dir="auto">in</code> has at
+most 64 operands. Lookup clauses support existence, absence, equality to a
+byte literal, or equality to a byte-valued event field. Clauses execute in
+declaration order and stop at the first false result; an evaluation error
+rejects the cascade instead of silently skipping it.</p>
+<p>Mapping sources are <code dir="auto">{field: name}</code>, <code dir="auto">{literal: value}</code>, <code dir="auto">{fn: id, args: [...]}</code>,
+or <code dir="auto">{expr: '...'}</code>. Command field mappings follow the target’s declared codec
+layout, not YAML key order. <code dir="auto">map: identity</code> is for effects only. <code dir="auto">rawBody</code>
+forwards a byte-valued event field and is subject to the evidence restriction.
+Functions nest at most two levels, with at most eight arguments per call.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Function</th><th>Inputs → output</th></tr></thead><tbody><tr><td><code dir="auto">blake2b-256</code>, <code dir="auto">sha-256</code></td><td>Bytes or UTF-8 text → 32 hash bytes</td></tr><tr><td><code dir="auto">concat</code></td><td>2–8 values, all text or all bytes → joined value of the same type</td></tr><tr><td><code dir="auto">utf8-bytes</code></td><td>Text → UTF-8 bytes</td></tr><tr><td><code dir="auto">hex</code></td><td>Bytes → lowercase hexadecimal text</td></tr><tr><td><code dir="auto">byte-length</code></td><td>Bytes or text → byte count; text counts UTF-8 bytes</td></tr><tr><td><code dir="auto">cbor-encode</code></td><td>One scalar → canonical CBOR bytes</td></tr><tr><td><code dir="auto">cbor-field</code></td><td>Canonical scalar-valued CBOR map bytes and text key → scalar field</td></tr></tbody></table>
+<p>There is no automatic JSON/CBOR conversion, nested map traversal, regex,
+network lookup, clock, or random input. <code dir="auto">cbor-field</code> rejects malformed maps
+and missing fields. Input and output sizes are bounded, including UTF-8
+conversion and concatenation.</p>
+<p>All limits below are positive committed integers. Larger values are not
+node-local tuning overrides; changing them changes the profile.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Limit</th><th align="right">Default</th><th align="right">Maximum</th></tr></thead><tbody><tr><td><code dir="auto">maxCascadeDepth</code></td><td align="right">8</td><td align="right">32</td></tr><tr><td><code dir="auto">maxDerivedPerSourceMessage</code></td><td align="right">32</td><td align="right">256</td></tr><tr><td><code dir="auto">maxDerivedPerBlock</code></td><td align="right">4,096</td><td align="right">65,536</td></tr><tr><td><code dir="auto">maxEventPayloadBytes</code></td><td align="right">65,536</td><td align="right">65,536</td></tr><tr><td><code dir="auto">maxLookupsPerCondition</code></td><td align="right">2</td><td align="right">4</td></tr><tr><td><code dir="auto">maxFunctionCallsPerMapping</code></td><td align="right">8</td><td align="right">16</td></tr><tr><td><code dir="auto">maxFunctionInputBytes</code></td><td align="right">65,536</td><td align="right">65,536</td></tr><tr><td><code dir="auto">maxExpressionNodes</code></td><td align="right">128</td><td align="right">512</td></tr><tr><td><code dir="auto">maxExpressionDepth</code></td><td align="right">16</td><td align="right">32</td></tr><tr><td><code dir="auto">maxExpressionValueBytes</code></td><td align="right">65,536</td><td align="right">65,536</td></tr><tr><td><code dir="auto">maxExpressionWorkPerCascade</code></td><td align="right">1,048,576</td><td align="right">4,194,304</td></tr><tr><td><code dir="auto">maxExpressionWorkPerBlock</code></td><td align="right">33,554,432</td><td align="right">67,108,864</td></tr></tbody></table>
+<p>Documents additionally cap components at 16, bindings at 256, clauses per
+binding at 8, and assignments per mapping at 16. IR and receipts each cap
+encoded bytes at 65,536. A profile’s enclosing encoding can impose a tighter
+effective IR size. Work counters charge attempted work even when a cascade
+rejects; receipt replay does not repeat the work.</p>
+<p>Size and work are separate bounds. The defaults accommodate a near-64-KiB
+baseline raw-body tee, not arbitrary maximum-size fan-out. For a synthetic
+<code dir="auto">source.v1</code> command with 65,369 body bytes, one raw-body forward to an unbound
+target costs 392,650 cascade units and 196,278 shared block units. With no other
+binding work, the default block allowance fits 170 such cascades. A selected
+60-KiB native event alone costs at least 61,441 shared units to decode, allowing
+at most 546 per default block; conditions, mappings and derived execution reduce
+that number. Unselected events from an original source do not charge shared
+decoding work; derived-step event decoding still does, even without subscribers.
+Test the intended payloads, fan-out and block throughput together before pinning
+the profile. Explicit old limits remain unchanged when decoded.</p>
+<div class="sl-heading-wrapper level-h2"><h2 id="submission-validity-and-retry">Submission validity and retry</h2><a class="sl-anchor-link" href="#submission-validity-and-retry"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only" data-pagefind-ignore="">Section titled “Submission validity and retry”</span></a></div>
+<p>The event limit covers encoded <strong>body plus metadata</strong>, not just raw command
+bytes. The baseline event’s body, topic, sender, message ID, hash and length are
+materialized only when a binding subscribes to <code dir="auto">composite.command-accepted.v1</code>.
+For those subscribers, the default event cap allows slightly less than 64 KiB of
+command bytes, depending on metadata length. Without baseline subscribers, there
+is no wrapper-induced command cap: normal host and kernel limits still apply.
+No truncation occurs. Native events embedding a value have their own overhead;
+near-maximum inputs can still produce an execution-time native-event rejection.</p>
+<p>There are two different outcomes:</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Outcome</th><th>Meaning</th><th>What the client should do</th></tr></thead><tbody><tr><td>HTTP 400 with <code dir="auto">COMMAND_PAYLOAD_TOO_LARGE</code></td><td>The source’s baseline event cannot fit; nothing was pooled or relayed</td><td>Reduce the encoded command and submit again</td></tr><tr><td>HTTP 400 with <code dir="auto">COMMAND_WORK_EXCEEDED</code></td><td>Mandatory source work cannot fit even an empty allowance</td><td>Reduce the command or revise the authored profile for a new deployment/qualified upgrade</td></tr><tr><td>HTTP 202</td><td>Submission accepted into the host’s processing path, not business success</td><td>Wait for finalization and inspect the binding receipt</td></tr><tr><td>Finalized rejected receipt</td><td>Dynamic state, a derived command/event, or remaining work/effect capacity rejected the cascade</td><td>Correct the cause, then submit a fresh signed message; a capacity retry may succeed in a later block</td></tr></tbody></table>
+<p>Application admission uses the active candidate-height profile; block admission
+checks again. The binding admission check does not simulate stateful authorization
+or future derived execution and does not reserve node-local block capacity.
+It checks the codec and the kernel’s separate stateless admission hook for
+command/configuration-only bounds. Context-dependent admission still runs during
+execution; no synthetic block context is invented. These bundles require host
+plugin API level 11 and its matching published/staged build.</p>
+<p>A finalized rejection rolls back all business changes and effects for that source,
+not the whole block. The receipt remains terminal for its message ID. Replaying
+the identical ID returns the original result; a new ID does not bypass business
+idempotency, authorization, or one-use approval rules. Ordinary REST resubmission
+creates a newly signed envelope/ID.</p>
+<p>Command preparation is reserved before kernel facts/decisions. Fixed source work
+charges the per-cascade budget only; the host already bounds source message bytes
+and count. Selected-event decoding and binding conditions, lookups, mappings,
+functions and expressions also charge the shared block budget. All derived-command
+dispatch and preparation remain block-charged, including targets with no outgoing
+bindings, because host input limits do not bound internal amplification.</p>
+<p>Work is never refunded on rejection. Exhausted binding work does not prevent an
+independent source with no bindings from proceeding; the next block starts fresh.
+The larger authoring defaults above accommodate the advertised full-size tee.
+Not every maximum-size cascade fits: select and test event, mapping, fan-out
+and work limits together.</p>
+<p>This reservation order is pinned by declarative workflow/profile version 1.1.0.
+Explicit IR limits are preserved on decode. Recompiling YAML with omitted limits
+uses the defaults above and changes the committed identity; do not replace a
+retained 1.0.0 deployment in place.</p>
+<div class="sl-heading-wrapper level-h2"><h2 id="why-did-a-binding-not-fire">Why did a binding not fire?</h2><a class="sl-anchor-link" href="#why-did-a-binding-not-fire"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only" data-pagefind-ignore="">Section titled “Why did a binding not fire?”</span></a></div>
+<p>First query the source receipt and inspect its overall outcome. A <code dir="auto">PLANNED</code>
+step inside a rejected receipt did <strong>not</strong> commit. For each considered binding,
+<code dir="auto">failedClause</code> is the zero-based first false/error clause, or <code dir="auto">-1</code> if all
+clauses matched. A binding-level budget failure before the first clause also
+uses <code dir="auto">-1</code>; the rejected step and code distinguish it. Unvisited bindings are
+not invented in the trace. Capacity fallback can omit non-failed history and,
+if needed, the failed step’s event names. It always preserves the failed step,
+its original code, and every visited condition record, including the failing
+binding and clause. The overall receipt code reports <code dir="auto">RECEIPT_CAPACITY_EXCEEDED</code>.</p>
+<p>Reproduce with <code dir="auto">bindings dry-run</code> using the exact committed IR, block height,
+timestamp, message order, and pre-block state fixture. This explains execution;
+it does not authenticate the fixture or prove its root.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Codes</th><th>Meaning / next check</th></tr></thead><tbody><tr><td><code dir="auto">COMMAND_PAYLOAD_TOO_LARGE</code>, <code dir="auto">COMMAND_WORK_EXCEEDED</code></td><td>Command baseline cannot fit its encoded event or mandatory work allowance; source admission rejects early, derived commands reject the cascade</td></tr><tr><td><code dir="auto">MALFORMED_SOURCE_COMMAND</code></td><td>The source codec rejected its bytes; correct the encoding before resubmission</td></tr><tr><td><code dir="auto">LIMIT_DEPTH</code>, <code dir="auto">LIMIT_FANOUT</code>, <code dir="auto">CAPACITY_EXCEEDED</code></td><td>Cascade depth, source fan-out, or block derivation budget exhausted</td></tr><tr><td><code dir="auto">EXPRESSION_CAPACITY_EXCEEDED</code></td><td>Binding-language work budget exhausted, including non-CEL operations</td></tr><tr><td><code dir="auto">EVENT_PAYLOAD_TOO_LARGE</code>, <code dir="auto">RECEIPT_CAPACITY_EXCEEDED</code></td><td>Event or authenticated trace exceeded its byte/record cap</td></tr><tr><td><code dir="auto">EXPRESSION_VALUE_LIMIT</code>, <code dir="auto">FUNCTION_INPUT_LIMIT</code>, <code dir="auto">FUNCTION_OUTPUT_LIMIT</code></td><td>Intermediate value or function byte bound exceeded</td></tr><tr><td><code dir="auto">LOOKUP_KEY_LIMIT</code>, <code dir="auto">STATE_KEY_LIMIT</code></td><td>Logical or namespaced physical key exceeded its bound</td></tr><tr><td><code dir="auto">EFFECT_CAPACITY_EXCEEDED</code>, <code dir="auto">EFFECT_PAYLOAD_LIMIT</code>, <code dir="auto">EFFECT_EXPIRY_LIMIT</code></td><td>Workflow quota or host effect profile rejected the planned intent</td></tr><tr><td><code dir="auto">CRYPTO_WORK_EXCEEDED</code></td><td>Shared owner-scoped cryptographic-work budget exhausted</td></tr><tr><td><code dir="auto">EXPRESSION_OVERFLOW</code>, <code dir="auto">EXPRESSION_DIVISION_BY_ZERO</code></td><td>Checked signed-int64 arithmetic failed</td></tr><tr><td><code dir="auto">EXPRESSION_MISSING_FIELD</code>, <code dir="auto">EXPRESSION_TYPE_ERROR</code>, <code dir="auto">EVENT_MISSING_FIELD</code>, <code dir="auto">EVENT_TYPE_ERROR</code></td><td>Produced event does not satisfy the selected expression/schema</td></tr><tr><td><code dir="auto">FUNCTION_INVALID_CBOR</code>, <code dir="auto">FUNCTION_MISSING_FIELD</code></td><td><code dir="auto">cbor-field</code> input is malformed or lacks the requested key</td></tr><tr><td><code dir="auto">LOOKUP_KEY_TYPE</code>, <code dir="auto">LOOKUP_KEY_INVALID</code>, <code dir="auto">MAPPING_MISSING_FIELD</code>, <code dir="auto">MAPPING_TYPE_ERROR</code>, <code dir="auto">INVALID_UNICODE</code></td><td>Mapping or logical-key decoding failed</td></tr><tr><td><code dir="auto">MALFORMED_DERIVED_COMMAND</code>, <code dir="auto">ADMISSION</code></td><td>Target codec or admission rejected the command</td></tr><tr><td><code dir="auto">CONSUMPTION_CONFLICT</code>, <code dir="auto">REPLAY_OR_CONFLICT</code></td><td>One-use consumption or workflow claim conflicted</td></tr><tr><td><code dir="auto">RESERVED_ACCOUNTING_KEY</code>, <code dir="auto">RESERVED_EVENT_ID</code>, <code dir="auto">UNDECLARED_WORK_REFERENCE</code></td><td>Kernel attempted a reserved operation; check the plugin contract</td></tr></tbody></table>
+<p>Targets can also return their existing domain rejection codes, such as an
+authorization failure. Infrastructure failures remain block failures rather
+than being relabeled as ordinary cascade receipts.</p>
+<div class="sl-heading-wrapper level-h2"><h2 id="governed-map-actions">Governed map actions</h2><a class="sl-anchor-link" href="#governed-map-actions"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only" data-pagefind-ignore="">Section titled “Governed map actions”</span></a></div>
+<p>Use explicit catalog leaves, not nested standalone presets:</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Selector</th><th>Purpose</th></tr></thead><tbody><tr><td><code dir="auto">domain-actors-component</code></td><td>Genesis-fixed actor authority and shared crypto-work owner</td></tr><tr><td><code dir="auto">governed-role-approvals</code></td><td>Actor-signed proposal/vote lifecycle with bounded action staging</td></tr><tr><td><code dir="auto">authenticated-map-component</code></td><td>Existing map decisions, authorization, consumption, and proofs</td></tr></tbody></table>
+<p>The role leaf accepts <code dir="auto">StagedActorCommandV1</code>: a separate canonical wrapper
+containing the unchanged signed actor command and, only for PROPOSE, the action
+bytes. A proposal stages at most 32,768 bytes. Approval passes the action and
+proposal id to the map; the map recomputes the signed scoped hash. A mismatched
+action rolls back the threshold-reaching vote and map write together, retains
+the pending proposal/action, and keeps the signature-work charge.</p>
+<p>The map offers <code dir="auto">apply-basic-action</code> for evidence-free collections,
+<code dir="auto">apply-action</code> with an approval reference, and <code dir="auto">apply-authorized</code> with the
+existing complete signed authorization envelope. Selecting a different command
+does not bypass collection authorization.</p>
+<p>The initial actor leaf is deliberately genesis-fixed. It does not support
+actor rotation or governance command derivation. Existing standalone governed
+presets retain their governance routes. Plan deployment lifecycles accordingly;
+do not represent this assembly as full standalone-preset feature parity.</p>
+<div class="sl-heading-wrapper level-h2"><h2 id="receipts-proofs-and-product-boundaries">Receipts, proofs, and product boundaries</h2><a class="sl-anchor-link" href="#receipts-proofs-and-product-boundaries"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only" data-pagefind-ignore="">Section titled “Receipts, proofs, and product boundaries”</span></a></div>
+<p>Query <code dir="auto">composite/binding-receipt-v1/&#x3C;source-message-id-hex></code> for the canonical
+receipt. It records source identity, acceptance/rejection, step ordinals,
+events, and condition results. Retrieve a state proof of its authenticated
+workflow key and verify against caller-pinned chain identity and finality.
+A dry-run receipt is an explanation, not a finality certificate or an L1 anchor.</p>
+<p>Find the exact physical proof key with <code dir="auto">bindings receipt-key &#x3C;source-message-id-hex></code>
+or query <code dir="auto">composite/binding-receipt-key-v1/&#x3C;source-message-id-hex></code> with empty
+parameters. The query returns raw key bytes: the generic query response’s
+<code dir="auto">payloadHex</code> is the key to pass to the state-proof endpoint. The workflow ID is
+<code dir="auto">event-bindings</code>; key derivation uses <code dir="auto">CompositeStateKeys.workflowStateKey</code> with
+that ID and the 32-byte source message ID. The key does not include a workflow
+version or generation height. Discovering a key does not establish receipt
+presence, authenticate its value, or prove finality.</p>
+<p>Capability metadata exposes <code dir="auto">declarative-event-bindings</code> with the
+<code dir="auto">yano-x-binding-graph-v1</code> schema. Studio can preview a locally imported manifest
+as a graph; the preview does not authenticate the manifest or modify a blueprint.
+Authoring uses Studio’s separate guided editor, which works on the document and
+an authoring catalog, never on this metadata (see
+<a href="/bindings/guided-editor/">the Studio editor chapter</a>).
+Operational counters describe the last local execution attempt, which may be
+a candidate later discarded by the host. They are not finalized-state indexes
+and never feed consensus decisions.</p>
+<p>Derived commands are not signed or independently stored as finalized messages.
+Consequently the existing ADR-047 signed-message attestation certificate format
+does not apply to a derived document-trail command. The attestation recipe proves
+the receipt and trail state; it does not fabricate a certificate-compatible
+envelope. A separately versioned composite certificate remains future work.</p>
+<p>DPP/feed recipes automate the existing approval-gated map action. They retain
+the starter product’s schemas and distinct-organization approval policies.
+Existing list projections/portals that replay original map envelopes do not
+automatically discover derived writes; exact known-key proofs are the qualified
+read path. Feed aggregation remains off chain and independently recomputable,
+not a new on-chain price oracle or Cardano publication.</p>
+<div class="sl-heading-wrapper level-h2"><h2 id="evolution-and-operation">Evolution and operation</h2><a class="sl-anchor-link" href="#evolution-and-operation"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only" data-pagefind-ignore="">Section titled “Evolution and operation”</span></a></div>
+<p>The complete IR, component configuration, quotas, topics, and generation heights
+are included in the composite profile commitment. A local YAML edit does not
+upgrade a running chain. Use the existing governed profile-epoch activation
+workflow. Changed component configuration requires a new component generation;
+changed bindings require a new workflow generation. Retained genesis identity
+and historical receipts must remain intact.</p>
+<p>See <a href="/reference/declarative-bindings-upgrades/">upgrade and retained-chain preflight</a>
+before changing a stock bundle, application version, query catalog or default
+setting. A governed epoch alone cannot make a new binary execute an old profile;
+the candidate runtime must reproduce every profile required for startup/replay.
+Use the <a href="/reference/declarative-bindings-cli/">CLI authoring guide</a> for chain-specific
+governed recipe generation and multi-block dry-run continuation.</p>
+<p>Generation changes do not migrate genesis-bound state. If a leaf’s stored
+genesis/configuration cannot change in place, allocate a new component instance
+id and plan the application’s explicit migration; a later generation height
+alone does not make an incompatible stored genesis valid.</p>
+<p>Use an exact published Yano Maven version with its matching ordinary JVM ZIP.
+Optional machines must come through manifested plugin contributions; OrderedLog
+remains the host’s sole built-in exception. No optional classpath fallback or
+source-checkout dependency is supported.</p> </div> <footer class="sl-flex astro-3yyafb3n"> <div class="meta sl-flex astro-3yyafb3n"> <a href="https://github.com/bloxbean/yano-x/edit/main/docs/appchain/DECLARATIVE_BINDINGS.md" class="sl-flex print:hidden astro-eez2twj6"><svg aria-hidden="true" class="astro-eez2twj6 astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.2em;"><path d="M22 7.24a1 1 0 0 0-.29-.71l-4.24-4.24a1 1 0 0 0-1.1-.22 1 1 0 0 0-.32.22l-2.83 2.83L2.29 16.05a1 1 0 0 0-.29.71V21a1 1 0 0 0 1 1h4.24a1 1 0 0 0 .76-.29l10.87-10.93L21.71 8c.1-.1.17-.2.22-.33a1 1 0 0 0 0-.24v-.14l.07-.05ZM6.83 20H4v-2.83l9.93-9.93 2.83 2.83L6.83 20ZM18.17 8.66l-2.83-2.83 1.42-1.41 2.82 2.82-1.41 1.42Z"/></svg>Edit page</a>  </div> <div class="pagination-links print:hidden astro-u2l5gyhi" dir="ltr"> <a href="/reference/cli/" rel="prev" class="astro-u2l5gyhi"> <svg aria-hidden="true" class="astro-u2l5gyhi astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.5rem;"><path d="M17 11H9.41l3.3-3.29a1.004 1.004 0 1 0-1.42-1.42l-5 5a1 1 0 0 0-.21.33 1 1 0 0 0 0 .76 1 1 0 0 0 .21.33l5 5a1.002 1.002 0 0 0 1.639-.325 1 1 0 0 0-.219-1.095L9.41 13H17a1 1 0 0 0 0-2Z"/></svg> <span class="astro-u2l5gyhi"> Previous <br class="astro-u2l5gyhi"> <span class="link-title astro-u2l5gyhi">CLI</span> </span> </a> <a href="/reference/declarative-bindings-cli/" rel="next" class="astro-u2l5gyhi"> <svg aria-hidden="true" class="astro-u2l5gyhi astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.5rem;"><path d="M17.92 11.62a1.001 1.001 0 0 0-.21-.33l-5-5a1.003 1.003 0 1 0-1.42 1.42l3.3 3.29H7a1 1 0 0 0 0 2h7.59l-3.3 3.29a1.002 1.002 0 0 0 .325 1.639 1 1 0 0 0 1.095-.219l5-5a1 1 0 0 0 .21-.33 1 1 0 0 0 0-.76Z"/></svg> <span class="astro-u2l5gyhi"> Next <br class="astro-u2l5gyhi"> <span class="link-title astro-u2l5gyhi">Bindings authoring CLI</span> </span> </a> </div>  </footer> </div> </div>  </main> </div> </div> </div> </div> </body></html>

@@ -1,8 +1,8 @@
 # Yano X
 
-yanoXVersion: 0.1.0-pre2
-yanoVersion: 0.1.0-pre15
-generatedAt: 2026-09-14T15:45:51.781Z
+yanoXVersion: 0.1.0-pre3
+yanoVersion: 0.1.0-pre17
+generatedAt: 2026-09-26T08:15:31.189Z
 
 > Yano X is the Java 25, JVM-only extension ecosystem for Yano app chains. An app chain is an application-specific replicated ledger with deterministic state, threshold finality, MPF proofs, optional Cardano anchoring, and controlled external effects. Yano X supplies the stock state machines, capabilities, connectors, products, SDKs, and the batteries-included JVM distribution that run on top of the Yano host.
 
@@ -13,7 +13,7 @@ Key facts an AI agent should know before generating Yano X code or configuration
   products, SDKs, and the batteries-included JVM distribution. The dependency
   direction is strictly `yano-x -> yano` and must never be inverted, nor satisfied
   with a composite Gradle build or a sibling source checkout.
-- **Versions:** Yano X `0.1.0-pre2` builds against Yano `0.1.0-pre15`, Java 25.
+- **Versions:** Yano X `0.1.0-pre3` builds against Yano `0.1.0-pre17`, Java 25.
   Start with a matching release archive; build from source for unpublished changes.
 - **Yano X is JVM-only.** Never add GraalVM/native-image tasks, reachability
   metadata, or native executables. `verifyJvmOnlyBuild` enforces this.
@@ -29,8 +29,8 @@ Key facts an AI agent should know before generating Yano X code or configuration
   environment-dependent iteration order, network calls, or node-local mutable
   decisions. External work is emitted as an effect record and executed later by
   the effect runtime, never called during `apply`.
-- **Choose the smallest extension:** configuration (12 stock recipes,
-  43 capabilities) -> a small composite plugin -> a custom
+- **Choose the smallest extension:** configuration (13 stock recipes,
+  44 capabilities) -> a small composite plugin -> a custom
   state-machine plugin. Only the last one adds new consensus semantics.
 - **The public CLI is `./yano.sh appchain …`**, shipped inside the Yano X JVM
   distribution. There is no separate `yano-x` executable.
@@ -55,7 +55,7 @@ Key facts an AI agent should know before generating Yano X code or configuration
 - [What is an app chain?](https://yano-x.io/start-here/what-is-an-app-chain/): An app chain is an application-specific, replicated ledger that a group of organizations runs together. Members agree on the order of application…
 - [Why Yano X](https://yano-x.io/start-here/why-yano-x/): Choose Yano X when several organizations need shared records, workflows, or integrations with independently verifiable results. Start with existing…
 - [Download a Yano X release](https://yano-x.io/start-here/release-downloads/): Each Yano X GitHub release publishes yano-x-jvm-<version>.zip, three standalone archives, and SHA256SUMS. Verify an archive before extraction:
-- [Build from source](https://yano-x.io/start-here/build-from-source/): For a first run, use a release download. Build from source when you want the current checkout or need to change Yano X. The build resolves the matching…
+- [Build from source](https://yano-x.io/start-here/build-from-source/): For a first run, use a release download. Build from source when you want the current checkout or need to change Yano X. For released host versions, the…
 - [Start a local Yano X showcase](https://yano-x.io/start-here/quickstart/): Run three nodes, submit useful data, and inspect proofs without a source checkout, wallet, public-network funds, or external Cardano node.
 
 ## Concepts
@@ -101,6 +101,16 @@ Key facts an AI agent should know before generating Yano X code or configuration
 - [Tutorial 8 — Extend Yano Without Forking It](https://yano-x.io/tutorials/08-plugins-and-composites/): Choose the correct extension level and deploy versioned business logic as a plugin JAR on the standard JVM distribution.
 - [Tutorial 9 — From Local Demo to a Permissioned Pilot](https://yano-x.io/tutorials/09-from-demo-to-pilot/): Turn a successful tutorial into an explicit deployment plan without inheriting local-demo assumptions.
 
+## Declarative bindings
+
+- [Declarative bindings: developer learning path](https://yano-x.io/bindings/): Connect existing state machines without writing a Java coordinator. A binding says: when this component emits this event, check these conditions and build…
+- [1. Your first declarative workflow](https://yano-x.io/bindings/first-workflow/): Build a registry that automatically records an audit entry when a value is written. You will author the workflow, check it against actual plugin bundles…
+- [2. Conditions and mappings](https://yano-x.io/bindings/conditions-and-mappings/): Declarative bindings are experimental and still undergoing ADR-031.1 qualification. The examples here explain the current implementation, not a production…
+- [3. Approval workflows](https://yano-x.io/bindings/approval-workflows/): An approval workflow pauses in persisted state while people decide. Proposing an item does not wait inside a running cascade for votes. The proposal…
+- [4. Java integration](https://yano-x.io/bindings/java-integration/): A Java application submits ordinary commands to a deployed component's ingress topic. The committed binding program decides which follow-up commands run…
+- [5. Operate, diagnose and evolve a workflow](https://yano-x.io/bindings/operations-and-upgrades/): A validated YAML document is the beginning of deployment qualification, not its end. This chapter turns the first workflow into an operational checklist…
+- [6. Author bindings in the Studio editor](https://yano-x.io/bindings/guided-editor/): Studio's Bindings page is a guided editor for the same composite binding documents you write in YAML. Forms are backed by an authoring catalog exported…
+
 ## State machines
 
 - [App-Chain State-Machine References](https://yano-x.io/state-machines/): These pages are capability references for Yano's deterministic application state machines. Use the stock state-machine cookbook for a quick comparison.
@@ -128,6 +138,9 @@ Key facts an AI agent should know before generating Yano X code or configuration
 ## Reference
 
 - [CLI reference](https://yano-x.io/reference/cli/): The ./yano.sh appchain command surface — project lifecycle, cluster operation, plugin tooling, and authenticated-state inspection.
+- [Declarative event bindings](https://yano-x.io/reference/declarative-bindings/): New to bindings? Follow the beginner-to-advanced developer learning path for runnable examples, Java integration, graphical tooling and deployment guidance.
+- [Declarative binding authoring commands](https://yano-x.io/reference/declarative-bindings-cli/): For a guided introduction, start with your first workflow. The learning path explains separate YAML versus inline blueprints, and the Studio editor…
+- [Declarative binding upgrades and retained chains](https://yano-x.io/reference/declarative-bindings-upgrades/): Changing YAML, replacing plugin JARs, and activating a new profile are different operations. None is an implicit migration of retained state. This guide…
 - [REST API](https://yano-x.io/reference/rest-api/): Base path: <artifact-api-prefix>/app-chain, by default /api/v1/app-chain.
 - [Capability catalog](https://yano-x.io/reference/capabilities/): Every selectable app-chain capability in this release — state machines, profiles, sequencing, membership, anchoring, effects, executors, sinks, and observability — generated from the repository catalog.
 - [Configuration reference](https://yano-x.io/reference/configuration/): Yano X plugins declare their configuration as typed metadata, not as prose. That metadata is what makes appchain config validate and appchain explain…
@@ -142,6 +155,6 @@ Key facts an AI agent should know before generating Yano X code or configuration
 
 - Yano X: https://github.com/bloxbean/yano-x
 - Yano (host): https://github.com/bloxbean/yano
-- Base Yano JVM distribution: https://github.com/bloxbean/yano/releases/download/v0.1.0-pre15/yano-0.1.0-pre15.zip
+- Base Yano JVM distribution: https://github.com/bloxbean/yano/releases/download/v0.1.0-pre17/yano-0.1.0-pre17.zip
 - App-Chain Studio (blueprint builder): https://yano-x.io/studio/
 

@@ -2,7 +2,7 @@
   "schemaVersion": "v1alpha1",
   "schemaStatus": "alpha",
   "stabilizationDecision": "RETAIN_V1ALPHA1",
-  "yanoVersion": "0.1.0-pre2",
+  "yanoVersion": "0.1.0-pre3",
   "tooling": "standalone-jvm",
   "runtimeTypes": [
     "jvm"
@@ -12,6 +12,7 @@
     "docker-compose"
   ],
   "recipes": [
+    "declarative-composite",
     "audit-log",
     "owned-registry",
     "document-trail",

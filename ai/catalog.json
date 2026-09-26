@@ -2,21 +2,60 @@
   "schemaVersion": "yano-x-docsite-catalog-v1",
   "source": "Generated from the Yano X repository at documentation build time.",
   "versions": {
-    "yanoXVersion": "0.1.0-pre2",
-    "yanoVersion": "0.1.0-pre15",
+    "yanoXVersion": "0.1.0-pre3",
+    "yanoVersion": "0.1.0-pre17",
     "group": "org.yanoproject.x",
     "javaVersion": "25",
-    "yanoJvmZipUrl": "https://github.com/bloxbean/yano/releases/download/v0.1.0-pre15/yano-0.1.0-pre15.zip"
+    "yanoJvmZipUrl": "https://github.com/bloxbean/yano/releases/download/v0.1.0-pre17/yano-0.1.0-pre17.zip"
   },
   "counts": {
-    "recipes": 12,
-    "capabilities": 43,
+    "recipes": 13,
+    "capabilities": 44,
     "artifacts": 18,
     "modules": 74,
     "configurationProperties": 44,
     "runtimePlugins": 18
   },
   "recipes": [
+    {
+      "id": "declarative-composite",
+      "name": "Declarative event workflow",
+      "category": "application",
+      "availability": "BUNDLED",
+      "maturity": "preview",
+      "scope": "chain",
+      "description": "Compile bounded event bindings into one committed atomic composite profile.",
+      "primaryOutcome": "A source command and its event-derived commands commit atomically with an auditable receipt.",
+      "firstCommand": "appchain bindings validate bindings.yml --plugins-directory plugins --context context.json",
+      "verificationQuery": "query/composite/binding-receipt-v1/{sourceMessageId}",
+      "capabilities": [
+        "state:declarative-composite",
+        "sequencer:fixed"
+      ],
+      "artifacts": [
+        "yano-runtime",
+        "yano-x-composite",
+        "yano-x-stdlib",
+        "yano-x-role-workflow"
+      ],
+      "runtimeTypes": [
+        "jvm"
+      ],
+      "deploymentTargets": [
+        "host",
+        "docker-compose"
+      ],
+      "nativePosture": "unsupported",
+      "externalPrerequisites": [
+        "Exact manifested authoring plugin directory"
+      ],
+      "bootstrapRequirements": [
+        "Pinned public member keys and normalized component configuration"
+      ],
+      "trustStatement": "Catalog-selected deterministic kernels; bindings do not grant authority to derived commands.",
+      "documentation": "docs/appchain/DECLARATIVE_BINDINGS_CLI.md",
+      "documentationUrl": "/reference/declarative-bindings-cli/"
+    },
     {
       "id": "audit-log",
       "name": "Replicated audit log",
@@ -220,7 +259,7 @@
       ],
       "trustStatement": "First-party generic role product; applications retain responsibility for acting on an approved payload hash.",
       "documentation": "docs/appchain/tutorials/05-domain-role-approvals.md",
-      "documentationUrl": "https://github.com/bloxbean/yano-x/blob/main/docs/appchain/tutorials/05-domain-role-approvals.md"
+      "documentationUrl": "/tutorials/05-domain-role-approvals/"
     },
     {
       "id": "evidence-ledger",
@@ -471,6 +510,40 @@
   ],
   "capabilities": [
     {
+      "id": "state:declarative-composite",
+      "name": "Declarative event bindings",
+      "category": "state",
+      "availability": "BUNDLED",
+      "maturity": "preview",
+      "scope": "chain",
+      "selectable": true,
+      "description": "Committed bounded event-to-command and event-to-effect workflows.",
+      "provides": [
+        "state-machine"
+      ],
+      "requires": [],
+      "implies": [],
+      "conflicts": [],
+      "artifacts": [
+        "yano-runtime",
+        "yano-x-composite",
+        "yano-x-stdlib",
+        "yano-x-role-workflow"
+      ],
+      "runtimeTypes": [
+        "jvm"
+      ],
+      "nativePosture": "unsupported",
+      "externalPrerequisites": [
+        "Exact manifested authoring plugin directory"
+      ],
+      "properties": {
+        "state-machine": "declarative-composite"
+      },
+      "documentation": "docs/appchain/DECLARATIVE_BINDINGS_CLI.md",
+      "documentationUrl": "/reference/declarative-bindings-cli/"
+    },
+    {
       "id": "state:ordered-log",
       "name": "Ordered audit log",
       "category": "state",
@@ -717,7 +790,7 @@
         "machines.composite.roles.maximum-mutation-lifetime-blocks": "1000"
       },
       "documentation": "docs/appchain/tutorials/05-domain-role-approvals.md",
-      "documentationUrl": "https://github.com/bloxbean/yano-x/blob/main/docs/appchain/tutorials/05-domain-role-approvals.md"
+      "documentationUrl": "/tutorials/05-domain-role-approvals/"
     },
     {
       "id": "state:role-evidence",
@@ -1453,7 +1526,7 @@
         "anchor.mode": "metadata"
       },
       "documentation": "docs/appchain/tutorials/07-anchors-and-verification.md",
-      "documentationUrl": "https://github.com/bloxbean/yano-x/blob/main/docs/appchain/tutorials/07-anchors-and-verification.md"
+      "documentationUrl": "/tutorials/07-anchors-and-verification/"
     },
     {
       "id": "anchor:script",
@@ -1493,7 +1566,7 @@
         "anchor.script.thread-policy": "${anchorThreadPolicy}"
       },
       "documentation": "docs/appchain/tutorials/07-anchors-and-verification.md",
-      "documentationUrl": "https://github.com/bloxbean/yano-x/blob/main/docs/appchain/tutorials/07-anchors-and-verification.md"
+      "documentationUrl": "/tutorials/07-anchors-and-verification/"
     },
     {
       "id": "observer:address-deposit",
@@ -1589,7 +1662,7 @@
         "effects.enabled": "true"
       },
       "documentation": "docs/appchain/tutorials/06-webhook-effects.md",
-      "documentationUrl": "https://github.com/bloxbean/yano-x/blob/main/docs/appchain/tutorials/06-webhook-effects.md"
+      "documentationUrl": "/tutorials/06-webhook-effects/"
     },
     {
       "id": "effects:on-approved",
@@ -1661,7 +1734,7 @@
         "effects.executors.webhook.url": "${webhookUrl}"
       },
       "documentation": "docs/appchain/tutorials/06-webhook-effects.md",
-      "documentationUrl": "https://github.com/bloxbean/yano-x/blob/main/docs/appchain/tutorials/06-webhook-effects.md"
+      "documentationUrl": "/tutorials/06-webhook-effects/"
     },
     {
       "id": "sink:webhook",

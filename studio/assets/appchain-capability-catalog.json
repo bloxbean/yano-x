@@ -239,6 +239,28 @@
   ],
   "capabilities": [
     {
+      "id": "state:declarative-composite",
+      "name": "Declarative event bindings",
+      "category": "state",
+      "availability": "BUNDLED",
+      "maturity": "preview",
+      "scope": "chain",
+      "selectable": true,
+      "trustStatement": "Catalog-selected kernels retain command authorization and deterministic cascade atomicity.",
+      "description": "Committed bounded event-to-command and event-to-effect workflows.",
+      "provides": ["state-machine"],
+      "requires": [], "implies": [], "conflicts": [],
+      "runtimeTypes": ["jvm"], "deploymentTargets": ["host", "docker-compose"],
+      "artifacts": ["yano-runtime", "yano-x-composite", "yano-x-stdlib", "yano-x-role-workflow"],
+      "nativePosture": "unsupported",
+      "externalPrerequisites": ["Exact manifested authoring plugin directory"],
+      "bootstrapRequirements": ["Pinned public member keys"],
+      "nonSecretAnswers": [], "secretReferences": {},
+      "properties": {"state-machine": "declarative-composite"},
+      "documentation": "docs/appchain/DECLARATIVE_BINDINGS_CLI.md",
+      "acceptanceScenario": "recipe-declarative-composite"
+    },
+    {
       "id": "state:ordered-log",
       "name": "Ordered audit log",
       "category": "state",
