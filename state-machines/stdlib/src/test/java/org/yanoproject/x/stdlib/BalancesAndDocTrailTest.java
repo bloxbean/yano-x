@@ -3,6 +3,7 @@ package org.yanoproject.x.stdlib;
 import com.bloxbean.cardano.client.crypto.KeyGenUtil;
 import com.bloxbean.cardano.yaci.core.util.HexUtil;
 import org.yanoproject.api.appchain.AppChainConfig;
+import org.yanoproject.api.appchain.AppSubmissionRejectedException;
 import org.yanoproject.runtime.appchain.AppChainSubsystem;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.function.Executable;
@@ -22,6 +23,7 @@ import java.util.Set;
 import java.util.function.BooleanSupplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertAll;
 
 /**
@@ -72,7 +74,8 @@ class BalancesAndDocTrailTest {
 
         // Malformed rejected at admission
         long tip2 = node.tipHeight();
-        node.submit("ledger", "junk".getBytes(StandardCharsets.UTF_8));
+        assertThatThrownBy(() -> node.submit("ledger", "junk".getBytes(StandardCharsets.UTF_8)))
+                .isInstanceOf(AppSubmissionRejectedException.class);
         Thread.sleep(1500);
         assertThat(node.tipHeight()).isEqualTo(tip2);
     }

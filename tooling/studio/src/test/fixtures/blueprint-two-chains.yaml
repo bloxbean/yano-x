@@ -1,0 +1,52 @@
+# yaml-language-server: $schema=./schema/appchain-blueprint.schema.json
+apiVersion: yano.bloxbean.com/v1alpha1
+kind: AppChainProject
+metadata:
+  name: "orders-and-audit"   # project name
+spec:
+  yanoVersion: "0.1.0-pre2"
+  network: "devnet"
+  runtime:
+    type: "jvm"
+    pluginsDirectory: "../plugins"
+  deployment:
+    target: "host"
+  chains:
+    - chainId: "ledger"
+      recipe: "audit-log"
+      capabilities: []
+      answers: {}
+      topology:
+        members: 3
+        memberKeys: ["1111111111111111111111111111111111111111111111111111111111111111", "2222222222222222222222222222222222222222222222222222222222222222", "3333333333333333333333333333333333333333333333333333333333333333"]
+        nodeHosts: []
+        finality: "two-thirds"
+        sequencing: "fixed"
+        membership: "static"
+    - chainId: "workflow"
+      recipe: "declarative-composite"
+      capabilities: []
+      answers: {}
+      topology:
+        members: 3
+        memberKeys: ["1111111111111111111111111111111111111111111111111111111111111111", "2222222222222222222222222222222222222222222222222222222222222222", "3333333333333333333333333333333333333333333333333333333333333333"]
+        nodeHosts: []
+        finality: "two-thirds"
+        sequencing: "fixed"
+        membership: "static"
+      composite:
+        # Registry values are audited.
+        components:
+          - {id: records, machine: kv-registry}
+          - {id: audit, machine: doc-trail}
+        bindings:
+          - id: audit-record
+            from: {component: records, event: kv-registry.entry-put.v1}
+            to:
+              component: audit
+              command: append
+              map:
+                entityId: {fn: hex, args: [{field: key}]}
+                entryHash: {field: valueHash}
+                reference: {literal: published}
+      # trailing comment belongs to the chain, not the composite

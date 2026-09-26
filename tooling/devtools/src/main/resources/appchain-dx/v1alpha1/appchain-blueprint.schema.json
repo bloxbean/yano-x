@@ -22,7 +22,11 @@
         "runtime": {
           "type": "object",
           "required": ["type"],
-          "properties": {"type": {"enum": ["jvm", "native"]}},
+          "properties": {
+            "type": {"enum": ["jvm", "native"]},
+            "pluginsDirectory": {"type": "string", "minLength": 1, "maxLength": 4096,
+              "description": "Authoring-only catalog directory, relative to the blueprint directory or absolute."}
+          },
           "additionalProperties": false
         },
         "deployment": {
@@ -66,6 +70,18 @@
               "recipe": {"type": "string"},
               "capabilities": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
               "answers": {"type": "object", "additionalProperties": {"type": "string", "minLength": 1, "maxLength": 1024}},
+              "composite": {
+                "type": "object",
+                "description": "ADR-031.1 authoring document; strict nested schemas are validated by bindings compile.",
+                "required": ["components", "bindings"],
+                "properties": {
+                  "components": {"type": "array", "minItems": 1, "maxItems": 16, "items": {"type": "object"}},
+                  "bindings": {"type": "array", "maxItems": 256, "items": {"type": "object"}},
+                  "limits": {"type": "object"},
+                  "workflowFromHeight": {"type": "integer", "minimum": 1}
+                },
+                "additionalProperties": false
+              },
               "authenticatedMap": {
                 "type": "object",
                 "required": ["profile", "anchorPolicyCommitment", "collections"],

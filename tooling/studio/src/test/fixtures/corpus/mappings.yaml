@@ -1,0 +1,40 @@
+# Every stock function, nesting, literal type, restricted-CEL mapping and raw-body forwarding.
+components:
+  - {id: records, machine: kv-registry, config: {value-format: raw}}
+  - {id: reviews, machine: approvals}
+  - {id: ledger, machine: balances, config: {minter: "2222222222222222222222222222222222222222222222222222222222222222"}}
+  - {id: tee, machine: ordered-log, topic: tee.ingress.v1}
+  - {id: audit, machine: doc-trail}
+bindings:
+  - id: propose-review
+    from: {component: records, event: kv-registry.entry-put.v1}
+    to:
+      component: reviews
+      command: propose
+      map:
+        itemId: {fn: concat, args: [{literal: "item:"}, {fn: hex, args: [{field: key}]}]}
+        payload: {fn: cbor-encode, args: [{field: value}]}
+        required: {expr: 'event.valueLength * 2 + 1'}
+        deadlineMillis: {literal: 0}
+  - id: mint-length
+    from: {component: records, event: kv-registry.entry-put.v1}
+    to:
+      component: ledger
+      command: mint
+      map:
+        to: {fn: hex, args: [{fn: blake2b-256, args: [{field: key}]}]}
+        amount: {fn: byte-length, args: [{field: value}]}
+  - id: audit-approval
+    from: {component: reviews, event: approvals.item-approved.v1}
+    when:
+      - {field: approverCount, ge: 2}
+    to:
+      component: audit
+      command: append
+      map:
+        entityId: {field: itemId}
+        entryHash: {fn: concat, args: [{field: payloadHash}, {literal: {bytesHex: '00ff'}}]}
+        reference: {fn: cbor-field, args: [{field: payload}, {literal: reference}]}
+  - id: tee-registry
+    from: {component: records, event: composite.command-accepted.v1}
+    to: {component: tee, command: append, rawBody: body}

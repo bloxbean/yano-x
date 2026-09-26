@@ -45,7 +45,7 @@ class AppChainProjectTest {
                 blueprint("evidence-ledger", "rotating", List.of()));
 
         assertThat(catalog.recipes()).extracting(AppChainProjectModel.Recipe::id)
-                .containsExactly("audit-log", "owned-registry", "document-trail", "authenticated-map",
+                .containsExactly("declarative-composite", "audit-log", "owned-registry", "document-trail", "authenticated-map",
                         "approval-workflow",
                         "role-approval", "evidence-ledger", "eutxo-ledger",
                         "eutxo-cardano-bridge", "eutxo-zeroj-validity",
@@ -990,7 +990,7 @@ class AppChainProjectTest {
         AppChainProjectCatalog catalog = new AppChainProjectCatalog(properties);
         AppChainProjectResolver resolver = new AppChainProjectResolver(properties, catalog);
 
-        assertThat(catalog.capabilities()).hasSize(43)
+        assertThat(catalog.capabilities()).hasSize(44)
                 .allSatisfy(capability -> {
                     assertThat(capability.availability()).isIn(
                             "BUNDLED", "FIRST_PARTY_OPTIONAL", "REFERENCE", "EXPERIMENTAL");

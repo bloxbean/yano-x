@@ -1,18 +1,19 @@
 ---
 title: "Build from source"
-description: "For a first run, use a release download. Build from source when you want the current checkout or need to change Yano X. The build resolves the matching…"
+description: "For a first run, use a release download. Build from source when you want the current checkout or need to change Yano X. For released host versions, the…"
 editUrl: "https://github.com/bloxbean/yano-x/edit/main/docs/site/build-from-source.md"
 ---
 For a first run, use a [release download](/start-here/release-downloads/).
 Build from source when you want the current checkout or need to change Yano X.
-The build resolves the matching Yano host distribution automatically.
+For released host versions, the build resolves the matching Yano distribution
+automatically. Unpublished host versions require exact local or staged inputs.
 
 :::note[Two different build tracks]
 This page is the **user** track: build the distribution, run it, move on. If
 you are changing Yano X itself — or changing Yano and Yano X together — read
 [Developing Yano X](/contributing/) instead. Mixing the two is the most common
 source of confusion, because the contributor track needs Maven Local and
-several `-P` flags that you do not.
+several `-P` flags that released builds do not.
 :::
 
 ## Prerequisites
@@ -35,10 +36,20 @@ cd yano-x
 ./gradlew clean build -PskipSigning=true
 ```
 
-That is the whole thing. No `-PyanoVersion`, no `-PuseMavenLocal`, no
-`-PyanoJvmDist`.
+For a checkout pinned to a released host version, no `-PyanoVersion`,
+`-PuseMavenLocal`, or `-PyanoJvmDist` override is needed. If the version table
+below says **Local build required**, first publish that exact Yano version and
+build its ordinary JVM ZIP, following [Developing Yano X](/contributing/).
+Then supply the matching inputs explicitly:
 
-### Why it works with no flags
+```bash
+./gradlew clean build -PskipSigning=true \
+  -PyanoVersion=<exact-locally-published-yano-version> \
+  -PyanoJvmDist=/absolute/path/to/yano-<same-version>.zip \
+  -PuseMavenLocal=true
+```
+
+### Host version and distribution inputs
 
 `gradle.properties` pins the exact Yano host line Yano X is built against:
 
@@ -46,16 +57,16 @@ That is the whole thing. No `-PyanoVersion`, no `-PuseMavenLocal`, no
 
 | Value | Current |
 |---|---|
-| Yano X version | `0.1.0-pre1` |
-| Yano host version | `0.1.0-pre15` |
+| Yano X version | `0.1.0-pre2` |
+| Yano host version | `0.1.0-pre17` |
 | Maven group | `org.yanoproject.x` |
 | Java | `25` |
-| Base Yano JVM ZIP | [`yano-0.1.0-pre15.zip`](https://github.com/bloxbean/yano/releases/download/v0.1.0-pre15/yano-0.1.0-pre15.zip) |
+| Base Yano JVM ZIP | [`yano-0.1.0-pre17.zip`](https://github.com/bloxbean/yano/releases/download/v0.1.0-pre17/yano-0.1.0-pre17.zip) |
 
 <!-- catalog:versions-end -->
 
-Because that `yanoVersion` is a released, non-SNAPSHOT version, the
-distribution tasks resolve and cache the matching ordinary Yano JVM ZIP from
+When `yanoVersion` identifies a published release, the distribution tasks
+resolve and cache the matching ordinary Yano JVM ZIP from
 the corresponding `bloxbean/yano` GitHub release automatically. The URL
 convention is:
 
@@ -63,8 +74,10 @@ convention is:
 https://github.com/bloxbean/yano/releases/download/v<version>/yano-<version>.zip
 ```
 
-You only need `-PyanoJvmDist` to *override* that release asset with a local or
-staged ZIP.
+For a published release, `-PyanoJvmDist` optionally overrides that asset.
+For snapshot or locally staged builds, it is required: the Maven artifacts and
+ZIP must carry the same exact build identity. A snapshot version is not a
+downloadable GitHub release.
 
 `-PskipSigning=true` skips artifact signing, which is only relevant when
 publishing.

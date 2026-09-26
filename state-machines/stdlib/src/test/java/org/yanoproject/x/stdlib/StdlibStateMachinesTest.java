@@ -3,6 +3,7 @@ package org.yanoproject.x.stdlib;
 import com.bloxbean.cardano.client.crypto.KeyGenUtil;
 import com.bloxbean.cardano.yaci.core.util.HexUtil;
 import org.yanoproject.api.appchain.AppChainConfig;
+import org.yanoproject.api.appchain.AppSubmissionRejectedException;
 import org.yanoproject.runtime.appchain.AppChainSubsystem;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -20,6 +21,7 @@ import java.util.Set;
 import java.util.function.BooleanSupplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * ADR-006 E2.1/E2.2: standard-library machines drive a real (single-member,
@@ -71,7 +73,8 @@ class StdlibStateMachinesTest {
 
         // Malformed commands are rejected at admission (never finalize)
         long tip = node.tipHeight();
-        node.submit("registry", "garbage".getBytes(StandardCharsets.UTF_8));
+        assertThatThrownBy(() -> node.submit("registry", "garbage".getBytes(StandardCharsets.UTF_8)))
+                .isInstanceOf(AppSubmissionRejectedException.class);
         Thread.sleep(2000);
         assertThat(node.tipHeight()).isEqualTo(tip); // nothing new finalized
 

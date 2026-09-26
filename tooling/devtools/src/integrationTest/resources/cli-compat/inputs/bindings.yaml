@@ -1,0 +1,15 @@
+composite:
+  components:
+    - {id: records, machine: kv-registry}
+    - {id: audit, machine: doc-trail}
+  bindings:
+    - id: audit-record
+      from: {component: records, event: kv-registry.entry-put.v1}
+      when: [{expr: 'event.valueLength < 100'}]
+      to:
+        component: audit
+        command: append
+        map:
+          entityId: {fn: hex, args: [{field: key}]}
+          entryHash: {field: valueHash}
+          reference: {literal: published}

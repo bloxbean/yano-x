@@ -25,6 +25,11 @@ tasks.register('prepareStudio', Sync) {
             expand(yanoVersion: project.version.toString())
         }
     }
+    // Binding editor starters (ADR-031.2); examples/bindings stays their single source.
+    from(rootProject.file('examples/bindings')) {
+        into 'assets/bindings'
+        include 'registry-to-audit.yaml', 'approval-to-audit.yaml', 'fixtures/*/fixture-*.json'
+    }
     into studioOutput
 }
 
@@ -36,8 +41,54 @@ tasks.register('studioZip', Zip) {
 }
 
 tasks.register('testStudio', NodeTask) {
+    // The YAML differential corpus is parsed by the exact Java binding parser before Studio tests run.
+    def yamlOracle = project(':tooling:devtools').tasks.named('generateStudioYamlOracle')
+    def receiptOracle = project(':tooling:devtools').tasks.named('generateStudioReceiptOracle')
+    dependsOn yamlOracle, receiptOracle
+    inputs.dir('src/main/web')
+    inputs.dir('src/test')
+    inputs.files(yamlOracle.map { it.outputs.files }, receiptOracle.map { it.outputs.files })
+    outputs.upToDateWhen { false }
     options = ['--test']
     script = file('src/test/studio.test.mjs')
+    args = fileTree('src/test') { include '*.test.mjs'; exclude 'studio.test.mjs' }.files
+            .collect { it.absolutePath }.sort()
+    def oracles = project(':tooling:devtools').layout.buildDirectory.dir('studio-oracle').get().asFile
+    environment = [STUDIO_YAML_ORACLE: new File(oracles, 'yaml-oracle.json').absolutePath,
+                   STUDIO_RECEIPT_ORACLE: new File(oracles, 'receipt-oracle.json').absolutePath]
+}
+
+// Documents exported by Studio's draft model for the Java compiler round-trip gate (ADR-031.2 M1).
+tasks.register('exportStudioRoundTrip', NodeTask) {
+    inputs.dir('src/main/web')
+    inputs.dir('src/test')
+    inputs.dir(rootProject.file('examples/bindings'))
+    outputs.dir(layout.buildDirectory.dir('roundtrip'))
+    script = file('src/test/roundtrip-export.mjs')
+    args = [layout.buildDirectory.dir('roundtrip').get().asFile.absolutePath]
+}
+
+// Browser, keyboard and accessibility gates for the binding editor (ADR-031.2). Runs the docsite's Playwright
+// install against the prepared Studio; requires `npm ci` in www/ and `npx playwright install chromium` once.
+// The packaged CLI and bundles let the suite recompile the keyboard-authored document with the real compiler.
+tasks.register('browserTestStudio', Exec) {
+    group = 'verification'
+    description = 'Runs the Studio binding editor browser, keyboard and accessibility tests'
+    def bindingBundles = [':composition:runtime', ':capabilities:role-workflow', ':state-machines:stdlib']
+            .collect { project(it).tasks.named('shadowJar') }
+    dependsOn tasks.named('prepareStudio'), bindingBundles, ':tooling:devtools:installDist'
+    inputs.dir(studioOutput)
+    inputs.dir(rootProject.file('www/tests-studio'))
+    outputs.upToDateWhen { false }
+    workingDir rootProject.file('www')
+    commandLine 'npx', 'playwright', 'test', '-c', 'playwright.studio.config.mjs'
+    doFirst {
+        environment 'STUDIO_DIR', studioOutput.get().asFile.absolutePath
+        environment 'BINDING_CLI', project(':tooling:devtools').layout.buildDirectory
+                .file('install/yano-devtools/bin/yano-appchain').get().asFile.absolutePath
+        environment 'BINDING_BUNDLES', bindingBundles.collect { it.get().archiveFile.get().asFile.absolutePath }
+                .join(File.pathSeparator)
+    }
 }
 
 tasks.named('assemble') {

@@ -3,6 +3,7 @@ ext.runtimePluginExcludedBundleIds = []
 apply from: rootProject.file('gradle/runtime-plugin-bundle.gradle')
 
 dependencies {
+    implementation libs.cardano.client.crypto
     api rootProject.ext.yanoModule('yano-core-api')
     api project(':composition:contracts')
 

@@ -7,7 +7,7 @@ import java.util.Objects;
 public record WorkflowDescriptor(
         String workflowId,
         String semanticVersion,
-        String topic,
+        List<String> topics,
         long fromHeight,
         long untilHeight,
         List<ComponentGeneration> participants,
@@ -16,7 +16,11 @@ public record WorkflowDescriptor(
     public WorkflowDescriptor {
         workflowId = CompositeValidation.id(workflowId, "workflowId");
         semanticVersion = CompositeValidation.printable(semanticVersion, "semanticVersion");
-        topic = CompositeValidation.route(topic, "workflow topic");
+        topics = Objects.requireNonNull(topics, "topics").stream()
+                .map(topic -> CompositeValidation.route(topic, "workflow topic")).sorted().toList();
+        if (topics.isEmpty() || topics.size() > 64 || topics.stream().distinct().count() != topics.size()) {
+            throw new IllegalArgumentException("workflow topics must contain 1-64 unique routes");
+        }
         CompositeValidation.activation(fromHeight, untilHeight, "workflow activation");
         participants = List.copyOf(Objects.requireNonNull(participants, "participants"));
         if (participants.isEmpty() || participants.size() > 16) {
@@ -32,5 +36,19 @@ public record WorkflowDescriptor(
 
     public boolean activeAt(long height) {
         return height >= fromHeight && (untilHeight == 0 || height < untilHeight);
+    }
+
+    /** Single-topic constructor preserves the frozen schema-v1 authoring contract. */
+    public WorkflowDescriptor(String workflowId, String semanticVersion, String topic,
+                              long fromHeight, long untilHeight,
+                              List<ComponentGeneration> participants, int maxEffectsPerBlock) {
+        this(workflowId, semanticVersion, List.of(topic), fromHeight, untilHeight,
+                participants, maxEffectsPerBlock);
+    }
+
+    /** Only for schema-v1 consumers; multi-topic callers must use topics(). */
+    public String topic() {
+        if (topics.size() != 1) throw new IllegalStateException("workflow has multiple topics");
+        return topics.getFirst();
     }
 }

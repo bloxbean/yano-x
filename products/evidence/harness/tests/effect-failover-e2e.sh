@@ -479,7 +479,7 @@ assert_plugin_operations_all_nodes() {
           and (.health == "UNKNOWN" or .health == "UP")
           and .failure.code == "NONE"
           and .metricsStale == false))
-        and ([.items[] | select(.selected) | .contributionCount] | add) == 26
+        and ([.items[] | select(.selected) | .contributionCount] | add) == 30
         and .nextAfter == null' "$bundles" \
       || fail "node $node plugin inventory is not the exact selected demo catalog"
     fingerprint="$(jq -r '.catalogFingerprint' "$summary")"

@@ -16,6 +16,10 @@
     "The EUTxO ZeroJ testnet lifecycle uses zeroj-jubjub-dev-v1 with a trusted prover and disposable funds; its complete Yano-devnet L1-to-L2-to-L1 round trip passes, while malicious-prover security, Preview/Preprod live acceptance, restart/rollback, independent reconstruction, and production readiness are NOT_EXERCISED."
   ],
   "capabilityEvidence": {
+    "state:declarative-composite": [
+      "tooling/devtools/src/integrationTest/java/org/yanoproject/x/devtools/BindingCliIT.java#compilesValidatesGraphsAndExecutesThroughRealManifestedCatalog",
+      "state-machines/stdlib/src/test/java/org/yanoproject/x/stdlib/DeclarativeBindingsRuntimeTest.java#registryApprovalAndAuditCascadeSurvivesRestartWithAuthenticatedReceipts"
+    ],
     "state:ordered-log": [
       "tooling/devtools/src/test/scripts/final-distribution-stock-outcomes.sh#recipe-audit-log"
     ],
@@ -157,6 +161,17 @@
     ]
   },
   "recipes": [
+    {
+      "id": "declarative-composite", "maturity": "preview", "availability": "BUNDLED",
+      "runtimeTypes": ["jvm"], "deploymentTargets": ["host", "docker-compose"],
+      "gitOpsTargets": ["helm", "kustomize"],
+      "outcomeLevel": "MODULE_OUTCOME_AND_PACKAGED_PROVIDER",
+      "acceptanceScenario": "recipe-declarative-composite",
+      "evidence": [
+        "tooling/devtools/src/integrationTest/java/org/yanoproject/x/devtools/BindingCliIT.java#compilesValidatesGraphsAndExecutesThroughRealManifestedCatalog",
+        "state-machines/stdlib/src/test/java/org/yanoproject/x/stdlib/DeclarativeBindingsRuntimeTest.java#registryApprovalAndAuditCascadeSurvivesRestartWithAuthenticatedReceipts"
+      ]
+    },
     {
       "id": "audit-log",
       "maturity": "stable",

@@ -1,0 +1,246 @@
+package org.yanoproject.x.devtools;
+
+import org.yanoproject.api.appchain.AppChainConsensusProfile;
+import org.yanoproject.api.appchain.AppChainMembershipEpoch;
+import org.yanoproject.api.appchain.AppChainMembershipView;
+import org.yanoproject.api.appchain.AppStateMachine;
+import org.yanoproject.api.appchain.AppStateMachineContext;
+import org.yanoproject.api.appchain.AppStateMachineProvider;
+import org.yanoproject.api.appchain.AppStateMachineResolver;
+import org.yanoproject.api.appchain.authmap.AuthenticatedMapValidatorResolver;
+import org.yanoproject.api.appchain.observation.ObservationProfileV1;
+import org.yanoproject.api.appchain.state.StateCommitmentIdentity;
+import org.yanoproject.api.appchain.transition.ConfigurationDescriptor;
+import org.yanoproject.api.appchain.transition.TransitionKernel;
+import org.yanoproject.runtime.plugins.CatalogAuthenticatedMapValidatorResolver;
+import org.yanoproject.runtime.plugins.PluginProviderRegistry;
+import org.yanoproject.runtime.appchain.OrderedLogStateMachine;
+import org.yanoproject.x.composite.contracts.BindingExpressionV1.Type;
+import org.yanoproject.api.plugin.PluginCatalogView;
+import org.yanoproject.x.composite.bindings.BindingValidationException;
+import org.yanoproject.x.composite.bindings.DeclarativeCompositeProvider;
+import org.yanoproject.x.composite.contracts.BindingIrV1;
+
+import java.util.HashSet;
+import java.util.HexFormat;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+
+/**
+ * Descriptor and profile construction bridge using the explicitly selected host catalog for optional machines.
+ * The sole host builtin, OrderedLog, follows the same explicit branch as the running host resolver.
+ * It passes only host SPI values across class-loader boundaries; executable X implementation classes
+ * remain owned by their selected bundles, even when devtools links another copy for pure authoring work.
+ */
+final class BindingCatalogSession implements BindingDocumentCompiler.DescriptorCatalog {
+    static final String MACHINE = "declarative-composite";
+    static final String IR_SETTING = "machines.composite.binding-ir";
+    private final PluginProviderRegistry providers;
+    private final ContextInput input;
+    private final StateCommitmentIdentity identity;
+
+    /**
+     * Explicit offline context. No secrets, signing material, node defaults, or environment lookups are needed.
+     * Settings carry the exact state identity and optional host membership settings; component settings belong
+     * in the authoring document and are deliberately rejected here. Ordinary authoring validates a fixed
+     * genesis profile; profile-check can reconstruct an explicitly supplied executable catalog, but neither
+     * operation qualifies a composite-profile governance activation or supplies retained application state.
+     */
+    record ContextInput(String chainId, Map<String, String> settings, AppChainConsensusProfile consensusProfile,
+                        AppChainMembershipEpoch membership) {
+        ContextInput {
+            Objects.requireNonNull(chainId, "chainId");
+            if (chainId.isBlank() || chainId.length() > 127) throw new IllegalArgumentException("invalid chainId");
+            settings = Map.copyOf(Objects.requireNonNull(settings, "settings"));
+            Objects.requireNonNull(consensusProfile, "consensusProfile");
+            Objects.requireNonNull(membership, "membership");
+            if (settings.size() > 256) throw new IllegalArgumentException("context setting count limit");
+            settings.forEach((key, value) -> {
+                if (key.length() > 255 || value.length() > 131_072) {
+                    throw new IllegalArgumentException("context setting length limit");
+                }
+                if (key.startsWith("machines.")) {
+                    throw new IllegalArgumentException("component settings must be committed in the binding document");
+                }
+            });
+            StateCommitmentIdentity.fromSettings(settings);
+        }
+    }
+
+    BindingCatalogSession(PluginProviderRegistry providers, ContextInput input) {
+        this.providers = Objects.requireNonNull(providers, "providers");
+        this.input = Objects.requireNonNull(input, "input");
+        this.identity = StateCommitmentIdentity.fromSettings(input.settings());
+    }
+
+    @Override public ConfigurationDescriptor configuration(String machineId) {
+        return configuration(machineId, Map.of());
+    }
+
+    @Override public ConfigurationDescriptor configuration(String machineId, Map<String, Object> supplied) {
+        return kernel(machineId, supplied).configuration();
+    }
+
+    @Override public Map<String, Type> eventFields(BindingIrV1.Component component, String eventId) {
+        Map<String, Object> values = new LinkedHashMap<>();
+        component.configuration().forEach((key, literal) -> values.put(key, literal.value()));
+        TransitionKernel<?, ?> kernel = kernel(component.machineId(), values);
+        if ("composite.command-accepted.v1".equals(eventId)) {
+            return Map.of("topic", Type.TEXT, "sender", Type.BYTES, "messageId", Type.BYTES,
+                    "body", Type.BYTES, "bodyHash", Type.BYTES, "bodyLength", Type.INTEGER);
+        }
+        var schemas = kernel.events().stream().filter(event -> event.eventId().equals(eventId)).toList();
+        if (schemas.size() != 1) throw new IllegalArgumentException("unknown or duplicate event: " + eventId);
+        Map<String, Type> fields = new LinkedHashMap<>();
+        schemas.getFirst().fields().forEach(field -> fields.put(field.name(), Type.valueOf(field.type().name())));
+        return Map.copyOf(fields);
+    }
+
+    /** Constructs the real catalog-selected composite; this is the authoritative profile validation step. */
+    AppStateMachine validate(BindingIrV1 ir) {
+        Map<String, String> settings = new LinkedHashMap<>(input.settings());
+        settings.put(IR_SETTING, HexFormat.of().formatHex(ir.encode()));
+        return resolve(MACHINE, new Context(settings, true));
+    }
+
+    /** Reconstructs a bounded retained-profile catalog through the selected bundle, never local implementation code. */
+    AppStateMachine validateCatalog(List<BindingIrV1> profiles) {
+        profiles = List.copyOf(profiles);
+        if (profiles.isEmpty() || profiles.size() > 64) {
+            throw new IllegalArgumentException("profile catalog requires 1-64 entries");
+        }
+        if (profiles.size() > 1 && !"governed".equals(input.settings().get("membership.mode"))) {
+            throw new IllegalArgumentException("multiple profiles require explicit membership.mode=governed");
+        }
+        Map<String, String> settings = new LinkedHashMap<>(input.settings());
+        settings.put(IR_SETTING, HexFormat.of().formatHex(profiles.getFirst().encode()));
+        if (profiles.size() > 1) {
+            settings.put("machines.composite.profile-mode", "governed");
+            for (int index = 1; index < profiles.size(); index++) {
+                settings.put("machines.composite.binding-ir-catalog[" + (index - 1) + "]",
+                        HexFormat.of().formatHex(profiles.get(index).encode()));
+            }
+        }
+        return resolve(MACHINE, new Context(settings, true));
+    }
+
+    ContextInput input() { return input; }
+
+    /**
+     * Explains an authoritative profile-construction failure with the linked provider's structured location.
+     *
+     * <p>Runs only for report requests, after the catalog-selected provider has failed. The linked
+     * {@code DeclarativeCompositeProvider}
+     * rebuilds the same IR under the same context and resolver; its {@link BindingValidationException} is accepted
+     * only when its complete message equals a message in the authoritative failure's bounded cause chain (so known
+     * host activation wrappers are looked through) and the selected composite bundle has this tool's version.
+     * Any other outcome returns empty: the caller then reports the failure without a guessed location. The
+     * authoritative pass/fail decision is never changed.
+     *
+     * @param ir the IR the provider rejected
+     * @param authoritative the provider failure
+     * @param catalog validated plugin catalog used for the version check
+     * @return the matching structured failure, or empty
+     */
+    Optional<BindingValidationException> explainProfileFailure(BindingIrV1 ir, Throwable authoritative,
+                                                               PluginCatalogView catalog) {
+        var owner = providers.contributionProvenance(AppStateMachineProvider.class, MACHINE);
+        if (owner.isEmpty()) return Optional.empty();
+        String bundleId = owner.get().bundleId();
+        boolean sameVersion = catalog.bundles().stream().anyMatch(bundle -> bundle.id().equals(bundleId)
+                && bundle.version().equals(BindingToolIdentity.toolVersion()));
+        if (!sameVersion) return Optional.empty();
+        Set<String> messages = new HashSet<>();
+        Throwable current = authoritative;
+        for (int depth = 0; current != null && depth < 16; depth++) {
+            if (current.getMessage() != null) messages.add(current.getMessage());
+            current = current.getCause() == current ? null : current.getCause();
+        }
+        Map<String, String> settings = new LinkedHashMap<>(input.settings());
+        settings.put(IR_SETTING, HexFormat.of().formatHex(ir.encode()));
+        try {
+            DeclarativeCompositeProvider.entry(new Context(settings, true), ir);
+            return Optional.empty();
+        } catch (BindingValidationException local) {
+            return messages.contains(local.getMessage()) ? Optional.of(local) : Optional.empty();
+        } catch (Throwable unrelated) {
+            // Explanation is advisory: only JVM resource exhaustion may escape it.
+            if (unrelated instanceof VirtualMachineError error && !(unrelated instanceof StackOverflowError)) {
+                throw error;
+            }
+            return Optional.empty();
+        }
+    }
+
+    private TransitionKernel<?, ?> kernel(String machineId, Map<String, Object> values) {
+        return component(machineId, values).transitionKernel().orElseThrow(() ->
+                new IllegalArgumentException("catalog component has no transition kernel: " + machineId));
+    }
+
+    /**
+     * Constructs one catalog-selected component exactly as authoring does: state-identity settings plus
+     * {@code machines.<machine>.*} settings from the supplied configuration, with no child resolver.
+     * This executes trusted installed plugin code; it is not a sandbox for untrusted bundles.
+     */
+    AppStateMachine component(String machineId, Map<String, Object> values) {
+        if (MACHINE.equals(machineId)) {
+            throw new IllegalArgumentException("nested declarative composites are unsupported");
+        }
+        Map<String, String> settings = new LinkedHashMap<>(identity.settings());
+        values.forEach((key, value) -> settings.put("machines." + machineId + "." + key,
+                value instanceof byte[] bytes ? HexFormat.of().formatHex(bytes) : value.toString()));
+        return resolve(machineId, new Context(settings, false));
+    }
+
+    /** Catalog selector enumeration without constructing providers; includes the host builtin. */
+    List<String> selectors() {
+        java.util.TreeSet<String> names = new java.util.TreeSet<>(providers.names(AppStateMachineProvider.class));
+        names.add(OrderedLogStateMachine.ID);
+        return List.copyOf(names);
+    }
+
+    /** Bundle provenance of a selector, or empty for the host builtin. */
+    Optional<PluginProviderRegistry.ContributionProvenance> provenance(String machineId) {
+        if (OrderedLogStateMachine.ID.equals(machineId)) return Optional.empty();
+        return providers.contributionProvenance(AppStateMachineProvider.class, machineId);
+    }
+
+    private AppStateMachine resolve(String id, AppStateMachineContext context) {
+        // OrderedLog is the host's sole builtin, not an optional-provider fallback. Match host resolution exactly.
+        if (OrderedLogStateMachine.ID.equals(id)) return new OrderedLogStateMachine();
+        return providers.require(AppStateMachineProvider.class, id).create(context);
+    }
+
+    private final class Context implements AppStateMachineContext {
+        private final Map<String, String> settings;
+        private final boolean resolveChildren;
+
+        private Context(Map<String, String> settings, boolean resolveChildren) {
+            this.settings = Map.copyOf(settings);
+            this.resolveChildren = resolveChildren;
+        }
+
+        @Override public String chainId() { return input.chainId(); }
+        @Override public Map<String, String> settings() { return settings; }
+        @Override public Optional<AppChainConsensusProfile> consensusProfile() {
+            return Optional.of(input.consensusProfile());
+        }
+        @Override public Optional<AppChainMembershipView> membershipView() {
+            return Optional.of(height -> input.membership());
+        }
+        @Override public Optional<StateCommitmentIdentity> stateCommitmentIdentity() { return Optional.of(identity); }
+        @Override public Optional<ObservationProfileV1> observationProfile() {
+            return Optional.of(ObservationProfileV1.disabled());
+        }
+        @Override public Optional<AuthenticatedMapValidatorResolver> authenticatedMapValidatorResolver() {
+            return Optional.of(new CatalogAuthenticatedMapValidatorResolver(providers));
+        }
+        @Override public Optional<AppStateMachineResolver> stateMachineResolver() {
+            return resolveChildren ? Optional.of(BindingCatalogSession.this::resolve) : Optional.empty();
+        }
+    }
+}

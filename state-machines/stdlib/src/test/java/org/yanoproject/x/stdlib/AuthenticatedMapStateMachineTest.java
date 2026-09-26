@@ -7,6 +7,8 @@ import org.yanoproject.api.appchain.AppBlockExecutionContext;
 import org.yanoproject.api.appchain.AppChainInfo;
 import org.yanoproject.api.appchain.AppChainConfig;
 import org.yanoproject.api.appchain.AppChainMembershipEpoch;
+import org.yanoproject.api.appchain.AppChainConsensusProfile;
+import org.yanoproject.api.appchain.AppChainMembershipView;
 import org.yanoproject.api.appchain.AppQueryContext;
 import org.yanoproject.api.appchain.AppStateMachineContext;
 import org.yanoproject.api.appchain.AppStateWriter;
@@ -15,6 +17,7 @@ import org.yanoproject.api.appchain.effects.AppEffectEmitter;
 import org.yanoproject.api.appchain.authmap.AuthenticatedMapValidatorResolver;
 import org.yanoproject.api.appchain.authmap.ValidatorVerdict;
 import org.yanoproject.api.appchain.state.StateCommitmentProfiles;
+import org.yanoproject.api.appchain.state.StateCommitmentIdentity;
 import org.yanoproject.appchain.config.AppChainEffectsConfig;
 import org.yanoproject.x.stdlib.contracts.AuthenticatedMapContract;
 import org.yanoproject.x.stdlib.contracts.AuthenticatedMapSchema;
@@ -551,6 +554,42 @@ class AuthenticatedMapStateMachineTest {
         assertThatThrownBy(() -> provider.create(context(
                 config, epoch, Map.copyOf(mismatchedSchemaSettings))))
                 .hasMessageContaining("state commitment identity");
+    }
+
+    @Test
+    void leafProviderUsesParentExecutionProfileButNotParentGenesisAsItsMapDomain() {
+        String member = "11".repeat(32);
+        AppChainConfig config = AppChainConfig.builder(CHAIN_ID)
+                .signingKeyHex("22".repeat(32)).memberKeysHex(Set.of(member)).proposerKeyHex(member)
+                .stateMachineId(AuthenticatedMapStateMachine.ID).build();
+        var genesis = AuthenticatedMapGenesisFactory.mpf(config, repeated(7), 16, 32768,
+                List.of(collection("records", AuthenticatedMapContract.AUTH_OPEN, true)), List.of());
+        var epoch = new AppChainMembershipEpoch(0, List.of(member), 1);
+        String setting = "machines." + AuthenticatedMapLeafStateMachine.ID + ".genesis-cbor-hex";
+        var parent = context(config, epoch, Map.of(setting, hex(AuthenticatedMapContract.encodeGenesis(genesis))));
+        AppStateMachineContext leafContext = new AppStateMachineContext() {
+            @Override public String chainId() { return parent.chainId(); }
+            @Override public Map<String, String> settings() { return parent.settings(); }
+            @Override public Optional<AppChainConsensusProfile> consensusProfile() {
+                return parent.consensusProfile();
+            }
+            @Override public Optional<AppChainMembershipView> membershipView() {
+                return parent.membershipView();
+            }
+            @Override public Optional<StateCommitmentIdentity> stateCommitmentIdentity() {
+                return Optional.of(StateCommitmentIdentity.explicit(
+                        StateCommitmentProfiles.MPF, repeated(99)));
+            }
+        };
+        var provider = new StdlibStateMachineProviders.AuthenticatedMapComponentProvider();
+        var leaf = provider.create(leafContext);
+        assertThat(leaf.id()).isEqualTo(AuthenticatedMapLeafStateMachine.ID);
+        assertThat(leaf.transitionKernel()).isPresent();
+        assertThat(leaf.capabilityManifest().components().getFirst().querySubjects())
+                .contains(AuthenticatedMapContract.POINT_QUERY_PATH, AuthenticatedMapContract.RECEIPT_QUERY_PATH);
+        assertThatThrownBy(() -> provider.create(context(config,
+                new AppChainMembershipEpoch(0, List.of("33".repeat(32)), 1), parent.settings())))
+                .hasMessageContaining("parent execution context");
     }
 
     private static AuthenticatedMapStateMachine machine(

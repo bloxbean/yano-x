@@ -1,0 +1,31 @@
+{
+  "chainId": "offline-test",
+  "settings": {
+    "state.commitment-profile": "mpf-blake2b256-v1",
+    "state.format-fingerprint": "91ee14091200f1e24659112d640e877e9177779dcc81dd06117f013e9190082b",
+    "state.genesis-id": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "consensusProfile": {
+    "schemaVersion": 2,
+    "maxMessageBytes": 65536,
+    "maxBlockMessages": 100,
+    "maxBlockBytes": 1048576,
+    "l1StabilityDepth": 0,
+    "epochStabilityDepth": 0,
+    "enforceSenderSeq": false,
+    "effectsEnabled": false,
+    "effectsMaxPerBlock": 0,
+    "effectsMaxPayloadBytes": 0,
+    "effectsMaxExpiryBlocks": 0,
+    "effectsResultWindowBlocks": 0,
+    "effectsDefaultGate": "APP_FINAL",
+    "effectsOutcomeCommitment": "PER_EFFECT",
+    "effectsStrictReservedPrefix": true,
+    "effectResultSigners": []
+  },
+  "membership": {
+    "fromHeight": 0,
+    "members": ["2222222222222222222222222222222222222222222222222222222222222222"],
+    "threshold": 1
+  }
+}

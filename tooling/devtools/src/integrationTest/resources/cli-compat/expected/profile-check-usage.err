@@ -1,0 +1,1 @@
+Usage: bindings profile-check --profiles <profiles.json> --context <context.json> --plugins-directory <directory>

@@ -75,7 +75,7 @@ final class AppChainProjectRenderer {
         // Resolve before creating the project directory. Unsupported product
         // policies (especially testnet-only capabilities on mainnet) must
         // fail without leaving a partial blueprint or bootstrap plan behind.
-        resolver.resolve(blueprint);
+        resolver.resolve(blueprint, root);
         Files.createDirectories(root);
         byte[] blueprintBytes = yaml.writerWithDefaultPrettyPrinter()
                 .writeValueAsBytes(blueprint);
@@ -106,9 +106,10 @@ final class AppChainProjectRenderer {
         if (Files.exists(active)) {
             var deployed = json.readValue(boundedFile(active, MAX_BLUEPRINT_BYTES, "active lock"),
                     AppChainProjectModel.Lock.class);
-            var resolved = resolver.resolve(blueprint);
+            var resolved = resolver.resolve(blueprint, root);
             if (!deployed.consensusValues().equals(resolved.consensusProperties())
-                    || !deployed.blueprintDigest().equals(AppChainProjectCatalog.sha256(blueprintBytes))) {
+                    || !deployed.blueprintDigest().equals(AppChainProjectCatalog.sha256(blueprintBytes))
+                    || !deployed.catalogDigests().equals(catalogDigests(resolved))) {
                 throw new IOException("Retained deployment changed. Run appchain plan, stop the nodes, "
                         + "then appchain apply with the reviewed plan digest");
             }
@@ -145,9 +146,8 @@ final class AppChainProjectRenderer {
         verifyGeneratedFiles(root, lock.generatedFiles());
         requireEqual("blueprint digest", AppChainProjectCatalog.sha256(blueprintBytes),
                 lock.blueprintDigest());
-        requireEqual("catalog digests", catalog.digests(), lock.catalogDigests());
-
-        AppChainProjectModel.Resolution resolution = resolver.resolve(blueprint);
+        AppChainProjectModel.Resolution resolution = resolver.resolve(blueprint, root);
+        requireEqual("catalog digests", catalogDigests(resolution), lock.catalogDigests());
         requireEqual("Yano version", blueprint.spec().yanoVersion(), lock.yanoVersion());
         requireEqual("runtime", blueprint.spec().runtime().type(), lock.runtime());
         requireEqual("deployment", blueprint.spec().deployment().target(), lock.deployment());
@@ -176,7 +176,7 @@ final class AppChainProjectRenderer {
             AppChainProjectModel.Blueprint blueprint,
             AppChainProjectModel.Lock prior,
         byte[] blueprintBytes) throws IOException {
-        AppChainProjectModel.Resolution resolution = resolver.resolve(blueprint);
+        AppChainProjectModel.Resolution resolution = resolver.resolve(blueprint, root);
         String resolvedDigest = AppChainProjectCatalog.sha256(
                 json.writeValueAsBytes(new TreeMap<>(resolution.consensusProperties())));
         TreeMap<String, byte[]> outputs = outputs(resolution, resolvedDigest);
@@ -206,7 +206,7 @@ final class AppChainProjectRenderer {
                 AppChainProjectModel.LOCK_KIND,
                 "https://yano.dev/schema/appchain-blueprint/v1alpha1",
                 AppChainProjectCatalog.sha256(blueprintBytes),
-                catalog.digests(),
+                catalogDigests(resolution),
                 blueprint.spec().yanoVersion(),
                 blueprint.spec().runtime().type(),
                 blueprint.spec().deployment().target(),
@@ -229,6 +229,13 @@ final class AppChainProjectRenderer {
         writeGenerated(root, LOCK_FILE, lockBytes);
         markScriptsExecutable(root, outputs.keySet());
         return lock;
+    }
+
+    /** Binding catalog/profile commitments are lock pins, never synthetic node configuration properties. */
+    private Map<String, String> catalogDigests(AppChainProjectModel.Resolution resolution) {
+        Map<String, String> result = new TreeMap<>(catalog.digests());
+        result.putAll(resolution.bindingDigests());
+        return Map.copyOf(result);
     }
 
     private TreeMap<String, byte[]> outputs(
@@ -1548,7 +1555,8 @@ final class AppChainProjectRenderer {
         return values == null ? Map.of() : values;
     }
 
-    private static ObjectMapper configured(ObjectMapper mapper) {
+    /** Shared by the Studio YAML differential oracle so it tests the exact blueprint parser configuration. */
+    static ObjectMapper configured(ObjectMapper mapper) {
         return mapper.enable(JsonParser.Feature.STRICT_DUPLICATE_DETECTION)
                 .enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
                 .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS)

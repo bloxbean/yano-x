@@ -13,9 +13,11 @@ import org.yanoproject.api.appchain.proof.ProofSubjectProvider;
 import org.yanoproject.api.appchain.transition.TransitionContext;
 import org.yanoproject.api.appchain.transition.TransitionDecision;
 import org.yanoproject.api.appchain.transition.TransitionPlans;
+import org.yanoproject.api.appchain.transition.TransitionKernel;
 import org.yanoproject.x.stdlib.contracts.DocTrailContract;
 
 import java.util.List;
+import java.util.Optional;
 import java.nio.ByteBuffer;
 import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
@@ -51,6 +53,10 @@ public final class DocTrailStateMachine implements AppStateMachine {
     @Override
     public String id() {
         return ID;
+    }
+
+    @Override public Optional<TransitionKernel<?, ?>> transitionKernel() {
+        return Optional.of(StockTransitionKernels.documentTrail(transitions));
     }
 
     @Override

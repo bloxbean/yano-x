@@ -1,0 +1,876 @@
+{
+  "schema" : "yano-x-binding-authoring-catalog-v1",
+  "assurance" : "Editing assistance for the identified plugin catalog, context and configurations only. Not plugin trust, runtime availability, profile validation or deployment approval.",
+  "producer" : {
+    "tool" : "yano-x-devtools",
+    "version" : "0.1.0-pre2",
+    "jarSha256" : "c6a54f4eaf74e12d2cd3cdcf80684476bc686b42f59bc2229cafddcfcf1a2e5c",
+    "linkedCompositeJarSha256" : "ac7554151dc4a47b7d8e43d9d47f65731e2b34f0f5051f8cc482740ca7a6ade4"
+  },
+  "host" : {
+    "version" : "0.1.0-pre17",
+    "coreApiJarSha256" : "85bd0c91c37d716d917526ba5e4d9871add2bcf752cd05dfea90d0f155ad5a96",
+    "runtimeJarSha256" : "f78e43e059576d16e1c24ef185122a736da00f711a5bc0646501a84e92f97732"
+  },
+  "authoringEnvironment" : "yano-x-binding-authoring-environment-v1",
+  "catalog" : {
+    "fingerprint" : "sha256:128015618c1048515440b7323fc1db510436396f0c14a1d19821be7af17b7f09",
+    "pluginApi" : {
+      "major" : 3,
+      "level" : 11
+    },
+    "bundles" : [ {
+      "id" : "org.yanoproject.x.composite",
+      "version" : "0.1.0-pre2",
+      "digest" : "sha256:308db9cec88247bba29a99569cc9465e659a3f6022d9b10146f05b51c0725d31",
+      "digestMode" : "ARTIFACT_CLOSURE",
+      "selected" : true
+    }, {
+      "id" : "org.yanoproject.x.role-workflow",
+      "version" : "0.1.0-pre2",
+      "digest" : "sha256:4113e25527a6e7da0d5cdb85ac9ccfefa8b15adbdd755ab054f613af9baae78e",
+      "digestMode" : "ARTIFACT_CLOSURE",
+      "selected" : true
+    }, {
+      "id" : "org.yanoproject.x.stdlib",
+      "version" : "0.1.0-pre2",
+      "digest" : "sha256:3b118673de03e97cd5b6f502993965fff0c5ab7ed9661d13d554e01d19d36a2b",
+      "digestMode" : "ARTIFACT_CLOSURE",
+      "selected" : true
+    } ]
+  },
+  "context" : {
+    "sha256" : "fd1059233408f30a8e02a62f5f8708ece723ceccf99cc4b0fe2744e8dac73539",
+    "bytes" : "991",
+    "chainId" : "offline-test"
+  },
+  "document" : {
+    "sha256" : "335e0c3b0b0adffe025b2ac00bdd186b6132accd7b97fd08a771d54a0ce98d7b",
+    "bytes" : "460"
+  },
+  "language" : {
+    "irVersion" : 1,
+    "functionCatalog" : "yano-x-binding-functions-v1",
+    "expressionDialect" : "yano-x-cel-v1",
+    "functions" : [ {
+      "id" : "blake2b-256",
+      "minArguments" : 1,
+      "maxArguments" : 1,
+      "arguments" : [ [ "bytes", "text" ] ],
+      "homogeneous" : false,
+      "result" : "bytes",
+      "bound" : "total input at most maxFunctionInputBytes"
+    }, {
+      "id" : "sha-256",
+      "minArguments" : 1,
+      "maxArguments" : 1,
+      "arguments" : [ [ "bytes", "text" ] ],
+      "homogeneous" : false,
+      "result" : "bytes",
+      "bound" : "total input at most maxFunctionInputBytes"
+    }, {
+      "id" : "concat",
+      "minArguments" : 2,
+      "maxArguments" : 8,
+      "arguments" : [ [ "text", "bytes" ] ],
+      "homogeneous" : true,
+      "result" : "same-as-arguments",
+      "bound" : "total input and output at most maxFunctionInputBytes"
+    }, {
+      "id" : "utf8-bytes",
+      "minArguments" : 1,
+      "maxArguments" : 1,
+      "arguments" : [ [ "text" ] ],
+      "homogeneous" : false,
+      "result" : "bytes",
+      "bound" : "total input at most maxFunctionInputBytes"
+    }, {
+      "id" : "hex",
+      "minArguments" : 1,
+      "maxArguments" : 1,
+      "arguments" : [ [ "bytes" ] ],
+      "homogeneous" : false,
+      "result" : "text",
+      "bound" : "output (two characters per byte) at most maxFunctionInputBytes"
+    }, {
+      "id" : "byte-length",
+      "minArguments" : 1,
+      "maxArguments" : 1,
+      "arguments" : [ [ "bytes", "text" ] ],
+      "homogeneous" : false,
+      "result" : "integer",
+      "bound" : "total input at most maxFunctionInputBytes"
+    }, {
+      "id" : "cbor-encode",
+      "minArguments" : 1,
+      "maxArguments" : 1,
+      "arguments" : [ [ "any" ] ],
+      "homogeneous" : false,
+      "result" : "bytes",
+      "bound" : "total input at most maxFunctionInputBytes"
+    }, {
+      "id" : "cbor-field",
+      "minArguments" : 2,
+      "maxArguments" : 2,
+      "arguments" : [ [ "bytes" ], [ "text" ] ],
+      "homogeneous" : false,
+      "result" : "opaque",
+      "bound" : "one-level canonical scalar map; missing field or invalid CBOR rejects the cascade"
+    } ],
+    "expressionOperators" : [ {
+      "cel" : "==",
+      "ir" : "eq",
+      "operands" : "same scalar type",
+      "result" : "boolean"
+    }, {
+      "cel" : "!=",
+      "ir" : "ne",
+      "operands" : "same scalar type",
+      "result" : "boolean"
+    }, {
+      "cel" : "<",
+      "ir" : "lt",
+      "operands" : "integer, integer",
+      "result" : "boolean"
+    }, {
+      "cel" : "<=",
+      "ir" : "le",
+      "operands" : "integer, integer",
+      "result" : "boolean"
+    }, {
+      "cel" : ">",
+      "ir" : "gt",
+      "operands" : "integer, integer",
+      "result" : "boolean"
+    }, {
+      "cel" : ">=",
+      "ir" : "ge",
+      "operands" : "integer, integer",
+      "result" : "boolean"
+    }, {
+      "cel" : "&&",
+      "ir" : "and",
+      "operands" : "boolean, boolean (error-masking)",
+      "result" : "boolean"
+    }, {
+      "cel" : "||",
+      "ir" : "or",
+      "operands" : "boolean, boolean (error-masking)",
+      "result" : "boolean"
+    }, {
+      "cel" : "!",
+      "ir" : "not",
+      "operands" : "boolean",
+      "result" : "boolean"
+    }, {
+      "cel" : "? :",
+      "ir" : "if",
+      "operands" : "boolean, T, T (only the selected branch is evaluated)",
+      "result" : "T"
+    }, {
+      "cel" : "+",
+      "ir" : "add",
+      "operands" : "integer, integer (checked)",
+      "result" : "integer"
+    }, {
+      "cel" : "+",
+      "ir" : "concat",
+      "operands" : "text, text or bytes, bytes",
+      "result" : "same as operands"
+    }, {
+      "cel" : "-",
+      "ir" : "sub",
+      "operands" : "integer, integer (checked; truncates toward zero)",
+      "result" : "integer"
+    }, {
+      "cel" : "*",
+      "ir" : "mul",
+      "operands" : "integer, integer (checked; truncates toward zero)",
+      "result" : "integer"
+    }, {
+      "cel" : "/",
+      "ir" : "div",
+      "operands" : "integer, integer (checked; truncates toward zero)",
+      "result" : "integer"
+    }, {
+      "cel" : "%",
+      "ir" : "mod",
+      "operands" : "integer, integer (checked; truncates toward zero)",
+      "result" : "integer"
+    }, {
+      "cel" : "-x",
+      "ir" : "neg",
+      "operands" : "integer (checked)",
+      "result" : "integer"
+    } ],
+    "limits" : [ {
+      "name" : "maxCascadeDepth",
+      "default" : "8",
+      "minimum" : "1",
+      "maximum" : "32"
+    }, {
+      "name" : "maxDerivedPerSourceMessage",
+      "default" : "32",
+      "minimum" : "1",
+      "maximum" : "256"
+    }, {
+      "name" : "maxDerivedPerBlock",
+      "default" : "4096",
+      "minimum" : "1",
+      "maximum" : "65536"
+    }, {
+      "name" : "maxEventPayloadBytes",
+      "default" : "65536",
+      "minimum" : "1",
+      "maximum" : "65536"
+    }, {
+      "name" : "maxLookupsPerCondition",
+      "default" : "2",
+      "minimum" : "1",
+      "maximum" : "4"
+    }, {
+      "name" : "maxFunctionCallsPerMapping",
+      "default" : "8",
+      "minimum" : "1",
+      "maximum" : "16"
+    }, {
+      "name" : "maxFunctionInputBytes",
+      "default" : "65536",
+      "minimum" : "1",
+      "maximum" : "65536"
+    }, {
+      "name" : "maxExpressionNodes",
+      "default" : "128",
+      "minimum" : "1",
+      "maximum" : "512"
+    }, {
+      "name" : "maxExpressionDepth",
+      "default" : "16",
+      "minimum" : "1",
+      "maximum" : "32"
+    }, {
+      "name" : "maxExpressionValueBytes",
+      "default" : "65536",
+      "minimum" : "1",
+      "maximum" : "65536"
+    }, {
+      "name" : "maxExpressionWorkPerCascade",
+      "default" : "1048576",
+      "minimum" : "1",
+      "maximum" : "4194304"
+    }, {
+      "name" : "maxExpressionWorkPerBlock",
+      "default" : "33554432",
+      "minimum" : "1",
+      "maximum" : "67108864"
+    } ],
+    "structuralLimits" : {
+      "components" : 16,
+      "bindings" : 256,
+      "clausesPerCondition" : 8,
+      "inEntries" : 64,
+      "mappingFields" : 16,
+      "configurationSettings" : 64,
+      "functionArguments" : 8,
+      "functionNesting" : 2,
+      "identifierPattern" : "[a-z][a-z0-9-]{0,62}",
+      "fieldNamePattern" : "[a-zA-Z][a-zA-Z0-9_.-]{0,126}",
+      "topicMaximumCharacters" : 127,
+      "expressionSourceCharacters" : 8192,
+      "expressionNodesHardMaximum" : 512,
+      "bytesLiteralHexCharacters" : 131072,
+      "irBytes" : 65536,
+      "sourceCharacters" : 262144,
+      "sourceTokens" : 32768,
+      "sourceNesting" : 48
+    },
+    "baselineEvent" : {
+      "eventId" : "composite.command-accepted.v1",
+      "fields" : [ {
+        "name" : "topic",
+        "type" : "text",
+        "required" : true
+      }, {
+        "name" : "sender",
+        "type" : "bytes",
+        "required" : true
+      }, {
+        "name" : "messageId",
+        "type" : "bytes",
+        "required" : true
+      }, {
+        "name" : "body",
+        "type" : "bytes",
+        "required" : true
+      }, {
+        "name" : "bodyHash",
+        "type" : "bytes",
+        "required" : true
+      }, {
+        "name" : "bodyLength",
+        "type" : "integer",
+        "required" : true
+      } ],
+      "materialized" : "only when a binding subscribes to it"
+    },
+    "receiptCodes" : [ {
+      "code" : "ADMISSION",
+      "category" : "target-rejection",
+      "origin" : "either",
+      "levels" : [ "step" ],
+      "locatesLastCondition" : "never"
+    }, {
+      "code" : "MALFORMED_SOURCE_COMMAND",
+      "category" : "target-rejection",
+      "origin" : "either",
+      "levels" : [ "source" ],
+      "locatesLastCondition" : "never"
+    }, {
+      "code" : "MALFORMED_DERIVED_COMMAND",
+      "category" : "target-rejection",
+      "origin" : "either",
+      "levels" : [ "step" ],
+      "locatesLastCondition" : "never"
+    }, {
+      "code" : "CAPACITY_EXCEEDED",
+      "category" : "resource-exhaustion",
+      "origin" : "either",
+      "levels" : [ "source", "condition" ],
+      "locatesLastCondition" : "ambiguous"
+    }, {
+      "code" : "COMMAND_PAYLOAD_TOO_LARGE",
+      "category" : "resource-exhaustion",
+      "origin" : "either",
+      "levels" : [ "step" ],
+      "locatesLastCondition" : "never"
+    }, {
+      "code" : "COMMAND_WORK_EXCEEDED",
+      "category" : "resource-exhaustion",
+      "origin" : "either",
+      "levels" : [ "step" ],
+      "locatesLastCondition" : "never"
+    }, {
+      "code" : "CRYPTO_WORK_EXCEEDED",
+      "category" : "resource-exhaustion",
+      "origin" : "either",
+      "levels" : [ "step" ],
+      "locatesLastCondition" : "never"
+    }, {
+      "code" : "EVENT_PAYLOAD_TOO_LARGE",
+      "category" : "resource-exhaustion",
+      "origin" : "either",
+      "levels" : [ "step" ],
+      "locatesLastCondition" : "never"
+    }, {
+      "code" : "EXPRESSION_CAPACITY_EXCEEDED",
+      "category" : "resource-exhaustion",
+      "origin" : "either",
+      "levels" : [ "source", "step", "condition", "mapping", "effect" ],
+      "locatesLastCondition" : "ambiguous"
+    }, {
+      "code" : "LIMIT_DEPTH",
+      "category" : "resource-exhaustion",
+      "origin" : "either",
+      "levels" : [ "step" ],
+      "locatesLastCondition" : "never"
+    }, {
+      "code" : "LIMIT_FANOUT",
+      "category" : "resource-exhaustion",
+      "origin" : "either",
+      "levels" : [ "condition" ],
+      "locatesLastCondition" : "ambiguous"
+    }, {
+      "code" : "RECEIPT_CAPACITY_EXCEEDED",
+      "category" : "resource-exhaustion",
+      "origin" : "either",
+      "levels" : [ "source" ],
+      "locatesLastCondition" : "never"
+    }, {
+      "code" : "EFFECT_CAPACITY_EXCEEDED",
+      "category" : "resource-exhaustion",
+      "origin" : "either",
+      "levels" : [ "effect" ],
+      "locatesLastCondition" : "never"
+    }, {
+      "code" : "EFFECT_PAYLOAD_LIMIT",
+      "category" : "resource-exhaustion",
+      "origin" : "either",
+      "levels" : [ "effect" ],
+      "locatesLastCondition" : "never"
+    }, {
+      "code" : "EFFECT_EXPIRY_LIMIT",
+      "category" : "resource-exhaustion",
+      "origin" : "either",
+      "levels" : [ "effect" ],
+      "locatesLastCondition" : "never"
+    }, {
+      "code" : "EVENT_TYPE_ERROR",
+      "category" : "evaluation-error",
+      "origin" : "either",
+      "levels" : [ "step", "condition" ],
+      "locatesLastCondition" : "ambiguous"
+    }, {
+      "code" : "EVENT_MISSING_FIELD",
+      "category" : "contract-violation",
+      "origin" : "either",
+      "levels" : [ "step" ],
+      "locatesLastCondition" : "never"
+    }, {
+      "code" : "EXPRESSION_DIVISION_BY_ZERO",
+      "category" : "evaluation-error",
+      "origin" : "either",
+      "levels" : [ "condition", "mapping" ],
+      "locatesLastCondition" : "ambiguous"
+    }, {
+      "code" : "EXPRESSION_MISSING_FIELD",
+      "category" : "evaluation-error",
+      "origin" : "either",
+      "levels" : [ "condition", "mapping" ],
+      "locatesLastCondition" : "ambiguous"
+    }, {
+      "code" : "EXPRESSION_OVERFLOW",
+      "category" : "evaluation-error",
+      "origin" : "either",
+      "levels" : [ "condition", "mapping" ],
+      "locatesLastCondition" : "ambiguous"
+    }, {
+      "code" : "EXPRESSION_TYPE_ERROR",
+      "category" : "evaluation-error",
+      "origin" : "either",
+      "levels" : [ "condition", "mapping" ],
+      "locatesLastCondition" : "ambiguous"
+    }, {
+      "code" : "EXPRESSION_VALUE_LIMIT",
+      "category" : "evaluation-error",
+      "origin" : "either",
+      "levels" : [ "condition", "mapping" ],
+      "locatesLastCondition" : "ambiguous"
+    }, {
+      "code" : "FUNCTION_INPUT_LIMIT",
+      "category" : "evaluation-error",
+      "origin" : "either",
+      "levels" : [ "condition", "mapping" ],
+      "locatesLastCondition" : "ambiguous"
+    }, {
+      "code" : "FUNCTION_INVALID_CBOR",
+      "category" : "evaluation-error",
+      "origin" : "either",
+      "levels" : [ "condition", "mapping" ],
+      "locatesLastCondition" : "ambiguous"
+    }, {
+      "code" : "FUNCTION_MISSING_FIELD",
+      "category" : "evaluation-error",
+      "origin" : "either",
+      "levels" : [ "condition", "mapping" ],
+      "locatesLastCondition" : "ambiguous"
+    }, {
+      "code" : "FUNCTION_OUTPUT_LIMIT",
+      "category" : "evaluation-error",
+      "origin" : "either",
+      "levels" : [ "condition", "mapping" ],
+      "locatesLastCondition" : "ambiguous"
+    }, {
+      "code" : "INVALID_UNICODE",
+      "category" : "evaluation-error",
+      "origin" : "either",
+      "levels" : [ "condition", "mapping" ],
+      "locatesLastCondition" : "ambiguous"
+    }, {
+      "code" : "LOOKUP_KEY_INVALID",
+      "category" : "evaluation-error",
+      "origin" : "either",
+      "levels" : [ "condition" ],
+      "locatesLastCondition" : "always"
+    }, {
+      "code" : "LOOKUP_KEY_LIMIT",
+      "category" : "evaluation-error",
+      "origin" : "either",
+      "levels" : [ "condition" ],
+      "locatesLastCondition" : "always"
+    }, {
+      "code" : "LOOKUP_KEY_TYPE",
+      "category" : "evaluation-error",
+      "origin" : "either",
+      "levels" : [ "condition" ],
+      "locatesLastCondition" : "always"
+    }, {
+      "code" : "MAPPING_MISSING_FIELD",
+      "category" : "evaluation-error",
+      "origin" : "either",
+      "levels" : [ "condition", "mapping" ],
+      "locatesLastCondition" : "ambiguous"
+    }, {
+      "code" : "MAPPING_TYPE_ERROR",
+      "category" : "evaluation-error",
+      "origin" : "either",
+      "levels" : [ "mapping" ],
+      "locatesLastCondition" : "never"
+    }, {
+      "code" : "CONSUMPTION_CONFLICT",
+      "category" : "replay-or-conflict",
+      "origin" : "either",
+      "levels" : [ "step" ],
+      "locatesLastCondition" : "never"
+    }, {
+      "code" : "REPLAY_OR_CONFLICT",
+      "category" : "replay-or-conflict",
+      "origin" : "either",
+      "levels" : [ "source" ],
+      "locatesLastCondition" : "never"
+    }, {
+      "code" : "RESERVED_ACCOUNTING_KEY",
+      "category" : "contract-violation",
+      "origin" : "either",
+      "levels" : [ "step" ],
+      "locatesLastCondition" : "never"
+    }, {
+      "code" : "RESERVED_EVENT_ID",
+      "category" : "contract-violation",
+      "origin" : "either",
+      "levels" : [ "step" ],
+      "locatesLastCondition" : "never"
+    }, {
+      "code" : "STATE_KEY_LIMIT",
+      "category" : "contract-violation",
+      "origin" : "either",
+      "levels" : [ "step" ],
+      "locatesLastCondition" : "never"
+    }, {
+      "code" : "UNDECLARED_WORK_REFERENCE",
+      "category" : "contract-violation",
+      "origin" : "either",
+      "levels" : [ "step" ],
+      "locatesLastCondition" : "never"
+    } ]
+  },
+  "selectors" : [ {
+    "machineId" : "ada-usd-reference-v1",
+    "origin" : {
+      "kind" : "bundle",
+      "bundleId" : "org.yanoproject.x.stdlib",
+      "digest" : "sha256:3b118673de03e97cd5b6f502993965fff0c5ab7ed9661d13d554e01d19d36a2b",
+      "digestMode" : "ARTIFACT_CLOSURE"
+    },
+    "composable" : null
+  }, {
+    "machineId" : "approvals",
+    "origin" : {
+      "kind" : "bundle",
+      "bundleId" : "org.yanoproject.x.stdlib",
+      "digest" : "sha256:3b118673de03e97cd5b6f502993965fff0c5ab7ed9661d13d554e01d19d36a2b",
+      "digestMode" : "ARTIFACT_CLOSURE"
+    },
+    "composable" : null
+  }, {
+    "machineId" : "authenticated-map",
+    "origin" : {
+      "kind" : "bundle",
+      "bundleId" : "org.yanoproject.x.stdlib",
+      "digest" : "sha256:3b118673de03e97cd5b6f502993965fff0c5ab7ed9661d13d554e01d19d36a2b",
+      "digestMode" : "ARTIFACT_CLOSURE"
+    },
+    "composable" : null
+  }, {
+    "machineId" : "authenticated-map-component",
+    "origin" : {
+      "kind" : "bundle",
+      "bundleId" : "org.yanoproject.x.stdlib",
+      "digest" : "sha256:3b118673de03e97cd5b6f502993965fff0c5ab7ed9661d13d554e01d19d36a2b",
+      "digestMode" : "ARTIFACT_CLOSURE"
+    },
+    "composable" : null
+  }, {
+    "machineId" : "balances",
+    "origin" : {
+      "kind" : "bundle",
+      "bundleId" : "org.yanoproject.x.stdlib",
+      "digest" : "sha256:3b118673de03e97cd5b6f502993965fff0c5ab7ed9661d13d554e01d19d36a2b",
+      "digestMode" : "ARTIFACT_CLOSURE"
+    },
+    "composable" : null
+  }, {
+    "machineId" : "declarative-composite",
+    "origin" : {
+      "kind" : "bundle",
+      "bundleId" : "org.yanoproject.x.composite",
+      "digest" : "sha256:308db9cec88247bba29a99569cc9465e659a3f6022d9b10146f05b51c0725d31",
+      "digestMode" : "ARTIFACT_CLOSURE"
+    },
+    "composable" : false
+  }, {
+    "machineId" : "doc-trail",
+    "origin" : {
+      "kind" : "bundle",
+      "bundleId" : "org.yanoproject.x.stdlib",
+      "digest" : "sha256:3b118673de03e97cd5b6f502993965fff0c5ab7ed9661d13d554e01d19d36a2b",
+      "digestMode" : "ARTIFACT_CLOSURE"
+    },
+    "composable" : null
+  }, {
+    "machineId" : "domain-actors-component",
+    "origin" : {
+      "kind" : "bundle",
+      "bundleId" : "org.yanoproject.x.role-workflow",
+      "digest" : "sha256:4113e25527a6e7da0d5cdb85ac9ccfefa8b15adbdd755ab054f613af9baae78e",
+      "digestMode" : "ARTIFACT_CLOSURE"
+    },
+    "composable" : null
+  }, {
+    "machineId" : "epoch-governance",
+    "origin" : {
+      "kind" : "bundle",
+      "bundleId" : "org.yanoproject.x.stdlib",
+      "digest" : "sha256:3b118673de03e97cd5b6f502993965fff0c5ab7ed9661d13d554e01d19d36a2b",
+      "digestMode" : "ARTIFACT_CLOSURE"
+    },
+    "composable" : null
+  }, {
+    "machineId" : "epoch-params",
+    "origin" : {
+      "kind" : "bundle",
+      "bundleId" : "org.yanoproject.x.stdlib",
+      "digest" : "sha256:3b118673de03e97cd5b6f502993965fff0c5ab7ed9661d13d554e01d19d36a2b",
+      "digestMode" : "ARTIFACT_CLOSURE"
+    },
+    "composable" : null
+  }, {
+    "machineId" : "epoch-stake",
+    "origin" : {
+      "kind" : "bundle",
+      "bundleId" : "org.yanoproject.x.stdlib",
+      "digest" : "sha256:3b118673de03e97cd5b6f502993965fff0c5ab7ed9661d13d554e01d19d36a2b",
+      "digestMode" : "ARTIFACT_CLOSURE"
+    },
+    "composable" : null
+  }, {
+    "machineId" : "governed-role-approvals",
+    "origin" : {
+      "kind" : "bundle",
+      "bundleId" : "org.yanoproject.x.role-workflow",
+      "digest" : "sha256:4113e25527a6e7da0d5cdb85ac9ccfefa8b15adbdd755ab054f613af9baae78e",
+      "digestMode" : "ARTIFACT_CLOSURE"
+    },
+    "composable" : null
+  }, {
+    "machineId" : "kv-registry",
+    "origin" : {
+      "kind" : "bundle",
+      "bundleId" : "org.yanoproject.x.stdlib",
+      "digest" : "sha256:3b118673de03e97cd5b6f502993965fff0c5ab7ed9661d13d554e01d19d36a2b",
+      "digestMode" : "ARTIFACT_CLOSURE"
+    },
+    "composable" : null
+  }, {
+    "machineId" : "ordered-log",
+    "origin" : {
+      "kind" : "builtin"
+    },
+    "composable" : null
+  }, {
+    "machineId" : "role-approvals",
+    "origin" : {
+      "kind" : "bundle",
+      "bundleId" : "org.yanoproject.x.role-workflow",
+      "digest" : "sha256:4113e25527a6e7da0d5cdb85ac9ccfefa8b15adbdd755ab054f613af9baae78e",
+      "digestMode" : "ARTIFACT_CLOSURE"
+    },
+    "composable" : null
+  }, {
+    "machineId" : "shipment-workflow-reference-v1",
+    "origin" : {
+      "kind" : "bundle",
+      "bundleId" : "org.yanoproject.x.stdlib",
+      "digest" : "sha256:3b118673de03e97cd5b6f502993965fff0c5ab7ed9661d13d554e01d19d36a2b",
+      "digestMode" : "ARTIFACT_CLOSURE"
+    },
+    "composable" : null
+  } ],
+  "instances" : [ {
+    "machineId" : "kv-registry",
+    "basis" : "document",
+    "authoredConfiguration" : { },
+    "configurationDescriptor" : [ {
+      "name" : "value-format",
+      "type" : "text",
+      "required" : false,
+      "default" : {
+        "type" : "text",
+        "value" : "raw"
+      }
+    } ],
+    "applicationVersion" : "1.0.0",
+    "status" : "available",
+    "normalizedConfiguration" : {
+      "value-format" : {
+        "type" : "text",
+        "value" : "raw"
+      }
+    },
+    "events" : [ {
+      "eventId" : "kv-registry.entry-put.v1",
+      "fields" : [ {
+        "name" : "key",
+        "type" : "bytes",
+        "required" : true,
+        "role" : "data"
+      }, {
+        "name" : "value",
+        "type" : "bytes",
+        "required" : true,
+        "role" : "data"
+      }, {
+        "name" : "valueHash",
+        "type" : "bytes",
+        "required" : true,
+        "role" : "data"
+      }, {
+        "name" : "valueLength",
+        "type" : "integer",
+        "required" : true,
+        "role" : "data"
+      }, {
+        "name" : "owner",
+        "type" : "bytes",
+        "required" : true,
+        "role" : "data"
+      }, {
+        "name" : "height",
+        "type" : "integer",
+        "required" : true,
+        "role" : "data"
+      }, {
+        "name" : "previousValueHash",
+        "type" : "bytes",
+        "required" : false,
+        "role" : "data"
+      } ]
+    }, {
+      "eventId" : "kv-registry.entry-deleted.v1",
+      "fields" : [ {
+        "name" : "key",
+        "type" : "bytes",
+        "required" : true,
+        "role" : "data"
+      }, {
+        "name" : "owner",
+        "type" : "bytes",
+        "required" : true,
+        "role" : "data"
+      }, {
+        "name" : "height",
+        "type" : "integer",
+        "required" : true,
+        "role" : "data"
+      }, {
+        "name" : "previousValueHash",
+        "type" : "bytes",
+        "required" : true,
+        "role" : "data"
+      } ]
+    } ],
+    "commands" : [ {
+      "commandName" : "put",
+      "layout" : "ARRAY_WITH_OPCODE",
+      "opCode" : "0",
+      "fields" : [ {
+        "name" : "key",
+        "type" : "bytes",
+        "required" : true,
+        "role" : "data"
+      }, {
+        "name" : "value",
+        "type" : "bytes",
+        "required" : true,
+        "role" : "data"
+      } ]
+    }, {
+      "commandName" : "delete",
+      "layout" : "ARRAY_WITH_OPCODE",
+      "opCode" : "1",
+      "fields" : [ {
+        "name" : "key",
+        "type" : "bytes",
+        "required" : true,
+        "role" : "data"
+      }, {
+        "name" : "value",
+        "type" : "bytes",
+        "required" : true,
+        "role" : "data"
+      } ]
+    } ],
+    "rawBodyTarget" : "allowed",
+    "readParticipants" : [ ],
+    "componentIds" : [ "records" ]
+  }, {
+    "machineId" : "doc-trail",
+    "basis" : "document",
+    "authoredConfiguration" : { },
+    "configurationDescriptor" : [ ],
+    "applicationVersion" : "1.0.0",
+    "status" : "available",
+    "normalizedConfiguration" : { },
+    "events" : [ {
+      "eventId" : "doc-trail.entry-appended.v1",
+      "fields" : [ {
+        "name" : "entityId",
+        "type" : "text",
+        "required" : true,
+        "role" : "data"
+      }, {
+        "name" : "entryHash",
+        "type" : "bytes",
+        "required" : true,
+        "role" : "data"
+      }, {
+        "name" : "reference",
+        "type" : "text",
+        "required" : true,
+        "role" : "data"
+      }, {
+        "name" : "headHash",
+        "type" : "bytes",
+        "required" : true,
+        "role" : "data"
+      }, {
+        "name" : "count",
+        "type" : "integer",
+        "required" : true,
+        "role" : "data"
+      }, {
+        "name" : "sender",
+        "type" : "bytes",
+        "required" : true,
+        "role" : "data"
+      } ]
+    } ],
+    "commands" : [ {
+      "commandName" : "append",
+      "layout" : "ARRAY",
+      "opCode" : "0",
+      "fields" : [ {
+        "name" : "entityId",
+        "type" : "text",
+        "required" : true,
+        "role" : "data"
+      }, {
+        "name" : "entryHash",
+        "type" : "bytes",
+        "required" : true,
+        "role" : "data"
+      }, {
+        "name" : "reference",
+        "type" : "text",
+        "required" : true,
+        "role" : "data"
+      } ]
+    } ],
+    "rawBodyTarget" : "allowed",
+    "readParticipants" : [ ],
+    "componentIds" : [ "audit" ]
+  } ],
+  "effects" : {
+    "payloadSchemas" : "unavailable",
+    "note" : "effect types are free text; no effect payload schema is published by this catalog"
+  }
+}

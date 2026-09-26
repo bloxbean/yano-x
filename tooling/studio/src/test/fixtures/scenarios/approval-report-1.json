@@ -1,0 +1,347 @@
+{
+  "schema" : "yano-x-binding-report-v1",
+  "operation" : "dry-run",
+  "operationOutcome" : "completed",
+  "assurance" : "Unauthenticated local tool output. Matching digests show that the same inputs were used; they do not identify the producer, prove finality or approve a deployment.",
+  "producer" : {
+    "tool" : "yano-x-devtools",
+    "version" : "0.1.0-pre2",
+    "jarSha256" : "c6a54f4eaf74e12d2cd3cdcf80684476bc686b42f59bc2229cafddcfcf1a2e5c",
+    "linkedCompositeJarSha256" : "ac7554151dc4a47b7d8e43d9d47f65731e2b34f0f5051f8cc482740ca7a6ade4"
+  },
+  "host" : {
+    "version" : "0.1.0-pre17",
+    "coreApiJarSha256" : "85bd0c91c37d716d917526ba5e4d9871add2bcf752cd05dfea90d0f155ad5a96",
+    "runtimeJarSha256" : "f78e43e059576d16e1c24ef185122a736da00f711a5bc0646501a84e92f97732"
+  },
+  "authoringEnvironment" : "yano-x-binding-authoring-environment-v1",
+  "catalog" : {
+    "fingerprint" : "sha256:128015618c1048515440b7323fc1db510436396f0c14a1d19821be7af17b7f09",
+    "pluginApi" : {
+      "major" : 3,
+      "level" : 11
+    },
+    "bundles" : [ {
+      "id" : "org.yanoproject.x.composite",
+      "version" : "0.1.0-pre2",
+      "digest" : "sha256:308db9cec88247bba29a99569cc9465e659a3f6022d9b10146f05b51c0725d31",
+      "digestMode" : "ARTIFACT_CLOSURE",
+      "selected" : true
+    }, {
+      "id" : "org.yanoproject.x.role-workflow",
+      "version" : "0.1.0-pre2",
+      "digest" : "sha256:4113e25527a6e7da0d5cdb85ac9ccfefa8b15adbdd755ab054f613af9baae78e",
+      "digestMode" : "ARTIFACT_CLOSURE",
+      "selected" : true
+    }, {
+      "id" : "org.yanoproject.x.stdlib",
+      "version" : "0.1.0-pre2",
+      "digest" : "sha256:3b118673de03e97cd5b6f502993965fff0c5ab7ed9661d13d554e01d19d36a2b",
+      "digestMode" : "ARTIFACT_CLOSURE",
+      "selected" : true
+    } ]
+  },
+  "inputs" : [ {
+    "role" : "document",
+    "state" : "read",
+    "bytes" : "652",
+    "sha256" : "ea592fb1dbe5859acd945df184c7d324711aaac296163772e75d7b79ca01ffd8"
+  }, {
+    "role" : "context",
+    "state" : "read",
+    "bytes" : "991",
+    "sha256" : "fd1059233408f30a8e02a62f5f8708ece723ceccf99cc4b0fe2744e8dac73539"
+  }, {
+    "role" : "fixture",
+    "state" : "read",
+    "bytes" : "556",
+    "sha256" : "b0b00d31637562c79b16831aa6b5b591344d5d3fc8b7f44ccaa11ba0b05c0a65"
+  } ],
+  "documentFormat" : "yaml",
+  "result" : {
+    "irHex" : "8701781b79616e6f2d782d62696e64696e672d66756e6374696f6e732d76316d79616e6f2d782d63656c2d7631018286677265766965777369617070726f76616c7372726576696577732e636f6d6d616e642e7631a000018665617564697469646f632d747261696c7061756469742e636f6d6d616e642e7631a0000181856f7265636f72642d617070726f7665646772657669657773781a617070726f76616c732e6974656d2d617070726f7665642e763180840065617564697466617070656e6484018268656e7469747949648200666974656d49648269656e7472794861736882006b7061796c6f61644861736882697265666572656e6365820168617070726f7665648c0818201910001a0001000002081a000100001880101a000100001a001000001a02000000",
+    "irSha256" : "68564d39d641a5a00a492958d4c179eaffd2a062b56d70ca1fde631a030b355b",
+    "profile" : {
+      "digestHex" : "34c0f56b323f4487df5765dca9df5729860912d843fa306d47e458c224a4d20d",
+      "schemaVersion" : 2,
+      "executionVersion" : "1.1.0"
+    },
+    "counts" : {
+      "components" : 2,
+      "bindings" : 1
+    },
+    "rehearsal" : {
+      "continuationOnly" : false,
+      "fromPriorResult" : false,
+      "priorPostStateSha256" : null,
+      "assumptions" : {
+        "height" : "1",
+        "timestamp" : "1000",
+        "stateRootHex" : "0000000000000000000000000000000000000000000000000000000000000000",
+        "pendingEffects" : "0"
+      },
+      "executionIdentity" : "cb016532ce356c269c110f7fe453dcc972e43d76ee21f51b73cf11213d23661e",
+      "assurance" : "execution-only; fixture inputs are not authenticated; no post-state root or finality claim",
+      "postStateSha256" : "4229e430d0e57be930fc74727fd8d19763383f8fd70ecdcf15bb7504db9e191c",
+      "stateChangeCount" : 10,
+      "messages" : [ {
+        "messageIndex" : 0,
+        "messageIdHex" : "4141414141414141414141414141414141414141414141414141414141414141",
+        "topic" : "reviews.command.v1",
+        "disposition" : "executed",
+        "receiptHex" : "87015820414141414141414141414141414141414141414141414141414141414141414101684143434550544544f660818a0000f667726576696577735820414141414141414141414141414141414141414141414141414141414141414182781a617070726f76616c732e6974656d2d70726f706f7365642e7631781d636f6d706f736974652e636f6d6d616e642d61636365707465642e76318067504c414e4e454460f4",
+        "receipt" : {
+          "version" : 1,
+          "sourceMessageIdHex" : "4141414141414141414141414141414141414141414141414141414141414141",
+          "height" : "1",
+          "status" : "ACCEPTED",
+          "failedStepOrdinal" : null,
+          "code" : "",
+          "steps" : [ {
+            "ordinal" : 0,
+            "depth" : 0,
+            "bindingId" : null,
+            "targetComponentId" : "reviews",
+            "messageIdHex" : "4141414141414141414141414141414141414141414141414141414141414141",
+            "eventsProduced" : [ "approvals.item-proposed.v1", "composite.command-accepted.v1" ],
+            "conditions" : [ ],
+            "status" : "PLANNED",
+            "code" : "",
+            "rawBody" : false
+          } ]
+        }
+      } ],
+      "effects" : [ ]
+    }
+  },
+  "diagnostics" : [ ],
+  "receiptCodes" : [ {
+    "code" : "ADMISSION",
+    "category" : "target-rejection",
+    "origin" : "either",
+    "levels" : [ "step" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "MALFORMED_SOURCE_COMMAND",
+    "category" : "target-rejection",
+    "origin" : "either",
+    "levels" : [ "source" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "MALFORMED_DERIVED_COMMAND",
+    "category" : "target-rejection",
+    "origin" : "either",
+    "levels" : [ "step" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "CAPACITY_EXCEEDED",
+    "category" : "resource-exhaustion",
+    "origin" : "either",
+    "levels" : [ "source", "condition" ],
+    "locatesLastCondition" : "ambiguous"
+  }, {
+    "code" : "COMMAND_PAYLOAD_TOO_LARGE",
+    "category" : "resource-exhaustion",
+    "origin" : "either",
+    "levels" : [ "step" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "COMMAND_WORK_EXCEEDED",
+    "category" : "resource-exhaustion",
+    "origin" : "either",
+    "levels" : [ "step" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "CRYPTO_WORK_EXCEEDED",
+    "category" : "resource-exhaustion",
+    "origin" : "either",
+    "levels" : [ "step" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "EVENT_PAYLOAD_TOO_LARGE",
+    "category" : "resource-exhaustion",
+    "origin" : "either",
+    "levels" : [ "step" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "EXPRESSION_CAPACITY_EXCEEDED",
+    "category" : "resource-exhaustion",
+    "origin" : "either",
+    "levels" : [ "source", "step", "condition", "mapping", "effect" ],
+    "locatesLastCondition" : "ambiguous"
+  }, {
+    "code" : "LIMIT_DEPTH",
+    "category" : "resource-exhaustion",
+    "origin" : "either",
+    "levels" : [ "step" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "LIMIT_FANOUT",
+    "category" : "resource-exhaustion",
+    "origin" : "either",
+    "levels" : [ "condition" ],
+    "locatesLastCondition" : "ambiguous"
+  }, {
+    "code" : "RECEIPT_CAPACITY_EXCEEDED",
+    "category" : "resource-exhaustion",
+    "origin" : "either",
+    "levels" : [ "source" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "EFFECT_CAPACITY_EXCEEDED",
+    "category" : "resource-exhaustion",
+    "origin" : "either",
+    "levels" : [ "effect" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "EFFECT_PAYLOAD_LIMIT",
+    "category" : "resource-exhaustion",
+    "origin" : "either",
+    "levels" : [ "effect" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "EFFECT_EXPIRY_LIMIT",
+    "category" : "resource-exhaustion",
+    "origin" : "either",
+    "levels" : [ "effect" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "EVENT_TYPE_ERROR",
+    "category" : "evaluation-error",
+    "origin" : "either",
+    "levels" : [ "step", "condition" ],
+    "locatesLastCondition" : "ambiguous"
+  }, {
+    "code" : "EVENT_MISSING_FIELD",
+    "category" : "contract-violation",
+    "origin" : "either",
+    "levels" : [ "step" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "EXPRESSION_DIVISION_BY_ZERO",
+    "category" : "evaluation-error",
+    "origin" : "either",
+    "levels" : [ "condition", "mapping" ],
+    "locatesLastCondition" : "ambiguous"
+  }, {
+    "code" : "EXPRESSION_MISSING_FIELD",
+    "category" : "evaluation-error",
+    "origin" : "either",
+    "levels" : [ "condition", "mapping" ],
+    "locatesLastCondition" : "ambiguous"
+  }, {
+    "code" : "EXPRESSION_OVERFLOW",
+    "category" : "evaluation-error",
+    "origin" : "either",
+    "levels" : [ "condition", "mapping" ],
+    "locatesLastCondition" : "ambiguous"
+  }, {
+    "code" : "EXPRESSION_TYPE_ERROR",
+    "category" : "evaluation-error",
+    "origin" : "either",
+    "levels" : [ "condition", "mapping" ],
+    "locatesLastCondition" : "ambiguous"
+  }, {
+    "code" : "EXPRESSION_VALUE_LIMIT",
+    "category" : "evaluation-error",
+    "origin" : "either",
+    "levels" : [ "condition", "mapping" ],
+    "locatesLastCondition" : "ambiguous"
+  }, {
+    "code" : "FUNCTION_INPUT_LIMIT",
+    "category" : "evaluation-error",
+    "origin" : "either",
+    "levels" : [ "condition", "mapping" ],
+    "locatesLastCondition" : "ambiguous"
+  }, {
+    "code" : "FUNCTION_INVALID_CBOR",
+    "category" : "evaluation-error",
+    "origin" : "either",
+    "levels" : [ "condition", "mapping" ],
+    "locatesLastCondition" : "ambiguous"
+  }, {
+    "code" : "FUNCTION_MISSING_FIELD",
+    "category" : "evaluation-error",
+    "origin" : "either",
+    "levels" : [ "condition", "mapping" ],
+    "locatesLastCondition" : "ambiguous"
+  }, {
+    "code" : "FUNCTION_OUTPUT_LIMIT",
+    "category" : "evaluation-error",
+    "origin" : "either",
+    "levels" : [ "condition", "mapping" ],
+    "locatesLastCondition" : "ambiguous"
+  }, {
+    "code" : "INVALID_UNICODE",
+    "category" : "evaluation-error",
+    "origin" : "either",
+    "levels" : [ "condition", "mapping" ],
+    "locatesLastCondition" : "ambiguous"
+  }, {
+    "code" : "LOOKUP_KEY_INVALID",
+    "category" : "evaluation-error",
+    "origin" : "either",
+    "levels" : [ "condition" ],
+    "locatesLastCondition" : "always"
+  }, {
+    "code" : "LOOKUP_KEY_LIMIT",
+    "category" : "evaluation-error",
+    "origin" : "either",
+    "levels" : [ "condition" ],
+    "locatesLastCondition" : "always"
+  }, {
+    "code" : "LOOKUP_KEY_TYPE",
+    "category" : "evaluation-error",
+    "origin" : "either",
+    "levels" : [ "condition" ],
+    "locatesLastCondition" : "always"
+  }, {
+    "code" : "MAPPING_MISSING_FIELD",
+    "category" : "evaluation-error",
+    "origin" : "either",
+    "levels" : [ "condition", "mapping" ],
+    "locatesLastCondition" : "ambiguous"
+  }, {
+    "code" : "MAPPING_TYPE_ERROR",
+    "category" : "evaluation-error",
+    "origin" : "either",
+    "levels" : [ "mapping" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "CONSUMPTION_CONFLICT",
+    "category" : "replay-or-conflict",
+    "origin" : "either",
+    "levels" : [ "step" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "REPLAY_OR_CONFLICT",
+    "category" : "replay-or-conflict",
+    "origin" : "either",
+    "levels" : [ "source" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "RESERVED_ACCOUNTING_KEY",
+    "category" : "contract-violation",
+    "origin" : "either",
+    "levels" : [ "step" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "RESERVED_EVENT_ID",
+    "category" : "contract-violation",
+    "origin" : "either",
+    "levels" : [ "step" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "STATE_KEY_LIMIT",
+    "category" : "contract-violation",
+    "origin" : "either",
+    "levels" : [ "step" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "UNDECLARED_WORK_REFERENCE",
+    "category" : "contract-violation",
+    "origin" : "either",
+    "levels" : [ "step" ],
+    "locatesLastCondition" : "never"
+  } ]
+}

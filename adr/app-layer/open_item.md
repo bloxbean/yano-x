@@ -234,3 +234,40 @@ Completed rows are removed from the live table by policy.
 - `APP-006` and `APP-011` become P1 before planning any deployment with
   semi-trusted members. Until both close, receipts must not be marketed as
   independently verified external outcomes.
+
+## 13. ADR-031.1 implementation milestones
+
+These implementation rows track the experimental binding feature separately
+from public-release promotion. Exact gate results and reviewed limitations live
+in the [phase evidence ledger](031.1-implementation-progress.md).
+
+| Milestone | State | Evidence / release boundary |
+|---|---|---|
+| BIND-000: host contracts | Implemented | Kernel/descriptors/events, catalog resolver, bounded owner-scoped work accounting and stateless admission; host API level 11; exact local Maven/ZIP inputs |
+| BIND-001: contracts and foundation | Implemented | Canonical IR, expressions, receipts, CDDL/vectors, profile v2, kernel descriptors and routing |
+| BIND-002: atomic cascades and stock kernels | Implemented | Plan-form stock transitions, overlays, receipts, replay/conflict checks and retained attempted-work accounting |
+| BIND-003: language, effects and evidence | Implemented | Restricted CEL, bounded functions/lookups, deterministic outbox and governed approval-to-map evidence pass-through |
+| BIND-004: provider, flows and packaging | Qualified | Manifested provider/leaves, four product/reference recipes, fresh replay/recovery/proof tests, governed cutover and complete packaged smoke pass; exact evidence in ledger |
+| BIND-005: authoring and documentation | Implemented | Catalog-backed CLI, blueprint digest locks, Studio graph, language reference and Javadoc |
+
+The implementation does not upgrade legacy product certificates or envelope-replay
+projections, rotate the genesis-fixed actor leaf, publish an oracle datum, or
+authorize a host/public release. Those boundaries remain explicit in ADR-031.1.
+
+## 14. ADR-031.2 guided binding editor
+
+The guided editor is an authoring client only; it adds no runtime, consensus or
+deployment authority. Exact gate results, review reconciliation and remaining
+gaps live in the [implementation ledger](031.2-implementation-progress.md).
+
+| Milestone | State | Evidence / release boundary |
+|---|---|---|
+| EDIT-000: tooling contracts | Implemented | `bindings catalog`, `--report`, structured diagnostics, language tables from single Java definitions, YAML and receipt differential oracles; historical CLI outputs unchanged |
+| EDIT-001: guided static authoring | Implemented | Studio **Bindings** page: forms, YAML, graph with layout sidecar, starters, blueprint splice; keyboard-only and axe gates |
+| EDIT-002: validation and explanation | Implemented | Catalog-first CLI handoff, report and fixture import, assurance states, diagnostics, receipt and multi-block rehearsal explanation from real-engine scenarios |
+| EDIT-003: distribution and qualification | Implemented | Studio, starters, example fixtures and reference catalog in the JVM ZIP and docsite; chapter 6; shipped-catalog distribution gate; fresh three-node editor/CLI acceptance |
+
+| ID | Priority | State | Remaining gap | Owner |
+|---|---|---|---|---|
+| EDIT-004 | P3 | Deferred | Real-CLI evidence-error (`BINDING_EVIDENCE_UNSATISFIABLE`) report scenario and an engine-produced truncated-history rehearsal for Studio fixtures | ADR-031.2 ledger |
+| EDIT-005 | P2 | Proposed | Wire `finalDistributionBindingEditorAcceptance` into the release smoke or release-candidate aggregate, and add a content contract for the standalone `studioZip` | ADR-031.2 ledger |

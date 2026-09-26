@@ -5,7 +5,6 @@ import co.nstant.in.cbor.model.ByteString;
 import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.UnicodeString;
 import co.nstant.in.cbor.model.UnsignedInteger;
-import com.bloxbean.cardano.client.crypto.Blake2bUtil;
 import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
 import com.bloxbean.cardano.yaci.core.util.CborSerializationUtil;
 import org.yanoproject.api.appchain.AppBlock;
@@ -25,9 +24,11 @@ import org.yanoproject.api.appchain.effects.EffectResult;
 import org.yanoproject.api.appchain.effects.ResultPolicy;
 import org.yanoproject.appchain.config.AppChainApprovalsConfig;
 import org.yanoproject.x.stdlib.contracts.ApprovalsContract;
+import org.yanoproject.api.appchain.transition.TransitionContext;
+import org.yanoproject.api.appchain.transition.TransitionKernel;
+import org.yanoproject.api.appchain.transition.TransitionPlans;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
@@ -80,6 +81,7 @@ public final class ApprovalsStateMachine implements AppStateMachine {
 
     private final AppChainApprovalsConfig onApprovedEffect;
     private final ActivationSchedule activations;
+    private final ApprovalsTransitions transitions = new ApprovalsTransitions();
     private static final ProofSubjectProvider PROOF_SUBJECT =
             StdlibProofSubjectProviders.approvals();
 
@@ -102,6 +104,14 @@ public final class ApprovalsStateMachine implements AppStateMachine {
     @Override
     public String id() {
         return ID;
+    }
+
+    /**
+     * Provides composition events only when the legacy standalone effect is disabled. Declarative effect
+     * bindings must be the sole effect owner; allowing both paths would duplicate the approved action.
+     */
+    @Override public Optional<TransitionKernel<?, ?>> transitionKernel() {
+        return onApprovedEffect.enabled() ? Optional.empty() : Optional.of(StockTransitionKernels.approvals(transitions));
     }
 
     @Override
@@ -146,62 +156,22 @@ public final class ApprovalsStateMachine implements AppStateMachine {
                       AppEffectEmitter effects) {
         AppBlock block = context.block();
         boolean effectActive = onApprovedEffectActiveAt(block.height());
+        int visibleIndex = 0;
         for (AppMessage message : context.messages()) {
+            int originalIndex = context.originalMessageIndex(visibleIndex++);
             Command command;
             try {
                 command = decodeCommandForHeight(message.getBody(), block.height());
             } catch (Exception e) {
                 continue; // filtered at admission; deterministic skip
             }
-            byte[] itemKey = itemKey(command.itemId());
-            Optional<byte[]> existing = writer.get(itemKey);
-
-            if (command.op() == OP_PROPOSE) {
-                if (existing.isEmpty()) {
-                    Item item = new Item(STATUS_PENDING, message.getSender(),
-                            Blake2bUtil.blake2bHash256(command.payload()),
-                            command.required(), command.deadlineMillis(),
-                            List.of(), new byte[0]);
-                    writer.put(itemKey, item.encode());
-                    if (effectActive) {
-                        // The item retains only the payload hash. Keep a CBOR-wrapped
-                        // copy until decision so an empty payload is representable.
-                        writer.put(stagedEffectPayloadKey(command.itemId()),
-                                encodeStagedPayload(command.payload()));
-                    }
-                }
-                continue;
-            }
-
-            if (existing.isEmpty()) {
-                continue; // approve/reject for unknown item — deterministic no-op
-            }
-            Item item = Item.decode(existing.get());
-            if (item.status() != STATUS_PENDING) {
-                continue; // terminal states are immutable
-            }
-            if (item.deadline() > 0 && block.timestamp() > item.deadline()) {
-                writer.put(itemKey, item.withStatus(STATUS_EXPIRED).encode());
-                writer.delete(stagedEffectPayloadKey(command.itemId()));
-                continue;
-            }
-
-            if (command.op() == OP_APPROVE) {
-                if (containsKey(item.approvers(), message.getSender())) {
-                    continue; // duplicate approval
-                }
-                List<byte[]> approvers = new ArrayList<>(item.approvers());
-                approvers.add(message.getSender());
-                int status = approvers.size() >= item.required() ? STATUS_APPROVED : STATUS_PENDING;
-                writer.put(itemKey, new Item(status, item.proposer(), item.payloadHash(),
-                        item.required(), item.deadline(), approvers, item.rejecter()).encode());
-                if (status == STATUS_APPROVED && effectActive) {
-                    emitOnApprovedEffect(command.itemId(), writer, effects, message);
-                }
-            } else if (command.op() == OP_REJECT) {
-                writer.put(itemKey, new Item(STATUS_REJECTED, item.proposer(), item.payloadHash(),
-                        item.required(), item.deadline(), item.approvers(), message.getSender()).encode());
-                writer.delete(stagedEffectPayloadKey(command.itemId()));
+            var decoded = new ApprovalsContract.Command(command.op(), command.itemId(), command.payload(),
+                    command.required(), command.deadlineMillis());
+            var result = transitions.evaluate(decoded, TransitionContext.of(block, originalIndex, message),
+                    ApprovalsTransitions.facts(decoded, writer, effectActive, false));
+            TransitionPlans.commit(result.plan(), writer, effects);
+            if (result.change() == ApprovalsTransitions.Change.APPROVED && effectActive) {
+                emitOnApprovedEffect(command.itemId(), writer, effects, message);
             }
         }
     }
@@ -313,11 +283,6 @@ public final class ApprovalsStateMachine implements AppStateMachine {
         return Item.decode(entry);
     }
 
-    private static byte[] encodeStagedPayload(byte[] payload) {
-        return CborSerializationUtil.serialize(new ByteString(
-                payload != null ? payload : new byte[0]));
-    }
-
     private static byte[] decodeStagedPayload(byte[] entry) {
         StdlibCbor.requirePersistedEntry(entry);
         DataItem decoded = CborSerializationUtil.deserializeOne(entry);
@@ -325,15 +290,6 @@ public final class ApprovalsStateMachine implements AppStateMachine {
             throw new IllegalArgumentException("invalid staged approval effect payload");
         }
         return bytes.getBytes();
-    }
-
-    private static boolean containsKey(List<byte[]> keys, byte[] key) {
-        for (byte[] candidate : keys) {
-            if (Arrays.equals(candidate, key)) {
-                return true;
-            }
-        }
-        return false;
     }
 
     // ------------------------------------------------------------------
@@ -443,6 +399,18 @@ public final class ApprovalsStateMachine implements AppStateMachine {
     /** Per-item workflow state. */
     public record Item(int status, byte[] proposer, byte[] payloadHash, int required,
                        long deadline, List<byte[]> approvers, byte[] rejecter) {
+
+        /** Copies the complete fact snapshot so callers cannot mutate a pending pure decision. */
+        public Item {
+            proposer = proposer.clone();
+            payloadHash = payloadHash.clone();
+            approvers = approvers.stream().map(byte[]::clone).toList();
+            rejecter = rejecter == null ? new byte[0] : rejecter.clone();
+        }
+        @Override public byte[] proposer() { return proposer.clone(); }
+        @Override public byte[] payloadHash() { return payloadHash.clone(); }
+        @Override public List<byte[]> approvers() { return approvers.stream().map(byte[]::clone).toList(); }
+        @Override public byte[] rejecter() { return rejecter.clone(); }
 
         Item withStatus(int newStatus) {
             return new Item(newStatus, proposer, payloadHash, required, deadline, approvers, rejecter);

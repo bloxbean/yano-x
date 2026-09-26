@@ -16,6 +16,7 @@ import org.yanoproject.api.appchain.AppQueryContext;
 import org.yanoproject.api.appchain.AppStateMachine;
 import org.yanoproject.api.appchain.AppStateMachineContext;
 import org.yanoproject.api.appchain.AppStateWriter;
+import org.yanoproject.api.appchain.AppSubmissionRejectedException;
 import org.yanoproject.api.appchain.effects.AppEffectEmitter;
 import org.yanoproject.api.appchain.state.StateCommitmentIdentity;
 import org.yanoproject.api.appchain.state.StateCommitmentProfiles;
@@ -177,14 +178,19 @@ class CompositeProfileGovernanceClusterIntegrationTest {
         // old-generation quota still fitting the framework cap of 4).
         byte[] recordsBeforeClosedRoute = nodeA.query(
                 "components/records/get", new byte[0]).payload();
-        byte[] closedRouteMessage = HexUtil.decodeHexString(
-                nodeA.submit("records.v1", new byte[]{1}));
+        // Candidate-aware local admission now rejects the retired direct route
+        // before pooling/relay, so no message id exists to query for finalization.
+        // Every member must enforce the same activated route closure.
+        for (AppChainSubsystem member : List.of(nodeA, nodeB, restartedC)) {
+            assertThatThrownBy(() -> member.submit("records.v1", new byte[]{1}))
+                    .isInstanceOfSatisfying(AppSubmissionRejectedException.class,
+                            rejection -> assertThat(rejection.code()).isEqualTo("APPLICATION_REJECTED"));
+        }
         finalizeBusiness(nodeA, "audit.v1", nodeA, nodeB, restartedC);
-        assertThat(nodeA.messageHeight(closedRouteMessage)).isEmpty();
-        assertThat(nodeB.messageHeight(closedRouteMessage)).isEmpty();
-        assertThat(restartedC.messageHeight(closedRouteMessage)).isEmpty();
-        assertThat(nodeA.query("components/records/get", new byte[0]).payload())
-                .containsExactly(recordsBeforeClosedRoute);
+        for (AppChainSubsystem member : List.of(nodeA, nodeB, restartedC)) {
+            assertThat(member.query("components/records/get", new byte[0]).payload())
+                    .containsExactly(recordsBeforeClosedRoute);
+        }
         finalizeBusiness(nodeA, "records.workflow.v1", nodeA, nodeB, restartedC);
         assertThat(nodeA.stateRoot()).containsExactly(nodeB.stateRoot())
                 .containsExactly(restartedC.stateRoot());

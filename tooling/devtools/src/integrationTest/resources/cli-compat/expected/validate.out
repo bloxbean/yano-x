@@ -1,0 +1,95 @@
+{
+  "applicationId" : "declarative-composite",
+  "bindingCount" : 1,
+  "componentCount" : 2,
+  "manifest" : {
+    "schemaVersion" : 1,
+    "applicationId" : "declarative-composite",
+    "applicationVersion" : "1.1.0",
+    "manifestDigest" : "37a7744d05e85338a27b105968724b5bafa382a47eb886dbbcf53ed8f710f86c",
+    "components" : [ {
+      "id" : "audit",
+      "version" : "1.0.0",
+      "configurationId" : "06caa7235cee95d1029a76da1ef5d48a7b6014329d45ddb1fc4a1d30e3256d90",
+      "stateNamespace" : "component/audit/v1",
+      "topics" : [ ],
+      "querySubjects" : [ "head" ],
+      "origin" : "COMPOSED"
+    }, {
+      "id" : "records",
+      "version" : "1.0.0",
+      "configurationId" : "68877e200bbe74a0de0108f84cd49bd2a301b055503194298a5c33b575eba663",
+      "stateNamespace" : "component/records/v1",
+      "topics" : [ ],
+      "querySubjects" : [ ],
+      "origin" : "COMPOSED"
+    } ],
+    "workflows" : [ {
+      "id" : "event-bindings",
+      "version" : "1.1.0",
+      "participantComponentIds" : [ "audit", "records" ],
+      "topic" : "audit.command.v1",
+      "effectTypes" : [ ],
+      "origin" : "COMPOSED"
+    } ],
+    "crossCutting" : [ {
+      "capabilityId" : "composite-workflow-routes",
+      "version" : "1.0.0",
+      "enabled" : true,
+      "configurationDigest" : "18c3c8c1bff6a58b35cf7c275ee178c422a041bc3b27852b76044951cef611e7",
+      "attributes" : {
+        "event-bindings.topic.0" : "audit.command.v1",
+        "event-bindings.topic.1" : "records.command.v1"
+      },
+      "origin" : "COMPOSED"
+    }, {
+      "capabilityId" : "declarative-event-bindings",
+      "version" : "1.0.0",
+      "enabled" : true,
+      "configurationDigest" : "18c3c8c1bff6a58b35cf7c275ee178c422a041bc3b27852b76044951cef611e7",
+      "attributes" : {
+        "binding.audit-record.command" : "append",
+        "binding.audit-record.event" : "kv-registry.entry-put.v1",
+        "binding.audit-record.source" : "records",
+        "binding.audit-record.target" : "audit",
+        "binding.audit-record.targetKind" : "command",
+        "schema" : "yano-x-binding-graph-v1"
+      },
+      "origin" : "COMPOSED"
+    } ],
+    "proofSubjects" : [ {
+      "subjectId" : "audit:document-head-v1",
+      "subjectVersion" : 1,
+      "componentId" : "audit",
+      "keyNamespace" : "typed-component-state-v1",
+      "verificationTarget" : "typed-state-proof",
+      "descriptorDigest" : "ebb3ee5085e9c655bd95cb59e9005fab47ca5113028645533eaefaccded76165"
+    }, {
+      "subjectId" : "composite-profile-v1",
+      "subjectVersion" : 1,
+      "componentId" : "",
+      "keyNamespace" : "typed-component-state-v1",
+      "verificationTarget" : "typed-state-proof",
+      "descriptorDigest" : "3f44b49bbce923130faa5b2b340d918740d5c3643a2a42cf65ddc9bce6b7a96b"
+    }, {
+      "subjectId" : "query:audit:head",
+      "subjectVersion" : 1,
+      "componentId" : "audit",
+      "keyNamespace" : "component/audit/v1",
+      "verificationTarget" : "state-proof",
+      "descriptorDigest" : ""
+    }, {
+      "subjectId" : "records:registry-entry-v1",
+      "subjectVersion" : 1,
+      "componentId" : "records",
+      "keyNamespace" : "typed-component-state-v1",
+      "verificationTarget" : "typed-state-proof",
+      "descriptorDigest" : "5518ea4338c3b4b19a8f00922189cc1008014257931531bc40a87b582f728bd8"
+    } ]
+  },
+  "operationalStatus" : {
+    "activeProfileDigest" : "18c3c8c1bff6a58b35cf7c275ee178c422a041bc3b27852b76044951cef611e7",
+    "mode" : "fixed"
+  },
+  "valid" : true
+}

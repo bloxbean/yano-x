@@ -3,12 +3,56 @@ import {createHash,generateKeyPairSync,sign,webcrypto} from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
+import {bindingGraph,renderBindingGraph} from '../main/web/binding-graph.mjs';
 import {fileURLToPath} from 'node:url';
 import {blueprintYaml,compatibleCapabilityOptions,decodeDeepLink,encodeDeepLink,
   importComponentCatalogSnapshot,normalizeIntent,resolvePresentation}
   from '../main/web/studio-core.mjs';
 
 const repo=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../../../..');
+
+function bindingManifest(edges) {
+  const attributes={schema:'yano-x-binding-graph-v1'};
+  for(const [id,source,target,kind='command'] of edges) {
+    const prefix=`binding.${id}.`;
+    Object.assign(attributes,{[prefix+'source']:source,[prefix+'event']:'test.accepted.v1',
+      [prefix+'targetKind']:kind,[prefix+'target']:target,...(kind==='command'?{[prefix+'command']:'apply'}:{})});
+  }
+  return {crossCutting:[{capabilityId:'declarative-event-bindings',attributes}]};
+}
+
+test('binding graph layers command dependencies and effect leaves from manifest metadata',()=>{
+  const graph=bindingGraph(bindingManifest([
+    ['approve','orders','reviews'],['audit','reviews','audit'],['notify','reviews','webhook','effect']]));
+  assert.equal(graph.nodes.find(node=>node.id==='component:orders').rank,0);
+  assert.equal(graph.nodes.find(node=>node.id==='component:reviews').rank,1);
+  assert.equal(graph.nodes.find(node=>node.id==='effect:webhook').rank,2);
+  assert.equal(graph.edges.length,3);
+});
+
+test('binding graph rejects cycles, unsupported schema and incomplete metadata',()=>{
+  assert.throws(()=>bindingGraph(bindingManifest([['loop','a','a']])),/cycle/);
+  assert.throws(()=>bindingGraph({crossCutting:[]}),/exactly one/);
+  const manifest=bindingManifest([['edge','a','b']]);
+  delete manifest.crossCutting[0].attributes['binding.edge.command'];
+  assert.throws(()=>bindingGraph(manifest),/Missing command/);
+});
+
+test('binding graph renders imported text without using markup parsing',()=>{
+  const created=[];
+  const make=tag=>{
+    const node={tag,children:[],attributes:{},append(...children){this.children.push(...children);},
+      setAttribute(key,value){this.attributes[key]=value;},replaceChildren(...children){this.children=children;}};
+    Object.defineProperty(node,'innerHTML',{set(){throw new Error('unsafe markup');}});
+    created.push(node); return node;
+  };
+  const document={createElementNS:(_,tag)=>make(tag),createElement:make};
+  const container=make('div');
+  const attack='<script>alert(1)</script>';
+  renderBindingGraph(container,bindingGraph(bindingManifest([['safe',attack,'sink']])),document);
+  assert.equal(container.children[0].tag,'svg');
+  assert.ok(created.some(node=>node.textContent?.includes(attack)));
+});
 const metadata=path.join(repo,'tooling/devtools/src/main/resources/appchain-dx/v1alpha1');
 const recipes=JSON.parse(fs.readFileSync(path.join(metadata,'appchain-recipe-catalog.json'))).recipes;
 const capabilities=JSON.parse(fs.readFileSync(path.join(metadata,'appchain-capability-catalog.json'))).capabilities;

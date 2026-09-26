@@ -1,0 +1,21 @@
+# PROPOSE payload is a canonical scalar CBOR map: {documentHash: bytes(32), reference: text}.
+# documentHash is SHA-256 of the external document; document bytes are never placed on chain.
+# This records a proof-bearing derived trail entry, not a legacy signed-message AttestCertificate.
+composite:
+  components:
+    - id: reviews
+      machine: approvals
+    - id: documents
+      machine: doc-trail
+  bindings:
+    - id: issue-attestation
+      from: {component: reviews, event: approvals.item-approved.v1}
+      when:
+        - {field: approverCount, ge: 2}
+      to:
+        component: documents
+        command: append
+        map:
+          entityId: {field: itemId}
+          entryHash: {fn: cbor-field, args: [{field: payload}, {literal: documentHash}]}
+          reference: {fn: cbor-field, args: [{field: payload}, {literal: reference}]}

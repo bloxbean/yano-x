@@ -1,0 +1,17 @@
+# Studio starter: a registry put appends an audit entry in the same atomic cascade.
+# Components are named instances; kv-registry and doc-trail select installed machines.
+composite:
+  components:
+    - {id: records, machine: kv-registry}
+    - {id: audit, machine: doc-trail}
+  bindings:
+    - id: audit-record
+      from: {component: records, event: kv-registry.entry-put.v1}
+      when: [{expr: 'event.valueLength < 100'}]
+      to:
+        component: audit
+        command: append
+        map:
+          entityId: {fn: hex, args: [{field: key}]}
+          entryHash: {field: previousValueHash}
+          reference: {literal: published}

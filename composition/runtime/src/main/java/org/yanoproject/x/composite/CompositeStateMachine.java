@@ -11,6 +11,7 @@ import org.yanoproject.api.appchain.AppStateMachine;
 import org.yanoproject.api.appchain.AppStateReader;
 import org.yanoproject.api.appchain.AppStateWriter;
 import org.yanoproject.x.composite.contracts.AggregateQueryCodecV1;
+import org.yanoproject.x.composite.contracts.BindingIrV1;
 import org.yanoproject.api.appchain.AppStateMachineContext;
 import org.yanoproject.api.appchain.effects.AppEffectEmitter;
 import org.yanoproject.api.appchain.effects.EffectId;
@@ -327,7 +328,7 @@ public final class CompositeStateMachine implements AppStateMachine {
                 .toList();
         List<WorkflowBinding> workflowCandidates = runtime.workflows().stream()
                 .filter(workflow -> workflow.descriptor().activeAt(candidateHeight))
-                .filter(workflow -> workflow.descriptor().topic().equals(topic))
+                .filter(workflow -> workflow.descriptor().topics().contains(topic))
                 .toList();
         if (topic != null && topic.startsWith("~")
                 && !topic.startsWith(org.yanoproject.api.appchain.l1view
@@ -390,7 +391,7 @@ public final class CompositeStateMachine implements AppStateMachine {
                 continue;
             }
             List<Integer> routed = routeIndexes(
-                    context, topic -> descriptor.topic().equals(topic));
+                    context, descriptor.topics()::contains);
             workflow.product().apply(context.routeToMessageIndexes(routed),
                     new WorkflowContext(block.height(), descriptor, writer, effects));
         }
@@ -452,6 +453,17 @@ public final class CompositeStateMachine implements AppStateMachine {
         if (!componentStatuses.isEmpty()) {
             status.put("components", Map.copyOf(componentStatuses));
         }
+        Map<String, Object> workflowStatuses = new LinkedHashMap<>();
+        for (WorkflowBinding workflow : allWorkflows) {
+            Map<String, Object> child = Objects.requireNonNull(workflow.product().operationalStatus(),
+                    "workflow operationalStatus");
+            if (!child.isEmpty()) {
+                WorkflowDescriptor descriptor = workflow.descriptor();
+                workflowStatuses.put(descriptor.workflowId() + "/" + descriptor.semanticVersion()
+                        + "@" + descriptor.fromHeight(), Map.copyOf(child));
+            }
+        }
+        if (!workflowStatuses.isEmpty()) status.put("workflows", Map.copyOf(workflowStatuses));
         return Map.copyOf(status);
     }
 
@@ -472,12 +484,44 @@ public final class CompositeStateMachine implements AppStateMachine {
                     workflow.workflowId(), workflow.semanticVersion(),
                     workflow.participants().stream()
                             .map(ComponentGeneration::componentId).distinct().toList(),
-                    workflow.topic(), workflow.maxEffectsPerBlock() > 0
+                    workflow.topics().getFirst(), workflow.maxEffectsPerBlock() > 0
                     ? List.of("outbox") : List.of(),
                     AppCapabilityManifest.Origin.COMPOSED));
         }
         Set<String> componentIds = profile.components().stream()
                 .map(ComponentDescriptor::componentId).collect(java.util.stream.Collectors.toSet());
+        if (profile.bindingIr().length != 0) {
+            BindingIrV1 document = BindingIrV1.decode(profile.bindingIr());
+            Map<String, String> bindings = new LinkedHashMap<>();
+            bindings.put("schema", "yano-x-binding-graph-v1");
+            for (var binding : document.bindings()) {
+                String prefix = "binding." + binding.id() + ".";
+                bindings.put(prefix + "source", binding.sourceComponent());
+                bindings.put(prefix + "event", binding.eventId());
+                if (binding.target() instanceof BindingIrV1.CommandTarget target) {
+                    bindings.put(prefix + "targetKind", "command");
+                    bindings.put(prefix + "target", target.component());
+                    bindings.put(prefix + "command", target.command());
+                } else {
+                    var target = (BindingIrV1.EffectTarget) binding.target();
+                    bindings.put(prefix + "targetKind", "effect");
+                    bindings.put(prefix + "target", target.effectType());
+                }
+            }
+            manifest.crossCutting(new AppCapabilityManifest.CrossCutting("declarative-event-bindings", "1.0.0",
+                    true, HexFormat.of().formatHex(profile.digest()), bindings,
+                    AppCapabilityManifest.Origin.COMPOSED));
+        }
+        if (profile.workflows().stream().anyMatch(workflow -> workflow.topics().size() > 1)) {
+            Map<String, String> routes = new LinkedHashMap<>();
+            for (WorkflowDescriptor workflow : profile.workflows()) {
+                for (int index = 0; index < workflow.topics().size(); index++) {
+                    routes.put(workflow.workflowId() + ".topic." + index, workflow.topics().get(index));
+                }
+            }
+            manifest.crossCutting(new AppCapabilityManifest.CrossCutting("composite-workflow-routes", "1.0.0",
+                    true, HexFormat.of().formatHex(profile.digest()), routes, AppCapabilityManifest.Origin.COMPOSED));
+        }
         if (componentIds.contains("approvals")) {
             manifest.crossCutting(capability(AppCapabilityIds.BASIC_APPROVAL,
                     "composite-profile:" + HexFormat.of().formatHex(profile.digest())));
@@ -575,6 +619,11 @@ public final class CompositeStateMachine implements AppStateMachine {
         writer.delete(ownerKey);
     }
 
+    /**
+     * Serves root-fixed component and composite queries. The binding-receipt-key query returns the raw
+     * physical state-key bytes for a source message, not a receipt or proof of its presence. Its key is
+     * independent of workflow generation so historical receipts remain discoverable after a cutover.
+     */
     @Override
     public byte[] query(String path, byte[] params, AppQueryContext state) {
         Objects.requireNonNull(path, "path");
@@ -586,6 +635,21 @@ public final class CompositeStateMachine implements AppStateMachine {
                         "active profile query takes no parameters");
             }
             return runtime.profile().canonicalBytes();
+        }
+        boolean receiptKey = path.startsWith("composite/binding-receipt-key-v1/");
+        if (receiptKey || path.startsWith("composite/binding-receipt-v1/")) {
+            if (safeParams.length != 0) throw new AppQueryException(AppQueryException.Code.INVALID_REQUEST,
+                    "binding receipt query takes no parameters");
+            byte[] id;
+            try {
+                String prefix = receiptKey ? "composite/binding-receipt-key-v1/" : "composite/binding-receipt-v1/";
+                id = HexFormat.of().parseHex(path.substring(prefix.length()));
+                if (id.length != 32) throw new IllegalArgumentException("message id length");
+            } catch (IllegalArgumentException invalid) {
+                throw new AppQueryException(AppQueryException.Code.INVALID_REQUEST, "invalid source message id");
+            }
+            byte[] key = CompositeStateKeys.workflowStateKey("event-bindings", id);
+            return receiptKey ? key : state.get(key).orElse(new byte[0]);
         }
         if ("composite/profile-epoch-v1".equals(path)) {
             if (governance == null) {
@@ -884,6 +948,31 @@ public final class CompositeStateMachine implements AppStateMachine {
         public AppEffectEmitter effects(ComponentGeneration owner) {
             requireParticipant(owner);
             return new WorkflowEmitter(blockHeight, workflow, owner, writer, delegate);
+        }
+
+        @Override
+        public int remainingEffectCapacity() {
+            int used = writer.get(CompositeStateKeys.workflowQuotaKey(blockHeight, workflow))
+                    .map(CompositeStateMachine::decodeQuota).orElse(0);
+            return Math.max(0, workflow.maxEffectsPerBlock() - used);
+        }
+
+        @Override
+        public AppStateWriter workflowState() {
+            return new AppStateWriter() {
+                @Override public Optional<byte[]> get(byte[] key) {
+                    return writer.get(CompositeStateKeys.workflowStateKey(workflow.workflowId(), key))
+                            .map(byte[]::clone);
+                }
+                @Override public void put(byte[] key, byte[] value) {
+                    writer.put(CompositeStateKeys.workflowStateKey(workflow.workflowId(), key), value.clone());
+                }
+                @Override public void delete(byte[] key) {
+                    writer.delete(CompositeStateKeys.workflowStateKey(workflow.workflowId(), key));
+                }
+                @Override public byte[] stateRoot() { return writer.stateRoot().clone(); }
+                @Override public long committedHeight() { return writer.committedHeight(); }
+            };
         }
 
         @Override

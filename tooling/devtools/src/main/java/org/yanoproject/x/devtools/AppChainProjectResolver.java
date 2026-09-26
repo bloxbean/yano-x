@@ -1,6 +1,7 @@
 package org.yanoproject.x.devtools;
 
 import org.yanoproject.api.appchain.AppChainConfig;
+import org.yanoproject.api.appchain.AppChainMembershipEpoch;
 import org.yanoproject.api.appchain.state.StateCommitmentIdentity;
 import org.yanoproject.api.appchain.state.StateCommitmentProfile;
 import org.yanoproject.api.appchain.state.StateCommitmentProfiles;
@@ -37,6 +38,8 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.regex.Pattern;
+import java.nio.file.Path;
+import java.io.IOException;
 
 /** Deterministically expands one blueprint through recipe and capability descriptors. */
 final class AppChainProjectResolver {
@@ -59,12 +62,25 @@ final class AppChainProjectResolver {
 
     private final AppChainPropertyRegistry properties;
     private final AppChainProjectCatalog catalog;
+    private final Path projectDirectory;
 
     AppChainProjectResolver(
             AppChainPropertyRegistry properties,
             AppChainProjectCatalog catalog) {
+        this(properties, catalog, null);
+    }
+
+    private AppChainProjectResolver(AppChainPropertyRegistry properties, AppChainProjectCatalog catalog,
+                                    Path projectDirectory) {
         this.properties = java.util.Objects.requireNonNull(properties, "properties");
         this.catalog = java.util.Objects.requireNonNull(catalog, "catalog");
+        this.projectDirectory = projectDirectory;
+    }
+
+    /** Resolve authoring paths against the blueprint directory, never the invoking process's working directory. */
+    AppChainProjectModel.Resolution resolve(AppChainProjectModel.Blueprint blueprint, Path project) {
+        return new AppChainProjectResolver(properties, catalog, project.toAbsolutePath().normalize())
+                .resolve(blueprint);
     }
 
     AppChainProjectModel.Resolution resolve(AppChainProjectModel.Blueprint blueprint) {
@@ -75,6 +91,10 @@ final class AppChainProjectResolver {
         AppChainProjectModel.ChainIntent chain = validateBlueprint(blueprint);
         AppChainProjectModel.Spec spec = blueprint.spec();
         AppChainProjectModel.Recipe recipe = catalog.recipe(chain.recipe());
+        if ("declarative-composite".equals(recipe.id()) != (chain.composite() != null)) {
+            throw new IllegalArgumentException(
+                    "declarative-composite requires chain.composite; other recipes reject it");
+        }
         if (!recipe.effectiveSelectable()) {
             throw new IllegalArgumentException("Recipe " + recipe.id()
                     + " is not selectable for app-chain initialization");
@@ -132,9 +152,11 @@ final class AppChainProjectResolver {
 
         int threshold = threshold(chain.topology().finality(), chain.topology().members());
         List<String> memberKeys = normalizedMemberKeys(chain.topology());
-        if (chain.authenticatedMap() != null && memberKeys.isEmpty()) {
+        if ((chain.authenticatedMap() != null || chain.composite() != null) && memberKeys.isEmpty()) {
             throw new IllegalArgumentException(
-                    "authenticated-map genesis requires every topology.memberKeys value");
+                    chain.composite() == null
+                            ? "authenticated-map genesis requires every topology.memberKeys value"
+                            : "declarative genesis requires every topology.memberKeys value");
         }
         boolean bootstrapRequired = memberKeys.isEmpty();
         String members = bootstrapRequired
@@ -208,6 +230,9 @@ final class AppChainProjectResolver {
         materializeStateCommitmentIdentity(
                 blueprint.metadata().name(), chain, sortedCapabilities, consensus, prefix);
 
+        Map<String, String> bindingDigests = chain.composite() == null ? Map.of()
+                : materializeBindings(blueprint, chain, consensus, prefix, memberKeys, threshold);
+
         validateWithRuntimeParser(consensus, nodeTemplate, chain.topology().members());
 
         return new AppChainProjectModel.Resolution(
@@ -221,7 +246,51 @@ final class AppChainProjectResolver {
                 threshold,
                 bootstrapRequired,
                 maturity,
-                "PARTIAL");
+                "PARTIAL", List.of(), bindingDigests);
+    }
+
+    /** Compile and construct the catalog-selected profile before any generated project file can be written. */
+    private Map<String, String> materializeBindings(AppChainProjectModel.Blueprint blueprint,
+                                                     AppChainProjectModel.ChainIntent chain,
+                                                     Map<String, String> consensus, String prefix,
+                                                     List<String> members, int threshold) {
+        String configured = blueprint.spec().runtime().pluginsDirectory();
+        if (configured == null || configured.isBlank()) {
+            throw new IllegalArgumentException("declarative-composite requires runtime.pluginsDirectory for authoring");
+        }
+        Path directory = Path.of(configured);
+        if (!directory.isAbsolute()) {
+            if (projectDirectory == null) {
+                throw new IllegalArgumentException("relative pluginsDirectory requires the blueprint directory");
+            }
+            directory = projectDirectory.resolve(directory).normalize();
+        }
+        Map<String, String> suffix = new TreeMap<>();
+        consensus.forEach((key, value) -> {
+            if (key.startsWith(prefix)) suffix.put(key.substring(prefix.length()), value);
+        });
+        // The parser requires the field, but no signer is constructed or invoked during authoring.
+        suffix.put("signing-key", "00".repeat(32));
+        suffix.put("peers", "");
+        var config = AppChainConfigParser.parse(suffix);
+        var profile = AppChainEffectsConfig.fromSettings(config.pluginSettings()).consensusProfile(config);
+        var context = new BindingCatalogSession.ContextInput(chain.chainId(), config.pluginSettings(), profile,
+                new AppChainMembershipEpoch(0, members, threshold));
+        try (BindingPluginEnvironment environment = BindingPluginEnvironment.open(directory)) {
+            var session = new BindingCatalogSession(environment.providers(), context);
+            var ir = BindingDocumentCompiler.compile(chain.composite(), session);
+            var machine = session.validate(ir);
+            Object digest = machine.operationalStatus().get("activeProfileDigest");
+            if (!(digest instanceof String value) || !LOWER_HEX_64.matcher(value).matches()) {
+                throw new IllegalArgumentException("declarative provider did not publish its exact profile digest");
+            }
+            consensus.put(prefix + BindingCatalogSession.IR_SETTING, HexFormat.of().formatHex(ir.encode()));
+            String stem = "binding." + chain.chainId() + ".";
+            return Map.of(stem + "profile", value, stem + "ir", AppChainProjectCatalog.sha256(ir.encode()),
+                    stem + "catalog", AppChainProjectCatalog.sha256(environment.fingerprint()));
+        } catch (IOException error) {
+            throw new IllegalArgumentException("binding authoring plugin directory could not be read", error);
+        }
     }
 
     static AppChainProjectModel.Blueprint forChain(

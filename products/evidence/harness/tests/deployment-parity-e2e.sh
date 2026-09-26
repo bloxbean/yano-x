@@ -681,7 +681,7 @@ assert_plugin_inventory() {
           and (.lifecycle == "VALIDATED" or .lifecycle == "ACTIVE")
           and (.health == "UNKNOWN" or .health == "UP")
           and .failure.code == "NONE" and .metricsStale == false))
-        and ([.items[] | select(.selected) | .contributionCount] | add) == 26
+        and ([.items[] | select(.selected) | .contributionCount] | add) == 30
         and .nextAfter == null' "$bundles" "$key_file" \
       || fail "$phase node $node plugin inventory differs from the demo catalog"
     fingerprint="$(jq -r '.catalogFingerprint' "$summary")"

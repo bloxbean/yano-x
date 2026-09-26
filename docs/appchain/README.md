@@ -27,6 +27,7 @@ credentials unless a guide explicitly says otherwise.
 | Collect member approvals and optionally trigger an action | [`approvals` reference](state-machines/approvals.md) | Configuration + typed commands |
 | Maintain a document-hash trail per product or case | [`doc-trail` reference](state-machines/doc-trail.md) | Configuration + typed commands |
 | Select a stock ledger/workflow capability | [Stock state-machine cookbook](tutorials/03-stock-state-machines.md) | Configuration + typed commands |
+| Connect stock components with deterministic event bindings | [Beginner-to-advanced developer learning path](bindings/README.md) | YAML; public actor proofs for governed recipes |
 | Publish immutable evidence to object storage/IPFS and notify Kafka | [Evidence publication](tutorials/04-evidence-publication.md) | No for the demo; optional connector plugins in deployments |
 | Approve arbitrary payload hashes using application-defined roles | [`role-approvals` reference](state-machines/role-approvals.md) | Configuration + actor integration |
 | Require manufacturers, auditors, and regulators to sign evidence by role | [Domain-role approvals](tutorials/05-domain-role-approvals.md) | No for the stock scenario |
@@ -116,8 +117,9 @@ business meaning.
 
 1. Choose a stock machine or committed composite profile.
 2. Use the Java client or REST API for typed commands and proof queries.
-3. Add a small composite plugin when existing components need new ordering or
-   terminal transitions.
+3. Use [experimental declarative bindings](DECLARATIVE_BINDINGS.md) when existing
+   kernel-enabled machines support the required event-to-command coordination;
+   use a small Java composite plugin for coordination outside that bounded model.
 4. Add a custom state-machine plugin only for genuinely new state or rules.
 5. Treat any change to deterministic application semantics as a versioned
    consensus upgrade, not an ordinary rolling code change.
@@ -173,8 +175,12 @@ need full detail:
 
 ## A note on “no code”
 
-No-code means the required state machine, composite, connector, and launcher
-already ship with Yano. A real application still sends typed commands and owns
+No-code means the required state machines, connectors, and launcher already ship
+with Yano X or the host. A real application still sends typed commands and owns
 its UI, identity onboarding, key custody, and business data. Configuration
-cannot invent arbitrary consensus transitions. New combinations use a small
-composite plugin; new domain logic uses a custom state-machine plugin.
+cannot invent arbitrary consensus transitions. Experimental declarative bindings
+can connect existing kernel-enabled machines without application-specific Java;
+other coordination needs a Java composite plugin, and new domain rules need a
+custom state-machine plugin. See the [binding guide](DECLARATIVE_BINDINGS.md) for
+catalog validation, genesis-fixed role leaves, and the explicit limits on legacy
+certificate and product-projection compatibility.

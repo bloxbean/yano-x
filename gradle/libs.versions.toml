@@ -1,4 +1,5 @@
 [versions]
+cel = "0.14.0"
 yaci = "0.5.0-pre12"
 cardano-client-lib = "0.8.0-pre5-dev1"
 julc="0.1.0-pre16"
@@ -17,6 +18,8 @@ sqlite-jdbc = "3.53.2.1"
 json-schema-validator = "1.5.9"
 
 [libraries]
+# Authoring parses/type-checks CEL; consensus uses our versioned IR interpreter, not CEL runtime.
+cel = { module = "dev.cel:compiler", version.ref = "cel" }
 yaci-core = { module = "com.bloxbean.cardano:yaci-core", version.ref = "yaci" }
 yaci-helper = { module = "com.bloxbean.cardano:yaci-helper", version.ref = "yaci" }
 yaci-events-core = { module = "com.bloxbean.cardano:yaci-events-core", version.ref = "yaci" }

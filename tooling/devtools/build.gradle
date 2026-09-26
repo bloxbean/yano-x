@@ -3,6 +3,15 @@ plugins {
 }
 
 dependencies {
+    // Offline binding validation uses the same manifested catalog boundary as a running host.
+    implementation(rootProject.ext.yanoModule('yano-runtime')) {
+        transitive = false
+    }
+    implementation(rootProject.ext.yanoModule('yano-plugin-catalog')) {
+        transitive = false
+    }
+    implementation libs.cel
+    implementation project(':composition:runtime')
     implementation project(':sdk:client')
     implementation project(':ledgers:eutxo:client')
     implementation project(':ledgers:eutxo:demo')
@@ -14,6 +23,9 @@ dependencies {
     }
     implementation project(':capabilities:role-workflow-contracts')
     implementation project(':state-machines:stdlib')
+    // Pure, public genesis/profile builders; optional runtime activation still crosses the catalog.
+    implementation project(':products:dpp:profile')
+    implementation project(':products:attestation-feed:profile')
     implementation libs.cardano.client.crypto
     compileOnly(rootProject.ext.yanoModule('yano-core-api')) {
         transitive = false
@@ -29,6 +41,8 @@ dependencies {
         transitive = false
     }
     testImplementation project(':capabilities:authenticated-map-validators')
+    // Live receipt-parity tests boot the real host subsystem, unlike the lightweight offline CLI.
+    integrationTestRuntimeOnly(rootProject.ext.yanoModule('yano-runtime'))
 }
 
 application {
@@ -59,6 +73,42 @@ tasks.register('printAuthenticatedMapSchemaGoldenVectors', JavaExec) {
     dependsOn tasks.named('testClasses')
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'org.yanoproject.x.devtools.AuthenticatedMapSchemaGoldenVectorGenerator'
+}
+
+// Studio's YAML profile and receipt decoder are pinned against the exact Java implementations (ADR-031.2 C4/C6).
+def studioYamlOracle = layout.buildDirectory.file('studio-oracle/yaml-oracle.json')
+def studioReceiptOracle = layout.buildDirectory.file('studio-oracle/receipt-oracle.json')
+// Studio's generated copy of the controlled diagnostic messages; drift-checked by BindingEditorContractsTest.
+tasks.register('generateStudioDiagnosticCodes', JavaExec) {
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'org.yanoproject.x.devtools.StudioDiagnosticCodes'
+    args = [project(':tooling:studio').file('src/main/web/binding-diagnostic-codes.mjs').absolutePath]
+}
+
+tasks.register('generateStudioReceiptOracle', JavaExec) {
+    group = 'verification'
+    description = 'Decodes valid and mutated binding receipts with the authoritative Java receipt contract'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'org.yanoproject.x.devtools.StudioReceiptOracle'
+    inputs.files(sourceSets.test.runtimeClasspath)
+    outputs.file(studioReceiptOracle)
+    args studioReceiptOracle.get().asFile.absolutePath
+}
+tasks.register('generateStudioYamlOracle', JavaExec) {
+    group = 'verification'
+    description = 'Parses the Studio YAML differential corpus with the authoritative Java binding parser'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'org.yanoproject.x.devtools.StudioYamlOracle'
+    inputs.files(sourceSets.test.runtimeClasspath)
+    inputs.dir(rootProject.file('examples/bindings'))
+    inputs.dir(rootProject.file('docs/appchain/bindings'))
+    inputs.files(rootProject.file('docs/appchain/DECLARATIVE_BINDINGS_CLI.md'),
+            rootProject.file('docs/appchain/DECLARATIVE_BINDINGS.md'))
+    outputs.file(studioYamlOracle)
+    args rootProject.projectDir.absolutePath, studioYamlOracle.get().asFile.absolutePath
 }
 
 def generatedMetadataDirectory = layout.buildDirectory.dir('generated/appchain-metadata')
@@ -109,8 +159,13 @@ tasks.named('jar') {
 
 tasks.named('processResources') {
     dependsOn tasks.named('generateAppChainMetadata')
+    def hostVersion = providers.gradleProperty('yanoVersion').getOrElse('unspecified')
+    inputs.property('bindingToolingYanoVersion', hostVersion)
     filesMatching('appchain-dx/v1alpha1/appchain-release-capability-index.json') {
         expand(yanoVersion: project.version.toString())
+    }
+    filesMatching('META-INF/yano-x/binding-tooling.properties') {
+        expand(yanoXVersion: project.version.toString(), yanoVersion: hostVersion)
     }
     from(generatedMetadataDirectory) {
         exclude 'appchain-dx/v1alpha1/**'
@@ -140,6 +195,56 @@ def finalYanoZip = project(':distribution:jvm').tasks.named(
 
 tasks.named('test') {
     systemProperty 'yano.test.repo-root', rootProject.projectDir.absolutePath
+}
+
+// These tests deliberately open the published bundle shape, not direct first-party provider instances.
+tasks.named('integrationTest') {
+    def bindingBundles = [':composition:runtime', ':capabilities:role-workflow', ':state-machines:stdlib']
+            .collect { project(it).tasks.named('shadowJar') }
+    dependsOn bindingBundles
+    doFirst {
+        systemProperty 'yano.test.binding-bundles', bindingBundles.collect {
+            it.get().archiveFile.get().asFile.absolutePath
+        }.join(File.pathSeparator)
+        systemProperty 'yano.test.binding-classpath', sourceSets.main.runtimeClasspath.asPath
+    }
+}
+
+// Regenerates Studio's shipped first-party authoring catalog and its Node test fixtures from the real bundles.
+tasks.register('regenerateStudioFixtures', JavaExec) {
+    group = 'verification'
+    description = 'Regenerates the Studio authoring catalog and report fixtures through the real binding CLI'
+    def bindingBundles = [':composition:runtime', ':capabilities:role-workflow', ':state-machines:stdlib']
+            .collect { project(it).tasks.named('shadowJar') }
+    dependsOn bindingBundles, tasks.named('integrationTestClasses'), packagedCliInstall
+    classpath = sourceSets.integrationTest.runtimeClasspath
+    mainClass = 'org.yanoproject.x.devtools.StudioFixturesIT'
+    args rootProject.projectDir.absolutePath
+    // Shipped first-party data must come from the pinned published host, never a local, staged or snapshot one.
+    def mavenLocal = providers.gradleProperty('useMavenLocal').map { it.toBoolean() }.orElse(false)
+    def stagedInputs = ['internalRepository', 'yanoRepository'].findAll { providers.gradleProperty(it).isPresent() }
+    def hostVersion = providers.gradleProperty('yanoVersion').getOrElse('')
+    doFirst {
+        if (mavenLocal.get() || !stagedInputs.isEmpty() || hostVersion.endsWith('-SNAPSHOT')) {
+            throw new GradleException('regenerateStudioFixtures needs the pinned published Yano host: it refuses '
+                    + '-PuseMavenLocal=true, -PinternalRepository, -PyanoRepository and SNAPSHOT versions '
+                    + '(ADR-031.2 C1)')
+        }
+        systemProperty 'yano.test.appchain-cli',
+                layout.buildDirectory.file('install/yano-devtools/bin/yano-appchain').get().asFile.absolutePath
+        systemProperty 'yano.test.binding-bundles', bindingBundles.collect {
+            it.get().archiveFile.get().asFile.absolutePath
+        }.join(File.pathSeparator)
+    }
+}
+
+tasks.named('integrationTest') {
+    dependsOn packagedCliInstall, ':tooling:studio:exportStudioRoundTrip'
+    systemProperty 'yano.test.studio-roundtrip',
+            project(':tooling:studio').layout.buildDirectory.dir('roundtrip').get().asFile.absolutePath
+    systemProperty 'yano.test.repo-root', rootProject.projectDir.absolutePath
+    systemProperty 'yano.test.appchain-cli',
+            layout.buildDirectory.file('install/yano-devtools/bin/yano-appchain').get().asFile.absolutePath
 }
 
 tasks.named('distributionTest') {
@@ -180,6 +285,23 @@ tasks.register('finalDistributionStockOutcomeAcceptance', Exec) {
     doFirst {
         commandLine 'bash', file('src/test/scripts/final-distribution-stock-outcomes.sh'),
                 finalYanoZip.get().archiveFile.get().asFile, stockAppChainConfig
+    }
+}
+
+// ADR-031.2: a document authored in the Studio editor by keyboard alone runs on a fresh three-node devnet from the
+// final archive, pinning the same IR and profile as its CLI-authored equivalent. Uses ports 29870-29872/29470-29472.
+tasks.register('finalDistributionBindingEditorAcceptance', Exec) {
+    group = 'verification'
+    description = 'Runs a Studio-editor-exported binding document on a fresh three-node devnet from the final archive.'
+    dependsOn finalYanoZip, ':tooling:studio:browserTestStudio'
+    def editorExport = project(':tooling:studio').layout.buildDirectory
+            .file('browser-export/keyboard-registry-to-audit.yaml')
+    inputs.file(finalYanoZip.flatMap { it.archiveFile }).withPropertyName('yanoXJvmDist')
+    outputs.upToDateWhen { false }
+    doFirst {
+        commandLine 'bash', file('src/test/scripts/final-distribution-binding-editor-acceptance.sh'),
+                finalYanoZip.get().archiveFile.get().asFile, editorExport.get().asFile,
+                rootProject.file('examples/bindings/registry-to-audit.yaml'), rootProject.projectDir
     }
 }
 

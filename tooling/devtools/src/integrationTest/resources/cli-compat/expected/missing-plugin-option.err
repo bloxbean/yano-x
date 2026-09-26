@@ -1,0 +1,15 @@
+document, plugin directory, and context required
+Usage: appchain bindings compile|validate|graph|dry-run <document.yml> [options]
+  or: appchain bindings receipt-key <source-message-id-hex>
+  or: appchain bindings recipe dpp|feed --descriptor <actors.json> --members <members.json> --threshold <n>
+  or: appchain bindings profile-check --profiles <profiles.json> --context <context.json>
+        --plugins-directory <directory>
+  --plugins-directory <directory>  exact manifested runtime bundles (required except graph --ir)
+  --context <context.json>         explicit chainId/settings/consensusProfile/membership
+  --ir                             input is canonical binding IR hex, not YAML
+  --fixture <fixture.json>         dry-run only; one fixture block and physical base state
+  --prior-result <result.json>     dry-run only; carry prior rehearsal postState to next height
+  --continuation-only             dry-run only; emit bounded continuation without receipt diagnostics
+compile prints canonical IR hex; validate prints JSON profile metadata; graph prints DOT.
+dry-run prints unchanged receipt hex, decoded receipt arrays, planned effects, and state changes.
+Dry-run assumes authenticated inputs; it does not verify signatures, finality, roots, or anchors.

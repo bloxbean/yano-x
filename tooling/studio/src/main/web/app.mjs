@@ -1,5 +1,6 @@
 import {blueprintYaml,compatibleCapabilityOptions,decodeDeepLink,encodeDeepLink,
   importComponentCatalogSnapshot,normalizeIntent,projectBlueprintYaml} from './studio-core.mjs';
+import {bindingGraph,renderBindingGraph} from './binding-graph.mjs';
 
 const form = document.querySelector('#intent-form');
 const recipeSelect = document.querySelector('#recipe');
@@ -12,6 +13,19 @@ let customCatalogs=[]; let release={recipes:[],yanoVersion:'unknown'}; let yaml=
 
 const load = path => fetch(path,{cache:'no-store'}).then(response => {
   if (!response.ok) throw new Error(`Could not load ${path}`); return response.json();
+});
+
+document.querySelector('#binding-manifest').addEventListener('change',async event=>{
+  const status=document.querySelector('#binding-graph-status');
+  const container=document.querySelector('#binding-graph');
+  container.replaceChildren();
+  try {
+    const file=event.target.files[0];
+    if(!file) return;
+    if(file.size>1048576) throw new Error('Manifest snapshot exceeds 1 MiB.');
+    renderBindingGraph(container,bindingGraph(JSON.parse(await file.text())));
+    status.textContent='Local preview only. Verify the profile digest and chain identity independently.';
+  } catch(error) { status.textContent=error.message; }
 });
 
 function readForm(forcedCapabilities) {

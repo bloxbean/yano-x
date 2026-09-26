@@ -2,6 +2,7 @@ package org.yanoproject.x.devtools;
 
 import org.yanoproject.appchain.config.AppChainPropertyRegistry;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.JsonNode;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -73,6 +74,8 @@ final class AppChainProjectCli {
               --component-catalog <path>    exported signed catalog snapshot (repeatable)
               --trust-key <id=public-key>   trusted Ed25519 publisher key (repeatable)
               --acknowledge <id>            persist an explicit product acknowledgement
+              --bindings <yaml>            required standalone document for declarative-composite only
+              --plugins-directory <path>   required authoring bundles for declarative-composite only
               authenticated-map recipe      requires one --member-key per member; edit the
                                             generated authenticatedMap section for schemas
             Drift options:
@@ -428,6 +431,24 @@ final class AppChainProjectCli {
         String projectName = valueOr(options.name(), slug(options.chainId()));
         String chainId = valueOr(options.chainId(), projectName);
         Path output = options.output() == null ? Path.of(projectName) : options.output();
+        boolean declarative = "declarative-composite".equals(options.recipe());
+        if (declarative != (options.bindings() != null && options.pluginsDirectory() != null)
+                || !declarative && (options.bindings() != null || options.pluginsDirectory() != null)) {
+            throw new Usage("--bindings and --plugins-directory are required together for declarative-composite only");
+        }
+        JsonNode composite = null;
+        String authoringPlugins = null;
+        if (declarative) {
+            composite = BindingDocumentCompiler.parseDocument(BindingCli.read(options.bindings(),
+                    BindingDocumentCompiler.MAX_SOURCE_CHARACTERS * 4));
+            if (composite != null && composite.has("composite") && composite.size() == 1) {
+                composite = composite.get("composite");
+            }
+            Path selectedPlugins = options.pluginsDirectory().toAbsolutePath().normalize();
+            Path projectRoot = output.toAbsolutePath().normalize();
+            authoringPlugins = java.util.Objects.equals(projectRoot.getRoot(), selectedPlugins.getRoot())
+                    ? projectRoot.relativize(selectedPlugins).toString() : selectedPlugins.toString();
+        }
         AppChainProjectModel.Topology topology = new AppChainProjectModel.Topology(
                 options.members(), options.memberKeys(), options.nodeHosts(),
                 options.finality(), options.sequencing(), options.membership(),
@@ -437,11 +458,11 @@ final class AppChainProjectCli {
                         ? defaultAuthenticatedMapIntent() : null;
         AppChainProjectModel.ChainIntent chain = new AppChainProjectModel.ChainIntent(
                 chainId, options.recipe(), options.capabilities(), options.answers(), topology,
-                authenticatedMap);
+                authenticatedMap, composite);
         AppChainProjectModel.Spec spec = new AppChainProjectModel.Spec(
                 valueOr(options.yanoVersion(), toolVersion()),
                 options.network(),
-                new AppChainProjectModel.RuntimeSelection(options.runtime()),
+                new AppChainProjectModel.RuntimeSelection(options.runtime(), authoringPlugins),
                 new AppChainProjectModel.DeploymentSelection(options.deployment()),
                 List.of(chain),
                 external.references(),
@@ -651,7 +672,7 @@ final class AppChainProjectCli {
                 options.pluginJars(),
                 options.componentCatalogs(),
                 options.trustKeys(),
-                options.acknowledgements());
+                options.acknowledgements(), options.bindings(), options.pluginsDirectory());
     }
 
     private String prompt(String label, String existing, String defaultValue) throws IOException {
@@ -676,6 +697,8 @@ final class AppChainProjectCli {
         String chainId = null;
         String yanoVersion = null;
         Path output = null;
+        Path bindings = null;
+        Path pluginsDirectory = null;
         Format format = Format.TEXT;
         boolean nonInteractive = false;
         List<String> memberKeys = new ArrayList<>();
@@ -709,6 +732,14 @@ final class AppChainProjectCli {
                 case "--answer" -> parseAnswer(value(arguments, ++cursor, argument), answers);
                 case "--plugin-jar" -> pluginJars.add(
                         path(value(arguments, ++cursor, argument)));
+                case "--bindings" -> {
+                    if (bindings != null) throw new Usage(argument + " may be specified once");
+                    bindings = path(value(arguments, ++cursor, argument));
+                }
+                case "--plugins-directory" -> {
+                    if (pluginsDirectory != null) throw new Usage(argument + " may be specified once");
+                    pluginsDirectory = path(value(arguments, ++cursor, argument));
+                }
                 case "--component-catalog" -> componentCatalogs.add(
                         path(value(arguments, ++cursor, argument)));
                 case "--trust-key" -> parseTrustKey(
@@ -744,7 +775,7 @@ final class AppChainProjectCli {
                 httpPortBase, serverPortBase,
                 name, chainId, yanoVersion, output, nonInteractive, format,
                 List.copyOf(pluginJars), List.copyOf(componentCatalogs),
-                Map.copyOf(trustKeys), List.copyOf(acknowledgements));
+                Map.copyOf(trustKeys), List.copyOf(acknowledgements), bindings, pluginsDirectory);
     }
 
     private static void parseAnswer(String assignment, Map<String, String> answers) {
@@ -1282,7 +1313,9 @@ final class AppChainProjectCli {
             List<Path> pluginJars,
             List<Path> componentCatalogs,
             Map<String, String> trustKeys,
-            List<String> acknowledgements) {
+            List<String> acknowledgements,
+            Path bindings,
+            Path pluginsDirectory) {
         int members() {
             return membersBoxed;
         }

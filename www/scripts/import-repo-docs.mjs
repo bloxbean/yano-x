@@ -44,7 +44,7 @@ const UNLINKED_PREFIXES = ['adr/'];
 
 // Directories this script owns completely. They are wiped before each import
 // so a renamed source file cannot leave a stale page behind.
-const OWNED_DIRS = ['tutorials', 'state-machines', 'deployment'];
+const OWNED_DIRS = ['tutorials', 'state-machines', 'deployment', 'bindings'];
 
 // Section landing pages get an explicit sidebar order.
 const ORDER = {
@@ -238,6 +238,9 @@ const STUDIO_ASSETS = [
   'appchain-release-capability-index.json',
   'appchain-release-acceptance-index.json',
 ];
+// Binding editor starters (ADR-031.2), copied from their single source like prepareStudio does.
+const STUDIO_STARTERS_SRC = 'examples/bindings';
+const STUDIO_STARTERS = ['registry-to-audit.yaml', 'approval-to-audit.yaml'];
 
 async function mirrorStudio(versions) {
   const dest = path.join(DOCSITE_ROOT, 'public/studio');
@@ -257,7 +260,19 @@ async function mirrorStudio(versions) {
     await fs.writeFile(path.join(dest, 'assets', asset), text, 'utf8');
   }
 
-  return STUDIO_ASSETS.length + 5;
+  await fs.mkdir(path.join(dest, 'assets/bindings'), { recursive: true });
+  for (const starter of STUDIO_STARTERS) {
+    await fs.copyFile(repoPath(STUDIO_STARTERS_SRC, starter), path.join(dest, 'assets/bindings', starter));
+    // Public example fixtures for the starter, under the fixed names the editor's CLI handoff uses.
+    const fixtures = repoPath(STUDIO_STARTERS_SRC, 'fixtures', starter.replace(/\.yaml$/, ''));
+    const target = path.join(dest, 'assets/bindings/fixtures', starter.replace(/\.yaml$/, ''));
+    await fs.mkdir(target, { recursive: true });
+    for (const file of (await fs.readdir(fixtures)).filter(name => /^fixture-\d+\.json$/.test(name))) {
+      await fs.copyFile(path.join(fixtures, file), path.join(target, file));
+    }
+  }
+
+  return (await fs.readdir(repoPath(STUDIO_WEB))).length + STUDIO_ASSETS.length + STUDIO_STARTERS.length;
 }
 
 // ---------------------------------------------------------------------------

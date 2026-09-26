@@ -35,6 +35,46 @@ public final class StdlibStateMachineProviders {
     private StdlibStateMachineProviders() {
     }
 
+    /**
+     * Catalog leaf for declarative composition. Its map genesis is an application-domain commitment,
+     * not the enclosing composite chain genesis; consensus, membership, and commitment format must
+     * still agree with the parent construction context.
+     */
+    public static final class AuthenticatedMapComponentProvider implements AppStateMachineProvider {
+        @Override public String id() { return AuthenticatedMapLeafStateMachine.ID; }
+        @Override public AppStateMachine create() {
+            throw new IllegalArgumentException("authenticated-map component requires committed configuration");
+        }
+        @Override public AppStateMachine create(AppStateMachineContext context) {
+            String prefix = "machines." + id() + ".";
+            String encoded = context.settings().get(prefix + "genesis-cbor-hex");
+            if (encoded == null || encoded.isEmpty() || encoded.length() > 65536
+                    || (encoded.length() & 1) != 0 || !AuthenticatedMapProvider.isCanonicalLowerHex(encoded)) {
+                throw new IllegalArgumentException("map component requires bounded canonical genesis hex");
+            }
+            var genesis = AuthenticatedMapContract.decodeGenesis(HexFormat.of().parseHex(encoded));
+            var profile = StateCommitmentProfiles.require(genesis.commitmentProfileId());
+            var consensus = context.consensusProfile().orElseThrow(() ->
+                    new IllegalArgumentException("map component requires consensus profile"));
+            var membership = context.membershipView().orElseThrow(() ->
+                    new IllegalArgumentException("map component requires membership view"));
+            if (!genesis.chainId().equals(context.chainId())
+                    || !Arrays.equals(profile.formatFingerprint(), genesis.formatFingerprint())
+                    || context.stateCommitmentIdentity().map(identity -> !identity.profile().equals(profile))
+                    .orElse(false)
+                    || !Arrays.equals(AppChainConsensusProfileCommitment.digest(consensus),
+                    genesis.frameworkConsensusProfileDigest())
+                    || !Arrays.equals(membership.epochAt(0).digest(), genesis.membershipCommitment())
+                    || genesis.maxBatchBytes() > consensus.maxMessageBytes()) {
+                throw new IllegalArgumentException("map component genesis differs from parent execution context");
+            }
+            return new AuthenticatedMapLeafStateMachine(new AuthenticatedMapStateMachine(genesis, membership,
+                    context.authenticatedMapValidatorResolver().orElse(null)),
+                    context.settings().getOrDefault(prefix + "actors", ""),
+                    context.settings().getOrDefault(prefix + "approvals", ""));
+        }
+    }
+
     public static final class ShipmentWorkflowReferenceProvider implements AppStateMachineProvider {
         @Override public String id() { return ShipmentWorkflowReferenceStateMachine.ID; }
 

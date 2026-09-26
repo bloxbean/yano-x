@@ -3,6 +3,7 @@ package org.yanoproject.x.zk;
 import com.bloxbean.cardano.client.crypto.KeyGenUtil;
 import com.bloxbean.cardano.yaci.core.util.HexUtil;
 import org.yanoproject.api.appchain.AppChainConfig;
+import org.yanoproject.api.appchain.AppSubmissionRejectedException;
 import org.yanoproject.runtime.appchain.AppChainSubsystem;
 import com.bloxbean.cardano.zeroj.bbs.BbsKeyPair;
 import com.bloxbean.cardano.zeroj.bbs.BbsPublicKey;
@@ -22,6 +23,7 @@ import java.util.Set;
 import java.util.function.BooleanSupplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * ADR-006 E7.2: end-to-end BBS selective disclosure with real crypto (no
@@ -85,14 +87,16 @@ class BbsCredentialRegistryTest {
         long tip = node.tipHeight();
         CredentialBody tampered = new CredentialBody("hr-dept", "emp-43", credential.signature(),
                 credential.header(), List.of("Mallory".getBytes(), "Engineering".getBytes(), "L4".getBytes()));
-        node.submit("credentials", tampered.encode());
+        assertThatThrownBy(() -> node.submit("credentials", tampered.encode()))
+                .isInstanceOf(AppSubmissionRejectedException.class);
         Thread.sleep(1500);
         assertThat(node.tipHeight()).isEqualTo(tip);
 
         // Unknown issuer → rejected
         CredentialBody wrongIssuer = new CredentialBody("finance", "emp-44", credential.signature(),
                 credential.header(), attributes);
-        node.submit("credentials", wrongIssuer.encode());
+        assertThatThrownBy(() -> node.submit("credentials", wrongIssuer.encode()))
+                .isInstanceOf(AppSubmissionRejectedException.class);
         Thread.sleep(1000);
         assertThat(node.tipHeight()).isEqualTo(tip);
 

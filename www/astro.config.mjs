@@ -89,6 +89,19 @@ export default defineConfig({
           autogenerate: { directory: 'tutorials' },
         },
         {
+          label: 'Declarative bindings',
+          collapsed: true,
+          items: [
+            { label: 'Learning path', slug: 'bindings' },
+            { label: '1. Your first workflow', slug: 'bindings/first-workflow' },
+            { label: '2. Conditions and mappings', slug: 'bindings/conditions-and-mappings' },
+            { label: '3. Approval workflows', slug: 'bindings/approval-workflows' },
+            { label: '4. Java integration', slug: 'bindings/java-integration' },
+            { label: '5. Operations and upgrades', slug: 'bindings/operations-and-upgrades' },
+            { label: '6. Studio editor', slug: 'bindings/guided-editor' },
+          ],
+        },
+        {
           label: 'State machines',
           collapsed: true,
           autogenerate: { directory: 'state-machines' },
@@ -126,6 +139,9 @@ export default defineConfig({
           collapsed: true,
           items: [
             { label: 'CLI', slug: 'reference/cli' },
+            { label: 'Declarative bindings', slug: 'reference/declarative-bindings' },
+            { label: 'Bindings authoring CLI', slug: 'reference/declarative-bindings-cli' },
+            { label: 'Bindings upgrade preflight', slug: 'reference/declarative-bindings-upgrades' },
             { label: 'REST API', slug: 'reference/rest-api' },
             { label: 'Capability catalog', slug: 'reference/capabilities' },
             { label: 'Configuration', slug: 'reference/configuration' },

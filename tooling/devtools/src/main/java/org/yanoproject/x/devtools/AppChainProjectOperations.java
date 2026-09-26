@@ -62,7 +62,7 @@ final class AppChainProjectOperations {
         var catalog = catalog(project);
         var external = new AppChainComponentCatalogLoader().loadProject(project);
         var registry = new AppChainComponentCatalogLoader().extendRegistry(properties, external);
-        var next = new AppChainProjectResolver(registry, catalog).resolve(blueprint);
+        var next = new AppChainProjectResolver(registry, catalog).resolve(blueprint, project);
         List<String> blockers = new ArrayList<>();
         if (!prior.yanoVersion().equals(blueprint.spec().yanoVersion())) blockers.add("Release pin changed");
         if (!prior.network().equals(blueprint.spec().network())) blockers.add("L1 network changed");
@@ -70,7 +70,12 @@ final class AppChainProjectOperations {
         if (!prior.deployment().equals(blueprint.spec().deployment().target())) {
             blockers.add("Deployment target changed");
         }
-        if (!prior.catalogDigests().equals(catalog.digests())) blockers.add("Catalog revision changed");
+        Map<String, String> candidateCatalogDigests = new TreeMap<>(catalog.digests());
+        candidateCatalogDigests.putAll(next.bindingDigests());
+        if (prior.catalogDigests().entrySet().stream().anyMatch(entry ->
+                !java.util.Objects.equals(entry.getValue(), candidateCatalogDigests.get(entry.getKey())))) {
+            blockers.add("Catalog revision changed");
+        }
         var oldChains = chainValues(prior.consensusValues());
         var newChains = chainValues(next.consensusProperties());
         List<ChainChange> changes = new ArrayList<>();
@@ -341,7 +346,7 @@ final class AppChainProjectOperations {
                         List.copyOf(chains), spec.componentCatalogs(), spec.acknowledgements()));
         var external = new AppChainComponentCatalogLoader().loadProject(project);
         var registry = new AppChainComponentCatalogLoader().extendRegistry(properties, external);
-        new AppChainProjectResolver(registry, catalog(project)).resolve(proposed);
+        new AppChainProjectResolver(registry, catalog(project)).resolve(proposed, project);
         atomicWrite(project.resolve("appchain.yaml"), yaml.writeValueAsBytes(proposed), false);
     }
 
@@ -360,7 +365,7 @@ final class AppChainProjectOperations {
         if (Files.exists(project.resolve("appchain.lock"))) renderer.verifyPriorOutputs(project);
         var external = new AppChainComponentCatalogLoader().loadProject(project);
         var registry = new AppChainComponentCatalogLoader().extendRegistry(properties, external);
-        new AppChainProjectResolver(registry, catalog(project)).resolve(blueprint);
+        new AppChainProjectResolver(registry, catalog(project)).resolve(blueprint, project);
         int members = spec.chains().getFirst().topology().members();
         boolean pinned = spec.chains().stream().allMatch(chain -> chain.topology().memberKeys() != null
                 && chain.topology().memberKeys().size() == members);
@@ -408,7 +413,7 @@ final class AppChainProjectOperations {
             chains.add(new AppChainProjectModel.ChainIntent(chain.chainId(), chain.recipe(), chain.capabilities(),
                     chain.answers(), new AppChainProjectModel.Topology(members, publicKeys, List.of(),
                     topology.finality(), topology.sequencing(), topology.membership(), topology.httpPortBase(),
-                    topology.serverPortBase()), chain.authenticatedMap()));
+                    topology.serverPortBase()), chain.authenticatedMap(), chain.composite()));
         }
         var prepared = new AppChainProjectModel.Blueprint(
                 blueprint.apiVersion(), blueprint.kind(), blueprint.metadata(),
@@ -416,7 +421,7 @@ final class AppChainProjectOperations {
                         List.copyOf(chains), spec.componentCatalogs(), spec.acknowledgements()));
         // Validate the complete proposal before changing public input.
         var catalog = catalog(project);
-        new AppChainProjectResolver(registry, catalog).resolve(prepared);
+        new AppChainProjectResolver(registry, catalog).resolve(prepared, project);
         if (!pinned) atomicWrite(project.resolve("appchain.yaml"), yaml.writeValueAsBytes(prepared), false);
         if (pinned) renderer.render(project);
         else renderer.renderPrepared(project);

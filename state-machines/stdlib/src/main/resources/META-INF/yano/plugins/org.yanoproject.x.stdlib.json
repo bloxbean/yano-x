@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "org.yanoproject.x.stdlib",
   "version": "${pluginVersion}",
-  "yanoApi": { "min": 3, "max": 3, "minLevel": 8 },
+  "yanoApi": { "min": 3, "max": 3, "minLevel": 11 },
   "dependencies": [
     {
       "id": "org.yanoproject.x.composite",
@@ -19,6 +19,7 @@
     { "kind": "app-state-machine", "name": "shipment-workflow-reference-v1", "provider": "org.yanoproject.x.stdlib.StdlibStateMachineProviders$ShipmentWorkflowReferenceProvider" },
     { "kind": "app-state-machine", "name": "ada-usd-reference-v1", "provider": "org.yanoproject.x.stdlib.StdlibStateMachineProviders$AdaUsdReferenceProvider" },
     { "kind": "app-state-machine", "name": "authenticated-map", "provider": "org.yanoproject.x.stdlib.StdlibStateMachineProviders$AuthenticatedMapProvider" },
+    { "kind": "app-state-machine", "name": "authenticated-map-component", "provider": "org.yanoproject.x.stdlib.StdlibStateMachineProviders$AuthenticatedMapComponentProvider" },
     { "kind": "app-state-machine", "name": "approvals", "provider": "org.yanoproject.x.stdlib.StdlibStateMachineProviders$ApprovalsProvider" },
     { "kind": "app-state-machine", "name": "balances", "provider": "org.yanoproject.x.stdlib.StdlibStateMachineProviders$BalancesProvider" },
     { "kind": "app-state-machine", "name": "doc-trail", "provider": "org.yanoproject.x.stdlib.StdlibStateMachineProviders$DocTrailProvider" },

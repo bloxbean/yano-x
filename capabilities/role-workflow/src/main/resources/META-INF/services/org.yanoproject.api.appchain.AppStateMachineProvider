@@ -1,1 +1,3 @@
 org.yanoproject.x.roles.RoleApprovalsStateMachineProvider
+org.yanoproject.x.roles.DeclarativeRoleProviders$Actors
+org.yanoproject.x.roles.DeclarativeRoleProviders$Approvals

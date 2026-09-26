@@ -4,6 +4,7 @@ import com.bloxbean.cardano.client.crypto.Blake2bUtil;
 import com.bloxbean.cardano.client.crypto.KeyGenUtil;
 import com.bloxbean.cardano.yaci.core.util.HexUtil;
 import org.yanoproject.api.appchain.AppChainConfig;
+import org.yanoproject.api.appchain.AppSubmissionRejectedException;
 import org.yanoproject.runtime.appchain.AppChainSubsystem;
 import com.bloxbean.cardano.zeroj.verifier.core.VerifierRegistry;
 import org.junit.jupiter.api.AfterEach;
@@ -23,6 +24,7 @@ import java.util.Set;
 import java.util.function.BooleanSupplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * ADR-006 E7.3: anonymous-but-authorized submissions — a valid membership proof
@@ -108,7 +110,8 @@ class ZkMembershipStateMachineTest {
         // Invalid membership proof → rejected at admission
         long tip = node.tipHeight();
         byte[] forged = membershipBody("FORGED", Blake2bUtil.blake2bHash256("x".getBytes()), context, "yes".getBytes());
-        node.submit("votes", forged);
+        assertThatThrownBy(() -> node.submit("votes", forged))
+                .isInstanceOf(AppSubmissionRejectedException.class);
         Thread.sleep(1500);
         assertThat(node.tipHeight()).isEqualTo(tip);
     }

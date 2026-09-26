@@ -2,6 +2,8 @@ package org.yanoproject.x.roles.internal;
 
 import com.bloxbean.cardano.client.crypto.KeyGenUtil;
 import org.yanoproject.api.appchain.AppStateWriter;
+import org.yanoproject.api.appchain.transition.StateMutation;
+import org.yanoproject.api.appchain.transition.TransitionPlan;
 import org.yanoproject.x.roles.contracts.ActorKeyEpochV1;
 import org.yanoproject.x.roles.contracts.ActorRecordV1;
 import org.yanoproject.x.roles.contracts.ActorStatementV1;
@@ -21,6 +23,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
 import java.util.LinkedHashMap;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -301,6 +304,88 @@ class ActorApprovalProcessorTest {
                 .hasMessageContaining("marker is absent");
     }
 
+    @Test
+    void purePlansDoNotWriteAndMatchStandaloneBytesAcrossProposalApprovalAndReplay() {
+        MemoryState planned = state.copy();
+        List<SignedActorCommandV1> commands = List.of(
+                command(ActorStatementV1.Action.PROPOSE, "pure", 20, "issuer-a", SEED_A, ""),
+                command(ActorStatementV1.Action.PROPOSE, "pure", 20, "issuer-a", SEED_A, ""),
+                command(ActorStatementV1.Action.APPROVE, "pure", 20, "auditor-b", SEED_B, "auditors"),
+                command(ActorStatementV1.Action.APPROVE, "pure", 20, "auditor-b", SEED_B, "auditors"));
+        for (int index = 0; index < commands.size(); index++) {
+            var command = commands.get(index);
+            long height = index + 2;
+            Map<String, String> before = planned.snapshot();
+            var facts = processor.facts(command, height, planned, planned);
+            var result = processor.decide(command, height, facts);
+            assertThat(planned.snapshot()).isEqualTo(before);
+            assertThat(result.changed()).isEqualTo(index == 0 || index == 2);
+            assertThat(processor.apply(command, height, state, state)).isEqualTo(result.code());
+            commit(result.plan(), planned);
+            Map<String, String> standalone = state.snapshot();
+            standalone.remove(HexFormat.of().formatHex(RoleWorkflowKeys.cryptoWork()));
+            assertThat(planned.snapshot()).isEqualTo(standalone);
+        }
+    }
+
+    @Test
+    void invalidSignatureRetainsOnlyReservedWorkWhilePureDecisionLeavesNoBusinessPlan() {
+        SignedActorCommandV1 invalid = command(ActorStatementV1.Action.PROPOSE,
+                "bad-signature", 20, "issuer-a", SEED_B, "");
+        Map<String, String> before = state.snapshot();
+        assertThat(processor.requiresCryptoWork(invalid, 2)).isTrue();
+        var result = processor.decide(invalid, 2, processor.facts(invalid, 2, state, state));
+        assertThat(result.code()).isEqualTo(RoleWorkflowResultCode.INVALID_SIGNATURE);
+        assertThat(result.changed()).isFalse();
+        assertThat(result.plan().mutations()).isEmpty();
+        assertThat(state.snapshot()).isEqualTo(before);
+        assertThat(processor.apply(invalid, 2, state, state)).isEqualTo(result.code());
+        assertThat(state.get(RoleWorkflowKeys.cryptoWork())).isPresent();
+        Map<String, String> after = state.snapshot();
+        after.remove(HexFormat.of().formatHex(RoleWorkflowKeys.cryptoWork()));
+        assertThat(after).isEqualTo(before);
+        assertThat(processor.requiresCryptoWork(invalid, 21)).isFalse();
+    }
+
+    @Test
+    void expiryPlanIsPureAndMatchesEmptyBlockMaintenanceBytes() {
+        var proposal = command(ActorStatementV1.Action.PROPOSE, "pure-expiry", 4, "issuer-a", SEED_A, "");
+        assertThat(processor.apply(proposal, 2, state, state)).isEqualTo(RoleWorkflowResultCode.ACCEPTED);
+        MemoryState planned = state.copy();
+        Map<String, String> before = planned.snapshot();
+        TransitionPlan expiry = processor.prepareHeightPlan(5, planned);
+        assertThat(planned.snapshot()).isEqualTo(before);
+        assertThat(expiry.mutations()).hasSize(6);
+        commit(expiry, planned);
+        processor.prepareHeight(5, state);
+        assertThat(planned.snapshot()).isEqualTo(state.snapshot());
+        ActorApprovalProcessor.verifyPendingState(planned, constrainedLimits());
+        TransitionPlan nextEmptyBlock = processor.prepareHeightPlan(6, planned);
+        assertThat(nextEmptyBlock.mutations()).hasSize(1);
+        commit(nextEmptyBlock, planned);
+        processor.prepareHeight(6, state);
+        assertThat(planned.snapshot()).isEqualTo(state.snapshot());
+    }
+
+    @Test
+    void corruptFactsFailClosedWithoutBusinessWritesAndEmptyExpiryDoesNotReadUnneededStatistics() {
+        state.put(RoleWorkflowKeys.approvalStats(), new byte[]{0});
+        var invalid = command(ActorStatementV1.Action.PROPOSE,
+                "corrupt-stats", 20, "issuer-a", SEED_B, "");
+        Map<String, String> before = state.snapshot();
+        assertThatThrownBy(() -> processor.facts(invalid, 2, state, state))
+                .isInstanceOf(IllegalStateException.class).hasMessageContaining("corrupt approval statistics");
+        assertThat(state.snapshot()).isEqualTo(before);
+        assertThat(processor.prepareHeightPlan(2, state).mutations()).hasSize(1);
+    }
+
+    private static void commit(TransitionPlan plan, MemoryState state) {
+        for (StateMutation mutation : plan.mutations()) {
+            if (mutation.kind() == StateMutation.Kind.PUT) state.put(mutation.key(), mutation.value());
+            else state.delete(mutation.key());
+        }
+    }
+
     private SignedActorCommandV1 command(
             ActorStatementV1.Action action,
             String proposalId,
@@ -375,6 +460,19 @@ class ActorApprovalProcessorTest {
 
     private static final class MemoryState implements AppStateWriter {
         private final Map<Key, byte[]> values = new LinkedHashMap<>();
+
+        private MemoryState copy() {
+            MemoryState copy = new MemoryState();
+            values.forEach((key, value) -> copy.put(key.value(), value));
+            return copy;
+        }
+
+        private Map<String, String> snapshot() {
+            Map<String, String> snapshot = new LinkedHashMap<>();
+            values.forEach((key, value) -> snapshot.put(HexFormat.of().formatHex(key.value()),
+                    HexFormat.of().formatHex(value)));
+            return snapshot;
+        }
 
         @Override
         public Optional<byte[]> get(byte[] key) {

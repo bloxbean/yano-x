@@ -30,7 +30,7 @@
     "validatorIdentity": "project-pinned-at-contract-bootstrap"
   },
   "sourceDigests": {
-    "capabilityCatalogSha256": "3e939e95fe807fe8d177368507caafd04e52f87b801c95ea32edf1e7362c2882",
+    "capabilityCatalogSha256": "ae9e55cea561fa330313813b0409e06888b6f90d59338fc9951d073e7d70451c",
     "networkAcceptanceSha256": "1e1705d4d14e46024d8468ba2e0ccbc7e9dd766d96b756dc19594b386762278c"
   },
   "compatibility": {

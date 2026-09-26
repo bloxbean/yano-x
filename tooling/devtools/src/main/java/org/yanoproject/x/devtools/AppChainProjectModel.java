@@ -1,6 +1,7 @@
 package org.yanoproject.x.devtools;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.databind.JsonNode;
 
 import java.util.List;
 import java.util.Map;
@@ -51,7 +52,10 @@ final class AppChainProjectModel {
             String trustedPublicKey) {
     }
 
-    record RuntimeSelection(String type) {
+    /** Authoring bundle location is project-relative provenance, never a generated node/consensus setting. */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    record RuntimeSelection(String type, String pluginsDirectory) {
+        RuntimeSelection(String type) { this(type, null); }
     }
 
     record DeploymentSelection(String target) {
@@ -64,7 +68,13 @@ final class AppChainProjectModel {
             List<String> capabilities,
             Map<String, String> answers,
             Topology topology,
-            AuthenticatedMapIntent authenticatedMap) {
+            AuthenticatedMapIntent authenticatedMap,
+            JsonNode composite) {
+
+        ChainIntent(String chainId, String recipe, List<String> capabilities, Map<String, String> answers,
+                    Topology topology, AuthenticatedMapIntent authenticatedMap) {
+            this(chainId, recipe, capabilities, answers, topology, authenticatedMap, null);
+        }
 
         ChainIntent(
                 String chainId,
@@ -406,7 +416,18 @@ final class AppChainProjectModel {
             boolean bootstrapRequired,
             String maturity,
             String validationCoverage,
-            List<Resolution> chainResolutions) {
+            List<Resolution> chainResolutions,
+            Map<String, String> bindingDigests) {
+
+        Resolution(Blueprint blueprint, Recipe recipe, List<String> selectedCapabilities,
+                   List<String> impliedCapabilities, List<String> artifacts,
+                   Map<String, String> consensusProperties, Map<String, String> nodePropertyTemplate,
+                   int threshold, boolean bootstrapRequired, String maturity, String validationCoverage,
+                   List<Resolution> chainResolutions) {
+            this(blueprint, recipe, selectedCapabilities, impliedCapabilities, artifacts, consensusProperties,
+                    nodePropertyTemplate, threshold, bootstrapRequired, maturity, validationCoverage, chainResolutions,
+                    mergeBindingDigests(chainResolutions));
+        }
 
         Resolution(Blueprint blueprint, Recipe recipe, List<String> selectedCapabilities,
                    List<String> impliedCapabilities, List<String> artifacts,
@@ -415,6 +436,12 @@ final class AppChainProjectModel {
             this(blueprint, recipe, selectedCapabilities, impliedCapabilities, artifacts,
                     consensusProperties, nodePropertyTemplate, threshold, bootstrapRequired,
                     maturity, validationCoverage, List.of());
+        }
+
+        private static Map<String, String> mergeBindingDigests(List<Resolution> chains) {
+            Map<String, String> result = new java.util.TreeMap<>();
+            chains.forEach(chain -> result.putAll(chain.bindingDigests()));
+            return Map.copyOf(result);
         }
 
         List<Resolution> chains() {

@@ -63,7 +63,7 @@ final class AppChainGitOpsExporter {
             throw new IllegalArgumentException(
                     "GitOps export requires preview, preprod, or mainnet; devnet has ephemeral genesis inputs");
         }
-        AppChainProjectModel.Resolution resolution = resolver.resolve(blueprint);
+        AppChainProjectModel.Resolution resolution = resolver.resolve(blueprint, project);
         TreeMap<String, byte[]> files = switch (target) {
             case HELM -> helm(resolution, validation.lock());
             case KUSTOMIZE -> kustomize(resolution, validation.lock());

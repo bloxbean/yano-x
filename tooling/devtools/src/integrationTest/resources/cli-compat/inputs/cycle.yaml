@@ -1,0 +1,11 @@
+composite:
+  components:
+    - {id: a, machine: kv-registry}
+    - {id: b, machine: kv-registry}
+  bindings:
+    - id: ab
+      from: {component: a, event: kv-registry.entry-put.v1}
+      to: {component: b, command: put, map: {key: {field: key}, value: {field: value}}}
+    - id: ba
+      from: {component: b, event: kv-registry.entry-put.v1}
+      to: {component: a, command: put, map: {key: {field: key}, value: {field: value}}}
