@@ -7,7 +7,9 @@ import org.yanoproject.api.appchain.transition.TransitionKernel;
 import org.yanoproject.api.appchain.transition.TransitionScalars;
 import org.yanoproject.api.appchain.transition.TransitionWorkBudget;
 import org.yanoproject.api.appchain.transition.TransitionWorkReference;
+import org.yanoproject.x.composite.bindings.BindingExpressionEvaluator.Scoped;
 import org.yanoproject.x.composite.contracts.BindingCbor;
+import org.yanoproject.x.composite.contracts.BindingExpressionV1.Scope;
 import org.yanoproject.x.composite.contracts.BindingExpressionV1.Type;
 import org.yanoproject.x.composite.contracts.BindingIrV1;
 import org.yanoproject.x.composite.contracts.BindingIrV1.Binding;
@@ -43,8 +45,16 @@ import java.util.function.Function;
  */
 public final class BindingProgram {
     public static final String BASELINE = "composite.command-accepted.v1";
+    /**
+     * The {@code context.*} fields (ADR-031.3 §5.3). In a binding they describe the step that produced the event:
+     * its source block height, the originator's sender, whether it was derived, its depth, and the binding that
+     * derived it ({@code ""} for the source step). They are consensus values the engine already holds.
+     */
+    public static final Map<String, Type> CONTEXT_FIELDS = Map.of("height", Type.INTEGER, "sender", Type.BYTES,
+            "derived", Type.BOOLEAN, "depth", Type.INTEGER, "binding", Type.TEXT);
     private final BindingIrV1 ir;
     private final Map<String, TransitionKernel<?, ?>> kernels;
+    private final Map<String, List<CommandDescriptor>> commands;
     private final Map<String, List<String>> readParticipants;
     private final Map<TransitionWorkReference, TransitionWorkBudget> workBudgets;
     private final Map<String, Set<TransitionWorkReference>> workReferences;
@@ -63,6 +73,11 @@ public final class BindingProgram {
         Set<String> components = new HashSet<>();
         ir.components().forEach(component -> components.add(component.id()));
         if (!components.equals(kernels.keySet())) throw invalid("KERNEL_CONTRACT_INVALID", "kernel/component mismatch");
+        // ADR-031.3 Phase 2 interim guard: rules are decodable only once they are also enforced.
+        if (!ir.rules().isEmpty() || ir.components().stream().anyMatch(component -> !component.admission().isEmpty())) {
+            throw invalid("RULE_UNSUPPORTED", "admission rules are not supported by this runtime");
+        }
+        Map<String, List<CommandDescriptor>> commandSnapshots = new LinkedHashMap<>();
         Map<String, List<String>> participantReads = new LinkedHashMap<>();
         for (var entry : this.kernels.entrySet()) {
             var kernel = entry.getValue();
@@ -77,11 +92,13 @@ public final class BindingProgram {
                     || events.stream().map(event -> event.eventId()).distinct().count() != events.size()) {
                 throw invalid("KERNEL_CONTRACT_INVALID", "reserved or duplicate native event id");
             }
-            var commands = kernel.commands();
+            var commands = List.copyOf(kernel.commands());
             if (commands.stream().map(CommandDescriptor::commandName).distinct().count() != commands.size()) {
                 throw invalid("KERNEL_CONTRACT_INVALID", "duplicate command name");
             }
+            commandSnapshots.put(entry.getKey(), commands);
         }
+        this.commands = Map.copyOf(commandSnapshots);
         this.readParticipants = Map.copyOf(participantReads);
         Map<TransitionWorkReference, TransitionWorkBudget> budgets = new LinkedHashMap<>();
         Map<String, Set<String>> reserved = new LinkedHashMap<>();
@@ -164,19 +181,51 @@ public final class BindingProgram {
         return Map.copyOf(result);
     }
     public CommandDescriptor command(CommandTarget target) {
-        var commands = kernel(target.component()).commands().stream()
+        kernel(target.component());
+        var matches = commands.get(target.component()).stream()
                 .filter(command -> command.commandName().equals(target.command())).toList();
-        if (commands.size() != 1) throw invalid("UNKNOWN_TARGET_COMMAND", "unknown or duplicate target command");
-        return commands.getFirst();
+        if (matches.size() != 1) throw invalid("UNKNOWN_TARGET_COMMAND", "unknown or duplicate target command");
+        return matches.getFirst();
+    }
+
+    /** Returns the construction-time snapshot of a component kernel's command descriptors. */
+    public List<CommandDescriptor> commands(String component) {
+        kernel(component);
+        return commands.get(component);
+    }
+
+    /**
+     * Builds the descriptor view of a command body (ADR-031.3 §5.4), charging both work counters before each
+     * allocation. The component's kernel must be command-selectable.
+     *
+     * @throws BindingFailure {@code ADMISSION_RULE_INPUT} when the body has no canonical view, or
+     *                        {@code EXPRESSION_CAPACITY_EXCEEDED} when a counter is exhausted
+     */
+    public BindingCommandView.View commandView(String component, byte[] body,
+                                               BindingExpressionEvaluator.Budget cascade,
+                                               BindingExpressionEvaluator.Budget block) {
+        // Descriptors resolve outside the failure mapping: an unknown component is an engine bug, not input.
+        List<CommandDescriptor> descriptors = commands(component);
+        try {
+            return BindingCommandView.decode(descriptors, body, units -> BindingWork.charge(units, cascade, block));
+        } catch (IllegalArgumentException | ArithmeticException noView) {
+            throw new BindingFailure("ADMISSION_RULE_INPUT");
+        }
+    }
+
+    /** Declared binding inputs for one source event: its fields and the producing step's context. */
+    private static Scoped<Type> bindingScope(Map<String, Type> event) {
+        return new Scoped<>(Map.of(Scope.EVENT, event, Scope.CONTEXT, CONTEXT_FIELDS));
     }
 
     private void validate(Binding binding) {
-        Map<String, Type> schema;
-        try { schema = schema(binding.sourceComponent(), binding.eventId()); }
+        Map<String, Type> eventSchema;
+        try { eventSchema = schema(binding.sourceComponent(), binding.eventId()); }
         catch (IllegalArgumentException invalid) {
             throw BindingValidationException.annotate(invalid,
                     BindingValidationException.Context.part("source-event"));
         }
+        Scoped<Type> schema = bindingScope(eventSchema);
         int lookups = 0;
         for (int index = 0; index < binding.conditions().size(); index++) {
             var clause = binding.conditions().get(index);
@@ -184,7 +233,7 @@ public final class BindingProgram {
             if (clause instanceof FieldClause field) location += " field '" + field.field() + "'";
             try {
                 if (clause instanceof FieldClause field) {
-                    Type type = requireField(schema, field.field());
+                    Type type = requireField(eventSchema, field.field());
                     for (var operand : field.operands()) {
                         if (BindingExpressionEvaluator.type(operand.value()) != type) throw invalidType();
                     }
@@ -225,7 +274,7 @@ public final class BindingProgram {
         if (mapping.kind() == BindingIrV1.MappingKind.RAW_BODY) {
             validateAt("raw body field '" + mapping.bodyField() + "'", "UNCLASSIFIED",
                     BindingValidationException.Context.part("raw-body"), () -> {
-                        if (requireField(schema, mapping.bodyField()) != Type.BYTES) throw invalidType();
+                        if (requireField(eventSchema, mapping.bodyField()) != Type.BYTES) throw invalidType();
                     });
         }
         mapping.fields().forEach(field -> validateAt("mapping field '" + field.field() + "'", "UNCLASSIFIED",
@@ -241,7 +290,7 @@ public final class BindingProgram {
             if (mapping.kind() == BindingIrV1.MappingKind.RAW_BODY) {
                 // Raw bytes can select any opcode understood by the target codec, not just the
                 // command named in the binding. Never let a harmless descriptor hide an evidence path.
-                for (var candidate : kernel(target.component()).commands()) {
+                for (var candidate : commands(target.component())) {
                     for (var field : candidate.fields()) {
                         if (field.role() == CommandDescriptor.Role.EVIDENCE) {
                             throw BindingValidationException.annotate(invalid("BINDING_EVIDENCE_UNSATISFIABLE",
@@ -265,8 +314,9 @@ public final class BindingProgram {
                 validateAt("target field '" + field.name() + "'"
                         + (field.role() == CommandDescriptor.Role.EVIDENCE ? " (evidence)" : ""), "UNCLASSIFIED",
                         BindingValidationException.Context.field("target-field", field.name()), () -> {
+                    // Evidence is copied byte for byte from an event field; context values are never evidence.
                     if (field.role() == CommandDescriptor.Role.EVIDENCE
-                            && !(source instanceof BindingSourceV1.Field)) {
+                            && !(source instanceof BindingSourceV1.Field copied && copied.scope() == Scope.EVENT)) {
                         throw invalid("BINDING_EVIDENCE_UNSATISFIABLE", "BINDING_EVIDENCE_UNSATISFIABLE");
                     }
                     if (source == null && (field.required() || command.layout() != CommandDescriptor.Layout.MAP)) {
@@ -286,7 +336,7 @@ public final class BindingProgram {
         }
     }
 
-    private Type sourceType(BindingSourceV1 source, Map<String, Type> schema) {
+    private Type sourceType(BindingSourceV1 source, Scoped<Type> schema) {
         String location = source instanceof BindingSourceV1.Function function
                 ? "function '" + function.functionId() + "'"
                 : source instanceof BindingSourceV1.Expression ? "expression" : "source";
@@ -298,8 +348,8 @@ public final class BindingProgram {
         }
     }
 
-    private Type sourceTypeAt(BindingSourceV1 source, Map<String, Type> schema) {
-        if (source instanceof BindingSourceV1.Field field) return requireField(schema, field.name());
+    private Type sourceTypeAt(BindingSourceV1 source, Scoped<Type> schema) {
+        if (source instanceof BindingSourceV1.Field field) return requireField(schema, field);
         if (source instanceof BindingSourceV1.Literal literal) return BindingExpressionEvaluator.type(literal.value());
         if (source instanceof BindingSourceV1.Expression expression) {
             BindingExpressionEvaluator.validate(expression.expression(), schema, ir.limits());
@@ -358,8 +408,10 @@ public final class BindingProgram {
      * @return {@code -1} when all clauses hold, otherwise the zero-based first failing clause ordinal
      * @throws BindingFailure on data-dependent decoding, type, or resource-limit errors
      */
-    public int condition(Binding binding, Map<String, Object> event, Function<String, AppStateReader> views,
+    public int condition(Binding binding, Map<String, Object> event, Map<String, Object> context,
+                         Function<String, AppStateReader> views,
                          BindingExpressionEvaluator.Budget cascade, BindingExpressionEvaluator.Budget block) {
+        Scoped<Object> inputs = new Scoped<>(Map.of(Scope.EVENT, event, Scope.CONTEXT, context));
         try { BindingWork.charge(1, cascade, block); }
         catch (BindingFailure failure) { throw failure.at(binding.id(), -1); }
         for (int index = 0; index < binding.conditions().size(); index++) {
@@ -389,7 +441,7 @@ public final class BindingProgram {
                         }
                     };
                 } else if (clause instanceof LookupClause lookup) {
-                    Object key = source(lookup.key(), event, cascade, block);
+                    Object key = source(lookup.key(), inputs, cascade, block);
                     if (!(key instanceof byte[] bytes)) throw new BindingFailure("LOOKUP_KEY_TYPE");
                     if (bytes.length == 0 || bytes.length > ir.limits().maxFunctionInputBytes()) {
                         throw new BindingFailure("LOOKUP_KEY_LIMIT");
@@ -410,13 +462,13 @@ public final class BindingProgram {
                     matches = switch (lookup.expectation()) {
                         case EXISTS -> current.isPresent();
                         case ABSENT -> current.isEmpty();
-                        case EQUAL_LITERAL, EQUAL_EVENT -> current.isPresent()
-                                && equal(current.get(), source(lookup.operand(), event, cascade, block),
+                        case EQUAL_LITERAL, EQUAL_FIELD -> current.isPresent()
+                                && equal(current.get(), source(lookup.operand(), inputs, cascade, block),
                                         cascade, block);
                     };
                 } else {
-                    Object result = BindingExpressionEvaluator.evaluate(((ExpressionClause) clause).expression(), event,
-                            ir.limits(), cascade, block);
+                    Object result = BindingExpressionEvaluator.evaluate(((ExpressionClause) clause).expression(),
+                            inputs, ir.limits(), cascade, block);
                     matches = Boolean.TRUE.equals(result);
                 }
                 if (!matches) return index;
@@ -436,7 +488,7 @@ public final class BindingProgram {
      * @return newly encoded or defensively copied target payload
      * @throws BindingFailure if required event data is missing, mistyped, or exceeds evaluation limits
      */
-    public byte[] payload(Binding binding, Map<String, Object> event, byte[] eventBytes,
+    public byte[] payload(Binding binding, Map<String, Object> event, Map<String, Object> context, byte[] eventBytes,
                           BindingExpressionEvaluator.Budget cascade, BindingExpressionEvaluator.Budget block) {
         var mapping = binding.target().mapping();
         BindingWork.charge(1, cascade, block);
@@ -450,8 +502,9 @@ public final class BindingProgram {
             BindingWork.charge(bytes.length, cascade, block);
             return bytes.clone();
         }
+        Scoped<Object> inputs = new Scoped<>(Map.of(Scope.EVENT, event, Scope.CONTEXT, context));
         Map<String, Object> values = new LinkedHashMap<>();
-        mapping.fields().forEach(field -> values.put(field.field(), source(field.source(), event, cascade, block)));
+        mapping.fields().forEach(field -> values.put(field.field(), source(field.source(), inputs, cascade, block)));
         if (binding.target() instanceof CommandTarget target) {
             CommandDescriptor command = command(target);
             for (var field : command.fields()) {
@@ -459,31 +512,30 @@ public final class BindingProgram {
                     throw new BindingFailure("MAPPING_TYPE_ERROR");
                 }
             }
-            if (command.layout() != CommandDescriptor.Layout.MAP) {
-                List<Object> array = new ArrayList<>();
-                if (command.layout() == CommandDescriptor.Layout.ARRAY_WITH_OPCODE) array.add(command.opCode());
-                command.fields().forEach(field -> array.add(values.get(field.name())));
-                BindingWork.charge(BindingWork.encoding(array), cascade, block);
-                return BindingCbor.encode(array);
-            }
+            // One encoder serves mapped commands and, inverted, the ADR-031.3 command view.
+            Object tree = BindingCommandView.tree(command, values);
+            BindingWork.charge(BindingWork.encoding(tree), cascade, block);
+            return BindingCbor.encode(tree);
         }
         BindingWork.charge(BindingWork.encoding(values), cascade, block);
         return BindingCbor.encode(values);
     }
 
-    private Object source(BindingSourceV1 source, Map<String, Object> event,
+    private Object source(BindingSourceV1 source, Scoped<Object> inputs,
                           BindingExpressionEvaluator.Budget cascade, BindingExpressionEvaluator.Budget block) {
         BindingWork.charge(1, cascade, block);
         if (source instanceof BindingSourceV1.Literal literal) return literal.value();
         if (source instanceof BindingSourceV1.Field field) {
-            if (!event.containsKey(field.name())) throw new BindingFailure("MAPPING_MISSING_FIELD");
-            return event.get(field.name());
+            Map<String, Object> scope = inputs.of(field.scope());
+            if (!scope.containsKey(field.name())) throw new BindingFailure("MAPPING_MISSING_FIELD");
+            Object value = scope.get(field.name());
+            return value instanceof byte[] bytes ? bytes.clone() : value;
         }
         if (source instanceof BindingSourceV1.Expression expression) {
-            return BindingExpressionEvaluator.evaluate(expression.expression(), event, ir.limits(), cascade, block);
+            return BindingExpressionEvaluator.evaluate(expression.expression(), inputs, ir.limits(), cascade, block);
         }
         var function = (BindingSourceV1.Function) source;
-        List<Object> args = function.arguments().stream().map(argument -> source(argument, event, cascade,
+        List<Object> args = function.arguments().stream().map(argument -> source(argument, inputs, cascade,
                 block)).toList();
         long bytes = args.stream().mapToLong(BindingWork::size).sum();
         if (bytes > ir.limits().maxFunctionInputBytes()) throw new BindingFailure("FUNCTION_INPUT_LIMIT");
@@ -542,6 +594,13 @@ public final class BindingProgram {
     private static Type requireField(Map<String, Type> fields, String name) {
         Type type = fields.get(name);
         if (type == null) throw invalid("UNKNOWN_EVENT_FIELD", "unknown event field: " + name);
+        return type;
+    }
+    private static Type requireField(Scoped<Type> fields, BindingSourceV1.Field field) {
+        if (field.scope() == Scope.EVENT) return requireField(fields.of(Scope.EVENT), field.name());
+        // Context fields are fixed by the contract, which rejects any other name at construction.
+        Type type = fields.of(field.scope()).get(field.name());
+        if (type == null) throw invalid("UNCLASSIFIED", "unknown " + field.scope().label() + " field: " + field.name());
         return type;
     }
     private static int functionCount(BindingSourceV1 source) {

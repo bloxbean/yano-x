@@ -146,9 +146,10 @@ before constructing these inputs.
 
 Success means byte-exact profile reconstruction only. It does not prove replay,
 binary semantic equivalence, migration safety, historical proof correctness or
-effect-result compatibility. The current stock provider executes version 1.1.0;
-it cannot restore an old 1.0.0 implementation simply by receiving old IR. Do not
-upgrade such retained chains in place or rewrite their identity markers.
+effect-result compatibility. The current stock provider executes version 1.2.0,
+and IR or receipts written before ADR-031.3 (versions 1.1.0 and 1.0.0) fail decode
+with a "predates ADR-031.3" error. Re-create such experimental chains from their
+YAML; do not upgrade them in place or rewrite their identity markers.
 
 ## Before sharing a deployment
 

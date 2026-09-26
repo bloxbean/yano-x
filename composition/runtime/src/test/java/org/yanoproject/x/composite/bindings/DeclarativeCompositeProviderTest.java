@@ -79,8 +79,8 @@ class DeclarativeCompositeProviderTest {
         var provider = new DeclarativeCompositeProvider();
         var original = (CompositeStateMachine) provider.create(new Context(document(1, "records.v1")));
         assertThat(original.profile().schemaVersion()).isEqualTo(2);
-        assertThat(original.profile().profileVersion()).isEqualTo("1.1.0");
-        assertThat(original.profile().workflows().getFirst().semanticVersion()).isEqualTo("1.1.0");
+        assertThat(original.profile().profileVersion()).isEqualTo("1.2.0");
+        assertThat(original.profile().workflows().getFirst().semanticVersion()).isEqualTo("1.2.0");
         byte[] committed = original.profile().canonicalBytes();
         AppStateReader retained = new AppStateReader() {
             @Override public Optional<byte[]> get(byte[] key) {

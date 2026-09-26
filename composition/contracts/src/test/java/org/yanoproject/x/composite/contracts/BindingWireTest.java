@@ -20,8 +20,9 @@ class BindingWireTest {
         assertThat(defaults.maxExpressionValueBytes()).isEqualTo(65536);
         assertThat(defaults.maxExpressionWorkPerCascade()).isEqualTo(1048576);
         assertThat(defaults.maxExpressionWorkPerBlock()).isEqualTo(33554432);
+        assertThat(defaults.maxRulesPerComponent()).isEqualTo(4);
         var older = new BindingIrV1.Limits(8, 32, 4096, 4096, 2, 8, 4096,
-                128, 16, 4096, 262144, 4194304);
+                128, 16, 4096, 262144, 4194304, 16);
         var document = new BindingIrV1(List.of(
                 new BindingIrV1.Component("source", "test", "source.v1", Map.of(), 0)), List.of(), older);
         var decoded = BindingIrV1.decode(document.encode());
@@ -76,11 +77,17 @@ class BindingWireTest {
     @Test
     void receiptGoldenHeaderAndDefensiveCopies() {
         byte[] source = new byte[32];
-        var receipt = new BindingReceiptV1(source, 1, true, null, "", List.of());
+        var step = new BindingReceiptV1.Step(0, 0, null, "source", new byte[32], List.of(), List.of(), "PLANNED", "",
+                false);
+        var receipt = new BindingReceiptV1(source, 1, true, null, "", List.of(step));
         source[0] = 1;
         receipt.sourceMessageId()[0] = 2;
-        String expected = "87015820" + "00".repeat(32) + "01684143434550544544f66080";
+        // Envelope, then one 11-element step: [0, 0, null, "source", id, [], [], [0, null], "PLANNED", "", false].
+        String expected = "87015820" + "00".repeat(32) + "01684143434550544544f66081" + "8b0000f666736f75726365"
+                + "5820" + "00".repeat(32) + "80808200f667504c414e4e454460f4";
         assertThat(hex(receipt.encode())).isEqualTo(expected);
+        assertThatThrownBy(() -> new BindingReceiptV1(new byte[32], 1, true, null, "", List.of()))
+                .hasMessageContaining("receipt limit");
         assertThat(BindingReceiptV1.decode(receipt.encode()).encode()).containsExactly(receipt.encode());
     }
 

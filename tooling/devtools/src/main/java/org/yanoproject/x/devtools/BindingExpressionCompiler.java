@@ -5,21 +5,35 @@ import dev.cel.common.CelOptions;
 import dev.cel.common.CelValidationException;
 import dev.cel.common.ast.CelExpr;
 import dev.cel.common.types.CelType;
+import dev.cel.common.types.ListType;
 import dev.cel.common.types.SimpleType;
 import dev.cel.compiler.CelCompilerFactory;
 import org.yanoproject.x.composite.bindings.BindingExpressionEvaluator;
+import org.yanoproject.x.composite.bindings.BindingExpressionEvaluator.Scoped;
 import org.yanoproject.x.composite.contracts.BindingExpressionV1;
 import org.yanoproject.x.composite.contracts.BindingExpressionV1.Call;
 import org.yanoproject.x.composite.contracts.BindingExpressionV1.Field;
 import org.yanoproject.x.composite.contracts.BindingExpressionV1.Literal;
 import org.yanoproject.x.composite.contracts.BindingExpressionV1.Node;
+import org.yanoproject.x.composite.contracts.BindingExpressionV1.Scope;
 import org.yanoproject.x.composite.contracts.BindingExpressionV1.Type;
 import org.yanoproject.x.composite.contracts.BindingIrV1.Limits;
 
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
-/** Offline CEL parser/type checker that lowers only the committed yano-x-cel-v1 operator set. */
+/**
+ * Offline CEL parser/type checker that lowers only the committed yano-x-cel-v1 operator set.
+ *
+ * <p>Fields are scoped (ADR-031.3): {@code event.*} and {@code context.*} in bindings; {@code command.*},
+ * {@code params.*}, {@code config.*}, {@code context.*} and {@code facts.*} in admission rules. Each use site
+ * declares only its legal scopes, so misuse is a CEL undeclared reference, reported with its position and the
+ * name of the unavailable scope. Kernel-declared text sets are CEL {@code list(string)} and usable with {@code in}.
+ */
 public final class BindingExpressionCompiler {
+    private static final Pattern UNDECLARED = Pattern.compile("undeclared reference to '([a-z]+)");
+
     private BindingExpressionCompiler() { }
 
     /**
@@ -33,12 +47,23 @@ public final class BindingExpressionCompiler {
      * @return canonical-serializable expression with an explicit scalar result type
      * @throws IllegalArgumentException if parsing, type checking, dialect lowering, or bounds validation fails
      */
-    public static BindingExpressionV1 compile(String source, Map<String, Type> fields, Limits limits) {
+    /**
+     * Compiles CEL over the fields of the scopes legal at one use site.
+     *
+     * @param source expression text using declared fields as {@code <scope>.<field>}
+     * @param fields declared field types per available scope; a scope absent here is unavailable
+     * @param limits selected profile bounds, checked again against the lowered expression
+     * @param useSite diagnostic name of the use site, for example {@code "a binding"}
+     * @return canonical-serializable expression with an explicit scalar result type
+     * @throws IllegalArgumentException if parsing, type checking, dialect lowering, or bounds validation fails
+     */
+    public static BindingExpressionV1 compile(String source, Scoped<Type> fields, Limits limits, String useSite) {
         if (source == null || source.length() > 8192) throw new ExpressionException("expression source limit", null);
         var builder = CelCompilerFactory.standardCelCompilerBuilder().setStandardMacros()
                 .setOptions(CelOptions.current().maxExpressionCodePointSize(8192)
                         .maxParseRecursionDepth(64).maxParseExpressionNodeCount(1024).build());
-        fields.forEach((name, type) -> builder.addVar("event." + name, celType(type)));
+        fields.scopes().forEach((scope, declared) -> declared.forEach((name, type) ->
+                builder.addVar(scope.label() + "." + name, celType(type))));
         try {
             CelAbstractSyntaxTree ast = builder.build().compile(source).getAst();
             BindingExpressionV1 expression = new BindingExpressionV1(type(ast.getResultType()),
@@ -51,7 +76,17 @@ public final class BindingExpressionCompiler {
             int line = location == null ? -1 : location.getLine();
             int column = location == null ? -1 : location.getColumn();
             boolean positioned = line >= 1 && column >= 0 && !hasNonLineFeedBreak(source);
-            throw new ExpressionException("invalid binding expression: " + failure.getMessage(), failure,
+            String message = "invalid binding expression: " + failure.getMessage();
+            Matcher undeclared = UNDECLARED.matcher(failure.getMessage());
+            if (undeclared.find()) {
+                String name = undeclared.group(1);
+                for (Scope scope : Scope.values()) {
+                    if (scope.label().equals(name) && !fields.scopes().containsKey(scope)) {
+                        message = name + " scope is not available in " + useSite + ": " + failure.getMessage();
+                    }
+                }
+            }
+            throw new ExpressionException(message, failure,
                     positioned ? line : null, positioned ? utf16Column(source, line, column) : null);
         } catch (ExpressionException failure) {
             throw failure;
@@ -121,16 +156,16 @@ public final class BindingExpressionCompiler {
             }
             case IDENT -> {
                 String name = expression.ident().name();
-                if (!name.startsWith("event.")) throw new IllegalArgumentException("expression scope");
-                yield new Field(name.substring("event.".length()));
+                int dot = name.indexOf('.');
+                if (dot < 0) throw new IllegalArgumentException("expression scope");
+                yield new Field(scope(name.substring(0, dot)), name.substring(dot + 1));
             }
             case SELECT -> {
                 var select = expression.select();
-                if (select.testOnly() || select.operand().getKind() != CelExpr.ExprKind.Kind.IDENT
-                        || !select.operand().ident().name().equals("event")) {
+                if (select.testOnly() || select.operand().getKind() != CelExpr.ExprKind.Kind.IDENT) {
                     throw new IllegalArgumentException("unsupported expression selection");
                 }
-                yield new Field(select.field());
+                yield new Field(scope(select.operand().ident().name()), select.field());
             }
             case CALL -> {
                 var call = expression.call();
@@ -152,6 +187,7 @@ public final class BindingExpressionCompiler {
                     case "_/_" -> "div";
                     case "_%_" -> "mod";
                     case "-_" -> "neg";
+                    case "@in" -> "in";
                     default -> throw new IllegalArgumentException(
                             "unsupported expression function: " + call.function());
                 };
@@ -161,16 +197,23 @@ public final class BindingExpressionCompiler {
         };
     }
 
+    private static Scope scope(String label) {
+        for (Scope scope : Scope.values()) if (scope.label().equals(label)) return scope;
+        throw new IllegalArgumentException("expression scope");
+    }
     private static CelType celType(Type type) {
         return switch (type) {
             case INTEGER -> SimpleType.INT;
             case TEXT -> SimpleType.STRING;
             case BYTES -> SimpleType.BYTES;
             case BOOLEAN -> SimpleType.BOOL;
+            case TEXT_SET -> ListType.create(SimpleType.STRING);
         };
     }
     private static Type type(CelType type) {
-        for (Type candidate : Type.values()) if (celType(candidate).equals(type)) return candidate;
+        for (Type candidate : Type.values()) {
+            if (candidate != Type.TEXT_SET && celType(candidate).equals(type)) return candidate;
+        }
         throw new IllegalArgumentException("unsupported expression type: " + type);
     }
 }

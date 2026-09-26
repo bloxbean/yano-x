@@ -1,6 +1,7 @@
 package org.yanoproject.x.devtools;
 
 import org.junit.jupiter.api.Test;
+import org.yanoproject.x.composite.bindings.BindingExpressionEvaluator;
 import org.yanoproject.api.appchain.AppStateReader;
 import org.yanoproject.api.appchain.codec.MessageCodec;
 import org.yanoproject.api.appchain.transition.CommandDescriptor;
@@ -151,16 +152,22 @@ class BindingAuthoringLanguageConformanceTest {
                 Map.entry("event.i % event.j", "mod"), Map.entry("-event.i", "neg"));
         Set<String> exercised = new TreeSet<>();
         accepted.forEach((source, operator) -> {
-            var expression = BindingExpressionCompiler.compile(source, fields, limits);
+            var expression = bindingCompile(source, fields, limits);
             assertThat(((BindingExpressionV1.Call) expression.root()).operator()).as(source).isEqualTo(operator);
             exercised.add(operator);
         });
+        var rule = new org.yanoproject.x.composite.bindings.BindingExpressionEvaluator.Scoped<>(Map.of(
+                BindingExpressionV1.Scope.PARAMS, Map.of("role", BindingExpressionV1.Type.TEXT),
+                BindingExpressionV1.Scope.FACTS, Map.of("roles", BindingExpressionV1.Type.TEXT_SET)));
+        var in = BindingExpressionCompiler.compile("params.role in facts.roles", rule, limits, "an admission rule");
+        assertThat(((BindingExpressionV1.Call) in.root()).operator()).isEqualTo("in");
+        exercised.add("in");
         assertThat(exercised).containsExactlyInAnyOrderElementsOf(BindingAuthoringLanguage.operators().stream()
                 .map(value -> (String) value.get("ir")).toList());
         for (String rejected : List.of("event.t < event.u", "event.o + event.p", "event.i && event.o",
                 "event.t == event.i", "event.i.size()", "[1, 2].exists(x, x > 1)", "1.5 > 1.0",
                 "matches(event.t, 'a')", "event.o ? event.i : event.t")) {
-            assertThatThrownBy(() -> BindingExpressionCompiler.compile(rejected, fields, limits))
+            assertThatThrownBy(() -> bindingCompile(rejected, fields, limits))
                     .as(rejected).isInstanceOf(IllegalArgumentException.class);
         }
     }
@@ -181,7 +188,7 @@ class BindingAuthoringLanguageConformanceTest {
         }
         var defaults = BindingIrV1.Limits.DEFAULT;
         assertThat(limits.getFirst().get("default")).isEqualTo(Integer.toString(defaults.maxCascadeDepth()));
-        assertThat(limits.getLast().get("default")).isEqualTo(Integer.toString(defaults.maxExpressionWorkPerBlock()));
+        assertThat(limits.getLast().get("default")).isEqualTo(Integer.toString(defaults.maxRulesPerComponent()));
     }
 
     private static BindingIrV1.Limits limitsWith(int position, int value) {
@@ -190,10 +197,35 @@ class BindingAuthoringLanguageConformanceTest {
                 defaults.maxDerivedPerBlock(), defaults.maxEventPayloadBytes(), defaults.maxLookupsPerCondition(),
                 defaults.maxFunctionCallsPerMapping(), defaults.maxFunctionInputBytes(), defaults.maxExpressionNodes(),
                 defaults.maxExpressionDepth(), defaults.maxExpressionValueBytes(),
-                defaults.maxExpressionWorkPerCascade(), defaults.maxExpressionWorkPerBlock()};
+                defaults.maxExpressionWorkPerCascade(), defaults.maxExpressionWorkPerBlock(),
+                defaults.maxRulesPerComponent()};
         values[position] = value;
         return new BindingIrV1.Limits(values[0], values[1], values[2], values[3], values[4], values[5], values[6],
-                values[7], values[8], values[9], values[10], values[11]);
+                values[7], values[8], values[9], values[10], values[11], values[12]);
+    }
+
+    @Test
+    void scopeAndRuleTablesMatchTheContracts() {
+        @SuppressWarnings("unchecked")
+        var byName = BindingAuthoringLanguage.scopes().stream().collect(java.util.stream.Collectors.toMap(
+                value -> (String) value.get("name"), value -> (List<String>) value.get("useSites")));
+        for (var scope : BindingExpressionV1.Scope.values()) {
+            assertThat(byName.get(scope.label()).contains("binding-condition"))
+                    .isEqualTo(BindingExpressionV1.BINDING_SCOPES.contains(scope));
+            assertThat(byName.get(scope.label()).contains("admission-rule"))
+                    .isEqualTo(BindingExpressionV1.RULE_SCOPES.contains(scope));
+        }
+        assertThat(BindingAuthoringLanguage.contextFields()).extracting(value -> value.get("name"))
+                .containsExactlyInAnyOrderElementsOf(BindingExpressionV1.CONTEXT_FIELDS);
+        assertThat(BindingAuthoringLanguage.fieldTypes()).extracting(value -> value.get("name"))
+                .containsExactly("integer", "text", "bytes", "boolean", "text-set");
+        assertThat(BindingExpressionV1.Type.values()).hasSize(BindingAuthoringLanguage.fieldTypes().size());
+        var rules = BindingAuthoringLanguage.rules();
+        assertThat(rules.get("parameterTypes")).isEqualTo(java.util.Arrays.stream(BindingIrV1.ParameterType.values())
+                .map(type -> type.name().toLowerCase(java.util.Locale.ROOT)).toList());
+        assertThat(rules.get("reservedDenyCodePrefix")).isEqualTo("ADMISSION_RULE_");
+        assertThatThrownBy(() -> new BindingIrV1.Parameter("in", BindingIrV1.ParameterType.TEXT, null))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
@@ -268,7 +300,7 @@ class BindingAuthoringLanguageConformanceTest {
         assertThat(table).isEqualTo(found);
         for (var code : BindingAuthoringLanguage.receiptCodes()) {
             assertThat(Set.of("target-rejection", "resource-exhaustion", "evaluation-error", "replay-or-conflict",
-                    "contract-violation")).contains((String) code.get("category"));
+                    "contract-violation", "admission-rule")).contains((String) code.get("category"));
             assertThat(Set.of("always", "never", "ambiguous")).contains((String) code.get("locatesLastCondition"));
         }
     }
@@ -370,5 +402,13 @@ class BindingAuthoringLanguageConformanceTest {
             @Override public List<EventDescriptor> events() { return events; }
             @Override public ConfigurationDescriptor configuration() { return ConfigurationDescriptor.empty(); }
         };
+    }
+
+    /** Compiles a binding expression over event fields and the producing step's context. */
+    private static BindingExpressionV1 bindingCompile(String source, Map<String, BindingExpressionV1.Type> fields,
+                                                      BindingIrV1.Limits limits) {
+        return BindingExpressionCompiler.compile(source, new BindingExpressionEvaluator.Scoped<>(Map.of(
+                BindingExpressionV1.Scope.EVENT, fields, BindingExpressionV1.Scope.CONTEXT,
+                BindingProgram.CONTEXT_FIELDS)), limits, "a binding");
     }
 }

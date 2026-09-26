@@ -138,6 +138,11 @@ final class StockTransitionKernels {
             @Override public byte[] lookupKey(byte[] logicalKey) {
                 return BalancesContract.accountKey(logicalText(logicalKey));
             }
+            /**
+             * The descriptor declares {@code amount} as a signed 64-bit integer, while the codec accepts any
+             * unsigned amount. A body with an amount at or above 2^63 therefore has no descriptor view: a
+             * command-selecting admission rule refuses it with {@code ADMISSION_RULE_INPUT} (ADR-031.3 §5.4).
+             */
             @Override public List<CommandDescriptor> commands() {
                 List<CommandDescriptor.Field> fields = List.of(field("to", TransitionScalars.Type.TEXT),
                         field("amount", TransitionScalars.Type.INTEGER));

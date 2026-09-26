@@ -9,6 +9,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.dataformat.yaml.YAMLParser;
 import org.yanoproject.api.appchain.transition.ConfigurationDescriptor;
+import org.yanoproject.x.composite.bindings.BindingExpressionEvaluator.Scoped;
+import org.yanoproject.x.composite.bindings.BindingProgram;
 import org.yanoproject.x.composite.contracts.BindingExpressionV1;
 import org.yanoproject.x.composite.contracts.BindingExpressionV1.Type;
 import org.yanoproject.x.composite.contracts.BindingIrV1;
@@ -99,7 +101,7 @@ public final class BindingDocumentCompiler {
     static final List<String> LIMIT_NAMES = List.of("maxCascadeDepth", "maxDerivedPerSourceMessage",
             "maxDerivedPerBlock", "maxEventPayloadBytes", "maxLookupsPerCondition", "maxFunctionCallsPerMapping",
             "maxFunctionInputBytes", "maxExpressionNodes", "maxExpressionDepth", "maxExpressionValueBytes",
-            "maxExpressionWorkPerCascade", "maxExpressionWorkPerBlock");
+            "maxExpressionWorkPerCascade", "maxExpressionWorkPerBlock", "maxRulesPerComponent");
     /** Function identifiers accepted by authoring; profile construction still validates signatures. */
     static final Set<String> FUNCTIONS = Set.of("blake2b-256", "sha-256", "concat", "utf8-bytes",
             "hex", "byte-length", "cbor-encode", "cbor-field");
@@ -314,7 +316,7 @@ public final class BindingDocumentCompiler {
             // Historical messages name the clause, not its expr field; the location still records the field.
             String source = text(node.get("expr"), path.field("expr"));
             return new ExpressionClause(at("EXPRESSION_INVALID", path, path.field("expr"),
-                    () -> BindingExpressionCompiler.compile(source, fields, limits)));
+                    () -> BindingExpressionCompiler.compile(source, bindingScope(fields), limits, "a binding")));
         }
         if (node != null && node.has("lookup")) {
             object(node, path, "lookup");
@@ -326,7 +328,7 @@ public final class BindingDocumentCompiler {
             BindingSourceV1 operand = null;
             if (operator.equals("eq")) {
                 operand = source(lookup.get(operator), lookupPath.field("eq"), fields, limits, 0);
-                expectation = operand instanceof BindingSourceV1.Field ? Expectation.EQUAL_EVENT
+                expectation = operand instanceof BindingSourceV1.Field ? Expectation.EQUAL_FIELD
                         : Expectation.EQUAL_LITERAL;
             } else {
                 requireTrue(lookup.get(operator), lookupPath.field(operator));
@@ -425,7 +427,14 @@ public final class BindingDocumentCompiler {
     private static BindingExpressionV1 expression(JsonNode node, BindingDocumentPath path, Map<String, Type> fields,
                                                   Limits limits) {
         String source = text(node, path);
-        return at("EXPRESSION_INVALID", path, path, () -> BindingExpressionCompiler.compile(source, fields, limits));
+        return at("EXPRESSION_INVALID", path, path,
+                () -> BindingExpressionCompiler.compile(source, bindingScope(fields), limits, "a binding"));
+    }
+
+    /** Binding expressions read the event's fields and the producing step's {@code context.*} (ADR-031.3). */
+    private static Scoped<Type> bindingScope(Map<String, Type> event) {
+        return new Scoped<>(Map.of(BindingExpressionV1.Scope.EVENT, event,
+                BindingExpressionV1.Scope.CONTEXT, BindingProgram.CONTEXT_FIELDS));
     }
 
     private static Limits limits(JsonNode node) {
@@ -438,10 +447,10 @@ public final class BindingDocumentCompiler {
                 defaults.maxFunctionCallsPerMapping(),
                 defaults.maxFunctionInputBytes(), defaults.maxExpressionNodes(), defaults.maxExpressionDepth(),
                 defaults.maxExpressionValueBytes(), defaults.maxExpressionWorkPerCascade(),
-                defaults.maxExpressionWorkPerBlock()};
+                defaults.maxExpressionWorkPerBlock(), defaults.maxRulesPerComponent()};
         for (int i = 0; i < values.length; i++) values[i] = integer(node, LIMIT_NAMES.get(i), values[i], path);
         return new Limits(values[0], values[1], values[2], values[3], values[4], values[5], values[6], values[7],
-                values[8], values[9], values[10], values[11]);
+                values[8], values[9], values[10], values[11], values[12]);
     }
 
     private static Object scalar(JsonNode node, BindingDocumentPath path) {

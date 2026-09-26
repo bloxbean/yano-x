@@ -67,6 +67,19 @@ final class BindingReport {
                 item.put("failedClause", condition.failedClause());
                 return item;
             }).toList());
+            Map<String, Object> rules = new LinkedHashMap<>();
+            rules.put("heldCount", step.rules().heldCount());
+            var failure = step.rules().failure();
+            if (failure == null) {
+                rules.put("failure", null);
+            } else {
+                Map<String, Object> failed = new LinkedHashMap<>();
+                failed.put("ruleId", failure.ruleId());
+                failed.put("failedClause", failure.failedClause());
+                failed.put("denyCode", failure.denyCode());
+                rules.put("failure", failed);
+            }
+            value.put("rules", rules);
             value.put("status", step.status());
             value.put("code", step.code());
             value.put("rawBody", step.rawBody());

@@ -18,7 +18,7 @@ export const OPERATORS = Object.freeze(['eq', 'ne', 'lt', 'le', 'gt', 'ge', 'in'
 export const LIMIT_NAMES = Object.freeze(['maxCascadeDepth', 'maxDerivedPerSourceMessage', 'maxDerivedPerBlock',
   'maxEventPayloadBytes', 'maxLookupsPerCondition', 'maxFunctionCallsPerMapping', 'maxFunctionInputBytes',
   'maxExpressionNodes', 'maxExpressionDepth', 'maxExpressionValueBytes', 'maxExpressionWorkPerCascade',
-  'maxExpressionWorkPerBlock']);
+  'maxExpressionWorkPerBlock', 'maxRulesPerComponent']);
 
 /** Unrepresentable or schema-invalid import; `path` uses compiler-style segments. */
 export class DraftImportError extends Error {

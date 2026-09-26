@@ -5,8 +5,8 @@
   "manifest" : {
     "schemaVersion" : 1,
     "applicationId" : "declarative-composite",
-    "applicationVersion" : "1.1.0",
-    "manifestDigest" : "37a7744d05e85338a27b105968724b5bafa382a47eb886dbbcf53ed8f710f86c",
+    "applicationVersion" : "1.2.0",
+    "manifestDigest" : "40aeabcd1aa4be1cd862bb51484142b2a90cd636efa421edca6cd394c0fb5aae",
     "components" : [ {
       "id" : "audit",
       "version" : "1.0.0",
@@ -26,7 +26,7 @@
     } ],
     "workflows" : [ {
       "id" : "event-bindings",
-      "version" : "1.1.0",
+      "version" : "1.2.0",
       "participantComponentIds" : [ "audit", "records" ],
       "topic" : "audit.command.v1",
       "effectTypes" : [ ],
@@ -36,7 +36,7 @@
       "capabilityId" : "composite-workflow-routes",
       "version" : "1.0.0",
       "enabled" : true,
-      "configurationDigest" : "18c3c8c1bff6a58b35cf7c275ee178c422a041bc3b27852b76044951cef611e7",
+      "configurationDigest" : "b53efbd10de8bc4b53085adaef6316a2429028387190ab17c7d75e70c0a2b360",
       "attributes" : {
         "event-bindings.topic.0" : "audit.command.v1",
         "event-bindings.topic.1" : "records.command.v1"
@@ -46,7 +46,7 @@
       "capabilityId" : "declarative-event-bindings",
       "version" : "1.0.0",
       "enabled" : true,
-      "configurationDigest" : "18c3c8c1bff6a58b35cf7c275ee178c422a041bc3b27852b76044951cef611e7",
+      "configurationDigest" : "b53efbd10de8bc4b53085adaef6316a2429028387190ab17c7d75e70c0a2b360",
       "attributes" : {
         "binding.audit-record.command" : "append",
         "binding.audit-record.event" : "kv-registry.entry-put.v1",
@@ -88,7 +88,7 @@
     } ]
   },
   "operationalStatus" : {
-    "activeProfileDigest" : "18c3c8c1bff6a58b35cf7c275ee178c422a041bc3b27852b76044951cef611e7",
+    "activeProfileDigest" : "b53efbd10de8bc4b53085adaef6316a2429028387190ab17c7d75e70c0a2b360",
     "mode" : "fixed"
   },
   "valid" : true

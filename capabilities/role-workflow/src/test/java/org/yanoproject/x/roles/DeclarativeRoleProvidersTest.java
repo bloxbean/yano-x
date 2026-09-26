@@ -2,6 +2,7 @@ package org.yanoproject.x.roles;
 
 import com.bloxbean.cardano.client.crypto.KeyGenUtil;
 import org.junit.jupiter.api.Test;
+import org.yanoproject.x.composite.bindings.BindingCommandView;
 import org.yanoproject.api.appchain.AppBlock;
 import org.yanoproject.api.appchain.AppBlockExecutionContext;
 import org.yanoproject.api.appchain.AppStateMachine;
@@ -129,6 +130,25 @@ class DeclarativeRoleProvidersTest {
                 rejected -> assertThat(rejected.rejection().code()).isEqualTo("INVALID_SIGNATURE"));
         assertThat(fixture.actors.get(RoleWorkflowKeys.cryptoWork())).isPresent();
         assertThat(fixture.approvals.get(RoleWorkflowKeys.proposal("invalid"))).isEmpty();
+    }
+
+    /**
+     * ADR-031.3 §5.4 conformance: the approval kernel declares one opcode command, so it is command-selectable. Its
+     * view round-trips every staged command byte for byte and exposes only the opaque action bytes; the signed
+     * command is evidence and never readable by a rule.
+     */
+    @Test
+    void approvalCommandsHaveACanonicalViewExposingOnlyTheActionBytes() {
+        var kernel = new Fixture().approvalMachine.transitionKernel().orElseThrow();
+        assertThat(BindingCommandView.selectable(kernel.commands())).isTrue();
+        for (var staged : List.of(command(ActorStatementV1.Action.PROPOSE, "release", 20, ACTION),
+                command(ActorStatementV1.Action.APPROVE, "release", 20, new byte[0]))) {
+            var view = BindingCommandView.decode(kernel.commands(),
+                    staged.encode());
+            assertThat(view.command().commandName()).isEqualTo("actor-command");
+            assertThat(view.data()).containsOnlyKeys("action");
+            assertThat((byte[]) view.data().get("action")).containsExactly(staged.action());
+        }
     }
 
     private static StagedActorCommandV1 command(ActorStatementV1.Action action, String id,

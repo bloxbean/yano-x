@@ -66,6 +66,7 @@ record BindingDiagnostic(String code, String severity, String message, String de
             Map.entry("UNKNOWN_COMPONENT", "The component is not declared in this document"),
             Map.entry("DUPLICATE_COMPONENT", "The component id is declared more than once"),
             Map.entry("UNKNOWN_EVENT_FIELD", "The event does not declare this field"),
+            Map.entry("RULE_UNSUPPORTED", "This runtime does not yet enforce admission rules"),
             Map.entry("NESTED_WRAPPER", "Only one composite wrapper is allowed"),
             Map.entry("COMPONENT_CONFIGURATION_INVALID",
                     "The selected machine rejected this component or its configuration"),

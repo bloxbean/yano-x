@@ -231,6 +231,7 @@ public final class EventBindingWorkflow implements CompositeWorkflow {
                 // The semantic event exists even when no subscriber requires its expensive scalar payload.
                 currentEvents = new ArrayList<>(plan.events().stream().map(TransitionEvent::eventId).toList());
                 currentEvents.add(BindingProgram.BASELINE);
+                Map<String, Object> producing = bindingContext(origin, current);
                 for (TransitionEvent event : events) {
                     if (event.payload().length > limits.maxEventPayloadBytes())
                             throw new BindingFailure("EVENT_PAYLOAD_TOO_LARGE");
@@ -243,7 +244,7 @@ public final class EventBindingWorkflow implements CompositeWorkflow {
                         if (conditions.size() == BindingReceiptV1.MAX_CONDITION_RECORDS) {
                             throw new BindingFailure("RECEIPT_CAPACITY_EXCEEDED");
                         }
-                        int failed = program.condition(binding, values, overlays::get, expressionBudget,
+                        int failed = program.condition(binding, values, producing, overlays::get, expressionBudget,
                                 work.expressions);
                         conditions.add(new BindingReceiptV1.Condition(binding.id(), failed));
                         if (failed >= 0) continue;
@@ -254,7 +255,7 @@ public final class EventBindingWorkflow implements CompositeWorkflow {
                         byte[] id = derivedId(source.getMessageId(), binding.id(), produced);
                         byte[] payload;
                         try {
-                            payload = program.payload(binding, values, event.payload(), expressionBudget,
+                            payload = program.payload(binding, values, producing, event.payload(), expressionBudget,
                                     work.expressions);
                         } catch (BindingFailure mappingFailure) {
                             // Preserve the parent's visited outcomes, then name the attempted child whose
@@ -389,7 +390,7 @@ public final class EventBindingWorkflow implements CompositeWorkflow {
             throw new IllegalStateException("event-free failure diagnostic exceeds receipt limit");
         }
         trace.set(0, new BindingReceiptV1.Step(failed.ordinal(), failed.depth(), failed.bindingId(),
-                failed.targetComponentId(), failed.messageId(), List.of(), failed.conditions(),
+                failed.targetComponentId(), failed.messageId(), List.of(), failed.conditions(), failed.rules(),
                 failed.status(), failed.code(), failed.rawBody()));
     }
 
@@ -497,6 +498,14 @@ public final class EventBindingWorkflow implements CompositeWorkflow {
         byte[] name = binding.getBytes(StandardCharsets.US_ASCII);
         return Blake2bUtil.blake2bHash256(ByteBuffer.allocate(domain.length + source.length + name.length + 4)
                 .put(domain).put(source).put(name).putInt(ordinal).array());
+    }
+    /**
+     * The {@code context.*} values of one step (ADR-031.3 §5.3): the source height and originator sender, which
+     * every step shares, and the step's own derivation record. Bindings see the step that produced their event.
+     */
+    private static Map<String, Object> bindingContext(TransitionContext origin, Step step) {
+        return Map.of("height", origin.height(), "sender", origin.sender(), "derived", step.depth > 0,
+                "depth", (long) step.depth, "binding", step.binding == null ? "" : step.binding);
     }
     private record Step(String component, byte[] body, TransitionContext context,
                         String binding, int ordinal, int depth, boolean raw) { }

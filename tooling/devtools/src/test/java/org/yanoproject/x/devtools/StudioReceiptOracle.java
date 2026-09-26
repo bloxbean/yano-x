@@ -3,6 +3,7 @@ package org.yanoproject.x.devtools;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.yanoproject.x.composite.contracts.BindingCbor;
 import org.yanoproject.x.composite.contracts.BindingReceiptV1;
 
 import java.io.IOException;
@@ -89,7 +90,7 @@ public final class StudioReceiptOracle {
         valid.put("synthetic.rejected.child", new BindingReceiptV1(id, Long.MAX_VALUE, false, 1, "AUTHORIZATION",
                 List.of(planned, child)).encode());
         // Text fields beginning with U+FEFF must be preserved (and therefore rejected as unknown statuses).
-        byte[] bom = new BindingReceiptV1(id, 1, true, null, "", List.of()).encode();
+        byte[] bom = new BindingReceiptV1(id, 1, true, null, "", List.of(planned)).encode();
         byte[] withBom = new byte[bom.length + 3];
         int status = 0;
         for (int index = 0; index < bom.length - 8; index++) {
@@ -108,6 +109,16 @@ public final class StudioReceiptOracle {
         valid.put("synthetic.zero-height", new BindingReceiptV1(id, 0, false, 0, "X", List.of(
                 new BindingReceiptV1.Step(0, 0, null, "a", id, List.of(), List.of(), "REJECTED", "X", false)))
                 .encode());
+        // ADR-031.3: a maximal rule failure (63-character rule id and deny code) after held rules.
+        valid.put("synthetic.rule-denial", new BindingReceiptV1(id, 3, false, 1, "ADMISSION_RULE_DENIED", List.of(
+                new BindingReceiptV1.Step(0, 0, null, "records", id, List.of("composite.command-accepted.v1"),
+                        List.of(new BindingReceiptV1.Condition("audit-record", -1)),
+                        new BindingReceiptV1.RuleTrace(16, null), "PLANNED", "", false),
+                new BindingReceiptV1.Step(1, 1, "audit-record", "audit", id, List.of(), List.of(),
+                        new BindingReceiptV1.RuleTrace(15, new BindingReceiptV1.RuleFailure("r".repeat(63), 7,
+                                "D".repeat(63))), "REJECTED", "ADMISSION_RULE_DENIED", false))).encode());
+        // A step written before ADR-031.3 (10 elements, no rule trace) must be rejected by both decoders.
+        valid.put("mutant.pre-adr-step", preAdrStep(id));
         List<BindingReceiptV1.Condition> conditions = new ArrayList<>();
         for (int index = 0; index < BindingReceiptV1.MAX_CONDITION_RECORDS; index++) {
             conditions.add(new BindingReceiptV1.Condition("b" + index, index % 9 - 1));
@@ -116,6 +127,11 @@ public final class StudioReceiptOracle {
                 new BindingReceiptV1.Step(256, 33, "z".repeat(127), "t".repeat(127), id,
                         Collections.nCopies(3, "e.v1"), conditions, "REJECTED", "C".repeat(127), true))).encode());
         return valid;
+    }
+
+    private static byte[] preAdrStep(byte[] id) {
+        List<Object> step = Arrays.asList(0L, 0L, null, "a", id, List.of(), List.of(), "PLANNED", "", false);
+        return BindingCbor.encode(Arrays.asList(1L, id, 1L, "ACCEPTED", null, "", List.of(step)));
     }
 
     static List<byte[]> mutations(byte[] valid) {

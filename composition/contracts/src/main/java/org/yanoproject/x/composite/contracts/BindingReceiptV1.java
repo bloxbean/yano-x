@@ -7,6 +7,8 @@ import java.util.Objects;
 /**
  * Bounded authenticated explanation of one source-message cascade, including rejected attempts.
  * The version-one CBOR envelope stores source id, height, overall status, failed ordinal, code, and steps.
+ * ADR-031.3 amended each step in place with an eleventh element, the compact admission-rule trace; steps written
+ * before that amendment fail decode with an explicit error.
  * A planned step in a rejected receipt is diagnostic only: its mutations were not committed. Receipts do
  * not carry event payloads or constitute authorization evidence for another command.
  *
@@ -37,6 +39,47 @@ public record BindingReceiptV1(byte[] sourceMessageId, long height, boolean acce
         Object wire() { return List.of(bindingId, failedClause); }
     }
     /**
+     * The first admission rule that did not hold at a step (ADR-031.3).
+     *
+     * @param ruleId the failed rule
+     * @param failedClause zero-based clause that was false or raised an error, or {@code -1} when the rule failed
+     *                     before any clause ran: the command view or kernel facts could not be established, or the
+     *                     rule's own precharge exhausted work
+     * @param denyCode the rule's deny code for {@code ADMISSION_RULE_DENIED}; {@code null} otherwise
+     */
+    public record RuleFailure(String ruleId, int failedClause, String denyCode) {
+        public RuleFailure {
+            if (ruleId == null || !ruleId.matches("[a-z][a-z0-9-]{0,62}")) {
+                throw new IllegalArgumentException("receipt rule id");
+            }
+            if (failedClause < -1 || failedClause > 7 || denyCode != null && (failedClause < 0
+                    || !denyCode.matches("[A-Z][A-Z0-9_]{0,62}") || denyCode.startsWith("ADMISSION_RULE_"))) {
+                throw new IllegalArgumentException("receipt rule failure");
+            }
+        }
+        Object wire() { return Arrays.asList(ruleId, failedClause, denyCode); }
+    }
+    /**
+     * Compact, lossless admission-rule trace of one step. Evaluation order is fixed by the committed IR
+     * (admission-slot rules in attachment order, then fact rules in attachment order, skipping rules whose
+     * command selector does not match, stopping at the first failure), so the held count and the failure
+     * identify every rule that held. Fact values are never recorded.
+     *
+     * @param heldCount rules that held, before the failure if there was one
+     * @param failure the first rule that did not hold, or {@code null}
+     */
+    public record RuleTrace(int heldCount, RuleFailure failure) {
+        /** A step with no evaluated rule. */
+        public static final RuleTrace NONE = new RuleTrace(0, null);
+        public RuleTrace {
+            if (heldCount < 0 || heldCount > BindingIrV1.Limits.MAX_RULES_PER_COMPONENT
+                    || failure != null && heldCount == BindingIrV1.Limits.MAX_RULES_PER_COMPONENT) {
+                throw new IllegalArgumentException("receipt rule trace");
+            }
+        }
+        Object wire() { return Arrays.asList(heldCount, failure == null ? null : failure.wire()); }
+    }
+    /**
      * Diagnostic step metadata. Source ordinal/depth are zero; derived ordinals are one-based.
      * {@code bindingId} is null for the source. Event ids describe produced schemas, not payload contents.
      * {@code rawBody} identifies command mappings that forwarded opaque command bytes.
@@ -48,14 +91,16 @@ public record BindingReceiptV1(byte[] sourceMessageId, long height, boolean acce
      * @param messageId source or deterministic derived id, copied on construction and access
      * @param eventsProduced event schema ids in production order
      * @param conditions considered bindings and their condition outcomes
+     * @param rules admission rules evaluated for this step's command
      * @param status PLANNED, EFFECT_PLANNED, or REJECTED; overall receipt status determines commit outcome
      * @param code stable failure code, empty for planned steps
      * @param rawBody whether opaque command bytes were forwarded without field mapping
      */
     public record Step(int ordinal, int depth, String bindingId, String targetComponentId,
                        byte[] messageId, List<String> eventsProduced, List<Condition> conditions,
-                       String status, String code, boolean rawBody) {
+                       RuleTrace rules, String status, String code, boolean rawBody) {
         public Step {
+            Objects.requireNonNull(rules, "rules");
             messageId = messageId.clone();
             eventsProduced = List.copyOf(eventsProduced);
             conditions = List.copyOf(conditions);
@@ -69,10 +114,17 @@ public record BindingReceiptV1(byte[] sourceMessageId, long height, boolean acce
                     || conditions.size() > MAX_CONDITION_RECORDS)
                             throw new IllegalArgumentException("receipt step limit");
         }
+        /** A step at which no admission rule was evaluated. */
+        public Step(int ordinal, int depth, String bindingId, String targetComponentId, byte[] messageId,
+                    List<String> eventsProduced, List<Condition> conditions, String status, String code,
+                    boolean rawBody) {
+            this(ordinal, depth, bindingId, targetComponentId, messageId, eventsProduced, conditions,
+                    RuleTrace.NONE, status, code, rawBody);
+        }
         @Override public byte[] messageId() { return messageId.clone(); }
         Object wire() {
             return Arrays.asList(ordinal, depth, bindingId, targetComponentId, messageId, eventsProduced,
-                    conditions.stream().map(Condition::wire).toList(), status, code, rawBody);
+                    conditions.stream().map(Condition::wire).toList(), rules.wire(), status, code, rawBody);
         }
     }
     public BindingReceiptV1 {
@@ -82,7 +134,8 @@ public record BindingReceiptV1(byte[] sourceMessageId, long height, boolean acce
         if (code.length() > 127 || accepted && (failedStepOrdinal != null || !code.isEmpty())
                 || !accepted && (failedStepOrdinal == null || failedStepOrdinal < 0
                 || failedStepOrdinal > 256 || code.isEmpty())) throw new IllegalArgumentException("receipt outcome");
-        if (sourceMessageId.length != 32 || height < 0 || steps.size() > 257) {
+        // Every cascade records at least its source step, so an empty trace is not a receipt.
+        if (sourceMessageId.length != 32 || height < 0 || steps.isEmpty() || steps.size() > 257) {
             throw new IllegalArgumentException("receipt limit");
         }
     }
@@ -121,11 +174,24 @@ public record BindingReceiptV1(byte[] sourceMessageId, long height, boolean acce
     }
 
     private static Step step(Object value) {
-        List<?> fields = BindingCbor.array(value, 10);
+        if (value instanceof List<?> legacy && legacy.size() == 10) {
+            throw new IllegalArgumentException("binding receipt predates ADR-031.3: step has the pre-policy-plane "
+                    + "layout without a rule trace");
+        }
+        List<?> fields = BindingCbor.array(value, 11);
         if (!(fields.get(4) instanceof byte[] id) || !(fields.get(5) instanceof List<?> events)
-                || !(fields.get(6) instanceof List<?> conditions) || !(fields.get(9) instanceof Boolean raw)) {
+                || !(fields.get(6) instanceof List<?> conditions) || !(fields.get(10) instanceof Boolean raw)) {
             throw new IllegalArgumentException("receipt step");
         }
+        List<?> trace = BindingCbor.array(fields.get(7), 2);
+        RuleFailure failure = null;
+        if (trace.get(1) != null) {
+            List<?> failed = BindingCbor.array(trace.get(1), 3);
+            failure = new RuleFailure(BindingCbor.text(failed.get(0)),
+                    Math.toIntExact(BindingCbor.integer(failed.get(1))),
+                    failed.get(2) == null ? null : BindingCbor.text(failed.get(2)));
+        }
+        RuleTrace rules = new RuleTrace(Math.toIntExact(BindingCbor.integer(trace.get(0))), failure);
         return new Step(Math.toIntExact(BindingCbor.integer(fields.get(0))),
                 Math.toIntExact(BindingCbor.integer(fields.get(1))),
                 fields.get(2) == null ? null : BindingCbor.text(fields.get(2)), BindingCbor.text(fields.get(3)), id,
@@ -133,6 +199,6 @@ public record BindingReceiptV1(byte[] sourceMessageId, long height, boolean acce
                     List<?> condition = BindingCbor.array(valueCondition, 2);
                     return new Condition(BindingCbor.text(condition.get(0)),
                             Math.toIntExact(BindingCbor.integer(condition.get(1))));
-                }).toList(), BindingCbor.text(fields.get(7)), BindingCbor.text(fields.get(8)), raw);
+                }).toList(), rules, BindingCbor.text(fields.get(8)), BindingCbor.text(fields.get(9)), raw);
     }
 }

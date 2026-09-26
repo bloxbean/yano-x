@@ -5,9 +5,9 @@
   "assurance" : "Unauthenticated local tool output. Matching digests show that the same inputs were used; they do not identify the producer, prove finality or approve a deployment.",
   "producer" : {
     "tool" : "yano-x-devtools",
-    "version" : "0.1.0-pre2",
-    "jarSha256" : "c6a54f4eaf74e12d2cd3cdcf80684476bc686b42f59bc2229cafddcfcf1a2e5c",
-    "linkedCompositeJarSha256" : "ac7554151dc4a47b7d8e43d9d47f65731e2b34f0f5051f8cc482740ca7a6ade4"
+    "version" : "0.1.0-pre3",
+    "jarSha256" : "6755c251414c5e1a54c69db642febed174e783ddc8970ac94cad806ea389c34d",
+    "linkedCompositeJarSha256" : "3a2aee65c65d34ed6b694672cc4dd2e38e1c98f665ef5b289fcfec6fa7614434"
   },
   "host" : {
     "version" : "0.1.0-pre17",
@@ -16,27 +16,27 @@
   },
   "authoringEnvironment" : "yano-x-binding-authoring-environment-v1",
   "catalog" : {
-    "fingerprint" : "sha256:128015618c1048515440b7323fc1db510436396f0c14a1d19821be7af17b7f09",
+    "fingerprint" : "sha256:b9594028ec11982342704c9feac5d89297426490af66e2953ec27d617ba01d14",
     "pluginApi" : {
       "major" : 3,
       "level" : 11
     },
     "bundles" : [ {
       "id" : "org.yanoproject.x.composite",
-      "version" : "0.1.0-pre2",
-      "digest" : "sha256:308db9cec88247bba29a99569cc9465e659a3f6022d9b10146f05b51c0725d31",
+      "version" : "0.1.0-pre3",
+      "digest" : "sha256:7b7a500522753baa1050aa14bc3928a6f15524c5886750f15af10dcc5590fd85",
       "digestMode" : "ARTIFACT_CLOSURE",
       "selected" : true
     }, {
       "id" : "org.yanoproject.x.role-workflow",
-      "version" : "0.1.0-pre2",
-      "digest" : "sha256:4113e25527a6e7da0d5cdb85ac9ccfefa8b15adbdd755ab054f613af9baae78e",
+      "version" : "0.1.0-pre3",
+      "digest" : "sha256:c31bfe0b81700bdd03784be86f07c7103031f71b2d480a1c653264dc51e48612",
       "digestMode" : "ARTIFACT_CLOSURE",
       "selected" : true
     }, {
       "id" : "org.yanoproject.x.stdlib",
-      "version" : "0.1.0-pre2",
-      "digest" : "sha256:3b118673de03e97cd5b6f502993965fff0c5ab7ed9661d13d554e01d19d36a2b",
+      "version" : "0.1.0-pre3",
+      "digest" : "sha256:1b0106b582c682d1db2a55c9f6c56103675d597f8a7c695f9faeb417eadcbbb6",
       "digestMode" : "ARTIFACT_CLOSURE",
       "selected" : true
     } ]
@@ -59,17 +59,17 @@
   }, {
     "role" : "priorResult",
     "state" : "read",
-    "bytes" : "7595",
-    "sha256" : "897afa58b1795463e0fad19cad37e8f1f2dc268cd73aced9386c9fbf9fc01234"
+    "bytes" : "7650",
+    "sha256" : "4427f1ce487930061565bbdbac5c585c25e24c8c62bc4e31447eaeac8ecce434"
   } ],
   "documentFormat" : "yaml",
   "result" : {
-    "irHex" : "8701781b79616e6f2d782d62696e64696e672d66756e6374696f6e732d76316d79616e6f2d782d63656c2d7631018286677265766965777369617070726f76616c7372726576696577732e636f6d6d616e642e7631a000018665617564697469646f632d747261696c7061756469742e636f6d6d616e642e7631a0000181856f7265636f72642d617070726f7665646772657669657773781a617070726f76616c732e6974656d2d617070726f7665642e763180840065617564697466617070656e6484018268656e7469747949648200666974656d49648269656e7472794861736882006b7061796c6f61644861736882697265666572656e6365820168617070726f7665648c0818201910001a0001000002081a000100001880101a000100001a001000001a02000000",
-    "irSha256" : "68564d39d641a5a00a492958d4c179eaffd2a062b56d70ca1fde631a030b355b",
+    "irHex" : "8801781b79616e6f2d782d62696e64696e672d66756e6374696f6e732d76316d79616e6f2d782d63656c2d7631018287677265766965777369617070726f76616c7372726576696577732e636f6d6d616e642e7631a00001808765617564697469646f632d747261696c7061756469742e636f6d6d616e642e7631a00001808081856f7265636f72642d617070726f7665646772657669657773781a617070726f76616c732e6974656d2d617070726f7665642e763180840065617564697466617070656e6484018268656e746974794964830000666974656d49648269656e747279486173688300006b7061796c6f61644861736882697265666572656e6365820168617070726f7665648d0818201910001a0001000002081a000100001880101a000100001a001000001a0200000004",
+    "irSha256" : "72dd725d387aaaf91c3bcb4b17eb7581ab415548ce91678c6dea8089977d8d58",
     "profile" : {
-      "digestHex" : "34c0f56b323f4487df5765dca9df5729860912d843fa306d47e458c224a4d20d",
+      "digestHex" : "b92bc285ac226bfde87471034738617ff8d862ecf8dc8b91432fdd93528e67c4",
       "schemaVersion" : 2,
-      "executionVersion" : "1.1.0"
+      "executionVersion" : "1.2.0"
     },
     "counts" : {
       "components" : 2,
@@ -78,23 +78,23 @@
     "rehearsal" : {
       "continuationOnly" : false,
       "fromPriorResult" : true,
-      "priorPostStateSha256" : "4229e430d0e57be930fc74727fd8d19763383f8fd70ecdcf15bb7504db9e191c",
+      "priorPostStateSha256" : "1fdd9d5576bda9279a1fc58e44464d30c3d560a2ea41fbe34063e8864fec9435",
       "assumptions" : {
         "height" : "2",
         "timestamp" : "2000",
         "stateRootHex" : "0000000000000000000000000000000000000000000000000000000000000000",
         "pendingEffects" : "0"
       },
-      "executionIdentity" : "cb016532ce356c269c110f7fe453dcc972e43d76ee21f51b73cf11213d23661e",
+      "executionIdentity" : "f5c504d3fe70ea05d705cc688e4ac37fc4c1a50f0226f55ce1a2f19f30cc0066",
       "assurance" : "execution-only; fixture inputs are not authenticated; no post-state root or finality claim",
-      "postStateSha256" : "b61af20b6b17ce1e8cf37d70216d7d3a805208bf4e9d623c3601eec4618a02e0",
+      "postStateSha256" : "55c28a30d36c7cf9399a3f57475c5b6f6fa14b0038260b48c74fd28736c0d45d",
       "stateChangeCount" : 8,
       "messages" : [ {
         "messageIndex" : 0,
         "messageIdHex" : "4242424242424242424242424242424242424242424242424242424242424242",
         "topic" : "reviews.command.v1",
         "disposition" : "executed",
-        "receiptHex" : "87015820424242424242424242424242424242424242424242424242424242424242424202684143434550544544f660818a0000f667726576696577735820424242424242424242424242424242424242424242424242424242424242424281781d636f6d706f736974652e636f6d6d616e642d61636365707465642e76318067504c414e4e454460f4",
+        "receiptHex" : "87015820424242424242424242424242424242424242424242424242424242424242424202684143434550544544f660818b0000f667726576696577735820424242424242424242424242424242424242424242424242424242424242424281781d636f6d706f736974652e636f6d6d616e642d61636365707465642e7631808200f667504c414e4e454460f4",
         "receipt" : {
           "version" : 1,
           "sourceMessageIdHex" : "4242424242424242424242424242424242424242424242424242424242424242",
@@ -110,6 +110,10 @@
             "messageIdHex" : "4242424242424242424242424242424242424242424242424242424242424242",
             "eventsProduced" : [ "composite.command-accepted.v1" ],
             "conditions" : [ ],
+            "rules" : {
+              "heldCount" : 0,
+              "failure" : null
+            },
             "status" : "PLANNED",
             "code" : "",
             "rawBody" : false
@@ -345,6 +349,12 @@
   }, {
     "code" : "UNDECLARED_WORK_REFERENCE",
     "category" : "contract-violation",
+    "origin" : "either",
+    "levels" : [ "step" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "ADMISSION_RULE_INPUT",
+    "category" : "admission-rule",
     "origin" : "either",
     "levels" : [ "step" ],
     "locatesLastCondition" : "never"

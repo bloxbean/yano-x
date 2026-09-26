@@ -162,7 +162,7 @@ class AdmissionCharacterizationTest {
         assertThat(fixture.source.factsCalls).isZero();
         assertThat(fixture.source.decideCalls).isZero();
         Fixture tight = new Fixture(new BindingIrV1.Limits(8, 32, 4096, 65536, 2, 8, 65536, 128, 16, 65536,
-                64, 33554432));
+                64, 33554432, 4));
         AppMessage large = message(2, new byte[128]);
         assertThat(tight.engine.validate(large).reason()).isEqualTo("COMMAND_WORK_EXCEEDED");
         assertThat(tight.source.statelessCalls).isZero();
@@ -195,23 +195,24 @@ class AdmissionCharacterizationTest {
         assertThat(encoded.length).isLessThan(BindingReceiptV1.MAX_BYTES);
     }
 
-    // Pinned in Phase 0 against the pre-ADR-031.3 implementation. Phase 2 and Phase 3 must update these pins
-    // deliberately and explain every difference in the implementation ledger.
+    // Pinned in Phase 0 against the pre-ADR-031.3 implementation. Differences since then, explained in the ledger:
+    //  - Phase 2: every receipt step gains the eleventh element, the empty rule trace [0, null] (3 bytes: 82 00 f6),
+    //    so step arrays grow from 10 (8a) to 11 (8b) elements; the compacted failure step grows by 3 bytes.
     private static final String SOURCE_ADMISSION_RECEIPT = "870158200000000000000000000000000000000000000000000000000000000000000001016852454a454354"
-            + "4544006941444d495353494f4e818a0000f666736f7572636558200000000000000000000000000000000000"
-            + "00000000000000000000000000000180806852454a45435445446941444d495353494f4ef4";
+            + "4544006941444d495353494f4e818b0000f666736f7572636558200000000000000000000000000000000000"
+            + "00000000000000000000000000000180808200f66852454a45435445446941444d495353494f4ef4";
     private static final String DERIVED_ADMISSION_RECEIPT = "870158200000000000000000000000000000000000000000000000000000000000000001016852454a454354"
-            + "4544016941444d495353494f4e828a0000f666736f7572636558200000000000000000000000000000000000"
+            + "4544016941444d495353494f4e828b0000f666736f7572636558200000000000000000000000000000000000"
             + "00000000000000000000000000000181781d636f6d706f736974652e636f6d6d616e642d6163636570746564"
-            + "2e7631818267666f72776172642067504c414e4e454460f48a010167666f7277617264667461726765745820"
-            + "6ca55de6a1625ef6f09f62b55a8207f170a1251b472e710ea1d66987ad1c3e8e80806852454a454354454469"
-            + "41444d495353494f4ef5";
+            + "2e7631818267666f7277617264208200f667504c414e4e454460f48b010167666f7277617264667461726765"
+            + "7458206ca55de6a1625ef6f09f62b55a8207f170a1251b472e710ea1d66987ad1c3e8e80808200f66852454a"
+            + "45435445446941444d495353494f4ef5";
     // Source preparation charges only the cascade counter, so a source-step rejection leaves block work at zero.
     private static final long SOURCE_ADMISSION_WORK = 0;
     private static final long DERIVED_ADMISSION_WORK = 170;
     private static final long ACCEPTED_WORK = 170;
     private static final long TARGET_REJECTED_WORK = 170;
-    private static final int COMPACTED_FAILURE_BYTES = 33827;
+    private static final int COMPACTED_FAILURE_BYTES = 33830;
 
     private static AppMessage message(int identity) {
         return message(identity, BODY);

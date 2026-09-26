@@ -283,8 +283,8 @@ every deviation live in the [implementation ledger](031.3-implementation-progres
 |---|---|---|
 | RULE-000: contract freeze and characterization | Implemented | Amended CDDL and golden vectors, host signatures, fact tables, characterization tests |
 | RULE-001: Yano host contract | Implemented (local snapshot) | `RuleFact`, `TransitionKernel` fact accessors, plugin API level 12, facade forwarding; local Maven publication |
-| RULE-002: contracts, dialect, command view, binding context | In progress | In-place v1 amendments, `EXECUTION_VERSION` 1.2.0, scoped CEL, `TEXT_SET`/`in`, command view and kernel conformance |
-| RULE-003: runtime evaluation | Ready | Rule validation and diagnostics, two evaluation slots, advisory ingress, receipts, manifest attributes |
+| RULE-002: contracts, dialect, command view, binding context | Implemented | In-place v1 amendments, `EXECUTION_VERSION` 1.2.0, scoped CEL, `TEXT_SET`/`in`, command view and kernel conformance |
+| RULE-003: runtime evaluation | In progress | Rule validation and diagnostics, two evaluation slots, advisory ingress, receipts, manifest attributes |
 | RULE-004: kernel fact providers | Ready | Governed map and `governed-role-approvals` facts with negative verification tests |
 | RULE-005: authoring, tooling, Studio, documentation | Ready | YAML, schema, catalog, CLI, Studio, docs, three recipes with denial fixtures |
 | RULE-006: cluster qualification and packaging | Ready | Three-member runs, divergence, governance epoch, role change, anti-poison, distribution gates |

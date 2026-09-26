@@ -34,20 +34,24 @@ validation recomputes them instead of accepting replaced bundles silently.
 
 ## Current execution-version boundary
 
-The current provider constructs workflow and profile version **1.1.0**. Its
-lazy baseline materialization, source-versus-derived work accounting, and
-pre-kernel reservation rules differ from the earlier experimental 1.0.0 runtime.
-Unchanged IR wire shape does not make these execution versions interchangeable.
+The current provider constructs workflow and profile version **1.2.0**. ADR-031.3
+(admission rules) amended the version-one binding IR, expression dialect and
+receipt layouts in place: every amended structure changed its array arity, so IR
+and receipts written by the 1.1.0 or 1.0.0 runtimes fail decode with an explicit
+"predates ADR-031.3" error instead of being misread. Lazy baseline
+materialization, source-versus-derived work accounting, and pre-kernel
+reservation rules also differ from the earlier experimental 1.0.0 runtime.
 
 The stock provider does **not** select an old workflow implementation from a
-version field in IR. Supplying a 1.0.0 deployment's original IR in
-`machines.composite.binding-ir-catalog[...]` still constructs a 1.1.0 profile;
-it does not restore the old executable profile or its digest. Likewise, one
-currently selected machine provider cannot automatically supply both its old
+version field in IR, and it cannot decode pre-ADR-031.3 IR at all: supplying an
+earlier deployment's original IR in `machines.composite.binding-ir-catalog[...]`
+fails construction. No ADR-015 epoch from pre-ADR bytes is supported. Likewise,
+one currently selected machine provider cannot automatically supply both its old
 and new descriptor/implementation merely because both IR documents are present.
 
-Do not upgrade a retained 1.0.0 chain in place with this release. Keep its exact
-qualified runtime, or design and independently qualify an explicit migration.
+Declarative composition is experimental. Re-create a 1.1.0 or 1.0.0 chain from
+its YAML with this release; do not upgrade it in place. Keep a retained chain on
+its exact qualified runtime, or design and independently qualify a migration.
 A fresh chain with a new identity is a separate deployment, not preservation of
 the old history. Do not delete state, rewrite profile markers, regenerate a
 retained genesis identity, or change `fixed` to `governed` to bypass validation.

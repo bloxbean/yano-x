@@ -40,6 +40,7 @@ export const DIAGNOSTIC_CODES = Object.freeze({
   "PROFILE_CONSTRUCTION_FAILED": "The catalog-selected provider rejected the profile; no exact location is known",
   "RAW_TARGET_REQUIRES_RAW_MAPPING": "Opaque-bytes commands require a rawBody mapping",
   "REQUIRED_FIELD": "A required field is missing",
+  "RULE_UNSUPPORTED": "This runtime does not yet enforce admission rules",
   "UNCLASSIFIED": "The input was rejected; no more specific classification is available",
   "UNKNOWN_COMPONENT": "The component is not declared in this document",
   "UNKNOWN_EVENT": "The source component does not publish this event",

@@ -47,8 +47,11 @@ import java.util.Optional;
  */
 public final class DeclarativeCompositeProvider implements AppStateMachineProvider {
     public static final String ID = "declarative-composite";
-    /** Pins admission payload bounds and pre-kernel mandatory-work reservation in the committed profile. */
-    public static final String EXECUTION_VERSION = "1.1.0";
+    /**
+     * Pins admission payload bounds, pre-kernel mandatory-work reservation, and (1.2.0, ADR-031.3) admission
+     * rules, scoped expressions, and binding {@code context.*} in the committed profile.
+     */
+    public static final String EXECUTION_VERSION = "1.2.0";
     public static final String IR_SETTING = "machines.composite.binding-ir";
     @Override public String id() { return ID; }
     @Override public AppStateMachine create() {

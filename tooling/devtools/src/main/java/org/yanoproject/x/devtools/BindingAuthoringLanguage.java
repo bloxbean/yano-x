@@ -8,7 +8,9 @@ import org.yanoproject.x.composite.contracts.CompositeCommitmentV1;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.TreeSet;
 
 /**
  * Tooling export of the ADR-031.1 authoring language for editors (ADR-031.2 contract C1).
@@ -31,6 +33,11 @@ final class BindingAuthoringLanguage {
         language.put("expressionDialect", BindingExpressionV1.DIALECT);
         language.put("functions", functions());
         language.put("expressionOperators", operators());
+        language.put("fieldTypes", fieldTypes());
+        language.put("scopes", scopes());
+        language.put("contextFields", contextFields());
+        language.put("sourceForms", sourceForms());
+        language.put("rules", rules());
         language.put("limits", limits());
         language.put("structuralLimits", structuralLimits());
         language.put("baselineEvent", baselineEvent());
@@ -97,7 +104,121 @@ final class BindingAuthoringLanguage {
                     "integer"));
         }
         operators.add(operator("-x", "neg", "integer (checked)", "integer"));
+        operators.add(operator("in", "in", "text, text-set fact (admission rules only; stops at the first match)",
+                "boolean"));
         return List.copyOf(operators);
+    }
+
+    /**
+     * Field types by wire ordinal (ADR-031.3). {@code text-set} is a field type only: kernel-declared facts may have
+     * it, only {@code in} reads it, and no expression returns it. Distinct from the rule parameter types, whose
+     * ordinal 4 is {@code binding}.
+     */
+    static List<Map<String, Object>> fieldTypes() {
+        List<Map<String, Object>> types = new ArrayList<>();
+        String[] names = {"integer", "text", "bytes", "boolean", "text-set"};
+        for (int ordinal = 0; ordinal < names.length; ordinal++) {
+            Map<String, Object> value = new LinkedHashMap<>();
+            value.put("name", names[ordinal]);
+            value.put("ordinal", ordinal);
+            value.put("expressionResult", ordinal < 4);
+            types.add(value);
+        }
+        return List.copyOf(types);
+    }
+
+    /** Field scopes by wire ordinal and the use sites where each is legal (ADR-031.3 §5.3). */
+    static List<Map<String, Object>> scopes() {
+        List<Map<String, Object>> scopes = new ArrayList<>();
+        for (BindingExpressionV1.Scope scope : BindingExpressionV1.Scope.values()) {
+            Map<String, Object> value = new LinkedHashMap<>();
+            value.put("name", scope.label());
+            value.put("ordinal", scope.ordinal());
+            List<String> sites = new ArrayList<>();
+            if (BindingExpressionV1.BINDING_SCOPES.contains(scope)) {
+                sites.add("binding-condition");
+                sites.add("binding-mapping");
+            }
+            if (BindingExpressionV1.RULE_SCOPES.contains(scope)) sites.add("admission-rule");
+            value.put("useSites", sites);
+            value.put("note", switch (scope) {
+                case EVENT -> "fields of the event a binding subscribes to";
+                case COMMAND -> "DATA fields of the selected command; only in a rule that names a command";
+                case PARAMS -> "the attachment's parameters";
+                case CONFIG -> "the attached component's normalized configuration";
+                case CONTEXT -> "in a binding, the step that produced the event; in a rule, the step being admitted";
+                case FACTS -> "facts the attached kernel declares and established by its own verification";
+            });
+            scopes.add(value);
+        }
+        return List.copyOf(scopes);
+    }
+
+    /** The five {@code context.*} fields and their types. */
+    static List<Map<String, Object>> contextFields() {
+        List<Map<String, Object>> fields = new ArrayList<>();
+        for (String name : List.of("height", "sender", "derived", "depth", "binding")) {
+            fields.add(field(name, BindingProgram.CONTEXT_FIELDS.get(name).name().toLowerCase(Locale.ROOT)));
+        }
+        return List.copyOf(fields);
+    }
+
+    /** Authored source forms, the YAML key of each, and where each is legal. */
+    static List<Map<String, Object>> sourceForms() {
+        List<Map<String, Object>> forms = new ArrayList<>();
+        forms.add(sourceForm("field", "event", List.of("binding-condition", "binding-mapping"),
+                "an event field; the only source an evidence field accepts"));
+        forms.add(sourceForm("context", "context", List.of("binding-condition", "binding-mapping", "admission-rule"),
+                "a context field; never evidence"));
+        forms.add(sourceForm("command", "command", List.of("admission-rule"), "a DATA field of the selected command"));
+        forms.add(sourceForm("param", "params", List.of("admission-rule"), "an attachment parameter"));
+        forms.add(sourceForm("config", "config", List.of("admission-rule"), "a configuration setting"));
+        forms.add(sourceForm("fact", "facts", List.of("admission-rule"), "a kernel-declared fact"));
+        forms.add(sourceForm("literal", null, List.of("binding-condition", "binding-mapping", "admission-rule"),
+                "an embedded scalar"));
+        forms.add(sourceForm("fn", null, List.of("binding-condition", "binding-mapping", "admission-rule"),
+                "a stock function over sources"));
+        forms.add(sourceForm("expr", null, List.of("binding-condition", "binding-mapping", "admission-rule"),
+                "a restricted CEL expression; as a condition, rule clause, lookup key or mapping source"));
+        return List.copyOf(forms);
+    }
+
+    private static Map<String, Object> sourceForm(String key, String scope, List<String> sites, String note) {
+        Map<String, Object> value = new LinkedHashMap<>();
+        value.put("key", key);
+        if (scope != null) value.put("scope", scope);
+        value.put("useSites", sites);
+        value.put("note", note);
+        return value;
+    }
+
+    private static Map<String, Object> slot(String name, String when) {
+        Map<String, Object> value = new LinkedHashMap<>();
+        value.put("name", name);
+        value.put("when", when);
+        return value;
+    }
+
+    /** Admission-rule grammar (ADR-031.3 §5.2): forbid-only, conjunctive, attached per component. */
+    static Map<String, Object> rules() {
+        Map<String, Object> value = new LinkedHashMap<>();
+        value.put("idPattern", "[a-z][a-z0-9-]{0,62}");
+        value.put("idsUniqueAcrossRulesAndBindings", true);
+        value.put("denyCodePattern", "[A-Z][A-Z0-9_]{0,62}");
+        value.put("reservedDenyCodePrefix", BindingIrV1.AdmissionRule.RESERVED_PREFIX);
+        value.put("parameterNamePattern", "[a-zA-Z][a-zA-Z0-9_]{0,62}");
+        value.put("reservedNames", new TreeSet<>(BindingIrV1.CEL_RESERVED_WORDS));
+        value.put("parameterTypes", List.of("integer", "text", "bytes", "boolean", "binding"));
+        value.put("rulesPerDocument", BindingIrV1.MAX_RULES);
+        value.put("clausesPerRule", BindingIrV1.AdmissionRule.MAX_CLAUSES);
+        value.put("parametersPerRule", BindingIrV1.AdmissionRule.MAX_PARAMETERS);
+        value.put("clauseKinds", List.of("expr", "lookup"));
+        value.put("lookupExpectations", List.of("exists", "absent", "eq"));
+        value.put("slots", List.of(slot("admission",
+                        "after the kernel's admit hooks and before work reservation; rules that do not read facts"),
+                slot("fact", "after an approved kernel decision; rules that read facts")));
+        value.put("static", "expression clauses over command, params and config only; also checked at ingress");
+        return value;
     }
 
     private static Map<String, Object> operator(String cel, String ir, String operands, String result) {
@@ -116,7 +237,8 @@ final class BindingAuthoringLanguage {
                 defaults.maxDerivedPerBlock(), defaults.maxEventPayloadBytes(), defaults.maxLookupsPerCondition(),
                 defaults.maxFunctionCallsPerMapping(), defaults.maxFunctionInputBytes(), defaults.maxExpressionNodes(),
                 defaults.maxExpressionDepth(), defaults.maxExpressionValueBytes(),
-                defaults.maxExpressionWorkPerCascade(), defaults.maxExpressionWorkPerBlock()};
+                defaults.maxExpressionWorkPerCascade(), defaults.maxExpressionWorkPerBlock(),
+                defaults.maxRulesPerComponent()};
         List<Map<String, Object>> limits = new ArrayList<>();
         for (int index = 0; index < LIMIT_MAXIMA.length; index++) {
             Map<String, Object> value = new LinkedHashMap<>();
@@ -131,7 +253,7 @@ final class BindingAuthoringLanguage {
 
     /** Implementation maxima, in wire order; pinned against {@link BindingIrV1.Limits} by conformance tests. */
     static final long[] LIMIT_MAXIMA = {32, 256, 65_536, 65_536, 4, 16, 65_536, 512, 32, 65_536, 4_194_304,
-            67_108_864};
+            67_108_864, 16};
 
     /** Structural bounds enforced by the compiler and contract constructors. */
     static Map<String, Object> structuralLimits() {
@@ -226,6 +348,8 @@ final class BindingAuthoringLanguage {
         code(codes, "RESERVED_EVENT_ID", "contract-violation", "step", "never");
         code(codes, "STATE_KEY_LIMIT", "contract-violation", "step", "never");
         code(codes, "UNDECLARED_WORK_REFERENCE", "contract-violation", "step", "never");
+        // ADR-031.3 admission rules: a step whose command view cannot be built canonically.
+        code(codes, "ADMISSION_RULE_INPUT", "admission-rule", "step", "never");
         return List.copyOf(codes);
     }
 

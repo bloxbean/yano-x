@@ -57,7 +57,7 @@ class BindingFunctionsTest {
         var ir = new BindingIrV1(List.of(new BindingIrV1.Component("log", "ordered-log", "log.v1", Map.of(), 0)),
                 List.of(binding), BindingIrV1.Limits.DEFAULT);
         var program = new BindingProgram(ir, Map.of("log", new OrderedLogKernel()));
-        byte[] result = program.payload(binding, Map.of(), new byte[0],
+        byte[] result = program.payload(binding, Map.of(), Map.of(), new byte[0],
                 new BindingExpressionEvaluator.Budget(1_000_000),
                 new BindingExpressionEvaluator.Budget(1_000_000));
         return ((Map<?, ?>) BindingCbor.decode(result, 65_536)).get("value");
