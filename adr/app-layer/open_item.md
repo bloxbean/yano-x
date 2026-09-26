@@ -1,6 +1,6 @@
 # App-Layer Open Items
 
-**Last updated:** 2026-08-23
+**Last updated:** 2026-09-27
 
 **Purpose:** canonical live index of app-layer work that is open, in progress,
 blocked, or intentionally deferred.
@@ -92,6 +92,7 @@ These are the recommended next items after ADR-013 release closure.
 | INT-007 | P2 | Deferred | Shared connector-support library to reduce repeated lifecycle/config boilerplate before a fourth connector. | ADR-014 §4.3 |
 | INT-008 | P2 | Proposed | Complete DPP product profile: actor/credential schemas, gated workflow, portal, policy, and Cardano publication. | [DPP possible design](dpp-possible-design.md); consumes ADR-013/015/019 and FX-002 |
 | INT-009 | P2 | Deferred | A generic migration-precondition/workflow contract for state-incompatible composite upgrades. | ADR-015 §9.2; revive with the first concrete migration consumer |
+| INT-010 | P1 | In progress | Policy plane: declarative, forbid-only admission rules for composite components, with verified kernel facts and `context.*` for bindings. | [ADR-031.3](031.3-policy-plane-declarative-admission-rules.md); milestones in §15 |
 
 ### 5.1 Performance and capacity validation
 
@@ -271,3 +272,23 @@ gaps live in the [implementation ledger](031.2-implementation-progress.md).
 |---|---|---|---|---|
 | EDIT-004 | P3 | Deferred | Real-CLI evidence-error (`BINDING_EVIDENCE_UNSATISFIABLE`) report scenario and an engine-produced truncated-history rehearsal for Studio fixtures | ADR-031.2 ledger |
 | EDIT-005 | P2 | Proposed | Wire `finalDistributionBindingEditorAcceptance` into the release smoke or release-candidate aggregate, and add a content contract for the standalone `studioZip` | ADR-031.2 ledger |
+
+## 15. ADR-031.3 policy plane (admission rules)
+
+Rules are forbid-only admission constraints evaluated by the existing cascade engine; they add
+no host policy hook. Exact gate commands, test counts, the Yano commit behind each gate, and
+every deviation live in the [implementation ledger](031.3-implementation-progress.md).
+
+| Milestone | State | Evidence / release boundary |
+|---|---|---|
+| RULE-000: contract freeze and characterization | In progress | Amended CDDL and golden vectors, host signatures, fact tables, characterization tests |
+| RULE-001: Yano host contract | Ready | `RuleFact`, `TransitionKernel` fact accessors, plugin API level 12, facade forwarding; local Maven publication |
+| RULE-002: contracts, dialect, command view, binding context | Ready | In-place v1 amendments, `EXECUTION_VERSION` 1.2.0, scoped CEL, `TEXT_SET`/`in`, command view and kernel conformance |
+| RULE-003: runtime evaluation | Ready | Rule validation and diagnostics, two evaluation slots, advisory ingress, receipts, manifest attributes |
+| RULE-004: kernel fact providers | Ready | Governed map and `governed-role-approvals` facts with negative verification tests |
+| RULE-005: authoring, tooling, Studio, documentation | Ready | YAML, schema, catalog, CLI, Studio, docs, three recipes with denial fixtures |
+| RULE-006: cluster qualification and packaging | Ready | Three-member runs, divergence, governance epoch, role change, anti-poison, distribution gates |
+
+| ID | Priority | State | Remaining gap | Owner |
+|---|---|---|---|---|
+| RULE-007 | P1 | Blocked | Publish a Yano release containing the RULE-001 host contract, bump `yanoVersion`, and rerun the full gate without `useMavenLocal` (ADR-031.3 §12 item 12) | Yano release owner |
