@@ -1,0 +1,23 @@
+# ADR-031.3 §6.1: one stock machine, one deployment rule, no bindings.
+# Transfers above 10,000 are refused; mint is not selected, so it is unaffected. Positivity and
+# sufficient balance remain the balances kernel's own checks. The rule reads only command.* and
+# params.*, so it is static: local ingress also rejects an over-limit transfer before pooling
+# (HTTP 400; the node's DEBUG admission log carries the full reason
+# ADMISSION_RULE_DENIED/transfer-limit/TRANSFER_LIMIT_EXCEEDED). Block-time evaluation is
+# authoritative and records the denial in the message's binding receipt.
+composite:
+  components:
+    - id: points
+      machine: balances
+      admission:
+        - rule: transfer-limit
+          params: {maxAmount: 10000}
+  rules:
+    - id: transfer-limit
+      command: transfer
+      deny: TRANSFER_LIMIT_EXCEEDED
+      params:
+        maxAmount: {type: integer}
+      require:
+        - expr: 'command.amount <= params.maxAmount'
+  bindings: []

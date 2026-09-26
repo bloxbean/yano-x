@@ -17,7 +17,13 @@ import org.yanoproject.api.appchain.effects.AppEffectEmitter;
 import org.yanoproject.api.appchain.transition.OrderedLogKernel;
 import org.yanoproject.api.appchain.transition.TransitionKernel;
 import org.yanoproject.appchain.testkit.AppChainTestProfiles;
+import org.yanoproject.x.composite.contracts.BindingExpressionV1;
+import org.yanoproject.x.composite.contracts.BindingExpressionV1.Call;
+import org.yanoproject.x.composite.contracts.BindingExpressionV1.Field;
+import org.yanoproject.x.composite.contracts.BindingExpressionV1.Literal;
+import org.yanoproject.x.composite.contracts.BindingExpressionV1.Scope;
 import org.yanoproject.x.composite.contracts.BindingIrV1;
+import org.yanoproject.x.composite.contracts.BindingSourceV1;
 import org.yanoproject.x.composite.CompositeStateMachine;
 import org.yanoproject.x.composite.CompositeStateKeys;
 
@@ -65,12 +71,12 @@ class DeclarativeCompositeProviderTest {
     }
 
     @Test
-    void manifestRequiresStatelessAdmissionApiLevel() throws IOException {
+    void manifestRequiresRuleFactApiLevel() throws IOException {
         try (var manifest = getClass().getResourceAsStream(
                 "/META-INF/yano/plugins/org.yanoproject.x.composite.json")) {
             assertThat(manifest).isNotNull();
             assertThat(new String(manifest.readAllBytes(), StandardCharsets.UTF_8))
-                    .containsPattern("\"minLevel\"\\s*:\\s*11\\b");
+                    .containsPattern("\"minLevel\"\\s*:\\s*12\\b");
         }
     }
 
@@ -131,6 +137,36 @@ class DeclarativeCompositeProviderTest {
         assertThatThrownBy(() -> new BindingIrV1(List.of(new BindingIrV1.Component(
                 "records", "ordered-log", "records.v1", Map.of(), 0, 10)), List.of(), BindingIrV1.Limits.DEFAULT, 9))
                 .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("cannot precede");
+    }
+
+    @Test
+    void manifestListsRuleAttachmentsWithSlotAndStaticnessInTheBindingsEntry() {
+        var arrivals = new BindingIrV1.AdmissionRule("arrivals", "DIRECT_FORBIDDEN", null, List.of(),
+                List.of(clause(new Field(Scope.CONTEXT, "derived"))));
+        var positive = new BindingIrV1.AdmissionRule("positive", "NOT_POSITIVE", null,
+                List.of(new BindingIrV1.Parameter("limit", BindingIrV1.ParameterType.INTEGER, null)),
+                List.of(clause(new Call("gt", List.of(new Field(Scope.PARAMS, "limit"), new Literal(0L))))));
+        var records = new BindingIrV1.Component("records", "ordered-log", "records.v1", Map.of(), 0, 1, List.of(
+                new BindingIrV1.RuleAttachment("positive", Map.of("limit", new BindingSourceV1.Literal(3L))),
+                new BindingIrV1.RuleAttachment("arrivals", Map.of())));
+        var document = new BindingIrV1(List.of(records), List.of(arrivals, positive), List.of(),
+                BindingIrV1.Limits.DEFAULT, 1);
+        var machine = new DeclarativeCompositeProvider().create(new Context(document));
+        var entries = machine.capabilityManifest().crossCutting().stream()
+                .filter(entry -> entry.capabilityId().equals("declarative-event-bindings")).toList();
+        assertThat(entries).hasSize(1);
+        assertThat(entries.getFirst().attributes()).containsEntry("admission.records.00.rule", "positive")
+                .containsEntry("admission.records.00.command", "*")
+                .containsEntry("admission.records.00.deny", "NOT_POSITIVE")
+                .containsEntry("admission.records.00.slot", "admission")
+                .containsEntry("admission.records.00.static", "true")
+                .containsEntry("admission.records.01.rule", "arrivals")
+                .containsEntry("admission.records.01.slot", "admission")
+                .containsEntry("admission.records.01.static", "false");
+    }
+
+    private static BindingIrV1.ExpressionClause clause(BindingExpressionV1.Node condition) {
+        return new BindingIrV1.ExpressionClause(new BindingExpressionV1(BindingExpressionV1.Type.BOOLEAN, condition));
     }
 
     private static BindingIrV1 document(long generation, String topic) {

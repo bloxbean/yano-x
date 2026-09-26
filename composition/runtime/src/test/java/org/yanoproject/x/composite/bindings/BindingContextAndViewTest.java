@@ -73,17 +73,6 @@ class BindingContextAndViewTest {
     }
 
     @Test
-    void interimGuardRejectsRulesUntilTheyAreEnforced() {
-        var rule = new BindingIrV1.AdmissionRule("deny-all", "DENIED", null, List.of(),
-                List.of(condition(context("derived"))));
-        var ir = new BindingIrV1(List.of(component("a", List.of(new BindingIrV1.RuleAttachment("deny-all", Map.of()))),
-                component("b", List.of())), List.of(rule), List.of(), BindingIrV1.Limits.DEFAULT, 1);
-        assertThatThrownBy(() -> new CascadeHarness(ir))
-                .isInstanceOfSatisfying(BindingValidationException.class,
-                        failure -> assertThat(failure.code()).isEqualTo("RULE_UNSUPPORTED"));
-    }
-
-    @Test
     void selectabilityFollowsTheDescriptorRule() {
         var kernel = new CascadeHarness.RecordKernel();
         assertThat(BindingCommandView.unselectableReason(kernel.commands())).isNull();

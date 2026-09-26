@@ -508,6 +508,21 @@ public final class CompositeStateMachine implements AppStateMachine {
                     bindings.put(prefix + "target", target.effectType());
                 }
             }
+            // ADR-031.3: each rule attachment, keyed by component and zero-padded attachment position, so each
+            // component's attachments sort in attachment order (the host stores attributes in sorted key order).
+            // Slot and static-ness are pure functions of the committed rule, so the manifest digest stays a
+            // function of the profile alone.
+            for (var component : document.components()) {
+                for (int index = 0; index < component.admission().size(); index++) {
+                    var rule = document.rule(component.admission().get(index).rule());
+                    String prefix = String.format(java.util.Locale.ROOT, "admission.%s.%02d.", component.id(), index);
+                    bindings.put(prefix + "rule", rule.id());
+                    bindings.put(prefix + "command", rule.command() == null ? "*" : rule.command());
+                    bindings.put(prefix + "deny", rule.denyCode());
+                    bindings.put(prefix + "slot", rule.readsFacts() ? "fact" : "admission");
+                    bindings.put(prefix + "static", Boolean.toString(rule.isStatic()));
+                }
+            }
             manifest.crossCutting(new AppCapabilityManifest.CrossCutting("declarative-event-bindings", "1.0.0",
                     true, HexFormat.of().formatHex(profile.digest()), bindings,
                     AppCapabilityManifest.Origin.COMPOSED));

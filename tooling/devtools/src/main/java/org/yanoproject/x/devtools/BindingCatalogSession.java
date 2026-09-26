@@ -10,7 +10,9 @@ import org.yanoproject.api.appchain.AppStateMachineResolver;
 import org.yanoproject.api.appchain.authmap.AuthenticatedMapValidatorResolver;
 import org.yanoproject.api.appchain.observation.ObservationProfileV1;
 import org.yanoproject.api.appchain.state.StateCommitmentIdentity;
+import org.yanoproject.api.appchain.transition.CommandDescriptor;
 import org.yanoproject.api.appchain.transition.ConfigurationDescriptor;
+import org.yanoproject.api.appchain.transition.RuleFact;
 import org.yanoproject.api.appchain.transition.TransitionKernel;
 import org.yanoproject.runtime.plugins.CatalogAuthenticatedMapValidatorResolver;
 import org.yanoproject.runtime.plugins.PluginProviderRegistry;
@@ -98,6 +100,23 @@ final class BindingCatalogSession implements BindingDocumentCompiler.DescriptorC
         Map<String, Type> fields = new LinkedHashMap<>();
         schemas.getFirst().fields().forEach(field -> fields.put(field.name(), Type.valueOf(field.type().name())));
         return Map.copyOf(fields);
+    }
+
+    @Override public List<CommandDescriptor> commands(BindingIrV1.Component component) {
+        return List.copyOf(kernel(component.machineId(), configurationValues(component)).commands());
+    }
+
+    @Override public Map<String, RuleFact.Type> ruleFacts(BindingIrV1.Component component) {
+        Map<String, RuleFact.Type> facts = new LinkedHashMap<>();
+        kernel(component.machineId(), configurationValues(component)).ruleFacts()
+                .forEach(fact -> facts.put(fact.name(), fact.type()));
+        return Map.copyOf(facts);
+    }
+
+    private static Map<String, Object> configurationValues(BindingIrV1.Component component) {
+        Map<String, Object> values = new LinkedHashMap<>();
+        component.configuration().forEach((key, literal) -> values.put(key, literal.value()));
+        return values;
     }
 
     /** Constructs the real catalog-selected composite; this is the authoritative profile validation step. */

@@ -6,25 +6,25 @@
   "producer" : {
     "tool" : "yano-x-devtools",
     "version" : "0.1.0-pre3",
-    "jarSha256" : "6755c251414c5e1a54c69db642febed174e783ddc8970ac94cad806ea389c34d",
-    "linkedCompositeJarSha256" : "3a2aee65c65d34ed6b694672cc4dd2e38e1c98f665ef5b289fcfec6fa7614434"
+    "jarSha256" : "8cc1dc5e2cd5b36bb6acf5a89f1496043a2573047b092218865ec4cba53b67b9",
+    "linkedCompositeJarSha256" : "91a1ac902d212c4f265afa271c2e52a7a9500dee85628ff7cf2d0040a8b42c20"
   },
   "host" : {
-    "version" : "0.1.0-pre17",
-    "coreApiJarSha256" : "85bd0c91c37d716d917526ba5e4d9871add2bcf752cd05dfea90d0f155ad5a96",
-    "runtimeJarSha256" : "f78e43e059576d16e1c24ef185122a736da00f711a5bc0646501a84e92f97732"
+    "version" : "0.1.0-pre18-f92d8b1-SNAPSHOT",
+    "coreApiJarSha256" : "0c53cd8184fdb1c6b7f276fc557fd59dbf6e659ce628d6a4b7ce244f84c6c71c",
+    "runtimeJarSha256" : "f60f0920de93272247b8f6ed7d92b5781a882e03975b68434a8e147068ec39e8"
   },
   "authoringEnvironment" : "yano-x-binding-authoring-environment-v1",
   "catalog" : {
-    "fingerprint" : "sha256:b9594028ec11982342704c9feac5d89297426490af66e2953ec27d617ba01d14",
+    "fingerprint" : "sha256:c69ac59b0f639930fc57858ba32719873ebfc2042267fc69ac48feab41022ca3",
     "pluginApi" : {
       "major" : 3,
-      "level" : 11
+      "level" : 12
     },
     "bundles" : [ {
       "id" : "org.yanoproject.x.composite",
       "version" : "0.1.0-pre3",
-      "digest" : "sha256:7b7a500522753baa1050aa14bc3928a6f15524c5886750f15af10dcc5590fd85",
+      "digest" : "sha256:4855a82d15b78a359d7f10c1c9a0e51c7d661d135d4af4913f379b529ecbc365",
       "digestMode" : "ARTIFACT_CLOSURE",
       "selected" : true
     }, {
@@ -395,6 +395,18 @@
   }, {
     "code" : "UNDECLARED_WORK_REFERENCE",
     "category" : "contract-violation",
+    "origin" : "either",
+    "levels" : [ "step" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "ADMISSION_RULE_DENIED",
+    "category" : "admission-rule",
+    "origin" : "either",
+    "levels" : [ "step" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "ADMISSION_RULE_ERROR",
+    "category" : "admission-rule",
     "origin" : "either",
     "levels" : [ "step" ],
     "locatesLastCondition" : "never"

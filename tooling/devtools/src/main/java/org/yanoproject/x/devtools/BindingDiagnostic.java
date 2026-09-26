@@ -37,7 +37,7 @@ record BindingDiagnostic(String code, String severity, String message, String de
      */
     static final List<String> PARTS = List.of("component", "component-config", "binding", "source", "source-event",
             "condition", "expression", "lookup-key", "lookup-operand", "target", "target-command", "target-field",
-            "mapping", "raw-body", "effect", "limits");
+            "mapping", "raw-body", "effect", "limits", "rule", "attachment", "rule-param");
 
     /**
      * Closed diagnostic code catalog with controlled messages. Adding a code is additive; changing a code's meaning
@@ -49,7 +49,8 @@ record BindingDiagnostic(String code, String severity, String message, String de
             Map.entry("YAML_FORBIDDEN_CONSTRUCT", "YAML aliases, anchors and explicit tags are not supported"),
             Map.entry("YAML_MULTIPLE_DOCUMENTS", "Only one YAML document is allowed"),
             Map.entry("YAML_DUPLICATE_KEY", "A mapping key is repeated"),
-            Map.entry("IR_INVALID", "The supplied binding IR is not canonical version-one IR"),
+            Map.entry("IR_INVALID",
+                    "The supplied binding IR is not canonical version-one IR as amended by ADR-031.3"),
             Map.entry("UNKNOWN_FIELD", "The field is not part of the binding document schema"),
             Map.entry("REQUIRED_FIELD", "A required field is missing"),
             Map.entry("EXPECTED_OBJECT", "An object is required here"),
@@ -66,7 +67,6 @@ record BindingDiagnostic(String code, String severity, String message, String de
             Map.entry("UNKNOWN_COMPONENT", "The component is not declared in this document"),
             Map.entry("DUPLICATE_COMPONENT", "The component id is declared more than once"),
             Map.entry("UNKNOWN_EVENT_FIELD", "The event does not declare this field"),
-            Map.entry("RULE_UNSUPPORTED", "This runtime does not yet enforce admission rules"),
             Map.entry("NESTED_WRAPPER", "Only one composite wrapper is allowed"),
             Map.entry("COMPONENT_CONFIGURATION_INVALID",
                     "The selected machine rejected this component or its configuration"),
@@ -100,6 +100,21 @@ record BindingDiagnostic(String code, String severity, String message, String de
             Map.entry("MACHINE_NOT_COMPOSABLE", "The selected machine exposes no transition kernel"),
             Map.entry("CONFIGURATION_NOT_NORMALIZED",
                     "The machine's configuration descriptor rejects this authored configuration"),
+            Map.entry("RULE_UNKNOWN", "The attachment names a rule this document does not declare"),
+            Map.entry("RULE_DUPLICATE", "The rule is attached to this component more than once"),
+            Map.entry("RULE_UNATTACHED", "The rule is not attached to any component, so it cannot be checked"),
+            Map.entry("RULE_COMMAND_UNKNOWN", "The attached component's kernel does not declare this command"),
+            Map.entry("RULE_COMMAND_UNSELECTABLE",
+                    "The attached component's commands cannot be selected from a command body"),
+            Map.entry("RULE_SCOPE_INVALID", "The field's scope is not available at this location"),
+            Map.entry("RULE_FIELD_UNKNOWN", "The rule reads a field the attached component does not declare"),
+            Map.entry("RULE_FACT_UNKNOWN", "The rule reads a fact the attached kernel does not declare"),
+            Map.entry("RULE_EVIDENCE_READ", "Rules cannot read evidence fields of a command"),
+            Map.entry("RULE_PARAMETER_MISSING", "A declared rule parameter has no value in this attachment"),
+            Map.entry("RULE_PARAMETER_UNKNOWN", "The attachment supplies a parameter the rule does not declare"),
+            Map.entry("RULE_PARAMETER_TYPE", "The parameter value does not have the declared type"),
+            Map.entry("RULE_LOOKUP_COMPONENT_UNKNOWN", "The rule's lookup names a component this document lacks"),
+            Map.entry("RULE_LIMIT", "The rule exceeds a structural or profile limit"),
             Map.entry("UNCLASSIFIED", "The input was rejected; no more specific classification is available"));
 
     BindingDiagnostic {

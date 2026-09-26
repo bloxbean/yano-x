@@ -19,7 +19,6 @@ import org.yanoproject.x.composite.contracts.BindingExpressionV1.Scope;
 import org.yanoproject.x.composite.contracts.BindingExpressionV1.Type;
 import org.yanoproject.x.composite.contracts.BindingIrV1.Limits;
 
-import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -77,17 +76,20 @@ public final class BindingExpressionCompiler {
             int column = location == null ? -1 : location.getColumn();
             boolean positioned = line >= 1 && column >= 0 && !hasNonLineFeedBreak(source);
             String message = "invalid binding expression: " + failure.getMessage();
+            boolean scopeUnavailable = false;
             Matcher undeclared = UNDECLARED.matcher(failure.getMessage());
             if (undeclared.find()) {
                 String name = undeclared.group(1);
                 for (Scope scope : Scope.values()) {
                     if (scope.label().equals(name) && !fields.scopes().containsKey(scope)) {
                         message = name + " scope is not available in " + useSite + ": " + failure.getMessage();
+                        scopeUnavailable = true;
                     }
                 }
             }
             throw new ExpressionException(message, failure,
-                    positioned ? line : null, positioned ? utf16Column(source, line, column) : null);
+                    positioned ? line : null, positioned ? utf16Column(source, line, column) : null,
+                    scopeUnavailable);
         } catch (ExpressionException failure) {
             throw failure;
         } catch (IllegalArgumentException failure) {
@@ -102,14 +104,20 @@ public final class BindingExpressionCompiler {
     public static final class ExpressionException extends IllegalArgumentException {
         private final Integer line;
         private final Integer column;
+        private final boolean scopeUnavailable;
 
-        ExpressionException(String message, Throwable cause) { this(message, cause, null, null); }
+        ExpressionException(String message, Throwable cause) { this(message, cause, null, null, false); }
 
-        ExpressionException(String message, Throwable cause, Integer line, Integer column) {
+        ExpressionException(String message, Throwable cause, Integer line, Integer column,
+                            boolean scopeUnavailable) {
             super(message, cause);
             this.line = line;
             this.column = column;
+            this.scopeUnavailable = scopeUnavailable;
         }
+
+        /** Whether the expression reads a scope its use site does not provide (ADR-031.3 §5.2). */
+        public boolean scopeUnavailable() { return scopeUnavailable; }
 
         /** One-based source line within the expression, or {@code null}. */
         public Integer line() { return line; }

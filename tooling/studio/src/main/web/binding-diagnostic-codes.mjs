@@ -26,7 +26,7 @@ export const DIAGNOSTIC_CODES = Object.freeze({
   "FUNCTION_NESTING_LIMIT": "Function calls may be nested at most two levels",
   "INPUT_TOO_LARGE": "An input file exceeds its size limit",
   "INVALID_BYTES_LITERAL": "The bytesHex literal is not valid hexadecimal within its limit",
-  "IR_INVALID": "The supplied binding IR is not canonical version-one IR",
+  "IR_INVALID": "The supplied binding IR is not canonical version-one IR as amended by ADR-031.3",
   "JSON_INVALID": "A JSON input is malformed or does not match its schema",
   "KERNEL_CONTRACT_INVALID": "A selected kernel publishes an invalid descriptor or declaration",
   "LOOKUP_LIMIT": "The condition exceeds its lookup limit",
@@ -40,7 +40,20 @@ export const DIAGNOSTIC_CODES = Object.freeze({
   "PROFILE_CONSTRUCTION_FAILED": "The catalog-selected provider rejected the profile; no exact location is known",
   "RAW_TARGET_REQUIRES_RAW_MAPPING": "Opaque-bytes commands require a rawBody mapping",
   "REQUIRED_FIELD": "A required field is missing",
-  "RULE_UNSUPPORTED": "This runtime does not yet enforce admission rules",
+  "RULE_COMMAND_UNKNOWN": "The attached component's kernel does not declare this command",
+  "RULE_COMMAND_UNSELECTABLE": "The attached component's commands cannot be selected from a command body",
+  "RULE_DUPLICATE": "The rule is attached to this component more than once",
+  "RULE_EVIDENCE_READ": "Rules cannot read evidence fields of a command",
+  "RULE_FACT_UNKNOWN": "The rule reads a fact the attached kernel does not declare",
+  "RULE_FIELD_UNKNOWN": "The rule reads a field the attached component does not declare",
+  "RULE_LIMIT": "The rule exceeds a structural or profile limit",
+  "RULE_LOOKUP_COMPONENT_UNKNOWN": "The rule's lookup names a component this document lacks",
+  "RULE_PARAMETER_MISSING": "A declared rule parameter has no value in this attachment",
+  "RULE_PARAMETER_TYPE": "The parameter value does not have the declared type",
+  "RULE_PARAMETER_UNKNOWN": "The attachment supplies a parameter the rule does not declare",
+  "RULE_SCOPE_INVALID": "The field's scope is not available at this location",
+  "RULE_UNATTACHED": "The rule is not attached to any component, so it cannot be checked",
+  "RULE_UNKNOWN": "The attachment names a rule this document does not declare",
   "UNCLASSIFIED": "The input was rejected; no more specific classification is available",
   "UNKNOWN_COMPONENT": "The component is not declared in this document",
   "UNKNOWN_EVENT": "The source component does not publish this event",
@@ -54,4 +67,4 @@ export const DIAGNOSTIC_CODES = Object.freeze({
   "YAML_MULTIPLE_DOCUMENTS": "Only one YAML document is allowed",
   "YAML_SYNTAX": "The binding document is not valid YAML"
 });
-export const DIAGNOSTIC_PARTS = Object.freeze(["component","component-config","binding","source","source-event","condition","expression","lookup-key","lookup-operand","target","target-command","target-field","mapping","raw-body","effect","limits"]);
+export const DIAGNOSTIC_PARTS = Object.freeze(["component","component-config","binding","source","source-event","condition","expression","lookup-key","lookup-operand","target","target-command","target-field","mapping","raw-body","effect","limits","rule","attachment","rule-param"]);

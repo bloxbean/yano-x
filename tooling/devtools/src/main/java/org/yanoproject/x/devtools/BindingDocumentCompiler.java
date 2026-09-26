@@ -8,12 +8,17 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.dataformat.yaml.YAMLParser;
+import org.yanoproject.api.appchain.transition.CommandDescriptor;
 import org.yanoproject.api.appchain.transition.ConfigurationDescriptor;
+import org.yanoproject.api.appchain.transition.RuleFact;
+import org.yanoproject.x.composite.bindings.BindingCommandView;
 import org.yanoproject.x.composite.bindings.BindingExpressionEvaluator.Scoped;
 import org.yanoproject.x.composite.bindings.BindingProgram;
 import org.yanoproject.x.composite.contracts.BindingExpressionV1;
+import org.yanoproject.x.composite.contracts.BindingExpressionV1.Scope;
 import org.yanoproject.x.composite.contracts.BindingExpressionV1.Type;
 import org.yanoproject.x.composite.contracts.BindingIrV1;
+import org.yanoproject.x.composite.contracts.BindingIrV1.AdmissionRule;
 import org.yanoproject.x.composite.contracts.BindingIrV1.Assignment;
 import org.yanoproject.x.composite.contracts.BindingIrV1.Binding;
 import org.yanoproject.x.composite.contracts.BindingIrV1.Clause;
@@ -27,11 +32,18 @@ import org.yanoproject.x.composite.contracts.BindingIrV1.Limits;
 import org.yanoproject.x.composite.contracts.BindingIrV1.LookupClause;
 import org.yanoproject.x.composite.contracts.BindingIrV1.Mapping;
 import org.yanoproject.x.composite.contracts.BindingIrV1.Operator;
+import org.yanoproject.x.composite.contracts.BindingIrV1.Parameter;
+import org.yanoproject.x.composite.contracts.BindingIrV1.ParameterType;
+import org.yanoproject.x.composite.contracts.BindingIrV1.RuleAttachment;
 import org.yanoproject.x.composite.contracts.BindingIrV1.Target;
 import org.yanoproject.x.composite.contracts.BindingSourceV1;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.EnumMap;
+import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -39,6 +51,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.Supplier;
 
 /**
@@ -95,6 +108,25 @@ public final class BindingDocumentCompiler {
          * @return the event's scalar field types
          */
         Map<String, Type> eventFields(Component component, String eventId);
+
+        /**
+         * Returns the command descriptors of this normalized component's kernel, used to type-check admission rules
+         * that name a command (ADR-031.3). Implementations without descriptors reject rules that need them.
+         *
+         * @param component normalized component generation
+         * @return the kernel's commands
+         */
+        default List<CommandDescriptor> commands(Component component) {
+            throw new IllegalArgumentException("command descriptors are unavailable for " + component.id());
+        }
+
+        /**
+         * Returns the facts this normalized component's kernel declares for admission rules (ADR-031.3).
+         *
+         * @param component normalized component generation
+         * @return declared fact types by name; empty when the kernel declares none
+         */
+        default Map<String, RuleFact.Type> ruleFacts(Component component) { return Map.of(); }
     }
 
     /** Limit field names in {@code LimitsV1} wire order; shared with the authoring-language export. */
@@ -186,8 +218,9 @@ public final class BindingDocumentCompiler {
                 throw new BindingAuthoringException("UNCLASSIFIED", ROOT.field("composite"), rerooted, error);
             }
         }
-        object(root, ROOT, "components", "bindings", "limits", "workflowFromHeight");
+        object(root, ROOT, "components", "rules", "bindings", "limits", "workflowFromHeight");
         Limits limits = at("DOCUMENT_STRUCTURE_INVALID", ROOT.field("limits"), () -> limits(root.get("limits")));
+        Map<String, AuthoredRule> authoredRules = authoredRules(root);
         List<Component> components = new ArrayList<>();
         Map<String, Component> byId = new LinkedHashMap<>();
         JsonNode componentNodes = array(required(root, "components", ROOT), ROOT.field("components"), 16);
@@ -203,9 +236,10 @@ public final class BindingDocumentCompiler {
                         .forEach((key, value) -> normalized.put(key, new BindingSourceV1.Literal(value)));
                 return normalized;
             });
+            List<RuleAttachment> attachments = attachments(node, path, authoredRules);
             Component component = at("DOCUMENT_STRUCTURE_INVALID", path, () -> new Component(authored.id(),
                     authored.machine(), optionalText(node, "topic", authored.id() + ".command.v1", path), normalized,
-                    integer(node, "maxEffectsPerBlock", 0, path), number(node, "fromHeight", 1, path)));
+                    integer(node, "maxEffectsPerBlock", 0, path), number(node, "fromHeight", 1, path), attachments));
             if (byId.putIfAbsent(authored.id(), component) != null) {
                 throw fail("DUPLICATE_COMPONENT", path.field("id"), "duplicate component");
             }
@@ -251,8 +285,9 @@ public final class BindingDocumentCompiler {
             bindings.add(at("DOCUMENT_STRUCTURE_INVALID", path, () -> new Binding(
                     text(required(node, "id", path), path.field("id")), source, event, clauses, target)));
         }
-        BindingIrV1 ir = at("DOCUMENT_STRUCTURE_INVALID", ROOT, () -> new BindingIrV1(components, bindings, limits,
-                number(root, "workflowFromHeight", 1, ROOT)));
+        List<AdmissionRule> rules = compileRules(authoredRules, components, catalog, limits, byId);
+        BindingIrV1 ir = at("DOCUMENT_STRUCTURE_INVALID", ROOT, () -> new BindingIrV1(components, rules, bindings,
+                limits, number(root, "workflowFromHeight", 1, ROOT)));
         // Enforce the canonical envelope byte limit before returning an apparently valid result.
         at("DOCUMENT_SIZE_LIMIT", ROOT, ir::encode);
         return ir;
@@ -286,7 +321,7 @@ public final class BindingDocumentCompiler {
                         : "$.composite: " + message);
             }
         }
-        object(root, ROOT, "components", "bindings", "limits", "workflowFromHeight");
+        object(root, ROOT, "components", "rules", "bindings", "limits", "workflowFromHeight");
         List<AuthoredComponent> result = new ArrayList<>();
         JsonNode componentNodes = array(required(root, "components", ROOT), ROOT.field("components"), 16);
         for (int i = 0; i < componentNodes.size(); i++) result.add(authoredComponent(componentNodes.get(i), i));
@@ -295,7 +330,7 @@ public final class BindingDocumentCompiler {
 
     private static AuthoredComponent authoredComponent(JsonNode node, int index) {
         BindingDocumentPath path = ROOT.field("components").index(index);
-        object(node, path, "id", "machine", "topic", "config", "maxEffectsPerBlock", "fromHeight");
+        object(node, path, "id", "machine", "topic", "config", "maxEffectsPerBlock", "fromHeight", "admission");
         String id = text(required(node, "id", path), path.field("id"));
         String machine = text(required(node, "machine", path), path.field("machine"));
         Map<String, Object> supplied = new LinkedHashMap<>();
@@ -327,7 +362,7 @@ public final class BindingDocumentCompiler {
             Expectation expectation;
             BindingSourceV1 operand = null;
             if (operator.equals("eq")) {
-                operand = source(lookup.get(operator), lookupPath.field("eq"), fields, limits, 0);
+                operand = source(lookup.get(operator), lookupPath.field("eq"), bindingSites(fields), limits, 0);
                 expectation = operand instanceof BindingSourceV1.Field ? Expectation.EQUAL_FIELD
                         : Expectation.EQUAL_LITERAL;
             } else {
@@ -335,7 +370,7 @@ public final class BindingDocumentCompiler {
                 expectation = operator.equals("exists") ? Expectation.EXISTS : Expectation.ABSENT;
             }
             return new LookupClause(text(required(lookup, "component", path), lookupPath.field("component")),
-                    source(required(lookup, "key", path), lookupPath.field("key"), fields, limits, 0),
+                    source(required(lookup, "key", path), lookupPath.field("key"), bindingSites(fields), limits, 0),
                     expectation, operand);
         }
         object(node, path, "field", "eq", "ne", "lt", "le", "gt", "ge", "in", "exists", "absent");
@@ -383,29 +418,49 @@ public final class BindingDocumentCompiler {
             throw fail("EXPECTED_OBJECT", path.field("map"), "expected field map");
         }
         List<Assignment> assignments = node.properties().stream().sorted(Map.Entry.comparingByKey())
-                .map(entry -> new Assignment(entry.getKey(),
-                        source(entry.getValue(), path.field("map").field(entry.getKey()), fields, limits, 0))).toList();
+                .map(entry -> new Assignment(entry.getKey(), source(entry.getValue(),
+                        path.field("map").field(entry.getKey()), bindingSites(fields), limits, 0))).toList();
         return Mapping.fields(assignments);
     }
 
-    private static BindingSourceV1 source(JsonNode node, BindingDocumentPath path, Map<String, Type> fields,
-                                           Limits limits, int depth) {
+    /**
+     * The scoped fields one use site may read, with the YAML source key of each scope (ADR-031.3 §5.2): {@code field}
+     * (event), {@code context}, {@code command}, {@code param}, {@code config} and {@code fact}.
+     */
+    record Sites(Scoped<Type> fields, String useSite) {
+        static final Map<String, Scope> KEYS = Map.of("field", Scope.EVENT, "context", Scope.CONTEXT,
+                "command", Scope.COMMAND, "param", Scope.PARAMS, "config", Scope.CONFIG, "fact", Scope.FACTS);
+    }
+
+    private static Sites bindingSites(Map<String, Type> event) { return new Sites(bindingScope(event), "a binding"); }
+
+    private static BindingSourceV1 source(JsonNode node, BindingDocumentPath path, Sites sites, Limits limits,
+                                          int depth) {
         if (depth > 2) throw fail("FUNCTION_NESTING_LIMIT", path, "function nesting limit");
-        object(node, path, "field", "literal", "fn", "args", "expr");
-        String kind = exactlyOne(node, path, List.of("field", "literal", "fn", "expr"));
+        object(node, path, "field", "context", "command", "param", "config", "fact", "literal", "fn", "args",
+                "expr");
+        String kind = exactlyOne(node, path, List.of("field", "context", "command", "param", "config", "fact",
+                "literal", "fn", "expr"));
         if (!kind.equals("fn") && node.has("args")) {
             throw fail("ONLY_FUNCTIONS_ACCEPT_ARGS", path.field("args"), "only functions accept args");
         }
         return switch (kind) {
-            case "field" -> {
-                String field = text(node.get(kind), path.field("field"));
-                if (!fields.containsKey(field)) {
-                    throw fail("UNKNOWN_EVENT_FIELD", path, "unknown event field: " + field);
+            case "field", "context", "command", "param", "config", "fact" -> {
+                Scope scope = Sites.KEYS.get(kind);
+                String field = text(node.get(kind), path.field(kind));
+                if (!sites.fields().scopes().containsKey(scope)) {
+                    throw fail("RULE_SCOPE_INVALID", path.field(kind), scope.label() + " scope is not available in "
+                            + sites.useSite());
                 }
-                yield new BindingSourceV1.Field(field);
+                if (!sites.fields().of(scope).containsKey(field)) {
+                    throw fail(scope == Scope.EVENT ? "UNKNOWN_EVENT_FIELD" : scope == Scope.FACTS ? "RULE_FACT_UNKNOWN"
+                            : "RULE_FIELD_UNKNOWN", path, "unknown " + (scope == Scope.EVENT ? "event"
+                            : scope.label()) + " field: " + field);
+                }
+                yield new BindingSourceV1.Field(scope, field);
             }
             case "literal" -> new BindingSourceV1.Literal(scalar(node.get(kind), path.field("literal")));
-            case "expr" -> new BindingSourceV1.Expression(expression(node.get(kind), path.field("expr"), fields,
+            case "expr" -> new BindingSourceV1.Expression(expression(node.get(kind), path.field("expr"), sites,
                     limits));
             case "fn" -> {
                 String function = text(node.get(kind), path.field("fn"));
@@ -415,7 +470,7 @@ public final class BindingDocumentCompiler {
                 List<BindingSourceV1> arguments = new ArrayList<>();
                 JsonNode args = array(required(node, "args", path), path.field("args"), 8);
                 for (int i = 0; i < args.size(); i++) {
-                    arguments.add(source(args.get(i), path.field("args").index(i), fields, limits, depth + 1));
+                    arguments.add(source(args.get(i), path.field("args").index(i), sites, limits, depth + 1));
                 }
                 yield new BindingSourceV1.Function(function, arguments);
             }
@@ -424,12 +479,259 @@ public final class BindingDocumentCompiler {
     }
 
     /** Compiles restricted CEL text found at {@code path}; failures keep their expression-relative position. */
-    private static BindingExpressionV1 expression(JsonNode node, BindingDocumentPath path, Map<String, Type> fields,
+    private static BindingExpressionV1 expression(JsonNode node, BindingDocumentPath path, Sites sites,
                                                   Limits limits) {
         String source = text(node, path);
         return at("EXPRESSION_INVALID", path, path,
-                () -> BindingExpressionCompiler.compile(source, bindingScope(fields), limits, "a binding"));
+                () -> BindingExpressionCompiler.compile(source, sites.fields(), limits, sites.useSite()));
     }
+
+    // ---- ADR-031.3 admission rules ---------------------------------------------------------------------------
+
+    /** One authored rule before per-attachment compilation; {@code index} is its authored position. */
+    private record AuthoredRule(int index, BindingDocumentPath path, String id, String deny, String command,
+                                List<Parameter> parameters, JsonNode clauses) { }
+
+    /** Reads the {@code rules} section: identity, deny code, selector and parameters; clauses compile later. */
+    private static Map<String, AuthoredRule> authoredRules(JsonNode root) {
+        Map<String, AuthoredRule> rules = new LinkedHashMap<>();
+        if (!root.has("rules")) return rules;
+        JsonNode nodes = array(root.get("rules"), ROOT.field("rules"), BindingIrV1.MAX_RULES);
+        for (int index = 0; index < nodes.size(); index++) {
+            BindingDocumentPath path = ROOT.field("rules").index(index);
+            JsonNode node = nodes.get(index);
+            object(node, path, "id", "command", "deny", "params", "require");
+            String id = text(required(node, "id", path), path.field("id"));
+            List<Parameter> parameters = new ArrayList<>();
+            if (node.has("params")) {
+                JsonNode declared = node.get("params");
+                if (!declared.isObject() || declared.size() > AdmissionRule.MAX_PARAMETERS) {
+                    throw fail("EXPECTED_OBJECT", path.field("params"), "expected bounded map");
+                }
+                for (var entry : declared.properties()) {
+                    BindingDocumentPath parameterPath = path.field("params").field(entry.getKey());
+                    object(entry.getValue(), parameterPath, "type", "default");
+                    String typeName = text(required(entry.getValue(), "type", parameterPath),
+                            parameterPath.field("type"));
+                    ParameterType type = PARAMETER_TYPES.get(typeName);
+                    if (type == null) throw fail("RULE_PARAMETER_TYPE", parameterPath.field("type"), "unknown type");
+                    BindingSourceV1.Literal fallback = entry.getValue().has("default")
+                            ? new BindingSourceV1.Literal(scalar(entry.getValue().get("default"),
+                            parameterPath.field("default"))) : null;
+                    parameters.add(at("RULE_PARAMETER_TYPE", parameterPath,
+                            () -> new Parameter(entry.getKey(), type, fallback)));
+                }
+            }
+            parameters.sort((left, right) -> Arrays.compareUnsigned(utf8(left.name()), utf8(right.name())));
+            JsonNode clauses = array(required(node, "require", path), path.field("require"), AdmissionRule.MAX_CLAUSES);
+            var rule = new AuthoredRule(index, path, id, text(required(node, "deny", path), path.field("deny")),
+                    node.has("command") ? text(node.get("command"), path.field("command")) : null,
+                    List.copyOf(parameters), clauses);
+            if (rules.putIfAbsent(id, rule) != null) throw fail("RULE_DUPLICATE", path.field("id"), "duplicate rule");
+        }
+        return rules;
+    }
+
+    private static final Map<String, ParameterType> PARAMETER_TYPES = Map.of("integer", ParameterType.INTEGER,
+            "text", ParameterType.TEXT, "bytes", ParameterType.BYTES, "boolean", ParameterType.BOOLEAN,
+            "binding", ParameterType.BINDING);
+
+    /** Reads a component's attachments, normalizing parameters so stating a default equals omitting it. */
+    private static List<RuleAttachment> attachments(JsonNode component, BindingDocumentPath path,
+                                                    Map<String, AuthoredRule> rules) {
+        if (!component.has("admission")) return List.of();
+        JsonNode nodes = array(component.get("admission"), path.field("admission"),
+                BindingIrV1.Limits.MAX_RULES_PER_COMPONENT);
+        List<RuleAttachment> attachments = new ArrayList<>();
+        for (int index = 0; index < nodes.size(); index++) {
+            BindingDocumentPath attachmentPath = path.field("admission").index(index);
+            JsonNode node = nodes.get(index);
+            object(node, attachmentPath, "rule", "params");
+            String id = text(required(node, "rule", attachmentPath), attachmentPath.field("rule"));
+            AuthoredRule rule = rules.get(id);
+            if (rule == null) throw fail("RULE_UNKNOWN", attachmentPath.field("rule"), "unknown rule");
+            JsonNode supplied = node.has("params") ? node.get("params") : null;
+            if (supplied != null && !supplied.isObject()) {
+                throw fail("EXPECTED_OBJECT", attachmentPath.field("params"), "expected map");
+            }
+            Map<String, BindingSourceV1.Literal> values = new LinkedHashMap<>();
+            if (supplied != null) {
+                for (var entry : supplied.properties()) {
+                    if (rule.parameters().stream().noneMatch(parameter -> parameter.name().equals(entry.getKey()))) {
+                        throw fail("RULE_PARAMETER_UNKNOWN", attachmentPath.field("params").field(entry.getKey()),
+                                "undeclared parameter");
+                    }
+                }
+            }
+            for (Parameter parameter : rule.parameters()) {
+                BindingDocumentPath valuePath = attachmentPath.field("params").field(parameter.name());
+                Object value;
+                if (supplied != null && supplied.has(parameter.name())) {
+                    value = scalar(supplied.get(parameter.name()), valuePath);
+                } else if (parameter.defaultValue() != null) {
+                    value = parameter.defaultValue().value();
+                } else {
+                    throw fail("RULE_PARAMETER_MISSING", valuePath, "missing parameter");
+                }
+                if (!parameter.type().accepts(value)) throw fail("RULE_PARAMETER_TYPE", valuePath, "parameter type");
+                values.put(parameter.name(), new BindingSourceV1.Literal(value));
+            }
+            attachments.add(at("DOCUMENT_STRUCTURE_INVALID", attachmentPath, () -> new RuleAttachment(id, values)));
+        }
+        return List.copyOf(attachments);
+    }
+
+    /**
+     * Compiles every rule once per attachment, against the kernel of the attached component, and requires every
+     * attachment of a rule to lower to the same IR. Rules are returned sorted by id, as the IR requires.
+     */
+    private static List<AdmissionRule> compileRules(Map<String, AuthoredRule> authored, List<Component> components,
+                                                    DescriptorCatalog catalog, Limits limits,
+                                                    Map<String, Component> byId) {
+        List<AdmissionRule> compiled = new ArrayList<>();
+        for (AuthoredRule rule : authored.values()) {
+            AdmissionRule result = null;
+            String first = null;
+            for (Component component : components) {
+                if (component.admission().stream().noneMatch(attachment -> attachment.rule().equals(rule.id()))) {
+                    continue;
+                }
+                AdmissionRule candidate = compileRule(rule, component, catalog, limits, byId);
+                if (result == null) {
+                    result = candidate;
+                    first = component.id();
+                } else if (!Arrays.equals(ruleBytes(candidate, limits), ruleBytes(result, limits))) {
+                    throw fail("EXPRESSION_INVALID", rule.path(), "rule compiles differently for components " + first
+                            + " and " + component.id() + "; field types must agree");
+                }
+            }
+            if (result == null) throw fail("RULE_UNATTACHED", rule.path(), "rule is not attached to any component");
+            compiled.add(result);
+        }
+        compiled.sort((left, right) -> Arrays.compareUnsigned(utf8(left.id()), utf8(right.id())));
+        return List.copyOf(compiled);
+    }
+
+    /**
+     * Canonical bytes of one rule, through the IR codec, for comparing a rule's per-attachment compilations. The
+     * document's own limits apply, since they may allow more than the defaults (for example lookup clauses).
+     */
+    private static byte[] ruleBytes(AdmissionRule rule, Limits limits) {
+        return new BindingIrV1(List.of(new Component("wire", "wire", "wire.v1", Map.of(), 0, 1,
+                List.of(new RuleAttachment(rule.id(), Map.of())))), List.of(rule), List.of(), limits, 1).encode();
+    }
+
+    private static AdmissionRule compileRule(AuthoredRule rule, Component component, DescriptorCatalog catalog,
+                                             Limits limits, Map<String, Component> byId) {
+        Map<Scope, Map<String, Type>> scopes = new EnumMap<>(Scope.class);
+        Set<String> evidence = new HashSet<>();
+        if (rule.command() != null) {
+            List<CommandDescriptor> commands = at("COMPONENT_CONFIGURATION_INVALID", rule.path().field("command"),
+                    () -> catalog.commands(component));
+            String reason = BindingCommandView.unselectableReason(commands);
+            if (reason != null) {
+                throw fail("RULE_COMMAND_UNSELECTABLE", rule.path().field("command"), "component " + component.id()
+                        + ": " + reason);
+            }
+            var command = commands.stream().filter(candidate -> candidate.commandName().equals(rule.command()))
+                    .findFirst().orElseThrow(() -> fail("RULE_COMMAND_UNKNOWN", rule.path().field("command"),
+                            "component " + component.id() + " has no command " + rule.command()));
+            // Evidence fields are declared too, so that reading one is reported as such rather than as unknown.
+            Map<String, Type> fields = new LinkedHashMap<>();
+            command.fields().forEach(field -> fields.put(field.name(), Type.valueOf(field.type().name())));
+            command.fields().stream().filter(field -> field.role() == CommandDescriptor.Role.EVIDENCE)
+                    .forEach(field -> evidence.add(field.name()));
+            scopes.put(Scope.COMMAND, fields);
+        }
+        Map<String, Type> parameters = new LinkedHashMap<>();
+        rule.parameters().forEach(parameter -> parameters.put(parameter.name(), parameter.type().valueType()));
+        Map<String, Type> configuration = new LinkedHashMap<>();
+        component.configuration().forEach((name, value) -> configuration.put(name, typeOf(value.value())));
+        Map<String, Type> facts = new LinkedHashMap<>();
+        at("COMPONENT_CONFIGURATION_INVALID", rule.path(), () -> catalog.ruleFacts(component))
+                .forEach((name, type) -> facts.put(name, Type.valueOf(type.name())));
+        scopes.put(Scope.PARAMS, parameters);
+        scopes.put(Scope.CONFIG, configuration);
+        scopes.put(Scope.CONTEXT, BindingProgram.CONTEXT_FIELDS);
+        scopes.put(Scope.FACTS, facts);
+        var sites = new Sites(new Scoped<>(scopes), "an admission rule");
+        List<Clause> clauses = new ArrayList<>();
+        for (int index = 0; index < rule.clauses().size(); index++) {
+            BindingDocumentPath path = rule.path().field("require").index(index);
+            JsonNode node = rule.clauses().get(index);
+            Clause clause = at("DOCUMENT_STRUCTURE_INVALID", path, () -> ruleClause(node, path, sites, limits, byId));
+            Set<String> read = new TreeSet<>();
+            switch (clause) {
+                case ExpressionClause expression -> commandFields(expression.expression().root(), read);
+                case LookupClause lookup -> {
+                    commandFields(lookup.key(), read);
+                    if (lookup.operand() != null) commandFields(lookup.operand(), read);
+                }
+                default -> { }
+            }
+            read.retainAll(evidence);
+            if (!read.isEmpty()) {
+                throw fail("RULE_EVIDENCE_READ", path, "rule reads evidence field command." + read.iterator().next()
+                        + "; evidence is never readable by rules");
+            }
+            clauses.add(clause);
+        }
+        return at("DOCUMENT_STRUCTURE_INVALID", rule.path(), () -> new AdmissionRule(rule.id(), rule.deny(),
+                rule.command(), rule.parameters(), clauses));
+    }
+
+    private static Clause ruleClause(JsonNode node, BindingDocumentPath path, Sites sites, Limits limits,
+                                     Map<String, Component> byId) {
+        if (node != null && node.has("expr")) {
+            object(node, path, "expr");
+            String source = text(node.get("expr"), path.field("expr"));
+            return new ExpressionClause(at("EXPRESSION_INVALID", path, path.field("expr"),
+                    () -> BindingExpressionCompiler.compile(source, sites.fields(), limits, sites.useSite())));
+        }
+        object(node, path, "lookup");
+        JsonNode lookup = required(node, "lookup", path);
+        BindingDocumentPath lookupPath = path.field("lookup");
+        object(lookup, lookupPath, "component", "key", "exists", "absent", "eq");
+        String component = text(required(lookup, "component", lookupPath), lookupPath.field("component"));
+        if (!byId.containsKey(component)) {
+            throw fail("RULE_LOOKUP_COMPONENT_UNKNOWN", lookupPath.field("component"), "unknown lookup component");
+        }
+        String operator = exactlyOne(lookup, lookupPath, List.of("exists", "absent", "eq"));
+        Expectation expectation;
+        BindingSourceV1 operand = null;
+        if (operator.equals("eq")) {
+            operand = source(lookup.get(operator), lookupPath.field("eq"), sites, limits, 0);
+            expectation = operand instanceof BindingSourceV1.Field
+                    ? Expectation.EQUAL_FIELD : Expectation.EQUAL_LITERAL;
+        } else {
+            requireTrue(lookup.get(operator), lookupPath.field(operator));
+            expectation = operator.equals("exists") ? Expectation.EXISTS : Expectation.ABSENT;
+        }
+        return new LookupClause(component, source(required(lookup, "key", lookupPath), lookupPath.field("key"), sites,
+                limits, 0), expectation, operand);
+    }
+
+    /** Collects the {@code command.*} fields an expression node or source reads. */
+    private static void commandFields(Object node, Set<String> fields) {
+        switch (node) {
+            case BindingExpressionV1.Field field when field.scope() == Scope.COMMAND -> fields.add(field.name());
+            case BindingExpressionV1.Call call -> call.arguments().forEach(argument -> commandFields(argument, fields));
+            case BindingSourceV1.Field field when field.scope() == Scope.COMMAND -> fields.add(field.name());
+            case BindingSourceV1.Expression expression -> commandFields(expression.expression().root(), fields);
+            case BindingSourceV1.Function function ->
+                    function.arguments().forEach(argument -> commandFields(argument, fields));
+            default -> { }
+        }
+    }
+
+    private static Type typeOf(Object value) {
+        if (value instanceof Long) return Type.INTEGER;
+        if (value instanceof String) return Type.TEXT;
+        if (value instanceof byte[]) return Type.BYTES;
+        return Type.BOOLEAN;
+    }
+
+    private static byte[] utf8(String text) { return text.getBytes(StandardCharsets.UTF_8); }
 
     /** Binding expressions read the event's fields and the producing step's {@code context.*} (ADR-031.3). */
     private static Scoped<Type> bindingScope(Map<String, Type> event) {
@@ -573,8 +875,9 @@ public final class BindingDocumentCompiler {
                 throw new BindingAuthoringException(code, path, message, error);
             }
             if (error instanceof BindingExpressionCompiler.ExpressionException expression) {
-                throw new BindingAuthoringException("EXPRESSION_INVALID", path, messagePath + ": " + message, error,
-                        null, null, expression.line(), expression.column(), true);
+                throw new BindingAuthoringException(expression.scopeUnavailable() ? "RULE_SCOPE_INVALID"
+                        : "EXPRESSION_INVALID", path, messagePath + ": " + message, error, null, null,
+                        expression.line(), expression.column(), true);
             }
             throw new BindingAuthoringException(code, path, messagePath + ": " + message, error, null, null, null, null,
                     "COMPONENT_CONFIGURATION_INVALID".equals(code) || "EVENT_UNAVAILABLE".equals(code));

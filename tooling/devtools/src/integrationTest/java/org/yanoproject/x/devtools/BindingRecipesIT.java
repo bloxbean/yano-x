@@ -2,6 +2,7 @@ package org.yanoproject.x.devtools;
 
 import com.bloxbean.cardano.client.crypto.KeyGenUtil;
 import com.bloxbean.cardano.yaci.core.network.server.NodeServer;
+import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
 import com.bloxbean.cardano.yaci.core.protocol.chainsync.messages.Point;
 import com.bloxbean.cardano.yaci.core.protocol.handshake.util.N2NVersionTableConstant;
 import com.bloxbean.cardano.yaci.core.storage.ChainState;
@@ -15,6 +16,8 @@ import org.slf4j.LoggerFactory;
 import org.yanoproject.api.appchain.AppChainConfig;
 import org.yanoproject.api.appchain.AppChainMembershipEpoch;
 import org.yanoproject.api.appchain.AppBlockHeader;
+import org.yanoproject.api.appchain.AppStateMachine;
+import org.yanoproject.api.appchain.AppSubmissionRejectedException;
 import org.yanoproject.api.appchain.effects.EffectView;
 import org.yanoproject.api.appchain.state.StateCommitmentIdentity;
 import org.yanoproject.api.appchain.state.StateCommitmentProfiles;
@@ -33,8 +36,11 @@ import org.yanoproject.x.roles.contracts.StagedActorCommandV1;
 import org.yanoproject.x.stdlib.contracts.ApprovalsContract;
 import org.yanoproject.x.stdlib.contracts.AuthenticatedMapAuthorizationContract;
 import org.yanoproject.x.stdlib.contracts.AuthenticatedMapContract;
+import org.yanoproject.x.stdlib.contracts.BalancesContract;
+import org.yanoproject.x.stdlib.contracts.DocTrailContract;
 import org.yanoproject.x.stdlib.contracts.KvRegistryContract;
 
+import java.math.BigInteger;
 import java.net.ServerSocket;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -58,6 +64,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * Compiles checked-in author recipes through real catalog bundles, executes them on three actual N2N hosts,
  * and replays their finalized blocks through the offline rehearsal API. Receipt-byte equality is tested,
  * not inferred from decoded fields. Temporary state is never an external deployment or production trust pin.
+ *
+ * <p>The ADR-031.3 admission recipes (§6.1, §6.2) also qualify expected refusals: a static rule rejects at
+ * ingress on the submitting node, and a block-time denial is a finalized, provable receipt naming the rule.
  */
 @Timeout(180)
 class BindingRecipesIT {
@@ -70,6 +79,15 @@ class BindingRecipesIT {
     @Test void payloadAdmissionAndLazyBaselineHaveLiveAndOfflineReceiptParity() throws Exception {
         qualify("payload-admission");
     }
+    @Test void balancesTransferLimitRulesHaveLiveAndOfflineReceiptParity() throws Exception {
+        qualify("balances-transfer-limit");
+    }
+    @Test void procurementAdmissionRulesHaveLiveAndOfflineReceiptParity() throws Exception {
+        qualify("procurement-admission");
+    }
+
+    /** ADR-031.3 recipes live beside this test until the authoring tools accept rules in shipped examples. */
+    private static final Set<String> ADMISSION_RECIPES = Set.of("balances-transfer-limit", "procurement-admission");
 
     private void qualify(String recipe) throws Exception {
         Path plugins = Files.createDirectory(temporary.resolve("plugins"));
@@ -86,7 +104,10 @@ class BindingRecipesIT {
                     - id: copy
                       from: {component: source, event: composite.command-accepted.v1}
                       to: {component: target, command: append, rawBody: body}
-                """ : Files.readString(Path.of("..", "..", "examples", "bindings", recipe + ".yaml"));
+                """ : ADMISSION_RECIPES.contains(recipe)
+                ? Files.readString(Path.of("src", "integrationTest", "resources", "admission-recipes",
+                        recipe + ".yaml"))
+                : Files.readString(Path.of("..", "..", "examples", "bindings", recipe + ".yaml"));
         var genesis = productGenesis(yaml);
         String chain = genesis == null ? "binding-" + recipe + "-parity" : genesis.chainId();
         List<byte[]> seeds = memberSeeds();
@@ -132,7 +153,9 @@ class BindingRecipesIT {
                 pinnedIdentity = cluster.nodes[0].stateCommitmentIdentity().orElseThrow();
                 pinnedManifest = cluster.nodes[0].status().get("capabilityManifest");
                 pinnedConsensus = cluster.nodes[0].status().get("consensusProfile");
-                List<String> sourceIds = submitRecipe(recipe, genesis, cluster, seeds);
+                Map<String, BindingReceiptV1.RuleFailure> denials = new LinkedHashMap<>();
+                var ingress = new Ingress(catalog.validate(ir), chain);
+                List<String> sourceIds = submitRecipe(recipe, genesis, cluster, seeds, denials, ingress);
                 pinnedFinalizedContext = cluster.finalizedContextPin.clone();
                 long tip = cluster.nodes[0].tipHeight();
                 for (var node : cluster.nodes) {
@@ -181,7 +204,24 @@ class BindingRecipesIT {
                         byte[] actual = cluster.nodes[0].query("composite/binding-receipt-v1/" + id,
                                 new byte[0]).payload();
                         assertThat((String) receipt.get("receiptHex")).isEqualTo(hex(actual));
-                        assertThat(BindingReceiptV1.decode(actual).accepted()).isTrue();
+                        var decoded = BindingReceiptV1.decode(actual);
+                        var denial = denials.get(id);
+                        assertThat(decoded.accepted()).as(id).isEqualTo(denial == null);
+                        if (denial != null) {
+                            assertThat(decoded.code()).isEqualTo("ADMISSION_RULE_DENIED");
+                            var failed = decoded.steps().stream()
+                                    .filter(step -> step.ordinal() == decoded.failedStepOrdinal()).findFirst()
+                                    .orElseThrow();
+                            assertThat(failed.rules().failure()).isEqualTo(denial);
+                            // A denial is one per-source-message no-op: besides its receipt, the block writes
+                            // only framework keys ("~" namespace), never a component's business state, whose
+                            // physical keys start with "yano-composite-state-v1\0". submit() waits for each
+                            // receipt before the next submission, so this block holds only the denied message.
+                            String receiptKey = hex(cluster.nodes[0].query("composite/binding-receipt-key-v1/"
+                                    + id, new byte[0]).payload());
+                            assertThat(rehearsal.stateChanges()).extracting(BindingDryRun.Entry::keyHex)
+                                    .contains(receiptKey).allSatisfy(key -> assertThat(key).startsWith("7e"));
+                        }
                         retainedReceipts.put(id, hex(actual));
                         compared++;
                     }
@@ -203,11 +243,20 @@ class BindingRecipesIT {
                     verifyReceiptProof(node, receiptProofKey, new LinkedHashSet<>(members), chain,
                             pinnedIdentity, pinnedFinalizedContext);
                 }
+                // A denial is a finalized, provable receipt like any other outcome (ADR-031.3 §7).
+                for (String denied : denials.keySet()) {
+                    byte[] deniedKey = cluster.nodes[0].query("composite/binding-receipt-key-v1/" + denied,
+                            new byte[0]).payload();
+                    for (var node : cluster.nodes) {
+                        verifyReceiptProof(node, deniedKey, new LinkedHashSet<>(members), chain,
+                                pinnedIdentity, pinnedFinalizedContext);
+                    }
+                }
                 retainedRoot = cluster.nodes[0].stateRoot();
                 retainedHeight = cluster.nodes[0].tipHeight();
                 assertThat(BindingReceiptV1.decode(cluster.nodes[0]
                         .query("composite/binding-receipt-v1/" + last, new byte[0]).payload()).steps().size())
-                        .isGreaterThanOrEqualTo(2);
+                        .isGreaterThanOrEqualTo(recipe.equals("balances-transfer-limit") ? 1 : 2);
             }
             // Every recipe reopens all three original stores, not only the outbox-bearing recipe.
             try (Cluster restarted = new Cluster(configs, ports, temporary, environment.providers())) {
@@ -246,9 +295,48 @@ class BindingRecipesIT {
     }
 
     private static List<String> submitRecipe(String recipe, AuthenticatedMapContract.Genesis genesis,
-                                              Cluster cluster, List<byte[]> seeds) throws Exception {
+                                              Cluster cluster, List<byte[]> seeds,
+                                              Map<String, BindingReceiptV1.RuleFailure> denials,
+                                              Ingress ingress) throws Exception {
         List<String> ids = new ArrayList<>();
-        if (recipe.equals("payload-admission")) {
+        if (recipe.equals("balances-transfer-limit")) {
+            String alice = hex(KeyGenUtil.getPublicKeyFromPrivateKey(seeds.getFirst()));
+            String bob = hex(KeyGenUtil.getPublicKeyFromPrivateKey(seeds.get(1)));
+            ids.add(submit(cluster, 0, "points.command.v1",
+                    BalancesContract.mint(alice, BigInteger.valueOf(50_000))));
+            // transfer-limit reads only command.* and params.*, so it is static: refused before pooling.
+            ingress.rejects(cluster, "points.command.v1", BalancesContract.transfer(bob, BigInteger.valueOf(20_000)),
+                    "ADMISSION_RULE_DENIED/transfer-limit/TRANSFER_LIMIT_EXCEEDED");
+            ids.add(submit(cluster, 0, "points.command.v1",
+                    BalancesContract.transfer(bob, BigInteger.valueOf(10_000))));
+            // mint is not selected by the rule, so a large mint is unaffected.
+            ids.add(submitWithFollowerCatchup(cluster, 0, "points.command.v1",
+                    BalancesContract.mint(bob, BigInteger.valueOf(20_000))));
+        } else if (recipe.equals("procurement-admission")) {
+            byte[] supplier = KeyGenUtil.getPublicKeyFromPrivateKey(seeds.getFirst());
+            // §7.1: an order before the sender is registered is refused itself; the lookup keeps it pooled.
+            String unregistered = submit(cluster, 0, "orders.command.v1", KvRegistryContract.put(new byte[]{9},
+                    new byte[]{1}));
+            ids.add(unregistered);
+            denials.put(unregistered, new BindingReceiptV1.RuleFailure("registered-supplier", 0,
+                    "NOT_A_REGISTERED_SUPPLIER"));
+            ids.add(submit(cluster, 0, "suppliers.command.v1", KvRegistryContract.put(supplier,
+                    "approved".getBytes(StandardCharsets.UTF_8))));
+            // minimum-quorum reads only command.* and params.*: a direct low-quorum proposal fails at ingress.
+            ingress.rejects(cluster, "approvals.command.v1", ApprovalsContract.propose("02", new byte[]{7}, 1, 0),
+                    "ADMISSION_RULE_DENIED/minimum-quorum/QUORUM_TOO_LOW");
+            // §7.2: the registered supplier's order derives a quorum-2 proposal at depth 1.
+            ids.add(submit(cluster, 0, "orders.command.v1", KvRegistryContract.put(new byte[]{1}, new byte[]{42})));
+            // §7.4: only-via-binding reads context, so a direct audit append is pooled and denied at block time.
+            String direct = submit(cluster, 0, "audit.command.v1", DocTrailContract.append("01", new byte[32],
+                    "forged"));
+            ids.add(direct);
+            denials.put(direct, new BindingReceiptV1.RuleFailure("only-via-binding", 0,
+                    "DIRECT_SUBMISSION_FORBIDDEN"));
+            ids.add(submit(cluster, 0, "approvals.command.v1", ApprovalsContract.approve("01")));
+            // §7.5: the second approval derives the audit append through approved-to-audit, which the rule admits.
+            ids.add(submitWithFollowerCatchup(cluster, 1, "approvals.command.v1", ApprovalsContract.approve("01")));
+        } else if (recipe.equals("payload-admission")) {
             // A valid host-sized command whose baseline envelope cannot fit must fail at submission,
             // not disappear from the pool later or masquerade as a finalized business outcome.
             assertThatThrownBy(() -> cluster.nodes[0].submit("source.command.v1", new byte[65_536]))
@@ -308,6 +396,22 @@ class BindingRecipesIT {
                     independent, ActorStatementV1.Action.APPROVE, hash, new byte[0])));
         }
         return ids;
+    }
+
+    /**
+     * Local ingress of an ADR-031.3 static rule. The host exposes only a bounded symbolic code to callers
+     * (§5.8), so the workflow's full reason is read from the same catalog-built composite the nodes run.
+     */
+    private record Ingress(AppStateMachine machine, String chain) {
+        void rejects(Cluster cluster, String topic, byte[] body, String reason) {
+            assertThatThrownBy(() -> cluster.nodes[0].submit(topic, body))
+                    .isInstanceOfSatisfying(AppSubmissionRejectedException.class, rejected ->
+                            assertThat(rejected.code()).isEqualTo("APPLICATION_REJECTED"));
+            var message = AppMessage.builder().messageId(new byte[32]).chainId(chain).topic(topic)
+                    .sender(new byte[32]).senderSeq(1).expiresAt(0).body(body).authScheme(0)
+                    .authProof(new byte[0]).build();
+            assertThat(machine.validate(message).reason()).isEqualTo(reason);
+        }
     }
 
     private static byte[] actorCommand(boolean dpp, String chain, String policy, String clause, String actor,

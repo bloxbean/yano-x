@@ -348,7 +348,10 @@ final class BindingAuthoringLanguage {
         code(codes, "RESERVED_EVENT_ID", "contract-violation", "step", "never");
         code(codes, "STATE_KEY_LIMIT", "contract-violation", "step", "never");
         code(codes, "UNDECLARED_WORK_REFERENCE", "contract-violation", "step", "never");
-        // ADR-031.3 admission rules: a step whose command view cannot be built canonically.
+        // ADR-031.3 admission rules: a denial, an evaluation error, or inputs (command view or kernel facts)
+        // that could not be established. A rule's own work exhaustion is EXPRESSION_CAPACITY_EXCEEDED.
+        code(codes, "ADMISSION_RULE_DENIED", "admission-rule", "step", "never");
+        code(codes, "ADMISSION_RULE_ERROR", "admission-rule", "step", "never");
         code(codes, "ADMISSION_RULE_INPUT", "admission-rule", "step", "never");
         return List.copyOf(codes);
     }

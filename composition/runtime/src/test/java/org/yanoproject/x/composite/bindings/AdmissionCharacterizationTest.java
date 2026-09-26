@@ -186,7 +186,8 @@ class AdmissionCharacterizationTest {
     void compactedFailedStepSizeIsPinned() {
         String longName = "a".repeat(127);
         var failed = new BindingReceiptV1.Step(17, 3, longName, "target", new byte[32],
-                Collections.nCopies(257, longName), Collections.nCopies(256, new BindingReceiptV1.Condition(longName, 7)),
+                Collections.nCopies(257, longName),
+                Collections.nCopies(256, new BindingReceiptV1.Condition(longName, 7)),
                 "REJECTED", "EXPRESSION_DIVISION_BY_ZERO", true);
         var trace = new java.util.ArrayList<>(List.of(failed));
         EventBindingWorkflow.compactFailureTrace(trace, 17);
@@ -198,10 +199,12 @@ class AdmissionCharacterizationTest {
     // Pinned in Phase 0 against the pre-ADR-031.3 implementation. Differences since then, explained in the ledger:
     //  - Phase 2: every receipt step gains the eleventh element, the empty rule trace [0, null] (3 bytes: 82 00 f6),
     //    so step arrays grow from 10 (8a) to 11 (8b) elements; the compacted failure step grows by 3 bytes.
-    private static final String SOURCE_ADMISSION_RECEIPT = "870158200000000000000000000000000000000000000000000000000000000000000001016852454a454354"
+    private static final String SOURCE_ADMISSION_RECEIPT =
+            "870158200000000000000000000000000000000000000000000000000000000000000001016852454a454354"
             + "4544006941444d495353494f4e818b0000f666736f7572636558200000000000000000000000000000000000"
             + "00000000000000000000000000000180808200f66852454a45435445446941444d495353494f4ef4";
-    private static final String DERIVED_ADMISSION_RECEIPT = "870158200000000000000000000000000000000000000000000000000000000000000001016852454a454354"
+    private static final String DERIVED_ADMISSION_RECEIPT =
+            "870158200000000000000000000000000000000000000000000000000000000000000001016852454a454354"
             + "4544016941444d495353494f4e828b0000f666736f7572636558200000000000000000000000000000000000"
             + "00000000000000000000000000000181781d636f6d706f736974652e636f6d6d616e642d6163636570746564"
             + "2e7631818267666f7277617264208200f667504c414e4e454460f48b010167666f7277617264667461726765"
@@ -257,7 +260,8 @@ class AdmissionCharacterizationTest {
             var descriptor = new WorkflowDescriptor(EventBindingWorkflow.ID, "1",
                     List.of("source.v1", "target.v1"), 1, 0, List.of(sourceGeneration, targetGeneration), 0);
             engine = new EventBindingWorkflow(program, descriptor,
-                    Map.of("source", sourceGeneration, "target", targetGeneration), AppChainTestProfiles.enabledEffects(10));
+                    Map.of("source", sourceGeneration, "target", targetGeneration),
+                    AppChainTestProfiles.enabledEffects(10));
         }
 
         void apply(List<AppMessage> messages) {
@@ -354,7 +358,9 @@ class AdmissionCharacterizationTest {
             return Optional.ofNullable(values.get(HexFormat.of().formatHex(key))).map(byte[]::clone);
         }
         @Override public byte[] stateRoot() { return new byte[32]; }
-        @Override public void put(byte[] key, byte[] value) { values.put(HexFormat.of().formatHex(key), value.clone()); }
+        @Override public void put(byte[] key, byte[] value) {
+            values.put(HexFormat.of().formatHex(key), value.clone());
+        }
         @Override public void delete(byte[] key) { values.remove(HexFormat.of().formatHex(key)); }
     }
 }
