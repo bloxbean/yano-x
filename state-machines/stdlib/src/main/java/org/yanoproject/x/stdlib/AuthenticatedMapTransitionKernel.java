@@ -6,6 +6,7 @@ import org.yanoproject.api.appchain.codec.MessageCodec;
 import org.yanoproject.api.appchain.transition.CommandDescriptor;
 import org.yanoproject.api.appchain.transition.ConfigurationDescriptor;
 import org.yanoproject.api.appchain.transition.EventDescriptor;
+import org.yanoproject.api.appchain.transition.RuleFact;
 import org.yanoproject.api.appchain.transition.TransitionContext;
 import org.yanoproject.api.appchain.transition.TransitionDecision;
 import org.yanoproject.api.appchain.transition.TransitionEvent;
@@ -23,7 +24,10 @@ import org.yanoproject.x.stdlib.contracts.AuthenticatedMapAuthorizationContract.
 import org.yanoproject.x.stdlib.contracts.AuthenticatedMapAuthorizationContract.MapApprovalReferenceV1;
 import org.yanoproject.x.stdlib.contracts.AuthenticatedMapContract;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -168,7 +172,8 @@ final class AuthenticatedMapTransitionKernel implements
         if (!participants.keySet().equals(Set.copyOf(readParticipants()))) {
             throw new IllegalArgumentException("incorrect map authorization participants");
         }
-        var authorization = AuthenticatedMapDirectAuthorizer.AuthorizationResult.accepted(Set.of(), List.of());
+        var authorization = AuthenticatedMapDirectAuthorizer.AuthorizationResult.accepted(Set.of(), List.of(),
+                List.of(), 0);
         if (state.get(AuthenticatedMapContract.receiptKey(context.messageId())).isPresent()) {
             return new Facts(null, authorization, true);
         }
@@ -247,6 +252,58 @@ final class AuthenticatedMapTransitionKernel implements
         var plan = result.plan();
         return TransitionDecision.approve(new TransitionPlan(plan.mutations(), plan.effects(), plan.consumptions(),
                 plan.receipts(), events));
+    }
+
+    /**
+     * Facts for admission rules (ADR-031.3 §5.5). Every map declares the sender's membership and the collections
+     * a batch writes; a governed map also declares its verified evidence counts and, for exactly one direct
+     * actor, that actor's verified identity, organization, roles and policy.
+     */
+    @Override public List<RuleFact> ruleFacts() {
+        List<RuleFact> facts = new ArrayList<>(List.of(new RuleFact("senderMember", RuleFact.Type.BOOLEAN),
+                new RuleFact("collections", RuleFact.Type.TEXT_SET)));
+        if (authorizer != null) {
+            facts.addAll(List.of(new RuleFact("directActorCount", RuleFact.Type.INTEGER),
+                    new RuleFact("approvalCount", RuleFact.Type.INTEGER),
+                    new RuleFact("actorId", RuleFact.Type.TEXT),
+                    new RuleFact("organizationId", RuleFact.Type.TEXT),
+                    new RuleFact("role", RuleFact.Type.TEXT),
+                    new RuleFact("roles", RuleFact.Type.TEXT_SET),
+                    new RuleFact("policyId", RuleFact.Type.TEXT)));
+        }
+        return List.copyOf(facts);
+    }
+
+    /**
+     * Values read only from the facts that produced the approval, so every value was verified by {@link #facts}.
+     * A replay recognized by its receipt key approves an empty plan without facts; a fact rule then fails closed.
+     */
+    @Override public Map<String, Object> ruleFactValues(Command command, TransitionContext context, Facts facts) {
+        if (facts.replay() || facts.mapFacts() == null) return Map.of();
+        Map<String, Object> values = new LinkedHashMap<>();
+        values.put("senderMember", facts.mapFacts().senderMember());
+        values.put("collections", sortedText(command.action().mutations().stream()
+                .map(AuthenticatedMapContract.Mutation::collectionId).toList()));
+        if (authorizer != null) {
+            var authorization = facts.authorization();
+            values.put("directActorCount", (long) authorization.directFacts().size());
+            values.put("approvalCount", (long) authorization.approvalCount());
+            if (authorization.directFacts().size() == 1) {
+                var direct = authorization.directFacts().getFirst();
+                values.put("actorId", direct.actor().actorId());
+                values.put("organizationId", direct.organization().organizationId());
+                values.put("role", direct.policy().requiredRole());
+                values.put("roles", sortedText(direct.actor().roles()));
+                values.put("policyId", direct.policy().policyId());
+            }
+        }
+        return values;
+    }
+
+    /** Distinct text in unsigned UTF-8 byte order, the order a {@code TEXT_SET} fact requires. */
+    private static List<String> sortedText(List<String> values) {
+        return values.stream().distinct().sorted((left, right) -> Arrays.compareUnsigned(
+                left.getBytes(StandardCharsets.UTF_8), right.getBytes(StandardCharsets.UTF_8))).toList();
     }
 
     @Override public List<CommandDescriptor> commands() {

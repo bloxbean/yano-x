@@ -13,6 +13,7 @@ import org.yanoproject.api.appchain.effects.AppEffectEmitter;
 import org.yanoproject.api.appchain.state.StateCommitmentIdentity;
 import org.yanoproject.api.appchain.state.StateCommitmentProfiles;
 import org.yanoproject.api.appchain.transition.CommandDescriptor;
+import org.yanoproject.api.appchain.transition.RuleFact;
 import org.yanoproject.api.appchain.transition.TransitionContext;
 import org.yanoproject.api.appchain.transition.TransitionDecision;
 import org.yanoproject.api.appchain.transition.TransitionKernel;
@@ -39,11 +40,14 @@ import org.yanoproject.x.roles.contracts.StagedActorCommandV1;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HexFormat;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Consumer;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 
 class DeclarativeRoleProvidersTest {
     private static final String CHAIN = "declarative-roles";
@@ -151,6 +155,62 @@ class DeclarativeRoleProvidersTest {
         }
     }
 
+    /**
+     * ADR-031.3 §5.5: the approval kernel's facts are the signer's verified eligibility records and the signed
+     * statement. They exist for every approved decision, including an exact replay of the same signed statement
+     * in a new message, which {@code decide} verifies again before approving an empty plan.
+     */
+    @Test
+    void approvalFactsAreTheVerifiedSignerRecordsAndTheSignedStatement() {
+        Fixture fixture = new Fixture();
+        var kernel = fixture.approvalMachine.transitionKernel().orElseThrow();
+        assertThat(kernel.ruleFacts()).extracting(RuleFact::name, RuleFact::type).containsExactly(
+                tuple("actorId", RuleFact.Type.TEXT), tuple("organizationId", RuleFact.Type.TEXT),
+                tuple("roles", RuleFact.Type.TEXT_SET), tuple("action", RuleFact.Type.TEXT),
+                tuple("policyId", RuleFact.Type.TEXT), tuple("policyRevision", RuleFact.Type.INTEGER));
+        var propose = command(ActorStatementV1.Action.PROPOSE, "release", 20, ACTION);
+        Map<String, Object> proposer = Map.of("actorId", "issuer", "organizationId", "org-issuer",
+                "roles", List.of("issuer", "registry-admin"), "action", "PROPOSE", "policyId", "release-policy",
+                "policyRevision", 1L);
+        assertThat(fixture.ruleFacts(propose, 2)).isEqualTo(proposer);
+        fixture.apply(propose, 2);
+        assertThat(fixture.ruleFacts(propose, 3)).isEqualTo(proposer);
+        assertThat(fixture.ruleFacts(command(ActorStatementV1.Action.APPROVE, "release", 20, new byte[0]), 4))
+                .isEqualTo(Map.of("actorId", "auditor", "organizationId", "org-auditor",
+                        "roles", List.of("auditor", "registry-admin"), "action", "APPROVE",
+                        "policyId", "release-policy", "policyRevision", 1L));
+    }
+
+    /**
+     * A bad signature, a revoked key, an inactive actor, and an inactive or unknown organization all reject in
+     * {@code decide}. The engine's verified-fact slot runs only after an approval, so no fact is established.
+     */
+    @Test
+    void unverifiableSignersAreRejectedBeforeAnyFactExists() {
+        var propose = command(ActorStatementV1.Action.PROPOSE, "release", 20, ACTION);
+        var forged = new StagedActorCommandV1(SignedActorCommandV1.sign(propose.command().statement(),
+                AUDITOR_SEED), ACTION);
+        assertThat(new Fixture().decide(forged, 2)).isInstanceOfSatisfying(TransitionDecision.Rejected.class,
+                rejected -> assertThat(rejected.rejection().code()).isEqualTo("INVALID_SIGNATURE"));
+        Map<String, Consumer<Fixture>> tampered = new LinkedHashMap<>();
+        tampered.put("revoked key", fixture -> fixture.rewriteIssuer(RecordStatus.ACTIVE, RecordStatus.REVOKED,
+                "org-issuer"));
+        tampered.put("inactive actor", fixture -> fixture.rewriteIssuer(RecordStatus.SUSPENDED, RecordStatus.ACTIVE,
+                "org-issuer"));
+        tampered.put("unknown organization", fixture -> fixture.rewriteIssuer(RecordStatus.ACTIVE,
+                RecordStatus.ACTIVE, "org-nowhere"));
+        tampered.put("inactive organization", fixture -> fixture.actors.put(
+                RoleWorkflowKeys.organizationRevision("org-issuer", 1),
+                new OrganizationRecordV1("org-issuer", 1, RecordStatus.SUSPENDED, new byte[0]).encode()));
+        tampered.forEach((name, tamper) -> {
+            Fixture fixture = new Fixture();
+            tamper.accept(fixture);
+            assertThat(fixture.decide(propose, 2)).as(name).isInstanceOfSatisfying(
+                    TransitionDecision.Rejected.class, rejected ->
+                            assertThat(rejected.rejection().code()).isEqualTo("UNAUTHORIZED_ACTOR"));
+        });
+    }
+
     private static StagedActorCommandV1 command(ActorStatementV1.Action action, String id,
                                                long deadline, byte[] bytes) {
         boolean issuer = action == ActorStatementV1.Action.PROPOSE || action == ActorStatementV1.Action.CANCEL;
@@ -222,6 +282,31 @@ class DeclarativeRoleProvidersTest {
                 assertThat(TransitionWorkAccounting.reserve(actors, budget, height, request.units())).isTrue();
             });
             return kernel.decide(command, context, kernel.facts(command, context, approvals, Map.of("actors", actors)));
+        }
+
+        /** Decides one command, requires approval, and returns the rule facts from the approving facts. */
+        Map<String, Object> ruleFacts(StagedActorCommandV1 command, long height) {
+            return ruleFacts(approvalMachine.transitionKernel().orElseThrow(), command.encode(), height);
+        }
+
+        private <C, F> Map<String, Object> ruleFacts(TransitionKernel<C, F> kernel, byte[] bytes, long height) {
+            var context = new TransitionContext(height, 0, 0, new byte[32], "reviews", new byte[32]);
+            C command = kernel.codec().decode(bytes);
+            kernel.workRequest(command, context).ifPresent(request -> {
+                var budget = actorMachine.transitionKernel().orElseThrow().workBudgets().getFirst();
+                assertThat(TransitionWorkAccounting.reserve(actors, budget, height, request.units())).isTrue();
+            });
+            F facts = kernel.facts(command, context, approvals, Map.of("actors", actors));
+            assertThat(kernel.decide(command, context, facts)).isInstanceOf(TransitionDecision.Approved.class);
+            return kernel.ruleFactValues(command, context, facts);
+        }
+
+        /** Replaces the issuer's genesis actor revision, keeping its key material. */
+        void rewriteIssuer(RecordStatus actorStatus, RecordStatus keyStatus, String organizationId) {
+            var key = new ActorKeyEpochV1("issuer-key", KeyGenUtil.getPublicKeyFromPrivateKey(ISSUER_SEED), 1, 0,
+                    keyStatus);
+            actors.put(RoleWorkflowKeys.actorRevision("issuer", 1), new ActorRecordV1("issuer", organizationId, 1,
+                    actorStatus, List.of("issuer", "registry-admin"), List.of(key), new byte[0]).encode());
         }
 
         TransitionPlan apply(StagedActorCommandV1 command, long height) {

@@ -69,6 +69,8 @@ final class AuthenticatedMapDirectAuthorizer {
 
         List<RoleAuthorizationCapability.ConsumptionPlan> consumptions = new ArrayList<>();
         Set<Integer> governedIndexes = new LinkedHashSet<>();
+        List<RoleAuthorizationCapability.DirectFacts> directFacts = new ArrayList<>();
+        int approvalCount = 0;
         for (AuthorizationEvidenceV1 evidence : command.evidence()) {
             if (evidence instanceof MapActorAuthorizationV1 actor) {
                 var verified = authorization.verifyDirect(
@@ -85,6 +87,7 @@ final class AuthenticatedMapDirectAuthorizer {
                 }
                 governedIndexes.addAll(actor.coveredMutationIndexes());
                 RoleAuthorizationCapability.DirectFacts facts = verified.value();
+                directFacts.add(facts);
                 DirectConsumptionV1 receipt = new DirectConsumptionV1(
                         actor.actorId(), actor.authorizationId(),
                         actor.actionCommitment(), height, messageId,
@@ -115,6 +118,7 @@ final class AuthenticatedMapDirectAuthorizer {
                     return AuthorizationResult.rejected(errorCode(verified.failure()));
                 }
                 governedIndexes.addAll(approval.coveredMutationIndexes());
+                approvalCount++;
                 ApprovalConsumptionV1 receipt = new ApprovalConsumptionV1(
                         approval.proposalId(), approval.actionCommitment(), height,
                         messageId, approval.coveredMutationIndexes(),
@@ -125,7 +129,7 @@ final class AuthenticatedMapDirectAuthorizer {
             }
         }
         return AuthorizationResult.accepted(
-                governedIndexes, consumptions);
+                governedIndexes, consumptions, directFacts, approvalCount);
     }
 
     private static int errorCode(RoleAuthorizationCapability.Failure failure) {
@@ -153,27 +157,42 @@ final class AuthenticatedMapDirectAuthorizer {
         }
     }
 
+    /**
+     * Outcome of verifying one command's evidence.
+     *
+     * @param errorCode map error code, {@code ERROR_NONE} when every evidence item verified
+     * @param governedMutationIndexes mutation indexes covered by verified evidence
+     * @param consumptions one-use consumption plans of the verified evidence
+     * @param directFacts the verified records of each direct-actor evidence item, in evidence order
+     *                    (ADR-031.3 rule facts read them without verifying again)
+     * @param approvalCount the number of verified approval-reference evidence items
+     */
     record AuthorizationResult(
             int errorCode,
             Set<Integer> governedMutationIndexes,
-            List<RoleAuthorizationCapability.ConsumptionPlan> consumptions
+            List<RoleAuthorizationCapability.ConsumptionPlan> consumptions,
+            List<RoleAuthorizationCapability.DirectFacts> directFacts,
+            int approvalCount
     ) {
         AuthorizationResult {
             governedMutationIndexes = Set.copyOf(governedMutationIndexes);
             consumptions = List.copyOf(consumptions);
+            directFacts = List.copyOf(directFacts);
         }
 
         static AuthorizationResult accepted(
                 Set<Integer> indexes,
-                List<RoleAuthorizationCapability.ConsumptionPlan> consumptions
+                List<RoleAuthorizationCapability.ConsumptionPlan> consumptions,
+                List<RoleAuthorizationCapability.DirectFacts> directFacts,
+                int approvalCount
         ) {
             return new AuthorizationResult(AuthenticatedMapContract.ERROR_NONE,
-                    indexes, consumptions);
+                    indexes, consumptions, directFacts, approvalCount);
         }
 
         static AuthorizationResult rejected(int errorCode) {
             return new AuthorizationResult(
-                    errorCode, Set.of(), List.of());
+                    errorCode, Set.of(), List.of(), List.of(), 0);
         }
 
         boolean accepted() {

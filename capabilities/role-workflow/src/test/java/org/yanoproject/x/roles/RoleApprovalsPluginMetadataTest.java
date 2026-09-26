@@ -34,7 +34,7 @@ class RoleApprovalsPluginMetadataTest {
             assertThat(input).isNotNull();
             var manifest = new BundleManifestParser().parse(MANIFEST, input);
             assertThat(manifest.id()).isEqualTo(BUNDLE_ID);
-            assertThat(manifest.yanoApi().minLevel()).isEqualTo(10);
+            assertThat(manifest.yanoApi().minLevel()).isEqualTo(12);
             assertThat(manifest.contributions()).hasSize(4);
             assertThat(manifest.contributions().stream()
                     .filter(contribution -> contribution.kind() == ContributionKind.APP_STATE_MACHINE)

@@ -4,8 +4,8 @@
   "producer" : {
     "tool" : "yano-x-devtools",
     "version" : "0.1.0-pre3",
-    "jarSha256" : "8cc1dc5e2cd5b36bb6acf5a89f1496043a2573047b092218865ec4cba53b67b9",
-    "linkedCompositeJarSha256" : "91a1ac902d212c4f265afa271c2e52a7a9500dee85628ff7cf2d0040a8b42c20"
+    "jarSha256" : "94d2dffc73047e53dac0b40ef709b063a45646a42fc3075d07eadfc644b9c629",
+    "linkedCompositeJarSha256" : "a57536b55954957f845095672c476272aadb856738c9d39ec1991a738be64b5f"
   },
   "host" : {
     "version" : "0.1.0-pre18-f92d8b1-SNAPSHOT",
@@ -14,7 +14,7 @@
   },
   "authoringEnvironment" : "yano-x-binding-authoring-environment-v1",
   "catalog" : {
-    "fingerprint" : "sha256:c69ac59b0f639930fc57858ba32719873ebfc2042267fc69ac48feab41022ca3",
+    "fingerprint" : "sha256:21b4d32212f2dd87f37441ee353612e25ab448b1cc80afdd879678e21b424628",
     "pluginApi" : {
       "major" : 3,
       "level" : 12
@@ -22,19 +22,19 @@
     "bundles" : [ {
       "id" : "org.yanoproject.x.composite",
       "version" : "0.1.0-pre3",
-      "digest" : "sha256:4855a82d15b78a359d7f10c1c9a0e51c7d661d135d4af4913f379b529ecbc365",
+      "digest" : "sha256:372c2c40fd8c7dff495888191dd234fcc6e01c7954ebb225af6724deca950c1f",
       "digestMode" : "ARTIFACT_CLOSURE",
       "selected" : true
     }, {
       "id" : "org.yanoproject.x.role-workflow",
       "version" : "0.1.0-pre3",
-      "digest" : "sha256:c31bfe0b81700bdd03784be86f07c7103031f71b2d480a1c653264dc51e48612",
+      "digest" : "sha256:17e70128cf4cdcc0f2d8904e5c897e02207020a71b46df6bdaecef5aac3d50b9",
       "digestMode" : "ARTIFACT_CLOSURE",
       "selected" : true
     }, {
       "id" : "org.yanoproject.x.stdlib",
       "version" : "0.1.0-pre3",
-      "digest" : "sha256:1b0106b582c682d1db2a55c9f6c56103675d597f8a7c695f9faeb417eadcbbb6",
+      "digest" : "sha256:58b2a98b1baaff883f51aef421a38576ddfc4afe041e7f3887c709f2fe2a0c29",
       "digestMode" : "ARTIFACT_CLOSURE",
       "selected" : true
     } ]
@@ -714,7 +714,7 @@
     "origin" : {
       "kind" : "bundle",
       "bundleId" : "org.yanoproject.x.stdlib",
-      "digest" : "sha256:1b0106b582c682d1db2a55c9f6c56103675d597f8a7c695f9faeb417eadcbbb6",
+      "digest" : "sha256:58b2a98b1baaff883f51aef421a38576ddfc4afe041e7f3887c709f2fe2a0c29",
       "digestMode" : "ARTIFACT_CLOSURE"
     },
     "composable" : null
@@ -723,7 +723,7 @@
     "origin" : {
       "kind" : "bundle",
       "bundleId" : "org.yanoproject.x.stdlib",
-      "digest" : "sha256:1b0106b582c682d1db2a55c9f6c56103675d597f8a7c695f9faeb417eadcbbb6",
+      "digest" : "sha256:58b2a98b1baaff883f51aef421a38576ddfc4afe041e7f3887c709f2fe2a0c29",
       "digestMode" : "ARTIFACT_CLOSURE"
     },
     "composable" : null
@@ -732,7 +732,7 @@
     "origin" : {
       "kind" : "bundle",
       "bundleId" : "org.yanoproject.x.stdlib",
-      "digest" : "sha256:1b0106b582c682d1db2a55c9f6c56103675d597f8a7c695f9faeb417eadcbbb6",
+      "digest" : "sha256:58b2a98b1baaff883f51aef421a38576ddfc4afe041e7f3887c709f2fe2a0c29",
       "digestMode" : "ARTIFACT_CLOSURE"
     },
     "composable" : null
@@ -741,7 +741,7 @@
     "origin" : {
       "kind" : "bundle",
       "bundleId" : "org.yanoproject.x.stdlib",
-      "digest" : "sha256:1b0106b582c682d1db2a55c9f6c56103675d597f8a7c695f9faeb417eadcbbb6",
+      "digest" : "sha256:58b2a98b1baaff883f51aef421a38576ddfc4afe041e7f3887c709f2fe2a0c29",
       "digestMode" : "ARTIFACT_CLOSURE"
     },
     "composable" : null
@@ -750,7 +750,7 @@
     "origin" : {
       "kind" : "bundle",
       "bundleId" : "org.yanoproject.x.stdlib",
-      "digest" : "sha256:1b0106b582c682d1db2a55c9f6c56103675d597f8a7c695f9faeb417eadcbbb6",
+      "digest" : "sha256:58b2a98b1baaff883f51aef421a38576ddfc4afe041e7f3887c709f2fe2a0c29",
       "digestMode" : "ARTIFACT_CLOSURE"
     },
     "composable" : null
@@ -759,7 +759,7 @@
     "origin" : {
       "kind" : "bundle",
       "bundleId" : "org.yanoproject.x.composite",
-      "digest" : "sha256:4855a82d15b78a359d7f10c1c9a0e51c7d661d135d4af4913f379b529ecbc365",
+      "digest" : "sha256:372c2c40fd8c7dff495888191dd234fcc6e01c7954ebb225af6724deca950c1f",
       "digestMode" : "ARTIFACT_CLOSURE"
     },
     "composable" : false
@@ -768,7 +768,7 @@
     "origin" : {
       "kind" : "bundle",
       "bundleId" : "org.yanoproject.x.stdlib",
-      "digest" : "sha256:1b0106b582c682d1db2a55c9f6c56103675d597f8a7c695f9faeb417eadcbbb6",
+      "digest" : "sha256:58b2a98b1baaff883f51aef421a38576ddfc4afe041e7f3887c709f2fe2a0c29",
       "digestMode" : "ARTIFACT_CLOSURE"
     },
     "composable" : null
@@ -777,7 +777,7 @@
     "origin" : {
       "kind" : "bundle",
       "bundleId" : "org.yanoproject.x.role-workflow",
-      "digest" : "sha256:c31bfe0b81700bdd03784be86f07c7103031f71b2d480a1c653264dc51e48612",
+      "digest" : "sha256:17e70128cf4cdcc0f2d8904e5c897e02207020a71b46df6bdaecef5aac3d50b9",
       "digestMode" : "ARTIFACT_CLOSURE"
     },
     "composable" : null
@@ -786,7 +786,7 @@
     "origin" : {
       "kind" : "bundle",
       "bundleId" : "org.yanoproject.x.stdlib",
-      "digest" : "sha256:1b0106b582c682d1db2a55c9f6c56103675d597f8a7c695f9faeb417eadcbbb6",
+      "digest" : "sha256:58b2a98b1baaff883f51aef421a38576ddfc4afe041e7f3887c709f2fe2a0c29",
       "digestMode" : "ARTIFACT_CLOSURE"
     },
     "composable" : null
@@ -795,7 +795,7 @@
     "origin" : {
       "kind" : "bundle",
       "bundleId" : "org.yanoproject.x.stdlib",
-      "digest" : "sha256:1b0106b582c682d1db2a55c9f6c56103675d597f8a7c695f9faeb417eadcbbb6",
+      "digest" : "sha256:58b2a98b1baaff883f51aef421a38576ddfc4afe041e7f3887c709f2fe2a0c29",
       "digestMode" : "ARTIFACT_CLOSURE"
     },
     "composable" : null
@@ -804,7 +804,7 @@
     "origin" : {
       "kind" : "bundle",
       "bundleId" : "org.yanoproject.x.stdlib",
-      "digest" : "sha256:1b0106b582c682d1db2a55c9f6c56103675d597f8a7c695f9faeb417eadcbbb6",
+      "digest" : "sha256:58b2a98b1baaff883f51aef421a38576ddfc4afe041e7f3887c709f2fe2a0c29",
       "digestMode" : "ARTIFACT_CLOSURE"
     },
     "composable" : null
@@ -813,7 +813,7 @@
     "origin" : {
       "kind" : "bundle",
       "bundleId" : "org.yanoproject.x.role-workflow",
-      "digest" : "sha256:c31bfe0b81700bdd03784be86f07c7103031f71b2d480a1c653264dc51e48612",
+      "digest" : "sha256:17e70128cf4cdcc0f2d8904e5c897e02207020a71b46df6bdaecef5aac3d50b9",
       "digestMode" : "ARTIFACT_CLOSURE"
     },
     "composable" : null
@@ -822,7 +822,7 @@
     "origin" : {
       "kind" : "bundle",
       "bundleId" : "org.yanoproject.x.stdlib",
-      "digest" : "sha256:1b0106b582c682d1db2a55c9f6c56103675d597f8a7c695f9faeb417eadcbbb6",
+      "digest" : "sha256:58b2a98b1baaff883f51aef421a38576ddfc4afe041e7f3887c709f2fe2a0c29",
       "digestMode" : "ARTIFACT_CLOSURE"
     },
     "composable" : null
@@ -837,7 +837,7 @@
     "origin" : {
       "kind" : "bundle",
       "bundleId" : "org.yanoproject.x.role-workflow",
-      "digest" : "sha256:c31bfe0b81700bdd03784be86f07c7103031f71b2d480a1c653264dc51e48612",
+      "digest" : "sha256:17e70128cf4cdcc0f2d8904e5c897e02207020a71b46df6bdaecef5aac3d50b9",
       "digestMode" : "ARTIFACT_CLOSURE"
     },
     "composable" : null
@@ -846,7 +846,7 @@
     "origin" : {
       "kind" : "bundle",
       "bundleId" : "org.yanoproject.x.stdlib",
-      "digest" : "sha256:1b0106b582c682d1db2a55c9f6c56103675d597f8a7c695f9faeb417eadcbbb6",
+      "digest" : "sha256:58b2a98b1baaff883f51aef421a38576ddfc4afe041e7f3887c709f2fe2a0c29",
       "digestMode" : "ARTIFACT_CLOSURE"
     },
     "composable" : null

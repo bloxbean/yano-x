@@ -25,12 +25,17 @@ import org.yanoproject.api.appchain.transition.TransitionScalars;
 import org.yanoproject.appchain.config.AppChainEffectsConfig;
 import org.yanoproject.runtime.appchain.AppChainSubsystem;
 import org.yanoproject.runtime.plugins.PluginProviderRegistry;
+import org.yanoproject.x.composite.CompositeStateKeys;
 import org.yanoproject.x.composite.contracts.BindingCbor;
 import org.yanoproject.x.composite.contracts.BindingIrV1;
 import org.yanoproject.x.composite.contracts.BindingReceiptV1;
 import org.yanoproject.x.client.AppChainClient;
 import org.yanoproject.x.client.ProofVerifier;
+import org.yanoproject.x.dpp.profile.DppGenesis;
+import org.yanoproject.x.dpp.profile.DppStarterProfile;
+import org.yanoproject.x.dpp.profile.DppValues;
 import org.yanoproject.x.roles.contracts.ActorStatementV1;
+import org.yanoproject.x.roles.contracts.RoleWorkflowKeys;
 import org.yanoproject.x.roles.contracts.SignedActorCommandV1;
 import org.yanoproject.x.roles.contracts.StagedActorCommandV1;
 import org.yanoproject.x.stdlib.contracts.ApprovalsContract;
@@ -85,9 +90,29 @@ class BindingRecipesIT {
     @Test void procurementAdmissionRulesHaveLiveAndOfflineReceiptParity() throws Exception {
         qualify("procurement-admission");
     }
+    @Test void roleGatedDppRulesHaveLiveAndOfflineReceiptParity() throws Exception {
+        qualify("dpp-role-gated");
+    }
 
     /** ADR-031.3 recipes live beside this test until the authoring tools accept rules in shipped examples. */
-    private static final Set<String> ADMISSION_RECIPES = Set.of("balances-transfer-limit", "procurement-admission");
+    private static final Set<String> ADMISSION_RECIPES = Set.of("balances-transfer-limit", "procurement-admission",
+            "dpp-role-gated");
+
+    /**
+     * An expected refusal: the receipt code, the failed step's exact rule trace, and the business keys its block
+     * may still write. An admission-slot refusal reserves no work, so its block writes framework keys only; a
+     * refusal after the kernel's work reservation keeps that non-refundable reservation and nothing else.
+     */
+    private record Refusal(String code, BindingReceiptV1.RuleTrace rules, Set<String> keptKeys) {
+        static Refusal denied(String rule, String denyCode, Set<String> keptKeys) {
+            return new Refusal("ADMISSION_RULE_DENIED", new BindingReceiptV1.RuleTrace(0,
+                    new BindingReceiptV1.RuleFailure(rule, 0, denyCode)), keptKeys);
+        }
+    }
+
+    /** The actor component's shared crypto-work counter, which governed evidence reserves before verification. */
+    private static final String ACTOR_WORK_KEY = hex(CompositeStateKeys.componentKey("actors",
+            RoleWorkflowKeys.cryptoWork()));
 
     private void qualify(String recipe) throws Exception {
         Path plugins = Files.createDirectory(temporary.resolve("plugins"));
@@ -153,7 +178,7 @@ class BindingRecipesIT {
                 pinnedIdentity = cluster.nodes[0].stateCommitmentIdentity().orElseThrow();
                 pinnedManifest = cluster.nodes[0].status().get("capabilityManifest");
                 pinnedConsensus = cluster.nodes[0].status().get("consensusProfile");
-                Map<String, BindingReceiptV1.RuleFailure> denials = new LinkedHashMap<>();
+                Map<String, Refusal> denials = new LinkedHashMap<>();
                 var ingress = new Ingress(catalog.validate(ir), chain);
                 List<String> sourceIds = submitRecipe(recipe, genesis, cluster, seeds, denials, ingress);
                 pinnedFinalizedContext = cluster.finalizedContextPin.clone();
@@ -208,19 +233,26 @@ class BindingRecipesIT {
                         var denial = denials.get(id);
                         assertThat(decoded.accepted()).as(id).isEqualTo(denial == null);
                         if (denial != null) {
-                            assertThat(decoded.code()).isEqualTo("ADMISSION_RULE_DENIED");
+                            assertThat(decoded.code()).isEqualTo(denial.code());
                             var failed = decoded.steps().stream()
                                     .filter(step -> step.ordinal() == decoded.failedStepOrdinal()).findFirst()
                                     .orElseThrow();
-                            assertThat(failed.rules().failure()).isEqualTo(denial);
-                            // A denial is one per-source-message no-op: besides its receipt, the block writes
-                            // only framework keys ("~" namespace), never a component's business state, whose
-                            // physical keys start with "yano-composite-state-v1\0". submit() waits for each
-                            // receipt before the next submission, so this block holds only the denied message.
+                            assertThat(failed.rules()).isEqualTo(denial.rules());
+                            // A refusal is one per-source-message no-op: besides its receipt and framework keys
+                            // ("~" namespace), its block changes no business value (physical keys starting with
+                            // "yano-composite-state-v1\0") except the refusal's kept keys. A component's per-height
+                            // lifecycle may rewrite a value unchanged. submit() waits for each receipt before the
+                            // next submission, so this block holds only the refused message.
                             String receiptKey = hex(cluster.nodes[0].query("composite/binding-receipt-key-v1/"
                                     + id, new byte[0]).payload());
                             assertThat(rehearsal.stateChanges()).extracting(BindingDryRun.Entry::keyHex)
-                                    .contains(receiptKey).allSatisfy(key -> assertThat(key).startsWith("7e"));
+                                    .contains(receiptKey);
+                            for (var change : rehearsal.stateChanges()) {
+                                if (change.keyHex().startsWith("7e") || denial.keptKeys().contains(change.keyHex())) {
+                                    continue;
+                                }
+                                assertThat(change.valueHex()).as(change.keyHex()).isEqualTo(state.get(change.keyHex()));
+                            }
                         }
                         retainedReceipts.put(id, hex(actual));
                         compared++;
@@ -256,7 +288,8 @@ class BindingRecipesIT {
                 retainedHeight = cluster.nodes[0].tipHeight();
                 assertThat(BindingReceiptV1.decode(cluster.nodes[0]
                         .query("composite/binding-receipt-v1/" + last, new byte[0]).payload()).steps().size())
-                        .isGreaterThanOrEqualTo(recipe.equals("balances-transfer-limit") ? 1 : 2);
+                        .isGreaterThanOrEqualTo(Set.of("balances-transfer-limit", "dpp-role-gated").contains(recipe)
+                                ? 1 : 2);
             }
             // Every recipe reopens all three original stores, not only the outbox-bearing recipe.
             try (Cluster restarted = new Cluster(configs, ports, temporary, environment.providers())) {
@@ -296,7 +329,7 @@ class BindingRecipesIT {
 
     private static List<String> submitRecipe(String recipe, AuthenticatedMapContract.Genesis genesis,
                                               Cluster cluster, List<byte[]> seeds,
-                                              Map<String, BindingReceiptV1.RuleFailure> denials,
+                                              Map<String, Refusal> denials,
                                               Ingress ingress) throws Exception {
         List<String> ids = new ArrayList<>();
         if (recipe.equals("balances-transfer-limit")) {
@@ -318,8 +351,7 @@ class BindingRecipesIT {
             String unregistered = submit(cluster, 0, "orders.command.v1", KvRegistryContract.put(new byte[]{9},
                     new byte[]{1}));
             ids.add(unregistered);
-            denials.put(unregistered, new BindingReceiptV1.RuleFailure("registered-supplier", 0,
-                    "NOT_A_REGISTERED_SUPPLIER"));
+            denials.put(unregistered, Refusal.denied("registered-supplier", "NOT_A_REGISTERED_SUPPLIER", Set.of()));
             ids.add(submit(cluster, 0, "suppliers.command.v1", KvRegistryContract.put(supplier,
                     "approved".getBytes(StandardCharsets.UTF_8))));
             // minimum-quorum reads only command.* and params.*: a direct low-quorum proposal fails at ingress.
@@ -331,11 +363,12 @@ class BindingRecipesIT {
             String direct = submit(cluster, 0, "audit.command.v1", DocTrailContract.append("01", new byte[32],
                     "forged"));
             ids.add(direct);
-            denials.put(direct, new BindingReceiptV1.RuleFailure("only-via-binding", 0,
-                    "DIRECT_SUBMISSION_FORBIDDEN"));
+            denials.put(direct, Refusal.denied("only-via-binding", "DIRECT_SUBMISSION_FORBIDDEN", Set.of()));
             ids.add(submit(cluster, 0, "approvals.command.v1", ApprovalsContract.approve("01")));
             // §7.5: the second approval derives the audit append through approved-to-audit, which the rule admits.
             ids.add(submitWithFollowerCatchup(cluster, 1, "approvals.command.v1", ApprovalsContract.approve("01")));
+        } else if (recipe.equals("dpp-role-gated")) {
+            submitRoleGated(genesis, cluster, ids, denials);
         } else if (recipe.equals("payload-admission")) {
             // A valid host-sized command whose baseline envelope cannot fit must fail at submission,
             // not disappear from the pool later or masquerade as a finalized business outcome.
@@ -396,6 +429,87 @@ class BindingRecipesIT {
                     independent, ActorStatementV1.Action.APPROVE, hash, new byte[0])));
         }
         return ids;
+    }
+
+    /**
+     * ADR-031.3 §6.3 and §7 items 6 to 8 on the DPP demo registry. Both rules read verified facts, so they run
+     * only after the kernels verified the signatures; their refusals keep the actor-owned work reservation.
+     */
+    private static void submitRoleGated(AuthenticatedMapContract.Genesis genesis, Cluster cluster, List<String> ids,
+                                        Map<String, Refusal> denials) throws Exception {
+        String chain = genesis.chainId();
+        var action = new AuthenticatedMapAuthorizationContract.MapActionV1(false,
+                List.of(AuthenticatedMapContract.Mutation.put(DppStarterProfile.CERTIFICATES,
+                        DppStarterProfile.certificateKey("certificate-1"), BindingCbor.encode(List.of(1L,
+                                "product-1", "independent-audit", "cert-body-a", new byte[32], 1L, 0L)))),
+                List.of(new AuthenticatedMapAuthorizationContract.AuthorizationAssignmentV1(
+                        0, AuthenticatedMapContract.AUTH_APPROVAL, DppStarterProfile.CERTIFICATION_POLICY, 1)));
+        byte[] hash = AuthenticatedMapAuthorizationContract.approvalPayloadHash(
+                AuthenticatedMapContract.genesisId(genesis),
+                AuthenticatedMapAuthorizationContract.actionCommitment(action));
+        String policy = DppStarterProfile.CERTIFICATION_POLICY;
+        String clause = DppStarterProfile.CERTIFICATION_CLAUSE;
+        ids.add(submit(cluster, 0, "reviews.v1", actorCommand(true, chain, policy, clause, "certifier-a",
+                ActorStatementV1.Action.PROPOSE, hash, AuthenticatedMapAuthorizationContract.encodeAction(action))));
+        byte[] approval = actorCommand(true, chain, policy, clause, "auditor-a", ActorStatementV1.Action.APPROVE,
+                hash, new byte[0]);
+        ids.add(submit(cluster, 0, "reviews.v1", approval));
+        // The same signed approval in a new message from another member: an exact replay that decide verifies
+        // again, so its facts exist and allowed-organization holds (ADR-031.3 §5.5).
+        String replayed = submit(cluster, 1, "reviews.v1", approval);
+        ids.add(replayed);
+        var replayReceipt = BindingReceiptV1.decode(cluster.nodes[0].query("composite/binding-receipt-v1/"
+                + replayed, new byte[0]).payload());
+        assertThat(replayReceipt.accepted()).isTrue();
+        assertThat(replayReceipt.steps().getFirst().rules()).isEqualTo(new BindingReceiptV1.RuleTrace(1, null));
+        // §7.6: an auditor from audit-guild-b is verified, then refused by allowed-organization.
+        String independent = submit(cluster, 0, "reviews.v1", actorCommand(true, chain, policy, clause, "auditor-b",
+                ActorStatementV1.Action.APPROVE, hash, new byte[0]));
+        ids.add(independent);
+        denials.put(independent, Refusal.denied("allowed-organization", "ORGANIZATION_NOT_ALLOWED",
+                Set.of(ACTOR_WORK_KEY)));
+        // §7.7: a forged approval fails the kernel's own signature check; no rule runs.
+        var statement = new ActorStatementV1(ActorStatementV1.Action.APPROVE, chain, "qualification", policy, 1,
+                AuthenticatedMapAuthorizationContract.APPROVAL_PAYLOAD_DOMAIN, hash, 500, "auditor-b", 1,
+                "auditor-b-k1", clause);
+        String forged = submit(cluster, 0, "reviews.v1", new StagedActorCommandV1(SignedActorCommandV1.sign(
+                statement, DppGenesis.demoActorSeed("auditor-a")), new byte[0]).encode());
+        ids.add(forged);
+        denials.put(forged, new Refusal("INVALID_SIGNATURE", BindingReceiptV1.RuleTrace.NONE, Set.of(ACTOR_WORK_KEY)));
+        // §7.8: a direct write by an actor without operator is verified by the map, then refused.
+        byte[] claim = new DppValues.ClaimValue(DppStarterProfile.VISIBILITY_PUBLIC,
+                "recycled".getBytes(StandardCharsets.UTF_8), "green-labs", 0, 0, new byte[0]).encode();
+        String withoutRole = submit(cluster, 0, "registry.v1", directWrite(genesis, DppStarterProfile.CLAIMS,
+                DppStarterProfile.claimKey("product-1", "material", "claim-1"), claim,
+                DppStarterProfile.CLAIM_ISSUER_POLICY, "issuer-a", 1));
+        ids.add(withoutRole);
+        denials.put(withoutRole, Refusal.denied("operator-for-direct-writes", "ROLE_REQUIRED",
+                Set.of(ACTOR_WORK_KEY)));
+        // An operator's direct write passes.
+        byte[] event = new DppValues.EventValue("shipped", "swift-logistics", 1_700_000_000L, "", new byte[0],
+                "").encode();
+        ids.add(submitWithFollowerCatchup(cluster, 0, "registry.v1", directWrite(genesis, DppStarterProfile.EVENTS,
+                DppStarterProfile.eventKey("product-1", "event-1"), event, DppStarterProfile.OPERATOR_POLICY,
+                "logistics-a", 2)));
+    }
+
+    /** An {@code apply-authorized} map command with one direct actor authorization covering its single write. */
+    private static byte[] directWrite(AuthenticatedMapContract.Genesis genesis, String collection, byte[] key,
+                                      byte[] value, String policy, String actor, int authorization) {
+        var action = new AuthenticatedMapAuthorizationContract.MapActionV1(false,
+                List.of(AuthenticatedMapContract.Mutation.put(collection, key, value)),
+                List.of(new AuthenticatedMapAuthorizationContract.AuthorizationAssignmentV1(
+                        0, AuthenticatedMapContract.AUTH_GOVERNED_ROLE, policy, 1)));
+        byte[] seed = DppGenesis.demoActorSeed(actor);
+        byte[] authorizationId = new byte[32];
+        authorizationId[0] = (byte) authorization;
+        var signed = AuthenticatedMapAuthorizationContract.MapActorAuthorizationV1.sign(authorizationId,
+                genesis.chainId(), AuthenticatedMapContract.genesisId(genesis),
+                AuthenticatedMapAuthorizationContract.actionCommitment(action), List.of(0), policy, 1, actor, 1,
+                actor + "-k1", KeyGenUtil.getPublicKeyFromPrivateKey(seed), 1,
+                DppStarterProfile.DIRECT_AUTHORIZATION_LIFETIME_BLOCKS, seed);
+        return TransitionScalars.encode(Map.of("command", AuthenticatedMapAuthorizationContract.encodeCommand(
+                new AuthenticatedMapAuthorizationContract.AuthenticatedMapCommandV1(action, List.of(signed)))));
     }
 
     /**
