@@ -287,7 +287,7 @@ every deviation live in the [implementation ledger](031.3-implementation-progres
 | RULE-003: runtime evaluation | Implemented | Rule validation and diagnostics, two evaluation slots, advisory ingress, receipts, manifest attributes, YAML rule authoring; §6.1/§6.2 on the three-node harness |
 | RULE-004: kernel fact providers | Implemented | Map and `governed-role-approvals` facts with negative verification tests; §6.3 on the three-node harness |
 | RULE-005: authoring, tooling, Studio, documentation | Implemented | YAML, schema, catalog, CLI, Studio, docs, three recipes with denial fixtures |
-| RULE-006: cluster qualification and packaging | Ready | Three-member runs, divergence, governance epoch, role change, anti-poison, distribution gates |
+| RULE-006: cluster qualification and packaging | Implemented (local snapshot) | Three-member runs, divergence, governance epoch, role change, anti-poison, distribution gates |
 
 | ID | Priority | State | Remaining gap | Owner |
 |---|---|---|---|---|

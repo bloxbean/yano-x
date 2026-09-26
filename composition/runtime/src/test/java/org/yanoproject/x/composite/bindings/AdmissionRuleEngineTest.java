@@ -343,6 +343,41 @@ class AdmissionRuleEngineTest {
         assertThat(codes).contains("ADMISSION_RULE_DENIED", "EXPRESSION_CAPACITY_EXCEEDED");
     }
 
+    /**
+     * ADR-031.3 §5.11: denials draw down the shared block budget, so the budget is sized exactly here. A legitimate
+     * cascade after a run of denials commits when the block budget still covers it, and is refused with
+     * {@code EXPRESSION_CAPACITY_EXCEEDED} (a receipt the sender can resubmit) when it is one unit short.
+     */
+    @Test
+    void aRunOfDenialsDrawsDownTheBlockBudgetAndAnInBudgetCascadeStillCommits() {
+        var limit = rule("note-limit", "NOTE_FORBIDDEN", "record", new Call("ne", List.of(command("note"),
+                new Literal("forbidden"))));
+        var ir = chain(List.of(limit), Map.of("a", List.of(attach("note-limit"))));
+        List<AppMessage> denials = new ArrayList<>();
+        for (int identity = 1; identity <= 30; identity++) denials.add(recordTo("a", identity, "forbidden"));
+        var legitimate = recordTo("a", 99, "fine");
+        var deniedOnly = harness(ir, id -> new CascadeHarness.RecordKernel());
+        deniedOnly.apply(1, denials);
+        long deniedWork = deniedOnly.evaluationWork();
+        var alone = harness(ir, id -> new CascadeHarness.RecordKernel());
+        alone.apply(1, List.of(legitimate));
+        long legitimateWork = alone.evaluationWork();
+        for (long slack : new long[]{0, -1}) {
+            var budget = new BindingIrV1.Limits(8, 32, 4096, 65536, 2, 8, 65536, 128, 16, 65536, 1_048_576,
+                    (int) (deniedWork + legitimateWork + slack), 4);
+            var bounded = harness(new BindingIrV1(ir.components(), ir.rules(), ir.bindings(), budget, 1),
+                    id -> new CascadeHarness.RecordKernel());
+            List<AppMessage> block = new ArrayList<>(denials);
+            block.add(legitimate);
+            bounded.apply(1, block);
+            assertThat(denials).allSatisfy(message ->
+                    assertThat(bounded.receipt(message).code()).isEqualTo("ADMISSION_RULE_DENIED"));
+            var receipt = bounded.receipt(legitimate);
+            if (slack == 0) assertThat(receipt.accepted()).as(receipt.code()).isTrue();
+            else assertThat(receipt.code()).isEqualTo("EXPRESSION_CAPACITY_EXCEEDED");
+        }
+    }
+
     @Test
     void anAdmissionSlotDenialReservesNoCryptoWork() {
         var deny = rule("deny-all", "DENIED_ALWAYS", null, new Literal(false));
