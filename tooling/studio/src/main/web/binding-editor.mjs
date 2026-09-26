@@ -6,7 +6,7 @@
  */
 import {BASELINE_EVENT,componentInstance} from './binding-check.mjs';
 import {findInstance} from './binding-catalog.mjs';
-import {LIMIT_NAMES,OPERATORS,renderPath} from './binding-draft.mjs';
+import {LIMIT_NAMES,OPERATORS,PARAMETER_TYPES,renderPath,SOURCE_KEYS} from './binding-draft.mjs';
 import * as edits from './binding-edit.mjs';
 import {EXPORT_NAMES,fileText,SessionError} from './binding-session.mjs';
 import {displayText,h,put,svg} from './binding-dom.mjs';
@@ -28,6 +28,10 @@ const NODE_HEIGHT = 62;
 const shownText = text => text.replace(/\r\n?/g, '\n');
 
 const TABS = Object.freeze(['form', 'yaml', 'graph', 'validate']);
+/** Step context fields (ADR-031.3 §5.3), used when the catalog is not loaded. */
+const CONTEXT_FIELDS = new Map([['height', 'integer'], ['sender', 'bytes'], ['derived', 'boolean'], ['depth', 'integer'],
+  ['binding', 'text']]);
+const DENY_CODE = /^[A-Z][A-Z0-9_]{0,62}$/;
 
 /** Parses canonical signed 64-bit decimal text without passing through Number; null when invalid. */
 export function parseInt64(text) {
@@ -113,6 +117,7 @@ export class BindingEditor {
   wire() {
     this.el('add-component').addEventListener('click', () => this.addComponent());
     this.el('add-binding').addEventListener('click', () => this.addBinding());
+    this.el('add-rule').addEventListener('click', () => this.addRule());
     this.el('select-limits').addEventListener('click', () => this.select('limits', null, 'limit-maxCascadeDepth'));
     for (const name of TABS) {
       const tab = this.el(`tab-${name}`);
@@ -274,7 +279,8 @@ export class BindingEditor {
     const draft = this.session.draft;
     return JSON.stringify(path.map((segment, index) => index === 1 && path[0] === 'bindings'
       ? `b:${segment}:${draft.bindings[segment]?.id}`
-      : index === 1 && path[0] === 'components' ? `c:${segment}:${draft.components[segment]?.id}` : segment));
+      : index === 1 && path[0] === 'components' ? `c:${segment}:${draft.components[segment]?.id}`
+        : index === 1 && path[0] === 'rules' ? `r:${segment}:${draft.rules?.[segment]?.id}` : segment));
   }
 
   confirm(title, paragraphs, acceptLabel, cancelLabel, extra = null) {
@@ -315,13 +321,27 @@ export class BindingEditor {
     const draft = this.session.draft;
     if (!draft) return;
     let n = draft.bindings.length + 1;
-    while (draft.bindings.some(binding => binding.id === `binding-${n}`)) n++;
+    while (draft.bindings.some(binding => binding.id === `binding-${n}`)
+      || (draft.rules ?? []).some(rule => rule.id === `binding-${n}`)) n++;
     const index = draft.bindings.length;
     const first = draft.components[0]?.id ?? '';
     const binding = {id: `binding-${n}`, from: {component: first, event: ''}, when: null,
       to: {kind: 'command', component: '', command: '', mapping: {kind: 'fields', assignments: []}}};
     this.apply(value => edits.addBinding(value, binding), null, `Added binding binding-${n}. Choose its source event.`)
       .then(done => { if (done) this.select('binding', index, `b${index}-source`); });
+  }
+
+  addRule() {
+    const draft = this.session.draft;
+    if (!draft) return;
+    const taken = new Set([...draft.bindings.map(binding => binding.id), ...(draft.rules ?? []).map(rule => rule.id)]);
+    let n = (draft.rules?.length ?? 0) + 1;
+    while (taken.has(`rule-${n}`)) n++;
+    const index = draft.rules?.length ?? 0;
+    const rule = {id: `rule-${n}`, command: null, deny: 'DENIED', params: null, require: [{kind: 'expr', text: ''}]};
+    this.apply(value => edits.addRule(value, rule), null,
+      `Added rule rule-${n}. Write its condition, then attach it to a component.`)
+      .then(done => { if (done) this.select('rule', index, `r${index}-c0-expr`); });
   }
 
   // -------------------------------------------------------------------------------------------------------------
@@ -368,7 +388,8 @@ export class BindingEditor {
     const draft = this.session.draft;
     const valid = kind === 'document' || kind === 'limits'
       || (draft && kind === 'component' && index < draft.components.length)
-      || (draft && kind === 'binding' && index < draft.bindings.length);
+      || (draft && kind === 'binding' && index < draft.bindings.length)
+      || (draft && kind === 'rule' && index < (draft.rules?.length ?? 0));
     if (!valid) this.session.selection = {kind: 'document', index: null};
   }
 
@@ -536,10 +557,19 @@ export class BindingEditor {
       h('span', {}, h('span', {class: 'item-order', text: `${i + 1}. `}), visibleText(binding.id) || '(no id)'),
       h('small', {text: visibleText(`${binding.from.component || '?'} → ${binding.to.kind === 'effect'
         ? `effect ${binding.to.type || '(type not set)'}` : `${binding.to.component || '?'} ${binding.to.command || ''}`}`)})))));
+    const rules = draft?.rules ?? [];
+    put(this.el('rule-list'), ...rules.map((rule, i) => h('li', {},
+      h('button', {type: 'button', class: 'item', id: `select-rule-${i}`,
+        'aria-current': kind === 'rule' && index === i ? 'true' : 'false',
+        onclick: () => this.select('rule', i, `select-rule-${i}`)},
+      h('span', {text: visibleText(rule.id) || '(no id)'}),
+      h('small', {text: visibleText(`${rule.command ?? 'any command'} → ${rule.deny}; attached to ${
+        edits.ruleReferences(draft, rule.id).map(reference => reference.componentId).join(', ') || 'nothing'}`)})))));
     this.el('select-limits').setAttribute('aria-current', kind === 'limits' ? 'true' : 'false');
     const editable = session.editable;
     this.el('add-component').disabled = !editable;
     this.el('add-binding').disabled = !editable;
+    this.el('add-rule').disabled = !editable;
   }
 
   renderHeading() {
@@ -548,6 +578,7 @@ export class BindingEditor {
     const draft = session.draft;
     const title = kind === 'component' ? `Component · ${visibleText(draft.components[index].id)}`
       : kind === 'binding' ? `Binding ${index + 1} · ${visibleText(draft.bindings[index].id)}`
+        : kind === 'rule' ? `Admission rule · ${visibleText(draft.rules[index].id)}`
         : kind === 'limits' ? 'Limits and activation' : 'Document';
     this.el('editor-title').textContent = title;
     const badge = this.el('mode-badge');
@@ -594,7 +625,8 @@ export class BindingEditor {
     const {kind, index} = session.selection;
     const content = kind === 'component' ? this.componentForm(index)
       : kind === 'binding' ? this.bindingForm(index)
-        : kind === 'limits' ? this.limitsForm() : this.documentForm();
+        : kind === 'rule' ? this.ruleForm(index)
+          : kind === 'limits' ? this.limitsForm() : this.documentForm();
     put(panel, h('fieldset', {class: 'form-root', disabled: !session.editable,
       'aria-describedby': session.editable ? null : 'mode-banner'}, content));
   }
@@ -725,7 +757,91 @@ export class BindingEditor {
           optionalInteger('maxEffectsPerBlock', 'maxEffectsPerBlock (optional)', 'Omitted means 0.'),
           optionalInteger('fromHeight', 'fromHeight (optional)', 'Omitted means 1.'))),
       this.configurationSection(index, component, instance, probe),
+      this.admissionSection(index, component, instance),
       this.descriptorSection(component, instance)];
+  }
+
+  /**
+   * The rules attached to a component (ADR-031.3), in attachment order, each with its parameter values. Values
+   * omitted here use the rule's declared default; the compiler writes defaults into the committed program.
+   */
+  admissionSection(index, component, instance) {
+    const draft = this.session.draft;
+    const rules = draft.rules ?? [];
+    const attachments = component.admission ?? [];
+    const at = a => ['components', index, 'admission', a];
+    const add = h('select', {id: `c${index}-attach-rule`, 'aria-label': 'Rule to attach'},
+      h('option', {value: '', text: rules.length ? 'Choose a rule…' : 'No rules declared'}),
+      rules.filter(rule => !attachments.some(entry => entry.rule === rule.id))
+        .map(rule => h('option', {value: rule.id, text: rule.id})));
+    const targets = draft.bindings.filter(binding => binding.to.kind === 'command' && binding.to.component === component.id)
+      .map(binding => binding.id);
+    return h('section', {class: 'form-section', dataset: {path: JSON.stringify(['components', index, 'admission'])}},
+      h('h3', {text: 'Admission rules'}),
+      h('p', {class: 'hint', text: 'Every attached rule must hold for each command this component receives, submitted '
+        + 'directly or derived by a binding. Rules that read facts run after the kernel approves; the others run '
+        + 'first. Within each group, attachment order is evaluation order.'}),
+      instance && !instance.commandSelectable ? h('p', {class: 'hint', text: `Rules here cannot select a command: ${
+        instance.unselectableReason}.`}) : null,
+      attachments.length ? null : h('p', {class: 'hint', text: 'No rules attached.'}),
+      h('ol', {class: 'clause-list'}, attachments.map((attachment, a) => {
+        const rule = rules.find(value => value.id === attachment.rule);
+        const id = `c${index}-a${a}`;
+        const values = attachment.params ?? [];
+        return h('li', {class: 'clause', dataset: {path: JSON.stringify(at(a))}},
+          h('div', {class: 'assignment-head', dataset: {path: JSON.stringify([...at(a), 'rule'])}},
+            h('strong', {id: `${id}-rule`, tabindex: '-1',
+              text: `${a + 1}. ${attachment.rule}${rule ? '' : ' (no such rule)'}`})),
+          (rule?.params ?? []).map(parameter => {
+            const current = values.find(entry => entry.name === parameter.name);
+            const pid = `${id}-p-${parameter.name}`;
+            const paramPath = JSON.stringify([...at(a), 'params', parameter.name]);
+            const set = value => this.apply(draftValue => edits.setAttachmentParameter(draftValue, index, a,
+              parameter.name, value), pid);
+            let control;
+            if (parameter.type === 'binding') {
+              const names = current && !targets.includes(current.value.value) ? [current.value.value, ...targets] : targets;
+              control = h('select', {id: pid}, h('option', {value: '', text: parameter.default ? 'Use the default'
+                : 'Choose a binding that targets this component…'}), names.map(name => h('option', {value: name, text: name})));
+              control.value = current?.value.value ?? '';
+              control.addEventListener('change', () => set(control.value === '' ? null : {type: 'text', value: control.value}));
+              control = h('div', {class: 'stack', dataset: {path: paramPath}}, h('label', {for: pid}, `${parameter.name} (binding)`),
+                control);
+            } else if (current) {
+              control = h('div', {class: 'stack', dataset: {path: paramPath}},
+                h('strong', {class: 'hint', text: `${parameter.name} (${parameter.type})`}),
+                this.literalEditor(pid, current.value, [...at(a), 'params', values.indexOf(current), 'value'],
+                  [parameter.type]),
+                parameter.default ? h('button', {type: 'button', class: 'secondary', id: `${pid}-default`,
+                  text: 'Use the default', onclick: () => set(null)}) : null);
+            } else {
+              control = h('div', {class: 'stack', dataset: {path: paramPath}},
+                h('strong', {class: 'hint', text: `${parameter.name} (${parameter.type})`}),
+                h('p', {class: 'hint', text: parameter.default ? `Default: ${literalText(parameter.default)}`
+                  : 'Required: no default.'}),
+                h('button', {type: 'button', class: 'secondary', id: `${pid}-set`, text: 'Set a value',
+                  onclick: () => set(parameter.default ?? defaultLiteral(parameter.type))}));
+            }
+            return control;
+          }),
+          h('div', {class: 'row-actions'},
+            h('button', {type: 'button', class: 'secondary', id: `${id}-up`, text: 'Move up', disabled: a === 0,
+              'aria-label': `Move rule ${attachment.rule} up`,
+              onclick: () => this.apply(value => edits.moveAttachment(value, index, a, -1), `c${index}-a${a - 1}-up`)}),
+            h('button', {type: 'button', class: 'secondary', id: `${id}-down`, text: 'Move down',
+              disabled: a === attachments.length - 1, 'aria-label': `Move rule ${attachment.rule} down`,
+              onclick: () => this.apply(value => edits.moveAttachment(value, index, a, 1), `c${index}-a${a + 1}-down`)}),
+            h('button', {type: 'button', class: 'secondary', id: `${id}-remove`, text: 'Detach',
+              'aria-label': `Detach rule ${attachment.rule}`,
+              onclick: () => this.apply(value => edits.removeAttachment(value, index, a), `c${index}-attach-rule`)})));
+      })),
+      h('div', {class: 'inline-actions'}, add,
+        h('button', {type: 'button', class: 'secondary', id: `c${index}-attach`, text: 'Attach rule',
+          onclick: () => {
+            if (!add.value) { this.announce('Choose a rule to attach.', true); return; }
+            this.apply(value => edits.addAttachment(value, index, {rule: add.value, params: null}),
+              `c${index}-a${attachments.length}-rule`, `Attached ${add.value}.`);
+          }})));
   }
 
   configurationSection(index, component, instance, probe) {
@@ -813,7 +929,8 @@ export class BindingEditor {
     const extra = h('div', {class: 'stack'}, h('label', {for: 'rename-input'}, 'New component id'), input,
       h('p', {id: 'rename-help', class: 'hint', text: 'Lowercase letters, digits and hyphens; must start with a letter.'}),
       references.length ? h('ul', {}, references.map(reference => h('li', {text: visibleText(
-        `${renderPath(reference.segments)}${reference.bindingId ? ` (binding ${reference.bindingId})` : ''}`)
+        `${renderPath(reference.segments)}${reference.bindingId ? ` (binding ${reference.bindingId})`
+          : reference.ruleId ? ` (rule ${reference.ruleId})` : ''}`)
         + (reference.role === 'configuration-mention' ? ' — a setting mentions this id; it is not changed' : ' — updated')}))) : null);
     const accepted = await this.confirm(`Rename ${component.id}`, [
       'Renaming changes the component state namespace and default topic, so it changes the committed profile of a '
@@ -833,9 +950,12 @@ export class BindingEditor {
     const draft = this.session.draft;
     const component = draft.components[index];
     const references = edits.componentReferences(draft, component.id).filter(value => value.role !== 'configuration-mention');
-    const accepted = await this.confirm(`Remove ${component.id}?`, references.length ? [
-      `${plural(references.length, 'reference')} still name this component. They are kept and will point at a missing component.`]
-      : ['No binding references this component.'], 'Remove', 'Cancel');
+    const attachments = component.admission?.length ?? 0;
+    const accepted = await this.confirm(`Remove ${component.id}?`, [references.length
+      ? `${plural(references.length, 'reference')} still name this component. They are kept and will point at a missing component.`
+      : 'No binding references this component.',
+    ...(attachments ? [`Its ${plural(attachments, 'rule attachment')} are removed with it; the rules themselves stay.`] : [])],
+    'Remove', 'Cancel');
     if (!accepted) return;
     this.apply(value => edits.removeComponent(value, index), 'add-component', `Removed ${component.id}.`, {epoch})
       .then(done => done && this.session.select('document'));
@@ -1201,18 +1321,275 @@ export class BindingEditor {
     const draft = this.session.draft;
     const binding = draft.bindings[index];
     const input = h('input', {id: 'rename-input', value: binding.id, autocomplete: 'off'});
+    const references = edits.bindingReferences(draft, binding.id);
     this.confirm(`Rename ${binding.id}`, ['Binding ids appear in receipts and in derived message ids, so a rename '
-      + 'changes the committed program even though nothing else refers to it.'], 'Rename', 'Cancel',
-    h('div', {class: 'stack'}, h('label', {for: 'rename-input'}, 'New binding id'), input)).then(accepted => {
+      + 'changes the committed program even when nothing else refers to it.'], 'Rename', 'Cancel',
+    h('div', {class: 'stack'}, h('label', {for: 'rename-input'}, 'New binding id'), input,
+      references.length ? h('ul', {}, references.map(reference => h('li', {text: visibleText(
+        `${renderPath(reference.segments)} (rule ${reference.ruleId} on ${reference.componentId}) — updated`)}))) : null))
+      .then(accepted => {
       if (!accepted) return;
       const next = input.value.trim();
-      if (!ID.test(next) || draft.bindings.some((other, i) => i !== index && other.id === next)) {
-        this.announce('The new id must be a unique lowercase identifier.', true);
+      if (!ID.test(next) || draft.bindings.some((other, i) => i !== index && other.id === next)
+        || (draft.rules ?? []).some(rule => rule.id === next)) {
+        this.announce('The new id must be a lowercase identifier unique across bindings and rules.', true);
         return;
       }
       this.apply(value => edits.renameBinding(value, index, next), `select-binding-${index}`, `Renamed to ${next}.`,
         {epoch});
     });
+  }
+
+  // -------------------------------------------------------------------------------------------------------------
+  // Admission rules (ADR-031.3)
+  // -------------------------------------------------------------------------------------------------------------
+
+  /** Catalog instances of the components a rule is attached to, in component order. */
+  ruleInstances(rule) {
+    const draft = this.session.draft;
+    return edits.ruleReferences(draft, rule.id).map(reference => draft.components.find(component =>
+      component.id === reference.componentId)).filter(Boolean).map(component => ({component,
+      instance: this.instance(component)}));
+  }
+
+  /**
+   * What a rule may read, by YAML source key: step context, the selected command's DATA fields, its parameters, and
+   * the configuration and verified facts of the components it is attached to. Types come from the catalog; a name
+   * that differs between attached components is shown with its first type and checked by the CLI.
+   */
+  ruleScopes(rule) {
+    const merge = pick => {
+      const merged = new Map();
+      for (const {instance} of this.ruleInstances(rule)) for (const [name, type] of pick(instance)) {
+        if (!merged.has(name)) merged.set(name, type);
+      }
+      return merged;
+    };
+    const scopes = new Map([['context', {label: 'Step context', fields: this.contextFields()}]]);
+    if (rule.command !== null) {
+      scopes.set('command', {label: 'Command field', fields: merge(instance => (instance?.commands ?? [])
+        .find(command => command.commandName === rule.command)?.fields.filter(field => field.role === 'data')
+        .map(field => [field.name, field.type]) ?? [])});
+    }
+    scopes.set('param', {label: 'Parameter', fields: new Map((rule.params ?? []).map(parameter =>
+      [parameter.name, parameter.type === 'binding' ? 'text' : parameter.type]))});
+    scopes.set('config', {label: 'Configuration', fields: merge(instance => Object.entries(
+      instance?.normalizedConfiguration ?? {}).map(([name, value]) => [name, value.type]))});
+    scopes.set('fact', {label: 'Verified fact', fields: merge(instance => (instance?.ruleFacts ?? [])
+      .map(fact => [fact.name, fact.type]))});
+    return scopes;
+  }
+
+  ruleForm(index) {
+    const draft = this.session.draft;
+    const rule = draft.rules[index];
+    const path = field => ['rules', index, field];
+    const references = edits.ruleReferences(draft, rule.id);
+    const scopes = this.ruleScopes(rule);
+    const commands = new Map();
+    for (const {component, instance} of this.ruleInstances(rule)) {
+      if (!instance?.commandSelectable) continue;
+      for (const command of instance.commands) commands.set(command.commandName, component.id);
+    }
+    const deny = this.textControl({id: `r${index}-deny`, autocomplete: 'off', 'aria-describedby': `r${index}-deny-help`,
+      dataset: {path: JSON.stringify(path('deny'))}},
+      rule.deny, text => {
+        if (!DENY_CODE.test(text) || text.startsWith('ADMISSION_RULE_')) {
+          this.announce('A deny code is an upper-case identifier that does not start with ADMISSION_RULE_.', true);
+          return;
+        }
+        this.set(path('deny'), text);
+      }, {trim: true});
+    const names = [...commands.keys()];
+    const command = h('select', {id: `r${index}-command`, dataset: {path: JSON.stringify(path('command'))}},
+      h('option', {value: '', text: 'Any command (no selector)'}),
+      rule.command !== null && !names.includes(rule.command)
+        ? h('option', {value: rule.command, text: `${rule.command} (not a selectable command here)`}) : null,
+      names.map(name => h('option', {value: name, text: name})));
+    command.value = rule.command ?? '';
+    command.addEventListener('change', () => this.set(path('command'), command.value === '' ? null : command.value,
+      null, true));
+    return [
+      h('div', {class: 'inline-actions'},
+        h('button', {type: 'button', class: 'secondary', id: `r${index}-rename`, text: 'Rename…',
+          dataset: {path: JSON.stringify(path('id'))}, onclick: () => this.renameRuleDialog(index)}),
+        h('button', {type: 'button', class: 'secondary', id: `r${index}-up`, text: 'Move up', disabled: index === 0,
+          onclick: () => this.apply(value => edits.moveRule(value, index, -1), `r${index - 1}-up`)
+            .then(done => done && this.session.select('rule', index - 1))}),
+        h('button', {type: 'button', class: 'secondary', id: `r${index}-down`, text: 'Move down',
+          disabled: index === draft.rules.length - 1,
+          onclick: () => this.apply(value => edits.moveRule(value, index, 1), `r${index + 1}-down`)
+            .then(done => done && this.session.select('rule', index + 1))}),
+        h('button', {type: 'button', class: 'secondary', id: `r${index}-remove`, text: 'Remove',
+          onclick: async () => {
+            const epoch = this.epoch;
+            if (!(await this.confirm(`Remove ${rule.id}?`, [references.length
+              ? `${plural(references.length, 'attachment')} still name this rule. They are kept and will name a missing rule.`
+              : 'No component attaches this rule.'], 'Remove', 'Cancel'))) return;
+            this.apply(value => edits.removeRule(value, index), 'add-rule', `Removed ${rule.id}.`, {epoch})
+              .then(done => done && this.session.select('document'));
+          }})),
+      h('section', {class: 'form-section'},
+        h('h3', {text: 'Refusal'}),
+        h('p', {class: 'hint', text: 'A rule only forbids. When a clause does not hold, the command is refused with this '
+          + 'code, and a refused step rolls back its whole cascade, including the source command.'}),
+        h('div', {class: 'field-row'},
+          h('div', {class: 'stack'}, h('label', {for: deny.id}, 'Deny code'), deny, deny.escapedHint,
+            h('p', {id: `r${index}-deny-help`, class: 'hint', text: 'Recorded in the receipt of every refused command.'})),
+          h('div', {class: 'stack'}, h('label', {for: command.id}, 'Applies to'), command,
+            h('p', {class: 'hint', text: 'Selecting a command lets clauses read its data fields as command.<name>.'}))),
+        h('p', {class: 'hint', text: references.length ? `Attached to ${references.map(reference =>
+          reference.componentId).join(', ')}.` : 'Not attached yet: attach it from a component form.'})),
+      this.ruleParametersSection(index, rule),
+      this.ruleClausesSection(index, rule, scopes)];
+  }
+
+  ruleParametersSection(index, rule) {
+    const params = rule.params ?? [];
+    const name = h('input', {id: `r${index}-param-name`, autocomplete: 'off', placeholder: 'maxAmount'});
+    const type = h('select', {id: `r${index}-param-type`}, PARAMETER_TYPES.map(value => h('option', {value, text: value})));
+    const set = (parameter, declaration, focus) => this.apply(value => edits.setRuleParameter(value, index, parameter,
+      declaration), focus);
+    return h('section', {class: 'form-section', dataset: {path: JSON.stringify(['rules', index, 'params'])}},
+      h('h3', {text: 'Parameters'}),
+      h('p', {class: 'hint', text: 'Each attachment supplies values; a default is used when a value is omitted. A binding '
+        + 'parameter names a binding that targets the attached component.'}),
+      h('ol', {class: 'clause-list'}, params.map((parameter, p) => {
+        const id = `r${index}-p${p}`;
+        return h('li', {class: 'clause', dataset: {path: JSON.stringify(['rules', index, 'params', parameter.name])}},
+          h('strong', {id: `${id}-name`, tabindex: '-1', text: `${parameter.name} (${parameter.type})`}),
+          parameter.default !== null && parameter.type !== 'binding'
+            ? this.literalEditor(`${id}-default`, parameter.default, ['rules', index, 'params', p, 'default'],
+              [parameter.type])
+            : h('p', {class: 'hint', text: parameter.default === null ? 'No default: every attachment supplies it.'
+              : `Default: ${literalText(parameter.default)}`}),
+          h('div', {class: 'row-actions'},
+            parameter.type !== 'binding' ? h('button', {type: 'button', class: 'secondary', id: `${id}-toggle-default`,
+              text: parameter.default === null ? 'Add a default' : 'Remove the default',
+              onclick: () => set(parameter.name, {type: parameter.type, default: parameter.default === null
+                ? defaultLiteral(parameter.type) : null}, `${id}-toggle-default`)}) : null,
+            h('button', {type: 'button', class: 'secondary', id: `${id}-remove`, text: 'Remove parameter',
+              'aria-label': `Remove parameter ${parameter.name}`,
+              onclick: () => set(parameter.name, null, `r${index}-param-name`)})));
+      })),
+      h('div', {class: 'inline-actions'},
+        h('div', {class: 'stack'}, h('label', {for: name.id}, 'New parameter name'), name),
+        h('div', {class: 'stack'}, h('label', {for: type.id}, 'Type'), type),
+        h('button', {type: 'button', class: 'secondary', id: `r${index}-add-param`, text: 'Add parameter',
+          disabled: params.length >= 16,
+          onclick: () => {
+            const text = name.value.trim();
+            if (!/^[a-zA-Z][a-zA-Z0-9_]{0,62}$/.test(text) || params.some(parameter => parameter.name === text)) {
+              this.announce('A parameter name is a new identifier: a letter, then letters, digits or underscores.', true);
+              return;
+            }
+            set(text, {type: type.value, default: null}, `r${index}-p${params.length}-name`);
+          }})));
+  }
+
+  ruleClausesSection(index, rule, scopes) {
+    const clauses = rule.require;
+    const add = clause => this.apply(value => edits.addRuleClause(value, index, clause), `r${index}-c${clauses.length}-kind`);
+    const readable = [...scopes].flatMap(([key, site]) => [...site.fields].map(([name, type]) =>
+      ({reference: `${key === 'param' ? 'params' : key === 'fact' ? 'facts' : key}.${name}`, type, label: site.label})));
+    return h('section', {class: 'form-section', dataset: {path: JSON.stringify(['rules', index, 'require'])}},
+      h('h3', {text: 'Requires (every clause must hold)'}),
+      h('p', {class: 'hint', text: 'Clauses are checked in order; the first that does not hold refuses the command. A rule '
+        + 'that reads facts runs only after the kernel verified and approved the command.'}),
+      h('ol', {class: 'clause-list'}, clauses.map((clause, c) => this.ruleClauseEditor(index, c, clause, clauses.length,
+        scopes, readable))),
+      h('div', {class: 'inline-actions'},
+        h('button', {type: 'button', class: 'secondary', id: `r${index}-add-expression`, text: 'Add expression',
+          disabled: clauses.length >= 8, onclick: () => add({kind: 'expr', text: ''})}),
+        h('button', {type: 'button', class: 'secondary', id: `r${index}-add-lookup`, text: 'Add state lookup',
+          disabled: clauses.length >= 8,
+          onclick: () => add({kind: 'lookup', component: this.session.draft.components[0]?.id ?? '',
+            key: {kind: 'context', name: 'sender'}, expectation: 'exists', operand: null})})));
+  }
+
+  ruleClauseEditor(index, c, clause, count, scopes, readable) {
+    const id = `r${index}-c${c}`;
+    const path = ['rules', index, 'require', c];
+    let body;
+    if (clause.kind === 'expr') {
+      const text = this.textControl({id: `${id}-expr`, rows: 3, spellcheck: 'false', 'aria-describedby': `${id}-expr-help`},
+        clause.text, value => this.set([...path, 'text'], value), {multiline: true});
+      // The field picker appends a reference; the author completes the expression.
+      const picker = h('select', {id: `${id}-insert`, 'aria-label': `Clause ${c + 1}: insert a readable field`},
+        h('option', {value: '', text: readable.length ? 'Insert a readable field…' : 'No readable fields yet'}),
+        readable.map(field => h('option', {value: field.reference, text: `${field.reference} (${field.type})`})));
+      picker.addEventListener('change', () => {
+        if (!picker.value) return;
+        const reference = picker.value;
+        this.update([...path, 'text'], text => `${text}${text === '' || text.endsWith(' ') ? '' : ' '}${reference}`,
+          `${id}-expr`, false);
+      });
+      body = [h('label', {for: text.id}, 'Restricted CEL expression'), text, text.escapedHint, picker,
+        h('p', {id: `${id}-expr-help`, class: 'hint', text: 'Reads command.*, params.*, config.*, context.* and facts.*; '
+          + 'a text-set fact is read only as "value in facts.<name>". The CLI checks types and limits.'})];
+    } else {
+      const ids = this.session.draft.components.map(component => component.id);
+      const participant = h('select', {id: `${id}-participant`},
+        !ids.includes(clause.component) ? h('option', {value: clause.component, text: `${clause.component || '(none)'} (not declared)`}) : null,
+        ids.map(value => h('option', {value, text: value})));
+      participant.value = clause.component;
+      participant.addEventListener('change', () => this.set([...path, 'component'], participant.value));
+      const expectation = h('select', {id: `${id}-expectation`}, [['exists', 'key exists'], ['absent', 'key is absent'],
+        ['eq', 'stored value equals']].map(([value, text]) => h('option', {value, text})));
+      expectation.value = clause.expectation;
+      expectation.addEventListener('change', () => this.keptSwitch(path, current => {
+        const key = this.stashKey([...path, 'operand']);
+        const kept = this.stash.get(key) ?? {};
+        if (current.operand !== null) kept.eq = structuredClone(current.operand);
+        this.stash.set(key, kept);
+        return {...current, expectation: expectation.value, operand: expectation.value === 'eq'
+          ? current.operand ?? (kept.eq ? structuredClone(kept.eq) : {kind: 'context', name: 'sender'}) : null};
+      }));
+      body = [h('div', {class: 'field-row'},
+        h('div', {class: 'stack'}, h('label', {for: participant.id}, 'Component'), participant),
+        h('div', {class: 'stack'}, h('label', {for: expectation.id}, 'Expectation'), expectation)),
+      h('div', {class: 'stack'}, h('strong', {class: 'hint', text: 'Key (bytes)'}),
+        this.sourceEditor(`${id}-key`, clause.key, null, 0, [...path, 'key'], undefined, `Clause ${c + 1} key`, scopes)),
+      clause.expectation === 'eq' ? h('div', {class: 'stack'}, h('strong', {class: 'hint', text: 'Expected value (bytes)'}),
+        this.sourceEditor(`${id}-eqv`, clause.operand, null, 0, [...path, 'operand'], undefined,
+          `Clause ${c + 1} expected value`, scopes)) : null,
+      h('p', {class: 'hint', text: 'Reads the component state as this cascade left it, including earlier steps.'})];
+    }
+    return h('li', {class: 'clause', dataset: {path: JSON.stringify(path)}},
+      h('div', {class: 'assignment-head'}, h('strong', {id: `${id}-kind`, tabindex: '-1',
+        text: `${c + 1}. ${clause.kind === 'expr' ? 'Expression' : 'State lookup'}`})),
+      body,
+      h('div', {class: 'row-actions'},
+        h('button', {type: 'button', class: 'secondary', id: `${id}-up`, text: 'Move up', disabled: c === 0,
+          'aria-label': `Move clause ${c + 1} up`,
+          onclick: () => this.apply(value => edits.moveRuleClause(value, index, c, -1), `r${index}-c${c - 1}-up`)}),
+        h('button', {type: 'button', class: 'secondary', id: `${id}-down`, text: 'Move down', disabled: c === count - 1,
+          'aria-label': `Move clause ${c + 1} down`,
+          onclick: () => this.apply(value => edits.moveRuleClause(value, index, c, 1), `r${index}-c${c + 1}-down`)}),
+        h('button', {type: 'button', class: 'secondary', id: `${id}-remove`, text: 'Remove clause',
+          'aria-label': `Remove clause ${c + 1}`, disabled: count === 1,
+          onclick: () => this.apply(value => edits.removeRuleClause(value, index, c), `r${index}-add-expression`)})));
+  }
+
+  async renameRuleDialog(index) {
+    const epoch = this.epoch;
+    const draft = this.session.draft;
+    const rule = draft.rules[index];
+    const references = edits.ruleReferences(draft, rule.id);
+    const input = h('input', {id: 'rename-input', value: rule.id, autocomplete: 'off'});
+    const extra = h('div', {class: 'stack'}, h('label', {for: 'rename-input'}, 'New rule id'), input,
+      references.length ? h('ul', {}, references.map(reference => h('li', {text: visibleText(
+        `${renderPath(reference.segments)} (component ${reference.componentId}) — updated`)}))) : null);
+    const accepted = await this.confirm(`Rename ${rule.id}`, ['Rule ids appear in receipts, so a rename changes the '
+      + 'committed program. Every attachment below is updated.'], 'Rename', 'Cancel', extra);
+    if (!accepted) return;
+    const next = input.value.trim();
+    if (!ID.test(next) || draft.rules.some((other, i) => i !== index && other.id === next)
+      || draft.bindings.some(binding => binding.id === next)) {
+      this.announce('The new id must be a lowercase identifier unique across bindings and rules.', true);
+      return;
+    }
+    this.apply(value => edits.renameRule(value, index, next), `select-rule-${index}`, `Renamed to ${next}.`, {epoch});
   }
 
   // -------------------------------------------------------------------------------------------------------------
@@ -1304,24 +1681,43 @@ export class BindingEditor {
         input.escapedHint));
   }
 
-  /** Mapping source at a draft path: event field, typed literal, documented function (two levels) or CEL. */
-  sourceEditor(id, source, fields, depth, path, expectedType, context = 'Source') {
+  /** The step context fields as a name → type map, from the catalog when it is loaded. */
+  contextFields() {
+    const fields = this.session.catalog?.language.contextFields;
+    return fields ? new Map(fields.map(field => [field.name, field.type])) : CONTEXT_FIELDS;
+  }
+
+  /** Scoped field sources a binding reads (ADR-031.3 §5.3): the event and the producing step's context. */
+  bindingScopes(fields) {
+    return new Map([['field', {label: 'Event field', fields}], ['context', {label: 'Step context', fields: this.contextFields()}]]);
+  }
+
+  /**
+   * Mapping source at a draft path: a scoped field (the event and step context for bindings; `scopes` for rules),
+   * typed literal, documented function (two levels) or CEL.
+   */
+  sourceEditor(id, source, fields, depth, path, expectedType, context = 'Source', scopes = null) {
+    const sites = scopes ?? this.bindingScopes(fields);
     const functions = this.session.catalog?.language.functions ?? [];
-    const firstField = () => fields ? [...fields.keys()][0] ?? '' : '';
+    const firstOf = key => { const names = sites.get(key)?.fields; return names ? [...names.keys()][0] ?? '' : ''; };
+    const first = [...sites.keys()][0];
     // Functions nest at most two levels, so the innermost argument cannot itself be a function.
-    const kinds = [['field', 'Event field'], ['literal', 'Literal'], ['fn', 'Function'], ['expr', 'Expression']]
-      .filter(([value]) => value !== 'fn' || depth < 2 || source.kind === 'fn');
+    const kinds = [...[...sites].map(([key, site]) => [key, site.label]), ['literal', 'Literal'], ['fn', 'Function'],
+      ['expr', 'Expression']].filter(([value]) => value !== 'fn' || depth < 2 || source.kind === 'fn');
+    if (!kinds.some(([value]) => value === source.kind)) kinds.unshift([source.kind, `${source.kind} (not readable here)`]);
     const kind = h('select', {id: `${id}-kind`, 'aria-label': `${context}: source kind`},
       kinds.map(([value, text]) => h('option', {value, text})));
     kind.value = source.kind;
-    kind.addEventListener('change', () => this.switchKind(path, value => value.kind, kind.value, () => kind.value === 'field'
-      ? {kind: 'field', name: firstField()}
-      : kind.value === 'literal' ? {kind: 'literal', value: defaultLiteral(expectedType ?? 'text')}
-        : kind.value === 'fn' ? {kind: 'fn', fn: functions[0]?.id ?? 'hex', args: [{kind: 'field', name: firstField()}]}
-          : {kind: 'expr', text: ''}));
+    kind.addEventListener('change', () => this.switchKind(path, value => value.kind, kind.value, () =>
+      SOURCE_KEYS.includes(kind.value) ? {kind: kind.value, name: firstOf(kind.value)}
+        : kind.value === 'literal' ? {kind: 'literal', value: defaultLiteral(expectedType ?? 'text')}
+          : kind.value === 'fn' ? {kind: 'fn', fn: functions[0]?.id ?? 'hex', args: [{kind: first, name: firstOf(first)}]}
+            : {kind: 'expr', text: ''}));
     let body;
-    if (source.kind === 'field') {
-      body = this.fieldPicker(`${id}-field`, source.name, fields, name => this.set([...path, 'name'], name), 'Event field');
+    if (SOURCE_KEYS.includes(source.kind)) {
+      const site = sites.get(source.kind);
+      body = this.fieldPicker(`${id}-field`, source.name, site?.fields ?? null, name => this.set([...path, 'name'], name),
+        site?.label ?? source.kind);
     } else if (source.kind === 'literal') {
       body = this.literalEditor(`${id}-literal`, source.value, [...path, 'value'], expectedType ? [expectedType] : TYPES);
     } else if (source.kind === 'expr') {
@@ -1349,7 +1745,8 @@ export class BindingEditor {
           : `${signature.minArguments}–${signature.maxArguments}`} argument(s); ${signature.bound}`}) : null,
         h('ol', {class: 'arg-list'}, source.args.map((arg, n) => h('li', {class: 'source-arg'},
           h('strong', {class: 'hint', text: `Argument ${n + 1}`}),
-          depth < 2 ? this.sourceEditor(`${id}-a${n}`, arg, fields, depth + 1, [...args, n], undefined, `${context} argument ${n + 1}`)
+          depth < 2 ? this.sourceEditor(`${id}-a${n}`, arg, fields, depth + 1, [...args, n], undefined,
+            `${context} argument ${n + 1}`, scopes)
             : h('p', {class: 'hint', text: 'Functions nest at most two levels; edit deeper arguments in the YAML view.'}),
           h('div', {class: 'row-actions'},
             h('button', {type: 'button', class: 'secondary', id: `${id}-a${n}-up`, text: 'Move up', disabled: n === 0,
@@ -1361,7 +1758,7 @@ export class BindingEditor {
               disabled: source.args.length === 1, onclick: () => this.update(args, list => list.filter((_, a) => a !== n), `${id}-add-arg`)}))))),
         h('button', {type: 'button', class: 'secondary', id: `${id}-add-arg`, text: 'Add argument', disabled: source.args.length >= 8,
           'aria-label': `${context}: add argument`,
-          onclick: () => this.update(args, list => [...list, {kind: 'field', name: firstField()}])}));
+          onclick: () => this.update(args, list => [...list, {kind: first, name: firstOf(first)}])}));
     }
     return h('div', {class: 'source-editor'},
       h('div', {class: 'stack'}, h('label', {for: kind.id}, 'Source'), kind), body);
@@ -1587,6 +1984,7 @@ export class BindingEditor {
     const path = segments[0] === 'composite' ? segments.slice(1) : segments;
     if (path[0] === 'components' && typeof path[1] === 'number') this.session.selection = {kind: 'component', index: path[1]};
     else if (path[0] === 'bindings' && typeof path[1] === 'number') this.session.selection = {kind: 'binding', index: path[1]};
+    else if (path[0] === 'rules' && typeof path[1] === 'number') this.session.selection = {kind: 'rule', index: path[1]};
     else if (path[0] === 'limits' || path[0] === 'workflowFromHeight') this.session.selection = {kind: 'limits', index: null};
     this.pendingPath = path;
     if (this.tab !== 'form') this.showTab('form');

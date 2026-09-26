@@ -4,7 +4,7 @@
   "producer" : {
     "tool" : "yano-x-devtools",
     "version" : "0.1.0-pre3",
-    "jarSha256" : "94d2dffc73047e53dac0b40ef709b063a45646a42fc3075d07eadfc644b9c629",
+    "jarSha256" : "92e94f1e095cefbde43826d5ff71a9b18e624deb603b1f581d14006f0057c0da",
     "linkedCompositeJarSha256" : "a57536b55954957f845095672c476272aadb856738c9d39ec1991a738be64b5f"
   },
   "host" : {
@@ -14,7 +14,7 @@
   },
   "authoringEnvironment" : "yano-x-binding-authoring-environment-v1",
   "catalog" : {
-    "fingerprint" : "sha256:21b4d32212f2dd87f37441ee353612e25ab448b1cc80afdd879678e21b424628",
+    "fingerprint" : "sha256:68813eb060dff777318fe9db54d671e01e1b9b0cf19f31aa02ad9bcc1661c30c",
     "pluginApi" : {
       "major" : 3,
       "level" : 12
@@ -28,7 +28,7 @@
     }, {
       "id" : "org.yanoproject.x.role-workflow",
       "version" : "0.1.0-pre3",
-      "digest" : "sha256:17e70128cf4cdcc0f2d8904e5c897e02207020a71b46df6bdaecef5aac3d50b9",
+      "digest" : "sha256:f3f12f5cacd4162c079e5f4888e673d75ab443fab06d2dd9a52dab29bc898eb6",
       "digestMode" : "ARTIFACT_CLOSURE",
       "selected" : true
     }, {
@@ -774,7 +774,7 @@
     "origin" : {
       "kind" : "bundle",
       "bundleId" : "org.yanoproject.x.role-workflow",
-      "digest" : "sha256:17e70128cf4cdcc0f2d8904e5c897e02207020a71b46df6bdaecef5aac3d50b9",
+      "digest" : "sha256:f3f12f5cacd4162c079e5f4888e673d75ab443fab06d2dd9a52dab29bc898eb6",
       "digestMode" : "ARTIFACT_CLOSURE"
     },
     "composable" : null
@@ -810,7 +810,7 @@
     "origin" : {
       "kind" : "bundle",
       "bundleId" : "org.yanoproject.x.role-workflow",
-      "digest" : "sha256:17e70128cf4cdcc0f2d8904e5c897e02207020a71b46df6bdaecef5aac3d50b9",
+      "digest" : "sha256:f3f12f5cacd4162c079e5f4888e673d75ab443fab06d2dd9a52dab29bc898eb6",
       "digestMode" : "ARTIFACT_CLOSURE"
     },
     "composable" : null
@@ -834,7 +834,7 @@
     "origin" : {
       "kind" : "bundle",
       "bundleId" : "org.yanoproject.x.role-workflow",
-      "digest" : "sha256:17e70128cf4cdcc0f2d8904e5c897e02207020a71b46df6bdaecef5aac3d50b9",
+      "digest" : "sha256:f3f12f5cacd4162c079e5f4888e673d75ab443fab06d2dd9a52dab29bc898eb6",
       "digestMode" : "ARTIFACT_CLOSURE"
     },
     "composable" : null
@@ -998,7 +998,10 @@
       } ]
     } ],
     "rawBodyTarget" : "allowed",
-    "readParticipants" : [ ]
+    "readParticipants" : [ ],
+    "commandSelectable" : true,
+    "unselectableReason" : null,
+    "ruleFacts" : [ ]
   }, {
     "machineId" : "authenticated-map",
     "basis" : "all",
@@ -1129,7 +1132,10 @@
       } ]
     } ],
     "rawBodyTarget" : "allowed",
-    "readParticipants" : [ ]
+    "readParticipants" : [ ],
+    "commandSelectable" : true,
+    "unselectableReason" : null,
+    "ruleFacts" : [ ]
   }, {
     "machineId" : "declarative-composite",
     "basis" : "all",
@@ -1209,7 +1215,10 @@
       } ]
     } ],
     "rawBodyTarget" : "allowed",
-    "readParticipants" : [ ]
+    "readParticipants" : [ ],
+    "commandSelectable" : true,
+    "unselectableReason" : null,
+    "ruleFacts" : [ ]
   }, {
     "machineId" : "domain-actors-component",
     "basis" : "all",
@@ -1400,7 +1409,10 @@
       } ]
     } ],
     "rawBodyTarget" : "allowed",
-    "readParticipants" : [ ]
+    "readParticipants" : [ ],
+    "commandSelectable" : true,
+    "unselectableReason" : null,
+    "ruleFacts" : [ ]
   }, {
     "machineId" : "ordered-log",
     "basis" : "all",
@@ -1450,7 +1462,10 @@
       "fields" : [ ]
     } ],
     "rawBodyTarget" : "allowed",
-    "readParticipants" : [ ]
+    "readParticipants" : [ ],
+    "commandSelectable" : false,
+    "unselectableReason" : "the only command is raw bytes",
+    "ruleFacts" : [ ]
   }, {
     "machineId" : "role-approvals",
     "basis" : "all",

@@ -11,9 +11,14 @@ Keep the exact Yano Maven version and matching ordinary JVM ZIP, the Yano X
 distribution and manifested plugin bundles, the authored document, canonical IR,
 canonical profile bytes and digest, and generated project lock. Preserve the
 chain's genesis identity and retained stores independently of these artifacts.
-The composite and stdlib bundles using stateless kernel admission require host
-plugin API level 11. API compatibility alone does not promise consensus-profile
-compatibility.
+The composite, stdlib and role-workflow bundles require host plugin API level 12
+(stateless kernel admission and kernel-declared rule facts). API compatibility
+alone does not promise consensus-profile compatibility.
+
+Admission rules make kernel facts consensus inputs. A bundle that changes which
+facts a kernel declares, or how it computes them, changes the outcome of rules
+that read them, even when the profile still reconstructs; treat it as a
+consensus change and qualify it with replay, not only `profile-check`.
 
 The profile is not determined by YAML text or IR bytes alone:
 

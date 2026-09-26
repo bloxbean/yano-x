@@ -875,7 +875,7 @@ public final class BindingDocumentCompiler {
                 throw new BindingAuthoringException(code, path, message, error);
             }
             if (error instanceof BindingExpressionCompiler.ExpressionException expression) {
-                throw new BindingAuthoringException(expression.scopeUnavailable() ? "RULE_SCOPE_INVALID"
+                throw new BindingAuthoringException(expression.code() != null ? expression.code()
                         : "EXPRESSION_INVALID", path, messagePath + ": " + message, error, null, null,
                         expression.line(), expression.column(), true);
             }

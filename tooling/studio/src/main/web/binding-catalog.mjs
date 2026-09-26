@@ -19,6 +19,10 @@ export const CATALOG_LIMITS = Object.freeze({maxBytes: 8 * 1024 * 1024, maxSelec
 const SHA256 = /^[0-9a-f]{64}$/;
 const NAME = /^[a-zA-Z][a-zA-Z0-9_.-]{0,126}$/;
 const MACHINE = /^[a-z][a-z0-9-]{0,62}$/;
+/** Rule fact and parameter names are CEL identifiers (ADR-031.3 §5.5). */
+const IDENTIFIER = /^[a-zA-Z][a-zA-Z0-9_]{0,62}$/;
+const RESERVED_NAMES = new Set(['as', 'break', 'const', 'continue', 'else', 'false', 'for', 'function', 'if', 'import',
+  'in', 'let', 'loop', 'namespace', 'null', 'package', 'return', 'true', 'var', 'void', 'while']);
 const TYPES = ['integer', 'text', 'bytes', 'boolean'];
 // Any bounded selector text without control characters; only binding identifiers can be composed.
 const SELECTOR = /^[^\u0000-\u001f\u007f-\u009f\u2028\u2029]{1,256}$/;
@@ -381,7 +385,7 @@ export function importAuthoringCatalog(input) {
     const at = `$.instances[${index}]`;
     expectObject(instance, at, ['machineId', 'basis', 'authoredConfiguration', 'status'], ['componentIds',
       'configurationDescriptor', 'applicationVersion', 'normalizedConfiguration', 'events', 'commands',
-      'rawBodyTarget', 'readParticipants', 'diagnostic']);
+      'rawBodyTarget', 'readParticipants', 'commandSelectable', 'unselectableReason', 'ruleFacts', 'diagnostic']);
     const result = {
       machineId: expectString(instance.machineId, `${at}.machineId`, 256, SELECTOR),
       basis: expectString(instance.basis, `${at}.basis`, 16),
@@ -433,6 +437,25 @@ export function importAuthoringCatalog(input) {
       }
       result.readParticipants = Object.freeze(expectArray(instance.readParticipants, `${at}.readParticipants`, 16)
         .map((id, n) => expectString(id, `${at}.readParticipants[${n}]`, 63, MACHINE)));
+      // ADR-031.3: command selectability for admission rules and the kernel's declared rule facts.
+      result.commandSelectable = expectBoolean(instance.commandSelectable, `${at}.commandSelectable`);
+      result.unselectableReason = nullable(instance.unselectableReason, value =>
+        expectString(value, `${at}.unselectableReason`, 256));
+      if (result.commandSelectable !== (result.unselectableReason === null)) {
+        throw new JsonInputError('CONTRACT_FORMAT', `${at}.unselectableReason must be null exactly when commands are selectable`, {path: at});
+      }
+      const factNames = new Set();
+      result.ruleFacts = Object.freeze(expectArray(instance.ruleFacts, `${at}.ruleFacts`, 32).map((fact, n) => {
+        const f = `${at}.ruleFacts[${n}]`;
+        expectObject(fact, f, ['name', 'type']);
+        const name = expectString(fact.name, `${f}.name`, 63, IDENTIFIER);
+        if (RESERVED_NAMES.has(name)) throw new JsonInputError('CONTRACT_FORMAT', `${f}.name is a CEL reserved word`, {path: f});
+        const type = expectString(fact.type, `${f}.type`, 16);
+        if (!FIELD_TYPE_NAMES.includes(type)) throw new JsonInputError('CONTRACT_FORMAT', `${f}.type is unknown`, {path: f});
+        if (factNames.has(name)) throw new JsonInputError('CATALOG_DUPLICATE', `${f}.name repeats a fact`, {path: f});
+        factNames.add(name);
+        return Object.freeze({name, type});
+      }));
     }
     return Object.freeze(result);
   });

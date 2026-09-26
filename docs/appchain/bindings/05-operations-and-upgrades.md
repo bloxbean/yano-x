@@ -9,11 +9,12 @@ and [upgrade preflight guide](../DECLARATIVE_BINDINGS_UPGRADES.md) nearby.
 
 | Observation | Meaning | Next action |
 |---|---|---|
-| HTTP 400 application rejection | The submitted command failed early admission; it was not pooled | Correct its encoding, size or other stated invalidity and submit again |
+| HTTP 400 application rejection | The submitted command failed early admission, possibly a static admission rule; it was not pooled | Correct its encoding, size or other stated invalidity and submit again; the node's DEBUG admission log names a refusing rule |
 | HTTP 503 admission unavailable | The admission callback could not complete | Investigate node warnings and plugin health; it is not business acceptance |
 | HTTP 202 | The node accepted the submission into its processing path | Wait for finalization, then inspect the receipt |
 | Finalized accepted receipt | This source's cascade committed | Inspect the resulting business state; external delivery may still be pending |
 | Finalized rejected receipt | This source's business writes and effects did not commit | Read the code and failed step, correct the cause and submit a fresh signed message if appropriate |
+| Finalized `ADMISSION_RULE_*` receipt | An admission rule refused a step; the whole cascade rolled back | Read the failed step's rule trace: the rule, clause and deny code say which requirement did not hold |
 
 Early admission cannot know all future state or remaining block capacity. A
 well-formed command can therefore still fail during execution. The host does
@@ -60,7 +61,9 @@ An app-final proof is not automatically a Cardano-anchored proof; see
    all clauses matched, but a pre-clause budget failure also uses it; read the
    rejection code and step together. Unvisited bindings have no invented trace.
 5. Verify mapping types and target admission/authorization. A successful source
-   transition alone does not guarantee its derived target succeeds.
+   transition alone does not guarantee its derived target succeeds; an
+   [admission rule](07-admission-rules.md) on the target may refuse it, and each
+   step's `rulesEvaluated` trace names that rule.
 6. Check event, work, fan-out, receipt and effect bounds. The
    [rejection-code table](../DECLARATIVE_BINDINGS.md#why-did-a-binding-not-fire)
    distinguishes them.
@@ -118,8 +121,9 @@ behavior. Dry-run prints intents; it never proves external delivery. See
 ## Changing a workflow
 
 Changing YAML is not hot reload. Rendering commits component settings and
-defaults, routes, quotas, generation heights and the binding program into a
-profile. Machine application versions and query subjects also affect identity.
+defaults, routes, quotas, generation heights and the binding program, including
+admission rules, their parameters and attachments, into a profile. Machine
+application versions and query subjects also affect identity.
 Even a seemingly additive bundle update can make a retained profile impossible
 to reconstruct.
 
@@ -127,7 +131,9 @@ For a chain created in governed mode, evolution requires an executable catalog
 that reproduces the necessary historical profiles, qualified target semantics,
 and the existing proposal/approval/readiness/activation protocol. Changed
 bindings require a new workflow generation; changed component configuration
-requires a new component generation. Neither migrates incompatible stored
+requires a new component generation. Changed rules, parameters or attachments
+change the binding program and need a new workflow generation too, for example
+an ADR-015 proposal that tightens a limit. Neither migrates incompatible stored
 genesis or state automatically.
 
 Use the read-only preflight against candidate bundles:

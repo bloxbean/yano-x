@@ -27,7 +27,8 @@ const sources = [
 
 function exampleContext(name) {
   const recipe = name.replace(/\.yaml$/, '');
-  return ['procurement', 'attestation', 'dpp-approval', 'feed-approval'].includes(recipe) ? `recipe:${recipe}` : 'tutorial';
+  return ['procurement', 'attestation', 'dpp-approval', 'feed-approval', 'dpp-role-gated'].includes(recipe)
+    ? `recipe:${recipe}` : 'tutorial';
 }
 
 const cases = [];

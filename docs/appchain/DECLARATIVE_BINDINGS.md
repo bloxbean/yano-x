@@ -79,11 +79,15 @@ byte literal, or equality to a byte-valued event field. Clauses execute in
 declaration order and stop at the first false result; an evaluation error
 rejects the cascade instead of silently skipping it.
 
-Mapping sources are `{field: name}`, `{literal: value}`, `{fn: id, args: [...]}`,
-or `{expr: '...'}`. Command field mappings follow the target's declared codec
-layout, not YAML key order. `map: identity` is for effects only. `rawBody`
-forwards a byte-valued event field and is subject to the evidence restriction.
-Functions nest at most two levels, with at most eight arguments per call.
+Mapping sources are `{field: name}`, `{context: name}`, `{literal: value}`,
+`{fn: id, args: [...]}`, or `{expr: '...'}`. `{field}` reads the triggering
+event; `{context}` (and `context.<name>` in CEL) reads the step that produced
+it: `height`, `sender` (the source message's sender), `derived`, `depth` and
+`binding` (empty for the source command). There is no timestamp. Command field
+mappings follow the target's declared codec layout, not YAML key order.
+`map: identity` is for effects only. `rawBody` forwards a byte-valued event
+field and is subject to the evidence restriction. Functions nest at most two
+levels, with at most eight arguments per call.
 
 | Function | Inputs → output |
 |---|---|
@@ -117,9 +121,11 @@ node-local tuning overrides; changing them changes the profile.
 | `maxExpressionValueBytes` | 65,536 | 65,536 |
 | `maxExpressionWorkPerCascade` | 1,048,576 | 4,194,304 |
 | `maxExpressionWorkPerBlock` | 33,554,432 | 67,108,864 |
+| `maxRulesPerComponent` | 4 | 16 |
 
 Documents additionally cap components at 16, bindings at 256, clauses per
-binding at 8, and assignments per mapping at 16. IR and receipts each cap
+binding at 8, assignments per mapping at 16, admission rules at 64, clauses per
+rule at 8, and parameters per rule at 16. IR and receipts each cap
 encoded bytes at 65,536. A profile's enclosing encoding can impose a tighter
 effective IR size. Work counters charge attempted work even when a cascade
 rejects; receipt replay does not repeat the work.
@@ -135,6 +141,85 @@ that number. Unselected events from an original source do not charge shared
 decoding work; derived-step event decoding still does, even without subscribers.
 Test the intended payloads, fan-out and block throughput together before pinning
 the profile. Explicit old limits remain unchanged when decoded.
+
+## Admission rules
+
+A document may declare forbid-only rules (ADR-031.3) and attach them to
+components. Every attached rule must hold for each command the component
+receives, whether submitted directly or derived by a binding, at every depth.
+A rule never grants authority, changes a command, or replaces the kernel's own
+admission and decision. Rules, parameters and attachments are part of the
+committed IR and profile.
+
+```yaml
+  rules:
+    - id: transfer-limit            # unique across rules and bindings
+      command: transfer             # optional; needs a command-selectable kernel
+      deny: TRANSFER_LIMIT_EXCEEDED # [A-Z][A-Z0-9_]*, not ADMISSION_RULE_*
+      params:
+        maxAmount: {type: integer}  # integer, text, bytes, boolean or binding; optional default
+      require:                      # 1-8 clauses, all must hold, in order
+        - expr: 'command.amount <= params.maxAmount'
+  components:
+    - id: points
+      machine: balances
+      admission:                    # attachment order is evaluation order
+        - rule: transfer-limit
+          params: {maxAmount: 10000}
+```
+
+Scopes by use site:
+
+| Scope | Bindings | Rules |
+|---|---|---|
+| `event.*` / `{field}` | yes | no |
+| `context.*` / `{context}` | the producing step | the step being admitted |
+| `command.*` / `{command}` | no | DATA fields of the selected command only |
+| `params.*` / `{param}` | no | the attachment's normalized values |
+| `config.*` / `{config}` | no | the component's normalized configuration |
+| `facts.*` / `{fact}` | no | facts the kernel declares |
+
+`in` tests text membership and is available only in rules; a text-set fact is
+readable only as the right-hand operand of `in`. Evidence fields are never
+readable (`RULE_EVIDENCE_READ`). Rule clauses are `expr` or `lookup`
+(`exists`, `absent`, or `eq`); a lookup reads a declared component's state as
+the cascade left it.
+
+Evaluation happens in two slots per step. Rules that do not read facts run after
+the kernel's `admit` hooks and before any work is reserved. Rules that read facts
+run only after the kernel approved the command, with the exact facts of that
+approval. Attachment order holds within each slot; the first failing rule
+decides, and later rules are neither evaluated nor charged. Rule work is charged
+to both expression budgets, including for refusals, and never refunded.
+
+| Receipt code | Meaning |
+|---|---|
+| `ADMISSION_RULE_DENIED` | a clause did not hold; the step's trace names the rule, clause and deny code |
+| `ADMISSION_RULE_ERROR` | a clause could not be evaluated (absent fact, division by zero); fails closed |
+| `ADMISSION_RULE_INPUT` | the command view or the kernel's fact values were unusable (clause `-1`) |
+| `EXPRESSION_CAPACITY_EXCEEDED` | cascade or block expression work was exhausted |
+
+Every receipt step records `rulesEvaluated = [heldCount, failure]`. A refused
+step rejects its source message: the whole cascade, including the source
+command, is rolled back; no business state is written, only the receipt,
+framework accounting, and any non-refundable crypto work already reserved. A
+rule whose clauses are all expressions reading only `command.*`, `params.*` and
+`config.*` is static and is also evaluated at local ingress; REST callers see
+the host's bounded code `APPLICATION_REJECTED`, while the node's DEBUG admission
+log and `bindings dry-run` show the full reason
+`ADMISSION_RULE_DENIED/<rule>/<denyCode>`.
+
+Kernels that declare facts:
+
+| Machine | Facts |
+|---|---|
+| `authenticated-map-component` | `senderMember` (boolean), `collections` (text set) |
+| governed `authenticated-map-component` | also `directActorCount`, `approvalCount`; for exactly one direct actor `actorId`, `organizationId`, `role`, `roles` (text set), `policyId` |
+| `governed-role-approvals` | `actorId`, `organizationId`, `roles` (text set), `action`, `policyId`, `policyRevision` |
+
+Other stock machines declare no facts (`RULE_FACT_UNKNOWN`). A multi-actor map
+batch establishes counts only; reading `facts.roles` for it fails closed. See
+[Admission rules](bindings/07-admission-rules.md) for the recipes and patterns.
 
 ## Submission validity and retry
 
@@ -162,7 +247,8 @@ or future derived execution and does not reserve node-local block capacity.
 It checks the codec and the kernel's separate stateless admission hook for
 command/configuration-only bounds. Context-dependent admission still runs during
 execution; no synthetic block context is invented. These bundles require host
-plugin API level 11 and its matching published/staged build.
+plugin API level 12 (kernel-declared rule facts, ADR-031.3) and its matching
+published/staged build.
 
 A finalized rejection rolls back all business changes and effects for that source,
 not the whole block. The receipt remains terminal for its message ID. Replaying

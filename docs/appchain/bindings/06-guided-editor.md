@@ -1,7 +1,7 @@
 # 6. Author bindings in the Studio editor
 
 [Previous: Operations and upgrades](05-operations-and-upgrades.md) ·
-[Learning path](README.md)
+[Learning path](README.md) · [Next: Admission rules](07-admission-rules.md)
 
 Studio's **Bindings** page is a guided editor for the same composite binding
 documents you write in YAML. Forms are backed by an authoring catalog exported
@@ -27,7 +27,7 @@ The page has four views of one draft:
 
 | View | Use it to |
 |---|---|
-| **Form** | Edit components, bindings, conditions, mappings and limits |
+| **Form** | Edit components, bindings, conditions, mappings, admission rules and limits |
 | **YAML** | Read or edit the exact document text |
 | **Graph** | See components and bindings in execution order; arrange the drawing |
 | **Validate** | Get CLI commands, import CLI reports and read rehearsal outcomes |
@@ -72,6 +72,17 @@ matching descriptor, fields become free text and checks are limited.
   required, and whether they are *evidence*. Evidence must be copied directly from
   an event field. Sources are event fields, typed literals (bytes are explicit
   hexadecimal), documented functions nested at most two levels, or expressions.
+- **Admission rules** are listed under their own heading. A rule form edits the
+  deny code, an optional command selector (only commands of attached components
+  that rules can select are offered), typed parameters with optional defaults, and
+  the clauses: restricted CEL expressions or state lookups. *Insert a readable
+  field* lists what the rule can read for its attached components: step context,
+  the selected command's data fields, parameters, configuration and the verified
+  facts the catalog declares. A rule takes effect only where a component attaches
+  it: each component form has an **Admission rules** section to attach, order and
+  detach rules and to state parameter values. An omitted value uses the rule's
+  default. Renaming a rule updates its attachments; renaming a binding updates
+  `binding` parameters that name it. See [Admission rules](07-admission-rules.md).
 - **Limits and activation** shows every committed limit. Empty means omitted:
   the default applies and is not written into your document.
 
@@ -167,9 +178,15 @@ message says what happened:
   ran again.
 
 Conditions show whether a binding ran, which clause was false, or where an
-evaluation failed when the receipt proves it. A target component can reuse a
-framework rejection code, so Studio never guesses a location the receipt does
-not record.
+evaluation failed when the receipt proves it. Each step also shows its admission
+rules: how many held, and the rule, clause and deny code that refused it. A
+refusal of a derived step says that the whole cascade, including the source
+command, was rolled back. The **Procurement admission rules** starter's fixtures
+include block-time refusals. The **Transfer limit rule** starter's third fixture
+is an over-limit transfer that the static rule refuses before any block, so that
+dry-run fails on the fixture, as a node refuses it at submission. A target
+component can reuse a framework rejection code, so Studio never guesses a location
+the receipt does not record.
 
 ## 6. Multi-block approvals
 

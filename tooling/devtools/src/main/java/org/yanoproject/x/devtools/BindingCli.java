@@ -9,6 +9,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.JsonMappingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.exc.ValueInstantiationException;
 import org.yanoproject.api.appchain.AppQueryContext;
 import org.yanoproject.api.appchain.AppStateMachine;
@@ -160,6 +161,8 @@ public final class BindingCli {
         private BindingPluginEnvironment environment;
         private boolean wrapped;
         private BindingIrV1 ir;
+        /** Rule ids in authored order (IR order for IR input), to locate rule failures (ADR-031.3). */
+        private List<String> ruleOrder = List.of();
         private Map<String, Object> result;
         private BindingDiagnostic diagnostic;
         private Map<String, Object> catalogIdentity;
@@ -227,6 +230,7 @@ public final class BindingCli {
             var document = decoded == null ? BindingDocumentCompiler.parseDocument(input) : null;
             wrapped = document != null && document.has("composite");
             ir = decoded == null ? BindingDocumentCompiler.compile(document, session) : decoded;
+            ruleOrder = authoredRuleOrder(document, ir);
             stage = "profile";
             AppStateMachine machine = validateProfile(session, ir, wrapped ? "$.composite" : "$");
             boolean reporting = parsed.report() != null;
@@ -251,6 +255,8 @@ public final class BindingCli {
                     validation.put("manifest", machine.capabilityManifest());
                     validation.put("bindingCount", ir.bindings().size());
                     validation.put("componentCount", ir.components().size());
+                    List<Map<String, Object>> admission = admissionOrder(ir);
+                    if (!admission.isEmpty()) validation.put("admission", admission);
                     out.println(JSON.writerWithDefaultPrettyPrinter().writeValueAsString(validation));
                 }
                 case "dry-run" -> {
@@ -331,7 +337,7 @@ public final class BindingCli {
                         located.bindingIndex(), located.bindingId(), located.clauseIndex(), part, located.field(),
                         located.argumentPath(), null, null);
             } else {
-                BindingDocumentPath segments = profilePath(located, ir);
+                BindingDocumentPath segments = profilePath(located, ir, ruleOrder);
                 if (wrapped) segments = segments.under("composite");
                 location = BindingDiagnostic.Location.fromSegments("document", segments, null, null)
                         .withBinding(located.bindingIndex(), located.bindingId())
@@ -342,9 +348,74 @@ public final class BindingCli {
             return BindingDiagnostic.error(code, message, true, location);
         }
 
+        /** Rule ids in the order the document declares them, or in IR order when there is no document. */
+        private static List<String> authoredRuleOrder(JsonNode document, BindingIrV1 ir) {
+            if (document == null) return ir.rules().stream().map(BindingIrV1.AdmissionRule::id).toList();
+            JsonNode body = document.has("composite") ? document.get("composite") : document;
+            List<String> ids = new ArrayList<>();
+            for (JsonNode rule : body.path("rules")) ids.add(rule.path("id").asText());
+            return List.copyOf(ids);
+        }
+
+        /**
+         * Each component's attached rules in evaluation order (ADR-031.3 §5.6): the admission slot in attachment
+         * order, then the verified-fact slot. Components without rules are omitted.
+         */
+        private static List<Map<String, Object>> admissionOrder(BindingIrV1 ir) {
+            List<Map<String, Object>> components = new ArrayList<>();
+            for (var component : ir.components()) {
+                if (component.admission().isEmpty()) continue;
+                List<Map<String, Object>> ordered = new ArrayList<>();
+                for (boolean factSlot : new boolean[]{false, true}) {
+                    for (var attachment : component.admission()) {
+                        var rule = ir.rule(attachment.rule());
+                        if (rule == null || rule.readsFacts() != factSlot) continue;
+                        Map<String, Object> value = new LinkedHashMap<>();
+                        value.put("rule", rule.id());
+                        value.put("command", rule.command() == null ? "*" : rule.command());
+                        value.put("deny", rule.denyCode());
+                        value.put("slot", factSlot ? "fact" : "admission");
+                        value.put("static", rule.isStatic());
+                        ordered.add(value);
+                    }
+                }
+                Map<String, Object> value = new LinkedHashMap<>();
+                value.put("component", component.id());
+                value.put("rules", ordered);
+                components.add(value);
+            }
+            return components;
+        }
+
+        /**
+         * Authored segments of an ADR-031.3 rule failure: an attachment, one of its parameters, or a rule's command
+         * selector or clause. Rules are addressed by their authored position, which the IR does not keep.
+         */
+        private static BindingDocumentPath rulePath(BindingValidationException located, BindingIrV1 ir,
+                                                    List<String> ruleOrder) {
+            String part = located.part() == null ? "" : located.part();
+            boolean attachment = part.equals("attachment") || part.equals("rule-param");
+            if (attachment && located.componentId() != null && located.attachmentIndex() != null) {
+                int component = 0;
+                while (component < ir.components().size()
+                        && !ir.components().get(component).id().equals(located.componentId())) component++;
+                BindingDocumentPath path = BindingDocumentPath.ROOT.field("components").index(component)
+                        .field("admission").index(located.attachmentIndex());
+                return part.equals("rule-param") && located.field() != null
+                        ? path.field("params").field(located.field()) : path.field("rule");
+            }
+            int rule = ruleOrder.indexOf(located.ruleId());
+            if (rule < 0) return BindingDocumentPath.ROOT.field("rules");
+            BindingDocumentPath path = BindingDocumentPath.ROOT.field("rules").index(rule);
+            if (located.clauseIndex() != null) return path.field("require").index(located.clauseIndex());
+            return located.code().startsWith("RULE_COMMAND_") ? path.field("command") : path;
+        }
+
         /** Authored document segments for a structured construction failure; never inferred from message text. */
-        private static BindingDocumentPath profilePath(BindingValidationException located, BindingIrV1 ir) {
+        private static BindingDocumentPath profilePath(BindingValidationException located, BindingIrV1 ir,
+                                                       List<String> ruleOrder) {
             BindingDocumentPath path = BindingDocumentPath.ROOT;
+            if (located.ruleId() != null || located.componentId() != null) return rulePath(located, ir, ruleOrder);
             if (located.bindingIndex() == null) return path;
             path = path.field("bindings").index(located.bindingIndex());
             var binding = ir.bindings().get(located.bindingIndex());

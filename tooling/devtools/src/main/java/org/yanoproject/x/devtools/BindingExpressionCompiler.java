@@ -76,20 +76,25 @@ public final class BindingExpressionCompiler {
             int column = location == null ? -1 : location.getColumn();
             boolean positioned = line >= 1 && column >= 0 && !hasNonLineFeedBreak(source);
             String message = "invalid binding expression: " + failure.getMessage();
-            boolean scopeUnavailable = false;
+            String code = null;
             Matcher undeclared = UNDECLARED.matcher(failure.getMessage());
             if (undeclared.find()) {
                 String name = undeclared.group(1);
                 for (Scope scope : Scope.values()) {
-                    if (scope.label().equals(name) && !fields.scopes().containsKey(scope)) {
+                    if (!scope.label().equals(name)) continue;
+                    if (!fields.scopes().containsKey(scope)) {
                         message = name + " scope is not available in " + useSite + ": " + failure.getMessage();
-                        scopeUnavailable = true;
+                        code = "RULE_SCOPE_INVALID";
+                    } else if (scope == Scope.FACTS) {
+                        // An available scope without the named member: the kernel declares no such fact.
+                        code = "RULE_FACT_UNKNOWN";
+                    } else if (scope != Scope.EVENT) {
+                        code = "RULE_FIELD_UNKNOWN";
                     }
                 }
             }
             throw new ExpressionException(message, failure,
-                    positioned ? line : null, positioned ? utf16Column(source, line, column) : null,
-                    scopeUnavailable);
+                    positioned ? line : null, positioned ? utf16Column(source, line, column) : null, code);
         } catch (ExpressionException failure) {
             throw failure;
         } catch (IllegalArgumentException failure) {
@@ -104,20 +109,23 @@ public final class BindingExpressionCompiler {
     public static final class ExpressionException extends IllegalArgumentException {
         private final Integer line;
         private final Integer column;
-        private final boolean scopeUnavailable;
+        private final String code;
 
-        ExpressionException(String message, Throwable cause) { this(message, cause, null, null, false); }
+        ExpressionException(String message, Throwable cause) { this(message, cause, null, null, null); }
 
-        ExpressionException(String message, Throwable cause, Integer line, Integer column,
-                            boolean scopeUnavailable) {
+        ExpressionException(String message, Throwable cause, Integer line, Integer column, String code) {
             super(message, cause);
             this.line = line;
             this.column = column;
-            this.scopeUnavailable = scopeUnavailable;
+            this.code = code;
         }
 
-        /** Whether the expression reads a scope its use site does not provide (ADR-031.3 §5.2). */
-        public boolean scopeUnavailable() { return scopeUnavailable; }
+        /**
+         * A more specific diagnostic code than {@code EXPRESSION_INVALID}, or {@code null}: {@code RULE_SCOPE_INVALID}
+         * when the expression reads a scope its use site does not provide, and {@code RULE_FACT_UNKNOWN} or
+         * {@code RULE_FIELD_UNKNOWN} when it reads an undeclared member of an available rule scope (ADR-031.3).
+         */
+        public String code() { return code; }
 
         /** One-based source line within the expression, or {@code null}. */
         public Integer line() { return line; }

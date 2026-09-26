@@ -108,6 +108,72 @@ class BindingCliIT {
                 .isEqualTo(rehearsal.out());
     }
 
+    /**
+     * ADR-031.3 through the real bundles: validate lists each component's rules in evaluation order, graph draws them
+     * as guards, and dry-run shows each receipt's rule trace and explains a refusal, including a depth-1 refusal that
+     * rolls back its source command.
+     */
+    @Test
+    void admissionRulesShowTheirOrderGuardsTracesAndRollbackThroughTheCli() throws Exception {
+        Path examples = Path.of("..", "..", "examples", "bindings");
+        String yaml = Files.readString(examples.resolve("procurement-admission.yaml"));
+        Inputs inputs = inputs(yaml);
+        Output validation = run("validate", inputs, List.of());
+        assertThat(validation.exit()).as(validation.err()).isZero();
+        JsonNode admission = JSON.readTree(validation.out()).path("admission");
+        assertThat(admission.findValuesAsText("component")).containsExactly("orders", "approvals", "audit");
+        JsonNode quorum = admission.get(1).path("rules").get(0);
+        assertThat(quorum.path("rule").textValue()).isEqualTo("minimum-quorum");
+        assertThat(quorum.path("command").textValue()).isEqualTo("propose");
+        assertThat(quorum.path("slot").textValue()).isEqualTo("admission");
+        assertThat(quorum.path("static").booleanValue()).isTrue();
+        assertThat(admission.get(0).at("/rules/0/static").booleanValue()).isFalse();
+        assertThat(run("graph", inputs, List.of()).out()).contains("\"guard:orders\" -> \"orders\"",
+                "registered-supplier → NOT_A_REGISTERED_SUPPLIER");
+
+        Output refused = run("dry-run", inputs, List.of("--fixture",
+                examples.resolve("fixtures/procurement-admission/fixture-1.json").toString()));
+        assertThat(refused.exit()).as(refused.err()).isZero();
+        JsonNode receipt = JSON.readTree(refused.out()).path("receipts").get(0);
+        assertThat(receipt.at("/refusal/rule").textValue()).isEqualTo("registered-supplier");
+        assertThat(receipt.at("/refusal/denyCode").textValue()).isEqualTo("NOT_A_REGISTERED_SUPPLIER");
+        assertThat(receipt.at("/refusal/depth").intValue()).isZero();
+        assertThat(receipt.at("/rules/0/held").intValue()).isZero();
+
+        // Lowering the binding's quorum refuses the derived proposal at depth 1 and rolls back the order.
+        Files.writeString(inputs.document(), yaml.replace("required: {literal: 2}", "required: {literal: 1}"));
+        Path scenarios = Path.of("..", "studio", "src", "test", "fixtures", "scenarios");
+        Output registered = run("dry-run", inputs, List.of("--fixture",
+                scenarios.resolve("quorum-fixture-1.json").toString()));
+        assertThat(registered.exit()).as(registered.err()).isZero();
+        Path prior = temporary.resolve("quorum-1.json");
+        Files.writeString(prior, registered.out());
+        Output rolledBack = run("dry-run", inputs, List.of("--fixture",
+                scenarios.resolve("quorum-fixture-2.json").toString(), "--prior-result", prior.toString()));
+        assertThat(rolledBack.exit()).as(rolledBack.err()).isZero();
+        JsonNode result = JSON.readTree(rolledBack.out());
+        assertThat(result.at("/receipts/0/refusal/depth").intValue()).isEqualTo(1);
+        assertThat(result.at("/receipts/0/refusal/denyCode").textValue()).isEqualTo("QUORUM_TOO_LOW");
+        assertThat(result.at("/receipts/0/refusal/explanation").textValue()).contains("rolled back",
+                "source command");
+        assertThat(result.path("stateChanges").findValuesAsText("keyHex"))
+                .noneMatch(key -> key.startsWith("79616e6f"));
+    }
+
+    /** A profile-construction rule failure keeps the authored attachment path in the report (ADR-031.3). */
+    @Test
+    void ruleConstructionFailuresNameTheAuthoredAttachment() throws Exception {
+        String yaml = Files.readString(Path.of("..", "..", "examples", "bindings", "procurement-admission.yaml"))
+                .replace("params: {binding: approved-to-audit}", "params: {binding: order-to-approval}");
+        Inputs inputs = inputs(yaml);
+        Path report = temporary.resolve("report.json");
+        Output validation = run("validate", inputs, List.of("--report", report.toString()));
+        assertThat(validation.exit()).isEqualTo(2);
+        JsonNode diagnostic = JSON.readTree(report.toFile()).path("diagnostics").get(0);
+        assertThat(diagnostic.path("code").textValue()).isEqualTo("RULE_PARAMETER_TYPE");
+        assertThat(diagnostic.toString()).contains("$.composite.components[3].admission[0].params.binding");
+    }
+
     @Test
     void priorResultCarriesCompleteStateAndPreservesExactReplayAcrossFreshCatalogInstances() throws Exception {
         Inputs inputs = inputs(DOCUMENT);

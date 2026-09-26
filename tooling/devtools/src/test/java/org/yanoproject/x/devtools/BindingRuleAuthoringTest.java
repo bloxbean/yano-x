@@ -184,6 +184,13 @@ class BindingRuleAuthoringTest {
         // Evidence is never readable, and rules have no event scope.
         assertInvalid(DOCUMENT.replace("command.amount <= params.maxAmount", "command.signature != b\"\""),
                 "RULE_EVIDENCE_READ", "$.rules[0].require[0]: rule reads evidence field command.signature");
+        // An undeclared member of an available rule scope names the scope's own diagnostic.
+        assertInvalid(DOCUMENT.replace("command.amount <= params.maxAmount", "facts.region == \"eu\""),
+                "RULE_FACT_UNKNOWN", "$.rules[0].require[0]: invalid binding expression");
+        assertInvalid(DOCUMENT.replace("command.amount <= params.maxAmount", "params.missing > 0"),
+                "RULE_FIELD_UNKNOWN", "$.rules[0].require[0]: invalid binding expression");
+        assertInvalid(DOCUMENT.replace("command.amount <= params.maxAmount", "command.missing > 0"),
+                "RULE_FIELD_UNKNOWN", "$.rules[0].require[0]: invalid binding expression");
         assertInvalid(DOCUMENT.replace("command.amount <= params.maxAmount", "event.amount > 0"),
                 "RULE_SCOPE_INVALID", "$.rules[0].require[0]: event scope is not available in an admission rule");
     }

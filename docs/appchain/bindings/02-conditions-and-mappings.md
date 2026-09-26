@@ -158,7 +158,8 @@ cascade rather than quietly treating the condition as false.
 
 ## Map values without implicit conversions
 
-Each source is exactly one of `field`, `literal`, `fn` with `args`, or `expr`.
+Each source is exactly one of `field`, `context`, `literal`, `fn` with `args`, or
+`expr`.
 The four scalar types are integer, boolean, text, and bytes. Write a byte
 literal as `{literal: {bytesHex: '00ff'}}`; `'00ff'` alone is text. Nested
 application values travel as canonical CBOR bytes, not arbitrary YAML objects.
@@ -189,6 +190,30 @@ proposal; the document itself is not placed on chain. `cbor-field` neither
 parses JSON nor traverses arbitrary nested maps. Malformed input or a missing
 field rejects the cascade. Function nesting is limited to two levels and eight
 arguments per call.
+
+## Read the step context
+
+Besides the event, a binding can read the **step context** of the step that
+produced it, as `{context: name}` or `context.<name>` in an expression:
+
+| Field | Type | Meaning |
+|---|---|---|
+| `height` | integer | The block height of the source message |
+| `sender` | bytes | The source message's sender, the same at every depth |
+| `derived` | boolean | False for the source command, true for a command a binding derived |
+| `depth` | integer | 0 for the source command, then 1, 2, … along the cascade |
+| `binding` | text | The binding that derived the step; empty for the source command |
+
+For example, `{expr: '!context.derived'}` makes a binding fire only for commands
+submitted directly, and `{context: sender}` is a lookup key for the submitting
+member. There is no timestamp: bindings stay deterministic. Context values are
+never evidence, so they cannot be mapped into an evidence field.
+
+Each use site has its own scopes. Bindings read `event.*` and `context.*`.
+[Admission rules](07-admission-rules.md) read `context.*` for the step they judge,
+plus `command.*`, `params.*`, `config.*` and verified `facts.*`, and never the
+event. Using a scope that is not available is reported as `RULE_SCOPE_INVALID`
+with the position of the offending identifier.
 
 ## Native events versus the baseline event
 

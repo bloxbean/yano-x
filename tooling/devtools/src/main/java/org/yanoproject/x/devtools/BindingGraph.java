@@ -10,7 +10,9 @@ public final class BindingGraph {
 
     /**
      * Renders components, ordered binding edges, and separate effect sinks as UTF-8-compatible DOT text.
-     * Conditions remain a label count, not an assertion that an edge will execute for every event.
+     * Conditions remain a label count, not an assertion that an edge will execute for every event. A component
+     * with admission rules (ADR-031.3) gets one guard node listing them in evaluation order: the admission slot,
+     * then the verified-fact slot, each with its command selector and deny code.
      * Names are quoted and escaped; authored identifiers cannot inject Graphviz statements.
      *
      * @param ir structurally valid committed binding document
@@ -21,6 +23,22 @@ public final class BindingGraph {
         for (var component : ir.components()) {
             graph.append("  ").append(quote(component.id())).append(" [label=")
                     .append(quote(component.id() + "\n" + component.machineId())).append("];\n");
+        }
+        for (var component : ir.components()) {
+            if (component.admission().isEmpty()) continue;
+            StringBuilder label = new StringBuilder("admission rules");
+            for (boolean factSlot : new boolean[]{false, true}) {
+                for (var attachment : component.admission()) {
+                    var rule = ir.rule(attachment.rule());
+                    if (rule == null || rule.readsFacts() != factSlot) continue;
+                    label.append("\n").append(rule.id()).append(rule.command() == null ? "" : " on " + rule.command())
+                            .append(" → ").append(rule.denyCode()).append(factSlot ? " (facts)" : "");
+                }
+            }
+            String guard = "guard:" + component.id();
+            graph.append("  ").append(quote(guard)).append(" [shape=octagon,label=").append(quote(label.toString()))
+                    .append("];\n  ").append(quote(guard)).append(" -> ").append(quote(component.id()))
+                    .append(" [style=dashed,arrowhead=tee];\n");
         }
         for (var binding : ir.bindings()) {
             String target;

@@ -1,0 +1,324 @@
+{
+  "schema" : "yano-x-binding-report-v1",
+  "operation" : "dry-run",
+  "operationOutcome" : "failed",
+  "assurance" : "Unauthenticated local tool output. Matching digests show that the same inputs were used; they do not identify the producer, prove finality or approve a deployment.",
+  "producer" : {
+    "tool" : "yano-x-devtools",
+    "version" : "0.1.0-pre3",
+    "jarSha256" : "92e94f1e095cefbde43826d5ff71a9b18e624deb603b1f581d14006f0057c0da",
+    "linkedCompositeJarSha256" : "a57536b55954957f845095672c476272aadb856738c9d39ec1991a738be64b5f"
+  },
+  "host" : {
+    "version" : "0.1.0-pre18-f92d8b1-SNAPSHOT",
+    "coreApiJarSha256" : "0c53cd8184fdb1c6b7f276fc557fd59dbf6e659ce628d6a4b7ce244f84c6c71c",
+    "runtimeJarSha256" : "f60f0920de93272247b8f6ed7d92b5781a882e03975b68434a8e147068ec39e8"
+  },
+  "authoringEnvironment" : "yano-x-binding-authoring-environment-v1",
+  "catalog" : {
+    "fingerprint" : "sha256:68813eb060dff777318fe9db54d671e01e1b9b0cf19f31aa02ad9bcc1661c30c",
+    "pluginApi" : {
+      "major" : 3,
+      "level" : 12
+    },
+    "bundles" : [ {
+      "id" : "org.yanoproject.x.composite",
+      "version" : "0.1.0-pre3",
+      "digest" : "sha256:372c2c40fd8c7dff495888191dd234fcc6e01c7954ebb225af6724deca950c1f",
+      "digestMode" : "ARTIFACT_CLOSURE",
+      "selected" : true
+    }, {
+      "id" : "org.yanoproject.x.role-workflow",
+      "version" : "0.1.0-pre3",
+      "digest" : "sha256:f3f12f5cacd4162c079e5f4888e673d75ab443fab06d2dd9a52dab29bc898eb6",
+      "digestMode" : "ARTIFACT_CLOSURE",
+      "selected" : true
+    }, {
+      "id" : "org.yanoproject.x.stdlib",
+      "version" : "0.1.0-pre3",
+      "digest" : "sha256:58b2a98b1baaff883f51aef421a38576ddfc4afe041e7f3887c709f2fe2a0c29",
+      "digestMode" : "ARTIFACT_CLOSURE",
+      "selected" : true
+    } ]
+  },
+  "inputs" : [ {
+    "role" : "document",
+    "state" : "read",
+    "bytes" : "966",
+    "sha256" : "a2ad8799d736eb74e560f11b1624635bec854071e2c077c8178ac2350ba7ac58"
+  }, {
+    "role" : "context",
+    "state" : "read",
+    "bytes" : "991",
+    "sha256" : "fd1059233408f30a8e02a62f5f8708ece723ceccf99cc4b0fe2744e8dac73539"
+  }, {
+    "role" : "fixture",
+    "state" : "read",
+    "bytes" : "653",
+    "sha256" : "e2061cd447a5637e50c9cef9646b14bdcd6e72a716eda3d8065b35ec339fe092"
+  }, {
+    "role" : "priorResult",
+    "state" : "read",
+    "bytes" : "6396",
+    "sha256" : "3bf5e2dfecd0e2313a703ad00400fd0e08aecacd8b245b81939af71f7c0ffaf9"
+  } ],
+  "documentFormat" : "yaml",
+  "result" : null,
+  "diagnostics" : [ {
+    "code" : "FIXTURE_ADMISSION_REJECTED",
+    "severity" : "error",
+    "message" : "A fixture message was rejected before execution",
+    "detail" : "fixture admission rejected: ADMISSION_RULE_DENIED/transfer-limit/TRANSFER_LIMIT_EXCEEDED",
+    "detailMayContainInput" : true,
+    "location" : {
+      "input" : "fixture"
+    }
+  } ],
+  "receiptCodes" : [ {
+    "code" : "ADMISSION",
+    "category" : "target-rejection",
+    "origin" : "either",
+    "levels" : [ "step" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "MALFORMED_SOURCE_COMMAND",
+    "category" : "target-rejection",
+    "origin" : "either",
+    "levels" : [ "source" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "MALFORMED_DERIVED_COMMAND",
+    "category" : "target-rejection",
+    "origin" : "either",
+    "levels" : [ "step" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "CAPACITY_EXCEEDED",
+    "category" : "resource-exhaustion",
+    "origin" : "either",
+    "levels" : [ "source", "condition" ],
+    "locatesLastCondition" : "ambiguous"
+  }, {
+    "code" : "COMMAND_PAYLOAD_TOO_LARGE",
+    "category" : "resource-exhaustion",
+    "origin" : "either",
+    "levels" : [ "step" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "COMMAND_WORK_EXCEEDED",
+    "category" : "resource-exhaustion",
+    "origin" : "either",
+    "levels" : [ "step" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "CRYPTO_WORK_EXCEEDED",
+    "category" : "resource-exhaustion",
+    "origin" : "either",
+    "levels" : [ "step" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "EVENT_PAYLOAD_TOO_LARGE",
+    "category" : "resource-exhaustion",
+    "origin" : "either",
+    "levels" : [ "step" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "EXPRESSION_CAPACITY_EXCEEDED",
+    "category" : "resource-exhaustion",
+    "origin" : "either",
+    "levels" : [ "source", "step", "condition", "mapping", "effect" ],
+    "locatesLastCondition" : "ambiguous"
+  }, {
+    "code" : "LIMIT_DEPTH",
+    "category" : "resource-exhaustion",
+    "origin" : "either",
+    "levels" : [ "step" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "LIMIT_FANOUT",
+    "category" : "resource-exhaustion",
+    "origin" : "either",
+    "levels" : [ "condition" ],
+    "locatesLastCondition" : "ambiguous"
+  }, {
+    "code" : "RECEIPT_CAPACITY_EXCEEDED",
+    "category" : "resource-exhaustion",
+    "origin" : "either",
+    "levels" : [ "source" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "EFFECT_CAPACITY_EXCEEDED",
+    "category" : "resource-exhaustion",
+    "origin" : "either",
+    "levels" : [ "effect" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "EFFECT_PAYLOAD_LIMIT",
+    "category" : "resource-exhaustion",
+    "origin" : "either",
+    "levels" : [ "effect" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "EFFECT_EXPIRY_LIMIT",
+    "category" : "resource-exhaustion",
+    "origin" : "either",
+    "levels" : [ "effect" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "EVENT_TYPE_ERROR",
+    "category" : "evaluation-error",
+    "origin" : "either",
+    "levels" : [ "step", "condition" ],
+    "locatesLastCondition" : "ambiguous"
+  }, {
+    "code" : "EVENT_MISSING_FIELD",
+    "category" : "contract-violation",
+    "origin" : "either",
+    "levels" : [ "step" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "EXPRESSION_DIVISION_BY_ZERO",
+    "category" : "evaluation-error",
+    "origin" : "either",
+    "levels" : [ "condition", "mapping" ],
+    "locatesLastCondition" : "ambiguous"
+  }, {
+    "code" : "EXPRESSION_MISSING_FIELD",
+    "category" : "evaluation-error",
+    "origin" : "either",
+    "levels" : [ "condition", "mapping" ],
+    "locatesLastCondition" : "ambiguous"
+  }, {
+    "code" : "EXPRESSION_OVERFLOW",
+    "category" : "evaluation-error",
+    "origin" : "either",
+    "levels" : [ "condition", "mapping" ],
+    "locatesLastCondition" : "ambiguous"
+  }, {
+    "code" : "EXPRESSION_TYPE_ERROR",
+    "category" : "evaluation-error",
+    "origin" : "either",
+    "levels" : [ "condition", "mapping" ],
+    "locatesLastCondition" : "ambiguous"
+  }, {
+    "code" : "EXPRESSION_VALUE_LIMIT",
+    "category" : "evaluation-error",
+    "origin" : "either",
+    "levels" : [ "condition", "mapping" ],
+    "locatesLastCondition" : "ambiguous"
+  }, {
+    "code" : "FUNCTION_INPUT_LIMIT",
+    "category" : "evaluation-error",
+    "origin" : "either",
+    "levels" : [ "condition", "mapping" ],
+    "locatesLastCondition" : "ambiguous"
+  }, {
+    "code" : "FUNCTION_INVALID_CBOR",
+    "category" : "evaluation-error",
+    "origin" : "either",
+    "levels" : [ "condition", "mapping" ],
+    "locatesLastCondition" : "ambiguous"
+  }, {
+    "code" : "FUNCTION_MISSING_FIELD",
+    "category" : "evaluation-error",
+    "origin" : "either",
+    "levels" : [ "condition", "mapping" ],
+    "locatesLastCondition" : "ambiguous"
+  }, {
+    "code" : "FUNCTION_OUTPUT_LIMIT",
+    "category" : "evaluation-error",
+    "origin" : "either",
+    "levels" : [ "condition", "mapping" ],
+    "locatesLastCondition" : "ambiguous"
+  }, {
+    "code" : "INVALID_UNICODE",
+    "category" : "evaluation-error",
+    "origin" : "either",
+    "levels" : [ "condition", "mapping" ],
+    "locatesLastCondition" : "ambiguous"
+  }, {
+    "code" : "LOOKUP_KEY_INVALID",
+    "category" : "evaluation-error",
+    "origin" : "either",
+    "levels" : [ "condition" ],
+    "locatesLastCondition" : "always"
+  }, {
+    "code" : "LOOKUP_KEY_LIMIT",
+    "category" : "evaluation-error",
+    "origin" : "either",
+    "levels" : [ "condition" ],
+    "locatesLastCondition" : "always"
+  }, {
+    "code" : "LOOKUP_KEY_TYPE",
+    "category" : "evaluation-error",
+    "origin" : "either",
+    "levels" : [ "condition" ],
+    "locatesLastCondition" : "always"
+  }, {
+    "code" : "MAPPING_MISSING_FIELD",
+    "category" : "evaluation-error",
+    "origin" : "either",
+    "levels" : [ "condition", "mapping" ],
+    "locatesLastCondition" : "ambiguous"
+  }, {
+    "code" : "MAPPING_TYPE_ERROR",
+    "category" : "evaluation-error",
+    "origin" : "either",
+    "levels" : [ "mapping" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "CONSUMPTION_CONFLICT",
+    "category" : "replay-or-conflict",
+    "origin" : "either",
+    "levels" : [ "step" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "REPLAY_OR_CONFLICT",
+    "category" : "replay-or-conflict",
+    "origin" : "either",
+    "levels" : [ "source" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "RESERVED_ACCOUNTING_KEY",
+    "category" : "contract-violation",
+    "origin" : "either",
+    "levels" : [ "step" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "RESERVED_EVENT_ID",
+    "category" : "contract-violation",
+    "origin" : "either",
+    "levels" : [ "step" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "STATE_KEY_LIMIT",
+    "category" : "contract-violation",
+    "origin" : "either",
+    "levels" : [ "step" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "UNDECLARED_WORK_REFERENCE",
+    "category" : "contract-violation",
+    "origin" : "either",
+    "levels" : [ "step" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "ADMISSION_RULE_DENIED",
+    "category" : "admission-rule",
+    "origin" : "either",
+    "levels" : [ "step" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "ADMISSION_RULE_ERROR",
+    "category" : "admission-rule",
+    "origin" : "either",
+    "levels" : [ "step" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "ADMISSION_RULE_INPUT",
+    "category" : "admission-rule",
+    "origin" : "either",
+    "levels" : [ "step" ],
+    "locatesLastCondition" : "never"
+  } ]
+}

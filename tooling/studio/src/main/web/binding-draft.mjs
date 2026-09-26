@@ -15,6 +15,10 @@
 import {emitYaml,flow,parseYaml,YamlInputError,YamlMap} from './studio-yaml.mjs';
 
 export const OPERATORS = Object.freeze(['eq', 'ne', 'lt', 'le', 'gt', 'ge', 'in', 'exists', 'absent']);
+/** YAML source keys by scope (ADR-031.3 §5.2): `field` reads the event; the others read the named scope. */
+export const SOURCE_KEYS = Object.freeze(['field', 'context', 'command', 'param', 'config', 'fact']);
+/** Rule parameter types as authored. */
+export const PARAMETER_TYPES = Object.freeze(['integer', 'text', 'bytes', 'boolean', 'binding']);
 export const LIMIT_NAMES = Object.freeze(['maxCascadeDepth', 'maxDerivedPerSourceMessage', 'maxDerivedPerBlock',
   'maxEventPayloadBytes', 'maxLookupsPerCondition', 'maxFunctionCallsPerMapping', 'maxFunctionInputBytes',
   'maxExpressionNodes', 'maxExpressionDepth', 'maxExpressionValueBytes', 'maxExpressionWorkPerCascade',
@@ -103,10 +107,10 @@ function scalar(node, segments) {
 
 function source(node, segments, depth) {
   if (depth > 2) fail('FUNCTION_NESTING_LIMIT', 'function nesting limit', segments, node);
-  const map = entries(node, segments, ['field', 'literal', 'fn', 'args', 'expr']);
-  const kind = exactlyOne(map, segments, ['field', 'literal', 'fn', 'expr'], node);
+  const map = entries(node, segments, [...SOURCE_KEYS, 'literal', 'fn', 'args', 'expr']);
+  const kind = exactlyOne(map, segments, [...SOURCE_KEYS, 'literal', 'fn', 'expr'], node);
   if (kind !== 'fn' && map.has('args')) fail('ONLY_FUNCTIONS_ACCEPT_ARGS', 'only functions accept args', [...segments, 'args'], node);
-  if (kind === 'field') return {kind, name: text(map.get('field'), [...segments, 'field'])};
+  if (SOURCE_KEYS.includes(kind)) return {kind, name: text(map.get(kind), [...segments, kind])};
   if (kind === 'literal') return {kind, value: scalar(map.get('literal'), [...segments, 'literal'])};
   if (kind === 'expr') return {kind, text: text(map.get('expr'), [...segments, 'expr'])};
   const fn = text(map.get('fn'), [...segments, 'fn']);
@@ -141,6 +145,49 @@ function clause(node, segments) {
     operand = mustBeTrue(map.get(operator), [...segments, operator]);
   } else operand = scalar(map.get(operator), [...segments, operator]);
   return {kind: 'field', field, operator, operand};
+}
+
+/** A rule clause: an `expr` or a `lookup`, never a binding's field comparison. */
+function ruleClause(node, segments) {
+  if (node?.kind === 'map' && node.entries.some(entry => entry.key.text === 'expr' || entry.key.text === 'lookup')) {
+    return clause(node, segments);
+  }
+  return fail('EXACTLY_ONE_REQUIRED', 'expected exactly one of [expr, lookup]', segments, node);
+}
+
+/** Named scalar entries in authored order, for parameters and attachment values. */
+function scalarEntries(node, segments, maximum) {
+  if (node?.kind !== 'map' || node.entries.length > maximum) fail('EXPECTED_OBJECT', 'expected bounded map', segments, node);
+  return node.entries.map(entry => ({name: entry.key.text, value: scalar(entry.value, [...segments, entry.key.text])}));
+}
+
+function rule(node, segments) {
+  const map = entries(node, segments, ['id', 'command', 'deny', 'params', 'require']);
+  let params = null;
+  if (map.has('params')) {
+    const paramsNode = map.get('params');
+    if (paramsNode?.kind !== 'map' || paramsNode.entries.length > 16) {
+      fail('EXPECTED_OBJECT', 'expected bounded map', [...segments, 'params'], paramsNode);
+    }
+    params = paramsNode.entries.map(entry => {
+      const at = [...segments, 'params', entry.key.text];
+      const declared = entries(entry.value, at, ['type', 'default']);
+      return {name: entry.key.text, type: text(required(declared, 'type', at, entry.value), [...at, 'type']),
+        default: declared.has('default') ? scalar(declared.get('default'), [...at, 'default']) : null};
+    });
+  }
+  return {id: text(required(map, 'id', segments, node), [...segments, 'id']),
+    command: map.has('command') ? text(map.get('command'), [...segments, 'command']) : null,
+    deny: text(required(map, 'deny', segments, node), [...segments, 'deny']),
+    params,
+    require: sequence(required(map, 'require', segments, node), [...segments, 'require'], 8)
+      .map((item, index) => ruleClause(item, [...segments, 'require', index]))};
+}
+
+function attachment(node, segments) {
+  const map = entries(node, segments, ['rule', 'params']);
+  return {rule: text(required(map, 'rule', segments, node), [...segments, 'rule']),
+    params: map.has('params') ? scalarEntries(map.get('params'), [...segments, 'params'], 16) : null};
 }
 
 function mapping(map, segments, parent) {
@@ -195,11 +242,12 @@ export function draftFromTree(root) {
       fail('NESTED_WRAPPER', 'nested wrappers are not supported', prefix, body);
     }
   }
-  const map = entries(body, prefix, ['components', 'bindings', 'limits', 'workflowFromHeight']);
+  const map = entries(body, prefix, ['components', 'rules', 'bindings', 'limits', 'workflowFromHeight']);
   const components = sequence(required(map, 'components', prefix, body), [...prefix, 'components'], 16)
     .map((node, index) => {
       const at = [...prefix, 'components', index];
-      const fields = entries(node, at, ['id', 'machine', 'topic', 'config', 'maxEffectsPerBlock', 'fromHeight']);
+      const fields = entries(node, at, ['id', 'machine', 'topic', 'config', 'maxEffectsPerBlock', 'fromHeight',
+        'admission']);
       let config = null;
       if (fields.has('config')) {
         const configNode = fields.get('config');
@@ -215,8 +263,12 @@ export function draftFromTree(root) {
         config,
         maxEffectsPerBlock: fields.has('maxEffectsPerBlock')
           ? integer(fields.get('maxEffectsPerBlock'), [...at, 'maxEffectsPerBlock']) : null,
-        fromHeight: fields.has('fromHeight') ? integer(fields.get('fromHeight'), [...at, 'fromHeight']) : null};
+        fromHeight: fields.has('fromHeight') ? integer(fields.get('fromHeight'), [...at, 'fromHeight']) : null,
+        admission: fields.has('admission') ? sequence(fields.get('admission'), [...at, 'admission'], 16)
+          .map((item, a) => attachment(item, [...at, 'admission', a])) : null};
     });
+  const rules = map.has('rules') ? sequence(map.get('rules'), [...prefix, 'rules'], 64)
+    .map((node, index) => rule(node, [...prefix, 'rules', index])) : null;
   const bindings = sequence(required(map, 'bindings', prefix, body), [...prefix, 'bindings'], 256).map((node, index) => {
     const at = [...prefix, 'bindings', index];
     const fields = entries(node, at, ['id', 'from', 'when', 'to']);
@@ -235,7 +287,7 @@ export function draftFromTree(root) {
     const limitMap = entries(limitsNode, [...prefix, 'limits'], LIMIT_NAMES);
     limits = [...limitMap.entries()].map(([name, value]) => ({name, value: integer(value, [...prefix, 'limits', name])}));
   }
-  return {wrapped, components, bindings, limits,
+  return {wrapped, components, rules, bindings, limits,
     workflowFromHeight: map.has('workflowFromHeight')
       ? integer(map.get('workflowFromHeight'), [...prefix, 'workflowFromHeight']) : null};
 }
@@ -275,7 +327,8 @@ function emitScalar(value) {
 
 function emitSource(value) {
   switch (value.kind) {
-    case 'field': return flow(YamlMap.of(['field', value.name]));
+    case 'field': case 'context': case 'command': case 'param': case 'config': case 'fact':
+      return flow(YamlMap.of([value.kind, value.name]));
     case 'literal': return flow(YamlMap.of(['literal', emitScalar(value.value)]));
     case 'expr': return flow(YamlMap.of(['expr', value.text]));
     default: return flow(YamlMap.of(['fn', value.fn], ['args', value.args.map(emitSource)]));
@@ -309,6 +362,18 @@ function emitTarget(value) {
     ...emitMapping(value.mapping)])]);
 }
 
+function emitNamedScalars(values) {
+  return flow(new YamlMap(values.map(entry => [entry.name, emitScalar(entry.value)])));
+}
+
+function emitRule(value) {
+  return new YamlMap([['id', value.id], ['command', value.command ?? undefined], ['deny', value.deny],
+    ['params', value.params === null ? undefined : new YamlMap(value.params.map(parameter => [parameter.name,
+      flow(new YamlMap([['type', parameter.type],
+        ['default', parameter.default === null ? undefined : emitScalar(parameter.default)]]))]))],
+    ['require', value.require.map(emitClause)]]);
+}
+
 /** Deterministic YAML for a draft; only authored optional fields are written. */
 export function emitDocument(draft, options = {}) {
   const components = draft.components.map(component => new YamlMap([
@@ -316,13 +381,16 @@ export function emitDocument(draft, options = {}) {
     ['config', component.config === null ? undefined
       : flow(new YamlMap(component.config.map(setting => [setting.name, emitScalar(setting.value)])))],
     ['maxEffectsPerBlock', component.maxEffectsPerBlock ?? undefined],
-    ['fromHeight', component.fromHeight ?? undefined]]));
+    ['fromHeight', component.fromHeight ?? undefined],
+    ['admission', component.admission == null ? undefined : component.admission.map(entry => new YamlMap([
+      ['rule', entry.rule], ['params', entry.params === null ? undefined : emitNamedScalars(entry.params)]]))]]));
   const bindings = draft.bindings.map(binding => new YamlMap([
     ['id', binding.id],
     ['from', flow(YamlMap.of(['component', binding.from.component], ['event', binding.from.event]))],
     ['when', binding.when === null ? undefined : binding.when.map(emitClause)],
     ['to', emitTarget(binding.to)]]));
-  const body = new YamlMap([['components', components], ['bindings', bindings],
+  const body = new YamlMap([['components', components],
+    ['rules', draft.rules == null ? undefined : draft.rules.map(emitRule)], ['bindings', bindings],
     ['limits', draft.limits === null ? undefined : new YamlMap(draft.limits.map(limit => [limit.name, limit.value]))],
     ['workflowFromHeight', draft.workflowFromHeight ?? undefined]]);
   return emitYaml(draft.wrapped ? YamlMap.of(['composite', body]) : body, options);
@@ -335,5 +403,5 @@ export function cloneDraft(draft) {
 
 /** Empty wrapped draft for a new document. */
 export function emptyDraft() {
-  return {wrapped: true, components: [], bindings: [], limits: null, workflowFromHeight: null};
+  return {wrapped: true, components: [], rules: null, bindings: [], limits: null, workflowFromHeight: null};
 }

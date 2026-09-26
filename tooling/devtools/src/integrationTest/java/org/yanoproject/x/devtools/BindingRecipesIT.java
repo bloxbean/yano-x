@@ -94,10 +94,6 @@ class BindingRecipesIT {
         qualify("dpp-role-gated");
     }
 
-    /** ADR-031.3 recipes live beside this test until the authoring tools accept rules in shipped examples. */
-    private static final Set<String> ADMISSION_RECIPES = Set.of("balances-transfer-limit", "procurement-admission",
-            "dpp-role-gated");
-
     /**
      * An expected refusal: the receipt code, the failed step's exact rule trace, and the business keys its block
      * may still write. An admission-slot refusal reserves no work, so its block writes framework keys only; a
@@ -129,10 +125,7 @@ class BindingRecipesIT {
                     - id: copy
                       from: {component: source, event: composite.command-accepted.v1}
                       to: {component: target, command: append, rawBody: body}
-                """ : ADMISSION_RECIPES.contains(recipe)
-                ? Files.readString(Path.of("src", "integrationTest", "resources", "admission-recipes",
-                        recipe + ".yaml"))
-                : Files.readString(Path.of("..", "..", "examples", "bindings", recipe + ".yaml"));
+                """ : Files.readString(Path.of("..", "..", "examples", "bindings", recipe + ".yaml"));
         var genesis = productGenesis(yaml);
         String chain = genesis == null ? "binding-" + recipe + "-parity" : genesis.chainId();
         List<byte[]> seeds = memberSeeds();
@@ -432,65 +425,82 @@ class BindingRecipesIT {
     }
 
     /**
+     * The §6.3 command bodies on the DPP demo registry, signed with the deterministic demo actor keys: a
+     * certificate proposal, approvals from cert-body-a and audit-guild-b, a forged approval, a direct claim by an
+     * actor without operator, and an operator's direct event. Shared with the Studio fixture generator.
+     */
+    record RoleGatedCommands(byte[] propose, byte[] approve, byte[] outsideApprove, byte[] forgedApprove,
+                             byte[] claimWithoutRole, byte[] operatorEvent) {
+        static RoleGatedCommands of(AuthenticatedMapContract.Genesis genesis) throws Exception {
+            String chain = genesis.chainId();
+            var action = new AuthenticatedMapAuthorizationContract.MapActionV1(false,
+                    List.of(AuthenticatedMapContract.Mutation.put(DppStarterProfile.CERTIFICATES,
+                            DppStarterProfile.certificateKey("certificate-1"), BindingCbor.encode(List.of(1L,
+                                    "product-1", "independent-audit", "cert-body-a", new byte[32], 1L, 0L)))),
+                    List.of(new AuthenticatedMapAuthorizationContract.AuthorizationAssignmentV1(
+                            0, AuthenticatedMapContract.AUTH_APPROVAL, DppStarterProfile.CERTIFICATION_POLICY, 1)));
+            byte[] hash = AuthenticatedMapAuthorizationContract.approvalPayloadHash(
+                    AuthenticatedMapContract.genesisId(genesis),
+                    AuthenticatedMapAuthorizationContract.actionCommitment(action));
+            String policy = DppStarterProfile.CERTIFICATION_POLICY;
+            String clause = DppStarterProfile.CERTIFICATION_CLAUSE;
+            var statement = new ActorStatementV1(ActorStatementV1.Action.APPROVE, chain, "qualification", policy, 1,
+                    AuthenticatedMapAuthorizationContract.APPROVAL_PAYLOAD_DOMAIN, hash, 500, "auditor-b", 1,
+                    "auditor-b-k1", clause);
+            byte[] claim = new DppValues.ClaimValue(DppStarterProfile.VISIBILITY_PUBLIC,
+                    "recycled".getBytes(StandardCharsets.UTF_8), "green-labs", 0, 0, new byte[0]).encode();
+            byte[] event = new DppValues.EventValue("shipped", "swift-logistics", 1_700_000_000L, "", new byte[0],
+                    "").encode();
+            return new RoleGatedCommands(
+                    actorCommand(true, chain, policy, clause, "certifier-a", ActorStatementV1.Action.PROPOSE, hash,
+                            AuthenticatedMapAuthorizationContract.encodeAction(action)),
+                    actorCommand(true, chain, policy, clause, "auditor-a", ActorStatementV1.Action.APPROVE, hash,
+                            new byte[0]),
+                    actorCommand(true, chain, policy, clause, "auditor-b", ActorStatementV1.Action.APPROVE, hash,
+                            new byte[0]),
+                    new StagedActorCommandV1(SignedActorCommandV1.sign(statement,
+                            DppGenesis.demoActorSeed("auditor-a")), new byte[0]).encode(),
+                    directWrite(genesis, DppStarterProfile.CLAIMS,
+                            DppStarterProfile.claimKey("product-1", "material", "claim-1"), claim,
+                            DppStarterProfile.CLAIM_ISSUER_POLICY, "issuer-a", 1),
+                    directWrite(genesis, DppStarterProfile.EVENTS, DppStarterProfile.eventKey("product-1", "event-1"),
+                            event, DppStarterProfile.OPERATOR_POLICY, "logistics-a", 2));
+        }
+    }
+
+    /**
      * ADR-031.3 §6.3 and §7 items 6 to 8 on the DPP demo registry. Both rules read verified facts, so they run
      * only after the kernels verified the signatures; their refusals keep the actor-owned work reservation.
      */
     private static void submitRoleGated(AuthenticatedMapContract.Genesis genesis, Cluster cluster, List<String> ids,
                                         Map<String, Refusal> denials) throws Exception {
-        String chain = genesis.chainId();
-        var action = new AuthenticatedMapAuthorizationContract.MapActionV1(false,
-                List.of(AuthenticatedMapContract.Mutation.put(DppStarterProfile.CERTIFICATES,
-                        DppStarterProfile.certificateKey("certificate-1"), BindingCbor.encode(List.of(1L,
-                                "product-1", "independent-audit", "cert-body-a", new byte[32], 1L, 0L)))),
-                List.of(new AuthenticatedMapAuthorizationContract.AuthorizationAssignmentV1(
-                        0, AuthenticatedMapContract.AUTH_APPROVAL, DppStarterProfile.CERTIFICATION_POLICY, 1)));
-        byte[] hash = AuthenticatedMapAuthorizationContract.approvalPayloadHash(
-                AuthenticatedMapContract.genesisId(genesis),
-                AuthenticatedMapAuthorizationContract.actionCommitment(action));
-        String policy = DppStarterProfile.CERTIFICATION_POLICY;
-        String clause = DppStarterProfile.CERTIFICATION_CLAUSE;
-        ids.add(submit(cluster, 0, "reviews.v1", actorCommand(true, chain, policy, clause, "certifier-a",
-                ActorStatementV1.Action.PROPOSE, hash, AuthenticatedMapAuthorizationContract.encodeAction(action))));
-        byte[] approval = actorCommand(true, chain, policy, clause, "auditor-a", ActorStatementV1.Action.APPROVE,
-                hash, new byte[0]);
-        ids.add(submit(cluster, 0, "reviews.v1", approval));
+        var commands = RoleGatedCommands.of(genesis);
+        ids.add(submit(cluster, 0, "reviews.v1", commands.propose()));
+        ids.add(submit(cluster, 0, "reviews.v1", commands.approve()));
         // The same signed approval in a new message from another member: an exact replay that decide verifies
         // again, so its facts exist and allowed-organization holds (ADR-031.3 §5.5).
-        String replayed = submit(cluster, 1, "reviews.v1", approval);
+        String replayed = submit(cluster, 1, "reviews.v1", commands.approve());
         ids.add(replayed);
         var replayReceipt = BindingReceiptV1.decode(cluster.nodes[0].query("composite/binding-receipt-v1/"
                 + replayed, new byte[0]).payload());
         assertThat(replayReceipt.accepted()).isTrue();
         assertThat(replayReceipt.steps().getFirst().rules()).isEqualTo(new BindingReceiptV1.RuleTrace(1, null));
         // §7.6: an auditor from audit-guild-b is verified, then refused by allowed-organization.
-        String independent = submit(cluster, 0, "reviews.v1", actorCommand(true, chain, policy, clause, "auditor-b",
-                ActorStatementV1.Action.APPROVE, hash, new byte[0]));
+        String independent = submit(cluster, 0, "reviews.v1", commands.outsideApprove());
         ids.add(independent);
         denials.put(independent, Refusal.denied("allowed-organization", "ORGANIZATION_NOT_ALLOWED",
                 Set.of(ACTOR_WORK_KEY)));
         // §7.7: a forged approval fails the kernel's own signature check; no rule runs.
-        var statement = new ActorStatementV1(ActorStatementV1.Action.APPROVE, chain, "qualification", policy, 1,
-                AuthenticatedMapAuthorizationContract.APPROVAL_PAYLOAD_DOMAIN, hash, 500, "auditor-b", 1,
-                "auditor-b-k1", clause);
-        String forged = submit(cluster, 0, "reviews.v1", new StagedActorCommandV1(SignedActorCommandV1.sign(
-                statement, DppGenesis.demoActorSeed("auditor-a")), new byte[0]).encode());
+        String forged = submit(cluster, 0, "reviews.v1", commands.forgedApprove());
         ids.add(forged);
         denials.put(forged, new Refusal("INVALID_SIGNATURE", BindingReceiptV1.RuleTrace.NONE, Set.of(ACTOR_WORK_KEY)));
         // §7.8: a direct write by an actor without operator is verified by the map, then refused.
-        byte[] claim = new DppValues.ClaimValue(DppStarterProfile.VISIBILITY_PUBLIC,
-                "recycled".getBytes(StandardCharsets.UTF_8), "green-labs", 0, 0, new byte[0]).encode();
-        String withoutRole = submit(cluster, 0, "registry.v1", directWrite(genesis, DppStarterProfile.CLAIMS,
-                DppStarterProfile.claimKey("product-1", "material", "claim-1"), claim,
-                DppStarterProfile.CLAIM_ISSUER_POLICY, "issuer-a", 1));
+        String withoutRole = submit(cluster, 0, "registry.v1", commands.claimWithoutRole());
         ids.add(withoutRole);
         denials.put(withoutRole, Refusal.denied("operator-for-direct-writes", "ROLE_REQUIRED",
                 Set.of(ACTOR_WORK_KEY)));
         // An operator's direct write passes.
-        byte[] event = new DppValues.EventValue("shipped", "swift-logistics", 1_700_000_000L, "", new byte[0],
-                "").encode();
-        ids.add(submitWithFollowerCatchup(cluster, 0, "registry.v1", directWrite(genesis, DppStarterProfile.EVENTS,
-                DppStarterProfile.eventKey("product-1", "event-1"), event, DppStarterProfile.OPERATOR_POLICY,
-                "logistics-a", 2)));
+        ids.add(submitWithFollowerCatchup(cluster, 0, "registry.v1", commands.operatorEvent()));
     }
 
     /** An {@code apply-authorized} map command with one direct actor authorization covering its single write. */

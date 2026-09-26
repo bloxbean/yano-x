@@ -89,6 +89,28 @@ function stepStatus(step, receipt, disposition, table) {
 }
 
 /**
+ * The admission-rule trace of one step (ADR-031.3 §5.8): how many attached rules held, and the first that did not.
+ * Clause numbers are one-based for display; a failure before any clause (no usable input) has none.
+ */
+function ruleView(step) {
+  const {heldCount, failure} = step.rules ?? {heldCount: 0, failure: null};
+  if (!heldCount && !failure) return null;
+  const held = heldCount ? `${heldCount} admission rule${heldCount === 1 ? '' : 's'} held` : null;
+  if (!failure) return Object.freeze({held: heldCount, failure: null, label: held});
+  const rule = visibleText(failure.ruleId);
+  const clause = failure.failedClause < 0 ? '' : ` at clause ${failure.failedClause + 1}`;
+  const reason = failure.denyCode !== null
+    ? `refused by rule ${rule}${clause} with ${visibleText(failure.denyCode)}`
+    : step.code === 'EXPRESSION_CAPACITY_EXCEEDED' ? `rule ${rule} exhausted the expression work budget${clause}`
+      : step.code === 'ADMISSION_RULE_INPUT' || failure.failedClause < 0
+        ? `rule ${rule} had no usable input (command view or verified facts)`
+        : `rule ${rule} could not evaluate clause ${failure.failedClause + 1}; it fails closed`;
+  return Object.freeze({held: heldCount, failure: Object.freeze({ruleId: failure.ruleId,
+    clause: failure.failedClause < 0 ? null : failure.failedClause + 1, denyCode: failure.denyCode}),
+    label: held ? `${held}; ${reason}` : reason.charAt(0).toUpperCase() + reason.slice(1)});
+}
+
+/**
  * Explains one rehearsed source message.
  *
  * @param {object} message imported report message (`disposition`, decoded `receipt`, identifiers)
@@ -120,6 +142,20 @@ export function explainMessage(message, {receiptCodes, effects = [], draft = nul
     headline = 'Rejected with REPLAY_OR_CONFLICT: nothing from this cascade committed.';
     notes.push('The engine uses this code when the source message id cannot be claimed (already claimed, or claimed '
       + 'with different content); a target component can also return it, so the receipt alone does not say which.');
+  } else if (failedStep?.rules?.failure) {
+    // ADR-031.3 §5.8: a refused step rejects its source message, so the whole cascade rolls back.
+    const failure = failedStep.rules.failure;
+    outcome = 'rolled-back';
+    headline = receipt.code === 'EXPRESSION_CAPACITY_EXCEEDED'
+      ? `Rejected with EXPRESSION_CAPACITY_EXCEEDED while evaluating admission rule ${visibleText(failure.ruleId)} at `
+        + `step ${failedStep.ordinal}: nothing from this cascade committed, including the source command.`
+      : `Refused by admission rule ${visibleText(failure.ruleId)} (${visibleText(receipt.code)}`
+        + `${failure.denyCode !== null ? `: ${visibleText(failure.denyCode)}` : ''}) at step ${failedStep.ordinal}: `
+        + 'nothing from this cascade committed, including the source command.';
+    if (failedStep.depth > 0) {
+      notes.push(`The refused step is a derived command at depth ${failedStep.depth}. A refused step rejects its source `
+        + 'message, so every earlier step of the cascade, including the source command, was rolled back.');
+    }
   } else {
     outcome = 'rolled-back';
     headline = `Rejected with ${visibleText(receipt.code)}: nothing from this cascade committed, including the source command.`;
@@ -169,7 +205,7 @@ export function explainMessage(message, {receiptCodes, effects = [], draft = nul
     const effect = step.status === 'EFFECT_PLANNED' ? effectByScope.get(`binding/${step.messageIdHex}`) ?? null : null;
     return Object.freeze({ordinal: step.ordinal, depth: step.depth, bindingId: step.bindingId,
       target: step.targetComponentId, messageIdHex: step.messageIdHex, rawBody: step.rawBody,
-      events: Object.freeze([...step.eventsProduced]), code: step.code || null, ...status,
+      events: Object.freeze([...step.eventsProduced]), code: step.code || null, ...status, rules: ruleView(step),
       conditions: Object.freeze(conditions), notEvaluated: Object.freeze(notEvaluated),
       effect: effect ? Object.freeze({type: effect.type, gate: effect.gate, result: effect.result,
         expiryBlocks: effect.expiryBlocks, payloadHex: effect.payloadHex}) : null});
