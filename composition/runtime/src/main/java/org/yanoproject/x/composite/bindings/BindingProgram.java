@@ -254,6 +254,13 @@ public final class BindingProgram {
     /** Type-checks one rule against the kernel and configuration of the component it is attached to. */
     private void validateRule(AdmissionRule rule, BindingIrV1.Component component,
                               Map<String, Object> configuration, Map<String, RuleFact.Type> declared) {
+        // Interim guard (ADR-031.4 Phase 2): the contracts carry reads and write-view quantifiers, and the engine
+        // evaluates them from Phase 3. Until then a profile that uses them cannot be constructed.
+        if (!rule.reads().isEmpty() || rule.readsWrites()) {
+            throw BindingValidationException.annotate(invalid("RULE_UNSUPPORTED",
+                    "state reads and write views are not evaluated yet"), BindingValidationException.Context.part(
+                    "rule"));
+        }
         Map<Scope, Map<String, Type>> scopes = new EnumMap<>(Scope.class);
         Set<String> evidence = new HashSet<>();
         if (rule.command() != null) {

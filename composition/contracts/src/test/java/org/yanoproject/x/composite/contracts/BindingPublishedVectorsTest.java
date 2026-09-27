@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 import org.yanoproject.x.composite.contracts.BindingExpressionV1.Call;
 import org.yanoproject.x.composite.contracts.BindingExpressionV1.Field;
 import org.yanoproject.x.composite.contracts.BindingExpressionV1.Literal;
+import org.yanoproject.x.composite.contracts.BindingExpressionV1.Quantifier;
 import org.yanoproject.x.composite.contracts.BindingExpressionV1.Scope;
 import org.yanoproject.x.composite.contracts.BindingExpressionV1.Type;
 import org.yanoproject.x.composite.contracts.BindingIrV1.AdmissionRule;
@@ -28,8 +29,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Pins independently published wire examples to the production codecs, not a second Java encoder. The vectors
- * were built with an unrelated CBOR encoder and validated against the published CDDL (ADR-031.3 Phase 0); the
- * production codecs must reproduce them byte for byte and decode them without normalization.
+ * were built with an unrelated CBOR encoder and validated against the published CDDL (ADR-031.3 Phase 0, amended by
+ * ADR-031.4 Phase 0); the production codecs must reproduce them byte for byte and decode them without normalization.
  */
 class BindingPublishedVectorsTest {
     private static final String ROOT = "/cddl/declarative-bindings-v1";
@@ -47,8 +48,20 @@ class BindingPublishedVectorsTest {
         encoded.put("expression.threshold", BindingCbor.encode(threshold().wire()));
         encoded.put("expression.fact-role", BindingCbor.encode(expression(Type.BOOLEAN,
                 new Call("in", List.of(field(Scope.PARAMS, "role"), field(Scope.FACTS, "roles")))).wire()));
+        encoded.put("expression.read-value", BindingCbor.encode(expression(Type.BOOLEAN, new Call("le", List.of(
+                field(Scope.COMMAND, "amount"), Field.readValue("limits", "max")))).wire()));
+        encoded.put("expression.write-scope", BindingCbor.encode(writeScope().wire()));
+        encoded.put("expression.write-role", BindingCbor.encode(expression(Type.BOOLEAN, new Quantifier(false,
+                new Call("or", List.of(
+                        new Call("and", List.of(ne(Field.element("op"), "REVOKE"),
+                                ne(Field.element("op"), "RESTORE"))),
+                        new Call("and", List.of(eq(Field.element("coverage"), "direct"), new Call("in", List.of(
+                                field(Scope.PARAMS, "role"), Field.element("actorRoles"))))))))).wire()));
+        encoded.put("expression.size", BindingCbor.encode(expression(Type.BOOLEAN, new Call("le", List.of(
+                new Call("size", List.of(new Field("memo"))), new Literal(64L)))).wire()));
         encoded.put("ir.forward", forward().encode());
         encoded.put("ir.admission", admission().encode());
+        encoded.put("ir.typed-views", typedViews().encode());
         encoded.put("receipt.accepted", new BindingReceiptV1(ZERO, 1, true, null, "", List.of(
                 new BindingReceiptV1.Step(0, 0, null, "wallet", ZERO,
                         List.of("recorded.v1", "composite.command-accepted.v1"), List.of(), new RuleTrace(1, null),
@@ -76,6 +89,13 @@ class BindingPublishedVectorsTest {
                 new RuleFailure("registered-sender", 1, null)), "EXPRESSION_CAPACITY_EXCEEDED"));
         encoded.put("receipt.fact-input", rejectedSource("registry", new RuleTrace(1,
                 new RuleFailure("operator-for-direct-writes", -1, null)), "ADMISSION_RULE_INPUT"));
+        encoded.put("receipt.write-denied", rejectedSource("registry", new RuleTrace(0,
+                new RuleFailure("insert-only-observations", 0, "OBSERVATION_NOT_INSERT", 3)),
+                "ADMISSION_RULE_DENIED"));
+        encoded.put("receipt.write-error", rejectedSource("registry", new RuleTrace(2,
+                new RuleFailure("feed-open-and-in-range", 1, null, 127)), "ADMISSION_RULE_ERROR"));
+        encoded.put("receipt.read-error", rejectedSource("token", new RuleTrace(1,
+                new RuleFailure("tier-limit", -1, null)), "ADMISSION_RULE_ERROR"));
         assertThat(vectors).hasSize(encoded.size() * 2);
         String schema;
         try (var input = getClass().getResourceAsStream(ROOT + ".cddl")) {
@@ -187,6 +207,83 @@ class BindingPublishedVectorsTest {
                 List.of(actorRegistered, flagged, onlyViaBinding, operator, registered, transferLimit),
                 List.of(binding),
                 BindingIrV1.Limits.DEFAULT, 1);
+    }
+
+    /** ADR-031.4: a write-scope rule body, with {@code startsWith} over coverage fields. */
+    static BindingExpressionV1 writeScope() {
+        return expression(Type.BOOLEAN, new Quantifier(false, new Call("or", List.of(
+                new Call("ne", List.of(Field.element("collection"), field(Scope.PARAMS, "collection"))),
+                new Call("and", List.of(eq(Field.element("coverage"), "direct"), new Call("startsWith", List.of(
+                        Field.element("keyText"), new Call("concat", List.of(Field.element("actorOrganizationId"),
+                                new Literal("/")))))))))));
+    }
+
+    /**
+     * ADR-031.4: a wire-only document with reads keyed by a literal, the sender, and a parameter-derived function;
+     * entry and value fields and {@code present}; content quantifiers ({@code all} and a negated {@code exists});
+     * {@code startsWith} and {@code size}.
+     */
+    static BindingIrV1 typedViews() {
+        var feed = new AdmissionRule("feed-open-and-in-range", "OBSERVATION_OUT_OF_RANGE", null, List.of(),
+                List.of(new BindingIrV1.Read("feed", "registry", "feeds", new BindingSourceV1.Literal("main"))),
+                List.of(clause(new Call("and", List.of(Field.read("feed", "present"),
+                                eq(Field.readValue("feed", "status"), "OPEN")))),
+                        clause(new Quantifier(false, new Call("or", List.of(
+                                ne(Field.element("collection"), "observations"),
+                                new Call("and", List.of(
+                                        new Call("ge", List.of(Field.elementValue("price"),
+                                                Field.readValue("feed", "min"))),
+                                        new Call("le", List.of(Field.elementValue("price"),
+                                                Field.readValue("feed", "max")))))))))));
+        var governed = new AdmissionRule("governed-transfer-limit", "TRANSFER_LIMIT_EXCEEDED", "transfer", List.of(),
+                List.of(new BindingIrV1.Read("limits", "registry", "settings",
+                        new BindingSourceV1.Literal("transfer"))),
+                List.of(clause(new Call("le", List.of(field(Scope.COMMAND, "amount"),
+                        Field.readValue("limits", "max"))))));
+        var insertOnly = new AdmissionRule("insert-only-observations", "OBSERVATION_NOT_INSERT", null,
+                List.of(new Parameter("collection", ParameterType.TEXT, new BindingSourceV1.Literal("observations"))),
+                List.of(), List.of(clause(new Quantifier(false, new Call("or", List.of(
+                        new Call("ne", List.of(Field.element("collection"), field(Scope.PARAMS, "collection"))),
+                        eq(Field.element("op"), "PUT_IF_ABSENT")))))));
+        var noEmptyRevoke = new AdmissionRule("no-empty-revoke", "EMPTY_KEY", null, List.of(), List.of(),
+                List.of(clause(new Call("not", List.of(new Quantifier(true, new Call("and", List.of(
+                        eq(Field.element("op"), "REVOKE"),
+                        new Call("eq", List.of(new Call("size", List.of(Field.element("key"))),
+                                new Literal(0L)))))))))));
+        var tier = new AdmissionRule("tier-limit", "TIER_LIMIT_EXCEEDED", "transfer",
+                List.of(new Parameter("tiers", ParameterType.TEXT, new BindingSourceV1.Literal("holders"))),
+                List.of(new BindingIrV1.Read("holder", "registry", "holders",
+                                new BindingSourceV1.Field(Scope.CONTEXT, "sender")),
+                        new BindingIrV1.Read("tier", "registry", "tiers", new BindingSourceV1.Function("utf8-bytes",
+                                List.of(new BindingSourceV1.Field(Scope.PARAMS, "tiers"))))),
+                List.of(clause(new Call("and", List.of(Field.read("holder", "present"),
+                                eq(Field.read("holder", "status"), "ACTIVE")))),
+                        clause(new Call("le", List.of(field(Scope.COMMAND, "amount"),
+                                Field.readValue("holder", "maxTransfer"))))));
+        return new BindingIrV1(List.of(
+                new BindingIrV1.Component("registry", "test", "registry.command.v1", Map.of(), 0, 1, List.of(
+                        new RuleAttachment("insert-only-observations",
+                                Map.of("collection", new BindingSourceV1.Literal("observations"))),
+                        new RuleAttachment("no-empty-revoke", Map.of()),
+                        new RuleAttachment("feed-open-and-in-range", Map.of()))),
+                new BindingIrV1.Component("token", "test", "token.command.v1",
+                        Map.of("minter", new BindingSourceV1.Literal("")), 0, 1, List.of(
+                                new RuleAttachment("governed-transfer-limit", Map.of()),
+                                new RuleAttachment("tier-limit",
+                                        Map.of("tiers", new BindingSourceV1.Literal("holders")))))),
+                List.of(feed, governed, insertOnly, noEmptyRevoke, tier), List.of(), BindingIrV1.Limits.DEFAULT, 1);
+    }
+
+    private static ExpressionClause clause(BindingExpressionV1.Node node) {
+        return new ExpressionClause(expression(Type.BOOLEAN, node));
+    }
+
+    private static Call eq(BindingExpressionV1.Node node, String text) {
+        return new Call("eq", List.of(node, new Literal(text)));
+    }
+
+    private static Call ne(BindingExpressionV1.Node node, String text) {
+        return new Call("ne", List.of(node, new Literal(text)));
     }
 
     /** Parameters in an authored order; the codec writes them in canonical (length-first) key order. */

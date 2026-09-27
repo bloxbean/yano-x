@@ -14,6 +14,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermission;
 import java.util.HexFormat;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -260,8 +261,13 @@ class BindingEditorContractsTest {
         @SuppressWarnings("unchecked")
         var rule = (Map<String, Object>) ((List<Map<String, Object>>) denied.get("steps")).getFirst().get("rules");
         assertThat(rule.get("heldCount")).isEqualTo(0);
-        assertThat(rule.get("failure")).isEqualTo(Map.of("ruleId", "registered-supplier", "failedClause", 0,
-                "denyCode", "NOT_A_REGISTERED_SUPPLIER"));
+        // ADR-031.4: the failure always names its deciding write, null when no quantifier decided.
+        Map<String, Object> failure = new LinkedHashMap<>();
+        failure.put("ruleId", "registered-supplier");
+        failure.put("failedClause", 0);
+        failure.put("denyCode", "NOT_A_REGISTERED_SUPPLIER");
+        failure.put("writeIndex", null);
+        assertThat(rule.get("failure")).isEqualTo(failure);
         byte[] trailing = java.util.Arrays.copyOf(extreme, extreme.length + 1);
         assertThatThrownBy(() -> BindingReport.receiptView(trailing)).isInstanceOf(IllegalArgumentException.class);
     }

@@ -23,8 +23,9 @@
 ;   - reads sorted by name and unique; read names and view field names are CEL identifiers, not
 ;     CEL reserved words; view field names are never "present";
 ;   - an expression reads a read (scope 6) only if its rule declares that read;
-;   - a quantifier body is boolean and contains no quantifier; write-element fields (scope 7)
-;     appear only inside a quantifier body;
+;   - a quantifier body contains no quantifier, and write-element fields (scope 7) appear only
+;     inside a quantifier body, also in the standalone envelope, which this schema leaves looser;
+;     program construction also checks that a quantifier body is boolean;
 ;   - reads (scope 6) and quantifiers appear only in rule expression clauses: never in read keys,
 ;     lookup keys, lookup expectations, or binding sources (the key grammar below also says so);
 ;   - the scope-by-use-site table below, including inside functions and expression sources.

@@ -13,6 +13,7 @@ import org.yanoproject.api.appchain.transition.TransitionDecision;
 import org.yanoproject.api.appchain.transition.TransitionKernel;
 import org.yanoproject.api.appchain.transition.TransitionScalars;
 import org.yanoproject.x.composite.bindings.BindingProgram;
+import org.yanoproject.x.composite.bindings.BindingExpressionEvaluator.Scoped;
 import org.yanoproject.x.composite.contracts.BindingExpressionV1;
 import org.yanoproject.x.composite.contracts.BindingIrV1;
 import org.yanoproject.x.composite.contracts.BindingSourceV1;
@@ -162,6 +163,23 @@ class BindingAuthoringLanguageConformanceTest {
         var in = BindingExpressionCompiler.compile("params.role in facts.roles", rule, limits, "an admission rule");
         assertThat(((BindingExpressionV1.Call) in.root()).operator()).isEqualTo("in");
         exercised.add("in");
+        // ADR-031.4: startsWith and size in any use site, and the two write-view quantifiers in a rule.
+        for (String source : List.of("startsWith(event.t, event.u)", "size(event.b) > 0")) {
+            var expression = bindingCompile(source, fields, limits);
+            var call = (BindingExpressionV1.Call) expression.root();
+            exercised.add(call.operator().equals("gt") ? ((BindingExpressionV1.Call) call.arguments().getFirst())
+                    .operator() : call.operator());
+        }
+        var writes = new Scoped<>(Map.of(
+                BindingExpressionV1.Scope.PARAMS, Map.of("role", BindingExpressionV1.Type.TEXT),
+                BindingExpressionV1.Scope.WRITE_ELEMENT, Map.of("op", BindingExpressionV1.Type.TEXT)));
+        for (String quantifier : List.of("all", "exists")) {
+            var expression = BindingExpressionCompiler.compile("writes." + quantifier + "(w, w.op == params.role)",
+                    writes, limits, "an admission rule");
+            assertThat(((BindingExpressionV1.Quantifier) expression.root()).exists())
+                    .isEqualTo(quantifier.equals("exists"));
+            exercised.add("quantifier:" + quantifier);
+        }
         assertThat(exercised).containsExactlyInAnyOrderElementsOf(BindingAuthoringLanguage.operators().stream()
                 .map(value -> (String) value.get("ir")).toList());
         for (String rejected : List.of("event.t < event.u", "event.o + event.p", "event.i && event.o",

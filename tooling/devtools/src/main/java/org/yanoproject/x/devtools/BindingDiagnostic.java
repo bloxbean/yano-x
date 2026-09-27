@@ -50,7 +50,7 @@ record BindingDiagnostic(String code, String severity, String message, String de
             Map.entry("YAML_MULTIPLE_DOCUMENTS", "Only one YAML document is allowed"),
             Map.entry("YAML_DUPLICATE_KEY", "A mapping key is repeated"),
             Map.entry("IR_INVALID",
-                    "The supplied binding IR is not canonical version-one IR as amended by ADR-031.3"),
+                    "The supplied binding IR is not canonical version-one IR as amended by ADR-031.3 and ADR-031.4"),
             Map.entry("UNKNOWN_FIELD", "The field is not part of the binding document schema"),
             Map.entry("REQUIRED_FIELD", "A required field is missing"),
             Map.entry("EXPECTED_OBJECT", "An object is required here"),
@@ -115,6 +115,9 @@ record BindingDiagnostic(String code, String severity, String message, String de
             Map.entry("RULE_PARAMETER_TYPE", "The parameter value does not have the declared type"),
             Map.entry("RULE_LOOKUP_COMPONENT_UNKNOWN", "The rule's lookup names a component this document lacks"),
             Map.entry("RULE_LIMIT", "The rule exceeds a structural or profile limit"),
+            Map.entry("RULE_UNSUPPORTED", "This engine does not evaluate the rule's reads or write view yet"),
+            Map.entry("RULE_READ_UNKNOWN_FIELD", "The rule reads a field the read's value view does not declare"),
+            Map.entry("RULE_WRITES_UNSUPPORTED", "The attached component's kernel declares no write view"),
             Map.entry("UNCLASSIFIED", "The input was rejected; no more specific classification is available"));
 
     BindingDiagnostic {

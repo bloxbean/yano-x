@@ -116,14 +116,19 @@ const bytes32 = (value, label) => {
 };
 
 /**
- * Decodes a step's compact admission-rule trace (ADR-031.3): `[heldCount, failure / null]`, where the failure is
- * `[ruleId, failedClause, denyCode / null]`. A denial always names a clause 0..7 and carries its deny code.
+ * Decodes a step's compact admission-rule trace (ADR-031.3, amended by ADR-031.4): `[heldCount, failure / null]`,
+ * where the failure is `[ruleId, failedClause, denyCode / null, writeIndex / null]`. A denial always names a clause
+ * 0..7 and carries its deny code; the write index (0..127) names the write-view element at which a quantifier
+ * stopped early, and a failure before any clause has none.
  */
 const ruleTrace = (value, label) => {
   const trace = array(value, 2, label);
   const heldCount = Number(integer(trace[0], 0, 16, `${label} held count`));
   if (trace[1] === null) return {heldCount, failure: null};
-  const failure = array(trace[1], 3, `${label} failure`);
+  if (Array.isArray(trace[1]) && trace[1].length === 3) {
+    throw invalid(`${label} failure predates ADR-031.4 (no write index); re-create the declarative chain`);
+  }
+  const failure = array(trace[1], 4, `${label} failure`);
   const ruleId = text(failure[0], `${label} rule`);
   if (!RULE_ID.test(ruleId)) throw invalid(`${label} rule is not a valid identifier`);
   const failedClause = Number(integer(failure[1], -1, 7, `${label} clause`));
@@ -131,9 +136,11 @@ const ruleTrace = (value, label) => {
   if (denyCode !== null && (!DENY_CODE.test(denyCode) || failedClause < 0 || denyCode.startsWith('ADMISSION_RULE_'))) {
     throw invalid(`${label} deny code is invalid`);
   }
+  const writeIndex = failure[3] === null ? null : Number(integer(failure[3], 0, 127, `${label} write index`));
+  if (writeIndex !== null && failedClause < 0) throw invalid(`${label} write index needs a clause`);
   // A failure is one of at most 16 attached rules, so at most 15 held before it.
   if (heldCount === 16) throw invalid(`${label} held count is out of range`);
-  return {heldCount, failure: {ruleId, failedClause, denyCode}};
+  return {heldCount, failure: {ruleId, failedClause, denyCode, writeIndex}};
 };
 
 /**
@@ -255,10 +262,12 @@ export function receiptViewDifferences(decoded, view) {
     if (!rules || typeof rules !== 'object' || Object.keys(rules).sort().join() !== 'failure,heldCount'
         || rules.heldCount !== BigInt(step.rules.heldCount)
         || (step.rules.failure === null ? failure !== null
-          : !failure || Object.keys(failure).sort().join() !== 'denyCode,failedClause,ruleId'
+          : !failure || Object.keys(failure).sort().join() !== 'denyCode,failedClause,ruleId,writeIndex'
             || failure.ruleId !== step.rules.failure.ruleId
             || failure.failedClause !== BigInt(step.rules.failure.failedClause)
-            || failure.denyCode !== step.rules.failure.denyCode)) {
+            || failure.denyCode !== step.rules.failure.denyCode
+            || (step.rules.failure.writeIndex === null ? failure.writeIndex !== null
+              : failure.writeIndex !== BigInt(step.rules.failure.writeIndex)))) {
       differences.push(`${path}.rules`);
     }
     if (!Array.isArray(reported.conditions) || reported.conditions.length !== step.conditions.length

@@ -106,6 +106,15 @@ final class BindingAuthoringLanguage {
         operators.add(operator("-x", "neg", "integer (checked)", "integer"));
         operators.add(operator("in", "in", "text, text-set fact (admission rules only; stops at the first match)",
                 "boolean"));
+        operators.add(operator("startsWith(a, b)", "startsWith",
+                "text, text or bytes, bytes (a text prefix is a UTF-8 byte prefix)", "boolean"));
+        operators.add(operator("size(a)", "size", "text (UTF-8 bytes) or bytes", "integer"));
+        operators.add(operator("writes.all(w, e)", "quantifier:all",
+                "boolean body per write-view element, in index order; false at the first false (admission rules "
+                        + "only; no nesting)", "boolean"));
+        operators.add(operator("writes.exists(w, e)", "quantifier:exists",
+                "boolean body per write-view element, in index order; true at the first true (admission rules "
+                        + "only; no nesting)", "boolean"));
         return List.copyOf(operators);
     }
 
@@ -127,7 +136,11 @@ final class BindingAuthoringLanguage {
         return List.copyOf(types);
     }
 
-    /** Field scopes by wire ordinal and the use sites where each is legal (ADR-031.3 §5.3). */
+    /**
+     * Field scopes by wire ordinal and the use sites where each is legal (ADR-031.3 §5.3, amended by ADR-031.4):
+     * {@code admission-rule} is a rule expression clause and {@code rule-key} a lookup key, lookup expectation or
+     * read key, which never reads a read or a write element.
+     */
     static List<Map<String, Object>> scopes() {
         List<Map<String, Object>> scopes = new ArrayList<>();
         for (BindingExpressionV1.Scope scope : BindingExpressionV1.Scope.values()) {
@@ -140,6 +153,7 @@ final class BindingAuthoringLanguage {
                 sites.add("binding-mapping");
             }
             if (BindingExpressionV1.RULE_SCOPES.contains(scope)) sites.add("admission-rule");
+            if (BindingExpressionV1.RULE_KEY_SCOPES.contains(scope)) sites.add("rule-key");
             value.put("useSites", sites);
             value.put("note", switch (scope) {
                 case EVENT -> "fields of the event a binding subscribes to";
@@ -148,6 +162,10 @@ final class BindingAuthoringLanguage {
                 case CONFIG -> "the attached component's normalized configuration";
                 case CONTEXT -> "in a binding, the step that produced the event; in a rule, the step being admitted";
                 case FACTS -> "facts the attached kernel declares and established by its own verification";
+                case READS -> "the rule's declared state reads: reads.<name>.present, reads.<name>.<field> and "
+                        + "reads.<name>.value.<field>, decoded by the read component's kernel";
+                case WRITE_ELEMENT -> "the current element w of writes.all(w, ...) or writes.exists(w, ...): content "
+                        + "fields in either slot; coverage fields make the rule a fact rule";
             });
             scopes.add(value);
         }
@@ -168,18 +186,17 @@ final class BindingAuthoringLanguage {
         List<Map<String, Object>> forms = new ArrayList<>();
         forms.add(sourceForm("field", "event", List.of("binding-condition", "binding-mapping"),
                 "an event field; the only source an evidence field accepts"));
-        forms.add(sourceForm("context", "context", List.of("binding-condition", "binding-mapping", "admission-rule"),
-                "a context field; never evidence"));
-        forms.add(sourceForm("command", "command", List.of("admission-rule"), "a DATA field of the selected command"));
-        forms.add(sourceForm("param", "params", List.of("admission-rule"), "an attachment parameter"));
-        forms.add(sourceForm("config", "config", List.of("admission-rule"), "a configuration setting"));
-        forms.add(sourceForm("fact", "facts", List.of("admission-rule"), "a kernel-declared fact"));
-        forms.add(sourceForm("literal", null, List.of("binding-condition", "binding-mapping", "admission-rule"),
-                "an embedded scalar"));
-        forms.add(sourceForm("fn", null, List.of("binding-condition", "binding-mapping", "admission-rule"),
-                "a stock function over sources"));
-        forms.add(sourceForm("expr", null, List.of("binding-condition", "binding-mapping", "admission-rule"),
-                "a restricted CEL expression; as a condition, rule clause, lookup key or mapping source"));
+        List<String> everywhere = List.of("binding-condition", "binding-mapping", "admission-rule", "rule-key");
+        forms.add(sourceForm("context", "context", everywhere, "a context field; never evidence"));
+        forms.add(sourceForm("command", "command", List.of("admission-rule", "rule-key"),
+                "a DATA field of the selected command"));
+        forms.add(sourceForm("param", "params", List.of("admission-rule", "rule-key"), "an attachment parameter"));
+        forms.add(sourceForm("config", "config", List.of("admission-rule", "rule-key"), "a configuration setting"));
+        forms.add(sourceForm("fact", "facts", List.of("admission-rule", "rule-key"), "a kernel-declared fact"));
+        forms.add(sourceForm("literal", null, everywhere, "an embedded scalar"));
+        forms.add(sourceForm("fn", null, everywhere, "a stock function over sources"));
+        forms.add(sourceForm("expr", null, everywhere,
+                "a restricted CEL expression; as a condition, rule clause, lookup or read key, or mapping source"));
         return List.copyOf(forms);
     }
 
@@ -214,10 +231,17 @@ final class BindingAuthoringLanguage {
         value.put("parametersPerRule", BindingIrV1.AdmissionRule.MAX_PARAMETERS);
         value.put("clauseKinds", List.of("expr", "lookup"));
         value.put("lookupExpectations", List.of("exists", "absent", "eq"));
-        value.put("slots", List.of(slot("admission",
-                        "after the kernel's admit hooks and before work reservation; rules that do not read facts"),
-                slot("fact", "after an approved kernel decision; rules that read facts")));
-        value.put("static", "expression clauses over command, params and config only; also checked at ingress");
+        value.put("readsPerRule", BindingIrV1.AdmissionRule.MAX_READS);
+        value.put("readNamePattern", "[a-zA-Z][a-zA-Z0-9_]{0,62}");
+        value.put("namespacePattern", "\"\" or [a-z0-9][a-z0-9._-]{0,63}");
+        value.put("readKeySources", List.of("context", "command", "param", "config", "fact", "literal", "fn", "expr"));
+        value.put("readPresentField", "present");
+        value.put("quantifiers", List.of("all", "exists"));
+        value.put("slots", List.of(slot("admission", "after the kernel's admit hooks and before work reservation; "
+                        + "rules that read neither facts nor write coverage"),
+                slot("fact", "after an approved kernel decision; rules that read facts or write coverage")));
+        value.put("static", "no reads, and expression clauses over command, params, config and write content only; "
+                + "also checked at ingress");
         return value;
     }
 

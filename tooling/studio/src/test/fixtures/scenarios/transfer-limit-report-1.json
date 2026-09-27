@@ -6,17 +6,17 @@
   "producer" : {
     "tool" : "yano-x-devtools",
     "version" : "0.1.0-pre3",
-    "jarSha256" : "92e94f1e095cefbde43826d5ff71a9b18e624deb603b1f581d14006f0057c0da",
-    "linkedCompositeJarSha256" : "a57536b55954957f845095672c476272aadb856738c9d39ec1991a738be64b5f"
+    "jarSha256" : "c2f39a5e5f39df6c555db13cd06a0853d9402f1e066c37f6b6b6e24e0afe6eb3",
+    "linkedCompositeJarSha256" : "d4f53b3e07e67cc70df069e89b292a695015939b0a53ea35aeb2e0e712eebe26"
   },
   "host" : {
-    "version" : "0.1.0-pre18-f92d8b1-SNAPSHOT",
-    "coreApiJarSha256" : "0c53cd8184fdb1c6b7f276fc557fd59dbf6e659ce628d6a4b7ce244f84c6c71c",
-    "runtimeJarSha256" : "f60f0920de93272247b8f6ed7d92b5781a882e03975b68434a8e147068ec39e8"
+    "version" : "0.1.0-pre18-885f31f-SNAPSHOT",
+    "coreApiJarSha256" : "1722f93bc01a3ead110d2eb5514775ef2b71c4a604be93ca2e9b0c066c13f758",
+    "runtimeJarSha256" : "128412b86ad5b9b5a075f88fd1a5971ff5b762cee0d967f70883c0a2b61bdfe4"
   },
   "authoringEnvironment" : "yano-x-binding-authoring-environment-v1",
   "catalog" : {
-    "fingerprint" : "sha256:68813eb060dff777318fe9db54d671e01e1b9b0cf19f31aa02ad9bcc1661c30c",
+    "fingerprint" : "sha256:62b5f532179e5c256d5e6357608be090bdbfb90908332ce811c87de8d7dd6549",
     "pluginApi" : {
       "major" : 3,
       "level" : 12
@@ -24,19 +24,19 @@
     "bundles" : [ {
       "id" : "org.yanoproject.x.composite",
       "version" : "0.1.0-pre3",
-      "digest" : "sha256:372c2c40fd8c7dff495888191dd234fcc6e01c7954ebb225af6724deca950c1f",
+      "digest" : "sha256:e4078ac3a8900b89d8165eeb7edbfb4fdae55d17f8bb70d7a4c863dfec867a4a",
       "digestMode" : "ARTIFACT_CLOSURE",
       "selected" : true
     }, {
       "id" : "org.yanoproject.x.role-workflow",
       "version" : "0.1.0-pre3",
-      "digest" : "sha256:f3f12f5cacd4162c079e5f4888e673d75ab443fab06d2dd9a52dab29bc898eb6",
+      "digest" : "sha256:3038258d1509c82fc850eac84060ef76bdb476c51d780ce492316410d5b66100",
       "digestMode" : "ARTIFACT_CLOSURE",
       "selected" : true
     }, {
       "id" : "org.yanoproject.x.stdlib",
       "version" : "0.1.0-pre3",
-      "digest" : "sha256:58b2a98b1baaff883f51aef421a38576ddfc4afe041e7f3887c709f2fe2a0c29",
+      "digest" : "sha256:ae6010a960f64125cef3df6d8c4c3d3474527d351c100df735645285c16be94d",
       "digestMode" : "ARTIFACT_CLOSURE",
       "selected" : true
     } ]
@@ -59,10 +59,10 @@
   } ],
   "documentFormat" : "yaml",
   "result" : {
-    "irHex" : "8801781b79616e6f2d782d62696e64696e672d66756e6374696f6e732d76316d79616e6f2d782d63656c2d763101818766706f696e74736862616c616e63657371706f696e74732e636f6d6d616e642e7631a1666d696e74657260000181826e7472616e736665722d6c696d6974a1696d6178416d6f756e7419271081856e7472616e736665722d6c696d6974775452414e534645525f4c494d49545f4558434545444544687472616e736665728183696d6178416d6f756e7400f68182028301038302626c658283010166616d6f756e74830102696d6178416d6f756e74808d0818201910001a0001000002081a000100001880101a000100001a001000001a0200000004",
-    "irSha256" : "8320f6aceafb57a973fbfa9613f8536c78d84153a56e75959bedfe552efefac2",
+    "irHex" : "8801781b79616e6f2d782d62696e64696e672d66756e6374696f6e732d76316d79616e6f2d782d63656c2d763101818766706f696e74736862616c616e63657371706f696e74732e636f6d6d616e642e7631a1666d696e74657260000181826e7472616e736665722d6c696d6974a1696d6178416d6f756e7419271081866e7472616e736665722d6c696d6974775452414e534645525f4c494d49545f4558434545444544687472616e736665728183696d6178416d6f756e7400f6808182028301038302626c658283010166616d6f756e74830102696d6178416d6f756e74808d0818201910001a0001000002081a000100001880101a000100001a001000001a0200000004",
+    "irSha256" : "fcfe65aa411c38febbbd080abf12d8ac33caac576e1f0e96bcb8dfa8126b7ed3",
     "profile" : {
-      "digestHex" : "000736076a31b4696d917a2838391b29f5f476b0f616bd31a31251b1bc6b2b2e",
+      "digestHex" : "e1493dd87fa4f915ce39d7d5aff689a9812bfc04b017311c2844714f35f82de4",
       "schemaVersion" : 2,
       "executionVersion" : "1.2.0"
     },
@@ -80,9 +80,9 @@
         "stateRootHex" : "0000000000000000000000000000000000000000000000000000000000000000",
         "pendingEffects" : "0"
       },
-      "executionIdentity" : "95e1ddd7afecaa0523d3b096a4cbd14e64807635529ee21eb4ece944338bbb84",
+      "executionIdentity" : "7c8ce871246b36c92ac1beb6098a5b76ccbef508c7301093919ce599ad8b228a",
       "assurance" : "execution-only; fixture inputs are not authenticated; no post-state root or finality claim",
-      "postStateSha256" : "b02fee48a9249f98a72b7483093923d10abc22923a0b7da7dede25fd887d6603",
+      "postStateSha256" : "6083567aa2bfe435a4cffa45933a87d325d2eec733e1158f50853e3e2f3d8e20",
       "stateChangeCount" : 8,
       "messages" : [ {
         "messageIndex" : 0,

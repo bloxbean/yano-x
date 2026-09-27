@@ -90,7 +90,8 @@ function stepStatus(step, receipt, disposition, table) {
 
 /**
  * The admission-rule trace of one step (ADR-031.3 §5.8): how many attached rules held, and the first that did not.
- * Clause numbers are one-based for display; a failure before any clause (no usable input) has none.
+ * Clause numbers are one-based for display; a failure before any clause (no usable input) has none. The write index
+ * (ADR-031.4) is zero-based, as the batch's own positions are.
  */
 function ruleView(step) {
   const {heldCount, failure} = step.rules ?? {heldCount: 0, failure: null};
@@ -98,15 +99,18 @@ function ruleView(step) {
   const held = heldCount ? `${heldCount} admission rule${heldCount === 1 ? '' : 's'} held` : null;
   if (!failure) return Object.freeze({held: heldCount, failure: null, label: held});
   const rule = visibleText(failure.ruleId);
-  const clause = failure.failedClause < 0 ? '' : ` at clause ${failure.failedClause + 1}`;
+  const write = failure.writeIndex === null || failure.writeIndex === undefined ? ''
+    : ` (write index ${failure.writeIndex})`;
+  const clause = failure.failedClause < 0 ? '' : ` at clause ${failure.failedClause + 1}${write}`;
   const reason = failure.denyCode !== null
     ? `refused by rule ${rule}${clause} with ${visibleText(failure.denyCode)}`
     : step.code === 'EXPRESSION_CAPACITY_EXCEEDED' ? `rule ${rule} exhausted the expression work budget${clause}`
       : step.code === 'ADMISSION_RULE_INPUT' || failure.failedClause < 0
-        ? `rule ${rule} had no usable input (command view or verified facts)`
-        : `rule ${rule} could not evaluate clause ${failure.failedClause + 1}; it fails closed`;
+        ? `rule ${rule} had no usable input (command view, verified facts, write view or a read)`
+        : `rule ${rule} could not evaluate clause ${failure.failedClause + 1}${write}; it fails closed`;
   return Object.freeze({held: heldCount, failure: Object.freeze({ruleId: failure.ruleId,
-    clause: failure.failedClause < 0 ? null : failure.failedClause + 1, denyCode: failure.denyCode}),
+    clause: failure.failedClause < 0 ? null : failure.failedClause + 1, denyCode: failure.denyCode,
+    writeIndex: failure.writeIndex ?? null}),
     label: held ? `${held}; ${reason}` : reason.charAt(0).toUpperCase() + reason.slice(1)});
 }
 

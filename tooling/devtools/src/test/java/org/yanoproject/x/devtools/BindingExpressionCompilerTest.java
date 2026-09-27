@@ -37,8 +37,9 @@ class BindingExpressionCompilerTest {
 
     @Test
     void rejectsUnsupportedLanguageAndUnknownFields() {
+        // size() became a dialect operator in ADR-031.4, so it is no longer in this list.
         for (String source : new String[]{"1.2 + 3.4", "[1,2].all(x, x > 0)", "event.unknown",
-                "event.currency.matches('.*')", "size(event.currency)", "{'a': 1}", "null"}) {
+                "event.currency.matches('.*')", "has(event.currency)", "{'a': 1}", "null"}) {
             assertThatThrownBy(() -> bindingCompile(source, FIELDS, Limits.DEFAULT))
                     .as(source).isInstanceOf(IllegalArgumentException.class);
         }

@@ -11,8 +11,9 @@ import java.util.Set;
  * Wire tags are frozen as field=0, literal=1, function=2, expression=3. A field source names one field of one
  * scope, {@code [0, scope, name]} (ADR-031.3); the enclosing use site decides which scopes are legal.
  * Evidence destinations accept only a direct event {@link Field}: literals, context values and computations may
- * transform data but must never manufacture authority. Destination schema validation and field presence checks
- * are performed by the runtime program.
+ * transform data but must never manufacture authority. Reads and write elements (ADR-031.4) are never sources: no
+ * key, lookup expectation, or mapping reads a read or quantifies, so reads never chain. Destination schema
+ * validation and field presence checks are performed by the runtime program.
  */
 public sealed interface BindingSourceV1 {
     Object wire();
@@ -21,6 +22,9 @@ public sealed interface BindingSourceV1 {
     record Field(BindingExpressionV1.Scope scope, String name) implements BindingSourceV1 {
         public Field {
             Objects.requireNonNull(scope, "scope");
+            if (scope == BindingExpressionV1.Scope.READS || scope == BindingExpressionV1.Scope.WRITE_ELEMENT) {
+                throw new IllegalArgumentException(scope.label() + " scope is not a binding source");
+            }
             BindingExpressionV1.requireName(name);
             BindingExpressionV1.requireContextField(scope, name);
         }

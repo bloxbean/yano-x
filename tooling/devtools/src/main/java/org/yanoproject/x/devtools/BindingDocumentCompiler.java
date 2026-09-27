@@ -654,6 +654,8 @@ public final class BindingDocumentCompiler {
         scopes.put(Scope.CONFIG, configuration);
         scopes.put(Scope.CONTEXT, BindingProgram.CONTEXT_FIELDS);
         scopes.put(Scope.FACTS, facts);
+        // ADR-031.4: YAML reads arrive in Phase 5; until then a rule declares none, so reads.* names no read.
+        scopes.put(Scope.READS, Map.of());
         var sites = new Sites(new Scoped<>(scopes), "an admission rule");
         List<Clause> clauses = new ArrayList<>();
         for (int index = 0; index < rule.clauses().size(); index++) {

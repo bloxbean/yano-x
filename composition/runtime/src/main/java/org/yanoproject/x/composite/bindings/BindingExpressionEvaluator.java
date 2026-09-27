@@ -5,6 +5,7 @@ import org.yanoproject.x.composite.contracts.BindingExpressionV1.Call;
 import org.yanoproject.x.composite.contracts.BindingExpressionV1.Field;
 import org.yanoproject.x.composite.contracts.BindingExpressionV1.Literal;
 import org.yanoproject.x.composite.contracts.BindingExpressionV1.Node;
+import org.yanoproject.x.composite.contracts.BindingExpressionV1.Quantifier;
 import org.yanoproject.x.composite.contracts.BindingExpressionV1.Scope;
 import org.yanoproject.x.composite.contracts.BindingExpressionV1.Type;
 import org.yanoproject.x.composite.contracts.BindingIrV1.Limits;
@@ -26,6 +27,10 @@ import java.util.Map;
  * <p>Field references are scoped (ADR-031.3). Callers supply the declared types, and at evaluation the values, of
  * exactly the scopes legal at the use site. A text set ({@link Type#TEXT_SET}) is legal only as the direct second
  * operand of {@code in}; it never appears in a comparison, a branch, or a result.
+ *
+ * <p>ADR-031.4 adds {@code startsWith} (two texts or two byte strings; a text prefix is a UTF-8 byte prefix) and
+ * {@code size} (UTF-8 byte length of text, or length of bytes), both charged by operand bytes like equality, and the
+ * write-view {@link Quantifier}. A quantifier is legal only where the caller declares write-element fields.
  */
 public final class BindingExpressionEvaluator {
     private BindingExpressionEvaluator() { }
@@ -102,6 +107,13 @@ public final class BindingExpressionEvaluator {
             if (type == Type.TEXT_SET) throw new IllegalArgumentException("text set is usable only by 'in'");
             return type;
         }
+        if (node instanceof Quantifier quantifier) {
+            if (!fields.scopes().containsKey(Scope.WRITE_ELEMENT)) {
+                throw new IllegalArgumentException("no write view to quantify over");
+            }
+            if (validate(quantifier.body(), fields, limits, depth + 1, count) != Type.BOOLEAN) throw invalidType();
+            return Type.BOOLEAN;
+        }
         Call call = (Call) node;
         if (call.operator().equals("in")) {
             Type needle = validate(call.arguments().getFirst(), fields, limits, depth + 1, count);
@@ -129,6 +141,15 @@ public final class BindingExpressionEvaluator {
                 same(args);
                 if (first != Type.TEXT && first != Type.BYTES) throw invalidType();
                 yield first;
+            }
+            case "startsWith" -> {
+                same(args);
+                if (first != Type.TEXT && first != Type.BYTES) throw invalidType();
+                yield Type.BOOLEAN;
+            }
+            case "size" -> {
+                if (first != Type.TEXT && first != Type.BYTES) throw invalidType();
+                yield Type.INTEGER;
             }
             default -> { require(args, Type.INTEGER); yield Type.INTEGER; }
         };
@@ -158,6 +179,8 @@ public final class BindingExpressionEvaluator {
             if (!scope.containsKey(field.name())) throw new BindingFailure("EXPRESSION_MISSING_FIELD");
             return bounded(scope.get(field.name()), limits);
         }
+        // Profile construction admits a quantifier only once the engine evaluates write views (ADR-031.4 Phase 3).
+        if (node instanceof Quantifier) throw new IllegalStateException("unvalidated write-view quantifier");
         Call call = (Call) node;
         List<Node> args = call.arguments();
         String op = call.operator();
@@ -191,6 +214,12 @@ public final class BindingExpressionEvaluator {
         try {
             if (op.equals("not")) return !(Boolean) a;
             if (op.equals("neg")) return Math.negateExact((Long) a);
+            if (op.equals("size")) {
+                if (!(a instanceof String) && !(a instanceof byte[])) throw new BindingFailure("EXPRESSION_TYPE_ERROR");
+                long length = size(a);
+                charge(length, cascade, block);
+                return length;
+            }
             Object b = evaluate(args.get(1), inputs, limits, cascade, block);
             if (op.equals("in")) {
                 if (!(a instanceof String needle) || !(b instanceof List<?> candidates)) {
@@ -208,6 +237,17 @@ public final class BindingExpressionEvaluator {
                 if (a instanceof byte[] || a instanceof String) charge((long) size(a) + size(b), cascade, block);
                 boolean equal = a instanceof byte[] bytes ? Arrays.equals(bytes, (byte[]) b) : a.equals(b);
                 return op.equals("eq") == equal;
+            }
+            if (op.equals("startsWith")) {
+                if (type(a) != type(b) || !(a instanceof String) && !(a instanceof byte[])) {
+                    throw new BindingFailure("EXPRESSION_TYPE_ERROR");
+                }
+                charge((long) size(a) + size(b), cascade, block);
+                if (a instanceof String text) return text.startsWith((String) b);
+                byte[] bytes = (byte[]) a;
+                byte[] prefix = (byte[]) b;
+                return prefix.length <= bytes.length
+                        && Arrays.equals(bytes, 0, prefix.length, prefix, 0, prefix.length);
             }
             if (op.equals("concat")) {
                 long length = (long) size(a) + size(b);

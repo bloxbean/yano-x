@@ -8,7 +8,9 @@ import java.util.Objects;
  * Bounded authenticated explanation of one source-message cascade, including rejected attempts.
  * The version-one CBOR envelope stores source id, height, overall status, failed ordinal, code, and steps.
  * ADR-031.3 amended each step in place with an eleventh element, the compact admission-rule trace; steps written
- * before that amendment fail decode with an explicit error.
+ * before that amendment fail decode with an explicit error. ADR-031.4 amended the rule failure in place with a fourth
+ * element, the deciding write's index; a failure written before it fails decode with an explicit error, while steps
+ * without a rule failure are unchanged.
  * A planned step in a rejected receipt is diagnostic only: its mutations were not committed. Receipts do
  * not carry event payloads or constitute authorization evidence for another command.
  *
@@ -39,15 +41,21 @@ public record BindingReceiptV1(byte[] sourceMessageId, long height, boolean acce
         Object wire() { return List.of(bindingId, failedClause); }
     }
     /**
-     * The first admission rule that did not hold at a step (ADR-031.3).
+     * The first admission rule that did not hold at a step (ADR-031.3, amended by ADR-031.4).
      *
      * @param ruleId the failed rule
      * @param failedClause zero-based clause that was false or raised an error, or {@code -1} when the rule failed
-     *                     before any clause ran: the command view or kernel facts could not be established, or the
-     *                     rule's own precharge exhausted work
+     *                     before any clause ran: the command view, kernel facts or write view could not be
+     *                     established, a read failed, or the rule's own precharge exhausted work
      * @param denyCode the rule's deny code for {@code ADMISSION_RULE_DENIED}; {@code null} otherwise
+     * @param writeIndex the write-view element at which the failing clause's most recently completed quantifier
+     *                   stopped early, 0..127, or {@code null} when it ran to completion, no quantifier ran, or the
+     *                   rule failed before any clause
      */
-    public record RuleFailure(String ruleId, int failedClause, String denyCode) {
+    public record RuleFailure(String ruleId, int failedClause, String denyCode, Integer writeIndex) {
+        /** Largest write index a receipt records. */
+        public static final int MAX_WRITE_INDEX = 127;
+
         public RuleFailure {
             if (ruleId == null || !ruleId.matches("[a-z][a-z0-9-]{0,62}")) {
                 throw new IllegalArgumentException("receipt rule id");
@@ -56,8 +64,15 @@ public record BindingReceiptV1(byte[] sourceMessageId, long height, boolean acce
                     || !denyCode.matches("[A-Z][A-Z0-9_]{0,62}") || denyCode.startsWith("ADMISSION_RULE_"))) {
                 throw new IllegalArgumentException("receipt rule failure");
             }
+            if (writeIndex != null && (writeIndex < 0 || writeIndex > MAX_WRITE_INDEX || failedClause < 0)) {
+                throw new IllegalArgumentException("receipt rule write index");
+            }
         }
-        Object wire() { return Arrays.asList(ruleId, failedClause, denyCode); }
+        /** A failure that no write decided. */
+        public RuleFailure(String ruleId, int failedClause, String denyCode) {
+            this(ruleId, failedClause, denyCode, null);
+        }
+        Object wire() { return Arrays.asList(ruleId, failedClause, denyCode, writeIndex); }
     }
     /**
      * Compact, lossless admission-rule trace of one step. Evaluation order is fixed by the committed IR
@@ -186,10 +201,15 @@ public record BindingReceiptV1(byte[] sourceMessageId, long height, boolean acce
         List<?> trace = BindingCbor.array(fields.get(7), 2);
         RuleFailure failure = null;
         if (trace.get(1) != null) {
-            List<?> failed = BindingCbor.array(trace.get(1), 3);
+            if (trace.get(1) instanceof List<?> legacy && legacy.size() == 3) {
+                throw new IllegalArgumentException("binding receipt predates ADR-031.4: rule failure has the "
+                        + "pre-typed-views layout without a write index");
+            }
+            List<?> failed = BindingCbor.array(trace.get(1), 4);
             failure = new RuleFailure(BindingCbor.text(failed.get(0)),
                     Math.toIntExact(BindingCbor.integer(failed.get(1))),
-                    failed.get(2) == null ? null : BindingCbor.text(failed.get(2)));
+                    failed.get(2) == null ? null : BindingCbor.text(failed.get(2)),
+                    failed.get(3) == null ? null : Math.toIntExact(BindingCbor.integer(failed.get(3))));
         }
         RuleTrace rules = new RuleTrace(Math.toIntExact(BindingCbor.integer(trace.get(0))), failure);
         return new Step(Math.toIntExact(BindingCbor.integer(fields.get(0))),

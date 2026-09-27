@@ -77,8 +77,13 @@ sed -e 's/binding-name => binding-scalar/tstr => binding-scalar/' \
 VECTOR_NAMES=(
     expression.threshold
     expression.fact-role
+    expression.read-value
+    expression.write-scope
+    expression.write-role
+    expression.size
     ir.forward
     ir.admission
+    ir.typed-views
     receipt.accepted
     receipt.rejected
     receipt.rule-denied
@@ -88,6 +93,9 @@ VECTOR_NAMES=(
     receipt.derived-denied
     receipt.rule-capacity
     receipt.fact-input
+    receipt.write-denied
+    receipt.write-error
+    receipt.read-error
 )
 for vector_name in "${VECTOR_NAMES[@]}"; do
     root="$(property "${vector_name}.cddl-root")"

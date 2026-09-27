@@ -218,6 +218,8 @@ final class BindingDryRun {
         value.put("rule", failure.ruleId());
         value.put("clause", failure.failedClause());
         value.put("denyCode", failure.denyCode());
+        // ADR-031.4: the write that decided a quantifier; omitted when none did, so other outputs are unchanged.
+        if (failure.writeIndex() != null) value.put("write", failure.writeIndex());
         return value;
     }
 

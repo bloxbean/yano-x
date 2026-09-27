@@ -4,17 +4,17 @@
   "producer" : {
     "tool" : "yano-x-devtools",
     "version" : "0.1.0-pre3",
-    "jarSha256" : "92e94f1e095cefbde43826d5ff71a9b18e624deb603b1f581d14006f0057c0da",
-    "linkedCompositeJarSha256" : "a57536b55954957f845095672c476272aadb856738c9d39ec1991a738be64b5f"
+    "jarSha256" : "c2f39a5e5f39df6c555db13cd06a0853d9402f1e066c37f6b6b6e24e0afe6eb3",
+    "linkedCompositeJarSha256" : "d4f53b3e07e67cc70df069e89b292a695015939b0a53ea35aeb2e0e712eebe26"
   },
   "host" : {
-    "version" : "0.1.0-pre18-f92d8b1-SNAPSHOT",
-    "coreApiJarSha256" : "0c53cd8184fdb1c6b7f276fc557fd59dbf6e659ce628d6a4b7ce244f84c6c71c",
-    "runtimeJarSha256" : "f60f0920de93272247b8f6ed7d92b5781a882e03975b68434a8e147068ec39e8"
+    "version" : "0.1.0-pre18-885f31f-SNAPSHOT",
+    "coreApiJarSha256" : "1722f93bc01a3ead110d2eb5514775ef2b71c4a604be93ca2e9b0c066c13f758",
+    "runtimeJarSha256" : "128412b86ad5b9b5a075f88fd1a5971ff5b762cee0d967f70883c0a2b61bdfe4"
   },
   "authoringEnvironment" : "yano-x-binding-authoring-environment-v1",
   "catalog" : {
-    "fingerprint" : "sha256:68813eb060dff777318fe9db54d671e01e1b9b0cf19f31aa02ad9bcc1661c30c",
+    "fingerprint" : "sha256:62b5f532179e5c256d5e6357608be090bdbfb90908332ce811c87de8d7dd6549",
     "pluginApi" : {
       "major" : 3,
       "level" : 12
@@ -22,19 +22,19 @@
     "bundles" : [ {
       "id" : "org.yanoproject.x.composite",
       "version" : "0.1.0-pre3",
-      "digest" : "sha256:372c2c40fd8c7dff495888191dd234fcc6e01c7954ebb225af6724deca950c1f",
+      "digest" : "sha256:e4078ac3a8900b89d8165eeb7edbfb4fdae55d17f8bb70d7a4c863dfec867a4a",
       "digestMode" : "ARTIFACT_CLOSURE",
       "selected" : true
     }, {
       "id" : "org.yanoproject.x.role-workflow",
       "version" : "0.1.0-pre3",
-      "digest" : "sha256:f3f12f5cacd4162c079e5f4888e673d75ab443fab06d2dd9a52dab29bc898eb6",
+      "digest" : "sha256:3038258d1509c82fc850eac84060ef76bdb476c51d780ce492316410d5b66100",
       "digestMode" : "ARTIFACT_CLOSURE",
       "selected" : true
     }, {
       "id" : "org.yanoproject.x.stdlib",
       "version" : "0.1.0-pre3",
-      "digest" : "sha256:58b2a98b1baaff883f51aef421a38576ddfc4afe041e7f3887c709f2fe2a0c29",
+      "digest" : "sha256:ae6010a960f64125cef3df6d8c4c3d3474527d351c100df735645285c16be94d",
       "digestMode" : "ARTIFACT_CLOSURE",
       "selected" : true
     } ]
@@ -207,6 +207,26 @@
       "ir" : "in",
       "operands" : "text, text-set fact (admission rules only; stops at the first match)",
       "result" : "boolean"
+    }, {
+      "cel" : "startsWith(a, b)",
+      "ir" : "startsWith",
+      "operands" : "text, text or bytes, bytes (a text prefix is a UTF-8 byte prefix)",
+      "result" : "boolean"
+    }, {
+      "cel" : "size(a)",
+      "ir" : "size",
+      "operands" : "text (UTF-8 bytes) or bytes",
+      "result" : "integer"
+    }, {
+      "cel" : "writes.all(w, e)",
+      "ir" : "quantifier:all",
+      "operands" : "boolean body per write-view element, in index order; false at the first false (admission rules only; no nesting)",
+      "result" : "boolean"
+    }, {
+      "cel" : "writes.exists(w, e)",
+      "ir" : "quantifier:exists",
+      "operands" : "boolean body per write-view element, in index order; true at the first true (admission rules only; no nesting)",
+      "result" : "boolean"
     } ],
     "fieldTypes" : [ {
       "name" : "integer",
@@ -237,28 +257,38 @@
     }, {
       "name" : "command",
       "ordinal" : 1,
-      "useSites" : [ "admission-rule" ],
+      "useSites" : [ "admission-rule", "rule-key" ],
       "note" : "DATA fields of the selected command; only in a rule that names a command"
     }, {
       "name" : "params",
       "ordinal" : 2,
-      "useSites" : [ "admission-rule" ],
+      "useSites" : [ "admission-rule", "rule-key" ],
       "note" : "the attachment's parameters"
     }, {
       "name" : "config",
       "ordinal" : 3,
-      "useSites" : [ "admission-rule" ],
+      "useSites" : [ "admission-rule", "rule-key" ],
       "note" : "the attached component's normalized configuration"
     }, {
       "name" : "context",
       "ordinal" : 4,
-      "useSites" : [ "binding-condition", "binding-mapping", "admission-rule" ],
+      "useSites" : [ "binding-condition", "binding-mapping", "admission-rule", "rule-key" ],
       "note" : "in a binding, the step that produced the event; in a rule, the step being admitted"
     }, {
       "name" : "facts",
       "ordinal" : 5,
-      "useSites" : [ "admission-rule" ],
+      "useSites" : [ "admission-rule", "rule-key" ],
       "note" : "facts the attached kernel declares and established by its own verification"
+    }, {
+      "name" : "reads",
+      "ordinal" : 6,
+      "useSites" : [ "admission-rule" ],
+      "note" : "the rule's declared state reads: reads.<name>.present, reads.<name>.<field> and reads.<name>.value.<field>, decoded by the read component's kernel"
+    }, {
+      "name" : "writes",
+      "ordinal" : 7,
+      "useSites" : [ "admission-rule" ],
+      "note" : "the current element w of writes.all(w, ...) or writes.exists(w, ...): content fields in either slot; coverage fields make the rule a fact rule"
     } ],
     "contextFields" : [ {
       "name" : "height",
@@ -289,40 +319,40 @@
     }, {
       "key" : "context",
       "scope" : "context",
-      "useSites" : [ "binding-condition", "binding-mapping", "admission-rule" ],
+      "useSites" : [ "binding-condition", "binding-mapping", "admission-rule", "rule-key" ],
       "note" : "a context field; never evidence"
     }, {
       "key" : "command",
       "scope" : "command",
-      "useSites" : [ "admission-rule" ],
+      "useSites" : [ "admission-rule", "rule-key" ],
       "note" : "a DATA field of the selected command"
     }, {
       "key" : "param",
       "scope" : "params",
-      "useSites" : [ "admission-rule" ],
+      "useSites" : [ "admission-rule", "rule-key" ],
       "note" : "an attachment parameter"
     }, {
       "key" : "config",
       "scope" : "config",
-      "useSites" : [ "admission-rule" ],
+      "useSites" : [ "admission-rule", "rule-key" ],
       "note" : "a configuration setting"
     }, {
       "key" : "fact",
       "scope" : "facts",
-      "useSites" : [ "admission-rule" ],
+      "useSites" : [ "admission-rule", "rule-key" ],
       "note" : "a kernel-declared fact"
     }, {
       "key" : "literal",
-      "useSites" : [ "binding-condition", "binding-mapping", "admission-rule" ],
+      "useSites" : [ "binding-condition", "binding-mapping", "admission-rule", "rule-key" ],
       "note" : "an embedded scalar"
     }, {
       "key" : "fn",
-      "useSites" : [ "binding-condition", "binding-mapping", "admission-rule" ],
+      "useSites" : [ "binding-condition", "binding-mapping", "admission-rule", "rule-key" ],
       "note" : "a stock function over sources"
     }, {
       "key" : "expr",
-      "useSites" : [ "binding-condition", "binding-mapping", "admission-rule" ],
-      "note" : "a restricted CEL expression; as a condition, rule clause, lookup key or mapping source"
+      "useSites" : [ "binding-condition", "binding-mapping", "admission-rule", "rule-key" ],
+      "note" : "a restricted CEL expression; as a condition, rule clause, lookup or read key, or mapping source"
     } ],
     "rules" : {
       "idPattern" : "[a-z][a-z0-9-]{0,62}",
@@ -337,14 +367,20 @@
       "parametersPerRule" : 16,
       "clauseKinds" : [ "expr", "lookup" ],
       "lookupExpectations" : [ "exists", "absent", "eq" ],
+      "readsPerRule" : 4,
+      "readNamePattern" : "[a-zA-Z][a-zA-Z0-9_]{0,62}",
+      "namespacePattern" : "\"\" or [a-z0-9][a-z0-9._-]{0,63}",
+      "readKeySources" : [ "context", "command", "param", "config", "fact", "literal", "fn", "expr" ],
+      "readPresentField" : "present",
+      "quantifiers" : [ "all", "exists" ],
       "slots" : [ {
         "name" : "admission",
-        "when" : "after the kernel's admit hooks and before work reservation; rules that do not read facts"
+        "when" : "after the kernel's admit hooks and before work reservation; rules that read neither facts nor write coverage"
       }, {
         "name" : "fact",
-        "when" : "after an approved kernel decision; rules that read facts"
+        "when" : "after an approved kernel decision; rules that read facts or write coverage"
       } ],
-      "static" : "expression clauses over command, params and config only; also checked at ingress"
+      "static" : "no reads, and expression clauses over command, params, config and write content only; also checked at ingress"
     },
     "limits" : [ {
       "name" : "maxCascadeDepth",
@@ -714,7 +750,7 @@
     "origin" : {
       "kind" : "bundle",
       "bundleId" : "org.yanoproject.x.stdlib",
-      "digest" : "sha256:58b2a98b1baaff883f51aef421a38576ddfc4afe041e7f3887c709f2fe2a0c29",
+      "digest" : "sha256:ae6010a960f64125cef3df6d8c4c3d3474527d351c100df735645285c16be94d",
       "digestMode" : "ARTIFACT_CLOSURE"
     },
     "composable" : null
@@ -723,7 +759,7 @@
     "origin" : {
       "kind" : "bundle",
       "bundleId" : "org.yanoproject.x.stdlib",
-      "digest" : "sha256:58b2a98b1baaff883f51aef421a38576ddfc4afe041e7f3887c709f2fe2a0c29",
+      "digest" : "sha256:ae6010a960f64125cef3df6d8c4c3d3474527d351c100df735645285c16be94d",
       "digestMode" : "ARTIFACT_CLOSURE"
     },
     "composable" : null
@@ -732,7 +768,7 @@
     "origin" : {
       "kind" : "bundle",
       "bundleId" : "org.yanoproject.x.stdlib",
-      "digest" : "sha256:58b2a98b1baaff883f51aef421a38576ddfc4afe041e7f3887c709f2fe2a0c29",
+      "digest" : "sha256:ae6010a960f64125cef3df6d8c4c3d3474527d351c100df735645285c16be94d",
       "digestMode" : "ARTIFACT_CLOSURE"
     },
     "composable" : null
@@ -741,7 +777,7 @@
     "origin" : {
       "kind" : "bundle",
       "bundleId" : "org.yanoproject.x.stdlib",
-      "digest" : "sha256:58b2a98b1baaff883f51aef421a38576ddfc4afe041e7f3887c709f2fe2a0c29",
+      "digest" : "sha256:ae6010a960f64125cef3df6d8c4c3d3474527d351c100df735645285c16be94d",
       "digestMode" : "ARTIFACT_CLOSURE"
     },
     "composable" : null
@@ -750,7 +786,7 @@
     "origin" : {
       "kind" : "bundle",
       "bundleId" : "org.yanoproject.x.stdlib",
-      "digest" : "sha256:58b2a98b1baaff883f51aef421a38576ddfc4afe041e7f3887c709f2fe2a0c29",
+      "digest" : "sha256:ae6010a960f64125cef3df6d8c4c3d3474527d351c100df735645285c16be94d",
       "digestMode" : "ARTIFACT_CLOSURE"
     },
     "composable" : null
@@ -759,7 +795,7 @@
     "origin" : {
       "kind" : "bundle",
       "bundleId" : "org.yanoproject.x.composite",
-      "digest" : "sha256:372c2c40fd8c7dff495888191dd234fcc6e01c7954ebb225af6724deca950c1f",
+      "digest" : "sha256:e4078ac3a8900b89d8165eeb7edbfb4fdae55d17f8bb70d7a4c863dfec867a4a",
       "digestMode" : "ARTIFACT_CLOSURE"
     },
     "composable" : false
@@ -768,7 +804,7 @@
     "origin" : {
       "kind" : "bundle",
       "bundleId" : "org.yanoproject.x.stdlib",
-      "digest" : "sha256:58b2a98b1baaff883f51aef421a38576ddfc4afe041e7f3887c709f2fe2a0c29",
+      "digest" : "sha256:ae6010a960f64125cef3df6d8c4c3d3474527d351c100df735645285c16be94d",
       "digestMode" : "ARTIFACT_CLOSURE"
     },
     "composable" : null
@@ -777,7 +813,7 @@
     "origin" : {
       "kind" : "bundle",
       "bundleId" : "org.yanoproject.x.role-workflow",
-      "digest" : "sha256:f3f12f5cacd4162c079e5f4888e673d75ab443fab06d2dd9a52dab29bc898eb6",
+      "digest" : "sha256:3038258d1509c82fc850eac84060ef76bdb476c51d780ce492316410d5b66100",
       "digestMode" : "ARTIFACT_CLOSURE"
     },
     "composable" : null
@@ -786,7 +822,7 @@
     "origin" : {
       "kind" : "bundle",
       "bundleId" : "org.yanoproject.x.stdlib",
-      "digest" : "sha256:58b2a98b1baaff883f51aef421a38576ddfc4afe041e7f3887c709f2fe2a0c29",
+      "digest" : "sha256:ae6010a960f64125cef3df6d8c4c3d3474527d351c100df735645285c16be94d",
       "digestMode" : "ARTIFACT_CLOSURE"
     },
     "composable" : null
@@ -795,7 +831,7 @@
     "origin" : {
       "kind" : "bundle",
       "bundleId" : "org.yanoproject.x.stdlib",
-      "digest" : "sha256:58b2a98b1baaff883f51aef421a38576ddfc4afe041e7f3887c709f2fe2a0c29",
+      "digest" : "sha256:ae6010a960f64125cef3df6d8c4c3d3474527d351c100df735645285c16be94d",
       "digestMode" : "ARTIFACT_CLOSURE"
     },
     "composable" : null
@@ -804,7 +840,7 @@
     "origin" : {
       "kind" : "bundle",
       "bundleId" : "org.yanoproject.x.stdlib",
-      "digest" : "sha256:58b2a98b1baaff883f51aef421a38576ddfc4afe041e7f3887c709f2fe2a0c29",
+      "digest" : "sha256:ae6010a960f64125cef3df6d8c4c3d3474527d351c100df735645285c16be94d",
       "digestMode" : "ARTIFACT_CLOSURE"
     },
     "composable" : null
@@ -813,7 +849,7 @@
     "origin" : {
       "kind" : "bundle",
       "bundleId" : "org.yanoproject.x.role-workflow",
-      "digest" : "sha256:f3f12f5cacd4162c079e5f4888e673d75ab443fab06d2dd9a52dab29bc898eb6",
+      "digest" : "sha256:3038258d1509c82fc850eac84060ef76bdb476c51d780ce492316410d5b66100",
       "digestMode" : "ARTIFACT_CLOSURE"
     },
     "composable" : null
@@ -822,7 +858,7 @@
     "origin" : {
       "kind" : "bundle",
       "bundleId" : "org.yanoproject.x.stdlib",
-      "digest" : "sha256:58b2a98b1baaff883f51aef421a38576ddfc4afe041e7f3887c709f2fe2a0c29",
+      "digest" : "sha256:ae6010a960f64125cef3df6d8c4c3d3474527d351c100df735645285c16be94d",
       "digestMode" : "ARTIFACT_CLOSURE"
     },
     "composable" : null
@@ -837,7 +873,7 @@
     "origin" : {
       "kind" : "bundle",
       "bundleId" : "org.yanoproject.x.role-workflow",
-      "digest" : "sha256:f3f12f5cacd4162c079e5f4888e673d75ab443fab06d2dd9a52dab29bc898eb6",
+      "digest" : "sha256:3038258d1509c82fc850eac84060ef76bdb476c51d780ce492316410d5b66100",
       "digestMode" : "ARTIFACT_CLOSURE"
     },
     "composable" : null
@@ -846,7 +882,7 @@
     "origin" : {
       "kind" : "bundle",
       "bundleId" : "org.yanoproject.x.stdlib",
-      "digest" : "sha256:58b2a98b1baaff883f51aef421a38576ddfc4afe041e7f3887c709f2fe2a0c29",
+      "digest" : "sha256:ae6010a960f64125cef3df6d8c4c3d3474527d351c100df735645285c16be94d",
       "digestMode" : "ARTIFACT_CLOSURE"
     },
     "composable" : null

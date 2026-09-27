@@ -27,9 +27,16 @@ import java.util.Set;
  * arity. Bytes produced before that amendment fail decode with an explicit "predates ADR-031.3" error rather than
  * being misread; no code path accepts both layouts.
  *
+ * <p>ADR-031.4 amended the rule layout in place again: each rule declares up to four exact-key state reads before its
+ * clauses, rule expressions may read them and quantify over a kernel's write view, and rule failures in receipts
+ * name the deciding write. A rule written before that amendment fails decode with an explicit "predates ADR-031.4"
+ * error. Documents without rules are unaffected.
+ *
  * <p>Constructors enforce structural bounds and the scope-by-use-site table: binding conditions, lookups, and
- * mappings read only {@code event} and {@code context}; rule clauses read only {@code command}, {@code params},
- * {@code config}, {@code context}, and {@code facts}, with {@code command} only in a rule that names a command.
+ * mappings read only {@code event} and {@code context}; rule expression clauses read {@code command},
+ * {@code params}, {@code config}, {@code context}, {@code facts} and declared {@code reads}, and quantify over the
+ * write view; rule keys (lookup keys and expectations, read keys) read only {@code command}, {@code params},
+ * {@code config}, {@code context} and {@code facts}; {@code command} is legal only in a rule that names a command.
  * Machine-specific schemas, attachment parameters, authorization-sensitive evidence assignments, and graph cycles
  * are checked separately when the runtime constructs a binding program.
  *
@@ -168,18 +175,22 @@ public record BindingIrV1(List<Component> components, List<AdmissionRule> rules,
 
     /**
      * One forbid-only admission rule: all clauses must hold, otherwise the step is denied with {@code denyCode}.
-     * A rule never grants authority, alters a command, or replaces kernel admission or decision.
+     * A rule never grants authority, alters a command, or replaces kernel admission or decision. Its reads
+     * (ADR-031.4) are exact-key and read-only; no key reads another read.
      *
      * @param id rule id, unique across rules and bindings
      * @param denyCode code reported when a clause is false, {@code [A-Z][A-Z0-9_]{0,62}}, not {@code ADMISSION_RULE_*}
      * @param command selected command name, or {@code null} for every command of the attached component
      * @param parameters declared parameters sorted by name
+     * @param reads zero to four state reads sorted by name, evaluated in that order before the clauses
      * @param clauses one to eight lookup or expression clauses, evaluated in order
      */
     public record AdmissionRule(String id, String denyCode, String command, List<Parameter> parameters,
-                                List<Clause> clauses) {
+                                List<Read> reads, List<Clause> clauses) {
         public static final int MAX_PARAMETERS = 16;
         public static final int MAX_CLAUSES = 8;
+        /** Maximum state reads per rule (ADR-031.4). */
+        public static final int MAX_READS = 4;
         /** Engine codes use this prefix; a rule's own deny code may not. */
         public static final String RESERVED_PREFIX = "ADMISSION_RULE_";
 
@@ -190,6 +201,7 @@ public record BindingIrV1(List<Component> components, List<AdmissionRule> rules,
             }
             if (command != null) BindingExpressionV1.requireName(command);
             parameters = List.copyOf(parameters);
+            reads = List.copyOf(reads);
             clauses = List.copyOf(clauses);
             if (parameters.size() > MAX_PARAMETERS) throw new IllegalArgumentException("too many rule parameters");
             for (int index = 1; index < parameters.size(); index++) {
@@ -197,29 +209,46 @@ public record BindingIrV1(List<Component> components, List<AdmissionRule> rules,
                     throw new IllegalArgumentException("rule parameters must be sorted and unique");
                 }
             }
+            if (reads.size() > MAX_READS) throw new IllegalArgumentException("too many rule reads");
+            for (int index = 1; index < reads.size(); index++) {
+                if (reads.get(index - 1).name().compareTo(reads.get(index).name()) >= 0) {
+                    throw new IllegalArgumentException("rule reads must be sorted and unique");
+                }
+            }
             if (clauses.isEmpty() || clauses.size() > MAX_CLAUSES) {
                 throw new IllegalArgumentException("rule clause count");
             }
-            Set<Scope> allowed = command == null ? Set.of(Scope.PARAMS, Scope.CONFIG, Scope.CONTEXT, Scope.FACTS)
-                    : BindingExpressionV1.RULE_SCOPES;
+            Set<Scope> keys = command == null ? Set.of(Scope.PARAMS, Scope.CONFIG, Scope.CONTEXT, Scope.FACTS)
+                    : BindingExpressionV1.RULE_KEY_SCOPES;
+            Set<Scope> expressions = new HashSet<>(keys);
+            expressions.addAll(Set.of(Scope.READS, Scope.WRITE_ELEMENT));
+            String site = command == null ? "a rule without a command selector" : "an admission rule";
+            for (Read read : reads) BindingSourceV1.requireScopes(read.key(), keys, "a rule read key");
+            Set<String> declared = new HashSet<>(reads.stream().map(Read::name).toList());
             for (Clause clause : clauses) {
                 switch (clause) {
-                    case ExpressionClause expression -> expression.expression().requireScopes(allowed,
-                            command == null ? "a rule without a command selector" : "an admission rule");
+                    case ExpressionClause expression -> {
+                        expression.expression().requireScopes(expressions, site);
+                        requireDeclaredReads(expression.expression().root(), declared);
+                    }
                     case LookupClause lookup -> {
-                        BindingSourceV1.requireScopes(lookup.key(), allowed, "an admission rule");
-                        if (lookup.operand() != null) {
-                            BindingSourceV1.requireScopes(lookup.operand(), allowed, "an admission rule");
-                        }
+                        BindingSourceV1.requireScopes(lookup.key(), keys, site);
+                        if (lookup.operand() != null) BindingSourceV1.requireScopes(lookup.operand(), keys, site);
                     }
                     case FieldClause ignored ->
                             throw new IllegalArgumentException("rules use expression and lookup clauses only");
                 }
             }
         }
-        /** Returns every scope the rule reads. */
+        /** Constructs a rule without state reads. */
+        public AdmissionRule(String id, String denyCode, String command, List<Parameter> parameters,
+                             List<Clause> clauses) {
+            this(id, denyCode, command, parameters, List.of(), clauses);
+        }
+        /** Returns every scope the rule reads, in its clauses and read keys. */
         public Set<Scope> scopes() {
             Set<Scope> scopes = new HashSet<>();
+            reads.forEach(read -> scopes.addAll(BindingSourceV1.scopes(read.key())));
             for (Clause clause : clauses) {
                 if (clause instanceof ExpressionClause expression) scopes.addAll(expression.expression().scopes());
                 else if (clause instanceof LookupClause lookup) {
@@ -229,25 +258,76 @@ public record BindingIrV1(List<Component> components, List<AdmissionRule> rules,
             }
             return Set.copyOf(scopes);
         }
-        /** A fact rule reads {@code facts.*} and is evaluated only after an approved kernel decision. */
-        public boolean readsFacts() { return scopes().contains(Scope.FACTS); }
         /**
-         * A static rule has only expression clauses over {@code command}, {@code params}, and {@code config}; it is
-         * also evaluated, advisory only, at local ingress.
+         * A fact rule reads {@code facts.*} and is evaluated only after an approved kernel decision. The runtime also
+         * treats a rule that reads a kernel's write coverage as a fact rule (ADR-031.4 §1.6); only the kernel's
+         * declarations say which write fields are coverage.
+         */
+        public boolean readsFacts() { return scopes().contains(Scope.FACTS); }
+        /** Whether the rule quantifies over the attached kernel's write view (ADR-031.4). */
+        public boolean readsWrites() { return scopes().contains(Scope.WRITE_ELEMENT); }
+        /**
+         * A static rule has no reads and only expression clauses over {@code command}, {@code params},
+         * {@code config} and write content; it is also evaluated, advisory only, at local ingress. The runtime
+         * additionally excludes a rule that reads write coverage.
          */
         public boolean isStatic() {
-            return clauses.stream().allMatch(clause -> clause instanceof ExpressionClause)
-                    && Set.of(Scope.COMMAND, Scope.PARAMS, Scope.CONFIG).containsAll(scopes());
+            return reads.isEmpty() && clauses.stream().allMatch(clause -> clause instanceof ExpressionClause)
+                    && Set.of(Scope.COMMAND, Scope.PARAMS, Scope.CONFIG, Scope.WRITE_ELEMENT).containsAll(scopes());
         }
         /** Returns the parameter declaration with this name, or {@code null}. */
         public Parameter parameter(String name) {
             return parameters.stream().filter(parameter -> parameter.name().equals(name)).findFirst().orElse(null);
         }
+        /** Returns the read declaration with this name, or {@code null}. */
+        public Read read(String name) {
+            return reads.stream().filter(read -> read.name().equals(name)).findFirst().orElse(null);
+        }
         int lookupCount() { return (int) clauses.stream().filter(clause -> clause instanceof LookupClause).count(); }
         Object wire() {
             return Arrays.asList(id, denyCode, command, parameters.stream().map(Parameter::wire).toList(),
-                    clauses.stream().map(Clause::wire).toList());
+                    reads.stream().map(Read::wire).toList(), clauses.stream().map(Clause::wire).toList());
         }
+        /** Every read field of an expression names a read the rule declares. */
+        private static void requireDeclaredReads(BindingExpressionV1.Node node, Set<String> declared) {
+            switch (node) {
+                case BindingExpressionV1.Field field -> {
+                    if (field.scope() == Scope.READS && !declared.contains(field.readName())) {
+                        throw new IllegalArgumentException("undeclared rule read: " + field.readName());
+                    }
+                }
+                case BindingExpressionV1.Call call ->
+                        call.arguments().forEach(argument -> requireDeclaredReads(argument, declared));
+                case BindingExpressionV1.Quantifier quantifier -> requireDeclaredReads(quantifier.body(), declared);
+                case BindingExpressionV1.Literal ignored -> { }
+            }
+        }
+    }
+
+    /**
+     * One exact-key state read of an admission rule (ADR-031.4): the owner kernel resolves the key within the
+     * namespace, the engine reads it through the cascade overlay, and the kernel decodes the stored value into its
+     * declared fields, readable as {@code reads.<name>.<field>}.
+     *
+     * @param name CEL identifier, not a reserved word, unique within the rule
+     * @param component the component whose state is read
+     * @param namespace {@code ""} for a single-namespace kernel, otherwise a declared namespace
+     *                  ({@code [a-z0-9][a-z0-9._-]{0,63}})
+     * @param key key source (bytes or text); it never reads another read
+     */
+    public record Read(String name, String component, String namespace, BindingSourceV1 key) {
+        public Read {
+            if (name == null || !name.matches("[a-zA-Z][a-zA-Z0-9_]{0,62}") || CEL_RESERVED_WORDS.contains(name)) {
+                throw new IllegalArgumentException("invalid rule read name");
+            }
+            requireId(component);
+            Objects.requireNonNull(namespace, "namespace");
+            if (!namespace.isEmpty() && !namespace.matches("[a-z0-9][a-z0-9._-]{0,63}")) {
+                throw new IllegalArgumentException("invalid rule read namespace");
+            }
+            Objects.requireNonNull(key, "key");
+        }
+        Object wire() { return List.of(name, component, namespace, key.wire()); }
     }
 
     /** Frozen parameter-type ordinals; {@link #BINDING} values are binding ids, evaluated as text. */
@@ -541,6 +621,12 @@ public record BindingIrV1(List<Component> components, List<AdmissionRule> rules,
                 + " has the pre-policy-plane layout; re-create the declarative chain");
     }
 
+    /** The explicit decode failure for rule structures written before ADR-031.4 amended them in place. */
+    static IllegalArgumentException predatesTypedViews(String structure) {
+        return new IllegalArgumentException("binding IR predates ADR-031.4: " + structure
+                + " has the pre-typed-views layout; re-create the declarative chain");
+    }
+
     private static Component component(Object value) {
         if (value instanceof List<?> legacy && legacy.size() == 6) throw predatesPolicyPlane("component");
         List<?> fields = BindingCbor.array(value, 7);
@@ -559,7 +645,8 @@ public record BindingIrV1(List<Component> components, List<AdmissionRule> rules,
                 BindingCbor.integer(fields.get(5)), attachments);
     }
     private static AdmissionRule rule(Object value) {
-        List<?> fields = BindingCbor.array(value, 5);
+        if (value instanceof List<?> legacy && legacy.size() == 5) throw predatesTypedViews("admission rule");
+        List<?> fields = BindingCbor.array(value, 6);
         String command = fields.get(2) == null ? null : BindingCbor.text(fields.get(2));
         List<Parameter> parameters = list(fields.get(3)).stream().map(entry -> {
             List<?> parameter = BindingCbor.array(entry, 3);
@@ -568,9 +655,14 @@ public record BindingIrV1(List<Component> components, List<AdmissionRule> rules,
             return new Parameter(BindingCbor.text(parameter.get(0)),
                     enumAt(ParameterType.values(), parameter.get(1)), fallback);
         }).toList();
-        List<Clause> clauses = list(fields.get(4)).stream().map(BindingIrV1::clause).toList();
+        List<Read> reads = list(fields.get(4)).stream().map(entry -> {
+            List<?> read = BindingCbor.array(entry, 4);
+            return new Read(BindingCbor.text(read.get(0)), BindingCbor.text(read.get(1)),
+                    BindingCbor.text(read.get(2)), BindingSourceV1.fromWire(read.get(3)));
+        }).toList();
+        List<Clause> clauses = list(fields.get(5)).stream().map(BindingIrV1::clause).toList();
         return new AdmissionRule(BindingCbor.text(fields.get(0)), BindingCbor.text(fields.get(1)), command,
-                parameters, clauses);
+                parameters, reads, clauses);
     }
     private static Binding binding(Object value) {
         List<?> fields = BindingCbor.array(value, 5);

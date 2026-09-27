@@ -77,6 +77,7 @@ final class BindingReport {
                 failed.put("ruleId", failure.ruleId());
                 failed.put("failedClause", failure.failedClause());
                 failed.put("denyCode", failure.denyCode());
+                failed.put("writeIndex", failure.writeIndex());
                 rules.put("failure", failed);
             }
             value.put("rules", rules);

@@ -1,7 +1,10 @@
-; ADR-031.1 canonical data-only binding contracts, amended in place by ADR-031.3 (policy plane).
+; ADR-031.1 canonical data-only binding contracts, amended in place by ADR-031.3 (policy plane) and
+; ADR-031.4 (typed views: state reads, the write-view quantifier, startsWith/size, writeIndex).
 ; The first rule accepts each envelope. Identifiers are unchanged: IR version 1, functions
 ; "yano-x-binding-functions-v1", dialect "yano-x-cel-v1", BindingReceiptV1. Every amended structure
-; changed its array arity, so bytes produced before ADR-031.3 fail strict decode.
+; changed its array arity, so bytes produced before either amendment fail strict decode. Structures
+; neither amendment touched (a document without rules, a receipt without a rule failure) keep their
+; bytes and their meaning.
 ; Implementations additionally require definite-length, shortest-form CBOR, canonical map-key
 ; ordering, no tags/floats, one root, valid UTF-8, signed-int64 values and <=65536 encoded bytes.
 ; CDDL describes wire shape, not authorization or executable profile validation. Java codecs
@@ -17,16 +20,29 @@
 ;   - attachments per component <= limits.maxRulesPerComponent;
 ;   - lookup clauses per rule <= limits.maxLookupsPerCondition;
 ;   - command scope (1) only in a rule that names a command;
+;   - reads sorted by name and unique; read names and view field names are CEL identifiers, not
+;     CEL reserved words; view field names are never "present";
+;   - an expression reads a read (scope 6) only if its rule declares that read;
+;   - a quantifier body contains no quantifier, and write-element fields (scope 7) appear only
+;     inside a quantifier body, also in the standalone envelope, which this schema leaves looser;
+;     program construction also checks that a quantifier body is boolean;
+;   - reads (scope 6) and quantifiers appear only in rule expression clauses: never in read keys,
+;     lookup keys, lookup expectations, or binding sources (the key grammar below also says so);
 ;   - the scope-by-use-site table below, including inside functions and expression sources.
 ; Runtime descriptors enforce types, evidence flow, acyclic graphs, function arity, command
 ; selectability, declared facts, attachment parameters and tighter committed limits.
 ; No textual CEL or plugin implementation class is encoded here.
 ;
 ; Field scopes (ADR-031.3 section 5.3):
-;   0 event, 1 command, 2 params, 3 config, 4 context, 5 facts.
+;   0 event, 1 command, 2 params, 3 config, 4 context, 5 facts,
+;   6 reads (ADR-031.4), 7 write-element (ADR-031.4).
 ;   binding condition expressions and binding lookups: event, context
 ;   binding mapping sources and mapping expressions:  event, context (evidence targets: event only)
-;   admission rule clauses:                           command, params, config, context, facts
+;   admission rule expression clauses:                command, params, config, context, facts,
+;                                                     reads; write-element inside a quantifier
+;   admission rule lookup clauses and read keys:      command, params, config, context, facts
+; The quantifier node ranges over the kernel-declared write view; it exists only in rule
+; expression clauses and never nests.
 ;
 ; Every repeated element and every array alternative is a named or keyed entry. This is plain
 ; RFC 8610 and keeps the pinned validator (cddl-cli 0.10.5) from misreading bare repeated types.
@@ -42,6 +58,11 @@ binding-name = tstr .regexp "[a-zA-Z][a-zA-Z0-9_.-]{0,126}"
 binding-id = tstr .regexp "[a-z][a-z0-9-]{0,62}"
 rule-parameter-name = tstr .regexp "[a-zA-Z][a-zA-Z0-9_]{0,62}"
 rule-deny-code = tstr .regexp "[A-Z][A-Z0-9_]{0,62}"
+; ADR-031.4: read names and kernel view field names are CEL identifiers.
+read-name = tstr .regexp "[a-zA-Z][a-zA-Z0-9_]{0,62}"
+view-field-name = tstr .regexp "[a-zA-Z][a-zA-Z0-9_]{0,62}"
+; "" for single-namespace kernels; otherwise a namespace the kernel declares (a map collection id).
+read-namespace = "" / tstr .regexp "[a-z0-9][a-z0-9._-]{0,63}"
 ; Scopes whose field names are open (event fields, command fields, parameters, config, facts); the
 ; context scope (4) names one of the five context fields.
 rule-named-scope = 1 / 2 / 3 / 5
@@ -66,7 +87,10 @@ rule-attachments = [] / [1*16 attachment: rule-attachment]
 ; Parameters are normalized: every declared parameter is present, defaults filled.
 rule-attachment = [rule: binding-id, params: ({} / {1*16 rule-parameter-name => binding-scalar})]
 admission-rule = [id: binding-id, deny: rule-deny-code, command: binding-name / null,
-                  params: rule-parameters, clauses: [1*8 clause: rule-clause]]
+                  params: rule-parameters, reads: rule-reads, clauses: [1*8 clause: rule-clause]]
+; ADR-031.4: up to four exact-key state reads, sorted by name, decoded by the owner kernel.
+rule-reads = [] / [1*4 read: rule-read]
+rule-read = [name: read-name, component: binding-id, namespace: read-namespace, key: rule-source]
 rule-parameters = [] / [1*16 parameter: rule-parameter]
 ; Parameter types: integer=0 text=1 bytes=2 boolean=3 binding=4 (a binding id, evaluated as text).
 rule-parameter = [name: rule-parameter-name, type: 0..4, default: binding-scalar / null]
@@ -132,7 +156,15 @@ rule-source = rule-field-source / literal-source / rule-function / rule-expressi
 rule-field-source = rule-named-source / context-source
 rule-named-source = [0, scope: rule-named-scope, field: binding-name]
 rule-expression-source = [3, expression: rule-scalar-expression]
-rule-scalar-expression = [1, type: 0..3, root: rule-expression-node]
+; Key and lookup expressions never read a read (no read chaining) and never quantify.
+rule-scalar-expression = [1, type: 0..3, root: rule-key-node]
+rule-key-node = literal-node / rule-key-field-node / rule-key-unary-node / rule-key-conditional-node
+              / rule-key-binary-node
+rule-key-field-node = [1, scope: rule-named-scope, field: binding-name] / context-node
+rule-key-unary-node = [2, op: binding-unary-operator, args: [operand: rule-key-node]]
+rule-key-conditional-node = [2, "if", args: [condition: rule-key-node, yes: rule-key-node,
+                                             no: rule-key-node]]
+rule-key-binary-node = [2, op: rule-binary-operator, args: [left: rule-key-node, right: rule-key-node]]
 rule-function = [2, function: binding-name, args: [1*8 arg: rule-function-argument]]
 rule-function-argument = rule-field-source / literal-source / rule-inner-function
 rule-inner-function = [2, function: binding-name, args: [1*8 arg: rule-simple-argument]]
@@ -153,7 +185,10 @@ binding-expression-v1 = [1, type: 0..3, root: expression-node]
 ; only: kernel-declared facts may have it, and only the "in" operator accepts it.
 literal-node = [0, value: binding-scalar]
 expression-node = literal-node / any-field-node / any-unary-node / any-conditional-node / any-binary-node
-any-field-node = [1, scope: any-named-scope, field: binding-name] / context-node
+                / any-quantifier-node
+any-field-node = [1, scope: any-named-scope, field: binding-name] / context-node / read-field-node
+               / element-field-node
+any-quantifier-node = [3, quantifier: 0..1, body: element-expression-node]
 context-node = [1, 4, field: context-field]
 any-unary-node = [2, op: binding-unary-operator, args: [operand: expression-node]]
 any-conditional-node = [2, "if", args: [condition: expression-node, yes: expression-node,
@@ -168,16 +203,32 @@ binding-conditional-node = [2, "if", args: [condition: binding-expression-node,
 binding-binary-node = [2, op: binding-binary-operator,
                        args: [left: binding-expression-node, right: binding-expression-node]]
 rule-expression-node = literal-node / rule-field-node / rule-unary-node
-                     / rule-conditional-node / rule-binary-node
-rule-field-node = [1, scope: rule-named-scope, field: binding-name] / context-node
+                     / rule-conditional-node / rule-binary-node / rule-quantifier-node
+rule-field-node = [1, scope: rule-named-scope, field: binding-name] / context-node / read-field-node
 rule-unary-node = [2, op: binding-unary-operator, args: [operand: rule-expression-node]]
 rule-conditional-node = [2, "if", args: [condition: rule-expression-node,
                                          yes: rule-expression-node, no: rule-expression-node]]
 rule-binary-node = [2, op: rule-binary-operator,
                     args: [left: rule-expression-node, right: rule-expression-node]]
-binding-unary-operator = "not" / "neg"
+; ADR-031.4 reads: [1, 6, read, field] reads a declared field, [1, 6, read, "value", field] a value
+; field of a schema-typed record; "present" is always declared.
+read-field-node = [1, 6, read: read-name, field: view-field-name]
+                / [1, 6, read: read-name, "value", field: view-field-name]
+; ADR-031.4 quantifier over the write view: 0 = all, 1 = exists. The body is boolean.
+rule-quantifier-node = [3, quantifier: 0..1, body: element-expression-node]
+element-field-node = [1, 7, field: view-field-name] / [1, 7, "value", field: view-field-name]
+element-expression-node = literal-node / rule-field-node / element-field-node / element-unary-node
+                        / element-conditional-node / element-binary-node
+element-unary-node = [2, op: binding-unary-operator, args: [operand: element-expression-node]]
+element-conditional-node = [2, "if", args: [condition: element-expression-node,
+                                            yes: element-expression-node, no: element-expression-node]]
+element-binary-node = [2, op: rule-binary-operator,
+                       args: [left: element-expression-node, right: element-expression-node]]
+; ADR-031.4: "size" is (text | bytes) -> integer, the UTF-8 byte length or byte length, and
+; "startsWith" is (text, text) | (bytes, bytes) -> boolean. Both are legal wherever the dialect is.
+binding-unary-operator = "not" / "neg" / "size"
 binding-binary-operator = "eq" / "ne" / "lt" / "le" / "gt" / "ge" / "and" / "or"
-                        / "add" / "sub" / "mul" / "div" / "mod" / "concat"
+                        / "add" / "sub" / "mul" / "div" / "mod" / "concat" / "startsWith"
 ; "in" is (text, text-set) -> boolean and stops at the first match. Only rules can read a text set
 ; (a kernel-declared fact), so bindings never use it.
 rule-binary-operator = binding-binary-operator / "in"
@@ -205,10 +256,22 @@ binding-outcomes = [] / [1*256 condition: binding-condition]
 ; Rules are evaluated in a fixed order: admission-slot rules in attachment order, then fact rules in
 ; attachment order, skipping rules whose command selector does not match, stopping at the first
 ; failure. "held" counts the rules that held before the failure (or all evaluated rules).
-; A failure's clause is -1 when the rule failed before any clause: the command view or the kernel's
-; facts could not be established (ADMISSION_RULE_INPUT), or the rule's precharge exhausted work.
-; The deny code is present exactly for ADMISSION_RULE_DENIED. Fact values are never recorded.
-rule-trace = [held: 0..16, failure: rule-failure / null]
+; A failure's clause is -1 when the rule failed before any clause: the command view, the kernel's
+; facts or the write view could not be established (ADMISSION_RULE_INPUT), a read failed
+; (ADMISSION_RULE_ERROR or ADMISSION_RULE_INPUT), or the rule's precharge exhausted work.
+; The deny code is present exactly for ADMISSION_RULE_DENIED. Fact values, read values and write
+; contents are never recorded. ADR-031.4 appends the write index: the element at which the failing
+; clause's most recently completed quantifier stopped early (the first false element of "all", the
+; first true element of "exists", or an element that raised an error). It is null when that
+; quantifier ran to completion or no quantifier ran. A failure before any clause (-1), including a
+; failed read, has no write index.
+; The trace is spelled as named alternatives: the pinned validator accepts any array for a member
+; typed as a choice between a choice of arrays and null.
+rule-trace = rule-trace-held / rule-trace-failed
+rule-trace-held = [held: 0..16, failure: null]
+rule-trace-failed = [held: 0..15, failure: rule-failure]
 rule-failure = rule-denial / rule-error-or-input
-rule-denial = [rule: binding-id, clause: 0..7, deny: rule-deny-code]
-rule-error-or-input = [rule: binding-id, clause: -1 / 0..7, deny: null]
+write-index = 0..127
+rule-denial = [rule: binding-id, clause: 0..7, deny: rule-deny-code, write: write-index / null]
+rule-error-or-input = [rule: binding-id, clause: 0..7, deny: null, write: write-index / null]
+                    / [rule: binding-id, clause: -1, deny: null, write: null]

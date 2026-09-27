@@ -193,6 +193,12 @@ class BindingRuleAuthoringTest {
                 "RULE_FIELD_UNKNOWN", "$.rules[0].require[0]: invalid binding expression");
         assertInvalid(DOCUMENT.replace("command.amount <= params.maxAmount", "event.amount > 0"),
                 "RULE_SCOPE_INVALID", "$.rules[0].require[0]: event scope is not available in an admission rule");
+        // ADR-031.4: a rule that declares no reads names no read, and a kernel without a write view cannot be
+        // quantified over; both keep the expression's position.
+        assertInvalid(DOCUMENT.replace("command.amount <= params.maxAmount", "reads.limits.present"),
+                "RULE_READ_UNKNOWN_FIELD", "$.rules[0].require[0]: invalid binding expression");
+        assertInvalid(DOCUMENT.replace("command.amount <= params.maxAmount", "writes.all(w, w.op == \"PUT\")"),
+                "RULE_WRITES_UNSUPPORTED", "$.rules[0].require[0]: the attached component has no write view");
     }
 
     @Test

@@ -157,13 +157,15 @@ const LIMIT_NAMES = ['maxCascadeDepth', 'maxDerivedPerSourceMessage', 'maxDerive
   'maxLookupsPerCondition', 'maxFunctionCallsPerMapping', 'maxFunctionInputBytes', 'maxExpressionNodes',
   'maxExpressionDepth', 'maxExpressionValueBytes', 'maxExpressionWorkPerCascade', 'maxExpressionWorkPerBlock',
   'maxRulesPerComponent'];
-// ADR-031.3 policy-plane vocabulary: field types by wire ordinal, scopes by wire ordinal, and use sites.
+// ADR-031.3 policy-plane vocabulary: field types by wire ordinal, scopes by wire ordinal, and use sites. ADR-031.4
+// adds the reads and write-element scopes, the rule-key use site (lookup keys and read keys), and the rule reads.
 const FIELD_TYPE_NAMES = ['integer', 'text', 'bytes', 'boolean', 'text-set'];
-const SCOPE_NAMES = ['event', 'command', 'params', 'config', 'context', 'facts'];
-const USE_SITES = ['binding-condition', 'binding-mapping', 'admission-rule'];
+const SCOPE_NAMES = ['event', 'command', 'params', 'config', 'context', 'facts', 'reads', 'writes'];
+const USE_SITES = ['binding-condition', 'binding-mapping', 'admission-rule', 'rule-key'];
 const RULE_KEYS = ['idPattern', 'idsUniqueAcrossRulesAndBindings', 'denyCodePattern', 'reservedDenyCodePrefix',
   'parameterNamePattern', 'reservedNames', 'parameterTypes', 'rulesPerDocument', 'clausesPerRule', 'parametersPerRule',
-  'clauseKinds', 'lookupExpectations', 'slots', 'static'];
+  'clauseKinds', 'lookupExpectations', 'readsPerRule', 'readNamePattern', 'namespacePattern', 'readKeySources',
+  'readPresentField', 'quantifiers', 'slots', 'static'];
 
 const useSites = (value, at) => {
   const sites = expectArray(value, at, USE_SITES.length).map((site, n) => {
@@ -195,7 +197,8 @@ function policyPlaneTables(language) {
   const scopes = expectArray(language.scopes, '$.language.scopes', SCOPE_NAMES.length).map((scope, index) => {
     const at = `$.language.scopes[${index}]`;
     expectObject(scope, at, ['name', 'ordinal', 'useSites', 'note']);
-    if (scope.name !== SCOPE_NAMES[index] || expectSmallInteger(scope.ordinal, `${at}.ordinal`, 0, 5) !== index) {
+    if (scope.name !== SCOPE_NAMES[index]
+        || expectSmallInteger(scope.ordinal, `${at}.ordinal`, 0, SCOPE_NAMES.length - 1) !== index) {
       throw new JsonInputError('CONTRACT_FORMAT', `${at} is not in wire order`, {path: at});
     }
     return Object.freeze({name: scope.name, ordinal: index, useSites: useSites(scope.useSites, `${at}.useSites`),
@@ -234,6 +237,12 @@ function policyPlaneTables(language) {
       parametersPerRule: expectSmallInteger(rules.parametersPerRule, `${at}.parametersPerRule`, 0, 64),
       clauseKinds: strings(rules.clauseKinds, `${at}.clauseKinds`, 8, 16),
       lookupExpectations: strings(rules.lookupExpectations, `${at}.lookupExpectations`, 8, 16),
+      readsPerRule: expectSmallInteger(rules.readsPerRule, `${at}.readsPerRule`, 0, 16),
+      readNamePattern: expectString(rules.readNamePattern, `${at}.readNamePattern`, 128),
+      namespacePattern: expectString(rules.namespacePattern, `${at}.namespacePattern`, 128),
+      readKeySources: strings(rules.readKeySources, `${at}.readKeySources`, 16, 16),
+      readPresentField: expectString(rules.readPresentField, `${at}.readPresentField`, 64),
+      quantifiers: strings(rules.quantifiers, `${at}.quantifiers`, 4, 16),
       slots: Object.freeze(expectArray(rules.slots, `${at}.slots`, 4).map((slot, n) => {
         expectObject(slot, `${at}.slots[${n}]`, ['name', 'when']);
         return Object.freeze({name: expectString(slot.name, `${at}.slots[${n}].name`, 32),
