@@ -8,6 +8,7 @@ import com.bloxbean.cardano.yaci.core.model.Block;
 import com.bloxbean.cardano.yaci.core.model.TransactionBody;
 import com.bloxbean.cardano.yaci.core.model.TransactionOutput;
 import org.yanoproject.api.appchain.l1view.L1Observation;
+import org.yanoproject.x.eutxo.contracts.EutxoBatchSettlementMarker;
 import org.yanoproject.x.eutxo.contracts.EutxoDepositClaim;
 import org.yanoproject.x.eutxo.contracts.EutxoOutpoint;
 import org.yanoproject.x.eutxo.contracts.EutxoVaultDatum;
@@ -165,6 +166,28 @@ class AcceptedVaultDepositObserverTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("no exact payout");
         assertThat(observer().observe(101, fill(32, 8), mismatched)).isEmpty();
+    }
+
+    @Test
+    void batchSettlementMarkerOnTheContinuingVaultIsNotADeposit() {
+        EutxoBatchSettlementMarker marker = new EutxoBatchSettlementMarker(
+                EutxoBatchSettlementMarker.VERSION, List.of("55".repeat(32)));
+        Block settlementBlock = block(List.of(
+                output(OWNER, 20, null),
+                output(VAULT_ADDRESS, 30, marker.encode()),
+                output(OWNER, 2, null)));
+
+        assertThat(observer().observe(101, fill(32, 8), settlementBlock)).isEmpty();
+    }
+
+    @Test
+    void unknownVaultDatumStillFailsClosed() {
+        Block unknown = block(List.of(output(VAULT_ADDRESS, 30,
+                HexFormat.of().parseHex("d87a80"))));
+
+        assertThatThrownBy(() -> observer().observe(101, fill(32, 8), unknown))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("unsupported bridge datum");
     }
 
     private static AcceptedVaultDepositObserver observer() {
