@@ -165,6 +165,20 @@ class BindingTypedViewsCompilerTest {
         }
     }
 
+    /** Without the profile a rule over writes may read coverage, so the IR-only graph says its slot is unresolved. */
+    @Test
+    void theGraphPlacesWriteRulesInTheResolvedSlotOrSaysItIsUnresolved() {
+        var rule = new BindingIrV1.AdmissionRule("covered", "NOT_DIRECT", null, List.of(), List.of(
+                new BindingIrV1.ExpressionClause(new BindingExpressionV1(Type.BOOLEAN, new Quantifier(false,
+                        new Call("eq", List.of(Field.element("coverage"), new Literal("direct"))))))));
+        var ir = new BindingIrV1(List.of(new BindingIrV1.Component("registry", "authenticated-map-component",
+                "registry.v1", Map.of(), 0, 1, List.of(new BindingIrV1.RuleAttachment("covered", Map.of())))),
+                List.of(rule), List.of(), BindingIrV1.Limits.DEFAULT, 1);
+        assertThat(BindingGraph.dot(ir)).contains("covered → NOT_DIRECT (writes; slot resolved by the kernel)");
+        assertThat(BindingGraph.dot(ir, Map.of("admission.registry.00.slot", "fact")))
+                .contains("covered → NOT_DIRECT (facts)").doesNotContain("slot resolved");
+    }
+
     private static String code(Runnable compile) {
         try {
             compile.run();

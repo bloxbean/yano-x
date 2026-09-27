@@ -6,8 +6,8 @@
   "producer" : {
     "tool" : "yano-x-devtools",
     "version" : "0.1.0-pre3",
-    "jarSha256" : "c2f39a5e5f39df6c555db13cd06a0853d9402f1e066c37f6b6b6e24e0afe6eb3",
-    "linkedCompositeJarSha256" : "d4f53b3e07e67cc70df069e89b292a695015939b0a53ea35aeb2e0e712eebe26"
+    "jarSha256" : "6df1937b6dee53c2280225f2487ec704b42bd7a2571ab68a94aff634d35a10f5",
+    "linkedCompositeJarSha256" : "73c76d6c499330cb85a413908ef7f6945c92058e6fb52a921e61bba4ea8b3753"
   },
   "host" : {
     "version" : "0.1.0-pre18-885f31f-SNAPSHOT",
@@ -16,7 +16,7 @@
   },
   "authoringEnvironment" : "yano-x-binding-authoring-environment-v1",
   "catalog" : {
-    "fingerprint" : "sha256:62b5f532179e5c256d5e6357608be090bdbfb90908332ce811c87de8d7dd6549",
+    "fingerprint" : "sha256:b72804e91d4153f7046c262a093ee5c2b5329eaae8fe7cbc6042ebc793e6acda",
     "pluginApi" : {
       "major" : 3,
       "level" : 12
@@ -24,7 +24,7 @@
     "bundles" : [ {
       "id" : "org.yanoproject.x.composite",
       "version" : "0.1.0-pre3",
-      "digest" : "sha256:e4078ac3a8900b89d8165eeb7edbfb4fdae55d17f8bb70d7a4c863dfec867a4a",
+      "digest" : "sha256:14aaa518eceddef15628481d2a20df79fc0501b60ef33072335e613bf8cfc93f",
       "digestMode" : "ARTIFACT_CLOSURE",
       "selected" : true
     }, {
@@ -60,7 +60,7 @@
     "role" : "priorResult",
     "state" : "read",
     "bytes" : "6165",
-    "sha256" : "9dfce8a2e0ce313ccd5bf2b696cbbebe5407b0ac850d6290b45e6a563c7337cb"
+    "sha256" : "d409f87785abcaa69417a9e0a034918274b35a758987b9ea1d3ffc1e671eed10"
   } ],
   "documentFormat" : "yaml",
   "result" : {
@@ -85,7 +85,7 @@
         "stateRootHex" : "0000000000000000000000000000000000000000000000000000000000000000",
         "pendingEffects" : "0"
       },
-      "executionIdentity" : "7c8ce871246b36c92ac1beb6098a5b76ccbef508c7301093919ce599ad8b228a",
+      "executionIdentity" : "d3767e390de4b6b2abb529542abfee3c209a5241e0318613dcff2ffb6b0336dc",
       "assurance" : "execution-only; fixture inputs are not authenticated; no post-state root or finality claim",
       "postStateSha256" : "ad82e82c1d4db05e2d2e34ff23df92d272c70fa3e35c890a7fb298f5cb9f14bc",
       "stateChangeCount" : 8,

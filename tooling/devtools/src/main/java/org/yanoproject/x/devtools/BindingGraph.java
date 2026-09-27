@@ -4,6 +4,9 @@ import org.yanoproject.x.composite.contracts.BindingIrV1;
 import org.yanoproject.x.composite.contracts.BindingIrV1.CommandTarget;
 import org.yanoproject.x.composite.contracts.BindingIrV1.EffectTarget;
 
+import java.util.Locale;
+import java.util.Map;
+
 /** Deterministic Graphviz rendering of committed binding metadata, without activating runtime plugins. */
 public final class BindingGraph {
     private BindingGraph() { }
@@ -19,6 +22,20 @@ public final class BindingGraph {
      * @return stable DOT ending in one newline
      */
     public static String dot(BindingIrV1 ir) {
+        return dot(ir, Map.of());
+    }
+
+    /**
+     * Renders as {@link #dot(BindingIrV1)}, placing each rule in the slot the profile resolved. A rule that reads
+     * write coverage is a fact rule by its kernel's declaration (ADR-031.4 §1.6), which the IR alone cannot show;
+     * {@code resolved} holds the {@code declarative-event-bindings} manifest attributes
+     * ({@code admission.<component>.<nn>.slot}). Without an attribute the IR's own classification is used.
+     *
+     * @param ir structurally valid committed binding document
+     * @param resolved manifest attributes of the validated profile, or empty
+     * @return stable DOT ending in one newline
+     */
+    public static String dot(BindingIrV1 ir, Map<String, String> resolved) {
         StringBuilder graph = new StringBuilder("digraph bindings {\n  rankdir=LR;\n");
         for (var component : ir.components()) {
             graph.append("  ").append(quote(component.id())).append(" [label=")
@@ -28,11 +45,18 @@ public final class BindingGraph {
             if (component.admission().isEmpty()) continue;
             StringBuilder label = new StringBuilder("admission rules");
             for (boolean factSlot : new boolean[]{false, true}) {
-                for (var attachment : component.admission()) {
-                    var rule = ir.rule(attachment.rule());
-                    if (rule == null || rule.readsFacts() != factSlot) continue;
+                for (int index = 0; index < component.admission().size(); index++) {
+                    var rule = ir.rule(component.admission().get(index).rule());
+                    if (rule == null) continue;
+                    String attribute = resolved.get(String.format(Locale.ROOT, "admission.%s.%02d.slot",
+                            component.id(), index));
+                    String slot = attribute != null ? attribute : rule.readsFacts() ? "fact" : "admission";
+                    if (slot.equals("fact") != factSlot) continue;
+                    // Without the profile a rule over writes may read coverage, which only its kernel declares.
+                    boolean unresolved = attribute == null && !rule.readsFacts() && rule.readsWrites();
                     label.append("\n").append(rule.id()).append(rule.command() == null ? "" : " on " + rule.command())
-                            .append(" → ").append(rule.denyCode()).append(factSlot ? " (facts)" : "");
+                            .append(" → ").append(rule.denyCode()).append(factSlot ? " (facts)" : "")
+                            .append(unresolved ? " (writes; slot resolved by the kernel)" : "");
                 }
             }
             String guard = "guard:" + component.id();

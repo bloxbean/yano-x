@@ -139,8 +139,8 @@ public final class BindingValidationException extends IllegalArgumentException {
     /**
      * Declaration part: {@code source-event}, {@code condition}, {@code lookup-key}, {@code lookup-operand},
      * {@code expression}, {@code raw-body}, {@code mapping}, {@code target}, {@code target-command},
-     * {@code target-field}, {@code rule}, {@code attachment} or {@code rule-param}; {@code null} when unknown or
-     * when a kernel descriptor, not a declaration, failed.
+     * {@code target-field}, {@code rule}, {@code attachment}, {@code rule-param} or {@code read}; {@code null} when
+     * unknown or when a kernel descriptor, not a declaration, failed.
      */
     public String part() { return part; }
 

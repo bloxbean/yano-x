@@ -428,8 +428,10 @@ class AdmissionRuleEngineTest {
         var ir = chain(List.of(derivedOnly, needsRole, limit), Map.of("a", List.of(attach("note-limit"),
                 attach("derived-only"), attach("needs-role"))));
         var harness = harness(ir, id -> withFacts(ignored -> Map.of()));
-        assertThat(harness.engine.validate(recordTo("a", 1, "forbidden")).reason())
-                .isEqualTo("ADMISSION_RULE_DENIED/note-limit/NOTE_FORBIDDEN");
+        var refused = harness.engine.validate(recordTo("a", 1, "forbidden"));
+        assertThat(refused.reason()).isEqualTo("ADMISSION_RULE_DENIED");
+        assertThat(refused.details()).containsExactly(Map.entry("rule", "note-limit"),
+                Map.entry("deny", "NOTE_FORBIDDEN"));
         assertThat(harness.engine.validate(recordTo("a", 2, "fine")).isAccepted()).isTrue();
         byte[] body = CascadeHarness.record(VALUE, "n");
         var lenient = new CascadeHarness(ir, id -> {
@@ -437,8 +439,9 @@ class AdmissionRuleEngineTest {
             kernel.lenientCodec = true;
             return kernel;
         });
-        assertThat(lenient.engine.validate(CascadeHarness.message(3, "a.v1", Arrays.copyOf(body, body.length + 1)))
-                .reason()).isEqualTo("ADMISSION_RULE_INPUT/note-limit");
+        var input = lenient.engine.validate(CascadeHarness.message(3, "a.v1", Arrays.copyOf(body, body.length + 1)));
+        assertThat(input.reason()).isEqualTo("ADMISSION_RULE_INPUT");
+        assertThat(input.details()).containsExactly(Map.entry("rule", "note-limit"));
         assertThat(harness.kernels.get("a").ruleFactCalls).isZero();
 
         // A static rule that cannot evaluate, and one that exhausts the fresh local budget.
@@ -446,7 +449,9 @@ class AdmissionRuleEngineTest {
                 List.of(new Literal(1L), new Literal(0L))), new Literal(0L))));
         var failing = harness(chain(List.of(divides), Map.of("a", List.of(attach("divides")))),
                 id -> new CascadeHarness.RecordKernel());
-        assertThat(failing.engine.validate(recordTo("a", 4, "n")).reason()).isEqualTo("ADMISSION_RULE_ERROR/divides");
+        var error = failing.engine.validate(recordTo("a", 4, "n"));
+        assertThat(error.reason()).isEqualTo("ADMISSION_RULE_ERROR");
+        assertThat(error.details()).containsExactly(Map.entry("rule", "divides"));
         var expensive = rule("expensive", "NEVER", null, new Call("eq", List.of(new Literal("x".repeat(64)),
                 new Literal("y".repeat(64)))));
         var tight = new BindingIrV1.Limits(8, 32, 4096, 65536, 2, 8, 65536, 128, 16, 65536, 10, 1_000, 4);

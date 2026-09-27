@@ -140,7 +140,7 @@ class DeclarativeCompositeProviderTest {
     }
 
     @Test
-    void manifestListsRuleAttachmentsWithSlotAndStaticnessInTheBindingsEntry() {
+    void manifestListsRuleAttachmentsWithSlotStaticnessReadsAndWritesInTheBindingsEntry() {
         var arrivals = new BindingIrV1.AdmissionRule("arrivals", "DIRECT_FORBIDDEN", null, List.of(),
                 List.of(clause(new Field(Scope.CONTEXT, "derived"))));
         var positive = new BindingIrV1.AdmissionRule("positive", "NOT_POSITIVE", null,
@@ -162,7 +162,9 @@ class DeclarativeCompositeProviderTest {
                 .containsEntry("admission.records.00.static", "true")
                 .containsEntry("admission.records.01.rule", "arrivals")
                 .containsEntry("admission.records.01.slot", "admission")
-                .containsEntry("admission.records.01.static", "false");
+                .containsEntry("admission.records.01.static", "false")
+                .containsEntry("admission.records.00.reads", "false")
+                .containsEntry("admission.records.00.writes", "false");
     }
 
     private static BindingIrV1.ExpressionClause clause(BindingExpressionV1.Node condition) {

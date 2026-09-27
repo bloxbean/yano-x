@@ -51,11 +51,13 @@ export const DIAGNOSTIC_CODES = Object.freeze({
   "RULE_PARAMETER_MISSING": "A declared rule parameter has no value in this attachment",
   "RULE_PARAMETER_TYPE": "The parameter value does not have the declared type",
   "RULE_PARAMETER_UNKNOWN": "The attachment supplies a parameter the rule does not declare",
+  "RULE_READ_KEY_TYPE": "A read key must be bytes or text",
+  "RULE_READ_UNKNOWN_COMPONENT": "The rule reads a component this document does not declare",
   "RULE_READ_UNKNOWN_FIELD": "The rule reads a field the read's value view does not declare",
+  "RULE_READ_UNKNOWN_NAMESPACE": "The read component's kernel declares no view for this namespace",
   "RULE_SCOPE_INVALID": "The field's scope is not available at this location",
   "RULE_UNATTACHED": "The rule is not attached to any component, so it cannot be checked",
   "RULE_UNKNOWN": "The attachment names a rule this document does not declare",
-  "RULE_UNSUPPORTED": "This engine does not evaluate the rule's reads or write view yet",
   "RULE_WRITES_UNSUPPORTED": "The attached component's kernel declares no write view",
   "UNCLASSIFIED": "The input was rejected; no more specific classification is available",
   "UNKNOWN_COMPONENT": "The component is not declared in this document",
@@ -70,4 +72,4 @@ export const DIAGNOSTIC_CODES = Object.freeze({
   "YAML_MULTIPLE_DOCUMENTS": "Only one YAML document is allowed",
   "YAML_SYNTAX": "The binding document is not valid YAML"
 });
-export const DIAGNOSTIC_PARTS = Object.freeze(["component","component-config","binding","source","source-event","condition","expression","lookup-key","lookup-operand","target","target-command","target-field","mapping","raw-body","effect","limits","rule","attachment","rule-param"]);
+export const DIAGNOSTIC_PARTS = Object.freeze(["component","component-config","binding","source","source-event","condition","expression","lookup-key","lookup-operand","target","target-command","target-field","mapping","raw-body","effect","limits","rule","attachment","rule-param","read"]);

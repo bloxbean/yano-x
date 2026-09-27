@@ -134,7 +134,7 @@ final class CascadeHarness implements CompositeWorkflowContext {
      * {@code transfer} ({@code [2, amount, memo]}). It writes the command under the message id and emits
      * {@code recorded.v1} with the value, note, and amount. Facts and rule facts are configurable.
      */
-    static final class RecordKernel implements TransitionKernel<List<Object>, RecordKernel.Facts> {
+    static class RecordKernel implements TransitionKernel<List<Object>, RecordKernel.Facts> {
         record Facts(long sequence, boolean verified) { }
         List<RuleFact> declared = List.of();
         Function<List<Object>, Map<String, Object>> factValues = command -> Map.of();

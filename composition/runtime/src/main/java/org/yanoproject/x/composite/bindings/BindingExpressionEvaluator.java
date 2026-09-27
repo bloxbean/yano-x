@@ -30,7 +30,10 @@ import java.util.Map;
  *
  * <p>ADR-031.4 adds {@code startsWith} (two texts or two byte strings; a text prefix is a UTF-8 byte prefix) and
  * {@code size} (UTF-8 byte length of text, or length of bytes), both charged by operand bytes like equality, and the
- * write-view {@link Quantifier}. A quantifier is legal only where the caller declares write-element fields.
+ * write-view {@link Quantifier}. A quantifier is legal only where the caller declares write-element fields. It
+ * evaluates its body per element in index order, one work unit per element plus the body's own work, and stops at
+ * the first {@code false} ({@code all}), the first {@code true} ({@code exists}) or the first error; a
+ * {@link WriteIndex} records where the most recently completed quantifier stopped early.
  */
 public final class BindingExpressionEvaluator {
     private BindingExpressionEvaluator() { }
@@ -73,6 +76,26 @@ public final class BindingExpressionEvaluator {
                 throw new BindingFailure("EXPRESSION_CAPACITY_EXCEEDED");
             }
             used += work;
+        }
+    }
+
+    /**
+     * Where the most recently completed quantifier of one evaluation stopped early: the element at which {@code all}
+     * met {@code false}, {@code exists} met {@code true}, or the body raised an error. {@code null} when that
+     * quantifier ran to completion or none ran (ADR-031.4 §5.2).
+     */
+    public static final class WriteIndex {
+        private Integer value;
+
+        /** The deciding element's index, or {@code null}. */
+        public Integer value() { return value; }
+    }
+
+    /** Evaluation state: the scoped inputs, the write view, the current element, and the stop tracker. */
+    private record Env(Scoped<Object> inputs, List<Map<String, Object>> writes, Map<String, Object> element,
+                       Limits limits, Budget cascade, Budget block, WriteIndex index) {
+        Env at(Map<String, Object> current) {
+            return new Env(inputs, writes, current, limits, cascade, block, index);
         }
     }
 
@@ -166,21 +189,37 @@ public final class BindingExpressionEvaluator {
      */
     public static Object evaluate(BindingExpressionV1 expression, Scoped<Object> inputs,
                                   Limits limits, Budget cascade, Budget block) {
-        Object result = evaluate(expression.root(), inputs, limits, cascade, block);
+        return evaluate(expression, inputs, null, limits, cascade, block, new WriteIndex());
+    }
+
+    /**
+     * Evaluates an admission-rule expression that may quantify over a write view (ADR-031.4).
+     *
+     * @param writes the validated write view, or {@code null} when the component has none; each element maps its
+     *               declared field names (and {@code value.<field>} names) to values
+     * @param index receives the element at which the most recently completed quantifier stopped early
+     */
+    public static Object evaluate(BindingExpressionV1 expression, Scoped<Object> inputs,
+                                  List<Map<String, Object>> writes, Limits limits, Budget cascade, Budget block,
+                                  WriteIndex index) {
+        Object result = evaluate(expression.root(), new Env(inputs, writes, null, limits, cascade, block, index));
         if (type(result) != expression.resultType()) throw new BindingFailure("EXPRESSION_TYPE_ERROR");
         return result;
     }
 
-    private static Object evaluate(Node node, Scoped<Object> inputs, Limits limits, Budget cascade, Budget block) {
+    private static Object evaluate(Node node, Env env) {
+        Limits limits = env.limits();
+        Budget cascade = env.cascade();
+        Budget block = env.block();
         charge(1, cascade, block);
         if (node instanceof Literal literal) return bounded(literal.value(), limits);
         if (node instanceof Field field) {
-            Map<String, Object> scope = inputs.of(field.scope());
+            Map<String, Object> scope = field.scope() == Scope.WRITE_ELEMENT
+                    ? (env.element() == null ? Map.of() : env.element()) : env.inputs().of(field.scope());
             if (!scope.containsKey(field.name())) throw new BindingFailure("EXPRESSION_MISSING_FIELD");
             return bounded(scope.get(field.name()), limits);
         }
-        // Profile construction admits a quantifier only once the engine evaluates write views (ADR-031.4 Phase 3).
-        if (node instanceof Quantifier) throw new IllegalStateException("unvalidated write-view quantifier");
+        if (node instanceof Quantifier quantifier) return quantify(quantifier, env);
         Call call = (Call) node;
         List<Node> args = call.arguments();
         String op = call.operator();
@@ -188,14 +227,14 @@ public final class BindingExpressionEvaluator {
             boolean decisive = op.equals("or");
             BindingFailure error = null;
             Object left = null;
-            try { left = evaluate(args.get(0), inputs, limits, cascade, block); }
+            try { left = evaluate(args.get(0), env); }
             catch (BindingFailure failure) {
                 if (failure.code().equals("EXPRESSION_CAPACITY_EXCEEDED")) throw failure;
                 error = failure;
             }
             if (Boolean.valueOf(decisive).equals(left)) return decisive;
             Object right;
-            try { right = evaluate(args.get(1), inputs, limits, cascade, block); }
+            try { right = evaluate(args.get(1), env); }
             catch (BindingFailure failure) {
                 if (failure.code().equals("EXPRESSION_CAPACITY_EXCEEDED") || error == null) throw failure;
                 throw error;
@@ -206,10 +245,10 @@ public final class BindingExpressionEvaluator {
                     throw new BindingFailure("EXPRESSION_TYPE_ERROR");
             return !decisive;
         }
-        Object a = evaluate(args.getFirst(), inputs, limits, cascade, block);
+        Object a = evaluate(args.getFirst(), env);
         if (op.equals("if")) {
             if (!(a instanceof Boolean condition)) throw new BindingFailure("EXPRESSION_TYPE_ERROR");
-            return evaluate(args.get(condition ? 1 : 2), inputs, limits, cascade, block);
+            return evaluate(args.get(condition ? 1 : 2), env);
         }
         try {
             if (op.equals("not")) return !(Boolean) a;
@@ -220,7 +259,7 @@ public final class BindingExpressionEvaluator {
                 charge(length, cascade, block);
                 return length;
             }
-            Object b = evaluate(args.get(1), inputs, limits, cascade, block);
+            Object b = evaluate(args.get(1), env);
             if (op.equals("in")) {
                 if (!(a instanceof String needle) || !(b instanceof List<?> candidates)) {
                     throw new BindingFailure("EXPRESSION_TYPE_ERROR");
@@ -285,6 +324,37 @@ public final class BindingExpressionEvaluator {
         } catch (ClassCastException invalid) {
             throw new BindingFailure("EXPRESSION_TYPE_ERROR");
         }
+    }
+
+    /**
+     * Evaluates a quantifier over the write view: one work unit per visited element plus the body's own work, in
+     * index order, stopping at the first element that decides the result or raises an error. The stop is recorded in
+     * the {@link WriteIndex}; a quantifier that runs to completion clears it.
+     */
+    private static Object quantify(Quantifier quantifier, Env env) {
+        List<Map<String, Object>> writes = env.writes();
+        if (writes == null) throw new IllegalStateException("quantifier evaluated without a write view");
+        boolean exists = quantifier.exists();
+        for (int position = 0; position < writes.size(); position++) {
+            Object result;
+            try {
+                charge(1, env.cascade(), env.block());
+                result = evaluate(quantifier.body(), env.at(writes.get(position)));
+            } catch (BindingFailure failure) {
+                env.index().value = position;
+                throw failure;
+            }
+            if (!(result instanceof Boolean holds)) {
+                env.index().value = position;
+                throw new BindingFailure("EXPRESSION_TYPE_ERROR");
+            }
+            if (holds == exists) {
+                env.index().value = position;
+                return exists;
+            }
+        }
+        env.index().value = null;
+        return !exists;
     }
 
     private static void charge(long work, Budget cascade, Budget block) {

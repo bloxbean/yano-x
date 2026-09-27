@@ -7,6 +7,7 @@ import org.yanoproject.api.appchain.AppChainConsensusProfile;
 import org.yanoproject.api.appchain.AppChainInfo;
 import org.yanoproject.api.appchain.AppQueryContext;
 import org.yanoproject.api.appchain.AppStateMachine;
+import org.yanoproject.api.appchain.AppStateMachine.AdmissionResult;
 import org.yanoproject.api.appchain.AppStateWriter;
 import org.yanoproject.api.appchain.FinalityCert;
 import org.yanoproject.api.appchain.effects.AppEffectEmitter;
@@ -112,7 +113,7 @@ final class BindingDryRun {
         for (AppMessage message : messages) {
             var admission = machine.validateForBlock(message, fixture.height(), state);
             if (!admission.isAccepted()) {
-                throw new IllegalArgumentException("fixture admission rejected: " + admission.reason());
+                throw new IllegalArgumentException("fixture admission rejected: " + describe(admission));
             }
         }
         List<Map<String, Object>> effects = new ArrayList<>();
@@ -211,6 +212,19 @@ final class BindingDryRun {
                         + "whole cascade is rolled back, including the source command and every earlier step "
                         + "(ADR-031.3 §5.8)." + kept);
         return value;
+    }
+
+    /**
+     * The text of an ingress refusal: the code, then the rule and deny code from its structured details
+     * ({@code CODE/rule/deny}), and the deciding write when one decided (bloxbean/yano#153).
+     */
+    static String describe(AdmissionResult admission) {
+        StringBuilder text = new StringBuilder(String.valueOf(admission.reason()));
+        var details = admission.details();
+        if (details.get("rule") != null) text.append('/').append(details.get("rule"));
+        if (details.get("deny") != null) text.append('/').append(details.get("deny"));
+        if (details.get("write") != null) text.append(" at write ").append(details.get("write"));
+        return text.toString();
     }
 
     private static Map<String, Object> failure(BindingReceiptV1.RuleFailure failure) {

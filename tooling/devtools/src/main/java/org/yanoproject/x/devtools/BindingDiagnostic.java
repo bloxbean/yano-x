@@ -37,7 +37,7 @@ record BindingDiagnostic(String code, String severity, String message, String de
      */
     static final List<String> PARTS = List.of("component", "component-config", "binding", "source", "source-event",
             "condition", "expression", "lookup-key", "lookup-operand", "target", "target-command", "target-field",
-            "mapping", "raw-body", "effect", "limits", "rule", "attachment", "rule-param");
+            "mapping", "raw-body", "effect", "limits", "rule", "attachment", "rule-param", "read");
 
     /**
      * Closed diagnostic code catalog with controlled messages. Adding a code is additive; changing a code's meaning
@@ -115,7 +115,9 @@ record BindingDiagnostic(String code, String severity, String message, String de
             Map.entry("RULE_PARAMETER_TYPE", "The parameter value does not have the declared type"),
             Map.entry("RULE_LOOKUP_COMPONENT_UNKNOWN", "The rule's lookup names a component this document lacks"),
             Map.entry("RULE_LIMIT", "The rule exceeds a structural or profile limit"),
-            Map.entry("RULE_UNSUPPORTED", "This engine does not evaluate the rule's reads or write view yet"),
+            Map.entry("RULE_READ_UNKNOWN_COMPONENT", "The rule reads a component this document does not declare"),
+            Map.entry("RULE_READ_UNKNOWN_NAMESPACE", "The read component's kernel declares no view for this namespace"),
+            Map.entry("RULE_READ_KEY_TYPE", "A read key must be bytes or text"),
             Map.entry("RULE_READ_UNKNOWN_FIELD", "The rule reads a field the read's value view does not declare"),
             Map.entry("RULE_WRITES_UNSUPPORTED", "The attached component's kernel declares no write view"),
             Map.entry("UNCLASSIFIED", "The input was rejected; no more specific classification is available"));

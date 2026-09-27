@@ -10,6 +10,7 @@ import org.yanoproject.api.appchain.AppQueryException;
 import org.yanoproject.api.appchain.AppStateMachine;
 import org.yanoproject.api.appchain.AppStateReader;
 import org.yanoproject.api.appchain.AppStateWriter;
+import org.yanoproject.x.composite.bindings.EventBindingWorkflow;
 import org.yanoproject.x.composite.contracts.AggregateQueryCodecV1;
 import org.yanoproject.x.composite.contracts.BindingIrV1;
 import org.yanoproject.api.appchain.AppStateMachineContext;
@@ -510,17 +511,23 @@ public final class CompositeStateMachine implements AppStateMachine {
             }
             // ADR-031.3: each rule attachment, keyed by component and zero-padded attachment position, so each
             // component's attachments sort in attachment order (the host stores attributes in sorted key order).
-            // Slot and static-ness are pure functions of the committed rule, so the manifest digest stays a
-            // function of the profile alone.
+            // ADR-031.4 adds whether it reads state and quantifies over writes. Slot and static-ness come from the
+            // profile's resolved rules, because reading write coverage (a kernel declaration fixed by committed
+            // configuration) makes a fact rule; the manifest digest stays a function of the profile alone.
+            Map<String, List<String>> slots = ruleAttachmentSlots();
             for (var component : document.components()) {
                 for (int index = 0; index < component.admission().size(); index++) {
                     var rule = document.rule(component.admission().get(index).rule());
                     String prefix = String.format(java.util.Locale.ROOT, "admission.%s.%02d.", component.id(), index);
+                    List<String> resolved = slots.getOrDefault(component.id() + "/" + index, List.of(
+                            rule.readsFacts() ? "fact" : "admission", Boolean.toString(rule.isStatic())));
                     bindings.put(prefix + "rule", rule.id());
                     bindings.put(prefix + "command", rule.command() == null ? "*" : rule.command());
                     bindings.put(prefix + "deny", rule.denyCode());
-                    bindings.put(prefix + "slot", rule.readsFacts() ? "fact" : "admission");
-                    bindings.put(prefix + "static", Boolean.toString(rule.isStatic()));
+                    bindings.put(prefix + "slot", resolved.get(0));
+                    bindings.put(prefix + "static", resolved.get(1));
+                    bindings.put(prefix + "reads", Boolean.toString(!rule.reads().isEmpty()));
+                    bindings.put(prefix + "writes", Boolean.toString(rule.readsWrites()));
                 }
             }
             manifest.crossCutting(new AppCapabilityManifest.CrossCutting("declarative-event-bindings", "1.0.0",
@@ -872,6 +879,18 @@ public final class CompositeStateMachine implements AppStateMachine {
     }
 
     private record WorkflowBinding(WorkflowDescriptor descriptor, CompositeWorkflow product) {
+    }
+
+    /** The active profile's resolved rule slots, from its declarative binding workflow; empty without one. */
+    private Map<String, List<String>> ruleAttachmentSlots() {
+        RuntimeEntry runtime = runtimesByDigest.get(HexFormat.of().formatHex(profile.digest()));
+        if (runtime == null) return Map.of();
+        for (WorkflowBinding workflow : runtime.workflows()) {
+            if (workflow.product() instanceof EventBindingWorkflow bindings) {
+                return bindings.ruleAttachmentSlots();
+            }
+        }
+        return Map.of();
     }
 
     private record RuntimeEntry(CompositeProfile profile,

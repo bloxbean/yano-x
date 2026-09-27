@@ -11,6 +11,7 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.exc.ValueInstantiationException;
+import org.yanoproject.api.appchain.AppCapabilityManifest;
 import org.yanoproject.api.appchain.AppQueryContext;
 import org.yanoproject.api.appchain.AppStateMachine;
 import org.yanoproject.x.composite.CompositeProfile;
@@ -29,6 +30,7 @@ import java.util.Arrays;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -246,7 +248,7 @@ public final class BindingCli {
             }
             switch (parsed.command()) {
                 case "compile" -> out.println(HexFormat.of().formatHex(ir.encode()));
-                case "graph" -> out.print(BindingGraph.dot(ir));
+                case "graph" -> out.print(BindingGraph.dot(ir, bindingAttributes(machine.capabilityManifest())));
                 case "validate" -> {
                     Map<String, Object> validation = new LinkedHashMap<>();
                     validation.put("valid", true);
@@ -255,7 +257,7 @@ public final class BindingCli {
                     validation.put("manifest", machine.capabilityManifest());
                     validation.put("bindingCount", ir.bindings().size());
                     validation.put("componentCount", ir.components().size());
-                    List<Map<String, Object>> admission = admissionOrder(ir);
+                    List<Map<String, Object>> admission = admissionOrder(ir, machine.capabilityManifest());
                     if (!admission.isEmpty()) validation.put("admission", admission);
                     out.println(JSON.writerWithDefaultPrettyPrinter().writeValueAsString(validation));
                 }
@@ -357,25 +359,40 @@ public final class BindingCli {
             return List.copyOf(ids);
         }
 
+        /** The profile's {@code declarative-event-bindings} manifest attributes, or empty. */
+        private static Map<String, String> bindingAttributes(AppCapabilityManifest manifest) {
+            return manifest.crossCutting().stream()
+                    .filter(value -> value.capabilityId().equals("declarative-event-bindings"))
+                    .findFirst().map(AppCapabilityManifest.CrossCutting::attributes).orElse(Map.of());
+        }
+
         /**
          * Each component's attached rules in evaluation order (ADR-031.3 §5.6): the admission slot in attachment
-         * order, then the verified-fact slot. Components without rules are omitted.
+         * order, then the verified-fact slot. Components without rules are omitted. Slot and static-ness are the
+         * profile's resolved values from the capability manifest, since a rule that reads write coverage is a fact
+         * rule by its kernel's declaration (ADR-031.4 §1.6).
          */
-        private static List<Map<String, Object>> admissionOrder(BindingIrV1 ir) {
+        private static List<Map<String, Object>> admissionOrder(BindingIrV1 ir, AppCapabilityManifest manifest) {
+            Map<String, String> resolved = bindingAttributes(manifest);
             List<Map<String, Object>> components = new ArrayList<>();
             for (var component : ir.components()) {
                 if (component.admission().isEmpty()) continue;
                 List<Map<String, Object>> ordered = new ArrayList<>();
                 for (boolean factSlot : new boolean[]{false, true}) {
-                    for (var attachment : component.admission()) {
-                        var rule = ir.rule(attachment.rule());
-                        if (rule == null || rule.readsFacts() != factSlot) continue;
+                    for (int index = 0; index < component.admission().size(); index++) {
+                        var rule = ir.rule(component.admission().get(index).rule());
+                        if (rule == null) continue;
+                        String prefix = String.format(Locale.ROOT, "admission.%s.%02d.", component.id(), index);
+                        boolean fact = resolved.getOrDefault(prefix + "slot",
+                                rule.readsFacts() ? "fact" : "admission").equals("fact");
+                        if (fact != factSlot) continue;
                         Map<String, Object> value = new LinkedHashMap<>();
                         value.put("rule", rule.id());
                         value.put("command", rule.command() == null ? "*" : rule.command());
                         value.put("deny", rule.denyCode());
                         value.put("slot", factSlot ? "fact" : "admission");
-                        value.put("static", rule.isStatic());
+                        value.put("static", Boolean.parseBoolean(resolved.getOrDefault(prefix + "static",
+                                Boolean.toString(rule.isStatic()))));
                         ordered.add(value);
                     }
                 }
@@ -389,7 +406,8 @@ public final class BindingCli {
 
         /**
          * Authored segments of an ADR-031.3 rule failure: an attachment, one of its parameters, or a rule's command
-         * selector or clause. Rules are addressed by their authored position, which the IR does not keep.
+         * selector, clause or (ADR-031.4) read. Rules are addressed by their authored position, which the IR does not
+         * keep.
          */
         private static BindingDocumentPath rulePath(BindingValidationException located, BindingIrV1 ir,
                                                     List<String> ruleOrder) {
@@ -408,6 +426,7 @@ public final class BindingCli {
             if (rule < 0) return BindingDocumentPath.ROOT.field("rules");
             BindingDocumentPath path = BindingDocumentPath.ROOT.field("rules").index(rule);
             if (located.clauseIndex() != null) return path.field("require").index(located.clauseIndex());
+            if (part.equals("read") && located.field() != null) return path.field("reads").field(located.field());
             return located.code().startsWith("RULE_COMMAND_") ? path.field("command") : path;
         }
 

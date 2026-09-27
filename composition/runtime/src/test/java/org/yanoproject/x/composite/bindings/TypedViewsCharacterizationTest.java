@@ -226,12 +226,12 @@ class TypedViewsCharacterizationTest {
     }
 
     /**
-     * The code, rule and deny code an ingress refusal identifies. ADR-031.4 §5.9 moves the rule and deny code from
-     * the reason string into structured details; Phase 3 reads them from there and keeps this triple.
+     * The code, rule and deny code an ingress refusal identifies. ADR-031.4 §5.9 moved the rule and deny code from
+     * the reason string into structured details; the triple is unchanged.
      */
     private static List<String> refusal(AdmissionResult result) {
         assertThat(result.isAccepted()).isFalse();
-        return List.of(result.reason().split("/"));
+        return List.of(result.reason(), (String) result.details().get("rule"), (String) result.details().get("deny"));
     }
 
     private static RuleFailure failure(String rule, int clause, String deny) {

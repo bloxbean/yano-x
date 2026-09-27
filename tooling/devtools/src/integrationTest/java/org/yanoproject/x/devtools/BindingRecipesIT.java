@@ -332,7 +332,7 @@ class BindingRecipesIT {
                     BalancesContract.mint(alice, BigInteger.valueOf(50_000))));
             // transfer-limit reads only command.* and params.*, so it is static: refused before pooling.
             ingress.rejects(cluster, "points.command.v1", BalancesContract.transfer(bob, BigInteger.valueOf(20_000)),
-                    "ADMISSION_RULE_DENIED/transfer-limit/TRANSFER_LIMIT_EXCEEDED");
+                    "transfer-limit", "TRANSFER_LIMIT_EXCEEDED");
             ids.add(submit(cluster, 0, "points.command.v1",
                     BalancesContract.transfer(bob, BigInteger.valueOf(10_000))));
             // mint is not selected by the rule, so a large mint is unaffected.
@@ -349,7 +349,7 @@ class BindingRecipesIT {
                     "approved".getBytes(StandardCharsets.UTF_8))));
             // minimum-quorum reads only command.* and params.*: a direct low-quorum proposal fails at ingress.
             ingress.rejects(cluster, "approvals.command.v1", ApprovalsContract.propose("02", new byte[]{7}, 1, 0),
-                    "ADMISSION_RULE_DENIED/minimum-quorum/QUORUM_TOO_LOW");
+                    "minimum-quorum", "QUORUM_TOO_LOW");
             // §7.2: the registered supplier's order derives a quorum-2 proposal at depth 1.
             ids.add(submit(cluster, 0, "orders.command.v1", KvRegistryContract.put(new byte[]{1}, new byte[]{42})));
             // §7.4: only-via-binding reads context, so a direct audit append is pooled and denied at block time.
@@ -523,18 +523,23 @@ class BindingRecipesIT {
     }
 
     /**
-     * Local ingress of an ADR-031.3 static rule. The host exposes only a bounded symbolic code to callers
-     * (§5.8), so the workflow's full reason is read from the same catalog-built composite the nodes run.
+     * Local ingress of an ADR-031.3 static rule. The node's submission reports the code with structured details
+     * (ADR-031.4 §5.9, bloxbean/yano#153), and the catalog-built composite the nodes run gives the same refusal.
      */
     private record Ingress(AppStateMachine machine, String chain) {
-        void rejects(Cluster cluster, String topic, byte[] body, String reason) {
+        void rejects(Cluster cluster, String topic, byte[] body, String rule, String deny) {
             assertThatThrownBy(() -> cluster.nodes[0].submit(topic, body))
-                    .isInstanceOfSatisfying(AppSubmissionRejectedException.class, rejected ->
-                            assertThat(rejected.code()).isEqualTo("APPLICATION_REJECTED"));
+                    .isInstanceOfSatisfying(AppSubmissionRejectedException.class, rejected -> {
+                        assertThat(rejected.code()).isEqualTo("ADMISSION_RULE_DENIED");
+                        assertThat(rejected.details()).containsExactly(Map.entry("rule", rule),
+                                Map.entry("deny", deny));
+                    });
             var message = AppMessage.builder().messageId(new byte[32]).chainId(chain).topic(topic)
                     .sender(new byte[32]).senderSeq(1).expiresAt(0).body(body).authScheme(0)
                     .authProof(new byte[0]).build();
-            assertThat(machine.validate(message).reason()).isEqualTo(reason);
+            var refused = machine.validate(message);
+            assertThat(refused.reason()).isEqualTo("ADMISSION_RULE_DENIED");
+            assertThat(refused.details()).containsExactly(Map.entry("rule", rule), Map.entry("deny", deny));
         }
     }
 

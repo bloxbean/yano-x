@@ -4,6 +4,7 @@ import com.bloxbean.cardano.client.crypto.Blake2bUtil;
 import org.yanoproject.api.appchain.AppStateReader;
 import org.yanoproject.api.appchain.transition.CommandDescriptor;
 import org.yanoproject.api.appchain.transition.RuleFact;
+import org.yanoproject.api.appchain.transition.RuleValueView;
 import org.yanoproject.api.appchain.transition.TransitionKernel;
 import org.yanoproject.api.appchain.transition.TransitionScalars;
 import org.yanoproject.api.appchain.transition.TransitionWorkBudget;
@@ -29,6 +30,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.HexFormat;
@@ -50,7 +52,9 @@ import java.util.function.Function;
  *
  * <p>Admission rules (ADR-031.3) are validated here too: every attachment is type-checked against the kernel of
  * the component it is attached to, and resolved into that component's admission and verified-fact slots
- * ({@link BindingRules}). Rules can only deny; nothing here widens what a kernel accepts.
+ * ({@link BindingRules}). Rules can only deny; nothing here widens what a kernel accepts. ADR-031.4 reads are
+ * type-checked against the value views of the components they read, and write-view quantifiers against the
+ * attached kernel's write view; a rule that reads write coverage runs in the verified-fact slot and is never static.
  */
 public final class BindingProgram {
     public static final String BASELINE = "composite.command-accepted.v1";
@@ -69,6 +73,7 @@ public final class BindingProgram {
     private final Map<String, Set<TransitionWorkReference>> workReferences;
     private final Map<String, Set<String>> accountingKeys;
     private final BindingRules rules;
+    private final Map<String, Map<String, Map<String, RuleFact.Type>>> valueViews = new LinkedHashMap<>();
 
     /**
      * Validates a document against the exact kernels selected for its component instances.
@@ -164,6 +169,7 @@ public final class BindingProgram {
             var component = ir.components().get(index);
             if (component.admission().isEmpty()) continue;
             Map<String, RuleFact.Type> declared = declaredFacts(component.id());
+            BindingRules.WriteView writeView = writeView(component.id());
             Map<String, Object> configuration = new LinkedHashMap<>();
             component.configuration().forEach((name, value) -> configuration.put(name, value.value()));
             List<BindingRules.Attached> admission = new ArrayList<>();
@@ -179,16 +185,19 @@ public final class BindingProgram {
                     if (!seen.add(rule.id())) throw invalid("RULE_DUPLICATE", "rule attached twice: " + rule.id());
                     attached.add(rule.id());
                     Map<String, Object> parameters = ruleParameters(rule, attachment, component.id());
-                    validateRule(rule, component, configuration, declared);
-                    var resolvedRule = new BindingRules.Attached(position, rule, parameters, rule.readsFacts(),
-                            rule.isStatic());
+                    Resolution resolution = validateRule(rule, component, configuration, declared, writeView);
+                    var resolvedRule = new BindingRules.Attached(position, rule, parameters,
+                            rule.readsFacts() || resolution.readsCoverage(),
+                            rule.isStatic() && !resolution.readsCoverage(), rule.readsWrites(),
+                            resolution.readsCoverage(), resolution.reads());
                     (resolvedRule.factRule() ? facts : admission).add(resolvedRule);
                 } catch (IllegalArgumentException invalid) {
                     throw BindingValidationException.wrap("component '" + component.id() + "' rule attachment["
                             + position + "] '" + attachment.rule() + "'", invalid, "UNCLASSIFIED", context);
                 }
             }
-            resolved.put(component.id(), new BindingRules.Component(admission, facts, configuration, declared));
+            resolved.put(component.id(), new BindingRules.Component(admission, facts, configuration, declared,
+                    writeView));
         }
         for (AdmissionRule rule : ir.rules()) {
             if (!attached.contains(rule.id())) {
@@ -219,6 +228,87 @@ public final class BindingProgram {
         }
         return types;
     }
+
+    /**
+     * A kernel's value views (ADR-031.4 §5.7), read once and checked against the host contract: each namespace maps
+     * its declared fields, and value fields under {@code value.<name>}, to their types.
+     */
+    private Map<String, Map<String, RuleFact.Type>> valueViews(String component) {
+        var cached = valueViews.get(component);
+        if (cached != null) return cached;
+        List<RuleValueView> declared;
+        try {
+            declared = List.copyOf(kernel(component).ruleValueViews());
+        } catch (RuntimeException invalid) {
+            throw invalid("KERNEL_CONTRACT_INVALID", "invalid rule value views: " + component);
+        }
+        if (declared.size() > RuleValueView.MAX_VIEWS) {
+            throw invalid("KERNEL_CONTRACT_INVALID", "too many rule value views: " + component);
+        }
+        Map<String, Map<String, RuleFact.Type>> views = new LinkedHashMap<>();
+        for (RuleValueView view : declared) {
+            Map<String, RuleFact.Type> fields = new LinkedHashMap<>();
+            view.fields().forEach(field -> fields.put(field.name(), field.type()));
+            view.valueFields().forEach(field -> fields.put(RuleValueView.VALUE_PREFIX + field.name(), field.type()));
+            if (views.putIfAbsent(view.namespace(), fields) != null) {
+                throw invalid("KERNEL_CONTRACT_INVALID", "duplicate rule value namespace: " + component);
+            }
+        }
+        valueViews.put(component, Collections.unmodifiableMap(views));
+        return valueViews.get(component);
+    }
+
+    /**
+     * A kernel's write view (ADR-031.4 §5.2), or {@code null} when it declares none. Content fields gain the
+     * engine's {@code index} and the write value fields: {@code value.<f>} for every value field that all of the
+     * kernel's views agree on. Names are unique across content and coverage and never reserved.
+     */
+    private BindingRules.WriteView writeView(String component) {
+        List<RuleFact> content;
+        List<RuleFact> coverage;
+        try {
+            content = List.copyOf(kernel(component).ruleWriteFields());
+            coverage = List.copyOf(kernel(component).ruleWriteCoverageFields());
+        } catch (RuntimeException invalid) {
+            throw invalid("KERNEL_CONTRACT_INVALID", "invalid rule write view: " + component);
+        }
+        if (content.isEmpty()) {
+            if (!coverage.isEmpty()) throw invalid("KERNEL_CONTRACT_INVALID", "coverage without a write view");
+            return null;
+        }
+        if (content.size() > RuleValueView.MAX_FIELDS || coverage.size() > RuleValueView.MAX_FIELDS) {
+            throw invalid("KERNEL_CONTRACT_INVALID", "too many rule write fields: " + component);
+        }
+        Map<String, RuleFact.Type> contentTypes = new LinkedHashMap<>();
+        Map<String, RuleFact.Type> coverageTypes = new LinkedHashMap<>();
+        for (RuleFact field : content) {
+            if (Set.of("index", "value", "present").contains(field.name())
+                    || contentTypes.putIfAbsent(field.name(), field.type()) != null) {
+                throw invalid("KERNEL_CONTRACT_INVALID", "reserved or duplicate write field: " + field.name());
+            }
+        }
+        for (RuleFact field : coverage) {
+            if (Set.of("index", "value", "present").contains(field.name()) || contentTypes.containsKey(field.name())
+                    || coverageTypes.putIfAbsent(field.name(), field.type()) != null) {
+                throw invalid("KERNEL_CONTRACT_INVALID", "reserved or duplicate coverage field: " + field.name());
+            }
+        }
+        contentTypes.put("index", RuleFact.Type.INTEGER);
+        // Value fields that every view declaring them types alike; a conflicting name is not declared.
+        Map<String, RuleFact.Type> values = new LinkedHashMap<>();
+        Set<String> conflicting = new HashSet<>();
+        valueViews(component).values().forEach(fields -> fields.forEach((name, type) -> {
+            if (!name.startsWith(RuleValueView.VALUE_PREFIX)) return;
+            RuleFact.Type previous = values.putIfAbsent(name, type);
+            if (previous != null && previous != type) conflicting.add(name);
+        }));
+        conflicting.forEach(values::remove);
+        contentTypes.putAll(values);
+        return new BindingRules.WriteView(contentTypes, coverageTypes);
+    }
+
+    /** What rule validation resolves: the reads with their view types, and whether the rule reads write coverage. */
+    private record Resolution(List<BindingRules.Read> reads, boolean readsCoverage) { }
 
     /** The attachment's parameters, exactly the rule's declarations with values of the declared types. */
     private Map<String, Object> ruleParameters(AdmissionRule rule, RuleAttachment attachment, String component) {
@@ -251,16 +341,13 @@ public final class BindingProgram {
         return values;
     }
 
-    /** Type-checks one rule against the kernel and configuration of the component it is attached to. */
-    private void validateRule(AdmissionRule rule, BindingIrV1.Component component,
-                              Map<String, Object> configuration, Map<String, RuleFact.Type> declared) {
-        // Interim guard (ADR-031.4 Phase 2): the contracts carry reads and write-view quantifiers, and the engine
-        // evaluates them from Phase 3. Until then a profile that uses them cannot be constructed.
-        if (!rule.reads().isEmpty() || rule.readsWrites()) {
-            throw BindingValidationException.annotate(invalid("RULE_UNSUPPORTED",
-                    "state reads and write views are not evaluated yet"), BindingValidationException.Context.part(
-                    "rule"));
-        }
+    /**
+     * Type-checks one rule against the kernel and configuration of the component it is attached to, its reads against
+     * the value views of the components they read, and its quantifiers against the attached kernel's write view.
+     */
+    private Resolution validateRule(AdmissionRule rule, BindingIrV1.Component component,
+                                    Map<String, Object> configuration, Map<String, RuleFact.Type> declared,
+                                    BindingRules.WriteView writeView) {
         Map<Scope, Map<String, Type>> scopes = new EnumMap<>(Scope.class);
         Set<String> evidence = new HashSet<>();
         if (rule.command() != null) {
@@ -294,12 +381,62 @@ public final class BindingProgram {
         scopes.put(Scope.CONFIG, configurationTypes);
         scopes.put(Scope.CONTEXT, CONTEXT_FIELDS);
         scopes.put(Scope.FACTS, factTypes);
+        // Keys (lookup and read keys) read only these scopes; no key reads a read.
+        Scoped<Type> keys = new Scoped<>(scopes);
+        List<BindingRules.Read> reads = new ArrayList<>();
+        Map<String, Type> readTypes = new LinkedHashMap<>();
+        for (var read : rule.reads()) {
+            var context = BindingValidationException.Context.field("read", read.name());
+            try {
+                if (!kernels.containsKey(read.component())) {
+                    throw invalid("RULE_READ_UNKNOWN_COMPONENT", "unknown read component: " + read.component());
+                }
+                var view = valueViews(read.component()).get(read.namespace());
+                if (view == null) {
+                    throw invalid("RULE_READ_UNKNOWN_NAMESPACE", "component " + read.component()
+                            + " declares no value view for namespace '" + read.namespace() + "'");
+                }
+                for (var field : sourceFields(read.key())) requireRuleField(field, keys, evidence);
+                Type keyType;
+                try {
+                    keyType = sourceType(read.key(), keys);
+                } catch (IllegalArgumentException invalid) {
+                    throw invalid("RULE_READ_KEY_TYPE", "read key: " + invalid.getMessage());
+                }
+                if (keyType != Type.BYTES && keyType != Type.TEXT) {
+                    throw invalid("RULE_READ_KEY_TYPE", "a read key is bytes or text");
+                }
+                readTypes.put(read.name() + "." + RuleValueView.PRESENT, Type.BOOLEAN);
+                view.forEach((name, type) -> readTypes.put(read.name() + "." + name, Type.valueOf(type.name())));
+                reads.add(new BindingRules.Read(read.name(), read.component(), read.namespace(), read.key(), view));
+            } catch (IllegalArgumentException invalid) {
+                throw at("read '" + read.name() + "'", invalid, "UNCLASSIFIED", context);
+            }
+        }
+        scopes.put(Scope.READS, readTypes);
+        if (rule.readsWrites()) {
+            if (writeView == null) {
+                throw BindingValidationException.annotate(invalid("RULE_WRITES_UNSUPPORTED",
+                        "component " + component.id() + " has no write view"),
+                        BindingValidationException.Context.part("rule"));
+            }
+            Map<String, Type> elements = new LinkedHashMap<>();
+            writeView.content().forEach((name, type) -> elements.put(name, Type.valueOf(type.name())));
+            writeView.coverage().forEach((name, type) -> elements.put(name, Type.valueOf(type.name())));
+            scopes.put(Scope.WRITE_ELEMENT, elements);
+        }
         Scoped<Type> schema = new Scoped<>(scopes);
+        boolean readsCoverage = false;
         for (int index = 0; index < rule.clauses().size(); index++) {
             var clause = rule.clauses().get(index);
             var context = new BindingValidationException.Context(null, null, index, "rule", null, null);
             try {
-                for (var field : fields(clause)) requireRuleField(field, schema, evidence);
+                for (var field : fields(clause)) {
+                    requireRuleField(field, schema, evidence);
+                    if (field.scope() == Scope.WRITE_ELEMENT && writeView.coverage().containsKey(field.name())) {
+                        readsCoverage = true;
+                    }
+                }
                 if (clause instanceof ExpressionClause expression) {
                     try {
                         BindingExpressionEvaluator.validate(expression.expression(), schema, ir.limits());
@@ -321,32 +458,42 @@ public final class BindingProgram {
                 throw at("clause[" + index + "]", invalid, "UNCLASSIFIED", context);
             }
         }
+        return new Resolution(reads, readsCoverage);
     }
 
     /** Classifies an unknown or forbidden field read by a rule. */
-    private static void requireRuleField(BindingSourceV1.Field field, Scoped<Type> schema, Set<String> evidence) {
+    private static void requireRuleField(BindingExpressionV1.Field field, Scoped<Type> schema, Set<String> evidence) {
         if (schema.of(field.scope()).containsKey(field.name())) return;
         if (field.scope() == Scope.COMMAND && evidence.contains(field.name())) {
             throw invalid("RULE_EVIDENCE_READ", "rules cannot read evidence field command." + field.name());
         }
-        throw invalid(field.scope() == Scope.FACTS ? "RULE_FACT_UNKNOWN" : "RULE_FIELD_UNKNOWN",
-                "unknown " + field.scope().label() + " field: " + field.name());
+        throw invalid(switch (field.scope()) {
+            case FACTS -> "RULE_FACT_UNKNOWN";
+            case READS -> "RULE_READ_UNKNOWN_FIELD";
+            default -> "RULE_FIELD_UNKNOWN";
+        }, "unknown " + field.scope().label() + " field: " + field.name());
     }
 
-    /** Every scoped field a rule clause reads, from expressions, lookup keys and operands alike. */
-    private static List<BindingSourceV1.Field> fields(BindingIrV1.Clause clause) {
-        List<BindingSourceV1.Field> fields = new ArrayList<>();
+    /** Every scoped field a rule clause reads, from expressions (including quantifier bodies) and lookups alike. */
+    private static List<BindingExpressionV1.Field> fields(BindingIrV1.Clause clause) {
+        List<BindingExpressionV1.Field> fields = new ArrayList<>();
         if (clause instanceof ExpressionClause expression) collect(expression.expression().root(), fields);
         if (clause instanceof LookupClause lookup) {
-            collect(lookup.key(), fields);
-            if (lookup.operand() != null) collect(lookup.operand(), fields);
+            fields.addAll(sourceFields(lookup.key()));
+            if (lookup.operand() != null) fields.addAll(sourceFields(lookup.operand()));
         }
         return fields;
     }
 
-    private static void collect(BindingSourceV1 source, List<BindingSourceV1.Field> fields) {
+    private static List<BindingExpressionV1.Field> sourceFields(BindingSourceV1 source) {
+        List<BindingExpressionV1.Field> fields = new ArrayList<>();
+        collect(source, fields);
+        return fields;
+    }
+
+    private static void collect(BindingSourceV1 source, List<BindingExpressionV1.Field> fields) {
         switch (source) {
-            case BindingSourceV1.Field field -> fields.add(field);
+            case BindingSourceV1.Field field -> fields.add(new BindingExpressionV1.Field(field.scope(), field.name()));
             case BindingSourceV1.Function function ->
                     function.arguments().forEach(argument -> collect(argument, fields));
             case BindingSourceV1.Expression expression -> collect(expression.expression().root(), fields);
@@ -354,11 +501,12 @@ public final class BindingProgram {
         }
     }
 
-    private static void collect(BindingExpressionV1.Node node, List<BindingSourceV1.Field> fields) {
-        if (node instanceof BindingExpressionV1.Field field) {
-            fields.add(new BindingSourceV1.Field(field.scope(), field.name()));
-        } else if (node instanceof BindingExpressionV1.Call call) {
-            call.arguments().forEach(argument -> collect(argument, fields));
+    private static void collect(BindingExpressionV1.Node node, List<BindingExpressionV1.Field> fields) {
+        switch (node) {
+            case BindingExpressionV1.Field field -> fields.add(field);
+            case BindingExpressionV1.Call call -> call.arguments().forEach(argument -> collect(argument, fields));
+            case BindingExpressionV1.Quantifier quantifier -> collect(quantifier.body(), fields);
+            case BindingExpressionV1.Literal ignored -> { }
         }
     }
     public BindingIrV1 ir() { return ir; }
@@ -706,6 +854,29 @@ public final class BindingProgram {
             case EQUAL_LITERAL, EQUAL_FIELD -> current.isPresent()
                     && equal(current.get(), source(lookup.operand(), inputs, cascade, block), cascade, block);
         };
+    }
+
+    /**
+     * Evaluates a rule read's key source (ADR-031.4 §5.1): bytes are used as they are and text is UTF-8 encoded. The
+     * key is non-empty and at most {@code maxFunctionInputBytes}.
+     *
+     * @throws BindingFailure when the key has another type, is out of bounds, or a work budget is exhausted
+     */
+    byte[] ruleKey(BindingSourceV1 key, Scoped<Object> inputs, BindingExpressionEvaluator.Budget cascade,
+                   BindingExpressionEvaluator.Budget block) {
+        Object value = source(key, inputs, cascade, block);
+        byte[] bytes = switch (value) {
+            case byte[] raw -> raw;
+            case String text -> {
+                BindingWork.size(text);
+                yield text.getBytes(StandardCharsets.UTF_8);
+            }
+            default -> throw new BindingFailure("LOOKUP_KEY_TYPE");
+        };
+        if (bytes.length == 0 || bytes.length > ir.limits().maxFunctionInputBytes()) {
+            throw new BindingFailure("LOOKUP_KEY_LIMIT");
+        }
+        return bytes;
     }
 
     /**

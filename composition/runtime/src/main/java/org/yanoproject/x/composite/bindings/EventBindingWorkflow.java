@@ -51,7 +51,9 @@ import java.util.Set;
  * <p>Every step, source or derived, also passes the admission rules attached to its target component (ADR-031.3):
  * rules that do not read facts after the kernel's admit hooks and before work is reserved, and fact rules only after
  * the kernel approved, with the facts instance that produced the approval. A denial is one more per-source-message
- * rejection; each step's receipt records the rules that held and the first that did not.
+ * rejection; each step's receipt records the rules that held and the first that did not. Rules may read declared
+ * state through the cascade overlays and quantify over the kernel's write view of the decoded command; write
+ * coverage comes only from the facts instance of the approval (ADR-031.4).
  *
  * <p>The enclosing composite/host transaction supplies block-level atomicity. Infrastructure failures during
  * commit propagate to that transaction; this class must not turn a partially committed infrastructure failure
@@ -80,6 +82,22 @@ public final class EventBindingWorkflow implements CompositeWorkflow {
         this.ingress = Map.copyOf(routes);
     }
     @Override public WorkflowDescriptor descriptor() { return descriptor; }
+
+    /**
+     * The resolved slot and static-ness of each rule attachment, keyed {@code <component>/<index>}: {@code fact} or
+     * {@code admission}, then {@code true} or {@code false}. A rule that reads write coverage is a fact rule even
+     * without reading {@code facts.*} (ADR-031.4 §1.6); the classification depends only on the committed profile and
+     * the kernels' declarations, so capability manifests stay deterministic.
+     */
+    public Map<String, List<String>> ruleAttachmentSlots() {
+        Map<String, List<String>> slots = new LinkedHashMap<>();
+        for (var component : program.ir().components()) {
+            var rules = program.rules().component(component.id());
+            rules.ordered().forEach(rule -> slots.put(component.id() + "/" + rule.index(), List.of(
+                    rule.factRule() ? "fact" : "admission", Boolean.toString(rule.isStatic()))));
+        }
+        return Map.copyOf(slots);
+    }
     /** Returns the last locally completed apply's counters, never read by execution or persisted as authority. */
     @Override public Map<String, Object> operationalStatus() { return diagnostics; }
 
@@ -87,8 +105,9 @@ public final class EventBindingWorkflow implements CompositeWorkflow {
      * Rejects malformed commands and statically impossible subscribed-baseline size/work before pooling.
      * Uses full committed allowances, never a node-local remaining-block counter; stateful authorization,
      * native event output and dynamic fan-out remain authoritative apply-time checks. Static admission rules
-     * attached to the source component are then evaluated with a fresh local budget; this is advisory, since
-     * block-time evaluation is authoritative and followers never run it.
+     * attached to the source component are then evaluated with a fresh local budget, over the command and its write
+     * view; this is advisory, since block-time evaluation is authoritative and followers never run it. A refusal
+     * carries structured details (rule, deny code, deciding write) for REST callers (bloxbean/yano#153).
      */
     @Override public AdmissionResult validate(AppMessage source) {
         String component = ingress.get(source.getTopic());
@@ -105,13 +124,14 @@ public final class EventBindingWorkflow implements CompositeWorkflow {
         } catch (BindingFailure predictable) {
             return AdmissionResult.reject(predictable.code());
         }
-        AdmissionResult kernel = validateKernel(program.kernel(component), source.getBody());
-        if (!kernel.isAccepted()) return kernel;
-        return program.rules().advisory(component, source.getBody(), program.ir().limits());
+        return validateKernel(program.kernel(component), component, source.getBody());
     }
 
-    /** Decoding failures are bad input; failures in the stateless admission implementation are not. */
-    private static <C> AdmissionResult validateKernel(TransitionKernel<C, ?> kernel, byte[] body) {
+    /**
+     * Decoding failures are bad input; failures in the stateless admission implementation are not. An accepted
+     * command then passes the component's static rules, which may read its write view.
+     */
+    private <C> AdmissionResult validateKernel(TransitionKernel<C, ?> kernel, String component, byte[] body) {
         var codec = kernel.codec();
         C command;
         try {
@@ -119,7 +139,10 @@ public final class EventBindingWorkflow implements CompositeWorkflow {
         } catch (RuntimeException malformed) {
             return AdmissionResult.reject("MALFORMED_SOURCE_COMMAND");
         }
-        return Objects.requireNonNull(kernel.admit(command), "kernel returned null stateless admission");
+        AdmissionResult admitted = Objects.requireNonNull(kernel.admit(command),
+                "kernel returned null stateless admission");
+        if (!admitted.isAccepted()) return admitted;
+        return program.rules().advisory(component, body, program.ir().limits(), () -> kernel.ruleWrites(command));
     }
 
     /**
@@ -437,7 +460,8 @@ public final class EventBindingWorkflow implements CompositeWorkflow {
         if (!kernel.admit(command).isAccepted() || !kernel.admit(command, step.context).isAccepted()) {
             throw new BindingFailure("ADMISSION");
         }
-        program.rules().admissionSlot(step.component, step.body, ruleContext, overlays::get, cascade, block, rules);
+        program.rules().admissionSlot(step.component, step.body, ruleContext, overlays::get, cascade, block, rules,
+                () -> kernel.ruleWrites(command));
         kernel.workRequest(command, step.context).ifPresent(request -> {
             var budget = program.workBudget(step.component, request.reference());
             var owner = generations.get(request.reference().participantId());
@@ -450,7 +474,8 @@ public final class EventBindingWorkflow implements CompositeWorkflow {
         TransitionDecision decision = kernel.decide(command, step.context, facts);
         if (decision instanceof TransitionDecision.Approved && program.rules().needsFacts(step.component, rules)) {
             program.rules().factSlot(step.component, kernel.ruleFactValues(command, step.context, facts), ruleContext,
-                    overlays::get, cascade, block, rules);
+                    overlays::get, cascade, block, rules, () -> kernel.ruleWrites(command),
+                    () -> kernel.ruleWriteCoverage(command, step.context, facts));
         }
         return decision;
     }

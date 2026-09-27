@@ -111,20 +111,22 @@ class TypedViewsDialectTest {
                 Scope.WRITE_ELEMENT, Map.of("op", Type.TEXT))), LIMITS)).isInstanceOf(IllegalArgumentException.class);
     }
 
+    /** Kernels that declare no value or write views: a read names no namespace, and nothing can be quantified. */
     @Test
-    void untilPhaseThreeAProfileWithReadsOrWriteQuantifiersIsNotConstructed() {
+    void withoutDeclaredViewsAProfileWithReadsOrWriteQuantifiersIsNotConstructed() {
         var reading = new AdmissionRule("reading", "NEVER", null, List.of(), List.of(new BindingIrV1.Read("x", "b",
                 "", new BindingSourceV1.Literal("k"))), List.of(BindingContextAndViewTest.condition(
                 Field.read("x", "present"))));
         var quantifying = new AdmissionRule("quantifying", "NEVER", null, List.of(), List.of(),
                 List.of(BindingContextAndViewTest.condition(new Quantifier(false, new Literal(true)))));
-        for (var rule : List.of(reading, quantifying)) {
+        for (var rule : Map.of(reading, "RULE_READ_UNKNOWN_NAMESPACE", quantifying, "RULE_WRITES_UNSUPPORTED")
+                .entrySet()) {
             var ir = new BindingIrV1(List.of(BindingContextAndViewTest.component("a", List.of(
-                    new RuleAttachment(rule.id(), Map.of()))), BindingContextAndViewTest.component("b", List.of())),
-                    List.of(rule), List.of(), LIMITS, 1);
-            assertThatThrownBy(() -> new CascadeHarness(ir)).as(rule.id())
+                    new RuleAttachment(rule.getKey().id(), Map.of()))), BindingContextAndViewTest.component("b",
+                    List.of())), List.of(rule.getKey()), List.of(), LIMITS, 1);
+            assertThatThrownBy(() -> new CascadeHarness(ir)).as(rule.getKey().id())
                     .isInstanceOfSatisfying(BindingValidationException.class, invalid ->
-                            assertThat(invalid.code()).isEqualTo("RULE_UNSUPPORTED"));
+                            assertThat(invalid.code()).isEqualTo(rule.getValue()));
         }
     }
 }

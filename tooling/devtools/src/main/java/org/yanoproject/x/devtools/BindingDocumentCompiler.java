@@ -718,6 +718,7 @@ public final class BindingDocumentCompiler {
         switch (node) {
             case BindingExpressionV1.Field field when field.scope() == Scope.COMMAND -> fields.add(field.name());
             case BindingExpressionV1.Call call -> call.arguments().forEach(argument -> commandFields(argument, fields));
+            case BindingExpressionV1.Quantifier quantifier -> commandFields(quantifier.body(), fields);
             case BindingSourceV1.Field field when field.scope() == Scope.COMMAND -> fields.add(field.name());
             case BindingSourceV1.Expression expression -> commandFields(expression.expression().root(), fields);
             case BindingSourceV1.Function function ->
