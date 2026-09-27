@@ -93,6 +93,7 @@ These are the recommended next items after ADR-013 release closure.
 | INT-008 | P2 | Proposed | Complete DPP product profile: actor/credential schemas, gated workflow, portal, policy, and Cardano publication. | [DPP possible design](dpp-possible-design.md); consumes ADR-013/015/019 and FX-002 |
 | INT-009 | P2 | Deferred | A generic migration-precondition/workflow contract for state-incompatible composite upgrades. | ADR-015 §9.2; revive with the first concrete migration consumer |
 | INT-010 | P1 | In progress | Policy plane: declarative, forbid-only admission rules for composite components, with verified kernel facts and `context.*` for bindings. | [ADR-031.3](031.3-policy-plane-declarative-admission-rules.md); milestones in §15 |
+| INT-011 | P1 | In progress | Policy plane typed views: rules read kernel-decoded state (governed parameters) and quantify over authenticated-map writes with verified per-write coverage. | [ADR-031.4](031.4-policy-plane-typed-views-state-reads-and-map-writes.md); milestones in §16 |
 
 ### 5.1 Performance and capacity validation
 
@@ -292,3 +293,25 @@ every deviation live in the [implementation ledger](031.3-implementation-progres
 | ID | Priority | State | Remaining gap | Owner |
 |---|---|---|---|---|
 | RULE-007 | P1 | Blocked | Publish a Yano release containing the RULE-001 host contract, bump `yanoVersion`, and rerun the full gate without `useMavenLocal` (ADR-031.3 §12 item 12) | Yano release owner |
+
+## 16. ADR-031.4 policy plane typed views
+
+Rules read kernel-decoded state and quantify over authenticated-map writes; the host carries
+declarations and bounded values and evaluates nothing. The same work delivers structured REST
+refusal reasons (bloxbean/yano#153) and post-state facts on the stock kernels
+(bloxbean/yano-x#25). Exact gate commands, test counts, the Yano commit behind each gate, and every
+deviation live in the [implementation ledger](031.4-implementation-progress.md).
+
+| Milestone | State | Evidence / release boundary |
+|---|---|---|
+| VIEW-000: contract freeze and characterization | Implemented | Amended CDDL and golden vectors, host signatures, confirmed view and post-state fact tables, §15 resolved, characterization tests |
+| VIEW-001: Yano host contract and structured refusal reasons | Proposed | `RuleValueView`, seven `TransitionKernel` defaults at API level 12, facade forwarding; `AdmissionResult` details and the REST 400 body |
+| VIEW-002: contracts and dialect | Proposed | In-place v1 amendments (reads, quantifier, scopes, `startsWith`/`size`, `writeIndex`), compiler, consumers |
+| VIEW-003: runtime evaluation | Proposed | Reads, write view, coverage, quantifiers, budgets, diagnostics, ingress details |
+| VIEW-004: stock views and post-state facts | Proposed | Value views on five kernels, map write view and coverage, post-state facts on four kernels |
+| VIEW-005: authoring, tooling, Studio, documentation | Proposed | YAML, catalog, CLI, Studio, docs, three recipes and a holding-cap example |
+| VIEW-006: local qualification and packaging | Proposed | Three-member runs, governed parameter, 128-write anti-poison, replay across a rule epoch, packaging gates |
+
+| ID | Priority | State | Remaining gap | Owner |
+|---|---|---|---|---|
+| VIEW-007 | P1 | Blocked | Ship the VIEW-001 host contract in the same Yano release as RULE-001 (ADR-031.4 §11 item 7), then re-pin and regenerate the Studio fixtures | Yano release owner |
