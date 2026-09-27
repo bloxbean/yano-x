@@ -258,6 +258,36 @@ class StudioFixturesIT {
         scenario(work, plugins, roleContext, outputs, directory, "dpp-role-gated", "dpp-role-gated", roleGated,
                 blocks, List.of("", "", "ADMISSION_RULE_DENIED", "INVALID_SIGNATURE", "ADMISSION_RULE_DENIED", ""),
                 false);
+        // ADR-031.4 recipes: one message per block, exactly as the live qualification submits them, with each
+        // recipe's context beside its public fixtures.
+        List<String> members = BindingRecipesIT.memberSeeds().stream().map(KeyGenUtil::getPublicKeyFromPrivateKey)
+                .map(BindingRecipesIT::hex).toList();
+        int identity = 0xc1;
+        for (String recipe : BindingRecipesIT.TYPED_VIEW_RECIPES) {
+            String yaml = Files.readString(repository.resolve("examples/bindings/" + recipe + ".yaml"));
+            String text = JSON.writer().with(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS)
+                    .withDefaultPrettyPrinter().writeValueAsString(BindingRecipesIT.recipeContext(recipe, yaml)) + "\n";
+            Path recipeContext = work.resolve(recipe + "-context.json");
+            Files.writeString(recipeContext, text);
+            outputs.put("examples/bindings/fixtures/" + recipe + "/context.json", text);
+            var steps = BindingRecipesIT.TypedViewStep.of(recipe, BindingRecipesIT.productGenesis(yaml));
+            List<ObjectNode> recipeBlocks = new ArrayList<>();
+            List<String> codes = new ArrayList<>();
+            for (int index = 0; index < steps.size(); index++) {
+                var step = steps.get(index);
+                recipeBlocks.add(fixture(index + 1, List.of(message(identity++, members.get(step.node()), index + 1,
+                        step.topic(), step.body()))));
+                codes.add(step.refusal() == null ? "" : step.refusal().code());
+            }
+            scenario(work, plugins, recipeContext, outputs, directory, recipe, recipe, yaml, recipeBlocks, codes,
+                    false);
+            if (recipe.equals("feed-slot-rules")) {
+                // A governed map's value views, write view and coverage, as the editor's pickers receive them.
+                outputs.put(directory + "catalog-feed-slot-rules.json", cli(List.of("bindings", "catalog",
+                        work.resolve(recipe + ".yaml").toString(), "--plugins-directory", plugins.toString(),
+                        "--context", recipeContext.toString()), 0).out());
+            }
+        }
     }
 
     /**

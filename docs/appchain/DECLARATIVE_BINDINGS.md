@@ -48,9 +48,11 @@ call or exactly-once delivery guarantee.
   conversion: use `hex`, `utf8-bytes`, or a documented codec explicitly.
 - `when` clauses are a short-circuiting conjunction. `expr` accepts the
   restricted `yano-x-cel-v1` profile: checked integer arithmetic, comparisons,
-  boolean logic, a lazy conditional, and bounded concatenation. Loops,
-  comprehensions, floating point, arbitrary functions, and Java access are
-  rejected.
+  boolean logic, a lazy conditional, bounded concatenation, `size` (UTF-8 bytes
+  of text, length of bytes) and `startsWith`. Admission rules also quantify over
+  a kernel's write view with `writes.all(w, …)` and `writes.exists(w, …)`.
+  Other loops and comprehensions, floating point, arbitrary functions, and Java
+  access are rejected.
 - Lookups read one logical key from a named participant, including earlier
   cascade writes. The owner converts the logical key to its canonical local
   key. Map lookups use canonical `[collectionId, applicationKey]` bytes.
@@ -178,36 +180,53 @@ Scopes by use site:
 | `params.*` / `{param}` | no | the attachment's normalized values |
 | `config.*` / `{config}` | no | the component's normalized configuration |
 | `facts.*` / `{fact}` | no | facts the kernel declares |
+| `reads.*` | no | the rule's declared reads (`present`, view fields, `value.<member>`) |
+| `writes` | no | `writes.all(w, …)` / `writes.exists(w, …)` over the kernel's write view |
 
 `in` tests text membership and is available only in rules; a text-set fact is
 readable only as the right-hand operand of `in`. Evidence fields are never
 readable (`RULE_EVIDENCE_READ`). Rule clauses are `expr` or `lookup`
 (`exists`, `absent`, or `eq`); a lookup reads a declared component's state as
-the cascade left it.
+the cascade left it. Lookup and read keys use only `context`, `command`,
+`params`, `config` and `facts`.
 
-Evaluation happens in two slots per step. Rules that do not read facts run after
-the kernel's `admit` hooks and before any work is reserved. Rules that read facts
-run only after the kernel approved the command, with the exact facts of that
-approval. Attachment order holds within each slot; the first failing rule
-decides, and later rules are neither evaluated nor charged. Rule work is charged
-to both expression budgets, including for refusals, and never refunded.
+A rule may declare up to four reads of other components' value views
+(ADR-031.4):
+
+```yaml
+      reads:                        # 0-4, sorted by name in the IR
+        limits: {component: registry, namespace: settings, key: {literal: "transfer"}}
+```
+
+Reads run before the clauses through the cascade's state. A read failure records
+clause `-1`; receipts never carry read values or write contents, only the deny
+code, the clause and the deciding write's index.
+
+Evaluation happens in two slots per step. Rules that read neither facts nor
+write coverage run after the kernel's `admit` hooks and before any work is
+reserved. Rules that read facts or coverage run only after the kernel approved
+the command, with the exact facts of that approval. Attachment order holds
+within each slot; the first failing rule decides, and later rules are neither
+evaluated nor charged. Rule work is charged to both expression budgets,
+including for refusals, and never refunded.
 
 | Receipt code | Meaning |
 |---|---|
 | `ADMISSION_RULE_DENIED` | a clause did not hold; the step's trace names the rule, clause and deny code |
-| `ADMISSION_RULE_ERROR` | a clause could not be evaluated (absent fact, division by zero); fails closed |
-| `ADMISSION_RULE_INPUT` | the command view or the kernel's fact values were unusable (clause `-1`) |
+| `ADMISSION_RULE_ERROR` | a clause or read could not be evaluated (absent fact, unguarded absent read, refused read key, division by zero); fails closed |
+| `ADMISSION_RULE_INPUT` | the command view, the kernel's fact values, a decoded read or the write view broke its declaration (clause `-1`) |
 | `EXPRESSION_CAPACITY_EXCEEDED` | cascade or block expression work was exhausted |
 
-Every receipt step records `rulesEvaluated = [heldCount, failure]`. A refused
-step rejects its source message: the whole cascade, including the source
-command, is rolled back; no business state is written, only the receipt,
-framework accounting, and any non-refundable crypto work already reserved. A
-rule whose clauses are all expressions reading only `command.*`, `params.*` and
-`config.*` is static and is also evaluated at local ingress; REST callers see
-the host's bounded code `APPLICATION_REJECTED`, while the node's DEBUG admission
-log and `bindings dry-run` show the full reason
-`ADMISSION_RULE_DENIED/<rule>/<denyCode>`.
+Every receipt step records `rulesEvaluated = [heldCount, failure]`, where the
+failure is `[ruleId, failedClause, denyCode, writeIndex]`. A refused step
+rejects its source message: the whole cascade, including the source command, is
+rolled back; no business state is written, only the receipt, framework
+accounting, and any non-refundable crypto work already reserved. A rule whose
+clauses are all expressions reading only `command.*`, `params.*`, `config.*` and
+write content is static and is also evaluated at local ingress. REST callers get
+HTTP 400 with `{"code": "ADMISSION_RULE_DENIED", "details": {"rule": …,
+"deny": …}}` (bloxbean/yano#153), plus `"write"` when a quantifier decided;
+`bindings dry-run` shows `ADMISSION_RULE_DENIED/<rule>/<denyCode>`.
 
 Kernels that declare facts:
 
@@ -216,10 +235,17 @@ Kernels that declare facts:
 | `authenticated-map-component` | `senderMember` (boolean), `collections` (text set) |
 | governed `authenticated-map-component` | also `directActorCount`, `approvalCount`; for exactly one direct actor `actorId`, `organizationId`, `role`, `roles` (text set), `policyId` |
 | `governed-role-approvals` | `actorId`, `organizationId`, `roles` (text set), `action`, `policyId`, `policyRevision` |
+| `balances` | `balanceAfter` (mint), `fromBalanceAfter` and `toBalanceAfter` (transfer) |
+| `kv-registry` | `existed`, `valueLength` (put) |
+| `doc-trail` | `countAfter`, `first` |
+| `approvals` | `approverCountAfter`, `required`, `approvedNow`, `proposerIsSender` |
 
-Other stock machines declare no facts (`RULE_FACT_UNKNOWN`). A multi-actor map
-batch establishes counts only; reading `facts.roles` for it fails closed. See
-[Admission rules](bindings/07-admission-rules.md) for the recipes and patterns.
+The stock facts are post-state facts (bloxbean/yano-x#25): each equals the value
+the kernel's own event reports after an approved command. A multi-actor map
+batch establishes counts only; reading `facts.roles` for it fails closed. Value
+views, the map write view and its coverage are listed in
+[Admission rules](bindings/07-admission-rules.md) with the recipes and
+patterns.
 
 ## Submission validity and retry
 

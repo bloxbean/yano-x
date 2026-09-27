@@ -162,6 +162,25 @@ const LIMIT_NAMES = ['maxCascadeDepth', 'maxDerivedPerSourceMessage', 'maxDerive
 const FIELD_TYPE_NAMES = ['integer', 'text', 'bytes', 'boolean', 'text-set'];
 const SCOPE_NAMES = ['event', 'command', 'params', 'config', 'context', 'facts', 'reads', 'writes'];
 const USE_SITES = ['binding-condition', 'binding-mapping', 'admission-rule', 'rule-key'];
+/** A kernel namespace: the default "" or a map collection id (ADR-031.4 §5.1). */
+const NAMESPACE = /^(?:[a-z0-9][a-z0-9._-]{0,63})?$/;
+
+/** Declared rule fields (facts, view fields, write fields): unique CEL identifiers with a known type. */
+function ruleFields(value, at, maximum = 32) {
+  const names = new Set();
+  return Object.freeze(expectArray(value, at, maximum).map((field, n) => {
+    const f = `${at}[${n}]`;
+    expectObject(field, f, ['name', 'type']);
+    const name = expectString(field.name, `${f}.name`, 63, IDENTIFIER);
+    if (RESERVED_NAMES.has(name)) throw new JsonInputError('CONTRACT_FORMAT', `${f}.name is a CEL reserved word`, {path: f});
+    const type = expectString(field.type, `${f}.type`, 16);
+    if (!FIELD_TYPE_NAMES.includes(type)) throw new JsonInputError('CONTRACT_FORMAT', `${f}.type is unknown`, {path: f});
+    if (names.has(name)) throw new JsonInputError('CATALOG_DUPLICATE', `${f}.name repeats a field`, {path: f});
+    names.add(name);
+    return Object.freeze({name, type});
+  }));
+}
+
 const RULE_KEYS = ['idPattern', 'idsUniqueAcrossRulesAndBindings', 'denyCodePattern', 'reservedDenyCodePrefix',
   'parameterNamePattern', 'reservedNames', 'parameterTypes', 'rulesPerDocument', 'clausesPerRule', 'parametersPerRule',
   'clauseKinds', 'lookupExpectations', 'readsPerRule', 'readNamePattern', 'namespacePattern', 'readKeySources',
@@ -394,7 +413,8 @@ export function importAuthoringCatalog(input) {
     const at = `$.instances[${index}]`;
     expectObject(instance, at, ['machineId', 'basis', 'authoredConfiguration', 'status'], ['componentIds',
       'configurationDescriptor', 'applicationVersion', 'normalizedConfiguration', 'events', 'commands',
-      'rawBodyTarget', 'readParticipants', 'commandSelectable', 'unselectableReason', 'ruleFacts', 'diagnostic']);
+      'rawBodyTarget', 'readParticipants', 'commandSelectable', 'unselectableReason', 'ruleFacts', 'ruleValueViews',
+      'ruleWriteFields', 'ruleWriteCoverageFields', 'diagnostic']);
     const result = {
       machineId: expectString(instance.machineId, `${at}.machineId`, 256, SELECTOR),
       basis: expectString(instance.basis, `${at}.basis`, 16),
@@ -453,18 +473,26 @@ export function importAuthoringCatalog(input) {
       if (result.commandSelectable !== (result.unselectableReason === null)) {
         throw new JsonInputError('CONTRACT_FORMAT', `${at}.unselectableReason must be null exactly when commands are selectable`, {path: at});
       }
-      const factNames = new Set();
-      result.ruleFacts = Object.freeze(expectArray(instance.ruleFacts, `${at}.ruleFacts`, 32).map((fact, n) => {
-        const f = `${at}.ruleFacts[${n}]`;
-        expectObject(fact, f, ['name', 'type']);
-        const name = expectString(fact.name, `${f}.name`, 63, IDENTIFIER);
-        if (RESERVED_NAMES.has(name)) throw new JsonInputError('CONTRACT_FORMAT', `${f}.name is a CEL reserved word`, {path: f});
-        const type = expectString(fact.type, `${f}.type`, 16);
-        if (!FIELD_TYPE_NAMES.includes(type)) throw new JsonInputError('CONTRACT_FORMAT', `${f}.type is unknown`, {path: f});
-        if (factNames.has(name)) throw new JsonInputError('CATALOG_DUPLICATE', `${f}.name repeats a fact`, {path: f});
-        factNames.add(name);
-        return Object.freeze({name, type});
-      }));
+      result.ruleFacts = ruleFields(instance.ruleFacts, `${at}.ruleFacts`);
+      // ADR-031.4: value views for rule reads and the write view, when the kernel declares them.
+      if (instance.ruleValueViews !== undefined) {
+        const namespaces = new Set();
+        result.ruleValueViews = Object.freeze(expectArray(instance.ruleValueViews, `${at}.ruleValueViews`, 64)
+          .map((view, n) => {
+            const v = `${at}.ruleValueViews[${n}]`;
+            expectObject(view, v, ['namespace', 'fields', 'valueFields']);
+            const namespace = expectString(view.namespace, `${v}.namespace`, 64, NAMESPACE);
+            if (namespaces.has(namespace)) throw new JsonInputError('CATALOG_DUPLICATE', `${v}.namespace repeats`, {path: v});
+            namespaces.add(namespace);
+            return Object.freeze({namespace, fields: ruleFields(view.fields, `${v}.fields`),
+              valueFields: ruleFields(view.valueFields, `${v}.valueFields`)});
+          }));
+      }
+      if (instance.ruleWriteFields !== undefined) {
+        result.ruleWriteFields = ruleFields(instance.ruleWriteFields, `${at}.ruleWriteFields`);
+        result.ruleWriteCoverageFields = ruleFields(instance.ruleWriteCoverageFields ?? [],
+          `${at}.ruleWriteCoverageFields`);
+      }
     }
     return Object.freeze(result);
   });

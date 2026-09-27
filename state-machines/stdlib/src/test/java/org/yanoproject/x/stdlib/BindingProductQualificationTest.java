@@ -113,6 +113,14 @@ class BindingProductQualificationTest {
         }
     }
 
+    @Test
+    void checkedInTypedViewRecipesContainExactReproducibleGenesis() throws Exception {
+        for (String recipe : TypedViewsRecipes.NAMES) {
+            Path example = Path.of("..", "..", "examples", "bindings", recipe + ".yaml");
+            assertThat(Files.readString(example)).as(recipe).isEqualTo(TypedViewsRecipes.yaml(recipe));
+        }
+    }
+
     /** Runs the recipe on three members and returns the independent approval's receipt. */
     private static BindingReceiptV1 qualify(BindingProductFixtures.Fixture fixture, Path directory)
             throws Exception {

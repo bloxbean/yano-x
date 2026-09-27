@@ -161,8 +161,22 @@ function scalarEntries(node, segments, maximum) {
   return node.entries.map(entry => ({name: entry.key.text, value: scalar(entry.value, [...segments, entry.key.text])}));
 }
 
+/** ADR-031.4 rule reads: at most four named single-key reads of a declared component's value view. */
+function ruleReads(node, segments) {
+  if (node?.kind !== 'map' || node.entries.length > 4) {
+    fail('EXPECTED_OBJECT', 'expected a map of at most 4 reads', segments, node);
+  }
+  return node.entries.map(entry => {
+    const at = [...segments, entry.key.text];
+    const declared = entries(entry.value, at, ['component', 'namespace', 'key']);
+    return {name: entry.key.text, component: text(required(declared, 'component', at, entry.value), [...at, 'component']),
+      namespace: declared.has('namespace') ? text(declared.get('namespace'), [...at, 'namespace']) : null,
+      key: source(required(declared, 'key', at, entry.value), [...at, 'key'], 0)};
+  });
+}
+
 function rule(node, segments) {
-  const map = entries(node, segments, ['id', 'command', 'deny', 'params', 'require']);
+  const map = entries(node, segments, ['id', 'command', 'deny', 'params', 'reads', 'require']);
   let params = null;
   if (map.has('params')) {
     const paramsNode = map.get('params');
@@ -180,6 +194,7 @@ function rule(node, segments) {
     command: map.has('command') ? text(map.get('command'), [...segments, 'command']) : null,
     deny: text(required(map, 'deny', segments, node), [...segments, 'deny']),
     params,
+    reads: map.has('reads') ? ruleReads(map.get('reads'), [...segments, 'reads']) : null,
     require: sequence(required(map, 'require', segments, node), [...segments, 'require'], 8)
       .map((item, index) => ruleClause(item, [...segments, 'require', index]))};
 }
@@ -371,6 +386,9 @@ function emitRule(value) {
     ['params', value.params === null ? undefined : new YamlMap(value.params.map(parameter => [parameter.name,
       flow(new YamlMap([['type', parameter.type],
         ['default', parameter.default === null ? undefined : emitScalar(parameter.default)]]))]))],
+    ['reads', value.reads == null ? undefined : new YamlMap(value.reads.map(read => [read.name,
+      flow(new YamlMap([['component', read.component], ['namespace', read.namespace ?? undefined],
+        ['key', emitSource(read.key)]]))]))],
     ['require', value.require.map(emitClause)]]);
 }
 

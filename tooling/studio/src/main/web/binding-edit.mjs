@@ -81,6 +81,13 @@ export function componentReferences(draft, componentId) {
           ruleId: rule.id, role: 'rule-lookup'});
       }
     });
+    // ADR-031.4: so do rule reads.
+    for (const read of rule.reads ?? []) {
+      if (read.component === componentId) {
+        references.push({segments: [...prefix, 'rules', index, 'reads', read.name, 'component'], bindingId: null,
+          ruleId: rule.id, role: 'rule-read'});
+      }
+    }
   });
   // Machine settings are opaque to Studio: a text setting equal to the id may name the component (for example a
   // governed participant), but a rename never rewrites configuration. Show it so the author decides explicitly.
@@ -112,6 +119,7 @@ export function renameComponent(draft, index, newId) {
   }
   for (const rule of next.rules ?? []) {
     for (const clause of rule.require) if (clause.kind === 'lookup' && clause.component === oldId) clause.component = newId;
+    for (const read of rule.reads ?? []) if (read.component === oldId) read.component = newId;
   }
   return next;
 }
@@ -275,6 +283,25 @@ export function setRuleParameter(draft, ruleIndex, name, declaration) {
   if (declaration === null) rule.params = params.filter(parameter => parameter.name !== name);
   else if (existing) Object.assign(existing, structuredClone(declaration), {name});
   else rule.params = [...params, {name, type: declaration.type, default: declaration.default ?? null}];
+  return next;
+}
+
+/**
+ * Declares, replaces (`read` with a new `component`, `namespace` or `key`) or removes (`read === null`) one ADR-031.4
+ * read of a rule. Reads keep their authored order; the compiler sorts them by name.
+ */
+export function setRuleRead(draft, ruleIndex, name, read) {
+  const next = clone(draft);
+  checkIndex(next.rules ?? [], ruleIndex, 'Rule');
+  const rule = next.rules[ruleIndex];
+  const reads = rule.reads ?? [];
+  const existing = reads.find(value => value.name === name);
+  if (read === null) {
+    const remaining = reads.filter(value => value.name !== name);
+    rule.reads = remaining.length ? remaining : null;
+  } else if (existing) Object.assign(existing, structuredClone(read), {name});
+  else rule.reads = [...reads, {name, component: read.component, namespace: read.namespace ?? null,
+    key: structuredClone(read.key)}];
   return next;
 }
 

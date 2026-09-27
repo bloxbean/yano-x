@@ -139,9 +139,11 @@ match its target field's type. For example, the procurement recipe uses
 
 There are no loops, comprehensions, list/map construction, nested object
 traversal, floating point, regex, clock, randomness, network calls, or Java
-access. Even general CEL functions such as `size(event.currency)` are outside
-this profile. Named mapping functions use `fn`, not arbitrary function calls
-inside `expr`.
+access. The only functions are `size(x)`, the UTF-8 byte length of text or the
+length of bytes, and `startsWith(x, prefix)` (also written
+`x.startsWith(prefix)`) for text or bytes. Admission rules add the write-view
+quantifiers `writes.all` and `writes.exists` ([chapter 7](07-admission-rules.md)).
+Named mapping functions use `fn`, not arbitrary function calls inside `expr`.
 
 Integers are signed 64-bit values. Overflow and division by zero produce
 deterministic errors; division truncates toward zero. Conditional branches are

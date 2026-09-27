@@ -30,6 +30,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.HashSet;
@@ -294,17 +295,28 @@ public final class BindingProgram {
             }
         }
         contentTypes.put("index", RuleFact.Type.INTEGER);
-        // Value fields that every view declaring them types alike; a conflicting name is not declared.
+        contentTypes.putAll(writeValueFields(valueViews(component).values()));
+        return new BindingRules.WriteView(contentTypes, coverageTypes);
+    }
+
+    /**
+     * The value fields of a write view (ADR-031.4 §5.2): each {@code value.<f>} that some value view declares and
+     * every view declaring it types alike, in first-declaration order; a conflicting name is not declared. Shared
+     * with the authoring tools so documents are typed exactly as profiles are.
+     *
+     * @param views each namespace's fields, value fields under {@code value.<name>}
+     * @return the declared write value fields
+     */
+    public static Map<String, RuleFact.Type> writeValueFields(Collection<Map<String, RuleFact.Type>> views) {
         Map<String, RuleFact.Type> values = new LinkedHashMap<>();
         Set<String> conflicting = new HashSet<>();
-        valueViews(component).values().forEach(fields -> fields.forEach((name, type) -> {
+        views.forEach(fields -> fields.forEach((name, type) -> {
             if (!name.startsWith(RuleValueView.VALUE_PREFIX)) return;
             RuleFact.Type previous = values.putIfAbsent(name, type);
             if (previous != null && previous != type) conflicting.add(name);
         }));
         conflicting.forEach(values::remove);
-        contentTypes.putAll(values);
-        return new BindingRules.WriteView(contentTypes, coverageTypes);
+        return Collections.unmodifiableMap(values);
     }
 
     /** What rule validation resolves: the reads with their view types, and whether the rule reads write coverage. */

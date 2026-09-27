@@ -6,8 +6,8 @@
   "producer" : {
     "tool" : "yano-x-devtools",
     "version" : "0.1.0-pre3",
-    "jarSha256" : "6df1937b6dee53c2280225f2487ec704b42bd7a2571ab68a94aff634d35a10f5",
-    "linkedCompositeJarSha256" : "73c76d6c499330cb85a413908ef7f6945c92058e6fb52a921e61bba4ea8b3753"
+    "jarSha256" : "19ed0235c2bbfded1cd74e9c5f0271166f896975f145f53cbd0ac5feecbf1c44",
+    "linkedCompositeJarSha256" : "3537d6117378ad655110cefcacc7f3331710bb7d51e1edbb1c6ae3f6b2c06a44"
   },
   "host" : {
     "version" : "0.1.0-pre18-885f31f-SNAPSHOT",
@@ -16,7 +16,7 @@
   },
   "authoringEnvironment" : "yano-x-binding-authoring-environment-v1",
   "catalog" : {
-    "fingerprint" : "sha256:e23257e602d63a811bf684cbf7d5e3b99454565ee371590b0ecb807fa8e716a3",
+    "fingerprint" : "sha256:18af2b15a76cd871b25e56396aee17ecbdeebaa499153b2fa266f587f107abf5",
     "pluginApi" : {
       "major" : 3,
       "level" : 12
@@ -24,7 +24,7 @@
     "bundles" : [ {
       "id" : "org.yanoproject.x.composite",
       "version" : "0.1.0-pre3",
-      "digest" : "sha256:14aaa518eceddef15628481d2a20df79fc0501b60ef33072335e613bf8cfc93f",
+      "digest" : "sha256:eee7eb00cc61f1a2e2bc73adefeb20715d8d2ce3a3339b347271ce75c0e51fad",
       "digestMode" : "ARTIFACT_CLOSURE",
       "selected" : true
     }, {
@@ -36,7 +36,7 @@
     }, {
       "id" : "org.yanoproject.x.stdlib",
       "version" : "0.1.0-pre3",
-      "digest" : "sha256:67c47902045afa08d1092e6908350f1c3b0ddc328c83359bf13ae86572ae36a6",
+      "digest" : "sha256:a06710dcfcfa748a5669e81a72d3cbbab42df0ad2ed2c0fe7e76a97ee969a48b",
       "digestMode" : "ARTIFACT_CLOSURE",
       "selected" : true
     } ]

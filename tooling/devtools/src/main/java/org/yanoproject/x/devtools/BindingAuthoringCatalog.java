@@ -373,14 +373,30 @@ final class BindingAuthoringCatalog {
         String unselectable = BindingCommandView.unselectableReason(kernel.commands());
         instance.put("commandSelectable", unselectable == null);
         instance.put("unselectableReason", unselectable);
-        instance.put("ruleFacts", kernel.ruleFacts().stream().map(fact -> {
+        instance.put("ruleFacts", ruleFields(kernel.ruleFacts()));
+        // ADR-031.4: value views that rules may read, and the write view (content and verified coverage).
+        instance.put("ruleValueViews", kernel.ruleValueViews().stream().map(view -> {
+            Map<String, Object> value = new LinkedHashMap<>();
+            value.put("namespace", view.namespace());
+            value.put("fields", ruleFields(view.fields()));
+            value.put("valueFields", ruleFields(view.valueFields()));
+            return value;
+        }).toList());
+        if (!kernel.ruleWriteFields().isEmpty()) {
+            instance.put("ruleWriteFields", ruleFields(kernel.ruleWriteFields()));
+            instance.put("ruleWriteCoverageFields", ruleFields(kernel.ruleWriteCoverageFields()));
+        }
+        return instance;
+    }
+
+    private static List<Map<String, Object>> ruleFields(List<RuleFact> fields) {
+        return fields.stream().map(fact -> {
             Map<String, Object> value = new LinkedHashMap<>();
             value.put("name", fact.name());
             value.put("type", fact.type() == RuleFact.Type.TEXT_SET ? "text-set"
                     : fact.type().name().toLowerCase(Locale.ROOT));
             return value;
-        }).toList());
-        return instance;
+        }).toList();
     }
 
     /**

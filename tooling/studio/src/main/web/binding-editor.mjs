@@ -14,6 +14,10 @@ import {STARTERS, STARTER_BASE} from './binding-starters.mjs';
 import {renderValidation} from './binding-validation-view.mjs';
 import {visibleText} from './binding-explain.mjs';
 
+/** CEL reserved words, which cannot name a read (they cannot be selected as reads.<name>). */
+const CEL_RESERVED = new Set(['as', 'break', 'const', 'continue', 'else', 'false', 'for', 'function', 'if', 'import',
+  'in', 'let', 'loop', 'package', 'namespace', 'null', 'return', 'true', 'var', 'void', 'while']);
+
 export {STARTERS, STARTER_BASE};
 
 const ID = /^[a-z][a-z0-9-]{0,62}$/;
@@ -1441,6 +1445,7 @@ export class BindingEditor {
         h('p', {class: 'hint', text: references.length ? `Attached to ${references.map(reference =>
           reference.componentId).join(', ')}.` : 'Not attached yet: attach it from a component form.'})),
       this.ruleParametersSection(index, rule),
+      this.ruleReadsSection(index, rule, scopes),
       this.ruleClausesSection(index, rule, scopes)];
   }
 
@@ -1487,11 +1492,113 @@ export class BindingEditor {
           }})));
   }
 
+  /** A component's value views from the catalog (ADR-031.4), or none when it is unknown or unavailable. */
+  componentViews(componentId) {
+    const component = this.session.draft.components.find(value => value.id === componentId);
+    const instance = component ? this.instance(component) : null;
+    return instance?.status === 'available' ? instance.ruleValueViews ?? [] : [];
+  }
+
+  /**
+   * What a rule's clauses may read beyond its key scopes (ADR-031.4): each read's `present` flag and view fields, and,
+   * when every attached component declares a write view, the fields of a write element `w` in `writes.all(w, …)`.
+   */
+  ruleViewReferences(rule) {
+    const references = [];
+    for (const read of rule.reads ?? []) {
+      const label = `Read ${read.name}`;
+      references.push({reference: `reads.${read.name}.present`, type: 'boolean', label});
+      const view = this.componentViews(read.component).find(value => value.namespace === (read.namespace ?? ''));
+      for (const field of view?.fields ?? []) {
+        references.push({reference: `reads.${read.name}.${field.name}`, type: field.type, label});
+      }
+      for (const field of view?.valueFields ?? []) {
+        references.push({reference: `reads.${read.name}.value.${field.name}`, type: field.type, label});
+      }
+    }
+    const instances = this.ruleInstances(rule).map(entry => entry.instance);
+    if (instances.length && instances.every(instance => instance?.status === 'available' && instance.ruleWriteFields)) {
+      const label = 'Write element (writes.all(w, …))';
+      const first = instances[0];
+      references.push({reference: 'w.index', type: 'integer', label});
+      for (const field of [...first.ruleWriteFields, ...(first.ruleWriteCoverageFields ?? [])]) {
+        references.push({reference: `w.${field.name}`, type: field.type, label});
+      }
+      for (const [name, type] of writeValueFields(first.ruleValueViews ?? [])) {
+        references.push({reference: `w.value.${name}`, type, label});
+      }
+    }
+    return references;
+  }
+
+  ruleReadsSection(index, rule, scopes) {
+    const reads = rule.reads ?? [];
+    const set = (name, read, focus) => this.apply(value => edits.setRuleRead(value, index, name, read), focus);
+    const ids = this.session.draft.components.map(component => component.id);
+    const componentSelect = (id, value, label) => {
+      const select = h('select', {id, 'aria-label': label},
+        !ids.includes(value) ? h('option', {value, text: `${value || '(none)'} (not declared)`}) : null,
+        ids.map(option => h('option', {value: option, text: option})));
+      select.value = value;
+      return select;
+    };
+    const name = h('input', {id: `r${index}-read-name`, autocomplete: 'off', placeholder: 'holder'});
+    const target = componentSelect(`r${index}-read-component`, ids[0] ?? '', 'New read component');
+    return h('section', {class: 'form-section', dataset: {path: JSON.stringify(['rules', index, 'reads'])}},
+      h('h3', {text: 'Reads'}),
+      h('p', {class: 'hint', text: 'Up to four exact-key reads of a component\'s value view, taken before the clauses '
+        + 'from the state this cascade left. Clauses read reads.<name>.present and the view fields. A rule with reads '
+        + 'runs at block time only.'}),
+      h('ol', {class: 'clause-list'}, reads.map((read, r) => {
+        const id = `r${index}-read${r}`;
+        const component = componentSelect(`${id}-component`, read.component, `Read ${read.name}: component`);
+        component.addEventListener('change', () => set(read.name, {...read, component: component.value,
+          namespace: null}, `${id}-component`));
+        const views = this.componentViews(read.component);
+        const current = read.namespace ?? '';
+        const namespace = h('select', {id: `${id}-namespace`, 'aria-label': `Read ${read.name}: namespace`},
+          !views.some(view => view.namespace === current)
+            ? h('option', {value: current, text: `${current || '(default)'} (not declared)`}) : null,
+          views.map(view => h('option', {value: view.namespace, text: view.namespace || '(default)'})));
+        namespace.value = current;
+        namespace.addEventListener('change', () => set(read.name, {...read, namespace: namespace.value === ''
+          ? null : namespace.value}, `${id}-namespace`));
+        return h('li', {class: 'clause', dataset: {path: JSON.stringify(['rules', index, 'reads', read.name])}},
+          h('strong', {id: `${id}-name`, tabindex: '-1', text: read.name}),
+          h('div', {class: 'field-row'},
+            h('div', {class: 'stack'}, h('label', {for: component.id}, 'Component'), component),
+            h('div', {class: 'stack'}, h('label', {for: namespace.id}, 'Namespace'), namespace)),
+          h('div', {class: 'stack'}, h('strong', {class: 'hint', text: 'Key (bytes or text)'}),
+            this.sourceEditor(`${id}-key`, read.key, null, 0, ['rules', index, 'reads', r, 'key'], undefined,
+              `Read ${read.name} key`, scopes)),
+          h('div', {class: 'row-actions'},
+            h('button', {type: 'button', class: 'secondary', id: `${id}-remove`, text: 'Remove read',
+              'aria-label': `Remove read ${read.name}`, onclick: () => set(read.name, null, `r${index}-read-name`)})));
+      })),
+      h('div', {class: 'inline-actions'},
+        h('div', {class: 'stack'}, h('label', {for: name.id}, 'New read name'), name),
+        h('div', {class: 'stack'}, h('label', {for: target.id}, 'Component'), target),
+        h('button', {type: 'button', class: 'secondary', id: `r${index}-add-read`, text: 'Add read',
+          disabled: reads.length >= 4,
+          onclick: () => {
+            const text = name.value.trim();
+            if (!/^[a-zA-Z][a-zA-Z0-9_]{0,62}$/.test(text) || CEL_RESERVED.has(text)
+              || reads.some(read => read.name === text)) {
+              this.announce('A read name is a new identifier (a letter, then letters, digits or underscores) and not '
+                + 'a CEL reserved word.', true);
+              return;
+            }
+            set(text, {component: target.value, namespace: null, key: {kind: 'context', name: 'sender'}},
+              `r${index}-read${reads.length}-name`);
+          }})));
+  }
+
   ruleClausesSection(index, rule, scopes) {
     const clauses = rule.require;
     const add = clause => this.apply(value => edits.addRuleClause(value, index, clause), `r${index}-c${clauses.length}-kind`);
     const readable = [...scopes].flatMap(([key, site]) => [...site.fields].map(([name, type]) =>
-      ({reference: `${key === 'param' ? 'params' : key === 'fact' ? 'facts' : key}.${name}`, type, label: site.label})));
+      ({reference: `${key === 'param' ? 'params' : key === 'fact' ? 'facts' : key}.${name}`, type, label: site.label})))
+      .concat(this.ruleViewReferences(rule));
     return h('section', {class: 'form-section', dataset: {path: JSON.stringify(['rules', index, 'require'])}},
       h('h3', {text: 'Requires (every clause must hold)'}),
       h('p', {class: 'hint', text: 'Clauses are checked in order; the first that does not hold refuses the command. A rule '
@@ -1525,8 +1632,9 @@ export class BindingEditor {
           `${id}-expr`, false);
       });
       body = [h('label', {for: text.id}, 'Restricted CEL expression'), text, text.escapedHint, picker,
-        h('p', {id: `${id}-expr-help`, class: 'hint', text: 'Reads command.*, params.*, config.*, context.* and facts.*; '
-          + 'a text-set fact is read only as "value in facts.<name>". The CLI checks types and limits.'})];
+        h('p', {id: `${id}-expr-help`, class: 'hint', text: 'Reads command.*, params.*, config.*, context.*, facts.* and '
+          + 'reads.*, and quantifies over the writes as writes.all(w, …) or writes.exists(w, …); a text set is read '
+          + 'only as "value in <set>". The CLI checks types and limits.'})];
     } else {
       const ids = this.session.draft.components.map(component => component.id);
       const participant = h('select', {id: `${id}-participant`},
@@ -2036,3 +2144,20 @@ export class BindingEditor {
 }
 
 export {fileText};
+
+/**
+ * The write value fields of a kernel's value views (ADR-031.4 §5.2): each value field that every view declaring it
+ * types alike, in first-declaration order, as the runtime and the compiler derive them.
+ */
+function writeValueFields(views) {
+  const fields = new Map();
+  const conflicting = new Set();
+  for (const view of views) {
+    for (const field of view.valueFields) {
+      if (!fields.has(field.name)) fields.set(field.name, field.type);
+      else if (fields.get(field.name) !== field.type) conflicting.add(field.name);
+    }
+  }
+  for (const name of conflicting) fields.delete(name);
+  return fields;
+}

@@ -57,6 +57,10 @@ public final class BindingGraph {
                     label.append("\n").append(rule.id()).append(rule.command() == null ? "" : " on " + rule.command())
                             .append(" → ").append(rule.denyCode()).append(factSlot ? " (facts)" : "")
                             .append(unresolved ? " (writes; slot resolved by the kernel)" : "");
+                    for (var read : rule.reads()) {
+                        label.append("\n  reads ").append(read.name()).append(" ← ").append(read.component())
+                                .append(read.namespace().isEmpty() ? "" : "/" + read.namespace());
+                    }
                 }
             }
             String guard = "guard:" + component.id();

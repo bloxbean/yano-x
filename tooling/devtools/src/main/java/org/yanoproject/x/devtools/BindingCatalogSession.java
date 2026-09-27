@@ -13,16 +13,19 @@ import org.yanoproject.api.appchain.state.StateCommitmentIdentity;
 import org.yanoproject.api.appchain.transition.CommandDescriptor;
 import org.yanoproject.api.appchain.transition.ConfigurationDescriptor;
 import org.yanoproject.api.appchain.transition.RuleFact;
+import org.yanoproject.api.appchain.transition.RuleValueView;
 import org.yanoproject.api.appchain.transition.TransitionKernel;
 import org.yanoproject.runtime.plugins.CatalogAuthenticatedMapValidatorResolver;
 import org.yanoproject.runtime.plugins.PluginProviderRegistry;
 import org.yanoproject.runtime.appchain.OrderedLogStateMachine;
 import org.yanoproject.x.composite.contracts.BindingExpressionV1.Type;
 import org.yanoproject.api.plugin.PluginCatalogView;
+import org.yanoproject.x.composite.bindings.BindingProgram;
 import org.yanoproject.x.composite.bindings.BindingValidationException;
 import org.yanoproject.x.composite.bindings.DeclarativeCompositeProvider;
 import org.yanoproject.x.composite.contracts.BindingIrV1;
 
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
@@ -111,6 +114,36 @@ final class BindingCatalogSession implements BindingDocumentCompiler.DescriptorC
         kernel(component.machineId(), configurationValues(component)).ruleFacts()
                 .forEach(fact -> facts.put(fact.name(), fact.type()));
         return Map.copyOf(facts);
+    }
+
+    /** ADR-031.4: each namespace's view fields, value fields as {@code value.<name>}, in declaration order. */
+    @Override public Map<String, Map<String, RuleFact.Type>> ruleValueViews(BindingIrV1.Component component) {
+        return valueViews(kernel(component.machineId(), configurationValues(component)));
+    }
+
+    /** ADR-031.4: the write view's content fields with the engine's {@code index}, its value fields and coverage. */
+    @Override public Map<String, RuleFact.Type> ruleWriteFields(BindingIrV1.Component component) {
+        var kernel = kernel(component.machineId(), configurationValues(component));
+        if (kernel.ruleWriteFields().isEmpty()) return Map.of();
+        Map<String, RuleFact.Type> fields = new LinkedHashMap<>();
+        fields.put("index", RuleFact.Type.INTEGER);
+        kernel.ruleWriteFields().forEach(field -> fields.put(field.name(), field.type()));
+        fields.putAll(BindingProgram.writeValueFields(valueViews(kernel).values()));
+        kernel.ruleWriteCoverageFields().forEach(field -> fields.put(field.name(), field.type()));
+        return Collections.unmodifiableMap(fields);
+    }
+
+    /** Each namespace's fields of a kernel's value views, value fields as {@code value.<name>}. */
+    private static Map<String, Map<String, RuleFact.Type>> valueViews(TransitionKernel<?, ?> kernel) {
+        Map<String, Map<String, RuleFact.Type>> views = new LinkedHashMap<>();
+        for (RuleValueView view : kernel.ruleValueViews()) {
+            Map<String, RuleFact.Type> fields = new LinkedHashMap<>();
+            view.fields().forEach(field -> fields.put(field.name(), field.type()));
+            view.valueFields().forEach(field -> fields.put(RuleValueView.VALUE_PREFIX + field.name(),
+                    field.type()));
+            views.put(view.namespace(), Collections.unmodifiableMap(fields));
+        }
+        return Collections.unmodifiableMap(views);
     }
 
     private static Map<String, Object> configurationValues(BindingIrV1.Component component) {

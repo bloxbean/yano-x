@@ -1,0 +1,1339 @@
+{
+  "schema" : "yano-x-binding-authoring-catalog-v1",
+  "assurance" : "Editing assistance for the identified plugin catalog, context and configurations only. Not plugin trust, runtime availability, profile validation or deployment approval.",
+  "producer" : {
+    "tool" : "yano-x-devtools",
+    "version" : "0.1.0-pre3",
+    "jarSha256" : "19ed0235c2bbfded1cd74e9c5f0271166f896975f145f53cbd0ac5feecbf1c44",
+    "linkedCompositeJarSha256" : "3537d6117378ad655110cefcacc7f3331710bb7d51e1edbb1c6ae3f6b2c06a44"
+  },
+  "host" : {
+    "version" : "0.1.0-pre18-885f31f-SNAPSHOT",
+    "coreApiJarSha256" : "1722f93bc01a3ead110d2eb5514775ef2b71c4a604be93ca2e9b0c066c13f758",
+    "runtimeJarSha256" : "128412b86ad5b9b5a075f88fd1a5971ff5b762cee0d967f70883c0a2b61bdfe4"
+  },
+  "authoringEnvironment" : "yano-x-binding-authoring-environment-v1",
+  "catalog" : {
+    "fingerprint" : "sha256:18af2b15a76cd871b25e56396aee17ecbdeebaa499153b2fa266f587f107abf5",
+    "pluginApi" : {
+      "major" : 3,
+      "level" : 12
+    },
+    "bundles" : [ {
+      "id" : "org.yanoproject.x.composite",
+      "version" : "0.1.0-pre3",
+      "digest" : "sha256:eee7eb00cc61f1a2e2bc73adefeb20715d8d2ce3a3339b347271ce75c0e51fad",
+      "digestMode" : "ARTIFACT_CLOSURE",
+      "selected" : true
+    }, {
+      "id" : "org.yanoproject.x.role-workflow",
+      "version" : "0.1.0-pre3",
+      "digest" : "sha256:3038258d1509c82fc850eac84060ef76bdb476c51d780ce492316410d5b66100",
+      "digestMode" : "ARTIFACT_CLOSURE",
+      "selected" : true
+    }, {
+      "id" : "org.yanoproject.x.stdlib",
+      "version" : "0.1.0-pre3",
+      "digest" : "sha256:a06710dcfcfa748a5669e81a72d3cbbab42df0ad2ed2c0fe7e76a97ee969a48b",
+      "digestMode" : "ARTIFACT_CLOSURE",
+      "selected" : true
+    } ]
+  },
+  "context" : {
+    "sha256" : "632759c8560702e553158ace3a8a9c9f596013829f9733c233ab5b9b11c68c1c",
+    "bytes" : "1204",
+    "chainId" : "binding-feed-rules-demo"
+  },
+  "document" : {
+    "sha256" : "da3d3ca44a614fa1640f2b3effb9ba2f7337f6c4fda46386ff39041f5a901038",
+    "bytes" : "16492"
+  },
+  "language" : {
+    "irVersion" : 1,
+    "functionCatalog" : "yano-x-binding-functions-v1",
+    "expressionDialect" : "yano-x-cel-v1",
+    "functions" : [ {
+      "id" : "blake2b-256",
+      "minArguments" : 1,
+      "maxArguments" : 1,
+      "arguments" : [ [ "bytes", "text" ] ],
+      "homogeneous" : false,
+      "result" : "bytes",
+      "bound" : "total input at most maxFunctionInputBytes"
+    }, {
+      "id" : "sha-256",
+      "minArguments" : 1,
+      "maxArguments" : 1,
+      "arguments" : [ [ "bytes", "text" ] ],
+      "homogeneous" : false,
+      "result" : "bytes",
+      "bound" : "total input at most maxFunctionInputBytes"
+    }, {
+      "id" : "concat",
+      "minArguments" : 2,
+      "maxArguments" : 8,
+      "arguments" : [ [ "text", "bytes" ] ],
+      "homogeneous" : true,
+      "result" : "same-as-arguments",
+      "bound" : "total input and output at most maxFunctionInputBytes"
+    }, {
+      "id" : "utf8-bytes",
+      "minArguments" : 1,
+      "maxArguments" : 1,
+      "arguments" : [ [ "text" ] ],
+      "homogeneous" : false,
+      "result" : "bytes",
+      "bound" : "total input at most maxFunctionInputBytes"
+    }, {
+      "id" : "hex",
+      "minArguments" : 1,
+      "maxArguments" : 1,
+      "arguments" : [ [ "bytes" ] ],
+      "homogeneous" : false,
+      "result" : "text",
+      "bound" : "output (two characters per byte) at most maxFunctionInputBytes"
+    }, {
+      "id" : "byte-length",
+      "minArguments" : 1,
+      "maxArguments" : 1,
+      "arguments" : [ [ "bytes", "text" ] ],
+      "homogeneous" : false,
+      "result" : "integer",
+      "bound" : "total input at most maxFunctionInputBytes"
+    }, {
+      "id" : "cbor-encode",
+      "minArguments" : 1,
+      "maxArguments" : 1,
+      "arguments" : [ [ "any" ] ],
+      "homogeneous" : false,
+      "result" : "bytes",
+      "bound" : "total input at most maxFunctionInputBytes"
+    }, {
+      "id" : "cbor-field",
+      "minArguments" : 2,
+      "maxArguments" : 2,
+      "arguments" : [ [ "bytes" ], [ "text" ] ],
+      "homogeneous" : false,
+      "result" : "opaque",
+      "bound" : "one-level canonical scalar map; missing field or invalid CBOR rejects the cascade"
+    } ],
+    "expressionOperators" : [ {
+      "cel" : "==",
+      "ir" : "eq",
+      "operands" : "same scalar type",
+      "result" : "boolean"
+    }, {
+      "cel" : "!=",
+      "ir" : "ne",
+      "operands" : "same scalar type",
+      "result" : "boolean"
+    }, {
+      "cel" : "<",
+      "ir" : "lt",
+      "operands" : "integer, integer",
+      "result" : "boolean"
+    }, {
+      "cel" : "<=",
+      "ir" : "le",
+      "operands" : "integer, integer",
+      "result" : "boolean"
+    }, {
+      "cel" : ">",
+      "ir" : "gt",
+      "operands" : "integer, integer",
+      "result" : "boolean"
+    }, {
+      "cel" : ">=",
+      "ir" : "ge",
+      "operands" : "integer, integer",
+      "result" : "boolean"
+    }, {
+      "cel" : "&&",
+      "ir" : "and",
+      "operands" : "boolean, boolean (error-masking)",
+      "result" : "boolean"
+    }, {
+      "cel" : "||",
+      "ir" : "or",
+      "operands" : "boolean, boolean (error-masking)",
+      "result" : "boolean"
+    }, {
+      "cel" : "!",
+      "ir" : "not",
+      "operands" : "boolean",
+      "result" : "boolean"
+    }, {
+      "cel" : "? :",
+      "ir" : "if",
+      "operands" : "boolean, T, T (only the selected branch is evaluated)",
+      "result" : "T"
+    }, {
+      "cel" : "+",
+      "ir" : "add",
+      "operands" : "integer, integer (checked)",
+      "result" : "integer"
+    }, {
+      "cel" : "+",
+      "ir" : "concat",
+      "operands" : "text, text or bytes, bytes",
+      "result" : "same as operands"
+    }, {
+      "cel" : "-",
+      "ir" : "sub",
+      "operands" : "integer, integer (checked; truncates toward zero)",
+      "result" : "integer"
+    }, {
+      "cel" : "*",
+      "ir" : "mul",
+      "operands" : "integer, integer (checked; truncates toward zero)",
+      "result" : "integer"
+    }, {
+      "cel" : "/",
+      "ir" : "div",
+      "operands" : "integer, integer (checked; truncates toward zero)",
+      "result" : "integer"
+    }, {
+      "cel" : "%",
+      "ir" : "mod",
+      "operands" : "integer, integer (checked; truncates toward zero)",
+      "result" : "integer"
+    }, {
+      "cel" : "-x",
+      "ir" : "neg",
+      "operands" : "integer (checked)",
+      "result" : "integer"
+    }, {
+      "cel" : "in",
+      "ir" : "in",
+      "operands" : "text, text-set fact (admission rules only; stops at the first match)",
+      "result" : "boolean"
+    }, {
+      "cel" : "startsWith(a, b)",
+      "ir" : "startsWith",
+      "operands" : "text, text or bytes, bytes (a text prefix is a UTF-8 byte prefix)",
+      "result" : "boolean"
+    }, {
+      "cel" : "size(a)",
+      "ir" : "size",
+      "operands" : "text (UTF-8 bytes) or bytes",
+      "result" : "integer"
+    }, {
+      "cel" : "writes.all(w, e)",
+      "ir" : "quantifier:all",
+      "operands" : "boolean body per write-view element, in index order; false at the first false (admission rules only; no nesting)",
+      "result" : "boolean"
+    }, {
+      "cel" : "writes.exists(w, e)",
+      "ir" : "quantifier:exists",
+      "operands" : "boolean body per write-view element, in index order; true at the first true (admission rules only; no nesting)",
+      "result" : "boolean"
+    } ],
+    "fieldTypes" : [ {
+      "name" : "integer",
+      "ordinal" : 0,
+      "expressionResult" : true
+    }, {
+      "name" : "text",
+      "ordinal" : 1,
+      "expressionResult" : true
+    }, {
+      "name" : "bytes",
+      "ordinal" : 2,
+      "expressionResult" : true
+    }, {
+      "name" : "boolean",
+      "ordinal" : 3,
+      "expressionResult" : true
+    }, {
+      "name" : "text-set",
+      "ordinal" : 4,
+      "expressionResult" : false
+    } ],
+    "scopes" : [ {
+      "name" : "event",
+      "ordinal" : 0,
+      "useSites" : [ "binding-condition", "binding-mapping" ],
+      "note" : "fields of the event a binding subscribes to"
+    }, {
+      "name" : "command",
+      "ordinal" : 1,
+      "useSites" : [ "admission-rule", "rule-key" ],
+      "note" : "DATA fields of the selected command; only in a rule that names a command"
+    }, {
+      "name" : "params",
+      "ordinal" : 2,
+      "useSites" : [ "admission-rule", "rule-key" ],
+      "note" : "the attachment's parameters"
+    }, {
+      "name" : "config",
+      "ordinal" : 3,
+      "useSites" : [ "admission-rule", "rule-key" ],
+      "note" : "the attached component's normalized configuration"
+    }, {
+      "name" : "context",
+      "ordinal" : 4,
+      "useSites" : [ "binding-condition", "binding-mapping", "admission-rule", "rule-key" ],
+      "note" : "in a binding, the step that produced the event; in a rule, the step being admitted"
+    }, {
+      "name" : "facts",
+      "ordinal" : 5,
+      "useSites" : [ "admission-rule", "rule-key" ],
+      "note" : "facts the attached kernel declares and established by its own verification"
+    }, {
+      "name" : "reads",
+      "ordinal" : 6,
+      "useSites" : [ "admission-rule" ],
+      "note" : "the rule's declared state reads: reads.<name>.present, reads.<name>.<field> and reads.<name>.value.<field>, decoded by the read component's kernel"
+    }, {
+      "name" : "writes",
+      "ordinal" : 7,
+      "useSites" : [ "admission-rule" ],
+      "note" : "the current element w of writes.all(w, ...) or writes.exists(w, ...): content fields in either slot; coverage fields make the rule a fact rule"
+    } ],
+    "contextFields" : [ {
+      "name" : "height",
+      "type" : "integer",
+      "required" : true
+    }, {
+      "name" : "sender",
+      "type" : "bytes",
+      "required" : true
+    }, {
+      "name" : "derived",
+      "type" : "boolean",
+      "required" : true
+    }, {
+      "name" : "depth",
+      "type" : "integer",
+      "required" : true
+    }, {
+      "name" : "binding",
+      "type" : "text",
+      "required" : true
+    } ],
+    "sourceForms" : [ {
+      "key" : "field",
+      "scope" : "event",
+      "useSites" : [ "binding-condition", "binding-mapping" ],
+      "note" : "an event field; the only source an evidence field accepts"
+    }, {
+      "key" : "context",
+      "scope" : "context",
+      "useSites" : [ "binding-condition", "binding-mapping", "admission-rule", "rule-key" ],
+      "note" : "a context field; never evidence"
+    }, {
+      "key" : "command",
+      "scope" : "command",
+      "useSites" : [ "admission-rule", "rule-key" ],
+      "note" : "a DATA field of the selected command"
+    }, {
+      "key" : "param",
+      "scope" : "params",
+      "useSites" : [ "admission-rule", "rule-key" ],
+      "note" : "an attachment parameter"
+    }, {
+      "key" : "config",
+      "scope" : "config",
+      "useSites" : [ "admission-rule", "rule-key" ],
+      "note" : "a configuration setting"
+    }, {
+      "key" : "fact",
+      "scope" : "facts",
+      "useSites" : [ "admission-rule", "rule-key" ],
+      "note" : "a kernel-declared fact"
+    }, {
+      "key" : "literal",
+      "useSites" : [ "binding-condition", "binding-mapping", "admission-rule", "rule-key" ],
+      "note" : "an embedded scalar"
+    }, {
+      "key" : "fn",
+      "useSites" : [ "binding-condition", "binding-mapping", "admission-rule", "rule-key" ],
+      "note" : "a stock function over sources"
+    }, {
+      "key" : "expr",
+      "useSites" : [ "binding-condition", "binding-mapping", "admission-rule", "rule-key" ],
+      "note" : "a restricted CEL expression; as a condition, rule clause, lookup or read key, or mapping source"
+    } ],
+    "rules" : {
+      "idPattern" : "[a-z][a-z0-9-]{0,62}",
+      "idsUniqueAcrossRulesAndBindings" : true,
+      "denyCodePattern" : "[A-Z][A-Z0-9_]{0,62}",
+      "reservedDenyCodePrefix" : "ADMISSION_RULE_",
+      "parameterNamePattern" : "[a-zA-Z][a-zA-Z0-9_]{0,62}",
+      "reservedNames" : [ "as", "break", "const", "continue", "else", "false", "for", "function", "if", "import", "in", "let", "loop", "namespace", "null", "package", "return", "true", "var", "void", "while" ],
+      "parameterTypes" : [ "integer", "text", "bytes", "boolean", "binding" ],
+      "rulesPerDocument" : 64,
+      "clausesPerRule" : 8,
+      "parametersPerRule" : 16,
+      "clauseKinds" : [ "expr", "lookup" ],
+      "lookupExpectations" : [ "exists", "absent", "eq" ],
+      "readsPerRule" : 4,
+      "readNamePattern" : "[a-zA-Z][a-zA-Z0-9_]{0,62}",
+      "namespacePattern" : "\"\" or [a-z0-9][a-z0-9._-]{0,63}",
+      "readKeySources" : [ "context", "command", "param", "config", "fact", "literal", "fn", "expr" ],
+      "readPresentField" : "present",
+      "quantifiers" : [ "all", "exists" ],
+      "slots" : [ {
+        "name" : "admission",
+        "when" : "after the kernel's admit hooks and before work reservation; rules that read neither facts nor write coverage"
+      }, {
+        "name" : "fact",
+        "when" : "after an approved kernel decision; rules that read facts or write coverage"
+      } ],
+      "static" : "no reads, and expression clauses over command, params, config and write content only; also checked at ingress"
+    },
+    "limits" : [ {
+      "name" : "maxCascadeDepth",
+      "default" : "8",
+      "minimum" : "1",
+      "maximum" : "32"
+    }, {
+      "name" : "maxDerivedPerSourceMessage",
+      "default" : "32",
+      "minimum" : "1",
+      "maximum" : "256"
+    }, {
+      "name" : "maxDerivedPerBlock",
+      "default" : "4096",
+      "minimum" : "1",
+      "maximum" : "65536"
+    }, {
+      "name" : "maxEventPayloadBytes",
+      "default" : "65536",
+      "minimum" : "1",
+      "maximum" : "65536"
+    }, {
+      "name" : "maxLookupsPerCondition",
+      "default" : "2",
+      "minimum" : "1",
+      "maximum" : "4"
+    }, {
+      "name" : "maxFunctionCallsPerMapping",
+      "default" : "8",
+      "minimum" : "1",
+      "maximum" : "16"
+    }, {
+      "name" : "maxFunctionInputBytes",
+      "default" : "65536",
+      "minimum" : "1",
+      "maximum" : "65536"
+    }, {
+      "name" : "maxExpressionNodes",
+      "default" : "128",
+      "minimum" : "1",
+      "maximum" : "512"
+    }, {
+      "name" : "maxExpressionDepth",
+      "default" : "16",
+      "minimum" : "1",
+      "maximum" : "32"
+    }, {
+      "name" : "maxExpressionValueBytes",
+      "default" : "65536",
+      "minimum" : "1",
+      "maximum" : "65536"
+    }, {
+      "name" : "maxExpressionWorkPerCascade",
+      "default" : "1048576",
+      "minimum" : "1",
+      "maximum" : "4194304"
+    }, {
+      "name" : "maxExpressionWorkPerBlock",
+      "default" : "33554432",
+      "minimum" : "1",
+      "maximum" : "67108864"
+    }, {
+      "name" : "maxRulesPerComponent",
+      "default" : "4",
+      "minimum" : "1",
+      "maximum" : "16"
+    } ],
+    "structuralLimits" : {
+      "components" : 16,
+      "bindings" : 256,
+      "clausesPerCondition" : 8,
+      "inEntries" : 64,
+      "mappingFields" : 16,
+      "configurationSettings" : 64,
+      "functionArguments" : 8,
+      "functionNesting" : 2,
+      "identifierPattern" : "[a-z][a-z0-9-]{0,62}",
+      "fieldNamePattern" : "[a-zA-Z][a-zA-Z0-9_.-]{0,126}",
+      "topicMaximumCharacters" : 127,
+      "expressionSourceCharacters" : 8192,
+      "expressionNodesHardMaximum" : 512,
+      "bytesLiteralHexCharacters" : 131072,
+      "irBytes" : 65536,
+      "sourceCharacters" : 262144,
+      "sourceTokens" : 32768,
+      "sourceNesting" : 48
+    },
+    "baselineEvent" : {
+      "eventId" : "composite.command-accepted.v1",
+      "fields" : [ {
+        "name" : "topic",
+        "type" : "text",
+        "required" : true
+      }, {
+        "name" : "sender",
+        "type" : "bytes",
+        "required" : true
+      }, {
+        "name" : "messageId",
+        "type" : "bytes",
+        "required" : true
+      }, {
+        "name" : "body",
+        "type" : "bytes",
+        "required" : true
+      }, {
+        "name" : "bodyHash",
+        "type" : "bytes",
+        "required" : true
+      }, {
+        "name" : "bodyLength",
+        "type" : "integer",
+        "required" : true
+      } ],
+      "materialized" : "only when a binding subscribes to it"
+    },
+    "receiptCodes" : [ {
+      "code" : "ADMISSION",
+      "category" : "target-rejection",
+      "origin" : "either",
+      "levels" : [ "step" ],
+      "locatesLastCondition" : "never"
+    }, {
+      "code" : "MALFORMED_SOURCE_COMMAND",
+      "category" : "target-rejection",
+      "origin" : "either",
+      "levels" : [ "source" ],
+      "locatesLastCondition" : "never"
+    }, {
+      "code" : "MALFORMED_DERIVED_COMMAND",
+      "category" : "target-rejection",
+      "origin" : "either",
+      "levels" : [ "step" ],
+      "locatesLastCondition" : "never"
+    }, {
+      "code" : "CAPACITY_EXCEEDED",
+      "category" : "resource-exhaustion",
+      "origin" : "either",
+      "levels" : [ "source", "condition" ],
+      "locatesLastCondition" : "ambiguous"
+    }, {
+      "code" : "COMMAND_PAYLOAD_TOO_LARGE",
+      "category" : "resource-exhaustion",
+      "origin" : "either",
+      "levels" : [ "step" ],
+      "locatesLastCondition" : "never"
+    }, {
+      "code" : "COMMAND_WORK_EXCEEDED",
+      "category" : "resource-exhaustion",
+      "origin" : "either",
+      "levels" : [ "step" ],
+      "locatesLastCondition" : "never"
+    }, {
+      "code" : "CRYPTO_WORK_EXCEEDED",
+      "category" : "resource-exhaustion",
+      "origin" : "either",
+      "levels" : [ "step" ],
+      "locatesLastCondition" : "never"
+    }, {
+      "code" : "EVENT_PAYLOAD_TOO_LARGE",
+      "category" : "resource-exhaustion",
+      "origin" : "either",
+      "levels" : [ "step" ],
+      "locatesLastCondition" : "never"
+    }, {
+      "code" : "EXPRESSION_CAPACITY_EXCEEDED",
+      "category" : "resource-exhaustion",
+      "origin" : "either",
+      "levels" : [ "source", "step", "condition", "mapping", "effect" ],
+      "locatesLastCondition" : "ambiguous"
+    }, {
+      "code" : "LIMIT_DEPTH",
+      "category" : "resource-exhaustion",
+      "origin" : "either",
+      "levels" : [ "step" ],
+      "locatesLastCondition" : "never"
+    }, {
+      "code" : "LIMIT_FANOUT",
+      "category" : "resource-exhaustion",
+      "origin" : "either",
+      "levels" : [ "condition" ],
+      "locatesLastCondition" : "ambiguous"
+    }, {
+      "code" : "RECEIPT_CAPACITY_EXCEEDED",
+      "category" : "resource-exhaustion",
+      "origin" : "either",
+      "levels" : [ "source" ],
+      "locatesLastCondition" : "never"
+    }, {
+      "code" : "EFFECT_CAPACITY_EXCEEDED",
+      "category" : "resource-exhaustion",
+      "origin" : "either",
+      "levels" : [ "effect" ],
+      "locatesLastCondition" : "never"
+    }, {
+      "code" : "EFFECT_PAYLOAD_LIMIT",
+      "category" : "resource-exhaustion",
+      "origin" : "either",
+      "levels" : [ "effect" ],
+      "locatesLastCondition" : "never"
+    }, {
+      "code" : "EFFECT_EXPIRY_LIMIT",
+      "category" : "resource-exhaustion",
+      "origin" : "either",
+      "levels" : [ "effect" ],
+      "locatesLastCondition" : "never"
+    }, {
+      "code" : "EVENT_TYPE_ERROR",
+      "category" : "evaluation-error",
+      "origin" : "either",
+      "levels" : [ "step", "condition" ],
+      "locatesLastCondition" : "ambiguous"
+    }, {
+      "code" : "EVENT_MISSING_FIELD",
+      "category" : "contract-violation",
+      "origin" : "either",
+      "levels" : [ "step" ],
+      "locatesLastCondition" : "never"
+    }, {
+      "code" : "EXPRESSION_DIVISION_BY_ZERO",
+      "category" : "evaluation-error",
+      "origin" : "either",
+      "levels" : [ "condition", "mapping" ],
+      "locatesLastCondition" : "ambiguous"
+    }, {
+      "code" : "EXPRESSION_MISSING_FIELD",
+      "category" : "evaluation-error",
+      "origin" : "either",
+      "levels" : [ "condition", "mapping" ],
+      "locatesLastCondition" : "ambiguous"
+    }, {
+      "code" : "EXPRESSION_OVERFLOW",
+      "category" : "evaluation-error",
+      "origin" : "either",
+      "levels" : [ "condition", "mapping" ],
+      "locatesLastCondition" : "ambiguous"
+    }, {
+      "code" : "EXPRESSION_TYPE_ERROR",
+      "category" : "evaluation-error",
+      "origin" : "either",
+      "levels" : [ "condition", "mapping" ],
+      "locatesLastCondition" : "ambiguous"
+    }, {
+      "code" : "EXPRESSION_VALUE_LIMIT",
+      "category" : "evaluation-error",
+      "origin" : "either",
+      "levels" : [ "condition", "mapping" ],
+      "locatesLastCondition" : "ambiguous"
+    }, {
+      "code" : "FUNCTION_INPUT_LIMIT",
+      "category" : "evaluation-error",
+      "origin" : "either",
+      "levels" : [ "condition", "mapping" ],
+      "locatesLastCondition" : "ambiguous"
+    }, {
+      "code" : "FUNCTION_INVALID_CBOR",
+      "category" : "evaluation-error",
+      "origin" : "either",
+      "levels" : [ "condition", "mapping" ],
+      "locatesLastCondition" : "ambiguous"
+    }, {
+      "code" : "FUNCTION_MISSING_FIELD",
+      "category" : "evaluation-error",
+      "origin" : "either",
+      "levels" : [ "condition", "mapping" ],
+      "locatesLastCondition" : "ambiguous"
+    }, {
+      "code" : "FUNCTION_OUTPUT_LIMIT",
+      "category" : "evaluation-error",
+      "origin" : "either",
+      "levels" : [ "condition", "mapping" ],
+      "locatesLastCondition" : "ambiguous"
+    }, {
+      "code" : "INVALID_UNICODE",
+      "category" : "evaluation-error",
+      "origin" : "either",
+      "levels" : [ "condition", "mapping" ],
+      "locatesLastCondition" : "ambiguous"
+    }, {
+      "code" : "LOOKUP_KEY_INVALID",
+      "category" : "evaluation-error",
+      "origin" : "either",
+      "levels" : [ "condition" ],
+      "locatesLastCondition" : "always"
+    }, {
+      "code" : "LOOKUP_KEY_LIMIT",
+      "category" : "evaluation-error",
+      "origin" : "either",
+      "levels" : [ "condition" ],
+      "locatesLastCondition" : "always"
+    }, {
+      "code" : "LOOKUP_KEY_TYPE",
+      "category" : "evaluation-error",
+      "origin" : "either",
+      "levels" : [ "condition" ],
+      "locatesLastCondition" : "always"
+    }, {
+      "code" : "MAPPING_MISSING_FIELD",
+      "category" : "evaluation-error",
+      "origin" : "either",
+      "levels" : [ "condition", "mapping" ],
+      "locatesLastCondition" : "ambiguous"
+    }, {
+      "code" : "MAPPING_TYPE_ERROR",
+      "category" : "evaluation-error",
+      "origin" : "either",
+      "levels" : [ "mapping" ],
+      "locatesLastCondition" : "never"
+    }, {
+      "code" : "CONSUMPTION_CONFLICT",
+      "category" : "replay-or-conflict",
+      "origin" : "either",
+      "levels" : [ "step" ],
+      "locatesLastCondition" : "never"
+    }, {
+      "code" : "REPLAY_OR_CONFLICT",
+      "category" : "replay-or-conflict",
+      "origin" : "either",
+      "levels" : [ "source" ],
+      "locatesLastCondition" : "never"
+    }, {
+      "code" : "RESERVED_ACCOUNTING_KEY",
+      "category" : "contract-violation",
+      "origin" : "either",
+      "levels" : [ "step" ],
+      "locatesLastCondition" : "never"
+    }, {
+      "code" : "RESERVED_EVENT_ID",
+      "category" : "contract-violation",
+      "origin" : "either",
+      "levels" : [ "step" ],
+      "locatesLastCondition" : "never"
+    }, {
+      "code" : "STATE_KEY_LIMIT",
+      "category" : "contract-violation",
+      "origin" : "either",
+      "levels" : [ "step" ],
+      "locatesLastCondition" : "never"
+    }, {
+      "code" : "UNDECLARED_WORK_REFERENCE",
+      "category" : "contract-violation",
+      "origin" : "either",
+      "levels" : [ "step" ],
+      "locatesLastCondition" : "never"
+    }, {
+      "code" : "ADMISSION_RULE_DENIED",
+      "category" : "admission-rule",
+      "origin" : "either",
+      "levels" : [ "step" ],
+      "locatesLastCondition" : "never"
+    }, {
+      "code" : "ADMISSION_RULE_ERROR",
+      "category" : "admission-rule",
+      "origin" : "either",
+      "levels" : [ "step" ],
+      "locatesLastCondition" : "never"
+    }, {
+      "code" : "ADMISSION_RULE_INPUT",
+      "category" : "admission-rule",
+      "origin" : "either",
+      "levels" : [ "step" ],
+      "locatesLastCondition" : "never"
+    } ]
+  },
+  "selectors" : [ {
+    "machineId" : "ada-usd-reference-v1",
+    "origin" : {
+      "kind" : "bundle",
+      "bundleId" : "org.yanoproject.x.stdlib",
+      "digest" : "sha256:a06710dcfcfa748a5669e81a72d3cbbab42df0ad2ed2c0fe7e76a97ee969a48b",
+      "digestMode" : "ARTIFACT_CLOSURE"
+    },
+    "composable" : null
+  }, {
+    "machineId" : "approvals",
+    "origin" : {
+      "kind" : "bundle",
+      "bundleId" : "org.yanoproject.x.stdlib",
+      "digest" : "sha256:a06710dcfcfa748a5669e81a72d3cbbab42df0ad2ed2c0fe7e76a97ee969a48b",
+      "digestMode" : "ARTIFACT_CLOSURE"
+    },
+    "composable" : null
+  }, {
+    "machineId" : "authenticated-map",
+    "origin" : {
+      "kind" : "bundle",
+      "bundleId" : "org.yanoproject.x.stdlib",
+      "digest" : "sha256:a06710dcfcfa748a5669e81a72d3cbbab42df0ad2ed2c0fe7e76a97ee969a48b",
+      "digestMode" : "ARTIFACT_CLOSURE"
+    },
+    "composable" : null
+  }, {
+    "machineId" : "authenticated-map-component",
+    "origin" : {
+      "kind" : "bundle",
+      "bundleId" : "org.yanoproject.x.stdlib",
+      "digest" : "sha256:a06710dcfcfa748a5669e81a72d3cbbab42df0ad2ed2c0fe7e76a97ee969a48b",
+      "digestMode" : "ARTIFACT_CLOSURE"
+    },
+    "composable" : null
+  }, {
+    "machineId" : "balances",
+    "origin" : {
+      "kind" : "bundle",
+      "bundleId" : "org.yanoproject.x.stdlib",
+      "digest" : "sha256:a06710dcfcfa748a5669e81a72d3cbbab42df0ad2ed2c0fe7e76a97ee969a48b",
+      "digestMode" : "ARTIFACT_CLOSURE"
+    },
+    "composable" : null
+  }, {
+    "machineId" : "declarative-composite",
+    "origin" : {
+      "kind" : "bundle",
+      "bundleId" : "org.yanoproject.x.composite",
+      "digest" : "sha256:eee7eb00cc61f1a2e2bc73adefeb20715d8d2ce3a3339b347271ce75c0e51fad",
+      "digestMode" : "ARTIFACT_CLOSURE"
+    },
+    "composable" : false
+  }, {
+    "machineId" : "doc-trail",
+    "origin" : {
+      "kind" : "bundle",
+      "bundleId" : "org.yanoproject.x.stdlib",
+      "digest" : "sha256:a06710dcfcfa748a5669e81a72d3cbbab42df0ad2ed2c0fe7e76a97ee969a48b",
+      "digestMode" : "ARTIFACT_CLOSURE"
+    },
+    "composable" : null
+  }, {
+    "machineId" : "domain-actors-component",
+    "origin" : {
+      "kind" : "bundle",
+      "bundleId" : "org.yanoproject.x.role-workflow",
+      "digest" : "sha256:3038258d1509c82fc850eac84060ef76bdb476c51d780ce492316410d5b66100",
+      "digestMode" : "ARTIFACT_CLOSURE"
+    },
+    "composable" : null
+  }, {
+    "machineId" : "epoch-governance",
+    "origin" : {
+      "kind" : "bundle",
+      "bundleId" : "org.yanoproject.x.stdlib",
+      "digest" : "sha256:a06710dcfcfa748a5669e81a72d3cbbab42df0ad2ed2c0fe7e76a97ee969a48b",
+      "digestMode" : "ARTIFACT_CLOSURE"
+    },
+    "composable" : null
+  }, {
+    "machineId" : "epoch-params",
+    "origin" : {
+      "kind" : "bundle",
+      "bundleId" : "org.yanoproject.x.stdlib",
+      "digest" : "sha256:a06710dcfcfa748a5669e81a72d3cbbab42df0ad2ed2c0fe7e76a97ee969a48b",
+      "digestMode" : "ARTIFACT_CLOSURE"
+    },
+    "composable" : null
+  }, {
+    "machineId" : "epoch-stake",
+    "origin" : {
+      "kind" : "bundle",
+      "bundleId" : "org.yanoproject.x.stdlib",
+      "digest" : "sha256:a06710dcfcfa748a5669e81a72d3cbbab42df0ad2ed2c0fe7e76a97ee969a48b",
+      "digestMode" : "ARTIFACT_CLOSURE"
+    },
+    "composable" : null
+  }, {
+    "machineId" : "governed-role-approvals",
+    "origin" : {
+      "kind" : "bundle",
+      "bundleId" : "org.yanoproject.x.role-workflow",
+      "digest" : "sha256:3038258d1509c82fc850eac84060ef76bdb476c51d780ce492316410d5b66100",
+      "digestMode" : "ARTIFACT_CLOSURE"
+    },
+    "composable" : null
+  }, {
+    "machineId" : "kv-registry",
+    "origin" : {
+      "kind" : "bundle",
+      "bundleId" : "org.yanoproject.x.stdlib",
+      "digest" : "sha256:a06710dcfcfa748a5669e81a72d3cbbab42df0ad2ed2c0fe7e76a97ee969a48b",
+      "digestMode" : "ARTIFACT_CLOSURE"
+    },
+    "composable" : null
+  }, {
+    "machineId" : "ordered-log",
+    "origin" : {
+      "kind" : "builtin"
+    },
+    "composable" : null
+  }, {
+    "machineId" : "role-approvals",
+    "origin" : {
+      "kind" : "bundle",
+      "bundleId" : "org.yanoproject.x.role-workflow",
+      "digest" : "sha256:3038258d1509c82fc850eac84060ef76bdb476c51d780ce492316410d5b66100",
+      "digestMode" : "ARTIFACT_CLOSURE"
+    },
+    "composable" : null
+  }, {
+    "machineId" : "shipment-workflow-reference-v1",
+    "origin" : {
+      "kind" : "bundle",
+      "bundleId" : "org.yanoproject.x.stdlib",
+      "digest" : "sha256:a06710dcfcfa748a5669e81a72d3cbbab42df0ad2ed2c0fe7e76a97ee969a48b",
+      "digestMode" : "ARTIFACT_CLOSURE"
+    },
+    "composable" : null
+  } ],
+  "instances" : [ {
+    "machineId" : "domain-actors-component",
+    "basis" : "document",
+    "authoredConfiguration" : {
+      "genesis-cbor-hex" : {
+        "type" : "text",
+        "value" : "88017762696e64696e672d666565642d72756c65732d64656d6f581f86016a6470702d61646d696e7301816b6470702d61646d696e2d61011903e886581885017261636d652d6d616e75666163747572696e670100405385016d61756469742d6775696c642d620100405185016b636572742d626f64792d610100405485016e6470702d636f6e736f727469756d0100405085016a677265656e2d6c6162730100405585016f73776966742d6c6f676973746963730100408758f98301585888016961756469746f722d616b636572742d626f64792d610100816761756469746f7281856c61756469746f722d612d6b31582065791dbb3c723dd27f3af1df5c11cf0b43393e18c6b029fc8e08bc6896d4ae650100004081589a86017762696e64696e672d666565642d72756c65732d64656d6f6961756469746f722d6101856c61756469746f722d612d6b31582065791dbb3c723dd27f3af1df5c11cf0b43393e18c6b029fc8e08bc6896d4ae6501000058405dd5462bb5ae3b8a52b35f5081b1afc71ca116f3de83c6f9036b5cd12de3e8deec41e191d6d6ca6d48ab998b1ec3ccfa8c350140878390c28a5e5427b0f6260858fb8301585a88016961756469746f722d626d61756469742d6775696c642d620100816761756469746f7281856c61756469746f722d622d6b3158204ea94c47798239e152aa2837065e7a08318c28c01afec0cd6f59a4bb4a6098dd0100004081589a86017762696e64696e672d666565642d72756c65732d64656d6f6961756469746f722d6201856c61756469746f722d622d6b3158204ea94c47798239e152aa2837065e7a08318c28c01afec0cd6f59a4bb4a6098dd01000058402440fff540139c03ca20a78105411ef5eaae004d2a2319c2d8202f6e2e84594728217e6082e6119d5d54ea218955cace9f5f908a21b8223517ca0d125f8242025901038301585e88016b6365727469666965722d616b636572742d626f64792d610100816963657274696669657281856e6365727469666965722d612d6b3158203c91ebc38ba35fd859929e7b4b292901687d0dd90726cdbce0bc59352694c2520100004081589e86017762696e64696e672d666565642d72756c65732d64656d6f6b6365727469666965722d6101856e6365727469666965722d612d6b3158203c91ebc38ba35fd859929e7b4b292901687d0dd90726cdbce0bc59352694c2520100005840185d72037e39b93c0e51f02f264d65481adf877f01695b78d7bfa1c3956d63f453e01dcc3dbcf2057684f65b5e486224fdc10b5098a2522d3d23970afe0b0e0d5901068301586188016b6470702d61646d696e2d616e6470702d636f6e736f727469756d010081696470702d61646d696e81856e6470702d61646d696e2d612d6b315820b3a60000ec664af8d68e44550a8cb0e5d4e4ad317abb8a3afd5216fa555907be0100004081589e86017762696e64696e672d666565642d72756c65732d64656d6f6b6470702d61646d696e2d6101856e6470702d61646d696e2d612d6b315820b3a60000ec664af8d68e44550a8cb0e5d4e4ad317abb8a3afd5216fa555907be01000058408d54bd986f233b3ee7624c0f9ad0a737e559c7d3ed339eee910375095e68d321a8ae81d24763ccc053ab616e6fa2a3eb3c8b3c20cf8707ae1804f2a2f957570458f98301585a8801686973737565722d616a677265656e2d6c6162730100816c636c61696d2d69737375657281856b6973737565722d612d6b3158204e678c1bf49b5741fcf2185400a39a4c0c5bd7412dcb56e6133531332b5212570100004081589886017762696e64696e672d666565642d72756c65732d64656d6f686973737565722d6101856b6973737565722d612d6b3158204e678c1bf49b5741fcf2185400a39a4c0c5bd7412dcb56e6133531332b52125701000058407ac5d9c8ce22b6adaca699aad7ba56adeb3a93cf0abbd18d875f3543019b4df44e782a7f0e296fd750bc2340c4febf517f4b8e07b8a66858dc8dc8c02b9b590d5901068301586188016b6c6f676973746963732d616f73776966742d6c6f67697374696373010081686f70657261746f7281856e6c6f676973746963732d612d6b315820a44c55575bc38a5baf53f8aba7f3f2bc625ebe24f1829ea006adcf22605c4d6f0100004081589e86017762696e64696e672d666565642d72756c65732d64656d6f6b6c6f676973746963732d6101856e6c6f676973746963732d612d6b315820a44c55575bc38a5baf53f8aba7f3f2bc625ebe24f1829ea006adcf22605c4d6f0100005840097bb9b9b8d33eabaa55dc59753348c5c5f2d06facb200cacd1ad8a5ad9e7435e6b69862185fcd3321731fd2491b3b0217815d972b7b98853716540adc71c30c590106830158698801676d616b65722d617261636d652d6d616e75666163747572696e670100826c6d616e756661637475726572686f70657261746f7281856a6d616b65722d612d6b3158203af55badd6d243f2537801839f35a2f9adaa0c1478ecb0a36c9212e90158cb470100004081589686017762696e64696e672d666565642d72756c65732d64656d6f676d616b65722d6101856a6d616b65722d612d6b3158203af55badd6d243f2537801839f35a2f9adaa0c1478ecb0a36c9212e90158cb470100005840df22456c0051cd2c4d04c52d2470decaf054187067140e3a078c43eba8dd6c0c1cd79344b3e7f064f3dd2059b178239ec35f68171c6958d429809a4e46cfcd07835826860172636c61696d2d6973737565722d777269746501006c636c61696d2d697373756572186458268601726d616e7566616374757265722d777269746501006c6d616e7566616374757265721864581e86016e6f70657261746f722d77726974650100686f70657261746f72186481584288016d63657274696669636174696f6e01008169636572746966696572818474696e646570656e64656e742d61756469746f72736761756469746f72020101190258582f9201182018801840188019010018801a00040000190400191000184019010019010018801901001901001864190200"
+      }
+    },
+    "configurationDescriptor" : [ {
+      "name" : "genesis-cbor-hex",
+      "type" : "text",
+      "required" : true,
+      "default" : null
+    } ],
+    "applicationVersion" : "1.0.0",
+    "status" : "available",
+    "normalizedConfiguration" : {
+      "genesis-cbor-hex" : {
+        "type" : "text",
+        "value" : "88017762696e64696e672d666565642d72756c65732d64656d6f581f86016a6470702d61646d696e7301816b6470702d61646d696e2d61011903e886581885017261636d652d6d616e75666163747572696e670100405385016d61756469742d6775696c642d620100405185016b636572742d626f64792d610100405485016e6470702d636f6e736f727469756d0100405085016a677265656e2d6c6162730100405585016f73776966742d6c6f676973746963730100408758f98301585888016961756469746f722d616b636572742d626f64792d610100816761756469746f7281856c61756469746f722d612d6b31582065791dbb3c723dd27f3af1df5c11cf0b43393e18c6b029fc8e08bc6896d4ae650100004081589a86017762696e64696e672d666565642d72756c65732d64656d6f6961756469746f722d6101856c61756469746f722d612d6b31582065791dbb3c723dd27f3af1df5c11cf0b43393e18c6b029fc8e08bc6896d4ae6501000058405dd5462bb5ae3b8a52b35f5081b1afc71ca116f3de83c6f9036b5cd12de3e8deec41e191d6d6ca6d48ab998b1ec3ccfa8c350140878390c28a5e5427b0f6260858fb8301585a88016961756469746f722d626d61756469742d6775696c642d620100816761756469746f7281856c61756469746f722d622d6b3158204ea94c47798239e152aa2837065e7a08318c28c01afec0cd6f59a4bb4a6098dd0100004081589a86017762696e64696e672d666565642d72756c65732d64656d6f6961756469746f722d6201856c61756469746f722d622d6b3158204ea94c47798239e152aa2837065e7a08318c28c01afec0cd6f59a4bb4a6098dd01000058402440fff540139c03ca20a78105411ef5eaae004d2a2319c2d8202f6e2e84594728217e6082e6119d5d54ea218955cace9f5f908a21b8223517ca0d125f8242025901038301585e88016b6365727469666965722d616b636572742d626f64792d610100816963657274696669657281856e6365727469666965722d612d6b3158203c91ebc38ba35fd859929e7b4b292901687d0dd90726cdbce0bc59352694c2520100004081589e86017762696e64696e672d666565642d72756c65732d64656d6f6b6365727469666965722d6101856e6365727469666965722d612d6b3158203c91ebc38ba35fd859929e7b4b292901687d0dd90726cdbce0bc59352694c2520100005840185d72037e39b93c0e51f02f264d65481adf877f01695b78d7bfa1c3956d63f453e01dcc3dbcf2057684f65b5e486224fdc10b5098a2522d3d23970afe0b0e0d5901068301586188016b6470702d61646d696e2d616e6470702d636f6e736f727469756d010081696470702d61646d696e81856e6470702d61646d696e2d612d6b315820b3a60000ec664af8d68e44550a8cb0e5d4e4ad317abb8a3afd5216fa555907be0100004081589e86017762696e64696e672d666565642d72756c65732d64656d6f6b6470702d61646d696e2d6101856e6470702d61646d696e2d612d6b315820b3a60000ec664af8d68e44550a8cb0e5d4e4ad317abb8a3afd5216fa555907be01000058408d54bd986f233b3ee7624c0f9ad0a737e559c7d3ed339eee910375095e68d321a8ae81d24763ccc053ab616e6fa2a3eb3c8b3c20cf8707ae1804f2a2f957570458f98301585a8801686973737565722d616a677265656e2d6c6162730100816c636c61696d2d69737375657281856b6973737565722d612d6b3158204e678c1bf49b5741fcf2185400a39a4c0c5bd7412dcb56e6133531332b5212570100004081589886017762696e64696e672d666565642d72756c65732d64656d6f686973737565722d6101856b6973737565722d612d6b3158204e678c1bf49b5741fcf2185400a39a4c0c5bd7412dcb56e6133531332b52125701000058407ac5d9c8ce22b6adaca699aad7ba56adeb3a93cf0abbd18d875f3543019b4df44e782a7f0e296fd750bc2340c4febf517f4b8e07b8a66858dc8dc8c02b9b590d5901068301586188016b6c6f676973746963732d616f73776966742d6c6f67697374696373010081686f70657261746f7281856e6c6f676973746963732d612d6b315820a44c55575bc38a5baf53f8aba7f3f2bc625ebe24f1829ea006adcf22605c4d6f0100004081589e86017762696e64696e672d666565642d72756c65732d64656d6f6b6c6f676973746963732d6101856e6c6f676973746963732d612d6b315820a44c55575bc38a5baf53f8aba7f3f2bc625ebe24f1829ea006adcf22605c4d6f0100005840097bb9b9b8d33eabaa55dc59753348c5c5f2d06facb200cacd1ad8a5ad9e7435e6b69862185fcd3321731fd2491b3b0217815d972b7b98853716540adc71c30c590106830158698801676d616b65722d617261636d652d6d616e75666163747572696e670100826c6d616e756661637475726572686f70657261746f7281856a6d616b65722d612d6b3158203af55badd6d243f2537801839f35a2f9adaa0c1478ecb0a36c9212e90158cb470100004081589686017762696e64696e672d666565642d72756c65732d64656d6f676d616b65722d6101856a6d616b65722d612d6b3158203af55badd6d243f2537801839f35a2f9adaa0c1478ecb0a36c9212e90158cb470100005840df22456c0051cd2c4d04c52d2470decaf054187067140e3a078c43eba8dd6c0c1cd79344b3e7f064f3dd2059b178239ec35f68171c6958d429809a4e46cfcd07835826860172636c61696d2d6973737565722d777269746501006c636c61696d2d697373756572186458268601726d616e7566616374757265722d777269746501006c6d616e7566616374757265721864581e86016e6f70657261746f722d77726974650100686f70657261746f72186481584288016d63657274696669636174696f6e01008169636572746966696572818474696e646570656e64656e742d61756469746f72736761756469746f72020101190258582f9201182018801840188019010018801a00040000190400191000184019010019010018801901001901001864190200"
+      }
+    },
+    "events" : [ ],
+    "commands" : [ ],
+    "rawBodyTarget" : "allowed",
+    "readParticipants" : [ ],
+    "commandSelectable" : false,
+    "unselectableReason" : "the kernel declares no command",
+    "ruleFacts" : [ ],
+    "ruleValueViews" : [ ],
+    "componentIds" : [ "actors" ]
+  }, {
+    "machineId" : "governed-role-approvals",
+    "basis" : "document",
+    "authoredConfiguration" : {
+      "actor-component" : {
+        "type" : "text",
+        "value" : "actors"
+      },
+      "genesis-cbor-hex" : {
+        "type" : "text",
+        "value" : "88017762696e64696e672d666565642d72756c65732d64656d6f581f86016a6470702d61646d696e7301816b6470702d61646d696e2d61011903e886581885017261636d652d6d616e75666163747572696e670100405385016d61756469742d6775696c642d620100405185016b636572742d626f64792d610100405485016e6470702d636f6e736f727469756d0100405085016a677265656e2d6c6162730100405585016f73776966742d6c6f676973746963730100408758f98301585888016961756469746f722d616b636572742d626f64792d610100816761756469746f7281856c61756469746f722d612d6b31582065791dbb3c723dd27f3af1df5c11cf0b43393e18c6b029fc8e08bc6896d4ae650100004081589a86017762696e64696e672d666565642d72756c65732d64656d6f6961756469746f722d6101856c61756469746f722d612d6b31582065791dbb3c723dd27f3af1df5c11cf0b43393e18c6b029fc8e08bc6896d4ae6501000058405dd5462bb5ae3b8a52b35f5081b1afc71ca116f3de83c6f9036b5cd12de3e8deec41e191d6d6ca6d48ab998b1ec3ccfa8c350140878390c28a5e5427b0f6260858fb8301585a88016961756469746f722d626d61756469742d6775696c642d620100816761756469746f7281856c61756469746f722d622d6b3158204ea94c47798239e152aa2837065e7a08318c28c01afec0cd6f59a4bb4a6098dd0100004081589a86017762696e64696e672d666565642d72756c65732d64656d6f6961756469746f722d6201856c61756469746f722d622d6b3158204ea94c47798239e152aa2837065e7a08318c28c01afec0cd6f59a4bb4a6098dd01000058402440fff540139c03ca20a78105411ef5eaae004d2a2319c2d8202f6e2e84594728217e6082e6119d5d54ea218955cace9f5f908a21b8223517ca0d125f8242025901038301585e88016b6365727469666965722d616b636572742d626f64792d610100816963657274696669657281856e6365727469666965722d612d6b3158203c91ebc38ba35fd859929e7b4b292901687d0dd90726cdbce0bc59352694c2520100004081589e86017762696e64696e672d666565642d72756c65732d64656d6f6b6365727469666965722d6101856e6365727469666965722d612d6b3158203c91ebc38ba35fd859929e7b4b292901687d0dd90726cdbce0bc59352694c2520100005840185d72037e39b93c0e51f02f264d65481adf877f01695b78d7bfa1c3956d63f453e01dcc3dbcf2057684f65b5e486224fdc10b5098a2522d3d23970afe0b0e0d5901068301586188016b6470702d61646d696e2d616e6470702d636f6e736f727469756d010081696470702d61646d696e81856e6470702d61646d696e2d612d6b315820b3a60000ec664af8d68e44550a8cb0e5d4e4ad317abb8a3afd5216fa555907be0100004081589e86017762696e64696e672d666565642d72756c65732d64656d6f6b6470702d61646d696e2d6101856e6470702d61646d696e2d612d6b315820b3a60000ec664af8d68e44550a8cb0e5d4e4ad317abb8a3afd5216fa555907be01000058408d54bd986f233b3ee7624c0f9ad0a737e559c7d3ed339eee910375095e68d321a8ae81d24763ccc053ab616e6fa2a3eb3c8b3c20cf8707ae1804f2a2f957570458f98301585a8801686973737565722d616a677265656e2d6c6162730100816c636c61696d2d69737375657281856b6973737565722d612d6b3158204e678c1bf49b5741fcf2185400a39a4c0c5bd7412dcb56e6133531332b5212570100004081589886017762696e64696e672d666565642d72756c65732d64656d6f686973737565722d6101856b6973737565722d612d6b3158204e678c1bf49b5741fcf2185400a39a4c0c5bd7412dcb56e6133531332b52125701000058407ac5d9c8ce22b6adaca699aad7ba56adeb3a93cf0abbd18d875f3543019b4df44e782a7f0e296fd750bc2340c4febf517f4b8e07b8a66858dc8dc8c02b9b590d5901068301586188016b6c6f676973746963732d616f73776966742d6c6f67697374696373010081686f70657261746f7281856e6c6f676973746963732d612d6b315820a44c55575bc38a5baf53f8aba7f3f2bc625ebe24f1829ea006adcf22605c4d6f0100004081589e86017762696e64696e672d666565642d72756c65732d64656d6f6b6c6f676973746963732d6101856e6c6f676973746963732d612d6b315820a44c55575bc38a5baf53f8aba7f3f2bc625ebe24f1829ea006adcf22605c4d6f0100005840097bb9b9b8d33eabaa55dc59753348c5c5f2d06facb200cacd1ad8a5ad9e7435e6b69862185fcd3321731fd2491b3b0217815d972b7b98853716540adc71c30c590106830158698801676d616b65722d617261636d652d6d616e75666163747572696e670100826c6d616e756661637475726572686f70657261746f7281856a6d616b65722d612d6b3158203af55badd6d243f2537801839f35a2f9adaa0c1478ecb0a36c9212e90158cb470100004081589686017762696e64696e672d666565642d72756c65732d64656d6f676d616b65722d6101856a6d616b65722d612d6b3158203af55badd6d243f2537801839f35a2f9adaa0c1478ecb0a36c9212e90158cb470100005840df22456c0051cd2c4d04c52d2470decaf054187067140e3a078c43eba8dd6c0c1cd79344b3e7f064f3dd2059b178239ec35f68171c6958d429809a4e46cfcd07835826860172636c61696d2d6973737565722d777269746501006c636c61696d2d697373756572186458268601726d616e7566616374757265722d777269746501006c6d616e7566616374757265721864581e86016e6f70657261746f722d77726974650100686f70657261746f72186481584288016d63657274696669636174696f6e01008169636572746966696572818474696e646570656e64656e742d61756469746f72736761756469746f72020101190258582f9201182018801840188019010018801a00040000190400191000184019010019010018801901001901001864190200"
+      }
+    },
+    "configurationDescriptor" : [ {
+      "name" : "genesis-cbor-hex",
+      "type" : "text",
+      "required" : true,
+      "default" : null
+    }, {
+      "name" : "actor-component",
+      "type" : "text",
+      "required" : false,
+      "default" : {
+        "type" : "text",
+        "value" : "actors"
+      }
+    } ],
+    "applicationVersion" : "1.0.0",
+    "status" : "available",
+    "normalizedConfiguration" : {
+      "actor-component" : {
+        "type" : "text",
+        "value" : "actors"
+      },
+      "genesis-cbor-hex" : {
+        "type" : "text",
+        "value" : "88017762696e64696e672d666565642d72756c65732d64656d6f581f86016a6470702d61646d696e7301816b6470702d61646d696e2d61011903e886581885017261636d652d6d616e75666163747572696e670100405385016d61756469742d6775696c642d620100405185016b636572742d626f64792d610100405485016e6470702d636f6e736f727469756d0100405085016a677265656e2d6c6162730100405585016f73776966742d6c6f676973746963730100408758f98301585888016961756469746f722d616b636572742d626f64792d610100816761756469746f7281856c61756469746f722d612d6b31582065791dbb3c723dd27f3af1df5c11cf0b43393e18c6b029fc8e08bc6896d4ae650100004081589a86017762696e64696e672d666565642d72756c65732d64656d6f6961756469746f722d6101856c61756469746f722d612d6b31582065791dbb3c723dd27f3af1df5c11cf0b43393e18c6b029fc8e08bc6896d4ae6501000058405dd5462bb5ae3b8a52b35f5081b1afc71ca116f3de83c6f9036b5cd12de3e8deec41e191d6d6ca6d48ab998b1ec3ccfa8c350140878390c28a5e5427b0f6260858fb8301585a88016961756469746f722d626d61756469742d6775696c642d620100816761756469746f7281856c61756469746f722d622d6b3158204ea94c47798239e152aa2837065e7a08318c28c01afec0cd6f59a4bb4a6098dd0100004081589a86017762696e64696e672d666565642d72756c65732d64656d6f6961756469746f722d6201856c61756469746f722d622d6b3158204ea94c47798239e152aa2837065e7a08318c28c01afec0cd6f59a4bb4a6098dd01000058402440fff540139c03ca20a78105411ef5eaae004d2a2319c2d8202f6e2e84594728217e6082e6119d5d54ea218955cace9f5f908a21b8223517ca0d125f8242025901038301585e88016b6365727469666965722d616b636572742d626f64792d610100816963657274696669657281856e6365727469666965722d612d6b3158203c91ebc38ba35fd859929e7b4b292901687d0dd90726cdbce0bc59352694c2520100004081589e86017762696e64696e672d666565642d72756c65732d64656d6f6b6365727469666965722d6101856e6365727469666965722d612d6b3158203c91ebc38ba35fd859929e7b4b292901687d0dd90726cdbce0bc59352694c2520100005840185d72037e39b93c0e51f02f264d65481adf877f01695b78d7bfa1c3956d63f453e01dcc3dbcf2057684f65b5e486224fdc10b5098a2522d3d23970afe0b0e0d5901068301586188016b6470702d61646d696e2d616e6470702d636f6e736f727469756d010081696470702d61646d696e81856e6470702d61646d696e2d612d6b315820b3a60000ec664af8d68e44550a8cb0e5d4e4ad317abb8a3afd5216fa555907be0100004081589e86017762696e64696e672d666565642d72756c65732d64656d6f6b6470702d61646d696e2d6101856e6470702d61646d696e2d612d6b315820b3a60000ec664af8d68e44550a8cb0e5d4e4ad317abb8a3afd5216fa555907be01000058408d54bd986f233b3ee7624c0f9ad0a737e559c7d3ed339eee910375095e68d321a8ae81d24763ccc053ab616e6fa2a3eb3c8b3c20cf8707ae1804f2a2f957570458f98301585a8801686973737565722d616a677265656e2d6c6162730100816c636c61696d2d69737375657281856b6973737565722d612d6b3158204e678c1bf49b5741fcf2185400a39a4c0c5bd7412dcb56e6133531332b5212570100004081589886017762696e64696e672d666565642d72756c65732d64656d6f686973737565722d6101856b6973737565722d612d6b3158204e678c1bf49b5741fcf2185400a39a4c0c5bd7412dcb56e6133531332b52125701000058407ac5d9c8ce22b6adaca699aad7ba56adeb3a93cf0abbd18d875f3543019b4df44e782a7f0e296fd750bc2340c4febf517f4b8e07b8a66858dc8dc8c02b9b590d5901068301586188016b6c6f676973746963732d616f73776966742d6c6f67697374696373010081686f70657261746f7281856e6c6f676973746963732d612d6b315820a44c55575bc38a5baf53f8aba7f3f2bc625ebe24f1829ea006adcf22605c4d6f0100004081589e86017762696e64696e672d666565642d72756c65732d64656d6f6b6c6f676973746963732d6101856e6c6f676973746963732d612d6b315820a44c55575bc38a5baf53f8aba7f3f2bc625ebe24f1829ea006adcf22605c4d6f0100005840097bb9b9b8d33eabaa55dc59753348c5c5f2d06facb200cacd1ad8a5ad9e7435e6b69862185fcd3321731fd2491b3b0217815d972b7b98853716540adc71c30c590106830158698801676d616b65722d617261636d652d6d616e75666163747572696e670100826c6d616e756661637475726572686f70657261746f7281856a6d616b65722d612d6b3158203af55badd6d243f2537801839f35a2f9adaa0c1478ecb0a36c9212e90158cb470100004081589686017762696e64696e672d666565642d72756c65732d64656d6f676d616b65722d6101856a6d616b65722d612d6b3158203af55badd6d243f2537801839f35a2f9adaa0c1478ecb0a36c9212e90158cb470100005840df22456c0051cd2c4d04c52d2470decaf054187067140e3a078c43eba8dd6c0c1cd79344b3e7f064f3dd2059b178239ec35f68171c6958d429809a4e46cfcd07835826860172636c61696d2d6973737565722d777269746501006c636c61696d2d697373756572186458268601726d616e7566616374757265722d777269746501006c6d616e7566616374757265721864581e86016e6f70657261746f722d77726974650100686f70657261746f72186481584288016d63657274696669636174696f6e01008169636572746966696572818474696e646570656e64656e742d61756469746f72736761756469746f72020101190258582f9201182018801840188019010018801a00040000190400191000184019010019010018801901001901001864190200"
+      }
+    },
+    "events" : [ {
+      "eventId" : "role-approvals.proposal-approved.v1",
+      "fields" : [ {
+        "name" : "proposalId",
+        "type" : "text",
+        "required" : true,
+        "role" : "data"
+      }, {
+        "name" : "policyId",
+        "type" : "text",
+        "required" : true,
+        "role" : "data"
+      }, {
+        "name" : "policyRevision",
+        "type" : "integer",
+        "required" : true,
+        "role" : "data"
+      }, {
+        "name" : "payloadDomain",
+        "type" : "text",
+        "required" : true,
+        "role" : "data"
+      }, {
+        "name" : "payloadHash",
+        "type" : "bytes",
+        "required" : true,
+        "role" : "data"
+      }, {
+        "name" : "deadlineHeight",
+        "type" : "integer",
+        "required" : true,
+        "role" : "data"
+      }, {
+        "name" : "action",
+        "type" : "bytes",
+        "required" : true,
+        "role" : "data"
+      }, {
+        "name" : "decisionCount",
+        "type" : "integer",
+        "required" : true,
+        "role" : "data"
+      } ]
+    } ],
+    "commands" : [ {
+      "commandName" : "actor-command",
+      "layout" : "ARRAY_WITH_OPCODE",
+      "opCode" : "1",
+      "fields" : [ {
+        "name" : "signedCommand",
+        "type" : "bytes",
+        "required" : true,
+        "role" : "evidence"
+      }, {
+        "name" : "action",
+        "type" : "bytes",
+        "required" : true,
+        "role" : "data"
+      } ]
+    } ],
+    "rawBodyTarget" : "forbidden-evidence",
+    "readParticipants" : [ "actors" ],
+    "commandSelectable" : true,
+    "unselectableReason" : null,
+    "ruleFacts" : [ {
+      "name" : "actorId",
+      "type" : "text"
+    }, {
+      "name" : "organizationId",
+      "type" : "text"
+    }, {
+      "name" : "roles",
+      "type" : "text-set"
+    }, {
+      "name" : "action",
+      "type" : "text"
+    }, {
+      "name" : "policyId",
+      "type" : "text"
+    }, {
+      "name" : "policyRevision",
+      "type" : "integer"
+    } ],
+    "ruleValueViews" : [ ],
+    "componentIds" : [ "reviews" ]
+  }, {
+    "machineId" : "authenticated-map-component",
+    "basis" : "document",
+    "authoredConfiguration" : {
+      "actors" : {
+        "type" : "text",
+        "value" : "actors"
+      },
+      "approvals" : {
+        "type" : "text",
+        "value" : "reviews"
+      },
+      "genesis-cbor-hex" : {
+        "type" : "text",
+        "value" : "8f047762696e64696e672d666565642d72756c65732d64656d6f7161757468656e746963617465642d6d617001716d70662d626c616b6532623235362d7631582091ee14091200f1e24659112d640e877e9177779dcc81dd06117f013e9190082b5820c72d2fb0653e93e90caa6b74a12ac6d51d041ca9ed9d4279afa04b2fe4f92dbb5820f87ccc7e746c4061b41eefcad63132a4332681a9f7b7f20f8210822ee7fae0c45820000000000000000000000000000000000000000000000000000000000000000018201a00010000828904656665656473046d63657274696669636174696f6e0018401904000167666565642d763189046c6f62736572766174696f6e73036e6f70657261746f722d7772697465001840190400016e6f62736572766174696f6e2d763182870467666565642d763100607679616e6f2d63626f722d736368656d612d69722d76315858820182068383636d617801840000613074313834343637343430373337303935353136313583636d696e0184000061307431383434363734343037333730393535313631358366737461747573018501001a00100000006041a087046e6f62736572766174696f6e2d763100607679616e6f2d63626f722d736368656d612d69722d7631582782018206818365707269636501840000613074313834343637343430373337303935353136313541a08184656665656473446d61696e405819a3636d617818c8636d696e186466737461747573644f50454e5908b488017762696e64696e672d666565642d72756c65732d64656d6f581f86016a6470702d61646d696e7301816b6470702d61646d696e2d61011903e886581885017261636d652d6d616e75666163747572696e670100405385016d61756469742d6775696c642d620100405185016b636572742d626f64792d610100405485016e6470702d636f6e736f727469756d0100405085016a677265656e2d6c6162730100405585016f73776966742d6c6f676973746963730100408758f98301585888016961756469746f722d616b636572742d626f64792d610100816761756469746f7281856c61756469746f722d612d6b31582065791dbb3c723dd27f3af1df5c11cf0b43393e18c6b029fc8e08bc6896d4ae650100004081589a86017762696e64696e672d666565642d72756c65732d64656d6f6961756469746f722d6101856c61756469746f722d612d6b31582065791dbb3c723dd27f3af1df5c11cf0b43393e18c6b029fc8e08bc6896d4ae6501000058405dd5462bb5ae3b8a52b35f5081b1afc71ca116f3de83c6f9036b5cd12de3e8deec41e191d6d6ca6d48ab998b1ec3ccfa8c350140878390c28a5e5427b0f6260858fb8301585a88016961756469746f722d626d61756469742d6775696c642d620100816761756469746f7281856c61756469746f722d622d6b3158204ea94c47798239e152aa2837065e7a08318c28c01afec0cd6f59a4bb4a6098dd0100004081589a86017762696e64696e672d666565642d72756c65732d64656d6f6961756469746f722d6201856c61756469746f722d622d6b3158204ea94c47798239e152aa2837065e7a08318c28c01afec0cd6f59a4bb4a6098dd01000058402440fff540139c03ca20a78105411ef5eaae004d2a2319c2d8202f6e2e84594728217e6082e6119d5d54ea218955cace9f5f908a21b8223517ca0d125f8242025901038301585e88016b6365727469666965722d616b636572742d626f64792d610100816963657274696669657281856e6365727469666965722d612d6b3158203c91ebc38ba35fd859929e7b4b292901687d0dd90726cdbce0bc59352694c2520100004081589e86017762696e64696e672d666565642d72756c65732d64656d6f6b6365727469666965722d6101856e6365727469666965722d612d6b3158203c91ebc38ba35fd859929e7b4b292901687d0dd90726cdbce0bc59352694c2520100005840185d72037e39b93c0e51f02f264d65481adf877f01695b78d7bfa1c3956d63f453e01dcc3dbcf2057684f65b5e486224fdc10b5098a2522d3d23970afe0b0e0d5901068301586188016b6470702d61646d696e2d616e6470702d636f6e736f727469756d010081696470702d61646d696e81856e6470702d61646d696e2d612d6b315820b3a60000ec664af8d68e44550a8cb0e5d4e4ad317abb8a3afd5216fa555907be0100004081589e86017762696e64696e672d666565642d72756c65732d64656d6f6b6470702d61646d696e2d6101856e6470702d61646d696e2d612d6b315820b3a60000ec664af8d68e44550a8cb0e5d4e4ad317abb8a3afd5216fa555907be01000058408d54bd986f233b3ee7624c0f9ad0a737e559c7d3ed339eee910375095e68d321a8ae81d24763ccc053ab616e6fa2a3eb3c8b3c20cf8707ae1804f2a2f957570458f98301585a8801686973737565722d616a677265656e2d6c6162730100816c636c61696d2d69737375657281856b6973737565722d612d6b3158204e678c1bf49b5741fcf2185400a39a4c0c5bd7412dcb56e6133531332b5212570100004081589886017762696e64696e672d666565642d72756c65732d64656d6f686973737565722d6101856b6973737565722d612d6b3158204e678c1bf49b5741fcf2185400a39a4c0c5bd7412dcb56e6133531332b52125701000058407ac5d9c8ce22b6adaca699aad7ba56adeb3a93cf0abbd18d875f3543019b4df44e782a7f0e296fd750bc2340c4febf517f4b8e07b8a66858dc8dc8c02b9b590d5901068301586188016b6c6f676973746963732d616f73776966742d6c6f67697374696373010081686f70657261746f7281856e6c6f676973746963732d612d6b315820a44c55575bc38a5baf53f8aba7f3f2bc625ebe24f1829ea006adcf22605c4d6f0100004081589e86017762696e64696e672d666565642d72756c65732d64656d6f6b6c6f676973746963732d6101856e6c6f676973746963732d612d6b315820a44c55575bc38a5baf53f8aba7f3f2bc625ebe24f1829ea006adcf22605c4d6f0100005840097bb9b9b8d33eabaa55dc59753348c5c5f2d06facb200cacd1ad8a5ad9e7435e6b69862185fcd3321731fd2491b3b0217815d972b7b98853716540adc71c30c590106830158698801676d616b65722d617261636d652d6d616e75666163747572696e670100826c6d616e756661637475726572686f70657261746f7281856a6d616b65722d612d6b3158203af55badd6d243f2537801839f35a2f9adaa0c1478ecb0a36c9212e90158cb470100004081589686017762696e64696e672d666565642d72756c65732d64656d6f676d616b65722d6101856a6d616b65722d612d6b3158203af55badd6d243f2537801839f35a2f9adaa0c1478ecb0a36c9212e90158cb470100005840df22456c0051cd2c4d04c52d2470decaf054187067140e3a078c43eba8dd6c0c1cd79344b3e7f064f3dd2059b178239ec35f68171c6958d429809a4e46cfcd07835826860172636c61696d2d6973737565722d777269746501006c636c61696d2d697373756572186458268601726d616e7566616374757265722d777269746501006c6d616e7566616374757265721864581e86016e6f70657261746f722d77726974650100686f70657261746f72186481584288016d63657274696669636174696f6e01008169636572746966696572818474696e646570656e64656e742d61756469746f72736761756469746f72020101190258582f9201182018801840188019010018801a00040000190400191000184019010019010018801901001901001864190200"
+      }
+    },
+    "configurationDescriptor" : [ {
+      "name" : "genesis-cbor-hex",
+      "type" : "text",
+      "required" : true,
+      "default" : null
+    }, {
+      "name" : "actors",
+      "type" : "text",
+      "required" : false,
+      "default" : {
+        "type" : "text",
+        "value" : ""
+      }
+    }, {
+      "name" : "approvals",
+      "type" : "text",
+      "required" : false,
+      "default" : {
+        "type" : "text",
+        "value" : ""
+      }
+    } ],
+    "applicationVersion" : "1.0.0",
+    "status" : "available",
+    "normalizedConfiguration" : {
+      "actors" : {
+        "type" : "text",
+        "value" : "actors"
+      },
+      "approvals" : {
+        "type" : "text",
+        "value" : "reviews"
+      },
+      "genesis-cbor-hex" : {
+        "type" : "text",
+        "value" : "8f047762696e64696e672d666565642d72756c65732d64656d6f7161757468656e746963617465642d6d617001716d70662d626c616b6532623235362d7631582091ee14091200f1e24659112d640e877e9177779dcc81dd06117f013e9190082b5820c72d2fb0653e93e90caa6b74a12ac6d51d041ca9ed9d4279afa04b2fe4f92dbb5820f87ccc7e746c4061b41eefcad63132a4332681a9f7b7f20f8210822ee7fae0c45820000000000000000000000000000000000000000000000000000000000000000018201a00010000828904656665656473046d63657274696669636174696f6e0018401904000167666565642d763189046c6f62736572766174696f6e73036e6f70657261746f722d7772697465001840190400016e6f62736572766174696f6e2d763182870467666565642d763100607679616e6f2d63626f722d736368656d612d69722d76315858820182068383636d617801840000613074313834343637343430373337303935353136313583636d696e0184000061307431383434363734343037333730393535313631358366737461747573018501001a00100000006041a087046e6f62736572766174696f6e2d763100607679616e6f2d63626f722d736368656d612d69722d7631582782018206818365707269636501840000613074313834343637343430373337303935353136313541a08184656665656473446d61696e405819a3636d617818c8636d696e186466737461747573644f50454e5908b488017762696e64696e672d666565642d72756c65732d64656d6f581f86016a6470702d61646d696e7301816b6470702d61646d696e2d61011903e886581885017261636d652d6d616e75666163747572696e670100405385016d61756469742d6775696c642d620100405185016b636572742d626f64792d610100405485016e6470702d636f6e736f727469756d0100405085016a677265656e2d6c6162730100405585016f73776966742d6c6f676973746963730100408758f98301585888016961756469746f722d616b636572742d626f64792d610100816761756469746f7281856c61756469746f722d612d6b31582065791dbb3c723dd27f3af1df5c11cf0b43393e18c6b029fc8e08bc6896d4ae650100004081589a86017762696e64696e672d666565642d72756c65732d64656d6f6961756469746f722d6101856c61756469746f722d612d6b31582065791dbb3c723dd27f3af1df5c11cf0b43393e18c6b029fc8e08bc6896d4ae6501000058405dd5462bb5ae3b8a52b35f5081b1afc71ca116f3de83c6f9036b5cd12de3e8deec41e191d6d6ca6d48ab998b1ec3ccfa8c350140878390c28a5e5427b0f6260858fb8301585a88016961756469746f722d626d61756469742d6775696c642d620100816761756469746f7281856c61756469746f722d622d6b3158204ea94c47798239e152aa2837065e7a08318c28c01afec0cd6f59a4bb4a6098dd0100004081589a86017762696e64696e672d666565642d72756c65732d64656d6f6961756469746f722d6201856c61756469746f722d622d6b3158204ea94c47798239e152aa2837065e7a08318c28c01afec0cd6f59a4bb4a6098dd01000058402440fff540139c03ca20a78105411ef5eaae004d2a2319c2d8202f6e2e84594728217e6082e6119d5d54ea218955cace9f5f908a21b8223517ca0d125f8242025901038301585e88016b6365727469666965722d616b636572742d626f64792d610100816963657274696669657281856e6365727469666965722d612d6b3158203c91ebc38ba35fd859929e7b4b292901687d0dd90726cdbce0bc59352694c2520100004081589e86017762696e64696e672d666565642d72756c65732d64656d6f6b6365727469666965722d6101856e6365727469666965722d612d6b3158203c91ebc38ba35fd859929e7b4b292901687d0dd90726cdbce0bc59352694c2520100005840185d72037e39b93c0e51f02f264d65481adf877f01695b78d7bfa1c3956d63f453e01dcc3dbcf2057684f65b5e486224fdc10b5098a2522d3d23970afe0b0e0d5901068301586188016b6470702d61646d696e2d616e6470702d636f6e736f727469756d010081696470702d61646d696e81856e6470702d61646d696e2d612d6b315820b3a60000ec664af8d68e44550a8cb0e5d4e4ad317abb8a3afd5216fa555907be0100004081589e86017762696e64696e672d666565642d72756c65732d64656d6f6b6470702d61646d696e2d6101856e6470702d61646d696e2d612d6b315820b3a60000ec664af8d68e44550a8cb0e5d4e4ad317abb8a3afd5216fa555907be01000058408d54bd986f233b3ee7624c0f9ad0a737e559c7d3ed339eee910375095e68d321a8ae81d24763ccc053ab616e6fa2a3eb3c8b3c20cf8707ae1804f2a2f957570458f98301585a8801686973737565722d616a677265656e2d6c6162730100816c636c61696d2d69737375657281856b6973737565722d612d6b3158204e678c1bf49b5741fcf2185400a39a4c0c5bd7412dcb56e6133531332b5212570100004081589886017762696e64696e672d666565642d72756c65732d64656d6f686973737565722d6101856b6973737565722d612d6b3158204e678c1bf49b5741fcf2185400a39a4c0c5bd7412dcb56e6133531332b52125701000058407ac5d9c8ce22b6adaca699aad7ba56adeb3a93cf0abbd18d875f3543019b4df44e782a7f0e296fd750bc2340c4febf517f4b8e07b8a66858dc8dc8c02b9b590d5901068301586188016b6c6f676973746963732d616f73776966742d6c6f67697374696373010081686f70657261746f7281856e6c6f676973746963732d612d6b315820a44c55575bc38a5baf53f8aba7f3f2bc625ebe24f1829ea006adcf22605c4d6f0100004081589e86017762696e64696e672d666565642d72756c65732d64656d6f6b6c6f676973746963732d6101856e6c6f676973746963732d612d6b315820a44c55575bc38a5baf53f8aba7f3f2bc625ebe24f1829ea006adcf22605c4d6f0100005840097bb9b9b8d33eabaa55dc59753348c5c5f2d06facb200cacd1ad8a5ad9e7435e6b69862185fcd3321731fd2491b3b0217815d972b7b98853716540adc71c30c590106830158698801676d616b65722d617261636d652d6d616e75666163747572696e670100826c6d616e756661637475726572686f70657261746f7281856a6d616b65722d612d6b3158203af55badd6d243f2537801839f35a2f9adaa0c1478ecb0a36c9212e90158cb470100004081589686017762696e64696e672d666565642d72756c65732d64656d6f676d616b65722d6101856a6d616b65722d612d6b3158203af55badd6d243f2537801839f35a2f9adaa0c1478ecb0a36c9212e90158cb470100005840df22456c0051cd2c4d04c52d2470decaf054187067140e3a078c43eba8dd6c0c1cd79344b3e7f064f3dd2059b178239ec35f68171c6958d429809a4e46cfcd07835826860172636c61696d2d6973737565722d777269746501006c636c61696d2d697373756572186458268601726d616e7566616374757265722d777269746501006c6d616e7566616374757265721864581e86016e6f70657261746f722d77726974650100686f70657261746f72186481584288016d63657274696669636174696f6e01008169636572746966696572818474696e646570656e64656e742d61756469746f72736761756469746f72020101190258582f9201182018801840188019010018801a00040000190400191000184019010019010018801901001901001864190200"
+      }
+    },
+    "events" : [ {
+      "eventId" : "authenticated-map.entry-updated.v1",
+      "fields" : [ {
+        "name" : "collectionId",
+        "type" : "text",
+        "required" : true,
+        "role" : "data"
+      }, {
+        "name" : "applicationKey",
+        "type" : "bytes",
+        "required" : true,
+        "role" : "data"
+      }, {
+        "name" : "operation",
+        "type" : "integer",
+        "required" : true,
+        "role" : "data"
+      }, {
+        "name" : "revision",
+        "type" : "integer",
+        "required" : true,
+        "role" : "data"
+      }, {
+        "name" : "status",
+        "type" : "integer",
+        "required" : true,
+        "role" : "data"
+      }, {
+        "name" : "logicalValueHash",
+        "type" : "bytes",
+        "required" : true,
+        "role" : "data"
+      }, {
+        "name" : "sender",
+        "type" : "bytes",
+        "required" : true,
+        "role" : "data"
+      } ]
+    }, {
+      "eventId" : "authenticated-map.batch-applied.v1",
+      "fields" : [ {
+        "name" : "messageId",
+        "type" : "bytes",
+        "required" : true,
+        "role" : "data"
+      }, {
+        "name" : "batchCommitment",
+        "type" : "bytes",
+        "required" : true,
+        "role" : "data"
+      }, {
+        "name" : "resultCommitment",
+        "type" : "bytes",
+        "required" : true,
+        "role" : "data"
+      }, {
+        "name" : "resultCount",
+        "type" : "integer",
+        "required" : true,
+        "role" : "data"
+      }, {
+        "name" : "status",
+        "type" : "integer",
+        "required" : true,
+        "role" : "data"
+      }, {
+        "name" : "errorCode",
+        "type" : "integer",
+        "required" : true,
+        "role" : "data"
+      } ]
+    } ],
+    "commands" : [ {
+      "commandName" : "apply-action",
+      "layout" : "MAP",
+      "opCode" : "0",
+      "fields" : [ {
+        "name" : "action",
+        "type" : "bytes",
+        "required" : true,
+        "role" : "data"
+      }, {
+        "name" : "approvalReference",
+        "type" : "text",
+        "required" : true,
+        "role" : "evidence"
+      } ]
+    }, {
+      "commandName" : "apply-basic-action",
+      "layout" : "MAP",
+      "opCode" : "0",
+      "fields" : [ {
+        "name" : "action",
+        "type" : "bytes",
+        "required" : true,
+        "role" : "data"
+      } ]
+    }, {
+      "commandName" : "apply-authorized",
+      "layout" : "MAP",
+      "opCode" : "0",
+      "fields" : [ {
+        "name" : "command",
+        "type" : "bytes",
+        "required" : true,
+        "role" : "evidence"
+      } ]
+    } ],
+    "rawBodyTarget" : "forbidden-evidence",
+    "readParticipants" : [ "actors", "reviews" ],
+    "commandSelectable" : false,
+    "unselectableReason" : "several commands without distinct opcodes",
+    "ruleFacts" : [ {
+      "name" : "senderMember",
+      "type" : "boolean"
+    }, {
+      "name" : "collections",
+      "type" : "text-set"
+    }, {
+      "name" : "directActorCount",
+      "type" : "integer"
+    }, {
+      "name" : "approvalCount",
+      "type" : "integer"
+    }, {
+      "name" : "actorId",
+      "type" : "text"
+    }, {
+      "name" : "organizationId",
+      "type" : "text"
+    }, {
+      "name" : "role",
+      "type" : "text"
+    }, {
+      "name" : "roles",
+      "type" : "text-set"
+    }, {
+      "name" : "policyId",
+      "type" : "text"
+    } ],
+    "ruleValueViews" : [ {
+      "namespace" : "feeds",
+      "fields" : [ {
+        "name" : "status",
+        "type" : "text"
+      }, {
+        "name" : "revision",
+        "type" : "integer"
+      }, {
+        "name" : "createdHeight",
+        "type" : "integer"
+      }, {
+        "name" : "lastMutationHeight",
+        "type" : "integer"
+      }, {
+        "name" : "valueLength",
+        "type" : "integer"
+      }, {
+        "name" : "controller",
+        "type" : "bytes"
+      } ],
+      "valueFields" : [ {
+        "name" : "max",
+        "type" : "integer"
+      }, {
+        "name" : "min",
+        "type" : "integer"
+      }, {
+        "name" : "status",
+        "type" : "text"
+      } ]
+    }, {
+      "namespace" : "observations",
+      "fields" : [ {
+        "name" : "status",
+        "type" : "text"
+      }, {
+        "name" : "revision",
+        "type" : "integer"
+      }, {
+        "name" : "createdHeight",
+        "type" : "integer"
+      }, {
+        "name" : "lastMutationHeight",
+        "type" : "integer"
+      }, {
+        "name" : "valueLength",
+        "type" : "integer"
+      }, {
+        "name" : "controller",
+        "type" : "bytes"
+      } ],
+      "valueFields" : [ {
+        "name" : "price",
+        "type" : "integer"
+      } ]
+    } ],
+    "ruleWriteFields" : [ {
+      "name" : "collection",
+      "type" : "text"
+    }, {
+      "name" : "key",
+      "type" : "bytes"
+    }, {
+      "name" : "keyText",
+      "type" : "text"
+    }, {
+      "name" : "op",
+      "type" : "text"
+    }, {
+      "name" : "hasValue",
+      "type" : "boolean"
+    }, {
+      "name" : "valueLength",
+      "type" : "integer"
+    }, {
+      "name" : "expectedRevision",
+      "type" : "integer"
+    } ],
+    "ruleWriteCoverageFields" : [ {
+      "name" : "coverage",
+      "type" : "text"
+    }, {
+      "name" : "actorId",
+      "type" : "text"
+    }, {
+      "name" : "actorOrganizationId",
+      "type" : "text"
+    }, {
+      "name" : "actorRoles",
+      "type" : "text-set"
+    } ],
+    "componentIds" : [ "registry" ]
+  } ],
+  "effects" : {
+    "payloadSchemas" : "unavailable",
+    "note" : "effect types are free text; no effect payload schema is published by this catalog"
+  }
+}

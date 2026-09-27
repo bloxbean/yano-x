@@ -393,6 +393,10 @@ public final class BindingCli {
                         value.put("slot", factSlot ? "fact" : "admission");
                         value.put("static", Boolean.parseBoolean(resolved.getOrDefault(prefix + "static",
                                 Boolean.toString(rule.isStatic()))));
+                        // ADR-031.4: what the rule reads before its clauses, and whether it quantifies over writes.
+                        value.put("reads", rule.reads().stream().map(read -> read.name() + " = " + read.component()
+                                + (read.namespace().isEmpty() ? "" : "/" + read.namespace())).toList());
+                        value.put("writes", rule.readsWrites());
                         ordered.add(value);
                     }
                 }

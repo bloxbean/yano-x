@@ -5,7 +5,7 @@ import test from 'node:test';
 import {fileURLToPath} from 'node:url';
 import {emitDocument,importDocument} from '../main/web/binding-draft.mjs';
 import {addAttachment,componentReferences,moveAttachment,removeRule,renameBinding,renameComponent,renameRule,
-  ruleReferences,setAttachmentParameter,setRuleParameter} from '../main/web/binding-edit.mjs';
+  ruleReferences,setAttachmentParameter,setRuleParameter,setRuleRead} from '../main/web/binding-edit.mjs';
 import {checkDraft} from '../main/web/binding-check.mjs';
 import {importAuthoringCatalog} from '../main/web/binding-catalog.mjs';
 import {explainMessage} from '../main/web/binding-explain.mjs';
@@ -113,3 +113,111 @@ test('reports explain a rule refusal, its clause and the rollback of a derived r
   assert.equal(accepted.outcome, 'committed');
   assert.ok(accepted.steps.every(step => step.rules === null || step.rules.failure === null));
 });
+
+// ADR-031.4: rule reads and write-view quantifiers.
+test('rule reads import, emit, edit and rename without loss', () => {
+  const draft = load('asset-governed-limits.yaml');
+  const tier = draft.rules.find(rule => rule.id === 'tier-limit');
+  assert.deepEqual(tier.reads, [{name: 'holder', component: 'registry', namespace: 'holders',
+    key: {kind: 'context', name: 'sender'}}]);
+  assert.equal(draft.rules.find(rule => rule.id === 'governed-transfer-limit').reads[0].key.kind, 'literal');
+  const again = importDocument(emitDocument(draft));
+  assert.equal(again.state, 'editable');
+  assert.deepEqual(again.draft, draft);
+  const index = draft.rules.indexOf(tier);
+  const added = setRuleRead(draft, index, 'limits', {component: 'registry', namespace: 'settings',
+    key: {kind: 'literal', value: {type: 'text', value: 'transfer'}}});
+  assert.deepEqual(added.rules[index].reads.map(read => read.name), ['holder', 'limits']);
+  assert.equal(setRuleRead(setRuleRead(added, index, 'limits', null), index, 'holder', null).rules[index].reads, null);
+  assert.ok(componentReferences(draft, 'registry').some(reference => reference.role === 'rule-read'));
+  assert.equal(renameComponent(draft, draft.components.findIndex(value => value.id === 'registry'), 'ledger')
+    .rules[index].reads[0].component, 'ledger');
+  // Quantified clauses are ordinary expressions to the draft.
+  const passport = load('dpp-namespace-isolation.yaml');
+  assert.match(passport.rules[0].require[0].text, /^writes\.all\(w, /);
+  assert.deepEqual(importDocument(emitDocument(passport)).draft, passport);
+});
+
+test('read checks mirror the compiler: declared components, namespaces, names and at most four reads', () => {
+  const draft = load('asset-governed-limits.yaml');
+  const index = draft.rules.findIndex(rule => rule.id === 'tier-limit');
+  const unknown = setRuleRead(draft, index, 'holder', {component: 'nowhere', namespace: 'holders',
+    key: {kind: 'context', name: 'sender'}});
+  assert.ok(codes(unknown).includes('RULE_READ_UNKNOWN_COMPONENT'));
+  let many = draft;
+  for (const name of ['a', 'b', 'c', 'd']) {
+    many = setRuleRead(many, index, name, {component: 'registry', namespace: 'holders',
+      key: {kind: 'literal', value: {type: 'text', value: name}}});
+  }
+  assert.ok(codes(many).includes('EXPECTED_OBJECT'));
+  const reserved = setRuleRead(draft, index, 'in', {component: 'registry', namespace: 'holders',
+    key: {kind: 'context', name: 'sender'}});
+  assert.ok(codes(reserved).includes('DOCUMENT_STRUCTURE_INVALID'));
+  // With the catalog: a kernel without views has nothing to read, a namespace must be declared, and a read key
+  // may read only declared facts.
+  const logged = importDocument(`composite:
+  components:
+    - {id: log, machine: ordered-log}
+    - id: points
+      machine: balances
+      admission:
+        - rule: reads-log
+  rules:
+    - id: reads-log
+      command: transfer
+      deny: NOT_READY
+      reads:
+        entry: {component: log, key: {literal: k}}
+        other: {component: points, namespace: nope, key: {literal: k}}
+        keyed: {component: points, key: {fact: nope}}
+      require:
+        - expr: 'reads.entry.present'
+  bindings: []
+`);
+  assert.equal(logged.state, 'editable', logged.error?.message);
+  const found = checkDraft(logged.draft, catalog).map(value => `${value.code} ${value.segments.join('.')}`);
+  assert.ok(found.includes('RULE_READ_UNKNOWN_NAMESPACE composite.rules.0.reads.entry'), found.join('\n'));
+  assert.ok(found.includes('RULE_READ_UNKNOWN_NAMESPACE composite.rules.0.reads.other.namespace'), found.join('\n'));
+  assert.ok(found.includes('RULE_FACT_UNKNOWN composite.rules.0.reads.keyed.key'), found.join('\n'));
+});
+
+test('a governed map exports value views, a write view and coverage that the checks accept', () => {
+  const feedCatalog = importAuthoringCatalog(fs.readFileSync(path.join(here,
+    'fixtures/scenarios/catalog-feed-slot-rules.json')));
+  const map = feedCatalog.instances.find(instance => instance.machineId === 'authenticated-map-component');
+  assert.equal(map.status, 'available');
+  assert.deepEqual(map.ruleValueViews.map(view => view.namespace), ['feeds', 'observations']);
+  assert.deepEqual(map.ruleValueViews[0].valueFields.map(field => field.name), ['max', 'min', 'status']);
+  assert.deepEqual(map.ruleWriteFields.map(field => field.name), ['collection', 'key', 'keyText', 'op', 'hasValue',
+    'valueLength', 'expectedRevision']);
+  assert.deepEqual(map.ruleWriteCoverageFields.map(field => field.name), ['coverage', 'actorId',
+    'actorOrganizationId', 'actorRoles']);
+  const draft = load('feed-slot-rules.yaml');
+  const readIssues = checkDraft(draft, feedCatalog).filter(value => value.code.startsWith('RULE_READ'));
+  assert.deepEqual(readIssues, []);
+  const index = draft.rules.findIndex(rule => rule.id === 'feed-open-and-in-range');
+  const wrong = setRuleRead(draft, index, 'feed', {component: 'registry', namespace: 'rounds',
+    key: {kind: 'literal', value: {type: 'text', value: 'main'}}});
+  assert.ok(checkDraft(wrong, feedCatalog).some(value => value.code === 'RULE_READ_UNKNOWN_NAMESPACE'));
+});
+
+test('the catalog carries value views and write views for rule pickers', () => {
+  const map = catalog.instances.find(instance => instance.machineId === 'authenticated-map-component'
+    && instance.status === 'available');
+  const balances = catalog.instances.find(instance => instance.machineId === 'balances'
+    && instance.status === 'available');
+  assert.deepEqual(balances.ruleValueViews, [{namespace: '', fields: [{name: 'balance', type: 'integer'}],
+    valueFields: []}]);
+  assert.equal(balances.ruleWriteFields, undefined);
+  if (map) {
+    assert.deepEqual(map.ruleWriteFields.map(field => field.name), ['collection', 'key', 'keyText', 'op', 'hasValue',
+      'valueLength', 'expectedRevision']);
+    assert.deepEqual(map.ruleWriteCoverageFields.map(field => field.name), ['coverage', 'actorId',
+      'actorOrganizationId', 'actorRoles']);
+  }
+  const shipped = JSON.parse(fs.readFileSync(path.join(here, '../main/web/binding-authoring-catalog.json'), 'utf8'));
+  const bad = shipped.instances.find(instance => instance.machineId === 'balances' && instance.status === 'available');
+  bad.ruleValueViews = [{namespace: 'Bad', fields: [], valueFields: []}];
+  assert.throws(() => importAuthoringCatalog(new TextEncoder().encode(JSON.stringify(shipped))), /namespace/);
+});
+

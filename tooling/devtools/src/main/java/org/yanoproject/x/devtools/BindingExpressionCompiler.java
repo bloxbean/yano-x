@@ -119,8 +119,9 @@ public final class BindingExpressionCompiler {
                 String name = undeclared.group(1);
                 for (Scope scope : Scope.values()) {
                     if (!scope.label().equals(name)) continue;
-                    if (scope == Scope.WRITE_ELEMENT && fields.scopes().containsKey(Scope.PARAMS)) {
-                        // A rule whose attached kernel declares no write view (ADR-031.4).
+                    if (scope == Scope.WRITE_ELEMENT && fields.scopes().containsKey(Scope.READS)) {
+                        // A rule clause (the only site that declares reads) whose attached kernel declares no write
+                        // view (ADR-031.4); a key site reports the scope as unavailable instead.
                         message = "the attached component has no write view: " + failure.getMessage();
                         code = "RULE_WRITES_UNSUPPORTED";
                     } else if (!fields.scopes().containsKey(scope)) {

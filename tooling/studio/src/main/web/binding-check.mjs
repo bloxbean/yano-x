@@ -284,6 +284,12 @@ function hiddenCharacters(draft, report) {
     text(rule.id, [...at, 'id'], 'A rule id');
     text(rule.command, [...at, 'command'], 'A command');
     text(rule.deny, [...at, 'deny'], 'A deny code');
+    (rule.reads ?? []).forEach(read => {
+      text(read.name, [...at, 'reads', read.name], 'A read name');
+      text(read.component, [...at, 'reads', read.name, 'component'], 'A read component');
+      if (read.namespace !== null) text(read.namespace, [...at, 'reads', read.name, 'namespace'], 'A namespace', true);
+      source(read.key, [...at, 'reads', read.name, 'key']);
+    });
     (rule.params ?? []).forEach(parameter => {
       text(parameter.name, [...at, 'params', parameter.name], 'A parameter name');
       text(parameter.type, [...at, 'params', parameter.name, 'type'], 'A parameter type');
@@ -412,6 +418,17 @@ function checkRules(draft, catalog, expected, components, bindingIds, add) {
         add('RULE_PARAMETER_TYPE', `The default of ${parameter.name} must be ${parameter.type}`, [...where, 'default']);
       }
     }
+    if ((rule.reads ?? []).length > 4) add('EXPECTED_OBJECT', 'A rule declares at most 4 reads', [...at, 'reads']);
+    for (const read of rule.reads ?? []) {
+      const where = [...at, 'reads', read.name];
+      if (!IDENTIFIER.test(read.name) || RESERVED.has(read.name)) {
+        add('DOCUMENT_STRUCTURE_INVALID', `${read.name} is not a usable read name`, where);
+      }
+      if (!components.has(read.component)) {
+        add('RULE_READ_UNKNOWN_COMPONENT', `Read component ${read.component} is not declared`, [...where, 'component']);
+      }
+      checkRuleSource(rule, read.key, [...where, 'key'], add, 0);
+    }
     if (!rule.require.length || rule.require.length > 8) add('CLAUSE_LIMIT', 'A rule needs 1 to 8 clauses', [...at, 'require']);
     rule.require.forEach((clause, c) => {
       const clauseAt = [...at, 'require', c];
@@ -483,11 +500,37 @@ function checkRules(draft, catalog, expected, components, bindingIds, add) {
           }
         }
       });
+      // Read keys may read facts too (ADR-031.4).
+      for (const read of rule.reads ?? []) {
+        for (const name of factReferences({kind: 'lookup', key: read.key, operand: null})) {
+          if (!facts.has(name)) {
+            add('RULE_FACT_UNKNOWN', `${component.machine} declares no fact ${name}`,
+              ['rules', ruleIndex, 'reads', read.name, 'key']);
+          }
+        }
+      }
     });
   });
   rules.forEach(({index}, id) => {
     if (!attached.has(id)) add('RULE_UNATTACHED', `${id} is not attached to any component`, ['rules', index]);
   });
+  // ADR-031.4: a read names a namespace its component's kernel views (the default namespace is "").
+  if (catalog) {
+    rules.forEach(({rule, index}) => {
+      for (const read of rule.reads ?? []) {
+        const component = components.get(read.component)?.component;
+        const instance = component ? componentInstance(catalog, component, expected) : null;
+        if (instance?.status !== 'available') continue;
+        const namespace = read.namespace ?? '';
+        // A kernel that declares no view has none to read.
+        if (!(instance.ruleValueViews ?? []).some(view => view.namespace === namespace)) {
+          add('RULE_READ_UNKNOWN_NAMESPACE', `${component.machine} declares no value view for namespace '${namespace}'`,
+            read.namespace === null ? ['rules', index, 'reads', read.name] : ['rules', index, 'reads', read.name,
+              'namespace']);
+        }
+      }
+    });
+  }
 }
 
 export {configurationKey};

@@ -166,6 +166,12 @@ public final class BindingProductFixtures {
             System.out.println(fixture.name().toUpperCase() + "_YAML_BASE64="
                     + Base64.getEncoder().encodeToString(yaml(fixture).getBytes(StandardCharsets.UTF_8)));
         }
+        // ADR-031.4 §6 recipes, named by their file.
+        for (String recipe : TypedViewsRecipes.NAMES) {
+            byte[] yaml = TypedViewsRecipes.yaml(recipe).getBytes(StandardCharsets.UTF_8);
+            System.out.println(recipe.toUpperCase().replace('-', '_') + "_YAML_BASE64="
+                    + Base64.getEncoder().encodeToString(yaml));
+        }
     }
 
     private static String hex(byte[] bytes) { return HexFormat.of().formatHex(bytes); }

@@ -11,6 +11,7 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLParser;
 import org.yanoproject.api.appchain.transition.CommandDescriptor;
 import org.yanoproject.api.appchain.transition.ConfigurationDescriptor;
 import org.yanoproject.api.appchain.transition.RuleFact;
+import org.yanoproject.api.appchain.transition.RuleValueView;
 import org.yanoproject.x.composite.bindings.BindingCommandView;
 import org.yanoproject.x.composite.bindings.BindingExpressionEvaluator.Scoped;
 import org.yanoproject.x.composite.bindings.BindingProgram;
@@ -127,6 +128,24 @@ public final class BindingDocumentCompiler {
          * @return declared fact types by name; empty when the kernel declares none
          */
         default Map<String, RuleFact.Type> ruleFacts(Component component) { return Map.of(); }
+
+        /**
+         * Returns this normalized component's value views for admission-rule reads (ADR-031.4 §5.4): each namespace
+         * maps its fields, and its value fields under {@code value.<name>}, to their types.
+         *
+         * @param component normalized component generation
+         * @return fields by namespace; empty when the kernel declares no view
+         */
+        default Map<String, Map<String, RuleFact.Type>> ruleValueViews(Component component) { return Map.of(); }
+
+        /**
+         * Returns the fields of this normalized component's write view (ADR-031.4 §5.2) as rules read them: the
+         * engine's {@code index}, the content and value fields, and the coverage fields.
+         *
+         * @param component normalized component generation
+         * @return field types by name; empty when the kernel declares no write view
+         */
+        default Map<String, RuleFact.Type> ruleWriteFields(Component component) { return Map.of(); }
     }
 
     /** Limit field names in {@code LimitsV1} wire order; shared with the authoring-language export. */
@@ -427,9 +446,14 @@ public final class BindingDocumentCompiler {
      * The scoped fields one use site may read, with the YAML source key of each scope (ADR-031.3 §5.2): {@code field}
      * (event), {@code context}, {@code command}, {@code param}, {@code config} and {@code fact}.
      */
-    record Sites(Scoped<Type> fields, String useSite) {
+    record Sites(Scoped<Type> fields, String useSite, Sites keys) {
         static final Map<String, Scope> KEYS = Map.of("field", Scope.EVENT, "context", Scope.CONTEXT,
                 "command", Scope.COMMAND, "param", Scope.PARAMS, "config", Scope.CONFIG, "fact", Scope.FACTS);
+
+        Sites(Scoped<Type> fields, String useSite) { this(fields, useSite, null); }
+
+        /** Where lookup keys and operands compile: the key scopes of a rule, or this site elsewhere. */
+        Sites keySites() { return keys == null ? this : keys; }
     }
 
     private static Sites bindingSites(Map<String, Type> event) { return new Sites(bindingScope(event), "a binding"); }
@@ -490,7 +514,7 @@ public final class BindingDocumentCompiler {
 
     /** One authored rule before per-attachment compilation; {@code index} is its authored position. */
     private record AuthoredRule(int index, BindingDocumentPath path, String id, String deny, String command,
-                                List<Parameter> parameters, JsonNode clauses) { }
+                                List<Parameter> parameters, JsonNode reads, JsonNode clauses) { }
 
     /** Reads the {@code rules} section: identity, deny code, selector and parameters; clauses compile later. */
     private static Map<String, AuthoredRule> authoredRules(JsonNode root) {
@@ -500,7 +524,7 @@ public final class BindingDocumentCompiler {
         for (int index = 0; index < nodes.size(); index++) {
             BindingDocumentPath path = ROOT.field("rules").index(index);
             JsonNode node = nodes.get(index);
-            object(node, path, "id", "command", "deny", "params", "require");
+            object(node, path, "id", "command", "deny", "params", "reads", "require");
             String id = text(required(node, "id", path), path.field("id"));
             List<Parameter> parameters = new ArrayList<>();
             if (node.has("params")) {
@@ -524,9 +548,17 @@ public final class BindingDocumentCompiler {
             }
             parameters.sort((left, right) -> Arrays.compareUnsigned(utf8(left.name()), utf8(right.name())));
             JsonNode clauses = array(required(node, "require", path), path.field("require"), AdmissionRule.MAX_CLAUSES);
+            JsonNode reads = null;
+            if (node.has("reads")) {
+                reads = node.get("reads");
+                if (!reads.isObject() || reads.size() > AdmissionRule.MAX_READS) {
+                    throw fail("EXPECTED_OBJECT", path.field("reads"), "expected a map of at most "
+                            + AdmissionRule.MAX_READS + " reads");
+                }
+            }
             var rule = new AuthoredRule(index, path, id, text(required(node, "deny", path), path.field("deny")),
                     node.has("command") ? text(node.get("command"), path.field("command")) : null,
-                    List.copyOf(parameters), clauses);
+                    List.copyOf(parameters), reads, clauses);
             if (rules.putIfAbsent(id, rule) != null) throw fail("RULE_DUPLICATE", path.field("id"), "duplicate rule");
         }
         return rules;
@@ -654,9 +686,22 @@ public final class BindingDocumentCompiler {
         scopes.put(Scope.CONFIG, configuration);
         scopes.put(Scope.CONTEXT, BindingProgram.CONTEXT_FIELDS);
         scopes.put(Scope.FACTS, facts);
-        // ADR-031.4: YAML reads arrive in Phase 5; until then a rule declares none, so reads.* names no read.
-        scopes.put(Scope.READS, Map.of());
-        var sites = new Sites(new Scoped<>(scopes), "an admission rule");
+        // Lookup and read keys read only these scopes, never a read or a write (ADR-031.4 §5.1).
+        var keySites = new Sites(new Scoped<>(new EnumMap<>(scopes)), "an admission rule key");
+        List<ResolvedRead> resolved = reads(rule, byId, catalog, keySites, limits, evidence);
+        List<BindingIrV1.Read> reads = resolved.stream().map(ResolvedRead::read).toList();
+        Map<String, Type> readFields = new LinkedHashMap<>();
+        for (ResolvedRead read : resolved) {
+            readFields.put(read.read().name() + "." + RuleValueView.PRESENT, Type.BOOLEAN);
+            read.fields().forEach((name, type) -> readFields.put(read.read().name() + "." + name,
+                    Type.valueOf(type.name())));
+        }
+        scopes.put(Scope.READS, readFields);
+        Map<String, Type> writes = new LinkedHashMap<>();
+        at("COMPONENT_CONFIGURATION_INVALID", rule.path(), () -> catalog.ruleWriteFields(component))
+                .forEach((name, type) -> writes.put(name, Type.valueOf(type.name())));
+        if (!writes.isEmpty()) scopes.put(Scope.WRITE_ELEMENT, writes);
+        var sites = new Sites(new Scoped<>(scopes), "an admission rule", keySites);
         List<Clause> clauses = new ArrayList<>();
         for (int index = 0; index < rule.clauses().size(); index++) {
             BindingDocumentPath path = rule.path().field("require").index(index);
@@ -679,8 +724,50 @@ public final class BindingDocumentCompiler {
             clauses.add(clause);
         }
         return at("DOCUMENT_STRUCTURE_INVALID", rule.path(), () -> new AdmissionRule(rule.id(), rule.deny(),
-                rule.command(), rule.parameters(), clauses));
+                rule.command(), rule.parameters(), reads, clauses));
     }
+
+    /**
+     * Reads a rule's {@code reads} (ADR-031.4 §5.1), sorted by name as the IR requires: a declared component, a
+     * namespace its kernel views (default {@code ""}), and a key from the key scopes only. The key's type is checked
+     * by profile validation, which reports it at the read.
+     */
+    private static List<ResolvedRead> reads(AuthoredRule rule, Map<String, Component> byId,
+                                            DescriptorCatalog catalog, Sites keySites, Limits limits,
+                                            Set<String> evidence) {
+        if (rule.reads() == null) return List.of();
+        List<ResolvedRead> reads = new ArrayList<>();
+        for (var entry : rule.reads().properties()) {
+            BindingDocumentPath path = rule.path().field("reads").field(entry.getKey());
+            JsonNode node = entry.getValue();
+            object(node, path, "component", "namespace", "key");
+            String component = text(required(node, "component", path), path.field("component"));
+            if (!byId.containsKey(component)) {
+                throw fail("RULE_READ_UNKNOWN_COMPONENT", path.field("component"), "unknown read component");
+            }
+            String namespace = node.has("namespace") ? text(node.get("namespace"), path.field("namespace")) : "";
+            var views = at("COMPONENT_CONFIGURATION_INVALID", path, () -> catalog.ruleValueViews(byId.get(component)));
+            if (!views.containsKey(namespace)) {
+                throw fail("RULE_READ_UNKNOWN_NAMESPACE", node.has("namespace") ? path.field("namespace") : path,
+                        "component " + component + " declares no value view for namespace '" + namespace + "'");
+            }
+            BindingSourceV1 key = source(required(node, "key", path), path.field("key"), keySites, limits, 0);
+            Set<String> read = new TreeSet<>();
+            commandFields(key, read);
+            read.retainAll(evidence);
+            if (!read.isEmpty()) {
+                throw fail("RULE_EVIDENCE_READ", path.field("key"), "rule reads evidence field command."
+                        + read.iterator().next() + "; evidence is never readable by rules");
+            }
+            reads.add(new ResolvedRead(at("DOCUMENT_STRUCTURE_INVALID", path, () -> new BindingIrV1.Read(
+                    entry.getKey(), component, namespace, key)), views.get(namespace)));
+        }
+        reads.sort((left, right) -> Arrays.compareUnsigned(utf8(left.read().name()), utf8(right.read().name())));
+        return List.copyOf(reads);
+    }
+
+    /** A lowered read with its view's fields, value fields under {@code value.<name>}. */
+    private record ResolvedRead(BindingIrV1.Read read, Map<String, RuleFact.Type> fields) { }
 
     private static Clause ruleClause(JsonNode node, BindingDocumentPath path, Sites sites, Limits limits,
                                      Map<String, Component> byId) {
@@ -702,15 +789,15 @@ public final class BindingDocumentCompiler {
         Expectation expectation;
         BindingSourceV1 operand = null;
         if (operator.equals("eq")) {
-            operand = source(lookup.get(operator), lookupPath.field("eq"), sites, limits, 0);
+            operand = source(lookup.get(operator), lookupPath.field("eq"), sites.keySites(), limits, 0);
             expectation = operand instanceof BindingSourceV1.Field
                     ? Expectation.EQUAL_FIELD : Expectation.EQUAL_LITERAL;
         } else {
             requireTrue(lookup.get(operator), lookupPath.field(operator));
             expectation = operator.equals("exists") ? Expectation.EXISTS : Expectation.ABSENT;
         }
-        return new LookupClause(component, source(required(lookup, "key", lookupPath), lookupPath.field("key"), sites,
-                limits, 0), expectation, operand);
+        return new LookupClause(component, source(required(lookup, "key", lookupPath), lookupPath.field("key"),
+                sites.keySites(), limits, 0), expectation, operand);
     }
 
     /** Collects the {@code command.*} fields an expression node or source reads. */

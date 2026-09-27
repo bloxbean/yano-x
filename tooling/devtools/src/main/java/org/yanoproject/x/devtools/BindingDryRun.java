@@ -200,9 +200,10 @@ final class BindingDryRun {
         value.putAll(failure(failed.rules().failure()));
         String cause = switch (receipt.code()) {
             case "EXPRESSION_CAPACITY_EXCEEDED" -> "Evaluating an admission rule exhausted the expression work budget";
-            case "ADMISSION_RULE_INPUT" -> "An admission rule had no usable input (the command view or the kernel's "
-                    + "verified facts)";
-            case "ADMISSION_RULE_ERROR" -> "An admission rule clause could not be evaluated, so the rule failed closed";
+            case "ADMISSION_RULE_INPUT" -> "An admission rule had no usable input (the command view, the kernel's "
+                    + "verified facts, a read's decoded value, or the write view)";
+            case "ADMISSION_RULE_ERROR" -> "An admission rule read or clause could not be evaluated, so the rule "
+                    + "failed closed";
             default -> "An admission rule refused the step";
         };
         String kept = " No business state is written: only this receipt, framework accounting, and any "

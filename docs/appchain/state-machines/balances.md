@@ -111,6 +111,19 @@ curl -sS \
 Verify the MPF proof locally and, for audit-grade verification, compare its
 root with an independently obtained anchor root.
 
+## Admission-rule views and facts
+
+In a declarative composite, admission rules can read this machine's state and
+post-state (ADR-031.4, see [admission rules](../bindings/07-admission-rules.md)):
+
+- **Value view** (namespace `""`, key: the account id text; a sender's own account
+  is `{fn: hex, args: [{context: sender}]}`): `balance`. A zero balance
+  deletes the account's key, so an absent read means a zero balance.
+- **Post-state facts**, after an approved command and equal to its event:
+  `balanceAfter` for a mint; `fromBalanceAfter` and `toBalanceAfter` for a
+  transfer. `examples/bindings/balances-holding-cap.yaml` caps a recipient's
+  balance with `facts.toBalanceAfter <= params.cap`.
+
 ## Customization boundary
 
 Account naming, authorization, single-unit arithmetic, and deletion of zero

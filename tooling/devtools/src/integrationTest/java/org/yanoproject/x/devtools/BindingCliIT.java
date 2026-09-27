@@ -160,6 +160,65 @@ class BindingCliIT {
                 .noneMatch(key -> key.startsWith("79616e6f"));
     }
 
+    /**
+     * ADR-031.4 through the real bundles: validate reports each rule's reads, whether it quantifies over writes, and
+     * the slot its kernel resolved (a rule reading write coverage is a fact rule); graph lists the reads; dry-run of a
+     * batch names the write that decided.
+     */
+    @Test
+    void typedViewRulesShowTheirReadsWritesAndResolvedSlotsThroughTheCli() throws Exception {
+        Path examples = Path.of("..", "..", "examples", "bindings");
+        String asset = Files.readString(examples.resolve("asset-governed-limits.yaml"));
+        Inputs inputs = inputs(asset);
+        JSON.writeValue(inputs.context().toFile(), BindingRecipesIT.recipeContext("asset-governed-limits", asset));
+        Output validation = run("validate", inputs, List.of());
+        assertThat(validation.exit()).as(validation.err()).isZero();
+        JsonNode token = JSON.readTree(validation.out()).path("admission").get(0);
+        assertThat(token.path("component").textValue()).isEqualTo("token");
+        JsonNode tier = token.path("rules").get(1);
+        assertThat(tier.path("rule").textValue()).isEqualTo("tier-limit");
+        assertThat(tier.path("slot").textValue()).isEqualTo("admission");
+        assertThat(tier.path("static").booleanValue()).isFalse();
+        assertThat(tier.path("reads").get(0).textValue()).isEqualTo("holder = registry/holders");
+        assertThat(tier.path("writes").booleanValue()).isFalse();
+        assertThat(run("graph", inputs, List.of()).out()).contains("reads limits ← registry/settings");
+
+        String passport = Files.readString(examples.resolve("dpp-namespace-isolation.yaml"));
+        Files.writeString(inputs.document(), passport);
+        JSON.writeValue(inputs.context().toFile(), BindingRecipesIT.recipeContext("dpp-namespace-isolation",
+                passport));
+        JsonNode rules = JSON.readTree(run("validate", inputs, List.of()).out()).path("admission").get(0)
+                .path("rules");
+        assertThat(rules.findValuesAsText("rule")).containsExactly("manufacturer-owns-product",
+                "admin-only-lifecycle-ops");
+        assertThat(rules.findValuesAsText("slot")).containsExactly("fact", "fact");
+        assertThat(rules.get(0).path("writes").booleanValue()).isTrue();
+        assertThat(run("graph", inputs, List.of()).out())
+                .contains("manufacturer-owns-product → FOREIGN_PRODUCT (facts)").doesNotContain("slot resolved");
+        Output dryRun = run("dry-run", inputs, List.of("--fixture",
+                examples.resolve("fixtures/dpp-namespace-isolation/fixture-3.json").toString(), "--prior-result",
+                priorResult(inputs, examples.resolve("fixtures/dpp-namespace-isolation"), 2).toString()));
+        assertThat(dryRun.exit()).as(dryRun.err()).isZero();
+        JsonNode receipt = JSON.readTree(dryRun.out()).path("receipts").get(0);
+        assertThat(receipt.at("/refusal/rule").textValue()).isEqualTo("manufacturer-owns-product");
+        assertThat(receipt.at("/refusal/write").intValue()).isEqualTo(1);
+    }
+
+    /** Runs the first {@code blocks} public fixtures of a recipe in order and returns the last result file. */
+    private Path priorResult(Inputs inputs, Path fixtures, int blocks) throws Exception {
+        Path prior = null;
+        for (int block = 1; block <= blocks; block++) {
+            List<String> args = new ArrayList<>(List.of("--fixture",
+                    fixtures.resolve("fixture-" + block + ".json").toString()));
+            if (prior != null) args.addAll(List.of("--prior-result", prior.toString()));
+            Output output = run("dry-run", inputs, args);
+            assertThat(output.exit()).as(output.err()).isZero();
+            prior = temporary.resolve("prior-" + block + ".json");
+            Files.writeString(prior, output.out());
+        }
+        return prior;
+    }
+
     /** A profile-construction rule failure keeps the authored attachment path in the report (ADR-031.3). */
     @Test
     void ruleConstructionFailuresNameTheAuthoredAttachment() throws Exception {
