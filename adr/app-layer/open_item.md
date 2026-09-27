@@ -310,7 +310,7 @@ deviation live in the [implementation ledger](031.4-implementation-progress.md).
 | VIEW-003: runtime evaluation | Implemented | Reads, write view, coverage, quantifiers, budgets, diagnostics, ingress details |
 | VIEW-004: stock views and post-state facts | Implemented | Value views on five kernels, map write view and coverage, post-state facts on four kernels |
 | VIEW-005: authoring, tooling, Studio, documentation | Implemented | YAML, catalog, CLI, Studio, docs, three recipes and a holding-cap example |
-| VIEW-006: local qualification and packaging | Proposed | Three-member runs, governed parameter, 128-write anti-poison, replay across a rule epoch, packaging gates |
+| VIEW-006: local qualification and packaging | Implemented (local snapshot) | Three-member runs, governed parameter, 128-write anti-poison, replay across a rule epoch, packaging gates |
 
 | ID | Priority | State | Remaining gap | Owner |
 |---|---|---|---|---|

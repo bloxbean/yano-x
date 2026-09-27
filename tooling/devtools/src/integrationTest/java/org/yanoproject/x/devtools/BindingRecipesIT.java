@@ -58,6 +58,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.BooleanSupplier;
@@ -875,16 +876,47 @@ class BindingRecipesIT {
             this.providers = providers;
             try {
                 for (int index = 0; index < 3; index++) start(index);
-                await(() -> Arrays.stream(nodes).allMatch(node -> {
-                    Object peers = node.status().get("peers");
-                    return peers instanceof Map<?, ?> map && !map.isEmpty()
-                            && map.values().stream().allMatch(Boolean.TRUE::equals);
-                }));
+                awaitPeers();
             } catch (Exception | Error failure) {
                 try { close(); } catch (Exception cleanup) { failure.addSuppressed(cleanup); }
                 throw failure;
             }
         }
+        /**
+         * Waits until every member has every peer link up, before the first submission. The host re-dials a
+         * refused peer every 5 s and abandons a link stuck in negotiation after 30 s, so 40 s covers its own
+         * recovery; only a member still unlinked after that (an ADR-031.3 Phase 3 formation timeout) is restarted
+         * once on its own store, with a warning naming it and its links, and the wait repeats.
+         */
+        void awaitPeers() throws Exception {
+            if (connected(40_000_000_000L)) return;
+            for (int index = 0; index < 3; index++) {
+                if (nodes[index] != null && !linked(nodes[index])) {
+                    LoggerFactory.getLogger(BindingRecipesIT.class).warn(
+                            "restarting member {} whose peer links did not form: {}", index,
+                            nodes[index].status().get("peers"));
+                    stop(index);
+                    start(index);
+                }
+            }
+            if (!connected(45_000_000_000L)) throw new AssertionError("recipe cluster peers did not connect");
+        }
+
+        private boolean connected(long nanos) throws InterruptedException {
+            long deadline = System.nanoTime() + nanos;
+            while (System.nanoTime() < deadline) {
+                if (Arrays.stream(nodes).filter(Objects::nonNull).allMatch(Cluster::linked)) return true;
+                Thread.sleep(25);
+            }
+            return false;
+        }
+
+        private static boolean linked(AppChainSubsystem node) {
+            Object peers = node.status().get("peers");
+            return peers instanceof Map<?, ?> map && !map.isEmpty()
+                    && map.values().stream().allMatch(Boolean.TRUE::equals);
+        }
+
         void start(int index) throws Exception {
             start(index, directory);
         }
@@ -913,7 +945,16 @@ class BindingRecipesIT {
             }
         }
         @Override public void close() throws Exception {
-            for (int index = 0; index < 3; index++) stop(index);
+            Exception failure = null;
+            for (int index = 0; index < 3; index++) {
+                try {
+                    stop(index);
+                } catch (Exception cleanup) {
+                    if (failure == null) failure = cleanup;
+                    else failure.addSuppressed(cleanup);
+                }
+            }
+            if (failure != null) throw failure;
         }
     }
 

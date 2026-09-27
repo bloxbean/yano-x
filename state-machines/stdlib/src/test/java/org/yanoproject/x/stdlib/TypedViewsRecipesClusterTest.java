@@ -30,6 +30,9 @@ import org.yanoproject.x.dpp.profile.DppGenesis;
 import org.yanoproject.x.dpp.profile.DppStarterProfile;
 import org.yanoproject.x.dpp.profile.DppValues;
 import org.yanoproject.x.roles.DeclarativeRoleProviders;
+import org.yanoproject.x.roles.contracts.ActorStatementV1;
+import org.yanoproject.x.roles.contracts.SignedActorCommandV1;
+import org.yanoproject.x.roles.contracts.StagedActorCommandV1;
 import org.yanoproject.x.stdlib.contracts.AuthenticatedMapAuthorizationContract;
 import org.yanoproject.x.stdlib.contracts.AuthenticatedMapAuthorizationContract.AuthorizationAssignmentV1;
 import org.yanoproject.x.stdlib.contracts.AuthenticatedMapAuthorizationContract.MapActionV1;
@@ -58,7 +61,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  * ADR-031.4 §6 configuration examples on three real members, as committed Java IR: a tokenized asset whose
  * transfers read a governed limit and the holder's record, product-passport namespace isolation over the map's
  * write view and verified coverage, and a data feed whose observations must be the source's own insert-only slot
- * and within the feed's range. Every member stores identical receipts and roots.
+ * and within the feed's range; and, for Phase 6, a governed limit raised by an approved proposal without a profile
+ * epoch, and a block of maximal refused write batches. Every member stores identical receipts and roots.
  */
 @Timeout(300)
 class TypedViewsRecipesClusterTest {
@@ -254,6 +258,155 @@ class TypedViewsRecipesClusterTest {
         }
     }
 
+    /**
+     * ADR-031.4 §6.1 and §11: the governed limit is a map record, so raising it is an approved proposal applied
+     * through the approval binding, not a profile epoch. The transfer the old limit refused is admitted from the next
+     * block, the refusal stays provable, and the settings write carries verified approval coverage.
+     */
+    @Test
+    void anApprovedSettingsChangeRaisesTheLimitFromTheNextBlockWithoutAProfileEpoch(@TempDir Path directory)
+            throws Exception {
+        String chain = "typed-views-governed";
+        List<String> senders = senders();
+        var genesis = genesis(chain, List.of(collection("settings", AuthenticatedMapContract.AUTH_APPROVAL,
+                DppStarterProfile.CERTIFICATION_POLICY, "setting-v1")), List.of(schema("setting-v1",
+                new MapField("max", true, UINT))), List.of(new AuthenticatedMapContract.GenesisEntry("settings",
+                bytes("transfer"), new byte[0], value(Map.of("max", new UnsignedInteger(1_000))))));
+        var limit = new BindingIrV1.AdmissionRule("governed-transfer-limit", "TRANSFER_LIMIT_EXCEEDED", "transfer",
+                List.of(), List.of(new BindingIrV1.Read("limits", "registry", "settings",
+                new BindingSourceV1.Literal("transfer"))), List.of(clause(call("le",
+                new Field(Scope.COMMAND, "amount"), Field.readValue("limits", "max")))));
+        var approvalOnly = new BindingIrV1.AdmissionRule("settings-by-approval", "SETTINGS_NEED_APPROVAL", null,
+                List.of(), List.of(clause(new Quantifier(false, call("or", call("ne", Field.element("collection"),
+                new Literal("settings")), call("eq", Field.element("coverage"), new Literal("approval")))))));
+        var token = new BindingIrV1.Component("token", "balances", "token.v1", Map.of("minter",
+                new BindingSourceV1.Literal("")), 0, 1, List.of(new BindingIrV1.RuleAttachment(
+                "governed-transfer-limit", Map.of())));
+        var ir = document(genesis, token, List.of(limit, approvalOnly), List.of(
+                new BindingIrV1.RuleAttachment("settings-by-approval", Map.of())));
+        var raise = new MapActionV1(false, List.of(Mutation.compareAndSet("settings", bytes("transfer"),
+                value(Map.of("max", new UnsignedInteger(5_000))), 1, AuthenticatedMapContract.logicalValueHash(
+                value(Map.of("max", new UnsignedInteger(1_000)))))), List.of(new AuthorizationAssignmentV1(0,
+                AuthenticatedMapContract.AUTH_APPROVAL, DppStarterProfile.CERTIFICATION_POLICY, 1)));
+        byte[] hash = AuthenticatedMapAuthorizationContract.approvalPayloadHash(AuthenticatedMapContract.genesisId(
+                genesis), AuthenticatedMapAuthorizationContract.actionCommitment(raise));
+        var ports = DeclarativeBindingsClusterTest.ports(3);
+        var members = new LinkedHashSet<>(members());
+        try (var cluster = new DeclarativeBindingsClusterTest.Cluster(configs(chain, ir, ports), ports, directory)) {
+            assertAccepted(cluster, submit(cluster, 0, "token.v1", BalancesContract.mint(senders.get(0),
+                    BigInteger.valueOf(10_000))));
+            String refused = submit(cluster, 0, "token.v1", transfer(senders.get(1), 2_000));
+            assertDenied(cluster, refused, new RuleFailure("governed-transfer-limit", 0, "TRANSFER_LIMIT_EXCEEDED",
+                    null));
+            byte[] marker = cluster.node(0).stateValue(CompositeStateKeys.profileMarkerKey()).orElseThrow();
+            assertAccepted(cluster, submit(cluster, 0, "reviews.v1", review(chain, "certifier-a",
+                    ActorStatementV1.Action.PROPOSE, hash, AuthenticatedMapAuthorizationContract.encodeAction(raise))));
+            assertAccepted(cluster, submit(cluster, 0, "reviews.v1", review(chain, "auditor-a",
+                    ActorStatementV1.Action.APPROVE, hash, new byte[0])));
+            String approved = submit(cluster, 0, "reviews.v1", review(chain, "auditor-b",
+                    ActorStatementV1.Action.APPROVE, hash, new byte[0]));
+            var applied = agreedReceipt(cluster, approved);
+            assertThat(applied.accepted()).as(applied.code()).isTrue();
+            // The derived map write held the coverage rule: approval coverage on three members.
+            assertThat(applied.steps().getLast().targetComponentId()).isEqualTo("registry");
+            assertThat(applied.steps().getLast().rules()).isEqualTo(new BindingReceiptV1.RuleTrace(1, null));
+            long raised = cluster.node(0).messageHeight(HexFormat.of().parseHex(approved)).orElseThrow();
+            String admitted = submit(cluster, 0, "token.v1", transfer(senders.get(1), 2_000));
+            assertAccepted(cluster, admitted);
+            assertThat(cluster.node(0).messageHeight(HexFormat.of().parseHex(admitted)).orElseThrow())
+                    .isEqualTo(raised + 1);
+            // The new maximum is exactly the approved value.
+            assertDenied(cluster, submit(cluster, 0, "token.v1", transfer(senders.get(1), 5_001)),
+                    new RuleFailure("governed-transfer-limit", 0, "TRANSFER_LIMIT_EXCEEDED", null));
+            for (AppChainSubsystem node : cluster.liveNodes()) {
+                // No profile change: the committed profile marker is untouched and no epoch was recorded.
+                assertThat(node.stateValue(CompositeStateKeys.profileMarkerKey())).hasValueSatisfying(value ->
+                        assertThat(value).isEqualTo(marker));
+                assertThat(node.stateValue(CompositeStateKeys.currentProfileEpochKey())).isEmpty();
+                DeclarativeBindingsClusterTest.verifyCertifiedProof(node, CompositeStateKeys.workflowStateKey(
+                        EventBindingWorkflow.ID, HexFormat.of().parseHex(refused)), members, chain);
+            }
+            DeclarativeBindingsClusterTest.assertConvergence(cluster, members);
+        }
+    }
+
+    /**
+     * ADR-031.4 §9 Phase 6 anti-poison: twelve maximal 128-write batches in one block, each refused by a write rule
+     * at its last write, finalize with a legitimate 128-write batch after them, and the pool keeps flowing.
+     */
+    @Test
+    void aBlockOf128WriteDenialsFinalizesWithALegitimateBatchAfterThem(@TempDir Path directory) throws Exception {
+        String chain = "typed-views-anti-poison";
+        // An ungoverned registry of one open collection, with the largest batch a map accepts.
+        var genesis = AuthenticatedMapGenesisFactory.mpf(TrustRegistryGenesis.unsignedConfig(chain, members(), 2),
+                new byte[32], AuthenticatedMapContract.MAX_BATCH_ITEMS, AppChainConfig.DEFAULT_MAX_MESSAGE_BYTES,
+                List.of(new AuthenticatedMapContract.CollectionDescriptor("records", AuthenticatedMapContract.AUTH_OPEN,
+                        "", true, 64, 1024, AuthenticatedMapContract.VALUE_ENCODING_OPAQUE, "")), List.of());
+        // Reading the height keeps the rule out of ingress, so every poisoned batch is pooled and refused in a block.
+        var small = new BindingIrV1.AdmissionRule("small-values", "VALUE_TOO_LARGE", null, List.of(), List.of(
+                clause(call("and", call("gt", new Field(Scope.CONTEXT, "height"), new Literal(0L)),
+                        new Quantifier(false, call("le", Field.element("valueLength"), new Literal(1L)))))));
+        var ir = new BindingIrV1(List.of(new BindingIrV1.Component("registry", AuthenticatedMapLeafStateMachine.ID,
+                "registry.v1", Map.of("genesis-cbor-hex", new BindingSourceV1.Literal(hex(
+                AuthenticatedMapContract.encodeGenesis(genesis))), "actors", new BindingSourceV1.Literal(""),
+                "approvals", new BindingSourceV1.Literal("")), 0, 1, List.of(new BindingIrV1.RuleAttachment(
+                "small-values", Map.of())))), List.of(small), List.of(), BindingIrV1.Limits.DEFAULT, 1);
+        var ports = DeclarativeBindingsClusterTest.ports(3);
+        try (var cluster = new DeclarativeBindingsClusterTest.Cluster(configs(chain, ir, ports, 1_500), ports,
+                directory)) {
+            var node = cluster.node(0);
+            int position = 0;
+            for (int attempt = 0; attempt < 6 && position == 0; attempt++) {
+                List<String> refused = new ArrayList<>();
+                for (int batch = 0; batch < 12; batch++) {
+                    refused.add(node.submit("registry.v1", openBatch("p" + attempt + "-" + batch, 2)));
+                }
+                String legitimate = node.submit("registry.v1", openBatch("ok" + attempt, 1));
+                DeclarativeBindingsClusterTest.awaitReceipt(cluster, legitimate);
+                for (String id : refused) DeclarativeBindingsClusterTest.awaitReceipt(cluster, id);
+                for (String id : refused) {
+                    assertDenied(cluster, id, new RuleFailure("small-values", 0, "VALUE_TOO_LARGE",
+                            AuthenticatedMapContract.MAX_BATCH_ITEMS - 1));
+                }
+                assertAccepted(cluster, legitimate);
+                long height = node.messageHeight(HexFormat.of().parseHex(legitimate)).orElseThrow();
+                var messages = node.block(height).orElseThrow().messages();
+                position = 0;
+                while (!HexFormat.of().formatHex(messages.get(position).getMessageId()).equals(legitimate)) {
+                    position++;
+                }
+            }
+            // The legitimate batch finalized in a block after a run of refused maximal batches.
+            assertThat(position).as("refused batches before the legitimate batch in its block").isPositive();
+            assertAccepted(cluster, submit(cluster, 0, "registry.v1", openBatch("after", 1)));
+            DeclarativeBindingsClusterTest.assertConvergence(cluster, new LinkedHashSet<>(members()));
+        }
+    }
+
+    /** 128 open-collection puts of one-byte values; the last value is {@code lastLength} bytes long. */
+    private static byte[] openBatch(String prefix, int lastLength) {
+        List<Mutation> mutations = new ArrayList<>();
+        List<AuthorizationAssignmentV1> assignments = new ArrayList<>();
+        for (int index = 0; index < AuthenticatedMapContract.MAX_BATCH_ITEMS; index++) {
+            int length = index == AuthenticatedMapContract.MAX_BATCH_ITEMS - 1 ? lastLength : 1;
+            mutations.add(Mutation.put("records", bytes(prefix + "/" + index), new byte[length]));
+            assignments.add(new AuthorizationAssignmentV1(index, AuthenticatedMapContract.AUTH_OPEN, "",
+                    AuthenticatedMapAuthorizationContract.NO_EVIDENCE_HANDLE));
+        }
+        return TransitionScalars.encode(Map.of("action", AuthenticatedMapAuthorizationContract.encodeAction(
+                new MapActionV1(true, mutations, assignments))));
+    }
+
+    /** A staged, signed review statement of a demo actor on proposal {@code settings-1}. */
+    private static byte[] review(String chain, String actor, ActorStatementV1.Action action, byte[] hash,
+                                 byte[] staged) {
+        var statement = new ActorStatementV1(action, chain, "settings-1", DppStarterProfile.CERTIFICATION_POLICY, 1,
+                AuthenticatedMapAuthorizationContract.APPROVAL_PAYLOAD_DOMAIN, hash, 500, actor, 1, actor + "-k1",
+                action == ActorStatementV1.Action.APPROVE ? DppStarterProfile.CERTIFICATION_CLAUSE : "");
+        return new StagedActorCommandV1(SignedActorCommandV1.sign(statement, DppGenesis.demoActorSeed(actor)),
+                staged).encode();
+    }
+
     /** Signs direct writes of one collection with a demo actor's key. */
     private static final class Writer {
         private final AuthenticatedMapContract.Genesis genesis;
@@ -350,12 +503,16 @@ class TypedViewsRecipesClusterTest {
     }
 
     private static List<AppChainConfig> configs(String chain, BindingIrV1 ir, List<Integer> ports) {
+        return configs(chain, ir, ports, 100);
+    }
+
+    private static List<AppChainConfig> configs(String chain, BindingIrV1 ir, List<Integer> ports, long interval) {
         List<AppChainConfig> configs = new ArrayList<>();
         for (int index = 0; index < 3; index++) {
             int own = ports.get(index);
             configs.add(AppChainConfig.builder(chain).signingKeyHex(hex(BindingProductFixtures.memberSeeds()
                             .get(index))).memberKeysHex(new LinkedHashSet<>(members()))
-                    .proposerKeyHex(members().getFirst()).threshold(2).blockIntervalMs(100)
+                    .proposerKeyHex(members().getFirst()).threshold(2).blockIntervalMs(interval)
                     .peers(ports.stream().filter(port -> port != own)
                             .map(port -> new AppChainConfig.AppPeer("127.0.0.1", port)).toList())
                     .stateCommitmentIdentity(StdlibTestStateCommitments.mpf(chain))

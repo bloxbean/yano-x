@@ -45,8 +45,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * ADR-031.3 Phase 6 on three real members: a member with a different rule parameter fails closed at height 1; a
- * governed profile epoch tightens a limit exactly at its activation height while earlier receipts stay provable;
- * and a block full of rule denials finalizes with a legitimate transfer after them.
+ * governed profile epoch tightens a limit exactly at its activation height while earlier receipts stay provable, and
+ * a member replaying from genesis crosses that epoch to the same receipts and root; and a block full of rule denials
+ * finalizes with a legitimate transfer after them.
  *
  * <p>The transfer limit also reads {@code context.height}, so it is not static: an over-limit transfer is pooled and
  * refused at block time with a finalized, provable receipt instead of being refused at ingress.
@@ -148,6 +149,7 @@ class AdmissionRuleClusterTest {
         byte[] root;
         long height;
         String earlier;
+        String refusedId;
         byte[] earlierReceipt;
         try (var cluster = new DeclarativeBindingsClusterTest.Cluster(configs, ports, directory)) {
             submit(cluster, 0, BalancesContract.mint(account, BigInteger.valueOf(100_000)));
@@ -171,7 +173,8 @@ class AdmissionRuleClusterTest {
             assertThat(BindingReceiptV1.decode(cluster.node(0).query("composite/binding-receipt-v1/" + stillAllowed,
                     new byte[0]).payload()).accepted()).isTrue();
             assertThat(cluster.node(0).messageHeight(HexFormat.of().parseHex(stillAllowed))).contains(ACTIVATION - 1);
-            String refused = submit(cluster, 0, BalancesContract.transfer(recipient, BigInteger.valueOf(8_000)));
+            refusedId = submit(cluster, 0, BalancesContract.transfer(recipient, BigInteger.valueOf(8_000)));
+            String refused = refusedId;
             assertThat(cluster.node(0).messageHeight(HexFormat.of().parseHex(refused))).contains(ACTIVATION);
             assertThat(status(cluster).currentEpoch()).isEqualTo(1);
             for (var node : cluster.liveNodes()) {
@@ -195,6 +198,20 @@ class AdmissionRuleClusterTest {
                 assertThat(node.stateRoot()).isEqualTo(root);
                 assertEarlierReceipt(node, earlier, earlierReceipt, new LinkedHashSet<>(members));
             }
+            // Replay from genesis across the rule-changing epoch: a member on a new, empty store catches up by
+            // re-executing every block with the profile each height selected, and reaches the same receipts and root.
+            byte[] refusedReceipt = restarted.node(0).query("composite/binding-receipt-v1/" + refusedId,
+                    new byte[0]).payload();
+            restarted.stop(2);
+            restarted.start(2, directory.resolve("replayed"));
+            await(() -> restarted.node(2).tipHeight() == height);
+            var replayed = restarted.node(2);
+            assertThat(replayed.stateRoot()).isEqualTo(root);
+            assertThat(replayed.status().get("capabilityManifest"))
+                    .isEqualTo(restarted.node(0).status().get("capabilityManifest"));
+            assertThat(replayed.query("composite/binding-receipt-v1/" + refusedId, new byte[0]).payload())
+                    .isEqualTo(refusedReceipt);
+            assertEarlierReceipt(replayed, earlier, earlierReceipt, new LinkedHashSet<>(members));
         }
     }
 
@@ -216,9 +233,10 @@ class AdmissionRuleClusterTest {
             submit(cluster, 0, BalancesContract.mint(account, BigInteger.valueOf(1_000_000)));
             var node = cluster.node(0);
             // A proposer tick can fall between the denials and the legitimate transfer, which then lands alone;
-            // a later attempt shows the ordering. Every attempt's denials and transfer must still finalize.
+            // a later attempt shows the ordering. Every attempt's denials and transfer must still finalize. Six
+            // attempts keep a loaded machine from failing the ordering check by chance (harness hardening).
             int position = 0;
-            for (int attempt = 0; attempt < 3 && position == 0; attempt++) {
+            for (int attempt = 0; attempt < 6 && position == 0; attempt++) {
                 List<String> refused = new ArrayList<>();
                 for (int count = 0; count < 40; count++) {
                     refused.add(node.submit("points.v1",
