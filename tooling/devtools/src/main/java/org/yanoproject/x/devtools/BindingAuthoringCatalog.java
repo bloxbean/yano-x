@@ -11,7 +11,9 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import org.yanoproject.api.appchain.AppStateMachine;
 import org.yanoproject.api.appchain.transition.CommandDescriptor;
 import org.yanoproject.api.appchain.transition.ConfigurationDescriptor;
+import org.yanoproject.api.appchain.transition.RuleFact;
 import org.yanoproject.api.appchain.transition.TransitionKernel;
+import org.yanoproject.x.composite.bindings.BindingCommandView;
 
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -22,6 +24,7 @@ import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
@@ -366,7 +369,34 @@ final class BindingAuthoringCatalog {
         }).toList());
         instance.put("rawBodyTarget", rawBodyTarget(kernel));
         instance.put("readParticipants", List.copyOf(kernel.readParticipants()));
+        // ADR-031.3: whether an admission rule may select one of these commands, and the facts rules may read.
+        String unselectable = BindingCommandView.unselectableReason(kernel.commands());
+        instance.put("commandSelectable", unselectable == null);
+        instance.put("unselectableReason", unselectable);
+        instance.put("ruleFacts", ruleFields(kernel.ruleFacts()));
+        // ADR-031.4: value views that rules may read, and the write view (content and verified coverage).
+        instance.put("ruleValueViews", kernel.ruleValueViews().stream().map(view -> {
+            Map<String, Object> value = new LinkedHashMap<>();
+            value.put("namespace", view.namespace());
+            value.put("fields", ruleFields(view.fields()));
+            value.put("valueFields", ruleFields(view.valueFields()));
+            return value;
+        }).toList());
+        if (!kernel.ruleWriteFields().isEmpty()) {
+            instance.put("ruleWriteFields", ruleFields(kernel.ruleWriteFields()));
+            instance.put("ruleWriteCoverageFields", ruleFields(kernel.ruleWriteCoverageFields()));
+        }
         return instance;
+    }
+
+    private static List<Map<String, Object>> ruleFields(List<RuleFact> fields) {
+        return fields.stream().map(fact -> {
+            Map<String, Object> value = new LinkedHashMap<>();
+            value.put("name", fact.name());
+            value.put("type", fact.type() == RuleFact.Type.TEXT_SET ? "text-set"
+                    : fact.type().name().toLowerCase(Locale.ROOT));
+            return value;
+        }).toList();
     }
 
     /**
@@ -384,13 +414,13 @@ final class BindingAuthoringCatalog {
             value.put("name", field.name());
             value.put("type", type(field.type()));
             value.put("required", field.required());
-            value.put("role", field.role().name().toLowerCase(java.util.Locale.ROOT));
+            value.put("role", field.role().name().toLowerCase(Locale.ROOT));
             return value;
         }).toList();
     }
 
     private static String type(org.yanoproject.api.appchain.transition.TransitionScalars.Type type) {
-        return type.name().toLowerCase(java.util.Locale.ROOT);
+        return type.name().toLowerCase(Locale.ROOT);
     }
 
     /** Canonical TypedScalar map in name order; values are Long, String, byte[] or Boolean. */

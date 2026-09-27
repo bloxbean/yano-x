@@ -336,7 +336,7 @@ class EventBindingWorkflowTest {
     private static BindingIrV1.Limits payloadLimits(int bytes, int cascade, int block) {
         var defaults = BindingIrV1.Limits.DEFAULT;
         return new BindingIrV1.Limits(8, 32, 4096, bytes, 2, 8, defaults.maxFunctionInputBytes(),
-                128, 16, defaults.maxExpressionValueBytes(), cascade, block);
+                128, 16, defaults.maxExpressionValueBytes(), cascade, block, defaults.maxRulesPerComponent());
     }
 
     private static AppMessage bodyMessage(int identity, byte[] body) {
@@ -404,7 +404,8 @@ class EventBindingWorkflowTest {
         return new BindingIrV1.Limits(depth, derived, defaults.maxDerivedPerBlock(), eventBytes,
                 defaults.maxLookupsPerCondition(), defaults.maxFunctionCallsPerMapping(), functionBytes,
                 defaults.maxExpressionNodes(), defaults.maxExpressionDepth(), defaults.maxExpressionValueBytes(),
-                defaults.maxExpressionWorkPerCascade(), defaults.maxExpressionWorkPerBlock());
+                defaults.maxExpressionWorkPerCascade(), defaults.maxExpressionWorkPerBlock(),
+                defaults.maxRulesPerComponent());
     }
 
     private static BindingIrV1.Binding calculatedEffect(BindingSourceV1 source) {
@@ -449,7 +450,7 @@ class EventBindingWorkflowTest {
 
     @Test
     void rejectedCascadesConsumeBlockDerivationsButDoNotPoisonNonDerivingIngressOrNextBlock() {
-        var limits = new BindingIrV1.Limits(8, 32, 2, 4096, 2, 8, 4096, 128, 16, 4096, 262144, 4194304);
+        var limits = new BindingIrV1.Limits(8, 32, 2, 4096, 2, 8, 4096, 128, 16, 4096, 262144, 4194304, 4);
         Fixture fixture = new Fixture(false, false, false, List.of(forward()), limits);
         fixture.targetKernel.rejectedValue = 42;
         var messages = List.of(message(1, "source.v1", 42), message(2, "target.v1", 11),

@@ -1,0 +1,31 @@
+{
+  "chainId" : "binding-balances-holding-cap-parity",
+  "settings" : {
+    "state.commitment-profile" : "mpf-blake2b256-v1",
+    "state.format-fingerprint" : "91ee14091200f1e24659112d640e877e9177779dcc81dd06117f013e9190082b",
+    "state.genesis-id" : "580a15d510b93c122c808589bfa303d88830b2bd83bf5984c6e2801c9edefd4f"
+  },
+  "consensusProfile" : {
+    "schemaVersion" : 2,
+    "maxMessageBytes" : 65536,
+    "maxBlockMessages" : 5000,
+    "maxBlockBytes" : 4194304,
+    "l1StabilityDepth" : 0,
+    "epochStabilityDepth" : 0,
+    "enforceSenderSeq" : false,
+    "effectsEnabled" : false,
+    "effectsMaxPerBlock" : 0,
+    "effectsMaxPayloadBytes" : 0,
+    "effectsMaxExpiryBlocks" : 0,
+    "effectsResultWindowBlocks" : 0,
+    "effectsDefaultGate" : "APP_FINAL",
+    "effectsOutcomeCommitment" : "PER_EFFECT",
+    "effectsStrictReservedPrefix" : true,
+    "effectResultSigners" : [ ]
+  },
+  "membership" : {
+    "fromHeight" : 0,
+    "members" : [ "12c1a89644d1e06f5f6aab065ed3735e2b86a830aaab42116b0a3c6b953b4add", "890e4f3dda368399adc33a19ab7f2792ebebcaf775bcd4468e050d58f6869d6f", "f5533b9a2f584c1c557a73d915da95860d635fe418841097aab872cba0a919ac" ],
+    "threshold" : 2
+  }
+}

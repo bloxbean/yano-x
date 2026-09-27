@@ -146,6 +146,7 @@ export const IMPORTED_DOCS = {
   'docs/appchain/bindings/04-java-integration.md': '/bindings/java-integration/',
   'docs/appchain/bindings/05-operations-and-upgrades.md': '/bindings/operations-and-upgrades/',
   'docs/appchain/bindings/06-guided-editor.md': '/bindings/guided-editor/',
+  'docs/appchain/bindings/07-admission-rules.md': '/bindings/admission-rules/',
   'docs/appchain/DECLARATIVE_BINDINGS.md': '/reference/declarative-bindings/',
   'docs/appchain/DECLARATIVE_BINDINGS_CLI.md': '/reference/declarative-bindings-cli/',
   'docs/appchain/DECLARATIVE_BINDINGS_UPGRADES.md': '/reference/declarative-bindings-upgrades/',

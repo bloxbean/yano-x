@@ -7,6 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { parseYaml, typedTree } from '../../tooling/studio/src/main/web/studio-yaml.mjs';
 import { readBlueprint } from '../../tooling/studio/src/main/web/binding-blueprint.mjs';
+import { importDocument } from '../../tooling/studio/src/main/web/binding-draft.mjs';
 
 const repo = path.resolve('..');
 const starter = name => fs.readFileSync(path.join(repo, 'examples/bindings', name), 'utf8');
@@ -203,6 +204,42 @@ test('pages have no automatically detectable accessibility violations in their m
   await expect(page.locator('#dialog')).toBeHidden();
   await page.goto('/studio/index.html');
   await expect(page.getByRole('link', { name: 'Bindings' })).toHaveAttribute('href', 'bindings.html');
+});
+
+test('admission rules are edited in forms, attached per component and kept exactly in the YAML', async ({ page }) => {
+  const { problems } = await open(page);
+  await loadStarter(page, 'procurement-admission');
+  await expect(page.locator('#rule-list li')).toHaveCount(3);
+  await page.locator('#select-rule-1').click();
+  await expect(page.locator('#editor-title')).toHaveText('Admission rule · minimum-quorum');
+  await expect(page.locator('#r1-command')).toHaveValue('propose');
+  await expect(page.locator('#r1-c0-expr')).toHaveValue('command.required >= params.minimum');
+  await axe(page, 'rule form');
+  await page.locator('#select-component-2').click();
+  await expect(page.locator('#c2-a0-rule')).toHaveText('1. minimum-quorum');
+  await axe(page, 'component admission section');
+  // Stating the default and omitting it compile identically; the edit keeps every rule and attachment.
+  await page.locator('#c2-a0-p-minimum-default').click();
+  await expect(page.locator('#dialog')).toBeVisible();
+  await page.locator('#dialog-accept').click();
+  await settle(page);
+  const edited = importDocument(await page.locator('#yaml-text').inputValue());
+  expect(edited.state).toBe('editable');
+  expect(edited.draft.rules.map(rule => rule.id)).toEqual(['registered-supplier', 'minimum-quorum', 'only-via-binding']);
+  expect(edited.draft.components.map(component => (component.admission ?? []).map(entry => entry.rule)))
+    .toEqual([[], ['registered-supplier'], ['minimum-quorum'], ['only-via-binding']]);
+  expect(edited.draft.components[2].admission[0].params).toEqual([]);
+  const original = importDocument(starter('procurement-admission.yaml')).draft;
+  expect(edited.draft.rules).toEqual(original.rules);
+  // Detaching a rule's only attachment is flagged, and the finding opens that rule's form.
+  await page.locator('#select-component-3').click();
+  await page.locator('#c3-a0-remove').click();
+  await settle(page);
+  const finding = page.locator('#checks button', { hasText: 'RULE_UNATTACHED' });
+  await expect(finding).toHaveCount(1);
+  await finding.click();
+  await expect(page.locator('#editor-title')).toHaveText('Admission rule · only-via-binding');
+  expect(problems).toEqual([]);
 });
 
 test('structured edits ask before rewriting imported formatting and keep the original', async ({ page }) => {

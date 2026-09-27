@@ -254,6 +254,7 @@ function messageView(editor, message, id, draft) {
       h('p', {}, h('strong', {text: `Step ${step.ordinal} (depth ${step.depth}) · `}),
         step.bindingId ? `binding ${visibleText(step.bindingId)} → ` : 'source → ', visibleText(step.target),
         ` · ${step.label}${step.rawBody ? ' · raw body' : ''}`),
+      step.rules ? h('p', {class: step.rules.failure ? 'hint warn' : 'hint', text: `Admission: ${step.rules.label}`}) : null,
       step.events.length ? h('p', {class: 'hint', text: `Events: ${step.events.map(visibleText).join(', ')}`}) : null,
       step.conditions.length ? h('ul', {class: 'condition-list'}, step.conditions.map((condition, conditionIndex) =>
         h('li', {}, `${visibleText(condition.bindingId)}: ${condition.label} `,

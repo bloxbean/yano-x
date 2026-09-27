@@ -114,7 +114,7 @@ class BindingProgramTest {
         var invalidKey = new BindingIrV1.LookupClause("source", new BindingSourceV1.Field("topic"),
                 BindingIrV1.Expectation.EXISTS, null);
         var invalidOperand = new BindingIrV1.LookupClause("source", new BindingSourceV1.Field("body"),
-                BindingIrV1.Expectation.EQUAL_EVENT, new BindingSourceV1.Field("topic"));
+                BindingIrV1.Expectation.EQUAL_FIELD, new BindingSourceV1.Field("topic"));
         assertThatThrownBy(() -> mappedProgram(List.of(valid, invalidKey), validMapping()))
                 .hasMessage(context() + "condition[1]: lookup key: binding type mismatch")
                 .satisfies(error -> located(error, "BINDING_TYPE_MISMATCH", 1, "lookup-key", null));

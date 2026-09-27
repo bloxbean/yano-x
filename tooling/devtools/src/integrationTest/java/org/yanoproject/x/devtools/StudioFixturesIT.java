@@ -1,20 +1,27 @@
 package org.yanoproject.x.devtools;
 
+import com.bloxbean.cardano.client.crypto.KeyGenUtil;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.yanoproject.x.composite.contracts.BindingReceiptV1;
 import org.yanoproject.x.stdlib.contracts.ApprovalsContract;
+import org.yanoproject.x.stdlib.contracts.BalancesContract;
+import org.yanoproject.x.stdlib.contracts.DocTrailContract;
 import org.yanoproject.x.stdlib.contracts.KvRegistryContract;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -170,6 +177,117 @@ class StudioFixturesIT {
                 fixture(3, List.of()),
                 fixture(4, List.of(message(0x43, 0x53, 1, "reviews.command.v1",
                         ApprovalsContract.approve("item-1"))))));
+        admissionScenarios(repository, work, plugins, context, outputs, directory);
+    }
+
+    /**
+     * ADR-031.3 admission-rule recipes, each with its public fixtures and the receipt code every block must
+     * produce ("" for accepted). The tutorial context's only member, {@code 22…22}, submits every §6.1 and §6.2
+     * message; §6.3 uses its own governed context, written beside its fixtures.
+     */
+    private static void admissionScenarios(Path repository, Path work, Path plugins, Path context,
+                                           Map<String, String> outputs, String directory) throws Exception {
+        String member = "22".repeat(32);
+        // §6.1: mint, then a transfer at the limit. A transfer over the static limit is refused at fixture
+        // admission, exactly as a member refuses it at ingress.
+        String balances = Files.readString(repository.resolve("examples/bindings/balances-transfer-limit.yaml"));
+        scenario(work, plugins, context, outputs, directory, "transfer-limit", "balances-transfer-limit", balances,
+                List.of(fixture(1, List.of(message(0x71, 0x22, 1, "points.command.v1",
+                                BalancesContract.mint(member, BigInteger.valueOf(50_000))))),
+                        fixture(2, List.of(message(0x72, 0x22, 2, "points.command.v1",
+                                BalancesContract.transfer("33".repeat(32), BigInteger.valueOf(10_000)))))),
+                List.of("", ""), true);
+        // Block 3 is the public denial fixture: a transfer over the limit, continuing the first two blocks.
+        Path overLimit = work.resolve("transfer-limit-failure-fixture.json");
+        String overLimitText = JSON.writerWithDefaultPrettyPrinter().writeValueAsString(fixture(3, List.of(
+                message(0x73, 0x22, 3, "points.command.v1",
+                        BalancesContract.transfer("33".repeat(32), BigInteger.valueOf(20_000)))))) + "\n";
+        Files.writeString(overLimit, overLimitText);
+        outputs.put("examples/bindings/fixtures/balances-transfer-limit/fixture-3.json", overLimitText);
+        String overLimitReport = report(work, "dry-run", work.resolve("transfer-limit.yaml"), plugins, context,
+                List.of("--fixture", overLimit.toString(), "--prior-result",
+                        work.resolve("transfer-limit-result-2.json").toString()), 2);
+        if (!overLimitReport.contains("ADMISSION_RULE_DENIED/transfer-limit/TRANSFER_LIMIT_EXCEEDED")) {
+            throw new IllegalStateException("over-limit fixture must be refused by transfer-limit");
+        }
+        outputs.put(directory + "transfer-limit-failure-report.json", overLimitReport);
+        // §6.2: an order before registration is refused; registration; an order that derives its proposal; a
+        // direct audit append is refused because it did not arrive through the approval binding.
+        String procurement = Files.readString(repository.resolve("examples/bindings/procurement-admission.yaml"));
+        scenario(work, plugins, context, outputs, directory, "procurement-admission", "procurement-admission",
+                procurement, List.of(
+                        fixture(1, List.of(message(0x81, 0x22, 1, "orders.command.v1",
+                                KvRegistryContract.put(new byte[]{9}, new byte[]{1})))),
+                        fixture(2, List.of(message(0x82, 0x22, 2, "suppliers.command.v1", KvRegistryContract.put(
+                                HexFormat.of().parseHex(member), "approved".getBytes(StandardCharsets.UTF_8))))),
+                        fixture(3, List.of(message(0x83, 0x22, 3, "orders.command.v1",
+                                KvRegistryContract.put(new byte[]{1}, new byte[]{42})))),
+                        fixture(4, List.of(message(0x84, 0x22, 4, "audit.command.v1",
+                                DocTrailContract.append("01", new byte[32], "forged"))))),
+                List.of("ADMISSION_RULE_DENIED", "", "", "ADMISSION_RULE_DENIED"), true);
+        // §7.3: lowering the binding's quorum refuses every order's cascade at depth 1, rolling back the order.
+        scenario(work, plugins, context, outputs, directory, "quorum", null,
+                procurement.replace("required: {literal: 2}", "required: {literal: 1}"), List.of(
+                        fixture(1, List.of(message(0x91, 0x22, 1, "suppliers.command.v1", KvRegistryContract.put(
+                                HexFormat.of().parseHex(member), "approved".getBytes(StandardCharsets.UTF_8))))),
+                        fixture(2, List.of(message(0x92, 0x22, 2, "orders.command.v1",
+                                KvRegistryContract.put(new byte[]{1}, new byte[]{42}))))),
+                List.of("", "ADMISSION_RULE_DENIED"), true);
+        // §6.3 on the DPP demo registry, with its governed context. Its reports are large (the IR carries three
+        // genesis documents), so only the receipt codes are checked here.
+        String roleGated = Files.readString(repository.resolve("examples/bindings/dpp-role-gated.yaml"));
+        var genesis = BindingRecipesIT.productGenesis(roleGated);
+        // Settings are an unordered map; sorted keys keep the shipped file byte-stable across regenerations.
+        String contextText = JSON.writer().with(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS)
+                .withDefaultPrettyPrinter().writeValueAsString(
+                        BindingRecipesIT.recipeContext("dpp-role-gated", roleGated)) + "\n";
+        Path roleContext = work.resolve("dpp-role-gated-context.json");
+        Files.writeString(roleContext, contextText);
+        outputs.put("examples/bindings/fixtures/dpp-role-gated/context.json", contextText);
+        String sender = BindingRecipesIT.hex(KeyGenUtil.getPublicKeyFromPrivateKey(
+                BindingRecipesIT.memberSeeds().getFirst()));
+        var commands = BindingRecipesIT.RoleGatedCommands.of(genesis);
+        List<byte[]> bodies = List.of(commands.propose(), commands.approve(), commands.outsideApprove(),
+                commands.forgedApprove(), commands.claimWithoutRole(), commands.operatorEvent());
+        List<ObjectNode> blocks = new ArrayList<>();
+        for (int index = 0; index < bodies.size(); index++) {
+            String topic = index < 4 ? "reviews.v1" : "registry.v1";
+            blocks.add(fixture(index + 1, List.of(message(0xa1 + index, sender, index + 1, topic,
+                    bodies.get(index)))));
+        }
+        scenario(work, plugins, roleContext, outputs, directory, "dpp-role-gated", "dpp-role-gated", roleGated,
+                blocks, List.of("", "", "ADMISSION_RULE_DENIED", "INVALID_SIGNATURE", "ADMISSION_RULE_DENIED", ""),
+                false);
+        // ADR-031.4 recipes: one message per block, exactly as the live qualification submits them, with each
+        // recipe's context beside its public fixtures.
+        List<String> members = BindingRecipesIT.memberSeeds().stream().map(KeyGenUtil::getPublicKeyFromPrivateKey)
+                .map(BindingRecipesIT::hex).toList();
+        int identity = 0xc1;
+        for (String recipe : BindingRecipesIT.TYPED_VIEW_RECIPES) {
+            String yaml = Files.readString(repository.resolve("examples/bindings/" + recipe + ".yaml"));
+            String text = JSON.writer().with(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS)
+                    .withDefaultPrettyPrinter().writeValueAsString(BindingRecipesIT.recipeContext(recipe, yaml)) + "\n";
+            Path recipeContext = work.resolve(recipe + "-context.json");
+            Files.writeString(recipeContext, text);
+            outputs.put("examples/bindings/fixtures/" + recipe + "/context.json", text);
+            var steps = BindingRecipesIT.TypedViewStep.of(recipe, BindingRecipesIT.productGenesis(yaml));
+            List<ObjectNode> recipeBlocks = new ArrayList<>();
+            List<String> codes = new ArrayList<>();
+            for (int index = 0; index < steps.size(); index++) {
+                var step = steps.get(index);
+                recipeBlocks.add(fixture(index + 1, List.of(message(identity++, members.get(step.node()), index + 1,
+                        step.topic(), step.body()))));
+                codes.add(step.refusal() == null ? "" : step.refusal().code());
+            }
+            scenario(work, plugins, recipeContext, outputs, directory, recipe, recipe, yaml, recipeBlocks, codes,
+                    false);
+            if (recipe.equals("feed-slot-rules")) {
+                // A governed map's value views, write view and coverage, as the editor's pickers receive them.
+                outputs.put(directory + "catalog-feed-slot-rules.json", cli(List.of("bindings", "catalog",
+                        work.resolve(recipe + ".yaml").toString(), "--plugins-directory", plugins.toString(),
+                        "--context", recipeContext.toString()), 0).out());
+            }
+        }
     }
 
     /**
@@ -180,9 +298,19 @@ class StudioFixturesIT {
     private static void scenario(Path work, Path plugins, Path context, Map<String, String> outputs, String directory,
                                  String name, String example, String document, List<ObjectNode> blocks)
             throws Exception {
+        scenario(work, plugins, context, outputs, directory, name, example, document, blocks, null, true);
+    }
+
+    /**
+     * As above; {@code codes}, when given, is the receipt code each block's single message must produce ("" for
+     * accepted), and {@code keepReports} decides whether the document and reports become Studio test fixtures.
+     */
+    private static void scenario(Path work, Path plugins, Path context, Map<String, String> outputs, String directory,
+                                 String name, String example, String document, List<ObjectNode> blocks,
+                                 List<String> codes, boolean keepReports) throws Exception {
         Path documentPath = work.resolve(name + ".yaml");
         Files.writeString(documentPath, document);
-        outputs.put(directory + name + ".yaml", document);
+        if (keepReports) outputs.put(directory + name + ".yaml", document);
         Path prior = null;
         for (int block = 1; block <= blocks.size(); block++) {
             String suffix = blocks.size() == 1 ? "" : "-" + block;
@@ -197,7 +325,14 @@ class StudioFixturesIT {
                     "--fixture", fixturePath.toString(), "--report", reportPath.toString()));
             if (prior != null) args.addAll(List.of("--prior-result", prior.toString()));
             String result = cli(args, 0).out();
-            outputs.put(directory + name + "-report" + suffix + ".json", Files.readString(reportPath));
+            if (keepReports) outputs.put(directory + name + "-report" + suffix + ".json", Files.readString(reportPath));
+            if (codes != null) {
+                String hex = JSON.readTree(result).path("receipts").path(0).path("receiptHex").asText();
+                var receipt = BindingReceiptV1.decode(HexFormat.of().parseHex(hex));
+                if (!receipt.code().equals(codes.get(block - 1))) {
+                    throw new IllegalStateException(name + " block " + block + " produced " + receipt.code());
+                }
+            }
             prior = work.resolve(name + "-result" + suffix + ".json");
             Files.writeString(prior, result);
         }
@@ -215,13 +350,17 @@ class StudioFixturesIT {
     }
 
     private static ObjectNode message(int id, int sender, long sequence, String topic, byte[] body) {
+        return message(id, String.format("%02x", sender).repeat(32), sequence, topic, body);
+    }
+
+    private static ObjectNode message(int id, String sender, long sequence, String topic, byte[] body) {
         ObjectNode message = JSON.createObjectNode();
         message.put("messageIdHex", String.format("%02x", id).repeat(32));
-        message.put("senderHex", String.format("%02x", sender).repeat(32));
+        message.put("senderHex", sender);
         message.put("senderSeq", sequence);
         message.put("expiresAt", Long.MAX_VALUE);
         message.put("topic", topic);
-        message.put("bodyHex", java.util.HexFormat.of().formatHex(body));
+        message.put("bodyHex", HexFormat.of().formatHex(body));
         message.put("authProofHex", "00");
         return message;
     }

@@ -1,0 +1,20 @@
+# ADR-031.4 §5.10 post-state facts (bloxbean/yano-x#25): a holding cap on a stock balances machine.
+# The rule reads the recipient's balance after the transfer, which the kernel computes only after it
+# approved the transfer, so it is a fact rule evaluated at block time; an over-cap transfer is
+# finalized as a denied, provable receipt and changes no balance. Mint is not selected.
+composite:
+  components:
+    - id: points
+      machine: balances
+      admission:
+        - rule: holding-cap
+          params: {cap: 25000}
+  rules:
+    - id: holding-cap
+      command: transfer
+      deny: HOLDING_CAP_EXCEEDED
+      params:
+        cap: {type: integer}
+      require:
+        - expr: 'facts.toBalanceAfter <= params.cap'
+  bindings: []
