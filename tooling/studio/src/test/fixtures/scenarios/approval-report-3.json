@@ -16,7 +16,7 @@
   },
   "authoringEnvironment" : "yano-x-binding-authoring-environment-v1",
   "catalog" : {
-    "fingerprint" : "sha256:b72804e91d4153f7046c262a093ee5c2b5329eaae8fe7cbc6042ebc793e6acda",
+    "fingerprint" : "sha256:e23257e602d63a811bf684cbf7d5e3b99454565ee371590b0ecb807fa8e716a3",
     "pluginApi" : {
       "major" : 3,
       "level" : 12
@@ -36,7 +36,7 @@
     }, {
       "id" : "org.yanoproject.x.stdlib",
       "version" : "0.1.0-pre3",
-      "digest" : "sha256:ae6010a960f64125cef3df6d8c4c3d3474527d351c100df735645285c16be94d",
+      "digest" : "sha256:67c47902045afa08d1092e6908350f1c3b0ddc328c83359bf13ae86572ae36a6",
       "digestMode" : "ARTIFACT_CLOSURE",
       "selected" : true
     } ]

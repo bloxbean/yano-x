@@ -158,6 +158,58 @@ class AuthenticatedMapRuleFactsTest {
         });
     }
 
+    /** ADR-031.4 §5.4: each write is covered by the one verified actor its evidence assigns it. */
+    @Test
+    void writeCoverageNamesTheVerifiedActorOfEachWrite() {
+        var fixture = new Fixture();
+        var batch = fixture.decide(fixture.command(List.of(fixture.event("event-1", "logistics-a"),
+                fixture.claim("claim-1", "issuer-a"), fixture.event("event-2", "maker-a"))));
+        assertThat(batch.decision()).isInstanceOf(TransitionDecision.Approved.class);
+        assertThat(batch.coverage()).extracting(write -> write.get("coverage"), write -> write.get("actorId"))
+                .containsExactly(tuple("direct", "logistics-a"), tuple("direct", "issuer-a"),
+                        tuple("direct", "maker-a"));
+        assertThat(batch.coverage().get(1)).isEqualTo(Map.of("coverage", "direct", "actorId", "issuer-a",
+                "actorOrganizationId", "green-labs", "actorRoles", List.of(DppStarterProfile.CLAIM_ISSUER_ROLE)));
+        assertThat(batch.coverage().get(2)).containsEntry("actorRoles", List.of(DppStarterProfile.MANUFACTURER_ROLE,
+                DppStarterProfile.OPERATOR_ROLE));
+        // Coverage has one element per write, like the write view, and each carries only coverage fields.
+        var command = fixture.kernel.codec().decode(fixture.command(List.of(fixture.claim("claim-1", "issuer-a"))));
+        assertThat(fixture.kernel.ruleWrites(command)).hasSize(1).first().satisfies(write -> assertThat(write)
+                .containsEntry("collection", DppStarterProfile.CLAIMS).containsEntry("op", "PUT")
+                .doesNotContainKeys("coverage", "actorId"));
+    }
+
+    /** Forged, revoked, or ineligible evidence is rejected, and even its facts establish no coverage. */
+    @Test
+    void unverifiedEvidenceNeverReachesWriteCoverage() {
+        var fixture = new Fixture();
+        var forged = fixture.decide(fixture.command(List.of(fixture.forged(fixture.claim("claim-1", "issuer-a")))));
+        assertThat(forged.decision()).isInstanceOf(TransitionDecision.Rejected.class);
+        assertThat(forged.coverage()).isNull();
+        assertThat(forged.offered()).containsExactly(Map.of());
+        var revoked = new Fixture();
+        revoked.rewriteActor("issuer-a", RecordStatus.ACTIVE, RecordStatus.REVOKED, "green-labs");
+        var outcome = revoked.decide(revoked.command(List.of(revoked.claim("claim-1", "issuer-a"))));
+        assertThat(outcome.decision()).isInstanceOf(TransitionDecision.Rejected.class);
+        assertThat(outcome.offered()).containsExactly(Map.of());
+        // Expired evidence, and a batch whose second item is forged, are rejected as a whole.
+        var expired = new Fixture();
+        expired.height = expired.deadline + 1;
+        var late = expired.decide(expired.command(List.of(expired.claim("claim-1", "issuer-a"))));
+        assertThat(late.decision()).isInstanceOf(TransitionDecision.Rejected.class);
+        assertThat(late.offered()).containsExactly(Map.of());
+        var mixed = new Fixture();
+        var batch = mixed.decide(mixed.command(List.of(mixed.claim("claim-1", "issuer-a"),
+                mixed.forged(mixed.event("event-1", "logistics-a")))));
+        assertThat(batch.decision()).isInstanceOf(TransitionDecision.Rejected.class);
+        assertThat(batch.offered()).containsExactly(Map.of(), Map.of());
+        // A replay recognized by its receipt approves without facts and establishes no coverage either.
+        var replayed = new Fixture();
+        byte[] body = replayed.command(List.of(replayed.claim("claim-1", "issuer-a")));
+        replayed.map.put(AuthenticatedMapContract.receiptKey(Fixture.MESSAGE_ID), new byte[]{1});
+        assertThat(replayed.decide(body).coverage()).containsExactly(Map.of());
+    }
+
     @Test
     void aReceiptKeyReplayApprovesWithoutFactsSoFactRulesFailClosed() {
         var fixture = new Fixture();
@@ -179,6 +231,9 @@ class AuthenticatedMapRuleFactsTest {
         final MemoryState map = new MemoryState();
         final AppStateMachine actorMachine;
         final AuthenticatedMapTransitionKernel kernel;
+        /** The last height at which signed authorizations are valid (20), and the height of every decision. */
+        long deadline = 20;
+        long height = 2;
         private int authorizations;
 
         Fixture() {
@@ -233,30 +288,39 @@ class AuthenticatedMapRuleFactsTest {
                 evidence.add(MapActorAuthorizationV1.sign(repeated(++authorizations), genesis.chainId(),
                         AuthenticatedMapContract.genesisId(genesis), commitment, List.of(index),
                         writes.get(index).policy(), 1, id, 1, id + "-k1",
-                        KeyGenUtil.getPublicKeyFromPrivateKey(DppGenesis.demoActorSeed(id)), 1, 20, seed));
+                        KeyGenUtil.getPublicKeyFromPrivateKey(DppGenesis.demoActorSeed(id)), 1, deadline, seed));
             }
             return TransitionScalars.encode(Map.of("command", AuthenticatedMapAuthorizationContract.encodeCommand(
                     new AuthenticatedMapCommandV1(action, evidence))));
         }
 
-        record Outcome(TransitionDecision decision, Map<String, Object> values) { }
+        /**
+         * The decision, the fact values and write coverage the engine would read after an approval (else
+         * {@code null}), and the coverage the kernel reports for these facts whatever the decision.
+         */
+        record Outcome(TransitionDecision decision, Map<String, Object> values, List<Map<String, Object>> coverage,
+                       List<Map<String, Object>> offered) { }
 
-        /** Decides at height 2 from a member sender; facts are read only after an approval, as the engine does. */
+        /**
+         * Decides at {@link #height} from a member sender; facts are read only after an approval, as the engine does.
+         */
         Outcome decide(byte[] body) {
             return decide(kernel, body);
         }
 
         private <C, F> Outcome decide(TransitionKernel<C, F> transitions, byte[] body) {
-            var context = new TransitionContext(2, 0, 0, MESSAGE_ID, "registry.v1", member());
+            var context = new TransitionContext(height, 0, 0, MESSAGE_ID, "registry.v1", member());
             C command = transitions.codec().decode(body);
             transitions.workRequest(command, context).ifPresent(request -> {
                 var budget = actorMachine.transitionKernel().orElseThrow().workBudgets().getFirst();
-                assertThat(TransitionWorkAccounting.reserve(actors, budget, 2, request.units())).isTrue();
+                assertThat(TransitionWorkAccounting.reserve(actors, budget, height, request.units())).isTrue();
             });
             F facts = transitions.facts(command, context, map, Map.of("actors", actors, "reviews", approvals));
             TransitionDecision decision = transitions.decide(command, context, facts);
-            return new Outcome(decision, decision instanceof TransitionDecision.Approved
-                    ? transitions.ruleFactValues(command, context, facts) : null);
+            boolean approved = decision instanceof TransitionDecision.Approved;
+            var offered = transitions.ruleWriteCoverage(command, context, facts);
+            return new Outcome(decision, approved ? transitions.ruleFactValues(command, context, facts) : null,
+                    approved ? offered : null, offered);
         }
 
         /** Replaces an actor's genesis revision, keeping its key material. */
