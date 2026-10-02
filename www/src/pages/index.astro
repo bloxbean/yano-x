@@ -1,6 +1,7 @@
 ---
 import '../styles/landing.css';
 import Brand from '../components/shared/Brand.astro';
+import StatusBanner from '../components/shared/StatusBanner.astro';
 import HeroPipeline from '../components/landing/HeroPipeline.astro';
 import { generateCatalog } from '../../scripts/generate-catalog.mjs';
 const { counts, versions } = await generateCatalog({ logger: { info: () => {} } });
@@ -36,6 +37,7 @@ const explainers = [
   </head>
   <body>
     <a class="skip" href="#main">Skip to content</a>
+    <StatusBanner variant="landing" />
     <header class="site-header wrap">
       <Brand />
       <nav aria-label="Main navigation"><a href="/start-here/">Docs</a><a href="#explore">Explore</a><a href="/ai/">For AI</a><a href="https://github.com/bloxbean/yano-x">GitHub ↗</a></nav>

@@ -57,3 +57,19 @@ test('branding and illustration tabs fit mobile and docs themes', async ({ page 
     expect(await page.locator('header .yano-brand img').evaluate(img => img.complete && img.naturalWidth > 0)).toBe(true);
   }
 });
+
+test('the project status banner appears once on the landing page and on docs pages', async ({ page }) => {
+  for (const route of ['/', '/start-here/what-is-an-app-ledger/', '/concepts/consensus-and-finality/', '/404']) {
+    await page.goto(route);
+    const banner = page.getByRole('complementary', { name: 'Project status' });
+    await expect(banner).toHaveCount(1);
+    await expect(banner).toContainText('Active development');
+    await expect(banner).toContainText('working toward its first developer preview');
+    await expect(banner.getByRole('link', { name: 'Follow on GitHub ↗' }))
+      .toHaveAttribute('href', 'https://github.com/bloxbean/yano-x');
+  }
+  await page.setViewportSize({ width: 360, height: 800 });
+  await page.goto('/start-here/');
+  await expect(page.getByRole('complementary', { name: 'Project status' })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});

@@ -34,6 +34,7 @@ export default defineConfig({
         baseUrl: 'https://github.com/bloxbean/yano-x/edit/main/www/',
       },
       components: {
+        Banner: './src/components/overrides/Banner.astro',
         Head: './src/components/overrides/Head.astro',
         SiteTitle: './src/components/overrides/SiteTitle.astro',
       },

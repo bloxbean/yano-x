@@ -178,6 +178,14 @@ redirects. `tests/docs.spec.mjs` checks the landing-page controls and the
 documentation entry on mobile. The GitHub Pages workflow installs Chromium and
 runs both before deployment.
 
+## Project status banner
+
+`src/components/shared/StatusBanner.astro` holds the "Active development"
+message shown at the top of every page. Documentation pages render it through
+the Starlight `Banner` override (`src/components/overrides/Banner.astro`), and
+the landing page renders it directly, so editing or removing that one file
+changes it everywhere. A page's own `banner` frontmatter still appears below it.
+
 ## Brand and illustration examples
 
 `public/logo.svg` adapts the Yano folded mark with a mint palette;
