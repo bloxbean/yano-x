@@ -1,5 +1,8 @@
-# Composite profile governance
-
+---
+title: "Composite profile governance"
+description: "This runbook is for operators evolving the deterministic composite state machine of a long-lived app ledger. The short rule is:"
+editUrl: "https://github.com/bloxbean/yano-x/edit/main/docs/APP_CHAIN_PROFILE_GOVERNANCE.md"
+---
 This runbook is for operators evolving the deterministic composite state machine
 of a long-lived app ledger. The short rule is:
 

@@ -1,5 +1,8 @@
-# From demonstration to production
-
+---
+title: "From demonstration to production"
+description: "Every product in this repository ships with a launcher, demo actors, and a local console, and every one of those is a demonstration convenience. This…"
+editUrl: "https://github.com/bloxbean/yano-x/edit/main/docs/appchain/PRODUCTION_DEPLOYMENT.md"
+---
 Every product in this repository ships with a launcher, demo actors, and a local console, and every
 one of those is a demonstration convenience. This guide says what changes when a consortium runs
 one of these app ledgers for real: how the genesis is agreed, where keys live, what each service is
@@ -75,7 +78,7 @@ every node. The block interval and message size in the generated properties are 
 identity: a node started with different values will not agree.
 
 Give each node its own data directory, back up its authoritative stores, `chainstate/` and
-`appchain-chainstate/` (see [where data lives](../site/concepts-where-data-lives.md)), and decide a
+`appchain-chainstate/` (see [where data lives](/concepts/where-data-lives/)), and decide a
 retention policy for proofs and history before you need one. Historical answers need proof retention: a verifier asking
 about height H needs the node to still hold it.
 

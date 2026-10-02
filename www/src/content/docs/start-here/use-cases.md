@@ -1,5 +1,8 @@
-# Use cases
-
+---
+title: "Use cases"
+description: "What you can build today with a Yano app ledger, and how much you need to bring. Yano's command line, configuration, and APIs call an app ledger an app…"
+editUrl: "https://github.com/bloxbean/yano-x/edit/main/docs/APP_CHAIN_USE_CASES.md"
+---
 What you can build today with a Yano app ledger, and how much you need to
 bring. Yano's command line, configuration, and APIs call an app ledger an *app
 chain*; you will see that name in commands and settings below.
@@ -14,7 +17,7 @@ Each example gives the problem, why an app ledger fits better than the usual
 alternatives, a setup sketch, and the verification story: what a third party
 can prove without trusting one node. For runnable paths from these use cases to
 a local cluster, proofs, effects, and role-aware workflows, start with the
-[tutorials](appchain/tutorials/README.md).
+[tutorials](/tutorials/).
 
 The supported pilot posture today is a **trusted-member permissioned group**
 with registered keys. A group whose members only partly trust each other also
@@ -41,7 +44,7 @@ member keys, configuration, and REST or client commands are enough for the
 bundled capabilities. `ordered-log` keeps opaque bodies; the stock state
 machines and bundled profiles add typed state. Kafka, S3, IPFS, or Cardano
 payment actions also need their first-party optional connector bundle and the
-external service; see [optional connectors](appchain/OPTIONAL_CONNECTORS.md).
+external service; see [optional connectors](/deployment/connectors/).
 
 ### A1. Multi-party audit and compliance log
 
@@ -103,7 +106,7 @@ with one proof against a public anchor, without seeing the rest of the trail.
 **Setup sketch.** A topic per product line, or a `productId` field in the body.
 Anchor hourly. Keep bodies small: hashes and metadata, not documents. The
 `doc-trail` state machine keeps one provable chained head per product or case,
-and the [DPP Starter](appchain/DPP_STARTER.md) packages a passport registry.
+and the [DPP Starter](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/DPP_STARTER.md) packages a passport registry.
 
 ### A4. Notarization and proof of existence
 
@@ -118,7 +121,7 @@ prevent any one of them from rewriting history alone.
 
 **Verification.** Reveal the content later. Anyone recomputes the hash, checks
 the proof, and checks the anchor. The anchor transaction's Cardano block time
-bounds T. [Attest](appchain/ATTEST.md) packages this pattern with a portable
+bounds T. [Attest](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/ATTEST.md) packages this pattern with a portable
 certificate.
 
 ### A5. Cross-organization integration and SLA evidence
@@ -152,7 +155,7 @@ decision.
 Everything in Part A, plus your own interpretation of messages: the state
 machine turns the log into typed, validated, queryable state, and every key it
 writes is individually provable. To deploy, drop a bundle JAR into `plugins/`
-on every member; see the [plugin tutorial](appchain/tutorials/08-plugins-and-composites.md).
+on every member; see the [plugin tutorial](/tutorials/08-plugins-and-composites/).
 
 ### B1. Replicated registry
 
@@ -212,7 +215,7 @@ themselves (the approver is the envelope sender). The stock `role-evidence`
 profile covers the broader case: governed business actors who are not members
 sign exact statements, policies enforce roles and approvals from distinct
 organizations, and any member can relay a command without becoming the
-recorded approver. See [domain actors and roles](APP_CHAIN_DOMAIN_ROLES.md).
+recorded approver. See [domain actors and roles](https://github.com/bloxbean/yano-x/blob/main/docs/APP_CHAIN_DOMAIN_ROLES.md).
 
 ### B5. Member-attested data feeds
 
@@ -225,7 +228,7 @@ aggregates deterministically once all observations, or a quorum of them, are
 present (for example, a median), and writes the agreed value for the round as
 provable state. Fetch external data outside the node, in a small submitter
 service per member: `apply` itself must stay deterministic and free of I/O. The
-[Attestation Feed](appchain/ATTESTATION_FEED.md) starter shows a configuration-only
+[Attestation Feed](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/ATTESTATION_FEED.md) starter shows a configuration-only
 variant on the stock authenticated map.
 
 ---
@@ -327,7 +330,7 @@ Be clear with stakeholders about the current boundaries:
   0, the consensus is crash-tolerant: a threshold below the member count lets
   the ledger finish rounds while some members are offline, but it assumes that
   members do not lie. See
-  [production deployment](appchain/PRODUCTION_DEPLOYMENT.md#2-members-threshold-and-nodes).
+  [production deployment](/deployment/production/#2-members-threshold-and-nodes).
 - **Domain-enforced bridges and withdrawals.** Metadata anchors and
   threshold-co-signed script anchors are implemented, but the stock anchor
   validator does not check a domain withdrawal or payment policy.
@@ -349,7 +352,7 @@ Be clear with stakeholders about the current boundaries:
 The stock capabilities turn several Part B patterns into configuration-only
 Part A deployments (`kv-registry` covers B1, `approvals` covers B4) and add
 capabilities the parts above do not cover. The
-[capability catalog](appchain/CAPABILITIES.md) lists each one with its maturity.
+[capability catalog](/reference/capabilities/) lists each one with its maturity.
 
 | Capability | Use cases it unlocks |
 |---|---|
@@ -357,7 +360,7 @@ capabilities the parts above do not cover. The
 | `doc-trail` state machine | A3 supply-chain trails: one provable chained head per product or case covers the whole trail |
 | `composite` with the `evidence-v1-gated` preset | Approval-coordinated S3 and IPFS publication followed by an acknowledged Kafka notification, all under one root |
 | `role-evidence` profile | Evidence release signed by business actors, with governed organizations, key rotation and revocation, two auditor organizations, and a regulator |
-| Governed composite profiles | Deploy reviewed, dormant profile generations first, then let a threshold of members authorize activation at a future height; see [profile governance](APP_CHAIN_PROFILE_GOVERNANCE.md) |
+| Governed composite profiles | Deploy reviewed, dormant profile generations first, then let a threshold of members authorize activation at a future height; see [profile governance](/deployment/profile-governance/) |
 | `credential-registry` (experimental) | Verifiable credentials on an anchored registry: issuer-signed attribute sets with selective disclosure |
 | `zk-gate` (experimental) | Private policy compliance: prove "amount ≤ limit" or "KYC holds" across organizations without revealing the data |
 | `zk-membership` (experimental) | Anonymous but authorized submissions among known members: voting, sealed bids, whistleblowing |

@@ -55,6 +55,8 @@ const SECTIONS = [
       'start-here/release-downloads.md',
       'start-here/build-from-source.md',
       'start-here/quickstart.md',
+      'start-here/use-cases.md',
+      'start-here/faq.md',
     ],
   },
   {
@@ -67,6 +69,10 @@ const SECTIONS = [
       'concepts/observations.md',
       'concepts/anchoring.md',
       'concepts/determinism-rules.md',
+      'concepts/chain-identity.md',
+      'concepts/where-data-lives.md',
+      'concepts/recovery.md',
+      'concepts/trust-model.md',
     ],
   },
   {
@@ -116,6 +122,7 @@ const SECTIONS = [
       'reference/configuration.md',
       'reference/modules.md',
       'reference/shelf.md',
+      'reference/glossary.md',
     ],
   },
   {

@@ -50,6 +50,8 @@ export default defineConfig({
             { label: 'Release downloads', slug: 'start-here/release-downloads' },
             { label: 'Local showcase', slug: 'start-here/quickstart' },
             { label: 'Build from source', slug: 'start-here/build-from-source' },
+            { label: 'Use cases', slug: 'start-here/use-cases' },
+            { label: 'FAQ', slug: 'start-here/faq' },
           ],
         },
         {
@@ -68,6 +70,10 @@ export default defineConfig({
             { label: 'External observations', slug: 'concepts/observations' },
             { label: 'Cardano anchoring', slug: 'concepts/anchoring' },
             { label: 'Determinism rules', slug: 'concepts/determinism-rules' },
+            { label: 'Chain identity', slug: 'concepts/chain-identity' },
+            { label: 'Where data lives', slug: 'concepts/where-data-lives' },
+            { label: 'Restart and recovery', slug: 'concepts/recovery' },
+            { label: 'Keys and trust', slug: 'concepts/trust-model' },
           ],
         },
         {
@@ -154,6 +160,7 @@ export default defineConfig({
             { label: 'Configuration', slug: 'reference/configuration' },
             { label: 'Modules and artifacts', slug: 'reference/modules' },
             { label: 'Reference shelf', slug: 'reference/shelf' },
+            { label: 'Glossary', slug: 'reference/glossary' },
           ],
         },
         {

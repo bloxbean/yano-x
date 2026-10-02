@@ -1,5 +1,8 @@
-# Optional first-party connectors
-
+---
+title: "Optional first-party connectors"
+description: "Kafka, S3-compatible storage, IPFS/Kubo, and Cardano payments are maintained Yano integrations, but they are not present in the stock distribution. They…"
+editUrl: "https://github.com/bloxbean/yano-x/edit/main/docs/appchain/OPTIONAL_CONNECTORS.md"
+---
 Kafka, S3-compatible storage, IPFS/Kubo, and Cardano payments are maintained
 Yano integrations, but they are not present in the stock distribution. They
 are `FIRST_PARTY_OPTIONAL`: selecting their capability creates an artifact and
@@ -55,7 +58,7 @@ Kafka contributes two independent features:
 
 The sink and executor have separate configuration. Both require a node-local
 security profile and operator-owned topic policy. See the
-[Kafka integration guide](../../connectors/kafka/README.md).
+[Kafka integration guide](https://github.com/bloxbean/yano-x/blob/main/connectors/kafka/README.md).
 
 ## S3-compatible object storage
 
@@ -64,13 +67,13 @@ versioned immutable destination. The target configuration owns endpoints,
 buckets, credentials, encryption and retention. Its create-only bucket-policy
 and version-history requirements are part of correctness, not optional
 hardening. See the
-[object-store guide](../../connectors/objectstore-s3/README.md).
+[object-store guide](https://github.com/bloxbean/yano-x/blob/main/connectors/objectstore-s3/README.md).
 
 ## IPFS/Kubo
 
 The `ipfs.pin` executor pins an already known CID. It does not add document
 bytes, derive a CID, expose a gateway, or promise permanent replication. See
-the [IPFS guide](../../connectors/ipfs/README.md).
+the [IPFS guide](https://github.com/bloxbean/yano-x/blob/main/connectors/ipfs/README.md).
 
 ## Cardano payments
 
@@ -78,7 +81,7 @@ The `cardano.payment` executor controls material funds and therefore has a
 stricter readiness boundary. Use an operator-controlled payer, explicit
 network/backend, transaction cap, protected signing credential, and a funded
 testnet rehearsal before production. See the
-[Cardano effects guide](../../connectors/effects-cardano/README.md).
+[Cardano effects guide](https://github.com/bloxbean/yano-x/blob/main/connectors/effects-cardano/README.md).
 
 ## Release and demo distinction
 
