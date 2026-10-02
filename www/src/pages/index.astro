@@ -5,10 +5,17 @@ import HeroPipeline from '../components/landing/HeroPipeline.astro';
 import { generateCatalog } from '../../scripts/generate-catalog.mjs';
 const { counts, versions } = await generateCatalog({ logger: { info: () => {} } });
 const paths = [
-  { id: 'record', label: 'Shared records', title: 'One record. Every member agrees.', text: 'Track ownership, documents, or attestations across organizations. Start with a registry or document trail, then retrieve a proof of the recorded state.', machine: 'Registry · Document trail', steps: ['Submit a signed update', 'Apply the same rules on every member', 'Verify a record against the certified root'], href: '/tutorials/02-registry-and-proofs/', cta: 'Build a registry' },
+  { id: 'record', label: 'Shared records', title: 'One record. Every member agrees.', text: 'Track ownership, documents, or attestations across organizations. Start with a registry or document trail, then retrieve a proof of the recorded state.', machine: 'Registry · Document trail', steps: ['Submit an update to any member', 'Apply the same rules on every member', 'Verify a record against the certified root'], href: '/tutorials/02-registry-and-proofs/', cta: 'Build a registry' },
   { id: 'coordinate', label: 'Approval workflows', title: 'Make the rules part of the record.', text: 'Give people business roles — issuer, reviewer, auditor — separate from the members running the software. Require approval from the right roles and organizations before an action proceeds.', machine: 'Role approvals · Composition', steps: ['Define participants and roles', 'Collect the required approvals', 'Record the authorized transition'], href: '/tutorials/05-domain-role-approvals/', cta: 'Explore role approvals' },
   { id: 'observe', label: 'External observations', title: 'Bring outside evidence into shared decisions.', text: 'Receive a signed delivery report or another supported external input. Members check the evidence against agreed source and acceptance rules before your application uses the certified result. A source report is evidence of its claim, not proof of physical delivery.', machine: 'Generic observations · Signed source evidence', steps: ['Request an external observation', 'Check source evidence and acceptance rules', 'Apply the certified result'], href: '/concepts/observations/', cta: 'Understand observations' },
   { id: 'connect', label: 'External actions', title: 'Connect decisions to the real world.', text: 'Authorize a webhook, publication, or payment from a finalized transition. Executors handle network work outside consensus; results return as sequenced messages.', machine: 'Effects · Connectors', steps: ['Commit an effect request', 'Execute outside consensus', 'Incorporate the reported result'], href: '/tutorials/06-webhook-effects/', cta: 'Connect a webhook' },
+];
+const explainers = [
+  { href: '/start-here/what-is-an-app-ledger/#message-lifecycle', label: 'Life of a message', text: 'From an HTTP call to a final, provable result, with a leader that goes offline' },
+  { href: '/tutorials/01-first-app-chain/#first-chain-finality', label: 'Your first finalized event', text: 'Each command of the first tutorial, and what happens when a member is down' },
+  { href: '/deployment/#topology-ports', label: 'Nodes, chains, and ports', text: 'Which ports each way of running Yano X uses' },
+  { href: '/deployment/configure/#config-layers', label: 'Where each setting lives', text: 'Blueprint, shared consensus values, node files, and secrets' },
+  { href: '/reference/rest-api/#rest-explorer', label: 'The REST API by access', text: 'Every endpoint group, and which key it needs' },
 ];
 ---
 <!doctype html>
@@ -68,7 +75,7 @@ const paths = [
       <section class="section wrap" id="start">
         <div class="section-heading"><span class="eyebrow">A SMALL FIRST STEP</span><h2>See it work.<br /><span>Then make it yours.</span></h2><p>Start on a private local devnet. No public-network wallet or test ADA needed.</p></div>
         <div class="start-grid"><ol class="learning-path">
-          <li><span>01</span><div><h3>Run the local demo</h3><p>Download the showcase archive, check prerequisites, and start three members.</p><a href="/start-here/quickstart/">Follow the local quickstart →</a></div></li>
+          <li><span>01</span><div><h3>Run the local demo</h3><p>Download the Yano X JVM ZIP, check prerequisites, and start three members.</p><a href="/start-here/quickstart/">Follow the local quickstart →</a></div></li>
           <li><span>02</span><div><h3>Submit. Inspect. Verify.</h3><p>Send an event, compare member state, and understand what a proof establishes.</p><a href="/tutorials/">Continue with guided tutorials →</a></div></li>
           <li><span>03</span><div><h3>Choose your own rules</h3><p>Pick a recipe, configure your application, then extend only where you need to.</p><a href="/recipes/choosing-a-recipe/">Choose a recipe →</a></div></li>
         </ol><div class="terminal"><div class="terminal-bar"><span>LOCAL DEMO</span><span>bash</span></div><p>In <code>yano-x-jvm-&lt;version&gt;/examples/showcase</code></p><pre><code># Check Java 25 and local prerequisites
@@ -79,12 +86,13 @@ const paths = [
   --profile light --nodes 3 --instance first-demo
 
 # Check agreement, then open the console
-./showcase.sh verify all --instance first-demo
+./showcase.sh verify --instance first-demo
 ./showcase.sh ui --instance first-demo
 
 # Keep your data for next time
 ./showcase.sh stop --instance first-demo</code></pre><a href="/start-here/release-downloads/">Choose the right download ↗</a></div></div>
       </section>
+      <section class="section resources wrap" id="learn" aria-labelledby="learn-heading"><div><span class="eyebrow">LEARN BY EXPLORING</span><h2 id="learn-heading">Step through it.</h2><p>Interactive explainers: play a round, switch to your terminal's view, and see what happens when something breaks. Start with <a class="text-link" href="/start-here/what-is-an-app-ledger/">What is an app ledger?</a></p></div><div class="resource-links">{explainers.map(e => <a href={e.href}><span>{e.label}<small>{e.text}</small></span>→</a>)}</div></section>
       <section class="section resources wrap"><div><span class="eyebrow">WHEN YOU ARE READY</span><h2>Room to go deeper.</h2><p>Keep learning at your pace. The reference is here when you need it.</p></div><div class="resource-links"><a href="/plugins/"><span>Build a plugin<small>Custom rules, composition, and integrations</small></span>↗</a><a href="/deployment/"><span>Plan a deployment<small>Configuration, operations, and member lifecycle</small></span>↗</a><a href="/studio/"><span>Design in Studio<small>Explore and export an application blueprint</small></span>↗</a><a href="/ai/"><span>Work with a coding agent<small>Guides, machine-readable catalogs, and llms.txt</small></span>↗</a></div></section>
       <div class="catalog-strip wrap"><span>{counts.recipes} recipes</span><span>{counts.capabilities} capabilities</span><a href="/reference/modules/">Explore the generated catalog →</a></div>
       <p class="release-note wrap">Yano X is pre-release. Begin with local development and validate security, operations, and domain behavior before production use. Documentation follows this checkout; use the identities and manifests shipped with your downloaded release.</p>

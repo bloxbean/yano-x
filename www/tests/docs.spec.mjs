@@ -70,15 +70,15 @@ test('illustration tabs explain each capability and support keyboard navigation'
   await page.getByRole('tab', { name: 'Registry', exact: true }).press('ArrowRight');
   await expect(page.getByRole('tab', { name: 'Roles', exact: true })).toBeFocused();
   await expect(demo.locator('.example-facts')).toContainText('Two distinct organizations approve');
-  await expect(demo.locator('#stage-description')).toContainText('separate checks');
+  await expect(demo.locator('#stage-description')).toContainText('issuer proposes a document release');
   await page.getByRole('tab', { name: 'Roles', exact: true }).press('End');
   await expect(page.getByRole('tab', { name: 'Observations', exact: true })).toHaveAttribute('aria-selected', 'true');
-  await expect(demo.locator('#stage-description')).toContainText('not that a parcel physically arrived');
+  await expect(demo.locator('#stage-description')).toContainText('requests a delivery observation');
   await demo.getByRole('button', { name: 'Next step' }).click();
-  await expect(demo).toHaveAttribute('data-stage', '3');
+  await expect(demo).toHaveAttribute('data-stage', '1');
   await page.getByRole('tab', { name: 'Observations', exact: true }).press('Home');
   await expect(demo.locator('[data-command]')).toHaveText('order.created');
-  await expect(demo).toHaveAttribute('data-stage', '2');
+  await expect(demo).toHaveAttribute('data-stage', '0');
 });
 
 test('branding and illustration tabs fit mobile and docs themes', async ({ page }) => {

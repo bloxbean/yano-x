@@ -3,13 +3,13 @@ const examples = [
   {
     id: 'log', tab: 'Event log', title: 'Record what happened.',
     technology: 'OrderedLog', intro: 'Keep a shared, verifiable history of application events.',
-    commandLabel: 'SIGNED APPLICATION EVENT', command: 'order.created', value: '#A-100',
+    commandLabel: 'APPLICATION EVENT', command: 'order.created', value: '#A-100',
     facts: [['Record', 'Order A-100 was created'], ['Claim', 'This event appears in the agreed history']],
     root: '9f3c…a17b', result: 'One event. One agreed history.', href: '/tutorials/01-first-app-chain/',
     stages: [
-      ['Submit', 'A signed command is submitted to the application. Acceptance does not yet mean members have agreed on the result.'],
+      ['Submit', 'Your application sends the event to one member, which signs it with its member key. Acceptance does not yet mean members have agreed on the result.'],
       ['Execute', 'Every member records the same ordered events and computes the same state root.'],
-      ['Certify', 'The configured member threshold certifies the result. A proof can establish that this event was recorded.'],
+      ['Certify', 'A threshold of members signs the block in two voting rounds, and the certificate makes it final. Only then can a proof show that this event was recorded.'],
       ['Anchor', 'Optionally publish a certified commitment to Cardano. Cardano confirmation is separate from member agreement.'],
     ],
   },
@@ -22,7 +22,7 @@ const examples = [
     stages: [
       ['Submit', 'An authorized writer requests an update to asset A-100 at its expected revision.'],
       ['Execute', 'Every member checks the collection policy and revision before applying the same update.'],
-      ['Certify', 'A proof binds this entry and its revision to the certified state. Absence and revocation are distinct states.'],
+      ['Certify', 'A threshold of members certifies the block that applied the update. A proof then binds this entry and its revision to the certified root; absence and revocation are distinct states.'],
       ['Anchor', 'Optionally publish the certified commitment to Cardano. The proof establishes the recorded state, not the truth of an asset description.'],
     ],
   },
@@ -35,7 +35,7 @@ const examples = [
     stages: [
       ['Propose', 'An issuer proposes a document release. The policy identifies the roles and organizations whose approval is required.'],
       ['Check', 'Every member checks actor signatures, current roles, and the distinct-organization requirement.'],
-      ['Certify', 'The approved action is recorded under the shared rules. Business approval and the member finality threshold are separate checks.'],
+      ['Certify', 'A threshold of members certifies the block that records the approved action. Business approval and the member finality threshold are separate checks.'],
       ['Anchor', 'Optionally anchor the commitment to the approved record. This proves the recorded approvals, not the truth of the document.'],
     ],
   },
@@ -48,14 +48,14 @@ const examples = [
     stages: [
       ['Request', 'The application requests a delivery observation tied to the payment for this shipment. Acquisition happens outside deterministic execution.'],
       ['Check', 'The host checks the source signature, inclusion evidence, and the pinned observation policy. Members agree on the accepted result.'],
-      ['Certify', 'The application consumes the finalized observation result. The signed report establishes what the attestor committed, not that a parcel physically arrived.'],
+      ['Certify', 'A threshold of members certifies the block that records the observation result, and the application consumes it. The signed report establishes what the attestor committed, not that a parcel physically arrived.'],
       ['Anchor', 'Optionally anchor the resulting application commitment. Observations bring information in; effects authorize actions outside the application.'],
     ],
   },
 ];
 const first = examples[0];
 ---
-<div class="chain-demo" data-stage="2">
+<div class="chain-demo" data-stage="0">
   <div class="demo-heading"><span>EXPLORE A SHARED APPLICATION</span><span class="demo-label">ILLUSTRATION</span></div>
   <div class="example-tabs" role="tablist" aria-label="Application illustrations" hidden>
     {examples.map((example, i) => <button role="tab" id={`example-${example.id}`} data-example={i}
@@ -70,11 +70,12 @@ const first = examples[0];
     <div class="flow-wire" aria-hidden="true"><img class="wire-plane" src="/logo-flying.svg" alt="" width="12" height="12" /></div>
     <div class="certificate"><span>MEMBER-CERTIFIED RESULT</span><strong>{first.result}</strong></div>
     <div class="demo-controls" role="group" aria-label="Walk through an application command" hidden>
-      {first.stages.map(([title], i) => <button data-stage-button={i} aria-pressed={i === 2} aria-controls="stage-description"><span>0{i + 1}</span><span data-stage-label>{title}</span></button>)}
+      {first.stages.map(([title], i) => <button data-stage-button={i} aria-pressed={i === 0} aria-controls="stage-description"><span>0{i + 1}</span><span data-stage-label>{title}</span></button>)}
     </div>
-    <p id="stage-description" aria-live="polite" aria-atomic="true">{first.stages[2][1]}</p>
+    <p id="stage-description" aria-live="polite" aria-atomic="true">{first.stages[0][1]}</p>
     <div class="example-footer"><button class="replay" hidden>Replay the flow ↻</button><a data-guide href={first.href}>{first.technology} ↗</a></div>
     <p class="example-disclaimer">Example data · optional Cardano anchoring</p>
+    <p class="example-explainer"><a href="/start-here/what-is-an-app-ledger/">Open the full explainer →</a></p>
   </div>
   <noscript><p class="example-disclaimer">Explore more examples: <a href="/state-machines/authenticated-map/">registries</a>, <a href="/tutorials/05-domain-role-approvals/">roles</a>, and <a href="/concepts/observations/">observations</a>.</p></noscript>
   <script define:vars={{ examples }}>
@@ -116,7 +117,7 @@ const first = examples[0];
       demo.querySelectorAll('[data-stage-label]').forEach((label, i) => label.textContent = example.stages[i][0]);
       const guide = demo.querySelector('[data-guide]');
       guide.textContent = example.technology + ' ↗'; guide.href = example.href;
-      show(2);
+      show(0);
     }
     tabs.forEach((tab, index) => {
       tab.addEventListener('click', () => selectExample(index));
@@ -142,3 +143,7 @@ const first = examples[0];
     reduced.addEventListener('change', stop);
   </script>
 </div>
+<style>
+  .example-explainer { font-size: 12px; margin: 6px 0 0; }
+  .example-explainer a { color: var(--accent); }
+</style>
