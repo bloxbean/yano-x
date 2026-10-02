@@ -115,8 +115,13 @@ descriptor, normalized configuration, events, commands and whether raw bodies ma
 target it. For admission rules (ADR-031.3) an available instance also records
 `commandSelectable` (whether a rule may select one of its commands),
 `unselectableReason` (why not, or `null`) and `ruleFacts` (each declared fact's
-`name` and `type`: `integer`, `text`, `bytes`, `boolean` or `text-set`). The file
-also carries the binding language tables (functions,
+`name` and `type`: `integer`, `text`, `bytes`, `boolean` or `text-set`). For
+typed views (ADR-031.4) it records `ruleValueViews`, one entry per view with its
+`namespace`, its `fields` and the schema-member `valueFields` that rules read as
+`reads.<name>.value.<member>`. A kernel with a write view adds `ruleWriteFields`
+and `ruleWriteCoverageFields`, the content and verified-coverage fields of one
+write element; both are absent for other kernels. Every field entry has a `name`
+and `type`. The file also carries the binding language tables (functions,
 expression operators, limits, the baseline event and receipt codes) and the
 identity of the tool, host, plugin catalog and context digest.
 
@@ -254,6 +259,8 @@ reproduced; exit 2 means invalid/incompatible input, 64 is usage, and 74 is I/O.
 Use the original explicit chain context. This is an upgrade preflight, not a
 migration tool, replay test, proof verification, or semantic-equivalence claim.
 Retain independent replay/proof regression evidence before deploying an upgrade.
+The [upgrade reference](DECLARATIVE_BINDINGS_UPGRADES.md#check-a-candidate-bundle-set-without-touching-retained-state)
+steps through each check and its failures.
 
 The default event allowance is 65,536 encoded bytes. A baseline payload contains
 command-body metadata only when a binding subscribes to that event; other sources
@@ -324,8 +331,12 @@ Authoring rules:
   Replacements still need the normal governed profile activation procedure.
 - Scalar literals are signed int64, text, boolean, or bytes written as
   `{bytesHex: '00ff'}`. For example: `{literal: {bytesHex: '00ff'}}`.
-- Sources are exactly one of `{field: name}`, `{literal: value}`,
-  `{fn: name, args: [...]}`, or `{expr: 'restricted CEL'}`.
+- Sources are exactly one of `{field: name}`, `{context: name}`,
+  `{literal: value}`, `{fn: name, args: [...]}`, or `{expr: 'restricted CEL'}`.
+  `{field}` reads the triggering event and `{context}` the step context. Rules,
+  their lookup keys and their read keys use `{command: name}`, `{param: name}`,
+  `{config: name}` and `{fact: name}` instead of `{field}`; those four are not
+  available to bindings.
 - Field conditions are `{field: name, eq: value}`, using one of `eq`, `ne`,
   `lt`, `le`, `gt`, `ge`, `in`, `exists`, or `absent`. The last two require
   `true`. CEL conditions use `{expr: 'boolean expression'}`.

@@ -217,7 +217,7 @@ including for refusals, and never refunded.
 | `ADMISSION_RULE_INPUT` | the command view, the kernel's fact values, a decoded read or the write view broke its declaration (clause `-1`) |
 | `EXPRESSION_CAPACITY_EXCEEDED` | cascade or block expression work was exhausted |
 
-Every receipt step records `rulesEvaluated = [heldCount, failure]`, where the
+Every receipt step records `rules = [heldCount, failure]`, where the
 failure is `[ruleId, failedClause, denyCode, writeIndex]`. A refused step
 rejects its source message: the whole cascade, including the source command, is
 rolled back; no business state is written, only the receipt, framework
@@ -244,8 +244,7 @@ The stock facts are post-state facts (bloxbean/yano-x#25): each equals the value
 the kernel's own event reports after an approved command. A multi-actor map
 batch establishes counts only; reading `facts.roles` for it fails closed. Value
 views, the map write view and its coverage are listed in
-[Admission rules](bindings/07-admission-rules.md) with the recipes and
-patterns.
+[Typed views](bindings/08-typed-views.md) with the recipes and patterns.
 
 ## Submission validity and retry
 
@@ -272,9 +271,12 @@ checks again. The binding admission check does not simulate stateful authorizati
 or future derived execution and does not reserve node-local block capacity.
 It checks the codec and the kernel's separate stateless admission hook for
 command/configuration-only bounds. Context-dependent admission still runs during
-execution; no synthetic block context is invented. These bundles require host
-plugin API level 12 (kernel-declared rule facts, ADR-031.3) and its matching
-published/staged build.
+execution; no synthetic block context is invented. These bundles need plugin API
+level 12 with the ADR-031.3 and ADR-031.4 host contract: kernel-declared rule
+facts, value views and write views. No Yano release contains that contract yet,
+and level 12 alone does not identify it, because the typed-view API was added to
+level 12 without a new level. Use the exact host build the bundles were built and
+tested against.
 
 A finalized rejection rolls back all business changes and effects for that source,
 not the whole block. The receipt remains terminal for its message ID. Replaying
@@ -295,10 +297,12 @@ The larger authoring defaults above accommodate the advertised full-size tee.
 Not every maximum-size cascade fits: select and test event, mapping, fan-out
 and work limits together.
 
-This reservation order is pinned by declarative workflow/profile version 1.1.0.
-Explicit IR limits are preserved on decode. Recompiling YAML with omitted limits
-uses the defaults above and changes the committed identity; do not replace a
-retained 1.0.0 deployment in place.
+Declarative workflow/profile version 1.1.0 introduced this reservation order.
+The current version, 1.2.0, keeps it and runs the admission-slot rules before
+any work is reserved. Explicit IR limits are preserved on decode. Recompiling
+YAML with omitted limits uses the defaults above and changes the committed
+identity; do not replace a retained deployment from an earlier version in place
+(see the [upgrade reference](DECLARATIVE_BINDINGS_UPGRADES.md#current-execution-version-boundary)).
 
 ## Why did a binding not fire?
 
@@ -314,10 +318,13 @@ binding and clause. The overall receipt code reports `RECEIPT_CAPACITY_EXCEEDED`
 
 Reproduce with `bindings dry-run` using the exact committed IR, block height,
 timestamp, message order, and pre-block state fixture. This explains execution;
-it does not authenticate the fixture or prove its root.
+it does not authenticate the fixture or prove its root. To go from an HTTP
+answer to the code that explains it, use
+[where did my command stop?](bindings/05-operations-and-upgrades.md#where-did-my-command-stop).
 
 | Codes | Meaning / next check |
 |---|---|
+| `UNKNOWN_BINDING_SOURCE` | Ingress only (HTTP 400): the topic is not any component's ingress topic; nothing is pooled and there is no receipt |
 | `COMMAND_PAYLOAD_TOO_LARGE`, `COMMAND_WORK_EXCEEDED` | Command baseline cannot fit its encoded event or mandatory work allowance; source admission rejects early, derived commands reject the cascade |
 | `MALFORMED_SOURCE_COMMAND` | The source codec rejected its bytes; correct the encoding before resubmission |
 | `LIMIT_DEPTH`, `LIMIT_FANOUT`, `CAPACITY_EXCEEDED` | Cascade depth, source fan-out, or block derivation budget exhausted |
@@ -332,6 +339,7 @@ it does not authenticate the fixture or prove its root.
 | `FUNCTION_INVALID_CBOR`, `FUNCTION_MISSING_FIELD` | `cbor-field` input is malformed or lacks the requested key |
 | `LOOKUP_KEY_TYPE`, `LOOKUP_KEY_INVALID`, `MAPPING_MISSING_FIELD`, `MAPPING_TYPE_ERROR`, `INVALID_UNICODE` | Mapping or logical-key decoding failed |
 | `MALFORMED_DERIVED_COMMAND`, `ADMISSION` | Target codec or admission rejected the command |
+| `ADMISSION_RULE_DENIED`, `ADMISSION_RULE_ERROR`, `ADMISSION_RULE_INPUT` | An admission rule refused a step; the step's `rules` trace names the rule, clause, deny code and deciding write |
 | `CONSUMPTION_CONFLICT`, `REPLAY_OR_CONFLICT` | One-use consumption or workflow claim conflicted |
 | `RESERVED_ACCOUNTING_KEY`, `RESERVED_EVENT_ID`, `UNDECLARED_WORK_REFERENCE` | Kernel attempted a reserved operation; check the plugin contract |
 
@@ -370,7 +378,9 @@ do not represent this assembly as full standalone-preset feature parity.
 
 Query `composite/binding-receipt-v1/<source-message-id-hex>` for the canonical
 receipt. It records source identity, acceptance/rejection, step ordinals,
-events, and condition results. Retrieve a state proof of its authenticated
+events, condition results and rule traces;
+[Read the receipt](bindings/01-first-workflow.md#read-the-receipt) explains each
+position. Retrieve a state proof of its authenticated
 workflow key and verify against caller-pinned chain identity and finality.
 A dry-run receipt is an explanation, not a finality certificate or an L1 anchor.
 
