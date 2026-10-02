@@ -1,6 +1,6 @@
 # Tutorial 7 — Connect an App Proof to Cardano
 
-[Open this anchored audit log in App-Chain Studio](../../../tooling/studio/src/main/web/index.html#recipe=audit-log&network=devnet&members=3&finality=majority&sequencing=fixed&membership=governed&runtime=jvm&deployment=host&name=anchored-audit&chainId=anchored-audit&capabilities=anchor:script)
+[Open this anchored audit log in App-Chain Studio](../../../tooling/studio/src/main/web/index.html#recipe=audit-log&network=devnet&members=3&finality=majority&sequencing=fixed&membership=governed&runtime=jvm&deployment=host&name=anchored-audit&chainId=anchored-audit)
 
 - **Level:** intermediate to advanced
 - **Time:** about 20 minutes on local devnet
@@ -11,8 +11,8 @@
 **Before you start:** finish [Tutorial 1](01-first-app-chain.md) and stop or
 clean its cluster. You need the extracted Yano X JVM distribution, `curl`, and
 `jq`. Every command runs from the distribution's top-level directory. In
-Studio, the script anchor asks for reviewed validator and thread-policy
-references; the local launcher uses the bundled artifacts.
+Studio, add the `anchor:script` capability; it asks for reviewed validator and
+thread-policy references, while the local launcher uses the bundled artifacts.
 
 An app ledger finality certificate proves that the configured member threshold
 approved a block. An L1 anchor makes a later application position durable and

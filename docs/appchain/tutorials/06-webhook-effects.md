@@ -1,6 +1,6 @@
 # Tutorial 6 — Invoke an External HTTP Endpoint Safely
 
-[Open this approval-to-webhook workflow in App-Chain Studio](../../../tooling/studio/src/main/web/index.html#recipe=approval-workflow&network=devnet&members=3&finality=majority&sequencing=fixed&membership=governed&runtime=jvm&deployment=host&name=webhook-effects&chainId=webhook-effects&capabilities=effects:on-approved,executor:webhook)
+[Open this approval-to-webhook workflow in App-Chain Studio](../../../tooling/studio/src/main/web/index.html#recipe=approval-workflow&network=devnet&members=3&finality=majority&sequencing=fixed&membership=governed&runtime=jvm&deployment=host&name=webhook-effects&chainId=webhook-effects)
 
 - **Level:** intermediate to advanced
 - **Time:** about 20 minutes
@@ -12,8 +12,9 @@
 clean its cluster. You need the extracted Yano X JVM distribution, Python 3,
 `curl`, and `jq`. Every command runs from the distribution's top-level
 directory, the one that contains `yano.sh`; the tutorial files ship under
-`docs/` there. Studio asks for the effect type and the webhook URL, which the
-exercise sets to `webhook.post` and `http://127.0.0.1:8099/yano`.
+`docs/` there. In Studio, add the `effects:on-approved` and `executor:webhook`
+capabilities; Studio then asks for the effect type and the webhook URL, which
+the exercise sets to `webhook.post` and `http://127.0.0.1:8099/yano`.
 
 Yano provides two HTTP delivery shapes with different guarantees.
 
