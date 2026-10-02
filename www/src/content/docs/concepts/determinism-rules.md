@@ -1,130 +1,170 @@
 ---
 title: Determinism rules
-description: The hard constraints on code that runs inside consensus — no wall clock, no randomness, no ambient ordering, no I/O — and the versioning discipline that applies when any of it changes.
+description: The constraints on code that runs inside consensus — time from the block, no randomness, no unordered iteration, no locale or environment reads, no I/O — what happens when members disagree, and how to test for it.
 sidebar:
   order: 6
 ---
 
-Every member executes the same messages through the same state machine and must
-derive the same state root **byte for byte**. If two members disagree, the chain
-does not "heal" — it fails to reach the threshold and stops finalizing.
+Every member applies the same messages with the same state machine and must
+derive the same state root, byte for byte. A member votes only for a root it
+computed itself, so code that gives different results on different members
+does not corrupt the ledger. It stops members from agreeing.
 
-This page is the checklist for any code that runs inside `apply()`.
+**You'll learn:** what code inside `apply()` must not do, what happens when
+members disagree, and how to test determinism before it reaches a cluster.
+
+**Before you start:** read [Consensus and finality](/concepts/consensus-and-finality/).
 
 ## Forbidden inside consensus
 
+This is the checklist for any code that runs inside `apply()`.
+
 | Do not | Why | Instead |
 |---|---|---|
-| Read the wall clock (`Instant.now()`, `System.currentTimeMillis()`) | Every member reads a different value. | Use block height, or an L1 slot value carried in the block. |
-| Use randomness (`Math.random()`, `new Random()`, `UUID.randomUUID()`) | Unreproducible. | Derive deterministically from message bytes, a hash, or a sequence number. |
-| Iterate a `HashMap` / `HashSet` | Iteration order varies across JVMs and insertion histories. | Use `TreeMap` / `LinkedHashMap`, or sort explicitly before iterating. |
-| Make a network call | Latency, failure, and content differ per member — and it may not even be reachable. | Emit an [effect](/concepts/effects/). |
-| Read files, environment variables, or system properties | Node-local, therefore divergent. | Put the value in consensus-shared configuration, or in the message. |
-| Depend on locale or default charset | `toLowerCase()` and `String.getBytes()` are locale/platform sensitive. | Pin `Locale.ROOT` and `StandardCharsets.UTF_8` explicitly. |
-| Use floating point for value arithmetic | Fine in principle, treacherous in practice around rounding and formatting. | Use integers or `BigDecimal` with an explicit scale and rounding mode. |
-| Depend on object identity or `hashCode()` | `Object.hashCode()` varies per run. | Compare and key on canonical bytes. |
-| Catch an exception and continue differently on one member | Divergent control flow. | Validate deterministically and reject or no-op uniformly. |
-| Spawn threads or use concurrency inside `apply()` | Scheduling order is not reproducible. | Keep `apply()` single-threaded. |
-| Write keys under `~fx/` | The prefix is reserved for the effect system from genesis. | Use your own namespace. |
+| Read the clock (`Instant.now()`, `System.currentTimeMillis()`) | Every member reads a different value. | Use `context.block().timestamp()`, the proposer's clock in milliseconds, recorded in the block. Or use the block height. |
+| Use randomness (`Math.random()`, `new Random()`, `UUID.randomUUID()`) | Not reproducible. | Derive values from message bytes, a hash, or a sequence number. |
+| Iterate an unordered collection (`HashMap`, `HashSet`, `Map.of`, `Set.of`) | Iteration order is unspecified. It can change between JVM runs and Java versions, and with keys whose hash code is per-object. | Use `TreeMap` or `TreeSet`, a `LinkedHashMap` filled in a deterministic order, or sort before iterating. |
+| Depend on the default locale | `toLowerCase()`, `toUpperCase()`, and `String.format()` follow the member's locale. In Turkish, `"TITLE".toLowerCase()` is `"tıtle"`. | Pass `Locale.ROOT`, and encode text with `StandardCharsets.UTF_8`. |
+| Read environment variables, system properties, or files | They are node-local, so members differ. | Put the value in consensus-shared configuration or in the message. |
+| Make a network call | Latency, failures, and responses differ per member. | Emit an [effect](/concepts/effects/). |
+| Use `double` or `float` for amounts | Rounding makes results depend on the form and order of operations, and `Math` functions may differ between platforms. | Use integers, or `BigDecimal` with an explicit scale and rounding mode. |
+| Depend on object identity or `Object.hashCode()` | Identity hash codes differ per run. | Compare and key on canonical bytes. |
+| Catch an exception and continue differently on one member | Control flow diverges. | Validate deterministically and record a no-op the same way on every member. |
+| Start threads or use concurrency inside `apply()` | Scheduling order is not reproducible. | Keep `apply()` single-threaded. |
+| Write keys under `~yano/` or `~fx/` | These prefixes are reserved for the framework and the effect system. | Use your own key namespace. |
+
+### Time inside a block
+
+`context.block().timestamp()` is the same on every member because it is part of
+the block. It is the proposer's clock reading: followers do not compare it with
+their own clocks, so it is only as accurate as the proposer's clock.
+
+The block also carries a Cardano reference, `l1Slot` and `l1BlockHash`. It is 0
+and empty unless the chain sets `l1.stability-depth` above 0. Then every
+follower checks it against its own view of Cardano, and the slot never
+decreases from one block to the next.
 
 ## Two properties, not one
 
-Determinism has a per-run component and a cross-node component. Both matter:
+Determinism has a per-run part and a cross-member part, and you need both:
 
-- **Reproducible** — replaying the same blocks on the same member yields the
-  same state. This is what replay and restart tests check.
-- **Identical** — every member independently yields the same state. This is
-  what root parity across a real multi-node cluster checks.
+- **Reproducible:** replaying the same blocks on the same member gives the same
+  state. Replay and restart tests check this.
+- **Identical:** every member independently gives the same state. Root parity
+  across a real multi-member cluster checks this.
 
-Code can be reproducible and still not identical: a `HashMap` iteration is
-stable within one JVM run but differs across members. Unit tests pass; the
-cluster stalls. Always validate on a real cluster.
+Code can be reproducible and still not identical. Suppose a state machine
+stores `name.toLowerCase()` and one member runs with a Turkish default locale.
+That member gives the same answer on every run, so its own replay tests pass,
+but its root differs from the others'. Always validate on a real cluster.
+
+## When members disagree
+
+What happens depends on who computes the different root:
+
+| Who differs | What happens |
+|---|---|
+| One follower, while a threshold still agrees | It does not vote. The others finalize, and that member stalls alone: it cannot apply the certified block, and after a minute without progress its status reports `stalled`. |
+| The leader | Followers refuse its block, the round times out, and the next leader proposes after a view change. The leader then stalls. With a fixed sequencer it leads view 0 at every height, so every block waits for one timeout. |
+| Enough members that no threshold agrees | No block becomes final. The ledger stops rather than accept a disputed state. |
+
+<!-- illustration: divergence-sim -->
+
+Two members that run the same wrong code agree with each other. Consensus
+checks agreement, not correctness, so test before you deploy.
 
 ## Rejection must be deterministic too
 
-Invalid input is not an exception path — it is a state transition that every
-member must agree on. A message that fails validation should produce the same
+Invalid input is not an exception path. It is a state transition that every
+member must agree on. A message that fails validation must have the same
 observable outcome on every member: usually a recorded no-op, sometimes an
-error record written to state, never a thrown exception that one member handles
+error record written to state, never an exception that one member handles
 differently.
 
-The stock state machines demonstrate this: an unauthorized `kv-registry` write
-is a **visible no-op**, not a failure. [Tutorial 2](/tutorials/02-registry-and-proofs/)
+The stock state machines work this way. An unauthorized `kv-registry` write is
+a visible no-op, not a failure. [Tutorial 2](/tutorials/02-registry-and-proofs/)
 has you trigger one deliberately.
 
-## Consensus-shared vs node-local configuration
+## Consensus-shared and node-local configuration
 
-The catalog classifies every property by scope, and the distinction is not
-cosmetic:
+The configuration catalog gives every property a scope, and the difference
+matters:
 
 | Scope | Meaning | Getting it wrong |
 |---|---|---|
-| `CONSENSUS_SHARED` | Must be identical on every member. | The state root diverges and the chain stops finalizing. |
-| Node-local | Ports, storage paths, credentials, executor placement. | Only that node is affected. |
+| `CONSENSUS_SHARED` | Must be identical on every member, for example the chain id, the state machine, the threshold, and the block limits. | Members compute different roots or reject each other's blocks, and finality stops or a member stalls. |
+| `NODE_LOCAL` | For example the storage path, peers, and transport mode. | Only that node is affected. |
 
-Effects caps, the state-machine id, the composite profile digest, value
-formats, and quotas are all consensus-shared. The generated
-[configuration reference](/reference/configuration/) marks the scope and change
-policy of each property.
+The generated [configuration reference](/reference/configuration/) shows the
+scope and change policy of each property.
 
 ## Changing semantics is a versioned upgrade
 
-A change to deterministic application semantics — state encoding, transition
-logic, emission logic, a commitment profile, a proof subject, or
-genesis-selected configuration — is **not** an ordinary rolling code change.
+A change to deterministic application semantics, such as state encoding,
+transition logic, emitted effects, a commitment profile, a proof subject, or
+genesis-selected configuration, is not an ordinary rolling code change.
 Replaying history under new rules produces different state, so the change must
 be versioned and activated deterministically.
 
-Three values pin chain identity:
+Three values pin the state identity of a chain:
 
 ```text
 (commitment-profile, format-fingerprint, genesis-id)
 ```
 
-A governed composite profile is the supported mechanism: operators package the
-reviewed current and dormant targets on **every** member first, then
-threshold-authorize one exact digest and a future activation height. Editing
-YAML or swapping a JAR never changes consensus behavior on its own.
+For composites, a governed composite profile is the supported mechanism:
+operators install the reviewed current and future profiles on **every** member
+first, then authorize one exact profile digest and a future activation height.
+Editing YAML or swapping a JAR never changes consensus behavior on its own.
 
 See [Consensus rules for plugins](/plugins/consensus-rules/) for the full
 upgrade discipline.
 
-## Verifying determinism
+## Testing determinism
 
-Do not stop at unit tests when a plugin, catalog, persistence, consensus,
-proof, anchor, or cross-node behavior changed:
+Test reproducibility before a cluster, then identity on one:
 
-```bash
-# Unit and property tests while iterating.
-./gradlew :state-machines:stdlib:test
+1. **Conformance test.** Yano's `StateMachineConformance` (in `yano-runtime`)
+   applies one seeded block corpus through the real commit path in several
+   independent runs, plus a kill-and-reopen replay, and requires identical
+   roots and effect lists at every height. It catches clock reads, randomness,
+   and ordering that changes from run to run. It cannot catch differences
+   between members, such as locale or environment.
 
-# A real multi-node cluster: identical chain height, root, profile, genesis,
-# and capability-manifest digest across members.
-./yano.sh appchain cluster start 3
-./yano.sh appchain cluster loadtest orders-chain -n 1000 -c 20 --spread
-./yano.sh appchain cluster status     # every chain must report AGREED
+   ```java
+   StateMachineConformance.builder(new MyProvider())
+           .blocks(50).messagesPerBlock(5).seed(42)
+           .bodyGenerator((height, index, random) -> myRealisticCommand(random))
+           .assertDeterministic();
+   ```
 
-# Restart and re-verify, then check catch-up on a joining member.
-./yano.sh appchain cluster stop
-./yano.sh appchain cluster start 3
-./yano.sh appchain cluster node join 3
-```
+2. **A real cluster.** Run traffic across members, then compare roots:
 
-Persistence changes additionally require apply, rollback, replay, restart, and
-root-parity checks.
+   ```bash
+   ./yano.sh appchain cluster start 3
+   ./yano.sh appchain cluster loadtest orders-chain -n 1000 -c 20 --spread
+   ./yano.sh appchain cluster status     # every chain must report AGREED
+   ```
+
+3. **Restart and compare again.** Stop and start the cluster, let it catch up,
+   and run `cluster status` once more.
+
+Persistence changes also need apply, rollback, replay, restart, and root-parity
+checks.
 
 ## Debugging a divergence
 
 When members disagree, work down this list before suspecting the framework:
 
-1. **Configuration drift.** Compare every `CONSENSUS_SHARED` value across
-   members. `./yano.sh appchain drift <project> --peer <node-url>` does this
-   against running nodes.
-2. **Plugin version drift.** Compare the capability-manifest digest and the
-   installed bundle digests on each member.
-3. **Profile digest.** For composites, confirm every member committed the same
-   profile digest at height 1.
-4. **Your `apply()`.** Re-read the forbidden list above. Map iteration order and
-   the wall clock account for most real cases.
-5. **Replay locally.** Replay the same block range on one member twice. If that
-   diverges, the bug is reproducibility; if not, it is cross-node identity.
+1. **Configuration and plugin drift.**
+   `./yano.sh appchain drift <project> --peer <node-url>` compares your project's
+   locked identity, including resolved configuration, consensus profile,
+   composite profile, and plugin catalog, with each running node.
+2. **The member's environment.** Compare locale, time zone, Java version, and
+   environment variables, if your code could read any of them.
+3. **Your `apply()`.** Re-read the forbidden list above.
+4. **Replay locally.** Run `StateMachineConformance` with a corpus close to the
+   failing traffic. If it fails, the bug is reproducibility; if it passes, look
+   for a cross-member difference.
+
+**Next:** [Plugin framework](/plugins/).
