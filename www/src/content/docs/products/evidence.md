@@ -11,21 +11,14 @@ publishing it into a provable, multi-party, externally-executed workflow.
 
 ## The flow
 
-```mermaid
-flowchart LR
-    DOC[Inspection certificate] --> STAGE[Stage exact bytes]
-    STAGE --> CMD[Submit evidence command]
-    CMD --> OBJ[Immutable object.put]
-    CMD --> PIN[Reconciled ipfs.pin]
-    OBJ --> READY[Both results incorporated]
-    PIN --> READY
-    READY --> EVENT[Acknowledged kafka.publish]
-    EVENT --> PROVE[Verify state, effects, finality, and the L1 anchor]
-```
+<!-- illustration: evidence-flow -->
 
 The chain records what was authorized. Object storage, IPFS, and Kafka are
 executed by the [effect runtime](/concepts/effects/) after the finality gate,
-and each result comes back on-chain and is incorporated exactly once.
+and each result comes back on-chain and is incorporated exactly once. Business
+status is derived from those receipts: `STORAGE_PENDING`, then `STORAGE_READY`
+(or `PARTIAL`, `STORAGE_FAILED`, `EXPIRED`), then `NOTIFICATION_PENDING` and
+`READY`.
 
 ## What it actually proves
 
@@ -58,10 +51,10 @@ property you must monitor separately.
 
 ## Two profiles
 
-| Profile | Approvers | Use when |
-|---|---|---|
-| `evidence-v1-gated` (default) | Validator **members** | The organizations running nodes are the ones who approve. |
-| `role-evidence` | Business **actors**, by role | The approvers are people — a QA manager, an auditor, a regulator — whose keys are not node keys. |
+| Profile | Approvers | Use when | Selected by |
+|---|---|---|---|
+| `evidence-v1-gated` | Validator **members** | The organizations running nodes are the ones who approve. | The `composite` machine's preset; the default in the Tutorial 4 harness |
+| `role-evidence` | Business **actors**, by role | The approvers are people — a QA manager, an auditor, a regulator — whose keys are not node keys. | The `evidence-ledger` recipe; the harness with `--machine role` |
 
 `evidence-v1-gated` combines registry, approvals, document trail, and
 approval-coordinated evidence publication under one state root. A compatibility
@@ -101,7 +94,10 @@ status is derived from authenticated connector results rather than asserted.
 
 ## Run it
 
-The `evidence-ledger` recipe is the configuration-only path:
+The `evidence-ledger` recipe is the configuration-only path. It selects the
+`role-evidence` profile, so before the first release the generated project also
+needs its governed organizations, actors, and role policies; apply the
+generated role bootstrap plan first.
 
 ```bash
 ./yano.sh appchain init --non-interactive \
@@ -110,8 +106,8 @@ The `evidence-ledger` recipe is the configuration-only path:
 ```
 
 For the complete connector demo — real object storage, a Kubo IPFS node, and
-Kafka — follow [Tutorial 4](/tutorials/04-evidence-publication/). It needs
-Docker Desktop.
+Kafka — follow [Tutorial 4](/tutorials/04-evidence-publication/). It runs the
+`evidence-v1-gated` profile by default and needs Docker with Compose v2.
 
 Deployments additionally need the release-matched
 [optional connector bundles](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/OPTIONAL_CONNECTORS.md)
