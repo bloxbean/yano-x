@@ -60,7 +60,7 @@ Each property reports how well its constraints are known:
 | Property | Type | Default | Allowed | Scope | Change policy | Description |
 |---|---|---|---|---|---|---|
 | `yano.app-chain.machines.composite.evidence-capacity-per-block` | `INTEGER` | `8` | — | `CONSENSUS_SHARED` | `NEW_CHAIN_REQUIRED` | Maximum evidence workflows evaluated in one block |
-| `yano.app-chain.machines.composite.preset` | `STRING` | `evidence-v1-gated` | `evidence-v1`, `evidence-v1-gated`, `role-evidence-v1` | `CONSENSUS_SHARED` | `NEW_CHAIN_REQUIRED` | Packaged deterministic composite profile preset |
+| `yano.app-chain.machines.composite.preset` | `STRING` | `evidence-v1-gated` | `evidence-v1`, `evidence-v1-gated` | `CONSENSUS_SHARED` | `NEW_CHAIN_REQUIRED` | Packaged deterministic composite profile preset |
 | `yano.app-chain.machines.composite.profile-governance.max-epochs` | `INTEGER` | `1024` | — | `CONSENSUS_SHARED` | `GOVERNED_ACTIVATION` | Maximum retained composite profile epochs |
 | `yano.app-chain.machines.composite.profile-governance.min-activation-lag` | `INTEGER` | `20` | — | `CONSENSUS_SHARED` | `GOVERNED_ACTIVATION` | Minimum blocks between profile approval and activation |
 | `yano.app-chain.machines.composite.profile-governance.proposal-ttl-blocks` | `INTEGER` | `600` | — | `CONSENSUS_SHARED` | `GOVERNED_ACTIVATION` | Lifetime of a composite profile proposal |
