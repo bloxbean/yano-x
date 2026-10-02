@@ -1,11 +1,12 @@
 ---
 title: "Configuration reference"
-description: "Yano X plugins declare their configuration as typed metadata, not as prose. That metadata is what makes appchain config validate and appchain explain…"
+description: "Yano X plugins declare their configuration as typed metadata, not as prose. That metadata is what makes appchain config validate and appchain config…"
 editUrl: "https://github.com/bloxbean/yano-x/edit/main/docs/site/reference-configuration.md"
 ---
 Yano X plugins declare their configuration as **typed metadata**, not as prose.
-That metadata is what makes `appchain config validate` and `appchain explain`
-work, and it is what this page is generated from at documentation build time.
+That metadata is what makes `appchain config validate` and
+`appchain config explain` work, and it is what this page is generated from at
+documentation build time.
 
 Source:
 `tooling/devtools/src/main/resources/appchain-dx/v1alpha1/appchain-first-party-metadata.json`.
@@ -139,12 +140,27 @@ Frequently needed host values:
 # Validate a project's blueprint and its resolved configuration.
 ./yano.sh appchain config validate --mode project <project>
 
-# Redacted effective configuration, and per-property explanation.
-./yano.sh appchain config explain <project> --key <property>
+# What one property means: owner, type, default, scope, and change policy.
+./yano.sh appchain config explain yano.app-chain.block.max-bytes
+./yano.sh appchain config explain --format json yano.app-chain.block.max-bytes
+
+# The values a node would resolve from its files, with secrets redacted.
+./yano.sh appchain config effective --mode resolved \
+  --config <project>/config/shared-consensus.yaml \
+  --config <project>/config/nodes/node0.yaml --show-sources
 
 # Compare a project against running nodes.
-./yano.sh appchain drift <project> --peer <node-identity-url>
+./yano.sh appchain drift <project> --peer http://127.0.0.1:8080/api/v1/ \
+  --api-key-env YANO_APPCHAIN_API_KEYS
 ```
+
+`config explain` takes one property and no project. Add
+`--metadata <descriptor|plugin.jar>` to explain a property that a plugin
+declares. It prints `UNKNOWN_PROPERTY` and the nearest known key for a
+misspelling. `config effective` reads only the files you pass with `--config`,
+in order, with later files winning; environment variables and system
+properties are left out unless you add `--include-environment` or
+`--include-system-properties`.
 
 Edit only `appchain.yaml`; generated runtime files are derived output.
 
