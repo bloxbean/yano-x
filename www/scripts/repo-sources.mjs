@@ -187,6 +187,7 @@ export const IMPORTED_DOCS = {
   'docs/site/build-from-source.md': '/start-here/build-from-source/',
   'docs/site/modules.md': '/reference/modules/',
   'docs/site/scaffold-sign-install.md': '/plugins/scaffold-sign-install/',
+  'docs/site/plugins-how-plugins-load.md': '/plugins/how-plugins-load/',
 
   'docs/site/concepts-chain-identity.md': '/concepts/chain-identity/',
   'docs/site/concepts-where-data-lives.md': '/concepts/where-data-lives/',

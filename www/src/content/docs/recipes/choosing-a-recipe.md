@@ -19,32 +19,36 @@ not the first move.
 | Maintain several proof-oriented collections, optionally with value validation | `authenticated-map` recipe ([guide](/state-machines/authenticated-map/)) | Configuration; a plugin only for custom rules |
 | Collect member approvals and optionally trigger an action | `approval-workflow` recipe ([`approvals`](/state-machines/approvals/)) | Configuration plus typed commands |
 | Track balances with a non-negative account ledger | [`balances`](/state-machines/balances/) | Configuration plus typed commands |
-| Maintain a document-hash trail per product or case | [`doc-trail`](/state-machines/doc-trail/) | Configuration plus typed commands |
+| Maintain a document-hash trail per product or case | `document-trail` recipe ([`doc-trail`](/state-machines/doc-trail/)) | Configuration plus typed commands |
 | Approve payload hashes using application-defined roles | `role-approval` recipe ([`role-approvals`](/state-machines/role-approvals/)) | Configuration plus actor integration |
 | Require manufacturers, auditors, and regulators to sign by role | [Domain-role approvals](/tutorials/05-domain-role-approvals/) | No, for the stock scenario |
 | Publish immutable evidence to object storage or IPFS and notify Kafka | `evidence-ledger` recipe ([Evidence](/products/evidence/)) | No for the demo; connector plugins in deployments |
 | Call an ERP or API after a finalized decision | [Webhook effects](/tutorials/06-webhook-effects/) | Configuration; emission is stock or plugin logic |
 | Query and prove historical Cardano parameters, stake, and governance | [Cardano History](/products/cardano-history/) | Plugin configuration and CLI |
 | Run a UTxO-style ledger or explore ZK settlement | [eUTxO and ZK](/products/eutxo-and-zk/) | Experimental; Cardano builder integration |
+| Connect existing machines: when one changes, check, then update another in the same atomic step | `declarative-composite` recipe ([declarative bindings](/bindings/)) | No: YAML compiled to committed IR |
 | Implement business rules Yano does not ship | [The plugin framework](/plugins/) | A small Java plugin |
 
 If you are unsure, run tutorials 1, 2, 4, and 5 in that order. They show the
 progression from a replicated log to proofs, external actions, and business-role
-authorization.
+authorization. Or answer a few questions:
+
+<!-- illustration: recipe-chooser -->
 
 ## Then pick the extension level
 
 ```text
-Does a stock machine or profile already model the outcome?
+Does a stock machine or recipe already model the outcome?
   ├─ yes → configuration only
   └─ no
-      Are all required components already available?
-        ├─ yes → a small composite plugin
+      Do existing machines have the commands and events you need?
+        ├─ yes → declarative bindings, or a small Java composite
+        │        when bindings cannot express the coordination
         └─ no  → a custom state-machine plugin
 ```
 
-Read [the extension ladder](/plugins/) before deciding you need the third rung.
-Most teams that think they need a custom state machine actually need a
+Read [the extension ladder](/plugins/) before deciding you need Java. Most teams
+that think they need a custom state machine actually need bindings or a
 composite, and many that think they need a composite need only configuration.
 
 ## Questions that change the answer
@@ -66,8 +70,9 @@ Then you need [effects](/concepts/effects/), and you must decide the finality
 gate (`app-final` vs `l1-anchored`), the expiry, and who may attest to results.
 
 **Do several capabilities need one atomic state root?**
-That is exactly what a composite profile is for. If they can live on separate
-chains, use separate chains — a node can host several.
+That is exactly what a composite profile is for, whether declarative bindings or
+a Java composite build it. If they can live on separate chains, use separate
+chains — a node can host several.
 
 **Is the data volume large and immutable per period?**
 Look at
@@ -88,8 +93,9 @@ already ship with Yano X. A real application still:
 - decides its retention, authorization, and operational policy.
 
 Configuration cannot invent arbitrary consensus transitions. New combinations of
-existing components use a small composite plugin; genuinely new domain logic
-uses a custom state-machine plugin.
+existing components use declarative bindings, or a small Java composite plugin
+when bindings cannot express them; genuinely new domain logic uses a custom
+state-machine plugin.
 
 ## Before you commit
 

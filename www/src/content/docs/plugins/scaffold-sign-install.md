@@ -1,20 +1,20 @@
 ---
 title: "Scaffold, sign, install"
-description: "Seven steps from nothing to a running plugin. None of them require touching Yano."
+description: "Seven steps from nothing to a running plugin. None of them require touching Yano. Select a step to see its command and what it checks."
 editUrl: "https://github.com/bloxbean/yano-x/edit/main/docs/site/scaffold-sign-install.md"
 ---
 Seven steps from nothing to a running plugin. None of them require touching
-Yano.
+Yano. Select a step to see its command and what it checks.
 
-```mermaid
-flowchart LR
-    S[scaffold] --> I[implement + test]
-    I --> G[sign]
-    G --> V[validate / inspect]
-    V --> P["init --plugin-jar<br/>(pin into a project)"]
-    P --> D[doctor]
-    D --> C["copy into plugins/<br/>on every member"]
-```
+<!-- illustration: plugin-pipeline -->
+1. Scaffold a project with `plugin scaffold`.
+2. Implement and test it.
+3. Sign the catalog and manifests with `plugin sign`.
+4. Build the JAR and verify it with `plugin validate`.
+5. Pin it into a project with `init --plugin-jar`.
+6. Check readiness against a distribution with `doctor`.
+7. Install the same JAR on every member; each node checks it at start-up.
+<!-- /illustration -->
 
 ## 1. Scaffold
 
@@ -41,9 +41,13 @@ implement them. The tool refuses a non-empty output directory.
 
 ## 2. Implement and test
 
-Write the codec, the admission check, and the transitions. Before you do, read
-[Determinism rules](/concepts/determinism-rules/) — the constraints are strict
-and the failure mode (a cluster that stops finalizing) is expensive to debug.
+Write the codec, the admission check, and the transitions. A state machine's
+only execution entry point is
+`apply(AppBlockExecutionContext, AppStateWriter, AppEffectEmitter)`;
+[Tutorial 8](/tutorials/08-plugins-and-composites/) shows a complete machine.
+Before you write it, read [Determinism rules](/concepts/determinism-rules/) —
+the constraints are strict and the failure mode (a cluster that stops
+finalizing) is expensive to debug.
 
 Then work up the [testing ladder](/plugins/testing-and-deployment/).
 
@@ -113,14 +117,15 @@ reports a direct incompatibility, because Yano X plugins target the JVM host.
 ## 7. Install on every member
 
 Copy the exact pinned JAR into `plugins/` in every member's distribution, then
-validate the resulting set:
+validate the resulting set from the distribution root:
 
 ```bash
 tools/yano-plugins/bin/yano-plugins validate plugins/*.jar
 ```
 
 The plugin directory property is **`yano.plugins.directory`**. Restart the nodes;
-Yano is not rebuilt.
+Yano is not rebuilt. At start-up each node checks the JAR again before any plugin
+code runs; [How plugins load](/plugins/how-plugins-load/) lists those checks.
 
 :::caution[Every member, or none]
 The same bundle, the same machine or profile id, and the same committed settings
@@ -144,9 +149,10 @@ Adding a member or a node is routine. Changing what a plugin *computes* is not
 ```bash
 ./yano.sh appchain diff previous.lock shipment-chain/appchain.lock
 ./yano.sh appchain migrate shipment-chain --dry-run
-./yano.sh appchain drift shipment-chain --peer <node-identity-url>
+./yano.sh appchain drift shipment-chain --peer http://node-a:8080/api/v1/
 ```
 
 `diff` classifies a blueprint change before you apply it. `drift` compares a
-project against running nodes when identities are available — the fastest way to
-find the one member that is out of step.
+project against running nodes when identities are available, including each
+node's plugin catalog fingerprint — the fastest way to find the one member that
+is out of step.

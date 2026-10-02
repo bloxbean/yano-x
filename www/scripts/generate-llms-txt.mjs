@@ -85,6 +85,7 @@ const SECTIONS = [
       'plugins/index.md',
       'plugins/scaffold-sign-install.md',
       'plugins/spi-and-manifest.md',
+      'plugins/how-plugins-load.md',
       'plugins/consensus-rules.md',
       'plugins/testing-and-deployment.md',
     ],

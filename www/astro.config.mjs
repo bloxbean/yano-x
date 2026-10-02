@@ -91,6 +91,7 @@ export default defineConfig({
             { label: 'The extension ladder', slug: 'plugins' },
             { label: 'Scaffold, sign, install', slug: 'plugins/scaffold-sign-install' },
             { label: 'SPI and manifest', slug: 'plugins/spi-and-manifest' },
+            { label: 'How plugins load', slug: 'plugins/how-plugins-load' },
             { label: 'Consensus rules', slug: 'plugins/consensus-rules' },
             { label: 'Testing and deployment', slug: 'plugins/testing-and-deployment' },
           ],
