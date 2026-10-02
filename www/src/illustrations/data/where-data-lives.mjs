@@ -12,16 +12,22 @@ export default {
     + 'indexes are derived from finalized blocks, can be deleted and rebuilt, and must never be restored as '
     + 'authoritative.',
   zones: [
-    { id: 'l1', kind: 'cardano', label: 'chainstate/', contains: ['cardano'] },
-    { id: 'app', kind: 'ledger', label: 'appchain-chainstate/', contains: ['trie', 'blocks', 'framework'] },
-    { id: 'idx', kind: 'runtime', label: 'appchain-indexers/', contains: ['indexes'] },
+    { id: 'l1', kind: 'cardano', label: 'Cardano store', contains: ['cardano'] },
+    { id: 'app', kind: 'ledger', label: 'App ledger store', contains: ['ledgerdb', 'trie', 'blocks', 'framework'] },
+    { id: 'idx', kind: 'runtime', label: 'Derived store', contains: ['indexes'] },
   ],
   blocks: [
     {
-      id: 'cardano', label: 'Cardano L1 state', sub: 'authoritative', kind: 'cardano',
+      id: 'cardano', label: 'chainstate/', sub: 'Cardano L1 state', kind: 'cardano',
       detail: 'The node\'s own Cardano data: blocks, ledger state, and the stable L1 view members use to check each '
         + 'block\'s Cardano reference and observations. Set by `yano.storage.path` (default `./chainstate`). App '
         + 'ledger data never goes below it.',
+    },
+    {
+      id: 'ledgerdb', label: 'appchain-chainstate/', sub: 'one database per chain', kind: 'ledger',
+      detail: 'Every hosted app ledger, one RocksDB database per chain under `<path>/<chain-id>/`, set by '
+        + '`yano.app-chain.storage.path` (default `appchain-chainstate`). Authoritative: back it up, and never '
+        + 'delete it to fix an error.',
     },
     {
       id: 'trie', label: 'Authenticated state', sub: 'under the state root', kind: 'core',
@@ -41,7 +47,7 @@ export default {
         + 'state commitment, so they are not provable by themselves.',
     },
     {
-      id: 'indexes', label: 'Read indexes', sub: 'derived, rebuildable', kind: 'runtime',
+      id: 'indexes', label: 'appchain-indexers/', sub: 'derived, rebuildable', kind: 'runtime',
       detail: 'Node-local read models, such as the eUTxO lifecycle index. They never take part in consensus, state '
         + 'roots, finality, or proof verification, never advance beyond the authoritative ledger\'s tip, and rebuild '
         + 'from retained finalized blocks after you delete them. Never restore them as authoritative state.',
@@ -62,9 +68,10 @@ export default {
       },
       blocks: {
         cardano: [32, 120, 156, 64],
-        trie: [252, 56, 244, 64],
-        blocks: [252, 132, 244, 64],
-        framework: [252, 208, 244, 64],
+        ledgerdb: [252, 48, 244, 44],
+        trie: [252, 100, 244, 52],
+        blocks: [252, 160, 244, 52],
+        framework: [252, 220, 244, 52],
         indexes: [560, 120, 168, 64],
       },
       edges: {
@@ -74,22 +81,23 @@ export default {
     },
     narrow: {
       width: 380,
-      height: 520,
+      height: 536,
       zones: {
         l1: [8, 8, 364, 96],
-        app: [8, 136, 364, 240],
-        idx: [8, 408, 364, 104],
+        app: [8, 136, 364, 256],
+        idx: [8, 424, 364, 104],
       },
       blocks: {
         cardano: [40, 36, 300, 56],
-        trie: [40, 164, 300, 56],
-        blocks: [40, 232, 300, 56],
-        framework: [40, 300, 300, 56],
-        indexes: [40, 440, 300, 56],
+        ledgerdb: [40, 164, 300, 44],
+        trie: [40, 216, 300, 52],
+        blocks: [40, 276, 300, 52],
+        framework: [40, 336, 300, 48],
+        indexes: [40, 456, 300, 56],
       },
       edges: {
         'l1->app': { fromSide: 'b', toSide: 't', fromAt: [190, 104], toAt: [190, 136], labelAt: [250, 120] },
-        'app->idx': { fromSide: 'b', toSide: 't', fromAt: [190, 376], toAt: [190, 408], labelAt: [270, 392] },
+        'app->idx': { fromSide: 'b', toSide: 't', fromAt: [190, 392], toAt: [190, 424], labelAt: [270, 408] },
       },
     },
   },

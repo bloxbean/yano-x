@@ -38,7 +38,7 @@ export default {
         + 'epoch\'s dataset is complete. In Java, `ProofSubjects.epochProtocolParameterField` builds the subject.',
     },
     {
-      id: 'verify', label: 'Verify the claim', sub: 'key-deposit = 2,000,000', kind: 'final',
+      id: 'verify', label: 'Verify the claim', sub: 'e.g. key-deposit = 2,000,000', kind: 'final',
       detail: 'First the proof: does the leaf sit under a root you trust? Then the claim: does the proven value meet '
         + 'the condition you asked about? An accepted result needs both, and the value is read from the proof, so '
         + 'editing presentation JSON cannot turn a false claim into a true one.',

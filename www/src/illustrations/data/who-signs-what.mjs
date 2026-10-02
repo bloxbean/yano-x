@@ -13,7 +13,7 @@ export default {
     + 'node-local or belong to tooling: they control access and operations, and their misuse is limited by the '
     + 'checks members make for themselves.',
   zones: [
-    { id: 'recorded', kind: 'ledger', label: 'Signatures the ledger records', contains: ['member', 'actor'] },
+    { id: 'recorded', kind: 'ledger', label: 'Recorded by the ledger', contains: ['member', 'actor'] },
     { id: 'local', kind: 'runtime', label: 'Node-local secrets', contains: ['api', 'anchor', 'connector'] },
     { id: 'supply', kind: 'external', label: 'Software supply', contains: ['publisher'] },
   ],
