@@ -7,7 +7,7 @@
 > change that compiles, passes unit tests, and stops a cluster from finalizing.
 
 This pack is optimized for AI ingestion, not for human onboarding. Humans should
-start at [What is an app ledger?](/start-here/what-is-an-app-chain/).
+start at [What is an app ledger?](/start-here/what-is-an-app-ledger/).
 
 ---
 
@@ -18,7 +18,9 @@ Yano X is the **Java 25, JVM-only extension ecosystem** for Yano app ledgers.
 An **app ledger** is an application-specific replicated ledger run by a group of
 organizations: members agree on ordered commands, execute the same deterministic
 state machine, independently derive the same authenticated state root, prove
-records against it, and optionally settle that root on Cardano.
+records against it, and optionally anchor that root on Cardano. Yano's CLI,
+configuration, APIs, and Java types call it an *app chain* (`appchain`,
+`yano.app-chain.*`, `/api/v1/app-chain/`, `AppChain*`).
 
 Two repositories, one strict direction:
 
@@ -89,31 +91,40 @@ yano-x  ──depends on──▶  yano
 Does a stock machine or profile already model the outcome?
   ├─ yes → rung 0: configuration only
   └─ no
-      Are all required components already available?
-        ├─ yes → rung 1: a small composite plugin
-        └─ no  → rung 2: a custom state-machine plugin
+      Can existing machines, connected by their events, model it?
+        ├─ yes → rung 1: declarative bindings
+        └─ no
+            Are all required components already available?
+              ├─ yes → rung 2: a small Java composite plugin
+              └─ no  → rung 3: a custom state-machine plugin
 ```
 
 | Rung | What it is | Cost |
 |---|---|---|
 | 0 | Select a built-in id: `yano.app-chain.state-machine: kv-registry` | No JAR, no build |
-| 1 | A composite plugin declaring component ids, versions, deterministic order, routed topics, quotas, workflows, and one committed profile digest | Small but consensus-critical Java |
-| 2 | A custom `AppStateMachine` with new state and rules | Full consensus responsibility |
-| 3 | Effect executors, sinks, domain APIs, signers, sequencer modes, L1 observers | Outside consensus; never affects the state root |
+| 1 | Declarative bindings: a YAML document that connects existing machines, run by the bundled `declarative-composite` machine. `./yano.sh appchain bindings compile` turns it into a canonical program that is committed in consensus configuration. | No Java, but the compiled program is consensus-critical |
+| 2 | A Java composite plugin declaring component ids, versions, deterministic order, routed topics, quotas, workflows, and one committed profile digest | Small but consensus-critical Java |
+| 3 | A custom `AppStateMachine` with new state and rules | Full consensus responsibility |
+| 4 | Effect executors, sinks, domain APIs, signers, sequencer modes, L1 observers | Runs outside `apply()`, but not outside the ledger: effect results and observations return as ordered, certified inputs, and a sequencer mode decides who leads |
 
-**Default assumption: the answer is rung 0 or 1.** Do not propose a custom state
-machine before checking `./yano.sh appchain recipes` and
-`./yano.sh appchain capabilities`.
+**Default assumption: the answer is rung 0, 1, or 2.** Do not propose a custom
+state machine before checking `./yano.sh appchain recipes` and
+`./yano.sh appchain capabilities`. Declarative bindings have their own guide:
+[/bindings/](/bindings/).
 
-YAML cannot dynamically insert arbitrary component plugins into a frozen
-profile, because two members discovering a different order would derive
-different roots. Composite order is code, reviewed and signed.
+The component order is committed data, never discovered at run time: Java code
+in a composite plugin, or the compiled binding program in consensus
+configuration. If two members discovered a different order, they would derive
+different roots.
 
 ### Stock state machines (rung 0)
 
 `ordered-log` (host), `kv-registry`, `authenticated-map`, `approvals`,
-`balances`, `doc-trail`, `role-approvals`, plus the `evidence-v1-gated` and
-`role-evidence` profiles.
+`balances`, `doc-trail`, `role-approvals`, and `declarative-composite` (for
+bindings). The evidence product adds two more machines: `composite`, whose
+packaged presets such as `evidence-v1-gated` are selected with
+`yano.app-chain.machines.composite.preset`, and `role-evidence`. A preset is a
+configuration value, not a machine id.
 
 Live recipe and capability lists:
 [`/ai/catalog.json`](/ai/catalog.json), [`/recipes/`](/recipes/),
@@ -128,7 +139,7 @@ Every member executes the same messages and must derive the same state root
 
 | Never | Because | Instead |
 |---|---|---|
-| `Instant.now()`, `System.currentTimeMillis()` | Different per member | Block height, or an L1 slot carried in the block |
+| `Instant.now()`, `System.currentTimeMillis()` | Different per member | The block's timestamp, `context.block().timestamp()`, or its height. `l1Slot` is 0 unless `l1.stability-depth` is above 0 |
 | `Math.random()`, `new Random()`, `UUID.randomUUID()` | Unreproducible | Derive from message bytes, a hash, or a sequence number |
 | Iterating `HashMap` / `HashSet` | Order varies across JVMs and histories | `TreeMap` / `LinkedHashMap`, or sort explicitly |
 | Any network call | Latency and content differ per member | Emit an effect |
@@ -409,7 +420,8 @@ catch-up, restart, and anchor state.
 | Version-matched truth for a build | `./yano.sh appchain recipes`, `./yano.sh appchain capabilities --format json` |
 | Project workflow for agents | The in-repo `configure-yano-appchain` skill under `tooling/devtools/src/main/resources/appchain-dx/v1alpha1/skills/` — **it wins where it overlaps this pack** |
 | Exhaustive reference | [Reference shelf](/reference/shelf/) |
-| Plugin SPI contract | ADR-011, in the repository's `adr/app-layer/` directory |
+| Plugin SPI contract | Yano's ADR-011 series in its `adr/app-layer/` directory, and its [plugin query and domain API guide](https://github.com/bloxbean/yano/blob/main/docs/APP_CHAIN_PLUGIN_QUERY_AND_DOMAIN_API.md) |
+| Consensus internals | Yano's [consensus guide](https://github.com/bloxbean/yano/blob/main/docs/APP_CHAIN_CONSENSUS_GUIDE.md) |
 | Repository invariants | [`AGENTS.md`](https://github.com/bloxbean/yano-x/blob/main/AGENTS.md) |
 
 ---
@@ -427,7 +439,8 @@ catch-up, restart, and anchor state.
 - Treat custom-plugin metadata as `PARTIAL` unless Yano reports `FULL`.
 - Never delete retained clusters, state, keys, or staging repositories without
   reviewing the exact path and obtaining explicit authorization. `stop`
-  preserves state; `reset --yes` is destructive.
+  preserves state; `./yano.sh appchain cluster clean` and
+  `./showcase.sh reset --yes` delete it.
 - Preprod operations submit real test-network transactions and spend test ADA.
   Require explicit authorization before deployment, anchor bootstrap, settlement
   bootstrap, or smoke traffic.
