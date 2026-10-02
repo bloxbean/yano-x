@@ -26,7 +26,7 @@ const explainers = [
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Yano X — Your application. Shared rules. Verifiable results.</title>
     <meta name="description" content="Yano X is a shared application platform for Java. Build shared records, approval workflows, and integrations with independently verifiable results and optional Cardano commitments." />
-    <meta name="theme-color" content="#0b1115" />
+    <meta name="theme-color" content="#f6f8f5" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="canonical" href="https://yano-x.io/" />
     <meta property="og:title" content="Yano X — Your application. Shared rules. Verifiable results." />
@@ -54,16 +54,16 @@ const explainers = [
         <HeroPipeline />
       </section>
       <section class="foundation wrap" aria-label="Yano and Yano X">
-        <p><span class="lineage" aria-hidden="true"><img src="/logo-yano.svg" alt="" width="26" height="26" /><svg class="flight-path" viewBox="0 0 96 28" preserveAspectRatio="none"><path d="M2 24 C 36 24, 62 16, 94 4" /></svg><img class="lineage-x" src="/logo-flying.svg" alt="" width="36" height="36" /></span><span class="eyebrow">ONE FOUNDATION. YOUR EXTENSIONS.</span><strong><a href="https://getyano.dev/">Yano</a> provides the foundation.<br /><span>Yano X makes it yours.</span></strong></p>
+        <p><span class="lineage" aria-hidden="true"><img src="/logo-yano-ink.svg" alt="" width="26" height="26" /><svg class="flight-path" viewBox="0 0 96 28" preserveAspectRatio="none"><path d="M2 24 C 36 24, 62 16, 94 4" /></svg><img class="lineage-x" src="/logo-flying-ink.svg" alt="" width="36" height="36" /></span><span class="eyebrow">ONE FOUNDATION. YOUR EXTENSIONS.</span><strong><a href="https://getyano.dev/">Yano</a> provides the foundation.<br /><span>Yano X makes it yours.</span></strong></p>
         <p>Powered by Yano, with optional commitments published to Cardano. Yano coordinates member agreement and provides verifiable records. Yano X adds your application rules and integrations as JVM plugins. Connect over HTTP from any language.</p>
         <a class="text-link" href="/start-here/why-yano-x/">Understand the relationship ↗</a>
       </section>
       <section class="section wrap" id="why">
         <div class="section-heading"><span class="eyebrow">WHY SHARED APPLICATIONS?</span><h2>Less reconciliation.<br /><span>More shared certainty.</span></h2><p>When several organizations need to agree on what happened, a shared API alone is not the whole answer.</p></div>
         <div class="values">
-          <article><span class="index">01 / AGREE</span><h3>The same rules.<br />On every member.</h3><p>Members independently execute ordered commands and certify the resulting state. Agreement follows the configured member threshold.</p><a href="/concepts/consensus-and-finality/">Understand finality ↗</a></article>
-          <article><span class="index">02 / VERIFY</span><h3>Evidence you<br />can check.</h3><p>Verify supported state claims against a certified root. Optionally anchor commitments on Cardano for an independently observable L1 record.</p><a href="/concepts/state-and-proofs/">Explore proofs ↗</a></article>
-          <article><span class="index">03 / EXTEND</span><h3>Your domain.<br />Without a host fork.</h3><p>Choose existing capabilities, compose workflows, or build Java plugins. Keep application rules separate from the infrastructure that coordinates members.</p><a href="/plugins/">Meet the plugin framework ↗</a></article>
+          <article><span class="index">01 / AGREE</span><h3>The same rules. <br />On every member.</h3><p>Members independently execute ordered commands and certify the resulting state. Agreement follows the configured member threshold.</p><a href="/concepts/consensus-and-finality/">Understand finality ↗</a></article>
+          <article><span class="index">02 / VERIFY</span><h3>Evidence you <br />can check.</h3><p>Verify supported state claims against a certified root. Optionally anchor commitments on Cardano for an independently observable L1 record.</p><a href="/concepts/state-and-proofs/">Explore proofs ↗</a></article>
+          <article><span class="index">03 / EXTEND</span><h3>Your domain. <br />Without a host fork.</h3><p>Choose existing capabilities, compose workflows, or build Java plugins. Keep application rules separate from the infrastructure that coordinates members.</p><a href="/plugins/">Meet the plugin framework ↗</a></article>
         </div>
       </section>
       <section class="explore section" id="explore"><div class="wrap">
@@ -80,7 +80,7 @@ const explainers = [
           <li><span>01</span><div><h3>Run the local demo</h3><p>Download the Yano X JVM ZIP, check prerequisites, and start three members.</p><a href="/start-here/quickstart/">Follow the local quickstart →</a></div></li>
           <li><span>02</span><div><h3>Submit. Inspect. Verify.</h3><p>Send an event, compare member state, and understand what a proof establishes.</p><a href="/tutorials/">Continue with guided tutorials →</a></div></li>
           <li><span>03</span><div><h3>Choose your own rules</h3><p>Pick a recipe, configure your application, then extend only where you need to.</p><a href="/recipes/choosing-a-recipe/">Choose a recipe →</a></div></li>
-        </ol><div class="terminal"><div class="terminal-bar"><span>LOCAL DEMO</span><span>bash</span></div><p>In <code>yano-x-jvm-&lt;version&gt;/examples/showcase</code></p><pre><code># Check Java 25 and local prerequisites
+        </ol><div class="terminal"><div class="terminal-bar"><span>LOCAL DEMO</span><span>bash</span></div><p>In <code>yano-x-jvm-&lt;version&gt;/examples/showcase</code></p><pre tabindex="0" aria-label="Local demo commands"><code># Check Java 25 and local prerequisites
 ./showcase.sh doctor --profile light
 
 # Start a private three-member devnet
