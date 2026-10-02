@@ -68,6 +68,13 @@ and it skips nodes that do not answer.
 | `503 Submissions are paused (admin)` | An operator paused submissions. | Resume them with the privileged `/admin/resume` route. |
 | `400` with a code | The state machine refused the command at admission. | Fix the command; nothing was queued. |
 
+## A membership change is refused
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| `400` with `MEMBERSHIP_QUORUM_INVALID` from `admin/members/add`, `admin/members/remove`, or `admin/threshold`; the message lists the thresholds that would work | The change would leave a `t`-of-`n` that cannot certify blocks: every epoch needs `2t − n > f` and `t ≤ n − f`, where `f` is `consensus.max-byzantine-members` (default 0). Adding a member keeps the current threshold, so 2-of-3 plus one member would be 2-of-4. | Change the threshold first, wait until status reports it in `membershipActiveThreshold`, then retry. For a local cluster, `./yano.sh appchain cluster node join` raises the threshold for you. |
+| `cluster member add` says a chain `cannot grow from 1-of-1 by one member` | No threshold certifies both one and two members with `f = 0`. | Start a larger cluster instead. |
+
 ## A member is stalled
 
 A member stalls when a peer is ahead and it has made no progress for 60 seconds.

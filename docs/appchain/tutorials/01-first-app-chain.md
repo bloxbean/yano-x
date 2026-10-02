@@ -358,7 +358,16 @@ You can also govern, start, catch up, and verify a fourth node on the same host:
 ./yano.sh appchain cluster status
 ```
 
-> **✓ You should see** `node 3 joined and caught up with member key ...`.
+With the default 2-of-3, a fourth member would leave 2-of-4, which cannot
+certify blocks (a threshold must be more than half the members). The launcher
+therefore raises each chain's threshold to 3 first, advances the idle chains
+until that change is active, and only then records the new member with three
+approvals.
+
+> **✓ You should see** `raising 'orders-chain' threshold 2 -> 3 first`, then
+> `membership approval 3/3` for each chain, and finally
+> `node 3 joined and caught up with member key ...`. The new member votes from
+> the activation height each chain reports.
 
 For an externally managed node, the lower-level
 `appchain cluster member add <public-key>` command records membership but does

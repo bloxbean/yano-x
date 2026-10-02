@@ -156,6 +156,16 @@ Every check uses the membership at the block's height, so old blocks verify
 against the members of their time. The stock cluster configuration uses
 governed membership.
 
+Every membership epoch must satisfy the quorum rules above. A governed add,
+remove, or threshold change whose resulting `t`-of-`n` breaks them is refused
+by the admin endpoints with `MEMBERSHIP_QUORUM_INVALID` and is void if it ever
+reaches activation. An add keeps the current threshold, so with `f = 0` a
+2-of-3 ledger cannot add a fourth member directly: raise the threshold to 3
+first, wait until that epoch is active, then add the member (3-of-4). The local
+launcher's `cluster node join` does this for you. The
+[Yano consensus guide](https://github.com/bloxbean/yano/blob/main/docs/APP_CHAIN_CONSENSUS_GUIDE.md)
+describes the procedure.
+
 ## Catch-up and restart
 
 A member that is behind asks one connected peer every 5 seconds for the next
