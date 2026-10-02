@@ -93,8 +93,8 @@ The launcher starts:
   tutorial 2), and `effects-chain` (`approvals`, used by the optional effects
   demo).
 
-With three members, the threshold defaults to a majority: 2. Startup takes
-about a minute, because node 0 runs for 25 seconds before the other nodes join.
+With three members, the threshold defaults to a majority: 2. Startup takes a
+minute or two, because node 0 runs for 25 seconds before the other nodes join.
 
 > **✓ You should see**
 >

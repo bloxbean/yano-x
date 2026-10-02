@@ -21,8 +21,8 @@ say `appchain`.
 | [9. From demo to pilot](09-from-demo-to-pilot.md) | Advanced | Planning session | A reviewed project and a deployment plan |
 | [10. EUTxO ZK rollup on devnet](../../../ledgers/eutxo-zk/DEVNET_WALKTHROUGH.md) | Advanced | 60+ min | An L1 deposit, L2 spend, proof, root settlement, and L1 withdrawal traced end to end |
 
-Tutorials 4 and 5 use Docker for their connector services. Tutorial 8 also
-needs a Java build tool.
+Tutorial 4 and the evidence track of tutorial 5 use Docker Compose for their
+services. Tutorial 8 also needs a Java build tool.
 
 **Declarative bindings** have their own track:
 [connect existing state machines without Java](../bindings/README.md). It is
