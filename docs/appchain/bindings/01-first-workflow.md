@@ -59,6 +59,9 @@ Save this as `context.json`. This strict JSON supplies chain identity, membershi
 and host limits; it is neither a node properties file nor a place for secrets.
 The zero genesis and repeated public-key bytes are synthetic offline inputs.
 
+<details>
+<summary>Show <code>context.json</code></summary>
+
 ```json
 {
   "chainId": "offline-test",
@@ -92,6 +95,8 @@ The zero genesis and repeated public-key bytes are synthetic offline inputs.
   }
 }
 ```
+
+</details>
 
 ## 4. Validate, compile and inspect
 
@@ -167,6 +172,29 @@ just your two business records.
 Dry-run does not authenticate the input state, verify signatures or finality,
 compute a post-state root, or prove anything about a live chain. Success here is
 one useful test, not a substitute for multi-node deployment validation.
+
+### Read the receipt
+
+Every source message that reaches a block gets exactly one receipt, accepted or
+rejected. It is a positional array: `.receipt[3]` above is its status, and
+`.receipt[6]` its steps. Select a position to see what it records.
+
+<!-- illustration: receipt-anatomy -->
+| Position | Field | In this run |
+|---|---|---|
+| 0 | `version` | `1` |
+| 1 | `sourceMessageId` | `1111…1111` |
+| 2 | `height` | `1` |
+| 3 | `status` | `ACCEPTED`: every planned step committed |
+| 4 | `failedStepOrdinal` | `null` |
+| 5 | `code` | empty |
+| 6 | `steps` | two steps: `[ordinal, depth, bindingId, targetComponentId, messageId, eventsProduced, conditions, rules, status, code, rawBody]` |
+
+<!-- /illustration -->
+
+Read `status` first. In an accepted receipt, steps marked `PLANNED` committed;
+in a rejected one, nothing did. [How a cascade runs](README.md#how-a-cascade-runs)
+walks through how the steps get there.
 
 ## 6. See a condition skip
 

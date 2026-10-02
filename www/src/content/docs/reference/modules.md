@@ -14,7 +14,7 @@ verifies it with `verifyArtifactInventory`.
 
 | Value | Current |
 |---|---|
-| Yano X version | `0.1.0-pre2` |
+| Yano X version | `0.1.0-pre3` |
 | Yano host version | `0.1.0-pre17` |
 | Maven group | `org.yanoproject.x` |
 | Java | `25` |
@@ -24,15 +24,25 @@ verifies it with `verifyArtifactInventory`.
 
 ## Publication types
 
-| Type | Meaning |
-|---|---|
-| `runtime-plugin` | Activated by the host through `PluginProviderRegistry` and a schema-v1 manifest. Publishes both a normal JAR and a dependency-complete **bundle** JAR. |
-| `library` | An ordinary JAR — contracts, clients, codecs, testkits, CLIs, on-chain artifacts, deterministic helpers. Never loaded as a plugin. |
+`config/artifacts-v1.json` gives every module one of eight publication types.
+Only four of them are Maven Central dependencies.
 
-The distinction is the architectural boundary described in
-[Why Yano X](/start-here/why-yano-x/): every optional behavior a running node
-can independently select or manage is a runtime plugin; everything else is a
-library.
+| Type | Meaning | On Maven Central |
+|---|---|---|
+| `runtime-plugin` | Activated by the host through `PluginProviderRegistry` and a schema-v1 manifest. Publishes a normal JAR and a dependency-complete **bundle** JAR. | Yes, unless marked otherwise |
+| `library` | An ordinary JAR: contracts, clients, codecs, and deterministic helpers. Never loaded as a plugin. | Yes, unless marked otherwise |
+| `test-library` | A JAR for your tests, such as a testkit. | Yes, unless marked otherwise |
+| `onchain-artifact` | Cardano validator source in Java (Julc), such as the on-chain proof verifiers. | Yes, unless marked otherwise |
+| `tool` | A command-line or browser tool shipped in the JVM distribution, such as the developer tools, the deployment CLI, or Studio. | No |
+| `application` | A runnable demo or client program, such as a demo runner. | No |
+| `web-application` | A static product UI shipped in the JVM distribution. | No |
+| `test-fixture` | Repository test material, such as an end-to-end fixture. | No |
+
+Some modules in the first four types set `publishToCentral: false` and ship
+only in the GitHub release. The distinction between the first two is the
+architectural boundary described in [Why Yano X](/start-here/why-yano-x/):
+every optional behavior a running node can independently select or manage is
+a runtime plugin; everything else is not.
 
 `verifyArtifactInventory` checks that each module has exactly one declared
 artifact identity and that every runtime plugin has a bundle publication.

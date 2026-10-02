@@ -152,8 +152,7 @@
         "maximumItems": null,
         "allowedValues": [
           "evidence-v1",
-          "evidence-v1-gated",
-          "role-evidence-v1"
+          "evidence-v1-gated"
         ],
         "scope": "CONSENSUS_SHARED",
         "changePolicy": "NEW_CHAIN_REQUIRED",

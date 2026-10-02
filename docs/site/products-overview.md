@@ -3,29 +3,42 @@
 A **product** is a step above a recipe. Where a recipe selects capabilities, a
 product assembles a state machine or composite profile, a domain contract, a
 read API, a client, and often a CLI into one installable thing with an opinion
-about a use case.
+about a use case. Every "Try it" below runs from an extracted
+`yano-x-jvm-<version>.zip`.
 
-| Product | What it does | Maturity |
-|---|---|---|
-| [Evidence](/products/evidence/) | Publish an immutable document through a threshold-approved workflow, preserve it in object storage and IPFS, notify Kafka, and prove the whole chain. | `preview` |
-| [Cardano History](/products/cardano-history/) | Query and prove historical Cardano protocol parameters, epoch stake, DRep distribution, and proposal history. | `preview` |
-| [Attest](/products/attest/) | Record a document digest on a doc-trail chain and hand out a portable certificate that verifies offline against member keys or a Cardano anchor. | `preview` |
-| [Evidence Desk](/products/evidence-desk/) | Browser workbench for the role workflow and the evidence product: propose, approve with in-browser actor keys, release once, and read every record back with its proof. | `preview` |
-| [Trust Registry](/products/trust-registry/) | Trust and status registry on the governed authenticated map: proof-bound status answers, Bitstring Status Lists and TRQP answers served from a replayed projection, offline verification, and a console. | `preview` |
-| [Verifiable Explorer](/products/explorer/) | Verify-on-ingest index over stock app chains: timelines, decoded commands, entity trails with a proof-backed state check, search, a content archiver, and row bundles that verify offline. | `preview` |
-| [DPP Starter](/products/dpp-starter/) | Digital Product Passport prototype on the governed authenticated map: governed product, version, claim, and event records, a certification round with independent auditors, committed claims with out-of-band disclosure, a public portal with a GS1 Digital Link resolver, an operator gateway, and passports that verify offline. Not the DPP product of ADR-026. | `reference` (prototype) |
-| [Attestation Feed](/products/attestation-feed/) | Consortium observation ledger on the governed authenticated map: source-signed observations per round, a deterministic lower-median aggregation with outlier and quorum rules that every verifier recomputes, round records closed through an approval round with two independent publishers, a candidate datum for the deferred Cardano executor, a public portal, a signing gateway, and round bundles that verify offline. Not the oracle pipeline of ADR app-layer/012. | `experimental` (starter) |
-| [eUTxO and ZK](/products/eutxo-and-zk/) | A deterministic Cardano-shaped UTxO ledger, an optional Cardano bridge, and an optional ZK validity/rollup path. | `experimental` |
+| Product | What it does | For | Try it | Maturity |
+|---|---|---|---|---|
+| [Evidence](/products/evidence/) | Publishes a document through threshold approval, stores it in object storage and IPFS, notifies Kafka, and proves each step. | Teams releasing records several organizations approve | `examples/evidence/demo.sh` (Docker) | `preview` |
+| [Cardano History](/products/cardano-history/) | Proves historical Cardano parameters, epoch stake, DRep distribution, and proposals instead of trusting an indexer. | Governance, reward, and validator tooling | Showcase `cardano-history-chain` | `preview` |
+| [Attest](/products/attest/) | Records a document's digest and hands out a certificate that anyone can verify offline. | Proof of existence; auditors | Showcase `documents-chain` with `tools/yano-attest` | `preview` |
+| [Evidence Desk](/products/evidence-desk/) | Propose, approve with browser-held actor keys, release once, and read every record back with its proof. | Issuers, auditors, and reviewers | Showcase `document-review-chain` with `product-ui/evidence` | `preview` |
+| [Trust Registry](/products/trust-registry/) | Answers credential status and issuer authorization with proofs, and serves status lists tied to the ledger. | Credential issuers and verifiers | `examples/trust-registry/registry.sh` | `preview` |
+| [Verifiable Explorer](/products/explorer/) | Indexes stock ledgers after verifying each block; rows and states export as bundles that verify offline. | Operators, support, and auditors | `examples/explorer/explorer.sh` | `preview` |
+| [DPP Starter](/products/dpp-starter/) | A prototype product passport registry: governed records, independent certification, and passports that verify offline. | Teams exploring Digital Product Passports | `examples/dpp/dpp.sh` | `reference` (prototype) |
+| [Attestation Feed](/products/attestation-feed/) | Sources sign readings, every verifier recomputes each round, and two organizations approve the record. | Consortia combining readings from known sources | `examples/attestation-feed/feed.sh` | `experimental` (starter) |
+| [eUTxO and ZK](/products/eutxo-and-zk/) | A Cardano-shaped UTxO ledger with an optional federated bridge and ZeroJ validity proofs, for test funds only. | Researchers and protocol teams | `./yano.sh appchain eutxo demo` | `experimental` |
+
+## Choosing one
+
+<!-- illustration: product-chooser -->
+
+Products are not mutually exclusive with recipes; a product *is* the recipe for
+its domain. Start from [choosing a recipe](/recipes/choosing-a-recipe/) when no
+product matches your problem, and reach for [the plugin framework](/plugins/)
+when no recipe does either. Check first whether a composite of existing
+components gets you there. The [use cases](/start-here/use-cases/) page maps
+common problems to the building blocks.
 
 ## What products have in common
 
 Products reuse the platform's state machines, authenticated state, and proof
-verification, but their packaging differs:
+verification, but they are packaged differently:
 
-- Evidence and Cardano History add runtime plugin behavior.
-- Attest is a client, CLI, and UI over the existing `doc-trail` capability.
-- Trust Registry, DPP Starter, and Attestation Feed configure the governed
+- Evidence, Cardano History, and eUTxO and ZK add runtime plugin behavior.
+- Attest is a client, CLI, and UI over the stock `doc-trail` state machine.
+- Trust Registry, DPP Starter, and Attestation Feed configure the stock governed
   authenticated map and add application tooling outside consensus.
+- Evidence Desk is a browser UI over the role workflow.
 - Verifiable Explorer maintains a derived read index and its own service.
 
 Runtime contributions use the plugin catalog. Plain clients, CLIs, static UIs,
@@ -33,33 +46,22 @@ and configuration-only products do not need a new runtime plugin. Product
 services can expose their own APIs; `/api/v1/plugins/<bundle-id>/` is the host
 route for plugin-contributed APIs, not the route for every product.
 
-A proof establishes a specific recorded claim under a stated trust policy.
-It does not establish the truth of the underlying business event.
-
-## Choosing one
-
-Products are not mutually exclusive with recipes; a product *is* the recipe for
-its domain. Start from
-[choosing a recipe](/recipes/choosing-a-recipe/) and let the outcome table point
-you here.
-
-Reach for a product when your problem is recognizably the one it models. Reach
-for [the plugin framework](/plugins/) when it is not, and check first whether a
-composite of existing components gets you there.
-
 ## What products deliberately do not claim
 
-The reusable platform proves what identified participants finalized and what
-publication instruction they authorized. It does not decide what counts as a
-valid product event, an acceptable inspection, or a correct settlement — that
-stays with the domain.
+A proof establishes a specific recorded claim under a stated trust policy. It
+does not establish the truth of the underlying business event. The platform
+proves what identified participants finalized and what they authorized; it does
+not decide what counts as a valid product event, an acceptable inspection, or a
+correct settlement. That stays with the domain.
 
-Evidence, in particular, proves that specific members approved specific bytes at
-a specific point in a verifiable order, and that a connector reported storing
-those bytes. It does not prove the document's content is true.
+Most product verifiers report one of Yano's five trust levels, from
+`INTERNAL_CONSISTENCY_ONLY` (consistent with itself) through `CALLER_PINNED_ROOT`
+(members you pinned) to `INDEPENDENTLY_VERIFIED_L1_ANCHOR` (an anchor you read
+from Cardano yourself). Treat only the pinned and anchored levels as verified.
+[Keys and trust](/concepts/trust-model/) explains what each one rests on.
 
 :::note[Pre-release]
-Yano is pre-release, and the products above are `preview` or `experimental`.
-Their contracts, wire formats, and configuration may still change. Use a devnet
-or a Cardano test network with disposable data.
+Yano is pre-release, and the products above are `preview`, `reference`, or
+`experimental`. Their contracts, wire formats, and configuration may still
+change. Use a devnet or a Cardano test network with disposable data.
 :::

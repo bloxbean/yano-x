@@ -2897,9 +2897,52 @@ ready_node_indices() {
   done
 }
 
+# A governed epoch activates a fixed number of blocks after its approval, and
+# an idle ledger makes no blocks. These commands advance a stock ledger without
+# changing its application records: an ordered-log entry on a launcher topic, a
+# kv-registry DELETE of an absent key, or an approvals REJECT of an unknown item.
+epoch_advance_body() {
+  case "$1" in
+    ordered-log) _hex_of 'cluster.epoch-advance';;
+    kv-registry) kv_cbor 1 'cluster.epoch-advance' '';;
+    approvals) printf '8202%s' "$(cbor_text 'cluster.epoch-advance')";;
+    *) return 1;;
+  esac
+}
+
+# Wait until <chain>'s epoch for the next block has <threshold>, submitting
+# epoch-advance commands while the ledger is idle.
+advance_until_threshold_active() {
+  local cid="$1" requested="$2" view_node="$3" status machine body tip next deadline
+  status="$(curl -fsS --connect-timeout 3 --max-time 10 \
+    "http://localhost:$(http_port "$view_node")/api/v1/app-chain/chains/$cid/status")" \
+    || die "cannot read '$cid' status from node $view_node"
+  machine="$(printf '%s' "$status" | jq -r '.stateMachine // empty')"
+  body="$(epoch_advance_body "$machine")" \
+    || die "chain '$cid' runs '$machine', which the launcher cannot advance; submit ordinary" \
+      "traffic until its status shows membershipActiveThreshold=$requested, then run this command again"
+  deadline=$(( $(date +%s) + 240 ))
+  while :; do
+    [ "$(printf '%s' "$status" | jq -r '.membershipActiveThreshold // 0')" = "$requested" ] && break
+    [ "$(date +%s)" -le "$deadline" ] \
+      || die "timed out waiting for threshold $requested to activate on '$cid'"
+    tip="$(printf '%s' "$status" | jq -r '.tipHeight // 0')"
+    submit_hex_message "$cid" cluster.epoch-advance "$body" "$view_node"
+    for _ in $(seq 1 40); do
+      sleep 0.5
+      status="$(curl -fsS --connect-timeout 3 --max-time 10 \
+        "http://localhost:$(http_port "$view_node")/api/v1/app-chain/chains/$cid/status")" || status="{}"
+      next="$(printf '%s' "$status" | jq -r '.tipHeight // 0')"
+      [ "$next" -gt "$tip" ] && break
+    done
+  done
+  c_grn "threshold $requested active on $cid from height $(printf '%s' "$status" \
+    | jq -r '.membershipEpochFromHeight // 0')"
+}
+
 cmd_member_add() {
   local public_key view_node="" indices cid status members_json threshold
-  local scheduled_count active_count epoch_active
+  local scheduled_count active_count epoch_active required
   local signer request accepted member_key deadline epoch_from active
   local -a identity_chains=()
   public_key="$(normalize_member_public_key "${1:-}")" || exit 1
@@ -2940,6 +2983,21 @@ cmd_member_add() {
       || die "chain '$cid' still has a pending membership epoch ($active_count active," \
         "$scheduled_count scheduled); advance normal app-chain traffic to its activation" \
         "height before adding another member"
+    # Every epoch must certify blocks: 2t − n > 0 with the default fault bound
+    # (bloxbean/yano#163). Adding to a 2-of-3 ledger would leave 2-of-4, so
+    # govern the threshold up first, as the Yano consensus guide prescribes.
+    required=$(( (scheduled_count + 1) / 2 + 1 ))
+    if [ "$threshold" -lt "$required" ]; then
+      [ "$required" -le "$scheduled_count" ] \
+        || die "chain '$cid' cannot grow from $threshold-of-$scheduled_count by one member: no" \
+          "threshold certifies both $scheduled_count and $((scheduled_count + 1)) members; start a" \
+          "larger cluster instead"
+      c_ylw "raising '$cid' threshold $threshold -> $required first: $threshold-of-$((scheduled_count + 1))" \
+        "could not certify blocks"
+      govern_threshold_on_chain "$cid" "$required" "$view_node" "$indices"
+      advance_until_threshold_active "$cid" "$required" "$view_node"
+      threshold="$required"
+    fi
 
     accepted=0
     local seen_signers="," node_status
@@ -2987,10 +3045,82 @@ cmd_member_add() {
   done
 }
 
+# Govern a finality threshold on one governed chain: one identical approval
+# from each of the current threshold's ready members, then wait until the epoch
+# is recorded. It activates once the chain reaches its activation height.
+govern_threshold_on_chain() {
+  local cid="$1" requested="$2" view_node="$3" indices="$4"
+  local status members_json current signer accepted member_key deadline node_status
+  local member_count active_count epoch_active request
+  request="$(jq -nc --argjson threshold "$requested" '{threshold:$threshold}')"
+  status="$(curl -fsS --connect-timeout 3 --max-time 10 \
+    "http://localhost:$(http_port "$view_node")/api/v1/app-chain/chains/$cid/status")" \
+    || die "cannot read '$cid' status from node $view_node"
+  [ "$(printf '%s' "$status" | jq -r '.membershipMode // "static"')" = "governed" ] \
+    || die "chain '$cid' uses static membership; threshold governance is unavailable"
+  members_json="$(api_curl -fsS \
+    "http://localhost:$(http_port "$view_node")/api/v1/app-chain/chains/$cid/admin/members")" \
+    || die "cannot read '$cid' membership"
+  current="$(printf '%s' "$members_json" | jq -r '.threshold // 0')"
+  member_count="$(printf '%s' "$members_json" | jq -r '.members | length')"
+  if [ "$current" = "$requested" ]; then
+    c_ylw "threshold already $requested on $cid"
+    return 0
+  fi
+  active_count="$(printf '%s' "$status" | jq -r '.membershipActiveMembers // 0')"
+  epoch_active="$(printf '%s' "$status" | jq -r '.membershipEpochActive // false')"
+  [ "$epoch_active" = true ] && [ "$active_count" = "$member_count" ] \
+    || die "chain '$cid' still has a pending membership epoch ($active_count active," \
+      "$member_count scheduled); advance normal app-chain traffic to its activation" \
+      "height before changing the threshold"
+  [ "$requested" -le "$active_count" ] \
+    || die "threshold $requested exceeds '$cid' active member count $active_count"
+
+  accepted=0
+  local seen_signers=","
+  for signer in $indices; do
+    node_status="$(curl -fsS --connect-timeout 3 --max-time 10 \
+      "http://localhost:$(http_port "$signer")/api/v1/app-chain/chains/$cid/status")" \
+      || continue
+    [ "$(printf '%s' "$node_status" | jq -r '.memberActiveForNextBlock // false')" = "true" ] \
+      || continue
+    member_key="$(printf '%s' "$node_status" | jq -r '.memberKey // empty')"
+    [[ "$member_key" =~ ^[0-9a-f]{64}$ ]] || continue
+    case "$seen_signers" in *",$member_key,"*) continue;; esac
+    api_curl -fsS -X POST \
+      "http://localhost:$(http_port "$signer")/api/v1/app-chain/chains/$cid/admin/threshold" \
+      -H 'Content-Type: application/json' -d "$request" >/dev/null \
+      || die "threshold approval failed on '$cid' through node $signer after $accepted/$current approvals"
+    seen_signers+="$member_key,"
+    accepted=$((accepted + 1))
+    printf 'threshold approval %d/%d for %s via node %d\n' \
+      "$accepted" "$current" "$cid" "$signer"
+    [ "$accepted" -ge "$current" ] && break
+  done
+  [ "$accepted" -ge "$current" ] \
+    || die "chain '$cid' needs $current ready current members; only $accepted approved"
+
+  deadline=$(( $(date +%s) + 120 ))
+  while :; do
+    members_json="$(api_curl -fsS \
+      "http://localhost:$(http_port "$view_node")/api/v1/app-chain/chains/$cid/admin/members")" \
+      || members_json=""
+    [ -n "$members_json" ] \
+      && [ "$(printf '%s' "$members_json" | jq -r '.threshold // 0')" = "$requested" ] \
+      && break
+    [ "$(date +%s)" -le "$deadline" ] \
+      || die "timed out waiting for governed threshold epoch on '$cid'"
+    sleep 1
+  done
+  status="$(curl -fsS --connect-timeout 3 --max-time 10 \
+    "http://localhost:$(http_port "$view_node")/api/v1/app-chain/chains/$cid/status")" \
+    || die "cannot read '$cid' threshold activation status"
+  c_grn "threshold $requested recorded on $cid (epoch from height $(printf '%s' "$status" \
+    | jq -r '.membershipEpochFromHeight // 0'))"
+}
+
 cmd_threshold_set() {
-  local requested="${1:-}" view_node="" indices cid status members_json current
-  local signer request accepted member_key deadline node_status
-  local member_count active_count epoch_active
+  local requested="${1:-}" view_node="" indices cid
   local -a identity_chains=()
   [[ "$requested" =~ ^[0-9]+$ ]] || die "threshold must be a positive integer"
   requested=$((10#$requested))
@@ -3002,74 +3132,10 @@ cmd_threshold_set() {
   indices="$(ready_node_indices)" || die "cannot inspect running cluster nodes"
   [ -n "$indices" ] || die "no cluster nodes are ready"
   view_node="${indices%%$'\n'*}"
-  request="$(jq -nc --argjson threshold "$requested" '{threshold:$threshold}')"
 
   IFS=',' read -r -a identity_chains <<< "$IDENTITY_CHAINS"
   for cid in "${identity_chains[@]}"; do
-    status="$(curl -fsS --connect-timeout 3 --max-time 10 \
-      "http://localhost:$(http_port "$view_node")/api/v1/app-chain/chains/$cid/status")" \
-      || die "cannot read '$cid' status from node $view_node"
-    [ "$(printf '%s' "$status" | jq -r '.membershipMode // "static"')" = "governed" ] \
-      || die "chain '$cid' uses static membership; threshold governance is unavailable"
-    members_json="$(api_curl -fsS \
-      "http://localhost:$(http_port "$view_node")/api/v1/app-chain/chains/$cid/admin/members")" \
-      || die "cannot read '$cid' membership"
-    current="$(printf '%s' "$members_json" | jq -r '.threshold // 0')"
-    member_count="$(printf '%s' "$members_json" | jq -r '.members | length')"
-    if [ "$current" = "$requested" ]; then
-      c_ylw "threshold already $requested on $cid"
-      continue
-    fi
-    active_count="$(printf '%s' "$status" | jq -r '.membershipActiveMembers // 0')"
-    epoch_active="$(printf '%s' "$status" | jq -r '.membershipEpochActive // false')"
-    [ "$epoch_active" = true ] && [ "$active_count" = "$member_count" ] \
-      || die "chain '$cid' still has a pending membership epoch ($active_count active," \
-        "$member_count scheduled); advance normal app-chain traffic to its activation" \
-        "height before changing the threshold"
-    [ "$requested" -le "$active_count" ] \
-      || die "threshold $requested exceeds '$cid' active member count $active_count"
-
-    accepted=0
-    local seen_signers=","
-    for signer in $indices; do
-      node_status="$(curl -fsS --connect-timeout 3 --max-time 10 \
-        "http://localhost:$(http_port "$signer")/api/v1/app-chain/chains/$cid/status")" \
-        || continue
-      [ "$(printf '%s' "$node_status" | jq -r '.memberActiveForNextBlock // false')" = "true" ] \
-        || continue
-      member_key="$(printf '%s' "$node_status" | jq -r '.memberKey // empty')"
-      [[ "$member_key" =~ ^[0-9a-f]{64}$ ]] || continue
-      case "$seen_signers" in *",$member_key,"*) continue;; esac
-      api_curl -fsS -X POST \
-        "http://localhost:$(http_port "$signer")/api/v1/app-chain/chains/$cid/admin/threshold" \
-        -H 'Content-Type: application/json' -d "$request" >/dev/null \
-        || die "threshold approval failed on '$cid' through node $signer after $accepted/$current approvals"
-      seen_signers+="$member_key,"
-      accepted=$((accepted + 1))
-      printf 'threshold approval %d/%d for %s via node %d\n' \
-        "$accepted" "$current" "$cid" "$signer"
-      [ "$accepted" -ge "$current" ] && break
-    done
-    [ "$accepted" -ge "$current" ] \
-      || die "chain '$cid' needs $current ready current members; only $accepted approved"
-
-    deadline=$(( $(date +%s) + 120 ))
-    while :; do
-      members_json="$(api_curl -fsS \
-        "http://localhost:$(http_port "$view_node")/api/v1/app-chain/chains/$cid/admin/members")" \
-        || members_json=""
-      [ -n "$members_json" ] \
-        && [ "$(printf '%s' "$members_json" | jq -r '.threshold // 0')" = "$requested" ] \
-        && break
-      [ "$(date +%s)" -le "$deadline" ] \
-        || die "timed out waiting for governed threshold epoch on '$cid'"
-      sleep 1
-    done
-    status="$(curl -fsS --connect-timeout 3 --max-time 10 \
-      "http://localhost:$(http_port "$view_node")/api/v1/app-chain/chains/$cid/status")" \
-      || die "cannot read '$cid' threshold activation status"
-    c_grn "threshold $requested recorded on $cid (epoch from height $(printf '%s' "$status" \
-      | jq -r '.membershipEpochFromHeight // 0'))"
+    govern_threshold_on_chain "$cid" "$requested" "$view_node" "$indices"
   done
 }
 
@@ -3184,8 +3250,8 @@ cmd_node_join() {
   first_ready="${existing_indices%%$'\n'*}"
 
   if [ "$operation" = "join" ]; then
-    # Governance is recorded before the new signer starts. Existing members keep
-    # the old threshold, so liveness is unchanged while the new node catches up.
+    # Governance is recorded before the new signer starts. When the current
+    # threshold could not certify the grown membership, it is raised first.
     cmd_member_add "$public_key"
   else
     c_ylw "resuming retained governed node $index without submitting membership governance"

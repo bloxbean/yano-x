@@ -4,23 +4,42 @@
 
 - **Level:** Java application developer
 - **Time:** 30–60 minutes for a first plugin
-- **Outcome:** choose the correct extension level and deploy versioned business
-  logic as a plugin JAR on the standard JVM distribution.
+- **Outcome:** build, sign and pin a small state-machine plugin, and install the
+  same JAR on every member of the standard JVM distribution.
 
-## Start from a bounded scaffold
+You will write a `shipment` machine that records the latest status of each
+shipment. It is deliberately small: the point is the path from scaffold to a
+pinned, verifiable JAR. The plugin pages explain each part in depth; this
+tutorial links to them instead of repeating them.
 
-Before writing a coordinator plugin, check the
-[declarative binding learning path](../bindings/README.md). If existing machines
-already expose the required commands and events, you can connect them in YAML.
-Use the plugin path below when you need new transitions or coordination outside
-the bounded binding language.
+## Before you start
 
-Use the public launcher to create one small, buildable starting point. The
-four modes share the same runtime manifest, signed product-catalog, and
-ServiceLoader conventions:
+- Java 25 and Gradle (or your organization's Gradle wrapper).
+- An extracted Yano X JVM distribution. This tutorial assumes `/opt/yano-x` and
+  runs every `./yano.sh` command from that directory.
+- A 32-byte publisher seed in a file outside any repository, for signing.
+- The exact Yano host version in your distribution's manifest. The host and
+  Yano X have separate versions.
 
-Use the exact host version from your distribution manifest for
-`<matching-yano-host-version>`; the host and Yano X have separate versions.
+## 1. Choose the smallest extension
+
+A Java plugin is the last rung, not the first. Check whether configuration or
+[declarative bindings](../bindings/README.md) already model your outcome:
+
+<!-- illustration: extension-ladder -->
+```text
+Does a stock machine or recipe already model the outcome?
+  ├─ yes → configuration only
+  └─ no
+      Do existing machines have the commands and events you need?
+        ├─ yes → declarative bindings, or a small Java composite
+        └─ no  → a custom state-machine plugin (this tutorial)
+```
+<!-- /illustration -->
+
+[The extension ladder](../../site/plugins-overview.md) describes every rung.
+
+## 2. Scaffold the plugin
 
 ```bash
 ./yano.sh appchain plugin scaffold \
@@ -31,14 +50,119 @@ Use the exact host version from your distribution manifest for
   --output shipment-plugin
 ```
 
-Other modes are `composite-role`, `effect-executor`, and `sink`. The generated
-provider deliberately performs no business work: state-machine admission is
-closed and executor/sink factories return no instances until implemented.
-The tool refuses a non-empty output directory.
+The scaffold is a small Gradle project. It compiles against the host API as
+`compileOnly`, so the JAR never packages Yano API classes. It contains:
 
-After implementation and tests, sign the exact catalog, runtime manifest, and
-optional configuration metadata. Keep the 32-byte seed outside the repository
-and pass it by file only:
+- `src/main/java/com/example/shipment/ShipmentStateMachineProvider.java`, the
+  provider, which does no business work yet;
+- its `META-INF/services/org.yanoproject.api.appchain.AppStateMachineProvider`
+  entry;
+- the runtime manifest `META-INF/yano/plugins/plugin-bundle.shipment.json`; and
+- the product catalog `META-INF/yano/appchain-component-catalog-v1.json`, which
+  declares the capability `state:shipment`.
+
+The tool refuses a non-empty output directory. Other modes are
+`composite-role`, `effect-executor` and `sink`.
+
+## 3. Implement the machine
+
+Replace the generated provider file with this one. A message body is the UTF-8
+text `<shipment-id>=<status>`; the machine stores each shipment's latest
+status.
+
+```java
+package com.example.shipment;
+
+import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
+import org.yanoproject.api.appchain.AppBlockExecutionContext;
+import org.yanoproject.api.appchain.AppStateMachine;
+import org.yanoproject.api.appchain.AppStateMachineProvider;
+import org.yanoproject.api.appchain.AppStateWriter;
+import org.yanoproject.api.appchain.effects.AppEffectEmitter;
+
+import java.nio.charset.StandardCharsets;
+import java.util.Optional;
+
+public final class ShipmentStateMachineProvider implements AppStateMachineProvider {
+    @Override
+    public String id() {
+        return "shipment";
+    }
+
+    @Override
+    public AppStateMachine create() {
+        return new Machine();
+    }
+
+    /** Stores the latest status of each shipment. */
+    private static final class Machine implements AppStateMachine {
+        private static final int MAX_BODY_BYTES = 256;
+
+        @Override
+        public String id() {
+            return "shipment";
+        }
+
+        @Override
+        public AdmissionResult validate(AppMessage message) {
+            // A fast structural check; never perform I/O here.
+            return parse(message.getBody()).isPresent()
+                    ? AdmissionResult.accept()
+                    : AdmissionResult.reject("INVALID_SHIPMENT_COMMAND");
+        }
+
+        @Override
+        public void apply(AppBlockExecutionContext context, AppStateWriter writer, AppEffectEmitter effects) {
+            for (AppMessage message : context.messages()) {
+                // Finalized bytes can still be malformed: skip them, never throw.
+                parse(message.getBody()).ifPresent(update -> writer.put(
+                        ("shipment/" + update[0]).getBytes(StandardCharsets.UTF_8),
+                        update[1].getBytes(StandardCharsets.UTF_8)));
+            }
+        }
+
+        private static Optional<String[]> parse(byte[] body) {
+            if (body == null || body.length == 0 || body.length > MAX_BODY_BYTES) {
+                return Optional.empty();
+            }
+            String text = new String(body, StandardCharsets.UTF_8);
+            int split = text.indexOf('=');
+            if (split <= 0 || split == text.length() - 1) {
+                return Optional.empty();
+            }
+            return Optional.of(new String[]{text.substring(0, split), text.substring(split + 1)});
+        }
+    }
+}
+```
+
+Three rules matter here, and [Consensus rules](../../site/plugins-consensus-rules.md)
+explains them all:
+
+- `apply(AppBlockExecutionContext, AppStateWriter, AppEffectEmitter)` is the
+  host's only execution entry point. It runs on every member and must give
+  byte-identical state: no clock, randomness or I/O.
+- `validate` is a filter at ingress, not a security boundary. `apply` must
+  still treat every message as hostile and bound its work.
+- A rejection reason is a public code: at most 32 uppercase letters or
+  underscores.
+
+Read [Determinism rules](https://yano-x.io/concepts/determinism-rules/) before you
+add more logic. To act on an external system, emit an effect from `apply` and
+let an executor perform it after finality; see [effects](../../site/concepts-effects.md).
+
+## 4. Test it
+
+Unit-test `parse` and `apply` first, including empty, oversized and malformed
+bodies. Then climb the [testing ladder](https://yano-x.io/plugins/testing-and-deployment/):
+replay, hostile input, an embedded multi-member cluster, and a packaged JVM
+cluster. The [plugin template](../../../scaffolds/plugin-template/) shows unit,
+conformance and domain API tests for a similar machine.
+
+## 5. Sign, build and validate
+
+Sign the exact catalog and runtime manifest, then build the JAR so it carries
+the signature:
 
 ```bash
 ./yano.sh appchain plugin sign \
@@ -48,21 +172,21 @@ and pass it by file only:
   --key-id example-release-2026 \
   --output shipment-plugin/src/main/resources/META-INF/yano/appchain-component-catalog-v1.sig.json
 
-cd shipment-plugin
-gradle jar
-cd ..
+(cd shipment-plugin && gradle jar)
 
 ./yano.sh appchain plugin validate shipment-plugin/build/libs/shipment-yano-plugin.jar \
   --trust-key example-release-2026=<64-hex-public-key> \
   --output shipment-catalog.json
+tools/yano-plugins/bin/yano-plugins validate shipment-plugin/build/libs/shipment-yano-plugin.jar
 ```
 
-`inspect` prints the same verified catalog and its capabilities. Neither
-command loads provider classes, runs plugin code, fetches a registry, or
-installs the JAR. The exported snapshot is the safe local-import format used
-by Studio and generated projects.
+Pass the seed by file only, and keep it out of the repository. `plugin validate`
+verifies the signature and exports a data-only snapshot; `yano-plugins
+validate` runs the node's structural checks. Neither runs your code.
+[SPI and manifest](../../site/plugins-spi-and-manifest.md) explains what the
+signature does and does not cover.
 
-Create a project by selecting the custom capability declared by the catalog:
+## 6. Pin it into a project
 
 ```bash
 ./yano.sh appchain init --non-interactive \
@@ -75,196 +199,48 @@ Create a project by selecting the custom capability declared by the catalog:
 ./yano.sh appchain config validate --mode project shipment-chain
 ```
 
-The project stores the signed data-only snapshot under
-`component-catalogs/`; its lock pins the snapshot, catalog, runtime manifest,
-configuration metadata, and complete plugin-JAR digests. Rendering and doctor
-reverify the project snapshot automatically. The public key is not secret.
-Copy the exact pinned JAR into `plugins/` in every JVM distribution before
-starting nodes, then verify it:
+The project stores the signed snapshot under `component-catalogs/`, and
+`appchain.lock` pins the catalog, runtime manifest, configuration metadata and
+complete JAR digests. Rendering and `doctor` re-verify the snapshot.
+
+## 7. Install on every member
+
+Copy the exact pinned JAR into `plugins/` in every member's distribution, then
+check readiness:
 
 ```bash
-./yano.sh appchain doctor shipment-chain --distribution /opt/yano
+cp shipment-plugin/build/libs/shipment-yano-plugin.jar /opt/yano-x/plugins/
+./yano.sh appchain doctor shipment-chain --distribution /opt/yano-x
 ```
 
-A missing or different JAR fails artifact readiness. A native distribution
-reports a direct incompatibility because Yano X plugins target the JVM host.
+A missing or different JAR fails artifact readiness. Yano X plugins target the
+JVM distribution. Start the nodes as the
+[deployment guide](../deployment/README.md) describes. Each node checks the JAR
+again at start-up, before your code runs; [How plugins load](../../site/plugins-how-plugins-load.md)
+lists those checks. Then confirm that every member runs the same plugin catalog:
 
-Yano's core provides ordering, threshold finality, deterministic state,
-proofs, anchoring, effects, plugin lifecycle, health, and metrics. Application
-teams normally extend the application layer, not the consensus runtime.
-
-## Choose the smallest extension
-
-```text
-Does a stock machine/profile already model the outcome?
-  ├─ yes → configuration only
-  └─ no
-      Do existing kernel-enabled machines and bounded bindings express it?
-        ├─ yes → experimental declarative composite (configuration only)
-        └─ no
-            Are all domain transitions already available?
-              ├─ yes → small Java composite plugin
-              └─ no  → custom state-machine component/plugin
+```bash
+./yano.sh appchain drift shipment-chain --peer http://node-a:8080/api/v1/ \
+  --peer http://node-b:8080/api/v1/ --peer http://node-c:8080/api/v1/
 ```
 
-Other independent plugin SPIs cover effect executors, finalized stream sinks,
-domain APIs, signers, sequencer mode, and L1 observers.
+## 8. Change it safely later
 
-## Path A — configuration only
-
-Select one built-in id or profile identically on every member:
-
-```yaml
-yano.app-chain.state-machine: kv-registry
-```
-
-For stock composite/role profiles, the profile identifier and configuration
-digest become part of chain identity. Select them only for a fresh chain or a
-governed activation.
-
-For a new combination of existing commands, the experimental
-`declarative-composite` provider accepts canonical IR compiled from a binding
-document. Components are resolved from the real plugin catalog (plus the host's
-built-in `ordered-log`) and must expose the public `TransitionKernel` contract.
-The document declares ordered components, conditions, mappings, and bounded
-event-to-command/effect edges; restricted CEL handles scalar expressions.
-No application-specific Java coordinator is needed for these combinations.
-Follow the [binding guide](../DECLARATIVE_BINDINGS.md) and
-[compile/validate/dry-run workflow](../DECLARATIVE_BINDINGS_CLI.md).
-
-This is not arbitrary code loading from YAML. The catalog, descriptors, evidence
-rules, graph, normalized settings, and limits are validated before profile use,
-and target authorization still runs. The explicit role/map leaf path currently
-uses genesis-fixed actor data, not dynamic actor governance. Legacy certificates
-and projections that require signed original command envelopes are not implicitly
-compatible with derived commands.
-
-## Path B — a small composite plugin
-
-A composite explicitly defines:
-
-- component ids and versions;
-- deterministic application order;
-- routed public topics;
-- per-component quotas;
-- workflow transitions between components; and
-- one committed profile identity/digest.
-
-This Java class is intentionally small but consensus-critical. Use this path
-when the bounded declarative language does not express the required coordination.
-Neither a Java bundle update nor an edited binding document can dynamically
-change a frozen profile: the exact ordered profile is committed, and a governed
-replacement requires authorization and readiness for a future activation height.
-
-Reuse the effect-gated evidence and role-evidence presets as reference
-implementations. Package the provider, manifest, service entry, and components
-in one reviewed bundle.
-
-## Path C — a custom state-machine plugin
-
-The complete hands-on implementation is in the existing
-[default-distribution tutorial, Part 2](../../APP_CHAIN_TUTORIAL.md). The core
-shape is:
-
-```java
-public final class ShipmentStateMachine implements AppStateMachine {
-    @Override
-    public String id() {
-        return "shipment-v1";
-    }
-
-    @Override
-    public AdmissionResult validate(AppMessage message) {
-        // Bounded structural validation only; never perform I/O here.
-        return decodeSafely(message.getBody())
-                ? AdmissionResult.accept()
-                : AdmissionResult.reject("invalid shipment command");
-    }
-
-    @Override
-    public void apply(AppBlock block, AppStateWriter state) {
-        // Deterministic bounded transitions only.
-    }
-}
-```
-
-Contribute it through `AppStateMachineProvider`, add the service entry and
-plugin manifest, then copy the bundle JAR into the configured plugin directory.
-Yano itself does not need recompilation for a JVM deployment.
-
-Yano X plugins target the JVM distribution. Yano's native image cannot discover
-directory JARs and does not include Yano X plugins.
-
-## Custom component catalog contract
-
-The JAR carries three independent, bounded contracts:
-
-- `META-INF/yano/plugins/<bundle-id>.json` describes executable runtime
-  contributions;
-- `META-INF/yano/appchain-config-metadata-v1.json`, when present, owns typed
-  configuration definitions; and
-- `META-INF/yano/appchain-component-catalog-v1.json` describes selectable
-  product capabilities and required artifacts.
-
-The Ed25519 trust envelope binds the catalog, runtime manifest, optional
-configuration metadata, bundle identity/version, and publisher key ID. It
-authenticates those exact bytes; it does not approve code or elevate a custom
-component to bundled/stable/native status. Custom entries remain JVM-only
-`REFERENCE` or `EXPERIMENTAL`, and all release ID, namespace, and artifact
-collisions fail closed.
-
-## Consensus rules for application plugins
-
-- The same bundle, machine/profile id, and committed settings run on every
-  voting member.
-- `apply()` must not use wall clock, randomness, DNS, filesystem, database, or
-  network I/O.
-- Invalid finalized bytes become deterministic no-ops, not escaping
-  exceptions.
-- Bound message bytes, decode depth/items, collections, state growth, and work
-  per block.
-- Never silently change semantics behind an existing machine/component id.
-- Use activation heights/profile governance for compatible evolution and a
-  new namespace/migration plan for incompatible state.
-- Every state write belongs to the authenticated writer; do not maintain
-  hidden consensus state in static fields or node-local storage.
-
-## Add external actions correctly
-
-Do not call Kafka, S3, IPFS, Cardano, or an ERP from `apply()`. Emit an
-`EffectIntent`; let an executor act after its finality gate; incorporate the
-result through `onEffectResult` when the outcome affects business state.
-
-Create a custom executor plugin when the action needs typed target aliases,
-authentication, polling, reconciliation, or a domain-specific receipt. Keep
-endpoints and secrets in node-local executor configuration, never replicated
-effect payloads.
-
-## Testing ladder
-
-1. Unit-test codecs and deterministic transitions.
-2. Run the state-machine conformance and replay matrix.
-3. Test malformed and hostile finalized input through `apply()`.
-4. Start an embedded multi-member cluster with `appchain-testkit`.
-5. Verify root parity, proof keys, restart, catch-up, rollback/reapply, and
-   plugin packaging.
-6. For effects, test crash-before-send, send-before-ack, retry, reconciliation,
-   parking, requeue, and duplicate idempotency.
-7. Run a packaged JVM cluster; add native coverage when native is supported.
-
-## Deployment and operations
-
-- Give every bundle a stable plugin id and semantic version.
-- Verify catalog state and health on every member before admitting traffic.
-- Treat plugin removal or drift as a deployment error, not automatic fallback.
-- Namespace configuration and metrics by plugin/contribution.
-- Keep plugin domain APIs read-only unless commands still enter through the
-  authenticated app-chain submission path.
+Changing what `apply` computes is a consensus change, not a rolling upgrade.
+Never roll new semantics out member by member: give the change a governed
+activation height, or a new machine id and namespace. Compare a project change
+with `appchain diff` before you apply it.
+[Consensus rules](../../site/plugins-consensus-rules.md#evolving-a-live-chain)
+describes the options.
 
 ## Go deeper
 
-- [Plugin query and domain APIs](../../core-host.md)
-- [Plugin operations](../../core-host.md)
-- [Composite implementation guide](../../../composition/runtime/README.md)
+- [Scaffold, sign, install](../../site/scaffold-sign-install.md), the same
+  lifecycle as a reference
+- [Testing and deployment](https://yano-x.io/plugins/testing-and-deployment/)
+- [Composite implementation guide](../../../composition/runtime/README.md), for a
+  Java composite
 - [Plugin template scaffold](../../../scaffolds/plugin-template/)
 - [Yano core testkit](https://github.com/bloxbean/yano/tree/main/appchain/appchain-testkit)
+- Yano's [plugin query and domain API guide](https://github.com/bloxbean/yano/blob/main/docs/APP_CHAIN_PLUGIN_QUERY_AND_DOMAIN_API.md)
+  and [plugin operations guide](https://github.com/bloxbean/yano/blob/main/docs/PLUGIN_OPERATIONS.md)

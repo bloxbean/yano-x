@@ -1,4 +1,4 @@
-# Optional First-Party App-Chain Connectors
+# Optional first-party connectors
 
 Kafka, S3-compatible storage, IPFS/Kubo, and Cardano payments are maintained
 Yano integrations, but they are not present in the stock distribution. They

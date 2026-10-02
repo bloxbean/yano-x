@@ -43,8 +43,9 @@ Climb it in order. Each rung catches a class of bug the one below cannot.
 
 7. **Run a packaged JVM cluster.**
    The real distribution, the real `plugins/` directory, the real catalog
-   validation. Packaging bugs — a missing transitive dependency, an embedded
-   host SPI class — only surface here.
+   validation. Packaging bugs such as a missing transitive dependency surface
+   here. Run `yano-plugins validate` on the JAR first: it catches structural
+   mistakes, such as an embedded host API class, without starting a node.
 
 ## Test dependencies
 
@@ -86,22 +87,24 @@ See [Developing Yano X](/contributing/) for the full contributor workflow.
 - **Namespace configuration and metrics by plugin and contribution**, so an
   operator can attribute a problem to the right bundle.
 - **Keep plugin domain APIs read-only** unless commands still enter through the
-  authenticated app-chain submission path.
+  authenticated app ledger submission path.
 
 ## Installing on a cluster
 
 ```bash
 # On every member's distribution:
 cp shipment-yano-plugin.jar /opt/yano-x/plugins/
-tools/yano-plugins/bin/yano-plugins validate /opt/yano-x/plugins/*.jar
+/opt/yano-x/tools/yano-plugins/bin/yano-plugins validate /opt/yano-x/plugins/*.jar
 
 # Before admitting traffic:
 ./yano.sh appchain doctor shipment-chain --distribution /opt/yano-x
-./yano.sh appchain drift  shipment-chain --peer http://node-a:8080
+./yano.sh appchain drift  shipment-chain --peer http://node-a:8080/api/v1/
 ```
 
 The property is `yano.plugins.directory`. Restart the nodes; Yano is not
-rebuilt.
+rebuilt. Each node checks the JAR again at start-up, before any plugin code runs;
+[How plugins load](/plugins/how-plugins-load/) lists those checks and what they
+do not cover.
 
 `drift` is the fastest way to find the one member that is out of step, and it
 is worth running as a routine check rather than only during an incident.

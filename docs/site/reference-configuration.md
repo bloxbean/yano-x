@@ -1,8 +1,9 @@
 # Configuration reference
 
 Yano X plugins declare their configuration as **typed metadata**, not as prose.
-That metadata is what makes `appchain config validate` and `appchain explain`
-work, and it is what this page is generated from at documentation build time.
+That metadata is what makes `appchain config validate` and
+`appchain config explain` work, and it is what this page is generated from at
+documentation build time.
 
 Source:
 `tooling/devtools/src/main/resources/appchain-dx/v1alpha1/appchain-first-party-metadata.json`.
@@ -56,7 +57,7 @@ Each property reports how well its constraints are known:
 | Property | Type | Default | Allowed | Scope | Change policy | Description |
 |---|---|---|---|---|---|---|
 | `yano.app-chain.machines.composite.evidence-capacity-per-block` | `INTEGER` | `8` | — | `CONSENSUS_SHARED` | `NEW_CHAIN_REQUIRED` | Maximum evidence workflows evaluated in one block |
-| `yano.app-chain.machines.composite.preset` | `STRING` | `evidence-v1-gated` | `evidence-v1`, `evidence-v1-gated`, `role-evidence-v1` | `CONSENSUS_SHARED` | `NEW_CHAIN_REQUIRED` | Packaged deterministic composite profile preset |
+| `yano.app-chain.machines.composite.preset` | `STRING` | `evidence-v1-gated` | `evidence-v1`, `evidence-v1-gated` | `CONSENSUS_SHARED` | `NEW_CHAIN_REQUIRED` | Packaged deterministic composite profile preset |
 | `yano.app-chain.machines.composite.profile-governance.max-epochs` | `INTEGER` | `1024` | — | `CONSENSUS_SHARED` | `GOVERNED_ACTIVATION` | Maximum retained composite profile epochs |
 | `yano.app-chain.machines.composite.profile-governance.min-activation-lag` | `INTEGER` | `20` | — | `CONSENSUS_SHARED` | `GOVERNED_ACTIVATION` | Minimum blocks between profile approval and activation |
 | `yano.app-chain.machines.composite.profile-governance.proposal-ttl-blocks` | `INTEGER` | `600` | — | `CONSENSUS_SHARED` | `GOVERNED_ACTIVATION` | Lifetime of a composite profile proposal |
@@ -113,11 +114,11 @@ Each property reports how well its constraints are known:
 
 ## Host configuration
 
-The properties above are the ones **Yano X plugins** own. Core app-chain
+The properties above are the ones **Yano X plugins** own. Core app ledger
 configuration — chain id, members, threshold, sequencing, block cadence,
 storage, API authentication, anchoring, effects caps, retention — belongs to the
 Yano host and is documented in
-[section 7 of the app-chain user guide](https://github.com/bloxbean/yano-x/blob/main/docs/APP_CHAIN_USER_GUIDE.md).
+[section 7 of the app ledger user guide](https://github.com/bloxbean/yano-x/blob/main/docs/APP_CHAIN_USER_GUIDE.md).
 
 Frequently needed host values:
 
@@ -136,12 +137,27 @@ Frequently needed host values:
 # Validate a project's blueprint and its resolved configuration.
 ./yano.sh appchain config validate --mode project <project>
 
-# Redacted effective configuration, and per-property explanation.
-./yano.sh appchain config explain <project> --key <property>
+# What one property means: owner, type, default, scope, and change policy.
+./yano.sh appchain config explain yano.app-chain.block.max-bytes
+./yano.sh appchain config explain --format json yano.app-chain.block.max-bytes
+
+# The values a node would resolve from its files, with secrets redacted.
+./yano.sh appchain config effective --mode resolved \
+  --config <project>/config/shared-consensus.yaml \
+  --config <project>/config/nodes/node0.yaml --show-sources
 
 # Compare a project against running nodes.
-./yano.sh appchain drift <project> --peer <node-identity-url>
+./yano.sh appchain drift <project> --peer http://127.0.0.1:8080/api/v1/ \
+  --api-key-env YANO_APPCHAIN_API_KEYS
 ```
+
+`config explain` takes one property and no project. Add
+`--metadata <descriptor|plugin.jar>` to explain a property that a plugin
+declares. It prints `UNKNOWN_PROPERTY` and the nearest known key for a
+misspelling. `config effective` reads only the files you pass with `--config`,
+in order, with later files winning; environment variables and system
+properties are left out unless you add `--include-environment` or
+`--include-system-properties`.
 
 Edit only `appchain.yaml`; generated runtime files are derived output.
 

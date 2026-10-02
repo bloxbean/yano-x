@@ -1,123 +1,165 @@
-# `balances` State Machine
+# balances
 
-`balances` is Yano's stock non-negative account ledger. A configured member
-may mint units to an application account, and each app-chain member may
-transfer units only from the account named by that member's public-key hex.
-Every current balance is threshold-finalized and individually provable against
-the app-chain state root.
+`balances` is a simple, non-negative account ledger. A configured minter
+creates units, and each member can spend only from its own account. Every
+balance can be proved against the state root.
 
-This is an application credit ledger, not Cardano ada or native assets. It does
-not create L1 transactions, hold custody, calculate fees, or provide a token
-policy.
+These are application credits, not Cardano ada or native assets. The machine
+creates no Cardano transactions, holds no custody, and charges no fees.
+
+## At a glance
+
+| | |
+|---|---|
+| Machine id | `balances` |
+| Maturity | stable |
+| Commands | `[0, account, amount]` MINT; `[1, account, amount]` TRANSFER; `amount` is a positive integer |
+| Setting | `machines.balances.minter`: a member public key as 64 hex characters, or empty |
+| State | `b/<account>` → the amount as `BigInteger.toByteArray()`; a zero balance deletes the key |
+| Proof subject | `account-balance-v1`: coordinate `account`; claims `exact`, `minimum`, `maximum` |
+| Result codes | `BALANCE_NOT_MINTER`, `BALANCE_INSUFFICIENT`; `BALANCE_EVENT_RANGE` in composites |
+| Events | `balances.minted.v1`, `balances.transferred.v1`, in composites only |
+
+## How it works
+
+<!-- illustration: balances-ledger -->
+1. **Mint to B.** The minter mints 200 to member B's account, which is named by
+   B's public key in lowercase hex. It is stored as `00c8`.
+2. **Transfer to alice.** B transfers 50 to `alice`. The transfer debits B's own
+   account; `alice` can receive but can never spend.
+3. **Drain to zero.** B transfers its last 150. B's key is deleted.
+<!-- /illustration -->
+
+The rules:
+
+- **MINT** credits `account`. If a minter is configured, a MINT from any other
+  member is rejected with `BALANCE_NOT_MINTER`. With no minter, any member can
+  mint.
+- **TRANSFER** debits the sender's own account and credits `account`. The
+  sender's account is its 32-byte member public key in lowercase hex. A
+  transfer larger than that balance is rejected with `BALANCE_INSUFFICIENT`.
+  Balances never go negative.
+- **Accounts that are not member keys are receive-only.** No member can sign as
+  `alice`, so units sent there cannot move again.
+- **Account names are exact text.** A key written in uppercase hex is a
+  different account from the member's own, so units minted there are stranded.
+- **Storage.** The value is `BigInteger.toByteArray()`: minimal two's
+  complement, so 200 is stored as `00c8` and 50 as `32`. Readers decode it as
+  an unsigned number. A balance of zero deletes the key.
+
+On a standalone chain a rejected command is a final no-op. Inside a
+declarative composite it rejects the whole cascade.
 
 ## When to use it
 
-Use `balances` for deliberately simple member-owned units:
+Use `balances` for simple member-owned units: netting or settlement inputs,
+loyalty or service credits, prepaid usage units, and demos that need a
+deterministic mint and transfer.
 
-- consortium netting or settlement inputs;
-- loyalty, quota, or service credits;
-- prepaid usage units;
-- internal receipt balances; and
-- demos that need deterministic mint/transfer/non-negative behavior.
+Write a custom state machine when accounts belong to identities other than
+member nodes, minting needs several roles or approvals, you need more than one
+denomination, transfers need holds or swaps, or settlement on Cardano is part
+of the transition.
 
-Use a custom state machine when accounts belong to identities other than node
-members, minting needs multiple roles or approvals, assets need multiple
-denominations, transfers need holds or atomic swaps, or L1 settlement is part
-of the state transition.
+## Configure
 
-## Command and state model
-
-The canonical CBOR commands are:
-
-```text
-[0, destinationAccount, positiveAmount]  MINT
-[1, destinationAccount, positiveAmount]  TRANSFER
-```
-
-`MINT` credits the destination when the command sender is the configured
-minter. `TRANSFER` debits the authenticated sender's account—its 32-byte member
-public key as lowercase hex—and credits the destination. Insufficient funds,
-unauthorized minting, and malformed commands are deterministic no-ops or are
-rejected at admission; balances never become negative.
-
-The authenticated state key is UTF-8 `b/<account>`. Its value is the positive
-unsigned big-endian amount. A zero balance is represented by the absence of the
-key.
-
-## Configuration
+There is no `balances` recipe and no `balances` chain in the stock cluster.
+Add a chain entry, with the three
+[state-identity settings](README.md#before-you-configure-one) and a fresh
+genesis id:
 
 ```yaml
 yano:
   app-chain:
-    chain-id: credits-chain
-    state-machine: balances
-    machines:
-      balances:
-        minter: <64-hex-member-public-key>
+    chains[3]:
+      chain-id: "credits-chain"
+      state-machine: balances
+      state:
+        commitment-profile: mpf-blake2b256-v1
+        format-fingerprint: 91ee14091200f1e24659112d640e877e9177779dcc81dd06117f013e9190082b
+        genesis-id: <64 lowercase hex characters, unique to this chain>
+      membership:
+        mode: governed
+      machines:
+        balances:
+          minter: <64-hex member public key>
 ```
 
-An empty `minter` allows any member to mint and is suitable only when that is
-the intended governance model. The generated `state:balances` capability can
-be selected with `./yano.sh appchain init` or App-Chain Studio.
+An empty `minter` lets every member mint; use that only when it is the
+intended governance. The minter is a consensus setting.
 
-## Java client
+## Submit through REST
 
-Use `yano-x-stdlib-contracts` when only canonical bytes and state decoders
-are needed, or the typed facade in `appchain-client` for submission and local
-proof verification:
-
-```java
-AppChainClient raw = AppChainClient.builder("http://localhost:7070/api/v1")
-        .chainId("credits-chain")
-        .apiKey(System.getenv("YANO_API_KEY"))
-        .build();
-StdlibAppChainClient balances = new StdlibAppChainClient(raw);
-
-balances.mint("customer-42", BigInteger.valueOf(100));
-balances.transfer("customer-42", BigInteger.TEN);
-
-var verified = balances.balance("customer-42");
-verified.ifPresent(value -> System.out.println(value.value()));
-```
-
-The transfer above spends the submitting member's public-key-hex account, not
-`customer-42`. The returned message id proves acceptance, not that a transition
-changed state; read the verified balance after finalization.
-
-With the Spring starter, inject `StdlibAppChainTemplate` and call `mint`,
-`transfer`, or `balance` with the same contract semantics.
-
-## REST/curl
-
-The generic REST endpoint accepts canonical command bytes. This example mints
-10 units to `alice`; `830065616c6963650a` is CBOR `[0,"alice",10]`:
+The helper encodes commands. This mints 10 units to `alice`; `830065616c6963650a`
+is CBOR `[0, "alice", 10]`:
 
 ```bash
+TOOL=docs/appchain/tutorials/tools/stdlib_command.py
+MINT_HEX=$(python3 "$TOOL" balances mint alice 10)   # 830065616c6963650a
+
 curl -sS -X POST \
-  http://localhost:7070/api/v1/app-chain/chains/credits-chain/messages \
+  http://127.0.0.1:7070/api/v1/app-chain/chains/credits-chain/messages \
   -H 'Content-Type: application/json' \
-  -H "X-API-Key: $YANO_API_KEY" \
-  -d '{"topic":"balances.command.v1","bodyHex":"830065616c6963650a"}'
+  -d "{\"topic\":\"balances.command.v1\",\"bodyHex\":\"$MINT_HEX\"}" | jq .
 ```
 
-Query the proof for state key `b/alice` (hex `622f616c696365`):
+Send it through the minter's node. Add `-H "X-API-Key: ..."` when API
+authentication is enabled.
+
+Prove the balance of `alice`; the state key `b/alice` is `622f616c696365` in hex:
 
 ```bash
 curl -sS \
-  http://localhost:7070/api/v1/app-chain/chains/credits-chain/state/proof/622f616c696365 \
-  -H "X-API-Key: $YANO_API_KEY"
+  http://127.0.0.1:7070/api/v1/app-chain/chains/credits-chain/state/proof/622f616c696365 \
+  | jq '{committedHeight, stateRoot, presence, valueHex}'
 ```
 
-Verify the MPF proof locally and, for audit-grade verification, compare its
-root with an independently obtained anchor root.
+For this mint, `valueHex` is `0a`.
 
-## Admission-rule views and facts
+## Submit from Java
+
+A member transfers from its own account, so it needs a balance first. This
+example mints to the submitting node's account, then transfers from it:
+
+```java
+AppChainClient raw = AppChainClient.builder("http://127.0.0.1:7070/api/v1")
+        .chainId("credits-chain")
+        .build();
+StdlibAppChainClient balances = new StdlibAppChainClient(raw);
+
+// The member public key of the node at port 7070, in lowercase hex. It is the
+// `sender` of any message finalized through that node.
+String nodeAccount = "<64-hex member public key>";
+
+balances.mint(nodeAccount, BigInteger.valueOf(100)); // needs this node to be the minter
+// ...wait until the mint is final...
+balances.transfer("customer-42", BigInteger.TEN);    // debits nodeAccount
+
+balances.balance("customer-42").ifPresent(state -> System.out.println(state.value()));
+```
+
+`GET /api/v1/app-chain/chains/credits-chain/messages/{messageId}` returns a
+finalized message with its `sender`. A message id proves only that the command
+was accepted; read the balance after the command is final. With the Spring
+starter, `StdlibAppChainTemplate` offers `mint`, `transfer` and `balance` with
+the same semantics.
+
+## Advanced
+
+### Composites
+
+The composite kernel reports amounts as signed 64-bit integers in its events.
+A command whose amount or resulting balances do not fit is rejected with
+`BALANCE_EVENT_RANGE`; it is never rounded. Standalone `balances` keeps
+arbitrary-precision balances.
+
+### Admission-rule views and facts
 
 In a declarative composite, admission rules can read this machine's state and
 post-state (ADR-031.4, see [admission rules](../bindings/07-admission-rules.md)):
 
-- **Value view** (namespace `""`, key: the account id text; a sender's own account
-  is `{fn: hex, args: [{context: sender}]}`): `balance`. A zero balance
+- **Value view** (namespace `""`, key: the account id text; a sender's own
+  account is `{fn: hex, args: [{context: sender}]}`): `balance`. A zero balance
   deletes the account's key, so an absent read means a zero balance.
 - **Post-state facts**, after an approved command and equal to its event:
   `balanceAfter` for a mint; `fromBalanceAfter` and `toBalanceAfter` for a
@@ -126,7 +168,12 @@ post-state (ADR-031.4, see [admission rules](../bindings/07-admission-rules.md))
 
 ## Customization boundary
 
-Account naming, authorization, single-unit arithmetic, and deletion of zero
-balances are consensus semantics. Configuration may select the minter but
-cannot redefine those rules. Write a versioned custom state-machine plugin for
-additional asset types, role-aware ownership, fees, locks, or settlement.
+Account naming, authorization, arithmetic and the deletion of zero balances are
+consensus rules. Configuration selects only the minter. Write a versioned
+plugin for more asset types, role-aware ownership, fees, locks or settlement.
+
+## Related documentation
+
+- [Choose a stock state machine](../tutorials/03-stock-state-machines.md)
+- [State machines](README.md)
+- [Java app ledger client](../../../sdk/client/README.md)

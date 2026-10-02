@@ -14,29 +14,33 @@ depend on this product module.
 
 ## Selecting a profile
 
-The `composite` provider supports `evidence-v1-gated` (recommended) and the
-direct-command compatibility preset `evidence-v1`. The `role-evidence`
-provider uses the committed `evidence-role-v1` profile.
+The `composite` provider selects a preset with `machines.composite.preset`:
+`evidence-v1-gated` (recommended, the default) or the direct-command
+compatibility preset `evidence-v1`. The `role-evidence` provider always uses
+the committed `evidence-role-v1` profile and does not read
+`machines.composite.preset`.
 
 ```yaml
 yano:
   app-chain:
-    effects:
-      enabled: true
-      max-per-block: 128
-    chains:
-      - id: evidence-chain
-        state-machine: role-evidence
-        machines:
-          composite:
-            preset: role-evidence-v1
-            profile-mode: governed
-            evidence-capacity-per-block: 8
-          kv-registry:
-            value-format: raw
-        membership:
-          mode: governed
+    chains[0]:
+      chain-id: "evidence-chain"
+      state-machine: role-evidence
+      membership:
+        mode: governed
+      effects:
+        enabled: true
+        max-per-block: 128
+      machines:
+        composite:
+          profile-mode: governed
+          evidence-capacity-per-block: 8
+        kv-registry:
+          value-format: raw
 ```
+
+`appchain render` adds the chain's `state.commitment-profile`,
+`state.format-fingerprint`, and `state.genesis-id`; do not hand-edit them.
 
 The role profile commits the generic registry, actor, approvals and document
 components together with the evidence registry and evidence-specific release

@@ -128,8 +128,7 @@ runtime_acceptance() {
 stock_outcomes() {
   YANO_STOCK_ACCEPTANCE_HTTP_BASE="$((HTTP_BASE + 200))" \
     YANO_STOCK_ACCEPTANCE_SERVER_BASE="$((SERVER_BASE + 200))" \
-    bash "$REPO/tooling/devtools/src/test/scripts/final-distribution-stock-outcomes.sh" \
-    "$ZIP" "$REPO/config/application-appchain.yml"
+    bash "$REPO/tooling/devtools/src/test/scripts/final-distribution-stock-outcomes.sh" "$ZIP"
 }
 
 showcase() {

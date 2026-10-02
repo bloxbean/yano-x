@@ -1915,15 +1915,18 @@ A **gate** decides when an emitted effect becomes eligible to execute:
 
 - **`app-final`** — as soon as the block is committed (the chain is
   append-only after finality, so the emission is already irrevocable).
-- **`l1-anchored`** — once the effect's height is covered by an L1-confirmed,
-  stability-deep anchor (the emission is provable against Cardano before you
-  act). A verifiability delay, not a rollback safeguard.
+- **`l1-anchored`** — once the effect's height is covered by an anchor
+  confirmed in an L1 block at least `l1.stability-depth` blocks below this
+  node's L1 tip (the emission is provable against Cardano before you act; an
+  anchor that L1 rolls back stops counting).
 - **`zk-settled`** — once covered by an accepted validity proof (reserved for
   the ZK settlement roadmap, §17; waits until expiry on non-ZK chains).
 
-`l1-anchored` needs anchoring enabled (§5) and `l1.stability-depth` set.
-`effects.gate.anchor-margin-blocks` adds a safety margin above the anchor
-high-water-mark.
+`l1-anchored` needs anchoring enabled (§5) and `l1.stability-depth` above 0;
+`effects.default-gate=l1-anchored` without a stability depth fails at startup.
+`effects.gate.anchor-margin-blocks` (node-local) holds effects that many blocks
+further below the stable anchored height. In metadata mode only the anchor
+leader observes anchors, so run `l1-anchored` executors there.
 
 **Expiry is mandatory for CHAIN effects** — a result arriving after the result
 window is a deterministic no-op, so every CHAIN effect must provably close. If

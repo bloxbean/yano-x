@@ -83,6 +83,13 @@ matching descriptor, fields become free text and checks are limited.
   detach rules and to state parameter values. An omitted value uses the rule's
   default. Renaming a rule updates its attachments; renaming a binding updates
   `binding` parameters that name it. See [Admission rules](07-admission-rules.md).
+- **Reads and write views.** A rule form's **Reads** section declares up to four
+  exact-key reads: a name, the component, one of the namespaces its catalog
+  value views offer, and a key. *Insert a readable field* then also lists
+  `reads.<name>.present` and the view's fields. When every component the rule is
+  attached to declares a write view, it lists the write-element fields too, for
+  `writes.all(w, …)` and `writes.exists(w, …)`. A rule with reads runs at block
+  time only. See [Typed views](08-typed-views.md).
 - **Limits and activation** shows every committed limit. Empty means omitted:
   the default applies and is not written into your document.
 
