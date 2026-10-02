@@ -95,7 +95,7 @@ export default {
         'threshold > members - maxByzantineMembers', 'return members - threshold;',
         'consensus threshold must be within membership', 'consensus quorums do not intersect in an honest member',
         'consensus threshold cannot remain live under the configured fault bound'] },
-    { repo: 'yano', path: 'runtime/src/main/java/org/yanoproject/runtime/appchain/AppChainEngine.java',
+    { repo: 'yano', path: 'runtime/src/main/java/org/yanoproject/runtime/appchain/MemberGroup.java',
       anchors: ['"consensus.max-byzantine-members", "0"'] },
     { repo: 'yano', path: 'runtime/src/main/java/org/yanoproject/runtime/appchain/AppChainSubsystem.java',
       anchors: ['Validate the fresh-chain fault assumptions before persisting any'] },

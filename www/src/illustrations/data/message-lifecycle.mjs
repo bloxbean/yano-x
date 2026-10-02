@@ -228,8 +228,8 @@ export default {
       summary: 'A member that computes a different root refuses to vote.',
       steps: [submit, admit, gossip, propose, {
         title: 'A different root',
-        text: 'Suppose Member C runs code that is not deterministic. For example, it reads the system clock. '
-          + 'C computes a different state root, so it does not vote: a member never accepts a root it did not '
+        text: 'Suppose Member C runs a different build of the state machine plugin than A and B, so the same '
+          + 'messages give it a different state root. C does not vote: a member never accepts a root it did not '
           + 'compute itself.',
         viewText: { app: 'Still pending.' },
         checks: FOLLOWER_CHECKS.map((label, i, list) => ({ label, ok: i < list.length - 1 })),

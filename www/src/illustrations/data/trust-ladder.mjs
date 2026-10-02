@@ -68,11 +68,11 @@ export default {
       result: {
         title: '`CALLER_PINNED_ANCHOR`',
         text: 'The proof is bound to an anchor datum you supplied: its height, root, block hash, genesis, and member '
-          + 'set. The verifier did not read Cardano itself.',
+          + 'set, without the verifier reading Cardano itself. Yano defines this level, but no Yano X command '
+          + 'reports it today: the tools that take an anchor datum report the independent level below.',
         facts: [
           ['Establishes', 'the record matches the anchor data you supplied'],
           ['Does not establish', 'that the datum came from Cardano'],
-          ['For example', '`yano-explorer verify --anchor-datum-hex`'],
         ],
       },
     },
@@ -84,7 +84,7 @@ export default {
         facts: [
           ['Establishes', 'the record is in the state the anchored root commits to'],
           ['Does not establish', 'that the data is still available: availability is always reported separately'],
-          ['For example', 'Attest and Trust Registry `--anchor-datum-hex` with a datum you read from Cardano'],
+          ['For example', 'Attest, Trust Registry, and `yano-explorer verify` with `--anchor-datum-hex`, using a datum you read from Cardano'],
         ],
       },
     },
@@ -103,8 +103,11 @@ export default {
         'ProofLabVocabulary.TrustLevel.INDEPENDENTLY_VERIFIED_L1_ANCHOR;'] },
     { repo: 'yano-x', path: 'docs/appchain/EXPLORER.md',
       anchors: ['| `CALLER_PINNED_ROOT` (exit 5) | `verify --members` |',
-        '| `CALLER_PINNED_ANCHOR` (exit 0) | `verify --anchor-datum-hex` |',
-        'binds the bundle to the anchored height, root, block hash, genesis, and member set'] },
+        '`INDEPENDENTLY_VERIFIED_L1_ANCHOR`'] },
+    { repo: 'yano-x', path: 'products/explorer/cli/src/main/java/org/yanoproject/x/explorer/cli/ExplorerCli.java',
+      anchors: ['AttestTrust.IndependentAnchor.fromDatumHex(options.get("anchor-datum-hex")'] },
+    { repo: 'yano-x', path: 'products/attest/client/src/main/java/org/yanoproject/x/attest/client/AttestTrust.java',
+      anchors: ['return ProofLabVocabulary.TrustLevel.INDEPENDENTLY_VERIFIED_L1_ANCHOR;'] },
     { repo: 'yano-x', path: 'docs/appchain/ATTEST.md',
       anchors: ['| `--members keys.json` | `CALLER_PINNED_ROOT` |',
         '| `--anchor-datum-hex <cbor>` | `INDEPENDENTLY_VERIFIED_L1_ANCHOR` | The evidence segment matches the datum you read from Cardano. |'] },

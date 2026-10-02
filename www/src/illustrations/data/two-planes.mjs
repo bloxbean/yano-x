@@ -146,7 +146,7 @@ export default {
   sources: [
     { repo: 'yano-x', path: 'docs/site/concepts-effects.md',
       anchors: ['A state machine never performs the action. It emits a record describing it.',
-        'committed transitively through a count-bound `effectsRoot`', '~fx/result (member-signed, sequenced)',
+        'committed transitively through a count-bound `effectsRoot`', 'Executed `CHAIN` outcomes re-enter as member-signed `~fx/result` messages',
         '**exactly-once incorporation, at-least-once execution**', 'must be idempotent',
         'yano.app-chain.effects.default-gate: app-final'] },
     { repo: 'yano', path: 'docs/APP_CHAIN_CONSENSUS_GUIDE.md',
