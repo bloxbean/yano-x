@@ -76,9 +76,10 @@ export default {
       'The ingress member’s pending pool is full, so the message was not kept or relayed.',
       'Nothing: the message was not accepted.', 'Yes, after the backpressure clears.'),
     unavailable: result('Admission is unavailable',
-      'The application’s admission check could not run, or the chain is stopped or paused. This is not a business '
-        + 'outcome.',
-      'The node’s logs and health.', 'Only after the node is healthy again.'),
+      'The application’s admission check could not run, the chain is stopped or paused, or this node is not yet an '
+        + 'active member (a joiner whose membership epoch is scheduled). This is not a business outcome.',
+      'The node’s logs and health, and `memberActiveForNextBlock` in its status.',
+      'Once the node is healthy again, or once it is an active member.'),
     'unknown-source': result('The topic is not a component’s topic',
       'Every component listens on its own ingress topic, `<id>.command.v1` unless the document sets `topic`. '
         + 'A message on any other topic is refused.',
@@ -177,7 +178,7 @@ export default {
       anchors: ['In-memory (lost on restart, by design): the pending pool', 'not expired'] },
     { repo: 'yano', path: 'docs/appchain/submission.md',
       anchors: ['**429**', 'The local pending pool is full; the message was not relayed',
-        'Application admission is unavailable, or the chain is stopped/paused'] },
+        'Application admission is unavailable, the chain is stopped/paused, or this node is not a member at the next height'] },
     { repo: 'yano-x', path: 'docs/appchain/DECLARATIVE_BINDINGS_CLI.md',
       anchors: ['Component ingress topics default to `<id>.command.v1`'] },
   ],
