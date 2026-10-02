@@ -188,7 +188,6 @@ h1 em {
   border-radius:18px;
   padding:26px;
   box-shadow:0 24px 80px #12694f1f;
-  transform:perspective(1200px) rotateY(-4deg);
   min-width:0
 }
 .demo-heading {
@@ -648,8 +647,7 @@ footer p {
     gap:40px
   }
   .chain-demo {
-    padding:18px;
-    transform:none
+    padding:18px
   }
   .demo-heading {
     font-size:9px
