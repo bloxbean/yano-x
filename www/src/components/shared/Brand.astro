@@ -4,13 +4,25 @@ interface Props { href?: string; caption?: boolean; }
 const { href = '/', caption = true } = Astro.props;
 ---
 <a class="yano-brand" href={href} aria-label="Yano X home">
-  <img src="/logo.svg" width="38" height="38" alt="" />
+  <!-- The mark from public/logo.svg, inlined so its colours follow the theme. -->
+  <svg class="mark" viewBox="-0.1 4.1 96 96" width="38" height="38" aria-hidden="true" focusable="false">
+    <polygon class="wing" points="79.25,14.11 11.45,46.01 37.37,55.98" />
+    <polygon class="wing" points="85.89,20.75 53.99,88.55 44.02,62.63" />
+    <polygon class="fin" points="24.44,73.77 3.26,77.50 4.17,82.62 25.34,78.89" />
+    <polygon class="fin" points="21.11,74.66 17.38,95.83 22.50,96.74 26.23,75.56" />
+    <polygon class="fin" points="92.54,7.46 89.05,14.61 25.24,78.42 21.58,74.76 85.39,10.95" />
+  </svg>
   <span class="wordmark" translate="no">yano<span class="extension">x</span></span>
   {caption && <><span class="slash" aria-hidden="true">/</span><span class="caption">BUILD SHARED TRUST</span></>}
 </a>
 <style>
   .yano-brand { display: flex; min-width: 0; align-items: center; gap: 10px; color: inherit; text-decoration: none; white-space: nowrap; }
-  img { width: 38px; height: 38px; flex: 0 0 auto; object-fit: contain; }
+  .mark { width: 38px; height: 38px; flex: 0 0 auto; }
+  /* White wings and mint fins on dark surfaces (the landing page and the dark
+     docs theme); ink wings and deep-mint fins on the light docs theme. */
+  .wing { fill: var(--yano-mark-wing, #f2f5ef); }
+  .fin { fill: var(--yano-mark-fin, #9af0d4); }
+  :global(:root[data-theme='light']) .mark { --yano-mark-wing: #17242c; --yano-mark-fin: #12694f; }
   .wordmark { font-family: 'Space Grotesk', system-ui, sans-serif; font-size: 2rem; font-weight: 700; line-height: 1; letter-spacing: -2px; }
   .extension { display: inline-block; margin-left: 5px; color: var(--sl-color-accent-high, #9af0d4); }
   .slash { padding-inline: 8px; color: var(--sl-color-gray-4, #536b76); font: 400 2rem/1 'Space Grotesk', system-ui, sans-serif; }

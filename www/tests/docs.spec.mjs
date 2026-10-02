@@ -53,8 +53,26 @@ test('branding and illustration tabs fit mobile and docs themes', async ({ page 
   await expect(page.locator('link[rel~="icon"]')).toHaveAttribute('href', '/favicon.svg');
   for (const theme of ['light', 'dark']) {
     await page.evaluate(theme => document.documentElement.dataset.theme = theme, theme);
-    await expect(page.locator('header .yano-brand img')).toBeVisible();
-    expect(await page.locator('header .yano-brand img').evaluate(img => img.complete && img.naturalWidth > 0)).toBe(true);
+    const mark = page.locator('header .yano-brand svg.mark');
+    await expect(mark).toBeVisible();
+    // The wings must stand out from the header in both themes (WCAG 3:1 for graphics).
+    const contrast = await mark.evaluate(svg => {
+      const rgb = value => value.match(/\d+(\.\d+)?/g).slice(0, 3).map(Number);
+      const luminance = ([r, g, b]) => [r, g, b].map(c => {
+        const v = c / 255;
+        return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+      }).reduce((sum, c, i) => sum + c * [0.2126, 0.7152, 0.0722][i], 0);
+      let node = svg.closest('header');
+      let background = getComputedStyle(node).backgroundColor;
+      while (/rgba\(0, 0, 0, 0\)|transparent/.test(background) && node.parentElement) {
+        node = node.parentElement;
+        background = getComputedStyle(node).backgroundColor;
+      }
+      const wing = luminance(rgb(getComputedStyle(svg.querySelector('.wing')).fill));
+      const surface = luminance(rgb(background));
+      return (Math.max(wing, surface) + 0.05) / (Math.min(wing, surface) + 0.05);
+    });
+    expect(contrast).toBeGreaterThanOrEqual(3);
   }
 });
 
