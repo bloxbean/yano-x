@@ -141,8 +141,16 @@ authoritative answer for your version — the [recipe catalog](/recipes/) and
 [capability catalog](/reference/capabilities/) on this site are generated from
 the same source files, but the binary in your hands always wins.
 
-This archive runs a node with `./yano.sh start:devnet,appchain`.
-The [local showcase quickstart](/start-here/quickstart/) runs from
+To run one local member on a private devnet, use the bundled cluster launcher:
+
+```bash
+./yano.sh appchain cluster start 1
+./yano.sh appchain cluster status
+```
+
+`cluster stop` keeps the data and `cluster clean` deletes it. The
+[first tutorial](/tutorials/01-first-app-chain/) runs three members the same
+way, and the [local showcase quickstart](/start-here/quickstart/) runs from
 `examples/showcase/` inside the same archive.
 
 ## The default plugin selection
