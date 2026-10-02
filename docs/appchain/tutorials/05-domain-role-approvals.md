@@ -3,84 +3,51 @@
 [Open generic role approval in App-Chain Studio](../../../tooling/studio/src/main/web/index.html#recipe=role-approval&network=devnet&members=3&finality=two-thirds&sequencing=fixed&runtime=jvm&deployment=host&name=role-approval&chainId=role-approval)
 
 - **Level:** application developer; advanced for identity governance
-- **Time:** about 30 minutes
-- **Outcome:** authorize an application payload hash with governed business
-  actors and organization-distinct roles, then see how the evidence product
-  consumes the same generic primitives.
+- **Time:** about 30 minutes, plus the first image build
+- **Outcome:** run a release that business actors from different
+  organizations approve under a governed policy, watch deliberate mistakes
+  become final no-ops, and rotate and revoke an actor key.
 
-Both paths separate:
+Role-aware approval separates two identities:
 
-- **member identity:** which consortium node relayed an envelope; and
-- **actor identity:** which application actor signed the exact business
-  statement.
+- **member identity:** which member node relayed an envelope; and
+- **actor identity:** which business actor signed the exact statement inside it.
 
-## Track A — Generic `role-approvals`
+This tutorial runs the evidence demo's `role-evidence` profile, which builds on
+the same actor registry and approval rules as the generic
+[`role-approvals`](../state-machines/role-approvals.md) machine.
 
-Create a release-pinned project without selecting the evidence product:
+## How the policy decides
 
-```bash
-./yano.sh appchain init --non-interactive \
-  --recipe role-approval --network devnet --members 3 \
-  --runtime jvm --deployment host \
-  --name role-approval --chain-id role-approval \
-  --output role-approval
+The demo's policy, `evidence-release`, needs a `manufacturer` to propose, two
+`auditor` actors from distinct organizations, and one `regulator`. The demo
+sends these statements for one release, in this order:
 
-./yano.sh appchain config validate --mode project role-approval
-```
+<!-- illustration: role-policy -->
+1. **Manufacturer proposes.** `manufacturer-a` opens the proposal.
+2. **Wrong role.** `manufacturer-a` tries to approve as an auditor:
+   `ROLE_MISMATCH`, a final no-op.
+3. **Wrong payload.** `auditor-a1` signs another hash: `CONFLICT`, a final
+   no-op.
+4. **First auditor.** `auditor-a1` from `audit-org-a` approves.
+5. **Same organization.** `auditor-a2`, also from `audit-org-a`, approves:
+   `DISTINCTNESS_DUPLICATE`, a final no-op.
+6. **Second auditor.** `auditor-b` from `audit-org-b` approves; the regulator
+   clause is still open.
+7. **Regulator approves.** `regulator-a` approves, and the proposal is APPROVED
+   with three accepted decisions.
+<!-- /illustration -->
 
-Because public member identities have not been supplied, the first validation
-correctly reports the bootstrap acknowledgement. Add the three reviewed member
-keys to `role-approval/appchain.yaml`, render, and run `doctor` against the
-distribution before starting nodes.
+The three mistakes are final, like every other message, but they change
+nothing. Only eligible, signed decisions count toward the policy.
 
-Review `role-approval/bootstrap/role-approvals-plan.yaml`. It defines a safe,
-non-secret sequence for governing organizations, actors and a policy. Replace
-the sample role names (`proposer`, `reviewer`) with application roles when
-needed; roles are strings, not evidence-specific enums. Generate public keys
-and proof-of-possession with `./yano.sh appchain role`, then submit governed
-records on `actors.command.v1`.
+## 1. Start the role profile
 
-After activation, hash the exact application command or document bytes and
-submit an actor-signed proposal/decision on `role-approvals.command.v1`:
-
-```bash
-COMMAND_HEX=$(./yano.sh appchain role sign \
-  --action approve --chain role-approval --proposal order-a-1001 \
-  --policy order-release --policy-revision 1 \
-  --payload-domain com.example.order.v1 --payload-hash <64-hex> \
-  --deadline-height 1000 --actor reviewer-a --actor-revision 1 \
-  --key reviewer-key-v1 --clause reviewers \
-  --seed-file /owner-only/reviewer.seed)
-```
-
-Any member may relay those bytes; the embedded actor signature carries the
-business identity. Query the terminal proposal and its proof-oriented fields:
+You need JDK 25, Docker with Compose v2, `curl`, `jq`, `openssl` and Python 3.
+From the top-level directory of the extracted release:
 
 ```bash
-curl -sS \
-  -H "X-API-Key: $YANO_APPCHAIN_API_KEY" \
-  "http://127.0.0.1:7070/api/v1/plugins/org.yanoproject.x.role-workflow/proposals/order-a-1001?chain=role-approval" | jq .
-```
-
-The generic machine proves the approved payload domain/hash and emits no
-effect. Your application may act idempotently after verifying that result, or
-a reviewed composite plugin may consume it atomically. The complete REST,
-Java, proof, bootstrap and recovery walkthrough is in the dedicated
-[`role-approvals` reference](../state-machines/role-approvals.md).
-
-## Track B — Evidence-specific demonstration
-
-[Open the evidence outcome in App-Chain Studio](../../../tooling/studio/src/main/web/index.html#recipe=evidence-ledger&network=devnet&members=3&finality=two-thirds&sequencing=fixed&runtime=jvm&deployment=docker-compose&name=role-evidence&chainId=role-evidence)
-
-The following runnable demo uses the stock `role-evidence` profile. It fixes
-manufacturer, auditor and regulator roles for its evidence scenario and adds
-the evidence transition and optional publication effects to the generic actor
-and approval foundations.
-
-### B1. Start a fresh role profile
-
-```bash
-cd products/evidence/harness
+cd examples/evidence
 
 ./demo.sh up \
   --instance tutorial-roles \
@@ -88,11 +55,18 @@ cd products/evidence/harness
   --continuation direct
 ```
 
-The profile commits its organization/actor registry, policy, component order,
-routes, effect workflow, administrator threshold, and deterministic limits.
-It is not a local YAML toggle for an existing chain.
+`up` prepares the instance first: it generates its secrets and builds the Yano
+and runner images, which takes a while the first time. `./demo.sh prepare` runs
+only that preparation, if you want to do it ahead of time. Then `up` starts
+three members and the publication services, funds and bootstraps a devnet
+anchor, and runs a read-only readiness probe.
 
-### B2. Publish actor-authorized evidence
+The profile commits its organization and actor registry, policy, component
+order, routes, effect workflow, administrator threshold and limits at genesis.
+It is not a setting you can switch on for an existing chain. Pass the same
+`--machine role --continuation direct` to every command for this instance.
+
+## 2. Publish actor-authorized evidence
 
 ```bash
 ./demo.sh publish \
@@ -103,18 +77,10 @@ It is not a local YAML toggle for an existing chain.
   --sample-file samples/inspection-certificate.json
 ```
 
-The stock policy requires a manufacturer proposal, two independent auditor
-organizations, and a regulator. The runner also submits negative controls:
+The runner submits the statements shown above, including the three negative
+controls, then releases the evidence once the proposal is APPROVED.
 
-- an actor with the wrong role;
-- an approval bound to the wrong payload; and
-- two actors from the same organization attempting to satisfy an
-  organization-distinct clause.
-
-Those envelopes can finalize, but they are deterministic no-ops. Only eligible
-signed decisions contribute to the policy result.
-
-### B3. Inspect and verify
+## 3. Inspect and verify
 
 ```bash
 ./demo.sh verify \
@@ -124,13 +90,13 @@ signed decisions contribute to the policy result.
   --evidence-id regulated-product-001
 ```
 
-Open <http://127.0.0.1:7080/>. The report distinguishes relay member, actor,
-organization, role, policy revision, clause, and signed decision. Current
-actor/policy projections include both the immutable revision proof and the
-same-root current-pointer proof, so “this revision exists” cannot be confused
-with “this is the current governed revision.”
+Open <http://127.0.0.1:7080/>. The report separates the relay member, actor,
+organization, role, policy revision, clause and signed decision. Current actor
+and policy projections include both the revision proof and the same-root
+current-pointer proof, so “this revision exists” is never confused with “this
+is the current revision”.
 
-### B4. Exercise rotation and revocation
+## 4. Rotate and revoke an actor
 
 ```bash
 ./demo.sh role-lifecycle \
@@ -139,20 +105,20 @@ with “this is the current governed revision.”
   --continuation direct
 ```
 
-The idempotent lifecycle uses a dedicated recovery actor and demonstrates:
+The exercise uses a dedicated recovery actor and shows:
 
 1. governed onboarding with proof-of-possession;
 2. signing-key rotation;
-3. rejection of the old actor revision/key;
-4. acceptance of the new revision/key;
+3. the old actor revision and key are refused;
+4. the new revision and key are accepted;
 5. revocation;
-6. rejection after revocation; and
-7. historical revision and decision proofs.
+6. refusal after revocation; and
+7. proofs of the historical revisions and decisions.
 
-This is not app ledger membership rotation. Business credentials and validator
-membership are intentionally governed through separate mechanisms.
+This is not member rotation. Business credentials and member nodes are
+governed separately.
 
-### B5. Stop and retain
+## 5. Stop and retain
 
 ```bash
 ./demo.sh stop \
@@ -161,41 +127,51 @@ membership are intentionally governed through separate mechanisms.
   --continuation direct
 ```
 
+`stop` keeps the instance's data and secrets.
+
+## Use the generic machine
+
+The generic [`role-approvals`](../state-machines/role-approvals.md) machine
+approves any payload hash and emits nothing. Its reference page shows how to
+create a project with the `role-approval` recipe, sign statements with
+`./yano.sh appchain role sign`, submit them on `role-approvals.command.v1`,
+and query and prove the result. It also lists the lifecycle, the order of
+checks and every outcome code.
+
+Its organizations, actors and policies are created through member governance,
+as the reference page describes. The release encodes the governance commands
+(`appchain role govern-propose`, `govern-approve`, `govern-activate`) but not
+the records they carry, so your tooling builds those with the role-workflow
+contracts.
+
 ## Reuse levels
 
-### Configuration only
-
-Use a stock profile when its action and terminal transition already match.
-Governed data can define actors, organizations, roles, policies, counts,
-organization distinctness, deadlines, and connector targets.
-
-### Small composite plugin
-
-Use existing registry/approval/evidence/payment components in a new explicit
-order or connect approval to a different terminal action. Component order and
-cross-component transitions affect consensus, so they remain reviewed Java
-composition rather than dynamic YAML wiring.
-
-### Custom state-machine plugin
-
-Use this only for new state or business rules, such as insurance claim
-calculation or supply-chain ownership transfer.
+- **Configuration only.** Use a stock profile when its action and terminal
+  transition already match. Governed data defines actors, organizations,
+  roles, policies, counts, organization distinctness, deadlines and connector
+  targets.
+- **Small composite plugin.** Use the existing registry, approval, evidence or
+  payment components in a new order, or connect approval to a different
+  terminal action. Order and cross-component transitions affect consensus, so
+  they stay reviewed Java composition.
+- **Custom state-machine plugin.** Only for new state or business rules.
 
 ## Production boundaries
 
-- The demo uses locally held deterministic actor seeds. Production signing
-  belongs in KMS/HSM/Vault or an actor-owned signing service.
+- The demo uses deterministic actor seeds held locally. Production signing
+  belongs in a KMS, HSM, vault or an actor-owned signing service.
 - Yano proves that registered keys authorized exact bytes under a governed
-  policy. Legal identity and real-world truth remain onboarding/audit duties.
-- The v1 actor record retains at most 16 key epochs. Plan successor identity or
-  governed contract evolution before reaching that limit.
-- Administrator authority is profile-committed; changing it uses governed
-  profile evolution, not an ordinary actor mutation.
+  policy. Legal identity and real-world truth remain onboarding and audit
+  duties.
+- An actor record keeps at most 16 key epochs. Plan a successor identity before
+  you reach that limit.
+- Administrator authority is part of the profile; changing it is governed
+  profile evolution, not an ordinary actor change.
 
 ## Go deeper
 
-- Read the complete [domain-role guide](../../APP_CHAIN_DOMAIN_ROLES.md).
-- Verify signed actor commands independently with the published golden vectors.
-- Inspect the plugin domain API and exact MPF proof keys.
-- Run the isolated three-member restart/catch-up gate documented in the role
-  guide.
+- The [`role-approvals` reference](../state-machines/role-approvals.md), with
+  an interactive walkthrough of every outcome code.
+- The complete [domain-role guide](../../APP_CHAIN_DOMAIN_ROLES.md).
+- The [evidence demo README](../../../products/evidence/harness/README.md), for
+  other profiles, ports and cleanup.
