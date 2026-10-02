@@ -4,11 +4,14 @@ import starlight from '@astrojs/starlight';
 import { unified } from '@astrojs/markdown-remark';
 import llmsIntegration from './scripts/llms-integration.mjs';
 import remarkMermaid from './scripts/remark-mermaid.mjs';
+import remarkIllustrations, { illustrationsDigest } from './scripts/remark-illustrations.mjs';
 
 export default defineConfig({
   site: 'https://yano-x.io',
   markdown: {
-    processor: unified({ remarkPlugins: [remarkMermaid] }),
+    processor: unified({
+      remarkPlugins: [remarkMermaid, [remarkIllustrations, { digest: illustrationsDigest() }]],
+    }),
   },
   redirects: {
     '/start-here/what-is-an-app-chain/': '/start-here/what-is-an-app-ledger/',
@@ -35,7 +38,7 @@ export default defineConfig({
         Head: './src/components/overrides/Head.astro',
         SiteTitle: './src/components/overrides/SiteTitle.astro',
       },
-      customCss: ['./src/styles/starlight.css'],
+      customCss: ['./src/styles/starlight.css', './src/styles/illustrations.css'],
       lastUpdated: true,
       sidebar: [
         {

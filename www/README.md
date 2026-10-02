@@ -50,6 +50,8 @@ markdown, not the copy under `src/content/docs/`.
 | `scripts/generate-llms-txt.mjs` | Builds `/llms.txt`, `/llms-full.txt`, and the raw `/ai/*.md` copies. |
 | `scripts/llms-integration.mjs` | Astro integration: writes the artifacts at build time, serves them in dev. |
 | `scripts/remark-mermaid.mjs` | Converts ` ```mermaid ` fences into client-rendered diagrams. |
+| `scripts/remark-illustrations.mjs` | Replaces `<!-- illustration: <id> -->` markers with rendered illustrations. |
+| `scripts/illustrations.test.mjs` | Checks illustration structure, label fit, page markers, and source anchors. |
 | `scripts/check-links.mjs` | Post-build gate: every internal link and anchor in `dist/` must resolve. |
 
 ### Where the generated data comes from
@@ -102,11 +104,39 @@ To import another repository document instead, add it to `IMPORTED_DOCS` in
 its output path from the route, and `generate-llms-txt.mjs` derives its
 `Tutorials` and `State machines` sections from the same map.
 
-## Diagrams
+## Illustrations and diagrams
 
-Use a fenced ` ```mermaid ` block. It is converted to `<pre class="mermaid">` at
+Prefer an illustration to a Mermaid diagram. Illustrations are block diagrams
+and step-throughs rendered at build time from data modules in
+`src/illustrations/data/`, styled for both themes, and enhanced with controls
+in the browser. See ADR-038's October 2026 section for the design.
+
+To add one:
+
+1. Write `src/illustrations/data/<id>.mjs` with `type: 'diagram'` (blocks,
+   zones, edges, and a `wide` plus an optional `narrow` layout) or
+   `type: 'steps'` (lanes, scenarios with steps, optional views). Keep text
+   short; `**bold**` and `` `code` `` are the only inline markup.
+2. Add `sources`: the repository files the illustration depicts, each with
+   `anchors`, exact identifiers or phrases that must still appear there. Use
+   real contract names (operations, result codes, events) as anchors.
+3. Register it in `src/illustrations/registry.mjs`.
+4. Place `<!-- illustration: <id> -->` in the page. For a step-through in a
+   `docs/` page, wrap a numbered list whose `**Title.**` items match the step
+   titles and close it with `<!-- /illustration -->`; GitHub and the JVM
+   distribution show that list, the site shows the illustration.
+5. Run `npm run test:generators`, then `npm run build` and
+   `npm run check:browser`.
+
+Label every illustration as example data unless it only shows structure, and
+never show a rule, field, or code that the cited source does not contain.
+
+### Mermaid
+
+A fenced ` ```mermaid ` block is converted to `<pre class="mermaid">` at
 the remark stage and rendered client-side, with the mermaid bundle loaded
 lazily only on pages that have a diagram, and re-rendered on a theme switch.
+Existing Mermaid diagrams are being replaced by block diagrams.
 
 ## Deployment
 

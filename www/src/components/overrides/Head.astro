@@ -3,13 +3,25 @@
  * Starlight <Head> override.
  *
  * Adds lazy client-side mermaid rendering for the `<pre class="mermaid">`
- * blocks produced by scripts/remark-mermaid.mjs. The mermaid bundle is loaded
- * with a dynamic import, so pages without a diagram never fetch it.
+ * blocks produced by scripts/remark-mermaid.mjs, and the controls for the
+ * illustrations produced by scripts/remark-illustrations.mjs. Both bundles are
+ * loaded with a dynamic import, so pages without them never fetch either.
  */
 const { head } = Astro.locals.starlightRoute;
 ---
 
 {head.map(({ tag: Tag, attrs, content }) => <Tag {...attrs} set:html={content} />)}
+
+<script>
+  async function enhanceIllustrations() {
+    if (!document.querySelector('[data-yx-illustration]')) return;
+    const { enhanceIllustrations: enhance } = await import('../../illustrations/client.js');
+    enhance();
+  }
+
+  void enhanceIllustrations();
+  document.addEventListener('astro:after-swap', enhanceIllustrations);
+</script>
 
 <script>
   let rendering = false;
