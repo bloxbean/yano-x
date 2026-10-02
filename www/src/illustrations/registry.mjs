@@ -1,9 +1,22 @@
 // Every illustration a page can request with `<!-- illustration: <id> -->`.
-// Add a data module under ./data and list it here.
+// Each module in ./data default-exports one illustration whose `id` matches
+// its file name; adding a file is enough to register it.
 
-import appLedgerOverview from './data/app-ledger-overview.mjs';
-import messageLifecycle from './data/message-lifecycle.mjs';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
-export const ILLUSTRATIONS = Object.freeze(Object.fromEntries(
-  [appLedgerOverview, messageLifecycle].map((data) => [data.id, data]),
-));
+const DATA_DIR = fileURLToPath(new URL('./data/', import.meta.url));
+
+const modules = await Promise.all(fs.readdirSync(DATA_DIR)
+  .filter((name) => name.endsWith('.mjs'))
+  .sort()
+  .map(async (name) => {
+    const { default: data } = await import(/* @vite-ignore */ pathToFileURL(path.join(DATA_DIR, name)).href);
+    if (`${data?.id}.mjs` !== name) {
+      throw new Error(`Illustration ${name} must default-export an object whose id is "${name.slice(0, -4)}"`);
+    }
+    return data;
+  }));
+
+export const ILLUSTRATIONS = Object.freeze(Object.fromEntries(modules.map((data) => [data.id, data])));

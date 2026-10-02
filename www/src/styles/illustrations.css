@@ -621,6 +621,260 @@
   stroke-linejoin: round;
 }
 
+/* ── Explorable blocks ────────────────────────────────────────────────── */
+
+.yx-block.is-explorable { cursor: pointer; }
+
+.yx-block.is-explorable rect { transition: stroke-width 0.15s ease, fill 0.15s ease; }
+
+.yx-block.is-explorable:hover rect,
+.yx-block.is-explorable:focus-visible rect { stroke-width: 2.5; }
+
+.yx-block.is-explorable:focus { outline: none; }
+
+.yx-block.is-explorable:focus-visible rect {
+  stroke: var(--sl-color-accent-high);
+  stroke-width: 3;
+}
+
+.yx-block.is-selected rect {
+  stroke-width: 3;
+  fill: color-mix(in srgb, var(--k) 22%, var(--kbg));
+}
+
+.yx-ill__detail {
+  min-height: 5.5rem;
+  margin: 0 1rem 1rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--yx-line);
+  border-left: 3px solid var(--sl-color-accent);
+  border-radius: 10px;
+  background: var(--yx-panel-2);
+  font-size: 0.86rem;
+}
+
+.yx-ill__detail p { margin: 0.25rem 0 0; line-height: 1.6; }
+
+.yx-ill__hint { color: var(--yx-muted); }
+
+.yx-details {
+  display: grid;
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0 1rem 1rem;
+  font-size: 0.85rem;
+}
+
+.yx-details dt { font-weight: 600; }
+
+.yx-details dd { margin: 0.15rem 0 0; color: var(--yx-muted); line-height: 1.55; }
+
+.yx-ill__link {
+  color: var(--sl-color-accent-high);
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.yx-ill__link:hover { text-decoration: underline; }
+
+/* ── Step extras: command, checks, state ──────────────────────────────── */
+
+.yx-step-extra {
+  display: grid;
+  gap: 0.6rem;
+  margin-top: 0.6rem;
+}
+
+.yx-cmd {
+  margin: 0;
+  padding: 0.55rem 0.75rem;
+  border-radius: 8px;
+  background: #0b1115;
+  color: #d8f7ec;
+  font-family: var(--sl-font-system-mono);
+  font-size: 0.76rem;
+  line-height: 1.5;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.yx-cmd code { padding: 0; background: none; color: inherit; }
+
+.yx-cmd code::before {
+  content: '$ ';
+  color: #7f9aa6;
+}
+
+.yx-checks {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.82rem;
+}
+
+.yx-checks li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.4rem;
+  margin: 0;
+}
+
+.yx-checks__mark {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 50%;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.yx-checks .is-ok .yx-checks__mark { background: color-mix(in srgb, var(--yx-ok) 20%, transparent); color: var(--yx-ok); }
+.yx-checks .is-fail .yx-checks__mark { background: var(--yx-fail-bg); color: var(--yx-fail); }
+.yx-checks .is-skip { color: var(--yx-muted); }
+.yx-checks .is-skip .yx-checks__mark { border: 1px solid var(--yx-line); }
+.yx-checks .is-fail code { color: var(--yx-fail); }
+
+.yx-state {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+}
+
+.yx-state caption {
+  padding-bottom: 0.3rem;
+  color: var(--yx-muted);
+  font-family: var(--sl-font-system-mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.08em;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.yx-state th,
+.yx-state td {
+  padding: 0.3rem 0.5rem;
+  border: 1px solid var(--yx-line);
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+.yx-state th { background: var(--yx-panel-2); font-weight: 600; }
+
+.yx-state tr.is-changed td { background: color-mix(in srgb, var(--sl-color-accent) 14%, transparent); }
+
+.yx-state__empty { color: var(--yx-muted); font-style: italic; }
+
+.yx-steps .yx-step-extra { margin-bottom: 0.4rem; }
+
+/* ── Choosers ─────────────────────────────────────────────────────────── */
+
+.yx-chooser {
+  display: grid;
+  gap: 0.8rem;
+  padding: 1rem;
+}
+
+.yx-chooser [data-kind='question'] {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.yx-chooser .yx-tree__q {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.yx-tree__help {
+  flex-basis: 100%;
+  margin: -0.2rem 0 0.2rem;
+  color: var(--yx-muted);
+  font-size: 0.84rem;
+}
+
+.yx-option {
+  padding: 0.5rem 0.85rem;
+  border: 1px solid var(--yx-line);
+  border-radius: 10px;
+  background: var(--yx-panel-2);
+  color: var(--yx-text);
+  font: inherit;
+  font-size: 0.84rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.yx-option:hover,
+.yx-option:focus-visible { border-color: var(--sl-color-accent); }
+
+.yx-trail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.74rem;
+}
+
+.yx-trail li {
+  margin: 0;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  background: var(--sl-color-accent-low);
+}
+
+.yx-trail span { color: var(--yx-muted); }
+
+.yx-result {
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--sl-color-accent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--sl-color-accent-low) 60%, transparent);
+}
+
+.yx-result:focus { outline: none; }
+
+.yx-result__title { font-size: 1.05rem; }
+
+.yx-result p { margin: 0.35rem 0 0; line-height: 1.6; font-size: 0.88rem; }
+
+.yx-result__facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.25rem 0.9rem;
+  margin: 0.6rem 0 0;
+  font-size: 0.82rem;
+}
+
+.yx-result__facts div { display: contents; }
+.yx-result__facts dt { color: var(--yx-muted); }
+.yx-result__facts dd { margin: 0; }
+
+.yx-chooser__nav { display: flex; gap: 0.4rem; }
+
+.yx-tree { padding: 0.5rem 1rem 1rem; font-size: 0.86rem; }
+
+.yx-tree ul { margin: 0.3rem 0 0.6rem; padding-left: 1.2rem; }
+
+.yx-tree li { margin: 0.35rem 0; }
+
+.yx-tree__answer { font-weight: 600; }
+
+.yx-tree__answer::after { content: ' →'; color: var(--yx-muted); }
+
+.yx-tree .yx-tree__q { margin: 0.2rem 0; font-weight: 600; }
+
 /* ── Narrow containers ────────────────────────────────────────────────── */
 
 @container (max-width: 560px) {
@@ -673,6 +927,9 @@
   .yx-wire__route { display: inline; }
 
   .yx-ill__nav { margin-left: 0; }
+
+  .yx-result__facts { grid-template-columns: 1fr; }
+  .yx-result__facts dd { margin-bottom: 0.3rem; }
 }
 
 /* ── Present (full screen) ────────────────────────────────────────────── */

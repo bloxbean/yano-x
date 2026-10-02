@@ -92,6 +92,47 @@ test('block diagrams lay out every block, and labels fit their boxes', () => {
   }
 });
 
+test('step extras are well formed', () => {
+  for (const data of all.filter((d) => d.type === 'steps')) {
+    for (const scenario of data.scenarios) {
+      scenario.steps.forEach((step, i) => {
+        const where = `${data.id}/${scenario.id} step ${i + 1}`;
+        for (const check of step.checks ?? []) {
+          assert.ok(check.label, `${where}: check label`);
+          assert.ok([true, false, null, undefined].includes(check.ok), `${where}: check ok must be true, false, or null`);
+        }
+        if (step.state) {
+          assert.ok(Array.isArray(step.state.columns) && step.state.columns.length, `${where}: state columns`);
+          for (const row of step.state.rows) {
+            assert.equal(row.length, step.state.columns.length, `${where}: state row width`);
+          }
+        }
+      });
+    }
+  }
+});
+
+test('choosers are acyclic trees whose answers all lead somewhere', () => {
+  for (const data of all.filter((d) => d.type === 'chooser')) {
+    assert.ok(data.nodes[data.start], `${data.id}: start node`);
+    const reached = new Set();
+    const visit = (id, trail) => {
+      assert.ok(data.nodes[id], `${data.id}: unknown node ${id}`);
+      assert.ok(!trail.includes(id), `${data.id}: cycle through ${id}`);
+      reached.add(id);
+      const node = data.nodes[id];
+      if (node.result) {
+        assert.ok(node.result.title, `${data.id}/${id}: result title`);
+        return;
+      }
+      assert.ok(node.question && node.options?.length >= 2, `${data.id}/${id}: question with at least two options`);
+      for (const option of node.options) visit(option.next, [...trail, id]);
+    };
+    visit(data.start, []);
+    for (const id of Object.keys(data.nodes)) assert.ok(reached.has(id), `${data.id}: node ${id} is unreachable`);
+  }
+});
+
 test('every illustration renders', () => {
   for (const data of all) {
     const html = renderIllustration(data);

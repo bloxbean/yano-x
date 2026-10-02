@@ -133,6 +133,8 @@ It is **not** the right answer for a single-organization application with no
 external verifier, for high-frequency data with no dispute surface, or for
 anything that genuinely needs permissionless participation.
 
+<!-- illustration: app-ledger-fit -->
+
 ## Where Yano and Yano X fit
 
 Yano is the host: a Cardano data node with a minimal app ledger runtime,

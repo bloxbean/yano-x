@@ -2,6 +2,17 @@
 // members with a threshold of 2. Facts follow Yano's consensus guide (§2, §4,
 // §8) and submission contract; see `sources`.
 
+// A follower's checks before it votes, in order (consensus guide §4.2, condensed).
+const FOLLOWER_CHECKS = [
+  'Height is exactly one above the local tip',
+  'The sender is the leader for this height and view',
+  'The block links to the local tip hash',
+  'The messages root recomputes from the messages',
+  'Every message is signed by a member at this height and has not expired',
+  'No conflicting prepare lock in this view',
+  'Re-executing the block gives a byte-identical state root',
+];
+
 const submit = {
   title: 'Submit',
   text: 'Your application sends a topic and a body to Member A, over REST or the Java client. It signs '
@@ -65,6 +76,7 @@ const reexecute = {
     + 'block, every message signature, and the block size, then applies the block itself and compares the '
     + 'state root byte for byte. A member votes PREPARE only for a root it computed itself.',
   viewText: { app: 'Still pending. Every member is re-running the block.' },
+  checks: FOLLOWER_CHECKS.map((label) => ({ label, ok: true })),
   cards: {
     a: { title: 'Re-executed ✓', detail: 'own root `7f3a…`', tone: 'ok' },
     c: { title: 'Re-executed ✓', detail: 'own root `7f3a…`', tone: 'ok' },
@@ -220,6 +232,7 @@ export default {
           + 'C computes a different state root, so it does not vote: a member never accepts a root it did not '
           + 'compute itself.',
         viewText: { app: 'Still pending.' },
+        checks: FOLLOWER_CHECKS.map((label, i, list) => ({ label, ok: i < list.length - 1 })),
         cards: {
           a: { title: 'Re-executed ✓', detail: 'own root `7f3a…`', tone: 'ok' },
           c: { title: 'Root differs ✗', detail: 'own root `91c4…` · no vote', tone: 'fail' },
@@ -249,6 +262,8 @@ export default {
   sources: [
     { repo: 'yano', path: 'docs/APP_CHAIN_CONSENSUS_GUIDE.md',
       anchors: ['PreparedQC', 'FinalityCert', 'NewViewCertificate', 'No pending messages → no block',
+        'height is exactly `tip+1`', '`prevHash` equals the local tip hash', '`messagesRoot` recomputes from the message list',
+        'no conflicting prepare lock in this view', 'requires byte-identical `stateRoot`',
         'the pending pool', 'deterministic no-op', 'AppChainStalledEvent'] },
     { repo: 'yano', path: 'docs/appchain/submission.md',
       anchors: ['**202** with `messageId`', '**429**', 'Accepted is not finalized', 'message ID is already consumed'] },

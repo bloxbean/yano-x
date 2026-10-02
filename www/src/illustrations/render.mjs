@@ -162,10 +162,14 @@ function renderSvg(data, layoutName, layout) {
       .concat(sub.map((line, i) =>
         `<text class="yx-block__sub" x="${x + w / 2}" y="${top + (lines.length + i) * LINE_HEIGHT}" text-anchor="middle" dominant-baseline="central">${escapeHtml(line)}</text>`))
       .join('');
-    blockParts.push(`<g class="yx-block yx-k-${block.kind ?? 'core'}"><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="10"/>${text}</g>`);
+    const explore = block.detail
+      ? ` is-explorable" data-block="${block.id}" tabindex="0" role="button" aria-label="${escapeHtml(plain(block.label).replace(/\n/g, ' '))}: details`
+      : '';
+    blockParts.push(`<g class="yx-block yx-k-${block.kind ?? 'core'}${explore}"><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="10"/>${text}</g>`);
   }
   return `<svg class="yx-diagram__svg yx-diagram__svg--${layoutName}" viewBox="0 0 ${layout.width} ${layout.height}" `
-    + `role="img" aria-labelledby="${data.id}-title" aria-describedby="${data.id}-desc" preserveAspectRatio="xMidYMid meet">`
+    + `role="${(data.blocks ?? []).some((b) => b.detail) ? 'group' : 'img'}" `
+    + `aria-labelledby="${data.id}-title" aria-describedby="${data.id}-desc" preserveAspectRatio="xMidYMid meet">`
     + `<defs><marker id="${data.id}-${layoutName}-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">`
     + `<path class="yx-arrowhead" d="M0,0 L10,5 L0,10 z"/></marker></defs>`
     + parts.join('') + edgeParts.join('') + blockParts.join('') + labelParts.join('')
@@ -187,6 +191,25 @@ function diagramDescription(data) {
   return `<ul class="yx-sr-only" id="${data.id}-desc">${members}${edges}</ul>`;
 }
 
+function detailLink(link) {
+  return link ? ` <a class="yx-ill__link" href="${escapeHtml(link.href)}">${escapeHtml(link.label)} →</a>` : '';
+}
+
+/**
+ * Blocks with a `detail` are explorable: the client turns the list below into
+ * a panel that follows the selected block. Without JavaScript the list itself
+ * is the explanation.
+ */
+function blockDetails(data) {
+  const explorable = (data.blocks ?? []).filter((block) => block.detail);
+  if (!explorable.length) return '';
+  return `<div class="yx-ill__detail" data-detail aria-live="polite" hidden>`
+    + `<p class="yx-ill__hint">${inline(data.hint ?? 'Select a block to see what it does.')}</p></div>`
+    + `<dl class="yx-details">${explorable.map((block) =>
+      `<div data-detail-for="${block.id}"><dt>${escapeHtml(plain(block.label).replace(/\n/g, ' '))}</dt>`
+      + `<dd>${inline(block.detail)}${detailLink(block.link)}</dd></div>`).join('')}</dl>`;
+}
+
 export function renderDiagram(data) {
   const layouts = Object.entries(data.layouts);
   return `<figure class="yx-ill yx-ill--diagram not-content" id="${data.id}" data-yx-illustration="diagram" aria-labelledby="${data.id}-title">`
@@ -195,6 +218,7 @@ export function renderDiagram(data) {
     + layouts.map(([name, layout]) => renderSvg(data, name, layout)).join('')
     + `</div>`
     + diagramDescription(data)
+    + blockDetails(data)
     + (data.caption ? `<figcaption class="yx-ill__caption-text">${inline(data.caption)}</figcaption>` : '')
     + legend(data.legend)
     + `</figure>`;
@@ -264,13 +288,40 @@ function focusFor(step) {
   return [...lanes];
 }
 
+const CHECK_MARK = { true: '✓', false: '✗', null: '–' };
+
+/** Optional per-step extras: a command, rule checks in evaluation order, and a state table. */
+function stepExtras(step) {
+  const parts = [];
+  if (step.command) {
+    parts.push(`<pre class="yx-cmd"><code>${escapeHtml(step.command)}</code></pre>`);
+  }
+  if (step.checks?.length) {
+    parts.push(`<ul class="yx-checks">${step.checks.map((check) => {
+      const state = check.ok === true ? 'ok' : check.ok === false ? 'fail' : 'skip';
+      return `<li class="is-${state}"><span class="yx-checks__mark" aria-hidden="true">${CHECK_MARK[String(check.ok ?? null)]}</span>`
+        + `<span class="yx-sr-only">${state === 'ok' ? 'passes' : state === 'fail' ? 'fails' : 'not reached'}: </span>`
+        + `<span>${inline(check.label)}</span>${check.code ? ` <code>${escapeHtml(check.code)}</code>` : ''}</li>`;
+    }).join('')}</ul>`);
+  }
+  if (step.state) {
+    const { caption, columns, rows, highlight = [] } = step.state;
+    parts.push(`<table class="yx-state">${caption ? `<caption>${inline(caption)}</caption>` : ''}`
+      + `<thead><tr>${columns.map((c) => `<th scope="col">${inline(c)}</th>`).join('')}</tr></thead>`
+      + `<tbody>${rows.length ? rows.map((row, r) =>
+        `<tr${highlight.includes(r) ? ' class="is-changed"' : ''}>${row.map((cell) => `<td>${inline(cell)}</td>`).join('')}</tr>`).join('')
+        : `<tr><td colspan="${columns.length}" class="yx-state__empty">empty</td></tr>`}</tbody></table>`);
+  }
+  return parts.length ? `<div class="yx-step-extra">${parts.join('')}</div>` : '';
+}
+
 function renderStepList(data, scenario) {
   return `<ol class="yx-steps">${scenario.steps.map((step, i) => {
     const views = (data.views ?? []).slice(1).map((view) => step.viewText?.[view.id]
       ? `<span class="yx-view-text" data-view="${view.id}" hidden>${inline(step.viewText[view.id])}</span>` : '').join('');
     return `<li data-step="${i}" data-focus="${focusFor(step).join(' ')}">`
       + `<strong class="yx-steps__title">${inline(step.title)}</strong> `
-      + `<span class="yx-view-text" data-view="default">${inline(step.text)}</span>${views}</li>`;
+      + `<span class="yx-view-text" data-view="default">${inline(step.text)}</span>${views}${stepExtras(step)}</li>`;
   }).join('')}</ol>`;
 }
 
@@ -289,7 +340,7 @@ export function renderSteps(data) {
     `<section class="yx-scn" data-scenario="${scenario.id}"${i === 0 ? '' : ' data-alternate'}>`
     + (i === 0 ? '' : `<h4 class="yx-scn__heading">What if: ${escapeHtml(scenario.label)}</h4>`)
     + (scenario.summary ? `<p class="yx-scn__summary">${inline(scenario.summary)}</p>` : '')
-    + renderStage(data, scenario, rows)
+    + (data.lanes?.length ? renderStage(data, scenario, rows) : '')
     + renderStepList(data, scenario)
     + `</section>`).join('');
   return `<figure class="yx-ill yx-ill--steps not-content" id="${data.id}" data-yx-illustration="steps" aria-labelledby="${data.id}-title">`
@@ -308,10 +359,55 @@ export function renderSteps(data) {
     + `</figure>`;
 }
 
+// ---------------------------------------------------------------------------
+// Choosers (decision trees)
+// ---------------------------------------------------------------------------
+
+function renderResult(node) {
+  const result = node.result;
+  return `<div class="yx-result">`
+    + `<strong class="yx-result__title">${inline(result.title)}</strong>`
+    + (result.text ? `<p>${inline(result.text)}</p>` : '')
+    + (result.facts?.length ? `<dl class="yx-result__facts">${result.facts.map(([k, v]) =>
+      `<div><dt>${inline(k)}</dt><dd>${inline(v)}</dd></div>`).join('')}</dl>` : '')
+    + (result.links?.length ? `<p class="yx-result__links">${result.links.map((link) =>
+      `<a class="yx-ill__link" href="${escapeHtml(link.href)}">${escapeHtml(link.label)} →</a>`).join(' ')}</p>` : '')
+    + `</div>`;
+}
+
+/** The whole tree as a nested outline: the no-JavaScript view and the client's data. */
+function renderChooserNode(data, id, seen) {
+  const node = data.nodes[id];
+  if (node.result) return `<div class="yx-tree__node" data-node="${id}">${renderResult(node)}</div>`;
+  if (seen.has(id)) return `<div class="yx-tree__node" data-node-ref="${id}">See “${inline(node.question)}” above.</div>`;
+  const next = new Set(seen).add(id);
+  return `<div class="yx-tree__node" data-node="${id}"><p class="yx-tree__q">${inline(node.question)}</p>`
+    + (node.help ? `<p class="yx-tree__help">${inline(node.help)}</p>` : '')
+    + `<ul>${node.options.map((option) =>
+      `<li data-next="${option.next}"><span class="yx-tree__answer">${inline(option.label)}</span>${renderChooserNode(data, option.next, next)}</li>`).join('')}</ul></div>`;
+}
+
+export function renderChooser(data) {
+  return `<figure class="yx-ill yx-ill--chooser not-content" id="${data.id}" data-yx-illustration="chooser" `
+    + `data-start="${data.start}" aria-labelledby="${data.id}-title">`
+    + header(data)
+    + `<div class="yx-chooser" data-chooser hidden aria-live="polite"></div>`
+    + `<div class="yx-tree">${renderChooserNode(data, data.start, new Set())}</div>`
+    + `<template data-nodes>${Object.entries(data.nodes).map(([id, node]) => node.result
+      ? `<div data-node="${id}" data-kind="result">${renderResult(node)}</div>`
+      : `<div data-node="${id}" data-kind="question"><p class="yx-tree__q">${inline(node.question)}</p>`
+        + (node.help ? `<p class="yx-tree__help">${inline(node.help)}</p>` : '')
+        + node.options.map((option) => `<button type="button" class="yx-option" data-next="${option.next}">${inline(option.label)}</button>`).join('')
+        + `</div>`).join('')}</template>`
+    + (data.caption ? `<figcaption class="yx-ill__caption-text">${inline(data.caption)}</figcaption>` : '')
+    + `</figure>`;
+}
+
 export function renderIllustration(data) {
   switch (data.type) {
     case 'diagram': return renderDiagram(data);
     case 'steps': return renderSteps(data);
+    case 'chooser': return renderChooser(data);
     default: throw new Error(`Illustration ${data.id}: unknown type "${data.type}"`);
   }
 }
@@ -319,8 +415,14 @@ export function renderIllustration(data) {
 /** Plain-text summary used where markup cannot go (llms.txt, validation messages). */
 export function illustrationText(data) {
   if (data.type === 'diagram') {
-    return [data.title, data.caption, ...(data.edges ?? []).map((e) => `${e.from} → ${e.to}${e.label ? ` (${e.label})` : ''}`)]
+    return [data.title, data.caption, ...(data.edges ?? []).map((e) => `${e.from} → ${e.to}${e.label ? ` (${e.label})` : ''}`),
+      ...(data.blocks ?? []).filter((b) => b.detail).map((b) => `${b.label.replace(/\n/g, ' ')}: ${b.detail}`)]
       .filter(Boolean).map(plain).join('\n');
+  }
+  if (data.type === 'chooser') {
+    return [data.title, ...Object.values(data.nodes).map((node) => node.result
+      ? `Result: ${plain(node.result.title)} — ${plain(node.result.text ?? '')}`
+      : `${plain(node.question)} ${node.options.map((o) => `[${plain(o.label)}]`).join(' ')}`)].join('\n');
   }
   return [data.title, ...data.scenarios.flatMap((s, si) => [
     si === 0 ? '' : `What if: ${s.label}`,

@@ -106,6 +106,8 @@ function enhanceSteps(figure) {
     const paragraph = document.createElement('p');
     paragraph.innerHTML = text.innerHTML;
     body.append(title, paragraph);
+    const extra = item.querySelector('.yx-step-extra');
+    if (extra) body.append(extra.cloneNode(true));
     caption.replaceChildren(number, body);
     [...chips.children].forEach((chip, i) => chip.setAttribute('aria-pressed', String(i === step)));
     counter.textContent = `Step ${step + 1} / ${list.length}`;
@@ -150,11 +152,105 @@ function enhanceSteps(figure) {
   updatePlay();
 }
 
+function enhanceDiagram(figure) {
+  const panel = figure.querySelector('[data-detail]');
+  if (!panel) return;
+  const details = figure.querySelector('.yx-details');
+  const hint = panel.innerHTML;
+  details.hidden = true;
+  panel.hidden = false;
+  figure.classList.add('is-ready');
+  let selected = null;
+  const blocks = [...figure.querySelectorAll('[data-block]')];
+
+  function select(id) {
+    selected = selected === id ? null : id;
+    for (const block of blocks) {
+      const on = block.dataset.block === selected;
+      block.classList.toggle('is-selected', on);
+      block.setAttribute('aria-pressed', String(on));
+    }
+    const entry = selected && details.querySelector(`[data-detail-for="${selected}"]`);
+    if (!entry) { panel.innerHTML = hint; return; }
+    const title = document.createElement('strong');
+    title.textContent = entry.querySelector('dt').textContent;
+    const text = document.createElement('p');
+    text.innerHTML = entry.querySelector('dd').innerHTML;
+    panel.replaceChildren(title, text);
+  }
+
+  for (const block of blocks) {
+    block.setAttribute('aria-pressed', 'false');
+    block.addEventListener('click', () => select(block.dataset.block));
+    block.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); select(block.dataset.block); }
+    });
+  }
+}
+
+function enhanceChooser(figure) {
+  const host = figure.querySelector('[data-chooser]');
+  const template = figure.querySelector('template[data-nodes]');
+  const tree = figure.querySelector('.yx-tree');
+  const nodes = new Map([...template.content.querySelectorAll('[data-node]')].map((node) => [node.dataset.node, node]));
+  const start = figure.dataset.start;
+  const path = [];
+  tree.hidden = true;
+  host.hidden = false;
+  figure.classList.add('is-ready');
+
+  function render() {
+    const id = path.length ? path[path.length - 1].next : start;
+    const node = nodes.get(id).cloneNode(true);
+    const trail = document.createElement('ol');
+    trail.className = 'yx-trail';
+    for (const step of path) {
+      const item = document.createElement('li');
+      item.innerHTML = `<span>${step.question}</span> <strong>${step.answer}</strong>`;
+      trail.append(item);
+    }
+    const nav = document.createElement('div');
+    nav.className = 'yx-chooser__nav';
+    if (path.length) {
+      const back = document.createElement('button');
+      back.type = 'button';
+      back.className = 'yx-ill__btn';
+      back.textContent = '← Back';
+      back.addEventListener('click', () => { path.pop(); render(); host.querySelector('button')?.focus(); });
+      const restart = document.createElement('button');
+      restart.type = 'button';
+      restart.className = 'yx-ill__btn';
+      restart.textContent = 'Start over';
+      restart.addEventListener('click', () => { path.length = 0; render(); host.querySelector('button')?.focus(); });
+      nav.append(back, restart);
+    }
+    for (const option of node.querySelectorAll('[data-next]')) {
+      option.addEventListener('click', () => {
+        path.push({
+          question: node.querySelector('.yx-tree__q').innerHTML,
+          answer: option.innerHTML,
+          next: option.dataset.next,
+        });
+        render();
+        host.querySelector('.yx-option, .yx-result')?.focus?.();
+      });
+    }
+    const result = node.querySelector('.yx-result');
+    if (result) result.tabIndex = -1;
+    host.replaceChildren(...(path.length ? [trail] : []), node, nav);
+  }
+
+  render();
+}
+
 export function enhanceIllustrations(root = document) {
   for (const figure of root.querySelectorAll('[data-yx-illustration]')) {
     if (figure.dataset.enhanced) continue;
     figure.dataset.enhanced = 'true';
     enhancePresent(figure);
-    if (figure.dataset.yxIllustration === 'steps') enhanceSteps(figure);
+    const type = figure.dataset.yxIllustration;
+    if (type === 'steps') enhanceSteps(figure);
+    else if (type === 'diagram') enhanceDiagram(figure);
+    else if (type === 'chooser') enhanceChooser(figure);
   }
 }

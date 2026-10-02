@@ -2,11 +2,17 @@
 // their members, every member applies the same rules, and Cardano and external
 // systems sit outside the ledger.
 
+const ORG = 'Each organization runs a member node, identified by an Ed25519 key. Its applications submit messages '
+  + 'through that member, and the member votes on every block.';
+const CONNECTORS = 'Effects reach systems like these. Yano X ships optional connectors for Kafka, S3-compatible object '
+  + 'storage, IPFS/Kubo, and Cardano payments; the Yano host provides HTTP webhooks.';
+
 export default {
   id: 'app-ledger-overview',
   type: 'diagram',
   title: 'An app ledger at a glance',
   tag: 'Concept',
+  hint: 'Select any block to see what it does.',
   caption:
     'Each organization runs a member. Members order the same messages, apply them with the same '
     + 'state machine, and certify the resulting state root together. Cardano and external systems '
@@ -22,19 +28,49 @@ export default {
     },
   ],
   blocks: [
-    { id: 'org-a', label: 'Organization A', kind: 'actor' },
-    { id: 'org-b', label: 'Organization B', kind: 'actor' },
-    { id: 'org-c', label: 'Organization C', kind: 'actor' },
-    { id: 'messages', label: 'Ordered messages', sub: 'signed envelopes', kind: 'core' },
-    { id: 'state-machine', label: 'State machine', sub: 'deterministic', kind: 'core' },
-    { id: 'final-block', label: 'Final block', sub: 'threshold-signed', kind: 'core' },
-    { id: 'state-root', label: 'State root', sub: 'proofs for records', kind: 'core' },
-    { id: 'cardano', label: 'Cardano', sub: 'optional anchor', kind: 'cardano' },
-    { id: 'effects', label: 'Effect runtime', sub: 'after finality', kind: 'runtime' },
-    { id: 'kafka', label: 'Kafka', kind: 'external' },
-    { id: 'ipfs', label: 'IPFS', kind: 'external' },
-    { id: 'object-storage', label: 'Object storage', kind: 'external' },
-    { id: 'erp', label: 'ERP or webhook', kind: 'external' },
+    { id: 'org-a', label: 'Organization A', kind: 'actor', detail: ORG },
+    { id: 'org-b', label: 'Organization B', kind: 'actor', detail: ORG },
+    { id: 'org-c', label: 'Organization C', kind: 'actor', detail: ORG },
+    {
+      id: 'messages', label: 'Ordered messages', sub: 'signed envelopes', kind: 'core',
+      detail: 'An application submits a topic and a body to a member, which signs the envelope with its member key. '
+        + 'Members gossip pending messages, and the leader for each height orders them into a block.',
+      link: { label: 'Life of a message', href: '#message-lifecycle' },
+    },
+    {
+      id: 'state-machine', label: 'State machine', sub: 'deterministic', kind: 'core',
+      detail: 'The only component that reads message bodies. Every member applies the same messages with the same '
+        + 'deterministic code, so honest members reach the same state.',
+      link: { label: 'State machines', href: '/state-machines/' },
+    },
+    {
+      id: 'final-block', label: 'Final block', sub: 'threshold-signed', kind: 'core',
+      detail: 'A block is final once a threshold of members has signed PREPARE and then COMMIT for it, each after '
+        + 're-executing it. There is no rollback below finality.',
+      link: { label: 'Consensus and finality', href: '/concepts/consensus-and-finality/' },
+    },
+    {
+      id: 'state-root', label: 'State root', sub: 'proofs for records', kind: 'core',
+      detail: 'The root of the authenticated state after a block, identical on every member. A proof shows that a '
+        + 'record is, or is not, present under this root.',
+      link: { label: 'State and proofs', href: '/concepts/state-and-proofs/' },
+    },
+    {
+      id: 'cardano', label: 'Cardano', sub: 'optional anchor', kind: 'cardano',
+      detail: 'An anchor publishes a certified state root to Cardano, in transaction metadata or a script-controlled '
+        + 'anchor. It is optional, and finality never waits for it.',
+      link: { label: 'Cardano anchoring', href: '/concepts/anchoring/' },
+    },
+    {
+      id: 'effects', label: 'Effect runtime', sub: 'after finality', kind: 'runtime',
+      detail: 'A transition can emit an effect record. After finality, an executor outside consensus performs the '
+        + 'external action, and a tracked result returns to the ledger as a new message.',
+      link: { label: 'Effects', href: '/concepts/effects/' },
+    },
+    { id: 'kafka', label: 'Kafka', kind: 'external', detail: CONNECTORS },
+    { id: 'ipfs', label: 'IPFS', kind: 'external', detail: CONNECTORS },
+    { id: 'object-storage', label: 'Object storage', kind: 'external', detail: CONNECTORS },
+    { id: 'erp', label: 'ERP or webhook', kind: 'external', detail: CONNECTORS },
   ],
   edges: [
     { from: 'org-a', to: 'ledger' },
@@ -118,6 +154,8 @@ export default {
   },
   sources: [
     { repo: 'yano', path: 'docs/APP_CHAIN_CONSENSUS_GUIDE.md', anchors: ['APP_FINAL', 'stateRoot', 'messagesRoot'] },
+    { repo: 'yano-x', path: 'docs/appchain/OPTIONAL_CONNECTORS.md',
+      anchors: ['`executor:kafka`', '`executor:objectstore-s3`', '`executor:ipfs`', '`executor:cardano-payment`'] },
     { repo: 'yano', path: 'core-api/src/main/java/org/yanoproject/api/appchain/AppChainConfig.java', anchors: ['MAX_MEMBERS = 32'] },
   ],
 };

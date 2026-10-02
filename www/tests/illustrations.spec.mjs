@@ -66,6 +66,32 @@ for (const route of routes) {
         await expect(caption).toHaveText(before);
       }
     }
+    for (const figure of await page.locator('[data-yx-illustration="diagram"]:has([data-block])').all()) {
+      const panel = figure.locator('[data-detail]');
+      await expect(panel).toBeVisible();
+      await expect(figure.locator('.yx-details')).toBeHidden();
+      const block = figure.locator('svg:visible [data-block]').first();
+      await block.focus();
+      await page.keyboard.press('Enter');
+      await expect(block).toHaveAttribute('aria-pressed', 'true');
+      await expect(panel.locator('strong')).not.toBeEmpty();
+      await block.click();
+      await expect(block).toHaveAttribute('aria-pressed', 'false');
+    }
+    for (const figure of await page.locator('[data-yx-illustration="chooser"]').all()) {
+      const host = figure.locator('[data-chooser]');
+      await expect(figure.locator('.yx-tree')).toBeHidden();
+      for (let guard = 0; guard < 20 && await host.locator('.yx-result').count() === 0; guard++) {
+        await host.locator('.yx-option').last().click();
+      }
+      await expect(host.locator('.yx-result')).toBeVisible();
+      await host.getByRole('button', { name: '← Back' }).click();
+      await expect(host.locator('.yx-option').first()).toBeVisible();
+      if (await host.getByRole('button', { name: 'Start over' }).count()) {
+        await host.getByRole('button', { name: 'Start over' }).click();
+        await expect(host.locator('.yx-trail')).toHaveCount(0);
+      }
+    }
     expect(errors).toEqual([]);
   });
 
@@ -119,6 +145,11 @@ test('illustrations are readable without JavaScript', async ({ browser }) => {
     }
     for (const figure of await page.locator('[data-yx-illustration="diagram"]').all()) {
       await expect(figure.locator('svg.yx-diagram__svg').first()).toBeVisible();
+      if (await figure.locator('.yx-details').count()) await expect(figure.locator('.yx-details')).toBeVisible();
+    }
+    for (const figure of await page.locator('[data-yx-illustration="chooser"]').all()) {
+      await expect(figure.locator('.yx-tree')).toBeVisible();
+      await expect(figure.locator('.yx-tree .yx-result').first()).toBeVisible();
     }
   }
   await context.close();
