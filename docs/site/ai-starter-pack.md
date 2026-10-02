@@ -7,15 +7,15 @@
 > change that compiles, passes unit tests, and stops a cluster from finalizing.
 
 This pack is optimized for AI ingestion, not for human onboarding. Humans should
-start at [What is an app chain?](/start-here/what-is-an-app-chain/).
+start at [What is an app ledger?](/start-here/what-is-an-app-chain/).
 
 ---
 
 ## 1. What Yano X is
 
-Yano X is the **Java 25, JVM-only extension ecosystem** for Yano app chains.
+Yano X is the **Java 25, JVM-only extension ecosystem** for Yano app ledgers.
 
-An **app chain** is an application-specific replicated ledger run by a group of
+An **app ledger** is an application-specific replicated ledger run by a group of
 organizations: members agree on ordered commands, execute the same deterministic
 state machine, independently derive the same authenticated state root, prove
 records against it, and optionally settle that root on Cardano.
@@ -42,7 +42,7 @@ yano-x  ──depends on──▶  yano
 
 | Value | Current |
 |---|---|
-| Yano X version | `0.1.0-pre2` |
+| Yano X version | `0.1.0-pre3` |
 | Yano host version | `0.1.0-pre17` |
 | Maven group | `org.yanoproject.x` |
 | Java | `25` |
@@ -74,7 +74,7 @@ yano-x  ──depends on──▶  yano
 7. **Do not duplicate the artifact inventory.** Update
    `config/artifacts-v1.json` and its verification tests when module identity
    changes.
-8. **The app-chain feature has not had a public release.** Remove obsolete
+8. **The app ledger feature has not had a public release.** Remove obsolete
    adapters, aliases, and duplicate activation paths rather than preserving
    accidental compatibility. Preserve documented Cardano node, OrderedLog,
    wire/storage, proof, replay, and distribution invariants.

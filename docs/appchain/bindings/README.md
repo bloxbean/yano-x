@@ -29,7 +29,7 @@ archive includes the feature.
 
 Start with chapter 1; it needs Java 25 and an extracted matching JVM distribution,
 but no Cardano funds, node cluster or private keys. Familiarity with YAML is enough.
-For the surrounding app-chain concepts, see [the app-chain learning tracks](../README.md).
+For the surrounding app ledger concepts, see [the app ledger learning tracks](../README.md).
 
 ## Five concepts to keep separate
 

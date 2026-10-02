@@ -1,4 +1,4 @@
-# App-Chain Tutorials
+# App Ledger Tutorials
 
 These tutorials are progressive but independently usable. Each one has a
 beginner path and a **Go deeper** section for readers who want the trust,

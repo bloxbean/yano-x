@@ -10,12 +10,15 @@ export default defineConfig({
   markdown: {
     processor: unified({ remarkPlugins: [remarkMermaid] }),
   },
+  redirects: {
+    '/start-here/what-is-an-app-chain/': '/start-here/what-is-an-app-ledger/',
+  },
   integrations: [
     starlight({
       title: 'Yano X',
       description:
         'Build an application-specific replicated ledger on Cardano. Yano X is the ' +
-        'JVM extension ecosystem for Yano app chains.',
+        'JVM extension ecosystem for Yano app ledgers.',
       logo: {
         src: './public/logo.svg',
         alt: 'Yano X',
@@ -39,7 +42,7 @@ export default defineConfig({
           label: 'Start here',
           items: [
             { label: 'Your learning path', slug: 'start-here' },
-            { label: 'What is an app chain?', slug: 'start-here/what-is-an-app-chain' },
+            { label: 'What is an app ledger?', slug: 'start-here/what-is-an-app-ledger' },
             { label: 'Why Yano X', slug: 'start-here/why-yano-x' },
             { label: 'Release downloads', slug: 'start-here/release-downloads' },
             { label: 'Local showcase', slug: 'start-here/quickstart' },

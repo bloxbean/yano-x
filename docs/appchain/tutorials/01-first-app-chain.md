@@ -1,4 +1,4 @@
-# Tutorial 1 — Your First App Chain
+# Tutorial 1 — Your First App Ledger
 
 [Open this outcome in App-Chain Studio](../../../tooling/studio/src/main/web/index.html#recipe=audit-log&network=devnet&members=3&finality=two-thirds&sequencing=fixed&runtime=jvm&deployment=host&name=my-appchain&chainId=my-appchain)
 
@@ -50,8 +50,8 @@ export YANO_CLUSTER_DIR=/tmp/yano-tutorial-first-chain
 
 The launcher starts:
 
-- node 0 as the local Cardano L1 producer and app-chain proposer;
-- nodes 1 and 2 as app-chain voting members; and
+- node 0 as the local Cardano L1 producer and app ledger proposer;
+- nodes 1 and 2 as app ledger voting members; and
 - `orders-chain` (`ordered-log`), `registry-chain` (`kv-registry`), and
   `effects-chain` (`approvals`) for the dependency-free effects demo.
 
@@ -189,7 +189,7 @@ For capacity settings and workload boundaries, see the
 
 ## 6. Preserve and restart
 
-`stop` keeps both L1 and app-chain data:
+`stop` keeps both L1 and app ledger data:
 
 ```bash
 ./yano.sh appchain cluster stop

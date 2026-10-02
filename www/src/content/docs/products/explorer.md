@@ -1,6 +1,6 @@
 ---
 title: Verifiable Explorer
-description: A derived, verify-on-ingest index over stock app chains with a read service, a CLI, and a console; every row keeps its evidence and can be proven offline.
+description: A derived, verify-on-ingest index over stock app ledgers with a read service, a CLI, and a console; every row keeps its evidence and can be proven offline.
 sidebar:
   order: 7
 ---

@@ -113,7 +113,7 @@ authorization model is richer than “first writer owns this key.”
 - Continue with the dedicated [`kv-registry` reference](../state-machines/kv-registry.md)
   for configuration, raw REST submission, Java encoding/decoding, and design
   guidance.
-- Verify the returned `proofWireHex` using the Java app-chain client rather
+- Verify the returned `proofWireHex` using the Java app ledger client rather
   than trusting the serving node.
 - Start with `--anchor-mode metadata`, fund the printed anchor wallet on a
   public test network, and connect the proof root to its anchor.

@@ -13,7 +13,7 @@ not the first move.
 
 | I want to… | Start with | Coding required? |
 |---|---|---|
-| See three members finalize the same events | [Your first app chain](/tutorials/01-first-app-chain/) | No |
+| See three members finalize the same events | [Your first app ledger](/tutorials/01-first-app-chain/) | No |
 | Keep an append-only log of opaque application records | `audit-log` recipe (`ordered-log`) | No |
 | Maintain a provable, owner-controlled registry | `owned-registry` recipe ([`kv-registry`](/state-machines/kv-registry/)) | No |
 | Maintain several proof-oriented collections, optionally with value validation | `authenticated-map` recipe ([guide](/state-machines/authenticated-map/)) | Configuration; a plugin only for custom rules |

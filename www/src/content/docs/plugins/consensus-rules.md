@@ -157,6 +157,6 @@ keys, API keys, effect credentials, and anchor wallet funds.
 
 Persistence changes additionally require apply, rollback, replay, restart, and
 root-parity checks. Derived indexes must never advance beyond authoritative
-app-chain state.
+app ledger state.
 
 Continue to [Testing and deployment](/plugins/testing-and-deployment/).

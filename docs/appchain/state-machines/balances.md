@@ -1,10 +1,10 @@
 # `balances` State Machine
 
 `balances` is Yano's stock non-negative account ledger. A configured member
-may mint units to an application account, and each app-chain member may
+may mint units to an application account, and each app ledger member may
 transfer units only from the account named by that member's public-key hex.
 Every current balance is threshold-finalized and individually provable against
-the app-chain state root.
+the app ledger state root.
 
 This is an application credit ledger, not Cardano ada or native assets. It does
 not create L1 transactions, hold custody, calculate fees, or provide a token

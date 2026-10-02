@@ -161,7 +161,7 @@ export const IMPORTED_DOCS = {
 
   'docs/site/concepts-anchoring.md': '/concepts/anchoring/',
 
-  'docs/site/start-here-what-is-an-app-chain.md': '/start-here/what-is-an-app-chain/',
+  'docs/site/start-here-what-is-an-app-ledger.md': '/start-here/what-is-an-app-ledger/',
 
   'docs/site/plugins-spi-and-manifest.md': '/plugins/spi-and-manifest/',
 
@@ -233,7 +233,7 @@ export function contentPathForRoute(route) {
  * page instead of to GitHub, so imported and authored content interlink.
  */
 export const AUTHORED_EQUIVALENTS = {
-  'docs/appchain/README.md': '/start-here/what-is-an-app-chain/',
+  'docs/appchain/README.md': '/start-here/what-is-an-app-ledger/',
   'docs/APP_CHAIN_OVERVIEW.md': '/concepts/architecture/',
   'docs/appchain/CAPABILITIES.md': '/reference/capabilities/',
   'docs/BUILD_AND_TEST.md': '/contributing/',

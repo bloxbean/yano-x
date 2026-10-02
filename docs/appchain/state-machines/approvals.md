@@ -1,17 +1,17 @@
 # `approvals` State Machine
 
 `approvals` is Yano's built-in member-signature workflow for deterministic
-`k-of-n` decisions. A proposer creates an item, distinct app-chain members
+`k-of-n` decisions. A proposer creates an item, distinct app ledger members
 approve it, and the item becomes terminal when it is approved, rejected, or
 expired. Every decision is replicated, threshold-finalized, and provable
-against the app-chain state root.
+against the app ledger state root.
 
 The configured state-machine id is exactly `approvals`. Item ids and topics are
 chosen by the application; they do not create new state-machine types.
 
 ## When to use it
 
-Use `approvals` when app-chain member keys intentionally represent the people,
+Use `approvals` when app ledger member keys intentionally represent the people,
 services, or organizations allowed to decide:
 
 - release and deployment gates;
@@ -337,9 +337,9 @@ In a declarative composite, admission rules can read an item (ADR-031.4, see
 
 ## Related documentation
 
-- [First app chain and local effect demo](../tutorials/01-first-app-chain.md)
+- [First app ledger and local effect demo](../tutorials/01-first-app-chain.md)
 - [Stock state-machine cookbook](../tutorials/03-stock-state-machines.md)
 - [Webhook effects](../tutorials/06-webhook-effects.md)
 - [Domain-role approvals](../tutorials/05-domain-role-approvals.md)
-- [Complete app-chain user guide](../../APP_CHAIN_USER_GUIDE.md)
-- [Java app-chain client](../../../sdk/client/README.md)
+- [Complete app ledger user guide](../../APP_CHAIN_USER_GUIDE.md)
+- [Java app ledger client](../../../sdk/client/README.md)

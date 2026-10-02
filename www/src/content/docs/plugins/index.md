@@ -113,7 +113,7 @@ endpoints and secrets in **node-local** executor configuration, never in
 replicated effect payloads.
 
 Keep plugin domain APIs read-only unless commands still enter through the
-authenticated app-chain submission path.
+authenticated app ledger submission path.
 
 ## What is and is not a plugin
 

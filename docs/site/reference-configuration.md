@@ -113,11 +113,11 @@ Each property reports how well its constraints are known:
 
 ## Host configuration
 
-The properties above are the ones **Yano X plugins** own. Core app-chain
+The properties above are the ones **Yano X plugins** own. Core app ledger
 configuration — chain id, members, threshold, sequencing, block cadence,
 storage, API authentication, anchoring, effects caps, retention — belongs to the
 Yano host and is documented in
-[section 7 of the app-chain user guide](https://github.com/bloxbean/yano-x/blob/main/docs/APP_CHAIN_USER_GUIDE.md).
+[section 7 of the app ledger user guide](https://github.com/bloxbean/yano-x/blob/main/docs/APP_CHAIN_USER_GUIDE.md).
 
 Frequently needed host values:
 

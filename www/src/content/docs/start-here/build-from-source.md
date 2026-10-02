@@ -57,7 +57,7 @@ Then supply the matching inputs explicitly:
 
 | Value | Current |
 |---|---|
-| Yano X version | `0.1.0-pre2` |
+| Yano X version | `0.1.0-pre3` |
 | Yano host version | `0.1.0-pre17` |
 | Maven group | `org.yanoproject.x` |
 | Java | `25` |

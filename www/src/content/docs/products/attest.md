@@ -53,7 +53,7 @@ inputs support.
   evidence files, without a notary service in the loop.
 - **Auditors** who receive a certificate and the original file and want a
   verdict they can reproduce offline.
-- **Anyone evaluating Yano app chains** who wants the shortest path from a
+- **Anyone evaluating Yano app ledgers** who wants the shortest path from a
   running chain to a verifiable artifact.
 
 ## Deeper reading

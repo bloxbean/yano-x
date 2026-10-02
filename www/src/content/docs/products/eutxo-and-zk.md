@@ -17,9 +17,9 @@ Use a devnet or a Cardano test network with disposable keys.
 
 ## What it is
 
-A deterministic, Cardano-shaped eUTxO state machine that runs as an app-chain
+A deterministic, Cardano-shaped eUTxO state machine that runs as an app ledger
 capability. Its first milestone is a **no-real-funds experimental ledger** — a
-place to execute Conway-shaped transactions against an app chain's threshold
+place to execute Conway-shaped transactions against an app ledger's threshold
 finality and proofs rather than against L1.
 
 Three layers, each optional on top of the previous:

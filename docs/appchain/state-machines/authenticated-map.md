@@ -4,7 +4,7 @@
 named collections. Each collection has its own authorization policy, key/value
 bounds, value encoding, and optional value validator. Every active entry or
 revocation tombstone is threshold-finalized and individually provable against
-the app-chain state root.
+the app ledger state root.
 
 It is a general authenticated data structure, not a relational database or a
 document store. It does not provide secondary indexes, joins, range queries,
@@ -46,7 +46,7 @@ are:
 
 `open` permits any authenticated sender. `owner` records the first successful
 creator as the 32-byte controller and permits later mutations only from that
-controller. `member` requires the sender to be an active app-chain member at
+controller. `member` requires the sender to be an active app ledger member at
 the finalized height. `governed-role` requires a current actor with the role
 named by its direct policy and a one-use signature over the complete action.
 `approval` requires a terminal role-approval proposal for that exact action and
@@ -493,7 +493,7 @@ policy revision or silently signs with a node/member key.
 
 The first-party bundle publishes read-only routes below
 `/api/v1/plugins/org.yanoproject.x.stdlib/`. Set `chain=<id>`
-when a node hosts more than one app chain. Important routes include:
+when a node hosts more than one app ledger. Important routes include:
 
 | Route | Result |
 |---|---|
@@ -546,7 +546,7 @@ runtime catalog and explicitly allow-listed on every node.
 Validator plugins are trusted in-process consensus code, not sandboxed uploads.
 They must not depend on filesystem, network, clock, randomness, locale,
 environment, mutable global state, or node-local configuration. If a rule must
-read app-chain state or relate several entries, it belongs in a custom or
+read app ledger state or relate several entries, it belongs in a custom or
 composite state machine instead of a value validator.
 
 The light showcase's `gs1-gtin-v1` validator is a working reference for this

@@ -1,10 +1,10 @@
 ---
 title: "Evidence Desk"
-description: "The Evidence Desk is the user interface for the role workflow and the Evidence product. It runs against any app chain whose composite carries the…"
+description: "The Evidence Desk is the user interface for the role workflow and the Evidence product. It runs against any app ledger whose composite carries the…"
 editUrl: "https://github.com/bloxbean/yano-x/edit/main/docs/site/products-evidence-desk.md"
 ---
 The Evidence Desk is the user interface for the role workflow and the
-[Evidence](/products/evidence/) product. It runs against any app chain whose
+[Evidence](/products/evidence/) product. It runs against any app ledger whose
 composite carries the `domain-actors` and `role-approvals` components, which
 includes the light showcase's connector-free `document-review-chain` and the
 evidence product's `role-evidence` profile.

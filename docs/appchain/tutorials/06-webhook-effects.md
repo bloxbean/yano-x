@@ -92,7 +92,7 @@ executor. Each file must begin with `config_ordinal=275`.
 
 These are private overlays consumed only by the local cluster launcher through
 `--node-config-dir`; they are not generated-project configuration. Generated
-app-chain projects and `appchain config` use YAML.
+app ledger projects and `appchain config` use YAML.
 
 Common settings for `node0.properties`, `node1.properties`, and
 `node2.properties`:

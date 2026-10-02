@@ -286,7 +286,7 @@ Existing verification sources include `AppChainClientSubmitTest`,
 `AppChainClientQueryTest`, and `DeclarativeBindingsRuntimeTest`, which exercises
 approval/audit receipts and persisted restart through the host. The snippets
 here are source-checked examples; this page does not claim a new build or test
-run. The broader [app-chain user guide](../../APP_CHAIN_USER_GUIDE.md) covers
+run. The broader [app ledger user guide](../../APP_CHAIN_USER_GUIDE.md) covers
 the remaining SDK and transport features.
 
 [Next: Operate and evolve a pinned workflow](05-operations-and-upgrades.md)

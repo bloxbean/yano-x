@@ -86,7 +86,7 @@ See [Developing Yano X](/contributing/) for the full contributor workflow.
 - **Namespace configuration and metrics by plugin and contribution**, so an
   operator can attribute a problem to the right bundle.
 - **Keep plugin domain APIs read-only** unless commands still enter through the
-  authenticated app-chain submission path.
+  authenticated app ledger submission path.
 
 ## Installing on a cluster
 

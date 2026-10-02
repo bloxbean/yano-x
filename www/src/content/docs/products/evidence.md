@@ -35,7 +35,7 @@ The reference scenario verifies all of the following together:
   destination fingerprint;
 - the exact IPFS CID, the retrieved bytes, and the configured pin state;
 - the Kafka destination fingerprint, event bytes, partition, and offset;
-- identical committed state across three app-chain members;
+- identical committed state across three app ledger members;
 - state **and** effect inclusion proofs bound to the same root;
 - threshold-signed finality evidence; and
 - the Cardano script-anchor transaction, its state-thread token, and the

@@ -1,10 +1,10 @@
 # `role-approvals` State Machine
 
 `role-approvals` is Yano's application-neutral authorization product for cases
-where business actors are not the app-chain validator members. Governed
+where business actors are not the app ledger validator members. Governed
 organizations, actors, public keys, roles and policies authorize an exact
 payload hash; the finalized proposal and decision trail are committed under
-the app-chain state root.
+the app ledger state root.
 
 It is bundled for JVM and native distributions and currently has `preview`
 maturity.

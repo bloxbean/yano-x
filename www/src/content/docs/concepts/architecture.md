@@ -1,11 +1,11 @@
 ---
 title: Architecture
-description: The four layers of an app chain, the two-plane separation between deterministic intent and non-deterministic execution, and the components that implement them.
+description: The four layers of an app ledger, the two-plane separation between deterministic intent and non-deterministic execution, and the components that implement them.
 sidebar:
   order: 1
 ---
 
-An app chain has four layers, and one safety boundary that matters more than
+An app ledger has four layers, and one safety boundary that matters more than
 all the rest.
 
 ## The four layers
@@ -94,7 +94,7 @@ flowchart TB
 
 | Component | Responsibility | Key property |
 |---|---|---|
-| App-chain API and clients | Submit messages, inspect blocks, query state, stream finality, verify proofs. | Clients verify evidence rather than trust a response. |
+| App ledger API and clients | Submit messages, inspect blocks, query state, stream finality, verify proofs. | Clients verify evidence rather than trust a response. |
 | Proposer / sequencer | Orders accepted messages and proposes app blocks. | An ordering role only; it cannot force members to sign a wrong root. |
 | Members | Validate, re-execute, vote, catch up, and retain finalized history. | Threshold control and independent verification. |
 | State machine | Interprets application message bodies and writes deterministic state. | No wall clock, randomness, or external I/O. |
@@ -106,7 +106,7 @@ flowchart TB
 
 ## Composite state machines
 
-One app chain selects exactly **one** state machine. A deterministic composite
+One app ledger selects exactly **one** state machine. A deterministic composite
 lets that single machine host several reusable capabilities behind one atomic
 state root.
 
@@ -151,11 +151,11 @@ Each node keeps three sibling stores, and conflating them is a correctness bug:
 | Store | Contents | Authority |
 |---|---|---|
 | `chainstate/` | Cardano L1 state | Authoritative |
-| `appchain-chainstate/` | App-chain state | Authoritative |
+| `appchain-chainstate/` | App ledger state | Authoritative |
 | `appchain-indexers/` | Local read indexes | Rebuildable, never authoritative |
 
-Derived indexes must never advance beyond authoritative app-chain state, and
-app-chain data must never be placed below L1 `chainstate`.
+Derived indexes must never advance beyond authoritative app ledger state, and
+app ledger data must never be placed below L1 `chainstate`.
 
 ## Deployment shape
 

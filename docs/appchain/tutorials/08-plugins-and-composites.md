@@ -259,7 +259,7 @@ effect payloads.
 - Treat plugin removal or drift as a deployment error, not automatic fallback.
 - Namespace configuration and metrics by plugin/contribution.
 - Keep plugin domain APIs read-only unless commands still enter through the
-  authenticated app-chain submission path.
+  authenticated app ledger submission path.
 
 ## Go deeper
 

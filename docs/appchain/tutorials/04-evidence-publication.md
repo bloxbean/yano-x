@@ -34,7 +34,7 @@ Expected local endpoints:
 
 If startup fails, the launcher rolls back the partial deployment. Use the
 reported container health/log command rather than repeatedly deleting random
-directories; retained L1 and app-chain identities are deliberately checked.
+directories; retained L1 and app ledger identities are deliberately checked.
 
 ## 2. Publish version 1
 

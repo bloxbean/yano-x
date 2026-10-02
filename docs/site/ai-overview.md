@@ -108,7 +108,7 @@ tooling/devtools/src/main/resources/appchain-dx/v1alpha1/skills/
 ```
 
 `configure-yano-appchain` covers creating, explaining, updating, validating, and
-diagnosing app-chain **projects** using the version-matched blueprint, capability
+diagnosing app ledger **projects** using the version-matched blueprint, capability
 catalog, and CLI.
 
 **Where the skill and the starter pack overlap, the skill wins** — it is

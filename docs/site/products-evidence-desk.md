@@ -1,7 +1,7 @@
 # Evidence Desk
 
 The Evidence Desk is the user interface for the role workflow and the
-[Evidence](/products/evidence/) product. It runs against any app chain whose
+[Evidence](/products/evidence/) product. It runs against any app ledger whose
 composite carries the `domain-actors` and `role-approvals` components, which
 includes the light showcase's connector-free `document-review-chain` and the
 evidence product's `role-evidence` profile.

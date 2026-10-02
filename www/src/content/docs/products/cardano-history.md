@@ -5,7 +5,7 @@ sidebar:
   order: 3
 ---
 
-Cardano History is an optional app-chain plugin that assembles reusable epoch
+Cardano History is an optional app ledger plugin that assembles reusable epoch
 observers and state-machine components into one installable product. It answers
 questions such as "what was `key-deposit` in epoch 512?" with a **proof**, not
 with an API response you have to trust.
@@ -71,7 +71,7 @@ retained facts can seed prior epochs with no external indexer.
 If no completed boundary is retained, the first fact arrives after the next
 stable L1 epoch transition. Until a fact finalizes:
 
-- generic app-chain status, capability discovery, and anchor endpoints remain
+- generic app ledger status, capability discovery, and anchor endpoints remain
   available;
 - product routes return HTTP **404**; and
 - the CLI reports unavailable data with **exit code 3**.

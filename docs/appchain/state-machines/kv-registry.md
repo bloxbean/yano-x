@@ -4,7 +4,7 @@
 first-writer ownership. The member that first creates a key becomes its owner;
 only that same member can update or delete it. Every current entry is
 replicated, threshold-finalized, and individually provable against the
-app-chain state root.
+app ledger state root.
 
 The configured state-machine id is exactly `kv-registry`. A chain id such as
 `registry-chain` identifies one independent ledger using that implementation.
@@ -24,7 +24,7 @@ authorization rule “first writer owns this key” is sufficient:
 Choose a custom or role-aware state machine when ownership must transfer
 atomically or under governance, multiple parties must approve updates, values
 have domain-specific transition rules, one organization may own many member
-keys, or authorization must use a business actor distinct from the app-chain
+keys, or authorization must use a business actor distinct from the app ledger
 member.
 
 ## Data and ownership model
@@ -314,6 +314,6 @@ In a declarative composite, admission rules can read this machine's entries
 
 - [Registry and proofs tutorial](../tutorials/02-registry-and-proofs.md)
 - [Stock state-machine cookbook](../tutorials/03-stock-state-machines.md)
-- [Complete app-chain user guide](../../APP_CHAIN_USER_GUIDE.md)
+- [Complete app ledger user guide](../../APP_CHAIN_USER_GUIDE.md)
 - [Consensus and state-machine internals](../../core-host.md)
-- [Java app-chain client](../../../sdk/client/README.md)
+- [Java app ledger client](../../../sdk/client/README.md)

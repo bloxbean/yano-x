@@ -18,7 +18,7 @@ CLI, and App-Chain Studio. It needs Java 25; the showcase also needs Python 3,
 | Path in the archive | Use it when | First command, from the extracted directory |
 | --- | --- | --- |
 | `yano.sh` | You want one production-shaped Yano JVM node with the standard Yano X plugin set. | `./yano.sh start:devnet,appchain` |
-| `examples/showcase/` | You want the quickest local three-node, multi-app-chain demonstration. | `examples/showcase/showcase.sh quickstart --profile light --nodes 3 --instance demo` |
+| `examples/showcase/` | You want the quickest local three-node, multi-ledger demonstration. | `examples/showcase/showcase.sh quickstart --profile light --nodes 3 --instance demo` |
 | `tools/yano-deploy/` | You want to render and apply multi-node OpenTofu and Ansible deployments. | `tools/yano-deploy/bin/yano-x-deploy init ./cluster` |
 | `studio/` | You want the browser-based blueprint editor. It is a static site. | `cd studio && python3 -m http.server 8080` |
 | `plugins/`, `optional-plugins/` | You already operate the matching Yano JVM release and want to select Yano X runtime bundles yourself. | Copy reviewed bundles into the node plugin directory. |
@@ -46,12 +46,12 @@ cd yano-x-jvm-<version>
 ./yano.sh start:devnet,appchain
 ```
 
-This starts one Yano node with app-chain support. Review the included
+This starts one Yano node with app ledger support. Review the included
 configuration before using a public Cardano network.
 
 On devnet, `config/application-devnet.yml` turns off Yano's L1 history
 projection, which cannot load outside Linux x64 in this Yano release
-([bloxbean/yano#137](https://github.com/bloxbean/yano/issues/137)). App chains
+([bloxbean/yano#137](https://github.com/bloxbean/yano/issues/137)). App ledgers
 and the showcase do not need it; Yano's address, account, and reward history
 endpoints return 503 on devnet until it is re-enabled.
 

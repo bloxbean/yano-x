@@ -5,7 +5,7 @@ editUrl: "https://github.com/bloxbean/yano-x/edit/main/docs/site/start-here.md"
 ---
 Start with a working example. Learn one concept at a time, then bring your own application rules.
 
-Yano X is the Java 25 extension ecosystem for **Yano app chains**: application ledgers that several members run together. Yano handles ordering, member finality, proofs, and optional Cardano anchors. Yano X adds state machines, workflows, connectors, and application tooling as JVM plugins.
+Yano X is the Java 25 extension ecosystem for **Yano app ledgers**: application ledgers that several members run together. Yano handles ordering, member finality, proofs, and optional Cardano anchors. Yano X adds state machines, workflows, connectors, and application tooling as JVM plugins.
 
 ## 1. See a chain work
 
@@ -13,7 +13,7 @@ Follow the [local showcase quickstart](/start-here/quickstart/). You will start 
 
 **Ready to continue when:** you can submit an order, verify member agreement, stop the instance, and restart it with the same data.
 
-If the idea is new, read [What is an app chain?](/start-here/what-is-an-app-chain/) first. If you only need Cardano data, transaction submission, or devnet testing, begin with [Yano](https://getyano.dev/).
+If the idea is new, read [What is an app ledger?](/start-here/what-is-an-app-chain/) first. If you only need Cardano data, transaction submission, or devnet testing, begin with [Yano](https://getyano.dev/).
 
 ## 2. Understand what you verified
 

@@ -1,6 +1,6 @@
 # Cardano anchoring
 
-Anchoring periodically commits the app chain's position — height, block hash,
+Anchoring periodically commits the app ledger's position — height, block hash,
 and **state root** — onto Cardano. The node builds, signs, and submits the
 transaction through its own mempool and tx diffusion, and confirms it through
 its own L1 sync. No external API or provider is involved.
@@ -76,9 +76,9 @@ In script mode the leader has no unilateral power:
 - the on-chain validator independently re-enforces the member threshold and
   monotonic height.
 
-An unavailable leader can **stop anchoring** while app-chain finality
+An unavailable leader can **stop anchoring** while app ledger finality
 continues. Threshold checks prevent unilateral script-state advances, but a
-compromised leader can also endanger its fee wallet and disrupt operations. The app chain keeps finalizing and
+compromised leader can also endanger its fee wallet and disrupt operations. The app ledger keeps finalizing and
 `lagBlocks` climbs visibly. Recovery is operational: enable `anchor.*` with the
 wallet key on another member and restart it. The on-chain identity is persisted
 on L1 and members adopt it from sign requests, so the new leader resumes where
@@ -104,9 +104,9 @@ credentials. These credentials serve different roles and should have separate ac
 
 ## What an anchor proves — and what it does not
 
-An anchor binds a certified app-chain root to public L1 history at a
+An anchor binds a certified app ledger root to public L1 history at a
 Cardano-observable time. That gives an auditor an independent reference point
-they can check without asking any app-chain node.
+they can check without asking any app ledger node.
 
 It does **not** prove:
 

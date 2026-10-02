@@ -3,7 +3,7 @@
 `doc-trail` is Yano X's stock append-only trail per business entity. Each
 command appends an application-level document or event hash to one entity's
 running chained head. The current count and head are replicated,
-threshold-finalized, and individually provable against the app-chain state
+threshold-finalized, and individually provable against the app ledger state
 root, while the documents themselves remain outside the chain.
 
 The configured state-machine id is exactly `doc-trail`. An entity id can be a
@@ -217,7 +217,7 @@ GET /chains/{chainId}/messages/{messageId}
 GET /chains/{chainId}/status
 ```
 
-The app-chain history proves which command bytes were finalized. The external
+The app ledger history proves which command bytes were finalized. The external
 document must still be fetched, hashed with the declared application
 algorithm, and matched to `entryHash`.
 
@@ -264,6 +264,6 @@ see [admission rules](../bindings/07-admission-rules.md)):
 - [Stock state-machine cookbook](../tutorials/03-stock-state-machines.md)
 - [Evidence publication tutorial](../tutorials/04-evidence-publication.md)
 - [Plugins and composites](../tutorials/08-plugins-and-composites.md)
-- [Complete app-chain user guide](../../APP_CHAIN_USER_GUIDE.md)
+- [Complete app ledger user guide](../../APP_CHAIN_USER_GUIDE.md)
 - [Consensus and state-machine internals](../../core-host.md)
-- [Java app-chain client](../../../sdk/client/README.md)
+- [Java app ledger client](../../../sdk/client/README.md)

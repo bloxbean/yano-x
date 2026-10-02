@@ -1,4 +1,4 @@
-# App-Chain State-Machine References
+# App Ledger State-Machine References
 
 These pages are capability references for Yano's deterministic application
 state machines. Use the [stock state-machine cookbook](../tutorials/03-stock-state-machines.md)

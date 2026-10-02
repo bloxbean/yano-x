@@ -1,9 +1,9 @@
 ---
 title: "Effects"
-description: "Everything else in an app chain keeps state inside the chain. Effects let a finalized transition trigger an action outside it — call an ERP or webhook…"
+description: "Everything else in an app ledger keeps state inside the ledger. Effects let a finalized transition trigger an action outside it — call an ERP or webhook…"
 editUrl: "https://github.com/bloxbean/yano-x/edit/main/docs/site/concepts-effects.md"
 ---
-Everything else in an app chain keeps state inside the chain. **Effects** let a
+Everything else in an app ledger keeps state inside the ledger. **Effects** let a
 finalized transition trigger an action outside it — call an ERP or webhook,
 publish to Kafka, store an object, pin to IPFS, submit a Cardano payment —
 without breaking determinism.

@@ -7,7 +7,7 @@
 - **Outcome:** bootstrap a threshold-enforced script anchor, advance it after app
   blocks finalize, and understand the independent verification chain.
 
-An app-chain finality certificate proves that the configured member threshold
+An app ledger finality certificate proves that the configured member threshold
 approved a block. An L1 anchor makes a later application position durable and
 discoverable through Cardano. These are related but distinct proofs.
 

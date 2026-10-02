@@ -149,7 +149,7 @@ The idempotent lifecycle uses a dedicated recovery actor and demonstrates:
 6. rejection after revocation; and
 7. historical revision and decision proofs.
 
-This is not app-chain membership rotation. Business credentials and validator
+This is not app ledger membership rotation. Business credentials and validator
 membership are intentionally governed through separate mechanisms.
 
 ### B5. Stop and retain

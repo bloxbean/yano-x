@@ -139,4 +139,4 @@ Prefer a typed client over raw HTTP where one exists:
 ## Deeper reading
 
 The exhaustive API, configuration, security, and operations reference is
-[section 4 of the app-chain user guide](https://github.com/bloxbean/yano-x/blob/main/docs/APP_CHAIN_USER_GUIDE.md).
+[section 4 of the app ledger user guide](https://github.com/bloxbean/yano-x/blob/main/docs/APP_CHAIN_USER_GUIDE.md).

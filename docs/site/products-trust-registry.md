@@ -7,7 +7,7 @@ status questions with proofs bound to a certified block; `yano-trust serve`
 speaks W3C Bitstring Status List and a TRQP-shaped authorization query without
 ever processing JSON-LD; and a browser console reads it all back and, through an
 operator gateway or a key unlocked in the tab itself, writes to it. Its domain tooling runs outside consensus; the stock authenticated-map
-state machine applies governed writes and authorization rules on the app chain.
+state machine applies governed writes and authorization rules on the app ledger.
 
 ## The journey
 

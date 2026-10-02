@@ -50,7 +50,7 @@ const SECTIONS = [
     title: 'Start here',
     files: [
       'start-here/index.md',
-      'start-here/what-is-an-app-chain.md',
+      'start-here/what-is-an-app-ledger.md',
       'start-here/why-yano-x.md',
       'start-here/release-downloads.md',
       'start-here/build-from-source.md',
@@ -303,9 +303,10 @@ export async function generateLlmsFiles({ outDir, logger, catalog }) {
   index.push(`generatedAt: ${generatedAt}`);
   index.push('');
   index.push(
-    '> Yano X is the Java 25, JVM-only extension ecosystem for Yano app chains. ' +
-    'An app chain is an application-specific replicated ledger with deterministic ' +
-    'state, threshold finality, MPF proofs, optional Cardano anchoring, and ' +
+    '> Yano X is the Java 25, JVM-only extension ecosystem for Yano app ledgers. ' +
+    'An app ledger (an "app chain" in Yano\'s CLI, configuration, and APIs) is an ' +
+    'application-specific replicated ledger with deterministic ' +
+    'state, threshold finality, authenticated state proofs, optional Cardano anchoring, and ' +
     'controlled external effects. Yano X supplies the stock state machines, ' +
     'capabilities, connectors, products, SDKs, and the batteries-included JVM ' +
     'distribution that run on top of the Yano host.',

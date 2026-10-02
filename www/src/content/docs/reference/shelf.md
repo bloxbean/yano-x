@@ -16,10 +16,10 @@ repository disagree.
 
 | Document | Size | What it covers |
 |---|---|---|
-| [App-chain user guide](https://github.com/bloxbean/yano-x/blob/main/docs/APP_CHAIN_USER_GUIDE.md) | ~113 KB | The exhaustive reference: configuration, REST API, anchoring, custom app chains, multi-chain nodes, standard state machines, SSE/webhook/Kafka consumption, typed messages, security, compliance, operations, queries, client libraries, ZK, effects, troubleshooting, and current limitations. |
-| [App-chain overview](https://github.com/bloxbean/yano-x/blob/main/docs/APP_CHAIN_OVERVIEW.md) | ~21 KB | The 10–15 minute architecture read, plus an editable presentation deck. |
+| [App ledger user guide](https://github.com/bloxbean/yano-x/blob/main/docs/APP_CHAIN_USER_GUIDE.md) | ~113 KB | The exhaustive reference: configuration, REST API, anchoring, custom app ledgers, multi-chain nodes, standard state machines, SSE/webhook/Kafka consumption, typed messages, security, compliance, operations, queries, client libraries, ZK, effects, troubleshooting, and current limitations. |
+| [App ledger overview](https://github.com/bloxbean/yano-x/blob/main/docs/APP_CHAIN_OVERVIEW.md) | ~21 KB | The 10–15 minute architecture read, plus an editable presentation deck. |
 | [Consensus and host internals](https://github.com/bloxbean/yano-x/blob/main/docs/core-host.md) | — | The consensus round check by check, vote locks, rotation math, catch-up and restart semantics, plugin query and domain API contract. |
-| [App-chain tutorial](https://github.com/bloxbean/yano-x/blob/main/docs/APP_CHAIN_TUTORIAL.md) | ~22 KB | Run a cluster and build a custom state machine end to end. |
+| [App ledger tutorial](https://github.com/bloxbean/yano-x/blob/main/docs/APP_CHAIN_TUTORIAL.md) | ~22 KB | Run a cluster and build a custom state machine end to end. |
 | [Use-case catalogue](https://github.com/bloxbean/yano-x/blob/main/docs/APP_CHAIN_USE_CASES.md) | ~19 KB | Worked application patterns and their starting points. |
 
 ## Domain and governance
