@@ -1,181 +1,135 @@
-# `approvals` State Machine
+# approvals
 
-`approvals` is Yano's built-in member-signature workflow for deterministic
-`k-of-n` decisions. A proposer creates an item, distinct app ledger members
-approve it, and the item becomes terminal when it is approved, rejected, or
-expired. Every decision is replicated, threshold-finalized, and provable
-against the app ledger state root.
+`approvals` is a `k`-of-`n` decision among member nodes. One member proposes
+an item, distinct members approve it, and the item ends APPROVED, REJECTED or
+EXPIRED. Every item can be proved against the state root, and an approved item
+can trigger one effect.
 
-The configured state-machine id is exactly `approvals`. Item ids and topics are
-chosen by the application; they do not create new state-machine types.
+The machine id is exactly `approvals`. Item ids and topics are chosen by the
+application; they do not create new machine types.
+
+## At a glance
+
+| | |
+|---|---|
+| Machine id | `approvals` |
+| Maturity | stable |
+| Commands | `[0, itemId, payload, required, deadlineMillis]` PROPOSE; `[1, itemId]` APPROVE; `[2, itemId]` REJECT |
+| Settings | optional on-approved effect under `machines.approvals.on-approved-effect.*` |
+| State | `i/<itemId>` → `[status, proposer, payloadHash, required, deadline, approvers, rejecter]`; with the effect, `ae/p/<itemId>` and `ae/s/<itemId>` |
+| Statuses | `0` PENDING, `1` APPROVED, `2` REJECTED, `3` EXPIRED |
+| Proof subject | `basic-approval-outcome-v1`: coordinate `proposal-id`; claims `status`, `quorum-reached`, `payload-digest` |
+| Result codes | none: a command that breaks a rule is a final no-op |
+| Events | `approvals.item-proposed.v1`, `approvals.item-approved.v1`, `approvals.item-rejected.v1`, in composites only |
+
+## How it works
+
+<!-- illustration: approvals-lifecycle -->
+1. **Propose.** A member creates a PENDING item. The proposer is not counted as
+   an approver.
+2. **Approve.** A second member approves: 1 of 2.
+3. **Approve again.** The same member approves again; a member counts once, so
+   nothing changes.
+4. **Reach the threshold.** A third member approves: the item is APPROVED and,
+   with the on-approved effect, one effect is emitted.
+5. **Reject too late.** A rejection of a terminal item is a no-op.
+6. **Record the result.** The effect's record becomes CONFIRMED; the item stays
+   APPROVED.
+<!-- /illustration -->
+
+The rules, in the order the machine applies them:
+
+1. PROPOSE creates a PENDING item if the id is new. A later PROPOSE for the same
+   id is a no-op, even with another payload. `required` must be positive.
+2. APPROVE or REJECT of an unknown id, or of an item that is not PENDING, is a
+   no-op.
+3. If the item has a deadline (`deadlineMillis` greater than 0) and the block
+   time is after it, the command marks the item EXPIRED instead. This applies
+   to REJECT too.
+4. APPROVE from a member that already approved is a no-op. Otherwise the member
+   is added; when the count reaches `required` the item is APPROVED.
+5. REJECT from any member marks the item REJECTED.
+
+Deadlines are Unix milliseconds compared with the finalized block timestamp.
+Time passing writes nothing: an item stays PENDING in state until a command
+touches it after its deadline.
+
+The sender of the envelope is the approver. Through the local cluster, ports
+7070, 7071 and 7072 are three different members.
 
 ## When to use it
 
-Use `approvals` when app ledger member keys intentionally represent the people,
-services, or organizations allowed to decide:
+Use `approvals` when member keys really are the people, services or
+organizations that decide:
 
 - release and deployment gates;
 - consortium or treasury authorization;
-- cross-organization sign-off;
-- credential or document issuance approval;
-- manual review before an external action; and
-- a generic finalized decision that may emit an effect.
+- cross-organization sign-off, or review before an external action.
 
-Choose a role-aware workflow or a custom state machine when business actors
-must be independent of validator members, approvals have organization/role
-clauses, votes carry delegated authority, or the workflow needs more states
-than propose/approve/reject. A REST API key controls HTTP access; it is not an
-approval identity.
+Use [`role-approvals`](role-approvals.md) when approvers are business actors
+with roles and organizations, separate from the member nodes. A REST API key
+controls HTTP access; it is not an approval identity.
 
-## Decision model
+## Try it
 
-The machine accepts three canonical CBOR command bodies:
-
-```text
-[0, itemId, payloadBytes, requiredApprovals, deadlineMillis]  PROPOSE
-[1, itemId]                                                   APPROVE
-[2, itemId]                                                   REJECT
-```
-
-Its rules are:
-
-- The first `PROPOSE` for an item id creates a `PENDING` item. Later proposals
-  for the same id are deterministic no-ops.
-- `requiredApprovals` must be positive. Configure a reachable threshold; an
-  item requiring more distinct members than are available can never approve.
-- Each member public key counts at most once. Repeating an approval from the
-  same member is a no-op.
-- Reaching the required count changes the item to terminal `APPROVED`.
-- One member rejection changes a pending item to terminal `REJECTED`.
-- A command that touches a pending item after its deadline changes it to
-  `EXPIRED`. Time passing alone does not create a block or mutate state.
-- Approval or rejection of an unknown or terminal item is a no-op.
-
-Deadlines are Unix epoch milliseconds compared with the finalized app-block
-timestamp, not a node-local clock read during deterministic execution.
-
-The authenticated envelope sender is the approver. With the local cluster,
-submitting through ports 7070, 7071, and 7072 uses three different member
-identities.
-
-## Configuration
-
-Configure a standalone approval chain with:
-
-```yaml
-yano:
-  app-chain:
-    enabled: true
-    chain-id: approvals-chain
-    state-machine: approvals
-```
-
-In a multi-chain deployment:
-
-```yaml
-yano:
-  app-chain:
-    chains[0]:
-      chain-id: approvals-chain
-      state-machine: approvals
-      membership:
-        mode: governed
-      block:
-        interval-ms: 1000
-```
-
-All members must use the same machine id and consensus-affecting settings.
-The local launcher injects the demo member keys, threshold, proposer, and peer
-addresses. Production deployments should obtain those values and signing
-secrets from generated per-node configuration and secret management.
-
-The default three-node demo already hosts `effects-chain` using `approvals`,
-with a generic demonstration effect attached:
+The stock local cluster hosts `effects-chain`, which runs `approvals` with a
+demonstration effect. From the top-level directory of the extracted release:
 
 ```bash
 ./yano.sh appchain cluster start 3
+./yano.sh appchain cluster effect demo "release 2026-07 approved"
 ```
 
-## Submit proposal and approvals through REST
+The demo proposes and approves a one-approval item, emits a `demo.webhook`
+effect, plays the external worker, reports success, and checks the effect
+proof. It calls no real webhook.
 
-REST transports the canonical command bytes in `bodyHex`. From the source
-checkout's `app/` directory, use the maintained dependency-free tutorial
-encoder:
+## Submit through REST
+
+Encode the commands with the tutorial helper:
 
 ```bash
-TOOL=../docs/appchain/tutorials/tools/stdlib_command.py
+TOOL=docs/appchain/tutorials/tools/stdlib_command.py
 ITEM=release-2026-07
 
-PROPOSE_HEX=$(python3 "$TOOL" approvals propose "$ITEM" \
-  --required 2 \
+PROPOSE_HEX=$(python3 "$TOOL" approvals propose "$ITEM" --required 2 \
   --payload-text '{"artifact":"inventory-service:2.4.0"}')
-
 APPROVE_HEX=$(python3 "$TOOL" approvals approve "$ITEM")
 REJECT_HEX=$(python3 "$TOOL" approvals reject "$ITEM")
 ```
 
-Submit the proposal through node 0:
+Propose through node 0, then approve through two other members:
 
 ```bash
-curl -sS -X POST \
-  http://127.0.0.1:7070/api/v1/app-chain/chains/effects-chain/messages \
+curl -sS -X POST http://127.0.0.1:7070/api/v1/app-chain/chains/effects-chain/messages \
   -H 'Content-Type: application/json' \
-  -d "{\"topic\":\"approvals\",\"bodyHex\":\"$PROPOSE_HEX\"}" | jq .
+  -d "{\"topic\":\"approvals.command.v1\",\"bodyHex\":\"$PROPOSE_HEX\"}" | jq .
+
+for port in 7071 7072; do
+  curl -sS -X POST "http://127.0.0.1:$port/api/v1/app-chain/chains/effects-chain/messages" \
+    -H 'Content-Type: application/json' \
+    -d "{\"topic\":\"approvals.command.v1\",\"bodyHex\":\"$APPROVE_HEX\"}" | jq .
+done
 ```
 
-Submit two approvals through distinct members:
+`202` means the receiving member queued the envelope. It does not mean the
+command is final or changed the item. The topic is a label; the machine reads
+only the body. To reject a pending item instead, submit `REJECT_HEX` through
+any member. Whichever terminal transition is final first wins.
 
-```bash
-curl -sS -X POST \
-  http://127.0.0.1:7071/api/v1/app-chain/chains/effects-chain/messages \
-  -H 'Content-Type: application/json' \
-  -d "{\"topic\":\"approvals\",\"bodyHex\":\"$APPROVE_HEX\"}" | jq .
-
-curl -sS -X POST \
-  http://127.0.0.1:7072/api/v1/app-chain/chains/effects-chain/messages \
-  -H 'Content-Type: application/json' \
-  -d "{\"topic\":\"approvals\",\"bodyHex\":\"$APPROVE_HEX\"}" | jq .
-```
-
-Use the chain id from your configuration when it is not `effects-chain`.
-The topic is an application routing label; the stock machine interprets the
-CBOR command body, not the topic name.
-
-HTTP `202` means that the ingress node accepted the signed envelope. It does
-not mean the command has finalized or changed the item. Wait for finality and
-inspect the state proof before treating the decision as committed.
-
-To reject a still-pending item, submit `REJECT_HEX` through any member. Do not
-submit both paths in one workflow unless the application is deliberately
-testing deterministic ordering: whichever terminal transition finalizes first
-governs later commands.
-
-### Add a deadline
-
-Pass an absolute epoch-millisecond value:
+To add a deadline, pass absolute epoch milliseconds:
 
 ```bash
 DEADLINE=$(python3 -c 'import time; print(int((time.time() + 300) * 1000))')
-
-PROPOSE_HEX=$(python3 "$TOOL" approvals propose expiring-review-001 \
-  --required 2 \
-  --deadline-millis "$DEADLINE" \
-  --payload-text '{"document":"policy-v3"}')
+PROPOSE_HEX=$(python3 "$TOOL" approvals propose expiring-review-001 --required 2 \
+  --deadline-millis "$DEADLINE" --payload-text '{"document":"policy-v3"}')
 ```
 
-After the deadline, the next approval or rejection command deterministically
-marks the pending item `EXPIRED`.
-
 ## Submit from Java
-
-Use the client artifact with the same Yano version as
-the nodes:
 
 ```groovy
 implementation "org.yanoproject.x:yano-x-client:${yanoXVersion}"
 ```
-
-The client provides portable contracts and a typed proof-verifying facade:
 
 ```java
 import org.yanoproject.x.client.AppChainClient;
@@ -184,89 +138,79 @@ import org.yanoproject.x.client.StdlibAppChainClient;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 
-var proposer = AppChainClient.builder("http://127.0.0.1:7070/api/v1")
-        .chainId("effects-chain")
-        .build();
-var approver1 = AppChainClient.builder("http://127.0.0.1:7071/api/v1")
-        .chainId("effects-chain")
-        .build();
-var approver2 = AppChainClient.builder("http://127.0.0.1:7072/api/v1")
-        .chainId("effects-chain")
-        .build();
-var proposals = new StdlibAppChainClient(proposer);
-var decisions1 = new StdlibAppChainClient(approver1);
-var decisions2 = new StdlibAppChainClient(approver2);
+var proposer = new StdlibAppChainClient(AppChainClient.builder("http://127.0.0.1:7070/api/v1")
+        .chainId("effects-chain").build());
+var approver1 = new StdlibAppChainClient(AppChainClient.builder("http://127.0.0.1:7071/api/v1")
+        .chainId("effects-chain").build());
+var approver2 = new StdlibAppChainClient(AppChainClient.builder("http://127.0.0.1:7072/api/v1")
+        .chainId("effects-chain").build());
 
 String itemId = "release-2026-07";
-byte[] payload = "{\"artifact\":\"inventory-service:2.4.0\"}"
-        .getBytes(StandardCharsets.UTF_8);
+byte[] payload = "{\"artifact\":\"inventory-service:2.4.0\"}".getBytes(StandardCharsets.UTF_8);
 long deadline = Instant.now().plusSeconds(300).toEpochMilli();
 
-proposals.propose(itemId, payload, 2, deadline);
-decisions1.approve(itemId);
-decisions2.approve(itemId);
+proposer.propose(itemId, payload, 2, deadline);
+approver1.approve(itemId);
+approver2.approve(itemId);
 ```
 
-When API authentication is enabled, add `.apiKey("...")` to each builder.
-Using two client objects against the same node does not create two approvers;
-the envelope sender remains that node's member key.
+Add `.apiKey("...")` to each builder when API authentication is enabled. Two
+client objects against the same node are one approver: the envelope sender is
+that node's member key.
 
-## State and proofs
+## Read and prove an item
 
-Each item is stored under UTF-8 key `i/<itemId>` as canonical CBOR:
-
-```text
-[status, proposer, payloadHash, required, deadline, approvers[], rejecter]
-```
-
-Status values are `0=PENDING`, `1=APPROVED`, `2=REJECTED`, and `3=EXPIRED`.
-The state retains the Blake2b-256 payload hash rather than duplicating the
-proposal payload. The original command remains in finalized block history
-while its body is retained; archive the command/evidence when long-term body
-availability is required.
-
-Request an MPF proof by hex-encoding the physical key:
+The item lives under the UTF-8 key `i/<itemId>`. It stores the Blake2b-256 hash
+of the payload, not the payload itself; the original bytes stay in block
+history while the node retains it.
 
 ```bash
 ITEM_KEY_HEX=$(python3 -c 'print("i/release-2026-07".encode().hex())')
 
 curl -sS \
   "http://127.0.0.1:7070/api/v1/app-chain/chains/effects-chain/state/proof/$ITEM_KEY_HEX" \
-  | jq .
+  | jq '{committedHeight, stateRoot, presence, valueHex}'
 ```
 
-The response's `valueHex` is the CBOR state entry. Verify `proofWireHex`
-against an independently trusted state root before trusting that value. Java
-can verify and decode it:
+`valueHex` is the CBOR item. In Java:
 
 ```java
-var item = proposals.approval(itemId).orElseThrow().value();
-System.out.println("status=" + item.status());
-System.out.println("approvals=" + item.approvers().size());
+var item = proposer.approval(itemId).orElseThrow().value();
+System.out.println("status=" + item.status() + " approvals=" + item.approvers().size());
 ```
 
-For audit-grade verification, pin the chain profile and obtain the expected
-state root from an independently verified finality certificate or Cardano
-anchor rather than accepting the serving node's root as its own authority.
+For an audit, verify the proof against a state root from pinned finality or a
+Cardano anchor, not the root the serving node reports.
 
-## Attach a generic on-approved effect
+## Configure
 
-An approval decision can optionally emit one generic effect when it first
-becomes `APPROVED`:
+`effects-chain` in the stock cluster file is a complete example, including the
+three [state-identity settings](README.md#before-you-configure-one) and the
+on-approved effect:
 
 ```yaml
 yano:
   app-chain:
-    chains[0]:
-      chain-id: approvals-chain
+    chains[2]:
+      chain-id: "effects-chain"
       state-machine: approvals
+      state:
+        commitment-profile: mpf-blake2b256-v1
+        format-fingerprint: 91ee14091200f1e24659112d640e877e9177779dcc81dd06117f013e9190082b
+        genesis-id: 63281a4424bed827004e10185a663bce10de4228953d3959e2ed20aa3a4a9f0b
+      membership:
+        mode: governed
+      block:
+        interval-ms: 1000
       effects:
         enabled: true
+        default-gate: app-final
         external:
           enabled: true
         executor:
           enabled: true
           types: demo.webhook
+          tick-ms: 250
         metrics:
           types: demo.webhook
       machines:
@@ -280,52 +224,55 @@ yano:
             on-approved-effect: 1
 ```
 
-The proposal payload becomes the opaque effect payload. The routing `type`
-tells an executor which contract to apply; the approvals machine does not
-interpret it as a webhook, payment, or any other domain action. Production
-types can route to packaged or custom executor plugins.
+Without the `effects` and `machines.approvals` blocks, the machine needs no
+settings. A new chain needs its own genesis id.
 
-The decision and delivery lifecycle remain separate:
+## The on-approved effect
+
+When an item first becomes APPROVED, the machine can emit one effect. The
+proposal payload is the effect's opaque payload, and `type` tells an executor
+which contract to run; the machine itself never interprets it.
 
 ```text
-i/<itemId>     -> APPROVED
-ae/s/<itemId>  -> PENDING -> CONFIRMED | FAILED
-effect scope   -> approvals/on-approved/<itemId>
+i/<itemId>     PENDING -> APPROVED            the decision; never changed by the effect
+ae/p/<itemId>  the staged payload             written at PROPOSE, deleted when used
+ae/s/<itemId>  PENDING -> CONFIRMED | FAILED  the delivery record
+effect scope   approvals/on-approved/<itemId>
 ```
 
-Effect success or failure never rewrites the business decision from
-`APPROVED`. Select the activation height before the first proposal that should
-emit an effect; proposals finalized before activation do not stage their
-payload retroactively.
+- The payload is staged at `ae/p/<itemId>` only for proposals finalized once
+  the effect is active, from its activation height. Pick that height before the
+  first proposal that should emit an effect.
+- While the effect is active, a PROPOSE whose payload is larger than
+  `effects.max-payload-bytes` (16,384 by default) is refused at admission.
+- REJECTED and EXPIRED items delete their staged payload and emit nothing.
+- Execution is at least once. Executors must use the effect's identity to stay
+  idempotent.
 
-The default local demo exercises the complete lifecycle:
+For a real HTTP delivery, configure the `webhook.post` executor as in the
+[webhook effects tutorial](../tutorials/06-webhook-effects.md).
 
-```bash
-./yano.sh appchain cluster effect demo "release 2026-07 approved"
-```
+## Operating notes
 
-It creates and approves a one-approval item, emits `demo.webhook`, acts as a
-simulated external worker, reports success, and checks the finalized effect
-proof. It does not call a real webhook. For a real HTTP delivery, configure
-the `webhook.post` executor as shown in the webhook-effects tutorial.
+- Member signing keys are approval authority. Protect and rotate them as
+  consensus identities, not API credentials.
+- Payloads are replicated to every member and kept in block history. Encrypt
+  secrets before you propose them.
+- Adding members does not change an existing item's `required` count.
 
-## Operational and security notes
+## Advanced
 
-- Member signing keys are approval authority; protect and rotate them as
-  consensus identities, not as ordinary API credentials.
-- The proposal payload is replicated to every member and retained in block
-  history. Do not submit secrets without application-level encryption.
-- Business idempotency comes from a stable item id. Reusing an id with a new
-  payload does not replace the original proposal.
-- Adding members does not change an existing item's numeric required count.
-- Switching an existing chain to different state-machine semantics requires a
-  governed/versioned profile activation or a new chain, not a local YAML edit.
-- External execution is at-least-once. Executors must honor the effect's
-  idempotency identity and report a bounded outcome.
+### Composites
 
-## Admission-rule views and facts
+In a declarative composite, `approvals` emits typed events instead of the
+standalone effect, and the payload is always staged. An item that reaches
+APPROVED without a staged payload is rejected with
+`APPROVAL_PAYLOAD_UNAVAILABLE`. A chain with the legacy on-approved effect
+enabled exposes no composable kernel; use an effect binding instead of both.
 
-In a declarative composite, admission rules can read an item (ADR-031.4, see
+### Admission-rule views and facts
+
+Admission rules can read an item (ADR-031.4, see
 [admission rules](../bindings/07-admission-rules.md)):
 
 - **Value view** (namespace `""`, key: the item id): `status` (`PENDING`,
@@ -337,9 +284,8 @@ In a declarative composite, admission rules can read an item (ADR-031.4, see
 
 ## Related documentation
 
-- [First app ledger and local effect demo](../tutorials/01-first-app-chain.md)
-- [Stock state-machine cookbook](../tutorials/03-stock-state-machines.md)
+- [Your first app ledger](../tutorials/01-first-app-chain.md)
+- [Choose a stock state machine](../tutorials/03-stock-state-machines.md)
 - [Webhook effects](../tutorials/06-webhook-effects.md)
-- [Domain-role approvals](../tutorials/05-domain-role-approvals.md)
-- [Complete app ledger user guide](../../APP_CHAIN_USER_GUIDE.md)
+- [role-approvals](role-approvals.md)
 - [Java app ledger client](../../../sdk/client/README.md)

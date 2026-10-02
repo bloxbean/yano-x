@@ -226,6 +226,7 @@ export const IMPORTED_DOCS = {
   'docs/appchain/state-machines/doc-trail.md': '/state-machines/doc-trail/',
   'docs/appchain/state-machines/kv-registry.md': '/state-machines/kv-registry/',
   'docs/appchain/state-machines/role-approvals.md': '/state-machines/role-approvals/',
+  'docs/appchain/state-machines/ordered-log.md': '/state-machines/ordered-log/',
 };
 
 /**

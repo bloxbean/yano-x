@@ -1,92 +1,122 @@
-# `authenticated-map` State Machine
+# authenticated-map
 
-`authenticated-map` is Yano X's plugin-provided, proof-oriented registry for multiple
-named collections. Each collection has its own authorization policy, key/value
-bounds, value encoding, and optional value validator. Every active entry or
-revocation tombstone is threshold-finalized and individually provable against
-the app ledger state root.
+`authenticated-map` is a proof-oriented registry with several named
+collections. Each collection has its own authorization, key and value bounds,
+value encoding and optional validator, all fixed at genesis. Every active entry
+and every revocation tombstone can be proved against the state root.
 
-It is a general authenticated data structure, not a relational database or a
-document store. It does not provide secondary indexes, joins, range queries,
-confidentiality, or cross-entry business rules.
+It is an authenticated data structure, not a database. It has no secondary
+indexes, joins, range queries, confidentiality or rules that relate two
+entries.
+
+## At a glance
+
+| | |
+|---|---|
+| Machine id | `authenticated-map`, a composite of the map and the role-workflow components |
+| Maturity | preview |
+| Topic | `authenticated-map.command.v1`, enforced |
+| Command | `[1, action, evidence]`: an action of one mutation or a batch, plus evidence for governed collections |
+| Operations | `PUT`, `PUT_IF_ABSENT`, `COMPARE_AND_SET`, `TRANSFER_CONTROLLER`, `REVOKE`, `RESTORE` |
+| Authorization | per collection: `open`, `owner`, `member`, `governed-role` or `approval` |
+| State | one record per collection and key: status, revision, controller, value, logical value hash, heights |
+| Proof subject | `authenticated-map-entry-v1`: coordinates `collection`, `key` (hex); claims `status`, `revision-exact`, `value-digest` |
+| Result codes | receipt codes 3 to 27; see [the code table](authenticated-map-validation.md#result-and-receipt-codes) |
+| Events | `authenticated-map.entry-updated.v1`, `authenticated-map.batch-applied.v1`, in composites only |
+
+## How it works
+
+<!-- illustration: authmap-lab -->
+1. **A creates.** A PUT on an absent key creates revision 1. In an `owner`
+   collection the sender becomes the controller.
+2. **A updates with a precondition.** COMPARE_AND_SET applies only if the
+   expected revision or value hash matches.
+3. **A hands control to B.** TRANSFER_CONTROLLER works only in `owner`
+   collections.
+4. **B revokes.** REVOKE leaves a tombstone: the value is removed, the last
+   value hash and the revision history remain.
+<!-- /illustration -->
+
+For each mutation the machine checks, in order:
+
+1. **An absent entry** accepts only `PUT` or `PUT_IF_ABSENT`; anything else is
+   `ABSENT` (5).
+2. **Authorization.** `owner`: the sender must be the controller. `member`:
+   the sender must be a member at this height. `governed-role` and `approval`:
+   verified evidence must cover the mutation. Otherwise `UNAUTHORIZED` (3).
+3. **A tombstone** accepts only `RESTORE` (`REVOKED`, 6), and only if the
+   collection sets `restoreAllowed` (`RESTORE_FORBIDDEN`, 9).
+4. **The operation.** `PUT_IF_ABSENT` on an active entry is `ALREADY_EXISTS`
+   (4). `RESTORE` on an active entry is `ACTIVE` (7). `COMPARE_AND_SET`,
+   `TRANSFER_CONTROLLER` and `REVOKE` check their optional expected revision
+   and value hash (`PRECONDITION`, 8); `COMPARE_AND_SET` must carry at least one.
+   `TRANSFER_CONTROLLER` outside an `owner` collection is `UNAUTHORIZED` (3).
+5. **The value**, for `PUT`, `PUT_IF_ABSENT`, `COMPARE_AND_SET` and `RESTORE`:
+   encoding (10), then schema (11), then plugin validator (12).
+
+A batch is all or nothing. It cannot touch the same collection and key twice,
+and if any mutation fails, none of its entries change. Every command that
+reaches apply leaves a **receipt** under its message id: APPLIED with the
+results, or REJECTED with one code. A command refused at admission has no
+receipt.
+
+<!-- illustration: authmap-presence -->
+
+The **logical value hash** is Blake2b-256 over the ASCII bytes
+`yano-authenticated-map-value-v1`, a zero byte, the value length as a 4-byte
+big-endian integer, and the value. A tombstone keeps the hash of its last value.
 
 ## When to use it
 
-Use `authenticated-map` when an application needs one or more independently
-configured key/value namespaces with verifiable current state:
+Use `authenticated-map` when an application needs several independently
+configured key/value collections with verifiable current state:
 
-- product, asset, credential, or configuration registries;
+- product, asset, credential or configuration registries;
 - owner-controlled records with controller transfer and revocation;
-- member-maintained canonical event or reference data;
-- opaque hashes, attachments, encrypted values, or application-native bytes;
-- atomic updates to several distinct keys; and
-- records that need deterministic schema or application-specific validation.
+- member-maintained reference data;
+- opaque hashes, attachments or encrypted values;
+- atomic updates to several keys; or
+- values that must pass a deterministic schema or validator.
 
-Use `kv-registry` when one owner-guarded key/value namespace is enough. Use
-`ordered-log` when append order matters more than current keyed state. Write a
-composite or custom state machine when a transition must inspect several
-existing entries, maintain secondary indexes, enforce relationships between
-collections, emit effects, or implement a larger workflow.
+Use [`kv-registry`](kv-registry.md) when one owner-guarded namespace is enough,
+and [`ordered-log`](ordered-log.md) when order matters more than current state.
+Write a composite or plugin when a transition must read several entries, keep
+secondary indexes, relate collections or emit effects.
 
-## Collection and entry model
+## Collections
 
-Genesis defines up to 64 collections. The important per-collection options
-are:
+Genesis defines up to 64 collections:
 
 | Option | Meaning |
 |---|---|
-| `id` | Stable lowercase collection identifier |
-| `authorization` | `open`, `owner`, `member`, `governed-role`, or `approval` mutation policy |
-| `authorizationPolicy` | Stable direct-role or approval policy id; required only by governed modes |
-| `restoreAllowed` | Whether a revoked tombstone may become active again |
-| `maxKeyBytes` | Maximum application-key size |
-| `maxValueBytes` | Maximum value size |
+| `id` | Stable lowercase collection id, at most 64 bytes |
+| `authorization` | `open`, `owner`, `member`, `governed-role` or `approval` |
+| `authorizationPolicy` | Stable policy id; only for the two governed modes |
+| `restoreAllowed` | Whether a tombstone may become active again |
+| `maxKeyBytes` | Maximum application-key size, at most 128 |
+| `maxValueBytes` | Maximum value size, at most 1 MiB |
 | `valueEncoding` | `opaque` or `canonical-cbor` |
-| `validator` | Optional genesis-bound schema or plugin descriptor id |
+| `validator` | Optional schema or plugin validator id |
 
-`open` permits any authenticated sender. `owner` records the first successful
-creator as the 32-byte controller and permits later mutations only from that
-controller. `member` requires the sender to be an active app ledger member at
-the finalized height. `governed-role` requires a current actor with the role
-named by its direct policy and a one-use signature over the complete action.
-`approval` requires a terminal role-approval proposal for that exact action and
-consumes the proposal atomically with the mutation. Only an `owner` collection
-supports controller transfer.
+- `open` lets any member's message write.
+- `owner` makes the first successful creator the 32-byte controller; only the
+  controller can change the entry, and only `owner` supports transfer.
+- `member` requires the sender to be an active member at the block's height.
+- `governed-role` requires a current actor with the policy's role and a
+  one-use signature over the complete action.
+- `approval` requires a terminal role-approval proposal for exactly this
+  action, and consumes it together with the mutation.
 
-Member keys remain consensus/relay identities. Governed authorization uses
-separate domain actors, organizations, rotatable actor keys, and immutable
-policy revisions. Any active member may relay actor-signed evidence, but the
-relay gains no business authority and cannot alter the signed action.
+Member keys stay consensus identities. Governed modes use separate actors,
+organizations, rotatable actor keys and immutable policy revisions. Any member
+may relay actor-signed evidence; the relay gains no authority and cannot
+change the signed action.
 
-An entry contains status (`ACTIVE` or `REVOKED`), revision, optional
-controller, value, logical value hash, creation height, and last-mutation
-height. Revocation retains a tombstone and the last logical value hash, but
-removes the value bytes. Absence and revocation are therefore distinct and
-provable states.
+## Configure
 
-The mutation operations are:
-
-| Operation | Behavior |
-|---|---|
-| `PUT` | Create an absent entry or replace an active value |
-| `PUT_IF_ABSENT` | Create only when no entry or tombstone exists |
-| `COMPARE_AND_SET` | Replace an active value after revision and/or value-hash checks |
-| `TRANSFER_CONTROLLER` | Change an active owner collection's controller |
-| `REVOKE` | Replace an active entry with a tombstone |
-| `RESTORE` | Restore a tombstone when the collection permits it |
-
-A command contains either one mutation or a bounded batch. A batch cannot
-touch the same collection/key twice and is applied atomically: if any mutation
-fails, none of its entry changes are written. For a command that reaches state
-application, a retained receipt records the applied results or one
-deterministic rejection code. Candidate-validation failures are filtered
-before finalization and therefore have no receipt.
-
-## Configuration
-
-The recommended path is the authenticated-map project recipe. Bootstrap member
-keys are required because membership, consensus settings, collection rules,
-validators, and the state-commitment profile are all committed by genesis:
+Start from the project recipe. Membership, consensus settings, collections,
+validators and the state-commitment profile are all part of genesis, so the
+member keys must be known up front:
 
 ```bash
 ./yano.sh appchain init --non-interactive \
@@ -98,9 +128,8 @@ validators, and the state-commitment profile are all committed by genesis:
   --output product-registry
 ```
 
-Configure `spec.chains[0].authenticatedMap` in the generated
-`appchain.yaml`. This example combines an opaque collection, canonical CBOR,
-and a declarative product schema:
+Then edit `spec.chains[0].authenticatedMap` in `appchain.yaml`. This example
+combines an opaque collection, a canonical-CBOR collection and a schema:
 
 ```yaml
 authenticatedMap:
@@ -140,10 +169,149 @@ authenticatedMap:
         }
 ```
 
-To use `governed-role` or `approval`, add a stable policy id to the collection
-and provide a closed genesis actor/policy set. This abridged direct-role example
-shows the public shape; substitute the generated lowercase hex values before
-rendering:
+Render and check the exact release:
+
+```bash
+./yano.sh appchain render product-registry
+./yano.sh appchain doctor product-registry --distribution /path/to/yano-release.zip
+```
+
+The renderer writes the canonical genesis and the three state-identity
+settings, `state.commitment-profile`, `state.format-fingerprint` and
+`state.genesis-id`. Do not edit them by hand. Every member must use the same
+generated configuration and validator artifacts.
+
+`anchorPolicyCommitment` is part of the chain identity. The all-zero value is a
+development placeholder; replace it with the reviewed 32-byte commitment
+before you create an anchored production chain. The commitment profiles are
+`mpf-blake2b256-v1` and `jmt-blake2b256-v1`; the Poseidon JMT profile is
+reserved.
+
+Encoding, schemas and validator plugins are described in
+[value validation](authenticated-map-validation.md).
+
+## Run the showcase
+
+The light showcase includes `authenticated-map-chain` with four collections:
+
+| Collection | Authorization | Encoding and validation |
+|---|---|---|
+| `attachments` | owner | opaque bytes |
+| `canonical-events` | member | canonical-CBOR array |
+| `products` | owner | canonical-CBOR map with the `product-v1` schema |
+| `gtins` | owner | canonical-CBOR text with the first-party `gs1-gtin-v1` plugin |
+
+From `examples/showcase` in the extracted release:
+
+```bash
+./showcase.sh quickstart --profile light --nodes 3 --instance authmap-demo
+./demos/submit-authenticated-map.sh authmap-demo
+```
+
+The scenario writes to every collection, shows the product schema and the GTIN
+plugin refusing bad values at admission, runs a root-attested point query and
+fetches a native proof.
+
+## Submit through REST
+
+The chain admits only the final command envelope: an action that assigns each
+mutation its collection's authorization kind, plus evidence. For the basic
+kinds (`open`, `owner`, `member`) the evidence list is empty. From
+`examples/showcase`, with the showcase running:
+
+```bash
+BASE=http://127.0.0.1:7070/api/v1
+CHAIN=authenticated-map-chain
+CODEC=tools/showcase_codec.py
+DOMAIN=$BASE/plugins/org.yanoproject.x.stdlib
+
+# Wrap a codec-built mutation in the final envelope.
+# kind is the collection's authorization: open, owner or member.
+wrap() {
+  local action
+  action=$(yano/yano.sh appchain authenticated-map action \
+    --command-hex "$2" --assignments "0:$1::0")
+  yano/yano.sh appchain authenticated-map command --action-hex "$action" --evidence-hex ''
+}
+
+VALUE=$(python3 "$CODEC" authmap-value product sku-42 5 active 'demo product')
+BODY=$(wrap owner "$(python3 "$CODEC" authmap put products sku-42 "$VALUE")")
+
+MESSAGE_ID=$(curl -fsS -X POST "$BASE/app-chain/chains/$CHAIN/messages" \
+  -H 'Content-Type: application/json' \
+  -d "{\"topic\":\"authenticated-map.command.v1\",\"bodyHex\":\"$BODY\"}" | jq -r .messageId)
+```
+
+A value that breaks the encoding, the schema or a plugin is refused at once
+with HTTP `400` and `APPLICATION_REJECTED`; nothing is pooled and no receipt
+exists. `202` means only that the command was queued. Wait until it is final,
+then read the receipt and the entry:
+
+```bash
+until curl -fsS "$BASE/app-chain/chains/$CHAIN/messages/$MESSAGE_ID" >/dev/null 2>&1; do sleep 1; done
+
+curl -fsS "$DOMAIN/authenticated-map/receipts/$MESSAGE_ID?chain=$CHAIN" | jq .record
+KEY_HEX=$(printf 'sku-42' | xxd -p)
+curl -fsS "$DOMAIN/authenticated-map/entries/products/$KEY_HEX?chain=$CHAIN" | jq .
+```
+
+To prove the entry, use the `proofKey` that the entry route returns. It is the
+map's key inside the composite state; never build it by hand:
+
+```bash
+PROOF_KEY=$(curl -fsS "$DOMAIN/authenticated-map/entries/products/$KEY_HEX?chain=$CHAIN" | jq -r .proofKey)
+curl -fsS "$BASE/app-chain/chains/$CHAIN/state/proof/$PROOF_KEY" \
+  | jq '{committedHeight, stateRoot, presence, valueHex}'
+```
+
+Verify the proof locally, and at an audit boundary bind its root to trusted
+finality or a Cardano anchor.
+
+## Submit from Java
+
+Use `yano-x-stdlib-contracts` for the wire contract and `yano-x-client` for
+submission, queries and proofs. Build the final envelope with
+`AuthenticatedMapAuthoring`; a basic assignment has no policy and no evidence:
+
+```java
+AppChainClient raw = AppChainClient.builder("http://127.0.0.1:7070/api/v1")
+        .chainId("product-registry")
+        .build();
+StdlibAppChainClient map = new StdlibAppChainClient(raw);
+
+byte[] key = "sku-42".getBytes(StandardCharsets.UTF_8);
+byte[] value = productCbor(); // one canonical CBOR value matching product-v1
+
+var mutation = AuthenticatedMapContract.Mutation.put("products", key, value);
+var action = AuthenticatedMapAuthoring.action(AuthenticatedMapContract.Command.single(mutation),
+        List.of(new AuthenticatedMapAuthorizationContract.AuthorizationAssignmentV1(
+                0, AuthenticatedMapContract.AUTH_OWNER, "", 0)));
+var submitted = map.authenticatedMapGovernedCommand(
+        AuthenticatedMapAuthoring.command(action, List.of()));
+
+var point = map.authenticatedMapEntry("products", key);
+var proof = map.authenticatedMapProof("products", key);
+var receipt = map.authenticatedMapReceipt(HexFormat.of().parseHex(submitted.messageId()));
+```
+
+`authenticatedMapProof` targets the composite physical key, the same key the
+domain API reports as `proofKey`. The client's `authenticatedMapMutate`,
+`authenticatedMapBatch` and `authenticatedMapCommand` methods send the older
+mutation-only encoding, which this chain refuses at admission; use the
+envelope above.
+
+For race-safe writes, use `compareAndSet` with the revision or value hash from
+the last trusted entry. Use `Command.batch(...)` for an atomic list of distinct
+keys.
+
+## Advanced
+
+### Governed collections
+
+A `governed-role` or `approval` collection names a stable policy, and genesis
+provides a closed set of organizations, actors, keys and policies. This
+abridged direct-role example shows the shape; substitute the generated
+lowercase hex values before rendering:
 
 ```yaml
 authenticatedMap:
@@ -189,8 +357,8 @@ authenticatedMap:
     approvalPolicies: []
 ```
 
-Generate the public key and the raw proof-of-possession signature offline. The
-seed remains in the caller-controlled file and is never written to the project:
+Generate the public key and proof-of-possession offline. The seed stays in a
+file you control and is never written to the project:
 
 ```bash
 ADMIN_PUBLIC_KEY="$(./yano.sh appchain role public-key \
@@ -203,8 +371,8 @@ ADMIN_POP_SIGNATURE="$(./yano.sh appchain role key-proof-signature \
   --seed-file /owner-only/admin-a.seed)"
 ```
 
-An approval policy uses `proposerRoles` plus one or more clauses. Each clause
-sets a role, minimum count, and `distinctBy: actor|organization`; for example,
+An approval policy has `proposerRoles` and one or more clauses. Each clause
+sets a role, a minimum count and `distinctBy: actor|organization`. For example,
 two `auditor` actors from distinct organizations:
 
 ```yaml
@@ -223,13 +391,13 @@ approvalPolicies:
 ```
 
 Every referenced organization, actor, key and policy must be revision 1,
-canonical, active, proof-of-possession valid, and inside the configured bounds.
-The renderer refuses an invalid genesis closure. `authorizationLimits` can
-lower the committed evidence, genesis, pending-index, expiry, query-page and
-crypto-work maxima; omitted values use the release defaults.
+canonical, active, proof-of-possession valid and inside the configured bounds;
+the renderer refuses an invalid set. `authorizationLimits` can lower the
+committed evidence, genesis, pending-index, expiry, query-page and crypto-work
+maxima.
 
-For an intentionally post-genesis policy, list an `onboarding` item instead of
-pretending the collection is ready:
+For a policy you plan to activate after genesis, list an `onboarding` item
+instead:
 
 ```yaml
 onboarding:
@@ -238,152 +406,21 @@ onboarding:
     note: activate before enabling release submissions
 ```
 
-The collection remains fail closed until governance activates that policy.
-`appchain doctor` reports `GOVERNED_COLLECTION_NOT_BOOTSTRAPPED` and names the
-planned item; the renderer writes `bootstrap/authenticated-map-onboarding.yaml`
-as an operational plan, not as consensus state.
+The collection stays fail-closed until governance activates that policy.
+`appchain doctor` reports `GOVERNED_COLLECTION_NOT_BOOTSTRAPPED`, and the
+renderer writes `bootstrap/authenticated-map-onboarding.yaml` as an
+operational plan, not consensus state.
 
-Then render and verify the exact release:
-
-```bash
-./yano.sh appchain render product-registry
-./yano.sh appchain doctor product-registry --distribution /path/to/yano-release.zip
-```
-
-The renderer emits the canonical genesis plus the three matching runtime
-settings: `state.commitment-profile`, `state.format-fingerprint`, and
-`state.genesis-id`. Do not hand-edit those values. Every member must use the
-same generated chain configuration and validator artifacts.
-
-`anchorPolicyCommitment` is consensus identity. The all-zero value is an
-explicit development/no-policy placeholder; replace it with the reviewed
-32-byte commitment before creating an anchored production chain generation.
-
-The available commitment profiles are `mpf-blake2b256-v1` and
-`jmt-blake2b256-v1`. The Poseidon JMT profile is reserved until its pinned
-implementation is released.
-
-## Value encoding and validation
-
-Validation is optional and the default is `opaque` with no validator.
-
-- `opaque` accepts any bounded byte sequence. Use it for encrypted values,
-  hashes, attachments, or an application format already made deterministic.
-- `canonical-cbor` requires exactly one bounded deterministic CBOR item. It
-  accepts integers, byte/text strings, definite-length arrays, and
-  definite-length maps, subject to canonical ordering and bounds. It rejects
-  indefinite-length values, trailing bytes, non-minimal encodings, duplicate
-  or incorrectly ordered map keys, invalid UTF-8, and unsupported tags or
-  simple values.
-- A declarative schema adds exact record-shape and field constraints using the
-  supported `cddl-yano-subset-v1`; nodes execute its canonical compiled IR.
-- A validator plugin adds a deterministic application-specific predicate over
-  `(collectionId, applicationKey, value)`.
-
-These rules are consensus-bound. Changing an encoding, schema, plugin,
-parameters, or pinned plugin artifact creates a different genesis identity and
-requires a new chain generation with an explicit migration plan.
-
-For detailed schema syntax, offline preflight, validator descriptors, error
-codes, and the plugin trust model, see
-[Authenticated-map value validation](authenticated-map-validation.md).
-
-## Run the showcase
-
-The light showcase includes `authenticated-map-chain` with four collections:
-
-| Collection | Authorization | Encoding and validation |
-|---|---|---|
-| `attachments` | owner | opaque bytes |
-| `canonical-events` | member | canonical-CBOR array |
-| `products` | owner | canonical-CBOR map plus `product-v1` schema |
-| `gtins` | owner | canonical-CBOR text plus first-party `gs1-gtin-v1` plugin |
-
-Start it and run the dedicated scenario:
-
-```bash
-./showcase.sh quickstart --profile light --nodes 3 --instance authmap-demo
-./demos/submit-authenticated-map.sh authmap-demo
-```
-
-The scenario writes one value to every collection, demonstrates pre-finality
-rejection by the product schema and GTIN plugin, performs a root-attested point
-query, and retrieves the native MPF proof. The launcher generates the
-authenticated-map genesis from the actual bootstrap member keys and the
-validator bundle digest in that exact Yano release.
-
-## Submit through REST
-
-The topic is `authenticated-map.command.v1`. Use the packaged showcase codec
-to create canonical command and value bytes; curl still sends the normal public
-HTTP request:
-
-```bash
-BASE=http://127.0.0.1:7070
-CODEC=./tools/showcase_codec.py
-
-VALUE_HEX="$(python3 "$CODEC" authmap-value product sku-42 5 active \
-  'demo product')"
-BODY_HEX="$(python3 "$CODEC" authmap put products sku-42 "$VALUE_HEX")"
-
-RESPONSE="$(curl -fsS -X POST \
-  "$BASE/api/v1/app-chain/chains/authenticated-map-chain/messages" \
-  -H 'Content-Type: application/json' \
-  -d "$(jq -nc --arg body "$BODY_HEX" \
-    '{topic:"authenticated-map.command.v1",bodyHex:$body}')")"
-MESSAGE_ID="$(printf '%s' "$RESPONSE" | jq -r .messageId)"
-```
-
-HTTP `202` proves only ingress/pool acceptance, not state-machine acceptance or
-a successful finalized mutation. Encoding, schema, and plugin validation runs
-again when forming the candidate block; an invalid message can therefore
-receive `202`, then be filtered before finalization without changing state or
-creating an authenticated receipt. Use local preflight for immediate advisory
-feedback, and always wait for finality before treating a mutation as applied.
-The generic query endpoint accepts the canonical point-query bytes:
-
-```bash
-until curl -fsS \
-  "$BASE/api/v1/app-chain/chains/authenticated-map-chain/messages/$MESSAGE_ID" \
-  >/dev/null 2>&1; do sleep 1; done
-
-RECEIPT_HEX="$(python3 "$CODEC" authmap-receipt "$MESSAGE_ID")"
-curl -fsS -X POST \
-  "$BASE/api/v1/app-chain/chains/authenticated-map-chain/query/authenticated-map/receipt-v1" \
-  -H 'Content-Type: application/json' \
-  -d "$(jq -nc --arg params "$RECEIPT_HEX" '{paramsHex:$params}')" | jq .
-
-QUERY_HEX="$(python3 "$CODEC" authmap query products sku-42)"
-curl -fsS -X POST \
-  "$BASE/api/v1/app-chain/chains/authenticated-map-chain/query/authenticated-map/entry-v1" \
-  -H 'Content-Type: application/json' \
-  -d "$(jq -nc --arg params "$QUERY_HEX" '{paramsHex:$params}')" | jq .
-```
-
-For a direct state-inclusion proof, derive the physical state key:
-
-```bash
-STATE_KEY_HEX="$(python3 "$CODEC" authmap state-key products sku-42)"
-curl -fsS \
-  "$BASE/api/v1/app-chain/chains/authenticated-map-chain/state/proof/$STATE_KEY_HEX" \
-  | jq .
-```
-
-Verify the proof locally and bind its root to an independently trusted finality
-certificate or Cardano anchor at an audit boundary.
-
-## Governed authoring and external signing
+### Governed authoring and external signing
 
 A governed command commits to the complete ordered action: every collection,
-key, operation, value, precondition, controller, authorization kind, stable
-policy id, evidence handle, and covered mutation index. Evidence handles are
-one-based; `0` means no evidence for `open`, `owner`, or `member`. The same
-evidence item may cover several declared mutation indexes, but its coverage
-must be exact.
+key, operation, value, precondition, controller, authorization kind, policy id,
+evidence handle and covered mutation index. Evidence handles start at 1; `0`
+means no evidence and is used for `open`, `owner` and `member`.
 
-The packaged CLI assembles canonical bytes and never reads a direct-role
-private key. For one `governed-role` mutation whose first evidence item is the
-actor authorization:
+The CLI assembles canonical bytes and never reads an actor's private key. For
+one `governed-role` mutation whose first evidence item is the actor's
+authorization:
 
 ```bash
 ACTION_HEX="$(./yano.sh appchain authenticated-map action \
@@ -399,7 +436,7 @@ PREIMAGE_HEX="$(./yano.sh appchain authenticated-map direct-preimage \
   --public-key "$ISSUER_PUBLIC_KEY" \
   --issued-height "$CURRENT_HEIGHT" --deadline-height "$DEADLINE_HEIGHT")"
 
-# Sign PREIMAGE_HEX with the actor's Ed25519 key in the caller's wallet/HSM.
+# Sign PREIMAGE_HEX with the actor's Ed25519 key in the caller's wallet or HSM.
 SIGNATURE_HEX="$(external-ed25519-signer "$PREIMAGE_HEX")"
 
 EVIDENCE_HEX="$(./yano.sh appchain authenticated-map direct-complete \
@@ -416,89 +453,48 @@ GOVERNED_COMMAND_HEX="$(./yano.sh appchain authenticated-map command \
   --action-hex "$ACTION_HEX" --evidence-hex "$EVIDENCE_HEX")"
 ```
 
-`direct-complete` verifies the returned signature against the claimed public
-key before emitting evidence. Submit `GOVERNED_COMMAND_HEX` on
-`authenticated-map.command.v1`. A successful action consumes
-`(actorId, authorizationId)` exactly once; reuse is a deterministic replay
-rejection even if a different member relays it.
+`direct-complete` verifies the signature against the claimed public key before
+emitting evidence. A successful action consumes `(actorId, authorizationId)`
+once; reusing it is rejected with `DIRECT_AUTHORIZATION_REPLAY` (19), even
+through another member.
 
 For an `approval` collection, derive the proposal payload with
 `authenticated-map approval-payload --action-hex ... --genesis-id ...`. Actors
 sign `PROPOSE` and `APPROVE` statements for payload domain
-`yano.authenticated-map.action.v1` through the offline `appchain role sign`
-flow and submit them on `role-approvals.command.v1`. Only after the exact
-proposal is terminal `APPROVED`, create its one-based evidence item with
-`authenticated-map approval-reference`, assemble the final map command, and
-submit it. Successful execution consumes the proposal id globally and
-atomically with every mutation; threshold approval never auto-executes.
+`yano.authenticated-map.action.v1` with `appchain role sign`, and submit them
+on `role-approvals.command.v1`. When the proposal is APPROVED, create its
+evidence item with `authenticated-map approval-reference`, assemble the map
+command, and submit it. Execution consumes the proposal id together with every
+mutation; an approval never executes by itself.
 
-## Submit from Java
-
-Use `yano-x-stdlib-contracts` for the portable wire contract and
-`appchain-client` for submission, queries, and proof verification:
-
-```java
-AppChainClient raw = AppChainClient.builder("http://127.0.0.1:7070/api/v1")
-        .chainId("product-registry")
-        .apiKey(System.getenv("YANO_API_KEY"))
-        .build();
-StdlibAppChainClient map = new StdlibAppChainClient(raw);
-
-byte[] key = "sku-42".getBytes(StandardCharsets.UTF_8);
-byte[] value = productCbor(); // one canonical CBOR value matching product-v1
-
-var mutation = AuthenticatedMapContract.Mutation.put("products", key, value);
-var submitted = map.authenticatedMapMutate(mutation);
-
-var point = map.authenticatedMapEntry("products", key);
-var proof = map.authenticatedMapProof("products", key);
-var receipt = map.authenticatedMapReceipt(
-        HexFormat.of().parseHex(submitted.messageId()));
-```
-
-For race-safe writes, use `compareAndSet` with the revision and/or logical value
-hash from the last trusted entry. Use `authenticatedMapBatch` for an atomic
-list of distinct collection/key mutations. Application-side preflight can
-reuse the exact genesis encoding/schema rules, but authoritative validation
-still occurs independently on every node.
-
-Governed Java applications use `AuthenticatedMapAuthoring` to keep signing
-outside the client process:
+In Java, `AuthenticatedMapAuthoring` keeps signing outside the client:
 
 ```java
 var command = AuthenticatedMapContract.Command.single(mutation);
 var action = AuthenticatedMapAuthoring.action(command, List.of(
         new AuthenticatedMapAuthorizationContract.AuthorizationAssignmentV1(
-                0, AuthenticatedMapContract.AUTH_GOVERNED_ROLE,
-                "issuer-write", 1)));
+                0, AuthenticatedMapContract.AUTH_GOVERNED_ROLE, "issuer-write", 1)));
 
 var request = AuthenticatedMapAuthoring.directSigningRequest(
         authorizationId, "product-registry", genesisId, action, List.of(0),
         "issuer-write", 1, "issuer-a", 1, "issuer-a-v1", publicKey,
         currentHeight, deadlineHeight);
 byte[] signature = externalSigner.sign(request.signingPreimage());
-var evidence = AuthenticatedMapAuthoring.completeDirectSignature(
-        request, signature);
+var evidence = AuthenticatedMapAuthoring.completeDirectSignature(request, signature);
 
-map.authenticatedMapGovernedCommand(AuthenticatedMapAuthoring.command(
-        action, List.of(evidence)));
+map.authenticatedMapGovernedCommand(AuthenticatedMapAuthoring.command(action, List.of(evidence)));
 ```
 
-Approval helpers construct the exact proposal statement and approval reference;
-`StdlibAppChainClient` submits signed approval, actor-governance, and
-policy-governance commands on their versioned topics. The SDK never infers a
-policy revision or silently signs with a node/member key.
+### Domain API and composite proofs
 
-## Domain API and composite proofs
-
-The first-party bundle publishes read-only routes below
-`/api/v1/plugins/org.yanoproject.x.stdlib/`. Set `chain=<id>`
-when a node hosts more than one app ledger. Important routes include:
+The first-party bundle serves read-only routes below
+`/api/v1/plugins/org.yanoproject.x.stdlib/`. Add `chain=<id>` when a node hosts
+more than one app ledger.
 
 | Route | Result |
 |---|---|
 | `authenticated-map` | Genesis identity, profile, collections, authorization capabilities |
-| `authenticated-map/entries/{collection}/{keyHex}` | Exact entry, absence, or tombstone |
+| `authenticated-map/entries/{collection}/{keyHex}` | Exact entry, absence or tombstone, with `proofKey` |
 | `authenticated-map/receipts/{messageIdHex}` | Receipt and complete action commitment |
 | `authenticated-map/direct-consumptions/{actor}/{authorizationIdHex}` | One-use actor claim |
 | `authenticated-map/approval-consumptions/{proposal}` | One-use proposal claim |
@@ -508,52 +504,39 @@ when a node hosts more than one app ledger. Important routes include:
 | `authenticated-map/pending/actor-governance` | Bounded actor-governance page |
 | `authenticated-map/pending/policy-governance` | Bounded policy-governance page |
 
-The same bundle also composes the exact organization, actor, approval-policy,
-proposal, and statistics routes from the role workflow API. Every exact-record
-response names the chain/API/state-machine identity, height/root, physical
-proof key, canonical leaf value, and—when it asserts currency—the
-current-pointer key/value. Pending pages instead return `sourceIndexProofKey`
-and canonical `queryValue`, explicitly labelled as a bounded index-derived
-view; they do not mislabel page bytes as a Merkle leaf. JSON is presentation
-only; verify canonical record values and native proofs.
+The bundle also serves the organization, actor, approval-policy, proposal and
+statistics routes of the role workflow. An exact-record response names the
+chain, state machine, height and root, the physical proof key, the canonical
+leaf value and, when it claims currency, the current-pointer key and value.
+Pending pages instead return `sourceIndexProofKey` and a canonical
+`queryValue`, labelled as an index-derived view. JSON is presentation only;
+verify canonical values and native proofs.
 
 `AuthenticatedMapProofBundle` verifies a bounded same-root assembly for
-`BASIC`, `DIRECT_ROLE`, `APPROVAL`, or `ADMINISTRATOR_GOVERNANCE`. It rejects
-mixed chain/profile/genesis/root/height facts, wrong physical namespaces,
+`BASIC`, `DIRECT_ROLE`, `APPROVAL` or `ADMINISTRATOR_GOVERNANCE`. It rejects
+mixed chain, profile, genesis, root or height facts, wrong namespaces,
 receipt-to-entry substitution, missing current pointers, wrong revisions,
-invalid actor/administrator signatures, unsatisfied approval clauses, and
-consumption/action mismatches. Use `verify(trustedRoot)` with an independently
-trusted exact root, or `verifyCertified(...)` with pinned finality membership.
-A later-root proof establishes retention, not historical currency; use the
-decision/execution root when the bundle must prove that a pointer was current.
+invalid signatures, unsatisfied clauses and consumption mismatches. Use
+`verify(trustedRoot)` with an independently trusted root, or
+`verifyCertified(...)` with pinned finality membership. A proof at a later
+root shows retention, not that a pointer was current at decision time.
 
-## Attach a custom validator format
-
-An application can enforce its own deterministic value format without adding
-a new `valueEncoding` name:
-
-- use `opaque` plus a plugin when the plugin owns all format parsing; or
-- use `canonical-cbor` plus a plugin when canonical CBOR should be enforced
-  before the application rule.
+### Custom validator plugins
 
 Implement `AuthenticatedMapValueValidatorFactory` from `core-api`, register it
 through `ServiceLoader` and a Yano plugin manifest, and return only `ACCEPT` or
-`REJECT` from a total, deterministic validator. The plugin descriptor in
-genesis pins the provider id, SPI contract version, canonical parameters, and
-the exact `ARTIFACT_CLOSURE` SHA-256. The bundle must also be present in the
-runtime catalog and explicitly allow-listed on every node.
+`REJECT` from a total, deterministic validator. The descriptor in genesis pins
+the provider id, the SPI contract version, the canonical parameters and the
+exact `ARTIFACT_CLOSURE` SHA-256. The bundle must be in the runtime catalog
+and allow-listed on every node.
 
 Validator plugins are trusted in-process consensus code, not sandboxed uploads.
-They must not depend on filesystem, network, clock, randomness, locale,
-environment, mutable global state, or node-local configuration. If a rule must
-read app ledger state or relate several entries, it belongs in a custom or
-composite state machine instead of a value validator.
+They must not depend on files, network, clock, randomness, locale, environment
+or node-local configuration. The showcase's `gs1-gtin-v1` validator is a
+working reference. Attaching another plugin to an existing chain creates a new
+chain generation. See [value validation](authenticated-map-validation.md).
 
-The light showcase's `gs1-gtin-v1` validator is a working reference for this
-extension path. Attaching a different plugin to an existing chain is not a hot
-configuration change; it creates a new chain generation.
-
-## Admission-rule views, write view and coverage
+### Admission-rule views, write view and coverage
 
 In a declarative composite, admission rules can read this map and judge every
 write of a command (ADR-031.4, see [admission rules](../bindings/07-admission-rules.md)):
@@ -577,15 +560,25 @@ write of a command (ADR-031.4, see [admission rules](../bindings/07-admission-ru
   them. See `examples/bindings/dpp-namespace-isolation.yaml` and
   `feed-slot-rules.yaml`.
 
+In a composite, a rejected map command rejects the cascade with the code
+`MAP_<n>`, where `n` is the receipt code.
+
 ## Operational boundaries
 
-Collection definitions, validation rules, maximum batch limits, consensus
-profile, bootstrap membership digest, and anchor-policy commitment are all
-chain-generation identity. Review and archive the rendered genesis before
-launch, keep plugin artifacts byte-identical across nodes, and fail deployment
-when a digest or provider is unavailable.
+Collections, validation rules, batch limits, the commitment profile, the
+bootstrap membership digest and the anchor-policy commitment are all part of
+the chain identity. Review and archive the rendered genesis before launch,
+keep plugin artifacts byte-identical across nodes, and fail the deployment
+when a digest or provider is missing.
 
-Authenticated state proves which bytes finalized under those rules. It does
-not prove that a real-world assertion is true, make public values confidential,
-or preserve old command bodies forever. Archive application evidence
-separately when historical availability is required.
+Authenticated state proves which bytes were finalized under those rules. It
+does not prove that a real-world claim is true, make values confidential, or
+keep old command bodies forever. Archive evidence separately when you need it
+later.
+
+## Related documentation
+
+- [Value validation](authenticated-map-validation.md)
+- [role-approvals](role-approvals.md)
+- [State machines](README.md)
+- [Showcase walkthrough](../../../examples/showcase/DEMO_SHOWCASE.md)
