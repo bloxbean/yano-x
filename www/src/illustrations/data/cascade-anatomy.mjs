@@ -49,8 +49,8 @@ const replay = {
 
 const decide = {
   title: 'Decide step 0',
-  text: 'The engine decodes the put, runs the kernel’s admission hooks and any admission-slot rules, reserves work, '
-    + 'and asks the kernel to decide. The approved plan goes into the cascade’s overlay, where later steps can read '
+  text: 'The engine decodes the put, runs the kernel’s admission hooks and any admission-slot rules, reserves any '
+    + 'work the kernel requests, and asks the kernel to decide. The approved plan goes into the cascade’s overlay, where later steps can read '
     + 'it. Nothing is committed yet.',
   cards: {
     engine: { title: 'Step 0 · depth 0', detail: '`records` approved' },
@@ -78,7 +78,7 @@ const derive = {
 
 const decideDerived = {
   title: 'Decide step 1',
-  text: 'The `audit` component decodes, admits and decides the derived append exactly as it would a submitted one. '
+  text: 'The `audit` component decodes, admits and decides the derived append the same way it would a submitted one. '
     + 'It emits `doc-trail.entry-appended.v1`. No binding subscribes to that event, so the queue is now empty.',
   cards: {
     engine: { title: 'Step 1 · depth 1', detail: '`audit` approved' },
@@ -173,7 +173,12 @@ export default {
       id: 'ingress-refused',
       label: 'Body does not decode',
       summary: 'A malformed body never reaches a block.',
-      steps: [{ ...submit, cards: { app: { title: 'Malformed body', detail: 'not a registry command' } } }, {
+      steps: [{
+        title: 'Submit',
+        text: 'Your application sends bytes to `records.command.v1` that are not a registry command.',
+        wires: [{ from: 'app', to: 'ingress', label: 'POST `records.command.v1`' }],
+        cards: { app: { title: 'Malformed body', detail: 'not a registry command' } },
+      }, {
         title: 'Refused at ingress',
         text: 'The registry codec cannot decode the body, so the member answers **400** with '
           + '`MALFORMED_SOURCE_COMMAND`. The message is not pooled or gossiped, and no receipt exists. Fix the '

@@ -28,8 +28,8 @@ const ingressNoStatic = {
 
 const admissionSlot = (price, holds) => ({
   title: 'Admission slot',
-  text: 'At block time, after the kernel’s admit hooks and before any work is reserved. `feed-open-and-in-range` '
-    + 'runs first even though it is attached second, because it reads neither facts nor coverage. Its read `feed` '
+  text: 'At block time, the admission slot runs after the kernel’s admit hooks and before any work is reserved. '
+    + '`feed-open-and-in-range` runs first even though it is attached second, because it reads neither facts nor coverage. Its read `feed` '
     + `finds \`feeds/main\`: OPEN, min 100, max 200. Price ${price} ${holds ? 'is in range' : 'is not'}.`,
   checks: [
     { label: RANGE, ok: true },

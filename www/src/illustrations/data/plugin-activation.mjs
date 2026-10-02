@@ -6,7 +6,7 @@
 
 const SCAN_CHECKS = [
   'Exactly one qualified schema-v1 manifest',
-  'No packaged `org/yanoproject/api/**` class',
+  'No packaged class under `org/yanoproject/api/`',
   'Manifest contributions and ServiceLoader entries agree',
   'No JAR-manifest `Class-Path`',
 ];
@@ -125,7 +125,7 @@ export default {
       summary: 'The bundle was packaged with a copy of `yano-core-api` inside it.',
       steps: [capture, {
         ...scan,
-        text: 'The JAR contains `org/yanoproject/api/**` classes. Two copies of one interface would break type '
+        text: 'The JAR contains classes under `org/yanoproject/api/`. Two copies of one interface would break type '
           + 'identity, so the scanner refuses the artifact before any code is loaded.',
         checks: scanChecks(1, 'plugin artifact packages Yano API class'),
         cards: { scan: { title: 'Invalid artifact', detail: 'packages a Yano API class', tone: 'fail' } },

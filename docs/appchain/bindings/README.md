@@ -77,16 +77,17 @@ the whole cascade.
    already stored under the source message id. If one exists, nothing runs
    again.
 4. **Decide step 0.** The engine decodes the put, runs the kernel's admission
-   hooks and admission-slot rules, reserves work, and the kernel decides. The
-   approved plan goes into the cascade's overlay, uncommitted.
+   hooks and admission-slot rules, reserves any work the kernel requests, and
+   the kernel decides. The approved plan goes into the cascade's overlay,
+   uncommitted.
 5. **Match bindings.** The plan emits `kv-registry.entry-put.v1`. Bindings that
    subscribe to it run in YAML order. A false condition skips its binding; an
    evaluation error rejects the cascade.
 6. **Derive a command.** The mapping builds an `audit` append with a derived
    id. It joins the back of the queue at depth 1: the cascade runs breadth
    first.
-7. **Decide step 1.** The `audit` component decides the derived append exactly
-   as it would a submitted one.
+7. **Decide step 1.** The `audit` component decides the derived append the same
+   way it would decide a submitted one.
 8. **Preflight and claim.** Planned effects must fit the block's capacity, the
    source id is claimed once, and the receipt must fit its 65,536-byte cap.
 9. **Commit all.** Every planned write commits together, and the receipt is

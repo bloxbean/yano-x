@@ -63,10 +63,13 @@ export default {
       options: [
         { label: 'An admission rule: `ADMISSION_RULE_*`', next: 'rule' },
         { label: 'The target refused: `ADMISSION`, `MALFORMED_DERIVED_COMMAND` or the machine’s own code', next: 'target' },
-        { label: 'An evaluation error: `EXPRESSION_*`, `MAPPING_*`, `FUNCTION_*`, `LOOKUP_KEY_*`', next: 'evaluation' },
-        { label: 'A limit or budget: `LIMIT_*`, `*_CAPACITY_EXCEEDED`, `*_WORK_EXCEEDED`, `EFFECT_*`', next: 'resource' },
+        { label: 'An evaluation error: `EXPRESSION_*`, `MAPPING_*`, `FUNCTION_*`, `LOOKUP_KEY_*`, `EVENT_TYPE_ERROR` or '
+          + '`INVALID_UNICODE`', next: 'evaluation' },
+        { label: 'A limit or budget: `LIMIT_*`, `*_CAPACITY_EXCEEDED`, `*_WORK_EXCEEDED`, `*_TOO_LARGE`, `EFFECT_*`',
+          next: 'resource' },
         { label: 'A conflict: `REPLAY_OR_CONFLICT` or `CONSUMPTION_CONFLICT`', next: 'conflict' },
-        { label: 'A plugin contract violation: `RESERVED_*`, `STATE_KEY_LIMIT`, `EVENT_MISSING_FIELD`', next: 'contract' },
+        { label: 'A plugin contract violation: `RESERVED_*`, `STATE_KEY_LIMIT`, `EVENT_MISSING_FIELD`, '
+          + '`UNDECLARED_WORK_REFERENCE`', next: 'contract' },
       ],
     },
     'pool-full': result('The pending pool is full',
@@ -159,7 +162,10 @@ export default {
         'code(codes, "LIMIT_DEPTH", "resource-exhaustion"', 'code(codes, "CRYPTO_WORK_EXCEEDED", "resource-exhaustion"',
         'code(codes, "MAPPING_MISSING_FIELD", "evaluation-error"', 'code(codes, "REPLAY_OR_CONFLICT", "replay-or-conflict"',
         'code(codes, "CONSUMPTION_CONFLICT", "replay-or-conflict"', 'code(codes, "EVENT_MISSING_FIELD", "contract-violation"',
-        'code(codes, "RESERVED_EVENT_ID", "contract-violation"', 'code(codes, "ADMISSION_RULE_ERROR", "admission-rule"'] },
+        'code(codes, "RESERVED_EVENT_ID", "contract-violation"', 'code(codes, "ADMISSION_RULE_ERROR", "admission-rule"',
+        'code(codes, "INVALID_UNICODE", "evaluation-error"', 'code(codes, "EVENT_TYPE_ERROR", "evaluation-error"',
+        'code(codes, "EVENT_PAYLOAD_TOO_LARGE", "resource-exhaustion"',
+        'code(codes, "UNDECLARED_WORK_REFERENCE", "contract-violation"'] },
     { repo: 'yano-x', path: 'composition/runtime/src/main/java/org/yanoproject/x/composite/bindings/BindingRules.java',
       anchors: ['details.put("write", (long) run.failure.writeIndex())',
         'if (rejected.code().equals(CAPACITY)) return AdmissionResult.reject(CAPACITY);'] },
