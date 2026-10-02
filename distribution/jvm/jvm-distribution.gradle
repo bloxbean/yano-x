@@ -125,6 +125,13 @@ def rebaseBaseRoot = { details ->
 // for every JVM platform (bloxbean/yano#137). Remove with the upstream fix.
 def devnetProfileOverlay = file('config/application-devnet.yml')
 
+// Yano X's stock app ledger template replaces Yano's one-chain file: the
+// cluster launcher and tutorials use orders-chain, registry-chain, and
+// effects-chain (bloxbean/yano-x#22). As a shared template it holds no keys;
+// the launcher injects members, threshold, and signing keys, including for a
+// one-member `./yano.sh appchain cluster start 1`.
+def stockAppChainConfig = rootProject.file('config/application-appchain.yml')
+
 // The showcase ships at examples/showcase. Its yano/ home holds only the demo
 // configuration (the Yano config tree with the showcase app-chain file and
 // settlement scripts); showcase.sh links everything else back to the
@@ -210,8 +217,8 @@ tasks.register('yanoXJvmDistZip', Zip) {
     preserveFileTimestamps = false
 
     from({ zipTree(baseYanoDistribution.get()) }) {
-        // The explicit X devnet overlay below owns this path; retain all other host files.
-        exclude '*/config/application-devnet.yml'
+        // The explicit X overlays below own these paths; retain all other host files.
+        exclude '*/config/application-devnet.yml', '*/config/application-appchain.yml'
         eachFile rebaseBaseRoot
         includeEmptyDirs = false
         filesMatching(['**/*.sh', '**/bin/*']) {
@@ -324,6 +331,9 @@ tasks.register('yanoXJvmDistZip', Zip) {
             into 'skills/configure-yano-appchain'
         }
         from(devnetProfileOverlay) {
+            into 'config'
+        }
+        from(stockAppChainConfig) {
             into 'config'
         }
         from(devtoolsMetadata) {
@@ -664,6 +674,7 @@ tasks.register('verifyYanoXJvmDistribution') {
                     'examples/showcase/VERSION',
                     'examples/showcase/catalog/showcase-catalog-v1.json',
                     'config/application-devnet.yml',
+                    'config/application-appchain.yml',
                     'examples/showcase/yano/config/application-appchain.yml',
                     'examples/showcase/yano/config/application-devnet.yml',
                     'examples/showcase/yano/config/network/devnet/shelley-genesis.json',
@@ -679,6 +690,14 @@ tasks.register('verifyYanoXJvmDistribution') {
                 if (archive.getEntry("${root}/${relativePath}") == null) {
                     throw new GradleException(
                             "Yano X distribution is missing ${relativePath}")
+                }
+            }
+            def stockConfig = archive.getInputStream(archive.getEntry("${root}/config/application-appchain.yml"))
+                    .getText('UTF-8')
+            ['orders-chain', 'registry-chain', 'effects-chain'].each { chainId ->
+                if (!stockConfig.contains("chain-id: \"${chainId}\"")) {
+                    throw new GradleException(
+                            "Yano X distribution config/application-appchain.yml does not define ${chainId}")
                 }
             }
             cliToolInstallDirectories.keySet().each { toolName ->
