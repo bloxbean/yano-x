@@ -1,49 +1,4 @@
 import { test, expect } from '@playwright/test';
-import fs from 'node:fs';
-import path from 'node:path';
-
-function htmlFiles(dir) {
-  return fs.readdirSync(dir, { withFileTypes: true }).flatMap(entry => {
-    const file = path.join(dir, entry.name);
-    return entry.isDirectory() ? htmlFiles(file) : file.endsWith('.html') ? [file] : [];
-  });
-}
-const dist = path.resolve('dist');
-const diagramPages = htmlFiles(dist).filter(file => fs.readFileSync(file, 'utf8').includes('class="mermaid"'));
-
-for (const file of diagramPages) {
-  const route = '/' + path.relative(dist, file).replaceAll(path.sep, '/').replace(/index\.html$/, '');
-  test(`diagrams render and survive theme changes: ${route}`, async ({ page }) => {
-    const errors = [];
-    page.on('pageerror', error => errors.push(error.message));
-    await page.goto(route);
-    const diagrams = page.locator('pre.mermaid');
-    const count = await diagrams.count();
-    expect(count).toBeGreaterThan(0);
-    const sources = await diagrams.evaluateAll(nodes => nodes.map(node => node.dataset.source || node.textContent));
-    for (const theme of ['light', 'dark', 'light']) {
-      await page.evaluate(theme => {
-        document.documentElement.dataset.theme = theme;
-      }, theme);
-      await expect(diagrams.locator('svg')).toHaveCount(count);
-      await expect(diagrams.locator('.error-text')).toHaveCount(0);
-      await expect.poll(() => diagrams.evaluateAll(nodes => nodes.every(node =>
-        node.dataset.renderedTheme === document.documentElement.dataset.theme))).toBe(true);
-      expect(await diagrams.evaluateAll(nodes => nodes.map(node => node.dataset.source))).toEqual(sources);
-    }
-    // Exercise changes arriving while the asynchronous renderer is still busy.
-    await page.evaluate(async () => {
-      for (const theme of ['dark', 'light', 'dark', 'light', 'dark']) {
-        document.documentElement.dataset.theme = theme;
-        await new Promise(resolve => setTimeout(resolve, 5));
-      }
-    });
-    await expect.poll(() => diagrams.evaluateAll(nodes => nodes.every(node =>
-      node.dataset.renderedTheme === 'dark'))).toBe(true);
-    await expect(diagrams.locator('.error-text')).toHaveCount(0);
-    expect(errors).toEqual([]);
-  });
-}
 
 test('landing examples and learning path work on mobile', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });

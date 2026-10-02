@@ -155,6 +155,13 @@ function pageSources() {
   return [...new Set([...imported, ...authored])].filter((file) => fs.existsSync(file));
 }
 
+test('pages use illustrations, not Mermaid', () => {
+  for (const file of pageSources()) {
+    assert.doesNotMatch(fs.readFileSync(file, 'utf8'), /^\s*(```|~~~)\s*mermaid\b/m,
+      `${path.relative(REPO_ROOT, file)}: replace the Mermaid diagram with an illustration`);
+  }
+});
+
 test('page markers name known illustrations, and fallbacks match their steps', () => {
   const OPEN = /<!--\s*illustration:\s*([a-z0-9-]+)\s*-->/g;
   for (const file of pageSources()) {

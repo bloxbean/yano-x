@@ -585,9 +585,12 @@ Pages gain interactive illustrations built from one engine in
   layouts, step-throughs with every lane, scenario, and step written out. The
   client script only adds controls, so search, screen readers, and readers
   without JavaScript get the full content.
-- **Block diagrams replace Mermaid** as pages are revised. Mermaid's default
-  styling read poorly as a block diagram and stale Mermaid diagrams were hard
-  to notice. The Mermaid loader stays until no page uses it.
+- **Block diagrams replace Mermaid.** Mermaid's default styling read poorly
+  as a block diagram, and stale Mermaid diagrams were hard to notice. Every
+  site diagram is now an illustration; the Mermaid dependency, loader, and lint
+  are removed, and the illustration test rejects a new ```` ```mermaid ```` fence
+  in any published page. Repository-only documents rendered by GitHub may keep
+  Mermaid.
 - **Facts are anchored.** Each illustration lists the repository files it
   depicts and an exact identifier or phrase that must still appear there.
   `scripts/illustrations.test.mjs` fails when an anchor disappears, and also

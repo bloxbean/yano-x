@@ -49,9 +49,8 @@ markdown, not the copy under `src/content/docs/`.
 | `scripts/generate-catalog.mjs` | Builds `/ai/catalog.json` and every generated markdown table. |
 | `scripts/generate-llms-txt.mjs` | Builds `/llms.txt`, `/llms-full.txt`, and the raw `/ai/*.md` copies. |
 | `scripts/llms-integration.mjs` | Astro integration: writes the artifacts at build time, serves them in dev. |
-| `scripts/remark-mermaid.mjs` | Converts ` ```mermaid ` fences into client-rendered diagrams. |
 | `scripts/remark-illustrations.mjs` | Replaces `<!-- illustration: <id> -->` markers with rendered illustrations. |
-| `scripts/illustrations.test.mjs` | Checks illustration structure, label fit, page markers, and source anchors. |
+| `scripts/illustrations.test.mjs` | Checks illustration structure, label fit, page markers, source anchors, and that no page uses Mermaid. |
 | `scripts/check-links.mjs` | Post-build gate: every internal link and anchor in `dist/` must resolve. |
 
 ### Where the generated data comes from
@@ -106,8 +105,8 @@ its output path from the route, and `generate-llms-txt.mjs` derives its
 
 ## Illustrations and diagrams
 
-Prefer an illustration to a Mermaid diagram. Illustrations are block diagrams
-and step-throughs rendered at build time from data modules in
+Diagrams on this site are illustrations: block diagrams, step-throughs, and
+choosers rendered at build time from data modules in
 `src/illustrations/data/`, styled for both themes, and enhanced with controls
 in the browser. See ADR-038's October 2026 section for the design.
 
@@ -120,7 +119,8 @@ To add one:
 2. Add `sources`: the repository files the illustration depicts, each with
    `anchors`, exact identifiers or phrases that must still appear there. Use
    real contract names (operations, result codes, events) as anchors.
-3. Register it in `src/illustrations/registry.mjs`.
+3. Nothing to register: `src/illustrations/registry.mjs` loads every
+   `data/<id>.mjs` whose `id` matches its file name.
 4. Place `<!-- illustration: <id> -->` in the page. For a step-through in a
    `docs/` page, wrap a numbered list whose `**Title.**` items match the step
    titles and close it with `<!-- /illustration -->`; GitHub and the JVM
@@ -131,12 +131,10 @@ To add one:
 Label every illustration as example data unless it only shows structure, and
 never show a rule, field, or code that the cited source does not contain.
 
-### Mermaid
+### No Mermaid
 
-A fenced ` ```mermaid ` block is converted to `<pre class="mermaid">` at
-the remark stage and rendered client-side, with the mermaid bundle loaded
-lazily only on pages that have a diagram, and re-rendered on a theme switch.
-Existing Mermaid diagrams are being replaced by block diagrams.
+Every diagram is an illustration. The site no longer ships Mermaid, and the
+illustration test fails if a page adds a ` ```mermaid ` fence.
 
 ## Deployment
 
@@ -164,8 +162,7 @@ regenerated before import, using the same catalog renderer as other pages.
 
 ## Browser validation
 
-The Mermaid source lint is a quick pattern check, not a parser or a rendering
-test. Before publishing, validate the built site with Chromium:
+Before publishing, validate the built site with Chromium:
 
 ```bash
 npm run build
@@ -173,16 +170,13 @@ npx playwright install chromium
 npm run check:browser
 ```
 
-`tests/docs.spec.mjs` discovers every built page containing Mermaid, exercises
-actual parsing and SVG rendering in light and dark themes, and changes themes
-rapidly to catch asynchronous render races. It also checks the landing-page
-controls and documentation entry on mobile. The GitHub Pages workflow installs
-Chromium and runs this gate before deployment.
-
-The renderer preserves the original diagram text, serializes rendering, and
-passes the text directly to Mermaid's render API. It does not feed generated
-SVG or HTML-decoded source back into the parser. If rendering fails, the source
-remains readable and the browser check fails.
+`tests/illustrations.spec.mjs` discovers every built page with an
+illustration. It checks keyboard stepping, scenarios, points of view,
+explorers, and choosers; reduced motion; phone and desktop widths in both
+themes; axe accessibility rules; the no-JavaScript fallback; and old-route
+redirects. `tests/docs.spec.mjs` checks the landing-page controls and the
+documentation entry on mobile. The GitHub Pages workflow installs Chromium and
+runs both before deployment.
 
 ## Brand and illustration examples
 

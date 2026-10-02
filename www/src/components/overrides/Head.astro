@@ -2,10 +2,9 @@
 /**
  * Starlight <Head> override.
  *
- * Adds lazy client-side mermaid rendering for the `<pre class="mermaid">`
- * blocks produced by scripts/remark-mermaid.mjs, and the controls for the
- * illustrations produced by scripts/remark-illustrations.mjs. Both bundles are
- * loaded with a dynamic import, so pages without them never fetch either.
+ * Adds the controls for the illustrations rendered by
+ * scripts/remark-illustrations.mjs. The bundle is loaded with a dynamic import,
+ * so pages without an illustration never fetch it.
  */
 const { head } = Astro.locals.starlightRoute;
 ---
@@ -21,81 +20,4 @@ const { head } = Astro.locals.starlightRoute;
 
   void enhanceIllustrations();
   document.addEventListener('astro:after-swap', enhanceIllustrations);
-</script>
-
-<script>
-  let rendering = false;
-  let pending = false;
-  let diagramId = 0;
-
-  // Preserve source as text before any asynchronous render can replace it.
-  function blocks() {
-    const nodes = Array.from(document.querySelectorAll<HTMLElement>('pre.mermaid'));
-    for (const node of nodes) {
-      node.dataset.source ??= node.textContent ?? '';
-    }
-    return nodes;
-  }
-
-  async function renderDiagrams() {
-    blocks();
-    pending = true;
-    if (rendering) return;
-    rendering = true;
-    try {
-      while (pending) {
-        pending = false;
-        const nodes = blocks();
-        if (nodes.length === 0) continue;
-        const { default: mermaid } = await import('mermaid');
-        const theme = document.documentElement.dataset.theme === 'light' ? 'light' : 'dark';
-        const dark = theme === 'dark';
-        mermaid.initialize({
-          startOnLoad: false,
-          securityLevel: 'strict',
-          suppressErrorRendering: true,
-          theme: dark ? 'dark' : 'default',
-          themeVariables: {
-            primaryColor: dark ? '#17242c' : '#e9f1f3',
-            primaryTextColor: dark ? '#eef4f5' : '#101f25',
-            primaryBorderColor: dark ? '#9af0d4' : '#146b54',
-            lineColor: dark ? '#9af0d4' : '#146b54',
-            fontFamily: 'system-ui, sans-serif',
-          },
-          flowchart: { curve: 'basis', useMaxWidth: true },
-          sequence: { useMaxWidth: true },
-        });
-        for (const node of nodes) {
-          if (!node.isConnected || node.dataset.renderedTheme === theme) continue;
-          try {
-            // Do not put source through innerHTML or mermaid.run(): HTML entity
-            // decoding changes labels, and overlapping runs can read an SVG as source.
-            const { svg, bindFunctions } = await mermaid.render(
-              `yano-diagram-${++diagramId}`, node.dataset.source ?? '',
-            );
-            if (!node.isConnected) continue;
-            node.innerHTML = svg;
-            bindFunctions?.(node);
-            node.dataset.renderedTheme = theme;
-            delete node.dataset.renderError;
-          } catch (error) {
-            node.textContent = node.dataset.source ?? '';
-            node.dataset.renderError = 'true';
-            console.error('Unable to render documentation diagram', error);
-          }
-        }
-      }
-    } catch (error) {
-      for (const node of blocks()) node.dataset.renderError = 'true';
-      console.error('Unable to load documentation diagrams', error);
-    } finally {
-      rendering = false;
-    }
-  }
-
-  void renderDiagrams();
-  document.addEventListener('astro:after-swap', renderDiagrams);
-  new MutationObserver((records) => {
-    if (records.some((record) => record.attributeName === 'data-theme')) void renderDiagrams();
-  }).observe(document.documentElement, { attributes: true });
 </script>

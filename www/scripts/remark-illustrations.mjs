@@ -73,8 +73,12 @@ export function illustrationsDigest() {
     }
   };
   walk(root);
+  // Some illustrations read repository catalogs at build time (recipe-chooser).
+  const catalogs = fileURLToPath(new URL(
+    '../../tooling/devtools/src/main/resources/appchain-dx/v1alpha1/', import.meta.url));
+  if (fs.existsSync(catalogs)) walk(catalogs);
   const hash = createHash('sha256');
-  for (const file of files.sort()) hash.update(path.relative(root, file)).update(fs.readFileSync(file));
+  for (const file of files.sort()) hash.update(path.basename(file)).update(fs.readFileSync(file));
   return hash.digest('hex').slice(0, 16);
 }
 

@@ -21,7 +21,8 @@ export function inline(text) {
 }
 
 function plain(text) {
-  return String(text ?? '').replace(/`|\*\*/g, '');
+  return String(text ?? '').split(/(`[^`]*`)/).map((part) =>
+    part.startsWith('`') ? part.slice(1, -1) : part.replace(/\*\*/g, '')).join('');
 }
 
 function header(data, extra = '') {
@@ -125,7 +126,8 @@ function renderSvg(data, layoutName, layout) {
     if (!r) continue;
     parts.push(`<g class="yx-zone yx-k-${zone.kind ?? 'ledger'}">`
       + `<rect x="${r[0]}" y="${r[1]}" width="${r[2]}" height="${r[3]}" rx="16"/>`
-      + `<text class="yx-zone__label" x="${r[0] + 16}" y="${r[1] + 22}">${escapeHtml(zone.label.toUpperCase())}</text></g>`);
+      + `<text class="yx-zone__label" x="${r[0] + 16}" y="${r[1] + 22}">`
+      + `${escapeHtml(zone.upper === false ? zone.label : zone.label.toUpperCase())}</text></g>`);
   }
   const edgeParts = [];
   const labelParts = [];
@@ -140,7 +142,9 @@ function renderSvg(data, layoutName, layout) {
     const p1 = opts.fromAt ?? anchor(a, s1);
     const p2 = opts.toAt ?? anchor(b, s2);
     const points = route(p1, s1, p2, s2, opts.via);
-    edgeParts.push(`<path class="yx-edge${edge.style ? ` yx-edge--${edge.style}` : ''}" d="${roundedPath(points)}" marker-end="url(#${data.id}-${layoutName}-arrow)"/>`);
+    const marker = `url(#${data.id}-${layoutName}-arrow)`;
+    edgeParts.push(`<path class="yx-edge${edge.style ? ` yx-edge--${edge.style}` : ''}" d="${roundedPath(points)}" `
+      + `marker-end="${marker}"${edge.both ? ` marker-start="${marker}"` : ''}/>`);
     if (edge.label && opts.label !== false) {
       const [mx, my] = opts.labelAt ?? midpoint(points);
       labelParts.push(`<text class="yx-edge__label" x="${mx}" y="${my}" text-anchor="middle" dominant-baseline="central">${escapeHtml(edge.label)}</text>`);
@@ -254,8 +258,8 @@ function renderStage(data, scenario, rows) {
   const laneName = Object.fromEntries(data.lanes.map((lane) => [lane.id, lane.label]));
   const heads = data.lanes.map((lane, i) =>
     `<div class="yx-lane-head yx-k-${lane.kind ?? 'member'}" style="--col:${i + 1}" data-lane="${lane.id}">`
-    + `<span class="yx-lane-head__name">${escapeHtml(lane.label)}</span>`
-    + (lane.note ? `<small>${escapeHtml(lane.note)}</small>` : '')
+    + `<span class="yx-lane-head__name">${inline(lane.label)}</span>`
+    + (lane.note ? `<small>${inline(lane.note)}</small>` : '')
     + `</div>`).join('');
   const wires = scenario.steps.flatMap((step, s) => (step.wires ?? []).map((wire, row) => {
     const a = laneIndex[wire.from];
@@ -288,7 +292,7 @@ function focusFor(step) {
   return [...lanes];
 }
 
-const CHECK_MARK = { true: '✓', false: '✗', null: '–' };
+const CHECK_MARK = { true: '✓', false: '✗', warn: '!', null: '–' };
 
 /** Optional per-step extras: a command, rule checks in evaluation order, and a state table. */
 function stepExtras(step) {
@@ -298,9 +302,10 @@ function stepExtras(step) {
   }
   if (step.checks?.length) {
     parts.push(`<ul class="yx-checks">${step.checks.map((check) => {
-      const state = check.ok === true ? 'ok' : check.ok === false ? 'fail' : 'skip';
+      const state = check.ok === true ? 'ok' : check.ok === false ? 'fail' : check.ok === 'warn' ? 'warn' : 'skip';
+      const spoken = { ok: 'passes', fail: 'fails', warn: 'warning', skip: 'not reached' }[state];
       return `<li class="is-${state}"><span class="yx-checks__mark" aria-hidden="true">${CHECK_MARK[String(check.ok ?? null)]}</span>`
-        + `<span class="yx-sr-only">${state === 'ok' ? 'passes' : state === 'fail' ? 'fails' : 'not reached'}: </span>`
+        + `<span class="yx-sr-only">${spoken}: </span>`
         + `<span>${inline(check.label)}</span>${check.code ? ` <code>${escapeHtml(check.code)}</code>` : ''}</li>`;
     }).join('')}</ul>`);
   }
@@ -330,15 +335,15 @@ export function renderSteps(data) {
   const rows = wireRows(scenarios);
   const scenarioPicker = scenarios.length > 1
     ? `<div class="yx-ill__group" role="group" aria-label="Scenario" data-scenario-picker hidden>${scenarios.map((scenario, i) =>
-      `<button type="button" class="yx-pill" data-scenario-button="${scenario.id}" aria-pressed="${i === 0}">${escapeHtml(scenario.label)}</button>`).join('')}</div>`
+      `<button type="button" class="yx-pill" data-scenario-button="${scenario.id}" aria-pressed="${i === 0}">${inline(scenario.label)}</button>`).join('')}</div>`
     : '';
   const viewPicker = (data.views?.length ?? 0) > 1
     ? `<div class="yx-ill__group yx-ill__group--views" role="group" aria-label="Point of view" data-view-picker hidden>${data.views.map((view, i) =>
-      `<button type="button" class="yx-pill" data-view-button="${view.id}" data-view-focus="${(view.focus ?? []).join(' ')}" aria-pressed="${i === 0}">${escapeHtml(view.label)}</button>`).join('')}</div>`
+      `<button type="button" class="yx-pill" data-view-button="${view.id}" data-view-focus="${(view.focus ?? []).join(' ')}" aria-pressed="${i === 0}">${inline(view.label)}</button>`).join('')}</div>`
     : '';
   const body = scenarios.map((scenario, i) =>
     `<section class="yx-scn" data-scenario="${scenario.id}"${i === 0 ? '' : ' data-alternate'}>`
-    + (i === 0 ? '' : `<h4 class="yx-scn__heading">What if: ${escapeHtml(scenario.label)}</h4>`)
+    + (i === 0 ? '' : `<h4 class="yx-scn__heading">What if: ${inline(scenario.label)}</h4>`)
     + (scenario.summary ? `<p class="yx-scn__summary">${inline(scenario.summary)}</p>` : '')
     + (data.lanes?.length ? renderStage(data, scenario, rows) : '')
     + renderStepList(data, scenario)

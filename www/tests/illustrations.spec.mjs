@@ -74,7 +74,7 @@ for (const route of routes) {
       await block.focus();
       await page.keyboard.press('Enter');
       await expect(block).toHaveAttribute('aria-pressed', 'true');
-      await expect(panel.locator('strong')).not.toBeEmpty();
+      await expect(panel.locator('strong').first()).not.toBeEmpty();
       await block.click();
       await expect(block).toHaveAttribute('aria-pressed', 'false');
     }
@@ -141,7 +141,9 @@ test('illustrations are readable without JavaScript', async ({ browser }) => {
     for (const figure of await page.locator('[data-yx-illustration="steps"]').all()) {
       await expect(figure.locator('[data-controls]')).toBeHidden();
       await expect(figure.locator('.yx-steps').first()).toBeVisible();
-      await expect(figure.locator('.yx-card.is-end').first()).toBeVisible();
+      if (await figure.locator('.yx-stage').count()) {
+        await expect(figure.locator('.yx-card.is-end').first()).toBeVisible();
+      }
     }
     for (const figure of await page.locator('[data-yx-illustration="diagram"]').all()) {
       await expect(figure.locator('svg.yx-diagram__svg').first()).toBeVisible();

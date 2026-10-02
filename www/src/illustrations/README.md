@@ -19,19 +19,21 @@ time; `client.js` adds controls.
 | `legend` | no | `[[kind, label], …]` using the kinds below. |
 | `sources` | yes | `[{ repo: 'yano-x' \| 'yano', path, anchors: [ … ] }]`. Every anchor is an exact identifier or phrase that must appear in that file (whitespace-normalized). Prefer contract names: operations, result codes, event names, config keys, CLI flags. |
 
-Text fields allow `**bold**` and `` `code` `` only.
+Text fields, lane labels and notes, and scenario and view labels allow
+`**bold**` and `` `code` `` only.
 
 Kinds (actor colours, the same on every page): `actor` (organization or
 person), `client` (application), `member`, `core`, `ledger`, `leader`,
-`runtime` (node-local execution), `external`, `cardano`, `final`, `fail`.
+`runtime` (node-local execution), `external`, `cardano`, `final`, `fail`, and
+`neutral` for categories that are not actors.
 
 ## `diagram`: block diagrams and explorers
 
 ```js
 {
-  zones: [{ id, kind, label, contains: [blockIds] }],
+  zones: [{ id, kind, label, contains: [blockIds], upper?: false }],  // labels render uppercase unless upper: false
   blocks: [{ id, label, sub?, kind, detail?, link?: { label, href } }],
-  edges: [{ from, to, label?, style?: 'dashed' }],   // from/to may name a zone
+  edges: [{ from, to, label?, style?: 'dashed', both?: true }],     // from/to may name a zone; both = arrows at both ends
   hint?: 'Select a block to see what it does.',        // shown when blocks have details
   layouts: {
     wide: { width: 760, height, zones: { id: [x, y, w, h] }, blocks: { id: [x, y, w, h] },
@@ -68,7 +70,7 @@ person), `client` (application), `member`, `core`, `ledger`, `leader`,
       cards?: { laneId: { title, detail?, tone? } | null }, // a card persists until replaced or null
       focus?: [laneIds],                                    // default: lanes with cards or wires
       command?: './yano.sh appchain …',
-      checks?: [{ label, ok: true | false | null, code? }], // evaluation order; null = not reached
+      checks?: [{ label, ok: true | false | 'warn' | null, code? }], // evaluation order; null = not reached
       state?: { caption?, columns: [], rows: [[]], highlight?: [rowIndex] },
     }],
   }],
