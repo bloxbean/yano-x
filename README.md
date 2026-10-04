@@ -15,8 +15,8 @@ including how to add a chain while preserving existing state.
 Reusable Yano X libraries are published to
 [Maven Central](https://central.sonatype.com/namespace/org.yanoproject.x) under
 `org.yanoproject.x`; `yano-x-bom` aligns them with the matching Yano host.
-Releases are also in `https://repo.bloxbean.org/maven/releases`, with the same
-files as on Maven Central. Runtime plugin bundles, CLI tools and the
+From the next release on, releases are also in
+`https://repo.bloxbean.org/maven/releases`, with the same files as on Maven Central. Runtime plugin bundles, CLI tools and the
 distributions ship in the GitHub release instead.
 
 Development snapshots are in the BloxBean Maven repository under the snapshot
