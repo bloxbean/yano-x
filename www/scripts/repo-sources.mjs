@@ -119,6 +119,12 @@ export async function resolveVersions() {
 
 /** Conventional release URL, or null when the version requires exact locally supplied inputs. */
 export function yanoJvmReleaseUrl(version) {
+  // A Yano commit snapshot (<base>-<7-hex commit>-SNAPSHOT) has a matching BloxBean snapshot distribution.
+  const commitSnapshot = /^(.+-[0-9a-f]{7})-SNAPSHOT$/.exec(version ?? '');
+  if (commitSnapshot) {
+    const base = commitSnapshot[1];
+    return `https://repo.bloxbean.org/dist/snapshots/yano/${base}/yano-${base}.zip`;
+  }
   if (!version || version === 'unknown' || /-SNAPSHOT$/i.test(version)
       || /(?:^|-)local(?:-|$)/i.test(version)
       // Yano's stage-consumer-inputs script suffixes the base version with a nine-character commit prefix.

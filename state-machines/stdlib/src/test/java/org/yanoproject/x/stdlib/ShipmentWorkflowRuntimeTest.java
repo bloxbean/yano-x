@@ -2,13 +2,13 @@ package org.yanoproject.x.stdlib;
 
 import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.ByteString;
+import co.nstant.in.cbor.model.SimpleValue;
 import co.nstant.in.cbor.model.UnsignedInteger;
+import com.bloxbean.cardano.client.address.Address;
+import com.bloxbean.cardano.client.crypto.Blake2bUtil;
 import com.bloxbean.cardano.client.crypto.KeyGenUtil;
 import com.bloxbean.cardano.client.crypto.config.CryptoConfiguration;
-import com.bloxbean.cardano.yaci.core.model.Amount;
-import com.bloxbean.cardano.yaci.core.model.Block;
-import com.bloxbean.cardano.yaci.core.model.TransactionBody;
-import com.bloxbean.cardano.yaci.core.model.TransactionOutput;
+import com.bloxbean.cardano.yaci.core.model.Era;
 import com.bloxbean.cardano.yaci.core.network.server.NodeServer;
 import com.bloxbean.cardano.yaci.core.protocol.chainsync.messages.Point;
 import com.bloxbean.cardano.yaci.core.protocol.handshake.util.N2NVersionTableConstant;
@@ -19,6 +19,8 @@ import com.bloxbean.cardano.yaci.core.util.HexUtil;
 import com.bloxbean.cardano.yaci.events.api.EventMetadata;
 import com.bloxbean.cardano.yaci.events.api.PublishOptions;
 import com.bloxbean.cardano.yaci.events.impl.SimpleEventBus;
+import org.yanoproject.api.CanonicalBlockReference;
+import org.yanoproject.api.ChainBlockReader;
 import org.yanoproject.api.appchain.AppChainConfig;
 import org.yanoproject.api.appchain.AppBlockHeader;
 import org.yanoproject.x.client.AppChainClient;
@@ -37,32 +39,36 @@ import org.yanoproject.api.appchain.observation.ObservationResult;
 import org.yanoproject.api.appchain.observation.ObservationSourceConfiguration;
 import org.yanoproject.api.events.BlockAppliedEvent;
 import org.yanoproject.runtime.appchain.AppChainSubsystem;
+import org.yanoproject.runtime.blockproducer.DevnetBlockBuilder;
+import org.yanoproject.runtime.chain.InMemoryChainState;
 import org.yanoproject.runtime.plugins.PluginProviderRegistry;
 import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.slf4j.LoggerFactory;
 
-import java.math.BigInteger;
 import java.net.ServerSocket;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BooleanSupplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** Real host runtime and signatures; synthetic already-applied L1 events, no network transactions. */
+/** Real host runtime and signatures; Conway blocks in an in-memory L1 chain state, no network transactions. */
 @Timeout(120)
 class ShipmentWorkflowRuntimeTest {
     private static final String CHAIN = "shipment-runtime";
+    private static final byte[] ESCROW = enterpriseAddress(0x31);
+    private static final byte[] MERCHANT = enterpriseAddress(0x32);
     private static final String ADAPTER = "fixture-shipment-merkle-v1";
     private static final byte[] MEMBER_SEED = HexUtil.decodeHexString("61".repeat(32));
     private static final byte[] ATTESTOR_SEED = HexUtil.decodeHexString("71".repeat(32));
@@ -106,9 +112,9 @@ class ShipmentWorkflowRuntimeTest {
         settings.put("observations.providers.shipment-delivery.type", ADAPTER);
         settings.put("observations.providers.shipment-delivery.source-id", "carrier");
         settings.put("observers.shipment-payment.type", "address-deposit");
-        settings.put("observers.shipment-payment.address", "fixture-escrow");
+        settings.put("observers.shipment-payment.address", new Address(ESCROW).toBech32());
         settings.put("observers.shipment-settlement.type", "address-deposit");
-        settings.put("observers.shipment-settlement.address", "fixture-merchant");
+        settings.put("observers.shipment-settlement.address", new Address(MERCHANT).toBech32());
         settings.put("machines.shipment-workflow-reference-v1.minimum-payment-lovelace", "10");
         settings.put("machines.shipment-workflow-reference-v1.release-lovelace", "5");
         settings.put("observation.l1-network-genesis-id", "01".repeat(32));
@@ -128,14 +134,14 @@ class ShipmentWorkflowRuntimeTest {
                     .stateCommitmentIdentity(StdlibTestStateCommitments.mpf(CHAIN))
                     .stateMachineId(ShipmentWorkflowReferenceStateMachine.ID).pluginSettings(settings).build());
         }
-        Map<Long, BlockAppliedEvent> retained = new ConcurrentHashMap<>();
+        L1Chain l1 = new L1Chain();
         byte[] root;
         byte[] workflow;
         long height;
-        try (Cluster cluster = new Cluster(configs, ports, directory, retained)) {
+        try (Cluster cluster = new Cluster(configs, ports, directory, l1)) {
             AppChainSubsystem node = cluster.nodes.getFirst();
-            cluster.publish(1, hash(10), "fixture-escrow", 10);
-            cluster.publish(2, null, null, 0);
+            cluster.publish(payment(10, ESCROW, 10));
+            cluster.publish(null);
             await(() -> phase(node) != 0);
             if (phase(node) == 1) node.submit(ShipmentWorkflowReferenceStateMachine.ADVANCE_TOPIC, new byte[]{1});
             await(() -> phase(node) == 2);
@@ -146,11 +152,12 @@ class ShipmentWorkflowRuntimeTest {
             EffectId effect = EffectId.parse(new String(field(node, 5), StandardCharsets.UTF_8));
             assertThat(node.effect(effect.height(), effect.ordinal())).isPresent();
             await(() -> !node.claimEffects("fixture-executor", Set.of("cardano.payment"), 1, 60).isEmpty());
+            byte[] settlement = payment(11, MERCHANT, 5);
             assertThat(node.reportEffect("fixture-executor", effect.height(), effect.ordinal(), true,
-                    HexUtil.encodeHexString(hash(11)).getBytes(StandardCharsets.US_ASCII), null)).isTrue();
+                    transactionHash(settlement).getBytes(StandardCharsets.US_ASCII), null)).isTrue();
             await(() -> phase(node) == 3);
-            cluster.publish(3, hash(11), "fixture-merchant", 5);
-            cluster.publish(4, null, null, 0);
+            cluster.publish(settlement);
+            cluster.publish(null);
             await(() -> cluster.nodes.stream().allMatch(peer -> phase(peer) == 4));
             workflow = node.query("workflow", new byte[0]).payload();
             root = node.stateRoot();
@@ -169,7 +176,7 @@ class ShipmentWorkflowRuntimeTest {
                 verifySdkProof(peer, phaseKey, members, nodeCount);
             }
         }
-        try (Cluster cluster = new Cluster(configs, ports, directory, retained)) {
+        try (Cluster cluster = new Cluster(configs, ports, directory, l1)) {
             for (AppChainSubsystem node : cluster.nodes) {
                 assertThat(node.tipHeight()).isEqualTo(height);
                 assertThat(node.stateRoot()).isEqualTo(root);
@@ -214,16 +221,15 @@ class ShipmentWorkflowRuntimeTest {
         final List<SimpleEventBus> buses = new ArrayList<>();
         final List<NodeServer> servers = new ArrayList<>();
         final List<Thread> serverThreads = new ArrayList<>();
-        final Map<Long, BlockAppliedEvent> retained;
+        final L1Chain l1;
 
-        Cluster(List<AppChainConfig> configs, List<Integer> ports, Path directory,
-                Map<Long, BlockAppliedEvent> retained) throws Exception {
-            this.retained = retained;
+        Cluster(List<AppChainConfig> configs, List<Integer> ports, Path directory, L1Chain l1) throws Exception {
+            this.l1 = l1;
             try {
                 for (int i = 0; i < configs.size(); i++) {
                     SimpleEventBus bus = new SimpleEventBus();
                     buses.add(bus);
-                    AppChainSubsystem node = start(configs.get(i), directory.resolve("node-" + i), bus, retained);
+                    AppChainSubsystem node = start(configs.get(i), directory.resolve("node-" + i), bus, l1);
                     nodes.add(node);
                     if (configs.size() > 1) {
                         NodeServer server = new NodeServer(ports.get(i),
@@ -241,15 +247,22 @@ class ShipmentWorkflowRuntimeTest {
                     return peers instanceof Map<?, ?> map && !map.isEmpty()
                             && map.values().stream().allMatch(Boolean.TRUE::equals);
                 }));
+                // A fresh chain's delivery loop starts at the L1 tip it first reads; publishing earlier skips blocks.
+                await(() -> nodes.stream().allMatch(node ->
+                        node.status().get("l1Delivery") instanceof Map<?, ?> delivery
+                                && delivery.containsKey("cursorBlock")));
             } catch (Exception | Error failure) {
                 try { close(); } catch (Exception cleanup) { failure.addSuppressed(cleanup); }
                 throw failure;
             }
         }
 
-        void publish(long number, byte[] tx, String address, long amount) {
-            for (SimpleEventBus bus : buses) ShipmentWorkflowRuntimeTest.publish(
-                    bus, retained, number, tx, address, amount);
+        /** Appends one block, holding {@code transaction} when it is not null, and wakes every member. */
+        void publish(byte[] transaction) {
+            l1.append(transaction);
+            // Node L1 events carry nothing the delivery loop reads; they only wake it (app-layer ADR-038).
+            for (SimpleEventBus bus : buses) bus.publish(new BlockAppliedEvent(null, 0, 0, "00".repeat(32), null),
+                    EventMetadata.builder().build(), PublishOptions.builder().build());
         }
 
         @Override public void close() throws Exception {
@@ -268,7 +281,7 @@ class ShipmentWorkflowRuntimeTest {
         }
     }
 
-    /** N2N transport fixture only; Cardano observations come from synthetic BlockAppliedEvent inputs. */
+    /** N2N transport fixture only; Cardano observations come from {@link L1Chain}. */
     private static class EmptyL1ChainState implements ChainState {
         @Override public void storeBlock(byte[] hash, Long number, Long slot, byte[] block) { }
         @Override public byte[] getBlock(byte[] hash) { return null; }
@@ -290,8 +303,7 @@ class ShipmentWorkflowRuntimeTest {
         @Override public ChainTip getHeaderTip() { return null; }
     }
 
-    private static AppChainSubsystem start(AppChainConfig config, Path directory, SimpleEventBus bus,
-                                            Map<Long, BlockAppliedEvent> retained) {
+    private static AppChainSubsystem start(AppChainConfig config, Path directory, SimpleEventBus bus, L1Chain l1) {
         PluginProviderRegistry base = StdlibTestPluginProviders.registry();
         ObservationProviderFactory factory = new ObservationProviderFactory() {
             @Override public String type() { return ADAPTER; }
@@ -325,23 +337,88 @@ class ShipmentWorkflowRuntimeTest {
         };
         AppChainSubsystem node = new AppChainSubsystem(config, 42, bus, null, directory.toString(), null,
                 registry, LoggerFactory.getLogger(ShipmentWorkflowRuntimeTest.class));
-        node.wireL1BlockReplay(retained::get);
+        node.wireL1Chain(l1.reader(), null);
         node.start();
         return node;
     }
 
-    private static void publish(SimpleEventBus bus, Map<Long, BlockAppliedEvent> retained, long number,
-                                byte[] tx, String address, long amount) {
-        List<TransactionBody> transactions = tx == null ? List.of() : List.of(TransactionBody.builder()
-                .txHash(HexUtil.encodeHexString(tx)).outputs(List.of(TransactionOutput.builder().address(address)
-                        .amounts(List.of(Amount.builder().unit("lovelace")
-                                .quantity(BigInteger.valueOf(amount)).build()))
-                        .build())).build());
-        Block block = Block.builder().transactionBodies(transactions).invalidTransactions(List.of()).build();
-        BlockAppliedEvent event = new BlockAppliedEvent(null, number, number,
-                HexUtil.encodeHexString(hash((int) number)), block);
-        retained.put(number, event);
-        bus.publish(event, EventMetadata.builder().build(), PublishOptions.builder().build());
+    /** The shared L1 of every member: real Conway blocks, one per slot, starting with an empty genesis block. */
+    private static final class L1Chain {
+        private final InMemoryChainState chain = new InMemoryChainState();
+        private final DevnetBlockBuilder builder = new DevnetBlockBuilder();
+        private byte[] tipHash;
+        private long nextNumber;
+
+        L1Chain() {
+            append(null);
+        }
+
+        synchronized void append(byte[] transaction) {
+            long number = nextNumber++;
+            var block = builder.buildBlock(number, number, tipHash,
+                    transaction == null ? List.of() : List.of(transaction));
+            chain.storeBlockHeader(block.blockHash(), number, number, block.wrappedHeaderCbor());
+            chain.storeBlock(block.blockHash(), number, number, block.blockCbor());
+            tipHash = block.blockHash();
+        }
+
+        ChainBlockReader reader() {
+            return new ChainBlockReader() {
+                @Override public ChainTip getLocalTip() { return chain.getTip(); }
+                @Override public byte[] getBlockByNumber(long blockNumber) {
+                    return chain.getBlockByNumber(blockNumber);
+                }
+                @Override public Era getBlockEra(long blockNumber) { return chain.getBlockEra(blockNumber); }
+                @Override public Optional<CanonicalBlockReference> getCanonicalBlockReference(long blockNumber) {
+                    return chain.getCanonicalBlockReference(blockNumber);
+                }
+                @Override public Optional<CanonicalBlockReference> getCanonicalBlockReferenceAtSlot(long slot) {
+                    return chain.getCanonicalBlockReferenceAtSlot(slot);
+                }
+                @Override public OptionalLong canonicalMutationSequence() {
+                    return chain.canonicalMutationSequence();
+                }
+            };
+        }
+    }
+
+    /** A minimal transaction ({@code [body, witnesses, true, null]}) paying {@code lovelace} to {@code address}. */
+    private static byte[] payment(int nonce, byte[] address, long lovelace) {
+        co.nstant.in.cbor.model.Map body = new co.nstant.in.cbor.model.Map();
+        Array input = new Array();
+        input.add(new ByteString(new byte[32]));
+        input.add(new UnsignedInteger(nonce));
+        Array inputs = new Array();
+        inputs.add(input);
+        body.put(new UnsignedInteger(0), inputs);
+        co.nstant.in.cbor.model.Map output = new co.nstant.in.cbor.model.Map();
+        output.put(new UnsignedInteger(0), new ByteString(address));
+        output.put(new UnsignedInteger(1), new UnsignedInteger(lovelace));
+        Array outputs = new Array();
+        outputs.add(output);
+        body.put(new UnsignedInteger(1), outputs);
+        body.put(new UnsignedInteger(2), new UnsignedInteger(200_000));
+        Array transaction = new Array();
+        transaction.add(body);
+        transaction.add(new co.nstant.in.cbor.model.Map());
+        transaction.add(SimpleValue.TRUE);
+        transaction.add(SimpleValue.NULL);
+        return CborSerializationUtil.serialize(transaction);
+    }
+
+    /** The Cardano transaction id: Blake2b-256 of the body CBOR. */
+    private static String transactionHash(byte[] transaction) {
+        Array decoded = (Array) CborSerializationUtil.deserializeOne(transaction);
+        return HexUtil.encodeHexString(Blake2bUtil.blake2bHash256(
+                CborSerializationUtil.serialize(decoded.getDataItems().getFirst())));
+    }
+
+    /** A testnet enterprise address (header 0x60) whose 28-byte key hash repeats {@code fill}. */
+    private static byte[] enterpriseAddress(int fill) {
+        byte[] address = new byte[29];
+        address[0] = 0x60;
+        Arrays.fill(address, 1, address.length, (byte) fill);
+        return address;
     }
 
     private static byte[] sign(byte[] bytes, byte[] seed) {

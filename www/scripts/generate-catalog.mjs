@@ -387,7 +387,7 @@ export function renderVersions(catalog) {
       ['Maven group', code(v.group)],
       ['Java', code(v.javaVersion)],
       ['Base Yano JVM ZIP', v.yanoJvmZipUrl
-        ? `[\`yano-${v.yanoVersion}.zip\`](${v.yanoJvmZipUrl})`
+        ? `[\`${v.yanoJvmZipUrl.split('/').pop()}\`](${v.yanoJvmZipUrl})`
         : 'Local build required; supply matching Maven artifacts and '
           + '`-PyanoJvmDist` ([instructions](/start-here/build-from-source/)).'],
     ],
