@@ -78,6 +78,13 @@ allprojects {
         maven {
             url = uri('https://central.sonatype.com/repository/maven-snapshots/')
         }
+        // BloxBean Maven repository: development snapshots of BloxBean projects
+        // (release-ops docs/12), e.g. Yano commit snapshots for -PyanoVersion.
+        // snapshotsOnly() keeps release resolution on Maven Central.
+        maven {
+            url = uri('https://repo.bloxbean.org/maven/snapshots')
+            mavenContent { snapshotsOnly() }
+        }
     }
 }
 

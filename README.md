@@ -1,5 +1,7 @@
 # Yano X
 
+[![snapshot](https://img.shields.io/maven-metadata/v?metadataUrl=https%3A%2F%2Frepo.bloxbean.org%2Fmaven%2Fsnapshots%2Forg%2Fyanoproject%2Fx%2Fyano-x-client%2Fmaven-metadata.xml&strategy=latestProperty&label=snapshot)](#use-as-a-library)
+
 Yano X is the JVM extension and application ecosystem for Yano.
 
 Start with the [local showcase](docs/appchain/deployment/quickstart.md),
@@ -7,6 +9,42 @@ Start with the [local showcase](docs/appchain/deployment/quickstart.md),
 follow the [VM operator guide](docs/appchain/deployment/operators.md).
 The [deployment guide](docs/appchain/deployment/README.md) connects these paths,
 including how to add a chain while preserving existing state.
+
+## Use as a library
+
+Reusable Yano X libraries are published to
+[Maven Central](https://central.sonatype.com/namespace/org.yanoproject.x) under
+`org.yanoproject.x`; `yano-x-bom` aligns them with the matching Yano host.
+From the next release on, releases are also in
+`https://repo.bloxbean.org/maven/releases`, with the same files as on Maven Central. Runtime plugin bundles, CLI tools and the
+distributions ship in the GitHub release instead.
+
+Development snapshots are in the BloxBean Maven repository under the snapshot
+version of the `main` branch, for example `0.1.0-pre4-SNAPSHOT`. Each
+publication adds a newer build of that version; Gradle checks for it once a day,
+or at once with `--refresh-dependencies`.
+
+```gradle
+repositories {
+    mavenCentral()
+    // Development snapshots:
+    maven {
+        url = uri('https://repo.bloxbean.org/maven/snapshots')
+        mavenContent { snapshotsOnly() }
+    }
+}
+
+dependencies {
+    // yanoXVersion: a release from Maven Central, or the snapshot version.
+    implementation platform("org.yanoproject.x:yano-x-bom:${yanoXVersion}")
+    implementation 'org.yanoproject.x:yano-x-client'
+}
+```
+
+See [modules and artifacts](docs/site/modules.md) for every published
+coordinate.
+
+## Building Yano X
 
 The build instructions below are for contributors and release preparation.
 
@@ -73,7 +111,9 @@ resolve the project's own artifacts. CI also stages all publications in an
 empty, build-scoped Maven repository using `-PinternalRepository=<path>`. Set
 `-PyanoRepository=<URL-or-path>` when the requested Yano version is in a staging
 repository rather than Maven Central; this read-only input is distinct from the
-build-scoped Yano X publication repository.
+build-scoped Yano X publication repository. Yano development snapshots, such as
+`-PyanoVersion=0.1.0-pre18-1a2b3c4-SNAPSHOT`, resolve from the BloxBean Maven
+repository (`https://repo.bloxbean.org/maven/snapshots`) without it.
 
 Release rehearsal must disable Maven Local and pin every input explicitly. For
 an empty build-scoped repository, run the clean build and publication gates:
