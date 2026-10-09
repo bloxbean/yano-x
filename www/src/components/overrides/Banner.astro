@@ -1,0 +1,32 @@
+---
+/**
+ * Starlight <Banner> override: every documentation page shows the shared
+ * project status banner (src/components/shared/StatusBanner.astro), followed
+ * by any banner a page sets in its own frontmatter.
+ */
+import DefaultBanner from '@astrojs/starlight/components/Banner.astro';
+import StatusBanner from '../shared/StatusBanner.astro';
+---
+
+<div class="status-banner-frame">
+  <StatusBanner />
+</div>
+<DefaultBanner />
+
+<style>
+  .status-banner-frame {
+    padding: 1rem var(--sl-content-pad-x) 0;
+  }
+
+  /* Same width and alignment as Starlight's content container. */
+  .status-banner-frame > :global(.status-banner) {
+    max-width: var(--sl-content-width);
+    margin-bottom: 0;
+  }
+
+  @media (min-width: 72rem) {
+    .status-banner-frame > :global(.status-banner) {
+      margin-inline: var(--sl-content-margin-inline, auto);
+    }
+  }
+</style>

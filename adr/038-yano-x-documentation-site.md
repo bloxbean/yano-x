@@ -562,3 +562,47 @@ manual step advancement. Illustrations are explicitly example data.
 The observation copy distinguishes source-attested evidence from physical-world
 truth, and domain approval from member finality. The concise observation guide
 lives in `docs/site/observations.md` and links to the current preview references.
+
+## October 2026: interactive illustrations and app ledger terminology
+
+The guides now say **app ledger** for the concept. Yano's command line,
+configuration, APIs, Java types, and App-Chain Studio keep their `app-chain`
+identifiers; each introductory page states that the tooling calls an app ledger
+an *app chain*. "What is an app chain?" moved to
+`/start-here/what-is-an-app-ledger/`, and the old route redirects. This
+supersedes the September note that "app chain" remains the technical term in
+the guides.
+
+Pages gain interactive illustrations built from one engine in
+`www/src/illustrations/`:
+
+- **Markers, not components.** A page requests an illustration with
+  `<!-- illustration: <id> -->`, optionally wrapping a plain-markdown fallback
+  up to `<!-- /illustration -->`. The comment is invisible on GitHub and in the
+  JVM distribution, so `docs/` stays the plain-markdown source of truth.
+- **Complete at build time.** `scripts/remark-illustrations.mjs` renders each
+  illustration to static HTML: block diagrams as inline SVG with wide and narrow
+  layouts, step-throughs with every lane, scenario, and step written out. The
+  client script only adds controls, so search, screen readers, and readers
+  without JavaScript get the full content.
+- **Block diagrams replace Mermaid.** Mermaid's default styling read poorly
+  as a block diagram, and stale Mermaid diagrams were hard to notice. Every
+  site diagram is now an illustration; the Mermaid dependency, loader, and lint
+  are removed, and the illustration test rejects a new ```` ```mermaid ```` fence
+  in any published page. Repository-only documents rendered by GitHub may keep
+  Mermaid.
+- **Facts are anchored.** Each illustration lists the repository files it
+  depicts and an exact identifier or phrase that must still appear there.
+  `scripts/illustrations.test.mjs` fails when an anchor disappears, and also
+  checks lane and edge references, label fit, markers, and that a fallback list
+  matches the illustration's step titles. Upstream Yano anchors are checked
+  when a Yano checkout is available.
+- **Accessible by default.** Native buttons, arrow-key stepping, a polite live
+  region for the current step, colour-based (not opacity-based) dimming that
+  keeps contrast, reduced-motion stepping, and Present (full screen).
+  `tests/illustrations.spec.mjs` covers keyboard use, scenarios, views, phone
+  width in both themes, axe checks, the no-JavaScript fallback, and the
+  redirect.
+
+The rollout order and the accuracy findings that motivated it are recorded in
+`docs/site-learning-plan-2026-10.md`.

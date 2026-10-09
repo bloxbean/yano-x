@@ -1,16 +1,41 @@
-# App-chain composite profile governance
+# Composite profile governance
 
-This runbook is for operators evolving a long-lived deterministic composite
-state machine under ADR-015. The short rule is:
+This runbook is for operators evolving the deterministic composite state machine
+of a long-lived app ledger. The short rule is:
 
 > Deploy the dormant target code everywhere first; authorize one exact profile
-> and activation height on-chain second.
+> and activation height on the ledger second.
 
 Profile governance changes deterministic application composition. It is not a
 plugin hot-reload mechanism and it does not dynamically assemble components
 from YAML. A reviewed composite bundle owns a bounded catalog of executable
 profiles. Governance can select only an exact canonical profile already in that
 catalog.
+
+## The lifecycle
+
+A proposal moves through three statuses, `STAGING`, `SEALED`, and `SCHEDULED`.
+Activation and voiding are events: when either happens, the proposal record is
+deleted. Only one proposal can be open at a time.
+
+<!-- illustration: profile-governance -->
+1. **Deploy the target bundle.** Every member deploys the same bundle, whose
+   catalog holds the active profile and the dormant target profile.
+2. **Begin.** The author submits `BEGIN` with the active profile's digest, the
+   membership digest, the target digest, the activation height `H`, and an
+   expiry. The proposal is `STAGING`.
+3. **Stage the chunks.** The author stages the target profile's canonical
+   bytes, chunk by chunk.
+4. **Seal.** The author seals the proposal; the staged bytes and the transition
+   are checked, and the proposal is `SEALED` with a proposal hash.
+5. **Approve.** A threshold of members approves the proposal hash.
+6. **Attest readiness.** Every member attests that the target digest is in its
+   local executable catalog.
+7. **Scheduled.** With threshold approvals and readiness from every member
+   before `H`, the proposal is `SCHEDULED`.
+8. **Activate at H.** Block `H` runs the target profile; a new profile epoch is
+   recorded and the proposal is deleted.
+<!-- /illustration -->
 
 ## Start a governed chain
 
@@ -63,50 +88,65 @@ Yano X does not publish a native composite extension.
 
 ## Inspect and encode commands
 
-The distribution includes the dependency-free operator helper:
+The distribution includes a dependency-free operator helper,
+`appchain-cluster/profile-governance.py`. It encodes each governance command as
+canonical CBOR:
 
 ```bash
 cd appchain-cluster
-export YANO_APPCHAIN_API_KEY='<member full key>'
 
-./profile-governance.py --url http://127.0.0.1:7070 \
-  --chain evidence-chain status
-```
-
-Prefer `YANO_APPCHAIN_API_KEY` or `--api-key-file`; do not place a key directly
-on the command line. A non-default baked API prefix can be supplied with
-`--api-prefix`. The CLI rejects every HTTP redirect so a full administration key
-cannot be forwarded to another origin. Use HTTPS for every non-loopback member
-endpoint and terminate it only at an operator-trusted proxy.
-
-The helper emits canonical CBOR and can submit or dry-run each command. For
-example, prepare `BEGIN` from the exact target profile artifact:
-
-```bash
 ./profile-governance.py --chain evidence-chain begin --encode-only \
   --proposal-id "$PROPOSAL_ID" \
   --base-digest "$ACTIVE_PROFILE_DIGEST" \
   --membership-digest "$MEMBERSHIP_EPOCH_DIGEST" \
   --profile target-profile.cbor \
-  --activation-height 1200 --expiry-height 1500
+  --activation-height 1200 --expiry-height 1500 > begin.json
 ```
 
 The output contains `targetProfileDigest`, `chunkCount`, `proposalHash`, and
-`bodyHex`. Remove `--encode-only` to submit; add `--dry-run` to invoke all local
-validation without submitting. For online submit/dry-run, `--membership-digest`
-may be omitted and the CLI derives the authoritative
-`profileGovernance.currentMembershipDigest` from node status. Offline
-`--encode-only` requires the digest explicitly. Always verify that the same
-membership epoch remains effective through the planned activation height.
+`bodyHex`. Read the active profile digest and `currentMembershipDigest` from the
+chain status. Always verify that the same membership epoch remains effective
+through the planned activation height.
+
+> **Known issue.** The helper's online mode, which runs without
+> `--encode-only` (`status`, submit, and `--dry-run`), calls
+> `/api/v1/app-chain/chains/{chain}/profile-governance` routes that the node
+> does not serve. Use `--encode-only`, then send the encoded bytes to the
+> composite plugin's route, as shown below.
+
+The composite plugin serves governance under
+`/api/v1/plugins/org.yanoproject.x.composite/chains/{chain}/profile-governance`:
+a `GET` returns the governance status as CBOR, and a `POST` to `…/commands`
+takes one command as a raw CBOR body. The `POST` is a privileged route, so it
+needs the member's full API key, and `?dry-run=true` runs local validation
+without submitting. The member's own node submits the command with its member
+key:
+
+```bash
+NODE=https://member-a.example:7070
+ROUTE=/api/v1/plugins/org.yanoproject.x.composite/chains/evidence-chain/profile-governance/commands
+
+jq -r .bodyHex begin.json | xxd -r -p > begin.cbor
+curl -sS -X POST -H "X-API-Key: $(cat /secure/member-a.key)" \
+  -H 'Content-Type: application/octet-stream' --data-binary @begin.cbor \
+  "$NODE$ROUTE?dry-run=true"          # {"validated":true}
+curl -sS -X POST -H "X-API-Key: $(cat /secure/member-a.key)" \
+  -H 'Content-Type: application/octet-stream' --data-binary @begin.cbor \
+  "$NODE$ROUTE"                       # {"messageId":"…"}
+```
+
+Keep the key in an owner-only file, never on the command line or in shell
+history. Use HTTPS for every non-loopback member endpoint and terminate it only
+at an operator-trusted proxy.
 
 Stage each reported chunk and seal the proposal, waiting for each command to
 finalize before the next step:
 
 ```bash
-./profile-governance.py --chain evidence-chain chunk \
+./profile-governance.py --chain evidence-chain chunk --encode-only \
   --proposal-id "$PROPOSAL_ID" --profile target-profile.cbor --index 0
 
-./profile-governance.py --chain evidence-chain seal \
+./profile-governance.py --chain evidence-chain seal --encode-only \
   --proposal-id "$PROPOSAL_ID"
 ```
 
@@ -121,17 +161,18 @@ Approval and readiness are deliberately separate:
 - every member in the bound membership epoch must attest that the exact target
   digest exists in its local executable catalog.
 
-Each approving member submits with its own node/member key:
+Each approving member encodes its commands and submits them through its own
+node, as above, so its own member key signs them:
 
 ```bash
-./profile-governance.py --url http://member-a:7070 --chain evidence-chain \
-  approve --proposal-hash "$PROPOSAL_HASH"
+./profile-governance.py --chain evidence-chain approve --encode-only \
+  --proposal-hash "$PROPOSAL_HASH"
 
-./profile-governance.py --url http://member-a:7070 --chain evidence-chain \
-  ready --proposal-hash "$PROPOSAL_HASH" --target-digest "$TARGET_DIGEST"
+./profile-governance.py --chain evidence-chain ready --encode-only \
+  --proposal-hash "$PROPOSAL_HASH" --target-digest "$TARGET_DIGEST"
 ```
 
-`READY --dry-run` is the final local diagnostic. It fails when that node's
+A dry run of `READY` is the final local diagnostic. It fails when that node's
 catalog lacks the target. Once the threshold and all-member readiness are
 finalized, status becomes `SCHEDULED`. Every block before `H` uses the old
 profile; block `H` uses the target for results, expiries, workflows, and normal
@@ -140,13 +181,16 @@ messages. There is no local break-glass override.
 Cancel before activation when necessary:
 
 ```bash
-./profile-governance.py --chain evidence-chain cancel \
+./profile-governance.py --chain evidence-chain cancel --encode-only \
   --proposal-hash "$PROPOSAL_HASH"
 ```
 
-Threshold cancellations void a proposal. It is also voided by expiry, a bound
-membership-epoch change, a stale base profile, malformed/conflicting staging,
-or invalid profile compatibility/quota rules.
+Threshold cancellations void a proposal. It is also voided by expiry, by a
+change of the bound membership epoch, by malformed or conflicting staging, by a
+seal whose bytes or digest do not match, by invalid profile compatibility or
+quota rules, and by approvals and readiness that complete only at or after `H`.
+A `BEGIN` whose base digest is not the active profile is ignored rather than
+recorded.
 
 ## Observe and verify
 
@@ -160,7 +204,7 @@ Prometheus exports:
 - `yano.appchain.composite.governance.approvals`;
 - `yano.appchain.composite.governance.readiness`;
 - `yano.appchain.composite.governance.local.ready`; and
-- `yano.appchain.composite.retired.drains`.
+- `yano.appchain.composite.governance.retired.drains`.
 
 Health reports `{chain}.scheduledProfileMissing=true` and goes down if a node
 has a scheduled target absent from its local catalog. This is a last-resort
@@ -200,5 +244,4 @@ or extra epoch. Neither policy makes unreviewed component code trustworthy.
 - Lost governance threshold: use the membership-governance recovery policy
   first; profile governance cannot bypass membership authority.
 
-See [ADR-015](../adr/app-layer/015-governed-composite-profile-evolution.md) for
-the complete consensus contract.
+The complete consensus contract is recorded in the repository's ADR-015.

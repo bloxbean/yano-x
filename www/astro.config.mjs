@@ -3,19 +3,24 @@ import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 import { unified } from '@astrojs/markdown-remark';
 import llmsIntegration from './scripts/llms-integration.mjs';
-import remarkMermaid from './scripts/remark-mermaid.mjs';
+import remarkIllustrations, { illustrationsDigest } from './scripts/remark-illustrations.mjs';
 
 export default defineConfig({
   site: 'https://yano-x.io',
   markdown: {
-    processor: unified({ remarkPlugins: [remarkMermaid] }),
+    processor: unified({
+      remarkPlugins: [[remarkIllustrations, { digest: illustrationsDigest() }]],
+    }),
+  },
+  redirects: {
+    '/start-here/what-is-an-app-chain/': '/start-here/what-is-an-app-ledger/',
   },
   integrations: [
     starlight({
       title: 'Yano X',
       description:
         'Build an application-specific replicated ledger on Cardano. Yano X is the ' +
-        'JVM extension ecosystem for Yano app chains.',
+        'JVM extension ecosystem for Yano app ledgers.',
       logo: {
         src: './public/logo.svg',
         alt: 'Yano X',
@@ -29,40 +34,56 @@ export default defineConfig({
         baseUrl: 'https://github.com/bloxbean/yano-x/edit/main/www/',
       },
       components: {
+        Banner: './src/components/overrides/Banner.astro',
         Head: './src/components/overrides/Head.astro',
         SiteTitle: './src/components/overrides/SiteTitle.astro',
       },
-      customCss: ['./src/styles/starlight.css'],
+      customCss: ['./src/styles/starlight.css', './src/styles/illustrations.css'],
       lastUpdated: true,
       sidebar: [
         {
           label: 'Start here',
           items: [
             { label: 'Your learning path', slug: 'start-here' },
-            { label: 'What is an app chain?', slug: 'start-here/what-is-an-app-chain' },
+            { label: 'What is an app ledger?', slug: 'start-here/what-is-an-app-ledger' },
             { label: 'Why Yano X', slug: 'start-here/why-yano-x' },
-            { label: 'Release downloads', slug: 'start-here/release-downloads' },
             { label: 'Local showcase', slug: 'start-here/quickstart' },
+            { label: 'Release downloads', slug: 'start-here/release-downloads' },
             { label: 'Build from source', slug: 'start-here/build-from-source' },
+            { label: 'Use cases', slug: 'start-here/use-cases' },
+            { label: 'FAQ', slug: 'start-here/faq' },
           ],
         },
         {
-          label: 'Deployment',
-          collapsed: true,
-          autogenerate: { directory: 'deployment' },
-        },
-        {
-          label: 'Concepts',
+          label: 'Learn',
           collapsed: true,
           items: [
             { label: 'Architecture', slug: 'concepts/architecture' },
             { label: 'Consensus and finality', slug: 'concepts/consensus-and-finality' },
+            { label: 'Chain identity', slug: 'concepts/chain-identity' },
             { label: 'State and proofs', slug: 'concepts/state-and-proofs' },
+            { label: 'Where data lives', slug: 'concepts/where-data-lives' },
+            { label: 'Restart and recovery', slug: 'concepts/recovery' },
             { label: 'Effects', slug: 'concepts/effects' },
-            { label: 'External observations', slug: 'concepts/observations' },
+            {
+              label: 'External observations',
+              slug: 'concepts/observations',
+              badge: { text: 'Preview', variant: 'note' },
+            },
             { label: 'Cardano anchoring', slug: 'concepts/anchoring' },
+            { label: 'Keys and trust', slug: 'concepts/trust-model' },
             { label: 'Determinism rules', slug: 'concepts/determinism-rules' },
           ],
+        },
+        {
+          label: 'Tutorials',
+          collapsed: true,
+          autogenerate: { directory: 'tutorials' },
+        },
+        {
+          label: 'State machines',
+          collapsed: true,
+          autogenerate: { directory: 'state-machines' },
         },
         {
           label: 'Recipes',
@@ -71,22 +92,6 @@ export default defineConfig({
             { label: 'Recipe catalog', slug: 'recipes' },
             { label: 'Choosing a recipe', slug: 'recipes/choosing-a-recipe' },
           ],
-        },
-        {
-          label: 'Plugin framework',
-          collapsed: true,
-          items: [
-            { label: 'The extension ladder', slug: 'plugins' },
-            { label: 'Scaffold, sign, install', slug: 'plugins/scaffold-sign-install' },
-            { label: 'SPI and manifest', slug: 'plugins/spi-and-manifest' },
-            { label: 'Consensus rules', slug: 'plugins/consensus-rules' },
-            { label: 'Testing and deployment', slug: 'plugins/testing-and-deployment' },
-          ],
-        },
-        {
-          label: 'Tutorials',
-          collapsed: true,
-          autogenerate: { directory: 'tutorials' },
         },
         {
           label: 'Declarative bindings',
@@ -100,12 +105,25 @@ export default defineConfig({
             { label: '5. Operations and upgrades', slug: 'bindings/operations-and-upgrades' },
             { label: '6. Studio editor', slug: 'bindings/guided-editor' },
             { label: '7. Admission rules', slug: 'bindings/admission-rules' },
+            { label: '8. Typed views', slug: 'bindings/typed-views' },
           ],
         },
         {
-          label: 'State machines',
+          label: 'Plugin framework',
           collapsed: true,
-          autogenerate: { directory: 'state-machines' },
+          items: [
+            { label: 'The extension ladder', slug: 'plugins' },
+            { label: 'Scaffold, sign, install', slug: 'plugins/scaffold-sign-install' },
+            { label: 'SPI and manifest', slug: 'plugins/spi-and-manifest' },
+            { label: 'How plugins load', slug: 'plugins/how-plugins-load' },
+            { label: 'Consensus rules', slug: 'plugins/consensus-rules' },
+            { label: 'Testing and deployment', slug: 'plugins/testing-and-deployment' },
+          ],
+        },
+        {
+          label: 'Deployment',
+          collapsed: true,
+          autogenerate: { directory: 'deployment' },
         },
         {
           label: 'Products',
@@ -148,6 +166,7 @@ export default defineConfig({
             { label: 'Configuration', slug: 'reference/configuration' },
             { label: 'Modules and artifacts', slug: 'reference/modules' },
             { label: 'Reference shelf', slug: 'reference/shelf' },
+            { label: 'Glossary', slug: 'reference/glossary' },
           ],
         },
         {

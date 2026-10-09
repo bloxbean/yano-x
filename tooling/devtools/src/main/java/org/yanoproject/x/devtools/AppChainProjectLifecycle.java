@@ -34,6 +34,9 @@ final class AppChainProjectLifecycle {
     private static final long MAX_PLUGIN_ARTIFACT_BYTES = 128L * 1_048_576;
     private static final String RELEASE_INDEX_NAME =
             "appchain-release-capability-index.json";
+    private static final List<String> RELEASE_INDEX_PATHS = List.of(
+            "tools/yano-appchain/metadata/appchain-dx/v1alpha1/" + RELEASE_INDEX_NAME,
+            "config/schema/" + RELEASE_INDEX_NAME);
 
     private final AppChainPropertyRegistry properties;
     private final AppChainProjectCatalog catalog;
@@ -367,7 +370,7 @@ final class AppChainProjectLifecycle {
                 if (!entry.isDirectory() && archivePathEndsWith(name, "yano.jar")) jvm = true;
                 if (!entry.isDirectory() && (archivePathEndsWith(name, "yano")
                         || archivePathEndsWith(name, "yano.exe"))) nativeRuntime = true;
-                if (!entry.isDirectory() && archivePathEndsWith(name, RELEASE_INDEX_NAME)) {
+                if (!entry.isDirectory() && isReleaseIndexEntry(name)) {
                     if (indexEntry != null) {
                         throw new IOException("distribution contains multiple release indexes");
                     }
@@ -479,11 +482,20 @@ final class AppChainProjectLifecycle {
         return path.equals(fileName) || path.endsWith("/" + fileName);
     }
 
+    /**
+     * Whether an archive entry is the release index at one of the
+     * {@link #RELEASE_INDEX_PATHS}, in a rootless archive or below its single
+     * top-level directory. Copies elsewhere, such as Studio's assets, are not.
+     */
+    private static boolean isReleaseIndexEntry(String name) {
+        int separator = name.indexOf('/');
+        String relative = separator > 0 && !RELEASE_INDEX_PATHS.contains(name)
+                ? name.substring(separator + 1) : name;
+        return RELEASE_INDEX_PATHS.contains(relative);
+    }
+
     private static Path findReleaseIndex(Path root) throws IOException {
-        List<Path> candidates = List.of(
-                root.resolve("tools/yano-appchain/metadata/appchain-dx/v1alpha1")
-                        .resolve(RELEASE_INDEX_NAME),
-                root.resolve("config/schema").resolve(RELEASE_INDEX_NAME));
+        List<Path> candidates = RELEASE_INDEX_PATHS.stream().map(root::resolve).toList();
         List<Path> existing = candidates.stream().filter(Files::isRegularFile).toList();
         if (existing.size() != 1) {
             throw new IOException("distribution must contain exactly one release capability index");

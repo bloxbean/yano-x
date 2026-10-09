@@ -984,6 +984,31 @@ class AppChainProjectTest {
     }
 
     @Test
+    void doctorIgnoresReleaseIndexCopiesOutsideTheCanonicalPaths() throws Exception {
+        AppChainPropertyRegistry properties = AppChainPropertyRegistry.framework();
+        AppChainProjectCatalog catalog = new AppChainProjectCatalog(properties);
+        AppChainProjectLifecycle lifecycle = new AppChainProjectLifecycle(properties);
+        Path archive = temporary.resolve("yano-x-jvm-studio.zip");
+        try (ZipOutputStream output = new ZipOutputStream(Files.newOutputStream(archive))) {
+            output.putNextEntry(new ZipEntry("yano-x-jvm/yano.jar"));
+            output.write(0);
+            output.closeEntry();
+            for (String path : List.of(
+                    "yano-x-jvm/tools/yano-appchain/metadata/appchain-dx/v1alpha1/",
+                    "yano-x-jvm/studio/assets/")) {
+                output.putNextEntry(new ZipEntry(path + "appchain-release-capability-index.json"));
+                output.write(catalog.releaseIndexBytes());
+                output.closeEntry();
+            }
+        }
+
+        AppChainProjectModel.DoctorReport doctor = lifecycle.doctor(null, archive);
+
+        assertThat(doctor.status()).isEqualTo("DOCTOR_OK");
+        assertThat(doctor.checks()).allMatch(check -> "PASS".equals(check.status()));
+    }
+
+    @Test
     void completeCatalogIsTruthfulAndDistributionCapabilitiesCannotBeSelected()
             throws Exception {
         AppChainPropertyRegistry properties = AppChainPropertyRegistry.framework();

@@ -1,8 +1,17 @@
 ---
 title: "Configure your application"
-description: "Use the App-Chain Studio to choose recipes and capabilities, or use the CLI from an extracted Yano X JVM release. Studio ships in the release under…"
+description: "A finalized order on your own chain and a DRIFTOK identity check across every member."
 editUrl: "https://github.com/bloxbean/yano-x/edit/main/docs/appchain/deployment/configure.md"
 ---
+- **Goal:** turn your own choice of chains into a running three-node local
+  application.
+- **Before you start:** an extracted Yano X JVM release, Java 25, `curl`, and
+  `jq`. The generated project uses HTTP ports `8080`–`8082` and node ports
+  `13337`–`13339`; stop a launcher or showcase cluster that holds them.
+- **Time:** about 15 minutes.
+- **Outcome:** a finalized order on your own chain and a `DRIFT_OK` identity
+  check across every member.
+
 Use the [App-Chain Studio](/studio/index.html) to
 choose recipes and capabilities, or use the CLI from an extracted Yano X JVM
 release. Studio ships in the release under `studio/` and is also served by the
@@ -53,18 +62,24 @@ permissions. Repeating preparation reuses the same keys. It refuses to regenerat
 identities beside retained data. It supports local JVM devnet projects; remote
 operators provide their own identity and secret files.
 
+> **✓ You should see** `PROJECT_INITIALIZED`, then `PREPARED: public member keys
+> pinned`, then `Started 3 ready node processes; see logs/`.
+
 Generated configuration is locked. Edit `appchain.yaml`, not `config/` or scripts.
 Once a project starts, changes require the explicit plan/apply workflow.
 
+<!-- illustration: config-layers -->
+
 ## 3. Submit and verify an order
 
-The generated default HTTP ports are 8080–8082. In a terminal where `YANO_HOME`
-is set, read the local API key into the environment without printing it:
+The generated default HTTP ports are 8080–8082. Read only the local API key
+into your shell, without printing it. The same file also holds node 0's private
+signing key, so do not load the whole file:
 
 ```bash
-set -a
-. ./my-application/secrets/node0.env
-set +a
+YANO_APPCHAIN_API_KEYS=$(sed -n 's/^YANO_APPCHAIN_API_KEYS=//p' \
+  ./my-application/secrets/node0.env)
+export YANO_APPCHAIN_API_KEYS
 
 RESPONSE=$(curl -fsS -X POST \
   http://127.0.0.1:8081/api/v1/app-chain/chains/orders/messages \
@@ -74,24 +89,32 @@ MESSAGE_ID=$(printf '%s' "$RESPONSE" | jq -er .messageId)
 printf 'Accepted message %s\n' "$MESSAGE_ID"
 ```
 
-Wait up to 60 seconds for finalization, retaining the message ID:
+> **✓ You should see** `Accepted message` followed by the message id.
+
+Wait up to 60 seconds for finalization, retaining the message ID. Until the
+message is final, the lookup answers 404, which the loop treats as height 0:
 
 ```bash
 HEIGHT=0
 for attempt in $(seq 1 60); do
-  HEIGHT=$(curl -fsS -H "X-API-Key: $YANO_APPCHAIN_API_KEYS" \
+  HEIGHT=$(curl -s -H "X-API-Key: $YANO_APPCHAIN_API_KEYS" \
     "http://127.0.0.1:8080/api/v1/app-chain/chains/orders/messages/$MESSAGE_ID" \
-    | jq -r '.height // 0') || HEIGHT=0
-  [ "$HEIGHT" -gt 0 ] && break
+    | jq -r '.height // 0' 2>/dev/null)
+  [ "${HEIGHT:-0}" -gt 0 ] && break
   sleep 1
 done
-[ "$HEIGHT" -gt 0 ] || { echo "Message did not finalize within 60 seconds" >&2; exit 1; }
-curl -fsS -H "X-API-Key: $YANO_APPCHAIN_API_KEYS" \
-  "http://127.0.0.1:8080/api/v1/app-chain/chains/orders/blocks/$HEIGHT" | jq .
+if [ "${HEIGHT:-0}" -gt 0 ]; then
+  curl -fsS -H "X-API-Key: $YANO_APPCHAIN_API_KEYS" \
+    "http://127.0.0.1:8080/api/v1/app-chain/chains/orders/blocks/$HEIGHT" | jq .
+else
+  echo "Message did not finalize within 60 seconds" >&2
+fi
 ```
 
-The block includes the finalized root and certificate signature count. A successful
-submission alone does not establish finality.
+> **✓ You should see** a block whose `messages` list contains your message id,
+> with `stateRoot` and `certSignatures` of at least 2.
+
+A successful submission alone does not establish finality.
 
 Compare the configured identity on every member:
 
@@ -103,7 +126,9 @@ Compare the configured identity on every member:
   --api-key-env YANO_APPCHAIN_API_KEYS
 ```
 
-Drift now covers **every configured chain**. `DRIFT_OK` checks deployment and
+> **✓ You should see** one line per check, ending with `DRIFT_OK peers=3`.
+
+Drift covers **every configured chain**. `DRIFT_OK` checks deployment and
 consensus identity agreement; it is not proof of message finality or independent
 L1 anchoring. Follow [the proof guide](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/PROOF_LAB.md) to retrieve and verify the
 message proof, pinning its chain, genesis, height, and trusted root.
@@ -121,4 +146,14 @@ until their external prerequisites are satisfied.
 ```
 
 Stop preserves state. Do not replace the local devnet genesis or member secrets.
-Continue with [adding a chain](/deployment/add-chain/) or [remote operations](/deployment/operators/).
+
+## Troubleshooting
+
+| You see | What it means and what to do |
+|---|---|
+| `A project node is already running. Use scripts/status, or scripts/stop before restart.` | The project is running. Stop it before starting again. |
+| `node0 failed readiness; see logs/node0.log` | The node did not become ready. The script prints a `YANO_STARTUP_FAILURE code=...` line when the log has one; read that log. |
+| `Generated file has manual edits: ...` | A generated file was edited by hand. Move the change into `appchain.yaml` and run `render`. |
+| `Deployment lock changed; apply the reviewed plan before starting` | The lock changed after the last start. Use the [plan and apply workflow](/deployment/add-chain/). |
+
+**Next:** [add a chain](/deployment/add-chain/), or plan [remote operations](/deployment/operators/).

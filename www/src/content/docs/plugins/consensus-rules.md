@@ -6,6 +6,11 @@ editUrl: "https://github.com/bloxbean/yano-x/edit/main/docs/site/plugins-consens
 Plugin code that runs inside `apply()` is consensus code. Every member executes
 it and must derive the same state root. This page is the contract.
 
+The node does not sandbox plugins or verify their publisher signatures: every
+member runs whatever bundle is in its plugin directory, as trusted in-process
+code. [How plugins load](/plugins/how-plugins-load/) explains what is and is not
+checked.
+
 ## The rules
 
 - The same bundle, machine or profile id, and committed settings run on **every
@@ -34,9 +39,9 @@ Two different jobs, with different constraints:
 @Override
 public AdmissionResult validate(AppMessage message) {
     // Bounded structural validation only. Never perform I/O here.
-    return decodeSafely(message.getBody())
+    return ShipmentCodec.isWellFormed(message.getBody())
             ? AdmissionResult.accept()
-            : AdmissionResult.reject("invalid shipment command");
+            : AdmissionResult.reject("INVALID_SHIPMENT_COMMAND");
 }
 
 @Override
@@ -122,15 +127,18 @@ Changing what a transition emits is a hard fork unless it is gated. Ship the new
 emission logic behind a governed profile activation, or behind a condition that
 is itself part of committed state.
 
-## Composites are consensus-critical Java
+## Composites are consensus-critical
 
 A composite profile's component order, versions, routes, quotas, and workflow
-transitions are **code**, not configuration, precisely because two members
-discovering a different order would derive different roots. That code is small,
-but it deserves the same review as a state transition.
+transitions are **committed profile data**, because two members running a
+different order would derive different roots. In a Java composite that data is
+the provider's code; in a declarative composite it is the compiled binding IR.
+Either deserves the same review as a state transition, and neither changes by
+editing a file on one member.
 
-The profile is canonically encoded, committed to authenticated state at height
-1, and re-verified on restart and every transition.
+The profile is canonically encoded and committed to authenticated state at
+genesis. The composite checks that marker against its effective profile on
+restart and in every block.
 
 ## Keeping secrets out of consensus
 
@@ -157,6 +165,6 @@ keys, API keys, effect credentials, and anchor wallet funds.
 
 Persistence changes additionally require apply, rollback, replay, restart, and
 root-parity checks. Derived indexes must never advance beyond authoritative
-app-chain state.
+app ledger state.
 
 Continue to [Testing and deployment](/plugins/testing-and-deployment/).

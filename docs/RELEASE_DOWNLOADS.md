@@ -11,14 +11,14 @@ On macOS, use `shasum -a 256 --check --ignore-missing SHA256SUMS`.
 `--ignore-missing` checks only the archives you downloaded; each one must
 report `OK`.
 
-The same archive serves a production node, the local showcase, the deployment
-CLI, and App-Chain Studio. It needs Java 25; the showcase also needs Python 3,
-`curl`, and `jq`.
+The same archive runs local and generated-project nodes, the local showcase, the
+deployment CLI, and App-Chain Studio. It needs Java 25; the cluster launcher and
+the showcase also need Python 3, `curl`, and `jq`.
 
 | Path in the archive | Use it when | First command, from the extracted directory |
 | --- | --- | --- |
-| `yano.sh` | You want one production-shaped Yano JVM node with the standard Yano X plugin set. | `./yano.sh start:devnet,appchain` |
-| `examples/showcase/` | You want the quickest local three-node, multi-app-chain demonstration. | `examples/showcase/showcase.sh quickstart --profile light --nodes 3 --instance demo` |
+| `yano.sh` | You want local app ledger members with the standard Yano X plugin set: one node, or a small cluster on one machine. | `./yano.sh appchain cluster start 1` |
+| `examples/showcase/` | You want the quickest local three-node, multi-ledger demonstration. | `cd examples/showcase && ./showcase.sh quickstart --profile light --nodes 3 --instance demo` |
 | `tools/yano-deploy/` | You want to render and apply multi-node OpenTofu and Ansible deployments. | `tools/yano-deploy/bin/yano-x-deploy init ./cluster` |
 | `studio/` | You want the browser-based blueprint editor. It is a static site. | `cd studio && python3 -m http.server 8080` |
 | `plugins/`, `optional-plugins/` | You already operate the matching Yano JVM release and want to select Yano X runtime bundles yourself. | Copy reviewed bundles into the node plugin directory. |
@@ -38,20 +38,31 @@ carries the same files as the matching path in the JVM archive:
 
 ## Run one node
 
-The archive is the normal starting point for a single node:
+The archive's `config/application-appchain.yml` defines the stock local chains:
+`orders-chain`, `registry-chain`, and `effects-chain`. It holds no member keys;
+the cluster launcher supplies local demo identities when it starts the nodes.
+To run one member on a private devnet:
 
 ```bash
 unzip yano-x-jvm-<version>.zip
 cd yano-x-jvm-<version>
-./yano.sh start:devnet,appchain
+./yano.sh appchain cluster start 1
+./yano.sh appchain cluster status
 ```
 
-This starts one Yano node with app-chain support. Review the included
-configuration before using a public Cardano network.
+> **✓ You should see** `members : 1   threshold: 1` and `Cluster up.`, then
+> `orders-chain: AGREED (...)` and the same for the other two chains.
 
-On devnet, `config/application-devnet.yml` turns off Yano's L1 history
-projection, which cannot load outside Linux x64 in this Yano release
-([bloxbean/yano#137](https://github.com/bloxbean/yano/issues/137)). App chains
+`./yano.sh appchain cluster stop` stops the node and keeps its data;
+`./yano.sh appchain cluster clean` stops it and deletes the data. Use
+`cluster start 3` for three members; [tutorial 1](appchain/tutorials/01-first-app-chain.md)
+walks through it. The demo identities are publicly known, so use them only on a
+local devnet. For your own chains and keys, generate a project instead; see
+[Configure your application](appchain/deployment/configure.md).
+
+On devnet, the archive's `config/application-devnet.yml` turns off Yano's L1
+history projection, which cannot load outside Linux x64 in this Yano release
+([bloxbean/yano#137](https://github.com/bloxbean/yano/issues/137)). App ledgers
 and the showcase do not need it; Yano's address, account, and reward history
 endpoints return 503 on devnet until it is re-enabled.
 
@@ -65,7 +76,7 @@ and never edits the distribution's `config/`:
 cd yano-x-jvm-<version>/examples/showcase
 ./showcase.sh doctor --profile light
 ./showcase.sh quickstart --profile light --nodes 3 --instance demo
-./showcase.sh verify all --instance demo
+./showcase.sh verify --instance demo
 ./showcase.sh ui --instance demo
 ./showcase.sh stop --instance demo
 ```

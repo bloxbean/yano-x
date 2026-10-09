@@ -631,7 +631,6 @@
         "effects.outcome-commitment": "per-effect",
         "effects.strict-reserved-prefix": "true",
         "machines.kv-registry.value-format": "raw",
-        "machines.composite.preset": "role-evidence-v1",
         "machines.composite.evidence-capacity-per-block": "8",
         "machines.composite.profile-mode": "fixed",
         "machines.composite.profile-governance.min-activation-lag": "20",

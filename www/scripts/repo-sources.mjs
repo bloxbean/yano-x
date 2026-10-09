@@ -147,6 +147,7 @@ export const IMPORTED_DOCS = {
   'docs/appchain/bindings/05-operations-and-upgrades.md': '/bindings/operations-and-upgrades/',
   'docs/appchain/bindings/06-guided-editor.md': '/bindings/guided-editor/',
   'docs/appchain/bindings/07-admission-rules.md': '/bindings/admission-rules/',
+  'docs/appchain/bindings/08-typed-views.md': '/bindings/typed-views/',
   'docs/appchain/DECLARATIVE_BINDINGS.md': '/reference/declarative-bindings/',
   'docs/appchain/DECLARATIVE_BINDINGS_CLI.md': '/reference/declarative-bindings-cli/',
   'docs/appchain/DECLARATIVE_BINDINGS_UPGRADES.md': '/reference/declarative-bindings-upgrades/',
@@ -161,7 +162,7 @@ export const IMPORTED_DOCS = {
 
   'docs/site/concepts-anchoring.md': '/concepts/anchoring/',
 
-  'docs/site/start-here-what-is-an-app-chain.md': '/start-here/what-is-an-app-chain/',
+  'docs/site/start-here-what-is-an-app-ledger.md': '/start-here/what-is-an-app-ledger/',
 
   'docs/site/plugins-spi-and-manifest.md': '/plugins/spi-and-manifest/',
 
@@ -186,6 +187,15 @@ export const IMPORTED_DOCS = {
   'docs/site/build-from-source.md': '/start-here/build-from-source/',
   'docs/site/modules.md': '/reference/modules/',
   'docs/site/scaffold-sign-install.md': '/plugins/scaffold-sign-install/',
+  'docs/site/plugins-how-plugins-load.md': '/plugins/how-plugins-load/',
+
+  'docs/site/concepts-chain-identity.md': '/concepts/chain-identity/',
+  'docs/site/concepts-where-data-lives.md': '/concepts/where-data-lives/',
+  'docs/site/concepts-recovery.md': '/concepts/recovery/',
+  'docs/site/concepts-trust-model.md': '/concepts/trust-model/',
+  'docs/site/reference-glossary.md': '/reference/glossary/',
+  'docs/site/start-here-faq.md': '/start-here/faq/',
+  'docs/APP_CHAIN_USE_CASES.md': '/start-here/use-cases/',
 
   'docs/RELEASE_DOWNLOADS.md': '/start-here/release-downloads/',
   'docs/appchain/deployment/README.md': '/deployment/',
@@ -193,6 +203,10 @@ export const IMPORTED_DOCS = {
   'docs/appchain/deployment/configure.md': '/deployment/configure/',
   'docs/appchain/deployment/add-chain.md': '/deployment/add-chain/',
   'docs/appchain/deployment/operators.md': '/deployment/operators/',
+  'docs/site/deployment-troubleshooting.md': '/deployment/troubleshooting/',
+  'docs/appchain/PRODUCTION_DEPLOYMENT.md': '/deployment/production/',
+  'docs/appchain/OPTIONAL_CONNECTORS.md': '/deployment/connectors/',
+  'docs/APP_CHAIN_PROFILE_GOVERNANCE.md': '/deployment/profile-governance/',
   // docs/appchain/tutorials/*  ->  /tutorials/*
   'docs/appchain/tutorials/README.md': '/tutorials/',
   'docs/appchain/tutorials/01-first-app-chain.md': '/tutorials/01-first-app-chain/',
@@ -214,6 +228,7 @@ export const IMPORTED_DOCS = {
   'docs/appchain/state-machines/doc-trail.md': '/state-machines/doc-trail/',
   'docs/appchain/state-machines/kv-registry.md': '/state-machines/kv-registry/',
   'docs/appchain/state-machines/role-approvals.md': '/state-machines/role-approvals/',
+  'docs/appchain/state-machines/ordered-log.md': '/state-machines/ordered-log/',
 };
 
 /**
@@ -233,7 +248,7 @@ export function contentPathForRoute(route) {
  * page instead of to GitHub, so imported and authored content interlink.
  */
 export const AUTHORED_EQUIVALENTS = {
-  'docs/appchain/README.md': '/start-here/what-is-an-app-chain/',
+  'docs/appchain/README.md': '/start-here/what-is-an-app-ledger/',
   'docs/APP_CHAIN_OVERVIEW.md': '/concepts/architecture/',
   'docs/appchain/CAPABILITIES.md': '/reference/capabilities/',
   'docs/BUILD_AND_TEST.md': '/contributing/',

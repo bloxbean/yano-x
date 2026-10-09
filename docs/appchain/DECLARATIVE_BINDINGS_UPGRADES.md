@@ -11,9 +11,12 @@ Keep the exact Yano Maven version and matching ordinary JVM ZIP, the Yano X
 distribution and manifested plugin bundles, the authored document, canonical IR,
 canonical profile bytes and digest, and generated project lock. Preserve the
 chain's genesis identity and retained stores independently of these artifacts.
-The composite, stdlib and role-workflow bundles require host plugin API level 12
-(stateless kernel admission and kernel-declared rule facts). API compatibility
-alone does not promise consensus-profile compatibility.
+The composite, stdlib and role-workflow bundles declare `minLevel: 12`: they need
+plugin API level 12 with the ADR-031.3 and ADR-031.4 host contract (stateless
+kernel admission, kernel-declared rule facts, value views and write views). No
+Yano release contains that contract yet, and level 12 alone does not identify
+it, because the typed-view API was added to level 12 without a new level. API
+compatibility alone does not promise consensus-profile compatibility.
 
 Admission rules make kernel facts consensus inputs. A bundle that changes which
 facts a kernel declares, or how it computes them, changes the outcome of rules
@@ -47,6 +50,15 @@ and receipts written by the 1.1.0 or 1.0.0 runtimes fail decode with an explicit
 materialization, source-versus-derived work accounting, and pre-kernel
 reservation rules also differ from the earlier experimental 1.0.0 runtime.
 
+ADR-031.4 (typed views) then amended the rule layout in place again, **without
+changing the version**: each rule gained its reads, and a receipt's rule failure
+gained the index of the deciding write. IR whose admission rules were written
+before ADR-031.4, and receipts that record a rule failure in the earlier layout,
+fail decode with an explicit "predates ADR-031.4" error. Documents without rules
+and receipts without a rule failure are unaffected. Because the version still
+reads 1.2.0, the version alone does not tell you which layout a retained chain
+wrote; run `profile-check` against the candidate bundles.
+
 The stock provider does **not** select an old workflow implementation from a
 version field in IR, and it cannot decode pre-ADR-031.3 IR at all: supplying an
 earlier deployment's original IR in `machines.composite.binding-ir-catalog[...]`
@@ -54,8 +66,9 @@ fails construction. No ADR-015 epoch from pre-ADR bytes is supported. Likewise,
 one currently selected machine provider cannot automatically supply both its old
 and new descriptor/implementation merely because both IR documents are present.
 
-Declarative composition is experimental. Re-create a 1.1.0 or 1.0.0 chain from
-its YAML with this release; do not upgrade it in place. Keep a retained chain on
+Declarative composition is experimental. Re-create a 1.1.0 or 1.0.0 chain, or a
+1.2.0 chain whose rules predate ADR-031.4, from its YAML with this release; do
+not upgrade it in place. Keep a retained chain on
 its exact qualified runtime, or design and independently qualify a migration.
 A fresh chain with a new identity is a separate deployment, not preservation of
 the old history. Do not delete state, rewrite profile markers, regenerate a
@@ -91,8 +104,9 @@ protocol. Before using it for a declarative profile:
 
 Historical executable profiles must remain available. An on-chain approval
 does not manufacture a missing implementation or authorize an unimplemented
-state migration. In particular, this protocol alone cannot bridge the current
-stock provider's 1.0.0-to-1.1.0 execution-version boundary.
+state migration. In particular, this protocol alone cannot bridge any of the
+stock provider's earlier boundaries: versions 1.0.0 and 1.1.0, or rules written
+before ADR-031.4.
 
 ## Check a candidate bundle set without touching retained state
 
@@ -100,7 +114,7 @@ The read-only `profile-check` command now tests exact reconstruction through the
 installed candidate plugin catalog:
 
 ```bash
-yano.sh appchain bindings profile-check \
+./yano.sh appchain bindings profile-check \
   --profiles retained-profiles.json --context context.json \
   --plugins-directory /absolute/path/to/candidate/plugins
 ```
@@ -123,7 +137,26 @@ the actual selected provider, and queries each expected profile using a
 synthetic read-only profile marker. It reports expected digests and per-profile
 results. Exit 0 and `reproducesProfiles: true` mean all supplied profiles are
 byte-for-byte reconstructible. Exit 2 means invalid or incompatible input;
-construction and missing-profile diagnostics identify failed checks.
+construction and missing-profile diagnostics identify failed checks. Step
+through a passing check and the ways it fails:
+
+<!-- illustration: upgrade-preflight -->
+1. **Gather the profiles.** Export the retained canonical profiles from records
+   you trust, genesis first: 1 to 64 hex strings.
+2. **Decode each profile.** Each must be a declarative schema-v2 profile whose IR
+   decodes with this build. Duplicates are refused. IR whose rules predate
+   ADR-031.4 fails here.
+3. **Check the context.** More than one profile needs `membership.mode` set to
+   `governed` in the context's settings.
+4. **Build the candidate catalog.** The checker constructs the real
+   `declarative-composite` provider from the candidate plugin directory with
+   every profile's IR, running the installed plugins' code.
+5. **Compare byte for byte.** For each profile, the candidate answers
+   `composite/active-profile-v1` from a synthetic marker, and its bytes must equal
+   the supplied bytes.
+6. **Read the verdict.** Exit 0 and `reproducesProfiles: true` only when every
+   profile matches. Anything else exits 2.
+<!-- /illustration -->
 
 No retained stores are opened, no machine initialization or block application
 is performed, and no submission, network access or signing is requested. As

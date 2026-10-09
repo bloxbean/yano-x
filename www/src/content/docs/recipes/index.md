@@ -1,6 +1,6 @@
 ---
 title: Recipe catalog
-description: Reviewed starting points for an app chain, generated from the release-pinned recipe catalog in the Yano X repository.
+description: Reviewed starting points for an app ledger, generated from the release-pinned recipe catalog in the Yano X repository.
 sidebar:
   order: 1
 ---
