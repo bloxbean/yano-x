@@ -250,6 +250,15 @@ a committed composite workflow. If only an entity owner or domain role may
 append, implement that rule in a state machine; an off-chain check alone is
 not consensus enforcement.
 
+## Admission-rule views and facts
+
+In a declarative composite, admission rules can read a trail's head (ADR-031.4,
+see [admission rules](../bindings/07-admission-rules.md)):
+
+- **Value view** (namespace `""`, key: the entity id): `count`, `headHash`.
+- **Post-state facts**, after an approved append: `countAfter` and `first`
+  (the append created the trail).
+
 ## Related documentation
 
 - [Stock state-machine cookbook](../tutorials/03-stock-state-machines.md)

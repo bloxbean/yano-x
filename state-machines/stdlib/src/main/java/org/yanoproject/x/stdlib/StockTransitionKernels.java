@@ -7,6 +7,8 @@ import org.yanoproject.api.appchain.codec.MessageCodec;
 import org.yanoproject.api.appchain.transition.CommandDescriptor;
 import org.yanoproject.api.appchain.transition.ConfigurationDescriptor;
 import org.yanoproject.api.appchain.transition.EventDescriptor;
+import org.yanoproject.api.appchain.transition.RuleFact;
+import org.yanoproject.api.appchain.transition.RuleValueView;
 import org.yanoproject.api.appchain.transition.TransitionContext;
 import org.yanoproject.api.appchain.transition.TransitionDecision;
 import org.yanoproject.api.appchain.transition.TransitionEvent;
@@ -22,13 +24,17 @@ import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.ByteString;
 import com.bloxbean.cardano.yaci.core.util.CborSerializationUtil;
 
+import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
 
 /**
@@ -36,6 +42,12 @@ import java.util.function.Function;
  * Adapters declare command/event/configuration schemas and attach events only after a decision approves.
  * They do not infer domain intent from arbitrary writes or bypass ownership checks. Event scalar/byte
  * limits belong to the composition contract; standalone execution retains its existing domain wire format.
+ *
+ * <p>For declarative admission rules each adapter also declares a value view of its stored records and post-state
+ * facts (ADR-031.4 §5.4 and §5.10, bloxbean/yano-x#25). Both are pure functions of the adapter's own codecs: a view
+ * decodes the record the kernel itself stored, and a fact repeats the computation the kernel uses for its event.
+ * A value that does not fit its declared type is returned unchanged, so the engine fails closed; a record the
+ * kernel cannot decode yields no fields.
  */
 final class StockTransitionKernels {
     private StockTransitionKernels() { }
@@ -88,6 +100,55 @@ final class StockTransitionKernels {
                                 field("rejecter", TransitionScalars.Type.BYTES), proposer)));
             }
             @Override public ConfigurationDescriptor configuration() { return ConfigurationDescriptor.empty(); }
+            /** ADR-031.4 §5.4: an item's status, threshold, votes so far, proposer and payload hash. */
+            @Override public List<RuleValueView> ruleValueViews() {
+                return List.of(new RuleValueView("", List.of(text("status"), integer("required"),
+                        integer("approverCount"), bytes("proposer"), bytes("payloadHash")), List.of()));
+            }
+            @Override public Map<String, Object> ruleValueFields(String namespace, byte[] key, byte[] stored) {
+                ApprovalsStateMachine.Item item;
+                try {
+                    item = ApprovalsStateMachine.Item.decode(stored);
+                } catch (RuntimeException undecodable) {
+                    return Map.of();
+                }
+                String status = switch (item.status()) {
+                    case ApprovalsStateMachine.STATUS_PENDING -> "PENDING";
+                    case ApprovalsStateMachine.STATUS_APPROVED -> "APPROVED";
+                    case ApprovalsStateMachine.STATUS_REJECTED -> "REJECTED";
+                    case ApprovalsStateMachine.STATUS_EXPIRED -> "EXPIRED";
+                    default -> null;
+                };
+                // A status this kernel never writes is a record it cannot decode: no fields.
+                if (status == null) return Map.of();
+                Map<String, Object> fields = new LinkedHashMap<>();
+                fields.put("status", status);
+                fields.put("required", (long) item.required());
+                fields.put("approverCount", (long) item.approvers().size());
+                fields.put("proposer", item.proposer());
+                fields.put("payloadHash", item.payloadHash());
+                return fields;
+            }
+            /** bloxbean/yano-x#25: the item after the command, when one exists. */
+            @Override public List<RuleFact> ruleFacts() {
+                return List.of(new RuleFact("approverCountAfter", RuleFact.Type.INTEGER),
+                        new RuleFact("required", RuleFact.Type.INTEGER),
+                        new RuleFact("approvedNow", RuleFact.Type.BOOLEAN),
+                        new RuleFact("proposerIsSender", RuleFact.Type.BOOLEAN));
+            }
+            @Override public Map<String, Object> ruleFactValues(ApprovalsContract.Command command,
+                                                                TransitionContext context,
+                                                                ApprovalsTransitions.Facts facts) {
+                var result = transitions.evaluate(command, context, facts);
+                var item = result.item() != null ? result.item() : facts.item().orElse(null);
+                if (item == null) return Map.of();
+                Map<String, Object> values = new LinkedHashMap<>();
+                values.put("approverCountAfter", (long) item.approvers().size());
+                values.put("required", (long) item.required());
+                values.put("approvedNow", result.change() == ApprovalsTransitions.Change.APPROVED);
+                values.put("proposerIsSender", Arrays.equals(item.proposer(), context.sender()));
+                return values;
+            }
             @Override public TransitionDecision decide(ApprovalsContract.Command command, TransitionContext context,
                                                         ApprovalsTransitions.Facts facts) {
                 var result = transitions.evaluate(command, context, facts);
@@ -138,6 +199,11 @@ final class StockTransitionKernels {
             @Override public byte[] lookupKey(byte[] logicalKey) {
                 return BalancesContract.accountKey(logicalText(logicalKey));
             }
+            /**
+             * The descriptor declares {@code amount} as a signed 64-bit integer, while the codec accepts any
+             * unsigned amount. A body with an amount at or above 2^63 therefore has no descriptor view: a
+             * command-selecting admission rule refuses it with {@code ADMISSION_RULE_INPUT} (ADR-031.3 §5.4).
+             */
             @Override public List<CommandDescriptor> commands() {
                 List<CommandDescriptor.Field> fields = List.of(field("to", TransitionScalars.Type.TEXT),
                         field("amount", TransitionScalars.Type.INTEGER));
@@ -157,6 +223,35 @@ final class StockTransitionKernels {
             @Override public ConfigurationDescriptor configuration() {
                 return new ConfigurationDescriptor(List.of(new ConfigurationDescriptor.Setting(
                         "minter", TransitionScalars.Type.TEXT, "")));
+            }
+            /** ADR-031.4 §5.4: an account's balance; a zero balance deletes the key, so absent means zero. */
+            @Override public List<RuleValueView> ruleValueViews() {
+                return List.of(new RuleValueView("", List.of(integer("balance")), List.of()));
+            }
+            @Override public Map<String, Object> ruleValueFields(String namespace, byte[] key, byte[] stored) {
+                try {
+                    return Map.of("balance", exact(BalancesContract.decodeBalance(stored)));
+                } catch (RuntimeException undecodable) {
+                    return Map.of();
+                }
+            }
+            /** bloxbean/yano-x#25: balances after the approved mint or transfer, as its event reports them. */
+            @Override public List<RuleFact> ruleFacts() {
+                return List.of(new RuleFact("balanceAfter", RuleFact.Type.INTEGER),
+                        new RuleFact("fromBalanceAfter", RuleFact.Type.INTEGER),
+                        new RuleFact("toBalanceAfter", RuleFact.Type.INTEGER));
+            }
+            @Override public Map<String, Object> ruleFactValues(BalancesContract.Command command,
+                                                                TransitionContext context,
+                                                                BalancesTransitions.Facts facts) {
+                if (command.mint()) {
+                    return Map.of("balanceAfter", exact(facts.recipientBalance().add(command.amount())));
+                }
+                boolean self = HexUtil.encodeHexString(context.sender()).equals(command.account());
+                return Map.of("fromBalanceAfter", exact(self ? facts.senderBalance()
+                                : facts.senderBalance().subtract(command.amount())),
+                        "toBalanceAfter", exact(self ? facts.senderBalance()
+                                : facts.recipientBalance().add(command.amount())));
             }
             @Override public TransitionDecision decide(BalancesContract.Command command, TransitionContext context,
                                                         BalancesTransitions.Facts facts) {
@@ -221,6 +316,51 @@ final class StockTransitionKernels {
                 return new ConfigurationDescriptor(List.of(new ConfigurationDescriptor.Setting(
                         "value-format", TransitionScalars.Type.TEXT, "raw")));
             }
+            /**
+             * ADR-031.4 §5.4: an entry's owner and value, its length, and for UTF-8 registries its text. A value
+             * longer than {@link RuleFact#MAX_VALUE_BYTES} exposes only its length.
+             */
+            @Override public List<RuleValueView> ruleValueViews() {
+                List<RuleFact> fields = new ArrayList<>(List.of(bytes("owner"), bytes("value"),
+                        integer("valueLength")));
+                if (transitions.valueFormat() == KvRegistryTransitions.ValueFormat.UTF8) fields.add(text("valueText"));
+                return List.of(new RuleValueView("", fields, List.of()));
+            }
+            @Override public Map<String, Object> ruleValueFields(String namespace, byte[] key, byte[] stored) {
+                byte[] owner;
+                byte[] value;
+                try {
+                    owner = KvRegistryTransitions.decodeOwner(stored);
+                    value = KvRegistryTransitions.decodeValue(stored);
+                } catch (RuntimeException undecodable) {
+                    return Map.of();
+                }
+                Map<String, Object> fields = new LinkedHashMap<>();
+                fields.put("owner", owner);
+                fields.put("valueLength", (long) value.length);
+                if (value.length <= RuleFact.MAX_VALUE_BYTES) {
+                    fields.put("value", value);
+                    if (transitions.valueFormat() == KvRegistryTransitions.ValueFormat.UTF8) {
+                        utf8(value).ifPresent(text -> fields.put("valueText", text));
+                    }
+                }
+                return fields;
+            }
+            /** bloxbean/yano-x#25: whether the key had an entry, and a put's value length. */
+            @Override public List<RuleFact> ruleFacts() {
+                return List.of(new RuleFact("existed", RuleFact.Type.BOOLEAN),
+                        new RuleFact("valueLength", RuleFact.Type.INTEGER));
+            }
+            @Override public Map<String, Object> ruleFactValues(KvRegistryTransitions.Command command,
+                                                                TransitionContext context,
+                                                                KvRegistryTransitions.Facts facts) {
+                Map<String, Object> values = new LinkedHashMap<>();
+                values.put("existed", facts.currentEntry().isPresent());
+                if (command.operation() == KvRegistryTransitions.OP_PUT) {
+                    values.put("valueLength", (long) command.value().length);
+                }
+                return values;
+            }
             @Override public TransitionDecision decide(KvRegistryTransitions.Command command,
                                                       TransitionContext context, KvRegistryTransitions.Facts facts) {
                 TransitionDecision decision = transitions.decide(command, context, facts);
@@ -275,6 +415,29 @@ final class StockTransitionKernels {
                         field("sender", TransitionScalars.Type.BYTES))));
             }
             @Override public ConfigurationDescriptor configuration() { return ConfigurationDescriptor.empty(); }
+            /** ADR-031.4 §5.4: a trail's length and head hash. */
+            @Override public List<RuleValueView> ruleValueViews() {
+                return List.of(new RuleValueView("", List.of(integer("count"), bytes("headHash")), List.of()));
+            }
+            @Override public Map<String, Object> ruleValueFields(String namespace, byte[] key, byte[] stored) {
+                try {
+                    var head = DocTrailTransitions.decodeHead(stored);
+                    return Map.of("count", head.count(), "headHash", head.headHash());
+                } catch (RuntimeException undecodable) {
+                    return Map.of();
+                }
+            }
+            /** bloxbean/yano-x#25: the trail's length after the append, and whether it created the trail. */
+            @Override public List<RuleFact> ruleFacts() {
+                return List.of(new RuleFact("countAfter", RuleFact.Type.INTEGER),
+                        new RuleFact("first", RuleFact.Type.BOOLEAN));
+            }
+            @Override public Map<String, Object> ruleFactValues(DocTrailTransitions.Append command,
+                                                                TransitionContext context,
+                                                                DocTrailTransitions.Facts facts) {
+                long before = facts.current().map(DocTrailTransitions.TrailHead::count).orElse(0L);
+                return Map.of("countAfter", before + 1, "first", facts.current().isEmpty());
+            }
             @Override public TransitionDecision decide(DocTrailTransitions.Append command,
                                                       TransitionContext context, DocTrailTransitions.Facts facts) {
                 if (facts.current().isPresent() && facts.current().get().count() == Long.MAX_VALUE) {
@@ -307,6 +470,24 @@ final class StockTransitionKernels {
             throw new IllegalArgumentException("logical lookup identifier must be valid UTF-8", malformed);
         }
     }
+
+    /** A value that fits int64 as a {@code Long}; otherwise the exact value, which violates the declaration. */
+    private static Object exact(BigInteger value) {
+        return value.bitLength() < 64 ? (Object) value.longValue() : value;
+    }
+
+    private static Optional<String> utf8(byte[] value) {
+        try {
+            return Optional.of(StandardCharsets.UTF_8.newDecoder().onMalformedInput(CodingErrorAction.REPORT)
+                    .onUnmappableCharacter(CodingErrorAction.REPORT).decode(ByteBuffer.wrap(value)).toString());
+        } catch (CharacterCodingException malformed) {
+            return Optional.empty();
+        }
+    }
+
+    private static RuleFact integer(String name) { return new RuleFact(name, RuleFact.Type.INTEGER); }
+    private static RuleFact text(String name) { return new RuleFact(name, RuleFact.Type.TEXT); }
+    private static RuleFact bytes(String name) { return new RuleFact(name, RuleFact.Type.BYTES); }
 
     private static TransitionDecision withEvent(TransitionPlan plan, String id, Map<String, Object> fields) {
         byte[] payload;

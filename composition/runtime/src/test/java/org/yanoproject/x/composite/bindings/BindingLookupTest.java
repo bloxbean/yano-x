@@ -63,7 +63,7 @@ class BindingLookupTest {
     void lookupConditionSeesEarlierDerivedPlanBeforeAnyComponentCommit() {
         var first = new BindingIrV1.Binding("copy", "source", BindingProgram.BASELINE, List.of(),
                 new BindingIrV1.CommandTarget("copy", "put", BindingIrV1.Mapping.raw("body")));
-        var second = lookupBinding(BindingIrV1.Expectation.EQUAL_EVENT);
+        var second = lookupBinding(BindingIrV1.Expectation.EQUAL_FIELD);
         var program = new BindingProgram(document(List.of(first, second)), kernels());
         var generations = Map.of("source", new ComponentGeneration("source", "1", 1),
                 "copy", new ComponentGeneration("copy", "1", 1), "audit", new ComponentGeneration("audit", "1", 1));
@@ -105,7 +105,7 @@ class BindingLookupTest {
     }
 
     private static boolean matches(BindingProgram program, BindingIrV1.Binding binding, Memory state) {
-        return program.condition(binding, Map.of("body", VALUE), ignored -> state,
+        return program.condition(binding, Map.of("body", VALUE), Map.of(), ignored -> state,
                 new BindingExpressionEvaluator.Budget(1000), new BindingExpressionEvaluator.Budget(1000)) == -1;
     }
 
@@ -113,7 +113,7 @@ class BindingLookupTest {
         BindingSourceV1 operand = switch (expectation) {
             case EXISTS, ABSENT -> null;
             case EQUAL_LITERAL -> new BindingSourceV1.Literal(VALUE);
-            case EQUAL_EVENT -> new BindingSourceV1.Field("body");
+            case EQUAL_FIELD -> new BindingSourceV1.Field("body");
         };
         return new BindingIrV1.Binding("audit-copy", "copy", BindingProgram.BASELINE,
                 List.of(new BindingIrV1.LookupClause("copy", new BindingSourceV1.Literal(KEY), expectation, operand)),

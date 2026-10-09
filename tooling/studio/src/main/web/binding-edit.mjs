@@ -24,7 +24,7 @@ export function addComponent(draft, component) {
   const next = clone(draft);
   next.components.push({id: component.id, machine: component.machine, topic: component.topic ?? null,
     config: component.config ?? null, maxEffectsPerBlock: component.maxEffectsPerBlock ?? null,
-    fromHeight: component.fromHeight ?? null});
+    fromHeight: component.fromHeight ?? null, admission: component.admission ?? null});
   return next;
 }
 
@@ -73,6 +73,22 @@ export function componentReferences(draft, componentId) {
       references.push({segments: [...at, 'to', 'component'], bindingId: binding.id, role: 'target'});
     }
   });
+  // ADR-031.3: rule lookups name components too; a rename rewrites them like binding lookups.
+  (draft.rules ?? []).forEach((rule, index) => {
+    rule.require.forEach((clause, c) => {
+      if (clause.kind === 'lookup' && clause.component === componentId) {
+        references.push({segments: [...prefix, 'rules', index, 'require', c, 'lookup', 'component'], bindingId: null,
+          ruleId: rule.id, role: 'rule-lookup'});
+      }
+    });
+    // ADR-031.4: so do rule reads.
+    for (const read of rule.reads ?? []) {
+      if (read.component === componentId) {
+        references.push({segments: [...prefix, 'rules', index, 'reads', read.name, 'component'], bindingId: null,
+          ruleId: rule.id, role: 'rule-read'});
+      }
+    }
+  });
   // Machine settings are opaque to Studio: a text setting equal to the id may name the component (for example a
   // governed participant), but a rename never rewrites configuration. Show it so the author decides explicitly.
   draft.components.forEach((component, index) => {
@@ -101,6 +117,10 @@ export function renameComponent(draft, index, newId) {
     for (const clause of binding.when ?? []) if (clause.kind === 'lookup' && clause.component === oldId) clause.component = newId;
     if (binding.to.kind === 'command' && binding.to.component === oldId) binding.to.component = newId;
   }
+  for (const rule of next.rules ?? []) {
+    for (const clause of rule.require) if (clause.kind === 'lookup' && clause.component === oldId) clause.component = newId;
+    for (const read of rule.reads ?? []) if (read.component === oldId) read.component = newId;
+  }
   return next;
 }
 
@@ -118,11 +138,208 @@ export function updateBinding(draft, index, patch) {
   return next;
 }
 
-/** Binding ids appear in receipts and derived message ids, so a rename is explicit even without references. */
+/**
+ * Binding ids appear in receipts and derived message ids, so a rename is explicit even without references. Attachment
+ * parameters of type `binding` that name the old id are rewritten too (ADR-031.3 arrival rules).
+ */
 export function renameBinding(draft, index, newId) {
   const next = clone(draft);
   checkIndex(next.bindings, index, 'Binding');
+  const oldId = next.bindings[index].id;
   next.bindings[index].id = newId;
+  for (const reference of bindingParameterReferences(next, oldId)) reference.value.value = newId;
+  return next;
+}
+
+/** Draft paths of the attachment parameters that {@link renameBinding} rewrites for `bindingId`. */
+export function bindingReferences(draft, bindingId) {
+  const prefix = draft.wrapped ? ['composite'] : [];
+  const named = new Set(bindingParameterReferences(draft, bindingId));
+  const references = [];
+  draft.components.forEach((component, index) => (component.admission ?? []).forEach((attachment, a) => {
+    for (const entry of attachment.params ?? []) {
+      if (named.has(entry)) {
+        references.push({segments: [...prefix, 'components', index, 'admission', a, 'params', entry.name],
+          componentId: component.id, ruleId: attachment.rule});
+      }
+    }
+  }));
+  return references;
+}
+
+/** Attachment parameter values that name a binding through a `binding`-typed rule parameter. */
+function bindingParameterReferences(draft, bindingId) {
+  const types = new Map((draft.rules ?? []).map(rule => [rule.id,
+    new Map((rule.params ?? []).map(parameter => [parameter.name, parameter.type]))]));
+  const references = [];
+  for (const component of draft.components) {
+    for (const attachment of component.admission ?? []) {
+      for (const entry of attachment.params ?? []) {
+        if (types.get(attachment.rule)?.get(entry.name) === 'binding' && entry.value.type === 'text'
+          && entry.value.value === bindingId) references.push(entry);
+      }
+    }
+  }
+  return references;
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// ADR-031.3 admission rules and attachments
+// ---------------------------------------------------------------------------------------------------------------
+
+export function addRule(draft, rule) {
+  const next = clone(draft);
+  next.rules = [...(next.rules ?? []), structuredClone(rule)];
+  return next;
+}
+
+/** Updates authored rule fields except `id`; renaming rewrites attachments and is a separate operation. */
+export function updateRule(draft, index, patch) {
+  if ('id' in patch) throw new Error('Use renameRule to change a rule id');
+  const next = clone(draft);
+  checkIndex(next.rules ?? [], index, 'Rule');
+  Object.assign(next.rules[index], structuredClone(patch));
+  return next;
+}
+
+/** Every component attachment that names a rule. */
+export function ruleReferences(draft, ruleId) {
+  const prefix = draft.wrapped ? ['composite'] : [];
+  const references = [];
+  draft.components.forEach((component, index) => (component.admission ?? []).forEach((attachment, a) => {
+    if (attachment.rule === ruleId) {
+      references.push({segments: [...prefix, 'components', index, 'admission', a, 'rule'], componentId: component.id,
+        role: 'attachment'});
+    }
+  }));
+  return references;
+}
+
+/** Renames a rule and every attachment of it. Rule ids appear in receipts, so the rename changes the program. */
+export function renameRule(draft, index, newId) {
+  const next = clone(draft);
+  checkIndex(next.rules ?? [], index, 'Rule');
+  const oldId = next.rules[index].id;
+  next.rules[index].id = newId;
+  for (const component of next.components) {
+    for (const attachment of component.admission ?? []) if (attachment.rule === oldId) attachment.rule = newId;
+  }
+  return next;
+}
+
+/** Removes the rule only; attachments that still name it are reported by the checks, never removed silently. */
+export function removeRule(draft, index) {
+  const next = clone(draft);
+  checkIndex(next.rules ?? [], index, 'Rule');
+  next.rules.splice(index, 1);
+  return next;
+}
+
+/** Authored rule order does not change the program (rules are committed sorted by id); it is kept as written. */
+export function moveRule(draft, index, delta) {
+  const next = clone(draft);
+  move(next.rules ?? [], index, delta, 'Rule');
+  return next;
+}
+
+export function addRuleClause(draft, ruleIndex, clause) {
+  const next = clone(draft);
+  checkIndex(next.rules ?? [], ruleIndex, 'Rule');
+  next.rules[ruleIndex].require.push(structuredClone(clause));
+  return next;
+}
+
+export function updateRuleClause(draft, ruleIndex, clauseIndex, clause) {
+  const next = clone(draft);
+  checkIndex(next.rules ?? [], ruleIndex, 'Rule');
+  checkIndex(next.rules[ruleIndex].require, clauseIndex, 'Clause');
+  next.rules[ruleIndex].require[clauseIndex] = structuredClone(clause);
+  return next;
+}
+
+export function removeRuleClause(draft, ruleIndex, clauseIndex) {
+  const next = clone(draft);
+  checkIndex(next.rules ?? [], ruleIndex, 'Rule');
+  checkIndex(next.rules[ruleIndex].require, clauseIndex, 'Clause');
+  next.rules[ruleIndex].require.splice(clauseIndex, 1);
+  return next;
+}
+
+/** Clause order is evaluation order: the first clause that does not hold decides the refusal. */
+export function moveRuleClause(draft, ruleIndex, clauseIndex, delta) {
+  const next = clone(draft);
+  checkIndex(next.rules ?? [], ruleIndex, 'Rule');
+  move(next.rules[ruleIndex].require, clauseIndex, delta, 'Clause');
+  return next;
+}
+
+/** Declares or replaces one rule parameter, keeping its authored position; `null` removes it. */
+export function setRuleParameter(draft, ruleIndex, name, declaration) {
+  const next = clone(draft);
+  checkIndex(next.rules ?? [], ruleIndex, 'Rule');
+  const rule = next.rules[ruleIndex];
+  const params = rule.params ?? [];
+  const existing = params.find(parameter => parameter.name === name);
+  if (declaration === null) rule.params = params.filter(parameter => parameter.name !== name);
+  else if (existing) Object.assign(existing, structuredClone(declaration), {name});
+  else rule.params = [...params, {name, type: declaration.type, default: declaration.default ?? null}];
+  return next;
+}
+
+/**
+ * Declares, replaces (`read` with a new `component`, `namespace` or `key`) or removes (`read === null`) one ADR-031.4
+ * read of a rule. Reads keep their authored order; the compiler sorts them by name.
+ */
+export function setRuleRead(draft, ruleIndex, name, read) {
+  const next = clone(draft);
+  checkIndex(next.rules ?? [], ruleIndex, 'Rule');
+  const rule = next.rules[ruleIndex];
+  const reads = rule.reads ?? [];
+  const existing = reads.find(value => value.name === name);
+  if (read === null) {
+    const remaining = reads.filter(value => value.name !== name);
+    rule.reads = remaining.length ? remaining : null;
+  } else if (existing) Object.assign(existing, structuredClone(read), {name});
+  else rule.reads = [...reads, {name, component: read.component, namespace: read.namespace ?? null,
+    key: structuredClone(read.key)}];
+  return next;
+}
+
+export function addAttachment(draft, componentIndex, attachment) {
+  const next = clone(draft);
+  checkIndex(next.components, componentIndex, 'Component');
+  const component = next.components[componentIndex];
+  component.admission = [...(component.admission ?? []), structuredClone(attachment)];
+  return next;
+}
+
+export function removeAttachment(draft, componentIndex, attachmentIndex) {
+  const next = clone(draft);
+  checkIndex(next.components, componentIndex, 'Component');
+  checkIndex(next.components[componentIndex].admission ?? [], attachmentIndex, 'Attachment');
+  next.components[componentIndex].admission.splice(attachmentIndex, 1);
+  return next;
+}
+
+/** Attachment order is evaluation order within each slot, and part of the committed program. */
+export function moveAttachment(draft, componentIndex, attachmentIndex, delta) {
+  const next = clone(draft);
+  checkIndex(next.components, componentIndex, 'Component');
+  move(next.components[componentIndex].admission ?? [], attachmentIndex, delta, 'Attachment');
+  return next;
+}
+
+/** Sets (value) or removes (null) one attachment parameter value, keeping its authored position. */
+export function setAttachmentParameter(draft, componentIndex, attachmentIndex, name, value) {
+  const next = clone(draft);
+  checkIndex(next.components, componentIndex, 'Component');
+  checkIndex(next.components[componentIndex].admission ?? [], attachmentIndex, 'Attachment');
+  const attachment = next.components[componentIndex].admission[attachmentIndex];
+  const params = attachment.params ?? [];
+  const existing = params.find(entry => entry.name === name);
+  if (value === null) attachment.params = params.filter(entry => entry.name !== name);
+  else if (existing) existing.value = structuredClone(value);
+  else attachment.params = [...params, {name, value: structuredClone(value)}];
   return next;
 }
 

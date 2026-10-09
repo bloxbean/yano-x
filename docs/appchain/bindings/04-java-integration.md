@@ -13,7 +13,7 @@ Use a matching, locally published Yano X version when these APIs are not in a
 released artifact. Do not infer availability from an older SDK or copy a
 historical example's local version number. The node also needs the exact Yano
 host build and matching JVM ZIP required by its plugin bundles; current
-declarative admission requires host plugin API level 11.
+declarative bindings and admission rules require host plugin API level 12.
 
 ## Separate command use from binding authoring
 

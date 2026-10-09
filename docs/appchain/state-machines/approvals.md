@@ -323,6 +323,18 @@ the `webhook.post` executor as shown in the webhook-effects tutorial.
 - External execution is at-least-once. Executors must honor the effect's
   idempotency identity and report a bounded outcome.
 
+## Admission-rule views and facts
+
+In a declarative composite, admission rules can read an item (ADR-031.4, see
+[admission rules](../bindings/07-admission-rules.md)):
+
+- **Value view** (namespace `""`, key: the item id): `status` (`PENDING`,
+  `APPROVED`, `REJECTED`, `EXPIRED`), `required`, `approverCount`, `proposer`,
+  `payloadHash`. The deadline is not exposed: `EXPIRED` is written by the first
+  vote after it, so a stored `PENDING` item may already be past it.
+- **Post-state facts**, after an approved command: `approverCountAfter`,
+  `required`, `approvedNow` and `proposerIsSender`; absent when no item exists.
+
 ## Related documentation
 
 - [First app chain and local effect demo](../tutorials/01-first-app-chain.md)

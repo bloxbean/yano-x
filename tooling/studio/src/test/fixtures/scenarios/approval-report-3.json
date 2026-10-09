@@ -5,38 +5,38 @@
   "assurance" : "Unauthenticated local tool output. Matching digests show that the same inputs were used; they do not identify the producer, prove finality or approve a deployment.",
   "producer" : {
     "tool" : "yano-x-devtools",
-    "version" : "0.1.0-pre2",
-    "jarSha256" : "c6a54f4eaf74e12d2cd3cdcf80684476bc686b42f59bc2229cafddcfcf1a2e5c",
-    "linkedCompositeJarSha256" : "ac7554151dc4a47b7d8e43d9d47f65731e2b34f0f5051f8cc482740ca7a6ade4"
+    "version" : "0.1.0-pre3",
+    "jarSha256" : "19ed0235c2bbfded1cd74e9c5f0271166f896975f145f53cbd0ac5feecbf1c44",
+    "linkedCompositeJarSha256" : "3537d6117378ad655110cefcacc7f3331710bb7d51e1edbb1c6ae3f6b2c06a44"
   },
   "host" : {
-    "version" : "0.1.0-pre17",
-    "coreApiJarSha256" : "85bd0c91c37d716d917526ba5e4d9871add2bcf752cd05dfea90d0f155ad5a96",
-    "runtimeJarSha256" : "f78e43e059576d16e1c24ef185122a736da00f711a5bc0646501a84e92f97732"
+    "version" : "0.1.0-pre18-885f31f-SNAPSHOT",
+    "coreApiJarSha256" : "1722f93bc01a3ead110d2eb5514775ef2b71c4a604be93ca2e9b0c066c13f758",
+    "runtimeJarSha256" : "128412b86ad5b9b5a075f88fd1a5971ff5b762cee0d967f70883c0a2b61bdfe4"
   },
   "authoringEnvironment" : "yano-x-binding-authoring-environment-v1",
   "catalog" : {
-    "fingerprint" : "sha256:128015618c1048515440b7323fc1db510436396f0c14a1d19821be7af17b7f09",
+    "fingerprint" : "sha256:18af2b15a76cd871b25e56396aee17ecbdeebaa499153b2fa266f587f107abf5",
     "pluginApi" : {
       "major" : 3,
-      "level" : 11
+      "level" : 12
     },
     "bundles" : [ {
       "id" : "org.yanoproject.x.composite",
-      "version" : "0.1.0-pre2",
-      "digest" : "sha256:308db9cec88247bba29a99569cc9465e659a3f6022d9b10146f05b51c0725d31",
+      "version" : "0.1.0-pre3",
+      "digest" : "sha256:eee7eb00cc61f1a2e2bc73adefeb20715d8d2ce3a3339b347271ce75c0e51fad",
       "digestMode" : "ARTIFACT_CLOSURE",
       "selected" : true
     }, {
       "id" : "org.yanoproject.x.role-workflow",
-      "version" : "0.1.0-pre2",
-      "digest" : "sha256:4113e25527a6e7da0d5cdb85ac9ccfefa8b15adbdd755ab054f613af9baae78e",
+      "version" : "0.1.0-pre3",
+      "digest" : "sha256:3038258d1509c82fc850eac84060ef76bdb476c51d780ce492316410d5b66100",
       "digestMode" : "ARTIFACT_CLOSURE",
       "selected" : true
     }, {
       "id" : "org.yanoproject.x.stdlib",
-      "version" : "0.1.0-pre2",
-      "digest" : "sha256:3b118673de03e97cd5b6f502993965fff0c5ab7ed9661d13d554e01d19d36a2b",
+      "version" : "0.1.0-pre3",
+      "digest" : "sha256:a06710dcfcfa748a5669e81a72d3cbbab42df0ad2ed2c0fe7e76a97ee969a48b",
       "digestMode" : "ARTIFACT_CLOSURE",
       "selected" : true
     } ]
@@ -59,17 +59,17 @@
   }, {
     "role" : "priorResult",
     "state" : "read",
-    "bytes" : "6513",
-    "sha256" : "90a0db8960cbec91694efd248b92a9e797a973611c3e2d0608d880dfff184cd6"
+    "bytes" : "6562",
+    "sha256" : "2fc7a333ac1c26c196c319478ba2b7959b50dfee9ec62bc6c847157744d1a244"
   } ],
   "documentFormat" : "yaml",
   "result" : {
-    "irHex" : "8701781b79616e6f2d782d62696e64696e672d66756e6374696f6e732d76316d79616e6f2d782d63656c2d7631018286677265766965777369617070726f76616c7372726576696577732e636f6d6d616e642e7631a000018665617564697469646f632d747261696c7061756469742e636f6d6d616e642e7631a0000181856f7265636f72642d617070726f7665646772657669657773781a617070726f76616c732e6974656d2d617070726f7665642e763180840065617564697466617070656e6484018268656e7469747949648200666974656d49648269656e7472794861736882006b7061796c6f61644861736882697265666572656e6365820168617070726f7665648c0818201910001a0001000002081a000100001880101a000100001a001000001a02000000",
-    "irSha256" : "68564d39d641a5a00a492958d4c179eaffd2a062b56d70ca1fde631a030b355b",
+    "irHex" : "8801781b79616e6f2d782d62696e64696e672d66756e6374696f6e732d76316d79616e6f2d782d63656c2d7631018287677265766965777369617070726f76616c7372726576696577732e636f6d6d616e642e7631a00001808765617564697469646f632d747261696c7061756469742e636f6d6d616e642e7631a00001808081856f7265636f72642d617070726f7665646772657669657773781a617070726f76616c732e6974656d2d617070726f7665642e763180840065617564697466617070656e6484018268656e746974794964830000666974656d49648269656e747279486173688300006b7061796c6f61644861736882697265666572656e6365820168617070726f7665648d0818201910001a0001000002081a000100001880101a000100001a001000001a0200000004",
+    "irSha256" : "72dd725d387aaaf91c3bcb4b17eb7581ab415548ce91678c6dea8089977d8d58",
     "profile" : {
-      "digestHex" : "34c0f56b323f4487df5765dca9df5729860912d843fa306d47e458c224a4d20d",
+      "digestHex" : "b92bc285ac226bfde87471034738617ff8d862ecf8dc8b91432fdd93528e67c4",
       "schemaVersion" : 2,
-      "executionVersion" : "1.1.0"
+      "executionVersion" : "1.2.0"
     },
     "counts" : {
       "components" : 2,
@@ -78,16 +78,16 @@
     "rehearsal" : {
       "continuationOnly" : false,
       "fromPriorResult" : true,
-      "priorPostStateSha256" : "b61af20b6b17ce1e8cf37d70216d7d3a805208bf4e9d623c3601eec4618a02e0",
+      "priorPostStateSha256" : "55c28a30d36c7cf9399a3f57475c5b6f6fa14b0038260b48c74fd28736c0d45d",
       "assumptions" : {
         "height" : "3",
         "timestamp" : "3000",
         "stateRootHex" : "0000000000000000000000000000000000000000000000000000000000000000",
         "pendingEffects" : "0"
       },
-      "executionIdentity" : "cb016532ce356c269c110f7fe453dcc972e43d76ee21f51b73cf11213d23661e",
+      "executionIdentity" : "f5c504d3fe70ea05d705cc688e4ac37fc4c1a50f0226f55ce1a2f19f30cc0066",
       "assurance" : "execution-only; fixture inputs are not authenticated; no post-state root or finality claim",
-      "postStateSha256" : "b61af20b6b17ce1e8cf37d70216d7d3a805208bf4e9d623c3601eec4618a02e0",
+      "postStateSha256" : "55c28a30d36c7cf9399a3f57475c5b6f6fa14b0038260b48c74fd28736c0d45d",
       "stateChangeCount" : 5,
       "messages" : [ ],
       "effects" : [ ]
@@ -319,6 +319,24 @@
   }, {
     "code" : "UNDECLARED_WORK_REFERENCE",
     "category" : "contract-violation",
+    "origin" : "either",
+    "levels" : [ "step" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "ADMISSION_RULE_DENIED",
+    "category" : "admission-rule",
+    "origin" : "either",
+    "levels" : [ "step" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "ADMISSION_RULE_ERROR",
+    "category" : "admission-rule",
+    "origin" : "either",
+    "levels" : [ "step" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "ADMISSION_RULE_INPUT",
+    "category" : "admission-rule",
     "origin" : "either",
     "levels" : [ "step" ],
     "locatesLastCondition" : "never"

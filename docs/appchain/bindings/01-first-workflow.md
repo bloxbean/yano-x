@@ -174,7 +174,9 @@ Change the condition to `event.valueLength < 2` and run the same fixture again
 as a fresh height-1 rehearsal. The two-byte value no longer matches. The registry
 put still succeeds, but no audit append is derived. A **false condition skips a
 binding**; it does not reject the source command. A mapping or target rejection,
-on the other hand, rejects the cascade and rolls back its business changes.
+on the other hand, rejects the cascade and rolls back its business changes. To
+refuse a command itself, attach an [admission rule](07-admission-rules.md) to its
+component.
 
 Restore `< 100` before continuing. This edit creates a different committed
 program; on a real chain it would require qualified profile evolution.

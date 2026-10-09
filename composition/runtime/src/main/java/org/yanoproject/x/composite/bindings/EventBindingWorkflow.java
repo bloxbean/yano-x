@@ -48,6 +48,13 @@ import java.util.Set;
  * cascade retains its receipt and work accounting, but does not commit its component plans. Work already spent
  * is deliberately not refunded: repeatedly failing commands must not bypass the per-block work limits.
  *
+ * <p>Every step, source or derived, also passes the admission rules attached to its target component (ADR-031.3):
+ * rules that do not read facts after the kernel's admit hooks and before work is reserved, and fact rules only after
+ * the kernel approved, with the facts instance that produced the approval. A denial is one more per-source-message
+ * rejection; each step's receipt records the rules that held and the first that did not. Rules may read declared
+ * state through the cascade overlays and quantify over the kernel's write view of the decoded command; write
+ * coverage comes only from the facts instance of the approval (ADR-031.4).
+ *
  * <p>The enclosing composite/host transaction supplies block-level atomicity. Infrastructure failures during
  * commit propagate to that transaction; this class must not turn a partially committed infrastructure failure
  * into an ordinary rejected-message receipt. Instances retain only non-consensus diagnostic snapshots
@@ -75,13 +82,32 @@ public final class EventBindingWorkflow implements CompositeWorkflow {
         this.ingress = Map.copyOf(routes);
     }
     @Override public WorkflowDescriptor descriptor() { return descriptor; }
+
+    /**
+     * The resolved slot and static-ness of each rule attachment, keyed {@code <component>/<index>}: {@code fact} or
+     * {@code admission}, then {@code true} or {@code false}. A rule that reads write coverage is a fact rule even
+     * without reading {@code facts.*} (ADR-031.4 §1.6); the classification depends only on the committed profile and
+     * the kernels' declarations, so capability manifests stay deterministic.
+     */
+    public Map<String, List<String>> ruleAttachmentSlots() {
+        Map<String, List<String>> slots = new LinkedHashMap<>();
+        for (var component : program.ir().components()) {
+            var rules = program.rules().component(component.id());
+            rules.ordered().forEach(rule -> slots.put(component.id() + "/" + rule.index(), List.of(
+                    rule.factRule() ? "fact" : "admission", Boolean.toString(rule.isStatic()))));
+        }
+        return Map.copyOf(slots);
+    }
     /** Returns the last locally completed apply's counters, never read by execution or persisted as authority. */
     @Override public Map<String, Object> operationalStatus() { return diagnostics; }
 
     /**
      * Rejects malformed commands and statically impossible subscribed-baseline size/work before pooling.
      * Uses full committed allowances, never a node-local remaining-block counter; stateful authorization,
-     * native event output and dynamic fan-out remain authoritative apply-time checks.
+     * native event output and dynamic fan-out remain authoritative apply-time checks. Static admission rules
+     * attached to the source component are then evaluated with a fresh local budget, over the command and its write
+     * view; this is advisory, since block-time evaluation is authoritative and followers never run it. A refusal
+     * carries structured details (rule, deny code, deciding write) for REST callers (bloxbean/yano#153).
      */
     @Override public AdmissionResult validate(AppMessage source) {
         String component = ingress.get(source.getTopic());
@@ -98,11 +124,14 @@ public final class EventBindingWorkflow implements CompositeWorkflow {
         } catch (BindingFailure predictable) {
             return AdmissionResult.reject(predictable.code());
         }
-        return validateKernel(program.kernel(component), source.getBody());
+        return validateKernel(program.kernel(component), component, source.getBody());
     }
 
-    /** Decoding failures are bad input; failures in the stateless admission implementation are not. */
-    private static <C> AdmissionResult validateKernel(TransitionKernel<C, ?> kernel, byte[] body) {
+    /**
+     * Decoding failures are bad input; failures in the stateless admission implementation are not. An accepted
+     * command then passes the component's static rules, which may read its write view.
+     */
+    private <C> AdmissionResult validateKernel(TransitionKernel<C, ?> kernel, String component, byte[] body) {
         var codec = kernel.codec();
         C command;
         try {
@@ -110,7 +139,10 @@ public final class EventBindingWorkflow implements CompositeWorkflow {
         } catch (RuntimeException malformed) {
             return AdmissionResult.reject("MALFORMED_SOURCE_COMMAND");
         }
-        return Objects.requireNonNull(kernel.admit(command), "kernel returned null stateless admission");
+        AdmissionResult admitted = Objects.requireNonNull(kernel.admit(command),
+                "kernel returned null stateless admission");
+        if (!admitted.isAccepted()) return admitted;
+        return program.rules().advisory(component, body, program.ir().limits(), () -> kernel.ruleWrites(command));
     }
 
     /**
@@ -173,6 +205,7 @@ public final class EventBindingWorkflow implements CompositeWorkflow {
         String failure = null;
         List<String> currentEvents = List.of();
         List<BindingReceiptV1.Condition> conditions = new ArrayList<>();
+        BindingReceiptV1.RuleTrace currentRules = BindingReceiptV1.RuleTrace.NONE;
         try {
             if (context.workflowState().get(source.getMessageId()).isPresent()) {
                 work.replayed++;
@@ -187,6 +220,7 @@ public final class EventBindingWorkflow implements CompositeWorkflow {
                 current = queue.removeFirst();
                 currentEvents = List.of();
                 conditions = new ArrayList<>();
+                currentRules = BindingReceiptV1.RuleTrace.NONE;
                 if (current.depth > limits.maxCascadeDepth()) throw new BindingFailure("LIMIT_DEPTH");
                 var baselineEstimate = baselineEstimate(current.component, current.context.topic(), origin.sender(),
                         current.context.messageId(), current.body);
@@ -209,8 +243,15 @@ public final class EventBindingWorkflow implements CompositeWorkflow {
                         current.depth > 0, expressionBudget, work.expressions);
                 Map<String, AppStateReader> participants = new LinkedHashMap<>();
                 for (String id : program.readParticipants(current.component)) participants.put(id, overlays.get(id));
-                TransitionDecision decision = decide(program.kernel(current.component), current,
-                        overlays.get(current.component), Map.copyOf(participants), context);
+                var rules = new BindingRules.Run();
+                TransitionDecision decision;
+                try {
+                    decision = decide(program.kernel(current.component), current, overlays.get(current.component),
+                            Map.copyOf(participants), context, bindingContext(origin, current), overlays,
+                            expressionBudget, work.expressions, rules);
+                } finally {
+                    currentRules = rules.trace();
+                }
                 if (decision instanceof TransitionDecision.Rejected rejected)
                         throw new BindingFailure(rejected.rejection().code());
                 TransitionPlan plan = ((TransitionDecision.Approved) decision).plan();
@@ -231,6 +272,7 @@ public final class EventBindingWorkflow implements CompositeWorkflow {
                 // The semantic event exists even when no subscriber requires its expensive scalar payload.
                 currentEvents = new ArrayList<>(plan.events().stream().map(TransitionEvent::eventId).toList());
                 currentEvents.add(BindingProgram.BASELINE);
+                Map<String, Object> producing = bindingContext(origin, current);
                 for (TransitionEvent event : events) {
                     if (event.payload().length > limits.maxEventPayloadBytes())
                             throw new BindingFailure("EVENT_PAYLOAD_TOO_LARGE");
@@ -243,7 +285,7 @@ public final class EventBindingWorkflow implements CompositeWorkflow {
                         if (conditions.size() == BindingReceiptV1.MAX_CONDITION_RECORDS) {
                             throw new BindingFailure("RECEIPT_CAPACITY_EXCEEDED");
                         }
-                        int failed = program.condition(binding, values, overlays::get, expressionBudget,
+                        int failed = program.condition(binding, values, producing, overlays::get, expressionBudget,
                                 work.expressions);
                         conditions.add(new BindingReceiptV1.Condition(binding.id(), failed));
                         if (failed >= 0) continue;
@@ -254,14 +296,14 @@ public final class EventBindingWorkflow implements CompositeWorkflow {
                         byte[] id = derivedId(source.getMessageId(), binding.id(), produced);
                         byte[] payload;
                         try {
-                            payload = program.payload(binding, values, event.payload(), expressionBudget,
+                            payload = program.payload(binding, values, producing, event.payload(), expressionBudget,
                                     work.expressions);
                         } catch (BindingFailure mappingFailure) {
                             // Preserve the parent's visited outcomes, then name the attempted child whose
                             // payload could not be built. No unvisited event/condition is manufactured.
                             trace.add(new BindingReceiptV1.Step(current.ordinal, current.depth, current.binding,
                                     current.component, current.context.messageId(), currentEvents, conditions,
-                                    "PLANNED", "", current.raw));
+                                    currentRules, "PLANNED", "", current.raw));
                             String targetComponent = binding.target() instanceof BindingIrV1.CommandTarget command
                                     ? command.component() : current.component;
                             String targetTopic = program.ir().components().stream()
@@ -274,6 +316,7 @@ public final class EventBindingWorkflow implements CompositeWorkflow {
                                     binding.target().mapping().kind() == BindingIrV1.MappingKind.RAW_BODY);
                             currentEvents = List.of();
                             conditions = new ArrayList<>();
+                            currentRules = BindingReceiptV1.RuleTrace.NONE;
                             throw mappingFailure;
                         }
                         if (binding.target() instanceof BindingIrV1.CommandTarget target) {
@@ -304,7 +347,7 @@ public final class EventBindingWorkflow implements CompositeWorkflow {
                 }
                 trace.add(new BindingReceiptV1.Step(current.ordinal, current.depth, current.binding,
                         current.component, current.context.messageId(), currentEvents,
-                        conditions, "PLANNED", "", current.raw));
+                        conditions, currentRules, "PLANNED", "", current.raw));
                 // Fail before any commit if the trace no longer fits its authenticated-state contract.
                 try { receipt(source, origin, true, null, "", trace).encode(); }
                 catch (IllegalArgumentException capacity) { throw new BindingFailure("RECEIPT_CAPACITY_EXCEEDED"); }
@@ -329,11 +372,12 @@ public final class EventBindingWorkflow implements CompositeWorkflow {
             if (prior.isPresent()) {
                 currentEvents = prior.get().eventsProduced();
                 conditions = prior.get().conditions();
+                currentRules = prior.get().rules();
             }
             trace.removeIf(step -> step.ordinal() == failedOrdinal);
             trace.add(new BindingReceiptV1.Step(current.ordinal, current.depth, current.binding,
                     current.component, current.context.messageId(), currentEvents, conditions,
-                    "REJECTED", failure, current.raw));
+                    currentRules, "REJECTED", failure, current.raw));
         }
         trace.sort(Comparator.comparingInt(BindingReceiptV1.Step::ordinal));
         BindingReceiptV1 receipt = receipt(source, origin, failure == null,
@@ -364,12 +408,13 @@ public final class EventBindingWorkflow implements CompositeWorkflow {
     /**
      * Reduces an oversized rejection trace without removing the diagnostic that explains its failure.
      * Higher-ordinal non-failed history is omitted first. If the failed step alone exceeds the byte cap,
-     * its event names are omitted, while every visited condition (including the exact failing clause),
-     * binding, target, message id, original code, and raw-body marker is retained.
+     * its event names are omitted, while every visited condition (including the exact failing clause), its
+     * admission-rule trace, binding, target, message id, original code, and raw-body marker is retained.
      *
      * <p>The remaining failed step necessarily fits: at most 256 conditions with 127-character ASCII
-     * binding names consume less than 35 KiB, plus bounded metadata. A missing failed step or an oversized
-     * event-free failed step is therefore an infrastructure invariant violation, not another truncation.
+     * binding names consume less than 35 KiB, a rule trace at most 134 bytes, plus bounded metadata. A missing
+     * failed step or an oversized event-free failed step is therefore an infrastructure invariant violation,
+     * not another truncation.
      *
      * @param trace mutable trace sorted by derivation ordinal
      * @param failedOrdinal ordinal that must remain represented by its diagnostic step
@@ -389,13 +434,21 @@ public final class EventBindingWorkflow implements CompositeWorkflow {
             throw new IllegalStateException("event-free failure diagnostic exceeds receipt limit");
         }
         trace.set(0, new BindingReceiptV1.Step(failed.ordinal(), failed.depth(), failed.bindingId(),
-                failed.targetComponentId(), failed.messageId(), List.of(), failed.conditions(),
+                failed.targetComponentId(), failed.messageId(), List.of(), failed.conditions(), failed.rules(),
                 failed.status(), failed.code(), failed.rawBody()));
     }
 
+    /**
+     * Decodes, admits and decides one step. The admission slot runs after both admit hooks and before any work is
+     * reserved, so a denied command reserves none; the verified-fact slot runs only after an approved decision,
+     * with the facts instance that produced it. A fact-rule denial discards the approved plan, which is safe
+     * because plans commit only at the end of the cascade.
+     */
     private <C, F> TransitionDecision decide(TransitionKernel<C, F> kernel, Step step, AppStateReader state,
                                             Map<String, AppStateReader> participants,
-                                            CompositeWorkflowContext context) {
+                                            CompositeWorkflowContext context, Map<String, Object> ruleContext,
+                                            Map<String, Overlay> overlays, BindingExpressionEvaluator.Budget cascade,
+                                            BindingExpressionEvaluator.Budget block, BindingRules.Run rules) {
         C command;
         var codec = kernel.codec();
         try { command = codec.decode(step.body); }
@@ -407,6 +460,8 @@ public final class EventBindingWorkflow implements CompositeWorkflow {
         if (!kernel.admit(command).isAccepted() || !kernel.admit(command, step.context).isAccepted()) {
             throw new BindingFailure("ADMISSION");
         }
+        program.rules().admissionSlot(step.component, step.body, ruleContext, overlays::get, cascade, block, rules,
+                () -> kernel.ruleWrites(command));
         kernel.workRequest(command, step.context).ifPresent(request -> {
             var budget = program.workBudget(step.component, request.reference());
             var owner = generations.get(request.reference().participantId());
@@ -415,7 +470,14 @@ public final class EventBindingWorkflow implements CompositeWorkflow {
                 throw new BindingFailure("CRYPTO_WORK_EXCEEDED");
             }
         });
-        return kernel.decide(command, step.context, kernel.facts(command, step.context, state, participants));
+        F facts = kernel.facts(command, step.context, state, participants);
+        TransitionDecision decision = kernel.decide(command, step.context, facts);
+        if (decision instanceof TransitionDecision.Approved && program.rules().needsFacts(step.component, rules)) {
+            program.rules().factSlot(step.component, kernel.ruleFactValues(command, step.context, facts), ruleContext,
+                    overlays::get, cascade, block, rules, () -> kernel.ruleWrites(command),
+                    () -> kernel.ruleWriteCoverage(command, step.context, facts));
+        }
+        return decision;
     }
     private void validateEvent(String component, String event, Map<String, Object> values) {
         var schema = program.schema(component, event);
@@ -497,6 +559,15 @@ public final class EventBindingWorkflow implements CompositeWorkflow {
         byte[] name = binding.getBytes(StandardCharsets.US_ASCII);
         return Blake2bUtil.blake2bHash256(ByteBuffer.allocate(domain.length + source.length + name.length + 4)
                 .put(domain).put(source).put(name).putInt(ordinal).array());
+    }
+    /**
+     * The {@code context.*} values of one step (ADR-031.3 §5.3): the source height and originator sender, which
+     * every step shares, and the step's own derivation record. Bindings see the step that produced their event;
+     * rules see the step being admitted.
+     */
+    private static Map<String, Object> bindingContext(TransitionContext origin, Step step) {
+        return Map.of("height", origin.height(), "sender", origin.sender(), "derived", step.depth > 0,
+                "depth", (long) step.depth, "binding", step.binding == null ? "" : step.binding);
     }
     private record Step(String component, byte[] body, TransitionContext context,
                         String binding, int ordinal, int depth, boolean raw) { }

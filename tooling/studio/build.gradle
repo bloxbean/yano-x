@@ -28,7 +28,12 @@ tasks.register('prepareStudio', Sync) {
     // Binding editor starters (ADR-031.2); examples/bindings stays their single source.
     from(rootProject.file('examples/bindings')) {
         into 'assets/bindings'
-        include 'registry-to-audit.yaml', 'approval-to-audit.yaml', 'fixtures/*/fixture-*.json'
+        include 'registry-to-audit.yaml', 'approval-to-audit.yaml', 'balances-transfer-limit.yaml',
+                'procurement-admission.yaml', 'fixtures/*/fixture-*.json'
+        // The governed §6.3 recipe and the ADR-031.4 recipes need their own contexts, so they are not Studio starters.
+        exclude 'fixtures/dpp-role-gated/**', 'fixtures/asset-governed-limits/**',
+                'fixtures/dpp-namespace-isolation/**', 'fixtures/feed-slot-rules/**',
+                'fixtures/balances-holding-cap/**'
     }
     into studioOutput
 }

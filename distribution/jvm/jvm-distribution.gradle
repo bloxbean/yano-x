@@ -366,7 +366,8 @@ tasks.register('yanoXJvmDistZip', Zip) {
         }
         from(rootProject.file('examples/bindings')) {
             into 'examples/bindings'
-            include '*.yaml', '*.md', 'fixtures/*/fixture-*.json'
+            // A recipe with a governed genesis ships its explicit rehearsal context beside its fixtures.
+            include '*.yaml', '*.md', 'fixtures/*/fixture-*.json', 'fixtures/*/context.json'
         }
         from(rootProject.file('docs')) {
             into 'docs'
@@ -622,6 +623,11 @@ tasks.register('verifyYanoXJvmDistribution') {
                     'studio/assets/bindings/approval-to-audit.yaml',
                     'studio/assets/bindings/fixtures/approval-to-audit/fixture-4.json',
                     'examples/bindings/fixtures/registry-to-audit/fixture-1.json',
+                    'examples/bindings/procurement-admission.yaml',
+                    'examples/bindings/fixtures/procurement-admission/fixture-1.json',
+                    'examples/bindings/dpp-role-gated.yaml',
+                    'examples/bindings/fixtures/dpp-role-gated/context.json',
+                    'studio/assets/bindings/procurement-admission.yaml',
                     'product-ui/attest/index.html',
                     'product-ui/attest/attest-ui-config.json',
                     'sbom/attest-ui.cdx.json',

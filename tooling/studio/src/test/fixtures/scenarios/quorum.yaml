@@ -1,0 +1,66 @@
+# ADR-031.3 §6.2: rules at several depths of the ADR-031.1 procurement flow.
+# Register the supplier's sender bytes as a key in suppliers before submitting an order. The
+# registered-supplier rule then refuses an order from any other sender, and nothing is written:
+# unlike a binding condition, a rule refuses the order itself. minimum-quorum holds for the
+# binding's required = 2; lowering it to 1 would deny every order's whole cascade at depth 1.
+# only-via-binding makes the audit trail accept entries only from the approval binding.
+composite:
+  components:
+    - id: suppliers
+      machine: kv-registry
+      config: {value-format: utf8}
+    - id: orders
+      machine: kv-registry
+      admission:
+        - rule: registered-supplier
+    - id: approvals
+      machine: approvals
+      admission:
+        - rule: minimum-quorum
+          params: {minimum: 2}
+    - id: audit
+      machine: doc-trail
+      admission:
+        - rule: only-via-binding
+          params: {binding: approved-to-audit}
+  rules:
+    - id: registered-supplier
+      deny: NOT_A_REGISTERED_SUPPLIER
+      require:
+        - lookup: {component: suppliers, key: {context: sender}, exists: true}
+    - id: minimum-quorum
+      command: propose
+      deny: QUORUM_TOO_LOW
+      params:
+        minimum: {type: integer, default: 2}
+      require:
+        - expr: 'command.required >= params.minimum'
+    - id: only-via-binding
+      deny: DIRECT_SUBMISSION_FORBIDDEN
+      params:
+        binding: {type: binding}
+      require:
+        - expr: 'context.derived && context.binding == params.binding'
+  bindings:
+    - id: order-to-approval
+      from: {component: orders, event: kv-registry.entry-put.v1}
+      when:
+        - {field: valueLength, le: 4096}
+        - {expr: '!context.derived'}
+      to:
+        component: approvals
+        command: propose
+        map:
+          itemId: {fn: hex, args: [{field: key}]}
+          payload: {field: value}
+          required: {literal: 1}
+          deadlineMillis: {literal: 0}
+    - id: approved-to-audit
+      from: {component: approvals, event: approvals.item-approved.v1}
+      to:
+        component: audit
+        command: append
+        map:
+          entityId: {field: itemId}
+          entryHash: {field: payloadHash}
+          reference: {fn: concat, args: [{literal: 'procurement-approved:'}, {field: itemId}]}

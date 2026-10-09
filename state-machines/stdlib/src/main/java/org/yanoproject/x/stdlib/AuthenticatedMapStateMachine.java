@@ -604,6 +604,13 @@ public final class AuthenticatedMapStateMachine implements AppStateMachine {
         return new MapDecision(new TransitionPlan(mutations, List.of(), consumptions, List.of(receiptWrite)), receipt);
     }
 
+    /** The declarative schema of a collection's values, or {@code null} when it has none (ADR-031.4 §5.4). */
+    AuthenticatedMapSchema.Schema schemaOf(String collectionId) {
+        CollectionDescriptor descriptor = collections.get(collectionId);
+        return descriptor == null || descriptor.validatorId().isEmpty() ? null
+                : schemas.get(descriptor.validatorId());
+    }
+
     record MapFacts(Map<ByteKey, Entry> entries, Set<ByteKey> usedConsumptions, boolean senderMember) {
         MapFacts {
             entries = Map.copyOf(entries);
@@ -748,7 +755,8 @@ public final class AuthenticatedMapStateMachine implements AppStateMachine {
         }
     }
 
-    private static boolean valueBearing(int operation) {
+    /** Whether an operation installs a validated value: put, put-if-absent, compare-and-set and restore. */
+    static boolean valueBearing(int operation) {
         return operation == AuthenticatedMapContract.OP_PUT
                 || operation == AuthenticatedMapContract.OP_PUT_IF_ABSENT
                 || operation == AuthenticatedMapContract.OP_COMPARE_AND_SET
