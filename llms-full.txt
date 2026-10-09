@@ -4,7 +4,7 @@
 
 yanoXVersion: 0.1.0-pre3
 yanoVersion: 0.1.0-pre17
-Generated: 2026-09-26T08:15:31.189Z
+Generated: 2026-10-09T12:14:41.529Z
 Site: https://yano-x.io
 Repo: https://github.com/bloxbean/yano-x
 
