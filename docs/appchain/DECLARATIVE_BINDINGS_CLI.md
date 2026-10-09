@@ -574,6 +574,10 @@ Initialize from an explicit document and installed authoring bundles:
   --output workflow-project
 ```
 
+The genesis pins the topology's member public keys, so `init` needs them. For
+disposable local devnet keys, see
+[deploying a workflow locally](bindings/04-java-integration.md#deploy-the-workflow-on-a-local-devnet).
+
 Both flags are required together and rejected for other recipes. Input paths
 resolve against the invocation directory; the imported document is copied into
 the blueprint, so later edits to the original file do not silently change the

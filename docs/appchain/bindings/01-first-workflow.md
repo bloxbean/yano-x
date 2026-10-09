@@ -239,6 +239,7 @@ and `--bindings bindings.yaml --plugins-directory plugins`, supplying your real
 topology member public keys and other required project options. Follow the full
 [blueprint project example](../DECLARATIVE_BINDINGS_CLI.md#blueprint-projects)
 and [deployment guide](../deployment/README.md); do not deploy the dummy context
-or authentication bytes from this tutorial.
+or authentication bytes from this tutorial. Chapter 4 shows a complete
+[local devnet deployment](04-java-integration.md#deploy-the-workflow-on-a-local-devnet).
 
 Next: [Conditions and mappings](02-conditions-and-mappings.md).

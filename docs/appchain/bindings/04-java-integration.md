@@ -30,10 +30,53 @@ Changing a Java request's business data does not change the workflow. Changing
 YAML does not update a running node. Keep those release procedures separate;
 see [operations and upgrades](05-operations-and-upgrades.md).
 
-The examples below assume an already deployed registry-to-audit workflow from
+The examples below need a deployed registry-to-audit workflow from
 [conditions and mappings](02-conditions-and-mappings.md), or the `reviews`/`audit`
 workflow from [approval workflows](03-approval-workflows.md). The offline fixture
 files themselves do not deploy either workflow.
+
+## Deploy the workflow on a local devnet
+
+Run these from the top-level directory of the extracted Yano X distribution.
+They create a three-member project from the shipped registry-to-audit document
+and start it on HTTP ports 7370–7372. A declarative project pins its member
+public keys at genesis, so it needs them before `init`. The release has no
+separate key generator; a throwaway devnet project creates the keys and their
+private files:
+
+```bash
+unset YANO_HOME
+./yano.sh appchain init --non-interactive --recipe audit-log --network devnet \
+  --members 3 --name keygen --chain-id keygen --output ../keygen
+./yano.sh appchain prepare ../keygen
+set -- $(awk '/memberKeys:/{f=1;next} f&&/^ *- "/{gsub(/[ "-]/,""); print; if(++n==3) exit}' \
+  ../keygen/appchain.yaml)
+
+./yano.sh appchain init --non-interactive --recipe declarative-composite \
+  --network devnet --members 3 --member-key "$1" --member-key "$2" --member-key "$3" \
+  --name workflow --chain-id records-audit \
+  --http-port-base 7370 --server-port-base 13637 \
+  --bindings examples/bindings/registry-to-audit.yaml --plugins-directory plugins \
+  --output ../workflow-project
+cp -p ../keygen/secrets/node?.env ../workflow-project/secrets/
+./yano.sh appchain prepare ../workflow-project
+./yano.sh appchain render ../workflow-project
+./yano.sh appchain config validate --mode project ../workflow-project
+./yano.sh appchain doctor ../workflow-project --distribution "$PWD"
+
+export YANO_HOME="$PWD"
+../workflow-project/scripts/start
+../workflow-project/scripts/status
+```
+
+> **✓ You should see** `PREPARED`, `PROJECT_RENDERED`, `VALID_PROJECT`, a doctor
+> report ending in `DOCTOR_WARNINGS`, then three running nodes. The node API is
+> `http://127.0.0.1:7370/api/v1` and the chain ID is `records-audit`.
+
+These are disposable local devnet keys; never reuse them. Stop the nodes with
+`../workflow-project/scripts/stop`. For the approval workflow, repeat the second
+`init` with `examples/bindings/approval-to-audit.yaml`, another chain ID and
+other port bases.
 
 ## Add the public client dependency
 
@@ -55,6 +98,8 @@ java {
 repositories {
     mavenLocal() // For the exact locally published experimental build.
     mavenCentral()
+    // Only when the node's Yano host version is a commit snapshot (ends in -SNAPSHOT).
+    maven { url = uri('https://repo.bloxbean.org/maven/snapshots') }
 }
 
 def yanoXVersion = providers.gradleProperty('yanoXVersion').get()
@@ -69,8 +114,20 @@ application {
 ```
 
 Choose the version actually published for the matching build, not a guessed
-release. The client declares API dependencies on `yano-x-stdlib-contracts` and
-`yano-x-composite-contracts`, which provide the codecs used here. Its publication
+release. To publish the client from the Yano X source checkout that built your
+distribution:
+
+```bash
+./gradlew :sdk:client:publishToMavenLocal \
+  :state-machines:stdlib-contracts:publishToMavenLocal \
+  :composition:contracts:publishToMavenLocal \
+  :capabilities:role-workflow-contracts:publishToMavenLocal \
+  :sdk:proof-contracts:publishToMavenLocal -PskipSigning=true
+```
+
+The client declares API dependencies on `yano-x-stdlib-contracts` and
+`yano-x-composite-contracts`, which provide the codecs used here, and on the
+role-workflow and proof contracts. Its publication
 also pins host API/proof dependencies. Resolve that complete published graph;
 do not independently mix host and X versions or depend on a sibling checkout.
 See [build and test](../../BUILD_AND_TEST.md) and
@@ -169,10 +226,14 @@ the offline tutorials:
 
 ```bash
 gradle run -PyanoXVersion="$YANO_X_VERSION" \
-  --args='http://localhost:8080/api/v1 my-chain put'
+  --args='http://127.0.0.1:7370/api/v1 records-audit put'
 gradle run -PyanoXVersion="$YANO_X_VERSION" \
-  --args='http://localhost:8080/api/v1 my-chain receipt <source-message-id-hex>'
+  --args='http://127.0.0.1:7370/api/v1 records-audit receipt <source-message-id-hex>'
 ```
+
+> **✓ You should see** `Submitted source message: <64 hex characters>`, then
+> `accepted=true` with `Step 0: component=records status=PLANNED binding=null`
+> and `Step 1: component=audit status=PLANNED binding=audit-record`.
 
 Set `YANO_API_KEY` through your application's secret-management mechanism when
 the node requires it; do not commit it into this source or binding YAML. Use the
@@ -238,7 +299,9 @@ command codec; use the declared application schema for governed map actions.
 
 `submit` succeeds on HTTP 202. That confirms submission into the host processing
 path, not the success of any derived action. A finalized receipt's `accepted()`
-is the cascade outcome. A `PLANNED` step inside a rejected receipt did not
+is the cascade outcome. A step's status names what it planned (`PLANNED` or
+`EFFECT_PLANNED`) in accepted and rejected receipts alike; it committed only when
+the receipt is accepted. A `PLANNED` step inside a rejected receipt did not
 commit. In the approval workflow, an accepted proposal receipt means the
 proposal succeeded, not that approval has already happened.
 

@@ -105,9 +105,11 @@ drops comments. Studio asks first, and **Download original** always returns the
 file exactly as imported. **Reset draft** discards every edit.
 
 If you edit the YAML text into something that is not a valid document, the forms
-keep the last valid draft and are disabled, and downloads are refused until you
-fix the text or choose *Revert to the last valid draft*. A document that uses a
-construct Studio cannot edit exactly opens read-only.
+keep the last valid draft and are disabled, and **Download bindings.yaml** is
+refused until you fix the text or choose *Revert to the last valid draft*.
+Reverting writes that draft back as canonical YAML, without comments; **Download
+original** still returns the imported file. A document that uses a construct
+Studio cannot edit exactly opens read-only.
 
 **Advisory checks** in the right column point at likely mistakes and open the
 relevant form field. They never mean the document is valid.
@@ -146,7 +148,7 @@ authenticated inputs.
 Import the report files with **Import report files**. Import the fixture files
 too, so Studio can confirm that each rehearsal used them. Importing a fixture
 with the same file name replaces the earlier one, and rehearsals of the replaced
-content become stale; the status line names blocks that are stale or unverified.
+content become stale; the status line counts the blocks that are stale or unverified.
 After rerunning the CLI, import the new report too. Earlier reports stay visible
 as history. Studio links continuations by the preceding height and state digest,
 so alternate reports at the same height do not disrupt a verified chain. A
@@ -158,7 +160,7 @@ The status line says what Studio can claim:
 | Draft with local checks only | No CLI report describes this draft |
 | Imported matching CLI report | A report says the CLI validated exactly this document, context, plugin catalog and tool |
 | The CLI rejected exactly the current inputs | A matching report says compiling or validating the document failed; its diagnostics link to the form |
-| Rehearsed source outcomes | Reports give the real engine's results for these exact, assumed fixture inputs, with every continued block verified |
+| Rehearsed source outcomes | Reports give the real engine's results for these exact, assumed fixture inputs; the line adds how many blocks are stale or unverified |
 | Stale or unverifiable report | Something differs; the report is history, not a result for this draft |
 
 The status considers every imported report, in any order. A dry-run that failed
@@ -181,6 +183,8 @@ message says what happened:
 - **Accepted**: every recorded step committed together in the rehearsal.
 - **Rejected**: nothing from the cascade committed, including the source command.
   Planned steps are shown as *planned, not committed*.
+- **Refused by admission rule**: a rule refused a step, so nothing from the
+  cascade committed. The outcome names the rule, its deny code and the step.
 - **Replay** or **duplicate**: the receipt belongs to an earlier message; nothing
   ran again.
 
