@@ -1,10 +1,10 @@
 # yaml-language-server: $schema=./schema/appchain-runtime.schema.json
 # =============================================================================
-# App-chain cluster demo config  (external — lives in app/config, NOT bundled
-# in the jar). Activated with the `appchain` Quarkus profile, e.g.
-#   -Dquarkus.profile=devnet,appchain
-# The cluster launcher (scripts/appchain-cluster/cluster.sh) adds this profile for
-# you and injects the per-node/topology values.
+# Stock app ledger template for the local cluster launcher and tutorials.
+# The Yano X JVM distribution ships it as config/application-appchain.yml.
+# Activated with the `appchain` Quarkus profile by the launcher, e.g.
+#   ./yano.sh appchain cluster start 3     # three members
+#   ./yano.sh appchain cluster start 1     # one member
 #
 # WHAT THIS FILE DEFINES (shared, identical on every node): the per-chain
 # "flavor" — chain-id, state machine, block cadence, and sequencer intent.
@@ -12,7 +12,9 @@
 # WHAT THE LAUNCHER INJECTS (differs per node / per cluster size): members,
 # threshold, this node's signing-key, peers, and — for fixed-proposer chains —
 # the proposer. So the SAME file runs unchanged on a 3-node or a 9-node
-# cluster; you never hand-edit member lists here.
+# cluster; you never hand-edit member lists here. As a shared template it holds
+# no secrets (`appchain config validate --mode template --template-contract
+# builtin:cluster` enforces this).
 #
 # ADD / REMOVE CHAINS FREELY: any chains[i] with a chain-id is hosted. The
 # launcher auto-discovers however many you define (indices must start at 0 and
@@ -44,7 +46,6 @@ yano:
       # sequencer.proposer = node 0's member key. To rotate instead, add:
       #   sequencer:
       #     mode: rotating
-      #     window-slots: 10
 
     # --- Chain 1: a key/value registry, rotating sequencer -------------------
     chains[1]:
@@ -59,8 +60,8 @@ yano:
       block:
         interval-ms: 2000
       sequencer:
-        mode: rotating                  # L1-slot-clocked rotation across members
-        window-slots: 10                # ~10 devnet slots (~10s) per proposer turn
+        mode: rotating                  # leader derived from committed context per block
+        window-slots: 10                # not used by the built-in rotating leader
       machines:
         kv-registry:
           value-format: utf8            # PUT values must be valid UTF-8
