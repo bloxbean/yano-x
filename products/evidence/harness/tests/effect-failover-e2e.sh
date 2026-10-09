@@ -234,6 +234,12 @@ wait_json() {
     fi
     sleep 1
   done
+  # Agreement helpers declare a local phase; top-level waits have none.
+  if [ -z "${phase:-}" ]; then
+    printf 'Timed out waiting for %s at %s\n' "$expression" "$url" >&2
+    [ -f "$output" ] && jq -c . "$output" >&2 2>/dev/null || true
+    return 1
+  fi
   printf 'Cluster agreement timeout (%s):\n' "$phase" >&2
   for node in 0 1 2; do
     if [ -f "$ROOT/$phase-node$node-status.json" ]; then
