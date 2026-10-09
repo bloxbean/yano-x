@@ -543,6 +543,9 @@ jq -e '
 [ "$(grep -hFx '# direct result emission is not activated' \
   "$NODE_DIR"/*.properties | wc -l | tr -d ' ')" -eq 3 ] \
   || fail "legacy profile does not explicitly preserve continuation-command behavior"
+[ "$(grep -hFx 'yano.app-chain.chains[0].l1.stability-depth=2' \
+  "$NODE_DIR"/*.properties | wc -l | tr -d ' ')" -eq 3 ] \
+  || fail "devnet L1-anchored storage needs a stability depth on every member"
 if grep -R -Fq 'activations.direct-result-emission=' "$NODE_DIR"; then
   fail "legacy profile unexpectedly activates direct result emission"
 fi
@@ -961,6 +964,9 @@ if grep -Fq 'yano.block-producer.block-time-millis=' "$PREVIEW_NODE"; then
 fi
 grep -Fxq 'yano.app-chain.chains[0].machines.evidence-registry.storage-gate=app-final' \
   "$PREVIEW_NODE" || fail "preview does not default to APP_FINAL storage"
+if grep -Fq 'l1.stability-depth=' "$PREVIEW_NODE"; then
+  fail "APP_FINAL preview storage must not change the chain's L1 stability depth"
+fi
 grep -Fxq 'scenario.require-anchor=false' "$PREVIEW_RUNNER" \
   || fail "preview scenario unexpectedly requires an anchor"
 if grep -Eq 'anchor\.(enabled|signing-key|every-blocks|max-interval-minutes)=' "$PREVIEW_NODE"; then
@@ -1011,6 +1017,8 @@ grep -Fxq 'yano.app-chain.chains[0].anchor.max-interval-minutes=60' \
   || fail "explicit preview anchor does not use the profile safety interval"
 grep -Fxq 'yano.app-chain.chains[0].machines.evidence-registry.storage-gate=l1-anchored' \
   "$PREVIEW_ANCHOR_NODE" || fail "explicit preview anchor does not gate storage on L1"
+grep -Fxq 'yano.app-chain.chains[0].l1.stability-depth=10' "$PREVIEW_ANCHOR_NODE" \
+  || fail "explicit preview anchor has no stability depth, so L1-anchored storage never runs"
 grep -Fxq 'scenario.require-anchor=true' \
   "$PREVIEW_ANCHOR_RUNTIME/runner-compose.properties" \
   || fail "explicit preview anchor is not required by the scenario"
