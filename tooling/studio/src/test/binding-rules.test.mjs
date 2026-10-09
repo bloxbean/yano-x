@@ -105,6 +105,8 @@ test('reports explain a rule refusal, its clause and the rollback of a derived r
   const unregistered = explain('procurement-admission-report-1.json');
   assert.match(unregistered.headline, /Refused by admission rule registered-supplier .*NOT_A_REGISTERED_SUPPLIER/);
   assert.match(unregistered.steps[0].rules.label, /refused by rule registered-supplier at clause 1/i);
+  assert.equal(unregistered.code.code, 'ADMISSION_RULE_DENIED');
+  assert.equal(unregistered.code.categoryLabel, 'admission rule');
   const derived = explain('quorum-report-2.json');
   assert.match(derived.headline, /minimum-quorum/);
   assert.ok(derived.notes.some(note => /depth 1.*source command/s.test(note)));
