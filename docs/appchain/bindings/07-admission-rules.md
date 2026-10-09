@@ -297,12 +297,12 @@ Rule expressions share the document's expression limits and lookup limit.
 ## Local loop
 
 ```bash
-./yano.sh appchain bindings validate procurement-admission.yaml \
+./yano.sh appchain bindings validate examples/bindings/procurement-admission.yaml \
   --plugins-directory plugins --context context.json
-./yano.sh appchain bindings dry-run procurement-admission.yaml \
+./yano.sh appchain bindings dry-run examples/bindings/procurement-admission.yaml \
   --plugins-directory plugins --context context.json \
   --fixture examples/bindings/fixtures/procurement-admission/fixture-1.json
-./yano.sh appchain bindings graph procurement-admission.yaml \
+./yano.sh appchain bindings graph examples/bindings/procurement-admission.yaml \
   --plugins-directory plugins --context context.json
 ```
 

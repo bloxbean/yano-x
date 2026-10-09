@@ -107,6 +107,12 @@ yano:
     # chains[3]:
     #   chain-id: "audit-chain"
     #   state-machine: ordered-log
+    #   state:                          # required; a fresh genesis-id per chain
+    #     commitment-profile: mpf-blake2b256-v1
+    #     format-fingerprint: 91ee14091200f1e24659112d640e877e9177779dcc81dd06117f013e9190082b
+    #     genesis-id: <output of: openssl rand -hex 32>
+    #   membership:
+    #     mode: governed
     #   block:
     #     interval-ms: 1000
     #   anchor:

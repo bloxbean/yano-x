@@ -173,7 +173,7 @@ Render and check the exact release:
 
 ```bash
 ./yano.sh appchain render product-registry
-./yano.sh appchain doctor product-registry --distribution /path/to/yano-release.zip
+./yano.sh appchain doctor product-registry --distribution /path/to/yano-x-jvm-<version>
 ```
 
 The renderer writes the canonical genesis and the three state-identity

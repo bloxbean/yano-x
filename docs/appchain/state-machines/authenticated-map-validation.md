@@ -98,7 +98,7 @@ Run the renderer and doctor after every edit:
 
 ```bash
 ./yano.sh appchain render product-registry
-./yano.sh appchain doctor product-registry --distribution /path/to/yano-release.zip
+./yano.sh appchain doctor product-registry --distribution /path/to/yano-x-jvm-<version>
 ```
 
 Doctor reports `authenticated-map-schema-encoding`. A collection with a schema

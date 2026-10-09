@@ -48,9 +48,9 @@ file has a manual edit.
 # Regenerate derived output after editing appchain.yaml.
 ./yano.sh appchain render product-registry
 
-# Verify the project, and inspect a final JVM release (a ZIP or an extracted directory).
+# Verify the project, and inspect an extracted JVM release directory.
 ./yano.sh appchain config validate --mode project product-registry
-./yano.sh appchain doctor product-registry --distribution yano-x-jvm-<version>.zip
+./yano.sh appchain doctor product-registry --distribution /path/to/yano-x-jvm-<version>
 
 # Classify a change, preview a migration, and detect running drift.
 ./yano.sh appchain diff previous.lock product-registry/appchain.lock

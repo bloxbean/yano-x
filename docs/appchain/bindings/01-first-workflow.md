@@ -164,8 +164,10 @@ jq '.receipts[] | {outcome: .receipt[3], components: [.receipt[6][] | .[3]]}' re
 Expect `ACCEPTED` and components `["records", "audit"]`. Also inspect
 `stateChanges` for physical state writes. Expect an
 accepted source cascade with a registry step and a derived audit step. The audit
-entity is text `0102`, its entry is the registry value hash, and its reference is
-`published`. There are no external effects in this example. `postState` contains
+entity is text `0102` and its entry is the registry value hash. The `doc-trail`
+state keeps only the entry count and the chained head hash, so the step's
+reference does not appear in `stateChanges`. There are no external effects in
+this example. `postState` contains
 the complete rehearsal state, including internal markers and the receipt—not
 just your two business records.
 

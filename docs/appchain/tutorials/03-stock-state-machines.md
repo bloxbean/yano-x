@@ -77,13 +77,13 @@ pages. `ordered-log` takes any non-empty body.
 
 The cluster launcher reads `config/application-appchain.yml` in the release's
 top-level directory (`$YANO_HOME/config/application-appchain.yml` when you set
-`YANO_HOME`). It already defines `orders-chain`, `registry-chain` and
-`effects-chain` as `chains[0]` to `chains[2]`. Add a fourth chain before you
-start a fresh cluster:
+`YANO_HOME`). Under its single `yano.app-chain` root it already defines
+`orders-chain`, `registry-chain` and `effects-chain` as `chains[0]` to
+`chains[2]`. Add a fourth chain before you start a fresh cluster. Paste this
+block inside that root, just above the `# --- Add more chains here` comment, at
+the same four-space indentation as `chains[2]`:
 
 ```yaml
-yano:
-  app-chain:
     chains[3]:
       chain-id: "workflow-chain"
       state-machine: approvals
@@ -97,10 +97,23 @@ yano:
         interval-ms: 1000
 ```
 
-The host refuses a chain without all three `state.*` settings. Copy the profile
-and fingerprint from an existing chain and give each new chain its own genesis
-id. The launcher injects members, threshold, signing keys, peers and the fixed
-proposer; do not put that material in the shared file.
+Do not start a second `yano:` block: YAML keeps only the last one, so the
+nodes would start without any app chain. Check the file before you start:
+
+```bash
+./yano.sh appchain config validate --mode template \
+  --template-contract builtin:cluster config/application-appchain.yml
+```
+
+> **✓ You should see** a last line starting with `VALID_TEMPLATE` and
+> `errors=0`. Then `./yano.sh appchain cluster start 3` lists
+> `workflow-chain` among its chains.
+
+The host refuses a chain without all three `state.*` settings, and the
+validator does not catch that yet. Copy the profile and fingerprint from an
+existing chain and give each new chain its own genesis id. The launcher injects
+members, threshold, signing keys, peers and the fixed proposer; do not put that
+material in the shared file.
 
 A generated project, created with `./yano.sh appchain init`, is different:
 `appchain render` writes every chain setting, including the state identity,

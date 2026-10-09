@@ -17,9 +17,12 @@ tutorial links to them instead of repeating them.
 - Java 25 and Gradle (or your organization's Gradle wrapper).
 - An extracted Yano X JVM distribution. This tutorial assumes `/opt/yano-x` and
   runs every `./yano.sh` command from that directory.
-- A 32-byte publisher seed in a file outside any repository, for signing.
-- The exact Yano host version in your distribution's manifest. The host and
-  Yano X have separate versions.
+- A 32-byte publisher seed, written as 64 hexadecimal characters to a file
+  outside any repository, for signing. For a throwaway tutorial key:
+  `(umask 077; openssl rand -hex 32 > /secure/publisher.seed)`.
+- The exact Yano host version in your distribution's manifest, printed by
+  `jq -r .version yano-distribution-v1.json`. The host and Yano X have
+  separate versions.
 
 ## 1. Choose the smallest extension
 
@@ -63,6 +66,11 @@ The scaffold is a small Gradle project. It compiles against the host API as
 
 The tool refuses a non-empty output directory. Other modes are
 `composite-role`, `effect-executor` and `sink`.
+
+The generated `build.gradle` resolves the host API from Maven Central. If your
+distribution's host version is a commit snapshot (it ends in `-SNAPSHOT`), add
+`maven { url = uri('https://repo.bloxbean.org/maven/snapshots') }` to its
+`repositories` block.
 
 ## 3. Implement the machine
 
@@ -179,6 +187,12 @@ the signature:
   --output shipment-catalog.json
 tools/yano-plugins/bin/yano-plugins validate shipment-plugin/build/libs/shipment-yano-plugin.jar
 ```
+
+`plugin sign` ends with `PLUGIN_CATALOG_SIGNED key=example-release-2026
+public-key=<64 hex characters>`; that public key is the
+`<64-hex-public-key>` for `--trust-key` here and in step 6. `plugin validate`
+prints `PLUGIN_CATALOG_VALID` and `SNAPSHOT_WRITTEN shipment-catalog.json`,
+and `yano-plugins validate` prints `VALID`.
 
 Pass the seed by file only, and keep it out of the repository. `plugin validate`
 verifies the signature and exports a data-only snapshot; `yano-plugins

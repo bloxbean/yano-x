@@ -55,8 +55,8 @@ be made at all, for example because its key is refused, records clause `-1`.
 The limit lives in the registry, so raising it is an approved map write, not a
 profile change: the next block reads the new value. A rule with reads is never
 static, so its refusals come at block time, with a finalized, provable receipt.
-A fifth read does not compile: `validate` reports `EXPECTED_OBJECT`, "expected a
-map of at most 4 reads".
+A fifth read does not compile: `validate` prints "expected a map of at most 4
+reads", and `validate --report` lists it with the code `EXPECTED_OBJECT`.
 
 ## Rules that read state, step by step
 

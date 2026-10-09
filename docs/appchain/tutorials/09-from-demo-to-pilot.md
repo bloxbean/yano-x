@@ -80,7 +80,7 @@ and check the project:
 ./yano.sh appchain render permissioned-pilot
 ./yano.sh appchain config validate --mode project permissioned-pilot
 ./yano.sh appchain doctor permissioned-pilot \
-  --distribution /path/to/yano-x-jvm-<version>.zip
+  --distribution /path/to/yano-x-jvm-<version>
 ```
 
 > **✓ You should see** `PROJECT_RENDERED`, then `VALID_PROJECT`, then the doctor
