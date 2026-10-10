@@ -11,6 +11,7 @@ import org.yanoproject.api.appchain.l1view.L1Observation;
 import org.yanoproject.x.eutxo.contracts.EutxoDepositClaim;
 import org.yanoproject.x.eutxo.contracts.EutxoOutpoint;
 import org.yanoproject.x.eutxo.contracts.EutxoVaultDatum;
+import org.yanoproject.x.eutxo.contracts.EutxoBatchSettlementMarker;
 import org.yanoproject.x.eutxo.contracts.EutxoSettlementDatum;
 import org.yanoproject.x.eutxo.contracts.EutxoWithdrawalConfirmation;
 import org.yanoproject.x.eutxo.testkit.EutxoTestWallet;
@@ -165,6 +166,21 @@ class AcceptedVaultDepositObserverTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("no exact payout");
         assertThat(observer().observe(101, fill(32, 8), mismatched)).isEmpty();
+    }
+
+    @Test
+    void batchSettlementMarkerOnTheContinuingVaultOutputIsNotADeposit() {
+        // Before the fix the first batched settlement halted L1 observation for good (#26).
+        EutxoBatchSettlementMarker marker = new EutxoBatchSettlementMarker(1, List.of("66".repeat(32)));
+        Block settlement = block(List.of(
+                output(OWNER, 10, null),
+                output(VAULT_ADDRESS, 20, marker.encode())));
+
+        assertThat(observer().observe(102, fill(32, 9), settlement)).isEmpty();
+        assertThatThrownBy(() -> observer().observe(103, fill(32, 10), block(List.of(
+                output(VAULT_ADDRESS, 20, new byte[]{0x00})))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("unsupported bridge datum");
     }
 
     private static AcceptedVaultDepositObserver observer() {
