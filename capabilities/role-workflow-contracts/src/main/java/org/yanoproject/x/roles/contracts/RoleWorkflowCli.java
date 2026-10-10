@@ -26,8 +26,11 @@ public final class RoleWorkflowCli {
               govern-propose       --mutation-id <id> --mutation-hex <hex> --expiry-height <n>
               govern-approve       --mutation-id <id> --mutation-hash <64-hex>
               govern-activate      --mutation-id <id> --mutation-hash <64-hex>
-            Each command prints hex. Seed files hold one 32-byte Ed25519 seed as hex and are never printed.
-            The governance commands wrap a record your tooling encodes with the role-workflow contracts.""";
+              bootstrap            --plan <bootstrap/role-approvals-plan.yaml> --expiry-height <n>
+                                   [--key-proof <file>]...; see 'role bootstrap --help'
+            Each command prints hex, except bootstrap, which prints JSON. Seed files hold one 32-byte Ed25519
+            seed as hex and are never printed.
+            'bootstrap' encodes the governed records of a generated project's bootstrap plan.""";
 
     private RoleWorkflowCli() {
     }

@@ -836,8 +836,19 @@ final class AppChainProjectRenderer {
                   --seed-file /owner-only/reviewer.seed
                 ```
 
-                Submit governance records on 'actors.command.v1' and actor proposal/decision
-                commands on 'role-approvals.command.v1'. The generic product stores and proves
+                Once every REPLACE_* value in a copy of the plan is filled in, encode its records as
+                member-governance commands. Pass one key proof per actor key the plan lists:
+
+                ```bash
+                ./yano.sh appchain role bootstrap --plan role-approvals-plan.yaml \\
+                  --expiry-height <current-height+500> \\
+                  --key-proof proposer-a.proof --key-proof reviewer-a.proof > bootstrap.json
+                ```
+
+                For each step, submit 'propose' through one member, 'approve' through further members
+                up to the threshold, then 'activate', waiting for each to be final. Governance records
+                go to 'actors.command.v1' and policies and actor decisions to
+                'role-approvals.command.v1'. The generic product stores and proves
                 the approved payload hash; it does not execute the payload or emit an effect.
 
                 Verify through the read-only domain API:
