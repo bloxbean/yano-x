@@ -405,10 +405,13 @@ public final class EutxoValidityLifecycle {
                     "operation must be prepared before submission");
         }
         Map<String, Object> operation = readMap(operationFile);
-        if ("SUBMITTED".equals(operation.get("status"))
-                || "STABLE".equals(operation.get("status"))) {
+        if ("SUBMITTED".equals(operation.get("status"))) {
             return result("OPERATION_ALREADY_SUBMITTED",
                     identity, readState(identity), operation);
+        }
+        if (!"PREPARED".equals(operation.get("status"))) {
+            throw new IllegalStateException(
+                    "operation journal has an invalid status");
         }
         byte[] transaction = readBounded(
                 signedTransaction, "signed Cardano transaction");
@@ -469,38 +472,10 @@ public final class EutxoValidityLifecycle {
         return json.readValue(body, Map.class);
     }
 
-    public Result markStable(
-            String kind,
-            String operationId,
-            String transactionId
-    ) throws IOException {
-        ProjectIdentity identity = identity();
-        String normalizedKind = operationKind(kind);
-        String id = safeId(operationId);
-        Path operationFile = operationPath(normalizedKind, id);
-        Map<String, Object> operation = readMap(operationFile);
-        String normalizedTransaction =
-                safeDigest(transactionId, "transaction id");
-        if (!normalizedTransaction.equals(
-                operation.get("transactionId"))) {
-            throw new IllegalArgumentException(
-                    "stable transaction differs from submitted transaction");
-        }
-        operation.put("status", "STABLE");
-        operation.put("stableAt", Instant.now().toString());
-        writeAtomic(operationFile,
-                fileWriter()
-                        .writeValueAsBytes(new TreeMap<>(operation)),
-                false);
-        return result("OPERATION_STABLE",
-                identity, readState(identity), operation);
-    }
-
     public Result reconcile() throws IOException {
         ProjectIdentity identity = identity();
         int prepared = 0;
         int submitted = 0;
-        int stable = 0;
         if (Files.isDirectory(operationsDirectory)) {
             try (var files = Files.list(operationsDirectory)) {
                 for (Path path : files.sorted().toList()) {
@@ -514,7 +489,6 @@ public final class EutxoValidityLifecycle {
                     switch (status) {
                         case "PREPARED" -> prepared++;
                         case "SUBMITTED" -> submitted++;
-                        case "STABLE" -> stable++;
                         default -> throw new IllegalStateException(
                                 "operation journal has an invalid status");
                     }
@@ -522,13 +496,12 @@ public final class EutxoValidityLifecycle {
             }
         }
         LifecycleState state = readState(identity)
-                .withOperationCount(prepared + submitted + stable)
+                .withOperationCount(prepared + submitted)
                 .withUpdatedAt(Instant.now().toString());
         writeState(state);
         return result("RECONCILED", identity, state, Map.of(
                 "prepared", prepared,
-                "submitted", submitted,
-                "stable", stable));
+                "submitted", submitted));
     }
 
     private void generateDevelopmentCeremony(
@@ -927,7 +900,7 @@ public final class EutxoValidityLifecycle {
         if (Files.isRegularFile(path)) {
             Map<String, Object> existing = readMap(path);
             for (String volatileKey : List.of(
-                    "createdAt", "submittedAt", "stableAt")) {
+                    "createdAt", "submittedAt")) {
                 existing.remove(volatileKey);
                 value.remove(volatileKey);
             }

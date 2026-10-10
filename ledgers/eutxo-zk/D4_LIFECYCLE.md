@@ -77,7 +77,21 @@ Yano does not hold an L1 signing key. A Cardano builder or wallet constructs
 and signs ordinary L1 transactions from the deterministic plan/request.
 `validity ... submit` accepts the resulting signed CBOR, posts it to Yano's
 Blockfrost-compatible endpoint, and stores only the transaction ID and CBOR
-digest. An operator or later watcher marks the matching transaction stable.
+digest. A journal ends at `SUBMITTED`; it never records L1 stability.
+
+Stability is decided by the node, not asserted by an operator. The Cardano
+bridge observers deliver a deposit, or a withdrawal payout, only once it is
+`yano.app-chain.l1.stability-depth` blocks deep; the chain then commits the
+mirrored deposit or the `CONFIRMED` withdrawal record, which
+`appchain eutxo deposit get` and `appchain eutxo withdrawal get` read.
+
+Validity-root and recovery transactions are not observed. A withdrawal reads
+the root as a reference input, so a root rolled back before the payout is
+stability-deep also rolls back every withdrawal built on it, and L2 does not
+confirm such a payout. A rollback deeper than the stability depth, after L2
+has committed a record, is outside this guarantee: committed app-chain state
+does not roll back, and the bridge's halt and reconciliation procedure applies
+(see the EUTxO README).
 
 This separation keeps key custody outside the lifecycle module and makes
 partial failure visible. A plan reports `PLANNED_NOT_SUBMITTED`; it never

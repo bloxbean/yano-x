@@ -8,6 +8,8 @@ import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
@@ -235,9 +237,44 @@ class EutxoValidityLifecycleTest {
                         + "deposit-deposit-1.json"));
         assertThat(retained).contains(transactionId)
                 .doesNotContain("not-persisted");
-        assertThat(lifecycle.markStable(
-                "deposit", "deposit-1", transactionId).status())
-                .isEqualTo("OPERATION_STABLE");
+        // The node is gone: a repeated submit answers from the journal and never posts again.
+        assertThat(lifecycle.submitOperation("deposit", "deposit-1", transaction,
+                URI.create("http://127.0.0.1:9"), null).status())
+                .isEqualTo("OPERATION_ALREADY_SUBMITTED");
+        Map<String, ?> counts = lifecycle.reconcile().details();
+        assertThat(counts.get("prepared")).isEqualTo(0);
+        assertThat(counts.get("submitted")).isEqualTo(1);
+        assertThat(counts).doesNotContainKey("stable");
+
+        // A journal in any other status, such as a removed STABLE, is refused before anything is posted.
+        Path journal = project.resolve("runtime/validity/operations/deposit-deposit-1.json");
+        Files.writeString(journal, Files.readString(journal).replace("\"SUBMITTED\"", "\"STABLE\""));
+        assertThatThrownBy(() -> lifecycle.submitOperation("deposit", "deposit-1", transaction,
+                URI.create("http://127.0.0.1:9"), null))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("operation journal has an invalid status");
+    }
+
+    @Test
+    void journalHasNoOperatorAssertedStableStep() {
+        for (String kind : List.of("deposit", "settlement", "withdrawal", "recovery")) {
+            StringWriter err = new StringWriter();
+            int exit = EutxoValidityLifecycleCli.run(new String[]{
+                    kind, "stable", "--project", temporary.toString(), "--id", "op-1"},
+                    new PrintWriter(new StringWriter()), new PrintWriter(err));
+
+            assertThat(exit).as(kind).isEqualTo(EutxoValidityLifecycleCli.EXIT_USAGE);
+            assertThat(err.toString().lines().findFirst()).as(kind)
+                    .hasValue("a supported validity lifecycle command is required");
+        }
+        StringWriter err = new StringWriter();
+        assertThat(EutxoValidityLifecycleCli.run(new String[]{
+                "reconcile", "--project", temporary.toString(), "--tx-id", "ab".repeat(32)},
+                new PrintWriter(new StringWriter()), new PrintWriter(err)))
+                .isEqualTo(EutxoValidityLifecycleCli.EXIT_USAGE);
+        assertThat(err.toString()).startsWith("unknown option: --tx-id");
+        assertThat(EutxoValidityLifecycleCli.USAGE).doesNotContain(" stable", "--tx-id")
+                .contains("appchain eutxo deposit|withdrawal get");
     }
 
     private Path project(
