@@ -25,6 +25,7 @@ import org.yanoproject.api.appchain.AppStateMachineContext;
 import org.yanoproject.api.appchain.FinalityCert;
 import org.yanoproject.api.appchain.l1view.L1Observation;
 import org.yanoproject.x.eutxo.contracts.EutxoDepositClaim;
+import org.yanoproject.x.eutxo.contracts.EutxoL2KeyBinding;
 import org.yanoproject.x.eutxo.contracts.EutxoDepositRecord;
 import org.yanoproject.x.eutxo.contracts.EutxoOutpoint;
 import org.yanoproject.x.eutxo.contracts.EutxoQueryCodec;
@@ -389,6 +390,38 @@ class EutxoStateMachineTest {
     }
 
     @Test
+    void depositWithAnUnhonourableKeyBindingIsNotCreditedAndDoesNotFailTheBlock() throws Exception {
+        String vaultAddress = "addr_test1_bridge_vault";
+        String vaultScriptHash = "11".repeat(28);
+        EutxoStateMachine machine = (EutxoStateMachine) new EutxoStateMachineProvider().create(context(Map.of(
+                "machines.eutxo.profile", EutxoProfile.V2.id(),
+                "machines.eutxo.bridge.observer-id", "bridge-deposits",
+                "machines.eutxo.bridge.vault-address", vaultAddress,
+                "machines.eutxo.bridge.vault-script-hash", vaultScriptHash)));
+        MemoryAppState state = new MemoryAppState();
+        EutxoDepositClaim plain = depositClaim(vaultAddress, vaultScriptHash, BigInteger.valueOf(25));
+        // Anyone can pay the vault with any datum. This chain selects no L2 authorization profile, so a key
+        // binding cannot be honoured; applying it used to throw, which stalls the chain for good.
+        EutxoDepositClaim bound = new EutxoDepositClaim(
+                plain.abiVersion(), plain.chainId(), plain.acceptedOutpoint(), plain.l1Slot(), plain.l1BlockHash(),
+                plain.vaultAddress(), plain.vaultScriptHash(), plain.acceptedOutputCbor(), plain.l2Address(),
+                plain.mirroredOutputCbor(), plain.depositNonce(), plain.stagingOutpoint(), plain.refundDeadline(),
+                fill(28, 5), new EutxoL2KeyBinding("zeroj-jubjub-dev-v1", 1, fill(32, 6)));
+        L1Observation observation = L1Observation.transaction(
+                "bridge-deposits",
+                java.util.HexFormat.of().parseHex(bound.acceptedOutpoint().transactionId()),
+                bound.l1Slot(),
+                bound.l1BlockHash(),
+                bound.encode());
+
+        apply(machine, block(1, observationMessage(65, observation)), state);
+
+        assertThat(records(machine, state, ALICE.address())).isEmpty();
+        assertThat(state.get(EutxoStateKeys.deposit(bound.acceptedOutpoint()))).isEmpty();
+        assertThat(state.get(EutxoStateKeys.reserve(EutxoReserve.LOVELACE))).isEmpty();
+    }
+
+    @Test
     void signedWithdrawalBecomesIrrevocableAndExactL1ConfirmationReconcilesReserve()
             throws Exception {
         String vaultAddress = "addr_test1_bridge_vault";
@@ -536,7 +569,7 @@ class EutxoStateMachineTest {
     }
 
     @Test
-    void unknownStableSettlementHaltsTheBridgeWithoutCrashingBlockApplication() {
+    void unknownSingleClaimConfirmationIsIgnoredWithoutHaltingTheBridge() {
         Map<String, String> settings = Map.of(
                 "machines.eutxo.bridge.observer-id", "bridge-deposits",
                 "machines.eutxo.bridge.vault-address", "addr_test1vault",
@@ -567,17 +600,10 @@ class EutxoStateMachineTest {
                 fill(32, 9),
                 unknown.encode());
 
+        // A single-claim confirmation proves no vault spend, so anyone can fabricate one for any claim id.
         apply(machine, block(1, observationMessage(64, observation)), state);
 
-        assertThat(new String(
-                state.get(EutxoStateKeys.bridgeHalt()).orElseThrow(),
-                java.nio.charset.StandardCharsets.US_ASCII))
-                .isEqualTo("UNKNOWN_WITHDRAWAL_CONFIRMATION");
-        assertThat(EutxoQueryCodec.decodeBridgeHalt(machine.query(
-                EutxoQueryCodec.BRIDGE_HALT_PATH,
-                new byte[0],
-                state)))
-                .isEqualTo("UNKNOWN_WITHDRAWAL_CONFIRMATION");
+        assertThat(state.get(EutxoStateKeys.bridgeHalt())).isEmpty();
     }
 
     private static EutxoDepositClaim depositClaim(

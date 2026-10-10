@@ -1,6 +1,7 @@
 package org.yanoproject.x.eutxo.bridge.cardano;
 
 import com.bloxbean.cardano.client.address.Address;
+import com.bloxbean.cardano.client.address.AddressProvider;
 import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.bloxbean.cardano.client.transaction.spec.Value;
@@ -14,8 +15,6 @@ import org.yanoproject.api.appchain.l1view.L1Observer;
 import org.yanoproject.api.appchain.l1view.L1ObserverConsensusIdentity;
 import org.yanoproject.x.eutxo.contracts.EutxoDepositClaim;
 import org.yanoproject.x.eutxo.contracts.EutxoOutpoint;
-import org.yanoproject.x.eutxo.contracts.EutxoBatchSettlementMarker;
-import org.yanoproject.x.eutxo.contracts.EutxoSettlementDatum;
 import org.yanoproject.x.eutxo.contracts.EutxoVaultDatum;
 
 import java.math.BigInteger;
@@ -90,6 +89,11 @@ final class AcceptedVaultDepositObserver implements L1Observer {
         return List.copyOf(observations);
     }
 
+    /**
+     * The one creditable deposit this transaction creates, or null. Anyone can pay the public vault address with
+     * any value and datum, so a vault output that is not a creditable deposit for this chain is skipped, never an
+     * error: a throw here makes the host retry the block forever, stopping all L1 observation for the chain.
+     */
     private EutxoDepositClaim claim(
             long slot,
             byte[] blockHash,
@@ -104,87 +108,97 @@ final class AcceptedVaultDepositObserver implements L1Observer {
             if (!vaultAddress.equals(output.getAddress())) {
                 continue;
             }
-            if (output.getInlineDatum() == null) {
-                throw new IllegalArgumentException(
-                        "accepted bridge deposit requires an inline datum");
-            }
-            byte[] datumCbor = HexFormat.of().parseHex(output.getInlineDatum());
-            EutxoVaultDatum datum;
-            try {
-                datum = EutxoVaultDatum.decode(datumCbor);
-            } catch (IllegalArgumentException notDeposit) {
-                if (isSettlementContinuation(datumCbor)) {
-                    // The withdrawal-confirmation observers own settlement outputs.
-                    continue;
-                }
-                throw new IllegalArgumentException(
-                        "vault output contains an unsupported bridge datum",
-                        notDeposit);
-            }
-            BigInteger lovelace = exactLovelace(output);
-            if (lovelace.signum() <= 0 || lovelace.compareTo(maxLovelace) > 0) {
-                throw new IllegalArgumentException(
-                        "accepted bridge deposit is outside the configured lovelace bound");
+            EutxoDepositClaim candidate = creditableDeposit(slot, blockHash, transaction, index, output);
+            if (candidate == null) {
+                continue;
             }
             if (found != null) {
-                throw new IllegalArgumentException(
-                        "one bridge acceptance transaction may create only one deposit vault output");
+                // A genuine acceptance creates exactly one vault output; credit neither of an ambiguous pair.
+                return null;
             }
-            if (!chainId.equals(datum.chainId())) {
-                throw new IllegalArgumentException(
-                        "accepted bridge deposit targets a different app chain");
-            }
-            try {
-                com.bloxbean.cardano.client.transaction.spec.TransactionOutput accepted =
-                        com.bloxbean.cardano.client.transaction.spec.TransactionOutput.builder()
-                                .address(vaultAddress)
-                                .value(Value.fromCoin(lovelace))
-                                .inlineDatum(PlutusData.deserialize(datumCbor))
-                                .build();
-                com.bloxbean.cardano.client.transaction.spec.TransactionOutput mirrored =
-                        com.bloxbean.cardano.client.transaction.spec.TransactionOutput.builder()
-                                .address(datum.l2Address())
-                                .value(Value.fromCoin(lovelace))
-                                .build();
-                found = new EutxoDepositClaim(
-                        EutxoDepositClaim.ABI_VERSION,
-                        chainId,
-                        new EutxoOutpoint(transaction.getTxHash(), index),
-                        slot,
-                        blockHash,
-                        vaultAddress,
-                        vaultScriptHash,
-                        CborSerializationUtil.serialize(accepted.serialize()),
-                        datum.l2Address(),
-                        CborSerializationUtil.serialize(mirrored.serialize()),
-                        datum.depositNonce(),
-                        datum.stagingOutpoint(),
-                        datum.refundDeadline(),
-                        datum.depositorKeyHash(),
-                        datum.l2KeyBinding());
-            } catch (Exception failure) {
-                throw new IllegalArgumentException(
-                        "accepted bridge deposit cannot be canonically encoded", failure);
-            }
+            found = candidate;
         }
         return found;
     }
 
-    /** A single-claim settlement datum or the batched settle pipeline's marker (ADR-UTXO-009 A2). */
-    private static boolean isSettlementContinuation(byte[] datumCbor) {
+    /**
+     * The claim for one vault output, or null when it is not a creditable deposit: no inline datum, a datum other
+     * than an accepted-deposit datum (including the settlement outputs the withdrawal observers own), native
+     * assets, an amount outside the bound, another chain, an L2 key binding its depositor does not authorize, or
+     * any value that cannot be canonically encoded.
+     */
+    private EutxoDepositClaim creditableDeposit(
+            long slot,
+            byte[] blockHash,
+            TransactionBody transaction,
+            int index,
+            TransactionOutput output
+    ) {
         try {
-            EutxoSettlementDatum.decode(datumCbor);
-            return true;
-        } catch (IllegalArgumentException notSingleClaim) {
-            try {
-                EutxoBatchSettlementMarker.decode(datumCbor);
-                return true;
-            } catch (IllegalArgumentException notBatch) {
-                return false;
+            if (output.getInlineDatum() == null) {
+                return null;
             }
+            byte[] datumCbor = HexFormat.of().parseHex(output.getInlineDatum());
+            EutxoVaultDatum datum = EutxoVaultDatum.decode(datumCbor);
+            BigInteger lovelace = exactLovelace(output);
+            if (lovelace == null || lovelace.signum() <= 0 || lovelace.compareTo(maxLovelace) > 0
+                    || !chainId.equals(datum.chainId()) || !keyBindingAuthorized(datum)) {
+                return null;
+            }
+            com.bloxbean.cardano.client.transaction.spec.TransactionOutput accepted =
+                    com.bloxbean.cardano.client.transaction.spec.TransactionOutput.builder()
+                            .address(vaultAddress)
+                            .value(Value.fromCoin(lovelace))
+                            .inlineDatum(PlutusData.deserialize(datumCbor))
+                            .build();
+            com.bloxbean.cardano.client.transaction.spec.TransactionOutput mirrored =
+                    com.bloxbean.cardano.client.transaction.spec.TransactionOutput.builder()
+                            .address(datum.l2Address())
+                            .value(Value.fromCoin(lovelace))
+                            .build();
+            byte[] mirroredCbor = CborSerializationUtil.serialize(mirrored.serialize());
+            // The ledger re-reads the mirrored output and requires the same address back.
+            if (!datum.l2Address().equals(com.bloxbean.cardano.client.transaction.spec.TransactionOutput
+                    .deserialize(CborSerializationUtil.deserialize(mirroredCbor)).getAddress())) {
+                return null;
+            }
+            return new EutxoDepositClaim(
+                    EutxoDepositClaim.ABI_VERSION,
+                    chainId,
+                    new EutxoOutpoint(transaction.getTxHash(), index),
+                    slot,
+                    blockHash,
+                    vaultAddress,
+                    vaultScriptHash,
+                    CborSerializationUtil.serialize(accepted.serialize()),
+                    datum.l2Address(),
+                    mirroredCbor,
+                    datum.depositNonce(),
+                    datum.stagingOutpoint(),
+                    datum.refundDeadline(),
+                    datum.depositorKeyHash(),
+                    datum.l2KeyBinding());
+        } catch (Exception notCreditable) {
+            return null;
         }
     }
 
+    /**
+     * The ledger registers a deposit's L2 key only for a key-controlled L2 address whose payment credential is
+     * the depositor's key hash; a binding that fails that rule is not credited here either.
+     */
+    private static boolean keyBindingAuthorized(EutxoVaultDatum datum) {
+        if (!datum.l2KeyBinding().present()) {
+            return true;
+        }
+        Address address = new Address(datum.l2Address());
+        return AddressProvider.isPubKeyHashInPaymentPart(address)
+                && address.getPaymentCredentialHash()
+                .map(credential -> java.util.Arrays.equals(credential, datum.depositorKeyHash()))
+                .orElse(false);
+    }
+
+    /** The output's lovelace, or null when it also carries a native asset. */
     private static BigInteger exactLovelace(TransactionOutput output) {
         BigInteger lovelace = BigInteger.ZERO;
         if (output.getAmounts() == null) {
@@ -196,8 +210,7 @@ final class AcceptedVaultDepositObserver implements L1Observer {
             if (LOVELACE.equals(amount.getUnit())) {
                 lovelace = lovelace.add(quantity);
             } else if (quantity.signum() != 0) {
-                throw new IllegalArgumentException(
-                        "the initial EUTxO bridge accepts lovelace only");
+                return null; // the initial EUTxO bridge credits lovelace only
             }
         }
         return lovelace;

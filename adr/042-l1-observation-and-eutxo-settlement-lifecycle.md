@@ -3,6 +3,12 @@
 - **Status:** Accepted as the current lifecycle reference; reliability changes remain proposed in
   [ADR-041](041-trust-preserving-l1-observation-delivery-and-consensus-recovery.md)
 - **Date:** 2026-08-28
+- **Amended:** 2026-10-10. Observed L1 content is never a failure (§7, §9.3, §9.4, §11, §15). Anyone
+  can pay the public vault address with any value and datum, and an observer throw makes the host
+  retry that block forever, while an `apply` throw stalls every later proposal. Observers now skip
+  what is not this chain's deposit or settlement. The state machine treats a deposit it cannot
+  credit, and a confirmation it cannot authenticate, as a no-op. Only a confirmation that spent
+  tracked vault custody can halt the bridge.
 - **Owners:** Yano app-chain host and Yano X observer, EUTxO, settlement, and deployment modules
 - **Scope:** End-to-end Cardano L1 observation, app-chain consensus verification, EUTxO deposits,
   EUTxO withdrawals, L1 settlement confirmation, synchronization differences, and failure handling
@@ -322,7 +328,7 @@ may exist.
 
 | Condition | Current safe behavior | Operational consequence |
 |---|---|---|
-| Observer plugin throws on a block | Log bounded error metadata; follower checks still fail closed | Investigate plugin/config parity |
+| Observer plugin throws on a block | Log bounded error metadata; follower checks still fail closed; the host retries the block | Investigate plugin/config parity. Observers must not throw on L1 content, which anyone can author (amended 2026-10-10) |
 | Observation is not stability-deep | Do not include it | Wait for stable L1 progress |
 | Follower is behind | `AHEAD`; defer without voting | Quorum may proceed if enough other members verify |
 | Follower has contradictory recent evidence | `MISMATCH`; reject | Halt progress and investigate L1/config divergence |
@@ -420,8 +426,11 @@ The state transition:
 - records the deposit sequence and credited app height; and
 - records the accepted outpoint as live vault custody for later settlement verification.
 
-Reapplying the identical accepted outpoint and claim is a deterministic no-op. Attempting to bind
-the same outpoint to different data fails closed.
+Reapplying the identical accepted outpoint and claim is a deterministic no-op. An outpoint stays
+bound to its first deposit, so a different claim for it credits nothing. A deposit whose L2 key
+binding cannot be honoured is not credited. Such a binding targets another authorization profile,
+a script address, a different depositor, or a different active registration. None of these cases
+throws, because a throw while applying an observation stalls every later proposal.
 
 ```mermaid
 sequenceDiagram
@@ -448,17 +457,17 @@ sequenceDiagram
 |---|---|
 | ADA is sent directly to the vault without the accepted datum | No L2 credit; use the bridge acceptance flow |
 | Only the refundable staging UTxO exists | No L2 credit; user may later refund according to the staging contract |
-| Wrong vault/script, chain ID, datum, or key binding | Observation or state transition rejects |
-| Native assets are included | Initial lovelace-only observer rejects |
-| Amount is zero, negative, or above the configured limit | Observer rejects |
-| Two recognized deposit outputs appear in one acceptance transaction | Observer rejects the ambiguous transaction |
+| Wrong vault/script, chain ID, datum, or key binding | Observer skips the output, or the state transition credits nothing |
+| Native assets are included | Initial lovelace-only observer skips the output |
+| Amount is zero, negative, or above the configured limit | Observer skips the output |
+| Two recognized deposit outputs appear in one acceptance transaction | Observer credits neither output |
 | One validator has not reached the deposit slot | It returns `AHEAD`; four-of-five may still finalize |
 | Validators see a different recent L1 block hash or claim | `MISMATCH`; no honest contradictory voter signs |
 | Acceptance is on a rolled-back unstable fork | Pending observation is removed; no L2 credit |
 | L1 acceptance is stable but app consensus is stalled | ADA remains in the vault; L2 credit waits |
 | Generic observation expires or is lost before finality | Current gap: accepted ADA may remain without an L2 mirror |
 | The user makes another deposit | Only the new outpoint is observed; it does not replay the older deposit |
-| Same finalized observation is replayed | No-op if identical; conflicting rebind fails closed |
+| Same finalized observation is replayed | No-op if identical; a conflicting rebind credits nothing |
 | Deep rollback removes a finalized accepted output | Halt deposits, withdrawals, and settlement; reconcile explicitly |
 
 The state `L1 accepted but not L2 finalized` is economically important. It must be monitored and is
@@ -573,8 +582,12 @@ For each exact pending claim it then:
 - moves reserve accounting from pending to confirmed outflow; and
 - decrements the pending-withdrawal count.
 
-An unknown, mismatched, rebound, or custody-unproven confirmation halts the bridge rather than
-silently releasing reserve accounting.
+A custody-unproven confirmation changes nothing: anyone can fabricate one, so halting on it would
+give every L1 user a free bridge halt. Ignoring it releases no reserve accounting. A confirmation
+that did spend tracked custody but is unknown, mismatched, or rebound is a real alarm and halts the
+bridge rather than silently releasing reserve accounting. The single-claim profiles (v1, v2) track no
+vault custody, so their confirmations are never authenticated. Such a confirmation can confirm an
+exact pending claim, but any other confirmation is ignored.
 
 ```mermaid
 sequenceDiagram
@@ -627,9 +640,10 @@ status to become `CONFIRMED`.
 | Too few co-signers agree on committed state/body | L1 transaction is not authorized or submitted |
 | Effect fails or expires before L1 settlement | Latest batch cursor rewinds and claims re-batch |
 | L1 transaction is submitted but unstable | Claims stay pending until stable confirmation finalizes |
-| Fake marker pays the public vault address | Observer skips it or custody gate halts if it reaches state transition |
-| Confirmation does not spend tracked vault custody | Bridge halts with reserve unchanged |
-| Unknown or mismatched claim confirmation | Bridge halts |
+| Fake marker pays the public vault address | Observer skips it, or the custody gate ignores it if it reaches state transition |
+| Confirmation does not spend tracked vault custody | Ignored; reserve and bridge state unchanged |
+| Custody-proven unknown or mismatched claim confirmation | Bridge halts |
+| Single-claim (v1/v2) confirmation that does not exactly match a pending claim | Ignored |
 | Identical settled confirmation is replayed | Existing exact confirmation remains idempotent |
 | L1 settlement succeeds but confirmation delivery stalls | User has L1 payout; L2 may remain pending until safe replay/recovery |
 | Deep rollback removes a finalized settlement | Bridge halt and explicit reconciliation |
@@ -758,8 +772,9 @@ observation. ADR-041 owns the trust-preserving delivery and recovery design.
 3. Accepted L1 outpoint is the permanent exactly-once deposit key.
 4. Mirrored L2 value and reserve credit change atomically.
 5. Non-lovelace value cannot enter the initial settlement profile.
-6. Conflicting replay fails closed.
+6. Conflicting replay credits nothing.
 7. Operator-provided values can never create reserve credit.
+8. No deposit content observed on L1 makes an observer or the state transition throw.
 
 ### 15.3 Withdrawals
 
@@ -769,7 +784,9 @@ observation. ADR-041 owns the trust-preserving delivery and recovery design.
 4. L1 scripts enforce payouts, continuing custody, threshold authorization, and nullifiers.
 5. Confirmation must spend tracked live vault custody.
 6. Confirmation must exactly match a pending claim.
-7. Unknown or mismatched confirmation halts the bridge.
+7. A custody-proven unknown or mismatched confirmation halts the bridge. A confirmation without
+   proven custody halts nothing, and no confirmation content observed on L1 makes an observer or the
+   state transition throw.
 8. Reserve reconciliation and status transition are atomic.
 9. Effect retry never blindly creates an unrelated settlement body.
 

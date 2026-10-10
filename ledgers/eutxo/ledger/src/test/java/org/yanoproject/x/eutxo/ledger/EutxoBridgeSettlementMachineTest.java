@@ -612,7 +612,7 @@ class EutxoBridgeSettlementMachineTest {
     }
 
     @Test
-    void fabricatedConfirmationWithoutAVaultSpendHaltsTheBridge() throws Exception {
+    void fabricatedConfirmationWithoutAVaultSpendIsIgnored() throws Exception {
         EutxoStateMachine machine = v3Machine(2);
         MemoryAppState state = new MemoryAppState();
         long height = createWithdrawal(machine, state, 1, 5_000_000L, 0x48);
@@ -639,8 +639,9 @@ class EutxoBridgeSettlementMachineTest {
         apply(machine, block(height, observationMessage(0xB7, observation)),
                 state, new CapturingEmitter(height));
 
-        // Bridge halts; the claim stays PENDING; the reserve is untouched.
-        assertThat(state.get(EutxoStateKeys.bridgeHalt())).isPresent();
+        // Ignored: anyone can fabricate this, so it must not halt the bridge. The claim stays PENDING and the
+        // reserve is untouched.
+        assertThat(state.get(EutxoStateKeys.bridgeHalt())).isEmpty();
         EutxoWithdrawalRecord record = EutxoQueryCodec.decodeWithdrawalRecords(
                 machine.query(EutxoQueryCodec.WITHDRAWALS_PATH,
                         EutxoQueryCodec.lifecyclePageRequest(0, 10), state))

@@ -9,6 +9,7 @@ import com.bloxbean.cardano.yaci.core.model.TransactionBody;
 import com.bloxbean.cardano.yaci.core.model.TransactionOutput;
 import org.yanoproject.api.appchain.l1view.L1Observation;
 import org.yanoproject.x.eutxo.contracts.EutxoDepositClaim;
+import org.yanoproject.x.eutxo.contracts.EutxoL2KeyBinding;
 import org.yanoproject.x.eutxo.contracts.EutxoOutpoint;
 import org.yanoproject.x.eutxo.contracts.EutxoVaultDatum;
 import org.yanoproject.x.eutxo.contracts.EutxoBatchSettlementMarker;
@@ -24,7 +25,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class AcceptedVaultDepositObserverTest {
     private static final byte[] VAULT_HASH = fill(28, 7);
@@ -53,7 +53,7 @@ class AcceptedVaultDepositObserverTest {
     }
 
     @Test
-    void stagingOutputsAreIgnoredAndMultipleVaultOutputsFailClosed() {
+    void stagingOutputsAreIgnoredAndAmbiguousVaultOutputsCreditNothing() {
         AcceptedVaultDepositObserver observer = observer();
         EutxoVaultDatum datum = datum();
         assertThat(observer.observe(
@@ -61,14 +61,13 @@ class AcceptedVaultDepositObserverTest {
                 fill(32, 9),
                 block(List.of(output(OWNER, 50, datum.encode())))))
                 .isEmpty();
-        assertThatThrownBy(() -> observer.observe(
+        assertThat(observer.observe(
                 100,
                 fill(32, 9),
                 block(List.of(
                         output(VAULT_ADDRESS, 20, datum.encode()),
                         output(VAULT_ADDRESS, 30, datum.encode())))))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("only one");
+                .isEmpty();
     }
 
     @Test
@@ -143,7 +142,7 @@ class AcceptedVaultDepositObserverTest {
     }
 
     @Test
-    void settlementWithoutExactPayoutFailsClosedAndDepositObserverIgnoresIt() {
+    void settlementWithoutExactPayoutIsSkippedByBothObservers() {
         EutxoSettlementDatum settlement =
                 EutxoSettlementDatum.forAddress(
                 1,
@@ -161,10 +160,7 @@ class AcceptedVaultDepositObserverTest {
                 output(OWNER, 19, null),
                 output(VAULT_ADDRESS, 30, settlement.encode())));
 
-        assertThatThrownBy(() ->
-                withdrawalObserver.observe(101, fill(32, 8), mismatched))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("no exact payout");
+        assertThat(withdrawalObserver.observe(101, fill(32, 8), mismatched)).isEmpty();
         assertThat(observer().observe(101, fill(32, 8), mismatched)).isEmpty();
     }
 
@@ -177,10 +173,63 @@ class AcceptedVaultDepositObserverTest {
                 output(VAULT_ADDRESS, 20, marker.encode())));
 
         assertThat(observer().observe(102, fill(32, 9), settlement)).isEmpty();
-        assertThatThrownBy(() -> observer().observe(103, fill(32, 10), block(List.of(
-                output(VAULT_ADDRESS, 20, new byte[]{0x00})))))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("unsupported bridge datum");
+        assertThat(observer().observe(103, fill(32, 10), block(List.of(
+                output(VAULT_ADDRESS, 20, new byte[]{0x00}))))).isEmpty();
+    }
+
+    @Test
+    void anythingPaidToTheVaultThatIsNotThisChainsDepositOrSettlementIsSkippedWithoutHidingGenuineOnes() {
+        // Anyone can pay the public vault address with any value and datum. A throw on such an output made the
+        // host retry the block forever, stopping all L1 observation for the chain; each one must be skipped
+        // while genuine deposits and settlements in the same block are still observed.
+        EutxoVaultDatum otherChain = new EutxoVaultDatum(EutxoVaultDatum.ABI_VERSION, "another-chain", OWNER,
+                fill(32, 3), new EutxoOutpoint("44".repeat(32), 1), 1_000);
+        EutxoSettlementDatum foreignEpoch = EutxoSettlementDatum.forAddress(
+                1, "payments-eutxo", 4, "56".repeat(32), OWNER, BigInteger.valueOf(20));
+        EutxoSettlementDatum genuineSettlement = EutxoSettlementDatum.forAddress(
+                1, "payments-eutxo", 3, "55".repeat(32), OWNER, BigInteger.valueOf(20));
+        TransactionOutput withToken = TransactionOutput.builder()
+                .address(VAULT_ADDRESS)
+                .amounts(List.of(
+                        Amount.builder().unit("lovelace").quantity(BigInteger.valueOf(50)).build(),
+                        Amount.builder().unit("ab".repeat(28) + "01").quantity(BigInteger.ONE).build()))
+                .inlineDatum(HexFormat.of().formatHex(datum().encode()))
+                .build();
+        Block block = blockOf(List.of(
+                tx("a1", List.of(output(VAULT_ADDRESS, 50, null))),
+                tx("a2", List.of(output(VAULT_ADDRESS, 50, new byte[]{0x00}))),
+                tx("a3", List.of(withToken)),
+                tx("a4", List.of(output(VAULT_ADDRESS, 2_000_000, datum().encode()))),
+                tx("a5", List.of(output(VAULT_ADDRESS, 50, otherChain.encode()))),
+                tx("a6", List.of(output(OWNER, 20, null), output(VAULT_ADDRESS, 30, foreignEpoch.encode()))),
+                tx("a7", List.of(output(OWNER, 20, null), output(OWNER, 20, null),
+                        output(VAULT_ADDRESS, 30, genuineSettlement.encode()))),
+                tx("b1", List.of(output(VAULT_ADDRESS, 50, datum().encode()))),
+                tx("b2", List.of(output(OWNER, 20, null), output(VAULT_ADDRESS, 30, genuineSettlement.encode())))));
+        WithdrawalConfirmationObserver withdrawals =
+                new WithdrawalConfirmationObserver("bridge-withdrawals", Map.of(
+                        "chain-id", "payments-eutxo",
+                        "bridge-epoch", "3",
+                        "vault-address", VAULT_ADDRESS));
+
+        assertThat(observer().observe(104, fill(32, 11), block))
+                .singleElement()
+                .satisfies(observation -> assertThat(EutxoDepositClaim.decode(observation.claim())
+                        .acceptedOutpoint()).isEqualTo(new EutxoOutpoint("b1".repeat(32), 0)));
+        assertThat(withdrawals.observe(104, fill(32, 11), block))
+                .singleElement()
+                .satisfies(observation -> assertThat(EutxoWithdrawalConfirmation.decode(observation.claim())
+                        .settlementTransactionId()).isEqualTo("b2".repeat(32)));
+    }
+
+    @Test
+    void aKeyBindingTheDepositorDoesNotAuthorizeIsNotCredited() {
+        EutxoVaultDatum unauthorized = new EutxoVaultDatum(EutxoVaultDatum.ABI_VERSION, "payments-eutxo", OWNER,
+                fill(32, 3), new EutxoOutpoint("44".repeat(32), 1), 1_000, fill(28, 9),
+                new EutxoL2KeyBinding("zeroj-jubjub-dev-v1", 1, fill(32, 6)));
+
+        assertThat(observer().observe(105, fill(32, 12),
+                block(List.of(output(VAULT_ADDRESS, 50, unauthorized.encode()))))).isEmpty();
     }
 
     private static AcceptedVaultDepositObserver observer() {
@@ -221,6 +270,14 @@ class AcceptedVaultDepositObserverTest {
                         .outputs(outputs)
                         .build()))
                 .build();
+    }
+
+    private static TransactionBody tx(String hashByte, List<TransactionOutput> outputs) {
+        return TransactionBody.builder().txHash(hashByte.repeat(32)).outputs(outputs).build();
+    }
+
+    private static Block blockOf(List<TransactionBody> transactions) {
+        return Block.builder().transactionBodies(transactions).build();
     }
 
     private static byte[] fill(int size, int value) {

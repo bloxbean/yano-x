@@ -53,8 +53,15 @@ final class WithdrawalConfirmationObserver implements L1Observer {
         }
         List<L1Observation> observations = new ArrayList<>();
         for (TransactionBody transaction : block.getTransactionBodies()) {
-            EutxoWithdrawalConfirmation confirmation =
-                    confirmation(slot, blockHash, transaction);
+            EutxoWithdrawalConfirmation confirmation;
+            try {
+                confirmation = confirmation(slot, blockHash, transaction);
+            } catch (RuntimeException notASettlement) {
+                // Anyone can pay the public vault address with any datum. A transaction that is not a well-formed
+                // settlement cannot be a genuine vault spend, which the validator shapes, so it is skipped: a
+                // throw here makes the host retry the block forever, stopping all L1 observation for the chain.
+                continue;
+            }
             if (confirmation != null) {
                 observations.add(L1Observation.transaction(
                         observerId,
@@ -91,14 +98,13 @@ final class WithdrawalConfirmationObserver implements L1Observer {
             } catch (IllegalArgumentException notSettlement) {
                 continue;
             }
+            if (!chainId.equals(candidate.chainId())
+                    || bridgeEpoch != candidate.bridgeEpoch()) {
+                continue; // a marker for another chain or bridge epoch is not this chain's settlement
+            }
             if (settlement != null) {
                 throw new IllegalArgumentException(
                         "one transaction may confirm only one EUTxO withdrawal");
-            }
-            if (!chainId.equals(candidate.chainId())
-                    || bridgeEpoch != candidate.bridgeEpoch()) {
-                throw new IllegalArgumentException(
-                        "settlement marker targets another chain or bridge epoch");
             }
             settlement = candidate;
             continuingVaultIndex = index;
