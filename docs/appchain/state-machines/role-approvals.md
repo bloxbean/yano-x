@@ -133,8 +133,9 @@ export YANO_HOME="$PWD"
 role-approval-chain/scripts/start
 ```
 
-`doctor` reports `DOCTOR_WARNINGS`: `APPLICATION_BOOTSTRAPPED` stays pending
-until you create the records below.
+`doctor` reports `DOCTOR_WARNINGS`. `APPLICATION_BOOTSTRAPPED` stays `PENDING`
+even after the bootstrap below: `doctor` runs offline and never queries the
+chain, so the line is a reminder. Reading every record back is the check.
 
 ## Bootstrap organizations, actors and policies
 
@@ -208,8 +209,12 @@ jq '[.steps[] | {record, id, topic}]' bootstrap.json
 
 The expiry must be above the current height and at most
 `machines.composite.roles.maximum-mutation-lifetime-blocks` (1000 by default)
-beyond it. Organizations go to `actors.command.v1` before the actors that
-belong to them; policies go to `role-approvals.command.v1`.
+beyond it. One expiry covers every step, so leave room for all of them: a
+propose that arrives after it is ignored. Organizations go to
+`actors.command.v1` before the actors that belong to them; policies go to
+`role-approvals.command.v1`. If you created the project without
+`--http-port-base`, its members listen on 8080 and up: adjust `API0` and
+`API1`.
 
 **4. Submit each step.** A member's approval is the envelope it relays, so send
 the approve through a different member than the propose. With the generated
@@ -217,10 +222,16 @@ threshold of 2, one extra approval is enough:
 
 ```bash
 submit() { # <member API> <topic> <command hex>; waits until final
-  local id
+  local id attempt
   id=$(curl -sf -X POST "$1/messages" -H 'Content-Type: application/json' \
-    -d "$(jq -nc --arg t "$2" --arg b "$3" '{topic:$t, bodyHex:$b}')" | jq -r .messageId)
-  until curl -sf "$1/messages/$id" | jq -e .height >/dev/null; do sleep 1; done
+    -d "$(jq -nc --arg t "$2" --arg b "$3" '{topic:$t, bodyHex:$b}')" \
+    | jq -er .messageId) || { echo "submission refused by $1" >&2; return 1; }
+  for attempt in $(seq 1 120); do
+    curl -sf "$1/messages/$id" | jq -e .height >/dev/null && return 0
+    sleep 1
+  done
+  echo "message $id not final after 120 s" >&2
+  return 1
 }
 
 jq -c '.steps[]' bootstrap.json | while read -r step; do
@@ -232,9 +243,11 @@ jq -c '.steps[]' bootstrap.json | while read -r step; do
 done
 ```
 
-A final activate is not proof that the record exists: an activation below the
-threshold, or of a record whose organization is missing, changes nothing. Read
-each record back, from any member:
+A final activate is not proof that the record exists. An activate below the
+threshold does nothing, and a later one can still succeed. An activate that
+reaches the threshold but cannot apply, for example an actor whose organization
+is not active yet, marks that attempt failed for good; so does any approve or
+activate after the expiry. Read each record back, from any member:
 
 ```bash
 BUNDLE=http://127.0.0.1:7072/api/v1/plugins/org.yanoproject.x.role-workflow
@@ -247,8 +260,16 @@ done
 > **✓ You should see** five records with `"revision":1`; the organizations and
 > actors also show `"status":"ACTIVE"`.
 
-To add or change a record later, raise its `revision` in a copy of the plan
-that holds only that record, and run the same steps.
+If a record is missing after its activate, the attempt expired or failed and
+its mutation id is spent. Fix the cause, then run `role bootstrap` again with
+`--attempt 2` (then 3, and so on) and a fresh expiry, and resubmit only the
+steps whose records are missing.
+
+To change a record later, raise its `revision` in a copy of the plan that holds
+only that record, and run the same steps. For an actor, the new revision must
+keep every existing key with the same public key and `validFromHeight`; mark
+each kept key `proofOfPossession: OPTIONAL` and pass `--key-proof` only for the
+keys the revision adds, signed with `--actor-revision` set to the new revision.
 
 ## Sign and submit a decision
 
@@ -284,8 +305,8 @@ add `-H "X-API-Key: $API_KEY"` to every request. A generated project keeps its
 local key as `YANO_APPCHAIN_API_KEYS` in `secrets/node0.env`.
 
 `202` means queued, not approved. `submit` waits for finality; then read the
-proposal below. One reviewer from another organization satisfies this policy,
-so its status is `"APPROVED"`.
+proposal below. The `reviewers` clause needs one reviewer, counted once per
+organization, so `reviewer-a`'s approval makes the status `"APPROVED"`.
 
 ## Query and verify
 

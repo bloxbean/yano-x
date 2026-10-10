@@ -12,6 +12,7 @@ import org.yanoproject.x.roles.contracts.RecordStatus;
 import org.yanoproject.x.roles.contracts.RegistryMutationV1;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -37,7 +38,7 @@ class RoleBootstrapPlanTest {
         byte[] proposerSeed = seed(0x11);
         byte[] reviewerSeed = seed(0x22);
         Path plan = fill(project, proposerSeed, reviewerSeed);
-        String chainId = new ObjectMapper(new com.fasterxml.jackson.dataformat.yaml.YAMLFactory())
+        String chainId = new ObjectMapper(new YAMLFactory())
                 .readTree(plan.toFile()).path("chainId").asText();
         ActorKeyEpochV1 proposerKey = key("proposer-key-v1", proposerSeed);
         ActorKeyEpochV1 reviewerKey = key("reviewer-key-v1", reviewerSeed);
@@ -45,9 +46,10 @@ class RoleBootstrapPlanTest {
         ActorKeyProofV1 reviewerProof = ActorKeyProofV1.sign(chainId, "reviewer-a", 1, reviewerKey, reviewerSeed);
 
         JsonNode result = run(0, "--plan", plan.toString(), "--expiry-height", "500",
-                "--key-proof", write("proposer.hex", proposerProof), "--key-proof", write("reviewer.hex", reviewerProof));
+                "--key-proof", write("proposer.hex", proposerProof),
+                "--key-proof", write("reviewer.hex", reviewerProof));
 
-        assertThat(result.path("threshold").asInt()).isEqualTo(2);
+        assertThat(result.path("planThreshold").asInt()).isEqualTo(2);
         List<String> order = new ArrayList<>();
         result.path("steps").forEach(step -> order.add(step.path("record").asText() + ":" + step.path("id").asText()));
         assertThat(order).containsExactly("organization:organization-a", "organization:organization-b",
@@ -79,7 +81,7 @@ class RoleBootstrapPlanTest {
                 .contains("no --key-proof for actor proposer-a key proposer-key-v1")
                 .contains("./yano.sh appchain role key-proof --chain");
 
-        // A proof signed by another seed for the same public key does not verify.
+        // A proof whose signature bytes were altered does not verify.
         ActorKeyProofV1 honest = ActorKeyProofV1.sign("x", "proposer-a", 1, key("proposer-key-v1", seed(0x11)),
                 seed(0x11));
         byte[] encoded = honest.encode();
@@ -91,13 +93,129 @@ class RoleBootstrapPlanTest {
     }
 
     @Test
-    void mutationIdsStayWithinTheIdentifierGrammar() {
-        assertThat(RoleBootstrapPlan.mutationId("organization", "organization-a", 1))
+    void mutationIdsStayWithinTheIdentifierGrammarAndNeverCollide() {
+        assertThat(RoleBootstrapPlan.mutationId("organization", "organization-a", 1, 1))
                 .isEqualTo("bootstrap-organization-organization-a-r1");
-        String longId = "a" + "b".repeat(62);
-        assertThat(RoleBootstrapPlan.mutationId("organization", longId, 12))
-                .matches("[a-z][a-z0-9-]{0,62}")
-                .isNotEqualTo(RoleBootstrapPlan.mutationId("organization", longId.substring(1) + "c", 12));
+        assertThat(RoleBootstrapPlan.mutationId("organization", "organization-a", 1, 2))
+                .isEqualTo("bootstrap-organization-organization-a-r1-a2");
+        String longId = "a" + "b".repeat(61);
+        String hashed = RoleBootstrapPlan.mutationId("organization", longId, 1, 1);
+        assertThat(hashed).matches("[a-z][a-z0-9-]{0,62}").startsWith("bootstrap-hashed-organization-");
+        // A readable id equal to the hashed id's digest cannot produce the same mutation id.
+        String digest = hashed.substring("bootstrap-hashed-organization-".length());
+        assertThat(RoleBootstrapPlan.mutationId("organization", digest, 1, 1)).isNotEqualTo(hashed);
+        assertThat(RoleBootstrapPlan.mutationId("organization", longId, Long.MAX_VALUE, 999))
+                .matches("[a-z][a-z0-9-]{0,62}");
+    }
+
+    @Test
+    void parsesThePlanStrictly() throws Exception {
+        Path project = initializeRoleApproval();
+        byte[] proposerSeed = seed(0x11);
+        byte[] reviewerSeed = seed(0x22);
+        Path plan = fill(project, proposerSeed, reviewerSeed);
+        String chainId = new ObjectMapper(new YAMLFactory()).readTree(plan.toFile()).path("chainId").asText();
+        String[] proofs = {"--key-proof", write("p.hex", ActorKeyProofV1.sign(chainId, "proposer-a", 1,
+                key("proposer-key-v1", proposerSeed), proposerSeed)), "--key-proof", write("r.hex",
+                ActorKeyProofV1.sign(chainId, "reviewer-a", 1, key("reviewer-key-v1", reviewerSeed), reviewerSeed))};
+        String text = Files.readString(plan);
+
+        // A scalar where a list belongs would otherwise drop the proposer restriction.
+        assertThat(error(edited(text, "proposerRoles: [proposer]", "proposerRoles: proposer"), proofs))
+                .contains("policies[application-approval].proposerRoles must be a list");
+        assertThat(error(edited(text, "minimumCount: 1", "minimumCount: 1.9"), proofs))
+                .contains("minimumCount must be an integer from 1");
+        assertThat(error(edited(text, "minimumCount: 1", "minimumCount: 4294967297"), proofs))
+                .contains("minimumCount must be an integer from 1 to 2147483647");
+        assertThat(error(edited(text, "distinctBy: ORGANIZATION", "distinctBy: organisation"), proofs))
+                .contains("distinctBy must be one of");
+        assertThat(error(edited(text, "organizationId: organization-b", "organizationId: Organization-B"), proofs))
+                .contains("organizations[Organization-B] is refused by the role-workflow contracts (INVALID_PAYLOAD)");
+    }
+
+    @Test
+    void attachesProofsOnlyForTheKeysARevisionAdds() throws Exception {
+        Path project = initializeRoleApproval();
+        byte[] proposerSeed = seed(0x11);
+        byte[] reviewerSeed = seed(0x22);
+        Path plan = fill(project, proposerSeed, reviewerSeed);
+        String chainId = new ObjectMapper(new YAMLFactory()).readTree(plan.toFile()).path("chainId").asText();
+        String reviewerProof = write("r1.hex", ActorKeyProofV1.sign(chainId, "reviewer-a", 1,
+                key("reviewer-key-v1", reviewerSeed), reviewerSeed));
+        String text = Files.readString(plan);
+
+        // Revision 1: every key is new, so OPTIONAL is refused.
+        String optional = edited(text, "        proofOfPossession: REQUIRED\n",
+                "        proofOfPossession: OPTIONAL\n");
+        assertThat(error(optional, "--key-proof", reviewerProof)).contains("every key of a revision-1 actor is new");
+
+        // Revision 2 keeps proposer-key-v1 (OPTIONAL) and adds proposer-key-v2, which alone carries a proof.
+        byte[] newSeed = seed(0x33);
+        String update = text.substring(0, text.indexOf("  - actorId: reviewer-a"))
+                .replace("    revision: 1\n    roles: [proposer]", "    revision: 2\n    roles: [proposer]")
+                .replace("        proofOfPossession: REQUIRED\n", "        proofOfPossession: OPTIONAL\n"
+                        + "      - keyId: proposer-key-v2\n        publicKey: " + publicKey(newSeed)
+                        + "\n        validFromHeight: 1\n        validUntilHeight: 0\n"
+                        + "        proofOfPossession: REQUIRED\n")
+                + text.substring(text.indexOf("policies:"));
+        String added = write("p2.hex", ActorKeyProofV1.sign(chainId, "proposer-a", 2, key("proposer-key-v2", newSeed),
+                newSeed));
+        Path updated = temporary.resolve("update.yaml");
+        Files.writeString(updated, update.replaceAll("(?s)organizations:.*?actors:", "organizations: []\nactors:"));
+        JsonNode result = run(0, "--plan", updated.toString(), "--expiry-height", "500", "--key-proof", added);
+        assertThat(result.path("steps").get(0).path("keyProofs").toString()).isEqualTo("[\"proposer-key-v2\"]");
+
+        // A proof for the kept key is refused: the registry wants proofs only for added keys.
+        String kept = write("p1.hex", ActorKeyProofV1.sign(chainId, "proposer-a", 2, key("proposer-key-v1",
+                proposerSeed), proposerSeed));
+        assertThat(run(64, "--plan", updated.toString(), "--expiry-height", "500", "--key-proof", added,
+                "--key-proof", kept).path("error").asText()).contains("must not have a --key-proof");
+    }
+
+    @Test
+    void refusesDuplicateRecordsAndUnusedOrOversizedProofs() throws Exception {
+        Path project = initializeRoleApproval();
+        byte[] proposerSeed = seed(0x11);
+        byte[] reviewerSeed = seed(0x22);
+        Path plan = fill(project, proposerSeed, reviewerSeed);
+        String chainId = new ObjectMapper(new YAMLFactory()).readTree(plan.toFile()).path("chainId").asText();
+        String[] proofs = {"--key-proof", write("p.hex", ActorKeyProofV1.sign(chainId, "proposer-a", 1,
+                key("proposer-key-v1", proposerSeed), proposerSeed)), "--key-proof", write("r.hex",
+                ActorKeyProofV1.sign(chainId, "reviewer-a", 1, key("reviewer-key-v1", reviewerSeed), reviewerSeed))};
+        String text = Files.readString(plan);
+
+        String duplicate = text.replace("    metadataCommitment: \"\"\n  - organizationId: organization-b",
+                "    metadataCommitment: \"\"\n  - organizationId: organization-a\n    revision: 1\n"
+                        + "    status: SUSPENDED\n    metadataCommitment: \"\"\n  - organizationId: organization-b");
+        assertThat(error(duplicate, proofs)).contains("lists organization organization-a revision 1 more than once");
+
+        String stray = write("stray.hex", ActorKeyProofV1.sign("another-chain", "proposer-a", 1,
+                key("proposer-key-v1", proposerSeed), proposerSeed));
+        String[] withStray = java.util.Arrays.copyOf(proofs, proofs.length + 2);
+        withStray[proofs.length] = "--key-proof";
+        withStray[proofs.length + 1] = stray;
+        assertThat(error(text, withStray)).contains("matches no key in the plan");
+
+        Path oversized = temporary.resolve("oversized.hex");
+        Files.writeString(oversized, "0".repeat(20_000));
+        assertThat(error(text, "--key-proof", oversized.toString())).contains("is larger than 16384 bytes");
+    }
+
+    private String error(String plan, String... options) throws Exception {
+        Path file = temporary.resolve("edited-" + System.nanoTime() + ".yaml");
+        Files.writeString(file, plan);
+        String[] args = new String[options.length + 4];
+        args[0] = "--plan";
+        args[1] = file.toString();
+        args[2] = "--expiry-height";
+        args[3] = "500";
+        System.arraycopy(options, 0, args, 4, options.length);
+        return run(64, args).path("error").asText();
+    }
+
+    private static String edited(String text, String from, String to) {
+        assertThat(text).contains(from);
+        return text.replace(from, to);
     }
 
     private static void expect(JsonNode step, String topic, String mutationId, byte[] mutation) {

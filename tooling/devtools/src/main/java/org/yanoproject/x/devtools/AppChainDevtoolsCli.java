@@ -131,9 +131,10 @@ public final class AppChainDevtoolsCli {
                 return EXIT_USAGE;
             }
         }
-        if (roleCommand(args) && roleArguments(args).length > 0 && "bootstrap".equals(roleArguments(args)[0])) {
-            String[] options = java.util.Arrays.copyOfRange(roleArguments(args), 1, roleArguments(args).length);
-            if (options.length == 1 && java.util.Set.of("help", "--help", "-h").contains(options[0])) {
+        String[] role = roleCommand(args) ? roleArguments(args) : new String[0];
+        if (role.length > 0 && "bootstrap".equals(role[0])) {
+            String[] options = java.util.Arrays.copyOfRange(role, 1, role.length);
+            if (java.util.Arrays.stream(options).anyMatch(option -> option.equals("--help") || option.equals("-h"))) {
                 out.println(RoleBootstrapPlan.USAGE);
                 out.flush();
                 return EXIT_OK;
@@ -143,7 +144,10 @@ public final class AppChainDevtoolsCli {
                 out.flush();
                 return EXIT_OK;
             } catch (IOException | RuntimeException failure) {
-                err.println("Invalid role bootstrap command: " + failure.getMessage());
+                // Parser messages can quote the input file, so show only a bounded first line.
+                err.println("Invalid role bootstrap command: " + safeArgument(bounded(firstLine(
+                        failure instanceof java.nio.file.NoSuchFileException
+                                ? "file not found: " + failure.getMessage() : failure.getMessage()))));
                 err.println(RoleBootstrapPlan.USAGE);
                 err.flush();
                 return EXIT_USAGE;
