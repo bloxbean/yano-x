@@ -54,7 +54,9 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.TreeMap;
 
 /** Optional genesis-funded Cardano-shaped EUTxO app-chain state machine. */
 public final class EutxoStateMachine implements AppStateMachine {
@@ -218,12 +220,17 @@ public final class EutxoStateMachine implements AppStateMachine {
                 ordinal++;
                 continue;
             }
+            // Observed L1 content is never an apply failure: a throw stalls the chain for good, because every
+            // proposal must carry the same pending observation. Content that cannot be credited or authenticated
+            // is a deterministic no-op instead.
             if (bridge.enabled() && bridge.topic().equals(message.getTopic())) {
-                importDeposit(acceptedDeposit(context.l1ObservationAt(originalMessageIndex)
-                                .orElseThrow(() -> new IllegalArgumentException(
-                                        "accepted bridge observation is missing from execution context"))
-                                .observation()),
-                        block.height(), writer);
+                EutxoDepositClaim claim = creditableDeposit(context.l1ObservationAt(originalMessageIndex)
+                        .orElseThrow(() -> new IllegalArgumentException(
+                                "accepted bridge observation is missing from execution context"))
+                        .observation());
+                if (claim != null) {
+                    importDeposit(claim, block.height(), writer);
+                }
                 ordinal++;
                 continue;
             }
@@ -232,24 +239,39 @@ public final class EutxoStateMachine implements AppStateMachine {
                 if (settlementProfile()) {
                     // v3 (A2 batch) settlement: one observation confirms the
                     // whole batch; clear each positional claim in order.
-                    EutxoBatchWithdrawalConfirmation batch =
-                            batchWithdrawalConfirmation(context.l1ObservationAt(originalMessageIndex)
-                                    .orElseThrow(() -> new IllegalArgumentException(
-                                            "accepted withdrawal observation is missing from execution context"))
-                                    .observation());
-                    if (applyVaultCustody(batch, writer)) {
+                    L1Observation observation = context.l1ObservationAt(originalMessageIndex)
+                            .orElseThrow(() -> new IllegalArgumentException(
+                                    "accepted withdrawal observation is missing from execution context"))
+                            .observation();
+                    EutxoBatchWithdrawalConfirmation batch;
+                    try {
+                        batch = batchWithdrawalConfirmation(observation);
+                    } catch (IllegalArgumentException notThisBridge) {
+                        batch = null;
+                    }
+                    // Spending tracked vault custody authenticates the batch; only then may a mismatch halt.
+                    if (batch != null && applyVaultCustody(batch, writer)) {
                         for (EutxoWithdrawalConfirmation confirmation :
                                 batch.confirmations()) {
-                            confirmWithdrawal(confirmation, block.height(), writer);
+                            confirmWithdrawal(confirmation, block.height(), writer, true);
                         }
                     }
                 } else {
-                    confirmWithdrawal(
-                            withdrawalConfirmation(context.l1ObservationAt(originalMessageIndex)
-                                    .orElseThrow(() -> new IllegalArgumentException(
-                                            "accepted withdrawal observation is missing from execution context"))
-                                    .observation()),
-                            block.height(), writer);
+                    L1Observation observation = context.l1ObservationAt(originalMessageIndex)
+                            .orElseThrow(() -> new IllegalArgumentException(
+                                    "accepted withdrawal observation is missing from execution context"))
+                            .observation();
+                    EutxoWithdrawalConfirmation confirmation;
+                    try {
+                        confirmation = withdrawalConfirmation(observation);
+                    } catch (IllegalArgumentException notThisBridge) {
+                        confirmation = null;
+                    }
+                    // A single-claim confirmation proves no vault spend, so anyone can fabricate one: it may
+                    // confirm an exact pending claim, but a mismatch is ignored rather than halting the bridge.
+                    if (confirmation != null) {
+                        confirmWithdrawal(confirmation, block.height(), writer, false);
+                    }
                 }
                 ordinal++;
                 continue;
@@ -275,6 +297,13 @@ public final class EutxoStateMachine implements AppStateMachine {
                     result = UtxoTransitionEngine.TransitionResult.reject(
                             result.transactionId(), failure.code(), failure.getMessage());
                 }
+            }
+            // putRecord throws past the address bound, and an apply throw stalls the chain, because the proposer
+            // retries the same pool messages; a transaction that would overfill an address is rejected instead.
+            if (result.accepted() && exceedsAddressBound(result, withdrawalPlan, writer)) {
+                withdrawalPlan = WithdrawalPlan.empty();
+                result = UtxoTransitionEngine.TransitionResult.reject(result.transactionId(),
+                        "EUTXO_ADDRESS_BOUND", "an output address would exceed the profile's UTxO bound");
             }
             List<EutxoRecord> resolvedInputs = result.accepted()
                     ? result.resolvedInputs() : List.of();
@@ -1013,6 +1042,15 @@ public final class EutxoStateMachine implements AppStateMachine {
         return claim;
     }
 
+    /** The deposit an observation claims, or null when it is not a deposit this bridge can credit. */
+    private EutxoDepositClaim creditableDeposit(L1Observation observation) {
+        try {
+            return acceptedDeposit(observation);
+        } catch (IllegalArgumentException notCreditable) {
+            return null;
+        }
+    }
+
     private void importDeposit(
             EutxoDepositClaim claim,
             long creditedHeight,
@@ -1028,11 +1066,7 @@ public final class EutxoStateMachine implements AppStateMachine {
                 .map(EutxoDepositRecord::decode)
                 .orElse(null);
         if (existing != null) {
-            if (!existing.claim().equals(claim)
-                    || !existing.mirroredOutpoint().equals(expected.mirroredOutpoint())) {
-                throw new IllegalStateException(
-                        "accepted L1 outpoint is bound to a different bridge deposit");
-            }
+            // Already credited; an outpoint is bound to its first deposit, so a different claim credits nothing.
             return;
         }
         EutxoRecord mirrored = new EutxoRecord(
@@ -1041,15 +1075,24 @@ public final class EutxoStateMachine implements AppStateMachine {
                 claim.mirroredOutputCbor(),
                 EutxoRecord.Origin.L1_DEPOSIT);
         if (writer.get(EutxoStateKeys.utxo(mirrored.outpoint())).isPresent()) {
-            throw new IllegalStateException("derived bridge outpoint already exists");
+            return; // the derived outpoint is taken; crediting it again would overwrite an output
+        }
+        if (addressRecords(writer, mirrored.address()).size() >= profile.maxAddressUtxos()) {
+            return; // the L2 address is full, and putRecord would throw past the bound; credit nothing
         }
         BigInteger lovelace = mirroredLovelace(claim);
+        L2KeyWrite keyWrite = l2KeyRegistration(claim, writer);
+        if (keyWrite.refused()) {
+            return; // the deposit's L2 key binding cannot be honoured; credit nothing
+        }
         byte[] reserveKey = EutxoStateKeys.reserve(EutxoReserve.LOVELACE);
         EutxoReserve reserve = writer.get(reserveKey)
                 .map(EutxoReserve::decode)
                 .orElseGet(() -> EutxoReserve.empty(EutxoReserve.LOVELACE))
                 .credit(lovelace);
-        importL2KeyBinding(claim, writer);
+        if (keyWrite.key() != null) {
+            writer.put(keyWrite.key(), keyWrite.value());
+        }
         putRecord(writer, mirrored);
         writer.put(depositKey, expected.encode());
         long depositSequence = Math.addExact(
@@ -1068,37 +1111,41 @@ public final class EutxoStateMachine implements AppStateMachine {
         }
     }
 
-    private void importL2KeyBinding(
+    /** The L2 key write a deposit's binding needs: none, one registration, or a refusal of the deposit. */
+    private record L2KeyWrite(boolean refused, byte[] key, byte[] value) {
+        static final L2KeyWrite NONE = new L2KeyWrite(false, null, null);
+        static final L2KeyWrite REFUSED = new L2KeyWrite(true, null, null);
+    }
+
+    /**
+     * Checks a deposit's L2 key binding without writing. The binding comes from L1, so one that the selected
+     * profile, the address or an existing registration rules out refuses the deposit; it never throws.
+     */
+    private L2KeyWrite l2KeyRegistration(
             EutxoDepositClaim claim,
-            AppStateWriter writer
+            AppStateReader state
     ) {
         if (!claim.l2KeyBinding().present()) {
-            return;
+            return L2KeyWrite.NONE;
         }
         if (validityEngine == null
                 || !validityEngine.authorizationProfile().equals(
                 claim.l2KeyBinding().authorizationProfile())) {
-            throw new IllegalStateException(
-                    "deposit L2 key binding differs from the selected authorization profile");
+            return L2KeyWrite.REFUSED;
         }
         Address address;
         try {
             address = new Address(claim.l2Address());
         } catch (RuntimeException failure) {
-            throw new IllegalStateException(
-                    "deposit L2 key binding has an invalid address", failure);
+            return L2KeyWrite.REFUSED;
         }
         if (!AddressProvider.isPubKeyHashInPaymentPart(address)) {
-            throw new IllegalStateException(
-                    "deposit L2 key binding requires a key-controlled address");
+            return L2KeyWrite.REFUSED;
         }
-        byte[] paymentCredential = address.getPaymentCredentialHash()
-                .orElseThrow(() -> new IllegalStateException(
-                        "deposit L2 key binding has no payment credential"));
-        if (!java.util.Arrays.equals(
-                paymentCredential, claim.depositorKeyHash())) {
-            throw new IllegalStateException(
-                    "deposit L2 key binding is not authorized by its depositor");
+        byte[] paymentCredential = address.getPaymentCredentialHash().orElse(null);
+        if (paymentCredential == null
+                || !java.util.Arrays.equals(paymentCredential, claim.depositorKeyHash())) {
+            return L2KeyWrite.REFUSED;
         }
         String credential = HexFormat.of().formatHex(paymentCredential);
         EutxoL2KeyRegistration registration =
@@ -1109,15 +1156,13 @@ public final class EutxoStateMachine implements AppStateMachine {
                         claim.l2KeyBinding().publicKey(),
                         EutxoL2KeyRegistration.Status.ACTIVE);
         byte[] key = EutxoStateKeys.l2Key(credential);
-        EutxoL2KeyRegistration existing = writer.get(key)
+        EutxoL2KeyRegistration existing = state.get(key)
                 .map(EutxoL2KeyRegistration::decode)
                 .orElse(null);
         if (existing == null) {
-            writer.put(key, registration.encode());
-        } else if (!existing.equals(registration)) {
-            throw new IllegalStateException(
-                    "deposit conflicts with the active L2 key registration");
+            return new L2KeyWrite(false, key, registration.encode());
         }
+        return existing.equals(registration) ? L2KeyWrite.NONE : L2KeyWrite.REFUSED;
     }
 
     private static BigInteger mirroredLovelace(EutxoDepositClaim claim) {
@@ -1183,8 +1228,7 @@ public final class EutxoStateMachine implements AppStateMachine {
      * output, but only a genuine Settle/Exit spend consumes vault custody —
      * which only the on-chain validator authorizes. On success the custody
      * set rotates: matched outpoints leave, the continuing output enters.
-     * Returns false (and halts the bridge) when no tracked outpoint was
-     * spent.
+     * Returns false, changing nothing, when no tracked outpoint was spent.
      */
     private boolean applyVaultCustody(
             EutxoBatchWithdrawalConfirmation confirmation,
@@ -1202,7 +1246,8 @@ public final class EutxoStateMachine implements AppStateMachine {
             }
         }
         if (!spendsVault) {
-            haltBridge(writer, "WITHDRAWAL_CONFIRMATION_UNPROVEN");
+            // Not a vault spend, so not a settlement: anyone can fabricate this marker. Ignoring it changes no
+            // reserve accounting; halting would hand every L1 user a free bridge halt.
             return false;
         }
         writer.put(EutxoStateKeys.bridgeVaultOutpoint(
@@ -1245,17 +1290,23 @@ public final class EutxoStateMachine implements AppStateMachine {
         return confirmation;
     }
 
+    /**
+     * Confirms an exact pending claim. {@code authenticated} means the confirming transaction spent tracked vault
+     * custody, so a disagreement with L2 is a real alarm and halts the bridge; an unauthenticated confirmation
+     * that does not match a pending claim exactly is ignored, because anyone can fabricate one.
+     */
     private void confirmWithdrawal(
             EutxoWithdrawalConfirmation confirmation,
             long height,
-            AppStateWriter writer
+            AppStateWriter writer,
+            boolean authenticated
     ) {
         byte[] key = EutxoStateKeys.withdrawal(confirmation.claimId());
         EutxoWithdrawalRecord record = writer.get(key)
                 .map(EutxoWithdrawalRecord::decode)
                 .orElse(null);
         if (record == null) {
-            haltBridge(writer, "UNKNOWN_WITHDRAWAL_CONFIRMATION");
+            if (authenticated) haltBridge(writer, "UNKNOWN_WITHDRAWAL_CONFIRMATION");
             return;
         }
         EutxoWithdrawalClaim claim = record.claim();
@@ -1264,7 +1315,7 @@ public final class EutxoStateMachine implements AppStateMachine {
                 confirmation.destinationAddress())
                 || !claim.lovelace().equals(confirmation.lovelace())
                 || claim.bridgeEpoch() != confirmation.bridgeEpoch()) {
-            haltBridge(writer, "WITHDRAWAL_CONFIRMATION_MISMATCH");
+            if (authenticated) haltBridge(writer, "WITHDRAWAL_CONFIRMATION_MISMATCH");
             return;
         }
         EutxoWithdrawalRecord confirmed;
@@ -1275,7 +1326,7 @@ public final class EutxoStateMachine implements AppStateMachine {
                     confirmation.l1BlockHash(),
                     height);
         } catch (IllegalStateException mismatch) {
-            haltBridge(writer, "WITHDRAWAL_CONFIRMATION_REBIND");
+            if (authenticated) haltBridge(writer, "WITHDRAWAL_CONFIRMATION_REBIND");
             return;
         }
         if (confirmed == record) {
@@ -1565,6 +1616,29 @@ public final class EutxoStateMachine implements AppStateMachine {
             throw new IllegalArgumentException("committed counter cannot be negative");
         }
         return value;
+    }
+
+    /** Whether applying this transaction would leave any address with more UTxOs than the profile allows. */
+    private boolean exceedsAddressBound(
+            UtxoTransitionEngine.TransitionResult result,
+            WithdrawalPlan withdrawalPlan,
+            AppStateReader state
+    ) {
+        Map<String, Integer> added = new TreeMap<>();
+        for (EutxoRecord record : result.created()) {
+            if (!withdrawalPlan.outpoints().contains(record.outpoint())) {
+                added.merge(record.address(), 1, Integer::sum);
+            }
+        }
+        for (Map.Entry<String, Integer> entry : added.entrySet()) {
+            List<EutxoRecord> existing = addressRecords(state, entry.getKey());
+            long remaining = existing.stream().filter(record -> !result.consumed().contains(record.outpoint()))
+                    .count();
+            if (remaining + entry.getValue() > profile.maxAddressUtxos()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void putRecord(AppStateWriter writer, EutxoRecord record) {

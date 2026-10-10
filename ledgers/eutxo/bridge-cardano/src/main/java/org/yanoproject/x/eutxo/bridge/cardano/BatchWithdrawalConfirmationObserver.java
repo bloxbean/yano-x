@@ -112,8 +112,11 @@ final class BatchWithdrawalConfirmationObserver implements L1Observer {
             }
             EutxoBatchSettlementMarker candidate;
             try {
-                candidate = EutxoBatchSettlementMarker.decode(
-                        HexUtil.decodeHexString(output.getInlineDatum()));
+                byte[] datumCbor = HexUtil.decodeHexString(output.getInlineDatum());
+                if (!BridgeDatumPreflight.bounded(datumCbor)) {
+                    continue;
+                }
+                candidate = EutxoBatchSettlementMarker.decode(datumCbor);
             } catch (RuntimeException notBatchMarker) {
                 continue;
             }

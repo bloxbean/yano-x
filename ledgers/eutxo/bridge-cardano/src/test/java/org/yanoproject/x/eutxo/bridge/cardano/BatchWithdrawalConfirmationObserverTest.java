@@ -112,6 +112,28 @@ class BatchWithdrawalConfirmationObserverTest {
     }
 
     @Test
+    void aDeeplyNestedDatumAtTheVaultIsSkippedWithoutHidingAGenuineSettlement() {
+        // 16 KB of one-element arrays overflows the recursive Plutus data decoder; a StackOverflowError would
+        // escape the observer's exception handling and stop L1 observation for the chain.
+        byte[] deep = new byte[16_384];
+        java.util.Arrays.fill(deep, 0, deep.length - 1, (byte) 0x81);
+        deep[deep.length - 1] = (byte) 0x80;
+        TransactionBody crafted = TransactionBody.builder()
+                .txHash("23".repeat(32))
+                .outputs(List.of(output(VAULT, 2_000_000L, deep)))
+                .build();
+        EutxoBatchSettlementMarker marker = new EutxoBatchSettlementMarker(1, CLAIM_IDS.subList(0, 1));
+        Block genuine = block(List.of(
+                output(EutxoTestWallet.fromSeed(fill(32, 0x80)).address(), 8_000_000L, null),
+                output(VAULT, 18_000_000L, marker.encode())));
+        Block both = Block.builder()
+                .transactionBodies(List.of(crafted, genuine.getTransactionBodies().getFirst()))
+                .build();
+
+        assertThat(observer().observe(1_000L, fill(32, 9), both)).singleElement();
+    }
+
+    @Test
     void aCraftedMarkerCannotSuppressAGenuineSettlementInTheSameBlock() {
         // Transaction 1: attacker's garbage marker (lone vault output).
         EutxoBatchSettlementMarker garbage =

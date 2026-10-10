@@ -612,7 +612,7 @@ class EutxoBridgeSettlementMachineTest {
     }
 
     @Test
-    void fabricatedConfirmationWithoutAVaultSpendHaltsTheBridge() throws Exception {
+    void fabricatedConfirmationWithoutAVaultSpendIsIgnored() throws Exception {
         EutxoStateMachine machine = v3Machine(2);
         MemoryAppState state = new MemoryAppState();
         long height = createWithdrawal(machine, state, 1, 5_000_000L, 0x48);
@@ -639,8 +639,9 @@ class EutxoBridgeSettlementMachineTest {
         apply(machine, block(height, observationMessage(0xB7, observation)),
                 state, new CapturingEmitter(height));
 
-        // Bridge halts; the claim stays PENDING; the reserve is untouched.
-        assertThat(state.get(EutxoStateKeys.bridgeHalt())).isPresent();
+        // Ignored: anyone can fabricate this, so it must not halt the bridge. The claim stays PENDING and the
+        // reserve is untouched.
+        assertThat(state.get(EutxoStateKeys.bridgeHalt())).isEmpty();
         EutxoWithdrawalRecord record = EutxoQueryCodec.decodeWithdrawalRecords(
                 machine.query(EutxoQueryCodec.WITHDRAWALS_PATH,
                         EutxoQueryCodec.lifecyclePageRequest(0, 10), state))
@@ -649,6 +650,31 @@ class EutxoBridgeSettlementMachineTest {
         assertThat(EutxoReserve.decode(state.get(
                         EutxoStateKeys.reserve(EutxoReserve.LOVELACE)).orElseThrow())
                 .pendingWithdrawals()).isEqualTo(claim.totalLovelace());
+    }
+
+    @Test
+    void custodyProvenConfirmationForAnUnknownClaimStillHaltsTheBridge() throws Exception {
+        EutxoStateMachine machine = v3Machine(2);
+        MemoryAppState state = new MemoryAppState();
+        long height = createWithdrawal(machine, state, 1, 5_000_000L, 0x40);
+        // Spends the tracked vault outpoint, so it is a genuine vault spend that L2 does not recognize.
+        EutxoBatchWithdrawalConfirmation unknown =
+                new EutxoBatchWithdrawalConfirmation(
+                        1, "eutxo-test", 7, "8a".repeat(32),
+                        List.of(new EutxoOutpoint("40" + "22".repeat(31), 1)),
+                        new EutxoOutpoint("8a".repeat(32), 1),
+                        BigInteger.valueOf(1_000_000L), 255, fill(32, 8),
+                        List.of(new EutxoBatchWithdrawalConfirmation.Entry(
+                                "ab".repeat(32), 0, "addr_test1vunknown", BigInteger.valueOf(1_000_000L))));
+        L1Observation observation = L1Observation.transaction(
+                "bridge-withdrawals", HexFormat.of().parseHex("8a".repeat(32)),
+                255, fill(32, 8), unknown.encode());
+        apply(machine, block(height, observationMessage(0xB8, observation)),
+                state, new CapturingEmitter(height));
+
+        assertThat(state.get(EutxoStateKeys.bridgeHalt()))
+                .hasValueSatisfying(reason -> assertThat(new String(reason, java.nio.charset.StandardCharsets.US_ASCII))
+                        .isEqualTo("UNKNOWN_WITHDRAWAL_CONFIRMATION"));
     }
 
     @Test
