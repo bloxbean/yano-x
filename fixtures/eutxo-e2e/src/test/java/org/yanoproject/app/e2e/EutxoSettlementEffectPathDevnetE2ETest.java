@@ -74,6 +74,9 @@ class EutxoSettlementEffectPathDevnetE2ETest extends BaseE2ETest {
 
     private static final EutxoTestWallet ALICE = EutxoTestWallet.fromSeed(
             EutxoSettlementDevnetE2ETestProfile.filled(0x0E, 32));
+    /** Owns the vault's reserve: the deposit observer accepts only bridge datums at the vault. */
+    private static final EutxoTestWallet RESERVE = EutxoTestWallet.fromSeed(
+            EutxoSettlementDevnetE2ETestProfile.filled(0x0F, 32));
 
     private EutxoClient eutxoClient;
 
@@ -275,7 +278,13 @@ class EutxoSettlementEffectPathDevnetE2ETest extends BaseE2ETest {
                 .payToContract(plan.vaultAddress(),
                         List.of(Amount.lovelace(BigInteger.valueOf(
                                 VAULT_GENESIS_LOVELACE))),
-                        BigIntPlutusData.of(0));
+                        PlutusData.deserialize(new EutxoVaultDatum(
+                                EutxoVaultDatum.ABI_VERSION,
+                                CHAIN_ID,
+                                RESERVE.address(),
+                                EutxoSettlementDevnetE2ETestProfile.filled(0x20, 32),
+                                new EutxoOutpoint("45".repeat(32), 0),
+                                10_000_000L).encode()));
         for (int index = 0; index < 16; index++) {
             String unit = plan.shardThreadPolicyIdHex()
                     + HexFormat.of().formatHex(new byte[] {(byte) index});
