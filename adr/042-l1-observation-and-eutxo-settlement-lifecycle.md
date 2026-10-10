@@ -457,7 +457,7 @@ outcomes:
   `OUTPOINT_TAKEN`.
 - `CREDITED_WITHOUT_KEY_BINDING`: the deposit was credited without registering its key. The reason
   is `KEY_BINDING_UNSIGNED`, `KEY_BINDING_PROFILE`, `KEY_BINDING_ADDRESS`, `KEY_BINDING_DEPOSITOR`,
-  or `KEY_BINDING_CONFLICT`.
+  `KEY_BINDING_CONFLICT`, or `KEY_BINDING_INVALID` (the address or binding could not be read).
 
 `appchain eutxo deposit get` shows the notice, and the `bridge/deposits/notice` query serves it. A
 deposit observed while the bridge is halted is one of these. Its observation is consumed, so the
@@ -623,7 +623,8 @@ holds the count plus the last settlement transaction, reason, and height, and is
 rather than overflowing. The reasons are:
 
 - `CUSTODY_UNPROVEN`, `UNKNOWN_CLAIM`, `CLAIM_MISMATCH`, or `CLAIM_REBIND`;
-- `BRIDGE_HALTED`, for a batch confirmation that arrives while the bridge is halted;
+- `BRIDGE_HALTED`, for a confirmation that arrives while the bridge is halted. Nothing is confirmed
+  during a halt, on either the batch or the single-claim path;
 - `NOT_THIS_BRIDGE`, for a confirmation whose chain or bridge epoch the ledger does not accept. The
   observers already filter these, so this one points to observer-versus-ledger configuration or
   version drift.

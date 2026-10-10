@@ -503,6 +503,21 @@ class EutxoStateMachineTest {
         EutxoDepositClaim odd = boundClaim(0x55, truncated, alice, 0x65, true, vaultAddress);
         apply(machine, block(height, observationMessage(0x7f, depositObservation(odd))), state);
         assertThat(state.get(EutxoStateKeys.deposit(odd.acceptedOutpoint()))).isPresent();
+
+        // Each binding that was not applied leaves a notice with its reason; the registered one leaves none.
+        assertThat(notice(machine, state, registered)).isNull();
+        assertThat(notice(machine, state, unsigned).reason()).isEqualTo("KEY_BINDING_UNSIGNED");
+        assertThat(notice(machine, state, notOwner).reason()).isEqualTo("KEY_BINDING_DEPOSITOR");
+        assertThat(notice(machine, state, conflicting).reason()).isEqualTo("KEY_BINDING_CONFLICT");
+        assertThat(notice(machine, state, odd).reason()).isEqualTo("KEY_BINDING_INVALID");
+        EutxoDepositClaim script = boundClaim(0x56,
+                "addr_test1wzn5ee2qaqvly3hx7e0nk3vhm240n5muq3plhjcnvx9ppjgf62u6a", alice, 0x66, true, vaultAddress);
+        apply(machine, block(height + 1, observationMessage(0x7e, depositObservation(script))), state);
+        assertThat(notice(machine, state, script).reason()).isEqualTo("KEY_BINDING_ADDRESS");
+        for (EutxoDepositClaim claim : List.of(unsigned, notOwner, conflicting, odd, script)) {
+            assertThat(notice(machine, state, claim).outcome())
+                    .isEqualTo(EutxoDepositNotice.Outcome.CREDITED_WITHOUT_KEY_BINDING);
+        }
     }
 
     private static byte[] credential(String address) {
@@ -802,6 +817,12 @@ class EutxoStateMachineTest {
                 java.util.HexFormat.of().parseHex("9b".repeat(32)), 301, fill(32, 9), otherEpoch.encode()))), state);
         assertThat(ignored(machine, state)).isEqualTo(
                 new EutxoIgnoredConfirmations(2, "9b".repeat(32), "NOT_THIS_BRIDGE", 2));
+
+        // While the bridge is halted, a single-claim confirmation confirms nothing and is counted as such.
+        state.put(EutxoStateKeys.bridgeHalt(), "TEST_HALT".getBytes(java.nio.charset.StandardCharsets.US_ASCII));
+        apply(machine, block(3, observationMessage(69, observation)), state);
+        assertThat(ignored(machine, state)).isEqualTo(
+                new EutxoIgnoredConfirmations(3, "99".repeat(32), "BRIDGE_HALTED", 3));
     }
 
     private static EutxoDepositClaim depositClaim(

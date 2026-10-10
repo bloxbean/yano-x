@@ -275,7 +275,11 @@ public final class EutxoStateMachine implements AppStateMachine {
                     }
                     // A single-claim confirmation proves no vault spend, so anyone can fabricate one: it may
                     // confirm an exact pending claim, but a mismatch is ignored rather than halting the bridge.
-                    if (confirmation != null) {
+                    // While the bridge is halted nothing is confirmed, as on the batch path, and it is counted.
+                    if (confirmation != null && writer.get(EutxoStateKeys.bridgeHalt()).isPresent()) {
+                        recordIgnoredConfirmation(writer, null, confirmation.settlementTransactionId(),
+                                "BRIDGE_HALTED", block.height());
+                    } else if (confirmation != null) {
                         confirmWithdrawal(confirmation, block.height(), writer, false);
                     }
                 }
