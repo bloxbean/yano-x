@@ -195,7 +195,12 @@ class AcceptedVaultDepositObserverTest {
                         Amount.builder().unit("ab".repeat(28) + "01").quantity(BigInteger.ONE).build()))
                 .inlineDatum(HexFormat.of().formatHex(datum().encode()))
                 .build();
+        // 16 KB of one-element arrays: the recursive Plutus data decoder overflows the stack on this.
+        byte[] deep = new byte[16_384];
+        Arrays.fill(deep, 0, deep.length - 1, (byte) 0x81);
+        deep[deep.length - 1] = (byte) 0x80;
         Block block = blockOf(List.of(
+                tx("a0", List.of(output(VAULT_ADDRESS, 50, deep))),
                 tx("a1", List.of(output(VAULT_ADDRESS, 50, null))),
                 tx("a2", List.of(output(VAULT_ADDRESS, 50, new byte[]{0x00}))),
                 tx("a3", List.of(withToken)),
@@ -220,6 +225,25 @@ class AcceptedVaultDepositObserverTest {
                 .singleElement()
                 .satisfies(observation -> assertThat(EutxoWithdrawalConfirmation.decode(observation.claim())
                         .settlementTransactionId()).isEqualTo("b2".repeat(32)));
+    }
+
+    @Test
+    void aKeyBindingItsDepositorAuthorizesIsCreditedBesideANonCreditableVaultOutput() {
+        byte[] ownerCredential = new com.bloxbean.cardano.client.address.Address(OWNER)
+                .getPaymentCredentialHash().orElseThrow();
+        EutxoVaultDatum authorized = new EutxoVaultDatum(EutxoVaultDatum.ABI_VERSION, "payments-eutxo", OWNER,
+                fill(32, 3), new EutxoOutpoint("44".repeat(32), 1), 1_000, ownerCredential,
+                new EutxoL2KeyBinding("zeroj-jubjub-dev-v1", 1, fill(32, 6)));
+
+        assertThat(observer().observe(106, fill(32, 13), block(List.of(
+                output(VAULT_ADDRESS, 50, new byte[]{0x00}),
+                output(VAULT_ADDRESS, 60, authorized.encode())))))
+                .singleElement()
+                .satisfies(observation -> {
+                    EutxoDepositClaim claim = EutxoDepositClaim.decode(observation.claim());
+                    assertThat(claim.acceptedOutpoint()).isEqualTo(new EutxoOutpoint("11".repeat(32), 1));
+                    assertThat(claim.l2KeyBinding()).isEqualTo(authorized.l2KeyBinding());
+                });
     }
 
     @Test

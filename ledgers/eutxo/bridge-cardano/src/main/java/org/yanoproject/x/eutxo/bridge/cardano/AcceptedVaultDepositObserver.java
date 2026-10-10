@@ -139,6 +139,9 @@ final class AcceptedVaultDepositObserver implements L1Observer {
                 return null;
             }
             byte[] datumCbor = HexFormat.of().parseHex(output.getInlineDatum());
+            if (!BridgeDatumPreflight.bounded(datumCbor)) {
+                return null;
+            }
             EutxoVaultDatum datum = EutxoVaultDatum.decode(datumCbor);
             BigInteger lovelace = exactLovelace(output);
             if (lovelace == null || lovelace.signum() <= 0 || lovelace.compareTo(maxLovelace) > 0

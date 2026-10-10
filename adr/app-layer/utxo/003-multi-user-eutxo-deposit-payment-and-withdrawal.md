@@ -59,11 +59,20 @@ EUTxO. When present:
 - the key epoch must be positive;
 - the imported registration is committed under the payment credential;
 - an identical registration is idempotent; and
-- a conflicting registration fails closed.
+- a deposit with a conflicting registration is not credited (amended
+  2026-10-10; it used to throw while applying the observation, which stalled
+  the chain for good; see ADR-042).
 
 The staging validator preserves the binding exactly when value moves into the
 vault. This makes the user's L1-authorized deposit the registration event; the
 operator cannot substitute an L2 key.
+
+Open issue (2026-10-10): this does not authenticate the binding against a third
+party. The staging validator lets anyone accept a deposit, and the binding
+carries no signature. So anyone can create a vault output with a chosen datum
+and register an L2 key for an address that has no registration yet. A design
+fix, such as a signature over the binding, is needed before any deployment of
+an L2 authorization profile.
 
 The preview ZeroJ profile continues to require its documented trusted-prover
 boundary. Dynamic registrations are MPF-committed and host-verified. Folding a

@@ -93,8 +93,11 @@ final class WithdrawalConfirmationObserver implements L1Observer {
             }
             EutxoSettlementDatum candidate;
             try {
-                candidate = EutxoSettlementDatum.decode(
-                        java.util.HexFormat.of().parseHex(output.getInlineDatum()));
+                byte[] datumCbor = java.util.HexFormat.of().parseHex(output.getInlineDatum());
+                if (!BridgeDatumPreflight.bounded(datumCbor)) {
+                    continue;
+                }
+                candidate = EutxoSettlementDatum.decode(datumCbor);
             } catch (IllegalArgumentException notSettlement) {
                 continue;
             }

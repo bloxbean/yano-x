@@ -54,7 +54,9 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.TreeMap;
 
 /** Optional genesis-funded Cardano-shaped EUTxO app-chain state machine. */
 public final class EutxoStateMachine implements AppStateMachine {
@@ -295,6 +297,13 @@ public final class EutxoStateMachine implements AppStateMachine {
                     result = UtxoTransitionEngine.TransitionResult.reject(
                             result.transactionId(), failure.code(), failure.getMessage());
                 }
+            }
+            // putRecord throws past the address bound, and an apply throw stalls the chain, because the proposer
+            // retries the same pool messages; a transaction that would overfill an address is rejected instead.
+            if (result.accepted() && exceedsAddressBound(result, withdrawalPlan, writer)) {
+                withdrawalPlan = WithdrawalPlan.empty();
+                result = UtxoTransitionEngine.TransitionResult.reject(result.transactionId(),
+                        "EUTXO_ADDRESS_BOUND", "an output address would exceed the profile's UTxO bound");
             }
             List<EutxoRecord> resolvedInputs = result.accepted()
                     ? result.resolvedInputs() : List.of();
@@ -1068,6 +1077,9 @@ public final class EutxoStateMachine implements AppStateMachine {
         if (writer.get(EutxoStateKeys.utxo(mirrored.outpoint())).isPresent()) {
             return; // the derived outpoint is taken; crediting it again would overwrite an output
         }
+        if (addressRecords(writer, mirrored.address()).size() >= profile.maxAddressUtxos()) {
+            return; // the L2 address is full, and putRecord would throw past the bound; credit nothing
+        }
         BigInteger lovelace = mirroredLovelace(claim);
         L2KeyWrite keyWrite = l2KeyRegistration(claim, writer);
         if (keyWrite.refused()) {
@@ -1604,6 +1616,29 @@ public final class EutxoStateMachine implements AppStateMachine {
             throw new IllegalArgumentException("committed counter cannot be negative");
         }
         return value;
+    }
+
+    /** Whether applying this transaction would leave any address with more UTxOs than the profile allows. */
+    private boolean exceedsAddressBound(
+            UtxoTransitionEngine.TransitionResult result,
+            WithdrawalPlan withdrawalPlan,
+            AppStateReader state
+    ) {
+        Map<String, Integer> added = new TreeMap<>();
+        for (EutxoRecord record : result.created()) {
+            if (!withdrawalPlan.outpoints().contains(record.outpoint())) {
+                added.merge(record.address(), 1, Integer::sum);
+            }
+        }
+        for (Map.Entry<String, Integer> entry : added.entrySet()) {
+            List<EutxoRecord> existing = addressRecords(state, entry.getKey());
+            long remaining = existing.stream().filter(record -> !result.consumed().contains(record.outpoint()))
+                    .count();
+            if (remaining + entry.getValue() > profile.maxAddressUtxos()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void putRecord(AppStateWriter writer, EutxoRecord record) {

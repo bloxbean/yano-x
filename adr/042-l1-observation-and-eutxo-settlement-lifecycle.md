@@ -8,7 +8,8 @@
   retry that block forever, while an `apply` throw stalls every later proposal. Observers now skip
   what is not this chain's deposit or settlement. The state machine treats a deposit it cannot
   credit, and a confirmation it cannot authenticate, as a no-op. Only a confirmation that spent
-  tracked vault custody can halt the bridge.
+  tracked vault custody can halt the bridge. The reserve and pending-count invariant halts also
+  remain. They guard state consistency and cannot be reached from consistent state.
 - **Owners:** Yano app-chain host and Yano X observer, EUTxO, settlement, and deployment modules
 - **Scope:** End-to-end Cardano L1 observation, app-chain consensus verification, EUTxO deposits,
   EUTxO withdrawals, L1 settlement confirmation, synchronization differences, and failure handling
@@ -404,7 +405,16 @@ It checks and canonically binds:
 - optional authorization-profile, key-epoch, and public-key binding.
 
 The initial profile permits lovelace only. A transaction with more than one recognized deposit
-vault output is rejected to keep observation identity and accounting unambiguous. Settlement-marker
+vault output credits neither, to keep observation identity and accounting unambiguous.
+
+Every inline datum is checked first, without recursion, against fixed bounds: 16 KiB and nesting
+depth 16. A datum outside them is skipped before decoding. The recursive Plutus data decoder
+overflows the stack on a datum nested a few thousand levels deep, which fits in one transaction,
+and a `StackOverflowError` escapes every exception handler. A deposit is also not credited when
+its L2 address already holds the profile's maximum number of UTxOs. Likewise, an L2 transaction
+that would overfill an address is rejected with `EUTXO_ADDRESS_BOUND` instead of failing the
+block. Uncredited deposits leave their ADA in the vault with no L2 record. Recovering such value
+is a reconciliation decision. Settlement-marker
 outputs at the same vault are recognized as settlement data and are not treated as deposits.
 
 ### 9.3 Stability, app-chain finality, and credit
