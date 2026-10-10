@@ -143,16 +143,18 @@ public final class ZerojValidityReadModelProvider
                                 proof.digestHex(),
                                 proof.verificationKeyDigest(),
                                 "VERIFIED",
+                                // The local journal status (NOT_SUBMITTED,
+                                // PREPARED or SUBMITTED). The journal never
+                                // records L1 inclusion, so the slot and block
+                                // hash stay unset.
                                 Objects.toString(
                                         settlement.getOrDefault(
                                                 "status", "NOT_SUBMITTED")),
                                 Objects.toString(
                                         settlement.getOrDefault(
                                                 "transactionId", "")),
-                                number(settlement.get("stableSlot")),
-                                Objects.toString(
-                                        settlement.getOrDefault(
-                                                "stableBlockHash", ""))));
+                                0,
+                                ""));
                     }
                 }
                 result.sort(Comparator.comparing(
@@ -223,29 +225,34 @@ public final class ZerojValidityReadModelProvider
                 List<Map<String, Object>> operations,
                 String proofId
         ) {
-            return operations.stream()
+            List<Map<String, Object>> matching = operations.stream()
                     .filter(operation ->
                             "settlement".equals(operation.get("kind"))
                                     && proofId.equals(
                                     operation.get("proofId")))
+                    .toList();
+            // rank() validates every status, including a lone journal that
+            // max() would return without comparing.
+            matching.forEach(operation -> rank(status(operation)));
+            return matching.stream()
                     .max(Comparator.comparingInt(operation ->
-                            rank(Objects.toString(
-                                    operation.get("status"), ""))))
+                            rank(status(operation))))
                     .orElse(Map.of());
+        }
+
+        private static String status(Map<String, Object> operation) {
+            return Objects.toString(operation.get("status"), "");
         }
 
         private static int rank(String status) {
             return switch (status) {
-                case "STABLE" -> 3;
                 case "SUBMITTED" -> 2;
                 case "PREPARED" -> 1;
-                default -> 0;
+                // Same rule as the lifecycle's reconcile: an unknown status,
+                // such as a removed STABLE, is not silently reported.
+                default -> throw new IllegalStateException(
+                        "operation journal has an invalid status");
             };
-        }
-
-        private static long number(Object value) {
-            return value instanceof Number number
-                    ? Math.max(0, number.longValue()) : 0;
         }
 
         private static String scalar(BigInteger value) {

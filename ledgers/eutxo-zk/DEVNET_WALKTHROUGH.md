@@ -685,7 +685,7 @@ export TRANSITION_FILE="$WORK/artifacts/transition-$APP_HEIGHT-$APP_ORDINAL.cbor
 
 Use `EutxoClient.finalizedValidityTransition(appHeight, ordinal)`, write
 `transition.canonicalBytes()` to `TRANSITION_FILE`, and record the lowercase
-hex form of `transition.previousRoot()`:
+hex form of `transition.previousRoot()` and the claim ID of its withdrawal:
 
 ```java
 AppChainClient appchain = AppChainClient.builder(
@@ -700,12 +700,14 @@ EutxoValidityTransition transition =
 Files.write(output, transition.canonicalBytes());
 String previousRoot =
         HexFormat.of().formatHex(transition.previousRoot());
+String claimId = transition.withdrawals().getFirst().claimId();
 ```
 
 Generate one real Groth16 proof:
 
 ```bash
 export PREVIOUS_ROOT='<previousRoot printed by the exporter>'
+export CLAIM_ID='<claimId printed by the exporter>'
 
 PROVE_RESULT="$(
   ./yano.sh appchain validity prove \
@@ -784,11 +786,17 @@ The withdrawal in the next section reads this root as a reference input, so
 it can only succeed on L1 while the root transaction stands. If the root
 transaction rolls back, the withdrawal rolls back with it, and L2 never marks
 the claim confirmed. Before you build the withdrawal, wait until the root
-transaction has the configured stability depth of confirmations
-(`.confirmations` below); otherwise a rollback costs you a rebuild:
+transaction is as deep as the node's L1 stability point, so that a rollback
+does not cost you a rebuild. The generated project sets
+`yano.app-chain.l1.stability-depth` to 2, and `.confirmations` counts the tip
+block as 0, the same way:
 
 ```bash
-curl --fail --silent "$API/txs/$SETTLEMENT_TX_ID/status" | jq
+STABILITY_DEPTH=2
+until [ "$(curl --fail --silent "$API/txs/$SETTLEMENT_TX_ID/status" |
+    jq '.confirmations // -1')" -ge "$STABILITY_DEPTH" ]; do
+  sleep 1
+done
 ```
 
 ## 14. Publish the L1 proof withdrawal
@@ -836,26 +844,17 @@ curl --fail --silent "$API/txs/$WITHDRAWAL_TX_ID/utxos" | jq
 Verify that one output pays `PAYOUT_ADDRESS` exactly 3,000,000 lovelace.
 
 The withdrawal-confirmation observer marks the L2 claim `CONFIRMED` once the
-payout is stability-deep. Find the claim by its L2 withdrawal outpoint, then
-wait for it:
+payout is stability-deep. Wait for the claim recorded in section 12:
 
 ```bash
-# The withdrawal is the second output of the section 11 L2 transaction.
-L2_WITHDRAWAL_OUTPOINT="$L2_TX_ID#1"
-CLAIM_ID="$(
-  ./yano.sh appchain eutxo withdrawal list \
-    --url "$API" \
-    --chain "$CHAIN_ID" |
-  jq -r --arg out "$L2_WITHDRAWAL_OUTPOINT" \
-    '.withdrawals[] | select(.withdrawalOutpoint == $out) | .claimId'
-)"
-
-until ./yano.sh appchain eutxo withdrawal get "$CLAIM_ID" \
-    --url "$API" \
-    --chain "$CHAIN_ID" |
-  jq -e '.withdrawal.status == "CONFIRMED"' >/dev/null; do
+for attempt in $(seq 1 300); do
+  STATUS="$(./yano.sh appchain eutxo withdrawal get "$CLAIM_ID" \
+      --url "$API" \
+      --chain "$CHAIN_ID" | jq -r '.withdrawal.status // "MISSING"')" || break
+  [ "$STATUS" = CONFIRMED ] && break
   sleep 1
 done
+echo "withdrawal $CLAIM_ID: $STATUS"
 
 ./yano.sh appchain validity reconcile --project "$PROJECT"
 ```
@@ -986,6 +985,23 @@ Check that:
 - its inline datum is an `EutxoVaultDatum` for the same chain;
 - the amount is within `bridgeMaxDepositLovelace`; and
 - node logs show the `bridge-deposits` observer running.
+
+### The withdrawal is never `CONFIRMED`
+
+`./yano.sh appchain eutxo withdrawal list` shows the newest claims and their
+status; `MISSING` means the claim ID is wrong. For a `PENDING` claim, check
+that the withdrawal transaction:
+
+- returns the remaining accepted funds to `bridgeVaultAddress` with an
+  `EutxoSettlementDatum` for the same chain ID and bridge epoch as the project
+  (the end-to-end test builds it with the test's own epoch, so do not copy that
+  value);
+- has exactly one output that pays the claim's destination its exact amount;
+  and
+- is `yano.app-chain.l1.stability-depth` blocks deep.
+
+Also check that node logs show the withdrawal-confirmation observer running and
+no `L1 observer failed` warning.
 
 ### L2 submission succeeded but no accepted receipt appears
 

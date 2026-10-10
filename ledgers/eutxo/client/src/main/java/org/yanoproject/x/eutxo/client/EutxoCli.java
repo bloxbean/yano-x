@@ -118,9 +118,9 @@ public final class EutxoCli {
             result.put("outpoint", options.argument);
             result.put("proof", client.proof(outpoint).orElse(null));
         } else if (options.command.equals(List.of("deposit", "get"))) {
-            EutxoSnapshot<Optional<EutxoDepositRecord>> snapshot =
-                    client.depositSnapshot(EutxoOutpoint.parse(options.argument));
-            result.put("acceptedOutpoint", options.argument);
+            EutxoOutpoint accepted = EutxoOutpoint.parse(options.argument);
+            EutxoSnapshot<Optional<EutxoDepositRecord>> snapshot = client.depositSnapshot(accepted);
+            result.put("acceptedOutpoint", accepted.toString());
             result.put("deposit", snapshot.value().map(EutxoCli::depositJson).orElse(null));
             root(result, snapshot);
         } else if (options.command.equals(List.of("withdrawal", "get"))) {
@@ -311,8 +311,9 @@ public final class EutxoCli {
         json.put("requestedHeight", record.claim().requestedHeight());
         json.put("settlementTransactionId",
                 record.settlementTransactionId().isEmpty() ? null : record.settlementTransactionId());
-        json.put("confirmedSlot", record.status() == EutxoWithdrawalRecord.Status.CONFIRMED
-                ? record.confirmedSlot() : null);
+        boolean confirmed = record.status() == EutxoWithdrawalRecord.Status.CONFIRMED;
+        json.put("confirmedSlot", confirmed ? record.confirmedSlot() : null);
+        json.put("confirmedBlockHash", confirmed ? HexFormat.of().formatHex(record.confirmedBlockHash()) : null);
         json.put("updatedHeight", record.updatedHeight());
         return json;
     }

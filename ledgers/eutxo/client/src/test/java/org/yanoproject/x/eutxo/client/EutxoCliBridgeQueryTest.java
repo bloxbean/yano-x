@@ -38,6 +38,7 @@ class EutxoCliBridgeQueryTest {
     private final EutxoWithdrawalRecord pending;
     private final EutxoWithdrawalRecord confirmed;
     private final List<String> queries = new ArrayList<>();
+    private final List<byte[]> params = new ArrayList<>();
     private HttpServer server;
     private boolean present = true;
 
@@ -67,6 +68,7 @@ class EutxoCliBridgeQueryTest {
         JsonNode result = run("deposit", "get", ACCEPTED.toString());
 
         assertThat(queries).containsExactly(EutxoQueryCodec.DEPOSIT_PATH);
+        assertThat(EutxoQueryCodec.decodeDepositRequest(params.getFirst())).isEqualTo(ACCEPTED);
         assertThat(result.at("/acceptedOutpoint").asText()).isEqualTo(ACCEPTED.toString());
         assertThat(result.at("/deposit/mirroredOutpoint").asText())
                 .isEqualTo(deposit.mirroredOutpoint().toString());
@@ -91,7 +93,13 @@ class EutxoCliBridgeQueryTest {
         assertThat(list.at("/withdrawals/0/status").asText()).isEqualTo("PENDING");
         assertThat(list.at("/withdrawals/0/settlementTransactionId").isNull()).isTrue();
         assertThat(list.at("/withdrawals/0/confirmedSlot").isNull()).isTrue();
+        assertThat(list.at("/withdrawals/0/confirmedBlockHash").isNull()).isTrue();
+        assertThat(one.at("/withdrawal/confirmedBlockHash").asText()).isEqualTo("04".repeat(32));
         assertThat(queries).containsExactly(EutxoQueryCodec.WITHDRAWAL_PATH, EutxoQueryCodec.WITHDRAWALS_PATH);
+        // The claim id is sent lowercase, and the list asks for the newest 50 records.
+        assertThat(EutxoQueryCodec.decodeWithdrawalRequest(params.get(0))).isEqualTo(confirmed.claim().claimId());
+        assertThat(EutxoQueryCodec.decodeLifecyclePageRequest(params.get(1)))
+                .isEqualTo(new EutxoQueryCodec.LifecyclePage(0, 50));
     }
 
     @Test
@@ -132,6 +140,8 @@ class EutxoCliBridgeQueryTest {
                 String path = exchange.getRequestURI().getRawPath();
                 String query = path.substring(path.indexOf("/query/") + "/query/".length());
                 queries.add(query);
+                params.add(HexFormat.of().parseHex(JSON.readTree(exchange.getRequestBody().readAllBytes())
+                        .get("paramsHex").asText()));
                 byte[] payload = switch (query) {
                     case EutxoQueryCodec.DEPOSIT_PATH -> EutxoQueryCodec.optionalDepositRecord(
                             present ? deposit : null);

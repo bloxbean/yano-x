@@ -121,7 +121,7 @@ public final class EutxoClient {
                 EutxoQueryCodec.decodeOptionalWithdrawalRecord(result.payload())));
     }
 
-    /** The newest withdrawal records of the current bridge epoch, newest first; at most 50. */
+    /** The newest {@code limit} (1 to 50) withdrawal records of the current bridge epoch, newest first. */
     public EutxoSnapshot<List<EutxoWithdrawalRecord>> latestWithdrawalsSnapshot(int limit) {
         AppChainClient.QueryResult result = client.query(
                 EutxoQueryCodec.WITHDRAWALS_PATH,

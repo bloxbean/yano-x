@@ -409,6 +409,10 @@ public final class EutxoValidityLifecycle {
             return result("OPERATION_ALREADY_SUBMITTED",
                     identity, readState(identity), operation);
         }
+        if (!"PREPARED".equals(operation.get("status"))) {
+            throw new IllegalStateException(
+                    "operation journal has an invalid status");
+        }
         byte[] transaction = readBounded(
                 signedTransaction, "signed Cardano transaction");
         URI endpoint = txSubmitEndpoint(nodeUrl);

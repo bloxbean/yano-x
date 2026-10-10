@@ -360,11 +360,16 @@ operation as `SUBMITTED`; `reconcile` counts prepared and submitted operations:
 ```
 
 The same `prepare` and `submit` shape applies to `deposit`, `withdrawal`, and
-`recovery`. The journal never records L1 stability. The node decides it: the
-bridge observers mirror a deposit, and confirm a withdrawal, only once the L1
-transaction is `yano.app-chain.l1.stability-depth` blocks deep. Read the
-results with `./yano.sh appchain eutxo deposit get <accepted-l1-outpoint>` and
-`./yano.sh appchain eutxo withdrawal get <claim-id>`. Settlement and withdrawal preparation both require the proof
+`recovery`. The journal never records L1 stability. The node decides it for
+deposits and withdrawals: the bridge observers mirror a deposit, and confirm a
+withdrawal, only once the L1 transaction is `yano.app-chain.l1.stability-depth`
+blocks deep. Read the results with
+`./yano.sh appchain eutxo deposit get <accepted-l1-outpoint>` and
+`./yano.sh appchain eutxo withdrawal get <claim-id>`.
+
+Settlement (validity-root) and recovery transactions have no node record.
+Check their depth with `GET /api/v1/txs/<tx-id>/status`, whose `confirmations`
+counts the tip block as 0. Settlement and withdrawal preparation both require the proof
 digest, ensuring their journals retain the same previous/next root,
 batch-data, withdrawal amount, and finalized transaction identities.
 Repeating a completed step returns the retained result instead of creating a
