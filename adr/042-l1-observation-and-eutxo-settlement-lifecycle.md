@@ -491,6 +491,7 @@ sequenceDiagram
 | Wrong vault/script, chain ID, or datum | Observer skips the output, or the state transition credits nothing |
 | Key binding not signed by the depositor, or otherwise not applicable | Deposit is credited; no L2 key is registered |
 | Native assets are included | Initial lovelace-only observer skips the output |
+| The paying transaction is phase-2 invalid (a script failed; only collateral was taken) | Observer skips it; its outputs never existed |
 | Amount is zero, negative, or above the configured limit | Observer skips the output |
 | Two recognized deposit outputs appear in one acceptance transaction | Observer credits neither output |
 | One validator has not reached the deposit slot | It returns `AHEAD`; four-of-five may still finalize |
@@ -695,6 +696,7 @@ status to become `CONFIRMED`.
 | Effect fails or expires before L1 settlement | Latest batch cursor rewinds and claims re-batch |
 | L1 transaction is submitted but unstable | Claims stay pending until stable confirmation finalizes |
 | Fake marker pays the public vault address | Observer skips it, or the custody gate ignores it if it reaches state transition |
+| Marker or vault input in a phase-2-invalid transaction | Observer skips it; the transaction spent and created nothing |
 | Confirmation does not spend tracked vault custody | Ignored; reserve and bridge state unchanged |
 | Custody-proven unknown or mismatched claim confirmation | Bridge halts |
 | Single-claim (v1/v2) confirmation that does not exactly match a pending claim | Ignored |
@@ -818,6 +820,9 @@ observation. ADR-041 owns the trust-preserving delivery and recovery design.
 7. App-state transition depends only on finalized block bytes and prior committed state.
 8. Ordinary rollback removes only unfinalized L1 observations.
 9. Deep rollback behind finalized value state halts rather than silently rewriting history.
+10. Observers read only the phase-2-valid transactions of a block (amended 2026-10-10). A
+    transaction whose script fails is still in the block, but only its collateral is taken: its
+    inputs are not spent and its outputs are never created.
 
 ### 15.2 Deposits
 

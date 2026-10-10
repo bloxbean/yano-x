@@ -134,6 +134,23 @@ class BatchWithdrawalConfirmationObserverTest {
     }
 
     @Test
+    void aPhaseTwoInvalidSettlementIsNotObserved() {
+        // An invalid transaction may even list a live vault UTxO as an input; it spent nothing, so its marker
+        // must never reach the custody gate.
+        EutxoBatchSettlementMarker marker = new EutxoBatchSettlementMarker(1, CLAIM_IDS.subList(0, 1));
+        Block genuine = block(List.of(
+                output(EutxoTestWallet.fromSeed(fill(32, 0x80)).address(), 8_000_000L, null),
+                output(VAULT, 18_000_000L, marker.encode())));
+        Block invalid = Block.builder()
+                .transactionBodies(genuine.getTransactionBodies())
+                .invalidTransactions(List.of(0))
+                .build();
+
+        assertThat(observer().observe(1_000L, fill(32, 9), genuine)).singleElement();
+        assertThat(observer().observe(1_000L, fill(32, 9), invalid)).isEmpty();
+    }
+
+    @Test
     void aCraftedMarkerCannotSuppressAGenuineSettlementInTheSameBlock() {
         // Transaction 1: attacker's garbage marker (lone vault output).
         EutxoBatchSettlementMarker garbage =
