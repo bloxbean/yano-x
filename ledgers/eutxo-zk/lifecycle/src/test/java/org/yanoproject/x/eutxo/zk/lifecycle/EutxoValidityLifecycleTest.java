@@ -137,6 +137,31 @@ class EutxoValidityLifecycleTest {
     }
 
     @Test
+    void contractPlanIsWrittenInKeyOrderAtEveryLevel()
+            throws Exception {
+        Path devnet = project(
+                "devnet", List.of(
+                        EutxoValidityLifecycle.TRUST_WARNING));
+        new EutxoValidityLifecycle(devnet).bootstrap(false, false);
+
+        // Map.of iteration order changes per JVM, so a rerun in a new process
+        // must still produce the same bytes: only key order guarantees that.
+        var plan = new ObjectMapper().readTree(
+                devnet.resolve("runtime/validity/contract-plan.json").toFile());
+        List<com.fasterxml.jackson.databind.JsonNode> objects = new ArrayList<>();
+        objects.add(plan);
+        while (!objects.isEmpty()) {
+            var node = objects.removeLast();
+            if (node.isObject()) {
+                List<String> keys = new ArrayList<>();
+                node.fieldNames().forEachRemaining(keys::add);
+                assertThat(keys).isSorted();
+            }
+            node.elements().forEachRemaining(objects::add);
+        }
+    }
+
+    @Test
     void publicTestnetRequiresDurableAcknowledgement()
             throws Exception {
         Path preview = project("preview", List.of(
