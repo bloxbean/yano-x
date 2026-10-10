@@ -200,11 +200,12 @@ public final class EutxoBridgeDemoWorkflow {
                 10_000_000L,
                 paymentCredential(depositor.address()),
                 keyBindings.getOrDefault(user, EutxoL2KeyBinding.none()));
+        // The depositor's key hash as a required signer is what lets the ledger apply the L2 key binding.
         String acceptedTx = submit(new Tx()
                 .collectFrom(List.of(staged))
                 .payToContract(vaultAddress, Amount.lovelace(lovelace),
                         PlutusData.deserialize(datum.encode()))
-                .from(depositor.address()), depositor);
+                .from(depositor.address()), depositor, datum.depositorKeyHash());
         Utxo accepted = awaitUtxo(acceptedTx, vaultAddress);
         EutxoOutpoint acceptedOutpoint = outpoint(accepted);
         EutxoDepositRecord mirrored = awaitDeposit(acceptedOutpoint);
@@ -440,9 +441,17 @@ public final class EutxoBridgeDemoWorkflow {
 
     private String submit(Tx transaction, EutxoKeyWallet wallet)
             throws Exception {
-        Result<String> result = quickTx.compose(transaction)
-                .withSigner(SignerProviders.signerFrom(wallet.signingKey()))
-                .complete();
+        return submit(transaction, wallet, null);
+    }
+
+    private String submit(Tx transaction, EutxoKeyWallet wallet, byte[] requiredSigner)
+            throws Exception {
+        var context = quickTx.compose(transaction)
+                .withSigner(SignerProviders.signerFrom(wallet.signingKey()));
+        if (requiredSigner != null) {
+            context = context.withRequiredSigners(requiredSigner);
+        }
+        Result<String> result = context.complete();
         if (!result.isSuccessful()) {
             String diagnostic = String.valueOf(result.getResponse())
                     .replaceAll("[\\r\\n]+", " ");

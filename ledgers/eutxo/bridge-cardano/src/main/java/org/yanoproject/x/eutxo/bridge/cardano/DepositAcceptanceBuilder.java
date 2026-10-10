@@ -62,7 +62,7 @@ public final class DepositAcceptanceBuilder {
                         .value(Value.fromCoin(change))
                         .build());
             }
-            return TransactionBody.builder()
+            TransactionBody.TransactionBodyBuilder body = TransactionBody.builder()
                     .inputs(List.of(
                             new TransactionInput(
                                     stagingOutpoint.transactionId(), stagingOutpoint.index()),
@@ -70,8 +70,12 @@ public final class DepositAcceptanceBuilder {
                                     feeOutpoint.transactionId(), feeOutpoint.index())))
                     .outputs(List.copyOf(outputs))
                     .fee(fee)
-                    .ttl(datum.refundDeadline() - 1)
-                    .build();
+                    .ttl(datum.refundDeadline() - 1);
+            if (datum.l2KeyBinding().present()) {
+                // The ledger registers the binding only if the depositor signed; the depositor must sign this body.
+                body.requiredSigners(new java.util.ArrayList<>(List.of(datum.depositorKeyHash())));
+            }
+            return body.build();
         } catch (Exception failure) {
             throw new IllegalArgumentException(
                     "cannot build the staging acceptance transaction", failure);

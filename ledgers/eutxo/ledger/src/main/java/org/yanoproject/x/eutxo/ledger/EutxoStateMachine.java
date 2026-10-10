@@ -1081,10 +1081,8 @@ public final class EutxoStateMachine implements AppStateMachine {
             return; // the L2 address is full, and putRecord would throw past the bound; credit nothing
         }
         BigInteger lovelace = mirroredLovelace(claim);
+        // A binding that cannot be applied never strands the deposit: it is credited without registering a key.
         L2KeyWrite keyWrite = l2KeyRegistration(claim, writer);
-        if (keyWrite.refused()) {
-            return; // the deposit's L2 key binding cannot be honoured; credit nothing
-        }
         byte[] reserveKey = EutxoStateKeys.reserve(EutxoReserve.LOVELACE);
         EutxoReserve reserve = writer.get(reserveKey)
                 .map(EutxoReserve::decode)
@@ -1111,41 +1109,65 @@ public final class EutxoStateMachine implements AppStateMachine {
         }
     }
 
-    /** The L2 key write a deposit's binding needs: none, one registration, or a refusal of the deposit. */
-    private record L2KeyWrite(boolean refused, byte[] key, byte[] value) {
-        static final L2KeyWrite NONE = new L2KeyWrite(false, null, null);
-        static final L2KeyWrite REFUSED = new L2KeyWrite(true, null, null);
+    /**
+     * The L2 key registration a deposit's binding produces: none (no binding, or the identical registration
+     * exists), one new registration, or none with the reason the binding was not applied.
+     */
+    private record L2KeyWrite(byte[] key, byte[] value, String notAppliedReason) {
+        static final L2KeyWrite NONE = new L2KeyWrite(null, null, null);
+
+        static L2KeyWrite notApplied(String reason) {
+            return new L2KeyWrite(null, null, reason);
+        }
     }
 
     /**
-     * Checks a deposit's L2 key binding without writing. The binding comes from L1, so one that the selected
-     * profile, the address or an existing registration rules out refuses the deposit; it never throws.
+     * Checks a deposit's L2 key binding without writing. The binding is applied only when the depositor signed the
+     * accepting transaction (the Cardano ledger enforces required signers), the chain selects its authorization
+     * profile, the L2 address is key-controlled by that depositor, and no different registration exists. The
+     * datum's key hash and address alone prove nothing: whoever creates the vault output chooses both, and anyone
+     * can accept a staged deposit. It never throws, because a throw while applying an observation stalls the chain.
      */
     private L2KeyWrite l2KeyRegistration(
+            EutxoDepositClaim claim,
+            AppStateReader state
+    ) {
+        try {
+            return checkedL2KeyRegistration(claim, state);
+        } catch (RuntimeException unusable) {
+            // An unusual address or binding must never fail the block; it simply does not register a key.
+            return L2KeyWrite.notApplied("KEY_BINDING_INVALID");
+        }
+    }
+
+    private L2KeyWrite checkedL2KeyRegistration(
             EutxoDepositClaim claim,
             AppStateReader state
     ) {
         if (!claim.l2KeyBinding().present()) {
             return L2KeyWrite.NONE;
         }
+        if (!claim.depositorSigned()) {
+            return L2KeyWrite.notApplied("KEY_BINDING_UNSIGNED");
+        }
         if (validityEngine == null
                 || !validityEngine.authorizationProfile().equals(
                 claim.l2KeyBinding().authorizationProfile())) {
-            return L2KeyWrite.REFUSED;
+            return L2KeyWrite.notApplied("KEY_BINDING_PROFILE");
         }
         Address address;
         try {
             address = new Address(claim.l2Address());
         } catch (RuntimeException failure) {
-            return L2KeyWrite.REFUSED;
+            return L2KeyWrite.notApplied("KEY_BINDING_ADDRESS");
         }
         if (!AddressProvider.isPubKeyHashInPaymentPart(address)) {
-            return L2KeyWrite.REFUSED;
+            return L2KeyWrite.notApplied("KEY_BINDING_ADDRESS");
         }
         byte[] paymentCredential = address.getPaymentCredentialHash().orElse(null);
         if (paymentCredential == null
                 || !java.util.Arrays.equals(paymentCredential, claim.depositorKeyHash())) {
-            return L2KeyWrite.REFUSED;
+            return L2KeyWrite.notApplied("KEY_BINDING_DEPOSITOR");
         }
         String credential = HexFormat.of().formatHex(paymentCredential);
         EutxoL2KeyRegistration registration =
@@ -1160,9 +1182,9 @@ public final class EutxoStateMachine implements AppStateMachine {
                 .map(EutxoL2KeyRegistration::decode)
                 .orElse(null);
         if (existing == null) {
-            return new L2KeyWrite(false, key, registration.encode());
+            return new L2KeyWrite(key, registration.encode(), null);
         }
-        return existing.equals(registration) ? L2KeyWrite.NONE : L2KeyWrite.REFUSED;
+        return existing.equals(registration) ? L2KeyWrite.NONE : L2KeyWrite.notApplied("KEY_BINDING_CONFLICT");
     }
 
     private static BigInteger mirroredLovelace(EutxoDepositClaim claim) {

@@ -58,21 +58,28 @@ EUTxO. When present:
 - the authorization profile must equal the chain's selected profile;
 - the key epoch must be positive;
 - the imported registration is committed under the payment credential;
+- the depositor's key hash must be a required signer of the accepting
+  transaction (amended 2026-10-10);
 - an identical registration is idempotent; and
-- a deposit with a conflicting registration is not credited (amended
-  2026-10-10; it used to throw while applying the observation, which stalled
-  the chain for good; see ADR-042).
+- a binding that fails any rule, including a conflicting registration, is not
+  applied, but the deposit is still credited (amended 2026-10-10; it used to
+  throw while applying the observation, which stalled the chain for good; see
+  ADR-042).
 
 The staging validator preserves the binding exactly when value moves into the
 vault. This makes the user's L1-authorized deposit the registration event; the
 operator cannot substitute an L2 key.
 
-Open issue (2026-10-10): this does not authenticate the binding against a third
-party. The staging validator lets anyone accept a deposit, and the binding
-carries no signature. So anyone can create a vault output with a chosen datum
-and register an L2 key for an address that has no registration yet. A design
-fix, such as a signature over the binding, is needed before any deployment of
-an L2 authorization profile.
+The datum alone does not authenticate the binding against a third party. The
+staging validator lets anyone accept a deposit, and anyone can create a vault
+output with a chosen datum, so the depositor key hash and L2 address it names
+prove nothing. Since 2026-10-10 the depositor must therefore also be a required
+signer of the accepting transaction. The Cardano ledger admits a transaction
+only when every required signer signed it, so only the address owner can
+register a key for it. `DepositAcceptanceBuilder` adds the signer when a
+binding is present; the bridge demo and the external deposit workflow always
+add it, because their depositor signs anyway. An accepting party other than the
+depositor must collect the depositor's signature.
 
 The preview ZeroJ profile continues to require its documented trusted-prover
 boundary. Dynamic registrations are MPF-committed and host-verified. Folding a

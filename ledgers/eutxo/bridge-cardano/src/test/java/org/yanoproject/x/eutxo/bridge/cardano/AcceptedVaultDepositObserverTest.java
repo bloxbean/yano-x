@@ -228,32 +228,69 @@ class AcceptedVaultDepositObserverTest {
     }
 
     @Test
-    void aKeyBindingItsDepositorAuthorizesIsCreditedBesideANonCreditableVaultOutput() {
+    void aBoundDepositRecordsWhetherTheDepositorIsARequiredSigner() {
         byte[] ownerCredential = new com.bloxbean.cardano.client.address.Address(OWNER)
                 .getPaymentCredentialHash().orElseThrow();
-        EutxoVaultDatum authorized = new EutxoVaultDatum(EutxoVaultDatum.ABI_VERSION, "payments-eutxo", OWNER,
+        EutxoVaultDatum bound = new EutxoVaultDatum(EutxoVaultDatum.ABI_VERSION, "payments-eutxo", OWNER,
                 fill(32, 3), new EutxoOutpoint("44".repeat(32), 1), 1_000, ownerCredential,
                 new EutxoL2KeyBinding("zeroj-jubjub-dev-v1", 1, fill(32, 6)));
-
-        assertThat(observer().observe(106, fill(32, 13), block(List.of(
+        List<TransactionOutput> outputs = List.of(
                 output(VAULT_ADDRESS, 50, new byte[]{0x00}),
-                output(VAULT_ADDRESS, 60, authorized.encode())))))
+                output(VAULT_ADDRESS, 60, bound.encode()));
+        Block signedBlock = blockOf(List.of(TransactionBody.builder().txHash("11".repeat(32)).outputs(outputs)
+                .requiredSigners(java.util.Set.of(HexFormat.of().formatHex(ownerCredential).toUpperCase()))
+                .build()));
+        Block otherSigner = blockOf(List.of(TransactionBody.builder().txHash("11".repeat(32)).outputs(outputs)
+                .requiredSigners(java.util.Set.of("ab".repeat(28)))
+                .build()));
+
+        // The depositor's own approval is the only thing that makes the binding apply in the ledger.
+        assertThat(observer().observe(106, fill(32, 13), signedBlock))
                 .singleElement()
                 .satisfies(observation -> {
                     EutxoDepositClaim claim = EutxoDepositClaim.decode(observation.claim());
                     assertThat(claim.acceptedOutpoint()).isEqualTo(new EutxoOutpoint("11".repeat(32), 1));
-                    assertThat(claim.l2KeyBinding()).isEqualTo(authorized.l2KeyBinding());
+                    assertThat(claim.l2KeyBinding()).isEqualTo(bound.l2KeyBinding());
+                    assertThat(claim.depositorSigned()).isTrue();
                 });
+        assertThat(observer().observe(106, fill(32, 13), otherSigner))
+                .singleElement()
+                .satisfies(observation -> assertThat(EutxoDepositClaim.decode(observation.claim())
+                        .depositorSigned()).isFalse());
+        assertThat(observer().observe(106, fill(32, 13), block(outputs)))
+                .singleElement()
+                .satisfies(observation -> assertThat(EutxoDepositClaim.decode(observation.claim())
+                        .depositorSigned()).isFalse());
     }
 
     @Test
-    void aKeyBindingTheDepositorDoesNotAuthorizeIsNotCredited() {
-        EutxoVaultDatum unauthorized = new EutxoVaultDatum(EutxoVaultDatum.ABI_VERSION, "payments-eutxo", OWNER,
-                fill(32, 3), new EutxoOutpoint("44".repeat(32), 1), 1_000, fill(28, 9),
-                new EutxoL2KeyBinding("zeroj-jubjub-dev-v1", 1, fill(32, 6)));
+    void nullTransactionsAndOutputsAreSkippedWithoutHidingAGenuineDeposit() {
+        Block block = Block.builder().transactionBodies(Arrays.asList(
+                null,
+                TransactionBody.builder().txHash("a9".repeat(32))
+                        .outputs(Arrays.asList(null, output(VAULT_ADDRESS, 50, datum().encode()))).build(),
+                tx("b1", List.of(output(VAULT_ADDRESS, 50, datum().encode()))))).build();
 
-        assertThat(observer().observe(105, fill(32, 12),
-                block(List.of(output(VAULT_ADDRESS, 50, unauthorized.encode()))))).isEmpty();
+        assertThat(observer().observe(107, fill(32, 14), block))
+                .singleElement()
+                .satisfies(observation -> assertThat(EutxoDepositClaim.decode(observation.claim())
+                        .acceptedOutpoint()).isEqualTo(new EutxoOutpoint("b1".repeat(32), 0)));
+    }
+
+    @Test
+    void acceptanceBuilderMakesTheDepositorARequiredSignerOfABoundDeposit() {
+        byte[] depositor = fill(28, 9);
+        EutxoVaultDatum bound = new EutxoVaultDatum(EutxoVaultDatum.ABI_VERSION, "payments-eutxo", OWNER,
+                fill(32, 3), new EutxoOutpoint("44".repeat(32), 1), 1_000, depositor,
+                new EutxoL2KeyBinding("zeroj-jubjub-dev-v1", 1, fill(32, 6)));
+        var body = DepositAcceptanceBuilder.build(new EutxoOutpoint("44".repeat(32), 1), BigInteger.valueOf(50),
+                new EutxoOutpoint("45".repeat(32), 0), BigInteger.valueOf(10), BigInteger.ONE, VAULT_ADDRESS,
+                OWNER, bound, 10);
+
+        assertThat(body.getRequiredSigners()).singleElement().isEqualTo(depositor);
+        assertThat(DepositAcceptanceBuilder.build(new EutxoOutpoint("44".repeat(32), 1), BigInteger.valueOf(50),
+                new EutxoOutpoint("45".repeat(32), 0), BigInteger.valueOf(10), BigInteger.ONE, VAULT_ADDRESS,
+                OWNER, datum(), 10).getRequiredSigners()).isNullOrEmpty();
     }
 
     private static AcceptedVaultDepositObserver observer() {

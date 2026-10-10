@@ -489,6 +489,13 @@ reference is:
 - `DepositAcceptanceBuilder` in `yano-x-eutxo-bridge-cardano`; and
 - `acceptDeposit(...)` in `EutxoZkRollupDevnetE2ETest`.
 
+This walkthrough's deposit carries no L2 key binding; its L2 key is registered
+at genesis. If a vault datum does carry a binding, the depositor's payment key
+hash must be a required signer of the acceptance transaction, and the
+depositor must sign it. Otherwise the deposit is credited but no key is
+registered. `DepositAcceptanceBuilder` adds the required signer for a bound
+datum.
+
 Publish the signed staging CBOR directly:
 
 ```bash

@@ -25,6 +25,11 @@ import org.yanoproject.api.appchain.AppStateMachineContext;
 import org.yanoproject.api.appchain.FinalityCert;
 import org.yanoproject.api.appchain.l1view.L1Observation;
 import org.yanoproject.x.eutxo.contracts.EutxoDepositClaim;
+import org.yanoproject.x.eutxo.contracts.EutxoL2KeyRegistration;
+import org.yanoproject.x.eutxo.contracts.EutxoValidityTransition;
+import org.yanoproject.x.eutxo.contracts.EutxoValidityCommitmentProvider;
+import org.yanoproject.x.eutxo.contracts.EutxoValidityCommitmentEngine;
+import org.yanoproject.x.eutxo.contracts.EutxoValidityCommitment;
 import org.yanoproject.x.eutxo.contracts.EutxoL2KeyBinding;
 import org.yanoproject.x.eutxo.contracts.EutxoDepositRecord;
 import org.yanoproject.x.eutxo.contracts.EutxoOutpoint;
@@ -390,7 +395,7 @@ class EutxoStateMachineTest {
     }
 
     @Test
-    void depositWithAnUnhonourableKeyBindingIsNotCreditedAndDoesNotFailTheBlock() throws Exception {
+    void aKeyBindingThatCannotApplyLeavesTheDepositCreditedWithoutAKey() throws Exception {
         String vaultAddress = "addr_test1_bridge_vault";
         String vaultScriptHash = "11".repeat(28);
         EutxoStateMachine machine = (EutxoStateMachine) new EutxoStateMachineProvider().create(context(Map.of(
@@ -400,25 +405,103 @@ class EutxoStateMachineTest {
                 "machines.eutxo.bridge.vault-script-hash", vaultScriptHash)));
         MemoryAppState state = new MemoryAppState();
         EutxoDepositClaim plain = depositClaim(vaultAddress, vaultScriptHash, BigInteger.valueOf(25));
-        // Anyone can pay the vault with any datum. This chain selects no L2 authorization profile, so a key
-        // binding cannot be honoured; applying it used to throw, which stalls the chain for good.
+        // Signed by its depositor, but this chain selects no L2 authorization profile. Applying it used to throw,
+        // which stalls the chain for good; now the deposit is credited and no key is registered.
         EutxoDepositClaim bound = new EutxoDepositClaim(
                 plain.abiVersion(), plain.chainId(), plain.acceptedOutpoint(), plain.l1Slot(), plain.l1BlockHash(),
                 plain.vaultAddress(), plain.vaultScriptHash(), plain.acceptedOutputCbor(), plain.l2Address(),
                 plain.mirroredOutputCbor(), plain.depositNonce(), plain.stagingOutpoint(), plain.refundDeadline(),
-                fill(28, 5), new EutxoL2KeyBinding("zeroj-jubjub-dev-v1", 1, fill(32, 6)));
-        L1Observation observation = L1Observation.transaction(
-                "bridge-deposits",
-                java.util.HexFormat.of().parseHex(bound.acceptedOutpoint().transactionId()),
-                bound.l1Slot(),
-                bound.l1BlockHash(),
-                bound.encode());
+                new com.bloxbean.cardano.client.address.Address(ALICE.address()).getPaymentCredentialHash()
+                        .orElseThrow(),
+                new EutxoL2KeyBinding("zeroj-jubjub-dev-v1", 1, fill(32, 6)), true);
 
-        apply(machine, block(1, observationMessage(65, observation)), state);
+        apply(machine, block(1, observationMessage(65, depositObservation(bound))), state);
 
-        assertThat(records(machine, state, ALICE.address())).isEmpty();
-        assertThat(state.get(EutxoStateKeys.deposit(bound.acceptedOutpoint()))).isEmpty();
-        assertThat(state.get(EutxoStateKeys.reserve(EutxoReserve.LOVELACE))).isEmpty();
+        assertThat(records(machine, state, ALICE.address())).singleElement()
+                .satisfies(record -> assertThat(record.outpoint()).isEqualTo(bound.mirroredOutpoint()));
+        assertThat(state.get(EutxoStateKeys.deposit(bound.acceptedOutpoint()))).isPresent();
+        assertThat(state.get(EutxoStateKeys.l2Key(java.util.HexFormat.of().formatHex(
+                bound.depositorKeyHash())))).isEmpty();
+    }
+
+    @Test
+    void anL2KeyBindingRegistersOnlyForADepositorSignedOwnedAddressWithoutAConflict() throws Exception {
+        String vaultAddress = "addr_test1_bridge_vault";
+        String vaultScriptHash = "11".repeat(28);
+        String profileId = "zeroj-jubjub-dev-v1";
+        EutxoValidityCommitmentEngine engine = new EutxoValidityCommitmentEngine() {
+            @Override public String id() { return "stub-validity"; }
+            @Override public String profileDigest() { return "00".repeat(32); }
+            @Override public String authorizationProfile() { return profileId; }
+            @Override public String authorizationProfileDigest() { return "11".repeat(32); }
+            @Override public EutxoValidityCommitment genesis() {
+                return new EutxoValidityCommitment(new byte[32], new byte[]{1});
+            }
+            @Override public EutxoValidityCommitment commit(EutxoValidityTransition transition) {
+                return new EutxoValidityCommitment(new byte[32], new byte[]{1});
+            }
+        };
+        EutxoValidityCommitmentProvider provider = new EutxoValidityCommitmentProvider() {
+            @Override public String id() { return "stub-validity"; }
+            @Override public EutxoValidityCommitmentEngine create(String chainId, EutxoProfile profile,
+                                                                  Map<String, String> settings) {
+                return engine;
+            }
+        };
+        EutxoStateMachine machine = (EutxoStateMachine) new EutxoStateMachineProvider(provider).create(context(Map.of(
+                "machines.eutxo.profile", EutxoProfile.V2.id(),
+                "machines.eutxo.bridge.observer-id", "bridge-deposits",
+                "machines.eutxo.bridge.vault-address", vaultAddress,
+                "machines.eutxo.bridge.vault-script-hash", vaultScriptHash,
+                "machines.eutxo.validity.enabled", "true",
+                "machines.eutxo.validity.provider", "stub-validity")));
+        MemoryAppState state = new MemoryAppState();
+        byte[] alice = credential(ALICE.address());
+        byte[] bob = credential(BOB.address());
+
+        // Signed by Alice for Alice's own address: registers. Unsigned for Bob: does not. Signed by Alice but
+        // naming Bob's address (the other half of the old attack): does not. A second, different signed binding
+        // for Alice conflicts with her registration: does not replace it. Every deposit is still credited.
+        EutxoDepositClaim registered = boundClaim(0x51, ALICE.address(), alice, 0x61, true, vaultAddress);
+        EutxoDepositClaim unsigned = boundClaim(0x52, BOB.address(), bob, 0x62, false, vaultAddress);
+        EutxoDepositClaim notOwner = boundClaim(0x53, BOB.address(), alice, 0x63, true, vaultAddress);
+        EutxoDepositClaim conflicting = boundClaim(0x54, ALICE.address(), alice, 0x64, true, vaultAddress);
+        long height = 1;
+        for (EutxoDepositClaim claim : List.of(registered, unsigned, notOwner, conflicting)) {
+            apply(machine, block(height, observationMessage(0x70 + (int) height, depositObservation(claim))), state);
+            height++;
+        }
+
+        assertThat(EutxoL2KeyRegistration.decode(state.get(EutxoStateKeys.l2Key(
+                java.util.HexFormat.of().formatHex(alice))).orElseThrow()).publicKey())
+                .isEqualTo(fill(32, 0x61));
+        assertThat(state.get(EutxoStateKeys.l2Key(java.util.HexFormat.of().formatHex(bob)))).isEmpty();
+        for (EutxoDepositClaim claim : List.of(registered, unsigned, notOwner, conflicting)) {
+            assertThat(state.get(EutxoStateKeys.deposit(claim.acceptedOutpoint()))).isPresent();
+        }
+
+        // A one-byte Bech32 payload claims a key-hash payment part but has no credential bytes; extracting the
+        // credential throws, which must not fail the block.
+        String truncated = "addr_test1vqylkdml";
+        EutxoDepositClaim odd = boundClaim(0x55, truncated, alice, 0x65, true, vaultAddress);
+        apply(machine, block(height, observationMessage(0x7f, depositObservation(odd))), state);
+        assertThat(state.get(EutxoStateKeys.deposit(odd.acceptedOutpoint()))).isPresent();
+    }
+
+    private static byte[] credential(String address) {
+        return new com.bloxbean.cardano.client.address.Address(address).getPaymentCredentialHash().orElseThrow();
+    }
+
+    private static EutxoDepositClaim boundClaim(int outpointByte, String l2Address, byte[] depositor, int keyByte,
+                                                boolean signed, String vaultAddress) throws Exception {
+        byte[] output = com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.serialize(
+                TransactionOutput.builder().address(l2Address).value(Value.fromCoin(BigInteger.valueOf(25)))
+                        .build().serialize());
+        return new EutxoDepositClaim(EutxoDepositClaim.ABI_VERSION, "eutxo-test",
+                new EutxoOutpoint(String.format("%02x", outpointByte).repeat(32), 0), 100 + outpointByte,
+                fill(32, outpointByte), vaultAddress, "11".repeat(28), output, l2Address, output,
+                fill(32, outpointByte), new EutxoOutpoint("33".repeat(32), outpointByte), 1_000, depositor,
+                new EutxoL2KeyBinding("zeroj-jubjub-dev-v1", 1, fill(32, keyByte)), signed);
     }
 
     @Test

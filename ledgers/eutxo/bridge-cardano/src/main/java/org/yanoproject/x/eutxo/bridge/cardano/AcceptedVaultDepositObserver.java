@@ -1,7 +1,6 @@
 package org.yanoproject.x.eutxo.bridge.cardano;
 
 import com.bloxbean.cardano.client.address.Address;
-import com.bloxbean.cardano.client.address.AddressProvider;
 import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.bloxbean.cardano.client.transaction.spec.Value;
@@ -62,7 +61,7 @@ final class AcceptedVaultDepositObserver implements L1Observer {
     }
 
     L1ObserverConsensusIdentity consensusIdentity() {
-        return ObserverConsensusIdentity.of("eutxo-deposit-claim-v1",
+        return ObserverConsensusIdentity.of("eutxo-deposit-claim-v1", EutxoDepositClaim.ABI_VERSION,
                 "chain-id", chainId,
                 "vault-address", vaultAddress,
                 "vault-script-hash", vaultScriptHash,
@@ -76,7 +75,12 @@ final class AcceptedVaultDepositObserver implements L1Observer {
         }
         List<L1Observation> observations = new ArrayList<>();
         for (TransactionBody transaction : block.getTransactionBodies()) {
-            EutxoDepositClaim claim = claim(slot, blockHash, transaction);
+            EutxoDepositClaim claim;
+            try {
+                claim = transaction == null ? null : claim(slot, blockHash, transaction);
+            } catch (RuntimeException notCreditable) {
+                continue; // whatever the shape, a transaction that cannot be read is not a deposit
+            }
             if (claim != null) {
                 observations.add(L1Observation.transaction(
                         observerId,
@@ -124,8 +128,8 @@ final class AcceptedVaultDepositObserver implements L1Observer {
     /**
      * The claim for one vault output, or null when it is not a creditable deposit: no inline datum, a datum other
      * than an accepted-deposit datum (including the settlement outputs the withdrawal observers own), native
-     * assets, an amount outside the bound, another chain, an L2 key binding its depositor does not authorize, or
-     * any value that cannot be canonically encoded.
+     * assets, an amount outside the bound, another chain, or any value that cannot be canonically encoded. Whether
+     * an L2 key binding applies is the ledger's decision; it never stops the deposit itself.
      */
     private EutxoDepositClaim creditableDeposit(
             long slot,
@@ -145,7 +149,7 @@ final class AcceptedVaultDepositObserver implements L1Observer {
             EutxoVaultDatum datum = EutxoVaultDatum.decode(datumCbor);
             BigInteger lovelace = exactLovelace(output);
             if (lovelace == null || lovelace.signum() <= 0 || lovelace.compareTo(maxLovelace) > 0
-                    || !chainId.equals(datum.chainId()) || !keyBindingAuthorized(datum)) {
+                    || !chainId.equals(datum.chainId())) {
                 return null;
             }
             com.bloxbean.cardano.client.transaction.spec.TransactionOutput accepted =
@@ -180,25 +184,26 @@ final class AcceptedVaultDepositObserver implements L1Observer {
                     datum.stagingOutpoint(),
                     datum.refundDeadline(),
                     datum.depositorKeyHash(),
-                    datum.l2KeyBinding());
+                    datum.l2KeyBinding(),
+                    depositorSigned(transaction, datum.depositorKeyHash()));
         } catch (Exception notCreditable) {
             return null;
         }
     }
 
     /**
-     * The ledger registers a deposit's L2 key only for a key-controlled L2 address whose payment credential is
-     * the depositor's key hash; a binding that fails that rule is not credited here either.
+     * Whether the depositor's key hash is a required signer of the accepting transaction. The Cardano ledger admits
+     * a transaction only when every required signer signed it, so this is the depositor's own approval: the vault
+     * datum's key hash and L2 address are chosen by whoever creates the output, and anyone can accept a staged
+     * deposit. The ledger applies a deposit's L2 key binding only when this holds.
      */
-    private static boolean keyBindingAuthorized(EutxoVaultDatum datum) {
-        if (!datum.l2KeyBinding().present()) {
-            return true;
+    private static boolean depositorSigned(TransactionBody transaction, byte[] depositorKeyHash) {
+        if (transaction.getRequiredSigners() == null) {
+            return false;
         }
-        Address address = new Address(datum.l2Address());
-        return AddressProvider.isPubKeyHashInPaymentPart(address)
-                && address.getPaymentCredentialHash()
-                .map(credential -> java.util.Arrays.equals(credential, datum.depositorKeyHash()))
-                .orElse(false);
+        String depositor = HexFormat.of().formatHex(depositorKeyHash);
+        return transaction.getRequiredSigners().stream()
+                .anyMatch(signer -> signer != null && depositor.equalsIgnoreCase(signer.trim()));
     }
 
     /** The output's lovelace, or null when it also carries a native asset. */
