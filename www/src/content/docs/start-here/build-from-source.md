@@ -57,11 +57,11 @@ Then supply the matching inputs explicitly:
 
 | Value | Current |
 |---|---|
-| Yano X version | `0.1.0-pre2` |
-| Yano host version | `0.1.0-pre17` |
+| Yano X version | `0.1.0-pre3` |
+| Yano host version | `0.1.0-pre18-76619d9-SNAPSHOT` |
 | Maven group | `org.yanoproject.x` |
 | Java | `25` |
-| Base Yano JVM ZIP | [`yano-0.1.0-pre17.zip`](https://github.com/bloxbean/yano/releases/download/v0.1.0-pre17/yano-0.1.0-pre17.zip) |
+| Base Yano JVM ZIP | [`yano-0.1.0-pre18-76619d9.zip`](https://repo.bloxbean.org/dist/snapshots/yano/0.1.0-pre18-76619d9/yano-0.1.0-pre18-76619d9.zip) |
 
 <!-- catalog:versions-end -->
 
@@ -165,12 +165,17 @@ tools/yano-plugins/bin/yano-plugins validate plugins/*.jar
 
 ## Building against a different Yano version
 
-If you need a Yano line other than the pinned one — a newer pre-release, or a
-staged build — pass it explicitly:
+If you need a Yano line other than the pinned one — a newer pre-release, a
+commit snapshot, or a staged build — pass it explicitly:
 
 ```bash
 # A different released Yano version: the ZIP still resolves from its release.
 ./gradlew clean build -PyanoVersion=<released-yano-version> -PskipSigning=true
+
+# A Yano commit snapshot, e.g. 0.1.0-pre18-76619d9-SNAPSHOT: the jars resolve
+# from repo.bloxbean.org/maven/snapshots and the ZIP from the matching
+# repo.bloxbean.org/dist/snapshots/yano/<version>/ (version without -SNAPSHOT).
+./gradlew clean build -PyanoVersion=<yano-snapshot-version> -PskipSigning=true
 
 # A staged Maven repository plus an exact ZIP.
 ./gradlew clean build \
@@ -182,8 +187,9 @@ staged build — pass it explicitly:
 
 The Maven version and the JVM ZIP identity must match exactly. `verifyYanoInputs`
 rejects a base ZIP whose root directory, JAR implementation version, or
-distribution manifest disagrees with `yanoVersion`. Snapshot and locally staged
-versions never fall back to a GitHub release asset and must supply
+distribution manifest disagrees with `yanoVersion`, and a snapshot ZIP whose
+SHA-256 differs from its published `manifest.json`. Snapshots never fall back to
+a GitHub release asset, and locally built or staged versions must supply
 `yanoJvmDist`.
 
 ## Troubleshooting
@@ -192,7 +198,8 @@ versions never fall back to a GitHub release asset and must supply
 |---|---|
 | `Unsupported class file major version` or a Java-version error | Yano X requires Java 25. Point `JAVA_HOME` at a 25 JDK. |
 | The build tries to reach Maven Local and fails | `mavenLocal()` is disabled unless `-PuseMavenLocal=true`. That flag belongs to the contributor track; you should not need it. |
-| A missing release asset for `yanoVersion` | You are on a SNAPSHOT or staged Yano version. Supply `-PyanoJvmDist` with the exact matching ZIP. |
+| A missing release asset for `yanoVersion` | You are on a staged or locally built Yano version. Supply `-PyanoJvmDist` with the exact matching ZIP. |
+| `Could not find org.yanoproject-snapshot:yano` | Yano publishes snapshot jars and the snapshot ZIP in separate workflows; the ZIP for that commit is not published yet. Wait for it, or pick a commit listed in `repo.bloxbean.org/dist/snapshots/yano/latest.json`. |
 | `verifyJvmOnlyBuild` fails | Something introduced a native-image build or distribution task. Yano X is JVM-only by decision. |
 | A native distribution is rejected by `appchain doctor` | Yano X plugins target the JVM host. Use the `yano-x-jvm` archive. |
 
