@@ -93,8 +93,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * the proof controller to pay the user. The stable withdrawal observer then
  * reconciles the same claim on L2.</p>
  */
-@io.quarkus.test.junit.QuarkusTest
-@io.quarkus.test.junit.TestProfile(EutxoZkDevnetTestProfile.class)
+@PackagedDevnet(profile = EutxoZkDevnetTestProfile.class,
+        removeBundles = "yano-x-eutxo-ledger-bundle", addOptionalBundles = "yano-x-eutxo-zk-runtime-bundle")
 class EutxoZkRollupDevnetE2ETest extends BaseE2ETest {
     private static final Logger log =
             LoggerFactory.getLogger(EutxoZkRollupDevnetE2ETest.class);

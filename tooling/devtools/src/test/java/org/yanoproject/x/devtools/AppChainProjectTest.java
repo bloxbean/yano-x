@@ -538,6 +538,93 @@ class AppChainProjectTest {
                 .hasMessageContaining("funding:eutxo-genesis");
     }
 
+    @Test
+    void observerChainsGetTheL1NetworkGenesisIdentity() throws Exception {
+        AppChainPropertyRegistry properties = AppChainPropertyRegistry.framework();
+        AppChainProjectCatalog catalog = new AppChainProjectCatalog(properties);
+        AppChainProjectResolver resolver = new AppChainProjectResolver(properties, catalog);
+        AppChainProjectRenderer renderer = new AppChainProjectRenderer(catalog, resolver);
+        AppChainProjectModel.Blueprint bridge = withAnswers(
+                blueprint("eutxo-cardano-bridge", "fixed",
+                        List.of("a".repeat(64), "b".repeat(64), "c".repeat(64))),
+                bridgeAnswers());
+
+        Path preprod = temporary.resolve("observer-preprod");
+        renderer.initialize(preprod, bridge);
+        assertThat(nodeConfig(preprod)).contains("l1-network-genesis-id")
+                .contains(L1NetworkGenesis.publicNetworks().get("preprod"));
+
+        Path devnet = temporary.resolve("observer-devnet");
+        renderer.initialize(devnet, withNetwork(bridge, "devnet"));
+        assertThat(nodeConfig(devnet)).contains("l1-network-genesis-id")
+                .contains("${" + L1NetworkGenesis.DEVNET_ENVIRONMENT + "}");
+        assertThat(Files.readString(devnet.resolve("scripts/start-node")))
+                .contains("export " + L1NetworkGenesis.DEVNET_ENVIRONMENT + "=");
+
+        Path plain = temporary.resolve("no-observer");
+        renderer.initialize(plain, blueprint("audit-log", "fixed",
+                List.of("a".repeat(64), "b".repeat(64), "c".repeat(64))));
+        assertThat(nodeConfig(plain)).doesNotContain("l1-network-genesis-id");
+    }
+
+    @Test
+    void prepareDevnetReplacesOnlyAGenesisThatNeverBackedAReadyDevnet() throws Exception {
+        org.junit.jupiter.api.Assumptions.assumeFalse(
+                System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win"));
+        AppChainPropertyRegistry properties = AppChainPropertyRegistry.framework();
+        AppChainProjectCatalog catalog = new AppChainProjectCatalog(properties);
+        AppChainProjectResolver resolver = new AppChainProjectResolver(properties, catalog);
+        Path project = temporary.resolve("devnet-genesis");
+        new AppChainProjectRenderer(catalog, resolver).initialize(project, withNetwork(
+                blueprint("audit-log", "fixed",
+                        List.of("a".repeat(64), "b".repeat(64), "c".repeat(64))), "devnet"));
+        for (String script : List.of("start", "start-node", "prepare-devnet", "stop")) {
+            assertShellSyntax(project.resolve("scripts/" + script));
+        }
+        Path compose = temporary.resolve("devnet-genesis-compose");
+        new AppChainProjectRenderer(catalog, resolver).initialize(compose, withTarget(withNetwork(
+                blueprint("audit-log", "fixed",
+                        List.of("a".repeat(64), "b".repeat(64), "c".repeat(64))), "devnet"),
+                "jvm", "docker-compose"));
+        assertShellSyntax(compose.resolve("scripts/start"));
+        assertThat(Files.readString(compose.resolve("compose.yaml")))
+                .contains(L1NetworkGenesis.DEVNET_ENVIRONMENT + ": ${");
+        Path source = temporary.resolve("source-genesis.json");
+        Files.writeString(source, "{\"systemStart\":\"2020-01-01T00:00:00Z\",\"epochLength\":432000}");
+        Path genesis = project.resolve("runtime/shelley-genesis.json");
+
+        assertThat(prepareDevnet(project, source)).isZero();
+        // A genesis no start has used is stale: the next start replaces it.
+        Files.writeString(genesis, "{\"systemStart\":\"stale\"}");
+        assertThat(prepareDevnet(project, source)).isZero();
+        assertThat(Files.readString(genesis)).doesNotContain("stale").contains("\"epochLength\": 500");
+
+        // Node state without a ready start is refused, never deleted.
+        Files.writeString(genesis, "{\"systemStart\":\"stale\"}");
+        Files.createDirectories(project.resolve("data/node0"));
+        assertThat(prepareDevnet(project, source)).isEqualTo(1);
+        assertThat(Files.readString(genesis)).contains("stale");
+        assertThat(project.resolve("data/node0")).exists();
+
+        // A genesis that backed a ready devnet is kept.
+        Files.writeString(project.resolve("runtime/devnet-genesis.started"), "");
+        assertThat(prepareDevnet(project, source)).isZero();
+        assertThat(Files.readString(genesis)).contains("stale");
+    }
+
+    private static int prepareDevnet(Path project, Path source) throws Exception {
+        Process process = new ProcessBuilder("bash", project.resolve("scripts/prepare-devnet").toString(),
+                source.toString())
+                .redirectErrorStream(true)
+                .redirectOutput(ProcessBuilder.Redirect.DISCARD)
+                .start();
+        return process.waitFor();
+    }
+
+    private static String nodeConfig(Path project) throws IOException {
+        return Files.readString(project.resolve("config/nodes/node0.yaml"));
+    }
+
     private static Map<String, String> bridgeAnswers() {
         return Map.of(
                 "bridgeVaultAddress", "addr_test1wzvault",

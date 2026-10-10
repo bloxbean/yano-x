@@ -12,6 +12,8 @@ import org.yanoproject.x.eutxo.zk.zeroj.EutxoJubjubBatchDevelopmentSetup;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectWriter;
+import com.fasterxml.jackson.databind.SerializationFeature;
 
 import java.io.IOException;
 import java.net.URI;
@@ -99,7 +101,7 @@ public final class EutxoValidityLifecycle {
         createDirectories();
         writeIdenticalOrNew(
                 contractPlanFile,
-                json.writerWithDefaultPrettyPrinter()
+                fileWriter()
                         .writeValueAsBytes(contractPlan(identity)),
                 false);
 
@@ -437,7 +439,7 @@ public final class EutxoValidityLifecycle {
                 sha256(transaction));
         operation.put("submittedAt", Instant.now().toString());
         writeAtomic(operationFile,
-                json.writerWithDefaultPrettyPrinter()
+                fileWriter()
                         .writeValueAsBytes(new TreeMap<>(operation)),
                 false);
         return result("OPERATION_SUBMITTED",
@@ -487,7 +489,7 @@ public final class EutxoValidityLifecycle {
         operation.put("status", "STABLE");
         operation.put("stableAt", Instant.now().toString());
         writeAtomic(operationFile,
-                json.writerWithDefaultPrettyPrinter()
+                fileWriter()
                         .writeValueAsBytes(new TreeMap<>(operation)),
                 false);
         return result("OPERATION_STABLE",
@@ -578,7 +580,7 @@ public final class EutxoValidityLifecycle {
                 verificationKeyFile, key.canonicalBytes(), true);
         writeIdenticalOrNew(
                 ceremonyManifestFile,
-                json.writerWithDefaultPrettyPrinter()
+                fileWriter()
                         .writeValueAsBytes(manifest),
                 false);
     }
@@ -811,7 +813,7 @@ public final class EutxoValidityLifecycle {
             throws IOException {
         writeAtomic(
                 stateFile,
-                json.writerWithDefaultPrettyPrinter()
+                fileWriter()
                         .writeValueAsBytes(state),
                 false);
     }
@@ -937,9 +939,18 @@ public final class EutxoValidityLifecycle {
         }
         writeIdenticalOrNew(
                 path,
-                json.writerWithDefaultPrettyPrinter()
+                fileWriter()
                         .writeValueAsBytes(value),
                 false);
+    }
+
+    /**
+     * Retained artifacts are compared byte for byte on rerun, so every map is
+     * written in key order whatever its implementation.
+     */
+    private ObjectWriter fileWriter() {
+        return json.writerWithDefaultPrettyPrinter()
+                .with(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS);
     }
 
     private void writeIdenticalOrNew(

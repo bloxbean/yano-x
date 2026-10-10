@@ -53,6 +53,10 @@ tasks.named('test') {
     }
 }
 
+// Each class runs against a devnet node started from the packaged Yano X distribution (PackagedDevnet);
+// -Dyano.e2e.baseUrl=<node>/api/v1/ runs the classes against an already running node instead.
+def yanoXJvmDistZip = project(':distribution:jvm').tasks.named('yanoXJvmDistZip', Zip)
+
 tasks.register('e2eTest', Test) {
     useJUnitPlatform {
         includeTags 'e2e'
@@ -62,7 +66,15 @@ tasks.register('e2eTest', Test) {
     maxHeapSize = '4g'
     systemProperty 'zeroj.allowInsecureTrustedSetup', 'true'
     systemProperty 'yano.e2e.sourceRoot', rootProject.projectDir.absolutePath
+    systemProperty 'yano.e2e.workDir', layout.buildDirectory.dir('e2e').get().asFile.absolutePath
     if (System.getProperty('yano.e2e.baseUrl') != null) {
         systemProperty 'yano.e2e.baseUrl', System.getProperty('yano.e2e.baseUrl')
+    } else {
+        dependsOn yanoXJvmDistZip
+        inputs.file(yanoXJvmDistZip.flatMap { it.archiveFile }).withPropertyName('distributionZip')
+        doFirst {
+            systemProperty 'yano.e2e.distributionZip',
+                    yanoXJvmDistZip.get().archiveFile.get().asFile.absolutePath
+        }
     }
 }
