@@ -39,6 +39,7 @@ yano.app-chain.chains[0].effects.outcome-commitment=per-effect
 yano.app-chain.chains[0].effects.result.signers=@RESULT_SIGNERS@
 yano.app-chain.chains[0].effects.metrics.types=object.put,ipfs.pin,kafka.publish
 yano.app-chain.chains[0].machines.evidence-registry.storage-gate=@STORAGE_GATE@
+@L1_STABILITY_SETTING@
 yano.app-chain.chains[0].machines.evidence-registry.storage-expiry-blocks=0
 yano.app-chain.chains[0].machines.evidence-registry.notification-expiry-blocks=0
 @MACHINE_PRESET_SETTING@
