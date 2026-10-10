@@ -58,10 +58,10 @@ Then supply the matching inputs explicitly:
 | Value | Current |
 |---|---|
 | Yano X version | `0.1.0-pre3` |
-| Yano host version | `0.1.0-pre18-6ffcbd3-SNAPSHOT` |
+| Yano host version | `0.1.0-pre18-76619d9-SNAPSHOT` |
 | Maven group | `org.yanoproject.x` |
 | Java | `25` |
-| Base Yano JVM ZIP | [`yano-0.1.0-pre18-6ffcbd3.zip`](https://repo.bloxbean.org/dist/snapshots/yano/0.1.0-pre18-6ffcbd3/yano-0.1.0-pre18-6ffcbd3.zip) |
+| Base Yano JVM ZIP | [`yano-0.1.0-pre18-76619d9.zip`](https://repo.bloxbean.org/dist/snapshots/yano/0.1.0-pre18-76619d9/yano-0.1.0-pre18-76619d9.zip) |
 
 <!-- catalog:versions-end -->
 
@@ -172,7 +172,7 @@ commit snapshot, or a staged build — pass it explicitly:
 # A different released Yano version: the ZIP still resolves from its release.
 ./gradlew clean build -PyanoVersion=<released-yano-version> -PskipSigning=true
 
-# A Yano commit snapshot, e.g. 0.1.0-pre18-6ffcbd3-SNAPSHOT: the jars resolve
+# A Yano commit snapshot, e.g. 0.1.0-pre18-76619d9-SNAPSHOT: the jars resolve
 # from repo.bloxbean.org/maven/snapshots and the ZIP from the matching
 # repo.bloxbean.org/dist/snapshots/yano/<version>/ (version without -SNAPSHOT).
 ./gradlew clean build -PyanoVersion=<yano-snapshot-version> -PskipSigning=true

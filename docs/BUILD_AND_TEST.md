@@ -39,7 +39,7 @@ Yano X is being built. `version` independently controls Yano X artifact and
 plugin versions. For a released `yanoVersion`, distribution tasks resolve and
 cache `yano-<version>.zip` from the matching `v<version>` release in
 `bloxbean/yano`. For a Yano commit snapshot such as
-`0.1.0-pre18-6ffcbd3-SNAPSHOT`, the Maven artifacts come from the BloxBean
+`0.1.0-pre18-76619d9-SNAPSHOT`, the Maven artifacts come from the BloxBean
 snapshot repository and the ZIP from the matching BloxBean snapshot
 distribution; see [BUILD_DISTRIBUTIONS.md](BUILD_DISTRIBUTIONS.md). Set
 `yanoJvmDist` only to override that asset with an exact local or staged ZIP.

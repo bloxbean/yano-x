@@ -13,10 +13,10 @@ verifies it with `verifyArtifactInventory`.
 | Value | Current |
 |---|---|
 | Yano X version | `0.1.0-pre3` |
-| Yano host version | `0.1.0-pre18-6ffcbd3-SNAPSHOT` |
+| Yano host version | `0.1.0-pre18-76619d9-SNAPSHOT` |
 | Maven group | `org.yanoproject.x` |
 | Java | `25` |
-| Base Yano JVM ZIP | [`yano-0.1.0-pre18-6ffcbd3.zip`](https://repo.bloxbean.org/dist/snapshots/yano/0.1.0-pre18-6ffcbd3/yano-0.1.0-pre18-6ffcbd3.zip) |
+| Base Yano JVM ZIP | [`yano-0.1.0-pre18-76619d9.zip`](https://repo.bloxbean.org/dist/snapshots/yano/0.1.0-pre18-76619d9/yano-0.1.0-pre18-76619d9.zip) |
 
 <!-- catalog:versions-end -->
 

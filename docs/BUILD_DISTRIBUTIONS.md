@@ -29,7 +29,7 @@ The release URL convention is
 `https://github.com/bloxbean/yano/releases/download/v<version>/yano-<version>.zip`.
 
 Yano commit snapshots need no local Yano build either. A snapshot
-`yanoVersion` such as `0.1.0-pre18-6ffcbd3-SNAPSHOT` resolves its Maven
+`yanoVersion` such as `0.1.0-pre18-76619d9-SNAPSHOT` resolves its Maven
 artifacts from `https://repo.bloxbean.org/maven/snapshots` and its ZIP from the
 matching snapshot distribution,
 `https://repo.bloxbean.org/dist/snapshots/yano/<version>/yano-<version>.zip`,
