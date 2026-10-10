@@ -408,6 +408,14 @@ if [ "$ANCHOR_ENABLED" = true ]; then
   STORAGE_GATE=l1-anchored
   REQUIRE_ANCHOR=true
 fi
+# An l1-anchored effect waits for a covering anchor at least l1.stability-depth
+# L1 blocks deep; with no stability depth nothing is stable and storage never runs.
+L1_STABILITY_SETTING="# app-final storage reads no stable L1 point"
+if [ "$STORAGE_GATE" = l1-anchored ]; then
+  L1_STABILITY_DEPTH=2
+  [ "$DEMO_NETWORK" = devnet ] || L1_STABILITY_DEPTH=10
+  L1_STABILITY_SETTING="yano.app-chain.chains[0].l1.stability-depth=$L1_STABILITY_DEPTH"
+fi
 COMPOSITE_PROFILE_DIGEST_SETTING="# standalone machine has no composite profile trust root"
 if [ "$DEMO_MACHINE_MODE" = composite ]; then
   COMPOSITE_PROFILE_DIGEST="$(profile_digest_for \
@@ -1489,6 +1497,7 @@ compose_node_config() {
     SIGNING_KEY "$seed" APP_PEERS "$peers" MEMBER_KEYS "$MEMBER_KEYS" \
     PROPOSER_KEY "$PROPOSER_KEY" RESULT_SIGNERS "$RESULT_SIGNERS" \
     STORAGE_GATE "$STORAGE_GATE" \
+    L1_STABILITY_SETTING "$L1_STABILITY_SETTING" \
     MACHINE_PRESET_SETTING "$MACHINE_PRESET_SETTING" \
     EVIDENCE_CAPACITY_PER_BLOCK "$EVIDENCE_CAPACITY_PER_BLOCK" \
     DIRECT_RESULT_ACTIVATION_SETTING "$DIRECT_RESULT_ACTIVATION_SETTING" \
@@ -1627,6 +1636,7 @@ prepare_host_configs() {
       STATE_MACHINE "$STATE_MACHINE_ID" \
       MACHINE_PRESET_SETTING "$MACHINE_PRESET_SETTING" \
       RESULT_SIGNERS "$RESULT_SIGNERS" STORAGE_GATE "$STORAGE_GATE" \
+      L1_STABILITY_SETTING "$L1_STABILITY_SETTING" \
       EVIDENCE_CAPACITY_PER_BLOCK "$EVIDENCE_CAPACITY_PER_BLOCK" \
       DIRECT_RESULT_ACTIVATION_SETTING "$DIRECT_RESULT_ACTIVATION_SETTING" \
       HISTORY_DIR "$L1_ROOT/node$i/history" \
