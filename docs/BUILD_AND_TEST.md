@@ -12,8 +12,16 @@ For a released or staged Yano version:
   -PyanoVersion=<yano-version>
 ```
 
-Maven Local is disabled by default. During coordinated local development,
-publish the matching Yano version first, then opt in explicitly:
+Dependencies resolve from Maven Central first. Releases of BloxBean-owned
+groups (`org.yanoproject*`, `com.bloxbean*`) fall back to the BloxBean release
+repository, `https://repo.bloxbean.org/maven/releases`, which carries the same
+files and is the only copy when a release skips Central, for example when
+Central's quota is exhausted. Commit snapshots resolve from
+`https://repo.bloxbean.org/maven/snapshots`.
+
+Maven Local is disabled by default, so a locally published Yano can never reach
+an ordinary or release build. During coordinated local development, publish the
+matching Yano version first, then opt in explicitly:
 
 ```bash
 # Run in the Yano repository.
@@ -28,10 +36,13 @@ publish the matching Yano version first, then opt in explicitly:
 
 The `yanoVersion` must identify the exact Yano API/runtime line against which
 Yano X is being built. `version` independently controls Yano X artifact and
-plugin versions. For a non-SNAPSHOT `yanoVersion`, distribution tasks resolve
-and cache `yano-<version>.zip` from the matching `v<version>` release in
-`bloxbean/yano`. Set `yanoJvmDist` only to override that release asset with an
-exact local or staged ZIP.
+plugin versions. For a released `yanoVersion`, distribution tasks resolve and
+cache `yano-<version>.zip` from the matching `v<version>` release in
+`bloxbean/yano`. For a Yano commit snapshot such as
+`0.1.0-pre18-76619d9-SNAPSHOT`, the Maven artifacts come from the BloxBean
+snapshot repository and the ZIP from the matching BloxBean snapshot
+distribution; see [BUILD_DISTRIBUTIONS.md](BUILD_DISTRIBUTIONS.md). Set
+`yanoJvmDist` only to override that asset with an exact local or staged ZIP.
 
 The command above is the source-and-test build and does not assemble every
 distribution. Gradle's root `build` lifecycle also validates the release

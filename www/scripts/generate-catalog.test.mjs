@@ -17,6 +17,18 @@ test('unpublished host identities never advertise release assets', () => {
   }
 });
 
+test('commit snapshots advertise their BloxBean snapshot distribution', () => {
+  const url = yanoJvmReleaseUrl('0.1.0-pre18-6ffcbd3-SNAPSHOT');
+  assert.equal(url,
+    'https://repo.bloxbean.org/dist/snapshots/yano/0.1.0-pre18-6ffcbd3/yano-0.1.0-pre18-6ffcbd3.zip');
+  const rendered = renderVersions({ versions: {
+    yanoVersion: '0.1.0-pre18-6ffcbd3-SNAPSHOT', yanoXVersion: 'test', group: 'org.yanoproject.x',
+    javaVersion: '25', yanoJvmZipUrl: url,
+  } });
+  assert.match(rendered, /\[`yano-0\.1\.0-pre18-6ffcbd3\.zip`\]/);
+  assert.doesNotMatch(rendered, /Local build required/);
+});
+
 test('released host versions retain the conventional exact-version asset URL', () => {
   assert.equal(yanoJvmReleaseUrl('0.1.0-pre17'),
     'https://github.com/bloxbean/yano/releases/download/v0.1.0-pre17/yano-0.1.0-pre17.zip');
