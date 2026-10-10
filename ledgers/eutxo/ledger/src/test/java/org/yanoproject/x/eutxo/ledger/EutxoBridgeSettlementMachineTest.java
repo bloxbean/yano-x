@@ -609,6 +609,12 @@ class EutxoBridgeSettlementMachineTest {
                 .hasValueSatisfying(bytes ->
                         assertThat(new BigInteger(bytes)).isZero());
         assertThat(state.get(EutxoStateKeys.bridgeHalt())).isEmpty();
+
+        // Replaying the exact settlement changes nothing and is not counted as an ignored confirmation.
+        apply(machine, block(height + 1, observationMessage(0xB2, observation)),
+                state, new CapturingEmitter(height + 1));
+        assertThat(state.get(EutxoStateKeys.ignoredConfirmations())).isEmpty();
+        assertThat(state.get(EutxoStateKeys.bridgeHalt())).isEmpty();
     }
 
     @Test
@@ -640,8 +646,15 @@ class EutxoBridgeSettlementMachineTest {
                 state, new CapturingEmitter(height));
 
         // Ignored: anyone can fabricate this, so it must not halt the bridge. The claim stays PENDING and the
-        // reserve is untouched.
+        // reserve is untouched; the trace counts it, so a genuine settlement ignored this way is visible too.
         assertThat(state.get(EutxoStateKeys.bridgeHalt())).isEmpty();
+        assertThat(org.yanoproject.x.eutxo.contracts.EutxoIgnoredConfirmations.decode(
+                state.get(EutxoStateKeys.ignoredConfirmations()).orElseThrow()))
+                .satisfies(ignored -> {
+                    assertThat(ignored.count()).isEqualTo(1);
+                    assertThat(ignored.lastSettlementTransactionId()).isEqualTo("99".repeat(32));
+                    assertThat(ignored.lastReason()).isEqualTo("CUSTODY_UNPROVEN");
+                });
         EutxoWithdrawalRecord record = EutxoQueryCodec.decodeWithdrawalRecords(
                 machine.query(EutxoQueryCodec.WITHDRAWALS_PATH,
                         EutxoQueryCodec.lifecyclePageRequest(0, 10), state))
@@ -675,6 +688,34 @@ class EutxoBridgeSettlementMachineTest {
         assertThat(state.get(EutxoStateKeys.bridgeHalt()))
                 .hasValueSatisfying(reason -> assertThat(new String(reason, java.nio.charset.StandardCharsets.US_ASCII))
                         .isEqualTo("UNKNOWN_WITHDRAWAL_CONFIRMATION"));
+        // A halt is an alarm, so it is not counted as an ignored confirmation.
+        assertThat(state.get(EutxoStateKeys.ignoredConfirmations())).isEmpty();
+
+        // The deposit credited before the halt, observed again during it, stays credited with no notice.
+        EutxoDepositClaim credited = depositClaimNonce(BigInteger.valueOf(5_000_000L), 0x40);
+        applyDepositAt(machine, state, 5_000_000L, height + 1, 0x40);
+        assertThat(state.get(EutxoStateKeys.depositNotice(credited.acceptedOutpoint()))).isEmpty();
+
+        // A settlement arriving while halted is counted, so it is visible when reconciling the halt.
+        apply(machine, block(height + 2, observationMessage(0xB9, observation)),
+                state, new CapturingEmitter(height + 2));
+        assertThat(org.yanoproject.x.eutxo.contracts.EutxoIgnoredConfirmations.decode(
+                state.get(EutxoStateKeys.ignoredConfirmations()).orElseThrow()).lastReason())
+                .isEqualTo("BRIDGE_HALTED");
+        height += 2;
+
+        // A deposit observed while the bridge is halted is not credited; its value stays in the vault, and the
+        // notice says why instead of the deposit disappearing.
+        applyDepositAt(machine, state, 4_000_000L, height + 1, 0x49);
+        EutxoDepositClaim halted = depositClaimNonce(BigInteger.valueOf(4_000_000L), 0x49);
+        assertThat(state.get(EutxoStateKeys.deposit(halted.acceptedOutpoint()))).isEmpty();
+        assertThat(org.yanoproject.x.eutxo.contracts.EutxoDepositNotice.decode(
+                state.get(EutxoStateKeys.depositNotice(halted.acceptedOutpoint())).orElseThrow()))
+                .satisfies(notice -> {
+                    assertThat(notice.outcome())
+                            .isEqualTo(org.yanoproject.x.eutxo.contracts.EutxoDepositNotice.Outcome.UNCREDITED);
+                    assertThat(notice.reason()).isEqualTo("BRIDGE_HALTED");
+                });
     }
 
     @Test

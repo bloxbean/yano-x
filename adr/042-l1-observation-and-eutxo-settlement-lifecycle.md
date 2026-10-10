@@ -449,6 +449,20 @@ must be key-controlled by that depositor, and no different registration may exis
 fails any of these is not applied, but the deposit is still credited, so a key-binding problem never
 strands value in the vault.
 
+Nothing the bridge declines to credit disappears silently (amended 2026-10-10). The ledger commits at
+most one `EutxoDepositNotice` per accepted outpoint, under `bridge/deposit-notice/`, with one of two
+outcomes:
+
+- `UNCREDITED`: the value stays in the vault. The reason is `BRIDGE_HALTED`, `ADDRESS_FULL`, or
+  `OUTPOINT_TAKEN`.
+- `CREDITED_WITHOUT_KEY_BINDING`: the deposit was credited without registering its key. The reason
+  is `KEY_BINDING_UNSIGNED`, `KEY_BINDING_PROFILE`, `KEY_BINDING_ADDRESS`, `KEY_BINDING_DEPOSITOR`,
+  `KEY_BINDING_CONFLICT`, or `KEY_BINDING_INVALID` (the address or binding could not be read).
+
+`appchain eutxo deposit get` shows the notice, and the `bridge/deposits/notice` query serves it. A
+deposit observed while the bridge is halted is one of these. Its observation is consumed, so the
+notice is the deposit's only trace, and recovering its value is a reconciliation decision.
+
 ```mermaid
 sequenceDiagram
     participant W as User wallet
@@ -600,8 +614,30 @@ For each exact pending claim it then:
 - moves reserve accounting from pending to confirmed outflow; and
 - decrements the pending-withdrawal count.
 
-A custody-unproven confirmation changes nothing: anyone can fabricate one, so halting on it would
-give every L1 user a free bridge halt. Ignoring it releases no reserve accounting. A confirmation
+A custody-unproven confirmation changes no claim, reserve, or halt state: anyone can fabricate one, so
+halting on it would give every L1 user a free bridge halt. Ignoring it releases no reserve accounting.
+
+Each ignored confirmation is counted in a bounded `EutxoIgnoredConfirmations` summary. The summary
+holds the count plus the last settlement transaction, reason, and height, and is read through the
+`bridge/confirmations/ignored` query or `appchain eutxo withdrawal ignored`. The count saturates
+rather than overflowing. The reasons are:
+
+- `CUSTODY_UNPROVEN`, `UNKNOWN_CLAIM`, `CLAIM_MISMATCH`, or `CLAIM_REBIND`;
+- `BRIDGE_HALTED`, for a confirmation that arrives while the bridge is halted. Nothing is confirmed
+  during a halt, on either the batch or the single-claim path;
+- `NOT_THIS_BRIDGE`, for a confirmation whose chain or bridge epoch the ledger does not accept. The
+  observers already filter these, so this one points to observer-versus-ledger configuration or
+  version drift.
+
+An exact replay of a settlement already applied is not counted, and neither is the halting
+confirmation itself.
+
+Anyone can raise the count and overwrite the last entry, so the summary is a prompt, not evidence.
+A count that grows while claims stay pending is a reason to check those claims' settlement
+transactions on L1. Genuine settlements are ignored too when the custody chain breaks, for example
+after vault UTxOs were consolidated outside a settlement.
+
+A confirmation
 that did spend tracked custody but is unknown, mismatched, or rebound is a real alarm and halts the
 bridge rather than silently releasing reserve accounting. The single-claim profiles (v1, v2) track no
 vault custody, so their confirmations are never authenticated. Such a confirmation can confirm an

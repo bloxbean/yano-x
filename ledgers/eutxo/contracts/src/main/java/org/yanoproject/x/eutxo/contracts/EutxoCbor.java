@@ -135,6 +135,62 @@ final class EutxoCbor {
                 bool(fields.get(19), "depositor signed"));
     }
 
+    /** An optional value: CBOR null when absent, otherwise the value's own encoding wrapped as a byte string. */
+    static byte[] encodeOptionalBytes(byte[] value) {
+        return encode(value == null ? SimpleValue.NULL : new ByteString(value));
+    }
+
+    static byte[] decodeOptionalBytes(byte[] bytes) {
+        DataItem item = item(bytes);
+        return item == SimpleValue.NULL ? null : bytes(item, "optional value");
+    }
+
+    static byte[] encodeDepositNotice(EutxoDepositNotice notice) {
+        Array array = new Array();
+        array.add(uint(VERSION));
+        outpoint(array, notice.acceptedOutpoint());
+        array.add(text(notice.outcome().name()));
+        array.add(text(notice.reason()));
+        array.add(uint(notice.height()));
+        return encode(array);
+    }
+
+    static EutxoDepositNotice decodeDepositNotice(byte[] bytes) {
+        List<DataItem> fields = array(item(bytes), 6, "deposit notice");
+        version(fields.get(0));
+        EutxoDepositNotice.Outcome outcome;
+        try {
+            outcome = EutxoDepositNotice.Outcome.valueOf(string(fields.get(3), "notice outcome"));
+        } catch (IllegalArgumentException unknown) {
+            throw new IllegalArgumentException("unknown deposit notice outcome", unknown);
+        }
+        return new EutxoDepositNotice(
+                outpoint(fields.get(1), fields.get(2)),
+                outcome,
+                string(fields.get(4), "notice reason"),
+                longInteger(fields.get(5), "notice height"));
+    }
+
+    static byte[] encodeIgnoredConfirmations(EutxoIgnoredConfirmations ignored) {
+        Array array = new Array();
+        array.add(uint(VERSION));
+        array.add(uint(ignored.count()));
+        array.add(text(ignored.lastSettlementTransactionId()));
+        array.add(text(ignored.lastReason()));
+        array.add(uint(ignored.lastHeight()));
+        return encode(array);
+    }
+
+    static EutxoIgnoredConfirmations decodeIgnoredConfirmations(byte[] bytes) {
+        List<DataItem> fields = array(item(bytes), 5, "ignored confirmations");
+        version(fields.get(0));
+        return new EutxoIgnoredConfirmations(
+                longInteger(fields.get(1), "ignored count"),
+                string(fields.get(2), "settlement transaction id"),
+                string(fields.get(3), "ignored reason"),
+                longInteger(fields.get(4), "ignored height"));
+    }
+
     static byte[] encodeDepositRecord(EutxoDepositRecord record) {
         Array array = new Array();
         array.add(uint(VERSION));

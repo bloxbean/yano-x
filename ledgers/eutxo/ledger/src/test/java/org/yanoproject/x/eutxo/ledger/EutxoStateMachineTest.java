@@ -25,6 +25,8 @@ import org.yanoproject.api.appchain.AppStateMachineContext;
 import org.yanoproject.api.appchain.FinalityCert;
 import org.yanoproject.api.appchain.l1view.L1Observation;
 import org.yanoproject.x.eutxo.contracts.EutxoDepositClaim;
+import org.yanoproject.x.eutxo.contracts.EutxoIgnoredConfirmations;
+import org.yanoproject.x.eutxo.contracts.EutxoDepositNotice;
 import org.yanoproject.x.eutxo.contracts.EutxoL2KeyRegistration;
 import org.yanoproject.x.eutxo.contracts.EutxoValidityTransition;
 import org.yanoproject.x.eutxo.contracts.EutxoValidityCommitmentProvider;
@@ -422,6 +424,21 @@ class EutxoStateMachineTest {
         assertThat(state.get(EutxoStateKeys.deposit(bound.acceptedOutpoint()))).isPresent();
         assertThat(state.get(EutxoStateKeys.l2Key(java.util.HexFormat.of().formatHex(
                 bound.depositorKeyHash())))).isEmpty();
+        assertThat(notice(machine, state, bound)).satisfies(notice -> {
+            assertThat(notice.outcome()).isEqualTo(EutxoDepositNotice.Outcome.CREDITED_WITHOUT_KEY_BINDING);
+            assertThat(notice.reason()).isEqualTo("KEY_BINDING_PROFILE");
+        });
+    }
+
+    private static EutxoDepositNotice notice(EutxoStateMachine machine, MemoryAppState state,
+                                             EutxoDepositClaim claim) {
+        return EutxoQueryCodec.decodeOptionalDepositNotice(machine.query(EutxoQueryCodec.DEPOSIT_NOTICE_PATH,
+                EutxoQueryCodec.depositRequest(claim.acceptedOutpoint()), state));
+    }
+
+    private static EutxoIgnoredConfirmations ignored(EutxoStateMachine machine, MemoryAppState state) {
+        return EutxoQueryCodec.decodeOptionalIgnoredConfirmations(machine.query(
+                EutxoQueryCodec.IGNORED_CONFIRMATIONS_PATH, new byte[0], state));
     }
 
     @Test
@@ -486,6 +503,21 @@ class EutxoStateMachineTest {
         EutxoDepositClaim odd = boundClaim(0x55, truncated, alice, 0x65, true, vaultAddress);
         apply(machine, block(height, observationMessage(0x7f, depositObservation(odd))), state);
         assertThat(state.get(EutxoStateKeys.deposit(odd.acceptedOutpoint()))).isPresent();
+
+        // Each binding that was not applied leaves a notice with its reason; the registered one leaves none.
+        assertThat(notice(machine, state, registered)).isNull();
+        assertThat(notice(machine, state, unsigned).reason()).isEqualTo("KEY_BINDING_UNSIGNED");
+        assertThat(notice(machine, state, notOwner).reason()).isEqualTo("KEY_BINDING_DEPOSITOR");
+        assertThat(notice(machine, state, conflicting).reason()).isEqualTo("KEY_BINDING_CONFLICT");
+        assertThat(notice(machine, state, odd).reason()).isEqualTo("KEY_BINDING_INVALID");
+        EutxoDepositClaim script = boundClaim(0x56,
+                "addr_test1wzn5ee2qaqvly3hx7e0nk3vhm240n5muq3plhjcnvx9ppjgf62u6a", alice, 0x66, true, vaultAddress);
+        apply(machine, block(height + 1, observationMessage(0x7e, depositObservation(script))), state);
+        assertThat(notice(machine, state, script).reason()).isEqualTo("KEY_BINDING_ADDRESS");
+        for (EutxoDepositClaim claim : List.of(unsigned, notOwner, conflicting, odd, script)) {
+            assertThat(notice(machine, state, claim).outcome())
+                    .isEqualTo(EutxoDepositNotice.Outcome.CREDITED_WITHOUT_KEY_BINDING);
+        }
     }
 
     private static byte[] credential(String address) {
@@ -605,6 +637,8 @@ class EutxoStateMachineTest {
         assertThat(EutxoQueryCodec.decodeOptionalWithdrawalRecord(machine.query(EutxoQueryCodec.WITHDRAWAL_PATH,
                 EutxoQueryCodec.withdrawalRequest(claim.claimId()), state)).status())
                 .isEqualTo(EutxoWithdrawalRecord.Status.PENDING);
+        assertThat(ignored(machine, state)).isEqualTo(
+                new EutxoIgnoredConfirmations(1, "76".repeat(32), "CLAIM_MISMATCH", 3));
 
         EutxoWithdrawalConfirmation confirmation =
                 new EutxoWithdrawalConfirmation(
@@ -657,6 +691,8 @@ class EutxoStateMachineTest {
         assertThat(EutxoQueryCodec.decodeOptionalWithdrawalRecord(machine.query(EutxoQueryCodec.WITHDRAWAL_PATH,
                 EutxoQueryCodec.withdrawalRequest(claim.claimId()), state)).settlementTransactionId())
                 .isEqualTo("77".repeat(32));
+        assertThat(ignored(machine, state)).isEqualTo(
+                new EutxoIgnoredConfirmations(2, "75".repeat(32), "CLAIM_REBIND", 5));
     }
 
     @Test
@@ -694,6 +730,12 @@ class EutxoStateMachineTest {
                 BOB.address(), toBobCbor, fill(32, 8), new EutxoOutpoint("34".repeat(32), 0), 1_000);
         apply(machine, block(3, observationMessage(72, depositObservation(bobDeposit))), state);
         assertThat(state.get(EutxoStateKeys.deposit(bobDeposit.acceptedOutpoint()))).isEmpty();
+        assertThat(notice(machine, state, bobDeposit)).satisfies(notice -> {
+            assertThat(notice.outcome()).isEqualTo(EutxoDepositNotice.Outcome.UNCREDITED);
+            assertThat(notice.reason()).isEqualTo("ADDRESS_FULL");
+            assertThat(notice.height()).isEqualTo(3);
+        });
+        assertThat(notice(machine, state, first)).isNull();
 
         Transaction payment = EutxoTransactionFixtures.signedOutputs(first.mirroredOutpoint(), ALICE,
                 List.of(TransactionOutput.builder().address(BOB.address())
@@ -763,6 +805,24 @@ class EutxoStateMachineTest {
         apply(machine, block(1, observationMessage(64, observation)), state);
 
         assertThat(state.get(EutxoStateKeys.bridgeHalt())).isEmpty();
+        assertThat(ignored(machine, state)).isEqualTo(
+                new EutxoIgnoredConfirmations(1, "99".repeat(32), "UNKNOWN_CLAIM", 1));
+
+        // A confirmation for another bridge epoch is rejected by the ledger: counted as NOT_THIS_BRIDGE, with
+        // the transaction id taken from the observation's anchor.
+        EutxoWithdrawalConfirmation otherEpoch = new EutxoWithdrawalConfirmation(1, "eutxo-test", 2,
+                "88".repeat(32), "9b".repeat(32), 0, ALICE.address(), BigInteger.ONE,
+                new EutxoOutpoint("9b".repeat(32), 1), BigInteger.TEN, 301, fill(32, 9));
+        apply(machine, block(2, observationMessage(68, L1Observation.transaction("bridge-withdrawals",
+                java.util.HexFormat.of().parseHex("9b".repeat(32)), 301, fill(32, 9), otherEpoch.encode()))), state);
+        assertThat(ignored(machine, state)).isEqualTo(
+                new EutxoIgnoredConfirmations(2, "9b".repeat(32), "NOT_THIS_BRIDGE", 2));
+
+        // While the bridge is halted, a single-claim confirmation confirms nothing and is counted as such.
+        state.put(EutxoStateKeys.bridgeHalt(), "TEST_HALT".getBytes(java.nio.charset.StandardCharsets.US_ASCII));
+        apply(machine, block(3, observationMessage(69, observation)), state);
+        assertThat(ignored(machine, state)).isEqualTo(
+                new EutxoIgnoredConfirmations(3, "99".repeat(32), "BRIDGE_HALTED", 3));
     }
 
     private static EutxoDepositClaim depositClaim(

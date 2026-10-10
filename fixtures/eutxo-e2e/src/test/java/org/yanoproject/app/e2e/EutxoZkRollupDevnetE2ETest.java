@@ -31,6 +31,7 @@ import com.bloxbean.cardano.julc.testkit.ContractTest;
 import org.yanoproject.x.eutxo.contracts.EutxoL2Authorization;
 import org.yanoproject.x.eutxo.contracts.EutxoL2Domain;
 import org.yanoproject.x.eutxo.contracts.EutxoL2Transaction;
+import org.yanoproject.x.eutxo.contracts.EutxoDepositNotice;
 import org.yanoproject.x.eutxo.contracts.EutxoDepositRecord;
 import org.yanoproject.x.eutxo.contracts.EutxoOutpoint;
 import org.yanoproject.x.eutxo.contracts.EutxoProfile;
@@ -504,10 +505,15 @@ class EutxoZkRollupDevnetE2ETest extends BaseE2ETest {
                 "a binding the depositor signed registers its L2 key");
         assertNull(l2KeyRegistration(appChainClient, bystander),
                 "an unsigned binding registers no L2 key");
-        // The unsigned deposit is still credited, so its ADA is not stranded in the vault.
+        // The unsigned deposit is still credited, so its ADA is not stranded in the vault, and its notice
+        // says why no key was registered.
         assertTrue(eutxoClient.utxos(bystander.enterpriseAddress()).stream()
                 .anyMatch(record -> record.outpoint()
                         .equals(unsignedRecord.mirroredOutpoint())));
+        var notice = eutxoClient.depositNoticeSnapshot(unsignedDeposit).value().orElseThrow();
+        assertEquals(EutxoDepositNotice.Outcome.CREDITED_WITHOUT_KEY_BINDING, notice.outcome());
+        assertEquals("KEY_BINDING_UNSIGNED", notice.reason());
+        assertTrue(eutxoClient.depositNoticeSnapshot(signedDeposit).value().isEmpty());
     }
 
     private EutxoOutpoint directBoundDeposit(

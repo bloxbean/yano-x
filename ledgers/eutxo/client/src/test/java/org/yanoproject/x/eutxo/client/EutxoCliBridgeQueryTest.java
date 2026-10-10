@@ -4,7 +4,9 @@ import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.transaction.spec.TransactionOutput;
 import com.bloxbean.cardano.client.transaction.spec.Value;
 import org.yanoproject.x.eutxo.contracts.EutxoDepositClaim;
+import org.yanoproject.x.eutxo.contracts.EutxoDepositNotice;
 import org.yanoproject.x.eutxo.contracts.EutxoDepositRecord;
+import org.yanoproject.x.eutxo.contracts.EutxoIgnoredConfirmations;
 import org.yanoproject.x.eutxo.contracts.EutxoOutpoint;
 import org.yanoproject.x.eutxo.contracts.EutxoQueryCodec;
 import org.yanoproject.x.eutxo.contracts.EutxoWithdrawalClaim;
@@ -67,7 +69,10 @@ class EutxoCliBridgeQueryTest {
 
         JsonNode result = run("deposit", "get", ACCEPTED.toString());
 
-        assertThat(queries).containsExactly(EutxoQueryCodec.DEPOSIT_PATH);
+        assertThat(queries).containsExactly(EutxoQueryCodec.DEPOSIT_PATH, EutxoQueryCodec.DEPOSIT_NOTICE_PATH);
+        assertThat(result.at("/notice/outcome").asText()).isEqualTo("CREDITED_WITHOUT_KEY_BINDING");
+        assertThat(result.at("/notice/reason").asText()).isEqualTo("KEY_BINDING_UNSIGNED");
+        assertThat(result.at("/noticeCommittedHeight").asLong()).isEqualTo(7);
         assertThat(EutxoQueryCodec.decodeDepositRequest(params.getFirst())).isEqualTo(ACCEPTED);
         assertThat(result.at("/acceptedOutpoint").asText()).isEqualTo(ACCEPTED.toString());
         assertThat(result.at("/deposit/mirroredOutpoint").asText())
@@ -103,11 +108,28 @@ class EutxoCliBridgeQueryTest {
     }
 
     @Test
+    void withdrawalIgnoredShowsTheCountAndTheLastIgnoredConfirmation() throws Exception {
+        startServer();
+
+        JsonNode result = run("withdrawal", "ignored");
+
+        assertThat(queries).containsExactly(EutxoQueryCodec.IGNORED_CONFIRMATIONS_PATH);
+        assertThat(params.getFirst()).isEmpty();
+        assertThat(result.at("/ignoredConfirmations/count").asLong()).isEqualTo(3);
+        assertThat(result.at("/ignoredConfirmations/lastSettlementTransactionId").asText())
+                .isEqualTo("9a".repeat(32));
+        assertThat(result.at("/ignoredConfirmations/lastReason").asText()).isEqualTo("CUSTODY_UNPROVEN");
+    }
+
+    @Test
     void absentRecordsPrintNull() throws Exception {
         present = false;
         startServer();
 
-        assertThat(run("deposit", "get", ACCEPTED.toString()).get("deposit").isNull()).isTrue();
+        JsonNode deposit = run("deposit", "get", ACCEPTED.toString());
+        assertThat(deposit.get("deposit").isNull()).isTrue();
+        assertThat(deposit.get("notice").isNull()).isTrue();
+        assertThat(run("withdrawal", "ignored").get("ignoredConfirmations").isNull()).isTrue();
         assertThat(run("withdrawal", "get", "ab".repeat(32)).get("withdrawal").isNull()).isTrue();
     }
 
@@ -148,6 +170,13 @@ class EutxoCliBridgeQueryTest {
                     case EutxoQueryCodec.WITHDRAWAL_PATH -> EutxoQueryCodec.optionalWithdrawalRecord(
                             present ? confirmed : null);
                     case EutxoQueryCodec.WITHDRAWALS_PATH -> EutxoQueryCodec.withdrawalRecords(List.of(pending));
+                    case EutxoQueryCodec.DEPOSIT_NOTICE_PATH -> EutxoQueryCodec.optionalDepositNotice(
+                            present ? new EutxoDepositNotice(ACCEPTED,
+                                    EutxoDepositNotice.Outcome.CREDITED_WITHOUT_KEY_BINDING,
+                                    "KEY_BINDING_UNSIGNED", 4) : null);
+                    case EutxoQueryCodec.IGNORED_CONFIRMATIONS_PATH -> EutxoQueryCodec.optionalIgnoredConfirmations(
+                            present ? new EutxoIgnoredConfirmations(3, "9a".repeat(32), "CUSTODY_UNPROVEN", 6)
+                                    : null);
                     default -> throw new IllegalStateException("unexpected query " + query);
                 };
                 respond(exchange, """

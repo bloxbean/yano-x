@@ -609,4 +609,28 @@ class EutxoContractCodecTest {
         assertThatThrownBy(() -> new EutxoShardDatum(1, "payments", 7, 3, new byte[16]))
                 .isInstanceOf(IllegalArgumentException.class);
     }
+
+    @Test
+    void depositNoticeAndIgnoredConfirmationsRoundTripAndRejectNonCodes() {
+        EutxoDepositNotice notice = new EutxoDepositNotice(new EutxoOutpoint("ab".repeat(32), 2),
+                EutxoDepositNotice.Outcome.CREDITED_WITHOUT_KEY_BINDING, "KEY_BINDING_UNSIGNED", 9);
+        assertThat(EutxoDepositNotice.decode(notice.encode())).isEqualTo(notice);
+        assertThat(EutxoQueryCodec.decodeOptionalDepositNotice(EutxoQueryCodec.optionalDepositNotice(notice)))
+                .isEqualTo(notice);
+        assertThat(EutxoQueryCodec.decodeOptionalDepositNotice(EutxoQueryCodec.optionalDepositNotice(null)))
+                .isNull();
+
+        EutxoIgnoredConfirmations first = EutxoIgnoredConfirmations.next(null, "cd".repeat(32), "UNKNOWN_CLAIM", 4);
+        EutxoIgnoredConfirmations second =
+                EutxoIgnoredConfirmations.next(first, "ef".repeat(32), "CUSTODY_UNPROVEN", 5);
+        assertThat(second.count()).isEqualTo(2);
+        assertThat(EutxoIgnoredConfirmations.decode(second.encode())).isEqualTo(second);
+        EutxoIgnoredConfirmations full = new EutxoIgnoredConfirmations(Long.MAX_VALUE, "cd".repeat(32), "X", 1);
+        assertThat(EutxoIgnoredConfirmations.next(full, "ef".repeat(32), "Y", 2).count()).isEqualTo(Long.MAX_VALUE);
+        assertThat(EutxoQueryCodec.decodeOptionalIgnoredConfirmations(
+                EutxoQueryCodec.optionalIgnoredConfirmations(null))).isNull();
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> new EutxoDepositNotice(
+                new EutxoOutpoint("ab".repeat(32), 2), EutxoDepositNotice.Outcome.UNCREDITED, "not a code", 1))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
 }
