@@ -575,7 +575,8 @@ Initialize from an explicit document and installed authoring bundles:
 ```
 
 The genesis pins the topology's member public keys, so `init` needs them. For
-disposable local devnet keys, see
+disposable keys on a same-machine JVM devnet, replace the three `--member-key`
+options with `--generate-local-member-keys`; see
 [deploying a workflow locally](bindings/04-java-integration.md#deploy-the-workflow-on-a-local-devnet).
 
 Both flags are required together and rejected for other recipes. Input paths

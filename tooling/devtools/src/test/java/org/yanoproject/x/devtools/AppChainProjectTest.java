@@ -916,6 +916,86 @@ class AppChainProjectTest {
         assertThat(project.resolve("config/authenticated-map-genesis.hex")).isRegularFile();
     }
 
+    @Test
+    void generatedLocalMemberKeysPinOnlyPublicKeysAndPrepareReusesTheirPrivateFiles() throws Exception {
+        Path project = temporary.resolve("generated-members");
+        StringWriter output = new StringWriter();
+        StringWriter error = new StringWriter();
+        int exit = new AppChainDevtoolsCli().run(new String[]{
+                "appchain", "init", "--non-interactive",
+                "--recipe", "authenticated-map", "--network", "devnet",
+                "--members", "3", "--generate-local-member-keys",
+                "--output", project.toString()
+        }, new PrintWriter(output), new PrintWriter(error));
+
+        assertThat(exit).as(error.toString()).isZero();
+        assertThat(output.toString()).contains("PROJECT_INITIALIZED", "LOCAL_MEMBER_KEYS_GENERATED: 3 ");
+        assertThat(Files.getPosixFilePermissions(project.resolve("secrets")))
+                .isEqualTo(java.nio.file.attribute.PosixFilePermissions.fromString("rwx------"));
+        List<String> seeds = new java.util.ArrayList<>();
+        List<String> publicKeys = new java.util.ArrayList<>();
+        String apiKey = null;
+        for (int node = 0; node < 3; node++) {
+            Path file = project.resolve("secrets/node" + node + ".env");
+            assertThat(Files.getPosixFilePermissions(file))
+                    .isEqualTo(java.nio.file.attribute.PosixFilePermissions.fromString("rw-------"));
+            List<String> lines = Files.readAllLines(file);
+            assertThat(lines).hasSize(2);
+            assertThat(lines.get(0)).matches("YANO_APPCHAIN_SIGNING_KEY=[0-9a-f]{64}");
+            assertThat(lines.get(1)).matches("YANO_APPCHAIN_API_KEYS=[0-9a-f]{64}");
+            if (apiKey == null) apiKey = lines.get(1);
+            assertThat(lines.get(1)).isEqualTo(apiKey);
+            String seed = lines.get(0).substring(lines.get(0).indexOf('=') + 1);
+            seeds.add(seed);
+            publicKeys.add(Hex.encode(KeyGenUtil.getPublicKeyFromPrivateKey(Hex.decode(seed))));
+        }
+        assertThat(seeds).doesNotHaveDuplicates();
+        AppChainPropertyRegistry properties = AppChainPropertyRegistry.framework();
+        AppChainProjectCatalog catalog = new AppChainProjectCatalog(properties);
+        AppChainProjectRenderer renderer = new AppChainProjectRenderer(
+                catalog, new AppChainProjectResolver(properties, catalog));
+        assertThat(renderer.readBlueprint(project).spec().chains().getFirst().topology().memberKeys())
+                .isEqualTo(publicKeys);
+        String blueprint = Files.readString(project.resolve("appchain.yaml"));
+        for (String seed : seeds) {
+            assertThat(blueprint).doesNotContain(seed);
+            assertThat(output.toString()).doesNotContain(seed);
+        }
+
+        new AppChainProjectOperations(properties).prepare(project);
+
+        assertThat(renderer.readBlueprint(project).spec().chains().getFirst().topology().memberKeys())
+                .isEqualTo(publicKeys);
+        assertThat(Files.readAllLines(project.resolve("secrets/node0.env")).getFirst())
+                .isEqualTo("YANO_APPCHAIN_SIGNING_KEY=" + seeds.getFirst());
+    }
+
+    @Test
+    void generatedLocalMemberKeysAreRefusedOutsideALocalDevnetAndBesideExplicitKeys() throws Exception {
+        List<List<String>> refused = List.of(
+                List.of("--network", "preprod"),
+                List.of("--network", "devnet", "--deployment", "docker-compose"),
+                List.of("--network", "devnet", "--runtime", "native"),
+                List.of("--network", "devnet", "--node-host", "a.example", "--node-host", "b.example",
+                        "--node-host", "c.example"),
+                List.of("--network", "devnet", "--member-key", "a".repeat(64),
+                        "--member-key", "b".repeat(64), "--member-key", "c".repeat(64)));
+        for (List<String> options : refused) {
+            Path project = temporary.resolve("refused-" + Integer.toHexString(options.hashCode()));
+            List<String> arguments = new java.util.ArrayList<>(List.of(
+                    "appchain", "init", "--non-interactive", "--recipe", "authenticated-map",
+                    "--members", "3", "--generate-local-member-keys", "--output", project.toString()));
+            arguments.addAll(options);
+            StringWriter error = new StringWriter();
+            int exit = new AppChainDevtoolsCli().run(arguments.toArray(String[]::new),
+                    new PrintWriter(new StringWriter()), new PrintWriter(error));
+
+            assertThat(exit).as(options.toString()).isNotZero();
+            assertThat(error.toString()).as(options.toString()).contains("--generate-local-member-keys");
+            assertThat(project).as(options.toString()).doesNotExist();
+        }
+    }
+
     private static void assertShellSyntax(Path script) throws Exception {
         Process process = new ProcessBuilder("bash", "-n", script.toString())
                 .redirectErrorStream(true)

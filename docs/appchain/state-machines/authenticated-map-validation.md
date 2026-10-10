@@ -52,6 +52,11 @@ you initialize:
   --output product-registry
 ```
 
+For a disposable local devnet, use `--network devnet` and replace the
+`--member-key` options with `--generate-local-member-keys`. It keeps the private
+keys in the project's owner-only `secrets/` directory and pins only the public
+keys. On public networks, operators always supply their own keys.
+
 The generated project starts with one open, opaque `records` collection. Edit
 `spec.chains[0].authenticatedMap` in `appchain.yaml`, then render again:
 

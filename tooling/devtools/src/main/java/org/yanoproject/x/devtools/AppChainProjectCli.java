@@ -54,6 +54,8 @@ final class AppChainProjectCli {
               --network <network>           devnet, preview, preprod, mainnet
               --members <1..32>             member count
               --member-key <64-hex>         repeat once per known public member
+              --generate-local-member-keys  devnet host JVM only: create the member keys, keep
+                                            their private files in secrets/, pin the public keys
               --node-host <hostname>        repeat for a multi-machine host deployment
               --finality <policy>           majority, two-thirds, all
               --sequencing <mode>           fixed or rotating
@@ -76,8 +78,9 @@ final class AppChainProjectCli {
               --acknowledge <id>            persist an explicit product acknowledgement
               --bindings <yaml>            required standalone document for declarative-composite only
               --plugins-directory <path>   required authoring bundles for declarative-composite only
-              authenticated-map recipe      requires one --member-key per member; edit the
-                                            generated authenticatedMap section for schemas
+              authenticated-map recipe      requires one --member-key per member (or, on devnet,
+                                            --generate-local-member-keys); edit the generated
+                                            authenticatedMap section for schemas
             Drift options:
               --peer <http(s)-base-url>     repeat for every node to compare
               --api-key-env <variable>      read the privileged API key from this environment variable
@@ -449,8 +452,21 @@ final class AppChainProjectCli {
             authoringPlugins = java.util.Objects.equals(projectRoot.getRoot(), selectedPlugins.getRoot())
                     ? projectRoot.relativize(selectedPlugins).toString() : selectedPlugins.toString();
         }
+        AppChainProjectOperations.LocalMemberIdentities generated = null;
+        if (options.generateLocalMemberKeys()) {
+            if (!options.memberKeys().isEmpty()) {
+                throw new Usage("--generate-local-member-keys and --member-key are mutually exclusive");
+            }
+            if (!"devnet".equals(options.network()) || !"host".equals(options.deployment())
+                    || !"jvm".equals(options.runtime()) || !options.nodeHosts().isEmpty()) {
+                throw new Usage("--generate-local-member-keys is for a same-machine JVM devnet on the host only; "
+                        + "operators supply their own member keys");
+            }
+            generated = AppChainProjectOperations.LocalMemberIdentities.generate(options.members());
+        }
         AppChainProjectModel.Topology topology = new AppChainProjectModel.Topology(
-                options.members(), options.memberKeys(), options.nodeHosts(),
+                options.members(), generated == null ? options.memberKeys() : generated.publicKeys(),
+                options.nodeHosts(),
                 options.finality(), options.sequencing(), options.membership(),
                 options.httpPortBase(), options.serverPortBase());
         AppChainProjectModel.AuthenticatedMapIntent authenticatedMap =
@@ -474,7 +490,9 @@ final class AppChainProjectCli {
                 spec);
         AppChainProjectModel.Lock lock = selectedRenderer.initialize(
                 output, blueprint, external.snapshotInputs());
-        writeResult(options.format(), "PROJECT_INITIALIZED", output, lock);
+        if (generated != null) generated.write(output.toRealPath());
+        writeResult(options.format(), "PROJECT_INITIALIZED", output, lock,
+                generated == null ? null : generated.seeds().size());
         return AppChainDevtoolsCli.EXIT_OK;
     }
 
@@ -609,6 +627,15 @@ final class AppChainProjectCli {
             String status,
             Path project,
             AppChainProjectModel.Lock lock) throws IOException {
+        writeResult(format, status, project, lock, null);
+    }
+
+    private void writeResult(
+            Format format,
+            String status,
+            Path project,
+            AppChainProjectModel.Lock lock,
+            Integer generatedMemberKeys) throws IOException {
         String safeProject = fileName(project.toAbsolutePath().normalize());
         if (format == Format.JSON) {
             Map<String, Object> result = new LinkedHashMap<>();
@@ -623,6 +650,7 @@ final class AppChainProjectCli {
             result.put("validationCoverage", lock.validationCoverage());
             result.put("maturity", lock.maturity());
             result.put("acknowledgements", lock.acknowledgements());
+            if (generatedMemberKeys != null) result.put("generatedLocalMemberKeys", generatedMemberKeys);
             out.println(json.writeValueAsString(result));
         } else {
             out.printf(Locale.ROOT,
@@ -630,6 +658,11 @@ final class AppChainProjectCli {
                             + "maturity=%s acknowledgements=%s%n",
                     status, safeProject, lock.recipe(), lock.runtime(), lock.deployment(),
                     lock.validationCoverage(), lock.maturity(), lock.acknowledgements());
+            if (generatedMemberKeys != null) {
+                out.printf(Locale.ROOT, "LOCAL_MEMBER_KEYS_GENERATED: %d disposable devnet member keys; private files "
+                        + "in secrets/, public keys pinned in appchain.yaml. Run appchain prepare next.%n",
+                        generatedMemberKeys);
+            }
         }
     }
 
@@ -672,7 +705,8 @@ final class AppChainProjectCli {
                 options.pluginJars(),
                 options.componentCatalogs(),
                 options.trustKeys(),
-                options.acknowledgements(), options.bindings(), options.pluginsDirectory());
+                options.acknowledgements(), options.bindings(), options.pluginsDirectory(),
+                options.generateLocalMemberKeys());
     }
 
     private String prompt(String label, String existing, String defaultValue) throws IOException {
@@ -701,6 +735,7 @@ final class AppChainProjectCli {
         Path pluginsDirectory = null;
         Format format = Format.TEXT;
         boolean nonInteractive = false;
+        boolean generateLocalMemberKeys = false;
         List<String> memberKeys = new ArrayList<>();
         List<String> nodeHosts = new ArrayList<>();
         List<String> capabilities = new ArrayList<>();
@@ -721,6 +756,7 @@ final class AppChainProjectCli {
                     members = parseMembers(value(arguments, ++cursor, argument));
                 }
                 case "--member-key" -> memberKeys.add(value(arguments, ++cursor, argument));
+                case "--generate-local-member-keys" -> generateLocalMemberKeys = true;
                 case "--node-host" -> nodeHosts.add(value(arguments, ++cursor, argument));
                 case "--finality" -> finality = once(finality, value(arguments, ++cursor, argument), argument);
                 case "--sequencing" -> sequencing = once(sequencing, value(arguments, ++cursor, argument), argument);
@@ -775,7 +811,8 @@ final class AppChainProjectCli {
                 httpPortBase, serverPortBase,
                 name, chainId, yanoVersion, output, nonInteractive, format,
                 List.copyOf(pluginJars), List.copyOf(componentCatalogs),
-                Map.copyOf(trustKeys), List.copyOf(acknowledgements), bindings, pluginsDirectory);
+                Map.copyOf(trustKeys), List.copyOf(acknowledgements), bindings, pluginsDirectory,
+                generateLocalMemberKeys);
     }
 
     private static void parseAnswer(String assignment, Map<String, String> answers) {
@@ -1315,7 +1352,8 @@ final class AppChainProjectCli {
             Map<String, String> trustKeys,
             List<String> acknowledgements,
             Path bindings,
-            Path pluginsDirectory) {
+            Path pluginsDirectory,
+            boolean generateLocalMemberKeys) {
         int members() {
             return membersBoxed;
         }

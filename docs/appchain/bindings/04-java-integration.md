@@ -40,25 +40,19 @@ files themselves do not deploy either workflow.
 Run these from the top-level directory of the extracted Yano X distribution.
 They create a three-member project from the shipped registry-to-audit document
 and start it on HTTP ports 7370–7372. A declarative project pins its member
-public keys at genesis, so it needs them before `init`. The release has no
-separate key generator; a throwaway devnet project creates the keys and their
-private files:
+public keys at genesis, so it needs them at `init`. On a local devnet,
+`--generate-local-member-keys` creates them: the private files go to the
+project's owner-only `secrets/` directory, and only the public keys are written
+to `appchain.yaml`:
 
 ```bash
 unset YANO_HOME
-./yano.sh appchain init --non-interactive --recipe audit-log --network devnet \
-  --members 3 --name keygen --chain-id keygen --output ../keygen
-./yano.sh appchain prepare ../keygen
-set -- $(awk '/memberKeys:/{f=1;next} f&&/^ *- "/{gsub(/[ "-]/,""); print; if(++n==3) exit}' \
-  ../keygen/appchain.yaml)
-
 ./yano.sh appchain init --non-interactive --recipe declarative-composite \
-  --network devnet --members 3 --member-key "$1" --member-key "$2" --member-key "$3" \
+  --network devnet --members 3 --generate-local-member-keys \
   --name workflow --chain-id records-audit \
   --http-port-base 7370 --server-port-base 13637 \
   --bindings examples/bindings/registry-to-audit.yaml --plugins-directory plugins \
   --output ../workflow-project
-cp -p ../keygen/secrets/node?.env ../workflow-project/secrets/
 ./yano.sh appchain prepare ../workflow-project
 ./yano.sh appchain render ../workflow-project
 ./yano.sh appchain config validate --mode project ../workflow-project
@@ -69,12 +63,13 @@ export YANO_HOME="$PWD"
 ../workflow-project/scripts/status
 ```
 
-> **✓ You should see** `PREPARED`, `PROJECT_RENDERED`, `VALID_PROJECT`, a doctor
+> **✓ You should see** `PROJECT_INITIALIZED`, `LOCAL_MEMBER_KEYS_GENERATED: 3`,
+> `PREPARED`, `PROJECT_RENDERED`, `VALID_PROJECT`, a doctor
 > report ending in `DOCTOR_WARNINGS`, then three running nodes. The node API is
 > `http://127.0.0.1:7370/api/v1` and the chain ID is `records-audit`.
 
 These are disposable local devnet keys; never reuse them. Stop the nodes with
-`../workflow-project/scripts/stop`. For the approval workflow, repeat the second
+`../workflow-project/scripts/stop`. For the approval workflow, repeat the
 `init` with `examples/bindings/approval-to-audit.yaml`, another chain ID and
 other port bases.
 
