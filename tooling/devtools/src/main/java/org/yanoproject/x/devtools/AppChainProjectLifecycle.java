@@ -227,6 +227,21 @@ final class AppChainProjectLifecycle {
                         artifactPending |= "PENDING".equals(artifactStatus);
                         checks.add(check("artifact:" + artifact, artifactStatus, detail));
                     }
+                    if (Files.isDirectory(distribution, LinkOption.NOFOLLOW_LINKS)) {
+                        Set<String> projectBundles = new TreeSet<>();
+                        for (String artifact : safeList(projectLock.artifacts())) {
+                            String bundle = catalog.artifact(artifact).bundleId();
+                            if (bundle != null && !bundle.contains(":")) projectBundles.add(bundle);
+                        }
+                        AppChainPluginSelection.Result selection = AppChainPluginSelection.check(
+                                distribution, safeMap(projectLock.consensusValues()), projectBundles);
+                        artifactFailure |= "FAIL".equals(selection.status());
+                        checks.add(check("plugin-selection", selection.status(), selection.detail()));
+                    } else {
+                        artifactPending = true;
+                        checks.add(check("plugin-selection", "PENDING",
+                                "extract the distribution and pass its directory to check plugins/"));
+                    }
                     artifactStage = !runtimeMatch || !indexMatch || artifactFailure
                             ? "FAIL" : artifactPending ? "PENDING" : "PASS";
                 }

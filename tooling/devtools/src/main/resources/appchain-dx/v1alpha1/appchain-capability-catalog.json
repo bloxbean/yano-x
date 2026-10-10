@@ -44,7 +44,7 @@
     {
       "id": "yano-x-composite",
       "availability": "BUNDLED",
-      "bundleId": "library:composition:runtime",
+      "bundleId": "org.yanoproject.x.composite",
       "nativePosture": "unsupported",
       "runtimeTypes": [
         "jvm"
@@ -161,7 +161,7 @@
     {
       "id": "yano-x-eutxo-indexer-core",
       "availability": "BUNDLED",
-      "bundleId": "org.yanoproject.x.eutxo.indexer",
+      "bundleId": "library:ledgers:eutxo:indexer-core",
       "nativePosture": "unsupported",
       "runtimeTypes": [
         "jvm"
@@ -174,7 +174,7 @@
     {
       "id": "yano-x-eutxo-indexer-jdbc",
       "availability": "BUNDLED",
-      "bundleId": "library:ledgers:eutxo:indexer-jdbc",
+      "bundleId": "org.yanoproject.x.eutxo.indexer",
       "nativePosture": "unsupported",
       "runtimeTypes": [
         "jvm"
@@ -213,7 +213,7 @@
     {
       "id": "yano-x-eutxo-zk-runtime",
       "availability": "BUNDLED",
-      "bundleId": "library:ledgers:eutxo-zk:runtime",
+      "bundleId": "org.yanoproject.x.eutxo.zk.runtime",
       "nativePosture": "unsupported",
       "runtimeTypes": [
         "jvm"
