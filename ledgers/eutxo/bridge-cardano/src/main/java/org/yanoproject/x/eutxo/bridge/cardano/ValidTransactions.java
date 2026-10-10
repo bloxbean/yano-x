@@ -10,9 +10,11 @@ import java.util.Set;
 
 /**
  * The transactions of an L1 block whose effects exist. A transaction whose Plutus script fails (phase-2 invalid) is
- * still included in the block, but only its collateral is taken: its inputs are not spent and its outputs are never
- * created. An observer that read such a transaction would credit a deposit that never reached the vault, or treat a
- * settlement that never happened as real, for the price of the collateral; so every bridge observer reads only these.
+ * still included in the block, but only its collateral is consumed, and only its collateral-return output (held in
+ * {@code collateralReturn}, not in {@code outputs}) is created. Its regular inputs are not spent and its regular
+ * outputs are never created. An observer that read such a transaction would credit a deposit that never reached the
+ * vault, or treat a settlement that never happened as real, for the price of the collateral; so every bridge
+ * observer reads only these.
  */
 final class ValidTransactions {
     private ValidTransactions() {

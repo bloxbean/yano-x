@@ -821,8 +821,9 @@ observation. ADR-041 owns the trust-preserving delivery and recovery design.
 8. Ordinary rollback removes only unfinalized L1 observations.
 9. Deep rollback behind finalized value state halts rather than silently rewriting history.
 10. Observers read only the phase-2-valid transactions of a block (amended 2026-10-10). A
-    transaction whose script fails is still in the block, but only its collateral is taken: its
-    inputs are not spent and its outputs are never created.
+    transaction whose script fails is still in the block, but only its collateral is consumed and
+    only its collateral-return output is created. Its regular inputs are not spent and its regular
+    outputs are never created.
 
 ### 15.2 Deposits
 
