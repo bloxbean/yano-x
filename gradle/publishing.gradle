@@ -88,6 +88,27 @@ def releaseProjects = releaseSpecifications.collect {
     project(it.modulePath.toString())
 } + project(':bom')
 
+// The `stagingRepository` hook (release-ops docs/12-bloxbean-maven-repository.md):
+// publishes the same MavenPublications as the Central deployment to an isolated
+// repository - no second publication definition. CI passes an absolute path:
+// `./gradlew publishAllPublicationsToStagingRepository -PstagingRepository=$PWD/...`
+// and uploads the result to the BloxBean Maven repository. Yano X publishes more
+// than it deploys, so only the release projects get it, and the runtime plugin
+// bundles skip it as they skip the Central deployment (see below).
+def stagingRepository = providers.gradleProperty('stagingRepository')
+releaseProjects.each { candidate ->
+    candidate.pluginManager.withPlugin('maven-publish') {
+        if (stagingRepository.isPresent()) {
+            candidate.publishing.repositories {
+                maven {
+                    name = 'staging'
+                    url = candidate.uri(stagingRepository.get())
+                }
+            }
+        }
+    }
+}
+
 // Central Portal publishing via the native publisher API. `USER_MANAGED` uploads
 // the deployment and stops at VALIDATED: nothing reaches Maven Central until a
 // human publishes it, either from the portal UI or through the approval-gated
@@ -199,9 +220,11 @@ gradle.projectsEvaluated {
         // Central as well duplicated 307 MB across 18 coordinates for artifacts
         // no downstream build resolves. The publication itself stays so the
         // internal repository and gradle/verification.gradle keep working; only
-        // the Central deployment drops it.
+        // the Central deployment, and the staging repository that mirrors it for
+        // the BloxBean Maven repository, drop it.
         pluginProject.tasks.matching {
-            it.name == 'publishPluginBundlePublicationToNmcpRepository'
+            it.name in ['publishPluginBundlePublicationToNmcpRepository',
+                        'publishPluginBundlePublicationToStagingRepository']
         }.configureEach { enabled = false }
 
         if (!pluginProject.version.toString().endsWith('SNAPSHOT')
@@ -271,6 +294,9 @@ gradle.projectsEvaluated {
                         'Central deployment scope drifted from the artifact inventory. '
                                 + "Unexpected: ${aggregated - expected}; missing: ${expected - aggregated}")
             }
+            // .github/scripts/bloxbean-maven.sh discover reads this line: the
+            // artifacts it stages must be exactly this many.
+            logger.lifecycle("Central deployment scope: ${expected.size()} projects")
         }
     }
 
