@@ -29,17 +29,26 @@ final class AppChainProjectOperations {
 
     /**
      * Fresh local devnet member identities: one signing seed per member and one shared local API key, written in
-     * the layout {@code prepare} reuses. The seeds never leave {@code secrets/}; only public keys are pinned.
+     * the layout {@code prepare} reuses. The seeds never leave {@code secrets/}; only public keys are exposed.
      */
-    record LocalMemberIdentities(List<String> seeds, String apiKey) {
+    static final class LocalMemberIdentities {
+        private final List<String> seeds;
+        private final String apiKey;
+
+        private LocalMemberIdentities(List<String> seeds, String apiKey) {
+            this.seeds = seeds;
+            this.apiKey = apiKey;
+        }
+
         static LocalMemberIdentities generate(int members) {
             if (members < 1 || members > 32) throw new IllegalArgumentException("Members must be from 1 to 32");
-            var random = new SecureRandom();
             List<String> seeds = new ArrayList<>(members);
-            for (int node = 0; node < members; node++) {
-                seeds.add(HexFormat.of().formatHex(random.generateSeed(32)));
-            }
-            return new LocalMemberIdentities(List.copyOf(seeds), HexFormat.of().formatHex(random.generateSeed(32)));
+            for (int node = 0; node < members; node++) seeds.add(randomHex32());
+            return new LocalMemberIdentities(List.copyOf(seeds), randomHex32());
+        }
+
+        int members() {
+            return seeds.size();
         }
 
         List<String> publicKeys() {
@@ -60,6 +69,12 @@ final class AppChainProjectOperations {
             }
         }
 
+        static String randomHex32() {
+            byte[] bytes = new byte[32];
+            RANDOM.nextBytes(bytes);
+            return HexFormat.of().formatHex(bytes);
+        }
+
         static String publicKey(String seed) {
             return HexFormat.of().formatHex(KeyGenUtil.getPublicKeyFromPrivateKey(HexFormat.of().parseHex(seed)));
         }
@@ -74,6 +89,8 @@ final class AppChainProjectOperations {
             return "LocalMemberIdentities[members=" + seeds.size() + "]";
         }
     }
+
+    private static final SecureRandom RANDOM = new SecureRandom();
 
     private final AppChainPropertyRegistry properties;
     private final ObjectMapper json = new ObjectMapper();
@@ -430,7 +447,6 @@ final class AppChainProjectOperations {
         Files.setPosixFilePermissions(secrets, PosixFilePermissions.fromString("rwx------"));
         List<String> publicKeys = new ArrayList<>();
         String apiKey = null;
-        var random = new SecureRandom();
         for (int node = 0; node < members; node++) {
             Path file = secrets.resolve("node" + node + ".env");
             String seed;
@@ -443,8 +459,8 @@ final class AppChainProjectOperations {
                 }
             } else {
                 if (pinned) throw new IOException("Pinned identities require the original private member files");
-                seed = HexFormat.of().formatHex(random.generateSeed(32));
-                if (apiKey == null) apiKey = HexFormat.of().formatHex(random.generateSeed(32));
+                seed = LocalMemberIdentities.randomHex32();
+                if (apiKey == null) apiKey = LocalMemberIdentities.randomHex32();
                 atomicWrite(file, LocalMemberIdentities.environment(seed, apiKey), true);
             }
             publicKeys.add(LocalMemberIdentities.publicKey(seed));

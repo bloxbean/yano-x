@@ -968,6 +968,76 @@ class AppChainProjectTest {
                 .isEqualTo(publicKeys);
         assertThat(Files.readAllLines(project.resolve("secrets/node0.env")).getFirst())
                 .isEqualTo("YANO_APPCHAIN_SIGNING_KEY=" + seeds.getFirst());
+        List<String> secrets = new java.util.ArrayList<>(seeds);
+        secrets.add(apiKey.substring(apiKey.indexOf('=') + 1));
+        assertSecretsOnlyInMemberFiles(project, secrets);
+        assertThat(Files.readString(project.resolve("secrets/.gitignore"))).contains(".yano-write-*");
+        assertThat(Files.readString(project.resolve("secrets/README.md"))).contains("keep it");
+    }
+
+    @Test
+    void generatedLocalMemberKeysReportOnlyTheirCountInJson() throws Exception {
+        Path project = temporary.resolve("generated-members-json");
+        StringWriter output = new StringWriter();
+        StringWriter error = new StringWriter();
+        int exit = new AppChainDevtoolsCli().run(new String[]{
+                "appchain", "init", "--non-interactive", "--format", "json",
+                "--recipe", "audit-log", "--network", "devnet", "--members", "2",
+                "--generate-local-member-keys", "--output", project.toString()
+        }, new PrintWriter(output), new PrintWriter(error));
+
+        assertThat(exit).as(error.toString()).isZero();
+        var result = new ObjectMapper().readTree(output.toString());
+        assertThat(result.get("status").asText()).isEqualTo("PROJECT_INITIALIZED");
+        assertThat(result.get("generatedLocalMemberKeys").asInt()).isEqualTo(2);
+        List<String> secrets = new java.util.ArrayList<>();
+        for (int node = 0; node < 2; node++) {
+            for (String line : Files.readAllLines(project.resolve("secrets/node" + node + ".env"))) {
+                secrets.add(line.substring(line.indexOf('=') + 1));
+            }
+        }
+        for (String secret : secrets) {
+            assertThat(output.toString()).doesNotContain(secret);
+            assertThat(error.toString()).doesNotContain(secret);
+        }
+        assertSecretsOnlyInMemberFiles(project, secrets);
+    }
+
+    @Test
+    void aFailedMemberFileWriteRemovesThePartialProject() throws Exception {
+        for (boolean existed : List.of(false, true)) {
+            Path project = temporary.resolve("partial-" + existed);
+            Files.createDirectories(project.resolve("secrets"));
+            Files.writeString(project.resolve("appchain.yaml"), "pinned public keys");
+            // node0 is written first, then node1 is refused: a real seed must not stay behind.
+            Files.writeString(project.resolve("secrets/node1.env"), "");
+            var identities = AppChainProjectOperations.LocalMemberIdentities.generate(3);
+            assertThat(identities.toString()).isEqualTo("LocalMemberIdentities[members=3]");
+
+            assertThatThrownBy(() -> AppChainProjectCli.writeGeneratedMembers(project.toRealPath(), existed,
+                    identities))
+                    .isInstanceOf(IOException.class)
+                    .hasMessageContaining("init removed the partial project");
+
+            if (existed) {
+                assertThat(project).isEmptyDirectory();
+            } else {
+                assertThat(project).doesNotExist();
+            }
+        }
+    }
+
+    private static void assertSecretsOnlyInMemberFiles(Path project, List<String> secrets) throws IOException {
+        try (var files = Files.walk(project)) {
+            for (Path file : files.filter(Files::isRegularFile).toList()) {
+                String relative = project.relativize(file).toString();
+                if (relative.matches("secrets/node[0-9]+\\.env")) continue;
+                String content = new String(Files.readAllBytes(file), StandardCharsets.ISO_8859_1);
+                for (String secret : secrets) {
+                    assertThat(content).as(relative).doesNotContain(secret);
+                }
+            }
+        }
     }
 
     @Test
@@ -980,6 +1050,8 @@ class AppChainProjectTest {
                         "--node-host", "c.example"),
                 List.of("--network", "devnet", "--member-key", "a".repeat(64),
                         "--member-key", "b".repeat(64), "--member-key", "c".repeat(64)));
+        String scope = "--generate-local-member-keys is for a same-machine JVM devnet on the host only; "
+                + "operators supply their own member keys";
         for (List<String> options : refused) {
             Path project = temporary.resolve("refused-" + Integer.toHexString(options.hashCode()));
             List<String> arguments = new java.util.ArrayList<>(List.of(
@@ -990,8 +1062,11 @@ class AppChainProjectTest {
             int exit = new AppChainDevtoolsCli().run(arguments.toArray(String[]::new),
                     new PrintWriter(new StringWriter()), new PrintWriter(error));
 
-            assertThat(exit).as(options.toString()).isNotZero();
-            assertThat(error.toString()).as(options.toString()).contains("--generate-local-member-keys");
+            assertThat(exit).as(options.toString()).isEqualTo(AppChainDevtoolsCli.EXIT_USAGE);
+            assertThat(error.toString().lines().findFirst()).as(options.toString()).hasValue(
+                    options.contains("--member-key")
+                            ? "--generate-local-member-keys and --member-key are mutually exclusive"
+                            : scope);
             assertThat(project).as(options.toString()).doesNotExist();
         }
     }

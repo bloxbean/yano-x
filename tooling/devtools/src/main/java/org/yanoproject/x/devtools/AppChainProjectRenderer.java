@@ -290,9 +290,11 @@ final class AppChainProjectRenderer {
             outputs.put("secrets/node" + index + ".env.example",
                     utf8(secretExample(resolution, index)));
         }
-        outputs.put(".gitignore", utf8("data/\nrun/\nlogs/\nruntime/\n.deployment/\nsecrets/*.env\n"));
+        outputs.put(".gitignore", utf8("data/\nrun/\nlogs/\nruntime/\n.deployment/\nsecrets/*.env\n"
+                + "secrets/.yano-write-*\n"));
         outputs.put("secrets/README.md", utf8(secretsReadme(resolution)));
-        outputs.put("secrets/.gitignore", utf8("*.env\n!.gitignore\n!*.env.example\n"));
+        // .yano-write-* is the atomic-write staging name; a crash can leave one holding a seed.
+        outputs.put("secrets/.gitignore", utf8("*.env\n.yano-write-*\n!.gitignore\n!*.env.example\n"));
         outputs.put("README.md", utf8(readme(resolution)));
         outputs.put("docs/TRUST.md", utf8(trustDocumentation(resolution)));
         outputs.put("docs/BOOTSTRAP.md", utf8(bootstrapDocumentation(resolution)));
@@ -667,6 +669,10 @@ final class AppChainProjectRenderer {
                 set an unscoped `YANO_APPCHAIN_API_KEYS` value for privileged operator
                 diagnostics, and restrict the file to the owning operator. Never commit `*.env`
                 files.
+
+                If `nodeN.env` already exists, because `appchain init --generate-local-member-keys`
+                or `appchain prepare` created it, keep it. Its seed belongs to a public key pinned
+                in `appchain.yaml`; replacing the file changes that member's identity.
 
                 The signing value may be a 32-byte Ed25519 seed or a configured
                 `scheme:reference` understood by the selected signer provider.

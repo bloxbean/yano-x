@@ -10,11 +10,14 @@ import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.file.FileVisitResult;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -488,12 +491,57 @@ final class AppChainProjectCli {
                 AppChainProjectModel.BLUEPRINT_KIND,
                 new AppChainProjectModel.Metadata(projectName),
                 spec);
+        boolean outputExisted = Files.exists(output, LinkOption.NOFOLLOW_LINKS);
         AppChainProjectModel.Lock lock = selectedRenderer.initialize(
                 output, blueprint, external.snapshotInputs());
-        if (generated != null) generated.write(output.toRealPath());
+        if (generated != null) writeGeneratedMembers(output.toRealPath(), outputExisted, generated);
         writeResult(options.format(), "PROJECT_INITIALIZED", output, lock,
-                generated == null ? null : generated.seeds().size());
+                generated == null ? null : generated.members());
         return AppChainDevtoolsCli.EXIT_OK;
+    }
+
+    /**
+     * Writes generated member files into the project {@code init} just created. On failure it removes what init
+     * created, so no project stays pinned to public keys whose seeds are gone.
+     */
+    static void writeGeneratedMembers(
+            Path project,
+            boolean projectExisted,
+            AppChainProjectOperations.LocalMemberIdentities generated) throws IOException {
+        try {
+            generated.write(project);
+        } catch (IOException | RuntimeException failure) {
+            IOException reported = new IOException("Could not write the generated member files ("
+                    + failure.getMessage() + "); init removed the partial project", failure);
+            try {
+                removeCreatedProject(project, projectExisted);
+            } catch (IOException cleanup) {
+                reported = new IOException("Could not write the generated member files (" + failure.getMessage()
+                        + "); remove the partial project before running init again", failure);
+                reported.addSuppressed(cleanup);
+            }
+            throw reported;
+        }
+    }
+
+    /** Deletes a tree init created from an empty or missing directory, never following symbolic links. */
+    private static void removeCreatedProject(Path project, boolean keepRoot) throws IOException {
+        Files.walkFileTree(project, new SimpleFileVisitor<>() {
+            @Override
+            public FileVisitResult visitFile(
+                    Path file, BasicFileAttributes attributes) throws IOException {
+                Files.delete(file);
+                return FileVisitResult.CONTINUE;
+            }
+
+            @Override
+            public FileVisitResult postVisitDirectory(Path directory, IOException failure)
+                    throws IOException {
+                if (failure != null) throw failure;
+                if (!keepRoot || !directory.equals(project)) Files.delete(directory);
+                return FileVisitResult.CONTINUE;
+            }
+        });
     }
 
     private static AppChainProjectModel.AuthenticatedMapIntent defaultAuthenticatedMapIntent() {

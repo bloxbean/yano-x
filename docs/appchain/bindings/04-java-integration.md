@@ -70,8 +70,8 @@ export YANO_HOME="$PWD"
 
 These are disposable local devnet keys; never reuse them. Stop the nodes with
 `../workflow-project/scripts/stop`. For the approval workflow, repeat the
-`init` with `examples/bindings/approval-to-audit.yaml`, another chain ID and
-other port bases.
+`init` with `examples/bindings/approval-to-audit.yaml` and its own `--name`,
+`--chain-id`, `--output` directory and port bases.
 
 ## Add the public client dependency
 
