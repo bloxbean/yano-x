@@ -12,6 +12,10 @@ description = 'Yano X JVM distribution assembly boundary'
 
 def yanoVersion = providers.gradleProperty('yanoVersion')
 def configuredYanoJvmDist = providers.gradleProperty('yanoJvmDist').map { file(it) }
+def isSnapshotYano = yanoVersion.getOrElse('').endsWith('-SNAPSHOT')
+// A Yano commit snapshot names its Maven version <base>-<commit>-SNAPSHOT and
+// its JVM ZIP yano-<base>-<commit>.zip, whose root is yano-<base>-<commit>/.
+def yanoDistributionVersion = yanoVersion.getOrElse('unspecified') - ~/-SNAPSHOT$/
 
 configurations {
     yanoHostRuntime {
@@ -25,21 +29,46 @@ configurations {
         transitive = false
         description = 'Ordinary Yano JVM ZIP from the matching GitHub release'
     }
+    yanoSnapshotJvmDist {
+        canBeConsumed = false
+        canBeResolved = true
+        transitive = false
+        description = 'Ordinary Yano JVM ZIP and manifest of the matching BloxBean commit snapshot'
+    }
 }
 
-repositories {
-    ivy {
-        name = 'yanoGitHubReleases'
-        url = uri('https://github.com/bloxbean/yano/releases/download')
+// Each Yano ZIP coordinate is fetched only from its own repository: these
+// groups are local names, so no other repository may answer for them.
+def yanoDistributionRepository = { String repositoryName, String repositoryUrl, String pattern ->
+    repositories.ivy {
+        name = repositoryName
+        url = uri(repositoryUrl)
         patternLayout {
-            artifact 'v[revision]/[artifact]-[revision].[ext]'
+            artifact pattern
         }
         metadataSources {
             artifact()
         }
-        content {
-            includeModule 'org.yanoproject-release', 'yano'
-        }
+    }
+}
+repositories {
+    exclusiveContent {
+        forRepositories(yanoDistributionRepository('yanoGitHubReleases',
+                'https://github.com/bloxbean/yano/releases/download', 'v[revision]/[artifact]-[revision].[ext]'))
+        filter { includeModule 'org.yanoproject-release', 'yano' }
+    }
+    // BloxBean snapshot distributions (bloxbean/yano bloxbean-snapshot-dist.yml):
+    // <version>/yano-<version>.zip beside the manifest.json that lists its
+    // SHA-256. A published version directory is never overwritten.
+    exclusiveContent {
+        forRepositories(yanoDistributionRepository('yanoBloxBeanSnapshotDistributions',
+                'https://repo.bloxbean.org/dist/snapshots/yano', '[revision]/[artifact]-[revision].[ext]'))
+        filter { includeModule 'org.yanoproject-snapshot', 'yano' }
+    }
+    exclusiveContent {
+        forRepositories(yanoDistributionRepository('yanoBloxBeanSnapshotManifests',
+                'https://repo.bloxbean.org/dist/snapshots/yano', '[revision]/[artifact].[ext]'))
+        filter { includeModule 'org.yanoproject-snapshot', 'manifest' }
     }
 }
 
@@ -50,25 +79,28 @@ dependencies {
     yanoHostRuntime 'org.yanoproject:yano-runtime'
     yanoHostRuntime 'org.yanoproject:yano-appchain-config'
     yanoHostRuntime 'org.yanoproject:yano-appchain-proof-verifier'
-    yanoReleaseJvmDist(
-            "org.yanoproject-release:yano:"
-                    + "${yanoVersion.getOrElse('unspecified')}@zip")
+    if (isSnapshotYano) {
+        yanoSnapshotJvmDist "org.yanoproject-snapshot:yano:${yanoDistributionVersion}@zip"
+        yanoSnapshotJvmDist "org.yanoproject-snapshot:manifest:${yanoDistributionVersion}@json"
+    } else {
+        yanoReleaseJvmDist(
+                "org.yanoproject-release:yano:"
+                        + "${yanoVersion.getOrElse('unspecified')}@zip")
+    }
 }
 
+def snapshotDistributionFile = { String extension ->
+    configurations.yanoSnapshotJvmDist.files.find { it.name.endsWith(".${extension}") }
+}
 def releasedYanoJvmDist = providers.provider {
-    def requestedVersion = yanoVersion.getOrNull()
-    if (requestedVersion == null) {
+    if (!yanoVersion.isPresent()) {
         throw new GradleException('yanoVersion is required')
     }
-    if (requestedVersion.endsWith('-SNAPSHOT')) {
-        throw new GradleException(
-                'yanoJvmDist is required for snapshot or locally staged Yano versions')
-    }
-    configurations.yanoReleaseJvmDist.singleFile
+    isSnapshotYano ? snapshotDistributionFile('zip') : configurations.yanoReleaseJvmDist.singleFile
 }
 def yanoJvmDist = configuredYanoJvmDist.orElse(releasedYanoJvmDist)
 def yanoJvmDistSource = configuredYanoJvmDist.map { 'local-override' }
-        .orElse(providers.provider { 'github-release' })
+        .orElse(providers.provider { isSnapshotYano ? 'bloxbean-snapshot' : 'github-release' })
 ext.yanoXBaseJvmDistribution = yanoJvmDist
 
 // Lists every file in the host yano.jar. Runtime plugin bundles leave these
@@ -216,13 +248,23 @@ tasks.register('verifyYanoInputs') {
                 }
             }
         }
+        def distributionSha256 = digest.digest().encodeHex().toString()
+        if (yanoJvmDistSource.get() == 'bloxbean-snapshot') {
+            def snapshotManifest = new JsonSlurper().parse(snapshotDistributionFile('json'))
+            def listed = snapshotManifest.files?.find { it.name == distribution.name }
+            if (snapshotManifest.version != distributionVersion || listed?.sha256 != distributionSha256) {
+                throw new GradleException(
+                        "Yano snapshot ZIP ${distribution.name} (sha256 ${distributionSha256}) "
+                                + "does not match its published manifest.json")
+            }
+        }
         def body = [
                 schemaVersion: 1,
                 yanoVersion: expectedVersion,
                 distributionRoot: expectedRoot,
                 distributionImplementationVersion: implementationVersion,
                 distributionContract: distributionManifest,
-                distributionSha256: digest.digest().encodeHex().toString(),
+                distributionSha256: distributionSha256,
                 distributionSource: yanoJvmDistSource.get(),
                 resolvedArtifacts: yanoComponents
         ]
