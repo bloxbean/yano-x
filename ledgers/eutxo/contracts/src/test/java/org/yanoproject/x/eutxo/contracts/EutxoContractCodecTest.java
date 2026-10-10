@@ -625,6 +625,8 @@ class EutxoContractCodecTest {
                 EutxoIgnoredConfirmations.next(first, "ef".repeat(32), "CUSTODY_UNPROVEN", 5);
         assertThat(second.count()).isEqualTo(2);
         assertThat(EutxoIgnoredConfirmations.decode(second.encode())).isEqualTo(second);
+        EutxoIgnoredConfirmations full = new EutxoIgnoredConfirmations(Long.MAX_VALUE, "cd".repeat(32), "X", 1);
+        assertThat(EutxoIgnoredConfirmations.next(full, "ef".repeat(32), "Y", 2).count()).isEqualTo(Long.MAX_VALUE);
         assertThat(EutxoQueryCodec.decodeOptionalIgnoredConfirmations(
                 EutxoQueryCodec.optionalIgnoredConfirmations(null))).isNull();
         org.assertj.core.api.Assertions.assertThatThrownBy(() -> new EutxoDepositNotice(

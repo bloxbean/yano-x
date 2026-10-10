@@ -609,6 +609,12 @@ class EutxoBridgeSettlementMachineTest {
                 .hasValueSatisfying(bytes ->
                         assertThat(new BigInteger(bytes)).isZero());
         assertThat(state.get(EutxoStateKeys.bridgeHalt())).isEmpty();
+
+        // Replaying the exact settlement changes nothing and is not counted as an ignored confirmation.
+        apply(machine, block(height + 1, observationMessage(0xB2, observation)),
+                state, new CapturingEmitter(height + 1));
+        assertThat(state.get(EutxoStateKeys.ignoredConfirmations())).isEmpty();
+        assertThat(state.get(EutxoStateKeys.bridgeHalt())).isEmpty();
     }
 
     @Test
@@ -684,6 +690,19 @@ class EutxoBridgeSettlementMachineTest {
                         .isEqualTo("UNKNOWN_WITHDRAWAL_CONFIRMATION"));
         // A halt is an alarm, so it is not counted as an ignored confirmation.
         assertThat(state.get(EutxoStateKeys.ignoredConfirmations())).isEmpty();
+
+        // The deposit credited before the halt, observed again during it, stays credited with no notice.
+        EutxoDepositClaim credited = depositClaimNonce(BigInteger.valueOf(5_000_000L), 0x40);
+        applyDepositAt(machine, state, 5_000_000L, height + 1, 0x40);
+        assertThat(state.get(EutxoStateKeys.depositNotice(credited.acceptedOutpoint()))).isEmpty();
+
+        // A settlement arriving while halted is counted, so it is visible when reconciling the halt.
+        apply(machine, block(height + 2, observationMessage(0xB9, observation)),
+                state, new CapturingEmitter(height + 2));
+        assertThat(org.yanoproject.x.eutxo.contracts.EutxoIgnoredConfirmations.decode(
+                state.get(EutxoStateKeys.ignoredConfirmations()).orElseThrow()).lastReason())
+                .isEqualTo("BRIDGE_HALTED");
+        height += 2;
 
         // A deposit observed while the bridge is halted is not credited; its value stays in the vault, and the
         // notice says why instead of the deposit disappearing.

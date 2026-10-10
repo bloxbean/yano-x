@@ -615,12 +615,28 @@ For each exact pending claim it then:
 - decrements the pending-withdrawal count.
 
 A custody-unproven confirmation changes no claim, reserve, or halt state: anyone can fabricate one, so
-halting on it would give every L1 user a free bridge halt. Each ignored confirmation is counted in a
-bounded `EutxoIgnoredConfirmations` summary (count plus the last settlement transaction, reason, and
-height; the `bridge/confirmations/ignored` query, `appchain eutxo withdrawal ignored`). The reason
-is `CUSTODY_UNPROVEN`, `UNKNOWN_CLAIM`, `CLAIM_MISMATCH`, `CLAIM_REBIND`, or `NOT_THIS_BRIDGE`. A
-count that grows while claims stay pending is how a broken custody chain shows: genuine settlements
-are then ignored too, for example after vault UTxOs were consolidated outside a settlement. Ignoring it releases no reserve accounting. A confirmation
+halting on it would give every L1 user a free bridge halt. Ignoring it releases no reserve accounting.
+
+Each ignored confirmation is counted in a bounded `EutxoIgnoredConfirmations` summary. The summary
+holds the count plus the last settlement transaction, reason, and height, and is read through the
+`bridge/confirmations/ignored` query or `appchain eutxo withdrawal ignored`. The count saturates
+rather than overflowing. The reasons are:
+
+- `CUSTODY_UNPROVEN`, `UNKNOWN_CLAIM`, `CLAIM_MISMATCH`, or `CLAIM_REBIND`;
+- `BRIDGE_HALTED`, for a batch confirmation that arrives while the bridge is halted;
+- `NOT_THIS_BRIDGE`, for a confirmation whose chain or bridge epoch the ledger does not accept. The
+  observers already filter these, so this one points to observer-versus-ledger configuration or
+  version drift.
+
+An exact replay of a settlement already applied is not counted, and neither is the halting
+confirmation itself.
+
+Anyone can raise the count and overwrite the last entry, so the summary is a prompt, not evidence.
+A count that grows while claims stay pending is a reason to check those claims' settlement
+transactions on L1. Genuine settlements are ignored too when the custody chain breaks, for example
+after vault UTxOs were consolidated outside a settlement.
+
+A confirmation
 that did spend tracked custody but is unknown, mismatched, or rebound is a real alarm and halts the
 bridge rather than silently releasing reserve accounting. The single-claim profiles (v1, v2) track no
 vault custody, so their confirmations are never authenticated. Such a confirmation can confirm an

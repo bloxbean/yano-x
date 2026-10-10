@@ -792,6 +792,16 @@ class EutxoStateMachineTest {
         assertThat(state.get(EutxoStateKeys.bridgeHalt())).isEmpty();
         assertThat(ignored(machine, state)).isEqualTo(
                 new EutxoIgnoredConfirmations(1, "99".repeat(32), "UNKNOWN_CLAIM", 1));
+
+        // A confirmation for another bridge epoch is rejected by the ledger: counted as NOT_THIS_BRIDGE, with
+        // the transaction id taken from the observation's anchor.
+        EutxoWithdrawalConfirmation otherEpoch = new EutxoWithdrawalConfirmation(1, "eutxo-test", 2,
+                "88".repeat(32), "9b".repeat(32), 0, ALICE.address(), BigInteger.ONE,
+                new EutxoOutpoint("9b".repeat(32), 1), BigInteger.TEN, 301, fill(32, 9));
+        apply(machine, block(2, observationMessage(68, L1Observation.transaction("bridge-withdrawals",
+                java.util.HexFormat.of().parseHex("9b".repeat(32)), 301, fill(32, 9), otherEpoch.encode()))), state);
+        assertThat(ignored(machine, state)).isEqualTo(
+                new EutxoIgnoredConfirmations(2, "9b".repeat(32), "NOT_THIS_BRIDGE", 2));
     }
 
     private static EutxoDepositClaim depositClaim(

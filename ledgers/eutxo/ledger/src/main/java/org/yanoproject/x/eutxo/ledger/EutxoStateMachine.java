@@ -252,8 +252,10 @@ public final class EutxoStateMachine implements AppStateMachine {
                         batch = null;
                         recordIgnoredConfirmation(writer, observation, null, "NOT_THIS_BRIDGE", block.height());
                     }
-                    // Spending tracked vault custody authenticates the batch; only then may a mismatch halt.
-                    if (batch != null && applyVaultCustody(batch, block.height(), writer)) {
+                    // Spending tracked vault custody authenticates the batch; only then may a mismatch halt. An
+                    // exact replay of a settlement already applied changes nothing and is not an ignored one.
+                    if (batch != null && !alreadyApplied(batch, writer)
+                            && applyVaultCustody(batch, block.height(), writer)) {
                         for (EutxoWithdrawalConfirmation confirmation :
                                 batch.confirmations()) {
                             confirmWithdrawal(confirmation, block.height(), writer, true);
@@ -1110,10 +1112,6 @@ public final class EutxoStateMachine implements AppStateMachine {
             long creditedHeight,
             AppStateWriter writer
     ) {
-        if (writer.get(EutxoStateKeys.bridgeHalt()).isPresent()) {
-            recordDepositNotice(writer, claim, EutxoDepositNotice.Outcome.UNCREDITED, "BRIDGE_HALTED", creditedHeight);
-            return;
-        }
         EutxoDepositRecord expected = new EutxoDepositRecord(
                 claim, claim.mirroredOutpoint(), creditedHeight);
         byte[] depositKey = EutxoStateKeys.deposit(claim.acceptedOutpoint());
@@ -1122,6 +1120,10 @@ public final class EutxoStateMachine implements AppStateMachine {
                 .orElse(null);
         if (existing != null) {
             // Already credited; an outpoint is bound to its first deposit, so a different claim credits nothing.
+            return;
+        }
+        if (writer.get(EutxoStateKeys.bridgeHalt()).isPresent()) {
+            recordDepositNotice(writer, claim, EutxoDepositNotice.Outcome.UNCREDITED, "BRIDGE_HALTED", creditedHeight);
             return;
         }
         EutxoRecord mirrored = new EutxoRecord(
@@ -1317,12 +1319,28 @@ public final class EutxoStateMachine implements AppStateMachine {
      * set rotates: matched outpoints leave, the continuing output enters.
      * Returns false, changing nothing, when no tracked outpoint was spent.
      */
+    /** Whether every claim of this batch is already CONFIRMED by this same settlement transaction. */
+    private static boolean alreadyApplied(EutxoBatchWithdrawalConfirmation batch, AppStateReader state) {
+        for (EutxoWithdrawalConfirmation confirmation : batch.confirmations()) {
+            EutxoWithdrawalRecord record = state.get(EutxoStateKeys.withdrawal(confirmation.claimId()))
+                    .map(EutxoWithdrawalRecord::decode).orElse(null);
+            if (record == null || record.status() != EutxoWithdrawalRecord.Status.CONFIRMED
+                    || !record.settlementTransactionId().equals(batch.settlementTransactionId())) {
+                return false;
+            }
+        }
+        return !batch.confirmations().isEmpty();
+    }
+
     private boolean applyVaultCustody(
             EutxoBatchWithdrawalConfirmation confirmation,
             long height,
             AppStateWriter writer
     ) {
         if (writer.get(EutxoStateKeys.bridgeHalt()).isPresent()) {
+            // Counted, so settlements that land on L1 while the bridge is halted are visible when reconciling.
+            recordIgnoredConfirmation(writer, null, confirmation.settlementTransactionId(), "BRIDGE_HALTED",
+                    height);
             return false;
         }
         boolean spendsVault = false;

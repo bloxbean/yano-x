@@ -127,8 +127,10 @@ public final class EutxoCli {
             EutxoSnapshot<Optional<EutxoDepositRecord>> snapshot = client.depositSnapshot(accepted);
             result.put("acceptedOutpoint", accepted.toString());
             result.put("deposit", snapshot.value().map(EutxoCli::depositJson).orElse(null));
-            result.put("notice", client.depositNoticeSnapshot(accepted).value()
-                    .map(EutxoCli::noticeJson).orElse(null));
+            // A second query: report its own committed height, since a block may finalize between the two.
+            EutxoSnapshot<Optional<EutxoDepositNotice>> notice = client.depositNoticeSnapshot(accepted);
+            result.put("notice", notice.value().map(EutxoCli::noticeJson).orElse(null));
+            result.put("noticeCommittedHeight", notice.committedHeight());
             root(result, snapshot);
         } else if (options.command.equals(List.of("withdrawal", "get"))) {
             String claimId = HexFormat.of().formatHex(parseClaimId(options.argument));

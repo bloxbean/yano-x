@@ -72,6 +72,7 @@ class EutxoCliBridgeQueryTest {
         assertThat(queries).containsExactly(EutxoQueryCodec.DEPOSIT_PATH, EutxoQueryCodec.DEPOSIT_NOTICE_PATH);
         assertThat(result.at("/notice/outcome").asText()).isEqualTo("CREDITED_WITHOUT_KEY_BINDING");
         assertThat(result.at("/notice/reason").asText()).isEqualTo("KEY_BINDING_UNSIGNED");
+        assertThat(result.at("/noticeCommittedHeight").asLong()).isEqualTo(7);
         assertThat(EutxoQueryCodec.decodeDepositRequest(params.getFirst())).isEqualTo(ACCEPTED);
         assertThat(result.at("/acceptedOutpoint").asText()).isEqualTo(ACCEPTED.toString());
         assertThat(result.at("/deposit/mirroredOutpoint").asText())
