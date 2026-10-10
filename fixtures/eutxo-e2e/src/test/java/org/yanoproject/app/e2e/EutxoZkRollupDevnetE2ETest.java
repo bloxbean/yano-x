@@ -80,6 +80,8 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -468,6 +470,99 @@ class EutxoZkRollupDevnetE2ETest extends BaseE2ETest {
                     proof.settlementInputs().nextRoot(),
                     withdrawal.claimId());
         }
+    }
+
+    @Test
+    void depositKeyBindingAppliesOnlyWhenTheDepositorSignsTheAcceptance()
+            throws Exception {
+        String fundsVaultAddress = AddressProvider.getEntAddress(
+                EutxoZkDevnetTestProfile.fundsVaultScript(operator),
+                Networks.testnet()).toBech32();
+        AppChainClient appChainClient = AppChainClient.builder(baseUrl)
+                .chainId(CHAIN_ID)
+                .build();
+        EutxoClient eutxoClient = new EutxoClient(appChainClient);
+        Account signer = getAccount(3);
+        Account bystander = getAccount(4);
+        fundAddress(signer.enterpriseAddress(), 100);
+        fundAddress(bystander.enterpriseAddress(), 100);
+
+        // Anyone can pay the vault with any datum, so the datum's depositor key hash proves nothing by itself.
+        // Only the depositor as a required signer, which the Cardano ledger enforces, makes the binding apply.
+        EutxoOutpoint signedDeposit = directBoundDeposit(
+                signer, fundsVaultAddress, true, (byte) 0x31);
+        EutxoOutpoint unsignedDeposit = directBoundDeposit(
+                bystander, fundsVaultAddress, false, (byte) 0x32);
+
+        EutxoDepositRecord signedRecord =
+                waitForDeposit(eutxoClient, signedDeposit);
+        EutxoDepositRecord unsignedRecord =
+                waitForDeposit(eutxoClient, unsignedDeposit);
+        assertTrue(signedRecord.claim().depositorSigned());
+        assertFalse(unsignedRecord.claim().depositorSigned());
+        assertNotNull(l2KeyRegistration(appChainClient, signer),
+                "a binding the depositor signed registers its L2 key");
+        assertNull(l2KeyRegistration(appChainClient, bystander),
+                "an unsigned binding registers no L2 key");
+        // The unsigned deposit is still credited, so its ADA is not stranded in the vault.
+        assertTrue(eutxoClient.utxos(bystander.enterpriseAddress()).stream()
+                .anyMatch(record -> record.outpoint()
+                        .equals(unsignedRecord.mirroredOutpoint())));
+    }
+
+    private EutxoOutpoint directBoundDeposit(
+            Account depositor,
+            String fundsVaultAddress,
+            boolean depositorSigns,
+            byte nonce
+    ) throws Exception {
+        byte[] nonceBytes = new byte[32];
+        java.util.Arrays.fill(nonceBytes, nonce);
+        // Registration stores the 32-byte public key as given; no L2 transaction is signed with it here.
+        EutxoVaultDatum datum = new EutxoVaultDatum(
+                EutxoVaultDatum.ABI_VERSION,
+                CHAIN_ID,
+                depositor.enterpriseAddress(),
+                nonceBytes,
+                new EutxoOutpoint("ee".repeat(32), nonce),
+                10_000_000L,
+                paymentKeyHash(depositor),
+                new org.yanoproject.x.eutxo.contracts.EutxoL2KeyBinding(
+                        EutxoZkAuthorizationProfile.JUBJUB_DEVELOPMENT_V1.id(),
+                        1,
+                        nonceBytes));
+        var context = quickTxBuilder.compose(new Tx()
+                        .payToContract(
+                                fundsVaultAddress,
+                                Amount.lovelace(BigInteger.valueOf(
+                                        EutxoZkDevnetTestProfile.DEPOSIT_LOVELACE)),
+                                PlutusData.deserialize(datum.encode()))
+                        .from(depositor.enterpriseAddress()))
+                .withSigner(SignerProviders.signerFrom(depositor));
+        if (depositorSigns) {
+            context = context.withRequiredSigners(paymentKeyHash(depositor));
+        }
+        Result<String> result = context.complete();
+        assertTrue(result.isSuccessful(),
+                "Cardano deposit failed: " + result.getResponse());
+        waitForTransaction(result);
+        return outpoint(transactionUtxo(result.getValue(), fundsVaultAddress));
+    }
+
+    private static String l2KeyRegistration(
+            AppChainClient client,
+            Account account
+    ) throws Exception {
+        byte[] key = org.yanoproject.x.eutxo.contracts.EutxoStateKeys.l2Key(
+                HexFormat.of().formatHex(paymentKeyHash(account)));
+        for (int attempt = 0; attempt < 20; attempt++) {
+            try {
+                return client.proof(key).map(AppChainClient.Proof::valueHex).orElse(null);
+            } catch (RuntimeException notReady) {
+                Thread.sleep(500);
+            }
+        }
+        throw new IllegalStateException("L2 key proof is unavailable");
     }
 
     private String submit(Tx tx) throws Exception {

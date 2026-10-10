@@ -390,7 +390,7 @@ class EutxoStateMachineTest {
     }
 
     @Test
-    void depositWithAnUnhonourableKeyBindingIsNotCreditedAndDoesNotFailTheBlock() throws Exception {
+    void aKeyBindingThatCannotApplyLeavesTheDepositCreditedWithoutAKey() throws Exception {
         String vaultAddress = "addr_test1_bridge_vault";
         String vaultScriptHash = "11".repeat(28);
         EutxoStateMachine machine = (EutxoStateMachine) new EutxoStateMachineProvider().create(context(Map.of(
@@ -400,25 +400,23 @@ class EutxoStateMachineTest {
                 "machines.eutxo.bridge.vault-script-hash", vaultScriptHash)));
         MemoryAppState state = new MemoryAppState();
         EutxoDepositClaim plain = depositClaim(vaultAddress, vaultScriptHash, BigInteger.valueOf(25));
-        // Anyone can pay the vault with any datum. This chain selects no L2 authorization profile, so a key
-        // binding cannot be honoured; applying it used to throw, which stalls the chain for good.
+        // Signed by its depositor, but this chain selects no L2 authorization profile. Applying it used to throw,
+        // which stalls the chain for good; now the deposit is credited and no key is registered.
         EutxoDepositClaim bound = new EutxoDepositClaim(
                 plain.abiVersion(), plain.chainId(), plain.acceptedOutpoint(), plain.l1Slot(), plain.l1BlockHash(),
                 plain.vaultAddress(), plain.vaultScriptHash(), plain.acceptedOutputCbor(), plain.l2Address(),
                 plain.mirroredOutputCbor(), plain.depositNonce(), plain.stagingOutpoint(), plain.refundDeadline(),
-                fill(28, 5), new EutxoL2KeyBinding("zeroj-jubjub-dev-v1", 1, fill(32, 6)));
-        L1Observation observation = L1Observation.transaction(
-                "bridge-deposits",
-                java.util.HexFormat.of().parseHex(bound.acceptedOutpoint().transactionId()),
-                bound.l1Slot(),
-                bound.l1BlockHash(),
-                bound.encode());
+                new com.bloxbean.cardano.client.address.Address(ALICE.address()).getPaymentCredentialHash()
+                        .orElseThrow(),
+                new EutxoL2KeyBinding("zeroj-jubjub-dev-v1", 1, fill(32, 6)), true);
 
-        apply(machine, block(1, observationMessage(65, observation)), state);
+        apply(machine, block(1, observationMessage(65, depositObservation(bound))), state);
 
-        assertThat(records(machine, state, ALICE.address())).isEmpty();
-        assertThat(state.get(EutxoStateKeys.deposit(bound.acceptedOutpoint()))).isEmpty();
-        assertThat(state.get(EutxoStateKeys.reserve(EutxoReserve.LOVELACE))).isEmpty();
+        assertThat(records(machine, state, ALICE.address())).singleElement()
+                .satisfies(record -> assertThat(record.outpoint()).isEqualTo(bound.mirroredOutpoint()));
+        assertThat(state.get(EutxoStateKeys.deposit(bound.acceptedOutpoint()))).isPresent();
+        assertThat(state.get(EutxoStateKeys.l2Key(java.util.HexFormat.of().formatHex(
+                bound.depositorKeyHash())))).isEmpty();
     }
 
     @Test

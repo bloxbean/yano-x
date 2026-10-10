@@ -437,10 +437,17 @@ The state transition:
 - records the accepted outpoint as live vault custody for later settlement verification.
 
 Reapplying the identical accepted outpoint and claim is a deterministic no-op. An outpoint stays
-bound to its first deposit, so a different claim for it credits nothing. A deposit whose L2 key
-binding cannot be honoured is not credited. Such a binding targets another authorization profile,
-a script address, a different depositor, or a different active registration. None of these cases
+bound to its first deposit, so a different claim for it credits nothing. None of these cases
 throws, because a throw while applying an observation stalls every later proposal.
+
+An L2 key binding is applied only when the depositor's key hash is a required signer of the
+accepting transaction, which the Cardano ledger enforces (amended 2026-10-10). The datum's depositor
+key hash and L2 address alone prove nothing, because whoever creates the vault output chooses both,
+and anyone can accept a staged deposit. The observer records `depositorSigned` in the claim
+(deposit claim ABI 3). The binding must also name the chain's authorization profile, its L2 address
+must be key-controlled by that depositor, and no different registration may exist. A binding that
+fails any of these is not applied, but the deposit is still credited, so a key-binding problem never
+strands value in the vault.
 
 ```mermaid
 sequenceDiagram
@@ -467,7 +474,8 @@ sequenceDiagram
 |---|---|
 | ADA is sent directly to the vault without the accepted datum | No L2 credit; use the bridge acceptance flow |
 | Only the refundable staging UTxO exists | No L2 credit; user may later refund according to the staging contract |
-| Wrong vault/script, chain ID, datum, or key binding | Observer skips the output, or the state transition credits nothing |
+| Wrong vault/script, chain ID, or datum | Observer skips the output, or the state transition credits nothing |
+| Key binding not signed by the depositor, or otherwise not applicable | Deposit is credited; no L2 key is registered |
 | Native assets are included | Initial lovelace-only observer skips the output |
 | Amount is zero, negative, or above the configured limit | Observer skips the output |
 | Two recognized deposit outputs appear in one acceptance transaction | Observer credits neither output |

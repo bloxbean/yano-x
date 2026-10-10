@@ -107,11 +107,12 @@ final class EutxoCbor {
         array.add(text(claim.l2KeyBinding().authorizationProfile()));
         array.add(uint(claim.l2KeyBinding().keyEpoch()));
         array.add(new ByteString(claim.l2KeyBinding().publicKey()));
+        array.add(claim.depositorSigned() ? SimpleValue.TRUE : SimpleValue.FALSE);
         return encode(array);
     }
 
     static EutxoDepositClaim decodeDepositClaim(byte[] bytes) {
-        List<DataItem> fields = array(item(bytes), 19, "deposit claim");
+        List<DataItem> fields = array(item(bytes), 20, "deposit claim");
         return new EutxoDepositClaim(
                 integer(fields.get(0), "ABI version"),
                 string(fields.get(1), "chain id"),
@@ -130,7 +131,8 @@ final class EutxoCbor {
                 new EutxoL2KeyBinding(
                         string(fields.get(16), "authorization profile"),
                         longInteger(fields.get(17), "L2 key epoch"),
-                        bytes(fields.get(18), "L2 public key")));
+                        bytes(fields.get(18), "L2 public key")),
+                bool(fields.get(19), "depositor signed"));
     }
 
     static byte[] encodeDepositRecord(EutxoDepositRecord record) {
@@ -492,6 +494,16 @@ final class EutxoCbor {
             throw new IllegalArgumentException(field + " exceeds integer range");
         }
         return (int) value;
+    }
+
+    private static boolean bool(DataItem item, String field) {
+        if (SimpleValue.TRUE.equals(item)) {
+            return true;
+        }
+        if (SimpleValue.FALSE.equals(item)) {
+            return false;
+        }
+        throw new IllegalArgumentException(field + " must be a CBOR boolean");
     }
 
     private static long longInteger(DataItem item, String field) {
