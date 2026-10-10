@@ -6,7 +6,7 @@
   "producer" : {
     "tool" : "yano-x-devtools",
     "version" : "0.1.0-pre3",
-    "jarSha256" : "284bbbca2ce9cd52219d8a61671e784161dc9520717221bf62f4044916d1f62a",
+    "jarSha256" : "1a04ddf5892ee077e0542eb24602f7bb13838ec3bba3af166e4b1b913ca98ed6",
     "linkedCompositeJarSha256" : "3537d6117378ad655110cefcacc7f3331710bb7d51e1edbb1c6ae3f6b2c06a44"
   },
   "host" : {
@@ -16,7 +16,7 @@
   },
   "authoringEnvironment" : "yano-x-binding-authoring-environment-v1",
   "catalog" : {
-    "fingerprint" : "sha256:bd61eef63cf7eddf7faf78257e89d7c2144374ad61713f8b5e9dc50e3cd79ea7",
+    "fingerprint" : "sha256:f09f4d67829f2d9506169e6dff0448b1001e2330a4c24834335c5e3473299007",
     "pluginApi" : {
       "major" : 3,
       "level" : 12
@@ -30,7 +30,7 @@
     }, {
       "id" : "org.yanoproject.x.role-workflow",
       "version" : "0.1.0-pre3",
-      "digest" : "sha256:19cee6606fcfdb7792cd4dfe77c05a356171776fcd255de1921761f6a2f29038",
+      "digest" : "sha256:5f48192d0b35a4130bff372435902669e994ba1b1e1f0554f6262307cddd08c5",
       "digestMode" : "ARTIFACT_CLOSURE",
       "selected" : true
     }, {
