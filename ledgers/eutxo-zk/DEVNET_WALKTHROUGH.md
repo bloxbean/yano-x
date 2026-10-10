@@ -493,8 +493,8 @@ This walkthrough's deposit carries no L2 key binding; its L2 key is registered
 at genesis. If a vault datum does carry a binding, the depositor's payment key
 hash must be a required signer of the acceptance transaction, and the
 depositor must sign it. Otherwise the deposit is credited but no key is
-registered, and `appchain eutxo deposit get` shows a `KEY_BINDING_UNSIGNED`
-notice. `DepositAcceptanceBuilder` adds the required signer for a bound datum.
+registered. `DepositAcceptanceBuilder` adds the required signer for a bound
+datum.
 
 Publish the signed staging CBOR directly:
 
