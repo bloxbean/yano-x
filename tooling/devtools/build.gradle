@@ -35,6 +35,8 @@ dependencies {
     }
     implementation libs.jackson.databind
     implementation libs.jackson.dataformat.yaml
+    // Loading real plugin bundles initializes SLF4J; a CLI has no logging backend of its own.
+    runtimeOnly libs.slf4j.nop
     implementation libs.smallrye.config.core
     implementation libs.smallrye.config.yaml
     testImplementation(rootProject.ext.yanoModule('yano-core-api')) {
