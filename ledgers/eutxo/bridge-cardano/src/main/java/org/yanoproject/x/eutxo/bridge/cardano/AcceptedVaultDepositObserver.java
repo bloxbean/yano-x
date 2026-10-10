@@ -61,7 +61,7 @@ final class AcceptedVaultDepositObserver implements L1Observer {
     }
 
     L1ObserverConsensusIdentity consensusIdentity() {
-        return ObserverConsensusIdentity.of("eutxo-deposit-claim-v1",
+        return ObserverConsensusIdentity.of("eutxo-deposit-claim-v1", EutxoDepositClaim.ABI_VERSION,
                 "chain-id", chainId,
                 "vault-address", vaultAddress,
                 "vault-script-hash", vaultScriptHash,
@@ -75,7 +75,12 @@ final class AcceptedVaultDepositObserver implements L1Observer {
         }
         List<L1Observation> observations = new ArrayList<>();
         for (TransactionBody transaction : block.getTransactionBodies()) {
-            EutxoDepositClaim claim = claim(slot, blockHash, transaction);
+            EutxoDepositClaim claim;
+            try {
+                claim = transaction == null ? null : claim(slot, blockHash, transaction);
+            } catch (RuntimeException notCreditable) {
+                continue; // whatever the shape, a transaction that cannot be read is not a deposit
+            }
             if (claim != null) {
                 observations.add(L1Observation.transaction(
                         observerId,

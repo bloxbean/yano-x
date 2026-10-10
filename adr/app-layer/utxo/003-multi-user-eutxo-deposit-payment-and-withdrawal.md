@@ -76,10 +76,10 @@ output with a chosen datum, so the depositor key hash and L2 address it names
 prove nothing. Since 2026-10-10 the depositor must therefore also be a required
 signer of the accepting transaction. The Cardano ledger admits a transaction
 only when every required signer signed it, so only the address owner can
-register a key for it. Builders add the signer when a binding is present
-(`DepositAcceptanceBuilder`, the bridge demo, and the external deposit
-workflow). An accepting party other than the depositor must collect the
-depositor's signature.
+register a key for it. `DepositAcceptanceBuilder` adds the signer when a
+binding is present; the bridge demo and the external deposit workflow always
+add it, because their depositor signs anyway. An accepting party other than the
+depositor must collect the depositor's signature.
 
 The preview ZeroJ profile continues to require its documented trusted-prover
 boundary. Dynamic registrations are MPF-committed and host-verified. Folding a

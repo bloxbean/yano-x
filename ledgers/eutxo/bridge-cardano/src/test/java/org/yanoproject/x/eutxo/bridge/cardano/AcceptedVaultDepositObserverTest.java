@@ -264,6 +264,20 @@ class AcceptedVaultDepositObserverTest {
     }
 
     @Test
+    void nullTransactionsAndOutputsAreSkippedWithoutHidingAGenuineDeposit() {
+        Block block = Block.builder().transactionBodies(Arrays.asList(
+                null,
+                TransactionBody.builder().txHash("a9".repeat(32))
+                        .outputs(Arrays.asList(null, output(VAULT_ADDRESS, 50, datum().encode()))).build(),
+                tx("b1", List.of(output(VAULT_ADDRESS, 50, datum().encode()))))).build();
+
+        assertThat(observer().observe(107, fill(32, 14), block))
+                .singleElement()
+                .satisfies(observation -> assertThat(EutxoDepositClaim.decode(observation.claim())
+                        .acceptedOutpoint()).isEqualTo(new EutxoOutpoint("b1".repeat(32), 0)));
+    }
+
+    @Test
     void acceptanceBuilderMakesTheDepositorARequiredSignerOfABoundDeposit() {
         byte[] depositor = fill(28, 9);
         EutxoVaultDatum bound = new EutxoVaultDatum(EutxoVaultDatum.ABI_VERSION, "payments-eutxo", OWNER,

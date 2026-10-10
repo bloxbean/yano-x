@@ -1132,6 +1132,18 @@ public final class EutxoStateMachine implements AppStateMachine {
             EutxoDepositClaim claim,
             AppStateReader state
     ) {
+        try {
+            return checkedL2KeyRegistration(claim, state);
+        } catch (RuntimeException unusable) {
+            // An unusual address or binding must never fail the block; it simply does not register a key.
+            return L2KeyWrite.notApplied("KEY_BINDING_INVALID");
+        }
+    }
+
+    private L2KeyWrite checkedL2KeyRegistration(
+            EutxoDepositClaim claim,
+            AppStateReader state
+    ) {
         if (!claim.l2KeyBinding().present()) {
             return L2KeyWrite.NONE;
         }

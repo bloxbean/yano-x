@@ -793,6 +793,8 @@ observation. ADR-041 owns the trust-preserving delivery and recovery design.
 6. Conflicting replay credits nothing.
 7. Operator-provided values can never create reserve credit.
 8. No deposit content observed on L1 makes an observer or the state transition throw.
+9. An L2 key registration is created only by a deposit whose accepting transaction the key's owner
+   signed as a required signer.
 
 ### 15.3 Withdrawals
 
