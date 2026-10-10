@@ -55,7 +55,7 @@ public final class AppChainDevtoolsCli {
                or: ./yano.sh appchain plugin inspect|validate|sign|scaffold [options]
                or: ./yano.sh appchain metadata verify <plugin.jar> --trust-key <key-id=64-hex-public-key>
                or: ./yano.sh appchain migrate [project-directory] [--dry-run]
-               or: ./yano.sh appchain role public-key|key-proof|key-proof-signature|sign|govern-* [options]
+               or: ./yano.sh appchain role public-key|key-proof|key-proof-signature|sign|govern-*|bootstrap [options]
                or: ./yano.sh appchain authenticated-map action|direct-*|approval-*|command [options]
                or: ./yano.sh appchain eutxo transaction|utxo|proof|doctor|demo [options]
                or: ./yano.sh appchain validity bootstrap|status|prove|proof|doctor|... [options]
@@ -127,6 +127,24 @@ public final class AppChainDevtoolsCli {
                 return EXIT_OK;
             } catch (RuntimeException failure) {
                 err.println("Invalid offline authenticated-map authorization command.");
+                err.flush();
+                return EXIT_USAGE;
+            }
+        }
+        if (roleCommand(args) && roleArguments(args).length > 0 && "bootstrap".equals(roleArguments(args)[0])) {
+            String[] options = java.util.Arrays.copyOfRange(roleArguments(args), 1, roleArguments(args).length);
+            if (options.length == 1 && java.util.Set.of("help", "--help", "-h").contains(options[0])) {
+                out.println(RoleBootstrapPlan.USAGE);
+                out.flush();
+                return EXIT_OK;
+            }
+            try {
+                out.println(RoleBootstrapPlan.execute(options));
+                out.flush();
+                return EXIT_OK;
+            } catch (IOException | RuntimeException failure) {
+                err.println("Invalid role bootstrap command: " + failure.getMessage());
+                err.println(RoleBootstrapPlan.USAGE);
                 err.flush();
                 return EXIT_USAGE;
             }

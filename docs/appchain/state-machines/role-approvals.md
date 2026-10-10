@@ -117,18 +117,26 @@ From the top-level directory of the extracted release:
 ./yano.sh appchain init --non-interactive \
   --recipe role-approval --network devnet --members 3 \
   --runtime jvm --deployment host \
+  --http-port-base 7070 --server-port-base 13337 \
   --name role-approval-chain --chain-id role-approval-chain \
   --output role-approval-chain
 ```
 
-Add the reviewed public member keys to the generated blueprint, then render and
-validate it:
+On devnet, `prepare` generates the member keys, pins their public keys in the
+blueprint and renders the project. On a public network, add the reviewed public
+member keys to `appchain.yaml` and run `./yano.sh appchain render` instead.
 
 ```bash
-./yano.sh appchain render role-approval-chain
-./yano.sh appchain config validate --mode project role-approval-chain
-./yano.sh appchain doctor role-approval-chain --distribution .
+./yano.sh appchain prepare role-approval-chain
+./yano.sh appchain doctor role-approval-chain --distribution "$PWD"
+export YANO_HOME="$PWD"
+role-approval-chain/scripts/start
 ```
+
+`doctor` reports `DOCTOR_WARNINGS`: `APPLICATION_BOOTSTRAPPED` stays pending
+until you create the records below.
+
+## Bootstrap organizations, actors and policies
 
 `bootstrap/role-approvals-plan.yaml` is a non-secret plan for organizations,
 actors, proof-of-possession, policies, governance and verification. Fill it
@@ -136,57 +144,148 @@ with public values only; actor private keys belong in the actor's application,
 KMS, HSM or vault.
 
 Organizations, actors and policies are created through member governance.
-Each record is proposed, approved by members up to the chain's genesis
-threshold, then activated. Bootstrap is fail-closed and idempotent:
+Each record is proposed by one member, which counts as its first approval,
+approved by further members up to the chain's genesis threshold, then
+activated. Bootstrap is fail-closed and idempotent:
 
 1. Query the committed record and verify its proof.
 2. If the exact revision already exists, record the proof and skip it.
 3. If it is absent, submit `PROPOSE`, collect member approvals, then `ACTIVATE`.
 4. If an existing revision differs, stop; never replace it silently.
 
-`./yano.sh appchain role govern-propose`, `govern-approve` and
-`govern-activate` encode those governance commands. The release has no
-command that encodes the organization, actor or policy record itself; your
-tooling builds it with the role-workflow contracts.
+**1. Create each actor's key and its proof of possession.** On devnet you can
+make disposable seeds; in a real deployment each actor does this in its own
+wallet or HSM and sends you only the public key and the proof:
+
+```bash
+mkdir -p actors
+for actor in proposer-a reviewer-a; do
+  (umask 077; openssl rand -hex 32 > "actors/$actor.seed")
+done
+PROPOSER_KEY=$(./yano.sh appchain role public-key --seed-file actors/proposer-a.seed)
+REVIEWER_KEY=$(./yano.sh appchain role public-key --seed-file actors/reviewer-a.seed)
+
+./yano.sh appchain role key-proof --chain role-approval-chain \
+  --actor proposer-a --actor-revision 1 --key proposer-key-v1 \
+  --public-key "$PROPOSER_KEY" --valid-from-height 1 --valid-until-height 0 \
+  --seed-file actors/proposer-a.seed > actors/proposer-a.proof
+./yano.sh appchain role key-proof --chain role-approval-chain \
+  --actor reviewer-a --actor-revision 1 --key reviewer-key-v1 \
+  --public-key "$REVIEWER_KEY" --valid-from-height 1 --valid-until-height 0 \
+  --seed-file actors/reviewer-a.seed > actors/reviewer-a.proof
+```
+
+**2. Fill in the plan.** Replace every `REPLACE_*` value: here, empty metadata
+commitments and the two public keys, in the order the plan lists the actors:
+
+```bash
+python3 - role-approval-chain/bootstrap/role-approvals-plan.yaml \
+  role-approvals-plan.yaml "$PROPOSER_KEY" "$REVIEWER_KEY" <<'PY'
+import sys
+source, target, proposer, reviewer = sys.argv[1:]
+text = open(source).read().replace("REPLACE_64_HEX_OR_EMPTY", '""')
+text = text.replace("REPLACE_64_HEX", proposer, 1).replace("REPLACE_64_HEX", reviewer, 1)
+open(target, "w").write(text)
+PY
+```
+
+**3. Encode the governance commands.** `role bootstrap` turns the plan into one
+step per record, in dependency order, with the mutation, its hash, and the
+encoded propose, approve and activate commands for that record's topic. It
+refuses a plan with placeholders left, and an actor key without a valid proof:
+
+```bash
+API0=http://127.0.0.1:7070/api/v1/app-chain/chains/role-approval-chain
+API1=http://127.0.0.1:7071/api/v1/app-chain/chains/role-approval-chain
+HEIGHT=$(curl -s "$API0/status" | jq -r .tipHeight)
+
+./yano.sh appchain role bootstrap --plan role-approvals-plan.yaml \
+  --expiry-height $((HEIGHT + 500)) \
+  --key-proof actors/proposer-a.proof --key-proof actors/reviewer-a.proof \
+  > bootstrap.json
+jq '[.steps[] | {record, id, topic}]' bootstrap.json
+```
+
+The expiry must be above the current height and at most
+`machines.composite.roles.maximum-mutation-lifetime-blocks` (1000 by default)
+beyond it. Organizations go to `actors.command.v1` before the actors that
+belong to them; policies go to `role-approvals.command.v1`.
+
+**4. Submit each step.** A member's approval is the envelope it relays, so send
+the approve through a different member than the propose. With the generated
+threshold of 2, one extra approval is enough:
+
+```bash
+submit() { # <member API> <topic> <command hex>; waits until final
+  local id
+  id=$(curl -sf -X POST "$1/messages" -H 'Content-Type: application/json' \
+    -d "$(jq -nc --arg t "$2" --arg b "$3" '{topic:$t, bodyHex:$b}')" | jq -r .messageId)
+  until curl -sf "$1/messages/$id" | jq -e .height >/dev/null; do sleep 1; done
+}
+
+jq -c '.steps[]' bootstrap.json | while read -r step; do
+  topic=$(jq -r .topic <<<"$step")
+  submit "$API0" "$topic" "$(jq -r .propose <<<"$step")"
+  submit "$API1" "$topic" "$(jq -r .approve <<<"$step")"
+  submit "$API0" "$topic" "$(jq -r .activate <<<"$step")"
+  echo "activated $(jq -r '.record + " " + .id' <<<"$step")"
+done
+```
+
+A final activate is not proof that the record exists: an activation below the
+threshold, or of a record whose organization is missing, changes nothing. Read
+each record back, from any member:
+
+```bash
+BUNDLE=http://127.0.0.1:7072/api/v1/plugins/org.yanoproject.x.role-workflow
+for record in organizations/organization-a organizations/organization-b \
+    actors/proposer-a actors/reviewer-a policies/application-approval; do
+  curl -s "$BUNDLE/$record?chain=role-approval-chain" | jq -c '.record'
+done
+```
+
+> **✓ You should see** five records with `"revision":1`; the organizations and
+> actors also show `"status":"ACTIVE"`.
+
+To add or change a record later, raise its `revision` in a copy of the plan
+that holds only that record, and run the same steps.
 
 ## Sign and submit a decision
 
 Hash the exact canonical application bytes before actors sign them. The payload
-domain names that byte contract, for example `com.example.order.v1`:
+domain names that byte contract, for example `com.example.release.v1`. Each
+statement binds the proposal, the policy revision, the payload hash and a
+deadline height:
 
 ```bash
-PAYLOAD_HASH=$(openssl dgst -sha256 -binary approved-order.cbor | xxd -p -c 256)
+printf 'release-7' > release-7.bin
+PAYLOAD_HASH=$(openssl dgst -sha256 -binary release-7.bin | xxd -p -c 256)
+DEADLINE=$(( $(curl -s "$API0/status" | jq -r .tipHeight) + 200 ))
 
-COMMAND_HEX=$(./yano.sh appchain role sign \
-  --action approve \
-  --chain role-approval-chain \
-  --proposal order-a-1001 \
-  --policy order-release \
-  --policy-revision 1 \
-  --payload-domain com.example.order.v1 \
-  --payload-hash "$PAYLOAD_HASH" \
-  --deadline-height 1000 \
-  --actor reviewer-a \
-  --actor-revision 1 \
-  --key reviewer-key-v1 \
-  --clause reviewers \
-  --seed-file /owner-only/reviewer.seed)
+sign() {
+  ./yano.sh appchain role sign --chain role-approval-chain \
+    --proposal release-7 --policy application-approval --policy-revision 1 \
+    --payload-domain com.example.release.v1 --payload-hash "$PAYLOAD_HASH" \
+    --deadline-height "$DEADLINE" --actor-revision 1 "$@"
+}
+
+submit "$API0" role-approvals.command.v1 "$(sign --action propose \
+  --actor proposer-a --key proposer-key-v1 --seed-file actors/proposer-a.seed)"
+submit "$API0" role-approvals.command.v1 "$(sign --action approve \
+  --actor reviewer-a --key reviewer-key-v1 --clause reviewers \
+  --seed-file actors/reviewer-a.seed)"
 ```
 
-Submit the bytes through any member:
-
-```bash
-curl -sS -X POST \
-  http://127.0.0.1:7070/api/v1/app-chain/chains/role-approval-chain/messages \
-  -H 'Content-Type: application/json' \
-  -d "{\"topic\":\"role-approvals.command.v1\",\"bodyHex\":\"$COMMAND_HEX\"}" | jq .
-```
+Any member can relay an actor statement; the actor's signature, not the
+member, is what counts.
 
 When API authentication is enabled (`yano.app-chain.api.auth.enabled=true`),
 add `-H "X-API-Key: $API_KEY"` to every request. A generated project keeps its
 local key as `YANO_APPCHAIN_API_KEYS` in `secrets/node0.env`.
 
-`202` means queued, not approved. Wait for finality, then read the proposal.
+`202` means queued, not approved. `submit` waits for finality; then read the
+proposal below. One reviewer from another organization satisfies this policy,
+so its status is `"APPROVED"`.
 
 ## Query and verify
 
@@ -196,7 +295,7 @@ The bundle exposes read-only routes:
 BASE=http://127.0.0.1:7070/api/v1
 BUNDLE=org.yanoproject.x.role-workflow
 
-curl -sS "$BASE/plugins/$BUNDLE/proposals/order-a-1001?chain=role-approval-chain" | jq .
+curl -sS "$BASE/plugins/$BUNDLE/proposals/release-7?chain=role-approval-chain" | jq .record.status
 curl -sS "$BASE/plugins/$BUNDLE/stats?chain=role-approval-chain" | jq .
 ```
 
@@ -225,8 +324,8 @@ implementation "org.yanoproject.x:yano-x-role-workflow-contracts:${yanoXVersion}
 ```java
 var statement = new ActorStatementV1(
         ActorStatementV1.Action.APPROVE,
-        "role-approval-chain", "order-a-1001", "order-release", 1,
-        "com.example.order.v1", payloadHash, 1000,
+        "role-approval-chain", "release-7", "application-approval", 1,
+        "com.example.release.v1", payloadHash, deadlineHeight,
         "reviewer-a", 1, "reviewer-key-v1", "reviewers");
 
 byte[] command = SignedActorCommandV1.sign(statement, actorSeed).encode();

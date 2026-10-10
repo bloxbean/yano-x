@@ -138,11 +138,10 @@ create a project with the `role-approval` recipe, sign statements with
 and query and prove the result. It also lists the lifecycle, the order of
 checks and every outcome code.
 
-Its organizations, actors and policies are created through member governance,
-as the reference page describes. The release encodes the governance commands
-(`appchain role govern-propose`, `govern-approve`, `govern-activate`) but not
-the records they carry, so your tooling builds those with the role-workflow
-contracts.
+Its organizations, actors and policies are created through member governance.
+`./yano.sh appchain role bootstrap` encodes them from the project's generated
+`bootstrap/role-approvals-plan.yaml`; the reference page walks through the
+bootstrap, from actor keys to a read-back of every record.
 
 ## Reuse levels
 
