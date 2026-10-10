@@ -62,8 +62,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * reserve. The test only funds, bootstraps, deposits and withdraws — every
  * settlement step in between is the wired node acting on its own.
  */
-@io.quarkus.test.junit.QuarkusTest
-@io.quarkus.test.junit.TestProfile(EutxoSettlementDevnetE2ETestProfile.class)
+@PackagedDevnet(profile = EutxoSettlementDevnetE2ETestProfile.class)
 class EutxoSettlementEffectPathDevnetE2ETest extends BaseE2ETest {
     private static final Logger log =
             LoggerFactory.getLogger(EutxoSettlementEffectPathDevnetE2ETest.class);
