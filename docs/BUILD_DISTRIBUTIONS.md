@@ -27,6 +27,23 @@ the matching GitHub release automatically:
 
 The release URL convention is
 `https://github.com/bloxbean/yano/releases/download/v<version>/yano-<version>.zip`.
+
+Yano commit snapshots need no local Yano build either. A snapshot
+`yanoVersion` such as `0.1.0-pre18-76619d9-SNAPSHOT` resolves its Maven
+artifacts from `https://repo.bloxbean.org/maven/snapshots` and its ZIP from the
+matching snapshot distribution,
+`https://repo.bloxbean.org/dist/snapshots/yano/<version>/yano-<version>.zip`,
+where `<version>` drops the `-SNAPSHOT` suffix. Yano publishes the two with
+separate workflows (`bloxbean-snapshot.yml` and `bloxbean-snapshot-dist.yml`),
+so use a commit for which both have completed. `verifyYanoInputs` also checks
+the ZIP against the SHA-256 in the `manifest.json` published beside it.
+
+```bash
+./gradlew distributionCheck \
+  -Pversion=<yano-x-version> \
+  -PyanoVersion=<yano-snapshot-version>
+```
+
 For local refactoring, publish and package Yano locally:
 
 ```bash
@@ -127,8 +144,10 @@ check also rejects missing, duplicate, or unexpected plugin bundles, a tool
 launcher whose classpath is missing from `tools/lib`, and any native executable
 in the archive. Manifest generation rejects a default
 selection with unresolved bundle dependencies or duplicate contribution
-identities before an archive is created. Snapshot and locally staged versions
-must supply `yanoJvmDist`; they never fall back to a GitHub release asset.
+identities before an archive is created. Each ZIP coordinate is fetched only
+from its own repository: a release from the GitHub release, a snapshot from the
+BloxBean snapshot distributions. A locally built or staged ZIP must be supplied
+with `yanoJvmDist`; a snapshot never falls back to a GitHub release asset.
 
 Yano X does not provide a native-image build. A future native extension model
 requires a separate architecture decision and build-time composition contract.
