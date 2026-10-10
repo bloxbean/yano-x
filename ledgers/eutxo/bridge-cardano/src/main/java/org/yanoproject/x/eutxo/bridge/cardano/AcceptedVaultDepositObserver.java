@@ -14,6 +14,7 @@ import org.yanoproject.api.appchain.l1view.L1Observer;
 import org.yanoproject.api.appchain.l1view.L1ObserverConsensusIdentity;
 import org.yanoproject.x.eutxo.contracts.EutxoDepositClaim;
 import org.yanoproject.x.eutxo.contracts.EutxoOutpoint;
+import org.yanoproject.x.eutxo.contracts.EutxoBatchSettlementMarker;
 import org.yanoproject.x.eutxo.contracts.EutxoSettlementDatum;
 import org.yanoproject.x.eutxo.contracts.EutxoVaultDatum;
 
@@ -112,14 +113,13 @@ final class AcceptedVaultDepositObserver implements L1Observer {
             try {
                 datum = EutxoVaultDatum.decode(datumCbor);
             } catch (IllegalArgumentException notDeposit) {
-                try {
-                    EutxoSettlementDatum.decode(datumCbor);
+                if (isSettlementContinuation(datumCbor)) {
+                    // The withdrawal-confirmation observers own settlement outputs.
                     continue;
-                } catch (IllegalArgumentException notSettlement) {
-                    throw new IllegalArgumentException(
-                            "vault output contains an unsupported bridge datum",
-                            notDeposit);
                 }
+                throw new IllegalArgumentException(
+                        "vault output contains an unsupported bridge datum",
+                        notDeposit);
             }
             BigInteger lovelace = exactLovelace(output);
             if (lovelace.signum() <= 0 || lovelace.compareTo(maxLovelace) > 0) {
@@ -168,6 +168,21 @@ final class AcceptedVaultDepositObserver implements L1Observer {
             }
         }
         return found;
+    }
+
+    /** A single-claim settlement datum or the batched settle pipeline's marker (ADR-UTXO-009 A2). */
+    private static boolean isSettlementContinuation(byte[] datumCbor) {
+        try {
+            EutxoSettlementDatum.decode(datumCbor);
+            return true;
+        } catch (IllegalArgumentException notSingleClaim) {
+            try {
+                EutxoBatchSettlementMarker.decode(datumCbor);
+                return true;
+            } catch (IllegalArgumentException notBatch) {
+                return false;
+            }
+        }
     }
 
     private static BigInteger exactLovelace(TransactionOutput output) {
