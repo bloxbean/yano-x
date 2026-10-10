@@ -74,7 +74,8 @@ final class AcceptedVaultDepositObserver implements L1Observer {
             return List.of();
         }
         List<L1Observation> observations = new ArrayList<>();
-        for (TransactionBody transaction : block.getTransactionBodies()) {
+        // A phase-2-invalid transaction created no outputs and spent no inputs; only valid ones are read.
+        for (TransactionBody transaction : ValidTransactions.of(block)) {
             EutxoDepositClaim claim;
             try {
                 claim = transaction == null ? null : claim(slot, blockHash, transaction);
