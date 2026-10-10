@@ -1,9 +1,11 @@
 package org.yanoproject.x.eutxo.client;
 
 import org.yanoproject.x.client.AppChainClient;
+import org.yanoproject.x.eutxo.contracts.EutxoDepositRecord;
 import org.yanoproject.x.eutxo.contracts.EutxoOutpoint;
 import org.yanoproject.x.eutxo.contracts.EutxoReceipt;
 import org.yanoproject.x.eutxo.contracts.EutxoRecord;
+import org.yanoproject.x.eutxo.contracts.EutxoWithdrawalRecord;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
@@ -31,6 +33,9 @@ public final class EutxoCli {
                or: ./yano.sh appchain eutxo utxo get <tx-id#index> [options]
                or: ./yano.sh appchain eutxo utxo list <address> [options]
                or: ./yano.sh appchain eutxo proof <tx-id#index> [options]
+               or: ./yano.sh appchain eutxo deposit get <accepted-l1-tx-id#index> [options]
+               or: ./yano.sh appchain eutxo withdrawal get <claim-id-hex> [options]
+               or: ./yano.sh appchain eutxo withdrawal list [options]
                or: ./yano.sh appchain eutxo doctor [--expected-profile-digest <hex>] [options]
                or: ./yano.sh appchain eutxo nullifier reconstruct --ids <file> [--shard N] [--expected-root <hex>]
                or: ./yano.sh appchain eutxo nullifier proof <claim-id-hex> --ids <file>
@@ -41,6 +46,9 @@ public final class EutxoCli {
               --ids <file>           settled claim ids (one 32-byte hex per line) for nullifier commands
               --shard <0-15>         restrict/compare a single nullifier shard
               --expected-root <hex>  on-chain shard root to compare a reconstruction against
+            Bridge records are written by the node only after the L1 transaction is stability-deep:
+              a deposit record exists once the accepted L1 output is mirrored, and a withdrawal is
+              CONFIRMED once its L1 payout is. withdrawal list shows the newest 50 claims.
             """.stripTrailing();
 
     private static final ObjectMapper JSON = new ObjectMapper();
@@ -109,6 +117,22 @@ public final class EutxoCli {
             EutxoOutpoint outpoint = EutxoOutpoint.parse(options.argument);
             result.put("outpoint", options.argument);
             result.put("proof", client.proof(outpoint).orElse(null));
+        } else if (options.command.equals(List.of("deposit", "get"))) {
+            EutxoSnapshot<Optional<EutxoDepositRecord>> snapshot =
+                    client.depositSnapshot(EutxoOutpoint.parse(options.argument));
+            result.put("acceptedOutpoint", options.argument);
+            result.put("deposit", snapshot.value().map(EutxoCli::depositJson).orElse(null));
+            root(result, snapshot);
+        } else if (options.command.equals(List.of("withdrawal", "get"))) {
+            String claimId = HexFormat.of().formatHex(parseClaimId(options.argument));
+            EutxoSnapshot<Optional<EutxoWithdrawalRecord>> snapshot = client.withdrawalSnapshot(claimId);
+            result.put("claimId", claimId);
+            result.put("withdrawal", snapshot.value().map(EutxoCli::withdrawalJson).orElse(null));
+            root(result, snapshot);
+        } else if (options.command.equals(List.of("withdrawal", "list"))) {
+            EutxoSnapshot<List<EutxoWithdrawalRecord>> snapshot = client.latestWithdrawalsSnapshot(50);
+            result.put("withdrawals", snapshot.value().stream().map(EutxoCli::withdrawalJson).toList());
+            root(result, snapshot);
         } else if (options.command.equals(List.of("doctor"))) {
             EutxoSnapshot<String> snapshot = client.profileSnapshot();
             boolean matches = options.expectedDigest == null
@@ -266,6 +290,33 @@ public final class EutxoCli {
         return json;
     }
 
+    static Map<String, Object> depositJson(EutxoDepositRecord record) {
+        Map<String, Object> json = new LinkedHashMap<>();
+        json.put("acceptedOutpoint", record.claim().acceptedOutpoint().toString());
+        json.put("l1Slot", record.claim().l1Slot());
+        json.put("l1BlockHash", HexFormat.of().formatHex(record.claim().l1BlockHash()));
+        json.put("l2Address", record.claim().l2Address());
+        json.put("mirroredOutpoint", record.mirroredOutpoint().toString());
+        json.put("creditedHeight", record.creditedHeight());
+        return json;
+    }
+
+    static Map<String, Object> withdrawalJson(EutxoWithdrawalRecord record) {
+        Map<String, Object> json = new LinkedHashMap<>();
+        json.put("claimId", record.claim().claimId());
+        json.put("status", record.status().name());
+        json.put("withdrawalOutpoint", record.claim().withdrawalOutpoint().toString());
+        json.put("destinationAddress", record.claim().destinationAddress());
+        json.put("lovelace", record.claim().lovelace().toString());
+        json.put("requestedHeight", record.claim().requestedHeight());
+        json.put("settlementTransactionId",
+                record.settlementTransactionId().isEmpty() ? null : record.settlementTransactionId());
+        json.put("confirmedSlot", record.status() == EutxoWithdrawalRecord.Status.CONFIRMED
+                ? record.confirmedSlot() : null);
+        json.put("updatedHeight", record.updatedHeight());
+        return json;
+    }
+
     private static void root(Map<String, Object> result, EutxoSnapshot<?> snapshot) {
         result.put("chainId", snapshot.chainId());
         result.put("committedHeight", snapshot.committedHeight());
@@ -340,8 +391,14 @@ public final class EutxoCli {
                 options.argument = positional.get(2);
                 return options;
             }
+            if (positional.equals(List.of("withdrawal", "list"))) {
+                options.command = List.copyOf(positional);
+                return options;
+            }
             if (positional.size() == 3
                     && (positional.subList(0, 2).equals(List.of("transaction", "submit"))
+                    || positional.subList(0, 2).equals(List.of("deposit", "get"))
+                    || positional.subList(0, 2).equals(List.of("withdrawal", "get"))
                     || positional.subList(0, 2).equals(List.of("transaction", "status"))
                     || positional.subList(0, 2).equals(List.of("utxo", "get"))
                     || positional.subList(0, 2).equals(List.of("utxo", "list")))) {

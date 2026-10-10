@@ -38,8 +38,6 @@ public final class EutxoValidityLifecycleCli {
                or: ./yano.sh appchain validity <deposit|settlement|withdrawal|recovery> submit
                        --project <dir> --id <id> --tx <signed-cardano.cbor>
                        --url <node-origin> [--api-key-env <name>]
-               or: ./yano.sh appchain validity <deposit|settlement|withdrawal|recovery> stable
-                       --project <dir> --id <id> --tx-id <cardano-tx-id>
                or: ./yano.sh appchain validity reconcile --project <dir>
 
             Safety:
@@ -47,6 +45,8 @@ public final class EutxoValidityLifecycleCli {
               zeroj-jubjub-dev-v1 always requires a trusted prover and disposable test funds.
               Preview and Preprod require a durable project acknowledgement.
               Mainnet is rejected unconditionally.
+              The journal records submissions only. L1 stability is decided by the node: read mirrored
+              deposits and confirmed withdrawals with ./yano.sh appchain eutxo deposit|withdrawal get.
             """.stripTrailing();
 
     private static final ObjectMapper JSON = new ObjectMapper()
@@ -143,9 +143,6 @@ public final class EutxoValidityLifecycleCli {
                         kind, options.operationId,
                         options.transaction, options.url,
                         secret(options.apiKeyEnvironment));
-                case "stable" -> lifecycle.markStable(
-                        kind, options.operationId,
-                        options.transactionId);
                 default -> throw new Usage(
                         "unknown validity lifecycle action");
             };
@@ -247,7 +244,6 @@ public final class EutxoValidityLifecycleCli {
         private Path request;
         private Path transaction;
         private URI url;
-        private String transactionId;
         private String apiKeyEnvironment;
         private String passwordEnvironment;
         private Path output;
@@ -282,10 +278,6 @@ public final class EutxoValidityLifecycleCli {
                             required(arguments, ++index, value));
                     case "--tx" -> options.transaction = Path.of(
                             required(arguments, ++index, value));
-                    case "--tx-id" -> options.transactionId =
-                            once(options.transactionId,
-                                    required(arguments, ++index, value),
-                                    value);
                     case "--url" -> options.url = URI.create(
                             required(arguments, ++index, value));
                     case "--api-key-env" -> options.apiKeyEnvironment =
@@ -341,7 +333,7 @@ public final class EutxoValidityLifecycleCli {
                     && List.of("deposit", "settlement",
                     "withdrawal", "recovery")
                     .contains(positional.getFirst())
-                    && List.of("prepare", "submit", "stable")
+                    && List.of("prepare", "submit")
                     .contains(positional.get(1))) {
                 return List.copyOf(positional);
             }
@@ -382,11 +374,6 @@ public final class EutxoValidityLifecycleCli {
                     || options.url == null)) {
                 throw new Usage(
                         "submit requires --tx and --url");
-            }
-            if ("stable".equals(action)
-                    && options.transactionId == null) {
-                throw new Usage(
-                        "stable requires --tx-id");
             }
         }
 

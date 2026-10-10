@@ -352,20 +352,19 @@ export YANO_L1_API_KEY='<secret>'
   --api-key-env YANO_L1_API_KEY
 ```
 
-The value is neither logged nor persisted. After an independently observed
-stable Cardano result:
+The value is neither logged nor persisted. The journal then records the
+operation as `SUBMITTED`; `reconcile` counts prepared and submitted operations:
 
 ```bash
-./yano.sh appchain validity settlement stable \
-  --project payments-zk \
-  --id settlement-0001 \
-  --tx-id <64-hex-cardano-tx-id>
-
 ./yano.sh appchain validity reconcile --project payments-zk
 ```
 
-The same `submit` and `stable` shape applies to `deposit`, `withdrawal`, and
-`recovery`. Settlement and withdrawal preparation both require the proof
+The same `prepare` and `submit` shape applies to `deposit`, `withdrawal`, and
+`recovery`. The journal never records L1 stability. The node decides it: the
+bridge observers mirror a deposit, and confirm a withdrawal, only once the L1
+transaction is `yano.app-chain.l1.stability-depth` blocks deep. Read the
+results with `./yano.sh appchain eutxo deposit get <accepted-l1-outpoint>` and
+`./yano.sh appchain eutxo withdrawal get <claim-id>`. Settlement and withdrawal preparation both require the proof
 digest, ensuring their journals retain the same previous/next root,
 batch-data, withdrawal amount, and finalized transaction identities.
 Repeating a completed step returns the retained result instead of creating a

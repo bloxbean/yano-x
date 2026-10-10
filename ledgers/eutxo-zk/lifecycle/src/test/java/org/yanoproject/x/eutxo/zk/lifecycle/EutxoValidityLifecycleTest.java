@@ -8,6 +8,8 @@ import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
@@ -235,9 +237,28 @@ class EutxoValidityLifecycleTest {
                         + "deposit-deposit-1.json"));
         assertThat(retained).contains(transactionId)
                 .doesNotContain("not-persisted");
-        assertThat(lifecycle.markStable(
-                "deposit", "deposit-1", transactionId).status())
-                .isEqualTo("OPERATION_STABLE");
+        // The node is gone: a repeated submit answers from the journal and never posts again.
+        assertThat(lifecycle.submitOperation("deposit", "deposit-1", transaction,
+                URI.create("http://127.0.0.1:9"), null).status())
+                .isEqualTo("OPERATION_ALREADY_SUBMITTED");
+        Map<String, ?> counts = lifecycle.reconcile().details();
+        assertThat(counts.get("prepared")).isEqualTo(0);
+        assertThat(counts.get("submitted")).isEqualTo(1);
+        assertThat(counts).doesNotContainKey("stable");
+    }
+
+    @Test
+    void journalHasNoOperatorAssertedStableStep() {
+        StringWriter out = new StringWriter();
+        StringWriter err = new StringWriter();
+        int exit = EutxoValidityLifecycleCli.run(new String[]{
+                "deposit", "stable", "--project", temporary.toString(),
+                "--id", "deposit-1", "--tx-id", "ab".repeat(32)},
+                new PrintWriter(out), new PrintWriter(err));
+
+        assertThat(exit).isEqualTo(EutxoValidityLifecycleCli.EXIT_USAGE);
+        assertThat(EutxoValidityLifecycleCli.USAGE).doesNotContain(" stable")
+                .contains("appchain eutxo deposit|withdrawal get");
     }
 
     private Path project(

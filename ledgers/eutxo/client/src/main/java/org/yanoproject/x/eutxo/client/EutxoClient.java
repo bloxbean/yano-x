@@ -121,6 +121,14 @@ public final class EutxoClient {
                 EutxoQueryCodec.decodeOptionalWithdrawalRecord(result.payload())));
     }
 
+    /** The newest withdrawal records of the current bridge epoch, newest first; at most 50. */
+    public EutxoSnapshot<List<EutxoWithdrawalRecord>> latestWithdrawalsSnapshot(int limit) {
+        AppChainClient.QueryResult result = client.query(
+                EutxoQueryCodec.WITHDRAWALS_PATH,
+                EutxoQueryCodec.lifecyclePageRequest(0, limit));
+        return snapshot(result, EutxoQueryCodec.decodeWithdrawalRecords(result.payload()));
+    }
+
     /**
      * Fetches the exact finalized Cardano transition witness committed by the
      * validity root. The returned snapshot height lets a prover reject reads

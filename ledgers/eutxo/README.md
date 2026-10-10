@@ -310,7 +310,20 @@ The product commands call the same typed client and print structured JSON:
 
 ./yano.sh appchain eutxo proof <tx-id#index> \
   --chain payments-eutxo
+
+./yano.sh appchain eutxo deposit get <accepted-l1-tx-id#index> \
+  --chain payments-eutxo
+
+./yano.sh appchain eutxo withdrawal get <claim-id-hex> \
+  --chain payments-eutxo
+
+./yano.sh appchain eutxo withdrawal list --chain payments-eutxo
 ```
+
+The bridge commands read records the chain commits only after the L1
+transaction is `l1.stability-depth` blocks deep: a deposit record once the
+accepted output is mirrored, and a `CONFIRMED` withdrawal once its payout is.
+`withdrawal list` shows the newest 50 claims of the current bridge epoch.
 
 Use `--url` for a non-default REST base. If authentication is enabled, use
 `--api-key-env <environment-variable>`; the CLI has no inline secret option and
