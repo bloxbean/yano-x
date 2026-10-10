@@ -640,8 +640,15 @@ class EutxoBridgeSettlementMachineTest {
                 state, new CapturingEmitter(height));
 
         // Ignored: anyone can fabricate this, so it must not halt the bridge. The claim stays PENDING and the
-        // reserve is untouched.
+        // reserve is untouched; the trace counts it, so a genuine settlement ignored this way is visible too.
         assertThat(state.get(EutxoStateKeys.bridgeHalt())).isEmpty();
+        assertThat(org.yanoproject.x.eutxo.contracts.EutxoIgnoredConfirmations.decode(
+                state.get(EutxoStateKeys.ignoredConfirmations()).orElseThrow()))
+                .satisfies(ignored -> {
+                    assertThat(ignored.count()).isEqualTo(1);
+                    assertThat(ignored.lastSettlementTransactionId()).isEqualTo("99".repeat(32));
+                    assertThat(ignored.lastReason()).isEqualTo("CUSTODY_UNPROVEN");
+                });
         EutxoWithdrawalRecord record = EutxoQueryCodec.decodeWithdrawalRecords(
                 machine.query(EutxoQueryCodec.WITHDRAWALS_PATH,
                         EutxoQueryCodec.lifecyclePageRequest(0, 10), state))
@@ -675,6 +682,21 @@ class EutxoBridgeSettlementMachineTest {
         assertThat(state.get(EutxoStateKeys.bridgeHalt()))
                 .hasValueSatisfying(reason -> assertThat(new String(reason, java.nio.charset.StandardCharsets.US_ASCII))
                         .isEqualTo("UNKNOWN_WITHDRAWAL_CONFIRMATION"));
+        // A halt is an alarm, so it is not counted as an ignored confirmation.
+        assertThat(state.get(EutxoStateKeys.ignoredConfirmations())).isEmpty();
+
+        // A deposit observed while the bridge is halted is not credited; its value stays in the vault, and the
+        // notice says why instead of the deposit disappearing.
+        applyDepositAt(machine, state, 4_000_000L, height + 1, 0x49);
+        EutxoDepositClaim halted = depositClaimNonce(BigInteger.valueOf(4_000_000L), 0x49);
+        assertThat(state.get(EutxoStateKeys.deposit(halted.acceptedOutpoint()))).isEmpty();
+        assertThat(org.yanoproject.x.eutxo.contracts.EutxoDepositNotice.decode(
+                state.get(EutxoStateKeys.depositNotice(halted.acceptedOutpoint())).orElseThrow()))
+                .satisfies(notice -> {
+                    assertThat(notice.outcome())
+                            .isEqualTo(org.yanoproject.x.eutxo.contracts.EutxoDepositNotice.Outcome.UNCREDITED);
+                    assertThat(notice.reason()).isEqualTo("BRIDGE_HALTED");
+                });
     }
 
     @Test

@@ -5,7 +5,9 @@ import org.yanoproject.x.client.MpfProofConverter;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import org.yanoproject.x.client.AppChainClient;
 import org.yanoproject.x.eutxo.contracts.EutxoContract;
+import org.yanoproject.x.eutxo.contracts.EutxoDepositNotice;
 import org.yanoproject.x.eutxo.contracts.EutxoDepositRecord;
+import org.yanoproject.x.eutxo.contracts.EutxoIgnoredConfirmations;
 import org.yanoproject.x.eutxo.contracts.EutxoOutpoint;
 import org.yanoproject.x.proofs.MpfNormalizedProof;
 import org.yanoproject.x.eutxo.contracts.EutxoL2ParameterSnapshot;
@@ -119,6 +121,23 @@ public final class EutxoClient {
                 EutxoQueryCodec.withdrawalRequest(claimId));
         return snapshot(result, Optional.ofNullable(
                 EutxoQueryCodec.decodeOptionalWithdrawalRecord(result.payload())));
+    }
+
+    /** The notice for an accepted L1 outpoint the bridge did not credit as asked, if any. */
+    public EutxoSnapshot<Optional<EutxoDepositNotice>> depositNoticeSnapshot(EutxoOutpoint acceptedL1Outpoint) {
+        AppChainClient.QueryResult result = client.query(
+                EutxoQueryCodec.DEPOSIT_NOTICE_PATH,
+                EutxoQueryCodec.depositRequest(acceptedL1Outpoint));
+        return snapshot(result, Optional.ofNullable(
+                EutxoQueryCodec.decodeOptionalDepositNotice(result.payload())));
+    }
+
+    /** How many withdrawal confirmations the ledger ignored as unauthenticated, and the last one. */
+    public EutxoSnapshot<Optional<EutxoIgnoredConfirmations>> ignoredConfirmationsSnapshot() {
+        AppChainClient.QueryResult result = client.query(
+                EutxoQueryCodec.IGNORED_CONFIRMATIONS_PATH, new byte[0]);
+        return snapshot(result, Optional.ofNullable(
+                EutxoQueryCodec.decodeOptionalIgnoredConfirmations(result.payload())));
     }
 
     /** The newest {@code limit} (1 to 50) withdrawal records of the current bridge epoch, newest first. */

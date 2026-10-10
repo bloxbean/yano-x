@@ -449,6 +449,20 @@ must be key-controlled by that depositor, and no different registration may exis
 fails any of these is not applied, but the deposit is still credited, so a key-binding problem never
 strands value in the vault.
 
+Nothing the bridge declines to credit disappears silently (amended 2026-10-10). The ledger commits at
+most one `EutxoDepositNotice` per accepted outpoint, under `bridge/deposit-notice/`, with one of two
+outcomes:
+
+- `UNCREDITED`: the value stays in the vault. The reason is `BRIDGE_HALTED`, `ADDRESS_FULL`, or
+  `OUTPOINT_TAKEN`.
+- `CREDITED_WITHOUT_KEY_BINDING`: the deposit was credited without registering its key. The reason
+  is `KEY_BINDING_UNSIGNED`, `KEY_BINDING_PROFILE`, `KEY_BINDING_ADDRESS`, `KEY_BINDING_DEPOSITOR`,
+  or `KEY_BINDING_CONFLICT`.
+
+`appchain eutxo deposit get` shows the notice, and the `bridge/deposits/notice` query serves it. A
+deposit observed while the bridge is halted is one of these. Its observation is consumed, so the
+notice is the deposit's only trace, and recovering its value is a reconciliation decision.
+
 ```mermaid
 sequenceDiagram
     participant W as User wallet
@@ -600,8 +614,13 @@ For each exact pending claim it then:
 - moves reserve accounting from pending to confirmed outflow; and
 - decrements the pending-withdrawal count.
 
-A custody-unproven confirmation changes nothing: anyone can fabricate one, so halting on it would
-give every L1 user a free bridge halt. Ignoring it releases no reserve accounting. A confirmation
+A custody-unproven confirmation changes no claim, reserve, or halt state: anyone can fabricate one, so
+halting on it would give every L1 user a free bridge halt. Each ignored confirmation is counted in a
+bounded `EutxoIgnoredConfirmations` summary (count plus the last settlement transaction, reason, and
+height; the `bridge/confirmations/ignored` query, `appchain eutxo withdrawal ignored`). The reason
+is `CUSTODY_UNPROVEN`, `UNKNOWN_CLAIM`, `CLAIM_MISMATCH`, `CLAIM_REBIND`, or `NOT_THIS_BRIDGE`. A
+count that grows while claims stay pending is how a broken custody chain shows: genuine settlements
+are then ignored too, for example after vault UTxOs were consolidated outside a settlement. Ignoring it releases no reserve accounting. A confirmation
 that did spend tracked custody but is unknown, mismatched, or rebound is a real alarm and halts the
 bridge rather than silently releasing reserve accounting. The single-claim profiles (v1, v2) track no
 vault custody, so their confirmations are never authenticated. Such a confirmation can confirm an
