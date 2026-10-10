@@ -88,6 +88,10 @@ export class BindingEditor {
     this.stash = new Map();
     session.subscribe(reason => {
       if (reason === 'document' || reason === 'blueprint' || reason === 'text') this.stash.clear();
+      // An import's assurance summary describes the inputs it saw; once they change, it no longer applies.
+      if (this.assuranceStatus && (reason === 'draft' || reason === 'document' || reason === 'text')) {
+        this.announce('The draft changed since the last import; see the Validate tab for current report status.');
+      }
       this.schedule(reason);
     });
     this.wire();
@@ -110,6 +114,7 @@ export class BindingEditor {
   }
 
   announce(message, error = false) {
+    this.assuranceStatus = false;
     const status = this.el('status');
     // Messages can name draft ids, file names or importer text, so they are escaped like all displayed text.
     status.textContent = displayText(message);
@@ -464,7 +469,7 @@ export class BindingEditor {
   }
 
   /** Reads several selected files in order; each is imported independently and failures are reported by name. */
-  readFiles(input, handler, summary) {
+  readFiles(input, handler, summary, {assurance = false} = {}) {
     const files = [...input.files];
     if (!files.length) return;
     (async () => {
@@ -481,6 +486,7 @@ export class BindingEditor {
       }
       if (files.length > 64) problems.push('only the first 64 files were read');
       this.announce([imported ? summary(imported) : null, ...problems].filter(Boolean).join(' '), problems.length > 0);
+      this.assuranceStatus = assurance && imported > 0;
     })().finally(() => { input.value = ''; });
   }
 
@@ -2127,7 +2133,9 @@ export class BindingEditor {
           text: `Download ${EXPORT_NAMES.blueprint}`, disabled: !exportable, onclick: () => {
             try {
               this.services.download(session.exportBlueprint());
-              this.announce(`Downloaded ${EXPORT_NAMES.blueprint}; only the selected composite changed.`);
+              this.announce(session.document.edited
+                ? `Downloaded ${EXPORT_NAMES.blueprint}; only the selected composite changed.`
+                : `Downloaded ${EXPORT_NAMES.blueprint} unchanged.`);
             } catch (error) {
               this.announce(error instanceof SessionError ? error.message : `Studio could not prove the rest of the blueprint `
                 + `stays unchanged (${error.message}). Download ${EXPORT_NAMES.document} and replace the composite yourself.`, true);

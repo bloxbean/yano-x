@@ -33,6 +33,8 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -127,13 +129,23 @@ public final class BindingExpressionCompiler {
                     } else if (!fields.scopes().containsKey(scope)) {
                         message = name + " scope is not available in " + useSite + ": " + failure.getMessage();
                         code = "RULE_SCOPE_INVALID";
-                    } else if (scope == Scope.FACTS) {
-                        // An available scope without the named member: the kernel declares no such fact.
-                        code = "RULE_FACT_UNKNOWN";
-                    } else if (scope == Scope.READS) {
-                        code = "RULE_READ_UNKNOWN_FIELD";
-                    } else if (scope != Scope.EVENT) {
-                        code = "RULE_FIELD_UNKNOWN";
+                    } else {
+                        // An available scope without the named member; CEL names only the scope.
+                        String unknown = scope == Scope.READS || scope == Scope.WRITE_ELEMENT ? null
+                                : unknownMember(source, scope, fields.of(scope).keySet());
+                        if (unknown != null) {
+                            message = "invalid binding expression: " + name + " has no field '" + unknown
+                                    + "' in " + useSite + " (declared: "
+                                    + String.join(", ", new TreeSet<>(fields.of(scope).keySet())) + "): "
+                                    + failure.getMessage();
+                        }
+                        if (scope == Scope.FACTS) {
+                            code = "RULE_FACT_UNKNOWN";
+                        } else if (scope == Scope.READS) {
+                            code = "RULE_READ_UNKNOWN_FIELD";
+                        } else if (scope != Scope.EVENT) {
+                            code = "RULE_FIELD_UNKNOWN";
+                        }
                     }
                 }
             } else if (failure.getMessage().contains("undefined field")
@@ -147,6 +159,16 @@ public final class BindingExpressionCompiler {
         } catch (IllegalArgumentException failure) {
             throw new ExpressionException(failure.getMessage(), failure);
         }
+    }
+
+    /** The first {@code <scope>.<member>} in the source whose member the scope does not declare. */
+    private static String unknownMember(String source, Scope scope, Set<String> declared) {
+        Matcher member = Pattern.compile("\\b" + Pattern.quote(scope.label()) + "\\.([A-Za-z_][A-Za-z0-9_]*)")
+                .matcher(source);
+        while (member.find()) {
+            if (!declared.contains(member.group(1))) return member.group(1);
+        }
+        return null;
     }
 
     /**

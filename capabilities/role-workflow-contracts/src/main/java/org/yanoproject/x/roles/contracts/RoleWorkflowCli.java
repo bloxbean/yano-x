@@ -12,6 +12,23 @@ import java.util.Map;
 public final class RoleWorkflowCli {
     private static final HexFormat HEX = HexFormat.of();
 
+    public static final String USAGE = """
+            Usage: ./yano.sh appchain role <command> [options]
+              public-key           --seed-file <file>
+              key-proof            --chain <id> --actor <id> --actor-revision <n> --key <id>
+                                   --public-key <64-hex> --valid-from-height <n> [--valid-until-height <n>]
+                                   --seed-file <file>
+              key-proof-signature  same options as key-proof; prints only the signature
+              sign                 --action propose|approve|reject|cancel --chain <id> --proposal <id>
+                                   --policy <id> --policy-revision <n> --payload-domain <name>
+                                   --payload-hash <64-hex> --deadline-height <n> --actor <id>
+                                   --actor-revision <n> --key <id> [--clause <id>] --seed-file <file>
+              govern-propose       --mutation-id <id> --mutation-hex <hex> --expiry-height <n>
+              govern-approve       --mutation-id <id> --mutation-hash <64-hex>
+              govern-activate      --mutation-id <id> --mutation-hash <64-hex>
+            Each command prints hex. Seed files hold one 32-byte Ed25519 seed as hex and are never printed.
+            The governance commands wrap a record your tooling encodes with the role-workflow contracts.""";
+
     private RoleWorkflowCli() {
     }
 
@@ -27,6 +44,7 @@ public final class RoleWorkflowCli {
     /** Executes one dependency-light offline encoding/signing command. */
     public static String execute(String[] args) {
         if (args == null || args.length == 0) throw invalid();
+        if (args.length == 1 && java.util.Set.of("help", "--help", "-h").contains(args[0])) return USAGE;
         String command = args[0];
         Map<String, String> options = options(args);
         return switch (command) {

@@ -66,6 +66,9 @@ class BindingExpressionScopeTest {
                 .hasMessageStartingWith("command scope is not available in a binding");
         assertThatThrownBy(() -> compile("context.timestamp > 0", BINDING, "a binding"))
                 .hasMessageContaining("undeclared reference");
+        assertThatThrownBy(() -> compile("event.amount > 0 && event.amout > 0", BINDING, "a binding"))
+                .hasMessageStartingWith("invalid binding expression: event has no field 'amout' in a binding (declared: ")
+                .hasMessageContaining("undeclared reference");
     }
 
     @Test
