@@ -12,6 +12,7 @@ import com.bloxbean.cardano.yaci.core.util.HexUtil;
 import org.yanoproject.api.appchain.l1view.L1Observation;
 import org.yanoproject.api.appchain.l1view.L1Observer;
 import org.yanoproject.api.appchain.l1view.L1ObserverConsensusIdentity;
+import org.yanoproject.x.eutxo.contracts.EutxoBatchSettlementMarker;
 import org.yanoproject.x.eutxo.contracts.EutxoDepositClaim;
 import org.yanoproject.x.eutxo.contracts.EutxoOutpoint;
 import org.yanoproject.x.eutxo.contracts.EutxoSettlementDatum;
@@ -112,14 +113,12 @@ final class AcceptedVaultDepositObserver implements L1Observer {
             try {
                 datum = EutxoVaultDatum.decode(datumCbor);
             } catch (IllegalArgumentException notDeposit) {
-                try {
-                    EutxoSettlementDatum.decode(datumCbor);
+                if (isSettlementContinuation(datumCbor)) {
                     continue;
-                } catch (IllegalArgumentException notSettlement) {
-                    throw new IllegalArgumentException(
-                            "vault output contains an unsupported bridge datum",
-                            notDeposit);
                 }
+                throw new IllegalArgumentException(
+                        "vault output contains an unsupported bridge datum",
+                        notDeposit);
             }
             BigInteger lovelace = exactLovelace(output);
             if (lovelace.signum() <= 0 || lovelace.compareTo(maxLovelace) > 0) {
@@ -186,6 +185,27 @@ final class AcceptedVaultDepositObserver implements L1Observer {
             }
         }
         return lovelace;
+    }
+
+    /**
+     * A settlement's continuing vault output carries either the single-claim
+     * settlement datum or the batch settlement marker written by the batched
+     * settle pipeline. Both are reconciled by the withdrawal confirmation
+     * observers and are never deposits.
+     */
+    private static boolean isSettlementContinuation(byte[] datumCbor) {
+        try {
+            EutxoSettlementDatum.decode(datumCbor);
+            return true;
+        } catch (IllegalArgumentException notSingleClaim) {
+            // try the batch marker
+        }
+        try {
+            EutxoBatchSettlementMarker.decode(datumCbor);
+            return true;
+        } catch (IllegalArgumentException notBatchMarker) {
+            return false;
+        }
     }
 
     @Override
