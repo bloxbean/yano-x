@@ -362,7 +362,7 @@ operation as `SUBMITTED`; `reconcile` counts prepared and submitted operations:
 The same `prepare` and `submit` shape applies to `deposit`, `withdrawal`, and
 `recovery`. The journal never records L1 stability. The node decides it for
 deposits and withdrawals: the bridge observers mirror a deposit, and confirm a
-withdrawal, only once the L1 transaction is `yano.app-chain.l1.stability-depth`
+withdrawal, only once the L1 transaction is `yano.app-chain.chains[0].l1.stability-depth`
 blocks deep. Read the results with
 `./yano.sh appchain eutxo deposit get <accepted-l1-outpoint>` and
 `./yano.sh appchain eutxo withdrawal get <claim-id>`.
