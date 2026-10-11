@@ -9,7 +9,8 @@
   what is not this chain's deposit or settlement. The state machine treats a deposit it cannot
   credit, and a confirmation it cannot authenticate, as a no-op. Only a confirmation that spent
   tracked vault custody can halt the bridge. The reserve and pending-count invariant halts also
-  remain. They guard state consistency and cannot be reached from consistent state.
+  remain. They guard state consistency and cannot be reached from consistent state. These changes
+  are not versioned; existing bridge chains must be regenerated (§17.1).
 - **Owners:** Yano app-chain host and Yano X observer, EUTxO, settlement, and deployment modules
 - **Scope:** End-to-end Cardano L1 observation, app-chain consensus verification, EUTxO deposits,
   EUTxO withdrawals, L1 settlement confirmation, synchronization differences, and failure handling
@@ -902,6 +903,37 @@ durable per-validator observation journal
 That target must not be described as implemented until the upstream Yano consensus/storage changes,
 matching Yano X observer integration, deployment migration, and multi-node qualification have
 shipped against an exact compatible release identity.
+
+### 17.1 Compatibility of the 2026-10 bridge amendments
+
+The 2026-10 amendments change bridge consensus semantics and committed state encoding. The EUTxO
+profile digest covers profile parameters only, so it does not tell the two versions apart, and no
+profile, format, or observer-identity version was bumped: the feature has no public release. Instead:
+
+- **Ship them together.** PRs #51–#58 merge as one unit. Each earlier one is unsafe without the
+  later ones. Before #55 the deposit observer still throws on odd vault outputs. Before #56 anyone
+  can bind their own L2 key to another depositor's address. Before #58 observers read
+  phase-2-invalid transactions as if they took effect, which lets anyone fake deposits and
+  confirmations for the cost of collateral.
+- **Regenerate existing bridge chains.** A bridge-enabled EUTxO chain created before the
+  amendments, for example a retained devnet, must be recreated with a new genesis rather than
+  replayed or restarted on new code:
+  - deposit claims are now ABI 3 with 20 fields, and the decoder rejects ABI 2 claims and records;
+  - `bridge/deposit-notice/*` and `bridge/ignored-confirmations` enter the state root;
+  - inputs that changed nothing now write those records; and
+  - observers skip phase-2-invalid transactions under unchanged `*-v1` identities.
+
+  Old and new nodes on one chain therefore diverge on the first block that contains such an input.
+
+Known follow-ups:
+
+- An L2 address at its 1,024-UTxO bound leaves a deposit to it uncredited (`ADDRESS_FULL`), and
+  anyone can fill a victim's address with cheap L2 transactions. The value stays in the vault with
+  no claim path. A deferred credit the owner can claim later would close this
+  ([#60](https://github.com/bloxbean/yano-x/issues/60)).
+- A genuine batch settlement that lands while the bridge is halted stays pending (§11.4). Only the
+  overwritable ignored-confirmations summary records it
+  ([#61](https://github.com/bloxbean/yano-x/issues/61)).
 
 ## 18. Repository ownership
 
