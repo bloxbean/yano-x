@@ -34,6 +34,14 @@ final class AppChainPluginSelection {
             Pattern.compile("yano\\.app-chain\\.chains\\[\\d+]\\.state-machine");
     private static final Pattern OBSERVER_TYPE =
             Pattern.compile("yano\\.app-chain\\.chains\\[\\d+]\\.observers\\.[^.]+\\.type");
+    /**
+     * State machines and observers the host itself provides. These are the names Yano's catalog
+     * reserves as SYSTEM contributions, so no plugin bundle can provide them.
+     */
+    static final Set<String> HOST_BUILT_INS = Set.of(
+            "app-state-machine/ordered-log",
+            "l1-observer/address-deposit",
+            "l1-observer/metadata-label");
 
     record Result(String status, String detail) {
     }
@@ -43,6 +51,15 @@ final class AppChainPluginSelection {
 
     static Result check(Path distribution, Map<String, String> consensusValues, Set<String> projectBundles)
             throws IOException {
+        return check(distribution, consensusValues, projectBundles, Set.of());
+    }
+
+    /**
+     * @param stagedBundles project bundles the release does not ship (first-party optional artifacts
+     *                      still to be installed); their absence is pending rather than a failure
+     */
+    static Result check(Path distribution, Map<String, String> consensusValues, Set<String> projectBundles,
+                        Set<String> stagedBundles) throws IOException {
         PluginCatalogInspection inspection;
         try {
             inspection = new PluginCatalogInspector().inspect(
@@ -60,20 +77,34 @@ final class AppChainPluginSelection {
         Set<String> selectedBundles = new TreeSet<>(inspection.selectedBundleOrder());
         Map<String, String> optional = optionalProviders(distribution.resolve("optional-plugins"));
         List<String> missing = new ArrayList<>();
+        List<String> pending = new ArrayList<>();
+        // optional-plugins/ only suggests the fix: every project bundle must be selected.
         for (String bundle : new TreeSet<>(projectBundles)) {
-            // Only an optional bundle can be missing: one shipped nowhere is checked as an artifact.
-            if (!selectedBundles.contains(bundle) && optional.containsValue(bundle)) {
+            if (selectedBundles.contains(bundle)) continue;
+            if (optional.containsValue(bundle)) {
                 missing.add(bundle + " (install it from optional-plugins/)");
+            } else if (stagedBundles.contains(bundle)) {
+                pending.add(bundle + " (not shipped by this release; install it into plugins/)");
+            } else {
+                missing.add(bundle + " (in neither plugins/ nor optional-plugins/)");
             }
         }
         for (String required : requiredContributions(consensusValues)) {
-            // A contribution no shipped bundle provides is built into the host.
-            if (!selected.containsKey(required) && optional.containsKey(required)) {
+            if (selected.containsKey(required) || HOST_BUILT_INS.contains(required)) continue;
+            if (optional.containsKey(required)) {
                 missing.add(required + " (install " + optional.get(required) + " from optional-plugins/)");
+            } else if (!pending.isEmpty()) {
+                // A bundle still to be installed may be the provider.
+                pending.add(required);
+            } else {
+                missing.add(required + " (no bundle in plugins/ provides it)");
             }
         }
         if (!missing.isEmpty()) {
             return new Result("FAIL", "plugins/ is missing " + String.join(", ", missing));
+        }
+        if (!pending.isEmpty()) {
+            return new Result("PENDING", "plugins/ still needs " + String.join(", ", pending));
         }
         return new Result("PASS", inspection.selectedBundleOrder().size()
                 + " selected bundles validate and provide every configured state machine and observer");

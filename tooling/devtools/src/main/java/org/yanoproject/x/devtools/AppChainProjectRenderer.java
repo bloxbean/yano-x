@@ -1090,12 +1090,13 @@ final class AppChainProjectRenderer {
                 mkdir -p "$root/runtime"
                 if [ -f "$target" ]; then
                   [ -f "$started" ] && exit 0
-                  # No start ever became ready on this genesis, so its systemStart is stale.
+                  # Node state may have been built on this genesis (a project made before the start
+                  # marker, or an interrupted start), so it is kept, never replaced under that state.
                   if [ -n "$(ls -A "$data" 2>/dev/null)" ]; then
-                    echo "runtime/shelley-genesis.json never backed a ready devnet, but $data holds node state." >&2
-                    echo "Remove both, then run scripts/start again." >&2
-                    exit 1
+                    echo "Keeping runtime/shelley-genesis.json: $data holds node state." >&2
+                    exit 0
                   fi
+                  # Nothing was built on this genesis, so its systemStart is stale.
                   rm -f "$target"
                 fi
                 python3 - "$source_file" "$target" <<'PY'
@@ -1202,6 +1203,8 @@ final class AppChainProjectRenderer {
                         rm -rf "$data"/node*
                         rm -f "$root/runtime/shelley-genesis.json"
                         echo "Rolled back this first devnet start; fix the cause and run scripts/start again." >&2
+                      else
+                        echo "Kept the existing genesis and $data; this start did not create them." >&2
                       fi
                 """ : "      :\n";
         String started = devnet ? "touch \"$root/runtime/devnet-genesis.started\"" : ":";
@@ -1389,12 +1392,30 @@ final class AppChainProjectRenderer {
                 mkdir -p "$root/runtime"
                 genesis="$root/runtime/shelley-genesis.json"
                 started="$root/runtime/devnet-genesis.started"
+                fresh=0
                 if [ ! -f "$started" ]; then
-                  base="$root/runtime/shelley-genesis.base.json"
-                  docker run --rm --entrypoint cat "$YANO_IMAGE" \
-                    /app/default-config/network/devnet/shelley-genesis.json >"$base"
-                  "$root/scripts/prepare-devnet" "$base"
-                  rm -f "$base"
+                  # Compose keeps node state in named volumes, so freshness is decided from the
+                  # project's containers and volumes, not from the absence of the start marker.
+                  project="$(cd "$root" && docker compose config --no-interpolate --format json \
+                    | python3 -c 'import json, sys; print(json.load(sys.stdin)["name"])')"
+                  retained="$(cd "$root" && docker compose ps --all --quiet \
+                    && docker volume ls --quiet --filter "label=com.docker.compose.project=$project")"
+                  if [ -n "$(printf '%%s' "$retained" | tr -d '[:space:]')" ]; then
+                    if [ ! -f "$genesis" ]; then
+                      echo "Compose project $project has containers or volumes, but runtime/shelley-genesis.json is missing." >&2
+                      echo "Restore that genesis, or run 'docker compose down --volumes' if the state is disposable." >&2
+                      exit 1
+                    fi
+                    echo "Keeping runtime/shelley-genesis.json and the existing $project containers and volumes." >&2
+                  else
+                    fresh=1
+                    rm -f "$genesis"
+                    base="$root/runtime/shelley-genesis.base.json"
+                    docker run --rm --entrypoint cat "$YANO_IMAGE" \
+                      /app/default-config/network/devnet/shelley-genesis.json >"$base"
+                    "$root/scripts/prepare-devnet" "$base"
+                    rm -f "$base"
+                  fi
                 fi
                 export YANO_APPCHAIN_GENESIS_TIMESTAMP="$(python3 - "$genesis" <<'PY'
                 import datetime, json, sys
@@ -1411,16 +1432,18 @@ final class AppChainProjectRenderer {
                 PY
                 )"
                 """.formatted(L1NetworkGenesis.DEVNET_ENVIRONMENT) : "";
-        // A first devnet start that never becomes healthy drops the volumes and genesis it made.
+        // Only a start that found no containers or volumes may drop the ones it made.
         String start = devnet ? """
                 if docker compose up -d --wait; then
                   touch "$started"
                   exit 0
                 fi
-                if [ ! -f "$started" ]; then
+                if [ "$fresh" -eq 1 ]; then
                   docker compose down --volumes
                   rm -f "$genesis"
                   echo "Rolled back this first devnet start; fix the cause and run scripts/start again." >&2
+                else
+                  echo "Kept the existing genesis, containers and volumes; this start did not create them." >&2
                 fi
                 exit 1
                 """ : "exec docker compose up -d\n";
