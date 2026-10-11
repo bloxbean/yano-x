@@ -1385,10 +1385,13 @@ final class AppChainProjectRenderer {
                 if [ ! -f "$started" ]; then
                   # Compose keeps node state in named volumes, so freshness is decided from the
                   # project's containers and volumes, not from the absence of the start marker.
+                  # Only an uninterpolated Compose command may load compose.yaml here: it requires the
+                  # genesis variables this script exports below.
                   project="$(cd "$root" && docker compose config --no-interpolate --format json \
                     | python3 -c 'import json, sys; print(json.load(sys.stdin)["name"])')"
-                  retained="$(cd "$root" && docker compose ps --all --quiet \
-                    && docker volume ls --quiet --filter "label=com.docker.compose.project=$project")"
+                  label="label=com.docker.compose.project=$project"
+                  retained="$(docker ps --all --quiet --filter "$label" \
+                    && docker volume ls --quiet --filter "$label")"
                   if [ -n "$(printf '%%s' "$retained" | tr -d '[:space:]')" ]; then
                     if [ ! -f "$genesis" ]; then
                       echo "Compose project $project has containers or volumes, but runtime/shelley-genesis.json is missing." >&2
