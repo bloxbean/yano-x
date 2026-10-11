@@ -183,6 +183,16 @@ class AcceptedVaultDepositObserverTest {
                 .hasMessageContaining("unsupported bridge datum");
     }
 
+    @Test
+    void anOverflowingBatchMarkerCountIsRejectedWithoutAllocating() {
+        // Anyone can pay the vault an inline Constr0[1, 134217728, h'']; 134217728 * 32 wraps an int to zero.
+        byte[] overflow = HexFormat.of().parseHex("d87983011a0800000040");
+        assertThatThrownBy(() -> observer().observe(104, fill(32, 11), block(List.of(
+                output(VAULT_ADDRESS, 20, overflow)))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("unsupported bridge datum");
+    }
+
     private static AcceptedVaultDepositObserver observer() {
         return new AcceptedVaultDepositObserver("bridge-deposits", Map.of(
                 "chain-id", "payments-eutxo",
