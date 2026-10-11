@@ -599,10 +599,10 @@ class AppChainProjectTest {
         assertThat(prepareDevnet(project, source)).isZero();
         assertThat(Files.readString(genesis)).doesNotContain("stale").contains("\"epochLength\": 500");
 
-        // Node state without a ready start is refused, never deleted.
+        // Node state without a start marker (an older project, or an interrupted start) keeps its genesis.
         Files.writeString(genesis, "{\"systemStart\":\"stale\"}");
         Files.createDirectories(project.resolve("data/node0"));
-        assertThat(prepareDevnet(project, source)).isEqualTo(1);
+        assertThat(prepareDevnet(project, source)).isZero();
         assertThat(Files.readString(genesis)).contains("stale");
         assertThat(project.resolve("data/node0")).exists();
 
@@ -610,6 +610,124 @@ class AppChainProjectTest {
         Files.writeString(project.resolve("runtime/devnet-genesis.started"), "");
         assertThat(prepareDevnet(project, source)).isZero();
         assertThat(Files.readString(genesis)).contains("stale");
+    }
+
+    @Test
+    void composeDevnetStartRollsBackOnlyStateItCreated() throws Exception {
+        org.junit.jupiter.api.Assumptions.assumeFalse(
+                System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win"));
+        AppChainPropertyRegistry properties = AppChainPropertyRegistry.framework();
+        AppChainProjectCatalog catalog = new AppChainProjectCatalog(properties);
+        AppChainProjectResolver resolver = new AppChainProjectResolver(properties, catalog);
+        Path project = temporary.resolve("compose-start");
+        new AppChainProjectRenderer(catalog, resolver).initialize(project, withTarget(withNetwork(
+                blueprint("audit-log", "fixed",
+                        List.of("a".repeat(64), "b".repeat(64), "c".repeat(64))), "devnet"),
+                "jvm", "docker-compose"));
+        DockerStub docker = DockerStub.create(temporary.resolve("compose-docker"));
+        Path genesis = project.resolve("runtime/shelley-genesis.json");
+        Path started = project.resolve("runtime/devnet-genesis.started");
+
+        // A genuinely fresh start that never becomes healthy drops what it created.
+        assertThat(docker.start(project, false)).isEqualTo(1);
+        assertThat(docker.log()).contains("compose down --volumes");
+        assertThat(docker.volumesExist()).isFalse();
+        assertThat(genesis).doesNotExist();
+        assertThat(started).doesNotExist();
+
+        // Its retry starts fresh again and, once healthy, records the start.
+        assertThat(docker.start(project, true)).isZero();
+        assertThat(genesis).exists();
+        assertThat(started).exists();
+        String ready = Files.readString(genesis);
+
+        // A normal restart keeps the genesis and volumes even when it fails.
+        assertThat(docker.start(project, false)).isEqualTo(1);
+        assertThat(docker.log()).doesNotContain("down --volumes").doesNotContain("run --rm");
+        assertThat(docker.volumesExist()).isTrue();
+        assertThat(Files.readString(genesis)).isEqualTo(ready);
+
+        // Retained volumes without a start marker (an older project) keep their genesis and volumes.
+        Files.delete(started);
+        Files.writeString(genesis, "{\"systemStart\":\"2020-01-01T00:00:00Z\"}");
+        assertThat(docker.start(project, false)).isEqualTo(1);
+        assertThat(docker.log()).doesNotContain("down --volumes").doesNotContain("run --rm");
+        assertThat(docker.volumesExist()).isTrue();
+        assertThat(Files.readString(genesis)).contains("2020-01-01T00:00:00Z");
+        assertThat(docker.start(project, true)).isZero();
+        assertThat(Files.readString(genesis)).contains("2020-01-01T00:00:00Z");
+        assertThat(started).exists();
+
+        // An interrupted start that left volumes but no genesis is refused before anything runs.
+        Files.delete(started);
+        Files.delete(genesis);
+        assertThat(docker.start(project, true)).isEqualTo(1);
+        assertThat(docker.log()).doesNotContain("compose up").doesNotContain("down --volumes");
+        assertThat(docker.volumesExist()).isTrue();
+
+        // A failed state query stops the start instead of treating the project as fresh.
+        docker.failQueries();
+        Files.writeString(genesis, "{\"systemStart\":\"2020-01-01T00:00:00Z\"}");
+        assertThat(docker.start(project, false)).isNotZero();
+        assertThat(docker.log()).doesNotContain("compose up").doesNotContain("down --volumes");
+        assertThat(Files.readString(genesis)).contains("2020-01-01T00:00:00Z");
+    }
+
+    /** A recording {@code docker} stand-in whose volumes appear on {@code compose up} and go on {@code down --volumes}. */
+    private record DockerStub(Path root) {
+        static DockerStub create(Path root) throws IOException {
+            Files.createDirectories(root.resolve("bin"));
+            Files.writeString(root.resolve("source-genesis.json"),
+                    "{\"systemStart\":\"2020-01-01T00:00:00Z\",\"epochLength\":432000}");
+            Path docker = root.resolve("bin/docker");
+            Files.writeString(docker, """
+                    #!/usr/bin/env bash
+                    state="$DOCKER_STUB"
+                    echo "$*" >>"$state/log"
+                    case "$*" in
+                      "compose config --no-interpolate --format json")
+                        [ -f "$state/fail" ] && exit 1
+                        echo '{"name": "compose-start"}' ;;
+                      "compose ps --all --quiet") [ -f "$state/fail" ] && exit 1; true ;;
+                      "volume ls --quiet --filter label=com.docker.compose.project=compose-start")
+                        cat "$state/volumes" 2>/dev/null || true ;;
+                      "run --rm --entrypoint cat example/yano:test /app/default-config/network/devnet/shelley-genesis.json")
+                        cat "$state/source-genesis.json" ;;
+                      "compose up -d --wait")
+                        echo compose-start_node0-data >"$state/volumes"
+                        [ "$DOCKER_UP" = ready ] ;;
+                      "compose down --volumes") rm -f "$state/volumes" ;;
+                      *) echo "unexpected docker $*" >&2; exit 2 ;;
+                    esac
+                    """);
+            docker.toFile().setExecutable(true);
+            return new DockerStub(root);
+        }
+
+        int start(Path project, boolean ready) throws Exception {
+            Files.deleteIfExists(root.resolve("log"));
+            ProcessBuilder builder = new ProcessBuilder("bash", project.resolve("scripts/start").toString())
+                    .redirectErrorStream(true)
+                    .redirectOutput(ProcessBuilder.Redirect.DISCARD);
+            builder.environment().put("PATH", root.resolve("bin") + ":" + System.getenv("PATH"));
+            builder.environment().put("DOCKER_STUB", root.toString());
+            builder.environment().put("DOCKER_UP", ready ? "ready" : "unhealthy");
+            builder.environment().put("YANO_IMAGE", "example/yano:test");
+            return builder.start().waitFor();
+        }
+
+        String log() throws IOException {
+            Path log = root.resolve("log");
+            return Files.exists(log) ? Files.readString(log) : "";
+        }
+
+        boolean volumesExist() {
+            return Files.exists(root.resolve("volumes"));
+        }
+
+        void failQueries() throws IOException {
+            Files.writeString(root.resolve("fail"), "");
+        }
     }
 
     private static int prepareDevnet(Path project, Path source) throws Exception {
@@ -1004,6 +1122,17 @@ class AppChainProjectTest {
                         + "appchain-release-capability-index.json");
         Files.createDirectories(index.getParent());
         Files.write(index, catalog.releaseIndexBytes());
+        // The release index lists the stdlib bundle, but only an installed bundle starts the chain.
+        AppChainProjectModel.DoctorReport unplugged = lifecycle.doctor(project, distribution);
+        assertThat(unplugged.status()).isEqualTo("DOCTOR_FAILED");
+        assertThat(unplugged.checks()).anySatisfy(check -> {
+            assertThat(check.id()).isEqualTo("plugin-selection");
+            assertThat(check.status()).isEqualTo("FAIL");
+            assertThat(check.detail()).contains("org.yanoproject.x.stdlib (in neither",
+                    "app-state-machine/approvals");
+        });
+        PluginBundleFixture.write(distribution.resolve("plugins"), "org.yanoproject.x.stdlib", null,
+                "app-state-machine", "approvals");
         AppChainProjectModel.DoctorReport doctor = lifecycle.doctor(project, distribution);
         assertThat(doctor.status()).isEqualTo("DOCTOR_OK");
         assertThat(doctor.checks()).allMatch(check ->
@@ -1207,6 +1336,10 @@ class AppChainProjectTest {
         assertThat(doctor.checks()).anySatisfy(check -> {
             assertThat(check.id()).isEqualTo("artifact:yano-x-kafka");
             assertThat(check.status()).isEqualTo("PENDING");
+        }).anySatisfy(check -> {
+            assertThat(check.id()).isEqualTo("plugin-selection");
+            assertThat(check.status()).isEqualTo("PENDING");
+            assertThat(check.detail()).contains("org.yanoproject.x.kafka (not shipped by this release");
         }).anySatisfy(check -> {
             assertThat(check.id()).isEqualTo("EXECUTORS_READY");
             assertThat(check.status()).isEqualTo("PENDING");
