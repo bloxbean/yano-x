@@ -81,7 +81,7 @@ digest. A journal ends at `SUBMITTED`; it never records L1 stability.
 
 Stability is decided by the node, not asserted by an operator. The Cardano
 bridge observers deliver a deposit, or a withdrawal payout, only once it is
-`yano.app-chain.l1.stability-depth` blocks deep; the chain then commits the
+`yano.app-chain.chains[0].l1.stability-depth` blocks deep; the chain then commits the
 mirrored deposit or the `CONFIRMED` withdrawal record, which
 `appchain eutxo deposit get` and `appchain eutxo withdrawal get` read.
 

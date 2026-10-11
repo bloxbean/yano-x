@@ -670,15 +670,18 @@ final class AppChainProjectRenderer {
                 diagnostics, and restrict the file to the owning operator. Never commit `*.env`
                 files.
 
-                If `nodeN.env` already exists, because `appchain init --generate-local-member-keys`
-                or `appchain prepare` created it, keep it. Its seed belongs to a public key pinned
-                in `appchain.yaml`; replacing the file changes that member's identity.
+                If `nodeN.env` already exists, because %s created it, keep it. Its seed belongs to
+                a public key pinned in `appchain.yaml`; replacing the file changes that member's
+                identity.
 
                 The signing value may be a 32-byte Ed25519 seed or a configured
                 `scheme:reference` understood by the selected signer provider.
 
                 Bootstrap status: %s
-                """.formatted(resolution.bootstrapRequired()
+                """.formatted("devnet".equals(resolution.blueprint().spec().network())
+                        ? "`appchain init --generate-local-member-keys` or `appchain prepare`"
+                        : "`appchain prepare`",
+                resolution.bootstrapRequired()
                 ? "public member keys must be added to appchain.yaml before production start."
                 : "public member keys are pinned in appchain.yaml and appchain.lock.");
     }

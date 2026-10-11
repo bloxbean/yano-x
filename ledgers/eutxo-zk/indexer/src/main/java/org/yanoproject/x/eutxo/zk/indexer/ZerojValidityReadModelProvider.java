@@ -80,7 +80,10 @@ public final class ZerojValidityReadModelProvider
         }
     }
 
-    private record ZerojSource(
+    /** The settlement status of a batch whose operation journal has a status the lifecycle never writes. */
+    static final String INVALID_JOURNAL = "INVALID_JOURNAL";
+
+    record ZerojSource(
             Path root,
             String chainId,
             String network,
@@ -144,7 +147,8 @@ public final class ZerojValidityReadModelProvider
                                 proof.verificationKeyDigest(),
                                 "VERIFIED",
                                 // The local journal status (NOT_SUBMITTED,
-                                // PREPARED or SUBMITTED). The journal never
+                                // PREPARED, SUBMITTED, or INVALID_JOURNAL for a
+                                // journal the lifecycle cannot read). The journal never
                                 // records L1 inclusion, so the slot and block
                                 // hash stay unset.
                                 Objects.toString(
@@ -221,7 +225,7 @@ public final class ZerojValidityReadModelProvider
                     });
         }
 
-        private static Map<String, Object> settlement(
+        static Map<String, Object> settlement(
                 List<Map<String, Object>> operations,
                 String proofId
         ) {
@@ -231,9 +235,12 @@ public final class ZerojValidityReadModelProvider
                                     && proofId.equals(
                                     operation.get("proofId")))
                     .toList();
-            // rank() validates every status, including a lone journal that
-            // max() would return without comparing.
-            matching.forEach(operation -> rank(status(operation)));
+            // An unknown status, such as a removed STABLE, is never reported as a
+            // submission; it marks only this batch, so one bad journal leaves the
+            // other batches readable.
+            if (matching.stream().anyMatch(operation -> rank(status(operation)) < 0)) {
+                return Map.of("status", INVALID_JOURNAL);
+            }
             return matching.stream()
                     .max(Comparator.comparingInt(operation ->
                             rank(status(operation))))
@@ -244,14 +251,12 @@ public final class ZerojValidityReadModelProvider
             return Objects.toString(operation.get("status"), "");
         }
 
-        private static int rank(String status) {
+        /** The journal statuses the lifecycle writes, ranked; -1 for any other. */
+        static int rank(String status) {
             return switch (status) {
                 case "SUBMITTED" -> 2;
                 case "PREPARED" -> 1;
-                // Same rule as the lifecycle's reconcile: an unknown status,
-                // such as a removed STABLE, is not silently reported.
-                default -> throw new IllegalStateException(
-                        "operation journal has an invalid status");
+                default -> -1;
             };
         }
 

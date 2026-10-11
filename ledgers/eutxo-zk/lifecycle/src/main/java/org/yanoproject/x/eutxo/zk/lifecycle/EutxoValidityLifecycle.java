@@ -410,8 +410,7 @@ public final class EutxoValidityLifecycle {
                     identity, readState(identity), operation);
         }
         if (!"PREPARED".equals(operation.get("status"))) {
-            throw new IllegalStateException(
-                    "operation journal has an invalid status");
+            throw invalidJournalStatus(operationFile, operation.get("status"));
         }
         byte[] transaction = readBounded(
                 signedTransaction, "signed Cardano transaction");
@@ -472,6 +471,13 @@ public final class EutxoValidityLifecycle {
         return json.readValue(body, Map.class);
     }
 
+    /** Names the journal and its status; a journal from the removed STABLE step has a one-line fix. */
+    static IllegalStateException invalidJournalStatus(Path journal, Object status) {
+        return new IllegalStateException("operation journal " + journal.getFileName()
+                + " has an invalid status '" + status + "'; only PREPARED and SUBMITTED are valid. A journal"
+                + " marked STABLE by an earlier walkthrough was submitted: set its status to SUBMITTED.");
+    }
+
     public Result reconcile() throws IOException {
         ProjectIdentity identity = identity();
         int prepared = 0;
@@ -484,13 +490,11 @@ public final class EutxoValidityLifecycle {
                             .endsWith(".json")) {
                         continue;
                     }
-                    String status = Objects.toString(
-                            readMap(path).get("status"), "");
-                    switch (status) {
+                    Object status = readMap(path).get("status");
+                    switch (Objects.toString(status, "")) {
                         case "PREPARED" -> prepared++;
                         case "SUBMITTED" -> submitted++;
-                        default -> throw new IllegalStateException(
-                                "operation journal has an invalid status");
+                        default -> throw invalidJournalStatus(path, status);
                     }
                 }
             }
