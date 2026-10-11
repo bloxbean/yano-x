@@ -88,7 +88,16 @@ public record EutxoBatchSettlementMarker(
             int count = ((BigIntPlutusData) fields.get(1))
                     .getValue().intValueExact();
             byte[] joined = ((BytesPlutusData) fields.get(2)).getValue();
-            if (count < 1 || joined.length != count * 32) {
+            // Untrusted L1 data: bound the count before any arithmetic or allocation depends on it.
+            if (version != VERSION) {
+                throw new IllegalArgumentException(
+                        "unsupported batch settlement marker version");
+            }
+            if (count < 1 || count > MAX_CLAIMS) {
+                throw new IllegalArgumentException(
+                        "batch marker must carry 1-" + MAX_CLAIMS + " claim ids");
+            }
+            if (joined.length != (long) count * 32) {
                 throw new IllegalArgumentException(
                         "batch marker claim-id length does not match count");
             }
