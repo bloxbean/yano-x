@@ -673,6 +673,61 @@ class AppChainProjectTest {
         assertThat(Files.readString(genesis)).contains("2020-01-01T00:00:00Z");
     }
 
+    /**
+     * Holds the Docker stub above to real Compose: before scripts/start exports the genesis variables,
+     * only an uninterpolated config can load compose.yaml. Needs the Compose CLI, never a Docker daemon.
+     */
+    @Test
+    void composeLoadsTheProjectBeforeGenesisOnlyWithoutInterpolation() throws Exception {
+        org.junit.jupiter.api.Assumptions.assumeTrue(composeAvailable(), "docker compose is not installed");
+        AppChainPropertyRegistry properties = AppChainPropertyRegistry.framework();
+        AppChainProjectCatalog catalog = new AppChainProjectCatalog(properties);
+        AppChainProjectResolver resolver = new AppChainProjectResolver(properties, catalog);
+        Path project = temporary.resolve("compose-interpolation");
+        new AppChainProjectRenderer(catalog, resolver).initialize(project, withTarget(withNetwork(
+                blueprint("audit-log", "fixed",
+                        List.of("a".repeat(64), "b".repeat(64), "c".repeat(64))), "devnet"),
+                "jvm", "docker-compose"));
+        for (int node = 0; node < 3; node++) {
+            Files.writeString(project.resolve("secrets/node" + node + ".env"), "");
+        }
+
+        ProcessResult raw = compose(project, "config", "--no-interpolate", "--format", "json");
+        assertThat(raw.exit()).isZero();
+        assertThat(new ObjectMapper().readTree(raw.output()).path("name").asText())
+                .isEqualTo("compose-interpolation");
+        ProcessResult interpolated = compose(project, "config", "--quiet");
+        assertThat(interpolated.exit()).isNotZero();
+        assertThat(interpolated.output()).contains("YANO_APPCHAIN_GENESIS_TIMESTAMP", "Run scripts/start");
+    }
+
+    private static boolean composeAvailable() {
+        try {
+            Process process = new ProcessBuilder("docker", "compose", "version")
+                    .redirectErrorStream(true).redirectOutput(ProcessBuilder.Redirect.DISCARD).start();
+            return process.waitFor() == 0;
+        } catch (IOException | InterruptedException unavailable) {
+            return false;
+        }
+    }
+
+    private record ProcessResult(int exit, String output) {
+    }
+
+    private static ProcessResult compose(Path project, String... arguments) throws Exception {
+        List<String> command = new java.util.ArrayList<>(List.of("docker", "compose"));
+        command.addAll(List.of(arguments));
+        ProcessBuilder builder = new ProcessBuilder(command).directory(project.toFile()).redirectErrorStream(true);
+        builder.environment().put("YANO_IMAGE", "example/yano:test");
+        // Loading compose.yaml is local; a dead socket proves no daemon is reached.
+        builder.environment().put("DOCKER_HOST", "unix:///nonexistent/yano-x-test/docker.sock");
+        builder.environment().remove("YANO_APPCHAIN_GENESIS_TIMESTAMP");
+        builder.environment().remove(L1NetworkGenesis.DEVNET_ENVIRONMENT);
+        Process process = builder.start();
+        String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        return new ProcessResult(process.waitFor(), output);
+    }
+
     /** A recording {@code docker} stand-in whose volumes appear on {@code compose up} and go on {@code down --volumes}. */
     private record DockerStub(Path root) {
         static DockerStub create(Path root) throws IOException {
@@ -684,11 +739,20 @@ class AppChainProjectTest {
                     #!/usr/bin/env bash
                     state="$DOCKER_STUB"
                     echo "$*" >>"$state/log"
+                    # Like Compose, any command that loads compose.yaml, except an uninterpolated config,
+                    # needs the genesis variables the start script exports.
+                    if [ "$1" = compose ] && [ "$2 $3" != "config --no-interpolate" ]; then
+                      if [ -z "${YANO_APPCHAIN_GENESIS_TIMESTAMP:-}" ] || [ -z "${%s:-}" ]; then
+                        echo "required variable is missing a value: Run scripts/start" >&2
+                        exit 1
+                      fi
+                    fi
                     case "$*" in
                       "compose config --no-interpolate --format json")
                         [ -f "$state/fail" ] && exit 1
                         echo '{"name": "compose-start"}' ;;
-                      "compose ps --all --quiet") [ -f "$state/fail" ] && exit 1; true ;;
+                      "ps --all --quiet --filter label=com.docker.compose.project=compose-start")
+                        [ -f "$state/fail" ] && exit 1; true ;;
                       "volume ls --quiet --filter label=com.docker.compose.project=compose-start")
                         cat "$state/volumes" 2>/dev/null || true ;;
                       "run --rm --entrypoint cat example/yano:test /app/default-config/network/devnet/shelley-genesis.json")
@@ -699,7 +763,7 @@ class AppChainProjectTest {
                       "compose down --volumes") rm -f "$state/volumes" ;;
                       *) echo "unexpected docker $*" >&2; exit 2 ;;
                     esac
-                    """);
+                    """.formatted(L1NetworkGenesis.DEVNET_ENVIRONMENT));
             docker.toFile().setExecutable(true);
             return new DockerStub(root);
         }
@@ -713,6 +777,8 @@ class AppChainProjectTest {
             builder.environment().put("DOCKER_STUB", root.toString());
             builder.environment().put("DOCKER_UP", ready ? "ready" : "unhealthy");
             builder.environment().put("YANO_IMAGE", "example/yano:test");
+            builder.environment().remove("YANO_APPCHAIN_GENESIS_TIMESTAMP");
+            builder.environment().remove(L1NetworkGenesis.DEVNET_ENVIRONMENT);
             return builder.start().waitFor();
         }
 
