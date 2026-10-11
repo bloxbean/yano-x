@@ -2898,35 +2898,59 @@ ready_node_indices() {
 }
 
 # A governed epoch activates a fixed number of blocks after its approval, and
-# an idle ledger makes no blocks. These commands advance a stock ledger without
-# changing its application records: an ordered-log entry on a launcher topic, a
-# kv-registry DELETE of an absent key, or an approvals REJECT of an unknown item.
+# an idle ledger makes no blocks, so the launcher submits one command per block
+# it needs. Each command names a fresh random key or item that no application
+# record can already use, so it never touches one:
+# - kv-registry: DELETE of the absent key. The registry lets only a key's owner
+#   delete it, and the launcher never writes these keys.
+# - approvals: REJECT of the unknown item, which changes nothing.
+# - ordered-log: there is no command that changes nothing, so it appends an
+#   entry on the launcher topic cluster.epoch-advance; existing entries stay.
+# Any other machine is refused: the user advances it with ordinary traffic.
+epoch_advance_nonce() {
+  od -An -N16 -tx1 /dev/urandom | tr -d ' \n'
+}
+
 epoch_advance_body() {
-  case "$1" in
-    ordered-log) _hex_of 'cluster.epoch-advance';;
-    kv-registry) kv_cbor 1 'cluster.epoch-advance' '';;
-    approvals) printf '8202%s' "$(cbor_text 'cluster.epoch-advance')";;
+  local machine="$1" nonce="$2"
+  case "$machine" in
+    ordered-log) _hex_of "cluster.epoch-advance.$nonce";;
+    kv-registry) kv_cbor 1 "cluster.epoch-advance.$nonce" '';;
+    approvals) printf '8202%s' "$(cbor_text "cluster.epoch-advance.$nonce")";;
     *) return 1;;
+  esac
+}
+
+epoch_advance_effect() {
+  case "$1" in
+    ordered-log) printf 'appends a launcher entry';;
+    kv-registry) printf 'deletes an absent random key';;
+    approvals) printf 'rejects an unknown random item';;
   esac
 }
 
 # Wait until <chain>'s epoch for the next block has <threshold>, submitting
 # epoch-advance commands while the ledger is idle.
 advance_until_threshold_active() {
-  local cid="$1" requested="$2" view_node="$3" status machine body tip next deadline
+  local cid="$1" requested="$2" view_node="$3" status machine body nonce tip next deadline
   status="$(curl -fsS --connect-timeout 3 --max-time 10 \
     "http://localhost:$(http_port "$view_node")/api/v1/app-chain/chains/$cid/status")" \
     || die "cannot read '$cid' status from node $view_node"
   machine="$(printf '%s' "$status" | jq -r '.stateMachine // empty')"
-  body="$(epoch_advance_body "$machine")" \
+  epoch_advance_body "$machine" 0 >/dev/null \
     || die "chain '$cid' runs '$machine', which the launcher cannot advance; submit ordinary" \
       "traffic until its status shows membershipActiveThreshold=$requested, then run this command again"
+  c_ylw "advancing '$cid' to its activation height: each block's command $(epoch_advance_effect "$machine")" \
+    "(cluster.epoch-advance.<random>)"
   deadline=$(( $(date +%s) + 240 ))
   while :; do
     [ "$(printf '%s' "$status" | jq -r '.membershipActiveThreshold // 0')" = "$requested" ] && break
     [ "$(date +%s)" -le "$deadline" ] \
       || die "timed out waiting for threshold $requested to activate on '$cid'"
     tip="$(printf '%s' "$status" | jq -r '.tipHeight // 0')"
+    nonce="$(epoch_advance_nonce)"
+    [[ "$nonce" =~ ^[0-9a-f]{32}$ ]] || die "cannot read 16 random bytes from /dev/urandom"
+    body="$(epoch_advance_body "$machine" "$nonce")"
     submit_hex_message "$cid" cluster.epoch-advance "$body" "$view_node"
     for _ in $(seq 1 40); do
       sleep 0.5
