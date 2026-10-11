@@ -18,6 +18,7 @@ import org.yanoproject.x.client.AppChainClient;
 import org.yanoproject.x.eutxo.client.EutxoClient;
 import org.yanoproject.x.eutxo.client.NullifierShardMirror;
 import org.yanoproject.x.eutxo.contracts.EutxoOutpoint;
+import org.yanoproject.x.eutxo.contracts.EutxoRecord;
 import org.yanoproject.x.eutxo.contracts.EutxoShardDatum;
 import org.yanoproject.x.eutxo.contracts.EutxoVaultDatum;
 import org.yanoproject.x.eutxo.contracts.EutxoWithdrawalClaim;
@@ -119,6 +120,9 @@ class EutxoSettlementEffectPathDevnetE2ETest extends BaseE2ETest {
         // --- 2. Bootstrap the settlement identity (operator raw key). ----
         bootstrapIdentity(PLAN);
         log.info("settlement identity live: vault={}", PLAN.vaultAddress());
+        // The 20 ADA reserve is a bridge deposit, so it must be observed and credited on L2 like any other.
+        await("credited reserve deposit", 60_000, () -> eutxoClient.utxos(RESERVE.address()).stream()
+                .anyMatch(utxo -> utxo.origin() == EutxoRecord.Origin.L1_DEPOSIT));
 
         // --- 3. L1 deposit -> mirrored L2 funds for ALICE. ----------------
         EutxoVaultDatum depositDatum = new EutxoVaultDatum(

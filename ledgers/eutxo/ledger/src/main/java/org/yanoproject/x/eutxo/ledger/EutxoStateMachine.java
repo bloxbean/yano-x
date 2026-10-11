@@ -275,11 +275,10 @@ public final class EutxoStateMachine implements AppStateMachine {
                     }
                     // A single-claim confirmation proves no vault spend, so anyone can fabricate one: it may
                     // confirm an exact pending claim, but a mismatch is ignored rather than halting the bridge.
-                    // While the bridge is halted nothing is confirmed, as on the batch path, and it is counted.
-                    if (confirmation != null && writer.get(EutxoStateKeys.bridgeHalt()).isPresent()) {
-                        recordIgnoredConfirmation(writer, null, confirmation.settlementTransactionId(),
-                                "BRIDGE_HALTED", block.height());
-                    } else if (confirmation != null) {
+                    // An exact match is confirmed even while the bridge is halted. It means the claimant was paid
+                    // the exact amount on L1; a halt never clears and each observation is used once, so dropping
+                    // it would leave a real payout pending forever and invite paying it twice.
+                    if (confirmation != null) {
                         confirmWithdrawal(confirmation, block.height(), writer, false);
                     }
                 }
@@ -1314,15 +1313,6 @@ public final class EutxoStateMachine implements AppStateMachine {
         return confirmation;
     }
 
-    /**
-     * Authenticity gate for a batch settlement (ADR-UTXO-009 review fix):
-     * the confirmed transaction must have SPENT a tracked live vault
-     * outpoint. Anyone can pay the vault address with a fabricated marker
-     * output, but only a genuine Settle/Exit spend consumes vault custody —
-     * which only the on-chain validator authorizes. On success the custody
-     * set rotates: matched outpoints leave, the continuing output enters.
-     * Returns false, changing nothing, when no tracked outpoint was spent.
-     */
     /** Whether every claim of this batch is already CONFIRMED by this same settlement transaction. */
     private static boolean alreadyApplied(EutxoBatchWithdrawalConfirmation batch, AppStateReader state) {
         for (EutxoWithdrawalConfirmation confirmation : batch.confirmations()) {
@@ -1336,6 +1326,17 @@ public final class EutxoStateMachine implements AppStateMachine {
         return !batch.confirmations().isEmpty();
     }
 
+    /**
+     * Authenticity gate for a batch settlement (ADR-UTXO-009 review fix):
+     * the confirmed transaction must have SPENT a tracked live vault
+     * outpoint. Anyone can pay the vault address with a fabricated marker
+     * output, but only a genuine Settle/Exit spend consumes vault custody —
+     * which only the on-chain validator authorizes. On success the custody
+     * set rotates: matched outpoints leave, the continuing output enters.
+     * Returns false when the bridge is halted or no tracked outpoint was
+     * spent; it then changes no custody, claim or reserve state and only
+     * counts the confirmation as ignored.
+     */
     private boolean applyVaultCustody(
             EutxoBatchWithdrawalConfirmation confirmation,
             long height,

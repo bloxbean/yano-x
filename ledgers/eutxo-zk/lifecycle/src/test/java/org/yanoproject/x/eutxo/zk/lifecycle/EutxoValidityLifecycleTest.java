@@ -252,7 +252,11 @@ class EutxoValidityLifecycleTest {
         assertThatThrownBy(() -> lifecycle.submitOperation("deposit", "deposit-1", transaction,
                 URI.create("http://127.0.0.1:9"), null))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessage("operation journal has an invalid status");
+                .hasMessageContaining("operation journal deposit-deposit-1.json has an invalid status 'STABLE'")
+                .hasMessageContaining("set its status to SUBMITTED");
+        assertThatThrownBy(lifecycle::reconcile)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("deposit-deposit-1.json has an invalid status 'STABLE'");
     }
 
     @Test

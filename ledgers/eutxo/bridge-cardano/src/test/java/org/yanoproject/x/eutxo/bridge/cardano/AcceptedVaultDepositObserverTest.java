@@ -324,8 +324,10 @@ class AcceptedVaultDepositObserverTest {
     }
 
     @Test
-    void anOverflowingBatchMarkerCountIsSkippedWithoutAllocating() {
+    void anOverflowingBatchMarkerCountIsSkipped() {
         // Anyone can pay the vault an inline Constr0[1, 134217728, h'']; 134217728 * 32 wraps an int to zero.
+        // The observer folds every decoder failure into a skip, so only a bounded heap would show the old
+        // allocation here; EutxoContractCodecTest.batchMarkerDecoderBoundsTheCountBeforeAllocating pins the bound.
         byte[] overflow = HexFormat.of().parseHex("d87983011a0800000040");
         assertThat(observer().observe(104, fill(32, 11), block(List.of(
                 output(VAULT_ADDRESS, 20, overflow))))).isEmpty();

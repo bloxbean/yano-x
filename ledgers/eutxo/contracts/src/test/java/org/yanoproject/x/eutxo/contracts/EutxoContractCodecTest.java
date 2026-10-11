@@ -1,14 +1,17 @@
 package org.yanoproject.x.eutxo.contracts;
 
-import org.yanoproject.x.proofs.MpfNormalizedProof;
-
+import com.bloxbean.cardano.client.plutus.spec.BigIntPlutusData;
+import com.bloxbean.cardano.client.plutus.spec.BytesPlutusData;
+import com.bloxbean.cardano.client.plutus.spec.ConstrPlutusData;
+import com.bloxbean.cardano.client.plutus.spec.ListPlutusData;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.client.transaction.spec.TransactionBody;
 import org.junit.jupiter.api.Test;
+import org.yanoproject.x.proofs.MpfNormalizedProof;
 
+import java.math.BigInteger;
 import java.util.HexFormat;
 import java.util.List;
-import java.math.BigInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -659,12 +662,12 @@ class EutxoContractCodecTest {
 
     private static byte[] marker(long version, long count, byte[] joined) {
         try {
-            return com.bloxbean.cardano.client.plutus.spec.ConstrPlutusData.builder()
+            return ConstrPlutusData.builder()
                     .alternative(0)
-                    .data(com.bloxbean.cardano.client.plutus.spec.ListPlutusData.of(
-                            com.bloxbean.cardano.client.plutus.spec.BigIntPlutusData.of(version),
-                            com.bloxbean.cardano.client.plutus.spec.BigIntPlutusData.of(count),
-                            com.bloxbean.cardano.client.plutus.spec.BytesPlutusData.of(joined)))
+                    .data(ListPlutusData.of(
+                            BigIntPlutusData.of(version),
+                            BigIntPlutusData.of(count),
+                            BytesPlutusData.of(joined)))
                     .build()
                     .serializeToBytes();
         } catch (Exception failure) {
