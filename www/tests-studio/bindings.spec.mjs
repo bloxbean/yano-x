@@ -588,6 +588,47 @@ test('imported rehearsal reports explain a multi-block approval and turn stale a
   expect(requests.every(request => request.method === 'GET' && request.url.startsWith(`${ORIGIN}/studio/`))).toBe(true);
 });
 
+test('a status line that reports a current match gives way when the draft changes', async ({ page }) => {
+  const stale = 'The draft changed since the last import; see the Validate tab for current report status.';
+  const reports = [1, 2, 3, 4].map(block => scenarioFile(`approval-report-${block}.json`));
+  const fixtures = [1, 2, 3, 4].map(block =>
+    path.join(repo, `examples/bindings/fixtures/approval-to-audit/fixture-${block}.json`));
+  const editDraft = async () => {
+    await page.locator('#tab-form').click();
+    await page.locator('#select-binding-0').click();
+    await page.locator('#b0-map-reference-literal-value').fill('changed');
+    await page.locator('#b0-map-reference-literal-value').press('Tab');
+    await page.locator('#dialog-accept').click();
+    await expect(page.locator('#status')).toHaveText(stale);
+  };
+  const fresh = async () => {
+    await open(page);
+    await loadStarter(page, 'approval-to-audit');
+    await page.locator('#tab-validate').click();
+    await page.locator('#import-reports').setInputFiles(reports);
+    await expect(page.locator('#status')).toContainText('Imported matching CLI report');
+  };
+
+  // An import's summary.
+  await fresh();
+  await editDraft();
+
+  // Removing one report while matching ones remain announces a new summary; it too gives way.
+  await fresh();
+  await page.locator('#remove-report-0').click();
+  await expect(page.locator('.report-entry')).toHaveCount(3);
+  await expect(page.locator('#status')).toHaveText(/^Removed approval-report-\d\.json\. Imported matching CLI report/);
+  await editDraft();
+
+  // So does the summary after forgetting the fixture digests.
+  await fresh();
+  await page.locator('#import-fixtures').setInputFiles(fixtures);
+  await expect(page.locator('#status')).toContainText('Rehearsed source outcomes');
+  await page.locator('#forget-fixtures').click();
+  await expect(page.locator('#status')).toContainText('Forgot the fixture digests. Imported matching CLI report');
+  await editDraft();
+});
+
 test('a browser-exported document rehearsed by the real CLI imports back as a matching rehearsal', async ({ page }) => {
   const cli = process.env.BINDING_CLI;
   const bundles = process.env.BINDING_BUNDLES;
