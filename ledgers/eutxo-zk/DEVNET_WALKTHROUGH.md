@@ -525,6 +525,11 @@ The journal now records the operation as `SUBMITTED`. It never records L1
 stability: the node decides that. Confirm the transaction and its outputs are
 visible:
 
+A journal written by an earlier version of this walkthrough may still say
+`STABLE`, which the lifecycle no longer writes; it then refuses that journal
+and names the file. The operation was submitted, so set its `status` to
+`SUBMITTED`.
+
 ```bash
 curl --fail --silent "$API/txs/$DEPOSIT_TX_ID" | jq
 curl --fail --silent "$API/txs/$DEPOSIT_TX_ID/utxos" | jq
@@ -539,15 +544,17 @@ export ACCEPTED_OUTPOINT="$DEPOSIT_TX_ID#<accepted-vault-output-index>"
 ## 10. Confirm the mirrored L2 EUTxO
 
 The bridge observer emits a deterministic deposit claim only after the
-accepted output is `yano.app-chain.l1.stability-depth` blocks deep. The
+accepted output is `yano.app-chain.chains[0].l1.stability-depth` blocks deep. The
 appchain then creates one L2 output tied to the exact accepted L1 outpoint and
 commits a deposit record for it. Until then, the record is `null`:
 
 ```bash
+deadline=$((SECONDS + 300))
 until ./yano.sh appchain eutxo deposit get "$ACCEPTED_OUTPOINT" \
     --url "$API" \
     --chain "$CHAIN_ID" |
   jq -e '.deposit' >/dev/null; do
+  [ "$SECONDS" -lt "$deadline" ] || { echo "timed out after 5 minutes; check the node logs" >&2; break; }
   sleep 1
 done
 ```
@@ -555,12 +562,14 @@ done
 Poll the L2 owner:
 
 ```bash
+deadline=$((SECONDS + 300))
 until ./yano.sh appchain eutxo utxo list "$L2_ADDRESS" \
     --url "$API" \
     --chain "$CHAIN_ID" \
     > "$WORK/artifacts/l2-utxos.json" &&
   jq -e '.utxos[] | select(.origin == "L1_DEPOSIT")' \
     "$WORK/artifacts/l2-utxos.json" >/dev/null; do
+  [ "$SECONDS" -lt "$deadline" ] || { echo "timed out after 5 minutes; check the node logs" >&2; break; }
   sleep 1
 done
 
@@ -659,12 +668,14 @@ export L2_TX_ID='<64-hex L2 transaction ID>'
 Wait for deterministic execution:
 
 ```bash
+deadline=$((SECONDS + 300))
 until ./yano.sh appchain eutxo transaction status "$L2_TX_ID" \
     --url "$API" \
     --chain "$CHAIN_ID" \
     > "$WORK/artifacts/l2-receipt.json" &&
   jq -e '.receipt.status == "ACCEPTED"' \
     "$WORK/artifacts/l2-receipt.json" >/dev/null; do
+  [ "$SECONDS" -lt "$deadline" ] || { echo "timed out after 5 minutes; check the node logs" >&2; break; }
   sleep 1
 done
 
@@ -795,13 +806,15 @@ transaction rolls back, the withdrawal rolls back with it, and L2 never marks
 the claim confirmed. Before you build the withdrawal, wait until the root
 transaction is as deep as the node's L1 stability point, so that a rollback
 does not cost you a rebuild. The generated project sets
-`yano.app-chain.l1.stability-depth` to 2, and `.confirmations` counts the tip
+`yano.app-chain.chains[0].l1.stability-depth` to 2, and `.confirmations` counts the tip
 block as 0, the same way:
 
 ```bash
 STABILITY_DEPTH=2
+deadline=$((SECONDS + 300))
 until [ "$(curl --fail --silent "$API/txs/$SETTLEMENT_TX_ID/status" |
     jq '.confirmations // -1')" -ge "$STABILITY_DEPTH" ]; do
+  [ "$SECONDS" -lt "$deadline" ] || { echo "timed out after 5 minutes; check the node logs" >&2; break; }
   sleep 1
 done
 ```
@@ -986,7 +999,7 @@ export YANO_HOME='<absolute extracted distribution root>'
 Check that:
 
 - the accepted output, not merely the staging output, is present and has
-  `yano.app-chain.l1.stability-depth` confirmations;
+  `yano.app-chain.chains[0].l1.stability-depth` confirmations;
 - its address exactly equals `bridgeVaultAddress`;
 - its payment script hash exactly equals `bridgeVaultScriptHash`;
 - its inline datum is an `EutxoVaultDatum` for the same chain;
@@ -1005,7 +1018,7 @@ that the withdrawal transaction:
   value);
 - has exactly one output that pays the claim's destination its exact amount;
   and
-- is `yano.app-chain.l1.stability-depth` blocks deep.
+- is `yano.app-chain.chains[0].l1.stability-depth` blocks deep.
 
 Also check that node logs show the withdrawal-confirmation observer running and
 no `L1 observer failed` warning.
