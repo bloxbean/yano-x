@@ -675,6 +675,9 @@ class EutxoStateMachineTest {
                 confirmation.encode());
         AppMessage confirmationMessage =
                 observationMessage(63, confirmationObservation);
+        // The exact payout is confirmed even though the bridge halted while it was in flight: a halt never clears,
+        // so dropping it would leave the claim pending forever.
+        state.put(EutxoStateKeys.bridgeHalt(), "TEST_HALT".getBytes(java.nio.charset.StandardCharsets.US_ASCII));
         apply(machine, block(4, confirmationMessage, confirmationMessage), state);
 
         EutxoWithdrawalRecord confirmed = EutxoQueryCodec.decodeOptionalWithdrawalRecord(
@@ -693,6 +696,8 @@ class EutxoStateMachineTest {
         assertThat(reconciled.stableVault()).isZero();
         assertThat(reconciled.pendingWithdrawals()).isZero();
         assertThat(reconciled.confirmedWithdrawals()).isEqualTo(BigInteger.valueOf(25));
+        // The rest of this test runs unhalted.
+        state.delete(EutxoStateKeys.bridgeHalt());
 
         // A second, different settlement for the confirmed claim (a rebind) is ignored too.
         EutxoWithdrawalConfirmation rebind = new EutxoWithdrawalConfirmation(1, "eutxo-test", 7, claim.claimId(),
@@ -831,11 +836,11 @@ class EutxoStateMachineTest {
         assertThat(ignored(machine, state)).isEqualTo(
                 new EutxoIgnoredConfirmations(2, "9b".repeat(32), "NOT_THIS_BRIDGE", 2));
 
-        // While the bridge is halted, a single-claim confirmation confirms nothing and is counted as such.
+        // While the bridge is halted, a confirmation that matches no pending claim is ignored for that reason.
         state.put(EutxoStateKeys.bridgeHalt(), "TEST_HALT".getBytes(java.nio.charset.StandardCharsets.US_ASCII));
         apply(machine, block(3, observationMessage(69, observation)), state);
         assertThat(ignored(machine, state)).isEqualTo(
-                new EutxoIgnoredConfirmations(3, "99".repeat(32), "BRIDGE_HALTED", 3));
+                new EutxoIgnoredConfirmations(3, "99".repeat(32), "UNKNOWN_CLAIM", 3));
     }
 
     private static EutxoDepositClaim depositClaim(

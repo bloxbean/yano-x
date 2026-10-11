@@ -623,8 +623,12 @@ holds the count plus the last settlement transaction, reason, and height, and is
 rather than overflowing. The reasons are:
 
 - `CUSTODY_UNPROVEN`, `UNKNOWN_CLAIM`, `CLAIM_MISMATCH`, or `CLAIM_REBIND`;
-- `BRIDGE_HALTED`, for a confirmation that arrives while the bridge is halted. Nothing is confirmed
-  during a halt, on either the batch or the single-claim path;
+- `BRIDGE_HALTED`, for a batch confirmation that arrives while the bridge is halted. A halted bridge
+  rotates no vault custody, so no batch is confirmed during a halt. A single-claim confirmation that
+  matches a pending claim exactly is still confirmed: it means the claimant was paid the exact amount,
+  and because a halt never clears and each observation is used once, dropping it would leave a real
+  payout pending forever. A genuine batch settlement that lands during a halt therefore stays pending,
+  and the summary below is the only trace of it;
 - `NOT_THIS_BRIDGE`, for a confirmation whose chain or bridge epoch the ledger does not accept. The
   observers already filter these, so this one points to observer-versus-ledger configuration or
   version drift.
