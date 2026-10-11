@@ -59,7 +59,7 @@ final class AppChainProjectOperations {
         void write(Path project) throws IOException {
             Path secrets = project.resolve("secrets");
             safeDirectory(secrets);
-            Files.setPosixFilePermissions(secrets, PosixFilePermissions.fromString("rwx------"));
+            ownerOnly(secrets, "rwx------");
             for (int node = 0; node < seeds.size(); node++) {
                 Path file = secrets.resolve("node" + node + ".env");
                 if (Files.exists(file, LinkOption.NOFOLLOW_LINKS)) {
@@ -444,7 +444,7 @@ final class AppChainProjectOperations {
         if (members < 1 || members > 32) throw new IllegalArgumentException("Members must be from 1 to 32");
         var secrets = project.resolve("secrets");
         safeDirectory(secrets);
-        Files.setPosixFilePermissions(secrets, PosixFilePermissions.fromString("rwx------"));
+        ownerOnly(secrets, "rwx------");
         List<String> publicKeys = new ArrayList<>();
         String apiKey = null;
         for (int node = 0; node < members; node++) {
@@ -458,7 +458,12 @@ final class AppChainProjectOperations {
                     throw new IOException("Prepared nodes must use the same local API key");
                 }
             } else {
-                if (pinned) throw new IOException("Pinned identities require the original private member files");
+                if (pinned) {
+                    throw new IOException("Pinned identities require the original private member files, but secrets/"
+                            + file.getFileName() + " is missing. Restore it; if `appchain init "
+                            + "--generate-local-member-keys` was interrupted before writing it, delete this project "
+                            + "and run init again.");
+                }
                 seed = LocalMemberIdentities.randomHex32();
                 if (apiKey == null) apiKey = LocalMemberIdentities.randomHex32();
                 atomicWrite(file, LocalMemberIdentities.environment(seed, apiKey), true);
@@ -493,7 +498,12 @@ final class AppChainProjectOperations {
         if (!Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS) || Files.size(file) > 1024) {
             throw new IOException("Member environment must be a small regular file");
         }
-        var permissions = Files.getPosixFilePermissions(file);
+        java.util.Set<java.nio.file.attribute.PosixFilePermission> permissions;
+        try {
+            permissions = Files.getPosixFilePermissions(file);
+        } catch (UnsupportedOperationException noPosix) {
+            throw new IOException(NO_POSIX + file.getFileName());
+        }
         if (permissions.stream().anyMatch(permission -> permission.name().startsWith("GROUP_")
                 || permission.name().startsWith("OTHERS_"))) {
             throw new IOException("Member environment requires owner-only permissions");
@@ -512,6 +522,18 @@ final class AppChainProjectOperations {
         return values;
     }
 
+    private static final String NO_POSIX =
+            "Member keys must stay owner-only, which needs a file system with POSIX permissions: ";
+
+    /** Sets owner-only permissions, failing with a clear message where the file system has none. */
+    private static void ownerOnly(Path path, String permissions) throws IOException {
+        try {
+            Files.setPosixFilePermissions(path, PosixFilePermissions.fromString(permissions));
+        } catch (UnsupportedOperationException noPosix) {
+            throw new IOException(NO_POSIX + path.getFileName());
+        }
+    }
+
     static void safeDirectory(Path path) throws IOException {
         Path absolute = path.toAbsolutePath().normalize();
         for (Path cursor = absolute; cursor != null; cursor = cursor.getParent()) {
@@ -528,7 +550,7 @@ final class AppChainProjectOperations {
         Path temporary = Files.createTempFile(path.getParent(), ".yano-write-", ".tmp");
         try {
             Files.write(temporary, bytes, StandardOpenOption.TRUNCATE_EXISTING);
-            if (privateFile) Files.setPosixFilePermissions(temporary, PosixFilePermissions.fromString("rw-------"));
+            if (privateFile) ownerOnly(temporary, "rw-------");
             Files.move(temporary, path, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
         } finally {
             Files.deleteIfExists(temporary);

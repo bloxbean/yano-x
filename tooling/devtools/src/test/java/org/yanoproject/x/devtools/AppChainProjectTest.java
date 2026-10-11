@@ -1156,7 +1156,34 @@ class AppChainProjectTest {
         secrets.add(apiKey.substring(apiKey.indexOf('=') + 1));
         assertSecretsOnlyInMemberFiles(project, secrets);
         assertThat(Files.readString(project.resolve("secrets/.gitignore"))).contains(".yano-write-*");
-        assertThat(Files.readString(project.resolve("secrets/README.md"))).contains("keep it");
+        assertThat(Files.readString(project.resolve("secrets/README.md")))
+                .contains("keep it", "--generate-local-member-keys");
+
+        // A member file lost after init (for example an interrupted init) names the file and the recovery.
+        Files.delete(project.resolve("secrets/node2.env"));
+        assertThatThrownBy(() -> new AppChainProjectOperations(properties).prepare(project))
+                .isInstanceOf(IOException.class)
+                .hasMessageContaining("secrets/node2.env is missing")
+                .hasMessageContaining("delete this project and run init again");
+    }
+
+    @Test
+    void onlyADevnetSecretsGuideMentionsGeneratedMemberKeys() throws Exception {
+        AppChainPropertyRegistry properties = AppChainPropertyRegistry.framework();
+        AppChainProjectCatalog catalog = new AppChainProjectCatalog(properties);
+        AppChainProjectRenderer renderer = new AppChainProjectRenderer(
+                catalog, new AppChainProjectResolver(properties, catalog));
+        AppChainProjectModel.Blueprint blueprint = blueprint("audit-log", "fixed",
+                List.of("a".repeat(64), "b".repeat(64), "c".repeat(64)));
+        Path preprod = temporary.resolve("secrets-preprod");
+        renderer.initialize(preprod, withNetwork(blueprint, "preprod"));
+        assertThat(Files.readString(preprod.resolve("secrets/README.md")))
+                .contains("`appchain prepare` created it")
+                .doesNotContain("--generate-local-member-keys");
+        Path devnet = temporary.resolve("secrets-devnet");
+        renderer.initialize(devnet, withNetwork(blueprint, "devnet"));
+        assertThat(Files.readString(devnet.resolve("secrets/README.md")))
+                .contains("--generate-local-member-keys");
     }
 
     @Test
