@@ -126,18 +126,24 @@ key:
 NODE=https://member-a.example:7070
 ROUTE=/api/v1/plugins/org.yanoproject.x.composite/chains/evidence-chain/profile-governance/commands
 
+# Once: an owner-only header file. printf is a shell builtin and cat is given
+# only the file name, so the key never appears in a process's arguments.
+(umask 077; { printf 'X-API-Key: '; cat /secure/member-a.key; } > /secure/member-a.headers)
+
 jq -r .bodyHex begin.json | xxd -r -p > begin.cbor
-curl -sS -X POST -H "X-API-Key: $(cat /secure/member-a.key)" \
+curl -sS -X POST -H @/secure/member-a.headers \
   -H 'Content-Type: application/octet-stream' --data-binary @begin.cbor \
   "$NODE$ROUTE?dry-run=true"          # {"validated":true}
-curl -sS -X POST -H "X-API-Key: $(cat /secure/member-a.key)" \
+curl -sS -X POST -H @/secure/member-a.headers \
   -H 'Content-Type: application/octet-stream' --data-binary @begin.cbor \
   "$NODE$ROUTE"                       # {"messageId":"…"}
 ```
 
-Keep the key in an owner-only file, never on the command line or in shell
-history. Use HTTPS for every non-loopback member endpoint and terminate it only
-at an operator-trusted proxy.
+`-H @file` (curl 7.55 or later) reads the header from the file, so curl's
+arguments name only the file. Never put the key itself in a command, where
+other users and monitoring agents can read the process arguments, or in shell
+history. Keep both files owner-only. Use HTTPS for every non-loopback member
+endpoint and terminate it only at an operator-trusted proxy.
 
 Stage each reported chunk and seal the proposal, waiting for each command to
 finalize before the next step:
