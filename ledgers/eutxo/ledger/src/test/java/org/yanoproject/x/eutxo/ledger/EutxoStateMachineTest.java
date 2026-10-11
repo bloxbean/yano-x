@@ -497,6 +497,19 @@ class EutxoStateMachineTest {
             assertThat(state.get(EutxoStateKeys.deposit(claim.acceptedOutpoint()))).isPresent();
         }
 
+        // Signed by Alice for a script-controlled L2 address: a script has no key to bind, so nothing registers,
+        // even under Alice's own credential, and the deposit is still credited.
+        String scriptAddress = com.bloxbean.cardano.client.address.AddressProvider.getEntAddress(
+                com.bloxbean.cardano.client.address.Credential.fromScript(alice),
+                com.bloxbean.cardano.client.common.model.Networks.testnet()).toBech32();
+        EutxoDepositClaim scriptBound = boundClaim(0x56, scriptAddress, alice, 0x66, true, vaultAddress);
+        apply(machine, block(height, observationMessage(0x7e, depositObservation(scriptBound))), state);
+        height++;
+        assertThat(EutxoL2KeyRegistration.decode(state.get(EutxoStateKeys.l2Key(
+                java.util.HexFormat.of().formatHex(alice))).orElseThrow()).publicKey())
+                .isEqualTo(fill(32, 0x61));
+        assertThat(state.get(EutxoStateKeys.deposit(scriptBound.acceptedOutpoint()))).isPresent();
+
         // A one-byte Bech32 payload claims a key-hash payment part but has no credential bytes; extracting the
         // credential throws, which must not fail the block.
         String truncated = "addr_test1vqylkdml";
