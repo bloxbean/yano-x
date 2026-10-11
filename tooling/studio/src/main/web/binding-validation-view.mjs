@@ -133,7 +133,7 @@ function reportsSection(editor, current) {
     session.removeReport(index);
     const remaining = session.reports.length;
     editor.pendingFocus = remaining ? `remove-report-${Math.min(index, remaining - 1)}` : 'import-reports';
-    editor.announce(`Removed ${visibleText(name)}. ${assuranceSummary(editor)}`);
+    editor.announce(`Removed ${visibleText(name)}. ${assuranceSummary(editor)}`, false, {assurance: true});
   };
   return h('section', {class: 'form-section', 'aria-labelledby': 'reports-heading'},
     h('h3', {id: 'reports-heading', text: 'Imported reports'}),
@@ -156,9 +156,9 @@ function reportsSection(editor, current) {
       .map(name => visibleText(name)).join(', ')}. Importing a file of the same name replaces it.`}) : null,
     current.entries.length || session.fixtures.size ? h('div', {class: 'inline-actions'},
       current.entries.length ? h('button', {type: 'button', class: 'secondary', id: 'remove-all-reports', text: 'Remove all reports',
-        onclick: () => { session.clearReports(); editor.pendingFocus = 'import-reports'; editor.announce(`Removed all reports. ${assuranceSummary(editor)}`); }}) : null,
+        onclick: () => { session.clearReports(); editor.pendingFocus = 'import-reports'; editor.announce(`Removed all reports. ${assuranceSummary(editor)}`, false, {assurance: true}); }}) : null,
       session.fixtures.size ? h('button', {type: 'button', class: 'secondary', id: 'forget-fixtures', text: 'Forget fixture digests',
-        onclick: () => { session.clearFixtures(); editor.pendingFocus = 'import-fixtures'; editor.announce(`Forgot the fixture digests. ${assuranceSummary(editor)}`); }}) : null) : null);
+        onclick: () => { session.clearFixtures(); editor.pendingFocus = 'import-fixtures'; editor.announce(`Forgot the fixture digests. ${assuranceSummary(editor)}`, false, {assurance: true}); }}) : null) : null);
 }
 
 function checksSection(editor, current) {
