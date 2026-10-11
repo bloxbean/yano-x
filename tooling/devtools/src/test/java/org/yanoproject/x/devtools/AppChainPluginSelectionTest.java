@@ -1,18 +1,14 @@
 package org.yanoproject.x.devtools;
 
-import org.yanoproject.catalog.ContributionKind;
+import org.yanoproject.appchain.config.AppChainPropertyRegistry;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.io.IOException;
-import java.io.OutputStream;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipOutputStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -69,40 +65,79 @@ class AppChainPluginSelectionTest {
     }
 
     @Test
-    void treatsContributionsNoShippedBundleProvidesAsHostBuiltIns() throws Exception {
+    void acceptsTheHostsBuiltInStateMachinesAndObserversWithoutABundle() throws Exception {
         bundle("plugins", "example.bridge", null, "l1-observer", "vault-deposit");
 
         assertThat(AppChainPluginSelection.check(distribution, Map.of(
                 "yano.app-chain.chains[0].state-machine", "ordered-log",
-                "yano.app-chain.chains[0].observers.metadata.type", "metadata-label"), Set.of()).status())
+                "yano.app-chain.chains[0].observers.metadata.type", "metadata-label",
+                "yano.app-chain.chains[0].observers.deposits.type", "address-deposit"), Set.of()).status())
                 .isEqualTo("PASS");
+    }
+
+    @Test
+    void failsWhenNoBundleProvidesAContributionTheHostDoesNotBuildIn() throws Exception {
+        bundle("plugins", "example.bridge", null, "l1-observer", "vault-deposit");
+
+        AppChainPluginSelection.Result result = AppChainPluginSelection.check(distribution, Map.of(
+                "yano.app-chain.chains[0].state-machine", "made-up-ledger"), Set.of());
+
+        assertThat(result.status()).isEqualTo("FAIL");
+        assertThat(result.detail()).contains("app-state-machine/made-up-ledger (no bundle in plugins/ provides it)");
+    }
+
+    @Test
+    void failsWhenAProjectBundleIsInNeitherPluginDirectory() throws Exception {
+        bundle("plugins", "example.bridge", null, "l1-observer", "vault-deposit");
+
+        AppChainPluginSelection.Result result = AppChainPluginSelection.check(distribution, EUTXO_CHAIN,
+                Set.of("example.ledger", "example.bridge"));
+
+        assertThat(result.status()).isEqualTo("FAIL");
+        assertThat(result.detail())
+                .contains("example.ledger (in neither plugins/ nor optional-plugins/)")
+                .contains("app-state-machine/eutxo-ledger (no bundle in plugins/ provides it)")
+                .doesNotContain("example.bridge (");
+    }
+
+    @Test
+    void failsWhenADefaultDistributionHasNoPluginsAtAll() throws Exception {
+        AppChainPluginSelection.Result result = AppChainPluginSelection.check(distribution, Map.of(
+                "yano.app-chain.chains[0].state-machine", "kv-registry"), Set.of("org.yanoproject.x.stdlib"));
+
+        assertThat(result.status()).isEqualTo("FAIL");
+        assertThat(result.detail()).contains("org.yanoproject.x.stdlib (in neither", "app-state-machine/kv-registry");
+    }
+
+    @Test
+    void anUninstalledBundleTheReleaseDoesNotShipIsPendingNotFailed() throws Exception {
+        bundle("plugins", "example.bridge", null, "l1-observer", "vault-deposit");
+
+        AppChainPluginSelection.Result result = AppChainPluginSelection.check(distribution, EUTXO_CHAIN,
+                Set.of("example.ledger", "example.bridge"), Set.of("example.ledger"));
+
+        assertThat(result.status()).isEqualTo("PENDING");
+        assertThat(result.detail()).contains("example.ledger (not shipped by this release",
+                "app-state-machine/eutxo-ledger");
+    }
+
+    @Test
+    void hostBuiltInsMatchTheCatalogCapabilitiesThatNeedOnlyTheHost() throws Exception {
+        AppChainProjectCatalog catalog = new AppChainProjectCatalog(AppChainPropertyRegistry.framework());
+        Set<String> hostOnly = new java.util.TreeSet<>();
+        for (AppChainProjectModel.Capability capability : catalog.capabilities()) {
+            if (!List.of("yano-runtime").equals(capability.artifacts())) continue;
+            Map<String, String> values = new java.util.TreeMap<>();
+            capability.properties().forEach((key, value) -> {
+                if (!value.contains("${")) values.put("yano.app-chain.chains[0]." + key, value);
+            });
+            hostOnly.addAll(AppChainPluginSelection.requiredContributions(values));
+        }
+        assertThat(hostOnly).isEqualTo(AppChainPluginSelection.HOST_BUILT_INS);
     }
 
     private void bundle(String directory, String id, String dependency, String kind, String name)
             throws IOException {
-        String provider = "example." + name.replace("-", "") + "." + id.replace(".", "").replace("-", "")
-                + ".Provider";
-        String dependencies = dependency == null ? "[]" : """
-                [{"id":"%s","minVersion":"0.1.0","maxVersionExclusive":"0.2.0"}]""".formatted(dependency);
-        String manifest = """
-                {"schemaVersion":1,"id":"%s","version":"0.1.0",
-                 "yanoApi":{"min":3,"max":3,"minLevel":1},
-                 "dependencies":%s,
-                 "contributions":[{"kind":"%s","name":"%s","provider":"%s"}]}
-                """.formatted(id, dependencies, kind, name, provider);
-        Path jar = distribution.resolve(directory).resolve(id + ".jar");
-        Files.createDirectories(jar.getParent());
-        try (OutputStream file = Files.newOutputStream(jar); ZipOutputStream zip = new ZipOutputStream(file)) {
-            entry(zip, "META-INF/yano/plugins/" + id + ".json", manifest);
-            entry(zip, "META-INF/services/" + ContributionKind.fromManifestKey(kind).serviceType().getName(),
-                    provider + "\n");
-            entry(zip, provider.replace('.', '/') + ".class", "");
-        }
-    }
-
-    private static void entry(ZipOutputStream zip, String name, String content) throws IOException {
-        zip.putNextEntry(new ZipEntry(name));
-        zip.write(content.getBytes(StandardCharsets.UTF_8));
-        zip.closeEntry();
+        PluginBundleFixture.write(distribution.resolve(directory), id, dependency, kind, name);
     }
 }
