@@ -4,13 +4,13 @@
   "producer" : {
     "tool" : "yano-x-devtools",
     "version" : "0.1.0-pre3",
-    "jarSha256" : "284bbbca2ce9cd52219d8a61671e784161dc9520717221bf62f4044916d1f62a",
+    "jarSha256" : "953241065b28c3f227c48960338914b04e200ebee3be09d7fbd4fb8b3d919a91",
     "linkedCompositeJarSha256" : "3537d6117378ad655110cefcacc7f3331710bb7d51e1edbb1c6ae3f6b2c06a44"
   },
   "host" : {
-    "version" : "0.1.0-pre18-6ffcbd3-SNAPSHOT",
+    "version" : "0.1.0-pre18-76619d9-SNAPSHOT",
     "coreApiJarSha256" : "9733452ce2e4db7ff75ecc64f2693e5518ba093ead3134ecb709d72541bc29c5",
-    "runtimeJarSha256" : "cb4d3dad1e7bf17019c0a8ed20dd8368332e9c07add792f8d5ff2f896a589f45"
+    "runtimeJarSha256" : "e4280f009d421bdb161b1ec7a34a0893a6aa52ee856ba02ed5ec359043ef1acb"
   },
   "authoringEnvironment" : "yano-x-binding-authoring-environment-v1",
   "catalog" : {
