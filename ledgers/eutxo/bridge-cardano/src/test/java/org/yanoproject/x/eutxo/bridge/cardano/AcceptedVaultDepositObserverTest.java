@@ -293,6 +293,14 @@ class AcceptedVaultDepositObserverTest {
                 OWNER, datum(), 10).getRequiredSigners()).isNullOrEmpty();
     }
 
+    @Test
+    void anOverflowingBatchMarkerCountIsSkippedWithoutAllocating() {
+        // Anyone can pay the vault an inline Constr0[1, 134217728, h'']; 134217728 * 32 wraps an int to zero.
+        byte[] overflow = HexFormat.of().parseHex("d87983011a0800000040");
+        assertThat(observer().observe(104, fill(32, 11), block(List.of(
+                output(VAULT_ADDRESS, 20, overflow))))).isEmpty();
+    }
+
     private static AcceptedVaultDepositObserver observer() {
         return new AcceptedVaultDepositObserver("bridge-deposits", Map.of(
                 "chain-id", "payments-eutxo",
