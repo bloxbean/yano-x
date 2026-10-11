@@ -113,8 +113,12 @@ export class BindingEditor {
     setTimeout(() => { this.renderQueued = false; this.render(this.lastReason); }, 0);
   }
 
-  announce(message, error = false) {
-    this.assuranceStatus = false;
+  /**
+   * Shows a status message. Pass `assurance` when the message carries a current assurance summary, so the next
+   * draft change replaces it instead of leaving a claim about inputs that no longer exist.
+   */
+  announce(message, error = false, {assurance = false} = {}) {
+    this.assuranceStatus = assurance;
     const status = this.el('status');
     // Messages can name draft ids, file names or importer text, so they are escaped like all displayed text.
     status.textContent = displayText(message);
@@ -485,8 +489,8 @@ export class BindingEditor {
         }
       }
       if (files.length > 64) problems.push('only the first 64 files were read');
-      this.announce([imported ? summary(imported) : null, ...problems].filter(Boolean).join(' '), problems.length > 0);
-      this.assuranceStatus = assurance && imported > 0;
+      this.announce([imported ? summary(imported) : null, ...problems].filter(Boolean).join(' '), problems.length > 0,
+        {assurance: assurance && imported > 0});
     })().finally(() => { input.value = ''; });
   }
 
