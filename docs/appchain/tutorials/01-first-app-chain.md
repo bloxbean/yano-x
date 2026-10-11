@@ -364,6 +364,14 @@ therefore raises each chain's threshold to 3 first, advances the idle chains
 until that change is active, and only then records the new member with three
 approvals.
 
+An idle chain makes no blocks, so the launcher advances it with one command per
+block. Each command names a fresh random key or item
+(`cluster.epoch-advance.<random>`), so it cannot touch your records: on
+`registry-chain` it deletes a key that does not exist, and on `effects-chain` it
+rejects an item that does not exist. `orders-chain` has no command that changes
+nothing, so the launcher appends entries on the `cluster.epoch-advance` topic;
+your existing entries are unchanged.
+
 > **✓ You should see** `raising 'orders-chain' threshold 2 -> 3 first`, then
 > `membership approval 3/3` for each chain, and finally
 > `node 3 joined and caught up with member key ...`. The new member votes from
