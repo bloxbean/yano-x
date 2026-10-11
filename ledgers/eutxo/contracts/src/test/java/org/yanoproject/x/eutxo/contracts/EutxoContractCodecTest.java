@@ -633,4 +633,42 @@ class EutxoContractCodecTest {
                 new EutxoOutpoint("ab".repeat(32), 2), EutxoDepositNotice.Outcome.UNCREDITED, "not a code", 1))
                 .isInstanceOf(IllegalArgumentException.class);
     }
+
+    @Test
+    void batchMarkerDecoderBoundsTheCountBeforeAllocating() {
+        // Constr0[1, 134217728, h'']: 134217728 * 32 wraps an int to zero.
+        assertThatThrownBy(() -> EutxoBatchSettlementMarker.decode(HexFormat.of().parseHex("d87983011a0800000040")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("1-1024 claim ids");
+        // Constr0[1, 1025, 1025 * 32 bytes]: one past the bound, with a matching length.
+        assertThatThrownBy(() -> EutxoBatchSettlementMarker.decode(marker(1, 1_025, new byte[1_025 * 32])))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("1-1024 claim ids");
+        assertThatThrownBy(() -> EutxoBatchSettlementMarker.decode(marker(1, 0, new byte[0])))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("1-1024 claim ids");
+        assertThatThrownBy(() -> EutxoBatchSettlementMarker.decode(marker(2, 1, new byte[32])))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("unsupported batch settlement marker version");
+        assertThatThrownBy(() -> EutxoBatchSettlementMarker.decode(marker(1, 2, new byte[32])))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("length does not match count");
+        assertThat(EutxoBatchSettlementMarker.decode(marker(1, 1_024, new byte[1_024 * 32])).count())
+                .isEqualTo(1_024);
+    }
+
+    private static byte[] marker(long version, long count, byte[] joined) {
+        try {
+            return com.bloxbean.cardano.client.plutus.spec.ConstrPlutusData.builder()
+                    .alternative(0)
+                    .data(com.bloxbean.cardano.client.plutus.spec.ListPlutusData.of(
+                            com.bloxbean.cardano.client.plutus.spec.BigIntPlutusData.of(version),
+                            com.bloxbean.cardano.client.plutus.spec.BigIntPlutusData.of(count),
+                            com.bloxbean.cardano.client.plutus.spec.BytesPlutusData.of(joined)))
+                    .build()
+                    .serializeToBytes();
+        } catch (Exception failure) {
+            throw new IllegalStateException(failure);
+        }
+    }
 }
