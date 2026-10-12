@@ -11,12 +11,14 @@ import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 
@@ -498,7 +500,7 @@ final class AppChainProjectOperations {
         if (!Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS) || Files.size(file) > 1024) {
             throw new IOException("Member environment must be a small regular file");
         }
-        java.util.Set<java.nio.file.attribute.PosixFilePermission> permissions;
+        Set<PosixFilePermission> permissions;
         try {
             permissions = Files.getPosixFilePermissions(file);
         } catch (UnsupportedOperationException noPosix) {
