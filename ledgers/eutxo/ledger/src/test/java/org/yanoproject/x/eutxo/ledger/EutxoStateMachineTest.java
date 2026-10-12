@@ -8,6 +8,7 @@ import com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet;
 import com.bloxbean.cardano.client.transaction.spec.Value;
 import com.bloxbean.cardano.client.transaction.util.TransactionUtil;
 import com.bloxbean.cardano.client.address.AddressProvider;
+import com.bloxbean.cardano.client.address.Credential;
 import com.bloxbean.cardano.client.api.util.CostModelUtil;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.plutus.spec.CostMdls;
@@ -55,6 +56,7 @@ import org.junit.jupiter.api.Test;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 
@@ -499,14 +501,13 @@ class EutxoStateMachineTest {
 
         // Signed by Alice for a script-controlled L2 address: a script has no key to bind, so nothing registers,
         // even under Alice's own credential, and the deposit is still credited.
-        String scriptAddress = com.bloxbean.cardano.client.address.AddressProvider.getEntAddress(
-                com.bloxbean.cardano.client.address.Credential.fromScript(alice),
-                com.bloxbean.cardano.client.common.model.Networks.testnet()).toBech32();
+        String scriptAddress = AddressProvider.getEntAddress(Credential.fromScript(alice), Networks.testnet())
+                .toBech32();
         EutxoDepositClaim scriptBound = boundClaim(0x56, scriptAddress, alice, 0x66, true, vaultAddress);
         apply(machine, block(height, observationMessage(0x7e, depositObservation(scriptBound))), state);
         height++;
         assertThat(EutxoL2KeyRegistration.decode(state.get(EutxoStateKeys.l2Key(
-                java.util.HexFormat.of().formatHex(alice))).orElseThrow()).publicKey())
+                HexFormat.of().formatHex(alice))).orElseThrow()).publicKey())
                 .isEqualTo(fill(32, 0x61));
         assertThat(state.get(EutxoStateKeys.deposit(scriptBound.acceptedOutpoint()))).isPresent();
 
