@@ -46,8 +46,8 @@ export default {
     {
       id: 'env', label: 'secrets/nodeN.env', sub: 'never committed', kind: 'external',
       detail: 'One member\'s private values: `YANO_APPCHAIN_SIGNING_KEY` and `YANO_APPCHAIN_API_KEYS`. On a local '
-        + 'devnet, `prepare` creates them with owner-only permissions; on real machines each operator supplies the '
-        + 'file. The project\'s `.gitignore` excludes `secrets/*.env`.',
+        + 'devnet, `prepare` or `init --generate-local-member-keys` creates them with owner-only permissions; on '
+        + 'real machines each operator supplies the file. The project\'s `.gitignore` excludes `secrets/*.env`.',
     },
     {
       id: 'node', label: 'member node', sub: 'shared + node file + secrets', kind: 'member',
@@ -129,7 +129,8 @@ export default {
         'nodeTemplate.put(prefix + "signing-key", "${YANO_APPCHAIN_SIGNING_KEY}");',
         'materializeStateCommitmentIdentity('] },
     { repo: 'yano-x', path: 'tooling/devtools/src/main/java/org/yanoproject/x/devtools/AppChainProjectOperations.java',
-      anchors: ['atomicWrite(file, ("YANO_APPCHAIN_SIGNING_KEY=" + seed', 'PosixFilePermissions.fromString("rw-------")',
+      anchors: ['"YANO_APPCHAIN_SIGNING_KEY=" + seed', 'ownerOnly(temporary, "rw-------")',
+        'void write(Path project) throws IOException {',
         'Deployment lock changed; apply the reviewed plan before starting',
         'prepare generates local JVM devnet identities only'] },
   ],
