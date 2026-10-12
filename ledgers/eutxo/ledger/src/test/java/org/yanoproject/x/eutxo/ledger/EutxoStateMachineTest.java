@@ -54,6 +54,7 @@ import org.yanoproject.runtime.appchain.StateMachineConformance;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigInteger;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HexFormat;
@@ -678,7 +679,7 @@ class EutxoStateMachineTest {
                 observationMessage(63, confirmationObservation);
         // The exact payout is confirmed even though the bridge halted while it was in flight: a halt never clears,
         // so dropping it would leave the claim pending forever.
-        state.put(EutxoStateKeys.bridgeHalt(), "TEST_HALT".getBytes(java.nio.charset.StandardCharsets.US_ASCII));
+        state.put(EutxoStateKeys.bridgeHalt(), "TEST_HALT".getBytes(StandardCharsets.US_ASCII));
         apply(machine, block(4, confirmationMessage, confirmationMessage), state);
 
         EutxoWithdrawalRecord confirmed = EutxoQueryCodec.decodeOptionalWithdrawalRecord(
@@ -838,7 +839,7 @@ class EutxoStateMachineTest {
                 new EutxoIgnoredConfirmations(2, "9b".repeat(32), "NOT_THIS_BRIDGE", 2));
 
         // While the bridge is halted, a confirmation that matches no pending claim is ignored for that reason.
-        state.put(EutxoStateKeys.bridgeHalt(), "TEST_HALT".getBytes(java.nio.charset.StandardCharsets.US_ASCII));
+        state.put(EutxoStateKeys.bridgeHalt(), "TEST_HALT".getBytes(StandardCharsets.US_ASCII));
         apply(machine, block(3, observationMessage(69, observation)), state);
         assertThat(ignored(machine, state)).isEqualTo(
                 new EutxoIgnoredConfirmations(3, "99".repeat(32), "UNKNOWN_CLAIM", 3));
