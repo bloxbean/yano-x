@@ -48,7 +48,8 @@ public final class EvidenceDemoMain {
                 default -> throw new DemoException(DemoError.INVALID_ARGUMENT);
             };
         } catch (DemoException failure) {
-            error.println("FAIL code=" + failure.error().name());
+            error.println("FAIL code=" + failure.error().name()
+                    + (failure.reason() == null ? "" : " reason=" + failure.reason()));
             return 2;
         } catch (RuntimeException failure) {
             error.println("FAIL code=" + DemoError.INTERNAL_ERROR.name());
