@@ -198,6 +198,7 @@ final class AppChainProjectLifecycle {
                                     + inspected.runtime()));
                     boolean artifactFailure = false;
                     boolean artifactPending = false;
+                    Set<String> stagedBundles = new TreeSet<>();
                     for (String artifact : safeList(projectLock.artifacts())) {
                         String availability = catalog.artifact(artifact).availability();
                         boolean external = catalog.isExternalArtifact(artifact);
@@ -225,7 +226,27 @@ final class AppChainProjectLifecycle {
                         }
                         artifactFailure |= "FAIL".equals(artifactStatus);
                         artifactPending |= "PENDING".equals(artifactStatus);
+                        if ("PENDING".equals(artifactStatus)) {
+                            stagedBundles.add(catalog.artifact(artifact).bundleId());
+                        }
                         checks.add(check("artifact:" + artifact, artifactStatus, detail));
+                    }
+                    if (Files.isDirectory(distribution, LinkOption.NOFOLLOW_LINKS)) {
+                        Set<String> projectBundles = new TreeSet<>();
+                        for (String artifact : safeList(projectLock.artifacts())) {
+                            String bundle = catalog.artifact(artifact).bundleId();
+                            if (bundle != null && !bundle.contains(":")) projectBundles.add(bundle);
+                        }
+                        AppChainPluginSelection.Result selection = AppChainPluginSelection.check(
+                                distribution, safeMap(projectLock.consensusValues()), projectBundles,
+                                stagedBundles);
+                        artifactFailure |= "FAIL".equals(selection.status());
+                        artifactPending |= "PENDING".equals(selection.status());
+                        checks.add(check("plugin-selection", selection.status(), selection.detail()));
+                    } else {
+                        artifactPending = true;
+                        checks.add(check("plugin-selection", "PENDING",
+                                "extract the distribution and pass its directory to check plugins/"));
                     }
                     artifactStage = !runtimeMatch || !indexMatch || artifactFailure
                             ? "FAIL" : artifactPending ? "PENDING" : "PASS";

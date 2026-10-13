@@ -2,6 +2,7 @@ package org.yanoproject.x.eutxo.zk.lifecycle;
 
 import org.yanoproject.x.eutxo.zk.client.EutxoL2SessionKey;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -48,7 +49,8 @@ public final class EutxoValidityLifecycleCli {
               Mainnet is rejected unconditionally.
             """.stripTrailing();
 
-    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final ObjectMapper JSON = new ObjectMapper()
+            .enable(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS);
 
     private EutxoValidityLifecycleCli() {
     }

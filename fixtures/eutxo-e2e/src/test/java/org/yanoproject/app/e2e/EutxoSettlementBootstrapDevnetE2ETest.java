@@ -36,8 +36,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * validator addresses with the genesis datums the plan computed (root datum
  * with the member set; 16 shard datums at the empty-trie root).
  */
-@io.quarkus.test.junit.QuarkusTest
-@io.quarkus.test.junit.TestProfile(EutxoZkDevnetTestProfile.class)
+@PackagedDevnet(profile = EutxoZkDevnetTestProfile.class,
+        removeBundles = "yano-x-eutxo-ledger-bundle", addOptionalBundles = "yano-x-eutxo-zk-runtime-bundle")
 @org.junit.jupiter.api.TestMethodOrder(
         org.junit.jupiter.api.MethodOrderer.OrderAnnotation.class)
 class EutxoSettlementBootstrapDevnetE2ETest extends BaseE2ETest {

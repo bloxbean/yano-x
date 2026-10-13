@@ -2,6 +2,8 @@ package org.yanoproject.x.eutxo.client;
 
 import org.yanoproject.x.client.AppChainClient;
 import org.yanoproject.x.eutxo.contracts.EutxoOutpoint;
+import org.yanoproject.x.eutxo.contracts.EutxoReceipt;
+import org.yanoproject.x.eutxo.contracts.EutxoRecord;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
@@ -87,20 +89,21 @@ public final class EutxoCli {
             result.put("messageId", submitted.messageId());
             result.put("chainId", submitted.chainId());
         } else if (options.command.equals(List.of("transaction", "status"))) {
-            EutxoSnapshot<?> snapshot = client.transactionSnapshot(options.argument);
+            EutxoSnapshot<Optional<EutxoReceipt>> snapshot =
+                    client.transactionSnapshot(options.argument);
             result.put("transactionId", options.argument);
-            result.put("receipt", snapshot.value());
+            result.put("receipt", snapshot.value().map(EutxoCli::receiptJson).orElse(null));
             root(result, snapshot);
         } else if (options.command.equals(List.of("utxo", "get"))) {
-            EutxoSnapshot<?> snapshot =
+            EutxoSnapshot<Optional<EutxoRecord>> snapshot =
                     client.utxoSnapshot(EutxoOutpoint.parse(options.argument));
             result.put("outpoint", options.argument);
-            result.put("utxo", snapshot.value());
+            result.put("utxo", snapshot.value().map(EutxoCli::recordJson).orElse(null));
             root(result, snapshot);
         } else if (options.command.equals(List.of("utxo", "list"))) {
-            EutxoSnapshot<?> snapshot = client.utxosSnapshot(options.argument);
+            EutxoSnapshot<List<EutxoRecord>> snapshot = client.utxosSnapshot(options.argument);
             result.put("address", options.argument);
-            result.put("utxos", snapshot.value());
+            result.put("utxos", snapshot.value().stream().map(EutxoCli::recordJson).toList());
             root(result, snapshot);
         } else if (options.command.equals(List.of("proof"))) {
             EutxoOutpoint outpoint = EutxoOutpoint.parse(options.argument);
@@ -238,6 +241,29 @@ public final class EutxoCli {
             throw new Usage("claim id must be exactly 32 bytes");
         }
         return id;
+    }
+
+    // Explicit JSON views: bytes as hex, absent values as null, never a raw Optional.
+    static Map<String, Object> receiptJson(EutxoReceipt receipt) {
+        Map<String, Object> json = new LinkedHashMap<>();
+        json.put("status", receipt.status().name());
+        json.put("transactionId", receipt.transactionId());
+        json.put("appMessageId", HexFormat.of().formatHex(receipt.appMessageId()));
+        json.put("appHeight", receipt.appHeight());
+        json.put("ordinal", receipt.ordinal());
+        json.put("l1Slot", receipt.l1Slot());
+        json.put("code", receipt.code());
+        json.put("detail", receipt.detail());
+        return json;
+    }
+
+    static Map<String, Object> recordJson(EutxoRecord record) {
+        Map<String, Object> json = new LinkedHashMap<>();
+        json.put("outpoint", record.outpoint().toString());
+        json.put("address", record.address());
+        json.put("outputCbor", HexFormat.of().formatHex(record.outputCbor()));
+        json.put("origin", record.origin().name());
+        return json;
     }
 
     private static void root(Map<String, Object> result, EutxoSnapshot<?> snapshot) {

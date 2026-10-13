@@ -26,7 +26,7 @@ a trusted sequencer/prover. It is not a production or mainnet rollup.
 
 1. [Understand the command boundaries](#1-understand-the-command-boundaries)
 2. [Run the proven end-to-end reference first](#2-run-the-proven-end-to-end-reference-first)
-3. [Build or extract Yano](#3-build-or-extract-yano)
+3. [Build or extract Yano X](#3-build-or-extract-yano-x)
 4. [Prepare disposable identities](#4-prepare-disposable-identities)
 5. [Create the three-member project](#5-create-the-three-member-project)
 6. [Provision and start the cluster](#6-provision-and-start-the-cluster)
@@ -290,11 +290,11 @@ Validate the generated project and installed distribution:
 ./yano.sh appchain doctor "$PROJECT" --distribution "$YANO_HOME"
 ```
 
-Project validation must report `VALID_PROJECT`. Before bootstrap, `doctor`
-normally reports `DOCTOR_WARNINGS`: it confirms that the JVM artifacts and
-member identities are ready, while explicitly leaving the development
-ceremony, contract identities, test-funds acknowledgement, and external L1
-operator actions pending.
+Project validation must report `VALID_PROJECT`. `doctor` reports
+`DOCTOR_FAILED` at this point, with `plugin-selection` asking you to install
+`org.yanoproject.x.eutxo.zk.runtime` from `optional-plugins/`: the default
+`plugins/` still holds the standard ledger. Section 6 swaps it in and runs
+`doctor` again.
 
 Review:
 
@@ -347,7 +347,13 @@ mkdir -p "$WORK/removed-plugins"
 mv "$YANO_HOME"/plugins/yano-x-eutxo-ledger-bundle-*.jar "$WORK/removed-plugins/"
 cp "$YANO_HOME"/optional-plugins/yano-x-eutxo-zk-runtime-bundle-*.jar "$YANO_HOME/plugins/"
 "$YANO_HOME/tools/yano-plugins/bin/yano-plugins" validate "$YANO_HOME"/plugins/*.jar
+./yano.sh appchain doctor "$PROJECT" --distribution "$YANO_HOME"
 ```
+
+`yano-plugins` must report `VALID`. `doctor` now reports `DOCTOR_WARNINGS`,
+with `plugin-selection` and `RUNTIME_STARTABLE` passing, while the development
+ceremony, contract identities, test-funds acknowledgement, and external L1
+operator actions stay pending.
 
 Start the generated cluster:
 
@@ -544,15 +550,17 @@ Poll the L2 owner:
 until ./yano.sh appchain eutxo utxo list "$L2_ADDRESS" \
     --url "$API" \
     --chain "$CHAIN_ID" \
-    > "$WORK/artifacts/l2-utxos.json"; do
+    > "$WORK/artifacts/l2-utxos.json" &&
+  jq -e '.utxos[] | select(.origin == "L1_DEPOSIT")' \
+    "$WORK/artifacts/l2-utxos.json" >/dev/null; do
   sleep 1
 done
 
-jq . "$WORK/artifacts/l2-utxos.json"
+jq '.utxos[] | select(.origin == "L1_DEPOSIT")' "$WORK/artifacts/l2-utxos.json"
 ```
 
-Wait until the returned `utxos` array contains a record with origin
-`L1_DEPOSIT`. Its `outpoint` is the input to the L2 transaction:
+The loop ends once a record with origin `L1_DEPOSIT` exists. Its `outpoint`
+is the input to the L2 transaction:
 
 ```bash
 export L2_INPUT='<mirrored-transaction-id>#<index>'
@@ -843,7 +851,7 @@ The successful final state has all of these properties:
 | L1 accepted vault | Original 10 ADA accepted output was consumed |
 | L2 deposit input | Mirrored input was consumed |
 | L2 change | 7 ADA-equivalent output remains at `L2_ADDRESS` |
-| L2 withdrawal claim | 3 ADA claim is committed and later confirmed |
+| L2 withdrawal claim | 3 ADA claim is committed and later confirmed; the CLI has no claim command yet, so read it with `EutxoClient.withdrawalSnapshot` |
 | Proof | `PROOF_VALID` |
 | L1 root | Root-thread datum contains the proof's next root |
 | L1 payout | 3,000,000 lovelace exists at `PAYOUT_ADDRESS` |

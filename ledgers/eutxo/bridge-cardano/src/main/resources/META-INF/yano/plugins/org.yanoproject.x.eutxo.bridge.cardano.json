@@ -3,13 +3,7 @@
   "id": "org.yanoproject.x.eutxo.bridge.cardano",
   "version": "${pluginVersion}",
   "yanoApi": { "min": 3, "max": 3, "minLevel": 4 },
-  "dependencies": [
-    {
-      "id": "org.yanoproject.x.eutxo",
-      "minVersion": "${pluginVersion}",
-      "maxVersionExclusive": "0.2.0"
-    }
-  ],
+  "dependencies": [],
   "contributions": [
     {
       "kind": "l1-observer",

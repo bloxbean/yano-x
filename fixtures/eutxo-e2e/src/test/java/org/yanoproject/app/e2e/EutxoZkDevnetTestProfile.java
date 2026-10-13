@@ -1,5 +1,7 @@
 package org.yanoproject.app.e2e;
 
+import org.yanoproject.api.appchain.state.StateCommitmentIdentity;
+import org.yanoproject.api.appchain.state.StateCommitmentProfiles;
 import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.address.AddressProvider;
 import com.bloxbean.cardano.client.common.model.Networks;
@@ -49,6 +51,10 @@ public final class EutxoZkDevnetTestProfile extends DevnetTestProfile {
         config.put(PREFIX + "block.interval-ms", "500");
         config.put(PREFIX + "block.max-messages", "16");
         config.put(PREFIX + "state-machine", "eutxo-ledger");
+        // The host requires an explicit state identity; a rendered project derives one per chain.
+        StateCommitmentIdentity.explicit(StateCommitmentProfiles.MPF,
+                        sha256("yano-x-e2e-state-genesis\0" + getClass().getSimpleName()))
+                .settings().forEach((key, value) -> config.put(PREFIX + key, value));
         config.put(PREFIX + "anchor.enabled", "false");
         config.put(PREFIX + "l1.stability-depth", "2");
         config.put(PREFIX + "machines.eutxo.profile",
@@ -135,6 +141,15 @@ public final class EutxoZkDevnetTestProfile extends DevnetTestProfile {
         } catch (Exception failure) {
             throw new IllegalStateException(
                     "cannot derive the devnet funds-vault hash", failure);
+        }
+    }
+
+    private static byte[] sha256(String value) {
+        try {
+            return java.security.MessageDigest.getInstance("SHA-256")
+                    .digest(value.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        } catch (java.security.NoSuchAlgorithmException impossible) {
+            throw new IllegalStateException(impossible);
         }
     }
 }

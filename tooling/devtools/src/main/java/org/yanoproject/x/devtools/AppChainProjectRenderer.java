@@ -463,7 +463,13 @@ final class AppChainProjectRenderer {
         }
         values.putAll(resolution.nodePropertyTemplate());
         for (int index = 0; index < resolution.chains().size(); index++) {
-            values.put("yano.app-chain.chains[" + index + "].peers", String.join(",", peers));
+            String chain = "yano.app-chain.chains[" + index + "].";
+            values.put(chain + "peers", String.join(",", peers));
+            if (resolution.consensusProperties().keySet().stream()
+                    .anyMatch(key -> key.startsWith(chain + "observers."))) {
+                values.put(chain + "observation.l1-network-genesis-id",
+                        L1NetworkGenesis.configValue(resolution.blueprint().spec().network()));
+            }
         }
         return yamlConfig(values);
     }
@@ -1068,8 +1074,20 @@ final class AppChainProjectRenderer {
                 source_file="${1:?Usage: prepare-devnet SOURCE_GENESIS}"
                 root="$(cd "$(dirname "$0")/.." && pwd)"
                 target="$root/runtime/shelley-genesis.json"
+                started="$root/runtime/devnet-genesis.started"
+                data="${YANO_APPCHAIN_DATA_ROOT:-$root/data}"
                 mkdir -p "$root/runtime"
-                [ -f "$target" ] && exit 0
+                if [ -f "$target" ]; then
+                  [ -f "$started" ] && exit 0
+                  # Node state may have been built on this genesis (a project made before the start
+                  # marker, or an interrupted start), so it is kept, never replaced under that state.
+                  if [ -n "$(ls -A "$data" 2>/dev/null)" ]; then
+                    echo "Keeping runtime/shelley-genesis.json: $data holds node state." >&2
+                    exit 0
+                  fi
+                  # Nothing was built on this genesis, so its systemStart is stale.
+                  rm -f "$target"
+                fi
                 python3 - "$source_file" "$target" <<'PY'
                 import datetime
                 import json
@@ -1143,7 +1161,13 @@ final class AppChainProjectRenderer {
                 print(int(parsed.timestamp() * 1000))
                 PY
                 )"
-                """ : "", network);
+                export %s="$(python3 - "$genesis" <<'PY'
+                import hashlib, sys
+                with open(sys.argv[1], "rb") as stream:
+                    print(hashlib.sha256(stream.read()).hexdigest())
+                PY
+                )"
+                """.formatted(L1NetworkGenesis.DEVNET_ENVIRONMENT) : "", network);
     }
 
     private static String hostStartScript(
@@ -1152,10 +1176,27 @@ final class AppChainProjectRenderer {
         AppChainProjectModel.Topology topology = resolution.blueprint().spec().chains()
                 .getFirst().topology();
         int httpBase = topology.httpPortBase() == null ? 8080 : topology.httpPortBase();
-        String prepare = "devnet".equals(resolution.blueprint().spec().network())
-                ? "\"$root/scripts/prepare-devnet\" "
-                        + "\"$YANO_HOME/config/network/devnet/shelley-genesis.json\""
-                : ":";
+        boolean devnet = "devnet".equals(resolution.blueprint().spec().network());
+        // A first devnet start that never becomes ready rolls back the genesis and the node
+        // state it created, so a retry starts from a fresh systemStart.
+        String prepare = devnet ? """
+                data="${YANO_APPCHAIN_DATA_ROOT:-$root/data}"
+                rollback=0
+                if [ ! -f "$root/runtime/devnet-genesis.started" ] && [ -z "$(ls -A "$data" 2>/dev/null)" ]; then
+                  rollback=1
+                fi
+                "$root/scripts/prepare-devnet" "$YANO_HOME/config/network/devnet/shelley-genesis.json"
+                """ : ":";
+        String rollback = devnet ? """
+                      if [ "$rollback" -eq 1 ]; then
+                        rm -rf "$data"/node*
+                        rm -f "$root/runtime/shelley-genesis.json"
+                        echo "Rolled back this first devnet start; fix the cause and run scripts/start again." >&2
+                      else
+                        echo "Kept the existing genesis and $data; this start did not create them." >&2
+                      fi
+                """ : "      :\n";
+        String started = devnet ? "touch \"$root/runtime/devnet-genesis.started\"" : ":";
         return """
                 #!/usr/bin/env bash
                 set -euo pipefail
@@ -1192,19 +1233,23 @@ final class AppChainProjectRenderer {
                     if [ -n "$diagnostic" ]; then
                       echo "$diagnostic" >&2
                     fi
-                    "$root/scripts/stop" || true
+                    if "$root/scripts/stop"; then
+                %s    fi
                     exit 1
                   fi
                 done
+                %s
                 echo "Started %d ready node processes; see logs/"
-                """.formatted(prepare, members - 1, httpBase, members);
+                """.formatted(prepare, members - 1, httpBase, rollback, started, members);
     }
 
     private static String distributedHostStartScript(
             AppChainProjectModel.Resolution resolution) {
+        // A distributed start cannot observe cluster readiness, so it keeps the genesis it prepares.
         String prepare = "devnet".equals(resolution.blueprint().spec().network())
                 ? "\"$root/scripts/prepare-devnet\" "
-                        + "\"$YANO_HOME/config/network/devnet/shelley-genesis.json\""
+                        + "\"$YANO_HOME/config/network/devnet/shelley-genesis.json\"\n"
+                        + "touch \"$root/runtime/devnet-genesis.started\""
                 : ":";
         return """
                 #!/usr/bin/env bash
@@ -1245,6 +1290,11 @@ final class AppChainProjectRenderer {
                     echo "node process $pid did not stop within 10 seconds" >&2
                     failed=1
                   fi
+                done
+                # Start-check reservations name launcher shells that have already exited.
+                for record in "$root"/run/launch*.pid; do
+                  [ -f "$record" ] || continue
+                  kill -0 "$(cat "$record")" 2>/dev/null || rm -f "$record"
                 done
                 exit "$failed"
                 """;
@@ -1289,7 +1339,10 @@ final class AppChainProjectRenderer {
                 output.append("      YANO_APPCHAIN_GENESIS_FILE: ")
                         .append("/project/runtime/shelley-genesis.json\n")
                         .append("      YANO_APPCHAIN_GENESIS_TIMESTAMP: ")
-                        .append("${YANO_APPCHAIN_GENESIS_TIMESTAMP:?Run scripts/start}\n");
+                        .append("${YANO_APPCHAIN_GENESIS_TIMESTAMP:?Run scripts/start}\n")
+                        .append("      ").append(L1NetworkGenesis.DEVNET_ENVIRONMENT).append(": ")
+                        .append("${").append(L1NetworkGenesis.DEVNET_ENVIRONMENT)
+                        .append(":?Run scripts/start}\n");
             }
             output.append("      QUARKUS_CONFIG_LOCATIONS: ")
                     .append("/project/config/shared-consensus.yaml,")
@@ -1321,19 +1374,42 @@ final class AppChainProjectRenderer {
     }
 
     private static String composeStartScript(AppChainProjectModel.Resolution resolution) {
-        String prepare = "devnet".equals(resolution.blueprint().spec().network())
+        boolean devnet = "devnet".equals(resolution.blueprint().spec().network());
+        String prepare = devnet
                 ? """
                 : "${YANO_IMAGE:?Set YANO_IMAGE}"
                 mkdir -p "$root/runtime"
-                base="$root/runtime/shelley-genesis.base.json"
-                if [ ! -f "$root/runtime/shelley-genesis.json" ]; then
-                  docker run --rm --entrypoint cat "$YANO_IMAGE" \
-                    /app/default-config/network/devnet/shelley-genesis.json >"$base"
-                  "$root/scripts/prepare-devnet" "$base"
-                  rm -f "$base"
+                genesis="$root/runtime/shelley-genesis.json"
+                started="$root/runtime/devnet-genesis.started"
+                fresh=0
+                if [ ! -f "$started" ]; then
+                  # Compose keeps node state in named volumes, so freshness is decided from the
+                  # project's containers and volumes, not from the absence of the start marker.
+                  # Only an uninterpolated Compose command may load compose.yaml here: it requires the
+                  # genesis variables this script exports below.
+                  project="$(cd "$root" && docker compose config --no-interpolate --format json \
+                    | python3 -c 'import json, sys; print(json.load(sys.stdin)["name"])')"
+                  label="label=com.docker.compose.project=$project"
+                  retained="$(docker ps --all --quiet --filter "$label" \
+                    && docker volume ls --quiet --filter "$label")"
+                  if [ -n "$(printf '%%s' "$retained" | tr -d '[:space:]')" ]; then
+                    if [ ! -f "$genesis" ]; then
+                      echo "Compose project $project has containers or volumes, but runtime/shelley-genesis.json is missing." >&2
+                      echo "Restore that genesis, or run 'docker compose down --volumes' if the state is disposable." >&2
+                      exit 1
+                    fi
+                    echo "Keeping runtime/shelley-genesis.json and the existing $project containers and volumes." >&2
+                  else
+                    fresh=1
+                    rm -f "$genesis"
+                    base="$root/runtime/shelley-genesis.base.json"
+                    docker run --rm --entrypoint cat "$YANO_IMAGE" \
+                      /app/default-config/network/devnet/shelley-genesis.json >"$base"
+                    "$root/scripts/prepare-devnet" "$base"
+                    rm -f "$base"
+                  fi
                 fi
-                export YANO_APPCHAIN_GENESIS_TIMESTAMP="$(python3 - \
-                  "$root/runtime/shelley-genesis.json" <<'PY'
+                export YANO_APPCHAIN_GENESIS_TIMESTAMP="$(python3 - "$genesis" <<'PY'
                 import datetime, json, sys
                 with open(sys.argv[1], encoding="utf-8") as stream:
                     value = json.load(stream)["systemStart"]
@@ -1341,15 +1417,35 @@ final class AppChainProjectRenderer {
                 print(int(parsed.timestamp() * 1000))
                 PY
                 )"
-                """ : "";
+                export %s="$(python3 - "$genesis" <<'PY'
+                import hashlib, sys
+                with open(sys.argv[1], "rb") as stream:
+                    print(hashlib.sha256(stream.read()).hexdigest())
+                PY
+                )"
+                """.formatted(L1NetworkGenesis.DEVNET_ENVIRONMENT) : "";
+        // Only a start that found no containers or volumes may drop the ones it made.
+        String start = devnet ? """
+                if docker compose up -d --wait; then
+                  touch "$started"
+                  exit 0
+                fi
+                if [ "$fresh" -eq 1 ]; then
+                  docker compose down --volumes
+                  rm -f "$genesis"
+                  echo "Rolled back this first devnet start; fix the cause and run scripts/start again." >&2
+                else
+                  echo "Kept the existing genesis, containers and volumes; this start did not create them." >&2
+                fi
+                exit 1
+                """ : "exec docker compose up -d\n";
         return """
                 #!/usr/bin/env bash
                 set -euo pipefail
                 root="$(cd "$(dirname "$0")/.." && pwd)"
                 %s
                 cd "$root"
-                exec docker compose up -d
-                """.formatted(prepare);
+                %s""".formatted(prepare, start);
     }
 
     private static String composeStopScript() {
