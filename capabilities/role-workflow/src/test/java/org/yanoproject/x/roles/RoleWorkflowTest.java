@@ -17,6 +17,7 @@ import org.yanoproject.x.roles.contracts.ActorRecordV1;
 import org.yanoproject.x.roles.contracts.ActorStatementV1;
 import org.yanoproject.x.roles.contracts.ApprovalPolicyV1;
 import org.yanoproject.x.roles.contracts.ApprovalProposalV1;
+import org.yanoproject.x.roles.contracts.DirectRolePolicyV1;
 import org.yanoproject.x.roles.contracts.GovernedMutationCommandV1;
 import org.yanoproject.x.roles.contracts.OrganizationRecordV1;
 import org.yanoproject.x.roles.contracts.PolicyMutationV1;
@@ -409,6 +410,25 @@ class RoleWorkflowTest {
                 ActorKeyProofV1.sign(CHAIN, "extra-actor", 1, unrelatedKey, secondSeed))));
         assertThat(fixture.registryState.get(RoleWorkflowKeys.actorRevision(
                 "extra-actor", 1))).isEmpty();
+    }
+
+    @Test
+    void memberGovernedRouteRefusesDirectRolePolicies() {
+        Fixture fixture = new Fixture();
+        PolicyMutationV1 direct = new PolicyMutationV1.PutDirectPolicy(
+                new DirectRolePolicyV1("direct-release", 1, RecordStatus.ACTIVE, "auditor", 100));
+        GovernedMutationCommandV1.Propose proposed = new GovernedMutationCommandV1.Propose(
+                "policy-direct", direct.encode(), fixture.height + 50);
+
+        assertThat(fixture.workflow.validate(fixture.message(RoleApprovalWorkflow.TOPIC,
+                proposed.encode(), ADMIN_A)).isAccepted()).isFalse();
+        String mutationId = "policy-" + fixture.sequence;
+        // Before 2.0.1 the activate cast this mutation to CancelProposal and block apply threw.
+        fixture.governPolicy(direct);
+
+        assertThat(fixture.approvalState.get(RoleWorkflowKeys.governedMutation(mutationId))).isEmpty();
+        assertThat(fixture.approvalState.get(RoleWorkflowKeys.directPolicyCurrent("direct-release")))
+                .isEmpty();
     }
 
     @Test
