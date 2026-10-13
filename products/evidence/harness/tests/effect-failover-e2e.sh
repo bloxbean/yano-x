@@ -303,7 +303,10 @@ scenario_failure_diagnostics() {
     if bounded_get \
         "http://127.0.0.1:$port/api/v1/app-chain/chains/$CHAIN_ID/status" \
         "$app_status" 1048576 2>/dev/null; then
-      jq -c '{chainId,running,tipHeight,stateRoot,memberKey,anchor}' \
+      # Every field DemoClusterTopology compares, so a CLUSTER_DIVERGED names its cause.
+      jq -c '{chainId,running,tipHeight,stateRoot,memberKey,members,threshold,stateMachine,
+        membershipMode,membershipActiveMembers,membershipActiveThreshold,memberActiveForNextBlock,
+        anchor: (.anchor // {} | {leader,mode,bootstrapped,scriptAddress,threadPolicyId,lastAnchoredHeight})}' \
         "$app_status" >&2 || true
     fi
     if bounded_get "http://127.0.0.1:$port/api/v1/node/status" \
