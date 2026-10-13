@@ -1,0 +1,1 @@
+import{_ as a}from"./preload-helper.CVfkMyKi.js";async function n(){if(!document.querySelector("[data-yx-illustration]"))return;const{enhanceIllustrations:t}=await a(async()=>{const{enhanceIllustrations:e}=await import("./client.D_lY556Z.js");return{enhanceIllustrations:e}},[]);t()}n();document.addEventListener("astro:after-swap",n);
