@@ -55,7 +55,7 @@ public final class AppChainDevtoolsCli {
                or: ./yano.sh appchain plugin inspect|validate|sign|scaffold [options]
                or: ./yano.sh appchain metadata verify <plugin.jar> --trust-key <key-id=64-hex-public-key>
                or: ./yano.sh appchain migrate [project-directory] [--dry-run]
-               or: ./yano.sh appchain role public-key|key-proof|key-proof-signature|sign|govern-* [options]
+               or: ./yano.sh appchain role public-key|key-proof|key-proof-signature|sign|govern-*|bootstrap [options]
                or: ./yano.sh appchain authenticated-map action|direct-*|approval-*|command [options]
                or: ./yano.sh appchain eutxo transaction|utxo|proof|doctor|demo [options]
                or: ./yano.sh appchain validity bootstrap|status|prove|proof|doctor|... [options]
@@ -127,6 +127,28 @@ public final class AppChainDevtoolsCli {
                 return EXIT_OK;
             } catch (RuntimeException failure) {
                 err.println("Invalid offline authenticated-map authorization command.");
+                err.flush();
+                return EXIT_USAGE;
+            }
+        }
+        String[] role = roleCommand(args) ? roleArguments(args) : new String[0];
+        if (role.length > 0 && "bootstrap".equals(role[0])) {
+            String[] options = java.util.Arrays.copyOfRange(role, 1, role.length);
+            if (java.util.Arrays.stream(options).anyMatch(option -> option.equals("--help") || option.equals("-h"))) {
+                out.println(RoleBootstrapPlan.USAGE);
+                out.flush();
+                return EXIT_OK;
+            }
+            try {
+                out.println(RoleBootstrapPlan.execute(options));
+                out.flush();
+                return EXIT_OK;
+            } catch (IOException | RuntimeException failure) {
+                // Parser messages can quote the input file, so show only a bounded first line.
+                err.println("Invalid role bootstrap command: " + safeArgument(bounded(firstLine(
+                        failure instanceof java.nio.file.NoSuchFileException
+                                ? "file not found: " + failure.getMessage() : failure.getMessage()))));
+                err.println(RoleBootstrapPlan.USAGE);
                 err.flush();
                 return EXIT_USAGE;
             }
