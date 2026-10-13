@@ -264,6 +264,36 @@ class AcceptedVaultDepositObserverTest {
     }
 
     @Test
+    void phaseTwoInvalidTransactionsAreNeitherDepositsNorSettlements() {
+        // Cardano includes a transaction whose script fails, but creates none of its outputs: crediting its
+        // vault output would mint L2 value that never reached the vault, for the price of the collateral.
+        EutxoSettlementDatum settlement = EutxoSettlementDatum.forAddress(
+                1, "payments-eutxo", 3, "55".repeat(32), OWNER, BigInteger.valueOf(20));
+        Block block = Block.builder()
+                .transactionBodies(List.of(
+                        tx("c1", List.of(output(VAULT_ADDRESS, 50, datum().encode()))),
+                        tx("c2", List.of(output(OWNER, 20, null), output(VAULT_ADDRESS, 30, settlement.encode()))),
+                        tx("c3", List.of(output(VAULT_ADDRESS, 50, datum().encode()))),
+                        tx("c4", List.of(output(OWNER, 20, null), output(VAULT_ADDRESS, 30, settlement.encode())))))
+                .invalidTransactions(List.of(0, 1))
+                .build();
+        WithdrawalConfirmationObserver withdrawals =
+                new WithdrawalConfirmationObserver("bridge-withdrawals", Map.of(
+                        "chain-id", "payments-eutxo",
+                        "bridge-epoch", "3",
+                        "vault-address", VAULT_ADDRESS));
+
+        assertThat(observer().observe(108, fill(32, 15), block))
+                .singleElement()
+                .satisfies(observation -> assertThat(EutxoDepositClaim.decode(observation.claim())
+                        .acceptedOutpoint().transactionId()).isEqualTo("c3".repeat(32)));
+        assertThat(withdrawals.observe(108, fill(32, 15), block))
+                .singleElement()
+                .satisfies(observation -> assertThat(EutxoWithdrawalConfirmation.decode(observation.claim())
+                        .settlementTransactionId()).isEqualTo("c4".repeat(32)));
+    }
+
+    @Test
     void nullTransactionsAndOutputsAreSkippedWithoutHidingAGenuineDeposit() {
         Block block = Block.builder().transactionBodies(Arrays.asList(
                 null,
