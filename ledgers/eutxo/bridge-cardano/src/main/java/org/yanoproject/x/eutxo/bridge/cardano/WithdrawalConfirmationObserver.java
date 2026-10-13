@@ -52,10 +52,11 @@ final class WithdrawalConfirmationObserver implements L1Observer {
             return List.of();
         }
         List<L1Observation> observations = new ArrayList<>();
-        for (TransactionBody transaction : block.getTransactionBodies()) {
+        // A phase-2-invalid transaction created no outputs and spent no inputs; only valid ones are read.
+        for (TransactionBody transaction : ValidTransactions.of(block)) {
             EutxoWithdrawalConfirmation confirmation;
             try {
-                confirmation = confirmation(slot, blockHash, transaction);
+                confirmation = transaction == null ? null : confirmation(slot, blockHash, transaction);
             } catch (RuntimeException notASettlement) {
                 // Anyone can pay the public vault address with any datum. A transaction that is not a well-formed
                 // settlement cannot be a genuine vault spend, which the validator shapes, so it is skipped: a

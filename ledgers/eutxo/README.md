@@ -318,12 +318,24 @@ The product commands call the same typed client and print structured JSON:
   --chain payments-eutxo
 
 ./yano.sh appchain eutxo withdrawal list --chain payments-eutxo
+
+./yano.sh appchain eutxo withdrawal ignored --chain payments-eutxo
 ```
 
 The bridge commands read records the chain commits only after the L1
 transaction is `l1.stability-depth` blocks deep: a deposit record once the
 accepted output is mirrored, and a `CONFIRMED` withdrawal once its payout is.
 `withdrawal list` shows the newest 50 claims of the current bridge epoch.
+
+`deposit get` also shows a notice when the bridge did not credit a deposit
+(`UNCREDITED`; the ADA stays in the vault) or credited it without its L2 key
+binding (`CREDITED_WITHOUT_KEY_BINDING`), with the reason. `withdrawal ignored`
+counts the confirmations the ledger ignored as unauthenticated, or received
+while the bridge was halted, and shows the last one. Anyone can raise that
+count, so it is a prompt rather than evidence. A count that grows while claims
+stay pending is a reason to check those claims' settlement transactions on L1,
+because genuine settlements are also ignored when vault custody tracking
+breaks.
 
 Use `--url` for a non-default REST base. If authentication is enabled, use
 `--api-key-env <environment-variable>`; the CLI has no inline secret option and

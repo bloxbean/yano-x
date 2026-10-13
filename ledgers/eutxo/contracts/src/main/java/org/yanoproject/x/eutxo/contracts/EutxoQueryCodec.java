@@ -23,6 +23,8 @@ public final class EutxoQueryCodec {
     public static final String DEPOSIT_COUNT_PATH = "bridge/deposits/count";
     public static final String RESERVE_PATH = "bridge/reserve";
     public static final String BRIDGE_HALT_PATH = "bridge/halt";
+    public static final String DEPOSIT_NOTICE_PATH = "bridge/deposits/notice";
+    public static final String IGNORED_CONFIRMATIONS_PATH = "bridge/confirmations/ignored";
     public static final String BRIDGE_INFO_PATH = "bridge/info";
     public static final String WITHDRAWAL_PATH = "bridge/withdrawals/record";
     public static final String WITHDRAWALS_PATH = "bridge/withdrawals/records";
@@ -204,6 +206,24 @@ public final class EutxoQueryCodec {
                 bridgeHalt(new String(
                         bytes, StandardCharsets.US_ASCII)),
                 StandardCharsets.US_ASCII);
+    }
+
+    public static byte[] optionalDepositNotice(EutxoDepositNotice notice) {
+        return EutxoCbor.encodeOptionalBytes(notice == null ? null : notice.encode());
+    }
+
+    public static EutxoDepositNotice decodeOptionalDepositNotice(byte[] bytes) {
+        byte[] encoded = EutxoCbor.decodeOptionalBytes(bytes);
+        return encoded == null ? null : EutxoDepositNotice.decode(encoded);
+    }
+
+    public static byte[] optionalIgnoredConfirmations(EutxoIgnoredConfirmations ignored) {
+        return EutxoCbor.encodeOptionalBytes(ignored == null ? null : ignored.encode());
+    }
+
+    public static EutxoIgnoredConfirmations decodeOptionalIgnoredConfirmations(byte[] bytes) {
+        byte[] encoded = EutxoCbor.decodeOptionalBytes(bytes);
+        return encoded == null ? null : EutxoIgnoredConfirmations.decode(encoded);
     }
 
     public static byte[] optionalDepositRecord(EutxoDepositRecord record) {

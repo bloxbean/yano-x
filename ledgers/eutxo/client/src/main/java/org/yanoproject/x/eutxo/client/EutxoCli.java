@@ -1,7 +1,9 @@
 package org.yanoproject.x.eutxo.client;
 
 import org.yanoproject.x.client.AppChainClient;
+import org.yanoproject.x.eutxo.contracts.EutxoDepositNotice;
 import org.yanoproject.x.eutxo.contracts.EutxoDepositRecord;
+import org.yanoproject.x.eutxo.contracts.EutxoIgnoredConfirmations;
 import org.yanoproject.x.eutxo.contracts.EutxoOutpoint;
 import org.yanoproject.x.eutxo.contracts.EutxoReceipt;
 import org.yanoproject.x.eutxo.contracts.EutxoRecord;
@@ -36,6 +38,7 @@ public final class EutxoCli {
                or: ./yano.sh appchain eutxo deposit get <accepted-l1-tx-id#index> [options]
                or: ./yano.sh appchain eutxo withdrawal get <claim-id-hex> [options]
                or: ./yano.sh appchain eutxo withdrawal list [options]
+               or: ./yano.sh appchain eutxo withdrawal ignored [options]
                or: ./yano.sh appchain eutxo doctor [--expected-profile-digest <hex>] [options]
                or: ./yano.sh appchain eutxo nullifier reconstruct --ids <file> [--shard N] [--expected-root <hex>]
                or: ./yano.sh appchain eutxo nullifier proof <claim-id-hex> --ids <file>
@@ -49,6 +52,8 @@ public final class EutxoCli {
             Bridge records are written by the node only after the L1 transaction is stability-deep:
               a deposit record exists once the accepted L1 output is mirrored, and a withdrawal is
               CONFIRMED once its L1 payout is. withdrawal list shows the newest 50 claims.
+              deposit get also shows a notice when a deposit was not credited, or was credited without its
+              L2 key binding; withdrawal ignored counts confirmations ignored as unauthenticated.
             """.stripTrailing();
 
     private static final ObjectMapper JSON = new ObjectMapper();
@@ -122,6 +127,10 @@ public final class EutxoCli {
             EutxoSnapshot<Optional<EutxoDepositRecord>> snapshot = client.depositSnapshot(accepted);
             result.put("acceptedOutpoint", accepted.toString());
             result.put("deposit", snapshot.value().map(EutxoCli::depositJson).orElse(null));
+            // A second query: report its own committed height, since a block may finalize between the two.
+            EutxoSnapshot<Optional<EutxoDepositNotice>> notice = client.depositNoticeSnapshot(accepted);
+            result.put("notice", notice.value().map(EutxoCli::noticeJson).orElse(null));
+            result.put("noticeCommittedHeight", notice.committedHeight());
             root(result, snapshot);
         } else if (options.command.equals(List.of("withdrawal", "get"))) {
             String claimId = HexFormat.of().formatHex(parseClaimId(options.argument));
@@ -132,6 +141,10 @@ public final class EutxoCli {
         } else if (options.command.equals(List.of("withdrawal", "list"))) {
             EutxoSnapshot<List<EutxoWithdrawalRecord>> snapshot = client.latestWithdrawalsSnapshot(50);
             result.put("withdrawals", snapshot.value().stream().map(EutxoCli::withdrawalJson).toList());
+            root(result, snapshot);
+        } else if (options.command.equals(List.of("withdrawal", "ignored"))) {
+            EutxoSnapshot<Optional<EutxoIgnoredConfirmations>> snapshot = client.ignoredConfirmationsSnapshot();
+            result.put("ignoredConfirmations", snapshot.value().map(EutxoCli::ignoredJson).orElse(null));
             root(result, snapshot);
         } else if (options.command.equals(List.of("doctor"))) {
             EutxoSnapshot<String> snapshot = client.profileSnapshot();
@@ -301,6 +314,23 @@ public final class EutxoCli {
         return json;
     }
 
+    static Map<String, Object> noticeJson(EutxoDepositNotice notice) {
+        Map<String, Object> json = new LinkedHashMap<>();
+        json.put("outcome", notice.outcome().name());
+        json.put("reason", notice.reason());
+        json.put("height", notice.height());
+        return json;
+    }
+
+    static Map<String, Object> ignoredJson(EutxoIgnoredConfirmations ignored) {
+        Map<String, Object> json = new LinkedHashMap<>();
+        json.put("count", ignored.count());
+        json.put("lastSettlementTransactionId", ignored.lastSettlementTransactionId());
+        json.put("lastReason", ignored.lastReason());
+        json.put("lastHeight", ignored.lastHeight());
+        return json;
+    }
+
     static Map<String, Object> withdrawalJson(EutxoWithdrawalRecord record) {
         Map<String, Object> json = new LinkedHashMap<>();
         json.put("claimId", record.claim().claimId());
@@ -392,7 +422,8 @@ public final class EutxoCli {
                 options.argument = positional.get(2);
                 return options;
             }
-            if (positional.equals(List.of("withdrawal", "list"))) {
+            if (positional.equals(List.of("withdrawal", "list"))
+                    || positional.equals(List.of("withdrawal", "ignored"))) {
                 options.command = List.copyOf(positional);
                 return options;
             }
