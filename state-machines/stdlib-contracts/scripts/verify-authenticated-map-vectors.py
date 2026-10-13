@@ -264,7 +264,7 @@ def verify_vectors(values):
     require(values["value.encoding.opaque"] == "0", "opaque value encoding")
     require(values["value.encoding.canonical-cbor"] == "1",
             "canonical CBOR value encoding")
-    require(values["dependency.ccl.version"] == "0.8.0-pre5-dev1", "CCL pin")
+    require(values["dependency.ccl.version"] == "0.8.0-pre5", "CCL pin")
     require(values["profile.mpf.id"] == "mpf-blake2b256-v1", "MPF profile id")
     require(values["profile.jmt.id"] == "jmt-blake2b256-v1", "JMT profile id")
     require(values["profile.jmt.descriptor"] == "classic-radix16-blake2b256-v1",
