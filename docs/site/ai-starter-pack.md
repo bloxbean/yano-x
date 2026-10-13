@@ -43,10 +43,10 @@ yano-x  ──depends on──▶  yano
 | Value | Current |
 |---|---|
 | Yano X version | `0.1.0-pre3` |
-| Yano host version | `0.1.0-pre18-76619d9-SNAPSHOT` |
+| Yano host version | `0.1.0-pre18-3c73341-SNAPSHOT` |
 | Maven group | `org.yanoproject.x` |
 | Java | `25` |
-| Base Yano JVM ZIP | [`yano-0.1.0-pre18-76619d9.zip`](https://repo.bloxbean.org/dist/snapshots/yano/0.1.0-pre18-76619d9/yano-0.1.0-pre18-76619d9.zip) |
+| Base Yano JVM ZIP | [`yano-0.1.0-pre18-3c73341.zip`](https://repo.bloxbean.org/dist/snapshots/yano/0.1.0-pre18-3c73341/yano-0.1.0-pre18-3c73341.zip) |
 
 <!-- catalog:versions-end -->
 
