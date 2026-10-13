@@ -1260,7 +1260,7 @@ final class EvidenceScenario {
             }
             DemoInitializer.sleep(environment.config.pollInterval());
         }
-        throw new DemoException(DemoError.CLUSTER_DIVERGED);
+        throw new DemoException(DemoError.CLUSTER_DIVERGED, "AGREEMENT_TIMEOUT");
     }
 
     private YanoAuditClient.Status waitForAnchor(long height, boolean required) {
