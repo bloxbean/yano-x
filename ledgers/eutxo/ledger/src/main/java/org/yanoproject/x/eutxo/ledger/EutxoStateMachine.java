@@ -11,6 +11,8 @@ import org.yanoproject.api.appchain.AppStateReader;
 import org.yanoproject.api.appchain.AppStateWriter;
 import org.yanoproject.api.appchain.l1view.L1Observation;
 import org.yanoproject.x.eutxo.contracts.EutxoDepositClaim;
+import org.yanoproject.x.eutxo.contracts.EutxoDepositNotice;
+import org.yanoproject.x.eutxo.contracts.EutxoIgnoredConfirmations;
 import org.yanoproject.x.eutxo.contracts.EutxoDepositRecord;
 import org.yanoproject.x.eutxo.contracts.EutxoOutpoint;
 import org.yanoproject.x.eutxo.contracts.EutxoProfile;
@@ -54,7 +56,9 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.TreeMap;
 
 /** Optional genesis-funded Cardano-shaped EUTxO app-chain state machine. */
 public final class EutxoStateMachine implements AppStateMachine {
@@ -218,12 +222,17 @@ public final class EutxoStateMachine implements AppStateMachine {
                 ordinal++;
                 continue;
             }
+            // Observed L1 content is never an apply failure: a throw stalls the chain for good, because every
+            // proposal must carry the same pending observation. Content that cannot be credited or authenticated
+            // is a deterministic no-op instead.
             if (bridge.enabled() && bridge.topic().equals(message.getTopic())) {
-                importDeposit(acceptedDeposit(context.l1ObservationAt(originalMessageIndex)
-                                .orElseThrow(() -> new IllegalArgumentException(
-                                        "accepted bridge observation is missing from execution context"))
-                                .observation()),
-                        block.height(), writer);
+                EutxoDepositClaim claim = creditableDeposit(context.l1ObservationAt(originalMessageIndex)
+                        .orElseThrow(() -> new IllegalArgumentException(
+                                "accepted bridge observation is missing from execution context"))
+                        .observation());
+                if (claim != null) {
+                    importDeposit(claim, block.height(), writer);
+                }
                 ordinal++;
                 continue;
             }
@@ -232,24 +241,46 @@ public final class EutxoStateMachine implements AppStateMachine {
                 if (settlementProfile()) {
                     // v3 (A2 batch) settlement: one observation confirms the
                     // whole batch; clear each positional claim in order.
-                    EutxoBatchWithdrawalConfirmation batch =
-                            batchWithdrawalConfirmation(context.l1ObservationAt(originalMessageIndex)
-                                    .orElseThrow(() -> new IllegalArgumentException(
-                                            "accepted withdrawal observation is missing from execution context"))
-                                    .observation());
-                    if (applyVaultCustody(batch, writer)) {
+                    L1Observation observation = context.l1ObservationAt(originalMessageIndex)
+                            .orElseThrow(() -> new IllegalArgumentException(
+                                    "accepted withdrawal observation is missing from execution context"))
+                            .observation();
+                    EutxoBatchWithdrawalConfirmation batch;
+                    try {
+                        batch = batchWithdrawalConfirmation(observation);
+                    } catch (IllegalArgumentException notThisBridge) {
+                        batch = null;
+                        recordIgnoredConfirmation(writer, observation, null, "NOT_THIS_BRIDGE", block.height());
+                    }
+                    // Spending tracked vault custody authenticates the batch; only then may a mismatch halt. An
+                    // exact replay of a settlement already applied changes nothing and is not an ignored one.
+                    if (batch != null && !alreadyApplied(batch, writer)
+                            && applyVaultCustody(batch, block.height(), writer)) {
                         for (EutxoWithdrawalConfirmation confirmation :
                                 batch.confirmations()) {
-                            confirmWithdrawal(confirmation, block.height(), writer);
+                            confirmWithdrawal(confirmation, block.height(), writer, true);
                         }
                     }
                 } else {
-                    confirmWithdrawal(
-                            withdrawalConfirmation(context.l1ObservationAt(originalMessageIndex)
-                                    .orElseThrow(() -> new IllegalArgumentException(
-                                            "accepted withdrawal observation is missing from execution context"))
-                                    .observation()),
-                            block.height(), writer);
+                    L1Observation observation = context.l1ObservationAt(originalMessageIndex)
+                            .orElseThrow(() -> new IllegalArgumentException(
+                                    "accepted withdrawal observation is missing from execution context"))
+                            .observation();
+                    EutxoWithdrawalConfirmation confirmation;
+                    try {
+                        confirmation = withdrawalConfirmation(observation);
+                    } catch (IllegalArgumentException notThisBridge) {
+                        confirmation = null;
+                        recordIgnoredConfirmation(writer, observation, null, "NOT_THIS_BRIDGE", block.height());
+                    }
+                    // A single-claim confirmation proves no vault spend, so anyone can fabricate one: it may
+                    // confirm an exact pending claim, but a mismatch is ignored rather than halting the bridge.
+                    // An exact match is confirmed even while the bridge is halted. It means the claimant was paid
+                    // the exact amount on L1; a halt never clears and each observation is used once, so dropping
+                    // it would leave a real payout pending forever and invite paying it twice.
+                    if (confirmation != null) {
+                        confirmWithdrawal(confirmation, block.height(), writer, false);
+                    }
                 }
                 ordinal++;
                 continue;
@@ -275,6 +306,13 @@ public final class EutxoStateMachine implements AppStateMachine {
                     result = UtxoTransitionEngine.TransitionResult.reject(
                             result.transactionId(), failure.code(), failure.getMessage());
                 }
+            }
+            // putRecord throws past the address bound, and an apply throw stalls the chain, because the proposer
+            // retries the same pool messages; a transaction that would overfill an address is rejected instead.
+            if (result.accepted() && exceedsAddressBound(result, withdrawalPlan, writer)) {
+                withdrawalPlan = WithdrawalPlan.empty();
+                result = UtxoTransitionEngine.TransitionResult.reject(result.transactionId(),
+                        "EUTXO_ADDRESS_BOUND", "an output address would exceed the profile's UTxO bound");
             }
             List<EutxoRecord> resolvedInputs = result.accepted()
                     ? result.resolvedInputs() : List.of();
@@ -506,6 +544,18 @@ public final class EutxoStateMachine implements AppStateMachine {
                     yield EutxoQueryCodec.optionalReserve(
                             state.get(EutxoStateKeys.reserve(assetId))
                                     .map(EutxoReserve::decode).orElse(null));
+                }
+                case EutxoQueryCodec.DEPOSIT_NOTICE_PATH -> {
+                    EutxoOutpoint outpoint = EutxoQueryCodec.decodeDepositRequest(params);
+                    yield EutxoQueryCodec.optionalDepositNotice(
+                            state.get(EutxoStateKeys.depositNotice(outpoint))
+                                    .map(EutxoDepositNotice::decode).orElse(null));
+                }
+                case EutxoQueryCodec.IGNORED_CONFIRMATIONS_PATH -> {
+                    requireEmptyQuery(params);
+                    yield EutxoQueryCodec.optionalIgnoredConfirmations(
+                            state.get(EutxoStateKeys.ignoredConfirmations())
+                                    .map(EutxoIgnoredConfirmations::decode).orElse(null));
                 }
                 case EutxoQueryCodec.BRIDGE_HALT_PATH -> {
                     requireEmptyQuery(params);
@@ -1013,14 +1063,58 @@ public final class EutxoStateMachine implements AppStateMachine {
         return claim;
     }
 
+    /** Records the first notice for an accepted outpoint; a later observation of the same outpoint adds nothing. */
+    private static void recordDepositNotice(
+            AppStateWriter writer,
+            EutxoDepositClaim claim,
+            EutxoDepositNotice.Outcome outcome,
+            String reason,
+            long height
+    ) {
+        byte[] key = EutxoStateKeys.depositNotice(claim.acceptedOutpoint());
+        if (writer.get(key).isEmpty()) {
+            writer.put(key, new EutxoDepositNotice(claim.acceptedOutpoint(), outcome, reason, height).encode());
+        }
+    }
+
+    /**
+     * Counts one ignored confirmation and keeps it as the last one. The settlement transaction id comes from the
+     * confirmation, or, when it could not be decoded, from the observation's transaction anchor.
+     */
+    private static void recordIgnoredConfirmation(
+            AppStateWriter writer,
+            L1Observation observation,
+            String settlementTransactionId,
+            String reason,
+            long height
+    ) {
+        String transactionId = settlementTransactionId;
+        if (transactionId == null && observation != null
+                && observation.anchor() instanceof L1Observation.TransactionAnchor anchor) {
+            transactionId = HexFormat.of().formatHex(anchor.transactionHash());
+        }
+        if (transactionId == null || !transactionId.matches("[0-9a-f]{64}")) {
+            return;
+        }
+        byte[] key = EutxoStateKeys.ignoredConfirmations();
+        EutxoIgnoredConfirmations previous = writer.get(key).map(EutxoIgnoredConfirmations::decode).orElse(null);
+        writer.put(key, EutxoIgnoredConfirmations.next(previous, transactionId, reason, height).encode());
+    }
+
+    /** The deposit an observation claims, or null when it is not a deposit this bridge can credit. */
+    private EutxoDepositClaim creditableDeposit(L1Observation observation) {
+        try {
+            return acceptedDeposit(observation);
+        } catch (IllegalArgumentException notCreditable) {
+            return null;
+        }
+    }
+
     private void importDeposit(
             EutxoDepositClaim claim,
             long creditedHeight,
             AppStateWriter writer
     ) {
-        if (writer.get(EutxoStateKeys.bridgeHalt()).isPresent()) {
-            return;
-        }
         EutxoDepositRecord expected = new EutxoDepositRecord(
                 claim, claim.mirroredOutpoint(), creditedHeight);
         byte[] depositKey = EutxoStateKeys.deposit(claim.acceptedOutpoint());
@@ -1028,11 +1122,11 @@ public final class EutxoStateMachine implements AppStateMachine {
                 .map(EutxoDepositRecord::decode)
                 .orElse(null);
         if (existing != null) {
-            if (!existing.claim().equals(claim)
-                    || !existing.mirroredOutpoint().equals(expected.mirroredOutpoint())) {
-                throw new IllegalStateException(
-                        "accepted L1 outpoint is bound to a different bridge deposit");
-            }
+            // Already credited; an outpoint is bound to its first deposit, so a different claim credits nothing.
+            return;
+        }
+        if (writer.get(EutxoStateKeys.bridgeHalt()).isPresent()) {
+            recordDepositNotice(writer, claim, EutxoDepositNotice.Outcome.UNCREDITED, "BRIDGE_HALTED", creditedHeight);
             return;
         }
         EutxoRecord mirrored = new EutxoRecord(
@@ -1041,15 +1135,32 @@ public final class EutxoStateMachine implements AppStateMachine {
                 claim.mirroredOutputCbor(),
                 EutxoRecord.Origin.L1_DEPOSIT);
         if (writer.get(EutxoStateKeys.utxo(mirrored.outpoint())).isPresent()) {
-            throw new IllegalStateException("derived bridge outpoint already exists");
+            // The derived outpoint is taken; crediting it again would overwrite an output.
+            recordDepositNotice(writer, claim, EutxoDepositNotice.Outcome.UNCREDITED, "OUTPOINT_TAKEN",
+                    creditedHeight);
+            return;
+        }
+        if (addressRecords(writer, mirrored.address()).size() >= profile.maxAddressUtxos()) {
+            // The L2 address is full, and putRecord would throw past the bound; credit nothing.
+            recordDepositNotice(writer, claim, EutxoDepositNotice.Outcome.UNCREDITED, "ADDRESS_FULL",
+                    creditedHeight);
+            return;
         }
         BigInteger lovelace = mirroredLovelace(claim);
+        // A binding that cannot be applied never strands the deposit: it is credited without registering a key.
+        L2KeyWrite keyWrite = l2KeyRegistration(claim, writer);
         byte[] reserveKey = EutxoStateKeys.reserve(EutxoReserve.LOVELACE);
         EutxoReserve reserve = writer.get(reserveKey)
                 .map(EutxoReserve::decode)
                 .orElseGet(() -> EutxoReserve.empty(EutxoReserve.LOVELACE))
                 .credit(lovelace);
-        importL2KeyBinding(claim, writer);
+        if (keyWrite.key() != null) {
+            writer.put(keyWrite.key(), keyWrite.value());
+        }
+        if (keyWrite.notAppliedReason() != null) {
+            recordDepositNotice(writer, claim, EutxoDepositNotice.Outcome.CREDITED_WITHOUT_KEY_BINDING,
+                    keyWrite.notAppliedReason(), creditedHeight);
+        }
         putRecord(writer, mirrored);
         writer.put(depositKey, expected.encode());
         long depositSequence = Math.addExact(
@@ -1068,37 +1179,65 @@ public final class EutxoStateMachine implements AppStateMachine {
         }
     }
 
-    private void importL2KeyBinding(
+    /**
+     * The L2 key registration a deposit's binding produces: none (no binding, or the identical registration
+     * exists), one new registration, or none with the reason the binding was not applied.
+     */
+    private record L2KeyWrite(byte[] key, byte[] value, String notAppliedReason) {
+        static final L2KeyWrite NONE = new L2KeyWrite(null, null, null);
+
+        static L2KeyWrite notApplied(String reason) {
+            return new L2KeyWrite(null, null, reason);
+        }
+    }
+
+    /**
+     * Checks a deposit's L2 key binding without writing. The binding is applied only when the depositor signed the
+     * accepting transaction (the Cardano ledger enforces required signers), the chain selects its authorization
+     * profile, the L2 address is key-controlled by that depositor, and no different registration exists. The
+     * datum's key hash and address alone prove nothing: whoever creates the vault output chooses both, and anyone
+     * can accept a staged deposit. It never throws, because a throw while applying an observation stalls the chain.
+     */
+    private L2KeyWrite l2KeyRegistration(
             EutxoDepositClaim claim,
-            AppStateWriter writer
+            AppStateReader state
+    ) {
+        try {
+            return checkedL2KeyRegistration(claim, state);
+        } catch (RuntimeException unusable) {
+            // An unusual address or binding must never fail the block; it simply does not register a key.
+            return L2KeyWrite.notApplied("KEY_BINDING_INVALID");
+        }
+    }
+
+    private L2KeyWrite checkedL2KeyRegistration(
+            EutxoDepositClaim claim,
+            AppStateReader state
     ) {
         if (!claim.l2KeyBinding().present()) {
-            return;
+            return L2KeyWrite.NONE;
+        }
+        if (!claim.depositorSigned()) {
+            return L2KeyWrite.notApplied("KEY_BINDING_UNSIGNED");
         }
         if (validityEngine == null
                 || !validityEngine.authorizationProfile().equals(
                 claim.l2KeyBinding().authorizationProfile())) {
-            throw new IllegalStateException(
-                    "deposit L2 key binding differs from the selected authorization profile");
+            return L2KeyWrite.notApplied("KEY_BINDING_PROFILE");
         }
         Address address;
         try {
             address = new Address(claim.l2Address());
         } catch (RuntimeException failure) {
-            throw new IllegalStateException(
-                    "deposit L2 key binding has an invalid address", failure);
+            return L2KeyWrite.notApplied("KEY_BINDING_ADDRESS");
         }
         if (!AddressProvider.isPubKeyHashInPaymentPart(address)) {
-            throw new IllegalStateException(
-                    "deposit L2 key binding requires a key-controlled address");
+            return L2KeyWrite.notApplied("KEY_BINDING_ADDRESS");
         }
-        byte[] paymentCredential = address.getPaymentCredentialHash()
-                .orElseThrow(() -> new IllegalStateException(
-                        "deposit L2 key binding has no payment credential"));
-        if (!java.util.Arrays.equals(
-                paymentCredential, claim.depositorKeyHash())) {
-            throw new IllegalStateException(
-                    "deposit L2 key binding is not authorized by its depositor");
+        byte[] paymentCredential = address.getPaymentCredentialHash().orElse(null);
+        if (paymentCredential == null
+                || !java.util.Arrays.equals(paymentCredential, claim.depositorKeyHash())) {
+            return L2KeyWrite.notApplied("KEY_BINDING_DEPOSITOR");
         }
         String credential = HexFormat.of().formatHex(paymentCredential);
         EutxoL2KeyRegistration registration =
@@ -1109,15 +1248,13 @@ public final class EutxoStateMachine implements AppStateMachine {
                         claim.l2KeyBinding().publicKey(),
                         EutxoL2KeyRegistration.Status.ACTIVE);
         byte[] key = EutxoStateKeys.l2Key(credential);
-        EutxoL2KeyRegistration existing = writer.get(key)
+        EutxoL2KeyRegistration existing = state.get(key)
                 .map(EutxoL2KeyRegistration::decode)
                 .orElse(null);
         if (existing == null) {
-            writer.put(key, registration.encode());
-        } else if (!existing.equals(registration)) {
-            throw new IllegalStateException(
-                    "deposit conflicts with the active L2 key registration");
+            return new L2KeyWrite(key, registration.encode(), null);
         }
+        return existing.equals(registration) ? L2KeyWrite.NONE : L2KeyWrite.notApplied("KEY_BINDING_CONFLICT");
     }
 
     private static BigInteger mirroredLovelace(EutxoDepositClaim claim) {
@@ -1176,6 +1313,19 @@ public final class EutxoStateMachine implements AppStateMachine {
         return confirmation;
     }
 
+    /** Whether every claim of this batch is already CONFIRMED by this same settlement transaction. */
+    private static boolean alreadyApplied(EutxoBatchWithdrawalConfirmation batch, AppStateReader state) {
+        for (EutxoWithdrawalConfirmation confirmation : batch.confirmations()) {
+            EutxoWithdrawalRecord record = state.get(EutxoStateKeys.withdrawal(confirmation.claimId()))
+                    .map(EutxoWithdrawalRecord::decode).orElse(null);
+            if (record == null || record.status() != EutxoWithdrawalRecord.Status.CONFIRMED
+                    || !record.settlementTransactionId().equals(batch.settlementTransactionId())) {
+                return false;
+            }
+        }
+        return !batch.confirmations().isEmpty();
+    }
+
     /**
      * Authenticity gate for a batch settlement (ADR-UTXO-009 review fix):
      * the confirmed transaction must have SPENT a tracked live vault
@@ -1183,14 +1333,19 @@ public final class EutxoStateMachine implements AppStateMachine {
      * output, but only a genuine Settle/Exit spend consumes vault custody —
      * which only the on-chain validator authorizes. On success the custody
      * set rotates: matched outpoints leave, the continuing output enters.
-     * Returns false (and halts the bridge) when no tracked outpoint was
-     * spent.
+     * Returns false when the bridge is halted or no tracked outpoint was
+     * spent; it then changes no custody, claim or reserve state and only
+     * counts the confirmation as ignored.
      */
     private boolean applyVaultCustody(
             EutxoBatchWithdrawalConfirmation confirmation,
+            long height,
             AppStateWriter writer
     ) {
         if (writer.get(EutxoStateKeys.bridgeHalt()).isPresent()) {
+            // Counted, so settlements that land on L1 while the bridge is halted are visible when reconciling.
+            recordIgnoredConfirmation(writer, null, confirmation.settlementTransactionId(), "BRIDGE_HALTED",
+                    height);
             return false;
         }
         boolean spendsVault = false;
@@ -1202,7 +1357,11 @@ public final class EutxoStateMachine implements AppStateMachine {
             }
         }
         if (!spendsVault) {
-            haltBridge(writer, "WITHDRAWAL_CONFIRMATION_UNPROVEN");
+            // Not a vault spend, so not a settlement: anyone can fabricate this marker. Ignoring it changes no
+            // reserve accounting; halting would hand every L1 user a free bridge halt. The trace still shows a
+            // genuine settlement ignored because custody tracking broke.
+            recordIgnoredConfirmation(writer, null, confirmation.settlementTransactionId(),
+                    "CUSTODY_UNPROVEN", height);
             return false;
         }
         writer.put(EutxoStateKeys.bridgeVaultOutpoint(
@@ -1245,17 +1404,28 @@ public final class EutxoStateMachine implements AppStateMachine {
         return confirmation;
     }
 
+    /**
+     * Confirms an exact pending claim. {@code authenticated} means the confirming transaction spent tracked vault
+     * custody, so a disagreement with L2 is a real alarm and halts the bridge; an unauthenticated confirmation
+     * that does not match a pending claim exactly is ignored, because anyone can fabricate one.
+     */
     private void confirmWithdrawal(
             EutxoWithdrawalConfirmation confirmation,
             long height,
-            AppStateWriter writer
+            AppStateWriter writer,
+            boolean authenticated
     ) {
         byte[] key = EutxoStateKeys.withdrawal(confirmation.claimId());
         EutxoWithdrawalRecord record = writer.get(key)
                 .map(EutxoWithdrawalRecord::decode)
                 .orElse(null);
         if (record == null) {
-            haltBridge(writer, "UNKNOWN_WITHDRAWAL_CONFIRMATION");
+            if (authenticated) {
+                haltBridge(writer, "UNKNOWN_WITHDRAWAL_CONFIRMATION");
+            } else {
+                recordIgnoredConfirmation(writer, null, confirmation.settlementTransactionId(),
+                        "UNKNOWN_CLAIM", height);
+            }
             return;
         }
         EutxoWithdrawalClaim claim = record.claim();
@@ -1264,7 +1434,12 @@ public final class EutxoStateMachine implements AppStateMachine {
                 confirmation.destinationAddress())
                 || !claim.lovelace().equals(confirmation.lovelace())
                 || claim.bridgeEpoch() != confirmation.bridgeEpoch()) {
-            haltBridge(writer, "WITHDRAWAL_CONFIRMATION_MISMATCH");
+            if (authenticated) {
+                haltBridge(writer, "WITHDRAWAL_CONFIRMATION_MISMATCH");
+            } else {
+                recordIgnoredConfirmation(writer, null, confirmation.settlementTransactionId(),
+                        "CLAIM_MISMATCH", height);
+            }
             return;
         }
         EutxoWithdrawalRecord confirmed;
@@ -1275,7 +1450,12 @@ public final class EutxoStateMachine implements AppStateMachine {
                     confirmation.l1BlockHash(),
                     height);
         } catch (IllegalStateException mismatch) {
-            haltBridge(writer, "WITHDRAWAL_CONFIRMATION_REBIND");
+            if (authenticated) {
+                haltBridge(writer, "WITHDRAWAL_CONFIRMATION_REBIND");
+            } else {
+                recordIgnoredConfirmation(writer, null, confirmation.settlementTransactionId(),
+                        "CLAIM_REBIND", height);
+            }
             return;
         }
         if (confirmed == record) {
@@ -1565,6 +1745,29 @@ public final class EutxoStateMachine implements AppStateMachine {
             throw new IllegalArgumentException("committed counter cannot be negative");
         }
         return value;
+    }
+
+    /** Whether applying this transaction would leave any address with more UTxOs than the profile allows. */
+    private boolean exceedsAddressBound(
+            UtxoTransitionEngine.TransitionResult result,
+            WithdrawalPlan withdrawalPlan,
+            AppStateReader state
+    ) {
+        Map<String, Integer> added = new TreeMap<>();
+        for (EutxoRecord record : result.created()) {
+            if (!withdrawalPlan.outpoints().contains(record.outpoint())) {
+                added.merge(record.address(), 1, Integer::sum);
+            }
+        }
+        for (Map.Entry<String, Integer> entry : added.entrySet()) {
+            List<EutxoRecord> existing = addressRecords(state, entry.getKey());
+            long remaining = existing.stream().filter(record -> !result.consumed().contains(record.outpoint()))
+                    .count();
+            if (remaining + entry.getValue() > profile.maxAddressUtxos()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void putRecord(AppStateWriter writer, EutxoRecord record) {
