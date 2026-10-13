@@ -3,8 +3,8 @@
 > Single-file dump of the Yano X docsite, suitable for AI agent ingestion.
 
 yanoXVersion: 0.1.0-pre3
-yanoVersion: 0.1.0-pre17
-Generated: 2026-10-09T12:14:41.529Z
+yanoVersion: 0.1.0-pre18-3c73341-SNAPSHOT
+Generated: 2026-10-13T12:45:32.024Z
 Site: https://yano-x.io
 Repo: https://github.com/bloxbean/yano-x
 
@@ -15,7 +15,7 @@ Repo: https://github.com/bloxbean/yano-x
   products, SDKs, and the batteries-included JVM distribution. The dependency
   direction is strictly `yano-x -> yano` and must never be inverted, nor satisfied
   with a composite Gradle build or a sibling source checkout.
-- **Versions:** Yano X `0.1.0-pre3` builds against Yano `0.1.0-pre17`, Java 25.
+- **Versions:** Yano X `0.1.0-pre3` builds against Yano `0.1.0-pre18-3c73341-SNAPSHOT`, Java 25.
   Start with a matching release archive; build from source for unpublished changes.
 - **Yano X is JVM-only.** Never add GraalVM/native-image tasks, reachability
   metadata, or native executables. `verifyJvmOnlyBuild` enforces this.
@@ -84,6 +84,7 @@ Repo: https://github.com/bloxbean/yano-x
 - [Declarative bindings → 4. Java integration](https://yano-x.io/bindings/java-integration/)
 - [Declarative bindings → 5. Operate, diagnose and evolve a workflow](https://yano-x.io/bindings/operations-and-upgrades/)
 - [Declarative bindings → 6. Author bindings in the Studio editor](https://yano-x.io/bindings/guided-editor/)
+- [Declarative bindings → 7. Admission rules](https://yano-x.io/bindings/admission-rules/)
 - [State machines → App-Chain State-Machine References](https://yano-x.io/state-machines/)
 - [State machines → `approvals` State Machine](https://yano-x.io/state-machines/approvals/)
 - [State machines → Authenticated-map value validation](https://yano-x.io/state-machines/authenticated-map-validation/)
@@ -337,10 +338,10 @@ yano-x  ──depends on──▶  yano
 | Value | Current |
 |---|---|
 | Yano X version | `0.1.0-pre3` |
-| Yano host version | `0.1.0-pre17` |
+| Yano host version | `0.1.0-pre18-3c73341-SNAPSHOT` |
 | Maven group | `org.yanoproject.x` |
 | Java | `25` |
-| Base Yano JVM ZIP | [`yano-0.1.0-pre17.zip`](https://github.com/bloxbean/yano/releases/download/v0.1.0-pre17/yano-0.1.0-pre17.zip) |
+| Base Yano JVM ZIP | [`yano-0.1.0-pre18-3c73341.zip`](https://repo.bloxbean.org/dist/snapshots/yano/0.1.0-pre18-3c73341/yano-0.1.0-pre18-3c73341.zip) |
 
 <!-- catalog:versions-end -->
 
@@ -1253,10 +1254,10 @@ Then supply the matching inputs explicitly:
 | Value | Current |
 |---|---|
 | Yano X version | `0.1.0-pre3` |
-| Yano host version | `0.1.0-pre17` |
+| Yano host version | `0.1.0-pre18-3c73341-SNAPSHOT` |
 | Maven group | `org.yanoproject.x` |
 | Java | `25` |
-| Base Yano JVM ZIP | [`yano-0.1.0-pre17.zip`](https://github.com/bloxbean/yano/releases/download/v0.1.0-pre17/yano-0.1.0-pre17.zip) |
+| Base Yano JVM ZIP | [`yano-0.1.0-pre18-3c73341.zip`](https://repo.bloxbean.org/dist/snapshots/yano/0.1.0-pre18-3c73341/yano-0.1.0-pre18-3c73341.zip) |
 
 <!-- catalog:versions-end -->
 
@@ -1360,12 +1361,17 @@ tools/yano-plugins/bin/yano-plugins validate plugins/*.jar
 
 #### Building against a different Yano version
 
-If you need a Yano line other than the pinned one — a newer pre-release, or a
-staged build — pass it explicitly:
+If you need a Yano line other than the pinned one — a newer pre-release, a
+commit snapshot, or a staged build — pass it explicitly:
 
 ```bash
 ### A different released Yano version: the ZIP still resolves from its release.
 ./gradlew clean build -PyanoVersion=<released-yano-version> -PskipSigning=true
+
+### A Yano commit snapshot, e.g. 0.1.0-pre18-3c73341-SNAPSHOT: the jars resolve
+### from repo.bloxbean.org/maven/snapshots and the ZIP from the matching
+### repo.bloxbean.org/dist/snapshots/yano/<version>/ (version without -SNAPSHOT).
+./gradlew clean build -PyanoVersion=<yano-snapshot-version> -PskipSigning=true
 
 ### A staged Maven repository plus an exact ZIP.
 ./gradlew clean build \
@@ -1377,8 +1383,9 @@ staged build — pass it explicitly:
 
 The Maven version and the JVM ZIP identity must match exactly. `verifyYanoInputs`
 rejects a base ZIP whose root directory, JAR implementation version, or
-distribution manifest disagrees with `yanoVersion`. Snapshot and locally staged
-versions never fall back to a GitHub release asset and must supply
+distribution manifest disagrees with `yanoVersion`, and a snapshot ZIP whose
+SHA-256 differs from its published `manifest.json`. Snapshots never fall back to
+a GitHub release asset, and locally built or staged versions must supply
 `yanoJvmDist`.
 
 #### Troubleshooting
@@ -1387,7 +1394,8 @@ versions never fall back to a GitHub release asset and must supply
 |---|---|
 | `Unsupported class file major version` or a Java-version error | Yano X requires Java 25. Point `JAVA_HOME` at a 25 JDK. |
 | The build tries to reach Maven Local and fails | `mavenLocal()` is disabled unless `-PuseMavenLocal=true`. That flag belongs to the contributor track; you should not need it. |
-| A missing release asset for `yanoVersion` | You are on a SNAPSHOT or staged Yano version. Supply `-PyanoJvmDist` with the exact matching ZIP. |
+| A missing release asset for `yanoVersion` | You are on a staged or locally built Yano version. Supply `-PyanoJvmDist` with the exact matching ZIP. |
+| `Could not find org.yanoproject-snapshot:yano` | Yano publishes snapshot jars and the snapshot ZIP in separate workflows; the ZIP for that commit is not published yet. Wait for it, or pick a commit listed in `repo.bloxbean.org/dist/snapshots/yano/latest.json`. |
 | `verifyJvmOnlyBuild` fails | Something introduced a native-image build or distribution task. Yano X is JVM-only by decision. |
 | A native distribution is rejected by `appchain doctor` | Yano X plugins target the JVM host. Use the `yano-x-jvm` archive. |
 
@@ -5956,6 +5964,7 @@ archive includes the feature.
 | Application developer | [4. Java integration](https://yano-x.io/bindings/java-integration/) | Submit normal commands with the Java APIs and inspect the workflow outcome |
 | Advanced | [5. Operations and upgrades](https://yano-x.io/bindings/operations-and-upgrades/) | Diagnose rejections, discover proof keys, size budgets and plan safe evolution |
 | Any level | [6. Author bindings in the Studio editor](https://yano-x.io/bindings/guided-editor/) | Build the same documents with catalog-guided forms, hand them to the CLI and read its reports |
+| Intermediate | [7. Admission rules](https://yano-x.io/bindings/admission-rules/) | Attach forbid-only rules to components: limits, arrival checks and verified roles, with refusals as provable receipts |
 
 Start with chapter 1; it needs Java 25 and an extracted matching JVM distribution,
 but no Cardano funds, node cluster or private keys. Familiarity with YAML is enough.
@@ -6222,7 +6231,9 @@ Change the condition to `event.valueLength < 2` and run the same fixture again
 as a fresh height-1 rehearsal. The two-byte value no longer matches. The registry
 put still succeeds, but no audit append is derived. A **false condition skips a
 binding**; it does not reject the source command. A mapping or target rejection,
-on the other hand, rejects the cascade and rolls back its business changes.
+on the other hand, rejects the cascade and rolls back its business changes. To
+refuse a command itself, attach an [admission rule](https://yano-x.io/bindings/admission-rules/) to its
+component.
 
 Restore `< 100` before continuing. This edit creates a different committed
 program; on a real chain it would require qualified profile evolution.
@@ -6406,9 +6417,11 @@ match its target field's type. For example, the procurement recipe uses
 
 There are no loops, comprehensions, list/map construction, nested object
 traversal, floating point, regex, clock, randomness, network calls, or Java
-access. Even general CEL functions such as `size(event.currency)` are outside
-this profile. Named mapping functions use `fn`, not arbitrary function calls
-inside `expr`.
+access. The only functions are `size(x)`, the UTF-8 byte length of text or the
+length of bytes, and `startsWith(x, prefix)` (also written
+`x.startsWith(prefix)`) for text or bytes. Admission rules add the write-view
+quantifiers `writes.all` and `writes.exists` ([chapter 7](https://yano-x.io/bindings/admission-rules/)).
+Named mapping functions use `fn`, not arbitrary function calls inside `expr`.
 
 Integers are signed 64-bit values. Overflow and division by zero produce
 deterministic errors; division truncates toward zero. Conditional branches are
@@ -6425,7 +6438,8 @@ cascade rather than quietly treating the condition as false.
 
 #### Map values without implicit conversions
 
-Each source is exactly one of `field`, `literal`, `fn` with `args`, or `expr`.
+Each source is exactly one of `field`, `context`, `literal`, `fn` with `args`, or
+`expr`.
 The four scalar types are integer, boolean, text, and bytes. Write a byte
 literal as `{literal: {bytesHex: '00ff'}}`; `'00ff'` alone is text. Nested
 application values travel as canonical CBOR bytes, not arbitrary YAML objects.
@@ -6456,6 +6470,30 @@ proposal; the document itself is not placed on chain. `cbor-field` neither
 parses JSON nor traverses arbitrary nested maps. Malformed input or a missing
 field rejects the cascade. Function nesting is limited to two levels and eight
 arguments per call.
+
+#### Read the step context
+
+Besides the event, a binding can read the **step context** of the step that
+produced it, as `{context: name}` or `context.<name>` in an expression:
+
+| Field | Type | Meaning |
+|---|---|---|
+| `height` | integer | The block height of the source message |
+| `sender` | bytes | The source message's sender, the same at every depth |
+| `derived` | boolean | False for the source command, true for a command a binding derived |
+| `depth` | integer | 0 for the source command, then 1, 2, … along the cascade |
+| `binding` | text | The binding that derived the step; empty for the source command |
+
+For example, `{expr: '!context.derived'}` makes a binding fire only for commands
+submitted directly, and `{context: sender}` is a lookup key for the submitting
+member. There is no timestamp: bindings stay deterministic. Context values are
+never evidence, so they cannot be mapped into an evidence field.
+
+Each use site has its own scopes. Bindings read `event.*` and `context.*`.
+[Admission rules](https://yano-x.io/bindings/admission-rules/) read `context.*` for the step they judge,
+plus `command.*`, `params.*`, `config.*` and verified `facts.*`, and never the
+event. Using a scope that is not available is reported as `RULE_SCOPE_INVALID`
+with the position of the offending identifier.
 
 #### Native events versus the baseline event
 
@@ -6809,6 +6847,20 @@ write together, preserves the pending proposal/action, and retains the crypto
 work charge. Selecting `apply-basic-action` does not bypass a collection's
 authorization policy.
 
+#### Restrict who may approve or write
+
+The approval policy decides who can approve. A deployment can narrow that further
+with [admission rules](https://yano-x.io/bindings/admission-rules/) that read the facts the kernels have
+already verified. `examples/bindings/dpp-role-gated.yaml` adds two rules to the
+DPP recipe above: `allowed-organization` refuses approvals from actors outside
+`cert-body-a` after the approval kernel verified the signature, and
+`operator-for-direct-writes` refuses direct actor-signed map writes by actors
+without the `operator` role. Approval-referenced writes through `apply-approved`
+carry no direct actor, so the approval policy alone governs them. A forged
+approval never reaches a rule: the kernel rejects it with its own code.
+`BindingRecipesIT` runs this recipe on three nodes, and its fixtures with a
+governed context are in `examples/bindings/fixtures/dpp-role-gated/`.
+
 #### Know what the recipes do not supply
 
 The initial actor leaf is genesis-fixed: it has no actor rotation or derived
@@ -6854,7 +6906,7 @@ Use a matching, locally published Yano X version when these APIs are not in a
 released artifact. Do not infer availability from an older SDK or copy a
 historical example's local version number. The node also needs the exact Yano
 host build and matching JVM ZIP required by its plugin bundles; current
-declarative admission requires host plugin API level 11.
+declarative bindings and admission rules require host plugin API level 12.
 
 #### Separate command use from binding authoring
 
@@ -7149,11 +7201,12 @@ and [upgrade preflight guide](https://yano-x.io/reference/declarative-bindings-u
 
 | Observation | Meaning | Next action |
 |---|---|---|
-| HTTP 400 application rejection | The submitted command failed early admission; it was not pooled | Correct its encoding, size or other stated invalidity and submit again |
+| HTTP 400 application rejection | The submitted command failed early admission, possibly a static admission rule; it was not pooled | Correct its encoding, size or other stated invalidity and submit again; the node's DEBUG admission log names a refusing rule |
 | HTTP 503 admission unavailable | The admission callback could not complete | Investigate node warnings and plugin health; it is not business acceptance |
 | HTTP 202 | The node accepted the submission into its processing path | Wait for finalization, then inspect the receipt |
 | Finalized accepted receipt | This source's cascade committed | Inspect the resulting business state; external delivery may still be pending |
 | Finalized rejected receipt | This source's business writes and effects did not commit | Read the code and failed step, correct the cause and submit a fresh signed message if appropriate |
+| Finalized `ADMISSION_RULE_*` receipt | An admission rule refused a step; the whole cascade rolled back | Read the failed step's rule trace: the rule, clause and deny code say which requirement did not hold |
 
 Early admission cannot know all future state or remaining block capacity. A
 well-formed command can therefore still fail during execution. The host does
@@ -7200,7 +7253,9 @@ An app-final proof is not automatically a Cardano-anchored proof; see
    all clauses matched, but a pre-clause budget failure also uses it; read the
    rejection code and step together. Unvisited bindings have no invented trace.
 5. Verify mapping types and target admission/authorization. A successful source
-   transition alone does not guarantee its derived target succeeds.
+   transition alone does not guarantee its derived target succeeds; an
+   [admission rule](https://yano-x.io/bindings/admission-rules/) on the target may refuse it, and each
+   step's `rulesEvaluated` trace names that rule.
 6. Check event, work, fan-out, receipt and effect bounds. The
    [rejection-code table](https://yano-x.io/reference/declarative-bindings/#why-did-a-binding-not-fire)
    distinguishes them.
@@ -7258,8 +7313,9 @@ behavior. Dry-run prints intents; it never proves external delivery. See
 #### Changing a workflow
 
 Changing YAML is not hot reload. Rendering commits component settings and
-defaults, routes, quotas, generation heights and the binding program into a
-profile. Machine application versions and query subjects also affect identity.
+defaults, routes, quotas, generation heights and the binding program, including
+admission rules, their parameters and attachments, into a profile. Machine
+application versions and query subjects also affect identity.
 Even a seemingly additive bundle update can make a retained profile impossible
 to reconstruct.
 
@@ -7267,7 +7323,9 @@ For a chain created in governed mode, evolution requires an executable catalog
 that reproduces the necessary historical profiles, qualified target semantics,
 and the existing proposal/approval/readiness/activation protocol. Changed
 bindings require a new workflow generation; changed component configuration
-requires a new component generation. Neither migrates incompatible stored
+requires a new component generation. Changed rules, parameters or attachments
+change the binding program and need a new workflow generation too, for example
+an ADR-015 proposal that tightens a limit. Neither migrates incompatible stored
 genesis or state automatically.
 
 Use the read-only preflight against candidate bundles:
@@ -7286,9 +7344,10 @@ before constructing these inputs.
 
 Success means byte-exact profile reconstruction only. It does not prove replay,
 binary semantic equivalence, migration safety, historical proof correctness or
-effect-result compatibility. The current stock provider executes version 1.1.0;
-it cannot restore an old 1.0.0 implementation simply by receiving old IR. Do not
-upgrade such retained chains in place or rewrite their identity markers.
+effect-result compatibility. The current stock provider executes version 1.2.0,
+and IR or receipts written before ADR-031.3 (versions 1.1.0 and 1.0.0) fail decode
+with a "predates ADR-031.3" error. Re-create such experimental chains from their
+YAML; do not upgrade them in place or rewrite their identity markers.
 
 #### Before sharing a deployment
 
@@ -7317,7 +7376,7 @@ Source: https://yano-x.io/bindings/guided-editor/
 > Studio's Bindings page is a guided editor for the same composite binding documents you write in YAML. Forms are backed by an authoring catalog exported…
 
 [Previous: Operations and upgrades](https://yano-x.io/bindings/operations-and-upgrades/) ·
-[Learning path](https://yano-x.io/bindings/)
+[Learning path](https://yano-x.io/bindings/) · [Next: Admission rules](https://yano-x.io/bindings/admission-rules/)
 
 Studio's **Bindings** page is a guided editor for the same composite binding
 documents you write in YAML. Forms are backed by an authoring catalog exported
@@ -7343,7 +7402,7 @@ The page has four views of one draft:
 
 | View | Use it to |
 |---|---|
-| **Form** | Edit components, bindings, conditions, mappings and limits |
+| **Form** | Edit components, bindings, conditions, mappings, admission rules and limits |
 | **YAML** | Read or edit the exact document text |
 | **Graph** | See components and bindings in execution order; arrange the drawing |
 | **Validate** | Get CLI commands, import CLI reports and read rehearsal outcomes |
@@ -7388,6 +7447,17 @@ matching descriptor, fields become free text and checks are limited.
   required, and whether they are *evidence*. Evidence must be copied directly from
   an event field. Sources are event fields, typed literals (bytes are explicit
   hexadecimal), documented functions nested at most two levels, or expressions.
+- **Admission rules** are listed under their own heading. A rule form edits the
+  deny code, an optional command selector (only commands of attached components
+  that rules can select are offered), typed parameters with optional defaults, and
+  the clauses: restricted CEL expressions or state lookups. *Insert a readable
+  field* lists what the rule can read for its attached components: step context,
+  the selected command's data fields, parameters, configuration and the verified
+  facts the catalog declares. A rule takes effect only where a component attaches
+  it: each component form has an **Admission rules** section to attach, order and
+  detach rules and to state parameter values. An omitted value uses the rule's
+  default. Renaming a rule updates its attachments; renaming a binding updates
+  `binding` parameters that name it. See [Admission rules](https://yano-x.io/bindings/admission-rules/).
 - **Limits and activation** shows every committed limit. Empty means omitted:
   the default applies and is not written into your document.
 
@@ -7483,9 +7553,15 @@ message says what happened:
   ran again.
 
 Conditions show whether a binding ran, which clause was false, or where an
-evaluation failed when the receipt proves it. A target component can reuse a
-framework rejection code, so Studio never guesses a location the receipt does
-not record.
+evaluation failed when the receipt proves it. Each step also shows its admission
+rules: how many held, and the rule, clause and deny code that refused it. A
+refusal of a derived step says that the whole cascade, including the source
+command, was rolled back. The **Procurement admission rules** starter's fixtures
+include block-time refusals. The **Transfer limit rule** starter's third fixture
+is an over-limit transfer that the static rule refuses before any block, so that
+dry-run fails on the fixture, as a node refuses it at submission. A target
+component can reuse a framework rejection code, so Studio never guesses a location
+the receipt does not record.
 
 #### 6. Multi-block approvals
 
@@ -7532,6 +7608,379 @@ changes the document, its compiled program or its identity.
 Return to the [learning path](https://yano-x.io/bindings/), or read the
 [CLI reference](https://yano-x.io/reference/declarative-bindings-cli/#editor-catalogs-and-reports) for
 the catalog and report file formats.
+
+---
+
+## 7. Admission rules
+
+Source: https://yano-x.io/bindings/admission-rules/
+
+> Declarative bindings are experimental and still undergoing qualification. The examples here explain the current implementation, not a production…
+
+[Previous: Studio editor](https://yano-x.io/bindings/guided-editor/) · [Learning path](https://yano-x.io/bindings/)
+
+Declarative bindings are experimental and still undergoing qualification. The
+examples here explain the current implementation, not a production
+compatibility promise. A node executes committed binary IR, not the YAML text.
+
+Bindings say what should happen next. **Admission rules** say what a component
+must refuse. A rule is attached to a component and checked for every command
+that reaches it: commands submitted directly and commands a binding derives, at
+every depth of a cascade. Rules only forbid. They never grant authority, change
+a command, or replace the component's own admission and decision. They are part
+of the committed composite profile, so every member evaluates them identically.
+
+This chapter uses the rule recipes in `examples/bindings/`:
+`balances-transfer-limit.yaml`, `procurement-admission.yaml`,
+`dpp-role-gated.yaml`, and the typed-view recipes `asset-governed-limits.yaml`,
+`dpp-namespace-isolation.yaml`, `feed-slot-rules.yaml` and
+`balances-holding-cap.yaml`. The integration harness `BindingRecipesIT` runs
+each of them on three real nodes and replays every finalized block offline with
+byte-identical receipts.
+
+#### Declare a rule and attach it
+
+A rule lives in the document's `rules` section and takes effect only where a
+component's `admission` list attaches it:
+
+```yaml
+composite:
+  components:
+    - id: points
+      machine: balances
+      admission:
+        - rule: transfer-limit
+          params: {maxAmount: 10000}
+  rules:
+    - id: transfer-limit
+      command: transfer
+      deny: TRANSFER_LIMIT_EXCEEDED
+      params:
+        maxAmount: {type: integer}
+      require:
+        - expr: 'command.amount <= params.maxAmount'
+  bindings: []
+```
+
+- `id` names the rule; `deny` is the code a refusal records. Deny codes are
+  upper-case identifiers and cannot start with `ADMISSION_RULE_`, which the
+  engine reserves.
+- `command` (optional) selects one command of the attached component. A rule
+  without a selector applies to every command. A selector needs a
+  command-selectable kernel: every command is an opcode-prefixed array with a
+  distinct opcode, or the kernel has exactly one command that is not raw bytes.
+- `params` declares typed parameters (`integer`, `text`, `bytes`, `boolean`,
+  `binding`), optionally with a `default`. Each attachment supplies values;
+  stating a default and omitting it compile to identical bytes. A `binding`
+  parameter must name a binding that targets the attached component.
+- `reads` (optional) declares up to four named reads of other components' state
+  (see [Reading state](#reading-state-and-governed-parameters)).
+- `require` is an ordered list of clauses. Each is a restricted CEL `expr` or a
+  `lookup` (`exists`, `absent`, or `eq` against a source). The first clause that
+  does not hold refuses the command with the rule's deny code.
+
+A rule that no component attaches is rejected (`RULE_UNATTACHED`). A rule is
+type-checked separately against every component it is attached to.
+
+#### What a rule can read
+
+Each use site has its own scopes. Bindings read the event that triggered them;
+rules read the command they judge.
+
+| Scope | Bindings (conditions, mappings) | Rules |
+|---|---|---|
+| `event.*` | yes | no |
+| `context.*` | yes (the producing step) | yes (the step being admitted) |
+| `command.*` | no | only with a `command` selector; DATA fields only |
+| `params.*` | no | yes |
+| `config.*` | no | yes (the component's normalized configuration) |
+| `facts.*` | no | yes, if the kernel declares facts |
+| `reads.*` | no | yes, for the rule's declared reads |
+| `writes` | no | only as `writes.all(w, …)` or `writes.exists(w, …)`, if the kernel declares a write view |
+
+`context.*` has exactly five fields: `height` (integer), `sender` (bytes, the
+source message's sender), `derived` (boolean), `depth` (integer, 0 for the
+source command), and `binding` (text, the binding that produced the step, empty
+for the source). There is no timestamp: rules and bindings are deterministic.
+
+Evidence fields, such as signatures, are never readable (`RULE_EVIDENCE_READ`).
+Reading an unavailable scope is `RULE_SCOPE_INVALID`, with the position of the
+offending identifier. The YAML source forms mirror the scopes: `{context: …}`,
+`{command: …}`, `{param: …}`, `{config: …}` and `{fact: …}` next to `{field: …}`
+for events. `in` tests text membership and is available only in rules; a fact
+of type text set can be read only on the right-hand side of `in`.
+
+Lookup keys and read keys use a narrower set: `command`, `params`, `config`,
+`context` and `facts`, never `reads` or `writes`, so one read can never choose
+another read's key.
+
+#### When rules run
+
+The engine checks a component's rules in two slots, keeping attachment order
+within each slot:
+
+1. **Admission slot** — rules that read neither `facts.*` nor write coverage.
+   They run after the component's own admission checks and before any work is
+   reserved, so a refused command costs no crypto work. Their reads see the
+   state this cascade left.
+2. **Verified-fact slot** — rules that read `facts.*` or a write's verified
+   coverage (`w.coverage`, `w.actorId`, …). They run only after the kernel
+   approved the command, with the exact facts that produced the approval. A
+   kernel rejection runs no fact rule and reveals no fact.
+
+The first failing rule wins; later rules are neither evaluated nor charged.
+Each step's receipt records `rulesEvaluated = [heldCount, failure]`, where the
+failure names the rule, the clause index, the deny code and, when a quantifier
+stopped early, the index of the write that decided. Reads run before the
+clauses; a read that fails records clause `-1`. Receipts never contain read
+values or write contents. Refusal codes are:
+
+| Code | Meaning |
+|---|---|
+| `ADMISSION_RULE_DENIED` | a clause did not hold; the receipt carries the deny code |
+| `ADMISSION_RULE_ERROR` | a clause or read could not be evaluated, for example an absent fact, an unguarded absent read, a refused read key, or a division by zero; it fails closed |
+| `ADMISSION_RULE_INPUT` | the command view, the kernel's fact values, a read's decoded value or the write view broke its declaration; clause `-1` |
+| `EXPRESSION_CAPACITY_EXCEEDED` | the cascade or block expression work was exhausted |
+
+Rule work is charged to both the cascade and the block budget, including for
+refusals, and is never refunded. A read costs `1 +` its key bytes, the stored
+key and value bytes and the decoded fields; a write view, and in the fact slot
+its coverage, cost their encoded elements once per step; a quantifier costs its
+body once per element it visits.
+
+##### Static rules also refuse at ingress
+
+A rule whose clauses are all expressions that read only `command.*`, `params.*`,
+`config.*` and write content (not coverage) is **static**. A rule with reads is
+never static. A member evaluates the static rules of a source component when it
+receives a submission, so an over-limit transfer is refused before it is pooled.
+The REST response is HTTP 400 with a structured reason:
+
+```json
+{"code": "ADMISSION_RULE_DENIED",
+ "details": {"rule": "transfer-limit", "deny": "TRANSFER_LIMIT_EXCEEDED"}}
+```
+
+`details.write` names the deciding write of a quantifier. `bindings dry-run`
+shows the same refusal as `ADMISSION_RULE_DENIED/transfer-limit/TRANSFER_LIMIT_EXCEEDED`.
+Block-time evaluation remains authoritative.
+
+#### A refusal rolls back its whole cascade
+
+A binding condition that is false only skips that binding. A rule refusal
+rejects the command, and a rejected step rejects its **source message**: every
+earlier step of the same cascade, including the source command, is rolled back,
+and no business state is written: only the receipt, framework accounting, and any
+non-refundable crypto work a kernel reserved before a verified-fact rule refused
+it. For example, in `procurement-admission.yaml`:
+
+```yaml
+    - id: approvals
+      machine: approvals
+      admission:
+        - rule: minimum-quorum
+          params: {minimum: 2}
+```
+
+The order binding derives `approvals.propose` with `required: 2`. If a binding
+author lowered that literal to 1, every order's cascade would be refused at
+depth 1 with `QUORUM_TOO_LOW`, and the order put at depth 0 would not commit
+either. `bindings dry-run` shows this before deployment: the receipt's failed
+step is at depth 1, and `stateChanges` contains no order.
+
+#### Pattern: accept only arrivals through a binding
+
+Rules can see how a step arrived. This rule makes an audit trail accept entries
+only from the approval binding, never from a direct submission:
+
+```yaml
+    - id: only-via-binding
+      deny: DIRECT_SUBMISSION_FORBIDDEN
+      params:
+        binding: {type: binding}
+      require:
+        - expr: 'context.derived && context.binding == params.binding'
+```
+
+It reads `context`, so it is not static: a direct append is pooled and refused
+at block time with a finalized, provable receipt.
+
+#### Pattern: verified roles
+
+Some kernels establish **verified facts** about a command, and only those
+kernels can feed `facts.*`:
+
+| Kernel | Facts |
+|---|---|
+| `authenticated-map-component` | `senderMember` (boolean), `collections` (text set: the collections the batch writes) |
+| governed `authenticated-map-component` | also `directActorCount`, `approvalCount` (integers); for exactly one direct actor, `actorId`, `organizationId`, `role`, `roles` (text set) and `policyId` |
+| `governed-role-approvals` | `actorId`, `organizationId`, `roles` (text set), `action` (`PROPOSE`, `APPROVE`, `REJECT`, `CANCEL`), `policyId`, `policyRevision` |
+
+Other stock kernels authenticate only the member sender and declare no facts; a
+fact rule attached to them is rejected (`RULE_FACT_UNKNOWN`). A multi-actor map
+batch establishes counts only, so a rule that reads `facts.roles` for it fails
+closed with `ADMISSION_RULE_ERROR`.
+
+`dpp-role-gated.yaml` adds two rules to the DPP approval recipe:
+
+```yaml
+  rules:
+    - id: allowed-organization
+      deny: ORGANIZATION_NOT_ALLOWED
+      params:
+        organization: {type: text}
+      require:
+        - expr: 'facts.action != "APPROVE" || facts.organizationId == params.organization'
+    - id: operator-for-direct-writes
+      deny: ROLE_REQUIRED
+      params:
+        role: {type: text}
+      require:
+        - expr: 'facts.directActorCount == 0 || params.role in facts.roles'
+```
+
+An approval from an auditor outside `cert-body-a` is verified by the approval
+kernel and then refused with `ORGANIZATION_NOT_ALLOWED`. A forged approval fails
+the kernel's own signature check, and no rule runs. A direct map write signed by
+an actor without `operator` is verified by the map and then refused with
+`ROLE_REQUIRED`. Approval-referenced writes arriving through `apply-approved`
+have `directActorCount == 0`; the approval policy governs them.
+
+To role-gate a member-authenticated machine such as `kv-registry`, put a
+role-verified component in front of it and attach an `only-via-binding` rule to
+the target.
+
+#### Reading state and governed parameters
+
+A rule may declare up to four **reads**. Each reads one exact key of another
+component's **value view**, the typed fields that component's kernel exposes
+for the records it stores, through the state this cascade left. Reads run before
+the clauses:
+
+```yaml
+    - id: governed-transfer-limit
+      command: transfer
+      deny: TRANSFER_LIMIT_EXCEEDED
+      reads:
+        limits: {component: registry, namespace: settings, key: {literal: "transfer"}}
+      require:
+        - expr: 'command.amount <= reads.limits.value.max'
+```
+
+- `component` names a declared component; `namespace` selects one of its views
+  (the default namespace is `""`; each map collection is a namespace).
+- `key` is a source from the key scopes above.
+- Clauses read `reads.<name>.present` and the view fields, as
+  `reads.<name>.<field>` or `reads.<name>.value.<field>` for a map value's
+  schema member. An absent record has only `present == false`; reading another
+  field of it fails closed unless the clause checks `present` first.
+
+The limit lives in the registry, so raising it is an approved map write, not a
+profile change: the next block reads the new value. `asset-governed-limits.yaml`
+also reads the sender's holder record for a tier limit and a lock-up.
+
+The stock views are:
+
+| Kernel | Namespace (key) | Fields |
+|---|---|---|
+| `balances` | `""` (account id text, for example `{fn: hex, args: [{context: sender}]}`) | `balance`; an absent account means zero |
+| `kv-registry` | `""` (key bytes) | `owner`, `value`, `valueLength`; `valueText` with `value-format: utf8` |
+| `doc-trail` | `""` (entity id) | `count`, `headHash` |
+| `approvals` | `""` (item id) | `status` (`PENDING`, `APPROVED`, `REJECTED`, `EXPIRED`), `required`, `approverCount`, `proposer`, `payloadHash` |
+| `authenticated-map-component` | each collection id (application key) | `status` (`ACTIVE`, `REVOKED`), `revision`, `createdHeight`, `lastMutationHeight`, `valueLength`, `controller`; `value.<member>` for the first 32 scalar top-level members of a schema-typed value |
+
+Text and bytes over 4096 bytes are absent (their length stays readable), and an
+integer outside int64 fails closed with `ADMISSION_RULE_INPUT`. Map members are
+exposed only when their key is a CEL identifier, and a revoked entry exposes no
+`value.<member>`, so an unguarded member read of a revoked record fails closed.
+
+#### Pattern: rules over a batch of writes
+
+The authenticated map declares a **write view**: one element per mutation of a
+command, with `index`, `collection`, `key`, `keyText`, `op`, `hasValue`,
+`valueLength`, `expectedRevision` and the schema members as `value.<member>`.
+After the map verified a command's evidence, each element also carries its
+**coverage**: `direct` with the covering actor's `actorId`,
+`actorOrganizationId` and `actorRoles`, `approval`, or `none`.
+
+```yaml
+    - id: manufacturer-owns-product
+      deny: FOREIGN_PRODUCT
+      require:
+        - expr: 'writes.all(w, (w.collection != "product-versions" && w.collection != "events") || (w.coverage == "direct" && startsWith(w.keyText, w.actorOrganizationId + "/")))'
+```
+
+`writes.all(w, …)` and `writes.exists(w, …)` are the only quantifiers; they
+visit the writes in index order and stop at the first element that decides.
+There is no nesting and no other comprehension. A body may use the rule's
+declared `reads.*`, but no read can be keyed by an element: there are no
+per-write reads. A rule
+that reads coverage runs in the verified-fact slot, so forged or unverified
+evidence never reaches it. `dpp-namespace-isolation.yaml` and
+`feed-slot-rules.yaml` use these rules, and their receipts name the write that
+decided.
+
+#### Pattern: post-state facts
+
+The stock kernels also declare facts about the state after an approved command:
+
+| Kernel | Facts |
+|---|---|
+| `balances` | `balanceAfter` (mint); `fromBalanceAfter`, `toBalanceAfter` (transfer) |
+| `kv-registry` | `existed`; `valueLength` (put) |
+| `doc-trail` | `countAfter`, `first` |
+| `approvals` | `approverCountAfter`, `required`, `approvedNow`, `proposerIsSender` (absent when no item exists) |
+
+`balances-holding-cap.yaml` caps what a recipient may hold:
+
+```yaml
+    - id: holding-cap
+      command: transfer
+      deny: HOLDING_CAP_EXCEEDED
+      params:
+        cap: {type: integer}
+      require:
+        - expr: 'facts.toBalanceAfter <= params.cap'
+```
+
+#### Limits
+
+| Limit | Default | Maximum |
+|---|---|---|
+| rules per document | — | 64 |
+| attachments per component (`maxRulesPerComponent`) | 4 | 16 |
+| clauses per rule | — | 8 |
+| parameters per rule | — | 16 |
+| reads per rule | — | 4 |
+| writes in one write view | — | 128 |
+| fields of one decoded read or write element | — | 64 |
+
+Rule expressions share the document's expression limits and lookup limit.
+
+#### Local loop
+
+```bash
+./yano.sh appchain bindings validate procurement-admission.yaml \
+  --plugins-directory plugins --context context.json
+./yano.sh appchain bindings dry-run procurement-admission.yaml \
+  --plugins-directory plugins --context context.json \
+  --fixture examples/bindings/fixtures/procurement-admission/fixture-1.json
+./yano.sh appchain bindings graph procurement-admission.yaml \
+  --plugins-directory plugins --context context.json
+```
+
+`validate` lists each component's rules in evaluation order with their slot,
+their reads and whether they quantify over writes. `dry-run` shows each
+receipt's rule trace, the deciding write, and explains a rolled-back cascade.
+`graph` draws attached rules as guards on their components, with their reads.
+
+Rules are part of the committed profile. Changing a rule, a parameter or an
+attachment changes the profile digest; on a running chain it is a governed
+profile change, like any binding change (see [Operations and
+upgrades](https://yano-x.io/bindings/operations-and-upgrades/)).
+
+Return to the [learning path](https://yano-x.io/bindings/), or read the
+[reference](https://yano-x.io/reference/declarative-bindings/) for the complete rule grammar.
 
 ---
 
@@ -7892,6 +8341,18 @@ the `webhook.post` executor as shown in the webhook-effects tutorial.
   governed/versioned profile activation or a new chain, not a local YAML edit.
 - External execution is at-least-once. Executors must honor the effect's
   idempotency identity and report a bounded outcome.
+
+#### Admission-rule views and facts
+
+In a declarative composite, admission rules can read an item (ADR-031.4, see
+[admission rules](https://yano-x.io/bindings/admission-rules/)):
+
+- **Value view** (namespace `""`, key: the item id): `status` (`PENDING`,
+  `APPROVED`, `REJECTED`, `EXPIRED`), `required`, `approverCount`, `proposer`,
+  `payloadHash`. The deadline is not exposed: `EXPIRED` is written by the first
+  vote after it, so a stored `PENDING` item may already be past it.
+- **Post-state facts**, after an approved command: `approverCountAfter`,
+  `required`, `approvedNow` and `proposerIsSender`; absent when no item exists.
 
 #### Related documentation
 
@@ -8776,6 +9237,30 @@ The light showcase's `gs1-gtin-v1` validator is a working reference for this
 extension path. Attaching a different plugin to an existing chain is not a hot
 configuration change; it creates a new chain generation.
 
+#### Admission-rule views, write view and coverage
+
+In a declarative composite, admission rules can read this map and judge every
+write of a command (ADR-031.4, see [admission rules](https://yano-x.io/bindings/admission-rules/)):
+
+- **Value views**: one per collection (the namespace is the collection id, the
+  key the application key): `status` (`ACTIVE`, `REVOKED`), `revision`,
+  `createdHeight`, `lastMutationHeight`, `valueLength`, `controller`, and, for a
+  canonical-CBOR collection whose schema root is a text-keyed map, its first 32
+  top-level scalar members whose keys are CEL identifiers, as `value.<member>` in
+  canonical member order. A revoked entry exposes no members.
+- **Write view**: one element per mutation, in command order: `index`,
+  `collection`, `key`, `keyText` (valid UTF-8 only), `op`, `hasValue`,
+  `valueLength`, `expectedRevision`, and `value.<member>` for writes that carry a
+  value in a schema-typed collection (a member two collections type differently
+  is omitted). Rules quantify over it with `writes.all(w, …)` and
+  `writes.exists(w, …)`.
+- **Coverage**, only after the map verified and approved the command: `direct`
+  with the covering actor's `actorId`, `actorOrganizationId` and `actorRoles`,
+  `approval`, or `none` in open, owner and member collections. Rules that read
+  coverage run in the verified-fact slot, so unverified evidence never reaches
+  them. See `examples/bindings/dpp-namespace-isolation.yaml` and
+  `feed-slot-rules.yaml`.
+
 #### Operational boundaries
 
 Collection definitions, validation rules, maximum batch limits, consensus
@@ -8907,6 +9392,19 @@ curl -sS \
 
 Verify the MPF proof locally and, for audit-grade verification, compare its
 root with an independently obtained anchor root.
+
+#### Admission-rule views and facts
+
+In a declarative composite, admission rules can read this machine's state and
+post-state (ADR-031.4, see [admission rules](https://yano-x.io/bindings/admission-rules/)):
+
+- **Value view** (namespace `""`, key: the account id text; a sender's own account
+  is `{fn: hex, args: [{context: sender}]}`): `balance`. A zero balance
+  deletes the account's key, so an absent read means a zero balance.
+- **Post-state facts**, after an approved command and equal to its event:
+  `balanceAfter` for a mint; `fromBalanceAfter` and `toBalanceAfter` for a
+  transfer. `examples/bindings/balances-holding-cap.yaml` caps a recipient's
+  balance with `facts.toBalanceAfter <= params.cap`.
 
 #### Customization boundary
 
@@ -9172,6 +9670,15 @@ append must first be approved, combine approval and document-trail behavior in
 a committed composite workflow. If only an entity owner or domain role may
 append, implement that rule in a state machine; an off-chain check alone is
 not consensus enforcement.
+
+#### Admission-rule views and facts
+
+In a declarative composite, admission rules can read a trail's head (ADR-031.4,
+see [admission rules](https://yano-x.io/bindings/admission-rules/)):
+
+- **Value view** (namespace `""`, key: the entity id): `count`, `headHash`.
+- **Post-state facts**, after an approved append: `countAfter` and `first`
+  (the append created the trail).
 
 #### Related documentation
 
@@ -9488,6 +9995,17 @@ explicitly when consumers need stable decoding, for example:
 Every member receives the command bytes and may retain history. Encrypt values
 before submission when confidentiality is required, and keep encryption-key
 management outside deterministic consensus.
+
+#### Admission-rule views and facts
+
+In a declarative composite, admission rules can read this machine's entries
+(ADR-031.4, see [admission rules](https://yano-x.io/bindings/admission-rules/)):
+
+- **Value view** (namespace `""`, key: the entry key): `owner`, `value`,
+  `valueLength`, and `valueText` when `value-format` is `utf8`. A value over
+  4096 bytes exposes only `valueLength`.
+- **Post-state facts**, after an approved command: `existed` (the key had an
+  entry before the command) and, for a put, `valueLength`.
 
 #### Related documentation
 
@@ -10843,9 +11361,11 @@ call or exactly-once delivery guarantee.
   conversion: use `hex`, `utf8-bytes`, or a documented codec explicitly.
 - `when` clauses are a short-circuiting conjunction. `expr` accepts the
   restricted `yano-x-cel-v1` profile: checked integer arithmetic, comparisons,
-  boolean logic, a lazy conditional, and bounded concatenation. Loops,
-  comprehensions, floating point, arbitrary functions, and Java access are
-  rejected.
+  boolean logic, a lazy conditional, bounded concatenation, `size` (UTF-8 bytes
+  of text, length of bytes) and `startsWith`. Admission rules also quantify over
+  a kernel's write view with `writes.all(w, …)` and `writes.exists(w, …)`.
+  Other loops and comprehensions, floating point, arbitrary functions, and Java
+  access are rejected.
 - Lookups read one logical key from a named participant, including earlier
   cascade writes. The owner converts the logical key to its canonical local
   key. Map lookups use canonical `[collectionId, applicationKey]` bytes.
@@ -10874,11 +11394,15 @@ byte literal, or equality to a byte-valued event field. Clauses execute in
 declaration order and stop at the first false result; an evaluation error
 rejects the cascade instead of silently skipping it.
 
-Mapping sources are `{field: name}`, `{literal: value}`, `{fn: id, args: [...]}`,
-or `{expr: '...'}`. Command field mappings follow the target's declared codec
-layout, not YAML key order. `map: identity` is for effects only. `rawBody`
-forwards a byte-valued event field and is subject to the evidence restriction.
-Functions nest at most two levels, with at most eight arguments per call.
+Mapping sources are `{field: name}`, `{context: name}`, `{literal: value}`,
+`{fn: id, args: [...]}`, or `{expr: '...'}`. `{field}` reads the triggering
+event; `{context}` (and `context.<name>` in CEL) reads the step that produced
+it: `height`, `sender` (the source message's sender), `derived`, `depth` and
+`binding` (empty for the source command). There is no timestamp. Command field
+mappings follow the target's declared codec layout, not YAML key order.
+`map: identity` is for effects only. `rawBody` forwards a byte-valued event
+field and is subject to the evidence restriction. Functions nest at most two
+levels, with at most eight arguments per call.
 
 | Function | Inputs → output |
 |---|---|
@@ -10912,9 +11436,11 @@ node-local tuning overrides; changing them changes the profile.
 | `maxExpressionValueBytes` | 65,536 | 65,536 |
 | `maxExpressionWorkPerCascade` | 1,048,576 | 4,194,304 |
 | `maxExpressionWorkPerBlock` | 33,554,432 | 67,108,864 |
+| `maxRulesPerComponent` | 4 | 16 |
 
 Documents additionally cap components at 16, bindings at 256, clauses per
-binding at 8, and assignments per mapping at 16. IR and receipts each cap
+binding at 8, assignments per mapping at 16, admission rules at 64, clauses per
+rule at 8, and parameters per rule at 16. IR and receipts each cap
 encoded bytes at 65,536. A profile's enclosing encoding can impose a tighter
 effective IR size. Work counters charge attempted work even when a cascade
 rejects; receipt replay does not repeat the work.
@@ -10930,6 +11456,109 @@ that number. Unselected events from an original source do not charge shared
 decoding work; derived-step event decoding still does, even without subscribers.
 Test the intended payloads, fan-out and block throughput together before pinning
 the profile. Explicit old limits remain unchanged when decoded.
+
+#### Admission rules
+
+A document may declare forbid-only rules (ADR-031.3) and attach them to
+components. Every attached rule must hold for each command the component
+receives, whether submitted directly or derived by a binding, at every depth.
+A rule never grants authority, changes a command, or replaces the kernel's own
+admission and decision. Rules, parameters and attachments are part of the
+committed IR and profile.
+
+```yaml
+  rules:
+    - id: transfer-limit            # unique across rules and bindings
+      command: transfer             # optional; needs a command-selectable kernel
+      deny: TRANSFER_LIMIT_EXCEEDED # [A-Z][A-Z0-9_]*, not ADMISSION_RULE_*
+      params:
+        maxAmount: {type: integer}  # integer, text, bytes, boolean or binding; optional default
+      require:                      # 1-8 clauses, all must hold, in order
+        - expr: 'command.amount <= params.maxAmount'
+  components:
+    - id: points
+      machine: balances
+      admission:                    # attachment order is evaluation order
+        - rule: transfer-limit
+          params: {maxAmount: 10000}
+```
+
+Scopes by use site:
+
+| Scope | Bindings | Rules |
+|---|---|---|
+| `event.*` / `{field}` | yes | no |
+| `context.*` / `{context}` | the producing step | the step being admitted |
+| `command.*` / `{command}` | no | DATA fields of the selected command only |
+| `params.*` / `{param}` | no | the attachment's normalized values |
+| `config.*` / `{config}` | no | the component's normalized configuration |
+| `facts.*` / `{fact}` | no | facts the kernel declares |
+| `reads.*` | no | the rule's declared reads (`present`, view fields, `value.<member>`) |
+| `writes` | no | `writes.all(w, …)` / `writes.exists(w, …)` over the kernel's write view |
+
+`in` tests text membership and is available only in rules; a text-set fact is
+readable only as the right-hand operand of `in`. Evidence fields are never
+readable (`RULE_EVIDENCE_READ`). Rule clauses are `expr` or `lookup`
+(`exists`, `absent`, or `eq`); a lookup reads a declared component's state as
+the cascade left it. Lookup and read keys use only `context`, `command`,
+`params`, `config` and `facts`.
+
+A rule may declare up to four reads of other components' value views
+(ADR-031.4):
+
+```yaml
+      reads:                        # 0-4, sorted by name in the IR
+        limits: {component: registry, namespace: settings, key: {literal: "transfer"}}
+```
+
+Reads run before the clauses through the cascade's state. A read failure records
+clause `-1`; receipts never carry read values or write contents, only the deny
+code, the clause and the deciding write's index.
+
+Evaluation happens in two slots per step. Rules that read neither facts nor
+write coverage run after the kernel's `admit` hooks and before any work is
+reserved. Rules that read facts or coverage run only after the kernel approved
+the command, with the exact facts of that approval. Attachment order holds
+within each slot; the first failing rule decides, and later rules are neither
+evaluated nor charged. Rule work is charged to both expression budgets,
+including for refusals, and never refunded.
+
+| Receipt code | Meaning |
+|---|---|
+| `ADMISSION_RULE_DENIED` | a clause did not hold; the step's trace names the rule, clause and deny code |
+| `ADMISSION_RULE_ERROR` | a clause or read could not be evaluated (absent fact, unguarded absent read, refused read key, division by zero); fails closed |
+| `ADMISSION_RULE_INPUT` | the command view, the kernel's fact values, a decoded read or the write view broke its declaration (clause `-1`) |
+| `EXPRESSION_CAPACITY_EXCEEDED` | cascade or block expression work was exhausted |
+
+Every receipt step records `rulesEvaluated = [heldCount, failure]`, where the
+failure is `[ruleId, failedClause, denyCode, writeIndex]`. A refused step
+rejects its source message: the whole cascade, including the source command, is
+rolled back; no business state is written, only the receipt, framework
+accounting, and any non-refundable crypto work already reserved. A rule whose
+clauses are all expressions reading only `command.*`, `params.*`, `config.*` and
+write content is static and is also evaluated at local ingress. REST callers get
+HTTP 400 with `{"code": "ADMISSION_RULE_DENIED", "details": {"rule": …,
+"deny": …}}` (bloxbean/yano#153), plus `"write"` when a quantifier decided;
+`bindings dry-run` shows `ADMISSION_RULE_DENIED/<rule>/<denyCode>`.
+
+Kernels that declare facts:
+
+| Machine | Facts |
+|---|---|
+| `authenticated-map-component` | `senderMember` (boolean), `collections` (text set) |
+| governed `authenticated-map-component` | also `directActorCount`, `approvalCount`; for exactly one direct actor `actorId`, `organizationId`, `role`, `roles` (text set), `policyId` |
+| `governed-role-approvals` | `actorId`, `organizationId`, `roles` (text set), `action`, `policyId`, `policyRevision` |
+| `balances` | `balanceAfter` (mint), `fromBalanceAfter` and `toBalanceAfter` (transfer) |
+| `kv-registry` | `existed`, `valueLength` (put) |
+| `doc-trail` | `countAfter`, `first` |
+| `approvals` | `approverCountAfter`, `required`, `approvedNow`, `proposerIsSender` |
+
+The stock facts are post-state facts (bloxbean/yano-x#25): each equals the value
+the kernel's own event reports after an approved command. A multi-actor map
+batch establishes counts only; reading `facts.roles` for it fails closed. Value
+views, the map write view and its coverage are listed in
+[Admission rules](https://yano-x.io/bindings/admission-rules/) with the recipes and
+patterns.
 
 #### Submission validity and retry
 
@@ -10957,7 +11586,8 @@ or future derived execution and does not reserve node-local block capacity.
 It checks the codec and the kernel's separate stateless admission hook for
 command/configuration-only bounds. Context-dependent admission still runs during
 execution; no synthetic block context is invented. These bundles require host
-plugin API level 11 and its matching published/staged build.
+plugin API level 12 (kernel-declared rule facts, ADR-031.3) and its matching
+published/staged build.
 
 A finalized rejection rolls back all business changes and effects for that source,
 not the whole block. The receipt remains terminal for its message ID. Replaying
@@ -11235,7 +11865,11 @@ components of the given document with their exact authored configuration, each
 instance records its status (`available`, `requires-configuration`,
 `construction-failed`, `descriptor-failed` or `not-composable`), configuration
 descriptor, normalized configuration, events, commands and whether raw bodies may
-target it. The file also carries the binding language tables (functions,
+target it. For admission rules (ADR-031.3) an available instance also records
+`commandSelectable` (whether a rule may select one of its commands),
+`unselectableReason` (why not, or `null`) and `ruleFacts` (each declared fact's
+`name` and `type`: `integer`, `text`, `bytes`, `boolean` or `text-set`). The file
+also carries the binding language tables (functions,
 expression operators, limits, the baseline event and receipt codes) and the
 identity of the tool, host, plugin catalog and context digest.
 
@@ -11383,6 +12017,23 @@ rejection receipt. Dynamic cascade failures still produce receipts. See
 [submission validity and retry](https://yano-x.io/reference/declarative-bindings/#submission-validity-and-retry)
 for HTTP outcomes, fresh-message retry semantics, and committed work budgets.
 
+For a document with admission rules, `validate` adds an `admission` list: each
+component with attached rules and its rules in evaluation order (the admission
+slot in attachment order, then the verified-fact slot), with each rule's command
+selector (`*` for any), deny code, slot, whether it is static, its reads
+(`name = component/namespace`, or `name = component` for the default namespace)
+and whether it quantifies over writes (`writes`).
+The slot and static-ness are the profile's resolved values: a rule that reads
+write coverage is a fact rule because its kernel says so. `graph` draws a guard
+node (an octagon with a dashed edge) on each such component, listing its rules in
+the same order with their reads; `graph --ir`, which loads no plugin, marks a
+write rule it cannot place as `(writes; slot resolved by the kernel)`.
+`profile-check` reconstructs profiles with rules like any other; rules are part
+of the profile digest. A rule failure found while constructing the profile is
+located at its authored path in the `--report` diagnostic (plain output names the
+component and attachment in its message), for example
+`$.composite.components[3].admission[0].params.binding`.
+
 Pass `--ir` to read an IR hex file instead of YAML. `graph --ir` is a data-only
 operation and needs neither a plugin directory nor context; it does not claim
 the graph is executable. The other commands always construct the real profile
@@ -11528,6 +12179,30 @@ dry-run assumes that envelope authentication already happened. The ordinary
 registry command puts bytes `0304` at key `0102`; the audit entity becomes
 text `0102`. The returned receipt bytes come from the real composite query,
 not a separate simulation of its transition logic.
+
+When any step evaluated admission rules, a receipt entry in the dry-run output
+also carries `rules`: each step's ordinal, depth, component, the number of rules
+that held and the first failure (rule, zero-based clause, deny code, and the
+index of the deciding write when a quantifier stopped early). A receipt refused
+by a rule carries `refusal`: the step, the rule and clause, the deny code, the
+deciding `write` if any, and an explanation. A refusal at depth 1 or deeper states that the whole cascade,
+including the source command, was rolled back. A message that a **static** rule
+refuses never reaches a block, as at a node's ingress: dry-run stops with
+the full reason on standard error, and with the diagnostic code
+`FIXTURE_ADMISSION_REJECTED` in a `--report` file, for example
+`ADMISSION_RULE_DENIED/transfer-limit/TRANSFER_LIMIT_EXCEEDED`, followed by
+` at write N` when a quantifier decided. A node's REST refusal carries the same
+code, rule, deny code and write as structured `details`.
+
+The rule recipes ship with fixtures, one block per file, meant to be run in order
+with `--prior-result`: `examples/bindings/fixtures/balances-transfer-limit/`
+(block 3 is an over-limit transfer that stops at fixture admission),
+`procurement-admission/` (blocks 1 and 4 are block-time refusals), and
+`dpp-role-gated/`, which also contains the governed `context.json` that recipe's
+genesis requires. The ADR-031.4 recipes `asset-governed-limits/`,
+`dpp-namespace-isolation/`, `feed-slot-rules/` and `balances-holding-cap/` each
+ship a `context.json` and one fixture per block, including their refusals (block
+3 of `dpp-namespace-isolation/` is a batch refused at write 1).
 
 Dry-run does **not** verify message signatures, membership proofs, certificates,
 fixture state roots, or anchors; it does not calculate a post-state root. It
@@ -11686,9 +12361,14 @@ Keep the exact Yano Maven version and matching ordinary JVM ZIP, the Yano X
 distribution and manifested plugin bundles, the authored document, canonical IR,
 canonical profile bytes and digest, and generated project lock. Preserve the
 chain's genesis identity and retained stores independently of these artifacts.
-The composite and stdlib bundles using stateless kernel admission require host
-plugin API level 11. API compatibility alone does not promise consensus-profile
-compatibility.
+The composite, stdlib and role-workflow bundles require host plugin API level 12
+(stateless kernel admission and kernel-declared rule facts). API compatibility
+alone does not promise consensus-profile compatibility.
+
+Admission rules make kernel facts consensus inputs. A bundle that changes which
+facts a kernel declares, or how it computes them, changes the outcome of rules
+that read them, even when the profile still reconstructs; treat it as a
+consensus change and qualify it with replay, not only `profile-check`.
 
 The profile is not determined by YAML text or IR bytes alone:
 
@@ -11709,20 +12389,24 @@ validation recomputes them instead of accepting replaced bundles silently.
 
 #### Current execution-version boundary
 
-The current provider constructs workflow and profile version **1.1.0**. Its
-lazy baseline materialization, source-versus-derived work accounting, and
-pre-kernel reservation rules differ from the earlier experimental 1.0.0 runtime.
-Unchanged IR wire shape does not make these execution versions interchangeable.
+The current provider constructs workflow and profile version **1.2.0**. ADR-031.3
+(admission rules) amended the version-one binding IR, expression dialect and
+receipt layouts in place: every amended structure changed its array arity, so IR
+and receipts written by the 1.1.0 or 1.0.0 runtimes fail decode with an explicit
+"predates ADR-031.3" error instead of being misread. Lazy baseline
+materialization, source-versus-derived work accounting, and pre-kernel
+reservation rules also differ from the earlier experimental 1.0.0 runtime.
 
 The stock provider does **not** select an old workflow implementation from a
-version field in IR. Supplying a 1.0.0 deployment's original IR in
-`machines.composite.binding-ir-catalog[...]` still constructs a 1.1.0 profile;
-it does not restore the old executable profile or its digest. Likewise, one
-currently selected machine provider cannot automatically supply both its old
+version field in IR, and it cannot decode pre-ADR-031.3 IR at all: supplying an
+earlier deployment's original IR in `machines.composite.binding-ir-catalog[...]`
+fails construction. No ADR-015 epoch from pre-ADR bytes is supported. Likewise,
+one currently selected machine provider cannot automatically supply both its old
 and new descriptor/implementation merely because both IR documents are present.
 
-Do not upgrade a retained 1.0.0 chain in place with this release. Keep its exact
-qualified runtime, or design and independently qualify an explicit migration.
+Declarative composition is experimental. Re-create a 1.1.0 or 1.0.0 chain from
+its YAML with this release; do not upgrade it in place. Keep a retained chain on
+its exact qualified runtime, or design and independently qualify a migration.
 A fresh chain with a new identity is a separate deployment, not preservation of
 the old history. Do not delete state, rewrite profile markers, regenerate a
 retained genesis identity, or change `fixed` to `governed` to bypass validation.
@@ -12400,10 +13084,10 @@ verifies it with `verifyArtifactInventory`.
 | Value | Current |
 |---|---|
 | Yano X version | `0.1.0-pre3` |
-| Yano host version | `0.1.0-pre17` |
+| Yano host version | `0.1.0-pre18-3c73341-SNAPSHOT` |
 | Maven group | `org.yanoproject.x` |
 | Java | `25` |
-| Base Yano JVM ZIP | [`yano-0.1.0-pre17.zip`](https://github.com/bloxbean/yano/releases/download/v0.1.0-pre17/yano-0.1.0-pre17.zip) |
+| Base Yano JVM ZIP | [`yano-0.1.0-pre18-3c73341.zip`](https://repo.bloxbean.org/dist/snapshots/yano/0.1.0-pre18-3c73341/yano-0.1.0-pre18-3c73341.zip) |
 
 <!-- catalog:versions-end -->
 

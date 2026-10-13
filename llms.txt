@@ -1,8 +1,8 @@
 # Yano X
 
 yanoXVersion: 0.1.0-pre3
-yanoVersion: 0.1.0-pre17
-generatedAt: 2026-10-09T12:14:41.529Z
+yanoVersion: 0.1.0-pre18-3c73341-SNAPSHOT
+generatedAt: 2026-10-13T12:45:32.024Z
 
 > Yano X is the Java 25, JVM-only extension ecosystem for Yano app chains. An app chain is an application-specific replicated ledger with deterministic state, threshold finality, MPF proofs, optional Cardano anchoring, and controlled external effects. Yano X supplies the stock state machines, capabilities, connectors, products, SDKs, and the batteries-included JVM distribution that run on top of the Yano host.
 
@@ -13,7 +13,7 @@ Key facts an AI agent should know before generating Yano X code or configuration
   products, SDKs, and the batteries-included JVM distribution. The dependency
   direction is strictly `yano-x -> yano` and must never be inverted, nor satisfied
   with a composite Gradle build or a sibling source checkout.
-- **Versions:** Yano X `0.1.0-pre3` builds against Yano `0.1.0-pre17`, Java 25.
+- **Versions:** Yano X `0.1.0-pre3` builds against Yano `0.1.0-pre18-3c73341-SNAPSHOT`, Java 25.
   Start with a matching release archive; build from source for unpublished changes.
 - **Yano X is JVM-only.** Never add GraalVM/native-image tasks, reachability
   metadata, or native executables. `verifyJvmOnlyBuild` enforces this.
@@ -110,6 +110,7 @@ Key facts an AI agent should know before generating Yano X code or configuration
 - [4. Java integration](https://yano-x.io/bindings/java-integration/): A Java application submits ordinary commands to a deployed component's ingress topic. The committed binding program decides which follow-up commands run…
 - [5. Operate, diagnose and evolve a workflow](https://yano-x.io/bindings/operations-and-upgrades/): A validated YAML document is the beginning of deployment qualification, not its end. This chapter turns the first workflow into an operational checklist…
 - [6. Author bindings in the Studio editor](https://yano-x.io/bindings/guided-editor/): Studio's Bindings page is a guided editor for the same composite binding documents you write in YAML. Forms are backed by an authoring catalog exported…
+- [7. Admission rules](https://yano-x.io/bindings/admission-rules/): Declarative bindings are experimental and still undergoing qualification. The examples here explain the current implementation, not a production…
 
 ## State machines
 
@@ -155,6 +156,6 @@ Key facts an AI agent should know before generating Yano X code or configuration
 
 - Yano X: https://github.com/bloxbean/yano-x
 - Yano (host): https://github.com/bloxbean/yano
-- Base Yano JVM distribution: https://github.com/bloxbean/yano/releases/download/v0.1.0-pre17/yano-0.1.0-pre17.zip
+- Base Yano JVM distribution: https://repo.bloxbean.org/dist/snapshots/yano/0.1.0-pre18-3c73341/yano-0.1.0-pre18-3c73341.zip
 - App-Chain Studio (blueprint builder): https://yano-x.io/studio/
 
