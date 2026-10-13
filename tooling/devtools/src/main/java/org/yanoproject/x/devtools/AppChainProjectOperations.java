@@ -11,12 +11,14 @@ import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 
@@ -26,6 +28,71 @@ final class AppChainProjectOperations {
     record Plan(String status, String digest, String beforeDigest, String blueprintDigest,
                 List<ChainChange> chains, List<String> blockers, List<String> addedArtifacts,
                 String activation) { }
+
+    /**
+     * Fresh local devnet member identities: one signing seed per member and one shared local API key, written in
+     * the layout {@code prepare} reuses. The seeds never leave {@code secrets/}; only public keys are exposed.
+     */
+    static final class LocalMemberIdentities {
+        private final List<String> seeds;
+        private final String apiKey;
+
+        private LocalMemberIdentities(List<String> seeds, String apiKey) {
+            this.seeds = seeds;
+            this.apiKey = apiKey;
+        }
+
+        static LocalMemberIdentities generate(int members) {
+            if (members < 1 || members > 32) throw new IllegalArgumentException("Members must be from 1 to 32");
+            List<String> seeds = new ArrayList<>(members);
+            for (int node = 0; node < members; node++) seeds.add(randomHex32());
+            return new LocalMemberIdentities(List.copyOf(seeds), randomHex32());
+        }
+
+        int members() {
+            return seeds.size();
+        }
+
+        List<String> publicKeys() {
+            return seeds.stream().map(LocalMemberIdentities::publicKey).toList();
+        }
+
+        /** Writes {@code secrets/node<i>.env} owner-only and refuses to replace an existing member file. */
+        void write(Path project) throws IOException {
+            Path secrets = project.resolve("secrets");
+            safeDirectory(secrets);
+            ownerOnly(secrets, "rwx------");
+            for (int node = 0; node < seeds.size(); node++) {
+                Path file = secrets.resolve("node" + node + ".env");
+                if (Files.exists(file, LinkOption.NOFOLLOW_LINKS)) {
+                    throw new IOException("Refusing to replace existing member file secrets/" + file.getFileName());
+                }
+                atomicWrite(file, environment(seeds.get(node), apiKey), true);
+            }
+        }
+
+        static String randomHex32() {
+            byte[] bytes = new byte[32];
+            RANDOM.nextBytes(bytes);
+            return HexFormat.of().formatHex(bytes);
+        }
+
+        static String publicKey(String seed) {
+            return HexFormat.of().formatHex(KeyGenUtil.getPublicKeyFromPrivateKey(HexFormat.of().parseHex(seed)));
+        }
+
+        static byte[] environment(String seed, String apiKey) {
+            return ("YANO_APPCHAIN_SIGNING_KEY=" + seed + "\nYANO_APPCHAIN_API_KEYS=" + apiKey + "\n")
+                    .getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        }
+
+        @Override
+        public String toString() {
+            return "LocalMemberIdentities[members=" + seeds.size() + "]";
+        }
+    }
+
+    private static final SecureRandom RANDOM = new SecureRandom();
 
     private final AppChainPropertyRegistry properties;
     private final ObjectMapper json = new ObjectMapper();
@@ -379,10 +446,9 @@ final class AppChainProjectOperations {
         if (members < 1 || members > 32) throw new IllegalArgumentException("Members must be from 1 to 32");
         var secrets = project.resolve("secrets");
         safeDirectory(secrets);
-        Files.setPosixFilePermissions(secrets, PosixFilePermissions.fromString("rwx------"));
+        ownerOnly(secrets, "rwx------");
         List<String> publicKeys = new ArrayList<>();
         String apiKey = null;
-        var random = new SecureRandom();
         for (int node = 0; node < members; node++) {
             Path file = secrets.resolve("node" + node + ".env");
             String seed;
@@ -394,14 +460,17 @@ final class AppChainProjectOperations {
                     throw new IOException("Prepared nodes must use the same local API key");
                 }
             } else {
-                if (pinned) throw new IOException("Pinned identities require the original private member files");
-                seed = HexFormat.of().formatHex(random.generateSeed(32));
-                if (apiKey == null) apiKey = HexFormat.of().formatHex(random.generateSeed(32));
-                atomicWrite(file, ("YANO_APPCHAIN_SIGNING_KEY=" + seed + "\nYANO_APPCHAIN_API_KEYS="
-                        + apiKey + "\n").getBytes(java.nio.charset.StandardCharsets.UTF_8), true);
+                if (pinned) {
+                    throw new IOException("Pinned identities require the original private member files, but secrets/"
+                            + file.getFileName() + " is missing. Restore it; if `appchain init "
+                            + "--generate-local-member-keys` was interrupted before writing it, delete this project "
+                            + "and run init again.");
+                }
+                seed = LocalMemberIdentities.randomHex32();
+                if (apiKey == null) apiKey = LocalMemberIdentities.randomHex32();
+                atomicWrite(file, LocalMemberIdentities.environment(seed, apiKey), true);
             }
-            publicKeys.add(HexFormat.of().formatHex(KeyGenUtil.getPublicKeyFromPrivateKey(
-                    HexFormat.of().parseHex(seed))));
+            publicKeys.add(LocalMemberIdentities.publicKey(seed));
         }
         List<AppChainProjectModel.ChainIntent> chains = new ArrayList<>();
         for (var chain : spec.chains()) {
@@ -431,7 +500,12 @@ final class AppChainProjectOperations {
         if (!Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS) || Files.size(file) > 1024) {
             throw new IOException("Member environment must be a small regular file");
         }
-        var permissions = Files.getPosixFilePermissions(file);
+        Set<PosixFilePermission> permissions;
+        try {
+            permissions = Files.getPosixFilePermissions(file);
+        } catch (UnsupportedOperationException noPosix) {
+            throw new IOException(NO_POSIX + file.getFileName());
+        }
         if (permissions.stream().anyMatch(permission -> permission.name().startsWith("GROUP_")
                 || permission.name().startsWith("OTHERS_"))) {
             throw new IOException("Member environment requires owner-only permissions");
@@ -450,6 +524,18 @@ final class AppChainProjectOperations {
         return values;
     }
 
+    private static final String NO_POSIX =
+            "Member keys must stay owner-only, which needs a file system with POSIX permissions: ";
+
+    /** Sets owner-only permissions, failing with a clear message where the file system has none. */
+    private static void ownerOnly(Path path, String permissions) throws IOException {
+        try {
+            Files.setPosixFilePermissions(path, PosixFilePermissions.fromString(permissions));
+        } catch (UnsupportedOperationException noPosix) {
+            throw new IOException(NO_POSIX + path.getFileName());
+        }
+    }
+
     static void safeDirectory(Path path) throws IOException {
         Path absolute = path.toAbsolutePath().normalize();
         for (Path cursor = absolute; cursor != null; cursor = cursor.getParent()) {
@@ -466,7 +552,7 @@ final class AppChainProjectOperations {
         Path temporary = Files.createTempFile(path.getParent(), ".yano-write-", ".tmp");
         try {
             Files.write(temporary, bytes, StandardOpenOption.TRUNCATE_EXISTING);
-            if (privateFile) Files.setPosixFilePermissions(temporary, PosixFilePermissions.fromString("rw-------"));
+            if (privateFile) ownerOnly(temporary, "rw-------");
             Files.move(temporary, path, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
         } finally {
             Files.deleteIfExists(temporary);

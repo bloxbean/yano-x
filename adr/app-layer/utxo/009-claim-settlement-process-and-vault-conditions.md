@@ -744,8 +744,10 @@ and SKIPS structurally invalid marker transactions deterministically; the
 ledger tracks LIVE vault custody (`bridge/vault-utxo/` keys — deposits add
 the accepted outpoint) and accepts a batch confirmation only if it SPENT a
 tracked outpoint (only the on-chain validator authorizes vault spends),
-rotating custody to the continuing outpoint; otherwise
-`WITHDRAWAL_CONFIRMATION_UNPROVEN` halt with the reserve untouched. Also:
+rotating custody to the continuing outpoint; otherwise the confirmation is
+ignored with the reserve untouched. (Amended 2026-10-10: this was a
+`WITHDRAWAL_CONFIRMATION_UNPROVEN` halt, which any L1 user could trigger with
+a fabricated marker; see ADR-042.) Also:
 the executor records `FAILED` on a REJECTED submission (submit and probe
 paths) so retries REBUILD with fresh inputs instead of probing a dead txid
 until effect expiry.

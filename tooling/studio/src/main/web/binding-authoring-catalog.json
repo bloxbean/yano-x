@@ -4,7 +4,7 @@
   "producer" : {
     "tool" : "yano-x-devtools",
     "version" : "0.1.0-pre3",
-    "jarSha256" : "122df3c93a5b74bf586c41dd972330f0af801e03d8e8ca536b5632946c2b32a2",
+    "jarSha256" : "86b8ed325d18b84d76a56d48d7b828d1ee8211749e9c90aa1863c480764fbfac",
     "linkedCompositeJarSha256" : "3537d6117378ad655110cefcacc7f3331710bb7d51e1edbb1c6ae3f6b2c06a44"
   },
   "host" : {
@@ -14,7 +14,7 @@
   },
   "authoringEnvironment" : "yano-x-binding-authoring-environment-v1",
   "catalog" : {
-    "fingerprint" : "sha256:79f151180990eb4d54942a2120c4dcd16b01a9db84e7d6133a79720afa6be849",
+    "fingerprint" : "sha256:24c3e6c3df3045527d586cad22ab2f95dab6c1ab6d6e9df347d43ede7d5382c0",
     "pluginApi" : {
       "major" : 3,
       "level" : 12
@@ -28,7 +28,7 @@
     }, {
       "id" : "org.yanoproject.x.role-workflow",
       "version" : "0.1.0-pre3",
-      "digest" : "sha256:19cee6606fcfdb7792cd4dfe77c05a356171776fcd255de1921761f6a2f29038",
+      "digest" : "sha256:5f48192d0b35a4130bff372435902669e994ba1b1e1f0554f6262307cddd08c5",
       "digestMode" : "ARTIFACT_CLOSURE",
       "selected" : true
     }, {
@@ -810,7 +810,7 @@
     "origin" : {
       "kind" : "bundle",
       "bundleId" : "org.yanoproject.x.role-workflow",
-      "digest" : "sha256:19cee6606fcfdb7792cd4dfe77c05a356171776fcd255de1921761f6a2f29038",
+      "digest" : "sha256:5f48192d0b35a4130bff372435902669e994ba1b1e1f0554f6262307cddd08c5",
       "digestMode" : "ARTIFACT_CLOSURE"
     },
     "composable" : null
@@ -846,7 +846,7 @@
     "origin" : {
       "kind" : "bundle",
       "bundleId" : "org.yanoproject.x.role-workflow",
-      "digest" : "sha256:19cee6606fcfdb7792cd4dfe77c05a356171776fcd255de1921761f6a2f29038",
+      "digest" : "sha256:5f48192d0b35a4130bff372435902669e994ba1b1e1f0554f6262307cddd08c5",
       "digestMode" : "ARTIFACT_CLOSURE"
     },
     "composable" : null
@@ -870,7 +870,7 @@
     "origin" : {
       "kind" : "bundle",
       "bundleId" : "org.yanoproject.x.role-workflow",
-      "digest" : "sha256:19cee6606fcfdb7792cd4dfe77c05a356171776fcd255de1921761f6a2f29038",
+      "digest" : "sha256:5f48192d0b35a4130bff372435902669e994ba1b1e1f0554f6262307cddd08c5",
       "digestMode" : "ARTIFACT_CLOSURE"
     },
     "composable" : null

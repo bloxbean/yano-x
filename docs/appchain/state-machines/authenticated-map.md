@@ -128,6 +128,11 @@ member keys must be known up front:
   --output product-registry
 ```
 
+For a disposable local devnet, use `--network devnet` and replace the
+`--member-key` options with `--generate-local-member-keys`. It keeps the private
+keys in the project's owner-only `secrets/` directory and pins only the public
+keys. On public networks, operators always supply their own keys.
+
 Then edit `spec.chains[0].authenticatedMap` in `appchain.yaml`. This example
 combines an opaque collection, a canonical-CBOR collection and a schema:
 

@@ -107,11 +107,12 @@ final class EutxoCbor {
         array.add(text(claim.l2KeyBinding().authorizationProfile()));
         array.add(uint(claim.l2KeyBinding().keyEpoch()));
         array.add(new ByteString(claim.l2KeyBinding().publicKey()));
+        array.add(claim.depositorSigned() ? SimpleValue.TRUE : SimpleValue.FALSE);
         return encode(array);
     }
 
     static EutxoDepositClaim decodeDepositClaim(byte[] bytes) {
-        List<DataItem> fields = array(item(bytes), 19, "deposit claim");
+        List<DataItem> fields = array(item(bytes), 20, "deposit claim");
         return new EutxoDepositClaim(
                 integer(fields.get(0), "ABI version"),
                 string(fields.get(1), "chain id"),
@@ -130,7 +131,64 @@ final class EutxoCbor {
                 new EutxoL2KeyBinding(
                         string(fields.get(16), "authorization profile"),
                         longInteger(fields.get(17), "L2 key epoch"),
-                        bytes(fields.get(18), "L2 public key")));
+                        bytes(fields.get(18), "L2 public key")),
+                bool(fields.get(19), "depositor signed"));
+    }
+
+    /** An optional value: CBOR null when absent, otherwise the value's own encoding wrapped as a byte string. */
+    static byte[] encodeOptionalBytes(byte[] value) {
+        return encode(value == null ? SimpleValue.NULL : new ByteString(value));
+    }
+
+    static byte[] decodeOptionalBytes(byte[] bytes) {
+        DataItem item = item(bytes);
+        return item == SimpleValue.NULL ? null : bytes(item, "optional value");
+    }
+
+    static byte[] encodeDepositNotice(EutxoDepositNotice notice) {
+        Array array = new Array();
+        array.add(uint(VERSION));
+        outpoint(array, notice.acceptedOutpoint());
+        array.add(text(notice.outcome().name()));
+        array.add(text(notice.reason()));
+        array.add(uint(notice.height()));
+        return encode(array);
+    }
+
+    static EutxoDepositNotice decodeDepositNotice(byte[] bytes) {
+        List<DataItem> fields = array(item(bytes), 6, "deposit notice");
+        version(fields.get(0));
+        EutxoDepositNotice.Outcome outcome;
+        try {
+            outcome = EutxoDepositNotice.Outcome.valueOf(string(fields.get(3), "notice outcome"));
+        } catch (IllegalArgumentException unknown) {
+            throw new IllegalArgumentException("unknown deposit notice outcome", unknown);
+        }
+        return new EutxoDepositNotice(
+                outpoint(fields.get(1), fields.get(2)),
+                outcome,
+                string(fields.get(4), "notice reason"),
+                longInteger(fields.get(5), "notice height"));
+    }
+
+    static byte[] encodeIgnoredConfirmations(EutxoIgnoredConfirmations ignored) {
+        Array array = new Array();
+        array.add(uint(VERSION));
+        array.add(uint(ignored.count()));
+        array.add(text(ignored.lastSettlementTransactionId()));
+        array.add(text(ignored.lastReason()));
+        array.add(uint(ignored.lastHeight()));
+        return encode(array);
+    }
+
+    static EutxoIgnoredConfirmations decodeIgnoredConfirmations(byte[] bytes) {
+        List<DataItem> fields = array(item(bytes), 5, "ignored confirmations");
+        version(fields.get(0));
+        return new EutxoIgnoredConfirmations(
+                longInteger(fields.get(1), "ignored count"),
+                string(fields.get(2), "settlement transaction id"),
+                string(fields.get(3), "ignored reason"),
+                longInteger(fields.get(4), "ignored height"));
     }
 
     static byte[] encodeDepositRecord(EutxoDepositRecord record) {
@@ -492,6 +550,16 @@ final class EutxoCbor {
             throw new IllegalArgumentException(field + " exceeds integer range");
         }
         return (int) value;
+    }
+
+    private static boolean bool(DataItem item, String field) {
+        if (SimpleValue.TRUE.equals(item)) {
+            return true;
+        }
+        if (SimpleValue.FALSE.equals(item)) {
+            return false;
+        }
+        throw new IllegalArgumentException(field + " must be a CBOR boolean");
     }
 
     private static long longInteger(DataItem item, String field) {
