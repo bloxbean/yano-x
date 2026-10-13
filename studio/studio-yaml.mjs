@@ -245,7 +245,7 @@ class Parser {
 
   checkPlainKey(text, offset) {
     if (/^[&*!]/.test(text)) {
-      throw this.error('YAML_UNSUPPORTED_CONSTRUCT', 'Anchors, aliases and tags are not supported in keys', offset);
+      throw this.error('YAML_UNSUPPORTED_CONSTRUCT', 'YAML anchors, aliases and tags are not supported', offset);
     }
     if (!PLAIN_KEY.test(text) || RESERVED_WORDS.has(text.toLowerCase())) {
       throw this.error('YAML_AMBIGUOUS_SCALAR',

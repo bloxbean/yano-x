@@ -146,11 +146,10 @@ create a project with the <code dir="auto">role-approval</code> recipe, sign sta
 <code dir="auto">./yano.sh appchain role sign</code>, submit them on <code dir="auto">role-approvals.command.v1</code>,
 and query and prove the result. It also lists the lifecycle, the order of
 checks and every outcome code.</p>
-<p>Its organizations, actors and policies are created through member governance,
-as the reference page describes. The release encodes the governance commands
-(<code dir="auto">appchain role govern-propose</code>, <code dir="auto">govern-approve</code>, <code dir="auto">govern-activate</code>) but not
-the records they carry, so your tooling builds those with the role-workflow
-contracts.</p>
+<p>Its organizations, actors and policies are created through member governance.
+<code dir="auto">./yano.sh appchain role bootstrap</code> encodes them from the project’s generated
+<code dir="auto">bootstrap/role-approvals-plan.yaml</code>; the reference page walks through the
+bootstrap, from actor keys to a read-back of every record.</p>
 <div class="sl-heading-wrapper level-h2"><h2 id="reuse-levels">Reuse levels</h2><a class="sl-anchor-link" href="#reuse-levels"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only" data-pagefind-ignore="">Section titled “Reuse levels”</span></a></div>
 <ul>
 <li><strong>Configuration only.</strong> Use a stock profile when its action and terminal

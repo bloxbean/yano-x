@@ -13,7 +13,7 @@
       "trustStatement": "Catalog-selected deterministic kernels; bindings do not grant authority to derived commands.",
       "description": "Compile bounded event bindings into one committed atomic composite profile.",
       "primaryOutcome": "A source command and its event-derived commands commit atomically with an auditable receipt.",
-      "firstCommand": "appchain bindings validate bindings.yml --plugins-directory plugins --context context.json",
+      "firstCommand": "submit a source command to the source component, then read its binding receipt",
       "verificationQuery": "query/composite/binding-receipt-v1/{sourceMessageId}",
       "capabilities": ["state:declarative-composite", "sequencer:fixed"],
       "recommended": {"blockIntervalMs": "1000"},

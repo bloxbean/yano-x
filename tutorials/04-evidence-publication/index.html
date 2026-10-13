@@ -88,7 +88,9 @@ IPFS, and the Evidence Explorer.</p>
 <p><strong>Before you start:</strong></p>
 <ul>
 <li>You need JDK 25, Docker with Compose v2, <code dir="auto">curl</code>, <code dir="auto">jq</code>, <code dir="auto">openssl</code>, and
-Python 3.</li>
+Python 3. The stack is tested with Docker Desktop. On Colima with a
+<code dir="auto">virtiofs</code> mount, RustFS refuses its owner-only secret files and the stack
+rolls back (<a href="https://github.com/bloxbean/yano-x/issues/36">#36</a>).</li>
 <li>The harness ships in the extracted Yano X JVM distribution at
 <code dir="auto">examples/evidence</code>. It finds the distribution’s <code dir="auto">yano.jar</code> by itself.</li>
 <li>It uses ports 7070–7072 for the members and 7080 for the Explorer, plus 9092,

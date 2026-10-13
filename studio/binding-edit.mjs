@@ -420,7 +420,10 @@ export function removeAssignment(draft, bindingIndex, field) {
   return next;
 }
 
-/** Authors (value) or removes (null) one committed limit; removal shows the catalog default without writing it. */
+/**
+ * Authors (value) or removes (null) one committed limit; removal shows the catalog default without writing it, and
+ * removing the last authored limit omits the limits block.
+ */
 export function setLimit(draft, name, value) {
   const next = clone(draft);
   const limits = next.limits ?? [];
@@ -428,7 +431,7 @@ export function setLimit(draft, name, value) {
   if (value === null) next.limits = limits.filter(limit => limit.name !== name);
   else if (existing) existing.value = value;
   else next.limits = [...limits, {name, value}];
-  if (next.limits !== null && !next.limits.length && draft.limits === null) next.limits = null;
+  if (next.limits !== null && !next.limits.length) next.limits = null;
   return next;
 }
 
