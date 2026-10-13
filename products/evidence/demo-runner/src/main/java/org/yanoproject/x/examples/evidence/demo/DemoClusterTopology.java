@@ -38,21 +38,29 @@ record DemoClusterTopology(Set<String> memberKeys,
                 || expectedMemberKeys.stream().anyMatch(
                 key -> key == null || !key.matches("[0-9a-f]{64}"))
                 || expectedThreshold != EXPECTED_THRESHOLD) {
-            throw new DemoException(DemoError.CLUSTER_DIVERGED);
+            throw new DemoException(DemoError.CLUSTER_DIVERGED, "TOPOLOGY_INPUT");
         }
         Set<String> identities = new LinkedHashSet<>();
         for (YanoAuditClient.Status status : statuses) {
-            if (status == null
-                    || status.members() != EXPECTED_MEMBERS
-                    || status.threshold() != expectedThreshold
-                    || !expectedStateMachine.equals(status.stateMachine())
-                    || !identities.add(status.memberKey())) {
-                throw new DemoException(DemoError.CLUSTER_DIVERGED);
+            if (status == null) {
+                throw new DemoException(DemoError.CLUSTER_DIVERGED, "MISSING_STATUS");
+            }
+            if (status.members() != EXPECTED_MEMBERS) {
+                throw new DemoException(DemoError.CLUSTER_DIVERGED, "MEMBER_COUNT");
+            }
+            if (status.threshold() != expectedThreshold) {
+                throw new DemoException(DemoError.CLUSTER_DIVERGED, "THRESHOLD");
+            }
+            if (!expectedStateMachine.equals(status.stateMachine())) {
+                throw new DemoException(DemoError.CLUSTER_DIVERGED, "STATE_MACHINE");
+            }
+            if (!identities.add(status.memberKey())) {
+                throw new DemoException(DemoError.CLUSTER_DIVERGED, "DUPLICATE_MEMBER_KEY");
             }
         }
         if (identities.size() != EXPECTED_MEMBERS
                 || !identities.equals(expectedMemberKeys)) {
-            throw new DemoException(DemoError.CLUSTER_DIVERGED);
+            throw new DemoException(DemoError.CLUSTER_DIVERGED, "MEMBER_KEY_SET");
         }
         YanoAuditClient.Status observed = statuses.getFirst();
         return new DemoClusterTopology(identities, observed.threshold(),
@@ -77,12 +85,12 @@ record DemoClusterTopology(Set<String> memberKeys,
         if (scriptAddress == null || scriptAddress.isBlank()
                 || threadPolicyId == null
                 || !threadPolicyId.matches("[0-9a-f]{56}")) {
-            throw new DemoException(DemoError.CLUSTER_DIVERGED);
+            throw new DemoException(DemoError.CLUSTER_DIVERGED, "ANCHOR_IDENTITY");
         }
         for (YanoAuditClient.Status status : statuses) {
             if (!scriptAddress.equals(status.anchorScriptAddress())
                     || !threadPolicyId.equals(status.anchorThreadPolicyId())) {
-                throw new DemoException(DemoError.CLUSTER_DIVERGED);
+                throw new DemoException(DemoError.CLUSTER_DIVERGED, "ANCHOR_IDENTITY");
             }
         }
         return new DemoClusterTopology(base.memberKeys(), base.threshold(),
