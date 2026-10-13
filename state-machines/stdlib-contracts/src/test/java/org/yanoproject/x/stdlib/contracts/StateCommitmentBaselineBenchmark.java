@@ -224,7 +224,7 @@ public final class StateCommitmentBaselineBenchmark {
                     {
                       "schema": "yano-adr025-phase0-baseline-v1",
                       "scope": "single-process in-memory algorithm/codec baseline; not production bounds",
-                      "cclVersion": "0.8.0-pre5-dev1",
+                      "cclVersion": "0.8.0-pre5",
                       "keyCount": %d,
                       "operationCount": %d,
                       "mix": {"insert": %d, "update": %d, "revoke": %d},
