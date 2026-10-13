@@ -68,7 +68,8 @@ final class BatchWithdrawalConfirmationObserver implements L1Observer {
             return List.of();
         }
         List<L1Observation> observations = new ArrayList<>();
-        for (TransactionBody transaction : block.getTransactionBodies()) {
+        // A phase-2-invalid transaction created no outputs and spent no inputs; only valid ones are read.
+        for (TransactionBody transaction : ValidTransactions.of(block)) {
             EutxoBatchWithdrawalConfirmation confirmation;
             try {
                 confirmation = confirmation(slot, blockHash, transaction);
@@ -112,8 +113,11 @@ final class BatchWithdrawalConfirmationObserver implements L1Observer {
             }
             EutxoBatchSettlementMarker candidate;
             try {
-                candidate = EutxoBatchSettlementMarker.decode(
-                        HexUtil.decodeHexString(output.getInlineDatum()));
+                byte[] datumCbor = HexUtil.decodeHexString(output.getInlineDatum());
+                if (!BridgeDatumPreflight.bounded(datumCbor)) {
+                    continue;
+                }
+                candidate = EutxoBatchSettlementMarker.decode(datumCbor);
             } catch (RuntimeException notBatchMarker) {
                 continue;
             }

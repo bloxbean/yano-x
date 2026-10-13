@@ -83,6 +83,8 @@ public final class EutxoExternalDepositWorkflow {
                                         options.amount())),
                                 PlutusData.deserialize(datum.encode()))
                         .from(options.address()))
+                // The ledger applies the L2 key binding only when the depositor is a required signer.
+                .withRequiredSigners(depositor)
                 .additionalSignersCount(1)
                 .build();
         byte[] cbor = transaction.serialize();

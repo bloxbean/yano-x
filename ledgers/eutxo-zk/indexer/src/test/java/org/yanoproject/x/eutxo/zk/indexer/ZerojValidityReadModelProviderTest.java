@@ -81,6 +81,37 @@ class ZerojValidityReadModelProviderTest {
         assertThat(model.get()).isNull();
     }
 
+    @Test
+    void aBatchReportsItsMostAdvancedJournalAndAnUnknownStatusOnlyMarksThatBatch() {
+        String proof = "aa".repeat(32);
+        String other = "bb".repeat(32);
+        var prepared = journal(proof, "PREPARED", "");
+        var submitted = journal(proof, "SUBMITTED", "cc".repeat(32));
+        var stable = journal(proof, "STABLE", "dd".repeat(32));
+        var otherStable = journal(other, "STABLE", "ee".repeat(32));
+        var deposit = Map.<String, Object>of("kind", "deposit", "proofId", proof, "status", "STABLE");
+
+        assertThat(ZerojValidityReadModelProvider.ZerojSource.settlement(List.of(), proof)).isEmpty();
+        assertThat(ZerojValidityReadModelProvider.ZerojSource.settlement(List.of(prepared), proof))
+                .containsEntry("status", "PREPARED");
+        assertThat(ZerojValidityReadModelProvider.ZerojSource.settlement(List.of(prepared, submitted), proof))
+                .isEqualTo(submitted);
+        assertThat(ZerojValidityReadModelProvider.ZerojSource.settlement(List.of(submitted, prepared), proof))
+                .isEqualTo(submitted);
+        // An unknown status is never reported as a submission, even next to a submitted journal or alone.
+        assertThat(ZerojValidityReadModelProvider.ZerojSource.settlement(List.of(submitted, stable), proof))
+                .isEqualTo(Map.of("status", ZerojValidityReadModelProvider.INVALID_JOURNAL));
+        assertThat(ZerojValidityReadModelProvider.ZerojSource.settlement(List.of(stable), proof))
+                .isEqualTo(Map.of("status", ZerojValidityReadModelProvider.INVALID_JOURNAL));
+        // Another batch's journal and non-settlement journals do not touch this batch.
+        assertThat(ZerojValidityReadModelProvider.ZerojSource.settlement(
+                List.of(submitted, otherStable, deposit), proof)).isEqualTo(submitted);
+    }
+
+    private static Map<String, Object> journal(String proofId, String status, String transactionId) {
+        return Map.of("kind", "settlement", "proofId", proofId, "status", status, "transactionId", transactionId);
+    }
+
     private static FinalizedChainView chain(String chainId) {
         return new FinalizedChainView() {
             @Override public String chainId() { return chainId; }
