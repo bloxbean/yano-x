@@ -231,5 +231,5 @@ semantic checks off-chain only.
 - The release-matched verifier accepts the exact `mpf-blake2b256-v1` and
   `jmt-blake2b256-v1` metadata/codec contracts. The declared Poseidon profile
   remains fail-closed until its Phase 4 dependency is released and pinned.
-- CCL `0.8.0-pre5-dev1` is the current development baseline, not a production
+- CCL `0.8.0-pre5` is the current development baseline, not a production
   dependency approval.

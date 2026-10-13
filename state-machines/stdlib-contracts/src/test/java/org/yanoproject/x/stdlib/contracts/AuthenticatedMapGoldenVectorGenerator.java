@@ -34,7 +34,7 @@ public final class AuthenticatedMapGoldenVectorGenerator {
                 Integer.toString(AuthenticatedMapContract.VALUE_ENCODING_OPAQUE));
         vectors.put("value.encoding.canonical-cbor",
                 Integer.toString(AuthenticatedMapContract.VALUE_ENCODING_CANONICAL_CBOR));
-        vectors.put("dependency.ccl.version", "0.8.0-pre5-dev1");
+        vectors.put("dependency.ccl.version", "0.8.0-pre5");
         vectors.put("profile.mpf.id", StateCommitmentProfiles.MPF.id());
         vectors.put("profile.mpf.descriptor", StateCommitmentProfiles.MPF.commitmentFormatId());
         vectors.put("profile.mpf.fingerprint",
