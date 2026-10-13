@@ -33,6 +33,15 @@ class RoleWorkflowCliTest {
     }
 
     @Test
+    void helpListsEveryCommand() {
+        for (String help : new String[]{"help", "--help", "-h"}) {
+            assertThat(RoleWorkflowCli.execute(new String[]{help}))
+                    .contains("public-key", "key-proof-signature", "sign", "govern-propose", "govern-approve",
+                            "govern-activate");
+        }
+    }
+
+    @Test
     void rejectsInlineSecretsAndUnknownOptions(@TempDir Path directory) throws Exception {
         Path seed = directory.resolve("actor.seed");
         Files.writeString(seed, "01".repeat(32));

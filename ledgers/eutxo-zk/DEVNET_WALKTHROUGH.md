@@ -489,6 +489,13 @@ reference is:
 - `DepositAcceptanceBuilder` in `yano-x-eutxo-bridge-cardano`; and
 - `acceptDeposit(...)` in `EutxoZkRollupDevnetE2ETest`.
 
+This walkthrough's deposit carries no L2 key binding; its L2 key is registered
+at genesis. If a vault datum does carry a binding, the depositor's payment key
+hash must be a required signer of the acceptance transaction, and the
+depositor must sign it. Otherwise the deposit is credited but no key is
+registered, and `appchain eutxo deposit get` shows a `KEY_BINDING_UNSIGNED`
+notice. `DepositAcceptanceBuilder` adds the required signer for a bound datum.
+
 Publish the signed staging CBOR directly:
 
 ```bash
@@ -514,22 +521,18 @@ DEPOSIT_TX_ID="$(
 export DEPOSIT_TX_ID
 ```
 
-Do not mark the operation stable merely because submission returned a
-transaction ID. Wait until the accepted output is present in stable L1 state.
-For the local walkthrough, confirm the transaction and output are visible:
+The journal now records the operation as `SUBMITTED`. It never records L1
+stability: the node decides that. Confirm the transaction and its outputs are
+visible:
+
+A journal written by an earlier version of this walkthrough may still say
+`STABLE`, which the lifecycle no longer writes; it then refuses that journal
+and names the file. The operation was submitted, so set its `status` to
+`SUBMITTED`.
 
 ```bash
 curl --fail --silent "$API/txs/$DEPOSIT_TX_ID" | jq
 curl --fail --silent "$API/txs/$DEPOSIT_TX_ID/utxos" | jq
-```
-
-After the configured stability depth has passed:
-
-```bash
-./yano.sh appchain validity deposit stable \
-  --project "$PROJECT" \
-  --id deposit-0001 \
-  --tx-id "$DEPOSIT_TX_ID"
 ```
 
 Record the accepted vault output index:
@@ -540,19 +543,33 @@ export ACCEPTED_OUTPOINT="$DEPOSIT_TX_ID#<accepted-vault-output-index>"
 
 ## 10. Confirm the mirrored L2 EUTxO
 
-The bridge observer emits a deterministic deposit claim only after L1
-stability. The appchain then creates one L2 output tied to the exact accepted
-L1 outpoint.
+The bridge observer emits a deterministic deposit claim only after the
+accepted output is `yano.app-chain.chains[0].l1.stability-depth` blocks deep. The
+appchain then creates one L2 output tied to the exact accepted L1 outpoint and
+commits a deposit record for it. Until then, the record is `null`:
+
+```bash
+deadline=$((SECONDS + 300))
+until ./yano.sh appchain eutxo deposit get "$ACCEPTED_OUTPOINT" \
+    --url "$API" \
+    --chain "$CHAIN_ID" |
+  jq -e '.deposit' >/dev/null; do
+  [ "$SECONDS" -lt "$deadline" ] || { echo "timed out after 5 minutes; check the node logs" >&2; break; }
+  sleep 1
+done
+```
 
 Poll the L2 owner:
 
 ```bash
+deadline=$((SECONDS + 300))
 until ./yano.sh appchain eutxo utxo list "$L2_ADDRESS" \
     --url "$API" \
     --chain "$CHAIN_ID" \
     > "$WORK/artifacts/l2-utxos.json" &&
   jq -e '.utxos[] | select(.origin == "L1_DEPOSIT")' \
     "$WORK/artifacts/l2-utxos.json" >/dev/null; do
+  [ "$SECONDS" -lt "$deadline" ] || { echo "timed out after 5 minutes; check the node logs" >&2; break; }
   sleep 1
 done
 
@@ -651,12 +668,14 @@ export L2_TX_ID='<64-hex L2 transaction ID>'
 Wait for deterministic execution:
 
 ```bash
+deadline=$((SECONDS + 300))
 until ./yano.sh appchain eutxo transaction status "$L2_TX_ID" \
     --url "$API" \
     --chain "$CHAIN_ID" \
     > "$WORK/artifacts/l2-receipt.json" &&
   jq -e '.receipt.status == "ACCEPTED"' \
     "$WORK/artifacts/l2-receipt.json" >/dev/null; do
+  [ "$SECONDS" -lt "$deadline" ] || { echo "timed out after 5 minutes; check the node logs" >&2; break; }
   sleep 1
 done
 
@@ -684,7 +703,7 @@ export TRANSITION_FILE="$WORK/artifacts/transition-$APP_HEIGHT-$APP_ORDINAL.cbor
 
 Use `EutxoClient.finalizedValidityTransition(appHeight, ordinal)`, write
 `transition.canonicalBytes()` to `TRANSITION_FILE`, and record the lowercase
-hex form of `transition.previousRoot()`:
+hex form of `transition.previousRoot()` and the claim ID of its withdrawal:
 
 ```java
 AppChainClient appchain = AppChainClient.builder(
@@ -699,12 +718,14 @@ EutxoValidityTransition transition =
 Files.write(output, transition.canonicalBytes());
 String previousRoot =
         HexFormat.of().formatHex(transition.previousRoot());
+String claimId = transition.withdrawals().getFirst().claimId();
 ```
 
 Generate one real Groth16 proof:
 
 ```bash
 export PREVIOUS_ROOT='<previousRoot printed by the exporter>'
+export CLAIM_ID='<claimId printed by the exporter>'
 
 PROVE_RESULT="$(
   ./yano.sh appchain validity prove \
@@ -779,13 +800,23 @@ SETTLEMENT_TX_ID="$(
 curl --fail --silent "$API/txs/$SETTLEMENT_TX_ID" | jq
 ```
 
-After the root transaction is stable:
+The withdrawal in the next section reads this root as a reference input, so
+it can only succeed on L1 while the root transaction stands. If the root
+transaction rolls back, the withdrawal rolls back with it, and L2 never marks
+the claim confirmed. Before you build the withdrawal, wait until the root
+transaction is as deep as the node's L1 stability point, so that a rollback
+does not cost you a rebuild. The generated project sets
+`yano.app-chain.chains[0].l1.stability-depth` to 2, and `.confirmations` counts the tip
+block as 0, the same way:
 
 ```bash
-./yano.sh appchain validity settlement stable \
-  --project "$PROJECT" \
-  --id settlement-0001 \
-  --tx-id "$SETTLEMENT_TX_ID"
+STABILITY_DEPTH=2
+deadline=$((SECONDS + 300))
+until [ "$(curl --fail --silent "$API/txs/$SETTLEMENT_TX_ID/status" |
+    jq '.confirmations // -1')" -ge "$STABILITY_DEPTH" ]; do
+  [ "$SECONDS" -lt "$deadline" ] || { echo "timed out after 5 minutes; check the node logs" >&2; break; }
+  sleep 1
+done
 ```
 
 ## 14. Publish the L1 proof withdrawal
@@ -830,14 +861,20 @@ WITHDRAWAL_TX_ID="$(
 curl --fail --silent "$API/txs/$WITHDRAWAL_TX_ID/utxos" | jq
 ```
 
-Verify that one output pays `PAYOUT_ADDRESS` exactly 3,000,000 lovelace. After
-the transaction is stable:
+Verify that one output pays `PAYOUT_ADDRESS` exactly 3,000,000 lovelace.
+
+The withdrawal-confirmation observer marks the L2 claim `CONFIRMED` once the
+payout is stability-deep. Wait for the claim recorded in section 12:
 
 ```bash
-./yano.sh appchain validity withdrawal stable \
-  --project "$PROJECT" \
-  --id withdrawal-0001 \
-  --tx-id "$WITHDRAWAL_TX_ID"
+for attempt in $(seq 1 300); do
+  STATUS="$(./yano.sh appchain eutxo withdrawal get "$CLAIM_ID" \
+      --url "$API" \
+      --chain "$CHAIN_ID" | jq -r '.withdrawal.status // "MISSING"')" || break
+  [ "$STATUS" = CONFIRMED ] && break
+  sleep 1
+done
+echo "withdrawal $CLAIM_ID: $STATUS"
 
 ./yano.sh appchain validity reconcile --project "$PROJECT"
 ```
@@ -851,11 +888,12 @@ The successful final state has all of these properties:
 | L1 accepted vault | Original 10 ADA accepted output was consumed |
 | L2 deposit input | Mirrored input was consumed |
 | L2 change | 7 ADA-equivalent output remains at `L2_ADDRESS` |
-| L2 withdrawal claim | 3 ADA claim is committed and later confirmed; the CLI has no claim command yet, so read it with `EutxoClient.withdrawalSnapshot` |
+| L2 deposit record | `appchain eutxo deposit get` returns the mirrored outpoint |
+| L2 withdrawal claim | `appchain eutxo withdrawal get` shows the 3 ADA claim `CONFIRMED` with the payout transaction |
 | Proof | `PROOF_VALID` |
 | L1 root | Root-thread datum contains the proof's next root |
 | L1 payout | 3,000,000 lovelace exists at `PAYOUT_ADDRESS` |
-| Operation journals | Deposit, settlement, and withdrawal are `STABLE` |
+| Operation journals | Deposit, settlement, and withdrawal are `SUBMITTED` |
 
 Inspect the L2 owner:
 
@@ -960,12 +998,30 @@ export YANO_HOME='<absolute extracted distribution root>'
 
 Check that:
 
-- the accepted output, not merely the staging output, is present and stable;
+- the accepted output, not merely the staging output, is present and has
+  `yano.app-chain.chains[0].l1.stability-depth` confirmations;
 - its address exactly equals `bridgeVaultAddress`;
 - its payment script hash exactly equals `bridgeVaultScriptHash`;
 - its inline datum is an `EutxoVaultDatum` for the same chain;
 - the amount is within `bridgeMaxDepositLovelace`; and
 - node logs show the `bridge-deposits` observer running.
+
+### The withdrawal is never `CONFIRMED`
+
+`./yano.sh appchain eutxo withdrawal list` shows the newest claims and their
+status; `MISSING` means the claim ID is wrong. For a `PENDING` claim, check
+that the withdrawal transaction:
+
+- returns the remaining accepted funds to `bridgeVaultAddress` with an
+  `EutxoSettlementDatum` for the same chain ID and bridge epoch as the project
+  (the end-to-end test builds it with the test's own epoch, so do not copy that
+  value);
+- has exactly one output that pays the claim's destination its exact amount;
+  and
+- is `yano.app-chain.chains[0].l1.stability-depth` blocks deep.
+
+Also check that node logs show the withdrawal-confirmation observer running and
+no `L1 observer failed` warning.
 
 ### L2 submission succeeded but no accepted receipt appears
 

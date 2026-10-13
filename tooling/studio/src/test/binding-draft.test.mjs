@@ -116,6 +116,10 @@ test('edit operations are explicit, preview references and never reorder or add 
   const withLimit=setLimit(draft,'maxLookupsPerCondition',3n);
   assert.deepEqual(withLimit.limits.map(value=>value.name),['maxCascadeDepth','maxDerivedPerSourceMessage','maxLookupsPerCondition']);
   assert.deepEqual(setLimit(withLimit,'maxLookupsPerCondition',null).limits,draft.limits);
+  let cleared=withLimit;
+  for(const limit of withLimit.limits)cleared=setLimit(cleared,limit.name,null);
+  assert.equal(cleared.limits,null,'removing the last authored limit omits the block');
+  assert.doesNotMatch(emitDocument(cleared),/^limits:/m);
   const fresh=addBinding(addComponent(addComponent(emptyDraft(),{id:'records',machine:'kv-registry'}),
     {id:'audit',machine:'doc-trail'}),{id:'audit-record',from:{component:'records',event:'kv-registry.entry-put.v1'},
     when:null,to:{kind:'command',component:'audit',command:'append',mapping:{kind:'fields',assignments:[]}}});

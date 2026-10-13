@@ -77,7 +77,9 @@ file has a manual edit.
 | `gitops --target helm\|kustomize\|ansible --output <empty-dir>` | Export deployment derivatives. Ansible needs a JVM host project with one public key and host per member. | `GITOPS_EXPORTED` |
 
 `init` options include `--recipe`, `--network devnet|preview|preprod|mainnet`,
-`--members 1..32`, `--member-key` (once per member), `--node-host` (once per
+`--members 1..32`, `--member-key` (once per member), `--generate-local-member-keys`
+(a same-machine JVM devnet only: creates the member keys, keeps their private
+files in `secrets/` and pins only the public keys), `--node-host` (once per
 member), `--finality majority|two-thirds|all`, `--sequencing fixed|rotating`,
 `--membership static|governed`, `--runtime jvm|native`,
 `--deployment host|docker-compose`, `--http-port-base` (default `8080`),

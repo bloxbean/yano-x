@@ -25,9 +25,11 @@ public record EutxoDepositClaim(
         EutxoOutpoint stagingOutpoint,
         long refundDeadline,
         byte[] depositorKeyHash,
-        EutxoL2KeyBinding l2KeyBinding
+        EutxoL2KeyBinding l2KeyBinding,
+        boolean depositorSigned
 ) {
-    public static final int ABI_VERSION = 2;
+    /** v3 adds {@code depositorSigned}: the depositor's key hash is a required signer of the accepting transaction. */
+    public static final int ABI_VERSION = 3;
 
     public EutxoDepositClaim(
             int abiVersion,
@@ -48,7 +50,31 @@ public record EutxoDepositClaim(
                 vaultAddress, vaultScriptHash, acceptedOutputCbor, l2Address,
                 mirroredOutputCbor, depositNonce, stagingOutpoint,
                 refundDeadline, new byte[28],
-                EutxoL2KeyBinding.none());
+                EutxoL2KeyBinding.none(), false);
+    }
+
+    /** A claim whose accepting transaction is not signed by the depositor; a key binding then never applies. */
+    public EutxoDepositClaim(
+            int abiVersion,
+            String chainId,
+            EutxoOutpoint acceptedOutpoint,
+            long l1Slot,
+            byte[] l1BlockHash,
+            String vaultAddress,
+            String vaultScriptHash,
+            byte[] acceptedOutputCbor,
+            String l2Address,
+            byte[] mirroredOutputCbor,
+            byte[] depositNonce,
+            EutxoOutpoint stagingOutpoint,
+            long refundDeadline,
+            byte[] depositorKeyHash,
+            EutxoL2KeyBinding l2KeyBinding
+    ) {
+        this(abiVersion, chainId, acceptedOutpoint, l1Slot, l1BlockHash,
+                vaultAddress, vaultScriptHash, acceptedOutputCbor, l2Address,
+                mirroredOutputCbor, depositNonce, stagingOutpoint,
+                refundDeadline, depositorKeyHash, l2KeyBinding, false);
     }
 
     public EutxoDepositClaim {
@@ -141,7 +167,8 @@ public record EutxoDepositClaim(
                 && refundDeadline == claim.refundDeadline
                 && java.util.Arrays.equals(
                 depositorKeyHash, claim.depositorKeyHash)
-                && l2KeyBinding.equals(claim.l2KeyBinding);
+                && l2KeyBinding.equals(claim.l2KeyBinding)
+                && depositorSigned == claim.depositorSigned;
     }
 
     @Override
@@ -149,7 +176,7 @@ public record EutxoDepositClaim(
         int result = Objects.hash(
                 abiVersion, chainId, acceptedOutpoint, l1Slot, vaultAddress,
                 vaultScriptHash, l2Address, stagingOutpoint, refundDeadline,
-                l2KeyBinding);
+                l2KeyBinding, depositorSigned);
         result = 31 * result + java.util.Arrays.hashCode(l1BlockHash);
         result = 31 * result + java.util.Arrays.hashCode(acceptedOutputCbor);
         result = 31 * result + java.util.Arrays.hashCode(mirroredOutputCbor);

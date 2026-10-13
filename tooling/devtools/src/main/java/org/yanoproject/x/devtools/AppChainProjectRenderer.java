@@ -290,9 +290,11 @@ final class AppChainProjectRenderer {
             outputs.put("secrets/node" + index + ".env.example",
                     utf8(secretExample(resolution, index)));
         }
-        outputs.put(".gitignore", utf8("data/\nrun/\nlogs/\nruntime/\n.deployment/\nsecrets/*.env\n"));
+        outputs.put(".gitignore", utf8("data/\nrun/\nlogs/\nruntime/\n.deployment/\nsecrets/*.env\n"
+                + "secrets/.yano-write-*\n"));
         outputs.put("secrets/README.md", utf8(secretsReadme(resolution)));
-        outputs.put("secrets/.gitignore", utf8("*.env\n!.gitignore\n!*.env.example\n"));
+        // .yano-write-* is the atomic-write staging name; a crash can leave one holding a seed.
+        outputs.put("secrets/.gitignore", utf8("*.env\n.yano-write-*\n!.gitignore\n!*.env.example\n"));
         outputs.put("README.md", utf8(readme(resolution)));
         outputs.put("docs/TRUST.md", utf8(trustDocumentation(resolution)));
         outputs.put("docs/BOOTSTRAP.md", utf8(bootstrapDocumentation(resolution)));
@@ -668,11 +670,18 @@ final class AppChainProjectRenderer {
                 diagnostics, and restrict the file to the owning operator. Never commit `*.env`
                 files.
 
+                If `nodeN.env` already exists, because %s created it, keep it. Its seed belongs to
+                a public key pinned in `appchain.yaml`; replacing the file changes that member's
+                identity.
+
                 The signing value may be a 32-byte Ed25519 seed or a configured
                 `scheme:reference` understood by the selected signer provider.
 
                 Bootstrap status: %s
-                """.formatted(resolution.bootstrapRequired()
+                """.formatted("devnet".equals(resolution.blueprint().spec().network())
+                        ? "`appchain init --generate-local-member-keys` or `appchain prepare`"
+                        : "`appchain prepare`",
+                resolution.bootstrapRequired()
                 ? "public member keys must be added to appchain.yaml before production start."
                 : "public member keys are pinned in appchain.yaml and appchain.lock.");
     }
@@ -836,8 +845,19 @@ final class AppChainProjectRenderer {
                   --seed-file /owner-only/reviewer.seed
                 ```
 
-                Submit governance records on 'actors.command.v1' and actor proposal/decision
-                commands on 'role-approvals.command.v1'. The generic product stores and proves
+                Once every REPLACE_* value in a copy of the plan is filled in, encode its records as
+                member-governance commands. Pass one key proof per actor key the plan lists:
+
+                ```bash
+                ./yano.sh appchain role bootstrap --plan role-approvals-plan.yaml \\
+                  --expiry-height <current-height+500> \\
+                  --key-proof proposer-a.proof --key-proof reviewer-a.proof > bootstrap.json
+                ```
+
+                For each step, submit 'propose' through one member, 'approve' through further members
+                up to the threshold, then 'activate', waiting for each to be final. Governance records
+                go to 'actors.command.v1' and policies and actor decisions to
+                'role-approvals.command.v1'. The generic product stores and proves
                 the approved payload hash; it does not execute the payload or emit an effect.
 
                 Verify through the read-only domain API:

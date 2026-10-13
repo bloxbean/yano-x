@@ -14,6 +14,11 @@ final class ObserverConsensusIdentity {
     }
 
     static L1ObserverConsensusIdentity of(String claimSchema, String... fields) {
+        return of(claimSchema, 1, fields);
+    }
+
+    /** An identity whose ABI is the observed claim's, so nodes emitting different claim versions disagree early. */
+    static L1ObserverConsensusIdentity of(String claimSchema, int claimAbiVersion, String... fields) {
         try {
             ByteArrayOutputStream bytes = new ByteArrayOutputStream();
             try (DataOutputStream output = new DataOutputStream(bytes)) {
@@ -23,7 +28,7 @@ final class ObserverConsensusIdentity {
                     write(output, field);
                 }
             }
-            return new L1ObserverConsensusIdentity(1, claimSchema, 1, bytes.toByteArray());
+            return new L1ObserverConsensusIdentity(claimAbiVersion, claimSchema, 1, bytes.toByteArray());
         } catch (IOException impossible) {
             throw new UncheckedIOException(impossible);
         }

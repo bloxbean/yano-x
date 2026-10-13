@@ -1,14 +1,17 @@
 package org.yanoproject.x.eutxo.contracts;
 
-import org.yanoproject.x.proofs.MpfNormalizedProof;
-
+import com.bloxbean.cardano.client.plutus.spec.BigIntPlutusData;
+import com.bloxbean.cardano.client.plutus.spec.BytesPlutusData;
+import com.bloxbean.cardano.client.plutus.spec.ConstrPlutusData;
+import com.bloxbean.cardano.client.plutus.spec.ListPlutusData;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.client.transaction.spec.TransactionBody;
 import org.junit.jupiter.api.Test;
+import org.yanoproject.x.proofs.MpfNormalizedProof;
 
+import java.math.BigInteger;
 import java.util.HexFormat;
 import java.util.List;
-import java.math.BigInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -608,5 +611,67 @@ class EutxoContractCodecTest {
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> new EutxoShardDatum(1, "payments", 7, 3, new byte[16]))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void depositNoticeAndIgnoredConfirmationsRoundTripAndRejectNonCodes() {
+        EutxoDepositNotice notice = new EutxoDepositNotice(new EutxoOutpoint("ab".repeat(32), 2),
+                EutxoDepositNotice.Outcome.CREDITED_WITHOUT_KEY_BINDING, "KEY_BINDING_UNSIGNED", 9);
+        assertThat(EutxoDepositNotice.decode(notice.encode())).isEqualTo(notice);
+        assertThat(EutxoQueryCodec.decodeOptionalDepositNotice(EutxoQueryCodec.optionalDepositNotice(notice)))
+                .isEqualTo(notice);
+        assertThat(EutxoQueryCodec.decodeOptionalDepositNotice(EutxoQueryCodec.optionalDepositNotice(null)))
+                .isNull();
+
+        EutxoIgnoredConfirmations first = EutxoIgnoredConfirmations.next(null, "cd".repeat(32), "UNKNOWN_CLAIM", 4);
+        EutxoIgnoredConfirmations second =
+                EutxoIgnoredConfirmations.next(first, "ef".repeat(32), "CUSTODY_UNPROVEN", 5);
+        assertThat(second.count()).isEqualTo(2);
+        assertThat(EutxoIgnoredConfirmations.decode(second.encode())).isEqualTo(second);
+        EutxoIgnoredConfirmations full = new EutxoIgnoredConfirmations(Long.MAX_VALUE, "cd".repeat(32), "X", 1);
+        assertThat(EutxoIgnoredConfirmations.next(full, "ef".repeat(32), "Y", 2).count()).isEqualTo(Long.MAX_VALUE);
+        assertThat(EutxoQueryCodec.decodeOptionalIgnoredConfirmations(
+                EutxoQueryCodec.optionalIgnoredConfirmations(null))).isNull();
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> new EutxoDepositNotice(
+                new EutxoOutpoint("ab".repeat(32), 2), EutxoDepositNotice.Outcome.UNCREDITED, "not a code", 1))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void batchMarkerDecoderBoundsTheCountBeforeAllocating() {
+        // Constr0[1, 134217728, h'']: 134217728 * 32 wraps an int to zero.
+        assertThatThrownBy(() -> EutxoBatchSettlementMarker.decode(HexFormat.of().parseHex("d87983011a0800000040")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("1-1024 claim ids");
+        // Constr0[1, 1025, 1025 * 32 bytes]: one past the bound, with a matching length.
+        assertThatThrownBy(() -> EutxoBatchSettlementMarker.decode(marker(1, 1_025, new byte[1_025 * 32])))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("1-1024 claim ids");
+        assertThatThrownBy(() -> EutxoBatchSettlementMarker.decode(marker(1, 0, new byte[0])))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("1-1024 claim ids");
+        assertThatThrownBy(() -> EutxoBatchSettlementMarker.decode(marker(2, 1, new byte[32])))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("unsupported batch settlement marker version");
+        assertThatThrownBy(() -> EutxoBatchSettlementMarker.decode(marker(1, 2, new byte[32])))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("length does not match count");
+        assertThat(EutxoBatchSettlementMarker.decode(marker(1, 1_024, new byte[1_024 * 32])).count())
+                .isEqualTo(1_024);
+    }
+
+    private static byte[] marker(long version, long count, byte[] joined) {
+        try {
+            return ConstrPlutusData.builder()
+                    .alternative(0)
+                    .data(ListPlutusData.of(
+                            BigIntPlutusData.of(version),
+                            BigIntPlutusData.of(count),
+                            BytesPlutusData.of(joined)))
+                    .build()
+                    .serializeToBytes();
+        } catch (Exception failure) {
+            throw new IllegalStateException(failure);
+        }
     }
 }

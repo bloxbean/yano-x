@@ -18,6 +18,7 @@ import org.yanoproject.x.client.AppChainClient;
 import org.yanoproject.x.eutxo.client.EutxoClient;
 import org.yanoproject.x.eutxo.client.NullifierShardMirror;
 import org.yanoproject.x.eutxo.contracts.EutxoOutpoint;
+import org.yanoproject.x.eutxo.contracts.EutxoRecord;
 import org.yanoproject.x.eutxo.contracts.EutxoShardDatum;
 import org.yanoproject.x.eutxo.contracts.EutxoVaultDatum;
 import org.yanoproject.x.eutxo.contracts.EutxoWithdrawalClaim;
@@ -74,6 +75,9 @@ class EutxoSettlementEffectPathDevnetE2ETest extends BaseE2ETest {
 
     private static final EutxoTestWallet ALICE = EutxoTestWallet.fromSeed(
             EutxoSettlementDevnetE2ETestProfile.filled(0x0E, 32));
+    /** Owns the vault's reserve: the deposit observer accepts only bridge datums at the vault. */
+    private static final EutxoTestWallet RESERVE = EutxoTestWallet.fromSeed(
+            EutxoSettlementDevnetE2ETestProfile.filled(0x0F, 32));
 
     private EutxoClient eutxoClient;
 
@@ -116,6 +120,9 @@ class EutxoSettlementEffectPathDevnetE2ETest extends BaseE2ETest {
         // --- 2. Bootstrap the settlement identity (operator raw key). ----
         bootstrapIdentity(PLAN);
         log.info("settlement identity live: vault={}", PLAN.vaultAddress());
+        // The 20 ADA reserve is a bridge deposit, so it must be observed and credited on L2 like any other.
+        await("credited reserve deposit", 60_000, () -> eutxoClient.utxos(RESERVE.address()).stream()
+                .anyMatch(utxo -> utxo.origin() == EutxoRecord.Origin.L1_DEPOSIT));
 
         // --- 3. L1 deposit -> mirrored L2 funds for ALICE. ----------------
         EutxoVaultDatum depositDatum = new EutxoVaultDatum(
@@ -275,7 +282,13 @@ class EutxoSettlementEffectPathDevnetE2ETest extends BaseE2ETest {
                 .payToContract(plan.vaultAddress(),
                         List.of(Amount.lovelace(BigInteger.valueOf(
                                 VAULT_GENESIS_LOVELACE))),
-                        BigIntPlutusData.of(0));
+                        PlutusData.deserialize(new EutxoVaultDatum(
+                                EutxoVaultDatum.ABI_VERSION,
+                                CHAIN_ID,
+                                RESERVE.address(),
+                                EutxoSettlementDevnetE2ETestProfile.filled(0x20, 32),
+                                new EutxoOutpoint("45".repeat(32), 0),
+                                10_000_000L).encode()));
         for (int index = 0; index < 16; index++) {
             String unit = plan.shardThreadPolicyIdHex()
                     + HexFormat.of().formatHex(new byte[] {(byte) index});

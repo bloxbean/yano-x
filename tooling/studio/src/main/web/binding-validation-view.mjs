@@ -118,7 +118,7 @@ function reportsSection(editor, current) {
   const assurance = assuranceState(current, {origin: session.document.origin});
   const reports = h('input', {type: 'file', id: 'import-reports', multiple: true, accept: '.json,application/json'});
   reports.addEventListener('change', () => editor.readFiles(reports, (bytes, name) => session.importReportFile(bytes, name),
-    count => `Imported ${count} report file${count === 1 ? '' : 's'}. ${assuranceSummary(editor)}`));
+    count => `Imported ${count} report file${count === 1 ? '' : 's'}. ${assuranceSummary(editor)}`, {assurance: true}));
   const fixtures = h('input', {type: 'file', id: 'import-fixtures', multiple: true, accept: '.json,application/json'});
   const replaced = [];
   fixtures.addEventListener('change', () => {
@@ -126,14 +126,14 @@ function reportsSection(editor, current) {
     editor.readFiles(fixtures, (bytes, name) => { if (session.importFixtureFile(bytes, name)) replaced.push(name); },
       count => `Recorded the digests of ${count} fixture file${count === 1 ? '' : 's'}.${replaced.length
         ? ` Replaced the earlier ${replaced.map(name => visibleText(name)).join(', ')}; any rehearsal of the replaced `
-          + 'content is stale.' : ''} ${assuranceSummary(editor)}`);
+          + 'content is stale.' : ''} ${assuranceSummary(editor)}`, {assurance: true});
   });
   const remove = index => {
     const name = current.entries[index]?.name ?? 'the report';
     session.removeReport(index);
     const remaining = session.reports.length;
     editor.pendingFocus = remaining ? `remove-report-${Math.min(index, remaining - 1)}` : 'import-reports';
-    editor.announce(`Removed ${visibleText(name)}. ${assuranceSummary(editor)}`);
+    editor.announce(`Removed ${visibleText(name)}. ${assuranceSummary(editor)}`, false, {assurance: true});
   };
   return h('section', {class: 'form-section', 'aria-labelledby': 'reports-heading'},
     h('h3', {id: 'reports-heading', text: 'Imported reports'}),
@@ -156,9 +156,9 @@ function reportsSection(editor, current) {
       .map(name => visibleText(name)).join(', ')}. Importing a file of the same name replaces it.`}) : null,
     current.entries.length || session.fixtures.size ? h('div', {class: 'inline-actions'},
       current.entries.length ? h('button', {type: 'button', class: 'secondary', id: 'remove-all-reports', text: 'Remove all reports',
-        onclick: () => { session.clearReports(); editor.pendingFocus = 'import-reports'; editor.announce(`Removed all reports. ${assuranceSummary(editor)}`); }}) : null,
+        onclick: () => { session.clearReports(); editor.pendingFocus = 'import-reports'; editor.announce(`Removed all reports. ${assuranceSummary(editor)}`, false, {assurance: true}); }}) : null,
       session.fixtures.size ? h('button', {type: 'button', class: 'secondary', id: 'forget-fixtures', text: 'Forget fixture digests',
-        onclick: () => { session.clearFixtures(); editor.pendingFocus = 'import-fixtures'; editor.announce(`Forgot the fixture digests. ${assuranceSummary(editor)}`); }}) : null) : null);
+        onclick: () => { session.clearFixtures(); editor.pendingFocus = 'import-fixtures'; editor.announce(`Forgot the fixture digests. ${assuranceSummary(editor)}`, false, {assurance: true}); }}) : null) : null);
 }
 
 function checksSection(editor, current) {
