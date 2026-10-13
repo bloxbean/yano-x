@@ -9,7 +9,8 @@
   what is not this chain's deposit or settlement. The state machine treats a deposit it cannot
   credit, and a confirmation it cannot authenticate, as a no-op. Only a confirmation that spent
   tracked vault custody can halt the bridge. The reserve and pending-count invariant halts also
-  remain. They guard state consistency and cannot be reached from consistent state.
+  remain. They guard state consistency and cannot be reached from consistent state. These changes
+  are not versioned; existing bridge chains must be regenerated (§17.1).
 - **Owners:** Yano app-chain host and Yano X observer, EUTxO, settlement, and deployment modules
 - **Scope:** End-to-end Cardano L1 observation, app-chain consensus verification, EUTxO deposits,
   EUTxO withdrawals, L1 settlement confirmation, synchronization differences, and failure handling
@@ -449,6 +450,20 @@ must be key-controlled by that depositor, and no different registration may exis
 fails any of these is not applied, but the deposit is still credited, so a key-binding problem never
 strands value in the vault.
 
+Nothing the bridge declines to credit disappears silently (amended 2026-10-10). The ledger commits at
+most one `EutxoDepositNotice` per accepted outpoint, under `bridge/deposit-notice/`, with one of two
+outcomes:
+
+- `UNCREDITED`: the value stays in the vault. The reason is `BRIDGE_HALTED`, `ADDRESS_FULL`, or
+  `OUTPOINT_TAKEN`.
+- `CREDITED_WITHOUT_KEY_BINDING`: the deposit was credited without registering its key. The reason
+  is `KEY_BINDING_UNSIGNED`, `KEY_BINDING_PROFILE`, `KEY_BINDING_ADDRESS`, `KEY_BINDING_DEPOSITOR`,
+  `KEY_BINDING_CONFLICT`, or `KEY_BINDING_INVALID` (the address or binding could not be read).
+
+`appchain eutxo deposit get` shows the notice, and the `bridge/deposits/notice` query serves it. A
+deposit observed while the bridge is halted is one of these. Its observation is consumed, so the
+notice is the deposit's only trace, and recovering its value is a reconciliation decision.
+
 ```mermaid
 sequenceDiagram
     participant W as User wallet
@@ -477,6 +492,7 @@ sequenceDiagram
 | Wrong vault/script, chain ID, or datum | Observer skips the output, or the state transition credits nothing |
 | Key binding not signed by the depositor, or otherwise not applicable | Deposit is credited; no L2 key is registered |
 | Native assets are included | Initial lovelace-only observer skips the output |
+| The paying transaction is phase-2 invalid (a script failed; only collateral was taken) | Observer skips it; its outputs never existed |
 | Amount is zero, negative, or above the configured limit | Observer skips the output |
 | Two recognized deposit outputs appear in one acceptance transaction | Observer credits neither output |
 | One validator has not reached the deposit slot | It returns `AHEAD`; four-of-five may still finalize |
@@ -600,8 +616,34 @@ For each exact pending claim it then:
 - moves reserve accounting from pending to confirmed outflow; and
 - decrements the pending-withdrawal count.
 
-A custody-unproven confirmation changes nothing: anyone can fabricate one, so halting on it would
-give every L1 user a free bridge halt. Ignoring it releases no reserve accounting. A confirmation
+A custody-unproven confirmation changes no claim, reserve, or halt state: anyone can fabricate one, so
+halting on it would give every L1 user a free bridge halt. Ignoring it releases no reserve accounting.
+
+Each ignored confirmation is counted in a bounded `EutxoIgnoredConfirmations` summary. The summary
+holds the count plus the last settlement transaction, reason, and height, and is read through the
+`bridge/confirmations/ignored` query or `appchain eutxo withdrawal ignored`. The count saturates
+rather than overflowing. The reasons are:
+
+- `CUSTODY_UNPROVEN`, `UNKNOWN_CLAIM`, `CLAIM_MISMATCH`, or `CLAIM_REBIND`;
+- `BRIDGE_HALTED`, for a batch confirmation that arrives while the bridge is halted. A halted bridge
+  rotates no vault custody, so no batch is confirmed during a halt. A single-claim confirmation that
+  matches a pending claim exactly is still confirmed: it means the claimant was paid the exact amount,
+  and because a halt never clears and each observation is used once, dropping it would leave a real
+  payout pending forever. A genuine batch settlement that lands during a halt therefore stays pending,
+  and the summary below is the only trace of it;
+- `NOT_THIS_BRIDGE`, for a confirmation whose chain or bridge epoch the ledger does not accept. The
+  observers already filter these, so this one points to observer-versus-ledger configuration or
+  version drift.
+
+An exact replay of a settlement already applied is not counted, and neither is the halting
+confirmation itself.
+
+Anyone can raise the count and overwrite the last entry, so the summary is a prompt, not evidence.
+A count that grows while claims stay pending is a reason to check those claims' settlement
+transactions on L1. Genuine settlements are ignored too when the custody chain breaks, for example
+after vault UTxOs were consolidated outside a settlement.
+
+A confirmation
 that did spend tracked custody but is unknown, mismatched, or rebound is a real alarm and halts the
 bridge rather than silently releasing reserve accounting. The single-claim profiles (v1, v2) track no
 vault custody, so their confirmations are never authenticated. Such a confirmation can confirm an
@@ -659,6 +701,7 @@ status to become `CONFIRMED`.
 | Effect fails or expires before L1 settlement | Latest batch cursor rewinds and claims re-batch |
 | L1 transaction is submitted but unstable | Claims stay pending until stable confirmation finalizes |
 | Fake marker pays the public vault address | Observer skips it, or the custody gate ignores it if it reaches state transition |
+| Marker or vault input in a phase-2-invalid transaction | Observer skips it; the transaction spent and created nothing |
 | Confirmation does not spend tracked vault custody | Ignored; reserve and bridge state unchanged |
 | Custody-proven unknown or mismatched claim confirmation | Bridge halts |
 | Single-claim (v1/v2) confirmation that does not exactly match a pending claim | Ignored |
@@ -782,6 +825,10 @@ observation. ADR-041 owns the trust-preserving delivery and recovery design.
 7. App-state transition depends only on finalized block bytes and prior committed state.
 8. Ordinary rollback removes only unfinalized L1 observations.
 9. Deep rollback behind finalized value state halts rather than silently rewriting history.
+10. Observers read only the phase-2-valid transactions of a block (amended 2026-10-10). A
+    transaction whose script fails is still in the block, but only its collateral is consumed and
+    only its collateral-return output is created. Its regular inputs are not spent and its regular
+    outputs are never created.
 
 ### 15.2 Deposits
 
@@ -856,6 +903,37 @@ durable per-validator observation journal
 That target must not be described as implemented until the upstream Yano consensus/storage changes,
 matching Yano X observer integration, deployment migration, and multi-node qualification have
 shipped against an exact compatible release identity.
+
+### 17.1 Compatibility of the 2026-10 bridge amendments
+
+The 2026-10 amendments change bridge consensus semantics and committed state encoding. The EUTxO
+profile digest covers profile parameters only, so it does not tell the two versions apart, and no
+profile, format, or observer-identity version was bumped: the feature has no public release. Instead:
+
+- **Ship them together.** PRs #51–#58 merge as one unit. Each earlier one is unsafe without the
+  later ones. Before #55 the deposit observer still throws on odd vault outputs. Before #56 anyone
+  can bind their own L2 key to another depositor's address. Before #58 observers read
+  phase-2-invalid transactions as if they took effect, which lets anyone fake deposits and
+  confirmations for the cost of collateral.
+- **Regenerate existing bridge chains.** A bridge-enabled EUTxO chain created before the
+  amendments, for example a retained devnet, must be recreated with a new genesis rather than
+  replayed or restarted on new code:
+  - deposit claims are now ABI 3 with 20 fields, and the decoder rejects ABI 2 claims and records;
+  - `bridge/deposit-notice/*` and `bridge/ignored-confirmations` enter the state root;
+  - inputs that changed nothing now write those records; and
+  - observers skip phase-2-invalid transactions under unchanged `*-v1` identities.
+
+  Old and new nodes on one chain therefore diverge on the first block that contains such an input.
+
+Known follow-ups:
+
+- An L2 address at its 1,024-UTxO bound leaves a deposit to it uncredited (`ADDRESS_FULL`), and
+  anyone can fill a victim's address with cheap L2 transactions. The value stays in the vault with
+  no claim path. A deferred credit the owner can claim later would close this
+  ([#60](https://github.com/bloxbean/yano-x/issues/60)).
+- A genuine batch settlement that lands while the bridge is halted stays pending (§11.4). Only the
+  overwritable ignored-confirmations summary records it
+  ([#61](https://github.com/bloxbean/yano-x/issues/61)).
 
 ## 18. Repository ownership
 
