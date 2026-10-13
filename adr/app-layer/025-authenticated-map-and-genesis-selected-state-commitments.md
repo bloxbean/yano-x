@@ -13,8 +13,10 @@ runtime phase records remain useful baselines, not final v1 qualification,
 until ADR-025.2 Phases E-G are complete.
 
 Phase 4 is deferred until the required ZeroJ library is released, and optional
-Phase 6 is deferred. CCL `0.8.0-pre5-dev1` remains a development baseline, so
-this status is not production qualification.
+Phase 6 is deferred. CCL `0.8.0-pre5` remains a development baseline, so
+this status is not production qualification. (The baseline moved from
+`0.8.0-pre5-dev1` to `0.8.0-pre5` with the Yano 0.1.0-pre18-3c73341 snapshot,
+which ships it; the golden vectors are unchanged.)
 
 **Preview-baseline amendment:** ADR-031 supersedes this ADR's vendor-prefixed
 commitment-format and proof-encoding identifiers for the first supported
