@@ -112,7 +112,11 @@ components of the given document with their exact authored configuration, each
 instance records its status (`available`, `requires-configuration`,
 `construction-failed`, `descriptor-failed` or `not-composable`), configuration
 descriptor, normalized configuration, events, commands and whether raw bodies may
-target it. The file also carries the binding language tables (functions,
+target it. For admission rules (ADR-031.3) an available instance also records
+`commandSelectable` (whether a rule may select one of its commands),
+`unselectableReason` (why not, or `null`) and `ruleFacts` (each declared fact's
+`name` and `type`: `integer`, `text`, `bytes`, `boolean` or `text-set`). The file
+also carries the binding language tables (functions,
 expression operators, limits, the baseline event and receipt codes) and the
 identity of the tool, host, plugin catalog and context digest.
 
@@ -260,6 +264,23 @@ rejection receipt. Dynamic cascade failures still produce receipts. See
 [submission validity and retry](DECLARATIVE_BINDINGS.md#submission-validity-and-retry)
 for HTTP outcomes, fresh-message retry semantics, and committed work budgets.
 
+For a document with admission rules, `validate` adds an `admission` list: each
+component with attached rules and its rules in evaluation order (the admission
+slot in attachment order, then the verified-fact slot), with each rule's command
+selector (`*` for any), deny code, slot, whether it is static, its reads
+(`name = component/namespace`, or `name = component` for the default namespace)
+and whether it quantifies over writes (`writes`).
+The slot and static-ness are the profile's resolved values: a rule that reads
+write coverage is a fact rule because its kernel says so. `graph` draws a guard
+node (an octagon with a dashed edge) on each such component, listing its rules in
+the same order with their reads; `graph --ir`, which loads no plugin, marks a
+write rule it cannot place as `(writes; slot resolved by the kernel)`.
+`profile-check` reconstructs profiles with rules like any other; rules are part
+of the profile digest. A rule failure found while constructing the profile is
+located at its authored path in the `--report` diagnostic (plain output names the
+component and attachment in its message), for example
+`$.composite.components[3].admission[0].params.binding`.
+
 Pass `--ir` to read an IR hex file instead of YAML. `graph --ir` is a data-only
 operation and needs neither a plugin directory nor context; it does not claim
 the graph is executable. The other commands always construct the real profile
@@ -405,6 +426,30 @@ dry-run assumes that envelope authentication already happened. The ordinary
 registry command puts bytes `0304` at key `0102`; the audit entity becomes
 text `0102`. The returned receipt bytes come from the real composite query,
 not a separate simulation of its transition logic.
+
+When any step evaluated admission rules, a receipt entry in the dry-run output
+also carries `rules`: each step's ordinal, depth, component, the number of rules
+that held and the first failure (rule, zero-based clause, deny code, and the
+index of the deciding write when a quantifier stopped early). A receipt refused
+by a rule carries `refusal`: the step, the rule and clause, the deny code, the
+deciding `write` if any, and an explanation. A refusal at depth 1 or deeper states that the whole cascade,
+including the source command, was rolled back. A message that a **static** rule
+refuses never reaches a block, as at a node's ingress: dry-run stops with
+the full reason on standard error, and with the diagnostic code
+`FIXTURE_ADMISSION_REJECTED` in a `--report` file, for example
+`ADMISSION_RULE_DENIED/transfer-limit/TRANSFER_LIMIT_EXCEEDED`, followed by
+` at write N` when a quantifier decided. A node's REST refusal carries the same
+code, rule, deny code and write as structured `details`.
+
+The rule recipes ship with fixtures, one block per file, meant to be run in order
+with `--prior-result`: `examples/bindings/fixtures/balances-transfer-limit/`
+(block 3 is an over-limit transfer that stops at fixture admission),
+`procurement-admission/` (blocks 1 and 4 are block-time refusals), and
+`dpp-role-gated/`, which also contains the governed `context.json` that recipe's
+genesis requires. The ADR-031.4 recipes `asset-governed-limits/`,
+`dpp-namespace-isolation/`, `feed-slot-rules/` and `balances-holding-cap/` each
+ship a `context.json` and one fixture per block, including their refusals (block
+3 of `dpp-namespace-isolation/` is a batch refused at write 1).
 
 Dry-run does **not** verify message signatures, membership proofs, certificates,
 fixture state roots, or anchors; it does not calculate a post-state root. It

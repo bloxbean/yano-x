@@ -61,9 +61,10 @@ Studio drift test, so do every step yourself:
    exact Yano host they were generated from, and `StudioFixturesIT` compares
    that host, so every version change needs this step. Usually only the host
    version and jar digests change; any other difference means the host's
-   binding behaviour changed, so review it. The task refuses a SNAPSHOT host.
-   On a snapshot pin, leave the fixtures alone and regenerate them when Yano X
-   re-pins to a released Yano.
+   binding behaviour changed, so review it. The task refuses a SNAPSHOT host
+   unless `-PunreleasedStudioHost=<exact yanoVersion>` names the pinned
+   snapshot, for interim commits only. Regenerate against the published host
+   when Yano X re-pins to a released Yano.
 5. Verify: `./gradlew test verifyArtifactInventory verifyJvmOnlyBuild
    :tooling:devtools:integrationTest --tests '*StudioFixturesIT'`, then
    `distributionCheck`. Before a release, also run the release smoke test.
@@ -175,7 +176,8 @@ over the three first-party composable bundles.
 
 The shipped reference catalog and the Studio test fixtures are generated from the
 real CLI: `./gradlew :tooling:devtools:regenerateStudioFixtures` (it refuses
-Maven Local, staging repositories and SNAPSHOT host versions). Drift is checked by
+Maven Local, staging repositories and SNAPSHOT host versions, unless
+`-PunreleasedStudioHost` names the pinned snapshot). Drift is checked by
 `StudioFixturesIT`; the starter fixtures it writes to `examples/bindings/fixtures/`
 ship with Studio and the distribution.
 

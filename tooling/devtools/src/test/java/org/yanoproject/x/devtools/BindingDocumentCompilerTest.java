@@ -208,7 +208,7 @@ class BindingDocumentCompilerTest {
         assertInvalid(PREFIX.replace("id: target", "id: source") + BINDING, "duplicate component");
         assertInvalid(PREFIX.replace("id: target,", "id: target, fromHeight: 2,") + BINDING, "precede");
         assertInvalid(" ".repeat(BindingDocumentCompiler.MAX_SOURCE_CHARACTERS + 1), "source limit");
-        assertInvalid("components: []\nbindings: []", "component/binding limits");
+        assertInvalid("components: []\nbindings: []", "component/rule/binding limits");
         assertInvalid(PREFIX + BINDING.replace("event.amount * 100", "x".repeat(70_000)), "source limit");
     }
 

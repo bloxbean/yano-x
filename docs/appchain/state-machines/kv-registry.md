@@ -299,6 +299,17 @@ Every member receives the command bytes and may retain history. Encrypt values
 before submission when confidentiality is required, and keep encryption-key
 management outside deterministic consensus.
 
+## Admission-rule views and facts
+
+In a declarative composite, admission rules can read this machine's entries
+(ADR-031.4, see [admission rules](../bindings/07-admission-rules.md)):
+
+- **Value view** (namespace `""`, key: the entry key): `owner`, `value`,
+  `valueLength`, and `valueText` when `value-format` is `utf8`. A value over
+  4096 bytes exposes only `valueLength`.
+- **Post-state facts**, after an approved command: `existed` (the key had an
+  entry before the command) and, for a put, `valueLength`.
+
 ## Related documentation
 
 - [Registry and proofs tutorial](../tutorials/02-registry-and-proofs.md)

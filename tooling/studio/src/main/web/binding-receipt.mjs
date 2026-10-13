@@ -14,6 +14,8 @@ export const RECEIPT_LIMITS = Object.freeze({maxBytes: 65_536, maxDepth: 72, max
   maxSteps: 257, maxEvents: 257, maxConditions: 256, maxCode: 127});
 
 const NAME = /^[a-zA-Z][a-zA-Z0-9_.-]{0,126}$/;
+const RULE_ID = /^[a-z][a-z0-9-]{0,62}$/;
+const DENY_CODE = /^[A-Z][A-Z0-9_]{0,62}$/;
 const INT64_MAX = 2n ** 63n - 1n;
 const STEP_STATUSES = Object.freeze(['PLANNED', 'EFFECT_PLANNED', 'REJECTED']);
 
@@ -114,6 +116,34 @@ const bytes32 = (value, label) => {
 };
 
 /**
+ * Decodes a step's compact admission-rule trace (ADR-031.3, amended by ADR-031.4): `[heldCount, failure / null]`,
+ * where the failure is `[ruleId, failedClause, denyCode / null, writeIndex / null]`. A denial always names a clause
+ * 0..7 and carries its deny code; the write index (0..127) names the write-view element at which a quantifier
+ * stopped early, and a failure before any clause has none.
+ */
+const ruleTrace = (value, label) => {
+  const trace = array(value, 2, label);
+  const heldCount = Number(integer(trace[0], 0, 16, `${label} held count`));
+  if (trace[1] === null) return {heldCount, failure: null};
+  if (Array.isArray(trace[1]) && trace[1].length === 3) {
+    throw invalid(`${label} failure predates ADR-031.4 (no write index); re-create the declarative chain`);
+  }
+  const failure = array(trace[1], 4, `${label} failure`);
+  const ruleId = text(failure[0], `${label} rule`);
+  if (!RULE_ID.test(ruleId)) throw invalid(`${label} rule is not a valid identifier`);
+  const failedClause = Number(integer(failure[1], -1, 7, `${label} clause`));
+  const denyCode = failure[2] === null ? null : text(failure[2], `${label} deny code`);
+  if (denyCode !== null && (!DENY_CODE.test(denyCode) || failedClause < 0 || denyCode.startsWith('ADMISSION_RULE_'))) {
+    throw invalid(`${label} deny code is invalid`);
+  }
+  const writeIndex = failure[3] === null ? null : Number(integer(failure[3], 0, 127, `${label} write index`));
+  if (writeIndex !== null && failedClause < 0) throw invalid(`${label} write index needs a clause`);
+  // A failure is one of at most 16 attached rules, so at most 15 held before it.
+  if (heldCount === 16) throw invalid(`${label} held count is out of range`);
+  return {heldCount, failure: {ruleId, failedClause, denyCode, writeIndex}};
+};
+
+/**
  * Decodes canonical version-one receipt bytes into the display view.
  *
  * @param {Uint8Array} bytes exactly the bytes the engine stored under the receipt key
@@ -132,19 +162,25 @@ export function decodeBindingReceipt(bytes) {
   }
   const rawSteps = array(root[6], undefined, 'Receipt steps');
   if (rawSteps.length > RECEIPT_LIMITS.maxSteps) throw invalid('Receipt has too many steps');
+  if (rawSteps.length === 0) throw invalid('Receipt has no steps');
   const steps = rawSteps.map((value, index) => {
-    const step = array(value, 10, `Step ${index}`);
+    if (Array.isArray(value) && value.length === 10) {
+      throw new ReceiptError('RECEIPT_VERSION',
+        `Step ${index} predates ADR-031.3 (no admission-rule trace); re-create the declarative chain`);
+    }
+    const step = array(value, 11, `Step ${index}`);
     const events = array(step[5], undefined, `Step ${index} events`);
     const conditions = array(step[6], undefined, `Step ${index} conditions`);
-    const stepStatus = text(step[7], `Step ${index} status`);
-    const stepCode = text(step[8], `Step ${index} code`);
+    const rules = ruleTrace(step[7], `Step ${index} rules`);
+    const stepStatus = text(step[8], `Step ${index} status`);
+    const stepCode = text(step[9], `Step ${index} code`);
     if (!STEP_STATUSES.includes(stepStatus) || stepCode.length > RECEIPT_LIMITS.maxCode) {
       throw invalid(`Step ${index} status or code is invalid`);
     }
     if (events.length > RECEIPT_LIMITS.maxEvents || conditions.length > RECEIPT_LIMITS.maxConditions) {
       throw invalid(`Step ${index} exceeds its trace limit`);
     }
-    if (typeof step[9] !== 'boolean') throw invalid(`Step ${index} raw-body marker must be boolean`);
+    if (typeof step[10] !== 'boolean') throw invalid(`Step ${index} raw-body marker must be boolean`);
     return {
       ordinal: Number(integer(step[0], 0, 256, `Step ${index} ordinal`)),
       depth: Number(integer(step[1], 0, 33, `Step ${index} depth`)),
@@ -157,9 +193,10 @@ export function decodeBindingReceipt(bytes) {
         return {bindingId: name(pair[0], `Step ${index} condition ${position} binding`),
           failedClause: Number(integer(pair[1], -1, 7, `Step ${index} condition ${position} clause`))};
       }),
+      rules,
       status: stepStatus,
       code: stepCode,
-      rawBody: step[9]
+      rawBody: step[10]
     };
   });
   return {
@@ -199,7 +236,7 @@ export function receiptViewDifferences(decoded, view) {
     return differences;
   }
   const stepKeys = ['ordinal', 'depth', 'bindingId', 'targetComponentId', 'messageIdHex', 'eventsProduced',
-    'conditions', 'status', 'code', 'rawBody'];
+    'conditions', 'rules', 'status', 'code', 'rawBody'];
   decoded.steps.forEach((step, index) => {
     const reported = view.steps[index];
     const path = `steps[${index}]`;
@@ -219,6 +256,19 @@ export function receiptViewDifferences(decoded, view) {
     if (!Array.isArray(reported.eventsProduced) || reported.eventsProduced.length !== step.eventsProduced.length
         || step.eventsProduced.some((event, position) => reported.eventsProduced[position] !== event)) {
       differences.push(`${path}.eventsProduced`);
+    }
+    const rules = reported.rules;
+    const failure = rules?.failure;
+    if (!rules || typeof rules !== 'object' || Object.keys(rules).sort().join() !== 'failure,heldCount'
+        || rules.heldCount !== BigInt(step.rules.heldCount)
+        || (step.rules.failure === null ? failure !== null
+          : !failure || Object.keys(failure).sort().join() !== 'denyCode,failedClause,ruleId,writeIndex'
+            || failure.ruleId !== step.rules.failure.ruleId
+            || failure.failedClause !== BigInt(step.rules.failure.failedClause)
+            || failure.denyCode !== step.rules.failure.denyCode
+            || (step.rules.failure.writeIndex === null ? failure.writeIndex !== null
+              : failure.writeIndex !== BigInt(step.rules.failure.writeIndex)))) {
+      differences.push(`${path}.rules`);
     }
     if (!Array.isArray(reported.conditions) || reported.conditions.length !== step.conditions.length
         || step.conditions.some((condition, position) => {

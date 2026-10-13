@@ -1,6 +1,8 @@
 package org.yanoproject.x.devtools;
 
 import org.junit.jupiter.api.Test;
+import org.yanoproject.x.composite.contracts.BindingIrV1;
+import org.yanoproject.x.composite.bindings.BindingProgram;
 import org.yanoproject.x.composite.bindings.BindingExpressionEvaluator;
 import org.yanoproject.x.composite.bindings.BindingExpressionEvaluator.Budget;
 import org.yanoproject.x.composite.bindings.BindingFailure;
@@ -20,24 +22,25 @@ class BindingExpressionCompilerTest {
 
     @Test
     void thresholdsAndConditionalValuesCompileIntoPortableIr() {
-        var expression = BindingExpressionCompiler.compile(
+        var expression = bindingCompile(
                 "event.amountMinor >= 100000 && event.currency == 'USD'", FIELDS, Limits.DEFAULT);
         byte[] encoded = BindingCbor.encode(expression.wire());
         var decoded = BindingExpressionV1.fromWire(BindingCbor.decode(encoded, 65536));
         assertThat(evaluate(decoded, Map.of("amountMinor", 100000L, "currency", "USD"))).isEqualTo(true);
         assertThat(evaluate(decoded, Map.of("amountMinor", 99999L, "currency", "USD"))).isEqualTo(false);
-        var approvals = BindingExpressionCompiler.compile(
+        var approvals = bindingCompile(
                 "event.amountMinor >= 1000000 ? 3 : 2", FIELDS, Limits.DEFAULT);
         assertThat(evaluate(approvals, Map.of("amountMinor", 1000000L))).isEqualTo(3L);
-        var literal = BindingExpressionCompiler.compile("42", Map.of(), Limits.DEFAULT);
+        var literal = bindingCompile("42", Map.of(), Limits.DEFAULT);
         assertThat(HexFormat.of().formatHex(BindingCbor.encode(literal.wire()))).isEqualTo("8301008200182a");
     }
 
     @Test
     void rejectsUnsupportedLanguageAndUnknownFields() {
+        // size() became a dialect operator in ADR-031.4, so it is no longer in this list.
         for (String source : new String[]{"1.2 + 3.4", "[1,2].all(x, x > 0)", "event.unknown",
-                "event.currency.matches('.*')", "size(event.currency)", "{'a': 1}", "null"}) {
-            assertThatThrownBy(() -> BindingExpressionCompiler.compile(source, FIELDS, Limits.DEFAULT))
+                "event.currency.matches('.*')", "has(event.currency)", "{'a': 1}", "null"}) {
+            assertThatThrownBy(() -> bindingCompile(source, FIELDS, Limits.DEFAULT))
                     .as(source).isInstanceOf(IllegalArgumentException.class);
         }
     }
@@ -60,15 +63,25 @@ class BindingExpressionCompilerTest {
         Budget cascade = new Budget(1);
         Budget block = new Budget(100);
         assertThatThrownBy(() -> BindingExpressionEvaluator.evaluate(compile("(1 + 1 == 2) || true"),
-                Map.of(), Limits.DEFAULT, cascade, block)).hasMessage("EXPRESSION_CAPACITY_EXCEEDED");
+                new BindingExpressionEvaluator.Scoped<>(Map.of()), Limits.DEFAULT, cascade, block))
+                .hasMessage("EXPRESSION_CAPACITY_EXCEEDED");
         assertThat(cascade.used()).isEqualTo(1);
         assertThat(block.used()).isEqualTo(2);
     }
     private static BindingExpressionV1 compile(String source) {
-        return BindingExpressionCompiler.compile(source, Map.of(), Limits.DEFAULT);
+        return bindingCompile(source, Map.of(), Limits.DEFAULT);
     }
     private static Object evaluate(BindingExpressionV1 expression, Map<String, Object> values) {
-        return BindingExpressionEvaluator.evaluate(expression, values, Limits.DEFAULT,
+        return BindingExpressionEvaluator.evaluate(expression, new BindingExpressionEvaluator.Scoped<>(Map.of(
+                BindingExpressionV1.Scope.EVENT, values)), Limits.DEFAULT,
                 new Budget(262144), new Budget(4194304));
+    }
+
+    /** Compiles a binding expression over event fields and the producing step's context. */
+    private static BindingExpressionV1 bindingCompile(String source, Map<String, Type> fields,
+                                                      BindingIrV1.Limits limits) {
+        return BindingExpressionCompiler.compile(source, new BindingExpressionEvaluator.Scoped<>(Map.of(
+                BindingExpressionV1.Scope.EVENT, fields, BindingExpressionV1.Scope.CONTEXT,
+                BindingProgram.CONTEXT_FIELDS)), limits, "a binding");
     }
 }

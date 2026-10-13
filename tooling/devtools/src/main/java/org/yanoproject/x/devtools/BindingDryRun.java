@@ -7,6 +7,7 @@ import org.yanoproject.api.appchain.AppChainConsensusProfile;
 import org.yanoproject.api.appchain.AppChainInfo;
 import org.yanoproject.api.appchain.AppQueryContext;
 import org.yanoproject.api.appchain.AppStateMachine;
+import org.yanoproject.api.appchain.AppStateMachine.AdmissionResult;
 import org.yanoproject.api.appchain.AppStateWriter;
 import org.yanoproject.api.appchain.FinalityCert;
 import org.yanoproject.api.appchain.effects.AppEffectEmitter;
@@ -112,7 +113,7 @@ final class BindingDryRun {
         for (AppMessage message : messages) {
             var admission = machine.validateForBlock(message, fixture.height(), state);
             if (!admission.isAccepted()) {
-                throw new IllegalArgumentException("fixture admission rejected: " + admission.reason());
+                throw new IllegalArgumentException("fixture admission rejected: " + describe(admission));
             }
         }
         List<Map<String, Object>> effects = new ArrayList<>();
@@ -146,14 +147,95 @@ final class BindingDryRun {
         for (AppMessage message : messages) {
             byte[] encoded = machine.query("composite/binding-receipt-v1/"
                     + HexFormat.of().formatHex(message.getMessageId()), new byte[0], query);
-            BindingReceiptV1.decode(encoded); // Refuse to present malformed plugin output as a binding receipt.
-            receipts.add(Map.of("messageIdHex", HexFormat.of().formatHex(message.getMessageId()),
-                    "receiptHex", HexFormat.of().formatHex(encoded),
-                    "receipt", jsonValue(BindingCbor.decode(encoded, 65536))));
+            // Refuse to present malformed plugin output as a binding receipt.
+            BindingReceiptV1 decoded = BindingReceiptV1.decode(encoded);
+            Map<String, Object> entry = new LinkedHashMap<>();
+            entry.put("messageIdHex", HexFormat.of().formatHex(message.getMessageId()));
+            entry.put("receiptHex", HexFormat.of().formatHex(encoded));
+            entry.put("receipt", jsonValue(BindingCbor.decode(encoded, 65536)));
+            List<Map<String, Object>> trace = ruleTrace(decoded);
+            if (!trace.isEmpty()) entry.put("rules", trace);
+            Map<String, Object> refusal = ruleRefusal(decoded);
+            if (refusal != null) entry.put("refusal", refusal);
+            receipts.add(entry);
         }
         return new Result("execution-only; fixture inputs are not authenticated; no post-state root or finality claim",
                 List.copyOf(receipts), List.copyOf(effects), state.changes(), state.snapshot(),
                 List.copyOf(dispositions));
+    }
+
+    /**
+     * Each step's admission-rule trace (ADR-031.3 §5.8), readable without the positional receipt layout; empty
+     * when no step evaluated a rule.
+     */
+    static List<Map<String, Object>> ruleTrace(BindingReceiptV1 receipt) {
+        if (receipt.steps().stream().allMatch(step -> step.rules().equals(BindingReceiptV1.RuleTrace.NONE))) {
+            return List.of();
+        }
+        return receipt.steps().stream().map(step -> {
+            Map<String, Object> value = new LinkedHashMap<>();
+            value.put("ordinal", step.ordinal());
+            value.put("depth", step.depth());
+            value.put("component", step.targetComponentId());
+            value.put("held", step.rules().heldCount());
+            value.put("failure", step.rules().failure() == null ? null : failure(step.rules().failure()));
+            return value;
+        }).toList();
+    }
+
+    /**
+     * Explains a receipt refused by an admission rule: the step, the rule and clause, and the §5.8 consequence that
+     * a refused step rejects its source message, so every earlier step of the cascade is rolled back.
+     */
+    static Map<String, Object> ruleRefusal(BindingReceiptV1 receipt) {
+        if (receipt.accepted()) return null;
+        var failed = receipt.steps().stream().filter(step -> step.ordinal() == receipt.failedStepOrdinal())
+                .findFirst().orElse(null);
+        if (failed == null || failed.rules().failure() == null) return null;
+        Map<String, Object> value = new LinkedHashMap<>();
+        value.put("code", receipt.code());
+        value.put("ordinal", failed.ordinal());
+        value.put("depth", failed.depth());
+        value.put("component", failed.targetComponentId());
+        value.putAll(failure(failed.rules().failure()));
+        String cause = switch (receipt.code()) {
+            case "EXPRESSION_CAPACITY_EXCEEDED" -> "Evaluating an admission rule exhausted the expression work budget";
+            case "ADMISSION_RULE_INPUT" -> "An admission rule had no usable input (the command view, the kernel's "
+                    + "verified facts, a read's decoded value, or the write view)";
+            case "ADMISSION_RULE_ERROR" -> "An admission rule read or clause could not be evaluated, so the rule "
+                    + "failed closed";
+            default -> "An admission rule refused the step";
+        };
+        String kept = " No business state is written: only this receipt, framework accounting, and any "
+                + "non-refundable crypto work the kernel reserved before a verified-fact rule ran.";
+        value.put("explanation", failed.depth() == 0 ? cause + " at the source command." + kept
+                : cause + " at depth " + failed.depth() + ". A refused step rejects its source message, so the "
+                        + "whole cascade is rolled back, including the source command and every earlier step "
+                        + "(ADR-031.3 §5.8)." + kept);
+        return value;
+    }
+
+    /**
+     * The text of an ingress refusal: the code, then the rule and deny code from its structured details
+     * ({@code CODE/rule/deny}), and the deciding write when one decided (bloxbean/yano#153).
+     */
+    static String describe(AdmissionResult admission) {
+        StringBuilder text = new StringBuilder(String.valueOf(admission.reason()));
+        var details = admission.details();
+        if (details.get("rule") != null) text.append('/').append(details.get("rule"));
+        if (details.get("deny") != null) text.append('/').append(details.get("deny"));
+        if (details.get("write") != null) text.append(" at write ").append(details.get("write"));
+        return text.toString();
+    }
+
+    private static Map<String, Object> failure(BindingReceiptV1.RuleFailure failure) {
+        Map<String, Object> value = new LinkedHashMap<>();
+        value.put("rule", failure.ruleId());
+        value.put("clause", failure.failedClause());
+        value.put("denyCode", failure.denyCode());
+        // ADR-031.4: the write that decided a quantifier; omitted when none did, so other outputs are unchanged.
+        if (failure.writeIndex() != null) value.put("write", failure.writeIndex());
+        return value;
     }
 
     private static Object jsonValue(Object value) {

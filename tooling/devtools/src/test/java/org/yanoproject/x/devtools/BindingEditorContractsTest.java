@@ -14,6 +14,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermission;
 import java.util.HexFormat;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -245,8 +246,28 @@ class BindingEditorContractsTest {
         assertThat(rejected.get("status")).isEqualTo("REJECTED");
         assertThat(rejected.get("height")).isEqualTo("1");
         assertThat(rejected.get("failedStepOrdinal")).isEqualTo(1);
-        var extreme = new BindingReceiptV1(new byte[32], Long.MAX_VALUE, true, null, "", List.of()).encode();
+        var extreme = new BindingReceiptV1(new byte[32], Long.MAX_VALUE, true, null, "", List.of(
+                new BindingReceiptV1.Step(0, 0, null, "source", new byte[32], List.of(), List.of(), "PLANNED", "",
+                        false))).encode();
         assertThat(BindingReport.receiptView(extreme).get("height")).isEqualTo("9223372036854775807");
+        // ADR-031.3: every step view carries its admission-rule trace.
+        @SuppressWarnings("unchecked")
+        var step = ((List<Map<String, Object>>) BindingReport.receiptView(extreme).get("steps")).getFirst();
+        @SuppressWarnings("unchecked")
+        var empty = (Map<String, Object>) step.get("rules");
+        assertThat(empty).containsOnlyKeys("heldCount", "failure").containsEntry("heldCount", 0)
+                .containsEntry("failure", null);
+        var denied = BindingReport.receiptView(HexFormat.of().parseHex(vectors.getProperty("receipt.rule-denied")));
+        @SuppressWarnings("unchecked")
+        var rule = (Map<String, Object>) ((List<Map<String, Object>>) denied.get("steps")).getFirst().get("rules");
+        assertThat(rule.get("heldCount")).isEqualTo(0);
+        // ADR-031.4: the failure always names its deciding write, null when no quantifier decided.
+        Map<String, Object> failure = new LinkedHashMap<>();
+        failure.put("ruleId", "registered-supplier");
+        failure.put("failedClause", 0);
+        failure.put("denyCode", "NOT_A_REGISTERED_SUPPLIER");
+        failure.put("writeIndex", null);
+        assertThat(rule.get("failure")).isEqualTo(failure);
         byte[] trailing = java.util.Arrays.copyOf(extreme, extreme.length + 1);
         assertThatThrownBy(() -> BindingReport.receiptView(trailing)).isInstanceOf(IllegalArgumentException.class);
     }

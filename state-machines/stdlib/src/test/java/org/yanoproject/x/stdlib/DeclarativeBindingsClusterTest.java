@@ -58,7 +58,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Real three-node host/N2N execution in disposable temporary directories and ephemeral loopback ports.
  * No Cardano traffic, retained cluster, effect delivery, or externally trusted proof context is involved.
  */
-@Timeout(120)
+@Timeout(240)
 class DeclarativeBindingsClusterTest {
     private static final String CHAIN = "bindings-three-node";
     private static final int THRESHOLD = 2;
@@ -399,11 +399,7 @@ class DeclarativeBindingsClusterTest {
             this.directory = directory;
             try {
                 for (int index = 0; index < 3; index++) start(index);
-                await(() -> liveNodes().stream().allMatch(node -> {
-                    Object peers = node.status().get("peers");
-                    return peers instanceof Map<?, ?> map && !map.isEmpty()
-                            && map.values().stream().allMatch(Boolean.TRUE::equals);
-                }));
+                awaitPeers();
             } catch (Exception | Error failure) {
                 try { close(); } catch (Exception cleanup) { failure.addSuppressed(cleanup); }
                 throw failure;
@@ -413,9 +409,51 @@ class DeclarativeBindingsClusterTest {
         List<AppChainSubsystem> liveNodes() {
             return java.util.Arrays.stream(nodes).filter(java.util.Objects::nonNull).toList();
         }
+
+        /**
+         * Waits until every live member has every peer link up, before the first submission. The host re-dials a
+         * refused peer every 5 s and abandons a link stuck in negotiation after 30 s, so 40 s covers its own
+         * recovery; only a member still unlinked after that is restarted once on its own store (with a warning
+         * naming it and its links), and the wait repeats. Test-harness hardening only (ADR-031.3 recorded one
+         * formation timeout).
+         */
+        void awaitPeers() throws Exception {
+            if (connected(40_000_000_000L)) return;
+            for (int index = 0; index < 3; index++) {
+                if (nodes[index] != null && !linked(nodes[index])) {
+                    LoggerFactory.getLogger(DeclarativeBindingsClusterTest.class).warn(
+                            "restarting member {} whose peer links did not form: {}", index,
+                            nodes[index].status().get("peers"));
+                    stop(index);
+                    start(index);
+                }
+            }
+            if (!connected(45_000_000_000L)) throw new AssertionError("cluster peers did not connect");
+        }
+
+        private boolean connected(long nanos) throws InterruptedException {
+            long deadline = System.nanoTime() + nanos;
+            while (System.nanoTime() < deadline) {
+                if (liveNodes().stream().allMatch(Cluster::linked)) return true;
+                Thread.sleep(25);
+            }
+            return false;
+        }
+
+        private static boolean linked(AppChainSubsystem node) {
+            Object peers = node.status().get("peers");
+            return peers instanceof Map<?, ?> map && !map.isEmpty()
+                    && map.values().stream().allMatch(Boolean.TRUE::equals);
+        }
+
         void start(int index) {
+            start(index, directory);
+        }
+
+        /** Starts a member on the store under {@code stateDirectory}; a new directory replays from genesis. */
+        void start(int index, Path stateDirectory) {
             var node = new AppChainSubsystem(configs.get(index), 42, null, null,
-                    directory.resolve("node-" + index).toString(), null, StdlibTestPluginProviders.registry(),
+                    stateDirectory.resolve("node-" + index).toString(), null, StdlibTestPluginProviders.registry(),
                     LoggerFactory.getLogger(DeclarativeBindingsClusterTest.class));
             nodes[index] = node;
             node.start();

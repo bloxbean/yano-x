@@ -276,6 +276,20 @@ write together, preserves the pending proposal/action, and retains the crypto
 work charge. Selecting `apply-basic-action` does not bypass a collection's
 authorization policy.
 
+## Restrict who may approve or write
+
+The approval policy decides who can approve. A deployment can narrow that further
+with [admission rules](07-admission-rules.md) that read the facts the kernels have
+already verified. `examples/bindings/dpp-role-gated.yaml` adds two rules to the
+DPP recipe above: `allowed-organization` refuses approvals from actors outside
+`cert-body-a` after the approval kernel verified the signature, and
+`operator-for-direct-writes` refuses direct actor-signed map writes by actors
+without the `operator` role. Approval-referenced writes through `apply-approved`
+carry no direct actor, so the approval policy alone governs them. A forged
+approval never reaches a rule: the kernel rejects it with its own code.
+`BindingRecipesIT` runs this recipe on three nodes, and its fixtures with a
+governed context are in `examples/bindings/fixtures/dpp-role-gated/`.
+
 ## Know what the recipes do not supply
 
 The initial actor leaf is genesis-fixed: it has no actor rotation or derived

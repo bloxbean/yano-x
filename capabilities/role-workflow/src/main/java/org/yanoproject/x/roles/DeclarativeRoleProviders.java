@@ -16,6 +16,7 @@ import org.yanoproject.api.appchain.transition.CommandDescriptor;
 import org.yanoproject.api.appchain.transition.ConfigurationDescriptor;
 import org.yanoproject.api.appchain.transition.EventDescriptor;
 import org.yanoproject.api.appchain.transition.OrderedLogKernel;
+import org.yanoproject.api.appchain.transition.RuleFact;
 import org.yanoproject.api.appchain.transition.StateMutation;
 import org.yanoproject.api.appchain.transition.TransitionContext;
 import org.yanoproject.api.appchain.transition.TransitionDecision;
@@ -38,6 +39,7 @@ import org.yanoproject.x.roles.internal.ActorApprovalProcessor;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HexFormat;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -242,6 +244,41 @@ public final class DeclarativeRoleProviders {
             return TransitionDecision.approve(new TransitionPlan(mutations, result.plan().effects(),
                     result.plan().consumptions(), result.plan().receipts(), events));
         }
+
+        /**
+         * Facts for admission rules (ADR-031.3 §5.5): the signer's identity, organization and roles from the
+         * eligibility snapshot its signature was verified against, and the action and policy it signed.
+         */
+        @Override public List<RuleFact> ruleFacts() {
+            return List.of(new RuleFact("actorId", RuleFact.Type.TEXT),
+                    new RuleFact("organizationId", RuleFact.Type.TEXT),
+                    new RuleFact("roles", RuleFact.Type.TEXT_SET),
+                    new RuleFact("action", RuleFact.Type.TEXT),
+                    new RuleFact("policyId", RuleFact.Type.TEXT),
+                    new RuleFact("policyRevision", RuleFact.Type.INTEGER));
+        }
+
+        /**
+         * Values from the approving facts. {@code decide} approves (including an exact replay) only after it
+         * verified the statement's signature against this eligibility snapshot, so every value is verified. Actor
+         * roles are lowercase ASCII identifiers that {@code ActorRecordV1} keeps sorted and distinct, which is the
+         * unsigned UTF-8 order a text-set fact requires.
+         */
+        @Override public Map<String, Object> ruleFactValues(StagedActorCommandV1 command, TransitionContext context,
+                                                           ApprovalFacts facts) {
+            var eligibility = facts.lifecycle().actor();
+            if (eligibility == null) return Map.of();
+            var statement = command.command().statement();
+            Map<String, Object> values = new LinkedHashMap<>();
+            values.put("actorId", eligibility.actor().actorId());
+            values.put("organizationId", eligibility.organization().organizationId());
+            values.put("roles", eligibility.actor().roles());
+            values.put("action", statement.action().name());
+            values.put("policyId", statement.policyId());
+            values.put("policyRevision", statement.policyRevision());
+            return values;
+        }
+
         @Override public List<CommandDescriptor> commands() {
             // Positional wrapper preserves actor evidence byte-for-byte; the codec enforces action/op rules.
             return List.of(new CommandDescriptor("actor-command", CommandDescriptor.Layout.ARRAY_WITH_OPCODE, 1,

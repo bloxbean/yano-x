@@ -110,6 +110,18 @@ test('replays and duplicates are never presented as this block’s execution',()
   assert.match(views[0].headline,/not this block’s outcome/);
 });
 
+test('a refusal names the write that decided it, for a denial and an error (ADR-031.4)',()=>{
+  const oracle=parseJson(fs.readFileSync(process.env.STUDIO_RECEIPT_ORACLE,'utf8'),{maxCharacters:64*1024*1024,maxEntries:10_000_000});
+  const codes=report('cascade-report.json').receiptCodes;
+  const receipt=name=>decodeBindingReceipt(hexToBytes(oracle.cases.find(value=>value.name===name).hex));
+  const message=value=>({messageIndex:0,messageIdHex:value.sourceMessageIdHex,topic:'t',disposition:'executed',receipt:value});
+  const denied=explainMessage(message(receipt('synthetic.write-denial')),{receiptCodes:codes});
+  assert.match(denied.steps[0].rules.label,/refused by rule insert-only at clause 1 \(write index 127\) with OBSERVATION_NOT_INSERT/);
+  assert.equal(denied.steps[0].rules.failure.writeIndex,127);
+  const erred=explainMessage(message(receipt('synthetic.write-error')),{receiptCodes:codes});
+  assert.match(erred.steps[0].rules.label,/could not evaluate clause 8 \(write index 0\); it fails closed/);
+});
+
 test('truncated history, kernel codes and hostile text are explained honestly',()=>{
   const oracle=parseJson(fs.readFileSync(process.env.STUDIO_RECEIPT_ORACLE,'utf8'),{maxCharacters:64*1024*1024,maxEntries:10_000_000});
   const codes=report('cascade-report.json').receiptCodes;

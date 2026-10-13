@@ -6,6 +6,8 @@ import org.yanoproject.api.appchain.codec.MessageCodec;
 import org.yanoproject.api.appchain.transition.CommandDescriptor;
 import org.yanoproject.api.appchain.transition.ConfigurationDescriptor;
 import org.yanoproject.api.appchain.transition.EventDescriptor;
+import org.yanoproject.api.appchain.transition.RuleFact;
+import org.yanoproject.api.appchain.transition.RuleValueView;
 import org.yanoproject.api.appchain.transition.TransitionContext;
 import org.yanoproject.api.appchain.transition.TransitionDecision;
 import org.yanoproject.api.appchain.transition.TransitionEvent;
@@ -22,8 +24,25 @@ import org.yanoproject.x.stdlib.contracts.AuthenticatedMapAuthorizationContract.
 import org.yanoproject.x.stdlib.contracts.AuthenticatedMapAuthorizationContract.MapActionV1;
 import org.yanoproject.x.stdlib.contracts.AuthenticatedMapAuthorizationContract.MapApprovalReferenceV1;
 import org.yanoproject.x.stdlib.contracts.AuthenticatedMapContract;
+import org.yanoproject.x.stdlib.contracts.AuthenticatedMapSchema;
+import co.nstant.in.cbor.model.ByteString;
+import co.nstant.in.cbor.model.DataItem;
+import co.nstant.in.cbor.model.NegativeInteger;
+import co.nstant.in.cbor.model.SimpleValue;
+import co.nstant.in.cbor.model.SimpleValueType;
+import co.nstant.in.cbor.model.UnicodeString;
+import co.nstant.in.cbor.model.UnsignedInteger;
+import com.bloxbean.cardano.yaci.core.util.CborSerializationUtil;
 
+import java.math.BigInteger;
+import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.CodingErrorAction;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -40,6 +59,11 @@ import java.util.Set;
  * Alternatively {@code {command: bstr}} carries an unchanged canonical final-v1 action/evidence envelope;
  * its entire field is evidence, so bindings must copy it directly from an event. Signed evidence in that
  * envelope requests non-refundable work from the actor-owned budget before authorization facts are read.
+ *
+ * <p>For declarative admission rules (ADR-031.4 §5.4) each collection is a value view of its entries, and a
+ * schema-typed collection also exposes its values' top-level scalar members. The kernel's write view describes each
+ * mutation of a command, and its coverage names who verifiably authorized each write, taken only from the facts of
+ * an approved decision.
  */
 final class AuthenticatedMapTransitionKernel implements
         TransitionKernel<AuthenticatedMapTransitionKernel.Command, AuthenticatedMapTransitionKernel.Facts> {
@@ -47,6 +71,10 @@ final class AuthenticatedMapTransitionKernel implements
     private final String actors;
     private final String approvals;
     private final AuthenticatedMapDirectAuthorizer authorizer;
+    /** Exposed value members per collection, in schema member order (ADR-031.4 §5.4). */
+    private final Map<String, List<RuleFact>> valueFields;
+    /** Write value fields: members every collection that declares them types alike. */
+    private final Map<String, RuleFact.Type> writeValueTypes;
 
     AuthenticatedMapTransitionKernel(AuthenticatedMapStateMachine map, String actors, String approvals) {
         this.map = map;
@@ -61,6 +89,47 @@ final class AuthenticatedMapTransitionKernel implements
         }
         authorizer = governed ? new AuthenticatedMapDirectAuthorizer(map.genesis().chainId(), map.genesisId(),
                 map.genesis().governedGenesis().limits()) : null;
+        Map<String, List<RuleFact>> exposed = new LinkedHashMap<>();
+        Map<String, RuleFact.Type> union = new LinkedHashMap<>();
+        Set<String> conflicting = new HashSet<>();
+        for (var collection : map.genesis().collections()) {
+            boolean canonical = collection.valueEncoding() == AuthenticatedMapContract.VALUE_ENCODING_CANONICAL_CBOR;
+            List<RuleFact> members = canonical ? exposedMembers(map.schemaOf(collection.id())) : List.of();
+            exposed.put(collection.id(), members);
+            for (RuleFact member : members) {
+                var previous = union.putIfAbsent(member.name(), member.type());
+                if (previous != null && previous != member.type()) conflicting.add(member.name());
+            }
+        }
+        conflicting.forEach(union::remove);
+        valueFields = Map.copyOf(exposed);
+        writeValueTypes = Map.copyOf(union);
+    }
+
+    /**
+     * The value members a schema exposes: for an exact text-keyed map root, the first
+     * {@link RuleValueView#MAX_FIELDS} members in schema order whose key is a CEL identifier and whose type is one
+     * scalar kind. Other roots, keys and types expose nothing.
+     */
+    private static List<RuleFact> exposedMembers(AuthenticatedMapSchema.Schema schema) {
+        if (schema == null || !(schema.root() instanceof AuthenticatedMapSchema.MapNode root)) return List.of();
+        List<RuleFact> members = new ArrayList<>();
+        for (var field : root.fields()) {
+            if (members.size() == RuleValueView.MAX_FIELDS) break;
+            if (!field.key().matches("[a-zA-Z][a-zA-Z0-9_]{0,62}")
+                    || RuleFact.RESERVED_NAMES.contains(field.key())) {
+                continue;
+            }
+            RuleFact.Type type = switch (field.value()) {
+                case AuthenticatedMapSchema.IntegerNode _ -> RuleFact.Type.INTEGER;
+                case AuthenticatedMapSchema.TextNode _ -> RuleFact.Type.TEXT;
+                case AuthenticatedMapSchema.BytesNode _ -> RuleFact.Type.BYTES;
+                case AuthenticatedMapSchema.BooleanNode _ -> RuleFact.Type.BOOLEAN;
+                default -> null;
+            };
+            if (type != null) members.add(new RuleFact(field.key(), type));
+        }
+        return List.copyOf(members);
     }
 
     /** Decoded leaf input; the referenced proposal is resolved only through declared participant facts. */
@@ -168,7 +237,8 @@ final class AuthenticatedMapTransitionKernel implements
         if (!participants.keySet().equals(Set.copyOf(readParticipants()))) {
             throw new IllegalArgumentException("incorrect map authorization participants");
         }
-        var authorization = AuthenticatedMapDirectAuthorizer.AuthorizationResult.accepted(Set.of(), List.of());
+        var authorization = AuthenticatedMapDirectAuthorizer.AuthorizationResult.accepted(Set.of(), List.of(),
+                List.of(), 0);
         if (state.get(AuthenticatedMapContract.receiptKey(context.messageId())).isPresent()) {
             return new Facts(null, authorization, true);
         }
@@ -247,6 +317,224 @@ final class AuthenticatedMapTransitionKernel implements
         var plan = result.plan();
         return TransitionDecision.approve(new TransitionPlan(plan.mutations(), plan.effects(), plan.consumptions(),
                 plan.receipts(), events));
+    }
+
+    /**
+     * Facts for admission rules (ADR-031.3 §5.5). Every map declares the sender's membership and the collections
+     * a batch writes; a governed map also declares its verified evidence counts and, for exactly one direct
+     * actor, that actor's verified identity, organization, roles and policy.
+     */
+    @Override public List<RuleFact> ruleFacts() {
+        List<RuleFact> facts = new ArrayList<>(List.of(new RuleFact("senderMember", RuleFact.Type.BOOLEAN),
+                new RuleFact("collections", RuleFact.Type.TEXT_SET)));
+        if (authorizer != null) {
+            facts.addAll(List.of(new RuleFact("directActorCount", RuleFact.Type.INTEGER),
+                    new RuleFact("approvalCount", RuleFact.Type.INTEGER),
+                    new RuleFact("actorId", RuleFact.Type.TEXT),
+                    new RuleFact("organizationId", RuleFact.Type.TEXT),
+                    new RuleFact("role", RuleFact.Type.TEXT),
+                    new RuleFact("roles", RuleFact.Type.TEXT_SET),
+                    new RuleFact("policyId", RuleFact.Type.TEXT)));
+        }
+        return List.copyOf(facts);
+    }
+
+    /**
+     * Values read only from the facts that produced the approval, so every value was verified by {@link #facts}.
+     * A replay recognized by its receipt key approves an empty plan without facts; a fact rule then fails closed.
+     */
+    @Override public Map<String, Object> ruleFactValues(Command command, TransitionContext context, Facts facts) {
+        if (facts.replay() || facts.mapFacts() == null) return Map.of();
+        Map<String, Object> values = new LinkedHashMap<>();
+        values.put("senderMember", facts.mapFacts().senderMember());
+        values.put("collections", sortedText(command.action().mutations().stream()
+                .map(AuthenticatedMapContract.Mutation::collectionId).toList()));
+        if (authorizer != null) {
+            var authorization = facts.authorization();
+            values.put("directActorCount", (long) authorization.directFacts().size());
+            values.put("approvalCount", (long) authorization.approvalCount());
+            if (authorization.directFacts().size() == 1) {
+                var direct = authorization.directFacts().getFirst();
+                values.put("actorId", direct.actor().actorId());
+                values.put("organizationId", direct.organization().organizationId());
+                values.put("role", direct.policy().requiredRole());
+                values.put("roles", sortedText(direct.actor().roles()));
+                values.put("policyId", direct.policy().policyId());
+            }
+        }
+        return values;
+    }
+
+    private static final List<RuleFact> ENTRY_FIELDS = List.of(new RuleFact("status", RuleFact.Type.TEXT),
+            new RuleFact("revision", RuleFact.Type.INTEGER), new RuleFact("createdHeight", RuleFact.Type.INTEGER),
+            new RuleFact("lastMutationHeight", RuleFact.Type.INTEGER),
+            new RuleFact("valueLength", RuleFact.Type.INTEGER), new RuleFact("controller", RuleFact.Type.BYTES));
+
+    /** ADR-031.4 §5.4: one view per collection, its entries' fields and the schema's value members. */
+    @Override public List<RuleValueView> ruleValueViews() {
+        return map.genesis().collections().stream().map(collection -> new RuleValueView(collection.id(),
+                ENTRY_FIELDS, valueFields.get(collection.id()))).toList();
+    }
+
+    /** A read of {@code key} in a collection is the entry at the collection's canonical key. */
+    @Override public byte[] ruleValueKey(String namespace, byte[] key) {
+        var descriptor = map.genesis().collections().stream().filter(item -> item.id().equals(namespace))
+                .findFirst().orElseThrow(() -> new IllegalArgumentException("unknown map collection"));
+        if (key.length == 0 || key.length > descriptor.maxKeyBytes()) {
+            throw new IllegalArgumentException("map application key outside the collection bound");
+        }
+        return AuthenticatedMapContract.canonicalKey(namespace, key);
+    }
+
+    @Override public Map<String, Object> ruleValueFields(String namespace, byte[] key, byte[] stored) {
+        AuthenticatedMapContract.Entry entry;
+        try {
+            entry = AuthenticatedMapContract.decodeEntry(stored);
+        } catch (RuntimeException undecodable) {
+            return Map.of();
+        }
+        Map<String, Object> fields = new LinkedHashMap<>();
+        fields.put("status", entry.status() == AuthenticatedMapContract.STATUS_ACTIVE ? "ACTIVE" : "REVOKED");
+        fields.put("revision", entry.revision());
+        fields.put("createdHeight", entry.createdHeight());
+        fields.put("lastMutationHeight", entry.lastMutationHeight());
+        fields.put("valueLength", (long) entry.value().length);
+        fields.put("controller", entry.controller());
+        if (entry.status() == AuthenticatedMapContract.STATUS_ACTIVE) {
+            memberValues(entry.value(), valueFields.getOrDefault(namespace, List.of()))
+                    .forEach((name, value) -> fields.put(RuleValueView.VALUE_PREFIX + name, value));
+        }
+        return fields;
+    }
+
+    /**
+     * The exposed members of one canonical-CBOR map value: scalars of the member's kind; text and bytes over
+     * {@link RuleFact#MAX_VALUE_BYTES} are absent, and an integer outside int64 is reported exactly, which the engine
+     * refuses. A value that is not such a map exposes nothing.
+     */
+    private static Map<String, Object> memberValues(byte[] value, List<RuleFact> members) {
+        if (members.isEmpty() || value.length == 0) return Map.of();
+        DataItem decoded;
+        try {
+            decoded = CborSerializationUtil.deserializeOne(value);
+        } catch (RuntimeException undecodable) {
+            return Map.of();
+        }
+        if (!(decoded instanceof co.nstant.in.cbor.model.Map entries)) return Map.of();
+        Map<String, Object> values = new LinkedHashMap<>();
+        for (RuleFact member : members) {
+            DataItem item = entries.get(new UnicodeString(member.name()));
+            Object scalar = switch (item) {
+                case UnsignedInteger number when member.type() == RuleFact.Type.INTEGER -> exact(number.getValue());
+                case NegativeInteger number when member.type() == RuleFact.Type.INTEGER -> exact(number.getValue());
+                case UnicodeString text when member.type() == RuleFact.Type.TEXT
+                        && text.getString().getBytes(StandardCharsets.UTF_8).length <= RuleFact.MAX_VALUE_BYTES ->
+                        text.getString();
+                case ByteString bytes when member.type() == RuleFact.Type.BYTES
+                        && bytes.getBytes().length <= RuleFact.MAX_VALUE_BYTES -> bytes.getBytes();
+                case SimpleValue simple when member.type() == RuleFact.Type.BOOLEAN
+                        && (simple.getSimpleValueType() == SimpleValueType.TRUE
+                        || simple.getSimpleValueType() == SimpleValueType.FALSE) ->
+                        simple.getSimpleValueType() == SimpleValueType.TRUE;
+                case null, default -> null;
+            };
+            if (scalar != null) values.put(member.name(), scalar);
+        }
+        return values;
+    }
+
+    private static Object exact(BigInteger value) {
+        return value.bitLength() < 64 ? (Object) value.longValue() : value;
+    }
+
+    private static final List<String> OPERATIONS = List.of("PUT", "PUT_IF_ABSENT", "COMPARE_AND_SET",
+            "TRANSFER_CONTROLLER", "REVOKE", "RESTORE");
+
+    /** ADR-031.4 §5.2: one element per mutation of a command, in command order. */
+    @Override public List<RuleFact> ruleWriteFields() {
+        return List.of(new RuleFact("collection", RuleFact.Type.TEXT), new RuleFact("key", RuleFact.Type.BYTES),
+                new RuleFact("keyText", RuleFact.Type.TEXT), new RuleFact("op", RuleFact.Type.TEXT),
+                new RuleFact("hasValue", RuleFact.Type.BOOLEAN), new RuleFact("valueLength", RuleFact.Type.INTEGER),
+                new RuleFact("expectedRevision", RuleFact.Type.INTEGER));
+    }
+
+    @Override public List<RuleFact> ruleWriteCoverageFields() {
+        return List.of(new RuleFact("coverage", RuleFact.Type.TEXT), new RuleFact("actorId", RuleFact.Type.TEXT),
+                new RuleFact("actorOrganizationId", RuleFact.Type.TEXT),
+                new RuleFact("actorRoles", RuleFact.Type.TEXT_SET));
+    }
+
+    @Override public List<Map<String, Object>> ruleWrites(Command command) {
+        List<Map<String, Object>> writes = new ArrayList<>();
+        for (var mutation : command.action().mutations()) {
+            Map<String, Object> write = new LinkedHashMap<>();
+            write.put("collection", mutation.collectionId());
+            write.put("key", mutation.applicationKey());
+            utf8(mutation.applicationKey()).ifPresent(text -> write.put("keyText", text));
+            write.put("op", OPERATIONS.get(mutation.operation()));
+            // Exactly the operations the map validates a value for, so no rule guard can drift from the kernel.
+            boolean hasValue = AuthenticatedMapStateMachine.valueBearing(mutation.operation());
+            write.put("hasValue", hasValue);
+            write.put("valueLength", (long) mutation.value().length);
+            write.put("expectedRevision", mutation.expectedRevision());
+            if (hasValue) {
+                memberValues(mutation.value(), valueFields.getOrDefault(mutation.collectionId(), List.of()))
+                        .forEach((name, value) -> {
+                            // Only members every collection types alike are declared for writes.
+                            if (writeValueTypes.containsKey(name)) write.put(RuleValueView.VALUE_PREFIX + name, value);
+                        });
+            }
+            writes.add(write);
+        }
+        return writes;
+    }
+
+    /**
+     * Coverage of each write, from the facts that produced the approval only. After approval each governed write is
+     * covered by exactly one evidence item of its collection's policy: {@code direct} with that actor's verified
+     * identity, organization and roles, or {@code approval}; a write in an open, owner or member collection reports
+     * {@code none}. A replay recognized by its receipt key approves without facts and establishes no coverage, and
+     * facts whose authorization was rejected establish none either.
+     */
+    @Override public List<Map<String, Object>> ruleWriteCoverage(Command command, TransitionContext context,
+                                                                 Facts facts) {
+        int writes = command.action().mutations().size();
+        List<Map<String, Object>> coverage = new ArrayList<>();
+        if (facts.replay() || facts.mapFacts() == null || !facts.authorization().accepted()) {
+            for (int index = 0; index < writes; index++) coverage.add(Map.of());
+            return coverage;
+        }
+        var authorization = facts.authorization();
+        for (int index = 0; index < writes; index++) {
+            final int position = index;
+            var direct = authorization.directCoverage().stream()
+                    .filter(item -> item.indexes().contains(position)).findFirst();
+            if (direct.isPresent()) {
+                var verified = direct.get().facts();
+                coverage.add(Map.of("coverage", "direct", "actorId", verified.actor().actorId(),
+                        "actorOrganizationId", verified.organization().organizationId(),
+                        "actorRoles", sortedText(verified.actor().roles())));
+            } else {
+                coverage.add(Map.of("coverage", authorization.approvalIndexes().contains(position) ? "approval"
+                        : "none"));
+            }
+        }
+        return coverage;
+    }
+
+    private static Optional<String> utf8(byte[] bytes) {
+        try {
+            return Optional.of(StandardCharsets.UTF_8.newDecoder().onMalformedInput(CodingErrorAction.REPORT)
+                    .onUnmappableCharacter(CodingErrorAction.REPORT).decode(ByteBuffer.wrap(bytes)).toString());
+        } catch (CharacterCodingException malformed) {
+            return Optional.empty();
+        }
+    }
+
+    /** Distinct text in unsigned UTF-8 byte order, the order a {@code TEXT_SET} fact requires. */
+    private static List<String> sortedText(List<String> values) {
+        return values.stream().distinct().sorted((left, right) -> Arrays.compareUnsigned(
+                left.getBytes(StandardCharsets.UTF_8), right.getBytes(StandardCharsets.UTF_8))).toList();
     }
 
     @Override public List<CommandDescriptor> commands() {

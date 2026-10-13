@@ -2,6 +2,7 @@ package org.yanoproject.x.devtools;
 
 import com.bloxbean.cardano.client.crypto.KeyGenUtil;
 import com.bloxbean.cardano.yaci.core.network.server.NodeServer;
+import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
 import com.bloxbean.cardano.yaci.core.protocol.chainsync.messages.Point;
 import com.bloxbean.cardano.yaci.core.protocol.handshake.util.N2NVersionTableConstant;
 import com.bloxbean.cardano.yaci.core.storage.ChainState;
@@ -15,6 +16,8 @@ import org.slf4j.LoggerFactory;
 import org.yanoproject.api.appchain.AppChainConfig;
 import org.yanoproject.api.appchain.AppChainMembershipEpoch;
 import org.yanoproject.api.appchain.AppBlockHeader;
+import org.yanoproject.api.appchain.AppStateMachine;
+import org.yanoproject.api.appchain.AppSubmissionRejectedException;
 import org.yanoproject.api.appchain.effects.EffectView;
 import org.yanoproject.api.appchain.state.StateCommitmentIdentity;
 import org.yanoproject.api.appchain.state.StateCommitmentProfiles;
@@ -22,19 +25,27 @@ import org.yanoproject.api.appchain.transition.TransitionScalars;
 import org.yanoproject.appchain.config.AppChainEffectsConfig;
 import org.yanoproject.runtime.appchain.AppChainSubsystem;
 import org.yanoproject.runtime.plugins.PluginProviderRegistry;
+import org.yanoproject.x.composite.CompositeStateKeys;
 import org.yanoproject.x.composite.contracts.BindingCbor;
 import org.yanoproject.x.composite.contracts.BindingIrV1;
 import org.yanoproject.x.composite.contracts.BindingReceiptV1;
 import org.yanoproject.x.client.AppChainClient;
 import org.yanoproject.x.client.ProofVerifier;
+import org.yanoproject.x.dpp.profile.DppGenesis;
+import org.yanoproject.x.dpp.profile.DppStarterProfile;
+import org.yanoproject.x.dpp.profile.DppValues;
 import org.yanoproject.x.roles.contracts.ActorStatementV1;
+import org.yanoproject.x.roles.contracts.RoleWorkflowKeys;
 import org.yanoproject.x.roles.contracts.SignedActorCommandV1;
 import org.yanoproject.x.roles.contracts.StagedActorCommandV1;
 import org.yanoproject.x.stdlib.contracts.ApprovalsContract;
 import org.yanoproject.x.stdlib.contracts.AuthenticatedMapAuthorizationContract;
 import org.yanoproject.x.stdlib.contracts.AuthenticatedMapContract;
+import org.yanoproject.x.stdlib.contracts.BalancesContract;
+import org.yanoproject.x.stdlib.contracts.DocTrailContract;
 import org.yanoproject.x.stdlib.contracts.KvRegistryContract;
 
+import java.math.BigInteger;
 import java.net.ServerSocket;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -47,6 +58,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.BooleanSupplier;
@@ -58,6 +70,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * Compiles checked-in author recipes through real catalog bundles, executes them on three actual N2N hosts,
  * and replays their finalized blocks through the offline rehearsal API. Receipt-byte equality is tested,
  * not inferred from decoded fields. Temporary state is never an external deployment or production trust pin.
+ *
+ * <p>The ADR-031.3 admission recipes (§6.1, §6.2) also qualify expected refusals: a static rule rejects at
+ * ingress on the submitting node, and a block-time denial is a finalized, provable receipt naming the rule.
  */
 @Timeout(180)
 class BindingRecipesIT {
@@ -70,6 +85,50 @@ class BindingRecipesIT {
     @Test void payloadAdmissionAndLazyBaselineHaveLiveAndOfflineReceiptParity() throws Exception {
         qualify("payload-admission");
     }
+    @Test void balancesTransferLimitRulesHaveLiveAndOfflineReceiptParity() throws Exception {
+        qualify("balances-transfer-limit");
+    }
+    @Test void procurementAdmissionRulesHaveLiveAndOfflineReceiptParity() throws Exception {
+        qualify("procurement-admission");
+    }
+    @Test void roleGatedDppRulesHaveLiveAndOfflineReceiptParity() throws Exception {
+        qualify("dpp-role-gated");
+    }
+    @Test void assetGovernedLimitsHaveLiveAndOfflineReceiptParity() throws Exception {
+        qualify("asset-governed-limits");
+    }
+    @Test void dppNamespaceIsolationHasLiveAndOfflineReceiptParity() throws Exception {
+        qualify("dpp-namespace-isolation");
+    }
+    @Test void feedSlotRulesHaveLiveAndOfflineReceiptParity() throws Exception {
+        qualify("feed-slot-rules");
+    }
+    @Test void balancesHoldingCapHasLiveAndOfflineReceiptParity() throws Exception {
+        qualify("balances-holding-cap");
+    }
+
+    /**
+     * An expected refusal: the receipt code, the failed step's exact rule trace, and the business keys its block
+     * may still write. An admission-slot refusal reserves no work, so its block writes framework keys only; a
+     * refusal after the kernel's work reservation keeps that non-refundable reservation and nothing else.
+     */
+    record Refusal(String code, BindingReceiptV1.RuleTrace rules, Set<String> keptKeys) {
+        static Refusal denied(String rule, String denyCode, Set<String> keptKeys) {
+            return new Refusal("ADMISSION_RULE_DENIED", new BindingReceiptV1.RuleTrace(0,
+                    new BindingReceiptV1.RuleFailure(rule, 0, denyCode)), keptKeys);
+        }
+
+        /** An ADR-031.4 denial after {@code held} rules held, at a clause and, for a quantifier, a write. */
+        static Refusal denied(int held, String rule, int clause, String denyCode, Integer write,
+                              Set<String> keptKeys) {
+            return new Refusal("ADMISSION_RULE_DENIED", new BindingReceiptV1.RuleTrace(held,
+                    new BindingReceiptV1.RuleFailure(rule, clause, denyCode, write)), keptKeys);
+        }
+    }
+
+    /** The actor component's shared crypto-work counter, which governed evidence reserves before verification. */
+    private static final String ACTOR_WORK_KEY = hex(CompositeStateKeys.componentKey("actors",
+            RoleWorkflowKeys.cryptoWork()));
 
     private void qualify(String recipe) throws Exception {
         Path plugins = Files.createDirectory(temporary.resolve("plugins"));
@@ -132,7 +191,9 @@ class BindingRecipesIT {
                 pinnedIdentity = cluster.nodes[0].stateCommitmentIdentity().orElseThrow();
                 pinnedManifest = cluster.nodes[0].status().get("capabilityManifest");
                 pinnedConsensus = cluster.nodes[0].status().get("consensusProfile");
-                List<String> sourceIds = submitRecipe(recipe, genesis, cluster, seeds);
+                Map<String, Refusal> denials = new LinkedHashMap<>();
+                var ingress = new Ingress(catalog.validate(ir), chain);
+                List<String> sourceIds = submitRecipe(recipe, genesis, cluster, seeds, denials, ingress);
                 pinnedFinalizedContext = cluster.finalizedContextPin.clone();
                 long tip = cluster.nodes[0].tipHeight();
                 for (var node : cluster.nodes) {
@@ -181,7 +242,31 @@ class BindingRecipesIT {
                         byte[] actual = cluster.nodes[0].query("composite/binding-receipt-v1/" + id,
                                 new byte[0]).payload();
                         assertThat((String) receipt.get("receiptHex")).isEqualTo(hex(actual));
-                        assertThat(BindingReceiptV1.decode(actual).accepted()).isTrue();
+                        var decoded = BindingReceiptV1.decode(actual);
+                        var denial = denials.get(id);
+                        assertThat(decoded.accepted()).as(id).isEqualTo(denial == null);
+                        if (denial != null) {
+                            assertThat(decoded.code()).isEqualTo(denial.code());
+                            var failed = decoded.steps().stream()
+                                    .filter(step -> step.ordinal() == decoded.failedStepOrdinal()).findFirst()
+                                    .orElseThrow();
+                            assertThat(failed.rules()).isEqualTo(denial.rules());
+                            // A refusal is one per-source-message no-op: besides its receipt and framework keys
+                            // ("~" namespace), its block changes no business value (physical keys starting with
+                            // "yano-composite-state-v1\0") except the refusal's kept keys. A component's per-height
+                            // lifecycle may rewrite a value unchanged. submit() waits for each receipt before the
+                            // next submission, so this block holds only the refused message.
+                            String receiptKey = hex(cluster.nodes[0].query("composite/binding-receipt-key-v1/"
+                                    + id, new byte[0]).payload());
+                            assertThat(rehearsal.stateChanges()).extracting(BindingDryRun.Entry::keyHex)
+                                    .contains(receiptKey);
+                            for (var change : rehearsal.stateChanges()) {
+                                if (change.keyHex().startsWith("7e") || denial.keptKeys().contains(change.keyHex())) {
+                                    continue;
+                                }
+                                assertThat(change.valueHex()).as(change.keyHex()).isEqualTo(state.get(change.keyHex()));
+                            }
+                        }
                         retainedReceipts.put(id, hex(actual));
                         compared++;
                     }
@@ -203,11 +288,21 @@ class BindingRecipesIT {
                     verifyReceiptProof(node, receiptProofKey, new LinkedHashSet<>(members), chain,
                             pinnedIdentity, pinnedFinalizedContext);
                 }
+                // A denial is a finalized, provable receipt like any other outcome (ADR-031.3 §7).
+                for (String denied : denials.keySet()) {
+                    byte[] deniedKey = cluster.nodes[0].query("composite/binding-receipt-key-v1/" + denied,
+                            new byte[0]).payload();
+                    for (var node : cluster.nodes) {
+                        verifyReceiptProof(node, deniedKey, new LinkedHashSet<>(members), chain,
+                                pinnedIdentity, pinnedFinalizedContext);
+                    }
+                }
                 retainedRoot = cluster.nodes[0].stateRoot();
                 retainedHeight = cluster.nodes[0].tipHeight();
                 assertThat(BindingReceiptV1.decode(cluster.nodes[0]
                         .query("composite/binding-receipt-v1/" + last, new byte[0]).payload()).steps().size())
-                        .isGreaterThanOrEqualTo(2);
+                        .isGreaterThanOrEqualTo(Set.of("balances-transfer-limit", "dpp-role-gated").contains(recipe)
+                                || TYPED_VIEW_RECIPES.contains(recipe) ? 1 : 2);
             }
             // Every recipe reopens all three original stores, not only the outbox-bearing recipe.
             try (Cluster restarted = new Cluster(configs, ports, temporary, environment.providers())) {
@@ -246,9 +341,58 @@ class BindingRecipesIT {
     }
 
     private static List<String> submitRecipe(String recipe, AuthenticatedMapContract.Genesis genesis,
-                                              Cluster cluster, List<byte[]> seeds) throws Exception {
+                                              Cluster cluster, List<byte[]> seeds,
+                                              Map<String, Refusal> denials,
+                                              Ingress ingress) throws Exception {
         List<String> ids = new ArrayList<>();
-        if (recipe.equals("payload-admission")) {
+        if (recipe.equals("balances-transfer-limit")) {
+            String alice = hex(KeyGenUtil.getPublicKeyFromPrivateKey(seeds.getFirst()));
+            String bob = hex(KeyGenUtil.getPublicKeyFromPrivateKey(seeds.get(1)));
+            ids.add(submit(cluster, 0, "points.command.v1",
+                    BalancesContract.mint(alice, BigInteger.valueOf(50_000))));
+            // transfer-limit reads only command.* and params.*, so it is static: refused before pooling.
+            ingress.rejects(cluster, "points.command.v1", BalancesContract.transfer(bob, BigInteger.valueOf(20_000)),
+                    "transfer-limit", "TRANSFER_LIMIT_EXCEEDED");
+            ids.add(submit(cluster, 0, "points.command.v1",
+                    BalancesContract.transfer(bob, BigInteger.valueOf(10_000))));
+            // mint is not selected by the rule, so a large mint is unaffected.
+            ids.add(submitWithFollowerCatchup(cluster, 0, "points.command.v1",
+                    BalancesContract.mint(bob, BigInteger.valueOf(20_000))));
+        } else if (recipe.equals("procurement-admission")) {
+            byte[] supplier = KeyGenUtil.getPublicKeyFromPrivateKey(seeds.getFirst());
+            // §7.1: an order before the sender is registered is refused itself; the lookup keeps it pooled.
+            String unregistered = submit(cluster, 0, "orders.command.v1", KvRegistryContract.put(new byte[]{9},
+                    new byte[]{1}));
+            ids.add(unregistered);
+            denials.put(unregistered, Refusal.denied("registered-supplier", "NOT_A_REGISTERED_SUPPLIER", Set.of()));
+            ids.add(submit(cluster, 0, "suppliers.command.v1", KvRegistryContract.put(supplier,
+                    "approved".getBytes(StandardCharsets.UTF_8))));
+            // minimum-quorum reads only command.* and params.*: a direct low-quorum proposal fails at ingress.
+            ingress.rejects(cluster, "approvals.command.v1", ApprovalsContract.propose("02", new byte[]{7}, 1, 0),
+                    "minimum-quorum", "QUORUM_TOO_LOW");
+            // §7.2: the registered supplier's order derives a quorum-2 proposal at depth 1.
+            ids.add(submit(cluster, 0, "orders.command.v1", KvRegistryContract.put(new byte[]{1}, new byte[]{42})));
+            // §7.4: only-via-binding reads context, so a direct audit append is pooled and denied at block time.
+            String direct = submit(cluster, 0, "audit.command.v1", DocTrailContract.append("01", new byte[32],
+                    "forged"));
+            ids.add(direct);
+            denials.put(direct, Refusal.denied("only-via-binding", "DIRECT_SUBMISSION_FORBIDDEN", Set.of()));
+            ids.add(submit(cluster, 0, "approvals.command.v1", ApprovalsContract.approve("01")));
+            // §7.5: the second approval derives the audit append through approved-to-audit, which the rule admits.
+            ids.add(submitWithFollowerCatchup(cluster, 1, "approvals.command.v1", ApprovalsContract.approve("01")));
+        } else if (recipe.equals("dpp-role-gated")) {
+            submitRoleGated(genesis, cluster, ids, denials);
+        } else if (TYPED_VIEW_RECIPES.contains(recipe)) {
+            var steps = TypedViewStep.of(recipe, genesis);
+            for (int index = 0; index < steps.size(); index++) {
+                var step = steps.get(index);
+                String id = index == steps.size() - 1
+                        ? submitWithFollowerCatchup(cluster, step.node(), step.topic(), step.body())
+                        : submit(cluster, step.node(), step.topic(), step.body());
+                ids.add(id);
+                if (step.refusal() != null) denials.put(id, step.refusal());
+            }
+        } else if (recipe.equals("payload-admission")) {
             // A valid host-sized command whose baseline envelope cannot fit must fail at submission,
             // not disappear from the pool later or masquerade as a finalized business outcome.
             assertThatThrownBy(() -> cluster.nodes[0].submit("source.command.v1", new byte[65_536]))
@@ -308,6 +452,276 @@ class BindingRecipesIT {
                     independent, ActorStatementV1.Action.APPROVE, hash, new byte[0])));
         }
         return ids;
+    }
+
+    /**
+     * The §6.3 command bodies on the DPP demo registry, signed with the deterministic demo actor keys: a
+     * certificate proposal, approvals from cert-body-a and audit-guild-b, a forged approval, a direct claim by an
+     * actor without operator, and an operator's direct event. Shared with the Studio fixture generator.
+     */
+    record RoleGatedCommands(byte[] propose, byte[] approve, byte[] outsideApprove, byte[] forgedApprove,
+                             byte[] claimWithoutRole, byte[] operatorEvent) {
+        static RoleGatedCommands of(AuthenticatedMapContract.Genesis genesis) throws Exception {
+            String chain = genesis.chainId();
+            var action = new AuthenticatedMapAuthorizationContract.MapActionV1(false,
+                    List.of(AuthenticatedMapContract.Mutation.put(DppStarterProfile.CERTIFICATES,
+                            DppStarterProfile.certificateKey("certificate-1"), BindingCbor.encode(List.of(1L,
+                                    "product-1", "independent-audit", "cert-body-a", new byte[32], 1L, 0L)))),
+                    List.of(new AuthenticatedMapAuthorizationContract.AuthorizationAssignmentV1(
+                            0, AuthenticatedMapContract.AUTH_APPROVAL, DppStarterProfile.CERTIFICATION_POLICY, 1)));
+            byte[] hash = AuthenticatedMapAuthorizationContract.approvalPayloadHash(
+                    AuthenticatedMapContract.genesisId(genesis),
+                    AuthenticatedMapAuthorizationContract.actionCommitment(action));
+            String policy = DppStarterProfile.CERTIFICATION_POLICY;
+            String clause = DppStarterProfile.CERTIFICATION_CLAUSE;
+            var statement = new ActorStatementV1(ActorStatementV1.Action.APPROVE, chain, "qualification", policy, 1,
+                    AuthenticatedMapAuthorizationContract.APPROVAL_PAYLOAD_DOMAIN, hash, 500, "auditor-b", 1,
+                    "auditor-b-k1", clause);
+            byte[] claim = new DppValues.ClaimValue(DppStarterProfile.VISIBILITY_PUBLIC,
+                    "recycled".getBytes(StandardCharsets.UTF_8), "green-labs", 0, 0, new byte[0]).encode();
+            byte[] event = new DppValues.EventValue("shipped", "swift-logistics", 1_700_000_000L, "", new byte[0],
+                    "").encode();
+            return new RoleGatedCommands(
+                    actorCommand(true, chain, policy, clause, "certifier-a", ActorStatementV1.Action.PROPOSE, hash,
+                            AuthenticatedMapAuthorizationContract.encodeAction(action)),
+                    actorCommand(true, chain, policy, clause, "auditor-a", ActorStatementV1.Action.APPROVE, hash,
+                            new byte[0]),
+                    actorCommand(true, chain, policy, clause, "auditor-b", ActorStatementV1.Action.APPROVE, hash,
+                            new byte[0]),
+                    new StagedActorCommandV1(SignedActorCommandV1.sign(statement,
+                            DppGenesis.demoActorSeed("auditor-a")), new byte[0]).encode(),
+                    directWrite(genesis, DppStarterProfile.CLAIMS,
+                            DppStarterProfile.claimKey("product-1", "material", "claim-1"), claim,
+                            DppStarterProfile.CLAIM_ISSUER_POLICY, "issuer-a", 1),
+                    directWrite(genesis, DppStarterProfile.EVENTS, DppStarterProfile.eventKey("product-1", "event-1"),
+                            event, DppStarterProfile.OPERATOR_POLICY, "logistics-a", 2));
+        }
+    }
+
+    /** ADR-031.4 §6 recipes and the §5.10 holding cap. */
+    static final List<String> TYPED_VIEW_RECIPES = List.of("asset-governed-limits", "dpp-namespace-isolation",
+            "feed-slot-rules", "balances-holding-cap");
+
+    /**
+     * One message of an ADR-031.4 recipe: the member that submits it (node index), its topic and body, and its
+     * expected refusal ({@code null} when accepted). Shared with the Studio fixture generator.
+     */
+    record TypedViewStep(int node, String topic, byte[] body, Refusal refusal) {
+        static List<TypedViewStep> of(String recipe, AuthenticatedMapContract.Genesis genesis) {
+            List<String> senders = memberSeeds().stream().map(KeyGenUtil::getPublicKeyFromPrivateKey)
+                    .map(BindingRecipesIT::hex).toList();
+            List<TypedViewStep> steps = new ArrayList<>();
+            switch (recipe) {
+                case "asset-governed-limits" -> {
+                    for (String sender : senders) {
+                        steps.add(new TypedViewStep(0, "token.v1", BalancesContract.mint(sender,
+                                BigInteger.valueOf(10_000)), null));
+                    }
+                    // Within the governed maximum (1000), the first member's tier (500), and its lock-up.
+                    steps.add(new TypedViewStep(0, "token.v1", transfer(senders.get(2), 100), null));
+                    steps.add(new TypedViewStep(0, "token.v1", transfer(senders.get(2), 2_000),
+                            Refusal.denied(0, "governed-transfer-limit", 0, "TRANSFER_LIMIT_EXCEEDED", null,
+                                    Set.of())));
+                    steps.add(new TypedViewStep(0, "token.v1", transfer(senders.get(2), 700),
+                            Refusal.denied(1, "tier-limit", 1, "TIER_LIMIT_EXCEEDED", null, Set.of())));
+                    // The second member acquired at height 1,000,000 and is locked; the third holds no record.
+                    steps.add(new TypedViewStep(1, "token.v1", transfer(senders.get(2), 10),
+                            Refusal.denied(2, "lock-up", 0, "LOCKED", null, Set.of())));
+                    steps.add(new TypedViewStep(2, "token.v1", transfer(senders.get(0), 10),
+                            Refusal.denied(1, "tier-limit", 0, "TIER_LIMIT_EXCEEDED", null, Set.of())));
+                    steps.add(new TypedViewStep(0, "token.v1", transfer(senders.get(1), 50), null));
+                }
+                case "dpp-namespace-isolation" -> {
+                    String events = DppStarterProfile.EVENTS;
+                    String policy = DppStarterProfile.OPERATOR_POLICY;
+                    byte[] swift = event("swift-logistics");
+                    byte[] acme = event("acme-manufacturing");
+                    steps.add(new TypedViewStep(0, "registry.v1", mapWrite(genesis, List.of(put(events,
+                            "swift-logistics/p1/e1", swift)), policy, "logistics-a", 0x31), null));
+                    steps.add(new TypedViewStep(0, "registry.v1", mapWrite(genesis, List.of(put(events,
+                            "acme-manufacturing/p1/e2", swift)), policy, "logistics-a", 0x32),
+                            Refusal.denied(0, "manufacturer-owns-product", 0, "FOREIGN_PRODUCT", 0,
+                                    Set.of(ACTOR_WORK_KEY))));
+                    // In a batch the receipt names the write that decided.
+                    steps.add(new TypedViewStep(0, "registry.v1", mapWrite(genesis, List.of(
+                            put(events, "swift-logistics/p1/e3", swift), put(events, "green-labs/p1/e4", swift)),
+                            policy, "logistics-a", 0x33), Refusal.denied(0, "manufacturer-owns-product", 0,
+                            "FOREIGN_PRODUCT", 1, Set.of(ACTOR_WORK_KEY))));
+                    // An operator may write its organization's events but not revoke them; a manufacturer may.
+                    steps.add(new TypedViewStep(0, "registry.v1", mapWrite(genesis, List.of(revoke(events,
+                            "swift-logistics/p1/e1", swift)), policy, "logistics-a", 0x34),
+                            Refusal.denied(1, "admin-only-lifecycle-ops", 0, "ADMIN_ROLE_REQUIRED", 0,
+                                    Set.of(ACTOR_WORK_KEY))));
+                    steps.add(new TypedViewStep(0, "registry.v1", mapWrite(genesis, List.of(put(events,
+                            "acme-manufacturing/p2/e1", acme)), policy, "maker-a", 0x35), null));
+                    steps.add(new TypedViewStep(0, "registry.v1", mapWrite(genesis, List.of(revoke(events,
+                            "acme-manufacturing/p2/e1", acme)), policy, "maker-a", 0x36), null));
+                }
+                case "feed-slot-rules" -> {
+                    String policy = DppStarterProfile.OPERATOR_POLICY;
+                    steps.add(new TypedViewStep(0, "registry.v1", mapWrite(genesis, List.of(observation(
+                            "logistics-a/1", 150)), policy, "logistics-a", 0x41), null));
+                    // The fact rule runs after the kernel approved: a replaceable value or another source's slot.
+                    steps.add(new TypedViewStep(0, "registry.v1", mapWrite(genesis, List.of(
+                            AuthenticatedMapContract.Mutation.put("observations", bytes("logistics-a/2"), price(150))),
+                            policy, "logistics-a", 0x42), Refusal.denied(1, "own-insert-only-slot", 0,
+                            "OBSERVATION_REJECTED", 0, Set.of(ACTOR_WORK_KEY))));
+                    steps.add(new TypedViewStep(0, "registry.v1", mapWrite(genesis, List.of(observation(
+                            "maker-a/1", 150)), policy, "logistics-a", 0x43), Refusal.denied(1,
+                            "own-insert-only-slot", 0, "OBSERVATION_REJECTED", 0, Set.of(ACTOR_WORK_KEY))));
+                    // The range rule reads the feed record in the admission slot, before any work is reserved.
+                    steps.add(new TypedViewStep(0, "registry.v1", mapWrite(genesis, List.of(observation(
+                            "logistics-a/3", 250)), policy, "logistics-a", 0x44), Refusal.denied(0,
+                            "feed-open-and-in-range", 1, "OBSERVATION_OUT_OF_RANGE", 0, Set.of())));
+                    steps.add(new TypedViewStep(0, "registry.v1", mapWrite(genesis, List.of(observation(
+                            "logistics-a/4", 200)), policy, "logistics-a", 0x45), null));
+                }
+                case "balances-holding-cap" -> {
+                    String alice = senders.get(0);
+                    String bob = senders.get(1);
+                    steps.add(new TypedViewStep(0, "points.command.v1", BalancesContract.mint(alice,
+                            BigInteger.valueOf(20_000)), null));
+                    steps.add(new TypedViewStep(0, "points.command.v1", BalancesContract.mint(bob,
+                            BigInteger.valueOf(20_000)), null));
+                    steps.add(new TypedViewStep(0, "points.command.v1", transfer(bob, 5_000), null));
+                    // Bob would hold 25,001: the kernel's post-state fact is over the cap.
+                    steps.add(new TypedViewStep(0, "points.command.v1", transfer(bob, 1),
+                            Refusal.denied(0, "holding-cap", 0, "HOLDING_CAP_EXCEEDED", null, Set.of())));
+                    steps.add(new TypedViewStep(0, "points.command.v1", transfer(senders.get(2), 100), null));
+                }
+                default -> throw new IllegalArgumentException(recipe);
+            }
+            return List.copyOf(steps);
+        }
+
+        private static byte[] transfer(String to, long amount) {
+            return BalancesContract.transfer(to, BigInteger.valueOf(amount));
+        }
+
+        private static byte[] event(String organization) {
+            return new DppValues.EventValue("shipped", organization, 1_700_000_000L, "", new byte[0], "").encode();
+        }
+
+        private static AuthenticatedMapContract.Mutation put(String collection, String key, byte[] value) {
+            return AuthenticatedMapContract.Mutation.put(collection, bytes(key), value);
+        }
+
+        /** Revokes the first revision of an entry written with {@code value}. */
+        private static AuthenticatedMapContract.Mutation revoke(String collection, String key, byte[] value) {
+            return AuthenticatedMapContract.Mutation.revoke(collection, bytes(key), 1,
+                    AuthenticatedMapContract.logicalValueHash(value));
+        }
+
+        private static AuthenticatedMapContract.Mutation observation(String key, long price) {
+            return AuthenticatedMapContract.Mutation.putIfAbsent("observations", bytes(key), price(price));
+        }
+
+        /** A canonical {@code {price: uint}} observation value. */
+        private static byte[] price(long price) {
+            return BindingCbor.encode(Map.of("price", price));
+        }
+
+        private static byte[] bytes(String text) { return text.getBytes(StandardCharsets.UTF_8); }
+    }
+
+    /** An {@code apply-authorized} map command whose single direct authorization covers every write. */
+    private static byte[] mapWrite(AuthenticatedMapContract.Genesis genesis,
+                                   List<AuthenticatedMapContract.Mutation> mutations, String policy, String actor,
+                                   int authorization) {
+        List<AuthenticatedMapAuthorizationContract.AuthorizationAssignmentV1> assignments = new ArrayList<>();
+        List<Integer> covered = new ArrayList<>();
+        for (int index = 0; index < mutations.size(); index++) {
+            assignments.add(new AuthenticatedMapAuthorizationContract.AuthorizationAssignmentV1(index,
+                    AuthenticatedMapContract.AUTH_GOVERNED_ROLE, policy, 1));
+            covered.add(index);
+        }
+        var action = new AuthenticatedMapAuthorizationContract.MapActionV1(mutations.size() > 1, mutations,
+                assignments);
+        byte[] seed = DppGenesis.demoActorSeed(actor);
+        byte[] authorizationId = new byte[32];
+        authorizationId[0] = (byte) authorization;
+        var signed = AuthenticatedMapAuthorizationContract.MapActorAuthorizationV1.sign(authorizationId,
+                genesis.chainId(), AuthenticatedMapContract.genesisId(genesis),
+                AuthenticatedMapAuthorizationContract.actionCommitment(action), covered, policy, 1, actor, 1,
+                actor + "-k1", KeyGenUtil.getPublicKeyFromPrivateKey(seed), 1,
+                DppStarterProfile.DIRECT_AUTHORIZATION_LIFETIME_BLOCKS, seed);
+        return TransitionScalars.encode(Map.of("command", AuthenticatedMapAuthorizationContract.encodeCommand(
+                new AuthenticatedMapAuthorizationContract.AuthenticatedMapCommandV1(action, List.of(signed)))));
+    }
+
+    /**
+     * ADR-031.3 §6.3 and §7 items 6 to 8 on the DPP demo registry. Both rules read verified facts, so they run
+     * only after the kernels verified the signatures; their refusals keep the actor-owned work reservation.
+     */
+    private static void submitRoleGated(AuthenticatedMapContract.Genesis genesis, Cluster cluster, List<String> ids,
+                                        Map<String, Refusal> denials) throws Exception {
+        var commands = RoleGatedCommands.of(genesis);
+        ids.add(submit(cluster, 0, "reviews.v1", commands.propose()));
+        ids.add(submit(cluster, 0, "reviews.v1", commands.approve()));
+        // The same signed approval in a new message from another member: an exact replay that decide verifies
+        // again, so its facts exist and allowed-organization holds (ADR-031.3 §5.5).
+        String replayed = submit(cluster, 1, "reviews.v1", commands.approve());
+        ids.add(replayed);
+        var replayReceipt = BindingReceiptV1.decode(cluster.nodes[0].query("composite/binding-receipt-v1/"
+                + replayed, new byte[0]).payload());
+        assertThat(replayReceipt.accepted()).isTrue();
+        assertThat(replayReceipt.steps().getFirst().rules()).isEqualTo(new BindingReceiptV1.RuleTrace(1, null));
+        // §7.6: an auditor from audit-guild-b is verified, then refused by allowed-organization.
+        String independent = submit(cluster, 0, "reviews.v1", commands.outsideApprove());
+        ids.add(independent);
+        denials.put(independent, Refusal.denied("allowed-organization", "ORGANIZATION_NOT_ALLOWED",
+                Set.of(ACTOR_WORK_KEY)));
+        // §7.7: a forged approval fails the kernel's own signature check; no rule runs.
+        String forged = submit(cluster, 0, "reviews.v1", commands.forgedApprove());
+        ids.add(forged);
+        denials.put(forged, new Refusal("INVALID_SIGNATURE", BindingReceiptV1.RuleTrace.NONE, Set.of(ACTOR_WORK_KEY)));
+        // §7.8: a direct write by an actor without operator is verified by the map, then refused.
+        String withoutRole = submit(cluster, 0, "registry.v1", commands.claimWithoutRole());
+        ids.add(withoutRole);
+        denials.put(withoutRole, Refusal.denied("operator-for-direct-writes", "ROLE_REQUIRED",
+                Set.of(ACTOR_WORK_KEY)));
+        // An operator's direct write passes.
+        ids.add(submitWithFollowerCatchup(cluster, 0, "registry.v1", commands.operatorEvent()));
+    }
+
+    /** An {@code apply-authorized} map command with one direct actor authorization covering its single write. */
+    private static byte[] directWrite(AuthenticatedMapContract.Genesis genesis, String collection, byte[] key,
+                                      byte[] value, String policy, String actor, int authorization) {
+        var action = new AuthenticatedMapAuthorizationContract.MapActionV1(false,
+                List.of(AuthenticatedMapContract.Mutation.put(collection, key, value)),
+                List.of(new AuthenticatedMapAuthorizationContract.AuthorizationAssignmentV1(
+                        0, AuthenticatedMapContract.AUTH_GOVERNED_ROLE, policy, 1)));
+        byte[] seed = DppGenesis.demoActorSeed(actor);
+        byte[] authorizationId = new byte[32];
+        authorizationId[0] = (byte) authorization;
+        var signed = AuthenticatedMapAuthorizationContract.MapActorAuthorizationV1.sign(authorizationId,
+                genesis.chainId(), AuthenticatedMapContract.genesisId(genesis),
+                AuthenticatedMapAuthorizationContract.actionCommitment(action), List.of(0), policy, 1, actor, 1,
+                actor + "-k1", KeyGenUtil.getPublicKeyFromPrivateKey(seed), 1,
+                DppStarterProfile.DIRECT_AUTHORIZATION_LIFETIME_BLOCKS, seed);
+        return TransitionScalars.encode(Map.of("command", AuthenticatedMapAuthorizationContract.encodeCommand(
+                new AuthenticatedMapAuthorizationContract.AuthenticatedMapCommandV1(action, List.of(signed)))));
+    }
+
+    /**
+     * Local ingress of an ADR-031.3 static rule. The node's submission reports the code with structured details
+     * (ADR-031.4 §5.9, bloxbean/yano#153), and the catalog-built composite the nodes run gives the same refusal.
+     */
+    private record Ingress(AppStateMachine machine, String chain) {
+        void rejects(Cluster cluster, String topic, byte[] body, String rule, String deny) {
+            assertThatThrownBy(() -> cluster.nodes[0].submit(topic, body))
+                    .isInstanceOfSatisfying(AppSubmissionRejectedException.class, rejected -> {
+                        assertThat(rejected.code()).isEqualTo("ADMISSION_RULE_DENIED");
+                        assertThat(rejected.details()).containsExactly(Map.entry("rule", rule),
+                                Map.entry("deny", deny));
+                    });
+            var message = AppMessage.builder().messageId(new byte[32]).chainId(chain).topic(topic)
+                    .sender(new byte[32]).senderSeq(1).expiresAt(0).body(body).authScheme(0)
+                    .authProof(new byte[0]).build();
+            var refused = machine.validate(message);
+            assertThat(refused.reason()).isEqualTo("ADMISSION_RULE_DENIED");
+            assertThat(refused.details()).containsExactly(Map.entry("rule", rule), Map.entry("deny", deny));
+        }
     }
 
     private static byte[] actorCommand(boolean dpp, String chain, String policy, String clause, String actor,
@@ -462,16 +876,47 @@ class BindingRecipesIT {
             this.providers = providers;
             try {
                 for (int index = 0; index < 3; index++) start(index);
-                await(() -> Arrays.stream(nodes).allMatch(node -> {
-                    Object peers = node.status().get("peers");
-                    return peers instanceof Map<?, ?> map && !map.isEmpty()
-                            && map.values().stream().allMatch(Boolean.TRUE::equals);
-                }));
+                awaitPeers();
             } catch (Exception | Error failure) {
                 try { close(); } catch (Exception cleanup) { failure.addSuppressed(cleanup); }
                 throw failure;
             }
         }
+        /**
+         * Waits until every member has every peer link up, before the first submission. The host re-dials a
+         * refused peer every 5 s and abandons a link stuck in negotiation after 30 s, so 40 s covers its own
+         * recovery; only a member still unlinked after that (an ADR-031.3 Phase 3 formation timeout) is restarted
+         * once on its own store, with a warning naming it and its links, and the wait repeats.
+         */
+        void awaitPeers() throws Exception {
+            if (connected(40_000_000_000L)) return;
+            for (int index = 0; index < 3; index++) {
+                if (nodes[index] != null && !linked(nodes[index])) {
+                    LoggerFactory.getLogger(BindingRecipesIT.class).warn(
+                            "restarting member {} whose peer links did not form: {}", index,
+                            nodes[index].status().get("peers"));
+                    stop(index);
+                    start(index);
+                }
+            }
+            if (!connected(45_000_000_000L)) throw new AssertionError("recipe cluster peers did not connect");
+        }
+
+        private boolean connected(long nanos) throws InterruptedException {
+            long deadline = System.nanoTime() + nanos;
+            while (System.nanoTime() < deadline) {
+                if (Arrays.stream(nodes).filter(Objects::nonNull).allMatch(Cluster::linked)) return true;
+                Thread.sleep(25);
+            }
+            return false;
+        }
+
+        private static boolean linked(AppChainSubsystem node) {
+            Object peers = node.status().get("peers");
+            return peers instanceof Map<?, ?> map && !map.isEmpty()
+                    && map.values().stream().allMatch(Boolean.TRUE::equals);
+        }
+
         void start(int index) throws Exception {
             start(index, directory);
         }
@@ -500,7 +945,16 @@ class BindingRecipesIT {
             }
         }
         @Override public void close() throws Exception {
-            for (int index = 0; index < 3; index++) stop(index);
+            Exception failure = null;
+            for (int index = 0; index < 3; index++) {
+                try {
+                    stop(index);
+                } catch (Exception cleanup) {
+                    if (failure == null) failure = cleanup;
+                    else failure.addSuppressed(cleanup);
+                }
+            }
+            if (failure != null) throw failure;
         }
     }
 

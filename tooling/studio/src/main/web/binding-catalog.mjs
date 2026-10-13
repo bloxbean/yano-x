@@ -19,12 +19,16 @@ export const CATALOG_LIMITS = Object.freeze({maxBytes: 8 * 1024 * 1024, maxSelec
 const SHA256 = /^[0-9a-f]{64}$/;
 const NAME = /^[a-zA-Z][a-zA-Z0-9_.-]{0,126}$/;
 const MACHINE = /^[a-z][a-z0-9-]{0,62}$/;
+/** Rule fact and parameter names are CEL identifiers (ADR-031.3 §5.5). */
+const IDENTIFIER = /^[a-zA-Z][a-zA-Z0-9_]{0,62}$/;
+const RESERVED_NAMES = new Set(['as', 'break', 'const', 'continue', 'else', 'false', 'for', 'function', 'if', 'import',
+  'in', 'let', 'loop', 'namespace', 'null', 'package', 'return', 'true', 'var', 'void', 'while']);
 const TYPES = ['integer', 'text', 'bytes', 'boolean'];
 // Any bounded selector text without control characters; only binding identifiers can be composed.
 const SELECTOR = /^[^\u0000-\u001f\u007f-\u009f\u2028\u2029]{1,256}$/;
 const STATUSES = ['available', 'requires-configuration', 'construction-failed', 'descriptor-failed', 'not-composable'];
 export const RECEIPT_CATEGORIES = Object.freeze(['target-rejection', 'resource-exhaustion', 'evaluation-error',
-  'replay-or-conflict', 'contract-violation']);
+  'replay-or-conflict', 'contract-violation', 'admission-rule']);
 export const RECEIPT_ORIGINS = Object.freeze(['engine', 'kernel', 'either']);
 export const RECEIPT_LEVELS = Object.freeze(['source', 'step', 'condition', 'mapping', 'effect']);
 export const LOCATION_CERTAINTY = Object.freeze(['always', 'never', 'ambiguous']);
@@ -151,7 +155,122 @@ export function clauseLocation(entry, step) {
 
 const LIMIT_NAMES = ['maxCascadeDepth', 'maxDerivedPerSourceMessage', 'maxDerivedPerBlock', 'maxEventPayloadBytes',
   'maxLookupsPerCondition', 'maxFunctionCallsPerMapping', 'maxFunctionInputBytes', 'maxExpressionNodes',
-  'maxExpressionDepth', 'maxExpressionValueBytes', 'maxExpressionWorkPerCascade', 'maxExpressionWorkPerBlock'];
+  'maxExpressionDepth', 'maxExpressionValueBytes', 'maxExpressionWorkPerCascade', 'maxExpressionWorkPerBlock',
+  'maxRulesPerComponent'];
+// ADR-031.3 policy-plane vocabulary: field types by wire ordinal, scopes by wire ordinal, and use sites. ADR-031.4
+// adds the reads and write-element scopes, the rule-key use site (lookup keys and read keys), and the rule reads.
+const FIELD_TYPE_NAMES = ['integer', 'text', 'bytes', 'boolean', 'text-set'];
+const SCOPE_NAMES = ['event', 'command', 'params', 'config', 'context', 'facts', 'reads', 'writes'];
+const USE_SITES = ['binding-condition', 'binding-mapping', 'admission-rule', 'rule-key'];
+/** A kernel namespace: the default "" or a map collection id (ADR-031.4 §5.1). */
+const NAMESPACE = /^(?:[a-z0-9][a-z0-9._-]{0,63})?$/;
+
+/** Declared rule fields (facts, view fields, write fields): unique CEL identifiers with a known type. */
+function ruleFields(value, at, maximum = 32) {
+  const names = new Set();
+  return Object.freeze(expectArray(value, at, maximum).map((field, n) => {
+    const f = `${at}[${n}]`;
+    expectObject(field, f, ['name', 'type']);
+    const name = expectString(field.name, `${f}.name`, 63, IDENTIFIER);
+    if (RESERVED_NAMES.has(name)) throw new JsonInputError('CONTRACT_FORMAT', `${f}.name is a CEL reserved word`, {path: f});
+    const type = expectString(field.type, `${f}.type`, 16);
+    if (!FIELD_TYPE_NAMES.includes(type)) throw new JsonInputError('CONTRACT_FORMAT', `${f}.type is unknown`, {path: f});
+    if (names.has(name)) throw new JsonInputError('CATALOG_DUPLICATE', `${f}.name repeats a field`, {path: f});
+    names.add(name);
+    return Object.freeze({name, type});
+  }));
+}
+
+const RULE_KEYS = ['idPattern', 'idsUniqueAcrossRulesAndBindings', 'denyCodePattern', 'reservedDenyCodePrefix',
+  'parameterNamePattern', 'reservedNames', 'parameterTypes', 'rulesPerDocument', 'clausesPerRule', 'parametersPerRule',
+  'clauseKinds', 'lookupExpectations', 'readsPerRule', 'readNamePattern', 'namespacePattern', 'readKeySources',
+  'readPresentField', 'quantifiers', 'slots', 'static'];
+
+const useSites = (value, at) => {
+  const sites = expectArray(value, at, USE_SITES.length).map((site, n) => {
+    const text = expectString(site, `${at}[${n}]`, 32);
+    if (!USE_SITES.includes(text)) throw new JsonInputError('CONTRACT_FORMAT', `${at} use site is unknown`, {path: at});
+    return text;
+  });
+  if (new Set(sites).size !== sites.length) throw new JsonInputError('CONTRACT_FORMAT', `${at} repeats a use site`, {path: at});
+  return Object.freeze(sites);
+};
+const strings = (value, at, maximum, length = 64) =>
+  Object.freeze(expectArray(value, at, maximum).map((item, n) => expectString(item, `${at}[${n}]`, length)));
+
+/** Validates the ADR-031.3 scope, source-form and rule-grammar tables. */
+function policyPlaneTables(language) {
+  const fieldTypes = expectArray(language.fieldTypes, '$.language.fieldTypes', FIELD_TYPE_NAMES.length)
+    .map((type, index) => {
+      const at = `$.language.fieldTypes[${index}]`;
+      expectObject(type, at, ['name', 'ordinal', 'expressionResult']);
+      if (type.name !== FIELD_TYPE_NAMES[index] || expectSmallInteger(type.ordinal, `${at}.ordinal`, 0, 4) !== index) {
+        throw new JsonInputError('CONTRACT_FORMAT', `${at} is not in wire order`, {path: at});
+      }
+      // Only the scalar types can be expression results; the text set is a field type only.
+      if (expectBoolean(type.expressionResult, `${at}.expressionResult`) !== (index < 4)) {
+        throw new JsonInputError('CONTRACT_FORMAT', `${at}.expressionResult is wrong`, {path: at});
+      }
+      return Object.freeze({name: type.name, ordinal: index, expressionResult: index < 4});
+    });
+  const scopes = expectArray(language.scopes, '$.language.scopes', SCOPE_NAMES.length).map((scope, index) => {
+    const at = `$.language.scopes[${index}]`;
+    expectObject(scope, at, ['name', 'ordinal', 'useSites', 'note']);
+    if (scope.name !== SCOPE_NAMES[index]
+        || expectSmallInteger(scope.ordinal, `${at}.ordinal`, 0, SCOPE_NAMES.length - 1) !== index) {
+      throw new JsonInputError('CONTRACT_FORMAT', `${at} is not in wire order`, {path: at});
+    }
+    return Object.freeze({name: scope.name, ordinal: index, useSites: useSites(scope.useSites, `${at}.useSites`),
+      note: expectString(scope.note, `${at}.note`, 256)});
+  });
+  const sourceForms = expectArray(language.sourceForms, '$.language.sourceForms', 16).map((form, index) => {
+    const at = `$.language.sourceForms[${index}]`;
+    expectObject(form, at, ['key', 'useSites', 'note'], ['scope']);
+    const scope = form.scope === undefined ? null : expectString(form.scope, `${at}.scope`, 16);
+    if (scope !== null && !SCOPE_NAMES.includes(scope)) {
+      throw new JsonInputError('CONTRACT_FORMAT', `${at}.scope is unknown`, {path: at});
+    }
+    return Object.freeze({key: expectString(form.key, `${at}.key`, 16), scope,
+      useSites: useSites(form.useSites, `${at}.useSites`), note: expectString(form.note, `${at}.note`, 256)});
+  });
+  if (new Set(sourceForms.map(form => form.key)).size !== sourceForms.length) {
+    throw new JsonInputError('CONTRACT_FORMAT', '$.language.sourceForms repeats a key', {path: '$.language.sourceForms'});
+  }
+  const rules = expectObject(language.rules, '$.language.rules', RULE_KEYS);
+  const at = '$.language.rules';
+  return {
+    fieldTypes: Object.freeze(fieldTypes), scopes: Object.freeze(scopes),
+    contextFields: fields(language.contextFields, '$.language.contextFields'),
+    sourceForms: Object.freeze(sourceForms),
+    rules: Object.freeze({
+      idPattern: expectString(rules.idPattern, `${at}.idPattern`, 128),
+      idsUniqueAcrossRulesAndBindings: expectBoolean(rules.idsUniqueAcrossRulesAndBindings,
+        `${at}.idsUniqueAcrossRulesAndBindings`),
+      denyCodePattern: expectString(rules.denyCodePattern, `${at}.denyCodePattern`, 128),
+      reservedDenyCodePrefix: expectString(rules.reservedDenyCodePrefix, `${at}.reservedDenyCodePrefix`, 64),
+      parameterNamePattern: expectString(rules.parameterNamePattern, `${at}.parameterNamePattern`, 128),
+      reservedNames: strings(rules.reservedNames, `${at}.reservedNames`, 64, 32),
+      parameterTypes: strings(rules.parameterTypes, `${at}.parameterTypes`, 8, 16),
+      rulesPerDocument: expectSmallInteger(rules.rulesPerDocument, `${at}.rulesPerDocument`, 0, 1024),
+      clausesPerRule: expectSmallInteger(rules.clausesPerRule, `${at}.clausesPerRule`, 1, 64),
+      parametersPerRule: expectSmallInteger(rules.parametersPerRule, `${at}.parametersPerRule`, 0, 64),
+      clauseKinds: strings(rules.clauseKinds, `${at}.clauseKinds`, 8, 16),
+      lookupExpectations: strings(rules.lookupExpectations, `${at}.lookupExpectations`, 8, 16),
+      readsPerRule: expectSmallInteger(rules.readsPerRule, `${at}.readsPerRule`, 0, 16),
+      readNamePattern: expectString(rules.readNamePattern, `${at}.readNamePattern`, 128),
+      namespacePattern: expectString(rules.namespacePattern, `${at}.namespacePattern`, 128),
+      readKeySources: strings(rules.readKeySources, `${at}.readKeySources`, 16, 16),
+      readPresentField: expectString(rules.readPresentField, `${at}.readPresentField`, 64),
+      quantifiers: strings(rules.quantifiers, `${at}.quantifiers`, 4, 16),
+      slots: Object.freeze(expectArray(rules.slots, `${at}.slots`, 4).map((slot, n) => {
+        expectObject(slot, `${at}.slots[${n}]`, ['name', 'when']);
+        return Object.freeze({name: expectString(slot.name, `${at}.slots[${n}].name`, 32),
+          when: expectString(slot.when, `${at}.slots[${n}].when`, 256)});
+      })),
+      static: expectString(rules.static, `${at}.static`, 256)
+    })
+  };
+}
 
 /** Validates the exported authoring-language tables; every nested type and enumeration is checked. */
 function languageTables(language) {
@@ -202,6 +321,7 @@ function languageTables(language) {
   }
   const baseline = expectObject(language.baselineEvent, '$.language.baselineEvent', ['eventId', 'fields', 'materialized']);
   return Object.freeze({
+    ...policyPlaneTables(language),
     functions: Object.freeze(functions), expressionOperators: Object.freeze(operators), limits: Object.freeze(limits),
     structuralLimits: Object.freeze(structuralLimits),
     baselineEvent: Object.freeze({eventId: expectString(baseline.eventId, '$.language.baselineEvent.eventId', 127, NAME),
@@ -266,7 +386,8 @@ export function importAuthoringCatalog(input) {
   expectObject(root, '$', ['schema', 'assurance', 'producer', 'host', 'authoringEnvironment', 'catalog', 'context',
     'document', 'language', 'selectors', 'instances', 'effects']);
   const language = expectObject(root.language, '$.language', ['irVersion', 'functionCatalog', 'expressionDialect',
-    'functions', 'expressionOperators', 'limits', 'structuralLimits', 'baselineEvent', 'receiptCodes']);
+    'functions', 'expressionOperators', 'fieldTypes', 'scopes', 'contextFields', 'sourceForms', 'rules', 'limits',
+    'structuralLimits', 'baselineEvent', 'receiptCodes']);
   if (language.irVersion !== SUPPORTED_LANGUAGE.irVersion || language.functionCatalog !== SUPPORTED_LANGUAGE.functionCatalog
       || language.expressionDialect !== SUPPORTED_LANGUAGE.expressionDialect) {
     throw new JsonInputError('CATALOG_LANGUAGE', 'Catalog language version is not supported by this Studio');
@@ -292,7 +413,8 @@ export function importAuthoringCatalog(input) {
     const at = `$.instances[${index}]`;
     expectObject(instance, at, ['machineId', 'basis', 'authoredConfiguration', 'status'], ['componentIds',
       'configurationDescriptor', 'applicationVersion', 'normalizedConfiguration', 'events', 'commands',
-      'rawBodyTarget', 'readParticipants', 'diagnostic']);
+      'rawBodyTarget', 'readParticipants', 'commandSelectable', 'unselectableReason', 'ruleFacts', 'ruleValueViews',
+      'ruleWriteFields', 'ruleWriteCoverageFields', 'diagnostic']);
     const result = {
       machineId: expectString(instance.machineId, `${at}.machineId`, 256, SELECTOR),
       basis: expectString(instance.basis, `${at}.basis`, 16),
@@ -344,6 +466,33 @@ export function importAuthoringCatalog(input) {
       }
       result.readParticipants = Object.freeze(expectArray(instance.readParticipants, `${at}.readParticipants`, 16)
         .map((id, n) => expectString(id, `${at}.readParticipants[${n}]`, 63, MACHINE)));
+      // ADR-031.3: command selectability for admission rules and the kernel's declared rule facts.
+      result.commandSelectable = expectBoolean(instance.commandSelectable, `${at}.commandSelectable`);
+      result.unselectableReason = nullable(instance.unselectableReason, value =>
+        expectString(value, `${at}.unselectableReason`, 256));
+      if (result.commandSelectable !== (result.unselectableReason === null)) {
+        throw new JsonInputError('CONTRACT_FORMAT', `${at}.unselectableReason must be null exactly when commands are selectable`, {path: at});
+      }
+      result.ruleFacts = ruleFields(instance.ruleFacts, `${at}.ruleFacts`);
+      // ADR-031.4: value views for rule reads and the write view, when the kernel declares them.
+      if (instance.ruleValueViews !== undefined) {
+        const namespaces = new Set();
+        result.ruleValueViews = Object.freeze(expectArray(instance.ruleValueViews, `${at}.ruleValueViews`, 64)
+          .map((view, n) => {
+            const v = `${at}.ruleValueViews[${n}]`;
+            expectObject(view, v, ['namespace', 'fields', 'valueFields']);
+            const namespace = expectString(view.namespace, `${v}.namespace`, 64, NAMESPACE);
+            if (namespaces.has(namespace)) throw new JsonInputError('CATALOG_DUPLICATE', `${v}.namespace repeats`, {path: v});
+            namespaces.add(namespace);
+            return Object.freeze({namespace, fields: ruleFields(view.fields, `${v}.fields`),
+              valueFields: ruleFields(view.valueFields, `${v}.valueFields`)});
+          }));
+      }
+      if (instance.ruleWriteFields !== undefined) {
+        result.ruleWriteFields = ruleFields(instance.ruleWriteFields, `${at}.ruleWriteFields`);
+        result.ruleWriteCoverageFields = ruleFields(instance.ruleWriteCoverageFields ?? [],
+          `${at}.ruleWriteCoverageFields`);
+      }
     }
     return Object.freeze(result);
   });

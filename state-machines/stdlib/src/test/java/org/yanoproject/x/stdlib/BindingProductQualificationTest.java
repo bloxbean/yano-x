@@ -5,7 +5,14 @@ import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.io.TempDir;
 import org.yanoproject.runtime.appchain.AppChainSubsystem;
 import org.yanoproject.x.composite.CompositeStateKeys;
+import org.yanoproject.x.composite.contracts.BindingExpressionV1;
+import org.yanoproject.x.composite.contracts.BindingExpressionV1.Call;
+import org.yanoproject.x.composite.contracts.BindingExpressionV1.Field;
+import org.yanoproject.x.composite.contracts.BindingExpressionV1.Literal;
+import org.yanoproject.x.composite.contracts.BindingExpressionV1.Scope;
+import org.yanoproject.x.composite.contracts.BindingIrV1;
 import org.yanoproject.x.composite.contracts.BindingReceiptV1;
+import org.yanoproject.x.composite.contracts.BindingSourceV1;
 import org.yanoproject.x.dpp.profile.DppStarterProfile;
 import org.yanoproject.x.dpp.profile.DppValues;
 import org.yanoproject.x.feed.profile.FeedStarterProfile;
@@ -20,8 +27,10 @@ import org.yanoproject.x.stdlib.contracts.AuthenticatedMapContract;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.yanoproject.x.stdlib.DeclarativeBindingsClusterTest.awaitReceipt;
@@ -40,6 +49,50 @@ class BindingProductQualificationTest {
             throws Exception {
         qualify(BindingProductFixtures.fixture(true), directory);
     }
+
+    /**
+     * ADR-031.3 §6.3: with operator-for-direct-writes on the registry, the approval-referenced certificate
+     * write still commits. It arrives through apply-approved with one verified approval reference and no direct
+     * actor; a second rule pins exactly those facts ({@code directActorCount == 0}, {@code approvalCount == 1}).
+     */
+    @Test
+    void dppCertificateReachesARoleGatedRegistryThroughItsApproval(@TempDir Path directory) throws Exception {
+        var fixture = BindingProductFixtures.fixture(true);
+        var operator = rule("operator-for-direct-writes", "ROLE_REQUIRED", new Call("or", List.of(
+                new Call("eq", List.of(fact("directActorCount"), new Literal(0L))),
+                new Call("in", List.of(new Field(Scope.PARAMS, "role"), fact("roles"))))),
+                new BindingIrV1.Parameter("role", BindingIrV1.ParameterType.TEXT, null));
+        var approvalOnly = rule("one-approval-reference", "NOT_APPROVAL_REFERENCED", new Call("and", List.of(
+                new Call("eq", List.of(fact("directActorCount"), new Literal(0L))),
+                new Call("eq", List.of(fact("approvalCount"), new Literal(1L))))));
+        List<BindingIrV1.Component> components = new ArrayList<>();
+        for (var component : fixture.ir().components()) {
+            components.add(!component.id().equals("registry") ? component : new BindingIrV1.Component(
+                    component.id(), component.machineId(), component.ingressTopic(), component.configuration(),
+                    component.maxEffectsPerBlock(), component.fromHeight(), List.of(
+                    new BindingIrV1.RuleAttachment(operator.id(), Map.of("role",
+                            new BindingSourceV1.Literal(DppStarterProfile.OPERATOR_ROLE))),
+                    new BindingIrV1.RuleAttachment(approvalOnly.id(), Map.of()))));
+        }
+        var gated = new BindingProductFixtures.Fixture(fixture.name(), fixture.genesis(),
+                new BindingIrV1(components, List.of(approvalOnly, operator), fixture.ir().bindings(),
+                        fixture.ir().limits(), fixture.ir().workflowFromHeight()), fixture.collection(),
+                fixture.key(), fixture.value(), fixture.policy(), fixture.clause(), fixture.proposer(),
+                fixture.firstVoter(), fixture.sameOrganizationVoter(), fixture.independentVoter(),
+                fixture.actorSeed());
+        var approval = qualify(gated, directory);
+        assertThat(approval.steps().getLast().targetComponentId()).isEqualTo("registry");
+        assertThat(approval.steps().getLast().rules()).isEqualTo(new BindingReceiptV1.RuleTrace(2, null));
+    }
+
+    private static BindingIrV1.AdmissionRule rule(String id, String deny, BindingExpressionV1.Node condition,
+                                                  BindingIrV1.Parameter... parameters) {
+        return new BindingIrV1.AdmissionRule(id, deny, null, List.of(parameters), List.of(
+                new BindingIrV1.ExpressionClause(new BindingExpressionV1(BindingExpressionV1.Type.BOOLEAN,
+                        condition))));
+    }
+
+    private static Field fact(String name) { return new Field(Scope.FACTS, name); }
 
     @Test
     void feedRoundRequiresIndependentOrganizationsAndMatchesExistingValueContract(@TempDir Path directory)
@@ -60,7 +113,17 @@ class BindingProductQualificationTest {
         }
     }
 
-    private static void qualify(BindingProductFixtures.Fixture fixture, Path directory) throws Exception {
+    @Test
+    void checkedInTypedViewRecipesContainExactReproducibleGenesis() throws Exception {
+        for (String recipe : TypedViewsRecipes.NAMES) {
+            Path example = Path.of("..", "..", "examples", "bindings", recipe + ".yaml");
+            assertThat(Files.readString(example)).as(recipe).isEqualTo(TypedViewsRecipes.yaml(recipe));
+        }
+    }
+
+    /** Runs the recipe on three members and returns the independent approval's receipt. */
+    private static BindingReceiptV1 qualify(BindingProductFixtures.Fixture fixture, Path directory)
+            throws Exception {
         var ports = DeclarativeBindingsClusterTest.ports(3);
         var members = new LinkedHashSet<>(BindingProductFixtures.members());
         var action = new AuthenticatedMapAuthorizationContract.MapActionV1(false,
@@ -123,6 +186,7 @@ class BindingProductQualificationTest {
                 verifyCertifiedProof(node, consumptionKey, members, fixture.chain());
             }
             assertConvergence(cluster, members);
+            return receipt(ingress, independent);
         }
     }
 

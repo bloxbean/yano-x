@@ -75,7 +75,7 @@ class BindingEditorToolingIT {
             assertThat(report.path("inputs").get(1).path("sha256").textValue())
                     .isEqualTo(BindingInputs.sha256(Files.readAllBytes(inputs.context())));
             assertThat(report.path("result").path("profile").path("digestHex").textValue()).matches("[0-9a-f]{64}");
-            assertThat(report.path("result").path("profile").path("executionVersion").textValue()).isEqualTo("1.1.0");
+            assertThat(report.path("result").path("profile").path("executionVersion").textValue()).isEqualTo("1.2.0");
             assertThat(report.path("catalog").path("fingerprint").textValue()).startsWith("sha256:");
             assertThat(report.path("receiptCodes").size()).isGreaterThan(30);
             if (command.equals("compile")) {

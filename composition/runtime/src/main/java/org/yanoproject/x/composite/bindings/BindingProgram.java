@@ -3,18 +3,25 @@ package org.yanoproject.x.composite.bindings;
 import com.bloxbean.cardano.client.crypto.Blake2bUtil;
 import org.yanoproject.api.appchain.AppStateReader;
 import org.yanoproject.api.appchain.transition.CommandDescriptor;
+import org.yanoproject.api.appchain.transition.RuleFact;
+import org.yanoproject.api.appchain.transition.RuleValueView;
 import org.yanoproject.api.appchain.transition.TransitionKernel;
 import org.yanoproject.api.appchain.transition.TransitionScalars;
 import org.yanoproject.api.appchain.transition.TransitionWorkBudget;
 import org.yanoproject.api.appchain.transition.TransitionWorkReference;
+import org.yanoproject.x.composite.bindings.BindingExpressionEvaluator.Scoped;
 import org.yanoproject.x.composite.contracts.BindingCbor;
+import org.yanoproject.x.composite.contracts.BindingExpressionV1;
+import org.yanoproject.x.composite.contracts.BindingExpressionV1.Scope;
 import org.yanoproject.x.composite.contracts.BindingExpressionV1.Type;
 import org.yanoproject.x.composite.contracts.BindingIrV1;
+import org.yanoproject.x.composite.contracts.BindingIrV1.AdmissionRule;
 import org.yanoproject.x.composite.contracts.BindingIrV1.Binding;
 import org.yanoproject.x.composite.contracts.BindingIrV1.CommandTarget;
 import org.yanoproject.x.composite.contracts.BindingIrV1.ExpressionClause;
 import org.yanoproject.x.composite.contracts.BindingIrV1.FieldClause;
 import org.yanoproject.x.composite.contracts.BindingIrV1.LookupClause;
+import org.yanoproject.x.composite.contracts.BindingIrV1.RuleAttachment;
 import org.yanoproject.x.composite.contracts.BindingSourceV1;
 import org.yanoproject.x.composite.CompositeStateKeys;
 
@@ -23,6 +30,9 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
@@ -40,15 +50,31 @@ import java.util.function.Function;
  * This class never writes state, emits effects, or grants authority to a mapped command.
  * Construction diagnostics retain binding context and identify mapping fields or zero-based condition
  * and function-argument indexes. They describe declarations, never literal or evaluated values.
+ *
+ * <p>Admission rules (ADR-031.3) are validated here too: every attachment is type-checked against the kernel of
+ * the component it is attached to, and resolved into that component's admission and verified-fact slots
+ * ({@link BindingRules}). Rules can only deny; nothing here widens what a kernel accepts. ADR-031.4 reads are
+ * type-checked against the value views of the components they read, and write-view quantifiers against the
+ * attached kernel's write view; a rule that reads write coverage runs in the verified-fact slot and is never static.
  */
 public final class BindingProgram {
     public static final String BASELINE = "composite.command-accepted.v1";
+    /**
+     * The {@code context.*} fields (ADR-031.3 §5.3). In a binding they describe the step that produced the event:
+     * its source block height, the originator's sender, whether it was derived, its depth, and the binding that
+     * derived it ({@code ""} for the source step). They are consensus values the engine already holds.
+     */
+    public static final Map<String, Type> CONTEXT_FIELDS = Map.of("height", Type.INTEGER, "sender", Type.BYTES,
+            "derived", Type.BOOLEAN, "depth", Type.INTEGER, "binding", Type.TEXT);
     private final BindingIrV1 ir;
     private final Map<String, TransitionKernel<?, ?>> kernels;
+    private final Map<String, List<CommandDescriptor>> commands;
     private final Map<String, List<String>> readParticipants;
     private final Map<TransitionWorkReference, TransitionWorkBudget> workBudgets;
     private final Map<String, Set<TransitionWorkReference>> workReferences;
     private final Map<String, Set<String>> accountingKeys;
+    private final BindingRules rules;
+    private final Map<String, Map<String, Map<String, RuleFact.Type>>> valueViews = new LinkedHashMap<>();
 
     /**
      * Validates a document against the exact kernels selected for its component instances.
@@ -63,6 +89,7 @@ public final class BindingProgram {
         Set<String> components = new HashSet<>();
         ir.components().forEach(component -> components.add(component.id()));
         if (!components.equals(kernels.keySet())) throw invalid("KERNEL_CONTRACT_INVALID", "kernel/component mismatch");
+        Map<String, List<CommandDescriptor>> commandSnapshots = new LinkedHashMap<>();
         Map<String, List<String>> participantReads = new LinkedHashMap<>();
         for (var entry : this.kernels.entrySet()) {
             var kernel = entry.getValue();
@@ -77,11 +104,13 @@ public final class BindingProgram {
                     || events.stream().map(event -> event.eventId()).distinct().count() != events.size()) {
                 throw invalid("KERNEL_CONTRACT_INVALID", "reserved or duplicate native event id");
             }
-            var commands = kernel.commands();
+            var commands = List.copyOf(kernel.commands());
             if (commands.stream().map(CommandDescriptor::commandName).distinct().count() != commands.size()) {
                 throw invalid("KERNEL_CONTRACT_INVALID", "duplicate command name");
             }
+            commandSnapshots.put(entry.getKey(), commands);
         }
+        this.commands = Map.copyOf(commandSnapshots);
         this.readParticipants = Map.copyOf(participantReads);
         Map<TransitionWorkReference, TransitionWorkBudget> budgets = new LinkedHashMap<>();
         Map<String, Set<String>> reserved = new LinkedHashMap<>();
@@ -124,6 +153,373 @@ public final class BindingProgram {
             }
         }
         for (String component : components) visit(component, new HashSet<>(), new HashSet<>());
+        this.rules = new BindingRules(this, admissionRules());
+    }
+
+    /** The validated admission rules of this program. */
+    BindingRules rules() { return rules; }
+
+    /**
+     * Resolves every attachment into its component's slots, validating rules, parameters, command selection and
+     * field reads against the attached kernel. Fact declarations are read once, here, never during execution.
+     */
+    private Map<String, BindingRules.Component> admissionRules() {
+        Map<String, BindingRules.Component> resolved = new LinkedHashMap<>();
+        Set<String> attached = new HashSet<>();
+        for (int index = 0; index < ir.components().size(); index++) {
+            var component = ir.components().get(index);
+            if (component.admission().isEmpty()) continue;
+            Map<String, RuleFact.Type> declared = declaredFacts(component.id());
+            BindingRules.WriteView writeView = writeView(component.id());
+            Map<String, Object> configuration = new LinkedHashMap<>();
+            component.configuration().forEach((name, value) -> configuration.put(name, value.value()));
+            List<BindingRules.Attached> admission = new ArrayList<>();
+            List<BindingRules.Attached> facts = new ArrayList<>();
+            Set<String> seen = new HashSet<>();
+            for (int position = 0; position < component.admission().size(); position++) {
+                RuleAttachment attachment = component.admission().get(position);
+                var context = BindingValidationException.Context.attachment(component.id(), position,
+                        attachment.rule());
+                try {
+                    AdmissionRule rule = ir.rule(attachment.rule());
+                    if (rule == null) throw invalid("RULE_UNKNOWN", "unknown rule: " + attachment.rule());
+                    if (!seen.add(rule.id())) throw invalid("RULE_DUPLICATE", "rule attached twice: " + rule.id());
+                    attached.add(rule.id());
+                    Map<String, Object> parameters = ruleParameters(rule, attachment, component.id());
+                    Resolution resolution = validateRule(rule, component, configuration, declared, writeView);
+                    var resolvedRule = new BindingRules.Attached(position, rule, parameters,
+                            rule.readsFacts() || resolution.readsCoverage(),
+                            rule.isStatic() && !resolution.readsCoverage(), rule.readsWrites(),
+                            resolution.readsCoverage(), resolution.reads());
+                    (resolvedRule.factRule() ? facts : admission).add(resolvedRule);
+                } catch (IllegalArgumentException invalid) {
+                    throw BindingValidationException.wrap("component '" + component.id() + "' rule attachment["
+                            + position + "] '" + attachment.rule() + "'", invalid, "UNCLASSIFIED", context);
+                }
+            }
+            resolved.put(component.id(), new BindingRules.Component(admission, facts, configuration, declared,
+                    writeView));
+        }
+        for (AdmissionRule rule : ir.rules()) {
+            if (!attached.contains(rule.id())) {
+                throw BindingValidationException.wrap("rule '" + rule.id() + "'",
+                        invalid("RULE_UNATTACHED", "rule is not attached to any component"), "UNCLASSIFIED",
+                        BindingValidationException.Context.rule(rule.id(), null));
+            }
+        }
+        return resolved;
+    }
+
+    /** A kernel's fact declarations, read once at construction and checked against the host contract. */
+    private Map<String, RuleFact.Type> declaredFacts(String component) {
+        List<RuleFact> declared;
+        try {
+            declared = List.copyOf(kernel(component).ruleFacts());
+        } catch (RuntimeException invalid) {
+            throw invalid("KERNEL_CONTRACT_INVALID", "invalid rule fact declarations: " + component);
+        }
+        Map<String, RuleFact.Type> types = new LinkedHashMap<>();
+        for (RuleFact fact : declared) {
+            if (types.putIfAbsent(fact.name(), fact.type()) != null) {
+                throw invalid("KERNEL_CONTRACT_INVALID", "duplicate rule fact: " + fact.name());
+            }
+        }
+        if (types.size() > RuleFact.MAX_FACTS) {
+            throw invalid("KERNEL_CONTRACT_INVALID", "too many rule facts: " + component);
+        }
+        return types;
+    }
+
+    /**
+     * A kernel's value views (ADR-031.4 §5.7), read once and checked against the host contract: each namespace maps
+     * its declared fields, and value fields under {@code value.<name>}, to their types.
+     */
+    private Map<String, Map<String, RuleFact.Type>> valueViews(String component) {
+        var cached = valueViews.get(component);
+        if (cached != null) return cached;
+        List<RuleValueView> declared;
+        try {
+            declared = List.copyOf(kernel(component).ruleValueViews());
+        } catch (RuntimeException invalid) {
+            throw invalid("KERNEL_CONTRACT_INVALID", "invalid rule value views: " + component);
+        }
+        if (declared.size() > RuleValueView.MAX_VIEWS) {
+            throw invalid("KERNEL_CONTRACT_INVALID", "too many rule value views: " + component);
+        }
+        Map<String, Map<String, RuleFact.Type>> views = new LinkedHashMap<>();
+        for (RuleValueView view : declared) {
+            Map<String, RuleFact.Type> fields = new LinkedHashMap<>();
+            view.fields().forEach(field -> fields.put(field.name(), field.type()));
+            view.valueFields().forEach(field -> fields.put(RuleValueView.VALUE_PREFIX + field.name(), field.type()));
+            if (views.putIfAbsent(view.namespace(), fields) != null) {
+                throw invalid("KERNEL_CONTRACT_INVALID", "duplicate rule value namespace: " + component);
+            }
+        }
+        valueViews.put(component, Collections.unmodifiableMap(views));
+        return valueViews.get(component);
+    }
+
+    /**
+     * A kernel's write view (ADR-031.4 §5.2), or {@code null} when it declares none. Content fields gain the
+     * engine's {@code index} and the write value fields: {@code value.<f>} for every value field that all of the
+     * kernel's views agree on. Names are unique across content and coverage and never reserved.
+     */
+    private BindingRules.WriteView writeView(String component) {
+        List<RuleFact> content;
+        List<RuleFact> coverage;
+        try {
+            content = List.copyOf(kernel(component).ruleWriteFields());
+            coverage = List.copyOf(kernel(component).ruleWriteCoverageFields());
+        } catch (RuntimeException invalid) {
+            throw invalid("KERNEL_CONTRACT_INVALID", "invalid rule write view: " + component);
+        }
+        if (content.isEmpty()) {
+            if (!coverage.isEmpty()) throw invalid("KERNEL_CONTRACT_INVALID", "coverage without a write view");
+            return null;
+        }
+        if (content.size() > RuleValueView.MAX_FIELDS || coverage.size() > RuleValueView.MAX_FIELDS) {
+            throw invalid("KERNEL_CONTRACT_INVALID", "too many rule write fields: " + component);
+        }
+        Map<String, RuleFact.Type> contentTypes = new LinkedHashMap<>();
+        Map<String, RuleFact.Type> coverageTypes = new LinkedHashMap<>();
+        for (RuleFact field : content) {
+            if (Set.of("index", "value", "present").contains(field.name())
+                    || contentTypes.putIfAbsent(field.name(), field.type()) != null) {
+                throw invalid("KERNEL_CONTRACT_INVALID", "reserved or duplicate write field: " + field.name());
+            }
+        }
+        for (RuleFact field : coverage) {
+            if (Set.of("index", "value", "present").contains(field.name()) || contentTypes.containsKey(field.name())
+                    || coverageTypes.putIfAbsent(field.name(), field.type()) != null) {
+                throw invalid("KERNEL_CONTRACT_INVALID", "reserved or duplicate coverage field: " + field.name());
+            }
+        }
+        contentTypes.put("index", RuleFact.Type.INTEGER);
+        contentTypes.putAll(writeValueFields(valueViews(component).values()));
+        return new BindingRules.WriteView(contentTypes, coverageTypes);
+    }
+
+    /**
+     * The value fields of a write view (ADR-031.4 §5.2): each {@code value.<f>} that some value view declares and
+     * every view declaring it types alike, in first-declaration order; a conflicting name is not declared. Shared
+     * with the authoring tools so documents are typed exactly as profiles are.
+     *
+     * @param views each namespace's fields, value fields under {@code value.<name>}
+     * @return the declared write value fields
+     */
+    public static Map<String, RuleFact.Type> writeValueFields(Collection<Map<String, RuleFact.Type>> views) {
+        Map<String, RuleFact.Type> values = new LinkedHashMap<>();
+        Set<String> conflicting = new HashSet<>();
+        views.forEach(fields -> fields.forEach((name, type) -> {
+            if (!name.startsWith(RuleValueView.VALUE_PREFIX)) return;
+            RuleFact.Type previous = values.putIfAbsent(name, type);
+            if (previous != null && previous != type) conflicting.add(name);
+        }));
+        conflicting.forEach(values::remove);
+        return Collections.unmodifiableMap(values);
+    }
+
+    /** What rule validation resolves: the reads with their view types, and whether the rule reads write coverage. */
+    private record Resolution(List<BindingRules.Read> reads, boolean readsCoverage) { }
+
+    /** The attachment's parameters, exactly the rule's declarations with values of the declared types. */
+    private Map<String, Object> ruleParameters(AdmissionRule rule, RuleAttachment attachment, String component) {
+        for (String name : attachment.parameters().keySet()) {
+            if (rule.parameter(name) == null) {
+                throw BindingValidationException.annotate(invalid("RULE_PARAMETER_UNKNOWN",
+                        "undeclared parameter: " + name), BindingValidationException.Context.field("rule-param", name));
+            }
+        }
+        Map<String, Object> values = new LinkedHashMap<>();
+        for (var parameter : rule.parameters()) {
+            var context = BindingValidationException.Context.field("rule-param", parameter.name());
+            var value = attachment.parameters().get(parameter.name());
+            if (value == null) {
+                throw BindingValidationException.annotate(invalid("RULE_PARAMETER_MISSING",
+                        "missing parameter: " + parameter.name()), context);
+            }
+            if (!parameter.type().accepts(value.value())) {
+                throw BindingValidationException.annotate(invalid("RULE_PARAMETER_TYPE",
+                        "parameter type: " + parameter.name()), context);
+            }
+            if (parameter.type() == BindingIrV1.ParameterType.BINDING && ir.bindings().stream().noneMatch(binding ->
+                    binding.id().equals(value.value()) && binding.target() instanceof CommandTarget target
+                            && target.component().equals(component))) {
+                throw BindingValidationException.annotate(invalid("RULE_PARAMETER_TYPE", "parameter "
+                        + parameter.name() + " must name a binding that targets " + component), context);
+            }
+            values.put(parameter.name(), value.value());
+        }
+        return values;
+    }
+
+    /**
+     * Type-checks one rule against the kernel and configuration of the component it is attached to, its reads against
+     * the value views of the components they read, and its quantifiers against the attached kernel's write view.
+     */
+    private Resolution validateRule(AdmissionRule rule, BindingIrV1.Component component,
+                                    Map<String, Object> configuration, Map<String, RuleFact.Type> declared,
+                                    BindingRules.WriteView writeView) {
+        Map<Scope, Map<String, Type>> scopes = new EnumMap<>(Scope.class);
+        Set<String> evidence = new HashSet<>();
+        if (rule.command() != null) {
+            String reason = BindingCommandView.unselectableReason(commands.get(component.id()));
+            if (reason != null) {
+                throw BindingValidationException.annotate(invalid("RULE_COMMAND_UNSELECTABLE",
+                        "rule selects command " + rule.command() + ", but " + reason),
+                        BindingValidationException.Context.part("rule"));
+            }
+            var command = commands.get(component.id()).stream()
+                    .filter(candidate -> candidate.commandName().equals(rule.command())).findFirst()
+                    .orElseThrow(() -> BindingValidationException.annotate(invalid("RULE_COMMAND_UNKNOWN",
+                            "unknown command: " + rule.command()), BindingValidationException.Context.part("rule")));
+            Map<String, Type> data = new LinkedHashMap<>();
+            for (var field : command.fields()) {
+                if (field.role() == CommandDescriptor.Role.DATA) {
+                    data.put(field.name(), Type.valueOf(field.type().name()));
+                } else {
+                    evidence.add(field.name());
+                }
+            }
+            scopes.put(Scope.COMMAND, data);
+        }
+        Map<String, Type> parameterTypes = new LinkedHashMap<>();
+        rule.parameters().forEach(parameter -> parameterTypes.put(parameter.name(), parameter.type().valueType()));
+        Map<String, Type> configurationTypes = new LinkedHashMap<>();
+        configuration.forEach((name, value) -> configurationTypes.put(name, BindingExpressionEvaluator.type(value)));
+        Map<String, Type> factTypes = new LinkedHashMap<>();
+        declared.forEach((name, type) -> factTypes.put(name, Type.valueOf(type.name())));
+        scopes.put(Scope.PARAMS, parameterTypes);
+        scopes.put(Scope.CONFIG, configurationTypes);
+        scopes.put(Scope.CONTEXT, CONTEXT_FIELDS);
+        scopes.put(Scope.FACTS, factTypes);
+        // Keys (lookup and read keys) read only these scopes; no key reads a read.
+        Scoped<Type> keys = new Scoped<>(scopes);
+        List<BindingRules.Read> reads = new ArrayList<>();
+        Map<String, Type> readTypes = new LinkedHashMap<>();
+        for (var read : rule.reads()) {
+            var context = BindingValidationException.Context.field("read", read.name());
+            try {
+                if (!kernels.containsKey(read.component())) {
+                    throw invalid("RULE_READ_UNKNOWN_COMPONENT", "unknown read component: " + read.component());
+                }
+                var view = valueViews(read.component()).get(read.namespace());
+                if (view == null) {
+                    throw invalid("RULE_READ_UNKNOWN_NAMESPACE", "component " + read.component()
+                            + " declares no value view for namespace '" + read.namespace() + "'");
+                }
+                for (var field : sourceFields(read.key())) requireRuleField(field, keys, evidence);
+                Type keyType;
+                try {
+                    keyType = sourceType(read.key(), keys);
+                } catch (IllegalArgumentException invalid) {
+                    throw invalid("RULE_READ_KEY_TYPE", "read key: " + invalid.getMessage());
+                }
+                if (keyType != Type.BYTES && keyType != Type.TEXT) {
+                    throw invalid("RULE_READ_KEY_TYPE", "a read key is bytes or text");
+                }
+                readTypes.put(read.name() + "." + RuleValueView.PRESENT, Type.BOOLEAN);
+                view.forEach((name, type) -> readTypes.put(read.name() + "." + name, Type.valueOf(type.name())));
+                reads.add(new BindingRules.Read(read.name(), read.component(), read.namespace(), read.key(), view));
+            } catch (IllegalArgumentException invalid) {
+                throw at("read '" + read.name() + "'", invalid, "UNCLASSIFIED", context);
+            }
+        }
+        scopes.put(Scope.READS, readTypes);
+        if (rule.readsWrites()) {
+            if (writeView == null) {
+                throw BindingValidationException.annotate(invalid("RULE_WRITES_UNSUPPORTED",
+                        "component " + component.id() + " has no write view"),
+                        BindingValidationException.Context.part("rule"));
+            }
+            Map<String, Type> elements = new LinkedHashMap<>();
+            writeView.content().forEach((name, type) -> elements.put(name, Type.valueOf(type.name())));
+            writeView.coverage().forEach((name, type) -> elements.put(name, Type.valueOf(type.name())));
+            scopes.put(Scope.WRITE_ELEMENT, elements);
+        }
+        Scoped<Type> schema = new Scoped<>(scopes);
+        boolean readsCoverage = false;
+        for (int index = 0; index < rule.clauses().size(); index++) {
+            var clause = rule.clauses().get(index);
+            var context = new BindingValidationException.Context(null, null, index, "rule", null, null);
+            try {
+                for (var field : fields(clause)) {
+                    requireRuleField(field, schema, evidence);
+                    if (field.scope() == Scope.WRITE_ELEMENT && writeView.coverage().containsKey(field.name())) {
+                        readsCoverage = true;
+                    }
+                }
+                if (clause instanceof ExpressionClause expression) {
+                    try {
+                        BindingExpressionEvaluator.validate(expression.expression(), schema, ir.limits());
+                    } catch (IllegalArgumentException invalid) {
+                        String message = invalid.getMessage() == null ? "" : invalid.getMessage();
+                        throw invalid(message.contains("exceeds") ? "RULE_LIMIT" : "EXPRESSION_INVALID", message);
+                    }
+                } else if (clause instanceof LookupClause lookup) {
+                    if (!kernels.containsKey(lookup.participant())) {
+                        throw invalid("RULE_LOOKUP_COMPONENT_UNKNOWN", "unknown lookup component: "
+                                + lookup.participant());
+                    }
+                    if (sourceType(lookup.key(), schema) != Type.BYTES) throw invalidType();
+                    if (lookup.operand() != null && sourceType(lookup.operand(), schema) != Type.BYTES) {
+                        throw invalidType();
+                    }
+                }
+            } catch (IllegalArgumentException invalid) {
+                throw at("clause[" + index + "]", invalid, "UNCLASSIFIED", context);
+            }
+        }
+        return new Resolution(reads, readsCoverage);
+    }
+
+    /** Classifies an unknown or forbidden field read by a rule. */
+    private static void requireRuleField(BindingExpressionV1.Field field, Scoped<Type> schema, Set<String> evidence) {
+        if (schema.of(field.scope()).containsKey(field.name())) return;
+        if (field.scope() == Scope.COMMAND && evidence.contains(field.name())) {
+            throw invalid("RULE_EVIDENCE_READ", "rules cannot read evidence field command." + field.name());
+        }
+        throw invalid(switch (field.scope()) {
+            case FACTS -> "RULE_FACT_UNKNOWN";
+            case READS -> "RULE_READ_UNKNOWN_FIELD";
+            default -> "RULE_FIELD_UNKNOWN";
+        }, "unknown " + field.scope().label() + " field: " + field.name());
+    }
+
+    /** Every scoped field a rule clause reads, from expressions (including quantifier bodies) and lookups alike. */
+    private static List<BindingExpressionV1.Field> fields(BindingIrV1.Clause clause) {
+        List<BindingExpressionV1.Field> fields = new ArrayList<>();
+        if (clause instanceof ExpressionClause expression) collect(expression.expression().root(), fields);
+        if (clause instanceof LookupClause lookup) {
+            fields.addAll(sourceFields(lookup.key()));
+            if (lookup.operand() != null) fields.addAll(sourceFields(lookup.operand()));
+        }
+        return fields;
+    }
+
+    private static List<BindingExpressionV1.Field> sourceFields(BindingSourceV1 source) {
+        List<BindingExpressionV1.Field> fields = new ArrayList<>();
+        collect(source, fields);
+        return fields;
+    }
+
+    private static void collect(BindingSourceV1 source, List<BindingExpressionV1.Field> fields) {
+        switch (source) {
+            case BindingSourceV1.Field field -> fields.add(new BindingExpressionV1.Field(field.scope(), field.name()));
+            case BindingSourceV1.Function function ->
+                    function.arguments().forEach(argument -> collect(argument, fields));
+            case BindingSourceV1.Expression expression -> collect(expression.expression().root(), fields);
+            case BindingSourceV1.Literal ignored -> { }
+        }
+    }
+
+    private static void collect(BindingExpressionV1.Node node, List<BindingExpressionV1.Field> fields) {
+        switch (node) {
+            case BindingExpressionV1.Field field -> fields.add(field);
+            case BindingExpressionV1.Call call -> call.arguments().forEach(argument -> collect(argument, fields));
+            case BindingExpressionV1.Quantifier quantifier -> collect(quantifier.body(), fields);
+            case BindingExpressionV1.Literal ignored -> { }
+        }
     }
     public BindingIrV1 ir() { return ir; }
     /** Resolves a caller's statically declared reservation; a dynamic undeclared request fails closed. */
@@ -164,19 +560,51 @@ public final class BindingProgram {
         return Map.copyOf(result);
     }
     public CommandDescriptor command(CommandTarget target) {
-        var commands = kernel(target.component()).commands().stream()
+        kernel(target.component());
+        var matches = commands.get(target.component()).stream()
                 .filter(command -> command.commandName().equals(target.command())).toList();
-        if (commands.size() != 1) throw invalid("UNKNOWN_TARGET_COMMAND", "unknown or duplicate target command");
-        return commands.getFirst();
+        if (matches.size() != 1) throw invalid("UNKNOWN_TARGET_COMMAND", "unknown or duplicate target command");
+        return matches.getFirst();
+    }
+
+    /** Returns the construction-time snapshot of a component kernel's command descriptors. */
+    public List<CommandDescriptor> commands(String component) {
+        kernel(component);
+        return commands.get(component);
+    }
+
+    /**
+     * Builds the descriptor view of a command body (ADR-031.3 §5.4), charging both work counters before each
+     * allocation. The component's kernel must be command-selectable.
+     *
+     * @throws BindingFailure {@code ADMISSION_RULE_INPUT} when the body has no canonical view, or
+     *                        {@code EXPRESSION_CAPACITY_EXCEEDED} when a counter is exhausted
+     */
+    public BindingCommandView.View commandView(String component, byte[] body,
+                                               BindingExpressionEvaluator.Budget cascade,
+                                               BindingExpressionEvaluator.Budget block) {
+        // Descriptors resolve outside the failure mapping: an unknown component is an engine bug, not input.
+        List<CommandDescriptor> descriptors = commands(component);
+        try {
+            return BindingCommandView.decode(descriptors, body, units -> BindingWork.charge(units, cascade, block));
+        } catch (IllegalArgumentException | ArithmeticException noView) {
+            throw new BindingFailure("ADMISSION_RULE_INPUT");
+        }
+    }
+
+    /** Declared binding inputs for one source event: its fields and the producing step's context. */
+    private static Scoped<Type> bindingScope(Map<String, Type> event) {
+        return new Scoped<>(Map.of(Scope.EVENT, event, Scope.CONTEXT, CONTEXT_FIELDS));
     }
 
     private void validate(Binding binding) {
-        Map<String, Type> schema;
-        try { schema = schema(binding.sourceComponent(), binding.eventId()); }
+        Map<String, Type> eventSchema;
+        try { eventSchema = schema(binding.sourceComponent(), binding.eventId()); }
         catch (IllegalArgumentException invalid) {
             throw BindingValidationException.annotate(invalid,
                     BindingValidationException.Context.part("source-event"));
         }
+        Scoped<Type> schema = bindingScope(eventSchema);
         int lookups = 0;
         for (int index = 0; index < binding.conditions().size(); index++) {
             var clause = binding.conditions().get(index);
@@ -184,7 +612,7 @@ public final class BindingProgram {
             if (clause instanceof FieldClause field) location += " field '" + field.field() + "'";
             try {
                 if (clause instanceof FieldClause field) {
-                    Type type = requireField(schema, field.field());
+                    Type type = requireField(eventSchema, field.field());
                     for (var operand : field.operands()) {
                         if (BindingExpressionEvaluator.type(operand.value()) != type) throw invalidType();
                     }
@@ -225,7 +653,7 @@ public final class BindingProgram {
         if (mapping.kind() == BindingIrV1.MappingKind.RAW_BODY) {
             validateAt("raw body field '" + mapping.bodyField() + "'", "UNCLASSIFIED",
                     BindingValidationException.Context.part("raw-body"), () -> {
-                        if (requireField(schema, mapping.bodyField()) != Type.BYTES) throw invalidType();
+                        if (requireField(eventSchema, mapping.bodyField()) != Type.BYTES) throw invalidType();
                     });
         }
         mapping.fields().forEach(field -> validateAt("mapping field '" + field.field() + "'", "UNCLASSIFIED",
@@ -241,7 +669,7 @@ public final class BindingProgram {
             if (mapping.kind() == BindingIrV1.MappingKind.RAW_BODY) {
                 // Raw bytes can select any opcode understood by the target codec, not just the
                 // command named in the binding. Never let a harmless descriptor hide an evidence path.
-                for (var candidate : kernel(target.component()).commands()) {
+                for (var candidate : commands(target.component())) {
                     for (var field : candidate.fields()) {
                         if (field.role() == CommandDescriptor.Role.EVIDENCE) {
                             throw BindingValidationException.annotate(invalid("BINDING_EVIDENCE_UNSATISFIABLE",
@@ -265,8 +693,9 @@ public final class BindingProgram {
                 validateAt("target field '" + field.name() + "'"
                         + (field.role() == CommandDescriptor.Role.EVIDENCE ? " (evidence)" : ""), "UNCLASSIFIED",
                         BindingValidationException.Context.field("target-field", field.name()), () -> {
+                    // Evidence is copied byte for byte from an event field; context values are never evidence.
                     if (field.role() == CommandDescriptor.Role.EVIDENCE
-                            && !(source instanceof BindingSourceV1.Field)) {
+                            && !(source instanceof BindingSourceV1.Field copied && copied.scope() == Scope.EVENT)) {
                         throw invalid("BINDING_EVIDENCE_UNSATISFIABLE", "BINDING_EVIDENCE_UNSATISFIABLE");
                     }
                     if (source == null && (field.required() || command.layout() != CommandDescriptor.Layout.MAP)) {
@@ -286,7 +715,7 @@ public final class BindingProgram {
         }
     }
 
-    private Type sourceType(BindingSourceV1 source, Map<String, Type> schema) {
+    private Type sourceType(BindingSourceV1 source, Scoped<Type> schema) {
         String location = source instanceof BindingSourceV1.Function function
                 ? "function '" + function.functionId() + "'"
                 : source instanceof BindingSourceV1.Expression ? "expression" : "source";
@@ -298,8 +727,8 @@ public final class BindingProgram {
         }
     }
 
-    private Type sourceTypeAt(BindingSourceV1 source, Map<String, Type> schema) {
-        if (source instanceof BindingSourceV1.Field field) return requireField(schema, field.name());
+    private Type sourceTypeAt(BindingSourceV1 source, Scoped<Type> schema) {
+        if (source instanceof BindingSourceV1.Field field) return requireField(schema, field);
         if (source instanceof BindingSourceV1.Literal literal) return BindingExpressionEvaluator.type(literal.value());
         if (source instanceof BindingSourceV1.Expression expression) {
             BindingExpressionEvaluator.validate(expression.expression(), schema, ir.limits());
@@ -358,8 +787,10 @@ public final class BindingProgram {
      * @return {@code -1} when all clauses hold, otherwise the zero-based first failing clause ordinal
      * @throws BindingFailure on data-dependent decoding, type, or resource-limit errors
      */
-    public int condition(Binding binding, Map<String, Object> event, Function<String, AppStateReader> views,
+    public int condition(Binding binding, Map<String, Object> event, Map<String, Object> context,
+                         Function<String, AppStateReader> views,
                          BindingExpressionEvaluator.Budget cascade, BindingExpressionEvaluator.Budget block) {
+        Scoped<Object> inputs = new Scoped<>(Map.of(Scope.EVENT, event, Scope.CONTEXT, context));
         try { BindingWork.charge(1, cascade, block); }
         catch (BindingFailure failure) { throw failure.at(binding.id(), -1); }
         for (int index = 0; index < binding.conditions().size(); index++) {
@@ -389,34 +820,10 @@ public final class BindingProgram {
                         }
                     };
                 } else if (clause instanceof LookupClause lookup) {
-                    Object key = source(lookup.key(), event, cascade, block);
-                    if (!(key instanceof byte[] bytes)) throw new BindingFailure("LOOKUP_KEY_TYPE");
-                    if (bytes.length == 0 || bytes.length > ir.limits().maxFunctionInputBytes()) {
-                        throw new BindingFailure("LOOKUP_KEY_LIMIT");
-                    }
-                    BindingWork.charge(bytes.length, cascade, block);
-                    byte[] localKey;
-                    try {
-                        localKey = kernel(lookup.participant()).lookupKey(bytes.clone());
-                        if (localKey == null || localKey.length == 0)
-                                throw new IllegalArgumentException("empty local key");
-                        CompositeStateKeys.componentKey(lookup.participant(), localKey);
-                    } catch (IllegalArgumentException malformed) {
-                        throw new BindingFailure("LOOKUP_KEY_INVALID");
-                    }
-                    BindingWork.charge(1L + localKey.length, cascade, block);
-                    var current = views.apply(lookup.participant()).get(localKey);
-                    if (current.isPresent()) BindingWork.charge(current.get().length, cascade, block);
-                    matches = switch (lookup.expectation()) {
-                        case EXISTS -> current.isPresent();
-                        case ABSENT -> current.isEmpty();
-                        case EQUAL_LITERAL, EQUAL_EVENT -> current.isPresent()
-                                && equal(current.get(), source(lookup.operand(), event, cascade, block),
-                                        cascade, block);
-                    };
+                    matches = lookup(lookup, inputs, views, cascade, block);
                 } else {
-                    Object result = BindingExpressionEvaluator.evaluate(((ExpressionClause) clause).expression(), event,
-                            ir.limits(), cascade, block);
+                    Object result = BindingExpressionEvaluator.evaluate(((ExpressionClause) clause).expression(),
+                            inputs, ir.limits(), cascade, block);
                     matches = Boolean.TRUE.equals(result);
                 }
                 if (!matches) return index;
@@ -428,6 +835,63 @@ public final class BindingProgram {
     }
 
     /**
+     * Evaluates one lookup clause against the supplied cascade overlays, for binding conditions and rules alike.
+     * The key is built from the clause's sources, resolved through the owner's {@code lookupKey}, and read through
+     * the overlay, so earlier steps of the same cascade are visible.
+     *
+     * @throws BindingFailure when the key cannot be built, or a work budget is exhausted
+     */
+    boolean lookup(LookupClause lookup, Scoped<Object> inputs, Function<String, AppStateReader> views,
+                   BindingExpressionEvaluator.Budget cascade, BindingExpressionEvaluator.Budget block) {
+        Object key = source(lookup.key(), inputs, cascade, block);
+        if (!(key instanceof byte[] bytes)) throw new BindingFailure("LOOKUP_KEY_TYPE");
+        if (bytes.length == 0 || bytes.length > ir.limits().maxFunctionInputBytes()) {
+            throw new BindingFailure("LOOKUP_KEY_LIMIT");
+        }
+        BindingWork.charge(bytes.length, cascade, block);
+        byte[] localKey;
+        try {
+            localKey = kernel(lookup.participant()).lookupKey(bytes.clone());
+            if (localKey == null || localKey.length == 0) throw new IllegalArgumentException("empty local key");
+            CompositeStateKeys.componentKey(lookup.participant(), localKey);
+        } catch (IllegalArgumentException malformed) {
+            throw new BindingFailure("LOOKUP_KEY_INVALID");
+        }
+        BindingWork.charge(1L + localKey.length, cascade, block);
+        var current = views.apply(lookup.participant()).get(localKey);
+        if (current.isPresent()) BindingWork.charge(current.get().length, cascade, block);
+        return switch (lookup.expectation()) {
+            case EXISTS -> current.isPresent();
+            case ABSENT -> current.isEmpty();
+            case EQUAL_LITERAL, EQUAL_FIELD -> current.isPresent()
+                    && equal(current.get(), source(lookup.operand(), inputs, cascade, block), cascade, block);
+        };
+    }
+
+    /**
+     * Evaluates a rule read's key source (ADR-031.4 §5.1): bytes are used as they are and text is UTF-8 encoded. The
+     * key is non-empty and at most {@code maxFunctionInputBytes}.
+     *
+     * @throws BindingFailure when the key has another type, is out of bounds, or a work budget is exhausted
+     */
+    byte[] ruleKey(BindingSourceV1 key, Scoped<Object> inputs, BindingExpressionEvaluator.Budget cascade,
+                   BindingExpressionEvaluator.Budget block) {
+        Object value = source(key, inputs, cascade, block);
+        byte[] bytes = switch (value) {
+            case byte[] raw -> raw;
+            case String text -> {
+                BindingWork.size(text);
+                yield text.getBytes(StandardCharsets.UTF_8);
+            }
+            default -> throw new BindingFailure("LOOKUP_KEY_TYPE");
+        };
+        if (bytes.length == 0 || bytes.length > ir.limits().maxFunctionInputBytes()) {
+            throw new BindingFailure("LOOKUP_KEY_LIMIT");
+        }
+        return bytes;
+    }
+
+    /**
      * Builds target wire bytes without invoking the target or modifying state.
      * Field mappings follow the target descriptor's wire layout and positional field order. Identity
      * mappings copy event bytes for effects; raw mappings copy one byte-valued event field. Target admission
@@ -436,7 +900,7 @@ public final class BindingProgram {
      * @return newly encoded or defensively copied target payload
      * @throws BindingFailure if required event data is missing, mistyped, or exceeds evaluation limits
      */
-    public byte[] payload(Binding binding, Map<String, Object> event, byte[] eventBytes,
+    public byte[] payload(Binding binding, Map<String, Object> event, Map<String, Object> context, byte[] eventBytes,
                           BindingExpressionEvaluator.Budget cascade, BindingExpressionEvaluator.Budget block) {
         var mapping = binding.target().mapping();
         BindingWork.charge(1, cascade, block);
@@ -450,8 +914,9 @@ public final class BindingProgram {
             BindingWork.charge(bytes.length, cascade, block);
             return bytes.clone();
         }
+        Scoped<Object> inputs = new Scoped<>(Map.of(Scope.EVENT, event, Scope.CONTEXT, context));
         Map<String, Object> values = new LinkedHashMap<>();
-        mapping.fields().forEach(field -> values.put(field.field(), source(field.source(), event, cascade, block)));
+        mapping.fields().forEach(field -> values.put(field.field(), source(field.source(), inputs, cascade, block)));
         if (binding.target() instanceof CommandTarget target) {
             CommandDescriptor command = command(target);
             for (var field : command.fields()) {
@@ -459,31 +924,30 @@ public final class BindingProgram {
                     throw new BindingFailure("MAPPING_TYPE_ERROR");
                 }
             }
-            if (command.layout() != CommandDescriptor.Layout.MAP) {
-                List<Object> array = new ArrayList<>();
-                if (command.layout() == CommandDescriptor.Layout.ARRAY_WITH_OPCODE) array.add(command.opCode());
-                command.fields().forEach(field -> array.add(values.get(field.name())));
-                BindingWork.charge(BindingWork.encoding(array), cascade, block);
-                return BindingCbor.encode(array);
-            }
+            // One encoder serves mapped commands and, inverted, the ADR-031.3 command view.
+            Object tree = BindingCommandView.tree(command, values);
+            BindingWork.charge(BindingWork.encoding(tree), cascade, block);
+            return BindingCbor.encode(tree);
         }
         BindingWork.charge(BindingWork.encoding(values), cascade, block);
         return BindingCbor.encode(values);
     }
 
-    private Object source(BindingSourceV1 source, Map<String, Object> event,
+    private Object source(BindingSourceV1 source, Scoped<Object> inputs,
                           BindingExpressionEvaluator.Budget cascade, BindingExpressionEvaluator.Budget block) {
         BindingWork.charge(1, cascade, block);
         if (source instanceof BindingSourceV1.Literal literal) return literal.value();
         if (source instanceof BindingSourceV1.Field field) {
-            if (!event.containsKey(field.name())) throw new BindingFailure("MAPPING_MISSING_FIELD");
-            return event.get(field.name());
+            Map<String, Object> scope = inputs.of(field.scope());
+            if (!scope.containsKey(field.name())) throw new BindingFailure("MAPPING_MISSING_FIELD");
+            Object value = scope.get(field.name());
+            return value instanceof byte[] bytes ? bytes.clone() : value;
         }
         if (source instanceof BindingSourceV1.Expression expression) {
-            return BindingExpressionEvaluator.evaluate(expression.expression(), event, ir.limits(), cascade, block);
+            return BindingExpressionEvaluator.evaluate(expression.expression(), inputs, ir.limits(), cascade, block);
         }
         var function = (BindingSourceV1.Function) source;
-        List<Object> args = function.arguments().stream().map(argument -> source(argument, event, cascade,
+        List<Object> args = function.arguments().stream().map(argument -> source(argument, inputs, cascade,
                 block)).toList();
         long bytes = args.stream().mapToLong(BindingWork::size).sum();
         if (bytes > ir.limits().maxFunctionInputBytes()) throw new BindingFailure("FUNCTION_INPUT_LIMIT");
@@ -542,6 +1006,13 @@ public final class BindingProgram {
     private static Type requireField(Map<String, Type> fields, String name) {
         Type type = fields.get(name);
         if (type == null) throw invalid("UNKNOWN_EVENT_FIELD", "unknown event field: " + name);
+        return type;
+    }
+    private static Type requireField(Scoped<Type> fields, BindingSourceV1.Field field) {
+        if (field.scope() == Scope.EVENT) return requireField(fields.of(Scope.EVENT), field.name());
+        // Context fields are fixed by the contract, which rejects any other name at construction.
+        Type type = fields.of(field.scope()).get(field.name());
+        if (type == null) throw invalid("UNCLASSIFIED", "unknown " + field.scope().label() + " field: " + field.name());
         return type;
     }
     private static int functionCount(BindingSourceV1 source) {

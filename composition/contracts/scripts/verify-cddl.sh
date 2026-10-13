@@ -69,7 +69,34 @@ echo "Validated ${#VECTOR_NAMES[@]} composite governance CBOR vectors with ${CDD
 SCHEMA="${MODULE_DIR}/src/main/resources/cddl/declarative-bindings-v1.cddl"
 VECTORS="${MODULE_DIR}/src/main/resources/cddl/declarative-bindings-v1-golden-vectors.properties"
 "${CDDL_BIN}" --ci compile-cddl --cddl "${SCHEMA}"
-VECTOR_NAMES=(ir.forward expression.threshold receipt.accepted receipt.rejected)
+# cddl-cli 0.10.5 cannot evaluate a regular expression in map-key position, so vectors are validated
+# against a copy with plain text keys. The Java codecs enforce the key grammars.
+TOOL_SCHEMA="${WORK_DIR}/declarative-bindings-v1.tool.cddl"
+sed -e 's/binding-name => binding-scalar/tstr => binding-scalar/' \
+    -e 's/rule-parameter-name => binding-scalar/tstr => binding-scalar/' "${SCHEMA}" >"${TOOL_SCHEMA}"
+VECTOR_NAMES=(
+    expression.threshold
+    expression.fact-role
+    expression.read-value
+    expression.write-scope
+    expression.write-role
+    expression.size
+    ir.forward
+    ir.admission
+    ir.typed-views
+    receipt.accepted
+    receipt.rejected
+    receipt.rule-denied
+    receipt.rule-error
+    receipt.rule-input
+    receipt.fact-denied
+    receipt.derived-denied
+    receipt.rule-capacity
+    receipt.fact-input
+    receipt.write-denied
+    receipt.write-error
+    receipt.read-error
+)
 for vector_name in "${VECTOR_NAMES[@]}"; do
     root="$(property "${vector_name}.cddl-root")"
     value="$(property "${vector_name}")"
@@ -81,7 +108,7 @@ for vector_name in "${VECTOR_NAMES[@]}"; do
     binary="${WORK_DIR}/${vector_name}.cbor"
     {
         printf 'binding-vector-root = %s\n\n' "${root}"
-        sed -n '1,$p' "${SCHEMA}"
+        sed -n '1,$p' "${TOOL_SCHEMA}"
     } >"${vector_schema}"
     printf '%s' "${value}" | xxd -r -p >"${binary}"
     "${CDDL_BIN}" --ci validate --cddl "${vector_schema}" --cbor "${binary}"

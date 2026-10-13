@@ -42,9 +42,10 @@ class BindingWorkTest {
         unequal[0] = 1;
         var block = new BindingExpressionEvaluator.Budget(100);
         var first = new BindingExpressionEvaluator.Budget(100);
-        assertThat(program.condition(binding, Map.of("body", unequal), ignored -> null, first, block)).isZero();
+        assertThat(program.condition(binding, Map.of("body", unequal), Map.of(), ignored -> null, first, block))
+                .isZero();
         assertThat(block.used()).isEqualTo(67);
-        assertThatThrownBy(() -> program.condition(binding, Map.of("body", unequal), ignored -> null,
+        assertThatThrownBy(() -> program.condition(binding, Map.of("body", unequal), Map.of(), ignored -> null,
                 new BindingExpressionEvaluator.Budget(100), block))
                 .isInstanceOf(BindingFailure.class).hasMessage("EXPRESSION_CAPACITY_EXCEEDED");
         assertThat(block.used()).isEqualTo(100);
@@ -55,7 +56,7 @@ class BindingWorkTest {
         var binding = new BindingIrV1.Binding("copy", "log", BindingProgram.BASELINE, List.of(),
                 new BindingIrV1.EffectTarget("test", "app-final", "none", 0, BindingIrV1.Mapping.raw("body")));
         var block = new BindingExpressionEvaluator.Budget(100);
-        assertThatThrownBy(() -> program(binding).payload(binding, Map.of("body", new byte[32]), new byte[0],
+        assertThatThrownBy(() -> program(binding).payload(binding, Map.of("body", new byte[32]), Map.of(), new byte[0],
                 new BindingExpressionEvaluator.Budget(16), block))
                 .isInstanceOf(BindingFailure.class).hasMessage("EXPRESSION_CAPACITY_EXCEEDED");
         assertThat(block.used()).isEqualTo(33);

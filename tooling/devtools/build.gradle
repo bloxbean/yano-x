@@ -221,14 +221,22 @@ tasks.register('regenerateStudioFixtures', JavaExec) {
     mainClass = 'org.yanoproject.x.devtools.StudioFixturesIT'
     args rootProject.projectDir.absolutePath
     // Shipped first-party data must come from the pinned published host, never a local, staged or snapshot one.
+    // A coordinated host change (ADR-031.3) can opt in to an unreleased host for its interim commits only with
+    // -PunreleasedStudioHost=<exact yanoVersion>; the release handoff regenerates against the published host.
     def mavenLocal = providers.gradleProperty('useMavenLocal').map { it.toBoolean() }.orElse(false)
     def stagedInputs = ['internalRepository', 'yanoRepository'].findAll { providers.gradleProperty(it).isPresent() }
     def hostVersion = providers.gradleProperty('yanoVersion').getOrElse('')
+    def unreleasedHost = providers.gradleProperty('unreleasedStudioHost').getOrElse('')
     doFirst {
-        if (mavenLocal.get() || !stagedInputs.isEmpty() || hostVersion.endsWith('-SNAPSHOT')) {
+        boolean unpinned = mavenLocal.get() || !stagedInputs.isEmpty() || hostVersion.endsWith('-SNAPSHOT')
+        if (unpinned && unreleasedHost != hostVersion) {
             throw new GradleException('regenerateStudioFixtures needs the pinned published Yano host: it refuses '
                     + '-PuseMavenLocal=true, -PinternalRepository, -PyanoRepository and SNAPSHOT versions '
-                    + '(ADR-031.2 C1)')
+                    + '(ADR-031.2 C1) unless -PunreleasedStudioHost names the exact -PyanoVersion')
+        }
+        if (unpinned) {
+            logger.warn("regenerateStudioFixtures: generating from unreleased Yano host ${hostVersion}; "
+                    + 'regenerate against the published host before release')
         }
         systemProperty 'yano.test.appchain-cli',
                 layout.buildDirectory.file('install/yano-devtools/bin/yano-appchain').get().asFile.absolutePath

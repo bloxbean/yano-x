@@ -25,6 +25,7 @@ archive includes the feature.
 | Application developer | [4. Java integration](04-java-integration.md) | Submit normal commands with the Java APIs and inspect the workflow outcome |
 | Advanced | [5. Operations and upgrades](05-operations-and-upgrades.md) | Diagnose rejections, discover proof keys, size budgets and plan safe evolution |
 | Any level | [6. Author bindings in the Studio editor](06-guided-editor.md) | Build the same documents with catalog-guided forms, hand them to the CLI and read its reports |
+| Intermediate | [7. Admission rules](07-admission-rules.md) | Attach forbid-only rules to components: limits, arrival checks and verified roles, with refusals as provable receipts |
 
 Start with chapter 1; it needs Java 25 and an extracted matching JVM distribution,
 but no Cardano funds, node cluster or private keys. Familiarity with YAML is enough.

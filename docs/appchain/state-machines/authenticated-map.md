@@ -553,6 +553,30 @@ The light showcase's `gs1-gtin-v1` validator is a working reference for this
 extension path. Attaching a different plugin to an existing chain is not a hot
 configuration change; it creates a new chain generation.
 
+## Admission-rule views, write view and coverage
+
+In a declarative composite, admission rules can read this map and judge every
+write of a command (ADR-031.4, see [admission rules](../bindings/07-admission-rules.md)):
+
+- **Value views**: one per collection (the namespace is the collection id, the
+  key the application key): `status` (`ACTIVE`, `REVOKED`), `revision`,
+  `createdHeight`, `lastMutationHeight`, `valueLength`, `controller`, and, for a
+  canonical-CBOR collection whose schema root is a text-keyed map, its first 32
+  top-level scalar members whose keys are CEL identifiers, as `value.<member>` in
+  canonical member order. A revoked entry exposes no members.
+- **Write view**: one element per mutation, in command order: `index`,
+  `collection`, `key`, `keyText` (valid UTF-8 only), `op`, `hasValue`,
+  `valueLength`, `expectedRevision`, and `value.<member>` for writes that carry a
+  value in a schema-typed collection (a member two collections type differently
+  is omitted). Rules quantify over it with `writes.all(w, …)` and
+  `writes.exists(w, …)`.
+- **Coverage**, only after the map verified and approved the command: `direct`
+  with the covering actor's `actorId`, `actorOrganizationId` and `actorRoles`,
+  `approval`, or `none` in open, owner and member collections. Rules that read
+  coverage run in the verified-fact slot, so unverified evidence never reaches
+  them. See `examples/bindings/dpp-namespace-isolation.yaml` and
+  `feed-slot-rules.yaml`.
+
 ## Operational boundaries
 
 Collection definitions, validation rules, maximum batch limits, consensus

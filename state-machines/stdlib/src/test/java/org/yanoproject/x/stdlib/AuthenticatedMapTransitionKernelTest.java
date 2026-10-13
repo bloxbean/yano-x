@@ -200,6 +200,23 @@ class AuthenticatedMapTransitionKernelTest {
                 .isInstanceOf(TransitionDecision.Rejected.class);
     }
 
+    /** ADR-031.4 §5.4: a verified approval reference covers exactly its assigned writes, and nothing else does. */
+    @Test
+    void anApprovedProposalCoversItsWritesAsApproval() {
+        Fixture fixture = governed();
+        var command = new AuthenticatedMapTransitionKernel.Command(fixture.action, "proposal-1");
+        var states = Map.<String, AppStateReader>of("actors", new State(), "reviews", fixture.approvals);
+        var facts = fixture.kernel.facts(command, CONTEXT, new State(), states);
+        assertThat(fixture.kernel.decide(command, CONTEXT, facts)).isInstanceOf(TransitionDecision.Approved.class);
+        assertThat(fixture.kernel.ruleWriteCoverage(command, CONTEXT, facts))
+                .containsExactly(Map.of("coverage", "approval"));
+        // A proposal that is not approved yields a rejection whose facts cover nothing.
+        var missing = new AuthenticatedMapTransitionKernel.Command(fixture.action, "proposal-2");
+        var rejected = fixture.kernel.facts(missing, CONTEXT, new State(), states);
+        assertThat(fixture.kernel.decide(missing, CONTEXT, rejected)).isInstanceOf(TransitionDecision.Rejected.class);
+        assertThat(fixture.kernel.ruleWriteCoverage(missing, CONTEXT, rejected)).containsExactly(Map.of());
+    }
+
     @Test
     void corruptApprovalStatePropagatesInsteadOfBecomingABusinessRejection() {
         Fixture fixture = governed();

@@ -5,10 +5,14 @@ import org.yanoproject.x.composite.contracts.BindingExpressionV1.Call;
 import org.yanoproject.x.composite.contracts.BindingExpressionV1.Field;
 import org.yanoproject.x.composite.contracts.BindingExpressionV1.Literal;
 import org.yanoproject.x.composite.contracts.BindingExpressionV1.Node;
+import org.yanoproject.x.composite.contracts.BindingExpressionV1.Quantifier;
+import org.yanoproject.x.composite.contracts.BindingExpressionV1.Scope;
 import org.yanoproject.x.composite.contracts.BindingExpressionV1.Type;
 import org.yanoproject.x.composite.contracts.BindingIrV1.Limits;
 
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 
@@ -19,9 +23,35 @@ import java.util.Map;
  * {@link BindingExpressionV1}. Arithmetic is checked signed 64-bit arithmetic, conditional branches are
  * lazy, and boolean operators implement the dialect's error-masking rules. Resource exhaustion is never
  * masked. Evaluation uses deterministic work counters, not elapsed time, and cannot invoke host callbacks.
+ *
+ * <p>Field references are scoped (ADR-031.3). Callers supply the declared types, and at evaluation the values, of
+ * exactly the scopes legal at the use site. A text set ({@link Type#TEXT_SET}) is legal only as the direct second
+ * operand of {@code in}; it never appears in a comparison, a branch, or a result.
+ *
+ * <p>ADR-031.4 adds {@code startsWith} (two texts or two byte strings; a text prefix is a UTF-8 byte prefix) and
+ * {@code size} (UTF-8 byte length of text, or length of bytes), both charged by operand bytes like equality, and the
+ * write-view {@link Quantifier}. A quantifier is legal only where the caller declares write-element fields. It
+ * evaluates its body per element in index order, one work unit per element plus the body's own work, and stops at
+ * the first {@code false} ({@code all}), the first {@code true} ({@code exists}) or the first error; a
+ * {@link WriteIndex} records where the most recently completed quantifier stopped early.
  */
 public final class BindingExpressionEvaluator {
     private BindingExpressionEvaluator() { }
+
+    /**
+     * Field declarations or values for each scope available at one use site. An absent scope has no fields.
+     *
+     * @param <T> {@link Type} for validation, scalar or text-set values for evaluation
+     */
+    public record Scoped<T>(Map<Scope, Map<String, T>> scopes) {
+        public Scoped {
+            Map<Scope, Map<String, T>> copy = new EnumMap<>(Scope.class);
+            scopes.forEach((scope, fields) -> copy.put(scope, Collections.unmodifiableMap(fields)));
+            scopes = Collections.unmodifiableMap(copy);
+        }
+        /** Returns the fields of one scope, empty when the scope is unavailable. */
+        public Map<String, T> of(Scope scope) { return scopes.getOrDefault(scope, Map.of()); }
+    }
 
     /**
      * Mutable, single-execution work counter. A cascade owns one counter and shares a second counter with
@@ -50,18 +80,38 @@ public final class BindingExpressionEvaluator {
     }
 
     /**
+     * Where the most recently completed quantifier of one evaluation stopped early: the element at which {@code all}
+     * met {@code false}, {@code exists} met {@code true}, or the body raised an error. {@code null} when that
+     * quantifier ran to completion or none ran (ADR-031.4 §5.2).
+     */
+    public static final class WriteIndex {
+        private Integer value;
+
+        /** The deciding element's index, or {@code null}. */
+        public Integer value() { return value; }
+    }
+
+    /** Evaluation state: the scoped inputs, the write view, the current element, and the stop tracker. */
+    private record Env(Scoped<Object> inputs, List<Map<String, Object>> writes, Map<String, Object> element,
+                       Limits limits, Budget cascade, Budget block, WriteIndex index) {
+        Env at(Map<String, Object> current) {
+            return new Env(inputs, writes, current, limits, cascade, block, index);
+        }
+    }
+
+    /**
      * Checks every branch's types and structure, including branches that might never execute.
      *
-     * @param fields declared event-field types; runtime presence is checked separately
+     * @param fields declared field types per scope; runtime presence is checked separately
      * @throws IllegalArgumentException if any type, field, literal, depth, or node-count constraint is invalid
      */
-    public static void validate(BindingExpressionV1 expression, Map<String, Type> fields, Limits limits) {
+    public static void validate(BindingExpressionV1 expression, Scoped<Type> fields, Limits limits) {
         int[] count = {0};
         Type result = validate(expression.root(), fields, limits, 1, count);
         if (result != expression.resultType()) throw new IllegalArgumentException("expression result type mismatch");
     }
 
-    private static Type validate(Node node, Map<String, Type> fields, Limits limits, int depth, int[] count) {
+    private static Type validate(Node node, Scoped<Type> fields, Limits limits, int depth, int[] count) {
         if (++count[0] > limits.maxExpressionNodes() || depth > limits.maxExpressionDepth()) {
             throw new IllegalArgumentException("expression structure exceeds profile limits");
         }
@@ -72,11 +122,33 @@ public final class BindingExpressionEvaluator {
             return type(literal.value());
         }
         if (node instanceof Field field) {
-            Type type = fields.get(field.name());
-            if (type == null) throw new IllegalArgumentException("unknown expression field: " + field.name());
+            Type type = fields.of(field.scope()).get(field.name());
+            if (type == null) {
+                throw new IllegalArgumentException("unknown expression field: " + field.scope().label() + "."
+                        + field.name());
+            }
+            if (type == Type.TEXT_SET) throw new IllegalArgumentException("text set is usable only by 'in'");
             return type;
         }
+        if (node instanceof Quantifier quantifier) {
+            if (!fields.scopes().containsKey(Scope.WRITE_ELEMENT)) {
+                throw new IllegalArgumentException("no write view to quantify over");
+            }
+            if (validate(quantifier.body(), fields, limits, depth + 1, count) != Type.BOOLEAN) throw invalidType();
+            return Type.BOOLEAN;
+        }
         Call call = (Call) node;
+        if (call.operator().equals("in")) {
+            Type needle = validate(call.arguments().getFirst(), fields, limits, depth + 1, count);
+            if (++count[0] > limits.maxExpressionNodes() || depth + 1 > limits.maxExpressionDepth()) {
+                throw new IllegalArgumentException("expression structure exceeds profile limits");
+            }
+            if (!(call.arguments().get(1) instanceof Field set)
+                    || fields.of(set.scope()).get(set.name()) != Type.TEXT_SET || needle != Type.TEXT) {
+                throw new IllegalArgumentException("'in' requires text and a text-set field");
+            }
+            return Type.BOOLEAN;
+        }
         List<Type> args = call.arguments().stream().map(arg -> validate(arg, fields, limits, depth + 1,
                 count)).toList();
         Type first = args.getFirst();
@@ -93,6 +165,15 @@ public final class BindingExpressionEvaluator {
                 if (first != Type.TEXT && first != Type.BYTES) throw invalidType();
                 yield first;
             }
+            case "startsWith" -> {
+                same(args);
+                if (first != Type.TEXT && first != Type.BYTES) throw invalidType();
+                yield Type.BOOLEAN;
+            }
+            case "size" -> {
+                if (first != Type.TEXT && first != Type.BYTES) throw invalidType();
+                yield Type.INTEGER;
+            }
             default -> { require(args, Type.INTEGER); yield Type.INTEGER; }
         };
     }
@@ -100,25 +181,45 @@ public final class BindingExpressionEvaluator {
     /**
      * Evaluates an already validated expression while charging both caller-owned budgets.
      * Each visited node costs one work unit; byte-sensitive comparisons and concatenations additionally
-     * charge for their operands. Only the selected conditional branch is visited.
+     * charge for their operands, and {@code in} charges both operands of each comparison it makes. Only the
+     * selected conditional branch is visited.
      *
      * @return a {@link Long}, {@link String}, {@code byte[]}, or {@link Boolean} matching the declared result type
      * @throws BindingFailure for missing data, arithmetic errors, type errors, or exhausted limits
      */
-    public static Object evaluate(BindingExpressionV1 expression, Map<String, Object> event,
+    public static Object evaluate(BindingExpressionV1 expression, Scoped<Object> inputs,
                                   Limits limits, Budget cascade, Budget block) {
-        Object result = evaluate(expression.root(), event, limits, cascade, block);
+        return evaluate(expression, inputs, null, limits, cascade, block, new WriteIndex());
+    }
+
+    /**
+     * Evaluates an admission-rule expression that may quantify over a write view (ADR-031.4).
+     *
+     * @param writes the validated write view, or {@code null} when the component has none; each element maps its
+     *               declared field names (and {@code value.<field>} names) to values
+     * @param index receives the element at which the most recently completed quantifier stopped early
+     */
+    public static Object evaluate(BindingExpressionV1 expression, Scoped<Object> inputs,
+                                  List<Map<String, Object>> writes, Limits limits, Budget cascade, Budget block,
+                                  WriteIndex index) {
+        Object result = evaluate(expression.root(), new Env(inputs, writes, null, limits, cascade, block, index));
         if (type(result) != expression.resultType()) throw new BindingFailure("EXPRESSION_TYPE_ERROR");
         return result;
     }
 
-    private static Object evaluate(Node node, Map<String, Object> event, Limits limits, Budget cascade, Budget block) {
+    private static Object evaluate(Node node, Env env) {
+        Limits limits = env.limits();
+        Budget cascade = env.cascade();
+        Budget block = env.block();
         charge(1, cascade, block);
         if (node instanceof Literal literal) return bounded(literal.value(), limits);
         if (node instanceof Field field) {
-            if (!event.containsKey(field.name())) throw new BindingFailure("EXPRESSION_MISSING_FIELD");
-            return bounded(event.get(field.name()), limits);
+            Map<String, Object> scope = field.scope() == Scope.WRITE_ELEMENT
+                    ? (env.element() == null ? Map.of() : env.element()) : env.inputs().of(field.scope());
+            if (!scope.containsKey(field.name())) throw new BindingFailure("EXPRESSION_MISSING_FIELD");
+            return bounded(scope.get(field.name()), limits);
         }
+        if (node instanceof Quantifier quantifier) return quantify(quantifier, env);
         Call call = (Call) node;
         List<Node> args = call.arguments();
         String op = call.operator();
@@ -126,14 +227,14 @@ public final class BindingExpressionEvaluator {
             boolean decisive = op.equals("or");
             BindingFailure error = null;
             Object left = null;
-            try { left = evaluate(args.get(0), event, limits, cascade, block); }
+            try { left = evaluate(args.get(0), env); }
             catch (BindingFailure failure) {
                 if (failure.code().equals("EXPRESSION_CAPACITY_EXCEEDED")) throw failure;
                 error = failure;
             }
             if (Boolean.valueOf(decisive).equals(left)) return decisive;
             Object right;
-            try { right = evaluate(args.get(1), event, limits, cascade, block); }
+            try { right = evaluate(args.get(1), env); }
             catch (BindingFailure failure) {
                 if (failure.code().equals("EXPRESSION_CAPACITY_EXCEEDED") || error == null) throw failure;
                 throw error;
@@ -144,20 +245,48 @@ public final class BindingExpressionEvaluator {
                     throw new BindingFailure("EXPRESSION_TYPE_ERROR");
             return !decisive;
         }
-        Object a = evaluate(args.getFirst(), event, limits, cascade, block);
+        Object a = evaluate(args.getFirst(), env);
         if (op.equals("if")) {
             if (!(a instanceof Boolean condition)) throw new BindingFailure("EXPRESSION_TYPE_ERROR");
-            return evaluate(args.get(condition ? 1 : 2), event, limits, cascade, block);
+            return evaluate(args.get(condition ? 1 : 2), env);
         }
         try {
             if (op.equals("not")) return !(Boolean) a;
             if (op.equals("neg")) return Math.negateExact((Long) a);
-            Object b = evaluate(args.get(1), event, limits, cascade, block);
+            if (op.equals("size")) {
+                if (!(a instanceof String) && !(a instanceof byte[])) throw new BindingFailure("EXPRESSION_TYPE_ERROR");
+                long length = size(a);
+                charge(length, cascade, block);
+                return length;
+            }
+            Object b = evaluate(args.get(1), env);
+            if (op.equals("in")) {
+                if (!(a instanceof String needle) || !(b instanceof List<?> candidates)) {
+                    throw new BindingFailure("EXPRESSION_TYPE_ERROR");
+                }
+                for (Object candidate : candidates) {
+                    // Each comparison costs what an equality test of the same operands costs.
+                    charge((long) size(needle) + size(candidate), cascade, block);
+                    if (needle.equals(candidate)) return true;
+                }
+                return false;
+            }
             if (op.equals("eq") || op.equals("ne")) {
                 if (type(a) != type(b)) throw new BindingFailure("EXPRESSION_TYPE_ERROR");
                 if (a instanceof byte[] || a instanceof String) charge((long) size(a) + size(b), cascade, block);
                 boolean equal = a instanceof byte[] bytes ? Arrays.equals(bytes, (byte[]) b) : a.equals(b);
                 return op.equals("eq") == equal;
+            }
+            if (op.equals("startsWith")) {
+                if (type(a) != type(b) || !(a instanceof String) && !(a instanceof byte[])) {
+                    throw new BindingFailure("EXPRESSION_TYPE_ERROR");
+                }
+                charge((long) size(a) + size(b), cascade, block);
+                if (a instanceof String text) return text.startsWith((String) b);
+                byte[] bytes = (byte[]) a;
+                byte[] prefix = (byte[]) b;
+                return prefix.length <= bytes.length
+                        && Arrays.equals(bytes, 0, prefix.length, prefix, 0, prefix.length);
             }
             if (op.equals("concat")) {
                 long length = (long) size(a) + size(b);
@@ -197,6 +326,37 @@ public final class BindingExpressionEvaluator {
         }
     }
 
+    /**
+     * Evaluates a quantifier over the write view: one work unit per visited element plus the body's own work, in
+     * index order, stopping at the first element that decides the result or raises an error. The stop is recorded in
+     * the {@link WriteIndex}; a quantifier that runs to completion clears it.
+     */
+    private static Object quantify(Quantifier quantifier, Env env) {
+        List<Map<String, Object>> writes = env.writes();
+        if (writes == null) throw new IllegalStateException("quantifier evaluated without a write view");
+        boolean exists = quantifier.exists();
+        for (int position = 0; position < writes.size(); position++) {
+            Object result;
+            try {
+                charge(1, env.cascade(), env.block());
+                result = evaluate(quantifier.body(), env.at(writes.get(position)));
+            } catch (BindingFailure failure) {
+                env.index().value = position;
+                throw failure;
+            }
+            if (!(result instanceof Boolean holds)) {
+                env.index().value = position;
+                throw new BindingFailure("EXPRESSION_TYPE_ERROR");
+            }
+            if (holds == exists) {
+                env.index().value = position;
+                return exists;
+            }
+        }
+        env.index().value = null;
+        return !exists;
+    }
+
     private static void charge(long work, Budget cascade, Budget block) {
         BindingWork.charge(work, cascade, block);
     }
@@ -205,14 +365,21 @@ public final class BindingExpressionEvaluator {
         if (size(value) > limits.maxExpressionValueBytes()) throw new BindingFailure("EXPRESSION_VALUE_LIMIT");
         return value instanceof byte[] bytes ? bytes.clone() : value;
     }
+    /** Maps a runtime value to its dialect type; a text list is a {@link Type#TEXT_SET}. */
     public static Type type(Object value) {
         if (value instanceof Long) return Type.INTEGER;
         if (value instanceof Boolean) return Type.BOOLEAN;
         if (value instanceof String) return Type.TEXT;
         if (value instanceof byte[]) return Type.BYTES;
+        if (value instanceof List<?> list && list.stream().allMatch(String.class::isInstance)) return Type.TEXT_SET;
         throw new BindingFailure("EXPRESSION_TYPE_ERROR");
     }
     private static int size(Object value) {
+        if (value instanceof List<?> list) {
+            long total = 0;
+            for (Object entry : list) total += BindingWork.size(entry);
+            return Math.toIntExact(Math.min(total, Integer.MAX_VALUE));
+        }
         return value instanceof byte[] || value instanceof String ? Math.toIntExact(BindingWork.size(value)) : 0;
     }
     private static void same(List<Type> types) {

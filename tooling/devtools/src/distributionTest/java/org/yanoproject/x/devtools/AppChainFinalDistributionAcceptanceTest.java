@@ -11,12 +11,14 @@ import org.yanoproject.x.dpp.profile.DppGenesis;
 import org.yanoproject.x.feed.profile.FeedGenesis;
 import org.yanoproject.x.trust.profile.TrustRegistryGenesis;
 import org.yanoproject.x.stdlib.contracts.ApprovalsContract;
+import org.yanoproject.x.stdlib.contracts.BalancesContract;
 import org.yanoproject.x.stdlib.contracts.DocTrailContract;
 import org.yanoproject.x.composite.contracts.BindingReceiptV1;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -190,16 +192,7 @@ class AppChainFinalDistributionAcceptanceTest {
                 temporary.resolve("studio-catalog-release"));
         Path launcher = release.resolve("yano.sh");
         assertThat(release.resolve("tools/yano-appchain/bin/yano-appchain").toFile().setExecutable(true)).isTrue();
-        Path plugins = Files.createDirectory(temporary.resolve("studio-catalog-plugins"));
-        List<String> bundles = List.of("yano-x-composite-bundle-", "yano-x-role-workflow-bundle-",
-                "yano-x-stdlib-bundle-");
-        for (String bundle : bundles) {
-            try (var files = Files.list(release.resolve("plugins"))) {
-                Path jar = files.filter(file -> file.getFileName().toString().startsWith(bundle)).findFirst()
-                        .orElseThrow(() -> new AssertionError("missing packaged bundle " + bundle));
-                Files.copy(jar, plugins.resolve(jar.getFileName()));
-            }
-        }
+        Path plugins = bindingPlugins(release, "studio-catalog-plugins");
         Path context = release.resolve("studio/binding-authoring-context.json");
         Result catalog = run(launcher, List.of("appchain", "bindings", "catalog", "--plugins-directory",
                 plugins.toString(), "--context", context.toString(), "--all"));
@@ -220,6 +213,86 @@ class AppChainFinalDistributionAcceptanceTest {
         assertThat(written.path("operationOutcome").textValue()).isEqualTo("completed");
         assertThat(written.path("catalog")).isEqualTo(shipped.path("catalog"));
         assertThat(written.path("producer")).isEqualTo(shipped.path("producer"));
+    }
+
+    /**
+     * ADR-031.3: the shipped admission-rule starters run through the final archive's launcher and bundles. Validation
+     * lists each component's rules in evaluation order, a block-time refusal is a receipt that names its rule, and a
+     * static rule refuses an over-limit transfer before it reaches a block, as a node's ingress does.
+     */
+    @Test
+    void packagedAdmissionRecipesListTheirRulesAndRefuseThroughTheArchiveLauncher() throws Exception {
+        Path release = extractRelease(Path.of(System.getProperty("yano.test.final-yano-dist-zip")),
+                temporary.resolve("admission-release"));
+        Path launcher = release.resolve("yano.sh");
+        assertThat(release.resolve("tools/yano-appchain/bin/yano-appchain").toFile().setExecutable(true)).isTrue();
+        Path plugins = bindingPlugins(release, "admission-plugins");
+        Path context = release.resolve("studio/binding-authoring-context.json");
+        Path bindings = release.resolve("studio/assets/bindings");
+        Path procurement = bindings.resolve("procurement-admission.yaml");
+        ObjectMapper json = new ObjectMapper();
+        Result validate = run(launcher, List.of("appchain", "bindings", "validate", procurement.toString(),
+                "--plugins-directory", plugins.toString(), "--context", context.toString()));
+        assertThat(validate.exit()).as(validate.error()).isZero();
+        JsonNode admission = json.readTree(validate.output()).path("admission");
+        assertThat(admission.findValuesAsText("component")).containsExactly("orders", "approvals", "audit");
+        assertThat(admission.findValuesAsText("rule"))
+                .containsExactly("registered-supplier", "minimum-quorum", "only-via-binding");
+
+        Result refused = run(launcher, List.of("appchain", "bindings", "dry-run", procurement.toString(),
+                "--plugins-directory", plugins.toString(), "--context", context.toString(), "--fixture",
+                bindings.resolve("fixtures/procurement-admission/fixture-1.json").toString()));
+        assertThat(refused.exit()).as(refused.error()).isZero();
+        JsonNode receipt = json.readTree(refused.output()).path("receipts").get(0);
+        assertThat(receipt.at("/refusal/rule").textValue()).isEqualTo("registered-supplier");
+        assertThat(receipt.at("/refusal/denyCode").textValue()).isEqualTo("NOT_A_REGISTERED_SUPPLIER");
+
+        // A standalone height-1 fixture: the shipped fixture-3.json continues the recipe's first two blocks.
+        Path overLimit = temporary.resolve("over-limit.json");
+        json.writeValue(overLimit.toFile(), new BindingDryRun.Fixture(1, 1_000, "00".repeat(32), 0, List.of(),
+                List.of(new BindingDryRun.Message("73".repeat(32), "22".repeat(32), 1, Long.MAX_VALUE,
+                        "points.command.v1", HexFormat.of().formatHex(BalancesContract.transfer("33".repeat(32),
+                        BigInteger.valueOf(20_000))), "00"))));
+        Result limited = run(launcher, List.of("appchain", "bindings", "dry-run",
+                bindings.resolve("balances-transfer-limit.yaml").toString(), "--plugins-directory",
+                plugins.toString(), "--context", context.toString(), "--fixture", overLimit.toString()));
+        assertThat(limited.exit()).isEqualTo(2);
+        assertThat(limited.error()).contains("ADMISSION_RULE_DENIED/transfer-limit/TRANSFER_LIMIT_EXCEEDED");
+
+        // §6.3 with its shipped governed context: a proposal, an allowed approval, then an approval from an
+        // organization the rule does not allow, which the verified-fact rule refuses.
+        Path examples = release.resolve("examples/bindings");
+        Path roleGated = examples.resolve("dpp-role-gated.yaml");
+        Path roleContext = examples.resolve("fixtures/dpp-role-gated/context.json");
+        Path prior = null;
+        JsonNode last = null;
+        for (int block = 1; block <= 3; block++) {
+            List<String> args = new ArrayList<>(List.of("appchain", "bindings", "dry-run", roleGated.toString(),
+                    "--plugins-directory", plugins.toString(), "--context", roleContext.toString(), "--fixture",
+                    examples.resolve("fixtures/dpp-role-gated/fixture-" + block + ".json").toString()));
+            if (prior != null) args.addAll(List.of("--prior-result", prior.toString()));
+            Result step = run(launcher, args);
+            assertThat(step.exit()).as(step.error()).isZero();
+            prior = temporary.resolve("role-gated-" + block + ".json");
+            Files.writeString(prior, step.output());
+            last = json.readTree(step.output());
+        }
+        assertThat(last.at("/receipts/0/refusal/rule").textValue()).isEqualTo("allowed-organization");
+        assertThat(last.at("/receipts/0/refusal/denyCode").textValue()).isEqualTo("ORGANIZATION_NOT_ALLOWED");
+    }
+
+    /** The composite, role-workflow and stdlib bundles of an extracted release, in their own directory. */
+    private Path bindingPlugins(Path release, String name) throws IOException {
+        Path plugins = Files.createDirectory(temporary.resolve(name));
+        for (String bundle : List.of("yano-x-composite-bundle-", "yano-x-role-workflow-bundle-",
+                "yano-x-stdlib-bundle-")) {
+            try (var files = Files.list(release.resolve("plugins"))) {
+                Path jar = files.filter(file -> file.getFileName().toString().startsWith(bundle)).findFirst()
+                        .orElseThrow(() -> new AssertionError("missing packaged bundle " + bundle));
+                Files.copy(jar, plugins.resolve(jar.getFileName()));
+            }
+        }
+        return plugins;
     }
 
     /** Rehearses the shipped worked example with fresh commands and processes an explicit idle block. */

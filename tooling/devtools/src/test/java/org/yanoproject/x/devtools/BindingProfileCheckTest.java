@@ -28,6 +28,7 @@ import org.yanoproject.x.composite.CompositeProfile;
 import org.yanoproject.x.composite.CompositeStateMachine;
 import org.yanoproject.x.composite.WorkflowDescriptor;
 import org.yanoproject.x.composite.bindings.DeclarativeCompositeProvider;
+import org.yanoproject.x.composite.contracts.BindingExpressionV1;
 import org.yanoproject.x.composite.contracts.BindingIrV1;
 import org.yanoproject.x.composite.contracts.BindingSourceV1;
 
@@ -52,6 +53,27 @@ class BindingProfileCheckTest {
         assertThat(report.profiles().getFirst().expectedDigest())
                 .isEqualTo(HexFormat.of().formatHex(expected.digest()));
         assertThat(report.assurance()).contains("not migration", "replay", "semantic equivalence");
+    }
+
+    /** ADR-031.3: a profile carrying rules reconstructs exactly, and its rules are part of its identity. */
+    @Test
+    void profilesWithAdmissionRulesReproduceAndCommitTheirRules() {
+        var session = session(false);
+        var expected = profile(session, ruled("DIRECT_FORBIDDEN"));
+        var report = BindingProfileCheck.check(List.of(expected), session);
+        assertThat(report.reproducesProfiles()).isTrue();
+        assertThat(report.profiles().getFirst().expectedDigest())
+                .isEqualTo(HexFormat.of().formatHex(expected.digest()));
+        assertThat(profile(session, ruled("SOMETHING_ELSE")).digest()).isNotEqualTo(expected.digest());
+    }
+
+    private static BindingIrV1 ruled(String denyCode) {
+        var rule = new BindingIrV1.AdmissionRule("derived-only", denyCode, null, List.of(), List.of(
+                new BindingIrV1.ExpressionClause(new BindingExpressionV1(BindingExpressionV1.Type.BOOLEAN,
+                        new BindingExpressionV1.Field(BindingExpressionV1.Scope.CONTEXT, "derived")))));
+        return new BindingIrV1(List.of(new BindingIrV1.Component("records", "ordered-log", "records.v1", Map.of(),
+                0, 1, List.of(new BindingIrV1.RuleAttachment("derived-only", Map.of())))), List.of(rule), List.of(),
+                BindingIrV1.Limits.DEFAULT, 1);
     }
 
     @Test

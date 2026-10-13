@@ -45,6 +45,11 @@ public final class KvRegistryTransitions implements
         this.valueFormat = valueFormat != null ? valueFormat : ValueFormat.RAW;
     }
 
+    /** The committed value format; ADR-031.4 value views expose {@code valueText} only for {@code UTF8}. */
+    public ValueFormat valueFormat() {
+        return valueFormat;
+    }
+
     public Command decodeCommand(byte[] body) {
         KvRegistryContract.Command decoded = KvRegistryContract.decodeCommand(body);
         Command command = new Command(decoded.operation(), decoded.key(), decoded.value());

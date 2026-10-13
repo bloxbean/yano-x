@@ -99,6 +99,7 @@ export default defineConfig({
             { label: '4. Java integration', slug: 'bindings/java-integration' },
             { label: '5. Operations and upgrades', slug: 'bindings/operations-and-upgrades' },
             { label: '6. Studio editor', slug: 'bindings/guided-editor' },
+            { label: '7. Admission rules', slug: 'bindings/admission-rules' },
           ],
         },
         {
