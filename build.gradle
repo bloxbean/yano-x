@@ -75,6 +75,19 @@ allprojects {
             }
         }
         mavenCentral()
+        // BloxBean release repository: the same release files as Maven Central,
+        // and the only copy when a BloxBean release skips Central (release-ops
+        // docs/12, e.g. Central's quota is exhausted). Gradle asks Central first;
+        // only BloxBean-owned groups may resolve here.
+        maven {
+            name = 'bloxbeanReleases'
+            url = uri('https://repo.bloxbean.org/maven/releases')
+            mavenContent {
+                releasesOnly()
+                includeGroupByRegex 'org\\.yanoproject(\\..+)?'
+                includeGroupByRegex 'com\\.bloxbean(\\..+)?'
+            }
+        }
         maven {
             url = uri('https://central.sonatype.com/repository/maven-snapshots/')
         }

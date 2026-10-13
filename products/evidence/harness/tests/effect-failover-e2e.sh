@@ -234,6 +234,12 @@ wait_json() {
     fi
     sleep 1
   done
+  # Agreement helpers declare a local phase; top-level waits have none.
+  if [ -z "${phase:-}" ]; then
+    printf 'Timed out waiting for %s at %s\n' "$expression" "$url" >&2
+    [ -f "$output" ] && jq -c . "$output" >&2 2>/dev/null || true
+    return 1
+  fi
   printf 'Cluster agreement timeout (%s):\n' "$phase" >&2
   for node in 0 1 2; do
     if [ -f "$ROOT/$phase-node$node-status.json" ]; then
@@ -297,7 +303,10 @@ scenario_failure_diagnostics() {
     if bounded_get \
         "http://127.0.0.1:$port/api/v1/app-chain/chains/$CHAIN_ID/status" \
         "$app_status" 1048576 2>/dev/null; then
-      jq -c '{chainId,running,tipHeight,stateRoot,memberKey,anchor}' \
+      # Every field DemoClusterTopology compares, so a CLUSTER_DIVERGED names its cause.
+      jq -c '{chainId,running,tipHeight,stateRoot,memberKey,members,threshold,stateMachine,
+        membershipMode,membershipActiveMembers,membershipActiveThreshold,memberActiveForNextBlock,
+        anchor: (.anchor // {} | {leader,mode,bootstrapped,scriptAddress,threadPolicyId,lastAnchoredHeight})}' \
         "$app_status" >&2 || true
     fi
     if bounded_get "http://127.0.0.1:$port/api/v1/node/status" \
