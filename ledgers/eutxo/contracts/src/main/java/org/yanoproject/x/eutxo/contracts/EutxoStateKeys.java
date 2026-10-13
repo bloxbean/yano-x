@@ -181,6 +181,16 @@ public final class EutxoStateKeys {
         return bytes(PREFIX + "bridge/halt");
     }
 
+    /** At most one notice per accepted L1 outpoint the bridge did not credit as asked. */
+    public static byte[] depositNotice(EutxoOutpoint acceptedOutpoint) {
+        return bytes(PREFIX + "bridge/deposit-notice/" + Objects.requireNonNull(
+                acceptedOutpoint, "acceptedOutpoint"));
+    }
+
+    public static byte[] ignoredConfirmations() {
+        return bytes(PREFIX + "bridge/ignored-confirmations");
+    }
+
     public static byte[] withdrawal(String claimId) {
         return bytes(PREFIX + "w/" + transactionId(claimId));
     }
