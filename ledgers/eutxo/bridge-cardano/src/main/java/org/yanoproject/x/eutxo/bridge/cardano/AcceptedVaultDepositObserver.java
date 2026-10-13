@@ -14,7 +14,6 @@ import org.yanoproject.api.appchain.l1view.L1Observer;
 import org.yanoproject.api.appchain.l1view.L1ObserverConsensusIdentity;
 import org.yanoproject.x.eutxo.contracts.EutxoDepositClaim;
 import org.yanoproject.x.eutxo.contracts.EutxoOutpoint;
-import org.yanoproject.x.eutxo.contracts.EutxoSettlementDatum;
 import org.yanoproject.x.eutxo.contracts.EutxoVaultDatum;
 
 import java.math.BigInteger;
@@ -62,7 +61,7 @@ final class AcceptedVaultDepositObserver implements L1Observer {
     }
 
     L1ObserverConsensusIdentity consensusIdentity() {
-        return ObserverConsensusIdentity.of("eutxo-deposit-claim-v1",
+        return ObserverConsensusIdentity.of("eutxo-deposit-claim-v1", EutxoDepositClaim.ABI_VERSION,
                 "chain-id", chainId,
                 "vault-address", vaultAddress,
                 "vault-script-hash", vaultScriptHash,
@@ -75,8 +74,14 @@ final class AcceptedVaultDepositObserver implements L1Observer {
             return List.of();
         }
         List<L1Observation> observations = new ArrayList<>();
-        for (TransactionBody transaction : block.getTransactionBodies()) {
-            EutxoDepositClaim claim = claim(slot, blockHash, transaction);
+        // A phase-2-invalid transaction created no outputs and spent no inputs; only valid ones are read.
+        for (TransactionBody transaction : ValidTransactions.of(block)) {
+            EutxoDepositClaim claim;
+            try {
+                claim = transaction == null ? null : claim(slot, blockHash, transaction);
+            } catch (RuntimeException notCreditable) {
+                continue; // whatever the shape, a transaction that cannot be read is not a deposit
+            }
             if (claim != null) {
                 observations.add(L1Observation.transaction(
                         observerId,
@@ -89,6 +94,11 @@ final class AcceptedVaultDepositObserver implements L1Observer {
         return List.copyOf(observations);
     }
 
+    /**
+     * The one creditable deposit this transaction creates, or null. Anyone can pay the public vault address with
+     * any value and datum, so a vault output that is not a creditable deposit for this chain is skipped, never an
+     * error: a throw here makes the host retry the block forever, stopping all L1 observation for the chain.
+     */
     private EutxoDepositClaim claim(
             long slot,
             byte[] blockHash,
@@ -103,73 +113,101 @@ final class AcceptedVaultDepositObserver implements L1Observer {
             if (!vaultAddress.equals(output.getAddress())) {
                 continue;
             }
-            if (output.getInlineDatum() == null) {
-                throw new IllegalArgumentException(
-                        "accepted bridge deposit requires an inline datum");
-            }
-            byte[] datumCbor = HexFormat.of().parseHex(output.getInlineDatum());
-            EutxoVaultDatum datum;
-            try {
-                datum = EutxoVaultDatum.decode(datumCbor);
-            } catch (IllegalArgumentException notDeposit) {
-                try {
-                    EutxoSettlementDatum.decode(datumCbor);
-                    continue;
-                } catch (IllegalArgumentException notSettlement) {
-                    throw new IllegalArgumentException(
-                            "vault output contains an unsupported bridge datum",
-                            notDeposit);
-                }
-            }
-            BigInteger lovelace = exactLovelace(output);
-            if (lovelace.signum() <= 0 || lovelace.compareTo(maxLovelace) > 0) {
-                throw new IllegalArgumentException(
-                        "accepted bridge deposit is outside the configured lovelace bound");
+            EutxoDepositClaim candidate = creditableDeposit(slot, blockHash, transaction, index, output);
+            if (candidate == null) {
+                continue;
             }
             if (found != null) {
-                throw new IllegalArgumentException(
-                        "one bridge acceptance transaction may create only one deposit vault output");
+                // A genuine acceptance creates exactly one vault output; credit neither of an ambiguous pair.
+                return null;
             }
-            if (!chainId.equals(datum.chainId())) {
-                throw new IllegalArgumentException(
-                        "accepted bridge deposit targets a different app chain");
-            }
-            try {
-                com.bloxbean.cardano.client.transaction.spec.TransactionOutput accepted =
-                        com.bloxbean.cardano.client.transaction.spec.TransactionOutput.builder()
-                                .address(vaultAddress)
-                                .value(Value.fromCoin(lovelace))
-                                .inlineDatum(PlutusData.deserialize(datumCbor))
-                                .build();
-                com.bloxbean.cardano.client.transaction.spec.TransactionOutput mirrored =
-                        com.bloxbean.cardano.client.transaction.spec.TransactionOutput.builder()
-                                .address(datum.l2Address())
-                                .value(Value.fromCoin(lovelace))
-                                .build();
-                found = new EutxoDepositClaim(
-                        EutxoDepositClaim.ABI_VERSION,
-                        chainId,
-                        new EutxoOutpoint(transaction.getTxHash(), index),
-                        slot,
-                        blockHash,
-                        vaultAddress,
-                        vaultScriptHash,
-                        CborSerializationUtil.serialize(accepted.serialize()),
-                        datum.l2Address(),
-                        CborSerializationUtil.serialize(mirrored.serialize()),
-                        datum.depositNonce(),
-                        datum.stagingOutpoint(),
-                        datum.refundDeadline(),
-                        datum.depositorKeyHash(),
-                        datum.l2KeyBinding());
-            } catch (Exception failure) {
-                throw new IllegalArgumentException(
-                        "accepted bridge deposit cannot be canonically encoded", failure);
-            }
+            found = candidate;
         }
         return found;
     }
 
+    /**
+     * The claim for one vault output, or null when it is not a creditable deposit: no inline datum, a datum other
+     * than an accepted-deposit datum (including the settlement outputs the withdrawal observers own), native
+     * assets, an amount outside the bound, another chain, or any value that cannot be canonically encoded. Whether
+     * an L2 key binding applies is the ledger's decision; it never stops the deposit itself.
+     */
+    private EutxoDepositClaim creditableDeposit(
+            long slot,
+            byte[] blockHash,
+            TransactionBody transaction,
+            int index,
+            TransactionOutput output
+    ) {
+        try {
+            if (output.getInlineDatum() == null) {
+                return null;
+            }
+            byte[] datumCbor = HexFormat.of().parseHex(output.getInlineDatum());
+            if (!BridgeDatumPreflight.bounded(datumCbor)) {
+                return null;
+            }
+            EutxoVaultDatum datum = EutxoVaultDatum.decode(datumCbor);
+            BigInteger lovelace = exactLovelace(output);
+            if (lovelace == null || lovelace.signum() <= 0 || lovelace.compareTo(maxLovelace) > 0
+                    || !chainId.equals(datum.chainId())) {
+                return null;
+            }
+            com.bloxbean.cardano.client.transaction.spec.TransactionOutput accepted =
+                    com.bloxbean.cardano.client.transaction.spec.TransactionOutput.builder()
+                            .address(vaultAddress)
+                            .value(Value.fromCoin(lovelace))
+                            .inlineDatum(PlutusData.deserialize(datumCbor))
+                            .build();
+            com.bloxbean.cardano.client.transaction.spec.TransactionOutput mirrored =
+                    com.bloxbean.cardano.client.transaction.spec.TransactionOutput.builder()
+                            .address(datum.l2Address())
+                            .value(Value.fromCoin(lovelace))
+                            .build();
+            byte[] mirroredCbor = CborSerializationUtil.serialize(mirrored.serialize());
+            // The ledger re-reads the mirrored output and requires the same address back.
+            if (!datum.l2Address().equals(com.bloxbean.cardano.client.transaction.spec.TransactionOutput
+                    .deserialize(CborSerializationUtil.deserialize(mirroredCbor)).getAddress())) {
+                return null;
+            }
+            return new EutxoDepositClaim(
+                    EutxoDepositClaim.ABI_VERSION,
+                    chainId,
+                    new EutxoOutpoint(transaction.getTxHash(), index),
+                    slot,
+                    blockHash,
+                    vaultAddress,
+                    vaultScriptHash,
+                    CborSerializationUtil.serialize(accepted.serialize()),
+                    datum.l2Address(),
+                    mirroredCbor,
+                    datum.depositNonce(),
+                    datum.stagingOutpoint(),
+                    datum.refundDeadline(),
+                    datum.depositorKeyHash(),
+                    datum.l2KeyBinding(),
+                    depositorSigned(transaction, datum.depositorKeyHash()));
+        } catch (Exception notCreditable) {
+            return null;
+        }
+    }
+
+    /**
+     * Whether the depositor's key hash is a required signer of the accepting transaction. The Cardano ledger admits
+     * a transaction only when every required signer signed it, so this is the depositor's own approval: the vault
+     * datum's key hash and L2 address are chosen by whoever creates the output, and anyone can accept a staged
+     * deposit. The ledger applies a deposit's L2 key binding only when this holds.
+     */
+    private static boolean depositorSigned(TransactionBody transaction, byte[] depositorKeyHash) {
+        if (transaction.getRequiredSigners() == null) {
+            return false;
+        }
+        String depositor = HexFormat.of().formatHex(depositorKeyHash);
+        return transaction.getRequiredSigners().stream()
+                .anyMatch(signer -> signer != null && depositor.equalsIgnoreCase(signer.trim()));
+    }
+
+    /** The output's lovelace, or null when it also carries a native asset. */
     private static BigInteger exactLovelace(TransactionOutput output) {
         BigInteger lovelace = BigInteger.ZERO;
         if (output.getAmounts() == null) {
@@ -181,8 +219,7 @@ final class AcceptedVaultDepositObserver implements L1Observer {
             if (LOVELACE.equals(amount.getUnit())) {
                 lovelace = lovelace.add(quantity);
             } else if (quantity.signum() != 0) {
-                throw new IllegalArgumentException(
-                        "the initial EUTxO bridge accepts lovelace only");
+                return null; // the initial EUTxO bridge credits lovelace only
             }
         }
         return lovelace;

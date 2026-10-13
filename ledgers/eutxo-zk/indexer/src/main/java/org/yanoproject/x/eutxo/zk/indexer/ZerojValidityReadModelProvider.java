@@ -80,7 +80,10 @@ public final class ZerojValidityReadModelProvider
         }
     }
 
-    private record ZerojSource(
+    /** The settlement status of a batch whose operation journal has a status the lifecycle never writes. */
+    static final String INVALID_JOURNAL = "INVALID_JOURNAL";
+
+    record ZerojSource(
             Path root,
             String chainId,
             String network,
@@ -143,16 +146,19 @@ public final class ZerojValidityReadModelProvider
                                 proof.digestHex(),
                                 proof.verificationKeyDigest(),
                                 "VERIFIED",
+                                // The local journal status (NOT_SUBMITTED,
+                                // PREPARED, SUBMITTED, or INVALID_JOURNAL for a
+                                // journal the lifecycle cannot read). The journal never
+                                // records L1 inclusion, so the slot and block
+                                // hash stay unset.
                                 Objects.toString(
                                         settlement.getOrDefault(
                                                 "status", "NOT_SUBMITTED")),
                                 Objects.toString(
                                         settlement.getOrDefault(
                                                 "transactionId", "")),
-                                number(settlement.get("stableSlot")),
-                                Objects.toString(
-                                        settlement.getOrDefault(
-                                                "stableBlockHash", ""))));
+                                0,
+                                ""));
                     }
                 }
                 result.sort(Comparator.comparing(
@@ -219,33 +225,39 @@ public final class ZerojValidityReadModelProvider
                     });
         }
 
-        private static Map<String, Object> settlement(
+        static Map<String, Object> settlement(
                 List<Map<String, Object>> operations,
                 String proofId
         ) {
-            return operations.stream()
+            List<Map<String, Object>> matching = operations.stream()
                     .filter(operation ->
                             "settlement".equals(operation.get("kind"))
                                     && proofId.equals(
                                     operation.get("proofId")))
+                    .toList();
+            // An unknown status, such as a removed STABLE, is never reported as a
+            // submission; it marks only this batch, so one bad journal leaves the
+            // other batches readable.
+            if (matching.stream().anyMatch(operation -> rank(status(operation)) < 0)) {
+                return Map.of("status", INVALID_JOURNAL);
+            }
+            return matching.stream()
                     .max(Comparator.comparingInt(operation ->
-                            rank(Objects.toString(
-                                    operation.get("status"), ""))))
+                            rank(status(operation))))
                     .orElse(Map.of());
         }
 
-        private static int rank(String status) {
-            return switch (status) {
-                case "STABLE" -> 3;
-                case "SUBMITTED" -> 2;
-                case "PREPARED" -> 1;
-                default -> 0;
-            };
+        private static String status(Map<String, Object> operation) {
+            return Objects.toString(operation.get("status"), "");
         }
 
-        private static long number(Object value) {
-            return value instanceof Number number
-                    ? Math.max(0, number.longValue()) : 0;
+        /** The journal statuses the lifecycle writes, ranked; -1 for any other. */
+        static int rank(String status) {
+            return switch (status) {
+                case "SUBMITTED" -> 2;
+                case "PREPARED" -> 1;
+                default -> -1;
+            };
         }
 
         private static String scalar(BigInteger value) {
