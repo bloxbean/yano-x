@@ -26,14 +26,17 @@ catalogs and pages.
 
 ### Claude Code
 
-Drop a `CLAUDE.md` into the root of your project:
+Save the starter pack next to your project's `CLAUDE.md`, and import it from
+there. Appending the import keeps any `CLAUDE.md` you already have:
 
 ```bash
-curl -o CLAUDE.md https://yano-x.io/ai/starter-pack.md
+curl -fsS -o yano-x-starter-pack.md https://yano-x.io/ai/starter-pack.md
+printf '\n@yano-x-starter-pack.md\n' >> CLAUDE.md
 ```
 
-Claude Code reads `CLAUDE.md` at the start of every session, so the agent always
-has Yano X context.
+Claude Code reads `CLAUDE.md` at the start of every session and follows its
+`@` imports, so the agent always has Yano X context. Re-run the `curl` line to
+refresh the pack; the `@` line stays as it is.
 
 For multi-project setups, reference the hosted version from your global
 `~/.claude/CLAUDE.md`:
@@ -45,13 +48,19 @@ https://yano-x.io/ai/starter-pack/
 
 ### Cursor
 
+Cursor project rules live in `.cursor/rules/` and use front matter to decide
+when a rule applies. The raw starter pack has none: the site serves the page
+body, without its front matter, behind a one-line version comment. Add the
+front matter as you save it, so the rule applies to every request in this
+project:
+
 ```bash
 mkdir -p .cursor/rules
-curl -o .cursor/rules/yano-x.mdc https://yano-x.io/ai/starter-pack.md
+{
+  printf '%s\n' '---' 'description: Yano X architecture rules and invariants' 'alwaysApply: true' '---' ''
+  curl -fsS https://yano-x.io/ai/starter-pack.md
+} > .cursor/rules/yano-x.mdc
 ```
-
-Cursor applies rules in `.cursor/rules/` automatically when working in the
-project.
 
 ### Continue (VS Code / JetBrains)
 
@@ -71,8 +80,9 @@ project.
 For a one-off conversation, paste this at the start:
 
 ```text
-I'm working with Yano X, the Java 25 JVM extension ecosystem for Yano app chains
-(application-specific replicated ledgers on Cardano). Read the Yano X AI Starter
+I'm working with Yano X, the Java 25 JVM extension ecosystem for Yano app
+ledgers (application-specific replicated ledgers that can anchor to Cardano;
+Yano's tooling calls them app chains). Read the Yano X AI Starter
 Pack at https://yano-x.io/ai/starter-pack and follow its rules strictly. In
 particular:
 - Dependency direction is strictly yano-x -> yano. Never propose a composite
@@ -101,7 +111,9 @@ curl -s https://yano-x.io/ai/catalog.json | jq '.configuration[] | select(.scope
 
 ## The in-repo agent skill
 
-Yano X also ships a first-party agent skill in the distribution itself:
+Yano X also ships a first-party agent skill. The JVM distribution carries it in
+`skills/configure-yano-appchain/`, every generated project gets a copy in
+`ai/configure-yano-appchain/`, and its source is in the repository:
 
 ```text
 tooling/devtools/src/main/resources/appchain-dx/v1alpha1/skills/
@@ -111,7 +123,7 @@ tooling/devtools/src/main/resources/appchain-dx/v1alpha1/skills/
 ```
 
 `configure-yano-appchain` covers creating, explaining, updating, validating, and
-diagnosing app-chain **projects** using the version-matched blueprint, capability
+diagnosing app ledger **projects** using the version-matched blueprint, capability
 catalog, and CLI.
 
 **Where the skill and the starter pack overlap, the skill wins** — it is

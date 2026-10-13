@@ -90,7 +90,7 @@ proof retrieval; catch-up and restart; and anchor state where applicable.
 
 Persistence changes additionally require apply, rollback, replay, restart, and
 root-parity checks. Derived indexes must never advance beyond authoritative
-app-chain state, and must remain separate from L1 `chainstate`.
+app ledger state, and must remain separate from L1 `chainstate`.
 
 ## Architecture invariants
 
@@ -114,7 +114,7 @@ These are the rules a reviewer will hold you to. The full list lives in
 - The plugin directory property is `yano.plugins.directory`. Do not reintroduce
   `yaci.plugins.directory`.
 - Yano X is JVM-only.
-- The app-chain feature has not had a public release: remove obsolete adapters,
+- The app ledger feature has not had a public release: remove obsolete adapters,
   aliases, and duplicate activation paths rather than preserving accidental
   compatibility. Preserve documented Cardano node, OrderedLog, wire/storage,
   proof, replay, and distribution invariants.

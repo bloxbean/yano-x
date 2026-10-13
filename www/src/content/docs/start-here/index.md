@@ -5,31 +5,48 @@ editUrl: "https://github.com/bloxbean/yano-x/edit/main/docs/site/start-here.md"
 ---
 Start with a working example. Learn one concept at a time, then bring your own application rules.
 
-Yano X is the Java 25 extension ecosystem for **Yano app chains**: application ledgers that several members run together. Yano handles ordering, member finality, proofs, and optional Cardano anchors. Yano X adds state machines, workflows, connectors, and application tooling as JVM plugins.
+Yano X is the Java 25 extension ecosystem for **Yano app ledgers**: application ledgers that several members run together. Yano handles ordering, member finality, proofs, and optional Cardano anchors. Yano X adds state machines, workflows, connectors, and application tooling as JVM plugins. Yano's tooling calls an app ledger an *app chain*, so commands and settings use `appchain` and `app-chain`.
 
-## 1. See a chain work
+## 1. See a ledger work
+
+**Time:** about 15 minutes after the download.
 
 Follow the [local showcase quickstart](/start-here/quickstart/). You will start three members on a private devnet, submit data, and compare their state. You need Java 25, Python 3, `curl`, and `jq`. You do not need a public-network wallet or test ADA.
 
 **Ready to continue when:** you can submit an order, verify member agreement, stop the instance, and restart it with the same data.
 
-If the idea is new, read [What is an app chain?](/start-here/what-is-an-app-chain/) first. If you only need Cardano data, transaction submission, or devnet testing, begin with [Yano](https://getyano.dev/).
+If the idea is new, read [What is an app ledger?](/start-here/what-is-an-app-ledger/) first. If you only need Cardano data, transaction submission, or devnet testing, begin with [Yano](https://getyano.dev/).
 
 ## 2. Understand what you verified
 
-A successful HTTP submission means the message was admitted; it does not yet mean the block is final or the application transition succeeded. Members certify app blocks under a configured threshold. A proof establishes a specific claim against a committed root. An optional Cardano anchor adds a separate L1 record; it does not make Cardano validators execute your application rules.
+**Time:** about 30 minutes: 15 for the tutorial and 15 for the concepts.
 
-Work through [Registry and proofs](/tutorials/02-registry-and-proofs/), then consult [State and proofs](/concepts/state-and-proofs/) for the trust model.
+Four results look similar but establish different things:
+
+<!-- illustration: what-did-you-verify -->
+
+- **202 Accepted:** one member queued the message. It is not yet ordered, final, or successful.
+- **Final:** a threshold of members re-executed and certified the block. The command itself may still have been a no-op, so read the application's result.
+- **Proof:** a record is, or is not, in the state under one root. It proves more only if you trusted that root independently.
+- **Anchor:** Cardano records the ledger's height, block hash, and state root. Cardano does not run your application rules.
+
+<!-- /illustration -->
+
+Work through [Registry and proofs](/tutorials/02-registry-and-proofs/), then read [State and proofs](/concepts/state-and-proofs/) for the trust model.
 
 **Ready to continue when:** you can explain the difference between submission, a finalized result, a proof, and an anchor.
 
 ## 3. Model your application
+
+**Time:** plan on an hour to choose a recipe and validate a profile.
 
 [Choose a recipe](/recipes/choosing-a-recipe/) for your outcome: shared records, document history, approvals, or another supported workflow. [Configure an application profile](/deployment/configure/) and validate it before running it. [Studio](/studio/) can help you explore and export a blueprint.
 
 **Ready to continue when:** you know which state machine and capabilities your application needs. You do not need to write a plugin if an existing recipe fits.
 
 ## 4. Extend or operate when you need to
+
+Most tutorials state their time at the top.
 
 | Your next task | Continue here |
 | --- | --- |

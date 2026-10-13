@@ -12,7 +12,7 @@ import {clauseLocation} from './binding-catalog.mjs';
 const CATEGORY_LABELS = Object.freeze({
   'target-rejection': 'target rejection', 'resource-exhaustion': 'resource exhaustion',
   'evaluation-error': 'evaluation error', 'replay-or-conflict': 'replay or conflict',
-  'contract-violation': 'contract violation'});
+  'contract-violation': 'contract violation', 'admission-rule': 'admission rule'});
 
 /**
  * Text from a receipt or kernel made safe to show as text: control, format and bidirectional-override
@@ -39,8 +39,8 @@ export function isHidden(character) {
 function codeInfo(code, table) {
   if (!code) return null;
   const entry = table.find(value => value.code === code);
-  return Object.freeze(entry ? {code, known: true, category: entry.category, categoryLabel: CATEGORY_LABELS[entry.category],
-    levels: entry.levels, origin: entry.origin, entry}
+  return Object.freeze(entry ? {code, known: true, category: entry.category,
+    categoryLabel: CATEGORY_LABELS[entry.category] ?? entry.category, levels: entry.levels, origin: entry.origin, entry}
     : {code, known: false, category: null, categoryLabel: 'unclassified', levels: [], origin: 'kernel', entry: null});
 }
 

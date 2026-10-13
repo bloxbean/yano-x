@@ -96,7 +96,7 @@ real Yano devnet L1, real Cardano transactions, Julc-compiled Plutus V3
 validators, a real Groth16 proof, and the generic appchain REST path:
 
 ```bash
-./gradlew :app:e2eTest \
+./gradlew :fixtures:eutxo-e2e:e2eTest \
   --tests \
   'org.yanoproject.app.e2e.EutxoZkRollupDevnetE2ETest' \
   --rerun-tasks
@@ -119,24 +119,18 @@ EUTXO_ZK_DEVNET_ROUND_TRIP_PASS
 This is the fastest way to observe the full protocol today. The manual
 sections below expose the same boundaries one operation at a time. When
 implementing an external Cardano builder, use
-`app/src/test/java/org/yanoproject/app/e2e/`
+`fixtures/eutxo-e2e/src/test/java/org/yanoproject/app/e2e/`
 `EutxoZkRollupDevnetE2ETest.java` as the executable Cardano Client Lib
 reference for script compilation, datum/redeemer construction, fees,
 collateral, reference scripts, and signing.
 
-## 3. Build or extract Yano
+## 3. Build or extract Yano X
 
-From source:
-
-```bash
-./gradlew :app:yanoDistZip
-mkdir -p build/eutxo-zk-devnet
-unzip app/build/distributions/yano-*.zip -d build/eutxo-zk-devnet
-cd build/eutxo-zk-devnet/yano-*
-```
-
-Alternatively, extract the JVM `yano-{version}.zip` release and enter its
-root. The JVM distribution is required for this experimental capability.
+Extract a Yano X JVM release, `yano-x-jvm-<version>.zip`, or
+[build it from source](../../docs/BUILD_DISTRIBUTIONS.md), and enter its
+top-level directory, the one containing `yano.sh`. The JVM distribution is
+required for this experimental capability; the plain Yano host ZIP does not
+contain the eUTxO bundles.
 
 Set stable paths before creating the project:
 
@@ -343,6 +337,18 @@ for node, seed in enumerate(seeds):
 PY
 ```
 
+The default `plugins/` directory holds the standard eUTxO ledger bundle. The ZK
+runtime provides the same `eutxo-ledger` contribution, so exactly one of them
+may be installed. Swap in the ZK runtime from `optional-plugins/` and validate
+the selection before you start:
+
+```bash
+mkdir -p "$WORK/removed-plugins"
+mv "$YANO_HOME"/plugins/yano-x-eutxo-ledger-bundle-*.jar "$WORK/removed-plugins/"
+cp "$YANO_HOME"/optional-plugins/yano-x-eutxo-zk-runtime-bundle-*.jar "$YANO_HOME/plugins/"
+"$YANO_HOME/tools/yano-plugins/bin/yano-plugins" validate "$YANO_HOME"/plugins/*.jar
+```
+
 Start the generated cluster:
 
 ```bash
@@ -471,9 +477,9 @@ acceptance transactions in the external Cardano component. The canonical
 reference is:
 
 - `DepositStagingValidator` in
-  `appchain-eutxo-bridge-onchain`;
+  `yano-x-eutxo-bridge-onchain`;
 - `EutxoStagingDatum` and `EutxoVaultDatum` in
-  `appchain-eutxo-contracts`;
+  `yano-x-eutxo-contracts`;
 - `DepositAcceptanceBuilder` in `yano-x-eutxo-bridge-cardano`; and
 - `acceptDeposit(...)` in `EutxoZkRollupDevnetE2ETest`.
 
@@ -556,9 +562,9 @@ export L2_INPUT='<mirrored-transaction-id>#<index>'
   --chain "$CHAIN_ID" | jq
 ```
 
-The L2 input normally preserves the accepted L1 outpoint identity. Always use
-the committed deposit record or returned L2 record rather than assuming an
-index.
+The mirrored L2 UTxO has its own outpoint, which differs from the L1
+acceptance outpoint. Always use the committed deposit record or the returned L2
+record rather than deriving the L2 input from the L1 transaction.
 
 ## 11. Build and publish the L2 withdrawal transaction
 

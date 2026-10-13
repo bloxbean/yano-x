@@ -169,7 +169,7 @@ downloaded bundle is what `yano-explorer verify` reads.
 | `FINALIZED` / `CONTENT_VERIFIED` | A trail revision is finalized; an archived body hashes to its entry hash and is served by hash |
 | `INTERNAL_CONSISTENCY_ONLY` (exit 6) | `verify` with the bundle's own members |
 | `CALLER_PINNED_ROOT` (exit 5) | `verify --members` |
-| `CALLER_PINNED_ANCHOR` (exit 0) | `verify --anchor-datum-hex` |
+| `INDEPENDENTLY_VERIFIED_L1_ANCHOR` (exit 0) | `verify --anchor-datum-hex` |
 
 A `JSON_ONLY` block never upgrades on its own: run `rebuild` for the chain once the node
 retains evidence again (an archival node, or a node whose retention covers the height).

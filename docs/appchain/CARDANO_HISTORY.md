@@ -137,13 +137,12 @@ editing presentation JSON cannot turn a false claim into a true one. It can gene
 packages that explicitly show the authenticated actual value, requested predicate, proof validity,
 claim result, and final acceptance. These result fields are explanatory: imported packages are
 always reverified and their bundled verdict is never trusted. A newly generated package remains
-`pending-offchain-verification` until that check runs.
-root-fixed proof material; independent Cardano anchor verification remains available through
-`yano-cardano-history verify`.
+`pending-offchain-verification` until that check runs. Independent Cardano anchor verification
+remains available through `yano-cardano-history verify`.
 
 ## On-chain consumption
 
-`appchain-cardano-history-onchain` fixes the Cardano History application ID, MPF profile, canonical
+`yano-x-cardano-history-onchain` fixes the Cardano History application ID, MPF profile, canonical
 component/snapshot keys, dataset series, and predicate tags. Its compiled parameter and pair
 validators compose the reusable MPF anchor, inclusion, same-root completeness, and authenticated
 snapshot libraries. Protected keys, epoch, predicate, and operands are script parameters rather
@@ -154,9 +153,9 @@ is off-chain-only.
 
 ## Showcase distribution
 
-The showcase ZIP contains the product bundle in `yano/plugins` and the standalone CLI below
-`tools/cardano-history`. The default light profile enables `params-only-v1`; use a fresh instance
-for another genesis-time preset:
+The Yano X JVM distribution contains the product bundle in `plugins/` and the standalone CLI in
+`tools/yano-cardano-history`. The showcase's default light profile enables `params-only-v1`; use a
+fresh instance for another genesis-time preset:
 
 ```bash
 ./showcase.sh quickstart --instance history-params

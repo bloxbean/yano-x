@@ -529,8 +529,9 @@ final class EvidenceScenario {
         VerifiedEvidence retained = agreedEvidence(
                 request.evidenceId(), request.businessVersion()).orElseThrow(
                 () -> new DemoException(DemoError.EVIDENCE_NOT_FOUND));
+        // The state root is not compared: every finalized block commits its own
+        // block-message root, so a no-op replay still moves it.
         if (!retained.record().equals(record)
-                || !after.stateRoot().equals(before.stateRoot())
                 || after.height() <= before.height()
                 || environment.kafka.endOffset() != kafkaEnd) {
             throw new DemoException(DemoError.EXTERNAL_STATE_MISMATCH);

@@ -142,7 +142,7 @@ traversal, floating point, regex, clock, randomness, network calls, or Java
 access. The only functions are `size(x)`, the UTF-8 byte length of text or the
 length of bytes, and `startsWith(x, prefix)` (also written
 `x.startsWith(prefix)`) for text or bytes. Admission rules add the write-view
-quantifiers `writes.all` and `writes.exists` ([chapter 7](07-admission-rules.md)).
+quantifiers `writes.all` and `writes.exists` ([chapter 8](08-typed-views.md)).
 Named mapping functions use `fn`, not arbitrary function calls inside `expr`.
 
 Integers are signed 64-bit values. Overflow and division by zero produce
@@ -213,9 +213,10 @@ never evidence, so they cannot be mapped into an evidence field.
 
 Each use site has its own scopes. Bindings read `event.*` and `context.*`.
 [Admission rules](07-admission-rules.md) read `context.*` for the step they judge,
-plus `command.*`, `params.*`, `config.*` and verified `facts.*`, and never the
-event. Using a scope that is not available is reported as `RULE_SCOPE_INVALID`
-with the position of the offending identifier.
+plus `command.*`, `params.*`, `config.*`, verified `facts.*` and their declared
+`reads.*` ([chapter 8](08-typed-views.md)), and never the event. Using a scope
+that is not available is reported as `RULE_SCOPE_INVALID` with the position of
+the offending identifier.
 
 ## Native events versus the baseline event
 

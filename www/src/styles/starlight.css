@@ -94,37 +94,6 @@
   border-radius: 6px;
 }
 
-/* ── Mermaid ───────────────────────────────────────────────────────────────
-   Diagrams are injected as <pre class="mermaid"> by scripts/remark-mermaid.mjs
-   and rendered client-side. Until mermaid runs the raw source would flash, so
-   it stays hidden and is revealed once an <svg> child exists. */
-
-pre.mermaid {
-  visibility: hidden;
-  margin: 1.5rem 0;
-  padding: 1rem;
-  border: 1px solid var(--sl-color-gray-5);
-  border-radius: 0.5rem;
-  background: var(--sl-color-black);
-  overflow-x: auto;
-  text-align: center;
-  line-height: 1;
-}
-
-pre.mermaid:has(svg),
-pre.mermaid[data-render-error] {
-  visibility: visible;
-}
-
-pre.mermaid svg {
-  max-width: 100%;
-  height: auto;
-}
-
-[data-theme='light'] pre.mermaid {
-  background: #f5f9fa;
-}
-
 /* ── Tables ────────────────────────────────────────────────────────────────
    The generated catalog pages are table-heavy and some are wide. Let them
    scroll inside their own container instead of stretching the page. */

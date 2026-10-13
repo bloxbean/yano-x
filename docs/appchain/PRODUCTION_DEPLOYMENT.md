@@ -2,12 +2,12 @@
 
 Every product in this repository ships with a launcher, demo actors, and a local console, and every
 one of those is a demonstration convenience. This guide says what changes when a consortium runs
-one of these chains for real: how the genesis is agreed, where keys live, what each service is
+one of these app ledgers for real: how the genesis is agreed, where keys live, what each service is
 allowed to reach, and which parts are still gated.
 
 Yano is pre-release. Nothing here makes a `preview` or `EXPERIMENTAL` product production-ready on
-its own; read each product's classification in its ADR first. The DPP starter is a prototype and
-the attestation feed is experimental, and both have gated stages listed at the end.
+its own; read each product's status first. The DPP starter is a prototype and the attestation feed
+is experimental, and both have gated stages listed at the end.
 
 ## The short version
 
@@ -25,7 +25,7 @@ the attestation feed is experimental, and both have gated stages listed at the e
 
 The genesis fixes the collections, the schemas, the roles, the policies, and the actors with their
 public keys. Its hash is the genesis id, and every authorization is signed against it, so agreeing
-it is the first governance act and changing it later means a different chain.
+it is the first governance act and changing it later means a different ledger.
 
 **Each actor generates its own key.** On the actor's own machine, never on the operator's:
 
@@ -47,18 +47,23 @@ yano-trust genesis --descriptor registry.json --members <key,key,key> --threshol
 
 **Every participant regenerates it independently and compares the genesis id.** The generator is
 deterministic: the same descriptor, members, and threshold always give the same id. A participant
-who cannot reproduce the id should not join the chain. Publish the id where members can check it.
+who cannot reproduce the id should not join the ledger. Publish the id where members can check it.
 
-Note what cannot be changed afterwards without a new chain: the collections, their policies, the
+Note what cannot be changed afterwards without a new ledger: the collections, their policies, the
 actors declared at genesis, the block interval, and the message size bounds. Adding an actor later
 is a governance action on the role workflow, and the product CLIs do not expose it today.
 
 ## 2. Members, threshold, and nodes
 
 The member set is the list of node keys whose signatures certify a block, and the threshold is how
-many must sign. Both are consortium decisions, not defaults. A threshold of two of three tolerates
-one failure and one dishonest member; a larger consortium should size the threshold against the
-failures and the collusion it wants to survive, and every verifier must pin the same set.
+many must sign. Both are consortium decisions, not defaults, and every verifier must pin the same set.
+
+Size the threshold against two separate risks. Up to `n − t` members can be offline while the ledger
+keeps finalizing blocks. Dishonest members are a separate assumption: the fault bound `f`, set as
+`consensus.max-byzantine-members`, is 0 by default, and the node refuses to start unless
+`2t − n > f` and `t ≤ n − f`. A threshold of two of three therefore tolerates one member being down,
+but not one dishonest member: it cannot be configured with `f = 1`. Tolerating one dishonest member
+takes, for example, four members with a threshold of three and `f = 1`.
 
 Each organization runs its own node, with its own storage, and its own signing key. Do not run a
 "cluster" of nodes owned by one operator and call it a consortium: the threshold then proves only
@@ -69,8 +74,9 @@ Node configuration is the product's chain entry plus the four generated properti
 every node. The block interval and message size in the generated properties are part of the genesis
 identity: a node started with different values will not agree.
 
-Give each node its own data directory, back up its chain state, and decide a retention policy for
-proofs and history before you need one. Historical answers need proof retention: a verifier asking
+Give each node its own data directory, back up its authoritative stores, `chainstate/` and
+`appchain-chainstate/` (see [where data lives](../site/concepts-where-data-lives.md)), and decide a
+retention policy for proofs and history before you need one. Historical answers need proof retention: a verifier asking
 about height H needs the node to still hold it.
 
 ## 3. Keys and signing
@@ -79,7 +85,7 @@ This is where a demonstration differs most from a deployment.
 
 **Do not run a shared gateway in production.** A gateway signs for every actor whose seed it was
 started with, so whoever holds its token can write as any of them. In a demo that is the point; in
-a deployment it collapses the distinction the chain is there to make. Each organization should
+a deployment it collapses the distinction the ledger is there to make. Each organization should
 either run a gateway holding only its own actors' keys, on its own machine, reachable only by its
 own operators, or use a browser-held key so nothing but the tab ever has it.
 
@@ -89,8 +95,9 @@ closes. It is the honest default for a person acting for themselves. Hardware an
 are not implemented yet.
 
 **API keys** authenticate callers to the node, and are not identities. Issue one per caller, keep
-them out of shell history and repositories, and rotate them. `--api-key-file` exists everywhere an
-`--api-key` flag does, and the services read the node key on their side so a console never holds it.
+them out of shell history and repositories, and rotate them. `yano-trust`, `yano-dpp`, `yano-feed`,
+and `yano-explorer` accept `--api-key-file`; `yano-attest` and `yano-cardano-history` accept only
+`--api-key`. The services read the node key on their side so a console never holds it.
 
 **Authorization lifetimes** are bounded in blocks and one-use. A signer that is offline long enough
 for its authorization to expire simply retries; do not raise the lifetime to avoid that.
@@ -106,7 +113,7 @@ deliberate act:
 | Product portal (DPP, feed) | public, read only | serves proofs and views; no secret, no write route |
 | Registry read service | public, read only | serves status lists and TRQP answers |
 | Operator gateway | private to one organization's operators | holds keys; never public, and never without TLS if it leaves the host |
-| Explorer service | as private as the chain data it indexes | holds the node API key on its side |
+| Explorer service | as private as the ledger data it indexes | holds the node API key on its side |
 | Consoles | static files | can be public; they hold no secret beyond what the operator types |
 
 A console served over HTTPS cannot call a service over plain HTTP. Either serve both over HTTPS, or
@@ -122,7 +129,7 @@ The demo anchors to a devnet the cluster runs itself. In production, anchoring i
   mainnet only when the operator accepts the cost and the permanence.
 - Anchoring needs a funded wallet key. Keep it in a file the launcher reads, owner-only, outside
   the data directory, and treat it as a production secret. Never pass a seed on a command line.
-- Only some chains need anchoring. Anchor the ones whose evidence must be independently checkable
+- Only some ledgers need anchoring. Anchor the ones whose evidence must be independently checkable
   later, and leave the rest.
 - Verifiers reach the top trust level by reading the anchor datum from a Cardano source they trust
   and passing it to `verify --anchor-datum-hex`. Plan how your verifiers get that datum: a public
@@ -140,17 +147,17 @@ The demo anchors to a devnet the cluster runs itself. In production, anchoring i
 
 ## 7. Per-product notes
 
-- **Attest** needs a chain running the stock `doc-trail` state machine and nothing else. Its
+- **Attest** needs a ledger running the stock `doc-trail` state machine and nothing else. Its
   certificate is portable and verifies offline; distribute the members file through a channel your
   verifiers trust, never alongside the certificate alone.
 - **Trust and Status Registry** publishes status lists that verifiers fetch by URL. Publish again
-  after later status writes, or a served list will not match the chain. Onboarding an issuer after
+  after later status writes, or a served list will not match the ledger. Onboarding an issuer after
   genesis goes through the approval route and has no CLI yet.
 - **Verifiable Explorer** is a convenience index. It never adds trust: every row keeps its evidence
   and can be verified against the node. Give it read access only.
 - **DPP Starter** is a prototype. Any manufacturer can rewrite any product, and the ledger exposes
-  that as a flag rather than preventing it. The full provider that enforces the rules on chain
-  waits on ADR-025 qualification and ADR-026 acceptance.
+  that as a flag rather than preventing it. The full provider that enforces the rules on the
+  ledger waits on qualification of the governed map and acceptance of the DPP design.
 - **Data Attestation Feed** is experimental. Aggregates are recomputed by verifiers, nothing is
   published to Cardano, and the hardened publication executor and the reviewed aggregation
   component are core work that has not landed.

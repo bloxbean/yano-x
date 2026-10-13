@@ -1,6 +1,7 @@
 # 7. Admission rules
 
-[Previous: Studio editor](06-guided-editor.md) · [Learning path](README.md)
+[Previous: Studio editor](06-guided-editor.md) · [Learning path](README.md) ·
+[Next: Typed views](08-typed-views.md)
 
 Declarative bindings are experimental and still undergoing qualification. The
 examples here explain the current implementation, not a production
@@ -15,10 +16,10 @@ of the committed composite profile, so every member evaluates them identically.
 
 This chapter uses the rule recipes in `examples/bindings/`:
 `balances-transfer-limit.yaml`, `procurement-admission.yaml`,
-`dpp-role-gated.yaml`, and the typed-view recipes `asset-governed-limits.yaml`,
-`dpp-namespace-isolation.yaml`, `feed-slot-rules.yaml` and
-`balances-holding-cap.yaml`. The integration harness `BindingRecipesIT` runs
-each of them on three real nodes and replays every finalized block offline with
+`dpp-role-gated.yaml`, `feed-slot-rules.yaml` and `balances-holding-cap.yaml`.
+[Chapter 8](08-typed-views.md) covers rules that read other components' state
+and judge each write of a batch. The integration harness `BindingRecipesIT` runs
+every recipe on three real nodes and replays every finalized block offline with
 byte-identical receipts.
 
 ## Declare a rule and attach it
@@ -57,7 +58,7 @@ composite:
   stating a default and omitting it compile to identical bytes. A `binding`
   parameter must name a binding that targets the attached component.
 - `reads` (optional) declares up to four named reads of other components' state
-  (see [Reading state](#reading-state-and-governed-parameters)).
+  (see [Typed views](08-typed-views.md)).
 - `require` is an ordered list of clauses. Each is a restricted CEL `expr` or a
   `lookup` (`exists`, `absent`, or `eq` against a source). The first clause that
   does not hold refuses the command with the rule's deny code.
@@ -78,8 +79,8 @@ rules read the command they judge.
 | `params.*` | no | yes |
 | `config.*` | no | yes (the component's normalized configuration) |
 | `facts.*` | no | yes, if the kernel declares facts |
-| `reads.*` | no | yes, for the rule's declared reads |
-| `writes` | no | only as `writes.all(w, …)` or `writes.exists(w, …)`, if the kernel declares a write view |
+| `reads.*` | no | yes, for the rule's declared reads ([chapter 8](08-typed-views.md)) |
+| `writes` | no | only as `writes.all(w, …)` or `writes.exists(w, …)`, if the kernel declares a write view ([chapter 8](08-typed-views.md)) |
 
 `context.*` has exactly five fields: `height` (integer), `sender` (bytes, the
 source message's sender), `derived` (boolean), `depth` (integer, 0 for the
@@ -112,7 +113,27 @@ within each slot:
    kernel rejection runs no fact rule and reveals no fact.
 
 The first failing rule wins; later rules are neither evaluated nor charged.
-Each step's receipt records `rulesEvaluated = [heldCount, failure]`, where the
+Step through both slots with the `feed-slot-rules` recipe. Its two rules are
+attached in one order but run in the other, because only one of them needs the
+kernel's verified facts:
+
+<!-- illustration: rule-slots-timeline -->
+1. **Submit.** Actor `logistics-a` signs a map write that puts an observation
+   with price 150 into `observations/logistics-a/1`.
+2. **Ingress.** Neither rule is static, so the ingress member runs only the
+   codec and the kernel's stateless admission, and answers 202.
+3. **Admission slot.** At block time, before any work is reserved,
+   `feed-open-and-in-range` reads the feed record and checks that the price is
+   within its range.
+4. **Kernel decides.** The map reserves crypto work, verifies the actor's
+   signature and approves. That approval supplies the write's coverage.
+5. **Fact slot.** `own-insert-only-slot` reads the coverage, so it runs only now:
+   the write must be the actor's own insert-only slot.
+6. **Commit.** Both rules held, the step's rule trace is `[2, null]`, and the
+   observation commits.
+<!-- /illustration -->
+
+Each step's receipt records `rules = [heldCount, failure]`, where the
 failure names the rule, the clause index, the deny code and, when a quantifier
 stopped early, the index of the write that decided. Reads run before the
 clauses; a read that fails records clause `-1`. Receipts never contain read
@@ -199,10 +220,12 @@ kernels can feed `facts.*`:
 | governed `authenticated-map-component` | also `directActorCount`, `approvalCount` (integers); for exactly one direct actor, `actorId`, `organizationId`, `role`, `roles` (text set) and `policyId` |
 | `governed-role-approvals` | `actorId`, `organizationId`, `roles` (text set), `action` (`PROPOSE`, `APPROVE`, `REJECT`, `CANCEL`), `policyId`, `policyRevision` |
 
-Other stock kernels authenticate only the member sender and declare no facts; a
-fact rule attached to them is rejected (`RULE_FACT_UNKNOWN`). A multi-actor map
-batch establishes counts only, so a rule that reads `facts.roles` for it fails
-closed with `ADMISSION_RULE_ERROR`.
+The other stock kernels authenticate only the member sender, so they establish
+no identity facts; they declare the post-state facts described
+[below](#pattern-post-state-facts). A rule that reads a fact its kernel does not
+declare is rejected when the profile is built (`RULE_FACT_UNKNOWN`). A
+multi-actor map batch establishes counts only, so a rule that reads
+`facts.roles` for it fails closed with `ADMISSION_RULE_ERROR`.
 
 `dpp-role-gated.yaml` adds two rules to the DPP approval recipe:
 
@@ -233,79 +256,12 @@ To role-gate a member-authenticated machine such as `kv-registry`, put a
 role-verified component in front of it and attach an `only-via-binding` rule to
 the target.
 
-## Reading state and governed parameters
-
-A rule may declare up to four **reads**. Each reads one exact key of another
-component's **value view**, the typed fields that component's kernel exposes
-for the records it stores, through the state this cascade left. Reads run before
-the clauses:
-
-```yaml
-    - id: governed-transfer-limit
-      command: transfer
-      deny: TRANSFER_LIMIT_EXCEEDED
-      reads:
-        limits: {component: registry, namespace: settings, key: {literal: "transfer"}}
-      require:
-        - expr: 'command.amount <= reads.limits.value.max'
-```
-
-- `component` names a declared component; `namespace` selects one of its views
-  (the default namespace is `""`; each map collection is a namespace).
-- `key` is a source from the key scopes above.
-- Clauses read `reads.<name>.present` and the view fields, as
-  `reads.<name>.<field>` or `reads.<name>.value.<field>` for a map value's
-  schema member. An absent record has only `present == false`; reading another
-  field of it fails closed unless the clause checks `present` first.
-
-The limit lives in the registry, so raising it is an approved map write, not a
-profile change: the next block reads the new value. `asset-governed-limits.yaml`
-also reads the sender's holder record for a tier limit and a lock-up.
-
-The stock views are:
-
-| Kernel | Namespace (key) | Fields |
-|---|---|---|
-| `balances` | `""` (account id text, for example `{fn: hex, args: [{context: sender}]}`) | `balance`; an absent account means zero |
-| `kv-registry` | `""` (key bytes) | `owner`, `value`, `valueLength`; `valueText` with `value-format: utf8` |
-| `doc-trail` | `""` (entity id) | `count`, `headHash` |
-| `approvals` | `""` (item id) | `status` (`PENDING`, `APPROVED`, `REJECTED`, `EXPIRED`), `required`, `approverCount`, `proposer`, `payloadHash` |
-| `authenticated-map-component` | each collection id (application key) | `status` (`ACTIVE`, `REVOKED`), `revision`, `createdHeight`, `lastMutationHeight`, `valueLength`, `controller`; `value.<member>` for the first 32 scalar top-level members of a schema-typed value |
-
-Text and bytes over 4096 bytes are absent (their length stays readable), and an
-integer outside int64 fails closed with `ADMISSION_RULE_INPUT`. Map members are
-exposed only when their key is a CEL identifier, and a revoked entry exposes no
-`value.<member>`, so an unguarded member read of a revoked record fails closed.
-
-## Pattern: rules over a batch of writes
-
-The authenticated map declares a **write view**: one element per mutation of a
-command, with `index`, `collection`, `key`, `keyText`, `op`, `hasValue`,
-`valueLength`, `expectedRevision` and the schema members as `value.<member>`.
-After the map verified a command's evidence, each element also carries its
-**coverage**: `direct` with the covering actor's `actorId`,
-`actorOrganizationId` and `actorRoles`, `approval`, or `none`.
-
-```yaml
-    - id: manufacturer-owns-product
-      deny: FOREIGN_PRODUCT
-      require:
-        - expr: 'writes.all(w, (w.collection != "product-versions" && w.collection != "events") || (w.coverage == "direct" && startsWith(w.keyText, w.actorOrganizationId + "/")))'
-```
-
-`writes.all(w, …)` and `writes.exists(w, …)` are the only quantifiers; they
-visit the writes in index order and stop at the first element that decides.
-There is no nesting and no other comprehension. A body may use the rule's
-declared `reads.*`, but no read can be keyed by an element: there are no
-per-write reads. A rule
-that reads coverage runs in the verified-fact slot, so forged or unverified
-evidence never reaches it. `dpp-namespace-isolation.yaml` and
-`feed-slot-rules.yaml` use these rules, and their receipts name the write that
-decided.
-
 ## Pattern: post-state facts
 
-The stock kernels also declare facts about the state after an approved command:
+The stock kernels also declare facts about the state after an approved command.
+Each equals the value the kernel's own event reports, and, like every fact, is
+known only after the kernel approved, so a rule that reads one runs in the
+verified-fact slot:
 
 | Kernel | Facts |
 |---|---|
@@ -334,21 +290,19 @@ The stock kernels also declare facts about the state after an approved command:
 | attachments per component (`maxRulesPerComponent`) | 4 | 16 |
 | clauses per rule | — | 8 |
 | parameters per rule | — | 16 |
-| reads per rule | — | 4 |
-| writes in one write view | — | 128 |
-| fields of one decoded read or write element | — | 64 |
 
 Rule expressions share the document's expression limits and lookup limit.
+[Chapter 8](08-typed-views.md#limits) lists the limits on reads and write views.
 
 ## Local loop
 
 ```bash
-./yano.sh appchain bindings validate procurement-admission.yaml \
+./yano.sh appchain bindings validate examples/bindings/procurement-admission.yaml \
   --plugins-directory plugins --context context.json
-./yano.sh appchain bindings dry-run procurement-admission.yaml \
+./yano.sh appchain bindings dry-run examples/bindings/procurement-admission.yaml \
   --plugins-directory plugins --context context.json \
   --fixture examples/bindings/fixtures/procurement-admission/fixture-1.json
-./yano.sh appchain bindings graph procurement-admission.yaml \
+./yano.sh appchain bindings graph examples/bindings/procurement-admission.yaml \
   --plugins-directory plugins --context context.json
 ```
 
@@ -356,11 +310,14 @@ Rule expressions share the document's expression limits and lookup limit.
 their reads and whether they quantify over writes. `dry-run` shows each
 receipt's rule trace, the deciding write, and explains a rolled-back cascade.
 `graph` draws attached rules as guards on their components, with their reads.
+Run the recipe's fixtures in order, passing each result to the next block with
+`--prior-result`.
 
 Rules are part of the committed profile. Changing a rule, a parameter or an
 attachment changes the profile digest; on a running chain it is a governed
 profile change, like any binding change (see [Operations and
 upgrades](05-operations-and-upgrades.md)).
 
-Return to the [learning path](README.md), or read the
-[reference](../DECLARATIVE_BINDINGS.md) for the complete rule grammar.
+Next: [Typed views](08-typed-views.md). The
+[reference](../DECLARATIVE_BINDINGS.md#admission-rules) has the complete rule
+grammar.

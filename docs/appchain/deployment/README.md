@@ -12,10 +12,34 @@ and use the operator workflow when you need remote machines.
 
 Yano X is JVM-only and requires Java 25. Chain count and node count are separate:
 several independent chains can run on the same member nodes. Each chain keeps
-its own genesis, state, and finality history.
+its own genesis, state, and finality history. Yano's tooling calls an app
+ledger an *app chain*, so commands and files say `appchain`.
+
+## Nodes, chains, and ports
+
+Each node has one HTTP port and one node-to-node (n2n) port, however many
+chains it hosts. The numbers depend on how you run it: the cluster launcher and
+the showcase start at `7070`, a generated project at `8080`.
+
+<!-- illustration: topology-ports -->
+
+| How you run it | HTTP | Node-to-node | Change it with |
+|---|---|---|---|
+| `./yano.sh appchain cluster`, local showcase | `7070` + node index | `13337` + node index | `--http-base`, `--server-base` |
+| Generated project, one machine | `8080` + node index | `13337` + node index | `init --http-port-base`, `--server-port-base` |
+| Generated project, one host per member | `8080` on each host | `13337` on each host | the hosts in `appchain.yaml` |
+
+The cluster launcher moves a busy default range and prints the one it chose.
+The showcase passes its ports explicitly, so it stops instead. A launcher
+cluster and a generated project both default to node-to-node ports from
+`13337`; stop one before starting the other, or choose other bases.
+
+## Where to start
 
 The current supported evaluation posture is local devnet. VM tooling is available
 for qualification and operator evaluation; easier configuration does not change
 [the release-readiness assessment](../../../adr/045-yano-x-release-readiness.md).
 Public-network anchoring and settlement are explicit operations with separate
 credentials and authorization.
+
+**Next:** [start the local showcase](quickstart.md).

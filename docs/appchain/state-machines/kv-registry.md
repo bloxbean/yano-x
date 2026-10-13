@@ -1,72 +1,94 @@
-# `kv-registry` State Machine
+# kv-registry
 
-`kv-registry` is Yano's built-in mutable key/value registry with deterministic
-first-writer ownership. The member that first creates a key becomes its owner;
-only that same member can update or delete it. Every current entry is
-replicated, threshold-finalized, and individually provable against the
-app-chain state root.
+`kv-registry` is a shared key/value registry with one simple rule: the member
+that first writes a key owns it. Only the owner can update or delete the key.
+Every current entry can be proved against the state root.
 
-The configured state-machine id is exactly `kv-registry`. A chain id such as
-`registry-chain` identifies one independent ledger using that implementation.
+The machine id is exactly `kv-registry`. A chain id such as `registry-chain`
+names one ledger that uses it.
+
+## At a glance
+
+| | |
+|---|---|
+| Machine id | `kv-registry` |
+| Maturity | stable |
+| Commands | `[0, key, value]` PUT; `[1, key, h'']` DELETE (canonical CBOR) |
+| Setting | `machines.kv-registry.value-format`: `raw` (default), `utf8` or `cbor` |
+| State | key bytes → `[owner, value]`, where owner is the 32-byte member key |
+| Proof subject | `registry-entry-v1`: coordinate `key` (hex); claims `owner-equals`, `value-digest-equals` |
+| Result codes | `KV_NOT_OWNER` |
+| Events | `kv-registry.entry-put.v1`, `kv-registry.entry-deleted.v1`, in composites only |
+
+## How it works
+
+<!-- illustration: kv-ownership -->
+1. **A puts.** Member A writes a key that has no entry, so A becomes its owner.
+2. **B puts.** Member B writes the same key. The message is final, but the
+   decision is `KV_NOT_OWNER` and nothing changes.
+3. **A updates.** The owner replaces the value.
+4. **A deletes.** The owner deletes the entry. A proof now shows the key as
+   absent.
+5. **B puts again.** The key has no entry, so B creates a new one and owns it.
+   This is not a transfer.
+<!-- /illustration -->
+
+In short:
+
+- A PUT on an absent key creates `[sender, value]`.
+- A PUT or DELETE by the owner applies. By anyone else it is `KV_NOT_OWNER`.
+- A DELETE of an absent key does nothing.
+- On a standalone chain `KV_NOT_OWNER` is a final no-op. Inside a declarative
+  composite it rejects the whole cascade instead.
+- Events are emitted only in composites, and only when state changes.
+
+### Admission rules
+
+Before answering `202`, the receiving member decodes the body. It refuses the
+body with HTTP `400` and the code `APPLICATION_REJECTED` unless, in this order:
+
+1. the body is one canonical CBOR array of three items;
+2. the key has 1 to 256 bytes;
+3. the operation is 0 or 1, and a DELETE carries an empty value;
+4. a PUT value is not empty and matches `value-format`.
+
+Admission does not check ownership: that needs the state of the block that
+finally includes the command.
+
+<!-- illustration: wire-builder -->
+1. **Write the command.** A PUT is `[0, key, value]`.
+2. **Encode.** The helper prints canonical CBOR as hex.
+3. **Admit.** The receiving member decodes it and answers `202`.
+4. **Apply.** In the final block the ownership rule decides.
+<!-- /illustration -->
 
 ## When to use it
 
-Use `kv-registry` when applications need a provable current value and the
-authorization rule “first writer owns this key” is sufficient:
+Use `kv-registry` when you need a provable current value and “the first writer
+owns this key” is the right authorization:
 
-- consortium allow/deny lists;
-- product, asset, token, or credential metadata;
+- allow and deny lists;
+- product, asset, credential or schema metadata;
 - DID documents or current document pointers;
-- shared configuration owned per record;
-- service, issuer, or schema registries; and
-- mutable status records where one member is the authority.
+- shared configuration with one owner per record.
 
-Choose a custom or role-aware state machine when ownership must transfer
-atomically or under governance, multiple parties must approve updates, values
-have domain-specific transition rules, one organization may own many member
-keys, or authorization must use a business actor distinct from the app-chain
-member.
+Choose [`authenticated-map`](authenticated-map.md), a composite, or a plugin
+when ownership must move under governance, several parties must approve an
+update, values need domain rules, or authority belongs to a business actor
+rather than a member node.
 
-## Data and ownership model
+## Try it
 
-The machine accepts canonical CBOR commands:
-
-```text
-[0, keyBytes, valueBytes]  PUT
-[1, keyBytes, emptyBytes]  DELETE
-```
-
-The rules are:
-
-- A `PUT` for an absent key creates `[sender, value]`; the authenticated
-  envelope sender owns the entry while it exists.
-- A `PUT` by the owner replaces the current value.
-- A `PUT` by another member is a deterministic no-op.
-- A `DELETE` by the owner removes the entry.
-- A delete of an absent key or a delete by a non-owner is a no-op.
-- After deletion, the next member to PUT that key becomes the new owner.
-- Keys and PUT values must be non-empty.
-
-HTTP acceptance and even block finalization do not prove that a command
-changed the registry. Read and verify the resulting state entry when the
-application needs the deterministic outcome.
-
-## Start the out-of-the-box demo
-
-The default local cluster hosts `registry-chain` with UTF-8 values:
+The stock local cluster hosts `registry-chain` with `value-format: utf8`. From
+the top-level directory of the extracted release:
 
 ```bash
 ./yano.sh appchain cluster start 3
-```
-
-The launcher provides convenient UTF-8 commands. Create a key through node 1:
-
-```bash
 ./yano.sh appchain cluster kv registry-chain set supplier-42 active --node 1
 ```
 
-Node 1 now owns `supplier-42`. This update through node 2 finalizes as a
-message but cannot change the entry:
+Node 1 now owns `supplier-42`. A write through node 2 becomes final but cannot
+change the entry:
 
 ```bash
 ./yano.sh appchain cluster kv registry-chain set supplier-42 suspended --node 2
@@ -79,127 +101,43 @@ The owner can update or delete it:
 ./yano.sh appchain cluster kv registry-chain del supplier-42 --node 1
 ```
 
-## Configuration
-
-Configure a standalone registry with:
-
-```yaml
-yano:
-  app-chain:
-    enabled: true
-    chain-id: registry-chain
-    state-machine: kv-registry
-    machines:
-      kv-registry:
-        value-format: utf8
-```
-
-In multi-chain form:
-
-```yaml
-yano:
-  app-chain:
-    chains[0]:
-      chain-id: registry-chain
-      state-machine: kv-registry
-      membership:
-        mode: governed
-      machines:
-        kv-registry:
-          value-format: utf8
-```
-
-`value-format` is a deterministic structural constraint:
-
-| Value | Behavior |
-|---|---|
-| `raw` | Any non-empty byte string; the default |
-| `utf8` | Value must be valid UTF-8 |
-| `cbor` | Value must contain one bounded, well-formed CBOR item |
-
-A non-conforming PUT is rejected at admission by an honest node and remains a
-deterministic no-op during block execution. All members must use the same
-format. Changing it for an existing chain changes consensus semantics and
-requires a governed profile activation or a new chain.
+[Tutorial 2](../tutorials/02-registry-and-proofs.md) walks through the same
+steps with proofs.
 
 ## Submit through REST
 
-REST accepts the canonical command bytes through `bodyHex`. From the source
-checkout's `app/` directory, encode a PUT and DELETE with the tutorial helper:
+REST takes the command bytes as `bodyHex`. Encode them with the tutorial
+helper, from the top-level directory of the release or a source checkout:
 
 ```bash
-TOOL=../docs/appchain/tutorials/tools/stdlib_command.py
+TOOL=docs/appchain/tutorials/tools/stdlib_command.py
 
-PUT_HEX=$(python3 "$TOOL" kv-registry put supplier-42 \
-  --value-text active)
+PUT_HEX=$(python3 "$TOOL" kv-registry put supplier-42 --value-text active)
 DELETE_HEX=$(python3 "$TOOL" kv-registry delete supplier-42)
 ```
 
-Submit the PUT through node 1 so node 1 becomes the owner:
+Submit the PUT through node 1, so node 1 becomes the owner:
 
 ```bash
 curl -sS -X POST \
   http://127.0.0.1:7071/api/v1/app-chain/chains/registry-chain/messages \
   -H 'Content-Type: application/json' \
-  -d "{\"topic\":\"registry\",\"bodyHex\":\"$PUT_HEX\"}" | jq .
+  -d "{\"topic\":\"kv-registry.command.v1\",\"bodyHex\":\"$PUT_HEX\"}" | jq .
 ```
 
-For a raw binary value, use `--value-hex` instead of `--value-text`:
+For a binary value, use `--value-hex 010203ff` instead of `--value-text`; it
+needs a chain whose `value-format` is `raw`. Send the DELETE through the same
+member.
 
-```bash
-PUT_HEX=$(python3 "$TOOL" kv-registry put binary-key \
-  --value-hex 010203ff)
-```
-
-Submit the delete through the same owner member:
-
-```bash
-curl -sS -X POST \
-  http://127.0.0.1:7071/api/v1/app-chain/chains/registry-chain/messages \
-  -H 'Content-Type: application/json' \
-  -d "{\"topic\":\"registry\",\"bodyHex\":\"$DELETE_HEX\"}" | jq .
-```
-
-The topic is a routing/filtering label and does not create a namespace. The
-key bytes themselves identify the registry entry. If two applications need
-logical namespaces, use explicit keys such as `suppliers/acme` and
-`schemas/order/v2`, or separate chains when membership and operations should
-also be isolated.
-
-## Declarative binding: delete
-
-The binding command `delete` still uses the canonical positional wire
-`[1, keyBytes, emptyBytes]`. Its mapping therefore requires **both** `key` and
-`value`; supply an empty byte literal for `value`, not an empty text string or
-an omitted field:
-
-```yaml
-bindings:
-  - id: delete-record
-    from: {component: requests, event: kv-registry.entry-put.v1}
-    to:
-      component: records
-      command: delete
-      map:
-        key: {field: key}
-        value: {literal: {bytesHex: ''}}
-```
-
-Here `requests` and `records` are declared `kv-registry` component instances.
-The derived command retains the source sender's authority: that sender must own
-the target entry. A nonempty byte value is malformed for delete, rejects the
-derived command, and rolls back the cascade's business writes. This mapping does
-not change the standalone three-slot command contract.
+The topic is a label. `kv-registry` ignores it, and it does not create a
+namespace: the key bytes alone identify the entry. Use prefixed keys such as
+`suppliers/acme`, or separate chains when membership should also differ.
 
 ## Submit from Java
-
-Use the client artifact with the node version:
 
 ```groovy
 implementation "org.yanoproject.x:yano-x-client:${yanoXVersion}"
 ```
-
-The client includes the portable no-SPI stock contracts and a typed facade:
 
 ```java
 import org.yanoproject.x.client.AppChainClient;
@@ -214,92 +152,131 @@ var ownerClient = AppChainClient.builder("http://127.0.0.1:7071/api/v1")
 var registry = new StdlibAppChainClient(ownerClient);
 
 byte[] key = "supplier-42".getBytes(StandardCharsets.UTF_8);
-byte[] value = "active".getBytes(StandardCharsets.UTF_8);
-
-var submitted = registry.kvPut(key, value);
+var submitted = registry.kvPut(key, "active".getBytes(StandardCharsets.UTF_8));
 System.out.println(submitted.messageId());
 
-// Submit later through the same member identity.
-registry.kvDelete(key);
+registry.kvDelete(key); // later, through the same member
 ```
 
-The server, not the HTTP caller object, signs the normal REST submission.
-Pointing another client at port 7072 therefore uses node 2's member identity
-and cannot update a key owned by node 1.
+The node signs a REST submission, not your client object. A client pointed at
+port 7072 uses node 2's member key and cannot update a key that node 1 owns.
 
 ## Read and prove an entry
 
-The physical state key is exactly the registry key bytes. For a UTF-8 key:
+The state key is the key bytes themselves:
 
 ```bash
 KEY_HEX=$(python3 -c 'print("supplier-42".encode().hex())')
 
 curl -sS \
   "http://127.0.0.1:7070/api/v1/app-chain/chains/registry-chain/state/proof/$KEY_HEX" \
-  | jq .
+  | jq '{committedHeight, stateRoot, presence, valueHex}'
 ```
 
-An included value is canonical CBOR:
+`valueHex` is canonical CBOR `[ownerPublicKey, value]`. After a delete,
+`presence` is `ABSENT` and the proof is an exclusion proof with no value.
 
-```text
-[ownerPublicKeyBytes, valueBytes]
+The typed proof subject checks a claim for you. This one asks whether the
+current value is `active`; the digest is Blake2b-256 of the value bytes:
+
+```bash
+DIGEST=$(python3 -c 'import hashlib; print(hashlib.blake2b(b"active", digest_size=32).hexdigest())')
+
+curl -sS -X POST \
+  "http://127.0.0.1:7070/api/v1/app-chain/chains/registry-chain/proof-subjects/registry-entry-v1/proof" \
+  -H 'Content-Type: application/json' \
+  -d "$(jq -nc --arg key "$KEY_HEX" --arg d "$DIGEST" \
+    '{coordinates:{key:$key}, view:"latest",
+      claim:{claimId:"value-digest-equals",operands:{expected:$d}}, includeEvidence:false}')" \
+  | jq '{presence:.proof.presence, fact:.fact, satisfied:.claimResult.satisfied}'
 ```
 
-After deletion, the proof endpoint can return an exclusion proof with no
-`valueHex`. Keep application keys at most 256 bytes when they must be queried
-through the standard proof endpoint.
-
-Verify and decode the proof in Java:
+From Java, `kvEntry` fetches the proof, checks it, and decodes the entry:
 
 ```java
-import java.util.HexFormat;
-
-var reader = AppChainClient.builder("http://127.0.0.1:7070/api/v1")
-        .chainId("registry-chain")
-        .build();
-var entry = new StdlibAppChainClient(reader).kvEntry(key).orElseThrow().value();
+var entry = new StdlibAppChainClient(ownerClient).kvEntry(key).orElseThrow().value();
 byte[] owner = entry.owner();
-byte[] currentValue = entry.value();
-
-System.out.println("owner=" + HexFormat.of().formatHex(owner));
-System.out.println("value=" + new String(currentValue, StandardCharsets.UTF_8));
+byte[] value = entry.value();
 ```
 
-`ProofVerifier.verify` verifies the returned MPF proof against the root in the
-same response. For independent verification, obtain the expected root from a
-pinned chain profile plus verified finality/anchor evidence rather than
-trusting the serving node to nominate the root.
+The single-argument `StdlibAppChainClient` constructor checks only that the
+proof matches the root in the same response. For independent verification,
+pass a `TrustedRootResolver` that supplies a root from pinned finality or a
+Cardano anchor.
 
-## Application design choices
+## Configure
 
-### Stable keys provide idempotency
+`registry-chain` in the stock cluster file shows a complete entry, including
+the three [state-identity settings](README.md#before-you-configure-one):
 
-Repeated owner PUTs replace one current entry, so a stable domain key such as
-`supplier-42` provides natural current-state idempotency. History is still in
-the finalized app blocks; the state proof represents only the latest value.
-
-### Ownership is intentionally simple
-
-There is no atomic transfer-owner command, expiry, multi-signature update, or
-administrator override. Delete-and-recreate releases the key and lets the next
-writer own it, so it is not a safe governed transfer protocol. If richer
-ownership is required, define the transition and its authorization in a
-custom/composite state machine instead of relying on an off-chain convention.
-
-### Values remain application data
-
-`utf8` and `cbor` validate structure, not a business schema. Version values
-explicitly when consumers need stable decoding, for example:
-
-```json
-{"schemaVersion":1,"status":"active","country":"SG"}
+```yaml
+yano:
+  app-chain:
+    chains[1]:
+      chain-id: "registry-chain"
+      state-machine: kv-registry
+      state:
+        commitment-profile: mpf-blake2b256-v1
+        format-fingerprint: 91ee14091200f1e24659112d640e877e9177779dcc81dd06117f013e9190082b
+        genesis-id: cd4f0bac8a0d8c7fd5700510eae8c69256172814b219e9e3b1a914fc89c358b3
+      membership:
+        mode: governed
+      machines:
+        kv-registry:
+          value-format: utf8
 ```
 
-Every member receives the command bytes and may retain history. Encrypt values
-before submission when confidentiality is required, and keep encryption-key
-management outside deterministic consensus.
+A new chain needs its own genesis id; a generated project gets one from
+`appchain render`.
 
-## Admission-rule views and facts
+| `value-format` | A PUT value must be |
+|---|---|
+| `raw` (default) | any non-empty bytes |
+| `utf8` | valid UTF-8 |
+| `cbor` | one bounded, well-formed CBOR item |
+
+The format is a consensus setting. Every member must use the same value, and
+changing it on an existing chain needs a governed profile activation or a new
+chain.
+
+## Design notes
+
+- **Stable keys give idempotency.** Repeated owner PUTs replace one current
+  entry. Earlier values remain only in block history; the proof shows the
+  latest one.
+- **Ownership is deliberately simple.** There is no transfer, expiry,
+  multi-signature update or administrator override. Delete-and-recreate lets
+  the next writer take the key, so it is not a safe transfer protocol.
+- **Values are application data.** `utf8` and `cbor` check structure, not a
+  schema. Every member sees the bytes; encrypt confidential values before
+  submitting them.
+
+## Advanced
+
+### Declarative binding: delete
+
+A binding's `delete` command still uses the positional wire
+`[1, keyBytes, emptyBytes]`. Its mapping needs **both** `key` and `value`; give
+`value` an empty byte literal, not empty text:
+
+```yaml
+bindings:
+  - id: delete-record
+    from: {component: requests, event: kv-registry.entry-put.v1}
+    to:
+      component: records
+      command: delete
+      map:
+        key: {field: key}
+        value: {literal: {bytesHex: ''}}
+```
+
+Here `requests` and `records` are `kv-registry` component instances. The
+derived command retains the source sender's authority, so that sender must own
+the target entry. A non-empty value is malformed for delete; it rejects the
+derived command and rolls back the cascade's business writes.
+
+### Admission-rule views and facts
 
 In a declarative composite, admission rules can read this machine's entries
 (ADR-031.4, see [admission rules](../bindings/07-admission-rules.md)):
@@ -313,7 +290,7 @@ In a declarative composite, admission rules can read this machine's entries
 ## Related documentation
 
 - [Registry and proofs tutorial](../tutorials/02-registry-and-proofs.md)
-- [Stock state-machine cookbook](../tutorials/03-stock-state-machines.md)
-- [Complete app-chain user guide](../../APP_CHAIN_USER_GUIDE.md)
-- [Consensus and state-machine internals](../../core-host.md)
-- [Java app-chain client](../../../sdk/client/README.md)
+- [Choose a stock state machine](../tutorials/03-stock-state-machines.md)
+- [State machines](README.md)
+- [Java app ledger client](../../../sdk/client/README.md)
+- [Consensus guide](https://github.com/bloxbean/yano/blob/main/docs/APP_CHAIN_CONSENSUS_GUIDE.md)

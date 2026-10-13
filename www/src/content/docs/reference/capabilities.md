@@ -1,11 +1,11 @@
 ---
 title: Capability catalog
-description: Every selectable app-chain capability in this release — state machines, profiles, sequencing, membership, anchoring, effects, executors, sinks, and observability — generated from the repository catalog.
+description: Every selectable app ledger capability in this release — state machines, profiles, sequencing, membership, anchoring, effects, executors, sinks, and observability — generated from the repository catalog.
 sidebar:
   order: 3
 ---
 
-A **capability** is the smallest selectable unit of app-chain behavior. A
+A **capability** is the smallest selectable unit of app ledger behavior. A
 [recipe](/recipes/) is a reviewed bundle of them.
 
 This page is generated at documentation build time from

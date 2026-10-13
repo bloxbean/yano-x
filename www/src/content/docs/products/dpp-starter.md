@@ -5,56 +5,109 @@ sidebar:
   order: 8
 ---
 
-The DPP Starter (ADR-051) is a **prototype**: the stage-1 preview that ADR-046
-§4.4 and Yano ADR app-layer/026 §5.1 permit before the full DPP provider is
-built. It declares DPP-shaped collections on the stock governed
-`authenticated-map` state machine and shows the infrastructure a Digital
-Product Passport registry needs: governed writes by manufacturers, operators,
-and claim issuers; a certification round with two independent auditors;
-documents kept outside consensus and committed by hash; committed claims that
-are disclosed out of band; and a passport that is a set of proof-bound answers
-at one height, verifiable offline. It is not the DPP product of ADR-026, it
-enforces no DPP lifecycle rule on chain, and it claims conformance with no DPP
-standard.
+The DPP Starter is a **prototype** of a Digital Product Passport registry. It
+declares passport-shaped collections on the stock governed `authenticated-map`
+state machine, so it needs no plugin. A passport is a set of proof-bound
+answers at one height that anyone can verify offline.
 
-## The journey
+## Problem
 
-1. **Register and publish.** `yano-dpp register` creates the product record as
-   a `manufacturer`; `publish-version` hashes a passport document, stores it
-   under its SHA-256, and commits the version record and the new current
-   version in one batch with a compare-and-set on the product's revision.
-2. **Claim and observe.** A `claim-issuer` attaches public claims or committed
-   ones (a salted SHA-256 commitment on chain, the salt and text in a
-   `dpp-disclosure-v1` document handed to verifiers). Operators append
-   lifecycle events; the ledger orders them, never a clock.
-3. **Certify.** A `certifier` proposes a certificate through the map's approval
-   route; two `auditor`s from distinct organizations approve; the map command
-   carrying the approval reference is applied, and its proposal's one-use
-   consumption is proven in the passport.
-4. **Read.** The portal (`yano-dpp serve`) serves the passport view, the
-   `dpp-passport-v1` bundle, a GS1 Digital Link resolver (`/01/{gtin}`), and
-   archived documents by hash. `yano-dpp verify` checks a bundle offline under
-   bundle-declared members, a pinned members file, or an anchor datum.
-5. **Operate from the browser.** The console's Passport view reads the portal
-   with no secret and checks that every proof names one chain, genesis, height,
-   root, and block; the Operator view drives an operator gateway
-   (`yano-dpp gateway`) that signs on the operator's machine.
+A product passport gathers records from many parties: the manufacturer's
+product data and documents, certifiers' certificates, claims from labs, and
+events from logistics, repair, and recycling. Buyers and regulators need to see
+who wrote each record and whether it was changed later, without trusting one
+platform operator.
 
-What the starter cannot prevent, it exposes: a rewritten version, a dangling
-current version, a writer from another organization, and expired validity
-windows are flagged on the passport.
+## Who it is for
 
-## Posture
+- **Teams exploring Digital Product Passports** who want to see the
+  infrastructure a passport registry needs before committing to a design.
+- **Manufacturers, certifiers, and auditors** rehearsing who writes what, with
+  their own keys.
+- **Verifiers** who need a passport they can check offline.
 
-`REFERENCE`, labelled a prototype. Version one runs on the ADR-049 map client and
-signer and reuses the ADR-047 trust input. The full provider (`dpp-core-v1`,
-enforced lifecycle and sequence rules, product heads, recovery claims,
-publication workflows) stays gated on ADR-025 qualification and ADR-026
-acceptance. Browser-side signing, trust-registry accreditation lookups, an
-explorer module for the starter's collections, per-product Cardano publication,
-and ZK selective disclosure are deferred.
+It is not a full DPP product. It enforces no DPP lifecycle rule on the ledger,
+and it claims conformance with no DPP standard.
 
-The user guide is
-[`docs/appchain/DPP_STARTER.md`](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/DPP_STARTER.md);
-the decision record is
-[ADR-051](https://github.com/bloxbean/yano-x/blob/main/adr/051-digital-product-passport-starter.md).
+## Actors and flow
+
+Each record type is a collection with its own writer role:
+
+- a `manufacturer` registers a product and publishes passport versions; the
+  document is hashed and stored outside consensus, and its digest is committed;
+- a `claim-issuer` attaches public claims, or committed ones whose salt and text
+  are disclosed to verifiers out of band;
+- an `operator` appends lifecycle events, ordered by the ledger, never by a
+  clock; and
+- a `certifier` proposes a certificate that two `auditor`s from distinct
+  organizations must approve before it is applied, once.
+
+<!-- illustration: passport-explorer -->
+
+The portal serves the passport, the `dpp-passport-v1` bundle, archived
+documents by hash, and a GS1 Digital Link resolver (`/01/{gtin}`). An operator
+gateway signs for the console on the operator's machine.
+
+## What it proves, and what it does not
+
+A passport shows what the consortium agreed about a product at a height: these
+records existed with these revisions under this root; which governed actor wrote
+each one under which policy and key; that a certificate was applied through the
+approval round, with the approval used exactly once; that a committed claim
+matches what the issuer disclosed; that the pinned members certified the root;
+and, when anchored, that Cardano carries it.
+
+It does **not** show that a physical event occurred, that a measurement is
+true, that an issuer is accredited beyond this ledger's genesis, that a document
+remains available, or that anything conforms to a DPP standard.
+
+What the prototype cannot prevent, it exposes as flags: `REWRITTEN`,
+`DANGLING`, `FOREIGN_WRITER`, `EXPIRED`, `NOT_YET_VALID`, and `MALFORMED`. For
+example, any manufacturer can rewrite a version record, and the passport shows
+it.
+
+## Try it
+
+From the root of an extracted `yano-x-jvm-<version>.zip`, the launcher finds the
+distribution and `tools/yano-dpp` by itself:
+
+```bash
+examples/dpp/dpp.sh up        # three members on ports 7470-7472
+examples/dpp/dpp.sh demo      # register, publish, claim, events, certify, verify
+examples/dpp/dpp.sh portal    # public portal on 8580
+examples/dpp/dpp.sh stop      # data is kept; clean deletes the instance
+```
+
+Then read and verify the passport yourself:
+
+```bash
+eval "$(examples/dpp/dpp.sh env)"
+export PATH="$PWD/tools/yano-dpp/bin:$PATH"
+yano-dpp passport --product gtin:09506000134352 --members "$YANO_DPP_MEMBERS" --output passport.json
+yano-dpp verify --passport passport.json --members "$YANO_DPP_MEMBERS"   # exit 5
+```
+
+`dpp.sh env` prints the node API key and the gateway token; treat its output as
+a secret. The console ships as `product-ui/dpp`.
+
+## Modules
+
+| Module | Role |
+|---|---|
+| `products/dpp/profile` | Collections, policies, schemas, value codecs, and the genesis generator |
+| `products/dpp/client` | Writes, the certification round, passport assembly, `PassportVerifier`, `PassportView`, the portal and gateway services |
+| `products/dpp/cli` | `yano-dpp`, shipped as `tools/yano-dpp` |
+| `products/dpp/ui` | The console, shipped as `product-ui/dpp` |
+| `products/dpp/harness` | `dpp.sh`, shipped as `examples/dpp` |
+
+The [user guide](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/DPP_STARTER.md)
+covers the data model, the console, every command, and troubleshooting.
+
+## Status
+
+`reference`, labelled a prototype. The decision record is ADR-051. The full
+provider, with enforced lifecycle and sequence rules, product heads, recovery
+claims, and publication workflows, waits on qualification of the governed map
+and acceptance of the DPP design. Browser-side signing, accreditation lookups in
+the Trust Registry, an explorer module for these collections, per-product
+Cardano publication, and zero-knowledge selective disclosure are deferred.

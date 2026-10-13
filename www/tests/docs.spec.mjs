@@ -1,49 +1,4 @@
 import { test, expect } from '@playwright/test';
-import fs from 'node:fs';
-import path from 'node:path';
-
-function htmlFiles(dir) {
-  return fs.readdirSync(dir, { withFileTypes: true }).flatMap(entry => {
-    const file = path.join(dir, entry.name);
-    return entry.isDirectory() ? htmlFiles(file) : file.endsWith('.html') ? [file] : [];
-  });
-}
-const dist = path.resolve('dist');
-const diagramPages = htmlFiles(dist).filter(file => fs.readFileSync(file, 'utf8').includes('class="mermaid"'));
-
-for (const file of diagramPages) {
-  const route = '/' + path.relative(dist, file).replaceAll(path.sep, '/').replace(/index\.html$/, '');
-  test(`diagrams render and survive theme changes: ${route}`, async ({ page }) => {
-    const errors = [];
-    page.on('pageerror', error => errors.push(error.message));
-    await page.goto(route);
-    const diagrams = page.locator('pre.mermaid');
-    const count = await diagrams.count();
-    expect(count).toBeGreaterThan(0);
-    const sources = await diagrams.evaluateAll(nodes => nodes.map(node => node.dataset.source || node.textContent));
-    for (const theme of ['light', 'dark', 'light']) {
-      await page.evaluate(theme => {
-        document.documentElement.dataset.theme = theme;
-      }, theme);
-      await expect(diagrams.locator('svg')).toHaveCount(count);
-      await expect(diagrams.locator('.error-text')).toHaveCount(0);
-      await expect.poll(() => diagrams.evaluateAll(nodes => nodes.every(node =>
-        node.dataset.renderedTheme === document.documentElement.dataset.theme))).toBe(true);
-      expect(await diagrams.evaluateAll(nodes => nodes.map(node => node.dataset.source))).toEqual(sources);
-    }
-    // Exercise changes arriving while the asynchronous renderer is still busy.
-    await page.evaluate(async () => {
-      for (const theme of ['dark', 'light', 'dark', 'light', 'dark']) {
-        document.documentElement.dataset.theme = theme;
-        await new Promise(resolve => setTimeout(resolve, 5));
-      }
-    });
-    await expect.poll(() => diagrams.evaluateAll(nodes => nodes.every(node =>
-      node.dataset.renderedTheme === 'dark'))).toBe(true);
-    await expect(diagrams.locator('.error-text')).toHaveCount(0);
-    expect(errors).toEqual([]);
-  });
-}
 
 test('landing examples and learning path work on mobile', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
@@ -70,15 +25,15 @@ test('illustration tabs explain each capability and support keyboard navigation'
   await page.getByRole('tab', { name: 'Registry', exact: true }).press('ArrowRight');
   await expect(page.getByRole('tab', { name: 'Roles', exact: true })).toBeFocused();
   await expect(demo.locator('.example-facts')).toContainText('Two distinct organizations approve');
-  await expect(demo.locator('#stage-description')).toContainText('separate checks');
+  await expect(demo.locator('#stage-description')).toContainText('issuer proposes a document release');
   await page.getByRole('tab', { name: 'Roles', exact: true }).press('End');
   await expect(page.getByRole('tab', { name: 'Observations', exact: true })).toHaveAttribute('aria-selected', 'true');
-  await expect(demo.locator('#stage-description')).toContainText('not that a parcel physically arrived');
+  await expect(demo.locator('#stage-description')).toContainText('requests a delivery observation');
   await demo.getByRole('button', { name: 'Next step' }).click();
-  await expect(demo).toHaveAttribute('data-stage', '3');
+  await expect(demo).toHaveAttribute('data-stage', '1');
   await page.getByRole('tab', { name: 'Observations', exact: true }).press('Home');
   await expect(demo.locator('[data-command]')).toHaveText('order.created');
-  await expect(demo).toHaveAttribute('data-stage', '2');
+  await expect(demo).toHaveAttribute('data-stage', '0');
 });
 
 test('branding and illustration tabs fit mobile and docs themes', async ({ page }) => {
@@ -98,7 +53,41 @@ test('branding and illustration tabs fit mobile and docs themes', async ({ page 
   await expect(page.locator('link[rel~="icon"]')).toHaveAttribute('href', '/favicon.svg');
   for (const theme of ['light', 'dark']) {
     await page.evaluate(theme => document.documentElement.dataset.theme = theme, theme);
-    await expect(page.locator('header .yano-brand img')).toBeVisible();
-    expect(await page.locator('header .yano-brand img').evaluate(img => img.complete && img.naturalWidth > 0)).toBe(true);
+    const mark = page.locator('header .yano-brand svg.mark');
+    await expect(mark).toBeVisible();
+    // The wings must stand out from the header in both themes (WCAG 3:1 for graphics).
+    const contrast = await mark.evaluate(svg => {
+      const rgb = value => value.match(/\d+(\.\d+)?/g).slice(0, 3).map(Number);
+      const luminance = ([r, g, b]) => [r, g, b].map(c => {
+        const v = c / 255;
+        return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+      }).reduce((sum, c, i) => sum + c * [0.2126, 0.7152, 0.0722][i], 0);
+      let node = svg.closest('header');
+      let background = getComputedStyle(node).backgroundColor;
+      while (/rgba\(0, 0, 0, 0\)|transparent/.test(background) && node.parentElement) {
+        node = node.parentElement;
+        background = getComputedStyle(node).backgroundColor;
+      }
+      const wing = luminance(rgb(getComputedStyle(svg.querySelector('.wing')).fill));
+      const surface = luminance(rgb(background));
+      return (Math.max(wing, surface) + 0.05) / (Math.min(wing, surface) + 0.05);
+    });
+    expect(contrast).toBeGreaterThanOrEqual(3);
   }
+});
+
+test('the project status banner appears once on the landing page and on docs pages', async ({ page }) => {
+  for (const route of ['/', '/start-here/what-is-an-app-ledger/', '/concepts/consensus-and-finality/', '/404']) {
+    await page.goto(route);
+    const banner = page.getByRole('complementary', { name: 'Project status' });
+    await expect(banner).toHaveCount(1);
+    await expect(banner).toContainText('Active development');
+    await expect(banner).toContainText('working toward its first developer preview');
+    await expect(banner.getByRole('link', { name: 'Follow on GitHub ↗' }))
+      .toHaveAttribute('href', 'https://github.com/bloxbean/yano-x');
+  }
+  await page.setViewportSize({ width: 360, height: 800 });
+  await page.goto('/start-here/');
+  await expect(page.getByRole('complementary', { name: 'Project status' })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });

@@ -182,10 +182,29 @@ format for a running chain.
 
 ## Understand the atomic boundary
 
+Each message in the rehearsal is its own cascade in its own block. Step through
+them, then try the "What if" scenarios.
+
+<!-- illustration: approval-across-blocks -->
+1. **Propose.** Height 1: Member A proposes item `a`, needing two approvals.
+   The cascade has one step, and no binding subscribes to
+   `approvals.item-proposed.v1`. Proposing is not a vote.
+2. **First vote.** Height 2: Member A approves. Below the threshold the machine
+   emits no `item-approved` event, so nothing is derived. The item's state, not
+   a waiting process, holds the workflow's progress.
+3. **Second vote.** Height 3: Member B's vote reaches the threshold. The
+   `approvals.item-approved.v1` event drives `record-approved`, which derives an
+   `audit` append in the same cascade.
+4. **Commit together.** The vote and the append commit together, and Member B's
+   receipt is `ACCEPTED` with two steps.
+<!-- /illustration -->
+
 If the third block's derived append rejects, that source cascade rolls back
 both the threshold-reaching vote and the append. Earlier committed messages
 remain: the proposal and first vote are still pending state. The rejection
-receipt survives, and work already attempted remains charged.
+receipt survives, and work already attempted remains charged. A repeated vote
+from the same member is accepted but changes nothing, because the machine counts
+distinct members: check the item, not only the receipt.
 
 This gives the application a useful guarantee: approval and its automatic
 follow-up cannot partially commit within that cascade. It does not make the

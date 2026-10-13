@@ -59,6 +59,9 @@ Save this as `context.json`. This strict JSON supplies chain identity, membershi
 and host limits; it is neither a node properties file nor a place for secrets.
 The zero genesis and repeated public-key bytes are synthetic offline inputs.
 
+<details>
+<summary>Show <code>context.json</code></summary>
+
 ```json
 {
   "chainId": "offline-test",
@@ -92,6 +95,8 @@ The zero genesis and repeated public-key bytes are synthetic offline inputs.
   }
 }
 ```
+
+</details>
 
 ## 4. Validate, compile and inspect
 
@@ -159,14 +164,39 @@ jq '.receipts[] | {outcome: .receipt[3], components: [.receipt[6][] | .[3]]}' re
 Expect `ACCEPTED` and components `["records", "audit"]`. Also inspect
 `stateChanges` for physical state writes. Expect an
 accepted source cascade with a registry step and a derived audit step. The audit
-entity is text `0102`, its entry is the registry value hash, and its reference is
-`published`. There are no external effects in this example. `postState` contains
+entity is text `0102` and its entry is the registry value hash. The `doc-trail`
+state keeps only the entry count and the chained head hash, so the step's
+reference does not appear in `stateChanges`. There are no external effects in
+this example. `postState` contains
 the complete rehearsal state, including internal markers and the receipt—not
 just your two business records.
 
 Dry-run does not authenticate the input state, verify signatures or finality,
 compute a post-state root, or prove anything about a live chain. Success here is
 one useful test, not a substitute for multi-node deployment validation.
+
+### Read the receipt
+
+Every source message that reaches a block gets exactly one receipt, accepted or
+rejected. It is a positional array: `.receipt[3]` above is its status, and
+`.receipt[6]` its steps. Select a position to see what it records.
+
+<!-- illustration: receipt-anatomy -->
+| Position | Field | In this run |
+|---|---|---|
+| 0 | `version` | `1` |
+| 1 | `sourceMessageId` | `1111…1111` |
+| 2 | `height` | `1` |
+| 3 | `status` | `ACCEPTED`: every planned step committed |
+| 4 | `failedStepOrdinal` | `null` |
+| 5 | `code` | empty |
+| 6 | `steps` | two steps: `[ordinal, depth, bindingId, targetComponentId, messageId, eventsProduced, conditions, rules, status, code, rawBody]` |
+
+<!-- /illustration -->
+
+Read `status` first. In an accepted receipt, steps marked `PLANNED` committed;
+in a rejected one, nothing did. [How a cascade runs](README.md#how-a-cascade-runs)
+walks through how the steps get there.
 
 ## 6. See a condition skip
 
@@ -209,6 +239,7 @@ and `--bindings bindings.yaml --plugins-directory plugins`, supplying your real
 topology member public keys and other required project options. Follow the full
 [blueprint project example](../DECLARATIVE_BINDINGS_CLI.md#blueprint-projects)
 and [deployment guide](../deployment/README.md); do not deploy the dummy context
-or authentication bytes from this tutorial.
+or authentication bytes from this tutorial. Chapter 4 shows a complete
+[local devnet deployment](04-java-integration.md#deploy-the-workflow-on-a-local-devnet).
 
 Next: [Conditions and mappings](02-conditions-and-mappings.md).

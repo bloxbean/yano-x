@@ -1,32 +1,46 @@
-# Authenticated-map value validation
+# authenticated-map value validation
 
-The `authenticated-map` state machine is a proof-oriented, multi-collection
-registry. Each collection independently chooses its authorization policy, key
-and value bounds, value encoding, and optional validator. These choices are
-compiled into canonical genesis and are identical on every member.
+Each `authenticated-map` collection chooses a value encoding and, optionally, a
+validator: a declarative schema or a plugin. These choices are compiled into
+genesis and are identical on every member. This page covers validation, the
+offline preflight, and every result code.
 
-Start with the [authenticated-map state-machine guide](authenticated-map.md)
-for the collection model, mutations, configuration, submission, queries, and
-showcase walkthrough. This page is the deeper validation reference.
+Start with the [authenticated-map guide](authenticated-map.md) for the
+collection model, operations, configuration and submission.
 
-The safe default is intentionally simple:
+## At a glance
 
 | Setting | Default | Effect |
 |---|---|---|
-| `valueEncoding` | `opaque` | Accept any byte string within the value bound |
-| `validator` | absent | Perform no schema or plugin validation |
-| `authorization` | `open` | Apply the authenticated-map open-write policy |
-| `restoreAllowed` | `false` | Do not restore revoked entries |
+| `valueEncoding` | `opaque` | Any byte string within the value bound |
+| `validator` | none | No schema or plugin check |
+| `authorization` | `open` | Any member's message may write |
+| `restoreAllowed` | `false` | Revoked entries stay revoked |
 
-Validation is optional. An opaque collection without a validator preserves the
-original authenticated-map behavior. Opting into a schema or plugin changes
-consensus validity and therefore changes `genesisId`.
+Validation is optional. Opting into an encoding, schema or plugin changes
+consensus validity and therefore the genesis id.
+
+## How it works
+
+<!-- illustration: authmap-validation-pipeline -->
+1. **Preflight.** Check the value offline against the exact genesis. The result
+   is advisory.
+2. **Ingress.** The receiving member applies the same value rules before
+   answering `202`.
+3. **Candidate block.** The command is checked again for the height of the
+   block that would include it.
+4. **Apply.** Every member applies the command and validates the value once
+   more. The receipt records the outcome.
+<!-- /illustration -->
+
+The value rules run in a fixed order: the collection's bounds, then the
+encoding, then the schema, then the plugin. A value refused at ingress gets
+HTTP `400` with `APPLICATION_REJECTED`, is not pooled, and has no receipt.
 
 ## Create a project
 
-Authenticated-map genesis commits the initial membership. Supply every public
-member key while initializing; placeholder keys are rejected because they would
-produce a different chain identity.
+Genesis commits the initial membership, so supply every member public key when
+you initialize:
 
 ```bash
 ./yano.sh appchain init --non-interactive \
@@ -39,14 +53,12 @@ produce a different chain identity.
 ```
 
 The generated project starts with one open, opaque `records` collection. Edit
-`spec.chains[0].authenticatedMap` in `appchain.yaml`, then render again. This
-example adds an opaque collection, a canonical-CBOR collection, and a
-schema-bound collection:
+`spec.chains[0].authenticatedMap` in `appchain.yaml`, then render again:
 
 ```yaml
 authenticatedMap:
   profile: mpf-blake2b256-v1
-  # All-zero is the initializer's explicit development/no-policy placeholder.
+  # All-zero is the initializer's development/no-policy placeholder.
   # Replace it with the reviewed 32-byte commitment before an anchored chain
   # generation is created.
   anchorPolicyCommitment: "0000000000000000000000000000000000000000000000000000000000000000"
@@ -86,68 +98,58 @@ Run the renderer and doctor after every edit:
 
 ```bash
 ./yano.sh appchain render product-registry
-./yano.sh appchain doctor product-registry --distribution /path/to/yano-release.zip
+./yano.sh appchain doctor product-registry --distribution /path/to/yano-x-jvm-<version>
 ```
 
-Doctor reports `authenticated-map-schema-encoding` explicitly. A collection
-that references a schema must use `canonical-cbor`; `opaque` plus a schema is
-rejected before genesis is emitted.
+Doctor reports `authenticated-map-schema-encoding`. A collection with a schema
+must use `canonical-cbor`; `opaque` plus a schema is rejected before genesis is
+written.
 
 The generated outputs include:
 
-- `config/shared-consensus.yaml`, containing the exact genesis and state
-  identity settings used by nodes;
-- `config/authenticated-map-genesis.hex`, a portable canonical genesis input
-  for offline tooling; and
-- `docs/VALUE_VALIDATION.md`, project-specific validation commands.
+- `config/shared-consensus.yaml`, with the exact genesis and state-identity
+  settings the nodes use;
+- `config/authenticated-map-genesis.hex`, the canonical genesis for offline
+  tooling; and
+- `docs/VALUE_VALIDATION.md`, with project-specific validation commands.
 
-## Encoding and schema options
+## Encodings and schemas
 
-`opaque` performs only the declared byte-length check. Use it for already
-canonical application formats, encrypted payloads, large attachments, or
-record shapes expected to change during the lifetime of this chain.
+- **`opaque`** checks only the byte length. Use it for formats that are
+  already canonical, encrypted payloads, large attachments, or record shapes
+  that will change during the chain's life.
+- **`canonical-cbor`** accepts exactly one bounded, deterministic CBOR item. It
+  rejects indefinite lengths, non-minimal integers, duplicate or misordered map
+  keys, trailing bytes, invalid UTF-8, and unsupported tags or simple values.
+  Equal logical values then have equal bytes and equal value hashes.
+- **A schema** is written in `cddl-yano-subset-v1`. Devtools compile it to
+  canonical `yano-cbor-schema-ir-v1`, and nodes evaluate the IR; they never
+  parse CDDL. It supports exact text-keyed maps, bounded arrays, integer
+  ranges, bounded text and byte strings, literals, choices and optional fields.
+  External references, recursion, unbounded repetition, regular expressions
+  and host-dependent extensions are rejected.
 
-`canonical-cbor` accepts exactly one bounded deterministic CBOR item. It rejects
-indefinite-length items, non-minimal integers, duplicate or incorrectly ordered
-map keys, trailing bytes, invalid UTF-8, and unsupported tags or simple values.
-It is useful even without a schema because equal logical values then have equal
-bytes and equal value hashes.
+Schemas are exact: undeclared map fields are rejected. A schema is immutable
+for the chain generation, so leave generous bounds for fields that may grow.
 
-A declarative schema is authored in `cddl-yano-subset-v1`. Devtools resolve its
-named, non-recursive rules and compile it to canonical
-`yano-cbor-schema-ir-v1`. Consensus nodes evaluate the IR; they never parse the
-source CDDL. Supported constructs include exact text-keyed maps, bounded arrays,
-integer ranges, bounded text/byte strings, literals, choices, and optional
-fields. External references, recursion, unbounded repetition, regular
-expressions, and host-dependent extensions are rejected.
+The commitment profiles are `mpf-blake2b256-v1` and `jmt-blake2b256-v1`. The
+Poseidon JMT profile is unavailable until ADR-025 Phase 4 and its pinned ZeroJ
+dependency are complete; blueprints refuse it.
 
-Schema validation is exact: undeclared map fields are rejected. Keep generous,
-intentional bounds for fields expected to evolve, and remember that a schema is
-immutable for this chain generation.
+## Offline preflight and inspection
 
-The available commitment profiles are:
-
-- `mpf-blake2b256-v1`; and
-- `jmt-blake2b256-v1`.
-
-The Poseidon JMT profile remains unavailable until ADR-025 Phase 4 and its
-release-pinned ZeroJ dependency are completed. Blueprints fail closed if it is
-selected.
-
-## Offline CLI preflight and inspection
-
-Inspect the exact collection and validator set committed by genesis:
+Inspect the collections and validators committed by genesis:
 
 ```bash
 ./yano.sh appchain state validators \
   --genesis-file product-registry/config/authenticated-map-genesis.hex
 ```
 
-The result includes profile, format fingerprint, `genesisId`, collection
-encodings and bounds, validator kind and contract version, schema definition
-SHA-256, parameter SHA-256, and a plugin artifact-closure SHA-256 when present.
+The result shows the profile, format fingerprint, `genesisId`, each
+collection's encoding and bounds, each validator's kind and contract version,
+the schema and parameter SHA-256, and a plugin's artifact-closure SHA-256.
 
-Validate a candidate from canonical lowercase hex or a file:
+Validate a candidate from a file or canonical lowercase hex:
 
 ```bash
 ./yano.sh appchain state validate \
@@ -160,66 +162,81 @@ Validate a candidate from canonical lowercase hex or a file:
   --value-hex a363736b7565736b752d316673746174757366616374697665687175616e7469747905
 ```
 
-The command returns `ACCEPTED`, `REJECTED`, or `UNAVAILABLE`. `UNAVAILABLE`
-means the collection uses a custom plugin but the offline CLI has no exact
-application adapter for it; it never means the value was accepted. All three
-results are advisory. Authoritative validation occurs when every node applies
-the command.
+The answer is `ACCEPTED`, `REJECTED` with a code, or `UNAVAILABLE`.
+`UNAVAILABLE` means the collection uses a plugin that the offline CLI cannot
+run; it never means accepted. All three are advisory: every node validates
+again.
 
-Explain any authenticated-map result or receipt code:
+`./yano.sh appchain state explain --code <0..12>` explains codes 0 to 12.
 
-```bash
-./yano.sh appchain state explain --code 11
-```
+## Result and receipt codes
 
-| Code | Name | Meaning |
-|---:|---|---|
-| 0 | `NONE` | Applied without an authenticated-map error |
-| 1 | `UNKNOWN_COLLECTION` | Collection is absent from genesis |
-| 2 | `COLLECTION_BOUNDS` | Key or value exceeds collection bounds |
-| 3 | `UNAUTHORIZED` | Sender does not satisfy collection authorization |
-| 4 | `ALREADY_EXISTS` | Operation required an absent entry |
-| 5 | `ABSENT` | Operation required an existing entry |
-| 6 | `REVOKED` | Operation required an active entry |
-| 7 | `ACTIVE` | Operation required a revoked entry |
-| 8 | `PRECONDITION` | Revision or value hash did not match |
-| 9 | `RESTORE_FORBIDDEN` | Collection does not permit restoration |
-| 10 | `VALUE_ENCODING` | Encoding constraint rejected the value |
-| 11 | `VALUE_SCHEMA` | Declarative schema rejected the value |
-| 12 | `VALUE_VALIDATOR` | Custom validator rejected the value |
+Preflight returns codes 0 to 12. A receipt carries the code of the first check
+that rejected a command that reached apply.
 
-Only a rejection reached during authoritative application has an authenticated
-receipt. A CLI/client-side rejection or a message filtered during candidate
-block validation has no receipt and makes no finality claim. HTTP `202` means
-only that ingress retained the message; wait for finalized inclusion before
-treating a mutation as applied.
+| Code | Name | Meaning | Where it appears |
+|---:|---|---|---|
+| 0 | `NONE` | Applied without an error | receipt |
+| 1 | `UNKNOWN_COLLECTION` | The collection is not in genesis | preflight only; a node refuses it at admission |
+| 2 | `COLLECTION_BOUNDS` | Key or value exceeds the collection's bounds | preflight only; a node refuses it at admission |
+| 3 | `UNAUTHORIZED` | The sender does not satisfy the collection's authorization, or a transfer outside an `owner` collection | receipt |
+| 4 | `ALREADY_EXISTS` | `PUT_IF_ABSENT` on an active entry | receipt |
+| 5 | `ABSENT` | The operation needs an existing entry | receipt |
+| 6 | `REVOKED` | The entry is a tombstone and the operation is not `RESTORE` | receipt |
+| 7 | `ACTIVE` | `RESTORE` on an active entry | receipt |
+| 8 | `PRECONDITION` | Expected revision or value hash did not match | receipt |
+| 9 | `RESTORE_FORBIDDEN` | The collection does not allow restore | receipt |
+| 10 | `VALUE_ENCODING` | The encoding rejected the value | preflight; normally refused at admission |
+| 11 | `VALUE_SCHEMA` | The schema rejected the value | preflight; normally refused at admission |
+| 12 | `VALUE_VALIDATOR` | The plugin rejected the value; `UNAVAILABLE` in preflight without an adapter | preflight; normally refused at admission |
+| 13 | `AUTHORIZATION_ASSIGNMENT` | A mutation's authorization kind or policy differs from its collection's genesis | receipt |
+| 14 | `UNKNOWN_POLICY` | The direct-role policy has no current revision | receipt |
+| 15 | `POLICY_INACTIVE` | The direct-role policy's current revision is not active | receipt |
+| 16 | `ACTOR_INELIGIBLE` | Actor or organization not current and active, role missing, or key not active at this height | receipt |
+| 17 | `ACTOR_SIGNATURE` | The actor's signature does not verify | receipt; normally refused at admission with `INVALID_SIGNATURE` |
+| 18 | `AUTHORIZATION_DEADLINE` | Issued in the future, past its deadline height, or longer-lived than the policy allows | receipt |
+| 19 | `DIRECT_AUTHORIZATION_REPLAY` | The actor's authorization id was already consumed | receipt |
+| 20 | `APPROVAL_NOT_APPROVED` | The referenced proposal is missing, not approved, or past its deadline height | receipt |
+| 21 | `APPROVAL_MISMATCH` | The approved proposal is for another action, payload or policy revision | receipt |
+| 22 | `APPROVAL_REPLAY` | The proposal was already consumed | receipt |
+| 23 | `CAPACITY_EXCEEDED` | Defined in the contract; the map does not produce it in this release | none |
+| 24 | `CRYPTO_WORK_EXCEEDED` | The block's signature-work budget for governed evidence is used up | receipt |
+| 25 | `GOVERNED_ROUTE_UNSUPPORTED` | A governed mutation on a chain whose genesis has no governed configuration | receipt |
+| 26 | `WRONG_GENESIS` | The evidence was signed for another chain, genesis or action | receipt |
+| 27 | `WRONG_REVISION` | The evidence names a policy revision that is not current | receipt |
+
+Only a command that reached apply has a receipt. A preflight rejection, or a
+command refused at admission or in candidate-block validation, has none and
+makes no finality claim. In a declarative composite, a rejected map command
+rejects the cascade with the code `MAP_<n>`.
 
 ## Java client preflight
 
-The lightweight client module can decode genesis and reuse the encoding and
-schema evaluator without depending on the runtime or plugin SPI:
+The client can decode genesis and reuse the encoding and schema checks without
+the runtime:
 
 ```java
 byte[] genesisBytes = HexFormat.of().parseHex(Files.readString(
         Path.of("config/authenticated-map-genesis.hex")).strip());
 var preflight = AuthenticatedMapPreflight.fromEncodedGenesis(genesisBytes);
 
-var mutation = AuthenticatedMapContract.Mutation.put(
-        "products", skuBytes, canonicalProductCbor);
+var mutation = AuthenticatedMapContract.Mutation.put("products", skuBytes, canonicalProductCbor);
 var result = preflight.validate(mutation);
 
 if (result.accepted()) {
-    stock.authenticatedMapMutate(mutation, preflight);
+    var action = AuthenticatedMapAuthoring.action(AuthenticatedMapContract.Command.single(mutation),
+            List.of(new AuthenticatedMapAuthorizationContract.AuthorizationAssignmentV1(
+                    0, AuthenticatedMapContract.AUTH_OWNER, "", 0)));
+    stock.authenticatedMapGovernedCommand(AuthenticatedMapAuthoring.command(action, List.of()));
 }
 ```
 
-The overload accepting `preflight` checks the complete command immediately
-before HTTP submission and throws `AuthenticatedMapPreflight.PreflightException`
-on the first rejected or unavailable mutation. Existing submission methods are
-unchanged.
+The chain admits only this action-and-evidence envelope; the client's older
+`authenticatedMapMutate(mutation, preflight)` overloads send a mutation-only
+encoding that it refuses.
 
-Custom plugin preflight requires an application-supplied adapter selected from
-the exact genesis descriptor:
+A custom plugin needs an application-supplied adapter, chosen from the exact
+genesis descriptor:
 
 ```java
 var preflight = AuthenticatedMapPreflight.fromEncodedGenesis(genesisBytes, descriptor -> {
@@ -231,25 +248,24 @@ var preflight = AuthenticatedMapPreflight.fromEncodedGenesis(genesisBytes, descr
 });
 ```
 
-Returning `Optional.empty()` produces `UNAVAILABLE`, not acceptance. The client
-adapter is a convenience only; a malicious client can omit it, so the same
-genesis-pinned validator always runs in authoritative apply.
+Returning `Optional.empty()` gives `UNAVAILABLE`, not acceptance. The adapter
+is a convenience: a client can skip it, so the genesis-pinned validator always
+runs on the nodes.
 
 ## Custom validator plugins
 
-Schemas cover record shape. Use a custom validator only for a deterministic,
-self-contained rule over `(collectionId, applicationKey, value)` that cannot be
-expressed in the CDDL subset. Plugin validators cannot read state, sender,
-height, membership, clock, randomness, environment, filesystem, or network
-through the SPI.
+Schemas cover record shape. Use a plugin only for a deterministic,
+self-contained rule over `(collectionId, applicationKey, value)` that the CDDL
+subset cannot express. Through the SPI, a plugin cannot read state, sender,
+height, membership, clock, randomness, environment, files or network.
 
 Java bytecode is not sandboxed. A plugin can still call JDK APIs directly, so
-validators are trusted consensus code and must be reviewed, explicitly
-allow-listed, conformance-tested, and pinned by exact `ARTIFACT_CLOSURE` digest.
-Do not load hostile or merely user-uploaded code.
+validators are trusted consensus code: review them, allow-list them, test
+them, and pin them by their exact `ARTIFACT_CLOSURE` digest. Never load
+untrusted code.
 
-The descriptor remains in the no-SPI contracts artifact, while the factory SPI
-lives in `core-api`. Programmatic genesis construction uses:
+The descriptor lives in the no-SPI contracts artifact; the factory SPI lives in
+`core-api`. Programmatic genesis uses:
 
 ```java
 var validator = AuthenticatedMapContract.ValidatorDescriptor.plugin(
@@ -278,29 +294,25 @@ var genesis = AuthenticatedMapGenesisFactory.mpf(
 ```
 
 The first-party `appchain-authenticated-map-validators` module provides
-`gs1-gtin-v1` as a worked example for GTIN-8, GTIN-12, GTIN-13, and GTIN-14.
-Production resolution additionally requires the provider bundle to be in the
-runtime allow-list and its catalog digest mode to be exactly
-`ARTIFACT_CLOSURE`.
+`gs1-gtin-v1` as a worked example for GTIN-8, GTIN-12, GTIN-13 and GTIN-14.
+Production resolution also requires the bundle in the runtime allow-list with
+catalog digest mode `ARTIFACT_CLOSURE`.
 
-Blueprint-native custom plugin descriptors are not exposed in v1alpha1. This
-prevents a generated project from implying that an arbitrary Java bundle is
-safe or installed. Build and review plugin genesis programmatically, or stay
-with canonical encoding/declarative schemas in the standard blueprint path.
+Blueprints do not expose custom plugin descriptors in v1alpha1, so a generated
+project never implies that an arbitrary bundle is safe or installed. Build
+plugin genesis programmatically, or stay with canonical encoding and schemas.
 
 ## Choosing the right boundary
 
-Value validation sees one key and one value. If a rule must read another key,
-check a relationship between collections, inspect membership, or emit effects,
-it belongs in a composite component or custom state machine. There is no
-node-local `AdmissionPolicy` in this feature.
+Value validation sees one key and one value. A rule that reads another key,
+relates collections, checks membership or emits effects belongs in a composite
+component or a custom state machine.
 
 Validation proves that committed bytes satisfy the declared encoding and rule.
-It does not prove that the record is true, make a payload confidential, or
-replace authorization.
+It does not prove the record is true, keep it confidential, or replace
+authorization.
 
-In v1, encodings, schemas, plugins, and plugin parameters are immutable for the
-chain generation. Tightening or replacing one requires a new chain generation
-and an explicit state import/linking plan. For a record shape likely to evolve,
-prefer `canonical-cbor` without a validator until governed validator evolution
-is available.
+In v1, encodings, schemas, plugins and their parameters are immutable for the
+chain generation. Changing one needs a new chain generation and an explicit
+import plan. For a record shape likely to evolve, prefer `canonical-cbor`
+without a validator.

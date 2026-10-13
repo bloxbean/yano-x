@@ -9,11 +9,17 @@ For example, a registry update can append an audit entry. A later human vote
 can complete an approval and update a record in the same atomic cascade. Your
 application still owns its UI, command submission, business identities and keys.
 
-This feature is experimental. Use a matching Yano X build containing declarative
-bindings and its pinned Yano host; the upstream host release alone does not
-install the optional X machines, compiler or Studio. The current source pins
-Yano `0.1.0-pre17`. Do not treat this guide as a promise that every older Yano X
-archive includes the feature.
+This feature is experimental. Admission rules and typed views (chapters 7 and 8)
+need a Yano host build with plugin API level 12 and the ADR-031.3 and ADR-031.4
+host contract. No Yano release contains that contract yet: this repository's
+`gradle.properties` still pins Yano `0.1.0-pre17`, and the composite bundle's
+manifest declares `minLevel: 12`. Level 12 alone does not identify the right
+host either, because the typed-view API was added to level 12 without a new
+level. Until a release is pinned, use the Yano X distribution together with the
+exact host build it was built and tested against; see
+[build from source](../../BUILD_DISTRIBUTIONS.md). The upstream host alone does
+not install the optional X machines, compiler or Studio, and an older Yano X
+archive may not include these features.
 
 ## Choose your starting point
 
@@ -26,10 +32,11 @@ archive includes the feature.
 | Advanced | [5. Operations and upgrades](05-operations-and-upgrades.md) | Diagnose rejections, discover proof keys, size budgets and plan safe evolution |
 | Any level | [6. Author bindings in the Studio editor](06-guided-editor.md) | Build the same documents with catalog-guided forms, hand them to the CLI and read its reports |
 | Intermediate | [7. Admission rules](07-admission-rules.md) | Attach forbid-only rules to components: limits, arrival checks and verified roles, with refusals as provable receipts |
+| Advanced | [8. Typed views](08-typed-views.md) | Let rules read other components' state and judge every write of a batch |
 
 Start with chapter 1; it needs Java 25 and an extracted matching JVM distribution,
 but no Cardano funds, node cluster or private keys. Familiarity with YAML is enough.
-For the surrounding app-chain concepts, see [the app-chain learning tracks](../README.md).
+For the surrounding app ledger concepts, see [the app ledger learning tracks](../README.md).
 
 ## Five concepts to keep separate
 
@@ -49,6 +56,46 @@ The client submits only the put. The node derives the append. Both business
 changes commit together or neither does; a finalized rejection still retains
 its receipt. This atomic boundary is **one source message**, not a whole human
 workflow spanning several votes or an external HTTP call.
+
+## How a cascade runs
+
+One source message and everything its bindings derive form one **cascade**.
+Step through the registry-to-audit workflow from chapter 1, then try the
+"What if" scenarios: a false condition skips a binding, but an error rejects
+the whole cascade.
+
+<!-- illustration: cascade-anatomy -->
+1. **Submit.** Your application sends one registry `put` to
+   `records.command.v1`. It submits nothing else.
+2. **Ingress checks.** The receiving member checks, in order: the topic routes
+   to a component (`UNKNOWN_BINDING_SOURCE`), the command's work and any
+   subscribed baseline event fit (`COMMAND_WORK_EXCEEDED`,
+   `COMMAND_PAYLOAD_TOO_LARGE`), the body decodes (`MALFORMED_SOURCE_COMMAND`),
+   the kernel's stateless admission accepts it, and static admission rules
+   hold. Then it answers 202. A failed check is a 400 and nothing is pooled.
+3. **Replay check.** At block time, every member first looks for a receipt
+   already stored under the source message id. If one exists, nothing runs
+   again.
+4. **Decide step 0.** The engine decodes the put, runs the kernel's admission
+   hooks and admission-slot rules, reserves any work the kernel requests, and
+   the kernel decides. The approved plan goes into the cascade's overlay,
+   uncommitted.
+5. **Match bindings.** The plan emits `kv-registry.entry-put.v1`. Bindings that
+   subscribe to it run in YAML order. A false condition skips its binding; an
+   evaluation error rejects the cascade.
+6. **Derive a command.** The mapping builds an `audit` append with a derived
+   id. It joins the back of the queue at depth 1: the cascade runs breadth
+   first.
+7. **Decide step 1.** The `audit` component decides the derived append the same
+   way it would decide a submitted one.
+8. **Preflight and claim.** Planned effects must fit the block's capacity, the
+   source id is claimed once, and the receipt must fit its 65,536-byte cap.
+9. **Commit all.** Every planned write commits together, and the receipt is
+   stored as `ACCEPTED`. A rejected cascade commits nothing but its receipt.
+<!-- /illustration -->
+
+[Operations and upgrades](05-operations-and-upgrades.md#where-did-my-command-stop)
+helps when a command did not do what you expected.
 
 ## Do I need a separate bindings.yml?
 

@@ -19,7 +19,7 @@ shipment-yano-plugin.jar
 
 | File | Owns |
 |---|---|
-| `plugins/<bundle-id>.json` | The executable runtime contributions — what this bundle actually provides to a running node, and the Yano API major and min/max levels it is compatible with. |
+| `plugins/<bundle-id>.json` | The executable runtime contributions — what this bundle actually provides to a running node — and its `yanoApi` range: the `min` and `max` API majors it supports and the `minLevel` it needs. |
 | `appchain-config-metadata-v1.json` | Typed configuration definitions: keys, types, defaults, allowed values, scope, change policy, and whether a value is secret. |
 | `appchain-component-catalog-v1.json` | Selectable product capabilities and the artifacts they require — what a user sees in `appchain capabilities` and in Studio. |
 
@@ -32,14 +32,28 @@ manifest without interpreting product metadata.
 Runtime activation goes through `PluginProviderRegistry` plus the schema-v1
 plugin manifest. There is no other path:
 
-- no raw `ServiceLoader` discovery by the host,
+- no raw `ServiceLoader` activation outside the catalog,
 - no direct host construction,
 - no product switches inside the host, and
 - no product-specific host CDI or REST activation.
 
-The host loads a bundle from `yano.plugins.directory`, validates its manifest,
-resolves declared dependencies, checks API compatibility, and only then
-activates the contributions that configuration has selected.
+At start-up the host snapshots each JAR in `yano.plugins.directory`, checks its
+manifest and ServiceLoader entries without loading code, checks API
+compatibility, applies the allow and deny lists, builds one shared loader,
+correlates providers, orders bundles by their declared dependencies, and only
+then constructs the contributions that configuration has selected.
+[How plugins load](/plugins/how-plugins-load/) steps through each check and the
+error each one reports.
+
+A manifest declares its API range like this:
+
+```json
+"yanoApi": { "min": 3, "max": 3, "minLevel": 12 }
+```
+
+`min` and `max` bound the API **major**; `minLevel` is the lowest API **level**
+the bundle needs. There is no maximum level: a host at a higher level accepts
+the bundle.
 
 Requirements a runtime plugin must satisfy:
 
@@ -47,7 +61,7 @@ Requirements a runtime plugin must satisfy:
 |---|---|
 | Dependency-complete bundle | The node must not have to resolve your transitive dependencies at runtime. |
 | Does not embed host SPI classes | Embedding them creates two incompatible copies of the same interface. |
-| Declares Yano API major and min/max level | A bundle built against an incompatible host fails closed rather than misbehaving. |
+| Declares `yanoApi {min, max, minLevel}` | A bundle built against an incompatible host fails closed rather than misbehaving. |
 | Bounded lifecycle cleanup | Shutdown must actually release threads, connections, and files. |
 
 ## The trust envelope
@@ -61,7 +75,9 @@ The Ed25519 signature binds:
 - the publisher key id.
 
 It authenticates **those exact bytes**. Understanding what it does *not* do
-matters just as much:
+matters just as much. Tooling checks the signature (`plugin validate`,
+`plugin inspect`, `metadata verify`, project rendering and `doctor`); a running
+node does not check it at start-up.
 
 :::caution[Signing is not approval]
 A valid signature does not approve the code, and it does not elevate a custom
@@ -79,8 +95,9 @@ Verification is offline and code-free:
 ./yano.sh appchain metadata verify <jar> --trust-key <key-id>=<key-hex>
 ```
 
-Neither command loads provider classes, runs plugin code, fetches a registry,
-nor installs the JAR. The public key is not secret; distribute it freely.
+None of these commands loads provider classes, runs plugin code, fetches a
+registry, or installs the JAR. The public key is not secret; distribute it
+freely.
 
 ## Pinning, in a project
 
@@ -98,8 +115,8 @@ chain.
 ## Configuration metadata and coverage
 
 Typed configuration metadata is what makes `appchain config validate` and
-`appchain explain` useful for third-party plugins. Each property declares its
-type, default, bounds, allowed values, scope, change policy, and secret flag.
+`appchain config explain` useful for third-party plugins. Each property declares
+its type, default, bounds, allowed values, scope, change policy, and secret flag.
 
 Coverage is reported honestly. Treat custom-plugin metadata as **`PARTIAL`**
 unless Yano reports `FULL` coverage, and verify the signed metadata and its
@@ -139,9 +156,11 @@ digest all match. Resolution must be deterministic and side-effect free — see
 
 ## Deeper reading
 
-- ADR-011 in the repository's `adr/app-layer/` directory — the host/plugin SPI,
-  catalog, compatibility, isolation, and lifecycle contract.
-- [`core-host.md`](https://github.com/bloxbean/yano-x/blob/main/docs/core-host.md)
-  — plugin query and domain API contract, plugin operations.
+- [How plugins load](/plugins/how-plugins-load/) — the start-up checks, the
+  shared loader, and the trust boundaries.
+- Yano's [manifested bundle catalog ADR](https://github.com/bloxbean/yano/blob/main/adr/app-layer/011.2-manifested-bundle-catalog.md)
+  — the host's catalog, compatibility, isolation and lifecycle contract.
+- Yano's [plugin query and domain API guide](https://github.com/bloxbean/yano/blob/main/docs/APP_CHAIN_PLUGIN_QUERY_AND_DOMAIN_API.md)
+  and [plugin operations guide](https://github.com/bloxbean/yano/blob/main/docs/PLUGIN_OPERATIONS.md).
 - [Composite implementation guide](https://github.com/bloxbean/yano-x/blob/main/composition/runtime/README.md)
 - [Plugin template scaffold](https://github.com/bloxbean/yano-x/tree/main/scaffolds/plugin-template/)

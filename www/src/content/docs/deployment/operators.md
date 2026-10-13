@@ -1,8 +1,17 @@
 ---
 title: "Deploy and operate remote VMs"
-description: "The packaged tools/yano-deploy/bin/yano-x-deploy automates a qualified showcase profile on existing Linux VMs, Contabo, Hetzner Cloud, DigitalOcean, or…"
+description: "A reviewed deployment that passes readiness, identity, and finality checks before users reach it."
 editUrl: "https://github.com/bloxbean/yano-x/edit/main/docs/appchain/deployment/operators.md"
 ---
+- **Goal:** run members on remote Linux machines, either from the curated
+  showcase profile or from your own validated project.
+- **Before you start:** the extracted Yano X JVM release and its ZIP file,
+  reachable systemd Linux VMs with SSH and sudo, and Java 25 on each VM. The
+  showcase route also needs OpenTofu and Ansible; the custom route needs
+  Ansible.
+- **Outcome:** a reviewed deployment that passes readiness, identity, and
+  finality checks before users reach it.
+
 The packaged `tools/yano-deploy/bin/yano-x-deploy` automates a qualified showcase
 profile on existing Linux VMs, Contabo, Hetzner Cloud, DigitalOcean, or mixed
 placement. It generates OpenTofu and Ansible inputs, configures systemd and
@@ -15,18 +24,23 @@ provisioning and its curated anchored-settlement profile. Do not feed
 
 ## Automated showcase route
 
-Use the exact JVM release and matching showcase ZIP. From the extracted JVM
-release:
+Import the exact Yano X JVM ZIP you extracted. It carries the showcase profile
+that the deployment tool installs. From the extracted JVM release:
 
 ```bash
 tools/yano-deploy/bin/yano-x-deploy init ./vm-cluster --nodes 3
 # Edit vm-cluster/deployment.yaml: actual hosts, placement, network, and secret references.
 # Complete the profile's settlement deployment record and bootstrap prerequisites.
-tools/yano-deploy/bin/yano-x-deploy artifact import ./vm-cluster --file /path/to/yano-showcase.zip
+tools/yano-deploy/bin/yano-x-deploy artifact import ./vm-cluster \
+  --file /path/to/yano-x-jvm-<version>.zip
 tools/yano-deploy/bin/yano-x-deploy validate ./vm-cluster
 tools/yano-deploy/bin/yano-x-deploy doctor ./vm-cluster
 tools/yano-deploy/bin/yano-x-deploy plan ./vm-cluster
 ```
+
+> **✓ You should see** `Imported showcase archive sha256:...` after the import.
+> The import refuses an archive without `yano.sh`, `yano.jar`, and the
+> `examples/showcase/` profile.
 
 Read the [full operator runbook](https://github.com/bloxbean/yano-x/blob/main/deployment/README.md) for SSH bootstrap,
 provider credentials, OS and capacity checks, network policy, and manifest fields.
@@ -97,5 +111,6 @@ pretends to upgrade remote VMs. Expert operators can also use the generated
 Watch per-chain finality progress, peer connectivity, root/identity agreement,
 L1 freshness, disk capacity, process health, effect backlogs, and anchor status.
 An empty infrastructure plan does not mean configuration or service changes are
-absent. Treat a fixed proposer as an availability dependency even if enough
-other validators remain online.
+absent. If a fixed proposer is offline, the other members still finalize
+through a certified view change, but each block first waits for a round
+timeout. Treat a fixed proposer as a performance dependency, and watch it.

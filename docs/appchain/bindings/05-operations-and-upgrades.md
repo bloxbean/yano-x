@@ -9,7 +9,7 @@ and [upgrade preflight guide](../DECLARATIVE_BINDINGS_UPGRADES.md) nearby.
 
 | Observation | Meaning | Next action |
 |---|---|---|
-| HTTP 400 application rejection | The submitted command failed early admission, possibly a static admission rule; it was not pooled | Correct its encoding, size or other stated invalidity and submit again; the node's DEBUG admission log names a refusing rule |
+| HTTP 400 application rejection | The submitted command failed ingress admission; it was not pooled. For a static admission rule, the body's `details` names the `rule`, its `deny` code and, for a batch, the deciding `write` | Correct its encoding, size or other stated invalidity and submit again |
 | HTTP 503 admission unavailable | The admission callback could not complete | Investigate node warnings and plugin health; it is not business acceptance |
 | HTTP 202 | The node accepted the submission into its processing path | Wait for finalization, then inspect the receipt |
 | Finalized accepted receipt | This source's cascade committed | Inspect the resulting business state; external delivery may still be pending |
@@ -26,6 +26,15 @@ the original receipt. A fresh envelope/ID is a new attempt, not a bypass of
 business idempotency, authorization or one-use approval consumption. A capacity
 failure may succeed in a later block; a bad signature or invalid action needs a
 real correction.
+
+## Where did my command stop?
+
+Start from what the submission returned and follow the receipt. Each answer
+says where the outcome is recorded and whether a new message can help. The
+[rejection-code table](../DECLARATIVE_BINDINGS.md#why-did-a-binding-not-fire)
+has every code.
+
+<!-- illustration: command-stop -->
 
 ## Find the receipt and its proof key
 
@@ -63,7 +72,7 @@ An app-final proof is not automatically a Cardano-anchored proof; see
 5. Verify mapping types and target admission/authorization. A successful source
    transition alone does not guarantee its derived target succeeds; an
    [admission rule](07-admission-rules.md) on the target may refuse it, and each
-   step's `rulesEvaluated` trace names that rule.
+   step's `rules` trace names that rule.
 6. Check event, work, fan-out, receipt and effect bounds. The
    [rejection-code table](../DECLARATIVE_BINDINGS.md#why-did-a-binding-not-fire)
    distinguishes them.
@@ -154,8 +163,13 @@ Success means byte-exact profile reconstruction only. It does not prove replay,
 binary semantic equivalence, migration safety, historical proof correctness or
 effect-result compatibility. The current stock provider executes version 1.2.0,
 and IR or receipts written before ADR-031.3 (versions 1.1.0 and 1.0.0) fail decode
-with a "predates ADR-031.3" error. Re-create such experimental chains from their
-YAML; do not upgrade them in place or rewrite their identity markers.
+with a "predates ADR-031.3" error. ADR-031.4 then changed the rule layout in
+place without changing that version: IR whose admission rules were written
+before it, and receipts that record a rule failure, fail decode with a
+"predates ADR-031.4" error. Re-create such experimental chains from their YAML;
+do not upgrade them in place or rewrite their identity markers. The
+[upgrade reference](../DECLARATIVE_BINDINGS_UPGRADES.md#check-a-candidate-bundle-set-without-touching-retained-state)
+steps through what `profile-check` does.
 
 ## Before sharing a deployment
 

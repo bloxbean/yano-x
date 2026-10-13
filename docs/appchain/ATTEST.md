@@ -52,7 +52,7 @@ anchored, the Cardano slot).
 The light showcase starts three members with a `documents-chain` that runs `doc-trail`.
 
 ```bash
-cd examples/showcase/src/main/showcase
+cd yano-x-jvm-<version>/examples/showcase     # in an extracted Yano X JVM distribution
 ./showcase.sh quickstart --instance demo
 ```
 
