@@ -44,6 +44,30 @@ snapshot repository and the ZIP from the matching BloxBean snapshot
 distribution; see [BUILD_DISTRIBUTIONS.md](BUILD_DISTRIBUTIONS.md). Set
 `yanoJvmDist` only to override that asset with an exact local or staged ZIP.
 
+### Changing the Yano version
+
+Every change of `yanoVersion` is a small, complete change set. Nothing in
+`build` or CI regenerates these files, and CI's `check` does not run the
+Studio drift test, so do every step yourself:
+
+1. Choose a version whose Maven artifacts and JVM ZIP are both published. For
+   a commit snapshot, both Yano workflows must have completed, including the
+   distribution workflow's approval.
+2. Set `yanoVersion` in `gradle.properties`.
+3. Regenerate the version tables in the docs: `node www/scripts/generate-catalog.mjs`.
+4. Regenerate Studio's shipped reference catalog and test fixtures, and commit
+   the changed files under `tooling/studio/`:
+   `./gradlew :tooling:devtools:regenerateStudioFixtures`. They record the
+   exact Yano host they were generated from, and `StudioFixturesIT` compares
+   that host, so every version change needs this step. Usually only the host
+   version and jar digests change; any other difference means the host's
+   binding behaviour changed, so review it. The task refuses a SNAPSHOT host.
+   On a snapshot pin, leave the fixtures alone and regenerate them when Yano X
+   re-pins to a released Yano.
+5. Verify: `./gradlew test verifyArtifactInventory verifyJvmOnlyBuild
+   :tooling:devtools:integrationTest --tests '*StudioFixturesIT'`, then
+   `distributionCheck`. Before a release, also run the release smoke test.
+
 The command above is the source-and-test build and does not assemble every
 distribution. Gradle's root `build` lifecycle also validates the release
 archives. It consumes the same dependency-complete bundle JARs attached to the
