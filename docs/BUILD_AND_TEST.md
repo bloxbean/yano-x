@@ -54,7 +54,9 @@ Studio drift test, so do every step yourself:
    a commit snapshot, both Yano workflows must have completed, including the
    distribution workflow's approval.
 2. Set `yanoVersion` in `gradle.properties`.
-3. Regenerate the version tables in the docs: `node www/scripts/generate-catalog.mjs`.
+3. Regenerate the version tables in the docs: `node www/scripts/import-repo-docs.mjs`.
+   It rewrites the generated blocks under `docs/site/` and their imported
+   copies under `www/src/content/docs/`; commit both.
 4. Regenerate Studio's shipped reference catalog and test fixtures, and commit
    the changed files under `tooling/studio/`:
    `./gradlew :tooling:devtools:regenerateStudioFixtures`. They record the
