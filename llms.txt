@@ -2,7 +2,7 @@
 
 yanoXVersion: 0.1.0-pre4-SNAPSHOT
 yanoVersion: 0.1.0-pre18
-generatedAt: 2026-10-15T15:04:08.995Z
+generatedAt: 2026-10-16T16:00:11.519Z
 
 > Yano X is the Java 25, JVM-only extension ecosystem for Yano app ledgers. An app ledger (an "app chain" in Yano's CLI, configuration, and APIs) is an application-specific replicated ledger with deterministic state, threshold finality, authenticated state proofs, optional Cardano anchoring, and controlled external effects. Yano X supplies the stock state machines, capabilities, connectors, products, SDKs, and the batteries-included JVM distribution that run on top of the Yano host.
 
