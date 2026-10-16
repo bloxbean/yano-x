@@ -1,6 +1,9 @@
 package org.yanoproject.x.devtools;
 
+import org.yanoproject.api.appchain.AppStateMachine;
 import org.yanoproject.api.appchain.AppStateMachineProvider;
+import org.yanoproject.api.appchain.effects.AppEffectExecutorFactory;
+import org.yanoproject.api.appchain.sink.FinalizedStreamSinkFactory;
 import org.yanoproject.appchain.config.AppChainPropertyRegistry;
 import org.yanoproject.appchain.config.AppChainMetadataDescriptor;
 import org.yanoproject.appchain.config.AppChainPropertyDefinition;
@@ -15,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
 import java.io.PrintWriter;
 import java.io.StringReader;
 import java.io.StringWriter;
@@ -24,6 +28,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
@@ -31,6 +36,8 @@ import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
+import javax.tools.JavaCompiler;
+import javax.tools.ToolProvider;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -220,6 +227,69 @@ class AppChainCustomComponentCatalogTest {
             assertThatThrownBy(() -> scaffolder.scaffold(
                     mode, "sample-" + mode, "example." + mode.replace('-', '_'),
                     "0.1.0-test", output)).hasMessageContaining("not empty");
+        }
+    }
+
+    @Test
+    void everyScaffoldModeCompilesAgainstThePinnedHostApiAndLoadsThroughItsService()
+            throws Exception {
+        JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
+        assertThat(compiler).as("tests must run on a JDK").isNotNull();
+        Map<String, Class<?>> services = Map.of(
+                "state-machine", AppStateMachineProvider.class,
+                "composite-role", AppStateMachineProvider.class,
+                "effect-executor", AppEffectExecutorFactory.class,
+                "sink", FinalizedStreamSinkFactory.class);
+        for (String mode : List.of("state-machine", "composite-role", "effect-executor", "sink")) {
+            String id = "compiled-" + mode;
+            Path output = temporary.resolve("compile-" + mode);
+            new AppChainPluginScaffolder().scaffold(
+                    mode, id, "example.compiled." + mode.replace('-', '_'), "0.1.0-test", output);
+            List<String> sources;
+            try (var paths = Files.walk(output.resolve("src/main/java"))) {
+                sources = paths.filter(path -> path.toString().endsWith(".java"))
+                        .map(Path::toString).toList();
+            }
+            Path classes = Files.createDirectories(output.resolve("build/classes"));
+            // The test classpath carries the pinned host API, so an SPI change fails this build first.
+            List<String> arguments = new ArrayList<>(List.of(
+                    "-proc:none", "-Xlint:all,-path,-options", "-Werror", "-implicit:none",
+                    "-classpath", System.getProperty("java.class.path"),
+                    "-d", classes.toString()));
+            arguments.addAll(sources);
+            ByteArrayOutputStream diagnostics = new ByteArrayOutputStream();
+            int exit = compiler.run(null, diagnostics, diagnostics, arguments.toArray(String[]::new));
+            assertThat(exit).as("%s scaffold compiles:%n%s", mode,
+                    diagnostics.toString(StandardCharsets.UTF_8)).isZero();
+
+            try (URLClassLoader pluginLoader = new URLClassLoader(new URL[]{
+                    classes.toUri().toURL(), output.resolve("src/main/resources").toUri().toURL()},
+                    getClass().getClassLoader())) {
+                List<?> providers = ServiceLoader.load(services.get(mode), pluginLoader).stream()
+                        .map(ServiceLoader.Provider::get)
+                        .filter(provider -> provider.getClass().getClassLoader() == pluginLoader)
+                        .toList();
+                assertThat(providers).as("%s service registration", mode).hasSize(1);
+                switch (providers.getFirst()) {
+                    case AppStateMachineProvider provider -> {
+                        assertThat(provider.id()).isEqualTo(id);
+                        AppStateMachine machine = provider.create();
+                        assertThat(machine.id()).isEqualTo(id);
+                        AppStateMachine.AdmissionResult admission = machine.validate(null);
+                        assertThat(admission.isAccepted()).isFalse();
+                        assertThat(admission.reason()).matches("[A-Z_]{1,32}");
+                    }
+                    case AppEffectExecutorFactory factory -> {
+                        assertThat(factory.scheme()).isEqualTo(id);
+                        assertThat(factory.create("chain", Map.of())).isEmpty();
+                    }
+                    case FinalizedStreamSinkFactory factory -> {
+                        assertThat(factory.scheme()).isEqualTo(id);
+                        assertThat(factory.create("chain", Map.of())).isEmpty();
+                    }
+                    default -> throw new AssertionError("unexpected provider " + providers.getFirst());
+                }
+            }
         }
     }
 

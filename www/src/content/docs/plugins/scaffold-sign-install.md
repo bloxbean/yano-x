@@ -73,6 +73,10 @@ secret and is distributed with `--trust-key`.
 
 ## 4. Build and validate
 
+The scaffold ships no Gradle wrapper, so install a Gradle that supports
+Java 25 (9.1 or later) or add your organization's wrapper first. Sign before you build: the signature is packaged
+inside the JAR.
+
 ```bash
 cd shipment-plugin && gradle jar && cd ..
 
@@ -107,12 +111,17 @@ the project snapshot automatically.
 
 ## 6. Check readiness against a real distribution
 
+`doctor` checks the distribution you will run, so copy the pinned JAR into its
+`plugins/` directory first:
+
 ```bash
+cp shipment-plugin/build/libs/shipment-yano-plugin.jar /opt/yano-x/plugins/
 ./yano.sh appchain doctor shipment-chain --distribution /opt/yano-x
 ```
 
-A missing or different JAR fails artifact readiness. A native distribution
-reports a direct incompatibility, because Yano X plugins target the JVM host.
+A missing or different JAR fails artifact readiness with `pinned plugin digest
+is absent from distribution plugins/`. A native distribution reports a direct
+incompatibility, because Yano X plugins target the JVM host.
 
 ## 7. Install on every member
 
@@ -146,11 +155,22 @@ Adding a member or a node is routine. Changing what a plugin *computes* is not
 
 ## Compare, then apply
 
+Save the current lock before you change the blueprint, so there is something to
+compare against:
+
 ```bash
+cp shipment-chain/appchain.lock previous.lock
+# ...edit the blueprint and re-render the project...
 ./yano.sh appchain diff previous.lock shipment-chain/appchain.lock
 ./yano.sh appchain migrate shipment-chain --dry-run
-./yano.sh appchain drift shipment-chain --peer http://node-a:8080/api/v1/
+./yano.sh appchain drift shipment-chain --peer http://node-a:8080/api/v1/ \
+  --api-key-env YANO_OPERATOR_API_KEY
 ```
+
+`drift` reads node identities through the privileged API, so set
+`YANO_OPERATOR_API_KEY` to one of the keys in the nodes'
+`YANO_APPCHAIN_API_KEYS`; without it the nodes answer `HTTP 401`. The key is
+read only from the environment, never from the command line.
 
 `diff` classifies a blueprint change before you apply it. `drift` compares a
 project against running nodes when identities are available, including each
