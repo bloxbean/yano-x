@@ -47,8 +47,9 @@ export default {
     },
     {
       id: 'doctor', label: 'Check readiness', sub: 'doctor --distribution', kind: 'ledger',
-      detail: '`appchain doctor <project> --distribution /opt/yano-x` re-verifies the snapshot. A pinned JAR that is '
-        + 'missing or different fails artifact readiness.',
+      detail: 'Copy the pinned JAR into the distribution\'s `plugins/`, then `appchain doctor <project> '
+        + '--distribution /opt/yano-x` re-verifies the snapshot. A pinned JAR that is missing or different fails '
+        + 'artifact readiness.',
     },
     {
       id: 'install', label: 'Install on\nevery member', sub: 'copy to plugins/', kind: 'ledger',

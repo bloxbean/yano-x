@@ -234,9 +234,14 @@ again at start-up, before your code runs; [How plugins load](../../site/plugins-
 lists those checks. Then confirm that every member runs the same plugin catalog:
 
 ```bash
+export YANO_OPERATOR_API_KEY='<operator-api-key>'
 ./yano.sh appchain drift shipment-chain --peer http://node-a:8080/api/v1/ \
-  --peer http://node-b:8080/api/v1/ --peer http://node-c:8080/api/v1/
+  --peer http://node-b:8080/api/v1/ --peer http://node-c:8080/api/v1/ \
+  --api-key-env YANO_OPERATOR_API_KEY
 ```
+
+Set the key to one of the values in the nodes' `YANO_APPCHAIN_API_KEYS`. Without
+`--api-key-env`, the nodes reject the identity requests with `HTTP 401`.
 
 ## 8. Change it safely later
 
