@@ -164,8 +164,7 @@ The node never receives the wallet signing key.
 
 Datum ABI v2 can additionally bind the depositor's Cardano payment credential
 to a bounded L2 authorization profile, epoch, and public key. Direct EUTxO
-leaves this binding absent. The ZeroJ modules use it to register Alice and Bob's
-Jubjub keys from their independently signed L1 deposits.
+leaves this binding absent.
 
 Staging outputs are never observed or credited, so a still-refundable output
 cannot inflate L2 supply. A duplicate accepted outpoint is idempotent; the

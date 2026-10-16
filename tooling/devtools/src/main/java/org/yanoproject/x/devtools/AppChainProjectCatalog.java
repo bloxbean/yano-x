@@ -53,6 +53,8 @@ final class AppChainProjectCatalog {
     private static final Set<String> AVAILABILITY = Set.of(
             "BUNDLED", "FIRST_PARTY_OPTIONAL", "REFERENCE", "EXPERIMENTAL");
     private static final Set<String> MATURITY = Set.of("stable", "preview", "experimental");
+    private static final Set<String> CAPABILITY_MATURITY = Set.of(
+            "stable", "preview", "experimental", AppChainProjectModel.WITHDRAWN_MATURITY);
     private static final Set<String> SCOPES = Set.of("chain", "node", "distribution");
     private static final Set<String> NETWORKS =
             Set.copyOf(AppChainProjectModel.DEFAULT_SUPPORTED_NETWORKS);
@@ -445,7 +447,7 @@ final class AppChainProjectCatalog {
             requireText(capability.name(), capability.id(), "name");
             requireText(capability.category(), capability.id(), "category");
             requireEnum(capability.availability(), AVAILABILITY, capability.id(), "availability");
-            requireEnum(capability.maturity(), MATURITY, capability.id(), "maturity");
+            requireEnum(capability.maturity(), CAPABILITY_MATURITY, capability.id(), "maturity");
             requireEnum(capability.effectiveScope(), SCOPES, capability.id(), "scope");
             requireEnum(capability.nativePosture(), NATIVE_POSTURES,
                     capability.id(), "nativePosture");
@@ -568,6 +570,10 @@ final class AppChainProjectCatalog {
                 if (!capabilities.containsKey(capability)) {
                     throw new IllegalStateException("Recipe " + recipe.id()
                             + " references unknown capability " + capability);
+                }
+                if (capabilities.get(capability).withdrawn()) {
+                    throw new IllegalStateException("Recipe " + recipe.id()
+                            + " references withdrawn capability " + capability);
                 }
             }
             for (String artifact : safeList(recipe.artifacts())) {

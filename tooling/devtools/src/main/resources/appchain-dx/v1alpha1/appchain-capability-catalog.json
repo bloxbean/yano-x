@@ -199,7 +199,7 @@
     },
     {
       "id": "yano-x-eutxo-zk-zeroj",
-      "availability": "BUNDLED",
+      "availability": "EXPERIMENTAL",
       "bundleId": "library:ledgers:eutxo-zk:zeroj",
       "nativePosture": "unsupported",
       "runtimeTypes": [
@@ -225,7 +225,7 @@
     },
     {
       "id": "yano-x-eutxo-zk-lifecycle",
-      "availability": "BUNDLED",
+      "availability": "EXPERIMENTAL",
       "bundleId": "library:ledgers:eutxo-zk:lifecycle",
       "nativePosture": "unsupported",
       "runtimeTypes": [
@@ -692,7 +692,7 @@
       "name": "Zero-knowledge proof gate",
       "category": "state",
       "availability": "EXPERIMENTAL",
-      "maturity": "experimental",
+      "maturity": "withdrawn",
       "scope": "chain",
       "selectable": true,
       "trustStatement": "Experimental ZeroJ integration; circuit and verification-key governance remain operator responsibilities.",
@@ -745,7 +745,7 @@
       "name": "Anonymous ZK membership",
       "category": "state",
       "availability": "EXPERIMENTAL",
-      "maturity": "experimental",
+      "maturity": "withdrawn",
       "scope": "chain",
       "selectable": true,
       "trustStatement": "Experimental ZeroJ integration; circuit and verification-key governance remain operator responsibilities.",
@@ -798,7 +798,7 @@
       "name": "BBS credential registry",
       "category": "state",
       "availability": "EXPERIMENTAL",
-      "maturity": "experimental",
+      "maturity": "withdrawn",
       "scope": "chain",
       "selectable": true,
       "trustStatement": "Experimental ZeroJ integration; issuer key governance remains an application responsibility.",
@@ -967,7 +967,7 @@
       "scope": "chain",
       "selectable": true,
       "trustStatement": "Experimental key-controlled, ADA-only, zero-fee EUTxO profile. Scripts and unsupported Cardano transaction purposes are rejected.",
-      "description": "Pins the immutable yano-eutxo-v1 ledger profile used by the current bounded ZeroJ validity circuit.",
+      "description": "Pins the immutable yano-eutxo-v1 key-payments ledger profile.",
       "provides": [
         "eutxo-ledger-profile"
       ],
@@ -1131,7 +1131,7 @@
       "name": "ZeroJ EUTxO validity settlement",
       "category": "settlement",
       "availability": "EXPERIMENTAL",
-      "maturity": "experimental",
+      "maturity": "withdrawn",
       "scope": "chain",
       "selectable": true,
       "trustStatement": "Restricted ZeroJ Groth16 validity profile for development and testnet use only. Its zeroj-jubjub-dev-v1 authorization requires a trusted prover, host-only point validation and disposable test funds. It is not malicious-prover secure or production-funds ready; a hardened circuit requires new ceremony, proving-key, verification-key and validator identities.",
@@ -1210,7 +1210,7 @@
       "name": "ZeroJ Cardano EUTxO rollup label",
       "category": "product-label",
       "availability": "EXPERIMENTAL",
-      "maturity": "experimental",
+      "maturity": "withdrawn",
       "scope": "chain",
       "selectable": false,
       "trustStatement": "Readiness label only. It remains unavailable until independent reconstruction, operational L1 data retention, external audits, production MPC ceremony and accountable production-funds approval are recorded.",

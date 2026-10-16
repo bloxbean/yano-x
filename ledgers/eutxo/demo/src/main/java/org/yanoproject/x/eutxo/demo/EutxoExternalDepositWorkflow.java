@@ -26,7 +26,6 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.security.MessageDigest;
 import java.util.Arrays;
-import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -63,7 +62,7 @@ public final class EutxoExternalDepositWorkflow {
                 .stream().findFirst()
                 .orElseThrow(() -> new IllegalStateException(
                         "external depositor has no devnet UTXO"));
-        EutxoL2KeyBinding binding = binding(options);
+        EutxoL2KeyBinding binding = EutxoL2KeyBinding.none();
         EutxoVaultDatum datum = new EutxoVaultDatum(
                 EutxoVaultDatum.ABI_VERSION,
                 workspace.manifest().chainId(),
@@ -198,24 +197,6 @@ public final class EutxoExternalDepositWorkflow {
                                 .normalize().toString(),
                         "next",
                         "Wait for L1 stability, then query the mirrored L2 UTXO"));
-    }
-
-    private EutxoL2KeyBinding binding(EutxoDemoOptions options) {
-        if (!"zk".equals(workspace.manifest().scenario())) {
-            if (options.l2PublicKey() != null) {
-                throw new IllegalArgumentException(
-                        "--l2-public-key is only valid for the ZK demo");
-            }
-            return EutxoL2KeyBinding.none();
-        }
-        if (options.l2PublicKey() == null
-                || !options.l2PublicKey().matches("[0-9a-f]{64}")) {
-            throw new IllegalArgumentException(
-                    "external ZK deposits require a lowercase 32-byte --l2-public-key");
-        }
-        return new EutxoL2KeyBinding(
-                "zeroj-jubjub-dev-v1",
-                1, HexFormat.of().parseHex(options.l2PublicKey()));
     }
 
     private String identity(String name) {

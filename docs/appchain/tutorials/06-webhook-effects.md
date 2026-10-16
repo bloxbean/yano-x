@@ -307,7 +307,7 @@ status are the real business contract.
 
 ## Go deeper
 
-- Read [Effects §18](../../APP_CHAIN_USER_GUIDE.md) for quarantine, requeue,
+- Read [Effects §17](../../APP_CHAIN_USER_GUIDE.md) for quarantine, requeue,
   cancellation, proof, and external executor APIs.
 - Kill the receiver temporarily, observe retries and parking, restore it, and
   use the operator requeue endpoint.

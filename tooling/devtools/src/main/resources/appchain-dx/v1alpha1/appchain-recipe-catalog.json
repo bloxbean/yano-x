@@ -369,7 +369,7 @@
       "maturity": "experimental",
       "scope": "chain",
       "selectable": true,
-      "trustStatement": "Experimental real-funds federated custody path. Use only reviewed contract identities and bridge/root operators. Signer mode trusts an external threshold/HSM; proof mode trusts the threshold-accepted root. Virtual genesis and ZeroJ are deliberately excluded.",
+      "trustStatement": "Experimental real-funds federated custody path. Use only reviewed contract identities and bridge/root operators. Signer mode trusts an external threshold/HSM; proof mode trusts the threshold-accepted root. Virtual genesis is deliberately excluded.",
       "description": "A Cardano-backed EUTxO ledger with stable deposits and claim-bound federated withdrawals through external signing or permissionless current-root proofs.",
       "primaryOutcome": "Accepted stable deposits create mirrored EUTxOs; signed L2 spends create irrevocable claims that settle only through the configured signer path or a current accepted MPF root with single-use nullification.",
       "firstCommand": "stage and accept a bounded deposit, then submit a signed withdrawal output carrying the bridge withdrawal datum",

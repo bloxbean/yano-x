@@ -1,10 +1,13 @@
 # Optional EUTxO validity and ZK-rollup modules
 
-> **Withdrawn from the distribution.** The `eutxo-zeroj-validity` and
-> `eutxo-zeroj-preview` recipes, the `zk` demo scenario, and the showcase's
-> `eutxo --variant zk` have been removed while this path is untested. The
-> modules and this guide remain in the repository for developers, but the
-> commands below that use those recipes or the `zk` scenario no longer work.
+> **Not offered by any recipe or tool.** While this path is untested, no
+> recipe, demo scenario, showcase variant, or developer-tools command offers it,
+> and the published documentation leaves it out. The `eutxo-zeroj-validity` and
+> `eutxo-zeroj-preview` recipes, the `zk` demo scenario, and `appchain validity`
+> have been removed, so the commands below that use them no longer work. The
+> modules and this guide remain in the repository for developers. The records in
+> [`acceptance/`](acceptance/) describe the last runs; they are no longer shipped
+> or re-verified.
 
 The shortest disposable devnet path is the unified
 [EUTxO demo guide](../eutxo/DEMO.md). The manual lifecycle and public-testnet

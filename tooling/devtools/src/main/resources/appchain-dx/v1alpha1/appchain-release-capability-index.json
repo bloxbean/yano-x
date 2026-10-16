@@ -35,9 +35,7 @@
     "yano-x-eutxo-indexer-core",
     "yano-x-eutxo-indexer-jdbc",
     "yano-x-eutxo-bridge-cardano",
-    "yano-x-eutxo-zk-zeroj",
-    "yano-x-eutxo-zk-runtime",
-    "yano-x-eutxo-zk-lifecycle"
+    "yano-x-eutxo-zk-runtime"
   ],
   "distributions": [
     {
@@ -59,9 +57,7 @@
         "yano-x-eutxo-indexer-core",
         "yano-x-eutxo-indexer-jdbc",
         "yano-x-eutxo-bridge-cardano",
-        "yano-x-eutxo-zk-zeroj",
-        "yano-x-eutxo-zk-runtime",
-        "yano-x-eutxo-zk-lifecycle"
+        "yano-x-eutxo-zk-runtime"
       ]
     }
   ]

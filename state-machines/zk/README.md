@@ -1,5 +1,11 @@
 # Yano App-Chain ZK Extension
 
+> **Not offered by any recipe or tool.** While this extension is untested, its
+> `state:zk-gate`, `state:zk-membership`, and `state:credential-registry`
+> capabilities are withdrawn: no recipe or Studio selection offers them, and the
+> published documentation leaves them out. The module and this guide remain in
+> the repository for developers.
+
 Experimental ZeroJ-based state-machine plugin for proof-verified app-chain
 messages.
 

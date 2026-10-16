@@ -86,7 +86,7 @@ The default `./gradlew build -PskipSigning=true` and the focused
 `distributionCheck` tier produce one release archive,
 `distribution/jvm/build/distributions/yano-x-jvm-<version>.zip`. It contains
 the standard Yano JVM distribution, 17 conflict-free default plugin bundles
-under `plugins/`, the alternative eUTxO ZK runtime under `optional-plugins/`, a
+under `plugins/`, one alternative runtime bundle under `optional-plugins/`, a
 checksummed manifest covering all 18 runtime plugin bundles, the command-line
 and deployment tools, App-Chain Studio, and Yano/Yano X identity manifests.
 
@@ -140,11 +140,10 @@ external Maven component. The combined JVM ZIP also preserves Yano's license as
 `LICENSE.yano` and its host SBOM as `sbom/yano.cdx.json`.
 
 The default plugin directory is an activatable selection, not an indiscriminate
-copy of every published alternative. The standard eUTxO runtime and the eUTxO
-ZK runtime both intentionally provide `app-state-machine/eutxo-ledger`; to use
-the ZK implementation, remove the standard eUTxO ledger bundle and copy the ZK
-runtime bundle from `optional-plugins/` into `plugins/` on every member. Validate
-the resulting set with `tools/yano-plugins/bin/yano-plugins validate plugins/*.jar`.
+copy of every published alternative. The bundle in `optional-plugins/` provides
+the same `app-state-machine/eutxo-ledger` contribution as the standard eUTxO
+runtime, so never copy both into `plugins/`. Validate any plugin set with
+`tools/yano-plugins/bin/yano-plugins validate plugins/*.jar`.
 
 ## Documentation
 

@@ -131,12 +131,10 @@ The light profile runs a self-contained local devnet; `stop` preserves instance
 data. See `examples/showcase/DEMO_SHOWCASE.md` for scenarios and restart
 operations.
 
-All 18 runtime bundles remain independently published and are represented in
-the manifest. The default distribution activates 17. The eUTxO ZK runtime is
-optional because it and the standard eUTxO runtime intentionally own the same
-`app-state-machine/eutxo-ledger` contribution. Operators select exactly one of
-those two implementations on every member; copying both into `plugins/` is a
-hard catalog error.
+All 18 runtime bundles are represented in the manifest. The default
+distribution activates 17. The bundle left in `optional-plugins/` owns the same
+`app-state-machine/eutxo-ledger` contribution as the standard eUTxO runtime, so
+copying both into `plugins/` is a hard catalog error.
 
 `verifyYanoInputs` rejects a base ZIP whose root, JAR implementation version,
 or distribution manifest differs from `yanoVersion`. The final distribution

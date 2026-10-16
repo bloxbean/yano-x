@@ -61,7 +61,6 @@ business-role authorization.
 | Bundled deterministic state | `ordered-log`, `kv-registry`, `authenticated-map`, `approvals`, `balances`, `doc-trail`, `role-approvals`, evidence registry/profile |
 | Bundled external delivery | `webhook.post` effect executor and finalized webhook sink |
 | First-party optional | Kafka effect/sink, S3-compatible `object.put`, `ipfs.pin`, `cardano.payment` |
-| Experimental optional | ZK gate, anonymous membership and credential registry |
 | Reference | Custom JVM plugin workflow and the complete evidence demo environment |
 
 Deterministic state runs identically on every member and contributes to the

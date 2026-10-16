@@ -35,6 +35,7 @@ export function resolvePresentation(recipe, capabilities, additional=[], intent=
     const id=queue.shift(); if(selected.has(id)) continue;
     const capability=indexed.get(id);
     if(!capability) { errors.push(`Unknown capability: ${id}.`); continue; }
+    if(capability.maturity === 'withdrawn') { errors.push(`${id} is withdrawn and cannot be selected.`); continue; }
     if(list(additional).includes(id) && capability.selectable === false) {
       errors.push(`${id} is derived from the distribution and cannot be selected.`); continue;
     }
@@ -71,6 +72,7 @@ export function resolvePresentation(recipe, capabilities, additional=[], intent=
 export function compatibleCapabilityOptions(recipe, capabilities, intent) {
   const base=resolvePresentation(recipe,capabilities,[],intent);
   return capabilities.filter(capability=>capability.selectable !== false
+      && capability.maturity !== 'withdrawn'
       && !['sequencer','membership'].includes(capability.category)
       && !base.capabilities.includes(capability.id))
     .map(capability=>{

@@ -338,7 +338,7 @@ class AppChainProjectTest {
     }
 
     @Test
-    void zerojValidityCapabilityPinsItsIdentityAndRejectsMainnet() throws Exception {
+    void withdrawnZkCapabilitiesKeepTheirPinnedIdentityButNoRecipeCanSelectThem() throws Exception {
         AppChainPropertyRegistry properties = AppChainPropertyRegistry.framework();
         AppChainProjectCatalog catalog = new AppChainProjectCatalog(properties);
         AppChainProjectResolver resolver = new AppChainProjectResolver(properties, catalog);
@@ -365,18 +365,30 @@ class AppChainProjectTest {
         assertThat(settlement.effectiveSupportedNetworks())
                 .containsExactly("devnet", "preview", "preprod");
 
-        AppChainProjectModel.Blueprint explicitCapability = withNetwork(
-                withCapabilities(blueprint("audit-log", "fixed", List.of()),
-                        List.of("settlement:zeroj-validity")),
-                "mainnet");
-        assertThatThrownBy(() -> resolver.resolve(explicitCapability))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("settlement:zeroj-validity")
-                .hasMessageContaining("does not support network mainnet");
-        Path rejectedOutput = temporary.resolve("rejected-mainnet-zeroj");
+        List<String> withdrawn = catalog.capabilities().stream()
+                .filter(AppChainProjectModel.Capability::withdrawn)
+                .filter(AppChainProjectModel.Capability::effectiveSelectable)
+                .map(AppChainProjectModel.Capability::id)
+                .toList();
+        assertThat(withdrawn).contains("settlement:zeroj-validity", "state:zk-gate");
+        for (AppChainProjectModel.Recipe recipe : catalog.recipes()) {
+            // A declarative composite is rejected earlier, for its missing composite document.
+            if ("declarative-composite".equals(recipe.id())) continue;
+            for (String capability : withdrawn) {
+                AppChainProjectModel.Blueprint explicit = withCapabilities(
+                        blueprint(recipe.id(), "fixed", List.of()), List.of(capability));
+                assertThatThrownBy(() -> resolver.resolve(explicit))
+                        .as("%s with %s", recipe.id(), capability)
+                        .isInstanceOf(IllegalArgumentException.class)
+                        .hasMessageContaining(capability + " is withdrawn and cannot be selected");
+            }
+        }
+        AppChainProjectModel.Blueprint explicitCapability = withCapabilities(
+                blueprint("eutxo-ledger", "fixed", List.of()), List.of("settlement:zeroj-validity"));
+        Path rejectedOutput = temporary.resolve("rejected-withdrawn-zeroj");
         assertThatThrownBy(() -> new AppChainProjectRenderer(catalog, resolver)
                 .initialize(rejectedOutput, explicitCapability))
-                .hasMessageContaining("does not support network mainnet");
+                .hasMessageContaining("is withdrawn and cannot be selected");
         assertThat(rejectedOutput).doesNotExist();
     }
 

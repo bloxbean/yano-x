@@ -16,7 +16,7 @@ repository disagree.
 
 | Document | Size | What it covers |
 |---|---|---|
-| [App ledger user guide](https://github.com/bloxbean/yano-x/blob/main/docs/APP_CHAIN_USER_GUIDE.md) | ~114 KB | The exhaustive reference: configuration, REST API, anchoring, custom app ledgers, multi-chain nodes, standard state machines, SSE/webhook/Kafka consumption, typed messages, security, compliance, operations, queries, client libraries, ZK, effects, troubleshooting, and current limitations. |
+| [App ledger user guide](https://github.com/bloxbean/yano-x/blob/main/docs/APP_CHAIN_USER_GUIDE.md) | ~114 KB | The exhaustive reference: configuration, REST API, anchoring, custom app ledgers, multi-chain nodes, standard state machines, SSE/webhook/Kafka consumption, typed messages, security, compliance, operations, queries, client libraries, effects, troubleshooting, and current limitations. |
 | [App ledger overview](https://github.com/bloxbean/yano-x/blob/main/docs/APP_CHAIN_OVERVIEW.md) | ~21 KB | The 10–15 minute architecture read, plus an editable presentation deck. |
 | [Consensus and internals guide](https://github.com/bloxbean/yano/blob/main/docs/APP_CHAIN_CONSENSUS_GUIDE.md) (Yano) | ~23 KB | The consensus round check by check, vote locks, sequencer modes, catch-up and restart semantics. |
 | [Plugin query and domain API contract](https://github.com/bloxbean/yano/blob/main/docs/APP_CHAIN_PLUGIN_QUERY_AND_DOMAIN_API.md) (Yano) | — | How plugins add read hooks and domain routes, and how the host secures them. |

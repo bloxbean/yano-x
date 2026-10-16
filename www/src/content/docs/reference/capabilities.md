@@ -48,9 +48,6 @@ fails closed rather than picking one.
 | [`state:evidence-registry`](/tutorials/04-evidence-publication/) | `BUNDLED` | `preview` | `jvm` | `yano-runtime`, `yano-x-evidence-registry` | Inspection and compliance evidence records with exact committed query proofs. |
 | [`state:role-approvals`](/tutorials/05-domain-role-approvals/) | `BUNDLED` | `preview` | `jvm` | `yano-runtime`, `yano-x-composite`, `yano-x-role-workflow` | Governed organizations, actors, policies, and signed approvals for arbitrary payload hashes. |
 | [`state:role-evidence`](/tutorials/04-evidence-publication/) | `BUNDLED` | `preview` | `jvm` | `yano-runtime`, `yano-x-stdlib`, `yano-x-evidence-registry`, `yano-x-composite`, `yano-x-role-workflow`, `yano-x-evidence-profile` | Evidence registration combined with governed domain actors and role-aware release approval. |
-| [`state:zk-gate`](https://github.com/bloxbean/yano-x/blob/main/state-machines/zk/README.md) | `EXPERIMENTAL` | `experimental` | `jvm` | `yano-runtime`, `yano-x-zk` | Verifies configured Groth16 or Plonk proofs during deterministic state transition. |
-| [`state:zk-membership`](https://github.com/bloxbean/yano-x/blob/main/state-machines/zk/README.md) | `EXPERIMENTAL` | `experimental` | `jvm` | `yano-runtime`, `yano-x-zk` | Membership authorization using a configured zero-knowledge circuit and nullifier deduplication. |
-| [`state:credential-registry`](https://github.com/bloxbean/yano-x/blob/main/state-machines/zk/README.md) | `EXPERIMENTAL` | `experimental` | `jvm` | `yano-runtime`, `yano-x-zk` | Registry for selectively disclosed BBS credential statements from configured issuers. |
 | [`state:eutxo-ledger`](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/README.md) | `FIRST_PARTY_OPTIONAL` | `experimental` | `jvm` | `yano-runtime`, `yano-x-eutxo-ledger` | Deterministic Cardano-shaped EUTxO state, root-fixed receipts, address indexes, and MPF-proven outputs under one explicitly selected ledger profile. |
 
 ### `custom-plugin`
@@ -65,7 +62,7 @@ fails closed rather than picking one.
 |---|---|---|---|---|---|
 | [`profile:eutxo-plutus-v3`](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/README.md) | `FIRST_PARTY_OPTIONAL` | `experimental` | `jvm` | `yano-runtime`, `yano-x-eutxo-ledger` | Pins the immutable yano-eutxo-v2-plutus-v3 ledger profile and every consensus-relevant bound. |
 | [`profile:eutxo-bridge-settlement`](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/README.md) | `FIRST_PARTY_OPTIONAL` | `experimental` | `jvm` | `yano-runtime`, `yano-x-eutxo-ledger` | Pins the immutable yano-eutxo-v3-bridge-settlement ledger profile (ADR-UTXO-009) and every consensus-relevant bound. |
-| [`profile:eutxo-key-payments`](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/README.md) | `FIRST_PARTY_OPTIONAL` | `experimental` | `jvm` | `yano-runtime`, `yano-x-eutxo-ledger` | Pins the immutable yano-eutxo-v1 ledger profile used by the current bounded ZeroJ validity circuit. |
+| [`profile:eutxo-key-payments`](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/README.md) | `FIRST_PARTY_OPTIONAL` | `experimental` | `jvm` | `yano-runtime`, `yano-x-eutxo-ledger` | Pins the immutable yano-eutxo-v1 key-payments ledger profile. |
 
 ### `funding`
 
@@ -78,18 +75,6 @@ fails closed rather than picking one.
 | Capability | Availability | Maturity | Runtimes | Requires artifacts | Description |
 |---|---|---|---|---|---|
 | [`bridge:cardano-federated`](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/README.md) | `EXPERIMENTAL` | `experimental` | `jvm` | `yano-runtime`, `yano-x-eutxo-ledger`, `yano-x-eutxo-bridge-cardano` | Observes exact accepted vault deposits and settles irrevocable bounded claims through either exact external signing or permissionless current-root MPF proofs with an on-chain replay nullifier. |
-
-### `settlement`
-
-| Capability | Availability | Maturity | Runtimes | Requires artifacts | Description |
-|---|---|---|---|---|---|
-| [`settlement:zeroj-validity`](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/README.md) | `EXPERIMENTAL` | `experimental` | `jvm` | `yano-runtime`, `yano-x-eutxo-zk-zeroj`, `yano-x-eutxo-zk-runtime`, `yano-x-eutxo-zk-lifecycle` | Adds a Yano L2 envelope with a Cardano-compatible body, registered Jubjub session-key authorization, optional Poseidon validity commitment, durable proving interfaces, proof-bound Cardano root advancement, bounded aggregate withdrawal and canonical L1 batch publication. |
-
-### `product-label`
-
-| Capability | Availability | Maturity | Runtimes | Requires artifacts | Description |
-|---|---|---|---|---|---|
-| [`rollup:zeroj-cardano`](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/Z6_PRODUCTION_HARDENING.md) | `EXPERIMENTAL` | `experimental` | `jvm` | `yano-runtime`, `yano-x-eutxo-ledger`, `yano-x-eutxo-zk-zeroj` | Graduation label for a separately approved ZeroJ validity product; it does not add runtime behavior. |
 
 ### `indexer`
 
@@ -190,14 +175,10 @@ in the distribution's checksummed bundle list.
 | `yano-x-objectstore-s3` | `FIRST_PARTY_OPTIONAL` | `org.yanoproject.x.objectstore.s3` | `jvm` | `unsupported` |
 | `yano-x-ipfs` | `FIRST_PARTY_OPTIONAL` | `org.yanoproject.x.ipfs` | `jvm` | `unsupported` |
 | `yano-x-effects-cardano` | `FIRST_PARTY_OPTIONAL` | `org.yanoproject.x.effects.cardano` | `jvm` | `unsupported` |
-| `yano-x-zk` | `EXPERIMENTAL` | `org.yanoproject.x.zk` | `jvm` | `unsupported` |
 | `yano-x-eutxo-ledger` | `BUNDLED` | `org.yanoproject.x.eutxo` | `jvm` | `unsupported` |
 | `yano-x-eutxo-indexer-core` | `BUNDLED` | `library:ledgers:eutxo:indexer-core` | `jvm` | `unsupported` |
 | `yano-x-eutxo-indexer-jdbc` | `BUNDLED` | `org.yanoproject.x.eutxo.indexer` | `jvm` | `unsupported` |
 | `yano-x-eutxo-bridge-cardano` | `BUNDLED` | `org.yanoproject.x.eutxo.bridge.cardano` | `jvm` | `unsupported` |
-| `yano-x-eutxo-zk-zeroj` | `BUNDLED` | `library:ledgers:eutxo-zk:zeroj` | `jvm` | `unsupported` |
-| `yano-x-eutxo-zk-runtime` | `BUNDLED` | `org.yanoproject.x.eutxo.zk.runtime` | `jvm` | `unsupported` |
-| `yano-x-eutxo-zk-lifecycle` | `BUNDLED` | `library:ledgers:eutxo-zk:lifecycle` | `jvm` | `unsupported` |
 
 <!-- catalog:artifacts-end -->
 
@@ -207,7 +188,7 @@ in the distribution's checksummed bundle list.
 
 | Distribution | Runtime | Archive | Platforms | Bundled artifacts |
 |---|---|---|---|---|
-| `yano-x-jvm` | `jvm` | `yano-x-jvm-{version}.zip` | `java-25` | 13 |
+| `yano-x-jvm` | `jvm` | `yano-x-jvm-{version}.zip` | `java-25` | 10 |
 
 <!-- catalog:distributions-end -->
 

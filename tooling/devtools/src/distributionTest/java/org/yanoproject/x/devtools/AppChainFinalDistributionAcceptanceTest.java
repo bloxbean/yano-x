@@ -530,60 +530,33 @@ class AppChainFinalDistributionAcceptanceTest {
     }
 
     @Test
-    void finalDistributionRunsEutxoValidityLifecyclePolicy()
-            throws Exception {
+    void finalDistributionDoesNotOfferTheWithdrawnZkPath() throws Exception {
         Path archive = Path.of(System.getProperty(
                         "yano.test.final-yano-dist-zip"))
                 .toAbsolutePath().normalize();
         Path release = extractRelease(
-                archive, temporary.resolve("validity-release"));
+                archive, temporary.resolve("withdrawn-zk-release"));
         Path launcher = release.resolve("yano.sh");
         assertThat(launcher.toFile().setExecutable(true)).isTrue();
         assertThat(release.resolve(
                         "tools/yano-appchain/bin/yano-appchain")
                 .toFile().setExecutable(true)).isTrue();
-        assertThat(release.resolve(
-                "config/schema/eutxo-zk-network-acceptance.schema.json"))
-                .isRegularFile();
-        assertThat(release.resolve(
-                "config/schema/"
-                        + "eutxo-zk-preview-release-contract.schema.json"))
-                .isRegularFile();
-        Path evidence = release.resolve(
-                "evidence/eutxo-zk/network-acceptance-v1.json");
-        assertThat(evidence).isRegularFile();
-        assertThat(Files.readString(evidence))
-                .contains("\"authorizationProfile\""
-                                + ": \"zeroj-jubjub-dev-v1\"",
-                        "\"liveDepositToWithdrawal\"",
-                        "EutxoZkRollupDevnetE2ETest"
-                                + "#depositFinalizeProveSettleAndWithdrawOnDevnet",
-                        "\"status\": \"NOT_EXERCISED\"");
-        Path releaseContract = release.resolve(
-                "evidence/eutxo-zk/preview-release-contract-v1.json");
-        assertThat(releaseContract).isRegularFile();
-        assertThat(Files.readString(releaseContract))
-                .contains("\"releaseDecision\""
-                                + ": \"EXPERIMENTAL_TESTNET_ONLY\"",
-                        "\"mainnet\": \"REJECTED\"",
-                        "\"trustedProverRequired\": true");
 
-        Path sessionKey = temporary.resolve("l2-session-key.enc");
-        Result keyGenerated = run(launcher, List.of(
-                        "appchain", "validity", "key", "generate",
-                        "--output", sessionKey.toString(),
-                        "--password-env", "YANO_TEST_L2_PASSWORD"),
-                Map.of("YANO_TEST_L2_PASSWORD",
-                        "acceptance-password"));
-        assertThat(keyGenerated.exit())
-                .as(keyGenerated.error()).isZero();
-        assertThat(keyGenerated.output())
-                .contains("L2_SESSION_KEY_CREATED")
-                .doesNotContain("acceptance-password");
-        assertThat(new ObjectMapper().readTree(
-                keyGenerated.output()).path("publicKey").asText())
-                .matches("[0-9a-f]{64}");
-        assertThat(sessionKey).isRegularFile();
+        assertThat(release.resolve("evidence/eutxo-zk")).doesNotExist();
+        try (var schemas = Files.list(release.resolve("config/schema"))) {
+            assertThat(schemas.map(path -> path.getFileName().toString()))
+                    .noneMatch(name -> name.startsWith("eutxo-zk-"));
+        }
+        try (var libraries = Files.list(release.resolve("tools/lib"))) {
+            assertThat(libraries.map(path -> path.getFileName().toString()))
+                    .noneMatch(name -> name.contains("eutxo-zk") || name.contains("zeroj"));
+        }
+
+        Result validity = run(launcher, List.of(
+                "appchain", "validity", "key", "generate",
+                "--output", temporary.resolve("l2-session-key.enc").toString()));
+        assertThat(validity.exit()).as(validity.output()).isNotZero();
+        assertThat(validity.output()).doesNotContain("L2_SESSION_KEY_CREATED");
     }
 
     private void assertStudioBlueprintRoundTrips(Path release, Path launcher) throws Exception {

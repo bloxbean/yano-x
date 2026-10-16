@@ -140,6 +140,22 @@ test('compatible selection exposes optional bundles and rejects derived distribu
   assert.ok(selected.plan.artifacts.includes('yano-x-kafka'));
 });
 
+test('withdrawn capabilities are never offered or resolved',()=>{
+  const withdrawn=capabilities.filter(capability=>capability.maturity==='withdrawn').map(value=>value.id);
+  assert.ok(withdrawn.includes('settlement:zeroj-validity'));
+  const recipe=recipes.find(value=>value.id==='eutxo-ledger');
+  const intent=normalizeIntent({recipe:'eutxo-ledger',network:'devnet',members:3,
+    finality:'two-thirds',sequencing:'fixed',membership:'static',runtime:'jvm',
+    deployment:'host',name:'withdrawn-test',chainId:'withdrawn-test'},
+  recipes,release,capabilities).intent;
+  const offered=compatibleCapabilityOptions(recipe,capabilities,intent).map(option=>option.capability.id);
+  assert.deepEqual(offered.filter(id=>withdrawn.includes(id)),[]);
+  for(const id of withdrawn) {
+    const plan=resolvePresentation(recipe,capabilities,[id],intent);
+    assert.ok(plan.errors.includes(`${id} is withdrawn and cannot be selected.`),id);
+  }
+});
+
 test('static shell has a strict policy and no secret inputs or telemetry',()=>{
   const html=fs.readFileSync(path.join(repo,'tooling/studio/src/main/web/index.html'),'utf8');
   const app=fs.readFileSync(path.join(repo,'tooling/studio/src/main/web/app.mjs'),'utf8');

@@ -28,7 +28,7 @@ Forestry (MPF) trie, and periodically **anchors the state root to Cardano L1**.
 
 Design references: `adr/app-layer/005-yano-app-chain-framework.md` (core
 framework), `adr/app-layer/006-appchain-enterprise-extensions-and-zk.md`
-(extensions & ZK), and
+(enterprise extensions), and
 `adr/app-layer/015-governed-composite-profile-evolution.md` (governed
 composite profiles).
 Wire format specs (for building compatible implementations in other languages):
@@ -38,7 +38,7 @@ yaci `core/src/main/cddl/appmsg/` and yano `core-api/src/main/cddl/appchain/`.
 
 The default distribution bundles the app-chain core, standard state machines,
 generic composite and role products, and the preview evidence product. Client
-libraries are application dependencies; Kafka, S3, IPFS, Cardano and ZK are
+libraries are application dependencies; Kafka, S3, IPFS and Cardano are
 separately installed JVM plugin bundles (group id
 `org.yanoproject.x`):
 
@@ -52,11 +52,10 @@ separately installed JVM plugin bundles (group id
 | `yano-x-composite-client` | `composition/client` | Governed-profile finality, one-root MPF, epoch-chain, and authorization-policy verification |
 | `yano-appchain-core-testkit` | [Yano `appchain/appchain-testkit`](https://github.com/bloxbean/yano/tree/main/appchain/appchain-testkit) | JUnit 5 `@AppChainCluster` embedded clusters for tests (§16) |
 | `yano-x-integration-contracts` | `sdk/integration-contracts` | Provider-neutral connector payload, receipt, CDDL, and golden-vector contracts |
-| `yano-x-kafka` | `connectors/kafka` | Node plugin: finalized blocks and acknowledged `kafka.publish` effects → Kafka topics (§10, §18) |
-| `yano-x-objectstore-s3` | `connectors/objectstore-s3` | Node plugin: immutable/versioned `object.put` effects for tested S3-compatible stores (§18) |
-| `yano-x-ipfs` | `connectors/ipfs` | Node plugin: reconciled pin-only `ipfs.pin` effects through a configured Kubo RPC (§18) |
-| `yano-x-effects-cardano` | `connectors/effects-cardano` | Node plugin: Cardano payment executor for the effect system (§18) |
-| `yano-x-zk` | `state-machines/zk` | Node plugin, EXPERIMENTAL: ZK state machines & verification (§17) |
+| `yano-x-kafka` | `connectors/kafka` | Node plugin: finalized blocks and acknowledged `kafka.publish` effects → Kafka topics (§10, §17) |
+| `yano-x-objectstore-s3` | `connectors/objectstore-s3` | Node plugin: immutable/versioned `object.put` effects for tested S3-compatible stores (§17) |
+| `yano-x-ipfs` | `connectors/ipfs` | Node plugin: reconciled pin-only `ipfs.pin` effects through a configured Kubo RPC (§17) |
+| `yano-x-effects-cardano` | `connectors/effects-cardano` | Node plugin: Cardano payment executor for the effect system (§17) |
 | `yano-x-spring-boot-starter` | `tooling/spring-boot-starter` | Spring Boot auto-config for the client SDK (§16) |
 
 ---
@@ -93,7 +92,7 @@ connectors still require their release-matched plugin and external service:
   certificates, re-executed state roots) before committing.
 - **Effects**: a finalized state transition can trigger an action *outside*
   the chain by emitting a provable record that an executor reports back
-  on-chain (section 18). The webhook executor is bundled. Kafka, S3, IPFS and
+  on-chain (section 17). The webhook executor is bundled. Kafka, S3, IPFS and
   Cardano executors are first-party optional plugins.
 
 Use the [release capability catalog](appchain/CAPABILITIES.md) for exact
@@ -848,19 +847,19 @@ Flat (single-chain) keys. The same suffixes apply per chain under
 | `l1.stability-depth` | `0` | Depth of the stable L1 reference in app blocks (0 = off). When > 0, followers verify each proposal's L1 ref against their **own** L1 view (monotonic, hash-matched at depth; brief proposer lead is retried, a fabricated ref is rejected fail-closed) and the node refuses to start without an L1 event feed |
 | `pool.max-messages` | `10000` | Pending-pool capacity; a full pool returns 429 on submit and drops (counted) inbound gossip (§4) |
 | `message.enforce-sender-seq` | `false` | Consensus-visible sender-seq rule: followers reject blocks with stale/duplicate per-sender seqs (§4). Must match on all members |
-| `effects.enabled` | `false` | Enable the effect system (§18). **Consensus-affecting — must match on all members**; also all `effects.*` caps and gate/commitment keys below |
-| `effects.max-per-block` / `max-payload-bytes` / `max-expiry-blocks` / `result-window-blocks` | `256` / `16384` / `100000` / `100000` | Deterministic emission caps and result-incorporation window (§18.1); payload bytes are capped at 16 MiB—use payload-by-hash for larger bodies |
-| `effects.default-gate` | `app-final` | `app-final` \| `l1-anchored` \| `zk-settled` — when emitted effects become executable (§18.4) |
+| `effects.enabled` | `false` | Enable the effect system (§17). **Consensus-affecting — must match on all members**; also all `effects.*` caps and gate/commitment keys below |
+| `effects.max-per-block` / `max-payload-bytes` / `max-expiry-blocks` / `result-window-blocks` | `256` / `16384` / `100000` / `100000` | Deterministic emission caps and result-incorporation window (§17.1); payload bytes are capped at 16 MiB—use payload-by-hash for larger bodies |
+| `effects.default-gate` | `app-final` | `app-final` \| `l1-anchored` \| `zk-settled` — when emitted effects become executable (§17.4) |
 | `effects.outcome-commitment` | `per-effect` | `per-effect` (O(1) proofs) \| `per-block` (trie growth O(effectful blocks); ZK-friendly) |
 | `effects.strict-reserved-prefix` | `true` | Reject app writes to the `~fx/` trie prefix (consensus-affecting; active even when effects are off) |
-| `effects.result.signers` | empty | Restrict who may attest `~fx/result` to these member keys (default: any member; §18.5) |
-| `effects.executor.enabled` | `false` | This node RUNS effects (execution plane, §18.3). Node-local — not consensus. When explicitly enabled, invalid settings, missing executors or runtime initialization failure make startup fail; the node never silently drops this role |
-| `effects.executor.types` / `tick-ms` / `max-parallel` / `max-attempts` / `backoff-initial-ms` / `backoff-max-ms` | ` ` / `2000` / `4` / `8` / `2000` / `300000` | Executor tuning (§18.3) |
-| `effects.executor.identity` | generated node-local sidecar | Stable identity for this node's disposable execution progress. The generated file lives beside the checkpointed chain directory, so member-key rotation preserves work but restoring onto another executor resets/quarantines it. Set an explicit unique value when storage is relocated; never clone it across physical executors (§18.3) |
-| `effects.external.enabled` | `false` | Expose the external-executor claim/report REST surface (§18.6) |
-| `effects.executors.<scheme>.*` | — | Executor plugin config (built-in `webhook`; `cardano` via the plugin jar) — passed to the executor with the prefix stripped (§18.3) |
+| `effects.result.signers` | empty | Restrict who may attest `~fx/result` to these member keys (default: any member; §17.5) |
+| `effects.executor.enabled` | `false` | This node RUNS effects (execution plane, §17.3). Node-local — not consensus. When explicitly enabled, invalid settings, missing executors or runtime initialization failure make startup fail; the node never silently drops this role |
+| `effects.executor.types` / `tick-ms` / `max-parallel` / `max-attempts` / `backoff-initial-ms` / `backoff-max-ms` | ` ` / `2000` / `4` / `8` / `2000` / `300000` | Executor tuning (§17.3) |
+| `effects.executor.identity` | generated node-local sidecar | Stable identity for this node's disposable execution progress. The generated file lives beside the checkpointed chain directory, so member-key rotation preserves work but restoring onto another executor resets/quarantines it. Set an explicit unique value when storage is relocated; never clone it across physical executors (§17.3) |
+| `effects.external.enabled` | `false` | Expose the external-executor claim/report REST surface (§17.6) |
+| `effects.executors.<scheme>.*` | — | Executor plugin config (built-in `webhook`; `cardano` via the plugin jar) — passed to the executor with the prefix stripped (§17.3) |
 | `effects.retention.keep-blocks` | `100000` | Prune resolved effect records older than this behind the tip |
-| `machines.approvals.on-approved-effect.enabled` (+ `type` / `gate` / `expiry-blocks`) | `false` | Emit one generic CHAIN-result effect after final approval (§18.3); also requires `machines.approvals.activations.on-approved-effect=<height>` |
+| `machines.approvals.on-approved-effect.enabled` (+ `type` / `gate` / `expiry-blocks`) | `false` | Emit one generic CHAIN-result effect after final approval (§17.3); also requires `machines.approvals.activations.on-approved-effect=<height>` |
 
 **Enabling.** Three states, checked in this order:
 
@@ -874,7 +873,7 @@ Flat (single-chain) keys. The same suffixes apply per chain under
 
 Extension settings are documented next to the capability they configure:
 `chains[i].*` (§8), `webhooks` and `sinks.*` (§10), `api.auth.enabled` and
-`api.keys` (§12), `retention.*` (§13), `zk.*` (§17), `effects.*` (§18).
+`api.keys` (§12), `retention.*` (§13), `effects.*` (§17).
 
 App-chain state has its own node-local storage root:
 
@@ -953,7 +952,7 @@ yano:
 ```
 
 - Every per-chain key uses the same suffixes as the flat config — including
-  `anchor.*`, `webhooks`, `retention.*`, `sinks.*` and `zk.*`. Anchor only
+  `anchor.*`, `webhooks`, `retention.*` and `sinks.*`. Anchor only
   the chains that need L1 evidence.
 - Chains are indexed from 0; `chain-id` is required per entry. Presence of
   any `chains[i]` config auto-enables the app chain (section 7).
@@ -1081,7 +1080,7 @@ Blocks are produced as JSON keyed by stable chain id (partition-stable even
 for a multi-partition topic) with
 synchronous acks, under the same ordered, at-least-once cursor semantics as
 webhooks. The same bundle also contributes the independently configured
-`kafka.publish` effect executor described in §18. Configuring the sink does
+`kafka.publish` effect executor described in §17. Configuring the sink does
 not activate that executor, and the two contributions own separate producers
 and shutdown lifecycles. The sink requires an explicit `local-demo`, `tls`,
 `mtls`, or `sasl-tls` profile and shares the executor's strict security fields.
@@ -1097,7 +1096,7 @@ In-process consumers can instead subscribe to `AppBlockFinalizedEvent`
 
 Sinks *observe* finalized state. To *act on the outside world* from a finalized
 transition (submit a payment, call an API) with a result recorded back
-on-chain, use **effects** (section 18) — the outbound counterpart to sinks.
+on-chain, use **effects** (section 17) — the outbound counterpart to sinks.
 
 ---
 
@@ -1450,63 +1449,7 @@ class OrderFlowTest {
 
 ---
 
-## 17. Zero-knowledge extensions (EXPERIMENTAL)
-
-All ZK ships as one **experimental** plugin, `yano-x-zk` (depends on
-ZeroJ). A JVM node can deploy the self-contained
-`yano-x-zk-<version>-bundle.jar` produced by
-`:state-machines:zk:shadowJar`; no adjacent ZeroJ JARs are needed or accepted as the
-same catalog-v1 bundle. Yano X does not publish a native ZK extension. The node only
-**verifies** proofs — proving happens
-client-side, where the secrets live. Circuits are
-chain configuration: each `circuitId → VK hash` is pinned and loaded
-fail-closed at startup, and every member enforces verification in `apply()`
-(consensus-critical, not just admission).
-
-**Private-predicate admission (`state-machine=zk-gate`).** Messages carry an
-in-body proof; the chain finalizes a message only if it verifies. The
-predicate — "amount ≤ limit", "age ≥ 18", "KYC holds" — lives entirely in the
-proof; the chain (and the other members) never see the underlying data.
-
-```yaml
-yano.app-chain.state-machine: zk-gate
-yano.app-chain.zk.circuits[0].id: credit-limit
-yano.app-chain.zk.circuits[0].vk-file: /etc/yano/credit-limit.vk
-yano.app-chain.zk.circuits[0].vk-hash: <blake2b-256 hex of the vk file>
-yano.app-chain.zk.circuits[0].proof-system: groth16     # or plonk
-yano.app-chain.zk.circuits[0].curve: bls12381
-```
-
-**Anchored verifiable credentials (`state-machine=credential-registry`).**
-Records are issuer-BBS-signed attribute sets; the chain admits one only if the
-issuer signature verifies (issuers are configured trust anchors, decoupled
-from membership) and records a provable commitment. A holder later discloses
-*selected fields* with a derived proof, verified against the issuer key and
-the anchored record.
-
-```yaml
-yano.app-chain.state-machine: credential-registry
-yano.app-chain.zk.bbs.issuers[0].id: hr-dept
-yano.app-chain.zk.bbs.issuers[0].public-key: <BBS G2 public-key hex>
-```
-
-**Anonymous-but-authorized submissions (`state-machine=zk-membership`).**
-The author proves membership in the registered set instead of signing with an
-identifiable key; a one-time nullifier prevents double-action (deterministic
-dedup in `apply()`, committed in MPF state). Anonymous voting, sealed bids,
-whistleblowing among known members. Uses the same `zk.circuits[...]` config
-for the membership circuit. Note: the transport envelope still carries the
-relaying node's signature — the logical author is anonymous within the member
-set; a fully anonymous transport scheme is a planned follow-up.
-
-> Experimental: ZeroJ is unaudited and Groth16 has trusted-setup operational
-> needs; prefer `plonk` (universal setup) for enterprise deployments. Proving
-> and disclosure helpers (`BbsCredentials`, proof generation) currently live
-> in the plugin.
-
----
-
-## 18. Effects — acting on the outside world
+## 17. Effects — acting on the outside world
 
 Everything so far keeps state *inside* the chain. **Effects** (ADR-010) let a
 finalized state transition trigger an action *outside* it — submit a Cardano
@@ -1533,7 +1476,7 @@ apply()  ── emit ──▶  effect record (outbox + effectsRoot, provable, a
         ~fx/result (member-signed, sequenced) ──▶ apply() records the outcome
 ```
 
-### 18.1 Enable effects
+### 17.1 Enable effects
 
 Consensus-affecting — **every member must set the same values** (a mismatch
 diverges the state root, exactly like a mismatched state machine). Effects are
@@ -1548,7 +1491,7 @@ yano.app-chain.effects.max-expiry-blocks: 100000
 yano.app-chain.effects.result-window-blocks: 100000 # results incorporable within this window
 # Where an effect's outcome is committed in the trie:
 yano.app-chain.effects.outcome-commitment: per-effect  # per-effect | per-block
-# Default finality gate for emitted effects (see §18.4):
+# Default finality gate for emitted effects (see §17.4):
 yano.app-chain.effects.default-gate: app-final     # app-final | l1-anchored | zk-settled
 ```
 
@@ -1557,7 +1500,7 @@ machine may not write keys starting with `~fx/`). This reservation holds from
 genesis regardless of the flag, so effects can be turned on later without
 colliding with historical state.
 
-### 18.2 Emit effects from a state machine
+### 17.2 Emit effects from a state machine
 
 Override the three-argument `apply` and call `effects.emit(...)`. The emitter
 records intent — it performs no I/O, and everything forbidden in `apply()`
@@ -1577,7 +1520,7 @@ public class OrderStateMachine implements AppStateMachine {
                         .scope("orders/" + o.id())         // app-level idempotency scope
                         .result(ResultPolicy.CHAIN)        // outcome comes back on-chain
                         .gate(FinalityGate.CHAIN_DEFAULT)  // use the chain's default gate
-                        .expiryBlocks(1000)                // deterministic timeout (see §18.4)
+                        .expiryBlocks(1000)                // deterministic timeout (see §17.4)
                         .sourceMessageId(m.getMessageId())
                         .build());
             }
@@ -1600,7 +1543,7 @@ public class OrderStateMachine implements AppStateMachine {
 
 `EffectIntent` fields: **type** (routes to an executor), **payload** (opaque
 bytes — never put secrets or PII here; records are replicated and committed),
-**scope** (your idempotency handle), **gate** (§18.4), **result**
+**scope** (your idempotency handle), **gate** (§17.4), **result**
 (`CHAIN` = outcome fed back and delivered to `onEffectResult`; `NONE` =
 fire-and-forget, operator-visible only), **expiryBlocks**. Effect ids are
 deterministic — `chainId/height/ordinal`, hashed into the idempotency key
@@ -1612,7 +1555,7 @@ handed to every external system.
 > Verify with the conformance harness's upgrade replay-matrix
 > (`StateMachineConformance.upgrade(old, new)`).
 
-### 18.3 Run an executor
+### 17.3 Run an executor
 
 The Effect Runtime is **off by default** — turn it on where you want effects
 to actually run (typically one node, or a dedicated executor node). Everywhere
@@ -1909,7 +1852,7 @@ The generic type can instead be `webhook.post`, `kafka.publish`, `object.put`,
 `ipfs.pin`, or a custom plugin routing type. Configuration selects one action;
 multiple or conditional actions belong in a composite/custom state machine.
 
-### 18.4 Finality gates and expiry
+### 17.4 Finality gates and expiry
 
 A **gate** decides when an emitted effect becomes eligible to execute:
 
@@ -1919,8 +1862,8 @@ A **gate** decides when an emitted effect becomes eligible to execute:
   confirmed in an L1 block at least `l1.stability-depth` blocks below this
   node's L1 tip (the emission is provable against Cardano before you act; an
   anchor that L1 rolls back stops counting).
-- **`zk-settled`** — once covered by an accepted validity proof (reserved for
-  the ZK settlement roadmap, §17; waits until expiry on non-ZK chains).
+- **`zk-settled`** — once covered by an accepted validity proof (reserved;
+  waits until expiry on chains without validity settlement).
 
 `l1-anchored` needs anchoring enabled (§5) and `l1.stability-depth` above 0;
 `effects.default-gate=l1-anchored` without a stability depth fails at startup.
@@ -1935,7 +1878,7 @@ the expiry height passes with no incorporated result, the effect deterministical
 becomes **EXPIRED** (delivered to `onEffectResult`) — the "nobody answered in
 time" escape hatch, distinct from **FAILED** ("the target answered no").
 
-### 18.5 The result path and trust
+### 17.5 The result path and trust
 
 Executed `CHAIN` outcomes re-enter as member-signed `~fx/result` messages,
 sequenced like any other. The framework interpreter is fail-closed and
@@ -1954,7 +1897,7 @@ For L1-visible facts (a payment landing), prefer verifying via an L1 observer
 (§ config `observers`) over trusting an attestation. `k`-of-`n` result
 attestation for high-value effects is designed, not yet shipped.
 
-### 18.6 External executors (claim / report)
+### 17.6 External executors (claim / report)
 
 To run execution *outside* Yano — a different team, language, or a worker that
 holds secrets Yano shouldn't — enable external mode and drive it over REST or
@@ -1988,7 +1931,7 @@ failover. Reports are fenced to the lease holder.
 > executor/operator REST surface on a trusted network. Broad READ/SUBMIT auth
 > is optional; privileged operations always fail closed without the full key.
 
-### 18.7 Write a custom executor
+### 17.7 Write a custom executor
 
 Any effect type your machines emit can be handled by a plugin implementing two
 interfaces — the same ServiceLoader pattern as custom sinks (§10):
@@ -2086,7 +2029,7 @@ Factory schemes are exact and case-sensitive. Sink/effect schemes cannot
 contain `.` because the first dot separates the scheme from its configuration
 key; signer schemes cannot contain `:` because it separates the key reference.
 
-### 18.8 REST surface
+### 17.8 REST surface
 
 Chain-scoped under `/app-chain/chains/{chainId}/...` (single-chain alias
 `/app-chain/...`):
@@ -2131,7 +2074,7 @@ required; a proof already obtained remains verifiable forever.
 
 ---
 
-## 19. Troubleshooting
+## 18. Troubleshooting
 
 - **`/status` is your dashboard**: `role`, `tipHeight`, `stateRoot`,
   `poolSize` (pending messages), per-peer connectivity, `anchor` progress,
@@ -2161,7 +2104,7 @@ required; a proof already obtained remains verifiable forever.
   selects it). Run the `test-haskell-sync` skill for the standard L1
   compatibility regression.
 
-## 20. Current limitations
+## 19. Current limitations
 
 - Permissioned membership is implemented; public/stake-based validator sets,
   slashing, and open participation are not.
@@ -2183,5 +2126,3 @@ required; a proof already obtained remains verifiable forever.
   tracked as `FX-002` is complete.
 - REST protection is API-key only (section 12); use standard gateway
   infrastructure for mTLS/OIDC.
-- All ZK extensions are experimental (section 17) and never on a default code
-  path.
