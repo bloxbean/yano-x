@@ -1,5 +1,11 @@
 # EUTxO ZK rollup on Yano devnet
 
+> **Withdrawn from the distribution.** The `eutxo-zeroj-validity` and
+> `eutxo-zeroj-preview` recipes, the `zk` demo scenario, and the showcase's
+> `eutxo --variant zk` have been removed while this path is untested. The
+> modules and this guide remain in the repository for developers, but the
+> commands below that use those recipes or the `zk` scenario no longer work.
+
 This walkthrough shows the complete experimental flow:
 
 ```text

@@ -57,8 +57,6 @@ final class AppChainProjectResolver {
             Set.copyOf(AppChainProjectModel.DEFAULT_SUPPORTED_NETWORKS);
     private static final Set<String> RUNTIMES = Set.of("jvm", "native");
     private static final Set<String> DEPLOYMENTS = Set.of("host", "docker-compose");
-    static final String EUTXO_UNSAFE_TESTNET_ACKNOWLEDGEMENT =
-            "EUTXO_ZEROJ_UNSAFE_DEVELOPMENT_TESTNET";
 
     private final AppChainPropertyRegistry properties;
     private final AppChainProjectCatalog catalog;
@@ -104,7 +102,7 @@ final class AppChainProjectResolver {
         requireSupported(recipe.runtimeTypes(), spec.runtime().type(), "runtime", recipe.id());
         requireSupported(recipe.deploymentTargets(), spec.deployment().target(),
                 "deployment target", recipe.id());
-        validateAcknowledgements(spec, recipe);
+        validateAcknowledgements(spec);
 
         LinkedHashSet<String> requested = new LinkedHashSet<>(safeList(recipe.capabilities()));
         requested.removeIf(id -> id.startsWith("sequencer:"));
@@ -419,10 +417,7 @@ final class AppChainProjectResolver {
         return chain;
     }
 
-    private static void validateAcknowledgements(
-            AppChainProjectModel.Spec spec,
-            AppChainProjectModel.Recipe recipe
-    ) {
+    private static void validateAcknowledgements(AppChainProjectModel.Spec spec) {
         List<String> acknowledgements = safeList(spec.acknowledgements());
         if (acknowledgements.size() > 32
                 || new LinkedHashSet<>(acknowledgements).size()
@@ -431,15 +426,6 @@ final class AppChainProjectResolver {
                 value == null || !value.matches("[A-Z][A-Z0-9_]{0,127}"))) {
             throw new IllegalArgumentException(
                     "Blueprint acknowledgements are invalid");
-        }
-        if ("eutxo-zeroj-preview".equals(recipe.id())
-                && Set.of("preview", "preprod").contains(spec.network())
-                && !acknowledgements.contains(
-                EUTXO_UNSAFE_TESTNET_ACKNOWLEDGEMENT)) {
-            throw new IllegalArgumentException(
-                    recipe.id() + " on " + spec.network()
-                            + " requires --acknowledge "
-                            + EUTXO_UNSAFE_TESTNET_ACKNOWLEDGEMENT);
         }
     }
 

@@ -82,11 +82,11 @@ export default {
         + 'offline. The index adds convenience, never trust.',
       '`preview`', '`examples/explorer/explorer.sh up` against the showcase', '/products/explorer/',
       'Verifiable Explorer'),
-    eutxo: result('eUTxO and ZK',
-      'A deterministic Cardano-shaped UTxO ledger, with an optional federated bridge and optional ZeroJ validity '
-        + 'proofs. For disposable test funds only.',
-      '`experimental`', '`./yano.sh appchain eutxo demo up --scenario ledger …`', '/products/eutxo-and-zk/',
-      'eUTxO and ZK'),
+    eutxo: result('eUTxO ledger',
+      'A deterministic Cardano-shaped UTxO ledger, with an optional federated bridge. For disposable test funds '
+        + 'only.',
+      '`experimental`', '`./yano.sh appchain eutxo demo up --scenario ledger …`', '/products/eutxo/',
+      'eUTxO ledger'),
   },
   sources: [
     { repo: 'yano-x', path: 'docs/appchain/ATTEST.md', anchors: ['Attest records the SHA-256 digest of a document'] },

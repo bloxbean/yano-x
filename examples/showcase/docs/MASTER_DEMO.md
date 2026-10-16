@@ -211,7 +211,7 @@ no duplicate business event is created.
 
 The light cluster hosts generic `role-approvals` and experimental
 `eutxo-ledger`. For the full actor/policy/key-rotation flow use the evidence
-role variant. For signed ledger/bridge/ZK flows use the EUTxO profile:
+role variant. For signed ledger/bridge flows use the EUTxO profile:
 
 ```bash
 ./showcase.sh quickstart --profile evidence --variant role --instance evidence-role

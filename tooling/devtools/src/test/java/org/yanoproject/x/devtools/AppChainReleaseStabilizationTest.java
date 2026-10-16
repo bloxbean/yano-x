@@ -185,12 +185,12 @@ class AppChainReleaseStabilizationTest {
 
         AppChainProjectCatalog catalog = new AppChainProjectCatalog(
                 AppChainPropertyRegistry.framework());
-        AppChainProjectModel.Recipe recipe =
-                catalog.recipe("eutxo-zeroj-preview");
-        assertThat(recipe.maturity()).isEqualTo("experimental");
-        assertThat(recipe.availability()).isEqualTo("EXPERIMENTAL");
-        assertThat(recipe.runtimeTypes()).containsExactly("jvm");
-        assertThat(recipe.supportedNetworks())
+        assertThat(catalog.recipes())
+                .as("the ZeroJ recipes are withdrawn; the contract stays as historical evidence")
+                .extracting(AppChainProjectModel.Recipe::id)
+                .doesNotContain("eutxo-zeroj-validity", "eutxo-zeroj-preview");
+        assertThat(catalog.capability("settlement:zeroj-validity")
+                .effectiveSupportedNetworks())
                 .containsExactly("devnet", "preview", "preprod");
         assertThat(catalog.capability("rollup:zeroj-cardano")
                 .effectiveSelectable()).isFalse();

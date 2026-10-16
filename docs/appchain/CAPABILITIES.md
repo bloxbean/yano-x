@@ -103,8 +103,6 @@ capabilities first; users may then add only compatible selectable capabilities.
 | `evidence-ledger` | `BUNDLED` | `preview` | JVM | `unsupported` | `yano-runtime`, `yano-x-stdlib`, `yano-x-evidence-registry`, `yano-x-composite`, `yano-x-role-workflow`, `yano-x-evidence-profile` | [Evidence](tutorials/04-evidence-publication.md) |
 | `eutxo-ledger` | `FIRST_PARTY_OPTIONAL` | `experimental` | JVM | `unsupported` | `yano-runtime`, `yano-x-eutxo-ledger` | [EUTxO ledger](../../ledgers/eutxo/README.md) |
 | `eutxo-cardano-bridge` | `EXPERIMENTAL` | `experimental` | JVM | `unsupported` | `yano-runtime`, `yano-x-eutxo-ledger`, `yano-x-eutxo-bridge-cardano` | [EUTxO bridge](../../ledgers/eutxo/README.md) |
-| `eutxo-zeroj-validity` | `EXPERIMENTAL` | `experimental` | JVM | `unsupported` | `yano-runtime`, `yano-x-eutxo-ledger`, `yano-x-eutxo-zk-zeroj` | [ZeroJ validity](../../ledgers/eutxo-zk/README.md) |
-| `eutxo-zeroj-preview` | `EXPERIMENTAL` | `experimental` | JVM | `unsupported` | `yano-runtime`, `yano-x-eutxo-ledger`, `yano-x-eutxo-bridge-cardano`, `yano-x-eutxo-zk-zeroj`, `yano-x-eutxo-zk-runtime`, `yano-x-eutxo-zk-lifecycle` | [ZeroJ lifecycle](../../ledgers/eutxo-zk/GETTING_STARTED.md) |
 | `custom-plugin` | `REFERENCE` | `experimental` | JVM | `unsupported` | `yano-runtime` | [Custom plugins](tutorials/08-plugins-and-composites.md) |
 <!-- recipe-catalog:end -->
 

@@ -22,8 +22,6 @@
     "evidence-ledger",
     "eutxo-ledger",
     "eutxo-cardano-bridge",
-    "eutxo-zeroj-validity",
-    "eutxo-zeroj-preview",
     "custom-plugin"
   ],
   "artifacts": [

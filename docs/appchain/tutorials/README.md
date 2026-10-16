@@ -19,7 +19,6 @@ say `appchain`.
 | [7. Anchors and verification](07-anchors-and-verification.md) | Intermediate | 20 min | An application proof connected to a Cardano anchor |
 | [8. Plugins and composites](08-plugins-and-composites.md) | Advanced | 30–60 min | Yano extended without rebuilding or forking the host |
 | [9. From demo to pilot](09-from-demo-to-pilot.md) | Advanced | Planning session | A reviewed project and a deployment plan |
-| [10. EUTxO ZK rollup on devnet](../../../ledgers/eutxo-zk/DEVNET_WALKTHROUGH.md) | Advanced | 60+ min | An L1 deposit, L2 spend, proof, root settlement, and L1 withdrawal traced end to end |
 
 Tutorial 4 and the evidence track of tutorial 5 use Docker Compose for their
 services. Tutorial 8 also needs a Java build tool.

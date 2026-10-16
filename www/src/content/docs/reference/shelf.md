@@ -54,15 +54,13 @@ repository disagree.
 | [Developer tools](https://github.com/bloxbean/yano-x/blob/main/tooling/devtools/README.md) | The offline engine behind `yano.sh appchain`. |
 | [App-Chain Studio](/studio/) | The blueprint builder, hosted here. |
 
-## eUTxO and ZK
+## eUTxO ledger
 
 | Document | What it covers |
 |---|---|
 | [eUTxO product family](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/README.md) | The virtual ledger, profiles, and genesis. |
-| [eUTxO demos](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/DEMO.md) | The disposable three-scenario quick start. |
+| [eUTxO demos](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/DEMO.md) | The disposable two-scenario quick start. |
 | [Indexer operations](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/INDEXER_OPERATIONS.md) | Lifecycle API, SQLite, recovery, metrics. |
-| [ZK getting started](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/GETTING_STARTED.md) | Status and module verification. |
-| [ZK devnet walkthrough](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/DEVNET_WALKTHROUGH.md) | Deposit, L2 transaction, proof, settlement, withdrawal. |
 
 ## Decisions
 

@@ -18,11 +18,6 @@ From a source checkout, use `./app/yano.sh` in place of `./yano.sh`.
 |---|---|---|
 | `ledger` | Cardano-shaped zero-fee L2 transfer and MPF proof | Virtual genesis; no L1 funds |
 | `bridge` | Devnet funding, L1 deposit, L2 claim and L1 payout | Disposable federated/native-script custody |
-| `zk` | Jubjub L2 authorization, finalized transition, b16 Groth16 proof and demo payout | Trusted development prover and disposable native-script vault |
-
-The `zk` quick demo proves the finalized transition before payout, but its
-quick-demo vault is not the proof-withdrawal validator. The maintained live
-ZK E2E acceptance exercises the validity-root and proof-withdrawal contracts.
 
 ## Virtual ledger
 
@@ -64,33 +59,6 @@ journaled rounds; increasing the count adds only the missing rounds. The
 maximum is 16. Each round has distinct L1 transactions, L2 transaction,
 withdrawal claim, nonces, and artifacts.
 
-## ZeroJ proof demo
-
-```bash
-./yano.sh appchain eutxo demo setup --scenario zk \
-  --workspace ./eutxo-zk-demo
-./yano.sh appchain eutxo demo ceremony \
-  --workspace ./eutxo-zk-demo --yes
-./yano.sh appchain eutxo demo start --workspace ./eutxo-zk-demo
-./yano.sh appchain eutxo demo round-trip \
-  --workspace ./eutxo-zk-demo \
-  --count 2
-```
-
-Expected: `EUTXO_ZK_DEMO_ROUND_TRIP_PASS`.
-
-The ZK scenario follows the same Alice-to-Bob lifecycle. Setup creates an
-encrypted Jubjub session key for each user. Each L1 deposit binds that user's
-Cardano payment credential to the corresponding Jubjub public key. Alice and
-Bob independently sign the payment and withdrawal envelopes, and the b16
-Groth16 job proves both finalized transitions.
-
-The report identifies `cardano-payment-b16`, the proof ID, finalized
-transition, L1 transaction IDs, claim ID, and trust boundary. Private keys and
-passwords are never printed or included in the public manifest.
-The same resumable `--count` semantics apply to the ZK scenario, with a
-separate finalized transition and Groth16 proof for every round.
-
 ## Add an externally owned depositor
 
 The quick flow signs with disposable owner-only files. An application or wallet
@@ -110,10 +78,8 @@ can instead keep signing outside Yano:
   --signed-transaction alice-deposit.signed.cbor
 ```
 
-For `--scenario zk`, also provide the user's lowercase 32-byte Jubjub public
-key with `--l2-public-key`. The Cardano address payment credential authorizes
-that binding. No mnemonic, Cardano signing key, Jubjub secret, or password is
-accepted as a command-line option.
+No mnemonic, Cardano signing key, or password is accepted as a command-line
+option.
 
 The builder is deliberately devnet/demo scoped. It emits ordinary Cardano
 transaction CBOR; the wallet owns signing. The submitter rejects missing VKey
@@ -132,9 +98,7 @@ owned SQLite lifecycle index automatically. The explorer pages finalized
 transactions and can search by account address, Cardano-shaped L2 transaction
 ID, outer app-chain message ID, L1 deposit outpoint, or withdrawal claim ID.
 Bridge views connect the exact L1 deposit, mirrored L2 value, L2 activity,
-claim, and final L1 payout. The ZK scenario adds the ordered validity batch,
-proof identity, roots, data commitment, root settlement, and payout as
-separate stages.
+claim, and final L1 payout.
 
 The UI and index read only canonical finalized records; neither reads the demo
 journal. Index health, lag, history coverage, and a committed bridge-recovery
@@ -144,13 +108,13 @@ diagnostic remain visible. See
 ## Status, restart, and cleanup
 
 ```bash
-./yano.sh appchain eutxo demo status --workspace ./eutxo-zk-demo
-./yano.sh appchain eutxo demo stop --workspace ./eutxo-zk-demo
-./yano.sh appchain eutxo demo start --workspace ./eutxo-zk-demo
-./yano.sh appchain eutxo demo verify --workspace ./eutxo-zk-demo
-./yano.sh appchain eutxo demo reset --workspace ./eutxo-zk-demo --yes
+./yano.sh appchain eutxo demo status --workspace ./eutxo-bridge-demo
+./yano.sh appchain eutxo demo stop --workspace ./eutxo-bridge-demo
+./yano.sh appchain eutxo demo start --workspace ./eutxo-bridge-demo
+./yano.sh appchain eutxo demo verify --workspace ./eutxo-bridge-demo
+./yano.sh appchain eutxo demo reset --workspace ./eutxo-bridge-demo --yes
 ```
 
 `reset` accepts only a verified demo workspace and refuses broad or unmarked
 directories. For production or public-testnet provisioning, use the manual
-operator flow in the EUTxO and ZeroJ getting-started guides.
+operator flow in the [EUTxO guide](README.md).

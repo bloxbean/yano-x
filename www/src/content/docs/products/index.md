@@ -19,7 +19,7 @@ about a use case. Every "Try it" below runs from an extracted
 | [Verifiable Explorer](/products/explorer/) | Indexes stock ledgers after verifying each block; rows and states export as bundles that verify offline. | Operators, support, and auditors | `examples/explorer/explorer.sh` | `preview` |
 | [DPP Starter](/products/dpp-starter/) | A prototype product passport registry: governed records, independent certification, and passports that verify offline. | Teams exploring Digital Product Passports | `examples/dpp/dpp.sh` | `reference` (prototype) |
 | [Attestation Feed](/products/attestation-feed/) | Sources sign readings, every verifier recomputes each round, and two organizations approve the record. | Consortia combining readings from known sources | `examples/attestation-feed/feed.sh` | `experimental` (starter) |
-| [eUTxO and ZK](/products/eutxo-and-zk/) | A Cardano-shaped UTxO ledger with an optional federated bridge and ZeroJ validity proofs, for test funds only. | Researchers and protocol teams | `./yano.sh appchain eutxo demo` | `experimental` |
+| [eUTxO ledger](/products/eutxo/) | A Cardano-shaped UTxO ledger with an optional federated bridge, for test funds only. | Researchers and protocol teams | `./yano.sh appchain eutxo demo` | `experimental` |
 
 ## Choosing one
 
@@ -37,7 +37,7 @@ common problems to the building blocks.
 Products reuse the platform's state machines, authenticated state, and proof
 verification, but they are packaged differently:
 
-- Evidence, Cardano History, and eUTxO and ZK add runtime plugin behavior.
+- Evidence, Cardano History, and the eUTxO ledger add runtime plugin behavior.
 - Attest is a client, CLI, and UI over the stock `doc-trail` state machine.
 - Trust Registry, DPP Starter, and Attestation Feed configure the stock governed
   authenticated map and add application tooling outside consensus.

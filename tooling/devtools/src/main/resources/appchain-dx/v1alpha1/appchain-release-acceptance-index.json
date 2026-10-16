@@ -12,8 +12,7 @@
   ],
   "knownLimitations": [
     "No independently maintained third-party catalog has supplied compatibility evidence yet.",
-    "Preview role recipes have module-level outcome and packaged-provider evidence, not an external operator field trial.",
-    "The EUTxO ZeroJ testnet lifecycle uses zeroj-jubjub-dev-v1 with a trusted prover and disposable funds; its complete Yano-devnet L1-to-L2-to-L1 round trip passes, while malicious-prover security, Preview/Preprod live acceptance, restart/rollback, independent reconstruction, and production readiness are NOT_EXERCISED."
+    "Preview role recipes have module-level outcome and packaged-provider evidence, not an external operator field trial."
   ],
   "capabilityEvidence": {
     "state:declarative-composite": [
@@ -370,53 +369,6 @@
         "ledgers/eutxo/bridge-onchain/src/test/java/org/yanoproject/x/eutxo/bridge/onchain/ProofVaultValidatorConformanceTest.java#realMpfClaimSettlesPermissionlesslyWithinBudget",
         "ledgers/eutxo/bridge-onchain/src/test/java/org/yanoproject/x/eutxo/bridge/onchain/BridgeValidatorSourceCompileTest.java#releasePinnedJulcCompilesAllBridgeValidators",
         "fixtures/eutxo-e2e/src/test/java/org/yanoproject/app/e2e/EutxoZkRollupDevnetE2ETest.java#depositFinalizeProveSettleAndWithdrawOnDevnet"
-      ]
-    },
-    {
-      "id": "eutxo-zeroj-validity",
-      "maturity": "experimental",
-      "availability": "EXPERIMENTAL",
-      "runtimeTypes": [
-        "jvm"
-      ],
-      "deploymentTargets": [
-        "host",
-        "docker-compose"
-      ],
-      "gitOpsTargets": [
-        "helm",
-        "kustomize"
-      ],
-      "outcomeLevel": "OPERATOR_OWNED_REFERENCE",
-      "acceptanceScenario": "recipe-eutxo-zeroj-validity",
-      "evidence": [
-        "ledgers/eutxo-zk/testkit/src/test/java/org/yanoproject/x/eutxo/zk/testkit/EutxoValidityIntegrationTest.java#selectedOptionalProviderMaintainsAtomicSecondRoot",
-        "ledgers/eutxo-zk/onchain/src/cryptoTest/java/org/yanoproject/x/eutxo/zk/onchain/EutxoValidityRootValidatorTest.java#rootAdvanceRequiresOneExactProofBoundDataPublication",
-        "ledgers/eutxo-zk/Z6_PRODUCTION_HARDENING.md#external-gates"
-      ]
-    },
-    {
-      "id": "eutxo-zeroj-preview",
-      "maturity": "experimental",
-      "availability": "EXPERIMENTAL",
-      "runtimeTypes": [
-        "jvm"
-      ],
-      "deploymentTargets": [
-        "host",
-        "docker-compose"
-      ],
-      "gitOpsTargets": [
-        "helm",
-        "kustomize"
-      ],
-      "outcomeLevel": "OPERATOR_OWNED_REFERENCE",
-      "acceptanceScenario": "recipe-eutxo-zeroj-preview",
-      "evidence": [
-        "ledgers/eutxo-zk/lifecycle/src/test/java/org/yanoproject/x/eutxo/zk/lifecycle/EutxoValidityLifecycleTest.java#bootstrapIsIdempotentAndFailClosedByNetwork",
-        "fixtures/eutxo-e2e/src/test/java/org/yanoproject/app/e2e/EutxoZkRollupDevnetE2ETest.java#depositFinalizeProveSettleAndWithdrawOnDevnet",
-        "ledgers/eutxo-zk/D5_ACCEPTANCE.md#network-evidence",
-        "ledgers/eutxo-zk/D6_RELEASE_DECISION.md#release-decision"
       ]
     },
     {

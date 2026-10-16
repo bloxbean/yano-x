@@ -55,7 +55,7 @@ Then supply the matching inputs explicitly:
 
 | Value | Current |
 |---|---|
-| Yano X version | `0.1.0-pre3` |
+| Yano X version | `0.1.0-pre4-SNAPSHOT` |
 | Yano host version | `0.1.0-pre18` |
 | Maven group | `org.yanoproject.x` |
 | Java | `25` |
@@ -156,18 +156,6 @@ way, and the [local showcase quickstart](/start-here/quickstart/) runs from
 `plugins/` is an activatable selection, not an indiscriminate copy. All runtime
 bundles are published and versioned independently; the default distribution
 activates every one that can coexist.
-
-The standard eUTxO runtime and the eUTxO ZK runtime both intentionally provide
-the `app-state-machine/eutxo-ledger` contribution, so exactly one of them may
-be installed. Copying both into `plugins/` is a hard catalog error.
-
-To switch to the ZK implementation, remove the standard eUTxO ledger bundle,
-copy the ZK runtime bundle from `optional-plugins/` into `plugins/` **on every
-member**, and validate the result:
-
-```bash
-tools/yano-plugins/bin/yano-plugins validate plugins/*.jar
-```
 
 ## Building against a different Yano version
 

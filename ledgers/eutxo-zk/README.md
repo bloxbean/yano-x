@@ -1,5 +1,11 @@
 # Optional EUTxO validity and ZK-rollup modules
 
+> **Withdrawn from the distribution.** The `eutxo-zeroj-validity` and
+> `eutxo-zeroj-preview` recipes, the `zk` demo scenario, and the showcase's
+> `eutxo --variant zk` have been removed while this path is untested. The
+> modules and this guide remain in the repository for developers, but the
+> commands below that use those recipes or the `zk` scenario no longer work.
+
 The shortest disposable devnet path is the unified
 [EUTxO demo guide](../eutxo/DEMO.md). The manual lifecycle and public-testnet
 operator path remain in [GETTING_STARTED.md](GETTING_STARTED.md).

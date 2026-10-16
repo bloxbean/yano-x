@@ -60,7 +60,7 @@ and prints the console address.
 > `Status UI: http://127.0.0.1:7070/ui/app-chain/`.
 
 The light profile demonstrates logs, registries, document trails, approvals,
-authenticated maps, effects, and more. Optional external connectors and ZK have
+authenticated maps, effects, and more. Optional external connectors have
 separate prerequisites. The quickstart anchor is a **devnet** anchor for
 `workflow-chain`; it does not mean every chain is anchored on a public network.
 

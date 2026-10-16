@@ -25,7 +25,7 @@ not the first move.
 | Publish immutable evidence to object storage or IPFS and notify Kafka | `evidence-ledger` recipe ([Evidence](/products/evidence/)) | No for the demo; connector plugins in deployments |
 | Call an ERP or API after a finalized decision | [Webhook effects](/tutorials/06-webhook-effects/) | Configuration; emission is stock or plugin logic |
 | Query and prove historical Cardano parameters, stake, and governance | [Cardano History](/products/cardano-history/) | Plugin configuration and CLI |
-| Run a UTxO-style ledger or explore ZK settlement | [eUTxO and ZK](/products/eutxo-and-zk/) | Experimental; Cardano builder integration |
+| Run a UTxO-style ledger | [eUTxO ledger](/products/eutxo/) | Experimental; Cardano builder integration |
 | Connect existing machines: when one changes, check, then update another in the same atomic step | `declarative-composite` recipe ([declarative bindings](/bindings/)) | No: YAML compiled to committed IR |
 | Implement business rules Yano does not ship | [The plugin framework](/plugins/) | A small Java plugin |
 

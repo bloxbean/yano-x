@@ -38,7 +38,7 @@ export default {
     {
       id: 'products', label: 'Products', sub: 'Evidence, Attest, …', kind: 'runtime',
       detail: 'Evidence, Cardano History, Attest, Trust Registry, Verifiable Explorer, DPP Starter, Attestation '
-        + 'Feed, and eUTxO and ZK.',
+        + 'Feed, and the eUTxO ledger.',
       link: { label: 'Products', href: '/products/' },
     },
     {

@@ -28,7 +28,7 @@ public final class EutxoDemoCli {
                or: ./yano.sh appchain eutxo demo deposit-submit [options]
                or: ./yano.sh appchain eutxo demo reset --yes [options]
             Options:
-              --scenario ledger|bridge|zk  default ledger for a new workspace;
+              --scenario ledger|bridge     default ledger for a new workspace;
                                            inferred for an existing workspace
               --workspace <directory>      default $YANO_HOME/eutxo-demo
               --name <project-name>        default payments-eutxo

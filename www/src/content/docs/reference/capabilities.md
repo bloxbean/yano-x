@@ -231,13 +231,6 @@ See the
 [optional connector installation guide](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/OPTIONAL_CONNECTORS.md)
 for per-connector requirements and security profiles.
 
-## The conflict you will actually hit
-
-The standard eUTxO runtime and the eUTxO ZK runtime both provide
-`app-state-machine/eutxo-ledger`. Exactly one may be installed, which is why the
-ZK runtime ships under `optional-plugins/`. See
-[eUTxO and ZK](/products/eutxo-and-zk/).
-
 ## Related
 
 - [Recipe catalog](/recipes/) — reviewed capability bundles.

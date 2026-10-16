@@ -33,7 +33,7 @@ yano-x  ──depends on──▶  yano
 | Cardano data node, chain sync, chainstate | Every state machine except `ordered-log` |
 | App-block sequencing, membership, threshold finality | Composition framework and governed profiles |
 | Authenticated state, MPF proofs, catch-up, replay | Kafka / S3 / IPFS / Cardano-payment connectors |
-| Cardano anchoring | Evidence, Cardano History, eUTxO and ZK products |
+| Cardano anchoring | Evidence, Cardano History, eUTxO ledger products |
 | Effect runtime | Java client SDK, Spring starter, testkits, Studio |
 | Public plugin SPI, catalog, lifecycle, isolation | The batteries-included JVM distribution |
 | `ordered-log` — the only built-in state machine | |
@@ -44,7 +44,7 @@ yano-x  ──depends on──▶  yano
 
 | Value | Current |
 |---|---|
-| Yano X version | `0.1.0-pre3` |
+| Yano X version | `0.1.0-pre4-SNAPSHOT` |
 | Yano host version | `0.1.0-pre18` |
 | Maven group | `org.yanoproject.x` |
 | Java | `25` |

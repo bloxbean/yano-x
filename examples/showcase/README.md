@@ -58,8 +58,8 @@ Yano's public composite, plugin, and effect SPIs.
 The `evidence` profile delegates to the maintained evidence product demo with
 Kafka, S3-compatible storage, and IPFS. The evidence product is reusable; the
 showcase and effects-demo directories are presentation harnesses, not the
-product itself. The `eutxo` profile delegates to the maintained ledger,
-bridge, and ZK EUTxO demos.
+product itself. The `eutxo` profile delegates to the maintained ledger
+and bridge EUTxO demos.
 
 ## Requirements
 

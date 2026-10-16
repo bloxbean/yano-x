@@ -1,5 +1,11 @@
 # EUTxO ZeroJ validity settlement: getting started
 
+> **Withdrawn from the distribution.** The `eutxo-zeroj-validity` and
+> `eutxo-zeroj-preview` recipes, the `zk` demo scenario, and the showcase's
+> `eutxo --variant zk` have been removed while this path is untested. The
+> modules and this guide remain in the repository for developers, but the
+> commands below that use those recipes or the `zk` scenario no longer work.
+
 For a protocol-oriented, step-by-step walkthrough of project generation,
 three-member cluster startup, the devnet faucet, L1 deposit publication, L2
 Jubjub submission, proof generation, L1 root settlement, and proof withdrawal,
