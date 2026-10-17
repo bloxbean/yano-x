@@ -10,16 +10,12 @@ can complete an approval and update a record in the same atomic cascade. Your
 application still owns its UI, command submission, business identities and keys.
 
 This feature is experimental. Admission rules and typed views (chapters 7 and 8)
-need a Yano host build with plugin API level 12 and the ADR-031.3 and ADR-031.4
-host contract. No Yano release contains that contract yet: this repository's
-`gradle.properties` still pins Yano `0.1.0-pre17`, and the composite bundle's
-manifest declares `minLevel: 12`. Level 12 alone does not identify the right
-host either, because the typed-view API was added to level 12 without a new
-level. Until a release is pinned, use the Yano X distribution together with the
-exact host build it was built and tested against; see
-[build from source](../../BUILD_DISTRIBUTIONS.md). The upstream host alone does
-not install the optional X machines, compiler or Studio, and an older Yano X
-archive may not include these features.
+need a Yano host with plugin API level 12 and the ADR-031.3 and ADR-031.4 host
+contract. Yano `0.1.0-pre18` is the first release with that contract. Level 12
+alone does not identify the right host, because the typed-view API was added to
+level 12 without a new level, so run the Yano host that ships inside the Yano X
+distribution. The upstream host alone does not install the optional X machines,
+compiler or Studio, and an older Yano X archive may not include these features.
 
 ## Choose your starting point
 

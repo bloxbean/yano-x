@@ -208,6 +208,8 @@ signature does and does not cover.
   --capability state:shipment \
   --plugin-jar shipment-plugin/build/libs/shipment-yano-plugin.jar \
   --trust-key example-release-2026=<64-hex-public-key> \
+  --generate-local-member-keys \
+  --http-port-base 7370 --server-port-base 13637 \
   --output shipment-chain
 
 ./yano.sh appchain config validate --mode project shipment-chain
@@ -217,6 +219,13 @@ The project stores the signed snapshot under `component-catalogs/`, and
 `appchain.lock` pins the catalog, runtime manifest, configuration metadata and
 complete JAR digests. Rendering and `doctor` re-verify the snapshot.
 
+`--generate-local-member-keys` creates three disposable devnet member keys, so
+you can run the chain on this machine in step 7. Their private files go to the
+project's owner-only `secrets/` directory, and only the public keys are written
+to `appchain.yaml`. For members on separate machines, pin each member's own
+public key instead, as [Tutorial 9](09-from-demo-to-pilot.md) shows. The port
+bases put the nodes on HTTP ports 7370–7372.
+
 ## 7. Install on every member
 
 Copy the exact pinned JAR into `plugins/` in every member's distribution, then
@@ -224,19 +233,46 @@ check readiness:
 
 ```bash
 cp shipment-plugin/build/libs/shipment-yano-plugin.jar /opt/yano-x/plugins/
+./yano.sh appchain prepare shipment-chain
 ./yano.sh appchain doctor shipment-chain --distribution /opt/yano-x
 ```
 
+> **✓ You should see** `PREPARED`, then a doctor report ending in
+> `DOCTOR_WARNINGS`: `EXTERNAL_TARGETS_READY` stays `PENDING` for
+> `reviewed-plugin-jar`, a reminder that someone must review the JAR you ship.
+
 A missing or different JAR fails artifact readiness. Yano X plugins target the
-JVM distribution. Start the nodes as the
+JVM distribution. This project is a local devnet, so start its three nodes
+here; for members on separate machines, start each node as the
 [deployment guide](../deployment/README.md) describes. Each node checks the JAR
 again at start-up, before your code runs; [How plugins load](../../site/plugins-how-plugins-load.md)
-lists those checks. Then confirm that every member runs the same plugin catalog:
+lists those checks.
 
 ```bash
-./yano.sh appchain drift shipment-chain --peer http://node-a:8080/api/v1/ \
-  --peer http://node-b:8080/api/v1/ --peer http://node-c:8080/api/v1/
+export YANO_HOME=/opt/yano-x
+shipment-chain/scripts/start
+shipment-chain/scripts/status
 ```
+
+Then confirm that every member runs the same plugin catalog. `drift` reads each
+node's runtime identity, which needs an operator API key. On this devnet the
+key is in the project's `secrets/` files; this reads it without printing it:
+
+```bash
+export YANO_OPERATOR_API_KEY="$(sed -n 's/^YANO_APPCHAIN_API_KEYS=//p' \
+  shipment-chain/secrets/node0.env)"
+./yano.sh appchain drift shipment-chain --peer http://127.0.0.1:7370/api/v1/ \
+  --peer http://127.0.0.1:7371/api/v1/ --peer http://127.0.0.1:7372/api/v1/ \
+  --api-key-env YANO_OPERATOR_API_KEY
+```
+
+> **✓ You should see** `MATCH` or `NOT_APPLICABLE` for every compared value,
+> then `DRIFT_OK peers=3`.
+
+On a real deployment, set the key to one of the values in the nodes'
+`YANO_APPCHAIN_API_KEYS`. Without `--api-key-env`, the nodes reject the
+identity requests with `HTTP 401`. Stop the nodes with
+`shipment-chain/scripts/stop`.
 
 ## 8. Change it safely later
 

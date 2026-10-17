@@ -33,6 +33,14 @@ a deterministic demo anchor seed and can fund it from the self-contained
 devnet faucet. When the cluster is up, the launcher's summary names the next
 step, `anchor-bootstrap <chain>`.
 
+The commands below use node 0's HTTP port, `HTTP_BASE`. Set it to the first
+port of the range the launcher printed. It is `7070` unless the launcher
+printed a line such as `HTTP range 7070-7072 unavailable; using 7073-7075`:
+
+```bash
+HTTP_BASE=7070
+```
+
 ## 2. Bootstrap one chain's immutable anchor identity
 
 ```bash
@@ -45,9 +53,9 @@ Bootstrap consumes a seed UTxO, mints the one-shot thread NFT, and creates the
 genesis datum. It establishes identity; it does not let the wallet alone claim
 an arbitrary application tip.
 
-Inspect the L1 Anchor card on <http://127.0.0.1:7070/ui/app-chain/>. It should
-show the thread policy, script address, wallet, anchored height, transaction,
-and lag.
+Inspect the L1 Anchor card on node 0's status page,
+`http://127.0.0.1:$HTTP_BASE/ui/app-chain/`. It should show the thread policy,
+script address, wallet, anchored height, transaction, and lag.
 
 ## 3. Produce application progress
 
@@ -55,7 +63,7 @@ Submit one event through the REST API so you keep its message id, and wait
 until it is final:
 
 ```bash
-API=http://127.0.0.1:7070/api/v1/app-chain/chains/orders-chain
+API=http://127.0.0.1:$HTTP_BASE/api/v1/app-chain/chains/orders-chain
 
 MESSAGE_ID=$(curl -s -X POST "$API/messages" \
   -H 'Content-Type: application/json' \

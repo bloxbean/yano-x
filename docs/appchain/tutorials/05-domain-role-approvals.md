@@ -5,8 +5,8 @@
 - **Level:** application developer; advanced for identity governance
 - **Time:** about 30 minutes, plus the first image build
 - **Outcome:** run a release that business actors from different
-  organizations approve under a governed policy, watch deliberate mistakes
-  become final no-ops, and rotate and revoke an actor key.
+  organizations approve under a governed policy, confirm that deliberate
+  mistakes are final but count for nothing, and rotate and revoke an actor key.
 
 Role-aware approval separates two identities:
 
@@ -41,9 +41,22 @@ sends these statements for one release, in this order:
 The three mistakes are final, like every other message, but they change
 nothing. Only eligible, signed decisions count toward the policy.
 
+The codes above are the decisions the machine makes, but it does not store a
+code for each command, so the demo cannot print them. You see their result
+instead: the approved proposal keeps only the three accepted decisions, and
+`publish` fails unless they are exactly `auditor-a1`, `auditor-b` and
+`regulator-a`. The [`role-approvals` reference](../state-machines/role-approvals.md)
+lists every code and the order of the checks.
+
 ## 1. Start the role profile
 
 You need JDK 25, Docker with Compose v2, `curl`, `jq`, `openssl` and Python 3.
+The stack uses the same ports as Tutorial 4: 7070–7072 for the members, 7080
+for the Explorer, and 9092, 9000 and 5001. If any is busy, export the same
+`DEMO_HTTP_BASE` or other `DEMO_*_PORT` overrides that
+[Tutorial 4](04-evidence-publication.md) describes before the first command,
+and keep them set for the whole tutorial.
+
 From the top-level directory of the extracted release:
 
 ```bash
@@ -80,6 +93,11 @@ It is not a setting you can switch on for an existing chain. Pass the same
 The runner submits the statements shown above, including the three negative
 controls, then releases the evidence once the proposal is APPROVED.
 
+> **✓ You should see** `PASS command=publish scenario=regulated-product-001-...`.
+> The run's report, which the Explorer in the next step shows, has an
+> `APPROVED` authorization with three decisions: `auditor-a1` from
+> `audit-org-a`, `auditor-b` from `audit-org-b`, and `regulator-a`.
+
 ## 3. Inspect and verify
 
 ```bash
@@ -105,7 +123,7 @@ is the current revision”.
   --continuation direct
 ```
 
-The exercise uses a dedicated recovery actor and shows:
+The exercise uses a dedicated recovery actor and checks, in order:
 
 1. governed onboarding with proof-of-possession;
 2. signing-key rotation;
@@ -114,6 +132,11 @@ The exercise uses a dedicated recovery actor and shows:
 5. revocation;
 6. refusal after revocation; and
 7. proofs of the historical revisions and decisions.
+
+> **✓ You should see** one line, `PASS command=role-lifecycle actor=recovery-probe
+> revision=3 rotation=verified revocation=verified ...`. The command checks
+> every step above against proven state and stops with a `FAIL` line at the
+> first one that does not hold; it does not print the steps one by one.
 
 This is not member rotation. Business credentials and member nodes are
 governed separately.
