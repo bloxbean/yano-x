@@ -4,7 +4,7 @@
 
 yanoXVersion: 0.1.0-pre4-SNAPSHOT
 yanoVersion: 0.1.0-pre18
-Generated: 2026-10-16T16:00:11.519Z
+Generated: 2026-10-17T05:13:00.876Z
 Site: https://yano-x.io
 Repo: https://github.com/bloxbean/yano-x
 
@@ -31,8 +31,8 @@ Repo: https://github.com/bloxbean/yano-x
   environment-dependent iteration order, network calls, or node-local mutable
   decisions. External work is emitted as an effect record and executed later by
   the effect runtime, never called during `apply`.
-- **Choose the smallest extension:** configuration (13 stock recipes,
-  44 capabilities) -> a small composite plugin -> a custom
+- **Choose the smallest extension:** configuration (11 stock recipes,
+  39 capabilities) -> a small composite plugin -> a custom
   state-machine plugin. Only the last one adds new consensus semantics.
 - **The public CLI is `./yano.sh appchain …`**, shipped inside the Yano X JVM
   distribution. There is no separate `yano-x` executable.
@@ -113,7 +113,7 @@ Repo: https://github.com/bloxbean/yano-x
 - [Products → Evidence Desk](https://yano-x.io/products/evidence-desk/)
 - [Products → Cardano History](https://yano-x.io/products/cardano-history/)
 - [Products → DPP Starter](https://yano-x.io/products/dpp-starter/)
-- [Products → eUTxO and ZK](https://yano-x.io/products/eutxo-and-zk/)
+- [Products → eUTxO ledger](https://yano-x.io/products/eutxo/)
 - [Products → Verifiable Explorer](https://yano-x.io/products/explorer/)
 - [Products → Trust Registry](https://yano-x.io/products/trust-registry/)
 - [Reference → CLI reference](https://yano-x.io/reference/cli/)
@@ -354,7 +354,7 @@ yano-x  ──depends on──▶  yano
 | Cardano data node, chain sync, chainstate | Every state machine except `ordered-log` |
 | App-block sequencing, membership, threshold finality | Composition framework and governed profiles |
 | Authenticated state, MPF proofs, catch-up, replay | Kafka / S3 / IPFS / Cardano-payment connectors |
-| Cardano anchoring | Evidence, Cardano History, eUTxO and ZK products |
+| Cardano anchoring | Evidence, Cardano History, eUTxO ledger products |
 | Effect runtime | Java client SDK, Spring starter, testkits, Studio |
 | Public plugin SPI, catalog, lifecycle, isolation | The batteries-included JVM distribution |
 | `ordered-log` — the only built-in state machine | |
@@ -721,7 +721,7 @@ catch-up, restart, and anchor state.
 | Build tries to reach Maven Local | `-PuseMavenLocal=true` needed but that is the contributor track | Users need no flags at all |
 | Missing release asset for `yanoVersion` | SNAPSHOT or staged Yano version | Supply `-PyanoJvmDist` with the exact matching ZIP |
 | `appchain doctor` reports incompatibility | Pointed at a native distribution | Yano X plugins target the JVM host |
-| Node refuses to start with a catalog error | Two bundles provide the same contribution (classically both eUTxO runtimes) | Install exactly one; the other lives in `optional-plugins/` |
+| Node refuses to start with a catalog error | Two bundles provide the same contribution | Install exactly one of them |
 | `POST /messages` returns 429 | Pending pool full — backpressure working | Back off and retry; tune `pool.max-messages` deliberately |
 | Message rejected, `drops.stale_seq` | Per-sender seq at or below the last finalized seq — a replay | Do not reuse envelopes; seq gaps are fine and meaningless |
 | Product routes return 404, CLI exit code 3 | Cardano History has no finalized fact yet | Wait for the next stable L1 epoch transition. Never synthesize a value |
@@ -1041,10 +1041,8 @@ lives. Operators who already run the matching Yano release can take bundles
 from its `plugins/` directory or download the standalone plugin pack; the
 deployment tool and Studio also ship as standalone archives.
 
-The default `plugins/` directory is a deliberate, conflict-free **selection**,
-not a copy of every published bundle. Alternative implementations that would
-claim the same contribution live under `optional-plugins/`, and you opt into
-them explicitly.
+The `plugins/` directory is **conflict-free**: no two bundles claim the same
+contribution, so the whole directory activates together.
 
 #### Everything optional is a plugin
 
@@ -1125,7 +1123,7 @@ the showcase also need Python 3, `curl`, and `jq`.
 | `examples/showcase/` | You want the quickest local three-node, multi-ledger demonstration. | `cd examples/showcase && ./showcase.sh quickstart --profile light --nodes 3 --instance demo` |
 | `tools/yano-deploy/` | You want to render and apply multi-node OpenTofu and Ansible deployments. | `tools/yano-deploy/bin/yano-x-deploy init ./cluster` |
 | `studio/` | You want the browser-based blueprint editor. It is a static site. | `cd studio && python3 -m http.server 8080` |
-| `plugins/`, `optional-plugins/` | You already operate the matching Yano JVM release and want to select Yano X runtime bundles yourself. | Copy reviewed bundles into the node plugin directory. |
+| `plugins/` | You already operate the matching Yano JVM release and want to select Yano X runtime bundles yourself. | Copy reviewed bundles into the node plugin directory. |
 
 The archive embeds the exact compatible Yano host identity in
 `yano-x-distribution-v1.json`. Do not mix its plugins with a different Yano
@@ -1136,7 +1134,7 @@ carries the same files as the matching path in the JVM archive:
 
 | Standalone archive | Contents |
 | --- | --- |
-| `yano-x-plugin-pack-<version>.zip` | `plugins/`, `optional-plugins/`, `yano-x-plugin-pack-v1.json`, the SBOM, and a README naming the one Yano release the bundles run on |
+| `yano-x-plugin-pack-<version>.zip` | `plugins/`, `yano-x-plugin-pack-v1.json`, the SBOM, and a README naming the one Yano release the bundles run on |
 | `yano-x-deploy-<version>.zip` | The deployment CLI (`bin/yano-x-deploy`) with its own libraries and the provider-neutral deployment material |
 | `yano-x-studio-<version>.zip` | App-Chain Studio as a static site |
 
@@ -1226,10 +1224,9 @@ guide.
 Operators assembling a custom node from the matching ordinary Yano JVM
 distribution can take bundles from the JVM archive or from
 `yano-x-plugin-pack-<version>.zip`. `plugins/` contains the
-conflict-free default set; alternative implementations are under
-`optional-plugins/`, and `yano-x-plugin-pack-v1.json` lists every bundle with
-its checksum. Copying both implementations of the same contribution into the
-active plugin directory is a catalog error.
+conflict-free set, and `yano-x-plugin-pack-v1.json` lists every bundle with
+its checksum. Two bundles that provide the same contribution in the active
+plugin directory are a catalog error.
 
 Bundles leave out the classes the host `yano.jar` already provides, so they run
 only on the Yano release named in `yano-x-distribution-v1.json`.
@@ -1347,7 +1344,6 @@ yano-x-jvm-<version>/
 ├── config/                       # chain definitions and network genesis
 │   └── schema/                   # blueprint, catalog, and lock schemas
 ├── plugins/                      # the default, conflict-free bundle selection
-├── optional-plugins/             # alternatives you opt into explicitly
 ├── tools/
 │   ├── lib/                      # jars shared by the Yano X command-line tools
 │   ├── yano-plugins/             # plugin catalog validator (from the Yano host)
@@ -1401,18 +1397,6 @@ way, and the [local showcase quickstart](https://yano-x.io/start-here/quickstart
 `plugins/` is an activatable selection, not an indiscriminate copy. All runtime
 bundles are published and versioned independently; the default distribution
 activates every one that can coexist.
-
-The standard eUTxO runtime and the eUTxO ZK runtime both intentionally provide
-the `app-state-machine/eutxo-ledger` contribution, so exactly one of them may
-be installed. Copying both into `plugins/` is a hard catalog error.
-
-To switch to the ZK implementation, remove the standard eUTxO ledger bundle,
-copy the ZK runtime bundle from `optional-plugins/` into `plugins/` **on every
-member**, and validate the result:
-
-```bash
-tools/yano-plugins/bin/yano-plugins validate plugins/*.jar
-```
 
 #### Building against a different Yano version
 
@@ -1527,7 +1511,7 @@ and prints the console address.
 > `Status UI: http://127.0.0.1:7070/ui/app-chain/`.
 
 The light profile demonstrates logs, registries, document trails, approvals,
-authenticated maps, effects, and more. Optional external connectors and ZK have
+authenticated maps, effects, and more. Optional external connectors have
 separate prerequisites. The quickstart anchor is a **devnet** anchor for
 `workflow-chain`; it does not mean every chain is anchored on a public network.
 
@@ -1949,9 +1933,6 @@ capabilities the parts above do not cover. The
 | `composite` with the `evidence-v1-gated` preset | Approval-coordinated S3 and IPFS publication followed by an acknowledged Kafka notification, all under one root |
 | `role-evidence` profile | Evidence release signed by business actors, with governed organizations, key rotation and revocation, two auditor organizations, and a regulator |
 | Governed composite profiles | Deploy reviewed, dormant profile generations first, then let a threshold of members authorize activation at a future height; see [profile governance](https://yano-x.io/deployment/profile-governance/) |
-| `credential-registry` (experimental) | Verifiable credentials on an anchored registry: issuer-signed attribute sets with selective disclosure |
-| `zk-gate` (experimental) | Private policy compliance: prove "amount ≤ limit" or "KYC holds" across organizations without revealing the data |
-| `zk-membership` (experimental) | Anonymous but authorized submissions among known members: voting, sealed bids, whistleblowing |
 | Evidence export | A1 and A5 audits: one offline-verifiable bundle per record for regulators and counterparties |
 
 ---
@@ -2889,7 +2870,7 @@ yano.app-chain.effects.executor.max-attempts: 8 # then PARKED for operator revie
   reports are fenced to the lease holder. Leases and fencing are node-local
   bookkeeping on the member the worker talks to, not consensus state.
 
-The [user guide's effects section](https://github.com/bloxbean/yano-x/blob/main/docs/APP_CHAIN_USER_GUIDE.md#18-effects--acting-on-the-outside-world)
+The [user guide's effects section](https://github.com/bloxbean/yano-x/blob/main/docs/APP_CHAIN_USER_GUIDE.md#17-effects--acting-on-the-outside-world)
 covers every setting, the REST surface, and writing a custom executor.
 
 #### Executors and sinks
@@ -4023,8 +4004,6 @@ binary in your hands:
 | [`evidence-ledger`](https://yano-x.io/tutorials/04-evidence-publication/) | Role-aware evidence ledger | `BUNDLED` | `preview` | A role-authorized evidence record and its release decision are committed and queryable. |
 | [`eutxo-ledger`](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/README.md) | Scalus-backed EUTxO ledger | `FIRST_PARTY_OPTIONAL` | `experimental` | A signed key-controlled or bounded Plutus V3 transaction consumes virtual EUTxOs and creates MPF-proven outputs and receipts. |
 | [`eutxo-cardano-bridge`](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/README.md) | Federated Cardano EUTxO bridge | `EXPERIMENTAL` | `experimental` | Accepted stable deposits create mirrored EUTxOs; signed L2 spends create irrevocable claims that settle only through the configured signer path or a current accepted MPF root with single-use nullification. |
-| [`eutxo-zeroj-validity`](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/README.md) | ZeroJ EUTxO validity development profile | `EXPERIMENTAL` | `experimental` | Bounded finalized EUTxO payments deterministically update both the Yano MPF root and the circuit-friendly validity root and can be proved against pinned development artifacts. |
-| [`eutxo-zeroj-preview`](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/GETTING_STARTED.md) | ZeroJ EUTxO testnet lifecycle | `EXPERIMENTAL` | `experimental` | A project can bootstrap pinned development artifacts, accept finalized Jubjub-authorized L2 transactions, produce a constant-size proof, and prepare idempotent Cardano deposit, settlement, withdrawal, and recovery operations. |
 | [`custom-plugin`](https://yano-x.io/plugins/) | Custom state-machine project | `REFERENCE` | `experimental` | The operator-defined state-machine contract is loaded from a reviewed pinned plugin bundle. |
 
 <!-- catalog:recipes-end -->
@@ -4274,44 +4253,6 @@ A Cardano-backed EUTxO ledger with stable deposits and claim-bound federated wit
   --output eutxo-cardano-bridge-chain
 ```
 
-##### `eutxo-zeroj-validity` — ZeroJ EUTxO validity development profile
-
-A no-real-funds EUTxO ledger with the optional ZeroJ validity commitment and the interfaces needed to operate and test direct proof settlement.
-
-- **Outcome:** Bounded finalized EUTxO payments deterministically update both the Yano MPF root and the circuit-friendly validity root and can be proved against pinned development artifacts.
-- **Availability / maturity:** `EXPERIMENTAL` / `experimental`
-- **Capabilities:** `funding:eutxo-genesis`, `settlement:zeroj-validity`, `sequencer:fixed`
-- **Runtime artifacts:** `yano-runtime`, `yano-x-eutxo-ledger`, `yano-x-eutxo-zk-zeroj`
-- **Runtimes:** `jvm` · **Deployment:** `host`, `docker-compose`
-- **External prerequisites:** `zeroj-0.1.0-pre10`, `julc-0.1.0-pre16`, `development-ceremony-bundle`
-- **Bootstrap requirements:** `use-test-keys-and-no-real-funds`
-- **Reference:** [ledgers/eutxo-zk/README.md](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/README.md)
-
-```bash
-./yano.sh appchain init --non-interactive \
-  --recipe eutxo-zeroj-validity --network devnet --members 3 --runtime jvm \
-  --output eutxo-zeroj-validity-chain
-```
-
-##### `eutxo-zeroj-preview` — ZeroJ EUTxO testnet lifecycle
-
-Packages the Cardano-shaped L2 client, measured b16 development circuit, durable lifecycle tooling, contract plans, prover artifacts, relay handoff, and recovery evidence as one JVM-only testnet project.
-
-- **Outcome:** A project can bootstrap pinned development artifacts, accept finalized Jubjub-authorized L2 transactions, produce a constant-size proof, and prepare idempotent Cardano deposit, settlement, withdrawal, and recovery operations.
-- **Availability / maturity:** `EXPERIMENTAL` / `experimental`
-- **Capabilities:** `settlement:zeroj-validity`, `bridge:cardano-federated`, `l1:slot-feed`, `sequencer:fixed`
-- **Runtime artifacts:** `yano-runtime`, `yano-x-eutxo-ledger`, `yano-x-eutxo-bridge-cardano`, `yano-x-eutxo-zk-zeroj`, `yano-x-eutxo-zk-runtime`, `yano-x-eutxo-zk-lifecycle`
-- **Runtimes:** `jvm` · **Deployment:** `host`, `docker-compose`
-- **External prerequisites:** `zeroj-0.1.0-pre10`, `julc-0.1.0-pre16`, `funded-testnet-operator-key-for-live-L1-operations`
-- **Bootstrap requirements:** `trusted-proof-submitter`, `development-ceremony-or-reviewed-testnet-ceremony`, `deployed-pinned-contract-identities`, `disposable-test-funds-only`
-- **Reference:** [ledgers/eutxo-zk/GETTING_STARTED.md](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/GETTING_STARTED.md)
-
-```bash
-./yano.sh appchain init --non-interactive \
-  --recipe eutxo-zeroj-preview --network devnet --members 3 --runtime jvm \
-  --output eutxo-zeroj-preview-chain
-```
-
 ##### `custom-plugin` — Custom state-machine project
 
 A generated project boundary for a separately reviewed custom state-machine plugin.
@@ -4370,7 +4311,7 @@ not the first move.
 | Publish immutable evidence to object storage or IPFS and notify Kafka | `evidence-ledger` recipe ([Evidence](https://yano-x.io/products/evidence/)) | No for the demo; connector plugins in deployments |
 | Call an ERP or API after a finalized decision | [Webhook effects](https://yano-x.io/tutorials/06-webhook-effects/) | Configuration; emission is stock or plugin logic |
 | Query and prove historical Cardano parameters, stake, and governance | [Cardano History](https://yano-x.io/products/cardano-history/) | Plugin configuration and CLI |
-| Run a UTxO-style ledger or explore ZK settlement | [eUTxO and ZK](https://yano-x.io/products/eutxo-and-zk/) | Experimental; Cardano builder integration |
+| Run a UTxO-style ledger | [eUTxO ledger](https://yano-x.io/products/eutxo/) | Experimental; Cardano builder integration |
 | Connect existing machines: when one changes, check, then update another in the same atomic step | `declarative-composite` recipe ([declarative bindings](https://yano-x.io/bindings/)) | No: YAML compiled to committed IR |
 | Implement business rules Yano does not ship | [The plugin framework](https://yano-x.io/plugins/) | A small Java plugin |
 
@@ -5366,7 +5307,7 @@ Climb it in order. Each rung catches a class of bug the one below cannot.
 | `yano-appchain-core-testkit` | JUnit 5 `@AppChainCluster` embedded clusters. |
 | `yano-x-effects-testkit` | Effect executor and result-path testing. |
 | `yano-x-client` | REST, SSE, and client-side proof verification from tests. |
-| `yano-x-eutxo-testkit`, `yano-x-eutxo-zk-testkit` | For the eUTxO and ZK ledgers. |
+| `yano-x-eutxo-testkit` | For the eUTxO ledger. |
 
 #### Gates in the Yano X build
 
@@ -6576,7 +6517,6 @@ say `appchain`.
 | [7. Anchors and verification](https://yano-x.io/tutorials/07-anchors-and-verification/) | Intermediate | 20 min | An application proof connected to a Cardano anchor |
 | [8. Plugins and composites](https://yano-x.io/tutorials/08-plugins-and-composites/) | Advanced | 30–60 min | Yano extended without rebuilding or forking the host |
 | [9. From demo to pilot](https://yano-x.io/tutorials/09-from-demo-to-pilot/) | Advanced | Planning session | A reviewed project and a deployment plan |
-| [10. EUTxO ZK rollup on devnet](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/DEVNET_WALKTHROUGH.md) | Advanced | 60+ min | An L1 deposit, L2 spend, proof, root settlement, and L1 withdrawal traced end to end |
 
 Tutorial 4 and the evidence track of tutorial 5 use Docker Compose for their
 services. Tutorial 8 also needs a Java build tool.
@@ -6736,9 +6676,14 @@ minute or two, because node 0 runs for 25 seconds before the other nodes join.
 > Cluster up.
 > ```
 
-If the default ports are busy, the launcher prints a line such as
-`HTTP range 7070-7072 unavailable; using 7073-7075`. Use the printed range in
-the commands below.
+The commands below reach node *n* on HTTP port `HTTP_BASE + n`. Set
+`HTTP_BASE` to the first port of the range the launcher printed. It is `7070`
+unless the default ports are busy and the launcher printed a line such as
+`HTTP range 7070-7072 unavailable; using 7073-7075`:
+
+```bash
+HTTP_BASE=7070
+```
 
 #### 2. Confirm agreement
 
@@ -6759,7 +6704,7 @@ the commands below.
 for that chain. It is more than "three processes are running", but it is a
 comparison, not a vote: it compares current roots, not heights.
 
-Open the status pages if you prefer a UI:
+Open the status pages if you prefer a UI. With the default ports they are:
 
 - <http://127.0.0.1:7070/ui/app-chain/>
 - <http://127.0.0.1:7071/ui/app-chain/>
@@ -6785,7 +6730,7 @@ The submission itself only means "queued on node 1".
 After a few seconds, inspect the finalized blocks and agreement:
 
 ```bash
-curl -s http://127.0.0.1:7070/api/v1/app-chain/chains/orders-chain/blocks | jq .
+curl -s "http://127.0.0.1:$HTTP_BASE/api/v1/app-chain/chains/orders-chain/blocks" | jq .
 ./yano.sh appchain cluster status
 ```
 
@@ -6800,7 +6745,7 @@ node 2:
 
 ```bash
 RESPONSE=$(curl -s -X POST \
-  http://127.0.0.1:7072/api/v1/app-chain/chains/orders-chain/messages \
+  "http://127.0.0.1:$((HTTP_BASE + 2))/api/v1/app-chain/chains/orders-chain/messages" \
   -H 'Content-Type: application/json' \
   -d '{"topic":"orders","body":"{\"event\":\"packed\",\"orderId\":\"A-1001\"}"}')
 
@@ -6816,7 +6761,7 @@ Wait until the message is final. A finalized message has a block height:
 ```bash
 HEIGHT=0
 for attempt in $(seq 1 30); do
-  HEIGHT=$(curl -s "http://127.0.0.1:7070/api/v1/app-chain/chains/orders-chain/messages/$MESSAGE_ID" \
+  HEIGHT=$(curl -s "http://127.0.0.1:$HTTP_BASE/api/v1/app-chain/chains/orders-chain/messages/$MESSAGE_ID" \
     | jq -r '.height // 0' 2>/dev/null)
   [ "${HEIGHT:-0}" -gt 0 ] && break
   sleep 1
@@ -6830,7 +6775,7 @@ Then request a typed proof that the message is recorded:
 
 ```bash
 curl -s -X POST \
-  "http://127.0.0.1:7070/api/v1/app-chain/chains/orders-chain/proof-subjects/finalized-message-v1/proof" \
+  "http://127.0.0.1:$HTTP_BASE/api/v1/app-chain/chains/orders-chain/proof-subjects/finalized-message-v1/proof" \
   -H 'Content-Type: application/json' \
   -d "$(jq -nc --arg id "$MESSAGE_ID" '
     {coordinates:{"message-id":$id}, view:"latest",
@@ -7023,7 +6968,7 @@ including the chain identities.
 
 | You see | What it means and what to do |
 |---|---|
-| `HTTP range 7070-7072 unavailable; using ...` | Another process holds the default ports. Use the printed range in every URL. |
+| `HTTP range 7070-7072 unavailable; using ...` | Another process holds the default ports. Set `HTTP_BASE` to the first port of the printed range. |
 | `app-chain identity differs from retained state; restore the original profile or use a new data directory` | You started the same `YANO_CLUSTER_DIR` with a different node count or `--threshold`. Start it with the original values, or export a new `YANO_CLUSTER_DIR`. |
 | `node 1 is already running` | The cluster is still running. Run `./yano.sh appchain cluster stop` first. |
 | `node 0 not ready within 180s` or `node 2 not ready after 3 attempts` | The message names the node's log file. Read its first error, for example with `./yano.sh appchain cluster logs 2`. |
@@ -7095,6 +7040,15 @@ export YANO_CLUSTER_DIR=/tmp/yano-tutorial-registry
 
 #### 2. Create a registry entry
 
+The commands below reach node *n* on HTTP port `HTTP_BASE + n`. Set
+`HTTP_BASE` to the first port of the range the launcher printed. It is `7070`
+unless the launcher printed a line such as
+`HTTP range 7070-7072 unavailable; using 7073-7075`:
+
+```bash
+HTTP_BASE=7070
+```
+
 Write through node 1, so node 1 becomes the owner:
 
 ```bash
@@ -7105,7 +7059,7 @@ The command body is CBOR, but the launcher builds it for you. `202` means only
 that node 1 queued it. Wait until the key appears in a proof:
 
 ```bash
-BASE=http://127.0.0.1:7070/api/v1/app-chain/chains/registry-chain
+BASE=http://127.0.0.1:$HTTP_BASE/api/v1/app-chain/chains/registry-chain
 KEY_HEX=$(python3 -c 'print("supplier-42".encode().hex())')
 
 until curl -sf "$BASE/state/proof/$KEY_HEX" | jq -e '.presence == "PRESENT"' >/dev/null; do
@@ -7141,7 +7095,7 @@ TOOL=docs/appchain/tutorials/tools/stdlib_command.py
 PUT_HEX=$(python3 "$TOOL" kv-registry put supplier-42 --value-text suspended)
 
 MESSAGE_ID=$(curl -sS -X POST \
-  http://127.0.0.1:7072/api/v1/app-chain/chains/registry-chain/messages \
+  "http://127.0.0.1:$((HTTP_BASE + 2))/api/v1/app-chain/chains/registry-chain/messages" \
   -H 'Content-Type: application/json' \
   -d "{\"topic\":\"kv-registry.command.v1\",\"bodyHex\":\"$PUT_HEX\"}" | jq -r .messageId)
 
@@ -7403,6 +7357,12 @@ IPFS, and the Evidence Explorer.
   running holds 7070–7072. Stop it first from the distribution directory, with
   the same `YANO_CLUSTER_DIR` you started it with:
   `./yano.sh appchain cluster stop`.
+- The harness never moves a busy port. If another program holds one, export a
+  free port before the first command and keep it set for the whole tutorial.
+  `DEMO_HTTP_BASE` moves the members to that port and the next two, and
+  `DEMO_UI_PORT`, `DEMO_KAFKA_PORT`, `DEMO_S3_PORT` and `DEMO_IPFS_PORT` move
+  the other services. For example, `export DEMO_HTTP_BASE=7370` puts the
+  members on 7370–7372, and the URLs the harness prints use those ports.
 
 The harness runs the default `evidence-v1-gated` profile, in which validator
 members approve each release. The Studio link above opens the
@@ -7632,15 +7592,15 @@ Next: [domain-role authorization](https://yano-x.io/tutorials/05-domain-role-app
 
 Source: https://yano-x.io/tutorials/05-domain-role-approvals/
 
-> Run a release that business actors from different organizations approve under a governed policy, watch deliberate mistakes become final no-ops, and rotate…
+> Run a release that business actors from different organizations approve under a governed policy, confirm that deliberate mistakes are final but count for…
 
 [Open generic role approval in App-Chain Studio](https://yano-x.io/studio/index.html#recipe=role-approval&network=devnet&members=3&finality=two-thirds&sequencing=fixed&runtime=jvm&deployment=host&name=role-approval&chainId=role-approval)
 
 - **Level:** application developer; advanced for identity governance
 - **Time:** about 30 minutes, plus the first image build
 - **Outcome:** run a release that business actors from different
-  organizations approve under a governed policy, watch deliberate mistakes
-  become final no-ops, and rotate and revoke an actor key.
+  organizations approve under a governed policy, confirm that deliberate
+  mistakes are final but count for nothing, and rotate and revoke an actor key.
 
 Role-aware approval separates two identities:
 
@@ -7675,9 +7635,22 @@ sends these statements for one release, in this order:
 The three mistakes are final, like every other message, but they change
 nothing. Only eligible, signed decisions count toward the policy.
 
+The codes above are the decisions the machine makes, but it does not store a
+code for each command, so the demo cannot print them. You see their result
+instead: the approved proposal keeps only the three accepted decisions, and
+`publish` fails unless they are exactly `auditor-a1`, `auditor-b` and
+`regulator-a`. The [`role-approvals` reference](https://yano-x.io/state-machines/role-approvals/)
+lists every code and the order of the checks.
+
 #### 1. Start the role profile
 
 You need JDK 25, Docker with Compose v2, `curl`, `jq`, `openssl` and Python 3.
+The stack uses the same ports as Tutorial 4: 7070–7072 for the members, 7080
+for the Explorer, and 9092, 9000 and 5001. If any is busy, export the same
+`DEMO_HTTP_BASE` or other `DEMO_*_PORT` overrides that
+[Tutorial 4](https://yano-x.io/tutorials/04-evidence-publication/) describes before the first command,
+and keep them set for the whole tutorial.
+
 From the top-level directory of the extracted release:
 
 ```bash
@@ -7714,6 +7687,11 @@ It is not a setting you can switch on for an existing chain. Pass the same
 The runner submits the statements shown above, including the three negative
 controls, then releases the evidence once the proposal is APPROVED.
 
+> **✓ You should see** `PASS command=publish scenario=regulated-product-001-...`.
+> The run's report, which the Explorer in the next step shows, has an
+> `APPROVED` authorization with three decisions: `auditor-a1` from
+> `audit-org-a`, `auditor-b` from `audit-org-b`, and `regulator-a`.
+
 #### 3. Inspect and verify
 
 ```bash
@@ -7739,7 +7717,7 @@ is the current revision”.
   --continuation direct
 ```
 
-The exercise uses a dedicated recovery actor and shows:
+The exercise uses a dedicated recovery actor and checks, in order:
 
 1. governed onboarding with proof-of-possession;
 2. signing-key rotation;
@@ -7748,6 +7726,11 @@ The exercise uses a dedicated recovery actor and shows:
 5. revocation;
 6. refusal after revocation; and
 7. proofs of the historical revisions and decisions.
+
+> **✓ You should see** one line, `PASS command=role-lifecycle actor=recovery-probe
+> revision=3 rotation=verified revocation=verified ...`. The command checks
+> every step above against proven state and stops with a `FAIL` line at the
+> first one that does not hold; it does not print the steps one by one.
 
 This is not member rotation. Business credentials and member nodes are
 governed separately.
@@ -7999,6 +7982,15 @@ export YANO_CLUSTER_NODE_CONFIG_DIR=/tmp/yano-tutorial-webhook-config
 ./yano.sh appchain cluster start 3
 ```
 
+The commands below reach node *n* on HTTP port `HTTP_BASE + n`. Set
+`HTTP_BASE` to the first port of the range the launcher printed. It is `7070`
+unless the launcher printed a line such as
+`HTTP range 7070-7072 unavailable; using 7073-7075`:
+
+```bash
+HTTP_BASE=7070
+```
+
 The chain id remains `orders-chain`, but its fresh deterministic profile is
 now `approvals`. Never apply this override to retained `ordered-log` state.
 
@@ -8024,15 +8016,15 @@ not approving: the item needs two approvals from distinct members.
 ```bash
 API=api/v1/app-chain/chains/orders-chain/messages
 
-curl -s -X POST "http://127.0.0.1:7070/$API" \
+curl -s -X POST "http://127.0.0.1:$HTTP_BASE/$API" \
   -H 'Content-Type: application/json' \
   -d "{\"topic\":\"approvals\",\"bodyHex\":\"$PROPOSE_HEX\"}" | jq .
 
-curl -s -X POST "http://127.0.0.1:7071/$API" \
+curl -s -X POST "http://127.0.0.1:$((HTTP_BASE + 1))/$API" \
   -H 'Content-Type: application/json' \
   -d "{\"topic\":\"approvals\",\"bodyHex\":\"$APPROVE_HEX\"}" | jq .
 
-curl -s -X POST "http://127.0.0.1:7072/$API" \
+curl -s -X POST "http://127.0.0.1:$((HTTP_BASE + 2))/$API" \
   -H 'Content-Type: application/json' \
   -d "{\"topic\":\"approvals\",\"bodyHex\":\"$APPROVE_HEX\"}" | jq .
 ```
@@ -8063,14 +8055,14 @@ Wait until the result is incorporated, then inspect the effect record and the
 executor status:
 
 ```bash
-STATUS=http://127.0.0.1:7070/api/v1/app-chain/chains/orders-chain/status
+STATUS=http://127.0.0.1:$HTTP_BASE/api/v1/app-chain/chains/orders-chain/status
 until curl -s "$STATUS" | jq -e '.effects.executor.executionTotals.confirmed >= 1
     and .effects.executor.openOnChain == 0' >/dev/null; do
   sleep 1
 done
 
 curl -s \
-  'http://127.0.0.1:7070/api/v1/app-chain/chains/orders-chain/effects?fromHeight=1&limit=20' \
+  "http://127.0.0.1:$HTTP_BASE/api/v1/app-chain/chains/orders-chain/effects?fromHeight=1&limit=20" \
   | jq '.effects[] | {height, ordinal, type, scope}'
 
 curl -s "$STATUS" \
@@ -8124,7 +8116,7 @@ status are the real business contract.
 
 #### Go deeper
 
-- Read [Effects §18](https://github.com/bloxbean/yano-x/blob/main/docs/APP_CHAIN_USER_GUIDE.md) for quarantine, requeue,
+- Read [Effects §17](https://github.com/bloxbean/yano-x/blob/main/docs/APP_CHAIN_USER_GUIDE.md) for quarantine, requeue,
   cancellation, proof, and external executor APIs.
 - Kill the receiver temporarily, observe retries and parking, restore it, and
   use the operator requeue endpoint.
@@ -8175,6 +8167,14 @@ a deterministic demo anchor seed and can fund it from the self-contained
 devnet faucet. When the cluster is up, the launcher's summary names the next
 step, `anchor-bootstrap <chain>`.
 
+The commands below use node 0's HTTP port, `HTTP_BASE`. Set it to the first
+port of the range the launcher printed. It is `7070` unless the launcher
+printed a line such as `HTTP range 7070-7072 unavailable; using 7073-7075`:
+
+```bash
+HTTP_BASE=7070
+```
+
 #### 2. Bootstrap one chain's immutable anchor identity
 
 ```bash
@@ -8187,9 +8187,9 @@ Bootstrap consumes a seed UTxO, mints the one-shot thread NFT, and creates the
 genesis datum. It establishes identity; it does not let the wallet alone claim
 an arbitrary application tip.
 
-Inspect the L1 Anchor card on <http://127.0.0.1:7070/ui/app-chain/>. It should
-show the thread policy, script address, wallet, anchored height, transaction,
-and lag.
+Inspect the L1 Anchor card on node 0's status page,
+`http://127.0.0.1:$HTTP_BASE/ui/app-chain/`. It should show the thread policy,
+script address, wallet, anchored height, transaction, and lag.
 
 #### 3. Produce application progress
 
@@ -8197,7 +8197,7 @@ Submit one event through the REST API so you keep its message id, and wait
 until it is final:
 
 ```bash
-API=http://127.0.0.1:7070/api/v1/app-chain/chains/orders-chain
+API=http://127.0.0.1:$HTTP_BASE/api/v1/app-chain/chains/orders-chain
 
 MESSAGE_ID=$(curl -s -X POST "$API/messages" \
   -H 'Content-Type: application/json' \
@@ -8596,6 +8596,8 @@ signature does and does not cover.
   --capability state:shipment \
   --plugin-jar shipment-plugin/build/libs/shipment-yano-plugin.jar \
   --trust-key example-release-2026=<64-hex-public-key> \
+  --generate-local-member-keys \
+  --http-port-base 7370 --server-port-base 13637 \
   --output shipment-chain
 
 ./yano.sh appchain config validate --mode project shipment-chain
@@ -8605,6 +8607,13 @@ The project stores the signed snapshot under `component-catalogs/`, and
 `appchain.lock` pins the catalog, runtime manifest, configuration metadata and
 complete JAR digests. Rendering and `doctor` re-verify the snapshot.
 
+`--generate-local-member-keys` creates three disposable devnet member keys, so
+you can run the chain on this machine in step 7. Their private files go to the
+project's owner-only `secrets/` directory, and only the public keys are written
+to `appchain.yaml`. For members on separate machines, pin each member's own
+public key instead, as [Tutorial 9](https://yano-x.io/tutorials/09-from-demo-to-pilot/) shows. The port
+bases put the nodes on HTTP ports 7370–7372.
+
 #### 7. Install on every member
 
 Copy the exact pinned JAR into `plugins/` in every member's distribution, then
@@ -8612,24 +8621,46 @@ check readiness:
 
 ```bash
 cp shipment-plugin/build/libs/shipment-yano-plugin.jar /opt/yano-x/plugins/
+./yano.sh appchain prepare shipment-chain
 ./yano.sh appchain doctor shipment-chain --distribution /opt/yano-x
 ```
 
+> **✓ You should see** `PREPARED`, then a doctor report ending in
+> `DOCTOR_WARNINGS`: `EXTERNAL_TARGETS_READY` stays `PENDING` for
+> `reviewed-plugin-jar`, a reminder that someone must review the JAR you ship.
+
 A missing or different JAR fails artifact readiness. Yano X plugins target the
-JVM distribution. Start the nodes as the
+JVM distribution. This project is a local devnet, so start its three nodes
+here; for members on separate machines, start each node as the
 [deployment guide](https://yano-x.io/deployment/) describes. Each node checks the JAR
 again at start-up, before your code runs; [How plugins load](https://yano-x.io/plugins/how-plugins-load/)
-lists those checks. Then confirm that every member runs the same plugin catalog:
+lists those checks.
 
 ```bash
-export YANO_OPERATOR_API_KEY='<operator-api-key>'
-./yano.sh appchain drift shipment-chain --peer http://node-a:8080/api/v1/ \
-  --peer http://node-b:8080/api/v1/ --peer http://node-c:8080/api/v1/ \
+export YANO_HOME=/opt/yano-x
+shipment-chain/scripts/start
+shipment-chain/scripts/status
+```
+
+Then confirm that every member runs the same plugin catalog. `drift` reads each
+node's runtime identity, which needs an operator API key. On this devnet the
+key is in the project's `secrets/` files; this reads it without printing it:
+
+```bash
+export YANO_OPERATOR_API_KEY="$(sed -n 's/^YANO_APPCHAIN_API_KEYS=//p' \
+  shipment-chain/secrets/node0.env)"
+./yano.sh appchain drift shipment-chain --peer http://127.0.0.1:7370/api/v1/ \
+  --peer http://127.0.0.1:7371/api/v1/ --peer http://127.0.0.1:7372/api/v1/ \
   --api-key-env YANO_OPERATOR_API_KEY
 ```
 
-Set the key to one of the values in the nodes' `YANO_APPCHAIN_API_KEYS`. Without
-`--api-key-env`, the nodes reject the identity requests with `HTTP 401`.
+> **✓ You should see** `MATCH` or `NOT_APPLICABLE` for every compared value,
+> then `DRIFT_OK peers=3`.
+
+On a real deployment, set the key to one of the values in the nodes'
+`YANO_APPCHAIN_API_KEYS`. Without `--api-key-env`, the nodes reject the
+identity requests with `HTTP 401`. Stop the nodes with
+`shipment-chain/scripts/stop`.
 
 #### 8. Change it safely later
 
@@ -8732,9 +8763,40 @@ The generated runtime files are nested YAML:
 - `appchain.lock` records the exact resolved values and the digests of the
   generated files.
 
-Customize `appchain.yaml`, not those derived files. Edit it to add the real
-member public keys and deployment hosts, in matching order, then regenerate
-and check the project:
+Customize `appchain.yaml`, not those derived files. Each member signs with
+its own Ed25519 key. Every member operator creates that key on its own
+machine, keeps the private file there, and sends you only the public key. With
+OpenSSL 3 (the LibreSSL that macOS ships has no Ed25519; use Homebrew's
+`openssl@3`):
+
+```bash
+umask 077
+openssl genpkey -algorithm ed25519 -out member-signing-key.pem
+openssl pkey -in member-signing-key.pem -pubout -outform DER \
+  | tail -c 32 | od -An -tx1 | tr -d ' \n'; echo
+```
+
+The last command prints the member's 64-hex public key. Add the keys and the
+members' hostnames under `spec.chains[0].topology` in `appchain.yaml`, in the
+same order, so the first key belongs to the first host:
+
+```yaml
+    topology:
+      members: 3
+      memberKeys:
+      - "<member 0 public key, 64 hex>"
+      - "<member 1 public key>"
+      - "<member 2 public key>"
+      nodeHosts:
+      - "member0.pilot.example"
+      - "member1.pilot.example"
+      - "member2.pilot.example"
+```
+
+If you have the keys before you run `init`, pass them to it instead: repeat
+`--member-key <64-hex>` and `--node-host <hostname>` once per member, in order.
+
+Then regenerate and check the project:
 
 ```bash
 ./yano.sh appchain render permissioned-pilot
@@ -8755,6 +8817,19 @@ detail. `FAIL` blocks a start. `WARN` and `PENDING` are a to-do list:
 - This project's rotating sequencer needs a synchronized L1 slot view, so
   `EXTERNAL_TARGETS_READY` stays `PENDING` until you provide one. The result
   is `DOCTOR_WARNINGS`, not `DOCTOR_OK`.
+
+Once the report has no `FAIL`, export the deployment for your VMs. The output
+directory must be missing or empty:
+
+```bash
+./yano.sh appchain gitops permissioned-pilot --target ansible \
+  --output permissioned-pilot-ansible
+```
+
+> **✓ You should see** a line starting with `GITOPS_EXPORTED target=ansible`.
+> The export holds an inventory, a playbook, each node's configuration and a
+> systemd unit template. It refers to each member's signing key by the
+> variable `YANO_APPCHAIN_SIGNING_KEY` and contains no private key.
 
 `./yano.sh` is the public command for both paths. Internally, project and
 configuration commands use the separately packaged `appchain-devtools`
@@ -8784,6 +8859,19 @@ required. Node-local YAML drift must not decide application semantics.
 Each member supplies its own `secrets/nodeN.env` from the generated
 `secrets/nodeN.env.example`. The project's `.gitignore` excludes
 `secrets/*.env`, and the Ansible export never embeds private keys.
+
+`YANO_APPCHAIN_SIGNING_KEY` is the 64-hex seed inside the member's
+`member-signing-key.pem`. On the member's own machine, next to its copy of the
+project, this writes it into the env file without printing it, here for node 0:
+
+```bash
+umask 077
+SEED=$(openssl pkey -in member-signing-key.pem -outform DER \
+  | tail -c 32 | od -An -tx1 | tr -d ' \n')
+printf 'YANO_APPCHAIN_SIGNING_KEY=%s\nYANO_APPCHAIN_API_KEYS=%s\n' \
+  "$SEED" "<this member's REST API key>" > permissioned-pilot/secrets/node0.env
+unset SEED
+```
 
 | Material | Purpose | Recommended owner/storage |
 |---|---|---|
@@ -8920,16 +9008,12 @@ can complete an approval and update a record in the same atomic cascade. Your
 application still owns its UI, command submission, business identities and keys.
 
 This feature is experimental. Admission rules and typed views (chapters 7 and 8)
-need a Yano host build with plugin API level 12 and the ADR-031.3 and ADR-031.4
-host contract. No Yano release contains that contract yet: this repository's
-`gradle.properties` still pins Yano `0.1.0-pre17`, and the composite bundle's
-manifest declares `minLevel: 12`. Level 12 alone does not identify the right
-host either, because the typed-view API was added to level 12 without a new
-level. Until a release is pinned, use the Yano X distribution together with the
-exact host build it was built and tested against; see
-[build from source](https://yano-x.io/start-here/build-from-source/). The upstream host alone does
-not install the optional X machines, compiler or Studio, and an older Yano X
-archive may not include these features.
+need a Yano host with plugin API level 12 and the ADR-031.3 and ADR-031.4 host
+contract. Yano `0.1.0-pre18` is the first release with that contract. Level 12
+alone does not identify the right host, because the typed-view API was added to
+level 12 without a new level, so run the Yano host that ships inside the Yano X
+distribution. The upstream host alone does not install the optional X machines,
+compiler or Studio, and an older Yano X archive may not include these features.
 
 #### Choose your starting point
 
@@ -9883,10 +9967,22 @@ editing opaque genesis CBOR.
 DPP starter roles are `manufacturer`, `operator`, `claim-issuer`, `certifier`,
 and `auditor`, with `dpp-admin` administration. Feed uses `source`,
 `feed-operator`, and `publisher`, with `feed-admin` administration. Actors need
-not be consensus members. Approval quorums require the policy's distinct
-organizations; two keys from one organization do not create two organizations.
-Generation checks usable role holders, eligible proposers, and voting quorums
-at height 1, not every future business prerequisite or arbitrary custom policy.
+not be consensus members.
+
+The descriptor must be able to satisfy every starter policy at height 1, or the
+generator refuses it and names the policy:
+
+| Starter | Needs active actors with signing keys: at least |
+|---|---|
+| `dpp` | one `manufacturer`, one `operator` and one `claim-issuer`; one `certifier` to propose a certification; and **two `auditor` actors in two different organizations** to approve it |
+| `feed` | one `feed-admin` and one `source`; one `feed-operator` to propose a round; and **two `publisher` actors in two different organizations** to approve it |
+
+One actor can hold several roles, but two auditor or publisher keys in one
+organization count once. With a single auditor organization, `dpp` fails with
+`starter policy 'certification' clause 'independent-auditors' needs 2 eligible
+genesis voters with role 'auditor', distinct by ORGANIZATION`. Generation checks
+these holders and quorums at height 1, not every future business prerequisite or
+arbitrary custom policy.
 
 The generated assembly connects three catalog leaves:
 
@@ -9970,14 +10066,12 @@ topic. The committed binding program decides which follow-up commands run.
 Your application does not need to instantiate a composite engine or implement
 the same workflow again in Java.
 
-These examples target the current experimental binding APIs.
-Use a matching, locally published Yano X version when these APIs are not in a
-released artifact. Do not infer availability from an older SDK or copy a
-historical example's local version number. The node also needs the exact Yano
-host build and matching JVM ZIP required by its plugin bundles. Current
-declarative bindings, admission rules and typed views need plugin API level 12
-with the ADR-031.3 and ADR-031.4 host contract, which no Yano release contains
-yet; see the [learning path](https://yano-x.io/bindings/).
+These examples target the current experimental binding APIs. Use the client
+version that matches your Yano X distribution, as described below; do not infer
+availability from an older SDK or copy a version number from another example.
+Declarative bindings, admission rules and typed views need plugin API level 12
+with the ADR-031.3 and ADR-031.4 host contract. The Yano host inside the Yano X
+distribution provides it; see the [learning path](https://yano-x.io/bindings/).
 
 #### Separate command use from binding authoring
 
@@ -10053,9 +10147,10 @@ java {
 }
 
 repositories {
-    mavenLocal() // For the exact locally published experimental build.
     mavenCentral()
-    // Only when the node's Yano host version is a commit snapshot (ends in -SNAPSHOT).
+    // BloxBean's copy of each release, for a release that skipped Maven Central.
+    maven { url = uri('https://repo.bloxbean.org/maven/releases') }
+    // Only when yanoXVersion ends in -SNAPSHOT.
     maven { url = uri('https://repo.bloxbean.org/maven/snapshots') }
 }
 
@@ -10070,9 +10165,20 @@ application {
 }
 ```
 
-Choose the version actually published for the matching build, not a guessed
-release. To publish the client from the Yano X source checkout that built your
-distribution:
+Use the Yano X version your distribution was built from. The distribution
+records it in `yano-x-plugin-pack-v1.json`, in its top-level directory, which
+the steps above exported as `YANO_HOME`:
+
+```bash
+YANO_X_VERSION=$(jq -r .version "$YANO_HOME/yano-x-plugin-pack-v1.json")
+```
+
+A release version, such as `0.1.0-pre4`, resolves from Maven Central or the
+BloxBean release repository. A version ending in `-SNAPSHOT` means the
+distribution was built from an unreleased commit. The snapshot repository
+serves the newest snapshot of that version, which may be newer than your
+distribution. If you built the distribution yourself, publish the client from
+the same Yano X source checkout and add `mavenLocal()` to the repositories:
 
 ```bash
 ./gradlew :sdk:client:publishToMavenLocal \
@@ -10175,8 +10281,8 @@ receipt contains the registry source and derived audit append. The source's
 `bindingId` is null because it was submitted externally.
 
 With Java 25 and Gradle installed (or your project's existing Gradle wrapper),
-run from the Java application directory. Set `YANO_X_VERSION` to the exact
-published version selected above, and replace the API URL and chain
+run from the Java application directory. Set `YANO_X_VERSION` as described
+above, and replace the API URL and chain
 ID with your actual deployment values; the example port is not a promise about
 your node configuration. These commands **submit to a running chain**, unlike
 the offline tutorials:
@@ -11371,9 +11477,6 @@ here.
 | `evidence-registry` | preview | Inspection and compliance evidence records with exact query proofs | [Tutorial 4](https://yano-x.io/tutorials/04-evidence-publication/) |
 | `composite` | preview | Stock evidence workflow; select it with `machines.composite.preset` set to `evidence-v1` or `evidence-v1-gated` | [Tutorial 4](https://yano-x.io/tutorials/04-evidence-publication/) |
 | `role-evidence` | preview | Evidence registration with governed actors and role-aware release approval | [Tutorial 5](https://yano-x.io/tutorials/05-domain-role-approvals/) |
-| `zk-gate` | experimental | Verifies configured Groth16 or Plonk proofs during the state transition | [ZK state machines](https://github.com/bloxbean/yano-x/blob/main/state-machines/zk/README.md) |
-| `zk-membership` | experimental | Membership authorization through a zero-knowledge circuit, with nullifier deduplication | [ZK state machines](https://github.com/bloxbean/yano-x/blob/main/state-machines/zk/README.md) |
-| `credential-registry` | experimental | Selectively disclosed BBS credential statements from configured issuers | [ZK state machines](https://github.com/bloxbean/yano-x/blob/main/state-machines/zk/README.md) |
 | `eutxo-ledger` | experimental | A Cardano-shaped EUTxO engine; you select it through a ledger profile, not directly | [EUTxO ledger](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/README.md) |
 
 #### Before you configure one
@@ -13940,7 +14043,7 @@ about a use case. Every "Try it" below runs from an extracted
 | [Verifiable Explorer](https://yano-x.io/products/explorer/) | Indexes stock ledgers after verifying each block; rows and states export as bundles that verify offline. | Operators, support, and auditors | `examples/explorer/explorer.sh` | `preview` |
 | [DPP Starter](https://yano-x.io/products/dpp-starter/) | A prototype product passport registry: governed records, independent certification, and passports that verify offline. | Teams exploring Digital Product Passports | `examples/dpp/dpp.sh` | `reference` (prototype) |
 | [Attestation Feed](https://yano-x.io/products/attestation-feed/) | Sources sign readings, every verifier recomputes each round, and two organizations approve the record. | Consortia combining readings from known sources | `examples/attestation-feed/feed.sh` | `experimental` (starter) |
-| [eUTxO and ZK](https://yano-x.io/products/eutxo-and-zk/) | A Cardano-shaped UTxO ledger with an optional federated bridge and ZeroJ validity proofs, for test funds only. | Researchers and protocol teams | `./yano.sh appchain eutxo demo` | `experimental` |
+| [eUTxO ledger](https://yano-x.io/products/eutxo/) | A Cardano-shaped UTxO ledger with an optional federated bridge, for test funds only. | Researchers and protocol teams | `./yano.sh appchain eutxo demo` | `experimental` |
 
 #### Choosing one
 
@@ -13958,7 +14061,7 @@ common problems to the building blocks.
 Products reuse the platform's state machines, authenticated state, and proof
 verification, but they are packaged differently:
 
-- Evidence, Cardano History, and eUTxO and ZK add runtime plugin behavior.
+- Evidence, Cardano History, and the eUTxO ledger add runtime plugin behavior.
 - Attest is a client, CLI, and UI over the stock `doc-trail` state machine.
 - Trust Registry, DPP Starter, and Attestation Feed configure the stock governed
   authenticated map and add application tooling outside consensus.
@@ -14690,36 +14793,32 @@ Cardano publication, and zero-knowledge selective disclosure are deferred.
 
 ---
 
-## eUTxO and ZK
+## eUTxO ledger
 
-Source: https://yano-x.io/products/eutxo-and-zk/
+Source: https://yano-x.io/products/eutxo/
 
-> An experimental deterministic Cardano-shaped UTxO ledger, an optional federated Cardano bridge, and an optional ZeroJ validity and rollup path.
+> An experimental deterministic Cardano-shaped UTxO ledger with an optional federated Cardano bridge.
 
 **EXPERIMENTAL — NO REAL FUNDS:**
 This family is `EXPERIMENTAL` and pre-production. It is **not** a Cardano
-bridge product, a custody product, or a rollup you should put value into. The
-ZK modules ship development Groth16 setup keys that are **test-only**;
-production release is blocked until the governing ADR's ceremony, audit,
-data-availability, and operational gates are satisfied.
+bridge product or a custody product, and you should not put value into it.
 
 Use a devnet or a Cardano test network with disposable keys.
 
 A deterministic, Cardano-shaped eUTxO state machine that runs as an app ledger
-capability, with an optional Cardano bridge and an optional zero-knowledge
-validity path on top.
+capability, with an optional Cardano bridge on top.
 
 #### Problem
 
 Teams want to run Conway-shaped transactions at application-ledger speed and
 cost, with threshold finality and proofs, and later move value between that
-ledger and Cardano. Building a UTxO engine, a bridge, and a proving pipeline
-from scratch is a large, risky undertaking.
+ledger and Cardano. Building a UTxO engine and a bridge from scratch is a large,
+risky undertaking.
 
 #### Who it is for
 
-- **Researchers and protocol teams** exploring eUTxO execution on an app ledger,
-  a federated bridge, or ZK validity proofs.
+- **Researchers and protocol teams** exploring eUTxO execution on an app ledger
+  or a federated bridge.
 - **Developers** who want a disposable, no-real-funds environment for
   Cardano-shaped transactions.
 
@@ -14727,7 +14826,7 @@ It is not for production value, custody, or public bridges.
 
 #### Actors and flow
 
-Three layers, each optional on top of the ledger:
+The bridge is an optional layer on top of the ledger:
 
 <!-- illustration: eutxo-layers -->
 
@@ -14735,8 +14834,6 @@ Three layers, each optional on top of the ledger:
 |---|---|---|
 | `eutxo-ledger` | `FIRST_PARTY_OPTIONAL` | The deterministic UTxO ledger with a virtual genesis allocation. |
 | `eutxo-cardano-bridge` | `EXPERIMENTAL` | Federated deposit and withdrawal against Cardano. |
-| `eutxo-zeroj-validity` | `EXPERIMENTAL` | ZeroJ Groth16 validity proofs over batches. |
-| `eutxo-zeroj-preview` | `EXPERIMENTAL` | The full lifecycle: Cardano deposit, eUTxO transaction, proof, root settlement, Cardano withdrawal. |
 
 The `eutxo-ledger` recipe combines the reusable `state:eutxo-ledger` engine with
 `profile:eutxo-plutus-v3` and the separate `funding:eutxo-genesis` capability:
@@ -14758,41 +14855,18 @@ yano:
 
 The profile commitment is SHA-256 over its canonical, versioned consensus
 fields. **All members must use the same profile, digest, and genesis
-allocation**: this is part of the ledger's identity, not a tunable. The ZeroJ
-recipes use `profile:eutxo-key-payments` instead, so exactly one immutable ledger
-profile owns the consensus settings at a time. The base ledger has **no** ZeroJ
-or JuLC dependency and behaves exactly as it does without them unless
-`machines.eutxo.validity.enabled=true`.
-
-##### The plugin-conflict rule
-
-The standard eUTxO runtime and the eUTxO ZK runtime both provide the
-`app-state-machine/eutxo-ledger` contribution, so exactly one may be installed.
-The ZK runtime therefore ships under `optional-plugins/` rather than `plugins/`.
-To switch:
-
-```bash
-### On EVERY member:
-rm plugins/<standard-eutxo-ledger-bundle>.jar
-cp optional-plugins/<eutxo-zk-runtime-bundle>.jar plugins/
-tools/yano-plugins/bin/yano-plugins validate plugins/*.jar
-```
-
-Copying both into `plugins/` is a hard catalog error, and the node refuses to
-start rather than pick one.
+allocation**: this is part of the ledger's identity, not a tunable. Exactly one
+immutable ledger profile owns the consensus settings at a time.
 
 #### What it proves, and what it does not
 
 The ledger proves what any app ledger proves: that a threshold of members
 finalized each transaction in order, and that each output is in the state under
-a certified root, with an MPF proof. The ZeroJ path adds Groth16 validity proofs
-over batches.
+a certified root, with an MPF proof.
 
 It does **not** make the bridge trustless. The bridge is federated custody: in
 signer mode it trusts an external threshold or HSM, and in proof mode it trusts
-the threshold-accepted root. The ZeroJ preview requires a trusted prover and
-does not claim security against a malicious prover. Nothing here is ready for
-production value.
+the threshold-accepted root. Nothing here is ready for production value.
 
 The lifecycle indexer is a **rebuildable read index**. It lives in
 `appchain-indexers/`, never takes part in validation, roots, finality, or
@@ -14812,27 +14886,24 @@ identities. From the root of an extracted `yano-x-jvm-<version>.zip`, beside
 ### Expected: EUTXO_LEDGER_DEMO_ROUND_TRIP_PASS
 ```
 
-The `bridge` and `zk` scenarios follow the same pattern. The
+The `bridge` scenario follows the same pattern. The
 [demo guide](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/DEMO.md)
-covers all three.
+covers both.
 
 #### Modules
 
 | Goal | Guide |
 |---|---|
 | The eUTxO family overview | [`ledgers/eutxo/README.md`](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/README.md) |
-| Status and module verification | [ZK getting started](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/GETTING_STARTED.md) |
-| Deposit, transaction, proof, settlement, withdrawal | [Devnet walkthrough](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/DEVNET_WALKTHROUGH.md) |
 | Indexer API, SQLite, recovery, metrics | [Indexer operations](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/INDEXER_OPERATIONS.md) |
-| ZK milestone notes | [`ledgers/eutxo-zk/`](https://github.com/bloxbean/yano-x/tree/main/ledgers/eutxo-zk) |
 
-The modules live under `ledgers/eutxo` and `ledgers/eutxo-zk`, and the
-lifecycle console ships as `product-ui/eutxo`.
+The modules live under `ledgers/eutxo`, and the lifecycle console ships as
+`product-ui/eutxo`.
 
 #### Status
 
-`experimental`. Production release is gated on the ZK ceremony, audit,
-data-availability, and operational gates described in the eUTxO ADRs.
+`experimental`. Production release is gated on the audit and operational gates
+described in the eUTxO ADRs.
 
 ---
 
@@ -15338,12 +15409,10 @@ None of these commands load provider classes, run plugin code, fetch a
 registry, or install a JAR. See
 [Scaffold, sign, install](https://yano-x.io/plugins/scaffold-sign-install/).
 
-#### Experimental: EUTxO and validity
+#### Experimental: EUTxO
 
-`./yano.sh appchain eutxo transaction|utxo|proof|doctor|demo` and
-`./yano.sh appchain validity bootstrap|status|prove|proof|doctor|…` support the
-experimental EUTxO ledger and its ZK validity flow. See
-[eUTxO and ZK](https://yano-x.io/products/eutxo-and-zk/).
+`./yano.sh appchain eutxo transaction|utxo|proof|doctor|demo` supports the
+experimental EUTxO ledger. See [eUTxO ledger](https://yano-x.io/products/eutxo/).
 
 #### Safety rules
 
@@ -15647,10 +15716,10 @@ It checks the codec and the kernel's separate stateless admission hook for
 command/configuration-only bounds. Context-dependent admission still runs during
 execution; no synthetic block context is invented. These bundles need plugin API
 level 12 with the ADR-031.3 and ADR-031.4 host contract: kernel-declared rule
-facts, value views and write views. No Yano release contains that contract yet,
-and level 12 alone does not identify it, because the typed-view API was added to
-level 12 without a new level. Use the exact host build the bundles were built and
-tested against.
+facts, value views and write views. Yano `0.1.0-pre18` is the first release with
+that contract. Level 12 alone does not identify it, because the typed-view API was
+added to level 12 without a new level. Use the host that ships in the Yano X
+distribution the bundles came from.
 
 A finalized rejection rolls back all business changes and effects for that source,
 not the whole block. The receipt remains terminal for its message ID. Replaying
@@ -16877,9 +16946,6 @@ fails closed rather than picking one.
 | [`state:evidence-registry`](https://yano-x.io/tutorials/04-evidence-publication/) | `BUNDLED` | `preview` | `jvm` | `yano-runtime`, `yano-x-evidence-registry` | Inspection and compliance evidence records with exact committed query proofs. |
 | [`state:role-approvals`](https://yano-x.io/tutorials/05-domain-role-approvals/) | `BUNDLED` | `preview` | `jvm` | `yano-runtime`, `yano-x-composite`, `yano-x-role-workflow` | Governed organizations, actors, policies, and signed approvals for arbitrary payload hashes. |
 | [`state:role-evidence`](https://yano-x.io/tutorials/04-evidence-publication/) | `BUNDLED` | `preview` | `jvm` | `yano-runtime`, `yano-x-stdlib`, `yano-x-evidence-registry`, `yano-x-composite`, `yano-x-role-workflow`, `yano-x-evidence-profile` | Evidence registration combined with governed domain actors and role-aware release approval. |
-| [`state:zk-gate`](https://github.com/bloxbean/yano-x/blob/main/state-machines/zk/README.md) | `EXPERIMENTAL` | `experimental` | `jvm` | `yano-runtime`, `yano-x-zk` | Verifies configured Groth16 or Plonk proofs during deterministic state transition. |
-| [`state:zk-membership`](https://github.com/bloxbean/yano-x/blob/main/state-machines/zk/README.md) | `EXPERIMENTAL` | `experimental` | `jvm` | `yano-runtime`, `yano-x-zk` | Membership authorization using a configured zero-knowledge circuit and nullifier deduplication. |
-| [`state:credential-registry`](https://github.com/bloxbean/yano-x/blob/main/state-machines/zk/README.md) | `EXPERIMENTAL` | `experimental` | `jvm` | `yano-runtime`, `yano-x-zk` | Registry for selectively disclosed BBS credential statements from configured issuers. |
 | [`state:eutxo-ledger`](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/README.md) | `FIRST_PARTY_OPTIONAL` | `experimental` | `jvm` | `yano-runtime`, `yano-x-eutxo-ledger` | Deterministic Cardano-shaped EUTxO state, root-fixed receipts, address indexes, and MPF-proven outputs under one explicitly selected ledger profile. |
 
 ##### `custom-plugin`
@@ -16894,7 +16960,7 @@ fails closed rather than picking one.
 |---|---|---|---|---|---|
 | [`profile:eutxo-plutus-v3`](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/README.md) | `FIRST_PARTY_OPTIONAL` | `experimental` | `jvm` | `yano-runtime`, `yano-x-eutxo-ledger` | Pins the immutable yano-eutxo-v2-plutus-v3 ledger profile and every consensus-relevant bound. |
 | [`profile:eutxo-bridge-settlement`](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/README.md) | `FIRST_PARTY_OPTIONAL` | `experimental` | `jvm` | `yano-runtime`, `yano-x-eutxo-ledger` | Pins the immutable yano-eutxo-v3-bridge-settlement ledger profile (ADR-UTXO-009) and every consensus-relevant bound. |
-| [`profile:eutxo-key-payments`](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/README.md) | `FIRST_PARTY_OPTIONAL` | `experimental` | `jvm` | `yano-runtime`, `yano-x-eutxo-ledger` | Pins the immutable yano-eutxo-v1 ledger profile used by the current bounded ZeroJ validity circuit. |
+| [`profile:eutxo-key-payments`](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/README.md) | `FIRST_PARTY_OPTIONAL` | `experimental` | `jvm` | `yano-runtime`, `yano-x-eutxo-ledger` | Pins the immutable yano-eutxo-v1 key-payments ledger profile. |
 
 ##### `funding`
 
@@ -16907,18 +16973,6 @@ fails closed rather than picking one.
 | Capability | Availability | Maturity | Runtimes | Requires artifacts | Description |
 |---|---|---|---|---|---|
 | [`bridge:cardano-federated`](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/README.md) | `EXPERIMENTAL` | `experimental` | `jvm` | `yano-runtime`, `yano-x-eutxo-ledger`, `yano-x-eutxo-bridge-cardano` | Observes exact accepted vault deposits and settles irrevocable bounded claims through either exact external signing or permissionless current-root MPF proofs with an on-chain replay nullifier. |
-
-##### `settlement`
-
-| Capability | Availability | Maturity | Runtimes | Requires artifacts | Description |
-|---|---|---|---|---|---|
-| [`settlement:zeroj-validity`](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/README.md) | `EXPERIMENTAL` | `experimental` | `jvm` | `yano-runtime`, `yano-x-eutxo-zk-zeroj`, `yano-x-eutxo-zk-runtime`, `yano-x-eutxo-zk-lifecycle` | Adds a Yano L2 envelope with a Cardano-compatible body, registered Jubjub session-key authorization, optional Poseidon validity commitment, durable proving interfaces, proof-bound Cardano root advancement, bounded aggregate withdrawal and canonical L1 batch publication. |
-
-##### `product-label`
-
-| Capability | Availability | Maturity | Runtimes | Requires artifacts | Description |
-|---|---|---|---|---|---|
-| [`rollup:zeroj-cardano`](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/Z6_PRODUCTION_HARDENING.md) | `EXPERIMENTAL` | `experimental` | `jvm` | `yano-runtime`, `yano-x-eutxo-ledger`, `yano-x-eutxo-zk-zeroj` | Graduation label for a separately approved ZeroJ validity product; it does not add runtime behavior. |
 
 ##### `indexer`
 
@@ -17019,14 +17073,10 @@ in the distribution's checksummed bundle list.
 | `yano-x-objectstore-s3` | `FIRST_PARTY_OPTIONAL` | `org.yanoproject.x.objectstore.s3` | `jvm` | `unsupported` |
 | `yano-x-ipfs` | `FIRST_PARTY_OPTIONAL` | `org.yanoproject.x.ipfs` | `jvm` | `unsupported` |
 | `yano-x-effects-cardano` | `FIRST_PARTY_OPTIONAL` | `org.yanoproject.x.effects.cardano` | `jvm` | `unsupported` |
-| `yano-x-zk` | `EXPERIMENTAL` | `org.yanoproject.x.zk` | `jvm` | `unsupported` |
 | `yano-x-eutxo-ledger` | `BUNDLED` | `org.yanoproject.x.eutxo` | `jvm` | `unsupported` |
 | `yano-x-eutxo-indexer-core` | `BUNDLED` | `library:ledgers:eutxo:indexer-core` | `jvm` | `unsupported` |
 | `yano-x-eutxo-indexer-jdbc` | `BUNDLED` | `org.yanoproject.x.eutxo.indexer` | `jvm` | `unsupported` |
 | `yano-x-eutxo-bridge-cardano` | `BUNDLED` | `org.yanoproject.x.eutxo.bridge.cardano` | `jvm` | `unsupported` |
-| `yano-x-eutxo-zk-zeroj` | `BUNDLED` | `library:ledgers:eutxo-zk:zeroj` | `jvm` | `unsupported` |
-| `yano-x-eutxo-zk-runtime` | `BUNDLED` | `org.yanoproject.x.eutxo.zk.runtime` | `jvm` | `unsupported` |
-| `yano-x-eutxo-zk-lifecycle` | `BUNDLED` | `library:ledgers:eutxo-zk:lifecycle` | `jvm` | `unsupported` |
 
 <!-- catalog:artifacts-end -->
 
@@ -17036,7 +17086,7 @@ in the distribution's checksummed bundle list.
 
 | Distribution | Runtime | Archive | Platforms | Bundled artifacts |
 |---|---|---|---|---|
-| `yano-x-jvm` | `jvm` | `yano-x-jvm-{version}.zip` | `java-25` | 13 |
+| `yano-x-jvm` | `jvm` | `yano-x-jvm-{version}.zip` | `java-25` | 10 |
 
 <!-- catalog:distributions-end -->
 
@@ -17059,13 +17109,6 @@ tools/yano-plugins/bin/yano-plugins validate plugins/*.jar
 See the
 [optional connector installation guide](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/OPTIONAL_CONNECTORS.md)
 for per-connector requirements and security profiles.
-
-#### The conflict you will actually hit
-
-The standard eUTxO runtime and the eUTxO ZK runtime both provide
-`app-state-machine/eutxo-ledger`. Exactly one may be installed, which is why the
-ZK runtime ships under `optional-plugins/`. See
-[eUTxO and ZK](https://yano-x.io/products/eutxo-and-zk/).
 
 #### Related
 
@@ -17319,7 +17362,7 @@ artifact identity and that every runtime plugin has a bundle publication.
 
 <!-- catalog:modules-start -->
 
-##### `runtime-plugin` (18)
+##### `runtime-plugin` (15)
 
 | Gradle module | Artifact id | Plugin bundle id | Source |
 |---|---|---|---|
@@ -17335,14 +17378,11 @@ artifact identity and that every runtime plugin has a bundle publication.
 | `:connectors:objectstore-s3` | `yano-x-objectstore-s3` | `org.yanoproject.x.objectstore.s3` | [connectors/objectstore-s3](https://github.com/bloxbean/yano-x/blob/main/connectors/objectstore-s3) |
 | `:connectors:ipfs` | `yano-x-ipfs` | `org.yanoproject.x.ipfs` | [connectors/ipfs](https://github.com/bloxbean/yano-x/blob/main/connectors/ipfs) |
 | `:connectors:effects-cardano` | `yano-x-effects-cardano` | `org.yanoproject.x.effects.cardano` | [connectors/effects-cardano](https://github.com/bloxbean/yano-x/blob/main/connectors/effects-cardano) |
-| `:state-machines:zk` | `yano-x-zk` | `org.yanoproject.x.zk` | [state-machines/zk](https://github.com/bloxbean/yano-x/blob/main/state-machines/zk) |
 | `:ledgers:eutxo:ledger` | `yano-x-eutxo-ledger` | `org.yanoproject.x.eutxo` | [ledgers/eutxo/ledger](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/ledger) |
 | `:ledgers:eutxo:bridge-cardano` | `yano-x-eutxo-bridge-cardano` | `org.yanoproject.x.eutxo.bridge.cardano` | [ledgers/eutxo/bridge-cardano](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/bridge-cardano) |
 | `:ledgers:eutxo:indexer-jdbc` | `yano-x-eutxo-indexer-jdbc` | `org.yanoproject.x.eutxo.indexer` | [ledgers/eutxo/indexer-jdbc](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/indexer-jdbc) |
-| `:ledgers:eutxo-zk:runtime` | `yano-x-eutxo-zk-runtime` | `org.yanoproject.x.eutxo.zk.runtime` | [ledgers/eutxo-zk/runtime](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/runtime) |
-| `:ledgers:eutxo-zk:indexer` | `yano-x-eutxo-zk-indexer` | `org.yanoproject.x.eutxo.zk.indexer` | [ledgers/eutxo-zk/indexer](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/indexer) |
 
-##### `library` (28)
+##### `library` (23)
 
 | Gradle module | Artifact id | Plugin bundle id | Source |
 |---|---|---|---|
@@ -17368,21 +17408,15 @@ artifact identity and that every runtime plugin has a bundle publication.
 | `:ledgers:eutxo:contracts` | `yano-x-eutxo-contracts` | — | [ledgers/eutxo/contracts](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/contracts) |
 | `:ledgers:eutxo:client` | `yano-x-eutxo-client` | — | [ledgers/eutxo/client](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/client) |
 | `:ledgers:eutxo:indexer-core` | `yano-x-eutxo-indexer-core` | — | [ledgers/eutxo/indexer-core](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/indexer-core) |
-| `:ledgers:eutxo-zk:contracts` | `yano-x-eutxo-zk-contracts` | — | [ledgers/eutxo-zk/contracts](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/contracts) |
-| `:ledgers:eutxo-zk:zeroj` | `yano-x-eutxo-zk-zeroj` | — | [ledgers/eutxo-zk/zeroj](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/zeroj) |
-| `:ledgers:eutxo-zk:prover` | `yano-x-eutxo-zk-prover` | — | [ledgers/eutxo-zk/prover](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/prover) |
-| `:ledgers:eutxo-zk:client` | `yano-x-eutxo-zk-client` | — | [ledgers/eutxo-zk/client](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/client) |
-| `:ledgers:eutxo-zk:lifecycle` | `yano-x-eutxo-zk-lifecycle` | — | [ledgers/eutxo-zk/lifecycle](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/lifecycle) |
 | `:tooling:spring-boot-starter` | `yano-x-spring-boot-starter` | — | [tooling/spring-boot-starter](https://github.com/bloxbean/yano-x/blob/main/tooling/spring-boot-starter) |
 
-##### `application` (4)
+##### `application` (3)
 
 | Gradle module | Artifact id | Plugin bundle id | Source |
 |---|---|---|---|
 | `:products:evidence:demo-runner` | `yano-x-evidence-demo-runner` | — | [products/evidence/demo-runner](https://github.com/bloxbean/yano-x/blob/main/products/evidence/demo-runner) |
 | `:examples:showcase-client` | `yano-x-showcase-client` | — | [examples/showcase-client](https://github.com/bloxbean/yano-x/blob/main/examples/showcase-client) |
 | `:ledgers:eutxo:demo` | `yano-x-eutxo-demo` | — | [ledgers/eutxo/demo](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/demo) |
-| `:ledgers:eutxo-zk:demo` | `yano-x-eutxo-zk-demo` | — | [ledgers/eutxo-zk/demo](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/demo) |
 
 ##### `tool` (9)
 
@@ -17398,22 +17432,20 @@ artifact identity and that every runtime plugin has a bundle publication.
 | `:products:dpp:cli` | `yano-x-dpp-cli` | — | [products/dpp/cli](https://github.com/bloxbean/yano-x/blob/main/products/dpp/cli) |
 | `:products:attestation-feed:cli` | `yano-x-attestation-feed-cli` | — | [products/attestation-feed/cli](https://github.com/bloxbean/yano-x/blob/main/products/attestation-feed/cli) |
 
-##### `test-library` (3)
+##### `test-library` (2)
 
 | Gradle module | Artifact id | Plugin bundle id | Source |
 |---|---|---|---|
 | `:sdk:effects-testkit` | `yano-x-effects-testkit` | — | [sdk/effects-testkit](https://github.com/bloxbean/yano-x/blob/main/sdk/effects-testkit) |
 | `:ledgers:eutxo:testkit` | `yano-x-eutxo-testkit` | — | [ledgers/eutxo/testkit](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/testkit) |
-| `:ledgers:eutxo-zk:testkit` | `yano-x-eutxo-zk-testkit` | — | [ledgers/eutxo-zk/testkit](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/testkit) |
 
-##### `onchain-artifact` (4)
+##### `onchain-artifact` (3)
 
 | Gradle module | Artifact id | Plugin bundle id | Source |
 |---|---|---|---|
 | `:sdk:proof-onchain` | `yano-x-proof-onchain` | — | [sdk/proof-onchain](https://github.com/bloxbean/yano-x/blob/main/sdk/proof-onchain) |
 | `:products:cardano-history:onchain` | `yano-x-cardano-history-onchain` | — | [products/cardano-history/onchain](https://github.com/bloxbean/yano-x/blob/main/products/cardano-history/onchain) |
 | `:ledgers:eutxo:bridge-onchain` | `yano-x-eutxo-bridge-onchain` | — | [ledgers/eutxo/bridge-onchain](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/bridge-onchain) |
-| `:ledgers:eutxo-zk:onchain` | `yano-x-eutxo-zk-onchain` | — | [ledgers/eutxo-zk/onchain](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/onchain) |
 
 ##### `web-application` (7)
 
@@ -17493,7 +17525,7 @@ repository disagree.
 
 | Document | Size | What it covers |
 |---|---|---|
-| [App ledger user guide](https://github.com/bloxbean/yano-x/blob/main/docs/APP_CHAIN_USER_GUIDE.md) | ~114 KB | The exhaustive reference: configuration, REST API, anchoring, custom app ledgers, multi-chain nodes, standard state machines, SSE/webhook/Kafka consumption, typed messages, security, compliance, operations, queries, client libraries, ZK, effects, troubleshooting, and current limitations. |
+| [App ledger user guide](https://github.com/bloxbean/yano-x/blob/main/docs/APP_CHAIN_USER_GUIDE.md) | ~114 KB | The exhaustive reference: configuration, REST API, anchoring, custom app ledgers, multi-chain nodes, standard state machines, SSE/webhook/Kafka consumption, typed messages, security, compliance, operations, queries, client libraries, effects, troubleshooting, and current limitations. |
 | [App ledger overview](https://github.com/bloxbean/yano-x/blob/main/docs/APP_CHAIN_OVERVIEW.md) | ~21 KB | The 10–15 minute architecture read, plus an editable presentation deck. |
 | [Consensus and internals guide](https://github.com/bloxbean/yano/blob/main/docs/APP_CHAIN_CONSENSUS_GUIDE.md) (Yano) | ~23 KB | The consensus round check by check, vote locks, sequencer modes, catch-up and restart semantics. |
 | [Plugin query and domain API contract](https://github.com/bloxbean/yano/blob/main/docs/APP_CHAIN_PLUGIN_QUERY_AND_DOMAIN_API.md) (Yano) | — | How plugins add read hooks and domain routes, and how the host secures them. |
@@ -17531,15 +17563,13 @@ repository disagree.
 | [Developer tools](https://github.com/bloxbean/yano-x/blob/main/tooling/devtools/README.md) | The offline engine behind `yano.sh appchain`. |
 | [App-Chain Studio](https://yano-x.io/studio/) | The blueprint builder, hosted here. |
 
-#### eUTxO and ZK
+#### eUTxO ledger
 
 | Document | What it covers |
 |---|---|
 | [eUTxO product family](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/README.md) | The virtual ledger, profiles, and genesis. |
-| [eUTxO demos](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/DEMO.md) | The disposable three-scenario quick start. |
+| [eUTxO demos](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/DEMO.md) | The disposable two-scenario quick start. |
 | [Indexer operations](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/INDEXER_OPERATIONS.md) | Lifecycle API, SQLite, recovery, metrics. |
-| [ZK getting started](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/GETTING_STARTED.md) | Status and module verification. |
-| [ZK devnet walkthrough](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/DEVNET_WALKTHROUGH.md) | Deposit, L2 transaction, proof, settlement, withdrawal. |
 
 #### Decisions
 

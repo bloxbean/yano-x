@@ -9,12 +9,12 @@
     "yanoJvmZipUrl": "https://github.com/bloxbean/yano/releases/download/v0.1.0-pre18/yano-0.1.0-pre18.zip"
   },
   "counts": {
-    "recipes": 13,
-    "capabilities": 44,
-    "artifacts": 18,
-    "modules": 74,
+    "recipes": 11,
+    "capabilities": 39,
+    "artifacts": 14,
+    "modules": 63,
     "configurationProperties": 44,
-    "runtimePlugins": 18
+    "runtimePlugins": 15
   },
   "recipes": [
     {
@@ -378,98 +378,9 @@
         "pin-current-root-nullifier-and-proof-contract-identities-for-proof-mode",
         "complete-real-funds-custody-review"
       ],
-      "trustStatement": "Experimental real-funds federated custody path. Use only reviewed contract identities and bridge/root operators. Signer mode trusts an external threshold/HSM; proof mode trusts the threshold-accepted root. Virtual genesis and ZeroJ are deliberately excluded.",
+      "trustStatement": "Experimental real-funds federated custody path. Use only reviewed contract identities and bridge/root operators. Signer mode trusts an external threshold/HSM; proof mode trusts the threshold-accepted root. Virtual genesis is deliberately excluded.",
       "documentation": "ledgers/eutxo/README.md",
       "documentationUrl": "https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/README.md"
-    },
-    {
-      "id": "eutxo-zeroj-validity",
-      "name": "ZeroJ EUTxO validity development profile",
-      "category": "application",
-      "availability": "EXPERIMENTAL",
-      "maturity": "experimental",
-      "scope": "chain",
-      "description": "A no-real-funds EUTxO ledger with the optional ZeroJ validity commitment and the interfaces needed to operate and test direct proof settlement.",
-      "primaryOutcome": "Bounded finalized EUTxO payments deterministically update both the Yano MPF root and the circuit-friendly validity root and can be proved against pinned development artifacts.",
-      "firstCommand": "submit a bounded key-payment batch, then run the separately provisioned prover and permissionless settlement relay",
-      "verificationQuery": "query the EUTxO validity-root record and compare it with the proof statement and L1 root datum",
-      "capabilities": [
-        "funding:eutxo-genesis",
-        "settlement:zeroj-validity",
-        "sequencer:fixed"
-      ],
-      "artifacts": [
-        "yano-runtime",
-        "yano-x-eutxo-ledger",
-        "yano-x-eutxo-zk-zeroj"
-      ],
-      "runtimeTypes": [
-        "jvm"
-      ],
-      "deploymentTargets": [
-        "host",
-        "docker-compose"
-      ],
-      "nativePosture": "unsupported",
-      "externalPrerequisites": [
-        "zeroj-0.1.0-pre10",
-        "julc-0.1.0-pre16",
-        "development-ceremony-bundle"
-      ],
-      "bootstrapRequirements": [
-        "use-test-keys-and-no-real-funds"
-      ],
-      "trustStatement": "Development/testnet recipe with virtual value and a restricted bounded-payment circuit. It is not production-funds ready, not a general Plutus prover, and not entitled to the rollup label.",
-      "documentation": "ledgers/eutxo-zk/README.md",
-      "documentationUrl": "https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/README.md"
-    },
-    {
-      "id": "eutxo-zeroj-preview",
-      "name": "ZeroJ EUTxO testnet lifecycle",
-      "category": "application",
-      "availability": "EXPERIMENTAL",
-      "maturity": "experimental",
-      "scope": "chain",
-      "description": "Packages the Cardano-shaped L2 client, measured b16 development circuit, durable lifecycle tooling, contract plans, prover artifacts, relay handoff, and recovery evidence as one JVM-only testnet project.",
-      "primaryOutcome": "A project can bootstrap pinned development artifacts, accept finalized Jubjub-authorized L2 transactions, produce a constant-size proof, and prepare idempotent Cardano deposit, settlement, withdrawal, and recovery operations.",
-      "firstCommand": "./yano.sh appchain validity bootstrap --project <project> --development-ceremony --yes",
-      "verificationQuery": "./yano.sh appchain validity doctor --project <project>",
-      "capabilities": [
-        "settlement:zeroj-validity",
-        "bridge:cardano-federated",
-        "l1:slot-feed",
-        "sequencer:fixed"
-      ],
-      "artifacts": [
-        "yano-runtime",
-        "yano-x-eutxo-ledger",
-        "yano-x-eutxo-bridge-cardano",
-        "yano-x-eutxo-zk-zeroj",
-        "yano-x-eutxo-zk-runtime",
-        "yano-x-eutxo-zk-lifecycle"
-      ],
-      "runtimeTypes": [
-        "jvm"
-      ],
-      "deploymentTargets": [
-        "host",
-        "docker-compose"
-      ],
-      "nativePosture": "unsupported",
-      "externalPrerequisites": [
-        "zeroj-0.1.0-pre10",
-        "julc-0.1.0-pre16",
-        "funded-testnet-operator-key-for-live-L1-operations"
-      ],
-      "bootstrapRequirements": [
-        "trusted-proof-submitter",
-        "development-ceremony-or-reviewed-testnet-ceremony",
-        "deployed-pinned-contract-identities",
-        "disposable-test-funds-only"
-      ],
-      "trustStatement": "Testnet lifecycle for zeroj-jubjub-dev-v1. It requires a trusted prover, permits disposable test funds only, rejects mainnet, and does not claim malicious-prover security or production rollup readiness.",
-      "documentation": "ledgers/eutxo-zk/GETTING_STARTED.md",
-      "documentationUrl": "https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/GETTING_STARTED.md"
     },
     {
       "id": "custom-plugin",
@@ -877,112 +788,6 @@
       "documentationUrl": "/plugins/"
     },
     {
-      "id": "state:zk-gate",
-      "name": "Zero-knowledge proof gate",
-      "category": "state",
-      "availability": "EXPERIMENTAL",
-      "maturity": "experimental",
-      "scope": "chain",
-      "selectable": true,
-      "description": "Verifies configured Groth16 or Plonk proofs during deterministic state transition.",
-      "provides": [
-        "state-machine"
-      ],
-      "requires": [],
-      "implies": [],
-      "conflicts": [],
-      "artifacts": [
-        "yano-runtime",
-        "yano-x-zk"
-      ],
-      "runtimeTypes": [
-        "jvm"
-      ],
-      "nativePosture": "unsupported",
-      "externalPrerequisites": [
-        "reviewed-verification-key-file"
-      ],
-      "properties": {
-        "state-machine": "zk-gate",
-        "zk.circuits[0].id": "${circuitId}",
-        "zk.circuits[0].vk-file": "${verificationKeyFile}",
-        "zk.circuits[0].vk-hash": "${verificationKeyHash}",
-        "zk.circuits[0].proof-system": "${proofSystem}",
-        "zk.circuits[0].curve": "${curve}"
-      },
-      "documentation": "state-machines/zk/README.md",
-      "documentationUrl": "https://github.com/bloxbean/yano-x/blob/main/state-machines/zk/README.md"
-    },
-    {
-      "id": "state:zk-membership",
-      "name": "Anonymous ZK membership",
-      "category": "state",
-      "availability": "EXPERIMENTAL",
-      "maturity": "experimental",
-      "scope": "chain",
-      "selectable": true,
-      "description": "Membership authorization using a configured zero-knowledge circuit and nullifier deduplication.",
-      "provides": [
-        "state-machine"
-      ],
-      "requires": [],
-      "implies": [],
-      "conflicts": [],
-      "artifacts": [
-        "yano-runtime",
-        "yano-x-zk"
-      ],
-      "runtimeTypes": [
-        "jvm"
-      ],
-      "nativePosture": "unsupported",
-      "externalPrerequisites": [
-        "reviewed-membership-verification-key-file"
-      ],
-      "properties": {
-        "state-machine": "zk-membership",
-        "zk.circuits[0].id": "${circuitId}",
-        "zk.circuits[0].vk-file": "${verificationKeyFile}",
-        "zk.circuits[0].vk-hash": "${verificationKeyHash}",
-        "zk.circuits[0].proof-system": "${proofSystem}",
-        "zk.circuits[0].curve": "${curve}"
-      },
-      "documentation": "state-machines/zk/README.md",
-      "documentationUrl": "https://github.com/bloxbean/yano-x/blob/main/state-machines/zk/README.md"
-    },
-    {
-      "id": "state:credential-registry",
-      "name": "BBS credential registry",
-      "category": "state",
-      "availability": "EXPERIMENTAL",
-      "maturity": "experimental",
-      "scope": "chain",
-      "selectable": true,
-      "description": "Registry for selectively disclosed BBS credential statements from configured issuers.",
-      "provides": [
-        "state-machine"
-      ],
-      "requires": [],
-      "implies": [],
-      "conflicts": [],
-      "artifacts": [
-        "yano-runtime",
-        "yano-x-zk"
-      ],
-      "runtimeTypes": [
-        "jvm"
-      ],
-      "nativePosture": "unsupported",
-      "externalPrerequisites": [],
-      "properties": {
-        "state-machine": "credential-registry",
-        "zk.bbs.issuers[0].id": "${issuerId}",
-        "zk.bbs.issuers[0].public-key": "${issuerPublicKey}"
-      },
-      "documentation": "state-machines/zk/README.md",
-      "documentationUrl": "https://github.com/bloxbean/yano-x/blob/main/state-machines/zk/README.md"
-    },
-    {
       "id": "state:eutxo-ledger",
       "name": "Scalus-backed EUTxO ledger engine",
       "category": "state",
@@ -1086,7 +891,7 @@
       "maturity": "experimental",
       "scope": "chain",
       "selectable": true,
-      "description": "Pins the immutable yano-eutxo-v1 ledger profile used by the current bounded ZeroJ validity circuit.",
+      "description": "Pins the immutable yano-eutxo-v1 key-payments ledger profile.",
       "provides": [
         "eutxo-ledger-profile"
       ],
@@ -1204,98 +1009,6 @@
       },
       "documentation": "ledgers/eutxo/README.md",
       "documentationUrl": "https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/README.md"
-    },
-    {
-      "id": "settlement:zeroj-validity",
-      "name": "ZeroJ EUTxO validity settlement",
-      "category": "settlement",
-      "availability": "EXPERIMENTAL",
-      "maturity": "experimental",
-      "scope": "chain",
-      "selectable": true,
-      "description": "Adds a Yano L2 envelope with a Cardano-compatible body, registered Jubjub session-key authorization, optional Poseidon validity commitment, durable proving interfaces, proof-bound Cardano root advancement, bounded aggregate withdrawal and canonical L1 batch publication.",
-      "provides": [
-        "zeroj-validity-settlement"
-      ],
-      "requires": [
-        "profile:eutxo-key-payments"
-      ],
-      "implies": [],
-      "conflicts": [],
-      "artifacts": [
-        "yano-runtime",
-        "yano-x-eutxo-zk-zeroj",
-        "yano-x-eutxo-zk-runtime",
-        "yano-x-eutxo-zk-lifecycle"
-      ],
-      "runtimeTypes": [
-        "jvm"
-      ],
-      "nativePosture": "unsupported",
-      "externalPrerequisites": [
-        "zeroj-0.1.0-pre10",
-        "julc-0.1.0-pre16",
-        "development-or-reviewed-ceremony-bundle",
-        "deployed-pinned-validity-root-vault-and-data-availability-contracts"
-      ],
-      "properties": {
-        "machines.eutxo.network": "${network}",
-        "machines.eutxo.genesis.l2-address": "${eutxoL2Address}",
-        "machines.eutxo.genesis.l2-public-key": "${eutxoL2PublicKey}",
-        "machines.eutxo.genesis.l2-key-epoch": "1",
-        "machines.eutxo.validity.enabled": "true",
-        "machines.eutxo.validity.provider": "zeroj-poseidon-v1",
-        "machines.eutxo.validity.transaction-format": "yano-eutxo-l2-envelope-v1",
-        "machines.eutxo.validity.profile": "yano-eutxo-zk-z3",
-        "machines.eutxo.validity.expected-profile-digest": "cfe1767761cbe05c7e2b82f951222fbb9df34afa5eb1f39fb8a5c1cc2af87d45",
-        "machines.eutxo.validity.batch-profile": "cardano-payment-b16",
-        "machines.eutxo.validity.batch-profile-digest": "bd0835736116cb6338a82069e913f3815547008e4994508f110065c5dfc64747",
-        "machines.eutxo.validity.circuit-id": "eutxo-jubjub-batch-dev-b16-v4",
-        "machines.eutxo.validity.proof-system": "groth16",
-        "machines.eutxo.validity.curve": "bls12-381",
-        "machines.eutxo.validity.zeroj-version": "0.1.0-pre10",
-        "machines.eutxo.validity.julc-version": "0.1.0-pre16",
-        "machines.eutxo.validity.authorization-profile": "zeroj-jubjub-dev-v1",
-        "machines.eutxo.validity.authorization-profile-digest": "d4d23eb620057fa280616f8e117aa7b38f7895fc3be2626566a3fd06444cb035",
-        "machines.eutxo.validity.authorization-trusted-prover-required": "true",
-        "machines.eutxo.validity.authorization-point-checks": "host-only-development",
-        "machines.eutxo.validity.funds-policy": "disposable-test-funds-only"
-      },
-      "documentation": "ledgers/eutxo-zk/README.md",
-      "documentationUrl": "https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/README.md"
-    },
-    {
-      "id": "rollup:zeroj-cardano",
-      "name": "ZeroJ Cardano EUTxO rollup label",
-      "category": "product-label",
-      "availability": "EXPERIMENTAL",
-      "maturity": "experimental",
-      "scope": "chain",
-      "selectable": false,
-      "description": "Graduation label for a separately approved ZeroJ validity product; it does not add runtime behavior.",
-      "provides": [
-        "zeroj-cardano-rollup-label"
-      ],
-      "requires": [
-        "settlement:zeroj-validity"
-      ],
-      "implies": [],
-      "conflicts": [],
-      "artifacts": [
-        "yano-runtime",
-        "yano-x-eutxo-ledger",
-        "yano-x-eutxo-zk-zeroj"
-      ],
-      "runtimeTypes": [
-        "jvm"
-      ],
-      "nativePosture": "unsupported",
-      "externalPrerequisites": [
-        "all-adr-utxo-001-z5-z6-gates-passed"
-      ],
-      "properties": {},
-      "documentation": "ledgers/eutxo-zk/Z6_PRODUCTION_HARDENING.md",
-      "documentationUrl": "https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/Z6_PRODUCTION_HARDENING.md"
     },
     {
       "id": "indexer:eutxo-lifecycle",
@@ -2153,19 +1866,6 @@
       ]
     },
     {
-      "id": "yano-x-zk",
-      "availability": "EXPERIMENTAL",
-      "bundleId": "org.yanoproject.x.zk",
-      "nativePosture": "unsupported",
-      "runtimeTypes": [
-        "jvm"
-      ],
-      "deploymentTargets": [
-        "host",
-        "docker-compose"
-      ]
-    },
-    {
       "id": "yano-x-eutxo-ledger",
       "availability": "BUNDLED",
       "bundleId": "org.yanoproject.x.eutxo",
@@ -2208,45 +1908,6 @@
       "id": "yano-x-eutxo-bridge-cardano",
       "availability": "BUNDLED",
       "bundleId": "org.yanoproject.x.eutxo.bridge.cardano",
-      "nativePosture": "unsupported",
-      "runtimeTypes": [
-        "jvm"
-      ],
-      "deploymentTargets": [
-        "host",
-        "docker-compose"
-      ]
-    },
-    {
-      "id": "yano-x-eutxo-zk-zeroj",
-      "availability": "BUNDLED",
-      "bundleId": "library:ledgers:eutxo-zk:zeroj",
-      "nativePosture": "unsupported",
-      "runtimeTypes": [
-        "jvm"
-      ],
-      "deploymentTargets": [
-        "host",
-        "docker-compose"
-      ]
-    },
-    {
-      "id": "yano-x-eutxo-zk-runtime",
-      "availability": "BUNDLED",
-      "bundleId": "org.yanoproject.x.eutxo.zk.runtime",
-      "nativePosture": "unsupported",
-      "runtimeTypes": [
-        "jvm"
-      ],
-      "deploymentTargets": [
-        "host",
-        "docker-compose"
-      ]
-    },
-    {
-      "id": "yano-x-eutxo-zk-lifecycle",
-      "availability": "BUNDLED",
-      "bundleId": "library:ledgers:eutxo-zk:lifecycle",
       "nativePosture": "unsupported",
       "runtimeTypes": [
         "jvm"
@@ -2583,15 +2244,6 @@
       "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/connectors/effects-cardano"
     },
     {
-      "modulePath": ":state-machines:zk",
-      "directory": "state-machines/zk",
-      "artifactId": "yano-x-zk",
-      "publicationType": "runtime-plugin",
-      "pluginBundleId": "org.yanoproject.x.zk",
-      "bundleArtifactId": "yano-x-zk-bundle",
-      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/state-machines/zk"
-    },
-    {
       "modulePath": ":products:eutxo:ui",
       "directory": "products/eutxo/ui",
       "artifactId": "yano-x-eutxo-ui",
@@ -2815,96 +2467,6 @@
       "pluginBundleId": "org.yanoproject.x.eutxo.indexer",
       "bundleArtifactId": "yano-x-eutxo-indexer-jdbc-bundle",
       "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/indexer-jdbc"
-    },
-    {
-      "modulePath": ":ledgers:eutxo-zk:contracts",
-      "directory": "ledgers/eutxo-zk/contracts",
-      "artifactId": "yano-x-eutxo-zk-contracts",
-      "publicationType": "library",
-      "pluginBundleId": null,
-      "bundleArtifactId": null,
-      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/contracts"
-    },
-    {
-      "modulePath": ":ledgers:eutxo-zk:zeroj",
-      "directory": "ledgers/eutxo-zk/zeroj",
-      "artifactId": "yano-x-eutxo-zk-zeroj",
-      "publicationType": "library",
-      "pluginBundleId": null,
-      "bundleArtifactId": null,
-      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/zeroj"
-    },
-    {
-      "modulePath": ":ledgers:eutxo-zk:prover",
-      "directory": "ledgers/eutxo-zk/prover",
-      "artifactId": "yano-x-eutxo-zk-prover",
-      "publicationType": "library",
-      "pluginBundleId": null,
-      "bundleArtifactId": null,
-      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/prover"
-    },
-    {
-      "modulePath": ":ledgers:eutxo-zk:client",
-      "directory": "ledgers/eutxo-zk/client",
-      "artifactId": "yano-x-eutxo-zk-client",
-      "publicationType": "library",
-      "pluginBundleId": null,
-      "bundleArtifactId": null,
-      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/client"
-    },
-    {
-      "modulePath": ":ledgers:eutxo-zk:onchain",
-      "directory": "ledgers/eutxo-zk/onchain",
-      "artifactId": "yano-x-eutxo-zk-onchain",
-      "publicationType": "onchain-artifact",
-      "pluginBundleId": null,
-      "bundleArtifactId": null,
-      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/onchain"
-    },
-    {
-      "modulePath": ":ledgers:eutxo-zk:testkit",
-      "directory": "ledgers/eutxo-zk/testkit",
-      "artifactId": "yano-x-eutxo-zk-testkit",
-      "publicationType": "test-library",
-      "pluginBundleId": null,
-      "bundleArtifactId": null,
-      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/testkit"
-    },
-    {
-      "modulePath": ":ledgers:eutxo-zk:runtime",
-      "directory": "ledgers/eutxo-zk/runtime",
-      "artifactId": "yano-x-eutxo-zk-runtime",
-      "publicationType": "runtime-plugin",
-      "pluginBundleId": "org.yanoproject.x.eutxo.zk.runtime",
-      "bundleArtifactId": "yano-x-eutxo-zk-runtime-bundle",
-      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/runtime"
-    },
-    {
-      "modulePath": ":ledgers:eutxo-zk:lifecycle",
-      "directory": "ledgers/eutxo-zk/lifecycle",
-      "artifactId": "yano-x-eutxo-zk-lifecycle",
-      "publicationType": "library",
-      "pluginBundleId": null,
-      "bundleArtifactId": null,
-      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/lifecycle"
-    },
-    {
-      "modulePath": ":ledgers:eutxo-zk:indexer",
-      "directory": "ledgers/eutxo-zk/indexer",
-      "artifactId": "yano-x-eutxo-zk-indexer",
-      "publicationType": "runtime-plugin",
-      "pluginBundleId": "org.yanoproject.x.eutxo.zk.indexer",
-      "bundleArtifactId": "yano-x-eutxo-zk-indexer-bundle",
-      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/indexer"
-    },
-    {
-      "modulePath": ":ledgers:eutxo-zk:demo",
-      "directory": "ledgers/eutxo-zk/demo",
-      "artifactId": "yano-x-eutxo-zk-demo",
-      "publicationType": "application",
-      "pluginBundleId": null,
-      "bundleArtifactId": null,
-      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/demo"
     },
     {
       "modulePath": ":tooling:spring-boot-starter",
@@ -3810,10 +3372,7 @@
         "yano-x-eutxo-ledger",
         "yano-x-eutxo-indexer-core",
         "yano-x-eutxo-indexer-jdbc",
-        "yano-x-eutxo-bridge-cardano",
-        "yano-x-eutxo-zk-zeroj",
-        "yano-x-eutxo-zk-runtime",
-        "yano-x-eutxo-zk-lifecycle"
+        "yano-x-eutxo-bridge-cardano"
       ]
     }
   ],

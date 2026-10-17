@@ -2,7 +2,7 @@
 
 yanoXVersion: 0.1.0-pre4-SNAPSHOT
 yanoVersion: 0.1.0-pre18
-generatedAt: 2026-10-16T16:00:11.519Z
+generatedAt: 2026-10-17T05:13:00.876Z
 
 > Yano X is the Java 25, JVM-only extension ecosystem for Yano app ledgers. An app ledger (an "app chain" in Yano's CLI, configuration, and APIs) is an application-specific replicated ledger with deterministic state, threshold finality, authenticated state proofs, optional Cardano anchoring, and controlled external effects. Yano X supplies the stock state machines, capabilities, connectors, products, SDKs, and the batteries-included JVM distribution that run on top of the Yano host.
 
@@ -29,8 +29,8 @@ Key facts an AI agent should know before generating Yano X code or configuration
   environment-dependent iteration order, network calls, or node-local mutable
   decisions. External work is emitted as an effect record and executed later by
   the effect runtime, never called during `apply`.
-- **Choose the smallest extension:** configuration (13 stock recipes,
-  44 capabilities) -> a small composite plugin -> a custom
+- **Choose the smallest extension:** configuration (11 stock recipes,
+  39 capabilities) -> a small composite plugin -> a custom
   state-machine plugin. Only the last one adds new consensus semantics.
 - **The public CLI is `./yano.sh appchain …`**, shipped inside the Yano X JVM
   distribution. There is no separate `yano-x` executable.
@@ -106,7 +106,7 @@ Key facts an AI agent should know before generating Yano X code or configuration
 - [Tutorial 2 — A Provable Shared Registry](https://yano-x.io/tutorials/02-registry-and-proofs/): Write owner-controlled data, show that an unauthorized write is a final no-op, and prove the current value with an MPF proof.
 - [Tutorial 3 — Choose a Stock State Machine](https://yano-x.io/tutorials/03-stock-state-machines/): Choose the smallest built-in deterministic model that matches your application, encode its commands, and configure a chain for it.
 - [Tutorial 4 — Publish and Verify Immutable Evidence](https://yano-x.io/tutorials/04-evidence-publication/): Publish one immutable document through a threshold-approved workflow, preserve it in S3-compatible storage and IPFS, notify Kafka, and verify the chain…
-- [Tutorial 5 — Generic Domain Actors and Role-Aware Approval](https://yano-x.io/tutorials/05-domain-role-approvals/): Run a release that business actors from different organizations approve under a governed policy, watch deliberate mistakes become final no-ops, and rotate…
+- [Tutorial 5 — Generic Domain Actors and Role-Aware Approval](https://yano-x.io/tutorials/05-domain-role-approvals/): Run a release that business actors from different organizations approve under a governed policy, confirm that deliberate mistakes are final but count for…
 - [Tutorial 6 — Invoke an External HTTP Endpoint Safely](https://yano-x.io/tutorials/06-webhook-effects/): Understand when to use a finalized-block webhook sink versus an acknowledged webhook.post effect, and run the latter from a stock approval transition…
 - [Tutorial 7 — Connect an App Proof to Cardano](https://yano-x.io/tutorials/07-anchors-and-verification/): Bootstrap a threshold-enforced script anchor, advance it after app blocks finalize, prove one record against the anchored root, and know which checks need…
 - [Tutorial 8 — Extend Yano Without Forking It](https://yano-x.io/tutorials/08-plugins-and-composites/): Build, sign and pin a small state-machine plugin, and install the same JAR on every member of the standard JVM distribution.
@@ -145,7 +145,7 @@ Key facts an AI agent should know before generating Yano X code or configuration
 - [Evidence Desk](https://yano-x.io/products/evidence-desk/): The Evidence Desk is a browser workbench for role-gated release. An issuer proposes a release, auditors from independent organizations approve or reject…
 - [Cardano History](https://yano-x.io/products/cardano-history/): Query and prove historical Cardano protocol parameters, epoch stake, DRep distribution, and proposal history — as compact, root-fixed proofs rather than trusted API responses.
 - [DPP Starter](https://yano-x.io/products/dpp-starter/): A configuration-only Digital Product Passport prototype on the governed authenticated map, with proof-bound passports, a certification round, a public portal, an operator gateway, and a console.
-- [eUTxO and ZK](https://yano-x.io/products/eutxo-and-zk/): An experimental deterministic Cardano-shaped UTxO ledger, an optional federated Cardano bridge, and an optional ZeroJ validity and rollup path.
+- [eUTxO ledger](https://yano-x.io/products/eutxo/): An experimental deterministic Cardano-shaped UTxO ledger with an optional federated Cardano bridge.
 - [Verifiable Explorer](https://yano-x.io/products/explorer/): A derived, verify-on-ingest index over stock app ledgers with a read service, a CLI, and a console; every row keeps its evidence and can be proven offline.
 - [Trust Registry](https://yano-x.io/products/trust-registry/): The Trust and Status Registry answers \"is this credential still valid?\" and \"is this issuer authorized?\" with proofs bound to a certified block. It is a…
 
