@@ -503,11 +503,22 @@ class AppChainFinalDistributionAcceptanceTest {
                         assertThat(project.resolve("scripts/start-node")).doesNotExist();
                     }
                     if ("jvm".equals(runtime)) {
-                        Result ci = run(project.resolve("ci/verify"), List.of(),
-                                Map.of("YANO_HOME", release.toString()));
-                        assertThat(ci.exit()).as("stdout=%s%n stderr=%s",
-                                ci.output(), ci.error()).isZero();
-                        assertThat(ci.output()).contains("VALID_PROJECT");
+                        // Like an operator, install the reviewed custom bundle before verifying.
+                        boolean custom = "custom-plugin".equals(recipe.id());
+                        Path customBundle = release.resolve("plugins/com.example.acceptance.jar");
+                        if (custom) {
+                            PluginBundleFixture.write(release.resolve("plugins"), "com.example.acceptance",
+                                    null, "app-state-machine", "com.example.acceptance");
+                        }
+                        try {
+                            Result ci = run(project.resolve("ci/verify"), List.of(),
+                                    Map.of("YANO_HOME", release.toString()));
+                            assertThat(ci.exit()).as("stdout=%s%n stderr=%s",
+                                    ci.output(), ci.error()).isZero();
+                            assertThat(ci.output()).contains("VALID_PROJECT");
+                        } finally {
+                            Files.deleteIfExists(customBundle);
+                        }
                     }
 
                     AppChainProjectModel.ProjectValidation projectValidation =

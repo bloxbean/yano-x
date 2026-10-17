@@ -43,6 +43,8 @@ dependencies {
     testImplementation project(':capabilities:authenticated-map-validators')
     // Live receipt-parity tests boot the real host subsystem, unlike the lightweight offline CLI.
     integrationTestRuntimeOnly(rootProject.ext.yanoModule('yano-runtime'))
+    // Distribution acceptance reuses the unit tests' plugin bundle fixture.
+    distributionTestImplementation sourceSets.test.output
 }
 
 application {
