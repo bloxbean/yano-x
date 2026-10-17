@@ -8,6 +8,8 @@ TOOL="$DEMO_DIR/tools/effect_failover.py"
 FAULT_MODEL="$SCRIPT_DIR/support/compose-post-ack-fault.yaml"
 FAILOVER_MODEL="$SCRIPT_DIR/support/compose-fenced-failover.yaml"
 WORKFLOW="$REPO_ROOT/.github/workflows/build.yml"
+E2E_WORKFLOW="$REPO_ROOT/.github/workflows/evidence-e2e.yml"
+TAG_WORKFLOW="$REPO_ROOT/.github/workflows/tag-release.yml"
 RELEASE_CONTRACTS="$SCRIPT_DIR/release-contracts.sh"
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/yano-effect-failover-contract.XXXXXX")"
 TMP="$(cd "$TMP" && pwd -P)"
@@ -103,7 +105,7 @@ with tempfile.TemporaryDirectory() as directory:
             f"replacement L1 readiness fixture failed ({result.returncode}): {result.stderr}")
 PY
 python3 - "$SCRIPT_DIR/effect-failover-e2e.sh" "$WORKFLOW" \
-  "$DEMO_DIR/demo.sh" "$RELEASE_CONTRACTS" <<'PY'
+  "$DEMO_DIR/demo.sh" "$RELEASE_CONTRACTS" "$E2E_WORKFLOW" "$TAG_WORKFLOW" <<'PY'
 from pathlib import Path
 import json
 import re
@@ -113,6 +115,8 @@ source = Path(sys.argv[1]).read_text(encoding="utf-8")
 workflow = Path(sys.argv[2]).read_text(encoding="utf-8")
 demo = Path(sys.argv[3]).read_text(encoding="utf-8")
 release_contracts = Path(sys.argv[4]).read_text(encoding="utf-8")
+e2e_workflow = Path(sys.argv[5]).read_text(encoding="utf-8")
+tag_workflow = Path(sys.argv[6]).read_text(encoding="utf-8")
 
 # Check both exact live inventories against source manifests. The host API
 # minimum comes from the selected manifests, never from the live response.
@@ -282,8 +286,8 @@ if source.index('export DEMO_FENCED_NODE0_CONFIG="$FENCED_CONFIG"') >= overlay_u
     raise SystemExit("fenced private configs must be exported before overlay restart")
 
 
-def job_block(name):
-    lines = workflow.splitlines()
+def job_block(name, text=workflow):
+    lines = text.splitlines()
     marker = f"  {name}:"
     try:
         start = lines.index(marker)
@@ -297,27 +301,41 @@ def job_block(name):
     return "\n".join(lines[start:end])
 
 
-e2e_job = job_block("evidence-e2e")
-for required in (
-        "runs-on: ubuntu-24.04",
-        "timeout-minutes: 240",
-        "github.event_name == 'schedule'",
-        "inputs.scope == 'connector-runtime' || inputs.scope == 'all'",
-        "actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
-        "actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9",
-        "YANO_RUN_EFFECT_FAILOVER_E2E: 'true'",
-        "run: products/evidence/harness/tests/effect-failover-e2e.sh",
-        "YANO_RUN_ROLE_WORKFLOW_E2E: 'true'",
-        "run: products/evidence/harness/tests/role-workflow-e2e.sh"):
-    if required not in e2e_job:
+# The devnet E2E scenarios run as three parallel jobs of evidence-e2e.yml.
+for name, scenario in (("effect-failover", "YANO_RUN_EFFECT_FAILOVER_E2E: 'true'"),
+                       ("deployment-parity", "YANO_RUN_DEPLOYMENT_PARITY_E2E: 'true'"),
+                       ("role-workflow", "YANO_RUN_ROLE_WORKFLOW_E2E: 'true'")):
+    job = job_block(name, e2e_workflow)
+    for required in (
+            "runs-on: ubuntu-24.04",
+            "timeout-minutes: 90",
+            "actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+            "actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9",
+            "run: ./gradlew :distribution:jvm:prepareEvidenceDemoArtifacts",
+            scenario):
+        if required not in job:
+            raise SystemExit(f"mandatory devnet E2E job {name} is missing: {required}")
+failover_job = job_block("effect-failover", e2e_workflow)
+for required in ("run: products/evidence/harness/tests/effect-failover-contract.sh",
+                 "run: products/evidence/harness/tests/effect-failover-e2e.sh"):
+    if required not in failover_job:
         raise SystemExit(f"mandatory devnet E2E workflow contract is missing: {required}")
-if "\n    if: >-" not in e2e_job:
-    raise SystemExit("devnet E2E scheduling must remain explicit")
+if "run: products/evidence/harness/tests/role-workflow-e2e.sh" not in job_block("role-workflow", e2e_workflow):
+    raise SystemExit("mandatory devnet E2E omits the role workflow scenario")
+# It runs nightly, on demand, and on every change to what it exercises, including a version bump.
+for required in ("  workflow_dispatch:", "  schedule:\n    - cron: "):
+    if required not in e2e_workflow:
+        raise SystemExit(f"devnet E2E triggers must remain explicit: {required.strip()}")
+for path in ("'products/evidence/**'", "'connectors/**'", "'capabilities/**'", "'composition/**'",
+             "'distribution/jvm/**'", "'gradle.properties'", "'.github/workflows/evidence-e2e.yml'"):
+    if e2e_workflow.count(f"      - {path}\n") != 2:
+        raise SystemExit(f"devnet E2E push and pull-request paths must both include {path}")
 for forbidden in ("connector-rustfs-", "rustfs-release-image-import",
                   "DEMO_USE_PREBUILT_RUSTFS_IMAGE", "DEMO_PREBUILT_RUSTFS_IMAGE_ID"):
-    if forbidden in workflow:
+    if forbidden in workflow or forbidden in e2e_workflow:
         raise SystemExit(f"CI still carries a removed third-party build path: {forbidden}")
-if workflow.count("run: products/evidence/harness/tests/effect-failover-e2e.sh") != 1:
+if e2e_workflow.count("run: products/evidence/harness/tests/effect-failover-e2e.sh") != 1 \
+        or "effect-failover-e2e.sh" in workflow:
     raise SystemExit("mandatory devnet E2E must have exactly one workflow invocation")
 commit_build_job = job_block("commit-build")
 for required in (
@@ -344,7 +362,6 @@ required_acceptance_needs = {
     "commit-build",
     "distribution-check",
     "connector-fault-matrix",
-    "evidence-e2e",
 }
 missing_acceptance_needs = required_acceptance_needs - actual_acceptance_needs
 if missing_acceptance_needs:
@@ -358,13 +375,23 @@ for required in (
         "COMMIT_BUILD_RESULT: ${{ needs.commit-build.result }}",
         "DISTRIBUTION_CHECK_RESULT: ${{ needs.distribution-check.result }}",
         "CONNECTOR_FAULT_RESULT: ${{ needs.connector-fault-matrix.result }}",
-        "EVIDENCE_E2E_RESULT: ${{ needs.evidence-e2e.result }}",
         'test "$COMMIT_BUILD_RESULT" = success',
         'test "$DISTRIBUTION_CHECK_RESULT" = success',
-        'test "$CONNECTOR_FAULT_RESULT" = success',
-        'test "$EVIDENCE_E2E_RESULT" = success'):
+        'test "$CONNECTOR_FAULT_RESULT" = success'):
     if required not in acceptance_job:
         raise SystemExit(f"Milestone 1 acceptance is missing fail-closed evidence: {required}")
+
+# A release tag requires a successful devnet E2E run on the exact commit, checked before the tag is created.
+tag_job = job_block("tag", tag_workflow)
+for required in ("      actions: read",
+                 'runs="repos/$GITHUB_REPOSITORY/actions/workflows/evidence-e2e.yml/runs"',
+                 "?head_sha=$GITHUB_SHA&status=success",
+                 'if [[ "$passed" == 0 ]]; then'):
+    if required not in tag_job:
+        raise SystemExit(f"release tagging does not require the devnet E2E: {required}")
+gate = tag_job.index("- name: Require a successful evidence E2E run on this commit")
+if gate > tag_job.index("- name: Mint GitHub App token") or gate > tag_job.index('git push origin'):
+    raise SystemExit("release tagging must check the devnet E2E before it can push a tag")
 
 for required in ('docker pull "$image"',
                  'for image in "$DEMO_RUSTFS_IMAGE" "$DEMO_KUBO_IMAGE"'):

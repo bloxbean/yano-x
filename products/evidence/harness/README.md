@@ -489,9 +489,11 @@ telemetry disabled. Services run with the host's unprivileged UID, no added
 capabilities, `no-new-privileges`, read-only root filesystems, bounded logs,
 explicit health checks, and writable mounts/tmpfs only where required.
 
-The `milestone-1-release-acceptance` CI job is the release-evidence join. It
-requires the JVM build/bundle smoke, native plugin catalog, real connector fault
-matrix, and fenced devnet plus Compose/host E2E gates in the same full run.
+CI runs the release gates in two workflows. `build.yml`'s `release-acceptance`
+job requires the JVM build, the distribution check and the real connector fault
+matrix. The fenced devnet, Compose/host parity and role workflow E2E gates run
+in `evidence-e2e.yml`, and `tag-release.yml` tags a release only on a commit
+where that workflow passed.
 
 ## Persistence
 

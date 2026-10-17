@@ -156,6 +156,17 @@ CI runs them in the `eUTxO settlement E2E` workflow only when a change touches
 `ledgers/eutxo/` or `fixtures/eutxo-e2e/`. Run it manually from the Actions tab
 for any other change.
 
+The evidence harness's devnet scenarios run in the `Evidence E2E` workflow
+(`.github/workflows/evidence-e2e.yml`) as three parallel jobs: fenced effect
+failover, Compose and host deployment parity, and role workflow with catch-up.
+It runs when a change touches the code they exercise (the evidence, DPP and
+feed products, connectors, capabilities, composition, the stdlib machines, the
+SDK, the JVM distribution or the build), on every `gradle.properties` change,
+nightly, and on demand. `Tag release` refuses to tag a commit unless this
+workflow passed on it. If the version bump's run failed, re-run its failed job,
+then re-run the tag job. To run a scenario locally, see the
+[evidence harness README](../products/evidence/harness/README.md).
+
 ### Studio binding editor gates
 
 ```bash

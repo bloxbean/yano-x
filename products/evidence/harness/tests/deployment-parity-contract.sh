@@ -6,7 +6,8 @@ DEMO_DIR="$(cd "$SCRIPT_DIR/.." && pwd -P)"
 REPO_ROOT="$(cd "$DEMO_DIR/../../.." && pwd -P)"
 SOURCE="$SCRIPT_DIR/deployment-parity-e2e.sh"
 ROLE_SOURCE="$SCRIPT_DIR/role-workflow-e2e.sh"
-WORKFLOW="$REPO_ROOT/.github/workflows/build.yml"
+WORKFLOW="$REPO_ROOT/.github/workflows/evidence-e2e.yml"
+TAG_WORKFLOW="$REPO_ROOT/.github/workflows/tag-release.yml"
 RELEASE_CONTRACTS="$SCRIPT_DIR/release-contracts.sh"
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/yano-deployment-parity-contract.XXXXXX")"
 trap 'rm -rf "$TMP"' EXIT
@@ -18,7 +19,7 @@ docker compose version >/dev/null 2>&1 || fail 'Docker Compose v2 is required'
 [ -x "$SOURCE" ] || fail 'deployment-parity E2E must be executable'
 bash -n "$SOURCE"
 
-python3 - "$SOURCE" "$ROLE_SOURCE" "$WORKFLOW" "$RELEASE_CONTRACTS" <<'PY'
+python3 - "$SOURCE" "$ROLE_SOURCE" "$WORKFLOW" "$RELEASE_CONTRACTS" "$TAG_WORKFLOW" <<'PY'
 from pathlib import Path
 import re
 import subprocess
@@ -28,6 +29,7 @@ source = Path(sys.argv[1]).read_text(encoding="utf-8")
 role_source = Path(sys.argv[2]).read_text(encoding="utf-8")
 workflow = Path(sys.argv[3]).read_text(encoding="utf-8")
 release_contracts = Path(sys.argv[4]).read_text(encoding="utf-8")
+tag_workflow = Path(sys.argv[5]).read_text(encoding="utf-8")
 
 role_ports = dict(re.findall(
     r'export DEMO_(\w+)="\$\{YANO_ROLE_WORKFLOW_\w+:-([0-9]+)\}"', role_source))
@@ -290,8 +292,8 @@ if not host_cleanup < compose_cleanup < uncertain_guard < root_cleanup:
     raise SystemExit("failure cleanup must stop host, stop exact Compose, then conditionally remove state")
 
 
-def job_block(name):
-    lines = workflow.splitlines()
+def job_block(name, text=workflow):
+    lines = text.splitlines()
     marker = f"  {name}:"
     try:
         start = lines.index(marker)
@@ -305,29 +307,29 @@ def job_block(name):
     return "\n".join(lines[start:end])
 
 
-e2e_job = job_block("evidence-e2e")
-if e2e_job.count("DEMO_ANCHOR_VISIBILITY_TIMEOUT_SECONDS: '900'") != 2:
-    raise SystemExit("parity and role startup must both allow the default node recovery window")
-for required in (
-        "timeout-minutes: 240",
-        "YANO_RUN_DEPLOYMENT_PARITY_E2E: 'true'",
-        "YANO_DEPLOYMENT_PARITY_CONTINUATION_MODE: direct",
-        "YANO_DEPLOYMENT_PARITY_TIMEOUT_SECONDS: '900'",
-        "run: products/evidence/harness/tests/deployment-parity-e2e.sh",
-        "YANO_RUN_ROLE_WORKFLOW_E2E: 'true'",
-        "YANO_ROLE_WORKFLOW_TIMEOUT_SECONDS: '900'",
-        "run: products/evidence/harness/tests/role-workflow-e2e.sh",
-):
-    if required not in e2e_job:
+# Parity and role workflow run as separate jobs of evidence-e2e.yml.
+parity_job = job_block("deployment-parity")
+role_job = job_block("role-workflow")
+for job, required in (
+        (parity_job, "timeout-minutes: 90"),
+        (parity_job, "run: products/evidence/harness/tests/deployment-parity-contract.sh"),
+        (parity_job, "YANO_RUN_DEPLOYMENT_PARITY_E2E: 'true'"),
+        (parity_job, "YANO_DEPLOYMENT_PARITY_CONTINUATION_MODE: direct"),
+        (parity_job, "YANO_DEPLOYMENT_PARITY_TIMEOUT_SECONDS: '900'"),
+        (parity_job, "run: products/evidence/harness/tests/deployment-parity-e2e.sh"),
+        (role_job, "timeout-minutes: 90"),
+        (role_job, "YANO_RUN_ROLE_WORKFLOW_E2E: 'true'"),
+        (role_job, "YANO_ROLE_WORKFLOW_TIMEOUT_SECONDS: '900'"),
+        (role_job, "run: products/evidence/harness/tests/role-workflow-e2e.sh")):
+    if required not in job:
         raise SystemExit(f"mandatory deployment-parity CI contract is missing: {required}")
-failover_run = e2e_job.index("run: products/evidence/harness/tests/effect-failover-e2e.sh")
-parity_run = e2e_job.index("run: products/evidence/harness/tests/deployment-parity-e2e.sh")
-if failover_run >= parity_run:
-    raise SystemExit("deployment parity must run after the fenced-failover E2E")
+for job in (parity_job, role_job):
+    if job.count("DEMO_ANCHOR_VISIBILITY_TIMEOUT_SECONDS: '900'") != 1:
+        raise SystemExit("parity and role startup must both allow the default node recovery window")
 if workflow.count("run: products/evidence/harness/tests/deployment-parity-e2e.sh") != 1:
     raise SystemExit("mandatory deployment parity must have exactly one workflow invocation")
-if "- evidence-e2e" not in job_block("release-acceptance"):
-    raise SystemExit("release join no longer requires the job containing deployment parity")
+if "actions/workflows/evidence-e2e.yml/runs" not in job_block("tag", tag_workflow):
+    raise SystemExit("tagging a release no longer requires the workflow containing deployment parity")
 if release_contracts.count("deployment-parity-contract.sh") != 1 \
         or 'bash "$SCRIPT_DIR/$test"' not in release_contracts:
     raise SystemExit("release-contracts.sh no longer invokes this static contract")
