@@ -358,7 +358,4 @@ capabilities the parts above do not cover. The
 | `composite` with the `evidence-v1-gated` preset | Approval-coordinated S3 and IPFS publication followed by an acknowledged Kafka notification, all under one root |
 | `role-evidence` profile | Evidence release signed by business actors, with governed organizations, key rotation and revocation, two auditor organizations, and a regulator |
 | Governed composite profiles | Deploy reviewed, dormant profile generations first, then let a threshold of members authorize activation at a future height; see [profile governance](APP_CHAIN_PROFILE_GOVERNANCE.md) |
-| `credential-registry` (experimental) | Verifiable credentials on an anchored registry: issuer-signed attribute sets with selective disclosure |
-| `zk-gate` (experimental) | Private policy compliance: prove "amount ≤ limit" or "KYC holds" across organizations without revealing the data |
-| `zk-membership` (experimental) | Anonymous but authorized submissions among known members: voting, sealed bids, whistleblowing |
 | Evidence export | A1 and A5 audits: one offline-verifiable bundle per record for regulators and counterparties |

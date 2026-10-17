@@ -68,7 +68,6 @@ def devtoolsMetadata = project(':tooling:devtools').file(
         'src/main/resources/appchain-dx/v1alpha1')
 def devtoolsSkill = project(':tooling:devtools').file(
         'src/main/resources/appchain-dx/v1alpha1/skills/configure-yano-appchain')
-def eutxoZkAcceptance = rootProject.file('ledgers/eutxo-zk/acceptance')
 def evidenceDemoRunnerFile = project(':products:evidence:demo-runner').layout.buildDirectory.file(
         "libs/yano-x-evidence-demo-runner-${project.version}-all.jar")
 def evidenceDemoArtifactDirectory = layout.buildDirectory.dir(
@@ -339,15 +338,6 @@ tasks.register('yanoXJvmDistZip', Zip) {
         from(devtoolsMetadata) {
             into 'config/schema'
             include '*.schema.json', 'appchain-release-acceptance-index.json'
-        }
-        from(eutxoZkAcceptance) {
-            into 'config/schema'
-            include '*.schema.json'
-        }
-        from(eutxoZkAcceptance) {
-            into 'evidence/eutxo-zk'
-            include '*-v1.json'
-            exclude '*.schema.json'
         }
         from(rootProject.file('scripts/appchain-cluster')) {
             into 'appchain-cluster'
@@ -671,8 +661,6 @@ tasks.register('verifyYanoXJvmDistribution') {
                     'examples/attestation-feed/feed.sh',
                     'skills/configure-yano-appchain/SKILL.md',
                     'config/schema/appchain-metadata-trust.schema.json',
-                    'config/schema/eutxo-zk-network-acceptance.schema.json',
-                    'evidence/eutxo-zk/network-acceptance-v1.json',
                     'appchain-cluster/cluster.sh',
                     'examples/evidence/demo.sh',
                     'examples/evidence/runner.jar',

@@ -22,13 +22,12 @@ public final class EutxoDemoCli {
             Usage: ./yano.sh appchain eutxo demo setup [options]
                or: ./yano.sh appchain eutxo demo start|up|stop [options]
                or: ./yano.sh appchain eutxo demo status [options]
-               or: ./yano.sh appchain eutxo demo ceremony --yes [options]
                or: ./yano.sh appchain eutxo demo round-trip|verify [options]
                or: ./yano.sh appchain eutxo demo deposit-build [options]
                or: ./yano.sh appchain eutxo demo deposit-submit [options]
                or: ./yano.sh appchain eutxo demo reset --yes [options]
             Options:
-              --scenario ledger|bridge|zk  default ledger for a new workspace;
+              --scenario ledger|bridge     default ledger for a new workspace;
                                            inferred for an existing workspace
               --workspace <directory>      default $YANO_HOME/eutxo-demo
               --name <project-name>        default payments-eutxo
@@ -55,7 +54,6 @@ public final class EutxoDemoCli {
                                            withdrawal address (attach setup)
               --address <Cardano address>  external L1 depositor
               --l2-address <address>       defaults to --address
-              --l2-public-key <hex>        required for an external ZK user
               --amount <lovelace>          external deposit amount
               --output <file>              unsigned transaction output
               --signed-transaction <file>  externally signed transaction CBOR
@@ -384,7 +382,6 @@ public final class EutxoDemoCli {
         String payoutAddress = null;
         String address = null;
         String l2Address = null;
-        String l2PublicKey = null;
         long amount = 20_000_000L;
         Path output = null;
         Path signedTransaction = null;
@@ -421,8 +418,6 @@ public final class EutxoDemoCli {
                         required(arguments, ++index, value));
                 case "--address" -> address = required(arguments, ++index, value);
                 case "--l2-address" -> l2Address = required(arguments, ++index, value);
-                case "--l2-public-key" ->
-                        l2PublicKey = required(arguments, ++index, value);
                 case "--amount" -> amount = longInteger(
                         required(arguments, ++index, value), value,
                         1_000_000L, 100_000_000L);
@@ -459,8 +454,8 @@ public final class EutxoDemoCli {
             command = positional.getFirst();
             if (!List.of("setup", "status", "reset", "scenarios",
                     "start", "up", "stop", "fund", "deposit", "transfer",
-                    "prove", "settle", "withdraw", "reconcile", "verify",
-                    "ceremony", "round-trip", "deposit-build",
+                    "settle", "withdraw", "reconcile", "verify",
+                    "round-trip", "deposit-build",
                     "deposit-submit",
                     "settlement-bootstrap", "settlement-info",
                     "settlement-prepare", "settlement-deposit",
@@ -508,7 +503,7 @@ public final class EutxoDemoCli {
         return new EutxoDemoOptions(command, scenario, workspace, name, chainId,
                 members, count, httpPortBase, serverPortBase,
                 targetBase, operatorSeedFile, payoutAddress,
-                address, l2Address, l2PublicKey, amount, output,
+                address, l2Address, amount, output,
                 signedTransaction, network, memberKeys, threshold,
                 format, confirmed, help);
     }

@@ -1,5 +1,14 @@
 # Optional EUTxO validity and ZK-rollup modules
 
+> **Excluded from the build.** These modules are untested, so `settings.gradle`
+> leaves them out: Gradle does not compile, test, or publish them, and no
+> distribution, catalog, recipe, demo scenario, or tool includes them. The
+> commands below no longer work. The source, the devnet end-to-end test in
+> [`e2e/`](e2e/), and the records of the last runs in [`acceptance/`](acceptance/)
+> stay in the repository. To build the modules again, restore their entries in
+> `settings.gradle`, `config/artifacts-v1.json`, `config/jvm-distribution-v1.json`
+> and the capability catalog.
+
 The shortest disposable devnet path is the unified
 [EUTxO demo guide](../eutxo/DEMO.md). The manual lifecycle and public-testnet
 operator path remain in [GETTING_STARTED.md](GETTING_STARTED.md).

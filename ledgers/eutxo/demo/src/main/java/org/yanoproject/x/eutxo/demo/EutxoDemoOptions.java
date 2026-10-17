@@ -18,7 +18,6 @@ public record EutxoDemoOptions(
         String payoutAddress,
         String address,
         String l2Address,
-        String l2PublicKey,
         long amount,
         Path output,
         Path signedTransaction,

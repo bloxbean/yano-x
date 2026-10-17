@@ -262,10 +262,22 @@ editing opaque genesis CBOR.
 DPP starter roles are `manufacturer`, `operator`, `claim-issuer`, `certifier`,
 and `auditor`, with `dpp-admin` administration. Feed uses `source`,
 `feed-operator`, and `publisher`, with `feed-admin` administration. Actors need
-not be consensus members. Approval quorums require the policy's distinct
-organizations; two keys from one organization do not create two organizations.
-Generation checks usable role holders, eligible proposers, and voting quorums
-at height 1, not every future business prerequisite or arbitrary custom policy.
+not be consensus members.
+
+The descriptor must be able to satisfy every starter policy at height 1, or the
+generator refuses it and names the policy:
+
+| Starter | Needs active actors with signing keys: at least |
+|---|---|
+| `dpp` | one `manufacturer`, one `operator` and one `claim-issuer`; one `certifier` to propose a certification; and **two `auditor` actors in two different organizations** to approve it |
+| `feed` | one `feed-admin` and one `source`; one `feed-operator` to propose a round; and **two `publisher` actors in two different organizations** to approve it |
+
+One actor can hold several roles, but two auditor or publisher keys in one
+organization count once. With a single auditor organization, `dpp` fails with
+`starter policy 'certification' clause 'independent-auditors' needs 2 eligible
+genesis voters with role 'auditor', distinct by ORGANIZATION`. Generation checks
+these holders and quorums at height 1, not every future business prerequisite or
+arbitrary custom policy.
 
 The generated assembly connects three catalog leaves:
 

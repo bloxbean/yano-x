@@ -86,7 +86,7 @@ class AppChainDevtoolsCliTest {
                 .contains("| AVAILABILITY")
                 .contains("| Description: Append-only ordered application messages.")
                 .contains("FIRST_PARTY_OPTIONAL")
-                .contains("state:credential-registry");
+                .contains("state:eutxo-ledger");
         assertThat(text.out().lines().toList())
                 .allMatch(line -> line.length() == 114);
         assertThat(structured.exit()).isZero();
@@ -94,7 +94,7 @@ class AppChainDevtoolsCliTest {
         JsonNode output = json.readTree(structured.out());
         assertThat(output.path("status").asText()).isEqualTo("CAPABILITY_CATALOG");
         int capabilityCount = output.path("capabilities").size();
-        assertThat(capabilityCount).isGreaterThanOrEqualTo(41);
+        assertThat(capabilityCount).isGreaterThanOrEqualTo(39);
         assertThat(text.out().lines()
                 .filter(line -> line.startsWith("| Description: ")).count())
                 .isEqualTo(capabilityCount);

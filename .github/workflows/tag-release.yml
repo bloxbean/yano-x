@@ -10,7 +10,8 @@ name: Tag release
 #              prevent self-review). A version bump can be merged now and tagged later, and manual runs,
 #              which any write-access user can start, are gated the same way. Reject an approval you
 #              don't want rather than leaving it pending; GitHub cancels a pending one after 30 days.
-#   tag        creates the tag with the release App token (secrets in `release-staging`)
+#   tag        checks that evidence-e2e.yml passed on the commit, then creates the tag with the release App token
+#              (secrets in `release-staging`)
 #
 # The tag is pushed with a GitHub App token (bloxbean-release-tagger), NOT the default GITHUB_TOKEN:
 # GitHub does not fire `on: push` workflows for refs pushed by GITHUB_TOKEN, so a GITHUB_TOKEN tag push
@@ -108,6 +109,7 @@ jobs:
     environment: release-staging
     permissions:
       contents: read
+      actions: read
     # One tag push at a time across all branches. The approval wait is outside this group, so a pending
     # approval never blocks another run.
     concurrency:
@@ -135,6 +137,23 @@ jobs:
           else
             echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
+
+      # The evidence devnet E2E is not part of build.yml. Its workflow runs on every gradle.properties change, so the
+      # version bump's push starts it; it can also be started by hand on this branch.
+      - name: Require a successful evidence E2E run on this commit
+        if: steps.recheck.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          runs="repos/$GITHUB_REPOSITORY/actions/workflows/evidence-e2e.yml/runs"
+          passed=$(gh api "$runs?head_sha=$GITHUB_SHA&status=success" --jq '.total_count')
+          if [[ "$passed" == 0 ]]; then
+            echo "::error::evidence-e2e.yml has no successful run for $GITHUB_SHA. Once it passes, re-run this job." >&2
+            exit 1
+          fi
+          echo "evidence-e2e.yml passed for $GITHUB_SHA"
 
       - name: Mint GitHub App token
         if: steps.recheck.outputs.skip == 'false'

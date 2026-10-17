@@ -8,14 +8,12 @@ topic. The committed binding program decides which follow-up commands run.
 Your application does not need to instantiate a composite engine or implement
 the same workflow again in Java.
 
-These examples target the current experimental binding APIs.
-Use a matching, locally published Yano X version when these APIs are not in a
-released artifact. Do not infer availability from an older SDK or copy a
-historical example's local version number. The node also needs the exact Yano
-host build and matching JVM ZIP required by its plugin bundles. Current
-declarative bindings, admission rules and typed views need plugin API level 12
-with the ADR-031.3 and ADR-031.4 host contract, which no Yano release contains
-yet; see the [learning path](README.md).
+These examples target the current experimental binding APIs. Use the client
+version that matches your Yano X distribution, as described below; do not infer
+availability from an older SDK or copy a version number from another example.
+Declarative bindings, admission rules and typed views need plugin API level 12
+with the ADR-031.3 and ADR-031.4 host contract. The Yano host inside the Yano X
+distribution provides it; see the [learning path](README.md).
 
 ## Separate command use from binding authoring
 
@@ -91,9 +89,10 @@ java {
 }
 
 repositories {
-    mavenLocal() // For the exact locally published experimental build.
     mavenCentral()
-    // Only when the node's Yano host version is a commit snapshot (ends in -SNAPSHOT).
+    // BloxBean's copy of each release, for a release that skipped Maven Central.
+    maven { url = uri('https://repo.bloxbean.org/maven/releases') }
+    // Only when yanoXVersion ends in -SNAPSHOT.
     maven { url = uri('https://repo.bloxbean.org/maven/snapshots') }
 }
 
@@ -108,9 +107,20 @@ application {
 }
 ```
 
-Choose the version actually published for the matching build, not a guessed
-release. To publish the client from the Yano X source checkout that built your
-distribution:
+Use the Yano X version your distribution was built from. The distribution
+records it in `yano-x-plugin-pack-v1.json`, in its top-level directory, which
+the steps above exported as `YANO_HOME`:
+
+```bash
+YANO_X_VERSION=$(jq -r .version "$YANO_HOME/yano-x-plugin-pack-v1.json")
+```
+
+A release version, such as `0.1.0-pre4`, resolves from Maven Central or the
+BloxBean release repository. A version ending in `-SNAPSHOT` means the
+distribution was built from an unreleased commit. The snapshot repository
+serves the newest snapshot of that version, which may be newer than your
+distribution. If you built the distribution yourself, publish the client from
+the same Yano X source checkout and add `mavenLocal()` to the repositories:
 
 ```bash
 ./gradlew :sdk:client:publishToMavenLocal \
@@ -213,8 +223,8 @@ receipt contains the registry source and derived audit append. The source's
 `bindingId` is null because it was submitted externally.
 
 With Java 25 and Gradle installed (or your project's existing Gradle wrapper),
-run from the Java application directory. Set `YANO_X_VERSION` to the exact
-published version selected above, and replace the API URL and chain
+run from the Java application directory. Set `YANO_X_VERSION` as described
+above, and replace the API URL and chain
 ID with your actual deployment values; the example port is not a promise about
 your node configuration. These commands **submit to a running chain**, unlike
 the offline tutorials:

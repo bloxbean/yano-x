@@ -106,7 +106,7 @@ const SECTIONS = [
       'products/evidence-desk.md',
       'products/cardano-history.md',
       'products/dpp-starter.md',
-      'products/eutxo-and-zk.md',
+      'products/eutxo.md',
       'products/explorer.md',
       'products/trust-registry.md',
     ],

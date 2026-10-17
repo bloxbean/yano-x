@@ -24,9 +24,6 @@ yano:
         # Omit this URL for the safe per-chain default.
         # jdbc:
         #   url: jdbc:sqlite:/absolute/path/eutxo-lifecycle.db
-      # ZK demo projects set this to their provider-neutral lifecycle source.
-      # validity:
-      #   path: /absolute/project/path/runtime/validity
 ```
 
 The default database is:
@@ -102,7 +99,7 @@ and adds the proof/root-settlement stage when a validity provider is present.
 L1 transaction enrichment is lazy and gracefully degrades when the node no
 longer retains the requested L1 body or UTxO data.
 
-Both direct and ZK disposable workspaces configure one index per node.
+Each disposable demo workspace configures one index per node.
 `demo start`, `round-trip`, `status`, and `verify` wait for index catch-up and
 compare normalized digests across members.
 

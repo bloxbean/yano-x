@@ -304,15 +304,6 @@
       "publishToCentral": false
     },
     {
-      "modulePath": ":state-machines:zk",
-      "directory": "state-machines/zk",
-      "artifactId": "yano-x-zk",
-      "publicationType": "runtime-plugin",
-      "pluginBundleId": "org.yanoproject.x.zk",
-      "bundleArtifactId": "yano-x-zk-bundle",
-      "publishToCentral": false
-    },
-    {
       "modulePath": ":products:eutxo:ui",
       "directory": "products/eutxo/ui",
       "artifactId": "yano-x-eutxo-ui",
@@ -522,95 +513,6 @@
       "pluginBundleId": "org.yanoproject.x.eutxo.indexer",
       "bundleArtifactId": "yano-x-eutxo-indexer-jdbc-bundle",
       "publishToCentral": false
-    },
-    {
-      "modulePath": ":ledgers:eutxo-zk:contracts",
-      "directory": "ledgers/eutxo-zk/contracts",
-      "artifactId": "yano-x-eutxo-zk-contracts",
-      "publicationType": "library",
-      "pluginBundleId": null,
-      "bundleArtifactId": null,
-      "publishToCentral": false
-    },
-    {
-      "modulePath": ":ledgers:eutxo-zk:zeroj",
-      "directory": "ledgers/eutxo-zk/zeroj",
-      "artifactId": "yano-x-eutxo-zk-zeroj",
-      "publicationType": "library",
-      "pluginBundleId": null,
-      "bundleArtifactId": null,
-      "publishToCentral": false
-    },
-    {
-      "modulePath": ":ledgers:eutxo-zk:prover",
-      "directory": "ledgers/eutxo-zk/prover",
-      "artifactId": "yano-x-eutxo-zk-prover",
-      "publicationType": "library",
-      "pluginBundleId": null,
-      "bundleArtifactId": null,
-      "publishToCentral": false
-    },
-    {
-      "modulePath": ":ledgers:eutxo-zk:client",
-      "directory": "ledgers/eutxo-zk/client",
-      "artifactId": "yano-x-eutxo-zk-client",
-      "publicationType": "library",
-      "pluginBundleId": null,
-      "bundleArtifactId": null,
-      "publishToCentral": false
-    },
-    {
-      "modulePath": ":ledgers:eutxo-zk:onchain",
-      "directory": "ledgers/eutxo-zk/onchain",
-      "artifactId": "yano-x-eutxo-zk-onchain",
-      "publicationType": "onchain-artifact",
-      "pluginBundleId": null,
-      "bundleArtifactId": null,
-      "publishToCentral": false
-    },
-    {
-      "modulePath": ":ledgers:eutxo-zk:testkit",
-      "directory": "ledgers/eutxo-zk/testkit",
-      "artifactId": "yano-x-eutxo-zk-testkit",
-      "publicationType": "test-library",
-      "pluginBundleId": null,
-      "bundleArtifactId": null,
-      "publishToCentral": false
-    },
-    {
-      "modulePath": ":ledgers:eutxo-zk:runtime",
-      "directory": "ledgers/eutxo-zk/runtime",
-      "artifactId": "yano-x-eutxo-zk-runtime",
-      "publicationType": "runtime-plugin",
-      "pluginBundleId": "org.yanoproject.x.eutxo.zk.runtime",
-      "bundleArtifactId": "yano-x-eutxo-zk-runtime-bundle",
-      "publishToCentral": false
-    },
-    {
-      "modulePath": ":ledgers:eutxo-zk:lifecycle",
-      "directory": "ledgers/eutxo-zk/lifecycle",
-      "artifactId": "yano-x-eutxo-zk-lifecycle",
-      "publicationType": "library",
-      "pluginBundleId": null,
-      "bundleArtifactId": null,
-      "publishToCentral": false
-    },
-    {
-      "modulePath": ":ledgers:eutxo-zk:indexer",
-      "directory": "ledgers/eutxo-zk/indexer",
-      "artifactId": "yano-x-eutxo-zk-indexer",
-      "publicationType": "runtime-plugin",
-      "pluginBundleId": "org.yanoproject.x.eutxo.zk.indexer",
-      "bundleArtifactId": "yano-x-eutxo-zk-indexer-bundle",
-      "publishToCentral": false
-    },
-    {
-      "modulePath": ":ledgers:eutxo-zk:demo",
-      "directory": "ledgers/eutxo-zk/demo",
-      "artifactId": "yano-x-eutxo-zk-demo",
-      "publicationType": "application",
-      "pluginBundleId": null,
-      "bundleArtifactId": null
     },
     {
       "modulePath": ":tooling:spring-boot-starter",

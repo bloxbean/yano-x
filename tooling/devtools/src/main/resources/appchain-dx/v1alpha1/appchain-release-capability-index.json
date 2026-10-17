@@ -22,8 +22,6 @@
     "evidence-ledger",
     "eutxo-ledger",
     "eutxo-cardano-bridge",
-    "eutxo-zeroj-validity",
-    "eutxo-zeroj-preview",
     "custom-plugin"
   ],
   "artifacts": [
@@ -36,10 +34,7 @@
     "yano-x-eutxo-ledger",
     "yano-x-eutxo-indexer-core",
     "yano-x-eutxo-indexer-jdbc",
-    "yano-x-eutxo-bridge-cardano",
-    "yano-x-eutxo-zk-zeroj",
-    "yano-x-eutxo-zk-runtime",
-    "yano-x-eutxo-zk-lifecycle"
+    "yano-x-eutxo-bridge-cardano"
   ],
   "distributions": [
     {
@@ -60,10 +55,7 @@
         "yano-x-eutxo-ledger",
         "yano-x-eutxo-indexer-core",
         "yano-x-eutxo-indexer-jdbc",
-        "yano-x-eutxo-bridge-cardano",
-        "yano-x-eutxo-zk-zeroj",
-        "yano-x-eutxo-zk-runtime",
-        "yano-x-eutxo-zk-lifecycle"
+        "yano-x-eutxo-bridge-cardano"
       ]
     }
   ]

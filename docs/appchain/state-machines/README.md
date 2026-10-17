@@ -49,9 +49,6 @@ here.
 | `evidence-registry` | preview | Inspection and compliance evidence records with exact query proofs | [Tutorial 4](../tutorials/04-evidence-publication.md) |
 | `composite` | preview | Stock evidence workflow; select it with `machines.composite.preset` set to `evidence-v1` or `evidence-v1-gated` | [Tutorial 4](../tutorials/04-evidence-publication.md) |
 | `role-evidence` | preview | Evidence registration with governed actors and role-aware release approval | [Tutorial 5](../tutorials/05-domain-role-approvals.md) |
-| `zk-gate` | experimental | Verifies configured Groth16 or Plonk proofs during the state transition | [ZK state machines](../../../state-machines/zk/README.md) |
-| `zk-membership` | experimental | Membership authorization through a zero-knowledge circuit, with nullifier deduplication | [ZK state machines](../../../state-machines/zk/README.md) |
-| `credential-registry` | experimental | Selectively disclosed BBS credential statements from configured issuers | [ZK state machines](../../../state-machines/zk/README.md) |
 | `eutxo-ledger` | experimental | A Cardano-shaped EUTxO engine; you select it through a ledger profile, not directly | [EUTxO ledger](../../../ledgers/eutxo/README.md) |
 
 ## Before you configure one

@@ -608,8 +608,6 @@ real funds):
     # experimental virtual ledger: setup, round-trip transactions, verify
 ./showcase.sh quickstart --profile eutxo --variant bridge --instance bridge
     # Cardano custody/federation boundary demo
-./showcase.sh quickstart --profile eutxo --variant zk     --instance zk
-    # maintained validity (proof) flow
 
 # afterwards — the eutxo profile keeps no identity marker, so ALWAYS repeat
 # the profile/variant/instance (and non-default port) flags:
@@ -619,9 +617,7 @@ real funds):
 ```
 
 The showcase maps `prepare`→`setup`, `run`→`round-trip`, and passes ports and
-member count through; for the zk variant, quickstart also runs the one-time
-trusted-setup `ceremony` automatically (existing instances:
-`./showcase.sh ceremony --profile eutxo --variant zk --instance zk`). The
+member count through. The
 full walkthrough — what each round-trip does, workspace layout, timings,
 gotchas — is `docs/EUTXO_PROFILE.md`. The evidence profile
 (`--profile evidence`, `docs/EVIDENCE_PROFILE.md`) similarly delegates to the

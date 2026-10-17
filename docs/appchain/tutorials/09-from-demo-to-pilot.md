@@ -72,9 +72,40 @@ The generated runtime files are nested YAML:
 - `appchain.lock` records the exact resolved values and the digests of the
   generated files.
 
-Customize `appchain.yaml`, not those derived files. Edit it to add the real
-member public keys and deployment hosts, in matching order, then regenerate
-and check the project:
+Customize `appchain.yaml`, not those derived files. Each member signs with
+its own Ed25519 key. Every member operator creates that key on its own
+machine, keeps the private file there, and sends you only the public key. With
+OpenSSL 3 (the LibreSSL that macOS ships has no Ed25519; use Homebrew's
+`openssl@3`):
+
+```bash
+umask 077
+openssl genpkey -algorithm ed25519 -out member-signing-key.pem
+openssl pkey -in member-signing-key.pem -pubout -outform DER \
+  | tail -c 32 | od -An -tx1 | tr -d ' \n'; echo
+```
+
+The last command prints the member's 64-hex public key. Add the keys and the
+members' hostnames under `spec.chains[0].topology` in `appchain.yaml`, in the
+same order, so the first key belongs to the first host:
+
+```yaml
+    topology:
+      members: 3
+      memberKeys:
+      - "<member 0 public key, 64 hex>"
+      - "<member 1 public key>"
+      - "<member 2 public key>"
+      nodeHosts:
+      - "member0.pilot.example"
+      - "member1.pilot.example"
+      - "member2.pilot.example"
+```
+
+If you have the keys before you run `init`, pass them to it instead: repeat
+`--member-key <64-hex>` and `--node-host <hostname>` once per member, in order.
+
+Then regenerate and check the project:
 
 ```bash
 ./yano.sh appchain render permissioned-pilot
@@ -95,6 +126,19 @@ detail. `FAIL` blocks a start. `WARN` and `PENDING` are a to-do list:
 - This project's rotating sequencer needs a synchronized L1 slot view, so
   `EXTERNAL_TARGETS_READY` stays `PENDING` until you provide one. The result
   is `DOCTOR_WARNINGS`, not `DOCTOR_OK`.
+
+Once the report has no `FAIL`, export the deployment for your VMs. The output
+directory must be missing or empty:
+
+```bash
+./yano.sh appchain gitops permissioned-pilot --target ansible \
+  --output permissioned-pilot-ansible
+```
+
+> **✓ You should see** a line starting with `GITOPS_EXPORTED target=ansible`.
+> The export holds an inventory, a playbook, each node's configuration and a
+> systemd unit template. It refers to each member's signing key by the
+> variable `YANO_APPCHAIN_SIGNING_KEY` and contains no private key.
 
 `./yano.sh` is the public command for both paths. Internally, project and
 configuration commands use the separately packaged `appchain-devtools`
@@ -124,6 +168,19 @@ required. Node-local YAML drift must not decide application semantics.
 Each member supplies its own `secrets/nodeN.env` from the generated
 `secrets/nodeN.env.example`. The project's `.gitignore` excludes
 `secrets/*.env`, and the Ansible export never embeds private keys.
+
+`YANO_APPCHAIN_SIGNING_KEY` is the 64-hex seed inside the member's
+`member-signing-key.pem`. On the member's own machine, next to its copy of the
+project, this writes it into the env file without printing it, here for node 0:
+
+```bash
+umask 077
+SEED=$(openssl pkey -in member-signing-key.pem -outform DER \
+  | tail -c 32 | od -An -tx1 | tr -d ' \n')
+printf 'YANO_APPCHAIN_SIGNING_KEY=%s\nYANO_APPCHAIN_API_KEYS=%s\n' \
+  "$SEED" "<this member's REST API key>" > permissioned-pilot/secrets/node0.env
+unset SEED
+```
 
 | Material | Purpose | Recommended owner/storage |
 |---|---|---|

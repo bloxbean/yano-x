@@ -35,8 +35,6 @@ binary in your hands:
 | [`evidence-ledger`](/tutorials/04-evidence-publication/) | Role-aware evidence ledger | `BUNDLED` | `preview` | A role-authorized evidence record and its release decision are committed and queryable. |
 | [`eutxo-ledger`](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/README.md) | Scalus-backed EUTxO ledger | `FIRST_PARTY_OPTIONAL` | `experimental` | A signed key-controlled or bounded Plutus V3 transaction consumes virtual EUTxOs and creates MPF-proven outputs and receipts. |
 | [`eutxo-cardano-bridge`](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/README.md) | Federated Cardano EUTxO bridge | `EXPERIMENTAL` | `experimental` | Accepted stable deposits create mirrored EUTxOs; signed L2 spends create irrevocable claims that settle only through the configured signer path or a current accepted MPF root with single-use nullification. |
-| [`eutxo-zeroj-validity`](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/README.md) | ZeroJ EUTxO validity development profile | `EXPERIMENTAL` | `experimental` | Bounded finalized EUTxO payments deterministically update both the Yano MPF root and the circuit-friendly validity root and can be proved against pinned development artifacts. |
-| [`eutxo-zeroj-preview`](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/GETTING_STARTED.md) | ZeroJ EUTxO testnet lifecycle | `EXPERIMENTAL` | `experimental` | A project can bootstrap pinned development artifacts, accept finalized Jubjub-authorized L2 transactions, produce a constant-size proof, and prepare idempotent Cardano deposit, settlement, withdrawal, and recovery operations. |
 | [`custom-plugin`](/plugins/) | Custom state-machine project | `REFERENCE` | `experimental` | The operator-defined state-machine contract is loaded from a reviewed pinned plugin bundle. |
 
 <!-- catalog:recipes-end -->
@@ -284,44 +282,6 @@ A Cardano-backed EUTxO ledger with stable deposits and claim-bound federated wit
 ./yano.sh appchain init --non-interactive \
   --recipe eutxo-cardano-bridge --network devnet --members 3 --runtime jvm \
   --output eutxo-cardano-bridge-chain
-```
-
-### `eutxo-zeroj-validity` — ZeroJ EUTxO validity development profile
-
-A no-real-funds EUTxO ledger with the optional ZeroJ validity commitment and the interfaces needed to operate and test direct proof settlement.
-
-- **Outcome:** Bounded finalized EUTxO payments deterministically update both the Yano MPF root and the circuit-friendly validity root and can be proved against pinned development artifacts.
-- **Availability / maturity:** `EXPERIMENTAL` / `experimental`
-- **Capabilities:** `funding:eutxo-genesis`, `settlement:zeroj-validity`, `sequencer:fixed`
-- **Runtime artifacts:** `yano-runtime`, `yano-x-eutxo-ledger`, `yano-x-eutxo-zk-zeroj`
-- **Runtimes:** `jvm` · **Deployment:** `host`, `docker-compose`
-- **External prerequisites:** `zeroj-0.1.0-pre10`, `julc-0.1.0-pre16`, `development-ceremony-bundle`
-- **Bootstrap requirements:** `use-test-keys-and-no-real-funds`
-- **Reference:** [ledgers/eutxo-zk/README.md](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/README.md)
-
-```bash
-./yano.sh appchain init --non-interactive \
-  --recipe eutxo-zeroj-validity --network devnet --members 3 --runtime jvm \
-  --output eutxo-zeroj-validity-chain
-```
-
-### `eutxo-zeroj-preview` — ZeroJ EUTxO testnet lifecycle
-
-Packages the Cardano-shaped L2 client, measured b16 development circuit, durable lifecycle tooling, contract plans, prover artifacts, relay handoff, and recovery evidence as one JVM-only testnet project.
-
-- **Outcome:** A project can bootstrap pinned development artifacts, accept finalized Jubjub-authorized L2 transactions, produce a constant-size proof, and prepare idempotent Cardano deposit, settlement, withdrawal, and recovery operations.
-- **Availability / maturity:** `EXPERIMENTAL` / `experimental`
-- **Capabilities:** `settlement:zeroj-validity`, `bridge:cardano-federated`, `l1:slot-feed`, `sequencer:fixed`
-- **Runtime artifacts:** `yano-runtime`, `yano-x-eutxo-ledger`, `yano-x-eutxo-bridge-cardano`, `yano-x-eutxo-zk-zeroj`, `yano-x-eutxo-zk-runtime`, `yano-x-eutxo-zk-lifecycle`
-- **Runtimes:** `jvm` · **Deployment:** `host`, `docker-compose`
-- **External prerequisites:** `zeroj-0.1.0-pre10`, `julc-0.1.0-pre16`, `funded-testnet-operator-key-for-live-L1-operations`
-- **Bootstrap requirements:** `trusted-proof-submitter`, `development-ceremony-or-reviewed-testnet-ceremony`, `deployed-pinned-contract-identities`, `disposable-test-funds-only`
-- **Reference:** [ledgers/eutxo-zk/GETTING_STARTED.md](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/GETTING_STARTED.md)
-
-```bash
-./yano.sh appchain init --non-interactive \
-  --recipe eutxo-zeroj-preview --network devnet --members 3 --runtime jvm \
-  --output eutxo-zeroj-preview-chain
 ```
 
 ### `custom-plugin` — Custom state-machine project

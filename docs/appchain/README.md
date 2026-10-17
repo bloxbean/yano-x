@@ -49,7 +49,6 @@ credentials unless a guide explicitly says otherwise.
 | Demonstrate the DPP starter end to end: the cast and where its roles come from, how keys are held, the lifecycle in the browser, and what the proof says | [DPP demonstration](DPP_DEMO.md) | No; launcher, gateway, browser UI |
 | Take any of these products from a demonstration to a deployment: the genesis ceremony, members and threshold, where keys live, what each service may reach, anchoring, and what the demo does that production must not | [Production deployment](PRODUCTION_DEPLOYMENT.md) | Operations and governance work |
 | Prepare a pilot deployment | [From demo to pilot](tutorials/09-from-demo-to-pilot.md) | Operations work |
-| Trace an experimental EUTxO ZK round trip on devnet | [EUTxO ZK devnet walkthrough](../../ledgers/eutxo-zk/DEVNET_WALKTHROUGH.md) | Cardano builder integration |
 
 If you are unsure, complete tutorials 1, 2, 4, and 5 in that order. They show
 the progression from a replicated log to proofs, external actions, and
@@ -62,7 +61,6 @@ business-role authorization.
 | Bundled deterministic state | `ordered-log`, `kv-registry`, `authenticated-map`, `approvals`, `balances`, `doc-trail`, `role-approvals`, evidence registry/profile |
 | Bundled external delivery | `webhook.post` effect executor and finalized webhook sink |
 | First-party optional | Kafka effect/sink, S3-compatible `object.put`, `ipfs.pin`, `cardano.payment` |
-| Experimental optional | ZK gate, anonymous membership and credential registry |
 | Reference | Custom JVM plugin workflow and the complete evidence demo environment |
 
 Deterministic state runs identically on every member and contributes to the

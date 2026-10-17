@@ -380,7 +380,8 @@ grep -Fxq 'DEMO_RUSTFS_IMAGE=rustfs/rustfs:1.0.0-beta.9@sha256:f75d0bca6ca322c4e
 grep -Fxq 'DEMO_KUBO_IMAGE=ipfs/kubo:v0.42.0@sha256:8907cb0cc1ad5798f6bb1bb1341a800990c268e021cedfa317e8aa1a33864214' \
   "$DEMO_DIR/config/images.env" || fail "Kubo official image pin changed"
 if grep -Eq 'Dockerfile\.(rustfs|kubo)|rustfs_(local|prebuilt)_image|kubo_source\.py' \
-    "$DEMO_DIR/demo.sh" "$REPO_ROOT/.github/workflows/build.yml"; then
+    "$DEMO_DIR/demo.sh" "$REPO_ROOT/.github/workflows/build.yml" \
+    "$REPO_ROOT/.github/workflows/evidence-e2e.yml"; then
   fail "demo or CI still builds a third-party connector dependency"
 fi
 

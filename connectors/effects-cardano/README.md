@@ -19,7 +19,7 @@ node only — never in effect payloads.
 See also:
 
 - [Yano core host boundary](../../docs/core-host.md)
-- [App-chain user guide §18](../../docs/APP_CHAIN_USER_GUIDE.md) — effects, executors, and generic approvals→effect routing
+- [App-chain user guide §17](../../docs/APP_CHAIN_USER_GUIDE.md) — effects, executors, and generic approvals→effect routing
 
 ## Packaging model
 

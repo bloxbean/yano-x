@@ -1,5 +1,14 @@
 # EUTxO ZK rollup on Yano devnet
 
+> **Excluded from the build.** These modules are untested, so `settings.gradle`
+> leaves them out: Gradle does not compile, test, or publish them, and no
+> distribution, catalog, recipe, demo scenario, or tool includes them. The
+> commands below no longer work. The source, the devnet end-to-end test in
+> [`e2e/`](e2e/), and the records of the last runs in [`acceptance/`](acceptance/)
+> stay in the repository. To build the modules again, restore their entries in
+> `settings.gradle`, `config/artifacts-v1.json`, `config/jvm-distribution-v1.json`
+> and the capability catalog.
+
 This walkthrough shows the complete experimental flow:
 
 ```text

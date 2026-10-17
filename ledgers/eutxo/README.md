@@ -1,8 +1,8 @@
 # Yano EUTxO product family
 
-For the disposable three-scenario quick start, see
-[EUTxO demos](DEMO.md). It covers the virtual ledger, Cardano bridge, and
-optional ZeroJ b16 proof experience without JShell or manual YAML editing.
+For the disposable two-scenario quick start, see
+[EUTxO demos](DEMO.md). It covers the virtual ledger and the Cardano bridge
+without JShell or manual YAML editing.
 For lifecycle API, SQLite, recovery, metrics, and support guidance, see the
 [EUTxO indexer runbook](INDEXER_OPERATIONS.md).
 
@@ -14,9 +14,8 @@ not a Cardano bridge, a custody product, or a rollup.
 
 Select the `eutxo-ledger` recipe for a JVM project. It combines the reusable
 `state:eutxo-ledger` engine with `profile:eutxo-plutus-v3` and the separate
-`funding:eutxo-genesis` capability. The current ZeroJ development recipe uses
-`profile:eutxo-key-payments` instead, so exactly one immutable ledger profile
-owns the consensus settings. The ordinary recipe generates:
+`funding:eutxo-genesis` capability. Exactly one immutable ledger profile owns
+the consensus settings. The recipe generates:
 
 ```yaml
 yano:
@@ -165,8 +164,7 @@ The node never receives the wallet signing key.
 
 Datum ABI v2 can additionally bind the depositor's Cardano payment credential
 to a bounded L2 authorization profile, epoch, and public key. Direct EUTxO
-leaves this binding absent. The ZeroJ demo uses it to register Alice and Bob's
-Jubjub keys from their independently signed L1 deposits.
+leaves this binding absent.
 
 Staging outputs are never observed or credited, so a still-refundable output
 cannot inflate L2 supply. A duplicate accepted outpoint is idempotent; the

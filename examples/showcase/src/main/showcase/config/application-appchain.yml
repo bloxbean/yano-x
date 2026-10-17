@@ -124,8 +124,8 @@ yano:
       block:
         interval-ms: 1000
 
-    # Experimental, no-real-funds virtual ledger. The richer ledger, bridge,
-    # and ZK flows are delegated to the dedicated `eutxo` showcase profile.
+    # Experimental, no-real-funds virtual ledger. The richer ledger and bridge
+    # flows are delegated to the dedicated `eutxo` showcase profile.
     chains[7]:
       chain-id: "payments-chain"
       state-machine: eutxo-ledger

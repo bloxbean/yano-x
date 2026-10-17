@@ -273,10 +273,10 @@ It checks the codec and the kernel's separate stateless admission hook for
 command/configuration-only bounds. Context-dependent admission still runs during
 execution; no synthetic block context is invented. These bundles need plugin API
 level 12 with the ADR-031.3 and ADR-031.4 host contract: kernel-declared rule
-facts, value views and write views. No Yano release contains that contract yet,
-and level 12 alone does not identify it, because the typed-view API was added to
-level 12 without a new level. Use the exact host build the bundles were built and
-tested against.
+facts, value views and write views. Yano `0.1.0-pre18` is the first release with
+that contract. Level 12 alone does not identify it, because the typed-view API was
+added to level 12 without a new level. Use the host that ships in the Yano X
+distribution the bundles came from.
 
 A finalized rejection rolls back all business changes and effects for that source,
 not the whole block. The receipt remains terminal for its message ID. Replaying

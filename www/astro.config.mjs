@@ -14,6 +14,7 @@ export default defineConfig({
   },
   redirects: {
     '/start-here/what-is-an-app-chain/': '/start-here/what-is-an-app-ledger/',
+    '/products/eutxo-and-zk/': '/products/eutxo/',
   },
   integrations: [
     starlight({
@@ -139,8 +140,8 @@ export default defineConfig({
             { label: 'DPP Starter', slug: 'products/dpp-starter' },
             { label: 'Attestation Feed', slug: 'products/attestation-feed' },
             {
-              label: 'eUTxO and ZK',
-              slug: 'products/eutxo-and-zk',
+              label: 'eUTxO ledger',
+              slug: 'products/eutxo',
               badge: { text: 'Experimental', variant: 'caution' },
             },
           ],

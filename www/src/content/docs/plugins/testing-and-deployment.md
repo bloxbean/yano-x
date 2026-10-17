@@ -54,7 +54,7 @@ Climb it in order. Each rung catches a class of bug the one below cannot.
 | `yano-appchain-core-testkit` | JUnit 5 `@AppChainCluster` embedded clusters. |
 | `yano-x-effects-testkit` | Effect executor and result-path testing. |
 | `yano-x-client` | REST, SSE, and client-side proof verification from tests. |
-| `yano-x-eutxo-testkit`, `yano-x-eutxo-zk-testkit` | For the eUTxO and ZK ledgers. |
+| `yano-x-eutxo-testkit` | For the eUTxO ledger. |
 
 ## Gates in the Yano X build
 

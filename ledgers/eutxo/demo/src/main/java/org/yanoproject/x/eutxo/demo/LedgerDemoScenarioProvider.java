@@ -60,7 +60,7 @@ public final class LedgerDemoScenarioProvider implements EutxoDemoScenarioProvid
         if (options.count() != 1 && List.of(
                 "transfer", "round-trip", "verify", "reconcile").contains(operation)) {
             throw new IllegalArgumentException(
-                    "--count greater than one is currently supported by bridge and zk scenarios");
+                    "--count greater than one is currently supported by the bridge scenario");
         }
         EutxoDemoCluster cluster = new EutxoDemoCluster(workspace);
         return switch (operation) {

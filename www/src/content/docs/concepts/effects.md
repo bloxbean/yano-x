@@ -224,7 +224,7 @@ yano.app-chain.effects.executor.max-attempts: 8 # then PARKED for operator revie
   reports are fenced to the lease holder. Leases and fencing are node-local
   bookkeeping on the member the worker talks to, not consensus state.
 
-The [user guide's effects section](https://github.com/bloxbean/yano-x/blob/main/docs/APP_CHAIN_USER_GUIDE.md#18-effects--acting-on-the-outside-world)
+The [user guide's effects section](https://github.com/bloxbean/yano-x/blob/main/docs/APP_CHAIN_USER_GUIDE.md#17-effects--acting-on-the-outside-world)
 covers every setting, the REST surface, and writing a custom executor.
 
 ## Executors and sinks

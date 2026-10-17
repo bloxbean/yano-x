@@ -25,6 +25,12 @@ IPFS, and the Evidence Explorer.
   running holds 7070–7072. Stop it first from the distribution directory, with
   the same `YANO_CLUSTER_DIR` you started it with:
   `./yano.sh appchain cluster stop`.
+- The harness never moves a busy port. If another program holds one, export a
+  free port before the first command and keep it set for the whole tutorial.
+  `DEMO_HTTP_BASE` moves the members to that port and the next two, and
+  `DEMO_UI_PORT`, `DEMO_KAFKA_PORT`, `DEMO_S3_PORT` and `DEMO_IPFS_PORT` move
+  the other services. For example, `export DEMO_HTTP_BASE=7370` puts the
+  members on 7370–7372, and the URLs the harness prints use those ports.
 
 The harness runs the default `evidence-v1-gated` profile, in which validator
 members approve each release. The Studio link above opens the

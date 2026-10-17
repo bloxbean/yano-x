@@ -49,7 +49,7 @@ artifact identity and that every runtime plugin has a bundle publication.
 
 <!-- catalog:modules-start -->
 
-### `runtime-plugin` (18)
+### `runtime-plugin` (15)
 
 | Gradle module | Artifact id | Plugin bundle id | Source |
 |---|---|---|---|
@@ -65,14 +65,11 @@ artifact identity and that every runtime plugin has a bundle publication.
 | `:connectors:objectstore-s3` | `yano-x-objectstore-s3` | `org.yanoproject.x.objectstore.s3` | [connectors/objectstore-s3](https://github.com/bloxbean/yano-x/blob/main/connectors/objectstore-s3) |
 | `:connectors:ipfs` | `yano-x-ipfs` | `org.yanoproject.x.ipfs` | [connectors/ipfs](https://github.com/bloxbean/yano-x/blob/main/connectors/ipfs) |
 | `:connectors:effects-cardano` | `yano-x-effects-cardano` | `org.yanoproject.x.effects.cardano` | [connectors/effects-cardano](https://github.com/bloxbean/yano-x/blob/main/connectors/effects-cardano) |
-| `:state-machines:zk` | `yano-x-zk` | `org.yanoproject.x.zk` | [state-machines/zk](https://github.com/bloxbean/yano-x/blob/main/state-machines/zk) |
 | `:ledgers:eutxo:ledger` | `yano-x-eutxo-ledger` | `org.yanoproject.x.eutxo` | [ledgers/eutxo/ledger](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/ledger) |
 | `:ledgers:eutxo:bridge-cardano` | `yano-x-eutxo-bridge-cardano` | `org.yanoproject.x.eutxo.bridge.cardano` | [ledgers/eutxo/bridge-cardano](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/bridge-cardano) |
 | `:ledgers:eutxo:indexer-jdbc` | `yano-x-eutxo-indexer-jdbc` | `org.yanoproject.x.eutxo.indexer` | [ledgers/eutxo/indexer-jdbc](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/indexer-jdbc) |
-| `:ledgers:eutxo-zk:runtime` | `yano-x-eutxo-zk-runtime` | `org.yanoproject.x.eutxo.zk.runtime` | [ledgers/eutxo-zk/runtime](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/runtime) |
-| `:ledgers:eutxo-zk:indexer` | `yano-x-eutxo-zk-indexer` | `org.yanoproject.x.eutxo.zk.indexer` | [ledgers/eutxo-zk/indexer](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/indexer) |
 
-### `library` (28)
+### `library` (23)
 
 | Gradle module | Artifact id | Plugin bundle id | Source |
 |---|---|---|---|
@@ -98,21 +95,15 @@ artifact identity and that every runtime plugin has a bundle publication.
 | `:ledgers:eutxo:contracts` | `yano-x-eutxo-contracts` | — | [ledgers/eutxo/contracts](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/contracts) |
 | `:ledgers:eutxo:client` | `yano-x-eutxo-client` | — | [ledgers/eutxo/client](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/client) |
 | `:ledgers:eutxo:indexer-core` | `yano-x-eutxo-indexer-core` | — | [ledgers/eutxo/indexer-core](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/indexer-core) |
-| `:ledgers:eutxo-zk:contracts` | `yano-x-eutxo-zk-contracts` | — | [ledgers/eutxo-zk/contracts](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/contracts) |
-| `:ledgers:eutxo-zk:zeroj` | `yano-x-eutxo-zk-zeroj` | — | [ledgers/eutxo-zk/zeroj](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/zeroj) |
-| `:ledgers:eutxo-zk:prover` | `yano-x-eutxo-zk-prover` | — | [ledgers/eutxo-zk/prover](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/prover) |
-| `:ledgers:eutxo-zk:client` | `yano-x-eutxo-zk-client` | — | [ledgers/eutxo-zk/client](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/client) |
-| `:ledgers:eutxo-zk:lifecycle` | `yano-x-eutxo-zk-lifecycle` | — | [ledgers/eutxo-zk/lifecycle](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/lifecycle) |
 | `:tooling:spring-boot-starter` | `yano-x-spring-boot-starter` | — | [tooling/spring-boot-starter](https://github.com/bloxbean/yano-x/blob/main/tooling/spring-boot-starter) |
 
-### `application` (4)
+### `application` (3)
 
 | Gradle module | Artifact id | Plugin bundle id | Source |
 |---|---|---|---|
 | `:products:evidence:demo-runner` | `yano-x-evidence-demo-runner` | — | [products/evidence/demo-runner](https://github.com/bloxbean/yano-x/blob/main/products/evidence/demo-runner) |
 | `:examples:showcase-client` | `yano-x-showcase-client` | — | [examples/showcase-client](https://github.com/bloxbean/yano-x/blob/main/examples/showcase-client) |
 | `:ledgers:eutxo:demo` | `yano-x-eutxo-demo` | — | [ledgers/eutxo/demo](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/demo) |
-| `:ledgers:eutxo-zk:demo` | `yano-x-eutxo-zk-demo` | — | [ledgers/eutxo-zk/demo](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/demo) |
 
 ### `tool` (9)
 
@@ -128,22 +119,20 @@ artifact identity and that every runtime plugin has a bundle publication.
 | `:products:dpp:cli` | `yano-x-dpp-cli` | — | [products/dpp/cli](https://github.com/bloxbean/yano-x/blob/main/products/dpp/cli) |
 | `:products:attestation-feed:cli` | `yano-x-attestation-feed-cli` | — | [products/attestation-feed/cli](https://github.com/bloxbean/yano-x/blob/main/products/attestation-feed/cli) |
 
-### `test-library` (3)
+### `test-library` (2)
 
 | Gradle module | Artifact id | Plugin bundle id | Source |
 |---|---|---|---|
 | `:sdk:effects-testkit` | `yano-x-effects-testkit` | — | [sdk/effects-testkit](https://github.com/bloxbean/yano-x/blob/main/sdk/effects-testkit) |
 | `:ledgers:eutxo:testkit` | `yano-x-eutxo-testkit` | — | [ledgers/eutxo/testkit](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/testkit) |
-| `:ledgers:eutxo-zk:testkit` | `yano-x-eutxo-zk-testkit` | — | [ledgers/eutxo-zk/testkit](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/testkit) |
 
-### `onchain-artifact` (4)
+### `onchain-artifact` (3)
 
 | Gradle module | Artifact id | Plugin bundle id | Source |
 |---|---|---|---|
 | `:sdk:proof-onchain` | `yano-x-proof-onchain` | — | [sdk/proof-onchain](https://github.com/bloxbean/yano-x/blob/main/sdk/proof-onchain) |
 | `:products:cardano-history:onchain` | `yano-x-cardano-history-onchain` | — | [products/cardano-history/onchain](https://github.com/bloxbean/yano-x/blob/main/products/cardano-history/onchain) |
 | `:ledgers:eutxo:bridge-onchain` | `yano-x-eutxo-bridge-onchain` | — | [ledgers/eutxo/bridge-onchain](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/bridge-onchain) |
-| `:ledgers:eutxo-zk:onchain` | `yano-x-eutxo-zk-onchain` | — | [ledgers/eutxo-zk/onchain](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo-zk/onchain) |
 
 ### `web-application` (7)
 

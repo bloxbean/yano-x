@@ -15,7 +15,6 @@ import org.yanoproject.x.roles.contracts.RoleWorkflowCli;
 import org.yanoproject.x.stdlib.contracts.AuthenticatedMapAuthorizationCli;
 import org.yanoproject.x.eutxo.client.EutxoCli;
 import org.yanoproject.x.eutxo.demo.EutxoDemoCli;
-import org.yanoproject.x.eutxo.zk.lifecycle.EutxoValidityLifecycleCli;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 
@@ -58,7 +57,6 @@ public final class AppChainDevtoolsCli {
                or: ./yano.sh appchain role public-key|key-proof|key-proof-signature|sign|govern-*|bootstrap [options]
                or: ./yano.sh appchain authenticated-map action|direct-*|approval-*|command [options]
                or: ./yano.sh appchain eutxo transaction|utxo|proof|doctor|demo [options]
-               or: ./yano.sh appchain validity bootstrap|status|prove|proof|doctor|... [options]
                or: ./yano.sh appchain state entry|proof|verify|identity|integrity|snapshot|oldest [options]
                or: ./yano.sh appchain bindings compile|validate|graph|dry-run <document> [options]
                or: ./yano.sh appchain bindings receipt-key|recipe|profile-check [options]
@@ -109,10 +107,6 @@ public final class AppChainDevtoolsCli {
         }
         if (args.length > 0 && "eutxo".equals(args[0])) {
             return EutxoCli.run(
-                    java.util.Arrays.copyOfRange(args, 1, args.length), out, err);
-        }
-        if (args.length > 0 && "validity".equals(args[0])) {
-            return EutxoValidityLifecycleCli.run(
                     java.util.Arrays.copyOfRange(args, 1, args.length), out, err);
         }
         if (args.length > 0 && "state".equals(args[0])) {

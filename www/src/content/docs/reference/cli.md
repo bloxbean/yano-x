@@ -291,12 +291,10 @@ None of these commands load provider classes, run plugin code, fetch a
 registry, or install a JAR. See
 [Scaffold, sign, install](/plugins/scaffold-sign-install/).
 
-## Experimental: EUTxO and validity
+## Experimental: EUTxO
 
-`./yano.sh appchain eutxo transaction|utxo|proof|doctor|demo` and
-`./yano.sh appchain validity bootstrap|status|prove|proof|doctor|…` support the
-experimental EUTxO ledger and its ZK validity flow. See
-[eUTxO and ZK](/products/eutxo-and-zk/).
+`./yano.sh appchain eutxo transaction|utxo|proof|doctor|demo` supports the
+experimental EUTxO ledger. See [eUTxO ledger](/products/eutxo/).
 
 ## Safety rules
 

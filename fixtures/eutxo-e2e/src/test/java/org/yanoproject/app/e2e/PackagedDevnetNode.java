@@ -67,9 +67,14 @@ final class PackagedDevnetNode implements BeforeAllCallback, AfterAllCallback {
                 }
             }
         }
-        try (var optional = Files.list(distribution.resolve("optional-plugins"))) {
-            for (Path bundle : optional.toList()) {
-                if (matches(bundle, spec.addOptionalBundles())) Files.copy(bundle, plugins.resolve(bundle.getFileName()));
+        // A distribution without alternative bundles ships no optional-plugins directory.
+        if (spec.addOptionalBundles().length > 0) {
+            try (var optional = Files.list(distribution.resolve("optional-plugins"))) {
+                for (Path bundle : optional.toList()) {
+                    if (matches(bundle, spec.addOptionalBundles())) {
+                        Files.copy(bundle, plugins.resolve(bundle.getFileName()));
+                    }
+                }
             }
         }
         Path genesis = run.resolve("shelley-genesis.json");

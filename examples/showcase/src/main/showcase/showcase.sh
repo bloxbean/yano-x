@@ -2118,16 +2118,15 @@ run_settlement_bootstrap() {
 
 delegate_eutxo() {
   local command="$1"
-  case "$VARIANT" in ledger|bridge|zk) ;; default) VARIANT=ledger;; *) die "eutxo variant must be ledger, bridge, or zk";; esac
+  case "$VARIANT" in ledger|bridge) ;; default) VARIANT=ledger;; *) die "eutxo variant must be ledger or bridge";; esac
   local -a extra=()
   case "$command" in
     prepare) command=setup;;
     run)
       command=round-trip
-      # Bridge/zk rounds are journaled and idempotent; a rerun produces new
+      # Bridge rounds are journaled and idempotent; a rerun produces new
       # activity only with a higher round count.
       [ -z "$COUNT" ] || extra=(--count "$COUNT");;
-    ceremony) extra=(--yes);;
     up|status|stop|verify) ;;
     *) die "unsupported EUTxO command: $command";;
   esac
@@ -2318,7 +2317,6 @@ Yano unified app-chain showcase
   ./showcase.sh settlement info                      (vault/shard/root facts + next steps)
   ./showcase.sh settlement bootstrap                 (deploy the L1 settlement identity, devnet)
   ./showcase.sh settlement deposit|withdraw|status   (L1 deposit, L2 claim, autonomous settlement)
-  ./showcase.sh ceremony            (eutxo profile, zk variant: one-time trusted setup)
   ./showcase.sh approvals propose <id> <payload> [required]
   ./showcase.sh approvals approve <id> <member-node>
   ./showcase.sh composite register-order <key> '<json>'
@@ -2359,7 +2357,7 @@ case "$COMMAND" in
   profiles)
     note "light     local multi-chain cluster (default 3 nodes; supports 1..16)"
     note "evidence  product demo with Kafka, S3-compatible storage, and IPFS (composite|role)"
-    note "eutxo     maintained virtual-ledger, bridge, and ZK demos (ledger|bridge|zk)";;
+    note "eutxo     maintained virtual-ledger and bridge demos (ledger|bridge)";;
   describe)
     case "${POSITIONAL[0]:-$PROFILE}" in
       light)
@@ -2406,11 +2404,7 @@ PY
     else
       case "$PROFILE" in evidence) delegate_evidence prepare; delegate_evidence up; delegate_evidence run;;
         eutxo)
-          delegate_eutxo prepare; delegate_eutxo up
-          # The zk validity flow needs its one-time (insecure, dev-only)
-          # trusted-setup ceremony before the first round-trip.
-          [ "$VARIANT" != zk ] || delegate_eutxo ceremony
-          delegate_eutxo run;; esac
+          delegate_eutxo prepare; delegate_eutxo up; delegate_eutxo run;; esac
     fi;;
   status)
     adopt_marker
@@ -2521,10 +2515,6 @@ PY
         settlement_effect_health;;
       *) die "usage: settlement info|prepare|bootstrap|deposit|withdraw|status";;
     esac;;
-  ceremony)
-    adopt_marker
-    [ "$PROFILE" = eutxo ] || die "ceremony applies to the eutxo profile (zk variant)"
-    delegate_eutxo ceremony;;
   load-test)
     adopt_marker; run_load_test "${POSITIONAL[0]:-orders}";;
   soak-test)

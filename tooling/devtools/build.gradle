@@ -16,8 +16,6 @@ dependencies {
     implementation project(':ledgers:eutxo:client')
     implementation project(':ledgers:eutxo:demo')
     runtimeOnly project(':ledgers:eutxo:indexer-jdbc')
-    runtimeOnly project(':ledgers:eutxo-zk:demo')
-    implementation project(':ledgers:eutxo-zk:lifecycle')
     implementation(rootProject.ext.yanoModule('yano-appchain-config')) {
         transitive = false
     }
@@ -45,6 +43,8 @@ dependencies {
     testImplementation project(':capabilities:authenticated-map-validators')
     // Live receipt-parity tests boot the real host subsystem, unlike the lightweight offline CLI.
     integrationTestRuntimeOnly(rootProject.ext.yanoModule('yano-runtime'))
+    // Distribution acceptance reuses the unit tests' plugin bundle fixture.
+    distributionTestImplementation sourceSets.test.output
 }
 
 application {

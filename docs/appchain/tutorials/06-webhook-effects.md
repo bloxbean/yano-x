@@ -182,6 +182,15 @@ export YANO_CLUSTER_NODE_CONFIG_DIR=/tmp/yano-tutorial-webhook-config
 ./yano.sh appchain cluster start 3
 ```
 
+The commands below reach node *n* on HTTP port `HTTP_BASE + n`. Set
+`HTTP_BASE` to the first port of the range the launcher printed. It is `7070`
+unless the launcher printed a line such as
+`HTTP range 7070-7072 unavailable; using 7073-7075`:
+
+```bash
+HTTP_BASE=7070
+```
+
 The chain id remains `orders-chain`, but its fresh deterministic profile is
 now `approvals`. Never apply this override to retained `ordered-log` state.
 
@@ -207,15 +216,15 @@ not approving: the item needs two approvals from distinct members.
 ```bash
 API=api/v1/app-chain/chains/orders-chain/messages
 
-curl -s -X POST "http://127.0.0.1:7070/$API" \
+curl -s -X POST "http://127.0.0.1:$HTTP_BASE/$API" \
   -H 'Content-Type: application/json' \
   -d "{\"topic\":\"approvals\",\"bodyHex\":\"$PROPOSE_HEX\"}" | jq .
 
-curl -s -X POST "http://127.0.0.1:7071/$API" \
+curl -s -X POST "http://127.0.0.1:$((HTTP_BASE + 1))/$API" \
   -H 'Content-Type: application/json' \
   -d "{\"topic\":\"approvals\",\"bodyHex\":\"$APPROVE_HEX\"}" | jq .
 
-curl -s -X POST "http://127.0.0.1:7072/$API" \
+curl -s -X POST "http://127.0.0.1:$((HTTP_BASE + 2))/$API" \
   -H 'Content-Type: application/json' \
   -d "{\"topic\":\"approvals\",\"bodyHex\":\"$APPROVE_HEX\"}" | jq .
 ```
@@ -246,14 +255,14 @@ Wait until the result is incorporated, then inspect the effect record and the
 executor status:
 
 ```bash
-STATUS=http://127.0.0.1:7070/api/v1/app-chain/chains/orders-chain/status
+STATUS=http://127.0.0.1:$HTTP_BASE/api/v1/app-chain/chains/orders-chain/status
 until curl -s "$STATUS" | jq -e '.effects.executor.executionTotals.confirmed >= 1
     and .effects.executor.openOnChain == 0' >/dev/null; do
   sleep 1
 done
 
 curl -s \
-  'http://127.0.0.1:7070/api/v1/app-chain/chains/orders-chain/effects?fromHeight=1&limit=20' \
+  "http://127.0.0.1:$HTTP_BASE/api/v1/app-chain/chains/orders-chain/effects?fromHeight=1&limit=20" \
   | jq '.effects[] | {height, ordinal, type, scope}'
 
 curl -s "$STATUS" \
@@ -307,7 +316,7 @@ status are the real business contract.
 
 ## Go deeper
 
-- Read [Effects §18](../../APP_CHAIN_USER_GUIDE.md) for quarantine, requeue,
+- Read [Effects §17](../../APP_CHAIN_USER_GUIDE.md) for quarantine, requeue,
   cancellation, proof, and external executor APIs.
 - Kill the receiver temporarily, observe retries and parking, restore it, and
   use the operator requeue endpoint.

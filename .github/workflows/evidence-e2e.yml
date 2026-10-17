@@ -1,0 +1,196 @@
+name: Evidence E2E
+
+# Runs the evidence harness's devnet scenarios against the packaged plugins: fenced effect failover, Compose and
+# host deployment parity, and role workflow with catch-up. Each takes 10-30 minutes, so they run as three parallel
+# jobs, and only when the code they exercise changes, on every version bump (gradle.properties), nightly on the
+# default branch, or on demand. tag-release.yml refuses to tag a commit without a successful run of this workflow.
+on:
+  workflow_dispatch:
+    inputs:
+      yano_version:
+        description: Published or staged Yano version (falls back to YANO_VERSION repository variable)
+        required: false
+        type: string
+      yano_jvm_dist_url:
+        description: Optional matching Yano JVM ZIP URL override (falls back to YANO_JVM_DIST_URL)
+        required: false
+        type: string
+      yano_maven_repository_url:
+        description: Optional staged Yano Maven repository (falls back to YANO_MAVEN_REPOSITORY_URL)
+        required: false
+        type: string
+      yano_inputs_run_id:
+        description: Optional successful bloxbean/yano staging run containing exact Maven/JVM inputs
+        required: false
+        type: string
+      yano_inputs_commit:
+        description: Independently pinned full host commit for the staging run (required with run ID)
+        required: false
+        type: string
+  schedule:
+    - cron: '41 2 * * *'
+  push:
+    branches:
+      - main
+      - develop
+      - develop*
+      - release*
+      - next
+    paths:
+      - 'products/evidence/**'
+      - 'products/dpp/**'
+      - 'products/attestation-feed/**'
+      - 'connectors/**'
+      - 'state-machines/stdlib/**'
+      - 'state-machines/stdlib-contracts/**'
+      - 'composition/**'
+      - 'capabilities/**'
+      - 'sdk/**'
+      - 'distribution/jvm/**'
+      - 'docker/**'
+      - 'gradle/**'
+      - 'gradle.properties'
+      - 'settings.gradle'
+      - 'build.gradle'
+      - '.github/scripts/prepare-yano-inputs.sh'
+      - '.github/workflows/evidence-e2e.yml'
+  pull_request:
+    branches:
+      - main
+      - develop
+      - develop*
+      - release*
+      - next
+    paths:
+      - 'products/evidence/**'
+      - 'products/dpp/**'
+      - 'products/attestation-feed/**'
+      - 'connectors/**'
+      - 'state-machines/stdlib/**'
+      - 'state-machines/stdlib-contracts/**'
+      - 'composition/**'
+      - 'capabilities/**'
+      - 'sdk/**'
+      - 'distribution/jvm/**'
+      - 'docker/**'
+      - 'gradle/**'
+      - 'gradle.properties'
+      - 'settings.gradle'
+      - 'build.gradle'
+      - '.github/scripts/prepare-yano-inputs.sh'
+      - '.github/workflows/evidence-e2e.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+# A newer push to a pull request replaces its older run. Every other run keeps its own group, so a later push to
+# main can never cancel the run that tag-release.yml needs for a version bump.
+concurrency:
+  group: evidence-e2e-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  YANO_VERSION: ${{ inputs.yano_version || vars.YANO_VERSION }}
+  YANO_JVM_DIST_URL: ${{ inputs.yano_jvm_dist_url || vars.YANO_JVM_DIST_URL }}
+  YANO_MAVEN_REPOSITORY_URL: ${{ inputs.yano_maven_repository_url || vars.YANO_MAVEN_REPOSITORY_URL }}
+  YANO_INPUTS_RUN_ID: ${{ inputs.yano_inputs_run_id }}
+  YANO_INPUTS_COMMIT: ${{ inputs.yano_inputs_commit }}
+
+jobs:
+  effect-failover:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+      - name: Set up JDK 25
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9
+        with:
+          java-version: '25'
+          distribution: 'temurin'
+          cache: 'gradle'
+      - name: Prepare exact Yano build inputs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash .github/scripts/prepare-yano-inputs.sh
+      - name: Stage Yano X publications in the isolated build repository
+        run: ./gradlew publishAllPublicationsToInternalRepository -PskipSigning=true --stacktrace
+      - name: Prepare packaged evidence-demo inputs
+        run: ./gradlew :distribution:jvm:prepareEvidenceDemoArtifacts -PskipSigning=true --stacktrace
+      - name: Verify the failover contract
+        run: products/evidence/harness/tests/effect-failover-contract.sh
+      - name: Run mandatory isolated devnet effect failover E2E
+        env:
+          YANO_RUN_EFFECT_FAILOVER_E2E: 'true'
+        run: products/evidence/harness/tests/effect-failover-e2e.sh
+
+  deployment-parity:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+      - name: Set up JDK 25
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9
+        with:
+          java-version: '25'
+          distribution: 'temurin'
+          cache: 'gradle'
+      - name: Prepare exact Yano build inputs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash .github/scripts/prepare-yano-inputs.sh
+      - name: Stage Yano X publications in the isolated build repository
+        run: ./gradlew publishAllPublicationsToInternalRepository -PskipSigning=true --stacktrace
+      - name: Prepare packaged evidence-demo inputs
+        run: ./gradlew :distribution:jvm:prepareEvidenceDemoArtifacts -PskipSigning=true --stacktrace
+      - name: Verify the deployment-parity contract
+        run: products/evidence/harness/tests/deployment-parity-contract.sh
+      - name: Run mandatory composite deployment parity E2E
+        env:
+          YANO_RUN_DEPLOYMENT_PARITY_E2E: 'true'
+          YANO_DEPLOYMENT_PARITY_CONTINUATION_MODE: direct
+          YANO_DEPLOYMENT_PARITY_MACHINE: composite
+          # Allow the default 600s no-progress watchdog, its 30s poll and recovery.
+          # This changes only the test deadline, not node policy or acceptance checks.
+          YANO_DEPLOYMENT_PARITY_TIMEOUT_SECONDS: '900'
+          DEMO_ANCHOR_VISIBILITY_TIMEOUT_SECONDS: '900'
+          DEMO_ANCHOR_ADOPTION_TIMEOUT_SECONDS: '900'
+        run: products/evidence/harness/tests/deployment-parity-e2e.sh
+
+  role-workflow:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+      - name: Set up JDK 25
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9
+        with:
+          java-version: '25'
+          distribution: 'temurin'
+          cache: 'gradle'
+      - name: Prepare exact Yano build inputs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash .github/scripts/prepare-yano-inputs.sh
+      - name: Stage Yano X publications in the isolated build repository
+        run: ./gradlew publishAllPublicationsToInternalRepository -PskipSigning=true --stacktrace
+      - name: Prepare packaged evidence-demo inputs
+        run: ./gradlew :distribution:jvm:prepareEvidenceDemoArtifacts -PskipSigning=true --stacktrace
+      - name: Run mandatory role workflow and catch-up E2E
+        env:
+          YANO_RUN_ROLE_WORKFLOW_E2E: 'true'
+          YANO_ROLE_WORKFLOW_TIMEOUT_SECONDS: '900'
+          DEMO_ANCHOR_VISIBILITY_TIMEOUT_SECONDS: '900'
+          # Adoption also waits on local L1 recovery (600s watchdog plus polling).
+          # Keep the same three-member identity/height convergence requirement.
+          DEMO_ANCHOR_ADOPTION_TIMEOUT_SECONDS: '900'
+        run: products/evidence/harness/tests/role-workflow-e2e.sh

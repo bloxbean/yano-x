@@ -109,9 +109,14 @@ minute or two, because node 0 runs for 25 seconds before the other nodes join.
 > Cluster up.
 > ```
 
-If the default ports are busy, the launcher prints a line such as
-`HTTP range 7070-7072 unavailable; using 7073-7075`. Use the printed range in
-the commands below.
+The commands below reach node *n* on HTTP port `HTTP_BASE + n`. Set
+`HTTP_BASE` to the first port of the range the launcher printed. It is `7070`
+unless the default ports are busy and the launcher printed a line such as
+`HTTP range 7070-7072 unavailable; using 7073-7075`:
+
+```bash
+HTTP_BASE=7070
+```
 
 ## 2. Confirm agreement
 
@@ -132,7 +137,7 @@ the commands below.
 for that chain. It is more than "three processes are running", but it is a
 comparison, not a vote: it compares current roots, not heights.
 
-Open the status pages if you prefer a UI:
+Open the status pages if you prefer a UI. With the default ports they are:
 
 - <http://127.0.0.1:7070/ui/app-chain/>
 - <http://127.0.0.1:7071/ui/app-chain/>
@@ -158,7 +163,7 @@ The submission itself only means "queued on node 1".
 After a few seconds, inspect the finalized blocks and agreement:
 
 ```bash
-curl -s http://127.0.0.1:7070/api/v1/app-chain/chains/orders-chain/blocks | jq .
+curl -s "http://127.0.0.1:$HTTP_BASE/api/v1/app-chain/chains/orders-chain/blocks" | jq .
 ./yano.sh appchain cluster status
 ```
 
@@ -173,7 +178,7 @@ node 2:
 
 ```bash
 RESPONSE=$(curl -s -X POST \
-  http://127.0.0.1:7072/api/v1/app-chain/chains/orders-chain/messages \
+  "http://127.0.0.1:$((HTTP_BASE + 2))/api/v1/app-chain/chains/orders-chain/messages" \
   -H 'Content-Type: application/json' \
   -d '{"topic":"orders","body":"{\"event\":\"packed\",\"orderId\":\"A-1001\"}"}')
 
@@ -189,7 +194,7 @@ Wait until the message is final. A finalized message has a block height:
 ```bash
 HEIGHT=0
 for attempt in $(seq 1 30); do
-  HEIGHT=$(curl -s "http://127.0.0.1:7070/api/v1/app-chain/chains/orders-chain/messages/$MESSAGE_ID" \
+  HEIGHT=$(curl -s "http://127.0.0.1:$HTTP_BASE/api/v1/app-chain/chains/orders-chain/messages/$MESSAGE_ID" \
     | jq -r '.height // 0' 2>/dev/null)
   [ "${HEIGHT:-0}" -gt 0 ] && break
   sleep 1
@@ -203,7 +208,7 @@ Then request a typed proof that the message is recorded:
 
 ```bash
 curl -s -X POST \
-  "http://127.0.0.1:7070/api/v1/app-chain/chains/orders-chain/proof-subjects/finalized-message-v1/proof" \
+  "http://127.0.0.1:$HTTP_BASE/api/v1/app-chain/chains/orders-chain/proof-subjects/finalized-message-v1/proof" \
   -H 'Content-Type: application/json' \
   -d "$(jq -nc --arg id "$MESSAGE_ID" '
     {coordinates:{"message-id":$id}, view:"latest",
@@ -396,7 +401,7 @@ including the chain identities.
 
 | You see | What it means and what to do |
 |---|---|
-| `HTTP range 7070-7072 unavailable; using ...` | Another process holds the default ports. Use the printed range in every URL. |
+| `HTTP range 7070-7072 unavailable; using ...` | Another process holds the default ports. Set `HTTP_BASE` to the first port of the printed range. |
 | `app-chain identity differs from retained state; restore the original profile or use a new data directory` | You started the same `YANO_CLUSTER_DIR` with a different node count or `--threshold`. Start it with the original values, or export a new `YANO_CLUSTER_DIR`. |
 | `node 1 is already running` | The cluster is still running. Run `./yano.sh appchain cluster stop` first. |
 | `node 0 not ready within 180s` or `node 2 not ready after 3 attempts` | The message names the node's log file. Read its first error, for example with `./yano.sh appchain cluster logs 2`. |

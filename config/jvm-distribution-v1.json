@@ -8,7 +8,6 @@
     "org.yanoproject.x.eutxo",
     "org.yanoproject.x.eutxo.bridge.cardano",
     "org.yanoproject.x.eutxo.indexer",
-    "org.yanoproject.x.eutxo.zk.indexer",
     "org.yanoproject.x.evidence-profile",
     "org.yanoproject.x.evidence-registry",
     "org.yanoproject.x.ipfs",
@@ -16,10 +15,7 @@
     "org.yanoproject.x.objectstore.s3",
     "org.yanoproject.x.role-workflow",
     "org.yanoproject.x.showcase",
-    "org.yanoproject.x.stdlib",
-    "org.yanoproject.x.zk"
+    "org.yanoproject.x.stdlib"
   ],
-  "optionalBundleIds": [
-    "org.yanoproject.x.eutxo.zk.runtime"
-  ]
+  "optionalBundleIds": []
 }

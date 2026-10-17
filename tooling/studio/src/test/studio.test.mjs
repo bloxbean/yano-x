@@ -61,10 +61,6 @@ const eutxoGenesisAnswers={
   eutxoGenesisAddress:'addr_test1vqexample',
   eutxoGenesisLovelace:'100000000'
 };
-const eutxoL2Answers={
-  eutxoL2Address:'addr_test1vqexample',
-  eutxoL2PublicKey:'11'.repeat(32)
-};
 const eutxoBridgeAnswers={
   bridgeVaultAddress:'addr_test1wqexample',
   bridgeVaultScriptHash:'0123456789abcdef0123456789abcdef0123456789abcdef01234567',
@@ -77,9 +73,7 @@ const eutxoBridgeAnswers={
 const releaseRecipeAnswers={
   'custom-plugin':{stateMachine:'com.example.test-machine'},
   'eutxo-ledger':eutxoGenesisAnswers,
-  'eutxo-cardano-bridge':eutxoBridgeAnswers,
-  'eutxo-zeroj-validity':{...eutxoGenesisAnswers,...eutxoL2Answers},
-  'eutxo-zeroj-preview':{...eutxoL2Answers,...eutxoBridgeAnswers}
+  'eutxo-cardano-bridge':eutxoBridgeAnswers
 };
 
 test('every release recipe produces safe release-pinned intent',()=>{

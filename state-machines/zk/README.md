@@ -1,5 +1,13 @@
 # Yano App-Chain ZK Extension
 
+> **Excluded from the build.** This module is untested, so `settings.gradle`
+> leaves it out: Gradle does not compile, test, or publish it, and no
+> distribution, catalog, recipe, or tool includes the `zk-gate`, `zk-membership`,
+> or `credential-registry` state machines. The source and this guide stay in the
+> repository. To build the module again, restore its entries in
+> `settings.gradle`, `config/artifacts-v1.json`, `config/jvm-distribution-v1.json`
+> and the capability catalog.
+
 Experimental ZeroJ-based state-machine plugin for proof-verified app-chain
 messages.
 

@@ -36,6 +36,15 @@ export YANO_CLUSTER_DIR=/tmp/yano-tutorial-registry
 
 ## 2. Create a registry entry
 
+The commands below reach node *n* on HTTP port `HTTP_BASE + n`. Set
+`HTTP_BASE` to the first port of the range the launcher printed. It is `7070`
+unless the launcher printed a line such as
+`HTTP range 7070-7072 unavailable; using 7073-7075`:
+
+```bash
+HTTP_BASE=7070
+```
+
 Write through node 1, so node 1 becomes the owner:
 
 ```bash
@@ -46,7 +55,7 @@ The command body is CBOR, but the launcher builds it for you. `202` means only
 that node 1 queued it. Wait until the key appears in a proof:
 
 ```bash
-BASE=http://127.0.0.1:7070/api/v1/app-chain/chains/registry-chain
+BASE=http://127.0.0.1:$HTTP_BASE/api/v1/app-chain/chains/registry-chain
 KEY_HEX=$(python3 -c 'print("supplier-42".encode().hex())')
 
 until curl -sf "$BASE/state/proof/$KEY_HEX" | jq -e '.presence == "PRESENT"' >/dev/null; do
@@ -82,7 +91,7 @@ TOOL=docs/appchain/tutorials/tools/stdlib_command.py
 PUT_HEX=$(python3 "$TOOL" kv-registry put supplier-42 --value-text suspended)
 
 MESSAGE_ID=$(curl -sS -X POST \
-  http://127.0.0.1:7072/api/v1/app-chain/chains/registry-chain/messages \
+  "http://127.0.0.1:$((HTTP_BASE + 2))/api/v1/app-chain/chains/registry-chain/messages" \
   -H 'Content-Type: application/json' \
   -d "{\"topic\":\"kv-registry.command.v1\",\"bodyHex\":\"$PUT_HEX\"}" | jq -r .messageId)
 
