@@ -100,14 +100,11 @@ class AppChainPackagedCliTest {
         assertThat(capabilities.exitCode()).isZero();
         assertThat(capabilities.output()).contains(
                 "state:role-approvals", "state:role-evidence", "state:eutxo-ledger",
-                "state:custom-plugin")
-                .doesNotContain("state:zk-gate", "state:zk-membership", "state:credential-registry",
-                        "settlement:zeroj-validity", "rollup:zeroj-cardano");
+                "state:custom-plugin");
         assertThat(eutxoDemo.exitCode()).isZero();
         assertThat(eutxoDemo.output())
                 .contains("\"status\":\"EUTXO_DEMO_SCENARIOS\"")
-                .contains("\"id\":\"ledger\"", "\"id\":\"bridge\"")
-                .doesNotContain("\"id\":\"zk\"");
+                .contains("\"id\":\"ledger\"", "\"id\":\"bridge\"");
         assertThat(eutxoDemo.error()).isEmpty();
         assertThat(actorPublicKey.exitCode()).isZero();
         assertThat(actorPublicKey.output().trim()).matches("[0-9a-f]{64}")

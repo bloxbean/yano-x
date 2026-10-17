@@ -13,7 +13,6 @@ final class AppChainProjectModel {
     static final String LOCK_KIND = "AppChainLock";
     static final List<String> DEFAULT_SUPPORTED_NETWORKS =
             List.of("devnet", "preview", "preprod", "mainnet");
-    static final String WITHDRAWN_MATURITY = "withdrawn";
 
     private AppChainProjectModel() {
     }
@@ -307,11 +306,6 @@ final class AppChainProjectModel {
 
         boolean effectiveSelectable() {
             return selectable == null || selectable;
-        }
-
-        /** A withdrawn capability stays in the catalog for its pinned identity but is never offered or resolved. */
-        boolean withdrawn() {
-            return WITHDRAWN_MATURITY.equals(maturity);
         }
 
         List<String> effectiveSupportedNetworks() {

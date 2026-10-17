@@ -129,10 +129,6 @@ final class AppChainProjectResolver {
             String id = queue.removeFirst();
             if (!selected.add(id)) continue;
             AppChainProjectModel.Capability capability = catalog.capability(id);
-            if (capability.withdrawn()) {
-                throw new IllegalArgumentException("Capability " + id
-                        + " is withdrawn and cannot be selected");
-            }
             if ("distribution".equals(capability.effectiveScope())) {
                 throw new IllegalArgumentException("Distribution capability " + id
                         + " is derived from the selected release and cannot be chain-selected");

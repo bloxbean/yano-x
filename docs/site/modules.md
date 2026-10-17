@@ -37,11 +37,10 @@ Only four of them are Maven Central dependencies.
 | `test-fixture` | Repository test material, such as an end-to-end fixture. | No |
 
 Some modules in the first four types set `publishToCentral: false` and ship
-only in the GitHub release. Modules marked `hidden: true` are untested
-experiments; they stay in the repository but are left out of the list below.
-The distinction between the first two is the architectural boundary described
-in [Why Yano X](/start-here/why-yano-x/): every optional behavior a running node
-can independently select or manage is a runtime plugin; everything else is not.
+only in the GitHub release. The distinction between the first two is the
+architectural boundary described in [Why Yano X](/start-here/why-yano-x/):
+every optional behavior a running node can independently select or manage is
+a runtime plugin; everything else is not.
 
 `verifyArtifactInventory` checks that each module has exactly one declared
 artifact identity and that every runtime plugin has a bundle publication.

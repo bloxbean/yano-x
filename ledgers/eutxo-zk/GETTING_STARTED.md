@@ -1,13 +1,13 @@
 # EUTxO ZeroJ validity settlement: getting started
 
-> **Not offered by any recipe or tool.** While this path is untested, no
-> recipe, demo scenario, showcase variant, or developer-tools command offers it,
-> and the published documentation leaves it out. The `eutxo-zeroj-validity` and
-> `eutxo-zeroj-preview` recipes, the `zk` demo scenario, and `appchain validity`
-> have been removed, so the commands below that use them no longer work. The
-> modules and this guide remain in the repository for developers. The records in
-> [`acceptance/`](acceptance/) describe the last runs; they are no longer shipped
-> or re-verified.
+> **Excluded from the build.** These modules are untested, so `settings.gradle`
+> leaves them out: Gradle does not compile, test, or publish them, and no
+> distribution, catalog, recipe, demo scenario, or tool includes them. The
+> commands below no longer work. The source, the devnet end-to-end test in
+> [`e2e/`](e2e/), and the records of the last runs in [`acceptance/`](acceptance/)
+> stay in the repository. To build the modules again, restore their entries in
+> `settings.gradle`, `config/artifacts-v1.json`, `config/jvm-distribution-v1.json`
+> and the capability catalog.
 
 For a protocol-oriented, step-by-step walkthrough of project generation,
 three-member cluster startup, the devnet faucet, L1 deposit publication, L2

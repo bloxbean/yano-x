@@ -584,17 +584,14 @@ final class AppChainProjectCli {
     }
 
     private int capabilities(Format format) throws IOException {
-        List<AppChainProjectModel.Capability> offered = catalog.capabilities().stream()
-                .filter(capability -> !capability.withdrawn())
-                .toList();
         if (format == Format.JSON) {
             Map<String, Object> result = new LinkedHashMap<>();
             result.put("status", "CAPABILITY_CATALOG");
             result.put("schemaVersion", "v1alpha1");
-            result.put("capabilities", offered);
+            result.put("capabilities", catalog.capabilities());
             out.println(json.writeValueAsString(result));
         } else {
-            printCapabilityTable(offered);
+            printCapabilityTable(catalog.capabilities());
         }
         return AppChainDevtoolsCli.EXIT_OK;
     }

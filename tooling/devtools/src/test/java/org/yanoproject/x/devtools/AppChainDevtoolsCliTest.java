@@ -86,8 +86,7 @@ class AppChainDevtoolsCliTest {
                 .contains("| AVAILABILITY")
                 .contains("| Description: Append-only ordered application messages.")
                 .contains("FIRST_PARTY_OPTIONAL")
-                .contains("state:eutxo-ledger")
-                .doesNotContain("state:credential-registry");
+                .contains("state:eutxo-ledger");
         assertThat(text.out().lines().toList())
                 .allMatch(line -> line.length() == 114);
         assertThat(structured.exit()).isZero();

@@ -34,8 +34,7 @@
     "yano-x-eutxo-ledger",
     "yano-x-eutxo-indexer-core",
     "yano-x-eutxo-indexer-jdbc",
-    "yano-x-eutxo-bridge-cardano",
-    "yano-x-eutxo-zk-runtime"
+    "yano-x-eutxo-bridge-cardano"
   ],
   "distributions": [
     {
@@ -56,8 +55,7 @@
         "yano-x-eutxo-ledger",
         "yano-x-eutxo-indexer-core",
         "yano-x-eutxo-indexer-jdbc",
-        "yano-x-eutxo-bridge-cardano",
-        "yano-x-eutxo-zk-runtime"
+        "yano-x-eutxo-bridge-cardano"
       ]
     }
   ]

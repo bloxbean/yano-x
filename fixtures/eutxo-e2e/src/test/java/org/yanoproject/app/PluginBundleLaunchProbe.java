@@ -1,8 +1,6 @@
 package org.yanoproject.app;
 
-import com.bloxbean.cardano.client.crypto.Blake2bUtil;
 import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
-import com.bloxbean.cardano.yaci.core.util.HexUtil;
 import org.yanoproject.api.appchain.AppStateMachine;
 import org.yanoproject.api.appchain.AppStateMachineContext;
 import org.yanoproject.api.appchain.AppStateMachineProvider;
@@ -26,7 +24,6 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
-import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.zip.ZipFile;
 
@@ -47,8 +44,7 @@ public final class PluginBundleLaunchProbe {
             "org.yanoproject.x.objectstore.s3",
             "org.yanoproject.x.ipfs",
             EVIDENCE_BUNDLE_ID,
-            "org.yanoproject.x.effects.cardano",
-            "org.yanoproject.x.zk");
+            "org.yanoproject.x.effects.cardano");
 
     private PluginBundleLaunchProbe() {
     }
@@ -156,9 +152,6 @@ public final class PluginBundleLaunchProbe {
                 }
                 ipfsExecutors.getFirst().close();
                 require(environment, AppEffectExecutorFactory.class, "cardano");
-                for (String machine : List.of("credential-registry", "zk-gate", "zk-membership")) {
-                    require(environment, AppStateMachineProvider.class, machine);
-                }
                 AppStateMachineProvider evidenceProvider = require(
                         environment, AppStateMachineProvider.class, "evidence-registry");
                 AppStateMachine evidenceMachine = evidenceProvider.create(
@@ -271,47 +264,6 @@ public final class PluginBundleLaunchProbe {
                 requireOwnedClass(environment,
                         "com.bloxbean.cardano.client.backend.blockfrost.service.BFBackendService",
                         "org.yanoproject.x.effects.cardano");
-                requireOwnedClass(environment,
-                        "com.bloxbean.cardano.zeroj.verifier.core.VerifierOrchestrator",
-                        "org.yanoproject.x.zk");
-
-                // Exercise the real ZeroJ default-ServiceLoader path through a
-                // plugin factory callback. The context assertion proves the
-                // facade installed the directory loader while ZeroJ discovers
-                // its verifier backends; the postcondition proves restoration.
-                Path vk = directory.resolve("probe.vk");
-                byte[] vkBytes = "yano-zk-backend-probe".getBytes(java.nio.charset.StandardCharsets.UTF_8);
-                Files.write(vk, vkBytes);
-                Map<String, String> settings = Map.of(
-                        "zk.circuits[0].id", "probe",
-                        "zk.circuits[0].vk-file", vk.toString(),
-                        "zk.circuits[0].vk-hash",
-                        HexUtil.encodeHexString(Blake2bUtil.blake2bHash256(vkBytes)),
-                        "zk.circuits[0].proof-system", "groth16",
-                        "zk.circuits[0].curve", "bls12381");
-                ClassLoader pluginLoader = environment.classLoader();
-                AppStateMachineProvider zkProvider = require(
-                        environment, AppStateMachineProvider.class, "zk-gate");
-                AppStateMachine zkMachine = zkProvider.create(new AppStateMachineContext() {
-                    @Override
-                    public String chainId() {
-                        requireTccl(pluginLoader, "ZK provider chain context");
-                        return "probe";
-                    }
-
-                    @Override
-                    public Map<String, String> settings() {
-                        requireTccl(pluginLoader, "ZK provider settings context");
-                        return settings;
-                    }
-                });
-                if (!"zk-gate".equals(zkMachine.id())) {
-                    throw new IllegalStateException("ZK provider returned the wrong state machine");
-                }
-                requireTccl(callerTccl, "ZK provider and state-machine callbacks");
-                instantiateZkVerifierBackends(environment,
-                        "org.yanoproject.x.zk");
-                requireTccl(callerTccl, "ZK backend probe");
             }
             requireTccl(callerTccl, "plugin environment close");
         } finally {
@@ -329,28 +281,6 @@ public final class PluginBundleLaunchProbe {
                                  String name) {
         return environment.providers().find(type, name).orElseThrow(() ->
                 new IllegalStateException("Missing provider " + type.getName() + "/" + name));
-    }
-
-    @SuppressWarnings({"rawtypes", "unchecked"})
-    private static void instantiateZkVerifierBackends(
-            PluginRuntimeEnvironment environment,
-            String expectedBundleId) throws Exception {
-        ClassLoader loader = environment.classLoader();
-        Class serviceType = Class.forName(
-                "com.bloxbean.cardano.zeroj.backend.spi.ZkVerifier", true, loader);
-        List<ServiceLoader.Provider<?>> providers = (List) ServiceLoader
-                .load(serviceType, loader).stream().toList();
-        if (providers.isEmpty()) {
-            throw new IllegalStateException("ZK bundle exposes no verifier backend services");
-        }
-        for (ServiceLoader.Provider<?> provider : providers) {
-            Object backend = provider.get();
-            requireOwnedClass(environment, backend.getClass().getName(), expectedBundleId);
-            Object descriptor = backend.getClass().getMethod("descriptor").invoke(backend);
-            if (descriptor == null) {
-                throw new IllegalStateException("ZK verifier backend returned no descriptor");
-            }
-        }
     }
 
     private static void requireTccl(ClassLoader expected, String operation) {

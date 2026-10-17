@@ -11,7 +11,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class EutxoDemoCliTest {
     @TempDir
@@ -48,20 +47,6 @@ class EutxoDemoCliTest {
     @AfterEach
     void clearFakeYanoHome() {
         System.clearProperty("yano.home");
-    }
-
-    @Test
-    void withdrawnScenarioIsNotInstalledAndIsExplained() {
-        Invocation inventory = invoke("scenarios", "--format", "json");
-        assertThat(inventory.out()).doesNotContain("\"zk\"");
-        assertThat(invoke("ceremony", "--yes").err()).contains("unknown EUTxO demo command: ceremony");
-
-        EutxoDemoScenarioRegistry registry = new EutxoDemoScenarioRegistry(getClass().getClassLoader());
-        assertThatThrownBy(() -> registry.require("zk"))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("has been withdrawn");
-        assertThatThrownBy(() -> registry.require("unknown"))
-                .hasMessageContaining("is not installed");
     }
 
     @Test

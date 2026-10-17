@@ -403,7 +403,7 @@ catch-up, restart, and anchor state.
 | Build tries to reach Maven Local | `-PuseMavenLocal=true` needed but that is the contributor track | Users need no flags at all |
 | Missing release asset for `yanoVersion` | SNAPSHOT or staged Yano version | Supply `-PyanoJvmDist` with the exact matching ZIP |
 | `appchain doctor` reports incompatibility | Pointed at a native distribution | Yano X plugins target the JVM host |
-| Node refuses to start with a catalog error | Two bundles provide the same contribution (classically both eUTxO runtimes) | Install exactly one; the other lives in `optional-plugins/` |
+| Node refuses to start with a catalog error | Two bundles provide the same contribution | Install exactly one of them |
 | `POST /messages` returns 429 | Pending pool full — backpressure working | Back off and retry; tune `pool.max-messages` deliberately |
 | Message rejected, `drops.stale_seq` | Per-sender seq at or below the last finalized seq — a replay | Do not reuse envelopes; seq gaps are fine and meaningless |
 | Product routes return 404, CLI exit code 3 | Cardano History has no finalized fact yet | Wait for the next stable L1 epoch transition. Never synthesize a value |

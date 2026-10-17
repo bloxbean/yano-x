@@ -104,7 +104,6 @@ yano-x-jvm-<version>/
 ├── config/                       # chain definitions and network genesis
 │   └── schema/                   # blueprint, catalog, and lock schemas
 ├── plugins/                      # the default, conflict-free bundle selection
-├── optional-plugins/             # alternatives you opt into explicitly
 ├── tools/
 │   ├── lib/                      # jars shared by the Yano X command-line tools
 │   ├── yano-plugins/             # plugin catalog validator (from the Yano host)

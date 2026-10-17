@@ -87,56 +87,46 @@ export async function generateCatalog({ logger } = {}) {
     documentationUrl: docLink(r.documentation),
   }));
 
-  // Withdrawn capabilities and hidden modules stay in the repository catalogs but are not published.
-  const hiddenArtifacts = new Set(
-    (inventory.artifacts ?? []).filter((m) => m.hidden === true).map((m) => m.artifactId),
-  );
-  const capabilities = (capabilityCatalog.capabilities ?? [])
-    .filter((c) => c.maturity !== 'withdrawn')
-    .map((c) => ({
-      id: c.id,
-      name: c.name,
-      category: c.category,
-      availability: c.availability,
-      maturity: c.maturity,
-      scope: c.scope,
-      selectable: c.selectable,
-      description: c.description,
-      provides: c.provides ?? [],
-      requires: c.requires ?? [],
-      implies: c.implies ?? [],
-      conflicts: c.conflicts ?? [],
-      artifacts: c.artifacts ?? [],
-      runtimeTypes: c.runtimeTypes ?? [],
-      nativePosture: c.nativePosture,
-      externalPrerequisites: c.externalPrerequisites ?? [],
-      properties: c.properties ?? {},
-      documentation: c.documentation ?? null,
-      documentationUrl: docLink(c.documentation),
-    }));
+  const capabilities = (capabilityCatalog.capabilities ?? []).map((c) => ({
+    id: c.id,
+    name: c.name,
+    category: c.category,
+    availability: c.availability,
+    maturity: c.maturity,
+    scope: c.scope,
+    selectable: c.selectable,
+    description: c.description,
+    provides: c.provides ?? [],
+    requires: c.requires ?? [],
+    implies: c.implies ?? [],
+    conflicts: c.conflicts ?? [],
+    artifacts: c.artifacts ?? [],
+    runtimeTypes: c.runtimeTypes ?? [],
+    nativePosture: c.nativePosture,
+    externalPrerequisites: c.externalPrerequisites ?? [],
+    properties: c.properties ?? {},
+    documentation: c.documentation ?? null,
+    documentationUrl: docLink(c.documentation),
+  }));
 
-  const artifacts = (capabilityCatalog.artifacts ?? [])
-    .filter((a) => !hiddenArtifacts.has(a.id))
-    .map((a) => ({
-      id: a.id,
-      availability: a.availability,
-      bundleId: a.bundleId,
-      nativePosture: a.nativePosture,
-      runtimeTypes: a.runtimeTypes ?? [],
-      deploymentTargets: a.deploymentTargets ?? [],
-    }));
+  const artifacts = (capabilityCatalog.artifacts ?? []).map((a) => ({
+    id: a.id,
+    availability: a.availability,
+    bundleId: a.bundleId,
+    nativePosture: a.nativePosture,
+    runtimeTypes: a.runtimeTypes ?? [],
+    deploymentTargets: a.deploymentTargets ?? [],
+  }));
 
-  const modules = (inventory.artifacts ?? [])
-    .filter((m) => m.hidden !== true)
-    .map((m) => ({
-      modulePath: m.modulePath,
-      directory: m.directory,
-      artifactId: m.artifactId,
-      publicationType: m.publicationType,
-      pluginBundleId: m.pluginBundleId ?? null,
-      bundleArtifactId: m.bundleArtifactId ?? null,
-      sourceUrl: githubUrl(m.directory),
-    }));
+  const modules = (inventory.artifacts ?? []).map((m) => ({
+    modulePath: m.modulePath,
+    directory: m.directory,
+    artifactId: m.artifactId,
+    publicationType: m.publicationType,
+    pluginBundleId: m.pluginBundleId ?? null,
+    bundleArtifactId: m.bundleArtifactId ?? null,
+    sourceUrl: githubUrl(m.directory),
+  }));
 
   const configuration = [];
   for (const owner of metadata) {
@@ -170,7 +160,7 @@ export async function generateCatalog({ logger } = {}) {
     archivePattern: d.archivePattern,
     tooling: d.tooling,
     platforms: d.platforms ?? [],
-    artifacts: (d.artifacts ?? []).filter((id) => !hiddenArtifacts.has(id)),
+    artifacts: d.artifacts ?? [],
   }));
 
   const catalog = {

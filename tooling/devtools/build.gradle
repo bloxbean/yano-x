@@ -400,9 +400,7 @@ tasks.register('verifyAppChainCapabilityGuide') {
     inputs.files(capabilityCatalog, recipeCatalog, capabilityGuide)
     doLast {
         def parser = new groovy.json.JsonSlurper()
-        // Withdrawn capabilities keep their pinned catalog identity but are not offered, so the guide omits them.
         def capabilities = parser.parse(capabilityCatalog).capabilities
-                .findAll { it.maturity != 'withdrawn' }
         def recipes = parser.parse(recipeCatalog).recipes
         def lines = capabilityGuide.readLines('UTF-8')
 
@@ -470,25 +468,8 @@ tasks.register('verifyAppChainCapabilityGuide') {
     }
 }
 
-tasks.register('verifyNoZkDependency') {
-    group = 'verification'
-    description = 'Keeps the withdrawn ZK modules out of the developer tools the distribution ships'
-    doLast {
-        def forbidden = configurations.runtimeClasspath.resolvedConfiguration
-                .resolvedArtifacts.findAll {
-                    it.moduleVersion.id.group.contains('zeroj')
-                            || it.name.contains('eutxo-zk')
-                            || it.name == 'yano-x-zk'
-                }
-        if (!forbidden.isEmpty()) {
-            throw new GradleException("Developer tools must not load ZK artifacts: ${forbidden}")
-        }
-    }
-}
-
 tasks.named('check') {
-    dependsOn tasks.named('verifyNoZkDependency'),
-            tasks.named('verifySmallRyeConfigRuntimeParity'),
+    dependsOn tasks.named('verifySmallRyeConfigRuntimeParity'),
             tasks.named('verifyReleaseCapabilityVersion'),
             tasks.named('verifyAppChainCatalogDocumentation'),
             tasks.named('verifyAppChainCapabilityGuide')

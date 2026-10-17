@@ -21,7 +21,7 @@ the showcase also need Python 3, `curl`, and `jq`.
 | `examples/showcase/` | You want the quickest local three-node, multi-ledger demonstration. | `cd examples/showcase && ./showcase.sh quickstart --profile light --nodes 3 --instance demo` |
 | `tools/yano-deploy/` | You want to render and apply multi-node OpenTofu and Ansible deployments. | `tools/yano-deploy/bin/yano-x-deploy init ./cluster` |
 | `studio/` | You want the browser-based blueprint editor. It is a static site. | `cd studio && python3 -m http.server 8080` |
-| `plugins/`, `optional-plugins/` | You already operate the matching Yano JVM release and want to select Yano X runtime bundles yourself. | Copy reviewed bundles into the node plugin directory. |
+| `plugins/` | You already operate the matching Yano JVM release and want to select Yano X runtime bundles yourself. | Copy reviewed bundles into the node plugin directory. |
 
 The archive embeds the exact compatible Yano host identity in
 `yano-x-distribution-v1.json`. Do not mix its plugins with a different Yano
@@ -32,7 +32,7 @@ carries the same files as the matching path in the JVM archive:
 
 | Standalone archive | Contents |
 | --- | --- |
-| `yano-x-plugin-pack-<version>.zip` | `plugins/`, `optional-plugins/`, `yano-x-plugin-pack-v1.json`, the SBOM, and a README naming the one Yano release the bundles run on |
+| `yano-x-plugin-pack-<version>.zip` | `plugins/`, `yano-x-plugin-pack-v1.json`, the SBOM, and a README naming the one Yano release the bundles run on |
 | `yano-x-deploy-<version>.zip` | The deployment CLI (`bin/yano-x-deploy`) with its own libraries and the provider-neutral deployment material |
 | `yano-x-studio-<version>.zip` | App-Chain Studio as a static site |
 
@@ -122,10 +122,9 @@ guide.
 Operators assembling a custom node from the matching ordinary Yano JVM
 distribution can take bundles from the JVM archive or from
 `yano-x-plugin-pack-<version>.zip`. `plugins/` contains the
-conflict-free default set; alternative implementations are under
-`optional-plugins/`, and `yano-x-plugin-pack-v1.json` lists every bundle with
-its checksum. Copying both implementations of the same contribution into the
-active plugin directory is a catalog error.
+conflict-free set, and `yano-x-plugin-pack-v1.json` lists every bundle with
+its checksum. Two bundles that provide the same contribution in the active
+plugin directory are a catalog error.
 
 Bundles leave out the classes the host `yano.jar` already provides, so they run
 only on the Yano release named in `yano-x-distribution-v1.json`.

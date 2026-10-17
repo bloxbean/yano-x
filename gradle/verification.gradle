@@ -29,8 +29,7 @@ def adr013ReleaseScopes = [
         'bundle-objectstore-s3': ':connectors:objectstore-s3',
         'bundle-ipfs': ':connectors:ipfs',
         'bundle-evidence-registry': ':products:evidence:registry',
-        'bundle-effects-cardano': ':connectors:effects-cardano',
-        'bundle-zk': ':state-machines:zk'
+        'bundle-effects-cardano': ':connectors:effects-cardano'
 ]
 
 tasks.register('verifyAdr013JacksonAlignment') {

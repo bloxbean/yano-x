@@ -338,61 +338,6 @@ class AppChainProjectTest {
     }
 
     @Test
-    void withdrawnZkCapabilitiesKeepTheirPinnedIdentityButNoRecipeCanSelectThem() throws Exception {
-        AppChainPropertyRegistry properties = AppChainPropertyRegistry.framework();
-        AppChainProjectCatalog catalog = new AppChainProjectCatalog(properties);
-        AppChainProjectResolver resolver = new AppChainProjectResolver(properties, catalog);
-
-        AppChainProjectModel.Capability settlement = catalog.capability("settlement:zeroj-validity");
-        assertThat(settlement.requires()).containsExactly("profile:eutxo-key-payments");
-        assertThat(catalog.capability("profile:eutxo-key-payments").properties())
-                .containsEntry("machines.eutxo.profile", "yano-eutxo-v1")
-                .containsEntry("machines.eutxo.expected-profile-digest",
-                        "2499d01ee7cb0d09d0d498040c6351accd9da83df31666cd4463d0b1722d1212");
-        assertThat(settlement.properties())
-                .containsEntry("machines.eutxo.validity.transaction-format", "yano-eutxo-l2-envelope-v1")
-                .containsEntry("machines.eutxo.validity.expected-profile-digest",
-                        "cfe1767761cbe05c7e2b82f951222fbb9df34afa5eb1f39fb8a5c1cc2af87d45")
-                .containsEntry("machines.eutxo.validity.circuit-id", "eutxo-jubjub-batch-dev-b16-v4")
-                .containsEntry("machines.eutxo.validity.batch-profile", "cardano-payment-b16")
-                .containsEntry("machines.eutxo.validity.batch-profile-digest",
-                        "bd0835736116cb6338a82069e913f3815547008e4994508f110065c5dfc64747")
-                .containsEntry("machines.eutxo.validity.zeroj-version", "0.1.0-pre10")
-                .containsEntry("machines.eutxo.validity.julc-version", "0.1.0-pre16")
-                .containsEntry("machines.eutxo.validity.authorization-profile", "zeroj-jubjub-dev-v1")
-                .containsEntry("machines.eutxo.validity.authorization-trusted-prover-required", "true")
-                .containsEntry("machines.eutxo.validity.funds-policy", "disposable-test-funds-only");
-        assertThat(settlement.effectiveSupportedNetworks())
-                .containsExactly("devnet", "preview", "preprod");
-
-        List<String> withdrawn = catalog.capabilities().stream()
-                .filter(AppChainProjectModel.Capability::withdrawn)
-                .filter(AppChainProjectModel.Capability::effectiveSelectable)
-                .map(AppChainProjectModel.Capability::id)
-                .toList();
-        assertThat(withdrawn).contains("settlement:zeroj-validity", "state:zk-gate");
-        for (AppChainProjectModel.Recipe recipe : catalog.recipes()) {
-            // A declarative composite is rejected earlier, for its missing composite document.
-            if ("declarative-composite".equals(recipe.id())) continue;
-            for (String capability : withdrawn) {
-                AppChainProjectModel.Blueprint explicit = withCapabilities(
-                        blueprint(recipe.id(), "fixed", List.of()), List.of(capability));
-                assertThatThrownBy(() -> resolver.resolve(explicit))
-                        .as("%s with %s", recipe.id(), capability)
-                        .isInstanceOf(IllegalArgumentException.class)
-                        .hasMessageContaining(capability + " is withdrawn and cannot be selected");
-            }
-        }
-        AppChainProjectModel.Blueprint explicitCapability = withCapabilities(
-                blueprint("eutxo-ledger", "fixed", List.of()), List.of("settlement:zeroj-validity"));
-        Path rejectedOutput = temporary.resolve("rejected-withdrawn-zeroj");
-        assertThatThrownBy(() -> new AppChainProjectRenderer(catalog, resolver)
-                .initialize(rejectedOutput, explicitCapability))
-                .hasMessageContaining("is withdrawn and cannot be selected");
-        assertThat(rejectedOutput).doesNotExist();
-    }
-
-    @Test
     void eutxoBridgeRecipeUsesProjectChainIdAndExcludesVirtualGenesis() throws Exception {
         AppChainPropertyRegistry properties = AppChainPropertyRegistry.framework();
         AppChainProjectCatalog catalog = new AppChainProjectCatalog(properties);
@@ -1360,7 +1305,7 @@ class AppChainProjectTest {
         AppChainProjectCatalog catalog = new AppChainProjectCatalog(properties);
         AppChainProjectResolver resolver = new AppChainProjectResolver(properties, catalog);
 
-        assertThat(catalog.capabilities()).hasSize(44)
+        assertThat(catalog.capabilities()).hasSize(39)
                 .allSatisfy(capability -> {
                     assertThat(capability.availability()).isIn(
                             "BUNDLED", "FIRST_PARTY_OPTIONAL", "REFERENCE", "EXPERIMENTAL");
@@ -1381,11 +1326,6 @@ class AppChainProjectTest {
                 blueprint("audit-log", "fixed", List.of()), List.of("ui:console"))))
                 .hasMessageContaining("not selectable")
                 .hasMessageContaining("ui:console");
-        assertThatThrownBy(() -> resolver.resolve(withCapabilities(
-                blueprint("audit-log", "fixed", List.of()),
-                        List.of("rollup:zeroj-cardano"))))
-                .hasMessageContaining("not selectable")
-                .hasMessageContaining("rollup:zeroj-cardano");
         assertThat(catalog.capabilities())
                 .filteredOn(capability -> "observability:prometheus".equals(capability.id()))
                 .singleElement()

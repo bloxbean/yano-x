@@ -91,9 +91,8 @@ The JVM archive overlays
 the Yano X runtime bundles on the supplied ordinary Yano JVM ZIP and includes
 both Yano and Yano X identity manifests:
 
-- `plugins/` holds the conflict-free default bundle set and `optional-plugins/`
-  the alternative implementations. `yano-x-plugin-pack-v1.json` lists every
-  bundle with its checksum.
+- `plugins/` holds the conflict-free bundle set, and
+  `yano-x-plugin-pack-v1.json` lists every bundle with its checksum.
 - `tools/` holds the command-line tools, including the deployment CLI under
   `tools/yano-deploy` with its schema, documentation, and mixed-provider
   example. The tools share `tools/lib`; each launcher keeps its exact classpath,
@@ -131,10 +130,9 @@ The light profile runs a self-contained local devnet; `stop` preserves instance
 data. See `examples/showcase/DEMO_SHOWCASE.md` for scenarios and restart
 operations.
 
-All 18 runtime bundles are represented in the manifest. The default
-distribution activates 17. The bundle left in `optional-plugins/` owns the same
-`app-state-machine/eutxo-ledger` contribution as the standard eUTxO runtime, so
-copying both into `plugins/` is a hard catalog error.
+All 15 runtime bundles are represented in the manifest, and the distribution
+activates all of them. Two bundles that provide the same contribution in one
+plugin directory are a hard catalog error.
 
 `verifyYanoInputs` rejects a base ZIP whose root, JAR implementation version,
 or distribution manifest differs from `yanoVersion`. The final distribution

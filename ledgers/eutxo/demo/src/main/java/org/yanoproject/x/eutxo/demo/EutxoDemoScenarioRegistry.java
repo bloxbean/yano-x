@@ -6,13 +6,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.ServiceLoader;
-import java.util.Set;
 
 /** Deterministic installed-provider inventory with duplicate rejection. */
 public final class EutxoDemoScenarioRegistry {
-    /** Scenarios no distribution installs any more; their workspaces are explained rather than unknown. */
-    private static final Set<String> WITHDRAWN = Set.of("zk");
-
     private final Map<String, EutxoDemoScenarioProvider> providers;
 
     public EutxoDemoScenarioRegistry() {
@@ -46,10 +42,6 @@ public final class EutxoDemoScenarioRegistry {
 
     public EutxoDemoScenarioProvider require(String id) {
         EutxoDemoScenarioProvider provider = providers.get(id);
-        if (provider == null && WITHDRAWN.contains(id)) {
-            throw new IllegalArgumentException("EUTxO demo scenario " + id
-                    + " has been withdrawn; stop any nodes it started and delete its workspace directory");
-        }
         if (provider == null) {
             throw new IllegalArgumentException(
                     "EUTxO demo scenario is not installed: " + id);

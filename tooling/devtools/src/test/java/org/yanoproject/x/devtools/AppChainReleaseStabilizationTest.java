@@ -73,25 +73,4 @@ class AppChainReleaseStabilizationTest {
                     .contains(parts.get(1));
         }
     }
-
-    @Test
-    void zkPathIsWithdrawnFromEveryRecipeAndTheRelease() throws Exception {
-        AppChainProjectCatalog catalog = new AppChainProjectCatalog(
-                AppChainPropertyRegistry.framework());
-        assertThat(catalog.capabilities())
-                .filteredOn(AppChainProjectModel.Capability::withdrawn)
-                .extracting(AppChainProjectModel.Capability::id)
-                .containsExactlyInAnyOrder("state:zk-gate", "state:zk-membership",
-                        "state:credential-registry", "settlement:zeroj-validity",
-                        "rollup:zeroj-cardano");
-        assertThat(catalog.recipes())
-                .extracting(AppChainProjectModel.Recipe::id)
-                .doesNotContain("eutxo-zeroj-validity", "eutxo-zeroj-preview");
-        assertThat(catalog.recipes())
-                .flatExtracting(AppChainProjectModel.Recipe::capabilities)
-                .noneMatch(id -> catalog.capability(id).withdrawn());
-        assertThat(catalog.releaseIndex().artifacts())
-                .as("the developer tools no longer bundle the ZK lifecycle or ZeroJ")
-                .doesNotContain("yano-x-eutxo-zk-lifecycle", "yano-x-eutxo-zk-zeroj");
-    }
 }

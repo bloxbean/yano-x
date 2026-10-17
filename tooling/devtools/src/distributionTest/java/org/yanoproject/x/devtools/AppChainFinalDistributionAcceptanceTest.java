@@ -529,36 +529,6 @@ class AppChainFinalDistributionAcceptanceTest {
         assertThat(catalog.releaseAcceptanceIndex().recipes()).hasSameSizeAs(catalog.recipes());
     }
 
-    @Test
-    void finalDistributionDoesNotOfferTheWithdrawnZkPath() throws Exception {
-        Path archive = Path.of(System.getProperty(
-                        "yano.test.final-yano-dist-zip"))
-                .toAbsolutePath().normalize();
-        Path release = extractRelease(
-                archive, temporary.resolve("withdrawn-zk-release"));
-        Path launcher = release.resolve("yano.sh");
-        assertThat(launcher.toFile().setExecutable(true)).isTrue();
-        assertThat(release.resolve(
-                        "tools/yano-appchain/bin/yano-appchain")
-                .toFile().setExecutable(true)).isTrue();
-
-        assertThat(release.resolve("evidence/eutxo-zk")).doesNotExist();
-        try (var schemas = Files.list(release.resolve("config/schema"))) {
-            assertThat(schemas.map(path -> path.getFileName().toString()))
-                    .noneMatch(name -> name.startsWith("eutxo-zk-"));
-        }
-        try (var libraries = Files.list(release.resolve("tools/lib"))) {
-            assertThat(libraries.map(path -> path.getFileName().toString()))
-                    .noneMatch(name -> name.contains("eutxo-zk") || name.contains("zeroj"));
-        }
-
-        Result validity = run(launcher, List.of(
-                "appchain", "validity", "key", "generate",
-                "--output", temporary.resolve("l2-session-key.enc").toString()));
-        assertThat(validity.exit()).as(validity.output()).isNotZero();
-        assertThat(validity.output()).doesNotContain("L2_SESSION_KEY_CREATED");
-    }
-
     private void assertStudioBlueprintRoundTrips(Path release, Path launcher) throws Exception {
         Path project = Files.createDirectory(temporary.resolve("studio-round-trip"));
         String script = """

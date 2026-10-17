@@ -85,9 +85,8 @@ Then pass the exact published version and ZIP to Yano X:
 The default `./gradlew build -PskipSigning=true` and the focused
 `distributionCheck` tier produce one release archive,
 `distribution/jvm/build/distributions/yano-x-jvm-<version>.zip`. It contains
-the standard Yano JVM distribution, 17 conflict-free default plugin bundles
-under `plugins/`, one alternative runtime bundle under `optional-plugins/`, a
-checksummed manifest covering all 18 runtime plugin bundles, the command-line
+the standard Yano JVM distribution, 15 conflict-free runtime plugin bundles
+under `plugins/`, a checksummed manifest covering all of them, the command-line
 and deployment tools, App-Chain Studio, and Yano/Yano X identity manifests.
 
 The multi-node showcase ships inside the same archive. Extract it and run
@@ -139,10 +138,8 @@ Both release ZIPs contain `LICENSE` and a normalized CycloneDX 1.6 SBOM under
 external Maven component. The combined JVM ZIP also preserves Yano's license as
 `LICENSE.yano` and its host SBOM as `sbom/yano.cdx.json`.
 
-The default plugin directory is an activatable selection, not an indiscriminate
-copy of every published alternative. The bundle in `optional-plugins/` provides
-the same `app-state-machine/eutxo-ledger` contribution as the standard eUTxO
-runtime, so never copy both into `plugins/`. Validate any plugin set with
+No two bundles in `plugins/` provide the same contribution, so the whole
+directory activates together. Validate any plugin set with
 `tools/yano-plugins/bin/yano-plugins validate plugins/*.jar`.
 
 ## Documentation

@@ -49,15 +49,6 @@
     "state:custom-plugin": [
       "tooling/devtools/src/test/java/org/yanoproject/x/devtools/AppChainCustomComponentCatalogTest.java#reviewedJvmArtifactIsVisibleThroughItsServiceLoaderBoundary"
     ],
-    "state:zk-gate": [
-      "state-machines/zk/src/test/java/org/yanoproject/x/zk/ZkGateStateMachineTest.java#gate_admitsValidProof_rejectsInvalidAndNonProof"
-    ],
-    "state:zk-membership": [
-      "state-machines/zk/src/test/java/org/yanoproject/x/zk/ZkMembershipStateMachineTest.java#anonymousSubmission_admittedOnce_perNullifier"
-    ],
-    "state:credential-registry": [
-      "state-machines/zk/src/test/java/org/yanoproject/x/zk/BbsCredentialRegistryTest.java#issue_record_disclose_verify"
-    ],
     "state:eutxo-ledger": [
       "ledgers/eutxo/ledger/src/test/java/org/yanoproject/x/eutxo/ledger/EutxoStateMachineTest.java#sameBlockChainingWorksAndFirstConflictingSpendWins"
     ],
@@ -77,14 +68,6 @@
       "ledgers/eutxo/bridge-cardano/src/test/java/org/yanoproject/x/eutxo/bridge/cardano/ProofWithdrawalTransactionBuilderTest.java#permissionlessRelayReturnsExactReusableSignedBytes",
       "ledgers/eutxo/bridge-onchain/src/test/java/org/yanoproject/x/eutxo/bridge/onchain/ProofVaultValidatorConformanceTest.java#realMpfClaimSettlesPermissionlesslyWithinBudget",
       "ledgers/eutxo/bridge-onchain/src/test/java/org/yanoproject/x/eutxo/bridge/onchain/RootAndNullifierValidatorConformanceTest.java#nullifierAcceptsOnlyTheExactNextClaimSequence"
-    ],
-    "settlement:zeroj-validity": [
-      "ledgers/eutxo-zk/testkit/src/test/java/org/yanoproject/x/eutxo/zk/testkit/EutxoValidityIntegrationTest.java#selectedOptionalProviderMaintainsAtomicSecondRoot",
-      "ledgers/eutxo-zk/onchain/src/cryptoTest/java/org/yanoproject/x/eutxo/zk/onchain/EutxoValidityRootValidatorTest.java#rootAdvanceRequiresOneExactProofBoundDataPublication",
-      "ledgers/eutxo-zk/zeroj/src/cryptoTest/java/org/yanoproject/x/eutxo/zk/zeroj/EutxoZ6CircuitFuzzTest.java#deterministicFuzzCorpusSatisfiesCircuitAndMutationsNeverAlias"
-    ],
-    "rollup:zeroj-cardano": [
-      "ledgers/eutxo-zk/Z6_PRODUCTION_HARDENING.md#external-gates"
     ],
     "indexer:eutxo-lifecycle": [
       "ledgers/eutxo/indexer-jdbc/src/test/java/org/yanoproject/x/eutxo/indexer/jdbc/SqliteEutxoIndexStoreTest.java#withdrawalVersionsRollbackWithoutLosingTheDepositHistory",
@@ -368,7 +351,7 @@
         "ledgers/eutxo/bridge-cardano/src/test/java/org/yanoproject/x/eutxo/bridge/cardano/ProofWithdrawalTransactionBuilderTest.java#permissionlessRelayReturnsExactReusableSignedBytes",
         "ledgers/eutxo/bridge-onchain/src/test/java/org/yanoproject/x/eutxo/bridge/onchain/ProofVaultValidatorConformanceTest.java#realMpfClaimSettlesPermissionlesslyWithinBudget",
         "ledgers/eutxo/bridge-onchain/src/test/java/org/yanoproject/x/eutxo/bridge/onchain/BridgeValidatorSourceCompileTest.java#releasePinnedJulcCompilesAllBridgeValidators",
-        "fixtures/eutxo-e2e/src/test/java/org/yanoproject/app/e2e/EutxoZkRollupDevnetE2ETest.java#depositFinalizeProveSettleAndWithdrawOnDevnet"
+        "fixtures/eutxo-e2e/src/test/java/org/yanoproject/app/e2e/EutxoSettlementEffectPathDevnetE2ETest.java#aClaimSettlesEndToEndThroughTheEffectPath"
       ]
     },
     {

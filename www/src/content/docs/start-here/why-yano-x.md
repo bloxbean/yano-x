@@ -44,10 +44,8 @@ lives. Operators who already run the matching Yano release can take bundles
 from its `plugins/` directory or download the standalone plugin pack; the
 deployment tool and Studio also ship as standalone archives.
 
-The default `plugins/` directory is a deliberate, conflict-free **selection**,
-not a copy of every published bundle. Alternative implementations that would
-claim the same contribution live under `optional-plugins/`, and you opt into
-them explicitly.
+The `plugins/` directory is **conflict-free**: no two bundles claim the same
+contribution, so the whole directory activates together.
 
 ## Everything optional is a plugin
 

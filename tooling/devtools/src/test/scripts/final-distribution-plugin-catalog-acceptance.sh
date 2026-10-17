@@ -28,8 +28,8 @@ jq -e -n --slurpfile manifest "$manifest" --slurpfile catalog "$catalog" '
         }) | from_entries)
   and ($expected | map({key: .bundleId, value: ("sha256:" + .sha256)}) | from_entries)
       == ($actual | map({key: .id, value: .digest}) | from_entries)
-  and ($expected | length) == 17
-  and ($manifest[0].bundles | map(select(.installMode == "optional")) | length) == 1
+  and ($expected | length) == 15
+  and ($manifest[0].bundles | map(select(.installMode == "optional")) | length) == 0
   and ([
       "org.yanoproject.x.stdlib",
       "org.yanoproject.x.kafka",
@@ -38,17 +38,4 @@ jq -e -n --slurpfile manifest "$manifest" --slurpfile catalog "$catalog" '
     ] - ($actual | map(.id)) | length) == 0
 ' >/dev/null
 
-# The ZK eUTxO runtime is an alternative provider for eutxo-ledger. Validate
-# its supported selection by replacing the standard runtime and its dependent
-# Cardano bridge, without mutating the packaged default directory.
-alternative=()
-for jar in "$yano_home"/plugins/*.jar; do
-  case "$jar" in
-    *yano-x-eutxo-ledger-bundle*|*yano-x-eutxo-bridge-cardano-bundle*) ;;
-    *) alternative+=("$jar") ;;
-  esac
-done
-alternative+=("$yano_home"/optional-plugins/*yano-x-eutxo-zk-runtime-bundle*.jar)
-"$cli" validate "${alternative[@]}" | grep -Fq 'bundles=16 selected=16'
-
-echo "PASS: packaged/default directory catalog identity and optional eUTxO ZK selection"
+echo "PASS: packaged/default directory catalog identity"
