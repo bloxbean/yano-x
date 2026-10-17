@@ -114,7 +114,9 @@ plugins' code, unsandboxed. Run them only on bundles you trust.
   `/api/v1/app-chain/chains/<chain-id>/identity` (under the configured API
   prefix).
 - **Find the member that differs.** `./yano.sh appchain drift <project> --peer
-  http://<member>:8080/api/v1/` compares every node's identity with the project.
+  http://<member>:8080/api/v1/ --api-key-env <variable>` compares every node's
+  identity with the project. The variable holds one of the nodes' operator API
+  keys.
   A plugin difference shows as `cluster.plugin-catalog` and the result is
   `DRIFT_DETECTED`.
 - **Plugin health and metrics.** See Yano's

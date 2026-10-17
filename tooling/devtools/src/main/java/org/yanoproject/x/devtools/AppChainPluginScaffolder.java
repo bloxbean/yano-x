@@ -172,10 +172,12 @@ final class AppChainPluginScaffolder {
             case "state-machine", "composite-role" -> """
                     package %s;
 
-                    import org.yanoproject.api.appchain.AppBlock;
+                    import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
+                    import org.yanoproject.api.appchain.AppBlockExecutionContext;
                     import org.yanoproject.api.appchain.AppStateMachine;
                     import org.yanoproject.api.appchain.AppStateMachineProvider;
                     import org.yanoproject.api.appchain.AppStateWriter;
+                    import org.yanoproject.api.appchain.effects.AppEffectEmitter;
 
                     public final class %s implements AppStateMachineProvider {
                         @Override
@@ -195,13 +197,17 @@ final class AppChainPluginScaffolder {
                             }
 
                             @Override
-                            public AdmissionResult validate(
-                                    com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage message) {
-                                return AdmissionResult.reject("plugin scaffold is not implemented");
+                            public AdmissionResult validate(AppMessage message) {
+                                // Rejects everything until validation is implemented. Remote callers see
+                                // only the symbolic code, which must match [A-Z_]{1,32}.
+                                return AdmissionResult.reject("NOT_IMPLEMENTED");
                             }
 
                             @Override
-                            public void apply(AppBlock block, AppStateWriter writer) {
+                            public void apply(
+                                    AppBlockExecutionContext context,
+                                    AppStateWriter writer,
+                                    AppEffectEmitter effects) {
                                 // Implement one deterministic transition before enabling admission.
                             }
                         }
