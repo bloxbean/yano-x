@@ -537,7 +537,9 @@ class AppChainProjectTest {
                 .isEqualTo("compose-interpolation");
         ProcessResult interpolated = compose(project, "config", "--quiet");
         assertThat(interpolated.exit()).isNotZero();
-        assertThat(interpolated.output()).contains("YANO_APPCHAIN_GENESIS_TIMESTAMP", "Run scripts/start");
+        // Compose names whichever unset required variable it reaches first, in no fixed order.
+        assertThat(interpolated.output()).contains("Run scripts/start")
+                .containsAnyOf("YANO_APPCHAIN_GENESIS_TIMESTAMP", L1NetworkGenesis.DEVNET_ENVIRONMENT);
     }
 
     private static boolean composeAvailable() {
