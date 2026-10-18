@@ -2,9 +2,9 @@
 
 > Single-file dump of the Yano X docsite, suitable for AI agent ingestion.
 
-yanoXVersion: 0.1.0-pre4-SNAPSHOT
-yanoVersion: 0.1.0-pre18
-Generated: 2026-10-17T05:13:00.876Z
+yanoXVersion: 0.1.0-pre3
+yanoVersion: 0.1.0-pre17
+Generated: 2026-10-18T12:56:47.626Z
 Site: https://yano-x.io
 Repo: https://github.com/bloxbean/yano-x
 
@@ -15,7 +15,7 @@ Repo: https://github.com/bloxbean/yano-x
   products, SDKs, and the batteries-included JVM distribution. The dependency
   direction is strictly `yano-x -> yano` and must never be inverted, nor satisfied
   with a composite Gradle build or a sibling source checkout.
-- **Versions:** Yano X `0.1.0-pre4-SNAPSHOT` builds against Yano `0.1.0-pre18`, Java 25.
+- **Versions:** Yano X `0.1.0-pre3` builds against Yano `0.1.0-pre17`, Java 25.
   Start with a matching release archive; build from source for unpublished changes.
 - **Yano X is JVM-only.** Never add GraalVM/native-image tasks, reachability
   metadata, or native executables. `verifyJvmOnlyBuild` enforces this.
@@ -361,15 +361,18 @@ yano-x  ──depends on──▶  yano
 
 ##### Version and identity facts
 
+The latest release. A checkout of `main` carries the next `-SNAPSHOT` version
+in its `gradle.properties`.
+
 <!-- catalog:versions-start -->
 
 | Value | Current |
 |---|---|
-| Yano X version | `0.1.0-pre4-SNAPSHOT` |
-| Yano host version | `0.1.0-pre18` |
+| Yano X version | `0.1.0-pre3` |
+| Yano host version | `0.1.0-pre17` |
 | Maven group | `org.yanoproject.x` |
 | Java | `25` |
-| Base Yano JVM ZIP | [`yano-0.1.0-pre18.zip`](https://github.com/bloxbean/yano/releases/download/v0.1.0-pre18/yano-0.1.0-pre18.zip) |
+| Base Yano JVM ZIP | [`yano-0.1.0-pre17.zip`](https://github.com/bloxbean/yano/releases/download/v0.1.0-pre17/yano-0.1.0-pre17.zip) |
 
 <!-- catalog:versions-end -->
 
@@ -1291,19 +1294,24 @@ Then supply the matching inputs explicitly:
 
 ##### Host version and distribution inputs
 
-`gradle.properties` pins the exact Yano host line Yano X is built against:
+`gradle.properties` pins the exact Yano host line Yano X is built against. For
+the latest release it is:
 
 <!-- catalog:versions-start -->
 
 | Value | Current |
 |---|---|
-| Yano X version | `0.1.0-pre4-SNAPSHOT` |
-| Yano host version | `0.1.0-pre18` |
+| Yano X version | `0.1.0-pre3` |
+| Yano host version | `0.1.0-pre17` |
 | Maven group | `org.yanoproject.x` |
 | Java | `25` |
-| Base Yano JVM ZIP | [`yano-0.1.0-pre18.zip`](https://github.com/bloxbean/yano/releases/download/v0.1.0-pre18/yano-0.1.0-pre18.zip) |
+| Base Yano JVM ZIP | [`yano-0.1.0-pre17.zip`](https://github.com/bloxbean/yano/releases/download/v0.1.0-pre17/yano-0.1.0-pre17.zip) |
 
 <!-- catalog:versions-end -->
+
+Between releases, `main` carries the next `-SNAPSHOT` version and may pin a
+newer host; a checkout's own `gradle.properties` is authoritative for its
+build.
 
 When `yanoVersion` identifies a published release, the distribution tasks
 resolve and cache the matching ordinary Yano JVM ZIP from
@@ -10165,20 +10173,21 @@ application {
 }
 ```
 
-Use the Yano X version your distribution was built from. The distribution
-records it in `yano-x-plugin-pack-v1.json`, in its top-level directory, which
-the steps above exported as `YANO_HOME`:
+Set `YANO_X_VERSION` to the Yano X version of your distribution, the version in
+its file name (`yano-x-jvm-<version>.zip`). The latest release is listed under
+[Versions](https://yano-x.io/reference/modules/#versions):
 
 ```bash
-YANO_X_VERSION=$(jq -r .version "$YANO_HOME/yano-x-plugin-pack-v1.json")
+YANO_X_VERSION=<version>
 ```
 
-A release version, such as `0.1.0-pre4`, resolves from Maven Central or the
-BloxBean release repository. A version ending in `-SNAPSHOT` means the
-distribution was built from an unreleased commit. The snapshot repository
-serves the newest snapshot of that version, which may be newer than your
-distribution. If you built the distribution yourself, publish the client from
-the same Yano X source checkout and add `mavenLocal()` to the repositories:
+A release version resolves from Maven Central or the BloxBean release
+repository. Snapshot builds are for internal testing only; the same
+[Versions](https://yano-x.io/reference/modules/#versions) section explains how
+to derive a snapshot's Maven version. The snapshot repository serves the
+newest snapshot of the version, which may be newer than your distribution. If
+you built the distribution yourself, publish the client from the same Yano X
+source checkout and add `mavenLocal()` to the repositories:
 
 ```bash
 ./gradlew :sdk:client:publishToMavenLocal \
@@ -17321,17 +17330,33 @@ is generated at documentation build time from `config/artifacts-v1.json`, which
 is the repository's single source of truth for artifact identity — the build
 verifies it with `verifyArtifactInventory`.
 
+#### Versions
+
+**CHECK GITHUB FOR THE LATEST RELEASE:**
+The GitHub repository is the source of truth for releases. This site can lag
+behind a new release, so always confirm the latest version on
+[Yano X releases](https://github.com/bloxbean/yano-x/releases).
+
+The latest Yano X release and the Yano host it is built on:
+
 <!-- catalog:versions-start -->
 
 | Value | Current |
 |---|---|
-| Yano X version | `0.1.0-pre4-SNAPSHOT` |
-| Yano host version | `0.1.0-pre18` |
+| Yano X version | `0.1.0-pre3` |
+| Yano host version | `0.1.0-pre17` |
 | Maven group | `org.yanoproject.x` |
 | Java | `25` |
-| Base Yano JVM ZIP | [`yano-0.1.0-pre18.zip`](https://github.com/bloxbean/yano/releases/download/v0.1.0-pre18/yano-0.1.0-pre18.zip) |
+| Base Yano JVM ZIP | [`yano-0.1.0-pre17.zip`](https://github.com/bloxbean/yano/releases/download/v0.1.0-pre17/yano-0.1.0-pre17.zip) |
 
 <!-- catalog:versions-end -->
+
+Snapshot builds are for internal testing only. The BloxBean snapshot
+repository (`https://repo.bloxbean.org/maven/snapshots`) publishes them under
+the next version with `-SNAPSHOT` appended, such as `0.1.0-pre4-SNAPSHOT`. A
+snapshot distribution adds the short commit id to its file name, as in
+`yano-x-jvm-0.1.0-pre4-3e9e1c8.zip`, only to tell builds apart. Drop the commit
+id and add `-SNAPSHOT` to get the Maven version.
 
 #### Publication types
 
