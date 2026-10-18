@@ -26,6 +26,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+          # History and tags: on a -SNAPSHOT version the site quotes the latest release tag's versions.
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:

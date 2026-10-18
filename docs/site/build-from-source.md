@@ -49,19 +49,24 @@ Then supply the matching inputs explicitly:
 
 ### Host version and distribution inputs
 
-`gradle.properties` pins the exact Yano host line Yano X is built against:
+`gradle.properties` pins the exact Yano host line Yano X is built against. For
+the latest release it is:
 
 <!-- catalog:versions-start -->
 
 | Value | Current |
 |---|---|
-| Yano X version | `0.1.0-pre4-SNAPSHOT` |
-| Yano host version | `0.1.0-pre18` |
+| Yano X version | `0.1.0-pre3` |
+| Yano host version | `0.1.0-pre17` |
 | Maven group | `org.yanoproject.x` |
 | Java | `25` |
-| Base Yano JVM ZIP | [`yano-0.1.0-pre18.zip`](https://github.com/bloxbean/yano/releases/download/v0.1.0-pre18/yano-0.1.0-pre18.zip) |
+| Base Yano JVM ZIP | [`yano-0.1.0-pre17.zip`](https://github.com/bloxbean/yano/releases/download/v0.1.0-pre17/yano-0.1.0-pre17.zip) |
 
 <!-- catalog:versions-end -->
+
+Between releases, `main` carries the next `-SNAPSHOT` version and may pin a
+newer host; a checkout's own `gradle.properties` is authoritative for its
+build.
 
 When `yanoVersion` identifies a published release, the distribution tasks
 resolve and cache the matching ordinary Yano JVM ZIP from
