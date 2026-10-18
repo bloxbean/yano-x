@@ -7,7 +7,7 @@ def artifactByPath = rootProject.ext.artifactByPath
 def aggregateSbomJson = layout.buildDirectory.file(
         "reports/cyclonedx/yano-x-${project.version}.cdx.json")
 def releaseSbomProjectPaths = (artifactByPath.keySet().findAll { path ->
-    path != ':fixtures:eutxo-e2e'
+    artifactByPath[path].publicationType != 'test-fixture'
 } + [':distribution:jvm']) as Set
 
 allprojects { candidate ->

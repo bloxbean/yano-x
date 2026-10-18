@@ -176,71 +176,27 @@ matches its recorded digest, and every earlier block it continues is verified in
 the same way. A match shows the same inputs were used; it is not an attestation, a
 finality certificate or deployment approval.
 
-## Generate governed recipes for your own chain
+## Governed DPP and feed examples
+
+`examples/bindings/dpp-approval.yaml` and `examples/bindings/feed-approval.yaml`
+connect actor-signed approvals to a governed authenticated map with real schemas
+and policies, over a deterministic demo genesis. Validate the DPP example with
+the context shipped for its role-gated variant, which uses the same genesis:
 
 ```bash
-./yano.sh appchain bindings recipe dpp \
-  --descriptor actors.json --members members.json --threshold 2 > recipe.json
-jq '.document' recipe.json > bindings.yml
-jq '.context' recipe.json > context.json
-./yano.sh appchain bindings validate bindings.yml \
-  --plugins-directory /absolute/path/to/plugins --context context.json
+./yano.sh appchain bindings validate examples/bindings/dpp-approval.yaml \
+  --plugins-directory /absolute/path/to/plugins \
+  --context examples/bindings/fixtures/dpp-role-gated/context.json
 ```
 
-Use `feed` instead of `dpp` for the attestation-feed round-approval starter. This
-is a packaged CLI command, not a Gradle test task. JSON is accepted as YAML, so
-the extracted document is directly compilable. The generator uses the public
-product profile builders for the real schemas, policies, actor genesis, and
-authenticated-map genesis. It activates no runtime provider; the last command
-validates the output against your explicit catalog. No demo chain ID, member,
-actor identity, private key, or proof is substituted.
-
-`members.json` is an array of your member public-key hex strings. `actors.json`
-is a closed schema-version-1 public descriptor with these fields:
-
-- `schemaVersion: 1`, your `chainId`, and `organizations: [{"id":"..."}]`;
-- `actors`: each has `id`, `organizationId`, `roles`, `keyId`, `publicKeyHex`,
-  and `keyProofHex`;
-- `authority`: `id`, `administratorActorIds`, `distinctActorThreshold`, and
-  `maximumLifetimeBlocks`;
-- optional empty `issuers` and `schemas` arrays. Nonempty initial entries are
-  not supported by these starter recipes.
-
-Choose roles and independent organizations matching the product's policy:
-DPP uses `manufacturer`, `operator`, `claim-issuer`, `certifier`, and `auditor`
-(with `dpp-admin` administration); feed uses `source`, `feed-operator`, and
-`publisher` (with `feed-admin` administration). These are product starter
-policies, not a generator for arbitrary governance policy. Actors need not be
-consensus members. Review the emitted normalized `members`, `proposer`,
-`threshold`, and `blockIntervalMs` when configuring the chain; changing these
-genesis inputs requires regeneration, not editing opaque CBOR.
-
-Generation checks starter usability at height 1: every direct policy needs an
-eligible role holder, every approval policy needs an eligible proposer, and its
-voters must meet the distinct-organization quorum. Eligibility requires an active
-actor, organization, and signing key. Proposer roles are alternatives; a proposer
-may also vote when it holds the voting role. These checks cover the fixed starter
-policies only, not general policy satisfiability, future key validity, or the
-business prerequisites of every possible action.
-
-Public keys alone cannot prove possession. Each actor signs a chain-bound proof
-using the existing offline role CLI, outside the recipe generator:
-
-```bash
-PUBLIC_KEY="$(./yano.sh appchain role public-key --seed-file /owner-only/actor.seed)"
-KEY_PROOF="$(./yano.sh appchain role key-proof \
-  --chain "$CHAIN_ID" --actor "$ACTOR_ID" --actor-revision 1 \
-  --key "$KEY_ID" --public-key "$PUBLIC_KEY" \
-  --valid-from-height 1 --valid-until-height 0 \
-  --seed-file /owner-only/actor.seed)"
-```
-
-Put the public key and full encoded `KEY_PROOF` into that actor's descriptor
-entry. Do not use the signature-only command for `keyProofHex`. The generator
-verifies every proof against the supplied chain, actor, and key; changing the
-chain ID requires fresh proofs. It never reads seed files. Generated DPP/feed
-binding workflows retain the documented limitations around legacy product
-projections and certificates; generation does not imply those integrations.
+Never use the demo keys in production. For your own organizations, actors, and
+keys, declare a governed map's genesis in a project and render it, as described
+in [governed collections](state-machines/authenticated-map.md#governed-collections);
+each actor signs its proof of key possession offline with
+`appchain role key-proof-signature`. The DPP and feed starter generators moved
+with those products to
+[yano-x-products](https://github.com/bloxbean/yano-x-products). No context ships
+for the feed example.
 
 ## Admission and catalog validation
 

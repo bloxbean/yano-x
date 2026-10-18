@@ -429,8 +429,8 @@ See [upgrade and retained-chain preflight](DECLARATIVE_BINDINGS_UPGRADES.md)
 before changing a stock bundle, application version, query catalog or default
 setting. A governed epoch alone cannot make a new binary execute an old profile;
 the candidate runtime must reproduce every profile required for startup/replay.
-Use the [CLI authoring guide](DECLARATIVE_BINDINGS_CLI.md) for chain-specific
-governed recipe generation and multi-block dry-run continuation.
+Use the [CLI authoring guide](DECLARATIVE_BINDINGS_CLI.md) for the governed
+examples and multi-block dry-run continuation.
 
 Generation changes do not migrate genesis-bound state. If a leaf's stored
 genesis/configuration cannot change in place, allocate a new component instance

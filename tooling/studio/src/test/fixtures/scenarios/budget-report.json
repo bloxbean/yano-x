@@ -6,7 +6,7 @@
   "producer" : {
     "tool" : "yano-x-devtools",
     "version" : "0.1.0-pre4-SNAPSHOT",
-    "jarSha256" : "6da82d66cf5bbccdc20e5bd95983de4edef30613b73639917ddc7d415b1b1781",
+    "jarSha256" : "84837a41b3aa6419d040c20fd60ed652d41d044838179cd7a8d121200817ed8a",
     "linkedCompositeJarSha256" : "a3fb538e1dd4cfecd5e31a4b45fd644e998f2428c2981a7c99f326b39aace16f"
   },
   "host" : {

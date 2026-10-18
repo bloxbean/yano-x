@@ -59,7 +59,7 @@ public final class AppChainDevtoolsCli {
                or: ./yano.sh appchain eutxo transaction|utxo|proof|doctor|demo [options]
                or: ./yano.sh appchain state entry|proof|verify|identity|integrity|snapshot|oldest [options]
                or: ./yano.sh appchain bindings compile|validate|graph|dry-run <document> [options]
-               or: ./yano.sh appchain bindings receipt-key|recipe|profile-check [options]
+               or: ./yano.sh appchain bindings receipt-key|catalog|profile-check [options]
             Options:
               --config <yml|yaml>                        repeatable, later source wins
               --format text|json                         validate/explain

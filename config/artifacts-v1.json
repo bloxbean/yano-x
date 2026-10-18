@@ -271,33 +271,6 @@
       "bundleArtifactId": null
     },
     {
-      "modulePath": ":products:trust-registry:profile",
-      "directory": "products/trust-registry/profile",
-      "artifactId": "yano-x-trust-registry-profile",
-      "publicationType": "library",
-      "pluginBundleId": null,
-      "bundleArtifactId": null,
-      "publishToCentral": false
-    },
-    {
-      "modulePath": ":products:dpp:profile",
-      "directory": "products/dpp/profile",
-      "artifactId": "yano-x-dpp-profile",
-      "publicationType": "library",
-      "pluginBundleId": null,
-      "bundleArtifactId": null,
-      "publishToCentral": false
-    },
-    {
-      "modulePath": ":products:attestation-feed:profile",
-      "directory": "products/attestation-feed/profile",
-      "artifactId": "yano-x-attestation-feed-profile",
-      "publicationType": "library",
-      "pluginBundleId": null,
-      "bundleArtifactId": null,
-      "publishToCentral": false
-    },
-    {
       "modulePath": ":ledgers:eutxo:contracts",
       "directory": "ledgers/eutxo/contracts",
       "artifactId": "yano-x-eutxo-contracts",
@@ -385,6 +358,14 @@
       "modulePath": ":fixtures:eutxo-e2e",
       "directory": "fixtures/eutxo-e2e",
       "artifactId": "yano-x-eutxo-e2e",
+      "publicationType": "test-fixture",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":fixtures:governed-recipes",
+      "directory": "fixtures/governed-recipes",
+      "artifactId": "yano-x-governed-recipes",
       "publicationType": "test-fixture",
       "pluginBundleId": null,
       "bundleArtifactId": null

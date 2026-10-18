@@ -69,7 +69,7 @@ export default {
         title: '`CALLER_PINNED_ANCHOR`',
         text: 'The proof is bound to an anchor datum you supplied: its height, root, block hash, genesis, and member '
           + 'set, without the verifier reading Cardano itself. Yano defines this level, but no Yano X command '
-          + 'reports it today: the tools that take an anchor datum report the independent level below.',
+          + 'reports it today.',
         facts: [
           ['Establishes', 'the record matches the anchor data you supplied'],
           ['Does not establish', 'that the datum came from Cardano'],

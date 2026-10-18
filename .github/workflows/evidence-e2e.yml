@@ -38,8 +38,7 @@ on:
       - next
     paths:
       - 'products/evidence/**'
-      - 'products/dpp/**'
-      - 'products/attestation-feed/**'
+      - 'fixtures/governed-recipes/**'
       - 'connectors/**'
       - 'state-machines/stdlib/**'
       - 'state-machines/stdlib-contracts/**'
@@ -63,8 +62,7 @@ on:
       - next
     paths:
       - 'products/evidence/**'
-      - 'products/dpp/**'
-      - 'products/attestation-feed/**'
+      - 'fixtures/governed-recipes/**'
       - 'connectors/**'
       - 'state-machines/stdlib/**'
       - 'state-machines/stdlib-contracts/**'

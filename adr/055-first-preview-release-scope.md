@@ -23,9 +23,9 @@ is a minority of that code:
 | eUTxO ledger, bridge and indexer | `ledgers/eutxo/*`, `fixtures/eutxo-e2e` | Core (experimental), in the default plugin set and the showcase |
 | Developer tooling | `tooling/devtools`, `tooling/studio`, `tooling/deployment`, `tooling/spring-boot-starter` | Surrounding |
 | Showcase | `examples/showcase`, `examples/showcase-client` | Demonstration, smoke-gated |
-| Products | 31 modules under `products/` | Mostly demonstration |
+| Products | 30 modules under `products/` | Mostly demonstration |
 
-The `products/` tree alone held 31 modules: seven SvelteKit consoles of 2.3k–4.6k source lines
+The `products/` tree alone held 30 modules: seven SvelteKit consoles of 2.3k–4.6k source lines
 each, whose shared files (`app.css`, layouts, `CopyValue.svelte`, `cbor.ts`, `hash.ts`,
 `message-proof.ts`, build configuration) were byte-identical copies, plus clients, CLIs, launchers
 and a Maven aggregate (`yano-x-products-client`). Only a few of these modules are reached from the
@@ -55,7 +55,7 @@ docsite):
 |---|---|---|
 | Evidence: `contracts`, `registry`, `profile`, `client`, `demo-runner`, harness | Tutorials 4 and 5 (`examples/evidence/demo.sh`, `runner.jar`); `build.yml` release contracts and connector fault matrix; `evidence-e2e.yml`, which `tag-release.yml` requires | Keep |
 | Evidence Desk UI (`products/evidence/ui`) | Only the ZIP, and a showcase golden test that writes the UI's own fixture. The tutorials' "Evidence Explorer" is the demo runner's built-in page, not this UI | Remove |
-| `trust-registry:profile`, `dpp:profile`, `attestation-feed:profile` | `appchain bindings recipe dpp|feed` (bindings chapter 3); stdlib tests | Keep |
+| `trust-registry:profile`, `dpp:profile`, `attestation-feed:profile` | Ten test classes in stdlib and devtools that use them as realistic governed data (admission rules, typed views, recipes), and one production use: `appchain bindings recipe dpp|feed`, a generator for the two product starters | Move to a test fixture; remove the generator |
 | Trust Registry, DPP and Attestation Feed clients, CLIs, consoles and launchers | Only the ZIP, their own tests, product docs, and the production guide's use of `yano-trust` for actor keys (core equivalent: `appchain role key-proof`) | Remove |
 | Attest client, CLI, console | Only the ZIP, product docs, and the product clients above | Remove |
 | Verifiable Explorer core, CLI, console, launcher | Only the ZIP and product docs | Remove |
@@ -80,17 +80,26 @@ docsite):
 - `products/attestation-feed` client, CLI, console and launcher
 - `products/evidence/ui` and the showcase's `EvidenceDeskGoldenTest`
 - `products/client` (`yano-x-products-client`)
+- `appchain bindings recipe dpp|feed`, the DPP and feed starter generator
 - Their docs: `docs/appchain/{ATTEST,ATTESTATION_FEED,DPP_DEMO,DPP_STARTER,EVIDENCE_DESK,EXPLORER,TRUST_REGISTRY}.md`,
   `docs/site/products-{evidence-desk,trust-registry}.md`, the matching site pages and their six
   illustrations
 
-That is 18 inventory entries and about 103k lines.
+That is 20 inventory entries (17 deleted, three folded into one test fixture) and about 104k lines.
 
 ### Kept, with consequences
 
-- The three product profiles and the Cardano History client are no longer folded into an aggregate.
-  They become internal libraries (`publishToCentral: false`). Their only consumers are the devtools
-  CLI and tests, which ship inside the distribution, so no downstream coordinate is lost.
+- The governed genesis builders of the three product profiles move to one test-fixture module,
+  `fixtures/governed-recipes`; the product-only classes (status lists, TRQP, the feed datum) and
+  the products' classpath-firewall tests are dropped. The generator logic is a devtools test helper
+  (`BindingRecipe`), and the distribution acceptance test still validates both generated recipes
+  with the packaged launcher. Bindings chapter 3 and the CLI guide teach from the shipped
+  `dpp-approval.yaml` and `feed-approval.yaml` examples instead. `products/` now holds only
+  `evidence`, `cardano-history` and `eutxo/ui`.
+- The Cardano History client is no longer folded into an aggregate; it becomes an internal library
+  (`publishToCentral: false`) used by its CLI.
+- Test fixtures are recognised by publication type (`test-fixture`) instead of by path in the root
+  build, the SBOM wiring and the devtools release gate.
 - The JVM ZIP no longer contains `tools/yano-{attest,trust,explorer,dpp,feed}`,
   `product-ui/{attest,evidence,trust-registry,explorer,dpp,attestation-feed}` and their SBOMs, or
   `examples/{trust-registry,explorer,dpp,attestation-feed}`. It still contains
@@ -101,16 +110,20 @@ That is 18 inventory entries and about 103k lines.
 - `verifySourceExtractionProvenance` no longer compares `movedModuleCount` with the current
   inventory. The count is an immutable record of the split, not a floor: PR #71 already removed 11
   extracted ZK modules, and the inventory checks govern what exists now.
-- The production guide (`docs/appchain/PRODUCTION_DEPLOYMENT.md`) now uses the core role CLI
-  (`appchain role public-key`, `role key-proof`, `role bootstrap`, `bindings recipe`) instead of
-  `yano-trust`. The proofs concept page names `appchain state verify --trusted-root` and the Java
+- The production guide (`docs/appchain/PRODUCTION_DEPLOYMENT.md`) now uses the core CLI instead
+  of `yano-trust`: `appchain role public-key` and `role key-proof-signature` for actor keys,
+  `genesisRecords` with `appchain render` for a governed map's genesis, and `role bootstrap` for
+  later actors. The proofs concept page names `appchain state verify --trusted-root` and the Java
   client's `PortableProofBundle` as its examples.
 - The site's Products section lists Evidence, Cardano History and the eUTxO ledger.
 
-To revive a removed product, restore its directories from the parent of the commit that adds this
-ADR, re-add its `settings.gradle` and `config/artifacts-v1.json` entries, and its
-`distribution/jvm/jvm-distribution.gradle` copy and required-path entries. ADRs 047–053 remain the
-design record.
+### Where the removed products go
+
+The removed products move to [yano-x-products](https://github.com/bloxbean/yano-x-products), where
+each builds on its own against published Yano X artifacts and the Yano X JVM distribution, with its
+own deployment and test instructions. Dependency direction stays one way: products depend on Yano X,
+never the reverse. Product-specific tooling, such as the governed genesis generators for DPP and the
+feed, lives there with its product. ADRs 047–053 remain the design record.
 
 ## 5. Phase 2 (proposed): the project CLI and small dead code
 
@@ -151,7 +164,7 @@ Decide after Phase 2, when the binding authoring story without a project is clea
 - The first release ships the core plus three products, each reached from a tutorial or the
   showcase. Every remaining module has a consumer in the release.
 - The distribution build drops six Node builds and SBOMs, and five CLIs. The JVM ZIP barely shrinks
-  (from 513 MB to 512 MB, 903 entries): the removed consoles were small static sites, and the
+  (from 513 MB to 511 MB, 900 entries): the removed consoles were small static sites, and the
   Yano host and plugin bundles dominate its size. The gain is in source, build and review surface.
 - Maven Central drops `yano-x-products-client`. No core artifact changes.
 - The removed products' designs and code remain in ADRs 040 and 046–053 and in git history.

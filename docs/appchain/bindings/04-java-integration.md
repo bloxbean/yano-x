@@ -282,7 +282,7 @@ approval loop. The second distinct member must submit its own later vote.
 Ordinary REST submission is signed by the ingress node's member key. Two HTTP
 users or two SDK objects pointing at the same member do not become two distinct
 voters. Actor-signed governed approvals carry their own business authorization
-inside the command; see the [governed recipe discussion](03-approval-workflows.md#generate-real-governed-dpp-or-feed-bindings).
+inside the command; see the [governed examples](03-approval-workflows.md#governed-dpp-and-feed-examples).
 
 `ApprovalsContract.propose` takes an item ID, payload bytes, required vote count,
 and `deadlineMillis`; zero means no deadline in this example. Component topics

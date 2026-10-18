@@ -1,7 +1,6 @@
 unknown bindings command
 Usage: appchain bindings compile|validate|graph|dry-run <document.yml> [options]
   or: appchain bindings receipt-key <source-message-id-hex>
-  or: appchain bindings recipe dpp|feed --descriptor <actors.json> --members <members.json> --threshold <n>
   or: appchain bindings profile-check --profiles <profiles.json> --context <context.json>
         --plugins-directory <directory>
   --plugins-directory <directory>  exact manifested runtime bundles (required except graph --ir)

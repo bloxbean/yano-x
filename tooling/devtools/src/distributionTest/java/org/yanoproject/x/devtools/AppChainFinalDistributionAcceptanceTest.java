@@ -9,7 +9,6 @@ import org.yanoproject.x.composite.CompositeProfileCodec;
 import org.yanoproject.x.composite.contracts.CompositeCommitmentV1;
 import org.yanoproject.x.dpp.profile.DppGenesis;
 import org.yanoproject.x.feed.profile.FeedGenesis;
-import org.yanoproject.x.trust.profile.TrustRegistryGenesis;
 import org.yanoproject.x.stdlib.contracts.ApprovalsContract;
 import org.yanoproject.x.stdlib.contracts.BalancesContract;
 import org.yanoproject.x.stdlib.contracts.DocTrailContract;
@@ -145,23 +144,19 @@ class AppChainFinalDistributionAcceptanceTest {
         assertThat(replay.path("postState")).isEqualTo(rehearsal.path("postState"));
         assertThat(replay.path("assurance").textValue()).contains("not authenticated", "no post-state root");
 
-        // Only public descriptor/proof bytes leave this test fixture. Each real command runs with the packaged
-        // launcher classpath, so source/test dependencies cannot conceal missing product profile libraries.
+        // Governed DPP and feed recipes from the test fixtures; validation runs with the packaged launcher
+        // classpath, so the released catalog must accept real governed schemas and policies.
         for (String recipe : List.of("dpp", "feed")) {
             String chain = "packaged-customer-" + recipe;
             var descriptor = recipe.equals("dpp") ? DppGenesis.demo(chain) : FeedGenesis.demo(chain);
-            Path actors = temporary.resolve(recipe + "-actors.json");
-            Path members = temporary.resolve(recipe + "-members.json");
-            Files.writeString(actors, TrustRegistryGenesis.toJson(descriptor));
-            json.writeValue(members.toFile(), List.of(MEMBER_KEYS));
-            JsonNode generated = json.readTree(successfulBindings(launcher, List.of("recipe", recipe,
-                    "--descriptor", actors.toString(), "--members", members.toString(), "--threshold", "2"))
-                    .output());
-            assertThat(generated.at("/context/chainId").textValue()).isEqualTo(chain);
+            var generated = BindingRecipe.generate(recipe, new BindingRecipe.Descriptor(1, chain,
+                    descriptor.organizations(), descriptor.actors(), descriptor.authority(), List.of(), List.of()),
+                    List.of(MEMBER_KEYS), 2);
+            assertThat(generated.context().chainId()).isEqualTo(chain);
             Path recipeDocument = temporary.resolve(recipe + "-bindings.yaml");
             Path recipeContext = temporary.resolve(recipe + "-context.json");
-            json.writeValue(recipeDocument.toFile(), generated.path("document"));
-            json.writeValue(recipeContext.toFile(), generated.path("context"));
+            json.writeValue(recipeDocument.toFile(), generated.document());
+            json.writeValue(recipeContext.toFile(), generated.context());
             JsonNode valid = json.readTree(successfulBindings(launcher, List.of("validate", recipeDocument.toString(),
                     "--context", recipeContext.toString(), "--plugins-directory",
                     release.resolve("plugins").toString()))

@@ -26,26 +26,30 @@ The genesis fixes the collections, the schemas, the roles, the policies, and the
 public keys. Its hash is the genesis id, and every authorization is signed against it, so agreeing
 it is the first governance act and changing it later means a different ledger.
 
-**Each actor generates its own key.** On the actor's own machine, never on the operator's:
+**Each actor generates its own key.** On the actor's own machine, never on the operator's, the
+actor derives its public key and signs a chain-bound proof of possession:
 
 ```bash
 PUBLIC_KEY="$(./yano.sh appchain role public-key --seed-file <seed>)"
-./yano.sh appchain role key-proof --chain <chain-id> --actor <actor-id> --actor-revision 1 \
-  --key <key-id> --public-key "$PUBLIC_KEY" --valid-from-height 1 --valid-until-height 0 \
-  --seed-file <seed>
+./yano.sh appchain role key-proof-signature --chain <chain-id> --actor <actor-id> \
+  --actor-revision 1 --key <key-id> --public-key "$PUBLIC_KEY" \
+  --valid-from-height 1 --valid-until-height 0 --seed-file <seed>
 ```
 
-The public key and the key proof travel to the operator. The seed does not: it stays in a file
-readable only by its owner, or in a key store or HSM the organization already trusts.
+The public key and the proof travel to the operator. The seed does not: it stays in a file readable
+only by its owner, or in a key store or HSM the organization already trusts.
 
-**The operator assembles the genesis** from the organizations, actors, public keys, key proofs,
-and policies the consortium agreed: with `appchain role bootstrap` for
-[role approvals](state-machines/role-approvals.md), or with `appchain bindings recipe` for a
-[governed binding recipe](DECLARATIVE_BINDINGS_CLI.md#generate-governed-recipes-for-your-own-chain).
+**The operator writes the genesis** for a governed authenticated map: the collections, policies,
+organizations, actors, public keys and proofs the consortium agreed go into the project's
+`genesisRecords`, and `./yano.sh appchain render` produces the chain configuration (see
+[governed collections](state-machines/authenticated-map.md#governed-collections)). Actors added
+after genesis go through [role approvals](state-machines/role-approvals.md), whose
+`appchain role bootstrap` encodes the propose, approve and activate commands, with proofs from
+`appchain role key-proof`.
 
-**Every participant regenerates it independently and compares the genesis id.** The generator is
-deterministic: the same descriptor, members, and threshold always give the same id. A participant
-who cannot reproduce the id should not join the ledger. Publish the id where members can check it.
+**Every participant renders it independently and compares the genesis id.** Rendering is
+deterministic: the same project, members, and threshold always give the same id. A participant who
+cannot reproduce the id should not join the ledger. Publish the id where members can check it.
 
 Note what cannot be changed afterwards without a new ledger: the collections, their policies, the
 actors declared at genesis, the block interval, and the message size bounds. Adding an actor later

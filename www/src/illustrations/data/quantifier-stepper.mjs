@@ -149,7 +149,7 @@ export default {
         '"actorOrganizationId", verified.organization().organizationId()', '"PUT", "PUT_IF_ABSENT"', '"REVOKE", "RESTORE"'] },
     { repo: 'yano-x', path: 'composition/runtime/src/main/java/org/yanoproject/x/composite/bindings/BindingRules.java',
       anchors: ['coverage once, in the fact slot, only when an applicable fact rule reads'] },
-    { repo: 'yano-x', path: 'products/dpp/profile/src/main/java/org/yanoproject/x/dpp/profile/DppGenesis.java',
+    { repo: 'yano-x', path: 'fixtures/governed-recipes/src/main/java/org/yanoproject/x/dpp/profile/DppGenesis.java',
       anchors: ['demoActor(chainId, "logistics-a", "swift-logistics", List.of(DppStarterProfile.OPERATOR_ROLE))',
         'demoActor(chainId, "maker-a", "acme-manufacturing", List.of(DppStarterProfile.MANUFACTURER_ROLE, DppStarterProfile.OPERATOR_ROLE))'] },
   ],

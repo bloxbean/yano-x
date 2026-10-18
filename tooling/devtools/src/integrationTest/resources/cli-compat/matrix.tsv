@@ -26,5 +26,5 @@ dry-run-without-fixture	bindings	dry-run	inputs/bindings.yaml	--plugins-director
 graph-ir-prior-result	bindings	graph	outputs/compile.out	--ir	--prior-result	outputs/dry-run.out
 receipt-key	bindings	receipt-key	abababababababababababababababababababababababababababababababab
 receipt-key-invalid	bindings	receipt-key	zz
-recipe-missing-options	bindings	recipe	dpp
 profile-check-usage	bindings	profile-check	--profiles
+recipe-removed	bindings	recipe	dpp

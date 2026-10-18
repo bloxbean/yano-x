@@ -239,7 +239,7 @@ changes the document, its compiled program or its identity.
   safety.
 - **Real actors need real proofs.** Dry runs assume authenticated inputs. For
   business actors in different organizations, use the
-  [actor-signed policy path](03-approval-workflows.md#generate-real-governed-dpp-or-feed-bindings).
+  [actor-signed policy path](03-approval-workflows.md#governed-dpp-and-feed-examples).
 
 Return to the [learning path](README.md), or read the
 [CLI reference](../DECLARATIVE_BINDINGS_CLI.md#editor-catalogs-and-reports) for

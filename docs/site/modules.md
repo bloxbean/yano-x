@@ -86,7 +86,7 @@ artifact identity and that every runtime plugin has a bundle publication.
 | `:ledgers:eutxo:bridge-cardano` | `yano-x-eutxo-bridge-cardano` | `org.yanoproject.x.eutxo.bridge.cardano` | [ledgers/eutxo/bridge-cardano](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/bridge-cardano) |
 | `:ledgers:eutxo:indexer-jdbc` | `yano-x-eutxo-indexer-jdbc` | `org.yanoproject.x.eutxo.indexer` | [ledgers/eutxo/indexer-jdbc](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/indexer-jdbc) |
 
-### `library` (17)
+### `library` (14)
 
 | Gradle module | Artifact id | Plugin bundle id | Source |
 |---|---|---|---|
@@ -100,9 +100,6 @@ artifact identity and that every runtime plugin has a bundle publication.
 | `:products:evidence:contracts` | `yano-x-evidence-contracts` | — | [products/evidence/contracts](https://github.com/bloxbean/yano-x/blob/main/products/evidence/contracts) |
 | `:products:evidence:client` | `yano-x-evidence-client` | — | [products/evidence/client](https://github.com/bloxbean/yano-x/blob/main/products/evidence/client) |
 | `:products:cardano-history:client` | `yano-x-cardano-history-client` | — | [products/cardano-history/client](https://github.com/bloxbean/yano-x/blob/main/products/cardano-history/client) |
-| `:products:trust-registry:profile` | `yano-x-trust-registry-profile` | — | [products/trust-registry/profile](https://github.com/bloxbean/yano-x/blob/main/products/trust-registry/profile) |
-| `:products:dpp:profile` | `yano-x-dpp-profile` | — | [products/dpp/profile](https://github.com/bloxbean/yano-x/blob/main/products/dpp/profile) |
-| `:products:attestation-feed:profile` | `yano-x-attestation-feed-profile` | — | [products/attestation-feed/profile](https://github.com/bloxbean/yano-x/blob/main/products/attestation-feed/profile) |
 | `:ledgers:eutxo:contracts` | `yano-x-eutxo-contracts` | — | [ledgers/eutxo/contracts](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/contracts) |
 | `:ledgers:eutxo:client` | `yano-x-eutxo-client` | — | [ledgers/eutxo/client](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/client) |
 | `:ledgers:eutxo:indexer-core` | `yano-x-eutxo-indexer-core` | — | [ledgers/eutxo/indexer-core](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/indexer-core) |
@@ -146,11 +143,12 @@ artifact identity and that every runtime plugin has a bundle publication.
 |---|---|---|---|
 | `:products:eutxo:ui` | `yano-x-eutxo-ui` | — | [products/eutxo/ui](https://github.com/bloxbean/yano-x/blob/main/products/eutxo/ui) |
 
-### `test-fixture` (1)
+### `test-fixture` (2)
 
 | Gradle module | Artifact id | Plugin bundle id | Source |
 |---|---|---|---|
 | `:fixtures:eutxo-e2e` | `yano-x-eutxo-e2e` | — | [fixtures/eutxo-e2e](https://github.com/bloxbean/yano-x/blob/main/fixtures/eutxo-e2e) |
+| `:fixtures:governed-recipes` | `yano-x-governed-recipes` | — | [fixtures/governed-recipes](https://github.com/bloxbean/yano-x/blob/main/fixtures/governed-recipes) |
 
 <!-- catalog:modules-end -->
 
