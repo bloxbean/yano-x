@@ -12,6 +12,12 @@ verifies it with `verifyArtifactInventory`.
 
 ## Versions
 
+:::tip[Check GitHub for the latest release]
+The GitHub repository is the source of truth for releases. This site can lag
+behind a new release, so always confirm the latest version on
+[Yano X releases](https://github.com/bloxbean/yano-x/releases).
+:::
+
 The latest Yano X release and the Yano host it is built on:
 
 <!-- catalog:versions-start -->
