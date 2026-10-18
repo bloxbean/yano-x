@@ -330,9 +330,8 @@ map envelopes do not automatically discover derived map writes; exact known-key
 proofs are the qualified read path. Feed aggregation stays off chain and
 independently recomputable, not an on-chain price oracle or Cardano publication.
 
-Continue with the [DPP starter](../DPP_STARTER.md),
-[attestation-feed guide](../ATTESTATION_FEED.md), and
-[domain-role tutorial](../tutorials/05-domain-role-approvals.md) for the product
+Continue with the
+[domain-role tutorial](../tutorials/05-domain-role-approvals.md) for the role
 commands and policies. Before evolving the configuration, read
 [operations and upgrades](05-operations-and-upgrades.md): a new generation does
 not migrate genesis-bound state.

@@ -1,6 +1,7 @@
 # ADR-040 — Separately deployable product-specific user interfaces
 
 - **Status:** Proposed
+- **First release (ADR-055):** only the eUTxO UI ships; the other product UIs were removed.
 - **Date:** 2026-08-25
 - **Owner:** Yano X
 - **Scope:** Ownership, packaging, discovery, configuration, security, and deployment of browser

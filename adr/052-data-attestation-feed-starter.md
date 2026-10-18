@@ -2,6 +2,8 @@
 
 - **Status:** Accepted (2026-09-06), implemented on `feat/products-oob`; §11 records the
   implementation and its deviations
+- **First release (ADR-055):** withdrawn except `products/attestation-feed/profile`, which `appchain
+  bindings recipe feed` uses.
 - **Classification:** `EXPERIMENTAL` (ADR-046 §4.6), labelled a starter. It is the observation
   ledger that Yano ADR app-layer/014 §3 describes as available today ("ordered observations +
   approvals/aggregation + proofs"); it is not the oracle pipeline ADR app-layer/012 designs, it

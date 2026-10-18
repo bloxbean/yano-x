@@ -2,6 +2,7 @@
 
 - **Status:** Accepted (2026-09-06), implemented on `feat/products-oob`; §7 records what landed and
   what §5 still defers
+- **First release (ADR-055):** withdrawn with the product consoles it describes.
 - **Classification:** `FIRST_PARTY_OPTIONAL`, maturity `preview`, inheriting the devnet posture
   of the products it touches. The DPP starter stays a labelled prototype and the attestation feed
   stays experimental; this decision changes how their consoles are operated, not what they claim.

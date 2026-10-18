@@ -22,30 +22,6 @@ def devtoolsInstallDirectory = project(':tooling:devtools').layout.buildDirector
 def deploymentInstallDirectory = project(':tooling:deployment').layout.buildDirectory.dir(
         'install/yano-x-deploy')
 def studioDirectory = project(':tooling:studio').layout.buildDirectory.dir('studio')
-def attestUiDirectory = project(':products:attest:ui').layout.projectDirectory.dir('build/site')
-def attestUiSbom = project(':products:attest:ui').layout.projectDirectory.file(
-        'build/attest-ui.cdx.json')
-def attestCliInstallDirectory = project(':products:attest:cli').layout.buildDirectory.dir(
-        'install/yano-attest')
-def evidenceUiDirectory = project(':products:evidence:ui').layout.projectDirectory.dir('build/site')
-def evidenceUiSbom = project(':products:evidence:ui').layout.projectDirectory.file(
-        'build/evidence-ui.cdx.json')
-def trustRegistryUiDirectory = project(':products:trust-registry:ui').layout.projectDirectory.dir('build/site')
-def trustRegistryUiSbom = project(':products:trust-registry:ui').layout.projectDirectory.file(
-        'build/trust-registry-ui.cdx.json')
-def trustRegistryCliInstallDirectory = project(':products:trust-registry:cli').layout.buildDirectory.dir(
-        'install/yano-trust')
-def explorerUiDirectory = project(':products:explorer:ui').layout.projectDirectory.dir('build/site')
-def explorerUiSbom = project(':products:explorer:ui').layout.projectDirectory.file(
-        'build/explorer-ui.cdx.json')
-def explorerCliInstallDirectory = project(':products:explorer:cli').layout.buildDirectory.dir(
-        'install/yano-explorer')
-def dppUiDirectory = project(':products:dpp:ui').layout.projectDirectory.dir('build/site')
-def dppUiSbom = project(':products:dpp:ui').layout.projectDirectory.file('build/dpp-ui.cdx.json')
-def dppCliInstallDirectory = project(':products:dpp:cli').layout.buildDirectory.dir('install/yano-dpp')
-def feedUiDirectory = project(':products:attestation-feed:ui').layout.projectDirectory.dir('build/site')
-def feedUiSbom = project(':products:attestation-feed:ui').layout.projectDirectory.file('build/feed-ui.cdx.json')
-def feedCliInstallDirectory = project(':products:attestation-feed:cli').layout.buildDirectory.dir('install/yano-feed')
 def cardanoHistoryCliInstallDirectory = project(':products:cardano-history:cli').layout.buildDirectory.dir(
         'install/yano-cardano-history')
 // Command-line tools share one tools/lib directory. Each launcher keeps its
@@ -54,11 +30,6 @@ def cardanoHistoryCliInstallDirectory = project(':products:cardano-history:cli')
 def cliToolInstallDirectories = [
         'yano-appchain': devtoolsInstallDirectory,
         'yano-deploy': deploymentInstallDirectory,
-        'yano-attest': attestCliInstallDirectory,
-        'yano-trust': trustRegistryCliInstallDirectory,
-        'yano-explorer': explorerCliInstallDirectory,
-        'yano-dpp': dppCliInstallDirectory,
-        'yano-feed': feedCliInstallDirectory,
         'yano-cardano-history': cardanoHistoryCliInstallDirectory
 ]
 def eutxoUiDirectory = project(':products:eutxo:ui').layout.projectDirectory.dir('build/site')
@@ -191,17 +162,6 @@ tasks.register('yanoXJvmDistZip', Zip) {
     dependsOn tasks.named('generateYanoXDistributionManifest'),
             tasks.named('normalizeYanoXReleaseSbom'),
             ':tooling:devtools:installDist', ':tooling:studio:prepareStudio',
-            ':products:attest:ui:frontendBuild', ':products:attest:ui:frontendSbom',
-            ':products:attest:cli:installDist',
-            ':products:evidence:ui:frontendBuild', ':products:evidence:ui:frontendSbom',
-            ':products:trust-registry:ui:frontendBuild', ':products:trust-registry:ui:frontendSbom',
-            ':products:trust-registry:cli:installDist',
-            ':products:explorer:ui:frontendBuild', ':products:explorer:ui:frontendSbom',
-            ':products:explorer:cli:installDist',
-            ':products:dpp:ui:frontendBuild', ':products:dpp:ui:frontendSbom',
-            ':products:dpp:cli:installDist',
-            ':products:attestation-feed:ui:frontendBuild', ':products:attestation-feed:ui:frontendSbom',
-            ':products:attestation-feed:cli:installDist',
             ':products:cardano-history:cli:installDist',
             ':tooling:devtools:installDist', ':tooling:deployment:installDist',
             ':tooling:studio:prepareStudio',
@@ -260,71 +220,11 @@ tasks.register('yanoXJvmDistZip', Zip) {
         from(studioDirectory) {
             into 'studio'
         }
-        from(attestUiDirectory) {
-            into 'product-ui/attest'
-        }
-        from(attestUiSbom) {
-            into 'sbom'
-        }
-        from(evidenceUiDirectory) {
-            into 'product-ui/evidence'
-        }
-        from(evidenceUiSbom) {
-            into 'sbom'
-        }
         from(eutxoUiDirectory) {
             into 'product-ui/eutxo'
         }
         from(eutxoUiSbom) {
             into 'sbom'
-        }
-        from(trustRegistryUiDirectory) {
-            into 'product-ui/trust-registry'
-        }
-        from(trustRegistryUiSbom) {
-            into 'sbom'
-        }
-        from(rootProject.file('products/trust-registry/harness')) {
-            into 'examples/trust-registry'
-            filesMatching(['**/*.sh']) {
-                permissions { unix('755') }
-            }
-        }
-        from(explorerUiDirectory) {
-            into 'product-ui/explorer'
-        }
-        from(explorerUiSbom) {
-            into 'sbom'
-        }
-        from(rootProject.file('products/explorer/harness')) {
-            into 'examples/explorer'
-            filesMatching(['**/*.sh']) {
-                permissions { unix('755') }
-            }
-        }
-        from(dppUiDirectory) {
-            into 'product-ui/dpp'
-        }
-        from(dppUiSbom) {
-            into 'sbom'
-        }
-        from(rootProject.file('products/dpp/harness')) {
-            into 'examples/dpp'
-            filesMatching(['**/*.sh']) {
-                permissions { unix('755') }
-            }
-        }
-        from(feedUiDirectory) {
-            into 'product-ui/attestation-feed'
-        }
-        from(feedUiSbom) {
-            into 'sbom'
-        }
-        from(rootProject.file('products/attestation-feed/harness')) {
-            into 'examples/attestation-feed'
-            filesMatching(['**/*.sh']) {
-                permissions { unix('755') }
-            }
         }
         from(devtoolsSkill) {
             into 'skills/configure-yano-appchain'
@@ -628,37 +528,10 @@ tasks.register('verifyYanoXJvmDistribution') {
                     'examples/bindings/dpp-role-gated.yaml',
                     'examples/bindings/fixtures/dpp-role-gated/context.json',
                     'studio/assets/bindings/procurement-admission.yaml',
-                    'product-ui/attest/index.html',
-                    'product-ui/attest/attest-ui-config.json',
-                    'sbom/attest-ui.cdx.json',
-                    'tools/yano-attest/bin/yano-attest',
-                    'product-ui/evidence/index.html',
-                    'product-ui/evidence/evidence-ui-config.json',
-                    'sbom/evidence-ui.cdx.json',
                     'product-ui/eutxo/index.html',
                     'product-ui/eutxo/eutxo-ui-config.json',
                     'sbom/eutxo-ui.cdx.json',
-                    'product-ui/trust-registry/index.html',
-                    'product-ui/trust-registry/trust-registry-ui-config.json',
-                    'sbom/trust-registry-ui.cdx.json',
-                    'tools/yano-trust/bin/yano-trust',
-                    'examples/trust-registry/registry.sh',
-                    'product-ui/explorer/index.html',
-                    'product-ui/explorer/explorer-ui-config.json',
-                    'sbom/explorer-ui.cdx.json',
-                    'tools/yano-explorer/bin/yano-explorer',
-                    'examples/explorer/explorer.sh',
-                    'product-ui/dpp/index.html',
-                    'product-ui/dpp/dpp-ui-config.json',
-                    'sbom/dpp-ui.cdx.json',
-                    'tools/yano-dpp/bin/yano-dpp',
-                    'examples/dpp/dpp.sh',
-                    'product-ui/attestation-feed/index.html',
-                    'product-ui/attestation-feed/feed-ui-config.json',
-                    'sbom/feed-ui.cdx.json',
-                    'tools/yano-feed/bin/yano-feed',
                     'tools/yano-cardano-history/bin/yano-cardano-history',
-                    'examples/attestation-feed/feed.sh',
                     'skills/configure-yano-appchain/SKILL.md',
                     'config/schema/appchain-metadata-trust.schema.json',
                     'appchain-cluster/cluster.sh',

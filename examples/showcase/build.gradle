@@ -160,11 +160,3 @@ tasks.named('check') {
 tasks.named('build') {
     dependsOn tasks.named('showcaseDistributionContract')
 }
-
-// ADR-048: the Evidence Desk golden fixture is produced by the Java contracts here.
-tasks.named('test', Test) {
-    systemProperty 'yano.evidence.golden.write',
-            project.findProperty('evidenceGoldenWrite')?.toString() ?: 'false'
-    systemProperty 'yano.evidence.golden.dir',
-            rootProject.file('products/evidence/ui/src/lib/fixtures').absolutePath
-}

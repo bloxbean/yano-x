@@ -100,15 +100,9 @@ const SECTIONS = [
     title: 'Products',
     files: [
       'products/index.md',
-      'products/attest.md',
-      'products/attestation-feed.md',
       'products/evidence.md',
-      'products/evidence-desk.md',
       'products/cardano-history.md',
-      'products/dpp-starter.md',
       'products/eutxo.md',
-      'products/explorer.md',
-      'products/trust-registry.md',
     ],
   },
   {

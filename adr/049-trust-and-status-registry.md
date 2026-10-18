@@ -2,6 +2,8 @@
 
 - **Status:** Accepted (2026-09-06), implemented on `feat/products-oob`; §11 records the
   implementation and its deviations
+- **First release (ADR-055):** withdrawn except `products/trust-registry/profile`, which the binding
+  recipes use.
 - **Scope:** `products/trust-registry/{profile,client,cli,ui,harness}`; a config-only chain on the
   stock `authenticated-map` composite, no consensus, contract, or showcase-identity change
 - **Relates to:** ADR-046 §4.2, Yano ADR app-layer/029 (the design this ADR executes), ADR-047

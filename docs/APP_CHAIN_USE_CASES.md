@@ -102,8 +102,7 @@ with one proof against a public anchor, without seeing the rest of the trail.
 
 **Setup sketch.** A topic per product line, or a `productId` field in the body.
 Anchor hourly. Keep bodies small: hashes and metadata, not documents. The
-`doc-trail` state machine keeps one provable chained head per product or case,
-and the [DPP Starter](appchain/DPP_STARTER.md) packages a passport registry.
+`doc-trail` state machine keeps one provable chained head per product or case.
 
 ### A4. Notarization and proof of existence
 
@@ -118,8 +117,7 @@ prevent any one of them from rewriting history alone.
 
 **Verification.** Reveal the content later. Anyone recomputes the hash, checks
 the proof, and checks the anchor. The anchor transaction's Cardano block time
-bounds T. [Attest](appchain/ATTEST.md) packages this pattern with a portable
-certificate.
+bounds T.
 
 ### A5. Cross-organization integration and SLA evidence
 
@@ -224,9 +222,7 @@ value.
 aggregates deterministically once all observations, or a quorum of them, are
 present (for example, a median), and writes the agreed value for the round as
 provable state. Fetch external data outside the node, in a small submitter
-service per member: `apply` itself must stay deterministic and free of I/O. The
-[Attestation Feed](appchain/ATTESTATION_FEED.md) starter shows a configuration-only
-variant on the stock authenticated map.
+service per member: `apply` itself must stay deterministic and free of I/O.
 
 ---
 

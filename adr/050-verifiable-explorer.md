@@ -1,6 +1,10 @@
 # ADR-050 — Verifiable Explorer
 
 **Status:** Accepted (2026-09-06), implemented on `feat/products-oob`; §11 records the implementation and its deviations
+
+**First release (ADR-055):** withdrawn. `products/explorer` was removed; this ADR remains the design
+record.
+
 **Scope:** Product 4 of ADR-046 (§4.5): a derived, verifiable index with a read service, a CLI, and
 a console over stock app chains
 **Related:** ADR-046 (portfolio), ADR app-layer/032 (indexer components), ADR app-layer/031 (typed

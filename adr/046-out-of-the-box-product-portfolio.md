@@ -2,6 +2,8 @@
 
 - **Status:** Proposed; for discussion. No module, wire format, catalog row, or runtime behavior
   changes with this document.
+- **First release (ADR-055):** the release keeps Evidence, Cardano History and the eUTxO ledger; the
+  other candidates were removed.
 - **Date:** 2026-09-05
 - **Owners:** Yano X product and platform maintainers
 - **Scope:** Which additional products should live under `products/`, why, in what order, and

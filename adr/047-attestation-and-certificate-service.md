@@ -2,6 +2,8 @@
 
 - **Status:** Accepted and implemented on `feat/products-oob` (2026-09-06); §15 records the
   deviations from the proposal that implementation required.
+- **First release (ADR-055):** withdrawn. `products/attest` was removed; this ADR remains the design
+  record.
 - **Date:** 2026-09-05
 - **Owners:** Yano X product maintainers
 - **Scope:** The first product selected by [ADR-046](046-out-of-the-box-product-portfolio.md) §4.1:

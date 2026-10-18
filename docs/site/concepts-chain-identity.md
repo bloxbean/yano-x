@@ -34,8 +34,8 @@ state:
   genesis-id: c2b9c92a865dfa7c218a1a6e49f1dd88163372e40466009876458c01609d0d70
 ```
 
-Products built on the governed authenticated map, such as the Trust Registry,
-compute the genesis id from their genesis descriptor, so every member can
+Chains built on the governed authenticated map compute the genesis id from
+their genesis descriptor, so every member can
 regenerate it and compare. The runtime then binds the configured id to the
 application profile, including the configuration of its built-in indexes. The
 id that status, anchors, and the consensus context report is that derived id.
@@ -82,8 +82,8 @@ they continue; with 3 of 3, no block becomes final.
 
 The chain status returns a `capabilityManifest` with a `manifestDigest`. It
 describes the application's components, workflows, and proof subjects so tools
-can discover them; the Evidence Desk and the Verifiable Explorer, for example,
-choose how to read a ledger from it. It is descriptive
+can discover them; a client, for example, can choose how to read a ledger
+from it. It is descriptive
 discovery data, **not a trust root**: proof verification still pins the chain,
 genesis, commitment profile, root, and typed subject.
 

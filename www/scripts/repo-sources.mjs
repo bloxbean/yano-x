@@ -217,10 +217,6 @@ export const IMPORTED_DOCS = {
 
   'docs/site/reference-rest-api.md': '/reference/rest-api/',
 
-  'docs/site/products-trust-registry.md': '/products/trust-registry/',
-
-  'docs/site/products-evidence-desk.md': '/products/evidence-desk/',
-
   'docs/site/products-overview.md': '/products/',
 
   'docs/site/ai-overview.md': '/ai/',
