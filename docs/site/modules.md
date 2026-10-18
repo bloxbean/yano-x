@@ -8,17 +8,28 @@ is generated at documentation build time from `config/artifacts-v1.json`, which
 is the repository's single source of truth for artifact identity — the build
 verifies it with `verifyArtifactInventory`.
 
+## Versions
+
+The latest Yano X release and the Yano host it is built on:
+
 <!-- catalog:versions-start -->
 
 | Value | Current |
 |---|---|
 | Yano X version | `0.1.0-pre3` |
-| Yano host version | `0.1.0-pre18` |
+| Yano host version | `0.1.0-pre17` |
 | Maven group | `org.yanoproject.x` |
 | Java | `25` |
-| Base Yano JVM ZIP | [`yano-0.1.0-pre18.zip`](https://github.com/bloxbean/yano/releases/download/v0.1.0-pre18/yano-0.1.0-pre18.zip) |
+| Base Yano JVM ZIP | [`yano-0.1.0-pre17.zip`](https://github.com/bloxbean/yano/releases/download/v0.1.0-pre17/yano-0.1.0-pre17.zip) |
 
 <!-- catalog:versions-end -->
+
+Snapshot builds are for internal testing only. The BloxBean snapshot
+repository (`https://repo.bloxbean.org/maven/snapshots`) publishes them under
+the next version with `-SNAPSHOT` appended, such as `0.1.0-pre4-SNAPSHOT`. A
+snapshot distribution adds the short commit id to its file name, as in
+`yano-x-jvm-0.1.0-pre4-3e9e1c8.zip`, only to tell builds apart. Drop the commit
+id and add `-SNAPSHOT` to get the Maven version.
 
 ## Publication types
 

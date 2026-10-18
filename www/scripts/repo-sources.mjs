@@ -14,6 +14,7 @@
 // See ADR-038 §4.3.
 
 import fs from 'node:fs/promises';
+import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -85,7 +86,10 @@ async function readJson(relPath) {
  * skipped; only `key=value` lines are kept.
  */
 export async function readGradleProperties() {
-  const raw = await fs.readFile(repoPath('gradle.properties'), 'utf8');
+  return parseGradleProperties(await fs.readFile(repoPath('gradle.properties'), 'utf8'));
+}
+
+export function parseGradleProperties(raw) {
   const out = {};
   for (const line of raw.split('\n')) {
     const trimmed = line.trim();
@@ -97,13 +101,48 @@ export async function readGradleProperties() {
   return out;
 }
 
+const git = (...args) => execFileSync('git', args, {
+  cwd: REPO_ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'],
+});
+
 /**
- * The version facts the docs quote. `yanoVersion` in particular determines the
+ * The `gradle.properties` whose versions the docs quote. A `-SNAPSHOT` version
+ * is an unreleased build for internal testing, so between releases the site
+ * keeps quoting the latest release: the `gradle.properties` of the newest `v*`
+ * tag reachable from HEAD, which the release commit sets without the suffix.
+ */
+export async function readReleasedGradleProperties({ current, readTag = readTagProperties } = {}) {
+  const props = current ?? await readGradleProperties();
+  if (!/-SNAPSHOT$/.test(props.version ?? '')) return props;
+  const released = readTag();
+  if (/-SNAPSHOT$/.test(released.version ?? '')) {
+    throw new Error(`Release tag ${released.tag} records the snapshot version ${released.version}.`);
+  }
+  return released;
+}
+
+function readTagProperties() {
+  let tag;
+  try {
+    tag = git('describe', '--tags', '--abbrev=0', '--match', 'v[0-9]*').trim();
+    return { ...parseGradleProperties(git('show', `${tag}:gradle.properties`)), tag };
+  } catch {
+    throw new Error(
+      'gradle.properties has a -SNAPSHOT version, so the docs quote the latest release, but '
+      + `${tag ? `${tag}:gradle.properties could not be read` : 'no v* release tag is reachable from HEAD'}. `
+      + 'Fetch the history and tags (git fetch --tags --unshallow) and rebuild.',
+    );
+  }
+}
+
+/**
+ * The version facts the docs quote, from the latest release (see
+ * `readReleasedGradleProperties`). `yanoVersion` in particular determines the
  * base JVM ZIP the Gradle build downloads, so it must never be typed by hand
  * into a page.
  */
 export async function resolveVersions() {
-  const props = await readGradleProperties();
+  const props = await readReleasedGradleProperties();
   const yanoVersion = props.yanoVersion ?? 'unknown';
   return {
     /** Yano X's own artifact/plugin version. */

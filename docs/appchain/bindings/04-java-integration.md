@@ -107,20 +107,21 @@ application {
 }
 ```
 
-Use the Yano X version your distribution was built from. The distribution
-records it in `yano-x-plugin-pack-v1.json`, in its top-level directory, which
-the steps above exported as `YANO_HOME`:
+Set `YANO_X_VERSION` to the Yano X version of your distribution, the version in
+its file name (`yano-x-jvm-<version>.zip`). The latest release is listed under
+[Versions](https://yano-x.io/reference/modules/#versions):
 
 ```bash
-YANO_X_VERSION=$(jq -r .version "$YANO_HOME/yano-x-plugin-pack-v1.json")
+YANO_X_VERSION=<version>
 ```
 
-A release version, such as `0.1.0-pre4`, resolves from Maven Central or the
-BloxBean release repository. A version ending in `-SNAPSHOT` means the
-distribution was built from an unreleased commit. The snapshot repository
-serves the newest snapshot of that version, which may be newer than your
-distribution. If you built the distribution yourself, publish the client from
-the same Yano X source checkout and add `mavenLocal()` to the repositories:
+A release version resolves from Maven Central or the BloxBean release
+repository. Snapshot builds are for internal testing only; the same
+[Versions](https://yano-x.io/reference/modules/#versions) section explains how
+to derive a snapshot's Maven version. The snapshot repository serves the
+newest snapshot of the version, which may be newer than your distribution. If
+you built the distribution yourself, publish the client from the same Yano X
+source checkout and add `mavenLocal()` to the repositories:
 
 ```bash
 ./gradlew :sdk:client:publishToMavenLocal \
