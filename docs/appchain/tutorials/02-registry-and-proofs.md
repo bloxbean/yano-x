@@ -51,8 +51,13 @@ Write through node 1, so node 1 becomes the owner:
 ./yano.sh appchain cluster kv registry-chain set supplier-42 active --node 1
 ```
 
-The command body is CBOR, but the launcher builds it for you. `202` means only
-that node 1 queued it. Wait until the key appears in a proof:
+The command body is CBOR, but the launcher builds it for you.
+
+> **✓ You should see** `kv set supplier-42 -> registry-chain  (<message id>...)`.
+
+The printed message ID is node 1's acceptance: the REST API answered HTTP
+`202` and returned that ID. It means only that node 1 queued the message.
+Wait until the key appears in a proof:
 
 ```bash
 BASE=http://127.0.0.1:$HTTP_BASE/api/v1/app-chain/chains/registry-chain
@@ -113,7 +118,7 @@ You should see both lines. The entry did not change: node 2 does not own the
 key, so the decision was `KV_NOT_OWNER`. The root did change, and it would
 have changed anyway: every block also records its own messages root in state.
 So compare the proven entry, never the root, to decide whether a command had
-an effect. A final message, a `202`, or a growing height is not the
+an effect. A final message, an accepted (HTTP `202`) submission, or a growing height is not the
 authorization decision; the resulting state is.
 
 ## 5. Update as the owner

@@ -16,8 +16,11 @@ Download your work before closing the tab.
 ## 1. Open the editor and load a starter
 
 Studio is the static site in the distribution's `studio/` directory. Serve it
-locally, for example with `python3 -m http.server 8080 --directory studio`, open
-the localhost URL and choose **Bindings** in the header. Browsers block Studio's
+locally from the distribution's top-level directory, as in
+[Chapter 1](01-first-workflow.md#7-view-the-graph-in-studio), for example with
+`python3 -m http.server 8230 --bind 127.0.0.1 --directory studio` (any free
+port works), open <http://127.0.0.1:8230/> and choose **Bindings** in the
+header. Browsers block Studio's
 modules when the page is opened directly from disk. Choose **Registry to audit** under *Starter* and
 select **Load starter**. The starter is the same document as
 [your first workflow](01-first-workflow.md): a registry put appends an audit
@@ -118,7 +121,10 @@ relevant form field. They never mean the document is valid.
 
 Open **Validate**. Choose the scenario, for example *Validate and rehearse 1
 block*, then download `bindings.yaml` and `bindings-handoff.txt`. The commands
-use fixed file names only:
+use fixed file names only. They call `./yano.sh`, so run them from the
+distribution's top-level directory with the downloaded files beside you (or
+replace `./yano.sh` with the script's full path), and replace
+`<plugins-directory>` with your plugin directory, for example `plugins`:
 
 ```bash
 ./yano.sh appchain bindings catalog bindings.yaml \
@@ -189,7 +195,10 @@ message says what happened:
   ran again.
 
 Conditions show whether a binding ran, which clause was false, or where an
-evaluation failed when the receipt proves it. Each step also shows its admission
+evaluation failed when the receipt proves it. Studio numbers conditions and
+clauses from 1, as people count, while receipts and CLI JSON record them from
+0: Studio's "clause 2" is index 1, shown as `"failedClause": 1` in an editor
+report and `"clause": 1` in dry-run output. Each step also shows its admission
 rules: how many held, and the rule, clause and deny code that refused it. A
 refusal of a derived step says that the whole cascade, including the source
 command, was rolled back. The **Procurement admission rules** starter's fixtures

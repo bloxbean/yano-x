@@ -79,9 +79,15 @@ The cluster launcher reads `config/application-appchain.yml` in the release's
 top-level directory (`$YANO_HOME/config/application-appchain.yml` when you set
 `YANO_HOME`). Under its single `yano.app-chain` root it already defines
 `orders-chain`, `registry-chain` and `effects-chain` as `chains[0]` to
-`chains[2]`. Add a fourth chain before you start a fresh cluster. Paste this
-block inside that root, just above the `# --- Add more chains here` comment, at
-the same four-space indentation as `chains[2]`:
+`chains[2]`. Add a fourth chain before you start a fresh cluster. Keep a copy
+of the original file first, so you can restore it in [Clean up](#clean-up):
+
+```bash
+cp config/application-appchain.yml config/application-appchain.yml.orig
+```
+
+Paste this block inside that root, just above the `# --- Add more chains here`
+comment, at the same four-space indentation as `chains[2]`:
 
 ```yaml
     chains[3]:
@@ -108,6 +114,19 @@ nodes would start without any app chain. Check the file before you start:
 > **✓ You should see** a last line starting with `VALID_TEMPLATE` and
 > `errors=0`. Then `./yano.sh appchain cluster start 3` lists
 > `workflow-chain` among its chains.
+
+Above that last line the validator prints one diagnostic per line, and both
+kinds are expected here:
+
+- `WARNING DX_CONFIG_PARTIAL_NAMESPACE ...` for keys such as
+  `chains[3].membership.mode`: a plugin owns that namespace and publishes only
+  partial metadata, so the validator cannot check the exact key name.
+- `INFO UNRESOLVED_TEMPLATE_OVERLAY ...` for each chain's `members`, `peers`,
+  `signing-key` and `threshold`: the launcher supplies these before startup,
+  so the template correctly leaves them out.
+
+Only `ERROR` lines, or a last line starting with `INVALID_TEMPLATE`, need a
+fix.
 
 The host refuses a chain without all three `state.*` settings, and the
 validator does not catch that yet. Copy the profile and fingerprint from an
@@ -141,6 +160,28 @@ change every member's state root. Use, in order of preference:
 - Putting large or secret documents in replicated command bodies.
 - Adding network, clock, DNS or random behavior inside `apply()`.
 - Reusing a machine id after changing its deterministic behavior.
+
+## Clean up
+
+If you started a cluster with `workflow-chain`, remove it before you take the
+chain out of the file: the chain list is part of the cluster's retained
+identity.
+
+```bash
+./yano.sh appchain cluster clean
+```
+
+Then remove the `chains[3]` entry you added, by restoring the copy you made
+(or by deleting that block by hand), and validate again:
+
+```bash
+mv config/application-appchain.yml.orig config/application-appchain.yml
+./yano.sh appchain config validate --mode template \
+  --template-contract builtin:cluster config/application-appchain.yml
+```
+
+> **✓ You should see** `VALID_TEMPLATE` with `errors=0`, and no diagnostic
+> that mentions `chains[3]`.
 
 ## Go deeper
 

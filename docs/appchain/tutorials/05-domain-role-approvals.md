@@ -70,9 +70,21 @@ cd examples/evidence
 
 `up` prepares the instance first: it generates its secrets and builds the Yano
 and runner images, which takes a while the first time. `./demo.sh prepare` runs
-only that preparation, if you want to do it ahead of time. Then `up` starts
-three members and the publication services, funds and bootstraps a devnet
-anchor, and runs a read-only readiness probe.
+only that preparation, if you want to do it ahead of time. The images use the
+same default tags as Tutorial 4 and replace local images with those tags; set
+`DEMO_YANO_IMAGE` and `DEMO_RUNNER_IMAGE` as
+[Tutorial 4](04-evidence-publication.md) describes to keep them. Then `up`
+starts three members and the publication services, and funds and bootstraps a
+devnet anchor.
+
+With `--machine role`, `up` then runs `init` rather than the read-only probe
+of Tutorial 4. `init` writes to the chain: it submits governed messages that
+register the four organizations, the five demo actors and the
+`evidence-release` policy, and waits until they are final. It skips records
+that already exist, so running `up` again does not register them twice.
+
+> **✓ You should see** `PASS command=init`, and near the end the
+> `Evidence UI: http://127.0.0.1:7080/` address.
 
 The profile commits its organization and actor registry, policy, component
 order, routes, effect workflow, administrator threshold and limits at genesis.
@@ -108,11 +120,18 @@ controls, then releases the evidence once the proposal is APPROVED.
   --evidence-id regulated-product-001
 ```
 
-Open <http://127.0.0.1:7080/>. The report separates the relay member, actor,
-organization, role, policy revision, clause and signed decision. Current actor
-and policy projections include both the revision proof and the same-root
-current-pointer proof, so “this revision exists” is never confused with “this
-is the current revision”.
+Open the Evidence UI at the address that `up` printed,
+<http://127.0.0.1:7080/> by default, and select the record. Its **Business
+authorization** card shows the decision status, the policy and its revision,
+the proposer, each satisfied clause with its accepted and required counts, and
+each accepted decision as actor, role and organization against a clause. It
+also shows the payload hash and the relay member that carried the envelope.
+The badges above it summarize what the runner verified, including
+`Role quorum authenticated`.
+
+The page shows the runner's verified report. It does not display the actor or
+policy records themselves or their proofs; to inspect those, use the query and
+proof routes on the [`role-approvals` reference](../state-machines/role-approvals.md).
 
 ## 4. Rotate and revoke an actor
 
@@ -133,10 +152,16 @@ The exercise uses a dedicated recovery actor and checks, in order:
 6. refusal after revocation; and
 7. proofs of the historical revisions and decisions.
 
-> **✓ You should see** one line, `PASS command=role-lifecycle actor=recovery-probe
-> revision=3 rotation=verified revocation=verified ...`. The command checks
-> every step above against proven state and stops with a `FAIL` line at the
-> first one that does not hold; it does not print the steps one by one.
+> **✓ You should see** a few lines of output, among them
+> `PASS command=role-lifecycle actor=recovery-probe revision=3
+> rotation=verified revocation=verified ...`. The command checks every step
+> above against proven state and stops with a `FAIL` line at the first one
+> that does not hold; it does not print the steps one by one.
+
+The other lines are expected: three `SLF4J(W): ...` warnings that the runner
+has no logging backend, which you can ignore, and after the `PASS` line a
+`WAIT_ANCHOR_ADOPTION: ...` line and an `Anchor binding verified ...` line
+from the harness's anchor check.
 
 This is not member rotation. Business credentials and member nodes are
 governed separately.

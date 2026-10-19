@@ -14,15 +14,25 @@ tutorial links to them instead of repeating them.
 
 ## Before you start
 
-- Java 25 and Gradle (or your organization's Gradle wrapper).
+- Java 25 and Gradle 9.1 or later, the first Gradle release that runs on
+  Java 25 (Yano X itself builds with Gradle 9.4.1). The generated project has
+  no Gradle wrapper; step 5 shows how to build with your own `gradle` or add
+  a wrapper.
 - An extracted Yano X JVM distribution. This tutorial assumes `/opt/yano-x` and
   runs every `./yano.sh` command from that directory.
 - A 32-byte publisher seed, written as 64 hexadecimal characters to a file
-  outside any repository, for signing. For a throwaway tutorial key:
-  `(umask 077; openssl rand -hex 32 > /secure/publisher.seed)`.
-- The exact Yano host version in your distribution's manifest, printed by
-  `jq -r .version yano-distribution-v1.json`. The host and Yano X have
-  separate versions.
+  outside any repository, for signing. For a throwaway tutorial key in an
+  owner-only directory of your home:
+
+  ```bash
+  mkdir -m 700 -p "$HOME/.yano-tutorial"
+  (umask 077; openssl rand -hex 32 > "$HOME/.yano-tutorial/publisher.seed")
+  ```
+
+- The exact Yano host version of your distribution. Run
+  `jq -r .version yano-distribution-v1.json` in the distribution's top-level
+  directory; step 2 uses it directly. The host and Yano X have separate
+  versions: `yano-x-distribution-v1.json` holds the Yano X version.
 
 ## 1. Choose the smallest extension
 
@@ -49,7 +59,7 @@ Does a stock machine or recipe already model the outcome?
   --mode state-machine \
   --id shipment \
   --package com.example.shipment \
-  --yano-version <matching-yano-host-version> \
+  --yano-version "$(jq -r .version yano-distribution-v1.json)" \
   --output shipment-plugin
 ```
 
@@ -176,16 +186,24 @@ the signature:
 ./yano.sh appchain plugin sign \
   --catalog shipment-plugin/src/main/resources/META-INF/yano/appchain-component-catalog-v1.json \
   --runtime-manifest shipment-plugin/src/main/resources/META-INF/yano/plugins/plugin-bundle.shipment.json \
-  --seed-file /secure/publisher.seed \
+  --seed-file "$HOME/.yano-tutorial/publisher.seed" \
   --key-id example-release-2026 \
   --output shipment-plugin/src/main/resources/META-INF/yano/appchain-component-catalog-v1.sig.json
 
-(cd shipment-plugin && gradle jar)
+(cd shipment-plugin && gradle jar)   # Gradle 9.1+ on your PATH
 
 ./yano.sh appchain plugin validate shipment-plugin/build/libs/shipment-yano-plugin.jar \
   --trust-key example-release-2026=<64-hex-public-key> \
   --output shipment-catalog.json
 tools/yano-plugins/bin/yano-plugins validate shipment-plugin/build/libs/shipment-yano-plugin.jar
+```
+
+The scaffold ships no Gradle wrapper, so `gradle jar` uses the Gradle on your
+`PATH`. To pin a version for your team instead, add a wrapper once and build
+with it:
+
+```bash
+(cd shipment-plugin && gradle wrapper --gradle-version 9.4.1 && ./gradlew jar)
 ```
 
 `plugin sign` ends with `PLUGIN_CATALOG_SIGNED key=example-release-2026

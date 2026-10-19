@@ -214,8 +214,10 @@ program; on a real chain it would require qualified profile evolution.
 ## 7. View the graph in Studio
 
 Studio is the static site in the distribution's `studio/` directory. Serve it
-locally, for example with `python3 -m http.server 8080 --directory studio`, and
-open the localhost URL. This starts a local static web server, not a Yano node.
+locally from the distribution's top-level directory, for example with
+`python3 -m http.server 8230 --bind 127.0.0.1 --directory studio`, and open
+<http://127.0.0.1:8230/>. Any free port works; this tutorial uses 8230 because
+8080 is often taken. This starts a local static web server, not a Yano node.
 See [Studio configuration](../deployment/configure.md).
 
 Extract the validation result's manifest into `manifest.json`:

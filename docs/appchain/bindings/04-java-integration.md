@@ -73,9 +73,15 @@ These are disposable local devnet keys; never reuse them. Stop the nodes with
 
 ## Add the public client dependency
 
-For a separate Java 25 application, this Groovy Gradle fragment selects an
-explicit version supplied through `-PyanoXVersion=...` or your application's
-`gradle.properties`:
+Create a separate Java 25 application in a new directory, outside the
+distribution. It needs two files. `settings.gradle` names the project:
+
+```groovy
+rootProject.name = 'workflow-client'
+```
+
+`build.gradle` selects an explicit version supplied through
+`-PyanoXVersion=...` or your application's `gradle.properties`:
 
 ```groovy
 plugins {
@@ -107,20 +113,27 @@ application {
 }
 ```
 
-Set `YANO_X_VERSION` to the Yano X version of your distribution, the version in
-its file name (`yano-x-jvm-<version>.zip`). The latest release is listed under
-[Versions](https://yano-x.io/reference/modules/#versions):
+Set `YANO_X_VERSION` to the exact Yano X version of your distribution. Read
+it from the distribution's manifest rather than from the ZIP file name, which
+can differ (a snapshot or locally built ZIP does not carry `-SNAPSHOT` in its
+name). In the distribution's top-level directory:
 
 ```bash
-YANO_X_VERSION=<version>
+YANO_X_VERSION=$(jq -r .version yano-x-distribution-v1.json)
+echo "$YANO_X_VERSION"
 ```
 
-A release version resolves from Maven Central or the BloxBean release
-repository. Snapshot builds are for internal testing only; the same
-[Versions](https://yano-x.io/reference/modules/#versions) section explains how
-to derive a snapshot's Maven version. The snapshot repository serves the
-newest snapshot of the version, which may be newer than your distribution. If
-you built the distribution yourself, publish the client from the same Yano X
+A release prints a plain version such as `0.1.0-pre3`; the latest release is
+listed under [Versions](https://yano-x.io/reference/modules/#versions). A
+release version resolves from Maven Central or the BloxBean release
+repository.
+
+A version ending in `-SNAPSHOT` comes from a snapshot or locally built
+distribution, which is for internal testing only. The snapshot repository
+serves the newest snapshot of the version, which may be newer than your
+distribution, and a distribution you built yourself, for example
+`yano-x-jvm-0.1.0-pre4.zip` with version `0.1.0-pre4-SNAPSHOT`, is published
+nowhere. In that case publish the client to Maven Local from the same Yano X
 source checkout and add `mavenLocal()` to the repositories:
 
 ```bash
@@ -223,8 +236,10 @@ that ID. For the two-byte value above, the condition is true and a successful
 receipt contains the registry source and derived audit append. The source's
 `bindingId` is null because it was submitted externally.
 
-With Java 25 and Gradle installed (or your project's existing Gradle wrapper),
-run from the Java application directory. Set `YANO_X_VERSION` as described
+With Java 25 and Gradle 9.1 or later installed, run from the Java application
+directory, the one containing `settings.gradle` and `build.gradle`. The project
+has no Gradle wrapper; to pin one, run `gradle wrapper --gradle-version 9.4.1`
+once and use `./gradlew` instead of `gradle` below. Set `YANO_X_VERSION` as described
 above, and replace the API URL and chain
 ID with your actual deployment values; the example port is not a promise about
 your node configuration. These commands **submit to a running chain**, unlike

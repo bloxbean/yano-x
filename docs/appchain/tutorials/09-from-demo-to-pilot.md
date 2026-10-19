@@ -85,8 +85,9 @@ openssl pkey -in member-signing-key.pem -pubout -outform DER \
   | tail -c 32 | od -An -tx1 | tr -d ' \n'; echo
 ```
 
-The last command prints the member's 64-hex public key. Add the keys and the
-members' hostnames under `spec.chains[0].topology` in `appchain.yaml`, in the
+The last command prints the member's 64-hex public key. In `appchain.yaml`,
+`spec.chains[0].topology` has empty lists, `memberKeys: []` and
+`nodeHosts: []`. Replace both with the keys and the members' hostnames, in the
 same order, so the first key belongs to the first host:
 
 ```yaml
@@ -168,6 +169,14 @@ required. Node-local YAML drift must not decide application semantics.
 Each member supplies its own `secrets/nodeN.env` from the generated
 `secrets/nodeN.env.example`. The project's `.gitignore` excludes
 `secrets/*.env`, and the Ansible export never embeds private keys.
+
+`init` creates the `secrets/` directory with your default permissions,
+usually mode `755`, so other local users can list it. Before you put a private
+file there, make it owner-only:
+
+```bash
+chmod 700 permissioned-pilot/secrets
+```
 
 `YANO_APPCHAIN_SIGNING_KEY` is the 64-hex seed inside the member's
 `member-signing-key.pem`. On the member's own machine, next to its copy of the

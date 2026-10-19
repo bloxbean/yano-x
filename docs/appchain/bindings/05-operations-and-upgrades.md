@@ -159,6 +159,27 @@ Multiple profiles require the appropriate governed membership context. Follow
 the [full preflight contract](../DECLARATIVE_BINDINGS_UPGRADES.md#check-a-candidate-bundle-set-without-touching-retained-state)
 before constructing these inputs.
 
+A running member reports the profile it currently executes through the
+`composite/active-profile-v1` query. For the Chapter 4 devnet project
+(`records-audit` on port 7370), this writes a one-profile array:
+
+```bash
+curl -fsS -X POST \
+  "http://127.0.0.1:7370/api/v1/app-chain/chains/records-audit/query/composite/active-profile-v1" \
+  -H 'Content-Type: application/json' -d '{"paramsHex":""}' \
+  | jq '[.payloadHex]' > retained-profiles.json
+```
+
+Add an `X-API-Key` header if your node requires one for queries. The answer is
+one member's unproven view of the current profile only: compare it across
+members and against your deployment records, and add the genesis and any
+earlier profiles from those records yourself.
+
+`profile-check` does not cross-check the context against the profiles or a
+deployed chain. It uses `context.json` only to construct the candidate catalog,
+so a context with another chain's identity can still pass. Take the context
+from the same trusted deployment records as the profiles.
+
 Success means byte-exact profile reconstruction only. It does not prove replay,
 binary semantic equivalence, migration safety, historical proof correctness or
 effect-result compatibility. The current stock provider executes version 1.2.0,

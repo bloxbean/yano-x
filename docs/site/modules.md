@@ -35,7 +35,12 @@ repository (`https://repo.bloxbean.org/maven/snapshots`) publishes them under
 the next version with `-SNAPSHOT` appended, such as `0.1.0-pre4-SNAPSHOT`. A
 snapshot distribution adds the short commit id to its file name, as in
 `yano-x-jvm-0.1.0-pre4-3e9e1c8.zip`, only to tell builds apart. Drop the commit
-id and add `-SNAPSHOT` to get the Maven version.
+id and add `-SNAPSHOT` to get the Maven version. A distribution you build
+yourself may carry neither, as in `yano-x-jvm-0.1.0-pre4.zip`, yet is still
+`0.1.0-pre4-SNAPSHOT`; its artifacts exist only where you publish them,
+normally your Maven Local. In every case,
+`jq -r .version yano-x-distribution-v1.json` in the distribution's top-level
+directory prints the exact Maven version.
 
 ## Publication types
 

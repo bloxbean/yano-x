@@ -290,8 +290,16 @@ flowchart LR
 
 ### 9.1 Current end-to-end demo steps
 
-From `products/evidence/harness`, start one retained explicit-continuation
-cluster and keep it running for every command below:
+From `examples/evidence` in an extracted Yano X JVM distribution (or
+`products/evidence/harness` in a source checkout), start one retained
+explicit-continuation cluster and keep it running for every command below.
+
+> **Caution:** `prepare` and every `up` build two local Docker images,
+> tagged `yano-adr013-node:local` and `yano-adr013-runner:local` by default
+> (the short commit instead of `local` inside a Git working tree). That
+> replaces any existing local image with the same name and tag. To keep it,
+> export `DEMO_YANO_IMAGE` and `DEMO_RUNNER_IMAGE` with your own image names
+> first, and keep them set for every later command of that instance.
 
 ```bash
 ./demo.sh up --instance evidence-talk
@@ -473,7 +481,9 @@ in [Domain actors and role-aware approvals](APP_CHAIN_DOMAIN_ROLES.md).
 
 ### Minutes 18–26 — live demonstration
 
-From `products/evidence/harness`:
+From `examples/evidence` in an extracted distribution (or
+`products/evidence/harness` in a source checkout; see the image-tag caution in
+section 9.1):
 
 ```bash
 # Start one retained three-node environment.
