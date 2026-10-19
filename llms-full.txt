@@ -4,7 +4,7 @@
 
 yanoXVersion: 0.1.0-pre3
 yanoVersion: 0.1.0-pre17
-Generated: 2026-10-18T12:56:47.626Z
+Generated: 2026-10-19T14:04:58.988Z
 Site: https://yano-x.io
 Repo: https://github.com/bloxbean/yano-x
 
@@ -107,15 +107,9 @@ Repo: https://github.com/bloxbean/yano-x
 - [State machines → ordered-log](https://yano-x.io/state-machines/ordered-log/)
 - [State machines → role-approvals](https://yano-x.io/state-machines/role-approvals/)
 - [Products → Products](https://yano-x.io/products/)
-- [Products → Attest](https://yano-x.io/products/attest/)
-- [Products → Attestation Feed](https://yano-x.io/products/attestation-feed/)
 - [Products → Evidence](https://yano-x.io/products/evidence/)
-- [Products → Evidence Desk](https://yano-x.io/products/evidence-desk/)
 - [Products → Cardano History](https://yano-x.io/products/cardano-history/)
-- [Products → DPP Starter](https://yano-x.io/products/dpp-starter/)
 - [Products → eUTxO ledger](https://yano-x.io/products/eutxo/)
-- [Products → Verifiable Explorer](https://yano-x.io/products/explorer/)
-- [Products → Trust Registry](https://yano-x.io/products/trust-registry/)
 - [Reference → CLI reference](https://yano-x.io/reference/cli/)
 - [Reference → Declarative event bindings](https://yano-x.io/reference/declarative-bindings/)
 - [Reference → Declarative binding authoring commands](https://yano-x.io/reference/declarative-bindings-cli/)
@@ -1026,7 +1020,7 @@ and reusable libraries. The dependency runs one way: `yano-x → yano`.
 | Every other stock state machine | **Yano X** |
 | Composite profiles, governed profile evolution, declarative bindings | **Yano X** |
 | Kafka, S3, IPFS, and Cardano-payment executors; the Kafka sink | **Yano X** |
-| Products: Evidence, Cardano History, Attest, Trust Registry, and more | **Yano X** |
+| Products: Evidence, Cardano History, and the eUTxO ledger | **Yano X** |
 | Java client SDK, Spring Boot starter, testkits, deployment tool, App-Chain Studio | **Yano X** |
 | The JVM distribution that ships all of the above pre-installed | **Yano X** |
 
@@ -1475,15 +1469,18 @@ wallet, public-network funds, or external Cardano node.
 <!-- illustration: showcase-quickstart -->
 1. **Check.** `./showcase.sh doctor --profile light` checks Java 25, Python 3,
    `curl`, `jq`, and the packaged artifacts.
-2. **Start.** `./showcase.sh quickstart` starts three nodes with the thirteen
-   showcase chains on a private devnet and runs the first demonstrations.
-3. **Submit an order.** `./demos/submit-orders.sh` submits an order, waits
-   until it is final, and requests its proof.
-4. **Verify.** `./showcase.sh verify` checks that every node reports the same
-   tip and root for every chain.
-5. **Stop.** `./showcase.sh stop` stops the nodes and keeps the instance.
-6. **Restart.** `./showcase.sh restart` resumes the same instance from its
-   retained state.
+2. **Start.** `./showcase.sh quickstart --profile light --nodes 3 --instance first-demo`
+   starts three nodes with the thirteen showcase chains on a private devnet and
+   runs the first demonstrations.
+3. **Submit an order.** `./demos/submit-orders.sh first-demo '{"order":"A-100","event":"created"}'`
+   submits an order to the `first-demo` instance, waits until it is final, and
+   requests its proof.
+4. **Verify.** `./showcase.sh verify --instance first-demo` checks that every
+   node reports the same tip and root for every chain.
+5. **Stop.** `./showcase.sh stop --instance first-demo` stops the nodes and
+   keeps the instance.
+6. **Restart.** `./showcase.sh restart --instance first-demo` resumes the same
+   instance from its retained state.
 <!-- /illustration -->
 
 #### 1. Get the matching archive
@@ -1532,8 +1529,10 @@ separate prerequisites. The quickstart anchor is a **devnet** anchor for
 ./showcase.sh ui --instance first-demo
 ```
 
-> **✓ You should see** a proof summary with `"claimSatisfied": true`, then
-> `ORDERED: message finalized at height N`.
+> **✓ You should see** `submitted orders.command.v1 via node 0: <message-id>`,
+> a proof summary with `"claimSatisfied": true`, then
+> `ORDERED: message finalized at height N`. Keep the message ID; you retrieve
+> the same order after a restart below.
 
 The order command prints a finalized position and proof claim. The document
 scenario appends to a trail. `verify` checks node readiness, converged tips and
@@ -1558,7 +1557,19 @@ for the actual requests, message lookup, and typed proof route.
 > **✓ You should see** `stopped 3 node(s)` after `stop`, and `Cluster up.`
 > after `restart`.
 
-Retrieve the same order after the restart. Do not reset an instance to fix a
+Retrieve the same order after the restart, using the message ID that
+`submit-orders.sh` printed:
+
+```bash
+MESSAGE_ID=<message-id printed by submit-orders.sh>
+curl -fsS "http://127.0.0.1:7070/api/v1/app-chain/chains/orders-chain/messages/$MESSAGE_ID" \
+  | jq '{messageId,height,index,topic}'
+```
+
+> **✓ You should see** the same `messageId` at the same `height` as before
+> the restart.
+
+Do not reset an instance to fix a
 startup error: `reset --yes` deletes the instance and is not recoverable. Run
 `./showcase.sh logs --instance first-demo` and inspect the first failure; keep
 the generated identity and data directories together.
@@ -1685,8 +1696,7 @@ with one proof against a public anchor, without seeing the rest of the trail.
 
 **Setup sketch.** A topic per product line, or a `productId` field in the body.
 Anchor hourly. Keep bodies small: hashes and metadata, not documents. The
-`doc-trail` state machine keeps one provable chained head per product or case,
-and the [DPP Starter](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/DPP_STARTER.md) packages a passport registry.
+`doc-trail` state machine keeps one provable chained head per product or case.
 
 ##### A4. Notarization and proof of existence
 
@@ -1701,8 +1711,7 @@ prevent any one of them from rewriting history alone.
 
 **Verification.** Reveal the content later. Anyone recomputes the hash, checks
 the proof, and checks the anchor. The anchor transaction's Cardano block time
-bounds T. [Attest](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/ATTEST.md) packages this pattern with a portable
-certificate.
+bounds T.
 
 ##### A5. Cross-organization integration and SLA evidence
 
@@ -1807,9 +1816,7 @@ value.
 aggregates deterministically once all observations, or a quorum of them, are
 present (for example, a median), and writes the agreed value for the round as
 provable state. Fetch external data outside the node, in a small submitter
-service per member: `apply` itself must stay deterministic and free of I/O. The
-[Attestation Feed](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/ATTESTATION_FEED.md) starter shows a configuration-only
-variant on the stock authenticated map.
+service per member: `apply` itself must stay deterministic and free of I/O.
 
 ---
 
@@ -2547,10 +2554,10 @@ was checked against came from. There are five levels:
 | Trust level | The root came from | For example |
 |---|---|---|
 | `INTERNAL_CONSISTENCY_ONLY` | The same response as the proof | A node's proof response, by default |
-| `CALLER_PINNED_ROOT` | A root you pinned, or a block certified by member keys and a threshold you pinned | Attest `--members keys.json`; `yano-explorer verify --members` |
+| `CALLER_PINNED_ROOT` | A root you pinned, or a block certified by member keys and a threshold you pinned | `./yano.sh appchain state verify --trusted-root`; the Java client's `PortableProofBundle` with a certified block |
 | `NODE_CONFIRMED_L1_REFERENCE` | The node's report of its latest confirmed Cardano anchor | A proof request with `"view": "latest-confirmed-anchor"` |
-| `CALLER_PINNED_ANCHOR` | An anchor datum you supplied; the verifier did not read Cardano | `yano-explorer verify --anchor-datum-hex` |
-| `INDEPENDENTLY_VERIFIED_L1_ANCHOR` | Anchor data read from Cardano, independently of any member or node | Attest or Trust Registry `--anchor-datum-hex` with a datum you read from Cardano |
+| `CALLER_PINNED_ANCHOR` | An anchor datum you supplied; the verifier did not read Cardano | No Yano X command reports this level today |
+| `INDEPENDENTLY_VERIFIED_L1_ANCHOR` | Anchor data read from Cardano, independently of any member or node | The Java client's `PortableProofBundle` with a block taken from an anchor you read from Cardano |
 
 <!-- /illustration -->
 
@@ -3556,8 +3563,8 @@ state:
   genesis-id: c2b9c92a865dfa7c218a1a6e49f1dd88163372e40466009876458c01609d0d70
 ```
 
-Products built on the governed authenticated map, such as the Trust Registry,
-compute the genesis id from their genesis descriptor, so every member can
+Chains built on the governed authenticated map compute the genesis id from
+their genesis descriptor, so every member can
 regenerate it and compare. The runtime then binds the configured id to the
 application profile, including the configuration of its built-in indexes. The
 id that status, anchors, and the consensus context report is that derived id.
@@ -3604,8 +3611,8 @@ they continue; with 3 of 3, no block becomes final.
 
 The chain status returns a `capabilityManifest` with a `manifestDigest`. It
 describes the application's components, workflows, and proof subjects so tools
-can discover them; the Evidence Desk and the Verifiable Explorer, for example,
-choose how to read a ledger from it. It is descriptive
+can discover them; a client, for example, can choose how to read a ledger
+from it. It is descriptive
 discovery data, **not a trust root**: proof verification still pins the chain,
 genesis, commitment profile, root, and typed subject.
 
@@ -3713,9 +3720,7 @@ follow three rules:
   the missing rows.
 
 Never restore `appchain-indexers/` as if it were authoritative state, and never
-restore it into either authoritative store. The Verifiable Explorer's index
-follows the same rules from outside the node: it is a separate database that any
-node can rebuild.
+restore it into either authoritative store.
 
 #### Stopping, cleaning, and backing up
 
@@ -3912,10 +3917,8 @@ trusted, using five levels:
 | `CALLER_PINNED_ANCHOR` | You supplied and verified the complete expected Cardano anchor. |
 | `INDEPENDENTLY_VERIFIED_L1_ANCHOR` | The verifier checked the Cardano anchor itself, not a node's report of it. |
 
-Products' CLIs map these to exit codes; for Attest, Trust Registry, DPP
-Starter, and Attestation Feed, only exits 0 and 5 mean verified. Get the members
-file or the anchor datum from a source you trust, never from the bundle you are
-checking.
+Get the member keys and threshold, or the anchor datum, from a source you trust,
+never from the bundle you are checking.
 
 #### How many members can fail
 
@@ -5959,23 +5962,22 @@ timeout. Treat a fixed proposer as a performance dependency, and watch it.
 
 Source: https://yano-x.io/deployment/production/
 
-> Every product in this repository ships with a launcher, demo actors, and a local console, and every one of those is a demonstration convenience. This…
+> Every recipe, showcase chain, and product in this repository ships with a launcher, demo actors, and fixed local keys, and every one of those is a…
 
-Every product in this repository ships with a launcher, demo actors, and a local console, and every
-one of those is a demonstration convenience. This guide says what changes when a consortium runs
-one of these app ledgers for real: how the genesis is agreed, where keys live, what each service is
-allowed to reach, and which parts are still gated.
+Every recipe, showcase chain, and product in this repository ships with a launcher, demo actors,
+and fixed local keys, and every one of those is a demonstration convenience. This guide says what
+changes when a consortium runs an app ledger for real: how the genesis is agreed, where keys live,
+what each service is allowed to reach, and which parts are still gated.
 
-Yano is pre-release. Nothing here makes a `preview` or `EXPERIMENTAL` product production-ready on
-its own; read each product's status first. The DPP starter is a prototype and the attestation feed
-is experimental, and both have gated stages listed at the end.
+Yano is pre-release. Nothing here makes a `preview` or `EXPERIMENTAL` component production-ready on
+its own; read its status first.
 
 #### The short version
 
 | Demo | Production |
 |---|---|
 | Seeds derived from a public string | Keys generated by each actor, on their own machine, never transmitted |
-| One gateway holding every seed | One signer per organization, holding only its own key, or a browser-held key |
+| One process holding every seed | One signer per organization, holding only its own key |
 | A fixed local API key | A per-caller key, rotated, never in a shell history or a repository |
 | Loopback HTTP, no TLS | TLS on every reachable endpoint, with a reverse proxy in front |
 | Members and threshold chosen by a script | Members agreed by the consortium, threshold a governance decision |
@@ -5988,31 +5990,34 @@ The genesis fixes the collections, the schemas, the roles, the policies, and the
 public keys. Its hash is the genesis id, and every authorization is signed against it, so agreeing
 it is the first governance act and changing it later means a different ledger.
 
-**Each actor generates its own key.** On the actor's own machine, never on the operator's:
+**Each actor generates its own key.** On the actor's own machine, never on the operator's, the
+actor derives its public key and signs a chain-bound proof of possession:
 
 ```bash
-yano-trust actor-key --chain <chain-id> --actor <actor-id> --seed-file <seed>
+PUBLIC_KEY="$(./yano.sh appchain role public-key --seed-file <seed>)"
+./yano.sh appchain role key-proof-signature --chain <chain-id> --actor <actor-id> \
+  --actor-revision 1 --key <key-id> --public-key "$PUBLIC_KEY" \
+  --valid-from-height 1 --valid-until-height 0 --seed-file <seed>
 ```
 
-The command prints `publicKeyHex` and `keyProofHex`. Those two values travel to the operator. The
-seed does not: it stays in a file readable only by its owner, or in a key store or HSM the
-organization already trusts. The same command exists for the DPP and feed products.
+The public key and the proof travel to the operator. The seed does not: it stays in a file readable
+only by its owner, or in a key store or HSM the organization already trusts.
 
-**The operator assembles the descriptor** from the organizations, actors, public keys, key proofs,
-and policies the consortium agreed, then generates the node properties:
+**The operator writes the genesis** for a governed authenticated map: the collections, policies,
+organizations, actors, public keys and proofs the consortium agreed go into the project's
+`genesisRecords`, and `./yano.sh appchain render` produces the chain configuration (see
+[governed collections](https://yano-x.io/state-machines/authenticated-map/#governed-collections)). Actors added
+after genesis go through [role approvals](https://yano-x.io/state-machines/role-approvals/), whose
+`appchain role bootstrap` encodes the propose, approve and activate commands, with proofs from
+`appchain role key-proof`.
 
-```bash
-yano-trust genesis --descriptor registry.json --members <key,key,key> --threshold 2 \
-  --chain-index N --output registry.properties
-```
-
-**Every participant regenerates it independently and compares the genesis id.** The generator is
-deterministic: the same descriptor, members, and threshold always give the same id. A participant
-who cannot reproduce the id should not join the ledger. Publish the id where members can check it.
+**Every participant renders it independently and compares the genesis id.** Rendering is
+deterministic: the same project, members, and threshold always give the same id. A participant who
+cannot reproduce the id should not join the ledger. Publish the id where members can check it.
 
 Note what cannot be changed afterwards without a new ledger: the collections, their policies, the
 actors declared at genesis, the block interval, and the message size bounds. Adding an actor later
-is a governance action on the role workflow, and the product CLIs do not expose it today.
+is a governance action on the role workflow.
 
 #### 2. Members, threshold, and nodes
 
@@ -6031,8 +6036,8 @@ Each organization runs its own node, with its own storage, and its own signing k
 that one operator signed several times. The showcase launcher does exactly that, which is why it is
 a demonstration.
 
-Node configuration is the product's chain entry plus the four generated properties, applied to
-every node. The block interval and message size in the generated properties are part of the genesis
+Node configuration is the chain entry plus its generated genesis properties, applied to every
+node. The block interval and message size in the generated properties are part of the genesis
 identity: a node started with different values will not agree.
 
 Give each node its own data directory, back up its authoritative stores, `chainstate/` and
@@ -6044,21 +6049,14 @@ about height H needs the node to still hold it.
 
 This is where a demonstration differs most from a deployment.
 
-**Do not run a shared gateway in production.** A gateway signs for every actor whose seed it was
-started with, so whoever holds its token can write as any of them. In a demo that is the point; in
-a deployment it collapses the distinction the ledger is there to make. Each organization should
-either run a gateway holding only its own actors' keys, on its own machine, reachable only by its
-own operators, or use a browser-held key so nothing but the tab ever has it.
-
-**Browser-held keys** are implemented for the trust registry console today. The seed is imported
-through WebCrypto, held in a closure, zeroed immediately, never stored, and released when the tab
-closes. It is the honest default for a person acting for themselves. Hardware and wallet-held keys
-are not implemented yet.
+**Do not run a shared signer in production.** A service that signs for every actor whose seed it
+was started with lets whoever reaches it write as any of them. In a demo that is the point; in a
+deployment it collapses the distinction the ledger is there to make. Each organization signs only
+for its own actors, on its own machine, reachable only by its own operators. Hardware and
+wallet-held keys are not implemented yet.
 
 **API keys** authenticate callers to the node, and are not identities. Issue one per caller, keep
-them out of shell history and repositories, and rotate them. `yano-trust`, `yano-dpp`, `yano-feed`,
-and `yano-explorer` accept `--api-key-file`; `yano-attest` and `yano-cardano-history` accept only
-`--api-key`. The services read the node key on their side so a console never holds it.
+them out of shell history and repositories, and rotate them.
 
 **Authorization lifetimes** are bounded in blocks and one-use. A signer that is offline long enough
 for its authorization to expire simply retries; do not raise the lifetime to avoid that.
@@ -6071,15 +6069,12 @@ deliberate act:
 | Service | Exposure | Notes |
 |---|---|---|
 | Node REST API | private to the operators and services that need it | never public; put TLS and a reverse proxy in front |
-| Product portal (DPP, feed) | public, read only | serves proofs and views; no secret, no write route |
-| Registry read service | public, read only | serves status lists and TRQP answers |
-| Operator gateway | private to one organization's operators | holds keys; never public, and never without TLS if it leaves the host |
-| Explorer service | as private as the ledger data it indexes | holds the node API key on its side |
-| Consoles | static files | can be public; they hold no secret beyond what the operator types |
+| Your application's read service | public, read only, if it serves proofs | no secret, no write route |
+| A signer | private to one organization's operators | holds keys; never public, and never without TLS if it leaves the host |
+| Static UIs | static files | can be public; they hold no secret beyond what the operator types |
 
-A console served over HTTPS cannot call a service over plain HTTP. Either serve both over HTTPS, or
-host the console behind the same reverse proxy as the service so they share an origin, which is
-what the demo does with a local proxy.
+A UI served over HTTPS cannot call a service over plain HTTP. Either serve both over HTTPS, or host
+the UI behind the same reverse proxy as the service so they share an origin.
 
 #### 5. Anchoring to Cardano
 
@@ -6093,7 +6088,7 @@ The demo anchors to a devnet the cluster runs itself. In production, anchoring i
 - Only some ledgers need anchoring. Anchor the ones whose evidence must be independently checkable
   later, and leave the rest.
 - Verifiers reach the top trust level by reading the anchor datum from a Cardano source they trust
-  and passing it to `verify --anchor-datum-hex`. Plan how your verifiers get that datum: a public
+  and verifying against the block it commits to. Plan how your verifiers get that datum: a public
   resolver, a block explorer, or their own node.
 - Nothing public should carry personal data. On-chain metadata and datums are permanent.
 
@@ -6101,27 +6096,18 @@ The demo anchors to a devnet the cluster runs itself. In production, anchoring i
 
 - Derive seeds from a public string. Every demo actor's key is computable by anyone.
 - Use the known local API key, or leave one in an environment printed by a launcher.
-- Run one gateway holding every organization's key.
+- Run one signer holding every organization's key.
 - Run all members from one operator, one host, and one directory.
 - Bind services to a public interface without TLS.
-- Treat a `preview` or `EXPERIMENTAL` product as a supported one.
+- Treat a `preview` or `EXPERIMENTAL` component as a supported one.
 
 #### 7. Per-product notes
 
-- **Attest** needs a ledger running the stock `doc-trail` state machine and nothing else. Its
-  certificate is portable and verifies offline; distribute the members file through a channel your
-  verifiers trust, never alongside the certificate alone.
-- **Trust and Status Registry** publishes status lists that verifiers fetch by URL. Publish again
-  after later status writes, or a served list will not match the ledger. Onboarding an issuer after
-  genesis goes through the approval route and has no CLI yet.
-- **Verifiable Explorer** is a convenience index. It never adds trust: every row keeps its evidence
-  and can be verified against the node. Give it read access only.
-- **DPP Starter** is a prototype. Any manufacturer can rewrite any product, and the ledger exposes
-  that as a flag rather than preventing it. The full provider that enforces the rules on the
-  ledger waits on qualification of the governed map and acceptance of the DPP design.
-- **Data Attestation Feed** is experimental. Aggregates are recomputed by verifiers, nothing is
-  published to Cardano, and the hardened publication executor and the reviewed aggregation
-  component are core work that has not landed.
+- **Evidence** publishes to object storage, IPFS, and Kafka through connectors. Give each connector
+  its own credentials, and treat the effect secrets as production secrets.
+- **Cardano History** answers from the L1 data its node observed. Proofs are pinned to the latest
+  L1-confirmed commitment, so its chain must be anchored.
+- **The eUTxO ledger** is experimental and for disposable test funds only.
 
 #### 8. Before you go live
 
@@ -6131,8 +6117,8 @@ The demo anchors to a devnet the cluster runs itself. In production, anchoring i
 - TLS terminates in front of every reachable endpoint, and the node API is not among them.
 - Anchoring, if used, has a funded key that is backed up and access-controlled.
 - Retention is decided, backups are tested, and a member can be restored.
-- Every verifier knows which trust level they require, and treats only exit 0 and 5 as verified.
-- The product's classification and its deferred stages are written down where the operator's
+- Every verifier knows which trust level they require.
+- Each component's classification and its deferred stages are written down where the operator's
   stakeholders can read them.
 
 ---
@@ -6957,6 +6943,16 @@ your existing entries are unchanged.
 > `node 3 joined and caught up with member key ...`. The new member votes from
 > the activation height each chain reports.
 
+A newly joined node accepts submissions only from that activation height on.
+Before then, a submission through node 3 is refused with HTTP `503` ("not an
+active member at height ... yet"). Check a chain's
+`memberActiveForNextBlock` field and retry once it is `true`:
+
+```bash
+curl -s "http://127.0.0.1:$((HTTP_BASE + 3))/api/v1/app-chain/chains/orders-chain/status" \
+  | jq .memberActiveForNextBlock
+```
+
 For an externally managed node, the lower-level
 `appchain cluster member add <public-key>` command records membership but does
 not configure or start the external process. Same-host `node join` performs
@@ -6978,7 +6974,7 @@ including the chain identities.
 |---|---|
 | `HTTP range 7070-7072 unavailable; using ...` | Another process holds the default ports. Set `HTTP_BASE` to the first port of the printed range. |
 | `app-chain identity differs from retained state; restore the original profile or use a new data directory` | You started the same `YANO_CLUSTER_DIR` with a different node count or `--threshold`. Start it with the original values, or export a new `YANO_CLUSTER_DIR`. |
-| `node 1 is already running` | The cluster is still running. Run `./yano.sh appchain cluster stop` first. |
+| `node 0 is already running (./cluster.sh stop first)` | The cluster in this `YANO_CLUSTER_DIR` is still running. Run `./yano.sh appchain cluster stop` first. |
 | `node 0 not ready within 180s` or `node 2 not ready after 3 attempts` | The message names the node's log file. Read its first error, for example with `./yano.sh appchain cluster logs 2`. |
 | `orders-chain: MISMATCH` | A node can be one block behind while `status` reads it. Run `status` again after a few seconds. If it persists, check that node's log. |
 | `config not found: .../config/application-appchain.yml` | `YANO_HOME` points somewhere other than the distribution. Run `unset YANO_HOME`, then retry from the distribution's top-level directory. |
@@ -6986,18 +6982,30 @@ including the chain identities.
 #### Go deeper
 
 - **Try a stricter threshold.** The threshold is part of the cluster's
-  identity, so start a second cluster in a new directory:
+  identity, so start a second cluster in a new directory. If you skipped
+  [Clean up](#clean-up), first stop the first cluster while
+  `YANO_CLUSTER_DIR` still points to it, so the new cluster gets the default
+  ports:
 
   ```bash
-  ./yano.sh appchain cluster stop
+  ./yano.sh appchain cluster stop    # only if the first cluster still runs
   export YANO_CLUSTER_DIR=/tmp/yano-tutorial-threshold-3
   ./yano.sh appchain cluster start 3 --threshold 3
   ```
 
   The start banner shows `threshold: 3`, and every block now needs all three
   votes. The "Threshold 3, one member down" scenario above shows why one
-  stopped member then halts finality. Remove this cluster with
-  `./yano.sh appchain cluster clean`.
+  stopped member then halts finality. Remove this cluster and clear the
+  variable when you are done:
+
+  ```bash
+  ./yano.sh appchain cluster clean
+  unset YANO_CLUSTER_DIR
+  ```
+
+  If you skipped Clean up, also remove the first cluster: run
+  `export YANO_CLUSTER_DIR=/tmp/yano-tutorial-first-chain`, then the same two
+  commands.
 - Read Yano's
   [consensus guide](https://github.com/bloxbean/yano/blob/main/docs/APP_CHAIN_CONSENSUS_GUIDE.md)
   for the proposer, votes, certificates, replay, and catch-up.
@@ -7063,8 +7071,13 @@ Write through node 1, so node 1 becomes the owner:
 ./yano.sh appchain cluster kv registry-chain set supplier-42 active --node 1
 ```
 
-The command body is CBOR, but the launcher builds it for you. `202` means only
-that node 1 queued it. Wait until the key appears in a proof:
+The command body is CBOR, but the launcher builds it for you.
+
+> **✓ You should see** `kv set supplier-42 -> registry-chain  (<message id>...)`.
+
+The printed message ID is node 1's acceptance: the REST API answered HTTP
+`202` and returned that ID. It means only that node 1 queued the message.
+Wait until the key appears in a proof:
 
 ```bash
 BASE=http://127.0.0.1:$HTTP_BASE/api/v1/app-chain/chains/registry-chain
@@ -7125,7 +7138,7 @@ You should see both lines. The entry did not change: node 2 does not own the
 key, so the decision was `KV_NOT_OWNER`. The root did change, and it would
 have changed anyway: every block also records its own messages root in state.
 So compare the proven entry, never the root, to decide whether a command had
-an effect. A final message, a `202`, or a growing height is not the
+an effect. A final message, an accepted (HTTP `202`) submission, or a growing height is not the
 authorization decision; the resulting state is.
 
 #### 5. Update as the owner
@@ -7257,9 +7270,15 @@ The cluster launcher reads `config/application-appchain.yml` in the release's
 top-level directory (`$YANO_HOME/config/application-appchain.yml` when you set
 `YANO_HOME`). Under its single `yano.app-chain` root it already defines
 `orders-chain`, `registry-chain` and `effects-chain` as `chains[0]` to
-`chains[2]`. Add a fourth chain before you start a fresh cluster. Paste this
-block inside that root, just above the `# --- Add more chains here` comment, at
-the same four-space indentation as `chains[2]`:
+`chains[2]`. Add a fourth chain before you start a fresh cluster. Keep a copy
+of the original file first, so you can restore it in [Clean up](#clean-up):
+
+```bash
+cp config/application-appchain.yml config/application-appchain.yml.orig
+```
+
+Paste this block inside that root, just above the `# --- Add more chains here`
+comment, at the same four-space indentation as `chains[2]`:
 
 ```yaml
     chains[3]:
@@ -7286,6 +7305,19 @@ nodes would start without any app chain. Check the file before you start:
 > **✓ You should see** a last line starting with `VALID_TEMPLATE` and
 > `errors=0`. Then `./yano.sh appchain cluster start 3` lists
 > `workflow-chain` among its chains.
+
+Above that last line the validator prints one diagnostic per line, and both
+kinds are expected here:
+
+- `WARNING DX_CONFIG_PARTIAL_NAMESPACE ...` for keys such as
+  `chains[3].membership.mode`: a plugin owns that namespace and publishes only
+  partial metadata, so the validator cannot check the exact key name.
+- `INFO UNRESOLVED_TEMPLATE_OVERLAY ...` for each chain's `members`, `peers`,
+  `signing-key` and `threshold`: the launcher supplies these before startup,
+  so the template correctly leaves them out.
+
+Only `ERROR` lines, or a last line starting with `INVALID_TEMPLATE`, need a
+fix.
 
 The host refuses a chain without all three `state.*` settings, and the
 validator does not catch that yet. Copy the profile and fingerprint from an
@@ -7319,6 +7351,28 @@ change every member's state root. Use, in order of preference:
 - Putting large or secret documents in replicated command bodies.
 - Adding network, clock, DNS or random behavior inside `apply()`.
 - Reusing a machine id after changing its deterministic behavior.
+
+#### Clean up
+
+If you started a cluster with `workflow-chain`, remove it before you take the
+chain out of the file: the chain list is part of the cluster's retained
+identity.
+
+```bash
+./yano.sh appchain cluster clean
+```
+
+Then remove the `chains[3]` entry you added, by restoring the copy you made
+(or by deleting that block by hand), and validate again:
+
+```bash
+mv config/application-appchain.yml.orig config/application-appchain.yml
+./yano.sh appchain config validate --mode template \
+  --template-contract builtin:cluster config/application-appchain.yml
+```
+
+> **✓ You should see** `VALID_TEMPLATE` with `errors=0`, and no diagnostic
+> that mentions `chains[3]`.
 
 #### Go deeper
 
@@ -7371,6 +7425,18 @@ IPFS, and the Evidence Explorer.
   `DEMO_UI_PORT`, `DEMO_KAFKA_PORT`, `DEMO_S3_PORT` and `DEMO_IPFS_PORT` move
   the other services. For example, `export DEMO_HTTP_BASE=7370` puts the
   members on 7370–7372, and the URLs the harness prints use those ports.
+- `prepare` and every `up` build two local Docker images from the
+  distribution. By default they are tagged `yano-adr013-node:local` and
+  `yano-adr013-runner:local` (inside a Git working tree, the tag is that
+  tree's short commit instead). Building **replaces any existing local image
+  with the same name and tag**, for example one from another Yano X version.
+  To keep other images, choose your own names before the first command and
+  keep them set for the whole tutorial:
+
+  ```bash
+  export DEMO_YANO_IMAGE=yano-adr013-node:tutorial
+  export DEMO_RUNNER_IMAGE=yano-adr013-runner:tutorial
+  ```
 
 The harness runs the default `evidence-v1-gated` profile, in which validator
 members approve each release. The Studio link above opens the
@@ -7405,6 +7471,10 @@ and acknowledged outcomes.
 
 #### 1. Prepare and start a fresh direct-continuation profile
 
+Run every command in this tutorial from the harness directory. From the
+top-level directory of the extracted distribution, the one containing
+`yano.sh`:
+
 ```bash
 cd examples/evidence
 
@@ -7437,10 +7507,10 @@ API key file: <path>
 ```
 
 `direct` means the deterministic workflow emits the next result-driven
-transition directly. `explicit`, the harness default, keeps the original
-Milestone 1 notify command that advances that continuation. The choice is part
-of the fresh chain's committed profile; pass the same option to every later
-command.
+transition directly. `explicit`, the harness default, keeps the first version
+of this workflow, in which a separate notify command advances that
+continuation. The choice is part of the fresh chain's committed profile; pass
+the same option to every later command.
 
 If startup fails, the launcher rolls back the partial deployment. Use the
 reported container health/log command rather than repeatedly deleting random
@@ -7482,7 +7552,9 @@ object and IPFS content, checks their hashes, checks the Kafka acknowledgement,
 and validates application finality, state/effect proofs, and anchor linkage.
 It ends with `PASS command=verify scenario=<scenario id>`.
 
-Open the Evidence Explorer and select the record. The JSON preview is a
+Open the Evidence Explorer at the `Evidence UI` address that `up` printed,
+<http://127.0.0.1:7080/> by default (or your `DEMO_UI_PORT`), and select the
+record. The JSON preview is a
 bounded presentation copy produced only after the runner re-downloads and
 verifies the external bytes; it is not the browser's original submission.
 
@@ -7569,9 +7641,25 @@ summary when every item succeeded, and the Explorer shows the aggregate report.
 ./demo.sh stop --instance tutorial-evidence --continuation direct
 ```
 
-Run `up` with the same instance/profile to resume retained data. Use the
-launcher's explicit `clean --scope ... --yes` workflow only when you intend to
-retire that chain identity and have chosen a replacement instance.
+Run `up` with the same instance/profile to resume retained data. Delete data
+only when you intend to retire that chain identity. Cleanup always names a
+distinct replacement instance, so the retired chain id is never reused. To
+retire this instance and also delete the shared devnet L1 it uses:
+
+```bash
+./demo.sh clean \
+  --instance tutorial-evidence \
+  --continuation direct \
+  --scope all \
+  --new-instance tutorial-evidence-next \
+  --yes
+```
+
+`--scope all` refuses while another instance on the same devnet, such as
+Tutorial 5's `tutorial-roles`, still uses the L1. Retire only this instance
+and keep the L1 with `--scope instance` and the same `--new-instance` option.
+The built Docker images are not removed; delete them with `docker image rm`
+if you no longer need them.
 
 #### What is and is not proven
 
@@ -7672,9 +7760,21 @@ cd examples/evidence
 
 `up` prepares the instance first: it generates its secrets and builds the Yano
 and runner images, which takes a while the first time. `./demo.sh prepare` runs
-only that preparation, if you want to do it ahead of time. Then `up` starts
-three members and the publication services, funds and bootstraps a devnet
-anchor, and runs a read-only readiness probe.
+only that preparation, if you want to do it ahead of time. The images use the
+same default tags as Tutorial 4 and replace local images with those tags; set
+`DEMO_YANO_IMAGE` and `DEMO_RUNNER_IMAGE` as
+[Tutorial 4](https://yano-x.io/tutorials/04-evidence-publication/) describes to keep them. Then `up`
+starts three members and the publication services, and funds and bootstraps a
+devnet anchor.
+
+With `--machine role`, `up` then runs `init` rather than the read-only probe
+of Tutorial 4. `init` writes to the chain: it submits governed messages that
+register the four organizations, the five demo actors and the
+`evidence-release` policy, and waits until they are final. It skips records
+that already exist, so running `up` again does not register them twice.
+
+> **✓ You should see** `PASS command=init`, and near the end the
+> `Evidence UI: http://127.0.0.1:7080/` address.
 
 The profile commits its organization and actor registry, policy, component
 order, routes, effect workflow, administrator threshold and limits at genesis.
@@ -7710,11 +7810,18 @@ controls, then releases the evidence once the proposal is APPROVED.
   --evidence-id regulated-product-001
 ```
 
-Open <http://127.0.0.1:7080/>. The report separates the relay member, actor,
-organization, role, policy revision, clause and signed decision. Current actor
-and policy projections include both the revision proof and the same-root
-current-pointer proof, so “this revision exists” is never confused with “this
-is the current revision”.
+Open the Evidence UI at the address that `up` printed,
+<http://127.0.0.1:7080/> by default, and select the record. Its **Business
+authorization** card shows the decision status, the policy and its revision,
+the proposer, each satisfied clause with its accepted and required counts, and
+each accepted decision as actor, role and organization against a clause. It
+also shows the payload hash and the relay member that carried the envelope.
+The badges above it summarize what the runner verified, including
+`Role quorum authenticated`.
+
+The page shows the runner's verified report. It does not display the actor or
+policy records themselves or their proofs; to inspect those, use the query and
+proof routes on the [`role-approvals` reference](https://yano-x.io/state-machines/role-approvals/).
 
 #### 4. Rotate and revoke an actor
 
@@ -7735,10 +7842,16 @@ The exercise uses a dedicated recovery actor and checks, in order:
 6. refusal after revocation; and
 7. proofs of the historical revisions and decisions.
 
-> **✓ You should see** one line, `PASS command=role-lifecycle actor=recovery-probe
-> revision=3 rotation=verified revocation=verified ...`. The command checks
-> every step above against proven state and stops with a `FAIL` line at the
-> first one that does not hold; it does not print the steps one by one.
+> **✓ You should see** a few lines of output, among them
+> `PASS command=role-lifecycle actor=recovery-probe revision=3
+> rotation=verified revocation=verified ...`. The command checks every step
+> above against proven state and stops with a `FAIL` line at the first one
+> that does not hold; it does not print the steps one by one.
+
+The other lines are expected: three `SLF4J(W): ...` warnings that the runner
+has no logging backend, which you can ignore, and after the `PASS` line a
+`WAIT_ANCHOR_ADOPTION: ...` line and an `Anchor binding verified ...` line
+from the harness's anchor check.
 
 This is not member rotation. Business credentials and member nodes are
 governed separately.
@@ -8410,15 +8523,25 @@ tutorial links to them instead of repeating them.
 
 #### Before you start
 
-- Java 25 and Gradle (or your organization's Gradle wrapper).
+- Java 25 and Gradle 9.1 or later, the first Gradle release that runs on
+  Java 25 (Yano X itself builds with Gradle 9.4.1). The generated project has
+  no Gradle wrapper; step 5 shows how to build with your own `gradle` or add
+  a wrapper.
 - An extracted Yano X JVM distribution. This tutorial assumes `/opt/yano-x` and
   runs every `./yano.sh` command from that directory.
 - A 32-byte publisher seed, written as 64 hexadecimal characters to a file
-  outside any repository, for signing. For a throwaway tutorial key:
-  `(umask 077; openssl rand -hex 32 > /secure/publisher.seed)`.
-- The exact Yano host version in your distribution's manifest, printed by
-  `jq -r .version yano-distribution-v1.json`. The host and Yano X have
-  separate versions.
+  outside any repository, for signing. For a throwaway tutorial key in an
+  owner-only directory of your home:
+
+  ```bash
+  mkdir -m 700 -p "$HOME/.yano-tutorial"
+  (umask 077; openssl rand -hex 32 > "$HOME/.yano-tutorial/publisher.seed")
+  ```
+
+- The exact Yano host version of your distribution. Run
+  `jq -r .version yano-distribution-v1.json` in the distribution's top-level
+  directory; step 2 uses it directly. The host and Yano X have separate
+  versions: `yano-x-distribution-v1.json` holds the Yano X version.
 
 #### 1. Choose the smallest extension
 
@@ -8445,7 +8568,7 @@ Does a stock machine or recipe already model the outcome?
   --mode state-machine \
   --id shipment \
   --package com.example.shipment \
-  --yano-version <matching-yano-host-version> \
+  --yano-version "$(jq -r .version yano-distribution-v1.json)" \
   --output shipment-plugin
 ```
 
@@ -8572,16 +8695,24 @@ the signature:
 ./yano.sh appchain plugin sign \
   --catalog shipment-plugin/src/main/resources/META-INF/yano/appchain-component-catalog-v1.json \
   --runtime-manifest shipment-plugin/src/main/resources/META-INF/yano/plugins/plugin-bundle.shipment.json \
-  --seed-file /secure/publisher.seed \
+  --seed-file "$HOME/.yano-tutorial/publisher.seed" \
   --key-id example-release-2026 \
   --output shipment-plugin/src/main/resources/META-INF/yano/appchain-component-catalog-v1.sig.json
 
-(cd shipment-plugin && gradle jar)
+(cd shipment-plugin && gradle jar)   # Gradle 9.1+ on your PATH
 
 ./yano.sh appchain plugin validate shipment-plugin/build/libs/shipment-yano-plugin.jar \
   --trust-key example-release-2026=<64-hex-public-key> \
   --output shipment-catalog.json
 tools/yano-plugins/bin/yano-plugins validate shipment-plugin/build/libs/shipment-yano-plugin.jar
+```
+
+The scaffold ships no Gradle wrapper, so `gradle jar` uses the Gradle on your
+`PATH`. To pin a version for your team instead, add a wrapper once and build
+with it:
+
+```bash
+(cd shipment-plugin && gradle wrapper --gradle-version 9.4.1 && ./gradlew jar)
 ```
 
 `plugin sign` ends with `PLUGIN_CATALOG_SIGNED key=example-release-2026
@@ -8784,8 +8915,9 @@ openssl pkey -in member-signing-key.pem -pubout -outform DER \
   | tail -c 32 | od -An -tx1 | tr -d ' \n'; echo
 ```
 
-The last command prints the member's 64-hex public key. Add the keys and the
-members' hostnames under `spec.chains[0].topology` in `appchain.yaml`, in the
+The last command prints the member's 64-hex public key. In `appchain.yaml`,
+`spec.chains[0].topology` has empty lists, `memberKeys: []` and
+`nodeHosts: []`. Replace both with the keys and the members' hostnames, in the
 same order, so the first key belongs to the first host:
 
 ```yaml
@@ -8867,6 +8999,14 @@ required. Node-local YAML drift must not decide application semantics.
 Each member supplies its own `secrets/nodeN.env` from the generated
 `secrets/nodeN.env.example`. The project's `.gitignore` excludes
 `secrets/*.env`, and the Ansible export never embeds private keys.
+
+`init` creates the `secrets/` directory with your default permissions,
+usually mode `755`, so other local users can list it. Before you put a private
+file there, make it owner-only:
+
+```bash
+chmod 700 permissioned-pilot/secrets
+```
 
 `YANO_APPCHAIN_SIGNING_KEY` is the 64-hex seed inside the member's
 `member-signing-key.pem`. On the member's own machine, next to its copy of the
@@ -9381,8 +9521,10 @@ program; on a real chain it would require qualified profile evolution.
 #### 7. View the graph in Studio
 
 Studio is the static site in the distribution's `studio/` directory. Serve it
-locally, for example with `python3 -m http.server 8080 --directory studio`, and
-open the localhost URL. This starts a local static web server, not a Yano node.
+locally from the distribution's top-level directory, for example with
+`python3 -m http.server 8230 --bind 127.0.0.1 --directory studio`, and open
+<http://127.0.0.1:8230/>. Any free port works; this tutorial uses 8230 because
+8080 is often taken. This starts a local static web server, not a Yano node.
 See [Studio configuration](https://yano-x.io/deployment/configure/).
 
 Extract the validation result's manifest into `manifest.json`:
@@ -9480,9 +9622,16 @@ previous value hash. Do not assume every event contains the command's full
 payload: fields are event-specific. The compiler checks field names and types
 against the selected kernel's descriptors.
 
-With the offline `context.json` and registry `fixture.json` from the
-[CLI fixture example](https://yano-x.io/reference/declarative-bindings-cli/#dry-run-fixture-and-limits-of-assurance),
-use the extracted distribution's launcher and plugins:
+This chapter reuses two files from [Chapter 1](https://yano-x.io/bindings/first-workflow/), unchanged:
+`context.json` from [step 3](https://yano-x.io/bindings/first-workflow/#3-declare-the-rehearsal-context)
+and the registry `fixture.json` from
+[step 5](https://yano-x.io/bindings/first-workflow/#5-submit-an-offline-test-command). They are the
+same inputs as the
+[CLI fixture example](https://yano-x.io/reference/declarative-bindings-cli/#dry-run-fixture-and-limits-of-assurance).
+`conditions.yml` is new, although its content matches Chapter 1's
+`bindings.yaml` after you restored the `< 100` condition. Run from the same
+directory as in Chapter 1, the distribution's top-level directory, so the
+commands find `./yano.sh`, `plugins/` and those files:
 
 ```bash
 ./yano.sh appchain bindings validate conditions.yml \
@@ -9936,70 +10085,45 @@ not a separately signed finalized message, so it cannot be passed off as an
 ADR-047 signed-message attestation certificate. Prove its receipt and trail
 state instead.
 
-#### Generate real governed DPP or feed bindings
+#### Governed DPP and feed examples
 
 Consensus-member voting is useful for the small exercise. Business actors in
-different organizations need the actor-signed policy path. The DPP and feed
-generators use the existing product profile builders and real authenticated-map
-schemas; they do not replace authorization with a boolean binding condition.
+different organizations need the actor-signed policy path, which does not
+replace authorization with a boolean binding condition. The distribution ships
+two examples of it over real authenticated-map schemas and policies:
+`examples/bindings/dpp-approval.yaml`, a product passport certification, and
+`examples/bindings/feed-approval.yaml`, a data feed round approval. Their genesis
+uses deterministic demo identities: never use their keys in production.
 
-Prepare `actors.json`, a schema-version-1 public descriptor containing your
-`chainId`, organizations, actors, and authority. Each actor includes `id`,
-`organizationId`, `roles`, `keyId`, `publicKeyHex`, and a full encoded
-`keyProofHex`. Authority includes `id`, `administratorActorIds`,
-`distinctActorThreshold`, and `maximumLifetimeBlocks`. Optional `issuers` and
-`schemas` must be empty for these starters. `members.json` is an array of the
-actual consensus member public-key hex strings.
-
-Obtain each chain-bound proof of key possession through the documented offline
-role CLI in [recipe generation](https://yano-x.io/reference/declarative-bindings-cli/#generate-governed-recipes-for-your-own-chain).
-The descriptor contains public material only; the generator never reads seeds.
-A signature alone is not the encoded key-proof object, and changing the chain
-ID requires new proofs. Do not reuse the exercise's assumed envelope proof.
+Validate the DPP example with the governed context shipped beside its
+role-gated variant, which uses the same demo genesis:
 
 ```bash
-./yano.sh appchain bindings recipe dpp \
-  --descriptor actors.json --members members.json --threshold 2 > recipe.json
-jq '.document' recipe.json > governed-bindings.yml
-jq '.context' recipe.json > governed-context.json
-./yano.sh appchain bindings validate governed-bindings.yml \
-  --plugins-directory plugins --context governed-context.json
+./yano.sh appchain bindings validate examples/bindings/dpp-approval.yaml \
+  --plugins-directory plugins \
+  --context examples/bindings/fixtures/dpp-role-gated/context.json
 ```
 
-Use `feed` in place of `dpp` for the round-approval starter. The extracted JSON
-document is valid YAML input. The generator substitutes no demo identities;
-review the emitted members, proposer, threshold, and block interval when
-configuring your chain. Regenerate if these genesis inputs change instead of
-editing opaque genesis CBOR.
+The DPP roles are `manufacturer`, `operator`, `claim-issuer`, `certifier`, and
+`auditor`, with `dpp-admin` administration; certification needs two auditors
+from two different organizations. Feed uses `source`, `feed-operator`, and
+`publisher`, with `feed-admin` administration. Actors need not be consensus
+members. For your own organizations, actors, and keys, declare a governed map's
+genesis in a project and render it, as described in
+[governed collections](https://yano-x.io/state-machines/authenticated-map/#governed-collections).
+The DPP and feed starter generators moved with those products to
+[yano-x-products](https://github.com/bloxbean/yano-x-products). The feed example
+has no shipped context, so read it alongside the DPP one rather than validating
+it.
 
-DPP starter roles are `manufacturer`, `operator`, `claim-issuer`, `certifier`,
-and `auditor`, with `dpp-admin` administration. Feed uses `source`,
-`feed-operator`, and `publisher`, with `feed-admin` administration. Actors need
-not be consensus members.
-
-The descriptor must be able to satisfy every starter policy at height 1, or the
-generator refuses it and names the policy:
-
-| Starter | Needs active actors with signing keys: at least |
-|---|---|
-| `dpp` | one `manufacturer`, one `operator` and one `claim-issuer`; one `certifier` to propose a certification; and **two `auditor` actors in two different organizations** to approve it |
-| `feed` | one `feed-admin` and one `source`; one `feed-operator` to propose a round; and **two `publisher` actors in two different organizations** to approve it |
-
-One actor can hold several roles, but two auditor or publisher keys in one
-organization count once. With a single auditor organization, `dpp` fails with
-`starter policy 'certification' clause 'independent-auditors' needs 2 eligible
-genesis voters with role 'auditor', distinct by ORGANIZATION`. Generation checks
-these holders and quorums at height 1, not every future business prerequisite or
-arbitrary custom policy.
-
-The generated assembly connects three catalog leaves:
+Each example connects three catalog leaves:
 
 1. `domain-actors-component` supplies genesis-fixed actor authority.
 2. `governed-role-approvals` accepts actor-signed proposals/votes and stages the
    proposed action through `StagedActorCommandV1`.
 3. `authenticated-map-component` verifies and applies the approved action.
 
-The generated binding is small because the target owns the hard checks:
+The binding is small because the target owns the hard checks:
 
 ```yaml
 - id: apply-approved
@@ -10012,8 +10136,7 @@ The generated binding is small because the target owns the hard checks:
       approvalReference: {field: proposalId}
 ```
 
-This excerpt belongs inside the generated document; its genesis configuration
-must come from your descriptor. A proposal stages at most 32,768 action bytes.
+The genesis configuration in each example is fixed. A proposal stages at most 32,768 action bytes.
 At approval, the map recomputes the signed scoped action hash and verifies the
 approval reference. A mismatched action rolls back the threshold vote and map
 write together, preserves the pending proposal/action, and retains the crypto
@@ -10038,14 +10161,13 @@ governed context are in `examples/bindings/fixtures/dpp-role-gated/`.
 
 The initial actor leaf is genesis-fixed: it has no actor rotation or derived
 governance-command route. It is not feature-equivalent to every standalone
-governed preset. Existing portals and list projections that replay original
-map envelopes do not automatically discover derived map writes; exact known-key
+governed preset. List projections that replay original map envelopes do not
+automatically discover derived map writes; exact known-key
 proofs are the qualified read path. Feed aggregation stays off chain and
 independently recomputable, not an on-chain price oracle or Cardano publication.
 
-Continue with the [DPP starter](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/DPP_STARTER.md),
-[attestation-feed guide](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/ATTESTATION_FEED.md), and
-[domain-role tutorial](https://yano-x.io/tutorials/05-domain-role-approvals/) for the product
+Continue with the
+[domain-role tutorial](https://yano-x.io/tutorials/05-domain-role-approvals/) for the role
 commands and policies. Before evolving the configuration, read
 [operations and upgrades](https://yano-x.io/bindings/operations-and-upgrades/): a new generation does
 not migrate genesis-bound state.
@@ -10053,8 +10175,8 @@ not migrate genesis-bound state.
 Source coverage for this exercise is
 `AppChainFinalDistributionAcceptanceTest.packagedProposalAndTwoVotesCarryStateAndRejectSkippedEmptyHeights`.
 `BindingRecipesIT` covers the checked-in recipes through live/offline receipt
-parity; `BindingCliTest` and `BindingCliIT` cover caller-specific generation and
-catalog validation. These are existing verification sources, not newly run tests.
+parity; `BindingCliIT` covers catalog validation. These are existing verification
+sources, not newly run tests.
 
 [Next: Submit commands and inspect receipts from Java](https://yano-x.io/bindings/java-integration/)
 
@@ -10139,9 +10261,15 @@ These are disposable local devnet keys; never reuse them. Stop the nodes with
 
 #### Add the public client dependency
 
-For a separate Java 25 application, this Groovy Gradle fragment selects an
-explicit version supplied through `-PyanoXVersion=...` or your application's
-`gradle.properties`:
+Create a separate Java 25 application in a new directory, outside the
+distribution. It needs two files. `settings.gradle` names the project:
+
+```groovy
+rootProject.name = 'workflow-client'
+```
+
+`build.gradle` selects an explicit version supplied through
+`-PyanoXVersion=...` or your application's `gradle.properties`:
 
 ```groovy
 plugins {
@@ -10173,20 +10301,27 @@ application {
 }
 ```
 
-Set `YANO_X_VERSION` to the Yano X version of your distribution, the version in
-its file name (`yano-x-jvm-<version>.zip`). The latest release is listed under
-[Versions](https://yano-x.io/reference/modules/#versions):
+Set `YANO_X_VERSION` to the exact Yano X version of your distribution. Read
+it from the distribution's manifest rather than from the ZIP file name, which
+can differ (a snapshot or locally built ZIP does not carry `-SNAPSHOT` in its
+name). In the distribution's top-level directory:
 
 ```bash
-YANO_X_VERSION=<version>
+YANO_X_VERSION=$(jq -r .version yano-x-distribution-v1.json)
+echo "$YANO_X_VERSION"
 ```
 
-A release version resolves from Maven Central or the BloxBean release
-repository. Snapshot builds are for internal testing only; the same
-[Versions](https://yano-x.io/reference/modules/#versions) section explains how
-to derive a snapshot's Maven version. The snapshot repository serves the
-newest snapshot of the version, which may be newer than your distribution. If
-you built the distribution yourself, publish the client from the same Yano X
+A release prints a plain version such as `0.1.0-pre3`; the latest release is
+listed under [Versions](https://yano-x.io/reference/modules/#versions). A
+release version resolves from Maven Central or the BloxBean release
+repository.
+
+A version ending in `-SNAPSHOT` comes from a snapshot or locally built
+distribution, which is for internal testing only. The snapshot repository
+serves the newest snapshot of the version, which may be newer than your
+distribution, and a distribution you built yourself, for example
+`yano-x-jvm-0.1.0-pre4.zip` with version `0.1.0-pre4-SNAPSHOT`, is published
+nowhere. In that case publish the client to Maven Local from the same Yano X
 source checkout and add `mavenLocal()` to the repositories:
 
 ```bash
@@ -10289,8 +10424,10 @@ that ID. For the two-byte value above, the condition is true and a successful
 receipt contains the registry source and derived audit append. The source's
 `bindingId` is null because it was submitted externally.
 
-With Java 25 and Gradle installed (or your project's existing Gradle wrapper),
-run from the Java application directory. Set `YANO_X_VERSION` as described
+With Java 25 and Gradle 9.1 or later installed, run from the Java application
+directory, the one containing `settings.gradle` and `build.gradle`. The project
+has no Gradle wrapper; to pin one, run `gradle wrapper --gradle-version 9.4.1`
+once and use `./gradlew` instead of `gradle` below. Set `YANO_X_VERSION` as described
 above, and replace the API URL and chain
 ID with your actual deployment values; the example port is not a promise about
 your node configuration. These commands **submit to a running chain**, unlike
@@ -10348,7 +10485,7 @@ approval loop. The second distinct member must submit its own later vote.
 Ordinary REST submission is signed by the ingress node's member key. Two HTTP
 users or two SDK objects pointing at the same member do not become two distinct
 voters. Actor-signed governed approvals carry their own business authorization
-inside the command; see the [governed recipe discussion](https://yano-x.io/bindings/approval-workflows/#generate-real-governed-dpp-or-feed-bindings).
+inside the command; see the [governed examples](https://yano-x.io/bindings/approval-workflows/#governed-dpp-and-feed-examples).
 
 `ApprovalsContract.propose` takes an item ID, payload bytes, required vote count,
 and `deadlineMillis`; zero means no deadline in this example. Component topics
@@ -10595,6 +10732,27 @@ Multiple profiles require the appropriate governed membership context. Follow
 the [full preflight contract](https://yano-x.io/reference/declarative-bindings-upgrades/#check-a-candidate-bundle-set-without-touching-retained-state)
 before constructing these inputs.
 
+A running member reports the profile it currently executes through the
+`composite/active-profile-v1` query. For the Chapter 4 devnet project
+(`records-audit` on port 7370), this writes a one-profile array:
+
+```bash
+curl -fsS -X POST \
+  "http://127.0.0.1:7370/api/v1/app-chain/chains/records-audit/query/composite/active-profile-v1" \
+  -H 'Content-Type: application/json' -d '{"paramsHex":""}' \
+  | jq '[.payloadHex]' > retained-profiles.json
+```
+
+Add an `X-API-Key` header if your node requires one for queries. The answer is
+one member's unproven view of the current profile only: compare it across
+members and against your deployment records, and add the genesis and any
+earlier profiles from those records yourself.
+
+`profile-check` does not cross-check the context against the profiles or a
+deployed chain. It uses `context.json` only to construct the candidate catalog,
+so a context with another chain's identity can still pass. Take the context
+from the same trusted deployment records as the profiles.
+
 Success means byte-exact profile reconstruction only. It does not prove replay,
 binary semantic equivalence, migration safety, historical proof correctness or
 effect-result compatibility. The current stock provider executes version 1.2.0,
@@ -10649,8 +10807,11 @@ Download your work before closing the tab.
 #### 1. Open the editor and load a starter
 
 Studio is the static site in the distribution's `studio/` directory. Serve it
-locally, for example with `python3 -m http.server 8080 --directory studio`, open
-the localhost URL and choose **Bindings** in the header. Browsers block Studio's
+locally from the distribution's top-level directory, as in
+[Chapter 1](https://yano-x.io/bindings/first-workflow/#7-view-the-graph-in-studio), for example with
+`python3 -m http.server 8230 --bind 127.0.0.1 --directory studio` (any free
+port works), open <http://127.0.0.1:8230/> and choose **Bindings** in the
+header. Browsers block Studio's
 modules when the page is opened directly from disk. Choose **Registry to audit** under *Starter* and
 select **Load starter**. The starter is the same document as
 [your first workflow](https://yano-x.io/bindings/first-workflow/): a registry put appends an audit
@@ -10751,7 +10912,10 @@ relevant form field. They never mean the document is valid.
 
 Open **Validate**. Choose the scenario, for example *Validate and rehearse 1
 block*, then download `bindings.yaml` and `bindings-handoff.txt`. The commands
-use fixed file names only:
+use fixed file names only. They call `./yano.sh`, so run them from the
+distribution's top-level directory with the downloaded files beside you (or
+replace `./yano.sh` with the script's full path), and replace
+`<plugins-directory>` with your plugin directory, for example `plugins`:
 
 ```bash
 ./yano.sh appchain bindings catalog bindings.yaml \
@@ -10822,7 +10986,10 @@ message says what happened:
   ran again.
 
 Conditions show whether a binding ran, which clause was false, or where an
-evaluation failed when the receipt proves it. Each step also shows its admission
+evaluation failed when the receipt proves it. Studio numbers conditions and
+clauses from 1, as people count, while receipts and CLI JSON record them from
+0: Studio's "clause 2" is index 1, shown as `"failedClause": 1` in an editor
+report and `"clause": 1` in dry-run output. Each step also shows its admission
 rules: how many held, and the rule, clause and deny code that refused it. A
 refusal of a derived step says that the whole cascade, including the source
 command, was rolled back. The **Procurement admission rules** starter's fixtures
@@ -10872,7 +11039,7 @@ changes the document, its compiled program or its identity.
   safety.
 - **Real actors need real proofs.** Dry runs assume authenticated inputs. For
   business actors in different organizations, use the
-  [actor-signed policy path](https://yano-x.io/bindings/approval-workflows/#generate-real-governed-dpp-or-feed-bindings).
+  [actor-signed policy path](https://yano-x.io/bindings/approval-workflows/#governed-dpp-and-feed-examples).
 
 Return to the [learning path](https://yano-x.io/bindings/), or read the
 [CLI reference](https://yano-x.io/reference/declarative-bindings-cli/#editor-catalogs-and-reports) for
@@ -14046,12 +14213,6 @@ about a use case. Every "Try it" below runs from an extracted
 |---|---|---|---|---|
 | [Evidence](https://yano-x.io/products/evidence/) | Publishes a document through threshold approval, stores it in object storage and IPFS, notifies Kafka, and proves each step. | Teams releasing records several organizations approve | `examples/evidence/demo.sh` (Docker) | `preview` |
 | [Cardano History](https://yano-x.io/products/cardano-history/) | Proves historical Cardano parameters, epoch stake, DRep distribution, and proposals instead of trusting an indexer. | Governance, reward, and validator tooling | Showcase `cardano-history-chain` | `preview` |
-| [Attest](https://yano-x.io/products/attest/) | Records a document's digest and hands out a certificate that anyone can verify offline. | Proof of existence; auditors | Showcase `documents-chain` with `tools/yano-attest` | `preview` |
-| [Evidence Desk](https://yano-x.io/products/evidence-desk/) | Propose, approve with browser-held actor keys, release once, and read every record back with its proof. | Issuers, auditors, and reviewers | Showcase `document-review-chain` with `product-ui/evidence` | `preview` |
-| [Trust Registry](https://yano-x.io/products/trust-registry/) | Answers credential status and issuer authorization with proofs, and serves status lists tied to the ledger. | Credential issuers and verifiers | `examples/trust-registry/registry.sh` | `preview` |
-| [Verifiable Explorer](https://yano-x.io/products/explorer/) | Indexes stock ledgers after verifying each block; rows and states export as bundles that verify offline. | Operators, support, and auditors | `examples/explorer/explorer.sh` | `preview` |
-| [DPP Starter](https://yano-x.io/products/dpp-starter/) | A prototype product passport registry: governed records, independent certification, and passports that verify offline. | Teams exploring Digital Product Passports | `examples/dpp/dpp.sh` | `reference` (prototype) |
-| [Attestation Feed](https://yano-x.io/products/attestation-feed/) | Sources sign readings, every verifier recomputes each round, and two organizations approve the record. | Consortia combining readings from known sources | `examples/attestation-feed/feed.sh` | `experimental` (starter) |
 | [eUTxO ledger](https://yano-x.io/products/eutxo/) | A Cardano-shaped UTxO ledger with an optional federated bridge, for test funds only. | Researchers and protocol teams | `./yano.sh appchain eutxo demo` | `experimental` |
 
 #### Choosing one
@@ -14070,15 +14231,10 @@ common problems to the building blocks.
 Products reuse the platform's state machines, authenticated state, and proof
 verification, but they are packaged differently:
 
-- Evidence, Cardano History, and the eUTxO ledger add runtime plugin behavior.
-- Attest is a client, CLI, and UI over the stock `doc-trail` state machine.
-- Trust Registry, DPP Starter, and Attestation Feed configure the stock governed
-  authenticated map and add application tooling outside consensus.
-- Evidence Desk is a browser UI over the role workflow.
-- Verifiable Explorer maintains a derived read index and its own service.
-
-Runtime contributions use the plugin catalog. Plain clients, CLIs, static UIs,
-and configuration-only products do not need a new runtime plugin. Product
+Evidence, Cardano History, and the eUTxO ledger each add runtime plugin
+behavior through the plugin catalog, and each ships with a client or CLI and,
+for the eUTxO ledger, a browser UI. Plain clients, CLIs, static UIs, and
+configuration-only products do not need a new runtime plugin. Product
 services can expose their own APIs; `/api/v1/plugins/<bundle-id>/` is the host
 route for plugin-contributed APIs, not the route for every product.
 
@@ -14097,230 +14253,8 @@ from Cardano yourself). Treat only the pinned and anchored levels as verified.
 [Keys and trust](https://yano-x.io/concepts/trust-model/) explains what each one rests on.
 
 **PRE-RELEASE:**
-Yano is pre-release, and the products above are `preview`, `reference`, or
-`experimental`. Their contracts, wire formats, and configuration may still
+Yano is pre-release, and the products above are `preview` or `experimental`. Their contracts, wire formats, and configuration may still
 change. Use a devnet or a Cardano test network with disposable data.
-
----
-
-## Attest
-
-Source: https://yano-x.io/products/attest/
-
-> Record a document digest on a threshold-finalized doc-trail ledger and hand out a portable certificate that anyone can verify offline against member keys or a Cardano anchor.
-
-Attest is the smallest complete Yano X product: a browser UI, a CLI, and a Java
-client on top of the stock `doc-trail` state machine. It answers "did this exact
-file exist, in this series, before this block?" with a **certificate** that a
-third party verifies without trusting the node that issued it.
-
-#### Problem
-
-You need to show later that a contract, report, design, or dataset existed in a
-given form, without publishing it and without a notary service in the loop. A
-timestamp from your own database proves nothing to anyone else.
-
-#### Who it is for
-
-- **Teams that need proof of existence** for documents and evidence files.
-- **Auditors** who receive a certificate and the original file and want a
-  verdict they can reproduce offline.
-- **Anyone evaluating Yano** who wants the shortest path from a running ledger
-  to a verifiable artifact.
-
-#### Actors and flow
-
-`yano-attest attest` hashes a file, submits a `doc-trail` append carrying the
-digest, waits for finality, and writes a certificate. The certificate embeds the
-signed message, its inclusion proof, the node's evidence bundle, and, when
-available, a proof of the series' trail head. A verifier then runs six checks
-offline:
-
-<!-- illustration: attest-lab -->
-
-The browser UI runs the digest, binding, and inclusion checks, and reports
-`INTERNAL_CONSISTENCY_ONLY`. When it is connected to a node, it labels what the
-node says about the block and the latest anchor `NODE_CONFIRMED_L1_REFERENCE`:
-the node's claim, not an independent check. Finality and anchor verification are
-the CLI's job.
-
-#### What it proves, and what it does not
-
-A certificate accepted by `yano-attest verify` shows that a member of the ledger
-signed a `doc-trail` append carrying exactly this digest, series id, and
-reference; that the message sits at a fixed position in a block the ledger's
-threshold of members finalized; what revision the series had at that block; and,
-with an anchor datum, that a Cardano transaction commits to that block.
-
-It does **not** show:
-
-- who the person behind the file was. The signer is the receiving member's key;
-  put authorship into the reference, which the command binds;
-- anything about the content beyond its digest; or
-- a calendar time. Ordering comes from the block height and, when anchored, the
-  Cardano slot.
-
-#### Try it
-
-Attest runs against the `documents-chain` of the local showcase. From an
-extracted `yano-x-jvm-<version>.zip`:
-
-```bash
-cd examples/showcase
-./showcase.sh quickstart --profile light --nodes 3 --instance demo
-
-ATTEST=../../tools/yano-attest/bin/yano-attest
-NODE=http://127.0.0.1:7070/api/v1
-KEY=yano-local-cluster-full-key            # the showcase's local key
-
-$ATTEST status --url $NODE --chain documents-chain --api-key $KEY
-$ATTEST attest --url $NODE --chain documents-chain --api-key $KEY \
-  --file contract.pdf --reference "signed by legal" --output contract.pdf.attest.json
-$ATTEST verify --certificate contract.pdf.attest.json --file contract.pdf   # exit 6: no trust input yet
-```
-
-Use the ports the showcase prints if 7070 is busy. To reach exit 5, build a
-members file from the deployment record, never from the certificate, and pass
-`--members keys.json`. The
-[user guide](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/ATTEST.md)
-shows the file format, anchored certificates, and the UI, which ships as
-`product-ui/attest`.
-
-#### Modules
-
-| Artifact | Repo path | Role |
-|---|---|---|
-| `yano-x-attest-client` | `products/attest/client` | Certificate format, node client, offline verifier |
-| `yano-x-attest-cli` | `products/attest/cli` | `yano-attest attest`, `certificate`, `verify`, `trail`, `status`; shipped as `tools/yano-attest` |
-| `yano-x-attest-ui` | `products/attest/ui` | Static web application; files never leave the browser |
-
-Attest adds no plugin and no new proof format. Every check reuses a Yano
-primitive: the evidence bundle, the compact message proof, the height-pinned
-state proof, and the script-anchor datum.
-
-#### Status
-
-`preview`. The decision record is ADR-047. Composite ledgers that embed a
-`documents` component are not supported by this version. Read
-[State and proofs](https://yano-x.io/concepts/state-and-proofs/) for how to read a proof result.
-
----
-
-## Attestation Feed
-
-Source: https://yano-x.io/products/attestation-feed/
-
-> An experimental, configuration-only consortium observation ledger on the governed authenticated map, with a deterministic aggregation every verifier recomputes, approval-closed rounds, a candidate Cardano datum, a portal, a gateway, and a console.
-
-The Attestation Feed is an **experimental starter**: a consortium observation
-ledger that runs configuration-only on the stock governed `authenticated-map`
-state machine. Sources sign their own readings, the consortium closes each
-round through an approval, and every verifier recomputes the result.
-
-#### Problem
-
-Several parties need one agreed value per period, such as a cold-store
-temperature, from several independent sources. A single collector can drop
-inconvenient readings or change them later. Each party wants to see every
-source's reading, the rule that combined them, and proof that nobody rewrote
-the result.
-
-#### Who it is for
-
-- **Consortia** that combine readings from known sources and must later show
-  how each published value was derived.
-- **Auditors** who recompute a round themselves from a bundle, offline.
-- **Teams evaluating** an oracle-style design before building one. This starter
-  is not a public price oracle, and nothing is published to Cardano.
-
-#### Actors and flow
-
-A `feed-admin` defines each feed: unit, scale, round calendar, 1 to 16 sources,
-the quorum, the outlier tolerance, and value bounds. Each `source` records one
-reading per round under `<feed>/<round>/<source>` with its own actor key. A
-`feed-operator` proposes the round's result computed at one height. Two
-`publisher`s from distinct organizations each recompute it and approve, and the
-map records it once.
-
-The aggregate is not computed on the ledger. It is a pure function of the
-proven observations and the proven policy, and every verifier recomputes it:
-
-<!-- illustration: feed-aggregation-sim -->
-
-A round is `CLOSED` with an aggregate, or `NO_QUORUM`. The verifier flags a
-record that disagrees with its recomputation (`RECORD_DISAGREES`), a record that
-binds a different policy (`WRONG_POLICY`), a rewritten record (`REWRITTEN`), and
-a record without a proven approval (`UNPROVEN_APPROVAL`), among others.
-
-#### What it proves, and what it does not
-
-A verified round bundle shows that, at the closing height, the policy was this
-and each configured source had exactly this observation or none; that the
-aggregation rule yields this result; that the consortium recorded exactly that
-result later, through an approval whose one-time use is proven, and never
-rewrote it; and that the pinned members certified the roots.
-
-It does **not** show that a reading is true, that the sources are independent,
-or that the closing height was a fair moment: an observation one block later is
-invisible to it, so re-answer the round at a later height and compare. Nothing
-reaches Cardano. The candidate datum is computed and hashed into the record, but
-no executor publishes it.
-
-`yano-feed verify` reports a trust level. With no trust input it can only show
-internal consistency (exit 6). With a members file you obtained independently it
-reaches `CALLER_PINNED_ROOT` (exit 5), and with an anchor datum read from
-Cardano, `INDEPENDENTLY_VERIFIED_L1_ANCHOR` (exit 0). Treat only exits 0 and 5 as
-verified.
-
-#### Try it
-
-From an extracted `yano-x-jvm-<version>.zip`, the launcher finds the
-distribution and `tools/yano-feed` by itself:
-
-```bash
-examples/attestation-feed/feed.sh up       # three members on ports 7570-7572
-examples/attestation-feed/feed.sh demo     # the journey, including an outlier and a NO_QUORUM round
-examples/attestation-feed/feed.sh portal   # public portal on 8680
-examples/attestation-feed/feed.sh stop     # data is kept; clean deletes the instance
-```
-
-`demo` defines the `coldstore-7` feed, has three simulated sources report with
-`source-gamma` as an outlier, shows an apply refused because both approvals came
-from one organization, closes the round, and records the next round as
-`NO_QUORUM`. Then verify a round yourself:
-
-```bash
-eval "$(examples/attestation-feed/feed.sh env)"
-export PATH="$PWD/tools/yano-feed/bin:$PATH"
-yano-feed round get --feed coldstore-7 --round latest --members "$YANO_FEED_MEMBERS" --output round.json
-yano-feed verify --bundle round.json --members "$YANO_FEED_MEMBERS"   # exit 5
-```
-
-`feed.sh env` prints the node API key and the gateway token; treat its output as
-a secret.
-
-#### Modules
-
-| Module | Role |
-|---|---|
-| `products/attestation-feed/profile` | Collections, policies, schemas, the calendar, `Aggregation` (`feed-aggregation-v1`), and the candidate datum |
-| `products/attestation-feed/client` | Writes, round close, round bundles, the verifier, the portal and gateway services |
-| `products/attestation-feed/cli` | `yano-feed`, shipped as `tools/yano-feed` |
-| `products/attestation-feed/ui` | The console, shipped as `product-ui/attestation-feed` |
-| `products/attestation-feed/harness` | `feed.sh`, shipped as `examples/attestation-feed` |
-
-The [user guide](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/ATTESTATION_FEED.md)
-covers the data model, the console, every CLI command, portal and gateway
-routes, and troubleshooting.
-
-#### Status
-
-`experimental` (starter). The decision record is ADR-052. Deferred: the Cardano
-publication executor and its thread-token model, a consumer validator, an
-aggregation component that would make admission and closure consensus rules, a
-round clock based on Cardano slots, a circuit breaker for round jumps,
-source-authentication profiles and relays, and anchored verification across the
-bundle's two heights.
 
 ---
 
@@ -14446,110 +14380,6 @@ themselves.
   — the full scripted scenario and its acceptance checks.
 - [Domain actors and role-aware approvals](https://github.com/bloxbean/yano-x/blob/main/docs/APP_CHAIN_DOMAIN_ROLES.md)
 - [Profile governance runbook](https://github.com/bloxbean/yano-x/blob/main/docs/APP_CHAIN_PROFILE_GOVERNANCE.md)
-
----
-
-## Evidence Desk
-
-Source: https://yano-x.io/products/evidence-desk/
-
-> The Evidence Desk is a browser workbench for role-gated release. An issuer proposes a release, auditors from independent organizations approve or reject…
-
-The Evidence Desk is a browser workbench for role-gated release. An issuer
-proposes a release, auditors from independent organizations approve or reject
-it with keys that never leave their browsers, the approved release is applied
-once, and every record the desk shows is read back from the ledger with its
-proof.
-
-#### Problem
-
-A document release often needs sign-off from several organizations. In most
-tools, approvals are rows in one vendor's database, signed by nobody, and
-"approved" is whatever that database says. Auditors cannot show later that two
-independent organizations approved exactly these bytes.
-
-#### Who it is for
-
-- **Issuers and auditors** who approve releases with their own keys, from a
-  browser, without installing a CLI.
-- **Reviewers and regulators** who need every decision, and the record it
-  produced, with a proof.
-- **Teams evaluating role-aware approvals** on an app ledger. The desk is the
-  user interface for the role workflow and for the
-  [Evidence](https://yano-x.io/products/evidence/) product.
-
-#### Actors and flow
-
-The desk runs against any app ledger whose composite carries the
-`domain-actors` and `role-approvals` components. That includes the light
-showcase's `document-review-chain`, whose `document-release` policy needs an
-`issuer` to propose and two `auditor`s from distinct organizations to approve:
-
-<!-- illustration: desk-approvals -->
-
-Before signing a decision, the desk predicts the chain's answer from the
-records it has read: `TERMINAL` (the proposal is no longer pending), `EXPIRED`,
-`CONFLICT` (this actor already decided), `ROLE_MISMATCH`, or
-`DISTINCTNESS_DUPLICATE` (another actor from the same organization already
-decided this clause). After finality it reads the chain's actual result record.
-A finalized statement that breaks the workflow's rules is a deterministic
-no-op: the chain records its outcome code, and the desk shows that code rather
-than assuming acceptance. The full list of outcome codes is in the
-[user guide](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/EVIDENCE_DESK.md).
-
-#### What it proves, and what it does not
-
-Every organization, actor, policy, proposal, result, receipt, and document head
-is read through the state proof endpoint, decoded as canonical CBOR, and shown
-with the height and root it was committed at. `BOUND` means the proof names that
-key, height, and root and the finalized block at that height carries the same
-root. The browser does not re-verify MPF paths or threshold finality; the JVM
-verifier does that on the export bundle, as with [Attest](https://yano-x.io/products/attest/)
-certificates.
-
-A decision is an Ed25519 signature by the actor's registered key over a
-statement that binds the chain, proposal, policy revision, payload domain and
-hash, deadline, actor revision, key id, and clause. That shows which registered
-actor approved which bytes. It does not establish the actor's legal identity, or
-that the document's content is true.
-
-#### Try it
-
-Start the light showcase from an extracted `yano-x-jvm-<version>.zip`, then
-serve the desk, which ships as `product-ui/evidence`:
-
-```bash
-cd examples/showcase
-./showcase.sh quickstart --profile light --nodes 3 --instance demo
-python3 -m http.server 8088 --directory ../../product-ui/evidence
-```
-
-Open `http://localhost:8088`, connect to the node URL the showcase printed, and
-choose `document-review-chain`. A node that is not same-origin with the desk
-must allow the desk's origin through CORS, including `GET`, `POST`,
-`Content-Type`, and `X-API-Key`; serving the desk behind the node's reverse proxy
-avoids CORS. The
-[user guide](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/EVIDENCE_DESK.md)
-shows how to derive the showcase's demo actor seeds and walks through propose,
-approve, release, and export.
-
-#### Modules
-
-| Module | Path | Role |
-|---|---|---|
-| `yano-x-evidence-ui` | `products/evidence/ui` | Static site, shipped as `product-ui/evidence` |
-| golden fixture | `examples/showcase` (`EvidenceDeskGoldenTest`) | Bytes from the Java contracts that the browser port is tested against |
-
-#### Status
-
-`preview`. The decision record is ADR-048. Not yet supported:
-
-- Release submission for the `role-evidence` profile: its command nests S3,
-  IPFS, and Kafka connector commands the browser does not build yet. Use
-  `demo.sh publish` from `examples/evidence`, and decide and inspect in the desk.
-- Governed mutations (onboarding, rotation, revocation) stay CLI operations.
-
-Further reading: [domain actors and role-aware approvals](https://github.com/bloxbean/yano-x/blob/main/docs/APP_CHAIN_DOMAIN_ROLES.md).
 
 ---
 
@@ -14687,121 +14517,6 @@ Cardano-specific logic to the Yano core API and no new proof format.
 
 ---
 
-## DPP Starter
-
-Source: https://yano-x.io/products/dpp-starter/
-
-> A configuration-only Digital Product Passport prototype on the governed authenticated map, with proof-bound passports, a certification round, a public portal, an operator gateway, and a console.
-
-The DPP Starter is a **prototype** of a Digital Product Passport registry. It
-declares passport-shaped collections on the stock governed `authenticated-map`
-state machine, so it needs no plugin. A passport is a set of proof-bound
-answers at one height that anyone can verify offline.
-
-#### Problem
-
-A product passport gathers records from many parties: the manufacturer's
-product data and documents, certifiers' certificates, claims from labs, and
-events from logistics, repair, and recycling. Buyers and regulators need to see
-who wrote each record and whether it was changed later, without trusting one
-platform operator.
-
-#### Who it is for
-
-- **Teams exploring Digital Product Passports** who want to see the
-  infrastructure a passport registry needs before committing to a design.
-- **Manufacturers, certifiers, and auditors** rehearsing who writes what, with
-  their own keys.
-- **Verifiers** who need a passport they can check offline.
-
-It is not a full DPP product. It enforces no DPP lifecycle rule on the ledger,
-and it claims conformance with no DPP standard.
-
-#### Actors and flow
-
-Each record type is a collection with its own writer role:
-
-- a `manufacturer` registers a product and publishes passport versions; the
-  document is hashed and stored outside consensus, and its digest is committed;
-- a `claim-issuer` attaches public claims, or committed ones whose salt and text
-  are disclosed to verifiers out of band;
-- an `operator` appends lifecycle events, ordered by the ledger, never by a
-  clock; and
-- a `certifier` proposes a certificate that two `auditor`s from distinct
-  organizations must approve before it is applied, once.
-
-<!-- illustration: passport-explorer -->
-
-The portal serves the passport, the `dpp-passport-v1` bundle, archived
-documents by hash, and a GS1 Digital Link resolver (`/01/{gtin}`). An operator
-gateway signs for the console on the operator's machine.
-
-#### What it proves, and what it does not
-
-A passport shows what the consortium agreed about a product at a height: these
-records existed with these revisions under this root; which governed actor wrote
-each one under which policy and key; that a certificate was applied through the
-approval round, with the approval used exactly once; that a committed claim
-matches what the issuer disclosed; that the pinned members certified the root;
-and, when anchored, that Cardano carries it.
-
-It does **not** show that a physical event occurred, that a measurement is
-true, that an issuer is accredited beyond this ledger's genesis, that a document
-remains available, or that anything conforms to a DPP standard.
-
-What the prototype cannot prevent, it exposes as flags: `REWRITTEN`,
-`DANGLING`, `FOREIGN_WRITER`, `EXPIRED`, `NOT_YET_VALID`, and `MALFORMED`. For
-example, any manufacturer can rewrite a version record, and the passport shows
-it.
-
-#### Try it
-
-From the root of an extracted `yano-x-jvm-<version>.zip`, the launcher finds the
-distribution and `tools/yano-dpp` by itself:
-
-```bash
-examples/dpp/dpp.sh up        # three members on ports 7470-7472
-examples/dpp/dpp.sh demo      # register, publish, claim, events, certify, verify
-examples/dpp/dpp.sh portal    # public portal on 8580
-examples/dpp/dpp.sh stop      # data is kept; clean deletes the instance
-```
-
-Then read and verify the passport yourself:
-
-```bash
-eval "$(examples/dpp/dpp.sh env)"
-export PATH="$PWD/tools/yano-dpp/bin:$PATH"
-yano-dpp passport --product gtin:09506000134352 --members "$YANO_DPP_MEMBERS" --output passport.json
-yano-dpp verify --passport passport.json --members "$YANO_DPP_MEMBERS"   # exit 5
-```
-
-`dpp.sh env` prints the node API key and the gateway token; treat its output as
-a secret. The console ships as `product-ui/dpp`.
-
-#### Modules
-
-| Module | Role |
-|---|---|
-| `products/dpp/profile` | Collections, policies, schemas, value codecs, and the genesis generator |
-| `products/dpp/client` | Writes, the certification round, passport assembly, `PassportVerifier`, `PassportView`, the portal and gateway services |
-| `products/dpp/cli` | `yano-dpp`, shipped as `tools/yano-dpp` |
-| `products/dpp/ui` | The console, shipped as `product-ui/dpp` |
-| `products/dpp/harness` | `dpp.sh`, shipped as `examples/dpp` |
-
-The [user guide](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/DPP_STARTER.md)
-covers the data model, the console, every command, and troubleshooting.
-
-#### Status
-
-`reference`, labelled a prototype. The decision record is ADR-051. The full
-provider, with enforced lifecycle and sequence rules, product heads, recovery
-claims, and publication workflows, waits on qualification of the governed map
-and acceptance of the DPP design. Browser-side signing, accreditation lookups in
-the Trust Registry, an explorer module for these collections, per-product
-Cardano publication, and zero-knowledge selective disclosure are deferred.
-
----
-
 ## eUTxO ledger
 
 Source: https://yano-x.io/products/eutxo/
@@ -14913,214 +14628,6 @@ The modules live under `ledgers/eutxo`, and the lifecycle console ships as
 
 `experimental`. Production release is gated on the audit and operational gates
 described in the eUTxO ADRs.
-
----
-
-## Verifiable Explorer
-
-Source: https://yano-x.io/products/explorer/
-
-> A derived, verify-on-ingest index over stock app ledgers with a read service, a CLI, and a console; every row keeps its evidence and can be proven offline.
-
-The Verifiable Explorer is a read-side product for any app ledger that runs
-stock state machines. It verifies each block before it writes a row, decodes
-commands into readable rows, and hands out bundles that prove a row offline. The
-index adds convenience, never trust.
-
-#### Problem
-
-People want to browse a ledger: timelines, search, the history of one document
-or account. A conventional block explorer asks you to trust its database. Once
-the explorer is the place people read, a wrong or tampered row looks just like a
-right one.
-
-#### Who it is for
-
-- **Operators and support teams** who need timelines, search, and per-subject
-  history for stock ledgers.
-- **Auditors and counterparties** who want to check a specific row without
-  trusting the explorer or the node behind it.
-- **Product teams** that need a read model to start from.
-
-#### Actors and flow
-
-A `yano-explorer` service follows one node's finalized blocks, checks each
-block's evidence, and writes the block, its messages, and decoded rows in one
-transaction. Every block gets a level, and its rows inherit it:
-
-<!-- illustration: explorer-ingest -->
-
-| Level | Meaning |
-|---|---|
-| `VERIFIED_PINNED` | The certificate verified under members and a threshold the operator pinned with `--members`. |
-| `VERIFIED_DECLARED` | The certificate verified under the members the evidence declares: internal consistency at ingest. |
-| `HEADER_ONLY` | A block without messages has no evidence bundle; its header is the node's view. |
-| `JSON_ONLY` | The node no longer retains the evidence; rows come from its JSON view and cannot be proven from the index. |
-
-For a subject (a `doc-trail` entity, registry key, account, approval item, or
-map entry), the explorer also reads the authenticated value with a proof at the
-tip and compares it with the view derived from the rows: `MATCH`, `DIVERGES`
-(at least one finalized command did not apply), or `READ` (nothing comparable
-to derive). Rows are finalized commands, and a finalized command can still be
-a business rejection, which is why this check exists.
-
-#### What it proves, and what it does not
-
-A row bundle (`explorer-row-proof-v1`) proves that the message is at that
-position of a block that a threshold of your pinned members finalized, and that
-the block record sits under the certified state root. A state bundle
-(`explorer-state-proof-v1`) proves a subject's typed value at a certified root.
-`yano-explorer verify` reaches `CALLER_PINNED_ROOT` with `--members` (exit 5)
-and an independently checked anchor with `--anchor-datum-hex` (exit 0).
-
-The index proves nothing by itself. It is never an authority: nothing in
-consensus, proof verification, or accounting reads it, and any node can rebuild
-it with `yano-explorer rebuild`. It is a local, rebuildable read index; see
-[Where data lives](https://yano-x.io/concepts/where-data-lives/).
-
-#### Try it
-
-Start a showcase instance with some traffic, then point the explorer at node 0.
-From the root of an extracted `yano-x-jvm-<version>.zip`:
-
-```bash
-examples/showcase/showcase.sh up --profile light --instance demo
-examples/showcase/showcase.sh run all --instance demo
-
-examples/explorer/explorer.sh up --url http://127.0.0.1:7070 --instance demo
-examples/explorer/explorer.sh status --instance demo
-eval "$(examples/explorer/explorer.sh env --instance demo)"   # EXPLORER_SERVICE_URL, EXPLORER_DB
-```
-
-The service listens on `127.0.0.1:8490`. Serve `product-ui/explorer` with any
-static web server for the console, or use `tools/yano-explorer/bin/yano-explorer`
-for `status`, `search`, `trail`, `row`, and `verify`. The
-[user guide](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/EXPLORER.md)
-walks through each command.
-
-#### Modules
-
-| Module | Path | Role |
-|---|---|---|
-| `yano-x-explorer-core` | `products/explorer/core` | Follower, SQLite index, stock modules, subjects, archiver, bundles, verifier, read service |
-| `yano-x-explorer-cli` | `products/explorer/cli` | `yano-explorer`, shipped as `tools/yano-explorer` |
-| `yano-x-explorer-ui` | `products/explorer/ui` | Static console, shipped as `product-ui/explorer` |
-| launcher | `products/explorer/harness/explorer.sh` | Runs the service against a node; shipped as `examples/explorer` |
-
-The read service is GET-only, binds to loopback by default, and keeps the node
-API key on its side.
-
-#### Status
-
-`preview`. The decision record is ADR-050. Role-approval commands are indexed
-as generic rows in this version.
-
----
-
-## Trust Registry
-
-Source: https://yano-x.io/products/trust-registry/
-
-> The Trust and Status Registry answers \"is this credential still valid?\" and \"is this issuer authorized?\" with proofs bound to a certified block. It is a…
-
-The Trust and Status Registry answers "is this credential still valid?" and "is
-this issuer authorized?" with proofs bound to a certified block. It is a
-configuration-only product on the stock governed `authenticated-map` state
-machine, plus a CLI, a read service, and a console that run outside consensus.
-
-#### Problem
-
-Verifiers check credential status and issuer authorization against a registry
-that one party runs. That party can change a status, backdate it, or serve
-different answers to different callers, and the verifier cannot tell. Status
-lists published as files carry no evidence of who changed what, or when.
-
-#### Who it is for
-
-- **Credential issuers and consortia** that manage revocation and suspension
-  lists, and the issuers allowed to sign credentials.
-- **Verifiers** who need a status answer they can check offline, at the
-  current height or an earlier one.
-- **Teams already using W3C Bitstring Status Lists** who want the served list
-  tied to a ledger value.
-
-#### Actors and flow
-
-A JSON descriptor names organizations, actors with their key proofs, and seeded
-issuers; `yano-trust genesis` turns it into the node properties. The same
-descriptor, members, and threshold always give the same genesis id. After that:
-
-- an `issuer` sets status bits and publishes lists, and a `registrar` records
-  subjects, each write signed with the actor's key and a one-use authorization
-  the ledger consumes exactly once;
-- onboarding an issuer after genesis needs approvals from two registrars in
-  distinct organizations; and
-- anyone asks for a status, at the tip or a retained height, and gets an answer
-  backed by state proofs.
-
-<!-- illustration: status-registry -->
-
-`yano-trust serve` serves lists as W3C Bitstring Status Lists and answers
-TRQP-shaped authorization queries ("is entity E authorized for A under
-framework F at height H"), without processing JSON-LD. Lists are replayed from
-the ledger's applied writes, and the served bitstring hashes to the value the
-ledger holds.
-
-#### What it proves, and what it does not
-
-An answer shows what the consortium agreed about an identifier: that an entry
-existed with this revision at this height under this root, that a key had no
-entry, or that it was revoked; who wrote it, under which policy, and that their
-authorization was used once; that the pinned members certified the root; and,
-with an anchor datum, that Cardano carries it.
-
-The registry never mints identifiers and never asserts that a credential's
-claims are true. An `ABSENT` answer says only that this registry had no entry at
-that height.
-
-`yano-trust verify` reaches `CALLER_PINNED_ROOT` with a members file (exit 5)
-and `INDEPENDENTLY_VERIFIED_L1_ANCHOR` with an anchor datum read from Cardano
-(exit 0). Without a trust input the answer is consistent only (exit 6). Treat
-only exits 0 and 5 as verified.
-
-#### Try it
-
-From the root of an extracted `yano-x-jvm-<version>.zip`, the launcher finds the
-distribution and `tools/yano-trust` by itself. `registry.sh env` does not put
-`yano-trust` on your `PATH`, so add it:
-
-```bash
-examples/trust-registry/registry.sh up          # three members on ports 7270-7272
-eval "$(examples/trust-registry/registry.sh env)"
-export PATH="$PWD/tools/yano-trust/bin:$PATH"
-
-yano-trust put --url $YANO_TRUST_URL --chain $YANO_TRUST_CHAIN --actor issuer-a \
-  --seed-file $YANO_TRUST_SEEDS/issuer-a.seed --list list-1 --index 5 --bit 1 \
-  --genesis-id $YANO_TRUST_GENESIS_ID          # the first write on a fresh ledger
-yano-trust status --url $YANO_TRUST_URL --chain $YANO_TRUST_CHAIN --list list-1 --index 5 \
-  --members $YANO_TRUST_MEMBERS                # exit 5
-```
-
-`registry.sh env` prints the demo API key; run it in a shell whose history you
-control. The console ships as `product-ui/trust-registry`, and
-`registry.sh gateway` starts an operator gateway for its write view. The
-[user guide](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/TRUST_REGISTRY.md)
-covers the data model, every command, the console, and troubleshooting.
-
-#### Modules
-
-| Module | Path | Role |
-|---|---|---|
-| `yano-x-trust-registry-profile` | `products/trust-registry/profile` | Collections, schemas, policies, value codecs, genesis, bitstring projection, TRQP evaluator |
-| `yano-x-trust-registry-client` | `products/trust-registry/client` | Node client, answers, signer, verifier, standards service |
-| `yano-x-trust-registry-cli` | `products/trust-registry/cli` | `yano-trust`, shipped as `tools/yano-trust` |
-| `yano-x-trust-registry-ui` | `products/trust-registry/ui` | Console, shipped as `product-ui/trust-registry` |
-| launcher | `products/trust-registry/harness/registry.sh` | Three-member registry; shipped as `examples/trust-registry` |
-
-#### Status
-
-`preview`. The decision record is ADR-049. Onboarding an issuer after genesis
-uses the approval route and has no CLI yet.
 
 ---
 
@@ -15881,8 +15388,8 @@ See [upgrade and retained-chain preflight](https://yano-x.io/reference/declarati
 before changing a stock bundle, application version, query catalog or default
 setting. A governed epoch alone cannot make a new binary execute an old profile;
 the candidate runtime must reproduce every profile required for startup/replay.
-Use the [CLI authoring guide](https://yano-x.io/reference/declarative-bindings-cli/) for chain-specific
-governed recipe generation and multi-block dry-run continuation.
+Use the [CLI authoring guide](https://yano-x.io/reference/declarative-bindings-cli/) for the governed
+examples and multi-block dry-run continuation.
 
 Generation changes do not migrate genesis-bound state. If a leaf's stored
 genesis/configuration cannot change in place, allocate a new component instance
@@ -16078,71 +15585,27 @@ matches its recorded digest, and every earlier block it continues is verified in
 the same way. A match shows the same inputs were used; it is not an attestation, a
 finality certificate or deployment approval.
 
-#### Generate governed recipes for your own chain
+#### Governed DPP and feed examples
+
+`examples/bindings/dpp-approval.yaml` and `examples/bindings/feed-approval.yaml`
+connect actor-signed approvals to a governed authenticated map with real schemas
+and policies, over a deterministic demo genesis. Validate the DPP example with
+the context shipped for its role-gated variant, which uses the same genesis:
 
 ```bash
-./yano.sh appchain bindings recipe dpp \
-  --descriptor actors.json --members members.json --threshold 2 > recipe.json
-jq '.document' recipe.json > bindings.yml
-jq '.context' recipe.json > context.json
-./yano.sh appchain bindings validate bindings.yml \
-  --plugins-directory /absolute/path/to/plugins --context context.json
+./yano.sh appchain bindings validate examples/bindings/dpp-approval.yaml \
+  --plugins-directory /absolute/path/to/plugins \
+  --context examples/bindings/fixtures/dpp-role-gated/context.json
 ```
 
-Use `feed` instead of `dpp` for the attestation-feed round-approval starter. This
-is a packaged CLI command, not a Gradle test task. JSON is accepted as YAML, so
-the extracted document is directly compilable. The generator uses the public
-product profile builders for the real schemas, policies, actor genesis, and
-authenticated-map genesis. It activates no runtime provider; the last command
-validates the output against your explicit catalog. No demo chain ID, member,
-actor identity, private key, or proof is substituted.
-
-`members.json` is an array of your member public-key hex strings. `actors.json`
-is a closed schema-version-1 public descriptor with these fields:
-
-- `schemaVersion: 1`, your `chainId`, and `organizations: [{"id":"..."}]`;
-- `actors`: each has `id`, `organizationId`, `roles`, `keyId`, `publicKeyHex`,
-  and `keyProofHex`;
-- `authority`: `id`, `administratorActorIds`, `distinctActorThreshold`, and
-  `maximumLifetimeBlocks`;
-- optional empty `issuers` and `schemas` arrays. Nonempty initial entries are
-  not supported by these starter recipes.
-
-Choose roles and independent organizations matching the product's policy:
-DPP uses `manufacturer`, `operator`, `claim-issuer`, `certifier`, and `auditor`
-(with `dpp-admin` administration); feed uses `source`, `feed-operator`, and
-`publisher` (with `feed-admin` administration). These are product starter
-policies, not a generator for arbitrary governance policy. Actors need not be
-consensus members. Review the emitted normalized `members`, `proposer`,
-`threshold`, and `blockIntervalMs` when configuring the chain; changing these
-genesis inputs requires regeneration, not editing opaque CBOR.
-
-Generation checks starter usability at height 1: every direct policy needs an
-eligible role holder, every approval policy needs an eligible proposer, and its
-voters must meet the distinct-organization quorum. Eligibility requires an active
-actor, organization, and signing key. Proposer roles are alternatives; a proposer
-may also vote when it holds the voting role. These checks cover the fixed starter
-policies only, not general policy satisfiability, future key validity, or the
-business prerequisites of every possible action.
-
-Public keys alone cannot prove possession. Each actor signs a chain-bound proof
-using the existing offline role CLI, outside the recipe generator:
-
-```bash
-PUBLIC_KEY="$(./yano.sh appchain role public-key --seed-file /owner-only/actor.seed)"
-KEY_PROOF="$(./yano.sh appchain role key-proof \
-  --chain "$CHAIN_ID" --actor "$ACTOR_ID" --actor-revision 1 \
-  --key "$KEY_ID" --public-key "$PUBLIC_KEY" \
-  --valid-from-height 1 --valid-until-height 0 \
-  --seed-file /owner-only/actor.seed)"
-```
-
-Put the public key and full encoded `KEY_PROOF` into that actor's descriptor
-entry. Do not use the signature-only command for `keyProofHex`. The generator
-verifies every proof against the supplied chain, actor, and key; changing the
-chain ID requires fresh proofs. It never reads seed files. Generated DPP/feed
-binding workflows retain the documented limitations around legacy product
-projections and certificates; generation does not imply those integrations.
+Never use the demo keys in production. For your own organizations, actors, and
+keys, declare a governed map's genesis in a project and render it, as described
+in [governed collections](https://yano-x.io/state-machines/authenticated-map/#governed-collections);
+each actor signs its proof of key possession offline with
+`appchain role key-proof-signature`. The DPP and feed starter generators moved
+with those products to
+[yano-x-products](https://github.com/bloxbean/yano-x-products). No context ships
+for the feed example.
 
 #### Admission and catalog validation
 
@@ -17356,7 +16819,12 @@ repository (`https://repo.bloxbean.org/maven/snapshots`) publishes them under
 the next version with `-SNAPSHOT` appended, such as `0.1.0-pre4-SNAPSHOT`. A
 snapshot distribution adds the short commit id to its file name, as in
 `yano-x-jvm-0.1.0-pre4-3e9e1c8.zip`, only to tell builds apart. Drop the commit
-id and add `-SNAPSHOT` to get the Maven version.
+id and add `-SNAPSHOT` to get the Maven version. A distribution you build
+yourself may carry neither, as in `yano-x-jvm-0.1.0-pre4.zip`, yet is still
+`0.1.0-pre4-SNAPSHOT`; its artifacts exist only where you publish them,
+normally your Maven Local. In every case,
+`jq -r .version yano-x-distribution-v1.json` in the distribution's top-level
+directory prints the exact Maven version.
 
 #### Publication types
 
@@ -17407,7 +16875,7 @@ artifact identity and that every runtime plugin has a bundle publication.
 | `:ledgers:eutxo:bridge-cardano` | `yano-x-eutxo-bridge-cardano` | `org.yanoproject.x.eutxo.bridge.cardano` | [ledgers/eutxo/bridge-cardano](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/bridge-cardano) |
 | `:ledgers:eutxo:indexer-jdbc` | `yano-x-eutxo-indexer-jdbc` | `org.yanoproject.x.eutxo.indexer` | [ledgers/eutxo/indexer-jdbc](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/indexer-jdbc) |
 
-##### `library` (23)
+##### `library` (14)
 
 | Gradle module | Artifact id | Plugin bundle id | Source |
 |---|---|---|---|
@@ -17418,18 +16886,9 @@ artifact identity and that every runtime plugin has a bundle publication.
 | `:sdk:client` | `yano-x-client` | — | [sdk/client](https://github.com/bloxbean/yano-x/blob/main/sdk/client) |
 | `:sdk:proof-contracts` | `yano-x-proof-contracts` | — | [sdk/proof-contracts](https://github.com/bloxbean/yano-x/blob/main/sdk/proof-contracts) |
 | `:sdk:integration-contracts` | `yano-x-integration-contracts` | — | [sdk/integration-contracts](https://github.com/bloxbean/yano-x/blob/main/sdk/integration-contracts) |
-| `:products:client` | `yano-x-products-client` | — | [products/client](https://github.com/bloxbean/yano-x/blob/main/products/client) |
 | `:products:evidence:contracts` | `yano-x-evidence-contracts` | — | [products/evidence/contracts](https://github.com/bloxbean/yano-x/blob/main/products/evidence/contracts) |
 | `:products:evidence:client` | `yano-x-evidence-client` | — | [products/evidence/client](https://github.com/bloxbean/yano-x/blob/main/products/evidence/client) |
 | `:products:cardano-history:client` | `yano-x-cardano-history-client` | — | [products/cardano-history/client](https://github.com/bloxbean/yano-x/blob/main/products/cardano-history/client) |
-| `:products:attest:client` | `yano-x-attest-client` | — | [products/attest/client](https://github.com/bloxbean/yano-x/blob/main/products/attest/client) |
-| `:products:trust-registry:profile` | `yano-x-trust-registry-profile` | — | [products/trust-registry/profile](https://github.com/bloxbean/yano-x/blob/main/products/trust-registry/profile) |
-| `:products:trust-registry:client` | `yano-x-trust-registry-client` | — | [products/trust-registry/client](https://github.com/bloxbean/yano-x/blob/main/products/trust-registry/client) |
-| `:products:explorer:core` | `yano-x-explorer-core` | — | [products/explorer/core](https://github.com/bloxbean/yano-x/blob/main/products/explorer/core) |
-| `:products:dpp:profile` | `yano-x-dpp-profile` | — | [products/dpp/profile](https://github.com/bloxbean/yano-x/blob/main/products/dpp/profile) |
-| `:products:dpp:client` | `yano-x-dpp-client` | — | [products/dpp/client](https://github.com/bloxbean/yano-x/blob/main/products/dpp/client) |
-| `:products:attestation-feed:profile` | `yano-x-attestation-feed-profile` | — | [products/attestation-feed/profile](https://github.com/bloxbean/yano-x/blob/main/products/attestation-feed/profile) |
-| `:products:attestation-feed:client` | `yano-x-attestation-feed-client` | — | [products/attestation-feed/client](https://github.com/bloxbean/yano-x/blob/main/products/attestation-feed/client) |
 | `:ledgers:eutxo:contracts` | `yano-x-eutxo-contracts` | — | [ledgers/eutxo/contracts](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/contracts) |
 | `:ledgers:eutxo:client` | `yano-x-eutxo-client` | — | [ledgers/eutxo/client](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/client) |
 | `:ledgers:eutxo:indexer-core` | `yano-x-eutxo-indexer-core` | — | [ledgers/eutxo/indexer-core](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/indexer-core) |
@@ -17443,7 +16902,7 @@ artifact identity and that every runtime plugin has a bundle publication.
 | `:examples:showcase-client` | `yano-x-showcase-client` | — | [examples/showcase-client](https://github.com/bloxbean/yano-x/blob/main/examples/showcase-client) |
 | `:ledgers:eutxo:demo` | `yano-x-eutxo-demo` | — | [ledgers/eutxo/demo](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/demo) |
 
-##### `tool` (9)
+##### `tool` (4)
 
 | Gradle module | Artifact id | Plugin bundle id | Source |
 |---|---|---|---|
@@ -17451,11 +16910,6 @@ artifact identity and that every runtime plugin has a bundle publication.
 | `:tooling:deployment` | `yano-x-deployment` | — | [tooling/deployment](https://github.com/bloxbean/yano-x/blob/main/tooling/deployment) |
 | `:tooling:studio` | `yano-x-studio` | — | [tooling/studio](https://github.com/bloxbean/yano-x/blob/main/tooling/studio) |
 | `:products:cardano-history:cli` | `yano-x-cardano-history-cli` | — | [products/cardano-history/cli](https://github.com/bloxbean/yano-x/blob/main/products/cardano-history/cli) |
-| `:products:attest:cli` | `yano-x-attest-cli` | — | [products/attest/cli](https://github.com/bloxbean/yano-x/blob/main/products/attest/cli) |
-| `:products:trust-registry:cli` | `yano-x-trust-registry-cli` | — | [products/trust-registry/cli](https://github.com/bloxbean/yano-x/blob/main/products/trust-registry/cli) |
-| `:products:explorer:cli` | `yano-x-explorer-cli` | — | [products/explorer/cli](https://github.com/bloxbean/yano-x/blob/main/products/explorer/cli) |
-| `:products:dpp:cli` | `yano-x-dpp-cli` | — | [products/dpp/cli](https://github.com/bloxbean/yano-x/blob/main/products/dpp/cli) |
-| `:products:attestation-feed:cli` | `yano-x-attestation-feed-cli` | — | [products/attestation-feed/cli](https://github.com/bloxbean/yano-x/blob/main/products/attestation-feed/cli) |
 
 ##### `test-library` (2)
 
@@ -17472,23 +16926,18 @@ artifact identity and that every runtime plugin has a bundle publication.
 | `:products:cardano-history:onchain` | `yano-x-cardano-history-onchain` | — | [products/cardano-history/onchain](https://github.com/bloxbean/yano-x/blob/main/products/cardano-history/onchain) |
 | `:ledgers:eutxo:bridge-onchain` | `yano-x-eutxo-bridge-onchain` | — | [ledgers/eutxo/bridge-onchain](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/bridge-onchain) |
 
-##### `web-application` (7)
+##### `web-application` (1)
 
 | Gradle module | Artifact id | Plugin bundle id | Source |
 |---|---|---|---|
-| `:products:attest:ui` | `yano-x-attest-ui` | — | [products/attest/ui](https://github.com/bloxbean/yano-x/blob/main/products/attest/ui) |
-| `:products:evidence:ui` | `yano-x-evidence-ui` | — | [products/evidence/ui](https://github.com/bloxbean/yano-x/blob/main/products/evidence/ui) |
 | `:products:eutxo:ui` | `yano-x-eutxo-ui` | — | [products/eutxo/ui](https://github.com/bloxbean/yano-x/blob/main/products/eutxo/ui) |
-| `:products:trust-registry:ui` | `yano-x-trust-registry-ui` | — | [products/trust-registry/ui](https://github.com/bloxbean/yano-x/blob/main/products/trust-registry/ui) |
-| `:products:explorer:ui` | `yano-x-explorer-ui` | — | [products/explorer/ui](https://github.com/bloxbean/yano-x/blob/main/products/explorer/ui) |
-| `:products:dpp:ui` | `yano-x-dpp-ui` | — | [products/dpp/ui](https://github.com/bloxbean/yano-x/blob/main/products/dpp/ui) |
-| `:products:attestation-feed:ui` | `yano-x-attestation-feed-ui` | — | [products/attestation-feed/ui](https://github.com/bloxbean/yano-x/blob/main/products/attestation-feed/ui) |
 
-##### `test-fixture` (1)
+##### `test-fixture` (2)
 
 | Gradle module | Artifact id | Plugin bundle id | Source |
 |---|---|---|---|
 | `:fixtures:eutxo-e2e` | `yano-x-eutxo-e2e` | — | [fixtures/eutxo-e2e](https://github.com/bloxbean/yano-x/blob/main/fixtures/eutxo-e2e) |
+| `:fixtures:governed-recipes` | `yano-x-governed-recipes` | — | [fixtures/governed-recipes](https://github.com/bloxbean/yano-x/blob/main/fixtures/governed-recipes) |
 
 <!-- catalog:modules-end -->
 

@@ -12,7 +12,7 @@
     "recipes": 11,
     "capabilities": 39,
     "artifacts": 14,
-    "modules": 63,
+    "modules": 44,
     "configurationProperties": 44,
     "runtimePlugins": 15
   },
@@ -2064,15 +2064,6 @@
       "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/sdk/integration-contracts"
     },
     {
-      "modulePath": ":products:client",
-      "directory": "products/client",
-      "artifactId": "yano-x-products-client",
-      "publicationType": "library",
-      "pluginBundleId": null,
-      "bundleArtifactId": null,
-      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/products/client"
-    },
-    {
       "modulePath": ":products:evidence:contracts",
       "directory": "products/evidence/contracts",
       "artifactId": "yano-x-evidence-contracts",
@@ -2145,42 +2136,6 @@
       "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/products/cardano-history/onchain"
     },
     {
-      "modulePath": ":products:attest:client",
-      "directory": "products/attest/client",
-      "artifactId": "yano-x-attest-client",
-      "publicationType": "library",
-      "pluginBundleId": null,
-      "bundleArtifactId": null,
-      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/products/attest/client"
-    },
-    {
-      "modulePath": ":products:attest:cli",
-      "directory": "products/attest/cli",
-      "artifactId": "yano-x-attest-cli",
-      "publicationType": "tool",
-      "pluginBundleId": null,
-      "bundleArtifactId": null,
-      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/products/attest/cli"
-    },
-    {
-      "modulePath": ":products:attest:ui",
-      "directory": "products/attest/ui",
-      "artifactId": "yano-x-attest-ui",
-      "publicationType": "web-application",
-      "pluginBundleId": null,
-      "bundleArtifactId": null,
-      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/products/attest/ui"
-    },
-    {
-      "modulePath": ":products:evidence:ui",
-      "directory": "products/evidence/ui",
-      "artifactId": "yano-x-evidence-ui",
-      "publicationType": "web-application",
-      "pluginBundleId": null,
-      "bundleArtifactId": null,
-      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/products/evidence/ui"
-    },
-    {
       "modulePath": ":products:evidence:demo-runner",
       "directory": "products/evidence/demo-runner",
       "artifactId": "yano-x-evidence-demo-runner",
@@ -2251,141 +2206,6 @@
       "pluginBundleId": null,
       "bundleArtifactId": null,
       "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/products/eutxo/ui"
-    },
-    {
-      "modulePath": ":products:trust-registry:profile",
-      "directory": "products/trust-registry/profile",
-      "artifactId": "yano-x-trust-registry-profile",
-      "publicationType": "library",
-      "pluginBundleId": null,
-      "bundleArtifactId": null,
-      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/products/trust-registry/profile"
-    },
-    {
-      "modulePath": ":products:trust-registry:client",
-      "directory": "products/trust-registry/client",
-      "artifactId": "yano-x-trust-registry-client",
-      "publicationType": "library",
-      "pluginBundleId": null,
-      "bundleArtifactId": null,
-      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/products/trust-registry/client"
-    },
-    {
-      "modulePath": ":products:trust-registry:cli",
-      "directory": "products/trust-registry/cli",
-      "artifactId": "yano-x-trust-registry-cli",
-      "publicationType": "tool",
-      "pluginBundleId": null,
-      "bundleArtifactId": null,
-      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/products/trust-registry/cli"
-    },
-    {
-      "modulePath": ":products:trust-registry:ui",
-      "directory": "products/trust-registry/ui",
-      "artifactId": "yano-x-trust-registry-ui",
-      "publicationType": "web-application",
-      "pluginBundleId": null,
-      "bundleArtifactId": null,
-      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/products/trust-registry/ui"
-    },
-    {
-      "modulePath": ":products:explorer:core",
-      "directory": "products/explorer/core",
-      "artifactId": "yano-x-explorer-core",
-      "publicationType": "library",
-      "pluginBundleId": null,
-      "bundleArtifactId": null,
-      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/products/explorer/core"
-    },
-    {
-      "modulePath": ":products:explorer:cli",
-      "directory": "products/explorer/cli",
-      "artifactId": "yano-x-explorer-cli",
-      "publicationType": "tool",
-      "pluginBundleId": null,
-      "bundleArtifactId": null,
-      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/products/explorer/cli"
-    },
-    {
-      "modulePath": ":products:explorer:ui",
-      "directory": "products/explorer/ui",
-      "artifactId": "yano-x-explorer-ui",
-      "publicationType": "web-application",
-      "pluginBundleId": null,
-      "bundleArtifactId": null,
-      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/products/explorer/ui"
-    },
-    {
-      "modulePath": ":products:dpp:profile",
-      "directory": "products/dpp/profile",
-      "artifactId": "yano-x-dpp-profile",
-      "publicationType": "library",
-      "pluginBundleId": null,
-      "bundleArtifactId": null,
-      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/products/dpp/profile"
-    },
-    {
-      "modulePath": ":products:dpp:client",
-      "directory": "products/dpp/client",
-      "artifactId": "yano-x-dpp-client",
-      "publicationType": "library",
-      "pluginBundleId": null,
-      "bundleArtifactId": null,
-      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/products/dpp/client"
-    },
-    {
-      "modulePath": ":products:dpp:cli",
-      "directory": "products/dpp/cli",
-      "artifactId": "yano-x-dpp-cli",
-      "publicationType": "tool",
-      "pluginBundleId": null,
-      "bundleArtifactId": null,
-      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/products/dpp/cli"
-    },
-    {
-      "modulePath": ":products:dpp:ui",
-      "directory": "products/dpp/ui",
-      "artifactId": "yano-x-dpp-ui",
-      "publicationType": "web-application",
-      "pluginBundleId": null,
-      "bundleArtifactId": null,
-      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/products/dpp/ui"
-    },
-    {
-      "modulePath": ":products:attestation-feed:profile",
-      "directory": "products/attestation-feed/profile",
-      "artifactId": "yano-x-attestation-feed-profile",
-      "publicationType": "library",
-      "pluginBundleId": null,
-      "bundleArtifactId": null,
-      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/products/attestation-feed/profile"
-    },
-    {
-      "modulePath": ":products:attestation-feed:client",
-      "directory": "products/attestation-feed/client",
-      "artifactId": "yano-x-attestation-feed-client",
-      "publicationType": "library",
-      "pluginBundleId": null,
-      "bundleArtifactId": null,
-      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/products/attestation-feed/client"
-    },
-    {
-      "modulePath": ":products:attestation-feed:cli",
-      "directory": "products/attestation-feed/cli",
-      "artifactId": "yano-x-attestation-feed-cli",
-      "publicationType": "tool",
-      "pluginBundleId": null,
-      "bundleArtifactId": null,
-      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/products/attestation-feed/cli"
-    },
-    {
-      "modulePath": ":products:attestation-feed:ui",
-      "directory": "products/attestation-feed/ui",
-      "artifactId": "yano-x-attestation-feed-ui",
-      "publicationType": "web-application",
-      "pluginBundleId": null,
-      "bundleArtifactId": null,
-      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/products/attestation-feed/ui"
     },
     {
       "modulePath": ":ledgers:eutxo:contracts",
@@ -2485,6 +2305,15 @@
       "pluginBundleId": null,
       "bundleArtifactId": null,
       "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/fixtures/eutxo-e2e"
+    },
+    {
+      "modulePath": ":fixtures:governed-recipes",
+      "directory": "fixtures/governed-recipes",
+      "artifactId": "yano-x-governed-recipes",
+      "publicationType": "test-fixture",
+      "pluginBundleId": null,
+      "bundleArtifactId": null,
+      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/fixtures/governed-recipes"
     }
   ],
   "configuration": [
