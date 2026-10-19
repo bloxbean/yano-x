@@ -23,7 +23,7 @@ and reusable libraries. The dependency runs one way: `yano-x → yano`.
 | Every other stock state machine | **Yano X** |
 | Composite profiles, governed profile evolution, declarative bindings | **Yano X** |
 | Kafka, S3, IPFS, and Cardano-payment executors; the Kafka sink | **Yano X** |
-| Products: Evidence, Cardano History, Attest, Trust Registry, and more | **Yano X** |
+| Products: Evidence, Cardano History, and the eUTxO ledger | **Yano X** |
 | Java client SDK, Spring Boot starter, testkits, deployment tool, App-Chain Studio | **Yano X** |
 | The JVM distribution that ships all of the above pre-installed | **Yano X** |
 

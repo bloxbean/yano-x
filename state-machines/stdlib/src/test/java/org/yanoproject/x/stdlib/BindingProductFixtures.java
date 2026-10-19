@@ -132,11 +132,10 @@ public final class BindingProductFixtures {
         text.append("# Proposer: ").append(members().getFirst()).append('\n');
         text.append("# Members: ").append(String.join(",", members())).append('\n');
         text.append("# Source-checkout fixture regeneration: :state-machines:stdlib:printBindingProductExamples\n");
-        text.append("# Your own chain: yano.sh appchain bindings recipe dpp|feed "
-                + "(see docs/appchain/DECLARATIVE_BINDINGS_CLI.md).\n");
+        text.append("# Your own actors: product tooling in https://github.com/bloxbean/yano-x-products.\n");
         text.append("# Qualifications: existing product schemas/policies; "
                 + "known-key certified state/consumption proofs.\n");
-        text.append("# Does not claim existing portal projection or legacy AttestCertificate compatibility.\n");
+        text.append("# Does not claim compatibility with list projections that replay original map envelopes.\n");
         text.append("composite:\n  components:\n");
         for (var component : fixture.ir().components()) {
             text.append("    - id: ").append(component.id()).append("\n      machine: ").append(component.machineId());

@@ -382,6 +382,16 @@ your existing entries are unchanged.
 > `node 3 joined and caught up with member key ...`. The new member votes from
 > the activation height each chain reports.
 
+A newly joined node accepts submissions only from that activation height on.
+Before then, a submission through node 3 is refused with HTTP `503` ("not an
+active member at height ... yet"). Check a chain's
+`memberActiveForNextBlock` field and retry once it is `true`:
+
+```bash
+curl -s "http://127.0.0.1:$((HTTP_BASE + 3))/api/v1/app-chain/chains/orders-chain/status" \
+  | jq .memberActiveForNextBlock
+```
+
 For an externally managed node, the lower-level
 `appchain cluster member add <public-key>` command records membership but does
 not configure or start the external process. Same-host `node join` performs
@@ -403,7 +413,7 @@ including the chain identities.
 |---|---|
 | `HTTP range 7070-7072 unavailable; using ...` | Another process holds the default ports. Set `HTTP_BASE` to the first port of the printed range. |
 | `app-chain identity differs from retained state; restore the original profile or use a new data directory` | You started the same `YANO_CLUSTER_DIR` with a different node count or `--threshold`. Start it with the original values, or export a new `YANO_CLUSTER_DIR`. |
-| `node 1 is already running` | The cluster is still running. Run `./yano.sh appchain cluster stop` first. |
+| `node 0 is already running (./cluster.sh stop first)` | The cluster in this `YANO_CLUSTER_DIR` is still running. Run `./yano.sh appchain cluster stop` first. |
 | `node 0 not ready within 180s` or `node 2 not ready after 3 attempts` | The message names the node's log file. Read its first error, for example with `./yano.sh appchain cluster logs 2`. |
 | `orders-chain: MISMATCH` | A node can be one block behind while `status` reads it. Run `status` again after a few seconds. If it persists, check that node's log. |
 | `config not found: .../config/application-appchain.yml` | `YANO_HOME` points somewhere other than the distribution. Run `unset YANO_HOME`, then retry from the distribution's top-level directory. |
@@ -411,18 +421,30 @@ including the chain identities.
 ## Go deeper
 
 - **Try a stricter threshold.** The threshold is part of the cluster's
-  identity, so start a second cluster in a new directory:
+  identity, so start a second cluster in a new directory. If you skipped
+  [Clean up](#clean-up), first stop the first cluster while
+  `YANO_CLUSTER_DIR` still points to it, so the new cluster gets the default
+  ports:
 
   ```bash
-  ./yano.sh appchain cluster stop
+  ./yano.sh appchain cluster stop    # only if the first cluster still runs
   export YANO_CLUSTER_DIR=/tmp/yano-tutorial-threshold-3
   ./yano.sh appchain cluster start 3 --threshold 3
   ```
 
   The start banner shows `threshold: 3`, and every block now needs all three
   votes. The "Threshold 3, one member down" scenario above shows why one
-  stopped member then halts finality. Remove this cluster with
-  `./yano.sh appchain cluster clean`.
+  stopped member then halts finality. Remove this cluster and clear the
+  variable when you are done:
+
+  ```bash
+  ./yano.sh appchain cluster clean
+  unset YANO_CLUSTER_DIR
+  ```
+
+  If you skipped Clean up, also remove the first cluster: run
+  `export YANO_CLUSTER_DIR=/tmp/yano-tutorial-first-chain`, then the same two
+  commands.
 - Read Yano's
   [consensus guide](https://github.com/bloxbean/yano/blob/main/docs/APP_CHAIN_CONSENSUS_GUIDE.md)
   for the proposer, votes, certificates, replay, and catch-up.

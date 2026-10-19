@@ -64,10 +64,8 @@ trusted, using five levels:
 | `CALLER_PINNED_ANCHOR` | You supplied and verified the complete expected Cardano anchor. |
 | `INDEPENDENTLY_VERIFIED_L1_ANCHOR` | The verifier checked the Cardano anchor itself, not a node's report of it. |
 
-Products' CLIs map these to exit codes; for Attest, Trust Registry, DPP
-Starter, and Attestation Feed, only exits 0 and 5 mean verified. Get the members
-file or the anchor datum from a source you trust, never from the bundle you are
-checking.
+Get the member keys and threshold, or the anchor datum, from a source you trust,
+never from the bundle you are checking.
 
 ## How many members can fail
 

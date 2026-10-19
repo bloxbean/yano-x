@@ -111,10 +111,10 @@ was checked against came from. There are five levels:
 | Trust level | The root came from | For example |
 |---|---|---|
 | `INTERNAL_CONSISTENCY_ONLY` | The same response as the proof | A node's proof response, by default |
-| `CALLER_PINNED_ROOT` | A root you pinned, or a block certified by member keys and a threshold you pinned | Attest `--members keys.json`; `yano-explorer verify --members` |
+| `CALLER_PINNED_ROOT` | A root you pinned, or a block certified by member keys and a threshold you pinned | `./yano.sh appchain state verify --trusted-root`; the Java client's `PortableProofBundle` with a certified block |
 | `NODE_CONFIRMED_L1_REFERENCE` | The node's report of its latest confirmed Cardano anchor | A proof request with `"view": "latest-confirmed-anchor"` |
-| `CALLER_PINNED_ANCHOR` | An anchor datum you supplied; the verifier did not read Cardano | `yano-explorer verify --anchor-datum-hex` |
-| `INDEPENDENTLY_VERIFIED_L1_ANCHOR` | Anchor data read from Cardano, independently of any member or node | Attest or Trust Registry `--anchor-datum-hex` with a datum you read from Cardano |
+| `CALLER_PINNED_ANCHOR` | An anchor datum you supplied; the verifier did not read Cardano | No Yano X command reports this level today |
+| `INDEPENDENTLY_VERIFIED_L1_ANCHOR` | Anchor data read from Cardano, independently of any member or node | The Java client's `PortableProofBundle` with a block taken from an anchor you read from Cardano |
 
 <!-- /illustration -->
 

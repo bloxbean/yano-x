@@ -55,7 +55,6 @@ public final class BindingCli {
               or: appchain bindings catalog [<document.yml>] --plugins-directory <directory> --context <context.json>
                     [--machine <selector>]... [--all]
               or: appchain bindings receipt-key <source-message-id-hex>
-              or: appchain bindings recipe dpp|feed --descriptor <actors.json> --members <members.json> --threshold <n>
               or: appchain bindings profile-check --profiles <profiles.json> --context <context.json>
                     --plugins-directory <directory>
               --plugins-directory <directory>  exact manifested runtime bundles (required except graph --ir)
@@ -103,10 +102,6 @@ public final class BindingCli {
         try {
             if (args[0].equals("profile-check")) return BindingProfileCheck.run(args, out, err);
             if (args[0].equals("catalog")) return BindingAuthoringCatalog.run(args, out, err);
-            if (args[0].equals("recipe")) {
-                out.println(JSON.writerWithDefaultPrettyPrinter().writeValueAsString(recipe(args)));
-                return AppChainDevtoolsCli.EXIT_OK;
-            }
             if (args[0].equals("receipt-key")) {
                 if (args.length != 2) throw new Usage("receipt-key requires one source message id");
                 if (args[1].length() != 64) {
@@ -634,31 +629,6 @@ public final class BindingCli {
         String hex = source.strip();
         if (hex.length() > 131_072) throw new IllegalArgumentException("binding IR hex exceeds limit");
         return BindingIrV1.decode(HexFormat.of().parseHex(hex));
-    }
-
-    private static BindingRecipe.Output recipe(String[] args) throws IOException {
-        if (args.length != 8 || !Set.of("dpp", "feed").contains(args[1])) {
-            throw new Usage("recipe requires dpp|feed, --descriptor, --members, and --threshold");
-        }
-        Map<String, String> options = new LinkedHashMap<>();
-        for (int index = 2; index < args.length; index += 2) {
-            if (!Set.of("--descriptor", "--members", "--threshold").contains(args[index])
-                    || args[index + 1].isBlank() || args[index + 1].startsWith("--")
-                    || options.putIfAbsent(args[index], args[index + 1]) != null) {
-                throw new Usage("unknown, duplicate, or missing recipe option");
-            }
-        }
-        int threshold;
-        try {
-            threshold = Integer.parseInt(options.get("--threshold"));
-        } catch (NumberFormatException invalid) {
-            throw new Usage("--threshold: expected a 32-bit integer");
-        }
-        var descriptor = JSON.readValue(read(Path.of(options.get("--descriptor")), 1_048_576),
-                BindingRecipe.Descriptor.class);
-        var members = JSON.readValue(read(Path.of(options.get("--members")), 65_536), String[].class);
-        return BindingRecipe.generate(args[1], descriptor, Arrays.asList(members),
-                threshold);
     }
 
     static String read(Path path, int maximum) throws IOException {

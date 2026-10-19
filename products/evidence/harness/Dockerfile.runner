@@ -13,4 +13,8 @@ USER ${RUNNER_UID}:${RUNNER_GID}
 WORKDIR /opt/yano-demo
 ENV HOME=/nonexistent
 
-ENTRYPOINT ["java", "--add-modules=jdk.httpserver", "-jar", "/opt/yano-demo/runner.jar"]
+# Node containers get dynamic Compose IPs, and a recreated node can take a peer's old address.
+# Resolve service names on every connection so a long-running scenario never reaches the wrong
+# node through a cached lookup.
+ENTRYPOINT ["java", "-Dsun.net.inetaddr.ttl=0", "--add-modules=jdk.httpserver", \
+    "-jar", "/opt/yano-demo/runner.jar"]

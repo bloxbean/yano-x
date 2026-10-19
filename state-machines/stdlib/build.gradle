@@ -18,8 +18,7 @@ dependencies {
 
     testImplementation rootProject.ext.yanoModule('yano-runtime')
     testImplementation project(':sdk:client')
-    testImplementation project(':products:dpp:profile')
-    testImplementation project(':products:attestation-feed:profile')
+    testImplementation project(':fixtures:governed-recipes')
 }
 
 tasks.register('printBindingProductExamples', JavaExec) {

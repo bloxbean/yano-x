@@ -21,9 +21,6 @@ dependencies {
     }
     implementation project(':capabilities:role-workflow-contracts')
     implementation project(':state-machines:stdlib')
-    // Pure, public genesis/profile builders; optional runtime activation still crosses the catalog.
-    implementation project(':products:dpp:profile')
-    implementation project(':products:attestation-feed:profile')
     implementation libs.cardano.client.crypto
     compileOnly(rootProject.ext.yanoModule('yano-core-api')) {
         transitive = false
@@ -41,8 +38,11 @@ dependencies {
         transitive = false
     }
     testImplementation project(':capabilities:authenticated-map-validators')
+    testImplementation project(':fixtures:governed-recipes')
     // Live receipt-parity tests boot the real host subsystem, unlike the lightweight offline CLI.
     integrationTestRuntimeOnly(rootProject.ext.yanoModule('yano-runtime'))
+    // Recipe generation over the governed fixtures is a shared test helper (BindingRecipe).
+    integrationTestImplementation sourceSets.test.output
     // Distribution acceptance reuses the unit tests' plugin bundle fixture.
     distributionTestImplementation sourceSets.test.output
 }
@@ -478,7 +478,7 @@ tasks.named('check') {
 }
 
 def appChainReleaseCheckProjects = rootProject.ext.artifactByPath.keySet()
-        .findAll { it != project.path && it != ':fixtures:eutxo-e2e' }
+        .findAll { it != project.path && rootProject.ext.artifactByPath[it].publicationType != 'test-fixture' }
 
 tasks.register('appChainReleaseCandidateStaticCheck') {
     group = 'verification'

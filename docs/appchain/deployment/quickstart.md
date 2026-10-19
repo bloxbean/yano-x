@@ -16,15 +16,18 @@ wallet, public-network funds, or external Cardano node.
 <!-- illustration: showcase-quickstart -->
 1. **Check.** `./showcase.sh doctor --profile light` checks Java 25, Python 3,
    `curl`, `jq`, and the packaged artifacts.
-2. **Start.** `./showcase.sh quickstart` starts three nodes with the thirteen
-   showcase chains on a private devnet and runs the first demonstrations.
-3. **Submit an order.** `./demos/submit-orders.sh` submits an order, waits
-   until it is final, and requests its proof.
-4. **Verify.** `./showcase.sh verify` checks that every node reports the same
-   tip and root for every chain.
-5. **Stop.** `./showcase.sh stop` stops the nodes and keeps the instance.
-6. **Restart.** `./showcase.sh restart` resumes the same instance from its
-   retained state.
+2. **Start.** `./showcase.sh quickstart --profile light --nodes 3 --instance first-demo`
+   starts three nodes with the thirteen showcase chains on a private devnet and
+   runs the first demonstrations.
+3. **Submit an order.** `./demos/submit-orders.sh first-demo '{"order":"A-100","event":"created"}'`
+   submits an order to the `first-demo` instance, waits until it is final, and
+   requests its proof.
+4. **Verify.** `./showcase.sh verify --instance first-demo` checks that every
+   node reports the same tip and root for every chain.
+5. **Stop.** `./showcase.sh stop --instance first-demo` stops the nodes and
+   keeps the instance.
+6. **Restart.** `./showcase.sh restart --instance first-demo` resumes the same
+   instance from its retained state.
 <!-- /illustration -->
 
 ## 1. Get the matching archive
@@ -73,8 +76,10 @@ separate prerequisites. The quickstart anchor is a **devnet** anchor for
 ./showcase.sh ui --instance first-demo
 ```
 
-> **✓ You should see** a proof summary with `"claimSatisfied": true`, then
-> `ORDERED: message finalized at height N`.
+> **✓ You should see** `submitted orders.command.v1 via node 0: <message-id>`,
+> a proof summary with `"claimSatisfied": true`, then
+> `ORDERED: message finalized at height N`. Keep the message ID; you retrieve
+> the same order after a restart below.
 
 The order command prints a finalized position and proof claim. The document
 scenario appends to a trail. `verify` checks node readiness, converged tips and
@@ -99,7 +104,19 @@ for the actual requests, message lookup, and typed proof route.
 > **✓ You should see** `stopped 3 node(s)` after `stop`, and `Cluster up.`
 > after `restart`.
 
-Retrieve the same order after the restart. Do not reset an instance to fix a
+Retrieve the same order after the restart, using the message ID that
+`submit-orders.sh` printed:
+
+```bash
+MESSAGE_ID=<message-id printed by submit-orders.sh>
+curl -fsS "http://127.0.0.1:7070/api/v1/app-chain/chains/orders-chain/messages/$MESSAGE_ID" \
+  | jq '{messageId,height,index,topic}'
+```
+
+> **✓ You should see** the same `messageId` at the same `height` as before
+> the restart.
+
+Do not reset an instance to fix a
 startup error: `reset --yes` deletes the instance and is not recoverable. Run
 `./showcase.sh logs --instance first-demo` and inspect the first failure; keep
 the generated identity and data directories together.

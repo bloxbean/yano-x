@@ -59,6 +59,19 @@ Python 3. In an extracted Yano X JVM distribution, run from
 ./demo.sh stop
 ```
 
+`prepare` and every `up` build the node and runner images and tag them
+`yano-adr013-node:<tag>` and `yano-adr013-runner:<tag>`. The tag is the
+source checkout's short commit, or `local` when the harness runs from an
+extracted distribution outside any Git working tree. Building **replaces any
+existing local image with the same name and tag**, such as one built from
+another Yano X version. To keep those images, export your own names before
+`prepare` and keep them set for every later command of that instance:
+
+```bash
+export DEMO_YANO_IMAGE=yano-adr013-node:my-demo
+export DEMO_RUNNER_IMAGE=yano-adr013-runner:my-demo
+```
+
 For source development, stage the same release-matched inputs from the normal
 Yano JVM ZIP first (using the `yanoVersion`, `yanoJvmDist`, and optional
 `useMavenLocal` properties described in the repository README):

@@ -60,9 +60,7 @@ follow three rules:
   the missing rows.
 
 Never restore `appchain-indexers/` as if it were authoritative state, and never
-restore it into either authoritative store. The Verifiable Explorer's index
-follows the same rules from outside the node: it is a separate database that any
-node can rebuild.
+restore it into either authoritative store.
 
 ## Stopping, cleaning, and backing up
 

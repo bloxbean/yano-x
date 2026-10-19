@@ -31,6 +31,18 @@ IPFS, and the Evidence Explorer.
   `DEMO_UI_PORT`, `DEMO_KAFKA_PORT`, `DEMO_S3_PORT` and `DEMO_IPFS_PORT` move
   the other services. For example, `export DEMO_HTTP_BASE=7370` puts the
   members on 7370–7372, and the URLs the harness prints use those ports.
+- `prepare` and every `up` build two local Docker images from the
+  distribution. By default they are tagged `yano-adr013-node:local` and
+  `yano-adr013-runner:local` (inside a Git working tree, the tag is that
+  tree's short commit instead). Building **replaces any existing local image
+  with the same name and tag**, for example one from another Yano X version.
+  To keep other images, choose your own names before the first command and
+  keep them set for the whole tutorial:
+
+  ```bash
+  export DEMO_YANO_IMAGE=yano-adr013-node:tutorial
+  export DEMO_RUNNER_IMAGE=yano-adr013-runner:tutorial
+  ```
 
 The harness runs the default `evidence-v1-gated` profile, in which validator
 members approve each release. The Studio link above opens the
@@ -65,6 +77,10 @@ and acknowledged outcomes.
 
 ## 1. Prepare and start a fresh direct-continuation profile
 
+Run every command in this tutorial from the harness directory. From the
+top-level directory of the extracted distribution, the one containing
+`yano.sh`:
+
 ```bash
 cd examples/evidence
 
@@ -97,10 +113,10 @@ API key file: <path>
 ```
 
 `direct` means the deterministic workflow emits the next result-driven
-transition directly. `explicit`, the harness default, keeps the original
-Milestone 1 notify command that advances that continuation. The choice is part
-of the fresh chain's committed profile; pass the same option to every later
-command.
+transition directly. `explicit`, the harness default, keeps the first version
+of this workflow, in which a separate notify command advances that
+continuation. The choice is part of the fresh chain's committed profile; pass
+the same option to every later command.
 
 If startup fails, the launcher rolls back the partial deployment. Use the
 reported container health/log command rather than repeatedly deleting random
@@ -142,7 +158,9 @@ object and IPFS content, checks their hashes, checks the Kafka acknowledgement,
 and validates application finality, state/effect proofs, and anchor linkage.
 It ends with `PASS command=verify scenario=<scenario id>`.
 
-Open the Evidence Explorer and select the record. The JSON preview is a
+Open the Evidence Explorer at the `Evidence UI` address that `up` printed,
+<http://127.0.0.1:7080/> by default (or your `DEMO_UI_PORT`), and select the
+record. The JSON preview is a
 bounded presentation copy produced only after the runner re-downloads and
 verifies the external bytes; it is not the browser's original submission.
 
@@ -229,9 +247,25 @@ summary when every item succeeded, and the Explorer shows the aggregate report.
 ./demo.sh stop --instance tutorial-evidence --continuation direct
 ```
 
-Run `up` with the same instance/profile to resume retained data. Use the
-launcher's explicit `clean --scope ... --yes` workflow only when you intend to
-retire that chain identity and have chosen a replacement instance.
+Run `up` with the same instance/profile to resume retained data. Delete data
+only when you intend to retire that chain identity. Cleanup always names a
+distinct replacement instance, so the retired chain id is never reused. To
+retire this instance and also delete the shared devnet L1 it uses:
+
+```bash
+./demo.sh clean \
+  --instance tutorial-evidence \
+  --continuation direct \
+  --scope all \
+  --new-instance tutorial-evidence-next \
+  --yes
+```
+
+`--scope all` refuses while another instance on the same devnet, such as
+Tutorial 5's `tutorial-roles`, still uses the L1. Retire only this instance
+and keep the L1 with `--scope instance` and the same `--new-instance` option.
+The built Docker images are not removed; delete them with `docker image rm`
+if you no longer need them.
 
 ## What is and is not proven
 

@@ -2,6 +2,8 @@
 
 - **Status:** Accepted (2026-09-06), implemented on `feat/products-oob`; §11 records the
   implementation and its deviations
+- **First release (ADR-055):** withdrawn except `products/dpp/profile`, which `appchain bindings
+  recipe dpp` uses.
 - **Classification:** `REFERENCE`, labelled a prototype (ADR-046 §4.4 stage 1). It is not the DPP
   product ADR-026 §5.2 describes, it enforces no DPP lifecycle rule on chain, and it claims
   conformance with no DPP standard.

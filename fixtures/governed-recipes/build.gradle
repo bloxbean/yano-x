@@ -1,0 +1,30 @@
+plugins {
+    id 'java-library'
+}
+
+description = 'Governed DPP and feed genesis builders used only as binding test fixtures; never published'
+
+// Realistic governed authenticated-map schemas, policies and actor genesis for the binding,
+// admission-rule and typed-view tests in stdlib and devtools (ADR-055).
+dependencies {
+    api project(':state-machines:stdlib-contracts')
+    api project(':capabilities:role-workflow-contracts')
+    implementation project(':state-machines:stdlib')
+    implementation libs.jackson.databind
+    implementation libs.cbor
+    implementation libs.cardano.client.crypto
+
+    testImplementation libs.junit.jupiter.api
+    testRuntimeOnly libs.junit.jupiter.engine
+    testRuntimeOnly libs.junit.platform.launcher
+    testImplementation libs.assertj.core
+}
+
+java {
+    sourceCompatibility = 25
+    targetCompatibility = 25
+}
+
+tasks.named('test', Test) {
+    useJUnitPlatform()
+}

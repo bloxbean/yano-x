@@ -2,6 +2,8 @@
 
 - **Status:** Accepted and implemented on `feat/products-oob` (2026-09-06); §12 records the
   deviations. Implements ADR-046 §4.3.
+- **First release (ADR-055):** the Evidence Desk UI was removed; the evidence product itself
+  remains.
 - **Scope:** `products/evidence/ui`, one browser UI over the role workflow and the evidence
   product; no consensus, contract, or node change
 - **Relates to:** ADR-046 §4.3, ADR-040 (product UIs), ADR-047 (Attest, whose UI scaffold and

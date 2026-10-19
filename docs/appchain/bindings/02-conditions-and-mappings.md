@@ -61,9 +61,16 @@ previous value hash. Do not assume every event contains the command's full
 payload: fields are event-specific. The compiler checks field names and types
 against the selected kernel's descriptors.
 
-With the offline `context.json` and registry `fixture.json` from the
-[CLI fixture example](../DECLARATIVE_BINDINGS_CLI.md#dry-run-fixture-and-limits-of-assurance),
-use the extracted distribution's launcher and plugins:
+This chapter reuses two files from [Chapter 1](01-first-workflow.md), unchanged:
+`context.json` from [step 3](01-first-workflow.md#3-declare-the-rehearsal-context)
+and the registry `fixture.json` from
+[step 5](01-first-workflow.md#5-submit-an-offline-test-command). They are the
+same inputs as the
+[CLI fixture example](../DECLARATIVE_BINDINGS_CLI.md#dry-run-fixture-and-limits-of-assurance).
+`conditions.yml` is new, although its content matches Chapter 1's
+`bindings.yaml` after you restored the `< 100` condition. Run from the same
+directory as in Chapter 1, the distribution's top-level directory, so the
+commands find `./yano.sh`, `plugins/` and those files:
 
 ```bash
 ./yano.sh appchain bindings validate conditions.yml \

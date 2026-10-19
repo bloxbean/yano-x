@@ -36,9 +36,8 @@ export default {
         + 'Kafka sink for finalized blocks.',
     },
     {
-      id: 'products', label: 'Products', sub: 'Evidence, Attest, …', kind: 'runtime',
-      detail: 'Evidence, Cardano History, Attest, Trust Registry, Verifiable Explorer, DPP Starter, Attestation '
-        + 'Feed, and the eUTxO ledger.',
+      id: 'products', label: 'Products', sub: 'Evidence, History, …', kind: 'runtime',
+      detail: 'Evidence, Cardano History, and the eUTxO ledger.',
       link: { label: 'Products', href: '/products/' },
     },
     {

@@ -223,70 +223,45 @@ not a separately signed finalized message, so it cannot be passed off as an
 ADR-047 signed-message attestation certificate. Prove its receipt and trail
 state instead.
 
-## Generate real governed DPP or feed bindings
+## Governed DPP and feed examples
 
 Consensus-member voting is useful for the small exercise. Business actors in
-different organizations need the actor-signed policy path. The DPP and feed
-generators use the existing product profile builders and real authenticated-map
-schemas; they do not replace authorization with a boolean binding condition.
+different organizations need the actor-signed policy path, which does not
+replace authorization with a boolean binding condition. The distribution ships
+two examples of it over real authenticated-map schemas and policies:
+`examples/bindings/dpp-approval.yaml`, a product passport certification, and
+`examples/bindings/feed-approval.yaml`, a data feed round approval. Their genesis
+uses deterministic demo identities: never use their keys in production.
 
-Prepare `actors.json`, a schema-version-1 public descriptor containing your
-`chainId`, organizations, actors, and authority. Each actor includes `id`,
-`organizationId`, `roles`, `keyId`, `publicKeyHex`, and a full encoded
-`keyProofHex`. Authority includes `id`, `administratorActorIds`,
-`distinctActorThreshold`, and `maximumLifetimeBlocks`. Optional `issuers` and
-`schemas` must be empty for these starters. `members.json` is an array of the
-actual consensus member public-key hex strings.
-
-Obtain each chain-bound proof of key possession through the documented offline
-role CLI in [recipe generation](../DECLARATIVE_BINDINGS_CLI.md#generate-governed-recipes-for-your-own-chain).
-The descriptor contains public material only; the generator never reads seeds.
-A signature alone is not the encoded key-proof object, and changing the chain
-ID requires new proofs. Do not reuse the exercise's assumed envelope proof.
+Validate the DPP example with the governed context shipped beside its
+role-gated variant, which uses the same demo genesis:
 
 ```bash
-./yano.sh appchain bindings recipe dpp \
-  --descriptor actors.json --members members.json --threshold 2 > recipe.json
-jq '.document' recipe.json > governed-bindings.yml
-jq '.context' recipe.json > governed-context.json
-./yano.sh appchain bindings validate governed-bindings.yml \
-  --plugins-directory plugins --context governed-context.json
+./yano.sh appchain bindings validate examples/bindings/dpp-approval.yaml \
+  --plugins-directory plugins \
+  --context examples/bindings/fixtures/dpp-role-gated/context.json
 ```
 
-Use `feed` in place of `dpp` for the round-approval starter. The extracted JSON
-document is valid YAML input. The generator substitutes no demo identities;
-review the emitted members, proposer, threshold, and block interval when
-configuring your chain. Regenerate if these genesis inputs change instead of
-editing opaque genesis CBOR.
+The DPP roles are `manufacturer`, `operator`, `claim-issuer`, `certifier`, and
+`auditor`, with `dpp-admin` administration; certification needs two auditors
+from two different organizations. Feed uses `source`, `feed-operator`, and
+`publisher`, with `feed-admin` administration. Actors need not be consensus
+members. For your own organizations, actors, and keys, declare a governed map's
+genesis in a project and render it, as described in
+[governed collections](../state-machines/authenticated-map.md#governed-collections).
+The DPP and feed starter generators moved with those products to
+[yano-x-products](https://github.com/bloxbean/yano-x-products). The feed example
+has no shipped context, so read it alongside the DPP one rather than validating
+it.
 
-DPP starter roles are `manufacturer`, `operator`, `claim-issuer`, `certifier`,
-and `auditor`, with `dpp-admin` administration. Feed uses `source`,
-`feed-operator`, and `publisher`, with `feed-admin` administration. Actors need
-not be consensus members.
-
-The descriptor must be able to satisfy every starter policy at height 1, or the
-generator refuses it and names the policy:
-
-| Starter | Needs active actors with signing keys: at least |
-|---|---|
-| `dpp` | one `manufacturer`, one `operator` and one `claim-issuer`; one `certifier` to propose a certification; and **two `auditor` actors in two different organizations** to approve it |
-| `feed` | one `feed-admin` and one `source`; one `feed-operator` to propose a round; and **two `publisher` actors in two different organizations** to approve it |
-
-One actor can hold several roles, but two auditor or publisher keys in one
-organization count once. With a single auditor organization, `dpp` fails with
-`starter policy 'certification' clause 'independent-auditors' needs 2 eligible
-genesis voters with role 'auditor', distinct by ORGANIZATION`. Generation checks
-these holders and quorums at height 1, not every future business prerequisite or
-arbitrary custom policy.
-
-The generated assembly connects three catalog leaves:
+Each example connects three catalog leaves:
 
 1. `domain-actors-component` supplies genesis-fixed actor authority.
 2. `governed-role-approvals` accepts actor-signed proposals/votes and stages the
    proposed action through `StagedActorCommandV1`.
 3. `authenticated-map-component` verifies and applies the approved action.
 
-The generated binding is small because the target owns the hard checks:
+The binding is small because the target owns the hard checks:
 
 ```yaml
 - id: apply-approved
@@ -299,8 +274,7 @@ The generated binding is small because the target owns the hard checks:
       approvalReference: {field: proposalId}
 ```
 
-This excerpt belongs inside the generated document; its genesis configuration
-must come from your descriptor. A proposal stages at most 32,768 action bytes.
+The genesis configuration in each example is fixed. A proposal stages at most 32,768 action bytes.
 At approval, the map recomputes the signed scoped action hash and verifies the
 approval reference. A mismatched action rolls back the threshold vote and map
 write together, preserves the pending proposal/action, and retains the crypto
@@ -325,14 +299,13 @@ governed context are in `examples/bindings/fixtures/dpp-role-gated/`.
 
 The initial actor leaf is genesis-fixed: it has no actor rotation or derived
 governance-command route. It is not feature-equivalent to every standalone
-governed preset. Existing portals and list projections that replay original
-map envelopes do not automatically discover derived map writes; exact known-key
+governed preset. List projections that replay original map envelopes do not
+automatically discover derived map writes; exact known-key
 proofs are the qualified read path. Feed aggregation stays off chain and
 independently recomputable, not an on-chain price oracle or Cardano publication.
 
-Continue with the [DPP starter](../DPP_STARTER.md),
-[attestation-feed guide](../ATTESTATION_FEED.md), and
-[domain-role tutorial](../tutorials/05-domain-role-approvals.md) for the product
+Continue with the
+[domain-role tutorial](../tutorials/05-domain-role-approvals.md) for the role
 commands and policies. Before evolving the configuration, read
 [operations and upgrades](05-operations-and-upgrades.md): a new generation does
 not migrate genesis-bound state.
@@ -340,7 +313,7 @@ not migrate genesis-bound state.
 Source coverage for this exercise is
 `AppChainFinalDistributionAcceptanceTest.packagedProposalAndTwoVotesCarryStateAndRejectSkippedEmptyHeights`.
 `BindingRecipesIT` covers the checked-in recipes through live/offline receipt
-parity; `BindingCliTest` and `BindingCliIT` cover caller-specific generation and
-catalog validation. These are existing verification sources, not newly run tests.
+parity; `BindingCliIT` covers catalog validation. These are existing verification
+sources, not newly run tests.
 
 [Next: Submit commands and inspect receipts from Java](04-java-integration.md)
