@@ -112,6 +112,18 @@ rules:
 - Composite validation checks that a component's command format is compatible with its topic's
   schema: a schema on a typed-kernel topic (for example `balances`) is refused, because those
   kernels define their own command codec; schemas are for opaque-body machines and plugins.
+- **Framed commands decode as commands.** On a protected topic the message body is the core frame
+  `[version, payload, proof]`, but core D7a hands every machine hook a payload view whose
+  `getBody()` is the verified payload, with the original `messageId`, topic and sender. Composites
+  therefore keep decoding `source.getBody()` unchanged: `EventBindingWorkflow` admission
+  (`validateKernel`), the queued step in apply and `commandHash` all see the command
+  (`[op, account, amount]` for `balances`), never the frame. Nothing in Yano X re-parses the frame.
+- The command hash a composite records is over the payload, the command actually executed; the
+  original framed message, its `messageId` and its proof remain the authorship evidence (core I15).
+- Tests (MX3): the same composite runs with its `balances` and `ordered-log` components on open and
+  on protected topics and yields identical component state; a framed command is accepted at
+  admission and applied; a message proof for a framed command verifies against the finalized
+  framed bytes.
 
 ### X6 — Studio and the consoles
 
@@ -164,6 +176,7 @@ inputs), or tell a bot from a human.
 | IX3 | `payload.*` and `writer.*` are read-only, derived from core's verified view, and never expose signatures. | X4 |
 | IX4 | No Yano X tool or UI ever transmits a private key; keys are read from files or external signers only. | X3, X6, X7 |
 | IX5 | Client libraries reproduce every core test vector byte for byte. | X7 |
+| IX6 | A composite yields the same component state whether its commands arrive framed on protected topics or unframed on open ones; proofs still cover the framed message. | X5 |
 
 ## 4. Alternatives considered
 
@@ -180,7 +193,7 @@ inputs), or tell a bot from a human.
 |---|---|---|---|
 | MX1 | X1, X2: evaluator switch and compiler rename | core M4 released and pinned | IX1 via the existing authenticated-map schema vectors |
 | MX2 | X7 client libraries | core M1 vectors frozen | IX5 |
-| MX3 | X3 CLI and X5 composite checks | core M3 released and pinned | IX2; doctor checks; a 3-node cluster scenario |
+| MX3 | X3 CLI and X5 composite checks and framed-command tests | core M3 and M5 released and pinned | IX2, IX6; doctor checks; a 3-node cluster scenario |
 | MX4 | X4 admission-rule views | core M5 released and pinned | IX3; rule vectors replayed offline |
 | MX5 | X6 Studio, X8 reference, X9 docs | MX3, MX4 | the game-center scenario passes end to end; docs published |
 
@@ -190,7 +203,8 @@ inputs), or tell a bot from a human.
 - **V2:** CLI, Studio and both client libraries reproduce core's frame, delegation and command
   vectors.
 - **V3:** rule-view tests: payload projections, writer fields, static-rule ingress refusals, and
-  order of evaluation (policy → machine → rules).
+  order of evaluation (policy → machine → rules); framed typed-kernel commands decode identically at
+  admission and in apply, and their proofs verify against the framed message (IX6).
 - **V4:** the reference game-center scenario on a 3-node cluster: delegation issue, ride accepted,
   forged / replayed / expired / out-of-scope rides refused, issuer rotation, recovery drill.
 
@@ -205,3 +219,6 @@ inputs), or tell a bot from a human.
 ## Revision history
 
 - r1 (2026-10-22): initial proposal, companion to core ADR app-layer/039 r1.
+- r2 (2026-10-22; responds to the automated review of `4ac4a9d8`): F1 (framed bodies reach
+  typed-kernel codecs) → resolved in core ADR-039 r2 D7a (payload view for machine hooks); X5 states
+  the effect on composites and `commandHash` and adds tests; new IX6; MX3 gate and V3 updated.
