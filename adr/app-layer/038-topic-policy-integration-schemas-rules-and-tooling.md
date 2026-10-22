@@ -115,10 +115,27 @@ derived steps, so the view is:
 - Rules test membership (`writer.signers contains <key>`, `size(writer.signers) >= 2`); there is no
   singular `writer.key`, so no outcome depends on proof order.
 - A derived step carries `source.writer.*` and `source.topic` as **provenance only**: they describe
-  the message that started the cascade, never authority to write the target component's topic. A
-  composite whose binding derives into a component on a protected topic must declare
-  `crossesTopicPolicy: true` on that binding; composite validation refuses the program otherwise,
-  so a source proof never silently stands in for target-topic authorization.
+  the message that started the cascade, never authority to write the target component's topic.
+- **Crossing into a protected topic is checked per step, at the candidate height.** Program
+  validity stays structural and never reads the registry: `crossesTopicPolicy: true` is an optional
+  per-binding permission that validation accepts whatever the current policies are, so a running
+  and a restarted node always agree on whether a committed program is valid. Each derived step
+  then looks up its target topic's effective policy in the committed registry at the candidate
+  height (core D7a/D15), the same input on every member, at admission, in apply and on replay:
+
+  | Target's effective policy at the candidate height | Binding without the flag | Binding with the flag |
+  |---|---|---|
+  | open writers, or unregistered under `unregistered-topics: open` | step runs | step runs |
+  | protected writers | refused: `RULE_TOPIC_POLICY_CROSSING` | step runs; its view still has `writer.kind = none` |
+  | retired entry | refused: `TOPIC_RETIRED` | refused: `TOPIC_RETIRED` |
+  | unregistered under `unregistered-topics: reject` | refused: `TOPIC_UNREGISTERED` | refused: `TOPIC_UNREGISTERED` |
+
+  A refused step fails the cascade exactly like any other derived-step rule refusal (the ADR-031.3
+  direct/derived no-bypass contract). The flag is only a permission to cross a writer policy; it
+  never stands in for the lookup, so retirement and `reject` still apply. When an owner protects a
+  topic at height h, a previously accepted program without the flag keeps working until h and its
+  crossing steps are refused from h on, on every member and on replay. `appchain doctor` and
+  Studio warn before activation when a pending protection would start refusing a binding.
 - Reading an absent field is a deterministic refusal (`RULE_FIELD_UNAVAILABLE`), never a default.
 - Raw signatures remain unreadable (`RULE_EVIDENCE_READ` stands).
 
@@ -172,7 +189,9 @@ rules:
 ### X6 — Studio and the consoles
 
 - A **Topics** view: the namespace tree, each entry's owners, writers, delegators, schema and
-  revision history, and a `topic-policy-v1` proof for any entry at any height.
+  revision history. The entry inspector requests a `topic-entry-v1` proof for an entry at a height;
+  the topic resolver requests a `topic-policy-v1` effective-policy proof for a topic at a height
+  (core D15).
 - A policy editor that produces the same `topics.yaml` and plan as the CLI. Studio never holds or
   requests private keys; it exports unsigned commands for the CLI or an external signer.
 
@@ -222,7 +241,7 @@ inputs), or tell a bot from a human.
 | IX5 | Client libraries reproduce every core test vector byte for byte. | X7 |
 | IX6 | A composite decodes the same commands and produces the same identity-independent effects whether they arrive framed or unframed; identity-dependent state and proofs correspond to each original message. | X5 |
 | IX7 | A rule reading `payload.*` evaluates only under a schema hash its committed program declares, and refuses otherwise; no schema change reinterprets a committed rule. | X4 |
-| IX8 | Writer views are independent of proof order, and a derived step never presents a source writer as authority for its target topic. | X4 |
+| IX8 | Writer views are independent of proof order, and a derived step never presents a source writer as authority for its target topic. Composite program validity never depends on registry state; crossing into a protected, retired or rejected-unregistered target is decided per step from the registry at the candidate height. | X4 |
 
 ## 4. Alternatives considered
 
@@ -257,7 +276,10 @@ inputs), or tell a bot from a human.
   `RULE_PAYLOAD_SCHEMA_MISMATCH` result (IX7); **writer matrix**: threshold proofs with the same
   signers in different orders, a delegated source deriving into a protected target with and without
   `crossesTopicPolicy`, derived-step reads of `writer.*` and `payload.*`, and an open topic with no
-  writer (IX8).
+  writer (IX8); **crossing across activation**: a program accepted while its target is open, then
+  the target protected at height h (steps before h run, from h refused without the flag), the same
+  sequence after a node restart and in offline replay, a retired target and an unregistered target
+  under `reject` with and without the flag.
 - **V4:** the reference game-center scenario on a 3-node cluster: delegation issue, ride accepted,
   forged / replayed / expired / out-of-scope rides refused, issuer rotation, recovery drill.
 
@@ -284,3 +306,8 @@ inputs), or tell a bot from a human.
   IX6 narrowed to decoded commands and identity-independent effects, with per-message index and
   proof correspondence; X5 and V3 updated. X3 updated for core r3 (generation-bound commands with
   head revisions, effective-policy proofs).
+- r4 (2026-10-22; responds to the review of `db37e961f`): F3 completion → `crossesTopicPolicy` is a
+  structural permission; program validity never reads the registry; each derived step checks its
+  target's effective policy at the candidate height (protected without the flag, retired, and
+  rejected-unregistered targets refuse); IX8 and V3 updated. F5 → X6 uses `topic-entry-v1` for the
+  entry inspector and `topic-policy-v1` for resolved topics.
