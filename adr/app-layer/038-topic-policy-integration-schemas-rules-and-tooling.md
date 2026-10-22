@@ -64,25 +64,63 @@ CBOR:
 | Command | Does |
 |---|---|
 | `topics init <namespace>` | writes a local `topics.yaml` (owners, policies, schemas as CDDL) |
-| `topics plan` | compiles schemas, resolves inheritance, shows the exact registry commands and their effect |
+| `topics plan` | compiles schemas, resolves inheritance, reads the chain's generation id and each target's head revision, shows the exact command statements (core D5a) and their effect |
 | `topics sign --key-file <f>` | adds an owner, registrar or issuer signature (keys by file only, never on the command line) |
 | `topics submit --peer <url>` | submits to `~topics/registry`, or prints the governance command for members |
-| `topics resolve <topic>` | the effective policy and the entry it came from, with a `topic-policy-v1` proof |
+| `topics resolve <topic>` | the effective policy, the entries and revisions it came from, and a `topic-policy-v1` effective-policy proof (core D15) |
 | `topics delegate` | issues a delegation for a session key (for testing and small deployments) |
-| `topics verify <messageId>` | offline authorship proof: message proof + frame + policy proof at its height |
+| `topics verify <messageId>` | offline authorship proof: message proof + frame + generation id + effective-policy proof for its topic and height; refuses an entry-only proof |
 
 Owner keys can be split across machines: `plan` produces an unsigned command file that each owner
-signs until the threshold is met (k-of-n).
+signs until the threshold is met (k-of-n). The command names the head revision it expects and a
+`notAfter`, so a plan that waits too long, or races another change, fails with
+`TOPIC_COMMAND_STALE` or `TOPIC_COMMAND_EXPIRED` and is re-planned; it is never silently applied
+to a newer policy.
 
 ### X4 — Admission rules see typed payloads and the verified writer
 
-ADR-031.3 rules gain two read-only views when the core topic registry is enabled:
+ADR-031.3 rules gain two read-only views when the core topic registry is enabled. Both come from
+core's `TopicMessageView` (core D7a), which is attached to the message every hook receives, so
+admission and apply see the same values. No node-local cache or tool output decides them.
 
-- `payload.<field>` — for a topic with a schema whose root is a text-keyed map, its first 32
-  top-level scalar members (the same projection rule the authenticated-map value view already uses
-  in ADR-031.4). This makes rules work on `ordered-log` components for the first time.
-- `writer.key`, `writer.delegated` and `writer.issuer` — from core's verified writer. Raw signatures
-  remain unreadable (`RULE_EVIDENCE_READ` stands).
+**`payload.*` and its schema contract.** Topic schemas can change through owner commands, so a rule
+cannot simply follow "the topic's schema":
+
+- A component that reads `payload.*` declares `payloadSchemas: [<irHash>, …]` in its committed
+  composite program. Every rule on it is type-checked against each listed schema when the program
+  is compiled and validated, and is accepted only if it type-checks under all of them. The
+  projection is fixed per schema: for a text-keyed map root, its first 32 top-level scalar members
+  (the ADR-031.4 authenticated-map value-view rule).
+- At evaluation the rule engine reads the message's effective schema hash from the view. If it is
+  one of the declared hashes, the rule runs on that schema's projection. Otherwise — a different
+  schema, no schema, an open or unregistered topic — every rule that reads `payload.*` refuses
+  with `RULE_PAYLOAD_SCHEMA_MISMATCH`. It fails closed, it never reinterprets bytes, and it is the
+  same on every member because the hash comes from the committed registry at the candidate height.
+- Schema evolution is therefore explicit: list the new hash in the program (an ADR-031 program
+  change), then let the owners activate the new schema, then drop the old hash. `appchain doctor`
+  and Studio warn when an active or pending topic schema is not listed by a component bound to it.
+  A pending schema change takes effect at its activation height, so mempool messages are
+  re-admitted against the candidate height's view, as for every other admission input.
+
+**`writer.*` — a view matrix.** A scalar "writer key" is ill-defined for threshold proofs and for
+derived steps, so the view is:
+
+| Arrival | `writer.kind` | `writer.signers` | `writer.issuer` | `payload.*` |
+|---|---|---|---|---|
+| direct, protected topic, k-of-n writers | `direct` | the canonical signer set (sorted bytewise, deduplicated) | absent | the verified payload, by the schema contract |
+| direct, protected topic, delegated | `delegated` | `{session key}` | the issuer | as above |
+| direct, open or unregistered topic | `none` | empty | absent | by the schema contract (refuses if no declared schema matches) |
+| derived step in a composite | `none` | empty | absent | unavailable — rules read `command.*`, as today |
+
+- Rules test membership (`writer.signers contains <key>`, `size(writer.signers) >= 2`); there is no
+  singular `writer.key`, so no outcome depends on proof order.
+- A derived step carries `source.writer.*` and `source.topic` as **provenance only**: they describe
+  the message that started the cascade, never authority to write the target component's topic. A
+  composite whose binding derives into a component on a protected topic must declare
+  `crossesTopicPolicy: true` on that binding; composite validation refuses the program otherwise,
+  so a source proof never silently stands in for target-topic authorization.
+- Reading an absent field is a deterministic refusal (`RULE_FIELD_UNAVAILABLE`), never a default.
+- Raw signatures remain unreadable (`RULE_EVIDENCE_READ` stands).
 
 Rules that read only `payload` and `params` are static and refuse at ingress, like today's static
 rules. Order is fixed: the core topic policy runs first, then the machine's own admission, then the
@@ -95,6 +133,7 @@ components:
   - id: rides
     machine: ordered-log
     topic: games/neon-rush/rides
+    payloadSchemas: [<ride-v1 irHash>]
     admission:
       - rule: ride-bounds
 rules:
@@ -102,7 +141,7 @@ rules:
     deny: RIDE_OUT_OF_BOUNDS
     require:
       - expr: 'payload.frames >= 1200 && payload.frames <= 9000'
-      - expr: 'writer.delegated'          # only session keys issued by the game service
+      - expr: 'writer.kind == "delegated"'   # only session keys issued by the game service
 ```
 
 ### X5 — Composites bind to registered topics
@@ -120,10 +159,15 @@ rules:
   (`[op, account, amount]` for `balances`), never the frame. Nothing in Yano X re-parses the frame.
 - The command hash a composite records is over the payload, the command actually executed; the
   original framed message, its `messageId` and its proof remain the authorship evidence (core I15).
-- Tests (MX3): the same composite runs with its `balances` and `ordered-log` components on open and
-  on protected topics and yields identical component state; a framed command is accepted at
-  admission and applied; a message proof for a framed command verifies against the finalized
-  framed bytes.
+- Framing changes the envelope's `messageId` (it covers the body), so identity-dependent state —
+  the finalized-message index `ordered-log` maintains, cascade receipts, derived ids, deduplication
+  — legitimately differs between a framed and an unframed submission of the same command. Nothing
+  synthesizes an unframed id to hide that.
+- Tests (MX3): the same composite on open and on protected topics yields **equivalent decoded
+  commands and identity-independent effects** (for example `balances` amounts and the effects it
+  emits); separately, for each original message, the finalized-message index, receipts and message
+  proofs correspond to that message's own id and framed bytes; a framed command is accepted at
+  admission and applied.
 
 ### X6 — Studio and the consoles
 
@@ -173,10 +217,12 @@ inputs), or tell a bot from a human.
 |---|---|---|
 | IX1 | Existing authenticated-map schemas accept and reject exactly the same values before and after X1. | X1 |
 | IX2 | The CLI and Studio produce byte-identical registry commands from the same `topics.yaml`. | X3, X6 |
-| IX3 | `payload.*` and `writer.*` are read-only, derived from core's verified view, and never expose signatures. | X4 |
+| IX3 | `payload.*` and `writer.*` are read-only, derived from core's verified view at admission and apply alike, and never expose signatures. | X4 |
 | IX4 | No Yano X tool or UI ever transmits a private key; keys are read from files or external signers only. | X3, X6, X7 |
 | IX5 | Client libraries reproduce every core test vector byte for byte. | X7 |
-| IX6 | A composite yields the same component state whether its commands arrive framed on protected topics or unframed on open ones; proofs still cover the framed message. | X5 |
+| IX6 | A composite decodes the same commands and produces the same identity-independent effects whether they arrive framed or unframed; identity-dependent state and proofs correspond to each original message. | X5 |
+| IX7 | A rule reading `payload.*` evaluates only under a schema hash its committed program declares, and refuses otherwise; no schema change reinterprets a committed rule. | X4 |
+| IX8 | Writer views are independent of proof order, and a derived step never presents a source writer as authority for its target topic. | X4 |
 
 ## 4. Alternatives considered
 
@@ -194,7 +240,7 @@ inputs), or tell a bot from a human.
 | MX1 | X1, X2: evaluator switch and compiler rename | core M4 released and pinned | IX1 via the existing authenticated-map schema vectors |
 | MX2 | X7 client libraries | core M1 vectors frozen | IX5 |
 | MX3 | X3 CLI and X5 composite checks and framed-command tests | core M3 and M5 released and pinned | IX2, IX6; doctor checks; a 3-node cluster scenario |
-| MX4 | X4 admission-rule views | core M5 released and pinned | IX3; rule vectors replayed offline |
+| MX4 | X4 admission-rule views, schema contract and writer matrix | core M5 released and pinned | IX3, IX7, IX8; rule vectors replayed offline |
 | MX5 | X6 Studio, X8 reference, X9 docs | MX3, MX4 | the game-center scenario passes end to end; docs published |
 
 ## 6. Verification
@@ -204,7 +250,14 @@ inputs), or tell a bot from a human.
   vectors.
 - **V3:** rule-view tests: payload projections, writer fields, static-rule ingress refusals, and
   order of evaluation (policy → machine → rules); framed typed-kernel commands decode identically at
-  admission and in apply, and their proofs verify against the framed message (IX6).
+  admission and in apply, with index and proof correspondence per original message (IX6);
+  **schema contract**: a schema change activating at height h (before, at and after the boundary),
+  an inherited schema changed on the parent entry, a mempool message re-admitted across the
+  boundary, a node restarted mid-transition, and offline replay, each yielding the same accept or
+  `RULE_PAYLOAD_SCHEMA_MISMATCH` result (IX7); **writer matrix**: threshold proofs with the same
+  signers in different orders, a delegated source deriving into a protected target with and without
+  `crossesTopicPolicy`, derived-step reads of `writer.*` and `payload.*`, and an open topic with no
+  writer (IX8).
 - **V4:** the reference game-center scenario on a 3-node cluster: delegation issue, ride accepted,
   forged / replayed / expired / out-of-scope rides refused, issuer rotation, recovery drill.
 
@@ -215,6 +268,7 @@ inputs), or tell a bot from a human.
 | OQ-X1 | Should `payload.*` project nested fields or arrays? | No in v1; match the authenticated-map value view. |
 | OQ-X2 | Where does the reference delegation service live? | In `yano-x-examples`, not in the distribution. |
 | OQ-X3 | Publish the JavaScript client as an npm artifact now? | Not until core formats are frozen (core M1). |
+| OQ-X4 | Should core instead refuse a schema change that a bound composite does not declare? | No: core does not know composites; Yano X fails closed (IX7) and warns before activation. |
 
 ## Revision history
 
@@ -222,3 +276,11 @@ inputs), or tell a bot from a human.
 - r2 (2026-10-22; responds to the automated review of `4ac4a9d8`): F1 (framed bodies reach
   typed-kernel codecs) → resolved in core ADR-039 r2 D7a (payload view for machine hooks); X5 states
   the effect on composites and `commandHash` and adds tests; new IX6; MX3 gate and V3 updated.
+- r3 (2026-10-22; responds to the review of `0e5157454` with core bloxbean/yano#197 at
+  `d9e209480`): F2 → X4 schema contract (`payloadSchemas`, fail-closed
+  `RULE_PAYLOAD_SCHEMA_MISMATCH`, explicit evolution, candidate-height view at admission via core
+  D7a); new IX7, OQ-X4, MX4, V3. F3 → X4 writer view matrix (canonical signer set, no singular
+  key, derived steps carry provenance only, `crossesTopicPolicy` declaration); new IX8, V3. F4 →
+  IX6 narrowed to decoded commands and identity-independent effects, with per-message index and
+  proof correspondence; X5 and V3 updated. X3 updated for core r3 (generation-bound commands with
+  head revisions, effective-policy proofs).
