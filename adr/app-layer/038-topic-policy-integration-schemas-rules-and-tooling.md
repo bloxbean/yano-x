@@ -67,7 +67,7 @@ CBOR:
 | `topics plan` | compiles schemas, resolves inheritance, reads the chain's generation id and each target's head revision, shows the exact command statements (core D5a) and their effect |
 | `topics sign --key-file <f>` | adds an owner, registrar or issuer signature (keys by file only, never on the command line) |
 | `topics submit --peer <url>` | submits to `~topics/registry`, or prints the governance command for members |
-| `topics resolve <topic>` | the effective policy, the entries and revisions it came from, and a `topic-policy-v1` effective-policy proof (core D15) |
+| `topics resolve <topic>` | the effective outcome (disabled, a resolved policy, or the unregistered fallback), the configuration revision and the entries and revisions it came from, and a `topic-policy-v1` effective-policy proof (core D15) |
 | `topics delegate` | issues a delegation for a session key (for testing and small deployments) |
 | `topics verify <messageId>` | offline authorship proof: message proof + frame + generation id + effective-policy proof for its topic and height; refuses an entry-only proof |
 
@@ -311,3 +311,5 @@ inputs), or tell a bot from a human.
   target's effective policy at the candidate height (protected without the flag, retired, and
   rejected-unregistered targets refuse); IX8 and V3 updated. F5 → X6 uses `topic-entry-v1` for the
   entry inspector and `topic-policy-v1` for resolved topics.
+- r5 (2026-10-24; follows core bloxbean/yano#197 r7 F17): `topics resolve` returns the effective
+  outcome, including the unregistered fallback and the configuration revision, matching core D15.
