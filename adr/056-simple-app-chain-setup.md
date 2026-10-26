@@ -193,12 +193,13 @@ Three identities, each with its own name in the tool:
 - **Accepted bundles**: `join` records the sealed bundle digests as this node's accepted set, and
   `start` checks the installed bundles against it. After a host upgrade, or for a later member on a
   newer release, `join --accept-bundles` shows which bundles changed and records the new set, in a
-  logged step. `status` compares the plugin catalog fingerprint each member reports.
+  logged step. `status` shows this node's plugin catalog fingerprint (the identity route that reports
+  it is private to each node), and operators compare it on the same call as the chain fingerprint.
 - **Effective runtime identity**: what a running node reports (`GET /api/v1/app-chain/chains`).
   `status` compares it across members, together with the Cardano network genesis id (on devnet it
   only exists after the lead's first start, so it is outside the fingerprint; see D11). The runtime
-  does not report that id, so `status` hashes each node's stored genesis file and compares the
-  results.
+  does not report that id, so `status` shows the hash of this node's stored genesis file for operators
+  to compare; the genesis ids of every chain it compares across members itself.
 
 The runtime is unchanged: it already takes `state.genesis-id` as a setting and already validates a
 derived one.
@@ -224,7 +225,9 @@ the admin calls `approve` and `anchor` make, and storage under the node director
 change later without a new chain: `join --peer bob=host:port` overrides one peer, and `status`
 names unreachable peers. On Linux, `join` also writes a systemd unit file and prints the command to
 install it. Once the unit is installed and enabled, `start`, `stop` and the restarts that `approve`
-and `anchor` make go through `systemctl`, so one node never has two managers.
+and `anchor` make go through `systemctl`, so one node never has two managers. Node-only settings, such
+as connector endpoints, go in `config/local.yaml`, which `join` creates once and never rewrites; it wins
+over the generated node settings, and `start` refuses it when it sets any sealed consensus key.
 
 ### D5 — Membership changes are governed and quorum-safe
 
@@ -273,7 +276,8 @@ step. The files and checks are those of Phase A, only carried automatically:
 
 - No node and no runtime plugin is involved; the listener is part of the CLI and stops once every
   operator has received the `.chain`, or when the links expire.
-- Links are single-use and expire (default 24 hours).
+- Links are single-use per operator and expire (default 24 hours). Running `request <link>` again
+  after an interruption resumes: it skips the card once the application is sealed.
 - A link is an invitation, not a credential that protects anything secret. Everything transferred is
   public and checked by invite code or signature. Someone who steals a link can at most post a card
   under an expected name; the real operator's `join` then refuses because its own key is missing, and
@@ -286,7 +290,8 @@ step. The files and checks are those of Phase A, only carried automatically:
 has the same steps as the CLI: create (wizard), members, seal, join, and status, with a link to the
 node's own console once live. The binding editor (ADR-031.2) becomes the optional "workflow" step of
 create. The UI is plain static HTML and ES modules with no build step, like Studio's binding editor, so
-the editor folds in directly; every action runs the same CLI command in-process, so files written from
+the editor folds in directly (it is served from the release's `studio/`, and imports a draft's
+composite chains); Studio stops being a separate release archive; every action runs the same CLI command in-process, so files written from
 the browser are byte-identical to the CLI's. It lives in Yano X, is served by the CLI on 127.0.0.1 with
 a one-time token in the URL, and needs no node, plugin or Yano change. Yano's node console stays in
 Yano.
@@ -508,3 +513,6 @@ and E (publishing the chain fingerprint and member cards on Cardano).
 - **r9** (2026-10-27; implementation findings): D2 states the exact genesis-id input; D7 builds the setup
   UI as static modules like the binding editor instead of a separately built app; D9 lists the removed
   project validation mode and where the role bootstrap plan template now comes from.
+- **r10** (2026-10-27; implementation): D4 adds `config/local.yaml`; D2 and D11 say which values
+  `status` compares itself and which operators compare from its output; D6 states that a link request
+  resumes; D7 serves the binding editor from the release and ends the separate Studio archive.
