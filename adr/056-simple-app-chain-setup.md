@@ -294,11 +294,12 @@ CLI, and needs no node, plugin or Yano change. Yano's node console stays in Yano
 - `tooling:appchain-cli`: the verbs above. It is installed at `tools/yano-appchain/` in the JVM ZIP,
   where Yano's `yano.sh appchain` already dispatches every verb except `cluster`. It uses the recipe
   and capability compiler from `tooling:devtools` and delegates the verbs devtools keeps (D9).
-- A **self-contained jlink image per OS** is also published for coordinators who do not run a node:
-  it holds the CLI, a trimmed Java 25 runtime and the stock plugin bundles needed to validate a draft.
-  It is built from the same release as the ZIP, and `.chain` records that release. Operators who run
-  a node still use the JVM ZIP and Java 25. It is not GraalVM native: Yano X is JVM-only
-  (`verifyJvmOnlyBuild`), and validating a draft loads plugin bundles through
+- The CLI ships only inside the Yano X JVM ZIP; there is no separate CLI download.
+- A **self-contained edition of the whole Yano X distribution** is also published per OS: the same
+  content as the JVM ZIP plus a jlink-trimmed Java 25 runtime that `yano.sh` and the tools use when it
+  is present. Neither coordinators nor operators then install Java, and the CLI comes with it. It is
+  built from the same release as the ZIP, and `.chain` records that release. It is not GraalVM native:
+  Yano X is JVM-only (`verifyJvmOnlyBuild`), and validating a draft loads plugin bundles through
   `PluginProviderRegistry`, which needs a JVM.
 
 ### D9 — What this replaces
@@ -364,6 +365,8 @@ so it is not part of the `.chain` file. Instead:
 2. Every other node's first `start` downloads it from the lead's node
    (`GET /api/v1/devnet/genesis/download`), stores it, and refuses later starts if it changes.
 3. Funding for anchoring on devnet goes through the lead's node, the only one with the devnet faucet.
+4. On a devnet the lead is also the only anchor leader: follower nodes keep no Cardano wallet (UTxO)
+   view on this Yano release, so `anchor` refuses elsewhere and names the lead.
 
 The download is not authenticated beyond the lead's address, which is acceptable for a test network:
 `status` compares the resulting Cardano genesis id across all members, so a substituted file shows up
@@ -401,7 +404,7 @@ and `status` shows the sync progress.
 |---|---|---|
 | **A1** | `appchain-formats`; `new`, `request`, `seal`, `inspect` | Three cards from three node directories seal into one file whose fingerprint every directory reproduces; bad, duplicate and foreign cards are refused |
 | **A2** | `join`, `start`, `stop`, `status`, `try`, `approve`, `anchor`; old verbs and the blueprint page removed; docs and tutorials rewritten | A new user finishes `try` using only printed instructions; a three-node application (separate node directories and ports) goes live, grows to four members with `approve`, anchors on devnet with one command and survives a restart |
-| **A3** | jlink image per OS | The image creates and seals an application on a machine without Java |
+| **A3** | Self-contained Yano X edition per OS (JVM ZIP plus a jlink runtime) | On a machine without Java, the edition runs `try`, creates, seals and joins an application, and runs a node |
 | **B** | `invite --serve`, link-based `request` | Three operators join from links with no manual file transfer; a wrong invite code or a reused link is refused |
 | **C** | `appchain ui` with the binding editor folded in; Studio removed | A user creates, seals and joins in the browser and gets byte-identical files to the CLI |
 
@@ -431,8 +434,9 @@ and E (publishing the chain fingerprint and member cards on Cardano).
 - Operators who relied on the cluster-wide Ansible export deploy per node with the systemd unit.
 - Growing a chain is one command per operator, but it costs one restart per operator and a period
   at a higher threshold.
-- The jlink image is a second download per OS, built from the same release. As everywhere, bundles that
-  differ from a node's accepted digests fail and differing version strings only warn.
+- The self-contained edition is one more download per OS, built from the same release as the JVM ZIP. As
+  everywhere, bundles that differ from a node's accepted digests fail and differing version strings only
+  warn.
 - Rewritten: tutorials 8 and 9, the deployment guides and bindings chapters 1, 4 and 6.
 
 ## 8. Open questions
@@ -493,3 +497,6 @@ and E (publishing the chain fingerprint and member cards on Cardano).
   characters; F22 → `status` hashes the stored devnet genesis; C8 → insufficient quorum stated (D5);
   C14 → §7 aligned; R7 → node-wide settings across applications must agree.
 - **r7** (2026-10-27): C15 → bundle checks are against the node's accepted digests (D2, §7).
+- **r8** (2026-10-27; maintainer decision and implementation findings): the CLI ships only in the JVM ZIP;
+  A3 becomes a self-contained edition of the whole distribution with a jlink runtime (D8, A3, §7); on a
+  devnet only the lead anchors, because followers keep no UTxO view (D11).
