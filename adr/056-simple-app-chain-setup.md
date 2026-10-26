@@ -181,20 +181,24 @@ Three identities, each with its own name in the tool:
   first 128 bits in eight groups for reading aloud, and stores the full digest when an operator
   joins. The peers section is outside it, so an address can change without a new chain.
 - **Genesis id** (`state.genesis-id`) of each chain: for state machines that derive their own (the
-  authenticated map and machines built on it), the derived value, recomputed and compared by
-  `join` and checked again by the node at startup. For every other chain,
+  authenticated map and machines built on it), the derived value, which the node checks against the
+  sealed map genesis at startup and refuses to run on a mismatch. For every other chain,
   `SHA-256("yano-x-appchain-genesis-v1\0" || invite code || 0 || chainId || 0 || canonical JSON of
   {settings, composite})`, where `settings` is every sealed setting of the chain except the genesis id
   and a compiled binding IR, and `composite` is the chain's binding document when it has one. Either way the id now covers the members and the rules. For non-deriving machines it also
   covers the invite code, so two ceremonies never share one; a derived id does not cover the invite,
-  so `request` always makes a fresh key unless `--key` is given, and `join` refuses a second chain
-  with the same chain id and genesis id on one node. Chain ids must be unique on a node, and the
+  so `request` makes a fresh key for every new node directory (a node directory keeps one key for
+  every application it joins, unless `--key` imports another), and `join` refuses a second chain with
+  the same chain id on one node. Chain ids must be unique on a node, and the
   node-wide settings of two applications on one node must agree; `join` refuses otherwise.
 - **Accepted bundles**: `join` records the sealed bundle digests as this node's accepted set, and
   `start` checks the installed bundles against it. After a host upgrade, or for a later member on a
   newer release, `join --accept-bundles` shows which bundles changed and records the new set, in a
   logged step. `status` shows this node's plugin catalog fingerprint (the identity route that reports
   it is private to each node), and operators compare it on the same call as the chain fingerprint.
+- **Roster binding**: every reader of a `.chain` file checks that each chain's members, threshold,
+  fixed proposer and chain id equal the sealed roster, and that no sealed value refers to the node's
+  environment (`${...}`); a draft cannot set those keys under `settings:`.
 - **Effective runtime identity**: what a running node reports (`GET /api/v1/app-chain/chains`).
   `status` compares it across members, together with the Cardano network genesis id (on devnet it
   only exists after the lead's first start, so it is outside the fingerprint; see D11). The runtime
@@ -516,3 +520,6 @@ and E (publishing the chain fingerprint and member cards on Cardano).
 - **r10** (2026-10-27; implementation): D4 adds `config/local.yaml`; D2 and D11 say which values
   `status` compares itself and which operators compare from its output; D6 states that a link request
   resumes; D7 serves the binding editor from the release and ends the separate Studio archive.
+- **r11** (2026-10-27; implementation review): D2 says the node, not `join`, checks derived genesis ids,
+  that a node directory keeps one key, and adds the roster binding and literal-value rules found by the
+  implementation reviews.
