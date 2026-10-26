@@ -16,7 +16,7 @@ member set, and hand every operator the same genesis. Today's tools do not model
   `appchain-blueprint.schema.json`). For remote members, keys are pasted into Studio by hand.
 - `appchain prepare` creates member keys, but only for a local devnet where one person owns all of
   them.
-- Unless set explicitly, a chain's genesis id is
+- Unless a machine derives its own, a chain's genesis id is
   `sha256("yano-appchain-project-genesis-v1\0" + projectName + "\0" + chainId + "\0" + capabilities)`
   (`AppChainProjectResolver.materializeStateCommitmentIdentity`). Two unrelated projects that use
   the same names get the same genesis id, and the id does not cover the member set or the rules.
@@ -26,8 +26,11 @@ member set, and hand every operator the same genesis. Today's tools do not model
 
 The runtime already has what a multi-operator chain needs: Ed25519 member keys (at most 32 members
 in the v1 profile), an explicit `state.genesis-id` setting (`StateCommitmentIdentity`), and
-governed membership (`membership.mode: governed`), where a new member is added by threshold-many
-identical member commands and catches up from the chain. Only the tooling is missing.
+governed membership (`membership.mode: governed`), where members are added or removed by
+threshold-many identical member commands and a new member catches up from the chain. The single-host
+launcher `scripts/appchain-cluster/cluster.sh` already automates the hard parts of growth (raising
+the threshold, driving activation, refreshing peers) for one machine. Only multi-operator tooling
+is missing.
 
 ## 2. Goals and non-goals
 
@@ -40,54 +43,64 @@ Goals:
 4. An expert can script every step.
 
 Non-goals: no runtime, consensus, wire or storage change; no VM provisioning (ADR-039 stays);
-no change to `yano.sh appchain cluster`, which is Yano's single-host demo launcher.
+no change to `yano.sh appchain cluster`, the existing single-host demo launcher.
 
 ## 3. The user experience
 
-There are two roles. The **coordinator** defines the chain. Each **operator** runs one member node.
-The coordinator is usually also an operator.
+There are two roles. The **coordinator** defines the application. Each **operator** runs one
+member node. The coordinator is usually also an operator. Files are named after the application
+(`supply` below), which may hold several chains.
 
 ```text
-coordinator$ yano.sh appchain new orders            # wizard → orders.draft.yaml
-             # send orders.draft.yaml to each operator (email, chat, …)
+coordinator$ yano.sh appchain new supply              # wizard → supply.draft.yaml, prints an invite code
+             # send supply.draft.yaml to each operator (email, chat, …)
 
-operator$    yano.sh appchain request orders.draft.yaml
-             # creates this operator's key if needed → alice.member
-             # send alice.member back to the coordinator
+operator$    yano.sh appchain request supply.draft.yaml
+             # asks for this node's public address; creates the key if needed → alice.member
+             # send alice.member back; the coordinator drops it next to the draft
 
-coordinator$ yano.sh appchain add orders.draft.yaml alice.member bob.member carol.member
-coordinator$ yano.sh appchain seal orders.draft.yaml  # → orders.chain, prints its fingerprint
-             # send orders.chain to each operator; read the fingerprint out on a call
+coordinator$ yano.sh appchain seal supply.draft.yaml  # uses the *.member files beside the draft
+             # → supply.chain, prints the chain fingerprint
+             # send supply.chain to each operator; read the fingerprint out on a call
 
-operator$    yano.sh appchain join orders.chain     # shows the summary and fingerprint, asks to confirm
+operator$    yano.sh appchain join supply.chain     # shows the summary and fingerprint, asks to confirm
 operator$    yano.sh appchain start
-anyone$      yano.sh appchain status orders
+anyone$      yano.sh appchain status supply
 ```
 
-Every command ends with a `Next:` line, and `status` shows where the chain is:
+Every command ends with a `Next:` line, and `status` shows where the application is:
 
 ```text
-orders  fingerprint 3f9a-77c1-0b2e-d4a8
+supply  chain fingerprint 3f9a-77c1-0b2e-d4a8-91c0-5e2b-aa17-04d3
   Draft ─ Members 3/3 ─ Sealed ─ Starting ─ Live
-                                    ▲ 2 of 3 members online; waiting for carol (node-c:13337)
+                                    ▲ 2 of 3 members online; waiting for carol (node-c.example:13337)
 Next: ask carol to run  yano.sh appchain start
 ```
 
-**Practice first.** `yano.sh appchain try` runs the same steps on one machine with three simulated
-operators in separate directories. It prints each real command as it runs it, so a beginner learns
-the production flow, not a demo-only one.
+Before a chain is sealed, `status supply.draft.yaml` counts the member cards beside the draft against
+the draft's `operators` list (`Members 2/3, waiting for carol`). On a public Cardano network `status`
+also shows `L1 syncing 42%` while a node catches up with Cardano.
 
-**Adding a member later.** The new operator runs the same `request` against the `.chain` file and
-sends the card to the existing members. Each of them runs `yano.sh appchain approve dave.member`,
-which submits the governed-membership command on their own node. Once the threshold is reached,
-`dave` runs `join` and `start` and catches up.
+**Practice first.** `yano.sh appchain try` runs the same steps on one machine with three simulated
+operators in separate directories under `./appchain-try/`. It chooses free ports, prints each real
+command as it runs it, submits a test message and shows it finalized. `try --clean` stops and
+removes the rehearsal.
+
+**Adding or removing a member later.** A new operator runs the same `request` against the `.chain`
+file and sends the card to the existing members. Each existing operator runs
+`yano.sh appchain approve dave.member` once; `approve --remove carol` removes a member. The command
+does the whole quorum-safe procedure on every chain (D5), including one restart of the operator's
+own node to add or drop the peer. Then `dave` runs `join` and `start` and catches up.
+
+**Lost key.** The operator runs `request` again with a fresh key; the others `approve` the new card
+and then `approve --remove` the old one.
 
 **Anchoring to Cardano (optional).** A chain goes live without anchoring. Once it is live, `status`
-shows `Anchoring: not set up` and names the operator who leads it. That operator runs
-`yano.sh appchain anchor orders` and follows the prompts (D10).
+shows `Anchoring: not set up`. Any one operator runs `yano.sh appchain anchor supply` and follows the
+prompts (D10).
 
-**Hosting another chain on the same node.** The operator runs `join` with a second `.chain` file.
-Adding a chain to a running node still needs a stop and start (a current host limitation), and
+**Hosting another application on the same node.** The operator runs `join` with a second `.chain`
+file. Adding a chain to a running node still needs a stop and start (a current host limitation), and
 `join` says so.
 
 ## 4. Decisions
@@ -96,14 +109,20 @@ Adding a chain to a running node still needs a stop and start (a current host li
 
 | File | Written by | Contains | Secret? |
 |---|---|---|---|
-| `<chain>.draft.yaml` | Coordinator (`new`, then edited freely) | Chains, recipes, capabilities, bindings reference, finality and membership policy, network, Yano version | No |
-| `<operator>.member` | Operator (`request`) | Name, Ed25519 public key, node endpoint, and a signature by that key over the draft fingerprint and endpoint | No |
-| `<chain>.chain` | Coordinator (`seal`) | The draft plus the founding members and the pinned plugin bundle digests | No |
+| `<app>.draft.yaml` | Coordinator (`new`, then edited freely until seal) | Invite code, expected operators, network, chains and their rules | No |
+| `<operator>.member` | Operator (`request`) | Invite code, name, Ed25519 public key, advertised node and HTTP addresses, and a signature by that key over all of those fields | No |
+| `<app>.chain` | Coordinator (`seal`) | A **genesis** section (everything consensus depends on) and a **peers** section (addresses) | No |
 
+- The draft is YAML, because people read and edit it. `new` writes a random **invite code** into
+  it. Member cards sign the invite code, not the draft's content, so the coordinator can fix the
+  draft until seal without asking for new cards.
+- A member card means "I hold this key and want to join ceremony X". It is not consent to the final
+  rules: an operator consents at `join`, which shows the sealed summary and fingerprint.
 - The private key stays in the operator's node directory, owner-readable only.
-- The member card's signature proves the operator holds the key and binds the card to this draft,
-  so a mistyped or reused key is caught at `add`, not at startup.
-- The draft is YAML, because people read and edit it.
+- The draft lists the expected `operators`. `seal` refuses a missing, unexpected, duplicate or
+  wrongly-signed card, and refuses a key used twice.
+- The first operator listed is the **lead**: by default the fixed block proposer and, on a devnet,
+  the node that produces the Cardano devnet (D11).
 
 **What a draft holds.** A draft holds one or more chains (up to 32, as today), all sharing the
 founding members. Each chain runs either **one state machine**, chosen by recipe, or **several state
@@ -114,66 +133,120 @@ chain?". Experts edit the YAML directly:
 
 ```yaml
 name: supply
-network: preprod
-membership: {mode: governed}
+invite: 7c1e-52aa-9d03            # written by `new`; do not edit
+network: preprod                  # devnet | preview | preprod | mainnet
+operators: [alice, bob, carol]    # alice is the lead
+threshold: 2                      # signatures per block; default: a majority
+membership: governed
 chains:
   - id: orders                       # one state machine
     recipe: audit-log
   - id: approvals                    # several state machines in one chain
     recipe: declarative-composite
     bindings: ./approval-to-audit.yaml   # components + bindings, or inline under `composite:`
+    anchor: {mode: script, every-blocks: 10}   # optional policy; no wallet here
 ```
 
-`seal` inlines any referenced bindings file, so the `.chain` file is self-contained. A chain's
-state machines are fixed at genesis: to add another state machine later, add a new chain, or use
+`seal` copies referenced bindings into the `.chain` file, so it is self-contained. Settings not
+written in the draft take safe defaults, which `seal` shows: for example `l1.stability-depth` is 36
+on public networks and 0 on devnet, because it cannot change after seal. A chain's state machines
+are fixed at genesis: to add another later, seal a new application with the same operators, or use
 governed composite profile evolution (app-layer ADR-015), which this ADR does not change.
 
-### D2 — The genesis id is the hash of the sealed file
+### D2 — Seal fixes the resolved settings, and the fingerprint covers them
 
-`seal` writes `<chain>.chain` once. Each chain's genesis id is
-`SHA-256("yano-x-appchain-genesis-v1\0" || SHA-256(file bytes) || chainId)`, and the file's
-**fingerprint** is the first 16 hex digits of the file hash, grouped for reading aloud. `join`
-recomputes both and refuses an edited file. This replaces the name-based derivation above; the
-runtime is unaffected because it already takes `state.genesis-id` as an explicit setting.
+`seal` resolves every chain through the release's recipe and capability catalog **once** and writes
+the exact consensus settings of each chain into the genesis section. `join` applies those settings
+as written; it never re-resolves them, so operators with different tool builds cannot interpret the
+same file differently. The genesis section also records the Yano and Yano X versions and the plugin
+bundles each chain needs. `join` refuses to run on a different version or with missing bundles,
+and says which release to install.
+
+Three identities, each with its own name in the tool:
+
+- **Chain fingerprint**: SHA-256 of the canonical JSON of the genesis section. The tool shows the
+  first 128 bits in eight groups for reading aloud, and stores the full digest when an operator
+  joins. The peers section is outside it, so an address can change without a new chain.
+- **Genesis id** (`state.genesis-id`) of each chain: for state machines that derive their own (the
+  authenticated map and machines built on it), the derived value, recomputed and compared by
+  `join` and checked again by the node at startup. For every other chain,
+  `SHA-256("yano-x-appchain-genesis-v1\0" || invite code || chainId || canonical settings without the
+  genesis id)`. Either way the id now covers the members and the rules, and two ceremonies never
+  share one.
+- **Effective runtime identity**: what a running node reports (`GET /api/v1/app-chain/chains`).
+  `status` compares it across members.
+
+The runtime is unchanged: it already takes `state.genesis-id` as a setting and already validates a
+derived one.
 
 ### D3 — One CLI with a few verbs
 
-Phase A verbs: `new`, `request`, `add`, `seal`, `join`, `start`, `stop`, `status`, `approve`,
-`anchor`, `inspect` and `try`. Each is interactive by default and accepts flags plus `--yes` for scripts.
-Errors say what to do, for example
-`carol.member was signed for a different draft (fingerprint 9b1e-…); ask carol to run request again`.
+Phase A verbs: `new`, `request`, `seal`, `join`, `start`, `stop`, `status`, `approve`, `anchor`,
+`inspect` and `try`. Each is interactive by default and takes flags for scripts (D13). Commands that
+act on a node take `--node-dir` (default `./yano-node`); commands about one chain of a multi-chain
+application take `--chain`. Errors say what to do, for example
+`carol.member was made for a different invite (9b1e-…); ask carol to run request again`.
 
-### D4 — Node setup is local
+### D4 — The advertised address is fixed at `request`; everything else is local
 
-`join` asks only for local choices, with defaults: data directory, HTTP and node ports, and which
-existing key to use. It writes the node configuration from the `.chain` file; peers come from the
-members' endpoints. Changing local settings later does not touch the chain identity. On Linux, `join`
-also writes a systemd unit file and prints the command to install it; it never installs it itself.
+`request` asks the operator for the address other members reach this node at (`host:port` for
+node-to-node traffic, and the HTTP address used by `status`), with suggestions, and writes the ports
+into the node directory. `join` listens on those ports. If a NAT or proxy means the listening port
+differs, `join --listen <port>` keeps the advertised address and warns once.
 
-### D5 — Later members use governed membership
+`join` asks only for local choices that peers do not see (data directory, key file) and writes the
+node configuration: the chain's sealed settings, peers from the peers section, a local API key for
+the admin calls `approve` and `anchor` make, and storage under the node directory. Addresses can
+change later without a new chain: `join --peer bob=host:port` overrides one peer, and `status`
+names unreachable peers. On Linux, `join` also writes a systemd unit file and prints the command to
+install it. Once the unit is installed and enabled, `start`, `stop` and the restarts that `approve`
+and `anchor` make go through `systemctl`, so one node never has two managers.
 
-New chains default to `membership.mode: governed`, so `approve` works without a coordinated
-restart. A coordinator may choose `static` in the draft; `approve` then explains the static runbook
-instead.
+### D5 — Membership changes are governed and quorum-safe
+
+New applications default to `membership: governed`. `approve` performs, on every chain of the
+application, the same procedure `cluster.sh` uses on one machine:
+
+1. Read the chain's active members and threshold.
+2. If the change would leave no safe quorum (for example 2-of-3 growing to four), first submit the
+   threshold change and wait until it is active.
+3. Submit the add or remove command.
+4. Changes activate ten blocks after approval, and a chain only makes blocks when it has messages,
+   so while waiting `approve` submits small no-op heartbeat messages where the state machine
+   supports them, and otherwise says to send ordinary traffic.
+5. Add or drop the peer in the local node configuration and restart the node once.
+
+Every existing operator runs `approve` once, in any order. It is safe to run again: it skips what is
+already done and reports what is still waiting (`2 of 3 approvals for threshold 3; waiting for bob`).
+Approvals expire after 600 blocks; `status` shows pending changes and how long they have left. The
+`new` wizard explains the cost up front: while a 3-member chain grows, it runs at 3-of-3, so one
+offline member stops it.
+
+`approve --remove` refuses to remove the fixed proposer (the runtime rejects it) and says what to do
+instead. A coordinator may choose `membership: static`; `approve` then prints the static runbook
+instead of acting.
 
 ### D6 — Phase B: join links
 
-`yano.sh appchain invite orders.draft.yaml --serve` starts a temporary listener on the coordinator's
-machine and prints one link per operator:
+`yano.sh appchain invite supply.draft.yaml --serve` starts a temporary listener on the coordinator's
+machine and prints one link per expected operator:
 
 ```text
-yano.sh appchain request yano://203.0.113.10:7099/9QmV2x#3f9a-77c1-0b2e-d4a8
+yano.sh appchain request yano://203.0.113.10:7099/9QmV2x#7c1e-52aa-9d03
 ```
 
-The operator's `request` downloads the draft, checks it against the fingerprint in the link,
-creates the key, posts the member card and waits. The coordinator sees cards arrive live and runs
-`seal`. Each waiting operator then receives the `.chain`, sees the summary and fingerprint, and
-confirms the `join`. The files and checks are those of Phase A, only carried automatically:
+The operator's `request` downloads the draft, checks the invite code in the link, creates the key,
+posts the member card and waits. The coordinator sees cards arrive live and runs `seal`. Each waiting
+operator then receives the `.chain`, sees the summary and fingerprint, and confirms the `join`. On a
+devnet the link also carries the lead's address, so the devnet genesis download (D11) needs no extra
+step. The files and checks are those of Phase A, only carried automatically:
 
 - No node and no runtime plugin is involved; the listener is part of the CLI and stops after seal.
 - Links are single-use and expire (default 24 hours).
-- Everything transferred is public and checked by fingerprint or signature, so the link secret only
-  stops strangers from adding cards. Comparing the final fingerprint on a call is still advised.
+- A link is an invitation, not a credential that protects anything secret. Everything transferred is
+  public and checked by invite code or signature. Someone who steals a link can at most post a card,
+  which the coordinator sees at seal against the `operators` list. **The fingerprint comparison stays
+  the trust step**; join links never skip it.
 
 ### D7 — Phase C: a local setup UI in Yano X
 
@@ -185,74 +258,118 @@ CLI, and needs no node, plugin or Yano change. Yano's node console stays in Yano
 
 ### D8 — Modules and packaging
 
-- `tooling:appchain-formats`: the three file formats, fingerprint and genesis id, signature checks.
+- `tooling:appchain-formats`: the three file formats, the identities of D2, and signature checks.
   A small library with no node dependency.
 - `tooling:appchain-cli`: the verbs above. It is installed at `tools/yano-appchain/` in the JVM ZIP,
-  where Yano's `yano.sh appchain` already dispatches every verb except `cluster`.
-- A **self-contained jlink image per OS** is also published, so a coordinator can create and seal a
-  chain without installing Java. It is not GraalVM native: Yano X is JVM-only
+  where Yano's `yano.sh appchain` already dispatches every verb except `cluster`. It uses the recipe
+  and capability compiler from `tooling:devtools` and delegates the verbs devtools keeps (D9).
+- A **self-contained jlink image per OS** is also published for coordinators who do not run a node:
+  it holds the CLI, a trimmed Java 25 runtime and the stock plugin bundles needed to validate a draft.
+  It is built from the same release as the ZIP, and `.chain` records that release. Operators who run
+  a node still use the JVM ZIP and Java 25. It is not GraalVM native: Yano X is JVM-only
   (`verifyJvmOnlyBuild`), and validating a draft loads plugin bundles through
   `PluginProviderRegistry`, which needs a JVM.
-- Useful pieces of `tooling:devtools` move into these modules (catalog loading, metadata trust, the
-  bindings compiler). The rest is removed with the old verbs (D9).
 
 ### D9 — What this replaces
 
 | Today | After Phase A |
 |---|---|
-| `init`, `prepare`, `render` | `new`, `request`, `add`, `seal`, `join` |
+| `init`, `prepare`, `render` | `new`, `request`, `seal`, `join` |
 | `chain add`, `plan`, `apply` | `join` with another `.chain` file |
-| `gitops` (cluster-wide Ansible, Helm, Kustomize) | Removed; each operator deploys their own node. ADR-039 is unchanged |
+| `gitops` (cluster-wide Ansible, Helm, Kustomize) | Removed; each operator deploys their own node (systemd unit from `join`). ADR-039 is unchanged |
 | `diff`, `migrate` | Removed |
 | `doctor`, `drift` | Folded into `status` |
-| `recipes`, `capabilities`, `bindings`, `state`, `role`, `plugin`, `metadata` | Kept |
+| `recipes`, `capabilities`, `bindings`, `state`, `role`, `plugin`, `metadata`, `config` | Kept |
 | Studio blueprint page | Removed in Phase A |
 | Studio binding editor | Kept until Phase C absorbs it |
 
 For ADR-055: Phase 2's first need, deploying bindings without `init`, is met by the draft
 referencing a bindings document; its acceptance gates move to `appchain try`. Phase 3's Studio
 removal happens in two steps, as in the table. Nothing has been publicly released, so no aliases
-are kept.
+are kept. Yano's `yano.sh` help text still names `init`, `render` and `doctor`; updating it is a
+small follow-up in the Yano repository, outside this change.
 
 ### D10 — Anchoring is optional, after start, and one command
 
 Anchoring never blocks `start`: a chain finalizes with or without it, and a stopped anchor is a
-liveness problem only (user guide §5.1). Only the anchor leader needs a wallet; in `script` mode
-the other members co-sign with no anchor configuration.
+liveness problem only (user guide §5.1). Only the anchor leader needs a wallet; in `script` mode the
+other members co-sign with no anchor configuration, though every member needs the Cardano view the
+network provides.
 
-- The draft may carry a chain's anchor policy, for example
-  `anchor: {mode: script, every-blocks: 10, leader: alice}`. The leader defaults to the
-  coordinator's member. The policy needs no wallet and is sealed like everything else.
-- `yano.sh appchain anchor <chain>`, run by the leader, does the rest in one guided flow:
-  1. creates the anchor wallet key on that machine, separate from the member key;
-  2. shows the wallet address and waits for funds (on devnet it funds the wallet itself);
-  3. states the expected cost and asks for confirmation before spending anything;
-  4. runs the one-time script bootstrap when the mode needs it, restarts its own node with the
-     anchor settings, and waits until the first anchor is confirmed.
-- Running the same command on another member moves leadership there; members adopt the on-chain
-  identity already on Cardano, so anchoring resumes where it stopped.
-- `--yes` skips the confirmation only together with `--max-fee-ada`, so a script cannot spend more
-  than it states.
+- The draft may carry a chain's anchor **policy** (`mode`, `every-blocks`). Who leads is not sealed:
+  it is a local role that can move.
+- `yano.sh appchain anchor <app>` turns the operator's node into the leader in one guided flow:
+  1. checks that no other member already leads (`--take-over` moves leadership; the old leader's
+     next `status` tells it to run `anchor --stop`, which turns anchoring off there);
+  2. creates the anchor wallet key on that machine, separate from the member key;
+  3. shows the wallet address, the expected cost per anchor and the current balance, and waits for
+     funds; on devnet it asks the lead's node to fund the wallet;
+  4. asks for confirmation (`--yes` for scripts), writes the anchor settings, including protocol
+     parameter tracking, and restarts the node;
+  5. if the chain already has an anchor thread on Cardano, adopts it; only if no member reports one
+     does it run the one-time script bootstrap. It then waits until the first anchor is confirmed.
+- The real spending limit is the wallet balance: the tool tells the operator to fund the wallet only
+  with what they are willing to spend on fees. It does not promise a per-run ceiling, which would
+  need a runtime change.
+- The step is safe to re-run after an interruption: it resumes from what the node reports.
+
+### D11 — Devnet: the lead produces the Cardano devnet
+
+On `network: devnet`, the lead's node is the Cardano devnet block producer and every other node
+follows it. The devnet genesis can only be created when the lead first starts (a genesis with an old
+start time fails at node startup with `Effective protocol parameters are unavailable for epoch N`),
+so it is not part of the `.chain` file. Instead:
+
+1. The lead's first `start` creates the devnet genesis.
+2. Every other node's first `start` downloads it from the lead's node
+   (`GET /api/v1/devnet/genesis/download`), stores it, and refuses later starts if it changes.
+3. Funding for anchoring on devnet goes through the lead's node, the only one with the devnet faucet.
+
+`status` shows `waiting for the lead (alice) to start` until the lead is up. `try` uses exactly this
+mechanism on one machine. On public networks there is no producer: every node syncs Cardano itself,
+and `status` shows the sync progress.
+
+### D12 — Safe to repeat, safe to interrupt
+
+- `seal` writes its file atomically and refuses to overwrite a different sealed file without
+  `--force`.
+- `join` is idempotent. Before the node first starts, joining a newer `.chain` with the same name
+  replaces the old one after a clear prompt (`--replace` for scripts). Once the node has data for a
+  chain, `join` refuses to change that chain's genesis or the node's key and says to seal a new
+  application instead.
+- `start` refuses to run while a `join` is half-written; re-running `join` finishes it.
+- Nothing in this tool deletes chain data. `try --clean` deletes only its own rehearsal directory.
+
+### D13 — Scriptable without skipping the trust step
+
+- `join --yes` requires `--expect-fingerprint <fingerprint>`, so a script cannot skip the check.
+- `status` and `inspect` accept `--json`. `status --wait live --timeout 10m` blocks until the
+  application is live.
+- `request --key <file>` uses an existing key.
+- Exit codes: `0` success, `1` failure, `2` usage error, `3` not ready yet or timed out.
 
 ## 5. Phases
 
 | Phase | Delivers | Done when |
 |---|---|---|
-| **A1** | `appchain-formats`, `new`, `request`, `add`, `seal`, `inspect` | Three cards from three machines seal into one file whose fingerprint every machine reproduces |
-| **A2** | `join`, `start`, `stop`, `status`, `try`, `approve`, `anchor`; old verbs and blueprint page removed; tutorials rewritten | A new user finishes `try` using only printed instructions; a real three-machine chain goes live, adds a fourth member, anchors on devnet with one command and survives a restart |
-| **A3** | jlink images per OS | The image seals a chain on a machine without Java |
-| **B** | `invite --serve`, link-based `request` | Three operators join from links with no manual file transfer; an altered draft or a reused link is refused |
+| **A1** | `appchain-formats`; `new`, `request`, `seal`, `inspect` | Three cards from three node directories seal into one file whose fingerprint every directory reproduces; bad, duplicate and foreign cards are refused |
+| **A2** | `join`, `start`, `stop`, `status`, `try`, `approve`, `anchor`; old verbs and the blueprint page removed; docs and tutorials rewritten | A new user finishes `try` using only printed instructions; a three-node application (separate node directories and ports) goes live, grows to four members with `approve`, anchors on devnet with one command and survives a restart |
+| **A3** | jlink image per OS | The image creates and seals an application on a machine without Java |
+| **B** | `invite --serve`, link-based `request` | Three operators join from links with no manual file transfer; a wrong invite code or a reused link is refused |
 | **C** | `appchain ui` with the binding editor folded in; Studio removed | A user creates, seals and joins in the browser and gets byte-identical files to the CLI |
 
 Later, not decided here: D (a git repository as the shared draft, with CI validating member cards)
-and E (publishing the sealed file's hash and member cards on Cardano).
+and E (publishing the chain fingerprint and member cards on Cardano).
 
 ## 6. Alternatives considered
 
 - **Keep the one-author blueprint.** Simple for a demo but cannot serve independent operators
   without moving keys around.
 - **Start with one member and let everyone join through governance.** One join path, but early
-  history is signed by a single key. Rejected in r2: founding members are fixed at seal.
+  history is signed by a single key. Rejected: founding members are fixed at seal.
+- **Re-resolve the draft at every `join`.** Smaller files, but different tool builds could resolve
+  the same file differently. Rejected for D2.
+- **Seal the devnet genesis.** Simpler on paper, but a devnet genesis cannot start late (D11).
 - **GraalVM native binary.** Breaks the JVM-only rule and cannot load plugin bundles.
 - **A setup UI inside the node.** Setup happens before any node exists, and it would need a host or
   plugin change.
@@ -262,9 +379,13 @@ and E (publishing the sealed file's hash and member cards on Cardano).
 ## 7. Consequences
 
 - Operators send only public files. A key never needs to be copied.
-- The genesis id now commits to the whole definition and member set.
-- Fewer verbs, one way to deploy, and the Studio blueprint page and cluster-wide export are gone.
-- Operators who relied on the cluster-wide Ansible export deploy per node instead.
+- The genesis id now covers the whole definition and member set.
+- Fewer verbs, one way to deploy; the Studio blueprint page and the cluster-wide export are gone.
+- Operators who relied on the cluster-wide Ansible export deploy per node with the systemd unit.
+- Growing a chain is one command per operator, but it costs one restart per operator and a period
+  at a higher threshold.
+- The jlink image is a second download per OS; it is built from the same release, and `join`
+  refuses a mismatch.
 - Rewritten: tutorials 8 and 9, the deployment guides and bindings chapters 1, 4 and 6.
 
 ## 8. Open questions
@@ -275,6 +396,8 @@ and E (publishing the sealed file's hash and member cards on Cardano).
    installs (D4).
 4. **Anchoring.** Resolved in r3: optional, never needed before `start`, one guided command (D10).
 5. **Governed membership by default.** Resolved in r2: yes (D5).
+6. **Join-link transport.** Plain HTTP is enough while links only carry public, signed data (D6).
+   A pinned TLS certificate in the link is a possible later hardening. Lean: not in Phase B.
 
 ## Revision history
 
@@ -285,3 +408,26 @@ and E (publishing the sealed file's hash and member cards on Cardano).
   and shows an example draft.
 - **r3** (2026-10-26): anchoring is optional and never blocks `start`; new D10 adds the guided
   `anchor` command run by one leader; §3, D3, A2 and §8.4 updated.
+- **r4** (2026-10-26; responds to the UX (F1–F10), Codex (C1–C8) and runtime (R1–R9) reviews of
+  `bf007a50`):
+  - Identity (UX F1, F3; C1, C3, C5, C7; R1, R4): D1 adds the invite code, the `operators` list and
+    the genesis/peers split. D2 now seals resolved settings, separates fingerprint, genesis id and
+    effective identity, keeps derived genesis ids for the authenticated map, uses a 128-bit displayed
+    fingerprint, and states that consent is given at `join`. D4 fixes advertised addresses at
+    `request`.
+  - Membership (UX F5; C2, C8; R2, R6): D5 is rewritten as the quorum-safe procedure, with
+    heartbeats, one restart, re-runs, removal and lost-key recovery. The draft states the threshold
+    and the lead/proposer.
+  - Devnet (UX F2; R3): new D11; L1 sync progress in `status`.
+  - Anchoring (UX F8; C4, C6; R5): the leader is not sealed, `--take-over`/`--stop` added, the
+    sequence is configure → restart → adopt or bootstrap, the false `--max-fee-ada` guarantee is
+    dropped, and stability depth defaults are fixed at seal.
+  - Recovery and scripting (C8; UX F4): new D12 and D13.
+  - Naming and simplicity (UX F6, F7, F9): files named after the application, `--node-dir`,
+    `--chain`, systemd routing; `add` folded into `seal`.
+  - Multi-application nodes (R7): `join` refuses a network mismatch; `status` checks identity per
+    chain.
+  - Packaging (UX F10; R8): A3 narrowed to coordinators, stating that operators still need Java;
+    kept because the maintainer chose it.
+  - Facts (R9): `cluster.sh` is a Yano X script; the Yano help-text follow-up is noted.
+  - Disputed: UX F9's proposal to defer Phase B, because the maintainer asked for Phase B.
