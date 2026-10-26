@@ -92,8 +92,11 @@ file and sends the card to the existing members. Each existing operator runs
 does the whole quorum-safe procedure on every chain (D5), including one restart of the operator's
 own node to add or drop the peer. Then `dave` runs `join` and `start` and catches up.
 
-**Lost key.** The operator runs `request` again with a fresh key; the others `approve` the new card
-and then `approve --remove` the old one.
+**Lost key.** The other operators first `approve --remove carol`, then carol runs `request` again
+with a fresh key and they `approve` the new card. Removing first keeps the chain live: adding first
+would raise the threshold to a level the lost key can never help reach. The lead's key is the
+exception: the runtime refuses to remove the fixed proposer, so losing it means sealing a new
+application. The `new` wizard says this, and `status` reminds operators to back up the key.
 
 **Anchoring to Cardano (optional).** A chain goes live without anchoring. Once it is live, `status`
 shows `Anchoring: not set up`. Any one operator runs `yano.sh appchain anchor supply` and follows the
@@ -121,6 +124,10 @@ file. Adding a chain to a running node still needs a stop and start (a current h
 - The private key stays in the operator's node directory, owner-readable only.
 - The draft lists the expected `operators`. `seal` refuses a missing, unexpected, duplicate or
   wrongly-signed card, and refuses a key used twice.
+- A card proves its key, not who its sender is. Each member is therefore shown with a short **key id**
+  (the first 8 hex characters of the key) at `request`, `seal` and `join`, and the call that compares
+  the chain fingerprint also compares each operator's key id. `join` refuses unless the operator's own
+  key is in the roster under its name, so a substituted card is caught by the operator it replaced.
 - The first operator listed is the **lead**: by default the fixed block proposer and, on a devnet,
   the node that produces the Cardano devnet (D11).
 
@@ -158,9 +165,11 @@ governed composite profile evolution (app-layer ADR-015), which this ADR does no
 `seal` resolves every chain through the release's recipe and capability catalog **once** and writes
 the exact consensus settings of each chain into the genesis section. `join` applies those settings
 as written; it never re-resolves them, so operators with different tool builds cannot interpret the
-same file differently. The genesis section also records the Yano and Yano X versions and the plugin
-bundles each chain needs. `join` refuses to run on a different version or with missing bundles,
-and says which release to install.
+same file differently. The genesis section also records the Yano and Yano X versions, and the SHA-256 digest
+of every plugin bundle each chain runs on. `join` and every `start` check the node's bundles against
+those digests and refuse a mismatch, naming the release to install; a different Yano or Yano X version
+string with identical bundles only produces a warning. Upgrading the bundles of a running chain is a
+host upgrade, outside this ADR.
 
 Three identities, each with its own name in the tool:
 
@@ -171,10 +180,13 @@ Three identities, each with its own name in the tool:
   authenticated map and machines built on it), the derived value, recomputed and compared by
   `join` and checked again by the node at startup. For every other chain,
   `SHA-256("yano-x-appchain-genesis-v1\0" || invite code || chainId || canonical settings without the
-  genesis id)`. Either way the id now covers the members and the rules, and two ceremonies never
-  share one.
+  genesis id)`. Either way the id now covers the members and the rules. For non-deriving machines it also
+  covers the invite code, so two ceremonies never share one; a derived id does not cover the invite,
+  so `request` always makes a fresh key unless `--key` is given, and `join` refuses a second chain
+  with the same chain id and genesis id on one node.
 - **Effective runtime identity**: what a running node reports (`GET /api/v1/app-chain/chains`).
-  `status` compares it across members.
+  `status` compares it across members, together with the Cardano network genesis id (on devnet it
+  only exists after the lead's first start, so it is outside the fingerprint; see D11).
 
 The runtime is unchanged: it already takes `state.genesis-id` as a setting and already validates a
 derived one.
@@ -212,12 +224,15 @@ application, the same procedure `cluster.sh` uses on one machine:
    threshold change and wait until it is active.
 3. Submit the add or remove command.
 4. Changes activate ten blocks after approval, and a chain only makes blocks when it has messages,
-   so while waiting `approve` submits small no-op heartbeat messages where the state machine
-   supports them, and otherwise says to send ordinary traffic.
+   so while waiting `approve` can submit small heartbeat messages where the state machine supports
+   them. They are not invisible: on an ordered log each one is a permanent entry, so `approve` asks
+   first (`--heartbeat` for scripts) and otherwise says to send ordinary traffic.
 5. Add or drop the peer in the local node configuration and restart the node once.
 
-Every existing operator runs `approve` once, in any order. It is safe to run again: it skips what is
-already done and reports what is still waiting (`2 of 3 approvals for threshold 3; waiting for bob`).
+Every existing operator runs `approve`, in any order. It waits while other operators catch up and
+is safe to run again: it skips what is already done and reports what is still waiting
+(`2 of 3 approvals for threshold 3; waiting for bob`). It refuses to raise the threshold unless
+every member counted in the new threshold is online, so growth can never strand the chain.
 Approvals expire after 600 blocks; `status` shows pending changes and how long they have left. The
 `new` wizard explains the cost up front: while a 3-member chain grows, it runs at 3-of-3, so one
 offline member stops it.
@@ -241,12 +256,14 @@ operator then receives the `.chain`, sees the summary and fingerprint, and confi
 devnet the link also carries the lead's address, so the devnet genesis download (D11) needs no extra
 step. The files and checks are those of Phase A, only carried automatically:
 
-- No node and no runtime plugin is involved; the listener is part of the CLI and stops after seal.
+- No node and no runtime plugin is involved; the listener is part of the CLI and stops once every
+  operator has received the `.chain`, or when the links expire.
 - Links are single-use and expire (default 24 hours).
 - A link is an invitation, not a credential that protects anything secret. Everything transferred is
-  public and checked by invite code or signature. Someone who steals a link can at most post a card,
-  which the coordinator sees at seal against the `operators` list. **The fingerprint comparison stays
-  the trust step**; join links never skip it.
+  public and checked by invite code or signature. Someone who steals a link can at most post a card
+  under an expected name; the real operator's `join` then refuses because its own key is missing, and
+  the key ids compared on the call show the substitution. **The fingerprint and key-id comparison
+  stays the trust step**; join links never skip it.
 
 ### D7 — Phase C: a local setup UI in Yano X
 
@@ -299,8 +316,10 @@ network provides.
 - The draft may carry a chain's anchor **policy** (`mode`, `every-blocks`). Who leads is not sealed:
   it is a local role that can move.
 - `yano.sh appchain anchor <app>` turns the operator's node into the leader in one guided flow:
-  1. checks that no other member already leads (`--take-over` moves leadership; the old leader's
-     next `status` tells it to run `anchor --stop`, which turns anchoring off there);
+  1. checks that no other member already leads. To move leadership, the old leader runs
+     `anchor --stop` first; `--take-over` is only for a leader that is gone, and is allowed only on a
+     node whose status already shows the chain's confirmed anchor identity (a node learns it only by
+     co-signing anchors, so a late joiner cannot take over until it has);
   2. creates the anchor wallet key on that machine, separate from the member key;
   3. shows the wallet address, the expected cost per anchor and the current balance, and waits for
      funds; on devnet it asks the lead's node to fund the wallet;
@@ -311,7 +330,9 @@ network provides.
 - The real spending limit is the wallet balance: the tool tells the operator to fund the wallet only
   with what they are willing to spend on fees. It does not promise a per-run ceiling, which would
   need a runtime change.
-- The step is safe to re-run after an interruption: it resumes from what the node reports.
+- The step is safe to re-run after an interruption: it resumes from what the node reports. A
+  bootstrap transaction is only known to the node once Cardano confirms it, so `anchor` records that
+  it submitted one and, when re-run, waits for that confirmation instead of submitting another.
 
 ### D11 — Devnet: the lead produces the Cardano devnet
 
@@ -324,6 +345,13 @@ so it is not part of the `.chain` file. Instead:
 2. Every other node's first `start` downloads it from the lead's node
    (`GET /api/v1/devnet/genesis/download`), stores it, and refuses later starts if it changes.
 3. Funding for anchoring on devnet goes through the lead's node, the only one with the devnet faucet.
+
+The download is not authenticated beyond the lead's address, which is acceptable for a test network:
+`status` compares the resulting Cardano genesis id across all members, so a substituted file shows up
+as a mismatch. Addresses are never trusted for safety in any network: app-chain traffic is signed by
+member keys, so a wrong address can only cost liveness. The lead's devnet node also exposes the
+devnet's unauthenticated rollback and time controls on its HTTP address; operators keep a shared
+devnet on a trusted network.
 
 `status` shows `waiting for the lead (alice) to start` until the lead is up. `try` uses exactly this
 mechanism on one machine. On public networks there is no producer: every node syncs Cardano itself,
@@ -431,3 +459,11 @@ and E (publishing the chain fingerprint and member cards on Cardano).
     kept because the maintainer chose it.
   - Facts (R9): `cluster.sh` is a Yano X script; the Yano help-text follow-up is noted.
   - Disputed: UX F9's proposal to defer Phase B, because the maintainer asked for Phase B.
+- **r5** (2026-10-26; responds to the round-2 re-reviews of `047a1451`): F11/C8 → lost-key recovery
+  removes first, `approve` refuses a threshold raise without the members online, the lost-lead case
+  is stated; C12 → key ids compared on the call and `join` requires the operator's own key; C10 →
+  bundle digests sealed and checked at `join` and `start`; F14 → version strings only warn; C9/F15 →
+  uniqueness narrowed for derived ids, fresh keys by default, duplicate refusal; C11/F12/F18 →
+  devnet download trust, network genesis id compared by `status`, dev-mode exposure noted; F13/C6 →
+  take-over rules and pending-bootstrap handling; F16/F17 → heartbeat consent, listener lifetime,
+  `approve` waits and re-runs.
