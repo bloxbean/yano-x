@@ -99,7 +99,30 @@ Adding a chain to a running node still needs a stop and start (a current host li
 - The private key stays in the operator's node directory, owner-readable only.
 - The member card's signature proves the operator holds the key and binds the card to this draft,
   so a mistyped or reused key is caught at `add`, not at startup.
-- A draft may define several chains that share the same founding members, as a project does today.
+- The draft is YAML, because people read and edit it.
+
+**What a draft holds.** A draft holds one or more chains (up to 32, as today), all sharing the
+founding members. Each chain runs either **one state machine**, chosen by recipe, or **several state
+machines working together**: a composite of up to 16 components joined by bindings (ADR-031.1),
+which commit atomically in the same block. The `new` wizard asks, for each chain, "one state machine
+or several?", offers the binding starters from `examples/bindings/`, and then asks "add another
+chain?". Experts edit the YAML directly:
+
+```yaml
+name: supply
+network: preprod
+membership: {mode: governed}
+chains:
+  - id: orders                       # one state machine
+    recipe: audit-log
+  - id: approvals                    # several state machines in one chain
+    recipe: declarative-composite
+    bindings: ./approval-to-audit.yaml   # components + bindings, or inline under `composite:`
+```
+
+`seal` inlines any referenced bindings file, so the `.chain` file is self-contained. A chain's
+state machines are fixed at genesis: to add another state machine later, add a new chain, or use
+governed composite profile evolution (app-layer ADR-015), which this ADR does not change.
 
 ### D2 — The genesis id is the hash of the sealed file
 
@@ -120,7 +143,8 @@ Errors say what to do, for example
 
 `join` asks only for local choices, with defaults: data directory, HTTP and node ports, and which
 existing key to use. It writes the node configuration from the `.chain` file; peers come from the
-members' endpoints. Changing local settings later does not touch the chain identity.
+members' endpoints. Changing local settings later does not touch the chain identity. On Linux, `join`
+also writes a systemd unit file and prints the command to install it; it never installs it itself.
 
 ### D5 — Later members use governed membership
 
@@ -204,7 +228,7 @@ and E (publishing the sealed file's hash and member cards on Cardano).
 - **Keep the one-author blueprint.** Simple for a demo but cannot serve independent operators
   without moving keys around.
 - **Start with one member and let everyone join through governance.** One join path, but early
-  history is signed by a single key. Kept as an open question.
+  history is signed by a single key. Rejected in r2: founding members are fixed at seal.
 - **GraalVM native binary.** Breaks the JVM-only rule and cannot load plugin bundles.
 - **A setup UI inside the node.** Setup happens before any node exists, and it would need a host or
   plugin change.
@@ -221,14 +245,18 @@ and E (publishing the sealed file's hash and member cards on Cardano).
 
 ## 8. Open questions
 
-1. **Draft format.** YAML for people (lean) or JSON for exact round trips.
-2. **Solo genesis.** Should a coordinator be able to start alone and let founders join through
-   governance, with application messages blocked until a quorum joins? Lean: not in this ADR.
-3. **Running as a service.** Should `join` also write a systemd unit? Lean: yes, as a file the
-   operator installs, not installed automatically.
+1. **Draft format.** Resolved in r2: YAML (D1).
+2. **Solo genesis.** Resolved in r2: not supported; founding members are fixed at seal.
+3. **Running as a service.** Resolved in r2: `join` writes a systemd unit file the operator
+   installs (D4).
 4. **Anchoring.** Anchor policy belongs in the draft; the anchor wallet and its bootstrap stay
    per-operator explicit steps. Confirm that no anchor setup is needed before `start`.
+5. **Governed membership by default.** Resolved in r2: yes (D5).
 
 ## Revision history
 
 - **r1** (2026-10-26): initial proposal.
+- **r2** (2026-10-26; maintainer decisions on `3bbfc465`): draft is YAML; solo genesis rejected;
+  `join` writes a systemd unit file; governed membership confirmed as the default. D1 now states
+  that a chain runs one state machine or a composite of several, that a draft holds several chains,
+  and shows an example draft.
