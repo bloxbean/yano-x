@@ -181,23 +181,29 @@ Three identities, each with its own name in the tool:
   first 128 bits in eight groups for reading aloud, and stores the full digest when an operator
   joins. The peers section is outside it, so an address can change without a new chain.
 - **Genesis id** (`state.genesis-id`) of each chain: for state machines that derive their own (the
-  authenticated map and machines built on it), the derived value, recomputed and compared by
-  `join` and checked again by the node at startup. For every other chain,
-  `SHA-256("yano-x-appchain-genesis-v1\0" || invite code || chainId || canonical settings without the
-  genesis id)`. Either way the id now covers the members and the rules. For non-deriving machines it also
+  authenticated map and machines built on it), the derived value, which the node checks against the
+  sealed map genesis at startup and refuses to run on a mismatch. For every other chain,
+  `SHA-256("yano-x-appchain-genesis-v1\0" || invite code || 0 || chainId || 0 || canonical JSON of
+  {settings, composite})`, where `settings` is every sealed setting of the chain except the genesis id
+  and a compiled binding IR, and `composite` is the chain's binding document when it has one. Either way the id now covers the members and the rules. For non-deriving machines it also
   covers the invite code, so two ceremonies never share one; a derived id does not cover the invite,
-  so `request` always makes a fresh key unless `--key` is given, and `join` refuses a second chain
-  with the same chain id and genesis id on one node. Chain ids must be unique on a node, and the
+  so `request` makes a fresh key for every new node directory (a node directory keeps one key for
+  every application it joins, unless `--key` imports another), and `join` refuses a second chain with
+  the same chain id on one node. Chain ids must be unique on a node, and the
   node-wide settings of two applications on one node must agree; `join` refuses otherwise.
 - **Accepted bundles**: `join` records the sealed bundle digests as this node's accepted set, and
   `start` checks the installed bundles against it. After a host upgrade, or for a later member on a
   newer release, `join --accept-bundles` shows which bundles changed and records the new set, in a
-  logged step. `status` compares the plugin catalog fingerprint each member reports.
+  logged step. `status` shows this node's plugin catalog fingerprint (the identity route that reports
+  it is private to each node), and operators compare it on the same call as the chain fingerprint.
+- **Roster binding**: every reader of a `.chain` file checks that each chain's members, threshold,
+  fixed proposer and chain id equal the sealed roster, and that no sealed value refers to the node's
+  environment (`${...}`); a draft cannot set those keys under `settings:`.
 - **Effective runtime identity**: what a running node reports (`GET /api/v1/app-chain/chains`).
   `status` compares it across members, together with the Cardano network genesis id (on devnet it
   only exists after the lead's first start, so it is outside the fingerprint; see D11). The runtime
-  does not report that id, so `status` hashes each node's stored genesis file and compares the
-  results.
+  does not report that id, so `status` shows the hash of this node's stored genesis file for operators
+  to compare; the genesis ids of every chain it compares across members itself.
 
 The runtime is unchanged: it already takes `state.genesis-id` as a setting and already validates a
 derived one.
@@ -223,7 +229,9 @@ the admin calls `approve` and `anchor` make, and storage under the node director
 change later without a new chain: `join --peer bob=host:port` overrides one peer, and `status`
 names unreachable peers. On Linux, `join` also writes a systemd unit file and prints the command to
 install it. Once the unit is installed and enabled, `start`, `stop` and the restarts that `approve`
-and `anchor` make go through `systemctl`, so one node never has two managers.
+and `anchor` make go through `systemctl`, so one node never has two managers. Node-only settings, such
+as connector endpoints, go in `config/local.yaml`, which `join` creates once and never rewrites; it wins
+over the generated node settings, and `start` refuses it when it sets any sealed consensus key.
 
 ### D5 — Membership changes are governed and quorum-safe
 
@@ -272,7 +280,8 @@ step. The files and checks are those of Phase A, only carried automatically:
 
 - No node and no runtime plugin is involved; the listener is part of the CLI and stops once every
   operator has received the `.chain`, or when the links expire.
-- Links are single-use and expire (default 24 hours).
+- Links are single-use per operator and expire (default 24 hours). Running `request <link>` again
+  after an interruption resumes: it skips the card once the application is sealed.
 - A link is an invitation, not a credential that protects anything secret. Everything transferred is
   public and checked by invite code or signature. Someone who steals a link can at most post a card
   under an expected name; the real operator's `join` then refuses because its own key is missing, and
@@ -284,8 +293,12 @@ step. The files and checks are those of Phase A, only carried automatically:
 `yano.sh appchain ui` starts a localhost-only web UI over the same engine and opens the browser. It
 has the same steps as the CLI: create (wizard), members, seal, join, and status, with a link to the
 node's own console once live. The binding editor (ADR-031.2) becomes the optional "workflow" step of
-create. The UI is built like `products/eutxo/ui` (ADR-040). It lives in Yano X, is served by the
-CLI, and needs no node, plugin or Yano change. Yano's node console stays in Yano.
+create. The UI is plain static HTML and ES modules with no build step, like Studio's binding editor, so
+the editor folds in directly (it is served from the release's `studio/`, and imports a draft's
+composite chains); Studio stops being a separate release archive; every action runs the same CLI command in-process, so files written from
+the browser are byte-identical to the CLI's. It lives in Yano X, is served by the CLI on 127.0.0.1 with
+a one-time token in the URL, and needs no node, plugin or Yano change. Yano's node console stays in
+Yano.
 
 ### D8 — Modules and packaging
 
@@ -311,7 +324,8 @@ CLI, and needs no node, plugin or Yano change. Yano's node console stays in Yano
 | `gitops` (cluster-wide Ansible, Helm, Kustomize) | Removed; each operator deploys their own node (systemd unit from `join`). ADR-039 is unchanged |
 | `diff`, `migrate` | Removed |
 | `doctor`, `drift` | Folded into `status` |
-| `recipes`, `capabilities`, `bindings`, `state`, `role`, `plugin`, `metadata`, `config` | Kept |
+| `config validate --mode project` | Removed; `template` and `resolved` modes are kept |
+| `recipes`, `capabilities`, `bindings`, `state`, `role`, `plugin`, `metadata`, `config` | Kept. A role-approval chain's bootstrap plan template, once written by `render`, is now written by `seal` beside the sealed file |
 | Studio blueprint page | Removed in Phase A |
 | Studio binding editor | Kept until Phase C absorbs it |
 
@@ -500,3 +514,12 @@ and E (publishing the chain fingerprint and member cards on Cardano).
 - **r8** (2026-10-27; maintainer decision and implementation findings): the CLI ships only in the JVM ZIP;
   A3 becomes a self-contained edition of the whole distribution with a jlink runtime (D8, A3, §7); on a
   devnet only the lead anchors, because followers keep no UTxO view (D11).
+- **r9** (2026-10-27; implementation findings): D2 states the exact genesis-id input; D7 builds the setup
+  UI as static modules like the binding editor instead of a separately built app; D9 lists the removed
+  project validation mode and where the role bootstrap plan template now comes from.
+- **r10** (2026-10-27; implementation): D4 adds `config/local.yaml`; D2 and D11 say which values
+  `status` compares itself and which operators compare from its output; D6 states that a link request
+  resumes; D7 serves the binding editor from the release and ends the separate Studio archive.
+- **r11** (2026-10-27; implementation review): D2 says the node, not `join`, checks derived genesis ids,
+  that a node directory keeps one key, and adds the roster binding and literal-value rules found by the
+  implementation reviews.
