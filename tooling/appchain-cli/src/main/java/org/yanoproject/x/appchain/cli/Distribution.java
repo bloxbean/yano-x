@@ -81,8 +81,9 @@ record Distribution(Path home) {
         if (!Files.isDirectory(plugins())) return digests;
         try (var files = Files.list(plugins())) {
             for (Path jar : files.filter(path -> path.toString().endsWith(".jar")).sorted().toList()) {
+                // A jar without a readable plugin manifest still loads, so it is tracked by file name.
                 String id = bundleId(jar);
-                if (id != null) digests.put(id, sha256(jar));
+                digests.put(id != null ? id : "file:" + jar.getFileName(), sha256(jar));
             }
         } catch (IOException error) {
             throw CliException.failure("Cannot read plugin bundles in " + plugins() + ": " + error.getMessage());
@@ -103,6 +104,17 @@ record Distribution(Path home) {
         } catch (IOException error) {
             return null;
         }
+    }
+
+    /** Bundles that differ between an accepted set and the installed set, in both directions. */
+    static java.util.List<String> bundleChanges(Map<String, String> accepted, Map<String, String> installed) {
+        java.util.List<String> changes = new java.util.ArrayList<>();
+        accepted.forEach((id, digest) -> {
+            if (!installed.containsKey(id)) changes.add(id + " (missing)");
+            else if (!installed.get(id).equals(digest)) changes.add(id + " (changed)");
+        });
+        installed.keySet().stream().filter(id -> !accepted.containsKey(id)).forEach(id -> changes.add(id + " (added)"));
+        return changes;
     }
 
     static String sha256(Path file) {

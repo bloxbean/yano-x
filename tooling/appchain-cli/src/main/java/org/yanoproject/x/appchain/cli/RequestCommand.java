@@ -154,6 +154,10 @@ final class RequestCommand {
             if (reply.status() == 200) {
                 org.yanoproject.x.appchain.formats.SealedApp sealed =
                         org.yanoproject.x.appchain.formats.SealedApp.parse(reply.body());
+                if (!sealed.genesis().invite().equals(link.invite())) {
+                    throw CliException.failure("The sealed file served for this link is for invite "
+                            + sealed.genesis().invite() + ", not " + link.invite() + "; do not join it");
+                }
                 Path file = args.path("output", Path.of(".")).resolve(sealed.genesis().name() + ".chain");
                 NodeDir.write(file, sealed.toJson());
                 terminal.ok("Received " + file);

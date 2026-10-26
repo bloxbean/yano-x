@@ -33,12 +33,12 @@ final class NodeConfig {
         Map<String, String> consensus = new TreeMap<>();
         Map<String, String> local = new TreeMap<>();
         String network = joined.getFirst().app().genesis().network();
-        int index = 0;
+        Map<String, Integer> indexes = node.chainIndexes(joined);
         for (Joined entry : joined) {
             SealedApp app = entry.app();
             app.genesis().settings().forEach(consensus::put);
             for (SealedApp.ChainGenesis chain : app.genesis().chains()) {
-                String prefix = "yano.app-chain.chains[" + index++ + "].";
+                String prefix = "yano.app-chain.chains[" + indexes.get(chain.id()) + "].";
                 // Who leads anchoring is a local role (ADR-056 D10), so only the policy stays shared.
                 chain.settings().forEach((key, value) -> {
                     if (!key.equals("anchor.enabled")) consensus.put(prefix + key, value);
@@ -147,8 +147,10 @@ final class NodeConfig {
     static void requireLocalLeavesConsensusAlone(NodeDir node) {
         if (!java.nio.file.Files.isRegularFile(localFile(node))) return;
         java.util.Set<String> sealed = flatten(consensusFile(node)).keySet();
-        java.util.List<String> clashes = flatten(localFile(node)).keySet().stream().filter(sealed::contains).sorted()
-                .toList();
+        // A %profile section applies to the same keys, so compare without the profile prefix.
+        java.util.List<String> clashes = flatten(localFile(node)).keySet().stream()
+                .map(key -> key.startsWith("%") && key.contains(".") ? key.substring(key.indexOf('.') + 1) : key)
+                .filter(sealed::contains).sorted().toList();
         if (!clashes.isEmpty()) {
             throw CliException.failure("config/local.yaml changes sealed consensus settings: " + String.join(", ",
                     clashes) + ". Remove them; every member must run the sealed values");

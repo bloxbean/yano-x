@@ -125,6 +125,17 @@ final class StatusCommand {
                 problems.add("Chain " + chain.id() + ": members report different genesis identities; one of them "
                         + "joined a different sealed file");
             }
+            Map<String, Set<String>> rootsByHeight = new java.util.HashMap<>();
+            for (String entry : roots) {
+                rootsByHeight.computeIfAbsent(entry.substring(0, entry.indexOf(':')), height -> new TreeSet<>())
+                        .add(entry.substring(entry.indexOf(':') + 1));
+            }
+            rootsByHeight.forEach((height, values) -> {
+                if (values.size() > 1) {
+                    problems.add("Chain " + chain.id() + ": members report different state roots at height " + height
+                            + "; stop and compare their logs before accepting more traffic");
+                }
+            });
             Map<String, Object> summary = new LinkedHashMap<>();
             summary.put("chain", chain.id());
             summary.put("recipe", chain.recipe());
@@ -141,6 +152,10 @@ final class StatusCommand {
 
         MemberView me = members.stream().filter(member -> member.name().equals(self.name())).findFirst().orElseThrow();
         List<String> offline = members.stream().filter(member -> !member.online()).map(MemberView::name).toList();
+        // A node that is up but has not loaded a chain (joined without a restart) is not running that chain yet.
+        List<String> notLoaded = members.stream().filter(MemberView::online)
+                .filter(member -> genesis.chains().stream().anyMatch(chain -> !member.chains().containsKey(chain.id())))
+                .map(MemberView::name).toList();
         String stage;
         String waitingFor = null;
         List<String> next = new ArrayList<>();
@@ -153,6 +168,11 @@ final class StatusCommand {
             waitingFor = "approval";
             next.add("this node waits for approval: each existing operator runs  yano.sh appchain approve "
                     + self.name() + ".member");
+        } else if (!notLoaded.isEmpty()) {
+            stage = "Starting";
+            waitingFor = String.join(", ", notLoaded) + " to load every chain";
+            next.add(String.join(", ", notLoaded) + " restarts their node so it loads the new chains:  yano.sh appchain "
+                    + "stop  then  yano.sh appchain start");
         } else if (!offline.isEmpty()) {
             stage = "Starting";
             waitingFor = String.join(", ", offline);
@@ -211,12 +231,18 @@ final class StatusCommand {
         return Math.max(1, seconds / 60) + " minutes";
     }
 
+    /** Whether a member's anchor status says it leads; in script mode co-signers report enabled too. */
+    static boolean leads(JsonNode anchor) {
+        if (anchor.has("leader")) return anchor.path("leader").asBoolean(false);
+        return anchor.path("enabled").asBoolean(false);
+    }
+
     private static String anchoring(List<MemberView> members, String chain) {
         for (MemberView member : members) {
             JsonNode status = member.chains().get(chain);
             if (status == null) continue;
             JsonNode anchor = status.path("anchor");
-            if (anchor.path("enabled").asBoolean(false)) {
+            if (leads(anchor)) {
                 long count = anchor.path("anchoredCount").asLong(0);
                 return "led by " + member.name() + (count > 0 ? ", " + count + " anchored (last height "
                         + anchor.path("lastAnchoredHeight").asLong() + ")" : " (waiting for the first anchor)");

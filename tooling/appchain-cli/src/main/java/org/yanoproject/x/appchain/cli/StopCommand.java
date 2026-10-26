@@ -25,9 +25,7 @@ final class StopCommand {
 
     void stop(NodeDir node) {
         if (Service.installed(node)) {
-            if (Service.systemctl("stop", Service.unitName(node)) != 0) {
-                throw CliException.failure("systemctl stop " + Service.unitName(node) + " failed");
-            }
+            Service.control(node, "stop");
             terminal.ok("Stopped " + Service.unitName(node) + "; its data is kept");
             return;
         }

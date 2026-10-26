@@ -43,7 +43,21 @@ final class JoinCommand {
         SealedApp.Member founding = genesis.memberByKey(key);
         boolean later = founding == null;
         if (later) {
-            if (!Files.isRegularFile(requestRecord(node, genesis))) {
+            if (genesis.member(identity.name()) != null) {
+                throw CliException.failure("The sealed roster lists " + identity.name() + " with key "
+                        + Show.keyId(genesis.member(identity.name()).publicKey()) + ", but this node's key is "
+                        + Show.keyId(key) + ". Someone else's card was sealed under your name: stop and tell the "
+                        + "coordinator.");
+            }
+            Path record = requestRecord(node, genesis);
+            org.yanoproject.x.appchain.formats.MemberCard requested = Files.isRegularFile(record)
+                    ? org.yanoproject.x.appchain.formats.MemberCard.parse(NodeDir.read(record)) : null;
+            if (requested != null && (!requested.invite().equals(genesis.invite())
+                    || !requested.publicKey().equals(key))) {
+                throw CliException.failure("This node's request was for another application or key; run "
+                        + "`yano.sh appchain request " + file.getFileName() + "` again");
+            }
+            if (requested == null) {
                 throw CliException.failure("This node's key (" + Show.keyId(key) + ") is not a member of "
                         + genesis.name() + ". If you are a founding operator, the coordinator sealed someone "
                         + "else's card under your name: stop and tell them. To join later, run "
@@ -99,14 +113,14 @@ final class JoinCommand {
         Map<String, String> installed = distribution.bundleDigests();
         NodeDir.Local local = node.local(genesis.name());
         Map<String, String> accepted = local != null && same ? local.bundles() : genesis.bundles();
-        Map<String, String> changed = changedBundles(accepted, installed);
+        List<String> changed = Distribution.bundleChanges(accepted, installed);
         if (!changed.isEmpty()) {
             if (!args.flag("accept-bundles")) {
                 throw CliException.failure("This distribution's plugin bundles differ from the sealed ones: "
-                        + String.join(", ", changed.keySet()) + ". Install Yano X " + genesis.yanoXVersion()
+                        + String.join(", ", changed) + ". Install Yano X " + genesis.yanoXVersion()
                         + ", or, if the operators agreed to the upgrade, re-run with --accept-bundles");
             }
-            terminal.warn("Accepting changed bundles " + String.join(", ", changed.keySet())
+            terminal.warn("Accepting changed bundles " + String.join(", ", changed)
                     + " for " + genesis.name());
             accepted = new TreeMap<>(installed);
         }
@@ -187,11 +201,4 @@ final class JoinCommand {
         }
     }
 
-    private static Map<String, String> changedBundles(Map<String, String> accepted, Map<String, String> installed) {
-        Map<String, String> changed = new LinkedHashMap<>();
-        accepted.forEach((id, digest) -> {
-            if (!digest.equals(installed.get(id))) changed.put(id, digest);
-        });
-        return changed;
-    }
 }

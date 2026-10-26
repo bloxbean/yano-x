@@ -29,10 +29,7 @@ final class StartCommand {
         int timeout = args.integer("timeout") == null ? 300 : args.integer("timeout");
         boolean foreground = args.flag("foreground");
         if (!foreground && Service.installed(node)) {
-            if (Service.systemctl("start", Service.unitName(node)) != 0) {
-                throw CliException.failure("systemctl start " + Service.unitName(node) + " failed; see "
-                        + "journalctl -u " + Service.unitName(node));
-            }
+            Service.control(node, "start");
             return waitReady(node, timeout, true);
         }
         Process process = launch(node, timeout, foreground);
@@ -55,7 +52,8 @@ final class StartCommand {
         if (Files.exists(node.path("run", "join.pending"))) {
             throw CliException.failure("A join did not finish; run  yano.sh appchain join <app>.chain  again");
         }
-        if (Processes.running(node)) {
+        // Under systemd (--foreground) the unit itself is active while this runs, so only the node process counts.
+        if (foreground ? Processes.node(node).isPresent() : Processes.running(node)) {
             throw CliException.failure("This node is already running; use  yano.sh appchain status");
         }
         List<NodeConfig.Joined> joined = node.joined();
@@ -73,9 +71,7 @@ final class StartCommand {
         for (NodeConfig.Joined entry : joined) {
             String name = entry.app().genesis().name();
             NodeDir.Local local = node.local(name);
-            List<String> changed = local.bundles().entrySet().stream()
-                    .filter(bundle -> !bundle.getValue().equals(installed.get(bundle.getKey())))
-                    .map(Map.Entry::getKey).toList();
+            List<String> changed = Distribution.bundleChanges(local.bundles(), installed);
             if (!changed.isEmpty()) {
                 throw CliException.failure("Plugin bundles changed since this node joined " + name + ": "
                         + String.join(", ", changed) + ". Reinstall the release it joined with, or accept the "
@@ -114,7 +110,7 @@ final class StartCommand {
                     .redirectInput(ProcessBuilder.Redirect.from(new java.io.File("/dev/null")));
         }
         Process process = builder.start();
-        NodeDir.write(node.path("run", "node.pid"), process.pid() + "\n");
+        Processes.record(node, process);
         terminal.say("Starting " + identity.name() + " (" + String.join(", ",
                 joined.stream().map(entry -> entry.app().genesis().name()).toList()) + ") on " + network
                 + ", HTTP " + identity.httpPort() + ", node port " + identity.listenPort());
@@ -126,6 +122,7 @@ final class StartCommand {
         long deadline = System.currentTimeMillis() + timeoutSeconds * 1000L;
         while (System.currentTimeMillis() < deadline) {
             if (client.ready()) {
+                Devnet.pinAfterStart(node);
                 terminal.ok("Node " + node.requireIdentity().name() + " is up at " + client.base());
                 if (showNext) terminal.next("yano.sh appchain status   (shows whether every member is online)");
                 return 0;

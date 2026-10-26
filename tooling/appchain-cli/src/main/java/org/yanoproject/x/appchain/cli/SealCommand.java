@@ -28,6 +28,8 @@ final class SealCommand {
     static final String USAGE = "yano.sh appchain seal <app>.draft.yaml [<card>.member ...] [--output <dir>]"
             + " [--force]";
     private static final ObjectMapper YAML = new ObjectMapper(new YAMLFactory());
+    private static final Set<String> RESERVED = Set.of("chain-id", "members", "threshold", "signing-key", "peers",
+            "state-machine");
 
     private final Terminal terminal;
     private final Distribution distribution;
@@ -210,6 +212,13 @@ final class SealCommand {
             values.put("anchor.mode", chain.anchor().mode());
             values.put("anchor.every-blocks", Integer.toString(chain.anchor().everyBlocks()));
         }
+        for (String key : chain.settings().keySet()) {
+            if (RESERVED.contains(key) || key.startsWith("sequencer.") || key.startsWith("state.")
+                    || key.startsWith("membership.") || key.startsWith("consensus.")) {
+                throw CliException.failure("Chain " + chain.id() + ": setting " + key + " comes from the draft's "
+                        + "operators, threshold, sequencing or membership and cannot be set under settings:");
+            }
+        }
         values.putAll(chain.settings());
         if ("true".equals(values.get("anchor.enabled"))) {
             throw CliException.failure("Chain " + chain.id() + ": anchoring is turned on later with "
@@ -222,6 +231,10 @@ final class SealCommand {
         JsonNode document = chain.composite();
         if (chain.bindings() != null) {
             Path file = directory.resolve(chain.bindings()).normalize();
+            if (!file.startsWith(directory)) {
+                throw CliException.failure("Chain " + chain.id() + ": the bindings file must be inside the draft's "
+                        + "directory, because seal copies it into the shared sealed file");
+            }
             if (!Files.isRegularFile(file)) {
                 throw CliException.failure("Chain " + chain.id() + ": bindings file " + file + " not found");
             }

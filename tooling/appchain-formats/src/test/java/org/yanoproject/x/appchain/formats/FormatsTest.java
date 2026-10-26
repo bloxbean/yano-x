@@ -103,7 +103,8 @@ class FormatsTest {
                 "alice", "governed", 2,
                 List.of(new SealedApp.Member("alice", alice), new SealedApp.Member("bob", bob)),
                 Map.of("org.yanoproject.x.stdlib", "ab".repeat(32)), Map.of(), List.of(new SealedApp.ChainGenesis("orders", "audit-log",
-                Map.of("chain-id", "orders", "state.genesis-id", "00".repeat(32)), Map.of(), List.of("stdlib"))));
+                Map.of("chain-id", "orders", "members", alice + "," + bob, "threshold", "2", "state.genesis-id",
+                "00".repeat(32)), Map.of(), List.of("stdlib"))));
         return new SealedApp(SealedApp.FORMAT, genesis, Map.of(
                 "alice", new SealedApp.Peer(aliceNode, "http://node-a.example:8080"),
                 "bob", new SealedApp.Peer("node-b.example:13337", "http://node-b.example:8080")));

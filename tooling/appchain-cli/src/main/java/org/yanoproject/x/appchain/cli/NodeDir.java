@@ -154,6 +154,40 @@ final class NodeDir {
         return result;
     }
 
+    /**
+     * The config index of every joined chain, assigned once in join order and never changed, so settings an operator
+     * writes in config/local.yaml under {@code chains[i]} keep meaning the same chain.
+     */
+    Map<String, Integer> chainIndexes(List<NodeConfig.Joined> joined) {
+        Path file = path("apps", "chain-indexes.json");
+        Map<String, Integer> indexes = new java.util.LinkedHashMap<>();
+        if (Files.isRegularFile(file)) {
+            try {
+                JSON.readTree(file.toFile()).properties()
+                        .forEach(entry -> indexes.put(entry.getKey(), entry.getValue().asInt()));
+            } catch (IOException error) {
+                throw CliException.failure("Cannot read " + file + ": " + error.getMessage());
+            }
+        }
+        boolean changed = false;
+        for (NodeConfig.Joined entry : joined) {
+            for (SealedApp.ChainGenesis chain : entry.app().genesis().chains()) {
+                if (!indexes.containsKey(chain.id())) {
+                    indexes.put(chain.id(), indexes.values().stream().mapToInt(Integer::intValue).max().orElse(-1) + 1);
+                    changed = true;
+                }
+            }
+        }
+        if (changed) {
+            try {
+                write(file, JSON.writeValueAsString(indexes) + "\n");
+            } catch (IOException error) {
+                throw CliException.failure("Cannot write " + file + ": " + error.getMessage());
+            }
+        }
+        return indexes;
+    }
+
     Path appFile(String app) {
         return path("apps", app + ".chain");
     }
@@ -192,14 +226,17 @@ final class NodeDir {
                 + String.join(", ", apps.stream().map(app -> app.genesis().name()).toList()));
     }
 
-    /** True once the node has written chain data. */
+    /** True once the node has written app-chain or Cardano data. */
     boolean hasData() {
-        Path data = path("data", "appchain-chainstate");
-        try (var entries = Files.exists(data) ? Files.list(data) : java.util.stream.Stream.<Path>empty()) {
-            return entries.findAny().isPresent();
-        } catch (IOException error) {
-            return true;
+        for (String store : new String[]{"appchain-chainstate", "chainstate"}) {
+            Path data = path("data", store);
+            try (var entries = Files.exists(data) ? Files.list(data) : java.util.stream.Stream.<Path>empty()) {
+                if (entries.findAny().isPresent()) return true;
+            } catch (IOException error) {
+                return true;
+            }
         }
+        return false;
     }
 
     static String read(Path file) {

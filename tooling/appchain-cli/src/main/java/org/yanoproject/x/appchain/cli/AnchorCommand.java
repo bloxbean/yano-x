@@ -65,22 +65,27 @@ final class AnchorCommand {
         }
         StatusCommand.AppView view = new StatusCommand(terminal).view(node, app);
         String otherLeader = null;
-        boolean leaderOnline = false;
         String thread = null;
+        List<String> offline = new java.util.ArrayList<>();
         for (StatusCommand.MemberView member : view.members()) {
+            if (!member.online()) {
+                if (!member.name().equals(self)) offline.add(member.name());
+                continue;
+            }
             JsonNode anchor = member.chains().getOrDefault(chain, missing()).path("anchor");
             if (!anchor.path("threadPolicyId").asText("").isEmpty()) thread = anchor.path("threadPolicyId").asText();
-            if (!member.name().equals(self) && anchor.path("enabled").asBoolean(false)) {
+            if (!member.name().equals(self) && StatusCommand.leads(anchor)) {
                 otherLeader = member.name();
-                leaderOnline = member.online();
             }
         }
         if (otherLeader != null) {
-            if (leaderOnline || !args.flag("take-over")) {
-                throw CliException.failure(otherLeader + " already anchors " + chain + ". To move the role, "
-                        + otherLeader + " runs  yano.sh appchain anchor --stop --chain " + chain + "  first"
-                        + (leaderOnline ? "" : "; if " + otherLeader + " is gone for good, use --take-over"));
-            }
+            throw CliException.failure(otherLeader + " already anchors " + chain + ". To move the role, "
+                    + otherLeader + " runs  yano.sh appchain anchor --stop --chain " + chain + "  first");
+        }
+        // An unreachable member may still be leading; only an explicit take-over proceeds.
+        if (!offline.isEmpty() && !args.flag("take-over")) {
+            throw CliException.failure(String.join(", ", offline) + " cannot be reached and may be leading anchoring "
+                    + "for " + chain + ". Bring them online, or if they are gone for good, run again with --take-over");
         }
         String mine = local.get(path + "/status").map(status -> status.path("anchor").path("threadPolicyId")
                 .asText("")).orElse("");
@@ -106,9 +111,16 @@ final class AnchorCommand {
             terminal.ok("Created the anchor wallet key in " + node.path("secrets", "anchor.key"));
         }
         Anchoring.Lead previous = Anchoring.lead(node, genesis.name(), chain);
-        Anchoring.put(node, new Anchoring.Lead(genesis.name(), chain,
-                previous == null ? null : previous.submittedBootstrap()));
-        restart(node);
+        boolean leadingNow = local.get(path + "/status").map(status -> StatusCommand.leads(status.path("anchor")))
+                .orElse(false);
+        if (previous != null && leadingNow) {
+            // Already configured and running as leader: restarting would drop a pending bootstrap held in memory.
+            terminal.say("This node already leads anchoring for " + chain + "; continuing where it stopped.");
+        } else {
+            Anchoring.put(node, new Anchoring.Lead(genesis.name(), chain,
+                    previous == null ? null : previous.submittedBootstrap()));
+            restart(node);
+        }
 
         String address = null;
         while (address == null) {
@@ -133,6 +145,11 @@ final class AnchorCommand {
             terminal.say("Send ADA to that address from any wallet. This command continues once it arrives.");
         }
 
+        if ("script".equals(mode) && thread == null && !offline.isEmpty()) {
+            throw CliException.failure("No reachable member reports an anchor thread, but " + String.join(", ", offline)
+                    + " cannot be reached and may hold one; a second bootstrap would fork the thread. Bring them "
+                    + "online first");
+        }
         if ("script".equals(mode) && thread == null) {
             Anchoring.Lead lead = Anchoring.lead(node, genesis.name(), chain);
             if (lead.submittedBootstrap() != null && !bootstrapped(local, path)) {
@@ -163,7 +180,7 @@ final class AnchorCommand {
         new StopCommand(terminal).stop(node);
         StartCommand start = new StartCommand(terminal, distribution);
         if (Service.installed(node)) {
-            Service.systemctl("start", Service.unitName(node));
+            Service.control(node, "start");
         } else {
             start.launch(node, 300, false);
         }
@@ -189,7 +206,7 @@ final class AnchorCommand {
 
     private static boolean ready(NodeClient local, String path, String mode) {
         JsonNode anchor = local.get(path + "/status").map(status -> status.path("anchor")).orElse(missing());
-        if (!anchor.path("enabled").asBoolean(false)) return false;
+        if (!StatusCommand.leads(anchor)) return false;
         return !"script".equals(mode) || anchor.path("bootstrapped").asBoolean(false);
     }
 

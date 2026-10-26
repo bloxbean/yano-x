@@ -67,6 +67,7 @@ final class InviteCommand {
             tokens.put(HexFormat.of().formatHex(token), operator);
         }
         Set<String> delivered = ConcurrentHashMap.newKeySet();
+        Map<String, String> cardKeys = new ConcurrentHashMap<>();
         HttpServer server;
         try {
             server = HttpServer.create(new InetSocketAddress(port), 0);
@@ -92,6 +93,13 @@ final class InviteCommand {
             if (!card.name().equals(operator)) {
                 send(exchange, 403, "text/plain", ("This link is for " + operator + ", not " + card.name())
                         .getBytes(StandardCharsets.UTF_8));
+                return;
+            }
+            // A link is single-use: once it delivered a card, only the same key may send it again.
+            String first = cardKeys.putIfAbsent(operator, card.publicKey());
+            if (first != null && !first.equals(card.publicKey())) {
+                send(exchange, 409, "text/plain", ("This link already delivered " + operator + "'s card with another "
+                        + "key; ask the coordinator for a new link").getBytes(StandardCharsets.UTF_8));
                 return;
             }
             Path file = directory.resolve(operator + ".member");

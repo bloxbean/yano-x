@@ -70,6 +70,15 @@ final class Service {
         return installed(node) && systemctl("is-active", unitName(node)) == 0;
     }
 
+    /** Starts, stops or restarts the installed unit; tells the operator the sudo command when that is refused. */
+    static void control(NodeDir node, String action) {
+        if (systemctl(action, unitName(node)) != 0) {
+            throw CliException.failure("systemctl " + action + " " + unitName(node) + " was refused (usually it needs "
+                    + "root). Run  sudo systemctl " + action + " " + unitName(node) + "  and then run this command "
+                    + "again; it continues where it stopped");
+        }
+    }
+
     static int systemctl(String... arguments) {
         String[] command = new String[arguments.length + 1];
         command[0] = "systemctl";

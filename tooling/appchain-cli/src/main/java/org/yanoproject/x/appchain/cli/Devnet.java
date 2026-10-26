@@ -28,52 +28,73 @@ final class Devnet {
         return node.path("runtime", "devnet-genesis.json");
     }
 
-    /** Makes sure this node has the devnet genesis, creating or downloading it on first start. */
+    /**
+     * Makes sure this node has the devnet genesis. A genesis that never backed a running node (no Cardano data yet)
+     * is replaced: the lead makes a fresh one, and a follower downloads the lead's current one, because a devnet
+     * genesis cannot start long after its start time. Once a node has run on it, it is pinned for life.
+     */
     static void prepare(NodeDir node, SealedApp app, Distribution distribution, Terminal terminal, long timeoutMillis) {
         Path file = genesis(node);
-        Path pin = node.path("runtime", "devnet-genesis.sha256");
-        if (Files.isRegularFile(file)) {
+        Path pin = pinFile(node);
+        if (Files.isRegularFile(file) && (Files.isRegularFile(pin) || hasCardanoData(node))) {
             String digest = Distribution.sha256(file);
             if (Files.isRegularFile(pin) && !NodeDir.read(pin).strip().equals(digest)) {
-                throw CliException.failure(file + " changed since this node first started; restore it "
+                throw CliException.failure(file + " changed since this node first ran on it; restore it "
                         + "(nodes keep their devnet genesis for life)");
             }
-            if (!Files.isRegularFile(pin)) NodeDir.write(pin, digest + "\n");
             return;
         }
-        if (node.hasData()) {
-            throw CliException.failure("This node has chain data but no devnet genesis; restore " + file);
+        if (!Files.isRegularFile(file) && hasCardanoData(node)) {
+            throw CliException.failure("This node has Cardano data but no devnet genesis; restore " + file);
         }
         NodeDir.Identity identity = node.requireIdentity();
         if (identity.name().equals(app.genesis().lead())) {
             create(distribution, file);
             terminal.ok("Created this application's Cardano devnet (you are the lead)");
-        } else {
-            String lead = app.genesis().lead();
-            NodeClient client = new NodeClient(app.peers().get(lead).http(), null);
-            long deadline = System.currentTimeMillis() + timeoutMillis;
-            byte[] zip = null;
-            boolean told = false;
-            while (zip == null) {
-                try {
-                    zip = client.download("/api/v1/devnet/genesis/download");
-                } catch (IOException notYet) {
-                    if (System.currentTimeMillis() > deadline) {
-                        throw CliException.notReady("The lead (" + lead + ") is not reachable at " + client.base()
-                                + "; ask " + lead + " to run  yano.sh appchain start  first, then start again");
-                    }
-                    if (!told) {
-                        terminal.say("Waiting for the lead (" + lead + ") to start the devnet at " + client.base()
-                                + " …");
-                        told = true;
-                    }
-                    sleep(3000);
-                }
-            }
-            NodeDir.write(file, shelley(zip));
-            terminal.ok("Downloaded the devnet genesis from the lead (" + lead + ")");
+            return;
         }
-        NodeDir.write(pin, Distribution.sha256(file) + "\n");
+        String lead = app.genesis().lead();
+        NodeClient client = new NodeClient(app.peers().get(lead).http(), null);
+        long deadline = System.currentTimeMillis() + timeoutMillis;
+        byte[] zip = null;
+        boolean told = false;
+        while (zip == null) {
+            try {
+                zip = client.download("/api/v1/devnet/genesis/download");
+            } catch (IOException notYet) {
+                if (System.currentTimeMillis() > deadline) {
+                    throw CliException.notReady("The lead (" + lead + ") is not reachable at " + client.base()
+                            + "; ask " + lead + " to run  yano.sh appchain start  first, then start again");
+                }
+                if (!told) {
+                    terminal.say("Waiting for the lead (" + lead + ") to start the devnet at " + client.base() + " …");
+                    told = true;
+                }
+                sleep(3000);
+            }
+        }
+        NodeDir.write(file, shelley(zip));
+        terminal.ok("Downloaded the devnet genesis from the lead (" + lead + ")");
+    }
+
+    /** Called once the node is ready: from now on this genesis is the node's for life. */
+    static void pinAfterStart(NodeDir node) {
+        if (Files.isRegularFile(genesis(node)) && !Files.isRegularFile(pinFile(node))) {
+            NodeDir.write(pinFile(node), Distribution.sha256(genesis(node)) + "\n");
+        }
+    }
+
+    private static Path pinFile(NodeDir node) {
+        return node.path("runtime", "devnet-genesis.sha256");
+    }
+
+    private static boolean hasCardanoData(NodeDir node) {
+        try (var entries = Files.exists(node.path("data", "chainstate")) ? Files.list(node.path("data", "chainstate"))
+                : java.util.stream.Stream.<Path>empty()) {
+            return entries.findAny().isPresent();
+        } catch (IOException error) {
+            return true;
+        }
     }
 
     static long systemStartMillis(NodeDir node) {

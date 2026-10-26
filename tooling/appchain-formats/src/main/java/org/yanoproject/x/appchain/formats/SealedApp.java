@@ -59,6 +59,34 @@ public record SealedApp(String format, Genesis genesis, Map<String, Peer> peers)
                 throw new FormatException("Sealed threshold " + threshold + " is not safe for "
                         + members.size() + " members");
             }
+            // A sealed value must never reference the joining node's environment, which holds its secrets.
+            settings.forEach((key, value) -> requireLiteral(key, value));
+            for (ChainGenesis chain : chains) {
+                chain.settings().forEach((key, value) -> requireLiteral(chain.id() + " " + key, value));
+                chain.nodeSettings().forEach((key, value) -> {
+                    if (!key.equals("peers") && !key.equals("signing-key")) requireLiteral(chain.id() + " " + key, value);
+                });
+            }
+            // The roster operators compare must be the member set every chain actually runs.
+            String roster = String.join(",", members.stream().map(Member::publicKey).toList());
+            for (ChainGenesis chain : chains) {
+                Map<String, String> values = chain.settings();
+                if (!chain.id().equals(values.get("chain-id"))
+                        || !roster.equals(values.get("members"))
+                        || !Integer.toString(threshold).equals(values.get("threshold"))
+                        || "fixed".equals(values.get("sequencer.mode"))
+                        && !members.getFirst().publicKey().equals(values.get("sequencer.proposer"))) {
+                    throw new FormatException("Chain " + chain.id() + " runs a member set, threshold or proposer "
+                            + "that differs from the sealed roster; do not join this file");
+                }
+            }
+        }
+
+        private static void requireLiteral(String key, String value) {
+            if (value != null && (value.contains("${") || value.contains("$${"))) {
+                throw new FormatException("Sealed setting " + key + " refers to the node's environment (" + value
+                        + "); a sealed file may hold only literal values. Do not join this file");
+            }
         }
 
         public Member member(String name) {
