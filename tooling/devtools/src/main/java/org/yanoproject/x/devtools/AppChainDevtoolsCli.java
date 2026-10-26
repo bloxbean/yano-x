@@ -40,20 +40,12 @@ public final class AppChainDevtoolsCli {
     private static final String USAGE = """
             Usage: ./yano.sh appchain config validate --mode template [options] <config.yml>
                or: ./yano.sh appchain config validate --mode resolved --config <file> [options]
-               or: ./yano.sh appchain config validate --mode project <project-directory>
                or: ./yano.sh appchain config effective --mode resolved --config <file> [options]
                or: ./yano.sh appchain config explain [options] <property>
-               or: ./yano.sh appchain init [options]
-               or: ./yano.sh appchain render [project-directory]
                or: ./yano.sh appchain recipes [--format text|json]
                or: ./yano.sh appchain capabilities [--format text|json]
-               or: ./yano.sh appchain doctor [project-directory] [--distribution <path>]
-               or: ./yano.sh appchain diff <old.lock> <new.lock>
-               or: ./yano.sh appchain drift [project-directory] --peer <url> [--peer <url> ...]
-               or: ./yano.sh appchain gitops [project-directory] --target helm|kustomize|ansible --output <empty-dir>
                or: ./yano.sh appchain plugin inspect|validate|sign|scaffold [options]
                or: ./yano.sh appchain metadata verify <plugin.jar> --trust-key <key-id=64-hex-public-key>
-               or: ./yano.sh appchain migrate [project-directory] [--dry-run]
                or: ./yano.sh appchain role public-key|key-proof|key-proof-signature|sign|govern-*|bootstrap [options]
                or: ./yano.sh appchain authenticated-map action|direct-*|approval-*|command [options]
                or: ./yano.sh appchain eutxo transaction|utxo|proof|doctor|demo [options]
@@ -244,29 +236,6 @@ public final class AppChainDevtoolsCli {
             PrintWriter out) throws IOException {
         if (parsed.mode() == Mode.TEMPLATE) {
             return validateTemplate(parsed, registry, out);
-        }
-        if (parsed.mode() == Mode.PROJECT) {
-            AppChainProjectModel.ProjectValidation result =
-                    AppChainProjectLifecycle.forProject(
-                            registry, parsed.targetPath()).validate(parsed.targetPath());
-            if (parsed.format() == Format.JSON) {
-                Map<String, Object> output = validationEnvelope(
-                        "VALID_PROJECT", "project", registry);
-                output.put("recipe", result.lock().recipe());
-                output.put("runtime", result.lock().runtime());
-                output.put("deployment", result.lock().deployment());
-                output.put("generatedFileCount", result.generatedFileCount());
-                output.put("acknowledgements", result.lock().acknowledgements());
-                out.println(json.writeValueAsString(output));
-            } else {
-                out.printf(Locale.ROOT,
-                        "VALID_PROJECT recipe=%s runtime=%s deployment=%s files=%d "
-                                + "acknowledgements=%s%n",
-                        result.lock().recipe(), result.lock().runtime(),
-                        result.lock().deployment(), result.generatedFileCount(),
-                        result.lock().acknowledgements());
-            }
-            return EXIT_OK;
         }
         ResolvedAppChainConfiguration resolved = resolve(parsed, registry);
         ResolvedValidationResult result = new AppChainResolvedValidator(registry, List.of())
@@ -549,7 +518,6 @@ public final class AppChainDevtoolsCli {
                     mode = switch (value(args, cursor++, argument)) {
                         case "template" -> Mode.TEMPLATE;
                         case "resolved" -> Mode.RESOLVED;
-                        case "project" -> Mode.PROJECT;
                         default -> throw usage("--mode must be 'template', 'resolved', or 'project'");
                     };
                 }
@@ -586,7 +554,7 @@ public final class AppChainDevtoolsCli {
         }
         return new ParsedArguments(command, mode, format, target,
                 command == Command.VALIDATE
-                        && (mode == Mode.TEMPLATE || mode == Mode.PROJECT) ? path(target) : null,
+                        && mode == Mode.TEMPLATE ? path(target) : null,
                 templateContract, List.copyOf(metadata), List.copyOf(configs), profile,
                 includeEnvironment, includeSystemProperties, showSources);
     }
@@ -615,7 +583,7 @@ public final class AppChainDevtoolsCli {
         if (command == Command.EFFECTIVE && mode != Mode.RESOLVED) {
             throw usage("effective supports only '--mode resolved'");
         }
-        if (mode == Mode.TEMPLATE || mode == Mode.PROJECT) {
+        if (mode == Mode.TEMPLATE) {
             if (command != Command.VALIDATE || target == null || !configs.isEmpty()) {
                 throw usage(mode.name().toLowerCase(Locale.ROOT)
                         + " validate requires one positional path");
@@ -624,9 +592,6 @@ public final class AppChainDevtoolsCli {
                     || showSources || format == Format.YAML) {
                 throw usage(mode.name().toLowerCase(Locale.ROOT)
                         + " validate does not accept resolved-mode options");
-            }
-            if (mode == Mode.PROJECT && templateContract != null) {
-                throw usage("--template-contract is accepted only in template mode");
             }
         } else {
             if (target != null || configs.isEmpty()) {
@@ -657,8 +622,7 @@ public final class AppChainDevtoolsCli {
         int cursor = args.length > 0 && "appchain".equals(args[0]) ? 1 : 0;
         if (cursor >= args.length) return false;
         return switch (args[cursor]) {
-            case "chain", "prepare", "plan", "apply", "start-check", "init", "render", "recipes", "capabilities", "doctor", "diff", "drift",
-                    "gitops", "plugin", "metadata", "migrate" -> true;
+            case "recipes", "capabilities", "plugin", "metadata" -> true;
             default -> false;
         };
     }
@@ -729,7 +693,7 @@ public final class AppChainDevtoolsCli {
 
     private enum Command { VALIDATE, EFFECTIVE, EXPLAIN }
 
-    private enum Mode { TEMPLATE, RESOLVED, PROJECT }
+    private enum Mode { TEMPLATE, RESOLVED }
 
     private enum Format { TEXT, JSON, YAML }
 

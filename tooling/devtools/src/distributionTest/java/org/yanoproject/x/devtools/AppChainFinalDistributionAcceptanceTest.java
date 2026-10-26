@@ -380,190 +380,82 @@ class AppChainFinalDistributionAcceptanceTest {
         throw new AssertionError("missing documented " + language + " fixture " + index);
     }
 
+    /**
+     * ADR-056: every selectable recipe goes through the setup ceremony with the archive's own launcher: a draft,
+     * three member cards from three node directories, a seal, and a founding join that writes node configuration.
+     */
     @Test
-    void finalDistributionGeneratesAndValidatesEveryAdvertisedCombination() throws Exception {
+    void finalDistributionSealsAndJoinsEverySelectableRecipe() throws Exception {
         Path archive = Path.of(System.getProperty("yano.test.final-yano-dist-zip"))
                 .toAbsolutePath().normalize();
         Path release = extractRelease(archive, temporary.resolve("release"));
         Path launcher = release.resolve("yano.sh");
-        assertThat(launcher).isRegularFile();
         assertThat(launcher.toFile().setExecutable(true)).isTrue();
         assertThat(release.resolve("tools/yano-appchain/bin/yano-appchain")
                 .toFile().setExecutable(true)).isTrue();
         assertThat(release.resolve("studio/index.html")).isRegularFile();
-        assertThat(release.resolve("studio/assets/appchain-release-capability-index.json"))
-                .isRegularFile();
-        assertThat(release.resolve("studio/assets/appchain-release-acceptance-index.json"))
-                .isRegularFile();
-        assertThat(release.resolve("skills/configure-yano-appchain/SKILL.md"))
-                .isRegularFile();
-        assertThat(release.resolve("skills/configure-yano-appchain/agents/openai.yaml"))
-                .isRegularFile();
-        assertThat(release.resolve("config/schema/appchain-metadata-trust.schema.json"))
-                .isRegularFile();
-        assertThat(release.resolve("config/schema/appchain-gitops-lock.schema.json"))
-                .isRegularFile();
-        assertThat(release.resolve("config/schema/appchain-component-catalog.schema.json"))
-                .isRegularFile();
-        assertThat(release.resolve(
-                "config/schema/appchain-component-catalog-snapshot.schema.json"))
-                .isRegularFile();
-        assertThat(release.resolve("config/schema/appchain-release-acceptance-index.json"))
-                .isRegularFile();
-        assertStudioBlueprintRoundTrips(release, launcher);
+        assertThat(release.resolve("studio/bindings.html")).isRegularFile();
+        assertThat(release.resolve("skills/configure-yano-appchain/SKILL.md")).isRegularFile();
+        assertThat(release.resolve("config/schema/appchain-metadata-trust.schema.json")).isRegularFile();
+        assertThat(release.resolve("config/schema/appchain-component-catalog.schema.json")).isRegularFile();
+        assertThat(release.resolve("config/schema/appchain-release-acceptance-index.json")).isRegularFile();
 
-        AppChainPropertyRegistry properties = AppChainPropertyRegistry.framework();
-        AppChainProjectCatalog catalog = new AppChainProjectCatalog(properties);
-        AppChainProjectLifecycle lifecycle = new AppChainProjectLifecycle(properties);
-        int accepted = 0;
+        AppChainProjectCatalog catalog = new AppChainProjectCatalog(AppChainPropertyRegistry.framework());
+        Path bindings = temporary.resolve("acceptance-bindings.yaml");
+        Files.writeString(bindings, fencedBlock(Files.readString(
+                release.resolve("docs/appchain/DECLARATIVE_BINDINGS_CLI.md")), "yaml", 0));
+        Map<String, List<String>> answers = Map.of(
+                "custom-plugin", List.of("stateMachine=com.example.acceptance"),
+                "eutxo-ledger", List.of("eutxoGenesisAddress=addr_test1vr8nlm7example",
+                        "eutxoGenesisLovelace=100000000"),
+                "eutxo-cardano-bridge", List.of("bridgeVaultAddress=addr_test1wzvault",
+                        "bridgeVaultScriptHash=" + "1".repeat(56), "bridgeMaxDepositLovelace=100000000",
+                        "bridgeWithdrawalAddress=addr_test1vwithdrawals", "bridgeEpoch=1",
+                        "bridgeMaxWithdrawalLovelace=50000000", "bridgeMaxPendingWithdrawals=100"));
+        PluginBundleFixture.write(release.resolve("plugins"), "com.example.acceptance",
+                null, "app-state-machine", "com.example.acceptance");
+        int sealed = 0;
         for (AppChainProjectModel.Recipe recipe : catalog.recipes()) {
-            for (String runtime : recipe.runtimeTypes()) {
-                for (String deployment : recipe.deploymentTargets()) {
-                    Path project = temporary.resolve("matrix").resolve(
-                            recipe.id() + "-" + runtime + "-" + deployment);
-                    List<String> init = new ArrayList<>(List.of(
-                            "appchain", "init", "--non-interactive",
-                            "--recipe", recipe.id(), "--network", "preprod",
-                            "--members", "3", "--runtime", runtime,
-                            "--deployment", deployment,
-                            "--output", project.toString(), "--format", "json"));
-                    for (String memberKey : MEMBER_KEYS) {
-                        init.add("--member-key");
-                        init.add(memberKey);
-                    }
-                    if ("declarative-composite".equals(recipe.id())) {
-                        Path bindings = temporary.resolve("matrix-bindings.yaml");
-                        Files.writeString(bindings, fencedBlock(Files.readString(
-                                release.resolve("docs/appchain/DECLARATIVE_BINDINGS_CLI.md")), "yaml", 0));
-                        init.addAll(List.of("--bindings", bindings.toString(), "--plugins-directory",
-                                release.resolve("plugins").toString()));
-                    } else if ("custom-plugin".equals(recipe.id())) {
-                        init.add("--answer");
-                        init.add("stateMachine=com.example.acceptance");
-                    } else if ("eutxo-ledger".equals(recipe.id())) {
-                        init.add("--answer");
-                        init.add("eutxoGenesisAddress=addr_test1vr8nlm7example");
-                        init.add("--answer");
-                        init.add("eutxoGenesisLovelace=100000000");
-                    } else if ("eutxo-cardano-bridge".equals(recipe.id())) {
-                        init.add("--answer");
-                        init.add("bridgeVaultAddress=addr_test1wzvault");
-                        init.add("--answer");
-                        init.add("bridgeVaultScriptHash=" + "1".repeat(56));
-                        init.add("--answer");
-                        init.add("bridgeMaxDepositLovelace=100000000");
-                        init.add("--answer");
-                        init.add("bridgeWithdrawalAddress=addr_test1vwithdrawals");
-                        init.add("--answer");
-                        init.add("bridgeEpoch=1");
-                        init.add("--answer");
-                        init.add("bridgeMaxWithdrawalLovelace=50000000");
-                        init.add("--answer");
-                        init.add("bridgeMaxPendingWithdrawals=100");
-                    }
-
-                    Result initialized = run(launcher, init);
-                    assertThat(initialized.exit()).as(initialized.error()).isZero();
-                    assertThat(initialized.output()).contains("PROJECT_INITIALIZED")
-                            .doesNotContain(temporary.toString());
-                    Result validated = run(launcher, List.of(
-                            "appchain", "config", "validate", "--mode", "project",
-                            project.toString(), "--format", "json"));
-                    assertThat(validated.exit()).as(validated.error()).isZero();
-                    assertThat(validated.output()).contains("VALID_PROJECT");
-
-                    byte[] firstLock = Files.readAllBytes(project.resolve("appchain.lock"));
-                    Result rendered = run(launcher, List.of(
-                            "appchain", "render", project.toString(), "--format", "json"));
-                    assertThat(rendered.exit()).as(rendered.error()).isZero();
-                    assertThat(Files.readAllBytes(project.resolve("appchain.lock")))
-                            .isEqualTo(firstLock);
-
-                    for (String target : List.of("helm", "kustomize")) {
-                        Path output = temporary.resolve("gitops").resolve(
-                                recipe.id() + "-" + runtime + "-" + deployment + "-" + target);
-                        Result exported = run(launcher, List.of(
-                                "appchain", "gitops", project.toString(), "--target", target,
-                                "--output", output.toString(), "--format", "json"));
-                        assertThat(exported.exit()).as(exported.error()).isZero();
-                        assertThat(exported.output()).contains("GITOPS_EXPORTED");
-                        assertThat(output.resolve("gitops.lock")).isRegularFile();
-                    }
-
-                    if ("host".equals(deployment)) {
-                        assertThat(project.resolve("scripts/start-node")).isRegularFile();
-                        assertThat(project.resolve("compose.yaml")).doesNotExist();
-                    } else {
-                        assertThat(project.resolve("compose.yaml")).isRegularFile();
-                        assertThat(project.resolve("scripts/start-node")).doesNotExist();
-                    }
-                    if ("jvm".equals(runtime)) {
-                        // Like an operator, install the reviewed custom bundle before verifying.
-                        boolean custom = "custom-plugin".equals(recipe.id());
-                        Path customBundle = release.resolve("plugins/com.example.acceptance.jar");
-                        if (custom) {
-                            PluginBundleFixture.write(release.resolve("plugins"), "com.example.acceptance",
-                                    null, "app-state-machine", "com.example.acceptance");
-                        }
-                        try {
-                            Result ci = run(project.resolve("ci/verify"), List.of(),
-                                    Map.of("YANO_HOME", release.toString()));
-                            assertThat(ci.exit()).as("stdout=%s%n stderr=%s",
-                                    ci.output(), ci.error()).isZero();
-                            assertThat(ci.output()).contains("VALID_PROJECT");
-                        } finally {
-                            Files.deleteIfExists(customBundle);
-                        }
-                    }
-
-                    AppChainProjectModel.ProjectValidation projectValidation =
-                            lifecycle.validate(project);
-                    assertThat(projectValidation.lock().runtime()).isEqualTo(runtime);
-                    assertThat(projectValidation.lock().deployment()).isEqualTo(deployment);
-                    assertThat(projectValidation.lock().acknowledgements())
-                            .doesNotContain("PUBLIC_MEMBER_IDENTITIES_REQUIRED_BEFORE_START");
-                    assertTrackedOutputIsPortableAndSecretFree(project);
-                    accepted++;
-                }
+            if (!recipe.effectiveSelectable() || !recipe.runtimeTypes().contains("jvm")) continue;
+            String app = "accept-" + recipe.id();
+            Path coordinator = Files.createDirectories(temporary.resolve("ceremony").resolve(recipe.id()));
+            List<String> create = new ArrayList<>(List.of("appchain", "new", app, "--network", "preprod",
+                    "--operators", "alice,bob,carol", "--output", coordinator.toString(), "--yes", "--chain",
+                    "declarative-composite".equals(recipe.id()) ? "main=bindings:" + bindings : "main=" + recipe.id()));
+            for (String answer : answers.getOrDefault(recipe.id(), List.of())) {
+                create.addAll(List.of("--answer", "main." + answer));
             }
+            Result created = run(launcher, create);
+            assertThat(created.exit()).as("%s: %s", recipe.id(), created.error()).isZero();
+            Path draft = coordinator.resolve(app + ".draft.yaml");
+            int port = 0;
+            for (String operator : List.of("alice", "bob", "carol")) {
+                Result requested = run(launcher, List.of("appchain", "request", draft.toString(), "--name", operator,
+                        "--host", operator + ".example", "--node-port", Integer.toString(13337 + port),
+                        "--http-port", Integer.toString(8080 + port++), "--output", coordinator.toString(),
+                        "--node-dir", coordinator.resolve(operator).toString(), "--yes"));
+                assertThat(requested.exit()).as("%s: %s", recipe.id(), requested.error()).isZero();
+            }
+            Result sealedResult = run(launcher, List.of("appchain", "seal", draft.toString()));
+            assertThat(sealedResult.exit()).as("%s: %s", recipe.id(), sealedResult.error()).isZero();
+            assertThat(sealedResult.output()).contains("chain fingerprint", "alice", "bob", "carol");
+            Result inspected = run(launcher, List.of("appchain", "inspect",
+                    coordinator.resolve(app + ".chain").toString(), "--json"));
+            assertThat(inspected.exit()).as(inspected.error()).isZero();
+            String fingerprint = new ObjectMapper().readTree(inspected.output()).path("displayFingerprint").asText();
+            Result joined = run(launcher, List.of("appchain", "join", coordinator.resolve(app + ".chain").toString(),
+                    "--expect-fingerprint", fingerprint, "--node-dir", coordinator.resolve("bob").toString()));
+            assertThat(joined.exit()).as("%s: %s", recipe.id(), joined.error()).isZero();
+            String consensus = Files.readString(coordinator.resolve("bob/config/consensus.yaml"));
+            assertThat(consensus).contains("chain-id: \"main\"", "genesis-id:");
+            assertThat(Files.readString(coordinator.resolve("bob/config/node.yaml")))
+                    .contains("alice.example:13337", "carol.example:13339")
+                    .doesNotContain(Files.readString(coordinator.resolve("bob/secrets/member.key")).strip());
+            sealed++;
         }
-        int advertised = catalog.recipes().stream()
-                .mapToInt(recipe -> recipe.runtimeTypes().size()
-                        * recipe.deploymentTargets().size())
-                .sum();
-        assertThat(accepted).isEqualTo(advertised);
+        assertThat(sealed).isEqualTo(catalog.recipes().stream()
+                .filter(recipe -> recipe.effectiveSelectable() && recipe.runtimeTypes().contains("jvm")).count());
         assertThat(catalog.releaseAcceptanceIndex().recipes()).hasSameSizeAs(catalog.recipes());
-    }
-
-    private void assertStudioBlueprintRoundTrips(Path release, Path launcher) throws Exception {
-        Path project = Files.createDirectory(temporary.resolve("studio-round-trip"));
-        String script = """
-                import fs from 'node:fs';
-                const core = await import(process.argv[1]);
-                const release = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
-                const intent = {
-                  recipe:'audit-log', network:'devnet', members:3,
-                  finality:'two-thirds', sequencing:'fixed', runtime:'jvm',
-                  deployment:'host', name:'studio-round-trip', chainId:'studio-round-trip'
-                };
-                process.stdout.write(core.blueprintYaml(intent, release.yanoVersion));
-                """;
-        Process node = new ProcessBuilder("node", "--input-type=module", "-e", script,
-                release.resolve("studio/studio-core.mjs").toUri().toString(),
-                release.resolve("studio/assets/appchain-release-capability-index.json").toString())
-                .start();
-        assertThat(node.waitFor(PROCESS_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS)).isTrue();
-        String yaml = new String(node.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-        String error = new String(node.getErrorStream().readAllBytes(), StandardCharsets.UTF_8);
-        assertThat(node.exitValue()).as(error).isZero();
-        Files.writeString(project.resolve("appchain.yaml"), yaml, StandardCharsets.UTF_8);
-
-        Result rendered = run(launcher, List.of("appchain", "render",
-                project.toString(), "--format", "json"));
-
-        assertThat(rendered.exit()).as(rendered.error()).isZero();
-        assertThat(rendered.output()).contains("PROJECT_RENDERED");
-        assertThat(project.resolve("appchain.lock")).isRegularFile();
     }
 
     private Path extractRelease(Path archive, Path output) throws IOException {
@@ -590,26 +482,6 @@ class AppChainFinalDistributionAcceptanceTest {
             assertThat(roots).hasSize(1);
             return roots.getFirst();
         }
-    }
-
-    private static void assertTrackedOutputIsPortableAndSecretFree(Path project)
-            throws IOException {
-        StringBuilder tracked = new StringBuilder();
-        try (var paths = Files.walk(project)) {
-            for (Path path : paths.filter(Files::isRegularFile).toList()) {
-                tracked.append(Files.readString(path, StandardCharsets.UTF_8));
-            }
-        }
-        assertThat(tracked.toString())
-                .doesNotContain("0101010101010101010101010101010101010101010101010101010101010101")
-                .doesNotContain("0202020202020202020202020202020202020202020202020202020202020202")
-                .doesNotContain(temporaryPathMarker(project));
-    }
-
-    private static String temporaryPathMarker(Path project) {
-        Path matrix = project.getParent();
-        return matrix == null || matrix.getParent() == null
-                ? "path-that-must-not-appear" : matrix.getParent().toString();
     }
 
     private Result run(Path launcher, List<String> arguments) throws Exception {

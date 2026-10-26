@@ -1,6 +1,6 @@
 # Tutorial 6 — Invoke an External HTTP Endpoint Safely
 
-[Open this approval-to-webhook workflow in App-Chain Studio](../../../tooling/studio/src/main/web/index.html#recipe=approval-workflow&network=devnet&members=3&finality=majority&sequencing=fixed&membership=governed&runtime=jvm&deployment=host&name=webhook-effects&chainId=webhook-effects)
+To run this outcome with other operators, follow [Set up an application](../deployment/configure.md).
 
 - **Level:** intermediate to advanced
 - **Time:** about 20 minutes

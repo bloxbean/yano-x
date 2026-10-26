@@ -389,7 +389,6 @@ final class AppChainProjectModel {
             String availability,
             List<String> runtimeTypes,
             List<String> deploymentTargets,
-            List<String> gitOpsTargets,
             String outcomeLevel,
             String acceptanceScenario,
             List<String> evidence) {
@@ -447,85 +446,6 @@ final class AppChainProjectModel {
         List<Resolution> chains() {
             return chainResolutions.isEmpty() ? List.of(this) : chainResolutions;
         }
-
-        String recipeIdentity() {
-            return chains().stream().map(chain -> chain.recipe().id() + ":" + chain.recipe().version())
-                    .collect(java.util.stream.Collectors.joining(","));
-        }
-    }
-
-    record Lock(
-            String apiVersion,
-            String kind,
-            String blueprintSchema,
-            String blueprintDigest,
-            Map<String, String> catalogDigests,
-            String yanoVersion,
-            String runtime,
-            String deployment,
-            String network,
-            String recipe,
-            List<String> selectedCapabilities,
-            List<String> impliedCapabilities,
-            List<String> artifacts,
-            Map<String, String> consensusValues,
-            String resolvedConfigDigest,
-            String validationCoverage,
-            String maturity,
-            List<String> acknowledgements,
-            Map<String, String> generatedFiles) {
-    }
-
-    record ProjectValidation(
-            Lock lock,
-            int generatedFileCount,
-            int acknowledgementCount) {
-    }
-
-    record LockChange(String key, String policy) {
-    }
-
-    record LockDiff(String status, List<LockChange> changes, Map<String, Integer> categories) {
-    }
-
-    record DoctorCheck(String id, String status, String detail) {
-    }
-
-    record DoctorReport(String status, List<DoctorCheck> checks) {
-    }
-
-    record RuntimeIdentity(
-            String schemaVersion,
-            String chainId,
-            String consensusProfileDigest,
-            String compositeProfileDigest,
-            String pluginCatalogFingerprint,
-            String resolvedConfigDigest,
-            String releaseCatalogDigest,
-            String identityCoverage) {
-    }
-
-    record DriftCheck(String category, String peer, String status) {
-    }
-
-    record DriftReport(String status, int peerCount, List<DriftCheck> checks) {
-    }
-
-    record GitOpsLock(
-            String apiVersion,
-            String kind,
-            String target,
-            String sourceBlueprintDigest,
-            String sourceResolvedConfigDigest,
-            String sourceReleaseCatalogDigest,
-            Map<String, String> generatedFiles) {
-    }
-
-    record GitOpsResult(
-            String status,
-            String target,
-            int generatedFileCount,
-            GitOpsLock lock) {
     }
 
     record MetadataTrustResult(

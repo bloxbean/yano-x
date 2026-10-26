@@ -1,6 +1,6 @@
 # Tutorial 2 — A Provable Shared Registry
 
-[Open this outcome in App-Chain Studio](../../../tooling/studio/src/main/web/index.html#recipe=owned-registry&network=devnet&members=3&finality=two-thirds&sequencing=fixed&runtime=jvm&deployment=host&name=shared-registry&chainId=shared-registry)
+To run this outcome with other operators, follow [Set up an application](../deployment/configure.md).
 
 - **Level:** beginner to intermediate
 - **Time:** about 15 minutes

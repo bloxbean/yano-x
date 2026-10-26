@@ -695,6 +695,8 @@ final class AppChainProjectResolver {
                 if (key.startsWith(prefix)) settings.put(key.substring(prefix.length()), value);
             });
             settings.put(StateCommitmentIdentity.PROFILE_SETTING, profile.id());
+            settings.put(StateCommitmentIdentity.FINGERPRINT_SETTING,
+                    HexFormat.of().formatHex(profile.formatFingerprint()));
             genesisHex = hooks.genesisId(chain.chainId(), settings, chain.composite());
         }
         byte[] genesisId = genesisHex == null

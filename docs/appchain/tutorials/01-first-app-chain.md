@@ -1,6 +1,6 @@
 # Tutorial 1 — Your First App Ledger
 
-[Open this outcome in App-Chain Studio](../../../tooling/studio/src/main/web/index.html#recipe=audit-log&network=devnet&members=3&finality=two-thirds&sequencing=fixed&runtime=jvm&deployment=host&name=my-appchain&chainId=my-appchain)
+To run this outcome with other operators, follow [Set up an application](../deployment/configure.md).
 
 - **Goal:** run three members on one machine and watch them finalize the same
   event.

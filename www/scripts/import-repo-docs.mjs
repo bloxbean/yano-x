@@ -231,13 +231,8 @@ function destinationFor(route) {
 
 const STUDIO_WEB = 'tooling/studio/src/main/web';
 const STUDIO_ASSETS_SRC = 'tooling/devtools/src/main/resources/appchain-dx/v1alpha1';
-const STUDIO_ASSETS = [
-  'appchain-blueprint.schema.json',
-  'appchain-capability-catalog.json',
-  'appchain-recipe-catalog.json',
-  'appchain-release-capability-index.json',
-  'appchain-release-acceptance-index.json',
-];
+// The binding editor reads only its starters; the blueprint page and its catalog assets were removed (ADR-056).
+const STUDIO_ASSETS = [];
 // Binding editor starters (ADR-031.2), copied from their single source like prepareStudio does.
 const STUDIO_STARTERS_SRC = 'examples/bindings';
 const STUDIO_STARTERS = ['registry-to-audit.yaml', 'approval-to-audit.yaml'];

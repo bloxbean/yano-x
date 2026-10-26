@@ -53,6 +53,15 @@ public final class AppChainCli {
     }
 
     static int run(String[] arguments, Terminal terminal, PrintStream err) {
+        return run(arguments, terminal, err, null);
+    }
+
+    /** {@code distribution} replaces the located distribution (tests); {@code null} locates it. */
+    static int run(String[] arguments, Terminal terminal, PrintStream err, Distribution distribution) {
+        java.util.function.Supplier<Distribution> located = () -> distribution != null ? distribution
+                : Distribution.locate();
+        java.util.function.Supplier<Distribution> optional = () -> distribution != null ? distribution
+                : Distribution.optional();
         String[] args = arguments.length > 0 && "appchain".equals(arguments[0])
                 ? Arrays.copyOfRange(arguments, 1, arguments.length) : arguments;
         if (args.length == 0 || "help".equals(args[0]) || "--help".equals(args[0]) || "-h".equals(args[0])) {
@@ -72,16 +81,16 @@ public final class AppChainCli {
         }
         try {
             return switch (verb) {
-                case "new" -> new NewCommand(terminal, Distribution.locate()).run(rest);
+                case "new" -> new NewCommand(terminal, optional.get()).run(rest);
                 case "request" -> new RequestCommand(terminal).run(rest);
-                case "seal" -> new SealCommand(terminal, Distribution.locate()).run(rest);
+                case "seal" -> new SealCommand(terminal, located.get()).run(rest);
                 case "inspect" -> new InspectCommand(terminal).run(rest);
-                case "join" -> new JoinCommand(terminal, Distribution.locate()).run(rest);
-                case "start" -> new StartCommand(terminal, Distribution.locate()).run(rest);
+                case "join" -> new JoinCommand(terminal, located.get()).run(rest);
+                case "start" -> new StartCommand(terminal, located.get()).run(rest);
                 case "stop" -> new StopCommand(terminal).run(rest);
                 case "status" -> new StatusCommand(terminal).run(rest);
-                case "approve" -> new ApproveCommand(terminal, Distribution.locate()).run(rest);
-                case "anchor" -> new AnchorCommand(terminal, Distribution.locate()).run(rest);
+                case "approve" -> new ApproveCommand(terminal, located.get()).run(rest);
+                case "anchor" -> new AnchorCommand(terminal, located.get()).run(rest);
                 case "try" -> new TryCommand(terminal, err).run(rest);
                 default -> throw CliException.usage("'" + verb + "' is not available in this build yet");
             };

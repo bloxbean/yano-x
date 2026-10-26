@@ -1,6 +1,6 @@
 # Tutorial 3 — Choose a Stock State Machine
 
-[Open a stock approval workflow in App-Chain Studio](../../../tooling/studio/src/main/web/index.html#recipe=approval-workflow&network=devnet&members=3&finality=two-thirds&sequencing=fixed&runtime=jvm&deployment=host&name=approval-workflow&chainId=approval-workflow)
+To run this outcome with other operators, follow [Set up an application](../deployment/configure.md).
 
 - **Level:** beginner for selection, advanced for wire integration
 - **Outcome:** choose the smallest built-in deterministic model that matches
@@ -134,10 +134,11 @@ existing chain and give each new chain its own genesis id. The launcher injects
 members, threshold, signing keys, peers and the fixed proposer; do not put that
 material in the shared file.
 
-A generated project, created with `./yano.sh appchain init`, is different:
-`appchain render` writes every chain setting, including the state identity,
-and you never edit the rendered files by hand. To add a chain there, use the
-[add-chain workflow](../deployment/add-chain.md).
+An application set up with `./yano.sh appchain new` is different: `appchain
+seal` writes every chain setting, including the state identity, into the sealed
+`<app>.chain` file, and `appchain join` turns it into each node's configuration;
+you never edit those files by hand. To add a chain there, see
+[grow and change](../deployment/add-chain.md).
 
 ## 5. Configuration is not arbitrary composition
 

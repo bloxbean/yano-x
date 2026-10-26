@@ -15,3 +15,36 @@ application {
     mainClass = 'org.yanoproject.x.appchain.cli.AppChainCli'
     applicationDefaultJvmArgs = ['-Xmx4g']
 }
+
+def devtools = project(':tooling:devtools')
+def devtoolsMetadata = devtools.layout.buildDirectory.dir('generated/appchain-metadata')
+
+tasks.named('jar') {
+    manifest {
+        attributes('Implementation-Version': project.version)
+    }
+}
+
+distributions {
+    main {
+        distributionBaseName = 'yano-appchain'
+        contents {
+            from('README.md')
+            from(devtoolsMetadata) {
+                into 'metadata'
+            }
+            from(devtools.file('src/main/resources/appchain-dx/v1alpha1/skills/configure-yano-appchain')) {
+                into 'skills/configure-yano-appchain'
+            }
+        }
+    }
+}
+
+[tasks.named('installDist'), tasks.named('distZip'), tasks.named('distTar')].each {
+    it.configure { dependsOn ':tooling:devtools:generateAppChainMetadata' }
+}
+
+java {
+    sourceCompatibility = 25
+    targetCompatibility = 25
+}

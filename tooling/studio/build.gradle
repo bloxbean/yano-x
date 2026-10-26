@@ -9,22 +9,8 @@ node {
 }
 
 def studioOutput = layout.buildDirectory.dir('studio')
-def metadataRoot = project(':tooling:devtools').file(
-        'src/main/resources/appchain-dx/v1alpha1')
-
 tasks.register('prepareStudio', Sync) {
     from('src/main/web')
-    from(metadataRoot) {
-        into 'assets'
-        include 'appchain-blueprint.schema.json',
-                'appchain-capability-catalog.json',
-                'appchain-recipe-catalog.json',
-                'appchain-release-capability-index.json',
-                'appchain-release-acceptance-index.json'
-        filesMatching('appchain-release-capability-index.json') {
-            expand(yanoVersion: project.version.toString())
-        }
-    }
     // Binding editor starters (ADR-031.2); examples/bindings stays their single source.
     from(rootProject.file('examples/bindings')) {
         into 'assets/bindings'
@@ -55,8 +41,8 @@ tasks.register('testStudio', NodeTask) {
     inputs.files(yamlOracle.map { it.outputs.files }, receiptOracle.map { it.outputs.files })
     outputs.upToDateWhen { false }
     options = ['--test']
-    script = file('src/test/studio.test.mjs')
-    args = fileTree('src/test') { include '*.test.mjs'; exclude 'studio.test.mjs' }.files
+    script = file('src/test/studio-yaml.test.mjs')
+    args = fileTree('src/test') { include '*.test.mjs'; exclude 'studio-yaml.test.mjs' }.files
             .collect { it.absolutePath }.sort()
     def oracles = project(':tooling:devtools').layout.buildDirectory.dir('studio-oracle').get().asFile
     environment = [STUDIO_YAML_ORACLE: new File(oracles, 'yaml-oracle.json').absolutePath,
@@ -81,7 +67,7 @@ tasks.register('browserTestStudio', Exec) {
     description = 'Runs the Studio binding editor browser, keyboard and accessibility tests'
     def bindingBundles = [':composition:runtime', ':capabilities:role-workflow', ':state-machines:stdlib']
             .collect { project(it).tasks.named('shadowJar') }
-    dependsOn tasks.named('prepareStudio'), bindingBundles, ':tooling:devtools:installDist'
+    dependsOn tasks.named('prepareStudio'), bindingBundles, ':tooling:appchain-cli:installDist'
     inputs.dir(studioOutput)
     inputs.dir(rootProject.file('www/tests-studio'))
     outputs.upToDateWhen { false }
@@ -89,8 +75,8 @@ tasks.register('browserTestStudio', Exec) {
     commandLine 'npx', 'playwright', 'test', '-c', 'playwright.studio.config.mjs'
     doFirst {
         environment 'STUDIO_DIR', studioOutput.get().asFile.absolutePath
-        environment 'BINDING_CLI', project(':tooling:devtools').layout.buildDirectory
-                .file('install/yano-devtools/bin/yano-appchain').get().asFile.absolutePath
+        environment 'BINDING_CLI', project(':tooling:appchain-cli').layout.buildDirectory
+                .file('install/yano-appchain/bin/yano-appchain').get().asFile.absolutePath
         environment 'BINDING_BUNDLES', bindingBundles.collect { it.get().archiveFile.get().asFile.absolutePath }
                 .join(File.pathSeparator)
     }

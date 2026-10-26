@@ -17,7 +17,8 @@ import java.util.Set;
 final class NewCommand {
     static final String USAGE = "yano.sh appchain new [<app>] [--network devnet|preview|preprod|mainnet]"
             + " [--operators alice,bob,carol] [--chain <id>=<recipe>|<id>=bindings:<file>]..."
-            + " [--threshold majority|two-thirds|all|<n>] [--membership governed|static] [--output <dir>]"
+            + " [--answer <chain>.<name>=<value>]... [--threshold majority|two-thirds|all|<n>]"
+            + " [--membership governed|static] [--output <dir>]"
             + " [--force] [--yes]";
     private static final String COMPOSITE = "declarative-composite";
 
@@ -30,7 +31,8 @@ final class NewCommand {
     }
 
     int run(String[] arguments) throws IOException {
-        Args args = new Args(arguments, Set.of("network", "operators", "chain", "threshold", "membership", "output"),
+        Args args = new Args(arguments, Set.of("network", "operators", "chain", "answer", "threshold", "membership",
+                "output"),
                 Set.of("force", "yes"));
         args.maxPositionals(1, USAGE);
         Path output = args.path("output", Path.of("."));
@@ -57,6 +59,8 @@ final class NewCommand {
             } while (terminal.confirm("Add another chain to this application?", false));
         }
 
+        chains = withAnswers(chains, args.values("answer"));
+
         String threshold = args.value("threshold", "majority");
         String membership = args.value("membership", "governed");
         Draft draft = new Draft(name, Names.newInvite(), network, operators, threshold, membership, chains);
@@ -80,6 +84,33 @@ final class NewCommand {
                 "and sends back <name>.member. Put the cards next to the draft, then run",
                 "  yano.sh appchain seal " + file.getFileName());
         return 0;
+    }
+
+    /** Adds {@code --answer chain.name=value} values, then asks for any answer a recipe still needs. */
+    private List<Draft.Chain> withAnswers(List<Draft.Chain> chains, List<String> flags) throws IOException {
+        List<Draft.Chain> result = new ArrayList<>();
+        for (Draft.Chain chain : chains) {
+            Map<String, String> answers = new java.util.LinkedHashMap<>(chain.answers());
+            for (String flag : flags) {
+                int dot = flag.indexOf('.');
+                int equals = flag.indexOf('=');
+                if (dot <= 0 || equals < dot) {
+                    throw CliException.usage("--answer must look like orders.eutxoGenesisLovelace=100000000");
+                }
+                if (flag.substring(0, dot).equals(chain.id())) {
+                    answers.put(flag.substring(dot + 1, equals), flag.substring(equals + 1));
+                }
+            }
+            for (String needed : AppChainSealResolver.recipeAnswers(chain.recipe())) {
+                if (!answers.containsKey(needed)) {
+                    answers.put(needed, terminal.ask("Chain '" + chain.id() + "' (" + chain.recipe() + ") needs "
+                            + needed, null, "--answer " + chain.id() + "." + needed + "=<value>"));
+                }
+            }
+            result.add(new Draft.Chain(chain.id(), chain.recipe(), chain.capabilities(), answers, chain.bindings(),
+                    chain.composite(), chain.authenticatedMap(), chain.anchor(), chain.settings()));
+        }
+        return result;
     }
 
     private Draft.Chain chainFromFlag(String spec, Path output) throws IOException {

@@ -119,40 +119,6 @@ final class AppChainComponentCatalogLoader {
                 catalogBytes, manifestBytes, metadataBytes);
     }
 
-    List<Loaded> loadProject(Path project) throws IOException {
-        Path root = projectRoot(project);
-        Path blueprintFile = root.resolve(AppChainProjectRenderer.BLUEPRINT_FILE);
-        byte[] blueprintBytes = boundedFile(blueprintFile,
-                AppChainProjectRenderer.MAX_BLUEPRINT_BYTES, "blueprint");
-        AppChainProjectModel.Blueprint blueprint = yaml.readValue(
-                blueprintBytes, AppChainProjectModel.Blueprint.class);
-        List<AppChainProjectModel.ComponentCatalogRef> references = blueprint.spec() == null
-                ? List.of() : safeList(blueprint.spec().componentCatalogs());
-        if (references.size() > MAX_CATALOGS) {
-            throw new IllegalArgumentException("at most 16 component catalogs are supported");
-        }
-        List<Loaded> result = new ArrayList<>();
-        Set<String> paths = new java.util.LinkedHashSet<>();
-        for (AppChainProjectModel.ComponentCatalogRef reference : references) {
-            if (reference == null || !KEY_ID.matcher(value(reference.trustedKeyId())).matches()
-                    || !value(reference.trustedPublicKey()).matches("[0-9a-fA-F]{64}")) {
-                throw new IllegalArgumentException("component catalog trust reference is invalid");
-            }
-            Path relative = safeRelative(reference.path());
-            if (!paths.add(relative.toString())) {
-                throw new IllegalArgumentException("duplicate component catalog path");
-            }
-            Path candidate = root.resolve(relative).normalize();
-            if (!candidate.startsWith(root)) {
-                throw new IllegalArgumentException("component catalog path escapes project");
-            }
-            result.add(loadSnapshot(candidate,
-                    Map.of(reference.trustedKeyId(), reference.trustedPublicKey())));
-        }
-        requireUnique(result);
-        return List.copyOf(result);
-    }
-
     AppChainPropertyRegistry extendRegistry(
             AppChainPropertyRegistry base,
             List<Loaded> catalogs) throws IOException {
@@ -313,32 +279,6 @@ final class AppChainComponentCatalogLoader {
         });
     }
 
-    private static void requireUnique(List<Loaded> catalogs) {
-        Set<String> ids = new java.util.LinkedHashSet<>();
-        Set<String> bundles = new java.util.LinkedHashSet<>();
-        for (Loaded loaded : catalogs) {
-            if (!ids.add(loaded.catalog().catalogId())
-                    || !bundles.add(loaded.catalog().bundleId())) {
-                throw new IllegalArgumentException("component catalog or bundle id collides");
-            }
-        }
-    }
-
-    private static Path safeRelative(String path) {
-        if (path == null || path.isBlank() || path.length() > 512
-                || path.contains("\\") || path.startsWith("/") || path.contains("\u0000")
-                || !path.matches("component-catalogs/[a-z][a-z0-9.-]{0,127}\\.json")) {
-            throw new IllegalArgumentException("component catalog path is invalid");
-        }
-        Path relative = Path.of(path).normalize();
-        if (relative.isAbsolute() || relative.startsWith("..")
-                || !relative.toString().startsWith("component-catalogs/")) {
-            throw new IllegalArgumentException(
-                    "component catalog must be under component-catalogs/");
-        }
-        return relative;
-    }
-
     private static void requireArtifact(Path artifact) throws IOException {
         if (!Files.isRegularFile(artifact, LinkOption.NOFOLLOW_LINKS)
                 || Files.isSymbolicLink(artifact)) {
@@ -470,13 +410,6 @@ final class AppChainComponentCatalogLoader {
         return values == null ? List.of() : values;
     }
 
-    private static Path projectRoot(Path project) {
-        Path root = project.toAbsolutePath().normalize();
-        return root.getFileName() != null
-                && AppChainProjectRenderer.BLUEPRINT_FILE.equals(root.getFileName().toString())
-                ? root.getParent() : root;
-    }
-
     record Catalog(
             String schemaVersion,
             String catalogId,
@@ -530,10 +463,6 @@ final class AppChainComponentCatalogLoader {
 
         @Override public byte[] configurationMetadataBytes() {
             return configurationMetadataBytes.clone();
-        }
-
-        String inputPath() {
-            return "component-catalogs/" + catalog.catalogId() + ".json";
         }
 
     }

@@ -92,7 +92,7 @@ class StudioRoundTripIT {
         assertThat(checked).hasSizeGreaterThanOrEqualTo(10);
         assertThat(reordered).as("reordering must be exercised").isPositive();
         // The project model reads a Studio-spliced blueprint to the same chains and the same composite IR.
-        var mapper = AppChainProjectRenderer.configured(new ObjectMapper(
+        var mapper = strict(new ObjectMapper(
                 new com.fasterxml.jackson.dataformat.yaml.YAMLFactory()));
         try (var environment = BindingPluginEnvironment.open(plugins)) {
             var session = new BindingCatalogSession(environment.providers(), tutorial);
@@ -123,5 +123,12 @@ class StudioRoundTripIT {
         Object digest = session.validate(ir).operationalStatus().get("activeProfileDigest");
         assertThat(digest).isInstanceOf(String.class);
         return (String) digest;
+    }
+
+    private static ObjectMapper strict(ObjectMapper mapper) {
+        return mapper.enable(com.fasterxml.jackson.core.JsonParser.Feature.STRICT_DUPLICATE_DETECTION)
+                .enable(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
+                .enable(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
+                .enable(com.fasterxml.jackson.databind.SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS);
     }
 }

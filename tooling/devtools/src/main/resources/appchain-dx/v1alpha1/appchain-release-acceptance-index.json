@@ -5,9 +5,8 @@
   "reviewedOn": "2026-07-24",
   "externalThirdPartyUsage": false,
   "cleanRoomExercises": [
-    "final-distribution-generated-project-matrix",
-    "temporary-host-project-runtime-restart-and-drift",
-    "temporary-compose-and-gitops-render-matrix",
+    "final-distribution-setup-ceremony-matrix",
+    "temporary-multi-operator-runtime-restart-growth-and-anchor",
     "signed-custom-plugin-fixture"
   ],
   "knownLimitations": [
@@ -26,7 +25,7 @@
       "tooling/devtools/src/test/scripts/final-distribution-stock-outcomes.sh#recipe-owned-registry"
     ],
     "state:authenticated-map": [
-      "tooling/devtools/src/test/java/org/yanoproject/x/devtools/AppChainProjectTest.java#authenticatedMapBlueprintCompilesSchemaAndPinsGenesis"
+      "tooling/appchain-cli/src/test/java/org/yanoproject/x/appchain/cli/SealCommandTest.java#authenticatedMapChainKeepsItsDerivedGenesisId"
     ],
     "state:approval-workflow": [
       "tooling/devtools/src/test/scripts/final-distribution-stock-outcomes.sh#recipe-approval-workflow"
@@ -146,7 +145,6 @@
     {
       "id": "declarative-composite", "maturity": "preview", "availability": "BUNDLED",
       "runtimeTypes": ["jvm"], "deploymentTargets": ["host", "docker-compose"],
-      "gitOpsTargets": ["helm", "kustomize"],
       "outcomeLevel": "MODULE_OUTCOME_AND_PACKAGED_PROVIDER",
       "acceptanceScenario": "recipe-declarative-composite",
       "evidence": [
@@ -166,10 +164,6 @@
         "host",
         "docker-compose"
       ],
-      "gitOpsTargets": [
-        "helm",
-        "kustomize"
-      ],
       "outcomeLevel": "PACKAGED_RUNTIME",
       "acceptanceScenario": "recipe-audit-log",
       "evidence": [
@@ -188,10 +182,6 @@
         "host",
         "docker-compose"
       ],
-      "gitOpsTargets": [
-        "helm",
-        "kustomize"
-      ],
       "outcomeLevel": "PACKAGED_RUNTIME",
       "acceptanceScenario": "recipe-owned-registry",
       "evidence": [
@@ -209,14 +199,10 @@
         "host",
         "docker-compose"
       ],
-      "gitOpsTargets": [
-        "helm",
-        "kustomize"
-      ],
       "outcomeLevel": "MODULE_OUTCOME_AND_PACKAGED_PROVIDER",
       "acceptanceScenario": "recipe-document-trail",
       "evidence": [
-        "tooling/devtools/src/test/java/org/yanoproject/x/devtools/AppChainMultiChainProjectTest.java#documentTrailRecipeUsesStockProvider"
+        "tooling/appchain-cli/src/test/java/org/yanoproject/x/appchain/cli/SealCommandTest.java#documentTrailChainSealsWithItsStockProvider"
       ]
     },
     {
@@ -230,14 +216,10 @@
         "host",
         "docker-compose"
       ],
-      "gitOpsTargets": [
-        "helm",
-        "kustomize"
-      ],
       "outcomeLevel": "MODULE_OUTCOME_AND_PACKAGED_PROVIDER",
       "acceptanceScenario": "authenticated-map-schema-blueprint",
       "evidence": [
-        "tooling/devtools/src/test/java/org/yanoproject/x/devtools/AppChainProjectTest.java#authenticatedMapBlueprintCompilesSchemaAndPinsGenesis",
+        "tooling/appchain-cli/src/test/java/org/yanoproject/x/appchain/cli/SealCommandTest.java#authenticatedMapChainKeepsItsDerivedGenesisId",
         "yano:app/build.gradle#packagedJvmPluginCatalogSmoke"
       ]
     },
@@ -251,10 +233,6 @@
       "deploymentTargets": [
         "host",
         "docker-compose"
-      ],
-      "gitOpsTargets": [
-        "helm",
-        "kustomize"
       ],
       "outcomeLevel": "PACKAGED_RUNTIME",
       "acceptanceScenario": "recipe-approval-workflow",
@@ -272,10 +250,6 @@
       "deploymentTargets": [
         "host",
         "docker-compose"
-      ],
-      "gitOpsTargets": [
-        "helm",
-        "kustomize"
       ],
       "outcomeLevel": "MODULE_OUTCOME_AND_PACKAGED_PROVIDER",
       "acceptanceScenario": "recipe-role-approval",
@@ -295,10 +269,6 @@
         "host",
         "docker-compose"
       ],
-      "gitOpsTargets": [
-        "helm",
-        "kustomize"
-      ],
       "outcomeLevel": "MODULE_OUTCOME_AND_PACKAGED_PROVIDER",
       "acceptanceScenario": "recipe-evidence-ledger",
       "evidence": [
@@ -317,10 +287,6 @@
         "host",
         "docker-compose"
       ],
-      "gitOpsTargets": [
-        "helm",
-        "kustomize"
-      ],
       "outcomeLevel": "OPERATOR_OWNED_REFERENCE",
       "acceptanceScenario": "recipe-eutxo-ledger",
       "evidence": [
@@ -338,10 +304,6 @@
       "deploymentTargets": [
         "host",
         "docker-compose"
-      ],
-      "gitOpsTargets": [
-        "helm",
-        "kustomize"
       ],
       "outcomeLevel": "OPERATOR_OWNED_REFERENCE",
       "acceptanceScenario": "recipe-eutxo-cardano-bridge",
@@ -364,10 +326,6 @@
       "deploymentTargets": [
         "host",
         "docker-compose"
-      ],
-      "gitOpsTargets": [
-        "helm",
-        "kustomize"
       ],
       "outcomeLevel": "OPERATOR_OWNED_REFERENCE",
       "acceptanceScenario": "recipe-custom-plugin",

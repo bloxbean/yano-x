@@ -1,6 +1,6 @@
 # Tutorial 4 — Publish and Verify Immutable Evidence
 
-[Open the role-aware evidence recipe in App-Chain Studio](../../../tooling/studio/src/main/web/index.html#recipe=evidence-ledger&network=devnet&members=3&finality=two-thirds&sequencing=fixed&runtime=jvm&deployment=docker-compose&name=evidence-publication&chainId=evidence-publication)
+To run this outcome with other operators, follow [Set up an application](../deployment/configure.md).
 
 - **Level:** beginner to advanced
 - **Time:** about 30 minutes for the first build

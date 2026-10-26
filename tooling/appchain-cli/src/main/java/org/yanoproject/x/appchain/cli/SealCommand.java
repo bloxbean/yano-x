@@ -130,6 +130,17 @@ final class SealCommand {
         NodeDir.write(output, sealed.toJson());
         terminal.ok("Sealed " + output);
         Show.sealed(terminal, sealed);
+        for (SealedApp.ChainGenesis chain : chains) {
+            String machine = chain.settings().get("state-machine");
+            if (!"role-approvals".equals(machine) && !"role-evidence".equals(machine)) continue;
+            Path plan = output.resolveSibling(chain.id() + ".role-plan.yaml");
+            if (!Files.exists(plan)) {
+                NodeDir.write(plan, AppChainSealResolver.roleBootstrapTemplate(chain.id(), machine,
+                        genesis.threshold()));
+            }
+            terminal.say("  " + chain.id() + " starts with no actors: fill in " + plan.getFileName()
+                    + " and, once live, run  yano.sh appchain role bootstrap --plan " + plan.getFileName());
+        }
         terminal.next("send " + output.getFileName() + " to every operator. On a call, read out the chain "
                 + "fingerprint and each operator's key id;",
                 "each operator then runs  yano.sh appchain join " + output.getFileName()

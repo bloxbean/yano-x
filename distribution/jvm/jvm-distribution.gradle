@@ -17,8 +17,8 @@ def distVersion = project.version.toString().replaceAll('-SNAPSHOT', '')
 def distributionRoot = "yano-x-jvm-${distVersion}"
 def generatedDistributionManifest = layout.buildDirectory.file(
         'generated/distribution/jvm/yano-x-distribution-v1.json')
-def devtoolsInstallDirectory = project(':tooling:devtools').layout.buildDirectory.dir(
-        'install/yano-devtools')
+def devtoolsInstallDirectory = project(':tooling:appchain-cli').layout.buildDirectory.dir(
+        'install/yano-appchain')
 def deploymentInstallDirectory = project(':tooling:deployment').layout.buildDirectory.dir(
         'install/yano-x-deploy')
 def studioDirectory = project(':tooling:studio').layout.buildDirectory.dir('studio')
@@ -161,9 +161,9 @@ tasks.register('prepareShowcase', Sync) {
 tasks.register('yanoXJvmDistZip', Zip) {
     dependsOn tasks.named('generateYanoXDistributionManifest'),
             tasks.named('normalizeYanoXReleaseSbom'),
-            ':tooling:devtools:installDist', ':tooling:studio:prepareStudio',
+            ':tooling:appchain-cli:installDist', ':tooling:studio:prepareStudio',
             ':products:cardano-history:cli:installDist',
-            ':tooling:devtools:installDist', ':tooling:deployment:installDist',
+            ':tooling:appchain-cli:installDist', ':tooling:deployment:installDist',
             ':tooling:studio:prepareStudio',
             ':products:eutxo:ui:frontendBuild', ':products:eutxo:ui:frontendSbom',
             ':products:evidence:demo-runner:shadowJar',

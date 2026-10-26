@@ -1,7 +1,3 @@
-plugins {
-    id 'application'
-}
-
 dependencies {
     // Offline binding validation uses the same manifested catalog boundary as a running host.
     implementation(rootProject.ext.yanoModule('yano-runtime')) {
@@ -47,11 +43,6 @@ dependencies {
     distributionTestImplementation sourceSets.test.output
 }
 
-application {
-    applicationName = 'yano-appchain'
-    mainClass = 'org.yanoproject.x.devtools.AppChainDevtoolsCli'
-    applicationDefaultJvmArgs = ['-Xmx4g']
-}
 
 tasks.register('prepareObservationQualification', JavaExec) {
     group = 'verification'
@@ -115,20 +106,6 @@ tasks.register('generateStudioYamlOracle', JavaExec) {
 
 def generatedMetadataDirectory = layout.buildDirectory.dir('generated/appchain-metadata')
 
-distributions {
-    main {
-        distributionBaseName = 'yano-devtools'
-        contents {
-            from('README.md')
-            from(generatedMetadataDirectory) {
-                into 'metadata'
-            }
-            from('src/main/resources/appchain-dx/v1alpha1/skills/configure-yano-appchain') {
-                into 'skills/configure-yano-appchain'
-            }
-        }
-    }
-}
 
 tasks.register('generateAppChainMetadata', JavaExec) {
     dependsOn tasks.named('compileJava')
@@ -190,8 +167,10 @@ publishing {
     }
 }
 
-def packagedCliInstall = tasks.named('installDist')
-def packagedCliZip = tasks.named('distZip')
+// The packaged `yano-appchain` launcher is built by :tooling:appchain-cli, which embeds this library.
+def packagedCliProject = project(':tooling:appchain-cli')
+def packagedCliInstall = packagedCliProject.tasks.named('installDist')
+def packagedCliZip = packagedCliProject.tasks.named('distZip')
 def finalYanoZip = project(':distribution:jvm').tasks.named(
         'yanoXJvmDistZip', Zip)
 
@@ -241,7 +220,7 @@ tasks.register('regenerateStudioFixtures', JavaExec) {
                     + 'regenerate against the published host before release')
         }
         systemProperty 'yano.test.appchain-cli',
-                layout.buildDirectory.file('install/yano-devtools/bin/yano-appchain').get().asFile.absolutePath
+                packagedCliProject.layout.buildDirectory.file('install/yano-appchain/bin/yano-appchain').get().asFile.absolutePath
         systemProperty 'yano.test.binding-bundles', bindingBundles.collect {
             it.get().archiveFile.get().asFile.absolutePath
         }.join(File.pathSeparator)
@@ -254,7 +233,7 @@ tasks.named('integrationTest') {
             project(':tooling:studio').layout.buildDirectory.dir('roundtrip').get().asFile.absolutePath
     systemProperty 'yano.test.repo-root', rootProject.projectDir.absolutePath
     systemProperty 'yano.test.appchain-cli',
-            layout.buildDirectory.file('install/yano-devtools/bin/yano-appchain').get().asFile.absolutePath
+            packagedCliProject.layout.buildDirectory.file('install/yano-appchain/bin/yano-appchain').get().asFile.absolutePath
 }
 
 tasks.named('distributionTest') {
@@ -264,7 +243,7 @@ tasks.named('distributionTest') {
     doFirst {
         systemProperty 'yano.test.repo-root', rootProject.projectDir.absolutePath
         systemProperty 'yano.test.appchain-cli-install-dir',
-                layout.buildDirectory.dir('install/yano-devtools').get().asFile.absolutePath
+                packagedCliProject.layout.buildDirectory.dir('install/yano-appchain').get().asFile.absolutePath
         systemProperty 'yano.test.appchain-cli-dist-zip',
                 packagedCliZip.get().archiveFile.get().asFile.absolutePath
         systemProperty 'yano.test.final-yano-dist-zip',

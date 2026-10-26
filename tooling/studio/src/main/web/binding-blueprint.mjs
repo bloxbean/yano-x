@@ -1,5 +1,6 @@
 /**
- * Selecting and replacing one chain's `composite` value inside an `appchain.yaml` blueprint (ADR-031.2 §7, C8).
+ * Selecting and replacing one chain's `composite` value inside an app-chain draft (`<app>.draft.yaml`, ADR-056) or
+ * a legacy `appchain.yaml` blueprint (ADR-031.2 §7, C8).
  *
  * Studio never rewrites a blueprint wholesale. It replaces only the source span of the selected chain's composite
  * value, keeps every other byte, then re-parses the result and proves that every other node is unchanged and that
@@ -21,7 +22,7 @@ export class BlueprintError extends Error {
 
 function chains(root) {
   const spec = mapEntry(root, 'spec')?.value;
-  const list = mapEntry(spec, 'chains')?.value;
+  const list = mapEntry(spec ?? root, 'chains')?.value;
   if (list?.kind !== 'seq') throw new BlueprintError('BLUEPRINT_SHAPE', 'The blueprint has no spec.chains list');
   return list.items;
 }

@@ -36,7 +36,7 @@ public final class StudioYamlOracle {
         JSON.getFactory().configure(JsonWriteFeature.ESCAPE_NON_ASCII.mappedFeature(), true);
     }
 
-    private static final ObjectMapper BLUEPRINT = AppChainProjectRenderer.configured(
+    private static final ObjectMapper BLUEPRINT = strict(
             new ObjectMapper(new com.fasterxml.jackson.dataformat.yaml.YAMLFactory()));
 
     private StudioYamlOracle() { }
@@ -358,5 +358,12 @@ public final class StudioYamlOracle {
             text.append(head).append(sequence ? "" : " ").append(value)
                     .append(random.nextInt(10) == 0 ? " # c" : "").append('\n');
         }
+    }
+
+    private static ObjectMapper strict(ObjectMapper mapper) {
+        return mapper.enable(com.fasterxml.jackson.core.JsonParser.Feature.STRICT_DUPLICATE_DETECTION)
+                .enable(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
+                .enable(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
+                .enable(com.fasterxml.jackson.databind.SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS);
     }
 }

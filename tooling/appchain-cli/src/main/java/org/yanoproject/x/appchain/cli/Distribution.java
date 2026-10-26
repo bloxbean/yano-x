@@ -35,6 +35,15 @@ record Distribution(Path home) {
                 + "yano-x-jvm-<version> directory");
     }
 
+    /** The distribution when one is found; otherwise one whose optional parts (starters) are simply absent. */
+    static Distribution optional() {
+        try {
+            return locate();
+        } catch (CliException missing) {
+            return new Distribution(Path.of(System.getProperty("java.io.tmpdir"), "no-yano-distribution"));
+        }
+    }
+
     Path launcher() {
         return home.resolve("yano.sh");
     }

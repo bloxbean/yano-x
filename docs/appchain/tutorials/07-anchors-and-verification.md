@@ -1,6 +1,6 @@
 # Tutorial 7 — Connect an App Proof to Cardano
 
-[Open this anchored audit log in App-Chain Studio](../../../tooling/studio/src/main/web/index.html#recipe=audit-log&network=devnet&members=3&finality=majority&sequencing=fixed&membership=governed&runtime=jvm&deployment=host&name=anchored-audit&chainId=anchored-audit)
+To run this outcome with other operators, follow [Set up an application](../deployment/configure.md).
 
 - **Level:** intermediate to advanced
 - **Time:** about 20 minutes on local devnet
