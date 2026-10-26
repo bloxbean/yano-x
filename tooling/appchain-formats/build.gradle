@@ -1,0 +1,5 @@
+dependencies {
+    api libs.jackson.databind
+    implementation libs.jackson.dataformat.yaml
+    implementation libs.cardano.client.crypto
+}

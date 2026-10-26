@@ -61,23 +61,33 @@ final class AppChainProjectResolver {
     private final AppChainPropertyRegistry properties;
     private final AppChainProjectCatalog catalog;
     private final Path projectDirectory;
+    private final AppChainSealResolver.SealHooks hooks;
 
     AppChainProjectResolver(
             AppChainPropertyRegistry properties,
             AppChainProjectCatalog catalog) {
-        this(properties, catalog, null);
+        this(properties, catalog, null, null);
+    }
+
+    /** A resolver for seal: {@code hooks} adds setting overrides and chooses genesis ids (ADR-056 D2). */
+    AppChainProjectResolver(
+            AppChainPropertyRegistry properties,
+            AppChainProjectCatalog catalog,
+            AppChainSealResolver.SealHooks hooks) {
+        this(properties, catalog, null, hooks);
     }
 
     private AppChainProjectResolver(AppChainPropertyRegistry properties, AppChainProjectCatalog catalog,
-                                    Path projectDirectory) {
+                                    Path projectDirectory, AppChainSealResolver.SealHooks hooks) {
         this.properties = java.util.Objects.requireNonNull(properties, "properties");
         this.catalog = java.util.Objects.requireNonNull(catalog, "catalog");
         this.projectDirectory = projectDirectory;
+        this.hooks = hooks;
     }
 
     /** Resolve authoring paths against the blueprint directory, never the invoking process's working directory. */
     AppChainProjectModel.Resolution resolve(AppChainProjectModel.Blueprint blueprint, Path project) {
-        return new AppChainProjectResolver(properties, catalog, project.toAbsolutePath().normalize())
+        return new AppChainProjectResolver(properties, catalog, project.toAbsolutePath().normalize(), hooks)
                 .resolve(blueprint);
     }
 
@@ -219,6 +229,9 @@ final class AppChainProjectResolver {
         String blockInterval = safeMap(recipe.recommended()).get("blockIntervalMs");
         if (blockInterval != null) {
             consensus.putIfAbsent(prefix + "block.interval-ms", blockInterval);
+        }
+        if (hooks != null) {
+            hooks.overrides(chain.chainId()).forEach((key, value) -> consensus.put(prefix + key, value));
         }
         materializeConsensusDefaults(consensus, prefix);
         if (chain.authenticatedMap() != null) {
@@ -664,7 +677,7 @@ final class AppChainProjectResolver {
         }
     }
 
-    private static void materializeStateCommitmentIdentity(
+    private void materializeStateCommitmentIdentity(
             String projectName,
             AppChainProjectModel.ChainIntent chain,
             Set<String> capabilities,
@@ -676,6 +689,14 @@ final class AppChainProjectResolver {
         StateCommitmentProfile profile = StateCommitmentProfiles.require(
                 consensus.getOrDefault(profileKey, StateCommitmentProfiles.MPF.id()));
         String genesisHex = consensus.get(genesisKey);
+        if (genesisHex == null && hooks != null) {
+            Map<String, String> settings = new TreeMap<>();
+            consensus.forEach((key, value) -> {
+                if (key.startsWith(prefix)) settings.put(key.substring(prefix.length()), value);
+            });
+            settings.put(StateCommitmentIdentity.PROFILE_SETTING, profile.id());
+            genesisHex = hooks.genesisId(chain.chainId(), settings, chain.composite());
+        }
         byte[] genesisId = genesisHex == null
                 ? HexFormat.of().parseHex(AppChainProjectCatalog.sha256(
                 "yano-appchain-project-genesis-v1\0"

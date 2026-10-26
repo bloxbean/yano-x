@@ -114,7 +114,7 @@ final class AppChainProjectCli {
                 builtInRegistry(), new ObjectMapper());
     }
 
-    private static AppChainPropertyRegistry builtInRegistry() throws IOException {
+    static AppChainPropertyRegistry builtInRegistry() throws IOException {
         List<org.yanoproject.appchain.config.AppChainMetadataSource> sources =
                 new AppChainDescriptorLoader().loadBuiltInMetadata().stream()
                         .map(org.yanoproject.appchain.config.AppChainMetadataDescriptor::toSource)
@@ -544,7 +544,7 @@ final class AppChainProjectCli {
         });
     }
 
-    private static AppChainProjectModel.AuthenticatedMapIntent defaultAuthenticatedMapIntent() {
+    static AppChainProjectModel.AuthenticatedMapIntent defaultAuthenticatedMapIntent() {
         return new AppChainProjectModel.AuthenticatedMapIntent(
                 "mpf-blake2b256-v1",
                 "00".repeat(32),

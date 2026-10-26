@@ -1,0 +1,17 @@
+plugins {
+    id 'application'
+}
+
+dependencies {
+    implementation project(':tooling:appchain-formats')
+    implementation project(':tooling:devtools')
+    implementation libs.jackson.databind
+    implementation libs.jackson.dataformat.yaml
+    runtimeOnly libs.slf4j.nop
+}
+
+application {
+    applicationName = 'yano-appchain'
+    mainClass = 'org.yanoproject.x.appchain.cli.AppChainCli'
+    applicationDefaultJvmArgs = ['-Xmx4g']
+}
