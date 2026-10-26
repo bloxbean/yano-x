@@ -125,9 +125,12 @@ file. Adding a chain to a running node still needs a stop and start (a current h
 - The draft lists the expected `operators`. `seal` refuses a missing, unexpected, duplicate or
   wrongly-signed card, and refuses a key used twice.
 - A card proves its key, not who its sender is. Each member is therefore shown with a short **key id**
-  (the first 8 hex characters of the key) at `request`, `seal` and `join`, and the call that compares
-  the chain fingerprint also compares each operator's key id. `join` refuses unless the operator's own
-  key is in the roster under its name, so a substituted card is caught by the operator it replaced.
+  (the first 16 hex characters of the key) at `request`, `seal` and `join`, and the call that compares
+  the chain fingerprint also compares each operator's key id. A **founding** `join` refuses unless the
+  operator's own key is in the roster under its name, so a substituted card is caught by the operator
+  it replaced. A **later** member is not in the sealed roster: its `join` is accepted only on the node
+  directory that made a card for that `.chain` (`request <app>.chain`), keeps the original genesis,
+  and `status` shows it as `waiting for approval` until governed history admits its key.
 - The first operator listed is the **lead**: by default the fixed block proposer and, on a devnet,
   the node that produces the Cardano devnet (D11).
 
@@ -168,8 +171,8 @@ as written; it never re-resolves them, so operators with different tool builds c
 same file differently. The genesis section also records the Yano and Yano X versions, and the SHA-256 digest
 of every plugin bundle each chain runs on. `join` and every `start` check the node's bundles against
 those digests and refuse a mismatch, naming the release to install; a different Yano or Yano X version
-string with identical bundles only produces a warning. Upgrading the bundles of a running chain is a
-host upgrade, outside this ADR.
+string with identical bundles only produces a warning. Deciding whether new bundles are safe for a
+running chain stays a host-upgrade decision; the tool only makes the change explicit (below).
 
 Three identities, each with its own name in the tool:
 
@@ -183,10 +186,17 @@ Three identities, each with its own name in the tool:
   genesis id)`. Either way the id now covers the members and the rules. For non-deriving machines it also
   covers the invite code, so two ceremonies never share one; a derived id does not cover the invite,
   so `request` always makes a fresh key unless `--key` is given, and `join` refuses a second chain
-  with the same chain id and genesis id on one node.
+  with the same chain id and genesis id on one node. Chain ids must be unique on a node, and the
+  node-wide settings of two applications on one node must agree; `join` refuses otherwise.
+- **Accepted bundles**: `join` records the sealed bundle digests as this node's accepted set, and
+  `start` checks the installed bundles against it. After a host upgrade, or for a later member on a
+  newer release, `join --accept-bundles` shows which bundles changed and records the new set, in a
+  logged step. `status` compares the plugin catalog fingerprint each member reports.
 - **Effective runtime identity**: what a running node reports (`GET /api/v1/app-chain/chains`).
   `status` compares it across members, together with the Cardano network genesis id (on devnet it
-  only exists after the lead's first start, so it is outside the fingerprint; see D11).
+  only exists after the lead's first start, so it is outside the fingerprint; see D11). The runtime
+  does not report that id, so `status` hashes each node's stored genesis file and compares the
+  results.
 
 The runtime is unchanged: it already takes `state.genesis-id` as a setting and already validates a
 derived one.
@@ -236,6 +246,9 @@ every member counted in the new threshold is online, so growth can never strand 
 Approvals expire after 600 blocks; `status` shows pending changes and how long they have left. The
 `new` wizard explains the cost up front: while a 3-member chain grows, it runs at 3-of-3, so one
 offline member stops it.
+
+If fewer members than the threshold are online, the chain stops finalizing until enough return. That
+is the safety the threshold buys, and no command can bypass it; `status` names who is offline.
 
 `approve --remove` refuses to remove the fixed proposer (the runtime rejects it) and says what to do
 instead. A coordinator may choose `membership: static`; `approve` then prints the static runbook
@@ -330,9 +343,14 @@ network provides.
 - The real spending limit is the wallet balance: the tool tells the operator to fund the wallet only
   with what they are willing to spend on fees. It does not promise a per-run ceiling, which would
   need a runtime change.
-- The step is safe to re-run after an interruption: it resumes from what the node reports. A
-  bootstrap transaction is only known to the node once Cardano confirms it, so `anchor` records that
-  it submitted one and, when re-run, waits for that confirmation instead of submitting another.
+- The step is safe to re-run after the command is interrupted while the node keeps running: it
+  resumes from what the node reports, and records a submitted bootstrap so a re-run waits for it
+  instead of submitting another. If the node itself restarts between submitting the bootstrap and its
+  confirmation on Cardano, the node forgets the pending bootstrap (it is held in memory). `anchor` then
+  reports the submitted transaction and stops, asking the operator to check it on Cardano before
+  deciding; durable recovery of that window needs host support and is outside this ADR.
+- Every leader change, not only `--take-over`, is allowed only on a node whose status shows the
+  chain's confirmed anchor identity once any member reports an anchor thread.
 
 ### D11 — Devnet: the lead produces the Cardano devnet
 
@@ -412,8 +430,8 @@ and E (publishing the chain fingerprint and member cards on Cardano).
 - Operators who relied on the cluster-wide Ansible export deploy per node with the systemd unit.
 - Growing a chain is one command per operator, but it costs one restart per operator and a period
   at a higher threshold.
-- The jlink image is a second download per OS; it is built from the same release, and `join`
-  refuses a mismatch.
+- The jlink image is a second download per OS, built from the same release. As everywhere, differing
+  bundle digests fail and differing version strings only warn.
 - Rewritten: tutorials 8 and 9, the deployment guides and bindings chapters 1, 4 and 6.
 
 ## 8. Open questions
@@ -467,3 +485,9 @@ and E (publishing the chain fingerprint and member cards on Cardano).
   devnet download trust, network genesis id compared by `status`, dev-mode exposure noted; F13/C6 →
   take-over rules and pending-bootstrap handling; F16/F17 → heartbeat consent, listener lifetime,
   `approve` waits and re-runs.
+- **r6** (2026-10-26; responds to the round-3 reviews of `508415a4`): C13 → founding and later joins
+  distinguished (D1); F19 → accepted bundle set and `join --accept-bundles`, catalog fingerprint
+  compared by `status` (D2); C6 → bootstrap recovery limited to command interruptions, the node-restart
+  window reported (D10); F20 → identity rule applies to every leader change; F21 → key ids are 16 hex
+  characters; F22 → `status` hashes the stored devnet genesis; C8 → insufficient quorum stated (D5);
+  C14 → §7 aligned; R7 → node-wide settings across applications must agree.
