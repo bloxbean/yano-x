@@ -119,4 +119,63 @@ final class NodeConfig {
     static Path consensusFile(NodeDir node) {
         return node.path("config", "consensus.yaml");
     }
+
+    /** The operator's own settings; never rewritten by the tool, loaded with the highest priority. */
+    static Path localFile(NodeDir node) {
+        return node.path("config", "local.yaml");
+    }
+
+    static void ensureLocalFile(NodeDir node) {
+        if (java.nio.file.Files.exists(localFile(node))) return;
+        NodeDir.write(localFile(node), """
+                # This node's own settings, for example connector endpoints or JVM-independent tuning.
+                # yano.sh appchain never rewrites this file, and settings here win over config/node.yaml.
+                # Sealed consensus settings (config/consensus.yaml) cannot be changed here; start refuses.
+                """);
+    }
+
+    /** {@code QUARKUS_CONFIG_LOCATIONS}: the first location wins, so local beats node beats sealed values. */
+    static String locations(NodeDir node) {
+        java.util.List<String> files = new java.util.ArrayList<>();
+        if (java.nio.file.Files.isRegularFile(localFile(node))) files.add(localFile(node).toString());
+        files.add(node.path("config", "node.yaml").toString());
+        files.add(consensusFile(node).toString());
+        return String.join(",", files);
+    }
+
+    /** Fails when the operator's local file sets a key the sealed consensus file sets. */
+    static void requireLocalLeavesConsensusAlone(NodeDir node) {
+        if (!java.nio.file.Files.isRegularFile(localFile(node))) return;
+        java.util.Set<String> sealed = flatten(consensusFile(node)).keySet();
+        java.util.List<String> clashes = flatten(localFile(node)).keySet().stream().filter(sealed::contains).sorted()
+                .toList();
+        if (!clashes.isEmpty()) {
+            throw CliException.failure("config/local.yaml changes sealed consensus settings: " + String.join(", ",
+                    clashes) + ". Remove them; every member must run the sealed values");
+        }
+    }
+
+    private static java.util.Map<String, String> flatten(Path file) {
+        java.util.Map<String, String> values = new java.util.TreeMap<>();
+        try {
+            com.fasterxml.jackson.databind.JsonNode root = new com.fasterxml.jackson.databind.ObjectMapper(
+                    new com.fasterxml.jackson.dataformat.yaml.YAMLFactory()).readTree(file.toFile());
+            if (root != null) flatten("", root, values);
+        } catch (java.io.IOException invalid) {
+            throw CliException.failure(file + " is not valid YAML: " + invalid.getMessage());
+        }
+        return values;
+    }
+
+    private static void flatten(String prefix, com.fasterxml.jackson.databind.JsonNode node,
+                                java.util.Map<String, String> values) {
+        if (node.isObject()) {
+            node.properties().forEach(entry -> flatten(prefix.isEmpty() ? entry.getKey()
+                    : prefix + "." + entry.getKey(), entry.getValue(), values));
+        } else if (node.isArray()) {
+            for (int index = 0; index < node.size(); index++) flatten(prefix + "[" + index + "]", node.get(index), values);
+        } else {
+            values.put(prefix, node.asText());
+        }
+    }
 }

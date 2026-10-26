@@ -66,6 +66,15 @@ final class SealCommand {
             requests.add(new AppChainSealResolver.ChainRequest(chain.id(), chain.recipe(), chain.capabilities(),
                     chain.answers(), composite, chain.authenticatedMap()));
         }
+        List<String> warnings = new ArrayList<>();
+        for (Draft.Chain chain : draft.chains()) {
+            AppChainSealResolver.MapFindings findings =
+                    AppChainSealResolver.authenticatedMapFindings(chain.authenticatedMap());
+            if (!findings.errors().isEmpty()) {
+                throw CliException.failure("Chain " + chain.id() + ": " + String.join("; ", findings.errors()));
+            }
+            findings.warnings().forEach(warning -> warnings.add("Chain " + chain.id() + ": " + warning));
+        }
         Map<String, Map<String, String>> overrides = new HashMap<>();
         for (Draft.Chain chain : draft.chains()) overrides.put(chain.id(), overrides(draft, chain));
 
@@ -130,6 +139,7 @@ final class SealCommand {
         NodeDir.write(output, sealed.toJson());
         terminal.ok("Sealed " + output);
         Show.sealed(terminal, sealed);
+        warnings.forEach(terminal::warn);
         for (SealedApp.ChainGenesis chain : chains) {
             String machine = chain.settings().get("state-machine");
             if (!"role-approvals".equals(machine) && !"role-evidence".equals(machine)) continue;

@@ -37,7 +37,8 @@ final class StatusCommand {
 
     /** The status of one joined application. */
     record AppView(String name, String fingerprint, String stage, String waitingFor, List<MemberView> members,
-                   List<Map<String, Object>> chains, String cardano, List<String> next, List<String> problems) {
+                   List<Map<String, Object>> chains, String cardano, String plugins, List<String> next,
+                   List<String> problems) {
     }
 
     int run(String[] arguments) throws IOException {
@@ -166,7 +167,8 @@ final class StatusCommand {
                     : "optional: anchor a chain to Cardano with  yano.sh appchain anchor " + genesis.name());
         }
         return new AppView(genesis.name(), app.displayFingerprint(), stage, waitingFor, members, chains,
-                cardano(node, genesis.network(), me.online()), next, problems);
+                cardano(node, genesis.network(), me.online()), plugins(node, me.online(), genesis.chains()), next,
+                problems);
     }
 
     /**
@@ -192,6 +194,15 @@ final class StatusCommand {
         if (block.isEmpty()) return network + ": unknown until this node runs";
         return network + " " + block + (behindSeconds > 600 ? ", syncing: about " + duration(behindSeconds)
                 + " behind" : ", up to date");
+    }
+
+    /** This node's plugin catalog fingerprint, which every member compares (the identity route is private). */
+    private static String plugins(NodeDir node, boolean online, List<SealedApp.ChainGenesis> chains) {
+        if (!online) return "unknown until this node runs";
+        return NodeClient.local(node).get("/api/v1/app-chain/chains/" + chains.getFirst().id() + "/identity")
+                .map(identity -> identity.path("pluginCatalogFingerprint").asText("unknown"))
+                .map(value -> value.length() > 23 ? value.substring(0, 23) + "…" : value)
+                .map(value -> "catalog " + value + " (compare with the other members)").orElse("unknown");
     }
 
     private static String duration(long seconds) {
@@ -237,6 +248,7 @@ final class StatusCommand {
                     chain.getOrDefault("anchoring", "?")));
         }
         terminal.say("  Cardano: " + view.cardano());
+        terminal.say("  Plugins: " + view.plugins());
         view.problems().forEach(problem -> terminal.warn(problem));
         terminal.next(view.next().toArray(String[]::new));
     }

@@ -166,6 +166,55 @@ public final class AppChainSealResolver {
                 """.formatted(chainId, profile, threshold);
     }
 
+    /** Checks of a chain's authenticated map that seal reports: errors refuse the seal, warnings are shown. */
+    public record MapFindings(List<String> errors, List<String> warnings) {
+    }
+
+    public static MapFindings authenticatedMapFindings(JsonNode authenticatedMap) {
+        if (authenticatedMap == null) return new MapFindings(List.of(), List.of());
+        AppChainProjectModel.AuthenticatedMapIntent intent;
+        try {
+            intent = JSON.treeToValue(authenticatedMap, AppChainProjectModel.AuthenticatedMapIntent.class);
+        } catch (com.fasterxml.jackson.core.JsonProcessingException invalid) {
+            return new MapFindings(List.of("the authenticatedMap section is invalid: " + invalid.getOriginalMessage()),
+                    List.of());
+        }
+        List<AppChainProjectModel.AuthenticatedMapCollectionIntent> collections =
+                intent.collections() == null ? List.of() : intent.collections();
+        java.util.Set<String> schemas = new java.util.TreeSet<>();
+        if (intent.schemas() != null) intent.schemas().forEach(schema -> schemas.add(schema.id()));
+        List<String> errors = new ArrayList<>();
+        collections.stream()
+                .filter(collection -> collection.validator() != null && schemas.contains(collection.validator()))
+                .filter(collection -> !"canonical-cbor".equals(collection.valueEncoding()))
+                .forEach(collection -> errors.add("collection " + collection.id()
+                        + " uses a schema, so its valueEncoding must be canonical-cbor"));
+        List<String> warnings = new ArrayList<>();
+        var records = intent.genesisRecords();
+        java.util.Set<String> direct = new java.util.TreeSet<>();
+        java.util.Set<String> approval = new java.util.TreeSet<>();
+        if (records != null) {
+            if (records.directPolicies() != null) records.directPolicies().stream()
+                    .filter(policy -> policy.status() == null || "active".equals(policy.status()))
+                    .forEach(policy -> direct.add(policy.id()));
+            if (records.approvalPolicies() != null) records.approvalPolicies().stream()
+                    .filter(policy -> policy.status() == null || "active".equals(policy.status()))
+                    .forEach(policy -> approval.add(policy.id()));
+        }
+        for (var collection : collections) {
+            boolean governedRole = "governed-role".equals(collection.authorization());
+            if (!governedRole && !"approval".equals(collection.authorization())) continue;
+            String policy = collection.authorizationPolicy();
+            if (policy == null || (governedRole ? !direct.contains(policy) : !approval.contains(policy))) {
+                warnings.add("collection " + collection.id() + " has no active "
+                        + (governedRole ? "direct" : "approval") + " policy at genesis ("
+                        + (policy == null ? "none named" : policy) + "); it accepts no writes until the governance "
+                        + "authority activates one");
+            }
+        }
+        return new MapFindings(List.copyOf(errors), List.copyOf(warnings));
+    }
+
     /** The recipe ids a draft may select, with their one-line summaries. */
     public static Map<String, String> recipes() throws IOException {
         AppChainProjectCatalog catalog = new AppChainProjectCatalog(AppChainProjectCli.builtInRegistry());

@@ -136,6 +136,7 @@ final class JoinCommand {
                 local == null ? List.of() : local.removedMembers()));
         node.apiKey();
         NodeConfig.write(node, node.joined());
+        NodeConfig.ensureLocalFile(node);
         Service.writeUnit(node, distribution);
         try {
             Files.deleteIfExists(node.path("run", "join.pending"));

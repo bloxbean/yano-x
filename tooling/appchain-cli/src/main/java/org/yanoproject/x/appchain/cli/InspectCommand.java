@@ -12,7 +12,7 @@ import java.util.Set;
 
 /** {@code inspect}: shows a draft, member card or sealed file, and checks it. */
 final class InspectCommand {
-    static final String USAGE = "yano.sh appchain inspect <file> [--json]";
+    static final String USAGE = "yano.sh appchain inspect <file> [--json] [--map-genesis <chain>]";
 
     private final Terminal terminal;
 
@@ -21,7 +21,7 @@ final class InspectCommand {
     }
 
     int run(String[] arguments) {
-        Args args = new Args(arguments, Set.of(), Set.of("json"));
+        Args args = new Args(arguments, Set.of("map-genesis"), Set.of("json"));
         args.maxPositionals(1, USAGE);
         if (args.positional(0) == null) throw CliException.usage("Name a file. Usage: " + USAGE);
         Path file = Path.of(args.positional(0));
@@ -29,6 +29,16 @@ final class InspectCommand {
         String name = file.getFileName().toString();
         if (name.endsWith(".chain")) {
             SealedApp app = SealedApp.parse(text);
+            if (args.value("map-genesis") != null) {
+                // The authenticated map's genesis bytes, as offline tools such as `state verify` take them.
+                String hex = app.genesis().chain(args.value("map-genesis")).settings()
+                        .get("machines.authenticated-map.genesis-cbor-hex");
+                if (hex == null) {
+                    throw CliException.failure("Chain " + args.value("map-genesis") + " has no authenticated map");
+                }
+                terminal.say(hex);
+                return 0;
+            }
             if (args.flag("json")) {
                 Map<String, Object> result = new LinkedHashMap<>();
                 result.put("kind", "chain");

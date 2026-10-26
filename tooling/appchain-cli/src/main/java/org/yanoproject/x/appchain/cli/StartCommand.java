@@ -87,8 +87,8 @@ final class StartCommand {
         Map<String, String> environment = new HashMap<>();
         environment.put("YANO_APPCHAIN_SIGNING_KEY", node.seed());
         environment.put("YANO_APPCHAIN_API_KEYS", node.apiKey());
-        environment.put("QUARKUS_CONFIG_LOCATIONS", NodeConfig.consensusFile(node) + ","
-                + node.path("config", "node.yaml"));
+        NodeConfig.requireLocalLeavesConsensusAlone(node);
+        environment.put("QUARKUS_CONFIG_LOCATIONS", NodeConfig.locations(node));
         if (Anchoring.hasWallet(node)) {
             environment.put("YANO_APPCHAIN_ANCHOR_KEY", NodeDir.read(node.path("secrets", "anchor.key")).strip());
         }
