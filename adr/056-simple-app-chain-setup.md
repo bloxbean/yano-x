@@ -183,8 +183,9 @@ Three identities, each with its own name in the tool:
 - **Genesis id** (`state.genesis-id`) of each chain: for state machines that derive their own (the
   authenticated map and machines built on it), the derived value, recomputed and compared by
   `join` and checked again by the node at startup. For every other chain,
-  `SHA-256("yano-x-appchain-genesis-v1\0" || invite code || chainId || canonical settings without the
-  genesis id)`. Either way the id now covers the members and the rules. For non-deriving machines it also
+  `SHA-256("yano-x-appchain-genesis-v1\0" || invite code || 0 || chainId || 0 || canonical JSON of
+  {settings, composite})`, where `settings` is every sealed setting of the chain except the genesis id
+  and a compiled binding IR, and `composite` is the chain's binding document when it has one. Either way the id now covers the members and the rules. For non-deriving machines it also
   covers the invite code, so two ceremonies never share one; a derived id does not cover the invite,
   so `request` always makes a fresh key unless `--key` is given, and `join` refuses a second chain
   with the same chain id and genesis id on one node. Chain ids must be unique on a node, and the
@@ -284,8 +285,11 @@ step. The files and checks are those of Phase A, only carried automatically:
 `yano.sh appchain ui` starts a localhost-only web UI over the same engine and opens the browser. It
 has the same steps as the CLI: create (wizard), members, seal, join, and status, with a link to the
 node's own console once live. The binding editor (ADR-031.2) becomes the optional "workflow" step of
-create. The UI is built like `products/eutxo/ui` (ADR-040). It lives in Yano X, is served by the
-CLI, and needs no node, plugin or Yano change. Yano's node console stays in Yano.
+create. The UI is plain static HTML and ES modules with no build step, like Studio's binding editor, so
+the editor folds in directly; every action runs the same CLI command in-process, so files written from
+the browser are byte-identical to the CLI's. It lives in Yano X, is served by the CLI on 127.0.0.1 with
+a one-time token in the URL, and needs no node, plugin or Yano change. Yano's node console stays in
+Yano.
 
 ### D8 — Modules and packaging
 
@@ -311,7 +315,8 @@ CLI, and needs no node, plugin or Yano change. Yano's node console stays in Yano
 | `gitops` (cluster-wide Ansible, Helm, Kustomize) | Removed; each operator deploys their own node (systemd unit from `join`). ADR-039 is unchanged |
 | `diff`, `migrate` | Removed |
 | `doctor`, `drift` | Folded into `status` |
-| `recipes`, `capabilities`, `bindings`, `state`, `role`, `plugin`, `metadata`, `config` | Kept |
+| `config validate --mode project` | Removed; `template` and `resolved` modes are kept |
+| `recipes`, `capabilities`, `bindings`, `state`, `role`, `plugin`, `metadata`, `config` | Kept. A role-approval chain's bootstrap plan template, once written by `render`, is now written by `seal` beside the sealed file |
 | Studio blueprint page | Removed in Phase A |
 | Studio binding editor | Kept until Phase C absorbs it |
 
@@ -500,3 +505,6 @@ and E (publishing the chain fingerprint and member cards on Cardano).
 - **r8** (2026-10-27; maintainer decision and implementation findings): the CLI ships only in the JVM ZIP;
   A3 becomes a self-contained edition of the whole distribution with a jlink runtime (D8, A3, §7); on a
   devnet only the lead anchors, because followers keep no UTxO view (D11).
+- **r9** (2026-10-27; implementation findings): D2 states the exact genesis-id input; D7 builds the setup
+  UI as static modules like the binding editor instead of a separately built app; D9 lists the removed
+  project validation mode and where the role bootstrap plan template now comes from.
