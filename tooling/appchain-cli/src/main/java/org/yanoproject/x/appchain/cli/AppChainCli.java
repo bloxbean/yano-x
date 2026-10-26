@@ -26,10 +26,11 @@ public final class AppChainCli {
 
             Coordinator:
               new [<app>]               create <app>.draft.yaml (a wizard asks the questions)
+              invite <draft> --serve    hand out one link per operator; cards and the sealed file travel by link
               seal <app>.draft.yaml     seal the draft with the member cards beside it → <app>.chain
 
             Every operator:
-              request <draft|chain>     make this node's key and member card (<name>.member)
+              request <draft|chain|link>  make this node's key and member card (<name>.member)
               join <app>.chain          check the sealed file and set up this node
               start | stop              run or stop this node
               status [<app>]            where the application is, and what to do next
@@ -82,7 +83,7 @@ public final class AppChainCli {
         try {
             return switch (verb) {
                 case "new" -> new NewCommand(terminal, optional.get()).run(rest);
-                case "request" -> new RequestCommand(terminal).run(rest);
+                case "request" -> new RequestCommand(terminal, located).run(rest);
                 case "seal" -> new SealCommand(terminal, located.get()).run(rest);
                 case "inspect" -> new InspectCommand(terminal).run(rest);
                 case "join" -> new JoinCommand(terminal, located.get()).run(rest);
@@ -92,6 +93,7 @@ public final class AppChainCli {
                 case "approve" -> new ApproveCommand(terminal, located.get()).run(rest);
                 case "anchor" -> new AnchorCommand(terminal, located.get()).run(rest);
                 case "try" -> new TryCommand(terminal, err).run(rest);
+                case "invite" -> new InviteCommand(terminal, located.get(), err).run(rest);
                 default -> throw CliException.usage("'" + verb + "' is not available in this build yet");
             };
         } catch (CliException failure) {
@@ -119,6 +121,7 @@ public final class AppChainCli {
             case "approve" -> ApproveCommand.USAGE;
             case "anchor" -> AnchorCommand.USAGE;
             case "try" -> TryCommand.USAGE;
+            case "invite" -> InviteCommand.USAGE;
             default -> "yano.sh appchain " + verb;
         };
     }

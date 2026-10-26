@@ -24,12 +24,13 @@ public record Draft(
         List<String> operators,
         String threshold,
         String membership,
+        String sequencing,
         List<Chain> chains) {
 
     public static final List<String> THRESHOLDS = List.of("majority", "two-thirds", "all");
     private static final ObjectMapper YAML = new ObjectMapper(new YAMLFactory());
     private static final Set<String> FIELDS = Set.of(
-            "name", "invite", "network", "operators", "threshold", "membership", "chains");
+            "name", "invite", "network", "operators", "threshold", "membership", "sequencing", "chains");
     private static final Set<String> CHAIN_FIELDS = Set.of(
             "id", "recipe", "capabilities", "answers", "bindings", "composite", "authenticatedMap",
             "anchor", "settings");
@@ -80,6 +81,10 @@ public record Draft(
         membership = membership == null ? "governed" : membership;
         if (!List.of("governed", "static").contains(membership)) {
             throw new FormatException("membership must be 'governed' or 'static'");
+        }
+        sequencing = sequencing == null ? "fixed" : sequencing;
+        if (!List.of("fixed", "rotating").contains(sequencing)) {
+            throw new FormatException("sequencing must be 'fixed' (the lead proposes) or 'rotating'");
         }
         if (chains == null || chains.isEmpty()) throw new FormatException("The draft defines no chains");
         if (chains.size() > Names.MAX_CHAINS) {
@@ -164,6 +169,7 @@ public record Draft(
                 strings(object.path("operators")),
                 object.hasNonNull("threshold") ? object.get("threshold").asText() : null,
                 object.hasNonNull("membership") ? object.get("membership").asText() : null,
+                object.hasNonNull("sequencing") ? object.get("sequencing").asText() : null,
                 chains);
     }
 
@@ -180,6 +186,8 @@ public record Draft(
         out.append("threshold: ").append(threshold)
                 .append("            # signatures per block: majority | two-thirds | all | a number\n");
         out.append("membership: ").append(membership).append('\n');
+        out.append("sequencing: ").append(sequencing)
+                .append("              # fixed: the lead proposes every block | rotating: members take turns\n");
         out.append("chains:\n");
         for (Chain chain : chains) {
             out.append("  - id: ").append(chain.id()).append('\n');

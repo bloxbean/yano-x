@@ -59,6 +59,7 @@ public final class AppChainSealResolver {
             String yanoVersion,
             String finality,
             String membership,
+            String sequencing,
             List<String> memberKeys,
             List<ChainRequest> chains,
             Path pluginsDirectory,
@@ -195,7 +196,8 @@ public final class AppChainSealResolver {
         List<AppChainProjectModel.ChainIntent> intents = new ArrayList<>();
         for (ChainRequest chain : request.chains()) {
             AppChainProjectModel.Topology topology = new AppChainProjectModel.Topology(
-                    keys.size(), keys, List.of(), request.finality(), "fixed", request.membership(), null, null);
+                    keys.size(), keys, List.of(), request.finality(), request.sequencing(), request.membership(),
+                    null, null);
             AppChainProjectModel.AuthenticatedMapIntent map = chain.authenticatedMap() != null
                     ? JSON.treeToValue(chain.authenticatedMap(), AppChainProjectModel.AuthenticatedMapIntent.class)
                     : "authenticated-map".equals(chain.recipe())

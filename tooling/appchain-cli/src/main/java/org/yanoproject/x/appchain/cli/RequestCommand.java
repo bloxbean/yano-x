@@ -14,23 +14,44 @@ import java.util.Set;
  * addresses other members reach this node at, and writes {@code <name>.member} for the coordinator.
  */
 final class RequestCommand {
-    static final String USAGE = "yano.sh appchain request <app>.draft.yaml|<app>.chain [--name <operator>]"
+    static final String USAGE = "yano.sh appchain request <app>.draft.yaml|<app>.chain|<yano:// link> [--name <operator>]"
             + " [--host <public-host>] [--node-port 13337] [--http-port 8080] [--node-dir yano-node]"
-            + " [--key <seed-file>] [--output <dir>] [--yes]";
+            + " [--key <seed-file>] [--output <dir>] [--no-wait] [--yes]";
 
     private final Terminal terminal;
+    private final java.util.function.Supplier<Distribution> distribution;
 
-    RequestCommand(Terminal terminal) {
+    RequestCommand(Terminal terminal, java.util.function.Supplier<Distribution> distribution) {
         this.terminal = terminal;
+        this.distribution = distribution;
     }
 
     int run(String[] arguments) {
         Args args = new Args(arguments, Set.of("name", "host", "node-port", "http-port", "node-dir", "key", "output"),
-                Set.of("yes"));
+                Set.of("yes", "no-wait"));
         args.maxPositionals(1, USAGE);
         if (args.positional(0) == null) throw CliException.usage("Name the draft or chain file. Usage: " + USAGE);
-        Path source = Path.of(args.positional(0));
-        String text = NodeDir.read(source);
+        InviteLink link = InviteLink.looksLike(args.positional(0)) ? InviteLink.parse(args.positional(0)) : null;
+        String assignedName = null;
+        String text;
+        Path source;
+        if (link != null) {
+            InviteLink.Reply reply = link.get("/v1/draft");
+            if (reply.status() != 200) {
+                throw CliException.failure("The coordinator refused this link (" + reply.status() + "): " + reply.body());
+            }
+            text = reply.body();
+            assignedName = reply.operator();
+            source = Path.of(Draft.parse(text).name() + ".draft.yaml");
+            if (!Draft.parse(text).invite().equals(link.invite())) {
+                throw CliException.failure("The draft served for this link has invite " + Draft.parse(text).invite()
+                        + ", not " + link.invite() + " from the link; ask the coordinator for a new link");
+            }
+            terminal.ok("Fetched " + source + " from the coordinator (you are " + assignedName + ")");
+        } else {
+            source = Path.of(args.positional(0));
+            text = NodeDir.read(source);
+        }
         String invite;
         String network;
         List<String> expected;
@@ -51,6 +72,7 @@ final class RequestCommand {
         NodeDir.Identity identity = node.identity();
         if (identity == null) {
             String name = args.value("name") != null ? args.value("name")
+                    : assignedName != null ? assignedName
                     : expected.isEmpty() ? terminal.ask("Your operator name", null, "--name")
                     : terminal.choose("Which operator are you?", expected, null, null, "--name");
             Names.name(name, "Operator name");
@@ -92,6 +114,7 @@ final class RequestCommand {
         }
 
         MemberCard card = MemberCard.create(node.seed(), invite, identity.name(), identity.node(), identity.http());
+        if (link != null) return viaLink(link, card, node, args);
         if (late) {
             NodeDir.write(node.path("apps", SealedApp.parse(text).genesis().name() + ".request"), card.toJson());
         }
@@ -108,6 +131,54 @@ final class RequestCommand {
                     + Show.keyId(card.publicKey()) + " on the call where you compare fingerprints.");
         }
         return 0;
+    }
+
+    /** Posts the card to the coordinator, waits for the sealed file, and continues with join. */
+    private int viaLink(InviteLink link, MemberCard card, NodeDir node, Args args) {
+        // Running the command again after the seal resumes: the card is already in the sealed file.
+        if (link.get("/v1/chain").status() != 200) {
+            InviteLink.Reply posted = link.post("/v1/card", card.toJson());
+            if (posted.status() != 200) {
+                throw CliException.failure("The coordinator refused your card (" + posted.status() + "): "
+                        + posted.body());
+            }
+            terminal.ok("Sent your card (key id " + Show.keyId(card.publicKey()) + ") to the coordinator");
+        }
+        if (args.flag("no-wait")) {
+            terminal.next("run the same request command again later to receive the sealed file");
+            return 0;
+        }
+        boolean told = false;
+        while (true) {
+            InviteLink.Reply reply = link.get("/v1/chain");
+            if (reply.status() == 200) {
+                org.yanoproject.x.appchain.formats.SealedApp sealed =
+                        org.yanoproject.x.appchain.formats.SealedApp.parse(reply.body());
+                Path file = args.path("output", Path.of(".")).resolve(sealed.genesis().name() + ".chain");
+                NodeDir.write(file, sealed.toJson());
+                terminal.ok("Received " + file);
+                if (!terminal.interactive()) {
+                    terminal.next("compare the chain fingerprint " + sealed.displayFingerprint()
+                                    + " and every key id with the others, then run",
+                            "  yano.sh appchain join " + file + " --expect-fingerprint <the agreed fingerprint>"
+                                    + " --node-dir " + node.root());
+                    return 0;
+                }
+                return new JoinCommand(terminal, distribution.get()).run(new String[]{file.toString(), "--node-dir",
+                        node.root().toString()});
+            }
+            if (reply.status() != 202) {
+                throw CliException.failure("The coordinator answered " + reply.status() + ": " + reply.body());
+            }
+            if (!told) {
+                String missing = reply.body().replaceAll(".*\"missing\":\\[(.*)\\].*", "$1").replace("\"", "");
+                terminal.say((missing.isBlank() ? "All cards are in; waiting for the coordinator to seal"
+                        : "Waiting for cards from " + missing.replace(",", ", ") + ", then for the seal")
+                        + " … Ctrl-C stops; running this command again resumes");
+                told = true;
+            }
+            Devnet.sleep(3000);
+        }
     }
 
     private int port(Args args, String flag, String question, int fallback) {

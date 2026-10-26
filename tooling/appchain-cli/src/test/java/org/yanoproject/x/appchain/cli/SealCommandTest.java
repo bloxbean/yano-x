@@ -121,7 +121,7 @@ class SealCommandTest {
         Draft parsed = Draft.parse(Files.readString(draft));
         Draft.Chain chain = parsed.chains().getFirst();
         Draft withPolicy = new Draft(parsed.name(), parsed.invite(), parsed.network(), parsed.operators(), "all",
-                parsed.membership(), List.of(new Draft.Chain(chain.id(), chain.recipe(), List.of(), Map.of(), null,
+                parsed.membership(), parsed.sequencing(), List.of(new Draft.Chain(chain.id(), chain.recipe(), List.of(), Map.of(), null,
                 null, null, new Draft.Anchor("script", 7), Map.of("block.interval-ms", "500"))));
         Files.writeString(draft, withPolicy.toYaml());
         fixture.ok("seal", draft.toString());

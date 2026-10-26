@@ -86,7 +86,7 @@ final class SealCommand {
         List<AppChainSealResolver.ResolvedChain> resolved;
         try {
             resolved = AppChainSealResolver.resolve(new AppChainSealResolver.Request(draft.name(), draft.network(),
-                    distribution.yanoVersion(), finality, draft.membership(), keys, requests,
+                    distribution.yanoVersion(), finality, draft.membership(), draft.sequencing(), keys, requests,
                     distribution.plugins(), directory, hooks));
         } catch (IllegalArgumentException | IllegalStateException invalid) {
             throw CliException.failure("The draft cannot be sealed: " + invalid.getMessage());

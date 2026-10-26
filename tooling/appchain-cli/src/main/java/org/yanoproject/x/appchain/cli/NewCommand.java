@@ -18,7 +18,7 @@ final class NewCommand {
     static final String USAGE = "yano.sh appchain new [<app>] [--network devnet|preview|preprod|mainnet]"
             + " [--operators alice,bob,carol] [--chain <id>=<recipe>|<id>=bindings:<file>]..."
             + " [--answer <chain>.<name>=<value>]... [--threshold majority|two-thirds|all|<n>]"
-            + " [--membership governed|static] [--output <dir>]"
+            + " [--membership governed|static] [--sequencing fixed|rotating] [--output <dir>]"
             + " [--force] [--yes]";
     private static final String COMPOSITE = "declarative-composite";
 
@@ -32,7 +32,7 @@ final class NewCommand {
 
     int run(String[] arguments) throws IOException {
         Args args = new Args(arguments, Set.of("network", "operators", "chain", "answer", "threshold", "membership",
-                "output"),
+                "sequencing", "output"),
                 Set.of("force", "yes"));
         args.maxPositionals(1, USAGE);
         Path output = args.path("output", Path.of("."));
@@ -63,7 +63,8 @@ final class NewCommand {
 
         String threshold = args.value("threshold", "majority");
         String membership = args.value("membership", "governed");
-        Draft draft = new Draft(name, Names.newInvite(), network, operators, threshold, membership, chains);
+        Draft draft = new Draft(name, Names.newInvite(), network, operators, threshold, membership,
+                args.value("sequencing", "fixed"), chains);
         Path file = output.resolve(name + ".draft.yaml");
         if (Files.exists(file) && !args.flag("force")) {
             throw CliException.failure(file + " already exists; edit it, or pass --force to start over "

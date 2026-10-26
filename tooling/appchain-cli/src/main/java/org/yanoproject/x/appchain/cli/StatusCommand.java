@@ -37,7 +37,7 @@ final class StatusCommand {
 
     /** The status of one joined application. */
     record AppView(String name, String fingerprint, String stage, String waitingFor, List<MemberView> members,
-                   List<Map<String, Object>> chains, List<String> next, List<String> problems) {
+                   List<Map<String, Object>> chains, String cardano, List<String> next, List<String> problems) {
     }
 
     int run(String[] arguments) throws IOException {
@@ -165,8 +165,39 @@ final class StatusCommand {
                     + genesis.chains().getFirst().id() + "/messages"
                     : "optional: anchor a chain to Cardano with  yano.sh appchain anchor " + genesis.name());
         }
-        return new AppView(genesis.name(), app.displayFingerprint(), stage, waitingFor, members, chains, next,
-                problems);
+        return new AppView(genesis.name(), app.displayFingerprint(), stage, waitingFor, members, chains,
+                cardano(node, genesis.network(), me.online()), next, problems);
+    }
+
+    /**
+     * This node's Cardano view: on a public network how far behind the network it is; on a devnet the hash of the
+     * stored genesis, which every member compares (the runtime does not report it).
+     */
+    private static String cardano(NodeDir node, String network, boolean online) {
+        String block = "";
+        long behindSeconds = -1;
+        if (online) {
+            JsonNode latest = NodeClient.local(node).get("/api/v1/blocks/latest").orElse(null);
+            if (latest != null) {
+                block = "block " + latest.path("height").asLong();
+                behindSeconds = System.currentTimeMillis() / 1000 - latest.path("time").asLong();
+            }
+        }
+        if ("devnet".equals(network)) {
+            String genesis = java.nio.file.Files.isRegularFile(Devnet.genesis(node))
+                    ? "genesis " + Distribution.sha256(Devnet.genesis(node)).substring(0, 16)
+                    : "genesis not downloaded yet";
+            return "devnet " + (block.isEmpty() ? "" : block + ", ") + genesis + " (compare with the other members)";
+        }
+        if (block.isEmpty()) return network + ": unknown until this node runs";
+        return network + " " + block + (behindSeconds > 600 ? ", syncing: about " + duration(behindSeconds)
+                + " behind" : ", up to date");
+    }
+
+    private static String duration(long seconds) {
+        if (seconds >= 2 * 86400) return seconds / 86400 + " days";
+        if (seconds >= 7200) return seconds / 3600 + " hours";
+        return Math.max(1, seconds / 60) + " minutes";
     }
 
     private static String anchoring(List<MemberView> members, String chain) {
@@ -175,8 +206,9 @@ final class StatusCommand {
             if (status == null) continue;
             JsonNode anchor = status.path("anchor");
             if (anchor.path("enabled").asBoolean(false)) {
-                return "led by " + member.name() + (anchor.path("bootstrapped").asBoolean(false)
-                        || !anchor.path("lastAnchorTx").isMissingNode() ? "" : " (setting up)");
+                long count = anchor.path("anchoredCount").asLong(0);
+                return "led by " + member.name() + (count > 0 ? ", " + count + " anchored (last height "
+                        + anchor.path("lastAnchoredHeight").asLong() + ")" : " (waiting for the first anchor)");
             }
         }
         return "not set up";
@@ -204,6 +236,7 @@ final class StatusCommand {
                     chain.getOrDefault("members", "?"), chain.getOrDefault("threshold", "?"),
                     chain.getOrDefault("anchoring", "?")));
         }
+        terminal.say("  Cardano: " + view.cardano());
         view.problems().forEach(problem -> terminal.warn(problem));
         terminal.next(view.next().toArray(String[]::new));
     }

@@ -74,7 +74,8 @@ final class ApproveCommand {
 
         NodeClient client = NodeClient.local(node);
         for (SealedApp.ChainGenesis chain : genesis.chains()) {
-            if (key.equals(chain.settings().get("sequencer.proposer")) && remove != null) {
+            if (remove != null && "fixed".equals(chain.settings().get("sequencer.mode"))
+                    && key.equals(chain.settings().get("sequencer.proposer"))) {
                 throw CliException.failure(name + " is the fixed proposer of " + chain.id() + "; the runtime refuses "
                         + "to remove it. Losing the lead's key means sealing a new application.");
             }
