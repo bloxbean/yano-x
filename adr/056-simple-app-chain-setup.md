@@ -82,6 +82,10 @@ sends the card to the existing members. Each of them runs `yano.sh appchain appr
 which submits the governed-membership command on their own node. Once the threshold is reached,
 `dave` runs `join` and `start` and catches up.
 
+**Anchoring to Cardano (optional).** A chain goes live without anchoring. Once it is live, `status`
+shows `Anchoring: not set up` and names the operator who leads it. That operator runs
+`yano.sh appchain anchor orders` and follows the prompts (D10).
+
 **Hosting another chain on the same node.** The operator runs `join` with a second `.chain` file.
 Adding a chain to a running node still needs a stop and start (a current host limitation), and
 `join` says so.
@@ -135,7 +139,7 @@ runtime is unaffected because it already takes `state.genesis-id` as an explicit
 ### D3 — One CLI with a few verbs
 
 Phase A verbs: `new`, `request`, `add`, `seal`, `join`, `start`, `stop`, `status`, `approve`,
-`inspect` and `try`. Each is interactive by default and accepts flags plus `--yes` for scripts.
+`anchor`, `inspect` and `try`. Each is interactive by default and accepts flags plus `--yes` for scripts.
 Errors say what to do, for example
 `carol.member was signed for a different draft (fingerprint 9b1e-…); ask carol to run request again`.
 
@@ -210,12 +214,32 @@ referencing a bindings document; its acceptance gates move to `appchain try`. Ph
 removal happens in two steps, as in the table. Nothing has been publicly released, so no aliases
 are kept.
 
+### D10 — Anchoring is optional, after start, and one command
+
+Anchoring never blocks `start`: a chain finalizes with or without it, and a stopped anchor is a
+liveness problem only (user guide §5.1). Only the anchor leader needs a wallet; in `script` mode
+the other members co-sign with no anchor configuration.
+
+- The draft may carry a chain's anchor policy, for example
+  `anchor: {mode: script, every-blocks: 10, leader: alice}`. The leader defaults to the
+  coordinator's member. The policy needs no wallet and is sealed like everything else.
+- `yano.sh appchain anchor <chain>`, run by the leader, does the rest in one guided flow:
+  1. creates the anchor wallet key on that machine, separate from the member key;
+  2. shows the wallet address and waits for funds (on devnet it funds the wallet itself);
+  3. states the expected cost and asks for confirmation before spending anything;
+  4. runs the one-time script bootstrap when the mode needs it, restarts its own node with the
+     anchor settings, and waits until the first anchor is confirmed.
+- Running the same command on another member moves leadership there; members adopt the on-chain
+  identity already on Cardano, so anchoring resumes where it stopped.
+- `--yes` skips the confirmation only together with `--max-fee-ada`, so a script cannot spend more
+  than it states.
+
 ## 5. Phases
 
 | Phase | Delivers | Done when |
 |---|---|---|
 | **A1** | `appchain-formats`, `new`, `request`, `add`, `seal`, `inspect` | Three cards from three machines seal into one file whose fingerprint every machine reproduces |
-| **A2** | `join`, `start`, `stop`, `status`, `try`, `approve`; old verbs and blueprint page removed; tutorials rewritten | A new user finishes `try` using only printed instructions; a real three-machine chain goes live, adds a fourth member and survives a restart |
+| **A2** | `join`, `start`, `stop`, `status`, `try`, `approve`, `anchor`; old verbs and blueprint page removed; tutorials rewritten | A new user finishes `try` using only printed instructions; a real three-machine chain goes live, adds a fourth member, anchors on devnet with one command and survives a restart |
 | **A3** | jlink images per OS | The image seals a chain on a machine without Java |
 | **B** | `invite --serve`, link-based `request` | Three operators join from links with no manual file transfer; an altered draft or a reused link is refused |
 | **C** | `appchain ui` with the binding editor folded in; Studio removed | A user creates, seals and joins in the browser and gets byte-identical files to the CLI |
@@ -249,8 +273,7 @@ and E (publishing the sealed file's hash and member cards on Cardano).
 2. **Solo genesis.** Resolved in r2: not supported; founding members are fixed at seal.
 3. **Running as a service.** Resolved in r2: `join` writes a systemd unit file the operator
    installs (D4).
-4. **Anchoring.** Anchor policy belongs in the draft; the anchor wallet and its bootstrap stay
-   per-operator explicit steps. Confirm that no anchor setup is needed before `start`.
+4. **Anchoring.** Resolved in r3: optional, never needed before `start`, one guided command (D10).
 5. **Governed membership by default.** Resolved in r2: yes (D5).
 
 ## Revision history
@@ -260,3 +283,5 @@ and E (publishing the sealed file's hash and member cards on Cardano).
   `join` writes a systemd unit file; governed membership confirmed as the default. D1 now states
   that a chain runs one state machine or a composite of several, that a draft holds several chains,
   and shows an example draft.
+- **r3** (2026-10-26): anchoring is optional and never blocks `start`; new D10 adds the guided
+  `anchor` command run by one leader; §3, D3, A2 and §8.4 updated.
