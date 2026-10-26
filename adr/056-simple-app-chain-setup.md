@@ -170,7 +170,8 @@ the exact consensus settings of each chain into the genesis section. `join` appl
 as written; it never re-resolves them, so operators with different tool builds cannot interpret the
 same file differently. The genesis section also records the Yano and Yano X versions, and the SHA-256 digest
 of every plugin bundle each chain runs on. `join` and every `start` check the node's bundles against
-those digests and refuse a mismatch, naming the release to install; a different Yano or Yano X version
+its accepted digests (the sealed ones, unless the operator accepted a new set with `join
+--accept-bundles`) and refuse a mismatch, naming the release to install; a different Yano or Yano X version
 string with identical bundles only produces a warning. Deciding whether new bundles are safe for a
 running chain stays a host-upgrade decision; the tool only makes the change explicit (below).
 
@@ -430,8 +431,8 @@ and E (publishing the chain fingerprint and member cards on Cardano).
 - Operators who relied on the cluster-wide Ansible export deploy per node with the systemd unit.
 - Growing a chain is one command per operator, but it costs one restart per operator and a period
   at a higher threshold.
-- The jlink image is a second download per OS, built from the same release. As everywhere, differing
-  bundle digests fail and differing version strings only warn.
+- The jlink image is a second download per OS, built from the same release. As everywhere, bundles that
+  differ from a node's accepted digests fail and differing version strings only warn.
 - Rewritten: tutorials 8 and 9, the deployment guides and bindings chapters 1, 4 and 6.
 
 ## 8. Open questions
@@ -491,3 +492,4 @@ and E (publishing the chain fingerprint and member cards on Cardano).
   window reported (D10); F20 → identity rule applies to every leader change; F21 → key ids are 16 hex
   characters; F22 → `status` hashes the stored devnet genesis; C8 → insufficient quorum stated (D5);
   C14 → §7 aligned; R7 → node-wide settings across applications must agree.
+- **r7** (2026-10-27): C15 → bundle checks are against the node's accepted digests (D2, §7).
