@@ -24,6 +24,9 @@ public final class AppChainCli {
             Practise on one machine:
               try                       run every step with three simulated operators
 
+            In a browser:
+              ui                        the same steps on a local page (127.0.0.1 only)
+
             Coordinator:
               new [<app>]               create <app>.draft.yaml (a wizard asks the questions)
               invite <draft> --serve    hand out one link per operator; cards and the sealed file travel by link
@@ -94,6 +97,7 @@ public final class AppChainCli {
                 case "anchor" -> new AnchorCommand(terminal, located.get()).run(rest);
                 case "try" -> new TryCommand(terminal, err).run(rest);
                 case "invite" -> new InviteCommand(terminal, located.get(), err).run(rest);
+                case "ui" -> new UiCommand(terminal, optional.get(), err).run(rest);
                 default -> throw CliException.usage("'" + verb + "' is not available in this build yet");
             };
         } catch (CliException failure) {
@@ -122,6 +126,7 @@ public final class AppChainCli {
             case "anchor" -> AnchorCommand.USAGE;
             case "try" -> TryCommand.USAGE;
             case "invite" -> InviteCommand.USAGE;
+            case "ui" -> UiCommand.USAGE;
             default -> "yano.sh appchain " + verb;
         };
     }

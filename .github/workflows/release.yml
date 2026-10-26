@@ -133,7 +133,6 @@ jobs:
           cp "distribution/jvm/build/distributions/yano-x-jvm-${VERSION}.zip" release-assets/
           cp "distribution/jvm/build/distributions/yano-x-plugin-pack-${VERSION}.zip" release-assets/
           cp "tooling/deployment/build/distributions/yano-x-deploy-${VERSION}.zip" release-assets/
-          cp "tooling/studio/build/distributions/yano-x-studio-${VERSION}.zip" release-assets/
           for archive in release-assets/*.zip; do
             unzip -tq "$archive"
           done

@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Set up and run a Yano app chain with other operators.">
+  <title>App-Chain Setup</title>
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <header class="masthead">
+    <span class="brand"><span class="brand-mark" aria-hidden="true"></span>Yano <strong>App-Chain Setup</strong></span>
+    <span id="node-badge" class="badge">No node yet</span>
+  </header>
+  <main>
+    <section class="intro">
+      <ol class="steps" aria-label="Setup steps">
+        <li><strong>Create</strong> a draft (coordinator)</li>
+        <li><strong>Request</strong> a member card (every operator)</li>
+        <li><strong>Seal</strong> the draft with all cards (coordinator)</li>
+        <li><strong>Join</strong> after comparing the fingerprint (every operator)</li>
+        <li><strong>Start</strong> and watch it go live</li>
+      </ol>
+      <p class="note">Every button runs the same <code>yano.sh appchain</code> command shown under it, in
+        <code id="work-dir">…</code>. Private keys stay in the node directory and never reach this page.</p>
+      <p id="problems" class="warn" hidden></p>
+    </section>
+
+    <section class="panel" aria-labelledby="create-title">
+      <h2 id="create-title">Create an application <span class="role">coordinator</span></h2>
+      <form id="create-form" class="grid">
+        <label>Application name <input name="name" required pattern="[a-z][a-z0-9-]{0,62}" placeholder="supply"></label>
+        <label>Cardano network
+          <select name="network">
+            <option value="devnet">devnet (local test network, made by the lead)</option>
+            <option value="preview">preview</option><option value="preprod">preprod</option>
+            <option value="mainnet">mainnet</option>
+          </select></label>
+        <label class="wide">Operators, you first <input name="operators" required placeholder="alice,bob,carol"></label>
+        <label>Signatures per block
+          <select name="threshold"><option>majority</option><option>two-thirds</option><option>all</option></select></label>
+        <label>Who proposes blocks
+          <select name="sequencing"><option value="fixed">the lead (fixed)</option>
+            <option value="rotating">members take turns</option></select></label>
+        <fieldset class="wide">
+          <legend>Chains</legend>
+          <div id="chain-rows"></div>
+          <button type="button" id="add-chain" class="secondary">Add a chain</button>
+        </fieldset>
+        <div class="wide actions"><button type="submit">Create draft</button></div>
+      </form>
+    </section>
+
+    <section class="panel" aria-labelledby="drafts-title">
+      <h2 id="drafts-title">Drafts and member cards</h2>
+      <div id="drafts"><p class="note">No draft here yet. Create one above, or add a draft file you received.</p></div>
+      <label class="file">Add a draft, card or sealed file you received
+        <input type="file" id="upload" accept=".yaml,.member,.chain"></label>
+    </section>
+
+    <section class="panel" aria-labelledby="sealed-title">
+      <h2 id="sealed-title">Sealed applications <span class="role">every operator</span></h2>
+      <div id="sealed"><p class="note">No sealed file here yet.</p></div>
+    </section>
+
+    <section class="panel" aria-labelledby="node-title">
+      <h2 id="node-title">This node</h2>
+      <div id="node"><p class="note">This node has no key yet: make a member card for a draft first.</p></div>
+    </section>
+
+    <section class="panel" aria-labelledby="bindings-title">
+      <h2 id="bindings-title">Several state machines in one chain</h2>
+      <p>Compose state machines with the <a href="/studio/bindings.html" target="_blank" rel="noopener">binding
+        editor</a>. Save the document next to the draft and reference it from a chain as
+        <code>bindings: ./flow.yaml</code>; seal copies it into the sealed file.</p>
+    </section>
+
+    <section class="panel" aria-labelledby="log-title">
+      <h2 id="log-title">Activity</h2>
+      <div id="log" aria-live="polite"></div>
+    </section>
+  </main>
+  <script type="module" src="app.mjs"></script>
+</body>
+</html>

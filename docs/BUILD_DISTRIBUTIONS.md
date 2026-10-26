@@ -79,11 +79,12 @@ See [Download a Yano X release](RELEASE_DOWNLOADS.md) for the user-facing
 quickstarts.
 
 The build writes the main release archive,
-`distribution/jvm/build/distributions/yano-x-jvm-<version>.zip`, and three
+`distribution/jvm/build/distributions/yano-x-jvm-<version>.zip`, and two
 standalone archives with the same content for users who need only one part:
-`distribution/jvm/build/distributions/yano-x-plugin-pack-<version>.zip`,
-`tooling/deployment/build/distributions/yano-x-deploy-<version>.zip`, and
-`tooling/studio/build/distributions/yano-x-studio-<version>.zip`.
+`distribution/jvm/build/distributions/yano-x-plugin-pack-<version>.zip` and
+`tooling/deployment/build/distributions/yano-x-deploy-<version>.zip`. The binding
+editor ships inside the JVM archive under `studio/` and is served by
+`yano.sh appchain ui`.
 `verifyYanoXJvmDistribution` checks that the plugin pack carries exactly the
 bundles, manifest, and SBOM of the JVM archive.
 
