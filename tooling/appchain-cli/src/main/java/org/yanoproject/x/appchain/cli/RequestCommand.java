@@ -59,6 +59,12 @@ final class RequestCommand {
                     "devnet".equals(network) ? "127.0.0.1" : null, "--host");
             int nodePort = port(args, "node-port", "Node-to-node port", 13337);
             int httpPort = port(args, "http-port", "HTTP port", 8080);
+            for (int port : new int[]{nodePort, httpPort}) {
+                if (!Ports.free(port)) {
+                    terminal.warn("Port " + port + " is in use on this machine right now; the node needs it free "
+                            + "when it starts");
+                }
+            }
             String seed = node.ensureKey(args.value("key") == null ? null : Path.of(args.value("key")));
             identity = new NodeDir.Identity(name, org.yanoproject.x.appchain.formats.Ed25519.publicKey(seed),
                     Names.nodeAddress(host + ":" + nodePort), Names.httpAddress("http://" + host + ":" + httpPort),

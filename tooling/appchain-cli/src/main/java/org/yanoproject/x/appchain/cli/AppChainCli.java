@@ -79,6 +79,8 @@ public final class AppChainCli {
                 case "join" -> new JoinCommand(terminal, Distribution.locate()).run(rest);
                 case "start" -> new StartCommand(terminal, Distribution.locate()).run(rest);
                 case "stop" -> new StopCommand(terminal).run(rest);
+                case "status" -> new StatusCommand(terminal).run(rest);
+                case "approve" -> new ApproveCommand(terminal, Distribution.locate()).run(rest);
                 default -> throw CliException.usage("'" + verb + "' is not available in this build yet");
             };
         } catch (CliException failure) {
@@ -102,6 +104,8 @@ public final class AppChainCli {
             case "join" -> JoinCommand.USAGE;
             case "start" -> StartCommand.USAGE;
             case "stop" -> StopCommand.USAGE;
+            case "status" -> StatusCommand.USAGE;
+            case "approve" -> ApproveCommand.USAGE;
             default -> "yano.sh appchain " + verb;
         };
     }

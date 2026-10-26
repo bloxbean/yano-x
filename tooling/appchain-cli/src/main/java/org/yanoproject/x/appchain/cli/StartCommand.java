@@ -33,7 +33,7 @@ final class StartCommand {
                 throw CliException.failure("systemctl start " + Service.unitName(node) + " failed; see "
                         + "journalctl -u " + Service.unitName(node));
             }
-            return waitReady(node, timeout);
+            return waitReady(node, timeout, true);
         }
         Process process = launch(node, timeout, foreground);
         if (foreground) {
@@ -45,7 +45,7 @@ final class StartCommand {
                 return 1;
             }
         }
-        return waitReady(node, timeout);
+        return waitReady(node, timeout, true);
     }
 
     /** Starts the node process after every check; also used by restarts in approve and anchor. */
@@ -62,6 +62,12 @@ final class StartCommand {
         if (joined.isEmpty() || !NodeConfig.written(node)) {
             throw CliException.failure("This node has not joined an application; run  yano.sh appchain join "
                     + "<app>.chain  first");
+        }
+        for (int port : new int[]{identity.httpPort(), identity.listenPort()}) {
+            if (!Ports.free(port)) {
+                throw CliException.failure("Port " + port + " is already in use by another program. Stop it, or "
+                        + "set up this node with other ports (a new --node-dir and request --http-port/--node-port)");
+            }
         }
         Map<String, String> installed = distribution.bundleDigests();
         for (NodeConfig.Joined entry : joined) {
@@ -92,6 +98,10 @@ final class StartCommand {
             environment.put("YANO_APPCHAIN_L1_NETWORK_GENESIS_ID", Distribution.sha256(Devnet.genesis(node)));
         }
         Files.createDirectories(node.path("logs"));
+        Files.deleteIfExists(node.path("logs", "node.log.previous"));
+        if (Files.exists(node.path("logs", "node.log"))) {
+            Files.move(node.path("logs", "node.log"), node.path("logs", "node.log.previous"));
+        }
         Files.createDirectories(node.path("data"));
         ProcessBuilder builder = new ProcessBuilder(distribution.launcher().toString(), "start:" + network);
         builder.environment().putAll(environment);
@@ -100,7 +110,7 @@ final class StartCommand {
             builder.inheritIO();
         } else {
             Path log = node.path("logs", "node.log");
-            builder.redirectErrorStream(true).redirectOutput(ProcessBuilder.Redirect.appendTo(log.toFile()))
+            builder.redirectErrorStream(true).redirectOutput(ProcessBuilder.Redirect.to(log.toFile()))
                     .redirectInput(ProcessBuilder.Redirect.from(new java.io.File("/dev/null")));
         }
         Process process = builder.start();
@@ -111,17 +121,22 @@ final class StartCommand {
         return process;
     }
 
-    int waitReady(NodeDir node, int timeoutSeconds) {
+    int waitReady(NodeDir node, int timeoutSeconds, boolean showNext) {
         NodeClient client = NodeClient.local(node);
         long deadline = System.currentTimeMillis() + timeoutSeconds * 1000L;
         while (System.currentTimeMillis() < deadline) {
             if (client.ready()) {
                 terminal.ok("Node " + node.requireIdentity().name() + " is up at " + client.base());
-                terminal.next("yano.sh appchain status   (shows whether every member is online)");
+                if (showNext) terminal.next("yano.sh appchain status   (shows whether every member is online)");
                 return 0;
             }
+            String failure = startupFailure(node);
+            if (failure != null) {
+                new StopCommand(terminal).stop(node);
+                throw CliException.failure("The node failed to start: " + failure + "; see "
+                        + node.path("logs", "node.log"));
+            }
             if (!Processes.running(node)) {
-                String failure = startupFailure(node);
                 throw CliException.failure("The node stopped during startup" + (failure == null ? "" : ": " + failure)
                         + "; see " + node.path("logs", "node.log"));
             }
@@ -135,7 +150,7 @@ final class StartCommand {
         Path log = node.path("logs", "node.log");
         if (!Files.isRegularFile(log)) return null;
         try (var lines = Files.lines(log)) {
-            return lines.filter(line -> line.contains("YANO_STARTUP_FAILURE") || line.contains("Failed to initialize"))
+            return lines.filter(line -> line.contains("Failed to initialize or auto-start"))
                     .reduce((first, second) -> second).map(line -> line.replaceFirst("^.*?(YANO_STARTUP|Failed)", "$1"))
                     .orElse(null);
         } catch (IOException | java.io.UncheckedIOException error) {
