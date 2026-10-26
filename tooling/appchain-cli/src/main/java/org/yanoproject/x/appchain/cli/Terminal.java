@@ -14,11 +14,18 @@ final class Terminal {
     private final BufferedReader in;
     private final PrintStream out;
     private final boolean interactive;
+    private final boolean showNext;
 
     Terminal(BufferedReader in, PrintStream out, boolean interactive) {
+        this(in, out, interactive, true);
+    }
+
+    /** {@code showNext} is false when another command runs this one as a step and gives its own Next line. */
+    Terminal(BufferedReader in, PrintStream out, boolean interactive, boolean showNext) {
         this.in = in;
         this.out = out;
         this.interactive = interactive;
+        this.showNext = showNext;
     }
 
     boolean interactive() {
@@ -46,6 +53,7 @@ final class Terminal {
     }
 
     void next(String... lines) {
+        if (!showNext) return;
         out.println();
         out.println("Next: " + lines[0]);
         for (int index = 1; index < lines.length; index++) out.println("      " + lines[index]);

@@ -72,7 +72,10 @@ final class NodeConfig {
         local.put("yano.relay.connection.source-port-reuse", "false");
         local.put("yano.relay.connection.max-connections-per-ip", "500");
         if ("devnet".equals(network)) devnet(local, node, identity, joined.getFirst().app());
-        if (Anchoring.leadsAny(node)) local.put("yano.epoch-params.tracking-enabled", "true");
+        // A public-network anchor leader needs current protocol parameters; the devnet carries its own.
+        if (Anchoring.leadsAny(node) && !"devnet".equals(network)) {
+            local.put("yano.epoch-params.tracking-enabled", "true");
+        }
         NodeDir.write(node.path("config", "consensus.yaml"), AppChainSealResolver.yaml(consensus, HEADER));
         NodeDir.write(node.path("config", "node.yaml"), AppChainSealResolver.yaml(local, HEADER));
     }
