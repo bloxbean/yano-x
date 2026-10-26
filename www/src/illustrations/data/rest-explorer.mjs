@@ -82,8 +82,9 @@ export default {
         + 'and `admin/anchor/bootstrap`.',
     },
     {
-      id: 'identity', label: 'Identity', sub: 'drift and integrity', kind: 'runtime',
-      detail: `${CHAIN}\`GET identity\` returns the redacted identity digests that \`appchain drift\` compares. `
+      id: 'identity', label: 'Identity', sub: 'plugins and integrity', kind: 'runtime',
+      detail: `${CHAIN}\`GET identity\` returns the redacted identity digests, including the `
+        + '`pluginCatalogFingerprint` that `appchain status` prints for members to compare. '
         + '`GET state/integrity` runs the node\'s state integrity check.',
     },
     {
@@ -181,6 +182,8 @@ export default {
     ['member', 'plugin routes'],
   ],
   sources: [
+    { repo: 'yano-x', path: 'tooling/appchain-cli/src/main/java/org/yanoproject/x/appchain/cli/StatusCommand.java',
+      anchors: ['identity.path("pluginCatalogFingerprint")'] },
     { repo: 'yano', path: 'app/src/main/java/org/yanoproject/app/api/appchain/AppChainResource.java',
       anchors: ['@Path("chains/{chainId}")', '@Path("messages/by-topic/{topic}")', '@Path("messages/by-sender/{senderHex}")',
         '@Path("blocks/{height}")', '@Path("state/proof/{keyHex}")', '@Path("state/entry/{keyHex}")',

@@ -129,7 +129,7 @@ behavior. Dry-run prints intents; it never proves external delivery. See
 
 ## Changing a workflow
 
-Changing YAML is not hot reload. Rendering commits component settings and
+Changing YAML is not hot reload. Sealing commits component settings and
 defaults, routes, quotas, generation heights and the binding program, including
 admission rules, their parameters and attachments, into a profile. Machine
 application versions and query subjects also affect identity.
@@ -160,7 +160,7 @@ the [full preflight contract](../DECLARATIVE_BINDINGS_UPGRADES.md#check-a-candid
 before constructing these inputs.
 
 A running member reports the profile it currently executes through the
-`composite/active-profile-v1` query. For the Chapter 4 devnet project
+`composite/active-profile-v1` query. For the Chapter 4 devnet application
 (`records-audit` on port 7370), this writes a one-profile array:
 
 ```bash

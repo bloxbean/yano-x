@@ -1,6 +1,6 @@
 // The custom-plugin lifecycle from scaffold to a running node, as an explorable
-// block diagram. Commands are the launcher's `appchain plugin`, `init`, `doctor`
-// and the bundled `yano-plugins` validator.
+// block diagram. Commands are the launcher's `appchain plugin`, `seal`, `join`
+// and `start`, and the bundled `yano-plugins` validator.
 
 export default {
   id: 'plugin-pipeline',
@@ -8,12 +8,12 @@ export default {
   title: 'From scaffold to every member',
   tag: 'Concept',
   hint: 'Select a step to see its command and what it checks.',
-  caption: 'A publisher builds and signs the bundle; an operator pins it into a project, checks readiness and '
-    + 'installs the same JAR on every member. Yano itself is never rebuilt.',
+  caption: 'A publisher builds and signs the bundle; the operators install the same JAR on every member, the '
+    + 'sealed application pins its digest, and each node checks it before it starts. Yano itself is never rebuilt.',
   zones: [
     { id: 'publisher', kind: 'external', label: 'Build and sign · publisher',
       contains: ['scaffold', 'implement', 'sign', 'validate'] },
-    { id: 'operator', kind: 'ledger', label: 'Deploy · operator', contains: ['pin', 'doctor', 'install', 'load'] },
+    { id: 'operator', kind: 'ledger', label: 'Deploy · operators', contains: ['install', 'seal', 'join', 'load'] },
   ],
   blocks: [
     {
@@ -40,22 +40,21 @@ export default {
         + 'and exports a data-only catalog snapshot. It loads no provider class.',
     },
     {
-      id: 'pin', label: 'Pin into a project', sub: 'init --plugin-jar', kind: 'ledger',
-      detail: '`appchain init --plugin-jar <jar> --trust-key …` stores the signed snapshot under '
-        + '`component-catalogs/`. `appchain.lock` pins the catalog, runtime manifest, configuration metadata and '
-        + 'complete JAR digests.',
-    },
-    {
-      id: 'doctor', label: 'Check readiness', sub: 'doctor --distribution', kind: 'ledger',
-      detail: 'Copy the pinned JAR into the distribution\'s `plugins/`, then `appchain doctor <project> '
-        + '--distribution /opt/yano-x` re-verifies the snapshot. A pinned JAR that is missing or different fails '
-        + 'artifact readiness.',
-    },
-    {
       id: 'install', label: 'Install on\nevery member', sub: 'copy to plugins/', kind: 'ledger',
-      detail: 'Copy the exact pinned JAR into `plugins/` on every member, then run '
-        + '`tools/yano-plugins/bin/yano-plugins validate plugins/*.jar`. A member with a different JAR can compute '
-        + 'a different root and stall.',
+      detail: 'Every operator, the coordinator included, copies the exact same JAR into the distribution\'s '
+        + '`plugins/`, then runs `tools/yano-plugins/bin/yano-plugins validate plugins/*.jar`. Each operator also '
+        + 'verifies the publisher signature with `plugin validate`: `seal` does not read a signed catalog.',
+    },
+    {
+      id: 'seal', label: 'Seal pins digests', sub: 'appchain seal', kind: 'ledger',
+      detail: '`./yano.sh appchain seal <app>.draft.yaml` records the SHA-256 digest of every bundle in the '
+        + 'coordinator\'s `plugins/` in the sealed `<app>.chain`, so the chain fingerprint covers the plugin set.',
+    },
+    {
+      id: 'join', label: 'Join + start check', sub: 'join, start', kind: 'ledger',
+      detail: '`appchain join <app>.chain` refuses when this node\'s bundles differ from the sealed ones, and '
+        + '`appchain start` checks them again at every start. A changed bundle refuses to start until the operators '
+        + 'agree and each runs `join <app>.chain --accept-bundles`.',
     },
     {
       id: 'load', label: 'Node loads it', sub: 'start-up checks', kind: 'member',
@@ -68,10 +67,10 @@ export default {
     { from: 'scaffold', to: 'implement' },
     { from: 'implement', to: 'sign' },
     { from: 'sign', to: 'validate' },
-    { from: 'validate', to: 'pin', label: 'signed JAR' },
-    { from: 'pin', to: 'doctor' },
-    { from: 'doctor', to: 'install' },
-    { from: 'install', to: 'load' },
+    { from: 'validate', to: 'install', label: 'signed JAR' },
+    { from: 'install', to: 'seal' },
+    { from: 'seal', to: 'join' },
+    { from: 'join', to: 'load' },
   ],
   layouts: {
     wide: {
@@ -86,13 +85,13 @@ export default {
         implement: [212, 56, 168, 60],
         sign: [392, 56, 168, 60],
         validate: [572, 56, 168, 60],
-        pin: [572, 208, 168, 60],
-        doctor: [392, 208, 168, 60],
-        install: [212, 208, 168, 60],
+        install: [572, 208, 168, 60],
+        seal: [392, 208, 168, 60],
+        join: [212, 208, 168, 60],
         load: [32, 208, 168, 60],
       },
       edges: {
-        'validate->pin': { fromSide: 'b', toSide: 't', labelAt: [600, 152] },
+        'validate->install': { fromSide: 'b', toSide: 't', labelAt: [600, 152] },
       },
     },
     narrow: {
@@ -110,13 +109,13 @@ export default {
         implement: [40, 120, 300, 60],
         sign: [40, 192, 300, 60],
         validate: [40, 264, 300, 60],
-        pin: [40, 404, 300, 60],
-        doctor: [40, 476, 300, 60],
-        install: [40, 548, 300, 60],
+        install: [40, 404, 300, 60],
+        seal: [40, 476, 300, 60],
+        join: [40, 548, 300, 60],
         load: [40, 620, 300, 60],
       },
       edges: {
-        'validate->pin': { fromSide: 'b', toSide: 't', labelAt: [250, 352] },
+        'validate->install': { fromSide: 'b', toSide: 't', labelAt: [250, 352] },
       },
     },
   },
@@ -131,10 +130,15 @@ export default {
         'plugin scaffold output directory is not empty'] },
     { repo: 'yano-x', path: 'tooling/devtools/src/main/java/org/yanoproject/x/devtools/AppChainProjectCli.java',
       anchors: ['./yano.sh appchain plugin inspect|validate|sign|scaffold [options]',
-        './yano.sh appchain doctor [project-directory] [--distribution <path>]',
-        '--plugin-jar <path>', '--trust-key <id=public-key>',
+        '--trust-key <id=public-key>',
         'sign requires --catalog, --runtime-manifest, --seed-file, ',
         'scaffold requires --mode, --id, --package, and --output'] },
+    { repo: 'yano-x', path: 'tooling/appchain-cli/src/main/java/org/yanoproject/x/appchain/cli/SealCommand.java',
+      anchors: ['distribution.bundleDigests()'] },
+    { repo: 'yano-x', path: 'tooling/appchain-cli/src/main/java/org/yanoproject/x/appchain/cli/JoinCommand.java',
+      anchors: ['This distribution\'s plugin bundles differ from the sealed ones: ', '[--accept-bundles]'] },
+    { repo: 'yano-x', path: 'tooling/appchain-cli/src/main/java/org/yanoproject/x/appchain/cli/StartCommand.java',
+      anchors: ['Plugin bundles changed since this node joined '] },
     { repo: 'yano', path: 'plugin-catalog/README.md',
       anchors: ['./tools/yano-plugins/bin/yano-plugins validate plugins/example.jar',
         'it does not load provider classes, run static'] },

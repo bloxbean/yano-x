@@ -1,11 +1,12 @@
 # Tutorial 8 — Extend Yano Without Forking It
 
-[Open the custom-plugin path in App-Chain Studio](../../../tooling/studio/src/main/web/index.html#recipe=custom-plugin&network=devnet&members=3&finality=two-thirds&sequencing=fixed&runtime=jvm&deployment=host&name=custom-appchain&chainId=custom-appchain&stateMachine=com.example.my-machine)
+To run a plugin chain with other operators, follow
+[Set up an application](../deployment/configure.md) after step 6.
 
 - **Level:** Java application developer
 - **Time:** 30–60 minutes for a first plugin
-- **Outcome:** build, sign and pin a small state-machine plugin, and install the
-  same JAR on every member of the standard JVM distribution.
+- **Outcome:** build and sign a small state-machine plugin, install the same
+  JAR in every member's JVM distribution, and run it on a sealed chain.
 
 You will write a `shipment` machine that records the latest status of each
 shipment. It is deliberately small: the point is the path from scaffold to a
@@ -51,6 +52,11 @@ Does a stock machine or recipe already model the outcome?
 <!-- /illustration -->
 
 [The extension ladder](../../site/plugins-overview.md) describes every rung.
+A chain built from declarative bindings is a composite chain: create it with
+`./yano.sh appchain new <app> --chain flow=bindings:<file>`, or with a
+`bindings:` entry in the draft, as
+[Set up an application](../deployment/configure.md#2-the-coordinator-creates-the-draft)
+shows. No Java is needed for that rung.
 
 ## 2. Scaffold the plugin
 
@@ -218,88 +224,83 @@ validate` runs the node's structural checks. Neither runs your code.
 [SPI and manifest](../../site/plugins-spi-and-manifest.md) explains what the
 signature does and does not cover.
 
-## 6. Pin it into a project
+## 6. Install it in every member's distribution
+
+Copy the exact JAR into `plugins/` of the Yano X distribution of **every**
+operator, before the application is sealed. Each operator should first check
+the JAR they received themselves:
 
 ```bash
-./yano.sh appchain init --non-interactive \
-  --recipe custom-plugin --network devnet --members 3 --runtime jvm \
-  --capability state:shipment \
-  --plugin-jar shipment-plugin/build/libs/shipment-yano-plugin.jar \
-  --trust-key example-release-2026=<64-hex-public-key> \
-  --generate-local-member-keys \
-  --http-port-base 7370 --server-port-base 13637 \
-  --output shipment-chain
-
-./yano.sh appchain config validate --mode project shipment-chain
+./yano.sh appchain plugin validate shipment-plugin/build/libs/shipment-yano-plugin.jar \
+  --trust-key example-release-2026=<64-hex-public-key> --output shipment-catalog.json
+cp shipment-plugin/build/libs/shipment-yano-plugin.jar plugins/
 ```
 
-The project stores the signed snapshot under `component-catalogs/`, and
-`appchain.lock` pins the catalog, runtime manifest, configuration metadata and
-complete JAR digests. Rendering and `doctor` re-verify the snapshot.
+`seal` records the SHA-256 digest of every bundle in `plugins/`, and `join`
+and `start` refuse a distribution whose bundles differ. So every operator must
+run the identical JAR, and a missing or rebuilt JAR is caught before the node
+starts. `seal` does not read the plugin's signed component catalog: verifying
+the signature is the `plugin validate` step above, which each operator runs.
 
-`--generate-local-member-keys` creates three disposable devnet member keys, so
-you can run the chain on this machine in step 7. Their private files go to the
-project's owner-only `secrets/` directory, and only the public keys are written
-to `appchain.yaml`. For members on separate machines, pin each member's own
-public key instead, as [Tutorial 9](09-from-demo-to-pilot.md) shows. The port
-bases put the nodes on HTTP ports 7370–7372.
+## 7. Run it on a chain
 
-## 7. Install on every member
-
-Copy the exact pinned JAR into `plugins/` in every member's distribution, then
-check readiness:
+A chain selects a custom machine with the `custom-plugin` recipe and the
+machine id as the `stateMachine` answer. To try it alone, create a one-member
+devnet application. It uses its own node directory and ports, so it does not
+clash with other tutorials:
 
 ```bash
-cp shipment-plugin/build/libs/shipment-yano-plugin.jar /opt/yano-x/plugins/
-./yano.sh appchain prepare shipment-chain
-./yano.sh appchain doctor shipment-chain --distribution /opt/yano-x
+./yano.sh appchain new shipments --network devnet --operators alice \
+  --chain shipments=custom-plugin --yes
 ```
 
-> **✓ You should see** `PREPARED`, then a doctor report ending in
-> `DOCTOR_WARNINGS`: `EXTERNAL_TARGETS_READY` stays `PENDING` for
-> `reviewed-plugin-jar`, a reminder that someone must review the JAR you ship.
+Open `shipments.draft.yaml` and add the machine id to the chain:
 
-A missing or different JAR fails artifact readiness. Yano X plugins target the
-JVM distribution. This project is a local devnet, so start its three nodes
-here; for members on separate machines, start each node as the
-[deployment guide](../deployment/README.md) describes. Each node checks the JAR
-again at start-up, before your code runs; [How plugins load](../../site/plugins-how-plugins-load.md)
-lists those checks.
+```yaml
+chains:
+  - id: shipments
+    recipe: custom-plugin
+    answers:
+      stateMachine: shipment
+```
+
+Then make the key, seal, join, and start:
 
 ```bash
-export YANO_HOME=/opt/yano-x
-shipment-chain/scripts/start
-shipment-chain/scripts/status
+./yano.sh appchain request shipments.draft.yaml --name alice --host 127.0.0.1 \
+  --node-port 13637 --http-port 7370 --node-dir shipment-node --yes
+./yano.sh appchain seal shipments.draft.yaml
+./yano.sh appchain join shipments.chain --node-dir shipment-node
+./yano.sh appchain start --node-dir shipment-node
+./yano.sh appchain status shipments --node-dir shipment-node
 ```
 
-Then confirm that every member runs the same plugin catalog. `drift` reads each
-node's runtime identity, which needs an operator API key. On this devnet the
-key is in the project's `secrets/` files; this reads it without printing it:
+> **✓ You should see** `chain shipments  custom-plugin` in the sealed summary,
+> then `[Live]` with `members online 1/1` from `status`.
 
-```bash
-export YANO_OPERATOR_API_KEY="$(sed -n 's/^YANO_APPCHAIN_API_KEYS=//p' \
-  shipment-chain/secrets/node0.env)"
-./yano.sh appchain drift shipment-chain --peer http://127.0.0.1:7370/api/v1/ \
-  --peer http://127.0.0.1:7371/api/v1/ --peer http://127.0.0.1:7372/api/v1/ \
-  --api-key-env YANO_OPERATOR_API_KEY
-```
+Submit a shipment update through the node and look it up, as in
+[Set up an application](../deployment/configure.md#7-send-a-message-and-see-it-final),
+with the chain `shipments` and a body such as `A-100=shipped`. Stop the node
+with `./yano.sh appchain stop --node-dir shipment-node`.
 
-> **✓ You should see** `MATCH` or `NOT_APPLICABLE` for every compared value,
-> then `DRIFT_OK peers=3`.
-
-On a real deployment, set the key to one of the values in the nodes'
-`YANO_APPCHAIN_API_KEYS`. Without `--api-key-env`, the nodes reject the
-identity requests with `HTTP 401`. Stop the nodes with
-`shipment-chain/scripts/stop`.
+For members on separate machines, list every operator in `--operators` and
+follow [Set up an application](../deployment/configure.md): every operator
+installs the same JAR first, and the fingerprint they compare covers its
+digest. Each node checks the JAR again at start-up, before your code runs;
+[How plugins load](../../site/plugins-how-plugins-load.md) lists those checks.
 
 ## 8. Change it safely later
 
 Changing what `apply` computes is a consensus change, not a rolling upgrade.
 Never roll new semantics out member by member: give the change a governed
-activation height, or a new machine id and namespace. Compare a project change
-with `appchain diff` before you apply it.
+activation height, or a new machine id and namespace.
 [Consensus rules](../../site/plugins-consensus-rules.md#evolving-a-live-chain)
 describes the options.
+
+A rebuilt JAR has a new digest, so each node's `start` refuses it until its
+operator accepts it with `./yano.sh appchain join shipments.chain
+--accept-bundles`. Agree the change with every operator first; the command
+only makes the change explicit.
 
 ## Go deeper
 

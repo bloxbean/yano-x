@@ -412,11 +412,16 @@ class AppChainFinalDistributionAcceptanceTest {
                         "bridgeVaultScriptHash=" + "1".repeat(56), "bridgeMaxDepositLovelace=100000000",
                         "bridgeWithdrawalAddress=addr_test1vwithdrawals", "bridgeEpoch=1",
                         "bridgeMaxWithdrawalLovelace=50000000", "bridgeMaxPendingWithdrawals=100"));
-        PluginBundleFixture.write(release.resolve("plugins"), "com.example.acceptance",
-                null, "app-state-machine", "com.example.acceptance");
         int sealed = 0;
         for (AppChainProjectModel.Recipe recipe : catalog.recipes()) {
             if (!recipe.effectiveSelectable() || !recipe.runtimeTypes().contains("jvm")) continue;
+            // Like an operator, install the reviewed custom bundle only for the chain that runs it.
+            boolean custom = "custom-plugin".equals(recipe.id());
+            Path customBundle = release.resolve("plugins/com.example.acceptance.jar");
+            if (custom) {
+                PluginBundleFixture.write(release.resolve("plugins"), "com.example.acceptance",
+                        null, "app-state-machine", "com.example.acceptance");
+            }
             String app = "accept-" + recipe.id();
             Path coordinator = Files.createDirectories(temporary.resolve("ceremony").resolve(recipe.id()));
             List<String> create = new ArrayList<>(List.of("appchain", "new", app, "--network", "preprod",
@@ -451,6 +456,7 @@ class AppChainFinalDistributionAcceptanceTest {
             assertThat(Files.readString(coordinator.resolve("bob/config/node.yaml")))
                     .contains("alice.example:13337", "carol.example:13339")
                     .doesNotContain(Files.readString(coordinator.resolve("bob/secrets/member.key")).strip());
+            if (custom) Files.deleteIfExists(customBundle);
             sealed++;
         }
         assertThat(sealed).isEqualTo(catalog.recipes().stream()

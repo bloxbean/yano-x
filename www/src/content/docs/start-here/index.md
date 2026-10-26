@@ -38,9 +38,9 @@ Work through [Registry and proofs](/tutorials/02-registry-and-proofs/), then rea
 
 ## 3. Model your application
 
-**Time:** plan on an hour to choose a recipe and validate a profile.
+**Time:** plan on an hour to choose a recipe and rehearse the setup.
 
-[Choose a recipe](/recipes/choosing-a-recipe/) for your outcome: shared records, document history, approvals, or another supported workflow. [Configure an application profile](/deployment/configure/) and validate it before running it. [Studio](/studio/) can help you explore and export a blueprint.
+[Choose a recipe](/recipes/choosing-a-recipe/) for your outcome: shared records, document history, approvals, or another supported workflow. [Set up an application](/deployment/configure/) with the other operators, after rehearsing every step on one machine with `./yano.sh appchain try`. [Studio](/studio/) can help you compose several state machines with bindings.
 
 **Ready to continue when:** you know which state machine and capabilities your application needs. You do not need to write a plugin if an existing recipe fits.
 

@@ -1,31 +1,145 @@
 ---
-title: "Deploy and operate remote VMs"
-description: "A reviewed deployment that passes readiness, identity, and finality checks before users reach it."
+title: "Run your node on a server"
+description: "Your node runs as a systemd service, and status shows every member online."
 editUrl: "https://github.com/bloxbean/yano-x/edit/main/docs/appchain/deployment/operators.md"
 ---
-- **Goal:** run members on remote Linux machines, either from the curated
-  showcase profile or from your own validated project.
-- **Before you start:** the extracted Yano X JVM release and its ZIP file,
-  reachable systemd Linux VMs with SSH and sudo, and Java 25 on each VM. The
-  showcase route also needs OpenTofu and Ansible; the custom route needs
-  Ansible.
-- **Outcome:** a reviewed deployment that passes readiness, identity, and
-  finality checks before users reach it.
+- **Goal:** run your member node on your own Linux server, as a service that
+  survives reboots, reachable by the other members.
+- **Before you start:** a Linux VM with systemd, `sudo`, Java 25, and the same
+  extracted Yano X JVM release the coordinator used. The cloud showcase route
+  at the end also needs OpenTofu and Ansible.
+- **Outcome:** your node runs as a systemd service, and `status` shows every
+  member online.
 
-The packaged `tools/yano-deploy/bin/yano-x-deploy` automates a qualified showcase
-profile on existing Linux VMs, Contabo, Hetzner Cloud, DigitalOcean, or mixed
-placement. It generates OpenTofu and Ansible inputs, configures systemd and
-storage, and checks readiness before opening ingress.
+Each operator deploys their own node. There is no cluster-wide export: the
+coordinator never touches your server, and your private key never leaves it.
+The steps are the same as in [Set up an application](/deployment/configure/); this page
+covers what changes on a server.
 
-For a custom Studio application, export the same validated project to Ansible as
-shown below. The remote showcase manifest remains a separate contract for cloud
-provisioning and its curated anchored-settlement profile. Do not feed
-`appchain.yaml` directly to `yano-x-deploy`.
+## 1. Make your card with your public address
 
-## Automated showcase route
+On your server, from the extracted Yano X directory:
 
-Import the exact Yano X JVM ZIP you extracted. It carries the showcase profile
-that the deployment tool installs. From the extracted JVM release:
+```bash
+./yano.sh appchain request supply.draft.yaml --host node-a.example.com
+```
+
+Use the host name or IP the **other members** reach your server at, not
+`127.0.0.1`. With a public host, the node listens on all interfaces. The
+default ports are node-to-node `13337` and HTTP `8080`; choose others with
+`--node-port` and `--http-port`. If a NAT or proxy forwards a different port
+to your server, keep the advertised one in the card and later run
+`join --listen <port>` with the local one.
+
+> **✓ You should see** `✓ Wrote ./alice.member  (key id …, reachable at
+> node-a.example.com:13337)`.
+
+If the coordinator sent you a join link instead of the draft, give the link
+in place of the file, with the same options:
+
+```bash
+./yano.sh appchain request 'yano://coord.example.com:7099/…#…' --host node-a.example.com
+```
+
+It sends your card, waits for the seal, saves `supply.chain`, and continues
+into `join` (step 3). On a server without a terminal session to keep open,
+add `--no-wait` and run the same command again later to collect the sealed
+file. See [join links](/deployment/configure/#easier-hand-out-join-links).
+
+## 2. Open the ports
+
+| Port | Who needs it | Why |
+|---|---|---|
+| Node-to-node, `13337` | The other members' servers | Blocks, votes, and catch-up |
+| HTTP, `8080` | The other operators, and your own applications | `status` reads each member's chain status from it; on a devnet the other nodes download the devnet genesis from the lead's |
+| Join links, `7099` | The operators, only while the coordinator runs `invite --serve` | Hands out the draft, collects the cards, and hands out the sealed file. Only the coordinator's machine needs it, and only during setup |
+
+Open them only to the machines that need them. Write calls on the HTTP API
+need your API key (`yano-node/secrets/api.key`); put TLS and a reverse proxy
+in front before any client outside your network uses it. On a devnet the
+lead's HTTP port also serves the devnet's unauthenticated time and rollback
+controls, so keep a shared devnet on a trusted network.
+
+## 3. Join and install the service
+
+When the coordinator sends `supply.chain` and you have compared the
+fingerprint on the call:
+
+```bash
+./yano.sh appchain join supply.chain
+```
+
+On Linux, `join` also writes a systemd unit into your node directory and
+prints the command to install it:
+
+> **✓ You should see**
+>
+> ```text
+> ✓ Joined supply (94c9-2bad-…) in /home/alice/yano-x-jvm-<version>/yano-node
+>   To run it as a service: sudo cp …/yano-node/yano-appchain-alice.service /etc/systemd/system/ && sudo systemctl enable --now yano-appchain-alice.service
+> ```
+
+Run that command. The tool never installs the unit itself. The service runs
+as the user who ran `join`, and restarts the node if it fails.
+
+Once the unit is installed and enabled, `./yano.sh appchain start` and
+`stop`, and the restarts that `approve` and `anchor` make, go through
+`systemctl`, so one node never has two managers. You can also use systemd
+directly:
+
+```bash
+systemctl status yano-appchain-alice.service
+journalctl -u yano-appchain-alice.service
+```
+
+On a devnet the lead starts first. On a public network the node syncs Cardano
+before its chains make progress; the `Cardano:` line of `status` shows
+`syncing: about N hours behind` until it reports `up to date`, and
+`yano-node/logs/node.log` has the details.
+
+## Node-only settings
+
+`config/consensus.yaml` and `config/node.yaml` are rewritten by `join`. Put
+anything that belongs to your node alone, such as connector endpoints for an
+effect executor, in `config/local.yaml` in the node directory. `join` creates
+it, never rewrites it, and its values win over `config/node.yaml`. `start`
+refuses the file if it sets any sealed consensus setting, because every member
+must run the sealed values. Keep credentials in the environment or a secret
+provider rather than in the file. See
+[optional connectors](/deployment/connectors/).
+
+## 4. Check the application
+
+```bash
+./yano.sh appchain status supply
+```
+
+> **✓ You should see** `[Live]`, every member `online`, and `members agree`
+> for every chain. An `offline` member is named, with the address `status`
+> tried. Compare the `Plugins:` catalog fingerprint (and, on a devnet, the
+> genesis in `Cardano:`) with the other operators: they must match.
+
+## What to back up and monitor
+
+- **Back up** the whole node directory: `secrets/` holds your member key, and
+  `data/` holds the authoritative stores `chainstate` and
+  `appchain-chainstate`. Do not copy an open RocksDB directory as a backup;
+  stop the node first. With fixed sequencing the lead's key cannot be
+  replaced.
+- **Monitor** `status` (members online, heights, agreement, anchoring,
+  Cardano sync), the node log, disk space, and process health. If fewer members than the
+  threshold are online, the chains stop finalizing until enough return; that
+  is the safety the threshold buys. With fixed sequencing, if the lead is
+  offline the others still finalize through a certified view change, but each
+  block first waits for a round timeout, so watch the lead.
+
+## Showcase on cloud VMs
+
+The packaged `tools/yano-deploy/bin/yano-x-deploy` deploys the curated
+showcase profile, not your own application, to existing Linux VMs, Contabo,
+Hetzner Cloud, DigitalOcean, or mixed placement. It generates OpenTofu and
+Ansible inputs, configures systemd and storage, and checks readiness before
+opening ingress. From the extracted JVM release:
 
 ```bash
 tools/yano-deploy/bin/yano-x-deploy init ./vm-cluster --nodes 3
@@ -59,58 +173,4 @@ Apply can cause a full-cluster interruption for mesh recovery with the pinned
 host. It is not a zero-downtime rolling upgrade. Anchoring and settlement
 bootstrap are separate operations; authorize public-network transactions explicitly.
 
-## Custom application route
-
-In Studio, select host deployment, enter one public member key and hostname per
-node in matching order, and download the application intent. Render and inspect:
-
-```bash
-./yano.sh appchain render ./application
-./yano.sh appchain doctor ./application --distribution "$PWD"
-```
-
-Export an automated existing-VM deployment:
-
-```bash
-./yano.sh appchain gitops ./application --target ansible --output ./application-vms
-cd ./application-vms
-# Copy operator-vars.example.yaml outside the export and fill in exact archive,
-# checksum, archive root, Java 25 home, SSH user, and private node environment directory.
-ansible-playbook -i inventory.yaml deploy.yaml -e @/path/to/operator-vars.yaml --syntax-check
-ansible-playbook -i inventory.yaml deploy.yaml -e @/path/to/operator-vars.yaml --check
-ansible-playbook -i inventory.yaml deploy.yaml -e @/path/to/operator-vars.yaml
-```
-
-The export contains the same per-chain consensus configuration and member
-placement as Studio/CLI. It verifies its generated-file lock, checks the supplied
-archive checksum, rejects unmarked retained stores and different installed
-revisions, copies the pinned runtime and private environment files, installs a
-systemd service, and waits for HTTP readiness. No anchor or settlement is required
-unless your selected recipes need one. Private keys are never embedded in the
-export; each `nodeN.env` must match the corresponding public member key.
-
-Prerequisites: reachable systemd Linux VMs, SSH/sudo, Java 25 at the configured
-path, and appropriate existing firewall rules. The exporter does not provision
-machines, configure public ingress, or bypass your network policy. Local Ansible
-syntax checks and generated configuration tests are not live VM certification.
-
-Services run as `yano`. Each node has sibling `chainstate`, `appchain-chainstate`,
-and `appchain-indexers` paths under `/var/lib/yano/<project>/nodeN`. Inspect
-`systemctl status yano-<project>` and `journalctl -u yano-<project>`. Complete
-multi-chain drift, command finality/proof, restart/catch-up, and backup/restore
-checks before handing the deployment to users.
-
-Repeated apply of the same application and artifact reconciles that deployment.
-A changed application or artifact is rejected; coordinated remote revision
-upgrades remain a separate milestone. The local `appchain apply` command never
-pretends to upgrade remote VMs. Expert operators can also use the generated
-`scripts/start-node <index>` directly with their own service management.
-
-## What to monitor
-
-Watch per-chain finality progress, peer connectivity, root/identity agreement,
-L1 freshness, disk capacity, process health, effect backlogs, and anchor status.
-An empty infrastructure plan does not mean configuration or service changes are
-absent. If a fixed proposer is offline, the other members still finalize
-through a certified view change, but each block first waits for a round
-timeout. Treat a fixed proposer as a performance dependency, and watch it.
+**Next:** [from demonstration to production](/deployment/production/).

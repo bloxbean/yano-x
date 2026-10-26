@@ -347,15 +347,30 @@ From a source checkout, print the fixed public demo identity:
 ./gradlew :ledgers:eutxo:testkit:runNoFundsDemo
 ```
 
-Use the printed address to generate a JVM project:
+Use the printed address in a setup draft for the `eutxo-ledger` recipe:
 
 ```bash
-./yano.sh appchain init --non-interactive \
-  --recipe eutxo-ledger --network devnet --members 3 --runtime jvm \
-  --deployment host --output eutxo-demo \
-  --answer eutxoGenesisAddress=<printed-address> \
-  --answer eutxoGenesisLovelace=100000000
+./yano.sh appchain new eutxo-demo --network devnet --operators alice,bob,carol \
+  --chain ledger=eutxo-ledger \
+  --answer ledger.eutxoGenesisAddress=<printed-address> \
+  --answer ledger.eutxoGenesisLovelace=100000000
 ```
+
+Without the `--answer` flags, `new` asks for each answer the recipe needs. The
+answers land under the chain in `eutxo-demo.draft.yaml`, where you can still
+change them before sealing:
+
+```yaml
+chains:
+  - id: ledger
+    recipe: eutxo-ledger
+    answers:
+      eutxoGenesisAddress: <printed-address>
+      eutxoGenesisLovelace: "100000000"
+```
+
+Then collect the member cards, seal, join and start as in
+[set up an application](../../docs/appchain/deployment/configure.md).
 
 This creates only virtual app-chain state. It does not contact Cardano, lock
 funds, install a bridge, or select a validity prover. The fixed demo wallet is

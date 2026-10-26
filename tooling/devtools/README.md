@@ -1,23 +1,31 @@
 # Yano app-chain developer tools
 
-Start with the [deployment guides](../../docs/appchain/deployment/README.md).
-Projects support up to 32 chains sharing member placement. `prepare` creates
-local devnet identities once; `chain add`, `plan`, and `apply --plan <digest>`
-provide a reviewed, state-preserving local configuration revision. A restart
-is required. Optional/custom plugin installation and remote application-profile
-rollouts require separate qualification.
+This module is a library plus the offline `appchain` tools that the setup CLI
+does not cover. The public command is `yano.sh appchain` from the Yano X JVM
+distribution. Its setup verbs (`new`, `request`, `seal`, `join`, `start`,
+`status`, `approve`, `anchor`, `inspect`, `try`, `invite`) live in
+[`tooling/appchain-cli`](../appchain-cli/README.md), which passes every other
+verb to this module. Start with the
+[deployment guides](../../docs/appchain/deployment/README.md).
 
-This module provides the internal offline `yano-appchain` engine used by
-`yano.sh appchain`; users should treat `yano.sh` as the public CLI. It supports
-project initialization and deterministic
-rendering, template validation, SmallRye-backed resolved validation, redacted
-effective configuration, property explanation, and project lifecycle checks.
+What this module provides:
+
+- **The recipe and capability catalog and its resolver.** `seal` uses them,
+  through `AppChainSealResolver`, to turn each chain of a draft into its exact
+  consensus settings once. `recipes` and `capabilities` list what a release
+  offers.
+- **Configuration tools:** template and SmallRye-backed resolved validation,
+  redacted effective configuration, and property explanation (`config`).
+- **State, proof, and identity tools:** `state`, `role`, `authenticated-map`,
+  and `eutxo`.
+- **Declarative bindings tools:** `bindings`.
+- **Plugin tools:** `plugin scaffold|sign|validate|inspect` and
+  `metadata verify`.
 
 `AuthenticatedMapCddlCompiler` is the compile-before-genesis API for the closed
 `cddl-yano-subset-v1` language. It resolves bounded, non-recursive named rules
 and emits canonical `yano-cbor-schema-ir-v1` bytes; source CDDL is never parsed
-by consensus nodes. The public CLI and blueprint workflow for this API are
-described in the
+by consensus nodes. The draft workflow for this API is described in the
 [authenticated-map validation guide](../../docs/appchain/state-machines/authenticated-map-validation.md).
 
 ```bash
@@ -29,27 +37,6 @@ described in the
 
 # Get the canonical structured catalog for scripts and user interfaces.
 ./yano.sh appchain capabilities --format json
-
-# Reproducible non-interactive project generation.
-./yano.sh appchain init --non-interactive \
-  --recipe owned-registry --network preprod --members 3 \
-  --node-host node-a.example --node-host node-b.example \
-  --node-host node-c.example \
-  --deployment host --output product-registry
-
-# Edit appchain.yaml, then safely regenerate derived output. Rendering stops
-# if a generated file contains an unaccounted manual edit.
-./yano.sh appchain render product-registry
-
-# Verify the project, inspect a final JVM/native release, and classify changes.
-./yano.sh appchain config validate --mode project product-registry
-./yano.sh appchain doctor product-registry --distribution yano-0.1.0.zip
-./yano.sh appchain diff previous.lock product-registry/appchain.lock
-./yano.sh appchain migrate product-registry --dry-run
-
-# Export reviewed, deterministic deployment derivatives.
-./yano.sh appchain gitops product-registry --target helm --output deploy/helm
-./yano.sh appchain gitops product-registry --target kustomize --output deploy/kustomize
 ```
 
 ## Authenticated-state inspection and proof verification
@@ -86,13 +73,12 @@ the referenced Cardano transaction and anchor payload/datum are independently
 verified. Every app-chain generation must use its explicit 32-byte genesis id;
 preview legacy generations are not accepted or migrated.
 
-Offline value-validation commands use the exact generated genesis:
+Offline value-validation commands use the exact authenticated-map genesis
+bytes of the chain:
 
 ```bash
-./yano.sh appchain state validators \
-  --genesis-file product-registry/config/authenticated-map-genesis.hex
-./yano.sh appchain state validate \
-  --genesis-file product-registry/config/authenticated-map-genesis.hex \
+./yano.sh appchain state validators --genesis-file authenticated-map-genesis.hex
+./yano.sh appchain state validate --genesis-file authenticated-map-genesis.hex \
   --collection products --key 736b752d31 --value-file product.cbor
 ./yano.sh appchain state explain --code 11
 ```
@@ -101,15 +87,15 @@ Candidate validation is advisory and cannot replace the authoritative apply
 check. Plugin-backed preflight reports `UNAVAILABLE` unless an exact trusted
 application adapter is supplied through the Java client API.
 
-## Signed custom component catalogs
+## Custom plugins
 
-Custom JVM plugins can extend project generation without extending CLI code.
-The CLI reads bounded declarative resources only; it does not load provider
-classes or install artifacts.
+Custom JVM plugins are scaffolded, signed, and checked offline. The CLI reads
+bounded declarative resources only; it does not load provider classes or
+install artifacts.
 
 ```bash
 ./yano.sh appchain plugin scaffold --mode state-machine --id shipment \
-  --package com.example.shipment --yano-version 0.1.0-pre9 --output shipment-plugin
+  --package com.example.shipment --yano-version <yano-version> --output shipment-plugin
 
 ./yano.sh appchain plugin inspect shipment-plugin.jar \
   --trust-key vendor-2026=<64-hex-ed25519-public-key>
@@ -120,47 +106,35 @@ classes or install artifacts.
 ```
 
 `plugin sign` accepts the publisher seed only through `--seed-file` and writes
-the data-only trust envelope. `init`, `render`, and `doctor` accept explicit
-`--plugin-jar`/`--component-catalog` plus `--trust-key` inputs. Initialized
-projects retain the signed snapshot and public trust key, while
-`appchain.lock` pins every descriptor and full artifact digest. JVM operators
-still copy the exact JAR into each distribution's `plugins/` directory;
-native executables require a separately reviewed build-time flavor.
+the data-only trust envelope. To run a custom machine, every operator copies
+the exact JAR into the distribution's `plugins/` directory before `seal`, and a
+chain selects it with the `custom-plugin` recipe and its `stateMachine`
+answer. `seal` pins the digest of every bundle in `plugins/`; it does not yet
+read a plugin's signed component catalog, so each operator verifies the
+signature with `plugin validate`. See
+[tutorial 8](../../docs/appchain/tutorials/08-plugins-and-composites.md).
 
-`init` without `--non-interactive` prompts for missing core intent. The
-`v1alpha1` blueprint is the user-owned source; `appchain.lock` pins catalog
-digests, capability expansion, consensus values, artifacts, and generated
-file digests. Private values never enter either file. If public member keys
-are not supplied with repeated `--member-key`, the lock records a bootstrap
-acknowledgement and generated secret examples remain intentionally unusable.
+A chain in a draft can also select capabilities and non-secret answers. For
+example, an approval chain can attach one generic effect: select
+`effects:on-approved` and supply the exact executor or plugin routing type as
+the `effectType` answer. Executor endpoints and credentials remain node-local
+and never enter consensus configuration.
 
-Host and Compose targets isolate shared consensus configuration, per-node
-configuration, and secret references. Consensus-shared runtime defaults are
-always explicit, so a later runtime default change cannot silently alter a
-regenerated chain. Generated runtime configuration uses deterministic nested
-YAML (`config/shared-consensus.yaml` and `config/nodes/nodeN.yaml`) while the
-lock retains the exact flattened values. Omit `--node-host` for a same-machine
-host project; provide exactly one host per member to render portable
-per-machine overlays.
-
-Approval projects can attach one generic effect without teaching the CLI
-about a particular integration. Select `effects:on-approved` with
-`state:approval-workflow` and supply the exact executor or plugin routing type
-as the `effectType` blueprint answer. Generated consensus configuration
-enables effects and activates the transition at height 1. Executor endpoints
-and credentials remain node-local and never enter consensus configuration.
+## Configuration tools
 
 ```bash
 # Intentionally incomplete shared template
 ./yano.sh appchain config validate --mode template \
   --template-contract builtin:cluster application-appchain.yml
 
-# Startable node-specific source stack; later --config files have higher
-# default ordinals unless a YAML source declares config_ordinal.
+# A node's source stack, for example the files `join` wrote plus the
+# operator's config/local.yaml; later --config files have higher default
+# ordinals unless a YAML source declares config_ordinal. Secrets such as the
+# signing key come from the environment.
 ./yano.sh appchain config validate --mode resolved \
-  --config product-registry/config/shared-consensus.yaml \
-  --config product-registry/config/nodes/node0.yaml \
-  --config private.yaml
+  --config yano-node/config/consensus.yaml \
+  --config yano-node/config/node.yaml \
+  --config yano-node/config/local.yaml
 
 # Values are always redacted when their property is secret.
 ./yano.sh appchain config effective --mode resolved --format yaml \
@@ -238,31 +212,15 @@ key or certificate.
 
 ## Generated release metadata
 
-The build deterministically exports:
-
-- `appchain-runtime.schema.json`
-- `appchain-property-catalog.json`
-- `appchain-blueprint.schema.json`
-- `appchain-lock.schema.json`
-- `appchain-capability-catalog.json`
-- `appchain-recipe-catalog.json`
-- `appchain-release-capability-index.json`
-- `appchain-release-acceptance-index.json`
-- `appchain-first-party-metadata.json`
-- `appchain-metadata-trust.schema.json`
-- `appchain-gitops-lock.schema.json`
-- `appchain-component-catalog.schema.json`
-- `appchain-component-catalog-snapshot.schema.json`
-
-The files are generated from the same registry used by validation, packaged in
-the CLI, and copied beside release configuration under `config/schema`.
-Golden SHA-256 snapshots make metadata changes explicit during review.
+The build deterministically exports the runtime schema, the property catalog,
+the recipe and capability catalogs, the release capability and acceptance
+indexes, the first-party metadata, and the plugin trust and component-catalog
+schemas. They are generated from the same registry used by validation,
+packaged in the CLI, and copied beside release configuration under
+`config/schema`. Golden SHA-256 snapshots make metadata changes explicit during
+review.
 
 The release acceptance index records the support level and concrete evidence
 for every recipe and capability. See
 [`docs/appchain/RELEASE_ACCEPTANCE.md`](../../docs/appchain/RELEASE_ACCEPTANCE.md)
 for the release-candidate matrix and the reason the schemas remain `v1alpha1`.
-
-The distribution and every generated project also include the release-pinned
-`configure-yano-appchain` AI skill. Generated projects include a checksum-pinned
-CI workflow and offline `ci/verify` script.

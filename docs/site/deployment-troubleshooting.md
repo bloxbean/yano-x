@@ -43,7 +43,7 @@ and it skips nodes that do not answer.
 |---|---|---|
 | One member is a block behind, or a block finalized between two reads | MISMATCH clears on the next `status` | Run `status` again. `./showcase.sh verify all --instance <name>` waits until every node reports the same tip height and root. |
 | No node reports the chain | The chain is in the configuration file but not hosted, or no node is ready yet | See "A chain is missing" below. |
-| A member computes a different root | Its log shows `Proposal state-root mismatch at height … — rejecting`; the member stops voting and stalls | The state machine is not deterministic, or members run different code or configuration. Compare members with `./yano.sh appchain drift <project> --peer <url> …`, and see [Determinism rules](/concepts/determinism-rules/). |
+| A member computes a different root | Its log shows `Proposal state-root mismatch at height … — rejecting`; the member stops voting and stalls | The state machine is not deterministic, or members run different code or configuration. Compare each member's `pluginCatalogFingerprint` from its chain `identity` endpoint; for an application set up with the setup CLI, `./yano.sh appchain status <app>` also flags a member with a different genesis identity, and its `Plugins:` line shows this node's catalog fingerprint for the members to compare. See [Determinism rules](/concepts/determinism-rules/). |
 
 ## A chain is missing
 
@@ -81,9 +81,9 @@ the node raises `AppChainStalledEvent`, its status shows `stalled`, the
 
 | Cause | Fix |
 |---|---|
-| It cannot apply certified blocks because it computes a different state root | Look for `Catch-up block state-root mismatch` or `Proposal state-root mismatch` in its log. Fix the non-determinism, or deploy the same plugins and configuration as the other members (`./yano.sh appchain drift`), then restart it. |
+| It cannot apply certified blocks because it computes a different state root | Look for `Catch-up block state-root mismatch` or `Proposal state-root mismatch` in its log. Fix the non-determinism, or deploy the same plugins and configuration as the other members (compare each node's `pluginCatalogFingerprint` from its chain `identity` endpoint), then restart it. |
 | It cannot reach its peers | Check connectivity and the peer list; catch-up resumes on its own once a peer is reachable. |
-| Its own view of Cardano is behind | Catch-up pauses until the block's Cardano reference is within its view; let its Cardano node sync. |
+| Its own view of Cardano is behind | Catch-up pauses until the block's Cardano reference is within its view; let its Cardano node sync. On a node set up with the setup CLI, the `Cardano:` line of `./yano.sh appchain status` shows `syncing: about N hours behind` until it is `up to date`. |
 | It is far behind after a long outage | Let catch-up run, or restore a recent [snapshot](/concepts/recovery/#snapshots) and let it catch up the rest. |
 
 Restarting a member is safe: finalized history is immutable and vote locks are

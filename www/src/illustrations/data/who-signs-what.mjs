@@ -57,9 +57,9 @@ export default {
     },
     {
       id: 'publisher', label: 'Publisher key', sub: 'signs plugin catalogs', kind: 'external',
-      detail: '`./yano.sh appchain plugin sign` signs a plugin\'s catalog and manifest; `validate`, `init --trust-key`, '
-        + 'and `doctor` check the signature, and the project lock pins the JAR digests. **The node does not check '
-        + 'publisher signatures when it loads plugins**, and plugins are trusted in-process code with no sandbox. '
+      detail: '`./yano.sh appchain plugin sign` signs a plugin\'s catalog and manifest; `plugin validate` checks the '
+        + 'signature, and `appchain seal` pins every bundle\'s JAR digest in the sealed file. **The node does not '
+        + 'check publisher signatures when it loads plugins**, and plugins are trusted in-process code with no sandbox. '
         + 'Install only plugins you trust, and use the plugin allow-list.',
     },
   ],
@@ -129,6 +129,8 @@ export default {
     { repo: 'yano-x', path: 'adr/app-layer/open_item.md',
       anchors: ['Signed manifests/JARs or external deployment attestations and provenance policy.'] },
     { repo: 'yano-x', path: 'docs/site/scaffold-sign-install.md',
-      anchors: ['./yano.sh appchain plugin sign', 'the complete plugin-JAR digests'] },
+      anchors: ['./yano.sh appchain plugin sign', './yano.sh appchain plugin validate'] },
+    { repo: 'yano-x', path: 'tooling/appchain-cli/src/main/java/org/yanoproject/x/appchain/cli/SealCommand.java',
+      anchors: ['distribution.bundleDigests()'] },
   ],
 };

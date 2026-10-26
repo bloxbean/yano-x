@@ -49,3 +49,17 @@ test('unsupported or ambiguous blueprints are refused rather than rewritten',()=
   assert.throws(()=>draftForChain(readBlueprint(text),0),{code:'BLUEPRINT_CHAIN'});
   assert.throws(()=>readBlueprint('x'.repeat(1024*1024+1)),{code:'BLUEPRINT_TOO_LARGE'});
 });
+
+test('a setup draft (ADR-056) imports and splices like a blueprint',()=>{
+  const draftText=['# App-chain draft.','name: supply','invite: "7c1e-52aa-9d03"','network: devnet',
+    'operators: [alice, bob]','chains:','  - id: orders','    recipe: audit-log','  - id: workflow',
+    '    recipe: declarative-composite','    composite:','      components:','        - id: records',
+    '          machine: kv-registry','      bindings: []',''].join('\n');
+  const blueprint=readBlueprint(draftText);
+  assert.deepEqual(blueprint.composites.map(value=>value.chainId),['workflow']);
+  const draft=draftForChain(blueprint,1);
+  const spliced=spliceComposite(blueprint,1,draft);
+  assert.ok(spliced.startsWith('# App-chain draft.\nname: supply\ninvite: "7c1e-52aa-9d03"\n'));
+  assert.ok(spliced.includes('  - id: orders\n    recipe: audit-log\n'));
+  assert.equal(readBlueprint(spliced).composites[0].chainId,'workflow');
+});

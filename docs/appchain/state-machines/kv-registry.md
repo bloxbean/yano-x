@@ -226,8 +226,8 @@ yano:
           value-format: utf8
 ```
 
-A new chain needs its own genesis id; a generated project gets one from
-`appchain render`.
+A new chain needs its own genesis id; in an application set up with
+`appchain new`, `appchain seal` derives one.
 
 | `value-format` | A PUT value must be |
 |---|---|

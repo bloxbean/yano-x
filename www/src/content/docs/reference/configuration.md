@@ -137,8 +137,8 @@ Frequently needed host values:
 ## Working with configuration safely
 
 ```bash
-# Validate a project's blueprint and its resolved configuration.
-./yano.sh appchain config validate --mode project <project>
+# Check an application's draft, member card or sealed file.
+./yano.sh appchain inspect <app>.chain
 
 # What one property means: owner, type, default, scope, and change policy.
 ./yano.sh appchain config explain yano.app-chain.block.max-bytes
@@ -146,15 +146,16 @@ Frequently needed host values:
 
 # The values a node would resolve from its files, with secrets redacted.
 ./yano.sh appchain config effective --mode resolved \
-  --config <project>/config/shared-consensus.yaml \
-  --config <project>/config/nodes/node0.yaml --show-sources
+  --config yano-node/config/consensus.yaml \
+  --config yano-node/config/node.yaml \
+  --config yano-node/config/local.yaml --show-sources
 
-# Compare a project against running nodes.
-./yano.sh appchain drift <project> --peer http://127.0.0.1:8080/api/v1/ \
-  --api-key-env YANO_APPCHAIN_API_KEYS
+# Check that every member is online and reports the same genesis identity;
+# compare the Plugins: and Cardano: lines with the other members.
+./yano.sh appchain status <app>
 ```
 
-`config explain` takes one property and no project. Add
+`config explain` takes one property and no file. Add
 `--metadata <descriptor|plugin.jar>` to explain a property that a plugin
 declares. It prints `UNKNOWN_PROPERTY` and the nearest known key for a
 misspelling. `config effective` reads only the files you pass with `--config`,
@@ -162,7 +163,13 @@ in order, with later files winning; environment variables and system
 properties are left out unless you add `--include-environment` or
 `--include-system-properties`.
 
-Edit only `appchain.yaml`; generated runtime files are derived output.
+For an application set up with the setup CLI, edit only the setup draft
+before `seal`. The sealed `<app>.chain` file and the node configuration that
+`join` writes under `yano-node/config/` (`consensus.yaml` and `node.yaml`) are
+derived output. The exception is `yano-node/config/local.yaml`: `join` creates
+it and never rewrites it, so put this node's own `NODE_LOCAL` settings there,
+such as connector endpoints. Its values win over `node.yaml`, and `start`
+refuses it if it sets any key the sealed `consensus.yaml` sets.
 
 ### Secrets
 
@@ -176,8 +183,9 @@ Five secret classes, five blast radii — keep them separate:
 
 Never place a credential in consensus-shared configuration or in a replicated
 effect payload — both are visible to every member and provable to anyone holding
-a proof. Use node-local overlays or a secret provider, and refer to secrets by
-documented environment-variable or provider names only.
+a proof. Use node-local overlays (`config/local.yaml` for a node set up with
+`join`) or a secret provider, and refer to secrets by documented
+environment-variable or provider names only.
 
 For private per-node connector configuration, the cluster launcher supports a
 strictly validated overlay directory (`YANO_CLUSTER_NODE_CONFIG_DIR`) with

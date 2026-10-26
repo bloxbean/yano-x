@@ -39,8 +39,13 @@ yano:
           value-format: raw
 ```
 
-`appchain render` adds the chain's `state.commitment-profile`,
-`state.format-fingerprint`, and `state.genesis-id`; do not hand-edit them.
+`appchain seal` adds the chain's `state.commitment-profile`,
+`state.format-fingerprint`, and `state.genesis-id` when it seals an application
+that uses the `evidence-ledger` recipe; do not hand-edit them. Because a
+`role-evidence` chain starts with no organizations or actors, `seal` also
+writes a `<chainId>.role-plan.yaml` template beside the sealed file; once the
+chain is live, `./yano.sh appchain role bootstrap --plan <chainId>.role-plan.yaml`
+encodes the governance steps that create them.
 
 The role profile commits the generic registry, actor, approvals and document
 components together with the evidence registry and evidence-specific release

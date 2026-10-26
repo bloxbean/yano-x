@@ -1,5 +1,13 @@
 # Yano X deployment experience: independent review and design plan
 
+> **Superseded tooling plan.** [ADR-056](../../adr/056-simple-app-chain-setup.md)
+> replaced the one-author project lifecycle described below (`init`, `prepare`,
+> `render`, `plan`, `apply`, `drift`, `gitops`, `chain add`, and the Studio
+> blueprint page) with a multi-operator setup: `new`, `request`, `seal`,
+> `join`, `start`, `status`, and `approve`. This document is kept as the
+> historical review; for current workflows see the
+> [deployment guides](deployment/README.md).
+
 Status: original review and roadmap. The implementation follow-up is
 [ADR-047](../../adr/047-cohesive-application-deployment.md); current user workflows
 are documented in the [deployment guides](deployment/README.md). Remaining roadmap

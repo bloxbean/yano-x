@@ -37,33 +37,24 @@ The value rules run in a fixed order: the collection's bounds, then the
 encoding, then the schema, then the plugin. A value refused at ingress gets
 HTTP `400` with `APPLICATION_REJECTED`, is not pooled, and has no receipt.
 
-## Create a project
+## Create an application
 
-Genesis commits the initial membership, so supply every member public key when
-you initialize:
+Genesis commits the initial membership, so the map is defined in a setup draft
+and fixed when the coordinator seals the operators' member cards into it:
 
 ```bash
-./yano.sh appchain init --non-interactive \
-  --recipe authenticated-map --network preprod --members 3 \
-  --member-key <member-0-64-hex> \
-  --member-key <member-1-64-hex> \
-  --member-key <member-2-64-hex> \
-  --name product-registry --chain-id product-registry \
-  --output product-registry
+./yano.sh appchain new product-registry --network preprod \
+  --operators alice,bob,carol --chain product-registry=authenticated-map
 ```
 
-For a disposable local devnet, use `--network devnet` and replace the
-`--member-key` options with `--generate-local-member-keys`. It keeps the private
-keys in the project's owner-only `secrets/` directory and pins only the public
-keys. On public networks, operators always supply their own keys.
-
-The generated project starts with one open, opaque `records` collection. Edit
-`spec.chains[0].authenticatedMap` in `appchain.yaml`, then render again:
+Without an `authenticatedMap` section the chain starts with one open, opaque
+`records` collection. To define your own collections, add an `authenticatedMap`
+section under the chain in `product-registry.draft.yaml` before you seal:
 
 ```yaml
 authenticatedMap:
   profile: mpf-blake2b256-v1
-  # All-zero is the initializer's development/no-policy placeholder.
+  # All-zero is the development/no-policy placeholder.
   # Replace it with the reviewed 32-byte commitment before an anchored chain
   # generation is created.
   anchorPolicyCommitment: "0000000000000000000000000000000000000000000000000000000000000000"
@@ -99,24 +90,31 @@ authenticatedMap:
         }
 ```
 
-Run the renderer and doctor after every edit:
+In the draft, the section sits beside the chain's recipe:
 
-```bash
-./yano.sh appchain render product-registry
-./yano.sh appchain doctor product-registry --distribution /path/to/yano-x-jvm-<version>
+```yaml
+chains:
+  - id: product-registry
+    recipe: authenticated-map
+    authenticatedMap:
+      profile: mpf-blake2b256-v1
+      # ... collections and schemas as above
 ```
 
-Doctor reports `authenticated-map-schema-encoding`. A collection with a schema
-must use `canonical-cbor`; `opaque` plus a schema is rejected before genesis is
-written.
+A collection with a schema must use `canonical-cbor`; `seal` refuses a draft
+where it does not. `seal` also warns about a `governed-role` or `approval`
+collection that has no active policy at genesis: it accepts no writes until
+the governance authority activates one. Then collect the member cards and
+seal, as in [set up an application](../deployment/configure.md). `seal`
+compiles the schemas and writes the canonical map genesis into the chain's
+settings in `product-registry.chain`, as the
+`machines.authenticated-map.genesis-cbor-hex` setting. The offline commands
+below read that genesis from a file; write it out once:
 
-The generated outputs include:
-
-- `config/shared-consensus.yaml`, with the exact genesis and state-identity
-  settings the nodes use;
-- `config/authenticated-map-genesis.hex`, the canonical genesis for offline
-  tooling; and
-- `docs/VALUE_VALIDATION.md`, with project-specific validation commands.
+```bash
+./yano.sh appchain inspect product-registry.chain --map-genesis product-registry \
+  > authenticated-map-genesis.hex
+```
 
 ## Encodings and schemas
 
@@ -139,7 +137,7 @@ for the chain generation, so leave generous bounds for fields that may grow.
 
 The commitment profiles are `mpf-blake2b256-v1` and `jmt-blake2b256-v1`. The
 Poseidon JMT profile is unavailable until ADR-025 Phase 4 and its pinned ZeroJ
-dependency are complete; blueprints refuse it.
+dependency are complete; `seal` refuses it.
 
 ## Offline preflight and inspection
 
@@ -147,7 +145,7 @@ Inspect the collections and validators committed by genesis:
 
 ```bash
 ./yano.sh appchain state validators \
-  --genesis-file product-registry/config/authenticated-map-genesis.hex
+  --genesis-file authenticated-map-genesis.hex
 ```
 
 The result shows the profile, format fingerprint, `genesisId`, each
@@ -158,11 +156,11 @@ Validate a candidate from a file or canonical lowercase hex:
 
 ```bash
 ./yano.sh appchain state validate \
-  --genesis-file product-registry/config/authenticated-map-genesis.hex \
+  --genesis-file authenticated-map-genesis.hex \
   --collection products --key 736b752d31 --value-file product.cbor
 
 ./yano.sh appchain state validate \
-  --genesis-file product-registry/config/authenticated-map-genesis.hex \
+  --genesis-file authenticated-map-genesis.hex \
   --collection products --key 736b752d31 \
   --value-hex a363736b7565736b752d316673746174757366616374697665687175616e7469747905
 ```
@@ -222,7 +220,7 @@ the runtime:
 
 ```java
 byte[] genesisBytes = HexFormat.of().parseHex(Files.readString(
-        Path.of("config/authenticated-map-genesis.hex")).strip());
+        Path.of("authenticated-map-genesis.hex")).strip());
 var preflight = AuthenticatedMapPreflight.fromEncodedGenesis(genesisBytes);
 
 var mutation = AuthenticatedMapContract.Mutation.put("products", skuBytes, canonicalProductCbor);
@@ -303,8 +301,9 @@ The first-party `appchain-authenticated-map-validators` module provides
 Production resolution also requires the bundle in the runtime allow-list with
 catalog digest mode `ARTIFACT_CLOSURE`.
 
-Blueprints do not expose custom plugin descriptors in v1alpha1, so a generated
-project never implies that an arbitrary bundle is safe or installed. Build
+The setup draft's `authenticatedMap` section does not expose custom plugin
+descriptors, so a sealed application never implies that an arbitrary bundle is
+safe or installed. Build
 plugin genesis programmatically, or stay with canonical encoding and schemas.
 
 ## Choosing the right boundary

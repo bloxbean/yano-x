@@ -165,15 +165,15 @@ export default {
       steps: [capture, scan, apiRange, isolated, policy, sharedLoader, correlate, order, {
         ...fingerprint,
         text: 'Every check passes on member C. Only its fingerprint differs from A and B, because the JAR’s digest '
-          + 'differs. Nothing at start-up compares fingerprints across members.',
+          + 'differs. The node itself never compares fingerprints across members.',
         cards: { catalog: { title: 'Fingerprint differs', detail: 'from members A and B', tone: 'pending' } },
       }, {
         title: 'Diverge',
         text: 'Member C starts. If its code computes a different result, its state root differs and it does not vote '
-          + 'for that block, so it stalls. Catch drift before traffic: `appchain drift` compares '
-          + '`cluster.plugin-catalog` across members, and `appchain doctor` checks each JAR’s digest against the '
-          + 'project lock.',
-        cards: { node: { title: 'Stalls on divergence', detail: 'drift: `DRIFT_DETECTED`', tone: 'fail' } },
+          + 'for that block, so it stalls. Catch it before traffic: for an application set up with `appchain`, '
+          + '`join` and `start` refuse a bundle whose digest differs from the sealed one, and `appchain status` '
+          + 'prints this node’s `Plugins: catalog …` fingerprint for the members to compare.',
+        cards: { node: { title: 'Stalls on divergence', detail: 'status: catalog differs', tone: 'fail' } },
       }],
     },
   ],
@@ -216,8 +216,10 @@ export default {
         'No `NodePlugin` lifecycle callback or typed contribution factory method runs'] },
     { repo: 'yano', path: 'app/src/main/java/org/yanoproject/app/api/appchain/AppChainResource.java',
       anchors: ['"pluginCatalogFingerprint"'] },
-    { repo: 'yano-x', path: 'tooling/devtools/src/main/java/org/yanoproject/x/devtools/AppChainDriftClient.java',
-      anchors: ['"cluster.plugin-catalog"', 'DRIFT_DETECTED'] },
+    { repo: 'yano-x', path: 'tooling/appchain-cli/src/main/java/org/yanoproject/x/appchain/cli/StatusCommand.java',
+      anchors: ['identity.path("pluginCatalogFingerprint")', '(compare with the other members)'] },
+    { repo: 'yano-x', path: 'tooling/appchain-cli/src/main/java/org/yanoproject/x/appchain/cli/StartCommand.java',
+      anchors: ['Plugin bundles changed since this node joined '] },
     { repo: 'yano', path: 'docs/APP_CHAIN_CONSENSUS_GUIDE.md', anchors: ['requires byte-identical `stateRoot`'] },
   ],
 };

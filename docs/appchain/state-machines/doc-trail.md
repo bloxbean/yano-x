@@ -79,8 +79,8 @@ yano:
         interval-ms: 1000
 ```
 
-To add a chain to a generated project, use the
-[add-chain workflow](../deployment/add-chain.md). Do not reinterpret retained
+To add a chain to an application set up with `appchain new`, see
+[grow and change](../deployment/add-chain.md). Do not reinterpret retained
 data from another machine as `doc-trail` state.
 
 ## Hash and submit a document through REST

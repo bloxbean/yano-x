@@ -20,18 +20,30 @@ authoritative for that release. Every setup command ends with a `Next:` line; fo
 
 1. Run `./yano.sh appchain recipes` and `./yano.sh appchain capabilities` before choosing features.
    Suggest `./yano.sh appchain try` to rehearse every step on one machine.
-2. Coordinator: `./yano.sh appchain new <app>` creates the draft. Edit only the draft before seal:
-   per chain `id`, `recipe`, and optionally `capabilities`, `answers`, `bindings` (a file path),
-   inline `composite`, `authenticatedMap`, an `anchor` policy, or `settings`.
+2. Coordinator: `./yano.sh appchain new <app>` creates the draft. Recipe answers come from
+   `--answer <chain>.<name>=<value>` (the wizard asks for any missing one); `--sequencing
+   fixed|rotating` chooses whether the lead proposes every block or the members take turns.
+   Edit only the draft before seal: per chain `id`, `recipe`, and optionally `capabilities`,
+   `answers`, `bindings` (a file path), inline `composite`, `authenticatedMap`, an `anchor`
+   policy, or `settings`.
 3. For a chain of several state machines, check the binding document first with
    `./yano.sh appchain bindings validate` / `dry-run` against the distribution's `plugins/`.
 4. Each operator: `./yano.sh appchain request <app>.draft.yaml` makes the key and member card.
+   Alternatively the coordinator runs `./yano.sh appchain invite <app>.draft.yaml --serve`
+   and each operator runs `request <yano:// link>`, which sends the card, waits for the seal and
+   continues into `join`. Links carry only public data; the fingerprint call is still required.
 5. Coordinator: `./yano.sh appchain seal <app>.draft.yaml` with the cards beside the draft.
-   Never hand-edit the sealed file or the node configuration that `join` writes.
+   Never hand-edit the sealed file or the node configuration that `join` writes. For
+   role-approval and evidence chains `seal` also writes `<chainId>.role-plan.yaml`; once live,
+   `./yano.sh appchain role bootstrap --plan <chainId>.role-plan.yaml` encodes it.
 6. Each operator compares the chain fingerprint and every key id on a call, then runs
    `./yano.sh appchain join <app>.chain` and `./yano.sh appchain start`.
-7. Use `./yano.sh appchain status <app>` to see the phase, members online and identity
-   agreement, and `./yano.sh appchain inspect <file>` to check any draft, card or sealed file.
+7. Use `./yano.sh appchain status <app>` to see the phase, members online, identity
+   agreement, this node's Cardano view and plugin catalog fingerprint (members compare both),
+   and `./yano.sh appchain inspect <file>` to check any draft, card or sealed file
+   (`--map-genesis <chain>` prints an authenticated map's genesis CBOR hex).
+   Node-only settings such as connector endpoints go in the node directory's
+   `config/local.yaml`, which `join` never rewrites and `start` refuses if it sets a sealed key.
 8. Later: each existing operator runs `./yano.sh appchain approve <name>.member` (or
    `--remove <name>`); one operator may run `./yano.sh appchain anchor <app>`.
 9. Summarize chains and recipes, the operators and threshold, the chain fingerprint, unresolved
@@ -62,7 +74,10 @@ authoritative for that release. Every setup command ends with a `Next:` line; fo
 ./yano.sh appchain try
 ./yano.sh appchain new <app> --network <network> --operators <a,b,c> --chain <id>=<recipe>
 ./yano.sh appchain new <app> --network <network> --operators <a,b,c> --chain <id>=bindings:<file>
+./yano.sh appchain new <app> --chain <id>=<recipe> --answer <id>.<name>=<value>
+./yano.sh appchain invite <app>.draft.yaml --serve --host <coordinator-host>
 ./yano.sh appchain request <app>.draft.yaml --name <operator> --host <public-host>
+./yano.sh appchain request '<yano:// link>' --host <public-host>
 ./yano.sh appchain seal <app>.draft.yaml
 ./yano.sh appchain inspect <app>.chain
 ./yano.sh appchain join <app>.chain

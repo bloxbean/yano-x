@@ -62,8 +62,8 @@ start a chain unless all three are present:
 | `state.format-fingerprint` | The fingerprint of that profile's format; it must match the profile |
 | `state.genesis-id` | 32 bytes, as 64 lowercase hex characters, naming this chain generation |
 
-In a generated project, `appchain render` writes all three; do not edit them by
-hand. The stock cluster file, `$YANO_HOME/config/application-appchain.yml`,
+For an application set up with `appchain new` and `appchain seal`, `seal` writes
+all three into the sealed `<app>.chain` file; do not edit them by hand. The stock cluster file, `$YANO_HOME/config/application-appchain.yml`,
 already contains them for its chains. When you add a chain to that file
 yourself, copy the profile and fingerprint from an existing chain and give the
 new chain a fresh genesis id, for example from `openssl rand -hex 32`. The

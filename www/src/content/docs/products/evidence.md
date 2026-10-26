@@ -95,15 +95,20 @@ status is derived from authenticated connector results rather than asserted.
 ## Run it
 
 The `evidence-ledger` recipe is the configuration-only path. It selects the
-`role-evidence` profile, so before the first release the generated project also
-needs its governed organizations, actors, and role policies; apply the
-generated role bootstrap plan first.
+`role-evidence` profile, so before the first release the chain also needs its
+governed organizations, actors, and role policies. `seal` writes a role
+bootstrap plan template beside the sealed file, `evidence-chain.role-plan.yaml`;
+fill it in and, once the chain is live, run
+`./yano.sh appchain role bootstrap --plan evidence-chain.role-plan.yaml` (see
+[role approvals](/state-machines/role-approvals/)).
 
 ```bash
-./yano.sh appchain init --non-interactive \
-  --recipe evidence-ledger --network devnet --members 3 --runtime jvm \
-  --output evidence-chain
+./yano.sh appchain new evidence --network devnet --operators alice,bob,carol \
+  --chain evidence-chain=evidence-ledger
 ```
+
+Then collect the member cards, seal, join and start as in
+[Set up an application](/deployment/configure/).
 
 For the complete connector demo — real object storage, a Kubo IPFS node, and
 Kafka — follow [Tutorial 4](/tutorials/04-evidence-publication/). It runs the

@@ -112,7 +112,7 @@ All paths below are relative to `/api/v1/app-chain/chains/{chainId}`.
 
 | Method and path | Access | Purpose |
 |---|---|---|
-| `GET /identity` | Privileged | Redacted identity digests that `appchain drift` compares. |
+| `GET /identity` | Privileged | Redacted identity digests, including `pluginCatalogFingerprint`, for comparing members. |
 | `GET /state/integrity` | Privileged | The node's state integrity check. |
 | `POST /snapshot` | Privileged | Atomic ledger snapshot for member onboarding. Body `{"path":"<fresh dir>"}`. |
 | `POST /admin/pause`, `POST /admin/resume` | Privileged | Pause or resume local submissions. |

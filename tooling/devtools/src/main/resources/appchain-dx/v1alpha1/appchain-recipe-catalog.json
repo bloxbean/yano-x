@@ -156,8 +156,8 @@
       "trustStatement": "First-party Yano recipe whose collection, encoding, schema, and commitment identities are frozen in canonical genesis.",
       "description": "A proof-oriented multi-collection registry with optional canonical-CBOR and declarative schema validation.",
       "primaryOutcome": "A value accepted under a genesis-declared collection schema is committed and available with a state proof.",
-      "firstCommand": "appchain state validate --genesis-file config/authenticated-map-genesis.hex ...",
-      "verificationQuery": "appchain state validators --genesis-file config/authenticated-map-genesis.hex",
+      "firstCommand": "appchain inspect <app>.chain --map-genesis <chain-id> > map-genesis.hex, then appchain state validate --genesis-file map-genesis.hex ...",
+      "verificationQuery": "appchain state validators --genesis-file map-genesis.hex",
       "capabilities": [
         "state:authenticated-map",
         "sequencer:fixed"
@@ -236,7 +236,7 @@
       "trustStatement": "First-party generic role product; applications retain responsibility for acting on an approved payload hash.",
       "description": "Governed organizations, actors, and policies approve arbitrary application payload hashes.",
       "primaryOutcome": "A governed role policy accepts valid actor decisions and rejects an ineligible actor decision.",
-      "firstCommand": "apply the generated role bootstrap plan, then submit a signed proposal",
+      "firstCommand": "fill in <chain-id>.role-plan.yaml (written by seal beside the sealed file), run appchain role bootstrap --plan <chain-id>.role-plan.yaml once live, then submit a signed proposal",
       "verificationQuery": "plugin role-workflow proposals/{id} plus returned proof key",
       "capabilities": [
         "state:role-approvals",
@@ -280,7 +280,7 @@
       "trustStatement": "First-party preview evidence profile; it records and authorizes evidence claims but does not prove real-world truth or external publication by itself.",
       "description": "A role-aware evidence ledger that emits publication intents; add and provision explicit connector capabilities for external mutation.",
       "primaryOutcome": "A role-authorized evidence record and its release decision are committed and queryable.",
-      "firstCommand": "apply the generated role bootstrap plan, then submit evidence and a signed release proposal",
+      "firstCommand": "fill in <chain-id>.role-plan.yaml (written by seal beside the sealed file), run appchain role bootstrap --plan <chain-id>.role-plan.yaml once live, then submit evidence and a signed release proposal",
       "verificationQuery": "plugin evidence-profile evidence/{id} and proposals/{id}",
       "capabilities": [
         "state:role-evidence",
@@ -428,9 +428,9 @@
       "scope": "chain",
       "selectable": true,
       "trustStatement": "Advanced JVM-only path; the operator owns plugin implementation, code review, metadata trust, compatibility, and distribution.",
-      "description": "A generated project boundary for a separately reviewed custom state-machine plugin.",
+      "description": "A chain that runs a separately reviewed custom state-machine plugin, named by the stateMachine answer and pinned by digest at seal.",
       "primaryOutcome": "The operator-defined state-machine contract is loaded from a reviewed pinned plugin bundle.",
-      "firstCommand": "install the reviewed bundle and submit its documented command",
+      "firstCommand": "copy the reviewed bundle into plugins/ on every node before seal, then submit its documented command",
       "verificationQuery": "plugin-defined committed query or state proof",
       "capabilities": [
         "state:custom-plugin",

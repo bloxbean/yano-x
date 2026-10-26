@@ -50,11 +50,11 @@ in its `gradle.properties`.
 
 | Value | Current |
 |---|---|
-| Yano X version | `0.1.0-pre3` |
-| Yano host version | `0.1.0-pre17` |
+| Yano X version | `0.1.0-pre4` |
+| Yano host version | `0.1.0-pre18` |
 | Maven group | `org.yanoproject.x` |
 | Java | `25` |
-| Base Yano JVM ZIP | [`yano-0.1.0-pre17.zip`](https://github.com/bloxbean/yano/releases/download/v0.1.0-pre17/yano-0.1.0-pre17.zip) |
+| Base Yano JVM ZIP | [`yano-0.1.0-pre18.zip`](https://github.com/bloxbean/yano/releases/download/v0.1.0-pre18/yano-0.1.0-pre18.zip) |
 
 <!-- catalog:versions-end -->
 
@@ -243,18 +243,14 @@ optional plugins: Kafka, S3-compatible `object.put`, `ipfs.pin`,
 # 4. Build and validate. Loads no plugin code.
 ./yano.sh appchain plugin validate <jar> --trust-key <key-id>=<public-key-hex>
 
-# 5. Pin into a project.
-./yano.sh appchain init --non-interactive --recipe custom-plugin \
-  --network devnet --members 3 --runtime jvm \
-  --capability state:shipment --plugin-jar <jar> \
-  --trust-key <key-id>=<public-key-hex> --output shipment-chain
-
-# 6. Check readiness against a real distribution.
-./yano.sh appchain doctor shipment-chain --distribution /opt/yano-x
-
-# 7. Copy the exact pinned JAR into plugins/ on EVERY member, then validate.
+# 5. Copy the exact same JAR into plugins/ on EVERY member, then validate.
 tools/yano-plugins/bin/yano-plugins validate plugins/*.jar
 ```
+
+`appchain seal` does not yet accept a custom signed component catalog, so a
+custom capability cannot be pinned into a sealed application by the setup CLI
+in this release. Run the plugin as
+[tutorial 8](/tutorials/08-plugins-and-composites/) shows.
 
 The JAR carries three independent bounded contracts plus a signature:
 
@@ -399,13 +395,13 @@ catch-up, restart, and anchor state.
 
 | Symptom | Root cause | Fix |
 |---|---|---|
-| Cluster stops finalizing after a deploy | Members run different bundles or different `CONSENSUS_SHARED` values | `./yano.sh appchain drift <project> --peer <node-url>`; align bundles and config |
+| Cluster stops finalizing after a deploy | Members run different bundles or different `CONSENSUS_SHARED` values | Compare each node's `pluginCatalogFingerprint` from its chain `identity` endpoint, and run `./yano.sh appchain status <app>`; align bundles and config |
 | Root parity holds locally, fails on a cluster | Reproducible but not identical — usually `HashMap` iteration or a wall clock | See §4; re-run under `@AppChainCluster` |
 | `verifyJvmOnlyBuild` fails | A native-image build or distribution task crept in | Remove it. Yano X is JVM-only by decision |
 | `verifyArtifactInventory` fails | Module identity changed without updating `config/artifacts-v1.json` | Update the inventory and its verification tests |
 | Build tries to reach Maven Local | `-PuseMavenLocal=true` needed but that is the contributor track | Users need no flags at all |
 | Missing release asset for `yanoVersion` | SNAPSHOT or staged Yano version | Supply `-PyanoJvmDist` with the exact matching ZIP |
-| `appchain doctor` reports incompatibility | Pointed at a native distribution | Yano X plugins target the JVM host |
+| A Yano X bundle is rejected at startup | Pointed at a native distribution | Yano X plugins target the JVM host |
 | Node refuses to start with a catalog error | Two bundles provide the same contribution | Install exactly one of them |
 | `POST /messages` returns 429 | Pending pool full — backpressure working | Back off and retry; tune `pool.max-messages` deliberately |
 | Message rejected, `drops.stale_seq` | Per-sender seq at or below the last finalized seq — a replay | Do not reuse envelopes; seq gaps are fine and meaningless |
@@ -424,7 +420,7 @@ catch-up, restart, and anchor state.
 | Live recipes, capabilities, modules, config properties | [`/ai/catalog.json`](/ai/catalog.json) |
 | Everything on this site as one file | [`/llms-full.txt`](/llms-full.txt) |
 | Version-matched truth for a build | `./yano.sh appchain recipes`, `./yano.sh appchain capabilities --format json` |
-| Project workflow for agents | The in-repo `configure-yano-appchain` skill under `tooling/devtools/src/main/resources/appchain-dx/v1alpha1/skills/` — **it wins where it overlaps this pack** |
+| Setup workflow for agents | The in-repo `configure-yano-appchain` skill under `tooling/devtools/src/main/resources/appchain-dx/v1alpha1/skills/` — **it wins where it overlaps this pack** |
 | Exhaustive reference | [Reference shelf](/reference/shelf/) |
 | Plugin SPI contract | Yano's ADR-011 series in its `adr/app-layer/` directory, and its [plugin query and domain API guide](https://github.com/bloxbean/yano/blob/main/docs/APP_CHAIN_PLUGIN_QUERY_AND_DOMAIN_API.md) |
 | Consensus internals | Yano's [consensus guide](https://github.com/bloxbean/yano/blob/main/docs/APP_CHAIN_CONSENSUS_GUIDE.md) |
@@ -438,8 +434,8 @@ catch-up, restart, and anchor state.
   documented environment-variable or secret-provider names.
 - Never invent configuration keys, values, defaults, recipes, or compatibility
   claims. Report an unavailable capability as unsupported.
-- Keep blueprint, resolved-config, release, plugin-catalog, and consensus
-  identities distinct.
+- Keep the chain fingerprint, each chain's genesis id, the accepted plugin
+  bundle digests, and a running node's reported identity distinct.
 - Do not mutate a running node or call privileged runtime APIs unless explicitly
   asked.
 - Treat custom-plugin metadata as `PARTIAL` unless Yano reports `FULL`.

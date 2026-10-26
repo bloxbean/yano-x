@@ -359,7 +359,7 @@ export async function generateLlmsFiles({ outDir, logger, catalog }) {
     ? `- Base Yano JVM distribution: ${v.yanoJvmZipUrl}`
     : `- Base Yano JVM distribution: local build required; ${SITE_URL}/start-here/build-from-source/`);
   index.push(
-    `- App-Chain Studio (blueprint builder): ${SITE_URL}/studio/`,
+    `- App-Chain Studio (binding editor): ${SITE_URL}/studio/`,
   );
   index.push('');
 

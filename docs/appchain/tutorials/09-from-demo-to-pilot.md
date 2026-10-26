@@ -1,209 +1,171 @@
 # Tutorial 9 — From Local Demo to a Permissioned Pilot
 
-[Open a pilot starting point in App-Chain Studio](../../../tooling/studio/src/main/web/index.html#recipe=audit-log&network=preprod&members=3&finality=all&sequencing=rotating&runtime=jvm&deployment=host&name=permissioned-pilot&chainId=permissioned-pilot)
-
-- **Goal:** turn a successful tutorial into a reviewable project and a
-  deployment plan.
-- **You'll learn:** what the project files hold, where each secret lives, the
-  status line each project command prints, and which decisions to record
-  before traffic.
-- **Before you start:** an extracted Yano X JVM distribution and Java 25. The
-  commands run offline; nothing here starts a node or spends test ADA.
-  Tutorial 1 helps but is not required.
+- **Goal:** turn a successful tutorial into a pilot that several
+  organizations run together, and a written plan for operating it.
+- **You'll learn:** how the operators agree on one chain without sharing
+  private keys, where each key lives, and which decisions to record before
+  traffic.
+- **Before you start:** an extracted Yano X JVM distribution and Java 25.
+  Step 1 runs on one machine and spends nothing. Tutorial 1 helps but is not
+  required.
 - **Level:** advanced; for platform, security, and application leads
-- **Time:** about 20 minutes for the commands, then a planning session
-- **Outcome:** a validated pilot project, a doctor report against your exact
-  release, and a written plan that does not inherit local-demo assumptions.
+- **Time:** 10 minutes for the rehearsal, then a planning session
+- **Outcome:** a rehearsed setup, a pilot draft your operators can act on, and
+  a plan that does not inherit local-demo assumptions.
 
 This is a decision checklist rather than one launch command. Yano remains
 pre-release. The target is a controlled permissioned pilot, not an unqualified
 production or public-chain claim.
 
-## 1. Generate a reviewable pilot project
+## 1. Rehearse the setup on one machine
 
-The project commands move you from remembered YAML options to a blueprint,
-rendered configuration, and a lock file. Each one prints a status line you can
-check.
+A pilot is run by several organizations. Each runs one member node and keeps
+that node's private key on its own machine. One coordinator defines the
+application and collects public member cards. Rehearse the whole procedure
+first:
 
-<!-- illustration: pilot-secrets-and-render -->
-1. **Initialize.** `init` writes `appchain.yaml`, the generated files, and
-   `appchain.lock`. Without member keys it prints `PROJECT_INITIALIZED` with
-   the acknowledgement `PUBLIC_MEMBER_IDENTITIES_REQUIRED_BEFORE_START`.
-2. **Sort the secrets.** Private keys never enter the project; the generated
-   `secrets/nodeN.env.example` files only name the values each member supplies.
-3. **Pin identities.** Add each member's public key and host to
-   `appchain.yaml`.
-4. **Render.** `render` regenerates the derived files and prints
-   `PROJECT_RENDERED`.
-5. **Validate.** `config validate --mode project` prints `VALID_PROJECT`.
-6. **Doctor.** `doctor --distribution` checks the project against your exact
-   release and ends with `DOCTOR_OK`, `DOCTOR_WARNINGS`, or `DOCTOR_FAILED`.
-7. **Export for VMs.** `gitops --target ansible` prints `GITOPS_EXPORTED`.
-<!-- /illustration -->
+```bash
+./yano.sh appchain try
+```
 
-List what this release offers, then generate the project:
+> **✓ You should see** seven numbered steps (create, request, seal, join,
+> start, status, submit) and a message finalized at the same height and root
+> on alice's, bob's, and carol's nodes.
+
+`try` runs the same commands your operators will run, each printed before it
+runs. Read them, then remove the rehearsal with `./yano.sh appchain try --clean`.
+
+## 2. Draft the pilot
+
+The coordinator lists what this release offers and creates the draft:
 
 ```bash
 ./yano.sh appchain recipes
 ./yano.sh appchain capabilities
 
-./yano.sh appchain init \
-  --recipe audit-log \
-  --network preprod \
-  --members 3 \
-  --finality all \
-  --sequencing rotating \
-  --runtime jvm \
-  --deployment host \
-  --name permissioned-pilot \
-  --chain-id permissioned-pilot \
-  --output permissioned-pilot \
-  --non-interactive
+./yano.sh appchain new permissioned-pilot --network preprod \
+  --operators acme,globex,initech --chain pilot=audit-log --threshold all --yes
 ```
 
-> **✓ You should see** a line starting with `PROJECT_INITIALIZED` that ends
-> with `acknowledgements=[PUBLIC_MEMBER_IDENTITIES_REQUIRED_BEFORE_START]`.
+> **✓ You should see** `✓ Wrote ./permissioned-pilot.draft.yaml`, the invite
+> code, `lead acme`, and `3 operators, 3 signatures per block`.
 
-The generated runtime files are nested YAML:
+Open the draft and decide each value with the other organizations before
+anyone makes a card. The draft can change until seal:
 
-- `config/shared-consensus.yaml` holds the values every member must share;
-- `config/nodes/nodeN.yaml` holds node-local ports, peers, paths, and secret
-  references; and
-- `appchain.lock` records the exact resolved values and the digests of the
-  generated files.
+- **Operators and lead.** The first operator is the lead. With
+  `sequencing: fixed` (the default) it is the block proposer and cannot be
+  removed later, so the lead organization must back up its node directory.
+- **Sequencing.** `rotating` (`new --sequencing rotating`) lets the members
+  take turns proposing, so no chain depends on the lead's node, and the lead
+  can later be removed like any other member.
+- **Threshold.** `all` here means three of three: the strongest agreement, but
+  one offline member stops the chain. `majority` (two of three) keeps going
+  with one member down. See section 8 for dishonest members.
+- **Membership.** `governed` (the default) lets the operators add and remove
+  members later with `approve`. `static` fixes the set.
+- **Chains.** One recipe per chain, or a composite of several state machines
+  joined by [bindings](../bindings/README.md). A chain's state machines are
+  fixed at genesis. A recipe that needs answers gets them with `new --answer
+  <chain>.<name>=<value>` (the wizard asks otherwise); they are public.
+- **Anchoring.** An optional `anchor: {mode: script, every-blocks: 10}` policy
+  per chain. Who anchors is decided later, not in the draft.
 
-Customize `appchain.yaml`, not those derived files. Each member signs with
-its own Ed25519 key. Every member operator creates that key on its own
-machine, keeps the private file there, and sends you only the public key. With
-OpenSSL 3 (the LibreSSL that macOS ships has no Ed25519; use Homebrew's
-`openssl@3`):
+Check what you wrote with:
 
 ```bash
-umask 077
-openssl genpkey -algorithm ed25519 -out member-signing-key.pem
-openssl pkey -in member-signing-key.pem -pubout -outform DER \
-  | tail -c 32 | od -An -tx1 | tr -d ' \n'; echo
+./yano.sh appchain inspect permissioned-pilot.draft.yaml
 ```
 
-The last command prints the member's 64-hex public key. In `appchain.yaml`,
-`spec.chains[0].topology` has empty lists, `memberKeys: []` and
-`nodeHosts: []`. Replace both with the keys and the members' hostnames, in the
-same order, so the first key belongs to the first host:
+The coordinator then sends the draft to each organization, or runs
+`./yano.sh appchain invite permissioned-pilot.draft.yaml --serve --host <coordinator-host>`
+and sends each organization its own join link instead; see
+[join links](../deployment/configure.md#easier-hand-out-join-links).
 
-```yaml
-    topology:
-      members: 3
-      memberKeys:
-      - "<member 0 public key, 64 hex>"
-      - "<member 1 public key>"
-      - "<member 2 public key>"
-      nodeHosts:
-      - "member0.pilot.example"
-      - "member1.pilot.example"
-      - "member2.pilot.example"
-```
+## 3. Each organization makes its own key
 
-If you have the keys before you run `init`, pass them to it instead: repeat
-`--member-key <64-hex>` and `--node-host <hostname>` once per member, in order.
-
-Then regenerate and check the project:
+Each organization, on the server that will run its node:
 
 ```bash
-./yano.sh appchain render permissioned-pilot
-./yano.sh appchain config validate --mode project permissioned-pilot
-./yano.sh appchain doctor permissioned-pilot \
-  --distribution /path/to/yano-x-jvm-<version>
+./yano.sh appchain request permissioned-pilot.draft.yaml --host node-a.pilot.example
 ```
 
-> **✓ You should see** `PROJECT_RENDERED`, then `VALID_PROJECT`, then the doctor
-> report. Its last line is `DOCTOR_OK`, `DOCTOR_WARNINGS`, or `DOCTOR_FAILED`.
+> **✓ You should see** `✓ Created node directory …/yano-node with a new member
+> key` and `✓ Wrote ./acme.member  (key id …, reachable at
+> node-a.pilot.example:13337)`.
 
-Read the doctor report line by line. Each line is a status, a check, and a
-detail. `FAIL` blocks a start. `WARN` and `PENDING` are a to-do list:
+The member key stays in `yano-node/secrets/member.key`, readable only by its
+owner. Only the card travels to the coordinator. Each card is signed by its
+key over the draft's invite code.
 
-- Until real public keys are pinned, the report warns about
-  `PUBLIC_MEMBER_IDENTITIES_REQUIRED_BEFORE_START`, and `IDENTITIES_READY`
-  stays `PENDING`. The generated start scripts refuse to start the project.
-- This project's rotating sequencer needs a synchronized L1 slot view, so
-  `EXTERNAL_TARGETS_READY` stays `PENDING` until you provide one. The result
-  is `DOCTOR_WARNINGS`, not `DOCTOR_OK`.
+## 4. Seal, and compare on a call
 
-Once the report has no `FAIL`, export the deployment for your VMs. The output
-directory must be missing or empty:
+With every card beside the draft, the coordinator seals:
 
 ```bash
-./yano.sh appchain gitops permissioned-pilot --target ansible \
-  --output permissioned-pilot-ansible
+./yano.sh appchain seal permissioned-pilot.draft.yaml
 ```
 
-> **✓ You should see** a line starting with `GITOPS_EXPORTED target=ansible`.
-> The export holds an inventory, a playbook, each node's configuration and a
-> systemd unit template. It refers to each member's signing key by the
-> variable `YANO_APPCHAIN_SIGNING_KEY` and contains no private key.
+> **✓ You should see** `✓ Sealed …/permissioned-pilot.chain`, each member with
+> its key id, each chain with its genesis id, and the chain fingerprint.
 
-`./yano.sh` is the public command for both paths. Internally, project and
-configuration commands use the separately packaged `appchain-devtools`
-engine, while `./yano.sh appchain cluster ...` invokes the bundled single-host
-launcher directly. Do not invoke the internal executable. Cluster startup does
-not run `init`, `render`, or project validation. Use the generated project for
-a multi-machine bootstrap, and the cluster command for the packaged local
-acceptance environment.
+`seal` fixes every chain's exact settings, the release versions, and the
+plugin bundle digests. Hold a call: the coordinator reads out the
+**chain fingerprint**, and each organization reads out its **key id** and
+checks it is listed under its own name. A card proves a key, not who sent it,
+so this call is the trust step. Record the fingerprint and the key ids where
+the organizations and your verifiers can find them.
 
-## 2. Freeze the application contract
+## 5. Join, start, and check
 
-Record and review:
+Each organization follows [Run your node on a server](../deployment/operators.md):
+`join permissioned-pilot.chain` (it shows the summary and asks to confirm),
+install the systemd unit that `join` writes, start, and run
+`./yano.sh appchain status permissioned-pilot`.
 
-- chain id and network;
-- member public keys, threshold, proposer/sequencer mode;
-- state-machine or composite profile id and digest;
-- deterministic limits and activation schedule;
-- command/state/effect contract versions;
-- anchor mode, validator identity, cadence, and stability depth; and
+> **✓ You should see** `[Live]`, `members online 3/3`, and `members agree` for
+> every chain.
+
+On preprod every node first syncs Cardano; the `Cardano:` line of `status`
+shows how far behind it is until it reports `up to date`. Compare the
+`Plugins:` catalog fingerprint across the organizations too. To anchor a chain
+later, one organization runs `./yano.sh appchain anchor permissioned-pilot` and
+funds the wallet it creates; that spends test ADA, so authorize it explicitly.
+
+## 6. Record the application contract
+
+The sealed file is the contract. Record and review alongside it:
+
+- chain ids, network, and the chain fingerprint;
+- member key ids, threshold, and the lead;
+- state-machine or composite profile, and its bindings document;
+- deterministic limits and any activation schedule;
+- command, state, and effect contract versions;
+- anchor mode, cadence, and which organization leads anchoring; and
 - effect outcome trust policy.
 
-All consensus-affecting values must be identical and profile-committed where
-required. Node-local YAML drift must not decide application semantics.
+Every consensus-affecting value is in the sealed genesis section, so the
+fingerprint covers it. Node-local settings, such as ports, storage paths and
+connector endpoints, must not decide application semantics. Each operator keeps
+their own in `yano-node/config/local.yaml`, which `join` never rewrites and
+`start` refuses if it touches a sealed setting.
 
-## 3. Separate every identity and secret
+## 7. Separate every identity and secret
 
-Each member supplies its own `secrets/nodeN.env` from the generated
-`secrets/nodeN.env.example`. The project's `.gitignore` excludes
-`secrets/*.env`, and the Ansible export never embeds private keys.
-
-`init` creates the `secrets/` directory with your default permissions,
-usually mode `755`, so other local users can list it. Before you put a private
-file there, make it owner-only:
-
-```bash
-chmod 700 permissioned-pilot/secrets
-```
-
-`YANO_APPCHAIN_SIGNING_KEY` is the 64-hex seed inside the member's
-`member-signing-key.pem`. On the member's own machine, next to its copy of the
-project, this writes it into the env file without printing it, here for node 0:
-
-```bash
-umask 077
-SEED=$(openssl pkey -in member-signing-key.pem -outform DER \
-  | tail -c 32 | od -An -tx1 | tr -d ' \n')
-printf 'YANO_APPCHAIN_SIGNING_KEY=%s\nYANO_APPCHAIN_API_KEYS=%s\n' \
-  "$SEED" "<this member's REST API key>" > permissioned-pilot/secrets/node0.env
-unset SEED
-```
-
-| Material | Purpose | Recommended owner/storage |
+| Material | Purpose | Where it lives |
 |---|---|---|
-| Member signing key | App-block votes and envelopes | One per member, KMS/HSM/secret manager |
-| Business actor key | Domain authorization | Actor organization or delegated signing service |
-| API key | REST authorization/scopes | API gateway/secret manager |
-| Anchor wallet key | Cardano fees/collateral | Capped hot wallet on anchor leader |
-| Connector credential | Kafka/S3/IPFS/API access | Executor host only |
-| TLS key/trust roots | Transport identity | Platform PKI |
+| Member key | App-block votes and envelopes | `yano-node/secrets/member.key` on that member's server only |
+| Node API key | Authorizes calls to that node's API | `yano-node/secrets/api.key`; issue gateway keys per caller in front of it |
+| Business actor key | Domain authorization | The actor organization, or a delegated signing service; see `appchain role` |
+| Anchor wallet key | Cardano fees for anchors | `yano-node/secrets/anchor.key`, only on the anchor leader; fund it with a capped amount |
+| Connector credential | Kafka, S3, IPFS, or API access | The executor host only |
+| TLS key and trust roots | Transport identity | Platform PKI |
 
-Never copy the deterministic demo keys, launcher API key, sample actor seeds,
-or local connector credentials into a shared environment.
+Back up each node directory. Never copy the deterministic demo keys, launcher
+API key, sample actor seeds, or local connector credentials into a shared
+environment.
 
-## 4. Choose the trust statement
+## 8. Choose the trust statement
 
 Document what the system actually proves:
 
@@ -218,7 +180,12 @@ Do not claim that an inspection, oracle value, shipment, API response, or
 payment outcome is independently true unless a separate auditor/source check
 establishes it.
 
-## 5. Replace demo infrastructure deliberately
+Consensus recovers from an offline leader through a certified view change,
+but by default it assumes no dishonest members. Choose the threshold for the
+faults you must survive; see Yano's
+[consensus guide](https://github.com/bloxbean/yano/blob/main/docs/APP_CHAIN_CONSENSUS_GUIDE.md).
+
+## 9. Replace demo infrastructure deliberately
 
 | Demo component | Pilot decision |
 |---|---|
@@ -232,35 +199,37 @@ establishes it.
 Changing an executor destination does not change deterministic effect intent,
 but it does change operational identity, reconciliation, and credentials.
 
-## 6. Establish operations before traffic
+## 10. Establish operations before traffic
 
-- Health/readiness for every member and plugin.
-- Root/profile parity gate across members.
+- Health and readiness for every member and plugin; `status` on a schedule.
+- Root and identity parity across members (`members agree` in `status`).
 - Metrics and alerts for app lag, finality, pool pressure, anchor lag, effect
   backlog/age/retries/parking, sink lag, and disk pressure.
-- Snapshot, restore, member onboarding, and retained-state identity runbooks.
-- Member-key and actor-key rotation/revocation exercises.
+- Backup and restore of each node directory, and a rehearsed member addition
+  and removal with `approve` ([Grow and change](../deployment/add-chain.md)).
+- Member-key and actor-key rotation and revocation exercises.
 - Connector outage and executor crash recovery.
-- Anchor-leader failure/recovery.
-- Evidence/proof archival before configured pruning horizons.
-- Explicit maintenance and governed-upgrade process.
+- Anchor-leader failure and recovery (`anchor --stop`, `anchor --take-over`).
+- Evidence and proof archival before configured pruning horizons.
+- An explicit maintenance and upgrade process (`join --accept-bundles`).
 
-## 7. Run acceptance in layers
+## 11. Run acceptance in layers
 
-1. Clean deterministic unit/conformance suites.
-2. Three-member packaged local cluster.
-3. Restart one member and prove catch-up/root parity.
-4. Stop/restart the full deployment from retained state.
-5. Connector fault matrix and duplicate-boundary tests.
-6. Load/soak test with recorded topology, rate, payloads, duration, lag,
+1. Clean deterministic unit and conformance suites.
+2. The `try` rehearsal, then a three-organization devnet application.
+3. Restart one member and prove catch-up and root parity.
+4. Stop and restart every node from retained state.
+5. Add and remove a member with `approve`.
+6. Connector fault matrix and duplicate-boundary tests.
+7. Load/soak test with recorded topology, rate, payloads, duration, lag,
    resources, and failures.
-7. Preview/preprod anchor smoke with independent L1 verification.
-8. Restore rehearsal from the retained backup procedure.
+8. Preview/preprod anchor smoke with independent L1 verification.
+9. Restore rehearsal from a node-directory backup.
 
 Keep acceptance artifacts with the release rather than relying on screenshots
 or a remembered manual session.
 
-## 8. Know the current escalation gates
+## 12. Know the current escalation gates
 
 - Material Cardano funds require the production action hardening tracked for
   `cardano.payment` and native assets.
@@ -270,15 +239,11 @@ or a remembered manual session.
 - Regulated personal data requires encryption/erasure guidance; immutable
   object/IPFS/on-chain digests are not a deletion mechanism.
 - Public validator participation is outside the current permissioned model.
-  Consensus recovers from an offline leader through a certified view change,
-  but by default it assumes no dishonest members. Choose the threshold for the
-  faults you must survive; see Yano's
-  [consensus guide](https://github.com/bloxbean/yano/blob/main/docs/APP_CHAIN_CONSENSUS_GUIDE.md).
 
-## 9. Choose the deployment shape
+## 13. Choose the deployment shape
 
 - **JVM distribution:** supports plugin-directory installation and is the
-  simplest extensible pilot shape.
+  simplest extensible pilot shape. Every operator installs the same release.
 - **Yano native image:** runs the core ordered-log capability only. Yano X
   plugins are JVM-only and cannot be installed into that image; choose the JVM
   distribution for a Yano X pilot.
@@ -289,13 +254,16 @@ or a remembered manual session.
 
 | You see | What it means and what to do |
 |---|---|
-| `Generated file has manual edits: ...; move the change into appchain.yaml or reconcile it explicitly` | A generated file was edited by hand. Move the change into `appchain.yaml` and render again. |
-| `DOCTOR_FAILED` with a `distribution-index` failure | The `--distribution` you pointed at is not the release the project was generated for. Use the matching release. |
-| `DOCTOR_FAILED` with a `tool-version` failure | You ran `doctor` from a different release than the one the project pins. Use that release's `yano.sh`. |
-| `Ansible export requires a JVM host project with one public key and hostname per member` | Pin every member's public key and host in `appchain.yaml`, then render again. |
+| `Members 2/3: waiting for initech` from `seal` | A card is missing. Ask that organization to run `request` and send its card. |
+| `This node's key (…) is not a member of permissioned-pilot` at `join` | The sealed file holds another key under your name. Do not start; tell the coordinator. |
+| `This distribution's plugin bundles differ from the sealed ones: …` | Install the same Yano X release the coordinator sealed with. |
+| `threshold 2 is not safe for 4 members; …` | A numeric threshold must be more than half of the members and at most all of them. |
 
 ## Go deeper
 
+- [Set up an application](../deployment/configure.md) and
+  [grow and change it](../deployment/add-chain.md)
+- [From demonstration to production](../PRODUCTION_DEPLOYMENT.md)
 - [Full user/operations guide](../../APP_CHAIN_USER_GUIDE.md)
 - [Profile-governance runbook](../../APP_CHAIN_PROFILE_GOVERNANCE.md)
 - [Canonical app-layer open items](../../../adr/app-layer/open_item.md)

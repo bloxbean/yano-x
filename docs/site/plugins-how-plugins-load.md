@@ -19,9 +19,8 @@ These commands read plugin JARs as data. None of them runs the plugin's code.
 |---|---|---|
 | `./yano.sh appchain plugin validate <jar> --trust-key <id>=<key>` (or `inspect`) | after `gradle jar` | The Ed25519 envelope over the catalog, runtime manifest and configuration metadata. `validate --output` exports a data-only catalog snapshot. |
 | `tools/yano-plugins/bin/yano-plugins validate <jar>` | before copying JARs to a node | The manifest, the match between manifest and ServiceLoader entries, no packaged Yano API classes, and API compatibility with this host. `--api-major` and `--api-level` target another host. Exit 2 means invalid. |
-| `./yano.sh appchain init --plugin-jar <jar> --trust-key …` | when you create the project | The signed snapshot; it then pins the catalog, manifest, metadata and JAR digests in `appchain.lock`. `render` and `doctor` re-verify the snapshot. |
-| `./yano.sh appchain doctor <project> --distribution <dir>` | before starting nodes | Every pinned JAR is present in the distribution and unchanged. |
-| `./yano.sh appchain drift <project> --peer <api-base-url>` | against running nodes | Each node's identity against the project, including its plugin catalog fingerprint. |
+| `./yano.sh appchain seal <app>.draft.yaml` | when the coordinator seals an application | Records the SHA-256 digest of every bundle each chain runs on in the sealed `<app>.chain` file. It resolves only the distribution's own catalog: custom signed component catalogs are not yet supported. |
+| `./yano.sh appchain join` and `start` | on each member, before its node starts | The node's installed bundles against the digests it accepted at `join`; a changed bundle refuses to start until the operator runs `join --accept-bundles`. |
 
 `yano-plugins` uses the same strict scanner as the node, so a JAR it rejects as
 malformed would also stop a node from starting. It is the quickest check after a
@@ -84,7 +83,7 @@ loader as its parent:
 
 | Question | Answer |
 |---|---|
-| Does the node verify the publisher's signature? | No. Signatures are checked by tooling: `plugin validate`, `inspect`, `metadata verify`, project rendering and `doctor`. Signed manifests and JARs at runtime are deferred work. |
+| Does the node verify the publisher's signature? | No. Signatures are checked by tooling: `plugin validate`, `inspect` and `metadata verify`. Signed manifests and JARs at runtime are deferred work. |
 | What does the node trust? | Any JAR in its plugin directory that passes the structural checks and the allow and deny lists. Protect that directory like the node's binaries. |
 | Does a valid signature approve the code? | No. It authenticates the catalog and manifest bytes, nothing more. |
 | What must match across members? | The same bundles, the same machine or profile ids and the same committed settings. A member with a different JAR can compute a different state root and stall. |
@@ -110,12 +109,10 @@ plugins' code, unsandboxed. Run them only on bundles you trust.
   start-up, and reports it as `pluginCatalogFingerprint` from
   `/api/v1/app-chain/chains/<chain-id>/identity` (under the configured API
   prefix).
-- **Find the member that differs.** `./yano.sh appchain drift <project> --peer
-  http://<member>:8080/api/v1/ --api-key-env <variable>` compares every node's
-  identity with the project. The variable holds one of the nodes' operator API
-  keys.
-  A plugin difference shows as `cluster.plugin-catalog` and the result is
-  `DRIFT_DETECTED`.
+- **Find the member that differs.** Compare `pluginCatalogFingerprint` across
+  the members' `identity` responses (a privileged route: send each node's API
+  key); the member whose value differs runs different plugins. `./yano.sh appchain status <app>` also flags a member that
+  reports a different genesis identity.
 - **Plugin health and metrics.** See Yano's
   [plugin operations guide](https://github.com/bloxbean/yano/blob/main/docs/PLUGIN_OPERATIONS.md).
 

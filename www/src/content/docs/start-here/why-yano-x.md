@@ -68,8 +68,8 @@ selects or manages them.
 
 Yano X is JVM-only: no GraalVM or native-image tasks and no native executables.
 Yano's native image is core-only and starts with `ordered-log`, but it cannot
-load Yano X bundles. `./yano.sh appchain doctor` reports a custom JVM plugin as
-incompatible with a native distribution.
+load Yano X bundles, so a custom JVM plugin is incompatible with a native
+distribution.
 
 ## Namespaces
 
@@ -86,13 +86,14 @@ Use the namespace of the artifact you consume:
 Whatever you build, the surface is the same:
 
 - `./yano.sh appchain …`: the main command line, shipped inside the
-  distribution. The deployment tool and some products add their own commands
+  distribution. It sets up an application with several operators (`new`,
+  `request`, `seal`, `join`, `start`) and checks recipes, bindings and plugins. The deployment tool and some products add their own commands
   under `tools/`.
 - The REST API and the server-sent event stream on each node.
 - The Java client SDK, and a Spring Boot starter, for typed commands and proof
   verification.
-- [App-Chain Studio](/studio/), for building and exporting a blueprint
-  visually.
+- [App-Chain Studio](/studio/), for authoring binding documents with guided
+  forms.
 
 Next: [Try the local showcase](/start-here/quickstart/), then
 [choose a recipe](/recipes/choosing-a-recipe/).

@@ -31,7 +31,7 @@ Maturity is independent of packaging. For example, a preview state machine can
 be bundled, while an optional connector can still be maintained by Yano.
 `chain` settings affect shared application semantics, `node` settings belong
 to one operator, and `distribution` entries describe packaged infrastructure.
-“Derived” means the distribution supplies the capability; a blueprint cannot
+“Derived” means the distribution supplies the capability; a setup draft cannot
 select it explicitly.
 
 ## Capabilities
@@ -112,10 +112,8 @@ capabilities first; users may then add only compatible selectable capabilities.
 - Yano X extensions are JVM-only. Yano's native distribution exposes only its
   core built-ins and cannot load these directory JARs.
 - Secrets, actor private keys, connector credentials, and wallet keys remain
-  node- or actor-local. They never belong in the blueprint, lock, Studio URL,
-  or shared consensus YAML.
-- `doctor` reports configuration, artifact, identity, bootstrap, executor,
-  external-target, and outcome readiness independently.
+  node- or actor-local. They never belong in the setup draft, the sealed
+  `.chain` file, or shared consensus YAML.
 
 See [Optional first-party connectors](OPTIONAL_CONNECTORS.md) for installation
 and security ownership, and [release acceptance](RELEASE_ACCEPTANCE.md) for the

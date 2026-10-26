@@ -82,6 +82,7 @@ export async function generateCatalog({ logger } = {}) {
     nativePosture: r.nativePosture,
     externalPrerequisites: r.externalPrerequisites ?? [],
     bootstrapRequirements: r.bootstrapRequirements ?? [],
+    answers: r.nonSecretAnswers ?? [],
     trustStatement: r.trustStatement,
     documentation: r.documentation ?? null,
     documentationUrl: docLink(r.documentation),
@@ -259,14 +260,38 @@ export function renderRecipeDetails(catalog) {
       out.push(`- **Reference:** [${label}](${r.documentationUrl})`);
     }
     out.push('');
-    out.push('```bash');
-    out.push(`./yano.sh appchain init --non-interactive \\`);
-    out.push(`  --recipe ${r.id} --network devnet --members 3 --runtime jvm \\`);
-    out.push(`  --output ${r.id}-chain`);
-    out.push('```');
+    out.push(...recipeSetupCommand(r));
     out.push('');
   }
   return out.join('\n');
+}
+
+// The setup draft a recipe starts from (ADR-056). A declarative composite takes
+// a binding document instead of a recipe; a custom plugin needs a signed
+// component catalog, which `appchain seal` does not accept yet.
+function recipeSetupCommand(r) {
+  if (r.category === 'custom-plugin') {
+    return [
+      '`appchain seal` does not yet accept a custom signed component catalog, so this recipe cannot be '
+        + 'selected in a setup draft. See [Scaffold, sign, install](/plugins/scaffold-sign-install/).',
+    ];
+  }
+  const chain = r.id === 'declarative-composite'
+    ? 'flow=bindings:examples/bindings/registry-to-audit.yaml'
+    : `${r.id}=${r.id}`;
+  const out = [
+    '```bash',
+    `./yano.sh appchain new ${r.id}-app --network devnet --operators alice,bob,carol \\`,
+    `  --chain ${chain}`,
+    '```',
+  ];
+  if (r.answers.length) {
+    out.push('');
+    out.push(`This recipe needs ${codeList(r.answers)}. Give each with \`--answer ${r.id}.<name>=<value>\` `
+      + '(the wizard asks for any that is missing), or set them under the chain\'s `answers:` in the draft '
+      + 'before sealing.');
+  }
+  return out;
 }
 
 export function renderCapabilities(catalog) {

@@ -180,7 +180,7 @@ public record Draft(
         out.append("# Operators send member cards made with: yano.sh appchain request ")
                 .append(name).append(".draft.yaml\n");
         out.append("name: ").append(name).append('\n');
-        out.append("invite: ").append(invite).append("            # written by `new`; do not edit\n");
+        out.append("invite: ").append(quote(invite)).append("          # written by `new`; do not edit\n");
         out.append("network: ").append(network).append("                # devnet | preview | preprod | mainnet\n");
         out.append("operators: [").append(String.join(", ", operators)).append("]    # the first is the lead\n");
         out.append("threshold: ").append(threshold)
@@ -190,7 +190,8 @@ public record Draft(
                 .append("              # fixed: the lead proposes every block | rotating: members take turns\n");
         out.append("chains:\n");
         for (Chain chain : chains) {
-            out.append("  - id: ").append(chain.id()).append('\n');
+            out.append("  - id: ").append(Character.isLetter(chain.id().charAt(0)) ? chain.id() : quote(chain.id()))
+                    .append('\n');
             out.append("    recipe: ").append(chain.recipe()).append('\n');
             if (!chain.capabilities().isEmpty()) {
                 out.append("    capabilities: [").append(String.join(", ", chain.capabilities())).append("]\n");

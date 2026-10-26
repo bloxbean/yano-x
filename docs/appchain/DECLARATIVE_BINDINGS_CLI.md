@@ -2,7 +2,7 @@
 
 For a guided introduction, start with [your first workflow](bindings/01-first-workflow.md).
 The [learning path](bindings/README.md) explains separate YAML versus inline
-blueprints, and the [Studio editor chapter](bindings/06-guided-editor.md) shows the
+documents, and the [Studio editor chapter](bindings/06-guided-editor.md) shows the
 guided editor that uses the catalog and report files described
 [below](#editor-catalogs-and-reports).
 
@@ -190,8 +190,9 @@ the context shipped for its role-gated variant, which uses the same genesis:
 ```
 
 Never use the demo keys in production. For your own organizations, actors, and
-keys, declare a governed map's genesis in a project and render it, as described
-in [governed collections](state-machines/authenticated-map.md#governed-collections);
+keys, declare a governed map's genesis in the `authenticatedMap` section of a
+setup draft and seal it, as described in
+[governed collections](state-machines/authenticated-map.md#governed-collections);
 each actor signs its proof of key possession offline with
 `appchain role key-proof-signature`. The DPP and feed starter generators moved
 with those products to
@@ -254,7 +255,7 @@ builtin, OrderedLog, uses the same explicit resolution branch as a running node.
 
 ## Document
 
-The input is the blueprint's `composite` object, either directly or wrapped in
+The input is a chain's `composite` object, either directly or wrapped in
 one `composite` property. This example copies every accepted key/value change
 to an audit trail:
 
@@ -519,42 +520,44 @@ jq '.height = 4 | .timestamp = 400 | .messages = []' approve-2.json > idle.json
 The idle block has no receipts; it still runs the full block lifecycle. Height 5
 cannot directly follow `approved.json` at height 3, even with an empty message list.
 
-## Blueprint projects
+## Deploying a document
 
-Initialize from an explicit document and installed authoring bundles:
+A binding document is deployed as one chain of an application. The coordinator
+names it when creating the setup draft, and the file is copied beside the draft
+as `<chain>.bindings.yaml`:
 
 ```bash
-./yano.sh appchain init --non-interactive --recipe declarative-composite \
-  --network devnet --members 3 --member-key "$MEMBER_1" --member-key "$MEMBER_2" \
-  --member-key "$MEMBER_3" --bindings bindings.yaml --plugins-directory plugins \
-  --output workflow-project
+./yano.sh appchain new workflow --network devnet --operators alice,bob,carol \
+  --chain flow=bindings:bindings.yaml
 ```
 
-The genesis pins the topology's member public keys, so `init` needs them. For
-disposable keys on a same-machine JVM devnet, replace the three `--member-key`
-options with `--generate-local-member-keys`; see
-[deploying a workflow locally](bindings/04-java-integration.md#deploy-the-workflow-on-a-local-devnet).
+Equivalently, write the chain into the draft by hand, with either a file
+reference or the document body inline:
 
-`--bindings` and `--plugins-directory` are required together and rejected for
-other recipes. Input paths
-resolve against the invocation directory; the imported document is copied into
-the blueprint, so later edits to the original file do not silently change the
-project. The plugin location is stored relative to the blueprint where possible
-(absolute when filesystem roots differ). Rendering validates before creating
-project output.
+```yaml
+chains:
+  - id: flow
+    recipe: declarative-composite
+    bindings: ./bindings.yaml        # or put the body under `composite:`
+```
 
-Select recipe `declarative-composite` and put the composite document's body in
-the chain's `composite` field. Supply all topology member public keys, and set
-`spec.runtime.pluginsDirectory` to the dependency-complete authoring bundles.
-A relative directory resolves against the project blueprint directory, never
-the shell's working directory. This is an authoring-only location: it is not
-copied into generated node properties or treated as consensus identity.
+A relative `bindings:` path resolves against the draft's directory. The draft
+is ordinary YAML, so you can keep editing the referenced document until the
+application is sealed. `seal` reads it, compiles it against the
+dependency-complete bundles in the distribution's `plugins/` directory, and
+copies it into the sealed `<app>.chain` file. That file is self-contained:
+later edits to the original document do not change the sealed chain. The sealed
+genesis also records the SHA-256 digest of every plugin bundle the chain runs on,
+and `join` and `start` refuse a node whose bundles differ. Every member node
+therefore needs the same bundles installed.
 
-Rendering constructs the actual catalog-selected composite, writes its canonical
-IR into the chain configuration, and pins the IR digest, composite profile digest,
-and plugin catalog fingerprint in `appchain.lock`. Validation and change planning
-recompute these pins; replacing local bundles cannot silently preserve an old
-lock. Deployment still needs its own installed runtime plugin directory.
+Run the commands on this page against the same `plugins/` directory before you
+seal, so a seal failure is not the first sign of a problem. The rest of the
+ceremony (member cards, `seal`, `join`, `start`) is described in
+[set up an application](deployment/configure.md). `./yano.sh appchain try`
+rehearses that ceremony on one machine with a ready-made recipe. Chapter 4 runs
+it on one machine for a binding document, with three operator directories:
+[deploy the workflow on a local devnet](bindings/04-java-integration.md#deploy-the-workflow-on-a-local-devnet).
 
 The offline commands validate a fixed genesis composite profile. They do not
 rehearse composite-profile governance activation or accept arbitrary

@@ -23,7 +23,7 @@ the showcase also need Python 3, `curl`, and `jq`.
 | `yano.sh` | You want local app ledger members with the standard Yano X plugin set: one node, or a small cluster on one machine. | `./yano.sh appchain cluster start 1` |
 | `examples/showcase/` | You want the quickest local three-node, multi-ledger demonstration. | `cd examples/showcase && ./showcase.sh quickstart --profile light --nodes 3 --instance demo` |
 | `tools/yano-deploy/` | You want to render and apply multi-node OpenTofu and Ansible deployments. | `tools/yano-deploy/bin/yano-x-deploy init ./cluster` |
-| `studio/` | You want the browser-based blueprint editor. It is a static site. | `cd studio && python3 -m http.server 8080` |
+| `studio/` | You want the browser-based binding editor. It is a static site. | `cd studio && python3 -m http.server 8080` |
 | `plugins/` | You already operate the matching Yano JVM release and want to select Yano X runtime bundles yourself. | Copy reviewed bundles into the node plugin directory. |
 
 The archive embeds the exact compatible Yano host identity in
@@ -37,7 +37,7 @@ carries the same files as the matching path in the JVM archive:
 | --- | --- |
 | `yano-x-plugin-pack-<version>.zip` | `plugins/`, `yano-x-plugin-pack-v1.json`, the SBOM, and a README naming the one Yano release the bundles run on |
 | `yano-x-deploy-<version>.zip` | The deployment CLI (`bin/yano-x-deploy`) with its own libraries and the provider-neutral deployment material |
-| `yano-x-studio-<version>.zip` | App-Chain Studio as a static site |
+| `yano-x-jvm-<version>-<os>-<arch>.zip` | The whole JVM archive plus a bundled Java 25 runtime, for machines without Java (Linux x64/arm64, macOS arm64) |
 
 ## Run one node
 
@@ -96,8 +96,10 @@ cd yano-x-jvm-<version>/studio
 python3 -m http.server 8080
 ```
 
-Open `http://localhost:8080`, create a blueprint, and download `appchain.yaml`.
-Validate the downloaded intent with the CLI from the same release.
+Open `http://localhost:8080` and choose **Bindings** to compose state machines
+with a binding document. Check the downloaded document with
+`./yano.sh appchain bindings` from the same release, and deploy it as a chain of
+an application with `./yano.sh appchain new <app> --chain <id>=bindings:<file>`.
 
 ## Use the deployment CLI
 

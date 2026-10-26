@@ -142,7 +142,7 @@ state machine's exact wire format — see the
 
 ---
 
-## 3. Quick start: generated project or two-node manual setup
+## 3. Quick start: setup CLI or two-node manual setup
 
 This walkthrough uses `java -jar` with `-D` flags (built from source). The
 **official distributions** work the same way — only where ordinary runtime
@@ -159,57 +159,49 @@ The public REST prefix is the exception: it is an immutable artifact input,
 not a `-D` or YAML launch setting. Build it with `-PyanoApiPrefix` as described
 in section 4 and the distribution guide.
 
-### 3.0 Recommended: generate a release-pinned project
+### 3.0 Recommended: set up an application with `appchain`
 
-The distribution includes the separate app-chain developer tool behind
-`yano.sh`; it does not start the node while generating or validating:
+The distribution includes the app-chain setup tool behind `yano.sh`. It sets up
+an app ledger run by several operators, each holding a private key that never
+leaves their machine:
 
 ```bash
-unzip yano-<version>.zip && cd yano-<version>
+unzip yano-x-jvm-<version>.zip && cd yano-x-jvm-<version>
+./yano.sh appchain try        # rehearse every step on this machine first
 ./yano.sh appchain recipes
-./yano.sh appchain init --non-interactive \
-  --recipe owned-registry --network preprod --members 3 \
-  --deployment host --output product-registry
 ```
 
-The user-owned source is `product-registry/appchain.yaml`. The initializer
-materializes all consensus defaults, node overlays, schema/catalog snapshots,
-secret-reference examples, an AI skill, CI checks, and `appchain.lock`. If
-member public keys are not known yet, the lock records
-`PUBLIC_MEMBER_IDENTITIES_REQUIRED_BEFORE_START`; add the three public keys to
-the blueprint and regenerate:
+The coordinator creates a draft; each operator makes a key and a member card;
+the coordinator seals the cards into one file; each operator joins and starts:
 
 ```bash
-./yano.sh appchain render product-registry
-./yano.sh appchain config validate --mode project product-registry
-./yano.sh appchain doctor product-registry --distribution .
+coordinator$ ./yano.sh appchain new product-registry --network preprod \
+               --operators alice,bob,carol --chain registry=owned-registry
+operator$    ./yano.sh appchain request product-registry.draft.yaml   # → alice.member
+coordinator$ ./yano.sh appchain seal product-registry.draft.yaml       # → product-registry.chain
+operator$    ./yano.sh appchain join product-registry.chain
+operator$    ./yano.sh appchain start
+anyone$      ./yano.sh appchain status product-registry
 ```
 
-Provision each node's private signer only in its untracked
-`secrets/nodeN.env`, then copy the same validated project to the three
-machines. Each operator starts only its node index with
-`scripts/start-node N`; the shared consensus file and lock remain identical.
+`seal` resolves every chain through the release's recipe and capability
+catalog once and writes the exact consensus settings, the member keys and the
+plugin bundle digests into `product-registry.chain`. Every operator compares
+its chain fingerprint and each member's key id on a call before confirming
+`join`. `join` writes the node's configuration under its node directory
+(default `./yano-node`), and on Linux also a systemd unit file to install. Each
+operator deploys only their own node; there is no cluster-wide export. Later,
+`approve` adds or removes members, `anchor` optionally anchors a chain to
+Cardano, and `status` shows which members are online and whether they report
+the same genesis identity. See
+[set up an application](appchain/deployment/configure.md) and
+[grow and change](appchain/deployment/add-chain.md).
 
-For Kubernetes delivery, derive reviewed output from the validated project:
+The guarded `configure-yano-appchain` AI skill ships under `skills/` in the
+release.
 
-```bash
-./yano.sh appchain gitops product-registry \
-  --target helm --output product-registry-helm
-./yano.sh appchain gitops product-registry \
-  --target kustomize --output product-registry-kustomize
-```
-
-The exporter creates Secret references, never Secret values, and writes a
-`gitops.lock` binding the manifests to the blueprint, resolved configuration,
-release catalog, and generated-file hashes. It does not apply manifests or
-operate a cluster. Devnet is intentionally excluded because its current
-launcher generates ephemeral genesis inputs.
-
-The generated `.github/workflows/appchain-verify.yml` requires repository
-variables `YANO_DISTRIBUTION_URL` and `YANO_DISTRIBUTION_SHA256`; it accepts
-only the exact checksum-pinned HTTPS distribution. The same guarded
-`configure-yano-appchain` skill is available under `skills/` in the release
-and `ai/` in the project.
+The manual configuration below documents the settings `seal` and `join` write.
+Use it to understand them, or to run a node without the setup tool.
 
 ### 3.1 Generate member keys
 

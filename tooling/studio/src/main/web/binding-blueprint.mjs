@@ -23,7 +23,9 @@ export class BlueprintError extends Error {
 function chains(root) {
   const spec = mapEntry(root, 'spec')?.value;
   const list = mapEntry(spec ?? root, 'chains')?.value;
-  if (list?.kind !== 'seq') throw new BlueprintError('BLUEPRINT_SHAPE', 'The blueprint has no spec.chains list');
+  if (list?.kind !== 'seq') {
+    throw new BlueprintError('BLUEPRINT_SHAPE', 'The file has no chains list (a draft\'s chains or a blueprint\'s spec.chains)');
+  }
   return list.items;
 }
 
@@ -41,10 +43,11 @@ export function readBlueprint(text) {
   const ids = new Set();
   const composites = [];
   items.forEach((chain, chainIndex) => {
-    const id = mapEntry(chain, 'chainId')?.value;
+    // A setup draft names a chain `id`; a legacy blueprint names it `chainId`.
+    const id = mapEntry(chain, 'chainId')?.value ?? mapEntry(chain, 'id')?.value;
     const chainId = id?.kind === 'scalar' && id.type === 'text' ? id.value : null;
     if (chainId === null || ids.has(chainId)) {
-      throw new BlueprintError('BLUEPRINT_CHAIN_IDS', 'Every chain needs a unique text chainId');
+      throw new BlueprintError('BLUEPRINT_CHAIN_IDS', 'Every chain needs a unique text id');
     }
     ids.add(chainId);
     const recipe = mapEntry(chain, 'recipe')?.value;
@@ -65,7 +68,7 @@ export function draftForChain(blueprint, chainIndex) {
 
 function replaceComposite(tree, chainIndex, replacement) {
   const copy = structuredClone(tree);
-  const spec = copy.map.find(([key]) => key === 'spec')[1];
+  const spec = copy.map.find(([key]) => key === 'spec')?.[1] ?? copy;
   const list = spec.map.find(([key]) => key === 'chains')[1];
   const chain = list.seq[chainIndex];
   chain.map.find(([key]) => key === 'composite')[1] = replacement;

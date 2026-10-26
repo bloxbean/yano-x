@@ -18,7 +18,7 @@ say `appchain`.
 | [6. Webhook effects](06-webhook-effects.md) | Intermediate | 20 min | A finalized decision invokes an external HTTP endpoint |
 | [7. Anchors and verification](07-anchors-and-verification.md) | Intermediate | 20 min | An application proof connected to a Cardano anchor |
 | [8. Plugins and composites](08-plugins-and-composites.md) | Advanced | 30–60 min | Yano extended without rebuilding or forking the host |
-| [9. From demo to pilot](09-from-demo-to-pilot.md) | Advanced | Planning session | A reviewed project and a deployment plan |
+| [9. From demo to pilot](09-from-demo-to-pilot.md) | Advanced | Planning session | A rehearsed multi-operator setup and a deployment plan |
 
 Tutorial 4 and the evidence track of tutorial 5 use Docker Compose for their
 services. Tutorial 8 also needs a Java build tool.
@@ -43,10 +43,10 @@ appears only after you build from source; when a command is missing, check
 ## Tutorial conventions
 
 - Treat `./yano.sh` as the product command. Use `./yano.sh appchain cluster ...`
-  for the bundled single-host cluster, and the same wrapper for `appchain init`,
-  `render`, `config`, `doctor`, `diff`, and `drift`. The internal
-  `appchain-devtools` executable is a packaging boundary, not a second CLI to
-  learn.
+  for the bundled single-host demo cluster these tutorials run on. To run an
+  application with other operators, use `appchain new`, `request`, `seal`,
+  `join`, `start`, and `status`; `./yano.sh appchain try` rehearses them on one
+  machine. See [Set up an application](../deployment/configure.md).
 - Local devnet data is disposable. `stop` preserves it; `clean` deletes it.
 - The cluster's member HTTP ports are `7070`–`7072`, and the Evidence Explorer
   uses `7080`. If the defaults are busy, launchers print the range they chose.

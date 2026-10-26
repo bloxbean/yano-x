@@ -51,8 +51,8 @@ repository disagree.
 | [Cluster launcher](https://github.com/bloxbean/yano-x/blob/main/scripts/appchain-cluster/README.md) | Per-node overlays, chain definitions, membership, load and soak tests. |
 | [Evidence chain demo](https://github.com/bloxbean/yano-x/blob/main/docs/EVIDENCE_CHAIN_DEMO.md) | The complete scripted evidence scenario and its acceptance checks. |
 | [Showcase demo](https://github.com/bloxbean/yano-x/blob/main/examples/showcase/DEMO_SHOWCASE.md) | Operating the unified showcase distribution. |
-| [Developer tools](https://github.com/bloxbean/yano-x/blob/main/tooling/devtools/README.md) | The offline engine behind `yano.sh appchain`. |
-| [App-Chain Studio](/studio/) | The blueprint builder, hosted here. |
+| [Developer tools](https://github.com/bloxbean/yano-x/blob/main/tooling/devtools/README.md) | The offline recipe, capability, binding and plugin tools behind `yano.sh appchain`. |
+| [App-Chain Studio](/studio/) | The binding editor, hosted here. |
 
 ## eUTxO ledger
 

@@ -133,5 +133,5 @@ the generated identity and data directories together.
 | `explicit HTTP range 7070-7072 is busy (port ...)` | Another program holds the showcase ports. Stop it and run the same command again, or start a new instance with other ports, for example `--instance second-demo --http-base 7170 --server-base 14337`. |
 | `run showcase.sh from examples/showcase in an extracted Yano X JVM distribution` | Run the script from inside the extracted JVM ZIP, not from a source checkout. |
 
-**Next:** continue with [your own application profile](/deployment/configure/), or explore the
+**Next:** [set up your own application with other operators](/deployment/configure/), or explore the
 [complete showcase](https://github.com/bloxbean/yano-x/blob/main/examples/showcase/docs/MASTER_DEMO.md).

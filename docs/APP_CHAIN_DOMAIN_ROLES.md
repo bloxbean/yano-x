@@ -88,18 +88,24 @@ The profile intentionally exposes no public `doc-trail.command.v1` route;
 document-trail entries are produced only by that atomic approved-release
 workflow.
 
-For application-neutral authorization, initialize the generic recipe:
+For application-neutral authorization, select the generic recipe for a chain
+of an application:
 
 ```bash
-./yano.sh appchain init --recipe role-approval --network devnet --members 3 \
-  --output role-approval
+./yano.sh appchain new roles --network devnet --operators alice,bob,carol \
+  --chain role-approval-chain=role-approval
 ```
 
-The generated `bootstrap/role-approvals-plan.yaml` describes organizations,
-actors, key proof-of-possession, policy clauses, governed activation, and exact
-verification routes without containing private keys. The generic machine
-stores the payload domain and approved 32-byte payload hash. It does not
-interpret or execute the payload and emits no effect.
+A role bootstrap plan describes organizations, actors, key
+proof-of-possession, policy clauses, governed activation, and exact
+verification routes without containing private keys. `seal` writes a template
+for each such chain beside the sealed file (here
+`role-approval-chain.role-plan.yaml`); once the chain is live,
+`./yano.sh appchain role bootstrap --plan role-approval-chain.role-plan.yaml`
+encodes it. The [role approvals reference](appchain/state-machines/role-approvals.md)
+walks through filling in the plan and the bootstrap. The generic machine stores
+the payload domain and approved 32-byte payload hash. It does not interpret or
+execute the payload and emits no effect.
 
 ## 4. End-to-end authorization
 
