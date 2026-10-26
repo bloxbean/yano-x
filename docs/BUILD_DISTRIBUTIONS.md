@@ -85,6 +85,14 @@ standalone archives with the same content for users who need only one part:
 `tooling/deployment/build/distributions/yano-x-deploy-<version>.zip`. The binding
 editor ships inside the JVM archive under `studio/` and is served by
 `yano.sh appchain ui`.
+
+`./gradlew :distribution:jvm:yanoXSelfContainedDistZip` builds the self-contained
+edition for the build machine's OS and architecture:
+`distribution/jvm/build/distributions/yano-x-jvm-<version>-<os>-<arch>.zip`. It is
+the JVM archive plus a jlink-trimmed Java 25 runtime under `runtime/`, which
+`yano.sh` uses when present, so the machine needs no Java installation. The release
+workflow builds one per platform on its own runner (Linux x64 and arm64, macOS
+arm64); it is not a native image.
 `verifyYanoXJvmDistribution` checks that the plugin pack carries exactly the
 bundles, manifest, and SBOM of the JVM archive.
 

@@ -34,6 +34,7 @@ carries the same files as the matching path in the JVM archive:
 | --- | --- |
 | `yano-x-plugin-pack-<version>.zip` | `plugins/`, `yano-x-plugin-pack-v1.json`, the SBOM, and a README naming the one Yano release the bundles run on |
 | `yano-x-deploy-<version>.zip` | The deployment CLI (`bin/yano-x-deploy`) with its own libraries and the provider-neutral deployment material |
+| `yano-x-jvm-<version>-<os>-<arch>.zip` | The whole JVM archive plus a bundled Java 25 runtime, for machines without Java (Linux x64/arm64, macOS arm64) |
 
 ## Run one node
 

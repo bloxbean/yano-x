@@ -598,3 +598,69 @@ tasks.named('assemble') {
     dependsOn tasks.named('yanoXPluginPackZip'),
             tasks.named('yanoXJvmDistZip')
 }
+
+// ADR-056 A3: the same distribution with a jlink-trimmed Java runtime under runtime/, built for the host
+// OS and architecture (CI builds one per platform). yano.sh prefers the bundled runtime, so neither
+// coordinators nor operators install Java. It is not a native image: Yano X stays JVM-only.
+def hostOs = System.getProperty('os.name').toLowerCase(Locale.ROOT).with {
+    it.contains('mac') ? 'macos' : it.contains('win') ? 'windows' : 'linux'
+}
+def hostArch = System.getProperty('os.arch').with { it == 'amd64' || it == 'x86_64' ? 'x64' : it == 'aarch64' ? 'arm64' : it }
+def selfContainedName = "yano-x-jvm-${distVersion}-${hostOs}-${hostArch}"
+def selfContainedWork = layout.buildDirectory.dir('self-contained')
+// Generous on purpose: plugin bundles may use any of these, and a missing module fails only at runtime.
+def bundledRuntimeModules = ['java.se', 'jdk.httpserver', 'jdk.unsupported', 'jdk.crypto.ec', 'jdk.crypto.cryptoki',
+        'jdk.management', 'jdk.management.agent', 'jdk.management.jfr', 'jdk.jfr', 'jdk.zipfs', 'jdk.naming.dns',
+        'jdk.net', 'jdk.charsets', 'jdk.localedata']
+
+tasks.register('prepareSelfContainedDistribution') {
+    dependsOn tasks.named('yanoXJvmDistZip')
+    def archive = tasks.named('yanoXJvmDistZip', Zip).flatMap { it.archiveFile }
+    inputs.file(archive)
+    outputs.dir(selfContainedWork)
+    doLast {
+        def work = selfContainedWork.get().asFile
+        project.delete(work)
+        project.copy {
+            from(project.zipTree(archive.get().asFile))
+            into(work)
+        }
+        def root = new File(work, distributionRoot)
+        // The JDK running the build, which the build requires to be Java 25; its jmods become the runtime.
+        if (Runtime.version().feature() != 25) throw new GradleException('the self-contained edition needs a Java 25 build JDK')
+        def jdk = new File(System.getProperty('java.home'))
+        def jlink = new File(jdk, 'bin/jlink' + (hostOs == 'windows' ? '.exe' : ''))
+        def process = new ProcessBuilder(jlink.absolutePath, '--add-modules', bundledRuntimeModules.join(','),
+                '--strip-debug', '--no-header-files', '--no-man-pages', '--compress', 'zip-6',
+                '--output', new File(root, 'runtime').absolutePath).redirectErrorStream(true).start()
+        def output = process.inputStream.text
+        if (process.waitFor() != 0) throw new GradleException("jlink failed: ${output}")
+        def launcher = new File(root, 'yano.sh')
+        def marker = 'export YANO_HOME="$YANO_ROOT"\n'
+        def text = launcher.getText('UTF-8')
+        if (!text.contains(marker)) throw new GradleException('yano.sh layout changed; cannot add the runtime prelude')
+        launcher.setText(text.replace(marker, marker + '''
+# Self-contained edition (ADR-056 A3): prefer the bundled Java runtime.
+if [ -x "$YANO_ROOT/runtime/bin/java" ]; then
+    export JAVA_HOME="$YANO_ROOT/runtime"
+    PATH="$JAVA_HOME/bin:$PATH"
+fi
+'''), 'UTF-8')
+        launcher.setExecutable(true, false)
+    }
+}
+
+tasks.register('yanoXSelfContainedDistZip', Zip) {
+    dependsOn tasks.named('prepareSelfContainedDistribution')
+    group = 'distribution'
+    description = 'Creates the Yano X distribution with a bundled Java runtime for this OS and architecture.'
+    archiveFileName = "${selfContainedName}.zip"
+    destinationDirectory = layout.buildDirectory.dir('distributions')
+    from(selfContainedWork) {
+        // Zip trees lose POSIX modes; restore them for launchers and the runtime's executables.
+        filesMatching(['**/*.sh', '**/bin/*', '**/runtime/lib/jspawnhelper', '**/runtime/lib/*.so',
+                       '**/runtime/lib/*.dylib']) {
+            permissions { unix('755') }
+        }
+    }
+}
