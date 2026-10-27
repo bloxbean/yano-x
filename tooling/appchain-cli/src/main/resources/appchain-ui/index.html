@@ -4,82 +4,152 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="description" content="Set up and run a Yano app chain with other operators.">
-  <title>App-Chain Setup</title>
+  <meta name="color-scheme" content="light dark">
+  <title>App-Chain Setup · Yano</title>
   <link rel="stylesheet" href="app.css">
 </head>
 <body>
-  <header class="masthead">
-    <span class="brand"><span class="brand-mark" aria-hidden="true"></span>Yano <strong>App-Chain Setup</strong></span>
-    <span id="node-badge" class="badge">No node yet</span>
+  <a class="skip" href="#flow">Skip to the setup steps</a>
+  <header class="topbar">
+    <div class="brand">
+      <svg class="mark" viewBox="0 0 32 32" aria-hidden="true">
+        <defs><linearGradient id="mark" x1="0" y1="0" x2="1" y2="1">
+          <stop class="a" offset="0"/><stop class="b" offset="1"/></linearGradient></defs>
+        <path d="M16 2 28 9v14l-12 7L4 23V9z" fill="url(#mark)"/>
+        <path d="M10 12.5 16 16l6-3.5M16 16v7" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"
+          stroke-linejoin="round" opacity=".92"/>
+      </svg>
+      <div><strong>Yano App-Chain</strong><span>Setup</span></div>
+    </div>
+    <ol class="stepper" id="stepper" aria-label="Setup progress">
+      <li data-step="create"><span class="dot"></span><span class="label">Create</span></li>
+      <li data-step="cards"><span class="dot"></span><span class="label">Member cards</span></li>
+      <li data-step="seal"><span class="dot"></span><span class="label">Seal</span></li>
+      <li data-step="join"><span class="dot"></span><span class="label">Join</span></li>
+      <li data-step="live"><span class="dot"></span><span class="label">Live</span></li>
+    </ol>
+    <div class="node-pill" id="node-pill"><span class="status-dot"></span><span id="node-badge">No node yet</span></div>
   </header>
-  <main>
-    <section class="intro">
-      <ol class="steps" aria-label="Setup steps">
-        <li><strong>Create</strong> a draft (coordinator)</li>
-        <li><strong>Request</strong> a member card (every operator)</li>
-        <li><strong>Seal</strong> the draft with all cards (coordinator)</li>
-        <li><strong>Join</strong> after comparing the fingerprint (every operator)</li>
-        <li><strong>Start</strong> and watch it go live</li>
-      </ol>
-      <p class="note">Every button runs the same <code>yano.sh appchain</code> command shown under it, in
-        <code id="work-dir">…</code>. Private keys stay in the node directory and never reach this page.</p>
-      <p id="problems" class="warn" hidden></p>
-    </section>
 
-    <section class="panel" aria-labelledby="create-title">
-      <h2 id="create-title">Create an application <span class="role">coordinator</span></h2>
-      <form id="create-form" class="grid">
-        <label>Application name <input name="name" required pattern="[a-z][a-z0-9-]{0,62}" placeholder="supply"></label>
-        <label>Cardano network
-          <select name="network">
-            <option value="devnet">devnet (local test network, made by the lead)</option>
-            <option value="preview">preview</option><option value="preprod">preprod</option>
-            <option value="mainnet">mainnet</option>
-          </select></label>
-        <label class="wide">Operators, you first <input name="operators" required placeholder="alice,bob,carol"></label>
-        <label>Signatures per block
-          <select name="threshold"><option>majority</option><option>two-thirds</option><option>all</option></select></label>
-        <label>Who proposes blocks
-          <select name="sequencing"><option value="fixed">the lead (fixed)</option>
-            <option value="rotating">members take turns</option></select></label>
-        <fieldset class="wide">
-          <legend>Chains</legend>
-          <div id="chain-rows"></div>
-          <button type="button" id="add-chain" class="secondary">Add a chain</button>
-        </fieldset>
-        <div class="wide actions"><button type="submit">Create draft</button></div>
-      </form>
-    </section>
+  <div class="layout">
+    <main id="flow" class="flow">
+      <section class="hero">
+        <h1 id="hero-title">Set up an app chain with your partners</h1>
+        <p id="hero-text">Every button runs the same <code>yano.sh appchain</code> command shown beside it, in
+          <code id="work-dir">…</code>. Private keys stay in the node directory and never reach this page.</p>
+        <p id="problems" class="banner bad" hidden></p>
+      </section>
 
-    <section class="panel" aria-labelledby="drafts-title">
-      <h2 id="drafts-title">Drafts and member cards</h2>
-      <div id="drafts"><p class="note">No draft here yet. Create one above, or add a draft file you received.</p></div>
-      <label class="file">Add a draft, card or sealed file you received
-        <input type="file" id="upload" accept=".yaml,.member,.chain"></label>
-    </section>
+      <section class="card" id="create" aria-labelledby="create-title">
+        <header class="card-head">
+          <span class="icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span>
+          <div><h2 id="create-title">Create an application</h2>
+            <p class="sub">Name it, list the operators and choose its chains. Edit the draft freely until it is sealed.</p></div>
+          <span class="role">Coordinator</span>
+        </header>
+        <details id="create-details" open>
+          <summary>New application</summary>
+          <form id="create-form" class="form">
+            <label>Application name
+              <input name="name" required pattern="[a-z][a-z0-9-]{0,62}" placeholder="supply" autocomplete="off"></label>
+            <label>Cardano network
+              <select name="network">
+                <option value="devnet">devnet: a local test network the lead creates</option>
+                <option value="preview">preview</option><option value="preprod">preprod</option>
+                <option value="mainnet">mainnet</option>
+              </select></label>
+            <label class="wide">Operators, you first
+              <input name="operators" required placeholder="alice, bob, carol" autocomplete="off"></label>
+            <label>Signatures per block
+              <select name="threshold"><option>majority</option><option>two-thirds</option><option>all</option></select></label>
+            <label>Who proposes blocks
+              <select name="sequencing"><option value="fixed">the lead (fixed)</option>
+                <option value="rotating">members take turns</option></select></label>
+            <fieldset class="wide chains">
+              <legend>Chains</legend>
+              <div id="chain-rows"></div>
+              <button type="button" id="add-chain" class="ghost">+ Add a chain</button>
+            </fieldset>
+            <div class="wide form-foot">
+              <span class="hint" id="create-hint">yano.sh appchain new …</span>
+              <button type="submit" class="primary">Create draft</button>
+            </div>
+          </form>
+        </details>
+      </section>
 
-    <section class="panel" aria-labelledby="sealed-title">
-      <h2 id="sealed-title">Sealed applications <span class="role">every operator</span></h2>
-      <div id="sealed"><p class="note">No sealed file here yet.</p></div>
-    </section>
+      <section class="card" id="cards" aria-labelledby="drafts-title">
+        <header class="card-head">
+          <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="14" rx="2"/>
+            <path d="M8 10h8M8 14h5"/></svg></span>
+          <div><h2 id="drafts-title">Member cards and seal</h2>
+            <p class="sub">Each operator makes a key and a member card; the coordinator seals the draft once every card is in.</p></div>
+          <span class="role">Every operator</span>
+        </header>
+        <div id="drafts"></div>
+        <label class="drop">
+          <input type="file" id="upload" accept=".yaml,.member,.chain,.json">
+          <span>Add a draft, member card, sealed file or topics plan you received</span>
+        </label>
+      </section>
 
-    <section class="panel" aria-labelledby="node-title">
-      <h2 id="node-title">This node</h2>
-      <div id="node"><p class="note">This node has no key yet: make a member card for a draft first.</p></div>
-    </section>
+      <section class="card" id="join" aria-labelledby="sealed-title">
+        <header class="card-head">
+          <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 11V8a5 5 0 0 1 10 0v3"/>
+            <rect x="5" y="11" width="14" height="9" rx="2"/></svg></span>
+          <div><h2 id="sealed-title">Compare and join</h2>
+            <p class="sub">On a call, everyone reads out the chain fingerprint and their key id. Join only when they match.</p></div>
+          <span class="role">Every operator</span>
+        </header>
+        <div id="sealed"></div>
+      </section>
 
-    <section class="panel" aria-labelledby="bindings-title">
-      <h2 id="bindings-title">Several state machines in one chain</h2>
-      <p>Compose state machines with the <a href="/studio/bindings.html" target="_blank" rel="noopener">binding
-        editor</a>. Save the document next to the draft and reference it from a chain as
-        <code>bindings: ./flow.yaml</code>; seal copies it into the sealed file.</p>
-    </section>
+      <section class="card" id="live" aria-labelledby="node-title">
+        <header class="card-head">
+          <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 12h4l3-7 4 14 3-7h4"/></svg></span>
+          <div><h2 id="node-title">Live applications</h2>
+            <p class="sub">What this node runs, whether every member agrees, and what to do next.</p></div>
+        </header>
+        <div id="apps"></div>
+      </section>
 
-    <section class="panel" aria-labelledby="log-title">
-      <h2 id="log-title">Activity</h2>
-      <div id="log" aria-live="polite"></div>
-    </section>
-  </main>
+      <section class="card subtle" aria-labelledby="bindings-title">
+        <header class="card-head">
+          <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="6" cy="6" r="2.5"/>
+            <circle cx="18" cy="18" r="2.5"/><circle cx="18" cy="6" r="2.5"/><path d="M8.5 6h7M6 8.5v4a5.5 5.5 0 0 0 5.5 5.5h4"/></svg></span>
+          <div><h2 id="bindings-title">Studio</h2>
+            <p class="sub">Compose state machines with the <a href="/studio/bindings.html" target="_blank"
+              rel="noopener">binding editor</a>, or write a namespace change with the
+              <a href="/studio/topics.html" target="_blank" rel="noopener">topics editor</a>. Save a bindings file
+              next to the draft and reference it as <code>bindings: ./flow.yaml</code>; seal copies it in.</p></div>
+        </header>
+      </section>
+    </main>
+
+    <aside class="side">
+      <section class="card node-card" aria-labelledby="this-node-title">
+        <h2 id="this-node-title">This node</h2>
+        <div id="node"></div>
+      </section>
+      <section class="card console" aria-labelledby="log-title">
+        <div class="console-head"><h2 id="log-title">Activity</h2><button type="button" class="ghost tiny" id="clear-log">Clear</button></div>
+        <div id="log" aria-live="polite"><p class="empty">Commands you run appear here with their output.</p></div>
+      </section>
+    </aside>
+  </div>
+
+  <dialog id="dialog" aria-labelledby="dialog-title">
+    <form method="dialog">
+      <h2 id="dialog-title"></h2>
+      <div id="dialog-body"></div>
+      <div class="dialog-actions">
+        <button value="cancel" class="ghost">Cancel</button>
+        <button value="ok" class="primary" id="dialog-ok">Continue</button>
+      </div>
+    </form>
+  </dialog>
+  <div id="toasts" class="toasts" role="status" aria-live="polite"></div>
   <script type="module" src="app.mjs"></script>
 </body>
 </html>
