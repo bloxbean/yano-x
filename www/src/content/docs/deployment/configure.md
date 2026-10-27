@@ -423,10 +423,13 @@ is a member vote: send the plan to every operator, and each runs
 ./yano.sh appchain topics approve topics.plan.json
 ```
 
-which votes through their own node and waits until the namespace is in effect;
-it is safe to run again. Changes inside a namespace are signed by its owners
+which shows what it votes for, asks for a yes (`--yes` in scripts), votes
+through their own node and waits until the namespace is in effect; it never
+votes twice, so it is safe to run again. On an idle chain add `--heartbeat`. Changes inside a namespace are signed by its owners
 instead: each owner runs `topics sign topics.plan.json --key-file <seed file>`,
-and anyone runs `topics submit topics.signed.json`. Studio's **Topics** page
+and anyone runs `topics submit topics.signed.json`, which waits until it is in
+effect. `topics public-key <seed file>` prints the public key to put in
+`topics.yaml`. Studio's **Topics** page
 writes `topics.yaml` with a form if you prefer. See
 [protect a topic and give users session keys](/recipes/topic-session-keys/).
 

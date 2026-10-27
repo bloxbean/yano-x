@@ -18,6 +18,8 @@ const integer = (id, what) => {
   return BigInt(value);
 };
 const keys = id => $(id).value.split(/\s+/).filter(Boolean).map(key => key.toLowerCase());
+let fileName = 'topics.yaml';
+let autoExpiry = true;
 
 function download(name, content) {
   const url = URL.createObjectURL(new Blob([content], {type: 'application/octet-stream'}));
@@ -36,7 +38,7 @@ function showFields() {
 }
 
 function showNext(document) {
-  $('next-steps').textContent = nextSteps(document).join('\n');
+  $('next-steps').textContent = nextSteps(document, fileName).join('\n');
 }
 
 function fromForm() {
@@ -44,7 +46,8 @@ function fromForm() {
   const authority = $('authority').value.trim();
   const command = {target: $('target').value.trim(), operation, authority, nonce: nonce()};
   if (authority !== 'governance') {
-    if (!$('not-after').value.trim()) $('not-after').value = String(Date.now() + 3_600_000);
+    // A filled-in expiry that has passed would only fail at plan time; a typed one is kept as written.
+    if (autoExpiry || !$('not-after').value.trim()) $('not-after').value = String(Date.now() + 3_600_000);
     command.notAfter = integer('not-after', 'the expiry');
   }
   if (NEEDS_OWNERS.includes(operation)) {
@@ -74,9 +77,9 @@ action('apply-form', () => {
 });
 action('export-yaml', () => {
   const document_ = readTopics($('document').value);
-  download('topics.yaml', topicsYaml(document_));
+  download(fileName, topicsYaml(document_));
   showNext(document_);
-  notice('Downloaded topics.yaml.');
+  notice(`Downloaded ${fileName}.`);
 });
 $('yaml-file').addEventListener('change', async () => {
   try {
@@ -85,10 +88,13 @@ $('yaml-file').addEventListener('change', async () => {
     const document_ = readTopics(decodeUtf8Strict(new Uint8Array(await file.arrayBuffer())));
     $('document').value = topicsYaml(document_);
     $('chain-id').value = document_.chainId;
+    fileName = /^[A-Za-z0-9._-]{1,64}\.(ya?ml|json)$/.test(file.name) ? file.name : 'topics.yaml';
+    $('export-yaml').textContent = `Download ${fileName}`;
     showNext(document_);
     notice(`Imported ${file.name}.`);
   } catch (error) { notice(error.message, true); }
 });
 for (const id of ['operation', 'authority']) $(id).addEventListener('input', showFields);
+$('not-after').addEventListener('input', () => { autoExpiry = !$('not-after').value.trim(); });
 showFields();
 showNext({commands: [{authority: 'governance'}]});

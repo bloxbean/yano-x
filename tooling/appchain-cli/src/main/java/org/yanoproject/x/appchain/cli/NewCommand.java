@@ -9,6 +9,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -115,11 +116,14 @@ final class NewCommand {
 
     /** Applies {@code --topics chain=members|anyone|registrars:alice+bob}. */
     private static List<Draft.Chain> withTopics(List<Draft.Chain> chains, List<String> flags) {
-        Map<String, Draft.Topics> topics = new java.util.HashMap<>();
+        Map<String, Draft.Topics> topics = new HashMap<>();
         for (String flag : flags) {
             int equals = flag.indexOf('=');
-            if (equals <= 0) throw CliException.usage("--topics must look like games=members or games=registrars:alice");
+            if (equals <= 0) {
+                throw CliException.usage("--topics must look like games=members or games=registrars:alice");
+            }
             String id = flag.substring(0, equals);
+            if (topics.containsKey(id)) throw CliException.usage("--topics names chain '" + id + "' twice");
             String value = flag.substring(equals + 1);
             if (chains.stream().noneMatch(chain -> chain.id().equals(id))) {
                 throw CliException.usage("--topics names chain '" + id + "', which the application does not have");
@@ -141,7 +145,7 @@ final class NewCommand {
             return null;
         }
         String create = terminal.choose("Who may create a top-level namespace on '" + id + "'?",
-                Draft.Topics.CREATE, List.of("the members, by a vote of every operator's node",
+                Draft.Topics.CREATE, List.of("the members, by a vote that reaches the block threshold",
                         "named operators sign it alone (members can still vote)",
                         "anyone, first come (members can still recover a namespace)"),
                 "members", "--topics " + id + "=<who>");
@@ -151,7 +155,8 @@ final class NewCommand {
                     operators.getFirst(), "--topics " + id + "=registrars:<a>+<b>").split(","))
                     .map(String::strip).filter(item -> !item.isEmpty()).toList();
         }
-        String unregistered = terminal.choose("Messages on topics that no namespace covers:", Draft.Topics.UNREGISTERED,
+        String unregistered = terminal.choose("Messages on topics that no namespace covers:",
+                Draft.Topics.UNREGISTERED,
                 List.of("accept them as today; protect only what you register",
                         "refuse them; the chain then makes blocks only from registered topics"), "open",
                 "unregistered: in the draft");

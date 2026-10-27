@@ -458,8 +458,12 @@ ceremony like any other genesis choice:
   (`<name>.plan.json`, `<name>.signed.json`) and every step ends with `Next:`. A node's key is
   never sent to a peer named on the command line.
 - `topics approve <plan>` is an operator's member vote on a governance plan, cast through their own
-  node, like `approve` for members: it checks the plan's generation, waits for activation, offers
-  heartbeats on chains that accept them, and is safe to repeat.
+  node, like `approve` for members: it checks the plan's generation, shows what it votes for and asks
+  (`--yes` for scripts), and votes only when this member has no vote in the current tally and the
+  change is not decided yet, because a vote after quorum would open a second tally that re-applies
+  it. It then waits until the planned content is active, stops if another change took the planned
+  revision, offers heartbeats only on chains that accept them, and is safe to repeat. `topics submit`
+  waits the same way for owner-signed changes, and `topics init` picks the authority from the chain.
 - Studio's Topics page is a form that writes `topics.yaml` and lists the CLI steps. It no longer
   compiles plans, reads chains, compiles CDDL or checks composites: those duplicated `topics plan`,
   `resolve` and `doctor`, and the CLI re-validates every plan anyway.

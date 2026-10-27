@@ -100,7 +100,7 @@ export function topicsYaml(document) {
 
 /** The CLI commands that follow for this document, in order. */
 export function nextSteps(document, file = 'topics.yaml') {
-  const plan = file.replace(/\.(ya?ml|json)$/, '') + '.plan.json';
+  const plan = file.replace(/\.(ya?ml|json)$/, '') + '.plan.json'; // as topics plan names it
   const signed = plan.replace(/\.plan\.json$/, '.signed.json');
   const votes = document.commands.some(command => command.authority === 'governance');
   const signatures = document.commands.some(command => command.authority !== 'governance');

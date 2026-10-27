@@ -22,7 +22,7 @@ one-machine rehearsal:
 | Every existing operator | `approve <name>.member`, `approve --remove <name>` | Add or remove a member on every chain, quorum-safely |
 | One operator | `anchor [<app>]` | Optional: anchor a chain to Cardano from this node |
 | Every existing operator | `topics approve <plan>` | Vote on a namespace change of a chain sealed with `topics:`, through this node |
-| Namespace owners | `topics init\|plan\|sign\|submit\|resolve\|delegate\|doctor` | Manage a namespace's owners, writers and schema from this node directory; `--json` for scripts |
+| Namespace owners | `topics init\|plan\|sign\|submit\|resolve\|delegate\|doctor\|public-key` | Manage a namespace's owners, writers and schema from this node directory; `--json` for scripts |
 | Anyone | `inspect <file>` | Show and check a draft, card, or sealed file; `--map-genesis <chain>` prints an authenticated map's genesis CBOR hex |
 
 Every command prints a `Next:` line. Add `--help` to a command for its options.

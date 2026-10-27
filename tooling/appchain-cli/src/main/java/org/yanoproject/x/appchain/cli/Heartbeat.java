@@ -27,6 +27,17 @@ final class Heartbeat {
         };
     }
 
+    /**
+     * Whether a chain accepts heartbeats: its topic registry, when it has one, must accept unregistered topics.
+     * Read from the chain, because member governance can change it after genesis.
+     */
+    static boolean allowed(NodeClient client, String path) {
+        return client.get(path + "/topics/config")
+                .map(config -> !config.path("enabled").asBoolean(false)
+                        || !config.path("config").path("settings").path("unregisteredReject").asBoolean(false))
+                .orElse(true);
+    }
+
     static Map<String, String> message(String machine) {
         byte[] nonce = new byte[16];
         RANDOM.nextBytes(nonce);

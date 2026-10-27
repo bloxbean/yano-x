@@ -34,8 +34,10 @@
             <option value="rotate">Rotate its owners</option><option value="recover">Recover it (member vote)</option>
             <option value="retire">Retire it</option><option value="revoke">Revoke a session credential</option></select></div>
           <label>Target namespace or topic<input id="target" type="text" value="games/" maxlength="256"></label>
-          <label>Authority<input id="authority" type="text" value="governance" maxlength="256"
+          <label>Authority<input id="authority" type="text" value="governance" maxlength="256" list="authorities"
             aria-describedby="authority-help"></label>
+          <datalist id="authorities"><option value="governance"><option value="~registrars"><option value="~claim">
+            <option value="~issuer"></datalist>
         </div>
         <p id="authority-help" class="note"><code>governance</code> is a member vote (top-level namespaces and recovery);
           an owning namespace such as <code>games/</code> is its owners' signatures; <code>~registrars</code> and
@@ -58,7 +60,7 @@
           <label for="revoke-delegation">Session credential to revoke (hex)</label><textarea id="revoke-delegation" rows="3" maxlength="8192" spellcheck="false"></textarea>
           <p class="note">Use the credential's exact scope as the target.</p>
         </div>
-        <label id="expiry-field">Signatures expire at (Unix ms)<input id="not-after" type="number" min="0"></label>
+        <label id="expiry-field">Signatures expire at (Unix ms; empty means one hour from writing)<input id="not-after" type="number" min="0"></label>
         <button id="apply-form" type="button">Write this change into topics.yaml</button>
         <details><summary>Edit or import topics.yaml</summary>
           <label for="document">topics.yaml</label><textarea id="document" rows="17" spellcheck="false"></textarea>

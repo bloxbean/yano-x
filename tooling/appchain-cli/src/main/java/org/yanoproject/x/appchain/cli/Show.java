@@ -2,6 +2,7 @@ package org.yanoproject.x.appchain.cli;
 
 import org.yanoproject.x.appchain.formats.SealedApp;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -44,12 +45,13 @@ final class Show {
         String who;
         if (!keys.isBlank()) {
             List<String> registrars = Arrays.asList(keys.split(","));
-            List<String> names = new java.util.ArrayList<>(genesis.members().stream()
+            List<String> names = new ArrayList<>(genesis.members().stream()
                     .filter(member -> registrars.contains(member.publicKey())).map(SealedApp.Member::name).toList());
             registrars.stream().filter(key -> genesis.members().stream().noneMatch(member -> member.publicKey()
                     .equals(key))).forEach(key -> names.add("key " + keyId(key)));
             String threshold = settings.getOrDefault("topics.creation.registrars.threshold", "1");
-            who = "namespaces created by " + ("1".equals(threshold) ? "" : threshold + " of ") + String.join(", ", names)
+            who = "namespaces created by " + ("1".equals(threshold) ? "" : threshold + " of ")
+                    + String.join(", ", names)
                     + " or by member vote";
         } else if ("true".equals(settings.get("topics.creation.open-claims"))) {
             who = "namespaces claimed first-come by anyone";

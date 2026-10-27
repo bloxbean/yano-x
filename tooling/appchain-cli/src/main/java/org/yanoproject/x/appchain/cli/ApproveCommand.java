@@ -117,7 +117,7 @@ final class ApproveCommand {
             client.post(change.path() + "/admin/threshold", Map.of("threshold", wanted));
             thresholds.add(new Wait(change.chain().id(), change.path(), status -> status.path("membershipEpochActive")
                     .asBoolean(false) && status.path("membershipActiveThreshold").asInt() == wanted,
-                    "threshold " + wanted));
+                    "threshold " + wanted, Heartbeat.allowed(client, change.path())));
         }
         heartbeat = awaitAll(client, thresholds, deadline, heartbeat);
 
@@ -128,7 +128,7 @@ final class ApproveCommand {
                         Map.of("publicKey", key));
             }
             activations.add(new Wait(change.chain().id(), change.path(), change.active(),
-                    (remove == null ? "adding " : "removing ") + name));
+                    (remove == null ? "adding " : "removing ") + name, Heartbeat.allowed(client, change.path())));
         }
         awaitAll(client, activations, deadline, heartbeat);
         for (Change change : changes) {
@@ -171,7 +171,7 @@ final class ApproveCommand {
                           Predicate<JsonNode> active) {
     }
 
-    private record Wait(String chain, String path, Predicate<JsonNode> done, String what) {
+    private record Wait(String chain, String path, Predicate<JsonNode> done, String what, boolean heartbeats) {
     }
 
     /** Waits until every chain's change is active, sending heartbeats to the idle ones if the operator agrees. */
@@ -204,12 +204,18 @@ final class ApproveCommand {
             }
             for (int index = 0; index < pending.size(); index++) {
                 Wait wait = pending.get(index);
-                String effect = Heartbeat.effect(machines.get(index));
+                // Heartbeats use an unregistered topic, which a chain refusing unregistered topics never accepts.
+                String effect = wait.heartbeats() ? Heartbeat.effect(machines.get(index)) : null;
                 if (effect != null && !asked) {
-                    heartbeat = terminal.confirm(wait.chain() + " may be idle. Send heartbeat messages to make "
-                            + "blocks? Each one " + effect, false);
                     asked = true;
-                    if (!heartbeat) terminal.say("Then send ordinary traffic to idle chains so they make blocks.");
+                    if (terminal.interactive()) {
+                        heartbeat = terminal.confirm(wait.chain() + " may be idle. Send heartbeat messages to make "
+                                + "blocks? Each one " + effect, false);
+                        if (!heartbeat) terminal.say("Then send ordinary traffic to idle chains so they make blocks.");
+                    } else {
+                        terminal.say("Chains make blocks only from messages. If one is idle, send traffic, or run "
+                                + "again with --heartbeat.");
+                    }
                 }
                 if (heartbeat && effect != null) {
                     try {
