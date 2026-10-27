@@ -274,6 +274,10 @@ public final class TopicPlan {
     }
 
     private static void validateOperationFields(JsonNode command, String operation, String authority) {
+        // The operation is checked before any message names it; the target was checked by the caller.
+        if (!Set.of("create", "update", "rotate", "recover", "retire", "revoke").contains(operation)) {
+            throw invalid("unknown operation; use create, update, rotate, recover, retire or revoke");
+        }
         boolean ownerChange = Set.of("create", "rotate", "recover").contains(operation);
         boolean policyChange = Set.of("create", "update").contains(operation);
         String target = command.path("target").asText("?");
@@ -360,10 +364,10 @@ public final class TopicPlan {
     static void fields(JsonNode node, Set<String> names) {
         if (node == null || !node.isObject()) throw invalid("expected an object");
         node.fieldNames().forEachRemaining(name -> {
-            // A pasted key as a field name stays out of the message.
+            // Only a name shaped like a field is repeated, so a pasted key or value never is.
             if (!names.contains(name)) {
-                throw invalid("unknown field " + (name.length() > 40 ? "(name not shown)" : "'" + name + "'")
-                        + "; allowed: " + String.join(", ", new TreeSet<>(names)));
+                throw invalid("unknown field " + (name.matches("[a-z][A-Za-z]{0,31}") ? "'" + name + "'"
+                        : "(name not shown)") + "; allowed: " + String.join(", ", new TreeSet<>(names)));
             }
         });
     }

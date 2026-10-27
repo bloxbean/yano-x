@@ -35,7 +35,7 @@ final class Heartbeat {
         return client.get(path + "/topics/config")
                 .map(config -> !config.path("enabled").asBoolean(false)
                         || !config.path("config").path("settings").path("unregisteredReject").asBoolean(false))
-                .orElse(true);
+                .orElse(false); // an unreadable configuration offers no heartbeats rather than futile ones
     }
 
     static Map<String, String> message(String machine) {

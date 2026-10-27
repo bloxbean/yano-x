@@ -243,9 +243,13 @@ final class UiCommand {
                                         .put("operation", vote.operation()).put("target", vote.target());
                                 // Where this member's vote stands, as topics approve would report it.
                                 if (live) {
-                                    item.put("progress", TopicsCommand.progress(NodeClient.local(voter),
-                                            "/api/v1/app-chain/chains/" + vote.chainId(), voter.publicKey(), vote)
-                                            .name());
+                                    try {
+                                        item.put("progress", TopicsCommand.progress(NodeClient.local(voter),
+                                                "/api/v1/app-chain/chains/" + vote.chainId(), voter.publicKey(),
+                                                vote).name());
+                                    } catch (CliException unreadable) {
+                                        item.put("progress", "UNKNOWN"); // the page offers the vote; approve checks
+                                    }
                                 }
                             }
                         } catch (IOException | IllegalArgumentException notVotes) {

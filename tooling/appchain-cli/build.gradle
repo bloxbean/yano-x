@@ -8,6 +8,10 @@ dependencies {
     implementation libs.jackson.databind
     implementation libs.jackson.dataformat.yaml
     runtimeOnly libs.slf4j.nop
+    // Tests encode host topic state the way a node serves it.
+    testImplementation(rootProject.ext.yanoModule('yano-core-api')) {
+        transitive = false
+    }
 }
 
 application {

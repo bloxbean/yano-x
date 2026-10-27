@@ -14,9 +14,11 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -82,14 +84,17 @@ final class TopicsCommand {
                 submitted.put(target, id);
             }
         }
-        if (votes) {
-            terminal.next("every operator runs  yano.sh appchain topics approve <the unsigned plan>");
-            return 0;
-        }
+        String voteLine = "every operator runs  yano.sh appchain topics approve <the unsigned plan>  for the votes";
         String first = submitted.keySet().stream().findFirst().map(TopicsCommand::example).orElse("<topic>");
-        if (noWait || defaults.peer() == null || submitted.isEmpty()) {
-            terminal.next("it takes effect after the chain's activation lag; check with  yano.sh appchain topics "
-                    + "resolve " + first);
+        // Waiting reads the node that took the submission: this node, never a peer named on the command line.
+        if (noWait || defaults.peer() == null || arguments.contains("--peer") || submitted.isEmpty()) {
+            List<String> next = new ArrayList<>();
+            if (!submitted.isEmpty()) {
+                next.add("it takes effect after the chain's activation lag; check with  yano.sh appchain topics "
+                        + "resolve " + first);
+            }
+            if (votes) next.add(voteLine);
+            terminal.next(next.toArray(String[]::new));
             return 0;
         }
         NodeClient client = new NodeClient(defaults.peer(), defaults.apiKey());
@@ -106,7 +111,8 @@ final class TopicsCommand {
                     () -> "Send traffic to the chain, or run submit again with --heartbeat");
             terminal.ok(target + (revision == null ? " is revoked" : " is in effect"));
         }
-        terminal.next("yano.sh appchain topics resolve " + first);
+        terminal.next(votes ? new String[] {voteLine, "then  yano.sh appchain topics resolve " + first}
+                : new String[] {"yano.sh appchain topics resolve " + first});
         return 0;
     }
 
@@ -253,31 +259,43 @@ final class TopicsCommand {
     }
 
     private boolean inEffect(NodeClient client, String path, TopicsCli.Vote vote) {
-        TopicsCli.Progress progress = progress(client, path, null, vote);
+        TopicsCli.Progress progress;
+        try {
+            progress = progress(client, path, null, vote);
+        } catch (CliException unreadable) {
+            return false; // a read the node could not answer is tried again on the next round
+        }
         if (progress == TopicsCli.Progress.SUPERSEDED) throw superseded(vote);
         return progress == TopicsCli.Progress.IN_EFFECT;
     }
 
     /** Where a vote stands on this node: its target's entry and, for this member, the governance tally. */
     static TopicsCli.Progress progress(NodeClient client, String path, String memberKey, TopicsCli.Vote vote) {
-        String name = URLEncoder.encode(vote.target(), StandardCharsets.UTF_8).replace("+", "%20");
-        JsonNode entry = client.get(path + "/topics/entries/" + name).orElse(null);
-        String tally = null;
-        long height = 0;
-        long window = 0;
-        if (memberKey != null) {
-            JsonNode state = client.get(path + "/state/entry/" + TopicsCli.governanceTallyKeyHex()).orElse(null);
-            tally = state == null || !"PRESENT".equals(state.path("presence").asText()) ? null
-                    : state.path("valueHex").asText(null);
-            height = state == null ? 0 : state.path("height").asLong(0);
-            if (height == 0) {
-                height = client.get(path + "/status").map(status -> status.path("stateCommitment")
-                        .path("version").asLong()).orElse(0L);
-            }
-            window = client.get(path + "/topics/config").map(config -> config.path("config").path("settings")
-                    .path("governanceWindowBlocks").asLong(0)).orElse(0L);
+        // Every read is pinned to one committed height, so a quorum landing between reads cannot look like an
+        // open vote; a read the node cannot answer stops the command instead of counting as absence.
+        try {
+            long height = client.require(path + "/status").path("stateCommitment").path("version").asLong();
+            long window = client.require(path + "/topics/config").path("config").path("settings")
+                    .path("governanceWindowBlocks").asLong(0);
+            return TopicsCli.progress(vote, memberKey == null ? "" : memberKey, pinned(client, path, height), height,
+                    window);
+        } catch (IOException | CliException unreadable) {
+            throw CliException.failure("Cannot read where the vote stands from this node (" + unreadable.getMessage()
+                    + "); no vote was cast. Try again");
         }
-        return TopicsCli.progress(vote, memberKey == null ? "" : memberKey, entry, tally, height, window);
+    }
+
+    /** State values at one committed height; a read the node cannot answer fails rather than reading as absent. */
+    private static TopicsCli.StateReader pinned(NodeClient client, String path, long height) {
+        return key -> {
+            JsonNode value = client.require(path + "/state/entry/" + HexFormat.of().formatHex(key) + "?height="
+                    + height);
+            return switch (value.path("presence").asText()) {
+                case "PRESENT" -> Optional.of(HexFormat.of().parseHex(value.path("valueHex").asText()));
+                case "ABSENT", "TOMBSTONED" -> Optional.empty();
+                default -> throw new IOException("the node returned no state presence");
+            };
+        };
     }
 
     /** Why a vote is not in effect yet, for the timeout message. */
