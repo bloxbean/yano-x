@@ -74,9 +74,12 @@ message check runs when one of the chains uses `audit-log`.
 ```
 
 **Prefer a browser?** `./yano.sh appchain ui` opens a page on this computer
-(127.0.0.1 only) with the same steps: create, member cards, seal, compare and
-join, start, status, approve and anchor. Every button runs the command shown
-under it, so the files are the same as from the terminal.
+(127.0.0.1 only) with the same steps: create (topic policies included), member
+cards, seal, compare and join, start, status, approve, topic votes and anchor.
+A progress bar shows where the application is, and once this node has joined,
+its live dashboard comes first. Every button runs the command shown under it,
+so the files are the same as from the terminal. The page can vote on a topics
+plan you received; planning and signing stay in the terminal with their keys.
 
 ## 2. The coordinator creates the draft
 

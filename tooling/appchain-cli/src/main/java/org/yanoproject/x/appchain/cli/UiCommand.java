@@ -9,6 +9,7 @@ import com.sun.net.httpserver.HttpServer;
 import org.yanoproject.x.appchain.formats.Draft;
 import org.yanoproject.x.appchain.formats.MemberCard;
 import org.yanoproject.x.appchain.formats.SealedApp;
+import org.yanoproject.x.devtools.TopicsCli;
 import org.yanoproject.x.devtools.AppChainSealResolver;
 
 import java.io.ByteArrayOutputStream;
@@ -40,7 +41,9 @@ final class UiCommand {
             + " [--no-open]";
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final Set<String> VERBS = Set.of("new", "request", "seal", "inspect", "join", "start", "stop",
-            "status", "approve", "anchor");
+            "status", "approve", "anchor", "topics");
+    /** The page may only vote on a topics plan; planning and signing stay with their owners' keys. */
+    private static final Set<String> TOPIC_ACTIONS = Set.of("approve");
     private static final Pattern FILE_NAME = Pattern.compile("[A-Za-z0-9][A-Za-z0-9._-]{0,120}");
     private static final Map<String, String> TYPES = Map.of("html", "text/html; charset=utf-8",
             "mjs", "text/javascript; charset=utf-8", "js", "text/javascript; charset=utf-8",
@@ -120,7 +123,8 @@ final class UiCommand {
                 JsonNode body = JSON.readTree(read(exchange.getRequestBody(), 64 * 1024));
                 List<String> arguments = new ArrayList<>();
                 body.path("args").forEach(item -> arguments.add(item.asText()));
-                if (arguments.isEmpty() || !VERBS.contains(arguments.getFirst())) {
+                if (arguments.isEmpty() || !VERBS.contains(arguments.getFirst()) || "topics".equals(arguments.getFirst())
+                        && (arguments.size() < 2 || !TOPIC_ACTIONS.contains(arguments.get(1)))) {
                     sendJson(exchange, 400, JSON.createObjectNode().put("error", "not an allowed command"));
                     return;
                 }
@@ -130,14 +134,19 @@ final class UiCommand {
                 JsonNode body = JSON.readTree(read(exchange.getRequestBody(), 1024 * 1024));
                 String name = body.path("name").asText("");
                 if (!FILE_NAME.matcher(name).matches() || !(name.endsWith(".member") || name.endsWith(".chain")
-                        || name.endsWith(".yaml"))) {
+                        || name.endsWith(".yaml") || name.endsWith(".plan.json"))) {
                     sendJson(exchange, 400, JSON.createObjectNode().put("error",
-                            "only .member, .chain and .yaml files can be added"));
+                            "only .member, .chain, .yaml and .plan.json files can be added"));
                     return;
                 }
                 String content = body.path("content").asText("");
                 if (name.endsWith(".member")) MemberCard.parse(content);
                 if (name.endsWith(".chain")) SealedApp.parse(content);
+                if (name.endsWith(".plan.json")
+                        && !"TopicsPlan".equals(JSON.readTree(content).path("kind").asText())) {
+                    sendJson(exchange, 400, JSON.createObjectNode().put("error", name + " is not a topics plan"));
+                    return;
+                }
                 NodeDir.write(work.resolve(name), content);
                 sendJson(exchange, 200, JSON.createObjectNode().put("saved", name));
             }
@@ -161,11 +170,11 @@ final class UiCommand {
         List<String> resolved = new ArrayList<>();
         for (String argument : arguments) {
             boolean file = FILE_NAME.matcher(argument).matches() && (argument.endsWith(".yaml")
-                    || argument.endsWith(".member") || argument.endsWith(".chain"));
+                    || argument.endsWith(".member") || argument.endsWith(".chain") || argument.endsWith(".plan.json"));
             resolved.add(file ? work.resolve(argument).toString() : argument);
         }
         String verb = arguments.getFirst();
-        if (Set.of("request", "join", "start", "stop", "status", "approve", "anchor").contains(verb)
+        if (Set.of("request", "join", "start", "stop", "status", "approve", "anchor", "topics").contains(verb)
                 && !arguments.contains("--node-dir")) {
             resolved.addAll(List.of("--node-dir", nodeDir.toString()));
         }
@@ -197,6 +206,7 @@ final class UiCommand {
         ArrayNode drafts = state.putArray("drafts");
         ArrayNode sealed = state.putArray("sealed");
         ArrayNode cards = state.putArray("cards");
+        ArrayNode plans = state.putArray("plans");
         try (var files = Files.list(work)) {
             for (Path file : files.sorted().toList()) {
                 String name = file.getFileName().toString();
@@ -209,7 +219,8 @@ final class UiCommand {
                                         Files.isRegularFile(work.resolve(draft.name() + ".chain")));
                         draft.operators().forEach(entry.putArray("operators")::add);
                         draft.chains().forEach(chain -> entry.withArray("chains").addObject().put("id", chain.id())
-                                .put("recipe", chain.recipe()));
+                                .put("recipe", chain.recipe())
+                                .put("topics", chain.topics() == null ? null : chain.topics().summary()));
                     } else if (name.endsWith(".chain")) {
                         SealedApp app = SealedApp.parse(Files.readString(file));
                         ObjectNode entry = sealed.addObject().put("file", name).put("name", app.genesis().name())
@@ -218,7 +229,28 @@ final class UiCommand {
                         app.genesis().members().forEach(member -> entry.withArray("members").addObject()
                                 .put("name", member.name()).put("keyId", Show.keyId(member.publicKey())));
                         app.genesis().chains().forEach(chain -> entry.withArray("chains").addObject()
-                                .put("id", chain.id()).put("recipe", chain.recipe()));
+                                .put("id", chain.id()).put("recipe", chain.recipe())
+                                .put("topics", Show.topics(app.genesis(), chain.settings())));
+                    } else if (name.endsWith(".plan.json")) {
+                        ObjectNode entry = plans.addObject().put("file", name);
+                        try {
+                            List<TopicsCli.Vote> votes = TopicsCli.votes(file);
+                            entry.put("chain", votes.getFirst().chainId());
+                            NodeDir voter = new NodeDir(nodeDir);
+                            boolean live = voter.identity() != null && Processes.running(voter);
+                            for (TopicsCli.Vote vote : votes) {
+                                ObjectNode item = entry.withArray("votes").addObject()
+                                        .put("operation", vote.operation()).put("target", vote.target());
+                                // Where this member's vote stands, as topics approve would report it.
+                                if (live) {
+                                    item.put("progress", TopicsCommand.progress(NodeClient.local(voter),
+                                            "/api/v1/app-chain/chains/" + vote.chainId(), voter.publicKey(), vote)
+                                            .name());
+                                }
+                            }
+                        } catch (IOException | IllegalArgumentException notVotes) {
+                            entry.put("signed", true); // owner-signed plans are submitted with the CLI
+                        }
                     } else if (name.endsWith(".member")) {
                         MemberCard card = MemberCard.parse(Files.readString(file));
                         cards.addObject().put("file", name).put("name", card.name()).put("invite", card.invite())

@@ -259,8 +259,7 @@ final class TopicsCommand {
     }
 
     /** Where a vote stands on this node: its target's entry and, for this member, the governance tally. */
-    private static TopicsCli.Progress progress(NodeClient client, String path, String memberKey,
-                                               TopicsCli.Vote vote) {
+    static TopicsCli.Progress progress(NodeClient client, String path, String memberKey, TopicsCli.Vote vote) {
         String name = URLEncoder.encode(vote.target(), StandardCharsets.UTF_8).replace("+", "%20");
         JsonNode entry = client.get(path + "/topics/entries/" + name).orElse(null);
         String tally = null;

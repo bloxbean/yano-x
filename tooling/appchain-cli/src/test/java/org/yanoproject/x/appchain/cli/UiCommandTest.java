@@ -65,6 +65,22 @@ class UiCommandTest {
                     .path("error").asText()).contains("only .member");
             assertThat(get(base + "/api/file?name=../yano-node/secrets/member.key", TOKEN).statusCode())
                     .isEqualTo(404);
+
+            // The page may vote on a topics plan, never plan, sign or submit one.
+            for (String action : List.of("plan", "sign", "submit", "delegate")) {
+                assertThat(post(base + "/api/run", Map.of("args", List.of("topics", action, "x.plan.json")))
+                        .path("error").asText()).contains("not an allowed command");
+            }
+            assertThat(post(base + "/api/run", Map.of("args", List.of("topics"))).path("error").asText())
+                    .contains("not an allowed command");
+            assertThat(post(base + "/api/upload", Map.of("name", "notes.plan.json", "content", "{\"kind\":\"x\"}"))
+                    .path("error").asText()).contains("is not a topics plan");
+            assertThat(post(base + "/api/upload", Map.of("name", "vote.plan.json", "content",
+                    "{\"kind\":\"TopicsPlan\"}")).path("saved").asText()).isEqualTo("vote.plan.json");
+            // An unreadable plan is listed, not voted on.
+            JsonNode listed = JSON.readTree(get(base + "/api/state", TOKEN).body()).path("plans");
+            assertThat(listed.get(0).path("file").asText()).isEqualTo("vote.plan.json");
+            assertThat(listed.get(0).has("votes")).isFalse();
         } finally {
             server.stop(0);
         }
