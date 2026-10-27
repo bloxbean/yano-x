@@ -71,12 +71,12 @@ class DeclarativeCompositeProviderTest {
     }
 
     @Test
-    void manifestRequiresRuleFactApiLevel() throws IOException {
+    void manifestRequiresVerifiedTopicViewApiLevel() throws IOException {
         try (var manifest = getClass().getResourceAsStream(
                 "/META-INF/yano/plugins/org.yanoproject.x.composite.json")) {
             assertThat(manifest).isNotNull();
             assertThat(new String(manifest.readAllBytes(), StandardCharsets.UTF_8))
-                    .containsPattern("\"minLevel\"\\s*:\\s*12\\b");
+                    .containsPattern("\"minLevel\"\\s*:\\s*13\\b");
         }
     }
 

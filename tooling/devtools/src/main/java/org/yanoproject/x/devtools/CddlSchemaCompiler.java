@@ -1,17 +1,17 @@
 package org.yanoproject.x.devtools;
 
-import org.yanoproject.x.stdlib.contracts.AuthenticatedMapSchema;
-import org.yanoproject.x.stdlib.contracts.AuthenticatedMapSchema.ArrayNode;
-import org.yanoproject.x.stdlib.contracts.AuthenticatedMapSchema.BooleanNode;
-import org.yanoproject.x.stdlib.contracts.AuthenticatedMapSchema.BytesNode;
-import org.yanoproject.x.stdlib.contracts.AuthenticatedMapSchema.ChoiceNode;
-import org.yanoproject.x.stdlib.contracts.AuthenticatedMapSchema.IntegerNode;
-import org.yanoproject.x.stdlib.contracts.AuthenticatedMapSchema.MapField;
-import org.yanoproject.x.stdlib.contracts.AuthenticatedMapSchema.MapNode;
-import org.yanoproject.x.stdlib.contracts.AuthenticatedMapSchema.Node;
-import org.yanoproject.x.stdlib.contracts.AuthenticatedMapSchema.NullNode;
-import org.yanoproject.x.stdlib.contracts.AuthenticatedMapSchema.Occurrence;
-import org.yanoproject.x.stdlib.contracts.AuthenticatedMapSchema.TextNode;
+import org.yanoproject.api.appchain.schema.CborSchema;
+import org.yanoproject.api.appchain.schema.CborSchema.ArrayNode;
+import org.yanoproject.api.appchain.schema.CborSchema.BooleanNode;
+import org.yanoproject.api.appchain.schema.CborSchema.BytesNode;
+import org.yanoproject.api.appchain.schema.CborSchema.ChoiceNode;
+import org.yanoproject.api.appchain.schema.CborSchema.IntegerNode;
+import org.yanoproject.api.appchain.schema.CborSchema.MapField;
+import org.yanoproject.api.appchain.schema.CborSchema.MapNode;
+import org.yanoproject.api.appchain.schema.CborSchema.Node;
+import org.yanoproject.api.appchain.schema.CborSchema.NullNode;
+import org.yanoproject.api.appchain.schema.CborSchema.Occurrence;
+import org.yanoproject.api.appchain.schema.CborSchema.TextNode;
 
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
@@ -27,12 +27,12 @@ import java.util.Objects;
 import java.util.Set;
 
 /** Compile the closed {@code cddl-yano-subset-v1} into canonical schema IR. */
-public final class AuthenticatedMapCddlCompiler {
+public final class CddlSchemaCompiler {
     public static final int MAX_SOURCE_BYTES = 65_536;
     public static final int MAX_RULES = 128;
     public static final int MAX_TOKENS = 16_384;
 
-    private AuthenticatedMapCddlCompiler() {
+    private CddlSchemaCompiler() {
     }
 
     public static Compilation compile(String source) {
@@ -54,10 +54,10 @@ public final class AuthenticatedMapCddlCompiler {
             throw invalid("CDDL root rule is not declared: " + checkedRoot);
         }
         Node root = new Resolver(rules).resolve(checkedRoot);
-        AuthenticatedMapSchema.Schema schema = AuthenticatedMapSchema.of(root);
+        CborSchema.Schema schema = CborSchema.of(root);
         return new Compilation(
-                AuthenticatedMapSchema.CDDL_SUBSET_ID,
-                AuthenticatedMapSchema.IR_CATALOG_ID,
+                CborSchema.CDDL_SUBSET_ID,
+                CborSchema.IR_CATALOG_ID,
                 checkedRoot,
                 schema.definition());
     }
@@ -77,8 +77,8 @@ public final class AuthenticatedMapCddlCompiler {
             return definition.clone();
         }
 
-        public AuthenticatedMapSchema.Schema schema() {
-            return AuthenticatedMapSchema.decode(definition);
+        public CborSchema.Schema schema() {
+            return CborSchema.decode(definition);
         }
     }
 
@@ -162,6 +162,7 @@ public final class AuthenticatedMapCddlCompiler {
         private final Map<String, Node> resolved = new HashMap<>();
         private final Set<String> active = new HashSet<>();
         private int steps;
+        private int nesting;
 
         private Resolver(Map<String, Expr> rules) {
             this.rules = rules;
@@ -184,29 +185,39 @@ public final class AuthenticatedMapCddlCompiler {
         }
 
         private Node resolve(Expr expression) {
-            if (++steps > AuthenticatedMapSchema.MAX_SCHEMA_NODES * 4) {
+            if (++steps > CborSchema.MAX_SCHEMA_NODES * 4) {
                 throw invalid("CDDL expansion exceeds the compilation budget");
             }
-            return switch (expression) {
-                case PrimitiveExpr primitive -> primitive(primitive.primitive());
-                case IntegerLiteralExpr integer -> integerLiteral(integer.value());
-                case TextLiteralExpr text -> TextNode.literal(text.value());
-                case BytesLiteralExpr bytes -> BytesNode.literal(bytes.value());
-                case BooleanLiteralExpr bool -> new BooleanNode(bool.value() ? 1 : 0);
-                case NullExpr ignored -> new NullNode();
-                case ReferenceExpr reference -> resolve(reference.name());
-                case ChoiceExpr choice -> resolveChoice(choice);
-                case MapExpr map -> new MapNode(map.fields().stream()
-                        .map(field -> new MapField(field.key(), field.required(),
-                                resolve(field.value())))
-                        .toList());
-                case ArrayExpr array -> new ArrayNode(array.terms().stream()
-                        .map(term -> new Occurrence(term.minimum(), term.maximum(),
-                                resolve(term.value())))
-                        .toList());
-                case ControlledExpr controlled -> applyControls(
-                        resolve(controlled.base()), controlled.controls());
-            };
+            // Aliases do not deepen the schema, but containers, choices and controls can recurse
+            // across many individually shallow rules before the core can validate the resulting IR.
+            boolean nested = !(expression instanceof ReferenceExpr);
+            if (nested && ++nesting > 64) {
+                throw invalid("CDDL expansion exceeds the nesting limit");
+            }
+            try {
+                return switch (expression) {
+                    case PrimitiveExpr primitive -> primitive(primitive.primitive());
+                    case IntegerLiteralExpr integer -> integerLiteral(integer.value());
+                    case TextLiteralExpr text -> TextNode.literal(text.value());
+                    case BytesLiteralExpr bytes -> BytesNode.literal(bytes.value());
+                    case BooleanLiteralExpr bool -> new BooleanNode(bool.value() ? 1 : 0);
+                    case NullExpr ignored -> new NullNode();
+                    case ReferenceExpr reference -> resolve(reference.name());
+                    case ChoiceExpr choice -> resolveChoice(choice);
+                    case MapExpr map -> new MapNode(map.fields().stream()
+                            .map(field -> new MapField(field.key(), field.required(),
+                                    resolve(field.value())))
+                            .toList());
+                    case ArrayExpr array -> new ArrayNode(array.terms().stream()
+                            .map(term -> new Occurrence(term.minimum(), term.maximum(),
+                                    resolve(term.value())))
+                            .toList());
+                    case ControlledExpr controlled -> applyControls(
+                            resolve(controlled.base()), controlled.controls());
+                };
+            } finally {
+                if (nested) nesting--;
+            }
         }
 
         private Node resolveChoice(ChoiceExpr choice) {
@@ -235,8 +246,8 @@ public final class AuthenticatedMapCddlCompiler {
 
         private static IntegerNode integerLiteral(BigInteger value) {
             int domain = value.signum() < 0
-                    ? AuthenticatedMapSchema.INTEGER_NINT
-                    : AuthenticatedMapSchema.INTEGER_UINT;
+                    ? CborSchema.INTEGER_NINT
+                    : CborSchema.INTEGER_UINT;
             return new IntegerNode(domain, value, value);
         }
 
@@ -263,7 +274,7 @@ public final class AuthenticatedMapCddlCompiler {
                         Math.min(bytes.maximumBytes(), maximum), bytes.literal());
             }
             throw invalid(".size applies only to tstr or bstr in "
-                    + AuthenticatedMapSchema.CDDL_SUBSET_ID);
+                    + CborSchema.CDDL_SUBSET_ID);
         }
 
         private static Node integer(Node node, Control control) {
@@ -290,6 +301,7 @@ public final class AuthenticatedMapCddlCompiler {
     private static final class Parser {
         private final List<Token> tokens;
         private int offset;
+        private int nesting;
 
         private Parser(List<Token> tokens) {
             this.tokens = tokens;
@@ -328,6 +340,15 @@ public final class AuthenticatedMapCddlCompiler {
         }
 
         private Expr primary() {
+            if (++nesting > 64) throw invalid("CDDL source exceeds the nesting bound");
+            try {
+                return primaryValue();
+            } finally {
+                nesting--;
+            }
+        }
+
+        private Expr primaryValue() {
             if (accept(TokenKind.LPAREN)) {
                 Expr nested = type();
                 take(TokenKind.RPAREN);
@@ -383,7 +404,7 @@ public final class AuthenticatedMapCddlCompiler {
                 take(TokenKind.COMMA);
                 if (accept(TokenKind.RBRACE)) break;
             }
-            if (fields.size() > AuthenticatedMapSchema.MAX_MAP_FIELDS) {
+            if (fields.size() > CborSchema.MAX_MAP_FIELDS) {
                 throw invalid("CDDL map exceeds the field bound");
             }
             return new MapExpr(fields);
@@ -404,7 +425,7 @@ public final class AuthenticatedMapCddlCompiler {
                     maximum = exactNonnegativeInt(number(), "occurrence maximum");
                 }
                 if (maximum < minimum
-                        || maximum > AuthenticatedMapSchema.MAX_OCCURRENCE) {
+                        || maximum > CborSchema.MAX_OCCURRENCE) {
                     throw invalid("CDDL array occurrence is outside the bound");
                 }
                 terms.add(new OccurrenceExpr(minimum, maximum, type()));
@@ -412,7 +433,7 @@ public final class AuthenticatedMapCddlCompiler {
                 take(TokenKind.COMMA);
                 if (accept(TokenKind.RBRACKET)) break;
             }
-            if (terms.size() > AuthenticatedMapSchema.MAX_ARRAY_TERMS) {
+            if (terms.size() > CborSchema.MAX_ARRAY_TERMS) {
                 throw invalid("CDDL array exceeds the term bound");
             }
             return new ArrayExpr(terms);

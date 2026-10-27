@@ -139,6 +139,8 @@ final class StatusCommand {
             Map<String, Object> summary = new LinkedHashMap<>();
             summary.put("chain", chain.id());
             summary.put("recipe", chain.recipe());
+            String topics = Show.topics(genesis, chain.settings());
+            if (topics != null) summary.put("topics", topics);
             summary.put("tipHeight", tip);
             summary.put("agree", identities.size() <= 1);
             if (mine != null) {
@@ -272,6 +274,7 @@ final class StatusCommand {
                     Boolean.TRUE.equals(chain.get("agree")) ? "members agree" : "MISMATCH",
                     chain.getOrDefault("members", "?"), chain.getOrDefault("threshold", "?"),
                     chain.getOrDefault("anchoring", "?")));
+            if (chain.containsKey("topics")) terminal.say("        topics: " + chain.get("topics"));
         }
         terminal.say("  Cardano: " + view.cardano());
         terminal.say("  Plugins: " + view.plugins());

@@ -39,8 +39,8 @@ import org.yanoproject.x.stdlib.contracts.AuthenticatedMapAuthorizationContract.
 import org.yanoproject.x.stdlib.contracts.AuthenticatedMapAuthorizationContract.MapActorAuthorizationV1;
 import org.yanoproject.x.stdlib.contracts.AuthenticatedMapContract;
 import org.yanoproject.x.stdlib.contracts.AuthenticatedMapContract.Mutation;
-import org.yanoproject.x.stdlib.contracts.AuthenticatedMapSchema;
-import org.yanoproject.x.stdlib.contracts.AuthenticatedMapSchema.MapField;
+import org.yanoproject.api.appchain.schema.CborSchema;
+import org.yanoproject.api.appchain.schema.CborSchema.MapField;
 import org.yanoproject.x.stdlib.contracts.BalancesContract;
 import org.yanoproject.x.trust.profile.TrustRegistryGenesis;
 
@@ -66,7 +66,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 @Timeout(300)
 class TypedViewsRecipesClusterTest {
-    private static final AuthenticatedMapSchema.Node UINT = AuthenticatedMapSchema.IntegerNode.uint();
+    private static final CborSchema.Node UINT = CborSchema.IntegerNode.uint();
 
     @Test
     void assetTransfersReadTheGovernedLimitAndTheHoldersRecord(@TempDir Path directory) throws Exception {
@@ -203,7 +203,7 @@ class TypedViewsRecipesClusterTest {
                 collection("observations", AuthenticatedMapContract.AUTH_GOVERNED_ROLE,
                         DppStarterProfile.OPERATOR_POLICY, "observation-v1")), List.of(
                 schema("feed-v1", new MapField("max", true, UINT), new MapField("min", true, UINT),
-                        new MapField("status", true, AuthenticatedMapSchema.TextNode.any())),
+                        new MapField("status", true, CborSchema.TextNode.any())),
                 schema("observation-v1", new MapField("price", true, UINT))), List.of(
                 new AuthenticatedMapContract.GenesisEntry("feeds", bytes("main"), new byte[0], value(Map.of(
                         "status", new UnicodeString("OPEN"), "min", new UnsignedInteger(100),
@@ -492,8 +492,8 @@ class TypedViewsRecipesClusterTest {
     }
 
     private static AuthenticatedMapContract.ValidatorDescriptor schema(String id, MapField... members) {
-        return AuthenticatedMapContract.ValidatorDescriptor.schema(id, AuthenticatedMapSchema.of(
-                new AuthenticatedMapSchema.MapNode(List.of(members))).definition());
+        return AuthenticatedMapContract.ValidatorDescriptor.schema(id, CborSchema.of(
+                new CborSchema.MapNode(List.of(members))).definition());
     }
 
     private static AuthenticatedMapContract.GenesisEntry holder(String sender, long maxTransfer, long acquired) {

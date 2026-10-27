@@ -117,6 +117,9 @@ chains:
     recipe: declarative-composite
     bindings: ./approvals.bindings.yaml
     anchor: {mode: script, every-blocks: 10}   # optional anchor policy
+    topics:                       # optional: namespaces and writer policies
+      create: members             # who creates namespaces: members (vote) | registrars | anyone
+      unregistered: open          # messages on topics no namespace covers: open | reject
 ```
 
 - **The lead** is the first operator. On a devnet its node also produces the
@@ -135,6 +138,16 @@ chains:
   Create one with `--chain flow=bindings:<file>`, or choose "several" in the
   wizard and pick a starter; `new` copies the bindings file next to the draft.
   See [declarative bindings](/bindings/).
+- **Topic policies** (`topics:`) let a chain give each namespace owners, a
+  writer policy and a payload schema, and let users write through short-lived
+  session keys. `create` says who creates a top-level namespace: the members
+  by a vote (`members`), named operators or keys (`registrars: [alice]`), or
+  anyone first come (`anyone`); members can always create and recover one by
+  vote. `new --topics approvals=members` writes the block, and the wizard asks
+  once per chain. It needs `membership: governed` and is fixed at seal. Keep
+  `unregistered: open` unless every topic must be registered: a chain that
+  refuses unregistered topics makes blocks only from registered traffic. See
+  [protect a topic](#optional-protect-topics).
 - **Answers** a recipe needs sit under the chain as `answers:`; `new --answer
   ledger.eutxoGenesisLovelace=100000000` writes the same thing. Answers are
   public: never put a secret in the draft.
@@ -391,6 +404,31 @@ On a public network, fund the wallet only with what you are willing to spend
 on fees: its balance is the spending limit. Afterwards `status` shows the
 chain's anchoring as, for example, `led by alice, 12 anchored (last height
 118)`. See [anchors and verification](/tutorials/07-anchors-and-verification/).
+
+## Optional: protect topics
+
+On a chain sealed with `topics:`, namespaces are created and changed with
+plans. Make one from your node directory, which supplies the node, its key and
+the chain:
+
+```bash
+./yano.sh appchain topics init games/     # writes topics.yaml: fill in the owner keys and policy
+./yano.sh appchain topics plan topics.yaml
+```
+
+`plan` writes `topics.plan.json` and says who must act. A top-level namespace
+is a member vote: send the plan to every operator, and each runs
+
+```bash
+./yano.sh appchain topics approve topics.plan.json
+```
+
+which votes through their own node and waits until the namespace is in effect;
+it is safe to run again. Changes inside a namespace are signed by its owners
+instead: each owner runs `topics sign topics.plan.json --key-file <seed file>`,
+and anyone runs `topics submit topics.signed.json`. Studio's **Topics** page
+writes `topics.yaml` with a form if you prefer. See
+[protect a topic and give users session keys](/recipes/topic-session-keys/).
 
 ## Where each setting lives
 

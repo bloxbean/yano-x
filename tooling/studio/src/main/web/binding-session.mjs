@@ -19,8 +19,8 @@ import {decodeUtf8Strict} from './lossless-json.mjs';
 import {sha256Hex,sha256TextHex} from './sha256.mjs';
 
 /** Fixed export names: the CLI handoff never derives a file name from document content. */
-export const EXPORT_NAMES = Object.freeze({document: 'bindings.yaml', blueprint: 'appchain.yaml',
-  layout: 'bindings.layout.json', original: 'original-bindings.yaml', originalBlueprint: 'original-appchain.yaml'});
+export const EXPORT_NAMES = Object.freeze({document: 'bindings.yaml', blueprint: 'app.draft.yaml',
+  layout: 'bindings.layout.json', original: 'original-bindings.yaml', originalBlueprint: 'original.draft.yaml'});
 /** Binding YAML bound (contract C7), in UTF-16 units; file bytes are also bounded before decoding. */
 export const MAX_DOCUMENT_CHARACTERS = 262_144;
 export const MAX_DOCUMENT_BYTES = 1024 * 1024;
@@ -359,7 +359,7 @@ export class BindingSession {
   // -------------------------------------------------------------------------------------------------------------
 
   /**
-   * Reads an application blueprint. When exactly one chain carries a declarative composite it is opened;
+   * Reads a setup draft. When exactly one chain carries a declarative composite it is opened;
    * otherwise the caller asks the author to choose with {@link selectChain}.
    *
    * @returns {Array<{chainIndex, chainId}>} chains with a composite
@@ -368,7 +368,7 @@ export class BindingSession {
     const text = fileText(input);
     const blueprint = readBlueprint(text);
     if (!blueprint.composites.length) {
-      throw new BlueprintError('BLUEPRINT_NO_COMPOSITE', 'No chain in this blueprint has an inline composite to edit. '
+      throw new BlueprintError('BLUEPRINT_NO_COMPOSITE', 'No chain in this draft has an inline composite to edit. '
         + 'Studio edits existing inline composites; it does not add one to a chain.');
     }
     this.blueprint = {...blueprint, name, bytes: original(input, text).bytes, chainIndex: null};
@@ -388,9 +388,9 @@ export class BindingSession {
     return chains;
   }
 
-  /** Opens one blueprint chain's composite as the draft; the rest of the blueprint is never edited. */
+  /** Opens one draft chain's composite for editing; the rest of the draft is never edited. */
   selectChain(chainIndex) {
-    if (!this.blueprint) throw new SessionError('NO_BLUEPRINT', 'No blueprint is loaded');
+    if (!this.blueprint) throw new SessionError('NO_BLUEPRINT', 'No draft is loaded');
     const entry = this.blueprint.composites.find(value => value.chainIndex === chainIndex);
     if (!entry) throw new SessionError('NO_BLUEPRINT', 'That chain has no inline composite');
     const chainId = entry.chainId;
@@ -430,7 +430,7 @@ export class BindingSession {
    */
   exportBlueprint() {
     const blueprint = this.document.blueprint;
-    if (this.document.origin !== 'blueprint' || !blueprint) throw new SessionError('NO_BLUEPRINT', 'No blueprint chain is open');
+    if (this.document.origin !== 'blueprint' || !blueprint) throw new SessionError('NO_BLUEPRINT', 'No draft chain is open');
     this.exportDocument();
     if (!this.document.edited) return {name: EXPORT_NAMES.blueprint, text: blueprint.text, bytes: blueprint.bytes};
     return {name: EXPORT_NAMES.blueprint, text: spliceComposite(blueprint, blueprint.chainIndex, this.document.draft)};

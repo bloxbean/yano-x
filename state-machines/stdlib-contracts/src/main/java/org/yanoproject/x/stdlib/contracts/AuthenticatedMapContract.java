@@ -1,5 +1,6 @@
 package org.yanoproject.x.stdlib.contracts;
 
+import org.yanoproject.api.appchain.schema.CborSchema;
 import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.ByteString;
 import co.nstant.in.cbor.model.UnicodeString;
@@ -1111,8 +1112,8 @@ public final class AuthenticatedMapContract {
             }
             if (kind == VALIDATOR_KIND_SCHEMA) {
                 if (!providerId.isEmpty()
-                        || !AuthenticatedMapSchema.IR_CATALOG_ID.equals(contractVersion)
-                        || !AuthenticatedMapSchema.isCanonicalDefinition(definition)
+                        || !CborSchema.IR_CATALOG_ID.equals(contractVersion)
+                        || !CborSchema.isCanonicalDefinition(definition)
                         || !Arrays.equals(parameters, new byte[]{(byte) 0xa0})) {
                     throw new IllegalArgumentException("invalid declarative schema descriptor");
                 }
@@ -1129,7 +1130,7 @@ public final class AuthenticatedMapContract {
 
         public static ValidatorDescriptor schema(String id, byte[] definition) {
             return new ValidatorDescriptor(id, VALIDATOR_KIND_SCHEMA, "",
-                    AuthenticatedMapSchema.IR_CATALOG_ID, definition,
+                    CborSchema.IR_CATALOG_ID, definition,
                     new byte[]{(byte) 0xa0});
         }
 
@@ -1427,11 +1428,11 @@ public final class AuthenticatedMapContract {
                         "genesis contains an unreferenced validator descriptor");
             }
 
-            Map<String, AuthenticatedMapSchema.Schema> schemas = new HashMap<>();
+            Map<String, CborSchema.Schema> schemas = new HashMap<>();
             for (ValidatorDescriptor validator : validatorCopy) {
                 if (validator.kind() == VALIDATOR_KIND_SCHEMA) {
                     schemas.put(validator.id(),
-                            AuthenticatedMapSchema.decode(validator.definition()));
+                            CborSchema.decode(validator.definition()));
                 }
             }
 
@@ -1455,7 +1456,7 @@ public final class AuthenticatedMapContract {
                     throw new IllegalArgumentException(
                             "initial entry violates collection value encoding");
                 }
-                AuthenticatedMapSchema.Schema schema = schemas.get(descriptor.validatorId());
+                CborSchema.Schema schema = schemas.get(descriptor.validatorId());
                 if (schema != null && !schema.accepts(entry.value())) {
                     throw new IllegalArgumentException(
                             "initial entry violates collection value schema");

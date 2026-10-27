@@ -138,4 +138,26 @@ class SealCommandTest {
         assertThat(refused.exit()).isEqualTo(CliException.FAILURE);
         assertThat(refused.err()).contains("anchoring is turned on later");
     }
+
+    @Test
+    void devnetAnchorsStayInsideTheForecastHorizonUnlessTheDraftChooses() throws Exception {
+        CeremonyFixture fixture = new CeremonyFixture(temporary);
+        Path template = fixture.distribution.devnetGenesisTemplate();
+        Files.createDirectories(template.getParent());
+        Files.writeString(template, "{\"securityParam\": 10, \"activeSlotsCoeff\": 0.5}");
+        assertThat(SealCommand.devnetAnchorValidity(fixture.distribution)).isEqualTo(59);
+        Files.writeString(template, "{\"securityParam\": 100, \"activeSlotsCoeff\": 1.0}");
+        assertThat(SealCommand.devnetAnchorValidity(fixture.distribution)).isEqualTo(299);
+
+        fixture.draftAndCards("fast", "devnet", List.of("alice", "bob"), "orders=audit-log");
+        fixture.ok("seal", fixture.draft("fast").toString());
+        assertThat(fixture.sealed("fast").genesis().chain("orders").settings())
+                .containsEntry("anchor.validity-slots", "299");
+
+        CeremonyFixture preprod = new CeremonyFixture(temporary.resolve("preprod"));
+        preprod.draftAndCards("slow", "preprod", List.of("alice", "bob"), "orders=audit-log");
+        preprod.ok("seal", preprod.draft("slow").toString());
+        assertThat(preprod.sealed("slow").genesis().chain("orders").settings())
+                .containsEntry("anchor.validity-slots", "7200");
+    }
 }

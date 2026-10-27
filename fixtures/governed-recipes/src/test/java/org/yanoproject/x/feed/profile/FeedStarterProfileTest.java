@@ -1,6 +1,6 @@
 package org.yanoproject.x.feed.profile;
 
-import org.yanoproject.x.stdlib.contracts.AuthenticatedMapSchema;
+import org.yanoproject.api.appchain.schema.CborSchema;
 import org.junit.jupiter.api.Test;
 
 import java.util.HexFormat;
@@ -17,12 +17,12 @@ class FeedStarterProfileTest {
     @Test
     void schemasAdmitCanonicalValuesAndRejectOthers() {
         byte[] feed = FEED.encode();
-        assertThat(AuthenticatedMapSchema.accepts(FeedStarterProfile.feedSchema(), feed)).isTrue();
-        assertThat(AuthenticatedMapSchema.accepts(FeedStarterProfile.observationSchema(), feed)).isFalse();
+        assertThat(CborSchema.accepts(FeedStarterProfile.feedSchema(), feed)).isTrue();
+        assertThat(CborSchema.accepts(FeedStarterProfile.observationSchema(), feed)).isFalse();
         // Sixteen sources are the bound; seventeen are refused by the record and the schema.
         List<String> sixteen = java.util.stream.IntStream.range(0, 16).mapToObj(i -> "s" + i).toList();
         byte[] wide = FEED.withSources(sixteen, 16).encode();
-        assertThat(AuthenticatedMapSchema.accepts(FeedStarterProfile.feedSchema(), wide)).isTrue();
+        assertThat(CborSchema.accepts(FeedStarterProfile.feedSchema(), wide)).isTrue();
         assertThatThrownBy(() -> FEED.withSources(
                 java.util.stream.IntStream.range(0, 17).mapToObj(i -> "s" + i).toList(), 1))
                 .isInstanceOf(IllegalArgumentException.class);
@@ -31,34 +31,34 @@ class FeedStarterProfileTest {
         assertThatThrownBy(() -> FEED.withSources(List.of("a"), 2))
                 .isInstanceOf(IllegalArgumentException.class);
         // A paused feed is a valid value; status 2 is refused by the schema.
-        assertThat(AuthenticatedMapSchema.accepts(FeedStarterProfile.feedSchema(),
+        assertThat(CborSchema.accepts(FeedStarterProfile.feedSchema(),
                 FEED.withStatus(FeedStarterProfile.FEED_PAUSED).encode())).isTrue();
         byte[] statusTwo = feed.clone();
         assertThat(statusTwo[statusTwo.length - 1]).isEqualTo((byte) 0x00);
         statusTwo[statusTwo.length - 1] = 0x02;
-        assertThat(AuthenticatedMapSchema.accepts(FeedStarterProfile.feedSchema(), statusTwo)).isFalse();
+        assertThat(CborSchema.accepts(FeedStarterProfile.feedSchema(), statusTwo)).isFalse();
 
         byte[] negative = new FeedValues.ObservationValue(-1_825, 1_790_000_010L, null, "").encode();
-        assertThat(AuthenticatedMapSchema.accepts(FeedStarterProfile.observationSchema(), negative)).isTrue();
+        assertThat(CborSchema.accepts(FeedStarterProfile.observationSchema(), negative)).isTrue();
         byte[] withEvidence = new FeedValues.ObservationValue(Long.MAX_VALUE, 1, DIGEST, "frame 7").encode();
-        assertThat(AuthenticatedMapSchema.accepts(FeedStarterProfile.observationSchema(), withEvidence)).isTrue();
+        assertThat(CborSchema.accepts(FeedStarterProfile.observationSchema(), withEvidence)).isTrue();
         byte[] smallest = new FeedValues.ObservationValue(-Long.MAX_VALUE, 1, null, "").encode();
-        assertThat(AuthenticatedMapSchema.accepts(FeedStarterProfile.observationSchema(), smallest)).isTrue();
+        assertThat(CborSchema.accepts(FeedStarterProfile.observationSchema(), smallest)).isTrue();
         assertThatThrownBy(() -> new FeedValues.ObservationValue(Long.MIN_VALUE, 1, null, ""))
                 .isInstanceOf(IllegalArgumentException.class);
         // A hand-built -2^63 (CBOR 0x3b ff..ff) is refused by the schema's bound.
         byte[] tooSmall = HEX.parseHex("8501" + "3bffffffffffffffff" + "01" + "40" + "60");
-        assertThat(AuthenticatedMapSchema.accepts(FeedStarterProfile.observationSchema(), tooSmall)).isFalse();
+        assertThat(CborSchema.accepts(FeedStarterProfile.observationSchema(), tooSmall)).isFalse();
         assertThatThrownBy(() -> FeedValues.ObservationValue.decode(tooSmall))
                 .isInstanceOf(IllegalArgumentException.class);
 
         byte[] closed = new FeedValues.RoundValue(FeedStarterProfile.ROUND_CLOSED, 12, -1_825, 2,
                 List.of("source-alpha", "source-beta"), DIGEST, DIGEST).encode();
-        assertThat(AuthenticatedMapSchema.accepts(FeedStarterProfile.roundSchema(), closed)).isTrue();
+        assertThat(CborSchema.accepts(FeedStarterProfile.roundSchema(), closed)).isTrue();
         byte[] noQuorum = new FeedValues.RoundValue(FeedStarterProfile.ROUND_NO_QUORUM, 13, 0, 2,
                 List.of(), DIGEST, null).encode();
-        assertThat(AuthenticatedMapSchema.accepts(FeedStarterProfile.roundSchema(), noQuorum)).isTrue();
-        assertThat(AuthenticatedMapSchema.accepts(FeedStarterProfile.roundSchema(), negative)).isFalse();
+        assertThat(CborSchema.accepts(FeedStarterProfile.roundSchema(), noQuorum)).isTrue();
+        assertThat(CborSchema.accepts(FeedStarterProfile.roundSchema(), negative)).isFalse();
         assertThatThrownBy(() -> new FeedValues.RoundValue(FeedStarterProfile.ROUND_CLOSED, 1, 0, 0,
                 List.of(), DIGEST, null)).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> new FeedValues.RoundValue(FeedStarterProfile.ROUND_NO_QUORUM, 1, 0, 0,

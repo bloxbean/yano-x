@@ -104,11 +104,11 @@ final class BindingAuthoringLanguage {
                     "integer"));
         }
         operators.add(operator("-x", "neg", "integer (checked)", "integer"));
-        operators.add(operator("in", "in", "text, text-set fact (admission rules only; stops at the first match)",
+        operators.add(operator("in", "in", "text, text-set field (admission rules only; stops at the first match)",
                 "boolean"));
         operators.add(operator("startsWith(a, b)", "startsWith",
                 "text, text or bytes, bytes (a text prefix is a UTF-8 byte prefix)", "boolean"));
-        operators.add(operator("size(a)", "size", "text (UTF-8 bytes) or bytes", "integer"));
+        operators.add(operator("size(a)", "size", "text (UTF-8 bytes), bytes, or writer.signers/source.writer.signers (cardinality)", "integer"));
         operators.add(operator("writes.all(w, e)", "quantifier:all",
                 "boolean body per write-view element, in index order; false at the first false (admission rules "
                         + "only; no nesting)", "boolean"));
@@ -120,7 +120,7 @@ final class BindingAuthoringLanguage {
 
     /**
      * Field types by wire ordinal (ADR-031.3). {@code text-set} is a field type only: kernel-declared facts may have
-     * it, only {@code in} reads it, and no expression returns it. Distinct from the rule parameter types, whose
+     * it; {@code in} reads sets, {@code size} also reads writer signer sets, and no expression returns a set. Distinct from the rule parameter types, whose
      * ordinal 4 is {@code binding}.
      */
     static List<Map<String, Object>> fieldTypes() {
@@ -164,6 +164,9 @@ final class BindingAuthoringLanguage {
                 case FACTS -> "facts the attached kernel declares and established by its own verification";
                 case READS -> "the rule's declared state reads: reads.<name>.present, reads.<name>.<field> and "
                         + "reads.<name>.value.<field>, decoded by the read component's kernel";
+                case PAYLOAD -> "verified topic payload projected by every committed payloadSchemas definition";
+                case WRITER -> "verified writer kind, canonical signers and optional issuer; derived steps have none";
+                case SOURCE -> "originating topic and writer provenance only, never target authority";
                 case WRITE_ELEMENT -> "the current element w of writes.all(w, ...) or writes.exists(w, ...): content "
                         + "fields in either slot; coverage fields make the rule a fact rule";
             });
@@ -193,6 +196,12 @@ final class BindingAuthoringLanguage {
         forms.add(sourceForm("param", "params", List.of("admission-rule", "rule-key"), "an attachment parameter"));
         forms.add(sourceForm("config", "config", List.of("admission-rule", "rule-key"), "a configuration setting"));
         forms.add(sourceForm("fact", "facts", List.of("admission-rule", "rule-key"), "a kernel-declared fact"));
+        forms.add(sourceForm("payload", "payload", List.of("admission-rule", "rule-key"),
+                "a verified scalar payload field typed by every committed schema"));
+        forms.add(sourceForm("writer", "writer", List.of("admission-rule", "rule-key"),
+                "the verified writer, with no authority on derived steps"));
+        forms.add(sourceForm("source", "source", List.of("admission-rule", "rule-key"),
+                "originating topic and writer provenance"));
         forms.add(sourceForm("literal", null, everywhere, "an embedded scalar"));
         forms.add(sourceForm("fn", null, everywhere, "a stock function over sources"));
         forms.add(sourceForm("expr", null, everywhere,
@@ -234,13 +243,14 @@ final class BindingAuthoringLanguage {
         value.put("readsPerRule", BindingIrV1.AdmissionRule.MAX_READS);
         value.put("readNamePattern", "[a-zA-Z][a-zA-Z0-9_]{0,62}");
         value.put("namespacePattern", "\"\" or [a-z0-9][a-z0-9._-]{0,63}");
-        value.put("readKeySources", List.of("context", "command", "param", "config", "fact", "literal", "fn", "expr"));
+        value.put("readKeySources", List.of("context", "command", "param", "config", "fact", "payload", "writer", "source",
+                "literal", "fn", "expr"));
         value.put("readPresentField", "present");
         value.put("quantifiers", List.of("all", "exists"));
         value.put("slots", List.of(slot("admission", "after the kernel's admit hooks and before work reservation; "
                         + "rules that read neither facts nor write coverage"),
                 slot("fact", "after an approved kernel decision; rules that read facts or write coverage")));
-        value.put("static", "no reads, and expression clauses over command, params, config and write content only; "
+        value.put("static", "no reads, and expression clauses over command, params, config, topic views and write content only; "
                 + "also checked at ingress");
         return value;
     }
@@ -377,6 +387,14 @@ final class BindingAuthoringLanguage {
         code(codes, "ADMISSION_RULE_DENIED", "admission-rule", "step", "never");
         code(codes, "ADMISSION_RULE_ERROR", "admission-rule", "step", "never");
         code(codes, "ADMISSION_RULE_INPUT", "admission-rule", "step", "never");
+        code(codes, "RULE_FIELD_UNAVAILABLE", "admission-rule", "step", "never");
+        code(codes, "RULE_PAYLOAD_SCHEMA_MISMATCH", "admission-rule", "step", "never");
+        code(codes, "RULE_TOPIC_POLICY_CROSSING", "admission-rule", "step", "never");
+        code(codes, "TOPIC_RETIRED", "admission-rule", "step", "never");
+        code(codes, "TOPIC_UNREGISTERED", "admission-rule", "step", "never");
+        code(codes, "TOPIC_SCHEMA_INCOMPATIBLE", "admission-rule", "step", "never");
+        code(codes, "TOPIC_PAYLOAD_TOO_LARGE", "admission-rule", "step", "never");
+        code(codes, "TOPIC_SCHEMA_REJECTED", "admission-rule", "step", "never");
         return List.copyOf(codes);
     }
 

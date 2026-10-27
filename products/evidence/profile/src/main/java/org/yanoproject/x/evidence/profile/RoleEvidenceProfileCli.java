@@ -70,7 +70,8 @@ public final class RoleEvidenceProfileCli {
                 return Optional.of(new AppChainConsensusProfile(
                         AppChainConsensusProfile.SCHEMA_VERSION,
                         AppChainConfig.DEFAULT_MAX_MESSAGE_BYTES, 64,
-                        AppChainConfig.DEFAULT_BLOCK_MAX_BYTES, 0, 0, false,
+                        AppChainConfig.DEFAULT_BLOCK_MAX_BYTES, 0, 0,
+                        AppChainConsensusProfile.DEFAULT_BLOCK_MAX_FORWARD_SKEW_MS, false,
                         true, 128, 16_384, 100_000, 100_000,
                         FinalityGate.APP_FINAL, EffectOutcomeCommitment.PER_EFFECT,
                         true, members.subList(0, threshold)));

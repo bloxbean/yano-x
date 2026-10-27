@@ -160,7 +160,8 @@ const LIMIT_NAMES = ['maxCascadeDepth', 'maxDerivedPerSourceMessage', 'maxDerive
 // ADR-031.3 policy-plane vocabulary: field types by wire ordinal, scopes by wire ordinal, and use sites. ADR-031.4
 // adds the reads and write-element scopes, the rule-key use site (lookup keys and read keys), and the rule reads.
 const FIELD_TYPE_NAMES = ['integer', 'text', 'bytes', 'boolean', 'text-set'];
-const SCOPE_NAMES = ['event', 'command', 'params', 'config', 'context', 'facts', 'reads', 'writes'];
+const SCOPE_NAMES = ['event', 'command', 'params', 'config', 'context', 'facts', 'reads', 'writes',
+  'payload', 'writer', 'source'];
 const USE_SITES = ['binding-condition', 'binding-mapping', 'admission-rule', 'rule-key'];
 /** A kernel namespace: the default "" or a map collection id (ADR-031.4 §5.1). */
 const NAMESPACE = /^(?:[a-z0-9][a-z0-9._-]{0,63})?$/;

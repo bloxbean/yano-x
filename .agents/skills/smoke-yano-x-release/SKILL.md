@@ -34,7 +34,7 @@ From the repository root:
   <scratch>/yano-x-jvm-<version>.zip [--http-base 29770 --server-base 29370] [--keep]
 ```
 
-The script takes about 10-15 minutes. It extracts into a new working
+Allow at least 15 minutes for all gates. The script extracts into a new working
 directory, checks ports first, and prints one PASS/FAIL line per step:
 
 | Step | Covers |
@@ -42,11 +42,13 @@ directory, checks ports first, and prints one PASS/FAIL line per step:
 | `archive`, `layout` | ZIP integrity, host jar, plugins, devnet overlay, every `tools/*/bin` launcher on shared `tools/lib` |
 | `runtime-acceptance` | Setup ceremony with the setup commands: two operators go live, finality, message/state proof, restart, a member added with `approve`, anchoring, no secrets in logs |
 | `stock-outcomes` | `yano.sh appchain try` with the audit-log, owned-registry and approval-workflow recipes: message proof, registry value proof, an APPROVED decision |
+| `topics-acceptance` | A three-member application set up with the setup commands and topics enabled from the draft: CLI plans, signatures and `topics approve` votes, original framed-message proofs, typed business results, inherited schemas, rule/crossing checks, activation, catch-up and restart |
 | `showcase-quickstart` | The 13-chain light showcase (applications showcase, history, settlement) set up with the setup commands on three nodes, with the workflow-chain L1 anchor |
 | `showcase-projection-off` | Every node started with the devnet history projection disabled |
 | `showcase-run-all`, `showcase-verify` | All scenarios, then cross-node tip/root agreement and finality certificates |
 | `showcase-restart`, `showcase-persisted-tips` | Graceful full restart; tips never regress and roots at recorded heights are unchanged |
 | `distribution-config-unchanged` | The showcase never edits the distribution's `config/` |
+| `showcase-stop` | Showcase processes close before the topic acceptance cluster starts |
 
 It stops the showcase on exit. It deletes the working directory only after a
 full pass without `--keep`; on failure the directory, step logs, and node logs
@@ -67,7 +69,7 @@ under `showcase-data/smoke/node*/logs/` stay for diagnosis. Use
 - `cardano-history-chain` records nothing until the L1 epoch-stability depth
   passes (devnet epoch 2, about three minutes after genesis). Its plugin route
   returns 404 until then; `run cardano-history` waits up to 300 s for it.
-- `finalDistributionRuntimeAcceptance` and `finalDistributionStockOutcomeAcceptance`
+- `finalDistributionRuntimeAcceptance`, `finalDistributionStockOutcomeAcceptance`, and `finalDistributionTopicsAcceptance`
   are not part of `build` or CI; this skill is where they run.
 - Not covered: the Docker `evidence` profile, the `eutxo` profile, preprod, and
   a remote `yano-x-deploy apply`.

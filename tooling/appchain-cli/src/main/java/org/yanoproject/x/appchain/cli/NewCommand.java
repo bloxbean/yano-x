@@ -19,6 +19,7 @@ final class NewCommand {
             + " [--network devnet|preview|preprod|mainnet]"
             + " [--operators alice,bob,carol] [--chain <id>=<recipe>|<id>=bindings:<file>]..."
             + " [--answer <chain>.<name>=<value>]... [--setting <chain>.<key>=<value>]... [--without <chain>]..."
+            + " [--topics <chain>=members|anyone|registrars:<a>+<b>]..."
             + " [--threshold majority|two-thirds|all|<n>]"
             + " [--membership governed|static] [--sequencing fixed|rotating] [--output <dir>]"
             + " [--force] [--yes]";
@@ -34,7 +35,7 @@ final class NewCommand {
 
     int run(String[] arguments) throws IOException {
         Args args = new Args(arguments, Set.of("from", "network", "operators", "chain", "answer", "setting", "without",
-                "threshold", "membership", "sequencing", "output"),
+                "topics", "threshold", "membership", "sequencing", "output"),
                 Set.of("force", "yes"));
         args.maxPositionals(1, USAGE);
         Path output = args.path("output", Path.of("."));
@@ -60,6 +61,8 @@ final class NewCommand {
         List<String> operators = Arrays.stream(operatorList.split(",")).map(String::strip)
                 .filter(value -> !value.isEmpty()).toList();
 
+        String membership = args.value("membership", template == null || template.membership() == null
+                ? "governed" : template.membership());
         List<Draft.Chain> chains = new ArrayList<>();
         Map<String, String> recipes = AppChainSealResolver.recipes();
         if (template != null) {
@@ -76,16 +79,19 @@ final class NewCommand {
             for (String spec : args.values("chain")) chains.add(chainFromFlag(spec, output));
         } else if (template == null) {
             do {
-                chains.add(askChain(chains.isEmpty() ? name : null, recipes, output));
+                Draft.Chain chain = askChain(chains.isEmpty() ? name : null, recipes, output);
+                if ("governed".equals(membership) && args.values("topics").isEmpty()) {
+                    chain = chain.withTopics(askTopics(chain.id(), operators));
+                }
+                chains.add(chain);
             } while (terminal.confirm("Add another chain to this application?", false));
         }
 
         chains = withSettings(withAnswers(chains, args.values("answer")), args.values("setting"));
+        chains = withTopics(chains, args.values("topics"));
 
         String threshold = args.value("threshold", template == null || template.threshold() == null
                 ? "majority" : template.threshold());
-        String membership = args.value("membership", template == null || template.membership() == null
-                ? "governed" : template.membership());
         String sequencing = args.value("sequencing", template == null || template.sequencing() == null
                 ? "fixed" : template.sequencing());
         Draft draft = new Draft(name, Names.newInvite(), network, operators, threshold, membership, sequencing,
@@ -107,6 +113,51 @@ final class NewCommand {
         return 0;
     }
 
+    /** Applies {@code --topics chain=members|anyone|registrars:alice+bob}. */
+    private static List<Draft.Chain> withTopics(List<Draft.Chain> chains, List<String> flags) {
+        Map<String, Draft.Topics> topics = new java.util.HashMap<>();
+        for (String flag : flags) {
+            int equals = flag.indexOf('=');
+            if (equals <= 0) throw CliException.usage("--topics must look like games=members or games=registrars:alice");
+            String id = flag.substring(0, equals);
+            String value = flag.substring(equals + 1);
+            if (chains.stream().noneMatch(chain -> chain.id().equals(id))) {
+                throw CliException.usage("--topics names chain '" + id + "', which the application does not have");
+            }
+            List<String> registrars = value.startsWith("registrars:")
+                    ? Arrays.stream(value.substring("registrars:".length()).split("\\+")).map(String::strip)
+                    .filter(item -> !item.isEmpty()).toList() : List.of();
+            String create = value.startsWith("registrars:") ? "registrars" : value;
+            topics.put(id, new Draft.Topics(create, registrars, registrars.isEmpty() ? 0 : 1, "open", Map.of()));
+        }
+        return chains.stream().map(chain -> topics.containsKey(chain.id()) ? chain.withTopics(topics.get(chain.id()))
+                : chain).toList();
+    }
+
+    /** The wizard's one topics question; most chains answer no. */
+    private Draft.Topics askTopics(String id, List<String> operators) {
+        if (!terminal.confirm("Protect topics on '" + id + "' with namespaces, so each topic has owners and a "
+                + "writer policy?", false)) {
+            return null;
+        }
+        String create = terminal.choose("Who may create a top-level namespace on '" + id + "'?",
+                Draft.Topics.CREATE, List.of("the members, by a vote of every operator's node",
+                        "named operators sign it alone (members can still vote)",
+                        "anyone, first come (members can still recover a namespace)"),
+                "members", "--topics " + id + "=<who>");
+        List<String> registrars = List.of();
+        if ("registrars".equals(create)) {
+            registrars = Arrays.stream(terminal.ask("Registrars (operator names, comma-separated)",
+                    operators.getFirst(), "--topics " + id + "=registrars:<a>+<b>").split(","))
+                    .map(String::strip).filter(item -> !item.isEmpty()).toList();
+        }
+        String unregistered = terminal.choose("Messages on topics that no namespace covers:", Draft.Topics.UNREGISTERED,
+                List.of("accept them as today; protect only what you register",
+                        "refuse them; the chain then makes blocks only from registered topics"), "open",
+                "unregistered: in the draft");
+        return new Draft.Topics(create, registrars, registrars.isEmpty() ? 0 : 1, unregistered, Map.of());
+    }
+
     /** Adds {@code --setting chain.key=value} values to the chains' settings; seal checks them like any other. */
     private static List<Draft.Chain> withSettings(List<Draft.Chain> chains, List<String> flags) {
         List<Draft.Chain> result = new ArrayList<>(chains);
@@ -124,7 +175,8 @@ final class NewCommand {
             Map<String, String> settings = new java.util.LinkedHashMap<>(chain.settings());
             settings.put(flag.substring(dot + 1, equals), flag.substring(equals + 1));
             result.set(index, new Draft.Chain(chain.id(), chain.recipe(), chain.capabilities(), chain.answers(),
-                    chain.bindings(), chain.composite(), chain.authenticatedMap(), chain.anchor(), settings));
+                    chain.bindings(), chain.composite(), chain.authenticatedMap(), chain.anchor(), settings,
+                    chain.topics()));
         }
         return result;
     }
@@ -151,7 +203,7 @@ final class NewCommand {
                 }
             }
             result.add(new Draft.Chain(chain.id(), chain.recipe(), chain.capabilities(), answers, chain.bindings(),
-                    chain.composite(), chain.authenticatedMap(), chain.anchor(), chain.settings()));
+                    chain.composite(), chain.authenticatedMap(), chain.anchor(), chain.settings(), chain.topics()));
         }
         return result;
     }
@@ -187,7 +239,7 @@ final class NewCommand {
         Path source = templateFile.toAbsolutePath().normalize().getParent().resolve(chain.bindings()).normalize();
         Draft.Chain copied = composite(chain.id(), source, output);
         return new Draft.Chain(chain.id(), chain.recipe(), chain.capabilities(), chain.answers(), copied.bindings(),
-                chain.composite(), chain.authenticatedMap(), chain.anchor(), chain.settings());
+                chain.composite(), chain.authenticatedMap(), chain.anchor(), chain.settings(), chain.topics());
     }
 
     private Draft.Chain askChain(String suggested, Map<String, String> recipes, Path output) throws IOException {

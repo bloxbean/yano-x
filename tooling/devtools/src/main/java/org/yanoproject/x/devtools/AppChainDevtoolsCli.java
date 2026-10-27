@@ -50,6 +50,7 @@ public final class AppChainDevtoolsCli {
                or: ./yano.sh appchain authenticated-map action|direct-*|approval-*|command [options]
                or: ./yano.sh appchain eutxo transaction|utxo|proof|doctor|demo [options]
                or: ./yano.sh appchain state entry|proof|verify|identity|integrity|snapshot|oldest [options]
+               or: ./yano.sh appchain topics init|plan|sign|submit|resolve|delegate|verify|doctor [options]
                or: ./yano.sh appchain bindings compile|validate|graph|dry-run <document> [options]
                or: ./yano.sh appchain bindings receipt-key|catalog|profile-check [options]
             Options:
@@ -90,6 +91,9 @@ public final class AppChainDevtoolsCli {
         Objects.requireNonNull(args, "args");
         Objects.requireNonNull(out, "out");
         Objects.requireNonNull(err, "err");
+        if (args.length > 0 && "topics".equals(args[0])) {
+            return new TopicsCli().run(java.util.Arrays.copyOfRange(args, 1, args.length), out, err);
+        }
         if (args.length > 0 && "bindings".equals(args[0])) {
             return new BindingCli().run(java.util.Arrays.copyOfRange(args, 1, args.length), out, err);
         }

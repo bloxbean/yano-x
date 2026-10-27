@@ -34,7 +34,7 @@ import org.yanoproject.x.stdlib.contracts.AuthenticatedMapContract.ReceiptQuery;
 import org.yanoproject.x.stdlib.contracts.AuthenticatedMapContract.ReceiptResult;
 import org.yanoproject.x.stdlib.contracts.AuthenticatedMapAuthorizationContract;
 import org.yanoproject.x.stdlib.contracts.AuthenticatedMapAuthorizationContract.*;
-import org.yanoproject.x.stdlib.contracts.AuthenticatedMapSchema;
+import org.yanoproject.api.appchain.schema.CborSchema;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -60,7 +60,7 @@ public final class AuthenticatedMapStateMachine implements AppStateMachine {
     private final Genesis genesis;
     private final byte[] genesisId;
     private final Map<String, CollectionDescriptor> collections;
-    private final Map<String, AuthenticatedMapSchema.Schema> schemas;
+    private final Map<String, CborSchema.Schema> schemas;
     private final Map<String, AuthenticatedMapValueValidator> pluginValidators;
     private final AppChainMembershipView membershipView;
 
@@ -82,12 +82,12 @@ public final class AuthenticatedMapStateMachine implements AppStateMachine {
         Map<String, CollectionDescriptor> declared = new LinkedHashMap<>();
         genesis.collections().forEach(descriptor -> declared.put(descriptor.id(), descriptor));
         this.collections = Map.copyOf(declared);
-        Map<String, AuthenticatedMapSchema.Schema> declaredSchemas = new LinkedHashMap<>();
+        Map<String, CborSchema.Schema> declaredSchemas = new LinkedHashMap<>();
         Map<String, AuthenticatedMapValueValidator> declaredPlugins = new LinkedHashMap<>();
         genesis.validators().forEach(descriptor -> {
             if (descriptor.kind() == AuthenticatedMapContract.VALIDATOR_KIND_SCHEMA) {
                 declaredSchemas.put(descriptor.id(),
-                        AuthenticatedMapSchema.decode(descriptor.definition()));
+                        CborSchema.decode(descriptor.definition()));
             } else {
                 if (validatorResolver == null) {
                     throw new IllegalArgumentException(
@@ -438,7 +438,7 @@ public final class AuthenticatedMapStateMachine implements AppStateMachine {
                     descriptor.valueEncoding(), mutation.value(), descriptor.maxValueBytes())) {
                 throw new IllegalArgumentException("mutation violates collection value encoding");
             }
-            AuthenticatedMapSchema.Schema schema = schemas.get(descriptor.validatorId());
+            CborSchema.Schema schema = schemas.get(descriptor.validatorId());
             if (schema != null && !schema.accepts(mutation.value())) {
                 throw new IllegalArgumentException("mutation violates collection value schema");
             }
@@ -605,7 +605,7 @@ public final class AuthenticatedMapStateMachine implements AppStateMachine {
     }
 
     /** The declarative schema of a collection's values, or {@code null} when it has none (ADR-031.4 §5.4). */
-    AuthenticatedMapSchema.Schema schemaOf(String collectionId) {
+    CborSchema.Schema schemaOf(String collectionId) {
         CollectionDescriptor descriptor = collections.get(collectionId);
         return descriptor == null || descriptor.validatorId().isEmpty() ? null
                 : schemas.get(descriptor.validatorId());
@@ -713,7 +713,7 @@ public final class AuthenticatedMapStateMachine implements AppStateMachine {
                 descriptor.valueEncoding(), value, descriptor.maxValueBytes())) {
             throw failure(AuthenticatedMapContract.ERROR_VALUE_ENCODING);
         }
-        AuthenticatedMapSchema.Schema schema = schemas.get(descriptor.validatorId());
+        CborSchema.Schema schema = schemas.get(descriptor.validatorId());
         if (schema != null && !schema.accepts(value)) {
             throw failure(AuthenticatedMapContract.ERROR_VALUE_SCHEMA);
         }

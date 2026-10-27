@@ -33,7 +33,9 @@ public record Draft(
             "name", "invite", "network", "operators", "threshold", "membership", "sequencing", "chains");
     private static final Set<String> CHAIN_FIELDS = Set.of(
             "id", "recipe", "capabilities", "answers", "bindings", "composite", "authenticatedMap",
-            "anchor", "settings");
+            "anchor", "topics", "settings");
+    private static final Set<String> TOPIC_FIELDS = Set.of("create", "registrars", "registrar-threshold",
+            "unregistered", "limits");
 
     /** One chain: one state machine by recipe, or a composite of several joined by bindings. */
     public record Chain(
@@ -45,13 +47,88 @@ public record Draft(
             JsonNode composite,
             JsonNode authenticatedMap,
             Anchor anchor,
-            Map<String, String> settings) {
+            Map<String, String> settings,
+            Topics topics) {
 
         public Chain {
             capabilities = capabilities == null ? List.of() : List.copyOf(capabilities);
             answers = answers == null ? Map.of() : java.util.Collections.unmodifiableMap(new LinkedHashMap<>(answers));
             settings = settings == null ? Map.of() : java.util.Collections.unmodifiableMap(new LinkedHashMap<>(settings));
             if (recipe == null || recipe.isBlank()) throw new FormatException("Chain '" + id + "' needs a recipe");
+        }
+
+        /** A chain without topic policies. */
+        public Chain(String id, String recipe, List<String> capabilities, Map<String, String> answers, String bindings,
+                     JsonNode composite, JsonNode authenticatedMap, Anchor anchor, Map<String, String> settings) {
+            this(id, recipe, capabilities, answers, bindings, composite, authenticatedMap, anchor, settings, null);
+        }
+
+        public Chain withTopics(Topics value) {
+            return new Chain(id, recipe, capabilities, answers, bindings, composite, authenticatedMap, anchor, settings,
+                    value);
+        }
+    }
+
+    /**
+     * Topic policies (namespaces, writer policies, session keys), fixed at genesis. {@code create} says who may
+     * create a top-level namespace: {@code members} by a governance vote, {@code registrars} by the named
+     * operators' (or keys') signatures, or {@code anyone} by a first-come claim. Members can always create and
+     * recover namespaces by vote. {@code unregistered} says what happens to messages no namespace covers.
+     */
+    public record Topics(String create, List<String> registrars, int registrarThreshold, String unregistered,
+                         Map<String, Long> limits) {
+        public static final List<String> CREATE = List.of("members", "registrars", "anyone");
+        public static final List<String> UNREGISTERED = List.of("open", "reject");
+        /** Optional limits, by their core setting names under {@code topics.}. */
+        public static final Set<String> LIMITS = Set.of("max-delegation-ms", "max-command-ms",
+                "max-pending-per-entry", "max-entries", "max-entries-per-namespace", "activation-lag",
+                "governance-window-blocks");
+
+        public Topics {
+            create = create == null ? "members" : create;
+            if (!CREATE.contains(create)) {
+                throw new FormatException("topics create must be members, registrars or anyone");
+            }
+            registrars = registrars == null ? List.of() : List.copyOf(registrars);
+            if ("registrars".equals(create) == registrars.isEmpty()) {
+                throw new FormatException("registrars: " + ("registrars".equals(create)
+                        ? "name the operators (or 64-hex public keys) who may create namespaces"
+                        : "only applies with create: registrars"));
+            }
+            if (registrars.size() > 16 || new HashSet<>(registrars).size() != registrars.size()) {
+                throw new FormatException("registrars must list at most 16 distinct operators or keys");
+            }
+            if (registrarThreshold < (registrars.isEmpty() ? 0 : 1) || registrarThreshold > registrars.size()) {
+                throw new FormatException("registrar-threshold must be between 1 and the number of registrars");
+            }
+            // Open keeps topics nobody registered working as before, heartbeats included; reject is deny-by-default.
+            unregistered = unregistered == null ? "open" : unregistered;
+            if (!UNREGISTERED.contains(unregistered)) {
+                throw new FormatException("topics unregistered must be 'reject' or 'open'");
+            }
+            limits = limits == null ? Map.of() : java.util.Collections.unmodifiableMap(new java.util.TreeMap<>(limits));
+            limits.forEach((name, value) -> {
+                if (!LIMITS.contains(name)) {
+                    throw new FormatException("Unknown topics limit '" + name + "'; allowed: "
+                            + String.join(", ", LIMITS.stream().sorted().toList()));
+                }
+                if (value == null || value < 1) throw new FormatException("topics limit " + name + " must be positive");
+            });
+        }
+
+        /** Members-only creation with the core defaults. */
+        public static Topics members() {
+            return new Topics("members", List.of(), 0, "open", Map.of());
+        }
+
+        public String summary() {
+            String who = switch (create) {
+                case "members" -> "namespaces created by member vote";
+                case "registrars" -> "namespaces created by " + (registrarThreshold > 1 ? registrarThreshold + " of " : "")
+                        + String.join(", ", registrars);
+                default -> "namespaces claimed first-come by anyone";
+            };
+            return who + "; unregistered topics " + ("reject".equals(unregistered) ? "refused" : "open");
         }
     }
 
@@ -107,6 +184,17 @@ public record Draft(
         for (Chain chain : chains) {
             if (!ids.add(Names.chainId(chain.id()))) {
                 throw new FormatException("Chain '" + chain.id() + "' is defined twice");
+            }
+            if (chain.topics() == null) continue;
+            if (!"governed".equals(membership)) {
+                throw new FormatException("Chain '" + chain.id() + "' protects topics, which needs membership: "
+                        + "governed (members vote on namespaces and recovery)");
+            }
+            for (String registrar : chain.topics().registrars()) {
+                if (!registrar.matches("[0-9a-f]{64}") && !operators.contains(registrar)) {
+                    throw new FormatException("Chain '" + chain.id() + "' registrar '" + registrar
+                            + "' is neither an operator (" + String.join(", ", operators) + ") nor a 64-hex public key");
+                }
             }
         }
         chains = List.copyOf(chains);
@@ -193,6 +281,7 @@ public record Draft(
                 if (every < 1) throw new FormatException("anchor every-blocks must be at least 1");
                 anchor = new Anchor(mode, every);
             }
+            Topics topics = chain.hasNonNull("topics") ? topics(chain.get("topics")) : null;
             chains.add(new Chain(
                     text(chain, "id"),
                     text(chain, "recipe"),
@@ -202,9 +291,36 @@ public record Draft(
                     chain.hasNonNull("composite") ? chain.get("composite") : null,
                     chain.hasNonNull("authenticatedMap") ? chain.get("authenticatedMap") : null,
                     anchor,
-                    map(chain.path("settings"))));
+                    map(chain.path("settings")),
+                    topics));
         }
         return chains;
+    }
+
+    private static Topics topics(JsonNode node) {
+        if (!(node instanceof ObjectNode object)) {
+            throw new FormatException("'topics' must be a mapping, for example {create: members}");
+        }
+        unknown(object, TOPIC_FIELDS, "topics");
+        Map<String, Long> limits = new LinkedHashMap<>();
+        JsonNode limitNodes = object.path("limits");
+        if (!limitNodes.isMissingNode() && !limitNodes.isNull()) {
+            if (!limitNodes.isObject()) throw new FormatException("topics limits must be a mapping");
+            limitNodes.properties().forEach(entry -> {
+                if (!entry.getValue().canConvertToLong() || !entry.getValue().isIntegralNumber()) {
+                    throw new FormatException("topics limit " + entry.getKey() + " must be a whole number");
+                }
+                limits.put(entry.getKey(), entry.getValue().asLong());
+            });
+        }
+        List<String> registrars = strings(object.path("registrars"));
+        JsonNode threshold = object.path("registrar-threshold");
+        if (!threshold.isMissingNode() && !threshold.isIntegralNumber()) {
+            throw new FormatException("registrar-threshold must be a whole number");
+        }
+        return new Topics(object.hasNonNull("create") ? object.get("create").asText() : null, registrars,
+                threshold.isMissingNode() ? (registrars.isEmpty() ? 0 : 1) : threshold.asInt(),
+                object.hasNonNull("unregistered") ? object.get("unregistered").asText() : null, limits);
     }
 
     /** A commented YAML file for people; {@link #parse} reads it back to an equal draft. */
@@ -246,6 +362,26 @@ public record Draft(
                 out.append("    anchor: {mode: ").append(chain.anchor().mode()).append(", every-blocks: ")
                         .append(chain.anchor().everyBlocks()).append("}\n");
             }
+            if (chain.topics() != null) {
+                Topics topics = chain.topics();
+                out.append("    topics:            # namespaces and writer policies (fixed at seal)\n");
+                out.append("      create: ").append(topics.create())
+                        .append("      # who creates namespaces: members (vote) | registrars | anyone\n");
+                if (!topics.registrars().isEmpty()) {
+                    out.append("      registrars: [").append(String.join(", ", topics.registrars().stream()
+                            .map(Draft::plain).toList())).append("]\n");
+                    if (topics.registrarThreshold() > 1) {
+                        out.append("      registrar-threshold: ").append(topics.registrarThreshold()).append('\n');
+                    }
+                }
+                out.append("      unregistered: ").append(topics.unregistered())
+                        .append("  # messages on topics no namespace covers: open | reject\n");
+                if (!topics.limits().isEmpty()) {
+                    out.append("      limits:\n");
+                    topics.limits().forEach((key, value) -> out.append("        ").append(key).append(": ")
+                            .append(value).append('\n'));
+                }
+            }
             if (!chain.settings().isEmpty()) {
                 out.append("    settings:\n");
                 chain.settings().forEach((key, value) -> out.append("      ").append(key).append(": ")
@@ -267,6 +403,11 @@ public record Draft(
         StringBuilder out = new StringBuilder();
         for (String line : text.split("\n")) out.append(prefix).append(line).append('\n');
         return out.toString();
+    }
+
+    /** A list item: unquoted when it is a plain name or key, so the draft stays readable. */
+    private static String plain(String value) {
+        return value.matches("[a-z][a-z0-9-]*") ? value : quote(value); // Studio refuses a bare leading digit
     }
 
     private static String quote(String value) {

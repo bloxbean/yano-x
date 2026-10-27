@@ -1,0 +1,323 @@
+{
+  "archive": "/private/tmp/yano-x-pr80-reviewed.7hw45v5z/yano-x-jvm-0.1.0-pre4.zip",
+  "sha256": "1cc44e322d7eec6d59f3ec81b747cf906cff2ab122bb4543b133a2024107e407",
+  "size": 506075362,
+  "result": "PASS",
+  "method": "Read-only exact-byte comparison against frozen build outputs and source; no Gradle or live cluster.",
+  "bundles": [
+    {
+      "entry": "tools/lib/yano-x-devtools-0.1.0-pre4.jar",
+      "sha256": "7b9f238a411b69398fee3017151d399bd7edc22a50800f0585346b86d7074b80",
+      "size": 758231,
+      "matches": "tooling/devtools/build/libs/yano-x-devtools-0.1.0-pre4.jar"
+    },
+    {
+      "entry": "tools/lib/yano-x-client-0.1.0-pre4.jar",
+      "sha256": "5d5b7af96b740d5aca0e3807f6b5b4b4097a33b213dce823c8e8456881ecc5bf",
+      "size": 207805,
+      "matches": "sdk/client/build/libs/yano-x-client-0.1.0-pre4.jar"
+    },
+    {
+      "entry": "plugins/yano-x-composite-bundle-0.1.0-pre4.jar",
+      "sha256": "bba7292ef9c838ad853c361437fb6aabc86b2e082525c8ad7fad8d638c6e2efb",
+      "size": 3714392,
+      "matches": "composition/runtime/build/libs/yano-x-composite-0.1.0-pre4-bundle.jar"
+    },
+    {
+      "entry": "plugins/yano-x-stdlib-bundle-0.1.0-pre4.jar",
+      "sha256": "8c5856afc7a39b8da43d84a26c2ba0708549adee3b3389735e25ed6e4508ca30",
+      "size": 4036489,
+      "matches": "state-machines/stdlib/build/libs/yano-x-stdlib-0.1.0-pre4-bundle.jar"
+    }
+  ],
+  "compiledClassesCompared": 102,
+  "javascriptSdkModules": [
+    {
+      "entry": "studio/assets/topics/blake2b.mjs",
+      "sha256": "da70623e97654053caeaa4d8dc1158d53083cf2ce3c8b28ef8d46a2127edc15e",
+      "size": 3246,
+      "matches": "sdk/javascript/blake2b.mjs"
+    },
+    {
+      "entry": "studio/assets/topics/canonical-value.mjs",
+      "sha256": "0716535f0e0f723378489f64c8c2e012c20586bdd586e6127998f4e44bd29c1d",
+      "size": 7190,
+      "matches": "sdk/javascript/canonical-value.mjs"
+    },
+    {
+      "entry": "studio/assets/topics/cbor.mjs",
+      "sha256": "edf1335bfa4061d6bbd89d485fb85ed1e2791bdf670adf5dbcb7b11d8a683d95",
+      "size": 5049,
+      "matches": "sdk/javascript/cbor.mjs"
+    },
+    {
+      "entry": "studio/assets/topics/topic-wire.mjs",
+      "sha256": "f1952341461116359b3bc5fa97bcc9397eb86a0b7dccb730e482ee7d62a6145f",
+      "size": 7769,
+      "matches": "sdk/javascript/topic-wire.mjs"
+    },
+    {
+      "entry": "studio/assets/topics/topics.mjs",
+      "sha256": "6af964b140803812b06be3497348b72342ff9b10e10643b133249ab99d27f5f5",
+      "size": 17234,
+      "matches": "sdk/javascript/topics.mjs"
+    }
+  ],
+  "studioAssets": [
+    {
+      "entry": "studio/app.mjs",
+      "sha256": "fe67c08e953af49b821961d15a3c453b1d66af2dde5bfef33a6a7ac1536dc95f",
+      "size": 12164,
+      "matches": "tooling/studio/src/main/web/app.mjs"
+    },
+    {
+      "entry": "studio/binding-authoring-catalog.json",
+      "sha256": "9cad040b13cebd1d04bef6057cc807fe822b5b74f236b654a149330130f44a68",
+      "size": 50422,
+      "matches": "tooling/studio/src/main/web/binding-authoring-catalog.json"
+    },
+    {
+      "entry": "studio/binding-authoring-context.json",
+      "sha256": "2b738697623c717a152335cc0b8667b2d3e2bd405cbbb8379bfd509bce17d6d9",
+      "size": 1026,
+      "matches": "tooling/studio/src/main/web/binding-authoring-context.json"
+    },
+    {
+      "entry": "studio/binding-blueprint.mjs",
+      "sha256": "0f5cd56b6fb188af3e49e746a2766d6c44ede2777815eadfb2d3fb099a841c91",
+      "size": 5853,
+      "matches": "tooling/studio/src/main/web/binding-blueprint.mjs"
+    },
+    {
+      "entry": "studio/binding-catalog.mjs",
+      "sha256": "ce2189d2e23f004e3b614288321a9ea9fe283f92896d4e08e44b53be4e76efc7",
+      "size": 35290,
+      "matches": "tooling/studio/src/main/web/binding-catalog.mjs"
+    },
+    {
+      "entry": "studio/binding-check.mjs",
+      "sha256": "c7515765cf93c140162804dfcb2a83c8eed5c8dca5741ae697c0725f79bb3664",
+      "size": 30564,
+      "matches": "tooling/studio/src/main/web/binding-check.mjs"
+    },
+    {
+      "entry": "studio/binding-diagnostic-codes.mjs",
+      "sha256": "4de0910e4cf3aa069b7c0bb588447ea0b0cc7d96b4017ab72e167c00197fdd09",
+      "size": 6424,
+      "matches": "tooling/studio/src/main/web/binding-diagnostic-codes.mjs"
+    },
+    {
+      "entry": "studio/binding-dom.mjs",
+      "sha256": "529455d05047a3628deef1decbadeaa4402891f640f8b29198ca72b2c39a2e53",
+      "size": 3170,
+      "matches": "tooling/studio/src/main/web/binding-dom.mjs"
+    },
+    {
+      "entry": "studio/binding-draft.mjs",
+      "sha256": "10a56320edda5afd86b0b16dfd31f45b2927d403cc54215dfffe32c8f48a5b41",
+      "size": 24365,
+      "matches": "tooling/studio/src/main/web/binding-draft.mjs"
+    },
+    {
+      "entry": "studio/binding-edit.mjs",
+      "sha256": "ae12a5c2ed98aafa71cd10d2fcbb6761101e31965481a2b6aaac8e015e7e7fe8",
+      "size": 20096,
+      "matches": "tooling/studio/src/main/web/binding-edit.mjs"
+    },
+    {
+      "entry": "studio/binding-editor.mjs",
+      "sha256": "9aa368a180ff706a673a8257221dd89ee37c5a073b2c36926415cd37c2dbb8bd",
+      "size": 137904,
+      "matches": "tooling/studio/src/main/web/binding-editor.mjs"
+    },
+    {
+      "entry": "studio/binding-explain.mjs",
+      "sha256": "72d9706ac336b0ba7d511291bf4c2314494d53b6c1fda576463135582e5dcaa1",
+      "size": 17899,
+      "matches": "tooling/studio/src/main/web/binding-explain.mjs"
+    },
+    {
+      "entry": "studio/binding-graph.mjs",
+      "sha256": "3500c28f62ac1872000fb354b3eeb4862a25215c70606c94bad2bb3ebf506bdd",
+      "size": 4892,
+      "matches": "tooling/studio/src/main/web/binding-graph.mjs"
+    },
+    {
+      "entry": "studio/binding-layout.mjs",
+      "sha256": "776d8887f0e881eab2edc8448006d35c10bc77f9fb7dc1d6e893e0b6f86b4e90",
+      "size": 5046,
+      "matches": "tooling/studio/src/main/web/binding-layout.mjs"
+    },
+    {
+      "entry": "studio/binding-receipt.mjs",
+      "sha256": "152fbf4fd7f2f0f9730c400a606797b9ae7165b5e214bd1a190dd097c1a9ff89",
+      "size": 14773,
+      "matches": "tooling/studio/src/main/web/binding-receipt.mjs"
+    },
+    {
+      "entry": "studio/binding-report.mjs",
+      "sha256": "cd7e957d2aee423d44e76f3fb24c3ee7e0564a3d8298c6263f2e167217a88d19",
+      "size": 18929,
+      "matches": "tooling/studio/src/main/web/binding-report.mjs"
+    },
+    {
+      "entry": "studio/binding-session.mjs",
+      "sha256": "bac96e913b3847614a6d9afb5d4d1f989064ce91efedab3aa968a9d5cfae5d03",
+      "size": 25959,
+      "matches": "tooling/studio/src/main/web/binding-session.mjs"
+    },
+    {
+      "entry": "studio/binding-starters.mjs",
+      "sha256": "bc03264d22cc73800c914a81be3d7ecaaaca05eddf64af7cd4b34e1e41c8c923",
+      "size": 1318,
+      "matches": "tooling/studio/src/main/web/binding-starters.mjs"
+    },
+    {
+      "entry": "studio/binding-validation-view.mjs",
+      "sha256": "4901e7a1ff6e1b29c97bec0c1ddc349ec5c5ad7f1301a6144fcd2807df0d4079",
+      "size": 20355,
+      "matches": "tooling/studio/src/main/web/binding-validation-view.mjs"
+    },
+    {
+      "entry": "studio/binding-validation.mjs",
+      "sha256": "5846937038a17d7eeefa5bb2773fcebce2af0c972b393da498b344a527e698e4",
+      "size": 13770,
+      "matches": "tooling/studio/src/main/web/binding-validation.mjs"
+    },
+    {
+      "entry": "studio/bindings-app.mjs",
+      "sha256": "c96a8f58d8dde85d05fe450853571bcd05e64ce8a01aa1d7878b0bad3442af26",
+      "size": 1883,
+      "matches": "tooling/studio/src/main/web/bindings-app.mjs"
+    },
+    {
+      "entry": "studio/bindings.css",
+      "sha256": "6b4f86f122b9d1016418ecba288893066aa10c034f12cc2981e5b0b408c224d7",
+      "size": 11019,
+      "matches": "tooling/studio/src/main/web/bindings.css"
+    },
+    {
+      "entry": "studio/bindings.html",
+      "sha256": "66f1424e3e548c9651df0823f845d5d1cd75605f49108a075f0bc735876ea35a",
+      "size": 6111,
+      "matches": "tooling/studio/src/main/web/bindings.html"
+    },
+    {
+      "entry": "studio/capabilities.css",
+      "sha256": "7804a55c114f173e1917bea56ce81e9cdff63a3321f8a50748c9cd1c3432d86c",
+      "size": 1561,
+      "matches": "tooling/studio/src/main/web/capabilities.css"
+    },
+    {
+      "entry": "studio/index.html",
+      "sha256": "181da01a168b5e1bcd2e404db1fac73e474096f9a19b58edb106577be00f02cf",
+      "size": 8282,
+      "matches": "tooling/studio/src/main/web/index.html"
+    },
+    {
+      "entry": "studio/lossless-json.mjs",
+      "sha256": "423cb4897e7317f6f4633d121a382ed82fd952b009cd68a0b9ca4cd47616ca17",
+      "size": 13445,
+      "matches": "tooling/studio/src/main/web/lossless-json.mjs"
+    },
+    {
+      "entry": "studio/sha256.mjs",
+      "sha256": "6efb097eb22a3c3f4dde992cfb04312365e99aaa60a174fafcf110f89deb10d6",
+      "size": 3381,
+      "matches": "tooling/studio/src/main/web/sha256.mjs"
+    },
+    {
+      "entry": "studio/studio-core.mjs",
+      "sha256": "59f52083cd18b525c81f48cf9c2a4240093fd95711cb92a57a59c6e11e63901e",
+      "size": 17972,
+      "matches": "tooling/studio/src/main/web/studio-core.mjs"
+    },
+    {
+      "entry": "studio/studio-yaml.mjs",
+      "sha256": "c01d6614cb6cc054018538555da3ec73020a030ff54295f1a807f94b1dc820c5",
+      "size": 39326,
+      "matches": "tooling/studio/src/main/web/studio-yaml.mjs"
+    },
+    {
+      "entry": "studio/styles.css",
+      "sha256": "8b59c3945a04024f710197bc3e16ea2c49526046997afabfa449951373386877",
+      "size": 5736,
+      "matches": "tooling/studio/src/main/web/styles.css"
+    },
+    {
+      "entry": "studio/topic-cddl.mjs",
+      "sha256": "2dd88c9efbaab56eb39522b7add88b775bf9a869f941fe46320c52769cc9ec22",
+      "size": 9284,
+      "matches": "tooling/studio/src/main/web/topic-cddl.mjs"
+    },
+    {
+      "entry": "studio/topics-app.mjs",
+      "sha256": "8b706e1c2483d28983ee5208e3cacab0243768a2c7f681ec63bf2d17ff26d2e5",
+      "size": 14327,
+      "matches": "tooling/studio/src/main/web/topics-app.mjs"
+    },
+    {
+      "entry": "studio/topics-diagnostics.mjs",
+      "sha256": "f35c410086f7a7aae86c6382c3945e81615ef161433f6c49e6dd5c46bab3f634",
+      "size": 10810,
+      "matches": "tooling/studio/src/main/web/topics-diagnostics.mjs"
+    },
+    {
+      "entry": "studio/topics-model.mjs",
+      "sha256": "378958aa21f6abb7eb67feca4bf29b3196ebb939b2c94e098f9a78c9d5ffa0f6",
+      "size": 13558,
+      "matches": "tooling/studio/src/main/web/topics-model.mjs"
+    },
+    {
+      "entry": "studio/topics.css",
+      "sha256": "2fd10241b11c73f909fa804c9b0b5d0ef00dec6a6d0ce77cf1f61f7cc86d2b6d",
+      "size": 1998,
+      "matches": "tooling/studio/src/main/web/topics.css"
+    },
+    {
+      "entry": "studio/topics.html",
+      "sha256": "e64cfd89791977d91feaa36b0bf65c0ba7d26f7f8411e3f9fbceab7b0d1baf85",
+      "size": 8407,
+      "matches": "tooling/studio/src/main/web/topics.html"
+    }
+  ],
+  "topicPlanFixtures": {
+    "entry": "studio/assets/topics-plan-v1.json",
+    "sha256": "94477a4bde8c3b8e197feca3ff5930f5fc38f6b7543a1962be0a98f1ad7f0b32",
+    "size": 51301,
+    "matches": "tooling/devtools/src/test/resources/topics/plan-v1.json",
+    "fixtureCount": 8,
+    "fixtureNames": [
+      "governance-create",
+      "owner-update-schema",
+      "inherited-child",
+      "open-claim",
+      "registrar-create",
+      "owner-revoke",
+      "issuer-revoke",
+      "retired-owner-revoke"
+    ]
+  },
+  "showcaseSources": [
+    {
+      "entry": "examples/showcase/tools/showcase_genesis.py",
+      "sha256": "f6de9cc5f0951cb87f105cd3d077cf364576653ceba8d0d492f68d4f772da4e1",
+      "size": 8179,
+      "matches": "examples/showcase/src/main/showcase/tools/showcase_genesis.py"
+    },
+    {
+      "entry": "examples/showcase/showcase.sh",
+      "sha256": "874f89a79a795443e88d80384006f14109f3b4b9b8213cdeaa668206157ad8f7",
+      "size": 126970,
+      "matches": "examples/showcase/src/main/showcase/showcase.sh"
+    },
+    {
+      "entry": "appchain-cluster/cluster.sh",
+      "sha256": "f9893947074dc378e7fb833228206d35844a33109151bef86876480fd6d11e91",
+      "size": 162448,
+      "matches": "scripts/appchain-cluster/cluster.sh"
+    }
+  ],
+  "stockDevnetCadence": "Packaged helper contains the reviewed stock-only epochLength=500 normalization; custom and retained branches remain byte-preserving.",
+  "liveNodeSidecarGuard": "Packaged helper contains the reviewed exact numeric node-directory and numeric.properties filters; live PID, metadata, launch-fence and temporary files are excluded."
+}

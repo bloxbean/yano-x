@@ -1,0 +1,15 @@
+{
+  "status": "PASS",
+  "listeningPorts": [],
+  "checkedPorts": [
+    30070,
+    30071,
+    30072,
+    29670,
+    29671,
+    29672
+  ],
+  "remainingNodePidFiles": [],
+  "retainedDiagnostics": "/private/var/folders/9x/p4g24d210kq8hngwdmh5mwrm0000gn/T/yano-topics-acceptance.uow96x",
+  "publicReport": "/private/tmp/pr80-final-topics-result.json"
+}

@@ -22,7 +22,7 @@ What this module provides:
 - **Plugin tools:** `plugin scaffold|sign|validate|inspect` and
   `metadata verify`.
 
-`AuthenticatedMapCddlCompiler` is the compile-before-genesis API for the closed
+`CddlSchemaCompiler` is the collection and topic authoring API for the closed
 `cddl-yano-subset-v1` language. It resolves bounded, non-recursive named rules
 and emits canonical `yano-cbor-schema-ir-v1` bytes; source CDDL is never parsed
 by consensus nodes. The draft workflow for this API is described in the

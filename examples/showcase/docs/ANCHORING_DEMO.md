@@ -29,6 +29,15 @@ bootstrap, finalizes the composite/effect flow, and verifies a confirmed
 Cardano anchor. The devnet wallet is demo material and must never be reused
 on another network.
 
+On a devnet, `seal` gives each chain an anchor transaction lifetime of
+`min(299, floor(3 * securityParam / activeSlotsCoeff) - 1)` slots, from the
+distribution's devnet genesis. The stock devnet gets 299 slots (about 60
+seconds), which keeps Plutus transaction expiry inside the ledger's forecast
+horizon. Public networks keep the host default. On first `start` the lead's
+node creates the devnet genesis and the other members download the lead's
+file; each node pins it for life once it has run on it, and `status` compares
+its hash across the nodes.
+
 Open the status UI and select `workflow-chain`:
 
 ```bash

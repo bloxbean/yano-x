@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>Topics · Yano App-Chain Studio</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="topics.css">
+</head>
+<body>
+  <a class="skip-link" href="#topic-editor">Skip to the policy editor</a>
+  <header class="masthead">
+    <a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true"></span><span>Yano <strong>App-Chain Studio</strong></span></a>
+    <nav class="studio-nav" aria-label="Studio"><a href="index.html">Start</a><a href="bindings.html">Bindings</a><a href="topics.html" aria-current="page">Topics</a></nav>
+  </header>
+  <main class="topics-main">
+    <section class="topics-intro">
+      <p class="eyebrow">Namespaces · writer policies · session keys</p>
+      <h1>Write a topics change</h1>
+      <p class="lede">Fill in who owns a namespace, who may write to it and what its messages look like. Studio writes the
+        <code>topics.yaml</code> the CLI plans, signs and submits.</p>
+      <p>Studio has no backend, never reads a chain and never asks for a key. The CLI checks the change against the
+        chain and shows exactly what will be signed.</p>
+    </section>
+    <p id="notice" class="topics-notice" role="status" aria-live="polite">Fill in the form, or import a topics.yaml to edit.</p>
+    <div class="topics-grid">
+      <section class="topic-panel" id="topic-editor" aria-labelledby="editor-heading">
+        <h2 id="editor-heading">The change</h2>
+        <div class="topic-fields">
+          <label>Chain ID<input id="chain-id" type="text" maxlength="128" placeholder="games"></label>
+          <div><label for="operation">Operation</label><select id="operation">
+            <option value="create">Create a namespace or topic</option><option value="update">Update its policy</option>
+            <option value="rotate">Rotate its owners</option><option value="recover">Recover it (member vote)</option>
+            <option value="retire">Retire it</option><option value="revoke">Revoke a session credential</option></select></div>
+          <label>Target namespace or topic<input id="target" type="text" value="games/" maxlength="256"></label>
+          <label>Authority<input id="authority" type="text" value="governance" maxlength="256"
+            aria-describedby="authority-help"></label>
+        </div>
+        <p id="authority-help" class="note"><code>governance</code> is a member vote (top-level namespaces and recovery);
+          an owning namespace such as <code>games/</code> is its owners' signatures; <code>~registrars</code> and
+          <code>~claim</code> follow the chain's creation policy; <code>~issuer</code> revokes your own credential.</p>
+        <div id="owners-fields">
+          <label for="owners">Owner public keys (64 hex, one per line)</label><textarea id="owners" rows="3" spellcheck="false"></textarea>
+          <label>Owner signatures required<input id="owner-threshold" type="number" min="1" max="16" value="1"></label>
+        </div>
+        <div id="policy-fields">
+          <label for="writers">Writer public keys (one per line; empty means anyone may write)</label><textarea id="writers" rows="3" spellcheck="false"></textarea>
+          <div class="topic-fields">
+            <label>Writer signatures required<input id="writer-threshold" type="number" min="1" max="16" value="1"></label>
+            <label>Payload limit (bytes)<input id="payload-limit" type="number" min="1" value="65536"></label>
+            <label>Session credential lifetime (ms)<input id="delegation-ms" type="number" min="1" value="3600000"></label>
+          </div>
+          <label for="delegators">Who may issue session credentials (public keys, one per line)</label><textarea id="delegators" rows="2" spellcheck="false"></textarea>
+          <label for="schema">Payload schema (CDDL; empty means no schema)</label><textarea id="schema" rows="4" spellcheck="false" placeholder="root = { frames: 1200..9000, name: tstr .size (1..32) }"></textarea>
+        </div>
+        <div id="revoke-fields">
+          <label for="revoke-delegation">Session credential to revoke (hex)</label><textarea id="revoke-delegation" rows="3" maxlength="8192" spellcheck="false"></textarea>
+          <p class="note">Use the credential's exact scope as the target.</p>
+        </div>
+        <label id="expiry-field">Signatures expire at (Unix ms)<input id="not-after" type="number" min="0"></label>
+        <button id="apply-form" type="button">Write this change into topics.yaml</button>
+        <details><summary>Edit or import topics.yaml</summary>
+          <label for="document">topics.yaml</label><textarea id="document" rows="17" spellcheck="false"></textarea>
+          <label for="yaml-file">Import topics.yaml</label><input id="yaml-file" type="file" accept=".yaml,.yml,.json">
+        </details>
+        <div class="actions"><button id="export-yaml" type="button">Download topics.yaml</button></div>
+      </section>
+      <section class="topic-panel" aria-labelledby="next-heading">
+        <h2 id="next-heading">Then, in a terminal</h2>
+        <p class="note">Run these in your node directory, or add <code>--peer &lt;url&gt; --chain &lt;id&gt;</code> elsewhere.</p>
+        <pre id="next-steps" tabindex="0"></pre>
+        <p class="note">Check a topic's policy with <code>yano.sh appchain topics resolve &lt;topic&gt;</code> and a composite's
+          topics with <code>yano.sh appchain topics doctor --bindings &lt;file&gt;</code>.</p>
+      </section>
+    </div>
+  </main>
+  <script type="module" src="topics-app.mjs"></script>
+</body>
+</html>

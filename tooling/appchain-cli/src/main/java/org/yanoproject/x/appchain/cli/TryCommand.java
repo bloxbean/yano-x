@@ -25,7 +25,8 @@ import java.util.stream.Stream;
 final class TryCommand {
     static final String USAGE = "yano.sh appchain try [--from <template.yaml>]"
             + " [--chain <id>=<recipe>|<id>=bindings:<file>]... [--answer <chain>.<name>=<value>]..."
-            + " [--setting <chain>.<key>=<value>]... [--without <chain>]... [--dir appchain-try] [--clean]";
+            + " [--setting <chain>.<key>=<value>]... [--without <chain>]..."
+            + " [--topics <chain>=members|anyone|registrars:<a>+<b>]... [--dir appchain-try] [--clean]";
     private static final String LOG_RECIPE = "audit-log";
     private static final String MARKER = ".appchain-try";
     private static final List<String> OPERATORS = List.of("alice", "bob", "carol");
@@ -39,7 +40,7 @@ final class TryCommand {
     }
 
     int run(String[] arguments) throws IOException {
-        Args args = new Args(arguments, Set.of("dir", "from", "chain", "answer", "setting", "without"),
+        Args args = new Args(arguments, Set.of("dir", "from", "chain", "answer", "setting", "without", "topics"),
                 Set.of("clean", "yes"));
         args.maxPositionals(0, USAGE);
         Path root = args.path("dir", Path.of("appchain-try")).toAbsolutePath().normalize();
@@ -66,7 +67,7 @@ final class TryCommand {
         List<String> chains = args.values("chain").isEmpty() && args.value("from") == null
                 ? List.of("orders=" + LOG_RECIPE) : args.values("chain");
         for (String chain : chains) create.addAll(List.of("--chain", chain));
-        for (String option : List.of("answer", "setting", "without")) {
+        for (String option : List.of("answer", "setting", "without", "topics")) {
             for (String value : args.values(option)) create.addAll(List.of("--" + option, value));
         }
         create.addAll(List.of("--output", coordinator.toString(), "--yes"));

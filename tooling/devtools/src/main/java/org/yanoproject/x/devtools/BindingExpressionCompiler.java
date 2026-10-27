@@ -152,6 +152,10 @@ public final class BindingExpressionCompiler {
                     && fields.scopes().containsKey(Scope.WRITE_ELEMENT)) {
                 code = "RULE_FIELD_UNKNOWN";
             }
+            if (Pattern.compile("\\b(?:writer|source\\.writer)\\.[A-Za-z0-9_]*(?:signature|proof)[A-Za-z0-9_]*")
+                    .matcher(source).find()) {
+                code = "RULE_EVIDENCE_READ";
+            }
             throw new ExpressionException(message, failure,
                     positioned ? line : null, positioned ? utf16Column(source, line, column) : null, code);
         } catch (ExpressionException failure) {

@@ -3,6 +3,9 @@ package org.yanoproject.x.composite.bindings;
 import com.bloxbean.cardano.client.crypto.Blake2bUtil;
 import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
 import org.yanoproject.api.appchain.AppBlockExecutionContext;
+import org.yanoproject.api.appchain.schema.CborSchema;
+import org.yanoproject.api.appchain.topics.TopicMessageView;
+import org.yanoproject.api.appchain.topics.TopicWire;
 import org.yanoproject.api.appchain.AppChainConsensusProfile;
 import org.yanoproject.api.appchain.AppStateReader;
 import org.yanoproject.api.appchain.AppStateMachine.AdmissionResult;
@@ -124,14 +127,19 @@ public final class EventBindingWorkflow implements CompositeWorkflow {
         } catch (BindingFailure predictable) {
             return AdmissionResult.reject(predictable.code());
         }
-        return validateKernel(program.kernel(component), component, source.getBody());
+        if (TopicMessageView.of(source).flatMap(TopicMessageView::schemaHash).isPresent()
+                && !TopicRuleViews.acceptsTopicSchema(program.kernel(component).commands())) {
+            return AdmissionResult.reject("TOPIC_SCHEMA_INCOMPATIBLE");
+        }
+        return validateKernel(program.kernel(component), component, source);
     }
 
     /**
      * Decoding failures are bad input; failures in the stateless admission implementation are not. An accepted
      * command then passes the component's static rules, which may read its write view.
      */
-    private <C> AdmissionResult validateKernel(TransitionKernel<C, ?> kernel, String component, byte[] body) {
+    private <C> AdmissionResult validateKernel(TransitionKernel<C, ?> kernel, String component, AppMessage source) {
+        byte[] body = source.getBody();
         var codec = kernel.codec();
         C command;
         try {
@@ -142,7 +150,7 @@ public final class EventBindingWorkflow implements CompositeWorkflow {
         AdmissionResult admitted = Objects.requireNonNull(kernel.admit(command),
                 "kernel returned null stateless admission");
         if (!admitted.isAccepted()) return admitted;
-        return program.rules().advisory(component, body, program.ir().limits(), () -> kernel.ruleWrites(command));
+        return program.rules().advisory(component, source, program.ir().limits(), () -> kernel.ruleWrites(command));
     }
 
     /**
@@ -243,7 +251,12 @@ public final class EventBindingWorkflow implements CompositeWorkflow {
                         current.depth > 0, expressionBudget, work.expressions);
                 Map<String, AppStateReader> participants = new LinkedHashMap<>();
                 for (String id : program.readParticipants(current.component)) participants.put(id, overlays.get(id));
-                var rules = new BindingRules.Run();
+                if (current.depth > 0) checkTopicPolicy(current, context, expressionBudget, work.expressions);
+                else if (TopicMessageView.of(source).flatMap(TopicMessageView::schemaHash).isPresent()
+                        && !TopicRuleViews.acceptsTopicSchema(program.kernel(current.component).commands())) {
+                    throw new BindingFailure("TOPIC_SCHEMA_INCOMPATIBLE");
+                }
+                var rules = new BindingRules.Run(source, current.depth > 0);
                 TransitionDecision decision;
                 try {
                     decision = decide(program.kernel(current.component), current, overlays.get(current.component),
@@ -436,6 +449,36 @@ public final class EventBindingWorkflow implements CompositeWorkflow {
         trace.set(0, new BindingReceiptV1.Step(failed.ordinal(), failed.depth(), failed.bindingId(),
                 failed.targetComponentId(), failed.messageId(), List.of(), failed.conditions(), failed.rules(),
                 failed.status(), failed.code(), failed.rawBody()));
+    }
+
+    private void checkTopicPolicy(Step step, CompositeWorkflowContext context,
+                                  BindingExpressionEvaluator.Budget cascade, BindingExpressionEvaluator.Budget block) {
+        TopicWire.EffectiveOutcome outcome = context.topicPolicy(step.context.topic());
+        if (outcome.kind() == TopicWire.OutcomeKind.UNREGISTERED_REJECT) {
+            throw new BindingFailure("TOPIC_UNREGISTERED");
+        }
+        if (outcome.kind() != TopicWire.OutcomeKind.POLICY) return;
+        if (outcome.policy().retired()) throw new BindingFailure("TOPIC_RETIRED");
+        if (!outcome.policy().schema().isEmpty()
+                && !TopicRuleViews.acceptsTopicSchema(program.kernel(step.component).commands())) {
+            throw new BindingFailure("TOPIC_SCHEMA_INCOMPATIBLE");
+        }
+        boolean permitted = program.ir().bindings().stream()
+                .filter(binding -> binding.id().equals(step.binding)).findFirst().orElseThrow().crossesTopicPolicy();
+        if (outcome.policy().writers().keys() != null && !permitted) {
+            throw new BindingFailure("RULE_TOPIC_POLICY_CROSSING");
+        }
+        if (step.body.length > outcome.policy().maxPayloadBytes()) {
+            throw new BindingFailure("TOPIC_PAYLOAD_TOO_LARGE");
+        }
+        if (!outcome.policy().schema().isEmpty()) {
+            byte[] ir = context.topicSchema(outcome.policy().schema()).orElse(null);
+            if (ir == null) throw new BindingFailure("TOPIC_SCHEMA_REJECTED");
+            // Core exposes a bounded predicate, not measured work. Reserve its full evaluation allowance so
+            // small payloads cannot amplify expensive schemas beyond the committed cascade and block budgets.
+            BindingWork.charge((long) ir.length + step.body.length + CborSchema.MAX_EVALUATION_STEPS, cascade, block);
+            if (!CborSchema.accepts(ir, step.body)) throw new BindingFailure("TOPIC_SCHEMA_REJECTED");
+        }
     }
 
     /**

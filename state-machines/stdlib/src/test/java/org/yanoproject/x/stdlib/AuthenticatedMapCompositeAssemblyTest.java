@@ -48,7 +48,7 @@ import org.yanoproject.x.roles.contracts.SignedActorCommandV1;
 import org.yanoproject.x.stdlib.contracts.AuthenticatedMapAuthorizationContract;
 import org.yanoproject.x.stdlib.contracts.AuthenticatedMapAuthorizationContract.*;
 import org.yanoproject.x.stdlib.contracts.AuthenticatedMapContract;
-import org.yanoproject.x.stdlib.contracts.AuthenticatedMapSchema;
+import org.yanoproject.api.appchain.schema.CborSchema;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigInteger;
@@ -281,11 +281,11 @@ class AuthenticatedMapCompositeAssemblyTest {
     @Test
     void finalWorkflowRetainsCanonicalCborAndSchemaValidation() {
         AppChainConfig config = config(CHAIN_ID);
-        AuthenticatedMapSchema.Schema schema = AuthenticatedMapSchema.of(
-                new AuthenticatedMapSchema.MapNode(List.of(
-                        new AuthenticatedMapSchema.MapField("qty", true,
-                                new AuthenticatedMapSchema.IntegerNode(
-                                        AuthenticatedMapSchema.INTEGER_UINT,
+        CborSchema.Schema schema = CborSchema.of(
+                new CborSchema.MapNode(List.of(
+                        new CborSchema.MapField("qty", true,
+                                new CborSchema.IntegerNode(
+                                        CborSchema.INTEGER_UINT,
                                         BigInteger.ZERO, BigInteger.TEN)))));
         AuthenticatedMapContract.ValidatorDescriptor validator =
                 AuthenticatedMapContract.ValidatorDescriptor.schema(

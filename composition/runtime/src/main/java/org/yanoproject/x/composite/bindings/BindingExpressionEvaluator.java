@@ -138,6 +138,15 @@ public final class BindingExpressionEvaluator {
             return Type.BOOLEAN;
         }
         Call call = (Call) node;
+        if (call.operator().equals("size") && call.arguments().getFirst() instanceof Field field
+                && fields.of(field.scope()).get(field.name()) == Type.TEXT_SET
+                && (field.scope() == Scope.WRITER && field.name().equals("signers")
+                    || field.scope() == Scope.SOURCE && field.name().equals("writer.signers"))) {
+            if (++count[0] > limits.maxExpressionNodes() || depth + 1 > limits.maxExpressionDepth()) {
+                throw new IllegalArgumentException("expression structure exceeds profile limits");
+            }
+            return Type.INTEGER;
+        }
         if (call.operator().equals("in")) {
             Type needle = validate(call.arguments().getFirst(), fields, limits, depth + 1, count);
             if (++count[0] > limits.maxExpressionNodes() || depth + 1 > limits.maxExpressionDepth()) {
@@ -216,7 +225,12 @@ public final class BindingExpressionEvaluator {
         if (node instanceof Field field) {
             Map<String, Object> scope = field.scope() == Scope.WRITE_ELEMENT
                     ? (env.element() == null ? Map.of() : env.element()) : env.inputs().of(field.scope());
-            if (!scope.containsKey(field.name())) throw new BindingFailure("EXPRESSION_MISSING_FIELD");
+            if (!scope.containsKey(field.name())) {
+                if (field.scope() == Scope.PAYLOAD || field.scope() == Scope.WRITER || field.scope() == Scope.SOURCE) {
+                    throw new BindingFailure("RULE_FIELD_UNAVAILABLE");
+                }
+                throw new BindingFailure("EXPRESSION_MISSING_FIELD");
+            }
             return bounded(scope.get(field.name()), limits);
         }
         if (node instanceof Quantifier quantifier) return quantify(quantifier, env);
@@ -229,14 +243,16 @@ public final class BindingExpressionEvaluator {
             Object left = null;
             try { left = evaluate(args.get(0), env); }
             catch (BindingFailure failure) {
-                if (failure.code().equals("EXPRESSION_CAPACITY_EXCEEDED")) throw failure;
+                if (failure.code().equals("EXPRESSION_CAPACITY_EXCEEDED")
+                        || failure.code().equals("RULE_FIELD_UNAVAILABLE")) throw failure;
                 error = failure;
             }
             if (Boolean.valueOf(decisive).equals(left)) return decisive;
             Object right;
             try { right = evaluate(args.get(1), env); }
             catch (BindingFailure failure) {
-                if (failure.code().equals("EXPRESSION_CAPACITY_EXCEEDED") || error == null) throw failure;
+                if (failure.code().equals("EXPRESSION_CAPACITY_EXCEEDED")
+                        || failure.code().equals("RULE_FIELD_UNAVAILABLE") || error == null) throw failure;
                 throw error;
             }
             if (Boolean.valueOf(decisive).equals(right)) return decisive;
@@ -254,10 +270,11 @@ public final class BindingExpressionEvaluator {
             if (op.equals("not")) return !(Boolean) a;
             if (op.equals("neg")) return Math.negateExact((Long) a);
             if (op.equals("size")) {
-                if (!(a instanceof String) && !(a instanceof byte[])) throw new BindingFailure("EXPRESSION_TYPE_ERROR");
-                long length = size(a);
-                charge(length, cascade, block);
-                return length;
+                if (!(a instanceof String) && !(a instanceof byte[]) && !(a instanceof List<?>)) {
+                    throw new BindingFailure("EXPRESSION_TYPE_ERROR");
+                }
+                charge(size(a), cascade, block);
+                return a instanceof List<?> set ? (long) set.size() : (long) size(a);
             }
             Object b = evaluate(args.get(1), env);
             if (op.equals("in")) {

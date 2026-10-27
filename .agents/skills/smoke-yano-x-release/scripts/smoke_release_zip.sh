@@ -10,9 +10,9 @@ usage() {
 Usage: smoke_release_zip.sh <yano-x-jvm-<version>.zip> [options]
 
   --http-base N     first showcase HTTP port (default 29770); the acceptance
-                    gates use N+100 and N+200
+                    gates use N+100, N+200 and N+300
   --server-base N   first showcase node-to-node port (default 29370); the
-                    acceptance gates use N+100 and N+200
+                    acceptance gates use N+100, N+200 and N+300
   --work DIR        working directory (default: a new temporary directory)
   --skip-showcase   run only the archive and acceptance gates
   --skip-run-all    start and verify the showcase without `run all`
@@ -51,7 +51,8 @@ java_version="$(java -XshowSettings:properties -version 2>&1 \
 unset _DEVNET_YANO_HISTORY_PROJECTION_ENABLED
 
 for base in "$HTTP_BASE" "$SERVER_BASE" "$((HTTP_BASE + 100))" "$((SERVER_BASE + 100))" \
-    "$((HTTP_BASE + 200))" "$((SERVER_BASE + 200))"; do
+    "$((HTTP_BASE + 200))" "$((SERVER_BASE + 200))" \
+    "$((HTTP_BASE + 300))" "$((SERVER_BASE + 300))"; do
   for port in "$base" "$((base + 1))" "$((base + 2))"; do
     ! lsof -nP -iTCP:"$port" -sTCP:LISTEN -t >/dev/null 2>&1 \
       || die "port $port is in use; pass other --http-base/--server-base values"
@@ -130,6 +131,13 @@ stock_outcomes() {
   bash "$REPO/tooling/devtools/src/test/scripts/final-distribution-stock-outcomes.sh" "$ZIP"
 }
 
+topics_acceptance() {
+  YANO_TOPICS_ACCEPTANCE_HTTP_BASE="$((HTTP_BASE + 300))" \
+    YANO_TOPICS_ACCEPTANCE_SERVER_BASE="$((SERVER_BASE + 300))" \
+    KEEP_WORK="$KEEP" \
+    bash "$REPO/tooling/devtools/src/test/scripts/final-distribution-topics-acceptance.sh" "$ZIP"
+}
+
 showcase() {
   "$SHOWCASE" "$@" --instance "$INSTANCE" --data-dir "$DATA"
 }
@@ -204,6 +212,9 @@ if [ "$SHOWCASE_GATES" = true ]; then
   step showcase-persisted-tips check_persisted_tips
   step distribution-config-unchanged \
     test "$config_digest" = "$(cd "$DIST/config" && find . -type f -exec shasum -a 256 {} + | sort | shasum -a 256)"
+  step showcase-stop showcase stop
+  SHOWCASE_STARTED=false
 fi
 
+step topics-acceptance topics_acceptance
 echo "PASS: $(basename "$ZIP") smoke gates"

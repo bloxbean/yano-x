@@ -321,3 +321,75 @@ upgrades](05-operations-and-upgrades.md)).
 Next: [Typed views](08-typed-views.md). The
 [reference](../DECLARATIVE_BINDINGS.md#admission-rules) has the complete rule
 grammar.
+
+## Topic payloads and verified writers
+
+With the topic registry enabled, opaque components such as `ordered-log` can
+attach rules over verified canonical CBOR payloads. Commit the allowed schema
+IR alongside the composite program, then reference its hash from the component:
+
+```yaml
+payloadSchemas:
+  <ride-schema-ir-hash>:
+    cddl: 'root = { frames: uint }'
+components:
+  - id: rides
+    machine: ordered-log
+    topic: games/neon-rush/rides
+    payloadSchemas: [<ride-schema-ir-hash>]
+    admission:
+      - rule: ride-bounds
+rules:
+  - id: ride-bounds
+    deny: RIDE_OUT_OF_BOUNDS
+    require:
+      - expr: 'payload.frames >= 1200 && payload.frames <= 9000'
+      - expr: 'writer.kind == "delegated"'
+```
+
+Replace the placeholder with BLAKE2b-256 of the compiled canonical IR. A schema
+definition may use `ir: <canonical-IR-hex>` instead of `cddl`. The compiler
+checks the hash and every payload expression against every schema declared by
+that component. Projection includes the first 32 eligible top-level scalar
+members of a text-keyed map. Nested values and arrays are not projected.
+
+At admission and apply, the host's verified message view supplies the effective
+schema hash. An absent or undeclared hash refuses with
+`RULE_PAYLOAD_SCHEMA_MISMATCH`. A missing scalar refuses with
+`RULE_FIELD_UNAVAILABLE`. For evolution, govern the composite profile to allow
+both hashes, activate the topic schema, then remove the old hash. Re-admission,
+restart and replay use committed candidate-height inputs, not a local schema
+cache. Payload-and-parameter-only rules can refuse at ingress.
+
+| Arrival | `writer.kind` | `writer.signers` | `writer.issuer` |
+|---|---|---|---|
+| Direct threshold write | `direct` | Sorted unique verified public keys | Absent |
+| Delegated write | `delegated` | The session public key | Issuer public key |
+| Open or unregistered write | `none` | Empty | Absent |
+| Derived component command | `none` | Empty | Absent |
+
+Use `'public-key-hex' in writer.signers` and `size(writer.signers)` for
+membership and threshold checks. A derived step may read `source.topic` and
+`source.writer.*` as the originating message's provenance; these never grant
+writer authority to its target. `payload.*` is unavailable on a derived step;
+use the target kernel's existing `command.*` view. Raw signatures remain
+unreadable.
+
+A binding can declare `crossesTopicPolicy: true` beside its `id`, `from` and
+`to`. Without this permission, a derived step into a protected target refuses
+with `RULE_TOPIC_POLICY_CROSSING`. With it, the step runs with no writer identity.
+A retired target always refuses with `TOPIC_RETIRED`, and an unregistered target
+under rejection always refuses with `TOPIC_UNREGISTERED`. Refusal rolls back
+the whole cascade. The check runs against the target's committed policy at each
+step; the program's structural validity does not change when a topic policy
+activates. Run `appchain topics doctor --bindings composite.yaml --chain ID
+--peer URL` before an owner changes a policy.
+
+The permission crosses only the writer policy. Derived bytes still obey the
+target's `maxPayloadBytes` and canonical-CBOR schema, including on open topics.
+Violations refuse with `TOPIC_PAYLOAD_TOO_LARGE` or `TOPIC_SCHEMA_REJECTED`.
+Each derived schema evaluation reserves its IR length plus payload length plus
+262,144 work units from both the cascade and block expression-work budgets
+before running. This reserves the core evaluator's maximum work; declare
+sufficient budgets for the expected number of schema-governed derived steps.
+An exhausted budget refuses the cascade with `EXPRESSION_CAPACITY_EXCEEDED`.

@@ -10,6 +10,10 @@ import org.yanoproject.api.appchain.AppStateMachine;
 import org.yanoproject.api.appchain.AppStateReader;
 import org.yanoproject.api.appchain.AppStateWriter;
 import org.yanoproject.api.appchain.FinalityCert;
+import org.yanoproject.api.appchain.topics.TopicMessageView;
+import org.yanoproject.api.appchain.topics.TopicPayloadMessage;
+import org.yanoproject.api.appchain.topics.TopicWire;
+import org.yanoproject.api.appchain.topics.TopicWriteRules;
 import org.yanoproject.api.appchain.codec.AppBlockCodec;
 import org.yanoproject.api.appchain.effects.AppEffectEmitter;
 import org.yanoproject.api.appchain.effects.EffectId;
@@ -53,6 +57,40 @@ class CompositeRoutingAndEffectsTest {
         state.height = 2;
         machine.apply(block(2, message("second.v1", "active")), state, new CapturingEmitter(2));
         assertThat(second.appliedBodies).containsExactly("active");
+    }
+
+    @Test
+    void snapshotsPreserveVerifiedTopicViewsAndOriginalFramedBlockBytes() {
+        var outcome = new TopicWire.EffectiveOutcome(TopicWire.OutcomeKind.POLICY,
+                new TopicWire.ResolvedPolicy(TopicWire.Writers.OPEN, List.of(), 1000, "ab".repeat(32),
+                        65536, false), 1L, List.of(new TopicWire.Source("games/", 1)));
+        var envelope = message("games/rides", "framed envelope");
+        var view = TopicPayloadMessage.of(envelope,
+                new TopicWriteRules.Result(null, null, outcome, bytes("payload"), null, null, 0));
+        var component = new RecordingComponent(descriptor("rides", "games/rides", 1, 0, List.of(), 0)) {
+            @Override public AdmissionResult validate(AppMessage message) {
+                assertThat(TopicMessageView.of(message).orElseThrow().schemaHash()).hasValue("ab".repeat(32));
+                assertThat(message.getBody()).isEqualTo(bytes("payload"));
+                message.getBody()[0] = 0;
+                return AdmissionResult.accept();
+            }
+            @Override public void apply(AppBlockExecutionContext context, AppStateWriter state,
+                                        AppEffectEmitter effects) {
+                var received = context.messages().getFirst();
+                assertThat(TopicMessageView.of(received).orElseThrow().outcome()).isEqualTo(outcome);
+                assertThat(received.getBody()).isEqualTo(bytes("payload"));
+                assertThat(context.block().messages().getFirst().getBody()).isEqualTo(envelope.getBody());
+                assertThat(context.block().messagesRoot()).isEqualTo(AppBlockCodec.messagesRoot(List.of(envelope)));
+                super.apply(context, state, effects);
+            }
+        };
+        var composite = machine(component);
+        assertThat(composite.validate(view).isAccepted()).isTrue();
+        assertThat(composite.validateForBlock(view, 1, new MemoryState(0)).isAccepted()).isTrue();
+        composite.apply(block(1, envelope).withPayloadViews(Map.of(0, view)), new MemoryState(1),
+                new CapturingEmitter(1));
+        assertThat(component.appliedBodies).containsExactly("payload");
+        assertThat(view.getBody()).isEqualTo(bytes("payload"));
     }
 
     @Test

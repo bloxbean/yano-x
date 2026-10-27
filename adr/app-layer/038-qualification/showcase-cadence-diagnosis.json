@@ -1,0 +1,21 @@
+{
+  "archiveSha256": "aaec05382a339e24198a25d78c88d132a040867e29330811e432d4c43568a67d",
+  "status": "FAILED",
+  "finding": "Pinning the stock template bypassed the packaged launcher epochLength=500 normalization, retaining 1,200 slots instead.",
+  "stockTemplateEpochSlots": 1200,
+  "normalLauncherEpochSlots": 500,
+  "firstStableObservationApproxSecondsWithRegression": 480,
+  "historyWaitTimeoutSeconds": 300,
+  "genesisIdentityBeforeRestart": "All three host genesis files were byte-identical to the pin.",
+  "steps": [
+    "archive                            PASS     4s",
+    "layout                             PASS     2s",
+    "runtime-acceptance                 PASS    26s",
+    "stock-outcomes                     PASS    53s",
+    "showcase-doctor                    PASS     0s",
+    "showcase-quickstart                PASS    99s",
+    "showcase-projection-off            PASS     0s",
+    "showcase-run-all                   FAIL   353s  (/private/var/folders/9x/p4g24d210kq8hngwdmh5mwrm0000gn/T/yano-x-smoke.HsoJPF/logs/showcase-run-all.log)"
+  ],
+  "cleanup": "All six showcase HTTP/N2N ports independently confirmed closed."
+}

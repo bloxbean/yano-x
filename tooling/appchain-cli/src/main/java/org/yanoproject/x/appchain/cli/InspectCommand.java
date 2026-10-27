@@ -84,6 +84,7 @@ final class InspectCommand {
                 for (Draft.Chain chain : draft.chains()) {
                     terminal.say("  chain " + chain.id() + ": " + chain.recipe()
                             + (chain.bindings() == null ? "" : " with " + chain.bindings()));
+                    if (chain.topics() != null) terminal.say("    topics: " + chain.topics().summary());
                 }
             }
         }

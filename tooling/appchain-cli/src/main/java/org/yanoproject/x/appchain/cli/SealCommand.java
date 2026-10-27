@@ -10,6 +10,8 @@ import org.yanoproject.x.appchain.formats.SealedApp;
 import org.yanoproject.x.devtools.AppChainSealResolver;
 
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -78,7 +80,8 @@ final class SealCommand {
             findings.warnings().forEach(warning -> warnings.add("Chain " + chain.id() + ": " + warning));
         }
         Map<String, Map<String, String>> overrides = new HashMap<>();
-        for (Draft.Chain chain : draft.chains()) overrides.put(chain.id(), overrides(draft, chain));
+        String devnetTtl = "devnet".equals(draft.network()) ? Long.toString(devnetAnchorValidity(distribution)) : null;
+        for (Draft.Chain chain : draft.chains()) overrides.put(chain.id(), overrides(draft, chain, cards, devnetTtl));
 
         AppChainSealResolver.SealHooks hooks = new AppChainSealResolver.SealHooks() {
             @Override
@@ -204,9 +207,11 @@ final class SealCommand {
         return Integer.toString(wanted);
     }
 
-    private static Map<String, String> overrides(Draft draft, Draft.Chain chain) {
+    private static Map<String, String> overrides(Draft draft, Draft.Chain chain, Map<String, MemberCard> cards,
+                                                 String devnetTtl) {
         Map<String, String> values = new TreeMap<>();
         if (!"devnet".equals(draft.network())) values.put("l1.stability-depth", "36");
+        if (devnetTtl != null) values.put("anchor.validity-slots", devnetTtl);
         if (chain.anchor() != null) {
             values.put("anchor.mode", chain.anchor().mode());
             values.put("anchor.every-blocks", Integer.toString(chain.anchor().everyBlocks()));
@@ -218,12 +223,63 @@ final class SealCommand {
                         + "draft's operators, threshold, sequencing, membership or the chain's identity) and cannot "
                         + "be set under settings:");
             }
+            if (key.startsWith("topics.")) {
+                throw CliException.failure("Chain " + chain.id() + ": set topic policies in the chain's topics: "
+                        + "block, not under settings:");
+            }
         }
         values.putAll(chain.settings());
+        if (chain.topics() != null) {
+            // The resolver checks the complete seed, host defaults included, with the host's own parser.
+            values.putAll(topicSettings(chain.topics(), cards));
+        }
         if ("true".equals(values.get("anchor.enabled"))) {
             throw CliException.failure("Chain " + chain.id() + ": anchoring is turned on later with "
                     + "`yano.sh appchain anchor`, not in the draft");
         }
+        return values;
+    }
+
+    /**
+     * A devnet anchor's validity in slots. The public-network default (7200) reaches past the fast devnet's
+     * forecast horizon of 3k/f slots, where the ledger cannot evaluate a script anchor; stay inside it, capped at
+     * about a minute of the stock 0.2-second devnet. Draft settings can still choose a value.
+     */
+    static long devnetAnchorValidity(Distribution distribution) {
+        Path template = distribution.devnetGenesisTemplate();
+        if (!Files.isRegularFile(template)) return 299;
+        try {
+            JsonNode genesis = new ObjectMapper().readTree(template.toFile());
+            long k = genesis.path("securityParam").asLong(0);
+            BigDecimal f = genesis.path("activeSlotsCoeff").decimalValue();
+            if (k < 1 || f.signum() <= 0 || f.compareTo(BigDecimal.ONE) > 0) {
+                throw CliException.failure("The devnet genesis has no usable securityParam/activeSlotsCoeff");
+            }
+            long horizon = BigDecimal.valueOf(3 * k).divide(f, 0, RoundingMode.FLOOR).longValue();
+            return Math.max(1, Math.min(299, horizon - 1));
+        } catch (IOException unreadable) {
+            throw CliException.failure("Cannot read " + template + ": " + unreadable.getMessage());
+        }
+    }
+
+    /** The core genesis seed of a chain's topics: block; registrars named by operator become their member keys. */
+    static Map<String, String> topicSettings(Draft.Topics topics, Map<String, MemberCard> cards) {
+        Map<String, String> values = new TreeMap<>();
+        values.put("topics.mode", "enabled");
+        values.put("topics.creation.governance", "true");
+        values.put("topics.creation.open-claims", Boolean.toString("anyone".equals(topics.create())));
+        if (!topics.registrars().isEmpty()) {
+            List<String> keys = topics.registrars().stream()
+                    .map(registrar -> cards.containsKey(registrar) ? cards.get(registrar).publicKey() : registrar)
+                    .sorted().toList();
+            if (keys.stream().distinct().count() != keys.size()) {
+                throw CliException.failure("A registrar is listed twice, by name and by key");
+            }
+            values.put("topics.creation.registrars.keys", String.join(",", keys));
+            values.put("topics.creation.registrars.threshold", Integer.toString(topics.registrarThreshold()));
+        }
+        values.put("topics.unregistered-topics", topics.unregistered());
+        topics.limits().forEach((name, value) -> values.put("topics." + name, Long.toString(value)));
         return values;
     }
 

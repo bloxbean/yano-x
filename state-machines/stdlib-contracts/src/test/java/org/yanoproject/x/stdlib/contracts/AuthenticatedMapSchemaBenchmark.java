@@ -1,5 +1,6 @@
 package org.yanoproject.x.stdlib.contracts;
 
+import org.yanoproject.api.appchain.schema.CborSchema;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -25,7 +26,7 @@ public final class AuthenticatedMapSchemaBenchmark {
             throw new IllegalArgumentException("iterations must be in [10000, 10000000]");
         }
 
-        AuthenticatedMapSchema.Schema schema = productSchema();
+        CborSchema.Schema schema = productSchema();
         byte[] accepted = HexFormat.of().parseHex(
                 "a3637174791a0001e24063736b7567736b752d30303166616374697665f5");
         byte[] rejected = HexFormat.of().parseHex(
@@ -83,15 +84,15 @@ public final class AuthenticatedMapSchemaBenchmark {
                 value, AuthenticatedMapContract.MAX_VALUE_BYTES);
     }
 
-    private static AuthenticatedMapSchema.Schema productSchema() {
-        return AuthenticatedMapSchema.of(new AuthenticatedMapSchema.MapNode(List.of(
-                new AuthenticatedMapSchema.MapField("sku", true,
-                        new AuthenticatedMapSchema.TextNode(1, 64, null)),
-                new AuthenticatedMapSchema.MapField("qty", true,
-                        new AuthenticatedMapSchema.IntegerNode(
-                                AuthenticatedMapSchema.INTEGER_UINT,
+    private static CborSchema.Schema productSchema() {
+        return CborSchema.of(new CborSchema.MapNode(List.of(
+                new CborSchema.MapField("sku", true,
+                        new CborSchema.TextNode(1, 64, null)),
+                new CborSchema.MapField("qty", true,
+                        new CborSchema.IntegerNode(
+                                CborSchema.INTEGER_UINT,
                                 BigInteger.ZERO, BigInteger.valueOf(1_000_000))),
-                new AuthenticatedMapSchema.MapField("active", false,
-                        AuthenticatedMapSchema.BooleanNode.any()))));
+                new CborSchema.MapField("active", false,
+                        CborSchema.BooleanNode.any()))));
     }
 }
