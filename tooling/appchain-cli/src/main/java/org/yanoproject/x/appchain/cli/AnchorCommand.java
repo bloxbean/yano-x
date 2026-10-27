@@ -17,7 +17,7 @@ import java.util.Set;
  */
 final class AnchorCommand {
     static final String USAGE = "yano.sh appchain anchor [<app>] [--chain <id>] [--node-dir yano-node] [--stop]"
-            + " [--take-over] [--ada <devnet-funding>] [--timeout <seconds>] [--yes]";
+            + " [--take-over] [--key <wallet-seed-file>] [--ada <devnet-funding>] [--timeout <seconds>] [--yes]";
 
     private final Terminal terminal;
     private final Distribution distribution;
@@ -28,7 +28,7 @@ final class AnchorCommand {
     }
 
     int run(String[] arguments) throws IOException {
-        Args args = new Args(arguments, Set.of("chain", "node-dir", "ada", "timeout"),
+        Args args = new Args(arguments, Set.of("chain", "node-dir", "ada", "timeout", "key"),
                 Set.of("stop", "take-over", "yes"));
         args.maxPositionals(1, USAGE);
         NodeDir node = new NodeDir(args.path("node-dir", Path.of(NodeDir.DEFAULT)));
@@ -106,9 +106,21 @@ final class AnchorCommand {
         if (!args.flag("yes") && !terminal.confirm("Make this node the anchor leader of " + chain + "?", false)) {
             return CliException.FAILURE;
         }
-        if (!Anchoring.hasWallet(node)) {
-            NodeDir.writeSecret(node.path("secrets", "anchor.key"), Ed25519.newSeed() + "\n");
-            terminal.ok("Created the anchor wallet key in " + node.path("secrets", "anchor.key"));
+        Path wallet = node.path("secrets", "anchor.key");
+        if (args.value("key") != null) {
+            // An existing funded wallet: its seed is copied into this node and never printed.
+            String seed = NodeDir.read(Path.of(args.value("key"))).strip();
+            Ed25519.publicKey(seed);
+            if (Anchoring.hasWallet(node) && !NodeDir.read(wallet).strip().equals(seed)) {
+                throw CliException.failure("This node already has a different anchor wallet in " + wallet);
+            }
+            if (!Anchoring.hasWallet(node)) {
+                NodeDir.writeSecret(wallet, seed + "\n");
+                terminal.ok("Imported the anchor wallet key into " + wallet);
+            }
+        } else if (!Anchoring.hasWallet(node)) {
+            NodeDir.writeSecret(wallet, Ed25519.newSeed() + "\n");
+            terminal.ok("Created the anchor wallet key in " + wallet);
         }
         Anchoring.Lead previous = Anchoring.lead(node, genesis.name(), chain);
         boolean leadingNow = local.get(path + "/status").map(status -> StatusCommand.leads(status.path("anchor")))

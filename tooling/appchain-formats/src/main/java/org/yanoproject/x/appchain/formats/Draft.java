@@ -59,6 +59,19 @@ public record Draft(
     public record Anchor(String mode, int everyBlocks) {
     }
 
+    /**
+     * The reusable part of a draft for {@code new --from}: its chains, plus optional defaults. A template has
+     * no invite or operators of its own; any draft can also serve as one.
+     */
+    public record Template(String network, String threshold, String membership, String sequencing,
+                           List<Chain> chains) {
+        public Template {
+            if (network != null) Names.network(network);
+            if (chains == null || chains.isEmpty()) throw new FormatException("The template defines no chains");
+            chains = List.copyOf(chains);
+        }
+    }
+
     public Draft {
         Names.name(name, "Application name");
         Names.invite(invite);
@@ -126,14 +139,43 @@ public record Draft(
     }
 
     public static Draft parse(String yaml) {
+        ObjectNode object = root(yaml, "draft");
+        return new Draft(
+                text(object, "name"),
+                text(object, "invite"),
+                text(object, "network"),
+                strings(object.path("operators")),
+                optional(object, "threshold"),
+                optional(object, "membership"),
+                optional(object, "sequencing"),
+                chains(object));
+    }
+
+    /** Reads a template; the name, invite and operators of a full draft are ignored. */
+    public static Template template(String yaml) {
+        ObjectNode object = root(yaml, "template");
+        return new Template(optional(object, "network"), optional(object, "threshold"),
+                optional(object, "membership"), optional(object, "sequencing"), chains(object));
+    }
+
+    private static ObjectNode root(String yaml, String what) {
         JsonNode root;
         try {
             root = YAML.readTree(yaml);
         } catch (IOException error) {
-            throw new FormatException("The draft is not valid YAML: " + error.getMessage().lines().findFirst().orElse(""), error);
+            throw new FormatException("The " + what + " is not valid YAML: "
+                    + error.getMessage().lines().findFirst().orElse(""), error);
         }
-        if (!(root instanceof ObjectNode object)) throw new FormatException("The draft must be a YAML mapping");
-        unknown(object, FIELDS, "draft");
+        if (!(root instanceof ObjectNode object)) throw new FormatException("The " + what + " must be a YAML mapping");
+        unknown(object, FIELDS, what);
+        return object;
+    }
+
+    private static String optional(ObjectNode object, String field) {
+        return object.hasNonNull(field) ? object.get(field).asText() : null;
+    }
+
+    private static List<Chain> chains(ObjectNode object) {
         List<Chain> chains = new ArrayList<>();
         JsonNode chainNodes = object.path("chains");
         if (!chainNodes.isArray()) throw new FormatException("'chains' must be a list");
@@ -162,15 +204,7 @@ public record Draft(
                     anchor,
                     map(chain.path("settings"))));
         }
-        return new Draft(
-                text(object, "name"),
-                text(object, "invite"),
-                text(object, "network"),
-                strings(object.path("operators")),
-                object.hasNonNull("threshold") ? object.get("threshold").asText() : null,
-                object.hasNonNull("membership") ? object.get("membership").asText() : null,
-                object.hasNonNull("sequencing") ? object.get("sequencing").asText() : null,
-                chains);
+        return chains;
     }
 
     /** A commented YAML file for people; {@link #parse} reads it back to an equal draft. */

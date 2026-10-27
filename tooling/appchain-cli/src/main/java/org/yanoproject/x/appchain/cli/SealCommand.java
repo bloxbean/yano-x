@@ -29,7 +29,7 @@ final class SealCommand {
             + " [--force]";
     private static final ObjectMapper YAML = new ObjectMapper(new YAMLFactory());
     private static final Set<String> RESERVED = Set.of("chain-id", "members", "threshold", "signing-key", "peers",
-            "state-machine");
+            "state-machine", "state.genesis-id", "state.format-fingerprint", "state.commitment-profile");
 
     private final Terminal terminal;
     private final Distribution distribution;
@@ -213,10 +213,11 @@ final class SealCommand {
             values.put("anchor.every-blocks", Integer.toString(chain.anchor().everyBlocks()));
         }
         for (String key : chain.settings().keySet()) {
-            if (RESERVED.contains(key) || key.startsWith("sequencer.") || key.startsWith("state.")
-                    || key.startsWith("membership.") || key.startsWith("consensus.")) {
-                throw CliException.failure("Chain " + chain.id() + ": setting " + key + " comes from the draft's "
-                        + "operators, threshold, sequencing or membership and cannot be set under settings:");
+            if (RESERVED.contains(key) || key.startsWith("sequencer.") || key.startsWith("membership.")
+                    || key.startsWith("consensus.")) {
+                throw CliException.failure("Chain " + chain.id() + ": setting " + key + " is set by seal (from the "
+                        + "draft's operators, threshold, sequencing, membership or the chain's identity) and cannot "
+                        + "be set under settings:");
             }
         }
         values.putAll(chain.settings());

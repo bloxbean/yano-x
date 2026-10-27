@@ -98,7 +98,24 @@ final class AppChainProjectModel {
             AuthenticatedMapGovernanceIntent authorizationGovernance,
             AuthenticatedMapGenesisRecordsIntent genesisRecords,
             GovernedAuthorizationLimitsIntent authorizationLimits,
-            List<AuthenticatedMapOnboardingIntent> onboarding) {
+            List<AuthenticatedMapOnboardingIntent> onboarding,
+            List<AuthenticatedMapPluginValidatorIntent> validators) {
+
+        AuthenticatedMapIntent(
+                String profile,
+                String anchorPolicyCommitment,
+                Integer maxBatchItems,
+                Integer maxBatchBytes,
+                List<AuthenticatedMapCollectionIntent> collections,
+                List<AuthenticatedMapSchemaIntent> schemas,
+                AuthenticatedMapGovernanceIntent authorizationGovernance,
+                AuthenticatedMapGenesisRecordsIntent genesisRecords,
+                GovernedAuthorizationLimitsIntent authorizationLimits,
+                List<AuthenticatedMapOnboardingIntent> onboarding
+        ) {
+            this(profile, anchorPolicyCommitment, maxBatchItems, maxBatchBytes, collections, schemas,
+                    authorizationGovernance, genesisRecords, authorizationLimits, onboarding, List.of());
+        }
 
         AuthenticatedMapIntent(
                 String profile,
@@ -139,6 +156,16 @@ final class AppChainProjectModel {
     }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
+    /**
+     * A validator implemented by a plugin bundle in the distribution, pinned by that bundle's artifact-closure
+     * digest at seal. The node runs it only when the bundle is allow-listed, which seal arranges.
+     */
+    record AuthenticatedMapPluginValidatorIntent(
+            String id,
+            String provider,
+            String bundle) {
+    }
+
     record AuthenticatedMapSchemaIntent(
             String id,
             String root,

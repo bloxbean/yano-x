@@ -14,8 +14,8 @@ import java.util.function.Predicate;
 
 /**
  * {@code approve}: this operator's part of a governed membership change, on every chain of the application:
- * raise or lower the threshold first when the change needs it, approve the change, drive activation, then
- * add or drop the peer and restart this node once. Safe to run again.
+ * raise or lower the threshold first where the change needs it, approve the change on every chain, wait for all
+ * of them to activate, then add or drop the peer and restart this node once. Safe to run again.
  */
 final class ApproveCommand {
     static final String USAGE = "yano.sh appchain approve <name>.member | --remove <name> [<app>]"
@@ -80,7 +80,10 @@ final class ApproveCommand {
             terminal.say("Removing " + name + " (key " + Show.keyId(key) + ") from " + genesis.name());
         }
 
+        // Every chain's change is proposed first and then awaited together, so a large application activates in
+        // one wait rather than one chain after another.
         NodeClient client = NodeClient.local(node);
+        List<Change> changes = new ArrayList<>();
         for (SealedApp.ChainGenesis chain : genesis.chains()) {
             if (remove != null && "fixed".equals(chain.settings().get("sequencer.mode"))
                     && key.equals(chain.settings().get("sequencer.proposer"))) {
@@ -97,24 +100,39 @@ final class ApproveCommand {
                 terminal.ok(chain.id() + ": already " + (remove == null ? "a member" : "removed"));
                 continue;
             }
-            if (!scheduled) {
-                int threshold = threshold(client, path);
-                int faults = Integer.parseInt(chain.settings().getOrDefault("consensus.max-byzantine-members", "0"));
-                int wanted = safeThreshold(threshold, members.size(), count, faults);
-                if (wanted != threshold) {
-                    if (wanted > threshold) requireOnline(app, local, chain.id(), wanted);
-                    terminal.say(chain.id() + ": first " + (wanted > threshold ? "raising" : "lowering")
-                            + " the threshold from " + threshold + " to " + wanted + " (" + count + " members)");
-                    client.post(path + "/admin/threshold", Map.of("threshold", wanted));
-                    heartbeat = await(client, path, chain.id(), status -> status.path("membershipEpochActive")
-                                    .asBoolean(false) && status.path("membershipActiveThreshold").asInt() == wanted,
-                            "threshold " + wanted, deadline, heartbeat);
-                }
-                client.post(path + "/admin/members/" + (remove == null ? "add" : "remove"), Map.of("publicKey", key));
+            changes.add(new Change(chain, path, scheduled, members.size(), count, active));
+        }
+
+        List<Wait> thresholds = new ArrayList<>();
+        for (Change change : changes) {
+            if (change.scheduled()) continue;
+            int threshold = threshold(client, change.path());
+            int faults = Integer.parseInt(change.chain().settings().getOrDefault("consensus.max-byzantine-members",
+                    "0"));
+            int wanted = safeThreshold(threshold, change.before(), change.after(), faults);
+            if (wanted == threshold) continue;
+            if (wanted > threshold) requireOnline(app, local, change.chain().id(), wanted);
+            terminal.say(change.chain().id() + ": first " + (wanted > threshold ? "raising" : "lowering")
+                    + " the threshold from " + threshold + " to " + wanted + " (" + change.after() + " members)");
+            client.post(change.path() + "/admin/threshold", Map.of("threshold", wanted));
+            thresholds.add(new Wait(change.chain().id(), change.path(), status -> status.path("membershipEpochActive")
+                    .asBoolean(false) && status.path("membershipActiveThreshold").asInt() == wanted,
+                    "threshold " + wanted));
+        }
+        heartbeat = awaitAll(client, thresholds, deadline, heartbeat);
+
+        List<Wait> activations = new ArrayList<>();
+        for (Change change : changes) {
+            if (!change.scheduled()) {
+                client.post(change.path() + "/admin/members/" + (remove == null ? "add" : "remove"),
+                        Map.of("publicKey", key));
             }
-            heartbeat = await(client, path, chain.id(), active, (remove == null ? "adding " : "removing ") + name,
-                    deadline, heartbeat);
-            terminal.ok(chain.id() + ": " + name + (remove == null ? " is a member" : " is removed"));
+            activations.add(new Wait(change.chain().id(), change.path(), change.active(),
+                    (remove == null ? "adding " : "removing ") + name));
+        }
+        awaitAll(client, activations, deadline, heartbeat);
+        for (Change change : changes) {
+            terminal.ok(change.chain().id() + ": " + name + (remove == null ? " is a member" : " is removed"));
         }
 
         List<String> extra = new ArrayList<>(local.extraMembers());
@@ -149,39 +167,61 @@ final class ApproveCommand {
         return 0;
     }
 
-    private boolean await(NodeClient client, String path, String chain, Predicate<JsonNode> done, String what,
-                          long deadline, boolean heartbeat) {
+    private record Change(SealedApp.ChainGenesis chain, String path, boolean scheduled, int before, int after,
+                          Predicate<JsonNode> active) {
+    }
+
+    private record Wait(String chain, String path, Predicate<JsonNode> done, String what) {
+    }
+
+    /** Waits until every chain's change is active, sending heartbeats to the idle ones if the operator agrees. */
+    private boolean awaitAll(NodeClient client, List<Wait> waits, long deadline, boolean heartbeat) {
+        List<Wait> pending = new ArrayList<>(waits);
         boolean told = false;
         boolean asked = heartbeat;
-        while (true) {
-            JsonNode status = client.get(path + "/status").orElse(null);
-            if (status != null && done.test(status)) return heartbeat;
+        while (!pending.isEmpty()) {
+            List<String> machines = new ArrayList<>();
+            for (java.util.Iterator<Wait> iterator = pending.iterator(); iterator.hasNext(); ) {
+                Wait wait = iterator.next();
+                JsonNode status = client.get(wait.path() + "/status").orElse(null);
+                if (status != null && wait.done().test(status)) {
+                    iterator.remove();
+                } else {
+                    machines.add(status == null ? "" : status.path("stateMachine").asText());
+                }
+            }
+            if (pending.isEmpty()) break;
             if (System.currentTimeMillis() > deadline) {
-                throw CliException.notReady(chain + ": still waiting for " + what + ". The other operators may not "
-                        + "have run approve yet; run this command again later (it continues where it stopped)");
+                throw CliException.notReady(String.join(", ", pending.stream().map(Wait::chain).toList())
+                        + ": still waiting for " + pending.getFirst().what() + ". The other operators may not have "
+                        + "run approve yet; run this command again later (it continues where it stopped)");
             }
             if (!told) {
-                terminal.say(chain + ": waiting for " + what + " (it activates once enough operators approve and "
-                        + "the chain makes 10 more blocks)");
+                terminal.say(String.join(", ", pending.stream().map(Wait::chain).toList()) + ": waiting for "
+                        + pending.getFirst().what() + " (it activates once enough operators approve and each chain "
+                        + "makes 10 more blocks)");
                 told = true;
             }
-            String machine = status == null ? "" : status.path("stateMachine").asText();
-            String effect = Heartbeat.effect(machine);
-            if (effect != null && !asked) {
-                heartbeat = terminal.confirm(chain + " may be idle. Send heartbeat messages to make blocks? Each one "
-                        + effect, false);
-                asked = true;
-                if (!heartbeat) terminal.say("Then send ordinary traffic to " + chain + " so it makes blocks.");
-            }
-            if (heartbeat && effect != null) {
-                try {
-                    client.post(path + "/messages", Heartbeat.message(machine));
-                } catch (CliException busy) {
-                    // A refused heartbeat is retried on the next round.
+            for (int index = 0; index < pending.size(); index++) {
+                Wait wait = pending.get(index);
+                String effect = Heartbeat.effect(machines.get(index));
+                if (effect != null && !asked) {
+                    heartbeat = terminal.confirm(wait.chain() + " may be idle. Send heartbeat messages to make "
+                            + "blocks? Each one " + effect, false);
+                    asked = true;
+                    if (!heartbeat) terminal.say("Then send ordinary traffic to idle chains so they make blocks.");
+                }
+                if (heartbeat && effect != null) {
+                    try {
+                        client.post(wait.path() + "/messages", Heartbeat.message(machines.get(index)));
+                    } catch (CliException busy) {
+                        // A refused heartbeat is retried on the next round.
+                    }
                 }
             }
             Devnet.sleep(2000);
         }
+        return heartbeat;
     }
 
     private static List<String> members(NodeClient client, String path) {

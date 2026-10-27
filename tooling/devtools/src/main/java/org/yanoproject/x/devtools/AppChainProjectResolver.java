@@ -236,7 +236,8 @@ final class AppChainProjectResolver {
         materializeConsensusDefaults(consensus, prefix);
         if (chain.authenticatedMap() != null) {
             materializeAuthenticatedMap(
-                    chain, consensus, nodeTemplate, prefix);
+                    chain, consensus, nodeTemplate, prefix,
+                    pluginsDirectory(blueprint, false));
         }
         materializeStateCommitmentIdentity(
                 blueprint.metadata().name(), chain, sortedCapabilities, consensus, prefix);
@@ -260,13 +261,10 @@ final class AppChainProjectResolver {
                 "PARTIAL", List.of(), bindingDigests);
     }
 
-    /** Compile and construct the catalog-selected profile before any generated project file can be written. */
-    private Map<String, String> materializeBindings(AppChainProjectModel.Blueprint blueprint,
-                                                     AppChainProjectModel.ChainIntent chain,
-                                                     Map<String, String> consensus, String prefix,
-                                                     List<String> members, int threshold) {
+    private Path pluginsDirectory(AppChainProjectModel.Blueprint blueprint, boolean required) {
         String configured = blueprint.spec().runtime().pluginsDirectory();
         if (configured == null || configured.isBlank()) {
+            if (!required) return null;
             throw new IllegalArgumentException("declarative-composite requires runtime.pluginsDirectory for authoring");
         }
         Path directory = Path.of(configured);
@@ -276,6 +274,15 @@ final class AppChainProjectResolver {
             }
             directory = projectDirectory.resolve(directory).normalize();
         }
+        return directory;
+    }
+
+    /** Compile and construct the catalog-selected profile before any generated project file can be written. */
+    private Map<String, String> materializeBindings(AppChainProjectModel.Blueprint blueprint,
+                                                     AppChainProjectModel.ChainIntent chain,
+                                                     Map<String, String> consensus, String prefix,
+                                                     List<String> members, int threshold) {
+        Path directory = pluginsDirectory(blueprint, true);
         Map<String, String> suffix = new TreeMap<>();
         consensus.forEach((key, value) -> {
             if (key.startsWith(prefix)) suffix.put(key.substring(prefix.length()), value);
@@ -600,7 +607,8 @@ final class AppChainProjectResolver {
             AppChainProjectModel.ChainIntent chain,
             Map<String, String> consensus,
             Map<String, String> nodeTemplate,
-            String prefix
+            String prefix,
+            Path pluginsDirectory
     ) {
         AppChainProjectModel.AuthenticatedMapIntent intent = chain.authenticatedMap();
         List<AppChainProjectModel.AuthenticatedMapSchemaIntent> schemaIntents =
@@ -616,6 +624,18 @@ final class AppChainProjectResolver {
                     .compile(schema.source(), root).definition();
             validators.add(AuthenticatedMapContract.ValidatorDescriptor.schema(
                     schema.id(), definition));
+        }
+
+        List<AppChainProjectModel.AuthenticatedMapPluginValidatorIntent> pluginValidators =
+                safeList(intent.validators());
+        if (!pluginValidators.isEmpty()) {
+            Map<String, Path> bundles = AuthenticatedMapPluginValidators.bundles(pluginsDirectory);
+            for (AppChainProjectModel.AuthenticatedMapPluginValidatorIntent validator : pluginValidators) {
+                validators.add(AuthenticatedMapPluginValidators.descriptor(validator, bundles));
+            }
+            // A validator runs only from an explicitly allow-listed bundle, and a non-empty allow-list loads
+            // nothing else, so it names every bundle the node has.
+            nodeTemplate.put(AuthenticatedMapPluginValidators.ALLOW_LIST, String.join(",", bundles.keySet()));
         }
 
         List<AppChainProjectModel.AuthenticatedMapCollectionIntent> collectionIntents =

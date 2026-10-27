@@ -15,9 +15,11 @@ import java.util.Set;
 
 /** {@code new}: the coordinator's wizard; writes {@code <app>.draft.yaml} with a fresh invite code. */
 final class NewCommand {
-    static final String USAGE = "yano.sh appchain new [<app>] [--network devnet|preview|preprod|mainnet]"
+    static final String USAGE = "yano.sh appchain new [<app>] [--from <template.yaml>]"
+            + " [--network devnet|preview|preprod|mainnet]"
             + " [--operators alice,bob,carol] [--chain <id>=<recipe>|<id>=bindings:<file>]..."
-            + " [--answer <chain>.<name>=<value>]... [--threshold majority|two-thirds|all|<n>]"
+            + " [--answer <chain>.<name>=<value>]... [--setting <chain>.<key>=<value>]... [--without <chain>]..."
+            + " [--threshold majority|two-thirds|all|<n>]"
             + " [--membership governed|static] [--sequencing fixed|rotating] [--output <dir>]"
             + " [--force] [--yes]";
     private static final String COMPOSITE = "declarative-composite";
@@ -31,14 +33,17 @@ final class NewCommand {
     }
 
     int run(String[] arguments) throws IOException {
-        Args args = new Args(arguments, Set.of("network", "operators", "chain", "answer", "threshold", "membership",
-                "sequencing", "output"),
+        Args args = new Args(arguments, Set.of("from", "network", "operators", "chain", "answer", "setting", "without",
+                "threshold", "membership", "sequencing", "output"),
                 Set.of("force", "yes"));
         args.maxPositionals(1, USAGE);
         Path output = args.path("output", Path.of("."));
+        Path templateFile = args.value("from") == null ? null : Path.of(args.value("from"));
+        Draft.Template template = templateFile == null ? null : Draft.template(NodeDir.read(templateFile));
         String name = Names.name(args.positional(0) != null ? args.positional(0)
                 : terminal.ask("Application name", "my-app", "<app>"), "Application name");
         String network = args.value("network") != null ? Names.network(args.value("network"))
+                : template != null && template.network() != null ? template.network()
                 : terminal.choose("Which Cardano network does this application use?", Names.NETWORKS,
                 List.of("local test network, created by the lead's node (good for trying things)",
                         "public test network", "public test network", "Cardano mainnet"),
@@ -51,20 +56,34 @@ final class NewCommand {
 
         List<Draft.Chain> chains = new ArrayList<>();
         Map<String, String> recipes = AppChainSealResolver.recipes();
+        if (template != null) {
+            for (Draft.Chain chain : template.chains()) {
+                if (!args.values("without").contains(chain.id())) chains.add(fromTemplate(chain, templateFile, output));
+            }
+        }
+        for (String without : args.values("without")) {
+            if (template == null || template.chains().stream().noneMatch(chain -> chain.id().equals(without))) {
+                throw CliException.usage("--without " + without + ": the template has no such chain");
+            }
+        }
         if (!args.values("chain").isEmpty()) {
             for (String spec : args.values("chain")) chains.add(chainFromFlag(spec, output));
-        } else {
+        } else if (template == null) {
             do {
                 chains.add(askChain(chains.isEmpty() ? name : null, recipes, output));
             } while (terminal.confirm("Add another chain to this application?", false));
         }
 
-        chains = withAnswers(chains, args.values("answer"));
+        chains = withSettings(withAnswers(chains, args.values("answer")), args.values("setting"));
 
-        String threshold = args.value("threshold", "majority");
-        String membership = args.value("membership", "governed");
-        Draft draft = new Draft(name, Names.newInvite(), network, operators, threshold, membership,
-                args.value("sequencing", "fixed"), chains);
+        String threshold = args.value("threshold", template == null || template.threshold() == null
+                ? "majority" : template.threshold());
+        String membership = args.value("membership", template == null || template.membership() == null
+                ? "governed" : template.membership());
+        String sequencing = args.value("sequencing", template == null || template.sequencing() == null
+                ? "fixed" : template.sequencing());
+        Draft draft = new Draft(name, Names.newInvite(), network, operators, threshold, membership, sequencing,
+                chains);
         Path file = output.resolve(name + ".draft.yaml");
         if (Files.exists(file) && !args.flag("force")) {
             throw CliException.failure(file + " already exists; edit it, or pass --force to start over "
@@ -85,6 +104,28 @@ final class NewCommand {
                 "and sends back <name>.member. Put the cards next to the draft, then run",
                 "  yano.sh appchain seal " + file.getFileName());
         return 0;
+    }
+
+    /** Adds {@code --setting chain.key=value} values to the chains' settings; seal checks them like any other. */
+    private static List<Draft.Chain> withSettings(List<Draft.Chain> chains, List<String> flags) {
+        List<Draft.Chain> result = new ArrayList<>(chains);
+        for (String flag : flags) {
+            int dot = flag.indexOf('.');
+            int equals = flag.indexOf('=');
+            if (dot <= 0 || equals < dot + 2) {
+                throw CliException.usage("--setting must look like orders.block.interval-ms=2000");
+            }
+            String chainId = flag.substring(0, dot);
+            int index = -1;
+            for (int i = 0; i < result.size(); i++) if (result.get(i).id().equals(chainId)) index = i;
+            if (index < 0) throw CliException.usage("--setting " + flag + ": the draft has no chain " + chainId);
+            Draft.Chain chain = result.get(index);
+            Map<String, String> settings = new java.util.LinkedHashMap<>(chain.settings());
+            settings.put(flag.substring(dot + 1, equals), flag.substring(equals + 1));
+            result.set(index, new Draft.Chain(chain.id(), chain.recipe(), chain.capabilities(), chain.answers(),
+                    chain.bindings(), chain.composite(), chain.authenticatedMap(), chain.anchor(), settings));
+        }
+        return result;
     }
 
     /** Adds {@code --answer chain.name=value} values, then asks for any answer a recipe still needs. */
@@ -122,17 +163,30 @@ final class NewCommand {
         if (value.startsWith("bindings:")) {
             return composite(id, Path.of(value.substring("bindings:".length())), output);
         }
-        Map<String, String> recipes = AppChainSealResolver.recipes();
         if (COMPOSITE.equals(value)) {
             throw CliException.usage("Chain '" + id + "' composes state machines; pass --chain " + id
                     + "=bindings:<file>");
         }
-        if (!recipes.containsKey(value)) {
-            throw CliException.usage("Unknown recipe '" + value + "' for chain '" + id + "'. Recipes: "
-                    + String.join(", ", recipes.keySet().stream().filter(recipe -> !COMPOSITE.equals(recipe))
-                    .toList()));
-        }
+        requireRecipe(id, value);
         return new Draft.Chain(id, value, List.of(), Map.of(), null, null, null, null, Map.of());
+    }
+
+    private static void requireRecipe(String chainId, String recipe) throws IOException {
+        Map<String, String> recipes = AppChainSealResolver.recipes();
+        if (!recipes.containsKey(recipe)) {
+            throw CliException.usage("Unknown recipe '" + recipe + "' for chain '" + chainId + "'. Recipes: "
+                    + String.join(", ", recipes.keySet().stream().filter(id -> !COMPOSITE.equals(id)).toList()));
+        }
+    }
+
+    /** A template chain; its bindings file is copied beside the new draft like a --chain one. */
+    private Draft.Chain fromTemplate(Draft.Chain chain, Path templateFile, Path output) throws IOException {
+        requireRecipe(chain.id(), chain.recipe());
+        if (chain.bindings() == null) return chain;
+        Path source = templateFile.toAbsolutePath().normalize().getParent().resolve(chain.bindings()).normalize();
+        Draft.Chain copied = composite(chain.id(), source, output);
+        return new Draft.Chain(chain.id(), chain.recipe(), chain.capabilities(), chain.answers(), copied.bindings(),
+                chain.composite(), chain.authenticatedMap(), chain.anchor(), chain.settings());
     }
 
     private Draft.Chain askChain(String suggested, Map<String, String> recipes, Path output) throws IOException {
