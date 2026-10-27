@@ -14,6 +14,7 @@ import org.yanoproject.api.appchain.topics.TopicWire.EntryRecord;
 import org.yanoproject.api.appchain.topics.TopicWire.KeySet;
 import org.yanoproject.api.appchain.topics.TopicWire.Policy;
 import org.yanoproject.api.appchain.topics.TopicWire.Writers;
+import org.yanoproject.api.appchain.topics.TopicKeys;
 import org.yanoproject.api.appchain.topics.TopicWire;
 import org.yanoproject.api.appchain.topics.TopicWireCodec;
 import org.yanoproject.api.util.StrictEd25519;
@@ -348,51 +349,72 @@ class TopicsCliTest {
     }
 
     @Test
-    void voteProgressTellsDoneDecidedVotedAndOutOfDateApart() throws Exception {
-        JsonNode owners = TopicPlan.JSON.valueToTree(new KeySet(1, List.of(publicKey(1))));
-        String command = "a1".repeat(40);
-        var vote = new TopicsCli.Vote(TopicPlanFixtures.CHAIN, TopicPlanFixtures.GENERATION, "arena/", "create",
-                command, 1, 12, owners);
-        ObjectNode decided = TopicPlan.JSON.createObjectNode().put("name", "arena/").put("head", 1).put("pending", 1);
-        decided.putNull("active");
-        ObjectNode active = TopicPlan.JSON.createObjectNode().put("name", "arena/").put("head", 1).put("pending", 0);
-        active.putObject("active").put("revision", 1).putObject("content").set("owners", owners);
-        ObjectNode other = active.deepCopy();
-        ((ObjectNode) other.path("active").path("content")).set("owners",
-                TopicPlan.JSON.valueToTree(new KeySet(1, List.of(publicKey(2)))));
+    void voteProgressReadsCommittedStateAndTellsThisChangeFromAnother() throws Exception {
+        var snapshot = TopicPlanFixtures.snapshot();
+        Path planFile = write("vote.plan.json", TopicPlan.compile(TopicPlanFixtures.document("arena/", "create",
+                "governance"), snapshot).toString());
+        TopicsCli.Vote vote = TopicsCli.votes(planFile).getFirst();
+        var create = (TopicWire.GovCreate) TopicWireCodec.decodeGovernanceCommand(Hex.decode(vote.commandHex()))
+                .operation();
+        var content = new EntryContent(create.owners(), create.policy(), false);
+        var other = new EntryContent(new KeySet(1, List.of(publicKey(2))), create.policy(), false);
         String member = publicKey(5);
-        String tally = Hex.encode(TopicWireCodec.encodeGovernancePending(List.of(new TopicWire.GovernanceApproval(
-                TopicWireCodec.blake2b256Hex(Hex.decode(command)), 10, List.of(member)))));
-        assertThat(TopicsCli.progress(vote, member, null, null, 20, 600)).isEqualTo(TopicsCli.Progress.OPEN);
-        assertThat(TopicsCli.progress(vote, member, null, tally, 20, 600)).isEqualTo(TopicsCli.Progress.VOTED);
-        // An expired tally no longer counts this member's vote.
-        assertThat(TopicsCli.progress(vote, member, null, tally, 700, 600)).isEqualTo(TopicsCli.Progress.OPEN);
-        assertThat(TopicsCli.progress(vote, publicKey(6), null, tally, 20, 600)).isEqualTo(TopicsCli.Progress.OPEN);
-        assertThat(TopicsCli.progress(vote, member, decided, tally, 20, 600)).isEqualTo(TopicsCli.Progress.DECIDED);
-        assertThat(TopicsCli.progress(vote, member, active, null, 20, 600)).isEqualTo(TopicsCli.Progress.IN_EFFECT);
-        assertThat(TopicsCli.progress(vote, member, other, null, 20, 600)).isEqualTo(TopicsCli.Progress.SUPERSEDED);
-        ObjectNode later = active.deepCopy().put("head", 2);
-        ((ObjectNode) later.path("active")).put("revision", 2);
-        assertThat(TopicsCli.progress(vote, member, later, null, 20, 600)).isEqualTo(TopicsCli.Progress.SUPERSEDED);
+        Map<String, byte[]> state = new java.util.HashMap<>();
+        TopicsCli.StateReader reader = key -> java.util.Optional.ofNullable(state.get(Hex.encode(key)));
+        java.util.function.Consumer<TopicWire.EntryRecord> entry = record ->
+                state.put(Hex.encode(TopicKeys.entry("arena/")), TopicWireCodec.encodeEntryRecord(record));
+
+        assertThat(TopicsCli.progress(vote, member, reader, 20, 600)).isEqualTo(TopicsCli.Progress.OPEN);
+        state.put(Hex.encode(TopicKeys.governance()), TopicWireCodec.encodeGovernancePending(List.of(
+                new TopicWire.GovernanceApproval(TopicWireCodec.blake2b256Hex(Hex.decode(vote.commandHex())), 10,
+                        List.of(member)))));
+        assertThat(TopicsCli.progress(vote, member, reader, 20, 600)).isEqualTo(TopicsCli.Progress.VOTED);
+        // An expired tally no longer counts the vote, and another member's tally is not this one's.
+        assertThat(TopicsCli.progress(vote, member, reader, 700, 600)).isEqualTo(TopicsCli.Progress.OPEN);
+        assertThat(TopicsCli.progress(vote, publicKey(6), reader, 20, 600)).isEqualTo(TopicsCli.Progress.OPEN);
+
+        // Decided: the planned revision is queued with the planned content.
+        entry.accept(new TopicWire.EntryRecord("arena/", null, 1, 1, 0));
+        byte[] queued = TopicKeys.queued("arena/", 1);
+        state.put(Hex.encode(queued), TopicWireCodec.encodeQueuedRevision(new TopicWire.QueuedRevision(1, 12,
+                "governance", 0, content, "77".repeat(32))));
+        assertThat(TopicsCli.progress(vote, member, reader, 20, 600)).isEqualTo(TopicsCli.Progress.DECIDED);
+        // Another change queued under the same revision, or a cancelled one, is not this vote's.
+        state.put(Hex.encode(queued), TopicWireCodec.encodeQueuedRevision(new TopicWire.QueuedRevision(1, 12,
+                "~registrars", 0, other, "77".repeat(32))));
+        assertThat(TopicsCli.progress(vote, member, reader, 20, 600)).isEqualTo(TopicsCli.Progress.SUPERSEDED);
+        state.remove(Hex.encode(queued));
+        assertThat(TopicsCli.progress(vote, member, reader, 20, 600)).isEqualTo(TopicsCli.Progress.SUPERSEDED);
+
+        entry.accept(new TopicWire.EntryRecord("arena/", new ActiveRevision(1, 12, 1, content), 1, 0, 0));
+        assertThat(TopicsCli.progress(vote, member, reader, 20, 600)).isEqualTo(TopicsCli.Progress.IN_EFFECT);
+        entry.accept(new TopicWire.EntryRecord("arena/", new ActiveRevision(1, 12, 1, other), 1, 0, 0));
+        assertThat(TopicsCli.progress(vote, member, reader, 20, 600)).isEqualTo(TopicsCli.Progress.SUPERSEDED);
+        entry.accept(new TopicWire.EntryRecord("arena/", new ActiveRevision(2, 14, 1, content), 2, 0, 0));
+        assertThat(TopicsCli.progress(vote, member, reader, 20, 600)).isEqualTo(TopicsCli.Progress.SUPERSEDED);
+
+        // A cancelled creation leaves only its freed head; the old plan must not create the name again.
+        state.remove(Hex.encode(TopicKeys.entry("arena/")));
+        state.put(Hex.encode(TopicKeys.freed("arena/")), java.nio.ByteBuffer.allocate(8).putLong(1).array());
+        assertThat(TopicsCli.progress(vote, member, reader, 20, 600)).isEqualTo(TopicsCli.Progress.SUPERSEDED);
     }
 
     @Test
-    void votesListTheGovernanceCommandsOfACheckedPlan() throws Exception {
-        var snapshot = TopicPlanFixtures.snapshot();
-        Path plan = write("vote.plan.json", TopicPlan.compile(TopicPlanFixtures.document("arena/", "create",
-                "governance"), snapshot).toString());
-        List<TopicsCli.Vote> votes = TopicsCli.votes(plan);
-        assertThat(votes).singleElement().satisfies(vote -> {
-            assertThat(vote.target()).isEqualTo("arena/");
-            assertThat(vote.operation()).isEqualTo("create");
-            assertThat(vote.revision()).isEqualTo(1);
-            assertThat(vote.generationId()).isEqualTo(TopicPlanFixtures.GENERATION);
-            assertThat(vote.commandHex()).isNotBlank();
-        });
-        Path owners = write("owners.plan.json", TopicPlan.compile(liveDocument(), twoOwners()).toString());
-        assertThatThrownBy(() -> TopicsCli.votes(owners)).hasMessageContaining("no member votes");
-        Path edited = write("edited.plan.json", Files.readString(plan).replace("arena/", "arena2/"));
-        assertThatThrownBy(() -> TopicsCli.votes(edited)).isInstanceOf(RuntimeException.class);
+    void messagesNeverRepeatAPastedKey() throws Exception {
+        String seed = Hex.encode(seed(9));
+        ObjectNode document = liveDocument();
+        ((ObjectNode) document.path("commands").get(0)).put("operation", seed).put(seed, 1);
+        Path doc = write("pasted.yaml", TopicPlan.YAML.writeValueAsString(document));
+        Path state = write("state.json", TopicPlan.JSON.writeValueAsString(twoOwners()));
+        Result planned = run("topics", "plan", "--file", doc.toString(), "--snapshot", state.toString());
+        assertThat(planned.exit).isNotZero();
+        assertThat(planned.err).contains("(name not shown)").doesNotContain(seed);
+        ((ObjectNode) document.path("commands").get(0)).remove(seed);
+        Path op = write("operation.yaml", TopicPlan.YAML.writeValueAsString(document));
+        Result operation = run("topics", "plan", "--file", op.toString(), "--snapshot", state.toString());
+        assertThat(operation.err).contains("unknown operation").doesNotContain(seed);
+        Result missing = run("topics", "sign", "--plan", temporary.resolve(seed).toString(), "--key-file", seed);
+        assertThat(missing.err).contains("(path not shown)").doesNotContain(seed);
     }
 
     private Result guided(TopicsCli.Defaults defaults, String... args) {

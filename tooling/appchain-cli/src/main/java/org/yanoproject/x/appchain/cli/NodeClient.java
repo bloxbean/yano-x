@@ -52,6 +52,20 @@ final class NodeClient {
         }
     }
 
+    /** GETs JSON that must exist: any failure, including a missing resource, fails with what went wrong. */
+    JsonNode require(String path) {
+        try {
+            HttpResponse<String> response = send(HttpRequest.newBuilder(URI.create(base + path)).GET());
+            if (response.statusCode() / 100 != 2) {
+                throw CliException.failure("The node answered HTTP " + response.statusCode() + " for "
+                        + path.replaceAll("\\?.*", ""));
+            }
+            return JSON.readTree(response.body());
+        } catch (IOException error) {
+            throw CliException.failure("Cannot reach the node at " + base + ": " + error.getMessage());
+        }
+    }
+
     /** POSTs JSON; returns the parsed body, or fails with the node's message. */
     JsonNode post(String path, Object body) {
         try {

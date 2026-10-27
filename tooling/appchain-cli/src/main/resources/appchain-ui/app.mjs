@@ -357,7 +357,9 @@ function planStatus(plan) {
   if (progress.every(value => value === 'IN_EFFECT' || value === 'DECIDED')) {
     return el('span', {class: 'tag accent'}, 'approved, activating');
   }
-  if (progress.every(value => value && value !== 'OPEN')) return el('span', {class: 'tag'}, 'you voted');
+  if (progress.every(value => ['VOTED', 'DECIDED', 'IN_EFFECT'].includes(value))) {
+    return el('span', {class: 'tag'}, 'you voted');
+  }
   return null;
 }
 

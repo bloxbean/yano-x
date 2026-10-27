@@ -3,6 +3,9 @@ package org.yanoproject.x.appchain.cli;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.Test;
+import org.yanoproject.api.appchain.topics.TopicKeys;
+import org.yanoproject.api.appchain.topics.TopicWire;
+import org.yanoproject.api.appchain.topics.TopicWireCodec;
 import org.junit.jupiter.api.io.TempDir;
 import org.yanoproject.x.devtools.TopicsCli;
 
@@ -12,6 +15,7 @@ import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -68,8 +72,9 @@ class TopicsCommandTest {
 
     @Test
     void approveVotesOnlyWhenThisMemberHasNotVotedAndStopsOnAnOutOfDatePlan() throws Exception {
-        var entries = new ConcurrentHashMap<String, String>();
+        var state = new ConcurrentHashMap<String, String>();
         var votes = new AtomicInteger();
+        var failing = new java.util.concurrent.atomic.AtomicBoolean();
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/api/v1/app-chain/chains/games", exchange -> {
             String path = exchange.getRequestURI().getRawPath();
@@ -79,51 +84,72 @@ class TopicsCommandTest {
                 votes.incrementAndGet();
                 body = "{\"messageId\":\"" + "77".repeat(32) + "\"}";
                 status = 202;
-            } else if (path.contains("/topics/entries/")) {
-                // The target is one encoded path segment.
-                String name = path.substring(path.indexOf("/topics/entries/") + 16);
-                body = entries.get(name);
-                if (body == null) status = 404;
+            } else if (path.contains("/state/entry/")) {
+                // Every read names the height it is pinned to.
+                assertThat(exchange.getRequestURI().getQuery()).isEqualTo("height=20");
+                String value = state.get(path.substring(path.lastIndexOf('/') + 1));
+                body = value == null ? "{\"presence\":\"ABSENT\"}"
+                        : "{\"presence\":\"PRESENT\",\"valueHex\":\"" + value + "\"}";
+                if (failing.get()) status = 500;
             } else if (path.endsWith("/topics/config")) {
                 body = "{\"enabled\":true,\"config\":{\"settings\":{\"governanceWindowBlocks\":600}}}";
             } else if (path.endsWith("/status")) {
                 body = "{\"stateCommitment\":{\"version\":20}}";
-            } else if (path.contains("/state/entry/")) {
-                body = "{\"presence\":\"ABSENT\"}";
             }
-            byte[] bytes = (body == null ? "{}" : body).getBytes(StandardCharsets.UTF_8);
+            byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
             exchange.sendResponseHeaders(status, bytes.length);
             exchange.getResponseBody().write(bytes);
             exchange.close();
         });
         server.start();
         try {
-            var json = new ObjectMapper();
-            var owners = json.readTree("{\"threshold\":1,\"keys\":[\"" + "aa".repeat(32) + "\"]}");
-            var vote = new TopicsCli.Vote("games", "22".repeat(32), "arena/", "create", "a1".repeat(40), 1, 12,
-                    owners);
+            var owners = new TopicWire.KeySet(1, List.of("aa".repeat(32)));
+            var policy = new TopicWire.Policy(TopicWire.Writers.OPEN, List.of(), null, "", null);
+            String commandHex = HexFormat.of().formatHex(TopicWireCodec.encodeGovernanceCommand(
+                    new TopicWire.GovernanceCommand("games", "22".repeat(32), "44".repeat(16),
+                            new TopicWire.GovCreate("arena/", owners, policy, null))));
+            var vote = new TopicsCli.Vote("games", "22".repeat(32), "arena/", "create", commandHex, 1, 12,
+                    new ObjectMapper().valueToTree(owners));
             NodeClient client = new NodeClient("http://127.0.0.1:" + server.getAddress().getPort(), null);
             var out = new ByteArrayOutputStream();
-            Terminal terminal = new Terminal(null, new PrintStream(out, true), false);
-            TopicsCommand command = new TopicsCommand(terminal, System.err);
+            TopicsCommand command = new TopicsCommand(new Terminal(null, new PrintStream(out, true), false),
+                    System.err);
             String path = "/api/v1/app-chain/chains/games";
+            String member = "bb".repeat(32);
+            String entryKey = HexFormat.of().formatHex(TopicKeys.entry("arena/"));
+            var content = new TopicWire.EntryContent(owners, policy, false);
 
-            assertThat(command.castVotes(client, path, "bb".repeat(32), List.of(vote))).hasSize(1);
+            assertThat(command.castVotes(client, path, member, List.of(vote))).hasSize(1);
             assertThat(votes.get()).isEqualTo(1);
-            // Decided but not active: a second vote would open a second tally, so none is sent.
-            entries.put("arena%2F", "{\"name\":\"arena/\",\"head\":1,\"pending\":1,\"active\":null}");
-            assertThat(command.castVotes(client, path, "bb".repeat(32), List.of(vote))).hasSize(1);
+            // This member's vote is in the tally: no second vote.
+            state.put(HexFormat.of().formatHex(TopicKeys.governance()), HexFormat.of().formatHex(
+                    TopicWireCodec.encodeGovernancePending(List.of(new TopicWire.GovernanceApproval(
+                            TopicWireCodec.blake2b256Hex(HexFormat.of().parseHex(commandHex)), 15, List.of(member))))));
+            assertThat(command.castVotes(client, path, member, List.of(vote))).hasSize(1);
+            // Decided and queued: a vote now would open a second tally, so none is sent.
+            state.put(entryKey, HexFormat.of().formatHex(TopicWireCodec.encodeEntryRecord(
+                    new TopicWire.EntryRecord("arena/", null, 1, 1, 0))));
+            state.put(HexFormat.of().formatHex(TopicKeys.queued("arena/", 1)), HexFormat.of().formatHex(
+                    TopicWireCodec.encodeQueuedRevision(new TopicWire.QueuedRevision(1, 12, "governance", 0, content,
+                            "77".repeat(32)))));
+            assertThat(command.castVotes(client, path, member, List.of(vote))).hasSize(1);
             assertThat(votes.get()).isEqualTo(1);
-            entries.put("arena%2F", "{\"name\":\"arena/\",\"head\":1,\"pending\":0,"
-                    + "\"active\":{\"revision\":1,"
-                    + "\"content\":{\"owners\":" + owners + ",\"retired\":false}}}");
-            assertThat(command.castVotes(client, path, "bb".repeat(32), List.of(vote))).isEmpty();
-            assertThat(out.toString()).contains("voted (message", "enough operators voted", "already in effect");
-            entries.put("arena%2F", "{\"name\":\"arena/\",\"head\":2,\"pending\":0,"
-                    + "\"active\":{\"revision\":2,"
-                    + "\"content\":{\"owners\":" + owners + ",\"retired\":false}}}");
-            assertThatThrownBy(() -> command.castVotes(client, path, "bb".repeat(32), List.of(vote)))
+            state.put(entryKey, HexFormat.of().formatHex(TopicWireCodec.encodeEntryRecord(new TopicWire.EntryRecord(
+                    "arena/", new TopicWire.ActiveRevision(1, 12, 1, content), 1, 0, 0))));
+            assertThat(command.castVotes(client, path, member, List.of(vote))).isEmpty();
+            assertThat(out.toString()).contains("voted (message", "this node already voted",
+                    "enough operators voted", "already in effect");
+            // Someone else's content at the planned revision makes the plan out of date.
+            state.put(entryKey, HexFormat.of().formatHex(TopicWireCodec.encodeEntryRecord(new TopicWire.EntryRecord(
+                    "arena/", new TopicWire.ActiveRevision(1, 12, 1, new TopicWire.EntryContent(
+                    new TopicWire.KeySet(1, List.of("cc".repeat(32))), policy, false)), 1, 0, 0))));
+            assertThatThrownBy(() -> command.castVotes(client, path, member, List.of(vote)))
                     .hasMessageContaining("arena/ changed since this plan was made");
+            // A read the node cannot answer stops the command; it never counts as no vote.
+            state.remove(entryKey);
+            failing.set(true);
+            assertThatThrownBy(() -> command.castVotes(client, path, member, List.of(vote)))
+                    .hasMessageContaining("Cannot read where the vote stands");
             assertThat(votes.get()).isEqualTo(1);
         } finally {
             server.stop(0);
