@@ -213,6 +213,12 @@ tasks.register('yanoXJvmDistZip', Zip) {
             into 'config/schema'
             include '*.schema.json', 'appchain-release-acceptance-index.json'
         }
+        // ADR-015: the dependency-free composite-profile governance operator CLI.
+        from(rootProject.file('scripts/composite-profile')) {
+            into 'tools/composite-profile'
+            include 'profile-governance.py'
+            filePermissions { unix('755') }
+        }
         from(rootProject.file('products/evidence/harness')) {
             into 'examples/evidence'
             exclude '.demo-data/**', '.demo-runtime/**', '.demo-secrets/**',
@@ -513,6 +519,7 @@ tasks.register('verifyYanoXJvmDistribution') {
                     'examples/showcase/config/settlement/executor.json',
                     'examples/showcase/tools/showcase_local.py',
                     'examples/showcase/tools/loadtest.sh',
+                    'tools/composite-profile/profile-governance.py',
                     'docs/appchain/README.md',
                     'docs/appchain/DECLARATIVE_BINDINGS.md',
                     'docs/appchain/DECLARATIVE_BINDINGS_CLI.md',

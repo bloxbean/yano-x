@@ -19,11 +19,13 @@ import java.util.stream.Stream;
 /**
  * {@code try}: the whole ceremony on one machine with three simulated operators, printing each real command as
  * it runs it, so a beginner learns the production steps. {@code --chain} and {@code --answer} take the same values
- * as {@code new}, so any recipe or several chains can be rehearsed. {@code --clean} stops and removes the rehearsal.
+ * as {@code new} (and {@code --from} a template), so any recipe or several chains can be rehearsed. {@code --clean}
+ * stops and removes the rehearsal.
  */
 final class TryCommand {
-    static final String USAGE = "yano.sh appchain try [--chain <id>=<recipe>|<id>=bindings:<file>]..."
-            + " [--answer <chain>.<name>=<value>]... [--dir appchain-try] [--clean]";
+    static final String USAGE = "yano.sh appchain try [--from <template.yaml>]"
+            + " [--chain <id>=<recipe>|<id>=bindings:<file>]... [--answer <chain>.<name>=<value>]..."
+            + " [--setting <chain>.<key>=<value>]... [--without <chain>]... [--dir appchain-try] [--clean]";
     private static final String LOG_RECIPE = "audit-log";
     private static final String MARKER = ".appchain-try";
     private static final List<String> OPERATORS = List.of("alice", "bob", "carol");
@@ -37,7 +39,8 @@ final class TryCommand {
     }
 
     int run(String[] arguments) throws IOException {
-        Args args = new Args(arguments, Set.of("dir", "chain", "answer"), Set.of("clean", "yes"));
+        Args args = new Args(arguments, Set.of("dir", "from", "chain", "answer", "setting", "without"),
+                Set.of("clean", "yes"));
         args.maxPositionals(0, USAGE);
         Path root = args.path("dir", Path.of("appchain-try")).toAbsolutePath().normalize();
         if (args.flag("clean")) return clean(root);
@@ -57,10 +60,15 @@ final class TryCommand {
         step("1. The coordinator creates the application (a wizard asks these questions when run by hand).");
         List<String> create = new ArrayList<>(List.of("new", "demo", "--network", "devnet", "--operators",
                 String.join(",", OPERATORS)));
-        for (String chain : args.values("chain").isEmpty() ? List.of("orders=" + LOG_RECIPE) : args.values("chain")) {
-            create.addAll(List.of("--chain", chain));
+        if (args.value("from") != null) {
+            create.addAll(List.of("--from", Path.of(args.value("from")).toAbsolutePath().toString()));
         }
-        for (String answer : args.values("answer")) create.addAll(List.of("--answer", answer));
+        List<String> chains = args.values("chain").isEmpty() && args.value("from") == null
+                ? List.of("orders=" + LOG_RECIPE) : args.values("chain");
+        for (String chain : chains) create.addAll(List.of("--chain", chain));
+        for (String option : List.of("answer", "setting", "without")) {
+            for (String value : args.values(option)) create.addAll(List.of("--" + option, value));
+        }
         create.addAll(List.of("--output", coordinator.toString(), "--yes"));
         try {
             exec(coordinator, create.toArray(String[]::new));

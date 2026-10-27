@@ -6,7 +6,7 @@ DEMO_DIR="$(cd "$SCRIPT_DIR/.." && pwd -P)"
 REPO_ROOT="$(cd "$DEMO_DIR/../../.." && pwd -P)"
 
 bash -n "$DEMO_DIR/demo.sh" "$DEMO_DIR"/tools/*.sh "$SCRIPT_DIR"/*.sh
-bash "$REPO_ROOT/scripts/appchain-cluster/test-profile-governance-cli.sh"
+bash "$REPO_ROOT/scripts/composite-profile/test-profile-governance-cli.sh"
 
 for test in \
   anchor-binding-test.sh \
