@@ -108,7 +108,7 @@ final class NewCommand {
                     ? Arrays.stream(value.substring("registrars:".length()).split("\\+")).map(String::strip)
                     .filter(item -> !item.isEmpty()).toList() : List.of();
             String create = value.startsWith("registrars:") ? "registrars" : value;
-            topics.put(id, new Draft.Topics(create, registrars, registrars.isEmpty() ? 0 : 1, "reject", Map.of()));
+            topics.put(id, new Draft.Topics(create, registrars, registrars.isEmpty() ? 0 : 1, "open", Map.of()));
         }
         return chains.stream().map(chain -> topics.containsKey(chain.id()) ? chain.withTopics(topics.get(chain.id()))
                 : chain).toList();
@@ -132,8 +132,9 @@ final class NewCommand {
                     .map(String::strip).filter(item -> !item.isEmpty()).toList();
         }
         String unregistered = terminal.choose("Messages on topics that no namespace covers:", Draft.Topics.UNREGISTERED,
-                List.of("refuse them (every topic must be registered first)", "accept them as today"), "reject",
-                "topics.unregistered in the draft");
+                List.of("accept them as today; protect only what you register",
+                        "refuse them; the chain then makes blocks only from registered topics"), "open",
+                "unregistered: in the draft");
         return new Draft.Topics(create, registrars, registrars.isEmpty() ? 0 : 1, unregistered, Map.of());
     }
 

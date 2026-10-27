@@ -16,7 +16,7 @@ import java.util.Set;
  */
 public final class AppChainCli {
     static final Set<String> VERBS = Set.of("new", "request", "seal", "inspect", "join", "start", "stop",
-            "status", "approve", "anchor", "try", "invite", "ui");
+            "status", "approve", "anchor", "try", "invite", "ui", "topics");
 
     private static final String HELP = """
             Set up and run an app chain with other operators.
@@ -39,7 +39,12 @@ public final class AppChainCli {
               status [<app>]            where the application is, and what to do next
               approve <name>.member     add a member (--remove <name> removes one)
               anchor [<app>]            optional: anchor a chain to Cardano from this node
+              topics approve <plan>     vote on a namespace change (chains whose draft has topics:)
               inspect <file>            show and check a draft, card or sealed file
+
+            Namespace owners and application developers:
+              topics plan|sign|submit   manage a namespace's owners, writers and payload schema
+              topics resolve|delegate   check a topic's policy; issue a session-key credential
 
             Each command prints a Next: line. Add --help to a command for its options.
             Other tools: recipes, capabilities, bindings, state, role, plugin, metadata, config,
@@ -79,6 +84,17 @@ public final class AppChainCli {
             return new AppChainDevtoolsCli().run(args, out, error);
         }
         String[] rest = Arrays.copyOfRange(args, 1, args.length);
+        if ("topics".equals(verb) && !(rest.length > 0 && "approve".equals(rest[0]))) {
+            try {
+                return new TopicsCommand(terminal, err).run(rest);
+            } catch (CliException failure) {
+                err.println(failure.getMessage());
+                return failure.exitCode();
+            } catch (java.io.IOException error) {
+                err.println("I/O error: " + error.getMessage());
+                return CliException.FAILURE;
+            }
+        }
         if (Arrays.asList(rest).contains("--help")) {
             terminal.say("Usage: " + usage(verb));
             return 0;
@@ -98,6 +114,7 @@ public final class AppChainCli {
                 case "try" -> new TryCommand(terminal, err).run(rest);
                 case "invite" -> new InviteCommand(terminal, located.get(), err).run(rest);
                 case "ui" -> new UiCommand(terminal, optional.get(), err).run(rest);
+                case "topics" -> new TopicsCommand(terminal, err).run(rest);
                 default -> throw CliException.usage("'" + verb + "' is not available in this build yet");
             };
         } catch (CliException failure) {
@@ -127,6 +144,7 @@ public final class AppChainCli {
             case "try" -> TryCommand.USAGE;
             case "invite" -> InviteCommand.USAGE;
             case "ui" -> UiCommand.USAGE;
+            case "topics" -> TopicsCommand.APPROVE_USAGE;
             default -> "yano.sh appchain " + verb;
         };
     }

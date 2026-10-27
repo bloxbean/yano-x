@@ -151,37 +151,10 @@ final class ApproveCommand {
 
     private boolean await(NodeClient client, String path, String chain, Predicate<JsonNode> done, String what,
                           long deadline, boolean heartbeat) {
-        boolean told = false;
-        boolean asked = heartbeat;
-        while (true) {
-            JsonNode status = client.get(path + "/status").orElse(null);
-            if (status != null && done.test(status)) return heartbeat;
-            if (System.currentTimeMillis() > deadline) {
-                throw CliException.notReady(chain + ": still waiting for " + what + ". The other operators may not "
-                        + "have run approve yet; run this command again later (it continues where it stopped)");
-            }
-            if (!told) {
-                terminal.say(chain + ": waiting for " + what + " (it activates once enough operators approve and "
-                        + "the chain makes 10 more blocks)");
-                told = true;
-            }
-            String machine = status == null ? "" : status.path("stateMachine").asText();
-            String effect = Heartbeat.effect(machine);
-            if (effect != null && !asked) {
-                heartbeat = terminal.confirm(chain + " may be idle. Send heartbeat messages to make blocks? Each one "
-                        + effect, false);
-                asked = true;
-                if (!heartbeat) terminal.say("Then send ordinary traffic to " + chain + " so it makes blocks.");
-            }
-            if (heartbeat && effect != null) {
-                try {
-                    client.post(path + "/messages", Heartbeat.message(machine));
-                } catch (CliException busy) {
-                    // A refused heartbeat is retried on the next round.
-                }
-            }
-            Devnet.sleep(2000);
-        }
+        return Await.until(terminal, client, path, chain, done, what, deadline, heartbeat,
+                "it activates once enough operators approve and the chain makes 10 more blocks",
+                "The other operators may not have run approve yet; run this command again later (it continues where "
+                        + "it stopped)");
     }
 
     private static List<String> members(NodeClient client, String path) {

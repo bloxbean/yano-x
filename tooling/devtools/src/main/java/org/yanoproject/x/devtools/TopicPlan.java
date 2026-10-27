@@ -392,4 +392,15 @@ public final class TopicPlan {
     static IllegalArgumentException invalid(String message) {
         return new IllegalArgumentException(message);
     }
+
+    /** A refusal whose text is written by the tool and names no input value, so it is shown as is. */
+    static final class Guidance extends IllegalArgumentException {
+        Guidance(String message) {
+            super(message);
+        }
+    }
+
+    static IllegalArgumentException guidance(String message) {
+        return new Guidance(message);
+    }
 }

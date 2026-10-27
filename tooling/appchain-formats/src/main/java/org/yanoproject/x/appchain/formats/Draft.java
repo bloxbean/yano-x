@@ -78,7 +78,7 @@ public record Draft(
     public record Topics(String create, List<String> registrars, int registrarThreshold, String unregistered,
                          Map<String, Long> limits) {
         public static final List<String> CREATE = List.of("members", "registrars", "anyone");
-        public static final List<String> UNREGISTERED = List.of("reject", "open");
+        public static final List<String> UNREGISTERED = List.of("open", "reject");
         /** Optional limits, by their core setting names under {@code topics.}. */
         public static final Set<String> LIMITS = Set.of("max-delegation-ms", "max-command-ms",
                 "max-pending-per-entry", "max-entries", "max-entries-per-namespace", "activation-lag",
@@ -101,7 +101,8 @@ public record Draft(
             if (registrarThreshold < (registrars.isEmpty() ? 0 : 1) || registrarThreshold > registrars.size()) {
                 throw new FormatException("registrar-threshold must be between 1 and the number of registrars");
             }
-            unregistered = unregistered == null ? "reject" : unregistered;
+            // Open keeps topics nobody registered working as before, heartbeats included; reject is deny-by-default.
+            unregistered = unregistered == null ? "open" : unregistered;
             if (!UNREGISTERED.contains(unregistered)) {
                 throw new FormatException("topics unregistered must be 'reject' or 'open'");
             }
@@ -117,7 +118,7 @@ public record Draft(
 
         /** Members-only creation with the core defaults. */
         public static Topics members() {
-            return new Topics("members", List.of(), 0, "reject", Map.of());
+            return new Topics("members", List.of(), 0, "open", Map.of());
         }
 
         public String summary() {
@@ -340,7 +341,7 @@ public record Draft(
                     }
                 }
                 out.append("      unregistered: ").append(topics.unregistered())
-                        .append("  # messages on topics no namespace covers: reject | open\n");
+                        .append("  # messages on topics no namespace covers: open | reject\n");
                 if (!topics.limits().isEmpty()) {
                     out.append("      limits:\n");
                     topics.limits().forEach((key, value) -> out.append("        ").append(key).append(": ")

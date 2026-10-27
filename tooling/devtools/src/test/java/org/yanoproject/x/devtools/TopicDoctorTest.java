@@ -89,8 +89,9 @@ class TopicDoctorTest {
             String peer = "http://127.0.0.1:" + server.getAddress().getPort();
             StringWriter output = new StringWriter();
             StringWriter errors = new StringWriter();
-            int result = new AppChainDevtoolsCli().run(new String[] {"doctor", "--bindings", bindings.toString(),
-                    "--chain", original.chainId(), "--peer", peer}, new PrintWriter(output), new PrintWriter(errors));
+            int result = new AppChainDevtoolsCli().run(new String[] {"topics", "doctor", "--bindings",
+                    bindings.toString(), "--chain", original.chainId(), "--peer", peer}, new PrintWriter(output),
+                    new PrintWriter(errors));
             assertThat(result).as(errors.toString()).isZero();
             JsonNode checked = TopicPlan.JSON.readTree(output.toString());
             assertThat(checked.path("checks")).allSatisfy(check ->

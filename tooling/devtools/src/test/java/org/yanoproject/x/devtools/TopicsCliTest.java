@@ -32,8 +32,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class TopicsCliTest {
+    private static final List<String> API_KEYS = java.util.Collections.synchronizedList(new ArrayList<>());
     @TempDir Path temporary;
     private final AppChainDevtoolsCli cli = new AppChainDevtoolsCli();
 
@@ -240,11 +242,78 @@ class TopicsCliTest {
                 .contains("TOPIC_COMMAND_EXPIRED");
     }
 
+    @Test
+    void guidedRunWritesNamedFilesSaysWhatIsNextAndUsesTheNodeDefaults() throws Exception {
+        AtomicReference<TopicPlan.Snapshot> current = new AtomicReference<>(twoOwners());
+        AtomicInteger posts = new AtomicInteger();
+        HttpServer server = server(current, posts, new ArrayList<>());
+        try {
+            String peer = "http://127.0.0.1:" + server.getAddress().getPort();
+            var defaults = new TopicsCli.Defaults(peer, "node-key", TopicPlanFixtures.CHAIN, true);
+            Path doc = write("games.yaml", TopicPlan.YAML.writeValueAsString(liveDocument()));
+            Result planned = guided(defaults, "plan", doc.toString());
+            assertThat(planned.exit).as(planned.err).isZero();
+            Path plan = temporary.resolve("games.plan.json");
+            assertThat(plan).isRegularFile();
+            assertThat(planned.out).contains("Wrote " + plan, "update games/: 2 of keys", "must sign",
+                    "Next: each signer runs  yano.sh appchain topics sign " + plan);
+            assertThat(API_KEYS).contains("node-key");
+
+            Result once = guided(defaults, "sign", plan.toString(), "--key-file", seedFile("one", 1).toString());
+            assertThat(once.exit).as(once.err).isZero();
+            Path signed = temporary.resolve("games.signed.json");
+            assertThat(once.out).contains("Signed " + signed, "1 of 2 signatures", "to the next signer");
+            // The second owner signs the signed file in place.
+            Result twice = guided(defaults, "sign", signed.toString(), "--key-file", seedFile("two", 2).toString());
+            assertThat(twice.out).contains("2 of 2 signatures", "Next: yano.sh appchain topics submit " + signed);
+            Result submitted = guided(defaults, "submit", signed.toString());
+            assertThat(submitted.exit).as(submitted.err).isZero();
+            assertThat(submitted.out).contains("Submitted games/ (message " + "66".repeat(32) + ")",
+                    "topics resolve games/<topic>");
+            assertThat(posts.get()).isEqualTo(1);
+
+            // A node's API key is never sent to a peer named on the command line.
+            API_KEYS.clear();
+            assertThat(guided(defaults, "plan", doc.toString(), "--peer", peer, "--output",
+                    temporary.resolve("other.plan.json").toString()).exit).isZero();
+            assertThat(API_KEYS).isNotEmpty().allMatch("null"::equals);
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void votesListTheGovernanceCommandsOfACheckedPlan() throws Exception {
+        var snapshot = TopicPlanFixtures.snapshot();
+        Path plan = write("vote.plan.json", TopicPlan.compile(TopicPlanFixtures.document("arena/", "create",
+                "governance"), snapshot).toString());
+        List<TopicsCli.Vote> votes = TopicsCli.votes(plan);
+        assertThat(votes).singleElement().satisfies(vote -> {
+            assertThat(vote.target()).isEqualTo("arena/");
+            assertThat(vote.operation()).isEqualTo("create");
+            assertThat(vote.revision()).isEqualTo(1);
+            assertThat(vote.generationId()).isEqualTo(TopicPlanFixtures.GENERATION);
+            assertThat(vote.commandHex()).isNotBlank();
+        });
+        Path owners = write("owners.plan.json", TopicPlan.compile(liveDocument(), twoOwners()).toString());
+        assertThatThrownBy(() -> TopicsCli.votes(owners)).hasMessageContaining("no member votes");
+        Path edited = write("edited.plan.json", Files.readString(plan).replace("arena/", "arena2/"));
+        assertThatThrownBy(() -> TopicsCli.votes(edited)).isInstanceOf(RuntimeException.class);
+    }
+
+    private Result guided(TopicsCli.Defaults defaults, String... args) {
+        StringWriter out = new StringWriter();
+        StringWriter err = new StringWriter();
+        int code = new TopicsCli().run(args, new PrintWriter(out), new PrintWriter(err), defaults);
+        return new Result(code, out.toString(), err.toString());
+    }
+
     private static HttpServer server(AtomicReference<TopicPlan.Snapshot> snapshot, AtomicInteger posts,
                                      List<JsonNode> submissions) throws Exception {
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/api/v1/app-chain/chains/" + TopicPlanFixtures.CHAIN, exchange -> {
             String path = exchange.getRequestURI().getPath();
+            API_KEYS.add(String.valueOf(exchange.getRequestHeaders().getFirst("X-API-Key")));
             TopicPlan.Snapshot state = snapshot.get();
             JsonNode response;
             int status = 200;

@@ -27,11 +27,11 @@ class TopicsSealTest {
         Draft draft = Draft.parse(Files.readString(fixture.draft("arcade")));
         assertThat(draft.chains().getFirst().topics().registrars()).containsExactly("alice", "bob");
         assertThat(Files.readString(fixture.draft("arcade"))).contains("topics:", "create: registrars",
-                "registrars: [alice, bob]", "unregistered: reject");
+                "registrars: [alice, bob]", "unregistered: open");
 
         var sealed = fixture.ok("seal", fixture.draft("arcade").toString());
         assertThat(sealed.out()).contains("topics: namespaces created by alice, bob or by member vote; "
-                + "unregistered topics refused");
+                + "unregistered topics open");
         SealedApp app = fixture.sealed("arcade");
         Map<String, String> settings = app.genesis().chain("games").settings();
         String alice = app.genesis().member("alice").publicKey();
@@ -42,7 +42,7 @@ class TopicsSealTest {
                 .containsEntry("topics.creation.registrars.threshold", "1")
                 .containsEntry("topics.creation.registrars.keys",
                         String.join(",", List.of(alice, bob).stream().sorted().toList()))
-                .containsEntry("topics.unregistered-topics", "reject");
+                .containsEntry("topics.unregistered-topics", "open");
         // The genesis id covers the seed, so changing the policy later means a new application.
         assertThat(app.genesis().chain("games").genesisId()).hasSize(64);
     }
@@ -51,12 +51,12 @@ class TopicsSealTest {
     void openClaimsAndLimitsSealOverTheHostDefaults() throws Exception {
         CeremonyFixture fixture = draft("--chain", "games=audit-log", "--topics", "games=anyone");
         Path file = fixture.draft("arcade");
-        Files.writeString(file, Files.readString(file).replace("unregistered: reject",
-                "unregistered: open\n      limits:\n        activation-lag: 3"));
+        Files.writeString(file, Files.readString(file).replace("unregistered: open",
+                "unregistered: reject\n      limits:\n        activation-lag: 3"));
         fixture.ok("seal", file.toString());
         Map<String, String> settings = fixture.sealed("arcade").genesis().chain("games").settings();
         assertThat(settings).containsEntry("topics.creation.open-claims", "true")
-                .containsEntry("topics.unregistered-topics", "open")
+                .containsEntry("topics.unregistered-topics", "reject")
                 .containsEntry("topics.activation-lag", "3")
                 .containsEntry("topics.max-delegation-ms", "3600000")
                 // A registrar threshold without keys is refused by the host, so the default is not sealed.
@@ -110,14 +110,14 @@ class TopicsSealTest {
         assertThatThrownBy(() -> new Draft.Topics("members", List.of(), 0, null, Map.of("max-cats", 1L)))
                 .isInstanceOf(FormatException.class).hasMessageContaining("Unknown topics limit 'max-cats'");
         assertThat(Draft.Topics.members().summary())
-                .isEqualTo("namespaces created by member vote; unregistered topics refused");
+                .isEqualTo("namespaces created by member vote; unregistered topics open");
     }
 
     @Test
     void inspectShowsTheDraftTopicPolicy() throws Exception {
         CeremonyFixture fixture = draft("--chain", "games=audit-log", "--topics", "games=members");
         assertThat(fixture.ok("inspect", fixture.draft("arcade").toString()).out())
-                .contains("topics: namespaces created by member vote; unregistered topics refused");
+                .contains("topics: namespaces created by member vote; unregistered topics open");
     }
 
     private CeremonyFixture draft(String... chains) throws Exception {
