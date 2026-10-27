@@ -18,7 +18,7 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-HTTP_BASE="${YANO_CLUSTER_HTTP_BASE:-7070}"
+HTTP_BASE="${YANO_SHOWCASE_HTTP_BASE:-7070}"
 
 CHAIN=""; DURATION=2700; RATE=500; CONC=40; SIZE=256; TOPIC="soak"; TARGET="spread"
 SAMPLE=15; OUTDIR=""
@@ -72,7 +72,7 @@ esac; done
 [[ "$RATE"     =~ ^[0-9]+$ && "$RATE"     -ge 1 ]] || die "--rate must be a positive integer"
 [[ "$CONC"     =~ ^[0-9]+$ && "$CONC"     -ge 1 ]] || die "--conc must be a positive integer"
 
-ready 0 || die "no running cluster on http $(http_port 0) — start one with ./cluster.sh start"
+ready 0 || die "no running node on http $(http_port 0) — start the showcase with ./showcase.sh up"
 NODES=(); while IFS= read -r n; do [ -n "$n" ] && NODES+=("$n"); done < <(ready_nodes)
 [ "${#NODES[@]}" -ge 1 ] || die "no ready nodes found"
 [ "$TARGET" = "spread" ] || ready "$TARGET" || die "node $TARGET not ready"

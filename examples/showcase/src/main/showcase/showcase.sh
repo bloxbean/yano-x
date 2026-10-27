@@ -1,50 +1,38 @@
 #!/usr/bin/env bash
 # Unified, copied-distribution-safe facade for the Yano app-chain showcase.
+#
+# The light profile is set up with the ordinary app-chain setup commands, as real operators would run them:
+# `yano.sh appchain new --from config/showcase.template.yaml`, one `request` per node with a public demo
+# member key, `seal`, `join`, `start`. Each node is a node directory under the instance. The two L1-driven
+# chains are applications of their own, run by the founding nodes: Cardano History (`history`) and, on a
+# devnet, the federated settlement chain (`settlement`).
 set -euo pipefail
 
 SHOWCASE_HOME="$(cd "$(dirname "$0")" && pwd -P)"
-# The showcase ships at examples/showcase inside the Yano X JVM distribution.
-# Its yano/ home carries only the demo configuration; link_yano_home points
-# every other entry back at the distribution root, so the demo never edits the
-# distribution's own config.
-YANO_X_HOME="$(cd "$SHOWCASE_HOME/../.." && pwd -P)"
-YANO_HOME="$SHOWCASE_HOME/yano"
-CLUSTER="$YANO_HOME/appchain-cluster/cluster.sh"
+# The showcase ships at examples/showcase inside the Yano X JVM distribution; its scenarios call the
+# distribution's yano.sh and read its plugins/.
+YANO_HOME="$(cd "$SHOWCASE_HOME/../.." && pwd -P)"
+CONFIG_DIR="$SHOWCASE_HOME/config"
+TEMPLATE="$CONFIG_DIR/showcase.template.yaml"
+SETTLEMENT_TEMPLATE="$CONFIG_DIR/settlement.template.yaml"
+HISTORY_TEMPLATE="$CONFIG_DIR/history.template.yaml"
 CODEC="$SHOWCASE_HOME/tools/showcase_codec.py"
-IDENTITY="$SHOWCASE_HOME/tools/showcase_identity.py"
+LOCAL_CONFIG="$SHOWCASE_HOME/tools/showcase_local.py"
 CATALOG="$SHOWCASE_HOME/catalog/showcase-catalog-v1.json"
 CATALOG_TOOL="$SHOWCASE_HOME/tools/showcase_catalog.py"
 VERSION="$(tr -d '\r\n' < "$SHOWCASE_HOME/VERSION" 2>/dev/null || printf development)"
-API_KEY="${YANO_CLUSTER_API_KEY:-yano-local-cluster-full-key}"
+APP=showcase
+SETTLEMENT_APP=settlement
+HISTORY_APP=history
 LIGHT_CHAINS=()
 while IFS= read -r chain_id; do LIGHT_CHAINS+=("$chain_id"); done \
   < <(python3 "$CATALOG_TOOL" "$CATALOG" list)
-AUTHMAP_GENERATOR=org.yanoproject.x.showcase.ShowcaseAuthenticatedMapConfig
-AUTHMAP_CHAIN_INDEX=8
-AUTHMAP_JMT_CHAIN_INDEX=9
 SETTLEMENT_CHAIN_ID=payment-chain-settlement
-SETTLEMENT_CHAIN_INDEX=10
 CARDANO_HISTORY_CHAIN_ID=cardano-history-chain
 
 die() { printf 'error: %s\n' "$*" >&2; exit 1; }
 note() { printf '%s\n' "$*"; }
 need() { command -v "$1" >/dev/null 2>&1 || die "required command not found: $1"; }
-
-link_yano_home() {
-  local entry name
-  [ -f "$YANO_X_HOME/yano.jar" ] && [ -d "$YANO_HOME/config" ] \
-    || die "run showcase.sh from examples/showcase in an extracted Yano X JVM distribution"
-  for entry in "$YANO_X_HOME"/*; do
-    name="${entry##*/}"
-    case "$name" in config|examples) continue;; esac
-    [ -e "$YANO_HOME/$name" ] || [ -L "$YANO_HOME/$name" ] \
-      || ln -s "../../../$name" "$YANO_HOME/$name"
-  done
-}
-link_yano_home
-# The node refuses a symlinked plugin directory, so it loads the distribution's
-# plugins/ by its real path. Scripts that only read jars may use the link.
-export YANO_PLUGINS_DIRECTORY="$YANO_X_HOME/plugins"
 
 PROFILE="light"
 VARIANT="default"
@@ -59,12 +47,10 @@ ANCHOR_MODE="script"
 ANCHOR_KEY_FILE=""
 SETTLEMENT_KEY_FILE=""
 SETTLEMENT_CONFIRM=""
-# All configured chains are anchor-ENABLED by default (config-only, no L1
-# spend). Keep this symbolic until the deployment config is resolved: a fresh
-# public-network instance intentionally omits the devnet settlement chain.
+# The chains `quickstart` and `anchor all` anchor. Every chain carries the anchor policy (mode and cadence);
+# anchoring itself starts only with `./showcase.sh anchor`, which spends L1 fees.
 ANCHOR_CHAINS="all"
 ANCHOR_MODE_EXPLICIT=false
-ANCHOR_KEY_EXPLICIT=false
 PUBLIC_CONFIRM=""
 DATA_ROOT=""
 NODE=0
@@ -237,37 +223,6 @@ canonical_authenticated_snapshot_chains() {
   printf '%s' "$seen"
 }
 
-cardano_history_chain_index() {
-  local index
-  for ((index=0;index<${#LIGHT_CHAINS[@]};index++)); do
-    [ "${LIGHT_CHAINS[$index]}" = "$CARDANO_HISTORY_CHAIN_ID" ] && { printf '%d' "$index"; return; }
-  done
-  return 1
-}
-
-l1_network_genesis_id() {
-  local retained="$(cluster_dir)/node0/shelley-genesis.json" source
-  if [ -f "$retained" ]; then
-    source="$retained"
-  elif [ "$NETWORK" = devnet ] && [ -n "${YANO_CLUSTER_DEVNET_GENESIS_FILE:-}" ]; then
-    source="$YANO_CLUSTER_DEVNET_GENESIS_FILE"
-  else
-    source="$YANO_HOME/config/network/$NETWORK/shelley-genesis.json"
-  fi
-  [ -f "$source" ] || die "L1 Shelley genesis file is missing: $source"
-  python3 - "$source" <<'PY'
-import hashlib
-import sys
-
-with open(sys.argv[1], "rb") as stream:
-    print(hashlib.sha256(stream.read()).hexdigest())
-PY
-}
-
-l1_source_snapshot_retention_file() {
-  printf '%s/l1-source-snapshot-retention-epochs' "$(instance_root)"
-}
-
 validate_l1_source_snapshot_retention() {
   [ -z "$L1_SOURCE_SNAPSHOT_RETENTION_EPOCHS" ] || {
     [[ "$L1_SOURCE_SNAPSHOT_RETENTION_EPOCHS" =~ ^[0-9]+$ ]] \
@@ -277,26 +232,6 @@ validate_l1_source_snapshot_retention() {
   }
 }
 
-adopt_l1_source_snapshot_retention() {
-  local file="$(l1_source_snapshot_retention_file)" retained=""
-  [ -f "$file" ] || { validate_l1_source_snapshot_retention; return; }
-  retained="$(tr -d '\r\n' < "$file")"
-  if [ "$L1_SOURCE_SNAPSHOT_RETENTION_EXPLICIT" = true ]; then
-    [ "$L1_SOURCE_SNAPSHOT_RETENTION_EPOCHS" = "$retained" ] \
-      || die "requested L1 source snapshot retention differs from the retained instance"
-  else
-    L1_SOURCE_SNAPSHOT_RETENTION_EPOCHS="$retained"
-  fi
-  validate_l1_source_snapshot_retention
-}
-
-persist_l1_source_snapshot_retention() {
-  [ -n "$L1_SOURCE_SNAPSHOT_RETENTION_EPOCHS" ] || return 0
-  local file="$(l1_source_snapshot_retention_file)"
-  printf '%s\n' "$L1_SOURCE_SNAPSHOT_RETENTION_EPOCHS" > "$file"
-  chmod 600 "$file"
-}
-
 validate_common() {
   [[ "$INSTANCE" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || die "invalid instance name"
   case "$PROFILE" in light|evidence|eutxo) ;; *) die "profile must be light, evidence, or eutxo";; esac
@@ -304,8 +239,8 @@ validate_common() {
   [[ "$NODES" =~ ^[0-9]+$ ]] && [ "$NODES" -ge 1 ] && [ "$NODES" -le 16 ] \
     || die "--nodes must be between 1 and 16"
   if [ -z "$THRESHOLD" ]; then THRESHOLD=$((NODES / 2 + 1)); fi
-  [[ "$THRESHOLD" =~ ^[0-9]+$ ]] && [ "$THRESHOLD" -ge 1 ] && [ "$THRESHOLD" -le "$NODES" ] \
-    || die "--threshold must be between 1 and the bootstrap node count"
+  [[ "$THRESHOLD" =~ ^[0-9]+$ ]] && [ "$((2 * THRESHOLD))" -gt "$NODES" ] && [ "$THRESHOLD" -le "$NODES" ] \
+    || die "--threshold must be more than half of the bootstrap node count and at most all of them"
   if [ "$PROFILE" = evidence ]; then
     [ "$NODES" -eq 3 ] && [ "$THRESHOLD" -eq 2 ] \
       || die "the maintained evidence profile uses exactly 3 nodes with threshold 2"
@@ -365,6 +300,8 @@ validate_common() {
   fi
 }
 
+# --- instance layout ----------------------------------------------------------------------------------------
+
 instance_root() {
   if [ -n "$DATA_ROOT" ]; then
     case "$DATA_ROOT" in /*) printf '%s/%s' "${DATA_ROOT%/}" "$INSTANCE";;
@@ -374,15 +311,57 @@ instance_root() {
     printf '%s/data/showcase/%s' "$SHOWCASE_HOME" "$INSTANCE"
   fi
 }
-marker() { printf '%s/showcase-identity.json' "$(instance_root)"; }
-cluster_dir() { printf '%s/cluster' "$(instance_root)"; }
-node_config_dir() { printf '%s/node-config' "$(instance_root)"; }
+instance_file() { printf '%s/instance.json' "$(instance_root)"; }
+coordinator_dir() { printf '%s/coordinator' "$(instance_root)"; }
+settlement_dir() { printf '%s/settlement' "$(instance_root)"; }
+history_dir() { printf '%s/history' "$(instance_root)"; }
+node_dir() { printf '%s/node%d' "$(instance_root)" "$1"; }
 outbox_dir() { printf '%s/outbox' "$(instance_root)"; }
 joined_file() { printf '%s/joined-nodes' "$(instance_root)"; }
-authenticated_map_properties() { printf '%s/authenticated-map.properties' "$(instance_root)"; }
-authenticated_map_genesis() { printf '%s/authenticated-map-genesis.hex' "$(instance_root)"; }
-authenticated_map_jmt_properties() { printf '%s/authenticated-map-jmt.properties' "$(instance_root)"; }
-authenticated_map_jmt_genesis() { printf '%s/authenticated-map-jmt-genesis.hex' "$(instance_root)"; }
+sealed_file() { printf '%s/%s.chain' "$(coordinator_dir)" "$APP"; }
+settlement_sealed_file() { printf '%s/%s.chain' "$(settlement_dir)" "$SETTLEMENT_APP"; }
+history_sealed_file() { printf '%s/%s.chain' "$(history_dir)" "$HISTORY_APP"; }
+# The applications this instance has sealed, as "<app> <sealed file>" lines.
+sealed_apps() {
+  local app
+  for app in "$APP" "$SETTLEMENT_APP" "$HISTORY_APP"; do
+    case "$app" in
+      "$APP") [ ! -f "$(sealed_file)" ] || printf '%s %s\n' "$app" "$(sealed_file)";;
+      "$SETTLEMENT_APP") [ ! -f "$(settlement_sealed_file)" ] || printf '%s %s\n' "$app" "$(settlement_sealed_file)";;
+      "$HISTORY_APP") [ ! -f "$(history_sealed_file)" ] || printf '%s %s\n' "$app" "$(history_sealed_file)";;
+    esac
+  done
+}
+# The application a chain belongs to.
+chain_app() {
+  case "$1" in "$SETTLEMENT_CHAIN_ID") printf '%s' "$SETTLEMENT_APP";;
+    "$CARDANO_HISTORY_CHAIN_ID") printf '%s' "$HISTORY_APP";; *) printf '%s' "$APP";; esac
+}
+# The settlement executor's node-local settings: the packaged devnet ones, or those an adopted public-network
+# bootstrap wrote.
+settlement_executor_file() {
+  if [ -f "$(settlement_dir)/executor.json" ]; then printf '%s/executor.json' "$(settlement_dir)"
+  else printf '%s/settlement/executor.json' "$CONFIG_DIR"; fi
+}
+
+appchain() { "$YANO_HOME/yano.sh" appchain "$@"; }
+
+# This node's API key, for privileged calls only (snapshot administration, member lists, effects). It is
+# read from the node directory when needed and never printed.
+api_key() { tr -d '\r\n' < "$(node_dir "${1:-$NODE}")/secrets/api.key"; }
+
+# Every node index the instance runs: the founding nodes, then any joined later.
+node_indexes() {
+  local i
+  for ((i=0;i<NODES;i++)); do printf '%d\n' "$i"; done
+  [ ! -f "$(joined_file)" ] || cat "$(joined_file)"
+}
+
+# The settlement application exists only on a devnet with the three founding members its vault commits to.
+settlement_included() {
+  [ -f "$(settlement_sealed_file)" ] && return 0
+  [ "$NETWORK" = devnet ] && [ "$NODES" -ge 3 ]
+}
 
 plugin_file() {
   local matches=("$YANO_HOME"/plugins/yano-x-showcase-bundle-*.jar)
@@ -398,440 +377,448 @@ cardano_history_plugin_file() {
   printf '%s' "${matches[0]}"
 }
 
-authenticated_map_validator_plugin_file() {
-  local matches=("$YANO_HOME"/plugins/yano-x-authenticated-map-validators-bundle-*.jar)
-  [ "${#matches[@]}" -eq 1 ] && [ -f "${matches[0]}" ] \
-    || die "expected exactly one authenticated-map validator bundle"
-  printf '%s' "${matches[0]}"
+# --- instance options -----------------------------------------------------------------------------------------
+
+write_instance() {
+  local file="$(instance_file)" tmp
+  tmp="$(mktemp "$(instance_root)/.instance.XXXXXX")"
+  jq -n --arg version "$VERSION" --arg network "$NETWORK" --argjson nodes "$NODES" \
+    --argjson threshold "$THRESHOLD" --argjson httpBase "$HTTP_BASE" --argjson serverBase "$SERVER_BASE" \
+    --argjson historyEnabled "$CARDANO_HISTORY_ENABLED" --arg historyProfile "$CARDANO_HISTORY_PROFILE" \
+    --arg finalized "$FINALIZED_INDEX_SELECTION" --arg snapshots "$AUTHENTICATED_SNAPSHOT_SELECTION" \
+    --arg snapshotProfile "$AUTHENTICATED_SNAPSHOT_PROFILE" \
+    --arg pruning "$AUTHENTICATED_SNAPSHOT_MPF_PRUNING_SELECTION" \
+    --arg retention "$L1_SOURCE_SNAPSHOT_RETENTION_EPOCHS" --arg anchorMode "$ANCHOR_MODE" \
+    --arg anchorChains "$ANCHOR_CHAINS" --arg anchorKey "$ANCHOR_KEY_FILE" '
+    def list: if . == "" then [] else split(",") end;
+    {schema: "yano-x-showcase-instance-v1", version: $version, profile: "light", network: $network,
+     nodes: $nodes, threshold: $threshold, httpBase: $httpBase, serverBase: $serverBase,
+     cardanoHistory: {enabled: $historyEnabled, profile: $historyProfile},
+     finalizedMessageIndex: ($finalized | list),
+     authenticatedSnapshots: {chainIds: ($snapshots | list), profile: $snapshotProfile,
+                              mpfPruningChainIds: ($pruning | list)},
+     l1SourceSnapshotRetentionEpochs: $retention,
+     anchor: {mode: $anchorMode, chains: $anchorChains, keyFile: $anchorKey}}' > "$tmp"
+  chmod 600 "$tmp"
+  mv -f -- "$tmp" "$file"
 }
 
-generate_authenticated_map_candidate() {
-  generate_authmap_candidate authenticated-map-chain "$AUTHMAP_CHAIN_INDEX" mpf-blake2b256-v1
-}
+instance_value() { jq -r "$1" "$(instance_file)"; }
 
-generate_authenticated_map_jmt_candidate() {
-  generate_authmap_candidate authenticated-map-jmt-chain "$AUTHMAP_JMT_CHAIN_INDEX" jmt-blake2b256-v1
-}
-
-generate_authmap_candidate() {
-  local chain_id="$1" chain_index="$2" expected_profile="$3"
-  [ -z "${YANO_CLUSTER_MEMBER_KEY_DIR:-}" ] \
-    || die "the light showcase uses deterministic demo membership; custom member keys need a custom generated profile"
-  local root="$(instance_root)" members candidate
-  members="$("$CLUSTER" keys "$NODES" | awk 'NR > 1 {print $3}' | paste -sd, -)"
-  [ -n "$members" ] || die "could not derive authenticated-map bootstrap member keys"
-  candidate="$(mktemp "$root/.$chain_id.properties.XXXXXX")"
-  chmod 600 "$candidate"
-  if ! java -cp "$YANO_HOME/yano.jar:$YANO_HOME/plugins/*" "$AUTHMAP_GENERATOR" \
-      --validator-bundle "$(authenticated_map_validator_plugin_file)" \
-      --chain-id "$chain_id" \
-      --members "$members" \
-      --threshold "$THRESHOLD" > "$candidate"; then
-    rm -f -- "$candidate"
-    die "could not generate the release-matched authenticated-map genesis"
+# Adopts a prepared instance's options. An option given again must equal the retained one: the sealed
+# application cannot change, so a different choice needs a new --instance (or reset).
+adopt_instance() {
+  local root="$(instance_root)" value
+  if [ ! -f "$(instance_file)" ]; then
+    [ ! -f "$root/showcase-identity.json" ] \
+      || die "instance '$INSTANCE' was made by an earlier showcase; remove it with reset --yes or use another --instance"
+    return 0
   fi
-  python3 - "$candidate" "$chain_index" "$expected_profile" <<'PY' >/dev/null || {
-import pathlib
-import re
-import sys
-
-path = pathlib.Path(sys.argv[1])
-prefix = f"yano.app-chain.chains[{sys.argv[2]}]."
-expected = {
-    prefix + "state.commitment-profile",
-    prefix + "state.format-fingerprint",
-    prefix + "state.genesis-id",
-    prefix + "machines.authenticated-map.genesis-cbor-hex",
-}
-values = {}
-for line in path.read_text(encoding="ascii").splitlines():
-    if "=" not in line:
-        raise ValueError("invalid generated property")
-    key, value = line.split("=", 1)
-    if key in values or key not in expected:
-        raise ValueError("unknown or duplicate generated property")
-    values[key] = value
-if set(values) != expected:
-    raise ValueError("generated property set is incomplete")
-if values[prefix + "state.commitment-profile"] != sys.argv[3]:
-    raise ValueError("unexpected commitment profile")
-for name in ("state.format-fingerprint", "state.genesis-id"):
-    if not re.fullmatch(r"[0-9a-f]{64}", values[prefix + name]):
-        raise ValueError("invalid generated identity digest")
-genesis = values[prefix + "machines.authenticated-map.genesis-cbor-hex"]
-if not genesis or len(genesis) > 32 * 1024 * 1024 or not re.fullmatch(r"(?:[0-9a-f]{2})+", genesis):
-    raise ValueError("invalid generated genesis")
-PY
-    rm -f -- "$candidate"
-    die "authenticated-map generator returned an invalid configuration"
-  }
-  printf '%s' "$candidate"
-}
-
-install_authenticated_map_candidate() {
-  install_authmap_candidate "$1" "$(authenticated_map_properties)" \
-    "$(authenticated_map_genesis)" "$AUTHMAP_CHAIN_INDEX"
-}
-
-install_authenticated_map_jmt_candidate() {
-  install_authmap_candidate "$1" "$(authenticated_map_jmt_properties)" \
-    "$(authenticated_map_jmt_genesis)" "$AUTHMAP_JMT_CHAIN_INDEX"
-}
-
-install_authmap_candidate() {
-  local candidate="$1" properties="$2" genesis_file="$3" chain_index="$4"
-  mv -f -- "$candidate" "$properties"
-  chmod 600 "$properties"
-  python3 - "$properties" "$genesis_file" "$chain_index" <<'PY'
-import os
-import pathlib
-import sys
-
-source = pathlib.Path(sys.argv[1])
-target = pathlib.Path(sys.argv[2])
-key = f"yano.app-chain.chains[{sys.argv[3]}].machines.authenticated-map.genesis-cbor-hex="
-matches = [line[len(key):] for line in source.read_text(encoding="ascii").splitlines()
-           if line.startswith(key)]
-if len(matches) != 1:
-    raise ValueError("authenticated-map genesis property is missing or duplicated")
-temporary = target.with_name(target.name + f".tmp.{os.getpid()}")
-descriptor = os.open(temporary, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
-try:
-    os.write(descriptor, (matches[0] + "\n").encode("ascii"))
-    os.fsync(descriptor)
-finally:
-    os.close(descriptor)
-os.replace(temporary, target)
-os.chmod(target, 0o600)
-PY
-}
-
-marker_value() {
-  python3 - "$(marker)" "$1" <<'PY'
-import json,sys
-value=json.load(open(sys.argv[1], encoding="utf-8"))
-for segment in sys.argv[2].split('.'):
-    value=value[segment]
-print("true" if value is True else "false" if value is False else value)
-PY
-}
-
-marker_anchor_chains() {
-  python3 - "$(marker)" <<'PY'
-import json,sys
-anchor=json.load(open(sys.argv[1], encoding="utf-8")).get("anchor", {})
-if not anchor.get("enabled"):
-    print("")
-elif isinstance(anchor.get("chainIds"), list):
-    print(",".join(anchor["chainIds"]))
-elif anchor.get("chainId"):
-    print(anchor["chainId"])
-else:
-    print("all")
-PY
-}
-
-load_marker_chains() {
-  local cid
-  local -a configured=()
-  while IFS= read -r cid; do
-    [[ "$cid" =~ ^[A-Za-z0-9._~-]{1,128}$ ]] \
-      || die "retained showcase identity contains an invalid chain id"
-    configured+=("$cid")
-  done < <(jq -r '.chainIds[]' "$(marker)")
-  [ "${#configured[@]}" -gt 0 ] \
-    || die "retained showcase identity contains no chains"
-  LIGHT_CHAINS=("${configured[@]}")
-}
-
-marker_finalized_index_chains() {
-  jq -r '.finalizedMessageIndex.chainIds | join(",")' "$(marker)"
-}
-
-marker_authenticated_snapshot_chains() {
-  jq -r '.authenticatedSnapshots.chainIds | join(",")' "$(marker)"
-}
-
-marker_authenticated_snapshot_mpf_pruning_chains() {
-  jq -r '.authenticatedSnapshots.mpfPruningChainIds | join(",")' "$(marker)"
-}
-
-adopt_marker() {
-  [ -f "$(marker)" ] || return 0
-  adopt_l1_source_snapshot_retention
-  PROFILE="$(marker_value profile)"
-  VARIANT="$(marker_value variant)"
-  NETWORK="$(marker_value network)"
-  NODES="$(marker_value bootstrapNodeCount)"
-  THRESHOLD="$(marker_value bootstrapThreshold)"
-  HTTP_BASE="$(marker_value httpBase)"
-  SERVER_BASE="$(marker_value serverBase)"
-  load_marker_chains
-  local retained_history_profile
-  local retained_history_enabled
-  retained_history_enabled="$(marker_value cardanoHistory.enabled)"
-  retained_history_profile="$(marker_value cardanoHistory.profile)"
-  if [ "$CARDANO_HISTORY_ENABLED_EXPLICIT" = true ] \
-      && [ "$CARDANO_HISTORY_ENABLED" != "$retained_history_enabled" ]; then
-    die "requested Cardano History enablement differs from retained identity; use a new instance or reset"
+  PROFILE=light
+  NETWORK="$(instance_value .network)"
+  NODES="$(instance_value .nodes)"
+  THRESHOLD="$(instance_value .threshold)"
+  HTTP_BASE="$(instance_value .httpBase)"
+  SERVER_BASE="$(instance_value .serverBase)"
+  value="$(instance_value .cardanoHistory.enabled)"
+  [ "$CARDANO_HISTORY_ENABLED_EXPLICIT" != true ] || [ "$CARDANO_HISTORY_ENABLED" = "$value" ] \
+    || die "requested Cardano History enablement differs from the retained instance; use a new instance or reset"
+  CARDANO_HISTORY_ENABLED="$value"
+  value="$(instance_value .cardanoHistory.profile)"
+  [ "$CARDANO_HISTORY_PROFILE_EXPLICIT" != true ] || [ "$CARDANO_HISTORY_PROFILE" = "$value" ] \
+    || die "requested Cardano History profile differs from the retained instance; use a new instance or reset"
+  CARDANO_HISTORY_PROFILE="$value"
+  value="$(instance_value '.finalizedMessageIndex | join(",")')"
+  [ "$FINALIZED_INDEX_EXPLICIT" != true ] || [ "$FINALIZED_INDEX_SELECTION" = "$value" ] \
+    || die "requested finalized-message index scope differs from the retained instance; use a new instance or reset"
+  FINALIZED_INDEX_SELECTION="$value"
+  value="$(instance_value '.authenticatedSnapshots.chainIds | join(",")')"
+  if [ "$AUTHENTICATED_SNAPSHOT_EXPLICIT" = true ] && { [ "$AUTHENTICATED_SNAPSHOT_SELECTION" != "$value" ] \
+      || [ "$AUTHENTICATED_SNAPSHOT_PROFILE" != "$(instance_value .authenticatedSnapshots.profile)" ]; }; then
+    die "requested authenticated-snapshot profile differs from the retained instance; use a new instance or reset"
   fi
-  if [ "$CARDANO_HISTORY_PROFILE_EXPLICIT" = true ] \
-      && [ "$CARDANO_HISTORY_PROFILE" != "$retained_history_profile" ]; then
-    die "requested Cardano History profile differs from retained identity; use a new instance or reset"
-  fi
-  CARDANO_HISTORY_PROFILE="$retained_history_profile"
-  CARDANO_HISTORY_ENABLED="$retained_history_enabled"
-  local retained_finalized
-  retained_finalized="$(marker_finalized_index_chains)"
-  if [ "$FINALIZED_INDEX_EXPLICIT" = true ] \
-      && [ "$FINALIZED_INDEX_SELECTION" != "$retained_finalized" ]; then
-    die "requested finalized-message index scope differs from retained identity; use a new instance or reset"
-  fi
-  FINALIZED_INDEX_SELECTION="$retained_finalized"
-  local retained_snapshots retained_snapshot_profile
-  retained_snapshots="$(marker_authenticated_snapshot_chains)"
-  retained_snapshot_profile="$(marker_value authenticatedSnapshots.profile)"
-  if [ "$AUTHENTICATED_SNAPSHOT_EXPLICIT" = true ] \
-      && { [ "$AUTHENTICATED_SNAPSHOT_SELECTION" != "$retained_snapshots" ] \
-      || [ "$AUTHENTICATED_SNAPSHOT_PROFILE" != "$retained_snapshot_profile" ]; }; then
-    die "requested authenticated-snapshot profile differs from retained identity; use a new instance or reset"
-  fi
-  AUTHENTICATED_SNAPSHOT_SELECTION="$retained_snapshots"
-  AUTHENTICATED_SNAPSHOT_PROFILE="$retained_snapshot_profile"
-  local retained_snapshot_mpf_pruning
-  retained_snapshot_mpf_pruning="$(marker_authenticated_snapshot_mpf_pruning_chains)"
-  if [ "$AUTHENTICATED_SNAPSHOT_MPF_PRUNING_EXPLICIT" = true ] \
-      && [ "$AUTHENTICATED_SNAPSHOT_MPF_PRUNING_SELECTION" != "$retained_snapshot_mpf_pruning" ]; then
-    die "requested authenticated-snapshot MPF pruning scope differs from retained instance; use a new instance or reset"
-  fi
-  AUTHENTICATED_SNAPSHOT_MPF_PRUNING_SELECTION="$retained_snapshot_mpf_pruning"
-  ANCHOR="$(marker_value anchor.enabled)"
-  ANCHOR_MODE="$(marker_value anchor.mode)"
-  [ "$ANCHOR_MODE" = none ] && ANCHOR_MODE=script
-  if [ "$ANCHOR" = true ]; then
-    ANCHOR_CHAINS="$(marker_anchor_chains)"
-    ANCHOR_CHAINS="$(canonical_anchor_chains "$ANCHOR_CHAINS")"
-  fi
-  local retained_key
-  retained_key="$(marker_value anchor.keyReference)"
-  if [ "$retained_key" != None ] && [ "$retained_key" != null ] && [ -n "$retained_key" ]; then
-    ANCHOR_KEY_FILE="$retained_key"
-  fi
+  AUTHENTICATED_SNAPSHOT_SELECTION="$value"
+  AUTHENTICATED_SNAPSHOT_PROFILE="$(instance_value .authenticatedSnapshots.profile)"
+  value="$(instance_value '.authenticatedSnapshots.mpfPruningChainIds | join(",")')"
+  [ "$AUTHENTICATED_SNAPSHOT_MPF_PRUNING_EXPLICIT" != true ] \
+    || [ "$AUTHENTICATED_SNAPSHOT_MPF_PRUNING_SELECTION" = "$value" ] \
+    || die "requested authenticated-snapshot MPF pruning scope differs from the retained instance; use a new instance or reset"
+  AUTHENTICATED_SNAPSHOT_MPF_PRUNING_SELECTION="$value"
+  value="$(instance_value .l1SourceSnapshotRetentionEpochs)"
+  [ "$L1_SOURCE_SNAPSHOT_RETENTION_EXPLICIT" != true ] || [ "$L1_SOURCE_SNAPSHOT_RETENTION_EPOCHS" = "$value" ] \
+    || die "requested L1 source snapshot retention differs from the retained instance"
+  L1_SOURCE_SNAPSHOT_RETENTION_EPOCHS="$value"
+  value="$(instance_value .anchor.mode)"
+  [ "$ANCHOR_MODE_EXPLICIT" != true ] || [ "$ANCHOR_MODE" = "$value" ] \
+    || die "the retained anchor mode is '$value' (sealed with the application) and cannot be changed"
+  ANCHOR_MODE="$value"
+  [ -n "$ANCHOR_KEY_FILE" ] || ANCHOR_KEY_FILE="$(instance_value .anchor.keyFile)"
+  [ "$ANCHOR_CHAINS" != all ] || ANCHOR_CHAINS="$(instance_value .anchor.chains)"
+  load_instance_chains
 }
 
-write_node_configs() {
-  local count="$1" directory="$(node_config_dir)" i file cardano_history_index=""
-  local l1_genesis_id
-  l1_genesis_id="$(l1_network_genesis_id)"
-  if [ "$CARDANO_HISTORY_ENABLED" = true ]; then
-    cardano_history_index="$(cardano_history_chain_index)" \
-      || die "Cardano History is enabled but absent from the retained chain set"
-  fi
-  [ -f "$(authenticated_map_properties)" ] \
-    || die "authenticated-map genesis is missing; prepare the instance first"
-  mkdir -p "$directory" "$(outbox_dir)"
-  chmod 700 "$directory" "$(outbox_dir)"
-  find "$directory" -maxdepth 1 -type f -name 'node*.properties' -delete
-  for ((i=0;i<count;i++)); do
-    file="$directory/node$i.properties"
-    {
-      printf 'config_ordinal=275\n'
-      # Devnet enables the host projection archive. Each JVM needs its own
-      # archive; the default relative path would share a DuckLake writer lock.
-      printf 'yano.history.dir=%s/node%d/history\n' "$(cluster_dir)" "$i"
-      if [ -n "$L1_SOURCE_SNAPSHOT_RETENTION_EPOCHS" ]; then
-        printf 'yano.account-state.snapshot-retention-epochs=%s\n' \
-          "$L1_SOURCE_SNAPSHOT_RETENTION_EPOCHS"
-      fi
-      if [ "${LIGHT_CHAINS[$SETTLEMENT_CHAIN_INDEX]:-}" = "$SETTLEMENT_CHAIN_ID" ]; then
-        printf 'yano.app-chain.chains[%d].observation.l1-network-genesis-id=%s\n' \
-          "$SETTLEMENT_CHAIN_INDEX" "$l1_genesis_id"
-      fi
-      if [ "$CARDANO_HISTORY_ENABLED" = true ]; then
-        printf 'yano.app-chain.chains[%d].observation.l1-network-genesis-id=%s\n' \
-          "$cardano_history_index" "$l1_genesis_id"
-      fi
-      # The showcase reads no L1 history. Keep the devnet projection off on
-      # every node: members share one home with the producer, and the Yano JVM
-      # ZIP cannot load DuckLake off linux_amd64 (bloxbean/yano#137).
-      printf 'yano.history.projection.enabled=false\n'
-      if [ "$i" -eq 0 ]; then
-        printf 'yano.app-chain.chains[5].effects.executor.enabled=true\n'
-        printf 'yano.app-chain.chains[5].effects.executors.showcase-outbox.enabled=true\n'
-        printf 'yano.app-chain.chains[5].effects.executors.showcase-outbox.directory=%s\n' "$(outbox_dir)"
-      else
-        printf 'yano.app-chain.chains[5].effects.executor.enabled=false\n'
-        printf 'yano.app-chain.chains[5].effects.executors.showcase-outbox.enabled=false\n'
-      fi
-      while IFS= read -r property || [ -n "$property" ]; do
-        printf '%s\n' "$property"
-      done < "$(authenticated_map_properties)"
-      if [ -f "$(authenticated_map_jmt_properties)" ]; then
-        while IFS= read -r property || [ -n "$property" ]; do
-          printf '%s\n' "$property"
-        done < "$(authenticated_map_jmt_properties)"
-      fi
-      if [ -n "$FINALIZED_INDEX_SELECTION" ]; then
-        local index cid
-        for ((index=0;index<${#LIGHT_CHAINS[@]};index++)); do
-          cid="${LIGHT_CHAINS[$index]}"
-          chain_in_csv "$FINALIZED_INDEX_SELECTION" "$cid" || continue
-          # ordered-log already owns this intrinsic state index and retains
-          # its ALL policy; the launcher selection records it but adds no wrapper.
-          [ "$cid" = orders-chain ] && continue
-          printf 'yano.app-chain.chains[%d].machines.finalized-message-index.enabled=true\n' "$index"
-          printf 'yano.app-chain.chains[%d].machines.finalized-message-index.policy=APPLICATION_ONLY\n' "$index"
-          printf 'yano.app-chain.chains[%d].machines.finalized-message-index.max-messages-per-block=1000\n' "$index"
-        done
-      fi
-      if [ "$CARDANO_HISTORY_ENABLED" = true ] \
-          && chain_in_csv "$AUTHENTICATED_SNAPSHOT_SELECTION" "$CARDANO_HISTORY_CHAIN_ID"; then
-        local snapshot_series=""
-        case "$CARDANO_HISTORY_PROFILE" in
-          params-stake-v1) snapshot_series="l1-epoch-stake-v1.distribution";;
-          params-governance-v1) snapshot_series="l1-epoch-governance-v1.drep-distribution";;
-          full-v1) snapshot_series="l1-epoch-stake-v1.distribution,l1-epoch-governance-v1.drep-distribution";;
-        esac
-        printf 'yano.app-chain.chains[%d].capabilities.authenticated-snapshots.enabled=true\n' \
-          "$cardano_history_index"
-        printf 'yano.app-chain.chains[%d].capabilities.authenticated-snapshots.series=%s\n' \
-          "$cardano_history_index" "$snapshot_series"
-        printf 'yano.app-chain.chains[%d].capabilities.authenticated-snapshots.archive-directory=%s/node%d/appchain-snapshot-archives\n' \
-          "$cardano_history_index" "$(cluster_dir)" "$i"
-        if chain_in_csv "$AUTHENTICATED_SNAPSHOT_MPF_PRUNING_SELECTION" \
-            "$CARDANO_HISTORY_CHAIN_ID"; then
-          printf 'yano.app-chain.chains[%d].capabilities.authenticated-snapshots.storage.mpf-pruning-enabled=true\n' \
-            "$cardano_history_index"
-        fi
-      fi
-      if [ "$CARDANO_HISTORY_ENABLED" = true ]; then
-        # ADR-028's canonical 25k-entry stake/DRep chunks are intentionally
-        # larger than the general 64 KiB app-message default. Keep the larger
-        # consensus limits local to the Cardano History chain. Six MiB leaves
-        # growth headroom above the benchmarked 25k-entry chunks; the paired
-        # eight-MiB block bound retains envelope and finality-certificate room.
-        printf 'yano.app-chain.chains[%d].max-message-bytes=6291456\n' \
-          "$cardano_history_index"
-        printf 'yano.app-chain.chains[%d].block.max-bytes=8388608\n' \
-          "$cardano_history_index"
-        printf 'yano.app-chain.chains[%d].machines.cardano-history.preset=%s\n' \
-          "$cardano_history_index" "$CARDANO_HISTORY_PROFILE"
-      fi
-      case "$CARDANO_HISTORY_ENABLED:$CARDANO_HISTORY_PROFILE" in
-        true:params-stake-v1|true:full-v1)
-          printf 'yano.app-chain.chains[%d].machines.epoch-stake.chunk-entries=25000\n' "$cardano_history_index"
-          printf 'yano.app-chain.chains[%d].machines.epoch-stake.snapshot-profile=%s\n' "$cardano_history_index" "$AUTHENTICATED_SNAPSHOT_PROFILE"
-          printf 'yano.app-chain.chains[%d].observers.epoch-stake.type=l1-epoch-stake-v1\n' "$cardano_history_index"
-          printf 'yano.app-chain.chains[%d].observers.epoch-stake.chain-id=%s\n' "$cardano_history_index" "$CARDANO_HISTORY_CHAIN_ID"
-          printf 'yano.app-chain.chains[%d].observers.epoch-stake.chunk-entries=25000\n' "$cardano_history_index";;
-      esac
-      case "$CARDANO_HISTORY_ENABLED:$CARDANO_HISTORY_PROFILE" in
-        true:params-governance-v1|true:full-v1)
-          printf 'yano.app-chain.chains[%d].machines.epoch-governance.drep-chunk-entries=25000\n' "$cardano_history_index"
-          printf 'yano.app-chain.chains[%d].machines.epoch-governance.drep-snapshot-profile=%s\n' "$cardano_history_index" "$AUTHENTICATED_SNAPSHOT_PROFILE"
-          printf 'yano.app-chain.chains[%d].observers.epoch-governance.type=l1-epoch-governance-v1\n' "$cardano_history_index"
-          printf 'yano.app-chain.chains[%d].observers.epoch-governance.chain-id=%s\n' "$cardano_history_index" "$CARDANO_HISTORY_CHAIN_ID"
-          printf 'yano.app-chain.chains[%d].observers.epoch-governance.include-proposals=true\n' "$cardano_history_index"
-          printf 'yano.app-chain.chains[%d].observers.epoch-governance.include-drep-distribution=true\n' "$cardano_history_index"
-          printf 'yano.app-chain.chains[%d].observers.epoch-governance.drep-chunk-entries=25000\n' "$cardano_history_index";;
-      esac
-    } > "$file"
-    chmod 600 "$file"
+# The chains this instance runs, in catalog order.
+load_instance_chains() {
+  local sealed cid
+  local -a present=() kept=()
+  for sealed in "$(sealed_file)" "$(settlement_sealed_file)" "$(history_sealed_file)"; do
+    [ -f "$sealed" ] || continue
+    while IFS= read -r cid; do present+=("$cid"); done < <(jq -r '.genesis.chains[].id' "$sealed")
   done
+  [ "${#present[@]}" -gt 0 ] || return 0
+  for cid in "${LIGHT_CHAINS[@]}"; do
+    case " ${present[*]} " in *" $cid "*) kept+=("$cid");; esac
+  done
+  LIGHT_CHAINS=("${kept[@]}")
+}
+
+# Showcase options become ordinary draft adjustments: `new --setting <chain>.<key>=<value>`.
+draft_options() {
+  local app="$1" cid every=2 index="$CARDANO_HISTORY_CHAIN_ID"
+  DRAFT_OPTIONS=()
+  [ "$NETWORK" = devnet ] || every=30
+  for cid in "${LIGHT_CHAINS[@]}"; do
+    [ "$(chain_app "$cid")" = "$app" ] || continue
+    # The anchor policy is sealed; `./showcase.sh anchor` turns anchoring on later.
+    DRAFT_OPTIONS+=(--setting "$cid.anchor.mode=$ANCHOR_MODE" --setting "$cid.anchor.every-blocks=$every")
+    # ordered-log already owns this intrinsic state index and keeps its ALL policy.
+    if chain_in_csv "$FINALIZED_INDEX_SELECTION" "$cid" && [ "$cid" != orders-chain ]; then
+      DRAFT_OPTIONS+=(--setting "$cid.machines.finalized-message-index.enabled=true"
+        --setting "$cid.machines.finalized-message-index.policy=APPLICATION_ONLY"
+        --setting "$cid.machines.finalized-message-index.max-messages-per-block=1000")
+    fi
+  done
+  [ "$app" = "$HISTORY_APP" ] || return 0
+  DRAFT_OPTIONS+=(--setting "$index.machines.cardano-history.preset=$CARDANO_HISTORY_PROFILE")
+  case "$CARDANO_HISTORY_PROFILE" in
+    params-stake-v1|full-v1)
+      DRAFT_OPTIONS+=(--setting "$index.machines.epoch-stake.chunk-entries=25000"
+        --setting "$index.machines.epoch-stake.snapshot-profile=$AUTHENTICATED_SNAPSHOT_PROFILE"
+        --setting "$index.observers.epoch-stake.type=l1-epoch-stake-v1"
+        --setting "$index.observers.epoch-stake.chain-id=$CARDANO_HISTORY_CHAIN_ID"
+        --setting "$index.observers.epoch-stake.chunk-entries=25000");;
+  esac
+  case "$CARDANO_HISTORY_PROFILE" in
+    params-governance-v1|full-v1)
+      DRAFT_OPTIONS+=(--setting "$index.machines.epoch-governance.drep-chunk-entries=25000"
+        --setting "$index.machines.epoch-governance.drep-snapshot-profile=$AUTHENTICATED_SNAPSHOT_PROFILE"
+        --setting "$index.observers.epoch-governance.type=l1-epoch-governance-v1"
+        --setting "$index.observers.epoch-governance.chain-id=$CARDANO_HISTORY_CHAIN_ID"
+        --setting "$index.observers.epoch-governance.include-proposals=true"
+        --setting "$index.observers.epoch-governance.include-drep-distribution=true"
+        --setting "$index.observers.epoch-governance.drep-chunk-entries=25000");;
+  esac
+  if chain_in_csv "$AUTHENTICATED_SNAPSHOT_SELECTION" "$CARDANO_HISTORY_CHAIN_ID"; then
+    local series=""
+    case "$CARDANO_HISTORY_PROFILE" in
+      params-stake-v1) series="l1-epoch-stake-v1.distribution";;
+      params-governance-v1) series="l1-epoch-governance-v1.drep-distribution";;
+      full-v1) series="l1-epoch-stake-v1.distribution,l1-epoch-governance-v1.drep-distribution";;
+    esac
+    DRAFT_OPTIONS+=(--setting "$index.capabilities.authenticated-snapshots.enabled=true"
+      --setting "$index.capabilities.authenticated-snapshots.series=$series")
+  fi
+}
+
+# --- setup through the app-chain commands ---------------------------------------------------------------------
+
+# Node i's member key: the public demo seed byte(i+1) x 32. The authenticated-map, approval and settlement
+# demos rely on these well-known members; never use them for anything but this showcase.
+demo_member_seed() {
+  local byte i
+  byte="$(printf '%02x' $(( $1 + 1 )))"
+  for ((i=0;i<32;i++)); do printf '%s' "$byte"; done
+  printf '\n'
+}
+
+# `request` for node i: its node directory gets the demo member key; the card lands in <dir>.
+request_member() {
+  local source="$1" index="$2" dir="$3" seed
+  seed="$(mktemp "$(instance_root)/.member-seed.XXXXXX")"
+  chmod 600 "$seed"
+  demo_member_seed "$index" > "$seed"
+  appchain request "$source" --name "node$index" --host 127.0.0.1 \
+    --node-port "$((SERVER_BASE + index))" --http-port "$((HTTP_BASE + index))" \
+    --node-dir "$(node_dir "$index")" --key "$seed" --output "$dir" --yes >/dev/null \
+    || { rm -f -- "$seed"; die "request failed for node$index"; }
+  rm -f -- "$seed"
+}
+
+# new (unless drafted) -> request per node -> seal -> join per node. Every step is repeatable.
+setup_app() {
+  local app="$1" template="$2" dir="$3" count="$4" threshold="$5" i operators="" draft chain fingerprint
+  shift 5
+  draft="$dir/$app.draft.yaml"
+  chain="$dir/$app.chain"
+  mkdir -p "$dir"
+  if [ ! -f "$chain" ]; then
+    for ((i=0;i<count;i++)); do operators+="${operators:+,}node$i"; done
+    [ -f "$draft" ] || appchain new "$app" --from "$template" --network "$NETWORK" --operators "$operators" \
+      --threshold "$threshold" --output "$dir" --yes "$@" >/dev/null || die "could not create $draft"
+    for ((i=0;i<count;i++)); do
+      [ -f "$dir/node$i.member" ] || request_member "$draft" "$i" "$dir"
+    done
+    appchain seal "$draft" >/dev/null || die "could not seal $draft"
+  fi
+  fingerprint="$(appchain inspect "$chain" --json | jq -r .displayFingerprint)"
+  for ((i=0;i<count;i++)); do
+    appchain join "$chain" --expect-fingerprint "$fingerprint" --node-dir "$(node_dir "$i")" --yes >/dev/null \
+      || die "node$i could not join $app"
+  done
+}
+
+# config/local.yaml: what only this node runs. The outbox executor and the settlement executor's ownership
+# stay on node 0; Cardano History snapshot archives and the L1 snapshot retention are local storage.
+write_local_config() {
+  local index="$1" args=()
+  args=(--node "$index" --node-dir "$(node_dir "$index")" --outbox "$(outbox_dir)" --config-dir "$CONFIG_DIR")
+  [ -z "$L1_SOURCE_SNAPSHOT_RETENTION_EPOCHS" ] \
+    || args+=(--snapshot-retention-epochs "$L1_SOURCE_SNAPSHOT_RETENTION_EPOCHS")
+  ! chain_in_csv "$AUTHENTICATED_SNAPSHOT_SELECTION" "$CARDANO_HISTORY_CHAIN_ID" \
+    || args+=(--snapshot-archives "$CARDANO_HISTORY_CHAIN_ID")
+  ! chain_in_csv "$AUTHENTICATED_SNAPSHOT_MPF_PRUNING_SELECTION" "$CARDANO_HISTORY_CHAIN_ID" \
+    || args+=(--snapshot-mpf-pruning "$CARDANO_HISTORY_CHAIN_ID")
+  [ ! -f "$(settlement_sealed_file)" ] || args+=(--settlement-executor "$(settlement_executor_file)")
+  python3 "$LOCAL_CONFIG" "${args[@]}"
 }
 
 prepare_light() {
   need java; need python3; need jq; need curl
-  adopt_l1_source_snapshot_retention
-  [ -x "$CLUSTER" ] || die "packaged cluster launcher is missing"
-  local root="$(instance_root)" plugin="$(plugin_file)" candidate jmt_candidate
-  local generated_candidates=false args=()
+  local root="$(instance_root)" index
   if [ -e "$root" ] && [ -L "$root" ]; then die "instance root must not be a symlink"; fi
-  mkdir -p "$root"; chmod 700 "$root"
-  # Resolve the actual public-network chain set before retaining the config
-  # digest and chain IDs. Doing this after identity creation made a prepared
-  # preprod instance impossible to start or restart because its shared YAML no
-  # longer matched its marker.
-  [ "$NETWORK" = devnet ] || strip_devnet_settlement_chain
-  [ "$CARDANO_HISTORY_ENABLED" = true ] || strip_cardano_history_chain
-  if [ -f "$(marker)" ]; then
-    candidate="$(authenticated_map_properties)"
-    jmt_candidate="$(authenticated_map_jmt_properties)"
-    [ -f "$candidate" ] && [ -f "$jmt_candidate" ] \
-      || die "retained showcase identity is missing its authenticated-map configuration"
+  mkdir -p "$root" "$(outbox_dir)"; chmod 700 "$root" "$(outbox_dir)"
+  if [ -f "$(instance_file)" ]; then adopt_instance; else
+    [ ! -f "$root/showcase-identity.json" ] \
+      || die "instance '$INSTANCE' was made by an earlier showcase; remove it with reset --yes or use another --instance"
+    write_instance
+  fi
+  draft_options "$APP"
+  setup_app "$APP" "$TEMPLATE" "$(coordinator_dir)" "$NODES" "$THRESHOLD" ${DRAFT_OPTIONS[@]+"${DRAFT_OPTIONS[@]}"}
+  if [ "$CARDANO_HISTORY_ENABLED" = true ]; then
+    draft_options "$HISTORY_APP"
+    setup_app "$HISTORY_APP" "$HISTORY_TEMPLATE" "$(history_dir)" "$NODES" "$THRESHOLD" \
+      ${DRAFT_OPTIONS[@]+"${DRAFT_OPTIONS[@]}"}
+  fi
+  if settlement_included; then
+    draft_options "$SETTLEMENT_APP"
+    setup_app "$SETTLEMENT_APP" "$SETTLEMENT_TEMPLATE" "$(settlement_dir)" 3 majority \
+      ${DRAFT_OPTIONS[@]+"${DRAFT_OPTIONS[@]}"}
   else
-    candidate="$(generate_authenticated_map_candidate)"
-    jmt_candidate="$(generate_authenticated_map_jmt_candidate)" \
-      || { rm -f -- "$candidate"; return 1; }
-    generated_candidates=true
+    note "the devnet settlement chain needs a devnet and the three founding nodes; it is not part of this instance"
   fi
-  args=(ensure --marker "$(marker)" --catalog "$CATALOG" --version "$VERSION" --profile light
-    --variant default --network "$NETWORK" --nodes "$NODES" --threshold "$THRESHOLD"
-    --http-base "$HTTP_BASE" --server-base "$SERVER_BASE"
-    --config "$YANO_HOME/config/application-appchain.yml" --plugin "$plugin"
-    --authenticated-map-config "$candidate"
-    --authenticated-map-jmt-config "$jmt_candidate"
-    --finalized-message-index-selection "$FINALIZED_INDEX_SELECTION"
-    --authenticated-snapshot-selection "$AUTHENTICATED_SNAPSHOT_SELECTION"
-    --authenticated-snapshot-profile "$AUTHENTICATED_SNAPSHOT_PROFILE"
-    --authenticated-snapshot-mpf-pruning-selection \
-      "$AUTHENTICATED_SNAPSHOT_MPF_PRUNING_SELECTION"
-    --cardano-history-profile "$CARDANO_HISTORY_PROFILE"
-    --cardano-history-plugin "$(cardano_history_plugin_file)")
-  [ "$CARDANO_HISTORY_ENABLED" = true ] || args+=(--disable-cardano-history)
-  if [ "$ANCHOR" = true ]; then args+=(--anchor --anchor-mode "$ANCHOR_MODE"); fi
-  if [ "$ANCHOR" = true ]; then
-    local -a anchor_chains=()
-    IFS=',' read -r -a anchor_chains <<< "$ANCHOR_CHAINS"
-    local anchor_chain
-    for anchor_chain in "${anchor_chains[@]}"; do args+=(--anchor-chain "$anchor_chain"); done
-  fi
-  if [ -n "$ANCHOR_KEY_FILE" ]; then args+=(--anchor-key-file "$ANCHOR_KEY_FILE"); fi
-  if ! python3 "$IDENTITY" "${args[@]}"; then
-    [ "$generated_candidates" != true ] || rm -f -- "$candidate" "$jmt_candidate"
-    return 1
-  fi
-  if [ "$generated_candidates" = true ]; then
-    install_authenticated_map_candidate "$candidate"
-    install_authenticated_map_jmt_candidate "$jmt_candidate"
-  fi
-  persist_l1_source_snapshot_retention
-  load_marker_chains
-  write_node_configs "$NODES"
+  while IFS= read -r index; do write_local_config "$index"; done < <(node_indexes)
+  load_instance_chains
   note "Prepared light instance '$INSTANCE'"
-  note "  data:    $root"
-  note "  config:  $YANO_HOME/config/application-appchain.yml"
-  note "  marker:  $(marker)"
-  note "  plugin:  $plugin"
-  note "  history: $CARDANO_HISTORY_ENABLED ($CARDANO_HISTORY_PROFILE)"
-  note "  map:     $(authenticated_map_genesis)"
+  note "  data:        $root"
+  local app sealed
+  while read -r app sealed; do
+    note "  $(printf '%-11s' "$app:") $sealed  ($(appchain inspect "$sealed" --json | jq -r .displayFingerprint))"
+  done < <(sealed_apps)
+  note "  history:     $CARDANO_HISTORY_ENABLED ($CARDANO_HISTORY_PROFILE)"
 }
 
-cluster_env() {
-  export YANO_HOME YANO_CLUSTER_DIR="$(cluster_dir)"
-  export YANO_CLUSTER_HTTP_BASE="$HTTP_BASE" YANO_CLUSTER_SERVER_BASE="$SERVER_BASE"
-  export YANO_CLUSTER_NODE_CONFIG_DIR="$(node_config_dir)"
-  export YANO_CLUSTER_PRIVATE_CONFIG_DIR="$(instance_root)/private-config"
-  export YANO_CLUSTER_API_KEY="$API_KEY"
-  unset YANO_CLUSTER_ANCHOR_CHAIN YANO_CLUSTER_ANCHOR_CHAINS
-  [ "$ANCHOR" != true ] || export YANO_CLUSTER_ANCHOR_CHAINS="$ANCHOR_CHAINS"
-  if [ -n "$ANCHOR_KEY_FILE" ]; then export YANO_CLUSTER_ANCHOR_KEY_FILE="$ANCHOR_KEY_FILE"; fi
+start_nodes() {
+  local index
+  # The lead (node 0) starts first: it creates the devnet the others download.
+  while IFS= read -r index; do
+    appchain start --node-dir "$(node_dir "$index")" >/dev/null || die "node$index did not start; see $(node_dir "$index")/logs/node.log"
+    note "node$index is up at http://127.0.0.1:$((HTTP_BASE + index))"
+  done < <(node_indexes)
+  appchain status "$APP" --node-dir "$(node_dir 0)" --wait live --timeout 300
+  local app sealed
+  while read -r app sealed; do
+    [ "$app" != "$APP" ] || continue
+    appchain status "$app" --node-dir "$(node_dir 0)" --wait live --timeout 300 >/dev/null \
+      || die "the $app application did not go live"
+    note "$app is live ($(appchain inspect "$sealed" --json | jq -r .displayFingerprint))"
+  done < <(sealed_apps)
+}
+
+stop_nodes() {
+  local index
+  local -a indexes=()
+  while IFS= read -r index; do indexes=("$index" ${indexes[@]+"${indexes[@]}"}); done < <(node_indexes)
+  for index in "${indexes[@]}"; do
+    [ ! -f "$(node_dir "$index")/node.json" ] || appchain stop --node-dir "$(node_dir "$index")"
+  done
 }
 
 up_light() {
   prepare_light
-  cluster_env
-  local args=(start "$NODES" --network "$NETWORK" --threshold "$THRESHOLD"
-    --http-base "$HTTP_BASE" --server-base "$SERVER_BASE")
-  if [ "$ANCHOR" = true ]; then
-    args+=(--anchor-mode "$ANCHOR_MODE")
-    local -a anchor_chains=()
-    IFS=',' read -r -a anchor_chains <<< "$ANCHOR_CHAINS"
-    local anchor_chain
-    for anchor_chain in "${anchor_chains[@]}"; do args+=(--anchor-chain "$anchor_chain"); done
-  fi
-  "$CLUSTER" "${args[@]}"
+  start_nodes
 }
+
+show_status() {
+  local app sealed
+  while read -r app sealed; do
+    appchain status "$app" --node-dir "$(node_dir "$NODE")"
+  done < <(sealed_apps)
+}
+
+show_logs() {
+  local log="$(node_dir "$NODE")/logs/node.log"
+  [ -f "$log" ] || die "node$NODE has no log yet"
+  if [ "$FOLLOW" = true ]; then tail -f "$log"; else tail -n 200 "$log"; fi
+}
+
+# Membership growth exactly as operators do it: the new node requests with the sealed file, every existing node
+# runs `approve` with its card, and the new node joins and starts. While the approvals wait for activation this
+# script keeps every chain making blocks; then governance_activate proves a block under the new member set.
+member_join() {
+  local index="$1" card existing log pids=() logs=() status=0 i pending
+  [[ "$index" =~ ^[0-9]+$ ]] && [ "$index" -ge "$NODES" ] && [ "$index" -le 15 ] \
+    || die "joined-node index must be between the bootstrap count and 15"
+  card="$(coordinator_dir)/node$index.member"
+  [ -f "$card" ] || request_member "$(sealed_file)" "$index" "$(coordinator_dir)"
+  if ! { [ -f "$(joined_file)" ] && grep -Fxq "$index" "$(joined_file)"; }; then
+    note "existing nodes approve node$index ..."
+    while IFS= read -r existing; do
+      log="$(instance_root)/approve-node$index-by-node$existing.log"
+      logs+=("$log")
+      appchain approve "$card" "$APP" --node-dir "$(node_dir "$existing")" --yes --timeout 900 > "$log" 2>&1 &
+      pids+=("$!")
+    done < <(node_indexes)
+    while :; do
+      pending=false
+      for i in "${pids[@]}"; do kill -0 "$i" 2>/dev/null && pending=true; done
+      [ "$pending" = true ] || break
+      drive_blocks
+      sleep 2
+    done
+    for i in "${!pids[@]}"; do
+      wait "${pids[$i]}" || { status=1; note "approve failed:"; tail -n 20 "${logs[$i]}" >&2; }
+    done
+    [ "$status" -eq 0 ] || die "node$index was not approved by every node; rerun member join to continue"
+    printf '%s\n' "$index" >> "$(joined_file)"; chmod 600 "$(joined_file)"
+  fi
+  appchain join "$(sealed_file)" --expect-fingerprint \
+    "$(appchain inspect "$(sealed_file)" --json | jq -r .displayFingerprint)" \
+    --node-dir "$(node_dir "$index")" --yes >/dev/null || die "node$index could not join"
+  write_local_config "$index"
+  appchain start --node-dir "$(node_dir "$index")" >/dev/null || die "node$index did not start"
+  governance_activate
+  note "node$index joined: http://127.0.0.1:$((HTTP_BASE + index))"
+}
+
+# One message on every showcase chain whose membership change is still pending, so it reaches activation.
+drive_blocks() {
+  local cid status
+  for cid in "${LIGHT_CHAINS[@]}"; do
+    [ "$(chain_app "$cid")" = "$APP" ] || continue
+    status="$(curl -fsS --connect-timeout 2 --max-time 5 \
+      "http://127.0.0.1:$HTTP_BASE/api/v1/app-chain/chains/$cid/status" 2>/dev/null || true)"
+    [ -n "$status" ] || continue
+    printf '%s' "$status" | jq -e '.membershipEpochActive == true' >/dev/null 2>&1 \
+      && [ "$(printf '%s' "$status" | jq -r '.membershipActiveMembers')" = \
+        "$(curl -fsS -H "X-API-Key: $(api_key 0)" \
+          "http://127.0.0.1:$HTTP_BASE/api/v1/app-chain/chains/$cid/admin/members" 2>/dev/null \
+          | jq -r '.members | length')" ] && continue
+    activation_submit "$cid" "activate-$(date +%s)-$RANDOM" >/dev/null 2>&1 || true
+  done
+}
+
+# Anchoring with the setup tool: the lead (node 0) becomes each chain's anchor leader; on a devnet the tool
+# funds its wallet from the devnet faucet, on preprod it uses --anchor-key-file.
+anchor_chains() {
+  local requested="${1:-workflow-chain}" cid app
+  local -a selected=()
+  if [ "$NETWORK" != devnet ]; then
+    [ "$PUBLIC_CONFIRM" = "$NETWORK" ] || die "anchoring on $NETWORK spends real test ADA; add --confirm-public-anchor $NETWORK"
+    [ -n "$ANCHOR_KEY_FILE" ] || die "anchoring on $NETWORK needs --anchor-key-file with a funded wallet seed"
+  fi
+  if [ "$requested" = all ]; then
+    IFS=',' read -r -a selected <<< "$(canonical_anchor_chains "$ANCHOR_CHAINS")"
+  else
+    selected=("$(canonical_anchor_chains "$requested")")
+  fi
+  for cid in "${selected[@]}"; do
+    case " ${LIGHT_CHAINS[*]} " in *" $cid "*) ;; *) note "skipping $cid: not part of this instance"; continue;; esac
+    app="$(chain_app "$cid")"
+    local args=(anchor "$app" --chain "$cid" --node-dir "$(node_dir 0)" --yes)
+    [ -z "$ANCHOR_KEY_FILE" ] || args+=(--key "$ANCHOR_KEY_FILE")
+    appchain "${args[@]}"
+    wait_anchor_bootstrapped "$cid"
+  done
+  ANCHOR=true
+}
+
+show_config() {
+  local cid status_json members_json
+  [ -f "$(sealed_file)" ] || die "instance '$INSTANCE' is not prepared"
+  note "Sealed applications (public files; compare their fingerprints):"
+  local app sealed
+  while read -r app sealed; do appchain inspect "$sealed"; done < <(sealed_apps)
+  note "Runtime chain identities:"
+  if curl -fsS "http://127.0.0.1:$HTTP_BASE/q/health/ready" >/dev/null 2>&1; then
+    curl -fsS "http://127.0.0.1:$HTTP_BASE/api/v1/app-chain/chains" \
+      | jq -r '.[].chainId' | while IFS= read -r cid; do
+        status_json="$(curl -fsS \
+          "http://127.0.0.1:$HTTP_BASE/api/v1/app-chain/chains/$cid/status")"
+        members_json="$(curl -fsS -H "X-API-Key: $(api_key 0)" \
+          "http://127.0.0.1:$HTTP_BASE/api/v1/app-chain/chains/$cid/admin/members")"
+        jq -nc --argjson s "$status_json" --argjson g "$members_json" \
+          '{chainId:$s.chainId,stateMachine:$s.stateMachine,tipHeight:$s.tipHeight,
+          stateRoot:$s.stateRoot,activeMembers:$s.membershipActiveMembers,
+          activeThreshold:$s.membershipActiveThreshold,scheduledMembers:($g.members|length),
+          scheduledThreshold:$g.threshold,activationHeight:$s.membershipEpochFromHeight,
+          epochActiveForNextBlock:$s.membershipEpochActive}'
+      done | jq -s .
+  else
+    note "  (instance is stopped)"
+  fi
+}
+
+config_paths() {
+  note "instance options : $(instance_file)"
+  note "showcase files   : $(coordinator_dir)  (draft, member cards, $APP.chain)"
+  [ ! -f "$(history_sealed_file)" ] || note "history files    : $(history_dir)"
+  [ ! -f "$(settlement_sealed_file)" ] || note "settlement files : $(settlement_dir)"
+  note "node directories : $(instance_root)/node<N>  (yano.sh appchain status --node-dir …)"
+  note "node settings    : $(instance_root)/node<N>/config/local.yaml"
+  note "node logs        : $(instance_root)/node<N>/logs/node.log"
+  note "outbox receipts  : $(outbox_dir)"
+  note "plugin bundle    : $(plugin_file)"
+}
+
+config_export() {
+  local output="${1:-${OUTPUT:-}}"
+  [ -n "$output" ] || die "usage: showcase.sh config export <file>"
+  [ -f "$(sealed_file)" ] || die "instance '$INSTANCE' is not prepared"
+  cp -- "$(sealed_file)" "$output"
+  note "wrote the sealed application (public; no keys): $output"
+}
+
+settlement_yml_value() {
+  # The sealed settlement chain carries its bridge settings; the executor's are node-local.
+  local key=".$1" value=""
+  [ ! -f "$(settlement_sealed_file)" ] || value="$(jq -r --arg k "$key" \
+    '.genesis.chains[0].settings | to_entries[] | select(.key | endswith($k)) | .value' \
+    "$(settlement_sealed_file)" | head -n 1)"
+  [ -n "$value" ] || value="$(jq -r --arg k "$key" 'to_entries[] | select(.key | endswith($k)) | .value' \
+    "$(settlement_executor_file)" 2>/dev/null | head -n 1)"
+  printf '%s' "$value"
+}
+
+settlement_script_dir() { printf '%s/settlement-bootstrap' "$(instance_root)"; }
+
+# A public-network settlement chain, from the template and executor settings `settlement bootstrap` wrote:
+# sealed as the settlement application of the current members, then every node restarts with it.
+run_settlement_adopt() {
+  local generated="$(settlement_script_dir)"
+  [ -f "$generated/settlement.template.yaml" ] && [ -f "$generated/executor.json" ] \
+    || die "no bootstrapped settlement chain in $generated; run settlement bootstrap first"
+  [ ! -f "$(settlement_sealed_file)" ] || die "this instance already has a settlement application"
+  mkdir -p "$(settlement_dir)"
+  cp -- "$generated/executor.json" "$(settlement_dir)/executor.json"
+  stop_nodes
+  setup_app "$SETTLEMENT_APP" "$generated/settlement.template.yaml" "$(settlement_dir)" "$NODES" "$THRESHOLD"
+  while IFS= read -r index; do write_local_config "$index"; done < <(node_indexes)
+  load_instance_chains
+  start_nodes
+  note "adopted $SETTLEMENT_CHAIN_ID; next: ./showcase.sh settlement deposit --instance $INSTANCE"
+}
+
+# --- scenarios ----------------------------------------------------------------------------------------------
 
 wait_message() {
   local chain="$1" id="$2" deadline=$(( $(date +%s) + 120 )) response
@@ -924,23 +911,23 @@ snapshot_operation() {
   local base="http://127.0.0.1:$((HTTP_BASE + NODE))/api/v1/app-chain/chains/$chain"
   case "$action" in
     status)
-      curl -fsS -H "X-API-Key: $API_KEY" "$base/snapshots/status" | jq .;;
+      curl -fsS -H "X-API-Key: $(api_key)" "$base/snapshots/status" | jq .;;
     list)
-      curl -fsS -H "X-API-Key: $API_KEY" "$base/snapshots?limit=100" | jq .;;
+      curl -fsS -H "X-API-Key: $(api_key)" "$base/snapshots?limit=100" | jq .;;
     descriptor)
       [ -n "$series" ] && [ -n "$sequence" ] \
         || die "snapshots descriptor requires <chain> <series> <sequence>"
-      curl -fsS -H "X-API-Key: $API_KEY" \
+      curl -fsS -H "X-API-Key: $(api_key)" \
         "$base/snapshots/$series/$sequence" | jq .;;
     archive|restore|evict)
       [ -n "$series" ] && [ -n "$sequence" ] \
         || die "snapshots $action requires <chain> <series> <sequence> [idempotency-key]"
-      curl -fsS -X POST -H "X-API-Key: $API_KEY" -H 'Content-Type: application/json' \
+      curl -fsS -X POST -H "X-API-Key: $(api_key)" -H 'Content-Type: application/json' \
         "$base/admin/snapshots/$series/$sequence/$action" \
         -d "$(jq -nc --arg key "$idempotency" '{idempotencyKey:$key,evictAfterArchive:false}')" | jq .;;
     job)
       [ -n "$series" ] || die "snapshots job requires <chain> <job-id>"
-      curl -fsS -H "X-API-Key: $API_KEY" "$base/admin/snapshots/jobs/$series" | jq .;;
+      curl -fsS -H "X-API-Key: $(api_key)" "$base/admin/snapshots/jobs/$series" | jq .;;
     *) die "snapshots accepts status, list, descriptor, archive, restore, evict, or job";;
   esac
 }
@@ -1050,8 +1037,6 @@ authmap_basic_body() {
   "$YANO_HOME/yano.sh" appchain authenticated-map command \
     --action-hex "$action" --evidence-hex ''
 }
-
-# --- individual authenticated-map operations (authmap subcommands) ---------
 
 # Prints "<authorization> <policyId> <valueEncoding>" for one collection.
 authmap_collection_info() {
@@ -1198,7 +1183,7 @@ run_authmap_governed_put() {
   run_authmap_entry "$collection" "$key"
 }
 
-# Demo-only deterministic actor seed shared with ShowcaseAuthenticatedMapConfig.
+# Demo-only deterministic actor seed, shared with showcase.template.yaml and ShowcaseGovernedGenesis.
 demo_actor_seed() {
   python3 -c 'import hashlib,sys
 print(hashlib.sha256(("yano-showcase-demo-actor:"+sys.argv[1]).encode()).hexdigest())' "$1"
@@ -1235,7 +1220,8 @@ run_authenticated_map_governed() {
   local suffix="$1" yano="$YANO_HOME/yano.sh" signer="$SHOWCASE_HOME/tools/showcase_signer.py"
   local genesis_id issuer_seed issuer_pub key value cmd action height deadline
   [ -x "$yano" ] || die "packaged yano.sh CLI is required for the governed showcase"
-  genesis_id="$(grep 'state.genesis-id=' "$(authenticated_map_properties)" | cut -d= -f2)"
+  genesis_id="$(jq -r '.genesis.chains[] | select(.id == "authenticated-map-chain")
+    | .settings["state.genesis-id"] // empty' "$(sealed_file)" 2>/dev/null)"
   [ -n "$genesis_id" ] || die "authenticated-map genesis identity is missing; run prepare first"
   issuer_seed="$(demo_actor_seed issuer-a)"
   issuer_pub="$(python3 "$signer" public-key "$issuer_seed")"
@@ -1590,12 +1576,11 @@ run_load_test() {
       chain=registry-chain; topic=kv.command.v1; mode=kv;;
     *) die "load-test supports orders or registry";;
   esac
-  cluster_env
   if [ "$SPREAD" = true ]; then target=(--spread); else target=(--node "$NODE"); fi
   local args=("$chain" -n "$COUNT" -c "$CONCURRENCY" -s "$PAYLOAD_SIZE" -t "$topic")
   [ "$mode" != kv ] || args+=(--kv)
   args+=("${target[@]}")
-  "$YANO_HOME/appchain-cluster/loadtest.sh" "${args[@]}"
+  YANO_SHOWCASE_HTTP_BASE="$HTTP_BASE" "$SHOWCASE_HOME/tools/loadtest.sh" "${args[@]}"
 }
 
 run_soak_test() {
@@ -1613,9 +1598,8 @@ run_soak_test() {
   [[ "$SAMPLE" =~ ^[0-9]+$ ]] && [ "$SAMPLE" -ge 1 ] \
     || die "--sample must be a positive integer"
   local target=() report="${REPORT_DIR:-$(instance_root)/reports/soak-$(date +%Y%m%d-%H%M%S)}"
-  cluster_env
   if [ "$SPREAD" = true ]; then target=(--spread); else target=(--node "$NODE"); fi
-  "$YANO_HOME/appchain-cluster/soaktest.sh" orders-chain \
+  YANO_SHOWCASE_HTTP_BASE="$HTTP_BASE" "$SHOWCASE_HOME/tools/soaktest.sh" orders-chain \
     --duration "$DURATION" --rate "$RATE" --conc "$CONCURRENCY" \
     -s "$PAYLOAD_SIZE" --sample "$SAMPLE" --out "$report" "${target[@]}"
 }
@@ -1706,6 +1690,9 @@ activation_submit() {
       body="$(authmap_basic_body owner \
         "$(python3 "$CODEC" authmap put attachments "$suffix" "$value")")"
       submit_hex "$cid" authenticated-map.command.v1 "$body" 0;;
+    "$CARDANO_HISTORY_CHAIN_ID")
+      # Cardano History admits only L1 observations; it makes a block per observed epoch.
+      printf 'skip';;
     "$SETTLEMENT_CHAIN_ID")
       # The settlement chain admits only eutxo transactions and proposer-injected
       # L1 observations; it has no funds until the first vault deposit, so
@@ -1719,13 +1706,15 @@ activation_submit() {
 
 governance_activate() {
   local deadline=$(( $(date +%s) + 240 )) round=0 pending cid status id index suffix
-  local -a submitted_chains=() submitted_ids=()
+  local -a submitted_chains=() submitted_ids=() chains=()
+  # The L1-driven applications keep their founding members; only the showcase application changes.
+  for cid in "${LIGHT_CHAINS[@]}"; do [ "$(chain_app "$cid")" != "$APP" ] || chains+=("$cid"); done
   while :; do
     pending=0
     submitted_chains=()
     submitted_ids=()
     round=$((round + 1))
-    for cid in "${LIGHT_CHAINS[@]}"; do
+    for cid in "${chains[@]}"; do
       status="$(curl -fsS --connect-timeout 2 --max-time 5 \
         "http://127.0.0.1:$HTTP_BASE/api/v1/app-chain/chains/$cid/status")" \
         || die "cannot inspect governed epoch on $cid"
@@ -1753,27 +1742,26 @@ governance_activate() {
   # certificate itself prove the new member set/threshold, rather than merely
   # leaving the next block poised at the activation boundary.
   submitted_ids=()
-  for cid in "${LIGHT_CHAINS[@]}"; do
+  for cid in "${chains[@]}"; do
     id="$(activation_submit "$cid" "proof-$round-$(date +%s)")"
     submitted_ids+=("$id")
   done
-  for ((index=0;index<${#LIGHT_CHAINS[@]};index++)); do
+  for ((index=0;index<${#chains[@]};index++)); do
     [ "${submitted_ids[$index]}" = skip ] \
-      || wait_message "${LIGHT_CHAINS[$index]}" "${submitted_ids[$index]}" >/dev/null
+      || wait_message "${chains[$index]}" "${submitted_ids[$index]}" >/dev/null
     status="$(curl -fsS --connect-timeout 2 --max-time 5 \
-      "http://127.0.0.1:$HTTP_BASE/api/v1/app-chain/chains/${LIGHT_CHAINS[$index]}/status")"
+      "http://127.0.0.1:$HTTP_BASE/api/v1/app-chain/chains/${chains[$index]}/status")"
     printf '%s' "$status" | jq -e \
       '.membershipEpochActive == true
        and .membershipActiveMembers == .members
        and .membershipActiveThreshold == .threshold' >/dev/null \
-      || die "governed epoch did not activate consistently on ${LIGHT_CHAINS[$index]}"
+      || die "governed epoch did not activate consistently on ${chains[$index]}"
   done
-  note "all light-profile governed epochs are active; proof blocks finalized"
+  note "all showcase governed epochs are active; proof blocks finalized"
 }
 
 verify_light() {
-  cluster_env
-  "$CLUSTER" status
+  show_status
   local cid identity total="$NODES" joined i deadline converged reference view
   local reference_tip reference_root threshold block cert="" anchor_status
   if [ -f "$(joined_file)" ]; then
@@ -1816,7 +1804,7 @@ verify_light() {
     else
       cert="n/a"
     fi
-    identity="$(curl -fsS -H "X-API-Key: $API_KEY" \
+    identity="$(curl -fsS -H "X-API-Key: $(api_key 0)" \
       "http://127.0.0.1:$HTTP_BASE/api/v1/app-chain/chains/$cid/identity")"
     printf '%-18s nodes=%d tip=%d cert=%s/%s config=%s plugin=%s\n' "$cid" "$total" \
       "$reference_tip" "$cert" "$threshold" \
@@ -1867,86 +1855,6 @@ delegate_evidence() {
   "$demo" "${args[@]}"
 }
 
-settlement_yml_value() {
-  # Scoped to the settlement chain block: keys like "profile" also appear on
-  # other chains, so a whole-file match would read the wrong one. Values are
-  # quoted by the block generator.
-  awk -v cid="$SETTLEMENT_CHAIN_ID" -v k="$1:" '
-    index($0, "chain-id: \"" cid "\"") { inblock = 1; next }
-    inblock && /^    chains\[/ { inblock = 0 }
-    inblock && $1 == k { gsub(/^"|"$/, "", $2); print $2; exit }
-  ' "$YANO_HOME/config/application-appchain.yml"
-}
-
-settlement_script_dir() { printf '%s/config/settlement' "$YANO_HOME"; }
-
-# Cardano History is the final light-profile chain so a source-tree-independent
-# installation can omit the product without renumbering any preceding chain.
-strip_cardano_history_chain() {
-  local config="$YANO_HOME/config/application-appchain.yml" tmp
-  grep -q "chain-id: \"$CARDANO_HISTORY_CHAIN_ID\"" "$config" 2>/dev/null || return 0
-  tmp="$config.without-history.$$"
-  awk '/^    # ADR-035 product:/ { exit } { print }' "$config" > "$tmp"
-  grep -q "chain-id: \"$CARDANO_HISTORY_CHAIN_ID\"" "$tmp" \
-    && { rm -f -- "$tmp"; die "could not remove Cardano History chain block"; }
-  mv -f -- "$tmp" "$config"
-}
-
-# The packaged settlement chain carries the DEVNET-only profile and demo
-# identity. If it ever activates on a public network the chain-id retains that
-# profile digest, and the real identity can never be adopted under the same id.
-# Strip it before any node starts and close every following chain-index gap.
-# The bootstrapped public-network block is adopted afterwards.
-strip_devnet_settlement_chain() {
-  local config="$YANO_HOME/config/application-appchain.yml" tmp
-  grep -q "chain-id: \"$SETTLEMENT_CHAIN_ID\"" "$config" 2>/dev/null || return 0
-  # ONLY the packaged devnet block is removed. Once the operator has adopted
-  # their own production settlement chain, this runs on every start (up_light
-  # -> prepare_light) and must leave it completely alone.
-  grep -q 'profile: "yano-eutxo-v3-bridge-settlement-devnet"' "$config" \
-    2>/dev/null || return 0
-  tmp="$config.public.$$"
-  awk -v cid="$SETTLEMENT_CHAIN_ID" -v removed_index=10 '
-    function flush(   i) {
-      if (nbuf > 0) {
-        if (keep) {
-          if (match(buf[1], /chains\[[0-9]+\]/)) {
-            token = substr(buf[1], RSTART, RLENGTH)
-            chain_idx = substr(token, 8, length(token) - 8) + 0
-            if (chain_idx > removed_index) {
-              sub("chains\\[" chain_idx "\\]", "chains[" (chain_idx - 1) "]", buf[1])
-            }
-          }
-          printf "%s", pending; for (i = 1; i <= nbuf; i++) print buf[i]
-        }
-        nbuf = 0
-      }
-      pending = ""
-    }
-    /^    # DEVNET-ONLY profile/ { flush(); pending = $0 "\n"; next }
-    /^    chains\[/ { flush(); inblock = 1; keep = 1; nbuf = 1; buf[1] = $0; next }
-    {
-      if (inblock) {
-        if ($0 ~ /^[[:space:]]*$/) { buf[++nbuf] = $0; next }
-        match($0, /[^ ]/); ind = RSTART - 1
-        if (ind >= 6) {
-          buf[++nbuf] = $0
-          if (index($0, "chain-id: \"" cid "\"") > 0) { keep = 0 }
-          next
-        }
-        flush(); inblock = 0
-      }
-      print
-    }
-    END { flush() }
-  ' "$config" > "$tmp" || { rm -f -- "$tmp"; die "cannot rewrite $config"; }
-  grep -q "chain-id: \"$SETTLEMENT_CHAIN_ID\"" "$tmp" \
-    && { rm -f -- "$tmp"; die "failed to remove the devnet settlement chain from $config"; }
-  mv -- "$tmp" "$config" || die "cannot replace $config"
-  note "removed the packaged DEVNET settlement chain for this $NETWORK instance;"
-  note "deploy your own with: ./showcase.sh settlement prepare --instance $INSTANCE --settlement-key-file <file>"
-}
-
 # True when the one-shot root thread token is present at the root address —
 # the single authoritative signal that the L1 identity is deployed.
 settlement_root_thread_live() {
@@ -1990,7 +1898,7 @@ run_settlement_info() {
     note "  live tip height       : $tip"
     note "  console               : http://127.0.0.1:$HTTP_BASE/ui/app-chain/eutxo/?chain=$SETTLEMENT_CHAIN_ID"
   else
-    note "  live status           : cluster not reachable on port $HTTP_BASE"
+    note "  live status           : node 0 not reachable on port $HTTP_BASE"
   fi
   note ""
   note "Custody: a Plutus vault released by the FEDERATION THRESHOLD, with"
@@ -2029,14 +1937,14 @@ settlement_key_args() {
   printf -- '--operator-seed-file %s' "$SETTLEMENT_KEY_FILE"
 }
 
-# The cluster's LIVE federation keys — the settlement root datum commits to
-# them, so they must come from the running cluster, not a constant. Read them
+# The nodes' LIVE federation keys — the settlement root datum commits to
+# them, so they must come from the running nodes, not a constant. Read them
 # from a chain that already EXISTS: the settlement chain is adopted only after
 # this identity is deployed, so querying it would always fall back and could
 # silently commit to the wrong federation.
 settlement_member_args() {
   local members threshold json
-  json="$(curl -fsS -H "X-API-Key: $API_KEY" \
+  json="$(curl -fsS -H "X-API-Key: $(api_key 0)" \
     "http://127.0.0.1:$HTTP_BASE/api/v1/app-chain/chains/${LIGHT_CHAINS[0]}/admin/members" \
     2>/dev/null || true)"
   [ -n "$json" ] || return 0
@@ -2054,7 +1962,7 @@ settlement_member_args() {
 settlement_effect_health() {
   local base status effects parked retry failure
   base="http://127.0.0.1:$HTTP_BASE/api/v1/app-chain/chains/$SETTLEMENT_CHAIN_ID"
-  status="$(curl -fsS -H "X-API-Key: $API_KEY" "$base/status" 2>/dev/null || true)"
+  status="$(curl -fsS -H "X-API-Key: $(api_key 0)" "$base/status" 2>/dev/null || true)"
   [ -n "$status" ] || return 0
   parked="$(printf '%s' "$status" | jq -r '.effects.executor.statusCounts.PARKED // 0' 2>/dev/null || echo 0)"
   retry="$(printf '%s' "$status" | jq -r '.effects.executor.statusCounts.RETRY // 0' 2>/dev/null || echo 0)"
@@ -2070,7 +1978,7 @@ settlement_effect_health() {
     note "  $parked effect(s) PARKED — DEAD, and they will never retry on their own."
     note "  A claim stays PENDING while its batch is parked, and batches form"
     note "  oldest-first, so every later claim is blocked behind it."
-    effects="$(curl -fsS -H "X-API-Key: $API_KEY" "$base/effects" 2>/dev/null || true)"
+    effects="$(curl -fsS -H "X-API-Key: $(api_key 0)" "$base/effects" 2>/dev/null || true)"
     if [ -n "$effects" ]; then
       printf '%s' "$effects" | jq -r '.effects[]? | "    stuck: \(.type) height=\(.height) ordinal=\(.ordinal) scope=\(.scope)"' 2>/dev/null || true
       printf '%s' "$effects" | jq -r --arg b "$base" '.effects[]? | "    requeue: curl -X POST -H \"X-API-Key: <key>\" \($b)/effects/\(.height)/\(.ordinal)/requeue"' 2>/dev/null || true
@@ -2101,11 +2009,13 @@ run_settlement_bootstrap() {
       --network "$NETWORK" --operator-seed-file "$SETTLEMENT_KEY_FILE" \
       $(settlement_member_args) \
       --output "$(settlement_script_dir)"
-    note "bootstrap complete. Adopt the generated production config block, then start a fresh"
-    note "preview instance; ADR-033 deliberately provides no app-chain state migration."
+    note "bootstrap complete. It wrote a settlement template and the executor's settings to"
+    note "$(settlement_script_dir); seal them as this instance's settlement application with:"
+    note "  ./showcase.sh settlement adopt --instance $INSTANCE"
     return 0
   fi
   note "deploying the settlement identity on the devnet L1 (idempotent)..."
+  [ -f "$(settlement_sealed_file)" ] || die "this instance has no devnet settlement application"
   "$YANO_HOME/yano.sh" appchain eutxo demo settlement-bootstrap \
     --target-base "http://127.0.0.1:$HTTP_BASE" \
     --network devnet \
@@ -2134,150 +2044,6 @@ delegate_eutxo() {
     --workspace "$(instance_root)/eutxo-$VARIANT" --members "$NODES" \
     --http-port-base "$HTTP_BASE" --server-port-base "$SERVER_BASE" \
     ${extra[@]+"${extra[@]}"}
-}
-
-show_config() {
-  local cid status_json members_json
-  [ -f "$(marker)" ] || die "instance '$INSTANCE' is not prepared"
-  note "Resolved showcase deployment (secrets redacted):"
-  python3 "$IDENTITY" show --marker "$(marker)"
-  note "Runtime chain identities:"
-  if curl -fsS "http://127.0.0.1:$HTTP_BASE/q/health/ready" >/dev/null 2>&1; then
-    curl -fsS "http://127.0.0.1:$HTTP_BASE/api/v1/app-chain/chains" \
-      | jq -r '.[].chainId' | while IFS= read -r cid; do
-        status_json="$(curl -fsS \
-          "http://127.0.0.1:$HTTP_BASE/api/v1/app-chain/chains/$cid/status")"
-        members_json="$(curl -fsS -H "X-API-Key: $API_KEY" \
-          "http://127.0.0.1:$HTTP_BASE/api/v1/app-chain/chains/$cid/admin/members")"
-        jq -nc --argjson s "$status_json" --argjson g "$members_json" \
-          '{chainId:$s.chainId,stateMachine:$s.stateMachine,tipHeight:$s.tipHeight,
-          stateRoot:$s.stateRoot,activeMembers:$s.membershipActiveMembers,
-          activeThreshold:$s.membershipActiveThreshold,scheduledMembers:($g.members|length),
-          scheduledThreshold:$g.threshold,activationHeight:$s.membershipEpochFromHeight,
-          epochActiveForNextBlock:$s.membershipEpochActive}'
-      done | jq -s .
-  else
-    note "  (instance is stopped)"
-  fi
-}
-
-config_paths() {
-  note "showcase marker : $(marker)"
-  note "shared YAML     : $YANO_HOME/config/application-appchain.yml"
-  note "node overlays  : $(node_config_dir)/node<N>.properties (secret values are not printed)"
-  note "map genesis   : $(authenticated_map_genesis)"
-  note "cluster state  : $(cluster_dir)"
-  note "outbox receipts: $(outbox_dir)"
-  note "plugin bundle  : $(plugin_file)"
-  note "logs           : $(cluster_dir)/node<N>/node.log"
-}
-
-config_export() {
-  local output="${1:-${OUTPUT:-}}"
-  [ -n "$output" ] || die "usage: showcase.sh config export <file>"
-  python3 "$IDENTITY" export --marker "$(marker)" --output "$output"
-  note "wrote redacted deployment snapshot: $output"
-}
-
-resume_joined_nodes() {
-  local joined
-  if [ -f "$(joined_file)" ]; then
-    while IFS= read -r joined; do
-      [ -z "$joined" ] || {
-        write_node_configs "$((joined + 1))"
-        cluster_env
-        "$CLUSTER" node resume "$joined"
-      }
-    done < "$(joined_file)"
-  fi
-}
-
-anchor_enable() {
-  local requested="${1:-}" requested_mode="$ANCHOR_MODE" requested_key="$ANCHOR_KEY_FILE"
-  local mode_explicit="$ANCHOR_MODE_EXPLICIT" key_explicit="$ANCHOR_KEY_EXPLICIT"
-  [ -n "$requested" ] || die "usage: anchor enable <chain-id|all>"
-  adopt_marker
-  [ "$PROFILE" = light ] || die "anchor enable applies only to the light profile"
-
-  local current="" desired target combined cid
-  [ "$ANCHOR" != true ] || current="$ANCHOR_CHAINS"
-  target="$(canonical_anchor_chains "$requested")"
-  combined="$current"
-  local -a target_chains=()
-  IFS=',' read -r -a target_chains <<< "$target"
-  for cid in "${target_chains[@]}"; do
-    chain_in_csv "$combined" "$cid" || combined+="${combined:+,}$cid"
-  done
-  desired="$(canonical_anchor_chains "$combined")"
-
-  if [ "$ANCHOR" = true ]; then
-    [ "$mode_explicit" != true ] || [ "$requested_mode" = "$ANCHOR_MODE" ] \
-      || die "retained anchor mode is '$ANCHOR_MODE' and cannot be changed"
-    [ "$key_explicit" != true ] || [ "$requested_key" = "$ANCHOR_KEY_FILE" ] \
-      || die "retained anchor key reference cannot be changed"
-  else
-    ANCHOR_MODE="$requested_mode"
-    ANCHOR_KEY_FILE="$requested_key"
-  fi
-
-  if [ "$NETWORK" = preprod ] && [ "$desired" != "$current" ]; then
-    [ "$PUBLIC_CONFIRM" = preprod ] \
-      || die "adding a preprod anchor requires --confirm-public-anchor preprod"
-    [ -n "$ANCHOR_KEY_FILE" ] \
-      || die "adding a preprod anchor requires --anchor-key-file (or a retained anchor key)"
-  fi
-  [ -f "$(cluster_dir)/cluster-appchain-identity.json" ] \
-    || die "cluster app-chain identity marker is missing"
-  [ -f "$(cluster_dir)/cluster.env" ] || die "cluster environment record is missing"
-
-  cluster_env
-  "$CLUSTER" stop
-
-  local -a migrate=(anchor-enable --marker "$(marker)"
-    --cluster-marker "$(cluster_dir)/cluster-appchain-identity.json"
-    --cluster-env "$(cluster_dir)/cluster.env"
-    --config "$YANO_HOME/config/application-appchain.yml" --plugin "$(plugin_file)"
-    --authenticated-map-config "$(authenticated_map_properties)"
-    --anchor-mode "$ANCHOR_MODE")
-  [ ! -f "$(authenticated_map_jmt_properties)" ] || migrate+=(
-    --authenticated-map-jmt-config "$(authenticated_map_jmt_properties)")
-  local -a desired_chains=()
-  IFS=',' read -r -a desired_chains <<< "$desired"
-  for target in "${desired_chains[@]}"; do migrate+=(--anchor-chain "$target"); done
-  [ -z "$ANCHOR_KEY_FILE" ] || migrate+=(--anchor-key-file "$ANCHOR_KEY_FILE")
-  python3 "$IDENTITY" "${migrate[@]}" --catalog "$CATALOG" >/dev/null
-
-  adopt_marker
-  up_light
-  resume_joined_nodes
-  note "Anchor scope now includes: $ANCHOR_CHAINS"
-  if [ "$ANCHOR_MODE" = script ]; then
-    note "Newly enabled chains require a one-time bootstrap transaction."
-    note "Run: ./showcase.sh anchor bootstrap all --instance $INSTANCE"
-  else
-    note "Metadata anchors need no bootstrap; funded chains begin anchoring automatically."
-  fi
-}
-
-anchor_bootstrap() {
-  local requested="${1:-workflow-chain}" cid
-  [ "$ANCHOR" = true ] || die "anchoring is not enabled for this instance"
-  cluster_env
-  if [ "$requested" = all ]; then
-    local -a selected=()
-    IFS=',' read -r -a selected <<< "$ANCHOR_CHAINS"
-    for cid in "${selected[@]}"; do
-      "$CLUSTER" anchor-bootstrap "$cid"
-      wait_anchor_bootstrapped "$cid"
-    done
-    return
-  fi
-  cid="$(canonical_anchor_chains "$requested")"
-  [ "$cid" = "$requested" ] || die "anchor bootstrap accepts one chain id or all"
-  chain_in_csv "$ANCHOR_CHAINS" "$cid" \
-    || die "anchoring is not enabled for '$cid' (enabled: $ANCHOR_CHAINS)"
-  "$CLUSTER" anchor-bootstrap "$cid"
-  wait_anchor_bootstrapped "$cid"
 }
 
 wait_anchor_bootstrapped() {
@@ -2315,7 +2081,8 @@ Yano unified app-chain showcase
   ./showcase.sh authmap entry <collection> <key> [--chain id]
   ./showcase.sh authmap receipt <message-id> [--chain id]
   ./showcase.sh settlement info                      (vault/shard/root facts + next steps)
-  ./showcase.sh settlement bootstrap                 (deploy the L1 settlement identity, devnet)
+  ./showcase.sh settlement bootstrap                 (deploy the L1 settlement identity)
+  ./showcase.sh settlement adopt                     (public network: seal the bootstrapped chain)
   ./showcase.sh settlement deposit|withdraw|status   (L1 deposit, L2 claim, autonomous settlement)
   ./showcase.sh approvals propose <id> <payload> [required]
   ./showcase.sh approvals approve <id> <member-node>
@@ -2328,10 +2095,11 @@ Yano unified app-chain showcase
   ./showcase.sh load-test <orders|registry> --count N [--concurrency N] [--spread]
   ./showcase.sh soak-test orders [--duration SEC] [--rate MSG_PER_SEC] [--spread]
   ./showcase.sh member join <next-index>
-  ./showcase.sh threshold set <n>
   ./showcase.sh governance activate
-  ./showcase.sh anchor enable <chain-id|all>
-  ./showcase.sh anchor bootstrap [chain-id|all]
+  ./showcase.sh anchor [chain-id|all]
+
+The light profile runs the ordinary setup commands (yano.sh appchain new, request, seal, join, start)
+for every node; each node is a node directory under data/showcase/<instance>/.
 
 Common options: --instance, --network devnet|preprod, --nodes, --threshold,
 --http-base, --server-base, --data-dir, --variant, --anchor-mode, --anchor-chain,
@@ -2350,12 +2118,11 @@ EOF
 
 COMMAND="${1:-help}"; [ "$#" -eq 0 ] || shift
 parse "$@"
-[ "$COMMAND" != quickstart ] || [ "$PROFILE" != light ] || ANCHOR=true
 validate_common
 
 case "$COMMAND" in
   profiles)
-    note "light     local multi-chain cluster (default 3 nodes; supports 1..16)"
+    note "light     local multi-chain application (default 3 nodes; supports 1..16)"
     note "evidence  product demo with Kafka, S3-compatible storage, and IPFS (composite|role)"
     note "eutxo     maintained virtual-ledger and bridge demos (ledger|bridge)";;
   describe)
@@ -2377,26 +2144,26 @@ PY
     java_version="$(java -version 2>&1 | sed -n '1s/.*version "\([^"]*\)".*/\1/p')"
     case "$java_version" in 25|25.*) ;; *) die "Java 25 is required (found ${java_version:-unknown})";; esac
     [ -f "$YANO_HOME/yano.jar" ] || die "yano.jar missing"
-    [ -f "$YANO_HOME/config/application-appchain.yml" ] || die "showcase app-chain config missing"
-    [ -x "$YANO_HOME/appchain-cluster/loadtest.sh" ] || die "packaged burst load driver missing"
-    [ -x "$YANO_HOME/appchain-cluster/soaktest.sh" ] || die "packaged soak driver missing"
+    [ -x "$YANO_HOME/tools/yano-appchain/bin/yano-appchain" ] || die "the app-chain setup tool is missing"
+    [ -f "$TEMPLATE" ] && [ -f "$SETTLEMENT_TEMPLATE" ] || die "showcase templates missing"
+    [ -x "$SHOWCASE_HOME/tools/loadtest.sh" ] || die "packaged burst load driver missing"
+    [ -x "$SHOWCASE_HOME/tools/soaktest.sh" ] || die "packaged soak driver missing"
     plugin_file >/dev/null
     cardano_history_plugin_file >/dev/null
     [ -x "$YANO_HOME/tools/yano-cardano-history/bin/yano-cardano-history" ] \
       || die "packaged Cardano History CLI missing"
     [ "$PROFILE" != evidence ] || need docker
-    [ "$PROFILE" != eutxo ] || [ -x "$YANO_HOME/yano.sh" ] || die "maintained EUTxO CLI missing"
     note "doctor: Java $java_version, $(python3 --version 2>&1), curl, jq, and packaged artifacts are present"
     note "doctor: Python helpers use the standard library only; no pip or virtual environment is needed";;
   prepare)
     case "$PROFILE" in light) prepare_light;; evidence) delegate_evidence prepare;; eutxo) delegate_eutxo prepare;; esac;;
   up)
-    adopt_marker
-    case "$PROFILE" in light) up_light;; evidence) delegate_evidence up;; eutxo) delegate_eutxo up;; esac;;
+    case "$PROFILE" in light) adopt_instance; up_light;; evidence) delegate_evidence up;; eutxo) delegate_eutxo up;; esac;;
   quickstart)
     if [ "$PROFILE" = light ]; then
+      adopt_instance
       up_light
-      [ "$ANCHOR_MODE" != script ] || { cluster_env; "$CLUSTER" anchor-bootstrap workflow-chain; }
+      [ "$ANCHOR_MODE" != script ] || anchor_chains workflow-chain
       run_composite quickstart
       run_authenticated_map quickstart
       verify_light
@@ -2407,33 +2174,29 @@ PY
           delegate_eutxo prepare; delegate_eutxo up; delegate_eutxo run;; esac
     fi;;
   status)
-    adopt_marker
-    case "$PROFILE" in light) cluster_env; "$CLUSTER" status;; evidence) delegate_evidence status;; eutxo) delegate_eutxo status;; esac;;
+    case "$PROFILE" in light) adopt_instance; show_status;; evidence) delegate_evidence status;; eutxo) delegate_eutxo status;; esac;;
   ui)
-    adopt_marker; note "http://127.0.0.1:$((HTTP_BASE + NODE))/ui/app-chain/";;
+    adopt_instance; note "http://127.0.0.1:$((HTTP_BASE + NODE))/ui/app-chain/";;
   logs)
-    adopt_marker; cluster_env
-    if [ "$FOLLOW" = true ]; then "$CLUSTER" logs "$NODE" -f; else "$CLUSTER" logs "$NODE"; fi;;
+    adopt_instance; show_logs;;
   stop)
-    adopt_marker
-    case "$PROFILE" in light) cluster_env; "$CLUSTER" stop;; evidence) delegate_evidence stop;; eutxo) delegate_eutxo stop;; esac;;
+    case "$PROFILE" in light) adopt_instance; stop_nodes;; evidence) delegate_evidence stop;; eutxo) delegate_eutxo stop;; esac;;
   restart)
-    adopt_marker; [ "$PROFILE" = light ] || die "restart currently applies to the light profile"
-    cluster_env; "$CLUSTER" stop; write_node_configs "$NODES"; up_light
-    resume_joined_nodes;;
+    adopt_instance; [ "$PROFILE" = light ] || die "restart currently applies to the light profile"
+    stop_nodes; start_nodes;;
   reset)
     [ "$YES" = true ] || die "reset requires --yes and preserves nothing in the named instance"
     local_root="$(instance_root)"; [ -n "$INSTANCE" ] || die "instance is required"
     if [ -d "$local_root" ]; then
-      adopt_marker; if [ "$PROFILE" = light ]; then cluster_env; "$CLUSTER" stop || true; fi
+      if [ -f "$(instance_file)" ]; then adopt_instance; stop_nodes || true; fi
       rm -rf -- "$local_root"; note "removed $local_root (not recoverable by the showcase)"
     fi;;
   config)
-    adopt_marker
+    adopt_instance
     case "${POSITIONAL[0]:-show}" in show) show_config;; paths) config_paths;;
       export) config_export "${POSITIONAL[1]:-}";; *) die "config accepts show, paths, or export";; esac;;
   run)
-    adopt_marker
+    adopt_instance
     if [ "$PROFILE" = evidence ]; then
       [ "${POSITIONAL[0]:-}" = roles ] && delegate_evidence role-lifecycle || delegate_evidence run
     elif [ "$PROFILE" = eutxo ]; then delegate_eutxo run
@@ -2445,22 +2208,22 @@ PY
         documents) run_documents "${POSITIONAL[1]:-}";; document-review) run_document_review "${POSITIONAL[1]:-}";;
         composite) run_composite "${POSITIONAL[1]:-}";;
         roles) run_roles;; eutxo) run_eutxo;; cardano-history) run_cardano_history;;
-        anchor) cluster_env; "$CLUSTER" status;;
+        anchor) show_status;;
         all) run_orders; run_registry; run_authenticated_map; run_approvals; run_balances; run_documents; run_document_review; run_composite; run_roles; run_eutxo; [ "$CARDANO_HISTORY_ENABLED" != true ] || run_cardano_history;;
         *) die "unknown run scenario";; esac
     fi;;
   snapshots)
-    adopt_marker
+    adopt_instance
     snapshot_operation "${POSITIONAL[0]:-status}" "${POSITIONAL[1]:-$CARDANO_HISTORY_CHAIN_ID}" \
       "${POSITIONAL[2]:-}" "${POSITIONAL[3]:-}" "${POSITIONAL[4]:-}";;
   approvals)
-    adopt_marker
+    adopt_instance
     case "${POSITIONAL[0]:-}" in
       propose) approval_propose "${POSITIONAL[1]:?proposal id required}" "${POSITIONAL[2]:?payload required}" "${POSITIONAL[3]:-2}";;
       approve) approval_approve "${POSITIONAL[1]:?proposal id required}" "${POSITIONAL[2]:?member node required}";;
       *) die "approvals accepts propose or approve";; esac;;
   composite)
-    adopt_marker
+    adopt_instance
     case "${POSITIONAL[0]:-}" in
       register-order) composite_register "${POSITIONAL[1]:?order key required}" "${POSITIONAL[2]:?order JSON required}";;
       propose) composite_propose "${POSITIONAL[1]:?proposal id required}" "${POSITIONAL[2]:?order JSON required}";;
@@ -2469,7 +2232,7 @@ PY
       verify) composite_verify "${POSITIONAL[1]:?release id required}";;
       *) die "unknown composite operation";; esac;;
   load)
-    adopt_marker
+    adopt_instance
     [ -n "$COUNT" ] && [[ "$COUNT" =~ ^[0-9]+$ ]] && [ "$COUNT" -ge 1 ] || die "load requires --count N"
     for ((load_index=1;load_index<=COUNT;load_index++)); do
       suffix="load-$(date +%s)-$load_index"
@@ -2479,7 +2242,7 @@ PY
         *) die "unsupported load scenario";; esac
     done;;
   authmap)
-    adopt_marker
+    adopt_instance
     case "${POSITIONAL[0]:-}" in
       put) run_authmap_put "${POSITIONAL[1]:?collection required}" \
         "${POSITIONAL[2]:?key required}" "${POSITIONAL[3]:?value required}";;
@@ -2491,12 +2254,13 @@ PY
       *) die "usage: authmap put <collection> <key> <value> | authmap governed-put <key> <value> [--collection C] [--actor A] [--seed-file F] | authmap entry <collection> <key> | authmap receipt <message-id>";;
     esac;;
   settlement)
-    adopt_marker
+    adopt_instance
     [ "$PROFILE" = light ] || die "settlement applies to the light profile (the eutxo profile has its own scenarios)"
     case "${POSITIONAL[0]:-}" in
       info) run_settlement_info;;
       prepare) run_settlement_prepare;;
       bootstrap) run_settlement_bootstrap;;
+      adopt) run_settlement_adopt;;
       deposit)
         require_settlement_actors deposit
         "$YANO_HOME/yano.sh" appchain eutxo demo settlement-deposit \
@@ -2513,41 +2277,26 @@ PY
         "$YANO_HOME/yano.sh" appchain eutxo demo settlement-status \
           --target-base "http://127.0.0.1:$HTTP_BASE"
         settlement_effect_health;;
-      *) die "usage: settlement info|prepare|bootstrap|deposit|withdraw|status";;
+      *) die "usage: settlement info|prepare|bootstrap|adopt|deposit|withdraw|status";;
     esac;;
   load-test)
-    adopt_marker; run_load_test "${POSITIONAL[0]:-orders}";;
+    adopt_instance; run_load_test "${POSITIONAL[0]:-orders}";;
   soak-test)
-    adopt_marker; run_soak_test "${POSITIONAL[0]:-orders}";;
+    adopt_instance; run_soak_test "${POSITIONAL[0]:-orders}";;
   verify)
-    adopt_marker
+    adopt_instance
     [ "$PROFILE" = light ] && verify_light || { [ "$PROFILE" = evidence ] && delegate_evidence verify || delegate_eutxo verify; };;
   member)
-    adopt_marker; [ "${POSITIONAL[0]:-}" = join ] || die "usage: member join <next-index>"
-    joined="${POSITIONAL[1]:?node index required}"
-    [[ "$joined" =~ ^[0-9]+$ ]] && [ "$joined" -ge "$NODES" ] && [ "$joined" -le 15 ] \
-      || die "joined-node index must be between the bootstrap count and 15"
-    write_node_configs "$((joined + 1))"; cluster_env
-    if [ -f "$(joined_file)" ] && grep -Fxq "$joined" "$(joined_file)"; then
-      "$CLUSTER" node resume "$joined"
-    else
-      "$CLUSTER" node join "$joined"
-      printf '%s\n' "$joined" >> "$(joined_file)"; chmod 600 "$(joined_file)"
-    fi;;
-  threshold)
-    adopt_marker; [ "${POSITIONAL[0]:-}" = set ] || die "usage: threshold set <n>"
-    cluster_env; "$CLUSTER" threshold set "${POSITIONAL[1]:?threshold required}";;
+    adopt_instance; [ "${POSITIONAL[0]:-}" = join ] || die "usage: member join <next-index>"
+    member_join "${POSITIONAL[1]:?node index required}";;
   governance)
-    adopt_marker; [ "${POSITIONAL[0]:-}" = activate ] \
+    adopt_instance; [ "${POSITIONAL[0]:-}" = activate ] \
       || die "usage: governance activate"
     [ "$PROFILE" = light ] || die "governance activate applies to the light profile"
     governance_activate;;
   anchor)
-    case "${POSITIONAL[0]:-}" in
-      enable) anchor_enable "${POSITIONAL[1]:-}";;
-      bootstrap) adopt_marker; anchor_bootstrap "${POSITIONAL[1]:-workflow-chain}";;
-      *) die "usage: anchor enable <chain-id|all> | anchor bootstrap [chain-id|all]";;
-    esac;;
+    adopt_instance; [ "$PROFILE" = light ] || die "anchor applies to the light profile"
+    anchor_chains "${POSITIONAL[0]:-workflow-chain}";;
   help|-h|--help) usage;;
   *) usage; exit 1;;
 esac

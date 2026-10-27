@@ -1,0 +1,23 @@
+# The showcase's Cardano History chain (ADR-035) as its own application of the founding nodes. It records L1
+# protocol parameters per epoch (and stake or governance data for richer presets), so it makes blocks only
+# from L1 observations; keeping it apart lets the showcase's membership changes activate without waiting for
+# epochs. showcase.sh adds the stake and governance observers for --cardano-history-profile and leaves the
+# application out for --disable-cardano-history.
+membership: governed
+sequencing: fixed
+chains:
+  - id: cardano-history-chain
+    recipe: custom-plugin
+    answers:
+      stateMachine: "cardano-history"
+    settings:
+      block.interval-ms: "1000"
+      block.max-messages: "1000"
+      block.max-bytes: "8388608"
+      max-message-bytes: "6291456"
+      state.l1-proof-consumption-required: "true"
+      l1.stability-depth: "2"
+      l1.epoch-stability-depth: "2"
+      machines.cardano-history.preset: "params-only-v1"
+      observers.epoch-params.type: "l1-epoch-params-v1"
+      observers.epoch-params.chain-id: "cardano-history-chain"

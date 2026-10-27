@@ -1,0 +1,41 @@
+# The showcase's federated L1 settlement chain (ADR-UTXO-009) as its own application, DEVNET ONLY: the
+# hardened script vault with a relaxed fallback floor. Its vault, shard and root addresses are a pure
+# function of the deterministic devnet bootstrap and the three demo member keys (this plan), so it always
+# has the showcase's three founding nodes and is never part of their membership changes. showcase.sh
+# leaves it out on a public network; settlement/executor.json holds the executor's node-local settings.
+# Every key here is PUBLIC demo material; demo amounts only. Regenerate with
+# ./gradlew :ledgers:eutxo:demo:test --tests '*EmitShowcaseSettlementTest'
+membership: governed
+sequencing: fixed
+chains:
+  - id: payment-chain-settlement
+    recipe: custom-plugin
+    answers:
+      stateMachine: "eutxo-ledger"
+    settings:
+      block.interval-ms: "1000"
+      l1.stability-depth: "2"
+      machines.eutxo.profile: "yano-eutxo-v3-bridge-settlement-devnet"
+      machines.eutxo.expected-profile-digest: "12880861e62bf4cb750a6bbfdd818c2ba2370a1d2cc0952fcba16c4e6da38e3a"
+      machines.eutxo.network: "devnet"
+      machines.eutxo.bridge.params.fallback-delay-slots: "60"
+      machines.eutxo.bridge.observer-id: "bridge-deposits"
+      machines.eutxo.bridge.vault-address: "addr_test1wpwhmf5cd5pm9gsg5y8xnkyk3xue2u35ral098gd8u49g3gjpdqgr"
+      machines.eutxo.bridge.vault-script-hash: "5d7da6986d03b2a208a10e69d89689b99572341f7ef29d0d3f2a5445"
+      machines.eutxo.bridge.confirmation-observer-id: "bridge-withdrawals"
+      machines.eutxo.bridge.withdrawal-address: "addr_test1vrf4896s3htkc8pzytgvvm07c2e489rtcg42f23zk5r2mjs8ge5ef"
+      machines.eutxo.bridge.epoch: "0"
+      machines.eutxo.bridge.max-withdrawal-lovelace: "50000000"
+      machines.eutxo.bridge.max-pending-withdrawals: "100"
+      machines.eutxo.bridge.withdrawals-paused: "false"
+      machines.eutxo.bridge.params.soft-batch-cap: "1"
+      observers.bridge-deposits.type: "eutxo-vault-deposit-v1"
+      observers.bridge-deposits.chain-id: "payment-chain-settlement"
+      observers.bridge-deposits.vault-address: "addr_test1wpwhmf5cd5pm9gsg5y8xnkyk3xue2u35ral098gd8u49g3gjpdqgr"
+      observers.bridge-deposits.vault-script-hash: "5d7da6986d03b2a208a10e69d89689b99572341f7ef29d0d3f2a5445"
+      observers.bridge-deposits.max-lovelace: "100000000"
+      observers.bridge-withdrawals.type: "eutxo-batch-withdrawal-confirmation-v1"
+      observers.bridge-withdrawals.chain-id: "payment-chain-settlement"
+      observers.bridge-withdrawals.bridge-epoch: "0"
+      observers.bridge-withdrawals.vault-address: "addr_test1wpwhmf5cd5pm9gsg5y8xnkyk3xue2u35ral098gd8u49g3gjpdqgr"
+      effects.enabled: "true"

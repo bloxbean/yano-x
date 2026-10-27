@@ -102,10 +102,8 @@ def devnetProfileOverlay = file('config/application-devnet.yml')
 // one-member `./yano.sh appchain cluster start 1`.
 def stockAppChainConfig = rootProject.file('config/application-appchain.yml')
 
-// The showcase ships at examples/showcase. Its yano/ home holds only the demo
-// configuration (the Yano config tree with the showcase app-chain file and
-// settlement scripts); showcase.sh links everything else back to the
-// distribution root on first run.
+// The showcase ships at examples/showcase. It sets its nodes up with the distribution's own app-chain
+// setup tool from the templates in config/, so it carries no Yano configuration of its own.
 tasks.register('prepareShowcase', Sync) {
     group = 'distribution'
     description = 'Stages the showcase that ships inside the JVM distribution.'
@@ -135,26 +133,11 @@ tasks.register('prepareShowcase', Sync) {
     from(new File(showcaseSources, 'config/showcase-catalog-v1.json')) {
         into 'catalog'
     }
-    from({ zipTree(baseYanoDistribution.get()) }) {
-        include '*/config/**'
-        exclude '*/config/application-appchain.yml', '*/config/application-devnet.yml'
-        eachFile { details ->
-            details.relativePath = org.gradle.api.file.RelativePath.parse(
-                    details.relativePath.file,
-                    "yano/${details.relativePath.segments.drop(1).join('/')}")
-        }
-        includeEmptyDirs = false
-    }
-    // ADR-UTXO-009: the settlement chain's parameterized validators are derived
-    // from the packaged plan and must be present before the L1 bootstrap runs.
-    from(new File(showcaseSources, 'config/settlement')) {
-        into 'yano/config/settlement'
-    }
-    from(new File(showcaseSources, 'config/application-appchain.yml')) {
-        into 'yano/config'
-    }
-    from(devnetProfileOverlay) {
-        into 'yano/config'
+    // The templates `yano.sh appchain new --from` seals, and the settlement chain's executor settings and
+    // parameterized validators (a pure function of the packaged plan, present before the L1 bootstrap runs).
+    from(new File(showcaseSources, 'config')) {
+        into 'config'
+        include '*.template.yaml', 'settlement/**'
     }
 }
 

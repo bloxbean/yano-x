@@ -29,7 +29,7 @@ public final class DocumentReviewPreset {
 
     public static CompositeStateMachine create(AppStateMachineContext context) {
         Objects.requireNonNull(context, "context");
-        GovernedGenesisV1 genesis = ShowcaseAuthenticatedMapConfig.documentReviewGenesis(
+        GovernedGenesisV1 genesis = ShowcaseGovernedGenesis.documentReviewGenesis(
                 context.chainId());
         byte[] applicationId = Blake2bUtil.blake2bHash256(genesis.encode());
         String configurationId = PROFILE_ID + ":" + HexFormat.of().formatHex(applicationId);

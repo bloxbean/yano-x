@@ -2,7 +2,7 @@
 # =============================================================================
 # Yano app-chain parallel load / throughput test.
 #
-# Fires many messages concurrently at a running cluster (see ./cluster.sh) and
+# Fires many messages concurrently at the running showcase nodes (./showcase.sh up) and
 # reports both SUBMIT throughput (how fast the API accepts) and FINALIZATION
 # throughput (how fast messages actually land in certified blocks — the real
 # chain throughput), plus backpressure drops.
@@ -23,7 +23,7 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-HTTP_BASE="${YANO_CLUSTER_HTTP_BASE:-7070}"
+HTTP_BASE="${YANO_SHOWCASE_HTTP_BASE:-7070}"
 
 CHAIN=""; TOTAL=1000; CONC=20; SIZE=0; TOPIC="load"; TARGET="0"   # node index or "spread"
 KV=0                                                              # --kv: CBOR PUT commands
@@ -150,7 +150,7 @@ if ! ready 0; then
   if [ -n "$REMOTE_BASE" ]; then
     die "remote node is not ready or cannot be reached: ${REMOTE_BASE%/}"
   fi
-  die "no running cluster on http $(http_port 0) — start one with ./cluster.sh start"
+  die "no running node on http $(http_port 0) — start the showcase with ./showcase.sh up"
 fi
 NODES=()   # bash 3.2 (macOS) has no mapfile — read the list into an array
 if [ -n "$REMOTE_BASE" ]; then
