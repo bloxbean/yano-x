@@ -32,7 +32,7 @@ final class ApproveCommand {
 
     int run(String[] arguments) throws IOException {
         Args args = new Args(arguments, Set.of("remove", "node-dir", "timeout", "app"), Set.of("heartbeat", "yes"));
-        node = new NodeDir(args.path("node-dir", Path.of(NodeDir.DEFAULT)));
+        node = new NodeDir(args.path("node-dir", NodeDir.defaultDir()));
         String remove = args.value("remove");
         String cardFile = remove == null ? args.positional(0) : null;
         String appName = args.value("app") != null ? args.value("app") : remove == null ? args.positional(1)

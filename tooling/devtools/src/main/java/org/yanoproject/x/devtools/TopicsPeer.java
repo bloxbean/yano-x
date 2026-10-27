@@ -152,6 +152,11 @@ final class TopicsPeer {
                     // HTTP status remains enough to identify the failed operation.
                 }
                 if (code != null) throw new Refusal(code);
+                if (response.statusCode() == 404) {
+                    throw new IOException(path.startsWith("/status") ? "the node does not run chain " + chain
+                            : path.startsWith("/topics/proof") ? "the node has no proof at that height (it is beyond "
+                            + "the chain's tip, or older than the node keeps)" : "the node has no such topic resource");
+                }
                 throw new IOException("topic request returned HTTP " + response.statusCode());
             }
             JsonNode result = TopicPlan.JSON.readTree(bytes);

@@ -18,6 +18,7 @@ import org.yanoproject.x.client.TopicAuthoring;
 import org.yanoproject.x.composite.contracts.BindingReceiptV1;
 import org.yanoproject.x.composite.contracts.CompositeCommitmentV1;
 import org.yanoproject.x.devtools.CddlSchemaCompiler;
+import org.yanoproject.x.devtools.TopicsCli;
 import org.yanoproject.x.stdlib.contracts.BalancesContract;
 
 import java.io.IOException;
@@ -417,6 +418,12 @@ public final class TopicPolicyAcceptance {
                     "--yes").contains("already in effect"), "a vote after activation was not a no-op");
         }
         check(head(namespace) == 1, "the namespace was changed more than once");
+        // The tally holds no fresh approval of this command: the re-runs cast nothing a later quorum could apply.
+        String hash = TopicsCli.commandHash(TopicsCli.votes(work.resolve("arena.plan.json")).getFirst());
+        JsonNode tally = get(0, "/state/entry/" + Hex.encode(TopicKeys.governance()));
+        check(!"PRESENT".equals(tally.path("presence").asText()) || TopicWireCodec.decodeGovernancePending(
+                Hex.decode(tally.path("valueHex").asText())).stream()
+                .noneMatch(approval -> approval.commandHash().equals(hash)), "a repeated vote opened a new tally");
         System.out.println("PASS: genesis-enabled topics from the draft, member reconfiguration and CLI namespace "
                 + "votes");
     }

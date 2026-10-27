@@ -36,7 +36,7 @@ final class JoinCommand {
         Path file = Path.of(args.positional(0));
         SealedApp app = SealedApp.parse(NodeDir.read(file));
         SealedApp.Genesis genesis = app.genesis();
-        NodeDir node = new NodeDir(args.path("node-dir", Path.of(NodeDir.DEFAULT)));
+        NodeDir node = new NodeDir(args.path("node-dir", NodeDir.defaultDir()));
         NodeDir.Identity identity = node.requireIdentity();
         String key = node.publicKey();
 

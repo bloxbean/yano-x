@@ -68,7 +68,7 @@ final class RequestCommand {
             expected = draft.operators();
         }
 
-        NodeDir node = new NodeDir(args.path("node-dir", Path.of(NodeDir.DEFAULT)));
+        NodeDir node = new NodeDir(args.path("node-dir", NodeDir.defaultDir()));
         NodeDir.Identity identity = node.identity();
         if (identity == null) {
             String name = args.value("name") != null ? args.value("name")

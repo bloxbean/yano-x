@@ -340,6 +340,17 @@ class TopicsCliTest {
             Path top = temporary.resolve("top.yaml");
             assertThat(guided(defaults, "init", "arena/", "--output", top.toString()).out)
                     .contains("by registrar signatures (~registrars)");
+            // An existing namespace gets an update by its own owners, not a second creation.
+            Path existing = temporary.resolve("existing.yaml");
+            Result update = guided(defaults, "init", "games/", "--output", existing.toString());
+            assertThat(update.out).contains("update games/ by the owners of games/");
+            JsonNode updateCommand = TopicPlan.read(Files.readAllBytes(existing), true).path("commands").get(0);
+            assertThat(updateCommand.path("operation").asText()).isEqualTo("update");
+            assertThat(updateCommand.has("owners")).isFalse();
+            // Without a node directory or peer, nothing was checked, and it says so.
+            Path offline = temporary.resolve("offline.yaml");
+            assertThat(guided(new TopicsCli.Defaults(null, null, null, true), "init", "arena/", "--output",
+                    offline.toString()).out).contains("The chain was not read");
             Result key = guided(defaults, "public-key", owner.toString());
             assertThat(key.out.strip()).isEqualTo(publicKey(7));
             assertThat(key.out + under.out).doesNotContain(Hex.encode(seed(7)));
@@ -377,7 +388,7 @@ class TopicsCliTest {
         entry.accept(new TopicWire.EntryRecord("arena/", null, 1, 1, 0));
         byte[] queued = TopicKeys.queued("arena/", 1);
         state.put(Hex.encode(queued), TopicWireCodec.encodeQueuedRevision(new TopicWire.QueuedRevision(1, 12,
-                "governance", 0, content, "77".repeat(32))));
+                "~governance", 0, content, "77".repeat(32))));
         assertThat(TopicsCli.progress(vote, member, reader, 20, 600)).isEqualTo(TopicsCli.Progress.DECIDED);
         // Another change queued under the same revision, or a cancelled one, is not this vote's.
         state.put(Hex.encode(queued), TopicWireCodec.encodeQueuedRevision(new TopicWire.QueuedRevision(1, 12,
@@ -397,6 +408,18 @@ class TopicsCliTest {
         state.remove(Hex.encode(TopicKeys.entry("arena/")));
         state.put(Hex.encode(TopicKeys.freed("arena/")), java.nio.ByteBuffer.allocate(8).putLong(1).array());
         assertThat(TopicsCli.progress(vote, member, reader, 20, 600)).isEqualTo(TopicsCli.Progress.SUPERSEDED);
+    }
+
+    @Test
+    void eachSubcommandHasItsOwnHelpAndVotesDescribeWhatTheyDo() throws Exception {
+        assertThat(run("topics", "init", "--help").out).contains("Usage: yano.sh appchain topics init")
+                .doesNotContain("Usage: yano.sh appchain topics sign");
+        assertThat(run("topics", "--help").out).contains("init", "plan", "sign", "submit");
+        Path planFile = write("described.plan.json", TopicPlan.compile(TopicPlanFixtures.document("arena/", "create",
+                "governance"), TopicPlanFixtures.snapshot()).toString());
+        List<String> details = TopicsCli.describe(TopicsCli.votes(planFile).getFirst());
+        assertThat(details.getFirst()).isEqualTo("create arena/");
+        assertThat(String.join("\n", details)).contains("owners:", "writers:", "payload schema:");
     }
 
     @Test

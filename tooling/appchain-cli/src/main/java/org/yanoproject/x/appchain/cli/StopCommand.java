@@ -18,7 +18,7 @@ final class StopCommand {
     int run(String[] arguments) {
         Args args = new Args(arguments, Set.of("node-dir"), Set.of("yes"));
         args.maxPositionals(0, USAGE);
-        NodeDir node = new NodeDir(args.path("node-dir", Path.of(NodeDir.DEFAULT)));
+        NodeDir node = new NodeDir(args.path("node-dir", NodeDir.defaultDir()));
         stop(node);
         return 0;
     }
