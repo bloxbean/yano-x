@@ -43,7 +43,8 @@ Goals:
 4. An expert can script every step.
 
 Non-goals: no runtime, consensus, wire or storage change; no VM provisioning (ADR-039 stays);
-no change to `yano.sh appchain cluster`, the existing single-host demo launcher.
+no change to `yano.sh appchain cluster`, the existing single-host demo launcher, in this ADR. Moving
+its users to the new commands and removing it is a decided follow-up (§5).
 
 ## 3. The user experience
 
@@ -328,12 +329,14 @@ Yano.
 | `recipes`, `capabilities`, `bindings`, `state`, `role`, `plugin`, `metadata`, `config` | Kept. A role-approval chain's bootstrap plan template, once written by `render`, is now written by `seal` beside the sealed file |
 | Studio blueprint page | Removed in Phase A |
 | Studio binding editor | Kept until Phase C absorbs it |
+| `cluster` (the showcase's launcher) | Kept, but not listed in help, until the follow-up in §5 removes it |
 
 For ADR-055: Phase 2's first need, deploying bindings without `init`, is met by the draft
 referencing a bindings document; its acceptance gates move to `appchain try`. Phase 3's Studio
 removal happens in two steps, as in the table. Nothing has been publicly released, so no aliases
-are kept. Yano's `yano.sh` help text still names `init`, `render` and `doctor`; updating it is a
-small follow-up in the Yano repository, outside this change.
+are kept. Yano's `yano.sh` prints its own `appchain` command list, which still names `init`, `render`
+and `doctor`. A change in the Yano repository makes `appchain help` print the installed CLI's help
+instead, so the list cannot go stale again.
 
 ### D10 — Anchoring is optional, after start, and one command
 
@@ -417,10 +420,18 @@ and `status` shows the sync progress.
 | Phase | Delivers | Done when |
 |---|---|---|
 | **A1** | `appchain-formats`; `new`, `request`, `seal`, `inspect` | Three cards from three node directories seal into one file whose fingerprint every directory reproduces; bad, duplicate and foreign cards are refused |
-| **A2** | `join`, `start`, `stop`, `status`, `try`, `approve`, `anchor`; old verbs and the blueprint page removed; docs and tutorials rewritten | A new user finishes `try` using only printed instructions; a three-node application (separate node directories and ports) goes live, grows to four members with `approve`, anchors on devnet with one command and survives a restart |
+| **A2** | `join`, `start`, `stop`, `status`, `try` (taking `new`'s `--chain` and `--answer`), `approve`, `anchor`; old verbs and the blueprint page removed; docs and tutorials rewritten | A new user finishes `try` using only printed instructions; a three-node application (separate node directories and ports) goes live, grows to four members with `approve`, anchors on devnet with one command and survives a restart |
 | **A3** | Self-contained Yano X edition per OS (JVM ZIP plus a jlink runtime) | On a machine without Java, the edition runs `try`, creates, seals and joins an application, and runs a node |
 | **B** | `invite --serve`, link-based `request` | Three operators join from links with no manual file transfer; a wrong invite code or a reused link is refused |
 | **C** | `appchain ui` with the binding editor folded in; Studio removed | A user creates, seals and joins in the browser and gets byte-identical files to the CLI |
+
+**Follow-up, decided (r12), not scheduled:** every app-chain setup goes through the new commands.
+The showcase moves to a showcase draft that `new`/`seal`/`join`/`start` (or `try` on one machine)
+set up, and so do the tutorials, site pages, release smoke test, evidence harness and launcher test
+scripts that still call `cluster`. Then `scripts/appchain-cluster/` is removed. Showcase state
+machines that are not recipes yet (balances, showcase-composite, document-review, cardano-history)
+need a recipe or the `custom-plugin` recipe first. The retained showcase deployment gets a
+migration note and is never reset.
 
 Later, not decided here: D (a git repository as the shared draft, with CI validating member cards)
 and E (publishing the chain fingerprint and member cards on Cardano).
@@ -523,3 +534,6 @@ and E (publishing the chain fingerprint and member cards on Cardano).
 - **r11** (2026-10-27; implementation review): D2 says the node, not `join`, checks derived genesis ids,
   that a node directory keeps one key, and adds the roster binding and literal-value rules found by the
   implementation reviews.
+- **r12** (2026-10-27; maintainer decisions): `try` takes `new`'s `--chain` and `--answer` (A2); Yano's
+  `appchain` help comes from the installed CLI (D9); moving the showcase and every other `cluster` user
+  to the new commands, then removing `cluster`, is a decided follow-up (§2, D9, §5).
