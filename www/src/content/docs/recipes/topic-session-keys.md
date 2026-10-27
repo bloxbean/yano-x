@@ -1,35 +1,50 @@
 ---
 title: "Protect a topic and give users session keys"
-description: "Use a fresh devnet with the pinned Yano X distribution. The host must have the topic registry enabled and governed membership configured. Its default…"
+description: "Topic policies are switched on per chain when the application is sealed: add a topics: block to the chain in the draft (./yano.sh appchain new --topics…"
 editUrl: "https://github.com/bloxbean/yano-x/edit/main/docs/appchain/TOPIC_SESSION_KEYS.md"
 ---
-Use a fresh devnet with the pinned Yano X distribution. The host must have the
-topic registry enabled and governed membership configured. Its default creation
-path is member governance; registrars and open claims require explicit genesis
-settings. This guide uses governance for the top-level namespace and owner
-commands for its children. See [the policy model](/concepts/topic-policies/).
+Topic policies are switched on per chain when the application is sealed: add a
+`topics:` block to the chain in the draft (`./yano.sh appchain new --topics
+games=members`, or answer the wizard's question), with governed membership.
+`create` chooses who creates top-level namespaces: the members by a vote
+(`members`), named operators or keys (`registrars`), or anyone first come
+(`anyone`). See [configure an application](/deployment/configure/) and
+[the policy model](/concepts/topic-policies/). This guide creates a top-level namespace
+by member vote and its children with owner signatures.
 
-## Prepare and sign a policy
+Run the commands in your node directory (`./yano-node`, or pass `--node-dir`).
+They use your node, its API key and, when the application has one chain, that
+chain. Elsewhere, add `--peer <url> --chain <id>`, and `--api-key-env NAME` to
+read a node API credential from an environment variable.
+
+## Create a namespace by member vote
 
 ```bash
-./yano.sh appchain topics init games/ --output topics.yaml
+./yano.sh appchain topics init games/
 ```
 
-Edit the chain ID and public owner keys in this governance creation document.
-Keep the generated nonce fixed for this plan:
+Fill in the public owner keys in `topics.yaml`, keep its generated nonce, then:
 
 ```bash
-./yano.sh appchain topics plan --file topics.yaml --peer http://localhost:7170 \
-  --output namespace-plan.json
-./yano.sh appchain topics submit --plan namespace-plan.json --peer http://localhost:7170
+./yano.sh appchain topics plan topics.yaml
 ```
 
-The second command prints the command bytes and member governance endpoint.
-Members submit that command through their enabled governance path. Wait for
-`games/` to activate before planning its children. This is a governance action;
-the printed command does not create the namespace by itself.
+`plan` checks the change against the chain, writes `topics.plan.json`, and
+says `create games/: a member vote`. Send the plan to every operator. Each one
+runs, in their own node directory:
 
-Then replace `topics.yaml` with a protected-child `Topics` document:
+```bash
+./yano.sh appchain topics approve topics.plan.json
+```
+
+Each vote goes through that operator's own node; no tool votes on a member's
+behalf. `approve` waits until enough operators have voted and the activation
+lag has passed, then prints `create games/ is in effect`. It is safe to run
+again; `--no-wait` returns after voting.
+
+## Change a namespace with owner signatures
+
+Write the change inside `games/` as a `Topics` document:
 
 ```yaml
 schemaVersion: 1
@@ -56,42 +71,32 @@ commands:
 
 Replace the public keys, choose a fresh 16-byte nonce and a future Unix
 millisecond `notAfter` within the chain's command window. The schema above is
-an illustrative ride payload, not the full Neon Rush game protocol.
+an illustrative ride payload, not the full Neon Rush game protocol. Studio's
+**Topics** page writes the same document from a form.
 
 ```bash
-./yano.sh appchain topics plan --file topics.yaml --peer http://localhost:7170 \
-  --output plan.json
-./yano.sh appchain topics sign --plan plan.json --key-file owner.seed \
-  --output signed-plan.json
-./yano.sh appchain topics submit --plan signed-plan.json --peer http://localhost:7170
+./yano.sh appchain topics plan neon-rush.yaml
+./yano.sh appchain topics sign neon-rush.plan.json --key-file owner.seed
+./yano.sh appchain topics submit neon-rush.signed.json
 ```
 
-Seed files contain a 32-byte Ed25519 seed as 64 lowercase hex characters.
-Keep them outside served directories and restrict file permissions. Pass only
-the file path to the CLI. For k-of-n owners, pass the signed plan to the next
-owner and repeat `sign`; every signer verifies the same immutable statement.
-`--api-key-env NAME` reads an optional node API credential from that environment
-variable without putting its value in command arguments.
+`plan` names the keys that must sign. Seed files contain a 32-byte Ed25519
+seed as 64 lowercase hex characters. Keep them outside served directories and
+restrict file permissions; pass only the file path. For k-of-n owners, send
+`neon-rush.signed.json` to the next owner, who runs `sign` on it; every signer
+verifies the same immutable statement, and `sign` says when enough have
+signed. A changed generation, head or authority, or an expired command, needs
+a fresh plan and new signatures. Queued owner changes are inspected after
+activation rather than predicting an uncertain policy. `--json` prints the
+machine-readable result of any of these commands instead.
 
-Governance plans export the command for members to submit through their
-privileged `admin/topics/governance` route; the tool does not impersonate a
-member. Wait for the threshold and activation height before writing. A changed
-generation, head or authority, or an expired command, requires a fresh plan and
-new signatures. Queued owner changes are inspected after activation rather
-than predicting an uncertain policy.
-
-Studio's **Topics** page imports the same unsigned plan, edits `topics.yaml`,
-and exports matching command bytes. It never asks for an owner or issuer
-private key. The resolver and entry inspector keep effective-policy proofs and
-entry-only proofs distinct.
-
-To revoke one credential, select **Revoke delegation**, paste its public
-`delegationHex`, and use its exact scope as the target. The authority is an
+To revoke one credential, write a `revoke` command with its public
+`delegationHex` and use its exact scope as the target. The authority is an
 owner namespace or `~issuer`; an issuer must still be an effective delegator
-for that scope. An active owner record can revoke after retirement. Studio
-checks the credential's signature, chain and generation before exporting the
-unsigned plan for external signing. Revocation does not change the entry's
-policy revision, so its plan has no policy-activation preview.
+for that scope, and an active owner record can revoke after retirement. `plan`
+checks the credential's signature, chain and generation. Revocation does not
+change the entry's policy revision, so its plan has no policy-activation
+preview.
 
 ## Use a browser session
 
@@ -130,10 +135,8 @@ node process.
 ## Diagnose and verify
 
 ```bash
-./yano.sh appchain topics resolve games/neon-rush/rides \
-  --chain games --peer http://localhost:7170 --height 42
-./yano.sh appchain topics doctor --bindings composite.yaml \
-  --chain games --peer http://localhost:7170
+./yano.sh appchain topics resolve games/neon-rush/rides --height 42
+./yano.sh appchain topics doctor --bindings composite.yaml
 ./yano.sh appchain topics verify <messageId> \
   --bundle authorship.json --trusted-block trusted-block.json
 ```

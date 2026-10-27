@@ -2,7 +2,9 @@
 
 A topic registry gives an app chain a committed policy for who may write each
 topic. Yano owns registry state, signature verification, activation and replay.
-Yano X supplies authoring tools, clients and composite admission rules.
+Yano X supplies authoring tools, clients and composite admission rules. A chain
+gets a registry from its draft's `topics:` block, which is sealed into its
+genesis; see [configure an application](deployment/configure.md).
 
 A namespace ends in `/`. `games/` covers `games/neon-rush/rides`, and the nearer
 `games/neon-rush/` entry can override individual policy fields. An omitted field

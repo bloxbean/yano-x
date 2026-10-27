@@ -76,6 +76,10 @@ CBOR:
 | `topics delegate` | issues a delegation for a session key (for testing and small deployments) |
 | `topics verify <messageId>` | offline authorship proof: message proof + frame + generation id + effective-policy proof for its topic and height; refuses an entry-only proof |
 
+In an operator's node directory (ADR-056 D14) the commands default to that node, its API key and
+the application's only chain, and `topics approve <plan>` casts the member vote of a governance plan
+through that node; chains enable topics from the draft's `topics:` block at seal.
+
 Owner keys can be split across machines: `plan` produces an unsigned command file that each owner
 signs until the threshold is met (k-of-n). The command names the head revision it expects and a
 `notAfter`, so a plan that waits too long, or races another change, fails with
@@ -204,8 +208,12 @@ rules:
   revision history. The merged host provides the entry inspector with generic entry-state proofs;
   the topic resolver requests a `topic-policy-v1` effective-policy proof for a topic at a height
   (core D15). The UI explicitly distinguishes their proof subjects and peer-response trust.
-- A policy editor that produces the same `topics.yaml` and plan as the CLI. Studio never holds or
+- A policy editor that produces the same `topics.yaml` as the CLI. Studio never holds or
   requests private keys; it exports unsigned commands for the CLI or an external signer.
+- *Amended by ADR-056 D14:* Studio keeps only the editor, which writes `topics.yaml` and lists the
+  CLI steps. The namespace tree, inspector, plan preview and composite checks moved to
+  `topics resolve`, `plan` and `doctor`, so one implementation computes what owners and members
+  sign.
 
 ### X7 — Client libraries for frames and delegations
 
@@ -344,3 +352,5 @@ inputs), or tell a bot from a human.
   permitting structural type checks without consulting the mutable registry.
   Adversarial authoring review also bounded Java/browser CDDL source and expansion recursion;
   canonical schema IR and member evaluation are unchanged by these tool-only guards.
+- r7 (2026-10-27; stacked under ADR-056 r13): X3 commands run from node directories with
+  `topics approve` for member votes; X6 Studio keeps the `topics.yaml` editor only (ADR-056 D14).

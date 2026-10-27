@@ -415,6 +415,29 @@ and `status` shows the sync progress.
 - `request --key <file>` uses an existing key.
 - Exit codes: `0` success, `1` failure, `2` usage error, `3` not ready yet or timed out.
 
+### D14 — Topic policies are chosen in the draft and voted from node directories
+
+ADR app-layer/038 adds topic policies (namespaces, writer policies, session keys). They fit the
+ceremony like any other genesis choice:
+
+- A chain's `topics:` block in the draft says who creates top-level namespaces (`members` by vote,
+  named `registrars`, or `anyone` first come), what happens to unregistered topics (`open` by
+  default; `reject` makes an idle chain unable to produce blocks for activations), and optional
+  limits. `seal` turns it into the host's `topics.*` genesis seed, with registrar operators as
+  their member keys, and checks the whole seed with the host's parser. It needs governed
+  membership. `new --topics` and one wizard question write it; `inspect`, `join` and `status` show
+  it in words.
+- `yano.sh appchain topics` runs from a node directory like the other verbs: the node, its API key
+  and the application's only chain are the defaults, files get fixed names
+  (`<name>.plan.json`, `<name>.signed.json`) and every step ends with `Next:`. A node's key is
+  never sent to a peer named on the command line.
+- `topics approve <plan>` is an operator's member vote on a governance plan, cast through their own
+  node, like `approve` for members: it checks the plan's generation, waits for activation, offers
+  heartbeats on chains that accept them, and is safe to repeat.
+- Studio's Topics page is a form that writes `topics.yaml` and lists the CLI steps. It no longer
+  compiles plans, reads chains, compiles CDDL or checks composites: those duplicated `topics plan`,
+  `resolve` and `doctor`, and the CLI re-validates every plan anyway.
+
 ## 5. Phases
 
 | Phase | Delivers | Done when |
@@ -537,3 +560,6 @@ and E (publishing the chain fingerprint and member cards on Cardano).
 - **r12** (2026-10-27; maintainer decisions): `try` takes `new`'s `--chain` and `--answer` (A2); Yano's
   `appchain` help comes from the installed CLI (D9); moving the showcase and every other `cluster` user
   to the new commands, then removing `cluster`, is a decided follow-up (§2, D9, §5).
+- **r13** (2026-10-27; stacked on ADR app-layer/038): D14 brings topic policies into the draft, seal
+  and the node-directory commands, adds `topics approve`, and narrows Studio's Topics page to a
+  `topics.yaml` form. Devnet chains seal an anchor validity inside the devnet's forecast horizon.

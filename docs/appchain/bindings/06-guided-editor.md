@@ -223,12 +223,11 @@ fixture senders are not two consensus members or real business actors.
 
 ## 7. Composite files and layout
 
-The import button opens a chain's inline `composite` from a setup draft
-(`<app>.draft.yaml`, with `chains` at the top level) or from an older file
-with a `spec.chains` list. Downloading the file again replaces only that
-composite, then re-reads the file to prove that every other chain and field is
-unchanged; otherwise it refuses, and you can download the composite document
-alone. An unedited file downloads byte for byte. A draft chain that names its
+**Import a setup draft** opens a chain's inline `composite` from a setup draft
+(`<app>.draft.yaml`). Downloading it again (as `app.draft.yaml`; rename it back)
+replaces only that composite, then re-reads the file to prove that every other
+chain and field is unchanged; otherwise it refuses, and you can download the
+composite document alone. An unedited file downloads byte for byte. A draft chain that names its
 composite with `bindings: <file>` has no inline composite to open: open that
 bindings file directly instead.
 

@@ -120,11 +120,13 @@ artifact identity and that every runtime plugin has a bundle publication.
 | `:examples:showcase-client` | `yano-x-showcase-client` | — | [examples/showcase-client](https://github.com/bloxbean/yano-x/blob/main/examples/showcase-client) |
 | `:ledgers:eutxo:demo` | `yano-x-eutxo-demo` | — | [ledgers/eutxo/demo](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/demo) |
 
-### `tool` (4)
+### `tool` (6)
 
 | Gradle module | Artifact id | Plugin bundle id | Source |
 |---|---|---|---|
+| `:tooling:appchain-formats` | `yano-x-appchain-formats` | — | [tooling/appchain-formats](https://github.com/bloxbean/yano-x/blob/main/tooling/appchain-formats) |
 | `:tooling:devtools` | `yano-x-devtools` | — | [tooling/devtools](https://github.com/bloxbean/yano-x/blob/main/tooling/devtools) |
+| `:tooling:appchain-cli` | `yano-x-appchain-cli` | — | [tooling/appchain-cli](https://github.com/bloxbean/yano-x/blob/main/tooling/appchain-cli) |
 | `:tooling:deployment` | `yano-x-deployment` | — | [tooling/deployment](https://github.com/bloxbean/yano-x/blob/main/tooling/deployment) |
 | `:tooling:studio` | `yano-x-studio` | — | [tooling/studio](https://github.com/bloxbean/yano-x/blob/main/tooling/studio) |
 | `:products:cardano-history:cli` | `yano-x-cardano-history-cli` | — | [products/cardano-history/cli](https://github.com/bloxbean/yano-x/blob/main/products/cardano-history/cli) |
