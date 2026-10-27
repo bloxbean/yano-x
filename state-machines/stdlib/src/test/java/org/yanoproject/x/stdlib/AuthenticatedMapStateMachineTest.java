@@ -20,7 +20,7 @@ import org.yanoproject.api.appchain.state.StateCommitmentProfiles;
 import org.yanoproject.api.appchain.state.StateCommitmentIdentity;
 import org.yanoproject.appchain.config.AppChainEffectsConfig;
 import org.yanoproject.x.stdlib.contracts.AuthenticatedMapContract;
-import org.yanoproject.x.stdlib.contracts.AuthenticatedMapSchema;
+import org.yanoproject.api.appchain.schema.CborSchema;
 import org.yanoproject.x.composite.CompositeStateMachine;
 import org.yanoproject.x.composite.CompositeStateKeys;
 import org.yanoproject.x.stdlib.contracts.AuthenticatedMapAuthorizationContract;
@@ -30,6 +30,8 @@ import org.junit.jupiter.api.Test;
 import java.nio.charset.StandardCharsets;
 import java.math.BigInteger;
 import java.util.Arrays;
+import java.util.HexFormat;
+import java.util.Random;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -41,6 +43,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class AuthenticatedMapStateMachineTest {
     private static final String CHAIN_ID = "authenticated-map-unit";
+    // The pinned host harness derives its immutable member from this deterministic corpus seed.
+    private static String conformanceMember() {
+        byte[] member = new byte[32];
+        new Random(42L ^ 0x5EED).nextBytes(member);
+        return HexFormat.of().formatHex(member);
+    }
+
     private static final byte[] OWNER = repeated(0x11);
     private static final byte[] OTHER = repeated(0x22);
 
@@ -231,7 +240,7 @@ class AuthenticatedMapStateMachineTest {
 
     @Test
     void declarativeSchemaRejectsWithTypedReceiptAndKeepsBatchesAtomic() {
-        AuthenticatedMapSchema.Schema schema = quantitySchema(10);
+        CborSchema.Schema schema = quantitySchema(10);
         AuthenticatedMapContract.ValidatorDescriptor validator =
                 AuthenticatedMapContract.ValidatorDescriptor.schema(
                         "product-schema", schema.definition());
@@ -388,7 +397,7 @@ class AuthenticatedMapStateMachineTest {
     @Test
     void realMpfSchemaReplayIsIdenticalAcrossMembersRestartSnapshotAndCatchUp() {
         String chainId = "conformance-chain";
-        String member = "11".repeat(32);
+        String member = conformanceMember();
         AppChainConfig config = AppChainConfig.builder(chainId)
                 .signingKeyHex("22".repeat(32))
                 .memberKeysHex(Set.of(member))
@@ -396,12 +405,12 @@ class AuthenticatedMapStateMachineTest {
                 .maxBlockMessages(2)
                 .stateMachineId(AuthenticatedMapStateMachine.ID)
                 .build();
-        AuthenticatedMapSchema.Schema replaySchema = AuthenticatedMapSchema.of(
-                new AuthenticatedMapSchema.ArrayNode(List.of(
-                        AuthenticatedMapSchema.Occurrence.required(
-                                AuthenticatedMapSchema.IntegerNode.uint()),
-                        AuthenticatedMapSchema.Occurrence.required(
-                                AuthenticatedMapSchema.IntegerNode.uint()))));
+        CborSchema.Schema replaySchema = CborSchema.of(
+                new CborSchema.ArrayNode(List.of(
+                        CborSchema.Occurrence.required(
+                                CborSchema.IntegerNode.uint()),
+                        CborSchema.Occurrence.required(
+                                CborSchema.IntegerNode.uint()))));
         AuthenticatedMapContract.ValidatorDescriptor replayValidator =
                 AuthenticatedMapContract.ValidatorDescriptor.schema(
                         "replay-schema", replaySchema.definition());
@@ -415,6 +424,7 @@ class AuthenticatedMapStateMachineTest {
                         new StdlibStateMachineProviders.AuthenticatedMapProvider())
                 .settings(AuthenticatedMapGenesisFactory.settings(genesis))
                 .chainId(chainId)
+                .seed(42)
                 .blocks(12)
                 .messagesPerBlock(2)
                 .runs(3)
@@ -440,7 +450,7 @@ class AuthenticatedMapStateMachineTest {
     @Test
     void realClassicJmtReplayIsIdenticalAcrossMembersRestartSnapshotAndCatchUp() {
         String chainId = "classic-jmt-conformance-chain";
-        String member = "11".repeat(32);
+        String member = conformanceMember();
         AppChainConfig config = AppChainConfig.builder(chainId)
                 .signingKeyHex("22".repeat(32))
                 .memberKeysHex(Set.of(member))
@@ -457,6 +467,7 @@ class AuthenticatedMapStateMachineTest {
                         new StdlibStateMachineProviders.AuthenticatedMapProvider())
                 .settings(AuthenticatedMapGenesisFactory.settings(genesis))
                 .chainId(chainId)
+                .seed(42)
                 .blocks(16)
                 .messagesPerBlock(2)
                 .runs(3)
@@ -676,7 +687,7 @@ class AuthenticatedMapStateMachineTest {
     void governedWorkloadReplayIsIdenticalAcrossRestartSnapshotAndRollbackOnBothProfiles() {
         for (boolean mpf : new boolean[]{true, false}) {
             String chainId = (mpf ? "mpf" : "jmt") + "-governed-conformance";
-            String member = "11".repeat(32);
+            String member = conformanceMember();
             AppChainConfig config = AppChainConfig.builder(chainId)
                     .signingKeyHex("22".repeat(32))
                     .memberKeysHex(Set.of(member))
@@ -733,6 +744,7 @@ class AuthenticatedMapStateMachineTest {
                             new StdlibStateMachineProviders.AuthenticatedMapProvider())
                     .settings(AuthenticatedMapGenesisFactory.settings(genesis))
                     .chainId(chainId)
+                    .seed(42)
                     .blocks(12)
                     .messagesPerBlock(2)
                     .runs(3)
@@ -831,11 +843,11 @@ class AuthenticatedMapStateMachineTest {
                 new byte[]{(byte) 0xa0});
     }
 
-    private static AuthenticatedMapSchema.Schema quantitySchema(int maximum) {
-        return AuthenticatedMapSchema.of(new AuthenticatedMapSchema.MapNode(List.of(
-                new AuthenticatedMapSchema.MapField("qty", true,
-                        new AuthenticatedMapSchema.IntegerNode(
-                                AuthenticatedMapSchema.INTEGER_UINT,
+    private static CborSchema.Schema quantitySchema(int maximum) {
+        return CborSchema.of(new CborSchema.MapNode(List.of(
+                new CborSchema.MapField("qty", true,
+                        new CborSchema.IntegerNode(
+                                CborSchema.INTEGER_UINT,
                                 BigInteger.ZERO, BigInteger.valueOf(maximum))))));
     }
 

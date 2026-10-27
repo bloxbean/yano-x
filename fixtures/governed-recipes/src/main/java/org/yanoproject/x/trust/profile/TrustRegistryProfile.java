@@ -4,7 +4,7 @@ import org.yanoproject.x.roles.contracts.ApprovalPolicyV1;
 import org.yanoproject.x.roles.contracts.DirectRolePolicyV1;
 import org.yanoproject.x.roles.contracts.RecordStatus;
 import org.yanoproject.x.stdlib.contracts.AuthenticatedMapContract;
-import org.yanoproject.x.stdlib.contracts.AuthenticatedMapSchema;
+import org.yanoproject.api.appchain.schema.CborSchema;
 
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
@@ -234,58 +234,58 @@ public final class TrustRegistryProfile {
     }
 
     static byte[] subjectSchema() {
-        return AuthenticatedMapSchema.of(new AuthenticatedMapSchema.ArrayNode(List.of(
-                AuthenticatedMapSchema.Occurrence.required(versionNode()),
-                AuthenticatedMapSchema.Occurrence.required(
-                        new AuthenticatedMapSchema.TextNode(1, 63, null)),
-                AuthenticatedMapSchema.Occurrence.required(
-                        new AuthenticatedMapSchema.TextNode(1, 64, null)),
-                AuthenticatedMapSchema.Occurrence.required(
-                        new AuthenticatedMapSchema.BytesNode(32, 32, null))))).definition();
+        return CborSchema.of(new CborSchema.ArrayNode(List.of(
+                CborSchema.Occurrence.required(versionNode()),
+                CborSchema.Occurrence.required(
+                        new CborSchema.TextNode(1, 63, null)),
+                CborSchema.Occurrence.required(
+                        new CborSchema.TextNode(1, 64, null)),
+                CborSchema.Occurrence.required(
+                        new CborSchema.BytesNode(32, 32, null))))).definition();
     }
 
     static byte[] statusSchema() {
-        return AuthenticatedMapSchema.of(new AuthenticatedMapSchema.ArrayNode(List.of(
-                AuthenticatedMapSchema.Occurrence.required(versionNode()),
-                AuthenticatedMapSchema.Occurrence.required(unsigned(0, 1)),
-                AuthenticatedMapSchema.Occurrence.required(
+        return CborSchema.of(new CborSchema.ArrayNode(List.of(
+                CborSchema.Occurrence.required(versionNode()),
+                CborSchema.Occurrence.required(unsigned(0, 1)),
+                CborSchema.Occurrence.required(
                         unsigned(0, MAX_REASON_CODE))))).definition();
     }
 
     static byte[] statusListSchema() {
-        return AuthenticatedMapSchema.of(new AuthenticatedMapSchema.ArrayNode(List.of(
-                AuthenticatedMapSchema.Occurrence.required(versionNode()),
-                AuthenticatedMapSchema.Occurrence.required(
-                        new AuthenticatedMapSchema.TextNode(1, 32, null)),
-                AuthenticatedMapSchema.Occurrence.required(
+        return CborSchema.of(new CborSchema.ArrayNode(List.of(
+                CborSchema.Occurrence.required(versionNode()),
+                CborSchema.Occurrence.required(
+                        new CborSchema.TextNode(1, 32, null)),
+                CborSchema.Occurrence.required(
                         unsigned(MIN_BIT_LENGTH, MAX_BIT_LENGTH)),
-                AuthenticatedMapSchema.Occurrence.required(
-                        new AuthenticatedMapSchema.BytesNode(32, 32, null)),
-                AuthenticatedMapSchema.Occurrence.required(
+                CborSchema.Occurrence.required(
+                        new CborSchema.BytesNode(32, 32, null)),
+                CborSchema.Occurrence.required(
                         unsigned(0, MAX_HEIGHT))))).definition();
     }
 
     static byte[] issuerSchema() {
-        return AuthenticatedMapSchema.of(new AuthenticatedMapSchema.ArrayNode(List.of(
-                AuthenticatedMapSchema.Occurrence.required(versionNode()),
-                AuthenticatedMapSchema.Occurrence.required(
-                        new AuthenticatedMapSchema.TextNode(1, MAX_TEXT_BYTES, null)),
-                AuthenticatedMapSchema.Occurrence.required(
-                        new AuthenticatedMapSchema.ArrayNode(List.of(
-                                new AuthenticatedMapSchema.Occurrence(0, MAX_AUTHORIZATIONS,
-                                        new AuthenticatedMapSchema.TextNode(
+        return CborSchema.of(new CborSchema.ArrayNode(List.of(
+                CborSchema.Occurrence.required(versionNode()),
+                CborSchema.Occurrence.required(
+                        new CborSchema.TextNode(1, MAX_TEXT_BYTES, null)),
+                CborSchema.Occurrence.required(
+                        new CborSchema.ArrayNode(List.of(
+                                new CborSchema.Occurrence(0, MAX_AUTHORIZATIONS,
+                                        new CborSchema.TextNode(
                                                 1, MAX_TEXT_BYTES, null))))),
-                AuthenticatedMapSchema.Occurrence.required(unsigned(0, MAX_HEIGHT)),
-                AuthenticatedMapSchema.Occurrence.required(
+                CborSchema.Occurrence.required(unsigned(0, MAX_HEIGHT)),
+                CborSchema.Occurrence.required(
                         unsigned(0, MAX_HEIGHT))))).definition();
     }
 
-    private static AuthenticatedMapSchema.Node versionNode() {
+    private static CborSchema.Node versionNode() {
         return unsigned(VALUE_VERSION, VALUE_VERSION);
     }
 
-    private static AuthenticatedMapSchema.Node unsigned(long minimum, long maximum) {
-        return new AuthenticatedMapSchema.IntegerNode(AuthenticatedMapSchema.INTEGER_UINT,
+    private static CborSchema.Node unsigned(long minimum, long maximum) {
+        return new CborSchema.IntegerNode(CborSchema.INTEGER_UINT,
                 BigInteger.valueOf(minimum), BigInteger.valueOf(maximum));
     }
 

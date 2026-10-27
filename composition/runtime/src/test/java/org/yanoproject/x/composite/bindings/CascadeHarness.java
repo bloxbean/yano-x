@@ -1,5 +1,6 @@
 package org.yanoproject.x.composite.bindings;
 
+import org.yanoproject.api.appchain.topics.TopicWire;
 import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
 import org.yanoproject.api.appchain.AppBlock;
 import org.yanoproject.api.appchain.AppBlockExecutionContext;
@@ -103,6 +104,10 @@ final class CascadeHarness implements CompositeWorkflowContext {
 
     long evaluationWork() { return (Long) engine.operationalStatus().get("evaluationWork"); }
 
+    @Override public TopicWire.EffectiveOutcome topicPolicy(String topic) {
+        return new TopicWire.EffectiveOutcome(TopicWire.OutcomeKind.DISABLED, null, null, List.of());
+    }
+    @Override public Optional<byte[]> topicSchema(String irHash) { return Optional.empty(); }
     @Override public AppStateWriter state(ComponentGeneration participant) {
         return states.get(participant.componentId());
     }

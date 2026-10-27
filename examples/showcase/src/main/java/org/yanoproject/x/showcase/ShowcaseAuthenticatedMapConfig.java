@@ -15,7 +15,7 @@ import org.yanoproject.x.roles.contracts.OrganizationRecordV1;
 import org.yanoproject.x.roles.contracts.RecordStatus;
 import org.yanoproject.x.stdlib.AuthenticatedMapGenesisFactory;
 import org.yanoproject.x.stdlib.contracts.AuthenticatedMapContract;
-import org.yanoproject.x.stdlib.contracts.AuthenticatedMapSchema;
+import org.yanoproject.api.appchain.schema.CborSchema;
 import org.yanoproject.catalog.CatalogDigests;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -338,22 +338,22 @@ public final class ShowcaseAuthenticatedMapConfig {
     }
 
     private static byte[] productSchemaDefinition() {
-        AuthenticatedMapSchema.MapNode product = new AuthenticatedMapSchema.MapNode(List.of(
-                new AuthenticatedMapSchema.MapField("sku", true,
-                        new AuthenticatedMapSchema.TextNode(1, 32, null)),
-                new AuthenticatedMapSchema.MapField("quantity", true,
-                        new AuthenticatedMapSchema.IntegerNode(
-                                AuthenticatedMapSchema.INTEGER_UINT,
+        CborSchema.MapNode product = new CborSchema.MapNode(List.of(
+                new CborSchema.MapField("sku", true,
+                        new CborSchema.TextNode(1, 32, null)),
+                new CborSchema.MapField("quantity", true,
+                        new CborSchema.IntegerNode(
+                                CborSchema.INTEGER_UINT,
                                 BigInteger.ZERO,
                                 BigInteger.valueOf(1_000_000))),
-                new AuthenticatedMapSchema.MapField("status", true,
-                        new AuthenticatedMapSchema.ChoiceNode(List.of(
-                                AuthenticatedMapSchema.TextNode.literal("active"),
-                                AuthenticatedMapSchema.TextNode.literal("held"),
-                                AuthenticatedMapSchema.TextNode.literal("retired")))),
-                new AuthenticatedMapSchema.MapField("note", false,
-                        new AuthenticatedMapSchema.TextNode(0, 256, null))));
-        return AuthenticatedMapSchema.of(product).definition();
+                new CborSchema.MapField("status", true,
+                        new CborSchema.ChoiceNode(List.of(
+                                CborSchema.TextNode.literal("active"),
+                                CborSchema.TextNode.literal("held"),
+                                CborSchema.TextNode.literal("retired")))),
+                new CborSchema.MapField("note", false,
+                        new CborSchema.TextNode(0, 256, null))));
+        return CborSchema.of(product).definition();
     }
 
     private static List<String> normalizedMembers(List<String> members) {

@@ -24,7 +24,7 @@ import org.yanoproject.x.stdlib.contracts.AuthenticatedMapAuthorizationContract.
 import org.yanoproject.x.stdlib.contracts.AuthenticatedMapAuthorizationContract.MapActionV1;
 import org.yanoproject.x.stdlib.contracts.AuthenticatedMapAuthorizationContract.MapApprovalReferenceV1;
 import org.yanoproject.x.stdlib.contracts.AuthenticatedMapContract;
-import org.yanoproject.x.stdlib.contracts.AuthenticatedMapSchema;
+import org.yanoproject.api.appchain.schema.CborSchema;
 import co.nstant.in.cbor.model.ByteString;
 import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.NegativeInteger;
@@ -111,8 +111,8 @@ final class AuthenticatedMapTransitionKernel implements
      * {@link RuleValueView#MAX_FIELDS} members in schema order whose key is a CEL identifier and whose type is one
      * scalar kind. Other roots, keys and types expose nothing.
      */
-    private static List<RuleFact> exposedMembers(AuthenticatedMapSchema.Schema schema) {
-        if (schema == null || !(schema.root() instanceof AuthenticatedMapSchema.MapNode root)) return List.of();
+    private static List<RuleFact> exposedMembers(CborSchema.Schema schema) {
+        if (schema == null || !(schema.root() instanceof CborSchema.MapNode root)) return List.of();
         List<RuleFact> members = new ArrayList<>();
         for (var field : root.fields()) {
             if (members.size() == RuleValueView.MAX_FIELDS) break;
@@ -121,10 +121,10 @@ final class AuthenticatedMapTransitionKernel implements
                 continue;
             }
             RuleFact.Type type = switch (field.value()) {
-                case AuthenticatedMapSchema.IntegerNode _ -> RuleFact.Type.INTEGER;
-                case AuthenticatedMapSchema.TextNode _ -> RuleFact.Type.TEXT;
-                case AuthenticatedMapSchema.BytesNode _ -> RuleFact.Type.BYTES;
-                case AuthenticatedMapSchema.BooleanNode _ -> RuleFact.Type.BOOLEAN;
+                case CborSchema.IntegerNode _ -> RuleFact.Type.INTEGER;
+                case CborSchema.TextNode _ -> RuleFact.Type.TEXT;
+                case CborSchema.BytesNode _ -> RuleFact.Type.BYTES;
+                case CborSchema.BooleanNode _ -> RuleFact.Type.BOOLEAN;
                 default -> null;
             };
             if (type != null) members.add(new RuleFact(field.key(), type));

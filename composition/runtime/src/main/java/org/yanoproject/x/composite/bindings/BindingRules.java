@@ -1,5 +1,8 @@
 package org.yanoproject.x.composite.bindings;
 
+import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
+import org.yanoproject.x.composite.contracts.BindingExpressionV1.Type;
+
 import org.yanoproject.api.appchain.AppStateMachine.AdmissionResult;
 import org.yanoproject.api.appchain.AppStateReader;
 import org.yanoproject.api.appchain.transition.RuleFact;
@@ -108,14 +111,15 @@ final class BindingRules {
 
     /** A component's attachments by slot, and the committed inputs every rule of it may read. */
     record Component(List<Attached> admission, List<Attached> facts, Map<String, Object> configuration,
-                     Map<String, RuleFact.Type> declaredFacts, WriteView writes) {
+                     Map<String, RuleFact.Type> declaredFacts, WriteView writes, Map<String, byte[]> payloadSchemas,
+                     Map<String, Type> payloadFields) {
         Component {
             admission = List.copyOf(admission);
             facts = List.copyOf(facts);
             configuration = Collections.unmodifiableMap(new LinkedHashMap<>(configuration));
             declaredFacts = Collections.unmodifiableMap(new LinkedHashMap<>(declaredFacts));
         }
-        static final Component NONE = new Component(List.of(), List.of(), Map.of(), Map.of(), null);
+        static final Component NONE = new Component(List.of(), List.of(), Map.of(), Map.of(), null, Map.of(), Map.of());
         boolean empty() { return admission.isEmpty() && facts.isEmpty(); }
         /** Rules in evaluation order: the admission slot, then the verified-fact slot. */
         List<Attached> ordered() {
@@ -139,6 +143,14 @@ final class BindingRules {
         private BindingCommandView.View view;
         private List<Map<String, Object>> writes;
         private List<Map<String, Object>> covered;
+        private final AppMessage source;
+        private final boolean derived;
+        private Map<String, Object> payload;
+
+        Run(AppMessage source, boolean derived) {
+            this.source = source;
+            this.derived = derived;
+        }
 
         RuleTrace trace() { return new RuleTrace(held, failure); }
     }
@@ -226,14 +238,15 @@ final class BindingRules {
      * content, never state, facts or coverage. Followers never run this; block-time evaluation is authoritative.
      * A refusal carries structured details (bloxbean/yano#153): the rule, its deny code, and the deciding write.
      */
-    AdmissionResult advisory(String component, byte[] body, BindingIrV1.Limits limits,
+    AdmissionResult advisory(String component, AppMessage source, BindingIrV1.Limits limits,
                              Supplier<List<Map<String, Object>>> writes) {
         Component rules = component(component);
         List<Attached> statics = rules.admission().stream().filter(Attached::isStatic).toList();
         if (statics.isEmpty()) return AdmissionResult.accept();
         Budget cascade = new Budget(limits.maxExpressionWorkPerCascade());
         Budget block = new Budget(limits.maxExpressionWorkPerCascade());
-        Run run = new Run();
+        Run run = new Run(source, false);
+        byte[] body = source.getBody();
         Attached selecting = statics.stream().filter(Attached::selectsCommand).findFirst().orElse(null);
         try {
             if (selecting != null) {
@@ -362,7 +375,7 @@ final class BindingRules {
                 };
             } catch (BindingFailure failed) {
                 run.failure = new RuleFailure(rule.id(), index, null, decided.value());
-                throw new BindingFailure(capacityOr(failed, "ADMISSION_RULE_ERROR"));
+                throw new BindingFailure(ruleFailureCode(failed));
             }
             if (!holds) {
                 run.failure = new RuleFailure(rule.id(), index, rule.denyCode(), decided.value());
@@ -417,8 +430,8 @@ final class BindingRules {
             } catch (BindingFailure failure) {
                 run.failure = new RuleFailure(attached.rule().id(), -1, null);
                 String code = failure.code();
-                throw new BindingFailure(code.equals(CAPACITY) || code.equals("ADMISSION_RULE_INPUT") ? code
-                        : "ADMISSION_RULE_ERROR");
+                throw new BindingFailure(code.equals(CAPACITY) || code.equals("ADMISSION_RULE_INPUT")
+                        || code.equals("RULE_FIELD_UNAVAILABLE") ? code : "ADMISSION_RULE_ERROR");
             }
         }
         return values;
@@ -436,6 +449,13 @@ final class BindingRules {
         return failure.code().equals(CAPACITY) ? CAPACITY : code;
     }
 
+    private static String ruleFailureCode(BindingFailure failure) {
+        return switch (failure.code()) {
+            case "RULE_FIELD_UNAVAILABLE", "RULE_PAYLOAD_SCHEMA_MISMATCH" -> failure.code();
+            default -> capacityOr(failure, "ADMISSION_RULE_ERROR");
+        };
+    }
+
     private static Scoped<Object> inputs(Component component, Attached rule, Run run, Map<String, Object> context,
                                          Map<String, Object> facts) {
         Map<Scope, Map<String, Object>> scopes = new EnumMap<>(Scope.class);
@@ -444,6 +464,20 @@ final class BindingRules {
         scopes.put(Scope.CONFIG, component.configuration());
         scopes.put(Scope.CONTEXT, context);
         if (facts != null) scopes.put(Scope.FACTS, facts);
+        if (run.source != null) {
+            scopes.put(Scope.WRITER, TopicRuleViews.writer(run.source, run.derived));
+            scopes.put(Scope.SOURCE, TopicRuleViews.source(run.source));
+            if (rule.rule().scopes().contains(Scope.PAYLOAD)) {
+                try {
+                    if (run.payload == null) run.payload = TopicRuleViews.payload(run.source, run.derived,
+                            component.payloadSchemas(), component.payloadFields());
+                    scopes.put(Scope.PAYLOAD, run.payload);
+                } catch (BindingFailure failure) {
+                    run.failure = new RuleFailure(rule.rule().id(), -1, null);
+                    throw failure;
+                }
+            }
+        }
         return new Scoped<>(scopes);
     }
 

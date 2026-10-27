@@ -184,6 +184,8 @@ export const loadArtifactInventory = () => readJson('config/artifacts-v1.json');
  * mapping has exactly one definition.
  */
 export const IMPORTED_DOCS = {
+  'docs/appchain/TOPIC_POLICIES.md': '/concepts/topic-policies/',
+  'docs/appchain/TOPIC_SESSION_KEYS.md': '/recipes/topic-session-keys/',
   'docs/appchain/bindings/README.md': '/bindings/',
   'docs/appchain/bindings/01-first-workflow.md': '/bindings/first-workflow/',
   'docs/appchain/bindings/02-conditions-and-mappings.md': '/bindings/conditions-and-mappings/',

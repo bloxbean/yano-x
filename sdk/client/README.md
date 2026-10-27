@@ -17,6 +17,7 @@ Yaci networking stack. It provides:
   `AuthenticatedMapPreflight`
 - governed authenticated-map action/proposal construction with external signing
 - bounded same-root authenticated-map composite proof-bundle verification
+- topic frames, offline owner signing and delegation issuance through the core wire codec
 
 See also:
 
@@ -141,8 +142,8 @@ height and then follows new finalized blocks.
 
 ## Typed Payloads
 
-The SDK stays independent of `core-api`, so typed methods accept functions
-rather than framework codec types.
+Typed submission methods accept encoder functions, so application payloads do
+not need to implement a framework codec interface.
 
 ```java
 record Order(String id, long amount) {}
@@ -233,3 +234,44 @@ semantic checks off-chain only.
   remains fail-closed until its Phase 4 dependency is released and pinned.
 - CCL `0.8.0-pre5` is the current development baseline, not a production
   dependency approval.
+
+
+## Topic writers and delegated sessions
+
+`TopicAuthoring` uses the exact Yano core `TopicWireCodec` and `StrictEd25519`
+implementation selected by this build. Its `Signer` exposes only a public key
+and a signing operation. Implement it with a protected key file, an HSM or an
+external signer; the SDK never sends private keys to a node.
+
+```java
+// issuer implements TopicAuthoring.Signer. Load its private material from a file or HSM.
+var delegation = TopicAuthoring.issueDelegation(chainId, generationId,
+        sessionPublicKey, "games/neon-rush/", notBefore, notAfter, issuer);
+
+// sessionSigner implements Signer for the delegation's session key.
+var request = TopicAuthoring.prepareWrite(chainId, generationId,
+        "games/neon-rush/rides", ridePayload, TopicAuthoring.nonce(), notAfter, delegation);
+var result = new TopicClient(client).signAndSubmit(request, List.of(sessionSigner));
+```
+
+Obtain `generationId` from the chain's topic registry, then pin it for the
+session. Delegations bind the chain, generation, delegate, scope and validity
+window. Writes bind those fields plus the exact payload hash, nonce and expiry.
+A fresh write gets a fresh nonce. A retry sends the same signed frame; a replay
+refusal must not be treated as a newly accepted write.
+
+For offline k-of-n writes, save `WriteRequest.signingBytes()`, gather signatures
+and call `completeWrite`. For registry commands use `signRegistry`,
+`addRegistrySignature` and `completeRegistry`. These helpers verify all supplied
+signatures and canonicalize signer order. They do not decide whether signers
+meet the current policy threshold: the committed registry does that.
+
+`verifySignatures` checks signature consistency only. Complete authorship
+verification also needs the original message proof, chain generation, effective
+policy proof at the message's candidate height, and independently trusted roots.
+The CLI's `appchain topics verify` performs that bundle verification.
+
+Catch `AppChainClientException` and inspect `status()` / `code()` to distinguish
+refusals such as `TOPIC_PROOF_REPLAYED`, `TOPIC_PROOF_EXPIRED` and
+`TOPIC_COMMAND_STALE`; response details and API credentials are omitted from
+exceptions. The browser client lives in [sdk/javascript](../javascript/README.md).

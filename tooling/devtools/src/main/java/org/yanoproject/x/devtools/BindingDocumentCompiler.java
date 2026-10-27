@@ -15,6 +15,8 @@ import org.yanoproject.api.appchain.transition.RuleValueView;
 import org.yanoproject.x.composite.bindings.BindingCommandView;
 import org.yanoproject.x.composite.bindings.BindingExpressionEvaluator.Scoped;
 import org.yanoproject.x.composite.bindings.BindingProgram;
+import org.yanoproject.x.composite.bindings.TopicRuleViews;
+import org.yanoproject.api.appchain.topics.TopicWireCodec;
 import org.yanoproject.x.composite.contracts.BindingExpressionV1;
 import org.yanoproject.x.composite.contracts.BindingExpressionV1.Scope;
 import org.yanoproject.x.composite.contracts.BindingExpressionV1.Type;
@@ -237,9 +239,10 @@ public final class BindingDocumentCompiler {
                 throw new BindingAuthoringException("UNCLASSIFIED", ROOT.field("composite"), rerooted, error);
             }
         }
-        object(root, ROOT, "components", "rules", "bindings", "limits", "workflowFromHeight");
+        object(root, ROOT, "components", "rules", "bindings", "limits", "workflowFromHeight", "payloadSchemas");
         Limits limits = at("DOCUMENT_STRUCTURE_INVALID", ROOT.field("limits"), () -> limits(root.get("limits")));
         Map<String, AuthoredRule> authoredRules = authoredRules(root);
+        Map<String, byte[]> schemas = payloadSchemas(root.get("payloadSchemas"));
         List<Component> components = new ArrayList<>();
         Map<String, Component> byId = new LinkedHashMap<>();
         JsonNode componentNodes = array(required(root, "components", ROOT), ROOT.field("components"), 16);
@@ -258,7 +261,8 @@ public final class BindingDocumentCompiler {
             List<RuleAttachment> attachments = attachments(node, path, authoredRules);
             Component component = at("DOCUMENT_STRUCTURE_INVALID", path, () -> new Component(authored.id(),
                     authored.machine(), optionalText(node, "topic", authored.id() + ".command.v1", path), normalized,
-                    integer(node, "maxEffectsPerBlock", 0, path), number(node, "fromHeight", 1, path), attachments));
+                    integer(node, "maxEffectsPerBlock", 0, path), number(node, "fromHeight", 1, path), attachments,
+                    componentSchemas(node, path, schemas)));
             if (byId.putIfAbsent(authored.id(), component) != null) {
                 throw fail("DUPLICATE_COMPONENT", path.field("id"), "duplicate component");
             }
@@ -269,7 +273,7 @@ public final class BindingDocumentCompiler {
         for (int i = 0; i < bindingNodes.size(); i++) {
             BindingDocumentPath path = ROOT.field("bindings").index(i);
             JsonNode node = bindingNodes.get(i);
-            object(node, path, "id", "from", "when", "to");
+            object(node, path, "id", "from", "when", "to", "crossesTopicPolicy");
             JsonNode from = required(node, "from", path);
             object(from, path.field("from"), "component", "event");
             String source = text(required(from, "component", path.field("from")),
@@ -302,7 +306,8 @@ public final class BindingDocumentCompiler {
                 }
             }
             bindings.add(at("DOCUMENT_STRUCTURE_INVALID", path, () -> new Binding(
-                    text(required(node, "id", path), path.field("id")), source, event, clauses, target)));
+                    text(required(node, "id", path), path.field("id")), source, event, clauses, target,
+                    optionalBoolean(node, "crossesTopicPolicy", path))));
         }
         List<AdmissionRule> rules = compileRules(authoredRules, components, catalog, limits, byId);
         BindingIrV1 ir = at("DOCUMENT_STRUCTURE_INVALID", ROOT, () -> new BindingIrV1(components, rules, bindings,
@@ -310,6 +315,55 @@ public final class BindingDocumentCompiler {
         // Enforce the canonical envelope byte limit before returning an apparently valid result.
         at("DOCUMENT_SIZE_LIMIT", ROOT, ir::encode);
         return ir;
+    }
+
+    private static boolean optionalBoolean(JsonNode node, String field, BindingDocumentPath path) {
+        if (!node.has(field)) return false;
+        if (!node.get(field).isBoolean()) throw fail("EXPECTED_BOOLEAN", path.field(field), "expected boolean");
+        return node.get(field).booleanValue();
+    }
+
+    private static Map<String, byte[]> payloadSchemas(JsonNode node) {
+        if (node == null) return Map.of();
+        BindingDocumentPath path = ROOT.field("payloadSchemas");
+        if (!node.isObject() || node.size() > 16) throw fail("EXPECTED_OBJECT", path, "expected bounded schema map");
+        Map<String, byte[]> schemas = new LinkedHashMap<>();
+        node.properties().forEach(entry -> {
+            var location = path.field(entry.getKey());
+            JsonNode definition = entry.getValue();
+            object(definition, location, "ir", "cddl");
+            if (definition.has("ir") == definition.has("cddl")) {
+                throw fail("RULE_PAYLOAD_SCHEMA_INVALID", location, "supply exactly one of ir and cddl");
+            }
+            byte[] bytes = at("RULE_PAYLOAD_SCHEMA_INVALID", location, () -> definition.has("ir")
+                    ? HexFormat.of().parseHex(text(definition.get("ir"), location.field("ir")))
+                    : CddlSchemaCompiler.compile(text(definition.get("cddl"), location.field("cddl"))).definition());
+            if (!entry.getKey().equals(TopicWireCodec.blake2b256Hex(bytes))) {
+                throw fail("RULE_PAYLOAD_SCHEMA_INVALID", location, "schema key must be the canonical IR hash");
+            }
+            schemas.put(entry.getKey(), bytes);
+        });
+        at("RULE_PAYLOAD_SCHEMA_INVALID", path, () -> TopicRuleViews.commonFields(schemas));
+        return Map.copyOf(schemas);
+    }
+
+    private static Map<String, byte[]> componentSchemas(JsonNode node, BindingDocumentPath path,
+                                                         Map<String, byte[]> definitions) {
+        if (!node.has("payloadSchemas")) return Map.of();
+        var hashes = array(node.get("payloadSchemas"), path.field("payloadSchemas"), 16);
+        Map<String, byte[]> schemas = new LinkedHashMap<>();
+        for (int index = 0; index < hashes.size(); index++) {
+            String hash = text(hashes.get(index), path.field("payloadSchemas").index(index));
+            if (!definitions.containsKey(hash)) {
+                throw fail("RULE_PAYLOAD_SCHEMA_INVALID", path.field("payloadSchemas").index(index),
+                        "schema hash has no committed definition");
+            }
+            if (schemas.putIfAbsent(hash, definitions.get(hash)) != null) {
+                throw fail("RULE_PAYLOAD_SCHEMA_INVALID", path.field("payloadSchemas").index(index),
+                        "duplicate schema hash");
+            }
+        }
+        return Map.copyOf(schemas);
     }
 
     /**
@@ -340,7 +394,7 @@ public final class BindingDocumentCompiler {
                         : "$.composite: " + message);
             }
         }
-        object(root, ROOT, "components", "rules", "bindings", "limits", "workflowFromHeight");
+        object(root, ROOT, "components", "rules", "bindings", "limits", "workflowFromHeight", "payloadSchemas");
         List<AuthoredComponent> result = new ArrayList<>();
         JsonNode componentNodes = array(required(root, "components", ROOT), ROOT.field("components"), 16);
         for (int i = 0; i < componentNodes.size(); i++) result.add(authoredComponent(componentNodes.get(i), i));
@@ -349,7 +403,7 @@ public final class BindingDocumentCompiler {
 
     private static AuthoredComponent authoredComponent(JsonNode node, int index) {
         BindingDocumentPath path = ROOT.field("components").index(index);
-        object(node, path, "id", "machine", "topic", "config", "maxEffectsPerBlock", "fromHeight", "admission");
+        object(node, path, "id", "machine", "topic", "config", "maxEffectsPerBlock", "fromHeight", "admission", "payloadSchemas");
         String id = text(required(node, "id", path), path.field("id"));
         String machine = text(required(node, "machine", path), path.field("machine"));
         Map<String, Object> supplied = new LinkedHashMap<>();
@@ -448,7 +502,8 @@ public final class BindingDocumentCompiler {
      */
     record Sites(Scoped<Type> fields, String useSite, Sites keys) {
         static final Map<String, Scope> KEYS = Map.of("field", Scope.EVENT, "context", Scope.CONTEXT,
-                "command", Scope.COMMAND, "param", Scope.PARAMS, "config", Scope.CONFIG, "fact", Scope.FACTS);
+                "command", Scope.COMMAND, "param", Scope.PARAMS, "config", Scope.CONFIG, "fact", Scope.FACTS,
+                "payload", Scope.PAYLOAD, "writer", Scope.WRITER, "source", Scope.SOURCE);
 
         Sites(Scoped<Type> fields, String useSite) { this(fields, useSite, null); }
 
@@ -686,6 +741,13 @@ public final class BindingDocumentCompiler {
         scopes.put(Scope.CONFIG, configuration);
         scopes.put(Scope.CONTEXT, BindingProgram.CONTEXT_FIELDS);
         scopes.put(Scope.FACTS, facts);
+        scopes.put(Scope.PAYLOAD, TopicRuleViews.commonFields(component.payloadSchemas()));
+        scopes.put(Scope.WRITER, TopicRuleViews.WRITER_FIELDS);
+        scopes.put(Scope.SOURCE, TopicRuleViews.SOURCE_FIELDS);
+        if (!component.payloadSchemas().isEmpty()
+                && !TopicRuleViews.acceptsTopicSchema(catalog.commands(component))) {
+            throw fail("TOPIC_SCHEMA_INCOMPATIBLE", rule.path(), "topic schemas require an opaque-body kernel");
+        }
         // Lookup and read keys read only these scopes, never a read or a write (ADR-031.4 §5.1).
         var keySites = new Sites(new Scoped<>(new EnumMap<>(scopes)), "an admission rule key");
         List<ResolvedRead> resolved = reads(rule, byId, catalog, keySites, limits, evidence);

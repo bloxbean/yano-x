@@ -200,3 +200,32 @@ test('graph layout is presentation only and bounded',()=>{
     {id:'y',from:{component:'b',event:'e'},when:null,to:{kind:'command',component:'a',command:'c',mapping:{kind:'raw',field:'f'}}}]});
   assert.equal(autoLayout(cycle).size,2,'cycles terminate');
 });
+
+test('topic schema declarations, writer provenance and crossing permissions survive edits and export', () => {
+  const hash = '77'.repeat(32);
+  const source = `payloadSchemas:\n  "${hash}": {cddl: 'root = {frames: uint}'}
+components:
+  - {id: source, machine: ordered-log, payloadSchemas: ["${hash}"]}
+  - {id: target, machine: ordered-log}
+rules:
+  - id: writer-check
+    deny: DENIED
+    require:
+      - lookup: {component: target, key: {source: topic}, eq: {writer: kind}}
+bindings:
+  - id: copy
+    from: {component: source, event: composite.command-accepted.v1}
+    to: {component: target, command: append, rawBody: body}
+    crossesTopicPolicy: false
+`;
+  const loaded = importDocument(source); assert.equal(loaded.state, 'editable');
+  assert.equal(loaded.draft.bindings[0].crossesTopicPolicy, false);
+  const edited = updateComponent(loaded.draft, 1, {topic: 'audit/rides'});
+  assert.doesNotThrow(() => checkDraft(edited));
+  const exported = emitDocument(edited), again = importDocument(exported);
+  assert.deepEqual(again.draft, edited);
+  assert.match(exported, /crossesTopicPolicy: false/);
+  assert.match(exported, /source: topic/); assert.match(exported, /writer: kind/);
+  assert.equal(again.draft.payloadSchemas[0].text, 'root = {frames: uint}');
+  assert.equal(importDocument(source.replace('crossesTopicPolicy: false', 'crossesTopicPolicy: "false"')).state, 'read-only');
+});

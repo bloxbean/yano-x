@@ -245,9 +245,11 @@ cardano_history_chain_index() {
   return 1
 }
 
-l1_network_genesis_id() {
+l1_shelley_genesis_file() {
   local retained="$(cluster_dir)/node0/shelley-genesis.json" source
-  if [ -f "$retained" ]; then
+  if [ "$NETWORK" = devnet ] && [ -f "$(instance_root)/devnet-shelley-genesis.json" ]; then
+    source="$(instance_root)/devnet-shelley-genesis.json"
+  elif [ -f "$retained" ]; then
     source="$retained"
   elif [ "$NETWORK" = devnet ] && [ -n "${YANO_CLUSTER_DEVNET_GENESIS_FILE:-}" ]; then
     source="$YANO_CLUSTER_DEVNET_GENESIS_FILE"
@@ -255,12 +257,64 @@ l1_network_genesis_id() {
     source="$YANO_HOME/config/network/$NETWORK/shelley-genesis.json"
   fi
   [ -f "$source" ] || die "L1 Shelley genesis file is missing: $source"
+  printf '%s' "$source"
+}
+
+prepare_devnet_genesis() {
+  [ "$NETWORK" = devnet ] || return 0
+  local args=(--instance-root "$(instance_root)"
+    --template "$YANO_HOME/config/network/devnet/shelley-genesis.json")
+  [ -z "${YANO_CLUSTER_DEVNET_GENESIS_FILE:-}" ] \
+    || args+=(--custom "$YANO_CLUSTER_DEVNET_GENESIS_FILE")
+  python3 "$SHOWCASE_HOME/tools/showcase_genesis.py" "${args[@]}" || return 1
+  export YANO_CLUSTER_DEVNET_GENESIS_FILE="$(instance_root)/devnet-shelley-genesis.json"
+}
+
+l1_network_genesis_id() {
+  local source
+  source="$(l1_shelley_genesis_file)" || return 1
   python3 - "$source" <<'PY'
 import hashlib
 import sys
 
 with open(sys.argv[1], "rb") as stream:
     print(hashlib.sha256(stream.read()).hexdigest())
+PY
+}
+
+devnet_anchor_validity_slots() {
+  local source
+  source="$(l1_shelley_genesis_file)" || return 1
+  python3 - "$source" <<'PY'
+import json
+import sys
+from decimal import Decimal, ROUND_FLOOR, localcontext
+
+try:
+    with open(sys.argv[1], "rb") as stream:
+        data = stream.read(1_048_577)
+    if len(data) > 1_048_576:
+        raise ValueError("genesis size")
+    genesis = json.loads(data, parse_float=Decimal)
+    k = genesis.get("securityParam")
+    f = genesis.get("activeSlotsCoeff")
+    if type(k) is not int or not 1 <= k <= 2**63 - 1 or type(f) not in (int, Decimal):
+        raise ValueError("genesis geometry")
+    f = Decimal(f)
+    if not f.is_finite() or not 0 < f <= 1:
+        raise ValueError("active slot coefficient")
+    # The ledger forecasts at least 3k/f slots. Keep expiry strictly inside
+    # that window, capped at about one minute on the stock 0.2-second devnet.
+    # Test the cap first so very small coefficients need no large division.
+    with localcontext() as context:
+        context.prec = 64
+        context.rounding = ROUND_FLOOR
+        ttl = 299 if f <= Decimal(k) / 100 else int(Decimal(3 * k) / f) - 1
+    if not 1 <= ttl <= 299:
+        raise ValueError("anchor validity")
+    print(ttl)
+except (OSError, ValueError, ArithmeticError, AttributeError):
+    raise SystemExit("Invalid devnet genesis securityParam/activeSlotsCoeff for anchor validity")
 PY
 }
 
@@ -621,8 +675,12 @@ adopt_marker() {
 
 write_node_configs() {
   local count="$1" directory="$(node_config_dir)" i file cardano_history_index=""
-  local l1_genesis_id
+  local l1_genesis_id devnet_anchor_ttl="" anchor_index
+  prepare_devnet_genesis || return 1
   l1_genesis_id="$(l1_network_genesis_id)"
+  if [ "$NETWORK" = devnet ]; then
+    devnet_anchor_ttl="$(devnet_anchor_validity_slots)" || return 1
+  fi
   if [ "$CARDANO_HISTORY_ENABLED" = true ]; then
     cardano_history_index="$(cardano_history_chain_index)" \
       || die "Cardano History is enabled but absent from the retained chain set"
@@ -655,6 +713,14 @@ write_node_configs() {
       # every node: members share one home with the producer, and the Yano JVM
       # ZIP cannot load DuckLake off linux_amd64 (bloxbean/yano#137).
       printf 'yano.history.projection.enabled=false\n'
+      if [ -n "$devnet_anchor_ttl" ]; then
+        # The host's public-network TTL can exceed this fast devnet's Plutus
+        # forecast horizon. This changes local tx expiry, never chain identity.
+        for ((anchor_index=0;anchor_index<${#LIGHT_CHAINS[@]};anchor_index++)); do
+          printf 'yano.app-chain.chains[%d].anchor.validity-slots=%s\n' \
+            "$anchor_index" "$devnet_anchor_ttl"
+        done
+      fi
       if [ "$i" -eq 0 ]; then
         printf 'yano.app-chain.chains[5].effects.executor.enabled=true\n'
         printf 'yano.app-chain.chains[5].effects.executors.showcase-outbox.enabled=true\n'
@@ -748,6 +814,9 @@ prepare_light() {
   local generated_candidates=false args=()
   if [ -e "$root" ] && [ -L "$root" ]; then die "instance root must not be a symlink"; fi
   mkdir -p "$root"; chmod 700 "$root"
+  # Validate retained genesis/observer identities before modifying any marker
+  # or overlays; fresh devnets pin their timestamp before their first JVM.
+  prepare_devnet_genesis || return 1
   # Resolve the actual public-network chain set before retaining the config
   # digest and chain IDs. Doing this after identity creation made a prepared
   # preprod instance impossible to start or restart because its shared YAML no
@@ -813,6 +882,10 @@ cluster_env() {
   export YANO_CLUSTER_NODE_CONFIG_DIR="$(node_config_dir)"
   export YANO_CLUSTER_PRIVATE_CONFIG_DIR="$(instance_root)/private-config"
   export YANO_CLUSTER_API_KEY="$API_KEY"
+  if [ "$NETWORK" = devnet ] && [ -z "${YANO_CLUSTER_DEVNET_GENESIS_FILE:-}" ] \
+      && [ -f "$(instance_root)/devnet-shelley-genesis.json" ]; then
+    export YANO_CLUSTER_DEVNET_GENESIS_FILE="$(instance_root)/devnet-shelley-genesis.json"
+  fi
   unset YANO_CLUSTER_ANCHOR_CHAIN YANO_CLUSTER_ANCHOR_CHAINS
   [ "$ANCHOR" != true ] || export YANO_CLUSTER_ANCHOR_CHAINS="$ANCHOR_CHAINS"
   if [ -n "$ANCHOR_KEY_FILE" ]; then export YANO_CLUSTER_ANCHOR_KEY_FILE="$ANCHOR_KEY_FILE"; fi
@@ -2419,6 +2492,7 @@ PY
     case "$PROFILE" in light) cluster_env; "$CLUSTER" stop;; evidence) delegate_evidence stop;; eutxo) delegate_eutxo stop;; esac;;
   restart)
     adopt_marker; [ "$PROFILE" = light ] || die "restart currently applies to the light profile"
+    prepare_devnet_genesis || exit 1
     cluster_env; "$CLUSTER" stop; write_node_configs "$NODES"; up_light
     resume_joined_nodes;;
   reset)

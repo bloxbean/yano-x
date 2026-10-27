@@ -3,6 +3,8 @@ package org.yanoproject.x.client;
 import org.yanoproject.api.appchain.AppBlock;
 import org.yanoproject.api.appchain.AppBlockHeader;
 import org.yanoproject.api.appchain.state.StateProofSubject;
+import org.yanoproject.api.appchain.state.StateCommitmentIdentity;
+import org.yanoproject.api.appchain.state.StateCommitmentProfiles;
 import org.yanoproject.api.appchain.evidence.MessageInclusionProof;
 import org.yanoproject.api.appchain.snapshot.SnapshotCanonicalCodec;
 import org.yanoproject.api.appchain.snapshot.SnapshotDescriptorV1;
@@ -115,14 +117,14 @@ public final class AppChainClient {
             "key", "chainId", "stateRoot", "proofWireHex", "valueHex",
             "finalizedAtHeight", "committedHeight", "proofSchemaVersion",
             "profile", "backend", "commitmentFormatId", "formatFingerprint",
-            "genesisId", "proofEncodingId", "presence",
+            "genesisId", "generationId", "proofEncodingId", "presence",
             "nativeVersioning", "physicalDelete", "schemaVersion", "version",
             "oldestProvableHeight", "implementation", "blockHash", "block",
             "finalityCertificate");
     private static final Set<String> STATE_ENTRY_RESPONSE_FIELDS = Set.of(
             "key", "chainId", "stateRoot", "valueHex", "finalizedAtHeight",
             "committedHeight", "proofSchemaVersion", "profile", "backend",
-            "commitmentFormatId", "formatFingerprint", "genesisId",
+            "commitmentFormatId", "formatFingerprint", "genesisId", "generationId",
             "proofEncodingId", "presence", "nativeVersioning", "physicalDelete",
             "schemaVersion", "version", "oldestProvableHeight", "implementation",
             "blockHash");
@@ -576,6 +578,7 @@ public final class AppChainClient {
             throw new AppChainClientException(
                     "App-chain state entry profile metadata differs from this client release");
         }
+        validateGenerationIdentity(response, metadataProbe);
         validateImplementationMetadata(response.get("implementation"));
         return response.deepCopy();
     }
@@ -703,8 +706,21 @@ public final class AppChainClient {
             throw new AppChainClientException(
                     "App-chain state proof profile metadata differs from this client release");
         }
+        validateGenerationIdentity(response, proof);
         validateImplementationMetadata(response.get("implementation"));
         return proof;
+    }
+
+    private static void validateGenerationIdentity(JsonNode response, Proof identity) {
+        // The generation is redundant with the mandatory profile/fingerprint/genesis tuple. Persisted
+        // schema-v1 proof envelopes may omit it; a host that includes it must bind it to that exact tuple.
+        if (!response.has("generationId")) return;
+        String generation = requiredCanonicalBoundedHex(response, "generationId", 32, 32);
+        byte[] expected = StateCommitmentIdentity.explicit(StateCommitmentProfiles.require(identity.profile()),
+                Hex.decode(identity.genesisIdHex())).digest();
+        if (!generation.equals(Hex.encode(expected))) {
+            throw new AppChainClientException("App-chain state generation identity mismatch");
+        }
     }
 
     private static void validateImplementationMetadata(JsonNode implementation) {
@@ -1402,7 +1418,7 @@ public final class AppChainClient {
         }
         String suffix = code != null ? " (" + code + ")" : "";
         return new AppChainClientException(
-                operation + " failed with HTTP " + status + suffix);
+                operation + " failed with HTTP " + status + suffix, status, code);
     }
 
     private static String validateQueryPath(String path) {
@@ -2496,12 +2512,35 @@ public final class AppChainClient {
     }
 
     public static class AppChainClientException extends RuntimeException {
+        private final Integer status;
+        private final String code;
+
         public AppChainClientException(String message) {
             super(message);
+            status = null;
+            code = null;
         }
 
         public AppChainClientException(String message, Throwable cause) {
             super(message, cause);
+            status = null;
+            code = null;
+        }
+
+        private AppChainClientException(String message, int status, String code) {
+            super(message);
+            this.status = status;
+            this.code = code;
+        }
+
+        /** HTTP status when a bounded response was received; absent for local/transport failures. */
+        public Optional<Integer> status() {
+            return Optional.ofNullable(status);
+        }
+
+        /** Validated refusal code, including TOPIC_* codes; never includes a provider response body. */
+        public Optional<String> code() {
+            return Optional.ofNullable(code);
         }
     }
 

@@ -44,7 +44,7 @@ public record BindingExpressionV1(Type resultType, Node root) {
      * each scope is legal.
      */
     public enum Scope {
-        EVENT, COMMAND, PARAMS, CONFIG, CONTEXT, FACTS, READS, WRITE_ELEMENT;
+        EVENT, COMMAND, PARAMS, CONFIG, CONTEXT, FACTS, READS, WRITE_ELEMENT, PAYLOAD, WRITER, SOURCE;
 
         /**
          * Lower-case authoring name, identical to the CEL variable prefix; {@code writes} for write elements, which
@@ -59,13 +59,13 @@ public record BindingExpressionV1(Type resultType, Node root) {
      * selector, and {@link Scope#WRITE_ELEMENT} is legal only inside a {@link Quantifier} body.
      */
     public static final Set<Scope> RULE_SCOPES = Set.copyOf(EnumSet.of(Scope.COMMAND, Scope.PARAMS, Scope.CONFIG,
-            Scope.CONTEXT, Scope.FACTS, Scope.READS, Scope.WRITE_ELEMENT));
+            Scope.CONTEXT, Scope.FACTS, Scope.READS, Scope.WRITE_ELEMENT, Scope.PAYLOAD, Scope.WRITER, Scope.SOURCE));
     /**
      * Scopes legal in a rule's keys: lookup keys, lookup expectations, and read keys (ADR-031.4). No key reads a
      * read or quantifies, so reads never chain.
      */
     public static final Set<Scope> RULE_KEY_SCOPES = Set.copyOf(EnumSet.of(Scope.COMMAND, Scope.PARAMS,
-            Scope.CONFIG, Scope.CONTEXT, Scope.FACTS));
+            Scope.CONFIG, Scope.CONTEXT, Scope.FACTS, Scope.PAYLOAD, Scope.WRITER, Scope.SOURCE));
     /** The prefix of a value field of a schema-typed record, in read and write-element field names. */
     public static final String VALUE_FIELD = "value";
     /** The five {@code context.*} fields (ADR-031.3 §5.3); no other context name exists. */

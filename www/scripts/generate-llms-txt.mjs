@@ -73,11 +73,12 @@ const SECTIONS = [
       'concepts/where-data-lives.md',
       'concepts/recovery.md',
       'concepts/trust-model.md',
+      'concepts/topic-policies.md',
     ],
   },
   {
     title: 'Recipes',
-    files: ['recipes/index.md', 'recipes/choosing-a-recipe.md'],
+    files: ['recipes/index.md', 'recipes/choosing-a-recipe.md', 'recipes/topic-session-keys.md'],
   },
   {
     title: 'Plugin framework',

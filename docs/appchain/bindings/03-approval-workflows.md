@@ -64,6 +64,7 @@ Save the complete offline context as `approval-context.json`:
     "maxBlockBytes": 1048576,
     "l1StabilityDepth": 0,
     "epochStabilityDepth": 0,
+    "blockMaxForwardSkewMs": 5000,
     "enforceSenderSeq": false,
     "effectsEnabled": false,
     "effectsMaxPerBlock": 0,

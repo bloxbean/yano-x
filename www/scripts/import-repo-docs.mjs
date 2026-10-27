@@ -260,6 +260,14 @@ async function mirrorStudio(versions) {
     await fs.writeFile(path.join(dest, 'assets', asset), text, 'utf8');
   }
 
+  const topicModules = (await fs.readdir(repoPath('sdk/javascript'))).filter(name => name.endsWith('.mjs'));
+  await fs.mkdir(path.join(dest, 'assets/topics'), { recursive: true });
+  for (const module of topicModules) {
+    await fs.copyFile(repoPath('sdk/javascript', module), path.join(dest, 'assets/topics', module));
+  }
+  await fs.copyFile(repoPath('tooling/devtools/src/test/resources/topics/plan-v1.json'),
+    path.join(dest, 'assets/topics-plan-v1.json'));
+
   await fs.mkdir(path.join(dest, 'assets/bindings'), { recursive: true });
   for (const starter of STUDIO_STARTERS) {
     await fs.copyFile(repoPath(STUDIO_STARTERS_SRC, starter), path.join(dest, 'assets/bindings', starter));
@@ -272,7 +280,8 @@ async function mirrorStudio(versions) {
     }
   }
 
-  return (await fs.readdir(repoPath(STUDIO_WEB))).length + STUDIO_ASSETS.length + STUDIO_STARTERS.length;
+  return (await fs.readdir(repoPath(STUDIO_WEB))).length + STUDIO_ASSETS.length + STUDIO_STARTERS.length
+    + topicModules.length + 1;
 }
 
 // ---------------------------------------------------------------------------

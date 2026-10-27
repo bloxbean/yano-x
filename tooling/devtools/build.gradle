@@ -284,6 +284,18 @@ tasks.register('finalDistributionRuntimeAcceptance', Exec) {
     }
 }
 
+tasks.register('finalDistributionTopicsAcceptance', Exec) {
+    group = 'verification'
+    description = 'Runs topic policies, framed commands, rules and proofs on three nodes from the final JVM archive.'
+    dependsOn finalYanoZip
+    inputs.file(finalYanoZip.flatMap { it.archiveFile }).withPropertyName('yanoXJvmDist')
+    outputs.upToDateWhen { false }
+    doFirst {
+        commandLine 'bash', file('src/test/scripts/final-distribution-topics-acceptance.sh'),
+                finalYanoZip.get().archiveFile.get().asFile
+    }
+}
+
 tasks.register('finalDistributionStockOutcomeAcceptance', Exec) {
     group = 'verification'
     description = 'Exercises stable stock recipe outcomes from the final Yano archive.'
@@ -495,6 +507,17 @@ tasks.register('appChainReleaseCandidateJvmAcceptance') {
     dependsOn tasks.named('appChainReleaseCandidateStaticCheck'),
             tasks.named('distributionTest'),
             tasks.named('finalDistributionRuntimeAcceptance'),
+            tasks.named('finalDistributionTopicsAcceptance'),
             tasks.named('finalDistributionStockOutcomeAcceptance'),
             tasks.named('finalDistributionPluginCatalogAcceptance')
+}
+
+// ADR-038: CLI and Studio share frozen unsigned topic-plan fixtures.
+tasks.register('generateTopicPlanFixtures', JavaExec) {
+    group = 'verification'
+    description = 'Regenerates the unsigned topic-plan conformance fixtures for CLI and Studio'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'org.yanoproject.x.devtools.TopicPlanFixtures'
+    args file('src/test/resources/topics/plan-v1.json').absolutePath
 }

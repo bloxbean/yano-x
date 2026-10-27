@@ -3,6 +3,7 @@ set -euo pipefail
 MODULE="$(cd "$(dirname "$0")/../../.." && pwd -P)"
 REPO="$(cd "$MODULE/../../.." && pwd -P)"
 bash "$MODULE/src/test/scripts/showcase-admission-contract.sh"
+python3 "$MODULE/src/test/scripts/showcase-genesis-contract.py"
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/yano-showcase-contract.XXXXXX")"
 trap 'rm -rf "$WORK"' EXIT INT TERM
 # The showcase lives at examples/showcase inside a Yano X distribution root.
@@ -15,7 +16,8 @@ mkdir -p "$ROOT/yano/appchain-cluster" "$ROOT/yano/config/network/devnet" \
 printf 'fake distribution jar\n' > "$DIST/yano.jar"
 cp -R "$MODULE/src/main/showcase/." "$ROOT/"
 cp "$MODULE/src/main/showcase/config/application-appchain.yml" "$ROOT/yano/config/"
-printf '{"network":"devnet"}\n' > "$ROOT/yano/config/network/devnet/shelley-genesis.json"
+printf '{"network":"devnet","epochLength":1200,"securityParam":100,"activeSlotsCoeff":1.0,"systemStart":"2020-01-01T00:00:00Z"}\n' \
+  > "$ROOT/yano/config/network/devnet/shelley-genesis.json"
 printf '{"network":"preprod"}\n' > "$ROOT/yano/config/network/preprod/shelley-genesis.json"
 cp "$MODULE/src/main/showcase/config/showcase-catalog-v1.json" "$ROOT/catalog/"
 printf 'fake jar\n' > "$ROOT/yano/yano.jar"
@@ -26,7 +28,24 @@ printf 'fake authenticated-map validator plugin\n' > \
   "$ROOT/yano/plugins/yano-x-authenticated-map-validators-bundle-test.jar"
 cat > "$ROOT/yano/appchain-cluster/cluster.sh" <<'SH'
 #!/usr/bin/env bash
+set -euo pipefail
 printf '%s\n' "$*" >> "${SHOWCASE_STUB_LOG:?}"
+if [ "${1:-}" = start ] && [ -n "${YANO_CLUSTER_DEVNET_GENESIS_FILE:-}" ]; then
+  for ((i=0;i<$2;i++)); do
+    target="$YANO_CLUSTER_DIR/node$i/shelley-genesis.json"
+    mkdir -p "$(dirname "$target")"
+    if [ -f "$target" ]; then
+      cmp "$YANO_CLUSTER_DEVNET_GENESIS_FILE" "$target"
+    else
+      cp "$YANO_CLUSTER_DEVNET_GENESIS_FILE" "$target"
+    fi
+    printf '123\n' > "$YANO_CLUSTER_DIR/node$i.pid"
+    printf '{"pid":123}\n' > "$YANO_CLUSTER_DIR/node$i.pid.meta"
+  done
+fi
+if [ "${1:-}" = stop ]; then
+  rm -f "$YANO_CLUSTER_DIR"/node*.pid "$YANO_CLUSTER_DIR"/node*.pid.meta
+fi
 if [ "${1:-}" = keys ]; then
   printf '%s\n' 'node  seed(hex, 32 bytes)                                              member-pubkey'
   for ((i=0;i<${2:-3};i++)); do
@@ -132,7 +151,98 @@ jq -e '.cardanoHistory.enabled == true and .cardanoHistory.profile == "params-on
 for node in 0 1 2; do
   grep -Fxq "yano.history.dir=$(cd "$ROOT" && pwd -P)/data/showcase/three/cluster/node$node/history" \
     "$ROOT/data/showcase/three/node-config/node$node.properties"
+  [ "$(grep -c 'anchor.validity-slots=299$' \
+    "$ROOT/data/showcase/three/node-config/node$node.properties")" = 13 ]
+  for ((chain=0;chain<13;chain++)); do
+    grep -Fxq "yano.app-chain.chains[$chain].anchor.validity-slots=299" \
+      "$ROOT/data/showcase/three/node-config/node$node.properties"
+  done
 done
+
+# Custom genesis bytes and timestamp stay exact across prepare/start/restart.
+printf '{"epochLength":1200,"securityParam":8,"activeSlotsCoeff":0.5,"systemStart":"2026-10-26T00:00:00Z"}\n' \
+  > "$WORK/custom-genesis.json"
+YANO_CLUSTER_DEVNET_GENESIS_FILE="$WORK/custom-genesis.json" \
+  "$ROOT/showcase.sh" prepare --instance short-horizon
+[ "$(grep -c 'anchor.validity-slots=47$' \
+  "$ROOT/data/showcase/short-horizon/node-config/node0.properties")" = 13 ]
+cmp "$WORK/custom-genesis.json" "$ROOT/data/showcase/short-horizon/devnet-shelley-genesis.json"
+jq -e '.epochLength == 1200' "$ROOT/data/showcase/short-horizon/devnet-shelley-genesis.json" >/dev/null
+YANO_CLUSTER_DEVNET_GENESIS_FILE="$WORK/custom-genesis.json" \
+  "$ROOT/showcase.sh" up --instance short-horizon
+"$ROOT/showcase.sh" restart --instance short-horizon
+cmp "$WORK/custom-genesis.json" "$ROOT/data/showcase/short-horizon/cluster/node2/shelley-genesis.json"
+printf '{"securityParam":1,"activeSlotsCoeff":0.7,"systemStart":"2026-10-26T00:00:00Z"}\n' \
+  > "$WORK/custom-genesis.json"
+if YANO_CLUSTER_DEVNET_GENESIS_FILE="$WORK/custom-genesis.json" \
+    "$ROOT/showcase.sh" prepare --instance short-horizon > "$WORK/custom-drift.log" 2>&1; then
+  echo "different custom genesis silently replaced a retained identity" >&2; exit 1
+fi
+grep -q 'selected custom genesis differs' "$WORK/custom-drift.log"
+cp "$ROOT/data/showcase/short-horizon/node-config/node0.properties" "$WORK/short-horizon-node0.properties"
+cp "$ROOT/data/showcase/short-horizon/showcase-identity.json" "$WORK/short-horizon-marker.json"
+BEFORE_REJECTED_RESTART="$(wc -l < "$WORK/cluster.log")"
+if YANO_CLUSTER_DEVNET_GENESIS_FILE="$WORK/custom-genesis.json" \
+    "$ROOT/showcase.sh" restart --instance short-horizon > "$WORK/custom-restart-drift.log" 2>&1; then
+  echo "restart silently ignored a conflicting custom genesis" >&2; exit 1
+fi
+grep -q 'selected custom genesis differs' "$WORK/custom-restart-drift.log"
+[ "$(wc -l < "$WORK/cluster.log")" = "$BEFORE_REJECTED_RESTART" ]
+cmp "$WORK/short-horizon-node0.properties" "$ROOT/data/showcase/short-horizon/node-config/node0.properties"
+cmp "$WORK/short-horizon-marker.json" "$ROOT/data/showcase/short-horizon/showcase-identity.json"
+[ "$(grep -c 'anchor.validity-slots=47$' \
+  "$ROOT/data/showcase/short-horizon/node-config/node0.properties")" = 13 ]
+YANO_CLUSTER_DEVNET_GENESIS_FILE="$WORK/custom-genesis.json" \
+  "$ROOT/showcase.sh" prepare --instance fractional-horizon
+[ "$(grep -c 'anchor.validity-slots=3$' \
+  "$ROOT/data/showcase/fractional-horizon/node-config/node0.properties")" = 13 ]
+printf '{"securityParam":1,"activeSlotsCoeff":0,"systemStart":"2026-10-26T00:00:00Z"}\n' \
+  > "$WORK/custom-genesis.json"
+if YANO_CLUSTER_DEVNET_GENESIS_FILE="$WORK/custom-genesis.json" \
+    "$ROOT/showcase.sh" prepare --instance invalid-horizon >"$WORK/invalid-horizon.log" 2>&1; then
+  echo "invalid devnet forecast geometry was accepted" >&2; exit 1
+fi
+grep -q 'Invalid devnet genesis securityParam/activeSlotsCoeff' "$WORK/invalid-horizon.log"
+
+# First launch and all later restarts use exactly the bytes hashed by observers.
+THREE="$ROOT/data/showcase/three"
+GENESIS_DIGEST="$(shasum -a 256 "$THREE/devnet-shelley-genesis.json" | cut -d' ' -f1)"
+jq -e '.epochLength == 500' "$THREE/devnet-shelley-genesis.json" >/dev/null
+! cmp -s "$THREE/devnet-shelley-genesis.json" "$ROOT/yano/config/network/devnet/shelley-genesis.json"
+"$ROOT/showcase.sh" up --instance three
+"$ROOT/showcase.sh" restart --instance three
+for node in 0 1 2; do
+  cmp "$THREE/devnet-shelley-genesis.json" "$THREE/cluster/node$node/shelley-genesis.json"
+  grep -Fxq "yano.app-chain.chains[12].observation.l1-network-genesis-id=$GENESIS_DIGEST" \
+    "$THREE/node-config/node$node.properties"
+done
+cp "$THREE/node-config/node0.properties" "$WORK/original-node0.properties"
+cp "$THREE/showcase-identity.json" "$WORK/original-marker.json"
+printf '\n' >> "$THREE/cluster/node2/shelley-genesis.json"
+if "$ROOT/showcase.sh" prepare --instance three > "$WORK/follower-genesis-drift.log" 2>&1; then
+  echo "different retained follower genesis was accepted" >&2; exit 1
+fi
+grep -q 'retained node genesis differs' "$WORK/follower-genesis-drift.log"
+cmp "$WORK/original-node0.properties" "$THREE/node-config/node0.properties"
+cmp "$WORK/original-marker.json" "$THREE/showcase-identity.json"
+cp "$THREE/devnet-shelley-genesis.json" "$THREE/cluster/node2/shelley-genesis.json"
+
+# Legacy state has no safe implicit identity migration, even if its latest
+# overlay was already rewritten by an older launcher. Preserve all evidence.
+"$ROOT/showcase.sh" prepare --instance legacy-genesis
+LEGACY="$ROOT/data/showcase/legacy-genesis"
+mkdir -p "$LEGACY/cluster/node0/chainstate"
+touch "$LEGACY/cluster/node0/chainstate/CURRENT"
+mv "$LEGACY/devnet-shelley-genesis.json" "$WORK/legacy-genesis.json"
+cp "$LEGACY/node-config/node0.properties" "$WORK/legacy-node0.properties"
+if "$ROOT/showcase.sh" prepare --instance legacy-genesis > "$WORK/legacy-genesis.log" 2>&1; then
+  echo "unpinned retained devnet state was silently migrated" >&2; exit 1
+fi
+grep -q 'retained devnet state predates the immutable genesis pin' "$WORK/legacy-genesis.log"
+cmp "$WORK/legacy-node0.properties" "$LEGACY/node-config/node0.properties"
+[ ! -e "$LEGACY/devnet-shelley-genesis.json" ]
+"$ROOT/showcase.sh" stop --instance legacy-genesis
+[ "$(tail -n 1 "$WORK/cluster.log")" = stop ]
 grep -q 'showcase-outbox.enabled=true' "$ROOT/data/showcase/three/node-config/node0.properties"
 grep -q 'showcase-outbox.enabled=false' "$ROOT/data/showcase/three/node-config/node1.properties"
 grep -q 'effects.executor.enabled=true' "$ROOT/data/showcase/three/node-config/node0.properties"
@@ -405,6 +515,7 @@ jq -e '.network == "preprod" and (.chainIds | length) == 12
   and (.anchor.chainIds | length) == 12
   and (.chainIds | index("payment-chain-settlement")) == null' \
   "$ROOT/data/showcase/light-preprod/showcase-identity.json" >/dev/null
+! grep -R 'anchor.validity-slots=' "$ROOT/data/showcase/light-preprod/node-config" >/dev/null
 ! grep -q 'chain-id: "payment-chain-settlement"' \
   "$ROOT/yano/config/application-appchain.yml"
 python3 - "$ROOT/yano/config/application-appchain.yml" <<'PY'

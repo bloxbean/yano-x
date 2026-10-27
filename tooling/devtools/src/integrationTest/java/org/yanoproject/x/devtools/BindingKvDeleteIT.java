@@ -48,7 +48,7 @@ class BindingKvDeleteIT {
             Path source = Path.of(bundle);
             Files.copy(source, plugins.resolve(source.getFileName()));
         }
-        var profile = new AppChainConsensusProfile(2, 65536, 100, 1_048_576, 0, 0, false, false,
+        var profile = new AppChainConsensusProfile(2, 65536, 100, 1_048_576, 0, 0, AppChainConsensusProfile.DEFAULT_BLOCK_MAX_FORWARD_SKEW_MS, false, false,
                 0, 0, 0, 0, FinalityGate.APP_FINAL, EffectOutcomeCommitment.PER_EFFECT, true, List.of());
         var identity = StateCommitmentIdentity.explicit(StateCommitmentProfiles.MPF, new byte[32]);
         var context = new BindingCatalogSession.ContextInput("delete-rehearsal", identity.settings(), profile,

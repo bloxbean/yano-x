@@ -77,6 +77,7 @@ The zero genesis and repeated public-key bytes are synthetic offline inputs.
     "maxBlockBytes": 1048576,
     "l1StabilityDepth": 0,
     "epochStabilityDepth": 0,
+    "blockMaxForwardSkewMs": 5000,
     "enforceSenderSeq": false,
     "effectsEnabled": false,
     "effectsMaxPerBlock": 0,

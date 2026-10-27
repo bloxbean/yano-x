@@ -14,6 +14,14 @@ def metadataRoot = project(':tooling:devtools').file(
 
 tasks.register('prepareStudio', Sync) {
     from('src/main/web')
+    from(rootProject.file('sdk/javascript')) {
+        into 'assets/topics'
+        include '*.mjs'
+    }
+    from(project(':tooling:devtools').file('src/test/resources/topics/plan-v1.json')) {
+        into 'assets'
+        rename { 'topics-plan-v1.json' }
+    }
     from(metadataRoot) {
         into 'assets'
         include 'appchain-blueprint.schema.json',
@@ -49,7 +57,7 @@ tasks.register('testStudio', NodeTask) {
     // The YAML differential corpus is parsed by the exact Java binding parser before Studio tests run.
     def yamlOracle = project(':tooling:devtools').tasks.named('generateStudioYamlOracle')
     def receiptOracle = project(':tooling:devtools').tasks.named('generateStudioReceiptOracle')
-    dependsOn yamlOracle, receiptOracle
+    dependsOn yamlOracle, receiptOracle, tasks.named('prepareStudio')
     inputs.dir('src/main/web')
     inputs.dir('src/test')
     inputs.files(yamlOracle.map { it.outputs.files }, receiptOracle.map { it.outputs.files })
@@ -100,6 +108,17 @@ tasks.named('assemble') {
     dependsOn tasks.named('studioZip')
 }
 
+tasks.register('testTopicClients', NodeTask) {
+    group = 'verification'
+    description = 'Checks the dependency-free topic client against frozen core wire and signature vectors'
+    inputs.dir(rootProject.file('sdk/javascript'))
+    outputs.upToDateWhen { false }
+    options = ['--test']
+    def tests = rootProject.fileTree('sdk/javascript/test') { include '*.test.mjs' }.files.sort()
+    script = tests.first()
+    args = tests.drop(1).collect { it.absolutePath }
+}
+
 tasks.named('check') {
-    dependsOn tasks.named('testStudio')
+    dependsOn tasks.named('testStudio'), tasks.named('testTopicClients')
 }

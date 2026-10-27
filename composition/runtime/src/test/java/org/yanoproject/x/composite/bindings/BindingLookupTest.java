@@ -1,5 +1,6 @@
 package org.yanoproject.x.composite.bindings;
 
+import org.yanoproject.api.appchain.topics.TopicWire;
 import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
 import org.junit.jupiter.api.Test;
 import org.yanoproject.api.appchain.AppBlock;
@@ -74,6 +75,10 @@ class BindingLookupTest {
         Map<String, Memory> states = Map.of("source", new Memory(), "copy", new Memory(), "audit", new Memory());
         Memory receipts = new Memory();
         var context = new CompositeWorkflowContext() {
+            @Override public TopicWire.EffectiveOutcome topicPolicy(String topic) {
+                return new TopicWire.EffectiveOutcome(TopicWire.OutcomeKind.DISABLED, null, null, List.of());
+            }
+            @Override public Optional<byte[]> topicSchema(String irHash) { return Optional.empty(); }
             @Override public AppStateWriter state(ComponentGeneration participant) {
                 return states.get(participant.componentId());
             }
