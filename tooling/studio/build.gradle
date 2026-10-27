@@ -15,10 +15,6 @@ tasks.register('prepareStudio', Sync) {
         into 'assets/topics'
         include '*.mjs'
     }
-    from(project(':tooling:devtools').file('src/test/resources/topics/plan-v1.json')) {
-        into 'assets'
-        rename { 'topics-plan-v1.json' }
-    }
     // Binding editor starters (ADR-031.2); examples/bindings stays their single source.
     from(rootProject.file('examples/bindings')) {
         into 'assets/bindings'

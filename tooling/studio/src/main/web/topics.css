@@ -2,7 +2,7 @@
 .skip-link:focus { left: 12px; }
 .topics-main { max-width: 1400px; margin: 0 auto; padding: 2.5rem 2rem; }
 .topics-intro { max-width: 850px; margin-bottom: 2rem; }
-.topics-grid { display: grid; grid-template-columns: minmax(240px, 1fr) minmax(380px, 2.5fr); gap: 1.5rem; align-items: start; }
+.topics-grid { display: grid; grid-template-columns: minmax(380px, 2fr) minmax(260px, 1fr); gap: 1.5rem; align-items: start; }
 .topic-panel { padding: 1.5rem; margin-bottom: 1.5rem; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); }
 .topics-intro h1 { font-size: clamp(2rem, 4vw, 3.5rem); letter-spacing: -.04em; margin: .8rem 0; }
 .topics-intro p { line-height: 1.6; }
@@ -15,8 +15,7 @@
 .topics-notice { padding: .85rem 1rem; border-left: 4px solid #237b72; background: #eaf5f0; color: #184c46; }
 .topics-notice[data-error="true"] { border-color: #9b3028; background: #fff0ed; color: #79251f; }
 .topic-panel pre { max-height: 32rem; overflow: auto; padding: 1rem; background: #07100d; color: #b9d7ca; font-size: .8rem; white-space: pre-wrap; overflow-wrap: anywhere; }
-#namespace-tree { list-style: none; padding: 0; }
-#namespace-tree button { text-align: left; max-width: 100%; overflow-wrap: anywhere; }
+.topics-main [hidden] { display: none; }
 .topic-panel details { margin-top: 1.5rem; }
 @media(max-width: 800px) { .topics-grid { grid-template-columns: 1fr; } .topics-main { padding: 1rem; } }
 @media(max-width: 480px) { .topic-fields { grid-template-columns: 1fr; } }

@@ -144,9 +144,9 @@ test('a draft bound to one catalog does not borrow descriptors from another cont
 });
 
 test('blueprint composites are edited in place and every other byte is preserved',()=>{
-  const text=fixture('blueprint-two-chains.yaml');
+  const text=fixture('draft-two-chains.yaml');
   const session=new BindingSession();
-  const chains=session.importBlueprint(text,'appchain.yaml');
+  const chains=session.importBlueprint(text,'app.draft.yaml');
   assert.deepEqual(chains.map(chain=>chain.chainId),['workflow']);
   assert.equal(session.document.origin,'blueprint');
   assert.equal(session.draft.wrapped,false);
@@ -238,8 +238,8 @@ test('the original download keeps every imported byte, including a BOM (M1 revie
 });
 
 test('blueprints stay attached to the document they opened (M1 review regression)',()=>{
-  const text=fixture('blueprint-two-chains.yaml');
-  const second=text+text.slice(text.indexOf('    - chainId: "workflow"')).replace('chainId: "workflow"','chainId: "second"');
+  const text=fixture('draft-two-chains.yaml');
+  const second=text+text.slice(text.indexOf('  - id: "workflow"')).replace('id: "workflow"','id: "second"');
   const session=new BindingSession();
   session.importBlueprint(text,'a.yaml');
   assert.equal(session.document.origin,'blueprint');

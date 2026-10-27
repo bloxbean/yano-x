@@ -6,37 +6,37 @@
   "producer" : {
     "tool" : "yano-x-devtools",
     "version" : "0.1.0-pre4",
-    "jarSha256" : "d13ddfd86f39467044a46bfe9f14ad96633e66063715e59de44995728fb0ce04",
-    "linkedCompositeJarSha256" : "d5ffca1cb0223bcac9dd71da3c29ea7a364d5c8204507d28b6e68b6fee8974b9"
+    "jarSha256" : "f122ab17e1f44c4beed262a9142a7bc478fa02a68b4f8bfff31ec407913a909d",
+    "linkedCompositeJarSha256" : "d7bfb7f72fad81eda6729554ec3493710b55984ae2e4cb7efd1f3c106cb58702"
   },
   "host" : {
-    "version" : "0.1.0-pre18",
-    "coreApiJarSha256" : "722cbac3bb251ca780c75393ce8070091e6db03f6a0177c119be1d083a6cd712",
-    "runtimeJarSha256" : "35158b4c50776d21e6b401156b4329b67676ee851818f3dc72d2f68cc906ee65"
+    "version" : "0.1.0-pre19-7f92fbe6a-SNAPSHOT",
+    "coreApiJarSha256" : "e8cc29db9c9e36dd743c9ae81bd42e806a4035e87d090d392af017c5f12554e9",
+    "runtimeJarSha256" : "a12663528d68efbecb2ebefa74d0ef8485101a13733337535bab69c3f379fef9"
   },
   "authoringEnvironment" : "yano-x-binding-authoring-environment-v1",
   "catalog" : {
-    "fingerprint" : "sha256:ec9d48248b2a7fe2ae8e04c34a2859b5c8d30bf94e8e7a71efa48b8ed121366c",
+    "fingerprint" : "sha256:0a4269c99832eb1435e9d827e27bc5100b10e092fe0cbcdd7b8c3daa7719be42",
     "pluginApi" : {
       "major" : 3,
-      "level" : 12
+      "level" : 13
     },
     "bundles" : [ {
       "id" : "org.yanoproject.x.composite",
       "version" : "0.1.0-pre4",
-      "digest" : "sha256:82a8d7694089caa2772a20461646fc1ec13dad37108f4ac99e9d5be4d74f363c",
+      "digest" : "sha256:daea1d264308d490bbac782e133dec811aaf99b0aaf80e70140f932ff5329922",
       "digestMode" : "ARTIFACT_CLOSURE",
       "selected" : true
     }, {
       "id" : "org.yanoproject.x.role-workflow",
       "version" : "0.1.0-pre4",
-      "digest" : "sha256:8acde842c31c88e88f45bd4be2b432e4228acb068516c4fd375a381d944fa7c8",
+      "digest" : "sha256:4b007e173b97b639ad6ca2ed11bda548a80acbf91fde99769f6728ae3694c4ca",
       "digestMode" : "ARTIFACT_CLOSURE",
       "selected" : true
     }, {
       "id" : "org.yanoproject.x.stdlib",
       "version" : "0.1.0-pre4",
-      "digest" : "sha256:22a9f0aed1b227b32fa82b7904bb3b2bdda61e038a16a472dc2c9bb8e8c2770d",
+      "digest" : "sha256:790686572c393597eeb1f6630a67c9ff460a4c0df3d849438e2bde89cf1a2835",
       "digestMode" : "ARTIFACT_CLOSURE",
       "selected" : true
     } ]
@@ -49,8 +49,8 @@
   }, {
     "role" : "context",
     "state" : "read",
-    "bytes" : "991",
-    "sha256" : "fd1059233408f30a8e02a62f5f8708ece723ceccf99cc4b0fe2744e8dac73539"
+    "bytes" : "1026",
+    "sha256" : "2b738697623c717a152335cc0b8667b2d3e2bd405cbbb8379bfd509bce17d6d9"
   }, {
     "role" : "fixture",
     "state" : "read",
@@ -60,7 +60,7 @@
     "role" : "priorResult",
     "state" : "read",
     "bytes" : "6398",
-    "sha256" : "99b3159836aa49bb017c95a7df917f4fb1f4ef67de24b7ca3726baf55b02bc27"
+    "sha256" : "6c4c448dd3934bc772d6f7520bb818f9549f30c3232b1b106bcdaa51c50dcd78"
   } ],
   "documentFormat" : "yaml",
   "result" : null,
@@ -316,6 +316,54 @@
     "locatesLastCondition" : "never"
   }, {
     "code" : "ADMISSION_RULE_INPUT",
+    "category" : "admission-rule",
+    "origin" : "either",
+    "levels" : [ "step" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "RULE_FIELD_UNAVAILABLE",
+    "category" : "admission-rule",
+    "origin" : "either",
+    "levels" : [ "step" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "RULE_PAYLOAD_SCHEMA_MISMATCH",
+    "category" : "admission-rule",
+    "origin" : "either",
+    "levels" : [ "step" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "RULE_TOPIC_POLICY_CROSSING",
+    "category" : "admission-rule",
+    "origin" : "either",
+    "levels" : [ "step" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "TOPIC_RETIRED",
+    "category" : "admission-rule",
+    "origin" : "either",
+    "levels" : [ "step" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "TOPIC_UNREGISTERED",
+    "category" : "admission-rule",
+    "origin" : "either",
+    "levels" : [ "step" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "TOPIC_SCHEMA_INCOMPATIBLE",
+    "category" : "admission-rule",
+    "origin" : "either",
+    "levels" : [ "step" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "TOPIC_PAYLOAD_TOO_LARGE",
+    "category" : "admission-rule",
+    "origin" : "either",
+    "levels" : [ "step" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "TOPIC_SCHEMA_REJECTED",
     "category" : "admission-rule",
     "origin" : "either",
     "levels" : [ "step" ],

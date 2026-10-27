@@ -438,10 +438,10 @@ export class BindingEditor {
       this.replaceDocument(async () => {
         const chains = session.importBlueprint(bytes, importBlueprint.files[0].name);
         this.announce(chains.length === 1 ? `Opened the composite of chain ${chains[0].chainId}.`
-          : `The blueprint has ${chains.length} composite chains; choose one below.`);
+          : `The draft has ${chains.length} composite chains; choose one below.`);
       })));
     const chooser = session.blueprint && session.blueprint.composites.length > 1 ? h('label', {},
-      'Blueprint chain', h('select', {id: 'blueprint-chain', onchange: event => {
+      'Draft chain', h('select', {id: 'blueprint-chain', onchange: event => {
         if (event.target.value === '') return;
         this.replaceDocument(async () => session.selectChain(Number(event.target.value)));
       }},
@@ -463,7 +463,7 @@ export class BindingEditor {
             this.announce(`Loaded the ${chosen.label} starter. ${chosen.description}`);
           })}),
         h('label', {class: 'file-button'}, 'Import binding YAML', importYaml),
-        h('label', {class: 'file-button'}, 'Import appchain.yaml blueprint', importBlueprint),
+        h('label', {class: 'file-button'}, 'Import a setup draft (<app>.draft.yaml)', importBlueprint),
         chooser,
         h('button', {type: 'button', id: 'reset-draft', class: 'secondary', text: 'Reset draft',
           disabled: !session.dirty, onclick: async () => {
@@ -609,7 +609,7 @@ export class BindingEditor {
       banner.hidden = false;
       banner.className = 'banner';
       put(banner, h('strong', {text: 'Choose a chain. '}),
-        'This blueprint has several inline composites. Choose one under Blueprint chain in the Document panel.');
+        'This draft has several inline composites. Choose one under Draft chain in the Document panel.');
     } else if (mode === 'read-only') {
       banner.hidden = false;
       banner.className = 'banner';
@@ -2156,7 +2156,7 @@ export class BindingEditor {
                 ? `Downloaded ${EXPORT_NAMES.blueprint}; only the selected composite changed.`
                 : `Downloaded ${EXPORT_NAMES.blueprint} unchanged.`);
             } catch (error) {
-              this.announce(error instanceof SessionError ? error.message : `Studio could not prove the rest of the blueprint `
+              this.announce(error instanceof SessionError ? error.message : `Studio could not prove the rest of the draft `
                 + `stays unchanged (${error.message}). Download ${EXPORT_NAMES.document} and replace the composite yourself.`, true);
             }
           }}) : null,
@@ -2166,7 +2166,7 @@ export class BindingEditor {
       h('p', {class: 'note'}, 'Next, validate with the version-matched CLI and import its report: see the ',
         h('button', {type: 'button', class: 'link-button', id: 'open-validate', text: 'Validate tab',
           onclick: () => { this.showTab('validate'); this.el('tab-validate').focus(); }}), '.'),
-      blueprint ? h('p', {class: 'note', text: 'A composite inside a blueprint is validated by project rendering, not by Studio.'}) : null);
+      blueprint ? h('p', {class: 'note', text: 'A composite inside a draft is checked by yano.sh appchain seal, not by Studio. Rename the download to <app>.draft.yaml.'}) : null);
   }
 }
 

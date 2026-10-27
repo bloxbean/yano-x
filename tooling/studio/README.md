@@ -12,11 +12,17 @@ backed by an authoring catalog, a synchronized YAML view and graph, CLI handoff
 with fixed file names, and explanation of imported, unauthenticated CLI reports.
 It edits the same YAML the CLI compiles and never compiles, executes, submits or
 stores anything. Its composite import opens a chain's inline `composite` from a
-setup draft (`<app>.draft.yaml`, with `chains:` at the top level) or from the
-older `spec.chains` layout, and writes back only that composite. A bindings
+setup draft (`<app>.draft.yaml`) and writes back only that composite. A bindings
 file reaches an application through `appchain new <app> --chain
 <id>=bindings:<file>` or `bindings:` in the draft. See the
 [editor chapter](../../docs/appchain/bindings/06-guided-editor.md).
+
+`topics.html` writes the `topics.yaml` that `yano.sh appchain topics plan`
+checks against the chain: a form for one namespace change (owners, writers,
+session-key issuers, payload schema) and the CLI commands that follow. Planning,
+signing, member votes, proofs and diagnostics stay in the CLI, so Studio never
+computes the bytes anyone signs. See
+[protect a topic](../../docs/appchain/TOPIC_SESSION_KEYS.md).
 
 The editor ships a generated reference catalog (`binding-authoring-catalog.json`,
 for the tutorial context in `binding-authoring-context.json`) and two starters

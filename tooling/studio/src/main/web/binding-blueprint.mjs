@@ -1,11 +1,11 @@
 /**
- * Selecting and replacing one chain's `composite` value inside an app-chain draft (`<app>.draft.yaml`, ADR-056) or
- * a legacy `appchain.yaml` blueprint (ADR-031.2 §7, C8).
+ * Selecting and replacing one chain's inline `composite` value inside an app-chain setup draft
+ * (`<app>.draft.yaml`, ADR-056; ADR-031.2 §7, C8). The names keep the editor's historical "blueprint" term.
  *
- * Studio never rewrites a blueprint wholesale. It replaces only the source span of the selected chain's composite
+ * Studio never rewrites a draft wholesale. It replaces only the source span of the selected chain's composite
  * value, keeps every other byte, then re-parses the result and proves that every other node is unchanged and that
- * the composite reads back as the draft. If any condition fails, it refuses and the caller offers the composite
- * document alone. The blueprint is intent: project rendering remains authoritative for the lock and identities.
+ * the composite reads back as the edited bindings. If any condition fails, it refuses and the caller offers the
+ * composite document alone. `yano.sh appchain seal` remains authoritative for the sealed chain.
  */
 import {draftFromTree,emitDocument} from './binding-draft.mjs';
 import {mapEntry,parseYaml,typedTree} from './studio-yaml.mjs';
@@ -21,10 +21,9 @@ export class BlueprintError extends Error {
 }
 
 function chains(root) {
-  const spec = mapEntry(root, 'spec')?.value;
-  const list = mapEntry(spec ?? root, 'chains')?.value;
+  const list = mapEntry(root, 'chains')?.value;
   if (list?.kind !== 'seq') {
-    throw new BlueprintError('BLUEPRINT_SHAPE', 'The file has no chains list (a draft\'s chains or a blueprint\'s spec.chains)');
+    throw new BlueprintError('BLUEPRINT_SHAPE', 'The file is not a setup draft: it has no top-level chains list');
   }
   return list.items;
 }
@@ -36,15 +35,14 @@ function chains(root) {
  */
 export function readBlueprint(text) {
   if (typeof text !== 'string' || text.length > MAX_BLUEPRINT_CHARACTERS) {
-    throw new BlueprintError('BLUEPRINT_TOO_LARGE', 'Blueprints are limited to 1 MiB');
+    throw new BlueprintError('BLUEPRINT_TOO_LARGE', 'Drafts are limited to 1 MiB');
   }
   const {root, lineEnding} = parseYaml(text, {maxCharacters: MAX_BLUEPRINT_CHARACTERS});
   const items = chains(root);
   const ids = new Set();
   const composites = [];
   items.forEach((chain, chainIndex) => {
-    // A setup draft names a chain `id`; a legacy blueprint names it `chainId`.
-    const id = mapEntry(chain, 'chainId')?.value ?? mapEntry(chain, 'id')?.value;
+    const id = mapEntry(chain, 'id')?.value;
     const chainId = id?.kind === 'scalar' && id.type === 'text' ? id.value : null;
     if (chainId === null || ids.has(chainId)) {
       throw new BlueprintError('BLUEPRINT_CHAIN_IDS', 'Every chain needs a unique text id');
@@ -59,7 +57,7 @@ export function readBlueprint(text) {
   return {text, root, lineEnding, composites};
 }
 
-/** The draft for one listed composite (a blueprint composite has no `composite:` wrapper). */
+/** The bindings draft for one listed composite (an inline composite has no `composite:` wrapper). */
 export function draftForChain(blueprint, chainIndex) {
   const entry = blueprint.composites.find(value => value.chainIndex === chainIndex);
   if (!entry) throw new BlueprintError('BLUEPRINT_CHAIN', 'That chain has no declarative composite');
@@ -68,8 +66,7 @@ export function draftForChain(blueprint, chainIndex) {
 
 function replaceComposite(tree, chainIndex, replacement) {
   const copy = structuredClone(tree);
-  const spec = copy.map.find(([key]) => key === 'spec')?.[1] ?? copy;
-  const list = spec.map.find(([key]) => key === 'chains')[1];
+  const list = copy.map.find(([key]) => key === 'chains')[1];
   const chain = list.seq[chainIndex];
   chain.map.find(([key]) => key === 'composite')[1] = replacement;
   return copy;
@@ -79,7 +76,7 @@ function replaceComposite(tree, chainIndex, replacement) {
  * Replaces one chain's composite value with the draft and verifies the result.
  *
  * @throws {BlueprintError} when the splice cannot be proven to leave every other node unchanged
- * @returns {string} blueprint text with only that value replaced
+ * @returns {string} draft text with only that value replaced
  */
 export function spliceComposite(blueprint, chainIndex, draft) {
   const entry = blueprint.composites.find(value => value.chainIndex === chainIndex);
@@ -108,7 +105,7 @@ export function spliceComposite(blueprint, chainIndex, draft) {
   }
   let reread;
   try { reread = readBlueprint(replaced); }
-  catch (error) { throw new BlueprintError('BLUEPRINT_SPLICE_UNVERIFIED', `The spliced blueprint does not re-read: ${error.message}`); }
+  catch (error) { throw new BlueprintError('BLUEPRINT_SPLICE_UNVERIFIED', `The spliced draft does not re-read: ${error.message}`); }
   const splicedEntry = reread.composites.find(value => value.chainIndex === chainIndex);
   const expectedTree = typedTree(parseYaml(emitDocument({...draft, wrapped: false})).root);
   if (!splicedEntry || JSON.stringify(typedTree(splicedEntry.node)) !== JSON.stringify(expectedTree)) {
@@ -117,7 +114,7 @@ export function spliceComposite(blueprint, chainIndex, draft) {
   const otherBefore = replaceComposite(typedTree(blueprint.root), chainIndex, null);
   const otherAfter = replaceComposite(typedTree(reread.root), chainIndex, null);
   if (JSON.stringify(otherBefore) !== JSON.stringify(otherAfter)) {
-    throw new BlueprintError('BLUEPRINT_SPLICE_UNVERIFIED', 'The splice would change another blueprint field');
+    throw new BlueprintError('BLUEPRINT_SPLICE_UNVERIFIED', 'The splice would change another draft field');
   }
   return replaced;
 }

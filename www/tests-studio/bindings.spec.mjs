@@ -422,10 +422,10 @@ test('moving graph nodes changes only presentation; reordering bindings changes 
   expect(yaml.indexOf('id: binding-2')).toBeLessThan(yaml.indexOf('id: audit-record'));
 });
 
-test('a blueprint composite is edited in place and every other chain is preserved', async ({ page }) => {
+test('a setup draft composite is edited in place and every other chain is preserved', async ({ page }) => {
   const { requests } = await open(page);
-  const text = studioFixture('blueprint-two-chains.yaml');
-  await page.locator('#import-blueprint').setInputFiles({ name: 'appchain.yaml', mimeType: 'text/yaml', buffer: Buffer.from(text) });
+  const text = studioFixture('draft-two-chains.yaml');
+  await page.locator('#import-blueprint').setInputFiles({ name: 'orders-and-audit.draft.yaml', mimeType: 'text/yaml', buffer: Buffer.from(text) });
   await expect(page.locator('#document-panel')).toContainText('chain workflow');
   await page.locator('#select-binding-0').click();
   const unchanged = await downloadText(page, () => page.locator('#download-blueprint').click());
@@ -437,11 +437,10 @@ test('a blueprint composite is edited in place and every other chain is preserve
   await page.locator('#dialog-accept').click();
   await expect(page.locator('#yaml-text')).toHaveValue(/literal: changed/);
   const exported = await downloadText(page, () => page.locator('#download-blueprint').click());
-  expect(exported.name).toBe('appchain.yaml');
+  expect(exported.name).toBe('app.draft.yaml');
   const before = readBlueprint(text);
   const after = readBlueprint(exported.text);
-  const chains = value => typedTree(value.root).map.find(([name]) => name === 'spec')[1].map
-    .find(([name]) => name === 'chains')[1].seq;
+  const chains = value => typedTree(value.root).map.find(([name]) => name === 'chains')[1].seq;
   expect(chains(after)[0]).toEqual(chains(before)[0]);
   expect(exported.text.slice(0, before.composites[0].node.start - 60)).toBe(text.slice(0, before.composites[0].node.start - 60));
   expect(exported.text).toContain('# trailing comment belongs to the chain, not the composite');
@@ -830,12 +829,12 @@ test('broken, pending and unsupported documents are labelled honestly', async ({
   await page.locator('#tab-yaml').click();
   await expect(page.locator('#yaml-state')).toContainText('Not a valid document');
 
-  const blueprint = studioFixture('blueprint-two-chains.yaml');
-  const twoChains = blueprint + blueprint.slice(blueprint.indexOf('    - chainId: "workflow"')).replace('chainId: "workflow"', 'chainId: "second"');
+  const blueprint = studioFixture('draft-two-chains.yaml');
+  const twoChains = blueprint + blueprint.slice(blueprint.indexOf('  - id: "workflow"')).replace('id: "workflow"', 'id: "second"');
   // An untouched broken import is not unsaved work, so no confirmation is needed.
-  await page.locator('#import-blueprint').setInputFiles({ name: 'appchain.yaml', mimeType: 'text/yaml', buffer: Buffer.from(twoChains) });
+  await page.locator('#import-blueprint').setInputFiles({ name: 'two.draft.yaml', mimeType: 'text/yaml', buffer: Buffer.from(twoChains) });
   await expect(page.locator('#mode-badge')).toHaveText('Choose a chain');
-  await expect(page.locator('#mode-banner')).toContainText('Choose one under Blueprint chain');
+  await expect(page.locator('#mode-banner')).toContainText('Choose one under Draft chain');
   await page.locator('#blueprint-chain').selectOption('');
   await expect(page.locator('#mode-badge')).toHaveText('Choose a chain');
   await page.locator('#blueprint-chain').selectOption({ label: 'second' });
@@ -846,7 +845,7 @@ test('broken, pending and unsupported documents are labelled honestly', async ({
   await expect(page.locator('#mode-badge')).toHaveText('Read-only');
   await expect(page.locator('#mode-banner')).toContainText('futureKey');
   const original = await downloadText(page, () => page.locator('#download-original').click());
-  expect(original.name).toBe('original-appchain.yaml');
+  expect(original.name).toBe('original.draft.yaml');
   expect(original.text).toBe(unsupported);
 });
 
