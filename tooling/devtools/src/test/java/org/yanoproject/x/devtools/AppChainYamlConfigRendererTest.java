@@ -44,6 +44,15 @@ class AppChainYamlConfigRendererTest {
     }
 
     @Test
+    void aQuotedSegmentKeepsItsDots() {
+        String yaml = AppChainYamlConfigRenderer.render(Map.of(
+                "yano.plugins.bundle.\"org.example.indexer\".storage-path", "/data/indexes"), "");
+        assertThat(yaml).contains("    bundle:\n      org.example.indexer:\n        storage-path: \"/data/indexes\"");
+        assertThatThrownBy(() -> AppChainYamlConfigRenderer.render(Map.of("yano.\"unclosed.key", "x"), ""))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
     void rejectsAmbiguousMalformedAndSparseExtensionPaths() {
         assertThatThrownBy(() -> AppChainYamlConfigRenderer.render(
                 Map.of("component", "scalar", "component.option", "nested"), ""))

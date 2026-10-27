@@ -27,7 +27,10 @@ class JoinCommandTest {
         assertThat(node).contains("peers: \"alice.example:13337,carol.example:13339\"",
                 "signing-key: \"${YANO_APPCHAIN_SIGNING_KEY}\"", "port: \"8081\"", "port: \"13338\"",
                 // A devnet follower takes Cardano blocks from the lead.
-                "host: \"alice.example\"", "enabled: \"false\"");
+                "host: \"alice.example\"", "enabled: \"false\"",
+                // Read indexes stay in this node's directory instead of a store shared through the distribution.
+                "path: \"" + bob.resolve("data/appchain-indexers") + "\"",
+                "storage-path: \"" + bob.resolve("data/appchain-indexers") + "\"");
         String seed = Files.readString(bob.resolve("secrets/member.key")).strip();
         assertThat(consensus + node).doesNotContain(seed);
         assertThat(Files.readString(fixture.node("alice").resolve("secrets/member.key"))).isNotEqualTo(seed);

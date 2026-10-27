@@ -24,20 +24,22 @@ class EutxoDemoCliTest {
         Files.writeString(launcher, """
                 #!/usr/bin/env bash
                 set -euo pipefail
-                output=""
+                # Imitates the setup commands' files: appchain new|request|seal|inspect|join|start|stop.
+                verb="$2"
                 previous=""
+                output=""
+                node=""
                 for value in "$@"; do
                   if [ "$previous" = "--output" ]; then output="$value"; fi
+                  if [ "$previous" = "--node-dir" ]; then node="$value"; fi
                   previous="$value"
                 done
-                if [ -n "$output" ]; then
-                  mkdir -p "$output/scripts" "$output/secrets"
-                  touch "$output/appchain.yaml" "$output/appchain.lock"
-                  for script in start stop; do
-                    printf '#!/usr/bin/env bash\\nexit 0\\n' > "$output/scripts/$script"
-                    chmod +x "$output/scripts/$script"
-                  done
-                fi
+                case "$verb" in
+                  new) touch "$output/$3.draft.yaml";;
+                  request) mkdir -p "$node/secrets"; echo '{}' > "$node/node.json";;
+                  seal) touch "${3%.draft.yaml}.chain";;
+                  inspect) echo '{"displayFingerprint":"0000-0000-0000-0000-0000-0000-0000-0000"}';;
+                esac
                 exit 0
                 """);
         launcher.toFile().setExecutable(true);

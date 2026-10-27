@@ -149,7 +149,7 @@ public final class EutxoDemoWorkspace {
                 Instant.now().toString());
         writeManifest(root, manifest);
         Files.writeString(root.resolve(".gitignore"),
-                "secrets/\nruntime/\nproject/data/\nproject/logs/\n",
+                "secrets/\nruntime/\nproject/node*/\n",
                 StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
         return new EutxoDemoWorkspace(root, manifest);
     }

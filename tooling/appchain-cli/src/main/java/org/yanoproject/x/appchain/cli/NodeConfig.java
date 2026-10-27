@@ -66,6 +66,10 @@ final class NodeConfig {
         local.put("yano.storage.path", data(node, "chainstate"));
         local.put("yano.app-chain.storage.path", data(node, "appchain-chainstate"));
         local.put("yano.history.dir", data(node, "history"));
+        // Rebuildable read indexes stay in this node's directory, beside its authoritative stores.
+        local.put("yano.app-chain.indexer.storage.path", data(node, "appchain-indexers"));
+        local.put("yano.plugins.bundle.\"org.yanoproject.x.eutxo.indexer\".storage-path",
+                data(node, "appchain-indexers"));
         local.put("quarkus.log.file.path", node.path("logs", "yano.log").toString());
         local.put("yano.app-chain.api.keys", "${YANO_APPCHAIN_API_KEYS}");
         local.put("yano.app-chain.validation.strict", "true");

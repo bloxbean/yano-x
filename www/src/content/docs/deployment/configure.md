@@ -6,7 +6,8 @@ editUrl: "https://github.com/bloxbean/yano-x/edit/main/docs/appchain/deployment/
 - **Goal:** run your own application with other organizations, each running
   their own node, and check that everyone has the same chain.
 - **Before you start:** every operator needs the same extracted Yano X JVM
-  release, Java 25, and `curl`. For the message check at the end you also need
+  release and Java 25 (or the self-contained edition for their platform, which
+  bundles Java), and `curl`. For the message check at the end you also need
   `jq`.
 - **Time:** 10 minutes for the rehearsal; about 30 minutes with real
   operators, most of it sending files and one short call.
@@ -71,6 +72,11 @@ message check runs when one of the chains uses `audit-log`.
 ./yano.sh appchain try --chain orders=audit-log --chain registry=owned-registry
 ./yano.sh appchain try --chain flow=bindings:flow.yaml
 ```
+
+**Prefer a browser?** `./yano.sh appchain ui` opens a page on this computer
+(127.0.0.1 only) with the same steps: create, member cards, seal, compare and
+join, start, status, approve and anchor. Every button runs the command shown
+under it, so the files are the same as from the terminal.
 
 ## 2. The coordinator creates the draft
 

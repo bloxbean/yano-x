@@ -139,10 +139,13 @@ nodes.)
 Workspace map (under `data/showcase/<instance>/eutxo-<variant>/`):
 
 ```
-project/logs/node<i>.log            node logs (first stop for failures)
-project/data/node<i>/chainstate                 authoritative L1 state
-project/data/node<i>/appchain-chainstate        authoritative app-chain state
-project/data/node<i>/appchain-indexers/...      rebuildable eutxo-lifecycle.db
+project/<app>.draft.yaml, <app>.chain, node<i>.member   the setup files (public)
+project/node<i>/                     one node directory per member (yano.sh appchain status --node-dir …)
+project/node<i>/logs/node.log        node log (first stop for failures)
+project/node<i>/data/chainstate                 authoritative L1 state
+project/node<i>/data/appchain-chainstate        authoritative app-chain state
+project/node<i>/data/appchain-indexers/...      rebuildable eutxo-lifecycle.db
+project/node<i>/secrets/             the node's member and API keys (0600, git-ignored)
 runtime/journal/operations.json     the resumable step journal
 artifacts/{l1,l2,proofs,reports}/   retained transactions, transitions, reports
 secrets/                            generated demo keys (0600, git-ignored)

@@ -14,7 +14,6 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -23,11 +22,12 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
-/** Generated-project lifecycle adapter used by every maintained demo scenario. */
+/** Node lifecycle of every maintained demo scenario, through the app-chain setup commands. */
 public final class EutxoDemoCluster {
     private static final int MAX_PROCESS_OUTPUT = 64 * 1024;
     private static final int MAX_INDEX_RESPONSE = 2 * 1024 * 1024;
     private static final ObjectMapper JSON = new ObjectMapper();
+    private static final String SIGNING_KEY_PREFIX = "YANO_APPCHAIN_SIGNING_KEY=";
     private static final String INDEX_API =
             "/api/v1/plugins/org.yanoproject.x.eutxo.indexer"
                     + "/index/v1";
@@ -37,64 +37,86 @@ public final class EutxoDemoCluster {
         this.workspace = workspace;
     }
 
+    /**
+     * Sets up the demo application with the setup commands, as its operators would: {@code new}, one
+     * {@code request} per member with the workspace's member key, {@code seal}, and {@code join} for each node
+     * directory, all under {@link EutxoDemoWorkspace#project()}.
+     */
     public void generateProject(
             String recipe,
             Map<String, String> answers) throws IOException, InterruptedException {
         requireSelfManaged("generate a project");
-        Path yanoHome = resolveYanoHome();
-        List<String> command = new ArrayList<>(List.of(
-                yanoHome.resolve("yano.sh").toString(),
-                "appchain", "init", "--non-interactive",
-                "--recipe", recipe,
+        EutxoDemoManifest manifest = workspace.manifest();
+        Path project = workspace.project();
+        Files.createDirectories(project);
+        List<String> operators = new ArrayList<>();
+        for (int index = 0; index < manifest.members(); index++) operators.add(nodeName(index));
+        List<String> create = new ArrayList<>(appchain("new", manifest.projectName(),
                 "--network", "devnet",
-                "--runtime", "jvm",
-                "--deployment", "host",
-                "--members", Integer.toString(workspace.manifest().members()),
-                "--http-port-base", Integer.toString(workspace.manifest().httpPortBase()),
-                "--server-port-base", Integer.toString(workspace.manifest().serverPortBase()),
-                "--name", workspace.manifest().projectName(),
-                "--chain-id", workspace.manifest().chainId()));
-        for (String member : workspace.manifest().memberPublicKeys()) {
-            command.add("--member-key");
-            command.add(member);
-        }
+                "--operators", String.join(",", operators),
+                "--chain", manifest.chainId() + "=" + recipe));
         answers.entrySet().stream().sorted(Map.Entry.comparingByKey()).forEach(answer -> {
-            command.add("--answer");
-            command.add(answer.getKey() + "=" + answer.getValue());
+            create.add("--answer");
+            create.add(manifest.chainId() + "." + answer.getKey() + "=" + answer.getValue());
         });
-        command.add("--output");
-        command.add(workspace.project().toString());
-        run(command, Duration.ofMinutes(2), "PROJECT_GENERATION_FAILED");
-        for (int index = 0; index < workspace.manifest().members(); index++) {
-            Files.copy(
-                    workspace.root().resolve("secrets/members/node" + index + ".env"),
-                    workspace.project().resolve("secrets/node" + index + ".env"),
-                    StandardCopyOption.COPY_ATTRIBUTES);
-            EutxoDemoIdentityService.ownerFile(
-                    workspace.project().resolve("secrets/node" + index + ".env"));
+        create.addAll(List.of("--output", project.toString(), "--yes"));
+        run(create, Duration.ofMinutes(2), "PROJECT_GENERATION_FAILED");
+
+        Path draft = project.resolve(manifest.projectName() + ".draft.yaml");
+        for (int index = 0; index < manifest.members(); index++) {
+            // The member key moves into the node directory; the temporary copy never outlives the request.
+            Path seed = project.resolve("." + nodeName(index) + ".seed");
+            Files.writeString(seed, memberSeed(index) + "\n", StandardCharsets.US_ASCII);
+            EutxoDemoIdentityService.ownerFile(seed);
+            try {
+                run(appchain("request", draft.toString(),
+                        "--name", nodeName(index),
+                        "--host", "127.0.0.1",
+                        "--node-port", Integer.toString(manifest.serverPortBase() + index),
+                        "--http-port", Integer.toString(manifest.httpPortBase() + index),
+                        "--node-dir", nodeDirectory(index).toString(),
+                        "--key", seed.toString(),
+                        "--output", project.toString(), "--yes"),
+                        Duration.ofMinutes(1), "MEMBER_REQUEST_FAILED");
+            } finally {
+                Files.deleteIfExists(seed);
+            }
         }
-        run(List.of(yanoHome.resolve("yano.sh").toString(),
-                        "appchain", "config", "validate", "--mode", "project",
-                        workspace.project().toString()),
-                Duration.ofMinutes(1), "PROJECT_VALIDATION_FAILED");
+        run(appchain("seal", draft.toString()), Duration.ofMinutes(2), "PROJECT_SEAL_FAILED");
+        Path sealed = sealedFile();
+        String inspected = capture(appchain("inspect", sealed.toString(), "--json"),
+                Duration.ofMinutes(1), "PROJECT_INSPECT_FAILED");
+        // The launcher may print JVM notices before the JSON document.
+        String fingerprint = JSON.readTree(inspected.substring(Math.max(0, inspected.indexOf('{'))))
+                .path("displayFingerprint").asText();
+        for (int index = 0; index < manifest.members(); index++) {
+            run(appchain("join", sealed.toString(),
+                    "--expect-fingerprint", fingerprint,
+                    "--node-dir", nodeDirectory(index).toString(), "--yes"),
+                    Duration.ofMinutes(1), "PROJECT_JOIN_FAILED");
+        }
     }
 
+    /** Starts every node, the lead first: it creates the devnet the others download. */
     public void start() throws IOException, InterruptedException {
         requireSelfManaged("start the cluster");
-        requireProjectScript("start");
+        requireGenerated();
         requirePackagedSqliteDriver();
-        run(List.of(workspace.project().resolve("scripts/start").toString()),
-                Duration.ofMinutes(8), "CLUSTER_START_FAILED");
+        for (int index = 0; index < workspace.manifest().members(); index++) {
+            run(appchain("start", "--node-dir", nodeDirectory(index).toString()),
+                    Duration.ofMinutes(8), "CLUSTER_START_FAILED");
+        }
         awaitIndexReady(Duration.ofMinutes(2));
         requireOwnedIndexFiles();
     }
 
     public void stop() throws IOException, InterruptedException {
         requireSelfManaged("stop the cluster");
-        Path script = workspace.project().resolve("scripts/stop");
-        if (Files.isExecutable(script)) {
-            run(List.of(script.toString()), Duration.ofSeconds(30),
-                    "CLUSTER_STOP_FAILED");
+        for (int index = workspace.manifest().members() - 1; index >= 0; index--) {
+            if (Files.isRegularFile(nodeDirectory(index).resolve("node.json"))) {
+                run(appchain("stop", "--node-dir", nodeDirectory(index).toString()),
+                        Duration.ofSeconds(60), "CLUSTER_STOP_FAILED");
+            }
         }
     }
 
@@ -263,8 +285,7 @@ public final class EutxoDemoCluster {
     }
 
     private Path indexDirectory(int node) {
-        return workspace.project().resolve("data")
-                .resolve("node" + node)
+        return nodeDirectory(node).resolve("data")
                 .resolve("appchain-indexers")
                 .resolve(workspace.manifest().chainId())
                 .toAbsolutePath().normalize();
@@ -303,14 +324,48 @@ public final class EutxoDemoCluster {
                 .orElse("");
     }
 
-    private void requireProjectScript(String name) {
-        if (!Files.isExecutable(workspace.project().resolve("scripts/" + name))) {
+    private void requireGenerated() {
+        if (!Files.isRegularFile(sealedFile())
+                || !Files.isRegularFile(nodeDirectory(0).resolve("node.json"))) {
             throw new IllegalStateException(
                     "demo project is not generated; run setup first");
         }
     }
 
+    private Path sealedFile() {
+        return workspace.project().resolve(workspace.manifest().projectName() + ".chain");
+    }
+
+    private Path nodeDirectory(int index) {
+        return workspace.project().resolve(nodeName(index)).toAbsolutePath().normalize();
+    }
+
+    private static String nodeName(int index) {
+        return "node" + index;
+    }
+
+    /** The member seed the workspace created for node {@code index}. */
+    private String memberSeed(int index) throws IOException {
+        Path file = workspace.root().resolve("secrets/members/node" + index + ".env");
+        for (String line : Files.readAllLines(file, StandardCharsets.US_ASCII)) {
+            if (line.startsWith(SIGNING_KEY_PREFIX)) return line.substring(SIGNING_KEY_PREFIX.length()).strip();
+        }
+        throw new IllegalStateException("node" + index + " member key is missing from the workspace");
+    }
+
+    private static List<String> appchain(String... arguments) {
+        List<String> command = new ArrayList<>(List.of(
+                resolveYanoHome().resolve("yano.sh").toString(), "appchain"));
+        command.addAll(List.of(arguments));
+        return command;
+    }
+
     private void run(List<String> command, Duration timeout, String code)
+            throws IOException, InterruptedException {
+        capture(command, timeout, code);
+    }
+
+    private String capture(List<String> command, Duration timeout, String code)
             throws IOException, InterruptedException {
         ProcessBuilder builder = new ProcessBuilder(command)
                 .directory(workspace.root().toFile())
@@ -331,6 +386,7 @@ public final class EutxoDemoCluster {
         if (process.exitValue() != 0) {
             throw new IllegalStateException(code + safeDiagnostic(diagnostic));
         }
+        return diagnostic;
     }
 
     private static String drain(Process process) {
