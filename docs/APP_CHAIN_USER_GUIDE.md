@@ -1811,7 +1811,7 @@ code, private secret mounts, and isolated connector network are that
 administrative path's actual boundaries. Only the runner and executor policies
 are described as IAM-enforced. This remains neither a production nor a
 high-availability object-storage recommendation.
-Host deployment stays provider-neutral and can target
+A production deployment stays provider-neutral and can target
 an independently qualified AWS S3 or compatible service without changing the
 effect contract or scenario.
 

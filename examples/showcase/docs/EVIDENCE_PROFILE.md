@@ -63,7 +63,10 @@ Two variants:
 ## 2. Prerequisites and port planning
 
 **Docker is required** (Compose is the only showcase deployment for this
-profile). Check readiness first:
+profile). To run the evidence chain on your own hosts instead, use the setup
+commands with the `evidence-ledger` recipe
+(`./yano.sh appchain new <name> --chain evidence=evidence-ledger`; see
+`docs/appchain/deployment/configure.md`). Check readiness first:
 
 ```bash
 ./showcase.sh doctor --profile evidence
@@ -96,8 +99,8 @@ source evidence.env
 
 (The connector subnet only needs changing when you run two evidence
 environments side by side — each needs a distinct subnet, instance, and port
-plan. `DEMO_SERVER_BASE` matters only for `--deployment host`; in Compose the
-nodes talk over the internal network.)
+plan. The nodes talk to each other over the internal Compose network, so no
+peer-port base needs planning.)
 
 ## 3. Create and start (composite variant)
 
@@ -325,7 +328,7 @@ If you use it at all, run `./showcase.sh stop …` first.
 
 - `../evidence/README.md` — the authoritative harness document:
   load semantics, composite and role profiles, port table, persistence
-  layout, cleanup, host deployment, public-network (preview/preprod) anchor
+  layout, cleanup, public-network (preview/preprod) anchor
   profiles with `--anchor-key-file` / `--confirm-public-anchor`.
 - `DEMO_SHOWCASE.md` §13 — how this profile relates to the light and eutxo
   profiles.

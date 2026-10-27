@@ -132,20 +132,18 @@ for path in repo.glob("**/src/main/resources/META-INF/yano/plugins/*.json"):
         manifests[document["id"]] = document
 if len(selected) != 8 or set(manifests) != selected:
     raise SystemExit("exact demo selection does not match source manifests")
-# The node templates admit plugins by id; an unknown id fails catalog
-# activation only at node startup, so pin them to the same selection.
-templates = Path(sys.argv[3]).parent / "config" / "templates"
-for template in ("node-compose.properties.in", "node-host.properties.in"):
-    allow_list = re.search(r"^yano\.plugins\.allow-list=(.*)$",
-                           (templates / template).read_text(encoding="utf-8"), re.MULTILINE)
-    if allow_list is None or set(allow_list.group(1).split(",")) != selected:
-        raise SystemExit(f"{template} plugin allow-list does not match the selected source manifests")
+# The node template admits plugins by id; an unknown id fails catalog
+# activation only at node startup, so pin it to the same selection.
+template = Path(sys.argv[3]).parent / "config" / "templates" / "node-compose.properties.in"
+allow_list = re.search(r"^yano\.plugins\.allow-list=(.*)$",
+                       template.read_text(encoding="utf-8"), re.MULTILINE)
+if allow_list is None or set(allow_list.group(1).split(",")) != selected:
+    raise SystemExit(f"{template.name} plugin allow-list does not match the selected source manifests")
 contributions = sum(len(document["contributions"]) for document in manifests.values())
-for script in (source, (Path(sys.argv[1]).parent / "deployment-parity-e2e.sh").read_text(encoding="utf-8")):
-    if f"and ([.items[] | select(.selected) | .contributionCount] | add) == {contributions}" not in script:
-        raise SystemExit("live demo contribution count drifted from its selected manifests")
-    if 'and (.pluginApiLevel | type == "number" and . >= 8)' not in script:
-        raise SystemExit("live demo must require the selected plugins' API level 8")
+if f"and ([.items[] | select(.selected) | .contributionCount] | add) == {contributions}" not in source:
+    raise SystemExit("live demo contribution count drifted from its selected manifests")
+if 'and (.pluginApiLevel | type == "number" and . >= 8)' not in source:
+    raise SystemExit("live demo must require the selected plugins' API level 8")
 preflight = '"$DEMO_DIR/demo.sh" config --deployment compose'
 resolve = 'PROJECT_NAME="$(sed -n \'s/^DEMO_PROJECT_NAME=//p\' "$ENV_FILE")"'
 startup = '"$DEMO_DIR/demo.sh" up --deployment compose'
@@ -301,9 +299,8 @@ def job_block(name, text=workflow):
     return "\n".join(lines[start:end])
 
 
-# The devnet E2E scenarios run as three parallel jobs of evidence-e2e.yml.
+# The devnet E2E scenarios run as two parallel jobs of evidence-e2e.yml.
 for name, scenario in (("effect-failover", "YANO_RUN_EFFECT_FAILOVER_E2E: 'true'"),
-                       ("deployment-parity", "YANO_RUN_DEPLOYMENT_PARITY_E2E: 'true'"),
                        ("role-workflow", "YANO_RUN_ROLE_WORKFLOW_E2E: 'true'")):
     job = job_block(name, e2e_workflow)
     for required in (
@@ -320,8 +317,15 @@ for required in ("run: products/evidence/harness/tests/effect-failover-contract.
                  "run: products/evidence/harness/tests/effect-failover-e2e.sh"):
     if required not in failover_job:
         raise SystemExit(f"mandatory devnet E2E workflow contract is missing: {required}")
-if "run: products/evidence/harness/tests/role-workflow-e2e.sh" not in job_block("role-workflow", e2e_workflow):
-    raise SystemExit("mandatory devnet E2E omits the role workflow scenario")
+role_job = job_block("role-workflow", e2e_workflow)
+for required in ("run: products/evidence/harness/tests/role-workflow-e2e.sh",
+                 "YANO_ROLE_WORKFLOW_TIMEOUT_SECONDS: '900'"):
+    if required not in role_job:
+        raise SystemExit(f"mandatory devnet E2E role workflow job is missing: {required}")
+if role_job.count("DEMO_ANCHOR_VISIBILITY_TIMEOUT_SECONDS: '900'") != 1:
+    raise SystemExit("role startup must allow the default node recovery window")
+if e2e_workflow.count("run: products/evidence/harness/tests/role-workflow-e2e.sh") != 1:
+    raise SystemExit("the role workflow E2E must have exactly one workflow invocation")
 # It runs nightly, on demand, and on every change to what it exercises, including a version bump.
 for required in ("  workflow_dispatch:", "  schedule:\n    - cron: "):
     if required not in e2e_workflow:
@@ -401,6 +405,53 @@ for forbidden in ("Dockerfile.rustfs", "Dockerfile.kubo", "rustfs_local_image.sh
                   "rustfs_prebuilt_image.sh", "kubo_source.py"):
     if forbidden in demo:
         raise SystemExit(f"demo launcher still builds a third-party dependency: {forbidden}")
+PY
+
+# Role workflow E2E: listener plan, port-range guard and failure diagnostics.
+python3 - "$SCRIPT_DIR/role-workflow-e2e.sh" <<'PY'
+from pathlib import Path
+import re
+import subprocess
+import sys
+
+role_source = Path(sys.argv[1]).read_text(encoding="utf-8")
+role_ports = dict(re.findall(
+    r'export DEMO_(\w+)="\$\{YANO_ROLE_WORKFLOW_\w+:-([0-9]+)\}"', role_source))
+listeners = []
+for name in ('HTTP_BASE', 'UI_PORT', 'SERVER_BASE', 'KAFKA_PORT', 'S3_PORT',
+             'IPFS_PORT', 'PROMETHEUS_PORT', 'GRAFANA_PORT'):
+    base = int(role_ports[name])
+    listeners.extend(range(base, base + (3 if name.endswith('_BASE') else 1)))
+if len(set(listeners)) != len(listeners) or not all(1024 <= port < 32768 for port in listeners):
+    raise SystemExit('role default listeners must be distinct and below the default Linux client-port range')
+guard = 'reject_ephemeral_listener() {' + role_source.split(
+    'reject_ephemeral_listener() {', 1)[1].split('\nfor port in ', 1)[0]
+for first, last, port, expected in ((32768, 60999, 48070, 1), (32768, 60999, 30070, 0),
+                                    (30000, 60000, 30070, 1), (0, 0, 30070, 0)):
+    result = subprocess.run(['bash', '-c', 'fail() { exit 1; };\n' + guard
+                             + f'\nEPHEMERAL_FIRST={first}; EPHEMERAL_LAST={last}; '
+                             + f'reject_ephemeral_listener {port}'], check=False)
+    if result.returncode != expected:
+        raise SystemExit('role client-port overlap guard is incorrect')
+if 'reject_ephemeral_listener "$port"' not in role_source:
+    raise SystemExit('role startup must apply its port-range guard')
+
+if 'export DEMO_DEVNET_BLOCK_TIME_MILLIS=10000' not in role_source:
+    raise SystemExit("role workflow must pace its devnet producer for slow CI followers")
+
+for required in ('Bounded role anchor/status diagnostics before cleanup (success or failure):',
+                 'Bounded L1 sync/recovery diagnostics (no validation settings changed):',
+                 'peerApplicationProgressAgeMillis,peerBodyFetchInProgress',
+                 '/api/v1/node/status',
+                 'logs --no-color --since 30m yano-0 yano-1 yano-2',
+                 '\n  qualification_diagnostics\n'):
+    if required not in role_source:
+        raise SystemExit(f"role failure diagnostics are missing: {required}")
+role_cleanup = role_source[role_source.index("\ncleanup() {"):role_source.index("trap cleanup EXIT INT TERM")]
+if role_cleanup.index("qualification_diagnostics") > role_cleanup.index("demo stop"):
+    raise SystemExit("role failure diagnostics must run before stopping the containers")
+if '\nqualification_diagnostics\ndemo stop >/dev/null\n' not in role_source:
+    raise SystemExit("role success diagnostics must run before explicit cleanup bypasses the exit trap")
 PY
 
 ARITHMETIC_MARKER="$TMP/arithmetic-injection-executed"

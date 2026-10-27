@@ -463,7 +463,7 @@ plugin.
 - [Consensus and internals guide](core-host.md) — exact
   consensus, state-machine, proof, catch-up, and wire-format behavior.
 - [Effects demo](../products/evidence/harness/README.md) — the complete
-  Kafka/object-store/IPFS evidence scenario in Compose and normal deployment.
+  Kafka/object-store/IPFS evidence scenario in Docker Compose.
 - [Composite state-machine guide](../composition/runtime/README.md) —
   stock preset and custom-composition rules.
 - [Composite profile-governance runbook](APP_CHAIN_PROFILE_GOVERNANCE.md) —

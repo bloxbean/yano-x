@@ -169,7 +169,16 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 
-case "$MODE" in compose|host) ;; *) die "--mode must be compose or host";; esac
+case "$MODE" in
+  compose) ;;
+  host)
+    die "--deployment host is retired; run the evidence chain on your own hosts with" \
+      "the setup commands and the evidence-ledger recipe" \
+      "(yano.sh appchain new <name> --chain evidence=evidence-ledger;" \
+      "see docs/appchain/deployment/configure.md)"
+    ;;
+  *) die "--deployment must be compose";;
+esac
 case "$DEMO_NETWORK" in
   devnet|preview|preprod|mainnet) ;;
   *) die "--network must be exactly devnet, preview, preprod, or mainnet";;
@@ -229,8 +238,6 @@ case "$COMMAND" in
   reset-devnet)
     [ "$DEMO_NETWORK" = devnet ] \
       || die "reset-devnet is available only for --network devnet"
-    [ "$MODE" = compose ] \
-      || die "reset-devnet currently supports the Compose deployment only"
     [ "$CLEAN_CONFIRMED" = true ] \
       || die "reset-devnet requires --yes; nothing was changed"
     [ -z "$CLEAN_SCOPE" ] && [ -z "$NEW_INSTANCE" ] && [ -z "$NEW_CHAIN_ID" ] \
@@ -284,7 +291,6 @@ validate_decimal() {
 }
 
 validate_decimal DEMO_HTTP_BASE "$DEMO_HTTP_BASE" 1 65533
-validate_decimal DEMO_SERVER_BASE "${DEMO_SERVER_BASE:-13337}" 1 65533
 validate_decimal DEMO_UI_PORT "$DEMO_UI_PORT" 1 65535
 validate_decimal DEMO_KAFKA_PORT "$DEMO_KAFKA_PORT" 1 65535
 validate_decimal DEMO_S3_PORT "$DEMO_S3_PORT" 1 65535
@@ -502,18 +508,10 @@ API_KEY_FILE="$SECRET_ROOT/yano-api-key"
 S3_BOOTSTRAP_ACCESS_FILE="$SECRET_ROOT/s3-bootstrap-access-key"
 S3_BOOTSTRAP_SECRET_FILE="$SECRET_ROOT/s3-bootstrap-secret-key"
 S3_IAM_MASTER_KEY_FILE="$SECRET_ROOT/s3-iam-master-key"
-S3_RUNNER_ACCESS_FILE="$(normalize_file_path DEMO_HOST_S3_RUNNER_ACCESS_KEY_FILE \
-  "${DEMO_HOST_S3_RUNNER_ACCESS_KEY_FILE:-$SECRET_ROOT/s3-runner-access-key}")" \
-  || die "DEMO_HOST_S3_RUNNER_ACCESS_KEY_FILE must be a safe path without '..'"
-S3_RUNNER_SECRET_FILE="$(normalize_file_path DEMO_HOST_S3_RUNNER_SECRET_KEY_FILE \
-  "${DEMO_HOST_S3_RUNNER_SECRET_KEY_FILE:-$SECRET_ROOT/s3-runner-secret-key}")" \
-  || die "DEMO_HOST_S3_RUNNER_SECRET_KEY_FILE must be a safe path without '..'"
-S3_EXECUTOR_ACCESS_FILE="$(normalize_file_path DEMO_HOST_S3_EXECUTOR_ACCESS_KEY_FILE \
-  "${DEMO_HOST_S3_EXECUTOR_ACCESS_KEY_FILE:-$SECRET_ROOT/s3-executor-access-key}")" \
-  || die "DEMO_HOST_S3_EXECUTOR_ACCESS_KEY_FILE must be a safe path without '..'"
-S3_EXECUTOR_SECRET_FILE="$(normalize_file_path DEMO_HOST_S3_EXECUTOR_SECRET_KEY_FILE \
-  "${DEMO_HOST_S3_EXECUTOR_SECRET_KEY_FILE:-$SECRET_ROOT/s3-executor-secret-key}")" \
-  || die "DEMO_HOST_S3_EXECUTOR_SECRET_KEY_FILE must be a safe path without '..'"
+S3_RUNNER_ACCESS_FILE="$SECRET_ROOT/s3-runner-access-key"
+S3_RUNNER_SECRET_FILE="$SECRET_ROOT/s3-runner-secret-key"
+S3_EXECUTOR_ACCESS_FILE="$SECRET_ROOT/s3-executor-access-key"
+S3_EXECUTOR_SECRET_FILE="$SECRET_ROOT/s3-executor-secret-key"
 RUSTFS_IAM_SPEC_FILE="$SECRET_ROOT/rustfs-iam-spec.json"
 GRAFANA_PASSWORD_FILE="$SECRET_ROOT/grafana-admin-password"
 if [ -n "$ANCHOR_KEY_FILE" ]; then
@@ -541,7 +539,6 @@ PY
 HTTP0=$((10#$DEMO_HTTP_BASE))
 HTTP1=$((HTTP0 + 1))
 HTTP2=$((HTTP0 + 2))
-SERVER_BASE="${DEMO_SERVER_BASE:-13337}"
 python3 - "$DEMO_CONNECTOR_SUBNET" "$DEMO_S3_IP" "$DEMO_KUBO_IP" "$DEMO_KAFKA_IP" <<'PY' \
   || die "connector subnet/IP values must be distinct canonical private IPv4 addresses"
 import ipaddress, sys
@@ -554,15 +551,11 @@ if any(address.version != 4 or address not in network for address in addresses):
 if str(network) != sys.argv[1] or any(str(address) != raw for address, raw in zip(addresses, sys.argv[2:])):
     raise SystemExit(1)
 PY
-python3 - "$MODE" "$HTTP0" "$HTTP1" "$HTTP2" "$DEMO_UI_PORT" "$DEMO_KAFKA_PORT" \
-  "$DEMO_S3_PORT" "$DEMO_IPFS_PORT" "$DEMO_PROMETHEUS_PORT" "$DEMO_GRAFANA_PORT" \
-  "$SERVER_BASE" "$((10#$SERVER_BASE + 1))" "$((10#$SERVER_BASE + 2))" <<'PY' \
-  || die "published HTTP/service/server ports must not overlap"
+python3 - "$HTTP0" "$HTTP1" "$HTTP2" "$DEMO_UI_PORT" "$DEMO_KAFKA_PORT" \
+  "$DEMO_S3_PORT" "$DEMO_IPFS_PORT" "$DEMO_PROMETHEUS_PORT" "$DEMO_GRAFANA_PORT" <<'PY' \
+  || die "published HTTP/service ports must not overlap"
 import sys
-mode, *raw = sys.argv[1:]
-ports = list(map(int, raw[:9]))
-if mode == "host":
-    ports.extend(map(int, raw[9:]))
+ports = list(map(int, sys.argv[1:]))
 if len(ports) != len(set(ports)):
     raise SystemExit(1)
 PY
@@ -602,101 +595,9 @@ validate_target_id() {
     || die "$label must match [a-z][a-z0-9-]{0,62}"
 }
 
-resolve_host_target_ids() {
-  validate_host_connector_locators
-  require_host_target_for_override DEMO_HOST_S3_ENDPOINT DEMO_HOST_S3_TARGET_ID
-  require_host_target_for_override DEMO_HOST_IPFS_API_URL DEMO_HOST_IPFS_TARGET_ID
-  require_host_target_for_override DEMO_HOST_KAFKA_BOOTSTRAP_SERVERS DEMO_HOST_KAFKA_TARGET_ID
-  HOST_S3_TARGET_ID="${DEMO_HOST_S3_TARGET_ID:-s3-host-${DEMO_NETWORK}-${INSTANCE_TARGET}-${PROJECT_SCOPE_ID}}"
-  HOST_IPFS_TARGET_ID="${DEMO_HOST_IPFS_TARGET_ID:-ipfs-host-${DEMO_NETWORK}-${INSTANCE_TARGET}-${PROJECT_SCOPE_ID}}"
-  HOST_KAFKA_TARGET_ID="${DEMO_HOST_KAFKA_TARGET_ID:-kafka-host-${DEMO_NETWORK}-${INSTANCE_TARGET}-${PROJECT_SCOPE_ID}}"
-  validate_target_id DEMO_HOST_S3_TARGET_ID "$HOST_S3_TARGET_ID"
-  validate_target_id DEMO_HOST_IPFS_TARGET_ID "$HOST_IPFS_TARGET_ID"
-  validate_target_id DEMO_HOST_KAFKA_TARGET_ID "$HOST_KAFKA_TARGET_ID"
-}
-
-validate_host_connector_locators() {
-  local s3="${DEMO_HOST_S3_ENDPOINT:-http://127.0.0.1:$DEMO_S3_PORT}"
-  local ipfs="${DEMO_HOST_IPFS_API_URL:-http://127.0.0.1:$DEMO_IPFS_PORT}"
-  local kafka="${DEMO_HOST_KAFKA_BOOTSTRAP_SERVERS:-127.0.0.1:$DEMO_KAFKA_PORT}"
-  python3 - "$s3" "$ipfs" "$kafka" <<'PY' \
-    || die "host connector locators must be bounded credential-free HTTP endpoints and host:port Kafka servers"
-import ipaddress
-import re
-import sys
-from urllib.parse import urlsplit
-
-
-def printable_ascii(value, label):
-    if not 1 <= len(value) <= 2048 or any(ord(char) < 0x21 or ord(char) > 0x7e for char in value):
-        raise ValueError(f"invalid {label}")
-
-
-def endpoint(value, label):
-    printable_ascii(value, label)
-    parsed = urlsplit(value)
-    if (parsed.scheme not in ("http", "https") or not parsed.hostname
-            or parsed.username is not None or parsed.password is not None
-            or parsed.query or parsed.fragment or parsed.path not in ("", "/")):
-        raise ValueError(f"invalid {label}")
-    try:
-        port = parsed.port
-    except ValueError as error:
-        raise ValueError(f"invalid {label}") from error
-    if port is None or not 1 <= port <= 65535:
-        raise ValueError(f"invalid {label}")
-    if parsed.hostname != parsed.hostname.lower():
-        raise ValueError(f"invalid {label}")
-
-
-def kafka_servers(value):
-    printable_ascii(value, "Kafka bootstrap servers")
-    if any(char in value for char in "@/?#;=\\"):
-        raise ValueError("invalid Kafka bootstrap servers")
-    entries = value.split(",")
-    if not 1 <= len(entries) <= 32 or any(not entry for entry in entries):
-        raise ValueError("invalid Kafka bootstrap servers")
-    hostname = re.compile(r"(?=.{1,253}\Z)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)(?:\.(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?))*\Z")
-    for entry in entries:
-        parsed = urlsplit("kafka://" + entry)
-        try:
-            port = parsed.port
-        except ValueError as error:
-            raise ValueError("invalid Kafka bootstrap servers") from error
-        if (not parsed.hostname or port is None or not 1 <= port <= 65535
-                or parsed.path or parsed.query or parsed.fragment
-                or parsed.username is not None or parsed.password is not None):
-            raise ValueError("invalid Kafka bootstrap servers")
-        host = parsed.hostname
-        try:
-            ipaddress.ip_address(host)
-        except ValueError:
-            if not hostname.fullmatch(host):
-                raise ValueError("invalid Kafka bootstrap servers")
-
-
-endpoint(sys.argv[1], "S3 endpoint")
-endpoint(sys.argv[2], "IPFS API endpoint")
-kafka_servers(sys.argv[3])
-PY
-}
-
-require_host_target_for_override() {
-  local locator="$1" target="$2" locator_value target_value
-  locator_value="${!locator-__YANO_DEMO_UNSET__}"
-  [ "$locator_value" != __YANO_DEMO_UNSET__ ] || return 0
-  [ -n "$locator_value" ] || die "$locator must not be empty"
-  target_value="${!target-}"
-  [ -n "$target_value" ] || die "$target is required when $locator is overridden"
-}
-
-# Complete every pure option/path/locator check before the operation wrapper
+# Every pure option/path check above completes before the operation wrapper
 # creates its private lock directory. Invalid input must leave no managed
 # filesystem artifacts behind.
-if [ "$MODE" = host ]; then
-  resolve_host_target_ids
-fi
-
 OPERATION_LOCK_REQUIRED=false
 case "$COMMAND" in
   prepare|config|up) OPERATION_LOCK_REQUIRED=true;;
@@ -909,8 +810,7 @@ prepare_directories() {
 }
 
 prepare_secrets() {
-  local member_mode anchor_value runner_access_default runner_secret_default
-  local executor_access_default executor_secret_default runner_external executor_external
+  local member_mode anchor_value
   require openssl
   ensure_private_directory "$SECRET_ROOT"
   member_mode=generated
@@ -940,34 +840,10 @@ prepare_secrets() {
   ensure_secret "$S3_BOOTSTRAP_ACCESS_FILE" "yanobootstrap$(openssl rand -hex 8)"
   ensure_secret "$S3_BOOTSTRAP_SECRET_FILE" "$(openssl rand -hex 32)"
   ensure_secret "$S3_IAM_MASTER_KEY_FILE" "$(openssl rand -hex 32)"
-  runner_access_default="$SECRET_ROOT/s3-runner-access-key"
-  runner_secret_default="$SECRET_ROOT/s3-runner-secret-key"
-  executor_access_default="$SECRET_ROOT/s3-executor-access-key"
-  executor_secret_default="$SECRET_ROOT/s3-executor-secret-key"
-  runner_external=false
-  executor_external=false
-  if [ "$S3_RUNNER_ACCESS_FILE" != "$runner_access_default" ] \
-      || [ "$S3_RUNNER_SECRET_FILE" != "$runner_secret_default" ]; then
-    [ "$S3_RUNNER_ACCESS_FILE" != "$runner_access_default" ] \
-      && [ "$S3_RUNNER_SECRET_FILE" != "$runner_secret_default" ] \
-      || die "runner S3 access-key and secret-key file overrides must be supplied together"
-    runner_external=true
-  fi
-  if [ "$S3_EXECUTOR_ACCESS_FILE" != "$executor_access_default" ] \
-      || [ "$S3_EXECUTOR_SECRET_FILE" != "$executor_secret_default" ]; then
-    [ "$S3_EXECUTOR_ACCESS_FILE" != "$executor_access_default" ] \
-      && [ "$S3_EXECUTOR_SECRET_FILE" != "$executor_secret_default" ] \
-      || die "executor S3 access-key and secret-key file overrides must be supplied together"
-    executor_external=true
-  fi
-  if [ "$runner_external" = false ]; then
-    ensure_secret "$S3_RUNNER_ACCESS_FILE" "yanorunner$(openssl rand -hex 8)"
-    ensure_secret "$S3_RUNNER_SECRET_FILE" "$(openssl rand -hex 32)"
-  fi
-  if [ "$executor_external" = false ]; then
-    ensure_secret "$S3_EXECUTOR_ACCESS_FILE" "yanoexecutor$(openssl rand -hex 8)"
-    ensure_secret "$S3_EXECUTOR_SECRET_FILE" "$(openssl rand -hex 32)"
-  fi
+  ensure_secret "$S3_RUNNER_ACCESS_FILE" "yanorunner$(openssl rand -hex 8)"
+  ensure_secret "$S3_RUNNER_SECRET_FILE" "$(openssl rand -hex 32)"
+  ensure_secret "$S3_EXECUTOR_ACCESS_FILE" "yanoexecutor$(openssl rand -hex 8)"
+  ensure_secret "$S3_EXECUTOR_SECRET_FILE" "$(openssl rand -hex 32)"
   ensure_secret "$GRAFANA_PASSWORD_FILE" "$(openssl rand -hex 24)"
   if [ "$ANCHOR_ENABLED" = true ]; then
     if [ -z "$ANCHOR_KEY_FILE" ]; then
@@ -1287,9 +1163,7 @@ install_staged_network_material() {
 }
 
 write_instance_identity() {
-  local output="$1" anchor_fingerprint="none" network_digest s3_id ipfs_id kafka_id
-  local s3_locator ipfs_locator kafka_locator s3_provider s3_provider_version
-  local s3_layout_version s3_config_hash
+  local output="$1" anchor_fingerprint="none" network_digest
   network_digest="$(python3 - "$NETWORK_MARKER" <<'PY'
 import hashlib, sys
 print(hashlib.sha256(open(sys.argv[1], "rb").read()).hexdigest())
@@ -1299,29 +1173,16 @@ PY
     anchor_fingerprint="$(printf '%s' "$ANCHOR_KEY_VALUE" | python3 -c \
       'import hashlib,sys; print(hashlib.sha256(b"yano-demo-anchor-signer-v1\0"+sys.stdin.buffer.read()).hexdigest())')"
   fi
-  if [ "$MODE" = compose ]; then
-    s3_id="$COMPOSE_S3_TARGET_ID"; ipfs_id="$COMPOSE_IPFS_TARGET_ID"; kafka_id="$COMPOSE_KAFKA_TARGET_ID"
-    s3_locator="http://$DEMO_S3_IP:9000"
-    s3_provider="$S3_PROVIDER"; s3_provider_version="$S3_PROVIDER_VERSION"
-    s3_layout_version="$S3_LAYOUT_VERSION"; s3_config_hash="$S3_CONFIG_HASH"
-    ipfs_locator="http://$DEMO_KUBO_IP:5001"
-    kafka_locator="$DEMO_KAFKA_IP:19092"
-  else
-    s3_id="$HOST_S3_TARGET_ID"; ipfs_id="$HOST_IPFS_TARGET_ID"; kafka_id="$HOST_KAFKA_TARGET_ID"
-    s3_locator="${DEMO_HOST_S3_ENDPOINT:-http://127.0.0.1:$DEMO_S3_PORT}"
-    s3_provider="external-s3-compatible"; s3_provider_version=""
-    s3_layout_version="1"; s3_config_hash=""
-    ipfs_locator="${DEMO_HOST_IPFS_API_URL:-http://127.0.0.1:$DEMO_IPFS_PORT}"
-    kafka_locator="${DEMO_HOST_KAFKA_BOOTSTRAP_SERVERS:-127.0.0.1:$DEMO_KAFKA_PORT}"
-  fi
   python3 - "$output" "$DEMO_NETWORK" "$network_digest" "$INSTANCE" "$MODE" \
     "$DEMO_CHAIN_ID" "$MEMBER_KEYS" "$PROPOSER_KEY" "$RESULT_SIGNERS" \
     "$STORAGE_GATE" "$REQUIRE_ANCHOR" "$DEMO_CONTINUATION_MODE" \
     "$STATE_MACHINE_ID" "$EVIDENCE_CAPACITY_PER_BLOCK" \
     "$ANCHOR_ENABLED" "$PROFILE_ANCHOR_EVERY_BLOCKS" \
     "$PROFILE_ANCHOR_MAX_INTERVAL_MINUTES" "$anchor_fingerprint" "$PROJECT_NAME" \
-    "$s3_id" "$s3_locator" "$ipfs_id" "$ipfs_locator" "$kafka_id" "$kafka_locator" \
-    "$s3_provider" "$s3_provider_version" "$s3_layout_version" "$s3_config_hash" \
+    "$COMPOSE_S3_TARGET_ID" "http://$DEMO_S3_IP:9000" \
+    "$COMPOSE_IPFS_TARGET_ID" "http://$DEMO_KUBO_IP:5001" \
+    "$COMPOSE_KAFKA_TARGET_ID" "$DEMO_KAFKA_IP:19092" \
+    "$S3_PROVIDER" "$S3_PROVIDER_VERSION" "$S3_LAYOUT_VERSION" "$S3_CONFIG_HASH" \
     "${COMPOSITE_PROFILE_DIGEST:-}" <<'PY'
 import hashlib
 import json
@@ -1349,7 +1210,7 @@ document = {
     "networkIdentitySha256": network_digest,
     "instanceId": instance,
     "deployment": deployment,
-    "composeProject": project if deployment == "compose" else None,
+    "composeProject": project,
     "chainIds": [chain_id],
     "stateMachine": {
         "provider": state_machine,
@@ -1380,7 +1241,7 @@ document = {
         "s3": {
             "targetId": s3_id,
             "locator": s3_locator,
-            "profile": "local-demo-v2" if deployment == "compose" else "operator-managed-v1",
+            "profile": "local-demo-v2",
             "provider": s3_provider,
             "providerVersion": s3_provider_version or None,
             "dataLayoutVersion": int(s3_layout_version),
@@ -1607,79 +1468,6 @@ PY
   rm -f "$executor" "$follower" "$node0extra"
 }
 
-prepare_host_configs() {
-  local executor follower base i access secret host_home genesis_setting
-  resolve_host_target_ids
-  mkdir -p "$NODE_CONFIG_DIR"
-  chmod 700 "$NODE_CONFIG_DIR"
-  executor="$RUNTIME_ROOT/executor-host.properties"
-  follower="$RUNTIME_ROOT/follower-host.properties"
-  access="$(read_secret "$S3_EXECUTOR_ACCESS_FILE")"
-  secret="$(read_secret "$S3_EXECUTOR_SECRET_FILE")"
-  render_template "$SCRIPT_DIR/config/templates/executor-host.properties.in" "$executor" \
-    KAFKA_BOOTSTRAP_SERVERS "${DEMO_HOST_KAFKA_BOOTSTRAP_SERVERS:-127.0.0.1:$DEMO_KAFKA_PORT}" \
-    S3_ENDPOINT "${DEMO_HOST_S3_ENDPOINT:-http://127.0.0.1:$DEMO_S3_PORT}" \
-    IPFS_API_URL "${DEMO_HOST_IPFS_API_URL:-http://127.0.0.1:$DEMO_IPFS_PORT}" \
-    S3_TARGET_ID "$HOST_S3_TARGET_ID" IPFS_TARGET_ID "$HOST_IPFS_TARGET_ID" \
-    KAFKA_TARGET_ID "$HOST_KAFKA_TARGET_ID" \
-    S3_EXECUTOR_ACCESS "$access" S3_EXECUTOR_SECRET "$secret"
-  append_devnet_producer_settings "$executor"
-  cp "$SCRIPT_DIR/config/templates/follower-host.properties.in" "$follower"
-  genesis_setting="# public-network systemStart comes from the selected genesis"
-  if [ "$DEMO_NETWORK" = devnet ]; then
-    genesis_setting="yano.block-producer.genesis-timestamp=$(read_secret "$GENESIS_TIMESTAMP_FILE")"
-  fi
-  for i in 0 1 2; do
-    base="$RUNTIME_ROOT/node$i-host.base"
-    render_template "$SCRIPT_DIR/config/templates/node-host.properties.in" "$base" \
-      PLUGIN_DIR "$PLUGIN_DIR" PROPOSER_KEY "$PROPOSER_KEY" \
-      STATE_MACHINE "$STATE_MACHINE_ID" \
-      MACHINE_PRESET_SETTING "$MACHINE_PRESET_SETTING" \
-      RESULT_SIGNERS "$RESULT_SIGNERS" STORAGE_GATE "$STORAGE_GATE" \
-      L1_STABILITY_SETTING "$L1_STABILITY_SETTING" \
-      EVIDENCE_CAPACITY_PER_BLOCK "$EVIDENCE_CAPACITY_PER_BLOCK" \
-      DIRECT_RESULT_ACTIVATION_SETTING "$DIRECT_RESULT_ACTIVATION_SETTING" \
-      HISTORY_DIR "$L1_ROOT/node$i/history" \
-      GENESIS_TIMESTAMP_SETTING "$genesis_setting" \
-      ANCHOR_MAX_INTERVAL_MINUTES "$PROFILE_ANCHOR_MAX_INTERVAL_MINUTES"
-    insert_node_settings "$base" "$([ "$i" -eq 0 ] && printf '%s' "$executor" || printf '%s' "$follower")" \
-      "$NODE_CONFIG_DIR/node$i.properties"
-    rm -f "$base"
-  done
-  render_template "$SCRIPT_DIR/config/templates/runner-host.properties.in" "$RUNNER_CONFIG" \
-    CHAIN_ID "$DEMO_CHAIN_ID" HTTP0 "$HTTP0" HTTP1 "$HTTP1" HTTP2 "$HTTP2" \
-    STATE_MACHINE "$STATE_MACHINE_ID" \
-    COMPOSITE_PROFILE_DIGEST_SETTING "$COMPOSITE_PROFILE_DIGEST_SETTING" \
-    EVIDENCE_ID "$DEMO_EVIDENCE_ID" \
-    EVIDENCE_CAPACITY_PER_BLOCK "$EVIDENCE_CAPACITY_PER_BLOCK" \
-    SAMPLE_FILE "$SCRIPT_DIR/samples/inspection-certificate.json" \
-    REPORT_DIRECTORY "$REPORT_DIR" \
-    S3_ENDPOINT "${DEMO_HOST_S3_ENDPOINT:-http://127.0.0.1:$DEMO_S3_PORT}" \
-    S3_RUNNER_ACCESS_FILE "$S3_RUNNER_ACCESS_FILE" \
-    S3_RUNNER_SECRET_FILE "$S3_RUNNER_SECRET_FILE" \
-    IPFS_API_URL "${DEMO_HOST_IPFS_API_URL:-http://127.0.0.1:$DEMO_IPFS_PORT}" \
-    KAFKA_BOOTSTRAP_SERVERS "${DEMO_HOST_KAFKA_BOOTSTRAP_SERVERS:-127.0.0.1:$DEMO_KAFKA_PORT}" \
-    S3_TARGET_ID "$HOST_S3_TARGET_ID" IPFS_TARGET_ID "$HOST_IPFS_TARGET_ID" \
-    KAFKA_TARGET_ID "$HOST_KAFKA_TARGET_ID" \
-    MEMBER_KEYS "$MEMBER_KEYS" REQUIRE_ANCHOR "$REQUIRE_ANCHOR" \
-    TIMEOUT_SECONDS "$DEMO_SCENARIO_TIMEOUT_SECONDS" \
-    POLL_INTERVAL_MILLIS "$DEMO_SCENARIO_POLL_INTERVAL_MILLIS" UI_PORT "$DEMO_UI_PORT" \
-    ROLE_ACTOR_KEY_DIR "$ROLE_ACTOR_KEY_DIR"
-  chmod 600 "$RUNNER_CONFIG"
-  render_template "$SCRIPT_DIR/config/templates/runner-ui.properties.in" "$UI_CONFIG" \
-    REPORT_DIRECTORY "$REPORT_DIR" BIND_ADDRESS 127.0.0.1 UI_INTERNAL_PORT "$DEMO_UI_PORT"
-  chmod 600 "$UI_CONFIG"
-  rm -f "$executor" "$follower"
-  host_home="$RUNTIME_ROOT/host-home"
-  mkdir -p "$host_home/config"
-  if [ -d "$APP_DIR/config" ]; then
-    cp -R "$APP_DIR/config/." "$host_home/config/"
-  fi
-  render_template "$SCRIPT_DIR/config/templates/application-appchain.yml.in" \
-    "$host_home/config/application-appchain.yml" CHAIN_ID "$DEMO_CHAIN_ID" \
-    STATE_MACHINE "$STATE_MACHINE_ID"
-}
-
 write_compose_env() {
   local i variable default_scenario_input
   default_scenario_input="$SCRIPT_DIR/samples/inspection-certificate.json"
@@ -1795,17 +1583,10 @@ prepare_configuration() {
       || die "role-evidence profile calculator returned an invalid trust root"
     COMPOSITE_PROFILE_DIGEST_SETTING="demo.composite-profile-digest=$COMPOSITE_PROFILE_DIGEST"
   fi
-  if [ "$MODE" = host ]; then
-    resolve_host_target_ids
-  fi
   prepare_instance_identity
   install_staged_network_material
   prepare_directories
-  if [ "$MODE" = compose ]; then
-    prepare_compose_configs
-  else
-    prepare_host_configs
-  fi
+  prepare_compose_configs
   write_compose_env
 }
 
@@ -1915,10 +1696,7 @@ build_artifacts() {
       install -m 0644 "$source" "$PLUGIN_DIR/$name-bundle.jar"
     done
     install -m 0644 "$prebuilt/runner.jar" "$RUNTIME_ROOT/runner.jar"
-    install -m 0644 "$yano_context/yano/yano.jar" "$RUNTIME_ROOT/yano.jar"
-    if [ "$MODE" = compose ]; then
-      build_compose_images "$yano_context"
-    fi
+    build_compose_images "$yano_context"
     return 0
   fi
   if [ -n "$REPO_DIR" ]; then
@@ -1934,10 +1712,7 @@ build_artifacts() {
   [ -f "$runner" ] || die "packaged evidence runner is missing: $runner"
   install -m 0644 "$runner" "$RUNTIME_ROOT/runner.jar"
   yano_context="$(stage_yano_context_from_home)"
-  install -m 0644 "$yano_context/yano/yano.jar" "$RUNTIME_ROOT/yano.jar"
-  if [ "$MODE" = compose ]; then
-    build_compose_images "$yano_context"
-  fi
+  build_compose_images "$yano_context"
 }
 
 build_compose_images() {
@@ -1972,7 +1747,6 @@ verify_artifacts() {
     [ -f "$PLUGIN_DIR/$name-bundle.jar" ] || die "missing staged plugin: $name"
   done
   [ -f "$RUNTIME_ROOT/runner.jar" ] || die "missing runner; run prepare"
-  [ -f "$RUNTIME_ROOT/yano.jar" ] || die "missing Yano jar; run prepare"
 }
 
 validate_private_runtime_file() {
@@ -2064,11 +1838,6 @@ stop_all_managed_devnet_compose_projects() {
   list_managed_devnet_compose_projects "$remaining"
   [ ! -s "$remaining" ] \
     || die "managed devnet Compose projects remain after shutdown; state was preserved"
-}
-
-runner_java() {
-  java --add-modules=jdk.httpserver -jar "$RUNTIME_ROOT/runner.jar" "$@" \
-    --config "$RUNNER_CONFIG"
 }
 
 prepare_scenario_input() {
@@ -2433,7 +2202,7 @@ raise SystemExit(1)
     done
     [ "$visible" = true ] \
       && { note "WAIT_ANCHOR_VISIBILITY complete:$summary"; return 0; }
-    if [ "$MODE" = compose ] && [ "$DEMO_NETWORK" = devnet ] \
+    if [ "$DEMO_NETWORK" = devnet ] \
         && [ "$recovery_attempted" = false ] \
         && [ "$SECONDS" -ge "$recovery_at" ]; then
       recovery_attempted=true
@@ -2453,9 +2222,7 @@ raise SystemExit(1)
     sleep 2
   done
   anchor_visibility_diagnostics
-  if [ "$MODE" = compose ]; then
-    dc logs --no-color --tail 120 yano-0 yano-1 yano-2 2>&1 | tail -n 360 >&2 || true
-  fi
+  dc logs --no-color --tail 120 yano-0 yano-1 yano-2 2>&1 | tail -n 360 >&2 || true
   die "bootstrap thread UTxO was not visible on all three members within" \
     "$DEMO_ANCHOR_VISIBILITY_TIMEOUT_SECONDS seconds:$summary"
 }
@@ -2498,162 +2265,11 @@ wait_for_anchor_wallet_funds() {
   die "anchor wallet funding was not observed within $timeout seconds; fund $address and run up again"
 }
 
-host_anchor_bootstrap() {
-  local base="http://127.0.0.1:$HTTP0/api/v1" status bootstrapped address
-  status="$(curl --connect-timeout 3 --max-time 10 -fsS \
-    "$base/app-chain/chains/$DEMO_CHAIN_ID/status")"
-  read -r bootstrapped address < <(printf '%s' "$status" | python3 -c '
-import json,sys
-a=json.load(sys.stdin).get("anchor", {})
-print(str(bool(a.get("bootstrapped"))).lower(), a.get("walletAddress", ""))
-')
-  [ "$bootstrapped" != true ] || return 0
-  [ -n "$address" ] || die "node 0 did not report a script-anchor wallet"
-  if [ "$PROFILE_PUBLIC" = true ]; then
-    note "Using the explicitly enabled $DEMO_NETWORK anchor wallet: $address"
-    wait_for_anchor_wallet_funds "$base" "$address"
-  fi
-  host_cluster anchor-bootstrap "$DEMO_CHAIN_ID"
-  wait_for_anchor_bootstrapped "$base"
-}
-
-host_cluster() {
-  local cluster="" key="" devnet_genesis=""
-  if [ -x "$APP_DIR/appchain-cluster/cluster.sh" ]; then
-    cluster="$APP_DIR/appchain-cluster/cluster.sh"
-  fi
-  [ -x "$cluster" ] || die "cluster launcher not executable: $cluster"
-  case "${1:-}" in
-    status|stop) ;;
-    *) key="$(read_secret "$API_KEY_FILE")";;
-  esac
-  [ "$DEMO_NETWORK" != devnet ] || devnet_genesis="$SHELLEY_GENESIS_FILE"
-  YANO_HOME="$RUNTIME_ROOT/host-home" \
-  YANO_JAR="$RUNTIME_ROOT/yano.jar" \
-  YANO_CLUSTER_DIR="$L1_ROOT/host-cluster" \
-  YANO_CLUSTER_NODE_CONFIG_DIR="$NODE_CONFIG_DIR" \
-  YANO_CLUSTER_MEMBER_KEY_DIR="$MEMBER_KEY_DIR" \
-  YANO_CLUSTER_ANCHOR_KEY_FILE="$ANCHOR_KEY_FILE" \
-  YANO_CLUSTER_PRIVATE_CONFIG_DIR="$SECRET_ROOT/cluster-private-config" \
-  YANO_CLUSTER_DEVNET_GENESIS_FILE="$devnet_genesis" \
-  YANO_CLUSTER_APPCHAIN_IDENTITY_MARKER="$INSTANCE_MARKER" \
-  YANO_CLUSTER_API_KEY="$key" \
-  "$cluster" "$@"
-}
-
-prepare_host_state_links() {
-  local i root target link status
-  for i in 0 1 2; do
-    root="$L1_ROOT/host-cluster/node$i"
-    target="$DATA_ROOT/app-chain/node$i"
-    link="$root/appchain-chainstate"
-    mkdir -p "$root" "$target"
-    if [ -e "$link" ] && [ ! -L "$link" ]; then
-      die "host app-chain path is not the managed symlink: $link"
-    fi
-    if [ -L "$link" ]; then
-      if python3 - "$link" "$target" "$NETWORK_ROOT/instances" <<'PY'
-import os, sys
-link, target, allowed = map(os.path.abspath, sys.argv[1:])
-actual = os.path.realpath(link)
-expected = os.path.realpath(target)
-allowed = os.path.realpath(allowed)
-if os.path.commonpath((actual, allowed)) != allowed:
-    raise SystemExit(2)
-raise SystemExit(0 if actual == expected else 1)
-PY
-      then
-        status=0
-      else
-        status=$?
-      fi
-      if [ "$status" -ne 0 ]; then
-        [ "$status" -eq 1 ] \
-          || die "host app-chain link points outside the managed instances root: $link"
-        rm "$link"
-      fi
-    fi
-    [ -L "$link" ] || ln -s "$target" "$link"
-    [ "$(cd "$link" && pwd -P)" = "$(cd "$target" && pwd -P)" ] \
-      || die "host app-chain link points to an unexpected directory"
-  done
-}
-
-start_host_ui() {
-  local pid deadline
-  resolve_host_ui_command
-  pid="$(python3 "$SCRIPT_DIR/tools/managed_process.py" start \
-    --runtime-root "$RUNTIME_ROOT" --name host-ui --log-file host-ui.log -- \
-    "${HOST_UI_COMMAND[@]}")" \
-    || die "host evidence UI could not be started or recovered safely"
-  deadline=$((SECONDS + 30))
-  until curl -fsS "http://127.0.0.1:$DEMO_UI_PORT/healthz" >/dev/null 2>&1; do
-    host_ui_process || die "host evidence UI exited during startup (see $RUNTIME_ROOT/host-ui.log)"
-    [ "$SECONDS" -lt "$deadline" ] || die "host evidence UI was not ready within 30 seconds"
-    sleep 1
-  done
-}
-
-HOST_UI_COMMAND=()
-resolve_host_ui_command() {
-  local java_executable
-  java_executable="$(command -v java 2>/dev/null)" \
-    || die "required command not found: java"
-  [ -n "$java_executable" ] || die "required command not found: java"
-  HOST_UI_COMMAND=("$java_executable" --add-modules=jdk.httpserver \
-    -jar "$RUNTIME_ROOT/runner.jar" serve --config "$UI_CONFIG")
-}
-
-host_ui_process() {
-  resolve_host_ui_command
-  python3 "$SCRIPT_DIR/tools/managed_process.py" status \
-    --runtime-root "$RUNTIME_ROOT" --name host-ui -- \
-    "${HOST_UI_COMMAND[@]}" >/dev/null
-}
-
-HOST_UI_RUNNING=false
-report_host_ui_status() {
-  local output status=0
-  HOST_UI_RUNNING=false
-  resolve_host_ui_command
-  output="$(python3 "$SCRIPT_DIR/tools/managed_process.py" status \
-    --runtime-root "$RUNTIME_ROOT" --name host-ui -- \
-    "${HOST_UI_COMMAND[@]}")" || status=$?
-  case "$status" in
-    0) HOST_UI_RUNNING=true; note "Host evidence UI: $output";;
-    3) note "Host evidence UI: stopped";;
-    *) die "host evidence UI lifecycle artifacts are invalid or untrusted";;
-  esac
-}
-
-stop_host_ui() {
-  resolve_host_ui_command
-  python3 "$SCRIPT_DIR/tools/managed_process.py" stop \
-    --runtime-root "$RUNTIME_ROOT" --name host-ui \
-    --term-timeout 15 --kill-timeout 5 -- "${HOST_UI_COMMAND[@]}" \
-    || die "host evidence UI could not be proven stopped; lifecycle record was preserved"
-}
-
-host_ui_lifecycle_artifacts() {
-  local artifact
-  for artifact in \
-    "$RUNTIME_ROOT/host-ui.process.json" \
-    "$RUNTIME_ROOT/.host-ui.launch.json" \
-    "$RUNTIME_ROOT/.host-ui.process.tmp" \
-    "$RUNTIME_ROOT/.host-ui.process-update.tmp" \
-    "$RUNTIME_ROOT/.host-ui.launch.tmp"; do
-    [ ! -e "$artifact" ] && [ ! -L "$artifact" ] || return 0
-  done
-  return 1
-}
-
 cmd_prepare() {
   prepare_configuration
   build_artifacts
   verify_artifacts
-  if [ "$MODE" = compose ]; then
-    dc config --quiet
-  fi
+  dc config --quiet
   release_command_lease
   trap cleanup_temporary_files EXIT
   note "Prepared $MODE demo instance '$INSTANCE'."
@@ -2663,36 +2279,18 @@ cmd_prepare() {
 STARTUP_LEASE_ACQUIRED=false
 STARTUP_MAY_HAVE_SERVICES=false
 
-rollback_host_ui() {
-  host_ui_lifecycle_artifacts || return 0
-  resolve_host_ui_command || return 1
-  python3 "$SCRIPT_DIR/tools/managed_process.py" stop \
-    --runtime-root "$RUNTIME_ROOT" --name host-ui \
-    --term-timeout 15 --kill-timeout 5 -- "${HOST_UI_COMMAND[@]}" >/dev/null 2>&1
-}
-
 rollback_failed_startup() {
   local stopped=false containers=""
   [ "$STARTUP_LEASE_ACQUIRED" = true ] || return 0
   note "ROLLBACK_STARTUP: stopping partial services before deciding whether the shared L1 lease can be released." >&2
-  if [ "$MODE" = compose ]; then
-    if command -v docker >/dev/null 2>&1 && [ -f "$COMPOSE_ENV" ] \
-        && validate_private_runtime_file "$COMPOSE_ENV"; then
-      compose_down_confirmed >/dev/null 2>&1 && stopped=true
-    fi
-    if [ "$stopped" = false ] && command -v docker >/dev/null 2>&1; then
-      containers="$(docker ps -a --filter "label=com.docker.compose.project=$PROJECT_NAME" \
-        -q 2>/dev/null || printf __unknown__)"
-      [ -z "$containers" ] && stopped=true
-    fi
-  else
-    if rollback_host_ui; then
-      if [ -d "$L1_ROOT/host-cluster" ]; then
-        host_cluster stop >/dev/null 2>&1 && stopped=true
-      else
-        stopped=true
-      fi
-    fi
+  if command -v docker >/dev/null 2>&1 && [ -f "$COMPOSE_ENV" ] \
+      && validate_private_runtime_file "$COMPOSE_ENV"; then
+    compose_down_confirmed >/dev/null 2>&1 && stopped=true
+  fi
+  if [ "$stopped" = false ] && command -v docker >/dev/null 2>&1; then
+    containers="$(docker ps -a --filter "label=com.docker.compose.project=$PROJECT_NAME" \
+      -q 2>/dev/null || printf __unknown__)"
+    [ -z "$containers" ] && stopped=true
   fi
   if [ "$stopped" = true ] && release_l1_lease >/dev/null 2>&1; then
     STARTUP_LEASE_ACQUIRED=false
@@ -2725,53 +2323,28 @@ demo_exit_handler() {
 }
 
 cmd_up() {
-  local -a start_args
   prepare_configuration
   build_artifacts
   verify_artifacts
-  if [ "$MODE" = compose ]; then
-    dc config --quiet
-  fi
-  if [ "$MODE" = host ]; then
-    require java
-    runner_java init-connectors
-  fi
+  dc config --quiet
   verify_cached_key_material
-  if [ "$MODE" = compose ]; then
-    STARTUP_MAY_HAVE_SERVICES=true
-    if ! dc up -d --wait --wait-timeout 360; then
-      note "Compose startup failed; bounded Yano startup diagnostics follow." >&2
-      dc ps >&2 || true
-      dc logs --no-color --tail 200 yano-0 >&2 || true
-      return 1
-    fi
-    verify_compose_loopback_surfaces
-    wait_for_public_l1_sync
-    if [ "$ANCHOR_ENABLED" = true ]; then
-      compose_anchor_bootstrap
-      wait_for_anchor_bootstrap_visibility
-    fi
-    if [ "$DEMO_MACHINE_MODE" = role ]; then
-      dc --profile tools run --rm scenario init --config /run/demo/runner.properties
-    else
-      dc --profile tools run --rm scenario probe --config /run/demo/runner.properties
-    fi
+  STARTUP_MAY_HAVE_SERVICES=true
+  if ! dc up -d --wait --wait-timeout 360; then
+    note "Compose startup failed; bounded Yano startup diagnostics follow." >&2
+    dc ps >&2 || true
+    dc logs --no-color --tail 200 yano-0 >&2 || true
+    return 1
+  fi
+  verify_compose_loopback_surfaces
+  wait_for_public_l1_sync
+  if [ "$ANCHOR_ENABLED" = true ]; then
+    compose_anchor_bootstrap
+    wait_for_anchor_bootstrap_visibility
+  fi
+  if [ "$DEMO_MACHINE_MODE" = role ]; then
+    dc --profile tools run --rm scenario init --config /run/demo/runner.properties
   else
-    prepare_host_state_links
-    start_args=(start 3 --network "$DEMO_NETWORK" --http-base "$HTTP0" \
-      --server-base "$SERVER_BASE")
-    if [ "$ANCHOR_ENABLED" = true ]; then
-      start_args+=(--anchor --anchor-every "$PROFILE_ANCHOR_EVERY_BLOCKS")
-    fi
-    STARTUP_MAY_HAVE_SERVICES=true
-    host_cluster "${start_args[@]}"
-    wait_for_public_l1_sync
-    if [ "$ANCHOR_ENABLED" = true ]; then
-      host_anchor_bootstrap
-      wait_for_anchor_bootstrap_visibility
-    fi
-    if [ "$DEMO_MACHINE_MODE" = role ]; then runner_java init; else runner_java probe; fi
-    start_host_ui
+    dc --profile tools run --rm scenario probe --config /run/demo/runner.properties
   fi
   [ "$ANCHOR_ENABLED" = false ] || reconcile_anchor_binding
   STARTUP_MAY_HAVE_SERVICES=false
@@ -2780,7 +2353,7 @@ cmd_up() {
   note "Yano status: http://127.0.0.1:$HTTP0/ui/app-chain/ (nodes: $HTTP0, $HTTP1, $HTTP2)"
   note "Evidence UI: http://127.0.0.1:$DEMO_UI_PORT/"
   note "API key file: $API_KEY_FILE"
-  if [ "$OBSERVABILITY" = true ] && [ "$MODE" = compose ]; then
+  if [ "$OBSERVABILITY" = true ]; then
     note "Prometheus: http://127.0.0.1:$DEMO_PROMETHEUS_PORT/"
     note "Grafana: http://127.0.0.1:$DEMO_GRAFANA_PORT/ (password file: $GRAFANA_PASSWORD_FILE)"
   fi
@@ -2800,82 +2373,61 @@ validate_running_configuration() {
 
 cmd_scenario() {
   local -a runner_args
-  local runner_sample=""
   validate_running_configuration
   verify_artifacts
   runner_args=("$COMMAND" --evidence-id "$DEMO_EVIDENCE_ID")
   if [ "$COMMAND" != verify ]; then
     prepare_scenario_input
-    runner_sample="$SCENARIO_INPUT_COPY"
-    [ "$MODE" != compose ] || runner_sample=/run/demo/scenario-input
-    runner_args+=(--sample-file "$runner_sample")
+    runner_args+=(--sample-file /run/demo/scenario-input)
   fi
   if [ -n "$BUSINESS_VERSION" ]; then
     runner_args+=(--business-version "$BUSINESS_VERSION")
   elif [ "$COMMAND" = verify ]; then
     runner_args+=(--business-version latest)
   fi
-  if [ "$MODE" = compose ]; then
-    if [ "$COMMAND" = verify ]; then
-      dc --profile tools run --rm scenario "${runner_args[@]}" \
-        --config /run/demo/runner.properties
-    else
-      export DEMO_SCENARIO_INPUT_FILE="$SCENARIO_INPUT_COPY"
-      dc --profile tools run --rm scenario "${runner_args[@]}" \
-        --config /run/demo/runner.properties
-      unset DEMO_SCENARIO_INPUT_FILE
-    fi
+  if [ "$COMMAND" = verify ]; then
+    dc --profile tools run --rm scenario "${runner_args[@]}" \
+      --config /run/demo/runner.properties
   else
-    runner_java "${runner_args[@]}"
+    export DEMO_SCENARIO_INPUT_FILE="$SCENARIO_INPUT_COPY"
+    dc --profile tools run --rm scenario "${runner_args[@]}" \
+      --config /run/demo/runner.properties
+    unset DEMO_SCENARIO_INPUT_FILE
   fi
   [ "$ANCHOR_ENABLED" = false ] || reconcile_anchor_binding true
 }
 
 cmd_load() {
   local -a runner_args
-  local runner_sample
   [ "$ANCHOR_ENABLED" = false ] || [ "$PROFILE_PUBLIC" = false ] \
     || die "load is disabled for public anchor-enabled profiles; use APP_FINAL load testing"
   validate_running_configuration
   verify_artifacts
   prepare_scenario_input
-  runner_sample="$SCENARIO_INPUT_COPY"
-  [ "$MODE" != compose ] || runner_sample=/run/demo/scenario-input
   runner_args=(load --count "$LOAD_COUNT" --concurrency "$LOAD_CONCURRENCY"
-    --load-mode "$LOAD_MODE" --id-prefix "$LOAD_ID_PREFIX" --sample-file "$runner_sample")
+    --load-mode "$LOAD_MODE" --id-prefix "$LOAD_ID_PREFIX"
+    --sample-file /run/demo/scenario-input)
   if [ -n "$LOAD_MAX_IN_FLIGHT" ]; then
     runner_args+=(--max-in-flight "$LOAD_MAX_IN_FLIGHT")
   fi
-  if [ "$MODE" = compose ]; then
-    export DEMO_SCENARIO_INPUT_FILE="$SCENARIO_INPUT_COPY"
-    dc --profile tools run --rm scenario "${runner_args[@]}" \
-      --config /run/demo/runner.properties
-    unset DEMO_SCENARIO_INPUT_FILE
-  else
-    runner_java "${runner_args[@]}"
-  fi
+  export DEMO_SCENARIO_INPUT_FILE="$SCENARIO_INPUT_COPY"
+  dc --profile tools run --rm scenario "${runner_args[@]}" \
+    --config /run/demo/runner.properties
+  unset DEMO_SCENARIO_INPUT_FILE
 }
 
 cmd_probe() {
   validate_running_configuration
   verify_artifacts
-  if [ "$MODE" = compose ]; then
-    dc --profile tools run --rm scenario probe --config /run/demo/runner.properties
-  else
-    runner_java probe
-  fi
+  dc --profile tools run --rm scenario probe --config /run/demo/runner.properties
   [ "$ANCHOR_ENABLED" = false ] || reconcile_anchor_binding false
 }
 
 cmd_role_lifecycle() {
   validate_running_configuration
   verify_artifacts
-  if [ "$MODE" = compose ]; then
-    dc --profile tools run --rm scenario role-lifecycle \
-      --config /run/demo/runner.properties
-  else
-    runner_java role-lifecycle
-  fi
+  dc --profile tools run --rm scenario role-lifecycle \
+    --config /run/demo/runner.properties
   [ "$ANCHOR_ENABLED" = false ] || reconcile_anchor_binding true
 }
 
@@ -2884,22 +2436,8 @@ cmd_status() {
     validate_l1_lease_owner \
       || die "shared L1 state is leased by another instance"
   fi
-  if [ "$MODE" = compose ]; then
-    [ -f "$COMPOSE_ENV" ] || { note "Instance '$INSTANCE' is not prepared."; return; }
-    dc ps
-  else
-    [ -f "$RUNNER_CONFIG" ] && [ -d "$L1_ROOT/host-cluster" ] \
-      || { note "Instance '$INSTANCE' is not prepared."; return; }
-    if host_ui_lifecycle_artifacts; then report_host_ui_status; fi
-    [ -e "$L1_LEASE" ] \
-      || {
-        [ "$HOST_UI_RUNNING" = false ] \
-          || die "host evidence UI is running without its required shared L1 lease"
-        note "Instance '$INSTANCE' is stopped (no active L1 lease)."
-        return
-      }
-    host_cluster status
-  fi
+  [ -f "$COMPOSE_ENV" ] || { note "Instance '$INSTANCE' is not prepared."; return; }
+  dc ps
 }
 
 cmd_stop() {
@@ -2908,70 +2446,35 @@ cmd_stop() {
     validate_l1_lease_owner \
       || die "shared L1 state is leased by another instance"
   fi
-  if [ "$MODE" = compose ]; then
-    if [ -f "$COMPOSE_ENV" ]; then
-      compose_down_confirmed \
-        || die "Compose services could not be proven absent; L1 lease was preserved"
-    elif [ -e "$L1_LEASE" ]; then
-      require docker
-      containers="$(docker ps -a --filter "label=com.docker.compose.project=$PROJECT_NAME" -q 2>/dev/null)" \
-        || die "cannot inspect the partial Compose deployment; L1 lease was preserved"
-      [ -z "$containers" ] \
-        || die "Compose runtime metadata is missing while containers remain; L1 lease was preserved"
-    else
-      note "Instance '$INSTANCE' is not prepared; nothing to stop."
-      return
-    fi
+  if [ -f "$COMPOSE_ENV" ]; then
+    compose_down_confirmed \
+      || die "Compose services could not be proven absent; L1 lease was preserved"
+  elif [ -e "$L1_LEASE" ]; then
+    require docker
+    containers="$(docker ps -a --filter "label=com.docker.compose.project=$PROJECT_NAME" -q 2>/dev/null)" \
+      || die "cannot inspect the partial Compose deployment; L1 lease was preserved"
+    [ -z "$containers" ] \
+      || die "Compose runtime metadata is missing while containers remain; L1 lease was preserved"
   else
-    if [ ! -e "$L1_LEASE" ]; then
-      if host_ui_lifecycle_artifacts; then stop_host_ui; fi
-      # A killed launcher can leave a gated child or exact PID metadata before
-      # the deployment lease is visible. Reconcile the cluster lifecycle even
-      # without a lease; cluster.sh fails closed on malformed/uncertain state.
-      [ ! -d "$L1_ROOT/host-cluster" ] || host_cluster stop
-      if [ -f "$RUNNER_CONFIG" ] || [ -d "$L1_ROOT/host-cluster" ]; then
-        note "Instance '$INSTANCE' is already stopped; data was preserved."
-      else
-        note "Instance '$INSTANCE' is not prepared; nothing to stop."
-      fi
-      return
-    fi
-    if host_ui_lifecycle_artifacts; then stop_host_ui; fi
-    [ ! -d "$L1_ROOT/host-cluster" ] || host_cluster stop
+    note "Instance '$INSTANCE' is not prepared; nothing to stop."
+    return
   fi
   release_l1_lease
   note "Stopped instance '$INSTANCE'; data was preserved."
 }
 
 managed_services_running() {
-  local artifact containers
+  local containers
   if [ -L "$L1_LEASE" ]; then
     die "L1 lease must not be a symlink: $L1_LEASE"
   fi
   [ ! -e "$L1_LEASE" ] || return 0
-  if [ "$MODE" = compose ]; then
-    command -v docker >/dev/null 2>&1 \
-      || die "cannot verify Compose is stopped because Docker is unavailable"
-    containers="$(docker ps -a \
-      --filter "label=com.docker.compose.project=$PROJECT_NAME" -q 2>/dev/null)" \
-      || die "cannot verify Compose is stopped because the Docker daemon is unavailable"
-    [ -z "$containers" ] || return 0
-  else
-    # Any durable UI record/fence/temp is active or uncertain until `stop`
-    # reconciles it through the exact PID/start-token/argv manager.
-    host_ui_lifecycle_artifacts && return 0
-    # Cluster stop is the only operation allowed to reconcile these durable
-    # launch/PID records. Even a malformed, stale, symlinked, or temporary
-    # artifact is active/uncertain from cleanup's perspective.
-    for artifact in \
-      "$L1_ROOT/host-cluster"/node*.pid \
-      "$L1_ROOT/host-cluster"/node*.pid.meta \
-      "$L1_ROOT/host-cluster"/node*.launch \
-      "$L1_ROOT/host-cluster"/node*.pid.tmp.* \
-      "$L1_ROOT/host-cluster"/node*.pid.meta.tmp.*; do
-      [ ! -e "$artifact" ] && [ ! -L "$artifact" ] || return 0
-    done
-  fi
+  command -v docker >/dev/null 2>&1 \
+    || die "cannot verify Compose is stopped because Docker is unavailable"
+  containers="$(docker ps -a \
+    --filter "label=com.docker.compose.project=$PROJECT_NAME" -q 2>/dev/null)" \
+    || die "cannot verify Compose is stopped because the Docker daemon is unavailable"
+  [ -z "$containers" ] || return 0
   return 1
 }
 
@@ -3238,7 +2741,6 @@ cmd_reset_devnet() {
 }
 
 cmd_config() {
-  [ "$MODE" = compose ] || die "config is a Compose-only command"
   prepare_configuration
   dc config
   release_command_lease
@@ -3269,7 +2771,7 @@ Commands:
             stop and factory-reset every local Compose devnet demo state
 
 Options:
-  --deployment compose|host default: compose (`--mode` remains an alias)
+  --deployment compose      the only deployment (`--mode` remains an alias)
   --network <profile>       devnet (default), preview, preprod, or mainnet
   --instance <name>         isolated name: [a-z0-9][a-z0-9-]{0,31}
   --chain-id <id>           explicit app-chain id (non-default instances derive one)

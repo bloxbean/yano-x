@@ -13,11 +13,9 @@ for test in \
   anchor-funding-test.sh \
   compose-contract.sh \
   demo-launcher-test.sh \
-  deployment-parity-contract.sh \
   effect-failover-contract.sh \
   key-material-test.sh \
   lifecycle-tool-test.sh \
-  managed-process-test.sh \
   operation-lock-test.sh \
   rustfs-iam-spec-test.sh \
   secret-file-test.sh

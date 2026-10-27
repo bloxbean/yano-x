@@ -541,7 +541,7 @@ networks:
   connectors:
     driver: bridge
     # Kafka, RustFS S3, and Kubo deliberately expose loopback-only host ports for
-    # the host deployment and manual inspection. Keep their bridge separate
+    # manual inspection. Keep their bridge separate
     # from the cluster while allowing Docker's port-publishing gateway.
     internal: false
     ipam:
