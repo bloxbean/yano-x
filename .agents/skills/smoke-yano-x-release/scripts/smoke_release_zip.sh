@@ -103,8 +103,8 @@ extract_archive() {
 check_layout() {
   local path launcher count=0
   for path in yano.jar yano.sh config/application-devnet.yml \
-      examples/showcase/showcase.sh examples/showcase/yano/config/application-devnet.yml \
-      appchain-cluster/cluster.sh tools/lib yano-x-plugin-pack-v1.json; do
+      examples/showcase/showcase.sh examples/showcase/config/showcase.template.yaml \
+      tools/yano-appchain/bin/yano-appchain tools/lib yano-x-plugin-pack-v1.json; do
     [ -e "$DIST/$path" ] || { echo "missing $path"; return 1; }
   done
   ls "$DIST"/plugins/*.jar >/dev/null || return 1
@@ -126,9 +126,8 @@ runtime_acceptance() {
 }
 
 stock_outcomes() {
-  YANO_STOCK_ACCEPTANCE_HTTP_BASE="$((HTTP_BASE + 200))" \
-    YANO_STOCK_ACCEPTANCE_SERVER_BASE="$((SERVER_BASE + 200))" \
-    bash "$REPO/tooling/devtools/src/test/scripts/final-distribution-stock-outcomes.sh" "$ZIP"
+  # `yano.sh appchain try` picks the first free ports from 8080 (HTTP) and 13337 (node).
+  bash "$REPO/tooling/devtools/src/test/scripts/final-distribution-stock-outcomes.sh" "$ZIP"
 }
 
 showcase() {
@@ -147,7 +146,9 @@ chain_status() {
 
 record_tips() {
   local chain tip root chains
-  chains="$(jq -er '.chainIds[]' "$DATA/$INSTANCE/showcase-identity.json")" || return 1
+  # Every chain of the instance's sealed applications.
+  chains="$(cat "$DATA/$INSTANCE"/{coordinator/showcase,history/history,settlement/settlement}.chain \
+    2>/dev/null | jq -er '.genesis.chains[].id')" || return 1
   : >"$WORK/tips-before-restart.txt"
   for chain in $chains; do
     tip="$(chain_status "$chain" | jq -er '.tipHeight')" || return 1
@@ -176,7 +177,7 @@ check_persisted_tips() {
 check_projection_off() {
   local node
   for node in 0 1 2; do
-    grep -q 'projection history is disabled' "$DATA/$INSTANCE/cluster/node$node/node.log" \
+    cat "$DATA/$INSTANCE/node$node"/logs/*.log | grep -q 'projection history is disabled' \
       || { echo "node$node did not start with the history projection disabled"; return 1; }
   done
 }
@@ -188,7 +189,7 @@ step stock-outcomes stock_outcomes
 
 if [ "$SHOWCASE_GATES" = true ]; then
   SHOWCASE="$DIST/examples/showcase/showcase.sh"
-  config_digest="$(shasum -a 256 "$DIST/config/application-appchain.yml")"
+  config_digest="$(cd "$DIST/config" && find . -type f -exec shasum -a 256 {} + | sort | shasum -a 256)"
   step showcase-doctor "$SHOWCASE" doctor --profile light \
     --http-base "$HTTP_BASE" --server-base "$SERVER_BASE"
   step showcase-quickstart quickstart
@@ -202,7 +203,7 @@ if [ "$SHOWCASE_GATES" = true ]; then
   step showcase-verify-after-restart showcase verify
   step showcase-persisted-tips check_persisted_tips
   step distribution-config-unchanged \
-    test "$config_digest" = "$(shasum -a 256 "$DIST/config/application-appchain.yml")"
+    test "$config_digest" = "$(cd "$DIST/config" && find . -type f -exec shasum -a 256 {} + | sort | shasum -a 256)"
 fi
 
 echo "PASS: $(basename "$ZIP") smoke gates"
