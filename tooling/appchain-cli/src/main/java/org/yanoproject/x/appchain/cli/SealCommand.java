@@ -10,6 +10,8 @@ import org.yanoproject.x.appchain.formats.SealedApp;
 import org.yanoproject.x.devtools.AppChainSealResolver;
 
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -78,7 +80,8 @@ final class SealCommand {
             findings.warnings().forEach(warning -> warnings.add("Chain " + chain.id() + ": " + warning));
         }
         Map<String, Map<String, String>> overrides = new HashMap<>();
-        for (Draft.Chain chain : draft.chains()) overrides.put(chain.id(), overrides(draft, chain, cards));
+        String devnetTtl = "devnet".equals(draft.network()) ? Long.toString(devnetAnchorValidity(distribution)) : null;
+        for (Draft.Chain chain : draft.chains()) overrides.put(chain.id(), overrides(draft, chain, cards, devnetTtl));
 
         AppChainSealResolver.SealHooks hooks = new AppChainSealResolver.SealHooks() {
             @Override
@@ -205,9 +208,11 @@ final class SealCommand {
                 + " members; use majority, two-thirds or all");
     }
 
-    private static Map<String, String> overrides(Draft draft, Draft.Chain chain, Map<String, MemberCard> cards) {
+    private static Map<String, String> overrides(Draft draft, Draft.Chain chain, Map<String, MemberCard> cards,
+                                                 String devnetTtl) {
         Map<String, String> values = new TreeMap<>();
         if (!"devnet".equals(draft.network())) values.put("l1.stability-depth", "36");
+        if (devnetTtl != null) values.put("anchor.validity-slots", devnetTtl);
         if (chain.anchor() != null) {
             values.put("anchor.mode", chain.anchor().mode());
             values.put("anchor.every-blocks", Integer.toString(chain.anchor().everyBlocks()));
@@ -233,6 +238,28 @@ final class SealCommand {
                     + "`yano.sh appchain anchor`, not in the draft");
         }
         return values;
+    }
+
+    /**
+     * A devnet anchor's validity in slots. The public-network default (7200) reaches past the fast devnet's
+     * forecast horizon of 3k/f slots, where the ledger cannot evaluate a script anchor; stay inside it, capped at
+     * about a minute of the stock 0.2-second devnet. Draft settings can still choose a value.
+     */
+    static long devnetAnchorValidity(Distribution distribution) {
+        Path template = distribution.devnetGenesisTemplate();
+        if (!Files.isRegularFile(template)) return 299;
+        try {
+            JsonNode genesis = new ObjectMapper().readTree(template.toFile());
+            long k = genesis.path("securityParam").asLong(0);
+            BigDecimal f = genesis.path("activeSlotsCoeff").decimalValue();
+            if (k < 1 || f.signum() <= 0 || f.compareTo(BigDecimal.ONE) > 0) {
+                throw CliException.failure("The devnet genesis has no usable securityParam/activeSlotsCoeff");
+            }
+            long horizon = BigDecimal.valueOf(3 * k).divide(f, 0, RoundingMode.FLOOR).longValue();
+            return Math.max(1, Math.min(299, horizon - 1));
+        } catch (IOException unreadable) {
+            throw CliException.failure("Cannot read " + template + ": " + unreadable.getMessage());
+        }
     }
 
     /** The core genesis seed of a chain's topics: block; registrars named by operator become their member keys. */
