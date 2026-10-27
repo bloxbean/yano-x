@@ -1,7 +1,7 @@
 package org.yanoproject.x.client;
 
 import org.yanoproject.x.stdlib.contracts.AuthenticatedMapContract;
-import org.yanoproject.x.stdlib.contracts.AuthenticatedMapSchema;
+import org.yanoproject.api.appchain.schema.CborSchema;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -20,7 +20,7 @@ public final class AuthenticatedMapPreflight {
     private final AuthenticatedMapContract.Genesis genesis;
     private final Map<String, AuthenticatedMapContract.CollectionDescriptor> collections;
     private final Map<String, AuthenticatedMapContract.ValidatorDescriptor> validators;
-    private final Map<String, AuthenticatedMapSchema.Schema> schemas;
+    private final Map<String, CborSchema.Schema> schemas;
     private final PluginResolver pluginResolver;
 
     private AuthenticatedMapPreflight(
@@ -35,11 +35,11 @@ public final class AuthenticatedMapPreflight {
         collections = Map.copyOf(collectionIndex);
         Map<String, AuthenticatedMapContract.ValidatorDescriptor> validatorIndex =
                 new LinkedHashMap<>();
-        Map<String, AuthenticatedMapSchema.Schema> schemaIndex = new LinkedHashMap<>();
+        Map<String, CborSchema.Schema> schemaIndex = new LinkedHashMap<>();
         for (AuthenticatedMapContract.ValidatorDescriptor validator : genesis.validators()) {
             validatorIndex.put(validator.id(), validator);
             if (validator.kind() == AuthenticatedMapContract.VALIDATOR_KIND_SCHEMA) {
-                schemaIndex.put(validator.id(), AuthenticatedMapSchema.decode(
+                schemaIndex.put(validator.id(), CborSchema.decode(
                         validator.definition()));
             }
         }

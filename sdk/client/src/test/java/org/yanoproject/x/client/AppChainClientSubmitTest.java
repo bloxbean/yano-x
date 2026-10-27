@@ -107,6 +107,23 @@ class AppChainClientSubmitTest {
     }
 
     @Test
+    void topicRefusalsExposeStructuredStatusAndCode() throws Exception {
+        start(exchange -> {
+            exchange.getRequestBody().readAllBytes();
+            respond(exchange, 400, "{\"code\":\"TOPIC_PROOF_REPLAYED\",\"detail\":\"response-secret\"}");
+        });
+        assertThatThrownBy(() -> client(null).submit("games/neon-rush/rides", new byte[]{1}))
+                .isInstanceOfSatisfying(AppChainClient.AppChainClientException.class, failure -> {
+                    assertThat(failure.status()).contains(400);
+                    assertThat(failure.code()).contains("TOPIC_PROOF_REPLAYED");
+                })
+                .hasMessageNotContaining("response-secret")
+                .hasNoCause();
+        assertThat(new AppChainClient.AppChainClientException("local failure").status()).isEmpty();
+        assertThat(new AppChainClient.AppChainClientException("local failure").code()).isEmpty();
+    }
+
+    @Test
     void submitFailureNeverReflectsResponseOrApiKey() throws Exception {
         String secret = "submit-api-key-canary";
         start(exchange -> {

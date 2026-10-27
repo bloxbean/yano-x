@@ -7,7 +7,7 @@ import java.util.HexFormat;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-class AuthenticatedMapCddlCompilerTest {
+class CddlSchemaCompilerTest {
 
     @Test
     void compilesNamedRulesMapsRangesSizesChoicesAndOptionalFields() {
@@ -21,8 +21,8 @@ class AuthenticatedMapCddlCompilerTest {
                 short-text = tstr .size (1..8)
                 """;
 
-        AuthenticatedMapCddlCompiler.Compilation compilation =
-                AuthenticatedMapCddlCompiler.compile(source);
+        CddlSchemaCompiler.Compilation compilation =
+                CddlSchemaCompiler.compile(source);
 
         assertThat(compilation.authoringLanguage()).isEqualTo("cddl-yano-subset-v1");
         assertThat(compilation.irCatalog()).isEqualTo("yano-cbor-schema-ir-v1");
@@ -37,8 +37,8 @@ class AuthenticatedMapCddlCompilerTest {
 
     @Test
     void compilesBoundedArrayOccurrencesWithoutBacktrackingAmbiguity() {
-        AuthenticatedMapCddlCompiler.Compilation compilation =
-                AuthenticatedMapCddlCompiler.compile("""
+        CddlSchemaCompiler.Compilation compilation =
+                CddlSchemaCompiler.compile("""
                         root = [? uint, 1*3 label]
                         label = tstr .size (1..4)
                         """);
@@ -50,10 +50,10 @@ class AuthenticatedMapCddlCompilerTest {
 
     @Test
     void canonicalIrDoesNotDependOnMapOrChoiceSourceOrder() {
-        byte[] first = AuthenticatedMapCddlCompiler.compile("""
+        byte[] first = CddlSchemaCompiler.compile("""
                 root = {alpha: uint, beta: tstr, state: "a" / "b"}
                 """).definition();
-        byte[] second = AuthenticatedMapCddlCompiler.compile("""
+        byte[] second = CddlSchemaCompiler.compile("""
                 root = {state: "b" / "a", beta: tstr, alpha: uint}
                 """).definition();
 
@@ -62,34 +62,63 @@ class AuthenticatedMapCddlCompilerTest {
 
     @Test
     void rejectsRecursiveUnboundedAndHostDependentCddl() {
-        assertThatThrownBy(() -> AuthenticatedMapCddlCompiler.compile("""
+        assertThatThrownBy(() -> CddlSchemaCompiler.compile("""
                 root = child
                 child = root
                 """))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("recursive");
-        assertThatThrownBy(() -> AuthenticatedMapCddlCompiler.compile(
+        assertThatThrownBy(() -> CddlSchemaCompiler.compile(
                 "root = [* tstr]"))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> AuthenticatedMapCddlCompiler.compile(
+        assertThatThrownBy(() -> CddlSchemaCompiler.compile(
                 "root = tstr .regexp \".*\""))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("unsupported CDDL control");
-        assertThatThrownBy(() -> AuthenticatedMapCddlCompiler.compile(
+        assertThatThrownBy(() -> CddlSchemaCompiler.compile(
                 "root = external<thing>"))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
     void requiresAnExplicitlyDeclaredRootAndCanonicalNumbers() {
-        assertThatThrownBy(() -> AuthenticatedMapCddlCompiler.compile(
+        assertThatThrownBy(() -> CddlSchemaCompiler.compile(
                 "record = uint", "root"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("root rule");
-        assertThatThrownBy(() -> AuthenticatedMapCddlCompiler.compile(
+        assertThatThrownBy(() -> CddlSchemaCompiler.compile(
                 "root = uint .le 01"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("canonical decimal");
+    }
+
+    @Test
+    void boundsSourceNestingBeforeRecursiveParsingAndMatchesBrowserDomainVectors() {
+        assertThatThrownBy(() -> CddlSchemaCompiler.compile("root = " + "(".repeat(1000) + "uint"
+                + ")".repeat(1000))).isInstanceOf(IllegalArgumentException.class).hasMessageContaining("nesting");
+        assertThatThrownBy(() -> CddlSchemaCompiler.compile("root = {\"" + "é".repeat(129) + "\": uint}"))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("256 UTF-8 bytes");
+        assertThat(CddlSchemaCompiler.compile("root = 0..18446744073709551616").definition())
+                .isEqualTo(hex("82018400026130743138343436373434303733373039353531363135"));
+        assertThat(CddlSchemaCompiler.compile("root = -18446744073709551617..0").definition())
+                .isEqualTo(hex("8201840002752d31383434363734343037333730393535313631366130"));
+    }
+
+    @Test
+    void boundsExpandedNestingAcrossNamedRulesWithoutCountingAliases() {
+        StringBuilder nested = new StringBuilder();
+        StringBuilder aliases = new StringBuilder();
+        for (int i = 0; i < 128; i++) {
+            String name = i == 0 ? "root" : "r" + i;
+            String next = i == 127 ? "uint" : "r" + (i + 1);
+            nested.append(name).append(" = ").append("[".repeat(60)).append(next)
+                    .append("]".repeat(60)).append('\n');
+            aliases.append(name).append(" = ").append(next).append('\n');
+        }
+        assertThatThrownBy(() -> CddlSchemaCompiler.compile(nested.toString()))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("expansion exceeds the nesting");
+        assertThat(CddlSchemaCompiler.compile(aliases.toString()).definition())
+                .isEqualTo(CddlSchemaCompiler.compile("root = uint").definition());
     }
 
     private static byte[] hex(String value) {

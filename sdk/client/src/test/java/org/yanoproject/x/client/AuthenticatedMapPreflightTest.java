@@ -1,7 +1,7 @@
 package org.yanoproject.x.client;
 
 import org.yanoproject.x.stdlib.contracts.AuthenticatedMapContract;
-import org.yanoproject.x.stdlib.contracts.AuthenticatedMapSchema;
+import org.yanoproject.api.appchain.schema.CborSchema;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigInteger;
@@ -90,12 +90,12 @@ class AuthenticatedMapPreflightTest {
     }
 
     private static AuthenticatedMapContract.Genesis genesis() {
-        AuthenticatedMapSchema.Schema schema = AuthenticatedMapSchema.of(
-                new AuthenticatedMapSchema.MapNode(List.of(
-                        new AuthenticatedMapSchema.MapField(
+        CborSchema.Schema schema = CborSchema.of(
+                new CborSchema.MapNode(List.of(
+                        new CborSchema.MapField(
                                 "qty", true,
-                                new AuthenticatedMapSchema.IntegerNode(
-                                        AuthenticatedMapSchema.INTEGER_UINT,
+                                new CborSchema.IntegerNode(
+                                        CborSchema.INTEGER_UINT,
                                         BigInteger.ZERO,
                                         BigInteger.TEN)))));
         AuthenticatedMapContract.ValidatorDescriptor schemaValidator =

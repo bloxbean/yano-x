@@ -1,0 +1,17 @@
+{
+  "archiveSha256": "1cc44e322d7eec6d59f3ec81b747cf906cff2ab122bb4543b133a2024107e407",
+  "epochLength": 500,
+  "firstLaunchGeneses": {
+    "devnet-shelley-genesis.json": "be001ce3d5cad9b9e176929811f65846360779576aec64e28004ab4075c3fc88",
+    "cluster/node0/shelley-genesis.json": "be001ce3d5cad9b9e176929811f65846360779576aec64e28004ab4075c3fc88",
+    "cluster/node1/shelley-genesis.json": "be001ce3d5cad9b9e176929811f65846360779576aec64e28004ab4075c3fc88",
+    "cluster/node2/shelley-genesis.json": "be001ce3d5cad9b9e176929811f65846360779576aec64e28004ab4075c3fc88"
+  },
+  "afterRestart": {
+    "devnet-shelley-genesis.json": "be001ce3d5cad9b9e176929811f65846360779576aec64e28004ab4075c3fc88",
+    "cluster/node0/shelley-genesis.json": "be001ce3d5cad9b9e176929811f65846360779576aec64e28004ab4075c3fc88",
+    "cluster/node1/shelley-genesis.json": "be001ce3d5cad9b9e176929811f65846360779576aec64e28004ab4075c3fc88",
+    "cluster/node2/shelley-genesis.json": "be001ce3d5cad9b9e176929811f65846360779576aec64e28004ab4075c3fc88"
+  },
+  "status": "PASS"
+}

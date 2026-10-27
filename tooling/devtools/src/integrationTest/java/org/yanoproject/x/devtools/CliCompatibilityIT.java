@@ -23,6 +23,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  * packaged {@code appchain} launcher and bundles built from the commit before ADR-031.2 tooling changes
  * ({@link #main}). The current packaged launcher must reproduce every standard output, standard error and exit
  * status byte for byte when {@code --report} is not used. Relative paths keep outputs location-independent.
+ * ADR-038 r6 updates only the three dry-run execution-identity hashes for the host's added committed
+ * clock-skew field; receipt, command and state-change bytes remain historical.
  *
  * <p>The single intentional difference is the usage text, which gained lines for {@code catalog} and
  * {@code --report}. The gate requires the current usage to contain every historical usage line in order, then

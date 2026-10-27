@@ -2,7 +2,7 @@ package org.yanoproject.x.showcase;
 
 import org.yanoproject.x.stdlib.StdlibStateMachineProviders;
 import org.yanoproject.x.stdlib.contracts.AuthenticatedMapContract;
-import org.yanoproject.x.stdlib.contracts.AuthenticatedMapSchema;
+import org.yanoproject.api.appchain.schema.CborSchema;
 import org.junit.jupiter.api.Test;
 
 import java.nio.charset.StandardCharsets;
@@ -111,7 +111,7 @@ class ShowcaseAuthenticatedMapConfigTest {
                 .satisfies(validator -> {
                     assertThat(validator.kind())
                             .isEqualTo(AuthenticatedMapContract.VALIDATOR_KIND_SCHEMA);
-                    AuthenticatedMapSchema.Schema schema = AuthenticatedMapSchema.decode(
+                    CborSchema.Schema schema = CborSchema.decode(
                             validator.definition());
                     assertThat(schema.accepts(HexFormat.of().parseHex(
                             "a363736b7565736b752d316673746174757366616374697665"

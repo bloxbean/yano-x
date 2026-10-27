@@ -995,6 +995,13 @@ export class BindingEditor {
     const draft = this.session.draft;
     const binding = draft.bindings[index];
     const fields = this.eventFields(binding);
+    const crossing = h('select', {id: `b${index}-crossing`},
+      h('option', {value: '', text: 'Omitted — no permission'}),
+      h('option', {value: 'false', text: 'False — no permission'}),
+      h('option', {value: 'true', text: 'True — allow writer-policy crossing'}));
+    crossing.value = binding.crossesTopicPolicy == null ? '' : String(binding.crossesTopicPolicy);
+    crossing.addEventListener('change', () => this.set(['bindings', index, 'crossesTopicPolicy'],
+      crossing.value === '' ? null : crossing.value === 'true'));
     return [
       h('div', {class: 'inline-actions'},
         h('button', {type: 'button', class: 'secondary', id: `b${index}-rename`, text: 'Rename…',
@@ -1015,6 +1022,9 @@ export class BindingEditor {
               .then(done => done && this.session.select('document'));
           }})),
       this.sourceSection(index, binding, fields),
+      h('section', {class: 'form-section'}, h('label', {for: crossing.id}, 'Cross protected topic writer policy'),
+        crossing, h('p', {class: 'hint', text: 'Retirement, registration, payload limits and schemas still apply. '
+          + 'The derived writer remains none. Inspect active and pending policies in the Topics view.'})),
       this.conditionsSection(index, binding, fields),
       this.targetSection(index, binding, fields)];
   }
@@ -1391,6 +1401,11 @@ export class BindingEditor {
       instance?.normalizedConfiguration ?? {}).map(([name, value]) => [name, value.type]))});
     scopes.set('fact', {label: 'Verified fact', fields: merge(instance => (instance?.ruleFacts ?? [])
       .map(fact => [fact.name, fact.type]))});
+    scopes.set('payload', {label: 'Verified payload scalar (declared schemas)', fields: null});
+    scopes.set('writer', {label: 'Verified writer', fields: new Map([
+      ['kind', 'text'], ['signers', 'text-set'], ['issuer', 'text']])});
+    scopes.set('source', {label: 'Source provenance', fields: new Map([
+      ['topic', 'text'], ['writer.kind', 'text'], ['writer.signers', 'text-set'], ['writer.issuer', 'text']])});
     return scopes;
   }
 
@@ -1606,7 +1621,7 @@ export class BindingEditor {
   ruleClausesSection(index, rule, scopes) {
     const clauses = rule.require;
     const add = clause => this.apply(value => edits.addRuleClause(value, index, clause), `r${index}-c${clauses.length}-kind`);
-    const readable = [...scopes].flatMap(([key, site]) => [...site.fields].map(([name, type]) =>
+    const readable = [...scopes].flatMap(([key, site]) => [...(site.fields ?? [])].map(([name, type]) =>
       ({reference: `${key === 'param' ? 'params' : key === 'fact' ? 'facts' : key}.${name}`, type, label: site.label})))
       .concat(this.ruleViewReferences(rule));
     return h('section', {class: 'form-section', dataset: {path: JSON.stringify(['rules', index, 'require'])}},

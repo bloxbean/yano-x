@@ -1,5 +1,6 @@
 package org.yanoproject.x.stdlib.contracts;
 
+import org.yanoproject.api.appchain.schema.CborSchema;
 import com.bloxbean.cardano.vds.jmt.JmtProfile;
 import org.yanoproject.api.appchain.state.StateCommitmentProfiles;
 import org.junit.jupiter.api.Test;
@@ -172,7 +173,7 @@ class AuthenticatedMapContractTest {
 
     @Test
     void schemaDescriptorsAreCanonicalReferencedAndAppliedToGenesisEntries() {
-        AuthenticatedMapSchema.Schema schema = quantitySchema(10);
+        CborSchema.Schema schema = quantitySchema(10);
         AuthenticatedMapContract.ValidatorDescriptor validator =
                 AuthenticatedMapContract.ValidatorDescriptor.schema(
                         "product-schema", schema.definition());
@@ -237,7 +238,7 @@ class AuthenticatedMapContractTest {
                 .hasMessageContaining("schema descriptor");
         assertThatThrownBy(() -> new AuthenticatedMapContract.ValidatorDescriptor(
                 "schema", AuthenticatedMapContract.VALIDATOR_KIND_SCHEMA, "",
-                AuthenticatedMapSchema.IR_CATALOG_ID, quantitySchema(10).definition(),
+                CborSchema.IR_CATALOG_ID, quantitySchema(10).definition(),
                 java.util.HexFormat.of().parseHex("a1617801")))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("schema descriptor");
@@ -323,11 +324,11 @@ class AuthenticatedMapContractTest {
                         "products", bytes("sku-1"), OWNER, new byte[]{1, 2})));
     }
 
-    private static AuthenticatedMapSchema.Schema quantitySchema(int maximum) {
-        return AuthenticatedMapSchema.of(new AuthenticatedMapSchema.MapNode(List.of(
-                new AuthenticatedMapSchema.MapField("qty", true,
-                        new AuthenticatedMapSchema.IntegerNode(
-                                AuthenticatedMapSchema.INTEGER_UINT,
+    private static CborSchema.Schema quantitySchema(int maximum) {
+        return CborSchema.of(new CborSchema.MapNode(List.of(
+                new CborSchema.MapField("qty", true,
+                        new CborSchema.IntegerNode(
+                                CborSchema.INTEGER_UINT,
                                 BigInteger.ZERO, BigInteger.valueOf(maximum))))));
     }
 

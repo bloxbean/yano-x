@@ -38,6 +38,26 @@ composite/effect flow, and verifies a confirmed Cardano anchor. The local
 devnet seed is public demo material and must never be reused on another
 network.
 
+For devnet, generated node configurations set each chain's anchor transaction
+lifetime to `min(299, floor(3 * securityParam / activeSlotsCoeff) - 1)` slots.
+The selected Shelley genesis supplies these values; an existing instance uses
+its retained genesis. The stock devnet gets 299 slots (about 60 seconds), which
+keeps Plutus transaction expiry inside the ledger's forecast horizon. Custom
+genesis files with shorter safety windows get a smaller value. Public-network
+anchor lifetimes keep the host defaults, and this local transaction setting
+does not change app-chain identity.
+
+The first prepare pins `devnet-shelley-genesis.json` inside the instance before
+starting any node. Stock genesis keeps the launcher's 500-slot epochs and gets
+a current `systemStart` once; a genesis
+supplied through `YANO_CLUSTER_DEVNET_GENESIS_FILE` is copied byte for byte,
+including its timestamp. Every start and restart checks that all retained node
+genesis files and observer identity hashes still match this pin. Selecting a
+different custom genesis is rejected. Preserve the pin alongside the node
+stores when backing up an instance. Existing devnet state created before this
+pin was introduced requires its original pin to be restored or a separate new
+instance; the launcher never migrates or resets retained identity automatically.
+
 Open the status UI and select `workflow-chain`:
 
 ```bash

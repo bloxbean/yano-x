@@ -73,6 +73,7 @@ export default defineConfig({
             },
             { label: 'Cardano anchoring', slug: 'concepts/anchoring' },
             { label: 'Keys and trust', slug: 'concepts/trust-model' },
+            { label: 'Topic policies and sessions', slug: 'concepts/topic-policies' },
             { label: 'Determinism rules', slug: 'concepts/determinism-rules' },
           ],
         },
@@ -92,6 +93,7 @@ export default defineConfig({
           items: [
             { label: 'Recipe catalog', slug: 'recipes' },
             { label: 'Choosing a recipe', slug: 'recipes/choosing-a-recipe' },
+            { label: 'Protect a topic with session keys', slug: 'recipes/topic-session-keys' },
           ],
         },
         {

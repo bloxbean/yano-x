@@ -9,8 +9,8 @@ import org.yanoproject.api.appchain.AppChainConfig;
 import org.yanoproject.x.dpp.profile.DppGenesis;
 import org.yanoproject.x.dpp.profile.DppStarterProfile;
 import org.yanoproject.x.stdlib.contracts.AuthenticatedMapContract;
-import org.yanoproject.x.stdlib.contracts.AuthenticatedMapSchema;
-import org.yanoproject.x.stdlib.contracts.AuthenticatedMapSchema.MapField;
+import org.yanoproject.api.appchain.schema.CborSchema;
+import org.yanoproject.api.appchain.schema.CborSchema.MapField;
 import org.yanoproject.x.trust.profile.TrustRegistryGenesis;
 
 import java.nio.charset.StandardCharsets;
@@ -28,7 +28,7 @@ public final class TypedViewsRecipes {
     /** Recipe names; each is {@code examples/bindings/<name>.yaml}. */
     public static final List<String> NAMES = List.of("asset-governed-limits", "dpp-namespace-isolation",
             "feed-slot-rules");
-    private static final AuthenticatedMapSchema.Node UINT = AuthenticatedMapSchema.IntegerNode.uint();
+    private static final CborSchema.Node UINT = CborSchema.IntegerNode.uint();
     // ADR-031.4 §6 write-view clauses, verbatim; the Studio YAML profile keeps each expression on one line.
     private static final String OWNS_PRODUCT = "writes.all(w, (w.collection != \"product-versions\""
             + " && w.collection != \"events\") || (w.coverage == \"direct\""
@@ -64,7 +64,7 @@ public final class TypedViewsRecipes {
                     collection("observations", AuthenticatedMapContract.AUTH_GOVERNED_ROLE,
                             DppStarterProfile.OPERATOR_POLICY, "observation-v1")), List.of(
                     schema("feed-v1", new MapField("max", true, UINT), new MapField("min", true, UINT),
-                            new MapField("status", true, AuthenticatedMapSchema.TextNode.any())),
+                            new MapField("status", true, CborSchema.TextNode.any())),
                     schema("observation-v1", new MapField("price", true, UINT))), List.of(
                     new AuthenticatedMapContract.GenesisEntry("feeds", bytes("main"), new byte[0], value(Map.of(
                             "status", new UnicodeString("OPEN"), "min", new UnsignedInteger(100),
@@ -231,8 +231,8 @@ public final class TypedViewsRecipes {
     }
 
     private static AuthenticatedMapContract.ValidatorDescriptor schema(String id, MapField... members) {
-        return AuthenticatedMapContract.ValidatorDescriptor.schema(id, AuthenticatedMapSchema.of(
-                new AuthenticatedMapSchema.MapNode(List.of(members))).definition());
+        return AuthenticatedMapContract.ValidatorDescriptor.schema(id, CborSchema.of(
+                new CborSchema.MapNode(List.of(members))).definition());
     }
 
     /** A holder record keyed by the public key of member seed {@code index}. */

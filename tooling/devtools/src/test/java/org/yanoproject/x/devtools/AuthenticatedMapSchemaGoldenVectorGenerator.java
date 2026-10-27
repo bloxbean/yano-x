@@ -72,8 +72,8 @@ public final class AuthenticatedMapSchemaGoldenVectorGenerator {
             List<String> accepted,
             List<String> rejected
     ) {
-        AuthenticatedMapCddlCompiler.Compilation compilation =
-                AuthenticatedMapCddlCompiler.compile(source, root);
+        CddlSchemaCompiler.Compilation compilation =
+                CddlSchemaCompiler.compile(source, root);
         String prefix = "schema." + name + ".";
         vectors.put(prefix + "root", root);
         vectors.put(prefix + "source.hex", hex(source.getBytes(StandardCharsets.UTF_8)));

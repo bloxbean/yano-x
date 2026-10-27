@@ -4,7 +4,7 @@ import org.yanoproject.x.roles.contracts.ApprovalPolicyV1;
 import org.yanoproject.x.roles.contracts.DirectRolePolicyV1;
 import org.yanoproject.x.roles.contracts.RecordStatus;
 import org.yanoproject.x.stdlib.contracts.AuthenticatedMapContract;
-import org.yanoproject.x.stdlib.contracts.AuthenticatedMapSchema;
+import org.yanoproject.api.appchain.schema.CborSchema;
 
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
@@ -347,7 +347,7 @@ public final class DppStarterProfile {
     // ------------------------------------------------------------------ schemas
 
     static byte[] productSchema() {
-        return AuthenticatedMapSchema.of(new AuthenticatedMapSchema.ArrayNode(List.of(
+        return CborSchema.of(new CborSchema.ArrayNode(List.of(
                 required(versionNode()),
                 required(text(1, MAX_ORGANIZATION_BYTES)),
                 required(unsigned(STATUS_DRAFT, STATUS_RETIRED)),
@@ -357,7 +357,7 @@ public final class DppStarterProfile {
     }
 
     static byte[] versionSchema() {
-        return AuthenticatedMapSchema.of(new AuthenticatedMapSchema.ArrayNode(List.of(
+        return CborSchema.of(new CborSchema.ArrayNode(List.of(
                 required(versionNode()),
                 required(bytes(32, 32)),
                 required(text(1, MAX_MEDIA_TYPE_BYTES)),
@@ -366,7 +366,7 @@ public final class DppStarterProfile {
     }
 
     static byte[] claimSchema() {
-        return AuthenticatedMapSchema.of(new AuthenticatedMapSchema.ArrayNode(List.of(
+        return CborSchema.of(new CborSchema.ArrayNode(List.of(
                 required(versionNode()),
                 required(unsigned(VISIBILITY_PUBLIC, VISIBILITY_COMMITTED)),
                 required(bytes(1, MAX_CLAIM_TEXT_BYTES)),
@@ -377,7 +377,7 @@ public final class DppStarterProfile {
     }
 
     static byte[] eventSchema() {
-        return AuthenticatedMapSchema.of(new AuthenticatedMapSchema.ArrayNode(List.of(
+        return CborSchema.of(new CborSchema.ArrayNode(List.of(
                 required(versionNode()),
                 required(text(1, MAX_EVENT_TYPE_BYTES)),
                 required(text(1, MAX_ORGANIZATION_BYTES)),
@@ -388,7 +388,7 @@ public final class DppStarterProfile {
     }
 
     static byte[] certificateSchema() {
-        return AuthenticatedMapSchema.of(new AuthenticatedMapSchema.ArrayNode(List.of(
+        return CborSchema.of(new CborSchema.ArrayNode(List.of(
                 required(versionNode()),
                 required(text(1, 64)),
                 required(text(1, MAX_CERTIFICATE_TYPE_BYTES)),
@@ -398,29 +398,29 @@ public final class DppStarterProfile {
                 required(unsigned(0, MAX_HEIGHT))))).definition();
     }
 
-    private static AuthenticatedMapSchema.Occurrence required(AuthenticatedMapSchema.Node node) {
-        return AuthenticatedMapSchema.Occurrence.required(node);
+    private static CborSchema.Occurrence required(CborSchema.Node node) {
+        return CborSchema.Occurrence.required(node);
     }
 
-    private static AuthenticatedMapSchema.Node versionNode() {
+    private static CborSchema.Node versionNode() {
         return unsigned(VALUE_VERSION, VALUE_VERSION);
     }
 
-    private static AuthenticatedMapSchema.Node text(int minimum, int maximum) {
-        return new AuthenticatedMapSchema.TextNode(minimum, maximum, null);
+    private static CborSchema.Node text(int minimum, int maximum) {
+        return new CborSchema.TextNode(minimum, maximum, null);
     }
 
-    private static AuthenticatedMapSchema.Node bytes(int minimum, int maximum) {
-        return new AuthenticatedMapSchema.BytesNode(minimum, maximum, null);
+    private static CborSchema.Node bytes(int minimum, int maximum) {
+        return new CborSchema.BytesNode(minimum, maximum, null);
     }
 
     /** An evidence digest is absent (empty bytes) or exactly 32 bytes. */
-    private static AuthenticatedMapSchema.Node optionalDigest() {
-        return new AuthenticatedMapSchema.ChoiceNode(List.of(bytes(0, 0), bytes(32, 32)));
+    private static CborSchema.Node optionalDigest() {
+        return new CborSchema.ChoiceNode(List.of(bytes(0, 0), bytes(32, 32)));
     }
 
-    private static AuthenticatedMapSchema.Node unsigned(long minimum, long maximum) {
-        return new AuthenticatedMapSchema.IntegerNode(AuthenticatedMapSchema.INTEGER_UINT,
+    private static CborSchema.Node unsigned(long minimum, long maximum) {
+        return new CborSchema.IntegerNode(CborSchema.INTEGER_UINT,
                 BigInteger.valueOf(minimum), BigInteger.valueOf(maximum));
     }
 

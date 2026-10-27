@@ -1,0 +1,28 @@
+{
+  "archiveSha256": "58162624ecd708e22c5dd295aedc571751699564c7952cf82a09f158674bfd23",
+  "method": "Read-only RocksDB inspection of the task-owned failed smoke cluster, using its packaged host classes; no state writes.",
+  "finding": "Showcase regenerated observer overlays from a different Shelley genesis after first launch, changing the committed consensus context.",
+  "originalSmoke": "Follower L1 progress stalled before epoch 1; history catch-up correctly refused an epoch 2 observation as AHEAD.",
+  "recoverySmoke": "After L1 caught up, history catch-up correctly refused the changed consensus context.",
+  "persistedBlock1Context": "a947303558cbccd16659a8ba725907f07f8233d4b593663619bf5d0cf80f43cf",
+  "genesis": "338ff988d9e56a4dc1d5a83ed10dc39f9cbf234bcde02be1831213584088ff68",
+  "consensusProfile": "AppChainConsensusProfile[schemaVersion=2, maxMessageBytes=6291456, maxBlockMessages=1000, maxBlockBytes=8388608, l1StabilityDepth=2, epochStabilityDepth=2, blockMaxForwardSkewMs=5000, enforceSenderSeq=false, effectsEnabled=false, effectsMaxPerBlock=0, effectsMaxPayloadBytes=0, effectsMaxExpiryBlocks=0, effectsResultWindowBlocks=0, effectsDefaultGate=APP_FINAL, effectsOutcomeCommitment=PER_EFFECT, effectsStrictReservedPrefix=true, effectResultSigners=[]]",
+  "consensusProfileDigest": "c3889b3829968e5a56fcdbd55e4e3cd412d395cd2edc19332bfc89b53646fdb2",
+  "genericObservationDigest": "0c9a8e9e8c81ad1f1f5874a4ea764f36c366533cac941e0b78b4a03de7c179d5",
+  "calculations": [
+    {
+      "source": "stock-genesis",
+      "network": "73ac90fd673331f665c22b85502c85164269cd283f88a113997f50581ef6c890",
+      "observer": "67fe879f793e8a4e664c7424d82bc656baaac6f0238ab601f3e052a8cd0744ec",
+      "calculatedContext": "a947303558cbccd16659a8ba725907f07f8233d4b593663619bf5d0cf80f43cf",
+      "matchesPersisted": true
+    },
+    {
+      "source": "retained-node0-genesis",
+      "network": "29d6a9c3916e100562e9a6c961016a0e65ec988445e409364fce98c33f1b76e9",
+      "observer": "640f95b17fabb4a95f0e574e94d3d2a50e3a86ffde914e972a87fad3ae25f7de",
+      "calculatedContext": "ddee7f5d20efbb5b39485e0697cee7e5da0e1fed17b493d2f9d7fd31b30772ae",
+      "matchesPersisted": false
+    }
+  ]
+}

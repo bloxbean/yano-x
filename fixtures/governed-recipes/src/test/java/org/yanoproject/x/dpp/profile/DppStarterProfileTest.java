@@ -1,6 +1,6 @@
 package org.yanoproject.x.dpp.profile;
 
-import org.yanoproject.x.stdlib.contracts.AuthenticatedMapSchema;
+import org.yanoproject.api.appchain.schema.CborSchema;
 import org.junit.jupiter.api.Test;
 
 import java.nio.charset.StandardCharsets;
@@ -17,12 +17,12 @@ class DppStarterProfileTest {
     void schemasAdmitCanonicalValuesAndRejectOthers() {
         byte[] product = new DppValues.ProductValue("acme-manufacturing",
                 DppStarterProfile.STATUS_ACTIVE, 1, "", "battery-passport-demo-v1").encode();
-        assertThat(AuthenticatedMapSchema.accepts(DppStarterProfile.productSchema(), product)).isTrue();
-        assertThat(AuthenticatedMapSchema.accepts(DppStarterProfile.versionSchema(), product)).isFalse();
+        assertThat(CborSchema.accepts(DppStarterProfile.productSchema(), product)).isTrue();
+        assertThat(CborSchema.accepts(DppStarterProfile.versionSchema(), product)).isFalse();
 
         byte[] version = new DppValues.VersionValue(DIGEST, "application/json",
                 "https://docs.example/passport.json", 1234).encode();
-        assertThat(AuthenticatedMapSchema.accepts(DppStarterProfile.versionSchema(), version)).isTrue();
+        assertThat(CborSchema.accepts(DppStarterProfile.versionSchema(), version)).isTrue();
         // A 31-byte digest is refused by the schema before finalization.
         byte[] shortDigest = version.clone();
         assertThatThrownBy(() -> new DppValues.VersionValue(new byte[31], "text/plain", "", 0))
@@ -32,11 +32,11 @@ class DppStarterProfileTest {
         byte[] publicClaim = new DppValues.ClaimValue(DppStarterProfile.VISIBILITY_PUBLIC,
                 "recycled content 42%".getBytes(StandardCharsets.UTF_8), "green-labs", 1, 0,
                 new byte[0]).encode();
-        assertThat(AuthenticatedMapSchema.accepts(DppStarterProfile.claimSchema(), publicClaim)).isTrue();
+        assertThat(CborSchema.accepts(DppStarterProfile.claimSchema(), publicClaim)).isTrue();
         byte[] committed = new DppValues.ClaimValue(DppStarterProfile.VISIBILITY_COMMITTED,
                 DppValues.claimCommitment(new byte[32], "co2 12.5 kg"), "green-labs", 1, 0,
                 DIGEST).encode();
-        assertThat(AuthenticatedMapSchema.accepts(DppStarterProfile.claimSchema(), committed)).isTrue();
+        assertThat(CborSchema.accepts(DppStarterProfile.claimSchema(), committed)).isTrue();
         assertThatThrownBy(() -> new DppValues.ClaimValue(2, new byte[1], "org", 0, 0, null))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> new DppValues.ClaimValue(DppStarterProfile.VISIBILITY_COMMITTED,
@@ -45,19 +45,19 @@ class DppStarterProfileTest {
         byte[] visibilityTwo = publicClaim.clone();
         assertThat(visibilityTwo[2]).isEqualTo((byte) 0x00);
         visibilityTwo[2] = 0x02;
-        assertThat(AuthenticatedMapSchema.accepts(DppStarterProfile.claimSchema(), visibilityTwo)).isFalse();
+        assertThat(CborSchema.accepts(DppStarterProfile.claimSchema(), visibilityTwo)).isFalse();
 
         byte[] event = new DppValues.EventValue("SHIPPED", "swift-logistics", 1_788_000_000L,
                 "Rotterdam", null, "container MSKU1").encode();
-        assertThat(AuthenticatedMapSchema.accepts(DppStarterProfile.eventSchema(), event)).isTrue();
+        assertThat(CborSchema.accepts(DppStarterProfile.eventSchema(), event)).isTrue();
         byte[] eventWithEvidence = new DppValues.EventValue("INSPECTED", "green-labs", 1, "",
                 DIGEST, "").encode();
-        assertThat(AuthenticatedMapSchema.accepts(DppStarterProfile.eventSchema(), eventWithEvidence)).isTrue();
+        assertThat(CborSchema.accepts(DppStarterProfile.eventSchema(), eventWithEvidence)).isTrue();
 
         byte[] certificate = new DppValues.CertificateValue("gtin:09506000134352", "EU-Ecodesign",
                 "cert-body-a", DIGEST, 1, 0).encode();
-        assertThat(AuthenticatedMapSchema.accepts(DppStarterProfile.certificateSchema(), certificate)).isTrue();
-        assertThat(AuthenticatedMapSchema.accepts(DppStarterProfile.certificateSchema(), event)).isFalse();
+        assertThat(CborSchema.accepts(DppStarterProfile.certificateSchema(), certificate)).isTrue();
+        assertThat(CborSchema.accepts(DppStarterProfile.certificateSchema(), event)).isFalse();
     }
 
     @Test

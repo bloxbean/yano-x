@@ -1,0 +1,41 @@
+{
+  "archiveSha256": "1cc44e322d7eec6d59f3ec81b747cf906cff2ab122bb4543b133a2024107e407",
+  "status": "PASS",
+  "suites": [
+    {
+      "name": "org.yanoproject.x.deployment.DeploymentLoaderTest",
+      "tests": "3",
+      "skipped": "0",
+      "failures": "0",
+      "errors": "0"
+    },
+    {
+      "name": "org.yanoproject.x.deployment.DeploymentRendererTest",
+      "tests": "16",
+      "skipped": "0",
+      "failures": "0",
+      "errors": "0"
+    },
+    {
+      "name": "org.yanoproject.x.deployment.ExistingVmBootstrapContractTest",
+      "tests": "2",
+      "skipped": "0",
+      "failures": "0",
+      "errors": "0"
+    },
+    {
+      "name": "org.yanoproject.x.deployment.ShowcaseProfileCompilerTest",
+      "tests": "1",
+      "skipped": "0",
+      "failures": "0",
+      "errors": "0"
+    },
+    {
+      "name": "org.yanoproject.x.deployment.YanoDeploymentCliTest",
+      "tests": "2",
+      "skipped": "0",
+      "failures": "0",
+      "errors": "0"
+    }
+  ]
+}

@@ -612,7 +612,7 @@ final class AppChainProjectResolver {
                         "authenticatedMap schemas require id and inline CDDL source");
             }
             String root = blank(schema.root()) ? "root" : schema.root();
-            byte[] definition = AuthenticatedMapCddlCompiler
+            byte[] definition = CddlSchemaCompiler
                     .compile(schema.source(), root).definition();
             validators.add(AuthenticatedMapContract.ValidatorDescriptor.schema(
                     schema.id(), definition));

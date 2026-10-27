@@ -1,15 +1,20 @@
 package org.yanoproject.x.client;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
+import org.yanoproject.api.appchain.state.StateCommitmentIdentity;
+import org.yanoproject.api.appchain.state.StateCommitmentProfiles;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -31,6 +36,47 @@ class AppChainClientStateProofTest {
         if (server != null) {
             server.stop(0);
         }
+    }
+
+    @Test
+    void hostGenerationIdBindsProofToItsExistingCommitmentIdentity() throws Exception {
+        ObjectNode envelope = (ObjectNode) new ObjectMapper().readTree(INCLUSION);
+        String generation = Hex.encode(StateCommitmentIdentity.explicit(
+                StateCommitmentProfiles.require(envelope.path("profile").asText()),
+                Hex.decode(envelope.path("genesisId").asText())).digest());
+        envelope.put("generationId", generation);
+        AtomicReference<String> response = new AtomicReference<>(envelope.toString());
+        start(exchange -> respond(exchange, 200, response.get()));
+        assertThat(client().proof(new byte[]{1}).orElseThrow().genesisIdHex()).isEqualTo("11".repeat(32));
+        assertThat(AppChainClient.decodeProofEnvelope(response.get()).profile())
+                .isEqualTo(ProofVerifier.MPF_BLAKE2B256_V1);
+        for (String invalid : new String[]{"22".repeat(32), generation.toUpperCase(), "00", ""}) {
+            envelope.put("generationId", invalid);
+            response.set(envelope.toString());
+            assertThatThrownBy(() -> client().proof(new byte[]{1}))
+                    .isInstanceOf(AppChainClient.AppChainClientException.class);
+        }
+    }
+
+    @Test
+    void hostGenerationIdBindsStateEntryToItsExistingCommitmentIdentity() throws Exception {
+        ObjectNode envelope = (ObjectNode) new ObjectMapper().readTree(INCLUSION);
+        envelope.remove(List.of("proofWireHex", "block", "finalityCertificate"));
+        envelope.put("generationId", Hex.encode(StateCommitmentIdentity.explicit(
+                StateCommitmentProfiles.require(envelope.path("profile").asText()),
+                Hex.decode(envelope.path("genesisId").asText())).digest()));
+        AtomicReference<String> response = new AtomicReference<>(envelope.toString());
+        start(exchange -> respond(exchange, 200, response.get()));
+        assertThat(client().stateEntry(new byte[]{1}).orElseThrow().path("generationId").asText())
+                .isEqualTo(envelope.path("generationId").asText());
+        envelope.put("generationId", "22".repeat(32));
+        response.set(envelope.toString());
+        assertThatThrownBy(() -> client().stateEntry(new byte[]{1}))
+                .hasMessage("App-chain state generation identity mismatch");
+        envelope.putNull("generationId");
+        response.set(envelope.toString());
+        assertThatThrownBy(() -> client().stateEntry(new byte[]{1}))
+                .isInstanceOf(AppChainClient.AppChainClientException.class);
     }
 
     @Test

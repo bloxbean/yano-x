@@ -110,7 +110,17 @@ both Yano and Yano X identity manifests:
 - `examples/showcase/` holds the local multi-node showcase. Its `yano/` home
   carries only the demo configuration; `showcase.sh` links everything else back
   to the distribution root on first run and never edits the distribution's own
-  `config/`.
+  `config/`. Its generated devnet node configurations bound anchor transaction
+  expiry to `min(299, floor(3 * securityParam / activeSlotsCoeff) - 1)` slots
+  using the selected Shelley genesis, keeping Plutus expiry inside the ledger's
+  forecast horizon. Public-network anchor lifetimes keep the host defaults.
+  Before first startup, the facade pins `devnet-shelley-genesis.json` inside
+  the instance, preserving the launcher's stock 500-slot epoch length, and
+  supplies its exact bytes and timestamp to the host launcher. Explicit custom
+  genesis bytes, including epoch length, remain unchanged.
+  Observer identities therefore use the same genesis hash across restart.
+  Conflicting node files, observer overlays, and legacy devnet state without
+  this pin are refused without rewriting retained identity or data.
 - `config/application-devnet.yml` (also in the showcase's `yano/config/`) turns
   off the devnet L1 history projection. Yano's JVM ZIP ships DuckLake extensions
   for Linux x64 only ([bloxbean/yano#137](https://github.com/bloxbean/yano/issues/137));

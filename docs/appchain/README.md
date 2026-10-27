@@ -27,6 +27,7 @@ credentials unless a guide explicitly says otherwise.
 | Collect member approvals and optionally trigger an action | [`approvals` reference](state-machines/approvals.md) | Configuration + typed commands |
 | Maintain a document-hash trail per product or case | [`doc-trail` reference](state-machines/doc-trail.md) | Configuration + typed commands |
 | Select a stock ledger/workflow capability | [Stock state-machine cookbook](tutorials/03-stock-state-machines.md) | Configuration + typed commands |
+| Protect a topic and issue browser session keys | [Topic protection guide](TOPIC_SESSION_KEYS.md) | Configuration + application sign-in |
 | Connect stock components with deterministic event bindings | [Beginner-to-advanced developer learning path](bindings/README.md) | YAML; public actor proofs for governed recipes |
 | Publish immutable evidence to object storage/IPFS and notify Kafka | [Evidence publication](tutorials/04-evidence-publication.md) | No for the demo; optional connector plugins in deployments |
 | Approve arbitrary payload hashes using application-defined roles | [`role-approvals` reference](state-machines/role-approvals.md) | Configuration + actor integration |

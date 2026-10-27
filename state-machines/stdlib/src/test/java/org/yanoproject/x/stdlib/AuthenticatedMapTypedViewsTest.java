@@ -19,8 +19,8 @@ import org.yanoproject.x.stdlib.contracts.AuthenticatedMapAuthorizationContract.
 import org.yanoproject.x.stdlib.contracts.AuthenticatedMapAuthorizationContract.MapActionV1;
 import org.yanoproject.x.stdlib.contracts.AuthenticatedMapContract;
 import org.yanoproject.x.stdlib.contracts.AuthenticatedMapContract.Mutation;
-import org.yanoproject.x.stdlib.contracts.AuthenticatedMapSchema;
-import org.yanoproject.x.stdlib.contracts.AuthenticatedMapSchema.MapField;
+import org.yanoproject.api.appchain.schema.CborSchema;
+import org.yanoproject.api.appchain.schema.CborSchema.MapField;
 
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
@@ -44,16 +44,16 @@ import static org.assertj.core.api.Assertions.tuple;
  */
 class AuthenticatedMapTypedViewsTest {
     private static final byte[] OWNER = new byte[32];
-    private static final AuthenticatedMapSchema.Node UINT = AuthenticatedMapSchema.IntegerNode.uint();
-    private static final AuthenticatedMapSchema.Node TEXT = AuthenticatedMapSchema.TextNode.any();
+    private static final CborSchema.Node UINT = CborSchema.IntegerNode.uint();
+    private static final CborSchema.Node TEXT = CborSchema.TextNode.any();
 
     /** {@code priced}: a typed product value; {@code labels}: {@code price} as text; {@code blobs}: opaque. */
     private final AuthenticatedMapTransitionKernel kernel = kernel(List.of(
             collection("blobs", AuthenticatedMapContract.VALUE_ENCODING_OPAQUE, ""),
             collection("labels", AuthenticatedMapContract.VALUE_ENCODING_CANONICAL_CBOR, "label-schema"),
             collection("priced", AuthenticatedMapContract.VALUE_ENCODING_CANONICAL_CBOR, "priced-schema")),
-            List.of(AuthenticatedMapContract.ValidatorDescriptor.schema("label-schema", AuthenticatedMapSchema.of(
-                            new AuthenticatedMapSchema.MapNode(List.of(new MapField("price", false, TEXT))))
+            List.of(AuthenticatedMapContract.ValidatorDescriptor.schema("label-schema", CborSchema.of(
+                            new CborSchema.MapNode(List.of(new MapField("price", false, TEXT))))
                             .definition()),
                     AuthenticatedMapContract.ValidatorDescriptor.schema("priced-schema", pricedSchema())));
 
@@ -130,7 +130,7 @@ class AuthenticatedMapTypedViewsTest {
         }
         var wide = kernel(List.of(collection("wide", AuthenticatedMapContract.VALUE_ENCODING_CANONICAL_CBOR,
                 "wide-schema")), List.of(AuthenticatedMapContract.ValidatorDescriptor.schema("wide-schema",
-                AuthenticatedMapSchema.of(new AuthenticatedMapSchema.MapNode(members)).definition())));
+                CborSchema.of(new CborSchema.MapNode(members)).definition())));
         var exposed = wide.ruleValueViews().getFirst().valueFields();
         assertThat(exposed).hasSize(RuleValueView.MAX_FIELDS);
         assertThat(exposed.getFirst().name()).isEqualTo("m00");
@@ -215,13 +215,13 @@ class AuthenticatedMapTypedViewsTest {
 
     /** Integer, text, boolean and a `present` member; a hyphenated key, a nested map and a choice are hidden. */
     private static byte[] pricedSchema() {
-        return AuthenticatedMapSchema.of(new AuthenticatedMapSchema.MapNode(List.of(
+        return CborSchema.of(new CborSchema.MapNode(List.of(
                 new MapField("big", false, UINT), new MapField("name", false, TEXT),
-                new MapField("flag", false, AuthenticatedMapSchema.BooleanNode.any()),
+                new MapField("flag", false, CborSchema.BooleanNode.any()),
                 new MapField("price", false, UINT), new MapField("a-b", false, TEXT),
                 new MapField("present", false, TEXT),
-                new MapField("nested", false, new AuthenticatedMapSchema.MapNode(List.of())),
-                new MapField("choice", false, new AuthenticatedMapSchema.ChoiceNode(List.of(UINT, TEXT))))))
+                new MapField("nested", false, new CborSchema.MapNode(List.of())),
+                new MapField("choice", false, new CborSchema.ChoiceNode(List.of(UINT, TEXT))))))
                 .definition();
     }
 

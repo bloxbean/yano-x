@@ -1,6 +1,11 @@
 package org.yanoproject.x.composite;
 
 import org.yanoproject.api.appchain.AppBlock;
+import org.yanoproject.api.appchain.AppChainConsensusProfileCommitment;
+import org.yanoproject.api.appchain.topics.TopicPayloadMessage;
+import org.yanoproject.api.appchain.topics.TopicKeys;
+import org.yanoproject.api.appchain.topics.TopicState;
+import org.yanoproject.api.appchain.topics.TopicWire;
 import org.yanoproject.api.appchain.AppBlockExecutionContext;
 import org.yanoproject.api.appchain.AppChainInfo;
 import org.yanoproject.api.appchain.AppCapabilityIds;
@@ -861,6 +866,7 @@ public final class CompositeStateMachine implements AppStateMachine {
     private static com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage snapshot(
             com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage message
     ) {
+        if (message instanceof TopicPayloadMessage payload) return payload.copy();
         return com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage.builder()
                 .version(message.getVersion())
                 .messageId(message.getMessageId().clone())
@@ -982,6 +988,20 @@ public final class CompositeStateMachine implements AppStateMachine {
         public AppEffectEmitter effects(ComponentGeneration owner) {
             requireParticipant(owner);
             return new WorkflowEmitter(blockHeight, workflow, owner, writer, delegate);
+        }
+
+        @Override
+        public TopicWire.EffectiveOutcome topicPolicy(String topic) {
+            long maximum = writer.get(AppChainConsensusProfileCommitment.markerKey())
+                    .map(AppChainConsensusProfileCommitment::decode)
+                    .map(profile -> (long) profile.maxMessageBytes()).orElse(1L);
+            // The host activates the next height only after machine apply. Queued commands cannot affect this view.
+            return new TopicState(writer, maximum).outcome(topic);
+        }
+
+        @Override
+        public Optional<byte[]> topicSchema(String irHash) {
+            return writer.get(TopicKeys.schema(irHash)).map(byte[]::clone);
         }
 
         @Override

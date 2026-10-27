@@ -531,7 +531,7 @@ class BindingCliIT {
     }
 
     private static BindingCatalogSession.ContextInput context() {
-        var profile = new AppChainConsensusProfile(2, 65536, 100, 1_048_576, 0, 0, false, false,
+        var profile = new AppChainConsensusProfile(2, 65536, 100, 1_048_576, 0, 0, AppChainConsensusProfile.DEFAULT_BLOCK_MAX_FORWARD_SKEW_MS, false, false,
                 0, 0, 0, 0, FinalityGate.APP_FINAL, EffectOutcomeCommitment.PER_EFFECT, true, List.of());
         var identity = StateCommitmentIdentity.explicit(StateCommitmentProfiles.MPF, new byte[32]);
         return new BindingCatalogSession.ContextInput("offline-test", identity.settings(), profile,

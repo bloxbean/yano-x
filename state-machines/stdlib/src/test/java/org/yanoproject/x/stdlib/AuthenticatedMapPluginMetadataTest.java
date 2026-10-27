@@ -11,12 +11,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class AuthenticatedMapPluginMetadataTest {
     @Test
-    void requiresTheRuleFactHostContract() throws IOException {
+    void requiresTheTopicSchemaHostContract() throws IOException {
         try (var manifest = getClass().getResourceAsStream(
                 "/META-INF/yano/plugins/org.yanoproject.x.stdlib.json")) {
             assertThat(manifest).isNotNull();
             assertThat(new String(manifest.readAllBytes(), StandardCharsets.UTF_8))
-                    .containsPattern("\"minLevel\"\\s*:\\s*12\\b");
+                    .containsPattern("\"minLevel\"\\s*:\\s*13\\b");
         }
     }
 

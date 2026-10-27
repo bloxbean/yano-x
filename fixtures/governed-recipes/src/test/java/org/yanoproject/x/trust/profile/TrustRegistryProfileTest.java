@@ -1,7 +1,7 @@
 package org.yanoproject.x.trust.profile;
 
 import org.yanoproject.x.stdlib.contracts.AuthenticatedMapContract;
-import org.yanoproject.x.stdlib.contracts.AuthenticatedMapSchema;
+import org.yanoproject.api.appchain.schema.CborSchema;
 import org.junit.jupiter.api.Test;
 
 import java.nio.charset.StandardCharsets;
@@ -16,27 +16,27 @@ class TrustRegistryProfileTest {
     void schemasAdmitCanonicalValuesAndRejectOthers() {
         byte[] subject = new TrustRegistryValues.SubjectValue(
                 "registry-operator", "product", new byte[32]).encode();
-        assertThat(AuthenticatedMapSchema.accepts(TrustRegistryProfile.subjectSchema(), subject))
+        assertThat(CborSchema.accepts(TrustRegistryProfile.subjectSchema(), subject))
                 .isTrue();
-        assertThat(AuthenticatedMapSchema.accepts(TrustRegistryProfile.statusSchema(), subject))
+        assertThat(CborSchema.accepts(TrustRegistryProfile.statusSchema(), subject))
                 .isFalse();
 
         byte[] status = new TrustRegistryValues.StatusValue(1, 7).encode();
-        assertThat(AuthenticatedMapSchema.accepts(TrustRegistryProfile.statusSchema(), status))
+        assertThat(CborSchema.accepts(TrustRegistryProfile.statusSchema(), status))
                 .isTrue();
 
         byte[] list = new TrustRegistryValues.StatusListValue(
                 "revocation", TrustRegistryProfile.MIN_BIT_LENGTH, new byte[32], 12).encode();
-        assertThat(AuthenticatedMapSchema.accepts(TrustRegistryProfile.statusListSchema(), list))
+        assertThat(CborSchema.accepts(TrustRegistryProfile.statusListSchema(), list))
                 .isTrue();
 
         byte[] issuer = new TrustRegistryValues.IssuerValue(
                 "framework-a", List.of("issue:credential"), 1, 0).encode();
-        assertThat(AuthenticatedMapSchema.accepts(TrustRegistryProfile.issuerSchema(), issuer))
+        assertThat(CborSchema.accepts(TrustRegistryProfile.issuerSchema(), issuer))
                 .isTrue();
         byte[] noAuthorizations = new TrustRegistryValues.IssuerValue(
                 "framework-a", List.of(), 5, 9).encode();
-        assertThat(AuthenticatedMapSchema.accepts(
+        assertThat(CborSchema.accepts(
                 TrustRegistryProfile.issuerSchema(), noAuthorizations)).isTrue();
     }
 

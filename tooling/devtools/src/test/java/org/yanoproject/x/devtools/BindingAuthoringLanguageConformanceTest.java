@@ -343,6 +343,9 @@ class BindingAuthoringLanguageConformanceTest {
         Matcher codes = Pattern.compile("new BindingFailure\\(\"([A-Z][A-Z0-9_]+)\"").matcher(text);
         Set<String> capable = new TreeSet<>();
         while (codes.find()) capable.add(codes.group(1));
+        // Topic views are rule-only scopes: this literal is shared by the expression/source interpreters,
+        // but BindingIrV1 forbids those fields in a binding condition or mapping.
+        capable.remove("RULE_FIELD_UNAVAILABLE");
         assertThat(capable).contains("MAPPING_MISSING_FIELD", "LOOKUP_KEY_INVALID", "EVENT_TYPE_ERROR");
         List<String> wrong = new ArrayList<>();
         for (var code : BindingAuthoringLanguage.receiptCodes()) {

@@ -1,0 +1,18 @@
+archive                            PASS     5s
+layout                             PASS     1s
+runtime-acceptance                 PASS    27s
+stock-outcomes                     PASS    54s
+showcase-doctor                    PASS     1s
+showcase-quickstart                PASS   106s
+showcase-projection-off            PASS     0s
+showcase-run-all                   PASS    95s
+showcase-verify                    PASS     6s
+showcase-record-tips               PASS     1s
+showcase-restart                   PASS    56s
+showcase-verify-after-restart      PASS     6s
+showcase-persisted-tips            PASS     0s
+distribution-config-unchanged      PASS     0s
+showcase-stop                      PASS     2s
+topics-acceptance                  PASS   121s
+PASS: yano-x-jvm-0.1.0-pre4.zip smoke gates
+Working directory kept: /private/tmp/yano-x-pr80-reviewed.7hw45v5z/smoke
