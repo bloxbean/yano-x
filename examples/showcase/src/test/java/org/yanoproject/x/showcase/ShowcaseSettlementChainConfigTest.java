@@ -14,7 +14,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * ADR-UTXO-009: the packaged settlement application must stay byte-identical to what {@link ShowcaseSettlementPlan}
  * derives. The plan is a pure function of public demo facts, so any drift (a changed profile, a re-derived vault,
  * a renamed wiring key) fails here rather than at node start. Regenerate with
- * {@code ./gradlew :ledgers:eutxo:demo:test --tests '*EmitShowcaseSettlementTest'}.
+ * {@code YANO_EMIT_SHOWCASE_SETTLEMENT=true ./gradlew :ledgers:eutxo:demo:test --tests '*EmitShowcaseSettlementTest'}.
  */
 class ShowcaseSettlementChainConfigTest {
     private static final Path CONFIG = Path.of("src/main/showcase/config");

@@ -177,7 +177,7 @@ check_persisted_tips() {
 check_projection_off() {
   local node
   for node in 0 1 2; do
-    cat "$DATA/$INSTANCE/node$node"/logs/*.log | grep -q 'projection history is disabled' \
+    grep -q 'projection history is disabled' "$DATA/$INSTANCE/node$node"/logs/*.log \
       || { echo "node$node did not start with the history projection disabled"; return 1; }
   done
 }

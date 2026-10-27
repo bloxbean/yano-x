@@ -33,10 +33,11 @@ final class NodeConfig {
         Map<String, String> consensus = new TreeMap<>();
         Map<String, String> local = new TreeMap<>();
         String network = joined.getFirst().app().genesis().network();
+        consensus.putAll(nodeWideSettings(joined.stream().map(Joined::app).toList()));
         Map<String, Integer> indexes = node.chainIndexes(joined);
         for (Joined entry : joined) {
             SealedApp app = entry.app();
-            app.genesis().settings().forEach(consensus::put);
+
             for (SealedApp.ChainGenesis chain : app.genesis().chains()) {
                 String prefix = "yano.app-chain.chains[" + indexes.get(chain.id()) + "].";
                 // Who leads anchoring is a local role (ADR-056 D10), so only the policy stays shared.
@@ -82,6 +83,21 @@ final class NodeConfig {
         }
         NodeDir.write(node.path("config", "consensus.yaml"), AppChainSealResolver.yaml(consensus, HEADER));
         NodeDir.write(node.path("config", "node.yaml"), AppChainSealResolver.yaml(local, HEADER));
+    }
+
+    /** The node-wide settings of applications run on one node, which must agree; none may silently win. */
+    static Map<String, String> nodeWideSettings(List<SealedApp> apps) {
+        Map<String, String> settings = new TreeMap<>();
+        for (SealedApp app : apps) {
+            app.genesis().settings().forEach((key, value) -> {
+                String prior = settings.putIfAbsent(key, value);
+                if (prior != null && !prior.equals(value)) {
+                    throw CliException.failure(app.genesis().name() + " needs " + key + "=" + value + ", but another "
+                            + "application on this node needs " + prior + "; run them on separate nodes");
+                }
+            });
+        }
+        return settings;
     }
 
     /** Every other member's node address, with local overrides, members added later, and removals. */

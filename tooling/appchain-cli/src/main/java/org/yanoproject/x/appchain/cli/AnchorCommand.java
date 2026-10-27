@@ -109,7 +109,7 @@ final class AnchorCommand {
         Path wallet = node.path("secrets", "anchor.key");
         if (args.value("key") != null) {
             // An existing funded wallet: its seed is copied into this node and never printed.
-            String seed = NodeDir.read(Path.of(args.value("key"))).strip();
+            String seed = NodeDir.readSeedFile(Path.of(args.value("key")));
             Ed25519.publicKey(seed);
             if (Anchoring.hasWallet(node) && !NodeDir.read(wallet).strip().equals(seed)) {
                 throw CliException.failure("This node already has a different anchor wallet in " + wallet);

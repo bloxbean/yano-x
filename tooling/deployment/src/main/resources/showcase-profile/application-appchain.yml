@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=./schema/appchain-runtime.schema.json
 # Curated light showcase. Membership, signing keys, peers, proposer, threshold,
-# and the optional workflow-chain anchor are injected by appchain-cluster.
+# and the optional workflow-chain anchor are injected by yano-x-deploy.
 yano:
   plugins:
     # Validator plugins are trusted consensus code. Listing the reference

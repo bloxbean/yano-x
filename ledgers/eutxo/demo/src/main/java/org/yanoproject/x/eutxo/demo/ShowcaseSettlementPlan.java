@@ -59,7 +59,8 @@ public final class ShowcaseSettlementPlan {
             has the showcase's three founding nodes and is never part of their membership changes. showcase.sh
             leaves it out on a public network; settlement/executor.json holds the executor's node-local settings.
             Every key here is PUBLIC demo material; demo amounts only. Regenerate with
-            ./gradlew :ledgers:eutxo:demo:test --tests '*EmitShowcaseSettlementTest'""";
+            YANO_EMIT_SHOWCASE_SETTLEMENT=true ./gradlew :ledgers:eutxo:demo:test --tests '*EmitShowcaseSettlementTest'
+            """;
 
     /** Where the packaged executor settings name the validators, relative to the showcase's config directory. */
     public static final String PACKAGED_SCRIPT_DIR = "settlement";

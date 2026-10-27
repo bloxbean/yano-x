@@ -103,6 +103,7 @@ final class ShowcaseArtifact {
             JsonNode yano = readJson(zip, root + "/yano-distribution-v1.json");
             JsonNode yanoX = readJson(zip, root + "/yano-x-distribution-v1.json");
             validateDistributionIdentities(yano, yanoX);
+            requireMatchingTool(yanoX.path("version").asText());
             validateSbom(readJson(zip, root + "/sbom/yano.cdx.json"), "Yano");
             validateSbom(readJson(zip, root + "/sbom/yano-x.cdx.json"), "Yano X");
             Map<String, String> pluginChecksums = validatePluginPack(zip, root, yanoX);
@@ -242,6 +243,22 @@ final class ShowcaseArtifact {
         try (InputStream input = zip.getInputStream(entry)) {
             return json.readTree(input);
         }
+    }
+
+    /**
+     * The showcase profile and its map-genesis generator belong to this tool, and the generator runs on the release's
+     * own jars, so the tool deploys only the Yano X release it ships with.
+     */
+    private static void requireMatchingTool(String releaseVersion) throws IOException {
+        String tool = ShowcaseArtifact.class.getPackage().getImplementationVersion();
+        if (tool != null && !strip(tool).equals(strip(releaseVersion))) {
+            throw new IOException("this yano-x-deploy is version " + tool + " but the archive is Yano X "
+                    + releaseVersion + "; use the yano-x-deploy shipped with that release");
+        }
+    }
+
+    private static String strip(String version) {
+        return version.replace("-SNAPSHOT", "");
     }
 
     private void validateDistributionIdentities(JsonNode yano, JsonNode yanoX) throws IOException {

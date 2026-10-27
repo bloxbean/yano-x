@@ -111,6 +111,48 @@ class ReviewRegressionTest {
         NodeConfig.requireLocalLeavesConsensusAlone(bob);
     }
 
+    @Test
+    void anExplicitSignatureCountSealsLikeANamedOne() throws Exception {
+        CeremonyFixture fixture = new CeremonyFixture(temporary);
+        List<String> six = List.of("alice", "bob", "carol", "dave", "erin", "frank");
+        fixture.draftAndCards("big", "devnet", six, "orders=audit-log");
+        Draft parsed = Draft.parse(Files.readString(fixture.draft("big")));
+        Files.writeString(fixture.draft("big"), new Draft(parsed.name(), parsed.invite(), parsed.network(),
+                parsed.operators(), "5", parsed.membership(), parsed.sequencing(), parsed.chains()).toYaml());
+        fixture.ok("seal", fixture.draft("big").toString());
+        assertThat(fixture.sealed("big").genesis().chain("orders").settings()).containsEntry("threshold", "5");
+    }
+
+    @Test
+    void anImportedKeyMustBeAPrivateFileAndMayBeUpperCase() throws Exception {
+        Path key = temporary.resolve("member.seed");
+        Files.writeString(key, "AB".repeat(32) + "\n");
+        Files.setPosixFilePermissions(key, java.nio.file.attribute.PosixFilePermissions.fromString("rw-r--r--"));
+        assertThatThrownBy(() -> NodeDir.readSeedFile(key)).hasMessageContaining("readable by others");
+        Files.setPosixFilePermissions(key, java.nio.file.attribute.PosixFilePermissions.fromString("rw-------"));
+        assertThat(NodeDir.readSeedFile(key)).isEqualTo("ab".repeat(32));
+        Path link = Files.createSymbolicLink(temporary.resolve("link.seed"), key);
+        assertThatThrownBy(() -> NodeDir.readSeedFile(link)).hasMessageContaining("not a link");
+        Files.writeString(key, "not a key\n");
+        assertThatThrownBy(() -> NodeDir.readSeedFile(key)).hasMessageContaining("64 hex characters");
+    }
+
+    @Test
+    void aRepeatedNewFromATemplateRefusesBeforeTouchingCopiedBindings() throws Exception {
+        CeremonyFixture fixture = new CeremonyFixture(temporary);
+        Path template = temporary.resolve("t.yaml");
+        Files.writeString(template, "chains:\n  - id: flow\n    recipe: declarative-composite\n"
+                + "    bindings: ./flow.yaml\n");
+        Files.writeString(temporary.resolve("flow.yaml"), "composite: {components: [], bindings: []}\n");
+        String[] create = {"new", "app", "--from", template.toString(), "--network", "devnet", "--operators", "alice",
+                "--output", fixture.coordinator.toString(), "--yes"};
+        fixture.ok(create);
+        Path copied = fixture.coordinator.resolve("flow.bindings.yaml");
+        Files.writeString(copied, "# edited\n");
+        assertThat(fixture.run(create).err()).contains("already exists");
+        assertThat(copied).hasContent("# edited\n");
+    }
+
     private CeremonyFixture sealed() throws Exception {
         CeremonyFixture fixture = new CeremonyFixture(temporary);
         fixture.draftAndCards("supply", "devnet", OPERATORS, "orders=audit-log");

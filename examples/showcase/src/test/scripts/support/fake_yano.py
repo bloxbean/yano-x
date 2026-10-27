@@ -127,6 +127,7 @@ def join(args: list[str]) -> None:
     for chain in sealed["genesis"]["chains"]:
         indexes.setdefault(chain["id"], len(indexes))
     indexes_file.write_text(json.dumps(indexes), encoding="utf-8")
+    (node / "apps" / f"{sealed['genesis']['name']}.chain").write_text(json.dumps(sealed), encoding="utf-8")
 
 
 def inspect(args: list[str]) -> None:

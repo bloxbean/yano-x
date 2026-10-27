@@ -409,7 +409,8 @@ final class AppChainProjectResolver {
         if (topology.members() < 1 || topology.members() > 32) {
             throw new IllegalArgumentException("Topology members must be in [1, 32]");
         }
-        if (!Set.of("majority", "two-thirds", "all").contains(topology.finality())) {
+        if (!Set.of("majority", "two-thirds", "all").contains(topology.finality())
+                && !topology.finality().matches("[1-9][0-9]{0,2}")) {
             throw new IllegalArgumentException("Unsupported finality policy");
         }
         if (!Set.of("fixed", "rotating").contains(topology.sequencing())) {
@@ -1055,7 +1056,20 @@ final class AppChainProjectResolver {
             case "majority" -> members / 2 + 1;
             case "two-thirds" -> (2 * members + 2) / 3;
             case "all" -> members;
-            default -> throw new IllegalArgumentException("Unsupported finality policy");
+            default -> {
+                // An explicit signature count, such as 5 of 6: more than half and at most all.
+                int count;
+                try {
+                    count = Integer.parseInt(finality);
+                } catch (NumberFormatException unsupported) {
+                    throw new IllegalArgumentException("Unsupported finality policy");
+                }
+                if (count <= members / 2 || count > members) {
+                    throw new IllegalArgumentException("Finality " + count + " is not more than half of "
+                            + members + " members and at most all of them");
+                }
+                yield count;
+            }
         };
     }
 

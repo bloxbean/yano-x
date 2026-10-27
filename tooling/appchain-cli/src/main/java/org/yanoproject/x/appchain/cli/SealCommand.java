@@ -201,8 +201,7 @@ final class SealCommand {
         for (String policy : Draft.THRESHOLDS) {
             if (Draft.thresholdFor(policy, members) == wanted) return policy;
         }
-        throw CliException.failure("threshold " + threshold + " is not available for " + members
-                + " members; use majority, two-thirds or all");
+        return Integer.toString(wanted);
     }
 
     private static Map<String, String> overrides(Draft draft, Draft.Chain chain) {

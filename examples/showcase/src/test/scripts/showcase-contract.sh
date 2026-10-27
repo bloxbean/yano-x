@@ -163,6 +163,10 @@ grep -q "^yano appchain start --node-dir $THREE/node3" "$WORK/yano.log"
 # The L1-driven applications keep their founding members.
 jq -e 'has("payment-chain-settlement") | not' "$THREE/node3/apps/chain-indexes.json" >/dev/null
 : > "$WORK/yano.log"
+"$ROOT/showcase.sh" status --node 3 --instance three >/dev/null
+grep -q "^yano appchain status showcase --node-dir $THREE/node3" "$WORK/yano.log"
+! grep -q "^yano appchain status \(history\|settlement\) --node-dir $THREE/node3" "$WORK/yano.log"
+: > "$WORK/yano.log"
 "$ROOT/showcase.sh" member join 3 --instance three >/dev/null
 ! grep -q 'appchain approve' "$WORK/yano.log"
 : > "$WORK/yano.log"
@@ -182,6 +186,7 @@ grep -q '^yano appchain anchor history --chain cardano-history-chain ' "$WORK/ya
 [ "$(grep -c '^yano appchain anchor ' "$WORK/yano.log")" = 13 ]
 grep -q '^yano appchain anchor history --chain cardano-history-chain ' "$WORK/yano.log"
 grep -q '^yano appchain anchor settlement --chain payment-chain-settlement ' "$WORK/yano.log"
+fails 'unknown showcase anchor chain: typo-chain' "$ROOT/showcase.sh" anchor typo-chain --instance three
 "$ROOT/showcase.sh" config export "$WORK/export.chain" --instance three >/dev/null
 cmp -s "$WORK/export.chain" "$THREE/coordinator/showcase.chain"
 

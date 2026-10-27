@@ -24,9 +24,11 @@ VERSION="$(tr -d '\r\n' < "$SHOWCASE_HOME/VERSION" 2>/dev/null || printf develop
 APP=showcase
 SETTLEMENT_APP=settlement
 HISTORY_APP=history
-LIGHT_CHAINS=()
-while IFS= read -r chain_id; do LIGHT_CHAINS+=("$chain_id"); done \
+CATALOG_CHAINS=()
+while IFS= read -r chain_id; do CATALOG_CHAINS+=("$chain_id"); done \
   < <(python3 "$CATALOG_TOOL" "$CATALOG" list)
+# The chains this instance runs: the catalog until an instance's sealed applications narrow it.
+LIGHT_CHAINS=("${CATALOG_CHAINS[@]}")
 SETTLEMENT_CHAIN_ID=payment-chain-settlement
 CARDANO_HISTORY_CHAIN_ID=cardano-history-chain
 
@@ -358,6 +360,18 @@ node_indexes() {
   [ ! -f "$(joined_file)" ] || cat "$(joined_file)"
 }
 
+# The nodes that run an application: every node for the showcase, the founding members for the others.
+app_nodes() {
+  local sealed
+  case "$1" in
+    "$APP") node_indexes;;
+    "$SETTLEMENT_APP") sealed="$(settlement_sealed_file)";;
+    "$HISTORY_APP") sealed="$(history_sealed_file)";;
+  esac
+  [ -z "${sealed:-}" ] || [ ! -f "$sealed" ] \
+    || seq 0 $(( $(jq '.genesis.members | length' "$sealed") - 1 ))
+}
+
 # The settlement application exists only on a devnet with the three founding members its vault commits to.
 settlement_included() {
   [ -f "$(settlement_sealed_file)" ] && return 0
@@ -486,7 +500,8 @@ draft_options() {
   local app="$1" cid every=2 index="$CARDANO_HISTORY_CHAIN_ID"
   DRAFT_OPTIONS=()
   [ "$NETWORK" = devnet ] || every=30
-  for cid in "${LIGHT_CHAINS[@]}"; do
+  # The catalog, not the chains sealed so far: an interrupted prepare still drafts every application in full.
+  for cid in "${CATALOG_CHAINS[@]}"; do
     [ "$(chain_app "$cid")" = "$app" ] || continue
     # The anchor policy is sealed; `./showcase.sh anchor` turns anchoring on later.
     DRAFT_OPTIONS+=(--setting "$cid.anchor.mode=$ANCHOR_MODE" --setting "$cid.anchor.every-blocks=$every")
@@ -660,7 +675,8 @@ up_light() {
 show_status() {
   local app sealed
   while read -r app sealed; do
-    appchain status "$app" --node-dir "$(node_dir "$NODE")"
+    # A node joined later runs the showcase application only.
+    [ ! -f "$(node_dir "$NODE")/apps/$app.chain" ] || appchain status "$app" --node-dir "$(node_dir "$NODE")"
   done < <(sealed_apps)
 }
 
@@ -687,6 +703,8 @@ member_join() {
       appchain approve "$card" "$APP" --node-dir "$(node_dir "$existing")" --yes --timeout 900 > "$log" 2>&1 &
       pids+=("$!")
     done < <(node_indexes)
+    # If this script stops, the approvals stop too; a rerun of member join continues where they left off.
+    trap 'kill "${pids[@]}" 2>/dev/null || true' EXIT
     while :; do
       pending=false
       for i in "${pids[@]}"; do kill -0 "$i" 2>/dev/null && pending=true; done
@@ -697,6 +715,7 @@ member_join() {
     for i in "${!pids[@]}"; do
       wait "${pids[$i]}" || { status=1; note "approve failed:"; tail -n 20 "${logs[$i]}" >&2; }
     done
+    trap - EXIT
     [ "$status" -eq 0 ] || die "node$index was not approved by every node; rerun member join to continue"
     printf '%s\n' "$index" >> "$(joined_file)"; chmod 600 "$(joined_file)"
   fi
@@ -722,7 +741,8 @@ drive_blocks() {
         "$(curl -fsS -H "X-API-Key: $(api_key 0)" \
           "http://127.0.0.1:$HTTP_BASE/api/v1/app-chain/chains/$cid/admin/members" 2>/dev/null \
           | jq -r '.members | length')" ] && continue
-    activation_submit "$cid" "activate-$(date +%s)-$RANDOM" >/dev/null 2>&1 || true
+    # A refused heartbeat must not end the join while the approvals run; the next round tries again.
+    ( activation_submit "$cid" "activate-$(date +%s)-$RANDOM" ) >/dev/null 2>&1 || true
   done
 }
 
@@ -736,7 +756,9 @@ anchor_chains() {
     [ -n "$ANCHOR_KEY_FILE" ] || die "anchoring on $NETWORK needs --anchor-key-file with a funded wallet seed"
   fi
   [ "$requested" != all ] || requested="$ANCHOR_CHAINS"
-  IFS=',' read -r -a selected <<< "$(canonical_anchor_chains "$requested")"
+  local canonical
+  canonical="$(canonical_anchor_chains "$requested")" || exit 1
+  IFS=',' read -r -a selected <<< "$canonical"
   for cid in "${selected[@]}"; do
     case " ${LIGHT_CHAINS[*]} " in *" $cid "*) ;; *) note "skipping $cid: not part of this instance"; continue;; esac
     app="$(chain_app "$cid")"
@@ -815,6 +837,15 @@ run_settlement_adopt() {
   [ -f "$generated/settlement.template.yaml" ] && [ -f "$generated/executor.json" ] \
     || die "no bootstrapped settlement chain in $generated; run settlement bootstrap first"
   [ ! -f "$(settlement_sealed_file)" ] || die "this instance already has a settlement application"
+  # The vault commits to the federation the bootstrap read from the running nodes; seal exactly that one.
+  local live members threshold
+  live="$(curl -fsS -H "X-API-Key: $(api_key 0)" \
+    "http://127.0.0.1:$HTTP_BASE/api/v1/app-chain/chains/${LIGHT_CHAINS[0]}/admin/members")" \
+    || die "node 0 must be running to compare the settlement federation"
+  members="$(printf '%s' "$live" | jq -r '.members | length')"
+  threshold="$(printf '%s' "$live" | jq -r '.threshold')"
+  [ "$members" = "$NODES" ] && [ "$threshold" = "$THRESHOLD" ] \
+    || die "the showcase now has $members members at threshold $threshold, but the settlement application is sealed for the $NODES founding nodes at threshold $THRESHOLD; bootstrap and adopt before adding members"
   mkdir -p "$(settlement_dir)"
   cp -- "$generated/executor.json" "$(settlement_dir)/executor.json"
   stop_nodes
@@ -1769,15 +1800,14 @@ governance_activate() {
 
 verify_light() {
   show_status
-  local cid identity total="$NODES" joined i deadline converged reference view
+  local cid identity total i deadline converged reference view
   local reference_tip reference_root threshold block cert="" anchor_status
-  if [ -f "$(joined_file)" ]; then
-    while IFS= read -r joined; do
-      [[ "$joined" =~ ^[0-9]+$ ]] || die "retained joined-node index is malformed"
-      [ "$((joined + 1))" -le "$total" ] || total=$((joined + 1))
-    done < "$(joined_file)"
-  fi
+  local -a nodes=()
   for cid in "${LIGHT_CHAINS[@]}"; do
+    # Each chain is compared across the nodes of its own application.
+    nodes=()
+    while IFS= read -r i; do nodes+=("$i"); done < <(app_nodes "$(chain_app "$cid")")
+    total="${#nodes[@]}"
     deadline=$(( $(date +%s) + 120 ))
     while :; do
       converged=true
@@ -1786,7 +1816,7 @@ verify_light() {
       reference_tip="$(printf '%s' "$reference" | jq -r '.tipHeight // -1' 2>/dev/null)"
       reference_root="$(printf '%s' "$reference" | jq -r '.stateRoot // empty' 2>/dev/null)"
       [[ "$reference_tip" =~ ^[0-9]+$ ]] && [ -n "$reference_root" ] || converged=false
-      for ((i=0;i<total;i++)); do
+      for i in "${nodes[@]}"; do
         curl -fsS --connect-timeout 2 --max-time 5 \
           "http://127.0.0.1:$((HTTP_BASE + i))/q/health/ready" >/dev/null 2>&1 \
           || { converged=false; break; }

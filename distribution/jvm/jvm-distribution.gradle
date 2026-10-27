@@ -153,8 +153,10 @@ tasks.register('yanoXJvmDistZip', Zip) {
     preserveFileTimestamps = false
 
     from({ zipTree(baseYanoDistribution.get()) }) {
-        // The explicit X overlays below own these paths; retain all other host files.
-        exclude '*/config/application-devnet.yml'
+        // The explicit X overlays below own application-devnet.yml. Yano's demo application-appchain.yml (one chain
+        // with a fixed signing key, for its `appchain` profile) is left out: Yano X nodes take their chains from
+        // sealed applications.
+        exclude '*/config/application-devnet.yml', '*/config/application-appchain.yml'
         eachFile rebaseBaseRoot
         includeEmptyDirs = false
         filesMatching(['**/*.sh', '**/bin/*']) {
@@ -312,14 +314,6 @@ tasks.register('prepareEvidenceDemoArtifacts', Sync) {
             }
         }
         includeEmptyDirs = false
-    }
-    // The source harness uses this release-matched home for host-mode contracts too.
-    from(rootProject.file('scripts/appchain-cluster')) {
-        into 'yano-context/yano/appchain-cluster'
-        exclude '.cluster-data/**', '**/*.log'
-        filesMatching(['**/*.sh', '**/*.py']) {
-            permissions { unix('755') }
-        }
     }
     from(rootProject.file('docker/jvm/entrypoint.sh')) {
         into 'yano-context'
@@ -534,7 +528,8 @@ tasks.register('verifyYanoXJvmDistribution') {
                             "Yano X distribution is missing ${relativePath}")
                 }
             }
-            ['appchain-cluster/cluster.sh', 'examples/showcase/yano/config/application-appchain.yml'].each { retired ->
+            ['appchain-cluster/cluster.sh', 'examples/showcase/yano/config/application-appchain.yml',
+             'config/application-appchain.yml'].each { retired ->
                 if (archive.getEntry("${root}/${retired}") != null) {
                     throw new GradleException("Yano X distribution still ships the retired ${retired}")
                 }

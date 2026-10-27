@@ -155,7 +155,6 @@ final class AppChainProjectModel {
         }
     }
 
-    @JsonInclude(JsonInclude.Include.NON_NULL)
     /**
      * A validator implemented by a plugin bundle in the distribution, pinned by that bundle's artifact-closure
      * digest at seal. The node runs it only when the bundle is allow-listed, which seal arranges.
@@ -166,6 +165,7 @@ final class AppChainProjectModel {
             String bundle) {
     }
 
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     record AuthenticatedMapSchemaIntent(
             String id,
             String root,

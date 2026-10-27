@@ -11,8 +11,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Regenerates the showcase's packaged settlement application: its template, the executor's node-local settings
- * and the parameterized validators. The showcase module's ShowcaseSettlementChainConfigTest fails when the
- * packaged files drift from this output; run this test whenever the plan, the profile or the wiring keys change.
+ * and the parameterized validators. It writes only when YANO_EMIT_SHOWCASE_SETTLEMENT=true, so an ordinary test
+ * run never rewrites them and the showcase module's ShowcaseSettlementChainConfigTest catches drift. Regenerate
+ * with {@code YANO_EMIT_SHOWCASE_SETTLEMENT=true ./gradlew :ledgers:eutxo:demo:test --tests
+ * '*EmitShowcaseSettlementTest'} whenever the plan, the profile or the wiring keys change.
  */
 class EmitShowcaseSettlementTest {
     @Test
@@ -29,6 +31,8 @@ class EmitShowcaseSettlementTest {
         assertThat(executor).containsKey("effects.executors.eutxo-settlement.vault-script-file")
                 .doesNotContainKey("effects.executors.eutxo-settlement.owner");
 
+        org.junit.jupiter.api.Assumptions.assumeTrue("true".equals(System.getenv("YANO_EMIT_SHOWCASE_SETTLEMENT")),
+                "set YANO_EMIT_SHOWCASE_SETTLEMENT=true to rewrite the packaged settlement files");
         Path config = Path.of("../../../examples/showcase/src/main/showcase/config");
         Files.writeString(config.resolve("settlement.template.yaml"), template);
         Files.writeString(config.resolve("settlement/executor.json"),

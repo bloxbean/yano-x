@@ -143,6 +143,10 @@ final class JoinCommand {
             node.saveIdentity(identity);
         }
 
+        List<SealedApp> sharing = new java.util.ArrayList<>(node.joined().stream().map(NodeConfig.Joined::app)
+                .filter(other -> !other.genesis().name().equals(genesis.name())).toList());
+        sharing.add(app);
+        NodeConfig.nodeWideSettings(sharing);
         NodeDir.write(node.path("run", "join.pending"), app.fingerprint() + "\n");
         NodeDir.write(node.appFile(genesis.name()), app.toJson());
         node.saveLocal(genesis.name(), new NodeDir.Local(app.fingerprint(), accepted, overrides,

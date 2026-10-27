@@ -79,13 +79,13 @@ final class NodeDir {
     /** Creates the member key once, or imports {@code importFrom}; never replaces an existing key. */
     String ensureKey(Path importFrom) {
         if (hasKey()) {
-            if (importFrom != null && !read(importFrom).strip().equals(seed())) {
+            if (importFrom != null && !readSeedFile(importFrom).equals(seed())) {
                 throw CliException.failure("This node directory already has a different member key; "
                         + "use another --node-dir for another key");
             }
             return seed();
         }
-        String seed = importFrom == null ? Ed25519.newSeed() : read(importFrom).strip();
+        String seed = importFrom == null ? Ed25519.newSeed() : readSeedFile(importFrom);
         Ed25519.publicKey(seed);
         writeSecret(path("secrets", "member.key"), seed + "\n");
         return seed;
@@ -237,6 +237,34 @@ final class NodeDir {
             }
         }
         return false;
+    }
+
+    /**
+     * A private key someone brings: an owner-only regular file (not a link) holding 64 hex characters. The value
+     * is never printed.
+     */
+    static String readSeedFile(Path file) {
+        try {
+            if (!Files.isRegularFile(file, java.nio.file.LinkOption.NOFOLLOW_LINKS)) {
+                throw CliException.failure(file + " must be a regular file, not a link or folder");
+            }
+            if (!Files.getOwner(file, java.nio.file.LinkOption.NOFOLLOW_LINKS).getName()
+                    .equals(System.getProperty("user.name"))) {
+                throw CliException.failure(file + " must belong to you");
+            }
+            Set<PosixFilePermission> permissions =
+                    Files.getPosixFilePermissions(file, java.nio.file.LinkOption.NOFOLLOW_LINKS);
+            if (permissions.stream().anyMatch(permission -> !permission.name().startsWith("OWNER_"))) {
+                throw CliException.failure(file + " is readable by others; run  chmod 600 " + file);
+            }
+        } catch (UnsupportedOperationException | IOException unchecked) {
+            // Without POSIX permissions (some file systems) only the content can be checked.
+        }
+        String seed = read(file).strip().toLowerCase(java.util.Locale.ROOT);
+        if (!seed.matches("[0-9a-f]{64}")) {
+            throw CliException.failure(file + " must hold one private key as 64 hex characters");
+        }
+        return seed;
     }
 
     static String read(Path file) {

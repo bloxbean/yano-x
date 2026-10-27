@@ -49,7 +49,7 @@ public final class AppChainSealResolver {
     }
 
     /**
-     * @param finality {@code majority}, {@code two-thirds} or {@code all}
+     * @param finality {@code majority}, {@code two-thirds}, {@code all}, or an explicit signature count
      * @param memberKeys founding member public keys; the first is the fixed proposer
      * @param pluginsDirectory the distribution's plugin bundles, used to compile declarative bindings
      */

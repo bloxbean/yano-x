@@ -42,6 +42,12 @@ final class NewCommand {
         Draft.Template template = templateFile == null ? null : Draft.template(NodeDir.read(templateFile));
         String name = Names.name(args.positional(0) != null ? args.positional(0)
                 : terminal.ask("Application name", "my-app", "<app>"), "Application name");
+        // Refuse before anything is written, so a repeated command cannot overwrite copied bindings files.
+        Path file = output.resolve(name + ".draft.yaml");
+        if (Files.exists(file) && !args.flag("force")) {
+            throw CliException.failure(file + " already exists; edit it, or pass --force to start over "
+                    + "(a new invite code makes existing member cards invalid)");
+        }
         String network = args.value("network") != null ? Names.network(args.value("network"))
                 : template != null && template.network() != null ? template.network()
                 : terminal.choose("Which Cardano network does this application use?", Names.NETWORKS,
@@ -84,11 +90,6 @@ final class NewCommand {
                 ? "fixed" : template.sequencing());
         Draft draft = new Draft(name, Names.newInvite(), network, operators, threshold, membership, sequencing,
                 chains);
-        Path file = output.resolve(name + ".draft.yaml");
-        if (Files.exists(file) && !args.flag("force")) {
-            throw CliException.failure(file + " already exists; edit it, or pass --force to start over "
-                    + "(a new invite code makes existing member cards invalid)");
-        }
         NodeDir.write(file, draft.toYaml());
 
         int signatures = Draft.thresholdFor(draft.threshold(), operators.size());
