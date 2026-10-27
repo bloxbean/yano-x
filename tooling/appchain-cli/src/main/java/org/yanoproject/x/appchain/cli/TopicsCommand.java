@@ -7,6 +7,7 @@ import org.yanoproject.x.devtools.TopicsCli;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.io.PrintWriter;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -59,6 +60,10 @@ final class TopicsCommand {
     }
 
     private int approve(String[] arguments) throws IOException {
+        if (Arrays.asList(arguments).contains("--help")) {
+            terminal.say("Usage: " + APPROVE_USAGE);
+            return 0;
+        }
         Args args = new Args(arguments, Set.of("node-dir", "timeout", "app"), Set.of("heartbeat", "no-wait", "yes"));
         if (args.positional(0) == null) throw CliException.usage("Name the plan. Usage: " + APPROVE_USAGE);
         NodeDir node = new NodeDir(args.path("node-dir", Path.of(NodeDir.DEFAULT)));
@@ -142,7 +147,8 @@ final class TopicsCommand {
 
     /** True once the plan's revision of the target is the active one. */
     private static boolean activated(NodeClient client, String path, TopicsCli.Vote vote) {
-        JsonNode entry = client.get(path + "/topics/entries/" + vote.target()).orElse(null);
+        String name = URLEncoder.encode(vote.target(), StandardCharsets.UTF_8).replace("+", "%20");
+        JsonNode entry = client.get(path + "/topics/entries/" + name).orElse(null);
         if (entry == null) return false;
         JsonNode active = entry.path("active");
         return !active.isMissingNode() && !active.isNull() && active.path("revision").asLong() >= vote.revision();

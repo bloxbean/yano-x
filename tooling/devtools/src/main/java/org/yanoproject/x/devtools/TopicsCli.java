@@ -108,7 +108,8 @@ public final class TopicsCli {
 
     int run(String[] args, PrintWriter out, PrintWriter err) {
         try {
-            if (args.length == 0 || Set.of("help", "--help", "-h").contains(args[0])) {
+            if (args.length == 0 || Set.of("help", "--help", "-h").contains(args[0])
+                    || Arrays.asList(args).contains("--help")) {
                 out.println(USAGE);
                 return AppChainDevtoolsCli.EXIT_OK;
             }

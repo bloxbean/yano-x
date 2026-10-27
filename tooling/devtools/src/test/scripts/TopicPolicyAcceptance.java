@@ -51,7 +51,7 @@ public final class TopicPolicyAcceptance {
             "ed4928c628d1c2c6eae90338905995612959273a5c63f93636c14614ac8737d1");
     private static final byte[] RIDE = Hex.decode("a1666672616d65731905dc"); // {frames:1500}
     private final Path work;
-    private final Path project;
+    private final Path nodes;
     private final Path home;
     private final int port;
     private final String apiKey = System.getenv("YANO_TOPICS_ACCEPTANCE_API_KEY");
@@ -71,7 +71,7 @@ public final class TopicPolicyAcceptance {
 
     private TopicPolicyAcceptance(Path work, Path home, int port) throws IOException {
         this.work = work;
-        this.project = work.resolve("project");
+        this.nodes = work.resolve("nodes");
         this.home = home;
         this.port = port;
         byte[] seed = Hex.decode(Files.readString(work.resolve("owner.key")).strip());
@@ -101,6 +101,13 @@ public final class TopicPolicyAcceptance {
         String hash = TopicWireCodec.blake2b256Hex(schema);
         Files.writeString(work.resolve("owner.key"), "11".repeat(32) + "\n");
         Files.setPosixFilePermissions(work.resolve("owner.key"), PosixFilePermissions.fromString("rw-------"));
+        Files.writeString(work.resolve("owner.pub"), Hex.encode(KeyGenUtil.getPublicKeyFromPrivateKey(
+                Hex.decode("11".repeat(32)))) + "\n");
+        for (int node = 0; node < 3; node++) {
+            Path seed = work.resolve("member-" + node + ".key");
+            Files.writeString(seed, String.format("%02d", node + 1).repeat(32) + "\n");
+            Files.setPosixFilePermissions(seed, PosixFilePermissions.fromString("rw-------"));
+        }
         Files.writeString(work.resolve("bindings.yaml"), """
                 composite:
                   payloadSchemas:
@@ -174,7 +181,7 @@ public final class TopicPolicyAcceptance {
                 "initial state proof identity differs from the inspected chain");
         consensusProfilePin = AppChainConsensusProfileCommitment.digest(
                 AppChainConsensusProfileCommitment.decode(Hex.decode(initialProof.valueHex())));
-        long magic = JSON.readTree(project.resolve("runtime/shelley-genesis.json").toFile())
+        long magic = JSON.readTree(nodes.resolve("node0/runtime/devnet-genesis.json").toFile())
                 .path("networkMagic").asLong();
         byte[] networkDomain = "yano-l1-network-no-observers-v1\0".getBytes(StandardCharsets.US_ASCII);
         byte[] network = Blake2bUtil.blake2bHash256(ByteBuffer.allocate(networkDomain.length + Long.BYTES)
@@ -188,10 +195,19 @@ public final class TopicPolicyAcceptance {
                 "capability manifest digest is missing");
         agree(initial);
 
-        var settings = new TopicWire.Settings(true, owners(), false, false, 3_600_000, 3_600_000,
-                4, 1000, 100, 2, 600);
-        governance(new TopicWire.GovConfigure(settings));
-        advanceUntil("topic configuration activation", () -> get(0, "/topics/config").path("enabled").asBoolean());
+        // The sealed draft enabled topics at genesis: the owner is the only registrar, with short limits.
+        JsonNode sealed = get(0, "/topics/config");
+        check(sealed.path("enabled").asBoolean() && sealed.path("config").path("revision").asLong() == 1,
+                "the sealed draft did not enable topics at genesis");
+        var seeded = JSON.treeToValue(sealed.path("config").path("settings"), TopicWire.Settings.class);
+        check(seeded.equals(new TopicWire.Settings(true, owners(), false, false, 3_600_000, 3_600_000,
+                4, 1000, 100, 2, 600)), "the sealed topic settings differ from the draft");
+        // Members reconfigure by governance: identical votes from two of the three nodes.
+        governance(new TopicWire.GovConfigure(new TopicWire.Settings(true, owners(), false, false, 3_600_000,
+                3_600_000, 4, 2000, 100, 2, 600)));
+        advanceUntil("member-governed reconfiguration",
+                () -> get(0, "/topics/config").path("config").path("revision").asLong() == 2);
+        voteNamespace("arena/");
         registry("ledger/", "create", TopicWire.AUTHORITY_REGISTRARS,
                 policy(false, "none"), true);
         ObjectNode audit = policy(false, null);
@@ -202,7 +218,7 @@ public final class TopicPolicyAcceptance {
         games.put("schemaCddl", CDDL);
         registry("games/", "create", TopicWire.AUTHORITY_REGISTRARS, games, true);
         advanceUntil("namespace activation", () -> active("ledger/") && active("audit/") && active("games/"));
-        System.out.println("PASS: member-governed enablement and CLI planned/signed namespace creation");
+        System.out.println("PASS: registrar namespaces planned, signed and submitted with the packaged CLI");
 
         byte[] mint = BalancesContract.mint("alice", BigInteger.valueOf(100));
         String plain = submit("ledger/points", mint);
@@ -229,7 +245,7 @@ public final class TopicPolicyAcceptance {
         check(receipt(ride, 0).accepted() && receipt(ride, 0).steps().size() == 2, "open target cascade failed");
         agree(rideHeight);
         check(cli("topics", "resolve", "games/rides", "--chain", CHAIN, "--peer", base(0),
-                "--height", Long.toString(rideHeight), "--api-key-env", "YANO_TOPICS_ACCEPTANCE_API_KEY")
+                "--height", Long.toString(rideHeight), "--api-key-env", "YANO_TOPICS_ACCEPTANCE_API_KEY", "--json")
                 .path("outcome").path("policy").path("schema").asText()
                 .equals(TopicWireCodec.blake2b256Hex(CddlSchemaCompiler.compile(CDDL).definition())),
                 "inherited schema was not resolved at the inclusion height");
@@ -242,8 +258,8 @@ public final class TopicPolicyAcceptance {
         stopNode(2);
         followerStopped = true;
         registry("audit/", "update", "audit/", policy(true, "none"), false);
-        JsonNode doctor = cli("doctor", "--bindings", work.resolve("bindings.yaml").toString(),
-                "--chain", CHAIN, "--peer", base(0), "--api-key-env", "YANO_TOPICS_ACCEPTANCE_API_KEY");
+        JsonNode doctor = cli("topics", "doctor", "--bindings", work.resolve("bindings.yaml").toString(),
+                "--chain", CHAIN, "--peer", base(0), "--api-key-env", "YANO_TOPICS_ACCEPTANCE_API_KEY", "--json");
         check(doctor.path("checks").toString().contains("RULE_TOPIC_POLICY_CROSSING"),
                 "doctor did not warn about pending/active crossing protection");
         advanceUntil("derived target protection", () -> protectedTopic("audit/"));
@@ -356,16 +372,46 @@ public final class TopicPolicyAcceptance {
         Path signed = work.resolve("signed-" + fileNumber + ".json");
         Files.writeString(file, document.toString());
         JsonNode plan = cli("topics", "plan", "--file", file.toString(), "--peer", base(0),
-                "--api-key-env", "YANO_TOPICS_ACCEPTANCE_API_KEY");
+                "--api-key-env", "YANO_TOPICS_ACCEPTANCE_API_KEY", "--json");
         Files.writeString(planned, plan.toString());
         Files.writeString(signed, cli("topics", "sign", "--plan", planned.toString(),
-                "--key-file", work.resolve("owner.key").toString()).toString());
+                "--key-file", work.resolve("owner.key").toString(), "--json").toString());
         JsonNode submitted = cli("topics", "submit", "--plan", signed.toString(), "--peer", base(0),
-                "--api-key-env", "YANO_TOPICS_ACCEPTANCE_API_KEY");
+                "--api-key-env", "YANO_TOPICS_ACCEPTANCE_API_KEY", "--json");
         String id = submitted.path("commands").get(0).path("submission").path("messageId").asText();
         finalized(id);
         check(get(0, "/topics/receipts/" + id).path("code").asText().equals("ACCEPTED"), "registry command refused");
     }
+
+    /**
+     * The operator path of ADR-056: one plan from a node directory, then a vote from two operators' node
+     * directories, each through their own node; repeating a vote after activation is a no-op.
+     */
+    private void voteNamespace(String namespace) throws Exception {
+        ObjectNode document = JSON.createObjectNode().put("schemaVersion", 1).put("kind", "Topics").put("chainId", CHAIN);
+        document.putArray("commands").addObject().put("target", namespace).put("operation", "create")
+                .put("authority", "governance").put("nonce", TopicAuthoring.nonce())
+                .<ObjectNode>set("owners", JSON.valueToTree(owners()))
+                .set("policy", JSON.createObjectNode().put("writers", "open").put("schema", "none"));
+        Files.writeString(work.resolve("arena.yaml"), document.toString());
+        String planned = cliText("topics", "plan", "arena.yaml", "--node-dir", node(0));
+        check(planned.contains("create " + namespace + ": a member vote")
+                && planned.contains("topics approve arena.plan.json"), "plan did not ask for member votes");
+        for (int node : List.of(0, 1)) {
+            check(cliText("topics", "approve", "arena.plan.json", "--node-dir", node(node), "--no-wait")
+                    .contains("voted"), "operator vote was not cast");
+        }
+        advanceUntil("member-voted namespace", () -> active(namespace));
+        await("the third node sees the namespace", () -> {
+            JsonNode active = get(2, "/topics/entries/" + namespace.replace("/", "%2F")).path("active");
+            return !active.isMissingNode() && !active.isNull();
+        });
+        check(cliText("topics", "approve", "arena.plan.json", "--node-dir", node(2), "--timeout", "30")
+                .contains("already in effect"), "a vote after activation was not a no-op");
+        System.out.println("PASS: genesis-enabled topics from the draft, member reconfiguration and CLI namespace votes");
+    }
+
+    private String node(int node) { return nodes.resolve("node" + node).toString(); }
 
     private void governance(TopicWire.GovernanceOperation operation) throws Exception {
         byte[] bytes = TopicWireCodec.encodeGovernanceCommand(new TopicWire.GovernanceCommand(CHAIN, generation,
@@ -544,39 +590,35 @@ public final class TopicPolicyAcceptance {
     }
 
     private void signal(int node, String name) throws Exception {
-        String pid = Files.readString(project.resolve("run/node" + node + ".pid")).strip();
+        String pid = Files.readString(nodes.resolve("node" + node + "/run/node.pid")).strip().split(" ")[0];
         Process signal = new ProcessBuilder("kill", "-" + name, pid).start();
         check(signal.waitFor(5, TimeUnit.SECONDS) && signal.exitValue() == 0, "node signal failed");
     }
 
     private void stopNode(int node) throws Exception {
-        Path record = project.resolve("run/node" + node + ".pid");
-        long pid = Long.parseLong(Files.readString(record).strip());
-        ProcessHandle process = ProcessHandle.of(pid).orElseThrow();
-        process.destroy();
-        process.onExit().get(45, TimeUnit.SECONDS);
-        Files.deleteIfExists(record);
+        cliText("stop", "--node-dir", node(node));
     }
 
-    private void startNode(int node) throws IOException {
-        Process process = new ProcessBuilder("bash", project.resolve("scripts/start-node").toString(),
-                Integer.toString(node)).directory(project.toFile())
-                .redirectOutput(project.resolve("logs/node" + node + "-topic-restart.log").toFile())
-                .redirectErrorStream(true).start();
-        Files.writeString(project.resolve("run/node" + node + ".pid"), process.pid() + "\n");
-        await("restarted node readiness", () -> process.isAlive() && ready(node));
+    private void startNode(int node) throws Exception {
+        cliText("start", "--node-dir", node(node));
+        await("restarted node readiness", () -> ready(node));
     }
 
     private JsonNode cli(String... arguments) throws Exception {
+        return JSON.readTree(cliText(arguments));
+    }
+
+    private String cliText(String... arguments) throws Exception {
         List<String> command = new ArrayList<>(List.of("bash", home.resolve("yano.sh").toString(), "appchain"));
         command.addAll(List.of(arguments));
         Path stdout = Files.createTempFile(work, "cli-", ".out");
         Path stderr = Files.createTempFile(work, "cli-", ".err");
         Process child = new ProcessBuilder(command).directory(work.toFile()).redirectOutput(stdout.toFile())
                 .redirectError(stderr.toFile()).start();
-        if (!child.waitFor(45, TimeUnit.SECONDS)) { child.destroyForcibly(); throw new AssertionError("CLI timed out"); }
-        check(child.exitValue() == 0, "packaged CLI " + arguments[0] + " failed: " + Files.readString(stderr));
-        return JSON.readTree(Files.readString(stdout));
+        if (!child.waitFor(300, TimeUnit.SECONDS)) { child.destroyForcibly(); throw new AssertionError("CLI timed out"); }
+        check(child.exitValue() == 0, "packaged CLI " + String.join(" ", arguments) + " failed: "
+                + Files.readString(stderr) + Files.readString(stdout));
+        return Files.readString(stdout);
     }
 
     private boolean active(String name) { return !entry(name).path("active").isMissingNode()
@@ -616,8 +658,9 @@ public final class TopicPolicyAcceptance {
 
     private void checkNoSecrets() throws IOException {
         List<String> secrets = List.of(apiKey, "01".repeat(32), "02".repeat(32), "03".repeat(32), "11".repeat(32));
-        try (var files = Files.walk(project.resolve("logs"))) {
-            for (Path path : files.filter(Files::isRegularFile).toList()) {
+        try (var files = Files.walk(nodes)) {
+            for (Path path : files.filter(Files::isRegularFile)
+                    .filter(file -> file.getParent().getFileName().toString().equals("logs")).toList()) {
                 String contents = Files.readString(path);
                 for (String secret : secrets) check(!contents.contains(secret), "acceptance log contains a secret");
             }
