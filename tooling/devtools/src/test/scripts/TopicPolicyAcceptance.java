@@ -388,7 +388,8 @@ public final class TopicPolicyAcceptance {
      * directories, each through their own node; repeating a vote after activation is a no-op.
      */
     private void voteNamespace(String namespace) throws Exception {
-        ObjectNode document = JSON.createObjectNode().put("schemaVersion", 1).put("kind", "Topics").put("chainId", CHAIN);
+        ObjectNode document = JSON.createObjectNode().put("schemaVersion", 1).put("kind", "Topics")
+                .put("chainId", CHAIN);
         document.putArray("commands").addObject().put("target", namespace).put("operation", "create")
                 .put("authority", "governance").put("nonce", TopicAuthoring.nonce())
                 .<ObjectNode>set("owners", JSON.valueToTree(owners()))
@@ -398,20 +399,38 @@ public final class TopicPolicyAcceptance {
         check(planned.contains("create " + namespace + ": a member vote")
                 && planned.contains("topics approve arena.plan.json"), "plan did not ask for member votes");
         for (int node : List.of(0, 1)) {
-            check(cliText("topics", "approve", "arena.plan.json", "--node-dir", node(node), "--no-wait")
-                    .contains("voted"), "operator vote was not cast");
+            check(cliText("topics", "approve", "arena.plan.json", "--node-dir", node(node), "--no-wait", "--yes")
+                    .contains("voted (message"), "operator vote was not cast");
         }
+        // Decided but not yet active (no traffic): voting again would open a second tally, so approve must not.
+        await("the decided namespace", () -> head(namespace) >= 1);
+        String again = cliText("topics", "approve", "arena.plan.json", "--node-dir", node(0), "--no-wait", "--yes");
+        check(again.contains("enough operators voted") && !again.contains("voted (message"),
+                "a repeated vote after quorum was cast again");
         advanceUntil("member-voted namespace", () -> active(namespace));
         await("the third node sees the namespace", () -> {
             JsonNode active = get(2, "/topics/entries/" + namespace.replace("/", "%2F")).path("active");
             return !active.isMissingNode() && !active.isNull();
         });
-        check(cliText("topics", "approve", "arena.plan.json", "--node-dir", node(2), "--timeout", "30")
-                .contains("already in effect"), "a vote after activation was not a no-op");
-        System.out.println("PASS: genesis-enabled topics from the draft, member reconfiguration and CLI namespace votes");
+        for (int node : List.of(2, 0)) {
+            check(cliText("topics", "approve", "arena.plan.json", "--node-dir", node(node), "--timeout", "30",
+                    "--yes").contains("already in effect"), "a vote after activation was not a no-op");
+        }
+        check(head(namespace) == 1, "the namespace was changed more than once");
+        System.out.println("PASS: genesis-enabled topics from the draft, member reconfiguration and CLI namespace "
+                + "votes");
     }
 
     private String node(int node) { return nodes.resolve("node" + node).toString(); }
+
+    /** The target's head revision on the first node, or 0 before it exists. */
+    private long head(String name) {
+        try {
+            return entry(name).path("head").asLong(0);
+        } catch (AssertionError | RuntimeException absent) { // 404 until the name exists
+            return 0;
+        }
+    }
 
     private void governance(TopicWire.GovernanceOperation operation) throws Exception {
         byte[] bytes = TopicWireCodec.encodeGovernanceCommand(new TopicWire.GovernanceCommand(CHAIN, generation,
@@ -615,7 +634,10 @@ public final class TopicPolicyAcceptance {
         Path stderr = Files.createTempFile(work, "cli-", ".err");
         Process child = new ProcessBuilder(command).directory(work.toFile()).redirectOutput(stdout.toFile())
                 .redirectError(stderr.toFile()).start();
-        if (!child.waitFor(300, TimeUnit.SECONDS)) { child.destroyForcibly(); throw new AssertionError("CLI timed out"); }
+        if (!child.waitFor(300, TimeUnit.SECONDS)) {
+            child.destroyForcibly();
+            throw new AssertionError("CLI timed out");
+        }
         check(child.exitValue() == 0, "packaged CLI " + String.join(" ", arguments) + " failed: "
                 + Files.readString(stderr) + Files.readString(stdout));
         return Files.readString(stdout);

@@ -120,6 +120,42 @@ class TopicsSealTest {
                 .contains("topics: namespaces created by member vote; unregistered topics open");
     }
 
+    @Test
+    void theTopicPolicyIsPartOfTheGenesisIdentity() throws Exception {
+        CeremonyFixture fixture = draft("--chain", "games=audit-log", "--topics", "games=members");
+        Path file = fixture.draft("arcade");
+        fixture.ok("seal", file.toString());
+        String members = fixture.sealed("arcade").genesis().chain("games").genesisId();
+        // Same invite, cards and chains; only who creates namespaces differs.
+        Files.writeString(file, Files.readString(file).replace("create: members", "create: anyone"));
+        fixture.ok("seal", file.toString(), "--force");
+        assertThat(fixture.sealed("arcade").genesis().chain("games").genesisId()).isNotEqualTo(members);
+    }
+
+    @Test
+    void refusesEmptyBlocksRepeatedFlagsAndOversizedThresholds() throws Exception {
+        CeremonyFixture fixture = draft("--chain", "games=audit-log", "--topics", "games=registrars:alice");
+        Path file = fixture.draft("arcade");
+        String text = Files.readString(file);
+        Files.writeString(file, text.replaceAll("(?s)    topics:.*?(?=\n    [a-z]|\n  - |$)", "    topics:"));
+        assertThat(fixture.run("seal", file.toString()).err()).contains("has an empty topics: block");
+        Files.writeString(file, text.replace("      unregistered:", "      registrar-threshold: 4294967297\n"
+                + "      unregistered:"));
+        assertThat(fixture.run("seal", file.toString()).err()).contains("registrar-threshold must be a whole number");
+        var twice = new CeremonyFixture(temporary.resolve("twice")).run("new", "arcade", "--network", "devnet",
+                "--operators", "alice,bob", "--chain", "games=audit-log", "--topics", "games=members",
+                "--topics", "games=anyone", "--output", temporary.resolve("twice").toString(), "--yes");
+        assertThat(twice.err()).contains("--topics names chain 'games' twice");
+    }
+
+    @Test
+    void aRegistrarNamedByKeyIsShownByItsKeyId() throws Exception {
+        String key = "ab".repeat(32);
+        CeremonyFixture fixture = draft("--chain", "games=audit-log", "--topics", "games=registrars:" + key);
+        assertThat(fixture.ok("seal", fixture.draft("arcade").toString()).out())
+                .contains("namespaces created by key abababababababab or by member vote");
+    }
+
     private CeremonyFixture draft(String... chains) throws Exception {
         CeremonyFixture fixture = new CeremonyFixture(temporary);
         List<String> create = new java.util.ArrayList<>(List.of("new", "arcade", "--network", "devnet",

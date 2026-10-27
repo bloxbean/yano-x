@@ -205,10 +205,10 @@ public final class TopicPlan {
                     }
                 }
                 actual.putArray("signatures");
-                if (!equivalent(actual, calculated)) throw invalid("plan differs from its canonical compilation");
+                if (!equivalent(actual, calculated)) throw invalid("the plan was edited after planning; plan it again");
                 calculated.set("signatures", commands.get(i).get("signatures").deepCopy());
             } else if (!equivalent(actual, calculated)) {
-                throw invalid("governance plan differs from its canonical compilation");
+                throw invalid("the plan was edited after planning; plan it again");
             }
         }
         return expected;
@@ -276,10 +276,23 @@ public final class TopicPlan {
     private static void validateOperationFields(JsonNode command, String operation, String authority) {
         boolean ownerChange = Set.of("create", "rotate", "recover").contains(operation);
         boolean policyChange = Set.of("create", "update").contains(operation);
-        if (command.has("owners") != ownerChange || command.has("policy") && !policyChange
-                || command.has("delegationHex") != "revoke".equals(operation)
-                || "governance".equals(authority) && command.has("notAfter")) {
-            throw invalid("fields do not match operation");
+        String target = command.path("target").asText("?");
+        if (command.has("owners") != ownerChange) {
+            throw invalid(target + ": " + operation + (ownerChange ? " needs owners: {threshold, keys}"
+                    : " does not change owners; remove owners"));
+        }
+        if (command.has("policy") && !policyChange) {
+            throw invalid(target + ": " + operation + " has no policy; remove policy");
+        }
+        if (command.has("delegationHex") != "revoke".equals(operation)) {
+            throw invalid(target + ": " + ("revoke".equals(operation) ? "revoke needs delegationHex"
+                    : "only revoke names delegationHex"));
+        }
+        if ("governance".equals(authority) == command.has("notAfter")) {
+            throw invalid(target + ": " + ("governance".equals(authority)
+                    ? "a member vote (authority governance) has no notAfter; remove it"
+                    : "a signed change needs notAfter, the Unix time in ms when its signatures expire "
+                    + "(for example one hour from now)"));
         }
     }
 
@@ -347,7 +360,11 @@ public final class TopicPlan {
     static void fields(JsonNode node, Set<String> names) {
         if (node == null || !node.isObject()) throw invalid("expected an object");
         node.fieldNames().forEachRemaining(name -> {
-            if (!names.contains(name)) throw invalid("unknown field: " + name);
+            // A pasted key as a field name stays out of the message.
+            if (!names.contains(name)) {
+                throw invalid("unknown field " + (name.length() > 40 ? "(name not shown)" : "'" + name + "'")
+                        + "; allowed: " + String.join(", ", new TreeSet<>(names)));
+            }
         });
     }
 
@@ -389,8 +406,9 @@ public final class TopicPlan {
                 ? first.bigIntegerValue().compareTo(second.bigIntegerValue()) : first.equals(second) ? 0 : 1, right);
     }
 
+    /** Every refusal of this tool: its text is the tool's own and names fields and ids, never values. */
     static IllegalArgumentException invalid(String message) {
-        return new IllegalArgumentException(message);
+        return new Guidance(message);
     }
 
     /** A refusal whose text is written by the tool and names no input value, so it is shown as is. */

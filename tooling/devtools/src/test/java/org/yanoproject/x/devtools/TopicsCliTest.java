@@ -14,6 +14,7 @@ import org.yanoproject.api.appchain.topics.TopicWire.EntryRecord;
 import org.yanoproject.api.appchain.topics.TopicWire.KeySet;
 import org.yanoproject.api.appchain.topics.TopicWire.Policy;
 import org.yanoproject.api.appchain.topics.TopicWire.Writers;
+import org.yanoproject.api.appchain.topics.TopicWire;
 import org.yanoproject.api.appchain.topics.TopicWireCodec;
 import org.yanoproject.api.util.StrictEd25519;
 import org.yanoproject.appchain.proof.TopicPolicyProofVerifier;
@@ -255,7 +256,7 @@ class TopicsCliTest {
             assertThat(planned.exit).as(planned.err).isZero();
             Path plan = temporary.resolve("games.plan.json");
             assertThat(plan).isRegularFile();
-            assertThat(planned.out).contains("Wrote " + plan, "update games/: 2 of keys", "must sign",
+            assertThat(planned.out).contains("Wrote " + plan, "update games/: 2 signatures needed from keys",
                     "Next: each signer runs  yano.sh appchain topics sign " + plan);
             assertThat(API_KEYS).contains("node-key");
 
@@ -277,9 +278,102 @@ class TopicsCliTest {
             assertThat(guided(defaults, "plan", doc.toString(), "--peer", peer, "--output",
                     temporary.resolve("other.plan.json").toString()).exit).isZero();
             assertThat(API_KEYS).isNotEmpty().allMatch("null"::equals);
+
+            // A guided plan replaces only an earlier unsigned plan, never a signed one or anything else.
+            Path signedTarget = temporary.resolve("kept.signed.json");
+            Files.copy(signed, signedTarget);
+            Result refused = guided(defaults, "plan", doc.toString(), "--output", signedTarget.toString());
+            assertThat(refused.exit).isNotZero();
+            assertThat(refused.err).contains("kept.signed.json exists and is not an unsigned plan");
+            assertThat(Files.readString(signedTarget)).isEqualTo(Files.readString(signed));
+            assertThat(guided(defaults, "plan", doc.toString()).exit).isZero();
+
+            // Mistakes are named: the wrong key, a missing signature, an edited plan.
+            Result stranger = guided(defaults, "sign", plan.toString(), "--key-file", seedFile("three", 3).toString());
+            assertThat(stranger.err).contains("is not a signer of any command in the plan; it needs");
+            Result early = guided(defaults, "submit", temporary.resolve("games.plan.json").toString());
+            assertThat(early.err).contains("games/ needs 2 more signatures");
+            java.util.regex.Matcher expiry = java.util.regex.Pattern.compile("\"notAfter\" : (\\d+)")
+                    .matcher(Files.readString(plan));
+            assertThat(expiry.find()).isTrue();
+            Path edited = write("edited.plan.json", Files.readString(plan).replace(expiry.group(),
+                    "\"notAfter\" : " + (Long.parseLong(expiry.group(1)) + 1)));
+            assertThat(guided(defaults, "sign", edited.toString(), "--key-file", seedFile("four", 1).toString()).err)
+                    .contains("the plan was edited after planning; plan it again");
         } finally {
             server.stop(0);
         }
+    }
+
+    @Test
+    void signedChangesNeedAnExpiryAndVotesHaveNone() throws Exception {
+        ObjectNode document = liveDocument();
+        ((ObjectNode) document.path("commands").get(0)).remove("notAfter");
+        Path doc = write("no-expiry.yaml", TopicPlan.YAML.writeValueAsString(document));
+        Path state = write("state.json", TopicPlan.JSON.writeValueAsString(twoOwners()));
+        Result missing = run("topics", "plan", "--file", doc.toString(), "--snapshot", state.toString());
+        assertThat(missing.err).contains("games/: a signed change needs notAfter");
+        Result keyless = run("topics", "sign", "--plan", doc.toString(), "--key-file",
+                write("bad.key", "zz").toString());
+        assertThat(keyless.err).doesNotContain("zz");
+    }
+
+    @Test
+    void initFollowsTheChainsCreationPolicyAndPublicKeyNeverPrintsTheSeed() throws Exception {
+        AtomicReference<TopicPlan.Snapshot> current = new AtomicReference<>(twoOwners());
+        HttpServer server = server(current, new AtomicInteger(), new ArrayList<>());
+        try {
+            String peer = "http://127.0.0.1:" + server.getAddress().getPort();
+            var defaults = new TopicsCli.Defaults(peer, null, TopicPlanFixtures.CHAIN, true);
+            Path owner = seedFile("owner.seed", 7);
+            Path child = temporary.resolve("child.yaml");
+            Result under = guided(defaults, "init", "games/neon-rush/", "--owner-key-file", owner.toString(),
+                    "--output", child.toString());
+            assertThat(under.exit).as(under.err).isZero();
+            assertThat(under.out).contains("create games/neon-rush/ by the owners of games/");
+            JsonNode command = TopicPlan.read(Files.readAllBytes(child), true).path("commands").get(0);
+            assertThat(command.path("authority").asText()).isEqualTo("games/");
+            assertThat(command.path("notAfter").asLong()).isGreaterThan(System.currentTimeMillis());
+            assertThat(command.path("owners").path("keys").get(0).asText()).isEqualTo(publicKey(7));
+            // The fixture chain has registrar keys, so a new top-level name is the registrars' to create.
+            Path top = temporary.resolve("top.yaml");
+            assertThat(guided(defaults, "init", "arena/", "--output", top.toString()).out)
+                    .contains("by registrar signatures (~registrars)");
+            Result key = guided(defaults, "public-key", owner.toString());
+            assertThat(key.out.strip()).isEqualTo(publicKey(7));
+            assertThat(key.out + under.out).doesNotContain(Hex.encode(seed(7)));
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void voteProgressTellsDoneDecidedVotedAndOutOfDateApart() throws Exception {
+        JsonNode owners = TopicPlan.JSON.valueToTree(new KeySet(1, List.of(publicKey(1))));
+        String command = "a1".repeat(40);
+        var vote = new TopicsCli.Vote(TopicPlanFixtures.CHAIN, TopicPlanFixtures.GENERATION, "arena/", "create",
+                command, 1, 12, owners);
+        ObjectNode decided = TopicPlan.JSON.createObjectNode().put("name", "arena/").put("head", 1).put("pending", 1);
+        decided.putNull("active");
+        ObjectNode active = TopicPlan.JSON.createObjectNode().put("name", "arena/").put("head", 1).put("pending", 0);
+        active.putObject("active").put("revision", 1).putObject("content").set("owners", owners);
+        ObjectNode other = active.deepCopy();
+        ((ObjectNode) other.path("active").path("content")).set("owners",
+                TopicPlan.JSON.valueToTree(new KeySet(1, List.of(publicKey(2)))));
+        String member = publicKey(5);
+        String tally = Hex.encode(TopicWireCodec.encodeGovernancePending(List.of(new TopicWire.GovernanceApproval(
+                TopicWireCodec.blake2b256Hex(Hex.decode(command)), 10, List.of(member)))));
+        assertThat(TopicsCli.progress(vote, member, null, null, 20, 600)).isEqualTo(TopicsCli.Progress.OPEN);
+        assertThat(TopicsCli.progress(vote, member, null, tally, 20, 600)).isEqualTo(TopicsCli.Progress.VOTED);
+        // An expired tally no longer counts this member's vote.
+        assertThat(TopicsCli.progress(vote, member, null, tally, 700, 600)).isEqualTo(TopicsCli.Progress.OPEN);
+        assertThat(TopicsCli.progress(vote, publicKey(6), null, tally, 20, 600)).isEqualTo(TopicsCli.Progress.OPEN);
+        assertThat(TopicsCli.progress(vote, member, decided, tally, 20, 600)).isEqualTo(TopicsCli.Progress.DECIDED);
+        assertThat(TopicsCli.progress(vote, member, active, null, 20, 600)).isEqualTo(TopicsCli.Progress.IN_EFFECT);
+        assertThat(TopicsCli.progress(vote, member, other, null, 20, 600)).isEqualTo(TopicsCli.Progress.SUPERSEDED);
+        ObjectNode later = active.deepCopy().put("head", 2);
+        ((ObjectNode) later.path("active")).put("revision", 2);
+        assertThat(TopicsCli.progress(vote, member, later, null, 20, 600)).isEqualTo(TopicsCli.Progress.SUPERSEDED);
     }
 
     @Test

@@ -976,17 +976,21 @@ final class AppChainProjectResolver {
                 continue;
             }
             String key = definition.indexed() ? prefix + definition.suffix() : definition.key();
+            // The registrar threshold default means nothing without registrar keys, and the host refuses it once
+            // topics are enabled; an explicit threshold stays, so the check below reports it.
+            if (key.equals(prefix + TopicChainSettings.REGISTRAR_THRESHOLD) && !registrars(values, prefix)) continue;
             values.putIfAbsent(key, definition.defaultValue());
-        }
-        // A registrar threshold without registrar keys is refused once topics are enabled; it has no meaning alone.
-        if (!values.containsKey(prefix + TopicChainSettings.REGISTRAR_KEYS)) {
-            values.remove(prefix + TopicChainSettings.REGISTRAR_THRESHOLD);
         }
         Map<String, String> topics = new TreeMap<>();
         values.forEach((key, value) -> {
             if (key.startsWith(prefix + TopicChainSettings.PREFIX)) topics.put(key.substring(prefix.length()), value);
         });
         TopicChainSettings.genesisSeed(topics);
+    }
+
+    private static boolean registrars(Map<String, String> values, String prefix) {
+        String keys = values.getOrDefault(prefix + TopicChainSettings.REGISTRAR_KEYS, "").trim();
+        return !keys.isEmpty() && !keys.equalsIgnoreCase("none");
     }
 
     private static void validateWithRuntimeParser(

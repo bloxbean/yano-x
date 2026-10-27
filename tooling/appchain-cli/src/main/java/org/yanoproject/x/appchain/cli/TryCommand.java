@@ -42,9 +42,10 @@ final class TryCommand {
         args.maxPositionals(0, USAGE);
         Path root = args.path("dir", Path.of("appchain-try")).toAbsolutePath().normalize();
         if (args.flag("clean")) return clean(root);
+        String clean = "yano.sh appchain try --clean" + (args.value("dir") == null ? "" : " --dir " + rel(root));
         if (Files.exists(root)) {
             throw CliException.failure(root + " already exists. Look around with  yano.sh appchain status --node-dir "
-                    + rel(root.resolve("alice/yano-node")) + "  or remove it with  yano.sh appchain try --clean");
+                    + rel(root.resolve("alice/yano-node")) + "  or remove it with  " + clean);
         }
         Files.createDirectories(root);
         Files.writeString(root.resolve(MARKER), "rehearsal directory created by yano.sh appchain try\n");
@@ -110,10 +111,16 @@ final class TryCommand {
                 .map(Draft.Chain::id).findFirst().orElse(null);
         if (log != null) finalizeMessage(root, log);
 
-        terminal.next("look around:  yano.sh appchain status --node-dir " + rel(root.resolve("alice/yano-node")),
-                "try the optional step:  yano.sh appchain anchor --node-dir " + rel(root.resolve("alice/yano-node")),
-                "stop and remove the rehearsal:  yano.sh appchain try --clean",
-                "set up a real application:  yano.sh appchain new");
+        List<String> next = new ArrayList<>(List.of(
+                "look around:  yano.sh appchain status --node-dir " + rel(root.resolve("alice/yano-node")),
+                "try the optional step:  yano.sh appchain anchor --node-dir " + rel(root.resolve("alice/yano-node"))));
+        if (draft.chains().stream().anyMatch(chain -> chain.topics() != null)) {
+            next.add("protect a namespace:  yano.sh appchain topics init games/ --node-dir "
+                    + rel(root.resolve("alice/yano-node")) + "  (then plan, and approve from each node)");
+        }
+        next.add("stop and remove the rehearsal:  " + clean);
+        next.add("set up a real application:  yano.sh appchain new");
+        terminal.next(next.toArray(String[]::new));
         return 0;
     }
 

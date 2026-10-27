@@ -20,10 +20,15 @@ read a node API credential from an environment variable.
 ## Create a namespace by member vote
 
 ```bash
-./yano.sh appchain topics init games/
+./yano.sh appchain topics public-key owner.seed      # prints the owner's public key; never the seed
+./yano.sh appchain topics init games/ --owner-key-file owner.seed
 ```
 
-Fill in the public owner keys in `topics.yaml`, keep its generated nonce, then:
+`init` reads the chain and picks who must approve: a top-level name follows the
+chain's creation policy (a member vote, `~registrars` or `~claim`), and a name
+under an existing namespace is signed by that namespace's owners, with a
+`notAfter` one hour ahead. Check the owners and policy in `topics.yaml`, keep its
+generated nonce, then:
 
 ```bash
 ./yano.sh appchain topics plan topics.yaml
@@ -37,10 +42,21 @@ runs, in their own node directory:
 ./yano.sh appchain topics approve topics.plan.json
 ```
 
-Each vote goes through that operator's own node; no tool votes on a member's
-behalf. `approve` waits until enough operators have voted and the activation
-lag has passed, then prints `create games/ is in effect`. It is safe to run
-again; `--no-wait` returns after voting.
+`approve` first shows what the plan asks the members to vote for and asks for a
+yes (`--yes` in scripts, after checking it). Each vote goes through that
+operator's own node; no tool votes on a member's behalf. It then waits until
+enough operators have voted and the activation lag has passed, and prints
+`create games/ … is in effect`. A chain makes blocks only from messages: on an
+idle chain pass `--heartbeat`, or send traffic. `approve` never votes twice, so
+run it again at any time to see where a vote stands; `--no-wait` returns after
+voting.
+
+On a chain sealed with `create: registrars`, a top-level name is created with
+`authority: ~registrars` and signed instead of voted. A registrar named by
+operator in the draft signs with that operator's member key
+(`yano-node/secrets/member.key`), which is also the node's consensus key; to keep
+them apart, name a separate public key under `registrars:` instead. With
+`create: anyone`, the new owners sign an `authority: ~claim` creation.
 
 ## Change a namespace with owner signatures
 
@@ -49,7 +65,7 @@ Write the change inside `games/` as a `Topics` document:
 ```yaml
 schemaVersion: 1
 kind: Topics
-chainId: games
+chainId: arcade
 commands:
   - target: games/neon-rush/
     operation: create
@@ -80,7 +96,10 @@ an illustrative ride payload, not the full Neon Rush game protocol. Studio's
 ./yano.sh appchain topics submit neon-rush.signed.json
 ```
 
-`plan` names the keys that must sign. Seed files contain a 32-byte Ed25519
+`topics init games/neon-rush/` writes this with the right authority. `plan`
+names the keys that must sign, and `submit` waits until the change is accepted
+and in effect (`--no-wait` returns at once; `--heartbeat` makes blocks on an idle
+chain). Seed files contain a 32-byte Ed25519
 seed as 64 lowercase hex characters. Keep them outside served directories and
 restrict file permissions; pass only the file path. For k-of-n owners, send
 `neon-rush.signed.json` to the next owner, who runs `sign` on it; every signer
@@ -135,7 +154,7 @@ node process.
 ## Diagnose and verify
 
 ```bash
-./yano.sh appchain topics resolve games/neon-rush/rides --height 42
+./yano.sh appchain topics resolve games/neon-rush/rides --height 42   # in words; --json for the proof
 ./yano.sh appchain topics doctor --bindings composite.yaml
 ./yano.sh appchain topics verify <messageId> \
   --bundle authorship.json --trusted-block trusted-block.json

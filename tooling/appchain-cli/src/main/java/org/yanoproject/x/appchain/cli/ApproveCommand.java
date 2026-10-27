@@ -151,10 +151,12 @@ final class ApproveCommand {
 
     private boolean await(NodeClient client, String path, String chain, Predicate<JsonNode> done, String what,
                           long deadline, boolean heartbeat) {
+        // Heartbeats use an unregistered topic, which a chain refusing unregistered topics never accepts.
         return Await.until(terminal, client, path, chain, done, what, deadline, heartbeat,
+                Heartbeat.allowed(client, path),
                 "it activates once enough operators approve and the chain makes 10 more blocks",
-                "The other operators may not have run approve yet; run this command again later (it continues where "
-                        + "it stopped)");
+                () -> "The other operators may not have run approve yet; run this command again later (it "
+                        + "continues where it stopped)");
     }
 
     private static List<String> members(NodeClient client, String path) {

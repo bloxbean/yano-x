@@ -2,9 +2,11 @@ package org.yanoproject.x.devtools;
 
 import com.bloxbean.cardano.client.crypto.KeyGenUtil;
 import com.bloxbean.cardano.client.crypto.config.CryptoConfiguration;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.yanoproject.api.appchain.topics.TopicKeys;
 import org.yanoproject.api.appchain.topics.TopicNames;
 import org.yanoproject.api.appchain.topics.TopicPolicyProof;
 import org.yanoproject.api.appchain.topics.TopicWire;
@@ -19,15 +21,19 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -36,7 +42,8 @@ import java.util.TreeMap;
 /** Topic policy authoring, offline owner signing, and caller-pinned authorship verification. */
 public final class TopicsCli {
     static final String USAGE = """
-            Usage: yano.sh appchain topics init <namespace> [--output topics.yaml]
+            Usage: yano.sh appchain topics init <namespace> [--owner-key-file <seed file>] [--output topics.yaml]
+               or: yano.sh appchain topics public-key <seed file>
                or: yano.sh appchain topics plan <topics.yaml> [--output <name>.plan.json]
                or: yano.sh appchain topics sign <plan.json> --key-file <owner seed file> [--command <index>]
                or: yano.sh appchain topics submit <signed plan.json>
@@ -49,7 +56,9 @@ public final class TopicsCli {
             In a node directory (--node-dir, default ./yano-node) the commands use this node, its API key and,
             when the application has one chain, that chain. Elsewhere pass --peer <url> and --chain <id>;
             --api-key-env <name> reads an API credential from the named environment variable, and
-            --snapshot snapshot.json plans offline. --json prints the machine-readable result instead.
+            --snapshot snapshot.json plans offline. --json prints the machine-readable result of init, plan,
+            sign, submit, resolve, delegate, verify and doctor instead. init picks the authority from the chain:
+            a parent namespace's owners, or the chain's creation policy (governance, ~registrars or ~claim).
             Signing keys are 32-byte Ed25519 seed files (64 lowercase hex characters), never command arguments.
             Plans are immutable statements: expired/stale plans must be regenerated and signed again.
             Member votes are cast by every operator with topics approve; no tool votes on a member's behalf.
@@ -64,9 +73,95 @@ public final class TopicsCli {
         public static final Defaults NONE = new Defaults(null, null, null, false);
     }
 
-    /** One member vote of a governance plan, with the revision whose activation shows it took effect. */
+    /**
+     * One member vote of a governance plan: the revision it creates, and the owners it sets ({@code null} for a
+     * retirement), so a caller can tell this change from another one that took the same revision.
+     */
     public record Vote(String chainId, String generationId, String target, String operation, String commandHex,
-                       long revision, long earliestActivation) {
+                       long revision, long earliestActivation, JsonNode owners) {
+    }
+
+    /**
+     * The revision each owner-signed command of a plan creates once accepted, by target; a revocation changes no
+     * revision and is absent.
+     */
+    public static Map<String, Long> plannedRevisions(Path planFile) throws IOException {
+        JsonNode plan = read(planFile.toString(), false);
+        TopicPlan.Snapshot snapshot = TopicPlan.JSON.treeToValue(plan.get("snapshot"), TopicPlan.Snapshot.class);
+        Map<String, Long> revisions = new LinkedHashMap<>();
+        for (JsonNode command : plan.path("commands")) {
+            if (!"registry".equals(command.path("mode").asText()) || "revoke".equals(command.path("operation")
+                    .asText())) {
+                continue;
+            }
+            String target = command.path("target").asText();
+            var existing = snapshot.entries().get(target);
+            revisions.put(target, Math.addExact(existing == null ? snapshot.freedHeads().getOrDefault(target, 0L)
+                    : existing.head(), 1));
+        }
+        return revisions;
+    }
+
+    /** How far a member vote has come, from one node's view of the chain. */
+    public enum Progress {
+        /** The planned revision is active with the planned content. */
+        IN_EFFECT,
+        /** Another change holds the planned revision, or a later one is active: the plan is out of date. */
+        SUPERSEDED,
+        /** Enough members voted; the revision is queued and activates after the activation lag. */
+        DECIDED,
+        /** This member's vote is in the current tally; the others have not all voted yet. */
+        VOTED,
+        /** This member has not voted in the current tally. */
+        OPEN
+    }
+
+    /** The state key of the governance tally, read through {@code /state/entry/<hex>}. */
+    public static String governanceTallyKeyHex() {
+        return Hex.encode(TopicKeys.governance());
+    }
+
+    /**
+     * Where a vote stands. Voting again after quorum would start a second tally that re-applies the change, so a
+     * caller votes only on {@link Progress#OPEN}.
+     *
+     * @param memberKey this member's public key (64 hex)
+     * @param entry     the target's {@code /topics/entries} record, or {@code null} when it has none
+     * @param tallyHex  the governance tally state value, or {@code null} when there is none
+     * @param height    the chain height the entry and tally were read at
+     * @param window    the configuration's governance window in blocks
+     */
+    public static Progress progress(Vote vote, String memberKey, JsonNode entry, String tallyHex, long height,
+                                    long window) {
+        if (entry != null) {
+            JsonNode active = entry.path("active");
+            boolean hasActive = active.isObject();
+            long revision = hasActive ? active.path("revision").asLong() : 0;
+            if (revision == vote.revision()) return planned(vote, active.path("content")) ? Progress.IN_EFFECT
+                    : Progress.SUPERSEDED;
+            if (revision > vote.revision()) return Progress.SUPERSEDED;
+            if (entry.path("head").asLong() >= vote.revision()) return Progress.DECIDED;
+        }
+        if (tallyHex != null && !tallyHex.isEmpty()) {
+            String hash = TopicWireCodec.blake2b256Hex(Hex.decode(vote.commandHex()));
+            for (var approval : TopicWireCodec.decodeGovernancePending(Hex.decode(tallyHex))) {
+                if (approval.commandHash().equals(hash) && height - approval.firstSeen() <= window
+                        && approval.approvers().contains(memberKey.toLowerCase(Locale.ROOT))) {
+                    return Progress.VOTED;
+                }
+            }
+        }
+        return Progress.OPEN;
+    }
+
+    private static boolean planned(Vote vote, JsonNode content) {
+        if (vote.owners() == null) return content.path("retired").asBoolean(false);
+        try {
+            return TopicPlan.JSON.treeToValue(vote.owners(), TopicWire.KeySet.class)
+                    .equals(TopicPlan.JSON.treeToValue(content.path("owners"), TopicWire.KeySet.class));
+        } catch (IOException | IllegalArgumentException unreadable) {
+            return false;
+        }
     }
 
     private Defaults defaults = Defaults.NONE;
@@ -98,9 +193,14 @@ public final class TopicsCli {
             var existing = snapshot.entries().get(target);
             long revision = Math.addExact(existing == null ? snapshot.freedHeads().getOrDefault(target, 0L)
                     : existing.head(), 1);
+            JsonNode source = null;
+            for (JsonNode written : plan.path("document").path("commands")) {
+                if (target.equals(written.path("target").asText())) source = written;
+            }
+            JsonNode owners = source == null || !source.has("owners") ? null : source.get("owners");
             votes.add(new Vote(snapshot.chainId(), snapshot.generationId(), target,
                     command.path("operation").asText(), command.path("commandHex").asText(), revision,
-                    command.path("earliestActivation").asLong(0)));
+                    command.path("earliestActivation").asLong(0), owners));
         }
         if (votes.isEmpty()) throw TopicPlan.guidance("the plan has no member votes; sign and submit it instead");
         return List.copyOf(votes);
@@ -116,6 +216,7 @@ public final class TopicsCli {
             Arguments arguments = parse(args);
             JsonNode result = switch (args[0]) {
                 case "init" -> initialize(arguments);
+                case "public-key" -> publicKey(arguments);
                 case "plan" -> plan(arguments);
                 case "sign" -> sign(arguments);
                 case "submit" -> submit(arguments);
@@ -138,12 +239,11 @@ public final class TopicsCli {
             } else out.print(serialized);
             return AppChainDevtoolsCli.EXIT_OK;
         } catch (IOException failure) {
-            err.println("Topic file or peer request failed. Check the path, peer and API credential.");
-            if (failure instanceof TopicsPeer.Refusal refusal) err.println(refusal.code());
+            err.println(ioReason(failure));
             return AppChainDevtoolsCli.EXIT_IO;
         } catch (RuntimeException failure) {
             // In particular, a parser exception must never echo a seed file or arbitrary secret argument.
-            err.println("Invalid topic command or plan. " + safeReason(failure));
+            err.println(safeReason(failure));
             return AppChainDevtoolsCli.EXIT_INVALID_CONFIG;
         } finally {
             out.flush();
@@ -152,23 +252,62 @@ public final class TopicsCli {
     }
 
     private JsonNode initialize(Arguments args) throws IOException {
-        args.only(Set.of("output"), 1);
+        args.only(Set.of("output", "owner-key-file", "peer", "chain", "api-key-env"), 1);
         String namespace = args.positionals().getFirst();
         if (!TopicNames.isNamespace(namespace)) throw TopicPlan.invalid("namespace must end in '/' and use valid segments");
+        String chain = args.options().containsKey("chain") ? args.required("chain") : defaults.chain();
+        String owner = "REPLACE_OWNER_PUBLIC_KEY";
+        if (args.options().containsKey("owner-key-file")) {
+            try (FileSigner signer = new FileSigner(Path.of(args.required("owner-key-file")))) {
+                owner = signer.publicKey();
+            }
+        }
+        // The authority follows how this chain creates the name: under an owned parent its owners sign; a
+        // top-level name follows the chain's creation policy. Without a node, the member vote is the default.
+        String authority = "governance";
+        boolean online = chain != null && (args.options().containsKey("peer") || defaults.peer() != null);
+        if (online) {
+            TopicsPeer peer = peer(args, chain);
+            JsonNode config = peer.get("/topics/config");
+            if (!config.path("enabled").asBoolean(false)) {
+                throw TopicPlan.guidance("chain " + chain + " has no topic registry; seal it with a topics: block");
+            }
+            List<String> names = TopicNames.applicableNames(namespace);
+            for (String name : names.subList(0, names.size() - 1)) {
+                JsonNode entry = peer.optional("/topics/entries/" + TopicsPeer.segment(name));
+                if (entry != null && entry.path("active").isObject()) authority = name;
+            }
+            JsonNode settings = config.path("config").path("settings");
+            if ("governance".equals(authority) && names.size() == 1) {
+                if (settings.path("registrars").isObject()) authority = TopicWire.AUTHORITY_REGISTRARS;
+                else if (settings.path("openClaims").asBoolean(false)) authority = TopicWire.AUTHORITY_CLAIM;
+            }
+        }
         ObjectNode document = TopicPlan.JSON.createObjectNode();
         document.put("schemaVersion", 1).put("kind", "Topics")
-                .put("chainId", defaults.chain() != null ? defaults.chain() : "REPLACE_CHAIN_ID");
+                .put("chainId", chain != null ? chain : "REPLACE_CHAIN_ID");
         ObjectNode command = document.putArray("commands").addObject();
-        command.put("target", namespace).put("operation", "create").put("authority", "governance");
+        command.put("target", namespace).put("operation", "create").put("authority", authority);
         byte[] nonce = new byte[16];
         new SecureRandom().nextBytes(nonce);
         command.put("nonce", Hex.encode(nonce));
-        command.putObject("owners").put("threshold", 1).putArray("keys").add("REPLACE_OWNER_PUBLIC_KEY");
+        if (!"governance".equals(authority)) command.put("notAfter", System.currentTimeMillis() + 3_600_000);
+        command.putObject("owners").put("threshold", 1).putArray("keys").add(owner);
         command.putObject("policy").put("writers", "open").put("schema", "none");
         Path path = Path.of(args.options().getOrDefault("output", "topics.yaml"));
         Files.writeString(path, TopicPlan.YAML.writeValueAsString(document), StandardCharsets.UTF_8,
                 StandardOpenOption.CREATE_NEW);
-        return TopicPlan.JSON.createObjectNode().put("written", path.toString()).put("kind", "Topics");
+        return TopicPlan.JSON.createObjectNode().put("written", path.toString()).put("kind", "Topics")
+                .put("authority", authority).put("ownerKnown", !owner.startsWith("REPLACE"))
+                .put("chainKnown", chain != null);
+    }
+
+    /** The public key of a seed file; the seed is never printed. */
+    private JsonNode publicKey(Arguments args) throws IOException {
+        args.only(Set.of("key-file"), args.fileArgument("key-file"));
+        try (FileSigner signer = new FileSigner(Path.of(args.file("key-file")))) {
+            return TopicPlan.JSON.createObjectNode().put("publicKey", signer.publicKey());
+        }
     }
 
     private JsonNode plan(Arguments args) throws IOException {
@@ -197,7 +336,9 @@ public final class TopicsCli {
         ArrayNode commands = (ArrayNode) plan.get("commands");
         if (selected != null && selected >= commands.size()) throw TopicPlan.invalid("command index outside plan");
         int signed = 0;
+        String signerId;
         try (FileSigner signer = new FileSigner(Path.of(args.required("key-file")))) {
+            signerId = signer.publicKey().substring(0, 16);
             for (int index = 0; index < commands.size(); index++) {
                 if (selected != null && selected != index) continue;
                 ObjectNode command = (ObjectNode) commands.get(index);
@@ -219,7 +360,14 @@ public final class TopicsCli {
                 signed++;
             }
         }
-        if (signed == 0) throw TopicPlan.invalid("key is not an authority for any selected registry command");
+        if (signed == 0) {
+            List<String> expected = new ArrayList<>();
+            commands.forEach(command -> TopicPlan.keyList(command.path("requiredSigners").path("keys"))
+                    .forEach(key -> expected.add(key.substring(0, 16))));
+            throw TopicPlan.guidance("this key (" + signerId + ") is not a signer of any command in the plan"
+                    + (expected.isEmpty() ? "" : "; it needs " + String.join(", ", expected.stream().distinct()
+                    .toList())));
+        }
         return TopicPlan.validate(plan);
     }
 
@@ -249,8 +397,12 @@ public final class TopicsCli {
                         || !TopicPlan.equivalent(command.path("before"), fresh.path("before"))) {
                     throw TopicPlan.invalid("TOPIC_COMMAND_STALE");
                 }
-                if (command.path("signatures").size() < command.path("requiredSigners").path("threshold").intValue()) {
-                    throw TopicPlan.invalid("owner threshold is not met");
+                int missing = command.path("requiredSigners").path("threshold").intValue()
+                        - command.path("signatures").size();
+                if (missing > 0) {
+                    throw TopicPlan.invalid(command.path("target").asText() + " needs " + missing + " more "
+                            + (missing == 1 ? "signature" : "signatures") + "; each remaining signer runs  "
+                            + "yano.sh appchain topics sign <plan> --key-file <seed file>");
                 }
             }
         }
@@ -271,6 +423,7 @@ public final class TopicsCli {
             }
         }
         ObjectNode result = TopicPlan.JSON.createObjectNode();
+        result.put("chainId", before.chainId());
         result.set("commands", results);
         return result;
     }
@@ -336,18 +489,28 @@ public final class TopicsCli {
         String output = args.options().get("output");
         switch (action) {
             case "init" -> {
-                out.println("✓ Wrote " + result.path("written").asText() + " (create " + args.positionals().getFirst()
-                        + ", member vote)");
-                next(out, "edit it: replace REPLACE_OWNER_PUBLIC_KEY with the owners' public keys"
-                                + (defaults.chain() == null ? " and REPLACE_CHAIN_ID with the chain id" : "")
-                                + ", and set the writer policy;",
-                        "then run  yano.sh appchain topics plan " + result.path("written").asText());
+                String authority = result.path("authority").asText();
+                out.println("✓ Wrote " + result.path("written").asText() + ": create " + args.positionals().getFirst()
+                        + " by " + authorityWords(authority));
+                List<String> edits = new ArrayList<>();
+                if (!result.path("ownerKnown").asBoolean()) edits.add("the owners' public keys");
+                if (!result.path("chainKnown").asBoolean()) edits.add("the chain id");
+                edits.add("the writer policy");
+                next(out, "check " + String.join(", ", edits) + " in it" + (result.path("ownerKnown").asBoolean()
+                                ? "" : " (topics public-key <seed file> prints a key)") + ", then run  "
+                                + "yano.sh appchain topics plan " + result.path("written").asText());
             }
+            case "public-key" -> out.println(result.path("publicKey").asText());
             case "plan" -> {
-                Path file = Path.of(output != null ? output : stem(args.file("file"), ".yaml", ".yml") + ".plan.json");
-                // An unsigned plan is recomputed from its document; replacing one loses nothing. Signed plans are
-                // separate files.
-                Files.writeString(file, serialized, StandardCharsets.UTF_8);
+                Path file = Path.of(output != null ? output
+                        : stem(args.file("file"), ".yaml", ".yml", ".json") + ".plan.json");
+                // An unsigned plan is recomputed from its document, so replacing one loses nothing; any other file
+                // (a signed plan, a key, a link) is never replaced.
+                if (Files.exists(file, LinkOption.NOFOLLOW_LINKS) && !unsignedPlan(file)) {
+                    throw TopicPlan.guidance(file.getFileName() + " exists and is not an unsigned plan; remove it "
+                            + "or pass --output <file>");
+                }
+                replace(file, serialized);
                 out.println("✓ Wrote " + file + " for chain " + result.path("snapshot").path("chainId").asText()
                         + " at block " + result.path("snapshot").path("height").asLong());
                 boolean votes = false;
@@ -359,8 +522,9 @@ public final class TopicsCli {
                         votes = true;
                     } else {
                         JsonNode signers = command.path("requiredSigners");
-                        out.println(what + ": " + signers.path("threshold").asInt() + " of "
-                                + keyIds(signers.path("keys")) + " must sign (authority "
+                        int needed = signers.path("threshold").asInt();
+                        out.println(what + ": " + needed + (needed == 1 ? " signature" : " signatures")
+                                + " needed from " + keyIds(signers.path("keys")) + " (authority "
                                 + command.path("authority").asText() + ")");
                         signatures = true;
                     }
@@ -386,10 +550,7 @@ public final class TopicsCli {
                     throw TopicPlan.guidance(file.getFileName() + " already exists; sign that file instead, or "
                             + "remove it");
                 }
-                Path temporary = Files.createTempFile(file.toAbsolutePath().getParent(), ".topics-", ".json");
-                Files.writeString(temporary, serialized, StandardCharsets.UTF_8);
-                Files.move(temporary, file, java.nio.file.StandardCopyOption.REPLACE_EXISTING,
-                        java.nio.file.StandardCopyOption.ATOMIC_MOVE);
+                replace(file, serialized);
                 out.println("✓ Signed " + file);
                 boolean complete = true;
                 for (JsonNode command : result.path("commands")) {
@@ -420,6 +581,12 @@ public final class TopicsCli {
                         : "it takes effect after the chain's activation lag; check with  yano.sh appchain topics "
                         + "resolve " + firstTopic(result));
             }
+            case "resolve" -> {
+                JsonNode outcome = result.path("outcome");
+                out.println(args.positionals().getFirst() + " → " + outcomeWords(outcome));
+                out.println("  proof: topic-policy-v1 at the node's parent root (trust: "
+                        + result.path("trust").asText() + "); pass --json for the proof");
+            }
             default -> {
                 if (output != null) {
                     Files.writeString(Path.of(output), serialized, StandardCharsets.UTF_8,
@@ -428,6 +595,57 @@ public final class TopicsCli {
                 } else out.print(serialized);
             }
         }
+    }
+
+    /** An effective outcome in words: who may write, the schema and the size limit, and where it comes from. */
+    static String outcomeWords(JsonNode outcome) {
+        String kind = outcome.path("kind").asText();
+        return switch (kind) {
+            case "DISABLED" -> "topic policies are off on this chain; anyone the members accept may write";
+            case "UNREGISTERED_OPEN" -> "no namespace covers it; anyone the members accept may write";
+            case "UNREGISTERED_REJECT" -> "no namespace covers it, and this chain refuses such topics";
+            default -> {
+                JsonNode policy = outcome.path("policy");
+                JsonNode keys = policy.path("writers").path("keys");
+                String writers = keys.isObject() ? keys.path("threshold").asInt() + " of "
+                        + keyIds(keys.path("keys")) + " sign each write" : "anyone may write";
+                String schema = policy.path("schema").asText("").isEmpty() ? "no schema"
+                        : "schema " + policy.path("schema").asText().substring(0, 16) + "…";
+                List<String> from = new ArrayList<>();
+                outcome.path("sources").forEach(source -> from.add(source.path("name").asText() + " r"
+                        + source.path("revision").asLong()));
+                yield (policy.path("retired").asBoolean(false) ? "RETIRED; " : "") + writers + ", " + schema
+                        + ", up to " + policy.path("maxPayloadBytes").asLong() + " bytes"
+                        + (from.isEmpty() ? "" : " (from " + String.join(", ", from) + ")");
+            }
+        };
+    }
+
+    private static boolean unsignedPlan(Path file) {
+        try {
+            JsonNode plan = read(file.toString(), false);
+            if (!TopicPlan.KIND.equals(plan.path("kind").asText())) return false;
+            for (JsonNode command : plan.path("commands")) if (!command.path("signatures").isEmpty()) return false;
+            return true;
+        } catch (IOException | RuntimeException unreadable) {
+            return false;
+        }
+    }
+
+    /** Writes owner-only next to the target and moves it into place, never through a link. */
+    private static void replace(Path file, String content) throws IOException {
+        Path temporary = Files.createTempFile(file.toAbsolutePath().getParent(), ".topics-", ".json");
+        Files.writeString(temporary, content, StandardCharsets.UTF_8);
+        Files.move(temporary, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+    }
+
+    private static String authorityWords(String authority) {
+        return switch (authority) {
+            case "governance" -> "member vote";
+            case TopicWire.AUTHORITY_REGISTRARS -> "registrar signatures (~registrars)";
+            case TopicWire.AUTHORITY_CLAIM -> "a first-come claim (~claim), signed by its new owners";
+            default -> "the owners of " + authority;
+        };
     }
 
     private static String firstTopic(JsonNode result) {
@@ -503,7 +721,9 @@ public final class TopicsCli {
 
     static JsonNode read(String file, boolean yaml) throws IOException {
         Path path = Path.of(file);
-        if (!Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)) throw new IOException("not a regular input file");
+        if (!Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)) {
+            throw new NoSuchFileException(file, null, "not a regular file");
+        }
         try (InputStream input = Files.newInputStream(path, LinkOption.NOFOLLOW_LINKS)) {
             return TopicPlan.read(input.readNBytes(TopicPlan.MAX_FILE_BYTES + 1), yaml);
         }
@@ -535,10 +755,43 @@ public final class TopicsCli {
         return result;
     }
 
+    /** What went wrong with a file or the node; a parser's message, which may quote the file, is not repeated. */
+    private static String ioReason(IOException failure) {
+        if (failure instanceof TopicsPeer.Refusal refusal) return "The node refused it: " + explain(refusal.code());
+        if (failure instanceof FileAlreadyExistsException exists) {
+            return exists.getFile() + " already exists; edit it, or pass --output <file>";
+        }
+        if (failure instanceof NoSuchFileException missing) return "No file " + missing.getFile();
+        if (failure instanceof JsonProcessingException parse) {
+            var where = parse.getLocation();
+            return "The file is not valid JSON or YAML" + (where == null ? ""
+                    : " (line " + where.getLineNr() + ", column " + where.getColumnNr() + ")");
+        }
+        String message = failure.getMessage();
+        return "Topic file or node request failed: " + (message == null ? failure.getClass().getSimpleName()
+                : message) + ". Check the path, the node (--peer) and the API credential.";
+    }
+
+    /** The host's refusal codes in words, with the code kept for searching. */
+    public static String explain(String reason) {
+        if (reason == null) return "no reason given";
+        String code = reason.replaceAll(":.*", "");
+        String words = switch (code) {
+            case "TOPIC_COMMAND_STALE" -> "the chain changed since this plan was made; plan it again and collect "
+                    + "new signatures";
+            case "TOPIC_COMMAND_EXPIRED" -> "the plan's notAfter has passed or lies beyond the chain's command "
+                    + "window; plan it again with a fresh notAfter";
+            case "TOPIC_COMMAND_PENDING" -> "a change to this target is still waiting to activate; plan again "
+                    + "once it is in effect";
+            default -> null;
+        };
+        return words == null ? reason : words + " (" + reason + ")";
+    }
+
     private static String safeReason(RuntimeException failure) {
         String message = failure.getMessage();
-        if (failure instanceof TopicPlan.Guidance) return message;
-        if (message != null && message.matches("TOPIC_[A-Z_]+")) return message;
+        if (failure instanceof TopicPlan.Guidance) return explain(message);
+        if (message != null && message.matches("TOPIC_[A-Z_]+")) return explain(message);
         return "Use 'appchain topics --help' for the format; no input values were logged.";
     }
 
@@ -565,20 +818,24 @@ public final class TopicsCli {
         }
     }
 
+    private static final String SEED_FORMAT = "the key file is not an Ed25519 seed (64 lowercase hex characters)";
+
     private static final class FileSigner implements TopicAuthoring.Signer, AutoCloseable {
         private final byte[] seed;
         private final String publicKey;
 
         FileSigner(Path file) throws IOException {
-            if (!Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS)) throw new IOException("not a key file");
+            if (!Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS)) {
+                throw new NoSuchFileException(file.toString(), null, "not a regular file");
+            }
             byte[] encoded;
             try (InputStream input = Files.newInputStream(file, LinkOption.NOFOLLOW_LINKS)) {
                 encoded = input.readNBytes(131);
             }
             try {
-                if (encoded.length > 130) throw TopicPlan.invalid("invalid key file");
+                if (encoded.length > 130) throw TopicPlan.invalid(SEED_FORMAT);
                 String hex = new String(encoded, StandardCharsets.US_ASCII).strip();
-                if (!hex.matches("[0-9a-f]{64}")) throw TopicPlan.invalid("invalid key file");
+                if (!hex.matches("[0-9a-f]{64}")) throw TopicPlan.invalid(SEED_FORMAT);
                 seed = Hex.decode(hex);
                 publicKey = Hex.encode(KeyGenUtil.getPublicKeyFromPrivateKey(seed));
             } finally {

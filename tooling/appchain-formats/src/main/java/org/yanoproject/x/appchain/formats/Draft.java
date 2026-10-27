@@ -124,8 +124,8 @@ public record Draft(
         public String summary() {
             String who = switch (create) {
                 case "members" -> "namespaces created by member vote";
-                case "registrars" -> "namespaces created by " + (registrarThreshold > 1 ? registrarThreshold + " of " : "")
-                        + String.join(", ", registrars);
+                case "registrars" -> "namespaces created by " + (registrarThreshold > 1
+                        ? registrarThreshold + " of " : "") + String.join(", ", registrars) + " or by member vote";
                 default -> "namespaces claimed first-come by anyone";
             };
             return who + "; unregistered topics " + ("reject".equals(unregistered) ? "refused" : "open");
@@ -180,7 +180,8 @@ public record Draft(
             for (String registrar : chain.topics().registrars()) {
                 if (!registrar.matches("[0-9a-f]{64}") && !operators.contains(registrar)) {
                     throw new FormatException("Chain '" + chain.id() + "' registrar '" + registrar
-                            + "' is neither an operator (" + String.join(", ", operators) + ") nor a 64-hex public key");
+                            + "' is neither an operator (" + String.join(", ", operators)
+                            + ") nor a 64-hex public key");
                 }
             }
         }
@@ -239,6 +240,10 @@ public record Draft(
                 if (every < 1) throw new FormatException("anchor every-blocks must be at least 1");
                 anchor = new Anchor(mode, every);
             }
+            if (chain.has("topics") && chain.get("topics").isNull()) {
+                throw new FormatException("Chain '" + chain.path("id").asText() + "' has an empty topics: block; "
+                        + "write {create: members} or remove it");
+            }
             Topics topics = chain.hasNonNull("topics") ? topics(chain.get("topics")) : null;
             chains.add(new Chain(
                     text(chain, "id"),
@@ -281,8 +286,8 @@ public record Draft(
         }
         List<String> registrars = strings(object.path("registrars"));
         JsonNode threshold = object.path("registrar-threshold");
-        if (!threshold.isMissingNode() && !threshold.isIntegralNumber()) {
-            throw new FormatException("registrar-threshold must be a whole number");
+        if (!threshold.isMissingNode() && (!threshold.isIntegralNumber() || !threshold.canConvertToInt())) {
+            throw new FormatException("registrar-threshold must be a whole number between 1 and 16");
         }
         return new Topics(object.hasNonNull("create") ? object.get("create").asText() : null, registrars,
                 threshold.isMissingNode() ? (registrars.isEmpty() ? 0 : 1) : threshold.asInt(),

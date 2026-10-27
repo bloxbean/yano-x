@@ -71,7 +71,10 @@ test('An imported topics.yaml is checked and its handoff follows its authorities
     buffer: Buffer.from(document)});
   await expect(page.locator('#notice')).toHaveText('Imported retire.yaml.');
   await expect(page.getByLabel('Chain ID')).toHaveValue('arcade');
-  await expect(page.locator('#next-steps')).toContainText('topics submit topics.signed.json');
+  await expect(page.locator('#next-steps')).toContainText('topics submit retire.signed.json');
+  const downloadEvent = page.waitForEvent('download');
+  await page.getByRole('button', {name: 'Download retire.yaml'}).click();
+  expect((await downloadEvent).suggestedFilename()).toBe('retire.yaml');
 
   await page.locator('#yaml-file').setInputFiles({name: 'bad.yaml', mimeType: 'text/yaml',
     buffer: Buffer.from(document.replace('kind: Topics', 'kind: Blueprint'))});
