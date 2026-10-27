@@ -108,7 +108,7 @@ public final class TopicPlan {
             PolicySource policy = policy(command.get("policy"));
             if ("governance".equals(authority)) {
                 if (snapshot.config() == null || !snapshot.config().settings().governance()) {
-                    throw invalid("topic governance is not enabled");
+                    throw invalid(NO_REGISTRY + " (or member votes are off for it)");
                 }
                 TopicWire.GovernanceOperation change = switch (operation) {
                     case "create" -> {
@@ -124,7 +124,7 @@ public final class TopicPlan {
                 step.put("mode", "governance").put("commandHex", Hex.encode(TopicWireCodec.encodeGovernanceCommand(wire)));
                 step.put("endpoint", "admin/topics/governance");
             } else {
-                if (snapshot.config() == null) throw invalid("topics are disabled");
+                if (snapshot.config() == null) throw invalid(NO_REGISTRY);
                 Operation change = switch (operation) {
                     case "create" -> new TopicWire.Create(keys(command.get("owners")), policy.policy(), policy.ir());
                     case "update" -> new TopicWire.Update(policy.policy(), policy.ir());
@@ -280,7 +280,7 @@ public final class TopicPlan {
         }
         boolean ownerChange = Set.of("create", "rotate", "recover").contains(operation);
         boolean policyChange = Set.of("create", "update").contains(operation);
-        String target = command.path("target").asText("?");
+        String target = safe(command.path("target").asText("?"));
         if (command.has("owners") != ownerChange) {
             throw invalid(target + ": " + operation + (ownerChange ? " needs owners: {threshold, keys}"
                     : " does not change owners; remove owners"));
@@ -314,7 +314,13 @@ public final class TopicPlan {
         return List.copyOf(result);
     }
 
+    /** Why a chain has no committed topic registry: sealed without one, or no block made yet. */
+    static final String NO_REGISTRY = "the chain has no committed topic registry yet: a chain sealed with a topics: "
+            + "block has it from its first block (send a message, or pass --heartbeat to approve or submit), "
+            + "otherwise seal the application with one";
+
     static KeySet keys(JsonNode node) {
+        if (node == null || !node.isObject()) throw invalid("owners, writers and registrars are {threshold, keys}");
         fields(node, Set.of("threshold", "keys"));
         List<String> keys = keyList(node.get("keys"));
         return new KeySet(Math.toIntExact(number(node, "threshold", 1)), keys);
@@ -337,8 +343,10 @@ public final class TopicPlan {
         TopicWire.Writers writers = null;
         if (node.hasNonNull("writers")) {
             JsonNode value = node.get("writers");
-            writers = value.isTextual() && "open".equals(value.textValue())
-                    ? TopicWire.Writers.OPEN : new TopicWire.Writers(keys(value));
+            if (value.isTextual() && !"open".equals(value.textValue())) {
+                throw invalid("writers is 'open' (anyone) or {threshold, keys} (who signs each write)");
+            }
+            writers = value.isTextual() ? TopicWire.Writers.OPEN : new TopicWire.Writers(keys(value));
         }
         byte[] ir = null;
         String schema = null;
@@ -408,6 +416,15 @@ public final class TopicPlan {
     static boolean equivalent(JsonNode left, JsonNode right) {
         return left.equals((first, second) -> first.isIntegralNumber() && second.isIntegralNumber()
                 ? first.bigIntegerValue().compareTo(second.bigIntegerValue()) : first.equals(second) ? 0 : 1, right);
+    }
+
+    /**
+     * A name or value for a message: shown unless it could be key material (a long run of hex digits) or is
+     * unreasonably long. A valid topic name is not by itself safe to print.
+     */
+    static String safe(String value) {
+        if (value == null || value.length() > 128 || value.matches("(?s).*[0-9a-fA-F]{24}.*")) return "(not shown)";
+        return value;
     }
 
     /** Every refusal of this tool: its text is the tool's own and names fields and ids, never values. */

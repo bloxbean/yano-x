@@ -7,10 +7,12 @@ import org.junit.jupiter.api.io.TempDir;
 
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
+import java.net.Socket;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -73,16 +75,44 @@ class UiCommandTest {
             }
             assertThat(post(base + "/api/run", Map.of("args", List.of("topics"))).path("error").asText())
                     .contains("not an allowed command");
+            // Only a member-vote plan is kept; anything else never lands in the work directory.
             assertThat(post(base + "/api/upload", Map.of("name", "notes.plan.json", "content", "{\"kind\":\"x\"}"))
-                    .path("error").asText()).contains("is not a topics plan");
-            assertThat(post(base + "/api/upload", Map.of("name", "vote.plan.json", "content",
-                    "{\"kind\":\"TopicsPlan\"}")).path("saved").asText()).isEqualTo("vote.plan.json");
-            // An unreadable plan is listed, not voted on.
+                    .path("error").asText()).contains("is not a member-vote topics plan");
+            assertThat(fixture.coordinator.resolve("notes.plan.json")).doesNotExist();
+            // A file already here is never replaced by an upload of other contents.
+            String draft = Files.readString(fixture.coordinator.resolve("demo.draft.yaml"));
+            assertThat(post(base + "/api/upload", Map.of("name", "demo.draft.yaml", "content", draft))
+                    .path("saved").asText()).isEqualTo("demo.draft.yaml");
+            assertThat(post(base + "/api/upload", Map.of("name", "demo.draft.yaml", "content", draft + "# edit\n"))
+                    .path("error").asText()).contains("already here with other contents");
+            assertThat(Files.readString(fixture.coordinator.resolve("demo.draft.yaml"))).isEqualTo(draft);
+            // A plan copied in by hand that does not check is listed as invalid, with its digest, not voted on.
+            Files.writeString(fixture.coordinator.resolve("vote.plan.json"), "{\"kind\":\"TopicsPlan\"}");
             JsonNode listed = JSON.readTree(get(base + "/api/state", TOKEN).body()).path("plans");
             assertThat(listed.get(0).path("file").asText()).isEqualTo("vote.plan.json");
+            assertThat(listed.get(0).path("kind").asText()).isEqualTo("invalid");
+            assertThat(listed.get(0).path("sha256").asText()).hasSize(64);
             assertThat(listed.get(0).has("votes")).isFalse();
+            // Only the files operators send each other can be downloaded.
+            assertThat(get(base + "/api/file?name=demo.draft.yaml", TOKEN).body()).isEqualTo(draft);
+            Files.writeString(fixture.coordinator.resolve("notes.txt"), "private");
+            assertThat(get(base + "/api/file?name=notes.txt", TOKEN).statusCode()).isEqualTo(404);
+            // A name that resolves elsewhere (DNS rebinding) is refused even with the token.
+            assertThat(rawStatus(server.getAddress().getPort(), "rebound.example.com")).isEqualTo(403);
+            assertThat(rawStatus(server.getAddress().getPort(), "localhost:" + server.getAddress().getPort()))
+                    .isEqualTo(200);
         } finally {
             server.stop(0);
+        }
+    }
+
+    /** A state request with a chosen Host header, which the JDK client will not send. */
+    private static int rawStatus(int port, String host) throws Exception {
+        try (Socket socket = new Socket("127.0.0.1", port)) {
+            socket.getOutputStream().write(("GET /api/state HTTP/1.1\r\nHost: " + host + "\r\nX-UI-Token: " + TOKEN
+                    + "\r\nConnection: close\r\n\r\n").getBytes(StandardCharsets.US_ASCII));
+            String status = new String(socket.getInputStream().readNBytes(12), StandardCharsets.US_ASCII);
+            return Integer.parseInt(status.substring(9, 12));
         }
     }
 

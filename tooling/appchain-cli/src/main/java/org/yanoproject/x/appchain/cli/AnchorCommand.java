@@ -31,7 +31,7 @@ final class AnchorCommand {
         Args args = new Args(arguments, Set.of("chain", "node-dir", "ada", "timeout"),
                 Set.of("stop", "take-over", "yes"));
         args.maxPositionals(1, USAGE);
-        NodeDir node = new NodeDir(args.path("node-dir", Path.of(NodeDir.DEFAULT)));
+        NodeDir node = new NodeDir(args.path("node-dir", NodeDir.defaultDir()));
         SealedApp app = args.positional(0) == null ? node.onlyApp() : node.app(args.positional(0));
         SealedApp.Genesis genesis = app.genesis();
         List<String> ids = genesis.chains().stream().map(SealedApp.ChainGenesis::id).toList();

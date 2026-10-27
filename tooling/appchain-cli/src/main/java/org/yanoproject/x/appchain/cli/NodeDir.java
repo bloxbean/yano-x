@@ -25,6 +25,12 @@ import java.util.TreeMap;
  */
 final class NodeDir {
     static final String DEFAULT = "yano-node";
+
+    /** {@code ./yano-node}, or the current directory when the operator runs commands from inside their node. */
+    static Path defaultDir() {
+        return !Files.isDirectory(Path.of(DEFAULT)) && Files.isRegularFile(Path.of("node.json")) ? Path.of(".")
+                : Path.of(DEFAULT);
+    }
     private static final ObjectMapper JSON = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
     private static final Set<PosixFilePermission> OWNER_ONLY = PosixFilePermissions.fromString("rw-------");
 

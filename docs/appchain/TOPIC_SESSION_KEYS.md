@@ -23,8 +23,11 @@ read a node API credential from an environment variable.
 
 `init` reads the chain and picks who must approve: a top-level name follows the
 chain's creation policy (a member vote, `~registrars` or `~claim`), and a name
-under an existing namespace is signed by that namespace's owners, with a
-`notAfter` one hour ahead. Check the owners and policy in `topics.yaml`, keep its
+under an existing namespace is signed by that namespace's owners, and a name that
+already exists gets an `update` by its own owners. A signed change gets a
+`notAfter` that fits the chain's command window. Outside a node directory, and
+without `--peer` and `--chain`, `init` cannot read the chain and says the
+authority is a guess. Check the owners and policy in `topics.yaml`, keep its
 generated nonce, then:
 
 ```bash
@@ -44,12 +47,19 @@ yes (`--yes` in scripts, after checking it). Each vote goes through that
 operator's own node; no tool votes on a member's behalf. It then waits until
 enough operators have voted and the activation lag has passed, and prints
 `create games/ … is in effect`. A chain makes blocks only from messages: on an
-idle chain pass `--heartbeat`, or send traffic. `approve` never votes twice, so
-run it again at any time to see where a vote stands; `--no-wait` returns after
-voting.
+idle chain pass `--heartbeat`, or send traffic. `--no-wait` returns after
+voting, and `--plan-sha256 <digest>` refuses a plan file whose bytes changed
+since you checked it.
+
+`approve` never votes twice, so run it again at any time to see where a vote
+stands. The node records every vote it casts under `yano-node/topic-votes/`, so
+a vote still waiting for a block, or one the chain refused, is not sent again.
+A vote that never counted (it expired before enough operators voted) is
+reported as lapsed; vote again with `--again`.
 
 On a chain sealed with `create: registrars`, a top-level name is created with
-`authority: ~registrars` and signed instead of voted. A registrar named by
+`authority: ~registrars` and signed instead of voted; the members can still
+create or recover one by vote. A registrar named by
 operator in the draft signs with that operator's member key
 (`yano-node/secrets/member.key`), which is also the node's consensus key; to keep
 them apart, name a separate public key under `registrars:` instead. With

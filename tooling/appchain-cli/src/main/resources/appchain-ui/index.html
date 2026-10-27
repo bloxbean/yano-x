@@ -22,20 +22,20 @@
       <div><strong>Yano App-Chain</strong><span>Setup</span></div>
     </div>
     <ol class="stepper" id="stepper" aria-label="Setup progress">
-      <li data-step="create"><span class="dot"></span><span class="label">Create</span></li>
-      <li data-step="cards"><span class="dot"></span><span class="label">Member cards</span></li>
-      <li data-step="seal"><span class="dot"></span><span class="label">Seal</span></li>
-      <li data-step="join"><span class="dot"></span><span class="label">Join</span></li>
-      <li data-step="live"><span class="dot"></span><span class="label">Live</span></li>
+      <li><span class="dot" aria-hidden="true"></span><span class="label">Draft</span><span class="sr-only state"></span></li>
+      <li><span class="dot" aria-hidden="true"></span><span class="label">Members</span><span class="sr-only state"></span></li>
+      <li><span class="dot" aria-hidden="true"></span><span class="label">Sealed</span><span class="sr-only state"></span></li>
+      <li><span class="dot" aria-hidden="true"></span><span class="label">Starting</span><span class="sr-only state"></span></li>
+      <li><span class="dot" aria-hidden="true"></span><span class="label">Live</span><span class="sr-only state"></span></li>
     </ol>
-    <div class="node-pill" id="node-pill"><span class="status-dot"></span><span id="node-badge">No node yet</span></div>
+    <a class="node-pill" id="node-pill" href="#node"><span class="status-dot" aria-hidden="true"></span><span id="node-badge">No node yet</span></a>
   </header>
 
   <div class="layout">
     <main id="flow" class="flow">
       <section class="hero">
         <h1 id="hero-title">Set up an app chain with your partners</h1>
-        <p id="hero-text">Every button runs the same <code>yano.sh appchain</code> command shown beside it, in
+        <p id="hero-text">Every button runs the same <code>yano.sh appchain</code> command shown with it, in
           <code id="work-dir">…</code>. Private keys stay in the node directory and never reach this page.</p>
         <p id="problems" class="banner bad" hidden></p>
       </section>
@@ -52,10 +52,11 @@
           <summary>New application</summary>
           <form id="create-form" class="form">
             <label>Application name
-              <input name="name" required pattern="[a-z][a-z0-9-]{0,62}" placeholder="supply" autocomplete="off"></label>
+              <input name="name" required pattern="[a-z][a-z0-9\-]{0,62}" placeholder="supply" autocomplete="off"
+                title="Lower-case letters, digits and dashes, starting with a letter"></label>
             <label>Cardano network
               <select name="network">
-                <option value="devnet">devnet: a local test network the lead creates</option>
+                <option value="devnet">devnet (local, made by the lead)</option>
                 <option value="preview">preview</option><option value="preprod">preprod</option>
                 <option value="mainnet">mainnet</option>
               </select></label>
@@ -87,10 +88,10 @@
             <p class="sub">Each operator makes a key and a member card; the coordinator seals the draft once every card is in.</p></div>
           <span class="role">Every operator</span>
         </header>
-        <div id="drafts"></div>
-        <label class="drop">
+        <div id="drafts"><p class="empty">Loading…</p></div>
+        <label class="drop" id="upload-drop">
           <input type="file" id="upload" accept=".yaml,.member,.chain,.json">
-          <span>Add a draft, member card, sealed file or topics plan you received</span>
+          <span>Drop or choose a draft, member card, sealed file or topics plan you received</span>
         </label>
       </section>
 
@@ -102,7 +103,7 @@
             <p class="sub">On a call, everyone reads out the chain fingerprint and their key id. Join only when they match.</p></div>
           <span class="role">Every operator</span>
         </header>
-        <div id="sealed"></div>
+        <div id="sealed"><p class="empty">Loading…</p></div>
       </section>
 
       <section class="card" id="live" aria-labelledby="node-title">
@@ -111,8 +112,13 @@
           <div><h2 id="node-title">Live applications</h2>
             <p class="sub">What this node runs, whether every member agrees, and what to do next.</p></div>
         </header>
-        <div id="apps"></div>
+        <div id="apps"><p class="empty">Loading…</p></div>
       </section>
+
+      <details class="history" id="history" hidden>
+        <summary>Setup history: drafts, member cards and the sealed file</summary>
+        <div id="history-slot"></div>
+      </details>
 
       <section class="card subtle" aria-labelledby="bindings-title">
         <header class="card-head">
@@ -134,7 +140,7 @@
       </section>
       <section class="card console" aria-labelledby="log-title">
         <div class="console-head"><h2 id="log-title">Activity</h2><button type="button" class="ghost tiny" id="clear-log">Clear</button></div>
-        <div id="log" aria-live="polite"><p class="empty">Commands you run appear here with their output.</p></div>
+        <div id="log"><p class="empty">Commands you run appear here with their output.</p></div>
       </section>
     </aside>
   </div>

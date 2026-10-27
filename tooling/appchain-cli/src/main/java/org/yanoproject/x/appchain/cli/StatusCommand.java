@@ -46,7 +46,7 @@ final class StatusCommand {
         args.maxPositionals(1, USAGE);
         String target = args.positional(0);
         if (target != null && target.endsWith(".draft.yaml")) return draft(Path.of(target), args.flag("json"));
-        NodeDir node = new NodeDir(args.path("node-dir", Path.of(NodeDir.DEFAULT)));
+        NodeDir node = new NodeDir(args.path("node-dir", NodeDir.defaultDir()));
         String wait = args.value("wait");
         if (wait != null && !"live".equals(wait)) throw CliException.usage("--wait accepts only 'live'");
         long deadline = System.currentTimeMillis() + 1000L * (args.integer("timeout") == null ? 600

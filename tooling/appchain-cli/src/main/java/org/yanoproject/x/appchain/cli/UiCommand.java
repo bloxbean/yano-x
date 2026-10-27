@@ -1,5 +1,6 @@
 package org.yanoproject.x.appchain.cli;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -9,17 +10,20 @@ import com.sun.net.httpserver.HttpServer;
 import org.yanoproject.x.appchain.formats.Draft;
 import org.yanoproject.x.appchain.formats.MemberCard;
 import org.yanoproject.x.appchain.formats.SealedApp;
-import org.yanoproject.x.devtools.TopicsCli;
 import org.yanoproject.x.devtools.AppChainSealResolver;
+import org.yanoproject.x.devtools.TopicsCli;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.PrintStream;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
@@ -45,6 +49,8 @@ final class UiCommand {
     /** The page may only vote on a topics plan; planning and signing stay with their owners' keys. */
     private static final Set<String> TOPIC_ACTIONS = Set.of("approve");
     private static final Pattern FILE_NAME = Pattern.compile("[A-Za-z0-9][A-Za-z0-9._-]{0,120}");
+    private static final Pattern SHAREABLE = Pattern.compile(
+            ".*\\.(draft\\.yaml|bindings\\.yaml|member|chain|plan\\.json|signed\\.json)");
     private static final Map<String, String> TYPES = Map.of("html", "text/html; charset=utf-8",
             "mjs", "text/javascript; charset=utf-8", "js", "text/javascript; charset=utf-8",
             "css", "text/css; charset=utf-8", "json", "application/json", "yaml", "application/yaml",
@@ -100,6 +106,13 @@ final class UiCommand {
             exchange.getResponseHeaders().set("X-Content-Type-Options", "nosniff");
             exchange.getResponseHeaders().set("Referrer-Policy", "no-referrer");
             if (path.startsWith("/api/")) {
+                // The token header already stops other sites; a loopback Host also refuses a rebound name.
+                String host = String.valueOf(exchange.getRequestHeaders().getFirst("Host"));
+                int port = exchange.getLocalAddress().getPort();
+                if (!host.equals("127.0.0.1:" + port) && !host.equals("localhost:" + port)) {
+                    send(exchange, 403, "application/json", "{\"error\":\"open the address the ui command printed\"}");
+                    return;
+                }
                 byte[] presented = String.valueOf(exchange.getRequestHeaders().getFirst("X-UI-Token"))
                         .getBytes(StandardCharsets.UTF_8);
                 if (!MessageDigest.isEqual(presented, token.getBytes(StandardCharsets.UTF_8))) {
@@ -116,6 +129,15 @@ final class UiCommand {
     }
 
     private void api(HttpExchange exchange, String route, Path work, Path nodeDir) throws IOException {
+        try {
+            route(exchange, route, work, nodeDir);
+        } catch (JsonProcessingException malformed) {
+            // A parser message can quote the request; it is neither echoed nor logged.
+            sendJson(exchange, 400, JSON.createObjectNode().put("error", "the request or file is not valid JSON"));
+        }
+    }
+
+    private void route(HttpExchange exchange, String route, Path work, Path nodeDir) throws IOException {
         switch (route) {
             case "state" -> sendJson(exchange, 200, state(work, nodeDir));
             case "recipes" -> sendJson(exchange, 200, recipes());
@@ -140,21 +162,57 @@ final class UiCommand {
                     return;
                 }
                 String content = body.path("content").asText("");
-                if (name.endsWith(".member")) MemberCard.parse(content);
-                if (name.endsWith(".chain")) SealedApp.parse(content);
-                if (name.endsWith(".plan.json")
-                        && !"TopicsPlan".equals(JSON.readTree(content).path("kind").asText())) {
-                    sendJson(exchange, 400, JSON.createObjectNode().put("error", name + " is not a topics plan"));
+                Path target = work.resolve(name);
+                // A file already here is never silently replaced: a confirmation may be showing its contents.
+                if (Files.exists(target, LinkOption.NOFOLLOW_LINKS)) {
+                    if (Files.isRegularFile(target, LinkOption.NOFOLLOW_LINKS)
+                            && Files.readString(target).equals(content)) {
+                        sendJson(exchange, 200, JSON.createObjectNode().put("saved", name));
+                    } else {
+                        sendJson(exchange, 409, JSON.createObjectNode().put("error", name + " is already here with "
+                                + "other contents; rename the new file or remove the old one first"));
+                    }
                     return;
                 }
-                NodeDir.write(work.resolve(name), content);
+                if (name.endsWith(".member")) MemberCard.parse(content);
+                if (name.endsWith(".chain")) SealedApp.parse(content);
+                if (name.endsWith(".plan.json")) {
+                    // Only a plan that checks against its own compilation, with member votes, is kept.
+                    Path check = Files.createTempFile(work, ".upload-", ".plan.json");
+                    try {
+                        Files.writeString(check, content);
+                        TopicsCli.votes(check);
+                    } catch (IOException | IllegalArgumentException invalid) {
+                        sendJson(exchange, 400, JSON.createObjectNode().put("error", name + " is not a member-vote "
+                                + "topics plan" + (invalid instanceof IllegalArgumentException ? ": "
+                                + invalid.getMessage() : "")));
+                        return;
+                    } finally {
+                        Files.deleteIfExists(check);
+                    }
+                }
+                // Published with a hard link, which fails if the name exists: of two uploads racing for one name,
+                // the second gets 409 instead of silently replacing the first.
+                Path staged = Files.createTempFile(work, ".upload-", ".part");
+                try {
+                    Files.writeString(staged, content);
+                    Files.createLink(target, staged);
+                } catch (FileAlreadyExistsException taken) {
+                    sendJson(exchange, 409, JSON.createObjectNode().put("error", name + " was just added by another "
+                            + "upload; look at it before adding yours"));
+                    return;
+                } finally {
+                    Files.deleteIfExists(staged);
+                }
                 sendJson(exchange, 200, JSON.createObjectNode().put("saved", name));
             }
             case "file" -> {
                 String name = exchange.getRequestURI().getQuery() == null ? ""
                         : exchange.getRequestURI().getQuery().replaceFirst("^name=", "");
                 Path file = work.resolve(name);
-                if (!FILE_NAME.matcher(name).matches() || !Files.isRegularFile(file) || name.endsWith(".key")) {
+                // Only the files operators send each other, never through a link: no key or seed can leave.
+                if (!FILE_NAME.matcher(name).matches() || !SHAREABLE.matcher(name).matches()
+                        || !Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS)) {
                     send(exchange, 404, "text/plain", "no such file");
                     return;
                 }
@@ -232,28 +290,40 @@ final class UiCommand {
                                 .put("id", chain.id()).put("recipe", chain.recipe())
                                 .put("topics", Show.topics(app.genesis(), chain.settings())));
                     } else if (name.endsWith(".plan.json")) {
-                        ObjectNode entry = plans.addObject().put("file", name);
+                        // The digest binds a confirmation in the page to these exact bytes.
+                        // One read gives both, so the details shown are those of the bytes the digest names.
+                        byte[] bytes = TopicsCli.planBytes(file);
+                        ObjectNode entry = plans.addObject().put("file", name).put("sha256",
+                                TopicsCommand.sha256(bytes));
+                        List<TopicsCli.Vote> votes;
                         try {
-                            List<TopicsCli.Vote> votes = TopicsCli.votes(file);
-                            entry.put("chain", votes.getFirst().chainId());
-                            NodeDir voter = new NodeDir(nodeDir);
-                            boolean live = voter.identity() != null && Processes.running(voter);
-                            for (TopicsCli.Vote vote : votes) {
-                                ObjectNode item = entry.withArray("votes").addObject()
-                                        .put("operation", vote.operation()).put("target", vote.target());
-                                // Where this member's vote stands, as topics approve would report it.
-                                if (live) {
-                                    try {
-                                        item.put("progress", TopicsCommand.progress(NodeClient.local(voter),
-                                                "/api/v1/app-chain/chains/" + vote.chainId(), voter.publicKey(),
-                                                vote).name());
-                                    } catch (CliException unreadable) {
-                                        item.put("progress", "UNKNOWN"); // the page offers the vote; approve checks
-                                    }
+                            votes = TopicsCli.votes(bytes);
+                        } catch (IllegalArgumentException | IOException notVotes) {
+                            entry.put("kind", notVotes.getMessage() != null && notVotes.getMessage()
+                                    .contains("no member votes") ? "signed" : "invalid");
+                            continue;
+                        }
+                        entry.put("kind", "votes").put("chain", votes.getFirst().chainId());
+                        NodeDir voter = new NodeDir(nodeDir);
+                        boolean live = voter.identity() != null && Processes.running(voter);
+                        TopicsCommand quiet = new TopicsCommand(new Terminal(null, new PrintStream(
+                                OutputStream.nullOutputStream()), false), err);
+                        for (TopicsCli.Vote vote : votes) {
+                            ObjectNode item = entry.withArray("votes").addObject()
+                                    .put("operation", vote.operation())
+                                    .put("target", TopicsCli.safeTarget(vote.target()));
+                            TopicsCli.describe(vote).forEach(item.withArray("details")::add);
+                            // Where this member's vote stands, as topics approve would report it.
+                            if (live) {
+                                String path = "/api/v1/app-chain/chains/" + vote.chainId();
+                                try {
+                                    item.put("progress", quiet.new Ballot(NodeClient.local(voter), path,
+                                            voter.publicKey(), voter.path("topic-votes"),
+                                            TopicsCommand.messageLifetimeMs(voter)).standing(vote).name());
+                                } catch (CliException unreadable) {
+                                    item.put("progress", "UNKNOWN"); // the page still offers the vote; approve checks
                                 }
                             }
-                        } catch (IOException | IllegalArgumentException notVotes) {
-                            entry.put("signed", true); // owner-signed plans are submitted with the CLI
                         }
                     } else if (name.endsWith(".member")) {
                         MemberCard card = MemberCard.parse(Files.readString(file));

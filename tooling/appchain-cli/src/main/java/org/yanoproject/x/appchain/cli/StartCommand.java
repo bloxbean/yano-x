@@ -25,7 +25,7 @@ final class StartCommand {
     int run(String[] arguments) throws IOException {
         Args args = new Args(arguments, Set.of("node-dir", "timeout"), Set.of("foreground", "yes"));
         args.maxPositionals(0, USAGE);
-        NodeDir node = new NodeDir(args.path("node-dir", Path.of(NodeDir.DEFAULT)));
+        NodeDir node = new NodeDir(args.path("node-dir", NodeDir.defaultDir()));
         int timeout = args.integer("timeout") == null ? 300 : args.integer("timeout");
         boolean foreground = args.flag("foreground");
         if (!foreground && Service.installed(node)) {
@@ -121,7 +121,8 @@ final class StartCommand {
         NodeClient client = NodeClient.local(node);
         long deadline = System.currentTimeMillis() + timeoutSeconds * 1000L;
         while (System.currentTimeMillis() < deadline) {
-            if (client.ready()) {
+            // Only this node's own process may answer: a ready reply from a port someone else holds is not it.
+            if ((Service.installed(node) || Processes.running(node)) && client.ready()) {
                 Devnet.pinAfterStart(node);
                 terminal.ok("Node " + node.requireIdentity().name() + " is up at " + client.base());
                 if (showNext) terminal.next("yano.sh appchain status   (shows whether every member is online)");
