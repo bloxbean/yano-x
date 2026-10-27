@@ -44,7 +44,7 @@ Goals:
 
 Non-goals: no runtime, consensus, wire or storage change; no VM provisioning (ADR-039 stays);
 no change to `yano.sh appchain cluster`, the existing single-host demo launcher, in this ADR. Moving
-its users to the new commands and removing it is a decided follow-up (§5).
+its users to the new commands and removing it was a decided follow-up, done in r13 (§5, D14).
 
 ## 3. The user experience
 
@@ -199,7 +199,8 @@ Three identities, each with its own name in the tool:
   it is private to each node), and operators compare it on the same call as the chain fingerprint.
 - **Roster binding**: every reader of a `.chain` file checks that each chain's members, threshold,
   fixed proposer and chain id equal the sealed roster, and that no sealed value refers to the node's
-  environment (`${...}`); a draft cannot set those keys under `settings:`.
+  environment (`${...}`); a draft cannot set those keys, nor the state identity
+  (`state.genesis-id`, `state.format-fingerprint`, `state.commitment-profile`), under `settings:`.
 - **Effective runtime identity**: what a running node reports (`GET /api/v1/app-chain/chains`).
   `status` compares it across members, together with the Cardano network genesis id (on devnet it
   only exists after the lead's first start, so it is outside the fingerprint; see D11). The runtime
@@ -237,7 +238,7 @@ over the generated node settings, and `start` refuses it when it sets any sealed
 ### D5 — Membership changes are governed and quorum-safe
 
 New applications default to `membership: governed`. `approve` performs, on every chain of the
-application, the same procedure `cluster.sh` uses on one machine:
+application:
 
 1. Read the chain's active members and threshold.
 2. If the change would leave no safe quorum (for example 2-of-3 growing to four), first submit the
@@ -329,7 +330,7 @@ Yano.
 | `recipes`, `capabilities`, `bindings`, `state`, `role`, `plugin`, `metadata`, `config` | Kept. A role-approval chain's bootstrap plan template, once written by `render`, is now written by `seal` beside the sealed file |
 | Studio blueprint page | Removed in Phase A |
 | Studio binding editor | Kept until Phase C absorbs it |
-| `cluster` (the showcase's launcher) | Kept, but not listed in help, until the follow-up in §5 removes it |
+| `cluster` (the showcase's launcher), its stock template and `--template-contract builtin:cluster` | Removed in r13; the showcase and tutorials use the setup commands (D14) |
 
 For ADR-055: Phase 2's first need, deploying bindings without `init`, is met by the draft
 referencing a bindings document; its acceptance gates move to `appchain try`. Phase 3's Studio
@@ -412,8 +413,33 @@ and `status` shows the sync progress.
 - `join --yes` requires `--expect-fingerprint <fingerprint>`, so a script cannot skip the check.
 - `status` and `inspect` accept `--json`. `status --wait live --timeout 10m` blocks until the
   application is live.
-- `request --key <file>` uses an existing key.
+- `request --key <file>` uses an existing key; `anchor --key <file>` uses an existing funded wallet.
 - Exit codes: `0` success, `1` failure, `2` usage error, `3` not ready yet or timed out.
+
+### D14 — Templates, and the showcase on the setup commands (r13)
+
+- **Templates.** `new --from <template.yaml>` takes a template's chains (a draft without invite or
+  operators; any draft also works) into a draft with a fresh invite code. `--without <chain>` drops a
+  chain and `--setting <chain>.<key>=<value>` adds a sealed setting, so a script adjusts a template
+  without editing YAML. `try` forwards `--from`, `--setting` and `--without`.
+- **Plugin validators in a map.** The `authenticatedMap` section may name validators implemented by a
+  plugin bundle (`validators: [{id, provider, bundle}]`). Seal pins each by its bundle's artifact-closure
+  digest; because the runtime only uses a validator from an explicitly allow-listed bundle, and a
+  non-empty allow-list loads nothing else, seal then sets `yano.plugins.allow-list` to every installed
+  bundle.
+- **Membership changes on many chains.** `approve` submits every chain's change first and then waits
+  for all of them together, instead of one chain after another.
+- **The showcase** is a template (`examples/showcase/config/showcase.template.yaml`) that `showcase.sh`
+  turns into an application with the ordinary commands, using the public demo member keys
+  (`request --key`); node-local roles (the outbox executor and the settlement executor's owner on node
+  0, snapshot archives) go into each node's `config/local.yaml`. The two chains driven only by L1 are
+  applications of their own run by the founding nodes: Cardano History, which makes a block per
+  observed epoch and so would delay any membership change on its application by about ten epochs, and
+  the devnet settlement chain, whose vault scripts commit to the founding members and threshold. A
+  public-network settlement chain is adopted the same way: the bootstrap writes a template and the
+  executor's settings, and `showcase.sh settlement adopt` seals them.
+- **Not changed:** the ADR-039 VM deployment tool keeps rendering its own node configuration from its
+  own showcase profile; moving it onto sealed applications is a separate decision.
 
 ## 5. Phases
 
@@ -425,13 +451,11 @@ and `status` shows the sync progress.
 | **B** | `invite --serve`, link-based `request` | Three operators join from links with no manual file transfer; a wrong invite code or a reused link is refused |
 | **C** | `appchain ui` with the binding editor folded in; Studio removed | A user creates, seals and joins in the browser and gets byte-identical files to the CLI |
 
-**Follow-up, decided (r12), not scheduled:** every app-chain setup goes through the new commands.
-The showcase moves to a showcase draft that `new`/`seal`/`join`/`start` (or `try` on one machine)
-set up, and so do the tutorials, site pages, release smoke test, evidence harness and launcher test
-scripts that still call `cluster`. Then `scripts/appchain-cluster/` is removed. Showcase state
-machines that are not recipes yet (balances, showcase-composite, document-review, cardano-history)
-need a recipe or the `custom-plugin` recipe first. The retained showcase deployment gets a
-migration note and is never reset.
+**Follow-up (decided in r12, done in r13):** every app-chain setup goes through the new commands.
+The showcase, the tutorials, the site pages, the release smoke test and the eUTxO demo set their
+nodes up with `new`/`request`/`seal`/`join`/`start` (or `try` on one machine), and
+`scripts/appchain-cluster/` is removed (D14). The retained showcase deployment keeps running the
+showcase of its own extraction and is never reset.
 
 Later, not decided here: D (a git repository as the shared draft, with CI validating member cards)
 and E (publishing the chain fingerprint and member cards on Cardano).
@@ -537,3 +561,6 @@ and E (publishing the chain fingerprint and member cards on Cardano).
 - **r12** (2026-10-27; maintainer decisions): `try` takes `new`'s `--chain` and `--answer` (A2); Yano's
   `appchain` help comes from the installed CLI (D9); moving the showcase and every other `cluster` user
   to the new commands, then removing `cluster`, is a decided follow-up (§2, D9, §5).
+- **r13** (2026-10-27; the follow-up): new D14 (templates, plugin validators in maps, all-chain `approve`,
+  the showcase on the setup commands as three applications); D2 lets a draft set non-identity `state.*`
+  settings; D9 and §5 record `cluster`'s removal; D13 adds `anchor --key`.
