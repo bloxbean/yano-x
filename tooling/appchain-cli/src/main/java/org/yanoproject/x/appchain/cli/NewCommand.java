@@ -122,6 +122,16 @@ final class NewCommand {
         if (value.startsWith("bindings:")) {
             return composite(id, Path.of(value.substring("bindings:".length())), output);
         }
+        Map<String, String> recipes = AppChainSealResolver.recipes();
+        if (COMPOSITE.equals(value)) {
+            throw CliException.usage("Chain '" + id + "' composes state machines; pass --chain " + id
+                    + "=bindings:<file>");
+        }
+        if (!recipes.containsKey(value)) {
+            throw CliException.usage("Unknown recipe '" + value + "' for chain '" + id + "'. Recipes: "
+                    + String.join(", ", recipes.keySet().stream().filter(recipe -> !COMPOSITE.equals(recipe))
+                    .toList()));
+        }
         return new Draft.Chain(id, value, List.of(), Map.of(), null, null, null, null, Map.of());
     }
 

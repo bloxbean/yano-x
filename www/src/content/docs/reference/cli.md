@@ -38,6 +38,7 @@ links. [Set up an application](/deployment/configure/) walks through them.
 
 ```bash
 ./yano.sh appchain try                                   # rehearse every step on one machine
+./yano.sh appchain try --chain registry=owned-registry   # rehearse with your own chains (as for new)
 ./yano.sh appchain new supply                            # coordinator: write supply.draft.yaml
 ./yano.sh appchain request supply.draft.yaml             # each operator: key + alice.member
 ./yano.sh appchain seal supply.draft.yaml                # coordinator: write supply.chain

@@ -63,6 +63,15 @@ Look around before you clean up:
 
 `try --clean` deletes only its own rehearsal directory.
 
+To rehearse your own chains, give `try` the same `--chain` and `--answer`
+values as `new`. Without them it uses one `orders=audit-log` chain. The final
+message check runs when one of the chains uses `audit-log`.
+
+```bash
+./yano.sh appchain try --chain orders=audit-log --chain registry=owned-registry
+./yano.sh appchain try --chain flow=bindings:flow.yaml
+```
+
 ## 2. The coordinator creates the draft
 
 ```bash

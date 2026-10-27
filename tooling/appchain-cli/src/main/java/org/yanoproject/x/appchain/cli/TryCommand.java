@@ -1,6 +1,7 @@
 package org.yanoproject.x.appchain.cli;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import org.yanoproject.x.appchain.formats.Draft;
 import org.yanoproject.x.appchain.formats.SealedApp;
 
 import java.io.IOException;
@@ -17,10 +18,13 @@ import java.util.stream.Stream;
 
 /**
  * {@code try}: the whole ceremony on one machine with three simulated operators, printing each real command as
- * it runs it, so a beginner learns the production steps. {@code --clean} stops and removes the rehearsal.
+ * it runs it, so a beginner learns the production steps. {@code --chain} and {@code --answer} take the same values
+ * as {@code new}, so any recipe or several chains can be rehearsed. {@code --clean} stops and removes the rehearsal.
  */
 final class TryCommand {
-    static final String USAGE = "yano.sh appchain try [--dir appchain-try] [--clean]";
+    static final String USAGE = "yano.sh appchain try [--chain <id>=<recipe>|<id>=bindings:<file>]..."
+            + " [--answer <chain>.<name>=<value>]... [--dir appchain-try] [--clean]";
+    private static final String LOG_RECIPE = "audit-log";
     private static final String MARKER = ".appchain-try";
     private static final List<String> OPERATORS = List.of("alice", "bob", "carol");
 
@@ -33,7 +37,7 @@ final class TryCommand {
     }
 
     int run(String[] arguments) throws IOException {
-        Args args = new Args(arguments, Set.of("dir"), Set.of("clean", "yes"));
+        Args args = new Args(arguments, Set.of("dir", "chain", "answer"), Set.of("clean", "yes"));
         args.maxPositionals(0, USAGE);
         Path root = args.path("dir", Path.of("appchain-try")).toAbsolutePath().normalize();
         if (args.flag("clean")) return clean(root);
@@ -51,8 +55,21 @@ final class TryCommand {
         terminal.say("In real life each operator runs their steps on their own machine and sends files to the others.");
 
         step("1. The coordinator creates the application (a wizard asks these questions when run by hand).");
-        exec(coordinator, "new", "demo", "--network", "devnet", "--operators", String.join(",", OPERATORS),
-                "--chain", "orders=audit-log", "--output", coordinator.toString(), "--yes");
+        List<String> create = new ArrayList<>(List.of("new", "demo", "--network", "devnet", "--operators",
+                String.join(",", OPERATORS)));
+        for (String chain : args.values("chain").isEmpty() ? List.of("orders=" + LOG_RECIPE) : args.values("chain")) {
+            create.addAll(List.of("--chain", chain));
+        }
+        for (String answer : args.values("answer")) create.addAll(List.of("--answer", answer));
+        create.addAll(List.of("--output", coordinator.toString(), "--yes"));
+        try {
+            exec(coordinator, create.toArray(String[]::new));
+        } catch (CliException | IllegalArgumentException failed) {
+            // Nothing runs yet, so a mistyped chain or a missing answer leaves no rehearsal behind.
+            delete(root);
+            throw failed;
+        }
+        Draft draft = Draft.parse(NodeDir.read(coordinator.resolve("demo.draft.yaml")));
 
         step("2. Each operator makes their node key and a member card, and sends the card to the coordinator.");
         Set<Integer> used = new HashSet<>();
@@ -87,34 +104,41 @@ final class TryCommand {
         exec(root.resolve("bob"), "status", "--wait", "live", "--timeout", "180",
                 "--node-dir", root.resolve("bob").resolve("yano-node").toString());
 
-        step("7. An application submits a message through bob's node; all three nodes finalize it.");
-        NodeDir bob = new NodeDir(root.resolve("bob").resolve("yano-node"));
-        NodeClient client = NodeClient.local(bob);
-        terminal.say("$ curl -X POST " + client.base() + "/api/v1/app-chain/chains/orders/messages -H 'X-API-Key: …' "
-                + "-d '{\"topic\":\"orders\",\"body\":\"order A-100 created\"}'");
-        JsonNode accepted = client.post("/api/v1/app-chain/chains/orders/messages",
-                Map.of("topic", "orders", "body", "order A-100 created"));
-        String id = accepted.path("messageId").asText();
-        long height = 0;
-        for (int attempt = 0; attempt < 60 && height == 0; attempt++) {
-            Devnet.sleep(1000);
-            height = client.get("/api/v1/app-chain/chains/orders/messages/" + id)
-                    .map(message -> message.path("height").asLong()).orElse(0L);
-        }
-        if (height == 0) throw CliException.notReady("The message was not finalized within a minute");
-        for (String operator : OPERATORS) {
-            NodeClient view = NodeClient.local(new NodeDir(root.resolve(operator).resolve("yano-node")));
-            JsonNode block = view.get("/api/v1/app-chain/chains/orders/blocks/" + height).orElseThrow();
-            terminal.say(String.format(java.util.Locale.ROOT, "  %-6s height %d  root %s…", operator, height,
-                    block.path("stateRoot").asText().substring(0, 16)));
-        }
-        terminal.ok("Message " + id.substring(0, 16) + "… is final at height " + height + " on every node");
+        String log = draft.chains().stream().filter(chain -> LOG_RECIPE.equals(chain.recipe()))
+                .map(Draft.Chain::id).findFirst().orElse(null);
+        if (log != null) finalizeMessage(root, log);
 
         terminal.next("look around:  yano.sh appchain status --node-dir " + rel(root.resolve("alice/yano-node")),
                 "try the optional step:  yano.sh appchain anchor --node-dir " + rel(root.resolve("alice/yano-node")),
                 "stop and remove the rehearsal:  yano.sh appchain try --clean",
                 "set up a real application:  yano.sh appchain new");
         return 0;
+    }
+
+    /** Step 7, for a log chain: one message submitted through bob's node is final with the same root everywhere. */
+    private void finalizeMessage(Path root, String chainId) throws IOException {
+        step("7. An application submits a message through bob's node; all three nodes finalize it.");
+        String messages = "/api/v1/app-chain/chains/" + chainId + "/messages";
+        NodeDir bob = new NodeDir(root.resolve("bob").resolve("yano-node"));
+        NodeClient client = NodeClient.local(bob);
+        terminal.say("$ curl -X POST " + client.base() + messages + " -H 'X-API-Key: …' "
+                + "-d '{\"topic\":\"orders\",\"body\":\"order A-100 created\"}'");
+        JsonNode accepted = client.post(messages, Map.of("topic", "orders", "body", "order A-100 created"));
+        String id = accepted.path("messageId").asText();
+        long height = 0;
+        for (int attempt = 0; attempt < 60 && height == 0; attempt++) {
+            Devnet.sleep(1000);
+            height = client.get(messages + "/" + id)
+                    .map(message -> message.path("height").asLong()).orElse(0L);
+        }
+        if (height == 0) throw CliException.notReady("The message was not finalized within a minute");
+        for (String operator : OPERATORS) {
+            NodeClient view = NodeClient.local(new NodeDir(root.resolve(operator).resolve("yano-node")));
+            JsonNode block = view.get("/api/v1/app-chain/chains/" + chainId + "/blocks/" + height).orElseThrow();
+            terminal.say(String.format(java.util.Locale.ROOT, "  %-6s height %d  root %s…", operator, height,
+                    block.path("stateRoot").asText().substring(0, 16)));
+        }
+        terminal.ok("Message " + id.substring(0, 16) + "… is final at height " + height + " on every node");
     }
 
     private void step(String text) {
@@ -143,11 +167,15 @@ final class TryCommand {
             Path node = root.resolve(operator).resolve("yano-node");
             if (Files.isRegularFile(node.resolve("node.json"))) new StopCommand(terminal).stop(new NodeDir(node));
         }
+        delete(root);
+        terminal.ok("Removed the rehearsal in " + rel(root));
+        return 0;
+    }
+
+    private static void delete(Path root) throws IOException {
         try (Stream<Path> paths = Files.walk(root)) {
             for (Path path : paths.sorted(Comparator.reverseOrder()).toList()) Files.delete(path);
         }
-        terminal.ok("Removed the rehearsal in " + rel(root));
-        return 0;
     }
 
     private static String rel(Path path) {

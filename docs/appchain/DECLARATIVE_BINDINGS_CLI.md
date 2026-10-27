@@ -554,9 +554,9 @@ therefore needs the same bundles installed.
 Run the commands on this page against the same `plugins/` directory before you
 seal, so a seal failure is not the first sign of a problem. The rest of the
 ceremony (member cards, `seal`, `join`, `start`) is described in
-[set up an application](deployment/configure.md). `./yano.sh appchain try`
-rehearses that ceremony on one machine with a ready-made recipe. Chapter 4 runs
-it on one machine for a binding document, with three operator directories:
+[set up an application](deployment/configure.md). `./yano.sh appchain try --chain
+flow=bindings:<file>` rehearses that ceremony on one machine for a binding
+document. Chapter 4 runs the same steps by hand, with three operator directories:
 [deploy the workflow on a local devnet](bindings/04-java-integration.md#deploy-the-workflow-on-a-local-devnet).
 
 The offline commands validate a fixed genesis composite profile. They do not
