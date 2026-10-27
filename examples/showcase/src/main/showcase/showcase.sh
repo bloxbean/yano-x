@@ -735,18 +735,16 @@ anchor_chains() {
     [ "$PUBLIC_CONFIRM" = "$NETWORK" ] || die "anchoring on $NETWORK spends real test ADA; add --confirm-public-anchor $NETWORK"
     [ -n "$ANCHOR_KEY_FILE" ] || die "anchoring on $NETWORK needs --anchor-key-file with a funded wallet seed"
   fi
-  if [ "$requested" = all ]; then
-    IFS=',' read -r -a selected <<< "$(canonical_anchor_chains "$ANCHOR_CHAINS")"
-  else
-    selected=("$(canonical_anchor_chains "$requested")")
-  fi
+  [ "$requested" != all ] || requested="$ANCHOR_CHAINS"
+  IFS=',' read -r -a selected <<< "$(canonical_anchor_chains "$requested")"
   for cid in "${selected[@]}"; do
     case " ${LIGHT_CHAINS[*]} " in *" $cid "*) ;; *) note "skipping $cid: not part of this instance"; continue;; esac
     app="$(chain_app "$cid")"
     local args=(anchor "$app" --chain "$cid" --node-dir "$(node_dir 0)" --yes)
     [ -z "$ANCHOR_KEY_FILE" ] || args+=(--key "$ANCHOR_KEY_FILE")
     appchain "${args[@]}"
-    wait_anchor_bootstrapped "$cid"
+    # A script anchor starts with a bootstrap transaction; metadata anchors need none.
+    [ "$ANCHOR_MODE" != script ] || wait_anchor_bootstrapped "$cid"
   done
   ANCHOR=true
 }
@@ -2105,7 +2103,7 @@ Yano unified app-chain showcase
   ./showcase.sh soak-test orders [--duration SEC] [--rate MSG_PER_SEC] [--spread]
   ./showcase.sh member join <next-index>
   ./showcase.sh governance activate
-  ./showcase.sh anchor [chain-id|all]
+  ./showcase.sh anchor [chain-id[,chain-id]|all]
 
 The light profile runs the ordinary setup commands (yano.sh appchain new, request, seal, join, start)
 for every node; each node is a node directory under data/showcase/<instance>/.

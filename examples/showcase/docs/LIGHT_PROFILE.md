@@ -1,8 +1,9 @@
 # Light Profile
 
-The light profile is a local JVM cluster with 3 nodes by default. Any
-bootstrap size from 1 to 16 is accepted; 3, 5, and 7 are convenient demo
-sizes and default to thresholds 2, 3, and 4 respectively.
+The light profile runs local JVM nodes, 3 by default. Any bootstrap size
+from 1 to 16 is accepted; 3, 5, and 7 are convenient demo sizes and default
+to thresholds 2, 3, and 4 respectively. `--threshold` must be more than half
+of the nodes.
 
 It needs Java, Python 3, `curl`, and `jq`. The Python helpers use only the
 standard library; there is no `pip` install or virtual environment.
@@ -12,10 +13,20 @@ standard library; there is no `pip` install or virtual environment.
 ./showcase.sh status --instance five-node
 ```
 
-The shared YAML starts thirteen chains. `payment-chain-settlement` is part of the
-default light profile; it does not need a separate chain-start command.
-Membership, keys, peers, proposer, and threshold are injected by the maintained
-cluster launcher; the same YAML works at every node count.
+`showcase.sh` sets the nodes up with the ordinary app-chain setup commands
+(`yano.sh appchain new`, one `request` per node, `seal`, `join`, `start`), so
+membership, keys, peers, and threshold come from the sealed applications and
+the same templates work at every node count. Thirteen chains run in three
+applications:
+
+- `showcase`: the eleven chains of `config/showcase.template.yaml`;
+- `history`: `cardano-history-chain`, unless `--disable-cardano-history`;
+- `settlement`: `payment-chain-settlement`, on a devnet with at least three
+  nodes, always run by the three founding nodes.
+
+Each node is a node directory, `data/showcase/<instance>/node<i>`, with its
+own keys, `config/local.yaml`, log, and stores. The instance's options are
+retained in `data/showcase/<instance>/instance.json`.
 
 | Group | Chains | What the group demonstrates |
 |---|---|---|
@@ -41,8 +52,9 @@ with either opt-in form:
   --enable-finalized-message-index=documents-chain,workflow-chain
 ```
 
-The selection is consensus state, not the rebuildable SQL indexer. It is
-retained in the instance identity and cannot be changed on restart.
+The selection is consensus state, not the rebuildable SQL indexer: it becomes
+a sealed setting of each selected chain, is retained in `instance.json`, and
+cannot be changed on restart.
 
 Cardano History defaults to parameters only. Select `--cardano-history-profile
 params-stake|params-governance|full` at genesis for the corresponding larger L1 datasets.
@@ -50,14 +62,15 @@ Stake and governance presets automatically create one logical authenticated snap
 epoch; they cannot fall back to an ever-growing primary map. MPF is the default and supports the
 nested on-chain proof path; add
 `--authenticated-snapshot-profile jmt-blake2b256-v1` for the off-chain-only
-comparison. The selected series/profile are retained in the instance identity.
+comparison. The selected series/profile are sealed settings of the `history`
+application and retained in `instance.json`.
 For MPF, `--enable-authenticated-snapshot-mpf-pruning=cardano-history-chain`
-enables archive-time reachable-node pruning. This node-local choice is retained in the instance
-marker and disabled by default until retained-root qualification is complete.
+enables archive-time reachable-node pruning. This node-local choice is written
+to each node's `config/local.yaml`, retained in `instance.json`, and disabled
+by default until retained-root qualification is complete.
 
-`membership.mode=governed` is enabled independently on the chains. That is
-app-chain member-set governance, not application actor authorization or
-business action approval.
+The templates use `membership: governed`. That is app-chain member-set
+governance, not application actor authorization or business action approval.
 
 The authenticated-map chain demonstrates six independent collection policies,
 covering the basic, direct-role, and multi-organization approval authorization
@@ -83,10 +96,13 @@ for the deterministic demo seeds only. Every record — entries, receipts,
 actors, policies, proposals, consumptions, and proofs — is then inspectable in
 the packaged console at `/ui/app-chain/authenticated-map/`.
 
-The launcher generates this chain's canonical genesis from the actual
-bootstrap public keys and the `ARTIFACT_CLOSURE` digest in the bundled runtime
-catalog. Its digest is retained with the instance identity and checked on
-restart. This also demonstrates the supported custom-format extension point:
+The template's `authenticatedMap:` section declares this chain's collections,
+validators, schema, and governed records; the sealed application carries the
+resulting canonical genesis, which every node checks through the application
+fingerprint. Print the
+genesis bytes with
+`../../yano.sh appchain inspect data/showcase/<instance>/coordinator/showcase.chain --map-genesis authenticated-map-chain`.
+This also demonstrates the supported custom-format extension point:
 an application may provide its own trusted validator factory and bind it to an
 `opaque` or `canonical-cbor` collection. Validator code is consensus-bound,
 must be allow-listed and artifact-pinned on every node, and is not a hot-loaded

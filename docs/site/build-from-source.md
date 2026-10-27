@@ -21,7 +21,7 @@ several `-P` flags that released builds do not.
 | **Java 25** | Required. Check with `java -version`. |
 | Git | To clone the repository. |
 | ~2 GB disk | The base Yano JVM ZIP alone is around 280 MB, plus Gradle caches. |
-| `bash`, `curl`, `jq`, `python3`, `openssl` | Used by the cluster launcher and the tutorials. |
+| `bash`, `curl`, `jq`, `python3`, `openssl` | Used by the showcase and the tutorials. |
 | Docker Desktop | Only for the full evidence/connector demo. |
 
 Gradle itself does not need to be installed — the repository ships a wrapper.
@@ -111,10 +111,10 @@ yano-x-jvm-<version>/
 │   ├── lib/                      # jars shared by the Yano X command-line tools
 │   ├── yano-plugins/             # plugin catalog validator (from the Yano host)
 │   ├── yano-appchain/            # the setup CLI and tools behind `yano.sh appchain`
+│   ├── composite-profile/        # profile-governance.py, the composite-profile governance CLI
 │   └── yano-deploy/ …            # deployment CLI and product CLIs
 ├── studio/                       # App-Chain Studio, the binding editor
 ├── skills/configure-yano-appchain/   # the first-party AI agent skill
-├── appchain-cluster/             # the single-host cluster launcher scripts
 ├── examples/
 │   ├── showcase/                 # the local multi-node showcase
 │   └── evidence/                 # the evidence demo harness and runner
@@ -143,16 +143,18 @@ authoritative answer for your version — the [recipe catalog](/recipes/) and
 [capability catalog](/reference/capabilities/) on this site are generated from
 the same source files, but the binary in your hands always wins.
 
-To run one local member on a private devnet, use the bundled cluster launcher:
+To see the build run, rehearse an application on this machine. `try` sets up
+three operators' nodes on a private devnet under `./appchain-try/`, starts them,
+and finalizes one message on every node:
 
 ```bash
-./yano.sh appchain cluster start 1
-./yano.sh appchain cluster status
+./yano.sh appchain try
+./yano.sh appchain status --node-dir appchain-try/alice/yano-node
+./yano.sh appchain try --clean    # stop the nodes and delete the rehearsal
 ```
 
-`cluster stop` keeps the data and `cluster clean` deletes it. The
-[first tutorial](/tutorials/01-first-app-chain/) runs three members the same
-way, and the [local showcase quickstart](/start-here/quickstart/) runs from
+The [first tutorial](/tutorials/01-first-app-chain/) starts the same way, and
+the [local showcase quickstart](/start-here/quickstart/) runs from
 `examples/showcase/` inside the same archive.
 
 ## The default plugin selection

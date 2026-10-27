@@ -112,7 +112,7 @@ validates known showcase chain sets and pins chain IDs, configuration, plugin,
 and genesis-related inputs. The supported marker evolution documented today is
 additive anchor enablement, not arbitrary chain addition.
 
-[cluster.sh](../../scripts/appchain-cluster/cluster.sh) also compares configured
+`cluster.sh`, the single-host launcher (since removed), also compared configured
 chain IDs against retained standalone app-chain identity. These are safeguards,
 not bugs to remove. A new deployment revision mechanism must authorize an exact
 additive change while retaining the old checks for unplanned drift.

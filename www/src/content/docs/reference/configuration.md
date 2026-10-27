@@ -187,7 +187,10 @@ a proof. Use node-local overlays (`config/local.yaml` for a node set up with
 `join`) or a secret provider, and refer to secrets by documented
 environment-variable or provider names only.
 
-For private per-node connector configuration, the cluster launcher supports a
-strictly validated overlay directory (`YANO_CLUSTER_NODE_CONFIG_DIR`) with
-`chmod 600` files at a fixed precedence ordinal — see the
-[cluster launcher README](https://github.com/bloxbean/yano-x/blob/main/scripts/appchain-cluster/README.md).
+For private per-node connector configuration on a node set up with the setup
+commands, use that node's `<node-dir>/config/local.yaml`. The tool creates it
+at `join` and never rewrites it, and its settings win over `config/node.yaml`.
+It cannot change sealed consensus settings: `start` refuses a `local.yaml` that
+sets one. After editing it, restart the node with
+`./yano.sh appchain stop --node-dir <dir>` and `start --node-dir <dir>`. See
+[Set up an application](/deployment/configure/).

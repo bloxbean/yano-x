@@ -17,17 +17,15 @@ The core story is:
 6. node 0 writes one idempotent local receipt after app finality;
 7. the result re-enters the chain and changes root-attested release state;
 8. a Cardano anchor commits the finalized L2 root; and
-9. governed members can add a node and change threshold without editing live
-   membership state by hand.
+9. governed members add a node with the same `request`/`approve`/`join`
+   commands real operators use; the threshold rises with it (2-of-3 becomes
+   3-of-4) without editing live membership state by hand.
 
-For the governed portion, always activate one scheduled epoch before creating
-the next one:
+For the governed portion, `member join` ends by activating the new epoch; run
+`governance activate` again only if that step was interrupted:
 
 ```bash
 ./showcase.sh member join 3 --instance demo
-./showcase.sh governance activate --instance demo
-./showcase.sh threshold set 3 --instance demo
-./showcase.sh governance activate --instance demo
 ./showcase.sh verify all --instance demo
 ```
 

@@ -42,14 +42,18 @@ appears only after you build from source; when a command is missing, check
 
 ## Tutorial conventions
 
-- Treat `./yano.sh` as the product command. Use `./yano.sh appchain cluster ...`
-  for the bundled single-host demo cluster these tutorials run on. To run an
-  application with other operators, use `appchain new`, `request`, `seal`,
-  `join`, `start`, and `status`; `./yano.sh appchain try` rehearses them on one
-  machine. See [Set up an application](../deployment/configure.md).
-- Local devnet data is disposable. `stop` preserves it; `clean` deletes it.
-- The cluster's member HTTP ports are `7070`–`7072`, and the Evidence Explorer
-  uses `7080`. If the defaults are busy, launchers print the range they chose.
+- Treat `./yano.sh` as the product command. The tutorials run their members
+  with `./yano.sh appchain try`, which rehearses the real setup commands
+  (`new`, `request`, `seal`, `join`, `start`, and `status`) on one machine,
+  with three operators, alice, bob and carol, under `./appchain-try/`. To run
+  an application with other operators, use the same commands; see
+  [Set up an application](../deployment/configure.md).
+- Local devnet data is disposable. `./yano.sh appchain stop --node-dir …`
+  preserves it; `./yano.sh appchain try --clean` deletes the rehearsal.
+- `try` picks the first free HTTP ports from `8080` and node ports from
+  `13337`, and prints them; each node's ports are also in its `node.json`.
+  The showcase and the Docker-based tutorials use HTTP ports `7070`–`7072`,
+  and the Evidence Explorer uses `7080`.
 - Demo credentials are known or generated locally. Never reuse them outside an
   isolated development environment.
 - A successful HTTP submission means "accepted for sequencing", not "already

@@ -45,7 +45,8 @@ export default {
     other: result('A recipe or a composite',
       'No product packages this yet. A stock recipe, a declarative binding between stock components, or a plugin '
         + 'usually does.',
-      'stable to experimental, per recipe', '`./yano.sh appchain cluster start 3`', '/recipes/choosing-a-recipe/',
+      'stable to experimental, per recipe', '`./yano.sh appchain try --chain <id>=<recipe>`',
+      '/recipes/choosing-a-recipe/',
       'Choosing a recipe'),
   },
   sources: [

@@ -1,6 +1,6 @@
 ---
 title: CLI reference
-description: The ./yano.sh appchain command surface — setting up an application with other operators, the single-host cluster, configuration, state and proofs, bindings, identity tools, and plugin tooling.
+description: The ./yano.sh appchain command surface — rehearsing on one machine, setting up an application with other operators, configuration, state and proofs, bindings, identity tools, and plugin tooling.
 sidebar:
   order: 1
 ---
@@ -15,9 +15,10 @@ cd ~/yano-x/yano-x-jvm-*
 ./yano.sh appchain help
 ```
 
-`./yano.sh appchain cluster …` runs the bundled single-host launcher. The
-setup commands below set up and run an application with other operators.
-Every other `appchain` command runs the offline developer tools. Read command help
+The setup commands below are the one way `yano.sh` runs app ledger nodes:
+`try` rehearses them on one machine, and the others set up and run an
+application with other operators. Every other `appchain` command runs the
+offline developer tools. Read command help
 from the **version-matched** executable when an option is uncertain: the
 binary you run is the authority for its version.
 
@@ -32,13 +33,15 @@ binary you run is the authority for its version.
 ## Set up and run an application
 
 These commands set up an application that several operators run together,
-each on their own node. Only public files travel between them: the draft, the
-member cards, and the sealed `.chain` file, sent by hand or carried by join
-links. [Set up an application](/deployment/configure/) walks through them.
+each on their own node. `try` runs the same steps on one machine first. Only
+public files travel between operators: the draft, the member cards, and the
+sealed `.chain` file, sent by hand or carried by join links. [Set up an application](/deployment/configure/) walks through them.
 
 ```bash
 ./yano.sh appchain try                                   # rehearse every step on one machine
 ./yano.sh appchain try --chain registry=owned-registry   # rehearse with your own chains (as for new)
+./yano.sh appchain try --from shop.template.yaml         # rehearse the chains in a template
+./yano.sh appchain try --clean                           # stop the rehearsal's nodes and delete it
 ./yano.sh appchain new supply                            # coordinator: write supply.draft.yaml
 ./yano.sh appchain request supply.draft.yaml             # each operator: key + alice.member
 ./yano.sh appchain seal supply.draft.yaml                # coordinator: write supply.chain
@@ -59,7 +62,7 @@ and each operator's `request` sends the card, waits for the seal and joins:
 
 | Command | Use it to | Prints on success |
 |---|---|---|
-| `try [--dir <dir>] [--clean]` | Run every step on one machine with three simulated operators; `--clean` stops and deletes the rehearsal. | `✓ Message … is final at height N on every node` |
+| `try` | Run every step on one machine: a coordinator and three operators, alice, bob, and carol, with node directories under `appchain-try/<name>/yano-node`. It prints each command it runs, and for an `audit-log` chain finalizes one message on every node. `--clean` stops the nodes and deletes the rehearsal. | `✓ Message … is final at height N on every node` |
 | `new [<app>]` | Write `<app>.draft.yaml` with a fresh invite code. Without flags, a wizard asks the questions. | `✓ Wrote ./<app>.draft.yaml` |
 | `invite <app>.draft.yaml --serve` | Print one `yano://` join link per operator and serve the draft, the cards, and the sealed file until every operator has it. Port `7099` must be reachable from the operators. | One `request` line per operator |
 | `request <app>.draft.yaml\|<app>.chain\|<link>` | Make this node's key (if it has none) and its member card. Against a `.chain` file, it asks to join later. With a join link, it fetches the draft, sends the card, waits for the seal, saves `<app>.chain`, and in a terminal continues into `join`; running it again resumes. | `✓ Wrote ./<name>.member  (key id …)` |
@@ -70,13 +73,23 @@ and each operator's `request` sends the card, waits for the seal and joins:
 | `approve <name>.member`, `approve --remove <name>` | Add or remove a member on every chain, raising or lowering the threshold safely, then restart this node once. | `✓ <chain>: <name> is a member` |
 | `anchor [<app>]` | Make this node the anchor leader of a chain: create the wallet, wait for funds, restart. `--stop` gives the role up. | `✓ This node anchors <chain>` |
 | `inspect <file>` | Show and check a draft, a member card, or a sealed file. `--map-genesis <chain>` prints an authenticated-map chain's genesis CBOR hex instead. | The summary |
+| `ui` | Open a page on this computer (127.0.0.1 only) with the same steps. Every button runs the command shown under it. | `✓ App-chain setup UI for …` and the page address |
 
 Common options:
 
+- `try`: `--chain <id>=<recipe>` or `--chain <id>=bindings:<file>` (repeatable;
+  default one `orders=audit-log` chain), `--answer <chain>.<name>=<value>`,
+  `--from <template.yaml>`, `--setting <chain>.<key>=<value>`,
+  `--without <chain>` (all as for `new`), `--dir <dir>` (default
+  `appchain-try`), `--clean`. It gives each node the first free ports from
+  `8080` (HTTP) and `13337` (node).
 - `new`: `--network devnet|preview|preprod|mainnet`, `--operators alice,bob,carol`
   (the first is the lead), `--chain <id>=<recipe>` or `--chain <id>=bindings:<file>`
   (repeatable), `--answer <chain>.<name>=<value>` (repeatable; the wizard asks
-  for any answer a recipe still needs), `--threshold majority|two-thirds|all|<n>`,
+  for any answer a recipe still needs), `--from <template.yaml>` (start from a
+  template's chains and defaults), `--setting <chain>.<key>=<value>`
+  (repeatable; a sealed chain setting), `--without <chain>` (leave out one of
+  the template's chains), `--threshold majority|two-thirds|all|<n>`,
   `--membership governed|static`, `--sequencing fixed|rotating` (default
   `fixed`: the lead proposes every block), `--output <dir>`, `--force`, `--yes`.
 - `invite`: `--serve` (required), `--host <public-host>`, `--port` (default
@@ -91,12 +104,29 @@ Common options:
 - `status`: `--json`, `--wait live --timeout <seconds>`.
 - `inspect`: `--json`, `--map-genesis <chain>`.
 - `approve`: `--heartbeat`, `--timeout <seconds>`, `--yes`.
-- `anchor`: `--chain <id>`, `--stop`, `--take-over`, `--ada <devnet-funding>`,
+- `anchor`: `--chain <id>`, `--stop`, `--take-over`, `--key <wallet-seed-file>`
+  (use a funded wallet you already have), `--ada <devnet-funding>`,
   `--timeout <seconds>`, `--yes`.
+- `ui`: `--dir <work-dir>`, `--port <port>`, `--no-open`.
 - Every command that acts on a node takes `--node-dir` (default `./yano-node`).
   Node-only settings go in that directory's `config/local.yaml`, which `join`
   creates and never rewrites; `start` refuses it if it sets a sealed consensus
-  key.
+  key. The node's API key is in `secrets/api.key`; it is needed only for
+  privileged and admin endpoints, because reads and message submissions are
+  open unless broad API authentication is enabled.
+
+A template for `--from` is a draft-shaped YAML file: `chains:` and, optionally,
+`threshold`, `membership`, `sequencing`, and `network`. Each chain has an `id`
+and a `recipe`, and optionally `capabilities`, `answers`, `settings` (flat
+dotted keys, sealed), `authenticatedMap`, and `bindings`:
+
+```yaml
+chains:
+  - id: approvals
+    recipe: approval-workflow
+    capabilities: [effects:on-approved, executor:webhook]
+    answers: {effectType: webhook.post}
+```
 
 Exit codes: `0` success, `1` failure, `2` usage error, `3` not ready yet or
 timed out. Every command ends with a `Next:` line.
@@ -108,7 +138,7 @@ These commands work on configuration files directly.
 ```bash
 # A YAML file checked against the metadata, optionally against a template contract.
 ./yano.sh appchain config validate --mode template \
-  --template-contract builtin:cluster config/application-appchain.yml
+  --template-contract contract.yml application.yml
 
 # The values a node would resolve from one or more files; later files win.
 ./yano.sh appchain config validate --mode resolved --config node.yml
@@ -124,93 +154,6 @@ resolved commands leave out environment variables and system properties unless
 you pass `--include-environment` or `--include-system-properties`.
 `--metadata <descriptor|plugin.jar>` adds a plugin's configuration metadata to
 `validate`, `effective`, and `explain`.
-
-## Cluster (single host)
-
-`appchain cluster` runs N members as processes on one machine: a disposable
-demo, a repeatable integration test, or a controlled single-host deployment.
-It hosts the chains in `config/application-appchain.yml`.
-
-```bash
-export YANO_CLUSTER_DIR=/tmp/yano-demo
-
-./yano.sh appchain cluster start 3            # 3-member self-contained devnet
-./yano.sh appchain cluster status             # tips, roots, and per-chain agreement
-./yano.sh appchain cluster submit orders-chain orders '{"id":1}'
-./yano.sh appchain cluster submit orders-chain orders '{"id":2}' --node 1
-./yano.sh appchain cluster kv registry-chain set supplier-42 active --node 1
-./yano.sh appchain cluster effect demo        # emit, execute, and prove one effect
-./yano.sh appchain cluster loadtest orders-chain -n 500 -c 10 -s 256
-./yano.sh appchain cluster logs 1 -f          # follow node 1's log
-./yano.sh appchain cluster stop               # stop, keep data
-```
-
-| Command | Effect |
-|---|---|
-| `start [N] [options]` | Start an N-node cluster; N defaults to 3 and may be at most 32. |
-| `status` | Health, per-chain tips and roots, and `AGREED` or `MISMATCH` per chain. |
-| `submit <chain> <topic> <payload> [--node i] [--count n]` | Submit text messages through node `i`. |
-| `kv <chain> set <key> <value> [--node i]`, `kv <chain> del <key> [--node i]` | Write to or delete from a `kv-registry` chain. |
-| `loadtest <chain> [-n M] [-c C] [-s bytes] [--spread]` | Parallel load test that reports submit and finalize rates. |
-| `effect demo ["message"]` | Emit, execute, and prove one demo effect on `effects-chain`. |
-| `node join <index>`, `node resume <index>` | Govern, start, and catch up a later member; restart a joined member. |
-| `member add <public-key>` | Governance-only member addition across the configured chains. |
-| `threshold set <n>` | Govern a new finality threshold on every chain. |
-| `anchor-bootstrap <chain-id>` | One-time script-anchor bootstrap for a chain; devnet funds the wallet first. |
-| `logs <node> [-f]` | Show the last 60 lines of a node's log, or follow it. |
-| `keys [N]` | Print the deterministic demo seeds and member keys. |
-| `chains` | List the chains in the configuration. |
-| `stop` | Stop the nodes and **keep** all data. |
-| `clean` | Stop the nodes and **delete** `YANO_CLUSTER_DIR`. |
-
-`start` options: `--network devnet|preprod|preview|mainnet|sanchonet`,
-`--jar` or `--native`, `--threshold <t>` (default `N/2 + 1`),
-`--transport shared|dedicated`, `--anchor`, `--anchor-mode metadata|script`,
-`--anchor-chain <id>` (repeatable), `--anchor-key <hex>`, `--anchor-every <n>`,
-`--data-dir <dir>`, `--http-base <port>` (default `7070`), and
-`--server-base <port>` (default `13337`).
-
-The node count, threshold, and network are part of a retained cluster's
-identity. Starting the same directory with different values fails; use a new
-`YANO_CLUSTER_DIR` instead.
-
-:::caution
-Never point `clean` at a deployment you care about. Retained clusters are
-identity and data, not disposable test output.
-:::
-
-### Cluster environment
-
-| Variable | Meaning | Default |
-|---|---|---|
-| `YANO_CLUSTER_DIR` | Where cluster state lives. | `/tmp/yano-appchain-cluster` |
-| `YANO_CLUSTER_HTTP_BASE`, `YANO_CLUSTER_SERVER_BASE` | Port bases. Set them and they are strict. | `7070`, `13337` |
-| `YANO_HOME` | The tree holding `config/`; nodes launch with this as cwd. | The distribution root |
-| `YANO_JAR` / `YANO_NATIVE` | Explicit binary path. | Auto-detected under `YANO_HOME` |
-| `YANO_CLUSTER_API_KEY` | Key for privileged operations. | `yano-local-cluster-full-key` |
-| `YANO_CLUSTER_NODE_CONFIG_DIR` | Private per-node configuration overlays. | Unset |
-| `YANO_CLUSTER_MEMBER_KEY_DIR` | Operator-supplied member keys. | Unset |
-| `YANO_CLUSTER_ANCHOR_CHAINS` | Chains to anchor, comma-separated. | Every chain, when anchoring is on |
-| `YANO_CLUSTER_ANCHOR_KEY_FILE` | File holding the anchor wallet seed. | Unset |
-| `YANO_CLUSTER_PRIVATE_CONFIG_DIR` | Where generated private overlays are written. | `<data-dir>/private-config` |
-| `YANO_CLUSTER_DEVNET_GENESIS_FILE` | A fixed devnet genesis for a fresh cluster. | Unset |
-
-The launcher keeps reads and submissions public on its loopback-only HTTP API,
-and requires the full key for privileged calls: admin, effect-worker, and
-plugin-operations endpoints.
-
-:::danger[The default key is a demo credential]
-`yano-local-cluster-full-key` is publicly known. Override it on a shared
-machine or a public-network test:
-
-```bash
-export YANO_CLUSTER_API_KEY="$(openssl rand -hex 32)"
-```
-
-Outside this launcher, configure real nodes through a secret source with
-`YANO_APP_CHAIN_API_KEYS`, and set `YANO_APP_CHAIN_API_AUTH_ENABLED=true` when
-reads and submissions must require keys too. There is no production default.
-:::
 
 ## Authenticated state and proofs
 
@@ -307,8 +250,6 @@ follows; see [Using Yano X with AI agents](/ai/).
 
 ## Deeper reading
 
-- [Cluster launcher README](https://github.com/bloxbean/yano-x/blob/main/scripts/appchain-cluster/README.md)
-  — per-node overlays, chain definitions, membership, and the effects demo.
 - [Setup CLI README](https://github.com/bloxbean/yano-x/blob/main/tooling/appchain-cli/README.md)
   — the setup commands.
 - [Developer tools README](https://github.com/bloxbean/yano-x/blob/main/tooling/devtools/README.md)

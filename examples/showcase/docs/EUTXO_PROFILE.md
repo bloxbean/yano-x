@@ -36,7 +36,7 @@ workspace under `data/showcase/<instance>/eutxo-<variant>/`.
 ```
 
 What happens: workspace + disposable wallets are generated, a project is
-rendered and validated, the nodes start (watch `EUTXO_LEDGER_CLUSTER_STARTED`
+rendered and validated, the nodes start (watch `EUTXO_DEMO_CLUSTER_STARTED`
 with per-node index status), then the round-trip runs: Alice's 100 ADA
 virtual genesis is spent as a zero-fee signed payment → 25 ADA to the
 recipient, 75 ADA change. The run ends with
@@ -95,8 +95,8 @@ journaled pipeline and completes any unfinished step.
 
 ## 3. Everyday operations
 
-Unlike the light profile, the EUTxO profile keeps **no showcase identity
-marker** — so every command must repeat the profile, variant, instance, and
+Unlike the light profile, the EUTxO profile keeps **no `instance.json`** —
+so every command must repeat the profile, variant, instance, and
 (non-default) port flags; a bare `--instance` call would fall through to the
 light-profile path:
 
@@ -123,7 +123,7 @@ everything). After it, the same quickstart recreates the scenario from
 scratch with fresh keys and a fresh round 1:
 
 ```bash
-yano/yano.sh appchain eutxo demo reset --scenario bridge \
+../../yano.sh appchain eutxo demo reset --scenario bridge \
   --workspace data/showcase/bridge/eutxo-bridge --yes
 
 ./showcase.sh quickstart --profile eutxo --variant bridge --instance bridge \
@@ -132,7 +132,7 @@ yano/yano.sh appchain eutxo demo reset --scenario bridge \
 
 (Same pattern for the ledger variant — adjust `--variant`, the workspace
 path `eutxo-ledger`, and the port bases. Do not use the showcase's
-generic `reset` for eutxo instances: without an identity marker it takes the
+generic `reset` for eutxo instances: without an `instance.json` it takes the
 light-profile path and deletes the directory without stopping the demo
 nodes.)
 
@@ -180,28 +180,28 @@ round 3 executes.)
 ```bash
 # 1. Deposits only: faucet-fund the demo users, both deposit into the vault,
 #    wait for the mirrored L2 deposits (~l1/bridge-deposits messages):
-yano/yano.sh appchain eutxo demo deposit --scenario bridge \
+../../yano.sh appchain eutxo demo deposit --scenario bridge \
   --workspace data/showcase/bridge/eutxo-bridge --members 3 \
   --http-port-base 27180 --server-port-base 23480 --count 3
 
 # 2. L2 transactions: Alice's payment 20 → [Alice 10, Bob 10], then Bob's
 #    spend 10 → [Bob 7, payout 3] which creates the withdrawal claim
 #    (two eutxo.transactions messages per round):
-yano/yano.sh appchain eutxo demo transfer --scenario bridge \
+../../yano.sh appchain eutxo demo transfer --scenario bridge \
   --workspace data/showcase/bridge/eutxo-bridge --members 3 \
   --http-port-base 27180 --server-port-base 23480 --count 3
 
 # 3. Withdrawal: the operator unlocks the vault and pays Bob's L1 payout
 #    address, then the claim must reconcile to CONFIRMED:
-yano/yano.sh appchain eutxo demo settle --scenario bridge \
+../../yano.sh appchain eutxo demo settle --scenario bridge \
   --workspace data/showcase/bridge/eutxo-bridge --members 3 \
   --http-port-base 27180 --server-port-base 23480 --count 3
-yano/yano.sh appchain eutxo demo verify --scenario bridge \
+../../yano.sh appchain eutxo demo verify --scenario bridge \
   --workspace data/showcase/bridge/eutxo-bridge --members 3 \
   --http-port-base 27180 --server-port-base 23480 --count 3
 
 # journal state + retained artifacts any time:
-yano/yano.sh appchain eutxo demo status --scenario bridge \
+../../yano.sh appchain eutxo demo status --scenario bridge \
   --workspace data/showcase/bridge/eutxo-bridge --members 3 \
   --http-port-base 27180 --server-port-base 23480
 ```
@@ -234,7 +234,7 @@ the retained proof — there is no faucet or vault involved.
 ## 5. Gotchas
 
 - **`setup` is not idempotent** — a non-empty workspace is refused. To start
-  over: `yano/yano.sh appchain eutxo demo reset --workspace <dir> --yes`.
+  over: `../../yano.sh appchain eutxo demo reset --workspace <dir> --yes`.
   Everything *within* a workspace is journal-guarded and resumable; a second
   concurrent operation is rejected by the workspace lock.
 - Ports: exactly `--nodes` consecutive ports from each base. Pick distinct

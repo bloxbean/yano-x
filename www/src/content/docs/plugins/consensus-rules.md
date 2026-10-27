@@ -156,12 +156,17 @@ keys, API keys, effect credentials, and anchor wallet funds.
 # Focused iteration.
 ./gradlew :state-machines:stdlib:test
 
-# Real cluster: identical height, root, profile, genesis, capability digest.
-./yano.sh appchain cluster start 3
-./yano.sh appchain cluster status
-./yano.sh appchain cluster node join 3      # catch-up under your rules
-./yano.sh appchain cluster stop && ./yano.sh appchain cluster start 3
+# Real nodes: identical height, root, profile, genesis, capability digest.
+./yano.sh appchain try --chain shipments=custom-plugin --answer shipments.stateMachine=<your-id>
+./yano.sh appchain status --node-dir appchain-try/alice/yano-node
+for name in carol bob alice; do ./yano.sh appchain stop --node-dir appchain-try/$name/yano-node; done
+for name in alice bob carol; do ./yano.sh appchain start --node-dir appchain-try/$name/yano-node; done
+./yano.sh appchain status --node-dir appchain-try/alice/yano-node   # same heights and roots after restart
 ```
+
+To check catch-up under your rules, stop one node, keep submitting through the
+others, then start it again and compare `status`. To check a new member, use
+`approve` as in [Set up an application](/deployment/configure/).
 
 Persistence changes additionally require apply, rollback, replay, restart, and
 root-parity checks. Derived indexes must never advance beyond authoritative

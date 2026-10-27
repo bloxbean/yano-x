@@ -42,6 +42,17 @@ rejected random bytes. The wrapper form is equivalent:
 Use `--node 0` instead of `--spread` to target one ingress node. A burst can
 saturate a laptop; start with 100–1000 messages and increase deliberately.
 
+The drivers ship in the showcase's `tools/` directory: `tools/loadtest.sh`
+for bursts and `tools/soaktest.sh` for soaks. `load-test` and `soak-test`
+call them with the instance's HTTP port base in `YANO_SHOWCASE_HTTP_BASE`;
+node `i` is at that base plus `i`. To run a driver directly against an
+instance on non-default ports, set the variable yourself:
+
+```bash
+YANO_SHOWCASE_HTTP_BASE=27070 ./tools/loadtest.sh orders-chain -n 500 -c 10 \
+  -t orders.command.v1 --spread
+```
+
 ## Sustained soak
 
 `soak-test` holds a target offered rate on the ordered-log chain, samples tips

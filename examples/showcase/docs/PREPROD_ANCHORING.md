@@ -23,41 +23,39 @@ Start:
   --confirm-public-anchor preprod
 ```
 
-New instances default to anchoring only `workflow-chain`. Node 0 is the transaction builder;
-members co-sign script-anchor rounds at the current app-chain threshold. Use
-`config show` and status/UI to obtain and verify the anchor address. Fund that
-address externally. Prefer multiple clean pure-ADA UTxOs with sufficient fee
-and collateral headroom. A mnemonic or CIP-1852 account is not the raw seed this
-option expects; use the displayed address as the transfer destination.
+Every chain is sealed with the script anchor policy; nothing is anchored and
+nothing is spent until you turn anchoring on for a chain. Node 0 becomes the
+chain's anchor leader and transaction builder; members co-sign script-anchor
+rounds at the current app-chain threshold. A mnemonic or CIP-1852 account is
+not the raw seed this option expects.
 
-To add registry anchoring later without resetting its history:
+Wait until the preprod node has synchronized far enough to observe new
+transactions, then turn anchoring on for `workflow-chain`:
 
 ```bash
-./showcase.sh anchor enable registry-chain --instance preprod-demo \
+./showcase.sh anchor workflow-chain --instance preprod-demo \
   --confirm-public-anchor preprod
-./showcase.sh anchor bootstrap registry-chain --instance preprod-demo
 ```
 
-To expand the retained scope to every configured chain:
+It imports the recorded key into node 0, restarts node 0, and prints the
+anchor wallet address. Fund that address externally. Prefer multiple clean
+pure-ADA UTxOs with sufficient fee and collateral headroom. The command waits
+until the configured L1 stability view accepts the funding, then submits the
+bootstrap once. If it stops waiting first, run the same command again.
+
+To add registry anchoring later without resetting its history, or to cover
+every chain of the instance:
 
 ```bash
-./showcase.sh anchor enable all --instance preprod-demo \
+./showcase.sh anchor registry-chain --instance preprod-demo \
   --confirm-public-anchor preprod
-./showcase.sh anchor bootstrap all --instance preprod-demo
+./showcase.sh anchor all --instance preprod-demo \
+  --confirm-public-anchor preprod
 ```
 
-The enable operation restarts the nodes on their existing state and spends no
-tADA. Script bootstrap is separate and fee-paying. Supply enough independent
-pure-ADA UTxOs for the desired chains; `bootstrap all` waits for each chain's
-L1 confirmation before proceeding to avoid reusing an input prematurely.
-
-Wait until the preprod node has synchronized far enough to observe the funding
-transaction and until the configured L1 stability view accepts it. Then, once
-for a new instance:
-
-```bash
-./showcase.sh anchor bootstrap workflow-chain --instance preprod-demo
-```
+Each script bootstrap is fee-paying. Supply enough independent pure-ADA UTxOs
+for the desired chains; `anchor all` waits for each chain's L1 confirmation
+before proceeding to avoid reusing an input prematurely.
 
 Bootstrap mints the thread NFT and establishes the script/datum identity. It
 is not a per-restart action. After it succeeds, submit finalized L2 activity:
@@ -75,9 +73,9 @@ Verify the L2 height/root and finality certificate, Cardano transaction ID and
 output reference, anchored high-water mark, and follower L1 observations in
 the status UI. If bootstrap reports no usable UTxO, do not reset or create a
 new identity: confirm the wallet address, funding transaction, node sync, and
-stability depth, then retry the same bootstrap.
+stability depth, then run the same `anchor` command again.
 
 For a faster local validation, a synchronized preprod chainstate may be copied
 into a new disposable instance before first start. Never mutate or test in the
-source demo directory itself, and never combine app-chain retained state with
-a different L1 identity marker.
+source demo directory itself, and never combine retained app-chain state with
+a different L1 network or genesis.

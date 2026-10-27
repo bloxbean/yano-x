@@ -35,8 +35,8 @@ each key id on a call stays the trust step.
 
 The other `appchain` tools (`recipes`, `capabilities`, `bindings`, `state`,
 `role`, `plugin`, `metadata`, `config`, `authenticated-map`, `eutxo`) are passed
-to [`tooling/devtools`](../devtools/README.md). `yano.sh appchain cluster` is
-the separate single-host demo launcher.
+to [`tooling/devtools`](../devtools/README.md). These setup commands are the
+only way `yano.sh` runs app-chain nodes; `try` rehearses them on one machine.
 
 User guides: [set up an application](../../docs/appchain/deployment/configure.md),
 [grow and change it](../../docs/appchain/deployment/add-chain.md), and

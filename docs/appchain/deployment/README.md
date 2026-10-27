@@ -40,12 +40,12 @@ chains it hosts.
 
 | How you run it | HTTP | Node-to-node | Change it with |
 |---|---|---|---|
-| `./yano.sh appchain cluster`, local showcase | `7070` + node index | `13337` + node index | `--http-base`, `--server-base` |
+| Local showcase (`showcase.sh`) | `7070` + node index | `13337` + node index | `--http-base`, `--server-base` |
 | `./yano.sh appchain try` | first free from `8080` | first free from `13337` | chosen for you and printed |
 | One node per operator | `8080` on each host | `13337` on each host | `request --http-port`, `--node-port` |
 
-The cluster launcher moves a busy default range and prints the one it chose.
-The showcase passes its ports explicitly, so it stops instead. While the
+`try` skips busy ports and prints the ones it chose. The showcase passes its
+ports explicitly, so it stops instead. While the
 coordinator hands out join links, `invite --serve` also listens on port `7099`
 (`--port` changes it), which the operators must be able to reach.
 

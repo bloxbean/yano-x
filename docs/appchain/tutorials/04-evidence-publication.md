@@ -21,10 +21,11 @@ IPFS, and the Evidence Explorer.
 - The harness ships in the extracted Yano X JVM distribution at
   `examples/evidence`. It finds the distribution's `yano.jar` by itself.
 - It uses ports 7070–7072 for the members and 7080 for the Explorer, plus 9092,
-  9000, and 5001 for Kafka, RustFS, and Kubo. A tutorial cluster that is still
-  running holds 7070–7072. Stop it first from the distribution directory, with
-  the same `YANO_CLUSTER_DIR` you started it with:
-  `./yano.sh appchain cluster stop`.
+  9000, and 5001 for Kafka, RustFS, and Kubo. A running showcase holds
+  7070–7072; stop it first with `./showcase.sh stop` in `examples/showcase`.
+  An `./yano.sh appchain try` rehearsal from earlier tutorials uses ports from
+  8080 and 13337, so it does not clash, but you can remove it with
+  `./yano.sh appchain try --clean`.
 - The harness never moves a busy port. If another program holds one, export a
   free port before the first command and keep it set for the whole tutorial.
   `DEMO_HTTP_BASE` moves the members to that port and the next two, and

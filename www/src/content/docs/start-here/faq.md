@@ -102,10 +102,11 @@ No, and no. Plugins are trusted in-process code, and publisher signatures are
 checked by Yano X tooling, not by the node at load time. Install only plugins you
 trust. See [Keys and trust](/concepts/trust-model/#plugins-are-trusted-code).
 
-**`cluster status` says MISMATCH. Is the ledger broken?**
-Not necessarily. It compares the current state roots the members report, without
-aligning heights, so a member that is one block behind shows MISMATCH. Run it
-again. See [Troubleshooting](/deployment/troubleshooting/).
+**`status` says MISMATCH. Is the ledger broken?**
+Not the ledger itself. `./yano.sh appchain status` prints MISMATCH when members
+report different genesis identities for a chain, which means one of them
+joined a different sealed file. Different state roots at the same height are a
+separate warning. See [Troubleshooting](/deployment/troubleshooting/).
 
 **Can I run the showcase in production?**
 No. The showcase runs every member under one operator with demonstration keys.

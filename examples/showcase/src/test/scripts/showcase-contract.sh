@@ -174,8 +174,12 @@ jq -e 'has("payment-chain-settlement") | not' "$THREE/node3/apps/chain-indexes.j
 : > "$WORK/yano.log"
 "$ROOT/showcase.sh" anchor registry-chain --instance three >/dev/null
 grep -q "^yano appchain anchor showcase --chain registry-chain --node-dir $THREE/node0 --yes$" "$WORK/yano.log"
+"$ROOT/showcase.sh" anchor orders-chain,cardano-history-chain --instance three >/dev/null
+grep -q '^yano appchain anchor showcase --chain orders-chain ' "$WORK/yano.log"
+grep -q '^yano appchain anchor history --chain cardano-history-chain ' "$WORK/yano.log"
+: > "$WORK/yano.log"
 "$ROOT/showcase.sh" anchor all --instance three >/dev/null
-[ "$(grep -c '^yano appchain anchor ' "$WORK/yano.log")" = 14 ]
+[ "$(grep -c '^yano appchain anchor ' "$WORK/yano.log")" = 13 ]
 grep -q '^yano appchain anchor history --chain cardano-history-chain ' "$WORK/yano.log"
 grep -q '^yano appchain anchor settlement --chain payment-chain-settlement ' "$WORK/yano.log"
 "$ROOT/showcase.sh" config export "$WORK/export.chain" --instance three >/dev/null

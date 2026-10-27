@@ -27,7 +27,7 @@ L2 depositor, the claim-forming withdrawal address, and the payout
 destination (which defaults to the operator's own address, so settled funds
 return to the key that paid for the deployment).
 
-## 2. Start the cluster
+## 2. Start the nodes
 
 (Step 3 needs no node — run it first and fund the address while preprod syncs.)
 
@@ -35,14 +35,14 @@ return to the key that paid for the deployment).
 ./showcase.sh up --network preprod --nodes 3 --instance preprod-demo
 ```
 
-Preparing a non-devnet instance **removes** the packaged devnet settlement
-chain from the config, and says so. That is deliberate: if the devnet chain
+On a non-devnet instance `prepare` **leaves out** the packaged devnet
+`settlement` application, and says so. That is deliberate: if the devnet chain
 ever activated on preprod, its chain-id would retain the devnet profile digest
 and your real identity could never be adopted under the same id.
 
 ## 3. Find out where to send the tADA
 
-Run this **first**, before the cluster is even started. It contacts no node at
+Run this **first**, before the nodes are even started. It contacts no node at
 all — the address and the amount derive from your key alone — so it works
 instantly and cannot fail because preprod is still syncing. Fund the address
 while the node catches up.
@@ -91,25 +91,35 @@ before anything is submitted; a re-run after a partial failure completes the
 same identity instead of deploying a second one. Delete that file only if you
 intend to deploy a *new* identity.
 
-## 5. Adopt the generated chain block
+## 5. Adopt the generated settlement application
 
 The vault, shard, and root addresses are parameterized by your seed outpoints,
-so the chain config cannot be static. `bootstrap` prints a ready-made
-`configBlock`. Paste it into
+so the settlement chain cannot ship with the distribution. `bootstrap` writes
+it to `data/showcase/preprod-demo/settlement-bootstrap/`:
 
-```
-yano/config/application-appchain.yml
-```
+- `settlement.template.yaml` — the chain as an app-chain template (profile,
+  bridge addresses, observers);
+- `executor.json` — the settlement executor's node-local settings.
 
-as the next `chains[N]` entry, then restart:
+Seal them as this instance's `settlement` application:
 
 ```bash
-./showcase.sh restart --instance preprod-demo
+./showcase.sh settlement adopt --instance preprod-demo
 ```
 
-The block references your key **by path** (`operator-seed-file`) — the seed
-itself is never written into the chain config. Keep the key file readable only
-by the account running the node.
+`adopt` stops the nodes, runs the setup commands (`new`, one `request` per
+founding node, `seal`, `join`) for the `settlement` application, writes the
+executor settings into every node's `config/local.yaml` (node 0 owns the
+executor), and starts the nodes again. Inspect the sealed result with:
+
+```bash
+../../yano.sh appchain inspect \
+  data/showcase/preprod-demo/settlement/settlement.chain
+```
+
+The executor settings reference your key **by path** (`operator-seed-file`) —
+the seed itself is never written into the sealed application or the node
+settings. Keep the key file readable only by the account running the nodes.
 
 ## 6. Use it
 
@@ -131,8 +141,8 @@ From here the commands are the same as devnet, each carrying the key file:
 |---|---|---|
 | Operator key | packaged, public | yours, `--settlement-key-file` |
 | Profile | `…-devnet`, 60-slot floor | `…-settlement`, 21,600-slot floor |
-| Identity | deterministic, config is static | derived from your seeds, config generated |
-| Chain config | ships with the distribution | paste the printed `configBlock` |
+| Identity | deterministic, template is static | derived from your seeds, template generated |
+| Chain config | `config/settlement.template.yaml`, sealed at `prepare` | `settlement adopt` seals the generated template |
 | A3 exit demo | ~60 slots | hours — the floor is the point |
 
 Read §9 of `adr/app-layer/utxo/009-claim-settlement-process-and-vault-conditions.md`

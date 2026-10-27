@@ -106,8 +106,11 @@ cd examples/showcase
 
 HISTORY=../../tools/yano-cardano-history/bin/yano-cardano-history
 $HISTORY status --url http://127.0.0.1:7070/api/v1 --chain cardano-history-chain \
-  --api-key yano-local-cluster-full-key
+  --api-key "$(cat data/showcase/demo/node0/secrets/api.key)"
 ```
+
+Each showcase node keeps its own API key in its node directory, here node 0's
+`data/showcase/demo/node0/secrets/api.key`.
 
 The first fact arrives after the next stable epoch transition of the showcase's
 devnet; until then the CLI exits with code 3. The node console shows the same

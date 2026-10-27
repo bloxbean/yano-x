@@ -27,11 +27,11 @@ plus building from source. The app chain works identically in all of them —
 only *where the configuration lives* differs.
 
 > **Shortcut:** if you just want a running multi-node app chain in one
-> command, the zip ships a cluster launcher —
-> `./appchain-cluster/cluster.sh start 3` — with load-test and anchoring
-> helpers included (see `appchain-cluster/README.md` and the user guide
-> §3.5). This tutorial instead walks the two nodes by hand so you see every
-> moving part.
+> command, the Yano X JVM distribution rehearses one on this machine —
+> `./yano.sh appchain try` — using the same setup commands real operators run
+> (see [Set up an application](appchain/deployment/configure.md) and the user
+> guide §3.5). This tutorial instead walks the two nodes by hand so you see
+> every moving part.
 
 ### Option A — Official zip (JVM)
 

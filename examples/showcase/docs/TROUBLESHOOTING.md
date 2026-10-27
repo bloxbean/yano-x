@@ -1,11 +1,19 @@
 # Troubleshooting
 
-## Retained L1 state has no identity marker
+## An instance was made by an earlier showcase
 
-The launcher intentionally refuses to invent identity metadata around retained
-state. Restore the original marker/profile, explicitly migrate the state, use
-a new instance, or reset only the deliberately disposable instance. Do not
-delete the check while keeping the data.
+`instance '<name>' was made by an earlier showcase` means the instance
+directory predates the app-chain setup commands. It cannot be adopted: use a
+new `--instance`, or remove only a deliberately disposable instance with
+`reset --instance <name> --yes`.
+
+## A requested option differs from the retained instance
+
+`instance.json` records the options an instance was sealed with. Repeating
+`--nodes`, `--network`, `--threshold`, a port base, or a Cardano History,
+index, or snapshot option with a different value is refused, because the
+sealed applications cannot change. Omit the option (it is restored
+automatically) or use a new `--instance`.
 
 ## Script-anchor co-sign round failed
 
@@ -13,10 +21,10 @@ Check node 0’s log. Typical causes are an unsynchronized L1 view, funding that
 is not visible/stable yet, a bootstrap output that members cannot verify, an
 insufficient/fragmented anchor wallet, or fewer ready current members than the
 app-chain threshold. Creating a fresh wallet does not fix member/L1 visibility.
-After a governed join, current showcase releases automatically refresh every
-existing process's peer topology. If an older deployment repeatedly collects
-one fewer witness than the member count, restart it with the current showcase
-launcher before changing membership or funding.
+After a governed join, every existing node's `approve` adds the new peer and
+restarts that node once. If co-sign rounds keep collecting one fewer witness
+than the member count, check that every node is running
+(`./showcase.sh status`) before changing membership or funding.
 
 ## Effect Executors is empty
 
@@ -50,8 +58,18 @@ started, use a fresh `--instance` name. Do not edit the retained genesis or
 identity marker in place. Once an instance has history, normal stop/start
 reuses that exact identity.
 
-## A joined node will not start after restart
+## A node will not start
 
-Use the showcase `restart`, not a direct `cluster.sh start`, because the facade
-restores bootstrap nodes and then reattaches its recorded governed joiners.
-Inspect `config paths` and node logs before changing retained files.
+`./showcase.sh restart` starts every node directory of the instance, founding
+nodes first and then the recorded joiners. A failed start names the node's
+log, `data/showcase/<instance>/node<i>/logs/node.log`. `yano.sh appchain start`
+refuses a `config/local.yaml` that changes a sealed setting; the showcase
+writes that file at `prepare`, `member join`, and `settlement adopt`. Inspect
+`config paths` and the node log before changing retained files.
+
+## A member join stopped part-way
+
+`member join <i>` is safe to run again: `yano.sh appchain approve` repeats
+harmlessly on nodes that already approved. The approval logs are in
+`data/showcase/<instance>/approve-node<i>-by-node<j>.log`. If only the final
+activation was interrupted, run `./showcase.sh governance activate`.

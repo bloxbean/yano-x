@@ -67,9 +67,8 @@ The product deliberately separates orchestration from key custody:
 | Journal and submit externally signed L1 CBOR | `./yano.sh appchain validity <kind> ...` |
 | Construct and sign Cardano L1 transactions | Cardano Client Lib, a wallet service, or another Cardano builder |
 
-`./yano.sh appchain cluster start` launches the stock demonstration cluster.
-It does not launch an `appchain init` project. A generated project has its own
-digest-protected `scripts/start`, `scripts/status`, and `scripts/stop`.
+A generated project has its own digest-protected `scripts/start`,
+`scripts/status`, and `scripts/stop`.
 
 Yano does not persist a Cardano payment mnemonic or private key. Consequently,
 the `validity` lifecycle cannot silently deploy or sign an L1 transaction.
@@ -993,15 +992,6 @@ starting.
 
 The project was initialized without `--http-port-base 7070`. Use the port in
 the generated node config, or regenerate before producing runtime state.
-
-### `appchain cluster start` launches orders/registry/effects chains
-
-That command is the stock demo cluster. Start this generated project with:
-
-```bash
-export YANO_HOME='<absolute extracted distribution root>'
-<project>/scripts/start
-```
 
 ### The deposit never appears on L2
 

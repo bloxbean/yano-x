@@ -99,8 +99,9 @@ business meaning.
 ### Beginner: operate first, understand second
 
 1. Use the self-contained devnet. No Cardano funds or external node is needed.
-2. Submit through `./yano.sh appchain cluster` rather than constructing wire bytes.
-3. Compare tips and roots on all members.
+2. Rehearse three members with `./yano.sh appchain try`, then submit through
+   their REST API rather than constructing wire bytes.
+3. Compare heights and roots on all members with `./yano.sh appchain status`.
 4. Inspect one proof and one intentional no-op/failure.
 5. Stop while keeping data, restart, and verify the same state.
 
@@ -133,9 +134,6 @@ business meaning.
 - From source, follow [the Yano X distribution build](../BUILD_DISTRIBUTIONS.md),
   then run the extracted JVM distribution. The upstream Yano `:app` build is
   not a task in this repository.
-
-The cluster launcher can also use a released Yano tree; see
-[`scripts/appchain-cluster/README.md`](../../scripts/appchain-cluster/README.md).
 
 ## Reference shelf
 

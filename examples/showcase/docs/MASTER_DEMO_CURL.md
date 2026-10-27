@@ -1,10 +1,10 @@
 # Master Demo Using curl and the Public HTTP API
 
-This version keeps cluster lifecycle behind `showcase.sh`, but submits and
+This version keeps node setup and lifecycle behind `showcase.sh`, but submits and
 queries application messages through the same public endpoints a real client
 uses. There is no showcase-private submission route.
 
-## 1. Start and inspect the cluster
+## 1. Start and inspect the nodes
 
 ```bash
 ./showcase.sh doctor --profile light
@@ -13,9 +13,9 @@ uses. There is no showcase-private submission route.
 ./showcase.sh ui --instance curl-demo
 ```
 
-`quickstart` also proves the devnet script anchor. The HTTP ports are
-7070–7072; submitting through a port uses that member as the application
-sender.
+`quickstart` sets the nodes up with the app-chain setup commands and also
+proves the devnet script anchor. The HTTP ports are 7070–7072; submitting
+through a port uses that member as the application sender.
 
 ## 2. Define reusable curl helpers
 
@@ -269,17 +269,24 @@ The dedicated drivers use the same submission endpoint and add pacing/reporting:
   --concurrency 4 --spread --instance curl-demo
 ```
 
-Govern a fourth node and a 3-of-4 threshold:
+Govern a fourth node; the existing nodes' approvals raise the threshold so
+2-of-3 becomes 3-of-4:
 
 ```bash
 ./showcase.sh member join 3 --instance curl-demo
-./showcase.sh governance activate --instance curl-demo
-./showcase.sh threshold set 3 --instance curl-demo
-./showcase.sh governance activate --instance curl-demo
 ./showcase.sh verify all --instance curl-demo
 ```
 
-Inspect the anchor and restart without re-bootstrap:
+Read the scheduled member set and threshold through the privileged API with
+node 0's own key, without printing it:
+
+```bash
+curl -fsS -H "X-API-Key: $(cat data/showcase/curl-demo/node0/secrets/api.key)" \
+  http://127.0.0.1:7070/api/v1/app-chain/chains/orders-chain/admin/members \
+  | jq '{members: (.members | length), threshold}'
+```
+
+Inspect the anchor and restart; the anchor identity is reused:
 
 ```bash
 curl -fsS \
@@ -289,14 +296,16 @@ curl -fsS \
 ./showcase.sh verify all --instance curl-demo
 ```
 
-For manual devnet bootstrap and fee-paying preprod setup, follow
+To anchor more chains (`./showcase.sh anchor <chain-id|all>`) and for
+fee-paying preprod setup, follow
 [ANCHORING_DEMO.md](ANCHORING_DEMO.md).
 
 ## 10. Authentication behavior
 
 The local showcase has broad API auth disabled; curl reads/submissions therefore
-omit a key. Privileged admin endpoints require the configured full local-demo
-key. In a real deployment set `yano.app-chain.api.auth.enabled=true`, inject
+omit a key. Privileged admin endpoints need a key: each node has its own in
+`data/showcase/<instance>/node<i>/secrets/api.key`, as in the members call
+above. Read it from the file rather than pasting it. In a real deployment set `yano.app-chain.api.auth.enabled=true`, inject
 `yano.app-chain.api.keys` as a secret, and export `APP_API_KEY` before defining
 the helpers so they add `X-API-Key`. Topic-scoped keys can submit only their
 declared topics and cannot perform admin/effect mutations. See

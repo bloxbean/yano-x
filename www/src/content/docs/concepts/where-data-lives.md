@@ -21,10 +21,11 @@ and what a proof covers.
 | `appchain-chainstate/` | Every hosted app ledger, one database per chain under `<path>/<chain-id>/` | Yes, for the app ledger | `yano.app-chain.storage.path` |
 | `appchain-indexers/` | Local read indexes derived from finalized blocks | No: rebuildable | The indexer's own setting |
 
-The launchers place all three side by side in each node's directory, for
-example `node0/chainstate`, `node0/appchain-chainstate`, and
-`node0/appchain-indexers`. App ledger data never goes below `chainstate/`, and
-derived indexes never go into either authoritative store.
+The setup commands place all three side by side under the node directory's
+`data/`, for example `yano-node/data/chainstate`,
+`yano-node/data/appchain-chainstate`, and `yano-node/data/appchain-indexers`.
+App ledger data never goes below `chainstate/`, and derived indexes never go
+into either authoritative store.
 
 ## Inside an app ledger's store
 
@@ -64,8 +65,9 @@ restore it into either authoritative store.
 
 ## Stopping, cleaning, and backing up
 
-- `./yano.sh appchain cluster stop` stops the nodes and keeps all three stores;
-  `clean` stops them and deletes the whole cluster directory.
+- `./yano.sh appchain stop --node-dir <dir>` stops a node and keeps all three
+  stores. `./yano.sh appchain try --clean` stops the rehearsal's nodes and
+  deletes the whole `appchain-try/` directory.
 - `./showcase.sh stop --instance <name>` keeps the instance;
   `./showcase.sh reset --yes --instance <name>` deletes it and cannot be undone.
 - Back up the authoritative stores, never the read indexes in their place. For

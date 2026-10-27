@@ -1,27 +1,18 @@
 # L1 Anchoring Demo
 
-The showcase does not require an edit to `application-appchain.yml`. New
-anchored instances default to `workflow-chain`, while the explicit
-`anchor enable` migration can add one chain or every configured chain later.
-The migration is additive: it cannot remove an anchored chain or change the
-retained mode/key. Do not delete or hand-edit retained identity files.
+Anchoring needs no configuration edit. Every chain is sealed with an anchor
+policy: the mode (`--anchor-mode script|metadata` at `prepare`, default
+`script`) and a cadence (every 2 blocks on devnet, every 30 on a public
+network). The mode is part of the sealed application and cannot change later.
+The policy alone spends nothing; a chain is anchored only after
+`./showcase.sh anchor [chain-id|all]` turns it on.
 
-### Upgrade an extracted pre-migration showcase
-
-Copying only `showcase.sh` is not sufficient. The command, identity migration,
-and multi-chain launch support are implemented by three matched files:
-
-```text
-showcase.sh
-tools/showcase_identity.py
-yano/appchain-cluster/cluster.sh
-```
-
-Use the three files from one newly built showcase ZIP (preferred), or from the
-same source revision. Stop the old facade first, replace all three files, and
-restore executable permissions. Keep the existing `data/`, `yano.jar`, config,
-plugin bundle, and private key in place. The migration verifies the retained
-config/plugin digests before changing an identity marker.
+`./showcase.sh anchor` runs `yano.sh appchain anchor` on node 0 for each
+chain. Node 0 becomes the chain's anchor leader: it gets an anchor wallet in
+`node0/secrets/anchor.key` (or imports `--anchor-key-file`), the wallet is
+funded (from the devnet faucet on devnet; by you on preprod), node 0 restarts
+with the anchor settings, and in script mode it submits the chain's one-time
+bootstrap. Running it again is safe: a chain is bootstrapped at most once.
 
 ## Fast devnet script-anchor demo
 
@@ -31,12 +22,12 @@ This is the recommended presentation path:
 ./showcase.sh quickstart --profile light --instance anchor-demo --nodes 3
 ```
 
-For the light profile, `quickstart` enables `script` anchoring automatically.
-It starts a 2-of-3 app chain, funds the demo anchor wallet from the local
-devnet faucet, performs the one-time `workflow-chain` bootstrap, finalizes the
-composite/effect flow, and verifies a confirmed Cardano anchor. The local
-devnet seed is public demo material and must never be reused on another
-network.
+For the light profile, `quickstart` turns on `script` anchoring for
+`workflow-chain`. It starts a 2-of-3 app chain, funds node 0's anchor wallet
+from the local devnet faucet, performs the one-time `workflow-chain`
+bootstrap, finalizes the composite/effect flow, and verifies a confirmed
+Cardano anchor. The devnet wallet is demo material and must never be reused
+on another network.
 
 Open the status UI and select `workflow-chain`:
 
@@ -53,57 +44,49 @@ transaction ID, anchored L2 height/root, lag, and member L1 observations.
 
 ## Manual devnet flow
 
-Use this version when you want to narrate bootstrap separately:
+Use this version when you want to narrate the anchor step separately:
 
 ```bash
 ./showcase.sh up --profile light --instance anchor-manual --nodes 3 \
   --anchor-mode script
 
 ./showcase.sh config show --instance anchor-manual
-./showcase.sh anchor bootstrap workflow-chain --instance anchor-manual
+./showcase.sh anchor workflow-chain --instance anchor-manual
 ./showcase.sh run composite --instance anchor-manual
 ./showcase.sh verify all --instance anchor-manual
 ```
 
-Bootstrap mints the thread NFT and establishes the script/datum identity. Run
-it exactly once for a new script-anchor instance. Ordinary anchors occur
-automatically after finalized `workflow-chain` activity; restart reuses the
-identity and must not bootstrap again.
+The bootstrap mints the thread NFT and establishes the script/datum identity,
+once per chain. Ordinary anchors occur automatically after finalized
+`workflow-chain` activity; restart reuses the identity.
 
 ## Add anchoring to an existing chain
 
-An app chain may already contain finalized history when anchoring is enabled.
-The command stops the local nodes, expands only the retained anchor scope, and
-restarts every node from the same L1 and app-chain RocksDB directories:
+An app chain may already contain finalized history when anchoring is turned
+on. The command restarts node 0 on its existing L1 and app-chain stores:
 
 ```bash
 # Add one chain while retaining an existing workflow-chain anchor.
-./showcase.sh anchor enable registry-chain --instance anchor-demo
+./showcase.sh anchor registry-chain --instance anchor-demo
 
-# Or enable every out-of-box chain in one migration.
-./showcase.sh anchor enable all --instance anchor-demo
+# Or every chain of the instance, one after another.
+./showcase.sh anchor all --instance anchor-demo
 ```
 
-For preprod, repeat the public-network acknowledgement. The retained key is
-reused; do not supply a different one:
+For preprod, repeat the public-network acknowledgement. The key recorded at
+`prepare` is reused; do not supply a different one:
 
 ```bash
-./showcase.sh anchor enable registry-chain --instance preprod-anchor \
+./showcase.sh anchor registry-chain --instance preprod-anchor \
   --confirm-public-anchor preprod
 
-./showcase.sh anchor enable all --instance preprod-anchor \
+./showcase.sh anchor all --instance preprod-anchor \
   --confirm-public-anchor preprod
 ```
 
-Enabling does not submit a Cardano transaction. In script mode, bootstrap each
-new chain after node 0 can see enough clean pure-ADA wallet UTxOs:
-
-```bash
-./showcase.sh anchor bootstrap registry-chain --instance preprod-anchor
-
-# This waits for each L1 confirmation before starting the next bootstrap.
-./showcase.sh anchor bootstrap all --instance preprod-anchor
-```
+In script mode each chain's bootstrap needs enough clean pure-ADA UTxOs in the
+anchor wallet; `anchor all` waits for each chain's L1 confirmation before
+starting the next.
 
 Each chain receives its own thread NFT, policy ID, validator address, and
 bootstrap transaction, even though the wallet key may be shared. Bootstrap
@@ -124,20 +107,17 @@ threshold co-signing and follower observation.
 
 ## Metadata mode
 
-Metadata mode is lighter and has no thread-NFT bootstrap. The anchor wallet
-must be funded, after which finalized roots are submitted automatically:
+Metadata mode is lighter and has no thread-NFT bootstrap. Once the anchor
+wallet is funded, finalized roots are submitted automatically. Run the setup
+tool's `anchor` command on node 0 directly; on devnet it funds the wallet from
+the faucet:
 
 ```bash
 ./showcase.sh up --profile light --instance metadata-demo --nodes 3 \
   --anchor-mode metadata
 
-ADDR="$(curl -fsS \
-  http://127.0.0.1:7070/api/v1/app-chain/chains/workflow-chain/status \
-  | jq -r '.anchor.walletAddress // .anchor.address')"
-curl -fsS -X POST http://127.0.0.1:7070/api/v1/devnet/fund \
-  -H 'Content-Type: application/json' \
-  -d "$(jq -nc --arg address "$ADDR" '{address:$address,ada:500}')"
-
+../../yano.sh appchain anchor showcase --chain workflow-chain \
+  --node-dir data/showcase/metadata-demo/node0 --yes
 ./showcase.sh run composite --instance metadata-demo
 ./showcase.sh status --instance metadata-demo
 ```
@@ -160,7 +140,7 @@ mnemonic and not a CIP-1852 phrase.
    chmod 600 ./private-anchor/anchor.seed
    ```
 
-2. Start a fresh preprod instance with anchoring enabled:
+2. Start a fresh preprod instance that records the key:
 
    ```bash
    ./showcase.sh up --profile light --network preprod --nodes 3 \
@@ -169,15 +149,8 @@ mnemonic and not a CIP-1852 phrase.
      --confirm-public-anchor preprod
    ```
 
-3. Copy the printed `addr_test...` anchor wallet address and fund it from a
-   separate preprod wallet. Prefer clean pure-ADA UTxOs with enough value for
-   bootstrap, script execution/collateral, fees, and later anchors. Keeping
-   more than one usable UTxO avoids a transaction builder being blocked while
-   another input is spent.
-
-4. Wait until node 0 is synchronized far enough to see the funding transaction
-   and the configured stability window accepts it. Confirm the address and
-   inspect node 0 without exposing the seed:
+3. Wait until node 0 is synchronized far enough to see new preprod
+   transactions. Inspect it without exposing the seed:
 
    ```bash
    ./showcase.sh config show --instance preprod-anchor
@@ -185,19 +158,29 @@ mnemonic and not a CIP-1852 phrase.
    ./showcase.sh logs --node 0 --instance preprod-anchor
    ```
 
-5. Bootstrap the script identity exactly once:
+4. Turn anchoring on for `workflow-chain`:
 
    ```bash
-   ./showcase.sh anchor bootstrap workflow-chain --instance preprod-anchor
+   ./showcase.sh anchor workflow-chain --instance preprod-anchor \
+     --confirm-public-anchor preprod
    ```
+
+   It imports the key into node 0, restarts node 0, and prints the
+   `addr_test...` anchor wallet address. Fund it from a separate preprod
+   wallet. Prefer clean pure-ADA UTxOs with enough value for bootstrap,
+   script execution/collateral, fees, and later anchors; more than one usable
+   UTxO avoids a transaction builder being blocked while another input is
+   spent. The command waits for the funds and then submits the bootstrap. If
+   it stops waiting first, run the same command again; it continues and never
+   submits a second bootstrap.
 
    Node 0 builds the Cardano transaction with the anchor wallet. The current
    app-chain members co-sign the script-anchor round at the current threshold.
    For 3 nodes the default is 2 signatures; for 1 node it is 1.
 
-6. Finalize `workflow-chain` activity. Public-network cadence defaults to one
-   anchor per 30 workflow blocks to avoid needless fees, so a single composite
-   run proves the flow but may not yet advance the next ordinary anchor. For a
+5. Finalize `workflow-chain` activity. Public-network cadence is one anchor
+   per 30 workflow blocks to avoid needless fees, so a single composite run
+   proves the flow but may not yet advance the next ordinary anchor. For a
    prompt rehearsal, run enough complete composite flows:
 
    ```bash
@@ -205,7 +188,7 @@ mnemonic and not a CIP-1852 phrase.
    ./showcase.sh verify all --instance preprod-anchor
    ```
 
-7. Verify both L2 finality and L1 confirmation:
+6. Verify both L2 finality and L1 confirmation:
 
    ```bash
    curl -fsS \
@@ -214,7 +197,7 @@ mnemonic and not a CIP-1852 phrase.
    ./showcase.sh ui --instance preprod-anchor
    ```
 
-8. Restart normally; never repeat bootstrap:
+7. Restart normally; the anchor identity is reused:
 
    ```bash
    ./showcase.sh restart --instance preprod-anchor

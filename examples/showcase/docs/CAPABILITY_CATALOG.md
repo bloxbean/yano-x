@@ -46,9 +46,10 @@ the body and does not prove continued body availability.
   --enable-finalized-message-index
 ```
 
-The scope, policy, cost bound, and digest are retained in
-`showcase-identity.json`; selected applications receive a distinct
-state-generation identity. Restart with a conflicting option fails closed.
+The policy and per-block cost bound become sealed settings of each selected
+chain, so selected applications receive a distinct state-generation identity.
+The scope is retained in `instance.json`; repeating the option with a
+different value fails closed.
 
 In the UI, select a message, inspect its block inclusion, choose “Use message
 state key,” retrieve the authenticated state proof, and compare the state root

@@ -1,17 +1,18 @@
 // The local showcase quickstart, synced to the terminal: doctor, quickstart,
 // one order, verify, stop, and restart. Facts come from showcase.sh, its
-// chain catalog, and the cluster launcher it drives.
+// chain catalog, and the setup commands it runs.
 
 const start = {
   title: 'Start',
-  text: '`quickstart` prepares the instance under `data/showcase/first-demo` and starts three nodes on a private '
-    + 'devnet. Every node hosts the same 13 showcase chains. It then bootstraps the `workflow-chain` devnet anchor, '
-    + 'runs the composite workflow and authenticated-map demonstrations, and checks that the nodes converged.',
+  text: '`quickstart` prepares the instance under `data/showcase/first-demo`: it seals the showcase applications '
+    + 'with the setup commands `new`, `request`, `seal`, and `join`, then starts three nodes on a private devnet. '
+    + 'Every node hosts the same 13 showcase chains. It then makes node 0 the `workflow-chain` anchor leader, runs '
+    + 'the composite workflow and authenticated-map demonstrations, and checks that the nodes converged.',
   viewText: { terminal: 'Ends with the per-chain check and `Status UI: http://127.0.0.1:7070/ui/app-chain/`.' },
   command: './showcase.sh quickstart --profile light --nodes 3 --instance first-demo',
   wires: [
     { from: 'showcase', to: 'nodes', label: 'start 3 nodes' },
-    { from: 'showcase', to: 'l1', label: 'anchor bootstrap', tone: 'cardano' },
+    { from: 'showcase', to: 'l1', label: 'anchor workflow-chain', tone: 'cardano' },
   ],
   cards: {
     showcase: { title: 'Instance first-demo', detail: 'identity recorded' },
@@ -28,7 +29,7 @@ export default {
     + 'only what the commands print.',
   lanes: [
     { id: 'terminal', label: 'Your terminal', note: '`examples/showcase`', kind: 'client' },
-    { id: 'showcase', label: 'showcase.sh', note: 'drives the cluster launcher', kind: 'runtime' },
+    { id: 'showcase', label: 'showcase.sh', note: 'runs the setup commands', kind: 'runtime' },
     { id: 'nodes', label: 'Three members', note: 'http 7070–7072', kind: 'member' },
     { id: 'l1', label: 'Devnet', note: 'node 0 produces it', kind: 'cardano' },
   ],
@@ -74,7 +75,7 @@ export default {
       }, {
         title: 'Stop',
         text: '`stop` stops the nodes and keeps the instance: its identity, its chain data, and its chosen ports.',
-        viewText: { terminal: 'Prints `stopped 3 node(s)`.' },
+        viewText: { terminal: 'Prints `✓ Stopped node2; its data is kept`, and the same for node 1 and node 0.' },
         command: './showcase.sh stop --instance first-demo',
         wires: [{ from: 'showcase', to: 'nodes', label: 'stop, keep data' }],
         cards: { nodes: { title: 'Stopped', detail: 'data retained' } },
@@ -82,7 +83,8 @@ export default {
         title: 'Restart',
         text: '`restart` starts the same instance from its retained state. Run `verify` again, then retrieve the same '
           + 'order: the history is unchanged.',
-        viewText: { terminal: 'Prints `Cluster up.` Retained tips and roots return unchanged.' },
+        viewText: { terminal: 'Prints `node0 is up at http://127.0.0.1:7070` for each node. Retained tips and roots '
+          + 'return unchanged.' },
         command: './showcase.sh restart --instance first-demo',
         wires: [{ from: 'showcase', to: 'nodes', label: 'start from retained state' }],
         cards: { nodes: { title: '3 nodes ready', detail: 'same history', tone: 'ok' } },
@@ -91,7 +93,7 @@ export default {
     {
       id: 'ports-busy',
       label: 'The default ports are busy',
-      summary: 'The showcase passes its port bases to the launcher explicitly, so it stops rather than moving them.',
+      summary: 'The showcase gives every node its ports explicitly, so it stops rather than moving them.',
       steps: [{
         title: 'Check',
         text: '`doctor` passes. It does not check ports.',
@@ -99,9 +101,9 @@ export default {
         cards: { terminal: { title: 'doctor', detail: 'prerequisites present', tone: 'ok' } },
       }, {
         ...start,
-        text: 'Another program holds a port in 7070–7072. Because the port bases are explicit, the launcher refuses '
-          + 'to start any node: “explicit HTTP range 7070-7072 is busy”.',
-        viewText: { terminal: 'Prints `explicit HTTP range 7070-7072 is busy (port …)`.' },
+        text: 'Another program holds a port in 7070–7072. Each node keeps the ports the showcase gave it, so `start` '
+          + 'refuses to run the node whose port is taken, and the showcase stops.',
+        viewText: { terminal: 'Prints `Port … is already in use by another program`, then `node… did not start`.' },
         wires: [{ from: 'showcase', to: 'nodes', label: 'start refused', tone: 'fail' }],
         cards: {
           showcase: { title: 'Start refused', detail: 'port busy', tone: 'fail' },
@@ -128,21 +130,22 @@ export default {
     { repo: 'yano-x', path: 'examples/showcase/src/main/showcase/showcase.sh',
       anchors: ['need java; need python3; need curl; need jq', 'hashlib.blake2b(b"yano-showcase-doctor"',
         'case "$java_version" in 25|25.*)', 'and packaged artifacts are present',
-        '[ "$COMMAND" != quickstart ] || [ "$PROFILE" != light ] || ANCHOR=true',
-        '"$CLUSTER" anchor-bootstrap workflow-chain', 'run_composite quickstart', 'run_authenticated_map quickstart',
+        '[ "$ANCHOR_MODE" != script ] || anchor_chains workflow-chain', 'local args=(anchor "$app" --chain "$cid"',
+        'run_composite quickstart', 'run_authenticated_map quickstart',
         'note "Status UI: http://127.0.0.1:$HTTP_BASE/ui/app-chain/"', "printf '%s/data/showcase/%s'",
         'note "ORDERED: message finalized at height', 'claimSatisfied:.claimResult.satisfied',
         'nodes=%d tip=%d cert=%s/%s', 'die "$cid tip certificate has $cert signatures below active threshold',
         'die "workflow-chain has no confirmed L1 anchor"', 'HTTP_BASE=7070', 'SERVER_BASE=13337',
-        '--http-base "$HTTP_BASE" --server-base "$SERVER_BASE"',
-        'cluster_env; "$CLUSTER" stop; write_node_configs "$NODES"; up_light'] },
+        '--node-port "$((SERVER_BASE + index))" --http-port "$((HTTP_BASE + index))"',
+        'note "node$index is up at http://127.0.0.1:$((HTTP_BASE + index))"', 'die "node$index did not start; see',
+        'appchain stop --node-dir "$(node_dir "$index")"', 'stop_nodes; start_nodes;;'] },
     { repo: 'yano-x', path: 'examples/showcase/src/main/showcase/demos/submit-orders.sh',
       anchors: ['showcase.sh" run orders --instance'] },
     { repo: 'yano-x', path: 'examples/showcase/src/main/showcase/config/showcase-catalog-v1.json',
       anchors: ['"orders-chain"', '"workflow-chain"', '"cardano-history-chain"'] },
-    { repo: 'yano-x', path: 'scripts/appchain-cluster/cluster.sh',
-      anchors: ['--http-base)    HTTP_BASE="$2"; HTTP_BASE_EXPLICIT=1; shift 2;;',
-        'die "explicit HTTP range $HTTP_BASE-$(range_end "$HTTP_BASE" "$count") is busy (port $busy)"',
-        'c_grn "stopped $killed node(s)"', 'c_grn "Cluster up."'] },
+    { repo: 'yano-x', path: 'tooling/appchain-cli/src/main/java/org/yanoproject/x/appchain/cli/StartCommand.java',
+      anchors: ['" is already in use by another program. Stop it, or "'] },
+    { repo: 'yano-x', path: 'tooling/appchain-cli/src/main/java/org/yanoproject/x/appchain/cli/StopCommand.java',
+      anchors: ['terminal.ok("Stopped " + node.requireIdentity().name() + "; its data is kept");'] },
   ],
 };

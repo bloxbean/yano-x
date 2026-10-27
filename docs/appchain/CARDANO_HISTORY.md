@@ -67,12 +67,18 @@ composite aggregate operation. An incomplete dataset returns `complete=false` an
 
 ## Java client and CLI
 
-The client requires an explicit node API URL and chain ID:
+The client requires an explicit node API URL and chain ID. Privileged calls also need the node's
+API key, which `yano.sh appchain` keeps in the node directory (in the showcase,
+`data/showcase/<instance>/node<i>`). Read it into your shell without printing it:
+
+```bash
+export YANO_API_KEY=$(cat <node-dir>/secrets/api.key)
+```
 
 ```java
 var history = CardanoHistoryClient.builder(
         "http://localhost:17070/api/v1", "cardano-history-chain")
-        .apiKey(System.getenv("YANO_CLUSTER_API_KEY")).build();
+        .apiKey(System.getenv("YANO_API_KEY")).build();
 var stake = history.stake(170, 0, credentialHash);
 ```
 
@@ -82,7 +88,7 @@ The CLI never assumes port 7070 or derives a chain from an arbitrary showcase in
 yano-cardano-history status \
   --url http://localhost:17070/api/v1 \
   --chain cardano-history-chain \
-  --api-key "$YANO_CLUSTER_API_KEY"
+  --api-key "$YANO_API_KEY"
 
 yano-cardano-history query params --epoch 170 \
   --url http://localhost:17070/api/v1 \
@@ -91,14 +97,14 @@ yano-cardano-history query params --epoch 170 \
 yano-cardano-history proof params --epoch 170 --output params-proof.json \
   --url http://localhost:17070/api/v1 \
   --chain cardano-history-chain \
-  --api-key "$YANO_CLUSTER_API_KEY"
+  --api-key "$YANO_API_KEY"
 
 yano-cardano-history proof stake --epoch 169 \
   --credential "$STAKE_CREDENTIAL_HEX" --coin 1000000 --mode minimum \
   --output stake-proof.json \
   --url http://localhost:17070/api/v1 \
   --chain cardano-history-chain \
-  --api-key "$YANO_CLUSTER_API_KEY"
+  --api-key "$YANO_API_KEY"
 
 yano-cardano-history verify --bundle params-proof.json \
   --trusted-root independently-obtained-cardano-root.json

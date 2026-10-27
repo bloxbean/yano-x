@@ -153,7 +153,7 @@ and writes state. `ordered-log` is built in; the others are plugins. See
 computes it and compares it byte for byte; proofs are checked against it.
 
 **Threshold.** The number of member signatures a finality certificate needs.
-Set it explicitly; the launchers default to a majority, `⌊n/2⌋ + 1`.
+Set it explicitly; `./yano.sh appchain new` defaults to a majority, `⌊n/2⌋ + 1`.
 
 **Topic.** A label inside a ledger for routing and filtering messages. Topics
 starting with `~` are reserved for the framework.

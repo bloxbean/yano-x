@@ -245,28 +245,23 @@ the external service. See
 
 ## Try it
 
-The bundled effects demo needs no broker, object store, or credentials. It uses
-the stock `effects-chain`, whose `approvals` machine emits a `demo.webhook`
-effect when an item is approved; a simulated external worker claims it and
-reports success.
+The local showcase runs one effect end to end with no broker, object store, or
+credentials. Its `workflow-chain` releases an approved order and emits a
+`showcase.outbox.write` effect. Only node 0 runs the executor, which writes an
+idempotent receipt file; every node validates and finalizes the result. From
+`examples/showcase` in the extracted distribution:
 
 ```bash
-./yano.sh appchain cluster start 3
-./yano.sh appchain cluster effect demo "order 42 approved"
+./showcase.sh up --instance demo
+./showcase.sh run composite --instance demo    # produces one effect end to end
+curl -s "http://127.0.0.1:7070/api/v1/app-chain/chains/workflow-chain/effects?fromHeight=0&limit=100" \
+  | jq '.effects[] | {height, ordinal, type, scope, status}'
 ```
 
-Expected output, with your heights and hashes:
-
-```text
-Effect emitted       effects-chain height=<h> ordinal=<n>
-Effect type          demo.webhook
-Executor             external demo worker on node 0
-Delivery             CONFIRMED
-External reference   demo-worker://confirmed/<effect id>
-Attempts              <n>
-Proof                 AVAILABLE (<hash prefix>...)
-Captured payload      {"event":"demo.effect.requested","itemId":"demo-…","message":"order 42 approved"}
-```
+The list shows each effect's height, ordinal, type, scope, and lifecycle
+status. The showcase's
+[effects deep-dive](https://github.com/bloxbean/yano-x/blob/main/examples/showcase/DEMO_SHOWCASE.md#6-deterministic-effects-deep-dive)
+follows the same effect to its proof and its receipt on disk.
 
 Next: [Tutorial 6 — webhook effects](/tutorials/06-webhook-effects/) runs a
 real `webhook.post` against a local receiver, and covers when to use a

@@ -54,7 +54,7 @@ export default {
       label: 'Crash faults (f = 0)',
       steps: [
         preset(3, 2, 0, '2 of 3',
-          'The launcher default for three members, a majority. Any two quorums of 2 share a member, and the ledger '
+          'The default for three members, a majority. Any two quorums of 2 share a member, and the ledger '
             + 'keeps finalizing with one member offline.'),
         preset(3, 1, 0, '1 of 3',
           'Two members could each finalize a different block on their own, because two quorums of 1 need not '
@@ -63,9 +63,9 @@ export default {
           'Half is not enough: members A and B could finalize one block while C and D finalize another. With '
             + '`f = 0`, the threshold must be more than half the members.'),
         preset(4, 3, 0, '3 of 4',
-          'The launcher default for four members. One member may be offline.'),
+          'The default for four members. One member may be offline.'),
         preset(5, 3, 0, '3 of 5',
-          'The launcher default for five members. Two members may be offline.'),
+          'The default for five members. Two members may be offline.'),
         preset(1, 1, 0, '1 of 1',
           'A single member. The host’s default threshold is 1, which passes only for one member; for more '
             + 'members, set the threshold.'),
@@ -104,7 +104,7 @@ export default {
     { repo: 'yano', path: 'adr/app-layer/036-certified-view-change-and-durable-l1-observation-delivery.md',
       anchors: ['2q - n > f', 'q <= n - f',
         'A two-of-three profile is crash-safe but must not be advertised as tolerating one Byzantine member.'] },
-    { repo: 'yano-x', path: 'scripts/appchain-cluster/cluster.sh',
-      anchors: ['default_threshold() { echo $(( $1 / 2 + 1 )); }'] },
+    { repo: 'yano-x', path: 'tooling/appchain-formats/src/main/java/org/yanoproject/x/appchain/formats/Draft.java',
+      anchors: ['threshold = threshold == null ? "majority" : threshold;', 'case "majority" -> members / 2 + 1;'] },
   ],
 };

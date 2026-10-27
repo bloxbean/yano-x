@@ -441,9 +441,9 @@ catch-up, restart, and anchor state.
 - Treat custom-plugin metadata as `PARTIAL` unless Yano reports `FULL`.
 - Never delete retained clusters, state, keys, or staging repositories without
   reviewing the exact path and obtaining explicit authorization. `stop`
-  preserves state; `./yano.sh appchain cluster clean` and
+  preserves state; `./yano.sh appchain try --clean` and
   `./showcase.sh reset --yes` delete it.
 - Preprod operations submit real test-network transactions and spend test ADA.
-  Require explicit authorization before deployment, anchor bootstrap, settlement
-  bootstrap, or smoke traffic.
+  Require explicit authorization before deployment, turning on anchoring,
+  settlement bootstrap, or smoke traffic.
 - Do not modify the sibling Yano repository as a side effect of a Yano X task.

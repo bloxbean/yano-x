@@ -1,17 +1,16 @@
-// Ports by way of running: the single-host launcher (and the showcase that
-// drives it), the one-machine `appchain try` rehearsal, and a real
-// application with one node per operator. Facts come from cluster.sh,
-// showcase.sh, the appchain-cli request, try and join code, and Yano's
+// Ports by way of running: the local showcase, the one-machine `appchain try`
+// rehearsal, and a real application with one node per operator. Facts come
+// from showcase.sh, the appchain-cli request, try and join code, and Yano's
 // consensus guide.
 
 const CLI = 'tooling/appchain-cli/src/main/java/org/yanoproject/x/appchain/cli';
 
-const LAUNCHER = '`./yano.sh appchain cluster` and the showcase put node i on HTTP 7070 + i and node-to-node port '
-  + '13337 + i, listening on 127.0.0.1. The launcher moves a busy default range and prints the new one; the '
-  + 'showcase passes its bases explicitly, so a busy range stops it. Change them with `--http-base` and `--server-base`.';
+const SHOWCASE = 'The showcase puts node i on HTTP 7070 + i and node-to-node port 13337 + i, listening on 127.0.0.1. '
+  + 'It passes these ports to `request` for every node, so a busy port stops it instead of moving. Change the bases '
+  + 'with `--http-base` and `--server-base`; a retained instance remembers them.';
 const TRY = '`./yano.sh appchain try` gives alice, bob and carol the first free ports from 8080 (HTTP) and 13337 '
-  + '(node-to-node), listening on 127.0.0.1, and prints every command it runs. A launcher cluster already holding '
-  + '13337 just moves the rehearsal up.';
+  + '(node-to-node), listening on 127.0.0.1, and prints every command it runs. A showcase already holding 13337 just '
+  + 'moves the rehearsal up.';
 const OPERATOR = 'In a real application each operator chooses their ports at `request`; the defaults are HTTP 8080 and '
   + 'node-to-node 13337. With a public host name, the node listens on all interfaces. Other members connect to the '
   + 'node-to-node port; `status` and later members use the HTTP port. Open both only to the machines that need them.';
@@ -27,14 +26,14 @@ export default {
   caption: 'A node has one HTTP port and one node-to-node port, whatever the number of chains it hosts. The port '
     + 'numbers depend on how you run it.',
   zones: [
-    { id: 'launcher', kind: 'core', label: 'Cluster launcher, showcase', contains: ['l0', 'l1', 'l2'] },
+    { id: 'launcher', kind: 'core', label: 'Local showcase', contains: ['l0', 'l1', 'l2'] },
     { id: 'rehearsal', kind: 'ledger', label: 'appchain try, one machine', contains: ['t0', 't1', 't2'] },
     { id: 'hosts', kind: 'external', label: 'One node per operator', contains: ['h0', 'h1', 'h2'] },
   ],
   blocks: [
-    node('l0', 'node 0', 'http 7070 · n2n 13337', 'leader', `${LAUNCHER} Node 0 also produces the private devnet.`),
-    node('l1', 'node 1', 'http 7071 · n2n 13338', 'member', LAUNCHER),
-    node('l2', 'node 2', 'http 7072 · n2n 13339', 'member', LAUNCHER),
+    node('l0', 'node 0', 'http 7070 · n2n 13337', 'leader', `${SHOWCASE} Node 0 also produces the private devnet.`),
+    node('l1', 'node 1', 'http 7071 · n2n 13338', 'member', SHOWCASE),
+    node('l2', 'node 2', 'http 7072 · n2n 13339', 'member', SHOWCASE),
     node('t0', 'alice', 'http 8080 · n2n 13337', 'leader', `${TRY} Alice is the lead and produces the devnet.`),
     node('t1', 'bob', 'http 8081 · n2n 13338', 'member', TRY),
     node('t2', 'carol', 'http 8082 · n2n 13339', 'member', TRY),
@@ -105,12 +104,10 @@ export default {
     ['member', 'member node'],
   ],
   sources: [
-    { repo: 'yano-x', path: 'scripts/appchain-cluster/cluster.sh',
-      anchors: ['HTTP_BASE="${YANO_CLUSTER_HTTP_BASE:-7070}"', 'SERVER_BASE="${YANO_CLUSTER_SERVER_BASE:-13337}"',
-        'http_port()   { echo $(( HTTP_BASE + $1 )); }', 'server_port() { echo $(( SERVER_BASE + $1 )); }',
-        '"-Dquarkus.http.host=127.0.0.1"', 'unavailable; using', 'app transport: shared (default'] },
     { repo: 'yano-x', path: 'examples/showcase/src/main/showcase/showcase.sh',
-      anchors: ['HTTP_BASE=7070', 'SERVER_BASE=13337', '--http-base "$HTTP_BASE" --server-base "$SERVER_BASE"'] },
+      anchors: ['HTTP_BASE=7070', 'SERVER_BASE=13337', '--name "node$index" --host 127.0.0.1',
+        '--node-port "$((SERVER_BASE + index))" --http-port "$((HTTP_BASE + index))"',
+        '--http-base) HTTP_BASE="${2:-}"'] },
     { repo: 'yano-x', path: `${CLI}/TryCommand.java`,
       anchors: ['Ports.firstFree(13337, used)', 'Ports.firstFree(8080, used)'] },
     { repo: 'yano-x', path: `${CLI}/RequestCommand.java`,

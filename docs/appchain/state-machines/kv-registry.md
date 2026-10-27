@@ -79,28 +79,27 @@ rather than a member node.
 
 ## Try it
 
-The stock local cluster hosts `registry-chain` with `value-format: utf8`. From
-the top-level directory of the extracted release:
+The `owned-registry` recipe runs `kv-registry`. From the top-level directory
+of the extracted release, rehearse a three-member application with one
+`registry` chain whose values must be UTF-8:
 
 ```bash
-./yano.sh appchain cluster start 3
-./yano.sh appchain cluster kv registry-chain set supplier-42 active --node 1
+./yano.sh appchain try --chain registry=owned-registry \
+  --setting registry.machines.kv-registry.value-format=utf8
 ```
 
-Node 1 now owns `supplier-42`. A write through node 2 becomes final but cannot
-change the entry:
+It starts alice's, bob's and carol's nodes under `./appchain-try/`. Read
+their HTTP ports:
 
 ```bash
-./yano.sh appchain cluster kv registry-chain set supplier-42 suspended --node 2
+ALICE=$(jq -r .httpPort appchain-try/alice/yano-node/node.json)
+BOB=$(jq -r .httpPort appchain-try/bob/yano-node/node.json)
+CAROL=$(jq -r .httpPort appchain-try/carol/yano-node/node.json)
 ```
 
-The owner can update or delete it:
-
-```bash
-./yano.sh appchain cluster kv registry-chain set supplier-42 suspended --node 1
-./yano.sh appchain cluster kv registry-chain del supplier-42 --node 1
-```
-
+The sections below write `supplier-42` through bob's node, so bob owns it. A
+write through carol's node becomes final but cannot change the entry; bob can
+update or delete it.
 [Tutorial 2](../tutorials/02-registry-and-proofs.md) walks through the same
 steps with proofs.
 
@@ -116,11 +115,11 @@ PUT_HEX=$(python3 "$TOOL" kv-registry put supplier-42 --value-text active)
 DELETE_HEX=$(python3 "$TOOL" kv-registry delete supplier-42)
 ```
 
-Submit the PUT through node 1, so node 1 becomes the owner:
+Submit the PUT through bob's node, so bob becomes the owner:
 
 ```bash
 curl -sS -X POST \
-  http://127.0.0.1:7071/api/v1/app-chain/chains/registry-chain/messages \
+  "http://127.0.0.1:$BOB/api/v1/app-chain/chains/registry/messages" \
   -H 'Content-Type: application/json' \
   -d "{\"topic\":\"kv-registry.command.v1\",\"bodyHex\":\"$PUT_HEX\"}" | jq .
 ```
@@ -145,8 +144,8 @@ import org.yanoproject.x.client.StdlibAppChainClient;
 
 import java.nio.charset.StandardCharsets;
 
-var ownerClient = AppChainClient.builder("http://127.0.0.1:7071/api/v1")
-        .chainId("registry-chain")
+var ownerClient = AppChainClient.builder("http://127.0.0.1:8081/api/v1") // bob's node
+        .chainId("registry")
         // .apiKey("secret")
         .build();
 var registry = new StdlibAppChainClient(ownerClient);
@@ -159,7 +158,7 @@ registry.kvDelete(key); // later, through the same member
 ```
 
 The node signs a REST submission, not your client object. A client pointed at
-port 7072 uses node 2's member key and cannot update a key that node 1 owns.
+carol's node uses carol's member key and cannot update a key that bob owns.
 
 ## Read and prove an entry
 
@@ -169,7 +168,7 @@ The state key is the key bytes themselves:
 KEY_HEX=$(python3 -c 'print("supplier-42".encode().hex())')
 
 curl -sS \
-  "http://127.0.0.1:7070/api/v1/app-chain/chains/registry-chain/state/proof/$KEY_HEX" \
+  "http://127.0.0.1:$ALICE/api/v1/app-chain/chains/registry/state/proof/$KEY_HEX" \
   | jq '{committedHeight, stateRoot, presence, valueHex}'
 ```
 
@@ -183,7 +182,7 @@ current value is `active`; the digest is Blake2b-256 of the value bytes:
 DIGEST=$(python3 -c 'import hashlib; print(hashlib.blake2b(b"active", digest_size=32).hexdigest())')
 
 curl -sS -X POST \
-  "http://127.0.0.1:7070/api/v1/app-chain/chains/registry-chain/proof-subjects/registry-entry-v1/proof" \
+  "http://127.0.0.1:$ALICE/api/v1/app-chain/chains/registry/proof-subjects/registry-entry-v1/proof" \
   -H 'Content-Type: application/json' \
   -d "$(jq -nc --arg key "$KEY_HEX" --arg d "$DIGEST" \
     '{coordinates:{key:$key}, view:"latest",
@@ -206,14 +205,18 @@ Cardano anchor.
 
 ## Configure
 
-`registry-chain` in the stock cluster file shows a complete entry, including
-the three [state-identity settings](README.md#before-you-configure-one):
+In an application set up with `./yano.sh appchain new`, the `owned-registry`
+recipe and `appchain seal` write these settings for you, and
+`--setting <chain>.machines.kv-registry.value-format=utf8` (or `settings:` in a
+template) chooses the format. Written by hand, a complete entry, including the
+three [state-identity settings](README.md#before-you-configure-one), looks like
+this:
 
 ```yaml
 yano:
   app-chain:
-    chains[1]:
-      chain-id: "registry-chain"
+    chains[0]:
+      chain-id: "registry"
       state-machine: kv-registry
       state:
         commitment-profile: mpf-blake2b256-v1

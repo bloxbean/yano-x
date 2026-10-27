@@ -6,13 +6,14 @@ submission, deterministic effects, L1 anchoring on devnet and preprod,
 verifiable reads with historical versioning, the browser console, and the
 Java client (including a runnable fat jar).
 
-Last verified live: 2026-08-05 on a 3-node cluster.
+Last verified live: 2026-08-05 with three nodes, before node setup moved to the
+app-chain setup commands.
 
 ## Table of contents
 
 1. [Build and extract](#1-build-and-extract)
-2. [Start a cluster](#2-start-a-cluster)
-3. [Everyday cluster operations](#3-everyday-cluster-operations)
+2. [Start the nodes](#2-start-the-nodes)
+3. [Everyday operations](#3-everyday-operations)
 4. [The console pages](#4-the-console-pages)
 5. [Chain-by-chain demos](#5-chain-by-chain-demos)
    - [orders-chain — ordered log](#orders-chain--ordered-log)
@@ -30,7 +31,7 @@ Last verified live: 2026-08-05 on a 3-node cluster.
 6. [Deterministic effects deep-dive](#6-deterministic-effects-deep-dive)
 7. [Bulk load and soak](#7-bulk-load-and-soak)
 8. [Java client (fat jar)](#8-java-client-fat-jar)
-9. [L1 anchoring: enable, bootstrap, verify](#9-l1-anchoring-enable-bootstrap-verify)
+9. [L1 anchoring: turn on, verify](#9-l1-anchoring-turn-on-verify)
 10. [Historical state: read any key at any height](#10-historical-state-read-any-key-at-any-height)
 11. [Authenticated-map curl deep-dive](#11-authenticated-map-curl-deep-dive)
 12. [Cheat sheet: demo actors and seeds](#12-cheat-sheet-demo-actors-and-seeds)
@@ -61,11 +62,19 @@ inside it.
 For coordinated unpublished Yano inputs, follow the repository
 [build guide](../../docs/BUILD_AND_TEST.md).
 
-## 2. Start a cluster
+## 2. Start the nodes
 
-**Local devnet** (fast path; script anchoring is enabled for ALL chains,
-auto-funded from the devnet faucet, and auto-bootstrapped for
-`workflow-chain` — bootstrap the rest selectively, see §9):
+The light profile sets up every node with the ordinary app-chain setup
+commands (`yano.sh appchain new`, `request`, `seal`, `join`, `start`) and seals
+three applications: `showcase` (eleven chains), `history`
+(`cardano-history-chain`), and, on a devnet with at least three nodes,
+`settlement` (`payment-chain-settlement`, always the three founding nodes).
+Each node is a node directory under `data/showcase/<instance>/node<i>`; the
+[README](README.md#how-the-nodes-are-set-up) shows the layout.
+
+**Local devnet** (fast path; every chain carries the sealed anchor policy, and
+`quickstart` turns on script anchoring for `workflow-chain`, funded from the
+devnet faucet — turn on the rest selectively, see §9):
 
 ```bash
 ./showcase.sh quickstart --profile light --nodes 3 --instance demo
@@ -82,16 +91,16 @@ chmod 600 ./private-anchor/anchor.seed
   --instance preprod-anchor --anchor-mode script \
   --anchor-key-file "$(pwd)/private-anchor/anchor.seed" \
   --confirm-public-anchor preprod
-# Fund the printed addr_test... wallet (several clean pure-ADA UTxOs), wait
-# for node 0 to see the funding stably, then bootstrap ONCE per chain — §9.
+# Then turn anchoring on per chain (§9); fund the anchor wallet it prints
+# with several clean pure-ADA UTxOs.
 ```
 
 Node 0's API is `http://127.0.0.1:7070/api/v1` (`--http-base` shifts it).
-All thirteen chains report at `GET /api/v1/app-chain/chains`.
+On a devnet all thirteen chains report at `GET /api/v1/app-chain/chains`.
 
-Each node keeps the host projection archive in its own `nodeN/history/`
-directory, alongside its state stores. Separate archive directories prevent
-DuckLake writer-lock conflicts between local JVMs.
+Each node keeps its stores in its own node directory
+(`data/showcase/<instance>/node<i>/data/`). The showcase reads no L1 history,
+so each node's `config/local.yaml` turns the host history projection off.
 
 ### The ADR-031 capability story
 
@@ -114,11 +123,11 @@ deployment and fund-moving operations remain explicit.
 For the cross-chain capability table, optional finalized-message-index setup,
 and proof-lab narration, use
 [`docs/CAPABILITY_CATALOG.md`](docs/CAPABILITY_CATALOG.md). The index is off by
-default for non-intrinsic applications; the launcher accepts either the
+default for non-intrinsic applications; `showcase.sh` accepts either the
 all-chain flag or a canonical comma-separated chain selection for a fresh
 instance.
 
-## 3. Everyday cluster operations
+## 3. Everyday operations
 
 ```bash
 ./showcase.sh status --instance demo            # per-chain tips, anchor, members
@@ -127,9 +136,8 @@ instance.
 ./showcase.sh verify all --instance demo        # end-to-end verification pass
 ./showcase.sh governance activate --instance demo   # membership-epoch heartbeat
                                                     # (also produces a new chain's first block)
-./showcase.sh member join 3 --instance demo     # add node 3 (late join)
-./showcase.sh threshold set 3 --instance demo
-./showcase.sh restart --instance demo           # same data dirs; never re-bootstrap anchors
+./showcase.sh member join 3 --instance demo     # add node 3; 2-of-3 becomes 3-of-4
+./showcase.sh restart --instance demo           # same node directories and anchor identity
 ./showcase.sh stop --instance demo              # teardown (there is no "down")
 ./showcase.sh config show|paths --instance demo
 ```
@@ -305,8 +313,7 @@ and withdrawal claims are settled back out by the **federation itself**.
 Full walkthrough: `docs/SETTLEMENT_CHAIN.md`.
 
 ```bash
-./showcase.sh settlement bootstrap          # deploy the L1 identity (once, devnet)
-./showcase.sh restart                       # executor picks up the validators
+./showcase.sh settlement bootstrap          # deploy the L1 identity (once, devnet; no restart)
 ./showcase.sh settlement deposit            # L1 deposit -> mirrored L2 funds
 ./showcase.sh settlement withdraw           # L2 claim … then just watch
 ./showcase.sh settlement status             # PENDING -> CONFIRMED, no operator step
@@ -415,23 +422,26 @@ java -jar $JAR authmap $API authenticated-map-jmt-chain load attachments 100
   can register in `ShowcaseClientDemos` later without changing the command.
 - See the module's `README.md` for details and caveats.
 
-## 9. L1 anchoring: enable, bootstrap, verify
+## 9. L1 anchoring: turn on, verify
 
-Defaults: new instances anchor-ENABLE **all chains** — enabling is
-config-only and never spends: an enabled chain stays dormant (`bootstrapped:
-false`, no L1 transactions) until you bootstrap it. Spending starts at
-bootstrap (thread setup) and continues per anchor transaction afterwards, so
-bootstrap selectively. Devnet `quickstart` auto-bootstraps `workflow-chain`
-only; preprod requires the explicit flags at `up` (§2) and manual funding.
-Instances created before this default carry a narrower retained scope —
-widen them with the additive migration (no L1 cost, restarts nodes):
+Every chain is sealed with an anchor policy: the mode (`--anchor-mode
+script|metadata` at `prepare`, default `script`) and a cadence (every 2 blocks
+on devnet, every 30 on a public network). The policy alone never spends; a
+chain stays unanchored until you run `./showcase.sh anchor`. That runs
+`yano.sh appchain anchor` on node 0 for each chain: node 0 becomes the chain's
+anchor leader, gets an anchor wallet (on devnet funded from the devnet faucet;
+on preprod the `--anchor-key-file` wallet you fund), restarts with the anchor
+settings, and in script mode submits the one-time bootstrap that mints the
+chain's thread NFT. Devnet `quickstart` does this for `workflow-chain` only,
+so turn the rest on selectively:
 
 ```bash
-./showcase.sh anchor enable all --instance preprod-anchor --confirm-public-anchor preprod
+./showcase.sh anchor registry-chain --instance demo   # one chain
+./showcase.sh anchor all --instance demo              # every chain of the instance
 
-# bootstrap mints each chain's thread NFT — exactly once per chain, ever:
-./showcase.sh anchor bootstrap workflow-chain --instance preprod-anchor
-./showcase.sh anchor bootstrap all --instance preprod-anchor    # waits for each L1 confirmation
+# preprod: repeat the public-network acknowledgement on every anchor command
+./showcase.sh anchor workflow-chain --instance preprod-anchor \
+  --confirm-public-anchor preprod
 
 # verify:
 curl -s $BASE/app-chain/chains/workflow-chain/status | jq .anchor
@@ -440,8 +450,10 @@ curl -s $BASE/app-chain/chains/workflow-chain/anchor/commitment | jq
 ```
 
 Notes: public-network cadence is ~1 anchor per 30 finalized blocks per chain
-(fee hygiene) — sustained activity advances it; never re-run bootstrap after a
-restart; keep the seed file — it is the anchor identity.
+(fee hygiene) — sustained activity advances it. `anchor` bootstraps a chain at
+most once, so running it again is safe; if it stops waiting before the preprod
+wallet is funded, run the same command again and it continues. Restarts reuse
+the anchor identity. Keep the seed file — it is the anchor identity.
 
 ## 10. Historical state: read any key at any height
 
@@ -465,7 +477,8 @@ revision-addressed directly: `?revision=N` on the domain API.
 ## 11. Authenticated-map curl deep-dive
 
 What happens underneath the one-liners — full anatomy against
-`authenticated-map-chain`. Helpers (run from the extract root):
+`authenticated-map-chain`. Helpers (run from the showcase directory,
+`examples/showcase`, where `../../yano.sh` is the distribution's CLI):
 
 ```bash
 BASE=http://127.0.0.1:7070/api/v1
@@ -475,9 +488,9 @@ DOMAIN=$BASE/plugins/org.yanoproject.x.stdlib
 
 # Wrap a codec-built command into the final v1 envelope the chain admits.
 # kind = open | owner | member (the collection's authorization mode)
-wrap() { local a; a=$(yano/yano.sh appchain authenticated-map action \
+wrap() { local a; a=$(../../yano.sh appchain authenticated-map action \
           --command-hex "$2" --assignments "0:$1::0"); \
-        yano/yano.sh appchain authenticated-map command --action-hex "$a" --evidence-hex ''; }
+        ../../yano.sh appchain authenticated-map command --action-hex "$a" --evidence-hex ''; }
 
 submit() { curl -fsS -X POST "$BASE/app-chain/chains/$CHAIN/messages" \
   -H 'Content-Type: application/json' \
@@ -544,14 +557,14 @@ H=$(curl -fsS "$BASE/app-chain/chains/$CHAIN/tip" | jq -r .height)
 AUTHZ=$(python3 -c 'import secrets;print(secrets.token_hex(32))')
 
 CMD=$(python3 $CODEC authmap put governed-catalog item-001 "$(python3 $CODEC authmap-value opaque governed-entry)")
-ACTION=$(yano/yano.sh appchain authenticated-map action --command-hex "$CMD" --assignments 0:governed-role:issuer-write:1)
+ACTION=$(../../yano.sh appchain authenticated-map action --command-hex "$CMD" --assignments 0:governed-role:issuer-write:1)
 ARGS=(--action-hex "$ACTION" --authorization-id "$AUTHZ" --chain $CHAIN --genesis-id "$GEN" \
   --indexes 0 --policy issuer-write --policy-revision 1 --actor issuer-a --actor-revision 1 \
   --key issuer-a-k1 --public-key "$PUB" --issued-height "$H" --deadline-height "$((H+90))")
-PRE=$(yano/yano.sh appchain authenticated-map direct-preimage "${ARGS[@]}")
+PRE=$(../../yano.sh appchain authenticated-map direct-preimage "${ARGS[@]}")
 SIG=$(python3 tools/showcase_signer.py sign "$SEED" "$PRE")           # the "wallet/HSM" step
-EV=$(yano/yano.sh appchain authenticated-map direct-complete "${ARGS[@]}" --signature "$SIG")
-ID=$(submit "$(yano/yano.sh appchain authenticated-map command --action-hex "$ACTION" --evidence-hex "$EV")")
+EV=$(../../yano.sh appchain authenticated-map direct-complete "${ARGS[@]}" --signature "$SIG")
+ID=$(submit "$(../../yano.sh appchain authenticated-map command --action-hex "$ACTION" --evidence-hex "$EV")")
 finalized $ID
 curl -fsS "$DOMAIN/authenticated-map/direct-consumptions/issuer-a/$AUTHZ?chain=$CHAIN" | jq .record
 ```
@@ -592,8 +605,9 @@ this — only the public keys committed in the governed genesis; every
 signature is verified inside consensus against committed actor records.
 
 Other operations (PUT_IF_ABSENT, compare-and-set, transfer, revoke, restore)
-are built by the console's Mutations tab with the same envelope. Never run
-`anchor bootstrap` twice for a chain. `./showcase.sh stop` is the teardown.
+are built by the console's Mutations tab with the same envelope.
+`./showcase.sh anchor` bootstraps a chain at most once. `./showcase.sh stop`
+is the teardown.
 
 ## 13. Other profiles: EUTxO and evidence
 
@@ -609,7 +623,7 @@ real funds):
 ./showcase.sh quickstart --profile eutxo --variant bridge --instance bridge
     # Cardano custody/federation boundary demo
 
-# afterwards — the eutxo profile keeps no identity marker, so ALWAYS repeat
+# afterwards — the eutxo profile keeps no instance.json, so ALWAYS repeat
 # the profile/variant/instance (and non-default port) flags:
 ./showcase.sh run eutxo   --profile eutxo --variant ledger --instance ledger
 ./showcase.sh verify all  --profile eutxo --variant ledger --instance ledger
@@ -627,10 +641,10 @@ packaged evidence product demo (Kafka/S3/IPFS sinks, role lifecycle).
 
 The light and eutxo profiles accept `--http-base` and `--server-base`; node N
 listens on base+N. For the light profile, specify them once at
-`prepare`/`up`/`quickstart` — they are recorded in the instance identity and
-restored automatically by every later command via `--instance` (the eutxo
-profile keeps no marker, so repeat them on every command). The **evidence**
-profile ignores these flags entirely — its ports come from `DEMO_*`
+`prepare`/`up`/`quickstart` — they are recorded in the instance's
+`instance.json` and restored automatically by every later command via
+`--instance` (the eutxo profile keeps no `instance.json`, so repeat them on
+every command). The **evidence** profile ignores these flags entirely — its ports come from `DEMO_*`
 environment variables (`DEMO_HTTP_BASE`, `DEMO_UI_PORT`, `DEMO_KAFKA_PORT`,
 …); see `docs/EVIDENCE_PROFILE.md` §2.
 
@@ -643,4 +657,4 @@ environment variables (`DEMO_HTTP_BASE`, `DEMO_UI_PORT`, `DEMO_KAFKA_PORT`,
 
 This is also how to run several instances side by side (e.g. a preprod
 instance on 7070 and a devnet playground on 27070) — each instance keeps its
-own data directory, identity marker, and port range.
+own data directory, `instance.json`, and port range.

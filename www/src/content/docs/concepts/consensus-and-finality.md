@@ -133,8 +133,8 @@ Defaults to know:
 
 - The host's default threshold is 1, which passes only for a single member. Set
   the threshold for any multi-member ledger.
-- The cluster launcher defaults to a majority, `⌊n / 2⌋ + 1`: 2 of 3, 3 of 4,
-  3 of 5.
+- `./yano.sh appchain new` and `try` default to a majority, `⌊n / 2⌋ + 1`:
+  2 of 3, 3 of 4, 3 of 5.
 - A 2-of-3 ledger is crash-safe but does not tolerate a Byzantine member. To
   tolerate one, use for example 3 of 4 with `f = 1`.
 
@@ -153,16 +153,17 @@ Membership is selected per chain with `membership.mode`:
   own history as a membership epoch with the height it applies from.
 
 Every check uses the membership at the block's height, so old blocks verify
-against the members of their time. The stock cluster configuration uses
-governed membership.
+against the members of their time. Applications set up with
+`./yano.sh appchain new` use governed membership unless you pass
+`--membership static`.
 
 Every membership epoch must satisfy the quorum rules above. A governed add,
 remove, or threshold change whose resulting `t`-of-`n` breaks them is refused
 by the admin endpoints with `MEMBERSHIP_QUORUM_INVALID` and is void if it ever
 reaches activation. An add keeps the current threshold, so with `f = 0` a
 2-of-3 ledger cannot add a fourth member directly: raise the threshold to 3
-first, wait until that epoch is active, then add the member (3-of-4). The local
-launcher's `cluster node join` does this for you. The
+first, wait until that epoch is active, then add the member (3-of-4).
+`./yano.sh appchain approve` does this for you. The
 [Yano consensus guide](https://github.com/bloxbean/yano/blob/main/docs/APP_CHAIN_CONSENSUS_GUIDE.md)
 describes the procedure.
 
@@ -181,22 +182,23 @@ lost on restart, so a message that no other member received must be submitted
 again. On startup, a member checks that its committed root matches the tip
 block and that the tip block carries a valid threshold certificate.
 
-## What "AGREED" means
+## What "members agree" means
 
 ```bash
-./yano.sh appchain cluster status
+./yano.sh appchain status --node-dir yano-node
 ```
 
 ```text
-Consistency (per chain, roots must match across nodes):
-  orders-chain: AGREED (...)
+  chain orders         height 42     members agree  members 3, 2 signatures  anchoring: …
 ```
 
-`cluster status` reads each running node's current state root for each chain.
-`AGREED` means the roots are equal; `MISMATCH` means at least one differs. It
-compares roots only, not heights, and reads each node once, so a node that is
-one block behind during traffic shows `MISMATCH`. Run it again when traffic
-stops. A mismatch that persists usually means one of:
+`status` reads each chain's status from every member's node that answers.
+`members agree` means they all report the same genesis identity for the chain;
+`MISMATCH` means one of them joined a different sealed file. Separately,
+`status` warns `members report different state roots at height N` when two
+members report different roots at the same height. Members at different
+heights are not compared, so a node one block behind during traffic does not
+trigger it. A root warning that persists usually means one of:
 
 - a consensus-affecting configuration value differs between members;
 - a different plugin bundle version is installed on one member; or
@@ -223,7 +225,7 @@ versioned upgrade, not a rolling code change. See
   the round check by check, vote locks, rotation, catch-up, and restart.
 - [ADR-036](https://github.com/bloxbean/yano/blob/main/adr/app-layer/036-certified-view-change-and-durable-l1-observation-delivery.md):
   the safety and liveness model.
-- [Tutorial 1](/tutorials/01-first-app-chain/): watch agreement on a running
-  three-member cluster.
+- [Tutorial 1](/tutorials/01-first-app-chain/): watch agreement on three
+  running members.
 
 **Next:** [State and proofs](/concepts/state-and-proofs/).

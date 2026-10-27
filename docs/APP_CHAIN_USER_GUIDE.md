@@ -283,38 +283,50 @@ the `test-app-chain-cluster` and `test-app-chain-extensions` skills under
 > copy of A's shelley genesis taken **after** A started (A rewrites
 > `systemStart` into the file it loads).
 
-### 3.5 Or: the one-command demo cluster
+### 3.5 Or: rehearse a cluster on one machine
 
-The distribution zips ship a ready-made multi-node launcher under
-`appchain-cluster/` — the fastest way to evaluate everything in this guide
+The app-chain setup commands write every node's configuration for you.
+`./yano.sh appchain try` runs them on one machine: a coordinator and three
+operators, alice, bob and carol, each with a node directory under
+`./appchain-try/`. It is the fastest way to evaluate everything in this guide
 without writing any config:
 
 ```bash
-unzip yano-<version>.zip && cd yano-<version>
-./yano.sh appchain cluster start 3          # 3-node devnet: L1 producer + 2 followers,
-                                             # 2 demo chains (ordered-log + kv-registry)
-./yano.sh appchain cluster status           # tips + state-root agreement across nodes
-./yano.sh appchain cluster submit orders-chain demo "hello"
-./yano.sh appchain cluster kv registry-chain set color blue
-./appchain-cluster/loadtest.sh orders-chain -n 2000 -c 20     # throughput test
-./appchain-cluster/loadtest.sh registry-chain --kv -n 2000    # kv chains need --kv
-./yano.sh appchain cluster clean            # stop + wipe
+cd yano-x-jvm-<version>
+./yano.sh appchain try                               # 3-node devnet: alice produces L1 and proposes,
+                                                     # one ordered-log chain `orders`
+# or choose the chains: ./yano.sh appchain try --chain orders=audit-log --chain registry=owned-registry
+./yano.sh appchain status --node-dir appchain-try/alice/yano-node   # members online, heights, agreement
+PORT=$(jq -r .httpPort appchain-try/bob/yano-node/node.json)
+curl -X POST http://127.0.0.1:$PORT/api/v1/app-chain/chains/orders/messages \
+  -H 'Content-Type: application/json' -d '{"topic":"demo","body":"hello"}'
+./yano.sh appchain try --clean                       # stop + delete the rehearsal
 ```
 
-Highlights (full reference: `appchain-cluster/README.md`):
+Highlights (full guide: [Set up an application](appchain/deployment/configure.md)):
 
-- **Anchoring demo**: `start 3 --anchor` (script mode) then
-  `anchor-bootstrap orders-chain` — funds via the devnet faucet and mints the
-  thread NFT. `--anchor-mode metadata` is the simplest possible anchoring.
-- **Public networks**: `start 3 --network preprod --anchor-mode script
-  --anchor-key $(openssl rand -hex 32)` — every node relays preprod, and you
-  fund the printed wallet address yourself (§5.1). The launcher refuses the
-  built-in demo anchor key on public networks (it is publicly known).
-- Chains come from `config/application-appchain.yml` — add/remove chains
-  there and the launcher auto-discovers them; it injects the per-node keys,
-  members, threshold and peers, so the same file runs at any cluster size.
-- Works against the jar or the native binary (auto-detected), and from a
-  source checkout (`scripts/appchain-cluster/`) or any unzipped release tree.
+- **Chains and settings** come from `--chain <id>=<recipe>`, `--answer`,
+  `--setting`, or a template file passed with `--from`. `seal` fixes every
+  chain setting, the members and the threshold in the sealed `<app>.chain`
+  file, and `join` turns it into each node's `config/consensus.yaml` and
+  `config/node.yaml`. Node-only settings go in `<node-dir>/config/local.yaml`.
+- **Each node** keeps its ports in `node.json`, its API key in
+  `secrets/api.key`, its data in `data/` (`chainstate`, `appchain-chainstate`,
+  `appchain-indexers`), and its log in `logs/node.log`. Stop and start one
+  node with `./yano.sh appchain stop|start --node-dir <dir>`; data is kept.
+- **Anchoring**: put an anchor policy on the chain in the template
+  (`anchor: {mode: script, every-blocks: 10}`; without one, a chain anchors in
+  metadata mode every 10 blocks), then run
+  `./yano.sh appchain anchor --node-dir appchain-try/alice/yano-node`. On a
+  devnet it funds the wallet from the devnet faucet and bootstraps the thread
+  NFT. See [tutorial 7](appchain/tutorials/07-anchors-and-verification.md).
+- **Members**: `./yano.sh appchain approve <name>.member` on every existing
+  node adds a member, raising the threshold first when needed (§14.2).
+- **Real operators** run the same commands on their own machines: `new`,
+  `request`, `seal`, `join`, `start`, `status`.
+- **Load tests**: the showcase ships a parallel load driver,
+  `./showcase.sh load-test` (in `examples/showcase`); see
+  [the showcase](../examples/showcase/README.md).
 
 ---
 

@@ -9,8 +9,8 @@ with [MASTER_DEMO.md](docs/MASTER_DEMO.md), use the
 ./showcase.sh quickstart --profile light --nodes 3 --instance demo
 ```
 
-The light profile runs thirteen app chains on one local multi-node Yano cluster,
-including `payment-chain-settlement`, with no Kafka, object store, IPFS, or
+The light profile runs thirteen app chains on local Yano nodes (three by
+default), including `payment-chain-settlement`, with no Kafka, object store, IPFS, or
 separate effect service. Seven chains present standalone foundations; the
 remaining reference chains demonstrate how ADR-031 composes those foundations
 with cross-cutting concerns instead of creating another application SPI:
@@ -75,53 +75,78 @@ The `demos/` directory contains one-command wrappers for each light scenario,
 separate proposal/approval and composite workflow steps, functional load,
 burst load, soak load, and the complete interactive master run.
 
-Governed changes are intentionally height-delayed. After `member join` or
-`threshold set`, use `./showcase.sh governance activate --instance demo` to
-advance labeled real messages on every light-profile chain and finalize a
-proof block under the newly active profile. A join also refreshes the local
-peer topology one process at a time so the new member can receive proposal and
-script-anchor co-sign requests; it does not resubmit governance.
+Governed changes are intentionally height-delayed. `member join <i>` adds a
+node the way real operators do: the new node requests membership with the
+sealed file, every existing node runs `yano.sh appchain approve` (which raises
+the threshold first where needed, for example 2-of-3 to 3-of-4), and the new
+node joins and starts. The command ends with `governance activate`, which
+advances labeled real messages on every showcase chain and finalizes a proof
+block under the new member set. Run `./showcase.sh governance activate
+--instance demo` again if that step was interrupted.
 
-## Data, restart, and configuration
+## How the nodes are set up
 
-State stays below `data/showcase/<instance>/` by default. `stop` preserves it;
-`restart` validates the retained deployment marker and reuses it. The marker
-also binds the generated authenticated-map settings and genesis to the actual
-bootstrap members and release validator digest. Identity drift fails closed;
-the finalized-message-index scope is also retained and changes the state
-generation identity. The only supported marker evolution is explicit,
-additive `anchor enable`. `reset --instance <name> --yes` is the only showcase command that
-deletes the named instance.
+The light profile runs the ordinary app-chain setup commands
+(`yano.sh appchain new`, `request`, `seal`, `join`, `start`), the same ones
+real operators use. `prepare` seals up to three applications from the
+templates in `config/`:
+
+| Application | Chains | Template |
+|---|---|---|
+| `showcase` | the eleven showcase chains | `config/showcase.template.yaml` |
+| `history` | `cardano-history-chain`, unless `--disable-cardano-history` | `config/history.template.yaml` |
+| `settlement` | `payment-chain-settlement`, on a devnet with at least three nodes; always the three founding nodes | `config/settlement.template.yaml` |
+
+Each node is a node directory with its own keys, logs, and stores:
+
+```text
+data/showcase/<instance>/
+  instance.json      options retained for this instance
+  coordinator/       showcase draft, member cards, showcase.chain
+  history/           history.chain
+  settlement/        settlement.chain
+  node0/ node1/ ...  node directories (secrets/, config/local.yaml, logs/node.log, data/)
+  outbox/            workflow-chain outbox receipts
+```
+
+Showcase options such as `--cardano-history-profile` or
+`--enable-finalized-message-index` become sealed settings of the application.
+What only one node runs, such as the outbox executor and settlement executor
+ownership on node 0 or snapshot archive directories, goes into that node's
+`config/local.yaml`. `stop` preserves state; `restart` starts the same node
+directories. A later command that asks for a different `--nodes`,
+`--network`, port base, or `--threshold` than `instance.json` records is
+refused; use a new `--instance`. `reset --instance <name> --yes` is the only
+showcase command that deletes the named instance.
 
 ```bash
 ./showcase.sh config show  --instance demo
 ./showcase.sh config paths --instance demo
-./showcase.sh config export ./demo-config.json --instance demo
+./showcase.sh config export ./demo-showcase.chain --instance demo
 ```
 
-`show` combines the immutable deployment description with live chain
-identities when the cluster is running, including active and scheduled
-governance values and activation heights. It never prints signing seeds, API
-keys, or anchor-key contents. `paths` points to the shared YAML, node overlays,
-plugin, state, logs, and outbox. `export` writes a redacted shareable snapshot.
+`show` prints each sealed application with its fingerprint and, while the
+nodes run, each chain's live identity, including active and scheduled
+members, thresholds, and activation heights. It never prints seeds or API
+keys. `paths` lists the instance files, node directories, per-node settings,
+logs, outbox, and plugin bundle. `export` copies the sealed `showcase.chain`,
+a public file with no keys. Inspect any sealed file directly:
 
-Configuration safety has two layers. Launcher-owned identity files bind the
-L1 network/genesis, configured chain IDs, bootstrap members/threshold,
-proposer, config/plugin/authenticated-map digests, and anchor signer/scope.
-Per-chain RocksDB stores finalized blocks and MPF state, the committed
-consensus-profile marker, and every governed membership epoch. A normal
-restart therefore rejects YAML or bootstrap identity drift before starting,
-while governed member/threshold changes survive restart and win over the
-original static values.
+```bash
+../../yano.sh appchain inspect data/showcase/demo/coordinator/showcase.chain
+```
 
-Do not bypass the launcher with a one-node system-property or YAML edit. A
-consensus-profile mismatch fails that node's startup; other ungoverned drift
-can split votes or stall availability even though a lone node cannot create a
-threshold finality certificate. Use `member`, `threshold`, or the additive
-`anchor enable <chain-id|all>` migration instead.
+Configuration safety comes from the sealed files. Every node joins only after
+comparing the application fingerprint, and `start` refuses a
+`config/local.yaml` that changes a sealed setting. Per-chain RocksDB stores
+finalized blocks and MPF state, the committed consensus profile, and every
+governed membership epoch, so governed member and threshold changes survive
+restart. Change membership with `member join`, not by editing node files.
 
-The HTTP API is bound to loopback. The launcher uses its documented local-demo
-admin key internally. Do not expose these defaults on a public interface.
+The HTTP API is bound to loopback. Reads and message submissions need no key;
+privileged calls use each node's own key from `node<i>/secrets/api.key`, which
+the showcase reads when needed and never prints. Do not expose these nodes on
+a public interface.
 
 ## Status UI
 
@@ -145,6 +170,8 @@ other nodes still validate the effect intent and its incorporated result.
 - [LOAD_AND_SOAK.md](docs/LOAD_AND_SOAK.md)
 - [ANCHORING_DEMO.md](docs/ANCHORING_DEMO.md)
 - [PREPROD_ANCHORING.md](docs/PREPROD_ANCHORING.md)
+- [SETTLEMENT_CHAIN.md](docs/SETTLEMENT_CHAIN.md)
+- [PREPROD_SETTLEMENT.md](docs/PREPROD_SETTLEMENT.md)
 - [MASTER_DEMO_CURL.md](docs/MASTER_DEMO_CURL.md)
 - [JAVA_CLI_ROADMAP.md](docs/JAVA_CLI_ROADMAP.md)
 - [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)

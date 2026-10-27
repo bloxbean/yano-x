@@ -197,7 +197,8 @@ export default {
         'The approval decision remains in {@link Item}; this record never changes', '.result(ResultPolicy.CHAIN)'] },
     { repo: 'yano-x', path: 'state-machines/stdlib-contracts/src/main/java/org/yanoproject/x/stdlib/contracts/ApprovalsContract.java',
       anchors: ['key("i/", itemId)', 'key("ae/p/", itemId)', 'key("ae/s/", itemId)'] },
-    { repo: 'yano-x', path: 'config/application-appchain.yml',
-      anchors: ['chain-id: "effects-chain"', 'type: demo.webhook', 'on-approved-effect: 1'] },
+    { repo: 'yano-x', path: 'tooling/devtools/src/main/resources/appchain-dx/v1alpha1/appchain-capability-catalog.json',
+      anchors: ['"id": "effects:on-approved"', '"machines.approvals.on-approved-effect.type": "${effectType}"',
+        '"machines.approvals.activations.on-approved-effect": "1"'] },
   ],
 };
