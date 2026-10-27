@@ -17,7 +17,8 @@ import java.util.Set;
 final class NewCommand {
     static final String USAGE = "yano.sh appchain new [<app>] [--network devnet|preview|preprod|mainnet]"
             + " [--operators alice,bob,carol] [--chain <id>=<recipe>|<id>=bindings:<file>]..."
-            + " [--answer <chain>.<name>=<value>]... [--threshold majority|two-thirds|all|<n>]"
+            + " [--answer <chain>.<name>=<value>]... [--topics <chain>=members|anyone|registrars:<a>+<b>]..."
+            + " [--threshold majority|two-thirds|all|<n>]"
             + " [--membership governed|static] [--sequencing fixed|rotating] [--output <dir>]"
             + " [--force] [--yes]";
     private static final String COMPOSITE = "declarative-composite";
@@ -31,8 +32,8 @@ final class NewCommand {
     }
 
     int run(String[] arguments) throws IOException {
-        Args args = new Args(arguments, Set.of("network", "operators", "chain", "answer", "threshold", "membership",
-                "sequencing", "output"),
+        Args args = new Args(arguments, Set.of("network", "operators", "chain", "answer", "topics", "threshold",
+                "membership", "sequencing", "output"),
                 Set.of("force", "yes"));
         args.maxPositionals(1, USAGE);
         Path output = args.path("output", Path.of("."));
@@ -49,20 +50,25 @@ final class NewCommand {
         List<String> operators = Arrays.stream(operatorList.split(",")).map(String::strip)
                 .filter(value -> !value.isEmpty()).toList();
 
+        String membership = args.value("membership", "governed");
         List<Draft.Chain> chains = new ArrayList<>();
         Map<String, String> recipes = AppChainSealResolver.recipes();
         if (!args.values("chain").isEmpty()) {
             for (String spec : args.values("chain")) chains.add(chainFromFlag(spec, output));
         } else {
             do {
-                chains.add(askChain(chains.isEmpty() ? name : null, recipes, output));
+                Draft.Chain chain = askChain(chains.isEmpty() ? name : null, recipes, output);
+                if ("governed".equals(membership) && args.values("topics").isEmpty()) {
+                    chain = chain.withTopics(askTopics(chain.id(), operators));
+                }
+                chains.add(chain);
             } while (terminal.confirm("Add another chain to this application?", false));
         }
 
         chains = withAnswers(chains, args.values("answer"));
+        chains = withTopics(chains, args.values("topics"));
 
         String threshold = args.value("threshold", "majority");
-        String membership = args.value("membership", "governed");
         Draft draft = new Draft(name, Names.newInvite(), network, operators, threshold, membership,
                 args.value("sequencing", "fixed"), chains);
         Path file = output.resolve(name + ".draft.yaml");
@@ -87,6 +93,50 @@ final class NewCommand {
         return 0;
     }
 
+    /** Applies {@code --topics chain=members|anyone|registrars:alice+bob}. */
+    private static List<Draft.Chain> withTopics(List<Draft.Chain> chains, List<String> flags) {
+        Map<String, Draft.Topics> topics = new java.util.HashMap<>();
+        for (String flag : flags) {
+            int equals = flag.indexOf('=');
+            if (equals <= 0) throw CliException.usage("--topics must look like games=members or games=registrars:alice");
+            String id = flag.substring(0, equals);
+            String value = flag.substring(equals + 1);
+            if (chains.stream().noneMatch(chain -> chain.id().equals(id))) {
+                throw CliException.usage("--topics names chain '" + id + "', which the application does not have");
+            }
+            List<String> registrars = value.startsWith("registrars:")
+                    ? Arrays.stream(value.substring("registrars:".length()).split("\\+")).map(String::strip)
+                    .filter(item -> !item.isEmpty()).toList() : List.of();
+            String create = value.startsWith("registrars:") ? "registrars" : value;
+            topics.put(id, new Draft.Topics(create, registrars, registrars.isEmpty() ? 0 : 1, "reject", Map.of()));
+        }
+        return chains.stream().map(chain -> topics.containsKey(chain.id()) ? chain.withTopics(topics.get(chain.id()))
+                : chain).toList();
+    }
+
+    /** The wizard's one topics question; most chains answer no. */
+    private Draft.Topics askTopics(String id, List<String> operators) {
+        if (!terminal.confirm("Protect topics on '" + id + "' with namespaces, so each topic has owners and a "
+                + "writer policy?", false)) {
+            return null;
+        }
+        String create = terminal.choose("Who may create a top-level namespace on '" + id + "'?",
+                Draft.Topics.CREATE, List.of("the members, by a vote of every operator's node",
+                        "named operators sign it alone (members can still vote)",
+                        "anyone, first come (members can still recover a namespace)"),
+                "members", "--topics " + id + "=<who>");
+        List<String> registrars = List.of();
+        if ("registrars".equals(create)) {
+            registrars = Arrays.stream(terminal.ask("Registrars (operator names, comma-separated)",
+                    operators.getFirst(), "--topics " + id + "=registrars:<a>+<b>").split(","))
+                    .map(String::strip).filter(item -> !item.isEmpty()).toList();
+        }
+        String unregistered = terminal.choose("Messages on topics that no namespace covers:", Draft.Topics.UNREGISTERED,
+                List.of("refuse them (every topic must be registered first)", "accept them as today"), "reject",
+                "topics.unregistered in the draft");
+        return new Draft.Topics(create, registrars, registrars.isEmpty() ? 0 : 1, unregistered, Map.of());
+    }
+
     /** Adds {@code --answer chain.name=value} values, then asks for any answer a recipe still needs. */
     private List<Draft.Chain> withAnswers(List<Draft.Chain> chains, List<String> flags) throws IOException {
         List<Draft.Chain> result = new ArrayList<>();
@@ -109,7 +159,7 @@ final class NewCommand {
                 }
             }
             result.add(new Draft.Chain(chain.id(), chain.recipe(), chain.capabilities(), answers, chain.bindings(),
-                    chain.composite(), chain.authenticatedMap(), chain.anchor(), chain.settings()));
+                    chain.composite(), chain.authenticatedMap(), chain.anchor(), chain.settings(), chain.topics()));
         }
         return result;
     }

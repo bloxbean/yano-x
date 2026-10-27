@@ -10,6 +10,7 @@ import org.yanoproject.appchain.config.AppChainConfigSemantics;
 import org.yanoproject.appchain.config.AppChainApprovalsConfig;
 import org.yanoproject.appchain.config.AppChainEffectsConfig;
 import org.yanoproject.appchain.config.AppChainPropertyDefinition;
+import org.yanoproject.api.appchain.topics.TopicChainSettings;
 import org.yanoproject.appchain.config.AppChainPropertyRegistry;
 import org.yanoproject.appchain.config.PropertyScope;
 import org.yanoproject.x.roles.contracts.ActorKeyEpochV1;
@@ -977,6 +978,15 @@ final class AppChainProjectResolver {
             String key = definition.indexed() ? prefix + definition.suffix() : definition.key();
             values.putIfAbsent(key, definition.defaultValue());
         }
+        // A registrar threshold without registrar keys is refused once topics are enabled; it has no meaning alone.
+        if (!values.containsKey(prefix + TopicChainSettings.REGISTRAR_KEYS)) {
+            values.remove(prefix + TopicChainSettings.REGISTRAR_THRESHOLD);
+        }
+        Map<String, String> topics = new TreeMap<>();
+        values.forEach((key, value) -> {
+            if (key.startsWith(prefix + TopicChainSettings.PREFIX)) topics.put(key.substring(prefix.length()), value);
+        });
+        TopicChainSettings.genesisSeed(topics);
     }
 
     private static void validateWithRuntimeParser(

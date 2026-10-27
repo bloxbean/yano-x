@@ -78,7 +78,7 @@ final class SealCommand {
             findings.warnings().forEach(warning -> warnings.add("Chain " + chain.id() + ": " + warning));
         }
         Map<String, Map<String, String>> overrides = new HashMap<>();
-        for (Draft.Chain chain : draft.chains()) overrides.put(chain.id(), overrides(draft, chain));
+        for (Draft.Chain chain : draft.chains()) overrides.put(chain.id(), overrides(draft, chain, cards));
 
         AppChainSealResolver.SealHooks hooks = new AppChainSealResolver.SealHooks() {
             @Override
@@ -205,7 +205,7 @@ final class SealCommand {
                 + " members; use majority, two-thirds or all");
     }
 
-    private static Map<String, String> overrides(Draft draft, Draft.Chain chain) {
+    private static Map<String, String> overrides(Draft draft, Draft.Chain chain, Map<String, MemberCard> cards) {
         Map<String, String> values = new TreeMap<>();
         if (!"devnet".equals(draft.network())) values.put("l1.stability-depth", "36");
         if (chain.anchor() != null) {
@@ -218,12 +218,41 @@ final class SealCommand {
                 throw CliException.failure("Chain " + chain.id() + ": setting " + key + " comes from the draft's "
                         + "operators, threshold, sequencing or membership and cannot be set under settings:");
             }
+            if (key.startsWith("topics.")) {
+                throw CliException.failure("Chain " + chain.id() + ": set topic policies in the chain's topics: "
+                        + "block, not under settings:");
+            }
         }
         values.putAll(chain.settings());
+        if (chain.topics() != null) {
+            // The resolver checks the complete seed, host defaults included, with the host's own parser.
+            values.putAll(topicSettings(chain.topics(), cards));
+        }
         if ("true".equals(values.get("anchor.enabled"))) {
             throw CliException.failure("Chain " + chain.id() + ": anchoring is turned on later with "
                     + "`yano.sh appchain anchor`, not in the draft");
         }
+        return values;
+    }
+
+    /** The core genesis seed of a chain's topics: block; registrars named by operator become their member keys. */
+    static Map<String, String> topicSettings(Draft.Topics topics, Map<String, MemberCard> cards) {
+        Map<String, String> values = new TreeMap<>();
+        values.put("topics.mode", "enabled");
+        values.put("topics.creation.governance", "true");
+        values.put("topics.creation.open-claims", Boolean.toString("anyone".equals(topics.create())));
+        if (!topics.registrars().isEmpty()) {
+            List<String> keys = topics.registrars().stream()
+                    .map(registrar -> cards.containsKey(registrar) ? cards.get(registrar).publicKey() : registrar)
+                    .sorted().toList();
+            if (keys.stream().distinct().count() != keys.size()) {
+                throw CliException.failure("A registrar is listed twice, by name and by key");
+            }
+            values.put("topics.creation.registrars.keys", String.join(",", keys));
+            values.put("topics.creation.registrars.threshold", Integer.toString(topics.registrarThreshold()));
+        }
+        values.put("topics.unregistered-topics", topics.unregistered());
+        topics.limits().forEach((name, value) -> values.put("topics." + name, Long.toString(value)));
         return values;
     }
 

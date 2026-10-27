@@ -23,7 +23,8 @@ import java.util.stream.Stream;
  */
 final class TryCommand {
     static final String USAGE = "yano.sh appchain try [--chain <id>=<recipe>|<id>=bindings:<file>]..."
-            + " [--answer <chain>.<name>=<value>]... [--dir appchain-try] [--clean]";
+            + " [--answer <chain>.<name>=<value>]... [--topics <chain>=members|anyone|registrars:<a>+<b>]..."
+            + " [--dir appchain-try] [--clean]";
     private static final String LOG_RECIPE = "audit-log";
     private static final String MARKER = ".appchain-try";
     private static final List<String> OPERATORS = List.of("alice", "bob", "carol");
@@ -37,7 +38,7 @@ final class TryCommand {
     }
 
     int run(String[] arguments) throws IOException {
-        Args args = new Args(arguments, Set.of("dir", "chain", "answer"), Set.of("clean", "yes"));
+        Args args = new Args(arguments, Set.of("dir", "chain", "answer", "topics"), Set.of("clean", "yes"));
         args.maxPositionals(0, USAGE);
         Path root = args.path("dir", Path.of("appchain-try")).toAbsolutePath().normalize();
         if (args.flag("clean")) return clean(root);
@@ -61,6 +62,7 @@ final class TryCommand {
             create.addAll(List.of("--chain", chain));
         }
         for (String answer : args.values("answer")) create.addAll(List.of("--answer", answer));
+        for (String topics : args.values("topics")) create.addAll(List.of("--topics", topics));
         create.addAll(List.of("--output", coordinator.toString(), "--yes"));
         try {
             exec(coordinator, create.toArray(String[]::new));
