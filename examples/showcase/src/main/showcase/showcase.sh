@@ -83,6 +83,7 @@ FOLLOW=false
 YES=false
 OUTPUT=""
 POSITIONAL=()
+EXPLICIT=""
 
 parse() {
   while [ "$#" -gt 0 ]; do
@@ -90,11 +91,11 @@ parse() {
       --profile) PROFILE="${2:-}"; shift 2;;
       --variant) VARIANT="${2:-}"; shift 2;;
       --instance) INSTANCE="${2:-}"; shift 2;;
-      --network) NETWORK="${2:-}"; shift 2;;
-      --nodes) NODES="${2:-}"; shift 2;;
-      --threshold) THRESHOLD="${2:-}"; shift 2;;
-      --http-base) HTTP_BASE="${2:-}"; shift 2;;
-      --server-base) SERVER_BASE="${2:-}"; shift 2;;
+      --network) NETWORK="${2:-}"; EXPLICIT+=" network"; shift 2;;
+      --nodes) NODES="${2:-}"; EXPLICIT+=" nodes"; shift 2;;
+      --threshold) THRESHOLD="${2:-}"; EXPLICIT+=" threshold"; shift 2;;
+      --http-base) HTTP_BASE="${2:-}"; EXPLICIT+=" httpBase"; shift 2;;
+      --server-base) SERVER_BASE="${2:-}"; EXPLICIT+=" serverBase"; shift 2;;
       --anchor) ANCHOR=true; shift;;
       --anchor-mode) ANCHOR=true; ANCHOR_MODE="${2:-}"; ANCHOR_MODE_EXPLICIT=true; shift 2;;
       --anchor-key-file) ANCHOR=true; ANCHOR_KEY_FILE="${2:-}"; ANCHOR_KEY_EXPLICIT=true; shift 2;;
@@ -415,6 +416,14 @@ adopt_instance() {
     return 0
   fi
   PROFILE=light
+  local field current
+  for field in network nodes threshold httpBase serverBase; do
+    case " $EXPLICIT " in *" $field "*) ;; *) continue;; esac
+    case "$field" in network) current="$NETWORK";; nodes) current="$NODES";; threshold) current="$THRESHOLD";;
+      httpBase) current="$HTTP_BASE";; serverBase) current="$SERVER_BASE";; esac
+    [ "$current" = "$(instance_value ".$field")" ] \
+      || die "requested $field differs from the retained instance ($(instance_value ".$field")); use a new instance or reset"
+  done
   NETWORK="$(instance_value .network)"
   NODES="$(instance_value .nodes)"
   THRESHOLD="$(instance_value .threshold)"
@@ -1831,7 +1840,7 @@ verify_light() {
 }
 
 delegate_evidence() {
-  local command="$1" demo="$YANO_X_HOME/examples/evidence/demo.sh" machine args=()
+  local command="$1" demo="$YANO_HOME/examples/evidence/demo.sh" machine args=()
   local evidence_id
   [ -x "$demo" ] || die "packaged evidence harness is missing"
   case "$VARIANT" in composite|default) machine=composite;; role) machine=role;;
@@ -1840,14 +1849,14 @@ delegate_evidence() {
     case "$command" in run) command=role-lifecycle;; verify) command=probe;; esac
   fi
   unset DEMO_PREBUILT_ARTIFACT_ROOT
-  export DEMO_YANO_HOME="$YANO_X_HOME"
+  export DEMO_YANO_HOME="$YANO_HOME"
   args=("$command" --deployment compose --machine "$machine" --network "$NETWORK"
     --instance "$INSTANCE" --data-dir "$(instance_root)/evidence")
   [ -z "$ANCHOR_KEY_FILE" ] || args+=(--anchor-key-file "$ANCHOR_KEY_FILE")
   [ -z "$PUBLIC_CONFIRM" ] || args+=(--confirm-public-anchor "$PUBLIC_CONFIRM")
   if [ "$command" = verify ]; then
     evidence_id="$(sed -n 's/^DEMO_EVIDENCE_ID=//p' \
-      "$YANO_X_HOME/examples/evidence/config/common.env")"
+      "$YANO_HOME/examples/evidence/config/common.env")"
     [ -n "$evidence_id" ] || die "packaged evidence default id is missing"
     args+=(--evidence-id "$evidence_id")
   fi
