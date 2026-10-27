@@ -36,23 +36,6 @@ class AppChainDevtoolsCliTest {
     private final AppChainDevtoolsCli cli = new AppChainDevtoolsCli();
 
     @Test
-    void maintainedClusterTemplateValidatesAgainstBuiltInContract() throws Exception {
-        Path repository = Path.of(System.getProperty("yano.test.repo-root"));
-        Path config = repository.resolve("config/application-appchain.yml");
-
-        Result result = run("config", "validate", "--mode", "template",
-                "--template-contract", "builtin:cluster", config.toString());
-
-        assertThat(result.exit()).isZero();
-        assertThat(result.err()).isEmpty();
-        assertThat(result.out())
-                .contains("VALID_TEMPLATE mode=template")
-                .contains("contract=yano-appchain-cluster-v1")
-                .contains("UNRESOLVED_TEMPLATE_OVERLAY")
-                .doesNotContain(repository.toString());
-    }
-
-    @Test
     void validationJsonIsMachineReadableAndNeverContainsValues() throws Exception {
         Path config = write("application-secret.yml", """
                 yano:

@@ -21,8 +21,6 @@ import java.util.zip.ZipFile;
 /** Strict data-only loader for contracts and component metadata; it never loads plugin classes. */
 final class AppChainDescriptorLoader {
     private static final long MAX_DESCRIPTOR_BYTES = 1024 * 1024;
-    static final String BUILT_IN_CLUSTER_CONTRACT =
-            "/appchain-dx/v1/appchain-cluster-template-contract.json";
     static final String BUILT_IN_FIRST_PARTY_METADATA =
             "/appchain-dx/v1alpha1/appchain-first-party-metadata.json";
 
@@ -35,15 +33,6 @@ final class AppChainDescriptorLoader {
             .build()));
 
     TemplateContract loadContract(String location) throws IOException {
-        if ("builtin:cluster".equals(location)) {
-            try (InputStream input = AppChainDescriptorLoader.class
-                    .getResourceAsStream(BUILT_IN_CLUSTER_CONTRACT)) {
-                if (input == null) {
-                    throw new IOException("built-in cluster template contract is missing");
-                }
-                return json.readValue(readBounded(input), TemplateContract.class);
-            }
-        }
         Path path = Path.of(location);
         return mapper(path).readValue(readFile(path), TemplateContract.class);
     }

@@ -57,7 +57,7 @@ public final class AppChainDevtoolsCli {
               --format text|json                         validate/explain
               --format yaml|json                         effective (default: yaml)
               --metadata <descriptor|plugin.jar>         repeatable
-              --template-contract <file|builtin:cluster> template validate only
+              --template-contract <file>     template validate only
               --profile <name>                           resolved commands
               --include-environment                      resolved commands, default off
               --include-system-properties                resolved commands, default off

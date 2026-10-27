@@ -123,9 +123,10 @@ and never enter consensus configuration.
 ## Configuration tools
 
 ```bash
-# Intentionally incomplete shared template
+# An intentionally incomplete shared template, with a contract file naming the
+# properties another tool supplies
 ./yano.sh appchain config validate --mode template \
-  --template-contract builtin:cluster application-appchain.yml
+  --template-contract contract.json application-appchain.yml
 
 # A node's source stack, for example the files `join` wrote plus the
 # operator's config/local.yaml; later --config files have higher default

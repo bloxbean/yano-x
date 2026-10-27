@@ -13,12 +13,13 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
 final class ShowcaseProfileCompiler {
     private static final String GENERATOR =
-            "org.yanoproject.x.showcase.ShowcaseAuthenticatedMapConfig";
+            ShowcaseAuthenticatedMapConfig.class.getName();
     private static final Pattern PROPERTY = Pattern.compile(
             "yano\\.app-chain\\.chains\\[(8|9)]\\.[a-z0-9.-]+=[^\\r\\n]+", Pattern.CASE_INSENSITIVE);
     private static final Set<String> EXCLUDED = Set.of(
@@ -75,7 +76,8 @@ final class ShowcaseProfileCompiler {
         List<String> command = new ArrayList<>();
         command.add(javaExecutable());
         command.add("-cp");
-        command.add(classpath.stream().map(Path::toString)
+        // The generator is this tool's own class; everything it uses comes from the release's jars.
+        command.add(java.util.stream.Stream.concat(classpath.stream().map(Path::toString), Stream.of(toolLocation()))
                 .collect(java.util.stream.Collectors.joining(File.pathSeparator)));
         command.add(GENERATOR);
         command.add("--validator-bundle");
@@ -120,6 +122,15 @@ final class ShowcaseProfileCompiler {
             throw new IOException("profile compiler did not emit the expected eight identity properties");
         }
         return result.toString();
+    }
+
+    private static String toolLocation() throws IOException {
+        try {
+            return Path.of(ShowcaseAuthenticatedMapConfig.class.getProtectionDomain().getCodeSource().getLocation()
+                    .toURI()).toString();
+        } catch (java.net.URISyntaxException | RuntimeException unavailable) {
+            throw new IOException("cannot locate the deployment tool's classes", unavailable);
+        }
     }
 
     private String javaExecutable() {

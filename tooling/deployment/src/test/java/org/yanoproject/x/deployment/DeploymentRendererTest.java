@@ -147,7 +147,7 @@ class DeploymentRendererTest {
                 .doesNotContain("relay", "praos-lite");
         assertThat(Files.readString(output.resolve("ansible/deploy.yml")))
                 .contains("patterns: 'yano-x-jvm-*'",
-                        "src: \"{{ yano_release }}/examples/showcase/yano/config/\"")
+                        "src: \"{{ yano_release }}/config/\"")
                 .doesNotContain("{{ yano_release }}/yano/");
         assertThat(Files.readString(output.resolve("ansible/files/application-appchain.yml")))
                 .doesNotContain("standard-only-chain");
@@ -647,7 +647,6 @@ class DeploymentRendererTest {
         files.put("sbom/yano-x.cdx.json",
                 "{\"bomFormat\":\"CycloneDX\",\"specVersion\":\"1.6\",\"components\":[]}");
         files.put("examples/showcase/catalog/showcase-catalog-v1.json", catalog());
-        files.put("examples/showcase/yano/config/application-appchain.yml", application());
         files.put("config/network/preprod/shelley-genesis.json", "{\"network\":\"preprod\"}\n");
         try (ZipOutputStream zip = new ZipOutputStream(Files.newOutputStream(path))) {
             for (Map.Entry<String, String> entry : files.entrySet()) {
@@ -672,27 +671,6 @@ class DeploymentRendererTest {
         List<Map<String, String>> items = chains.stream().map(chain -> Map.of("chainId", chain)).toList();
         return new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(
                 Map.of("schemaVersion", 1, "profileId", "light-v1", "chains", items));
-    }
-
-    private String application() {
-        StringBuilder result = new StringBuilder("""
-                yano:
-                  plugins:
-                    allow-list: [stdlib, kafka, objectstore-s3, ipfs, effects-cardano]
-                  app-chain:
-                """);
-        List<String> chains = List.of("orders-chain", "registry-chain", "approvals-chain", "balances-chain",
-                "documents-chain", "workflow-chain", "roles-chain", "payments-chain",
-                "authenticated-map-chain", "authenticated-map-jmt-chain", "payment-chain-settlement",
-                "document-review-chain", "cardano-history-chain");
-        for (int index = 0; index < chains.size(); index++) {
-            result.append("    chains[").append(index).append("]:\n      chain-id: ")
-                    .append(chains.get(index)).append("\n      state-machine: ordered-log\n");
-            if (index == 10 || index == 12) {
-                result.append("      observers:\n        fixture:\n          type: fixture-v1\n");
-            }
-        }
-        return result.toString();
     }
 
     private String fakeAuthenticatedMapProperties() {

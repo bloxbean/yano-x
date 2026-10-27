@@ -8,13 +8,24 @@ dependencies {
     implementation libs.jackson.databind
     implementation libs.jackson.dataformat.yaml
     implementation libs.json.schema.validator
+    // ShowcaseAuthenticatedMapConfig runs in a separate JVM on the deployed release's own jars.
+    compileOnly rootProject.ext.yanoModule('yano-core-api')
+    compileOnly rootProject.ext.yanoModule('yano-plugin-catalog')
+    compileOnly project(':state-machines:stdlib')
+    compileOnly project(':state-machines:stdlib-contracts')
+    compileOnly project(':capabilities:role-workflow-contracts')
+    testImplementation rootProject.ext.yanoModule('yano-core-api')
+    testImplementation rootProject.ext.yanoModule('yano-plugin-catalog')
+    testImplementation project(':state-machines:stdlib')
+    testImplementation project(':state-machines:stdlib-contracts')
+    testImplementation project(':capabilities:role-workflow-contracts')
 }
 
 sourceSets {
     main {
         resources {
             srcDir rootProject.file('deployment/schema')
-            include 'yano-cluster-deployment.schema.json'
+            include 'yano-cluster-deployment.schema.json', 'showcase-profile/**'
         }
     }
 }

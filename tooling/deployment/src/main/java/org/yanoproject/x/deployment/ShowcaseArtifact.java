@@ -29,15 +29,13 @@ final class ShowcaseArtifact {
     private static final long MAX_EXPANDED_BYTES = 16L * 1024 * 1024 * 1024;
     private static final int MAX_ENTRIES = 50_000;
     private static final long MAX_JSON_ENTRY_BYTES = 64L * 1024 * 1024;
-    // The showcase ships inside the Yano X JVM distribution at examples/showcase.
-    // Its yano/ home holds only the demo configuration; the runtime is the
-    // distribution root.
+    // The showcase ships inside the Yano X JVM distribution at examples/showcase; the runtime is the
+    // distribution root. VMs run this tool's own 13-chain profile (showcase-profile/application-appchain.yml).
     static final String SHOWCASE = "examples/showcase/";
-    static final String SHOWCASE_APPLICATION = SHOWCASE + "yano/config/application-appchain.yml";
+    private static final String PROFILE_APPLICATION = "/showcase-profile/application-appchain.yml";
     private static final Set<String> REQUIRED = Set.of(
             SHOWCASE + "showcase.sh",
             SHOWCASE + "catalog/showcase-catalog-v1.json",
-            SHOWCASE_APPLICATION,
             "yano.sh",
             "yano.jar",
             "yano-distribution-v1.json",
@@ -172,6 +170,14 @@ final class ShowcaseArtifact {
                 lockedPlugins.put(entry.getKey(), entry.getValue().asText()));
         if (!metadata.pluginBundleSha256().equals(lockedPlugins)) {
             throw new IOException("artifact.lock.json plugin checksums do not match the imported showcase ZIP");
+        }
+    }
+
+    /** The VM deployment profile: the showcase chains with their shared settings; this tool injects the rest. */
+    static byte[] profileApplication() throws IOException {
+        try (java.io.InputStream input = ShowcaseArtifact.class.getResourceAsStream(PROFILE_APPLICATION)) {
+            if (input == null) throw new IOException("the showcase deployment profile is missing");
+            return input.readAllBytes();
         }
     }
 
