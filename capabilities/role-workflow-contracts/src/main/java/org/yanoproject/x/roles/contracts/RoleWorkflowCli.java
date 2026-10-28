@@ -30,7 +30,7 @@ public final class RoleWorkflowCli {
                                    [--key-proof <file>]...; see 'role bootstrap --help'
             Each command prints hex, except bootstrap, which prints JSON. Seed files hold one 32-byte Ed25519
             seed as hex and are never printed.
-            'bootstrap' encodes the governed records of a generated project's bootstrap plan.""";
+            'bootstrap' encodes the governed records of the <chain>.role-plan.yaml that seal writes.""";
 
     private RoleWorkflowCli() {
     }

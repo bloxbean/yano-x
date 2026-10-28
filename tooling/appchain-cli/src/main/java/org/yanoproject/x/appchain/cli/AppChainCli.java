@@ -9,14 +9,28 @@ import java.io.PrintStream;
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.Map;
 import java.util.Set;
 
 /**
- * {@code yano.sh appchain}: the app-chain setup verbs of ADR-056. Every other verb goes to the devtools CLI.
+ * {@code yano.sh appchain}: the app-chain setup verbs of ADR-056. The other tools go to the devtools CLI.
  */
 public final class AppChainCli {
     static final Set<String> VERBS = Set.of("new", "request", "seal", "inspect", "join", "start", "stop",
             "status", "approve", "anchor", "try", "invite", "ui", "topics");
+    static final Set<String> TOOLS = Set.of("recipes", "capabilities", "bindings", "state", "role", "plugin",
+            "metadata", "config", "authenticated-map", "eutxo");
+    /** Commands of the one-author project lifecycle (ADR-056 D9) and what replaces them. */
+    private static final Map<String, String> REMOVED = Map.ofEntries(
+            Map.entry("init", "new (or try, to rehearse on one machine)"),
+            Map.entry("cluster", "try"),
+            Map.entry("prepare", "request"),
+            Map.entry("render", "seal"),
+            Map.entry("plan", "seal"),
+            Map.entry("apply", "join"),
+            Map.entry("doctor", "status"),
+            Map.entry("drift", "status"),
+            Map.entry("start-check", "status"));
 
     private static final String HELP = """
             Set up and run an app chain with other operators.
@@ -61,6 +75,12 @@ public final class AppChainCli {
         System.exit(run(arguments, new Terminal(in, out, interactive), System.err));
     }
 
+    /** An argument echoed back, without control characters and bounded. */
+    private static String printable(String argument) {
+        String safe = argument.replaceAll("[^A-Za-z0-9._-]", "?");
+        return safe.length() > 40 ? safe.substring(0, 40) + "..." : safe;
+    }
+
     static int run(String[] arguments, Terminal terminal, PrintStream err) {
         return run(arguments, terminal, err, null);
     }
@@ -78,6 +98,13 @@ public final class AppChainCli {
             return 0;
         }
         String verb = args[0];
+        if (!VERBS.contains(verb) && !TOOLS.contains(verb)) {
+            String replacement = REMOVED.get(verb);
+            err.println("'" + printable(verb) + "' is not a yano.sh appchain command"
+                    + (replacement == null ? "." : "; use " + replacement + " instead."));
+            err.println("Run 'yano.sh appchain help' for the commands.");
+            return CliException.USAGE;
+        }
         if (!VERBS.contains(verb)) {
             PrintWriter out = new PrintWriter(terminal.out(), true, StandardCharsets.UTF_8);
             PrintWriter error = new PrintWriter(err, true, StandardCharsets.UTF_8);

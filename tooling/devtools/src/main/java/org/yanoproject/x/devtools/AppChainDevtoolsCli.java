@@ -149,8 +149,8 @@ public final class AppChainDevtoolsCli {
                 out.flush();
                 return EXIT_OK;
             } catch (RuntimeException failure) {
-                err.println("Invalid offline role command. Use './yano.sh appchain help' "
-                        + "and the generated bootstrap plan for required options.");
+                err.println("Invalid offline role command. Use './yano.sh appchain role --help' "
+                        + "and the <chain>.role-plan.yaml that seal writes for required options.");
                 err.flush();
                 return EXIT_USAGE;
             }

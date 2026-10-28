@@ -22,6 +22,23 @@ class ReviewRegressionTest {
     Path temporary;
 
     @Test
+    void anUnknownOrRemovedCommandSaysSoInsteadOfPrintingTheConfigUsage() throws Exception {
+        CeremonyFixture fixture = new CeremonyFixture(temporary);
+
+        CeremonyFixture.Result removed = fixture.run("init", "--help");
+        CeremonyFixture.Result unknown = fixture.run("frobnicate\u001b[2J");
+        CeremonyFixture.Result tool = fixture.run("recipes");
+
+        assertThat(removed.exit()).isEqualTo(CliException.USAGE);
+        assertThat(removed.err()).contains("'init' is not a yano.sh appchain command; use new")
+                .doesNotContain("config validate");
+        assertThat(unknown.exit()).isEqualTo(CliException.USAGE);
+        assertThat(unknown.err()).contains("'frobnicate??2J' is not a yano.sh appchain command.")
+                .doesNotContain("\u001b");
+        assertThat(tool.exit()).isZero();
+    }
+
+    @Test
     void aSealedFileWhoseSettingsDisagreeWithItsRosterIsRefused() throws Exception {
         CeremonyFixture fixture = sealed();
         String text = Files.readString(fixture.sealedFile("supply"));

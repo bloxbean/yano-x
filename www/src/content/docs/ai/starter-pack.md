@@ -243,17 +243,22 @@ optional plugins: Kafka, S3-compatible `object.put`, `ipfs.pin`,
 # 4. Build and validate. Loads no plugin code.
 ./yano.sh appchain plugin validate <jar> --trust-key <key-id>=<public-key-hex>
 
-# 5. Pin into a project.
-./yano.sh appchain init --non-interactive --recipe custom-plugin \
-  --network devnet --members 3 --runtime jvm \
-  --capability state:shipment --plugin-jar <jar> \
-  --trust-key <key-id>=<public-key-hex> --output shipment-chain
-
-# 6. Check readiness against a real distribution.
-./yano.sh appchain doctor shipment-chain --distribution /opt/yano-x
-
-# 7. Copy the exact pinned JAR into plugins/ on EVERY member, then validate.
+# 5. Every operator installs the identical JAR in plugins/ BEFORE the seal.
+cp <jar> plugins/
 tools/yano-plugins/bin/yano-plugins validate plugins/*.jar
+
+# 6. Draft a chain that selects the machine: the custom-plugin recipe, with the
+#    machine id as the stateMachine answer (chains[].answers.stateMachine: shipment).
+./yano.sh appchain new shipments --network devnet --operators alice,bob,carol \
+  --chain shipments=custom-plugin --answer shipments.stateMachine=shipment --yes
+
+# 7. The usual ceremony. seal records the SHA-256 of every bundle in plugins/;
+#    join and start refuse a distribution whose bundles differ.
+./yano.sh appchain request shipments.draft.yaml --name alice   # each operator
+./yano.sh appchain seal shipments.draft.yaml                   # coordinator
+./yano.sh appchain join shipments.chain                        # each operator
+./yano.sh appchain start
+./yano.sh appchain status shipments
 ```
 
 The JAR carries three independent bounded contracts plus a signature:
@@ -399,13 +404,13 @@ catch-up, restart, and anchor state.
 
 | Symptom | Root cause | Fix |
 |---|---|---|
-| Cluster stops finalizing after a deploy | Members run different bundles or different `CONSENSUS_SHARED` values | `./yano.sh appchain drift <project> --peer <node-url>`; align bundles and config |
+| Cluster stops finalizing after a deploy | Members run different bundles or different consensus settings | `./yano.sh appchain status` compares every member's root per height; `join` and `start` refuse bundles that differ from the sealed digests, so reinstall the exact JAR |
 | Root parity holds locally, fails on a cluster | Reproducible but not identical — usually `HashMap` iteration or a wall clock | See §4; re-run under `@AppChainCluster` |
 | `verifyJvmOnlyBuild` fails | A native-image build or distribution task crept in | Remove it. Yano X is JVM-only by decision |
 | `verifyArtifactInventory` fails | Module identity changed without updating `config/artifacts-v1.json` | Update the inventory and its verification tests |
 | Build tries to reach Maven Local | `-PuseMavenLocal=true` needed but that is the contributor track | Users need no flags at all |
 | Missing release asset for `yanoVersion` | SNAPSHOT or staged Yano version | Supply `-PyanoJvmDist` with the exact matching ZIP |
-| `appchain doctor` reports incompatibility | Pointed at a native distribution | Yano X plugins target the JVM host |
+| `join` or `start` refuses the distribution | The plugins differ from the sealed file, or it is a native distribution | Install the sealed JARs exactly; Yano X plugins target the JVM host |
 | Node refuses to start with a catalog error | Two bundles provide the same contribution | Install exactly one of them |
 | `POST /messages` returns 429 | Pending pool full — backpressure working | Back off and retry; tune `pool.max-messages` deliberately |
 | Message rejected, `drops.stale_seq` | Per-sender seq at or below the last finalized seq — a replay | Do not reuse envelopes; seq gaps are fine and meaningless |

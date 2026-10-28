@@ -251,17 +251,17 @@ clash with other tutorials:
 
 ```bash
 ./yano.sh appchain new shipments --network devnet --operators alice \
-  --chain shipments=custom-plugin --yes
+  --chain shipments=custom-plugin --answer shipments.stateMachine=shipment --yes
 ```
 
-Open `shipments.draft.yaml` and add the machine id to the chain:
+`--answer` writes the machine id into the draft, which you can check:
 
 ```yaml
 chains:
   - id: shipments
     recipe: custom-plugin
     answers:
-      stateMachine: shipment
+      stateMachine: "shipment"
 ```
 
 Then make the key, seal, join, and start:
