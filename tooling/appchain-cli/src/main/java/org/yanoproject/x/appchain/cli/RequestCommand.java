@@ -56,8 +56,9 @@ final class RequestCommand {
         String network;
         List<String> expected;
         boolean late = source.toString().endsWith(".chain");
+        SealedApp sealedApp = late ? SealedApp.parse(text) : null;
         if (late) {
-            SealedApp app = SealedApp.parse(text);
+            SealedApp app = sealedApp;
             invite = app.genesis().invite();
             network = app.genesis().network();
             expected = List.of();
@@ -76,6 +77,7 @@ final class RequestCommand {
                     : expected.isEmpty() ? terminal.ask("Your operator name", null, "--name")
                     : terminal.choose("Which operator are you?", expected, null, null, "--name");
             Names.name(name, "Operator name");
+            refuseSealedName(sealedApp, name, null);
             String host = args.value("host") != null ? args.value("host")
                     : terminal.ask("Address other members reach this node at (host name or IP)",
                     "devnet".equals(network) ? "127.0.0.1" : null, "--host");
@@ -97,6 +99,7 @@ final class RequestCommand {
                     + "it never leaves this directory)");
         } else {
             requireSame(args.value("name"), identity.name(), "operator name");
+            refuseSealedName(sealedApp, identity.name(), identity.publicKey());
             if (args.value("host") != null) requireSame(args.value("host"), Names.host(identity.node()), "host");
             if (args.integer("node-port") != null) {
                 requireSame(args.value("node-port"), Integer.toString(Names.port(identity.node())), "node port");
@@ -133,24 +136,43 @@ final class RequestCommand {
         return 0;
     }
 
+    /**
+     * A later member cannot reuse a name the sealed roster gives another key: the roster keeps that name for
+     * the sealed key even after governance removes it, so the new node joins under a name of its own.
+     */
+    private static void refuseSealedName(SealedApp app, String name, String key) {
+        if (app == null || app.genesis().member(name) == null
+                || app.genesis().member(name).publicKey().equals(key)) {
+            return;
+        }
+        throw CliException.failure("The sealed roster of " + app.genesis().name() + " already lists " + name
+                + ". A replacement node joins under a new name: once the operators have removed " + name
+                + ", run request again in a new node directory with --name <new-name>, for example " + name
+                + "-2");
+    }
+
     /** Posts the card to the coordinator, waits for the sealed file, and continues with join. */
     private int viaLink(InviteLink link, MemberCard card, NodeDir node, Args args) {
-        // Running the command again after the seal resumes: the card is already in the sealed file.
-        if (link.get("/v1/chain").status() != 200) {
+        // Running the command again after the seal resumes: the card is already in the sealed file. The
+        // coordinator counts a served sealed file as delivered, so a reply that carries it is always kept.
+        InviteLink.Reply pending = link.get("/v1/chain");
+        if (pending.status() != 200) {
             InviteLink.Reply posted = link.post("/v1/card", card.toJson());
             if (posted.status() != 200) {
                 throw CliException.failure("The coordinator refused your card (" + posted.status() + "): "
                         + posted.body());
             }
             terminal.ok("Sent your card (key id " + Show.keyId(card.publicKey()) + ") to the coordinator");
-        }
-        if (args.flag("no-wait")) {
-            terminal.next("run the same request command again later to receive the sealed file");
-            return 0;
+            if (args.flag("no-wait")) {
+                terminal.next("run the same request command again later to receive the sealed file");
+                return 0;
+            }
+            pending = null;
         }
         boolean told = false;
         while (true) {
-            InviteLink.Reply reply = link.get("/v1/chain");
+            InviteLink.Reply reply = pending != null ? pending : link.get("/v1/chain");
+            pending = null;
             if (reply.status() == 200) {
                 org.yanoproject.x.appchain.formats.SealedApp sealed =
                         org.yanoproject.x.appchain.formats.SealedApp.parse(reply.body());

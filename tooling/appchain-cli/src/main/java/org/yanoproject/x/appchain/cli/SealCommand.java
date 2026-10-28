@@ -154,7 +154,8 @@ final class SealCommand {
                         genesis.threshold()));
             }
             terminal.say("  " + chain.id() + " starts with no actors: fill in " + plan.getFileName()
-                    + " and, once live, run  yano.sh appchain role bootstrap --plan " + plan.getFileName());
+                    + " and, once live, run  yano.sh appchain role bootstrap --plan " + plan.getFileName()
+                    + " --expiry-height <n>  and submit the commands it prints");
         }
         terminal.next("send " + output.getFileName() + " to every operator. On a call, read out the chain "
                 + "fingerprint and each operator's key id;",

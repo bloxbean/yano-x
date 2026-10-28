@@ -39,7 +39,7 @@ import java.util.regex.Pattern;
 final class TopicsCommand {
     private static final ObjectMapper JSON = new ObjectMapper();
     static final String APPROVE_USAGE = "yano.sh appchain topics approve <plan.json> [<app>] [--node-dir yano-node]"
-            + " [--heartbeat] [--timeout <seconds>] [--no-wait] [--yes]";
+            + " [--plan-sha256 <hex>] [--again] [--heartbeat] [--timeout <seconds>] [--no-wait] [--yes]";
 
     private final Terminal terminal;
     private final PrintStream err;

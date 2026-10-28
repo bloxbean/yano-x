@@ -182,7 +182,7 @@ final class AnchorCommand {
         }
         terminal.ok("This node anchors " + chain + ("script".equals(mode) ? " (anchor thread confirmed)" : ""));
         terminal.next("the first anchor is written after " + every + " more blocks; see it with  yano.sh appchain "
-                + "status " + genesis.name());
+                + "status " + genesis.name() + node.flag());
         return 0;
     }
 

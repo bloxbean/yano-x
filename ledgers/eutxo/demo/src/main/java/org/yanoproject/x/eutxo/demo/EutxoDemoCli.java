@@ -30,8 +30,8 @@ public final class EutxoDemoCli {
               --scenario ledger|bridge     default ledger for a new workspace;
                                            inferred for an existing workspace
               --workspace <directory>      default $YANO_HOME/eutxo-demo
-              --name <project-name>        default payments-eutxo
-              --chain-id <chain-id>        default project name
+              --name <application-name>    default payments-eutxo
+              --chain-id <chain-id>        default application name
               --members <count>            default 3
               --count <round-trips>        default 1, maximum 16
               --http-port-base <port>      default 7070

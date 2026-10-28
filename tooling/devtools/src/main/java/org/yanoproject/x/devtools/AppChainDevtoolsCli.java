@@ -50,7 +50,8 @@ public final class AppChainDevtoolsCli {
                or: ./yano.sh appchain authenticated-map action|direct-*|approval-*|command [options]
                or: ./yano.sh appchain eutxo transaction|utxo|proof|doctor|demo [options]
                or: ./yano.sh appchain state entry|proof|verify|identity|integrity|snapshot|oldest [options]
-               or: ./yano.sh appchain topics init|plan|sign|submit|resolve|delegate|verify|doctor [options]
+               or: ./yano.sh appchain topics init|plan|sign|submit|approve|resolve|delegate|verify|doctor
+                     |public-key [options]
                or: ./yano.sh appchain bindings compile|validate|graph|dry-run <document> [options]
                or: ./yano.sh appchain bindings receipt-key|catalog|profile-check [options]
             Options:
@@ -110,13 +111,19 @@ public final class AppChainDevtoolsCli {
                     java.util.Arrays.copyOfRange(args, 1, args.length), out, err);
         }
         if (args.length > 0 && "authenticated-map".equals(args[0])) {
+            if (args.length == 1 || java.util.Arrays.asList(args).contains("--help")) {
+                out.println(AuthenticatedMapAuthorizationCli.USAGE);
+                out.flush();
+                return args.length == 1 ? EXIT_USAGE : EXIT_OK;
+            }
             try {
                 out.println(AuthenticatedMapAuthorizationCli.execute(
                         java.util.Arrays.copyOfRange(args, 1, args.length)));
                 out.flush();
                 return EXIT_OK;
             } catch (RuntimeException failure) {
-                err.println("Invalid offline authenticated-map authorization command.");
+                err.println("Invalid offline authenticated-map authorization command. See "
+                        + "'./yano.sh appchain authenticated-map --help'.");
                 err.flush();
                 return EXIT_USAGE;
             }

@@ -75,6 +75,23 @@ public final class AppChainCli {
         System.exit(run(arguments, new Terminal(in, out, interactive), System.err));
     }
 
+    /**
+     * A scaffolded plugin compiles against the host's Yano API, so {@code plugin scaffold} defaults its
+     * {@code --yano-version} to this distribution's Yano version rather than the tool's own.
+     */
+    static String[] withHostYanoVersion(String[] args, Distribution distribution) {
+        if (args.length < 2 || !"plugin".equals(args[0]) || !"scaffold".equals(args[1])
+                || Arrays.asList(args).contains("--yano-version") || Arrays.asList(args).contains("--help")) {
+            return args;
+        }
+        String version = distribution.yanoVersion();
+        if ("unknown".equals(version)) return args;
+        String[] extended = Arrays.copyOf(args, args.length + 2);
+        extended[args.length] = "--yano-version";
+        extended[args.length + 1] = version;
+        return extended;
+    }
+
     /** An argument echoed back, without control characters and bounded. */
     private static String printable(String argument) {
         String safe = argument.replaceAll("[^A-Za-z0-9._-]", "?");
@@ -108,7 +125,7 @@ public final class AppChainCli {
         if (!VERBS.contains(verb)) {
             PrintWriter out = new PrintWriter(terminal.out(), true, StandardCharsets.UTF_8);
             PrintWriter error = new PrintWriter(err, true, StandardCharsets.UTF_8);
-            return new AppChainDevtoolsCli().run(args, out, error);
+            return new AppChainDevtoolsCli().run(withHostYanoVersion(args, optional.get()), out, error);
         }
         String[] rest = Arrays.copyOfRange(args, 1, args.length);
         if ("topics".equals(verb) && !(rest.length > 0 && "approve".equals(rest[0]))) {

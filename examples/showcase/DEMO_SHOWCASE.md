@@ -142,10 +142,13 @@ instance.
 ./showcase.sh config show|paths --instance demo
 ```
 
-Generic message submission to any chain/topic:
+Generic message submission to any chain/topic. The manual paths below use two
+shell variables, set once here (node 0, and its stdlib domain API):
 
 ```bash
-curl -X POST http://127.0.0.1:7070/api/v1/app-chain/chains/orders-chain/messages \
+BASE=http://127.0.0.1:7070/api/v1
+DOMAIN=$BASE/plugins/org.yanoproject.x.stdlib
+curl -X POST $BASE/app-chain/chains/orders-chain/messages \
   -H 'Content-Type: application/json' -d '{"topic":"orders.command.v1","body":"hello"}'
 # then: GET .../messages/<messageId>   (404 until finalized, then height+body)
 # live: GET .../stream                 (SSE feed, also on the console page)

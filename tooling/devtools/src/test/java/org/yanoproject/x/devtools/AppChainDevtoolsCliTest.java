@@ -246,6 +246,15 @@ class AppChainDevtoolsCliTest {
         assertThat(result.exit()).isZero();
         assertThat(result.err()).isEmpty();
         assertThat(result.out().trim()).matches("[0-9a-f]{64}");
+
+        Result help = run("authenticated-map", "--help");
+        Result bare = run("authenticated-map");
+
+        assertThat(help.exit()).isZero();
+        assertThat(help.out()).contains("authenticated-map direct-preimage --action-hex <hex>",
+                "authenticated-map command --action-hex <hex>");
+        assertThat(bare.exit()).isEqualTo(AppChainDevtoolsCli.EXIT_USAGE);
+        assertThat(bare.out()).contains("authenticated-map action --command-hex <hex>");
     }
 
     @Test

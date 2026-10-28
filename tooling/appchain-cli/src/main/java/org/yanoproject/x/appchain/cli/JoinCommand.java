@@ -118,7 +118,7 @@ final class JoinCommand {
             if (!args.flag("accept-bundles")) {
                 throw CliException.failure("This distribution's plugin bundles differ from the sealed ones: "
                         + String.join(", ", changed) + ". Install Yano X " + genesis.yanoXVersion()
-                        + ", or, if the operators agreed to the upgrade, re-run with --accept-bundles");
+                        + ", or, if the operators agreed to the upgrade, re-run with --accept-bundles" + node.flag());
             }
             terminal.warn("Accepting changed bundles " + String.join(", ", changed)
                     + " for " + genesis.name());
@@ -167,10 +167,11 @@ final class JoinCommand {
             terminal.say("  To run it as a service: " + Service.installHint(node));
         }
         boolean running = Processes.running(node);
-        terminal.next(running ? "restart this node to load the new configuration:  yano.sh appchain stop && "
-                        + "yano.sh appchain start" : "yano.sh appchain start",
+        terminal.next(running ? "restart this node to load the new configuration:  yano.sh appchain stop"
+                        + node.flag() + " && yano.sh appchain start" + node.flag()
+                        : "yano.sh appchain start" + node.flag(),
                 later ? "then the existing operators run  yano.sh appchain approve " + identity.name() + ".member"
-                        : "then  yano.sh appchain status " + genesis.name());
+                        : "then  yano.sh appchain status " + genesis.name() + node.flag());
         return 0;
     }
 

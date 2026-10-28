@@ -62,6 +62,11 @@ final class NodeDir {
         return root;
     }
 
+    /** {@code  --node-dir <root>} for the commands this node prints, or nothing when it is the default. */
+    String flag() {
+        return root.equals(defaultDir().toAbsolutePath().normalize()) ? "" : " --node-dir " + root;
+    }
+
     Path path(String first, String... more) {
         return root.resolve(Path.of(first, more));
     }
