@@ -23,10 +23,10 @@ The latest Yano X release and the Yano host it is built on:
 | Value | Current |
 |---|---|
 | Yano X version | `0.1.0-pre4` |
-| Yano host version | `0.1.0-pre19-8bed9f1-SNAPSHOT` |
+| Yano host version | `0.1.0-pre19-4e8accd-SNAPSHOT` |
 | Maven group | `org.yanoproject.x` |
 | Java | `25` |
-| Base Yano JVM ZIP | [`yano-0.1.0-pre19-8bed9f1.zip`](https://repo.bloxbean.org/dist/snapshots/yano/0.1.0-pre19-8bed9f1/yano-0.1.0-pre19-8bed9f1.zip) |
+| Base Yano JVM ZIP | [`yano-0.1.0-pre19-4e8accd.zip`](https://repo.bloxbean.org/dist/snapshots/yano/0.1.0-pre19-4e8accd/yano-0.1.0-pre19-4e8accd.zip) |
 
 <!-- catalog:versions-end -->
 
