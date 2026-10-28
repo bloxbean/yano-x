@@ -59,10 +59,10 @@ the latest release it is:
 | Value | Current |
 |---|---|
 | Yano X version | `0.1.0-pre4` |
-| Yano host version | `0.1.0-pre19-7f92fbe6a-SNAPSHOT` |
+| Yano host version | `0.1.0-pre19-8bed9f1-SNAPSHOT` |
 | Maven group | `org.yanoproject.x` |
 | Java | `25` |
-| Base Yano JVM ZIP | Local build required; supply matching Maven artifacts and `-PyanoJvmDist` ([instructions](/start-here/build-from-source/)). |
+| Base Yano JVM ZIP | [`yano-0.1.0-pre19-8bed9f1.zip`](https://repo.bloxbean.org/dist/snapshots/yano/0.1.0-pre19-8bed9f1/yano-0.1.0-pre19-8bed9f1.zip) |
 
 <!-- catalog:versions-end -->
 

@@ -62,7 +62,7 @@ A valid signature alone does not establish current authority or finality.
 ## Preview upgrade boundary
 
 This implementation pins the unreleased Yano host at
-`0.1.0-pre19-7f92fbe6a-SNAPSHOT`, API level 13, with its matching ordinary JVM
+`0.1.0-pre19-8bed9f1-SNAPSHOT`, API level 13, with its matching ordinary JVM
 ZIP. Qualify it on a fresh app-chain genesis. Existing retained deployments
 remain on their exact host, profile and genesis; this change supplies no
 in-place migration or reset procedure.
