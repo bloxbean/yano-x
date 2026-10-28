@@ -299,8 +299,9 @@ def job_block(name, text=workflow):
     return "\n".join(lines[start:end])
 
 
-# The devnet E2E scenarios run as two parallel jobs of evidence-e2e.yml.
+# The devnet E2E scenarios run as three parallel jobs of evidence-e2e.yml.
 for name, scenario in (("effect-failover", "YANO_RUN_EFFECT_FAILOVER_E2E: 'true'"),
+                       ("workflow-replay", "YANO_RUN_WORKFLOW_REPLAY_E2E: 'true'"),
                        ("role-workflow", "YANO_RUN_ROLE_WORKFLOW_E2E: 'true'")):
     job = job_block(name, e2e_workflow)
     for required in (

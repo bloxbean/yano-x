@@ -164,8 +164,9 @@ CI runs them in the `eUTxO settlement E2E` workflow only when a change touches
 for any other change.
 
 The evidence harness's devnet scenarios run in the `Evidence E2E` workflow
-(`.github/workflows/evidence-e2e.yml`) as two parallel jobs: fenced effect
-failover, and role workflow with catch-up.
+(`.github/workflows/evidence-e2e.yml`) as three parallel jobs: fenced effect
+failover, workflow replay across a retained Compose restart (composite machine,
+direct continuation), and role workflow with catch-up.
 It runs when a change touches the code they exercise (the evidence, DPP and
 feed products, connectors, capabilities, composition, the stdlib machines, the
 SDK, the JVM distribution or the build), on every `gradle.properties` change,
