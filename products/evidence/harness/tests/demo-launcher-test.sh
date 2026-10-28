@@ -712,6 +712,9 @@ grep -Fq 'anchor.every-blocks=1' "$NODE_DIR/node0.properties" \
 grep -Fxq 'yano.app-chain.chains[0].anchor.max-interval-minutes=60' \
   "$NODE_DIR/node0.properties" \
   || fail "devnet Compose anchor does not use the profile safety interval"
+grep -Fxq 'yano.app-chain.chains[0].anchor.validity-slots=299' \
+  "$NODE_DIR/node0.properties" \
+  || fail "devnet anchor validity does not stay inside the 3k/f forecast horizon"
 
 for file in "$SECRET_DIR"/yano-api-key "$SECRET_DIR"/anchor.seed \
   "$SECRET_DIR"/s3-*-key "$MEMBER_DIR"/*.seed; do
@@ -1018,6 +1021,8 @@ grep -Fxq 'yano.app-chain.chains[0].anchor.every-blocks=30' "$PREVIEW_ANCHOR_NOD
 grep -Fxq 'yano.app-chain.chains[0].anchor.max-interval-minutes=60' \
   "$PREVIEW_ANCHOR_NODE" \
   || fail "explicit preview anchor does not use the profile safety interval"
+! grep -Fq 'anchor.validity-slots=' "$PREVIEW_ANCHOR_NODE" \
+  || fail "public preview anchor must keep Yano's default validity"
 grep -Fxq 'yano.app-chain.chains[0].machines.evidence-registry.storage-gate=l1-anchored' \
   "$PREVIEW_ANCHOR_NODE" || fail "explicit preview anchor does not gate storage on L1"
 grep -Fxq 'yano.app-chain.chains[0].l1.stability-depth=10' "$PREVIEW_ANCHOR_NODE" \
@@ -1091,6 +1096,8 @@ grep -Fxq 'yano.app-chain.chains[0].anchor.every-blocks=30' "$PREPROD_ANCHOR_NOD
 grep -Fxq 'yano.app-chain.chains[0].anchor.max-interval-minutes=60' \
   "$PREPROD_ANCHOR_NODE" \
   || fail "explicit preprod anchor does not use the profile safety interval"
+! grep -Fq 'anchor.validity-slots=' "$PREPROD_ANCHOR_NODE" \
+  || fail "public preprod anchor must keep Yano's default validity"
 jq -e '
   .anchor.enabled == true
   and .anchor.everyBlocks == 30
