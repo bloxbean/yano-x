@@ -208,6 +208,13 @@ jq -e '.schemaVersion == 2 and .verificationState == "pending-genesis"
   || fail 'pending binding schema is incorrect'
 python3 "$TOOL" validate "${common_args[@]}" >/dev/null \
   || fail 'canonical pending binding did not validate'
+if python3 "$TOOL" validate --binding "$BINDING" --network devnet --instance binding-test \
+    --deployment host --chain-id evidence-chain-binding-test \
+    --state-machine evidence-registry >"$TMP/host-deployment.out" 2>&1; then
+  fail 'a binding for the retired host deployment unexpectedly validated'
+fi
+grep -Fq 'deployment must be compose' "$TMP/host-deployment.out" \
+  || fail 'retired host deployment binding diagnostic is missing'
 cp "$BINDING" "$TMP/pending-binding.json"
 
 # Automatic consensus/anchor diffusion is not application activity. Reproduce

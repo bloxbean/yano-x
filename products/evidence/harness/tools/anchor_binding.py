@@ -137,8 +137,8 @@ def validate_expected(expected: argparse.Namespace) -> None:
         raise BindingError("network name is malformed")
     if not INSTANCE.fullmatch(expected.instance):
         raise BindingError("instance id is malformed")
-    if expected.deployment not in ("compose", "host"):
-        raise BindingError("deployment must be compose or host")
+    if expected.deployment != "compose":
+        raise BindingError("deployment must be compose")
     if not CHAIN_ID.fullmatch(expected.chain_id):
         raise BindingError("chain id is malformed")
     if expected.state_machine not in STATE_MACHINES:
