@@ -72,6 +72,7 @@ and each operator's `request` sends the card, waits for the seal and joins:
 | `status [<app>\|<app>.draft.yaml]` | Show the stage, every member's state, each chain's height, agreement and anchoring, this node's Cardano view (sync, or the devnet genesis), and its plugin catalog fingerprint. Members compare the last two. | The stage ladder and a `Next:` line |
 | `approve <name>.member`, `approve --remove <name>` | Add or remove a member on every chain, raising or lowering the threshold safely, then restart this node once. | `✓ <chain>: <name> is a member` |
 | `anchor [<app>]` | Make this node the anchor leader of a chain: create the wallet, wait for funds, restart. `--stop` gives the role up. | `✓ This node anchors <chain>` |
+| `topics approve <plan.json>` | Cast this node's member vote on a namespace change, for a chain whose draft has `topics:`. Every operator votes from their own node. | `✓ …: voted (message …)` |
 | `inspect <file>` | Show and check a draft, a member card, or a sealed file. `--map-genesis <chain>` prints an authenticated-map chain's genesis CBOR hex instead. | The summary |
 | `ui` | Open a page on this computer (127.0.0.1 only) with the same steps. Every button runs the command shown under it. | `✓ App-chain setup UI for …` and the page address |
 
@@ -80,7 +81,8 @@ Common options:
 - `try`: `--chain <id>=<recipe>` or `--chain <id>=bindings:<file>` (repeatable;
   default one `orders=audit-log` chain), `--answer <chain>.<name>=<value>`,
   `--from <template.yaml>`, `--setting <chain>.<key>=<value>`,
-  `--without <chain>` (all as for `new`), `--dir <dir>` (default
+  `--without <chain>`, `--topics <chain>=members|anyone|registrars:<a>+<b>`
+  (all as for `new`), `--dir <dir>` (default
   `appchain-try`), `--clean`. It gives each node the first free ports from
   `8080` (HTTP) and `13337` (node).
 - `new`: `--network devnet|preview|preprod|mainnet`, `--operators alice,bob,carol`
@@ -89,7 +91,10 @@ Common options:
   for any answer a recipe still needs), `--from <template.yaml>` (start from a
   template's chains and defaults), `--setting <chain>.<key>=<value>`
   (repeatable; a sealed chain setting), `--without <chain>` (leave out one of
-  the template's chains), `--threshold majority|two-thirds|all|<n>`,
+  the template's chains), `--topics <chain>=members|anyone|registrars:<a>+<b>`
+  (repeatable; protect that chain's topics with namespaces and choose who may
+  create a top-level namespace),
+  `--threshold majority|two-thirds|all|<n>`,
   `--membership governed|static`, `--sequencing fixed|rotating` (default
   `fixed`: the lead proposes every block), `--output <dir>`, `--force`, `--yes`.
 - `invite`: `--serve` (required), `--host <public-host>`, `--port` (default
@@ -125,11 +130,41 @@ chains:
   - id: approvals
     recipe: approval-workflow
     capabilities: [effects:on-approved, executor:webhook]
-    answers: {effectType: webhook.post}
+    answers: {effectType: webhook.post, webhookUrl: "http://127.0.0.1:9999/hook"}
 ```
 
 Exit codes: `0` success, `1` failure, `2` usage error, `3` not ready yet or
 timed out. Every command ends with a `Next:` line.
+
+## Topic policies
+
+For a chain whose draft has `topics:`, these commands manage a namespace's
+owners, writers, and payload schema, check a topic's policy, and issue
+session-key credentials. See [Topic policies](/concepts/topic-policies/) and
+[Topic session keys](/recipes/topic-session-keys/).
+
+```text
+./yano.sh appchain topics init <namespace> [--owner-key-file <seed file>] [--output topics.yaml]
+./yano.sh appchain topics public-key <seed file>
+./yano.sh appchain topics plan <topics.yaml> [--output <name>.plan.json]
+./yano.sh appchain topics sign <plan.json> --key-file <owner seed file> [--command <index>]
+./yano.sh appchain topics submit <signed plan.json>
+./yano.sh appchain topics approve <plan.json>     # each operator: a member vote from this node
+./yano.sh appchain topics resolve <topic> [--height <n>]
+./yano.sh appchain topics delegate --scope <name> --session-key <64-hex> \
+    --not-before <ms> --not-after <ms> --key-file <issuer seed file>
+./yano.sh appchain topics verify <messageId> --bundle <json> --trusted-block <json>
+./yano.sh appchain topics doctor --bindings <yaml>
+```
+
+In a node directory (`--node-dir`, default `./yano-node`) the commands use
+this node, its API key and, when the application has one chain, that chain.
+Elsewhere pass `--peer <url>` and `--chain <id>`; `--api-key-env <name>` reads
+an API credential from the named environment variable, and
+`--snapshot snapshot.json` plans offline. `--json` prints the
+machine-readable result instead. Signing keys are 32-byte Ed25519 seed files, never
+command arguments. Plans are immutable: regenerate and sign again an expired
+or stale plan. No tool votes on a member's behalf.
 
 ## Configuration tools
 
@@ -193,7 +228,7 @@ see [State and proofs](/concepts/state-and-proofs/).
 ```
 
 The subcommands are `compile`, `validate`, `graph`, `dry-run`, `catalog`,
-`receipt-key`, `recipe`, and `profile-check`. See the
+`receipt-key`, and `profile-check`. See the
 [bindings CLI reference](/reference/declarative-bindings-cli/).
 
 ## Business identities and authorizations
@@ -202,7 +237,7 @@ These commands encode and sign offline. They never contact a node.
 
 | Command family | Subcommands | Use it to |
 |---|---|---|
-| `role` | `public-key`, `sign`, `key-proof`, `key-proof-signature`, `govern-propose`, `govern-approve`, `govern-activate`, `bootstrap --plan <chainId>.role-plan.yaml` | Derive an actor key, sign a role approval, prove key possession, encode governed role mutations, and encode every bootstrap step from the plan `seal` wrote. |
+| `role` | `public-key`, `sign`, `key-proof`, `key-proof-signature`, `govern-propose`, `govern-approve`, `govern-activate`, `bootstrap --plan <chainId>.role-plan.yaml --expiry-height <n>` | Derive an actor key, sign a role approval, prove key possession, encode governed role mutations, and encode every bootstrap step from the plan `seal` wrote. |
 | `authenticated-map` | `action`, `action-commitment`, `direct-preimage`, `direct-complete`, `approval-payload`, `approval-reference`, `command` | Build and sign `authenticated-map` commands for governed collections. |
 
 Pass private seeds with `--seed-file` only.

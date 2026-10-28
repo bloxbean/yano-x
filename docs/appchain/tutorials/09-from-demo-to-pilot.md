@@ -87,8 +87,11 @@ and sends each organization its own join link instead; see
 Each organization, on the server that will run its node:
 
 ```bash
-./yano.sh appchain request permissioned-pilot.draft.yaml --host node-a.pilot.example
+./yano.sh appchain request permissioned-pilot.draft.yaml --name acme --host node-a.pilot.example
 ```
+
+Each organization passes its own `--name` (`acme`, `globex`, `initech`).
+Without it, `request` asks which operator you are and which ports to use.
 
 > **✓ You should see** `✓ Created node directory …/yano-node with a new member
 > key` and `✓ Wrote ./acme.member  (key id …, reachable at
@@ -120,7 +123,7 @@ the organizations and your verifiers can find them.
 
 Each organization follows [Run your node on a server](../deployment/operators.md):
 `join permissioned-pilot.chain` (it shows the summary and asks to confirm),
-install the systemd unit that `join` writes, start, and run
+on Linux install the systemd unit that `join` writes, start, and run
 `./yano.sh appchain status permissioned-pilot`.
 
 > **✓ You should see** `[Live]`, `members online 3/3`, and `members agree` for
@@ -161,8 +164,8 @@ their own in `yano-node/config/local.yaml`, which `join` never rewrites and
 | Connector credential | Kafka, S3, IPFS, or API access | The executor host only |
 | TLS key and trust roots | Transport identity | Platform PKI |
 
-Back up each node directory. Never copy the deterministic demo keys, launcher
-API key, sample actor seeds, or local connector credentials into a shared
+Back up each node directory. Never copy the deterministic demo keys, the
+evidence demo's API key file, sample actor seeds, or local connector credentials into a shared
 environment.
 
 ## 8. Choose the trust statement
@@ -211,7 +214,7 @@ but it does change operational identity, reconciliation, and credentials.
 - Connector outage and executor crash recovery.
 - Anchor-leader failure and recovery (`anchor --stop`, `anchor --take-over`).
 - Evidence and proof archival before configured pruning horizons.
-- An explicit maintenance and upgrade process (`join --accept-bundles`).
+- An explicit maintenance and upgrade process (`join <app>.chain --accept-bundles`).
 
 ## 11. Run acceptance in layers
 
@@ -255,7 +258,8 @@ or a remembered manual session.
 | You see | What it means and what to do |
 |---|---|
 | `Members 2/3: waiting for initech` from `seal` | A card is missing. Ask that organization to run `request` and send its card. |
-| `This node's key (…) is not a member of permissioned-pilot` at `join` | The sealed file holds another key under your name. Do not start; tell the coordinator. |
+| `The sealed roster lists <name> with key …, but this node's key is …` at `join` | Someone else's card was sealed under your name. Do not start; tell the coordinator. |
+| `This node's key (…) is not a member of permissioned-pilot` at `join` | Your name is not in the sealed roster. A founding operator tells the coordinator; to join later, run `request permissioned-pilot.chain` first. |
 | `This distribution's plugin bundles differ from the sealed ones: …` | Install the same Yano X release the coordinator sealed with. |
 | `threshold 2 is not safe for 4 members; …` | A numeric threshold must be more than half of the members and at most all of them. |
 
@@ -266,7 +270,7 @@ or a remembered manual session.
 - [From demonstration to production](../PRODUCTION_DEPLOYMENT.md)
 - [Full user/operations guide](../../APP_CHAIN_USER_GUIDE.md)
 - [Profile-governance runbook](../../APP_CHAIN_PROFILE_GOVERNANCE.md)
-- [Canonical app-layer open items](../../../adr/app-layer/open_item.md)
+- [Canonical app-layer open items](https://github.com/bloxbean/yano-x/blob/main/adr/app-layer/open_item.md)
 - [Evidence flow and trust limits](../../EVIDENCE_CHAIN_DEMO.md)
 - [Domain-role production signing and recovery](../../APP_CHAIN_DOMAIN_ROLES.md)
 

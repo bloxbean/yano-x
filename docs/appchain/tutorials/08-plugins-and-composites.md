@@ -177,10 +177,83 @@ let an executor perform it after finality; see [effects](../../site/concepts-eff
 
 ## 4. Test it
 
-Unit-test `parse` and `apply` first, including empty, oversized and malformed
-bodies. Then climb the [testing ladder](https://yano-x.io/plugins/testing-and-deployment/):
+The scaffold has no tests yet. Add JUnit to `shipment-plugin/build.gradle`,
+using the same Yano version as its `compileOnly` line:
+
+```groovy
+dependencies {
+    testImplementation 'org.yanoproject:yano-core-api:<the yano version above>'
+    testImplementation platform('org.junit:junit-bom:5.10.2')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+test { useJUnitPlatform() }
+```
+
+Then unit-test `validate` and `apply`, including empty, oversized and malformed
+bodies, in `src/test/java/com/example/shipment/ShipmentTest.java`:
+
+```java
+package com.example.shipment;
+
+import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
+import org.junit.jupiter.api.Test;
+import org.yanoproject.api.appchain.AppBlock;
+import org.yanoproject.api.appchain.AppBlockExecutionContext;
+import org.yanoproject.api.appchain.AppStateMachine;
+import org.yanoproject.api.appchain.AppStateWriter;
+import org.yanoproject.api.appchain.FinalityCert;
+import org.yanoproject.api.appchain.effects.AppEffectEmitter;
+
+import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+class ShipmentTest {
+    private static AppMessage message(byte[] body) {
+        return AppMessage.builder().version(2).chainId("t").topic("shipments")
+                .sender(new byte[32]).senderSeq(0).expiresAt(0)
+                .messageId(new byte[32]).authProof(new byte[0]).body(body).build();
+    }
+
+    @Test
+    void appliesValidUpdatesAndSkipsMalformedOnes() {
+        AppStateMachine machine = new ShipmentStateMachineProvider().create();
+        assertTrue(machine.validate(message("A-100=shipped".getBytes())).isAccepted());
+        assertFalse(machine.validate(message("bad".getBytes())).isAccepted());
+        assertFalse(machine.validate(message(new byte[0])).isAccepted());
+        assertFalse(machine.validate(message(new byte[300])).isAccepted());
+
+        List<AppMessage> messages = List.of(message("A-100=shipped".getBytes()),
+                message("=x".getBytes()), message(new byte[300]));
+        AppBlock block = new AppBlock(2, "t", 1, new byte[32], 0, new byte[0], 0L,
+                new byte[32], new byte[32], messages, new byte[32], FinalityCert.empty());
+        Map<String, byte[]> state = new HashMap<>();
+        AppStateWriter writer = new AppStateWriter() {
+            public Optional<byte[]> get(byte[] key) { return Optional.ofNullable(state.get(new String(key))); }
+            public void put(byte[] key, byte[] value) { state.put(new String(key), value); }
+            public void delete(byte[] key) { state.remove(new String(key)); }
+            public byte[] stateRoot() { return new byte[32]; }
+        };
+        machine.apply(AppBlockExecutionContext.fromValidatedBlock(block), writer,
+                AppEffectEmitter.rejecting("none"));
+
+        assertEquals(1, state.size());
+        assertEquals("shipped", new String(state.get("shipment/A-100"), StandardCharsets.UTF_8));
+    }
+}
+```
+
+Run it with `(cd shipment-plugin && gradle test)`. Then climb the
+[testing ladder](https://yano-x.io/plugins/testing-and-deployment/):
 replay, hostile input, an embedded multi-member cluster, and a packaged JVM
-cluster. The [plugin template](../../../scaffolds/plugin-template/) shows unit,
+cluster. The [plugin template](https://github.com/bloxbean/yano-x/tree/main/scaffolds/plugin-template) shows unit,
 conformance and domain API tests for a similar machine.
 
 ## 5. Sign, build and validate
@@ -212,8 +285,8 @@ with it:
 (cd shipment-plugin && gradle wrapper --gradle-version 9.4.1 && ./gradlew jar)
 ```
 
-`plugin sign` ends with `PLUGIN_CATALOG_SIGNED key=example-release-2026
-public-key=<64 hex characters>`; that public key is the
+`plugin sign` prints `PLUGIN_CATALOG_SIGNED key=example-release-2026
+public-key=<64 hex characters> output=…`; that public key is the
 `<64-hex-public-key>` for `--trust-key` here and in step 6. `plugin validate`
 prints `PLUGIN_CATALOG_VALID` and `SNAPSHOT_WRITTEN shipment-catalog.json`,
 and `yano-plugins validate` prints `VALID`.
@@ -275,13 +348,28 @@ Then make the key, seal, join, and start:
 ./yano.sh appchain status shipments --node-dir shipment-node
 ```
 
+`join` shows the chain fingerprint and asks you to confirm it matches the one
+`seal` printed. In a script, pass `--expect-fingerprint <fingerprint>` instead.
+
 > **✓ You should see** `chain shipments  custom-plugin` in the sealed summary,
 > then `[Live]` with `members online 1/1` from `status`.
 
-Submit a shipment update through the node and look it up, as in
-[Set up an application](../deployment/configure.md#7-send-a-message-and-see-it-final),
-with the chain `shipments` and a body such as `A-100=shipped`. Stop the node
-with `./yano.sh appchain stop --node-dir shipment-node`.
+Submit a shipment update through the node, then look it up:
+
+```bash
+API_KEY=$(cat shipment-node/secrets/api.key)
+MESSAGE_ID=$(curl -fsS -X POST http://127.0.0.1:7370/api/v1/app-chain/chains/shipments/messages \
+  -H "X-API-Key: $API_KEY" -H 'Content-Type: application/json' \
+  -d '{"topic":"shipments","body":"A-100=shipped"}' | jq -er .messageId)
+sleep 3
+curl -fsS -H "X-API-Key: $API_KEY" \
+  "http://127.0.0.1:7370/api/v1/app-chain/chains/shipments/messages/$MESSAGE_ID" | jq .height
+```
+
+> **✓ You should see** a height of 1 or more. A body your `validate` refuses,
+> such as `bad`, is rejected at submission with `"code":"INVALID_SHIPMENT_COMMAND"`.
+
+Stop the node with `./yano.sh appchain stop --node-dir shipment-node`.
 
 For members on separate machines, list every operator in `--operators` and
 follow [Set up an application](../deployment/configure.md): every operator
@@ -299,7 +387,7 @@ describes the options.
 
 A rebuilt JAR has a new digest, so each node's `start` refuses it until its
 operator accepts it with `./yano.sh appchain join shipments.chain
---accept-bundles`. Agree the change with every operator first; the command
+--node-dir shipment-node --accept-bundles`. Agree the change with every operator first; the command
 only makes the change explicit.
 
 ## Go deeper
@@ -307,9 +395,9 @@ only makes the change explicit.
 - [Scaffold, sign, install](../../site/scaffold-sign-install.md), the same
   lifecycle as a reference
 - [Testing and deployment](https://yano-x.io/plugins/testing-and-deployment/)
-- [Composite implementation guide](../../../composition/runtime/README.md), for a
+- [Composite implementation guide](https://github.com/bloxbean/yano-x/blob/main/composition/runtime/README.md), for a
   Java composite
-- [Plugin template scaffold](../../../scaffolds/plugin-template/)
+- [Plugin template scaffold](https://github.com/bloxbean/yano-x/tree/main/scaffolds/plugin-template)
 - [Yano core testkit](https://github.com/bloxbean/yano/tree/main/appchain/appchain-testkit)
 - Yano's [plugin query and domain API guide](https://github.com/bloxbean/yano/blob/main/docs/APP_CHAIN_PLUGIN_QUERY_AND_DOMAIN_API.md)
   and [plugin operations guide](https://github.com/bloxbean/yano/blob/main/docs/PLUGIN_OPERATIONS.md)

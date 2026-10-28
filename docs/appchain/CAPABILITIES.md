@@ -5,9 +5,9 @@ catalog. Use it to distinguish what is already in the Yano X JVM distribution
 from what must be installed separately or treated as a reference or experiment.
 
 The authoritative data is shipped with each release as
-`config/schema/appchain-capability-catalog.json`. The build verifies every row
-below against that catalog. From a release or the source `app/` directory, ask
-the public CLI for the exact current data:
+`tools/yano-appchain/metadata/appchain-dx/v1alpha1/appchain-capability-catalog.json`.
+The build verifies every row below against that catalog. From the extracted
+distribution, ask the public CLI for the exact current data:
 
 ```bash
 ./yano.sh appchain capabilities
@@ -108,7 +108,9 @@ capabilities first; users may then add only compatible selectable capabilities.
 - A bundled capability needs no additional runtime JAR. It may still need
   public identities, application bootstrap, or node-local configuration.
 - An optional JVM capability requires the exact release-matched plugin bundle
-  in every applicable node's `plugins/` directory.
+  in every member's `plugins/` directory before the application is sealed.
+  `seal` records every bundle's digest, so adding or replacing one later needs
+  each operator to run `appchain join <app>.chain --accept-bundles`.
 - Yano X extensions are JVM-only. Yano's native distribution exposes only its
   core built-ins and cannot load these directory JARs.
 - Secrets, actor private keys, connector credentials, and wallet keys remain

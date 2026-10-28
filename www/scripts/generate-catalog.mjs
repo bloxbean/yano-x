@@ -267,13 +267,19 @@ export function renderRecipeDetails(catalog) {
 }
 
 // The setup draft a recipe starts from (ADR-056). A declarative composite takes
-// a binding document instead of a recipe; a custom plugin needs a signed
-// component catalog, which `appchain seal` does not accept yet.
+// a binding document instead of a recipe; a custom plugin is the custom-plugin
+// recipe naming the plugin's machine, with the JAR installed before the seal.
 function recipeSetupCommand(r) {
   if (r.category === 'custom-plugin') {
     return [
-      '`appchain seal` does not yet accept a custom signed component catalog, so this recipe cannot be '
-        + 'selected in a setup draft. See [Scaffold, sign, install](/plugins/scaffold-sign-install/).',
+      '```bash',
+      `./yano.sh appchain new ${r.id}-app --network devnet --operators alice,bob,carol \\`,
+      `  --chain ${r.id}=${r.id} --answer ${r.id}.stateMachine=<machine-id>`,
+      '```',
+      '',
+      'Copy the reviewed plugin JAR into `plugins/` of every operator\'s distribution, the coordinator\'s '
+        + 'included, before `seal`: the seal pins the digest of every installed bundle. See '
+        + '[Scaffold, sign, install](/plugins/scaffold-sign-install/).',
     ];
   }
   const chain = r.id === 'declarative-composite'

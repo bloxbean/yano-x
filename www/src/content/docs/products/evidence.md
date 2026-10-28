@@ -99,7 +99,10 @@ The `evidence-ledger` recipe is the configuration-only path. It selects the
 governed organizations, actors, and role policies. `seal` writes a role
 bootstrap plan template beside the sealed file, `evidence-chain.role-plan.yaml`;
 fill it in and, once the chain is live, run
-`./yano.sh appchain role bootstrap --plan evidence-chain.role-plan.yaml` (see
+`./yano.sh appchain role bootstrap --plan evidence-chain.role-plan.yaml
+--expiry-height <n>`, with `<n>` above the chain's current height. It only
+prints JSON: the propose, approve and activate commands for each record, which
+the members must then submit (see
 [role approvals](/state-machines/role-approvals/)).
 
 ```bash

@@ -70,7 +70,7 @@ message check runs when one of the chains uses `audit-log`.
 
 ```bash
 ./yano.sh appchain try --chain orders=audit-log --chain registry=owned-registry
-./yano.sh appchain try --chain flow=bindings:flow.yaml
+./yano.sh appchain try --chain flow=bindings:examples/bindings/approval-to-audit.yaml
 ```
 
 **Prefer a browser?** `./yano.sh appchain ui` opens a page on this computer
@@ -91,7 +91,8 @@ A short wizard asks for the Cardano network, the operator names (you first),
 and each chain: its id, and whether it runs one ready-made state machine
 (a *recipe*) or several working together. If a recipe needs answers, such as
 the genesis address of an `eutxo-ledger` chain, the wizard asks for each one.
-`./yano.sh appchain recipes` lists the recipes and the answers each needs. To
+`./yano.sh appchain recipes` lists the recipes; `recipes --format json` also
+shows the answers each needs (`nonSecretAnswers`). To
 skip the wizard, pass everything as flags, with one `--answer
 <chain>.<name>=<value>` per answer:
 
@@ -214,14 +215,16 @@ On your own machine:
 It asks for your operator name and the address other members reach your node
 at: a host name or IP, and two ports (defaults: node-to-node `13337`, HTTP
 `8080`). On a devnet where everyone is on one machine, the host is
-`127.0.0.1` and each operator needs different ports. For scripts, pass
-`--name`, `--host`, `--node-port`, `--http-port`, and `--yes`.
+`127.0.0.1` and each operator needs different ports; the examples below use
+node ports `14437`–`14439` and HTTP ports `9180`–`9182` for alice, bob and
+carol. For scripts, pass `--name`, `--host`, `--node-port`, `--http-port`, and
+`--yes`.
 
 > **✓ You should see**
 >
 > ```text
 > ✓ Created node directory …/yano-node with a new member key (keep it safe; it never leaves this directory)
-> ✓ Wrote ./alice.member  (key id a6622032b8e615ee, reachable at 127.0.0.1:13337)
+> ✓ Wrote ./alice.member  (key id a6622032b8e615ee, reachable at 127.0.0.1:14437)
 > ```
 
 Your private key is now in `yano-node/secrets/member.key`, readable only by
@@ -246,7 +249,7 @@ When every card is there, seal:
 >
 > ```text
 > ✓ Sealed .../supply.chain
-> Application supply on devnet (Yano 0.1.0-pre18, Yano X 0.1.0-pre4)
+> Application supply on devnet (Yano …, Yano X …)
 >   3 members, 2 signatures per block, governed membership
 >   alice        key a6622032b8e615ee  127.0.0.1:14437  (lead)
 >   bob          key 9be1fb9123767845  127.0.0.1:14438
@@ -258,7 +261,9 @@ When every card is there, seal:
 `seal` refuses a card for a different invite, a card with a bad signature, an
 unexpected name, or a key used twice. It fixes every chain's settings, the
 release versions, and the digests of the plugin bundles in this distribution.
-Send `supply.chain` to every operator.
+Every operator's `plugins/` must hold exactly the same JARs as the
+coordinator's when `seal` runs: `join` refuses any difference. Send
+`supply.chain` to every operator.
 
 `seal` also checks what a chain can do from its first block:
 
@@ -271,7 +276,8 @@ Send `supply.chain` to every operator.
   actors. `seal` writes a template plan beside the sealed file, for example
   `approvals.role-plan.yaml`, and prints the next step: fill it in and, once
   the application is live, run
-  `./yano.sh appchain role bootstrap --plan approvals.role-plan.yaml`. See
+  `./yano.sh appchain role bootstrap --plan approvals.role-plan.yaml --expiry-height <n>`
+  and submit the commands it prints. See
   [role approvals](/state-machines/role-approvals/).
 
 ## 5. Compare the fingerprint, then join
@@ -317,7 +323,7 @@ and the other nodes download that genesis from it on their first start. On
 preview, preprod, or mainnet every node syncs Cardano itself first, which can
 take a while; watch `yano-node/logs/node.log`.
 
-> **✓ You should see** `✓ Node alice is up at http://127.0.0.1:8080`.
+> **✓ You should see** `✓ Node alice is up at http://127.0.0.1:9180`.
 
 Then check the whole application from any member:
 
@@ -361,7 +367,7 @@ without printing it, and submit through your own node (use your HTTP port):
 
 ```bash
 API_KEY=$(cat yano-node/secrets/api.key)
-MESSAGE_ID=$(curl -fsS -X POST http://127.0.0.1:8080/api/v1/app-chain/chains/orders/messages \
+MESSAGE_ID=$(curl -fsS -X POST http://127.0.0.1:9180/api/v1/app-chain/chains/orders/messages \
   -H "X-API-Key: $API_KEY" -H 'Content-Type: application/json' \
   -d '{"topic":"orders","body":"order A-100 created"}' | jq -er .messageId)
 echo "Accepted message $MESSAGE_ID"
@@ -372,7 +378,7 @@ look it up:
 
 ```bash
 curl -fsS -H "X-API-Key: $API_KEY" \
-  "http://127.0.0.1:8080/api/v1/app-chain/chains/orders/messages/$MESSAGE_ID" | jq .height
+  "http://127.0.0.1:9180/api/v1/app-chain/chains/orders/messages/$MESSAGE_ID" | jq .height
 ```
 
 > **✓ You should see** a height of 1 or more. Until the message is final, the
@@ -401,7 +407,8 @@ to Cardano, one operator runs:
 ```
 
 It creates an anchor wallet key on that node only, shows its address and the
-cost per anchor, waits for funds, and restarts the node with anchoring on. On
+cost per anchor, asks to go ahead (`--yes` in scripts), waits for funds, and
+restarts the node with anchoring on. On
 a devnet only the **lead** can anchor, and the lead's devnet funds the wallet.
 On a public network, fund the wallet only with what you are willing to spend
 on fees: its balance is the spending limit. Afterwards `status` shows the
@@ -411,8 +418,8 @@ chain's anchoring as, for example, `led by alice, 12 anchored (last height
 ## Optional: protect topics
 
 On a chain sealed with `topics:`, namespaces are created and changed with
-plans. Make one from your node directory, which supplies the node, its key and
-the chain:
+plans. Run these from the directory that holds your node directory (or pass
+`--node-dir`); it supplies the node, its key and the chain:
 
 ```bash
 ./yano.sh appchain topics init games/     # writes topics.yaml: fill in the owner keys and policy
@@ -453,8 +460,8 @@ holds everything for your node:
 | `topic-votes/`, `topic-submissions/` | The topic votes this node cast and the signed changes it submitted, so `topics approve` never votes twice and a repeated `topics submit` follows the first one |
 | `config/consensus.yaml`, `config/node.yaml` | Generated by `join`; do not edit, run `join` again instead |
 | `config/local.yaml` | Your own node-only settings, such as connector endpoints. `join` creates it empty and never rewrites it; its values win over `config/node.yaml`. `start` refuses it if it sets any sealed consensus setting |
-| `data/` | Chain data: `chainstate`, `appchain-chainstate`, `history` |
-| `logs/node.log` | The node's log |
+| `data/` | Chain data: `chainstate` and `appchain-chainstate`, plus `appchain-indexers` (rebuildable) when a read index is enabled |
+| `logs/node.log`, `logs/yano.log` | The node's console log and its application log |
 
 Back up the node directory. It holds your key and your chain data.
 
@@ -470,11 +477,12 @@ Keep secrets out of it: reference them through the environment.
 |---|---|
 | `Members 2/3: waiting for carol` from `seal` | A card is missing. Ask carol to run `request` and send the card; put it next to the draft. |
 | `carol.member was made for a different invite (…)` | The card was made for an older draft. Ask carol to run `request` again with the current draft. |
-| `This node's key (…) is not a member of supply` | The sealed file holds someone else's card under your name. Do not start. Tell the coordinator. |
+| `The sealed roster lists <name> with key …, but this node's key is …` | The sealed file holds someone else's card under your name. Do not start. Tell the coordinator. |
+| `This node's key (…) is not a member of supply` | Your name is not in the sealed roster. A founding operator tells the coordinator; to join later, run `request supply.chain` first. |
 | `The fingerprint is …, not …. Do not start: the file differs from the one the coordinator sealed.` | Your `supply.chain` is not the one compared on the call. Get the file again. |
 | `This distribution's plugin bundles differ from the sealed ones: …` | Install the Yano X release named in the message, the same one the coordinator sealed with. |
 | `Port 8080 is already in use by another program.` | Stop that program, or make a new node directory with other ports (`request --http-port`, `--node-port`). |
-| `status` stays at `Starting` with `ask the lead (alice) to run  yano.sh appchain start  first` | On a devnet the other nodes wait for the lead's devnet. Ask the lead to start. |
+| `status` stays at `Starting` with `ask the lead (alice) to run  yano.sh appchain start  first`, or `start` says `Waiting for the lead (alice) to start the devnet …` | On a devnet the other nodes wait for the lead's devnet. Ask the lead to start; the waiting `start` continues by itself until its `--timeout`. |
 | `config/local.yaml changes sealed consensus settings: …` from `start` | Your local file overrides a value every member must share. Remove the named keys from `config/local.yaml`. |
 | `Port 7099 is in use; pass --port with a free one` from `invite --serve` | Choose another port with `--port`; the links printed afterwards carry it. |
 | `The links expired before every operator received the sealed file` | Run `invite --serve` again; it prints new links. Operators who already sent a card can rerun `request` with their new link. |

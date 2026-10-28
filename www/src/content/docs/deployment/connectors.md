@@ -24,19 +24,25 @@ Build one JVM plugin from the repository root, for example:
 ./gradlew :connectors:kafka:shadowJar
 ```
 
-Copy only the resulting `*-bundle.jar` into the plugin directory of every node
-that owns that sink or executor. The default directory is `plugins/`; an
-operator may override it with `yano.plugins.directory`. Keep the plugin version
-aligned with the Yano release:
+Copy only the resulting `*-bundle.jar` into the `plugins/` directory of the
+extracted Yano X distribution. Keep the plugin version aligned with the Yano
+release:
 
 ```bash
-cp connectors/kafka/build/libs/*-bundle.jar /opt/yano/plugins/
+cp connectors/kafka/build/libs/*-bundle.jar ~/yano-x/yano-x-jvm-*/plugins/
 ```
 
-A node set up with `appchain join` checks only the bundles its chains were
-sealed with at every `appchain start`; adding a connector bundle does not change
-them. Replacing one of those sealed bundles does, and `start` then refuses until
-the operator accepts the new set with `appchain join <app>.chain --accept-bundles`.
+`appchain seal` records the SHA-256 of every JAR in `plugins/`, and
+`appchain join` and `appchain start` refuse a distribution whose `plugins/`
+has a JAR added, removed, or replaced. For a new application, every operator,
+the coordinator included, installs the same connector JAR before `seal`. To
+add one to a running application, the operators agree on it, and each copies
+the identical JAR, runs `appchain stop`, then
+`appchain join <app>.chain --accept-bundles`, then `appchain start`.
+
+The setup commands read only `<extracted Yano X>/plugins/`. On a node set up
+with `appchain join`, do not point `yano.plugins.directory` anywhere else: the
+node would load bundles the sealed set does not cover.
 
 Do not copy a thin build-time JAR into the JVM plugin directory. These connector
 bundles are JVM-only and cannot be installed beside Yano's native executable.

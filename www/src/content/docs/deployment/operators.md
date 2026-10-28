@@ -84,8 +84,9 @@ as the user who ran `join`, and restarts the node if it fails.
 
 Once the unit is installed and enabled, `./yano.sh appchain start` and
 `stop`, and the restarts that `approve` and `anchor` make, go through
-`systemctl`, so one node never has two managers. You can also use systemd
-directly:
+`systemctl`, so one node never has two managers. When `systemctl` needs root,
+the command prints the `sudo systemctl …` line to run and then asks you to run
+the same command again. You can also use systemd directly:
 
 ```bash
 systemctl status yano-appchain-alice.service
@@ -95,7 +96,8 @@ journalctl -u yano-appchain-alice.service
 On a devnet the lead starts first. On a public network the node syncs Cardano
 before its chains make progress; the `Cardano:` line of `status` shows
 `syncing: about N hours behind` until it reports `up to date`, and
-`yano-node/logs/node.log` has the details.
+`yano-node/logs/node.log` (the console) and `yano-node/logs/yano.log` (the
+application log) have the details.
 
 ## Node-only settings
 
@@ -104,9 +106,21 @@ anything that belongs to your node alone, such as connector endpoints for an
 effect executor, in `config/local.yaml` in the node directory. `join` creates
 it, never rewrites it, and its values win over `config/node.yaml`. `start`
 refuses the file if it sets any sealed consensus setting, because every member
-must run the sealed values. Keep credentials in the environment or a secret
-provider rather than in the file. See
-[optional connectors](/deployment/connectors/).
+must run the sealed values. A chain's own keys go under its index from
+`yano-node/apps/chain-indexes.json`, for example an effect executor on chain 0:
+
+```yaml
+yano:
+  app-chain:
+    "chains[0]":
+      effects:
+        executor:
+          enabled: true
+```
+
+Keep credentials in the environment or a secret provider rather than in the
+file. See [optional connectors](/deployment/connectors/) and
+[webhook effects](/tutorials/06-webhook-effects/).
 
 ## 4. Check the application
 
@@ -156,7 +170,8 @@ tools/yano-deploy/bin/yano-x-deploy plan ./vm-cluster
 > The import refuses an archive without `yano.sh`, `yano.jar`, and the
 > `examples/showcase/` profile.
 
-Read the [full operator runbook](https://github.com/bloxbean/yano-x/blob/main/deployment/README.md) for SSH bootstrap,
+Read the [full operator runbook](https://github.com/bloxbean/yano-x/blob/main/deployment/README.md)
+(`tools/yano-deploy/README.md` in the distribution) for SSH bootstrap,
 provider credentials, OS and capacity checks, network policy, and manifest fields.
 The current profile requires Preprod anchoring and settlement configuration.
 Public addresses in generated examples are documentation placeholders.

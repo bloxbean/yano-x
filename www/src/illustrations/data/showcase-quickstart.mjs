@@ -137,7 +137,7 @@ export default {
         'nodes=%d tip=%d cert=%s/%s', 'die "$cid tip certificate has $cert signatures below active threshold',
         'die "workflow-chain has no confirmed L1 anchor"', 'HTTP_BASE=7070', 'SERVER_BASE=13337',
         '--node-port "$((SERVER_BASE + index))" --http-port "$((HTTP_BASE + index))"',
-        'note "node$index is up at http://127.0.0.1:$((HTTP_BASE + index))"', 'die "node$index did not start; see',
+        'note "node$index is up at http://127.0.0.1:$((HTTP_BASE + index))"', 'die "node$index did not start;',
         'appchain stop --node-dir "$(node_dir "$index")"', 'stop_nodes; start_nodes;;'] },
     { repo: 'yano-x', path: 'examples/showcase/src/main/showcase/demos/submit-orders.sh',
       anchors: ['showcase.sh" run orders --instance'] },

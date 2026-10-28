@@ -171,7 +171,9 @@ Omitting a historical profile cannot establish that it is safe to remove.
 The current `bindings compile`, `validate`, `graph`, and `dry-run` commands
 construct a fixed genesis profile. They are useful for command and cascade
 rehearsal, but do not qualify a governed epoch transition or migrate a retained
-chain. Project lock validation detects changes; it does not make them compatible.
+chain. The sealed bundle digests detect changes: `appchain join` and
+`appchain start` refuse a changed plugin bundle until the operator accepts it
+with `join --accept-bundles`. Detecting a change does not make it compatible.
 
 `profile-check` supplies a fail-closed reconstruction preflight, not an installer
 or migration planner. There is no general declarative command that installs old

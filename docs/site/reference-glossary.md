@@ -5,7 +5,7 @@ explained. Yano's command line, configuration, and APIs say *app chain* where
 the guides say *app ledger*; identifiers such as `yano.app-chain.*` and
 `/api/v1/app-chain/` keep their names.
 
-## A–C
+## A–D
 
 **Actor.** A person or organization that signs a business decision, such as an
 approval, with its own key. The signature travels inside the message body.
@@ -49,6 +49,11 @@ See [Chain identity](/concepts/chain-identity/).
 verifies each one, including its certificate and state root. See
 [Restart, catch-up and snapshots](/concepts/recovery/).
 
+**Chain fingerprint.** The SHA-256 of the sealed file's genesis section, shown
+as eight groups for reading aloud. Every operator compares it with the others,
+out of band, before `join`. See
+[Set up an application](/deployment/configure/).
+
 **Chain id.** The identifier of one app ledger, `chain-id` in configuration. One
 node can host several ledgers.
 
@@ -63,7 +68,14 @@ root, applying them in a committed order within each block.
 genesis id, height, quorum, member keys, and consensus profiles. Every vote
 signs it.
 
-## E–M
+**Coordinator.** The operator who creates the draft with `new`, hands out the
+invites, collects the member cards, and seals the application with `seal`.
+
+**Draft.** `<app>.draft.yaml`, written by `./yano.sh appchain new`: the
+network, operators, threshold, membership, and chains of an application, with
+its invite code. A public file; `seal` turns it into the sealed file.
+
+## E–N
 
 **Effect.** An immutable record that a transition emits to authorize external
 work, such as a webhook call or a Kafka message. An executor performs it after
@@ -86,6 +98,18 @@ proof format, `state.format-fingerprint`. Fixed at genesis.
 **Genesis id.** 32 bytes, `state.genesis-id`, that name one generation of a
 ledger. Never regenerate the genesis id of a ledger whose data you keep.
 
+**Invite code.** A random value in the draft that names one setup. Every member
+card carries it, `seal` refuses a card made for another invite, and it feeds
+each chain's genesis id, so two setups never share a ledger identity.
+
+**Key id.** The first 16 hex characters of a member's public key, printed by
+`request`, `inspect`, and `status`. Operators read it aloud with the chain
+fingerprint to confirm whose key is whose.
+
+**Lead.** The first operator in the draft's `--operators` list. With `fixed`
+sequencing it proposes every block, and on a devnet its node runs the devnet
+that the other nodes follow and is the only one that can anchor.
+
 **Leader.** The member that proposes the block for a height and view. With a
 `fixed` sequencer, a configured member leads view 0; with `rotating`, the view-0
 leader is derived from the consensus context and the parent block hash. After a
@@ -95,6 +119,10 @@ certified timeout, the next member in order leads.
 key. Members sign the envelopes of messages they accept, re-execute and vote on
 every block, and each hold the full state. A ledger has at most 32 members.
 
+**Member card.** `<name>.member`, written by `./yano.sh appchain request`: an
+operator's public member key, its node and HTTP addresses, and the invite code,
+signed with that key. It contains no secret.
+
 **Membership epoch.** The member set and threshold in force from a given height.
 With governed membership, changes are finalized ledger transactions, and every
 check uses the membership at that height.
@@ -103,12 +131,20 @@ check uses the membership at that height.
 that accepted it. Its message id is derived from its content. Only the state
 machine interprets the body.
 
+**Node directory.** The directory a node's commands act on, `--node-dir`
+(default `./yano-node`): its secrets, generated `config/`, `data/` stores, and
+the applications it has joined.
+
 ## O–R
 
 **Observation.** External information that enters the ledger as certified
 input: stable Cardano facts on reserved `~l1/` topics, which every member
 re-derives from its own Cardano view, or generic observations certified under a
 shared policy (preview). See [External observations](/concepts/observations/).
+
+**Operator.** A person or organization that runs one member node, with its own
+member key. Every operator runs `request`, `join`, and `start` on their own
+machine.
 
 **Organization.** A governed record that groups actors, so a policy can require
 approvals from distinct organizations.
@@ -137,6 +173,11 @@ kept in `appchain-indexers/`. Never authoritative. See
 configuration for a kind of ledger. See [Recipes](/recipes/).
 
 ## S–V
+
+**Sealed file.** `<app>.chain`, written by `./yano.sh appchain seal` from the
+draft and the member cards: the genesis of every chain, the member keys, the
+plugin bundle digests, and the peers. Its genesis section is what the chain
+fingerprint covers. Public; every operator joins with the same file.
 
 **Sink.** A component that pushes finalized blocks to an external system, such
 as a webhook or Kafka, at least once.

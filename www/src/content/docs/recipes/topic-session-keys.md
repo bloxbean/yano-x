@@ -5,14 +5,16 @@ editUrl: "https://github.com/bloxbean/yano-x/edit/main/docs/appchain/TOPIC_SESSI
 ---
 Topic policies are switched on per chain when the application is sealed: add a
 `topics:` block to the chain in the draft (`./yano.sh appchain new --topics
-games=members`, or answer the wizard's question), with governed membership.
+arcade=members` for a chain `arcade`, or answer the wizard's question), with
+governed membership.
 `create` chooses who creates top-level namespaces: the members by a vote
 (`members`), named operators or keys (`registrars`), or anyone first come
 (`anyone`). See [configure an application](/deployment/configure/) and
 [the policy model](/concepts/topic-policies/). This guide creates a top-level namespace
 by member vote and its children with owner signatures.
 
-Run the commands in your node directory (`./yano-node`, or pass `--node-dir`).
+Run the commands from the directory that holds `yano-node/` (or pass
+`--node-dir`).
 They use your node, its API key and, when the application has one chain, that
 chain. Elsewhere, add `--peer <url> --chain <id>`, and `--api-key-env NAME` to
 read a node API credential from an environment variable.
@@ -106,7 +108,8 @@ an illustrative ride payload, not the full Neon Rush game protocol. Studio's
 ./yano.sh appchain topics submit neon-rush.signed.json
 ```
 
-`topics init games/neon-rush/` writes this with the right authority. `plan`
+`topics init games/neon-rush/ --output neon-rush.yaml` writes this with the
+right authority. `plan`
 names the keys that must sign, and `submit` waits until the change is accepted
 and in effect (`--no-wait` returns at once; `--heartbeat` makes blocks on an idle
 chain). Seed files contain a 32-byte Ed25519

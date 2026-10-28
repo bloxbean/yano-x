@@ -94,15 +94,17 @@ openssl rand -hex 32
 ```
 
 On a devnet, `./yano.sh appchain anchor` creates the anchor wallet and funds
-it from the devnet faucet for you.
+it from the devnet faucet for you. Only the lead's node can anchor there,
+because only it keeps the Cardano wallet view anchoring needs.
 
 :::caution[A wallet mnemonic will not work]
 A CIP-1852 mnemonic from Eternl, Lace, or the devkit **cannot** be converted
 into this seed — HD payment keys are extended keys, not seeds. Generate a
 dedicated seed and fund its address.
 
-Treat it as a hot wallet holding fee money only. The key sits in configuration
-on the node box.
+Treat it as a hot wallet holding fee money only. The key sits on the node box:
+on a node set up with `appchain join`, `appchain anchor` keeps it in
+`yano-node/secrets/anchor.key`, separate from the member key.
 :::
 
 Only the anchor **leader** needs `anchor.*` configuration — typically node 0.
@@ -137,14 +139,22 @@ An unavailable leader can **stop anchoring** while app ledger finality
 continues. Threshold checks prevent unilateral script-state advances, but a
 compromised leader can also endanger its fee wallet and disrupt operations. The
 app ledger keeps finalizing and `lagBlocks` climbs visibly. Recovery is
-operational: enable `anchor.*` with the wallet key on another member and
-restart it. The on-chain identity is persisted on L1 and members adopt it from
+operational: on another member, run
+`./yano.sh appchain anchor <app> --chain <id> --take-over --key <wallet-seed-file>`
+(or, on a hand-configured node, enable `anchor.*` with the wallet key and
+restart it). The on-chain identity is persisted on L1 and members adopt it from
 sign requests, so the new leader resumes where the old one stopped.
 
 Metadata mode is the same minus co-signing. Its commitment is data-only and the
 leader alone signs, so the trust statement is correspondingly weaker.
 
 ## Configuration
+
+On a node set up with `appchain join`, do not write these by hand. `mode` and
+`every-blocks` are sealed chain settings, chosen in the draft
+(`--setting <chain>.anchor.mode=script`), and `./yano.sh appchain anchor`
+writes the leader's node-local properties, reading the seed from
+`yano-node/secrets/anchor.key`. On a hand-configured node, the properties are:
 
 ```yaml
 yano:

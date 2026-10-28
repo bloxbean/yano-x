@@ -55,11 +55,11 @@ until every node reports the same tip height and root.
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| `404 {"error":"Unknown app chain: <chainId>"}` | The node does not host that chain id. | Check the spelling: `./yano.sh appchain status` lists the chains of the application this node joined. To add one, follow [Add a chain](/deployment/add-chain/). |
+| `404 {"error":"Unknown app chain: <chainId>"}` | The node does not host that chain id. | Check the spelling: `./yano.sh appchain status` lists the chains of the application this node joined. To host another application's chains on this node, see [Host another application on the same node](/deployment/add-chain/#host-another-application-on-the-same-node). |
 | `400 … app chains are hosted — use /app-chain/chains/{chainId}/...` | A route without a chain id was used on a node that hosts several chains. | Use the chain-scoped route `/api/v1/app-chain/chains/{chainId}/…`. |
-| `503 App chain is not enabled on this node` | The node hosts no app ledger. | Add a chain to the node's configuration. |
-| The node does not start: `… is not in the configured member list (yano.app-chain.members)` | The node's member key is not in the member list. | Fix `yano.app-chain.members` or the node's `signing-key`. |
-| The node does not start: `… is not selected (available: […])` | The configured `state-machine` id does not match any loaded state machine. | Fix the id, or install the plugin bundle on that node. |
+| `503 App chain is not enabled on this node` | The node hosts no app ledger. | On a joined node, run `./yano.sh appchain join <app>.chain`. On a hand-configured node, add a chain to the node's configuration. |
+| The node does not start: `… is not in the configured member list (yano.app-chain.members)` | The node's member key is not in the member list. | On a joined node, the generated `config/consensus.yaml` and `config/node.yaml` say "do not edit": re-run `./yano.sh appchain join <app>.chain` instead of editing them. On a hand-configured node, fix `yano.app-chain.members` or the node's `signing-key`. |
+| The node does not start: `… is not selected (available: […])` | The configured `state-machine` id does not match any loaded state machine. | On a joined node, install exactly the sealed plugin bundles in the distribution's `plugins/`; do not edit the generated configuration. On a hand-configured node, fix the id or install the plugin bundle. |
 | The node does not start: `Retained state-commitment profile, fingerprint, or genesis id is incompatible` | The ledger on disk belongs to another identity. | Restore the original identity settings. Do not reset retained data; see [Chain identity](/concepts/chain-identity/). |
 | The node does not start: `consensus quorums do not intersect in an honest member` | The threshold is too low for the member count and fault bound. | Choose a threshold `t` with `2t − n > f` and `t ≤ n − f`. See [Keys and trust](/concepts/trust-model/#how-many-members-can-fail). |
 

@@ -170,9 +170,15 @@ npm run build    # imports, builds to dist/, generates the AI artifacts
 relative link in an imported document **fails the build** rather than shipping a
 404.
 
-Edit the sources under `docs/` for imported pages, and
-`www/src/content/docs/` for authored ones. Never hand-edit content between
-catalog anchors — it is regenerated.
+Most site pages are imported from `docs/`: `IMPORTED_DOCS` in
+`www/scripts/repo-sources.mjs` lists them, and you edit their sources under
+`docs/`. Only a few pages are authored directly under `www/src/content/docs/`:
+`concepts/{architecture,consensus-and-finality,determinism-rules}.md`,
+`plugins/testing-and-deployment.md`,
+`products/{cardano-history,eutxo,evidence}.md`,
+`recipes/{index,choosing-a-recipe}.md`, `reference/{capabilities,cli,shelf}.md`,
+and `404.md`. Never hand-edit content between catalog anchors — it is
+regenerated.
 
 The site's content strategy and design decisions are recorded in ADR-038, in
 the repository's `adr/` directory.

@@ -91,19 +91,38 @@ See [Developing Yano X](/contributing/) for the full contributor workflow.
 
 ## Installing on a cluster
 
-```bash
-# On every member's distribution:
-cp shipment-yano-plugin.jar /opt/yano-x/plugins/
-/opt/yano-x/tools/yano-plugins/bin/yano-plugins validate /opt/yano-x/plugins/*.jar
+Every operator, the coordinator included, installs the identical JAR in the
+extracted distribution's `plugins/` **before** the coordinator seals. A chain
+selects a custom state machine with the `custom-plugin` recipe and the
+machine's id as its `stateMachine` answer:
 
-# Before admitting traffic, on an application set up with the setup CLI:
-./yano.sh appchain status <app>
+```bash
+# On every member's distribution, before seal:
+cp shipment-yano-plugin.jar plugins/
+tools/yano-plugins/bin/yano-plugins validate plugins/*.jar
+
+# Coordinator: draft a chain that runs the machine, then the usual ceremony.
+./yano.sh appchain new shipments --chain shipments=custom-plugin \
+  --answer shipments.stateMachine=shipment
+
+# Before admitting traffic:
+./yano.sh appchain status shipments
 ```
 
-The property is `yano.plugins.directory`. Restart the nodes; Yano is not
-rebuilt. Each node checks the JAR again at start-up, before any plugin code runs;
-[How plugins load](/plugins/how-plugins-load/) lists those checks and what they
-do not cover.
+`seal` records the SHA-256 of every JAR in `plugins/`, and `join` and `start`
+refuse a distribution with a JAR added, removed, or replaced. To change a
+bundle after an agreed upgrade, each operator copies the same JAR, runs
+`./yano.sh appchain stop`, then
+`./yano.sh appchain join <app>.chain --accept-bundles`, then
+`./yano.sh appchain start`. Yano is not rebuilt. The
+setup commands read only `plugins/`; do not point `yano.plugins.directory`
+elsewhere on a joined node. Each node checks the JAR again at start-up, before
+any plugin code runs; [How plugins load](/plugins/how-plugins-load/) lists
+those checks and what they do not cover.
+
+`seal` does not accept a custom signed component catalog, so a custom
+capability such as `state:shipment` is not selectable directly; the
+`custom-plugin` recipe is the route.
 
 To find the one member that is out of step, compare each node's
 `pluginCatalogFingerprint` from its chain `identity` endpoint; it is worth

@@ -245,8 +245,10 @@ business rules. Start with the [binding guide](appchain/DECLARATIVE_BINDINGS.md)
 
 ### Plugin path
 
-A Yano X JVM deployment loads a self-contained manifested bundle from its plugin
-directory and selects its state-machine contribution through configuration.
+A Yano X JVM deployment loads a self-contained manifested bundle from its
+`plugins/` directory, installed on every member before the application is
+sealed, and a chain in the setup draft selects its state-machine contribution
+(the `custom-plugin` recipe with a `stateMachine` answer).
 Yano's native image is core-only and does not include Yano X bundles.
 
 A custom bundle can contribute typed capabilities such as:
@@ -391,9 +393,11 @@ aggregation, outlier handling, and governance implemented by the oracle domain.
 
 ## 11. Deployment and operational model
 
-- **JVM:** copy a self-contained manifested bundle to every member's plugin
-  directory, select it in configuration, and restart the nodes. No Yano rebuild
-  is required.
+- **JVM:** every member installs the same self-contained manifested bundle in
+  its distribution's `plugins/` before the application is sealed, and the
+  setup draft selects it. `seal` records every bundle's digest, so a later
+  change needs each operator to copy the same JAR, stop, and run
+  `appchain join <app>.chain --accept-bundles`. No Yano rebuild is required.
 - **Native:** include selected plugins before native catalog/reflection
   generation and rebuild the native executable; native processes do not load
   new JARs after build.

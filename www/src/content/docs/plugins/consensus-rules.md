@@ -153,20 +153,27 @@ keys, API keys, effect credentials, and anchor wallet funds.
 ## Verifying before you ship
 
 ```bash
-# Focused iteration.
-./gradlew :state-machines:stdlib:test
+# Focused iteration, in the plugin's own project.
+cd shipment-plugin && gradle test && cd ..
 
 # Real nodes: identical height, root, profile, genesis, capability digest.
+# The JAR must be in the distribution's plugins/ before try seals.
+cp shipment-plugin/build/libs/shipment-yano-plugin.jar plugins/
 ./yano.sh appchain try --chain shipments=custom-plugin --answer shipments.stateMachine=<your-id>
+# Submit some of your machine's commands through one node (see below).
 ./yano.sh appchain status --node-dir appchain-try/alice/yano-node
 for name in carol bob alice; do ./yano.sh appchain stop --node-dir appchain-try/$name/yano-node; done
 for name in alice bob carol; do ./yano.sh appchain start --node-dir appchain-try/$name/yano-node; done
-./yano.sh appchain status --node-dir appchain-try/alice/yano-node   # same heights and roots after restart
+./yano.sh appchain status --node-dir appchain-try/alice/yano-node   # same heights, no root warning
 ```
 
+`try` submits traffic only to an `audit-log` chain, so without your own
+commands this chain stays at height 0 and a restart compares nothing beyond
+genesis. Submit them through one node's messages endpoint, as in
+[Send a message and see it final](/deployment/configure/#7-send-a-message-and-see-it-final).
 To check catch-up under your rules, stop one node, keep submitting through the
 others, then start it again and compare `status`. To check a new member, use
-`approve` as in [Set up an application](/deployment/configure/).
+`approve` as in [Add a member](/deployment/add-chain/#add-a-member).
 
 Persistence changes additionally require apply, rollback, replay, restart, and
 root-parity checks. Derived indexes must never advance beyond authoritative

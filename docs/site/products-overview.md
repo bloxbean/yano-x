@@ -10,7 +10,7 @@ about a use case. Every "Try it" below runs from an extracted
 |---|---|---|---|---|
 | [Evidence](/products/evidence/) | Publishes a document through threshold approval, stores it in object storage and IPFS, notifies Kafka, and proves each step. | Teams releasing records several organizations approve | `examples/evidence/demo.sh` (Docker) | `preview` |
 | [Cardano History](/products/cardano-history/) | Proves historical Cardano parameters, epoch stake, DRep distribution, and proposals instead of trusting an indexer. | Governance, reward, and validator tooling | Showcase `cardano-history-chain` | `preview` |
-| [eUTxO ledger](/products/eutxo/) | A Cardano-shaped UTxO ledger with an optional federated bridge, for test funds only. | Researchers and protocol teams | `./yano.sh appchain eutxo demo` | `experimental` |
+| [eUTxO ledger](/products/eutxo/) | A Cardano-shaped UTxO ledger with an optional federated bridge, for test funds only. | Researchers and protocol teams | `./yano.sh appchain eutxo demo up --scenario ledger` | `experimental` |
 
 ## Choosing one
 

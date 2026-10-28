@@ -32,6 +32,15 @@ IPFS, and the Evidence Explorer.
   `DEMO_UI_PORT`, `DEMO_KAFKA_PORT`, `DEMO_S3_PORT` and `DEMO_IPFS_PORT` move
   the other services. For example, `export DEMO_HTTP_BASE=7370` puts the
   members on 7370–7372, and the URLs the harness prints use those ports.
+- The connector services share a fixed Docker subnet, `172.30.13.0/24`. If
+  `up` fails with `Pool overlaps with other one on this address space`,
+  another Docker network already uses that range. Choose a free range before
+  an instance's **first** `up` (it is fixed after that) and keep it set:
+
+  ```bash
+  export DEMO_CONNECTOR_SUBNET=10.213.13.0/24
+  export DEMO_S3_IP=10.213.13.10 DEMO_KUBO_IP=10.213.13.11 DEMO_KAFKA_IP=10.213.13.12
+  ```
 - `prepare` and every `up` build two local Docker images from the
   distribution. By default they are tagged `yano-adr013-node:local` and
   `yano-adr013-runner:local` (inside a Git working tree, the tag is that
@@ -46,10 +55,11 @@ IPFS, and the Evidence Explorer.
   ```
 
 The harness runs the default `evidence-v1-gated` profile, in which validator
-members approve each release. The Studio link above opens the
-`evidence-ledger` recipe, which selects the role-aware `role-evidence` profile,
-where named business actors approve instead; the harness runs that profile
-when you add `--machine role` to every command.
+members approve each release. The `evidence-ledger` recipe
+(`./yano.sh appchain new <app> --chain <id>=evidence-ledger`) selects the
+role-aware `role-evidence` profile instead, where named business actors
+approve; the harness runs that profile when you add `--machine role` to every
+command.
 
 ## How one publication flows
 

@@ -87,6 +87,13 @@ threshold of 3, and `f = 1`.
 
 ## Node-local secrets
 
+On a node set up with `appchain request` and `join`, each secret is a file in
+the node directory, readable only by its owner: `yano-node/secrets/member.key`
+(the member signing key), `yano-node/secrets/api.key` (the node's API key), and,
+on an anchor leader, `yano-node/secrets/anchor.key` (the anchor wallet seed).
+`appchain start` passes them to the node as environment variables, so the
+generated configuration never contains them.
+
 - **API keys** control access to a node's REST API: `yano.app-chain.api.keys`,
   sent as `X-API-Key`. A full key unlocks privileged operations, such as pausing
   submissions, membership and threshold administration, effect operations, and

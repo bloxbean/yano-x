@@ -80,7 +80,10 @@ later.
 
 Effects are off by default, and these are **consensus parameters** — every
 member must set identical values, or the state root diverges exactly as it
-would with a mismatched state machine.
+would with a mismatched state machine. With the setup commands they are sealed
+chain settings, so put them in the draft, for example
+`./yano.sh appchain new <app> --setting <chain>.effects.enabled=true`; `seal`
+writes them into every member's configuration. The raw properties are:
 
 ```yaml
 yano.app-chain.effects.enabled: true
@@ -190,6 +193,7 @@ who may attest:
 
 ```yaml
 # Only these member keys' ~fx/result messages are accepted. Default: any member.
+# A sealed setting: --setting <chain>.effects.result.signers=<hex pubkey>
 yano.app-chain.effects.result.signers: "<hex pubkey of the executor node>"
 ```
 
@@ -200,7 +204,11 @@ result attestation for high-value effects is designed but not yet shipped.
 ## Running an executor
 
 The effect runtime is off by default on every node. Everywhere it is off,
-effects are still emitted and provable; they wait.
+effects are still emitted and provable; they wait. Executor settings are
+node-local: on a node set up with `appchain join`, put them in the node's
+`config/local.yaml` under the chain's entry,
+`yano.app-chain.chains[<i>].effects.executor.*`, where `<i>` is the chain's
+index in `yano-node/apps/chain-indexes.json`. The keys are:
 
 ```yaml
 yano.app-chain.effects.executor.enabled: true   # this node executes effects

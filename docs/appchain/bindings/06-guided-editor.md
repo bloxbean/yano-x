@@ -171,10 +171,10 @@ The status line says what Studio can claim:
 
 The status considers every imported report, in any order. A dry-run that failed
 only on its fixture or continuation is listed separately and never counts as a
-rejection of the document. For a composite opened from an `appchain.yaml` file the
-wording never says "validated": the CLI checked the extracted composite under the
-context you supplied, and `appchain seal`, with the context it derives from the
-application, decides.
+rejection of the document. For a composite opened from an application draft
+(`<app>.draft.yaml`) the wording never says "validated": the CLI checked the
+extracted composite under the context you supplied, and `appchain seal`, with
+the context it derives from the application, decides.
 
 A report is an unauthenticated file: anyone can edit one. Studio decodes every
 receipt from its canonical bytes and rejects reports that contradict themselves,

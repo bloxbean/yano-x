@@ -1,5 +1,12 @@
 # Deployment experience implementation and validation
 
+> **Historical record (before ADR-056).**
+> [ADR-056](../../adr/056-simple-app-chain-setup.md) replaced the project
+> lifecycle validated here (Studio blueprints, `prepare`, `plan`, `apply`,
+> `chain add`) with the multi-operator setup commands: `new`, `request`,
+> `seal`, `join`, `start`, `status`, and `approve`. For current workflows see
+> the [deployment guides](deployment/README.md).
+
 Date: 2026-09-06. Branch: `docs/deployment-experience-review`.
 
 This records the implementation of [ADR-047](../../adr/047-cohesive-application-deployment.md)
