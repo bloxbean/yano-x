@@ -11,7 +11,7 @@ dependencies {
     implementation libs.zeroj.crypto
     implementation libs.zeroj.mpf.poseidon
     implementation libs.zeroj.onchain.julc
-    // ZeroJ pre10 was published against Julc pre14. Keep the adapter and every
+    // ZeroJ pre13 was published against Julc pre18. Keep the adapter and every
     // downstream runtime on the reviewed public Julc line selected by Yano X.
     implementation "org.julclang:julc-compiler:${libs.versions.julc.get()}"
     implementation "org.julclang:julc-core:${libs.versions.julc.get()}"

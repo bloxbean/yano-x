@@ -123,6 +123,28 @@ class SettlementVaultConformanceTest extends ContractTest {
         assertFailure(evaluate(program(), tokenlessShardContext(batch)));
     }
 
+    /**
+     * The vault counts each federation key once and requires the root's keys strictly ascending. Julc before
+     * 0.1.0-pre17 discarded the sortedness {@code return} in {@code countSigners}, so a root datum listing one key
+     * twice let that key alone meet a threshold of two.
+     */
+    @Test
+    void settleCountsEachFederationKeyOnce() {
+        Batch batch = batch(1);
+        byte[] first = MEMBER_KEYS.get(0);
+        byte[] second = MEMBER_KEYS.get(1);
+        assertSuccess(evaluate(program(), settleContext(batch, true, false)));
+
+        var repeated = baseBuilder(batch.withMembers(List.of(first, first)), 0, false, 0L)
+                .signer(new PubKeyHash(Blake2bUtil.blake2bHash224(first)));
+        assertFailure(evaluate(program(), repeated.buildPlutusData()));
+
+        var descending = baseBuilder(batch.withMembers(List.of(second, first)), 0, false, 0L)
+                .signer(new PubKeyHash(Blake2bUtil.blake2bHash224(first)))
+                .signer(new PubKeyHash(Blake2bUtil.blake2bHash224(second)));
+        assertFailure(evaluate(program(), descending.buildPlutusData()));
+    }
+
     // ------------------------------------------------------------------
 
     private PlutusData settleContext(
@@ -258,7 +280,7 @@ class SettlementVaultConformanceTest extends ContractTest {
                 stateRoot, 5_000L,
                 settle.toArray(new PlutusData[0]),
                 exit.toArray(new PlutusData[0]),
-                payoutOutputs, joined);
+                payoutOutputs, joined, MEMBER_KEYS);
     }
 
     private static Claim claim(int index) {
@@ -314,10 +336,15 @@ class SettlementVaultConformanceTest extends ContractTest {
             List<Claim> claims, BigInteger total, BigInteger vaultInput,
             byte[] stateRoot, long updatedAtSlot,
             PlutusData[] settleClaims, PlutusData[] exitClaims,
-            List<TxOut> payoutOutputs, byte[] joinedIds) {
+            List<TxOut> payoutOutputs, byte[] joinedIds, List<byte[]> members) {
+        Batch withMembers(List<byte[]> replacement) {
+            return new Batch(claims, total, vaultInput, stateRoot, updatedAtSlot, settleClaims, exitClaims,
+                    payoutOutputs, joinedIds, replacement);
+        }
+
         PlutusData rootDatum() {
             List<PlutusData> keys = new ArrayList<>();
-            for (byte[] key : MEMBER_KEYS) {
+            for (byte[] key : members) {
                 keys.add(PlutusData.bytes(key));
             }
             return PlutusData.constr(0,

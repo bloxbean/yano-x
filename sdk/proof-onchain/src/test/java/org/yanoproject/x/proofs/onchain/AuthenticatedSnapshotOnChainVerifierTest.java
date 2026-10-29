@@ -123,6 +123,25 @@ class AuthenticatedSnapshotOnChainVerifierTest extends ContractTest {
                         .referenceInput(anchorInput(fixture.primary().root())).buildPlutusData()));
     }
 
+    /**
+     * Julc before 0.1.0-pre17 discarded the {@code return false} guards of {@code verifyAbsence}, so the compiled
+     * validator accepted the fact's own leaf as the conflicting leaf that proves the fact key absent.
+     */
+    @Test
+    void rejectsAnAbsenceClaimForAPresentKey() {
+        Fixture fixture = fixture();
+        var fact = fixture.fact().proof();
+        PlutusData ownLeafAsConflict = PlutusData.constr(0, PlutusData.bytes(fact.key()),
+                PlutusData.bytes(new byte[0]), PlutusData.bytes(fact.leafSuffix()), PlutusData.list(),
+                PlutusData.integer(0), PlutusData.bytes(Blake2bUtil.blake2bHash256(fact.key())),
+                PlutusData.bytes(Blake2bUtil.blake2bHash256(fact.value())));
+        assertFailure(evaluate(program(BigInteger.valueOf(4), BigInteger.ZERO, new byte[0]),
+                spendingContext(new TxOutRef(new TxId(filled(0x67, 32)), BigInteger.ZERO), PlutusData.UNIT)
+                        .redeemer(PlutusData.constr(0, proofData(fixture.primary().proof()), ownLeafAsConflict))
+                        .referenceInput(anchorInput(fixture.primary().root()))
+                        .buildPlutusData()));
+    }
+
     private void assertRejected(Fixture fixture) {
         var result = evaluate(program(), spendingContext(
                         new TxOutRef(new TxId(filled(0x63, 32)), BigInteger.ZERO), PlutusData.UNIT)

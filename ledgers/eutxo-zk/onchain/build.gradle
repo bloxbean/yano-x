@@ -7,7 +7,7 @@ dependencies {
     implementation libs.zeroj.onchain.julc
 
     constraints {
-        // ZeroJ pre10 declares Julc pre14 transitively. Publish the reviewed
+        // ZeroJ pre13 declares Julc pre18 transitively. Publish the reviewed
         // Yano X alignment so consumers cannot resolve that older runtime.
         implementation "org.julclang:julc-compiler:${libs.versions.julc.get()}"
         implementation "org.julclang:julc-core:${libs.versions.julc.get()}"

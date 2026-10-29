@@ -1,5 +1,6 @@
 package org.yanoproject.x.proofs.onchain;
 
+import com.bloxbean.cardano.client.crypto.Blake2bUtil;
 import org.julclang.core.PlutusData;
 import org.julclang.core.Program;
 import org.julclang.core.cbor.PlutusDataCborEncoder;
@@ -143,6 +144,29 @@ class MpfPairOnChainVerifierTest extends ContractTest {
             assertSuccess(result);
             assertBudgetUnder(result, MAX_TX_CPU, MAX_TX_MEM);
         }
+    }
+
+    /**
+     * Julc before 0.1.0-pre17 discarded the {@code return false} guards of {@code verifyAbsence}, so the compiled
+     * validator accepted a present key's own leaf as the conflicting leaf of an absence proof.
+     */
+    @Test
+    void rejectsAnAbsenceClaimForAPresentKey() {
+        Fixture fixture = fixture();
+        MpfNormalizedProof fact = fixture.fact();
+        PlutusData ownLeafAsConflict = MpfTestTrie.absenceData(fact.key(), fact.leafSuffix(), fact.folds(),
+                MpfTestTrie.leafCursor(fact.leafSuffix()), Blake2bUtil.blake2bHash256(fact.key()),
+                Blake2bUtil.blake2bHash256(fact.value()));
+        PlutusData redeemer = PlutusData.constr(0, ownLeafAsConflict, proofData(fixture.complete()),
+                PlutusData.bytes(fixture.factKey()), PlutusData.bytes(fixture.completeKey()),
+                PlutusData.integer(4), PlutusData.integer(0), PlutusData.bytes(new byte[0]));
+        var result = evaluate(program(), spendingContext(
+                        new TxOutRef(new TxId(filled(0x79, 32)), BigInteger.ZERO), PlutusData.UNIT)
+                .redeemer(redeemer)
+                .referenceInput(anchorInput(fixture.root()))
+                .buildPlutusData());
+
+        assertFailure(result);
     }
 
     @Test

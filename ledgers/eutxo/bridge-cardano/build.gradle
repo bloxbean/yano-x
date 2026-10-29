@@ -73,8 +73,8 @@ tasks.register('verifyEutxoBridgeArtifactBoundaries') {
                 'com/bloxbean/cardano/yaci/',
                 'com/bloxbean/cardano/client/',
                 'co/nstant/in/cbor/',
-                'com/bloxbean/cardano/julc/',
-                'com/bloxbean/cardano/zeroj/'
+                'org/julclang/',
+                'org/zeroj/'
         ]
         def forbidden = bundleEntries.findAll { entry ->
             forbiddenPrefixes.any { prefix -> entry.startsWith(prefix) }

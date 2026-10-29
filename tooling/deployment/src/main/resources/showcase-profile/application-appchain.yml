@@ -192,7 +192,7 @@ yano:
       state:
         commitment-profile: "mpf-blake2b256-v1"
         format-fingerprint: "91ee14091200f1e24659112d640e877e9177779dcc81dd06117f013e9190082b"
-        genesis-id: "efa0112f8a2b755521b2d16489835a8f38afe90b01c3ce2db749e8c899e6e560"
+        genesis-id: "fe9ffd7acb19aa58b98e22d6556ea441172b1f0ade25b78c3c693e9eac630cab"
       machines:
         eutxo:
           profile: "yano-eutxo-v3-bridge-settlement-devnet"
