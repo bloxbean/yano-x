@@ -19,6 +19,7 @@ dependencies {
     testImplementation project(':ledgers:eutxo:contracts')
     testImplementation project(':ledgers:eutxo:client')
     testImplementation libs.cardano.client.crypto
+    testImplementation libs.cardano.client.mpf
     testImplementation libs.junit.jupiter.api
     testRuntimeOnly libs.junit.jupiter.engine
     testRuntimeOnly libs.junit.platform.launcher

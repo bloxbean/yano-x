@@ -1,6 +1,7 @@
 package org.yanoproject.x.eutxo.bridge.onchain.mpf;
 
 import org.julclang.core.types.JulcList;
+import org.julclang.stdlib.Builtins;
 import org.julclang.stdlib.annotation.OnchainLibrary;
 import org.julclang.stdlib.lib.ByteStringLib;
 import org.julclang.stdlib.lib.CryptoLib;
@@ -14,6 +15,10 @@ import java.util.List;
  * <p>
  * Provides membership proofs (has/miss) for a radix-16 Merkle Patricia Trie.
  * Translated from the Aiken merkle-patricia-forestry library.
+ * <p>
+ * {@link #has} and {@link #miss} check the shape of every proof step before comparing
+ * roots (see {@link #isWellFormed}); a malformed proof makes them return false.
+ * {@link #including} and {@link #excluding} do not check the shape.
  * <p>
  * Methods are ordered bottom-up (leaves first, entry methods last) so that
  * callees are always in scope when callers are compiled.
@@ -213,13 +218,18 @@ public class MerklePatriciaForestry {
         return combine(prefix, merkle16(branch, root, n8, n4, n2, n1));
     }
 
-    /** Process a fork step. */
+    /** Process a fork step. Fails if the neighbor sits on the path's own branch. */
     public static byte[] doFork(byte[] path, int cursor, int nextCursor, byte[] root,
                                 int neighborNibble, byte[] neighborPrefix, byte[] neighborRoot) {
         int branch = nibble(path, nextCursor);
-        byte[] prefix = nibbles(path, cursor, nextCursor);
-        byte[] neighborHash = combine(neighborPrefix, neighborRoot);
-        return combine(prefix, sparseMerkle16(branch, root, neighborNibble, neighborHash));
+        if (branch == neighborNibble) {
+            Builtins.error();
+            return ByteStringLib.empty();
+        } else {
+            byte[] prefix = nibbles(path, cursor, nextCursor);
+            byte[] neighborHash = combine(neighborPrefix, neighborRoot);
+            return combine(prefix, sparseMerkle16(branch, root, neighborNibble, neighborHash));
+        }
     }
 
     // =========================================================================
@@ -301,35 +311,109 @@ public class MerklePatriciaForestry {
     }
 
     // =========================================================================
-    // 6. Entry methods (depends on: doIncluding, doExcluding)
+    // 6. Proof shape validation (depends on: nibble)
     // =========================================================================
 
-    /** Compute root hash with element included. */
+    /** True when every byte of bs from index i on is a nibble (0..15). */
+    public static boolean allNibbles(byte[] bs, int i) {
+        if (i >= ByteStringLib.length(bs)) {
+            return true;
+        } else {
+            return ByteStringLib.at(bs, i) <= 15 && allNibbles(bs, i + 1);
+        }
+    }
+
+    /**
+     * True when key shares nibbles [0, at) with path and differs from it at nibble at.
+     * Both must be 32 bytes and at must be below 64.
+     */
+    public static boolean forksAt(byte[] key, byte[] path, int at) {
+        int half = at / 2;
+        boolean samePrefix = ByteStringLib.equals(ByteStringLib.take(key, half), ByteStringLib.take(path, half))
+                && (at % 2 == 0 || nibble(key, at - 1) == nibble(path, at - 1));
+        return samePrefix && nibble(key, at) != nibble(path, at);
+    }
+
+    /**
+     * Check the shape of every proof step for path, starting at cursor. For a step with
+     * skip s the step's branch is at nibble cursor + s, which must be below 64.
+     * <ul>
+     *   <li>Branch: neighbors is 128 bytes.</li>
+     *   <li>Fork: the neighbor nibble is 0..15 and differs from the path's nibble, every
+     *       prefix byte is a nibble, and the neighbor root is 32 bytes.</li>
+     *   <li>Leaf: key and value are 32 bytes, and the key shares the path's nibbles up to
+     *       the branch and differs from it there.</li>
+     * </ul>
+     * Returns false and never fails on a malformed proof.
+     */
+    public static boolean isWellFormed(byte[] path, int cursor, JulcList<ProofStep> proof) {
+        if (proof.isEmpty()) {
+            return true;
+        } else {
+            ProofStep step = proof.head();
+            JulcList<ProofStep> steps = proof.tail();
+            if (step instanceof ProofStep.Branch b) {
+                int skip = b.skip();
+                return skip >= 0 && skip < 64 - cursor
+                        && ByteStringLib.length(b.neighbors()) == 128
+                        && isWellFormed(path, cursor + skip + 1, steps);
+            } else if (step instanceof ProofStep.Fork f) {
+                int skip = f.skip();
+                int at = cursor + skip;
+                Neighbor neighbor = f.neighbor();
+                int n = neighbor.nibble();
+                return skip >= 0 && skip < 64 - cursor
+                        && n >= 0 && n <= 15
+                        && n != nibble(path, at)
+                        && allNibbles(neighbor.prefix(), 0)
+                        && ByteStringLib.length(neighbor.root()) == 32
+                        && isWellFormed(path, at + 1, steps);
+            } else {
+                ProofStep.Leaf l = (ProofStep.Leaf) step;
+                int skip = l.skip();
+                int at = cursor + skip;
+                byte[] key = l.key();
+                return skip >= 0 && skip < 64 - cursor
+                        && ByteStringLib.length(key) == 32
+                        && ByteStringLib.length(l.value()) == 32
+                        && forksAt(key, path, at)
+                        && isWellFormed(path, at + 1, steps);
+            }
+        }
+    }
+
+    // =========================================================================
+    // 7. Entry methods (depends on: doIncluding, doExcluding)
+    // =========================================================================
+
+    /** Compute root hash with element included. Does not check the proof shape. */
     public static byte[] including(byte[] key, byte[] value, JulcList<ProofStep> proof) {
         byte[] path = CryptoLib.blake2b_256(key);
         byte[] hashedValue = CryptoLib.blake2b_256(value);
         return doIncluding(path, hashedValue, 0, proof);
     }
 
-    /** Compute root hash with element excluded. */
+    /** Compute root hash with element excluded. Does not check the proof shape. */
     public static byte[] excluding(byte[] key, JulcList<ProofStep> proof) {
         byte[] path = CryptoLib.blake2b_256(key);
         return doExcluding(path, 0, proof);
     }
 
     // =========================================================================
-    // 7. Public API (depends on: including, excluding)
+    // 8. Public API (depends on: isWellFormed, doIncluding, doExcluding)
     // =========================================================================
 
-    /** Check if the trie contains a key with a given value. */
+    /** Check if the trie contains a key with a given value. False for a malformed proof. */
     public static boolean has(byte[] trieRoot, byte[] key, byte[] value, JulcList<ProofStep> proof) {
-        byte[] computedRoot = including(key, value, proof);
-        return ByteStringLib.equals(computedRoot, trieRoot);
+        byte[] path = CryptoLib.blake2b_256(key);
+        return isWellFormed(path, 0, proof)
+                && ByteStringLib.equals(doIncluding(path, CryptoLib.blake2b_256(value), 0, proof), trieRoot);
     }
 
-    /** Check if a key is missing from the trie. */
+    /** Check if a key is missing from the trie. False for a malformed proof. */
     public static boolean miss(byte[] trieRoot, byte[] key, JulcList<ProofStep> proof) {
-        byte[] computedRoot = excluding(key, proof);
-        return ByteStringLib.equals(computedRoot, trieRoot);
+        byte[] path = CryptoLib.blake2b_256(key);
+        return isWellFormed(path, 0, proof)
+                && ByteStringLib.equals(doExcluding(path, 0, proof), trieRoot);
     }
 }

@@ -1,7 +1,7 @@
 {
   "effects.executor.enabled" : "true",
-  "effects.executors.eutxo-settlement.vault-address" : "addr_test1wz9r8x9ema2j9cxzas0ah9s9r3zrgup56w4wjyxh252vkqcsg906x",
-  "effects.executors.eutxo-settlement.shard-address" : "addr_test1wp3tgnkmwrx2rtxsqzaeg5vvzzcddgxu2ft3yuwynhs0cdcnzeyn7",
+  "effects.executors.eutxo-settlement.vault-address" : "addr_test1wq5u4vuennj4u5dgzcmufwzv2n5ndkatw4w56mqth080qksmf27gw",
+  "effects.executors.eutxo-settlement.shard-address" : "addr_test1wqq5frm568anc0yerhc3h3dl5jzvg3qvhh4au3euzvrqvlcvr5u9e",
   "effects.executors.eutxo-settlement.root-address" : "addr_test1wr76d8nuwq2plajzr076cskjhm80qfe68jpz323cnvzl66g6cf7y9",
   "effects.executors.eutxo-settlement.root-unit" : "57f1b65a38d0bfc2ce88071973137972eaa365e89bb43ef857982c0659616e6f536574746c65526f6f74",
   "effects.executors.eutxo-settlement.shard-thread-policy-id" : "524bf10e6385d62967c18e71a20e8f3e099b20c9738228efaa9216b0",
