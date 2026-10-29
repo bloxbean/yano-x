@@ -16,7 +16,8 @@ import {emitYaml,flow,parseYaml,YamlInputError,YamlMap} from './studio-yaml.mjs'
 
 export const OPERATORS = Object.freeze(['eq', 'ne', 'lt', 'le', 'gt', 'ge', 'in', 'exists', 'absent']);
 /** YAML source keys by scope (ADR-031.3 §5.2): `field` reads the event; the others read the named scope. */
-export const SOURCE_KEYS = Object.freeze(['field', 'context', 'command', 'param', 'config', 'fact']);
+export const SOURCE_KEYS = Object.freeze(['field', 'context', 'command', 'param', 'config', 'fact',
+  'payload', 'writer', 'source']);
 /** Rule parameter types as authored. */
 export const PARAMETER_TYPES = Object.freeze(['integer', 'text', 'bytes', 'boolean', 'binding']);
 export const LIMIT_NAMES = Object.freeze(['maxCascadeDepth', 'maxDerivedPerSourceMessage', 'maxDerivedPerBlock',
@@ -67,6 +68,11 @@ function text(node, segments) {
 
 function integer(node, segments) {
   if (node?.kind !== 'scalar' || node.type !== 'integer') fail('EXPECTED_INTEGER', 'expected int64', segments, node);
+  return node.value;
+}
+
+function boolean(node, segments) {
+  if (node?.kind !== 'scalar' || node.type !== 'boolean') fail('EXPECTED_BOOLEAN', 'expected boolean', segments, node);
   return node.value;
 }
 
@@ -257,12 +263,12 @@ export function draftFromTree(root) {
       fail('NESTED_WRAPPER', 'nested wrappers are not supported', prefix, body);
     }
   }
-  const map = entries(body, prefix, ['components', 'rules', 'bindings', 'limits', 'workflowFromHeight']);
+  const map = entries(body, prefix, ['components', 'rules', 'bindings', 'limits', 'workflowFromHeight', 'payloadSchemas']);
   const components = sequence(required(map, 'components', prefix, body), [...prefix, 'components'], 16)
     .map((node, index) => {
       const at = [...prefix, 'components', index];
       const fields = entries(node, at, ['id', 'machine', 'topic', 'config', 'maxEffectsPerBlock', 'fromHeight',
-        'admission']);
+        'admission', 'payloadSchemas']);
       let config = null;
       if (fields.has('config')) {
         const configNode = fields.get('config');
@@ -279,6 +285,8 @@ export function draftFromTree(root) {
         maxEffectsPerBlock: fields.has('maxEffectsPerBlock')
           ? integer(fields.get('maxEffectsPerBlock'), [...at, 'maxEffectsPerBlock']) : null,
         fromHeight: fields.has('fromHeight') ? integer(fields.get('fromHeight'), [...at, 'fromHeight']) : null,
+        payloadSchemas: fields.has('payloadSchemas') ? sequence(fields.get('payloadSchemas'), [...at, 'payloadSchemas'], 16)
+          .map((item, s) => text(item, [...at, 'payloadSchemas', s])) : null,
         admission: fields.has('admission') ? sequence(fields.get('admission'), [...at, 'admission'], 16)
           .map((item, a) => attachment(item, [...at, 'admission', a])) : null};
     });
@@ -286,7 +294,7 @@ export function draftFromTree(root) {
     .map((node, index) => rule(node, [...prefix, 'rules', index])) : null;
   const bindings = sequence(required(map, 'bindings', prefix, body), [...prefix, 'bindings'], 256).map((node, index) => {
     const at = [...prefix, 'bindings', index];
-    const fields = entries(node, at, ['id', 'from', 'when', 'to']);
+    const fields = entries(node, at, ['id', 'from', 'when', 'to', 'crossesTopicPolicy']);
     const fromNode = required(fields, 'from', at, node);
     const from = entries(fromNode, [...at, 'from'], ['component', 'event']);
     return {id: text(required(fields, 'id', at, node), [...at, 'id']),
@@ -294,7 +302,9 @@ export function draftFromTree(root) {
         event: text(required(from, 'event', [...at, 'from'], fromNode), [...at, 'from', 'event'])},
       when: fields.has('when') ? sequence(fields.get('when'), [...at, 'when'], 8)
         .map((item, c) => clause(item, [...at, 'when', c])) : null,
-      to: target(required(fields, 'to', at, node), [...at, 'to'])};
+      to: target(required(fields, 'to', at, node), [...at, 'to']),
+      crossesTopicPolicy: fields.has('crossesTopicPolicy')
+        ? boolean(fields.get('crossesTopicPolicy'), [...at, 'crossesTopicPolicy']) : null};
   });
   let limits = null;
   if (map.has('limits')) {
@@ -302,7 +312,17 @@ export function draftFromTree(root) {
     const limitMap = entries(limitsNode, [...prefix, 'limits'], LIMIT_NAMES);
     limits = [...limitMap.entries()].map(([name, value]) => ({name, value: integer(value, [...prefix, 'limits', name])}));
   }
-  return {wrapped, components, rules, bindings, limits,
+  let payloadSchemas = null;
+  if (map.has('payloadSchemas')) {
+    const node = map.get('payloadSchemas'), at = [...prefix, 'payloadSchemas'];
+    if (node?.kind !== 'map' || node.entries.length > 16) fail('EXPECTED_OBJECT', 'expected bounded schema map', at, node);
+    payloadSchemas = node.entries.map(entry => {
+      const path = [...at, entry.key.text], schema = entries(entry.value, path, ['cddl', 'ir']);
+      const kind = exactlyOne(schema, path, ['cddl', 'ir'], entry.value);
+      return {hash: entry.key.text, kind, text: text(schema.get(kind), [...path, kind])};
+    });
+  }
+  return {wrapped, components, rules, bindings, limits, payloadSchemas,
     workflowFromHeight: map.has('workflowFromHeight')
       ? integer(map.get('workflowFromHeight'), [...prefix, 'workflowFromHeight']) : null};
 }
@@ -343,6 +363,7 @@ function emitScalar(value) {
 function emitSource(value) {
   switch (value.kind) {
     case 'field': case 'context': case 'command': case 'param': case 'config': case 'fact':
+    case 'payload': case 'writer': case 'source':
       return flow(YamlMap.of([value.kind, value.name]));
     case 'literal': return flow(YamlMap.of(['literal', emitScalar(value.value)]));
     case 'expr': return flow(YamlMap.of(['expr', value.text]));
@@ -400,14 +421,17 @@ export function emitDocument(draft, options = {}) {
       : flow(new YamlMap(component.config.map(setting => [setting.name, emitScalar(setting.value)])))],
     ['maxEffectsPerBlock', component.maxEffectsPerBlock ?? undefined],
     ['fromHeight', component.fromHeight ?? undefined],
+    ['payloadSchemas', component.payloadSchemas == null ? undefined : component.payloadSchemas],
     ['admission', component.admission == null ? undefined : component.admission.map(entry => new YamlMap([
       ['rule', entry.rule], ['params', entry.params === null ? undefined : emitNamedScalars(entry.params)]]))]]));
   const bindings = draft.bindings.map(binding => new YamlMap([
     ['id', binding.id],
     ['from', flow(YamlMap.of(['component', binding.from.component], ['event', binding.from.event]))],
     ['when', binding.when === null ? undefined : binding.when.map(emitClause)],
-    ['to', emitTarget(binding.to)]]));
-  const body = new YamlMap([['components', components],
+    ['to', emitTarget(binding.to)], ['crossesTopicPolicy', binding.crossesTopicPolicy ?? undefined]]));
+  const body = new YamlMap([['payloadSchemas', draft.payloadSchemas == null ? undefined
+    : new YamlMap(draft.payloadSchemas.map(schema => [schema.hash, YamlMap.of([schema.kind, schema.text])]))],
+    ['components', components],
     ['rules', draft.rules == null ? undefined : draft.rules.map(emitRule)], ['bindings', bindings],
     ['limits', draft.limits === null ? undefined : new YamlMap(draft.limits.map(limit => [limit.name, limit.value]))],
     ['workflowFromHeight', draft.workflowFromHeight ?? undefined]]);
@@ -421,5 +445,5 @@ export function cloneDraft(draft) {
 
 /** Empty wrapped draft for a new document. */
 export function emptyDraft() {
-  return {wrapped: true, components: [], rules: null, bindings: [], limits: null, workflowFromHeight: null};
+  return {wrapped: true, components: [], rules: null, bindings: [], limits: null, payloadSchemas: null, workflowFromHeight: null};
 }

@@ -3,16 +3,16 @@
   "source": "Generated from the Yano X repository at documentation build time.",
   "versions": {
     "yanoXVersion": "0.1.0-pre4",
-    "yanoVersion": "0.1.0-pre18",
+    "yanoVersion": "0.1.0-pre19",
     "group": "org.yanoproject.x",
     "javaVersion": "25",
-    "yanoJvmZipUrl": "https://github.com/bloxbean/yano/releases/download/v0.1.0-pre18/yano-0.1.0-pre18.zip"
+    "yanoJvmZipUrl": "https://github.com/bloxbean/yano/releases/download/v0.1.0-pre19/yano-0.1.0-pre19.zip"
   },
   "counts": {
     "recipes": 11,
     "capabilities": 39,
     "artifacts": 14,
-    "modules": 44,
+    "modules": 46,
     "configurationProperties": 44,
     "runtimePlugins": 15
   },
@@ -52,6 +52,7 @@
       "bootstrapRequirements": [
         "Pinned public member keys and normalized component configuration"
       ],
+      "answers": [],
       "trustStatement": "Catalog-selected deterministic kernels; bindings do not grant authority to derived commands.",
       "documentation": "docs/appchain/DECLARATIVE_BINDINGS_CLI.md",
       "documentationUrl": "/reference/declarative-bindings-cli/"
@@ -85,6 +86,7 @@
       "nativePosture": "bundled",
       "externalPrerequisites": [],
       "bootstrapRequirements": [],
+      "answers": [],
       "trustStatement": "First-party Yano recipe using only built-in packaged runtime capabilities.",
       "documentation": "docs/core-host.md",
       "documentationUrl": "https://github.com/bloxbean/yano-x/blob/main/docs/core-host.md"
@@ -118,6 +120,7 @@
       "nativePosture": "unsupported",
       "externalPrerequisites": [],
       "bootstrapRequirements": [],
+      "answers": [],
       "trustStatement": "First-party Yano recipe using the bundled standard-library registry.",
       "documentation": "docs/appchain/state-machines/kv-registry.md",
       "documentationUrl": "/state-machines/kv-registry/"
@@ -151,6 +154,7 @@
       "nativePosture": "unsupported",
       "externalPrerequisites": [],
       "bootstrapRequirements": [],
+      "answers": [],
       "trustStatement": "First-party Yano recipe using the bundled standard-library registry.",
       "documentation": "docs/appchain/state-machines/doc-trail.md",
       "documentationUrl": "/state-machines/doc-trail/"
@@ -164,8 +168,8 @@
       "scope": "chain",
       "description": "A proof-oriented multi-collection registry with optional canonical-CBOR and declarative schema validation.",
       "primaryOutcome": "A value accepted under a genesis-declared collection schema is committed and available with a state proof.",
-      "firstCommand": "appchain state validate --genesis-file config/authenticated-map-genesis.hex ...",
-      "verificationQuery": "appchain state validators --genesis-file config/authenticated-map-genesis.hex",
+      "firstCommand": "appchain inspect <app>.chain --map-genesis <chain-id> > map-genesis.hex, then appchain state validate --genesis-file map-genesis.hex ...",
+      "verificationQuery": "appchain state validators --genesis-file map-genesis.hex",
       "capabilities": [
         "state:authenticated-map",
         "sequencer:fixed"
@@ -186,6 +190,7 @@
       "bootstrapRequirements": [
         "pin-all-genesis-member-identities"
       ],
+      "answers": [],
       "trustStatement": "First-party Yano recipe whose collection, encoding, schema, and commitment identities are frozen in canonical genesis.",
       "documentation": "docs/appchain/state-machines/authenticated-map.md",
       "documentationUrl": "/state-machines/authenticated-map/"
@@ -219,6 +224,7 @@
       "nativePosture": "unsupported",
       "externalPrerequisites": [],
       "bootstrapRequirements": [],
+      "answers": [],
       "trustStatement": "First-party Yano recipe using the bundled generic approval state machine.",
       "documentation": "docs/appchain/state-machines/approvals.md",
       "documentationUrl": "/state-machines/approvals/"
@@ -232,7 +238,7 @@
       "scope": "chain",
       "description": "Governed organizations, actors, and policies approve arbitrary application payload hashes.",
       "primaryOutcome": "A governed role policy accepts valid actor decisions and rejects an ineligible actor decision.",
-      "firstCommand": "apply the generated role bootstrap plan, then submit a signed proposal",
+      "firstCommand": "fill in <chain-id>.role-plan.yaml (written by seal beside the sealed file), run appchain role bootstrap --plan <chain-id>.role-plan.yaml once live, then submit a signed proposal",
       "verificationQuery": "plugin role-workflow proposals/{id} plus returned proof key",
       "capabilities": [
         "state:role-approvals",
@@ -257,6 +263,7 @@
         "governed-actors",
         "governed-policies"
       ],
+      "answers": [],
       "trustStatement": "First-party generic role product; applications retain responsibility for acting on an approved payload hash.",
       "documentation": "docs/appchain/tutorials/05-domain-role-approvals.md",
       "documentationUrl": "/tutorials/05-domain-role-approvals/"
@@ -270,7 +277,7 @@
       "scope": "chain",
       "description": "A role-aware evidence ledger that emits publication intents; add and provision explicit connector capabilities for external mutation.",
       "primaryOutcome": "A role-authorized evidence record and its release decision are committed and queryable.",
-      "firstCommand": "apply the generated role bootstrap plan, then submit evidence and a signed release proposal",
+      "firstCommand": "fill in <chain-id>.role-plan.yaml (written by seal beside the sealed file), run appchain role bootstrap --plan <chain-id>.role-plan.yaml once live, then submit evidence and a signed release proposal",
       "verificationQuery": "plugin evidence-profile evidence/{id} and proposals/{id}",
       "capabilities": [
         "state:role-evidence",
@@ -298,6 +305,7 @@
         "governed-actors",
         "governed-policies"
       ],
+      "answers": [],
       "trustStatement": "First-party preview evidence profile; it records and authorizes evidence claims but does not prove real-world truth or external publication by itself.",
       "documentation": "docs/appchain/tutorials/04-evidence-publication.md",
       "documentationUrl": "/tutorials/04-evidence-publication/"
@@ -333,6 +341,10 @@
       "externalPrerequisites": [],
       "bootstrapRequirements": [
         "use-test-keys-and-no-real-funds"
+      ],
+      "answers": [
+        "eutxoGenesisAddress",
+        "eutxoGenesisLovelace"
       ],
       "trustStatement": "Experimental no-real-funds recipe; bounded Plutus V3 execution does not make it a Cardano bridge, custody product, or rollup.",
       "documentation": "ledgers/eutxo/README.md",
@@ -378,6 +390,15 @@
         "pin-current-root-nullifier-and-proof-contract-identities-for-proof-mode",
         "complete-real-funds-custody-review"
       ],
+      "answers": [
+        "bridgeVaultAddress",
+        "bridgeVaultScriptHash",
+        "bridgeMaxDepositLovelace",
+        "bridgeWithdrawalAddress",
+        "bridgeEpoch",
+        "bridgeMaxWithdrawalLovelace",
+        "bridgeMaxPendingWithdrawals"
+      ],
       "trustStatement": "Experimental real-funds federated custody path. Use only reviewed contract identities and bridge/root operators. Signer mode trusts an external threshold/HSM; proof mode trusts the threshold-accepted root. Virtual genesis is deliberately excluded.",
       "documentation": "ledgers/eutxo/README.md",
       "documentationUrl": "https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/README.md"
@@ -389,9 +410,9 @@
       "availability": "REFERENCE",
       "maturity": "experimental",
       "scope": "chain",
-      "description": "A generated project boundary for a separately reviewed custom state-machine plugin.",
+      "description": "A chain that runs a separately reviewed custom state-machine plugin, named by the stateMachine answer and pinned by digest at seal.",
       "primaryOutcome": "The operator-defined state-machine contract is loaded from a reviewed pinned plugin bundle.",
-      "firstCommand": "install the reviewed bundle and submit its documented command",
+      "firstCommand": "copy the reviewed bundle into plugins/ on every node before seal, then submit its documented command",
       "verificationQuery": "plugin-defined committed query or state proof",
       "capabilities": [
         "state:custom-plugin",
@@ -414,6 +435,7 @@
       "bootstrapRequirements": [
         "plugin-metadata-trust-review"
       ],
+      "answers": [],
       "trustStatement": "Advanced JVM-only path; the operator owns plugin implementation, code review, metadata trust, compatibility, and distribution.",
       "documentation": "docs/appchain/tutorials/08-plugins-and-composites.md",
       "documentationUrl": "/plugins/"
@@ -764,7 +786,7 @@
       "maturity": "experimental",
       "scope": "chain",
       "selectable": true,
-      "description": "Project boundary for a separately reviewed custom state-machine bundle.",
+      "description": "Runs a separately reviewed custom state-machine bundle that every operator installs and seal pins by digest.",
       "provides": [
         "state-machine"
       ],
@@ -1947,6 +1969,15 @@
       "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/capabilities/authenticated-map-validators"
     },
     {
+      "modulePath": ":tooling:appchain-formats",
+      "directory": "tooling/appchain-formats",
+      "artifactId": "yano-x-appchain-formats",
+      "publicationType": "tool",
+      "pluginBundleId": null,
+      "bundleArtifactId": null,
+      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/tooling/appchain-formats"
+    },
+    {
       "modulePath": ":tooling:devtools",
       "directory": "tooling/devtools",
       "artifactId": "yano-x-devtools",
@@ -1954,6 +1985,15 @@
       "pluginBundleId": null,
       "bundleArtifactId": null,
       "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/tooling/devtools"
+    },
+    {
+      "modulePath": ":tooling:appchain-cli",
+      "directory": "tooling/appchain-cli",
+      "artifactId": "yano-x-appchain-cli",
+      "publicationType": "tool",
+      "pluginBundleId": null,
+      "bundleArtifactId": null,
+      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/tooling/appchain-cli"
     },
     {
       "modulePath": ":tooling:deployment",

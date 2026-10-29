@@ -107,8 +107,7 @@ curl -s https://yano-x.io/ai/catalog.json | jq '.configuration[] | select(.scope
 ## The in-repo agent skill
 
 Yano X also ships a first-party agent skill. The JVM distribution carries it in
-`skills/configure-yano-appchain/`, every generated project gets a copy in
-`ai/configure-yano-appchain/`, and its source is in the repository:
+`skills/configure-yano-appchain/`, and its source is in the repository:
 
 ```text
 tooling/devtools/src/main/resources/appchain-dx/v1alpha1/skills/
@@ -117,23 +116,31 @@ tooling/devtools/src/main/resources/appchain-dx/v1alpha1/skills/
     agents/openai.yaml
 ```
 
-`configure-yano-appchain` covers creating, explaining, updating, validating, and
-diagnosing app ledger **projects** using the version-matched blueprint, capability
-catalog, and CLI.
+`configure-yano-appchain` covers creating, explaining, sealing, joining, and
+diagnosing app ledger **applications** run by several operators, using the
+version-matched setup CLI, recipe and capability catalogs, and binding tools.
 
 **Where the skill and the starter pack overlap, the skill wins** — it is
 version-matched to the binary you are running, and the starter pack quotes it
 rather than competing with it. Its workflow:
 
 1. Run `./yano.sh appchain recipes` and `./yano.sh appchain capabilities` before
-   choosing features.
-2. Create or edit only `appchain.yaml`. Never hand-edit generated runtime files.
-3. Run `appchain render`, then `appchain config validate --mode project`.
-4. Run `appchain doctor` before startup or delivery.
-5. Use `appchain diff` before applying a blueprint change, and `appchain drift`
-   against running nodes.
-6. Summarize selected capabilities, generated files, unresolved operator inputs,
-   validation coverage, and warnings.
+   choosing features, and suggest `appchain try` to rehearse on one machine.
+2. The coordinator runs `appchain new` (recipe answers with `--answer
+   <chain>.<name>=<value>`) and edits only the setup draft
+   (`<app>.draft.yaml`) before sealing.
+3. Each operator runs `appchain request` on their own machine; private keys
+   never travel, only the public member card. With `appchain invite --serve`,
+   the coordinator can hand out join links that carry the draft, the cards and
+   the sealed file instead.
+4. The coordinator runs `appchain seal`. Never hand-edit the sealed `.chain`
+   file or the node configuration `join` writes.
+5. Each operator compares the chain fingerprint and key ids, then runs
+   `appchain join` and `appchain start`; `appchain status` checks that every
+   member is online and agrees, and prints the Cardano view and plugin catalog
+   fingerprint the members compare.
+6. Summarize chains and recipes, operators and threshold, the fingerprint,
+   unresolved operator inputs, checks run, and warnings.
 
 ## Safety rules for agents
 
@@ -143,9 +150,11 @@ These are non-negotiable, and they apply to human contributors too:
   documented environment-variable or secret-provider names.
 - **Never** invent configuration keys, values, defaults, recipes, or
   compatibility claims. If a capability is unavailable in the release, report it
-  as unsupported rather than working around the blueprint.
-- Keep blueprint, resolved-config, release, plugin-catalog, and consensus
-  identities distinct.
+  as unsupported rather than working around the sealed file.
+- Keep the chain fingerprint, each chain's genesis id, the accepted plugin
+  bundle digests, and a running node's reported identity distinct.
+- Never skip the fingerprint check: `join --yes` requires
+  `--expect-fingerprint`.
 - Do not mutate a running node or call privileged runtime APIs unless the user
   explicitly asks.
 - Treat custom-plugin metadata as `PARTIAL` coverage unless Yano reports `FULL`.

@@ -24,7 +24,8 @@ export function addComponent(draft, component) {
   const next = clone(draft);
   next.components.push({id: component.id, machine: component.machine, topic: component.topic ?? null,
     config: component.config ?? null, maxEffectsPerBlock: component.maxEffectsPerBlock ?? null,
-    fromHeight: component.fromHeight ?? null, admission: component.admission ?? null});
+    fromHeight: component.fromHeight ?? null, admission: component.admission ?? null,
+    payloadSchemas: component.payloadSchemas ?? null});
   return next;
 }
 
@@ -126,7 +127,7 @@ export function renameComponent(draft, index, newId) {
 
 export function addBinding(draft, binding) {
   const next = clone(draft);
-  next.bindings.push(structuredClone(binding));
+  next.bindings.push({crossesTopicPolicy: null, ...structuredClone(binding)});
   return next;
 }
 
