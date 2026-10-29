@@ -159,10 +159,16 @@ session-key credentials. See [Topic policies](/concepts/topic-policies/) and
 
 In a node directory (`--node-dir`, default `./yano-node`) the commands use
 this node, its API key and, when the application has one chain, that chain.
-Elsewhere pass `--peer <url>` and `--chain <id>`; `--api-key-env <name>` reads
+Elsewhere pass `--peer <url>`, and `--chain <id>` to `init`, `resolve`,
+`delegate` and `doctor` (`plan`, `sign` and `submit` read the chain from the
+file); `--api-key-env <name>` reads
 an API credential from the named environment variable, and
 `--snapshot snapshot.json` plans offline. `--json` prints the
-machine-readable result instead. Signing keys are 32-byte Ed25519 seed files, never
+machine-readable result instead (with `submit` it still waits unless you add
+`--no-wait`). For an existing entry, `init` starts the update from the active
+policy, and `plan` and `sign` list every field that changes. With a node,
+`delegate` checks the scope's policy first; offline (`--generation`) it
+cannot. Signing keys are 32-byte Ed25519 seed files, never
 command arguments. Plans are immutable: regenerate and sign again an expired
 or stale plan. No tool votes on a member's behalf.
 
