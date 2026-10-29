@@ -51,10 +51,10 @@ in its `gradle.properties`.
 | Value | Current |
 |---|---|
 | Yano X version | `0.1.0-pre4` |
-| Yano host version | `0.1.0-pre19-4e8accd-SNAPSHOT` |
+| Yano host version | `0.1.0-pre19` |
 | Maven group | `org.yanoproject.x` |
 | Java | `25` |
-| Base Yano JVM ZIP | [`yano-0.1.0-pre19-4e8accd.zip`](https://repo.bloxbean.org/dist/snapshots/yano/0.1.0-pre19-4e8accd/yano-0.1.0-pre19-4e8accd.zip) |
+| Base Yano JVM ZIP | [`yano-0.1.0-pre19.zip`](https://github.com/bloxbean/yano/releases/download/v0.1.0-pre19/yano-0.1.0-pre19.zip) |
 
 <!-- catalog:versions-end -->
 
