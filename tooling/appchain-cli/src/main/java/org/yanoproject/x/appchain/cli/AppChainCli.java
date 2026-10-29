@@ -139,7 +139,8 @@ public final class AppChainCli {
                 return CliException.FAILURE;
             }
         }
-        if (Arrays.asList(rest).contains("--help")) {
+        // topics approve prints its own option help.
+        if (Arrays.asList(rest).contains("--help") && !"topics".equals(verb)) {
             terminal.say("Usage: " + usage(verb));
             return 0;
         }

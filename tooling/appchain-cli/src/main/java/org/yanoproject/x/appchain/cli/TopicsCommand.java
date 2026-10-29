@@ -2,6 +2,8 @@ package org.yanoproject.x.appchain.cli;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.yanoproject.x.appchain.formats.SealedApp;
 import org.yanoproject.x.devtools.TopicsCli;
 
@@ -61,18 +63,24 @@ final class TopicsCommand {
         TopicsCli.Defaults defaults = defaults(new NodeDir(nodeDir), app, !json);
         PrintWriter out = new PrintWriter(terminal.out(), true, StandardCharsets.UTF_8);
         PrintWriter error = new PrintWriter(err, true, StandardCharsets.UTF_8);
-        if (!json && !rest.isEmpty() && "submit".equals(rest.getFirst()) && !rest.contains("--help")) {
-            return submit(rest, defaults, error, new NodeDir(nodeDir).path("topic-submissions"));
+        if (!rest.isEmpty() && "submit".equals(rest.getFirst()) && !rest.contains("--help")) {
+            Path records = new NodeDir(nodeDir).path("topic-submissions");
+            if (!json) return submit(rest, defaults, error, records, null);
+            // With --json the result is the only thing on standard output; progress goes to standard error.
+            TopicsCommand quiet = new TopicsCommand(new Terminal(null, err, false, false), err);
+            return quiet.submit(rest, defaults, error, records, out);
         }
         return new TopicsCli().run(rest.toArray(String[]::new), out, error, defaults);
     }
 
     /**
      * {@code topics submit}: submits through the topics tool, then, on this node, waits until each owner-signed
-     * change is accepted and in effect, like {@code approve} does for votes.
+     * change is accepted and in effect, like {@code approve} does for votes. Every submission through this node
+     * is recorded, so a later run can follow it. With {@code json}, the topics tool's result is printed there once
+     * the command is done, each waited-for change marked {@code inEffect}.
      */
-    private int submit(List<String> arguments, TopicsCli.Defaults defaults, PrintWriter error, Path records)
-            throws IOException {
+    private int submit(List<String> arguments, TopicsCli.Defaults defaults, PrintWriter error, Path records,
+                       PrintWriter json) throws IOException {
         boolean noWait = arguments.remove("--no-wait");
         boolean heartbeat = arguments.remove("--heartbeat");
         String timeout = take(arguments, "timeout", "300");
@@ -90,7 +98,16 @@ final class TopicsCommand {
                     && alreadySubmitted(planFile, defaults)) {
                 Map<String, String> earlier = submissions(planFile, records);
                 if (earlier != null) {
-                    return awaitResubmitted(planFile, earlier, defaults, heartbeat, Integer.parseInt(timeout));
+                    int waited = awaitResubmitted(planFile, earlier, defaults, heartbeat, Integer.parseInt(timeout));
+                    if (json != null) {
+                        ObjectNode result = JSON.createObjectNode().put("chainId", JSON.readTree(planFile.toFile())
+                                .path("snapshot").path("chainId").asText()).put("alreadySubmitted", true);
+                        ArrayNode commands = result.putArray("commands");
+                        earlier.forEach((target, id) -> commands.addObject().put("target", target)
+                                .put("inEffect", true).putObject("submission").put("messageId", id));
+                        printJson(json, result);
+                    }
+                    return waited;
                 }
                 error.print(refused);
                 error.println("It was submitted before, but not from this node directory, so how it ended is not "
@@ -102,8 +119,9 @@ final class TopicsCommand {
             error.flush();
             return exit;
         }
-        JsonNode result = JSON.readTree(buffer.toString());
+        ObjectNode result = (ObjectNode) JSON.readTree(buffer.toString());
         Map<String, Long> revisions = TopicsCli.plannedRevisions(planFile);
+        Map<String, String> revoked = TopicsCli.revocations(planFile);
         Map<String, String> submitted = new LinkedHashMap<>();
         boolean votes = false;
         for (JsonNode command : result.path("commands")) {
@@ -113,7 +131,8 @@ final class TopicsCommand {
                 votes = true;
             } else {
                 String id = command.path("submission").path("messageId").asText();
-                terminal.ok("Submitted " + target + " (message " + id + ")");
+                terminal.ok("Submitted " + (revoked.containsKey(target) ? "the revocation of "
+                        + revoked.get(target) : target) + " (message " + id + ")");
                 submitted.put(target, id);
                 if (defaults.peer() != null && !arguments.contains("--peer")) {
                     recordSubmission(planFile, records, target, id);
@@ -130,7 +149,8 @@ final class TopicsCommand {
                         + "resolve " + first);
             }
             if (votes) next.add(voteLine);
-            terminal.next(next.toArray(String[]::new));
+            if (!next.isEmpty()) terminal.next(next.toArray(String[]::new));
+            if (json != null) printJson(json, result);
             return 0;
         }
         NodeClient client = new NodeClient(defaults.peer(), defaults.apiKey());
@@ -144,13 +164,38 @@ final class TopicsCommand {
             heartbeat = Await.until(terminal, client, path, chain,
                     ignored -> accepted(client, path, target, change.getValue(), revision),
                     TopicsCli.safeTarget(target), deadline,
-                    heartbeat, offer, "a signed change activates after the chain's activation lag",
+                    heartbeat, offer, waitReason(revoked.containsKey(target)),
                     () -> "Send traffic to the chain, or run submit again with --heartbeat");
-            terminal.ok(TopicsCli.safeTarget(target) + (revision == null ? " is revoked" : " is in effect"));
+            terminal.ok(done(target, revision, revoked));
+            for (JsonNode command : result.path("commands")) {
+                if (target.equals(command.path("target").asText())) {
+                    ((ObjectNode) command).put("status", "IN_EFFECT").put("inEffect", true);
+                }
+            }
         }
         terminal.next(votes ? new String[] {voteLine, "then  yano.sh appchain topics resolve " + first}
                 : new String[] {"yano.sh appchain topics resolve " + first});
+        if (json != null) printJson(json, result);
         return 0;
+    }
+
+    /** Why submit waits: a revocation needs one block, any other signed change the activation lag. */
+    static String waitReason(boolean revocation) {
+        return revocation ? "a revocation takes effect in the next block"
+                : "a signed change activates after the chain's activation lag";
+    }
+
+    /** What a change that took effect did: the credential a revocation revoked, or the target now in effect. */
+    private static String done(String target, Long revision, Map<String, String> revoked) {
+        if (revision != null) return TopicsCli.safeTarget(target) + " is in effect";
+        String credential = revoked.get(target);
+        return credential == null ? "The revocation on " + TopicsCli.safeTarget(target) + " is in effect"
+                : "Revoked " + credential;
+    }
+
+    private static void printJson(PrintWriter out, JsonNode result) throws IOException {
+        out.print(JSON.writerWithDefaultPrettyPrinter().writeValueAsString(result) + "\n");
+        out.flush();
     }
 
     /**
@@ -228,6 +273,7 @@ final class TopicsCommand {
         long deadline = System.currentTimeMillis() + 1000L * timeout;
         boolean offer = Heartbeat.allowed(client, path);
         Map<String, Long> revisions = TopicsCli.plannedRevisions(planFile);
+        Map<String, String> revoked = TopicsCli.revocations(planFile);
         for (Map.Entry<String, String> change : messages.entrySet()) {
             String target = change.getKey();
             Long revision = revisions.get(target);
@@ -235,9 +281,9 @@ final class TopicsCommand {
             heartbeat = Await.until(terminal, client, path, chain,
                     ignored -> accepted(client, path, target, change.getValue(), revision),
                     TopicsCli.safeTarget(target), deadline, heartbeat, offer,
-                    "a signed change activates after the chain's activation lag",
+                    waitReason(revoked.containsKey(target)),
                     () -> "Send traffic to the chain, or run submit again with --heartbeat");
-            terminal.ok(TopicsCli.safeTarget(target) + (revision == null ? " is revoked" : " is in effect"));
+            terminal.ok(done(target, revision, revoked));
         }
         return 0;
     }
@@ -259,14 +305,22 @@ final class TopicsCommand {
             terminal.say("Usage: " + APPROVE_USAGE);
             terminal.say("""
                       Casts this operator's member vote on each governance command of a plan made by
-                      topics plan, through this node, after showing exactly what it votes for (--yes skips
-                      the question once you have checked it; --plan-sha256 refuses a plan file that changed).
-                      It then waits until the change is in effect: enough operators must vote and the chain
-                      must make its activation-lag blocks; --heartbeat sends small messages so an idle chain
-                      makes them, and --no-wait returns once the vote is included.
-                      This node records every vote it casts and never casts the same vote twice: run it again
-                      at any time to see where the vote stands. --again votes again after an earlier vote
-                      expired or was refused.""");
+                      topics plan, through this node, after showing exactly what it votes for. It then waits
+                      until the change is in effect: enough operators must vote and the chain must make its
+                      activation-lag blocks. This node records every vote it casts and never casts the same
+                      vote twice: run it again at any time to see where the vote stands.
+
+                        <plan.json>          the unsigned plan from topics plan (every operator gets the same file)
+                        <app>, --app <name>  the application, when this node runs several (default: the one
+                                             with the plan's chain)
+                        --node-dir <dir>     this operator's node directory (default ./yano-node)
+                        --yes                vote without asking, once you have checked the change; needed
+                                             without a terminal
+                        --plan-sha256 <hex>  refuse the plan if its file is not exactly these bytes
+                        --heartbeat          send small messages so an idle chain makes the blocks it needs
+                        --timeout <seconds>  how long to wait for the change (default 900)
+                        --no-wait            return once the vote is cast
+                        --again              vote again after an earlier vote expired or was refused""");
             return 0;
         }
         Args args = new Args(arguments, Set.of("node-dir", "timeout", "app", "plan-sha256"),
