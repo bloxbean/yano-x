@@ -2,8 +2,8 @@ package org.yanoproject.x.eutxo.zk.client;
 
 import org.yanoproject.x.eutxo.contracts.EutxoL2Authorization;
 import org.yanoproject.x.eutxo.contracts.EutxoL2Transaction;
-import com.bloxbean.cardano.zeroj.circuit.lib.jubjub.EdDSAJubjub;
-import com.bloxbean.cardano.zeroj.circuit.lib.jubjub.JubjubCurve;
+import org.zeroj.circuit.lib.jubjub.EdDSAJubjub;
+import org.zeroj.circuit.lib.jubjub.JubjubCurve;
 
 import javax.crypto.Mac;
 import javax.crypto.Cipher;

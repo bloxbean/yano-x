@@ -2,7 +2,7 @@ package org.yanoproject.x.eutxo.zk.zeroj;
 
 import org.yanoproject.x.eutxo.zk.contracts.EutxoKeyPaymentBatch;
 import org.yanoproject.x.eutxo.zk.contracts.EutxoZkPublicInputs;
-import com.bloxbean.cardano.zeroj.onchain.julc.groth16.codec.SnarkjsToCardano;
+import org.zeroj.onchain.julc.groth16.codec.SnarkjsToCardano;
 
 import java.math.BigInteger;
 import java.nio.file.Path;

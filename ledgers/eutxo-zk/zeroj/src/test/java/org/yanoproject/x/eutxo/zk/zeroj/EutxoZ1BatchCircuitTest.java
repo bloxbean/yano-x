@@ -2,8 +2,8 @@ package org.yanoproject.x.eutxo.zk.zeroj;
 
 import org.yanoproject.x.eutxo.zk.contracts.EutxoKeyPaymentBatch;
 import org.yanoproject.x.eutxo.zk.contracts.EutxoZkPublicInputs;
-import com.bloxbean.cardano.zeroj.circuit.lib.poseidon.PoseidonHash;
-import com.bloxbean.cardano.zeroj.circuit.lib.poseidon.PoseidonParamsBLS12_381T3;
+import org.zeroj.circuit.lib.poseidon.PoseidonHash;
+import org.zeroj.circuit.lib.poseidon.PoseidonParamsBLS12_381T3;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigInteger;

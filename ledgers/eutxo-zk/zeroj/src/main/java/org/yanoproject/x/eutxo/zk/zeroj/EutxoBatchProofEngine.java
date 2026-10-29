@@ -6,11 +6,11 @@ import org.yanoproject.x.eutxo.zk.contracts.EutxoZkProofArtifact;
 import org.yanoproject.x.eutxo.zk.contracts.EutxoZkProfile;
 import org.yanoproject.x.eutxo.zk.contracts.EutxoZkStatement;
 import org.yanoproject.x.eutxo.zk.contracts.EutxoZkVerificationKey;
-import com.bloxbean.cardano.zeroj.bls12381.Bls12381Codecs;
-import com.bloxbean.cardano.zeroj.bls12381.ec.G1Point;
-import com.bloxbean.cardano.zeroj.bls12381.ec.G2Point;
-import com.bloxbean.cardano.zeroj.bls12381.pairing.BLS12381Pairing;
-import com.bloxbean.cardano.zeroj.onchain.julc.groth16.codec.SnarkjsToCardano;
+import org.zeroj.bls12381.Bls12381Codecs;
+import org.zeroj.bls12381.ec.G1Point;
+import org.zeroj.bls12381.ec.G2Point;
+import org.zeroj.bls12381.pairing.BLS12381Pairing;
+import org.zeroj.onchain.julc.groth16.codec.SnarkjsToCardano;
 
 import java.math.BigInteger;
 import java.nio.file.Path;

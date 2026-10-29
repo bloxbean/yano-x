@@ -1,6 +1,6 @@
 package org.yanoproject.x.eutxo.zk.onchain;
 
-import com.bloxbean.cardano.julc.core.PlutusData;
+import org.julclang.core.PlutusData;
 import org.yanoproject.x.eutxo.zk.contracts.EutxoZkBatchData;
 import org.yanoproject.x.eutxo.zk.contracts.EutxoZkBatchManifest;
 import org.yanoproject.x.eutxo.zk.contracts.EutxoZkBatchProof;
@@ -9,7 +9,7 @@ import org.yanoproject.x.eutxo.zk.contracts.EutxoZkPublicInputs;
 import org.yanoproject.x.eutxo.zk.contracts.EutxoZkProofArtifact;
 import org.yanoproject.x.eutxo.zk.contracts.EutxoZkSettlementPublicInputs;
 import org.yanoproject.x.eutxo.zk.contracts.EutxoZkVerificationKey;
-import com.bloxbean.cardano.zeroj.onchain.julc.groth16.codec.SnarkjsToCardano;
+import org.zeroj.onchain.julc.groth16.codec.SnarkjsToCardano;
 
 import java.util.List;
 import java.util.Objects;

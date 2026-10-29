@@ -1,7 +1,7 @@
 package org.yanoproject.x.zk;
 
 import com.bloxbean.cardano.yaci.core.util.HexUtil;
-import com.bloxbean.cardano.zeroj.bbs.BbsPublicKey;
+import org.zeroj.bbs.BbsPublicKey;
 import org.yanoproject.api.appchain.AppStateMachine;
 import org.yanoproject.api.appchain.AppStateMachineContext;
 import org.yanoproject.api.appchain.AppStateMachineProvider;

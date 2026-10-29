@@ -6,7 +6,7 @@ import co.nstant.in.cbor.model.UnicodeString;
 import com.bloxbean.cardano.client.crypto.Blake2bUtil;
 import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
 import com.bloxbean.cardano.yaci.core.util.CborSerializationUtil;
-import com.bloxbean.cardano.zeroj.bbs.BbsPublicKey;
+import org.zeroj.bbs.BbsPublicKey;
 import org.yanoproject.api.appchain.AppBlock;
 import org.yanoproject.api.appchain.AppBlockExecutionContext;
 import org.yanoproject.api.appchain.AppStateMachine;

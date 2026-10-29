@@ -7,8 +7,8 @@ import com.bloxbean.cardano.client.plutus.spec.BigIntPlutusData;
 import com.bloxbean.cardano.client.plutus.spec.BytesPlutusData;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.bloxbean.cardano.client.plutus.spec.PlutusV3Script;
-import com.bloxbean.cardano.julc.clientlib.JulcScriptAdapter;
-import com.bloxbean.cardano.julc.clientlib.PlutusDataAdapter;
+import org.julclang.clientlib.JulcScriptAdapter;
+import org.julclang.clientlib.PlutusDataAdapter;
 
 import java.io.InputStream;
 import java.math.BigInteger;
@@ -134,7 +134,7 @@ public final class SettlementScriptArtifacts {
 
     private static PlutusV3Script apply(String templateHex, PlutusData... params) {
         var coreParams =
-                new com.bloxbean.cardano.julc.core.PlutusData[params.length];
+                new org.julclang.core.PlutusData[params.length];
         for (int index = 0; index < params.length; index++) {
             coreParams[index] = PlutusDataAdapter.fromClientLib(params[index]);
         }

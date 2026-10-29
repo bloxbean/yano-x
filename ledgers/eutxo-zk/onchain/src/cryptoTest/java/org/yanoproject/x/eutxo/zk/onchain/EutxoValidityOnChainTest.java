@@ -1,17 +1,17 @@
 package org.yanoproject.x.eutxo.zk.onchain;
 
-import com.bloxbean.cardano.julc.core.PlutusData;
-import com.bloxbean.cardano.julc.clientlib.JulcScriptAdapter;
-import com.bloxbean.cardano.julc.clientlib.JulcScriptLoader;
-import com.bloxbean.cardano.julc.testkit.ContractTest;
-import com.bloxbean.cardano.julc.testkit.TestDataBuilder;
+import org.julclang.core.PlutusData;
+import org.julclang.clientlib.JulcScriptAdapter;
+import org.julclang.clientlib.JulcScriptLoader;
+import org.julclang.testkit.ContractTest;
+import org.julclang.testkit.TestDataBuilder;
 import org.yanoproject.x.eutxo.zk.contracts.EutxoZkPublicInputs;
 import org.yanoproject.x.eutxo.zk.contracts.EutxoKeyPaymentBatch;
 import org.yanoproject.x.eutxo.zk.zeroj.EutxoBatchGroth16DevelopmentSetup;
 import org.yanoproject.x.eutxo.zk.zeroj.EutxoGroth16DevelopmentSetup;
 import org.yanoproject.x.eutxo.zk.zeroj.EutxoKeyPaymentCircuit;
 import org.yanoproject.x.eutxo.zk.zeroj.EutxoKeyPaymentBatchCircuit;
-import com.bloxbean.cardano.zeroj.onchain.julc.groth16.validator.Groth16BLS12381Verifier;
+import org.zeroj.onchain.julc.groth16.validator.Groth16BLS12381Verifier;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigInteger;

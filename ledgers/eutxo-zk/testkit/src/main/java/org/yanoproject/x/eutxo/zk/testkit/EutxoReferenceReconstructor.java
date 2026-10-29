@@ -4,8 +4,8 @@ import org.yanoproject.x.eutxo.zk.contracts.EutxoKeyPaymentBatch;
 import org.yanoproject.x.eutxo.zk.contracts.EutxoZkBatchPublication;
 import org.yanoproject.x.eutxo.zk.contracts.EutxoZkProfile;
 import org.yanoproject.x.eutxo.zk.contracts.EutxoZkSettlementPublicInputs;
-import com.bloxbean.cardano.zeroj.circuit.lib.poseidon.PoseidonHash;
-import com.bloxbean.cardano.zeroj.circuit.lib.poseidon.PoseidonParamsBLS12_381T3;
+import org.zeroj.circuit.lib.poseidon.PoseidonHash;
+import org.zeroj.circuit.lib.poseidon.PoseidonParamsBLS12_381T3;
 
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;

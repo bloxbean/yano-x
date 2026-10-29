@@ -1,21 +1,21 @@
 package org.yanoproject.x.eutxo.bridge.onchain;
 
-import com.bloxbean.cardano.julc.core.PlutusData;
-import com.bloxbean.cardano.julc.core.types.JulcList;
-import com.bloxbean.cardano.julc.ledger.OutputDatum;
-import com.bloxbean.cardano.julc.ledger.ScriptContext;
-import com.bloxbean.cardano.julc.ledger.TxInInfo;
-import com.bloxbean.cardano.julc.ledger.TxInfo;
-import com.bloxbean.cardano.julc.ledger.TxOut;
-import com.bloxbean.cardano.julc.stdlib.Builtins;
-import com.bloxbean.cardano.julc.stdlib.annotation.Entrypoint;
-import com.bloxbean.cardano.julc.stdlib.annotation.Param;
-import com.bloxbean.cardano.julc.stdlib.annotation.SpendingValidator;
-import com.bloxbean.cardano.julc.stdlib.lib.ByteStringLib;
-import com.bloxbean.cardano.julc.stdlib.lib.ContextsLib;
-import com.bloxbean.cardano.julc.stdlib.lib.CryptoLib;
-import com.bloxbean.cardano.julc.stdlib.lib.IntervalLib;
-import com.bloxbean.cardano.julc.stdlib.lib.ValuesLib;
+import org.julclang.core.PlutusData;
+import org.julclang.core.types.JulcList;
+import org.julclang.ledger.OutputDatum;
+import org.julclang.ledger.ScriptContext;
+import org.julclang.ledger.TxInInfo;
+import org.julclang.ledger.TxInfo;
+import org.julclang.ledger.TxOut;
+import org.julclang.stdlib.Builtins;
+import org.julclang.stdlib.annotation.Entrypoint;
+import org.julclang.stdlib.annotation.Param;
+import org.julclang.stdlib.annotation.SpendingValidator;
+import org.julclang.stdlib.lib.ByteStringLib;
+import org.julclang.stdlib.lib.ContextsLib;
+import org.julclang.stdlib.lib.CryptoLib;
+import org.julclang.stdlib.lib.IntervalLib;
+import org.julclang.stdlib.lib.ValuesLib;
 import org.yanoproject.x.eutxo.bridge.onchain.mpf.MerklePatriciaForestry;
 import org.yanoproject.x.eutxo.bridge.onchain.mpf.ProofStep;
 

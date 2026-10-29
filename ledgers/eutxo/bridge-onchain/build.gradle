@@ -5,16 +5,16 @@ plugins {
 description = 'Julc-authored Cardano validators for the optional EUTxO bridge'
 
 dependencies {
-    compileOnly "com.bloxbean.cardano:julc-stdlib:${libs.versions.julc.get()}"
-    compileOnly "com.bloxbean.cardano:julc-ledger-api:${libs.versions.julc.get()}"
+    compileOnly "org.julclang:julc-stdlib:${libs.versions.julc.get()}"
+    compileOnly "org.julclang:julc-ledger-api:${libs.versions.julc.get()}"
     compileOnly project(':sdk:proof-onchain')
 
-    testImplementation "com.bloxbean.cardano:julc-stdlib:${libs.versions.julc.get()}"
-    testImplementation "com.bloxbean.cardano:julc-ledger-api:${libs.versions.julc.get()}"
-    testImplementation "com.bloxbean.cardano:julc-testkit:${libs.versions.julc.get()}"
-    testImplementation "com.bloxbean.cardano:julc-compiler:${libs.versions.julc.get()}"
-    testImplementation "com.bloxbean.cardano:julc-vm-java:${libs.versions.julc.get()}"
-    testImplementation "com.bloxbean.cardano:julc-cardano-client-lib:${libs.versions.julc.get()}"
+    testImplementation "org.julclang:julc-stdlib:${libs.versions.julc.get()}"
+    testImplementation "org.julclang:julc-ledger-api:${libs.versions.julc.get()}"
+    testImplementation "org.julclang:julc-testkit:${libs.versions.julc.get()}"
+    testImplementation "org.julclang:julc-compiler:${libs.versions.julc.get()}"
+    testImplementation "org.julclang:julc-vm-java:${libs.versions.julc.get()}"
+    testImplementation "org.julclang:julc-cardano-client-lib:${libs.versions.julc.get()}"
     testImplementation project(':sdk:proof-onchain')
     testImplementation project(':ledgers:eutxo:contracts')
     testImplementation project(':ledgers:eutxo:client')

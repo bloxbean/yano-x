@@ -225,9 +225,9 @@ dependencies still resolve from the configured published repositories. Do not
 broaden that filter to make an on-chain artifact mismatch disappear or regenerate
 settlement templates to match an unreviewed local compiler.
 
-For the Yano `0.1.0-pre14` baseline, the compiler is Maven Central
-`com.bloxbean.cardano:julc-compiler:0.1.0-pre16`, with JAR SHA-256
-`04c9c2c75dfa38e14206b27f1b55def0106aa859a74c96adfb4ca5f6db7c1336`.
+For the Yano `0.1.0-pre19` baseline, the compiler is Maven Central
+`org.julclang:julc-compiler:0.1.0-pre20`, with JAR SHA-256
+`fd63753b07e7a1eb7d8ea1ed7ee7fd4f4a43d5c510da51da73383d8242e70826`.
 `SettlementArtifactBundleTest` compares the bundled templates with a fresh
 source compile. The showcase tests also verify that its parameterized scripts
 and configuration agree with the derived settlement plan.

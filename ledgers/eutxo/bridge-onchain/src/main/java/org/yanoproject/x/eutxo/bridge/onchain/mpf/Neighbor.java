@@ -1,6 +1,6 @@
 package org.yanoproject.x.eutxo.bridge.onchain.mpf;
 
-import com.bloxbean.cardano.julc.stdlib.annotation.OnchainLibrary;
+import org.julclang.stdlib.annotation.OnchainLibrary;
 
 /**
  * A neighbor node used in a Merkle Patricia Forestry proof.

@@ -5,14 +5,14 @@ plugins {
 description = 'Reusable Julc/Cardano on-chain verification for Yano proof contracts'
 
 dependencies {
-    compileOnly "com.bloxbean.cardano:julc-stdlib:${libs.versions.julc.get()}"
-    compileOnly "com.bloxbean.cardano:julc-ledger-api:${libs.versions.julc.get()}"
+    compileOnly "org.julclang:julc-stdlib:${libs.versions.julc.get()}"
+    compileOnly "org.julclang:julc-ledger-api:${libs.versions.julc.get()}"
 
-    testImplementation "com.bloxbean.cardano:julc-stdlib:${libs.versions.julc.get()}"
-    testImplementation "com.bloxbean.cardano:julc-testkit:${libs.versions.julc.get()}"
-    testImplementation "com.bloxbean.cardano:julc-ledger-api:${libs.versions.julc.get()}"
-    testImplementation "com.bloxbean.cardano:julc-compiler:${libs.versions.julc.get()}"
-    testRuntimeOnly "com.bloxbean.cardano:julc-vm-java:${libs.versions.julc.get()}"
+    testImplementation "org.julclang:julc-stdlib:${libs.versions.julc.get()}"
+    testImplementation "org.julclang:julc-testkit:${libs.versions.julc.get()}"
+    testImplementation "org.julclang:julc-ledger-api:${libs.versions.julc.get()}"
+    testImplementation "org.julclang:julc-compiler:${libs.versions.julc.get()}"
+    testRuntimeOnly "org.julclang:julc-vm-java:${libs.versions.julc.get()}"
     testImplementation libs.cardano.client.crypto
     testImplementation libs.cardano.client.mpf
     testImplementation project(':sdk:client')

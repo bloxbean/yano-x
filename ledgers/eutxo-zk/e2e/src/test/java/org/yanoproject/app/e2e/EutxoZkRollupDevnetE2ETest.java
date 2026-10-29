@@ -22,12 +22,12 @@ import com.bloxbean.cardano.client.transaction.spec.TransactionOutput;
 import com.bloxbean.cardano.client.transaction.spec.Value;
 import com.bloxbean.cardano.client.transaction.spec.script.ScriptPubkey;
 import com.bloxbean.cardano.client.util.HexUtil;
-import com.bloxbean.cardano.julc.clientlib.JulcScriptAdapter;
-import com.bloxbean.cardano.julc.core.Program;
-import com.bloxbean.cardano.julc.core.cbor.PlutusDataCborEncoder;
-import com.bloxbean.cardano.julc.ledger.Credential;
-import com.bloxbean.cardano.julc.ledger.PubKeyHash;
-import com.bloxbean.cardano.julc.testkit.ContractTest;
+import org.julclang.clientlib.JulcScriptAdapter;
+import org.julclang.core.Program;
+import org.julclang.core.cbor.PlutusDataCborEncoder;
+import org.julclang.ledger.Credential;
+import org.julclang.ledger.PubKeyHash;
+import org.julclang.testkit.ContractTest;
 import org.yanoproject.x.eutxo.contracts.EutxoL2Authorization;
 import org.yanoproject.x.eutxo.contracts.EutxoL2Domain;
 import org.yanoproject.x.eutxo.contracts.EutxoL2Transaction;
@@ -58,8 +58,8 @@ import org.yanoproject.x.eutxo.zk.onchain.EutxoValidityOnChainAbi;
 import org.yanoproject.x.eutxo.zk.onchain.EutxoValidityRootValidator;
 import org.yanoproject.x.eutxo.zk.zeroj.EutxoJubjubBatchDevelopmentSetup;
 import org.yanoproject.x.eutxo.zk.zeroj.ZerojPoseidonValidityEngine;
-import com.bloxbean.cardano.zeroj.circuit.lib.jubjub.EdDSAJubjub;
-import com.bloxbean.cardano.zeroj.circuit.lib.jubjub.JubjubCurve;
+import org.zeroj.circuit.lib.jubjub.EdDSAJubjub;
+import org.zeroj.circuit.lib.jubjub.JubjubCurve;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -142,7 +142,7 @@ class EutxoZkRollupDevnetE2ETest extends BaseE2ETest {
                 fundsVaultScript, Networks.testnet()).toBech32();
         Program stagingProgram = compiler.compileBridge(
                 DepositStagingValidator.class).applyParams(
-                com.bloxbean.cardano.julc.core.PlutusData.bytes(
+                org.julclang.core.PlutusData.bytes(
                         fundsVaultScriptHash));
         PlutusV3Script stagingScript =
                 JulcScriptAdapter.fromProgram(stagingProgram);
@@ -238,52 +238,52 @@ class EutxoZkRollupDevnetE2ETest extends BaseE2ETest {
                     EutxoValidityOnChainAbi.verificationKeyParameters(
                             setup.verificationKey());
             Program rootProgram = unparameterizedRoot.applyParams(
-                    com.bloxbean.cardano.julc.core.PlutusData.bytes(
+                    org.julclang.core.PlutusData.bytes(
                             threadPolicyId),
-                    com.bloxbean.cardano.julc.core.PlutusData.bytes(
+                    org.julclang.core.PlutusData.bytes(
                             rootTokenName),
-                    com.bloxbean.cardano.julc.core.PlutusData.integer(
+                    org.julclang.core.PlutusData.integer(
                             settlement.settlementContext()),
-                    com.bloxbean.cardano.julc.core.PlutusData.integer(
+                    org.julclang.core.PlutusData.integer(
                             profile.maximumTransactions()),
-                    com.bloxbean.cardano.julc.core.PlutusData.integer(
+                    org.julclang.core.PlutusData.integer(
                             EutxoZkBatchManifest.CANONICAL_BYTES),
                     keyParameters.get(0),
                     keyParameters.get(1),
                     keyParameters.get(2),
                     keyParameters.get(3),
                     keyParameters.get(4),
-                    com.bloxbean.cardano.julc.core.PlutusData.bytes(
+                    org.julclang.core.PlutusData.bytes(
                             dataScriptHash),
-                    com.bloxbean.cardano.julc.core.PlutusData.bytes(
+                    org.julclang.core.PlutusData.bytes(
                             migrationAuthority),
-                    com.bloxbean.cardano.julc.core.PlutusData.bytes(
+                    org.julclang.core.PlutusData.bytes(
                             dataScriptHash));
             PlutusV3Script rootScript =
                     JulcScriptAdapter.fromProgram(rootProgram);
 
-            com.bloxbean.cardano.julc.core.PlutusData payoutAddress =
-                    new com.bloxbean.cardano.julc.ledger.Address(
+            org.julclang.core.PlutusData payoutAddress =
+                    new org.julclang.ledger.Address(
                             new Credential.PubKeyCredential(
                                     new PubKeyHash(paymentKeyHash(payout))),
                             Optional.empty()).toPlutusData();
             Program vaultProgram = unparameterizedVault.applyParams(
-                    com.bloxbean.cardano.julc.core.PlutusData.bytes(
+                    org.julclang.core.PlutusData.bytes(
                             threadPolicyId),
-                    com.bloxbean.cardano.julc.core.PlutusData.bytes(
+                    org.julclang.core.PlutusData.bytes(
                             vaultTokenName),
-                    com.bloxbean.cardano.julc.core.PlutusData.bytes(
+                    org.julclang.core.PlutusData.bytes(
                             threadPolicyId),
-                    com.bloxbean.cardano.julc.core.PlutusData.bytes(
+                    org.julclang.core.PlutusData.bytes(
                             rootTokenName),
-                    com.bloxbean.cardano.julc.core.PlutusData.bytes(
+                    org.julclang.core.PlutusData.bytes(
                             rootScript.getScriptHash()),
-                    com.bloxbean.cardano.julc.core.PlutusData.bytes(
+                    org.julclang.core.PlutusData.bytes(
                             fundsVaultScriptHash),
                     payoutAddress,
-                    com.bloxbean.cardano.julc.core.PlutusData.bytes(
+                    org.julclang.core.PlutusData.bytes(
                             migrationAuthority),
-                    com.bloxbean.cardano.julc.core.PlutusData.bytes(
+                    org.julclang.core.PlutusData.bytes(
                             dataScriptHash));
             PlutusV3Script vaultScript =
                     JulcScriptAdapter.fromProgram(vaultProgram);
@@ -377,7 +377,7 @@ class EutxoZkRollupDevnetE2ETest extends BaseE2ETest {
                     EutxoValidityOnChainAbi.advanceRedeemer(
                             proof, manifest));
             PlutusData manifestDatum = ccl(
-                    com.bloxbean.cardano.julc.core.PlutusData.bytes(
+                    org.julclang.core.PlutusData.bytes(
                             manifest.canonicalBytes()));
             String settleTx = submit(new ScriptTx()
                     .collectFrom(currentRoot, rootRedeemer)
@@ -747,65 +747,65 @@ class EutxoZkRollupDevnetE2ETest extends BaseE2ETest {
     }
 
     private static PlutusData ccl(
-            com.bloxbean.cardano.julc.core.PlutusData value
+            org.julclang.core.PlutusData value
     ) throws Exception {
         return PlutusData.deserialize(
                 PlutusDataCborEncoder.encode(value));
     }
 
-    private static com.bloxbean.cardano.julc.core.PlutusData rootDatum(
+    private static org.julclang.core.PlutusData rootDatum(
             long height,
             BigInteger root,
             BigInteger settlementContext,
             BigInteger batchCommitment,
             BigInteger withdrawal
     ) {
-        return com.bloxbean.cardano.julc.core.PlutusData.constr(
+        return org.julclang.core.PlutusData.constr(
                 0,
-                com.bloxbean.cardano.julc.core.PlutusData.integer(1),
-                com.bloxbean.cardano.julc.core.PlutusData.bytes(
+                org.julclang.core.PlutusData.integer(1),
+                org.julclang.core.PlutusData.bytes(
                         CHAIN_ID.getBytes(StandardCharsets.UTF_8)),
-                com.bloxbean.cardano.julc.core.PlutusData.integer(0),
-                com.bloxbean.cardano.julc.core.PlutusData.integer(height),
-                com.bloxbean.cardano.julc.core.PlutusData.integer(root),
-                com.bloxbean.cardano.julc.core.PlutusData.integer(
+                org.julclang.core.PlutusData.integer(0),
+                org.julclang.core.PlutusData.integer(height),
+                org.julclang.core.PlutusData.integer(root),
+                org.julclang.core.PlutusData.integer(
                         settlementContext),
-                com.bloxbean.cardano.julc.core.PlutusData.integer(
+                org.julclang.core.PlutusData.integer(
                         batchCommitment),
-                com.bloxbean.cardano.julc.core.PlutusData.integer(
+                org.julclang.core.PlutusData.integer(
                         withdrawal),
-                com.bloxbean.cardano.julc.core.PlutusData.integer(0));
+                org.julclang.core.PlutusData.integer(0));
     }
 
-    private static com.bloxbean.cardano.julc.core.PlutusData vaultDatum(
+    private static org.julclang.core.PlutusData vaultDatum(
             long nextSequence,
             long lastRootHeight
     ) {
-        return com.bloxbean.cardano.julc.core.PlutusData.constr(
+        return org.julclang.core.PlutusData.constr(
                 0,
-                com.bloxbean.cardano.julc.core.PlutusData.integer(1),
-                com.bloxbean.cardano.julc.core.PlutusData.bytes(
+                org.julclang.core.PlutusData.integer(1),
+                org.julclang.core.PlutusData.bytes(
                         CHAIN_ID.getBytes(StandardCharsets.UTF_8)),
-                com.bloxbean.cardano.julc.core.PlutusData.integer(0),
-                com.bloxbean.cardano.julc.core.PlutusData.integer(
+                org.julclang.core.PlutusData.integer(0),
+                org.julclang.core.PlutusData.integer(
                         nextSequence),
-                com.bloxbean.cardano.julc.core.PlutusData.integer(
+                org.julclang.core.PlutusData.integer(
                         lastRootHeight),
-                com.bloxbean.cardano.julc.core.PlutusData.integer(0));
+                org.julclang.core.PlutusData.integer(0));
     }
 
-    private static com.bloxbean.cardano.julc.core.PlutusData
+    private static org.julclang.core.PlutusData
     withdrawRedeemer(long rootHeight) {
-        return com.bloxbean.cardano.julc.core.PlutusData.constr(
+        return org.julclang.core.PlutusData.constr(
                 0,
-                com.bloxbean.cardano.julc.core.PlutusData.integer(0),
-                com.bloxbean.cardano.julc.core.PlutusData.bytes(
+                org.julclang.core.PlutusData.integer(0),
+                org.julclang.core.PlutusData.bytes(
                         CHAIN_ID.getBytes(StandardCharsets.UTF_8)),
-                com.bloxbean.cardano.julc.core.PlutusData.integer(0),
-                com.bloxbean.cardano.julc.core.PlutusData.integer(0),
-                com.bloxbean.cardano.julc.core.PlutusData.integer(
+                org.julclang.core.PlutusData.integer(0),
+                org.julclang.core.PlutusData.integer(0),
+                org.julclang.core.PlutusData.integer(
                         rootHeight),
-                com.bloxbean.cardano.julc.core.PlutusData.integer(
+                org.julclang.core.PlutusData.integer(
                         WITHDRAWAL_LOVELACE));
     }
 

@@ -2,15 +2,15 @@ package org.yanoproject.x.eutxo.zk.zeroj;
 
 import org.yanoproject.x.eutxo.contracts.EutxoL2Authorization;
 import org.yanoproject.x.eutxo.contracts.EutxoL2Transaction;
-import com.bloxbean.cardano.zeroj.api.CurveId;
-import com.bloxbean.cardano.zeroj.circuit.CircuitBuilder;
-import com.bloxbean.cardano.zeroj.circuit.lib.Poseidon;
-import com.bloxbean.cardano.zeroj.circuit.lib.jubjub.InCircuitEdDSAJubjub;
-import com.bloxbean.cardano.zeroj.circuit.lib.jubjub.InCircuitJubjub;
-import com.bloxbean.cardano.zeroj.circuit.lib.jubjub.JubjubCurve;
-import com.bloxbean.cardano.zeroj.circuit.lib.jubjub.JubjubPoint;
-import com.bloxbean.cardano.zeroj.circuit.lib.poseidon.PoseidonHash;
-import com.bloxbean.cardano.zeroj.circuit.lib.poseidon.PoseidonParamsBLS12_381T3;
+import org.zeroj.api.CurveId;
+import org.zeroj.circuit.CircuitBuilder;
+import org.zeroj.circuit.lib.Poseidon;
+import org.zeroj.circuit.lib.jubjub.InCircuitEdDSAJubjub;
+import org.zeroj.circuit.lib.jubjub.InCircuitJubjub;
+import org.zeroj.circuit.lib.jubjub.JubjubCurve;
+import org.zeroj.circuit.lib.jubjub.JubjubPoint;
+import org.zeroj.circuit.lib.poseidon.PoseidonHash;
+import org.zeroj.circuit.lib.poseidon.PoseidonParamsBLS12_381T3;
 
 import java.math.BigInteger;
 import java.util.Arrays;
@@ -127,7 +127,7 @@ public final class EutxoJubjubAuthorizationCircuit {
     }
 
     private static void assertNotIdentity(
-            com.bloxbean.cardano.zeroj.circuit.CircuitAPI api,
+            org.zeroj.circuit.CircuitAPI api,
             InCircuitJubjub.Point point
     ) {
         var identity = api.mul(

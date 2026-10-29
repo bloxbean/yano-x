@@ -6,7 +6,7 @@ import com.bloxbean.cardano.yaci.core.util.HexUtil;
 import org.yanoproject.api.appchain.AppChainConfig;
 import org.yanoproject.api.appchain.AppSubmissionRejectedException;
 import org.yanoproject.runtime.appchain.AppChainSubsystem;
-import com.bloxbean.cardano.zeroj.verifier.core.VerifierRegistry;
+import org.zeroj.verifier.core.VerifierRegistry;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;

@@ -1,14 +1,14 @@
 package org.yanoproject.x.zk;
 
-import com.bloxbean.cardano.zeroj.api.CircuitId;
-import com.bloxbean.cardano.zeroj.api.CurveId;
-import com.bloxbean.cardano.zeroj.api.ProofSystemId;
-import com.bloxbean.cardano.zeroj.api.PublicInputs;
-import com.bloxbean.cardano.zeroj.api.VerificationKeyRef;
-import com.bloxbean.cardano.zeroj.api.VerificationResult;
-import com.bloxbean.cardano.zeroj.api.ZkProofEnvelope;
-import com.bloxbean.cardano.zeroj.verifier.core.VerifierOrchestrator;
-import com.bloxbean.cardano.zeroj.verifier.core.VerifierRegistry;
+import org.zeroj.api.CircuitId;
+import org.zeroj.api.CurveId;
+import org.zeroj.api.ProofSystemId;
+import org.zeroj.api.PublicInputs;
+import org.zeroj.api.VerificationKeyRef;
+import org.zeroj.api.VerificationResult;
+import org.zeroj.api.ZkProofEnvelope;
+import org.zeroj.verifier.core.VerifierOrchestrator;
+import org.zeroj.verifier.core.VerifierRegistry;
 
 /**
  * Verifies E7.1 proof bodies via ZeroJ's {@link VerifierOrchestrator} against a

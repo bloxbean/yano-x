@@ -1,15 +1,15 @@
 package org.yanoproject.x.eutxo.bridge.onchain;
 
-import com.bloxbean.cardano.julc.core.types.AssetEntry;
-import com.bloxbean.cardano.julc.ledger.ScriptContext;
-import com.bloxbean.cardano.julc.ledger.TxInInfo;
-import com.bloxbean.cardano.julc.ledger.Value;
-import com.bloxbean.cardano.julc.stdlib.Builtins;
-import com.bloxbean.cardano.julc.stdlib.annotation.Entrypoint;
-import com.bloxbean.cardano.julc.stdlib.annotation.MintingValidator;
-import com.bloxbean.cardano.julc.stdlib.annotation.Param;
-import com.bloxbean.cardano.julc.stdlib.lib.ContextsLib;
-import com.bloxbean.cardano.julc.stdlib.lib.ValuesLib;
+import org.julclang.core.types.AssetEntry;
+import org.julclang.ledger.ScriptContext;
+import org.julclang.ledger.TxInInfo;
+import org.julclang.ledger.Value;
+import org.julclang.stdlib.Builtins;
+import org.julclang.stdlib.annotation.Entrypoint;
+import org.julclang.stdlib.annotation.MintingValidator;
+import org.julclang.stdlib.annotation.Param;
+import org.julclang.stdlib.lib.ContextsLib;
+import org.julclang.stdlib.lib.ValuesLib;
 
 import java.math.BigInteger;
 
@@ -46,7 +46,7 @@ public class ShardThreadPolicy {
     }
 
     static boolean consumesSeed(
-            com.bloxbean.cardano.julc.core.types.JulcList<TxInInfo> inputs) {
+            org.julclang.core.types.JulcList<TxInInfo> inputs) {
         BigInteger matches = BigInteger.ZERO;
         for (TxInInfo input : inputs) {
             // TxId decodes to raw bytes at UPLC level — unwrap via cast

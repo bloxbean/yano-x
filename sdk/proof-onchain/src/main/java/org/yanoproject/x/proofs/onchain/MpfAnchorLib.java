@@ -1,13 +1,13 @@
 package org.yanoproject.x.proofs.onchain;
 
-import com.bloxbean.cardano.julc.core.PlutusData;
-import com.bloxbean.cardano.julc.ledger.OutputDatum;
-import com.bloxbean.cardano.julc.ledger.ScriptContext;
-import com.bloxbean.cardano.julc.ledger.TxInInfo;
-import com.bloxbean.cardano.julc.ledger.TxOut;
-import com.bloxbean.cardano.julc.stdlib.Builtins;
-import com.bloxbean.cardano.julc.stdlib.annotation.OnchainLibrary;
-import com.bloxbean.cardano.julc.stdlib.lib.ValuesLib;
+import org.julclang.core.PlutusData;
+import org.julclang.ledger.OutputDatum;
+import org.julclang.ledger.ScriptContext;
+import org.julclang.ledger.TxInInfo;
+import org.julclang.ledger.TxOut;
+import org.julclang.stdlib.Builtins;
+import org.julclang.stdlib.annotation.OnchainLibrary;
+import org.julclang.stdlib.lib.ValuesLib;
 
 import java.math.BigInteger;
 import java.util.Optional;

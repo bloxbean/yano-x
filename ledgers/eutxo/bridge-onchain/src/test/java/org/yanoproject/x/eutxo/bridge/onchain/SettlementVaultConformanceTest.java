@@ -1,24 +1,24 @@
 package org.yanoproject.x.eutxo.bridge.onchain;
 
 import com.bloxbean.cardano.client.crypto.Blake2bUtil;
-import com.bloxbean.cardano.julc.core.PlutusData;
-import com.bloxbean.cardano.julc.core.Program;
-import com.bloxbean.cardano.julc.ledger.Address;
-import com.bloxbean.cardano.julc.ledger.Credential;
-import com.bloxbean.cardano.julc.ledger.Interval;
-import com.bloxbean.cardano.julc.ledger.IntervalBound;
-import com.bloxbean.cardano.julc.ledger.IntervalBoundType;
-import com.bloxbean.cardano.julc.ledger.OutputDatum;
-import com.bloxbean.cardano.julc.ledger.PolicyId;
-import com.bloxbean.cardano.julc.ledger.PubKeyHash;
-import com.bloxbean.cardano.julc.ledger.ScriptHash;
-import com.bloxbean.cardano.julc.ledger.TokenName;
-import com.bloxbean.cardano.julc.ledger.TxId;
-import com.bloxbean.cardano.julc.ledger.TxInInfo;
-import com.bloxbean.cardano.julc.ledger.TxOut;
-import com.bloxbean.cardano.julc.ledger.TxOutRef;
-import com.bloxbean.cardano.julc.ledger.Value;
-import com.bloxbean.cardano.julc.testkit.ContractTest;
+import org.julclang.core.PlutusData;
+import org.julclang.core.Program;
+import org.julclang.ledger.Address;
+import org.julclang.ledger.Credential;
+import org.julclang.ledger.Interval;
+import org.julclang.ledger.IntervalBound;
+import org.julclang.ledger.IntervalBoundType;
+import org.julclang.ledger.OutputDatum;
+import org.julclang.ledger.PolicyId;
+import org.julclang.ledger.PubKeyHash;
+import org.julclang.ledger.ScriptHash;
+import org.julclang.ledger.TokenName;
+import org.julclang.ledger.TxId;
+import org.julclang.ledger.TxInInfo;
+import org.julclang.ledger.TxOut;
+import org.julclang.ledger.TxOutRef;
+import org.julclang.ledger.Value;
+import org.julclang.testkit.ContractTest;
 import com.bloxbean.cardano.vds.core.api.NodeStore;
 import com.bloxbean.cardano.vds.mpf.MpfTrie;
 import org.junit.jupiter.api.BeforeAll;
@@ -155,17 +155,17 @@ class SettlementVaultConformanceTest extends ContractTest {
         return baseBuilder(batch, 1, false, now, true).buildPlutusData();
     }
 
-    private com.bloxbean.cardano.julc.testkit.ScriptContextTestBuilder baseBuilder(
+    private org.julclang.testkit.ScriptContextTestBuilder baseBuilder(
             Batch batch, int mode, boolean skim, long now) {
         return baseBuilder(batch, mode, skim, now, false, false);
     }
 
-    private com.bloxbean.cardano.julc.testkit.ScriptContextTestBuilder baseBuilder(
+    private org.julclang.testkit.ScriptContextTestBuilder baseBuilder(
             Batch batch, int mode, boolean skim, long now, boolean reorderPayouts) {
         return baseBuilder(batch, mode, skim, now, reorderPayouts, false);
     }
 
-    private com.bloxbean.cardano.julc.testkit.ScriptContextTestBuilder baseBuilder(
+    private org.julclang.testkit.ScriptContextTestBuilder baseBuilder(
             Batch batch, int mode, boolean skim, long now, boolean reorderPayouts,
             boolean tokenlessShard) {
         Address vaultAddress = scriptAddress(VAULT_SCRIPT);

@@ -1,7 +1,7 @@
 package org.yanoproject.x.eutxo.bridge.onchain;
 
-import com.bloxbean.cardano.julc.core.PlutusData;
-import com.bloxbean.cardano.julc.ledger.OutputDatum;
+import org.julclang.core.PlutusData;
+import org.julclang.ledger.OutputDatum;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigInteger;

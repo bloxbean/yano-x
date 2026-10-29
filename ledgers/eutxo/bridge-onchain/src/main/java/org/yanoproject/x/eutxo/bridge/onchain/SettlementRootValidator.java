@@ -1,18 +1,18 @@
 package org.yanoproject.x.eutxo.bridge.onchain;
 
-import com.bloxbean.cardano.julc.core.PlutusData;
-import com.bloxbean.cardano.julc.core.types.JulcList;
-import com.bloxbean.cardano.julc.ledger.OutputDatum;
-import com.bloxbean.cardano.julc.ledger.ScriptContext;
-import com.bloxbean.cardano.julc.ledger.TxInfo;
-import com.bloxbean.cardano.julc.ledger.TxOut;
-import com.bloxbean.cardano.julc.stdlib.Builtins;
-import com.bloxbean.cardano.julc.stdlib.annotation.Entrypoint;
-import com.bloxbean.cardano.julc.stdlib.annotation.Param;
-import com.bloxbean.cardano.julc.stdlib.annotation.SpendingValidator;
-import com.bloxbean.cardano.julc.stdlib.lib.ContextsLib;
-import com.bloxbean.cardano.julc.stdlib.lib.IntervalLib;
-import com.bloxbean.cardano.julc.stdlib.lib.ValuesLib;
+import org.julclang.core.PlutusData;
+import org.julclang.core.types.JulcList;
+import org.julclang.ledger.OutputDatum;
+import org.julclang.ledger.ScriptContext;
+import org.julclang.ledger.TxInfo;
+import org.julclang.ledger.TxOut;
+import org.julclang.stdlib.Builtins;
+import org.julclang.stdlib.annotation.Entrypoint;
+import org.julclang.stdlib.annotation.Param;
+import org.julclang.stdlib.annotation.SpendingValidator;
+import org.julclang.stdlib.lib.ContextsLib;
+import org.julclang.stdlib.lib.IntervalLib;
+import org.julclang.stdlib.lib.ValuesLib;
 
 import java.math.BigInteger;
 
@@ -220,7 +220,7 @@ public final class SettlementRootValidator {
                     && threshold.equals(current.threshold())
                     && fallbackDelay.equals(current.fallbackDelaySlots())
                     && Builtins.equalsByteString(
-                    membersDigest(members),
+                    membersDataDigest(members),
                     membersDigest(current.memberKeys()))
                     && height.compareTo(current.height()) > 0;
         }
@@ -266,7 +266,7 @@ public final class SettlementRootValidator {
         return Builtins.blake2b_256(joined);
     }
 
-    private static byte[] membersDigest(PlutusData members) {
+    private static byte[] membersDataDigest(PlutusData members) {
         byte[] joined = Builtins.emptyByteString();
         PlutusData rest = members;
         while (!Builtins.nullList(rest)) {

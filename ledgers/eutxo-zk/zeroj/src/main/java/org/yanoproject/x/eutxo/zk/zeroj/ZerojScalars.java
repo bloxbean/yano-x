@@ -1,6 +1,6 @@
 package org.yanoproject.x.eutxo.zk.zeroj;
 
-import com.bloxbean.cardano.zeroj.bls12381.ec.G1Point;
+import org.zeroj.bls12381.ec.G1Point;
 
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;

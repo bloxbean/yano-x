@@ -2,12 +2,12 @@ package org.yanoproject.x.zk;
 
 import com.bloxbean.cardano.client.crypto.Blake2bUtil;
 import com.bloxbean.cardano.yaci.core.util.HexUtil;
-import com.bloxbean.cardano.zeroj.api.CircuitId;
-import com.bloxbean.cardano.zeroj.api.CurveId;
-import com.bloxbean.cardano.zeroj.api.ProofSystemId;
-import com.bloxbean.cardano.zeroj.api.VerificationMaterial;
-import com.bloxbean.cardano.zeroj.api.VerificationKeyRef;
-import com.bloxbean.cardano.zeroj.backend.spi.VerificationKeyRegistry;
+import org.zeroj.api.CircuitId;
+import org.zeroj.api.CurveId;
+import org.zeroj.api.ProofSystemId;
+import org.zeroj.api.VerificationMaterial;
+import org.zeroj.api.VerificationKeyRef;
+import org.zeroj.backend.spi.VerificationKeyRegistry;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
