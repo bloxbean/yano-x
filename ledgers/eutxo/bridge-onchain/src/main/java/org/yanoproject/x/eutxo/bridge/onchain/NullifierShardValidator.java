@@ -102,6 +102,7 @@ public final class NullifierShardValidator {
                 runningRoot, claimId, insert.proof())) {
             return ByteStringLib.zeros(1);
         }
+        // including() does not check the proof shape; miss() above just checked this proof for this key.
         byte[] nextRoot = MerklePatriciaForestry.including(
                 claimId, claimId, insert.proof());
         return foldInserts(inserts.tail(), nextRoot, shardIndex);

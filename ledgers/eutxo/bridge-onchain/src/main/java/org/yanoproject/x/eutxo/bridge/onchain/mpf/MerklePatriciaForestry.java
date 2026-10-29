@@ -16,6 +16,8 @@ import java.util.List;
  * Provides membership proofs (has/miss) for a radix-16 Merkle Patricia Trie.
  * Translated from the Aiken merkle-patricia-forestry library.
  * <p>
+ * Copied from bloxbean/julc-examples PR #4 at 22b4e00f2d0406aeb25b209586124fa87add6e36, with its proof shape checks.
+ * <p>
  * {@link #has} and {@link #miss} check the shape of every proof step before comparing
  * roots (see {@link #isWellFormed}); a malformed proof makes them return false.
  * {@link #including} and {@link #excluding} do not check the shape.

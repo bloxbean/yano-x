@@ -791,9 +791,10 @@ class MerklePatriciaForestryTest {
     }
 
     /**
-     * Honest proofs. Roots come from MpfTrie. Leaf and Fork proofs are written out from the
-     * library's node functions, because cardano-client-lib before PR 716 emits Branch steps
-     * for two-child nodes and does not produce Aiken-canonical Fork neighbors.
+     * Honest proofs. Roots come from MpfTrie. Some Leaf and Fork proofs are written out from the
+     * library's node functions to pin exact shapes; cardano-client-lib 0.8.0-pre7 (which includes
+     * its PR 716) emits the same canonical Leaf and Fork steps, checked in
+     * {@code ccl_fork_proofs_through_compiled_uplc}.
      */
     @Nested
     class HonestProofTests {
@@ -897,6 +898,59 @@ class MerklePatriciaForestryTest {
             assertTrue(hasBoth(root, keys.get(7), proofOf(t, keys.get(7))));
             assertTrue(missBoth(root, "absent-3", proofOf(t, "absent-3")));
         }
+
+        /**
+         * Random keys rarely give Fork steps, and the settlement shards insert with whatever
+         * MpfTrie emits. Two keys under the shared prefix 4d72 form one branch with a prefix;
+         * keys leaving it after 0, 1 and 2 nibbles get a single terminal Fork whose neighbor
+         * keeps the rest of that prefix. The same proof is the key's exclusion proof in the
+         * pair and its inclusion and insert proof once added.
+         */
+        @Test
+        void ccl_fork_proofs_through_compiled_uplc() {
+            List<String> pair = keysWithNibbles("pair", 2, 4, 0xd, 7, 2);
+            assertNotEquals(MerklePatriciaForestry.nibble(h(pair.get(0)), 4),
+                    MerklePatriciaForestry.nibble(h(pair.get(1)), 4));
+            byte[] pairRoot = trie(pair.get(0), pair.get(1)).getRootHash();
+            String[] probes = {
+                    keysWithNibbles("skip0", 1, 1).get(0),
+                    keysWithNibbles("skip1", 1, 4, 0xe).get(0),
+                    keysWithNibbles("skip2", 1, 4, 0xd, 8).get(0)};
+            int[] neighborNibbles = {4, 0xd, 7};
+            byte[][] neighborPrefixes = {{0xd, 7, 2}, {7, 2}, {2}};
+            for (int skip = 0; skip < 3; skip++) {
+                String key = probes[skip];
+                var proof = proofOf(trie(pair.get(0), pair.get(1)), key);
+                assertEquals(1, proof.size());
+                var fork = assertInstanceOf(ProofStep.Fork.class, proof.head());
+                assertEquals(skip, fork.skip());
+                assertEquals(neighborNibbles[skip], fork.neighbor().nibble());
+                assertArrayEquals(neighborPrefixes[skip], fork.neighbor().prefix());
+
+                byte[] withKey = trie(pair.get(0), pair.get(1), key).getRootHash();
+                assertTrue(missBoth(pairRoot, key, proof));
+                assertTrue(hasBoth(withKey, key, proof));
+                assertArrayEquals(withKey, UPLC.call("including", PlutusData.bytes(key.getBytes()),
+                        PlutusData.bytes(VALUE), toData(proof)).asByteString());
+            }
+        }
+    }
+
+    /** The first count keys "tag-i" whose hashed path starts with the given nibbles. */
+    static List<String> keysWithNibbles(String tag, int count, int... nibbles) {
+        var keys = new ArrayList<String>();
+        for (int i = 0; keys.size() < count; i++) {
+            String k = tag + "-" + i;
+            byte[] path = h(k);
+            boolean match = true;
+            for (int n = 0; n < nibbles.length && match; n++) {
+                match = MerklePatriciaForestry.nibble(path, n) == nibbles[n];
+            }
+            if (match) {
+                keys.add(k);
+            }
+        }
+        return keys;
     }
 
     private static final class MapNodeStore implements NodeStore {
