@@ -246,7 +246,7 @@ export default {
         '"orders=" + LOG_RECIPE', 'The lead (alice) starts the devnet; the others follow it.',
         'int http = Ports.firstFree(8080, used);', 'An application submits a message through bob\'s node',
         'Map.of("topic", "orders", "body", "order A-100 created")',
-        'Set.of("dir", "from", "chain", "answer", "setting", "without")'] },
+        'Set.of("dir", "from", "chain", "answer", "setting", "without"'] },
     { repo: 'yano-x', path: 'tooling/appchain-formats/src/main/java/org/yanoproject/x/appchain/formats/Draft.java',
       anchors: ['threshold = threshold == null ? "majority" : threshold;', 'case "majority" -> members / 2 + 1;',
         'case "all" -> members;', 'sequencing = sequencing == null ? "fixed" : sequencing;'] },
