@@ -9,7 +9,7 @@ the experimental `declarative-composite` provider; start with the
 
 Keep the exact Yano Maven version and matching ordinary JVM ZIP, the Yano X
 distribution and manifested plugin bundles, the authored document, canonical IR,
-canonical profile bytes and digest, and generated project lock. Preserve the
+canonical profile bytes and digest, and the sealed `<app>.chain` file. Preserve the
 chain's genesis identity and retained stores independently of these artifacts.
 The composite, stdlib and role-workflow bundles declare `minLevel: 12`: they need
 plugin API level 12 with the ADR-031.3 and ADR-031.4 host contract (stateless
@@ -36,9 +36,10 @@ The profile is not determined by YAML text or IR bytes alone:
 
 Decoding existing IR does not substitute new limits. Conversely, recompiling
 the same YAML with a different tool or bundle set is not evidence of identical
-IR, descriptors or execution. Compare the actual canonical artifacts. Generated
-`appchain.lock` pins IR/profile digests and the plugin catalog fingerprint;
-validation recomputes them instead of accepting replaced bundles silently.
+IR, descriptors or execution. Compare the actual canonical artifacts. The sealed
+`<app>.chain` file carries the chain's composite settings and the digest of every
+plugin bundle it runs on; `appchain join` and `appchain start` refuse a node whose
+bundles differ instead of accepting replaced bundles silently.
 
 ## Current execution-version boundary
 

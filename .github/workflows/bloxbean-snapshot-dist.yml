@@ -73,13 +73,12 @@ jobs:
           set -euo pipefail
           VERSION=$(./gradlew -q properties -PskipSigning=true | awk '/^version:/ { print $2; exit }')
           VERSION="${VERSION%-SNAPSHOT}-${GITHUB_SHA:0:7}-SNAPSHOT"
-          ./gradlew distributionCheck :tooling:deployment:distZip :tooling:studio:studioZip \
+          ./gradlew distributionCheck :tooling:deployment:distZip \
             -Pversion="$VERSION" -PskipSigning=true --stacktrace
           mkdir dist
           cp distribution/jvm/build/distributions/yano-x-jvm-*.zip \
             distribution/jvm/build/distributions/yano-x-plugin-pack-*.zip \
-            tooling/deployment/build/distributions/yano-x-deploy-*.zip \
-            tooling/studio/build/distributions/yano-x-studio-*.zip dist/
+            tooling/deployment/build/distributions/yano-x-deploy-*.zip dist/
           for archive in dist/*.zip; do
             unzip -tq "$archive"
           done
@@ -154,7 +153,6 @@ jobs:
           expected="yano-x-jvm-$VERSION.zip"
           expected+=$'\n'"yano-x-plugin-pack-$VERSION.zip"
           expected+=$'\n'"yano-x-deploy-$VERSION-SNAPSHOT.zip"
-          expected+=$'\n'"yano-x-studio-$VERSION-SNAPSHOT.zip"
           found=$(find . -maxdepth 1 -type f -printf '%f\n' | sort)
           if [[ "$found" != "$(sort <<< "$expected")" ]]; then
             echo "::error::Unexpected distribution set: $(tr '\n' ' ' <<< "$found")" >&2

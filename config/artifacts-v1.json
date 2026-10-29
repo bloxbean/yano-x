@@ -28,9 +28,25 @@
       "publishToCentral": false
     },
     {
+      "modulePath": ":tooling:appchain-formats",
+      "directory": "tooling/appchain-formats",
+      "artifactId": "yano-x-appchain-formats",
+      "publicationType": "tool",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
       "modulePath": ":tooling:devtools",
       "directory": "tooling/devtools",
       "artifactId": "yano-x-devtools",
+      "publicationType": "tool",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":tooling:appchain-cli",
+      "directory": "tooling/appchain-cli",
+      "artifactId": "yano-x-appchain-cli",
       "publicationType": "tool",
       "pluginBundleId": null,
       "bundleArtifactId": null

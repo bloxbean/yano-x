@@ -26,9 +26,9 @@ const VALIDATOR_CHECKS = [
 
 const trigger = {
   title: 'Trigger',
-  text: 'The anchor leader is the node with `anchor.enabled`, node 0 on a local cluster. On its tick, if new '
-    + 'blocks exist and `every-blocks` have accumulated since the last anchor, or `max-interval-minutes` have '
-    + 'passed, it starts an advance. App ledger finality never waits for this.',
+  text: 'The anchor leader is the node with `anchor.enabled`: the one where `./yano.sh appchain anchor` ran. On '
+    + 'its tick, if new blocks exist and `every-blocks` have accumulated since the last anchor, or '
+    + '`max-interval-minutes` have passed, it starts an advance. App ledger finality never waits for this.',
   cards: {
     leader: { title: 'Tip 42 · last anchor 40', detail: '`every-blocks: 2`', tone: 'leader' },
   },

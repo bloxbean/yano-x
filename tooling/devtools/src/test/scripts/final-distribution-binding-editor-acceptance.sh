@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# ADR-031.2 M3 acceptance. A binding document exported by the Studio editor and its CLI-authored equivalent each run
-# on a fresh three-node devnet generated from the final JVM archive, one after the other on the same ports with the
-# same blueprint name and member keys. Both must pin the same IR, profile and plugin catalog. In each run all three
+# ADR-031.2 M3 acceptance, on the ADR-056 setup ceremony. One draft and one set of member cards are sealed twice from
+# the final JVM archive: once with the binding document exported by the Studio editor and once with its CLI-authored
+# equivalent. Both sealed files must carry the same binding IR and the same genesis id. Each then runs on a fresh
+# three-node devnet, one after the other on the same ports. In each run all three
 # nodes must finalize the command with identical receipt bytes, audit head and state root, and a restarted node must
 # serve the same root. Across the runs the finalized height, the audit component's head and the decoded receipt must
 # be equal apart from message ids: the node assigns every submission its own id, which the receipt (and therefore its
@@ -44,31 +45,26 @@ done
 # Nothing from the caller's environment may redirect node data, ports or configuration.
 while read -r name; do unset "$name"; done < <(env | sed -n 's/^\(\(YANO\|QUARKUS\)_[A-Za-z0-9_]*\)=.*/\1/p')
 
-# Public test identities (the same fixed seeds as the other packaged acceptance scripts); never real keys.
-seeds=()
-for byte in 01 02 03; do
-  seed=""
-  for _ in $(seq 1 32); do seed="$seed$byte"; done
-  seeds+=("$seed")
-done
-api_key='binding-editor-acceptance-operator'
 chain=workflow
 project=""
 restarted_pid=""
+nodes=(n0 n1 n2)
 
 work="$(mktemp -d "${TMPDIR:-/tmp}/yano-binding-editor.XXXXXX")"
 
-# Stops the current project; returns non-zero, keeping the work directory, if any node process survives.
+cli() { "$yano_home/yano.sh" appchain "$@"; }
+node_dir() { printf '%s/%s' "$work" "${nodes[$1]}"; }
+
+# Stops every node; returns non-zero, keeping the work directory, if any node process survives.
 stop_project() {
-  [ -n "$project" ] && [ -x "$project/scripts/stop" ] || return 0
-  "$project/scripts/stop" >/dev/null 2>&1 || true
+  [ -n "$project" ] || return 0
   survivors=""
-  for record in "$project"/run/node*.pid; do
-    [ -f "$record" ] || continue
-    pid="$(cat "$record")"
-    kill -0 "$pid" 2>/dev/null && survivors="$survivors $pid"
+  for index in 0 1 2; do
+    [ -f "$(node_dir "$index")/node.json" ] || continue
+    cli stop --node-dir "$(node_dir "$index")" >/dev/null 2>&1 || true
+    record="$(node_dir "$index")/run/node.pid"
+    [ -f "$record" ] && kill -0 "$(cat "$record")" 2>/dev/null && survivors="$survivors $(cat "$record")"
   done
-  if [ -n "$restarted_pid" ] && kill -0 "$restarted_pid" 2>/dev/null; then survivors="$survivors $restarted_pid"; fi
   if [ -n "$survivors" ]; then
     echo "FAIL: node processes still running:$survivors; keeping $work for inspection" >&2
     return 1
@@ -83,7 +79,7 @@ failure() {
   trap - EXIT
   echo "FAIL: line ${BASH_LINENO[0]}" >&2
   if [ -n "$project" ]; then
-    for log in "$project"/logs/*.log; do
+    for log in "$work"/n*/logs/node.log; do
       [ -f "$log" ] && { echo "--- $log" >&2; tail -60 "$log" >&2; }
     done
   fi
@@ -93,42 +89,49 @@ failure() {
 trap failure EXIT
 
 http() { curl -fsS --connect-timeout 2 --max-time 15 "$@"; }
-authed() { http -H "X-API-Key: $api_key" "$@"; }
+# Sends the API key of the node whose HTTP port the URL (the last argument) names.
+authed() {
+  local url="${*: -1}" port
+  port="$(sed -E 's#^https?://[^:/]+:([0-9]+).*#\1#' <<<"$url")"
+  http -H "X-API-Key: $(cat "$(node_dir "$((port - http_base))")/secrets/api.key")" "$@"
+}
 api() { printf 'http://127.0.0.1:%s/api/v1/app-chain/chains/%s' "$((http_base + $1))" "$chain"; }
 
 unzip -q "$archive" -d "$work/distribution"
 yano_home="$(find "$work/distribution" -mindepth 1 -maxdepth 1 -type d | head -1)"
 export YANO_HOME="$yano_home"
 
-# Both projects use the same name, members and ports so that they describe the same chain genesis.
-init() {
-  "$yano_home/yano.sh" appchain init --non-interactive --recipe declarative-composite \
-    --network devnet --members 3 --name binding-editor-acceptance --chain-id "$chain" \
-    --member-key 8a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c \
-    --member-key 8139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394 \
-    --member-key ed4928c628d1c2c6eae90338905995612959273a5c63f93636c14614ac8737d1 \
-    --bindings "$1" --plugins-directory "$yano_home/plugins" \
-    --http-port-base "$http_base" --server-port-base "$server_base" \
-    --output "$2" --format json >/dev/null
-  for node in 0 1 2; do
-    printf '%s\n' "YANO_APPCHAIN_SIGNING_KEY=${seeds[$node]}" "YANO_APPCHAIN_API_KEYS=$api_key" \
-      >"$2/secrets/node$node.env"
-  done
-  chmod 600 "$2"/secrets/node*.env
+# One draft and one set of cards; each document is sealed into its own directory.
+coordinator="$work/coordinator"
+mkdir -p "$coordinator"
+cli new binding-editor-acceptance --network devnet --operators n0,n1,n2 \
+  --chain "$chain=bindings:$editor_document" --output "$coordinator" --yes >/dev/null
+for index in 0 1 2; do
+  cli request "$coordinator/binding-editor-acceptance.draft.yaml" --name "${nodes[$index]}" --host 127.0.0.1 \
+    --node-port "$((server_base + index))" --http-port "$((http_base + index))" \
+    --node-dir "$(node_dir "$index")" --output "$coordinator" --yes >/dev/null
+done
+seal_with() {
+  cp "$1" "$coordinator/$chain.bindings.yaml"
+  mkdir -p "$2"
+  cli seal "$coordinator/binding-editor-acceptance.draft.yaml" --output "$2" >/dev/null
 }
-init "$editor_document" "$work/editor-project"
-init "$cli_document" "$work/cli-project"
+seal_with "$editor_document" "$work/editor-project"
+seal_with "$cli_document" "$work/cli-project"
 
-# Rendering pins the canonical IR digest, the composite profile digest and the plugin catalog; all must agree.
-pins() { jq -S '.catalogDigests | with_entries(select(.key | startswith("binding.")))' "$1/appchain.lock"; }
-[ "$(pins "$work/editor-project" | jq 'length')" = 3 ]
+# Sealing pins the binding IR in the chain settings and covers it in the genesis id; both must agree.
+pins() {
+  jq -S '.genesis.chains[0].settings | {ir: ."machines.composite.binding-ir", genesis: ."state.genesis-id"}' \
+    "$1/binding-editor-acceptance.chain"
+}
+[ "$(pins "$work/editor-project" | jq -r '.ir | length')" -gt 0 ]
 [ "$(pins "$work/editor-project")" = "$(pins "$work/cli-project")" ]
-echo "PASS: editor-exported and CLI-authored documents pin the same IR, composite profile and plugin catalog"
+echo "PASS: editor-exported and CLI-authored documents seal the same binding IR and genesis id"
 
 # Waits for one node's readiness; with a pid, that process must stay alive while it becomes ready.
 wait_ready() {
   for _ in $(seq 1 120); do
-    if [ -n "${2:-}" ] && ! kill -0 "$2" 2>/dev/null; then
+    if [ -n "${2:-}" ] && ! kill -0 "$2" 2>/dev/null; then  # optional pid that must stay alive
       echo "FAIL: node $1 process $2 exited before becoming ready" >&2
       return 1
     fi
@@ -144,20 +147,24 @@ root_of() { authed "$(api "$1")/blocks/$height" 2>/dev/null | jq -er '.stateRoot
 finish_project() {
   assert_no_secrets
   stop_project
-  if ls "$project"/run/node*.pid >/dev/null 2>&1; then
-    echo "FAIL: stop left pid files in $project/run" >&2
+  if ls "$work"/n*/run/node.pid >/dev/null 2>&1; then
+    echo "FAIL: stop left pid files" >&2
     exit 1
   fi
 }
 
-# Fails if the API key or any seed appears in logs or in a running node's command line.
+# Fails if a member key or API key appears in logs or in a running node's command line.
 assert_no_secrets() {
-  patterns=(-e "$api_key" -e "${seeds[0]}" -e "${seeds[1]}" -e "${seeds[2]}")
-  if grep -R -F -q "${patterns[@]}" "$project/logs"; then
-    echo "FAIL: a secret appears in $project/logs" >&2
+  patterns=()
+  for index in 0 1 2; do
+    for file in "$(node_dir "$index")"/secrets/*.key; do patterns+=(-e "$(cat "$file")"); done
+  done
+  if grep -R -F -q "${patterns[@]}" "$work"/n*/logs; then
+    echo "FAIL: a secret appears in a node log" >&2
     exit 1
   fi
-  for record in "$project"/run/node*.pid; do
+  for index in 0 1 2; do
+    record="$(node_dir "$index")/run/node.pid"
     [ -f "$record" ] || continue
     if ps -p "$(cat "$record")" -o command= 2>/dev/null | grep -F -q "${patterns[@]}"; then
       echo "FAIL: a secret appears in a node process command line" >&2
@@ -170,15 +177,16 @@ assert_no_secrets() {
 # audit head of entity "0102" and the decoded outcome.
 run_project() {
   project="$1"
-  restarted_pid=""
-  "$project/scripts/start" >/dev/null
-  for node in 0 1 2; do wait_ready "$node"; done
-  YANO_APPCHAIN_API_KEYS="$api_key" "$yano_home/yano.sh" appchain drift "$project" \
-    --peer "http://127.0.0.1:${http_base}/api/v1/" \
-    --peer "http://127.0.0.1:$((http_base + 1))/api/v1/" \
-    --peer "http://127.0.0.1:$((http_base + 2))/api/v1/" \
-    --api-key-env YANO_APPCHAIN_API_KEYS --format json \
-    | jq -e '.status == "DRIFT_OK" and .peerCount == 3' >/dev/null
+  sealed="$project/binding-editor-acceptance.chain"
+  fingerprint="$(cli inspect "$sealed" --json | jq -er '.displayFingerprint')"
+  for index in 0 1 2; do
+    # Each run is a fresh chain: keep the member key and addresses, drop everything a node derived.
+    rm -rf "$(node_dir "$index")"/{apps,config,data,logs,run,runtime}
+    cli join "$sealed" --expect-fingerprint "$fingerprint" --node-dir "$(node_dir "$index")" >/dev/null
+  done
+  for index in 0 1 2; do cli start --node-dir "$(node_dir "$index")" >/dev/null; done
+  cli status --node-dir "$(node_dir 2)" --wait live --timeout 180 --json \
+    | jq -e '.stage == "Live" and all(.chains[]; .agree)' >/dev/null
   submitted="$(authed -H 'content-type: application/json' \
     -d '{"topic":"records.command.v1","bodyHex":"8300420102420304"}' "$(api 0)/messages")"
   message_id="$(jq -er '.messageId' <<<"$submitted")"
@@ -245,22 +253,11 @@ run_project "$work/editor-project"
 editor=("$height" "$audit_head" "$outcome")
 echo "PASS: three nodes finalized the editor-authored cascade with identical roots, receipt bytes and audit heads"
 
-# Restart node 2: the old process must exit, and the replacement process must serve the same root.
-old_pid="$(cat "$project/run/node2.pid")"
-kill "$old_pid"
-for _ in $(seq 1 60); do kill -0 "$old_pid" 2>/dev/null || break; sleep 1; done
-if kill -0 "$old_pid" 2>/dev/null; then
-  echo "FAIL: node 2 (pid $old_pid) did not stop" >&2
-  exit 1
-fi
-rm -f "$project/run/node2.pid"
-"$project/scripts/start-node" 2 >"$project/logs/node2-restart.log" 2>&1 &
-restarted_pid=$!
-printf '%s\n' "$restarted_pid" >"$project/run/node2.pid"
-wait_ready 2 "$restarted_pid"
+# Restart node 2: the replacement process must serve the same root.
+cli stop --node-dir "$(node_dir 2)" >/dev/null
+cli start --node-dir "$(node_dir 2)" >/dev/null
 restarted=""
 for _ in $(seq 1 90); do
-  kill -0 "$restarted_pid" 2>/dev/null || { echo "FAIL: restarted node 2 exited" >&2; exit 1; }
   restarted="$(root_of 2)"
   [ "$restarted" = "$root" ] && break
   sleep 1

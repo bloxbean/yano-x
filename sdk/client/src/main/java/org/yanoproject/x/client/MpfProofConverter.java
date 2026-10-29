@@ -92,10 +92,6 @@ public final class MpfProofConverter {
                         "MPF proof step must be an array");
             }
             long tag = tag(step);
-            if (tag == TAG_LEAF) {
-                throw new IllegalArgumentException(
-                        "inclusion proof cannot contain a conflicting-leaf step");
-            }
             int skip = uint(step, 0, "skip");
             int nextCursor = Math.addExact(cursor, Math.addExact(skip, 1));
             if (nextCursor > MpfNormalizedProof.PATH_NIBBLES) {
@@ -156,6 +152,8 @@ public final class MpfProofConverter {
                         neighborNibble,
                         Blake2bUtil.blake2bHash256(
                                 concatenate(neighborPrefix, neighborRoot)));
+            } else if (tag == TAG_LEAF) {
+                neighbors = leafNeighbors(step, nibble, nextCursor);
             } else {
                 throw new IllegalArgumentException(
                         "unsupported MPF proof step tag " + tag);
@@ -219,10 +217,17 @@ public final class MpfProofConverter {
                 throw new IllegalArgumentException("MPF proof step must be an array");
             }
             long kind = tag(step);
-            if (kind == TAG_LEAF) {
-                if (index != steps.getDataItems().size() - 1
-                        || step.getDataItems().size() != 3) {
-                    throw new IllegalArgumentException("MPF conflicting leaf must be terminal");
+            boolean terminal = index == steps.getDataItems().size() - 1;
+            // The proof is the one the key would have once inserted. A final Leaf is the leaf that holds the
+            // key's place today; a final Fork would be a branch whose prefix the key leaves, which the normalized
+            // form cannot express.
+            if (kind == TAG_FORK && terminal) {
+                throw new IllegalArgumentException(
+                        "MPF absence proofs that leave a branch prefix are not supported");
+            }
+            if (kind == TAG_LEAF && terminal) {
+                if (step.getDataItems().size() != 3) {
+                    throw new IllegalArgumentException("MPF conflicting leaf step has the wrong shape");
                 }
                 int common = uint(step, 0, "conflicting leaf skip");
                 conflictingKeyHash = exact(bytes(step.getDataItems().get(1),
@@ -283,6 +288,8 @@ public final class MpfProofConverter {
                         "fork root"), 32, "fork root");
                 neighbors = MpfNormalizedProof.sparseNeighbors(nibble, neighborNibble,
                         Blake2bUtil.blake2bHash256(concatenate(neighborPrefix, neighborRoot)));
+            } else if (kind == TAG_LEAF) {
+                neighbors = leafNeighbors(step, nibble, nextCursor);
             } else {
                 throw new IllegalArgumentException("unsupported MPF absence step tag " + kind);
             }
@@ -299,6 +306,30 @@ public final class MpfProofConverter {
             throw new IllegalArgumentException("normalized MPF absence proof does not reconstruct its state root");
         }
         return converted;
+    }
+
+    /**
+     * A {@code Leaf} step on the path: the branch's only other child is that leaf, as in the Aiken library's
+     * canonical proofs.
+     */
+    private static List<byte[]> leafNeighbors(Array step, int nibble, int nextCursor) {
+        if (step.getDataItems().size() != 3) {
+            throw new IllegalArgumentException("MPF leaf step has the wrong shape");
+        }
+        byte[] keyHash = exact(bytes(step.getDataItems().get(1), "leaf key hash"),
+                MpfNormalizedProof.HASH_BYTES, "leaf key hash");
+        byte[] valueHash = exact(bytes(step.getDataItems().get(2), "leaf value hash"),
+                MpfNormalizedProof.HASH_BYTES, "leaf value hash");
+        byte[] neighborPath = MpfNormalizedProof.nibbles(keyHash);
+        int neighborNibble = neighborPath[nextCursor - 1] & 0xFF;
+        if (neighborNibble == nibble) {
+            throw new IllegalArgumentException("MPF leaf neighbor nibble is invalid");
+        }
+        byte[] leaf = MpfNormalizedProof.commitLeaf(
+                MpfNormalizedProof.encodeLeafSuffix(java.util.Arrays.copyOfRange(
+                        neighborPath, nextCursor, MpfNormalizedProof.PATH_NIBBLES)),
+                valueHash);
+        return MpfNormalizedProof.sparseNeighbors(nibble, neighborNibble, leaf);
     }
 
     private static long tag(Array value) {

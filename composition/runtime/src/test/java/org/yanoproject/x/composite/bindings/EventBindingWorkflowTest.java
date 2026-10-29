@@ -1,5 +1,6 @@
 package org.yanoproject.x.composite.bindings;
 
+import org.yanoproject.api.appchain.topics.TopicWire;
 import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
 import org.junit.jupiter.api.Test;
 import org.yanoproject.api.appchain.AppBlock;
@@ -726,6 +727,10 @@ class EventBindingWorkflowTest {
         }
 
         List<?> receipt() { return (List<?>) BindingCbor.decode(workflow.get(MESSAGE_ID).orElseThrow(), 65536); }
+        @Override public TopicWire.EffectiveOutcome topicPolicy(String topic) {
+            return new TopicWire.EffectiveOutcome(TopicWire.OutcomeKind.DISABLED, null, null, List.of());
+        }
+        @Override public Optional<byte[]> topicSchema(String irHash) { return Optional.empty(); }
         @Override public AppStateWriter state(ComponentGeneration participant) {
             return participant.componentId().equals("source") ? source : target;
         }

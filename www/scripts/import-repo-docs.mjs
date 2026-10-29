@@ -231,13 +231,8 @@ function destinationFor(route) {
 
 const STUDIO_WEB = 'tooling/studio/src/main/web';
 const STUDIO_ASSETS_SRC = 'tooling/devtools/src/main/resources/appchain-dx/v1alpha1';
-const STUDIO_ASSETS = [
-  'appchain-blueprint.schema.json',
-  'appchain-capability-catalog.json',
-  'appchain-recipe-catalog.json',
-  'appchain-release-capability-index.json',
-  'appchain-release-acceptance-index.json',
-];
+// The binding editor reads only its starters; the blueprint page and its catalog assets were removed (ADR-056).
+const STUDIO_ASSETS = [];
 // Binding editor starters (ADR-031.2), copied from their single source like prepareStudio does.
 const STUDIO_STARTERS_SRC = 'examples/bindings';
 const STUDIO_STARTERS = ['registry-to-audit.yaml', 'approval-to-audit.yaml'];
@@ -260,6 +255,14 @@ async function mirrorStudio(versions) {
     await fs.writeFile(path.join(dest, 'assets', asset), text, 'utf8');
   }
 
+  const topicModules = (await fs.readdir(repoPath('sdk/javascript'))).filter(name => name.endsWith('.mjs'));
+  await fs.mkdir(path.join(dest, 'assets/topics'), { recursive: true });
+  for (const module of topicModules) {
+    await fs.copyFile(repoPath('sdk/javascript', module), path.join(dest, 'assets/topics', module));
+  }
+  await fs.copyFile(repoPath('tooling/devtools/src/test/resources/topics/plan-v1.json'),
+    path.join(dest, 'assets/topics-plan-v1.json'));
+
   await fs.mkdir(path.join(dest, 'assets/bindings'), { recursive: true });
   for (const starter of STUDIO_STARTERS) {
     await fs.copyFile(repoPath(STUDIO_STARTERS_SRC, starter), path.join(dest, 'assets/bindings', starter));
@@ -272,7 +275,8 @@ async function mirrorStudio(versions) {
     }
   }
 
-  return (await fs.readdir(repoPath(STUDIO_WEB))).length + STUDIO_ASSETS.length + STUDIO_STARTERS.length;
+  return (await fs.readdir(repoPath(STUDIO_WEB))).length + STUDIO_ASSETS.length + STUDIO_STARTERS.length
+    + topicModules.length + 1;
 }
 
 // ---------------------------------------------------------------------------

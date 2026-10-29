@@ -68,12 +68,14 @@ For a new extracted target with no retained identity, run `doctor`, then:
 ./showcase.sh quickstart --profile light --nodes 3 --instance <instance>
 ```
 
-Use explicit `--http-base` and `--n2n-base` values when the default ports are
-occupied. Bootstrap SCRIPT anchors only for a new identity or when explicitly
-requested:
+Use explicit `--http-base` and `--server-base` values when the default ports are
+occupied. The current showcase sets each node up with the app-chain setup
+commands (`yano.sh appchain new`, `request`, `seal`, `join`, `start`); the retained
+deployment keeps running the showcase.sh of its own, older extraction. Start
+SCRIPT anchors only for a new identity or when explicitly requested:
 
 ```bash
-./showcase.sh anchor bootstrap all --instance <instance>
+./showcase.sh anchor all --instance <instance>
 ```
 
 Run demonstrations with `./showcase.sh run all --instance <instance>` or select

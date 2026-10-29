@@ -3,7 +3,6 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 DEMO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-REPO_DIR="$(cd "$DEMO_DIR/../../.." && pwd)"
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/yano-demo-launcher.XXXXXX")"
 TMP="$(cd "$TMP" && pwd -P)"
 trap 'rm -rf "$TMP"' EXIT
@@ -18,10 +17,8 @@ assert_absent() { [ ! -e "$1" ] || fail "unexpected path exists: $1"; }
 
 command -v docker >/dev/null 2>&1 || fail "docker is required for Compose config validation"
 docker compose version >/dev/null 2>&1 || fail "docker compose is required"
-grep -Fq 'if [ -x "$APP_DIR/appchain-cluster/cluster.sh" ]; then' "$DEMO_DIR/demo.sh" \
-  || fail "host launcher does not use the packaged appchain-cluster path"
-! grep -Fq '$REPO_DIR/scripts/appchain-cluster/cluster.sh' "$DEMO_DIR/demo.sh" \
-  || fail "host launcher retains a source-checkout cluster fallback"
+! grep -Eq 'appchain-cluster|cluster\.sh|managed_process\.py' "$DEMO_DIR/demo.sh" \
+  || fail "the launcher still references the retired host deployment"
 command -v jq >/dev/null 2>&1 || fail "jq is required"
 
 export DEMO_SKIP_BUILD=true
@@ -83,11 +80,11 @@ set -euo pipefail
 SECONDS=0
 HTTP0=18070
 ANCHOR_ENABLED=true
-MODE=host
 DEMO_NETWORK=devnet
 DEMO_CHAIN_ID=test
 note() { printf '%s\\n' "$*"; }
 die() { printf '%s\\n' "$*" >&2; exit 1; }
+dc() { :; }
 anchor_visibility_diagnostics() { :; }
 sleep() { SECONDS=650; }
 curl() {
@@ -167,22 +164,16 @@ python3() {
         else:
             assert "recorded as member-adopted" in result.stdout
 PY
-for template in node-compose.properties.in node-host.properties.in; do
-  grep -Fxq 'yano.history.projection.enabled=false' "$DEMO_DIR/config/templates/$template" \
-    || fail "$template must explicitly disable unprovisioned Cardano historical projection storage"
-done
+grep -Fxq 'yano.history.projection.enabled=false' \
+  "$DEMO_DIR/config/templates/node-compose.properties.in" \
+  || fail "node-compose.properties.in must explicitly disable unprovisioned Cardano historical projection storage"
 grep -Fq 'tools/render_template.py' "$DEMO_DIR/demo.sh" \
   || fail "launcher does not use the stdin-based template renderer"
-grep -Fq 'tools/managed_process.py' "$DEMO_DIR/demo.sh" \
-  || fail "host UI lifecycle does not use the exact managed-process helper"
-if grep -Fq 'host-ui.pid' "$DEMO_DIR/demo.sh"; then
-  fail "host UI lifecycle still relies on a bare PID file"
-fi
 if grep -Fq 'sed "s|@$key@|' "$DEMO_DIR/demo.sh"; then
   fail "template values can leak through an external sed command argument"
 fi
-[ "$(grep -Fc 'wait_for_anchor_bootstrapped "$base"' "$DEMO_DIR/demo.sh")" -eq 2 ] \
-  || fail "Compose and host startup must both await confirmed anchor bootstrap"
+[ "$(grep -Fc 'wait_for_anchor_bootstrapped "$base"' "$DEMO_DIR/demo.sh")" -eq 1 ] \
+  || fail "Compose startup must await confirmed anchor bootstrap"
 
 # Invalid identity and numeric inputs must fail before creating any managed root.
 INVALID_ROOT="$TMP/invalid"
@@ -373,18 +364,30 @@ grep -Fq 'secret material must not be stored below' "$TMP/secret-in-data.out" \
   || fail "cleanup-managed secret rejection is unclear"
 assert_absent "$SECRET_IN_DATA/data/networks"
 
-BAD_LOCATOR_ROOT="$TMP/bad-locator"
-if DEMO_DATA_ROOT="$BAD_LOCATOR_ROOT/data" DEMO_SECRET_ROOT="$BAD_LOCATOR_ROOT/secrets" \
-    DEMO_RUNTIME_ROOT="$BAD_LOCATOR_ROOT/runtime" \
-    DEMO_HOST_S3_ENDPOINT='http://user:password@127.0.0.1:9000/?token=secret' \
-    DEMO_HOST_S3_TARGET_ID=bad-locator \
-    "$DEMO_DIR/demo.sh" prepare --deployment host --instance bad-locator \
-    >"$TMP/bad-locator.out" 2>&1; then
-  fail "credential-bearing host connector endpoint unexpectedly succeeded"
+# The host deployment is retired; asking for it fails before creating any
+# managed root and points operators at the setup commands.
+RETIRED_HOST_ROOT="$TMP/retired-host"
+for option in --deployment --mode; do
+  if DEMO_DATA_ROOT="$RETIRED_HOST_ROOT/data" DEMO_SECRET_ROOT="$RETIRED_HOST_ROOT/secrets" \
+      DEMO_RUNTIME_ROOT="$RETIRED_HOST_ROOT/runtime" \
+      "$DEMO_DIR/demo.sh" prepare "$option" host --instance retired-host \
+      >"$TMP/retired-host.out" 2>&1; then
+    fail "retired host deployment unexpectedly succeeded with $option"
+  fi
+  grep -Fq -- '--deployment host is retired' "$TMP/retired-host.out" \
+    && grep -Fq -- '--chain evidence=evidence-ledger' "$TMP/retired-host.out" \
+    || fail "retired host deployment rejection does not point to the setup commands"
+  assert_absent "$RETIRED_HOST_ROOT"
+done
+if DEMO_DATA_ROOT="$RETIRED_HOST_ROOT/data" DEMO_SECRET_ROOT="$RETIRED_HOST_ROOT/secrets" \
+    DEMO_RUNTIME_ROOT="$RETIRED_HOST_ROOT/runtime" \
+    "$DEMO_DIR/demo.sh" prepare --deployment kubernetes --instance retired-host \
+    >"$TMP/unknown-deployment.out" 2>&1; then
+  fail "unknown deployment unexpectedly succeeded"
 fi
-grep -Fq 'host connector locators must be bounded credential-free' "$TMP/bad-locator.out" \
-  || fail "credential-bearing connector rejection is unclear"
-assert_absent "$BAD_LOCATOR_ROOT"
+grep -Fq -- '--deployment must be compose' "$TMP/unknown-deployment.out" \
+  || fail "unknown deployment rejection is unclear"
+assert_absent "$RETIRED_HOST_ROOT"
 
 # A connector bind root must never follow a pre-positioned symlink and chmod
 # or populate its target outside the managed instance tree.
@@ -1162,7 +1165,6 @@ for name in yano-x-kafka yano-x-ipfs yano-x-objectstore-s3 \
   : > "$ORPHAN_RUNTIME/plugins/$name-bundle.jar"
 done
 : > "$ORPHAN_RUNTIME/runner.jar"
-: > "$ORPHAN_RUNTIME/yano.jar"
 ORPHAN_BIN="$TMP/orphan-bin"
 ORPHAN_DOCKER_LOG="$TMP/orphan-docker.log"
 mkdir -p "$ORPHAN_BIN"
@@ -1524,143 +1526,5 @@ assert_absent "$CRASH_NETWORK/.yano-cleanup-transaction.json"
 jq -e '.status == "retired" and .replacementInstanceId == "crash-new"' \
   "$CRASH_NETWORK/retired/compose/crash-old.json" >/dev/null \
   || fail "interrupted retirement did not resume to completion"
-
-# Exercise host rendering without building or starting a process.
-HOST_RUNTIME="$TMP/runtime/networks/devnet/hosttest/host"
-mkdir -p "$HOST_RUNTIME/plugins"
-for name in yano-x-kafka yano-x-ipfs yano-x-objectstore-s3 \
-  yano-x-composite yano-x-stdlib yano-x-role-workflow yano-x-evidence-registry \
-  yano-x-evidence-profile; do
-  : > "$HOST_RUNTIME/plugins/$name-bundle.jar"
-done
-: > "$HOST_RUNTIME/runner.jar"
-: > "$HOST_RUNTIME/yano.jar"
-PATH="$FAKE_BIN:$PATH" "$DEMO_DIR/demo.sh" prepare --deployment host \
-  --instance hosttest > "$TMP/host.out"
-HOST_CONFIG="$HOST_RUNTIME/runner-host.properties"
-HOST_NODES="$TMP/secrets/networks/devnet/hosttest/host/nodes-host"
-HOST_MARKER="$TMP/data/networks/devnet/instances/hosttest/host/appchain-identity.json"
-[ -f "$HOST_CONFIG" ] && [ -f "$HOST_NODES/node0.properties" ] \
-  || fail "host mode did not render runner and node overlays"
-jq -e '
-  .layoutVersion == 4
-  and .deployment == "host"
-  and .stateMachine.profileVersion == 1
-  and .stateMachine.evidenceCapacityPerBlock == 8
-  and .effects.continuationMode == "explicit"
-  and .effects.directResultEmissionActivationHeight == null
-  and .connectors.s3.provider == "external-s3-compatible"
-  and .connectors.s3.providerVersion == null
-  and .connectors.s3.dataLayoutVersion == 1
-  and .connectors.s3.profile == "operator-managed-v1"
-  and .connectors.s3.iamConfigSha256 == null
-' "$HOST_MARKER" >/dev/null \
-  || fail "host identity incorrectly claims the local RustFS provider or IAM layout"
-host_members="$(sed -n 's/^demo.yano.member-keys=//p' "$HOST_CONFIG")"
-[ -n "$host_members" ] || fail "host runner has no explicit membership"
-grep -Fxq 'demo.yano.threshold=2' "$HOST_CONFIG" \
-  || fail "host runner does not pin the 2-of-3 threshold"
-grep -Fxq 'demo.evidence-capacity-per-block=8' "$HOST_CONFIG" \
-  || fail "host runner does not pin the committed evidence capacity"
-[ "$(grep -hFx 'yano.app-chain.chains[0].machines.composite.evidence-capacity-per-block=8' \
-  "$HOST_NODES"/*.properties | wc -l | tr -d ' ')" -eq 3 ] \
-  || fail "host members do not share the committed evidence capacity"
-grep -Fq 'effects.executor.enabled=true' "$HOST_NODES/node0.properties" \
-  || fail "host node 0 is not the executor"
-grep -Fq 'effects.executor.enabled=false' "$HOST_NODES/node1.properties" \
-  || fail "host follower can execute effects"
-[ "$(grep -hFx 'yano.app-chain.chains[0].anchor.max-interval-minutes=60' \
-  "$HOST_NODES"/*.properties | wc -l | tr -d ' ')" -eq 3 ] \
-  || fail "host node overlays do not use the same profile safety interval"
-[ "$(grep -h '^yano.history.dir=' "$HOST_NODES"/*.properties | sort -u | wc -l | tr -d ' ')" -eq 3 ] \
-  || fail "host node overlays do not isolate history archives"
-[ "$(grep -hFx 'yano.history.projection.enabled=false' "$HOST_NODES"/*.properties | wc -l | tr -d ' ')" -eq 3 ] \
-  || fail "Evidence host members must disable unselected Cardano history projections"
-
-# Host preparation intentionally releases its lease. Even then, malformed
-# cluster lifecycle state is active/uncertain: cleanup preserves runtime and
-# stop must run the strict cluster reconciliation path instead of returning
-# early as "already stopped".
-HOST_CLUSTER="$TMP/data/networks/devnet/l1/host/host-cluster"
-HOST_MALFORMED_PID="$HOST_CLUSTER/node0.pid.tmp.bad"
-mkdir -p "$HOST_CLUSTER"
-printf 'incomplete\n' > "$HOST_MALFORMED_PID"
-touch "$HOST_RUNTIME/runtime-clean-guard.sentinel"
-if PATH="$FAKE_BIN:$PATH" "$DEMO_DIR/demo.sh" clean --deployment host \
-    --instance hosttest --scope runtime --yes \
-    >"$TMP/host-clean-malformed-pid.out" 2>&1; then
-  fail "host cleanup accepted malformed no-lease PID lifecycle state"
-fi
-grep -Fq 'managed services or an L1 lease are active' \
-  "$TMP/host-clean-malformed-pid.out" \
-  || fail "host cleanup did not classify malformed PID state as uncertain"
-assert_exists "$HOST_RUNTIME/runtime-clean-guard.sentinel"
-if PATH="$FAKE_BIN:$PATH" "$DEMO_DIR/demo.sh" stop --deployment host \
-    --instance hosttest >"$TMP/host-stop-malformed-pid.out" 2>&1; then
-  fail "host no-lease stop ignored malformed PID lifecycle state"
-fi
-grep -Fq 'malformed PID lifecycle state' "$TMP/host-stop-malformed-pid.out" \
-  || fail "host no-lease stop did not invoke strict cluster reconciliation"
-assert_exists "$HOST_MALFORMED_PID"
-rm "$HOST_MALFORMED_PID"
-
-# Shared-L1 ownership is acquired before connector initialization. A later
-# node-start failure stops the partial cluster and releases that lease.
-FAKE_START_BIN="$TMP/fake-start-bin"
-mkdir -p "$FAKE_START_BIN"
-cat > "$FAKE_START_BIN/java" <<'SH'
-#!/bin/sh
-case " $* " in
-  *' init-connectors '*) exit 0;;
-  *) exit 42;;
-esac
-SH
-chmod 755 "$FAKE_START_BIN/java"
-if PATH="$FAKE_START_BIN:$PATH" "$DEMO_DIR/demo.sh" up --deployment host \
-    --instance hosttest >"$TMP/host-start-failure.out" 2>&1; then
-  fail "fake host runtime unexpectedly started"
-fi
-grep -Fq 'ROLLBACK_STARTUP complete' "$TMP/host-start-failure.out" \
-  || fail "failed host startup did not report completed rollback"
-assert_absent "$TMP/data/networks/devnet/l1/host/demo-owner.json"
-
-# The public opt-in anchor renders the same reviewed interval in host mode.
-HOST_PREVIEW_RUNTIME="$TMP/runtime/networks/preview/hostpreview/host"
-mkdir -p "$HOST_PREVIEW_RUNTIME/plugins"
-for name in yano-x-kafka yano-x-ipfs yano-x-objectstore-s3 \
-  yano-x-composite yano-x-stdlib yano-x-role-workflow yano-x-evidence-registry \
-  yano-x-evidence-profile; do
-  : > "$HOST_PREVIEW_RUNTIME/plugins/$name-bundle.jar"
-done
-: > "$HOST_PREVIEW_RUNTIME/runner.jar"
-: > "$HOST_PREVIEW_RUNTIME/yano.jar"
-PATH="$FAKE_BIN:$PATH" "$DEMO_DIR/demo.sh" prepare --deployment host \
-  --network preview --instance hostpreview --anchor-key-file "$PUBLIC_KEY" \
-  --confirm-public-anchor preview > "$TMP/host-preview.out"
-HOST_PREVIEW_NODES="$TMP/secrets/networks/preview/hostpreview/host/nodes-host"
-[ "$(grep -hFx 'yano.app-chain.chains[0].anchor.max-interval-minutes=60' \
-  "$HOST_PREVIEW_NODES"/*.properties | wc -l | tr -d ' ')" -eq 3 ] \
-  || fail "preview host overlays do not use the profile safety interval"
-jq -e '
-  .anchor.enabled == true
-  and .anchor.everyBlocks == 30
-  and .anchor.maxIntervalMinutes == 60
-  and .effects.requireAnchor == true
-' "$TMP/data/networks/preview/instances/hostpreview/host/appchain-identity.json" >/dev/null \
-  || fail "preview host marker does not pin its anchor cadence"
-
-VALIDATION_JAR="${DEMO_RUNNER_VALIDATION_JAR:-}"
-if [ -z "$VALIDATION_JAR" ]; then
-  "$REPO_DIR/gradlew" -p "$REPO_DIR" --no-daemon \
-    :products:evidence:demo-runner:shadowJar >/dev/null
-  VALIDATION_JAR="$(find \
-    "$REPO_DIR/products/evidence/demo-runner/build/libs" \
-    -maxdepth 1 -type f -name '*-all.jar' -print | sort | tail -n 1)"
-fi
-[ -f "$VALIDATION_JAR" ] || fail "evidence demo runner validation jar is missing"
-java --add-modules=jdk.httpserver -jar "$VALIDATION_JAR" validate-config \
-  --config "$HOST_CONFIG" > "$TMP/host-runner-config-validation.out"
-grep -Fxq 'PASS command=validate-config' "$TMP/host-runner-config-validation.out" \
-  || fail "generated host runner configuration did not parse"
 
 printf 'PASS: launcher profiles, immutable identity, lifecycle and cleanup contracts\n'

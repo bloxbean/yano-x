@@ -252,7 +252,7 @@ function hiddenCharacters(draft, report) {
   const literal = (value, segments, what) => { if (value?.type === 'text') text(value.value, segments, what, true); };
   const source = (value, segments) => {
     if (!value) return;
-    if (['field', 'context', 'command', 'param', 'config', 'fact'].includes(value.kind)) {
+    if (['field', 'context', 'command', 'param', 'config', 'fact', 'payload', 'writer', 'source'].includes(value.kind)) {
       text(value.name, [...segments, value.kind], 'A field name');
     }
     else if (value.kind === 'literal') literal(value.value, [...segments, 'literal'], 'A literal');
@@ -345,7 +345,7 @@ function checkSource(source, segments, fields, functions, add, depth) {
   if (source.kind === 'context' && !CONTEXT_FIELDS.has(source.name)) {
     add('RULE_FIELD_UNKNOWN', `The step context has no field ${source.name}`, segments);
   }
-  if (['command', 'param', 'config', 'fact'].includes(source.kind)) {
+  if (['command', 'param', 'config', 'fact', 'payload', 'writer', 'source'].includes(source.kind)) {
     add('RULE_SCOPE_INVALID', `A binding cannot read ${source.kind} values; only admission rules can`, [...segments, source.kind]);
   }
   if (source.kind === 'fn') {

@@ -171,10 +171,10 @@ The status line says what Studio can claim:
 
 The status considers every imported report, in any order. A dry-run that failed
 only on its fixture or continuation is listed separately and never counts as a
-rejection of the document. For a composite opened from a blueprint the wording
-never says "validated": the CLI checked the extracted composite under the context
-you supplied, and project rendering, with the context it derives from the
-blueprint, decides.
+rejection of the document. For a composite opened from an `appchain.yaml` file the
+wording never says "validated": the CLI checked the extracted composite under the
+context you supplied, and `appchain seal`, with the context it derives from the
+application, decides.
 
 A report is an unauthenticated file: anyone can edit one. Studio decodes every
 receipt from its canonical bytes and rejects reports that contradict themselves,
@@ -221,13 +221,15 @@ each block continues the previous block's state. The example fixtures carry
 placeholder authentication proofs and synthetic senders; two browser tabs or two
 fixture senders are not two consensus members or real business actors.
 
-## 7. Blueprints and layout
+## 7. Composite files and layout
 
-**Import appchain.yaml blueprint** opens a chain's inline `composite`. **Download
-appchain.yaml** replaces only that composite, then re-reads the file to prove
-that every other chain and field is unchanged; otherwise it refuses, and you can
-download the composite document alone. An unedited blueprint downloads byte for
-byte. Project rendering still validates the blueprint independently.
+**Import a setup draft** opens a chain's inline `composite` from a setup draft
+(`<app>.draft.yaml`). Downloading it again (as `app.draft.yaml`; rename it back)
+replaces only that composite, then re-reads the file to prove that every other
+chain and field is unchanged; otherwise it refuses, and you can download the
+composite document alone. An unedited file downloads byte for byte. A draft chain that names its
+composite with `bindings: <file>` has no inline composite to open: open that
+bindings file directly instead.
 
 Graph positions are presentation only. Drag nodes or focus one and use the arrow
 keys; **Download layout** saves a separate `bindings.layout.json`. Layout never
@@ -235,11 +237,13 @@ changes the document, its compiled program or its identity.
 
 ## 8. After export
 
-- **The document goes back through the project workflow.** Use the downloaded
-  file with `appchain bindings` commands, pass it to `appchain init --bindings`, or
-  place it in a blueprint's `composite` field. Rendering copies it into the
-  project; it is not a live include, and nothing Studio does changes a running
-  chain.
+- **The document goes back through the setup workflow.** Use the downloaded
+  file with `appchain bindings` commands, then deploy it as a chain of an
+  application: `appchain new <app> --chain <id>=bindings:<file>`, or
+  `bindings: ./<file>` (or the body under `composite:`) for a chain in the setup
+  draft. `appchain seal` compiles it and copies it into the sealed `<app>.chain`
+  file; it is not a live include, and nothing Studio does changes a running
+  chain. See [deploying a document](../DECLARATIVE_BINDINGS_CLI.md#deploying-a-document).
 - **Changing a deployed workflow is an upgrade.** Renaming a component or binding,
   reordering bindings or changing a limit changes the committed program. Follow
   [changing a workflow](05-operations-and-upgrades.md#changing-a-workflow) and the

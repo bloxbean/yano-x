@@ -1,15 +1,15 @@
 # Tutorial 1 — Your First App Ledger
 
-[Open this outcome in App-Chain Studio](../../../tooling/studio/src/main/web/index.html#recipe=audit-log&network=devnet&members=3&finality=two-thirds&sequencing=fixed&runtime=jvm&deployment=host&name=my-appchain&chainId=my-appchain)
+To run this outcome with other operators, follow [Set up an application](../deployment/configure.md).
 
 - **Goal:** run three members on one machine and watch them finalize the same
   event.
-- **You'll learn:** how a submission becomes final, what `AGREED` means, how to
-  get a proof for a message, and what a restart keeps.
+- **You'll learn:** how a submission becomes final, what `members agree`
+  means, how to get a proof for a message, and what a restart keeps.
 - **Before you start:** an extracted Yano X JVM distribution, Java 25, `curl`,
-  `jq`, and `python3`. The launcher uses HTTP ports `7070`–`7072` and node
-  ports `13337`–`13339`; if they are busy it picks the next free range. No
-  earlier tutorial is needed.
+  `jq`, and `python3`. The rehearsal picks the first free HTTP ports from
+  `8080` and node ports from `13337`, and prints them. No earlier tutorial is
+  needed.
 - **Level:** beginner
 - **Time:** about 15 minutes for sections 1–5. The optional extras add 10–15
   minutes.
@@ -41,20 +41,21 @@ Here is the whole tutorial in one picture. Each step shows the command you run
 at that point. The "What if" scenarios show what happens when a member is down.
 
 <!-- illustration: first-chain-finality -->
-1. **Start.** The launcher starts node 0, which produces the local devnet and is
-   a member, then nodes 1 and 2. The threshold is 2 of 3.
-2. **Check agreement.** `cluster status` compares each chain's state root
-   across the nodes and prints `AGREED` when they match.
-3. **Submit.** You send an event to node 1. Node 1 signs the envelope with its
-   member key and answers 202 with a message id.
-4. **Gossip.** Node 1 shares the envelope with nodes 0 and 2.
-5. **Propose.** Node 0, the proposer of `orders-chain`, builds a block, applies
+1. **Start.** `try` starts alice's node first. It produces the local devnet, is
+   a member, and proposes the blocks. Then bob and carol start. The threshold
+   is 2 of 3.
+2. **Check agreement.** `status` reads each chain's status from every member
+   and prints `members agree` when they report the same chain.
+3. **Submit.** You send an event to bob's node. Bob's node signs the envelope
+   with its member key and answers 202 with a message id.
+4. **Gossip.** Bob's node shares the envelope with alice's and carol's nodes.
+5. **Propose.** Alice's node, the proposer of `orders`, builds a block, applies
    it, and sends it with its PREPARE vote.
-6. **Vote.** Nodes 1 and 2 re-execute the block and vote PREPARE, then COMMIT,
-   only if their own state root matches.
+6. **Vote.** Bob's and carol's nodes re-execute the block and vote PREPARE,
+   then COMMIT, only if their own state root matches.
 7. **Certify.** Two COMMIT votes form the finality certificate, and every node
    commits the block.
-8. **Agree again.** `cluster status` prints `AGREED` with a higher tip.
+8. **Agree again.** `status` prints `members agree` with a higher height.
 <!-- /illustration -->
 
 ## 1. Choose the working directory and start
@@ -79,106 +80,105 @@ task. For the curated thirteen-chain demo, use the
 The remaining commands are the same for both setups:
 
 ```bash
-export YANO_CLUSTER_DIR=/tmp/yano-tutorial-first-chain
-./yano.sh appchain cluster start 3
+./yano.sh appchain try
 ```
 
-The launcher starts:
+`try` runs the real setup steps on this machine and prints each command as it
+runs it. A coordinator creates an application called `demo` with one chain,
+`orders`, which uses the `audit-log` recipe: the `ordered-log` state machine.
+Three operators, alice, bob and carol, each make a member key and a node
+directory under `./appchain-try/`, and the coordinator seals the application.
+Then each operator joins and starts their node:
 
-- node 0 as the local Cardano devnet producer and a member. It is also the
-  proposer for `orders-chain`;
-- nodes 1 and 2 as members that follow node 0's devnet; and
-- the three chains defined in `config/application-appchain.yml`:
-  `orders-chain` (`ordered-log`), `registry-chain` (`kv-registry`, used in
-  tutorial 2), and `effects-chain` (`approvals`, used by the optional effects
-  demo).
+- alice is the lead. Her node produces the local Cardano devnet, is a member,
+  and proposes every block of `orders`;
+- bob's and carol's nodes are members that follow alice's devnet.
 
-With three members, the threshold defaults to a majority: 2. Startup takes a
-minute or two, because node 0 runs for 25 seconds before the other nodes join.
+With three members, the threshold is a majority: 2. Startup can take a few
+minutes, because alice's node starts first and the others download its devnet
+genesis.
 
-> **✓ You should see**
+> **✓ You should see** the numbered steps, then a message finalized at the
+> same height and root on every node:
 >
 > ```text
-> Starting 3-node app-chain cluster
->   ...
->   chains  : orders-chain registry-chain effects-chain
->   members : 3   threshold: 2
->   data    : /tmp/yano-tutorial-first-chain
->   ports   : http 7070-7072   n2n 13337-13339
-> ...
-> Cluster up.
+>   alice  height 1  root 3d7d41336074db26…
+>   bob    height 1  root 3d7d41336074db26…
+>   carol  height 1  root 3d7d41336074db26…
+> ✓ Message 53c00fd815014ae5… is final at height 1 on every node
 > ```
 
-The commands below reach node *n* on HTTP port `HTTP_BASE + n`. Set
-`HTTP_BASE` to the first port of the range the launcher printed. It is `7070`
-unless the default ports are busy and the launcher printed a line such as
-`HTTP range 7070-7072 unavailable; using 7073-7075`:
+Each node's HTTP port is in its `node.json`. Read the three ports into your
+shell; the commands below use them:
 
 ```bash
-HTTP_BASE=7070
+ALICE=$(jq -r .httpPort appchain-try/alice/yano-node/node.json)
+BOB=$(jq -r .httpPort appchain-try/bob/yano-node/node.json)
+CAROL=$(jq -r .httpPort appchain-try/carol/yano-node/node.json)
+echo "alice $ALICE  bob $BOB  carol $CAROL"
 ```
 
 ## 2. Confirm agreement
 
 ```bash
-./yano.sh appchain cluster status
+./yano.sh appchain status --node-dir appchain-try/alice/yano-node
 ```
 
-> **✓ You should see** each node marked `[ready]`, then:
+> **✓ You should see** `members online 3/3`, each member `online`, then:
 >
 > ```text
-> Consistency (per chain, roots must match across nodes):
->   orders-chain: AGREED (...)
->   registry-chain: AGREED (...)
->   effects-chain: AGREED (...)
+>   chain orders         height 1      members agree  members 3, 2 signatures  anchoring: not set up
 > ```
 
-`AGREED` means every running node reports the same authenticated state root
-for that chain. It is more than "three processes are running", but it is a
-comparison, not a vote: it compares current roots, not heights.
+`members agree` means every online member reports the same chain identity.
+If two members report different state roots at the same height, `status`
+also prints a warning that names the height. It is more than "three processes
+are running", but it is a comparison, not a vote.
 
-Open the status pages if you prefer a UI. With the default ports they are:
+Open the status pages if you prefer a UI:
 
-- <http://127.0.0.1:7070/ui/app-chain/>
-- <http://127.0.0.1:7071/ui/app-chain/>
-- <http://127.0.0.1:7072/ui/app-chain/>
+```bash
+echo "http://127.0.0.1:$ALICE/ui/app-chain/"
+echo "http://127.0.0.1:$BOB/ui/app-chain/"
+echo "http://127.0.0.1:$CAROL/ui/app-chain/"
+```
 
 ## 3. Submit a business event
 
-Submit through node 1 rather than through the proposer:
+Submit through bob's node rather than through the proposer:
 
 ```bash
-./yano.sh appchain cluster submit orders-chain orders \
-  '{"event":"order-created","orderId":"A-1001","quantity":4}' \
-  --node 1
+curl -s -X POST "http://127.0.0.1:$BOB/api/v1/app-chain/chains/orders/messages" \
+  -H 'Content-Type: application/json' \
+  -d '{"topic":"orders","body":"{\"event\":\"order-created\",\"orderId\":\"A-1001\",\"quantity\":4}"}' \
+  | jq .
 ```
 
-> **✓ You should see** `submitted <message id>... to orders-chain`.
+> **✓ You should see** a JSON object with a `messageId`.
 
-You did not sign anything. Node 1 checked the command, signed the envelope
-with its own member key, and gossiped it. Node 0 put it in a block, two of the
-three members voted for that block, and every member applied the same bytes.
-The submission itself only means "queued on node 1".
+You did not sign anything. Bob's node checked the command, signed the envelope
+with its own member key, and gossiped it. Alice's node put it in a block, two
+of the three members voted for that block, and every member applied the same
+bytes. The submission itself only means "queued on bob's node".
 
 After a few seconds, inspect the finalized blocks and agreement:
 
 ```bash
-curl -s "http://127.0.0.1:$HTTP_BASE/api/v1/app-chain/chains/orders-chain/blocks" | jq .
-./yano.sh appchain cluster status
+curl -s "http://127.0.0.1:$ALICE/api/v1/app-chain/chains/orders/blocks" | jq .
+./yano.sh appchain status --node-dir appchain-try/alice/yano-node
 ```
 
-> **✓ You should see** a block with `"messageCount": 1` and `certSignatures` of
-> at least 2, then `orders-chain: AGREED (...)` with the same, higher tip on
-> every node.
+> **✓ You should see** a new block with `"messageCount": 1` and
+> `certSignatures` of at least 2, then `chain orders` with a higher height and
+> `members agree`.
 
 ## 4. Capture a message ID and its proof
 
-For a proof, call the same public API directly. This time, submit through
-node 2:
+This time, submit through carol's node and keep the message id:
 
 ```bash
 RESPONSE=$(curl -s -X POST \
-  "http://127.0.0.1:$((HTTP_BASE + 2))/api/v1/app-chain/chains/orders-chain/messages" \
+  "http://127.0.0.1:$CAROL/api/v1/app-chain/chains/orders/messages" \
   -H 'Content-Type: application/json' \
   -d '{"topic":"orders","body":"{\"event\":\"packed\",\"orderId\":\"A-1001\"}"}')
 
@@ -187,14 +187,14 @@ MESSAGE_ID=$(echo "$RESPONSE" | jq -r .messageId)
 ```
 
 > **✓ You should see** a JSON object with `messageId`,
-> `"chainId": "orders-chain"`, and `"topic": "orders"`.
+> `"chainId": "orders"`, and `"topic": "orders"`.
 
 Wait until the message is final. A finalized message has a block height:
 
 ```bash
 HEIGHT=0
 for attempt in $(seq 1 30); do
-  HEIGHT=$(curl -s "http://127.0.0.1:$HTTP_BASE/api/v1/app-chain/chains/orders-chain/messages/$MESSAGE_ID" \
+  HEIGHT=$(curl -s "http://127.0.0.1:$ALICE/api/v1/app-chain/chains/orders/messages/$MESSAGE_ID" \
     | jq -r '.height // 0' 2>/dev/null)
   [ "${HEIGHT:-0}" -gt 0 ] && break
   sleep 1
@@ -208,7 +208,7 @@ Then request a typed proof that the message is recorded:
 
 ```bash
 curl -s -X POST \
-  "http://127.0.0.1:$HTTP_BASE/api/v1/app-chain/chains/orders-chain/proof-subjects/finalized-message-v1/proof" \
+  "http://127.0.0.1:$ALICE/api/v1/app-chain/chains/orders/proof-subjects/finalized-message-v1/proof" \
   -H 'Content-Type: application/json' \
   -d "$(jq -nc --arg id "$MESSAGE_ID" '
     {coordinates:{"message-id":$id}, view:"latest",
@@ -221,35 +221,56 @@ curl -s -X POST \
 
 The typed subject resolves the public message ID to its namespaced physical
 state key and connects that record to the member's committed state root. The
-`sender` is node 2's member key, because node 2 accepted and signed the
-envelope; `./yano.sh appchain cluster keys` prints each node's key. Tutorial 7
-connects a state root to a Cardano anchor.
+`sender` is carol's member key, because carol's node accepted and signed the
+envelope; `jq -r .publicKey appchain-try/carol/yano-node/node.json` prints it.
+Tutorial 7 connects a state root to a Cardano anchor.
 
 ## 5. Stop and restart
 
-`stop` keeps both the L1 and the app ledger data:
+`stop` keeps both the L1 and the app ledger data. Stop the three nodes, then
+start them again with the lead first, because the other nodes follow her
+devnet:
 
 ```bash
-./yano.sh appchain cluster stop
-./yano.sh appchain cluster start 3
-./yano.sh appchain cluster status
+for name in carol bob alice; do
+  ./yano.sh appchain stop --node-dir appchain-try/$name/yano-node
+done
+for name in alice bob carol; do
+  ./yano.sh appchain start --node-dir appchain-try/$name/yano-node
+done
+./yano.sh appchain status --node-dir appchain-try/alice/yano-node
 ```
 
-> **✓ You should see** `stopped 3 node(s)`, then `Cluster up.`, then the same
-> tips and `AGREED` roots as before the stop.
+> **✓ You should see** `✓ Stopped carol; its data is kept` for each node,
+> then `✓ Node alice is up at http://127.0.0.1:…` for each node, then the same
+> height and `members agree` as before the stop.
 
-The retained tips and roots return unchanged before any new traffic is
-finalized. Explore what the launcher keeps on disk:
+The retained heights and roots return unchanged before any new traffic is
+finalized. Explore what each node keeps in its directory, for example
+`appchain-try/alice/yano-node`:
 
-<!-- illustration: cluster-on-disk -->
+<!-- illustration: node-directory -->
+
+- `node.json`: the operator name, public key, addresses, and ports;
+- `secrets/`: the member key and the node's API key;
+- `apps/demo.chain`: the sealed application the node joined;
+- `config/`: `consensus.yaml` and `node.yaml`, written by `join`, and
+  `local.yaml` for the node's own settings;
+- `data/`: `chainstate` (Cardano L1), `appchain-chainstate` (the app ledger),
+  and `appchain-indexers` (rebuildable read indexes);
+- `logs/node.log`: the node's log.
+
+`appchain-try/coordinator/` holds the draft, the member cards, and the sealed
+`demo.chain`. See [where each setting lives](../deployment/configure.md#where-each-setting-lives).
 
 This is a useful distinction:
 
 - **restart:** the same chain identity and retained state;
-- **clean:** delete the data and start a new identity and history next time.
+- **`try --clean`:** delete the rehearsal; the next `try` seals a new
+  application with a new identity and history.
 
-The node count and threshold are part of the retained identity. To try
-different values, use a new `YANO_CLUSTER_DIR` (see [Go deeper](#go-deeper)).
+The members and the threshold are sealed in `demo.chain`. To try different
+values, rehearse in a new directory (see [Go deeper](#go-deeper)).
 
 ## What you just proved
 
@@ -264,16 +285,21 @@ Those are separate trust layers.
 
 ## Optional extras
 
-These sections reuse the running cluster. Skip them if you are short of time.
+These sections reuse the running rehearsal. Skip them if you are short of
+time.
 
 ### A. Run a small `ordered-log` load test
 
-The distribution includes a parallel load driver for the running local
-cluster. Start with a bounded workload of 500 messages, 10 concurrent
-submitters, and payloads of about 256 bytes:
+The distribution includes the showcase's parallel load driver,
+`examples/showcase/tools/loadtest.sh`. It finds members on consecutive HTTP
+ports, starting at `YANO_SHOWCASE_HTTP_BASE`. `try` gives alice, bob and carol
+consecutive ports when they are free; check that `$BOB` and `$CAROL` are
+`$ALICE + 1` and `$ALICE + 2`. Start with a bounded workload of 500 messages,
+10 concurrent submitters, and payloads of about 256 bytes, all sent to alice's
+node:
 
 ```bash
-./yano.sh appchain cluster loadtest orders-chain -n 500 -c 10 -s 256
+YANO_SHOWCASE_HTTP_BASE=$ALICE examples/showcase/tools/loadtest.sh orders -n 500 -c 10 -s 256
 ```
 
 Plain load-test mode suits any-bytes machines such as `ordered-log`. It
@@ -302,149 +328,156 @@ to drain, and reports two different rates:
 - **errors** are non-backpressure request failures and should be investigated.
 
 Spread submissions across all ready members to exercise gossip from every
-ingress path, then confirm that every member still exposes the same root:
+ingress path, then confirm that every member still agrees:
 
 ```bash
-./yano.sh appchain cluster loadtest orders-chain -n 1000 -c 20 -s 256 --spread
-./yano.sh appchain cluster status
+YANO_SHOWCASE_HTTP_BASE=$ALICE examples/showcase/tools/loadtest.sh orders -n 1000 -c 20 -s 256 --spread
+./yano.sh appchain status --node-dir appchain-try/alice/yano-node
 ```
 
 This is a functional throughput exercise, not a production benchmark. Results
 depend on the machine, the JVM, the devnet producer, the block interval, the
 payload size, and the member count. Record those inputs when comparing runs.
-The test appends real finalized messages to the retained `orders-chain`
-history.
+The test appends real finalized messages to the retained `orders` history.
 
 For capacity settings and workload boundaries, see the
 [`ordered-log` reference](https://github.com/bloxbean/yano/blob/main/docs/appchain/state-machines/ordered-log.md#operational-tuning).
 
 ### B. Try an effect
 
-The default `effects-chain` can demonstrate the full emit, external-worker,
-result, and proof lifecycle without Kafka, S3, IPFS, or a real webhook:
+An effect is an external action, such as a webhook call, that a state machine
+commits as part of a final block and an executor node carries out.
+[Tutorial 6](06-webhook-effects.md) runs the full emit, delivery, result, and
+proof lifecycle: a stock approval reaches its threshold and one node calls a
+local webhook receiver. It needs its own rehearsal, so finish or clean up
+this one first.
 
-```bash
-./yano.sh appchain cluster effect demo
-./yano.sh appchain cluster effect demo "order A-1001 approved"
-```
-
-> **✓ You should see** `Effect emitted       effects-chain height=...`,
-> `Delivery             CONFIRMED`, and `Proof                 AVAILABLE (...)`.
-
-With no argument, the demo uses `hello from Yano effects`; one quoted argument
-replaces that message. Briefly, the command:
-
-1. creates a unique one-approval item on the separate `effects-chain`;
-2. wraps your text in a JSON payload, then submits `PROPOSE` and `APPROVE`
-   commands to its `approvals` state machine;
-3. keeps the item decision `APPROVED` and emits one generic app-final
-   `demo.webhook` effect when the approval threshold is reached;
-4. acts as a simulated external worker that claims the effect and reports a
-   synthetic successful delivery; no real webhook is called; and
-5. feeds the result back through the effect lifecycle and checks that the
-   finalized effect proof is available.
-
-The supplied text is illustrative data. It is not linked to an event on
-`orders-chain`, even if it contains an order id. A production workflow should
-carry an explicit business id or finalized source message id in its committed
-command or effect payload. The proof establishes that the effect intent was
-committed; a real external action also depends on a trusted executor and a
-verifiable receipt.
-
-For the complete lifecycle and production webhook configuration, continue
-with [webhook effects](06-webhook-effects.md).
+A production workflow should carry an explicit business id or finalized source
+message id in its committed command or effect payload. The proof establishes
+that the effect intent was committed; a real external action also depends on a
+trusted executor and a verifiable receipt.
 
 ### C. Governed member onboarding
 
-You can also govern, start, catch up, and verify a fourth node on the same host:
+The application is `governed`, so its members can add a fourth node, dave, on
+the same host. These are the same steps as in
+[grow and change your application](../deployment/add-chain.md).
+
+First, dave makes a key, a node directory, and a member card from the sealed
+file. Choose two free ports for his node; the example uses the ones after
+carol's:
 
 ```bash
-./yano.sh appchain cluster node join 3
-./yano.sh appchain cluster status
+./yano.sh appchain request appchain-try/coordinator/demo.chain --name dave \
+  --host 127.0.0.1 --node-port 13340 --http-port $((CAROL + 1)) \
+  --node-dir appchain-try/dave/yano-node --output appchain-try/coordinator --yes
 ```
 
-With the default 2-of-3, a fourth member would leave 2-of-4, which cannot
-certify blocks (a threshold must be more than half the members). The launcher
-therefore raises each chain's threshold to 3 first, advances the idle chains
-until that change is active, and only then records the new member with three
-approvals.
+> **✓ You should see** `✓ Wrote …/dave.member` with dave's key id.
 
-An idle chain makes no blocks, so the launcher advances it with one command per
-block. Each command names a fresh random key or item
-(`cluster.epoch-advance.<random>`), so it cannot touch your records: on
-`registry-chain` it deletes a key that does not exist, and on `effects-chain` it
-rejects an item that does not exist. `orders-chain` has no command that changes
-nothing, so the launcher appends entries on the `cluster.epoch-advance` topic;
-your existing entries are unchanged.
+Then every existing operator approves the card on their own running node.
+Each `approve` waits until enough operators have approved, so on one machine
+run the three in parallel:
 
-> **✓ You should see** `raising 'orders-chain' threshold 2 -> 3 first`, then
-> `membership approval 3/3` for each chain, and finally
-> `node 3 joined and caught up with member key ...`. The new member votes from
-> the activation height each chain reports.
+```bash
+for name in alice bob carol; do
+  ./yano.sh appchain approve appchain-try/coordinator/dave.member \
+    --node-dir appchain-try/$name/yano-node --heartbeat &
+done
+wait
+```
+
+With 2 of 3, a fourth member would leave 2 of 4, which cannot certify blocks
+(a threshold must be more than half the members). `approve` therefore raises
+each chain's threshold to 3 first and waits until that is active, then adds
+dave and waits again, then restarts the operator's node once to connect to
+him.
+
+A change activates ten blocks after enough operators approve, and a chain
+makes blocks only when it has messages. `--heartbeat` lets `approve` send
+small heartbeat messages to an idle chain. On an `ordered-log` chain such as
+`orders` each heartbeat is a permanent entry on the `appchain.heartbeat`
+topic; your existing entries are unchanged. Without `--heartbeat`, send
+ordinary traffic instead.
+
+> **✓ You should see** `orders: first raising the threshold from 2 to 3 (4 members)`,
+> then `✓ orders: dave is a member` and `Restarting this node to connect to dave …`
+> from each operator.
+
+When every operator has approved, dave joins and starts. `join` shows the
+application and asks you to confirm the fingerprint:
+
+```bash
+./yano.sh appchain join appchain-try/coordinator/demo.chain --node-dir appchain-try/dave/yano-node
+./yano.sh appchain start --node-dir appchain-try/dave/yano-node
+./yano.sh appchain status --node-dir appchain-try/dave/yano-node
+```
+
+> **✓ You should see** `members online 4/4` and `chain orders … members agree
+> members 4, 3 signatures`. The new member votes from the height at which
+> the change activated.
 
 A newly joined node accepts submissions only from that activation height on.
-Before then, a submission through node 3 is refused with HTTP `503` ("not an
-active member at height ... yet"). Check a chain's
+Before then, a submission through dave's node is refused with HTTP `503`
+("not an active member at height ... yet"). Check a chain's
 `memberActiveForNextBlock` field and retry once it is `true`:
 
 ```bash
-curl -s "http://127.0.0.1:$((HTTP_BASE + 3))/api/v1/app-chain/chains/orders-chain/status" \
+DAVE=$(jq -r .httpPort appchain-try/dave/yano-node/node.json)
+curl -s "http://127.0.0.1:$DAVE/api/v1/app-chain/chains/orders/status" \
   | jq .memberActiveForNextBlock
 ```
 
-For an externally managed node, the lower-level
-`appchain cluster member add <public-key>` command records membership but does
-not configure or start the external process. Same-host `node join` performs
-both steps.
-
 ## Clean up
 
+If you added dave, stop his node first: `try --clean` stops only alice, bob
+and carol.
+
 ```bash
-./yano.sh appchain cluster clean
-unset YANO_CLUSTER_DIR
+./yano.sh appchain stop --node-dir appchain-try/dave/yano-node   # only if you added dave
+./yano.sh appchain try --clean
 ```
 
-`clean` stops the nodes and deletes everything under `YANO_CLUSTER_DIR`,
+`try --clean` stops the nodes and deletes everything under `appchain-try/`,
 including the chain identities.
 
 ## Troubleshooting
 
 | You see | What it means and what to do |
 |---|---|
-| `HTTP range 7070-7072 unavailable; using ...` | Another process holds the default ports. Set `HTTP_BASE` to the first port of the printed range. |
-| `app-chain identity differs from retained state; restore the original profile or use a new data directory` | You started the same `YANO_CLUSTER_DIR` with a different node count or `--threshold`. Start it with the original values, or export a new `YANO_CLUSTER_DIR`. |
-| `node 0 is already running (./cluster.sh stop first)` | The cluster in this `YANO_CLUSTER_DIR` is still running. Run `./yano.sh appchain cluster stop` first. |
-| `node 0 not ready within 180s` or `node 2 not ready after 3 attempts` | The message names the node's log file. Read its first error, for example with `./yano.sh appchain cluster logs 2`. |
-| `orders-chain: MISMATCH` | A node can be one block behind while `status` reads it. Run `status` again after a few seconds. If it persists, check that node's log. |
-| `config not found: .../config/application-appchain.yml` | `YANO_HOME` points somewhere other than the distribution. Run `unset YANO_HOME`, then retry from the distribution's top-level directory. |
+| `…/appchain-try already exists. Look around with …` | An earlier rehearsal is still there. Look at it with `status`, or remove it with `./yano.sh appchain try --clean`. |
+| `The rehearsal stopped at that step (exit …)` | The command printed just above failed. If a node did not start, read the first error in its log, for example `appchain-try/bob/yano-node/logs/node.log`. |
+| `members report different state roots at height …` from `status` | A node can be one block behind while `status` reads it. Run `status` again after a few seconds. If it persists, check that node's log. |
+| `Port … is already in use by another program.` from `request` | Choose other free ports for dave with `--http-port` and `--node-port`. |
+| `This node must be running; run  yano.sh appchain start  first` from `approve` | Start that operator's node with `start --node-dir`, then run `approve` again. |
+| `orders: still waiting for …` and exit code 3 from `approve` | Not every operator has approved yet, or the chain has not made ten more blocks. Run the same `approve` again: it continues where it stopped. |
 
 ## Go deeper
 
-- **Try a stricter threshold.** The threshold is part of the cluster's
-  identity, so start a second cluster in a new directory. If you skipped
-  [Clean up](#clean-up), first stop the first cluster while
-  `YANO_CLUSTER_DIR` still points to it, so the new cluster gets the default
-  ports:
+- **Try a stricter threshold.** The threshold is sealed in the application, so
+  rehearse a second application in a new directory. A small template sets the
+  threshold and the chain; `try --from` uses it:
 
   ```bash
-  ./yano.sh appchain cluster stop    # only if the first cluster still runs
-  export YANO_CLUSTER_DIR=/tmp/yano-tutorial-threshold-3
-  ./yano.sh appchain cluster start 3 --threshold 3
+  cat > strict.template.yaml <<'EOF'
+  threshold: all
+  chains:
+    - id: orders
+      recipe: audit-log
+  EOF
+  ./yano.sh appchain try --from strict.template.yaml --dir appchain-try-strict
   ```
 
-  The start banner shows `threshold: 3`, and every block now needs all three
-  votes. The "Threshold 3, one member down" scenario above shows why one
-  stopped member then halts finality. Remove this cluster and clear the
-  variable when you are done:
+  `seal` prints `3 members, 3 signatures per block`, and every block now needs
+  all three votes. The "Threshold 3, one member down" scenario above shows why
+  one stopped member then halts finality. If the first rehearsal still runs,
+  `try` picks the next free ports. Remove this rehearsal when you are done:
 
   ```bash
-  ./yano.sh appchain cluster clean
-  unset YANO_CLUSTER_DIR
+  ./yano.sh appchain try --clean --dir appchain-try-strict
+  rm strict.template.yaml
   ```
 
-  If you skipped Clean up, also remove the first cluster: run
-  `export YANO_CLUSTER_DIR=/tmp/yano-tutorial-first-chain`, then the same two
-  commands.
 - Read Yano's
   [consensus guide](https://github.com/bloxbean/yano/blob/main/docs/APP_CHAIN_CONSENSUS_GUIDE.md)
   for the proposer, votes, certificates, replay, and catch-up.

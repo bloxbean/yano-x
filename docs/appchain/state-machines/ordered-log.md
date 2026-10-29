@@ -40,22 +40,28 @@ log; one chain can carry many topics.
 
 ## Try it
 
-The stock local cluster hosts `orders-chain`, an `ordered-log` chain. From the
-top-level directory of the extracted release, start a cluster and submit an
-event through node 1:
+The `audit-log` recipe runs `ordered-log`. From the top-level directory of the
+extracted release, rehearse a three-member application with one `orders`
+chain, which is what `try` does by default:
 
 ```bash
-./yano.sh appchain cluster start 3
-./yano.sh appchain cluster submit orders-chain order-created \
-  '{"orderId":"A-1001","quantity":4}' --node 1
+./yano.sh appchain try
 ```
 
-The launcher sends the payload as UTF-8 text. To keep the message id, submit
-over REST instead. Ports 7070, 7071 and 7072 are nodes 0, 1 and 2:
+It starts alice's, bob's and carol's nodes under `./appchain-try/`. Read
+their HTTP ports:
+
+```bash
+ALICE=$(jq -r .httpPort appchain-try/alice/yano-node/node.json)
+BOB=$(jq -r .httpPort appchain-try/bob/yano-node/node.json)
+CAROL=$(jq -r .httpPort appchain-try/carol/yano-node/node.json)
+```
+
+Submit an event through bob's node and keep the message id:
 
 ```bash
 MESSAGE_ID=$(curl -sS -X POST \
-  http://127.0.0.1:7071/api/v1/app-chain/chains/orders-chain/messages \
+  "http://127.0.0.1:$BOB/api/v1/app-chain/chains/orders/messages" \
   -H 'Content-Type: application/json' \
   -d '{"topic":"order-created","body":"{\"orderId\":\"A-1001\"}"}' \
   | jq -r .messageId)
@@ -66,7 +72,7 @@ not final. Wait until the lookup succeeds:
 
 ```bash
 until curl -sf \
-  "http://127.0.0.1:7070/api/v1/app-chain/chains/orders-chain/messages/$MESSAGE_ID" \
+  "http://127.0.0.1:$ALICE/api/v1/app-chain/chains/orders/messages/$MESSAGE_ID" \
   | jq '{height, index, topic, sender}'; do sleep 1; done
 ```
 
@@ -74,7 +80,7 @@ Then request the typed proof:
 
 ```bash
 curl -sS -X POST \
-  "http://127.0.0.1:7070/api/v1/app-chain/chains/orders-chain/proof-subjects/finalized-message-v1/proof" \
+  "http://127.0.0.1:$ALICE/api/v1/app-chain/chains/orders/proof-subjects/finalized-message-v1/proof" \
   -H 'Content-Type: application/json' \
   -d "$(jq -nc --arg id "$MESSAGE_ID" \
     '{coordinates:{"message-id":$id}, view:"latest",
@@ -86,25 +92,28 @@ The proof binds the record to the returned state root. For an audit, check that
 root against evidence you trust, such as a Cardano anchor, rather than the node
 that served it.
 
-From Java, use `AppChainClient` from `yano-x-client`:
+From Java, use `AppChainClient` from `yano-x-client`, with the HTTP port of
+the node you submit through (here bob's):
 
 ```java
-var client = AppChainClient.builder("http://127.0.0.1:7071/api/v1")
-        .chainId("orders-chain")
+var client = AppChainClient.builder("http://127.0.0.1:8081/api/v1")
+        .chainId("orders")
         .build();
 var submitted = client.submitText("order-created", "{\"orderId\":\"A-1001\"}");
 ```
 
 ## Configure
 
-`orders-chain` in the stock cluster file shows the full chain entry, including
-the three [state-identity settings](README.md#before-you-configure-one):
+In an application set up with `./yano.sh appchain new`, the `audit-log`
+recipe and `appchain seal` write these settings for you. Written by hand, a
+full chain entry, including the three
+[state-identity settings](README.md#before-you-configure-one), looks like this:
 
 ```yaml
 yano:
   app-chain:
     chains[0]:
-      chain-id: "orders-chain"
+      chain-id: "orders"
       state-machine: ordered-log
       state:
         commitment-profile: mpf-blake2b256-v1

@@ -111,6 +111,12 @@ public final class BindingProgram {
             commandSnapshots.put(entry.getKey(), commands);
         }
         this.commands = Map.copyOf(commandSnapshots);
+        for (var component : ir.components()) {
+            TopicRuleViews.commonFields(component.payloadSchemas());
+            if (!component.payloadSchemas().isEmpty() && !TopicRuleViews.acceptsTopicSchema(commands.get(component.id()))) {
+                throw invalid("TOPIC_SCHEMA_INCOMPATIBLE", "topic schemas require an opaque-body kernel");
+            }
+        }
         this.readParticipants = Map.copyOf(participantReads);
         Map<TransitionWorkReference, TransitionWorkBudget> budgets = new LinkedHashMap<>();
         Map<String, Set<String>> reserved = new LinkedHashMap<>();
@@ -198,7 +204,7 @@ public final class BindingProgram {
                 }
             }
             resolved.put(component.id(), new BindingRules.Component(admission, facts, configuration, declared,
-                    writeView));
+                    writeView, component.payloadSchemas(), TopicRuleViews.commonFields(component.payloadSchemas())));
         }
         for (AdmissionRule rule : ir.rules()) {
             if (!attached.contains(rule.id())) {
@@ -393,6 +399,12 @@ public final class BindingProgram {
         scopes.put(Scope.CONFIG, configurationTypes);
         scopes.put(Scope.CONTEXT, CONTEXT_FIELDS);
         scopes.put(Scope.FACTS, factTypes);
+        scopes.put(Scope.PAYLOAD, TopicRuleViews.commonFields(component.payloadSchemas()));
+        scopes.put(Scope.WRITER, TopicRuleViews.WRITER_FIELDS);
+        scopes.put(Scope.SOURCE, TopicRuleViews.SOURCE_FIELDS);
+        if (rule.scopes().contains(Scope.PAYLOAD) && component.payloadSchemas().isEmpty()) {
+            throw invalid("RULE_PAYLOAD_SCHEMA_REQUIRED", "payload rules require committed payloadSchemas");
+        }
         // Keys (lookup and read keys) read only these scopes; no key reads a read.
         Scoped<Type> keys = new Scoped<>(scopes);
         List<BindingRules.Read> reads = new ArrayList<>();
@@ -476,6 +488,10 @@ public final class BindingProgram {
     /** Classifies an unknown or forbidden field read by a rule. */
     private static void requireRuleField(BindingExpressionV1.Field field, Scoped<Type> schema, Set<String> evidence) {
         if (schema.of(field.scope()).containsKey(field.name())) return;
+        if ((field.scope() == Scope.WRITER || field.scope() == Scope.SOURCE)
+                && (field.name().contains("signature") || field.name().contains("proof"))) {
+            throw invalid("RULE_EVIDENCE_READ", "rules cannot read topic evidence");
+        }
         if (field.scope() == Scope.COMMAND && evidence.contains(field.name())) {
             throw invalid("RULE_EVIDENCE_READ", "rules cannot read evidence field command." + field.name());
         }
@@ -939,7 +955,12 @@ public final class BindingProgram {
         if (source instanceof BindingSourceV1.Literal literal) return literal.value();
         if (source instanceof BindingSourceV1.Field field) {
             Map<String, Object> scope = inputs.of(field.scope());
-            if (!scope.containsKey(field.name())) throw new BindingFailure("MAPPING_MISSING_FIELD");
+            if (!scope.containsKey(field.name())) {
+                if (field.scope() == Scope.PAYLOAD || field.scope() == Scope.WRITER || field.scope() == Scope.SOURCE) {
+                    throw new BindingFailure("RULE_FIELD_UNAVAILABLE");
+                }
+                throw new BindingFailure("MAPPING_MISSING_FIELD");
+            }
             Object value = scope.get(field.name());
             return value instanceof byte[] bytes ? bytes.clone() : value;
         }

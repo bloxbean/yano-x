@@ -26,7 +26,7 @@ tree's type is chosen when the ledger is created and never changes:
 The profile, its exact `state.format-fingerprint`, and a fresh
 `state.genesis-id` are configured together as `state.commitment-profile`,
 `state.format-fingerprint`, and `state.genesis-id`. Together they are the
-chain's state identity. The stock cluster configuration uses MPF.
+chain's state identity. Applications set up with `./yano.sh appchain` use MPF.
 
 After each block, the root is:
 

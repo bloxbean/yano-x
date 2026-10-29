@@ -4,7 +4,10 @@ set -euo pipefail
 TARGET="${1:?target is required}"
 INSTANCE="${2:?instance is required}"
 HTTP_BASE="${3:?HTTP base is required}"
-MARKER="$TARGET/data/showcase/$INSTANCE/showcase-identity.json"
+INSTANCE_ROOT="$TARGET/data/showcase/$INSTANCE"
+# A deployment made by an earlier showcase keeps its identity marker and cluster/ stores; a current one has
+# instance.json, sealed applications, and one node directory per node.
+MARKER="$INSTANCE_ROOT/showcase-identity.json"
 CATALOG="$TARGET/catalog/showcase-catalog-v1.json"
 
 for tool in curl jq python3; do
@@ -14,19 +17,37 @@ for tool in curl jq python3; do
   }
 done
 
-[ -f "$MARKER" ] || { echo "Missing retained identity: $MARKER" >&2; exit 66; }
+if [ -f "$MARKER" ]; then
+  CHAINS="$(jq -r '.chainIds[]' "$MARKER")"
+  store_root() { printf '%s/cluster/node%d' "$INSTANCE_ROOT" "$1"; }
+elif [ -f "$INSTANCE_ROOT/instance.json" ]; then
+  CHAINS="$(python3 - "$CATALOG" "$INSTANCE_ROOT" <<'PY'
+import json, pathlib, sys
+catalog = [row["chainId"] for row in json.loads(pathlib.Path(sys.argv[1]).read_text())["chains"]]
+root = pathlib.Path(sys.argv[2])
+present = set()
+for sealed in ("coordinator/showcase.chain", "history/history.chain", "settlement/settlement.chain"):
+    path = root / sealed
+    if path.exists():
+        present.update(chain["id"] for chain in json.loads(path.read_text())["genesis"]["chains"])
+print("\n".join(chain for chain in catalog if chain in present))
+PY
+)"
+  store_root() { printf '%s/node%d/data' "$INSTANCE_ROOT" "$1"; }
+else
+  echo "Missing retained identity: $MARKER or $INSTANCE_ROOT/instance.json" >&2
+  exit 66
+fi
 [ -f "$CATALOG" ] || { echo "Missing showcase catalog: $CATALOG" >&2; exit 66; }
 [ -f "$TARGET/tools/showcase_catalog.py" ] || {
   echo "Missing packaged catalog tool" >&2
   exit 66
 }
 
-diff -u <(python3 "$TARGET/tools/showcase_catalog.py" "$CATALOG" list) \
-  <(jq -r '.chainIds[]' "$MARKER")
+diff -u <(python3 "$TARGET/tools/showcase_catalog.py" "$CATALOG" list) <(printf '%s\n' "$CHAINS")
 
-CLUSTER_ROOT="$TARGET/data/showcase/$INSTANCE/cluster"
 for NODE in 0 1 2; do
-  NODE_ROOT="$CLUSTER_ROOT/node$NODE"
+  NODE_ROOT="$(store_root "$NODE")"
   for STORE in chainstate appchain-chainstate appchain-indexers; do
     [ -d "$NODE_ROOT/$STORE" ] || {
       echo "Missing node$NODE $STORE root" >&2
@@ -84,11 +105,10 @@ while IFS= read -r CHAIN; do
       '"profile=" + .stateCommitment.profile +
        " tip=" + (.tipHeight|tostring) +
        " anchored=" + (.anchor.lastAnchoredHeight|tostring)')"
-done < <(jq -r '.chainIds[]' "$MARKER")
+done < <(printf '%s\n' "$CHAINS")
 
 for CHAIN in payments-chain payment-chain-settlement; do
-  if jq -e --arg chain "$CHAIN" '.chainIds | index($chain) != null' \
-      "$MARKER" >/dev/null; then
+  if grep -Fxq "$CHAIN" <<< "$CHAINS"; then
     INDEX_STATUS="$(curl -fsS \
       "http://127.0.0.1:$HTTP_BASE/api/v1/plugins/org.yanoproject.x.eutxo.indexer/index/v1/status?chain=$CHAIN")"
     printf '%s' "$INDEX_STATUS" | jq -e \

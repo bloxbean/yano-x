@@ -71,6 +71,13 @@ Studio drift test, so do every step yourself:
    :tooling:devtools:integrationTest --tests '*StudioFixturesIT'`, then
    `distributionCheck`. Before a release, also run the release smoke test.
 
+The packaged topic-policy gate is `:tooling:devtools:finalDistributionTopicsAcceptance`.
+It uses the final JVM ZIP on a fresh three-node devnet and exercises CLI planning,
+protected typed commands, effective policy, payload/writer rules, proofs, activation,
+catch-up and restart. It is also included in the release smoke skill and the
+`appChainReleaseCandidateJvmAcceptance` aggregate. The delegation-service reference
+has its own end-to-end gate in `yano-x-examples/21-anchor-game-center`.
+
 The command above is the source-and-test build and does not assemble every
 distribution. Gradle's root `build` lifecycle also validates the release
 archives. It consumes the same dependency-complete bundle JARs attached to the
@@ -157,8 +164,8 @@ CI runs them in the `eUTxO settlement E2E` workflow only when a change touches
 for any other change.
 
 The evidence harness's devnet scenarios run in the `Evidence E2E` workflow
-(`.github/workflows/evidence-e2e.yml`) as three parallel jobs: fenced effect
-failover, Compose and host deployment parity, and role workflow with catch-up.
+(`.github/workflows/evidence-e2e.yml`) as two parallel jobs: fenced effect
+failover, and role workflow with catch-up.
 It runs when a change touches the code they exercise (the evidence, DPP and
 feed products, connectors, capabilities, composition, the stdlib machines, the
 SDK, the JVM distribution or the build), on every `gradle.properties` change,

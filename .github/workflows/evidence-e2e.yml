@@ -1,9 +1,9 @@
 name: Evidence E2E
 
-# Runs the evidence harness's devnet scenarios against the packaged plugins: fenced effect failover, Compose and
-# host deployment parity, and role workflow with catch-up. Each takes 10-30 minutes, so they run as three parallel
-# jobs, and only when the code they exercise changes, on every version bump (gradle.properties), nightly on the
-# default branch, or on demand. tag-release.yml refuses to tag a commit without a successful run of this workflow.
+# Runs the evidence harness's devnet scenarios against the packaged plugins: fenced effect failover and role
+# workflow with catch-up. Each takes 10-30 minutes, so they run as two parallel jobs, and only when the code they
+# exercise changes, on every version bump (gradle.properties), nightly on the default branch, or on demand.
+# tag-release.yml refuses to tag a commit without a successful run of this workflow.
 on:
   workflow_dispatch:
     inputs:
@@ -124,42 +124,6 @@ jobs:
         env:
           YANO_RUN_EFFECT_FAILOVER_E2E: 'true'
         run: products/evidence/harness/tests/effect-failover-e2e.sh
-
-  deployment-parity:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 90
-    steps:
-      - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
-        with:
-          persist-credentials: false
-      - name: Set up JDK 25
-        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9
-        with:
-          java-version: '25'
-          distribution: 'temurin'
-          cache: 'gradle'
-      - name: Prepare exact Yano build inputs
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: bash .github/scripts/prepare-yano-inputs.sh
-      - name: Stage Yano X publications in the isolated build repository
-        run: ./gradlew publishAllPublicationsToInternalRepository -PskipSigning=true --stacktrace
-      - name: Prepare packaged evidence-demo inputs
-        run: ./gradlew :distribution:jvm:prepareEvidenceDemoArtifacts -PskipSigning=true --stacktrace
-      - name: Verify the deployment-parity contract
-        run: products/evidence/harness/tests/deployment-parity-contract.sh
-      - name: Run mandatory composite deployment parity E2E
-        env:
-          YANO_RUN_DEPLOYMENT_PARITY_E2E: 'true'
-          YANO_DEPLOYMENT_PARITY_CONTINUATION_MODE: direct
-          YANO_DEPLOYMENT_PARITY_MACHINE: composite
-          # Allow the default 600s no-progress watchdog, its 30s poll and recovery.
-          # This changes only the test deadline, not node policy or acceptance checks.
-          YANO_DEPLOYMENT_PARITY_TIMEOUT_SECONDS: '900'
-          DEMO_ANCHOR_VISIBILITY_TIMEOUT_SECONDS: '900'
-          DEMO_ANCHOR_ADOPTION_TIMEOUT_SECONDS: '900'
-        run: products/evidence/harness/tests/deployment-parity-e2e.sh
 
   role-workflow:
     runs-on: ubuntu-24.04

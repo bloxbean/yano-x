@@ -2,6 +2,10 @@ package org.yanoproject.x.client;
 
 import org.yanoproject.x.client.MpfProofConverter;
 
+import co.nstant.in.cbor.CborDecoder;
+import co.nstant.in.cbor.CborException;
+import co.nstant.in.cbor.model.Array;
+import co.nstant.in.cbor.model.DataItem;
 import com.bloxbean.cardano.vds.core.api.NodeStore;
 import com.bloxbean.cardano.vds.mpf.MpfTrie;
 import org.yanoproject.x.client.AppChainClient;
@@ -9,10 +13,15 @@ import org.yanoproject.x.proofs.MpfNormalizedProof;
 import org.yanoproject.x.proofs.MpfNormalizedNonMembershipProof;
 import org.junit.jupiter.api.Test;
 
+import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.HexFormat;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -92,6 +101,70 @@ class MpfProofConverterTest {
             assertThat(converted.verify()).isTrue();
             assertThat(converted.stateRoot()).isEqualTo(root);
             assertThat(converted.key()).isEqualTo(key);
+        }
+    }
+
+    @Test
+    void aikenCanonicalLeafAndForkStepsNormalizeForPresentAndMissingKeys() {
+        Set<Long> inclusionSteps = new HashSet<>();
+        Set<Long> absenceEnds = new HashSet<>();
+        int unsupportedAbsences = 0;
+        for (int size : new int[] {1, 2, 3, 30, 300}) {
+            MpfTrie trie = new MpfTrie(new MapNodeStore());
+            List<byte[]> keys = new ArrayList<>();
+            for (int i = 0; i < size; i++) {
+                byte[] key = ("entry-" + size + "-" + i).getBytes(StandardCharsets.US_ASCII);
+                keys.add(key);
+                trie.put(key, ("value-" + i).getBytes(StandardCharsets.US_ASCII));
+            }
+            byte[] root = trie.getRootHash();
+            for (int i = 0; i < size; i++) {
+                byte[] value = ("value-" + i).getBytes(StandardCharsets.US_ASCII);
+                AppChainClient.Proof wire = proof(trie, root, keys.get(i), value);
+                inclusionSteps.addAll(stepTags(wire));
+
+                MpfNormalizedProof converted = MpfProofConverter.convert(wire);
+
+                assertThat(converted.verify()).isTrue();
+                assertThat(converted.stateRoot()).isEqualTo(root);
+            }
+            for (int i = 0; i < 200; i++) {
+                byte[] key = ("missing-" + size + "-" + i).getBytes(StandardCharsets.US_ASCII);
+                AppChainClient.Proof wire = proof(trie, root, key, null);
+                List<Long> steps = stepTags(wire);
+                absenceEnds.add(steps.getLast());
+                if (steps.getLast() == 122L) {
+                    assertThatThrownBy(() -> MpfProofConverter.convertAbsence(wire))
+                            .isInstanceOf(IllegalArgumentException.class)
+                            .hasMessageContaining("leave a branch prefix");
+                    unsupportedAbsences++;
+                    continue;
+                }
+
+                MpfNormalizedNonMembershipProof converted = MpfProofConverter.convertAbsence(wire);
+
+                assertThat(converted.verify()).isTrue();
+                assertThat(converted.stateRoot()).isEqualTo(root);
+                assertThat(converted.conflictingLeaf()).isEqualTo(steps.getLast() == 123L);
+            }
+        }
+        // Every step shape occurs, so the conversions above covered Leaf and Fork steps mid-path.
+        assertThat(inclusionSteps).containsExactlyInAnyOrder(121L, 122L, 123L);
+        assertThat(absenceEnds).contains(121L, 123L);
+        assertThat(unsupportedAbsences).isLessThan(500);
+    }
+
+    private static List<Long> stepTags(AppChainClient.Proof proof) {
+        try {
+            DataItem decoded = new CborDecoder(new ByteArrayInputStream(
+                    HexFormat.of().parseHex(proof.proofWireHex()))).decode().getFirst();
+            List<Long> tags = new ArrayList<>();
+            for (DataItem step : ((Array) decoded).getDataItems()) {
+                tags.add(step.getTag() == null ? 121L : step.getTag().getValue());
+            }
+            return tags;
+        } catch (CborException failure) {
+            throw new IllegalStateException(failure);
         }
     }
 

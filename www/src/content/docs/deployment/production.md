@@ -19,7 +19,7 @@ its own; read its status first.
 | One process holding every seed | One signer per organization, holding only its own key |
 | A fixed local API key | A per-caller key, rotated, never in a shell history or a repository |
 | Loopback HTTP, no TLS | TLS on every reachable endpoint, with a reverse proxy in front |
-| Members and threshold chosen by a script | Members agreed by the consortium, threshold a governance decision |
+| Members and threshold chosen by a script | Members agreed by the consortium in the draft, sealed, and checked by fingerprint |
 | Anchoring to a self-contained devnet | Anchoring to preprod or mainnet from a funded, protected key |
 | One operator playing every role | Each organization operating its own node and signer |
 
@@ -42,17 +42,20 @@ PUBLIC_KEY="$(./yano.sh appchain role public-key --seed-file <seed>)"
 The public key and the proof travel to the operator. The seed does not: it stays in a file readable
 only by its owner, or in a key store or HSM the organization already trusts.
 
-**The operator writes the genesis** for a governed authenticated map: the collections, policies,
-organizations, actors, public keys and proofs the consortium agreed go into the project's
-`genesisRecords`, and `./yano.sh appchain render` produces the chain configuration (see
-[governed collections](/state-machines/authenticated-map/#governed-collections)). Actors added
-after genesis go through [role approvals](/state-machines/role-approvals/), whose
-`appchain role bootstrap` encodes the propose, approve and activate commands, with proofs from
-`appchain role key-proof`.
+**The coordinator writes the genesis** for a governed authenticated map: the collections, policies,
+organizations, actors, public keys and proofs the consortium agreed go into the chain's
+`authenticatedMap` entry in the application draft, and `./yano.sh appchain seal` fixes the chain
+configuration and its genesis id (see [governed collections](/state-machines/authenticated-map/#governed-collections)
+and [Set up an application](/deployment/configure/)). Actors added after genesis go through
+[role approvals](/state-machines/role-approvals/), whose `appchain role bootstrap` encodes the
+propose, approve and activate commands, with proofs from `appchain role key-proof`.
 
-**Every participant renders it independently and compares the genesis id.** Rendering is
-deterministic: the same project, members, and threshold always give the same id. A participant who
-cannot reproduce the id should not join the ledger. Publish the id where members can check it.
+**Every member checks the sealed file before joining.** On a call, the coordinator reads out the
+chain fingerprint, which covers every chain's settings and genesis id, the members, the threshold,
+and the plugin bundle digests; each operator reads out its own key id. `join` shows the same summary,
+recomputes a derived genesis id, and refuses a node whose own key is not in the roster. A
+participant whose fingerprint differs should not join the ledger. Publish the fingerprint and the
+genesis ids where members and verifiers can check them.
 
 Note what cannot be changed afterwards without a new ledger: the collections, their policies, the
 actors declared at genesis, the block interval, and the message size bounds. Adding an actor later
@@ -75,11 +78,13 @@ Each organization runs its own node, with its own storage, and its own signing k
 that one operator signed several times. The showcase launcher does exactly that, which is why it is
 a demonstration.
 
-Node configuration is the chain entry plus its generated genesis properties, applied to every
-node. The block interval and message size in the generated properties are part of the genesis
-identity: a node started with different values will not agree.
+Each organization sets up its node with `./yano.sh appchain request` and `join`, and runs it with
+`start` (see [Run your node on a server](/deployment/operators/)). `join` writes the sealed settings
+as they are, including the block interval and message size bounds that are part of the genesis
+identity, so every node runs exactly the same chain. Members are added and removed later with
+`./yano.sh appchain approve` ([Grow and change](/deployment/add-chain/)).
 
-Give each node its own data directory, back up its authoritative stores, `chainstate/` and
+Each node keeps its own node directory. Back up its key and its authoritative stores, `chainstate/` and
 `appchain-chainstate/` (see [where data lives](/concepts/where-data-lives/)), and decide a
 retention policy for proofs and history before you need one. Historical answers need proof retention: a verifier asking
 about height H needs the node to still hold it.
@@ -150,7 +155,7 @@ The demo anchors to a devnet the cluster runs itself. In production, anchoring i
 
 ## 8. Before you go live
 
-- The genesis id is reproduced independently by every member.
+- Every member compared the chain fingerprint and its own key id before joining.
 - Each organization holds its own signing key, and no key is on a machine that did not generate it.
 - The member set and threshold are recorded where verifiers can obtain them.
 - TLS terminates in front of every reachable endpoint, and the node API is not among them.

@@ -54,7 +54,7 @@ fails closed rather than picking one.
 
 | Capability | Availability | Maturity | Runtimes | Requires artifacts | Description |
 |---|---|---|---|---|---|
-| [`state:custom-plugin`](/plugins/) | `REFERENCE` | `experimental` | `jvm` | `yano-runtime` | Project boundary for a separately reviewed custom state-machine bundle. |
+| [`state:custom-plugin`](/plugins/) | `REFERENCE` | `experimental` | `jvm` | `yano-runtime` | Runs a separately reviewed custom state-machine bundle that every operator installs and seal pins by digest. |
 
 ### `profile`
 
@@ -205,7 +205,6 @@ not selected in every deployment. Using one means:
 
 ```bash
 tools/yano-plugins/bin/yano-plugins validate plugins/*.jar
-./yano.sh appchain doctor <project> --distribution /opt/yano-x
 ```
 
 See the

@@ -1,0 +1,30 @@
+{
+  "sourceAndBoundaryGates": "passed; fourteen external connector integration cases require separately provisioned services",
+  "javaSdkTests": 91,
+  "javascriptClientTests": 78,
+  "studioNodeTests": 124,
+  "studioBrowserTests": 30,
+  "cddlCompilerTests": 7,
+  "historicalCliMatrix": "passed after changing only the three executionIdentity hashes for the committed clock-skew field",
+  "studioFixtureChecks": 2,
+  "distributionCheck": "passed",
+  "deploymentArchiveChecks": "24 passed, zero skipped, on final ZIP",
+  "documentationInternalTargets": 148,
+  "schemaBenchmark": {
+    "schema": "yano-adr025.1-phase-b-schema-benchmark-v1",
+    "scope": "single-process in-memory encoding/schema evaluator; not production bounds",
+    "iterations": 10000,
+    "warmupIterations": 20000,
+    "encodingOnlyNanosPerValue": 144.171,
+    "schemaNanosPerValue": 647.883,
+    "schemaToEncodingRatio": 4.494
+  },
+  "liveReleaseSmoke": "passed all 16 gates on final ZIP",
+  "delegatedGameScenario": "passed on final ZIP, all 23 checks; copied proof verified offline after all nodes stopped",
+  "topicPlanParityFixtures": 8,
+  "genesisHelperTests": 11,
+  "topicPolicyCluster": "passed on final ZIP, all three members agree at height 38",
+  "status": "PASS",
+  "archiveSha256": "1cc44e322d7eec6d59f3ec81b747cf906cff2ab122bb4543b133a2024107e407",
+  "publication": "Local qualification before PR publication; no public artifact release"
+}

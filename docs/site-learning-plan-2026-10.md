@@ -344,7 +344,7 @@ These are the most rule-shaped pages, so they get the most from simulators.
 | Tutorial 4 and the Evidence product | `evidence-pipeline` with the status simulator |
 | Tutorial 5 | `role-approval-walkthrough` in its policy variant |
 | Determinism rules; tutorial 8 | `divergence-sim` |
-| Tutorial 9 | `pilot-secrets-and-render` |
+| Tutorial 9 | `setup-ceremony`, shared with the configure page |
 
 ### Wave 4 — compose and extend
 
@@ -368,8 +368,8 @@ See section 6.
 ### Wave 6 — operate, products, reference
 
 - **Deployment:**
-  - `config-layers` (configure)
-  - `chain-add-lifecycle` (add-chain)
+  - `setup-ceremony` and `config-layers` (configure)
+  - `member-change` (add-chain)
   - `member-onboarding` (operators, tutorial 1)
   - `topology-ports` (deployment index)
   - `showcase-quickstart` (local showcase)
@@ -633,7 +633,7 @@ Data comes from `dry-run --report` goldens.
   - Merged with the recipe chooser.
 - **`plugin-activation`** — step-through, M.
   - Steps: scan → API range → isolated validation → policy → shared loader → ServiceLoader correlation → dependency order → fingerprint → registry → lifecycle.
-  - Break it: an embedded host class; `minLevel` 13; a different JAR on one member (only `doctor` / `drift` catches it).
+  - Break it: an embedded host class; `minLevel` 13; a different JAR on one member (`join` and `start` refuse bundles that differ from the sealed digests; a running mismatch shows as a different plugin catalog fingerprint in `status` and `GET identity`).
 
 ### Tutorials and operations
 
@@ -645,18 +645,19 @@ Data comes from `dry-run --report` goldens.
   - Pipeline: publish → approve → release → `object.put` + `ipfs.pin` → results → `kafka.publish` → verify → anchor.
   - The status simulator derives PARTIAL / STORAGE_FAILED / EXPIRED / READY.
   - Shared with the Evidence product.
-- **`pilot-secrets-and-render`** — simulator, M.
-  - Secret sorter, plus the init → render → validate → doctor rail with its status codes.
+- **`setup-ceremony`** — step-through, M.
+  - Steps: new → request → seal → compare the fingerprint and key ids, then join → start (lead first on a devnet) → status.
+  - Shows which file travels between the coordinator and the operators at each step; private keys never leave a node directory.
 - **`config-layers`** — explorer, M.
-  - `appchain.yaml` → shared consensus / node / secrets / lock.
-  - Click a value to see its owner layer and consensus impact; a manual edit is refused.
-- **`chain-add-lifecycle`** — step-through, M.
-  - Steps: plan → stop → apply (lock written last) → start → verify.
-  - Break it: changing a consensus value (BLOCKED); a digest mismatch; an interrupted apply.
+  - Draft + member cards → sealed `<app>.chain` → each node's generated `config/consensus.yaml` and `config/node.yaml`, the operator's own `config/local.yaml`, and private keys in `secrets/`.
+  - Click a file to see what it holds and who may change it; generated files are rewritten by `join`, not edited; `local.yaml` is never rewritten, and `start` refuses it if it sets a sealed key.
+- **`member-change`** — step-through, M.
+  - Steps: request against the sealed file → each existing operator runs `approve` → raise the threshold → add → restart with the new peer → the new operator joins and starts.
+  - Shows why growth first raises the threshold, and that `approve` is safe to run again.
 - **`member-onboarding`** — step-through, M.
   - Steps: join → approvals → epoch from height H → catch-up → peer refresh.
   - Break it: a second add while an epoch is pending; a static chain.
-- **`topology-ports`** — explorer, S. Nodes × chains, with HTTP and N2N port rules for the launcher vs generated projects.
+- **`topology-ports`** — explorer, S. Nodes × chains, with HTTP and N2N port rules for the launcher, the `appchain try` rehearsal, and one node per operator.
 - **`showcase-quickstart`** — synced to the terminal, M. doctor → quickstart → submit → verify → stop, across 3 nodes × 13 chains.
 
 ### Products and reference

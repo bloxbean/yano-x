@@ -249,12 +249,9 @@ class RoleBootstrapPlanTest {
 
     private Path initializeRoleApproval() throws Exception {
         Path project = temporary.resolve("role-approval-" + System.nanoTime());
-        StringWriter out = new StringWriter();
-        StringWriter err = new StringWriter();
-        int exit = new AppChainDevtoolsCli().run(new String[]{"appchain", "init", "--non-interactive",
-                "--recipe", "role-approval", "--network", "devnet", "--members", "3",
-                "--output", project.toString()}, new PrintWriter(out), new PrintWriter(err));
-        assertThat(exit).as(err.toString()).isZero();
+        Files.createDirectories(project.resolve("bootstrap"));
+        Files.writeString(project.resolve("bootstrap/role-approvals-plan.yaml"),
+                AppChainSealResolver.roleBootstrapTemplate("role-approval", "role-approvals", 2));
         return project;
     }
 

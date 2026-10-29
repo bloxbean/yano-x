@@ -1,5 +1,6 @@
 dependencies {
     api project(':capabilities:role-workflow-contracts')
+    api rootProject.ext.yanoModule('yano-core-api')
 
     implementation libs.cbor
     implementation libs.cardano.client.crypto
@@ -8,7 +9,6 @@ dependencies {
     testRuntimeOnly libs.junit.jupiter.engine
     testRuntimeOnly libs.junit.platform.launcher
     testImplementation libs.assertj.core
-    testImplementation rootProject.ext.yanoModule('yano-core-api')
     testImplementation libs.cardano.client.mpf
     testImplementation libs.cardano.client.mpf.rocksdb
     testImplementation libs.cardano.client.jmt

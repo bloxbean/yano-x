@@ -2,6 +2,9 @@ package org.yanoproject.x.composite;
 
 import org.yanoproject.api.appchain.AppStateWriter;
 import org.yanoproject.api.appchain.effects.AppEffectEmitter;
+import org.yanoproject.api.appchain.topics.TopicWire;
+
+import java.util.Optional;
 
 /** Capability-limited views for only the participant generations declared by a workflow. */
 public interface CompositeWorkflowContext {
@@ -14,6 +17,12 @@ public interface CompositeWorkflowContext {
     AppStateWriter state(ComponentGeneration participant);
 
     AppEffectEmitter effects(ComponentGeneration owner);
+
+    /** Read-only effective policy at this block's candidate height; never a node-local registry cache. */
+    TopicWire.EffectiveOutcome topicPolicy(String topic);
+
+    /** Content-addressed schema IR from the same committed registry used by {@link #topicPolicy(String)}. */
+    Optional<byte[]> topicSchema(String irHash);
 
     /** Authenticated state scoped to the workflow id, retained across profile epochs. */
     default AppStateWriter workflowState() {

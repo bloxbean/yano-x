@@ -1,66 +1,74 @@
 # Tutorial 2 — A Provable Shared Registry
 
-[Open this outcome in App-Chain Studio](../../../tooling/studio/src/main/web/index.html#recipe=owned-registry&network=devnet&members=3&finality=two-thirds&sequencing=fixed&runtime=jvm&deployment=host&name=shared-registry&chainId=shared-registry)
+To run this outcome with other operators, follow [Set up an application](../deployment/configure.md).
 
 - **Level:** beginner to intermediate
 - **Time:** about 15 minutes
 - **Outcome:** write owner-controlled data, show that an unauthorized write is
   a final no-op, and prove the current value with an MPF proof.
 
-The default cluster hosts `registry-chain`, which runs the stock
-[`kv-registry`](../state-machines/kv-registry.md) state machine. The first
-member to write a key owns it; only that member can update or delete it.
+This tutorial rehearses an application with one chain, `registry`, which runs
+the stock [`kv-registry`](../state-machines/kv-registry.md) state machine
+through the `owned-registry` recipe. The first member to write a key owns it;
+only that member can update or delete it.
 
 You need `curl`, `jq` and `python3`. Run every command from the top-level
 directory of the extracted release, the directory that contains `yano.sh`.
 
 <!-- illustration: registry-proofs -->
-1. **Write as node 1.** The launcher writes `supplier-42` through node 1, which
+1. **Write as bob.** You write `supplier-42` through bob's node, so bob
    becomes its owner.
 2. **Wait for the proof.** Poll the proof endpoint until the key is present.
-3. **Write as node 2.** Node 2 writes the same key. The message is final, but
-   the decision is `KV_NOT_OWNER`.
+3. **Write as carol.** Carol's node writes the same key. The message is final,
+   but the decision is `KV_NOT_OWNER`.
 4. **Compare.** The proven entry is unchanged; the state root has moved,
    because every block changes it.
-5. **Update as owner.** Node 1 writes a new value, and the proof shows it.
+5. **Update as owner.** Bob's node writes a new value, and the proof shows it.
 <!-- /illustration -->
 
-## 1. Start the default cluster
+## 1. Start a registry rehearsal
 
-Skip this section if Tutorial 1's cluster is still running.
+If Tutorial 1's rehearsal still runs, remove it first with
+`./yano.sh appchain try --clean`. Then rehearse an application whose one chain
+uses the `owned-registry` recipe:
 
 ```bash
-export YANO_CLUSTER_DIR=/tmp/yano-tutorial-registry
-./yano.sh appchain cluster start 3
+./yano.sh appchain try --chain registry=owned-registry
 ```
+
+> **✓ You should see** the numbered steps end with `members online 3/3` and
+> `chain registry … members agree`.
 
 ## 2. Create a registry entry
 
-The commands below reach node *n* on HTTP port `HTTP_BASE + n`. Set
-`HTTP_BASE` to the first port of the range the launcher printed. It is `7070`
-unless the launcher printed a line such as
-`HTTP range 7070-7072 unavailable; using 7073-7075`:
+Each node's HTTP port is in its `node.json`. Read bob's and carol's ports into
+your shell:
 
 ```bash
-HTTP_BASE=7070
+BOB=$(jq -r .httpPort appchain-try/bob/yano-node/node.json)
+CAROL=$(jq -r .httpPort appchain-try/carol/yano-node/node.json)
 ```
 
-Write through node 1, so node 1 becomes the owner:
+The command body is CBOR. The tutorial helper builds it for you. Write through
+bob's node, so bob becomes the owner:
 
 ```bash
-./yano.sh appchain cluster kv registry-chain set supplier-42 active --node 1
+TOOL=docs/appchain/tutorials/tools/stdlib_command.py
+PUT_HEX=$(python3 "$TOOL" kv-registry put supplier-42 --value-text active)
+
+curl -sS -X POST "http://127.0.0.1:$BOB/api/v1/app-chain/chains/registry/messages" \
+  -H 'Content-Type: application/json' \
+  -d "{\"topic\":\"kv-registry.command.v1\",\"bodyHex\":\"$PUT_HEX\"}" | jq .
 ```
 
-The command body is CBOR, but the launcher builds it for you.
+> **✓ You should see** a JSON object with a `messageId`.
 
-> **✓ You should see** `kv set supplier-42 -> registry-chain  (<message id>...)`.
-
-The printed message ID is node 1's acceptance: the REST API answered HTTP
-`202` and returned that ID. It means only that node 1 queued the message.
+The message ID is bob's node's acceptance: the REST API answered HTTP `202`
+and returned that ID. It means only that bob's node queued the message.
 Wait until the key appears in a proof:
 
 ```bash
-BASE=http://127.0.0.1:$HTTP_BASE/api/v1/app-chain/chains/registry-chain
+BASE=http://127.0.0.1:$BOB/api/v1/app-chain/chains/registry
 KEY_HEX=$(python3 -c 'print("supplier-42".encode().hex())')
 
 until curl -sf "$BASE/state/proof/$KEY_HEX" | jq -e '.presence == "PRESENT"' >/dev/null; do
@@ -77,7 +85,7 @@ curl -s "$BASE/state/proof/$KEY_HEX" | jq '{committedHeight, stateRoot, presence
 ```
 
 `valueHex` is CBOR `[owner, value]`: `82` opens an array of two, `5820` is
-followed by node 1's 32-byte member key, and `46616374697665` is the 6-byte
+followed by bob's 32-byte member key, and `46616374697665` is the 6-byte
 value `active`. The response also carries `proofWireHex`, an MPF proof that
 this value sits under `stateRoot`. Showing JSON from one node is not
 independent verification; a verifier checks the proof against a root it
@@ -85,18 +93,17 @@ trusts.
 
 ## 4. Try an unauthorized write
 
-Record the proven entry and the root, then write the same key through node 2
-over REST, so you can wait for exactly that message:
+Record the proven entry and the root, then write the same key through carol's
+node, so you can wait for exactly that message:
 
 ```bash
 ENTRY_BEFORE=$(curl -s "$BASE/state/proof/$KEY_HEX" | jq -r .valueHex)
 ROOT_BEFORE=$(curl -s "$BASE/state/proof/$KEY_HEX" | jq -r .stateRoot)
 
-TOOL=docs/appchain/tutorials/tools/stdlib_command.py
 PUT_HEX=$(python3 "$TOOL" kv-registry put supplier-42 --value-text suspended)
 
 MESSAGE_ID=$(curl -sS -X POST \
-  "http://127.0.0.1:$((HTTP_BASE + 2))/api/v1/app-chain/chains/registry-chain/messages" \
+  "http://127.0.0.1:$CAROL/api/v1/app-chain/chains/registry/messages" \
   -H 'Content-Type: application/json' \
   -d "{\"topic\":\"kv-registry.command.v1\",\"bodyHex\":\"$PUT_HEX\"}" | jq -r .messageId)
 
@@ -104,7 +111,7 @@ until curl -sf "$BASE/messages/$MESSAGE_ID" >/dev/null; do sleep 1; done
 curl -s "$BASE/messages/$MESSAGE_ID" | jq '{height, sender}'
 ```
 
-The message is final at the printed height, sent by node 2. Now compare:
+The message is final at the printed height, sent by carol's node. Now compare:
 
 ```bash
 ENTRY_AFTER=$(curl -s "$BASE/state/proof/$KEY_HEX" | jq -r .valueHex)
@@ -114,7 +121,7 @@ ROOT_AFTER=$(curl -s "$BASE/state/proof/$KEY_HEX" | jq -r .stateRoot)
 [ "$ROOT_BEFORE" != "$ROOT_AFTER" ] && echo "state root changed"
 ```
 
-You should see both lines. The entry did not change: node 2 does not own the
+You should see both lines. The entry did not change: carol does not own the
 key, so the decision was `KV_NOT_OWNER`. The root did change, and it would
 have changed anyway: every block also records its own messages root in state.
 So compare the proven entry, never the root, to decide whether a command had
@@ -123,8 +130,12 @@ authorization decision; the resulting state is.
 
 ## 5. Update as the owner
 
+Send the same `suspended` command, this time through bob's node:
+
 ```bash
-./yano.sh appchain cluster kv registry-chain set supplier-42 suspended --node 1
+curl -sS -X POST "$BASE/messages" \
+  -H 'Content-Type: application/json' \
+  -d "{\"topic\":\"kv-registry.command.v1\",\"bodyHex\":\"$PUT_HEX\"}" | jq .
 
 until [ "$(curl -s "$BASE/state/proof/$KEY_HEX" | jq -r .valueHex)" != "$ENTRY_AFTER" ]; do
   sleep 1
@@ -138,8 +149,7 @@ same.
 ## 6. Clean up
 
 ```bash
-./yano.sh appchain cluster clean
-unset YANO_CLUSTER_DIR
+./yano.sh appchain try --clean
 ```
 
 ## Where this pattern fits

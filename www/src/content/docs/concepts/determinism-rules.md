@@ -96,7 +96,11 @@ matters:
 | `NODE_LOCAL` | For example the storage path, peers, and transport mode. | Only that node is affected. |
 
 The generated [configuration reference](/reference/configuration/) shows the
-scope and change policy of each property.
+scope and change policy of each property. On a node set up with
+`appchain join`, the sealed `CONSENSUS_SHARED` values sit in
+`config/consensus.yaml`; the operator's own `NODE_LOCAL` settings go in
+`config/local.yaml`, and `appchain start` refuses that file if it sets a
+sealed key.
 
 ## Changing semantics is a versioned upgrade
 
@@ -138,16 +142,29 @@ Test reproducibility before a cluster, then identity on one:
            .assertDeterministic();
    ```
 
-2. **A real cluster.** Run traffic across members, then compare roots:
+2. **Real members.** Rehearse an application whose chain runs your machine
+   (`--chain <id>=custom-plugin --answer <id>.stateMachine=<your-id>`), send
+   traffic through every member, then compare. With the default `orders`
+   chain:
 
    ```bash
-   ./yano.sh appchain cluster start 3
-   ./yano.sh appchain cluster loadtest orders-chain -n 1000 -c 20 --spread
-   ./yano.sh appchain cluster status     # every chain must report AGREED
+   ./yano.sh appchain try
+   for name in alice bob carol; do
+     PORT=$(jq -r .httpPort appchain-try/$name/yano-node/node.json)
+     for i in $(seq 1 100); do
+       curl -s -o /dev/null -X POST "http://127.0.0.1:$PORT/api/v1/app-chain/chains/orders/messages" \
+         -H 'Content-Type: application/json' -d "{\"topic\":\"orders\",\"body\":\"order $name-$i\"}"
+     done
+   done
+   ./yano.sh appchain status --node-dir appchain-try/alice/yano-node
    ```
 
-3. **Restart and compare again.** Stop and start the cluster, let it catch up,
-   and run `cluster status` once more.
+   Every chain must report `members agree`, with no warning that members
+   report different state roots.
+
+3. **Restart and compare again.** Stop every node with
+   `./yano.sh appchain stop --node-dir <dir>`, start them again (the lead
+   first), let them catch up, and run `status` once more.
 
 Persistence changes also need apply, rollback, replay, restart, and root-parity
 checks.
@@ -156,10 +173,13 @@ checks.
 
 When members disagree, work down this list before suspecting the framework:
 
-1. **Configuration and plugin drift.**
-   `./yano.sh appchain drift <project> --peer <node-url>` compares your project's
-   locked identity, including resolved configuration, consensus profile,
-   composite profile, and plugin catalog, with each running node.
+1. **Configuration and plugin drift.** Compare each member's
+   `pluginCatalogFingerprint` and profile identity from its chain `identity`
+   endpoint. For an application set up with the setup CLI,
+   `./yano.sh appchain status <app>` flags a member with a different genesis
+   identity and prints this node's `Plugins:` catalog fingerprint for the
+   members to compare, and `appchain start` refuses a node whose sealed
+   bundles changed or whose `config/local.yaml` sets a sealed key.
 2. **The member's environment.** Compare locale, time zone, Java version, and
    environment variables, if your code could read any of them.
 3. **Your `apply()`.** Re-read the forbidden list above.

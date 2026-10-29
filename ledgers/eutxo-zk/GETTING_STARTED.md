@@ -688,8 +688,8 @@ The capability can move from `experimental` to `preview` only after:
   are deployed and exercised end to end on Yano devnet;
 - the prover and permissionless relay are packaged and operated by the stock
   JVM distribution;
-- `./yano.sh appchain cluster` can launch the generated project and report all
-  settlement stages;
+- the app-chain setup commands (`./yano.sh appchain new` … `start`) can
+  launch the chain and report all settlement stages;
 - the same flow passes on Cardano Preview and then Preprod with test ADA;
 - restart, L1 rollback, duplicate relay, unavailable prover, and unavailable
   operator tests pass; and

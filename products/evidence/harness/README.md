@@ -26,7 +26,7 @@ connector credentials for each instance and deployment. No universal signing
 key is checked in or reused by a public profile.
 
 ADR-013 Milestone 1 is **ACCEPTED**. Its connector fault matrix, three-member
-devnet failover, retained restart, Compose/host parity, packaging, cleanup, and
+devnet failover, retained restart, packaging, cleanup, and
 independent release reviews passed. Live preview/preprod runs remain
 operator-authorized supplemental evidence rather than an automatic test.
 
@@ -37,7 +37,7 @@ running a scenario. `DEMO_ANCHOR_VISIBILITY_TIMEOUT_SECONDS` controls that wait
 (default 300, range 60–3600 seconds), separately from the scenario timeout.
 Qualification CI uses 900 seconds to allow the unchanged default node
 no-progress watchdog to recover. Pending and failed waits print bounded,
-allowlisted L1 status diagnostics for both Compose and host mode. A larger
+allowlisted L1 status diagnostics. A larger
 deadline does not relax the all-member visibility check or change node policy.
 
 The isolated role-workflow E2E uses HTTP 30070–30072, app peers 30337–30339,
@@ -382,7 +382,7 @@ prints the fully resolved Compose model without printing a credential value.
 Instance names must match `[a-z0-9][a-z0-9-]{0,31}`; underscores are rejected
 so two names cannot normalize to the same Compose project or connector ids.
 `DEMO_CHAIN_ID` must match `[a-z][a-z0-9-]{0,62}` and is rendered identically
-into the node application config, scenario runner, and host anchor bootstrap.
+into the node application config, scenario runner, and anchor bootstrap.
 
 Public profiles use the same launcher; do not invoke `docker compose` directly
 with a network environment file because that bypasses identity, key, lease,
@@ -504,7 +504,7 @@ explicit health checks, and writable mounts/tmpfs only where required.
 
 CI runs the release gates in two workflows. `build.yml`'s `release-acceptance`
 job requires the JVM build, the distribution check and the real connector fault
-matrix. The fenced devnet, Compose/host parity and role workflow E2E gates run
+matrix. The fenced devnet and role workflow E2E gates run
 in `evidence-e2e.yml`, and `tag-release.yml` tags a release only on a commit
 where that workflow passed.
 
@@ -521,7 +521,6 @@ by instances using the same network and deployment:
     shared/                         generated devnet genesis/timestamp
     <deployment>/                   shared L1 store and active lease
       node0/ node1/ node2/          Compose L1 stores
-      host-cluster/                 host cluster L1 stores, for host mode
       demo-owner.json               present only while one instance owns L1
   instances/<instance>/<deployment>/
     appchain-identity.json
@@ -535,10 +534,10 @@ by instances using the same network and deployment:
   reservations/<deployment>/        replacement identity reservations
 
 .demo-runtime/networks/<network>/<instance>/<deployment>/
-  plugins/ runner.jar yano.jar generated deployment configuration
+  plugins/ runner.jar generated deployment configuration
 
 .demo-secrets/networks/<network>/<instance>/<deployment>/
-  member-keys/ nodes-<deployment>/ cluster-private-config/ credentials
+  member-keys/ nodes-<deployment>/ credentials
 ```
 
 All three devnet nodes mount the exact same generated Shelley genesis and
@@ -557,10 +556,7 @@ later instances cannot silently adopt an existing history name.
 Complete mutating/runtime commands are additionally serialized per
 network/deployment. A detached watchdog retains that lock until a failed or
 killed command group is gone; successful services never inherit its file
-descriptor. In host mode the evidence UI has a durable gated-launch fence and
-private canonical process record binding PID, kernel start token, owner, and
-exact observed argv. `status`, `stop`, and failed-start rollback reconcile its
-known crash boundaries, while an untrusted record blocks signaling and cleanup.
+descriptor.
 
 The configured data, runtime, and secret base roots must be pairwise
 disjoint: equal, parent/child, and symlink-resolved overlaps fail before state
@@ -575,7 +571,7 @@ After startup the launcher accepts or updates it only when all three members
 report the same thread policy, script hash/address, and adopted height.
 
 If `up` fails after acquiring the shared-L1 lease, startup rollback first stops
-the partial Compose/host deployment. It releases the lease only after shutdown
+the partial Compose deployment. It releases the lease only after shutdown
 is proven; otherwise it deliberately preserves the lease and directs the
 operator to run `stop` with the same profile.
 
@@ -647,82 +643,32 @@ attached. Plain `l1` refuses any retained attachment. `l1` and `all` require
 `--confirm-public-l1-delete <network>` on a public profile. Every mainnet
 cleanup also requires `--enable-mainnet`. Every cleanup requires a stopped
 deployment, one exact scope, and `--yes`; all secrets remain.
-The plan, retirement/reservation, exact host-link removal, attachment check,
+The plan, retirement/reservation, attachment check,
 quarantine deletion, and completion execute as one journalled transaction
 under the network lock. An interrupted transaction accepts only the identical
 plan; a different cleanup or deployment start remains fenced until recovery.
 
-## Normal / host deployment
+## Running the evidence chain on your own hosts
 
-Host mode uses the same plugin bundles, runner JAR, scenario fixture, strict
-properties schema, and proof verifier as Compose. It starts Yano through the
-standard cluster launcher but expects Kafka, S3-compatible storage, and Kubo
-to be independently provisioned:
+This harness runs only as Docker Compose; its former host deployment mode is
+retired. To run the evidence chain on your own hosts, use the setup commands
+with the `evidence-ledger` recipe (`./yano.sh appchain new <name> --chain
+evidence=evidence-ledger`; see
+[Set up an application](../../../docs/appchain/deployment/configure.md)).
 
-```bash
-export DEMO_HOST_KAFKA_BOOTSTRAP_SERVERS=127.0.0.1:9092
-export DEMO_HOST_KAFKA_TARGET_ID=kafka-host-devnet-local
-export DEMO_HOST_S3_ENDPOINT=http://127.0.0.1:9000
-export DEMO_HOST_S3_TARGET_ID=s3-host-devnet-local
-export DEMO_HOST_IPFS_API_URL=http://127.0.0.1:5001
-export DEMO_HOST_IPFS_TARGET_ID=ipfs-host-devnet-local
-export DEMO_HOST_S3_RUNNER_ACCESS_KEY_FILE=/secure/runner-access-key
-export DEMO_HOST_S3_RUNNER_SECRET_KEY_FILE=/secure/runner-secret-key
-export DEMO_HOST_S3_EXECUTOR_ACCESS_KEY_FILE=/secure/executor-access-key
-export DEMO_HOST_S3_EXECUTOR_SECRET_KEY_FILE=/secure/executor-secret-key
-
-./demo.sh prepare --mode host
-./demo.sh up --mode host
-./demo.sh run --mode host
-./demo.sh stop --mode host
-```
-
-Before `up`, provision a versioned `evidence-staging` bucket **without** Object
-Lock and a versioned `evidence-archive` bucket **with** Object Lock enabled but
-with **no default retention rule**. Retention is selected per action/profile;
-this demo deliberately uses `none-v1`, which applies no per-object lock.
-Bootstrap rejects a provider-level default retention rule. Install equivalent
-least-privilege runner and executor
-policies. The Compose
-profile generates an instance-bound private RustFS IAM specification and its
-one-shot bootstrap applies and verifies it; host deployments must provide the
-same capability split through their provider's IAM mechanism.
-The Compose demo deliberately uses the bounded plaintext `local-demo` Kafka
-profile on its isolated private network. Host and production deployments can
-select the validated `tls`, `mtls`, or `sasl-tls` profiles and provide their
-truststore, keystore, and SASL secrets through protected runtime configuration;
-effect payloads never carry broker endpoints or credentials. Restrict Kubo RPC
-to the executor/runner network. Host mode's
-`init-connectors` validates these external dependencies and creates or
-validates the Kafka topic before it starts Yano. It never calls Yano and cannot
-form a startup cycle.
-
-Target ids are immutable identities, not display labels. Compose derives the
-same runner/executor ids from deployment, network, and canonical instance
-name. Host mode requires the matching `DEMO_HOST_*_TARGET_ID` whenever its
-endpoint or bootstrap-server override is supplied; changing an external
-target therefore cannot silently reuse an old acknowledgement fingerprint.
-Host S3/IPFS locators must be bounded `http`/`https` origins with an explicit
-host and port and no user-info, path, query, or fragment. Kafka locators are a
-bounded list of plain `host:port` entries and reject credential/URL syntax.
-Credentials are accepted only through the separate owner-only files shown
-above, so immutable identity markers remain credential-free.
-
-The host launcher writes private node overlays to
-`.demo-secrets/networks/<network>/<instance>/host/nodes-host/`, member seeds to
-the sibling `member-keys/` directory, and cluster-owned private configuration
-to `cluster-private-config/`. Generated non-secret host files and the staged
-JARs live under `.demo-runtime/networks/<network>/<instance>/host/`.
-`cluster.sh` receives the member-key directory and optional anchor key through
-dedicated file-path inputs and continues to own protected membership, signing
-keys, ports, and topology, so a connector overlay cannot override those
-launcher invariants. Host L1 state lives under
-`.demo-data/networks/<network>/l1/host/host-cluster/`; managed links point its
-app-chain paths at the selected instance's separate app-chain directories.
+Connector services you provision yourself need what the Compose profile
+creates: a versioned `evidence-staging` bucket **without** Object Lock, a
+versioned `evidence-archive` bucket **with** Object Lock enabled but **no**
+default retention rule (the demo selects the per-object `none-v1` policy, and
+bootstrap rejects a provider-level default), and separate least-privilege
+runner and executor identities. Production Kafka should use the validated
+`tls`, `mtls`, or `sasl-tls` profile
+([Kafka connector](../../../connectors/kafka/README.md)); restrict Kubo RPC to
+the executor network.
 
 ## Plugin installation
 
-The Compose and host demos are JVM deployments. `prepare` builds each
+The Compose demo is a JVM deployment. `prepare` builds each
 self-contained `*-bundle.jar` and stages exactly these plugin ids:
 
 ```text
@@ -749,7 +695,6 @@ Run the static deployment checks without starting services:
 ./tests/demo-launcher-test.sh
 ./tests/lifecycle-tool-test.sh
 ./tests/operation-lock-test.sh
-./tests/managed-process-test.sh
 ./tests/key-material-test.sh
 ./tests/secret-file-test.sh
 ./tests/anchor-funding-test.sh
@@ -765,9 +710,6 @@ Run the release-only connector and ownership gates explicitly:
 # Three-node post-ack crash and fenced executor handoff/requeue. This always
 # creates and removes its own temporary roots, ports, and Compose project.
 YANO_RUN_EFFECT_FAILOVER_E2E=true ./tests/effect-failover-e2e.sh
-
-# The identical scenario through Compose and normally started host processes.
-YANO_RUN_DEPLOYMENT_PARITY_E2E=true ./tests/deployment-parity-e2e.sh
 
 # Role governance, actor-signed release, rotation/revocation, current-pointer
 # proof material, and one-member retained restart/catch-up.
@@ -808,8 +750,8 @@ the identity and convergence checks remain mandatory.
 
 ### Cardano historical projections
 
-The Evidence profile disables `yano.history.projection.enabled` in both host
-and Compose deployments. It uses canonical L1 state for anchoring and app-chain
+The Evidence profile disables `yano.history.projection.enabled` in its Compose
+deployment. It uses canonical L1 state for anchoring and app-chain
 state for evidence; Cardano historical projections are a separate workload.
 This also keeps optional history projection work out of the demo's metrics
 scrapes. Per-node history directories remain isolated for deployments that

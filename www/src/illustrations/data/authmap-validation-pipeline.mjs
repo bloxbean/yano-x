@@ -2,7 +2,7 @@
 // admission, the candidate block, and authoritative apply. Collections follow
 // the documented products/gtins examples; values are examples.
 
-const PREFLIGHT = './yano.sh appchain state validate --genesis-file product-registry/config/authenticated-map-genesis.hex '
+const PREFLIGHT = './yano.sh appchain state validate --genesis-file authenticated-map-genesis.hex '
   + '--collection products --key 736b752d31 --value-file product.cbor';
 
 const preflightChecks = (failAt, code) => [
@@ -30,8 +30,9 @@ const ingressChecks = (failAt) => [
 
 const preflight = {
   title: 'Preflight',
-  text: 'Before submitting, check the value offline against the exact genesis. The result is advisory: `ACCEPTED`, '
-    + '`REJECTED` with a code, or `UNAVAILABLE` when the collection uses a plugin the CLI cannot run.',
+  text: 'Before submitting, check the value offline against the exact genesis, which '
+    + '`appchain inspect product-registry.chain --map-genesis product-registry` writes out. The result is advisory: '
+    + '`ACCEPTED`, `REJECTED` with a code, or `UNAVAILABLE` when the collection uses a plugin the CLI cannot run.',
   command: PREFLIGHT,
   checks: preflightChecks(),
   cards: { tool: { title: 'ACCEPTED', detail: 'advisory only', tone: 'ok' } },

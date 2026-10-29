@@ -3,12 +3,16 @@
 // OrderedLogStateMachine, FinalizedMessageIndex and the submission path.
 
 const RECORD = '`[1, height, index, topic, sender]`';
+const MESSAGES = 'http://127.0.0.1:$PORT/api/v1/app-chain/chains/orders/messages';
 
 const submit = {
   title: 'Submit',
   text: 'Your application posts a topic and a body to one member. The member checks framework limits, signs the '
     + 'envelope with its member key, pools it and answers **202** with a message id.',
-  command: './yano.sh appchain cluster submit orders-chain order-created \'{"orderId":"A-1001"}\' --node 1',
+  command: 'PORT=$(jq -r .httpPort appchain-try/bob/yano-node/node.json)\n'
+    + `MESSAGE_ID=$(curl -sS -X POST ${MESSAGES} \\\n`
+    + '  -H \'Content-Type: application/json\' \\\n'
+    + '  -d \'{"topic":"order-created","body":"order A-1001 created"}\' | jq -r .messageId)',
   wires: [{ from: 'app', to: 'member', label: 'POST `{topic, body}`' }],
   cards: { member: { title: '202', detail: 'message id, not final yet' } },
 };
@@ -40,7 +44,7 @@ const record = {
 const find = {
   title: 'Find the message',
   text: 'A lookup by id returns **404** until the message is final, then its height, index, topic, sender and body.',
-  command: 'curl -sf http://127.0.0.1:7070/api/v1/app-chain/chains/orders-chain/messages/$MESSAGE_ID',
+  command: `curl -sf ${MESSAGES}/$MESSAGE_ID`,
   wires: [{ from: 'log', to: 'app', label: 'height, index, bodyHex' }],
   cards: { app: { title: 'Final at h', detail: 'position known', tone: 'final' } },
 };
@@ -57,11 +61,12 @@ export default {
   id: 'ordered-log-journey',
   type: 'steps',
   title: 'An event through ordered-log',
-  intro: 'one order event on the stock `orders-chain`, from the HTTP call to a proof of where it was finalized. The '
+  intro: 'one order event on the `orders` chain that `./yano.sh appchain try` sets up, from the HTTP call to a proof '
+    + 'of where it was finalized. The '
     + 'full consensus round is in “Life of a message”.',
   lanes: [
     { id: 'app', label: 'Your application', kind: 'client' },
-    { id: 'member', label: 'Receiving member', note: 'node 1', kind: 'member' },
+    { id: 'member', label: 'Receiving member', note: 'bob\'s node', kind: 'member' },
     { id: 'log', label: 'ordered-log', note: 'on every member', kind: 'core' },
     { id: 'verifier', label: 'Verifier', note: 'reads proofs', kind: 'client' },
   ],
@@ -114,6 +119,10 @@ export default {
     ['fail', 'refused'],
   ],
   sources: [
+    { repo: 'yano-x', path: 'tooling/appchain-cli/src/main/java/org/yanoproject/x/appchain/cli/TryCommand.java',
+      anchors: ['"orders=" + LOG_RECIPE', 'private static final String LOG_RECIPE = "audit-log";'] },
+    { repo: 'yano-x', path: 'tooling/devtools/src/main/resources/appchain-dx/v1alpha1/appchain-recipe-catalog.json',
+      anchors: ['"id": "audit-log"', '"state:ordered-log"'] },
     { repo: 'yano', path: 'runtime/src/main/java/org/yanoproject/runtime/appchain/OrderedLogStateMachine.java',
       anchors: ['ID = "ordered-log"', 'FinalizedMessageIndex.plan(context, FinalizedMessageIndex.Config.allMessages())'] },
     { repo: 'yano', path: 'core-api/src/main/java/org/yanoproject/api/appchain/transition/FinalizedMessageIndex.java',

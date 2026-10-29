@@ -50,11 +50,11 @@ in its `gradle.properties`.
 
 | Value | Current |
 |---|---|
-| Yano X version | `0.1.0-pre3` |
-| Yano host version | `0.1.0-pre17` |
+| Yano X version | `0.1.0-pre4` |
+| Yano host version | `0.1.0-pre19` |
 | Maven group | `org.yanoproject.x` |
 | Java | `25` |
-| Base Yano JVM ZIP | [`yano-0.1.0-pre17.zip`](https://github.com/bloxbean/yano/releases/download/v0.1.0-pre17/yano-0.1.0-pre17.zip) |
+| Base Yano JVM ZIP | [`yano-0.1.0-pre19.zip`](https://github.com/bloxbean/yano/releases/download/v0.1.0-pre19/yano-0.1.0-pre19.zip) |
 
 <!-- catalog:versions-end -->
 
@@ -445,9 +445,9 @@ catch-up, restart, and anchor state.
 - Treat custom-plugin metadata as `PARTIAL` unless Yano reports `FULL`.
 - Never delete retained clusters, state, keys, or staging repositories without
   reviewing the exact path and obtaining explicit authorization. `stop`
-  preserves state; `./yano.sh appchain cluster clean` and
+  preserves state; `./yano.sh appchain try --clean` and
   `./showcase.sh reset --yes` delete it.
 - Preprod operations submit real test-network transactions and spend test ADA.
-  Require explicit authorization before deployment, anchor bootstrap, settlement
-  bootstrap, or smoke traffic.
+  Require explicit authorization before deployment, turning on anchoring,
+  settlement bootstrap, or smoke traffic.
 - Do not modify the sibling Yano repository as a side effect of a Yano X task.

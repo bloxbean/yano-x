@@ -1,5 +1,13 @@
 # Yano X deployment experience: independent review and design plan
 
+> **Superseded tooling plan.** [ADR-056](../../adr/056-simple-app-chain-setup.md)
+> replaced the one-author project lifecycle described below (`init`, `prepare`,
+> `render`, `plan`, `apply`, `drift`, `gitops`, `chain add`, and the Studio
+> blueprint page) with a multi-operator setup: `new`, `request`, `seal`,
+> `join`, `start`, `status`, and `approve`. This document is kept as the
+> historical review; for current workflows see the
+> [deployment guides](deployment/README.md).
+
 Status: original review and roadmap. The implementation follow-up is
 [ADR-047](../../adr/047-cohesive-application-deployment.md); current user workflows
 are documented in the [deployment guides](deployment/README.md). Remaining roadmap
@@ -104,7 +112,7 @@ validates known showcase chain sets and pins chain IDs, configuration, plugin,
 and genesis-related inputs. The supported marker evolution documented today is
 additive anchor enablement, not arbitrary chain addition.
 
-[cluster.sh](../../scripts/appchain-cluster/cluster.sh) also compares configured
+`cluster.sh`, the single-host launcher (since removed), also compared configured
 chain IDs against retained standalone app-chain identity. These are safeguards,
 not bugs to remove. A new deployment revision mechanism must authorize an exact
 additive change while retaining the old checks for unplanned drift.

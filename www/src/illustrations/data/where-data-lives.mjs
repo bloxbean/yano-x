@@ -1,5 +1,5 @@
 // The three sibling stores of one node, what each holds, and which data the
-// state root covers. Paths follow cluster.sh and the host's storage settings;
+// state root covers. Paths follow the setup CLI's NodeConfig.java and the host's storage settings;
 // the authenticated/local split follows the consensus guide §7.
 
 export default {
@@ -108,9 +108,10 @@ export default {
       anchors: ['`chainstate/`: authoritative Cardano L1 state', '`appchain-chainstate/`: authoritative app-chain state',
         '`appchain-indexers/`: rebuildable local read indexes', 'Never restore `appchain-indexers` as authoritative state',
         'Derived indexes must never advance beyond authoritative app-chain state'] },
-    { repo: 'yano-x', path: 'scripts/appchain-cluster/cluster.sh',
-      anchors: ['-Dyano.storage.path=$dir/chainstate', '-Dyano.app-chain.storage.path=$dir/appchain-chainstate',
-        'storage-path=$dir/appchain-indexers'] },
+    { repo: 'yano-x', path: 'tooling/appchain-cli/src/main/java/org/yanoproject/x/appchain/cli/NodeConfig.java',
+      anchors: ['local.put("yano.storage.path", data(node, "chainstate"));',
+        'local.put("yano.app-chain.storage.path", data(node, "appchain-chainstate"));',
+        'local.put("yano.app-chain.indexer.storage.path", data(node, "appchain-indexers"));'] },
     { repo: 'yano', path: 'docs/APP_CHAIN_CONSENSUS_GUIDE.md',
       anchors: ['The state machine and framework-authenticated keys share the trie.',
         'all in RocksDB CFs *outside* the state commitment', 'One atomic batch per block.'] },

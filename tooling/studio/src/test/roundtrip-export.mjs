@@ -71,12 +71,12 @@ for (const source of sources) {
   }
   cases.push({name: source.name, context: source.context, files});
 }
-// A blueprint whose composite is re-emitted by Studio: only that value may change, and Java must read it back.
-const blueprintText = fs.readFileSync(path.join(here, 'fixtures/blueprint-two-chains.yaml'), 'utf8');
+// A setup draft whose composite is re-emitted by Studio: only that value may change, and Java must read it back.
+const blueprintText = fs.readFileSync(path.join(here, 'fixtures/draft-two-chains.yaml'), 'utf8');
 const blueprint = readBlueprint(blueprintText);
 fs.writeFileSync(path.join(output, 'blueprint.original.yaml'), blueprintText);
 fs.writeFileSync(path.join(output, 'blueprint.spliced.yaml'), spliceComposite(blueprint, 1, draftForChain(blueprint, 1)));
-const blueprints = [{name: 'blueprint-two-chains', chainId: 'workflow', original: 'blueprint.original.yaml',
+const blueprints = [{name: 'draft-two-chains', chainId: 'workflow', original: 'blueprint.original.yaml',
   spliced: 'blueprint.spliced.yaml'}];
 fs.writeFileSync(path.join(output, 'manifest.json'), `${JSON.stringify({schema: 'yano-x-studio-roundtrip-v1', cases, blueprints}, null, 2)}\n`);
 console.log(`wrote ${cases.length} round-trip cases to ${output}`);

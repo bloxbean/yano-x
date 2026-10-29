@@ -1,6 +1,6 @@
 # Tutorial 5 — Generic Domain Actors and Role-Aware Approval
 
-[Open generic role approval in App-Chain Studio](../../../tooling/studio/src/main/web/index.html#recipe=role-approval&network=devnet&members=3&finality=two-thirds&sequencing=fixed&runtime=jvm&deployment=host&name=role-approval&chainId=role-approval)
+To run this outcome with other operators, follow [Set up an application](../deployment/configure.md).
 
 - **Level:** application developer; advanced for identity governance
 - **Time:** about 30 minutes, plus the first image build
@@ -181,15 +181,16 @@ governed separately.
 
 The generic [`role-approvals`](../state-machines/role-approvals.md) machine
 approves any payload hash and emits nothing. Its reference page shows how to
-create a project with the `role-approval` recipe, sign statements with
+set up an application with the `role-approval` recipe, sign statements with
 `./yano.sh appchain role sign`, submit them on `role-approvals.command.v1`,
 and query and prove the result. It also lists the lifecycle, the order of
 checks and every outcome code.
 
 Its organizations, actors and policies are created through member governance.
-`./yano.sh appchain role bootstrap` encodes them from the project's generated
-`bootstrap/role-approvals-plan.yaml`; the reference page walks through the
-bootstrap, from actor keys to a read-back of every record.
+`./yano.sh appchain role bootstrap` encodes them from a role bootstrap plan.
+`seal` writes that plan's template beside the sealed file as
+`<chainId>.role-plan.yaml`; the reference page walks through filling it in
+and the bootstrap, from actor keys to a read-back of every record.
 
 ## Reuse levels
 

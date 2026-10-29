@@ -395,7 +395,7 @@ presence, authenticate its value, or prove finality.
 
 Capability metadata exposes `declarative-event-bindings` with the
 `yano-x-binding-graph-v1` schema. Studio can preview a locally imported manifest
-as a graph; the preview does not authenticate the manifest or modify a blueprint.
+as a graph; the preview does not authenticate the manifest or modify a document.
 Authoring uses Studio's separate guided editor, which works on the document and
 an authoring catalog, never on this metadata (see
 [the Studio editor chapter](bindings/06-guided-editor.md)).

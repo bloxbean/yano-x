@@ -1,6 +1,6 @@
 # Tutorial 3 — Choose a Stock State Machine
 
-[Open a stock approval workflow in App-Chain Studio](../../../tooling/studio/src/main/web/index.html#recipe=approval-workflow&network=devnet&members=3&finality=two-thirds&sequencing=fixed&runtime=jvm&deployment=host&name=approval-workflow&chainId=approval-workflow)
+To run this outcome with other operators, follow [Set up an application](../deployment/configure.md).
 
 - **Level:** beginner for selection, advanced for wire integration
 - **Outcome:** choose the smallest built-in deterministic model that matches
@@ -73,71 +73,77 @@ doc-trail    [entityId, entryHash, reference]                   APPEND; referenc
 their CLI commands and Java authoring helpers described on their reference
 pages. `ordered-log` takes any non-empty body.
 
-## 4. Configure a chain for the local launcher
+## 4. Choose the machine for each chain
 
-The cluster launcher reads `config/application-appchain.yml` in the release's
-top-level directory (`$YANO_HOME/config/application-appchain.yml` when you set
-`YANO_HOME`). Under its single `yano.app-chain` root it already defines
-`orders-chain`, `registry-chain` and `effects-chain` as `chains[0]` to
-`chains[2]`. Add a fourth chain before you start a fresh cluster. Keep a copy
-of the original file first, so you can restore it in [Clean up](#clean-up):
+When you set up an application, each chain names a *recipe*: a stock state
+machine with the settings it needs. List the recipes and the answers each one
+needs:
 
 ```bash
-cp config/application-appchain.yml config/application-appchain.yml.orig
+./yano.sh appchain recipes
 ```
 
-Paste this block inside that root, just above the `# --- Add more chains here`
-comment, at the same four-space indentation as `chains[2]`:
+| Machine | Recipe |
+|---|---|
+| `ordered-log` | `audit-log` |
+| `kv-registry` | `owned-registry` |
+| `authenticated-map` | `authenticated-map` |
+| `approvals` | `approval-workflow` |
+| `role-approvals` | `role-approval` |
+| `role-evidence` | `evidence-ledger` |
+| `doc-trail` | `document-trail` |
+
+A machine without a recipe of its own, such as `balances`, uses the
+`custom-plugin` recipe with its `stateMachine` answer. Read the machine's
+reference page for the settings it needs.
+
+To rehearse a choice on one machine, give `try` one `--chain <id>=<recipe>`
+per chain. `new` takes the same options for a real application:
+
+```bash
+./yano.sh appchain try --chain orders=audit-log --chain workflow=approval-workflow
+```
+
+For more than a couple of chains, or for answers and settings, write the
+chains in a small template and pass it with `--from`:
 
 ```yaml
-    chains[3]:
-      chain-id: "workflow-chain"
-      state-machine: approvals
-      state:
-        commitment-profile: mpf-blake2b256-v1
-        format-fingerprint: 91ee14091200f1e24659112d640e877e9177779dcc81dd06117f013e9190082b
-        genesis-id: <output of: openssl rand -hex 32>
-      membership:
-        mode: governed
-      block:
-        interval-ms: 1000
+# chains.template.yaml
+chains:
+  - id: orders
+    recipe: audit-log
+  - id: workflow
+    recipe: approval-workflow
+  - id: credits
+    recipe: custom-plugin
+    answers:
+      stateMachine: balances
+    settings:
+      block.interval-ms: "1000"
 ```
-
-Do not start a second `yano:` block: YAML keeps only the last one, so the
-nodes would start without any app chain. Check the file before you start:
 
 ```bash
-./yano.sh appchain config validate --mode template \
-  --template-contract builtin:cluster config/application-appchain.yml
+./yano.sh appchain try --from chains.template.yaml
 ```
 
-> **✓ You should see** a last line starting with `VALID_TEMPLATE` and
-> `errors=0`. Then `./yano.sh appchain cluster start 3` lists
-> `workflow-chain` among its chains.
+`answers:` fill in what a recipe asks for; `--answer <chain>.<name>=<value>`
+does the same on the command line. `settings:` are flat chain settings that
+`seal` fixes for every member; `--setting <chain>.<key>=<value>` adds one, and
+`--without <chain>` leaves a template chain out. Settings that `seal` derives
+from the draft, such as members, threshold, sequencing, and membership, are
+refused there. A mistyped recipe or a missing answer stops `try` before
+anything runs and leaves no rehearsal behind.
 
-Above that last line the validator prints one diagnostic per line, and both
-kinds are expected here:
+> **✓ You should see** `seal` list one line per chain with its recipe and
+> genesis, for example `chain workflow approval-workflow genesis …`, and the
+> final `status` show every chain with `members agree`.
 
-- `WARNING DX_CONFIG_PARTIAL_NAMESPACE ...` for keys such as
-  `chains[3].membership.mode`: a plugin owns that namespace and publishes only
-  partial metadata, so the validator cannot check the exact key name.
-- `INFO UNRESOLVED_TEMPLATE_OVERLAY ...` for each chain's `members`, `peers`,
-  `signing-key` and `threshold`: the launcher supplies these before startup,
-  so the template correctly leaves them out.
-
-Only `ERROR` lines, or a last line starting with `INVALID_TEMPLATE`, need a
-fix.
-
-The host refuses a chain without all three `state.*` settings, and the
-validator does not catch that yet. Copy the profile and fingerprint from an
-existing chain and give each new chain its own genesis id. The launcher injects
-members, threshold, signing keys, peers and the fixed proposer; do not put that
-material in the shared file.
-
-A generated project, created with `./yano.sh appchain init`, is different:
-`appchain render` writes every chain setting, including the state identity,
-and you never edit the rendered files by hand. To add a chain there, use the
-[add-chain workflow](../deployment/add-chain.md).
+`seal` writes every chain setting, including the state identity (commitment
+profile, format fingerprint, and genesis id), into the sealed `<app>.chain`
+file, and `appchain join` turns it into each node's configuration. You never
+edit those files by hand, and no member can run different settings. To add a
+chain to a live application, see
+[grow and change](../deployment/add-chain.md).
 
 ## 5. Configuration is not arbitrary composition
 
@@ -163,25 +169,12 @@ change every member's state root. Use, in order of preference:
 
 ## Clean up
 
-If you started a cluster with `workflow-chain`, remove it before you take the
-chain out of the file: the chain list is part of the cluster's retained
-identity.
+If you ran a rehearsal, remove it:
 
 ```bash
-./yano.sh appchain cluster clean
+./yano.sh appchain try --clean
+rm -f chains.template.yaml
 ```
-
-Then remove the `chains[3]` entry you added, by restoring the copy you made
-(or by deleting that block by hand), and validate again:
-
-```bash
-mv config/application-appchain.yml.orig config/application-appchain.yml
-./yano.sh appchain config validate --mode template \
-  --template-contract builtin:cluster config/application-appchain.yml
-```
-
-> **✓ You should see** `VALID_TEMPLATE` with `errors=0`, and no diagnostic
-> that mentions `chains[3]`.
 
 ## Go deeper
 

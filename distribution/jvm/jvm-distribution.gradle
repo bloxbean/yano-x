@@ -17,8 +17,8 @@ def distVersion = project.version.toString().replaceAll('-SNAPSHOT', '')
 def distributionRoot = "yano-x-jvm-${distVersion}"
 def generatedDistributionManifest = layout.buildDirectory.file(
         'generated/distribution/jvm/yano-x-distribution-v1.json')
-def devtoolsInstallDirectory = project(':tooling:devtools').layout.buildDirectory.dir(
-        'install/yano-devtools')
+def devtoolsInstallDirectory = project(':tooling:appchain-cli').layout.buildDirectory.dir(
+        'install/yano-appchain')
 def deploymentInstallDirectory = project(':tooling:deployment').layout.buildDirectory.dir(
         'install/yano-x-deploy')
 def studioDirectory = project(':tooling:studio').layout.buildDirectory.dir('studio')
@@ -95,17 +95,9 @@ def rebaseBaseRoot = { details ->
 // for every JVM platform (bloxbean/yano#137). Remove with the upstream fix.
 def devnetProfileOverlay = file('config/application-devnet.yml')
 
-// Yano X's stock app ledger template replaces Yano's one-chain file: the
-// cluster launcher and tutorials use orders-chain, registry-chain, and
-// effects-chain (bloxbean/yano-x#22). As a shared template it holds no keys;
-// the launcher injects members, threshold, and signing keys, including for a
-// one-member `./yano.sh appchain cluster start 1`.
-def stockAppChainConfig = rootProject.file('config/application-appchain.yml')
 
-// The showcase ships at examples/showcase. Its yano/ home holds only the demo
-// configuration (the Yano config tree with the showcase app-chain file and
-// settlement scripts); showcase.sh links everything else back to the
-// distribution root on first run.
+// The showcase ships at examples/showcase. It sets its nodes up with the distribution's own app-chain
+// setup tool from the templates in config/, so it carries no Yano configuration of its own.
 tasks.register('prepareShowcase', Sync) {
     group = 'distribution'
     description = 'Stages the showcase that ships inside the JVM distribution.'
@@ -135,35 +127,20 @@ tasks.register('prepareShowcase', Sync) {
     from(new File(showcaseSources, 'config/showcase-catalog-v1.json')) {
         into 'catalog'
     }
-    from({ zipTree(baseYanoDistribution.get()) }) {
-        include '*/config/**'
-        exclude '*/config/application-appchain.yml', '*/config/application-devnet.yml'
-        eachFile { details ->
-            details.relativePath = org.gradle.api.file.RelativePath.parse(
-                    details.relativePath.file,
-                    "yano/${details.relativePath.segments.drop(1).join('/')}")
-        }
-        includeEmptyDirs = false
-    }
-    // ADR-UTXO-009: the settlement chain's parameterized validators are derived
-    // from the packaged plan and must be present before the L1 bootstrap runs.
-    from(new File(showcaseSources, 'config/settlement')) {
-        into 'yano/config/settlement'
-    }
-    from(new File(showcaseSources, 'config/application-appchain.yml')) {
-        into 'yano/config'
-    }
-    from(devnetProfileOverlay) {
-        into 'yano/config'
+    // The templates `yano.sh appchain new --from` seals, and the settlement chain's executor settings and
+    // parameterized validators (a pure function of the packaged plan, present before the L1 bootstrap runs).
+    from(new File(showcaseSources, 'config')) {
+        into 'config'
+        include '*.template.yaml', 'settlement/**'
     }
 }
 
 tasks.register('yanoXJvmDistZip', Zip) {
     dependsOn tasks.named('generateYanoXDistributionManifest'),
             tasks.named('normalizeYanoXReleaseSbom'),
-            ':tooling:devtools:installDist', ':tooling:studio:prepareStudio',
+            ':tooling:appchain-cli:installDist', ':tooling:studio:prepareStudio',
             ':products:cardano-history:cli:installDist',
-            ':tooling:devtools:installDist', ':tooling:deployment:installDist',
+            ':tooling:appchain-cli:installDist', ':tooling:deployment:installDist',
             ':tooling:studio:prepareStudio',
             ':products:eutxo:ui:frontendBuild', ':products:eutxo:ui:frontendSbom',
             ':products:evidence:demo-runner:shadowJar',
@@ -176,7 +153,9 @@ tasks.register('yanoXJvmDistZip', Zip) {
     preserveFileTimestamps = false
 
     from({ zipTree(baseYanoDistribution.get()) }) {
-        // The explicit X overlays below own these paths; retain all other host files.
+        // The explicit X overlays below own application-devnet.yml. Yano's demo application-appchain.yml (one chain
+        // with a fixed signing key, for its `appchain` profile) is left out: Yano X nodes take their chains from
+        // sealed applications.
         exclude '*/config/application-devnet.yml', '*/config/application-appchain.yml'
         eachFile rebaseBaseRoot
         includeEmptyDirs = false
@@ -232,19 +211,15 @@ tasks.register('yanoXJvmDistZip', Zip) {
         from(devnetProfileOverlay) {
             into 'config'
         }
-        from(stockAppChainConfig) {
-            into 'config'
-        }
         from(devtoolsMetadata) {
             into 'config/schema'
             include '*.schema.json', 'appchain-release-acceptance-index.json'
         }
-        from(rootProject.file('scripts/appchain-cluster')) {
-            into 'appchain-cluster'
-            exclude '.cluster-data/**', '**/*.log'
-            filesMatching(['**/*.sh', '**/*.py']) {
-                permissions { unix('755') }
-            }
+        // ADR-015: the dependency-free composite-profile governance operator CLI.
+        from(rootProject.file('scripts/composite-profile')) {
+            into 'tools/composite-profile'
+            include 'profile-governance.py'
+            filePermissions { unix('755') }
         }
         from(rootProject.file('products/evidence/harness')) {
             into 'examples/evidence'
@@ -339,14 +314,6 @@ tasks.register('prepareEvidenceDemoArtifacts', Sync) {
             }
         }
         includeEmptyDirs = false
-    }
-    // The source harness uses this release-matched home for host-mode contracts too.
-    from(rootProject.file('scripts/appchain-cluster')) {
-        into 'yano-context/yano/appchain-cluster'
-        exclude '.cluster-data/**', '**/*.log'
-        filesMatching(['**/*.sh', '**/*.py']) {
-            permissions { unix('755') }
-        }
     }
     from(rootProject.file('docker/jvm/entrypoint.sh')) {
         into 'yano-context'
@@ -534,17 +501,19 @@ tasks.register('verifyYanoXJvmDistribution') {
                     'tools/yano-cardano-history/bin/yano-cardano-history',
                     'skills/configure-yano-appchain/SKILL.md',
                     'config/schema/appchain-metadata-trust.schema.json',
-                    'appchain-cluster/cluster.sh',
                     'examples/evidence/demo.sh',
                     'examples/evidence/runner.jar',
                     'examples/showcase/showcase.sh',
                     'examples/showcase/VERSION',
                     'examples/showcase/catalog/showcase-catalog-v1.json',
                     'config/application-devnet.yml',
-                    'config/application-appchain.yml',
-                    'examples/showcase/yano/config/application-appchain.yml',
-                    'examples/showcase/yano/config/application-devnet.yml',
-                    'examples/showcase/yano/config/network/devnet/shelley-genesis.json',
+                    'examples/showcase/config/showcase.template.yaml',
+                    'examples/showcase/config/history.template.yaml',
+                    'examples/showcase/config/settlement.template.yaml',
+                    'examples/showcase/config/settlement/executor.json',
+                    'examples/showcase/tools/showcase_local.py',
+                    'examples/showcase/tools/loadtest.sh',
+                    'tools/composite-profile/profile-governance.py',
                     'docs/appchain/README.md',
                     'docs/appchain/DECLARATIVE_BINDINGS.md',
                     'docs/appchain/DECLARATIVE_BINDINGS_CLI.md',
@@ -559,12 +528,10 @@ tasks.register('verifyYanoXJvmDistribution') {
                             "Yano X distribution is missing ${relativePath}")
                 }
             }
-            def stockConfig = archive.getInputStream(archive.getEntry("${root}/config/application-appchain.yml"))
-                    .getText('UTF-8')
-            ['orders-chain', 'registry-chain', 'effects-chain'].each { chainId ->
-                if (!stockConfig.contains("chain-id: \"${chainId}\"")) {
-                    throw new GradleException(
-                            "Yano X distribution config/application-appchain.yml does not define ${chainId}")
+            ['appchain-cluster/cluster.sh', 'examples/showcase/yano/config/application-appchain.yml',
+             'config/application-appchain.yml'].each { retired ->
+                if (archive.getEntry("${root}/${retired}") != null) {
+                    throw new GradleException("Yano X distribution still ships the retired ${retired}")
                 }
             }
             cliToolInstallDirectories.keySet().each { toolName ->
@@ -597,4 +564,70 @@ tasks.register('verifyYanoXJvmDistribution') {
 tasks.named('assemble') {
     dependsOn tasks.named('yanoXPluginPackZip'),
             tasks.named('yanoXJvmDistZip')
+}
+
+// ADR-056 A3: the same distribution with a jlink-trimmed Java runtime under runtime/, built for the host
+// OS and architecture (CI builds one per platform). yano.sh prefers the bundled runtime, so neither
+// coordinators nor operators install Java. It is not a native image: Yano X stays JVM-only.
+def hostOs = System.getProperty('os.name').toLowerCase(Locale.ROOT).with {
+    it.contains('mac') ? 'macos' : it.contains('win') ? 'windows' : 'linux'
+}
+def hostArch = System.getProperty('os.arch').with { it == 'amd64' || it == 'x86_64' ? 'x64' : it == 'aarch64' ? 'arm64' : it }
+def selfContainedName = "yano-x-jvm-${distVersion}-${hostOs}-${hostArch}"
+def selfContainedWork = layout.buildDirectory.dir('self-contained')
+// Generous on purpose: plugin bundles may use any of these, and a missing module fails only at runtime.
+def bundledRuntimeModules = ['java.se', 'jdk.httpserver', 'jdk.unsupported', 'jdk.crypto.ec', 'jdk.crypto.cryptoki',
+        'jdk.management', 'jdk.management.agent', 'jdk.management.jfr', 'jdk.jfr', 'jdk.zipfs', 'jdk.naming.dns',
+        'jdk.net', 'jdk.charsets', 'jdk.localedata']
+
+tasks.register('prepareSelfContainedDistribution') {
+    dependsOn tasks.named('yanoXJvmDistZip')
+    def archive = tasks.named('yanoXJvmDistZip', Zip).flatMap { it.archiveFile }
+    inputs.file(archive)
+    outputs.dir(selfContainedWork)
+    doLast {
+        def work = selfContainedWork.get().asFile
+        project.delete(work)
+        project.copy {
+            from(project.zipTree(archive.get().asFile))
+            into(work)
+        }
+        def root = new File(work, distributionRoot)
+        // The JDK running the build, which the build requires to be Java 25; its jmods become the runtime.
+        if (Runtime.version().feature() != 25) throw new GradleException('the self-contained edition needs a Java 25 build JDK')
+        def jdk = new File(System.getProperty('java.home'))
+        def jlink = new File(jdk, 'bin/jlink' + (hostOs == 'windows' ? '.exe' : ''))
+        def process = new ProcessBuilder(jlink.absolutePath, '--add-modules', bundledRuntimeModules.join(','),
+                '--strip-debug', '--no-header-files', '--no-man-pages', '--compress', 'zip-6',
+                '--output', new File(root, 'runtime').absolutePath).redirectErrorStream(true).start()
+        def output = process.inputStream.text
+        if (process.waitFor() != 0) throw new GradleException("jlink failed: ${output}")
+        def launcher = new File(root, 'yano.sh')
+        def marker = 'export YANO_HOME="$YANO_ROOT"\n'
+        def text = launcher.getText('UTF-8')
+        if (!text.contains(marker)) throw new GradleException('yano.sh layout changed; cannot add the runtime prelude')
+        launcher.setText(text.replace(marker, marker + '''
+# Self-contained edition (ADR-056 A3): prefer the bundled Java runtime.
+if [ -x "$YANO_ROOT/runtime/bin/java" ]; then
+    export JAVA_HOME="$YANO_ROOT/runtime"
+    PATH="$JAVA_HOME/bin:$PATH"
+fi
+'''), 'UTF-8')
+        launcher.setExecutable(true, false)
+    }
+}
+
+tasks.register('yanoXSelfContainedDistZip', Zip) {
+    dependsOn tasks.named('prepareSelfContainedDistribution')
+    group = 'distribution'
+    description = 'Creates the Yano X distribution with a bundled Java runtime for this OS and architecture.'
+    archiveFileName = "${selfContainedName}.zip"
+    destinationDirectory = layout.buildDirectory.dir('distributions')
+    from(selfContainedWork) {
+        // Zip trees lose POSIX modes; restore them for launchers and the runtime's executables.
+        filesMatching(['**/*.sh', '**/bin/*', '**/runtime/lib/jspawnhelper', '**/runtime/lib/*.so',
+                       '**/runtime/lib/*.dylib']) {
+            permissions { unix('755') }
+        }
+    }
 }

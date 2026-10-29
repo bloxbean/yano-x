@@ -23,7 +23,8 @@ final class AppTestConsensusProfiles {
         return new AppChainConsensusProfile(
                 AppChainConsensusProfile.SCHEMA_VERSION,
                 AppChainConfig.DEFAULT_MAX_MESSAGE_BYTES, maxBlockMessages,
-                AppChainConfig.DEFAULT_BLOCK_MAX_BYTES, 0, 0, false,
+                AppChainConfig.DEFAULT_BLOCK_MAX_BYTES, 0, 0,
+                AppChainConsensusProfile.DEFAULT_BLOCK_MAX_FORWARD_SKEW_MS, false,
                 true, maxPerBlock, maxPayloadBytes, 100_000, 100_000,
                 FinalityGate.APP_FINAL, EffectOutcomeCommitment.PER_EFFECT,
                 true, List.of());

@@ -1,0 +1,299 @@
+# The light showcase as an app-chain template: `yano.sh appchain new <app> --from showcase.template.yaml`
+# turns it into a draft with a fresh invite code. showcase.sh adjusts a copy for the instance's options
+# (network, indexes, anchoring) and then runs the ordinary setup commands. The two L1-driven chains are
+# applications of their own: history.template.yaml and settlement.template.yaml.
+# Every key below is PUBLIC demo material; the demo actors' seeds are sha256("yano-showcase-demo-actor:<id>").
+membership: governed
+sequencing: fixed
+chains:
+  - id: orders-chain
+    recipe: audit-log
+    settings:
+      block.interval-ms: "1000"
+
+  - id: registry-chain
+    recipe: owned-registry
+    settings:
+      block.interval-ms: "1000"
+      machines.kv-registry.value-format: "utf8"
+
+  - id: approvals-chain
+    recipe: approval-workflow
+    settings:
+      block.interval-ms: "1000"
+
+  - id: balances-chain
+    recipe: custom-plugin
+    answers:
+      stateMachine: "balances"
+    settings:
+      block.interval-ms: "1000"
+
+  - id: documents-chain
+    recipe: document-trail
+    settings:
+      block.interval-ms: "1000"
+
+  # Order intake, approvals and a release outbox composed by the showcase plugin. The outbox executor
+  # runs on the lead only; showcase.sh turns it on in that node's config/local.yaml.
+  - id: workflow-chain
+    recipe: custom-plugin
+    answers:
+      stateMachine: "showcase-composite"
+    settings:
+      block.interval-ms: "1000"
+      block.max-messages: "1000"
+      effects.enabled: "true"
+      effects.default-gate: "app-final"
+      effects.max-per-block: "2"
+      effects.max-payload-bytes: "65536"
+      effects.result-window-blocks: "1000"
+      effects.max-expiry-blocks: "1000"
+      machines.composite.preset: "order-approval-outbox-v1"
+
+  - id: roles-chain
+    recipe: role-approval
+    settings:
+      block.interval-ms: "1000"
+
+  # Experimental, no-real-funds virtual ledger; the richer ledger and bridge flows are the `eutxo` profile.
+  - id: payments-chain
+    recipe: eutxo-ledger
+    answers:
+      eutxoGenesisAddress: "addr_test1vrld3msldls64ax7c06vu85nvhk70260q970cssxzjh0hlchc79qg"
+      eutxoGenesisLovelace: "100000000"
+    settings:
+      block.interval-ms: "1000"
+
+  # Governed product registry: owner and member collections, a GTIN validator plugin, a CDDL product
+  # schema, an issuer-writable collection and an approval-gated release collection.
+  - id: authenticated-map-chain
+    recipe: authenticated-map
+    settings:
+      block.interval-ms: "1000"
+    authenticatedMap:
+      profile: mpf-blake2b256-v1
+      anchorPolicyCommitment: "0000000000000000000000000000000000000000000000000000000000000000"
+      maxBatchItems: 32
+      maxBatchBytes: 65536
+      validators:
+        - {id: gtin-v1, provider: gs1-gtin-v1, bundle: org.yanoproject.x.authenticated-map-validators}
+      schemas:
+        - id: product-v1
+          root: product
+          source: |
+            product = {
+              sku: tstr .size (1..32),
+              quantity: uint .le 1000000,
+              status: "active" / "held" / "retired",
+              ? note: tstr .size (0..256)
+            }
+      collections:
+        - {id: attachments, authorization: owner, maxKeyBytes: 64, maxValueBytes: 32768, valueEncoding: opaque}
+        - {id: canonical-events, authorization: member, maxKeyBytes: 64, maxValueBytes: 16384,
+           valueEncoding: canonical-cbor}
+        - {id: gtins, authorization: owner, maxKeyBytes: 14, maxValueBytes: 15, valueEncoding: canonical-cbor,
+           validator: gtin-v1}
+        - {id: products, authorization: owner, maxKeyBytes: 64, maxValueBytes: 4096,
+           valueEncoding: canonical-cbor, validator: product-v1}
+        - {id: governed-catalog, authorization: governed-role, authorizationPolicy: issuer-write, maxKeyBytes: 64,
+           maxValueBytes: 4096, valueEncoding: opaque}
+        - {id: released-products, authorization: approval, authorizationPolicy: product-release,
+           maxKeyBytes: 64, maxValueBytes: 4096, valueEncoding: opaque}
+      authorizationGovernance:
+        authorityId: registry-admins
+        initialRevision: 1
+        administratorActors: [registry-admin-a]
+        threshold: 1
+        maximumMutationLifetimeBlocks: 1000
+      genesisRecords:
+        organizations:
+          - {id: acme-manufacturing, revision: 1, status: active}
+          - {id: auditor-guild-a, revision: 1, status: active}
+          - {id: auditor-guild-b, revision: 1, status: active}
+        actors:
+          - id: registry-admin-a
+            revision: 1
+            organization: acme-manufacturing
+            status: active
+            roles: [registry-admin]
+            keys:
+              - id: registry-admin-a-k1
+                algorithm: ed25519
+                publicKey: "88b06723691dad781e5419a47516de3b82418a35de2b3559a9d915fd6cedfa67"
+                proofOfPossession: "0b0b156ba7239ed13a3b573d689ee476eedb73ced2bf2a8db2de0fc8063f68663b0d883591b1b5c7fbb7333785ab91ae95d30c5f409dcee6a48434714b1eaf00"
+                validFromHeight: 1
+                validUntilHeight: 0
+                status: active
+          - id: issuer-a
+            revision: 1
+            organization: acme-manufacturing
+            status: active
+            roles: [issuer]
+            keys:
+              - id: issuer-a-k1
+                algorithm: ed25519
+                publicKey: "67ddc1ac79b76d0e6abae1c133195fa48904948af3b202b761a4c727c4e169ff"
+                proofOfPossession: "a8dacfab633e4d76ca307795e0ee2b1e252db322b3a593d5d32bafda43764df8d1fb443a575320d553345c4281ccc0f6e0e5fab0211a15ad3b5aac3963f9020e"
+                validFromHeight: 1
+                validUntilHeight: 0
+                status: active
+          - id: auditor-a
+            revision: 1
+            organization: auditor-guild-a
+            status: active
+            roles: [auditor]
+            keys:
+              - id: auditor-a-k1
+                algorithm: ed25519
+                publicKey: "f19f6042d44cb82663d9357435c9ed71bece07a7f5fe58fcaaa0c3732581f612"
+                proofOfPossession: "454a45fb2aae43c7188cb4fd1dc0e6de6ade305e7104d42c7591554b9d5b2533de3cdbeaad7509fae3feb07214385c52c2cee4fc92c31a832f043db1d3ead50c"
+                validFromHeight: 1
+                validUntilHeight: 0
+                status: active
+          - id: auditor-b
+            revision: 1
+            organization: auditor-guild-b
+            status: active
+            roles: [auditor]
+            keys:
+              - id: auditor-b-k1
+                algorithm: ed25519
+                publicKey: "b0dc3aadb1754c025699b57789292055d100dddee5e868c569dee8317898c8d2"
+                proofOfPossession: "1bdc9cb7332589eab3ab43261f86eb6d9ace818de7e4f92c284e9a8ac9fbba79261c3f9fc7a3ca3b1e9168c74bcf6ee0a88cf87d1e9534253a64d4342f0f260a"
+                validFromHeight: 1
+                validUntilHeight: 0
+                status: active
+        directPolicies:
+          - {id: issuer-write, revision: 1, status: active, requiredRole: issuer,
+             maximumAuthorizationLifetimeBlocks: 100}
+        approvalPolicies:
+          - id: product-release
+            revision: 1
+            status: active
+            proposerRoles: [issuer]
+            clauses:
+              - {id: independent-auditors, role: auditor, minimumCount: 2, distinctBy: organization}
+            rejectionMode: any-eligible
+            maximumLifetimeBlocks: 600
+
+  # The same governed business profile on the classic-JMT proof backend. Actor key proofs are signed for
+  # this chain id, so only they differ from the MPF chain above.
+  - id: authenticated-map-jmt-chain
+    recipe: authenticated-map
+    settings:
+      block.interval-ms: "1000"
+    authenticatedMap:
+      profile: jmt-blake2b256-v1
+      anchorPolicyCommitment: "0000000000000000000000000000000000000000000000000000000000000000"
+      maxBatchItems: 32
+      maxBatchBytes: 65536
+      validators:
+        - {id: gtin-v1, provider: gs1-gtin-v1, bundle: org.yanoproject.x.authenticated-map-validators}
+      schemas:
+        - id: product-v1
+          root: product
+          source: |
+            product = {
+              sku: tstr .size (1..32),
+              quantity: uint .le 1000000,
+              status: "active" / "held" / "retired",
+              ? note: tstr .size (0..256)
+            }
+      collections:
+        - {id: attachments, authorization: owner, maxKeyBytes: 64, maxValueBytes: 32768, valueEncoding: opaque}
+        - {id: canonical-events, authorization: member, maxKeyBytes: 64, maxValueBytes: 16384,
+           valueEncoding: canonical-cbor}
+        - {id: gtins, authorization: owner, maxKeyBytes: 14, maxValueBytes: 15, valueEncoding: canonical-cbor,
+           validator: gtin-v1}
+        - {id: products, authorization: owner, maxKeyBytes: 64, maxValueBytes: 4096,
+           valueEncoding: canonical-cbor, validator: product-v1}
+        - {id: governed-catalog, authorization: governed-role, authorizationPolicy: issuer-write, maxKeyBytes: 64,
+           maxValueBytes: 4096, valueEncoding: opaque}
+        - {id: released-products, authorization: approval, authorizationPolicy: product-release,
+           maxKeyBytes: 64, maxValueBytes: 4096, valueEncoding: opaque}
+      authorizationGovernance:
+        authorityId: registry-admins
+        initialRevision: 1
+        administratorActors: [registry-admin-a]
+        threshold: 1
+        maximumMutationLifetimeBlocks: 1000
+      genesisRecords:
+        organizations:
+          - {id: acme-manufacturing, revision: 1, status: active}
+          - {id: auditor-guild-a, revision: 1, status: active}
+          - {id: auditor-guild-b, revision: 1, status: active}
+        actors:
+          - id: registry-admin-a
+            revision: 1
+            organization: acme-manufacturing
+            status: active
+            roles: [registry-admin]
+            keys:
+              - id: registry-admin-a-k1
+                algorithm: ed25519
+                publicKey: "88b06723691dad781e5419a47516de3b82418a35de2b3559a9d915fd6cedfa67"
+                proofOfPossession: "db218b60b09ead6a496a8ed1625f68ee1a07b55e978a8613e5aee590237d5735fbbbb273f9e8e42bb8c4fa1071a56ebb668907693e168c808a5f255bb1b0f50d"
+                validFromHeight: 1
+                validUntilHeight: 0
+                status: active
+          - id: issuer-a
+            revision: 1
+            organization: acme-manufacturing
+            status: active
+            roles: [issuer]
+            keys:
+              - id: issuer-a-k1
+                algorithm: ed25519
+                publicKey: "67ddc1ac79b76d0e6abae1c133195fa48904948af3b202b761a4c727c4e169ff"
+                proofOfPossession: "27011ed548a57ac4fa6efac72410dbe612355d744bc22ca7cccfcae2e3988e5e98704fecf26a29f49c99ac49b046d91521d5139daabeec4abc322e87f4dbb602"
+                validFromHeight: 1
+                validUntilHeight: 0
+                status: active
+          - id: auditor-a
+            revision: 1
+            organization: auditor-guild-a
+            status: active
+            roles: [auditor]
+            keys:
+              - id: auditor-a-k1
+                algorithm: ed25519
+                publicKey: "f19f6042d44cb82663d9357435c9ed71bece07a7f5fe58fcaaa0c3732581f612"
+                proofOfPossession: "edf2accfcb807d420c0f5d16c30a9db1230d3ba7af9e861caf3c8de15b8cd2adbb1f32730c52aea1e2751f17cb3e00d8334d102a5b34df21f6f6dc1977235d0b"
+                validFromHeight: 1
+                validUntilHeight: 0
+                status: active
+          - id: auditor-b
+            revision: 1
+            organization: auditor-guild-b
+            status: active
+            roles: [auditor]
+            keys:
+              - id: auditor-b-k1
+                algorithm: ed25519
+                publicKey: "b0dc3aadb1754c025699b57789292055d100dddee5e868c569dee8317898c8d2"
+                proofOfPossession: "5c11d7c1cfc574f1321674cade9b60e77154f0dbbe40ce40890a06af2bdb181bedf76b7e451bed42d936fbe28fb705b18a7e74602e98d22275bb5a8a7d15a50b"
+                validFromHeight: 1
+                validUntilHeight: 0
+                status: active
+        directPolicies:
+          - {id: issuer-write, revision: 1, status: active, requiredRole: issuer,
+             maximumAuthorizationLifetimeBlocks: 100}
+        approvalPolicies:
+          - id: product-release
+            revision: 1
+            status: active
+            proposerRoles: [issuer]
+            clauses:
+              - {id: independent-auditors, role: auditor, minimumCount: 2, distinctBy: organization}
+            rejectionMode: any-eligible
+            maximumLifetimeBlocks: 600
+
+  # ADR-033: the stock domain-actor registry, role-aware approvals, document-trail transitions and a
+  # one-use approval-consumption receipt, composed by the showcase plugin.
+  - id: document-review-chain
+    recipe: custom-plugin
+    answers:
+      stateMachine: "document-review"
+    settings:
+      block.interval-ms: "1000"

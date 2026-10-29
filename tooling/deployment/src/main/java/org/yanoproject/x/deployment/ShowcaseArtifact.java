@@ -29,15 +29,13 @@ final class ShowcaseArtifact {
     private static final long MAX_EXPANDED_BYTES = 16L * 1024 * 1024 * 1024;
     private static final int MAX_ENTRIES = 50_000;
     private static final long MAX_JSON_ENTRY_BYTES = 64L * 1024 * 1024;
-    // The showcase ships inside the Yano X JVM distribution at examples/showcase.
-    // Its yano/ home holds only the demo configuration; the runtime is the
-    // distribution root.
+    // The showcase ships inside the Yano X JVM distribution at examples/showcase; the runtime is the
+    // distribution root. VMs run this tool's own 13-chain profile (showcase-profile/application-appchain.yml).
     static final String SHOWCASE = "examples/showcase/";
-    static final String SHOWCASE_APPLICATION = SHOWCASE + "yano/config/application-appchain.yml";
+    private static final String PROFILE_APPLICATION = "/showcase-profile/application-appchain.yml";
     private static final Set<String> REQUIRED = Set.of(
             SHOWCASE + "showcase.sh",
             SHOWCASE + "catalog/showcase-catalog-v1.json",
-            SHOWCASE_APPLICATION,
             "yano.sh",
             "yano.jar",
             "yano-distribution-v1.json",
@@ -105,6 +103,7 @@ final class ShowcaseArtifact {
             JsonNode yano = readJson(zip, root + "/yano-distribution-v1.json");
             JsonNode yanoX = readJson(zip, root + "/yano-x-distribution-v1.json");
             validateDistributionIdentities(yano, yanoX);
+            requireMatchingTool(yanoX.path("version").asText());
             validateSbom(readJson(zip, root + "/sbom/yano.cdx.json"), "Yano");
             validateSbom(readJson(zip, root + "/sbom/yano-x.cdx.json"), "Yano X");
             Map<String, String> pluginChecksums = validatePluginPack(zip, root, yanoX);
@@ -175,6 +174,14 @@ final class ShowcaseArtifact {
         }
     }
 
+    /** The VM deployment profile: the showcase chains with their shared settings; this tool injects the rest. */
+    static byte[] profileApplication() throws IOException {
+        try (java.io.InputStream input = ShowcaseArtifact.class.getResourceAsStream(PROFILE_APPLICATION)) {
+            if (input == null) throw new IOException("the showcase deployment profile is missing");
+            return input.readAllBytes();
+        }
+    }
+
     byte[] readEntry(Metadata metadata, String relativeName) throws IOException {
         try (ZipFile zip = new ZipFile(metadata.path().toFile())) {
             ZipEntry entry = zip.getEntry(metadata.rootDirectory() + "/" + relativeName);
@@ -236,6 +243,22 @@ final class ShowcaseArtifact {
         try (InputStream input = zip.getInputStream(entry)) {
             return json.readTree(input);
         }
+    }
+
+    /**
+     * The showcase profile and its map-genesis generator belong to this tool, and the generator runs on the release's
+     * own jars, so the tool deploys only the Yano X release it ships with.
+     */
+    private static void requireMatchingTool(String releaseVersion) throws IOException {
+        String tool = ShowcaseArtifact.class.getPackage().getImplementationVersion();
+        if (tool != null && !strip(tool).equals(strip(releaseVersion))) {
+            throw new IOException("this yano-x-deploy is version " + tool + " but the archive is Yano X "
+                    + releaseVersion + "; use the yano-x-deploy shipped with that release");
+        }
+    }
+
+    private static String strip(String version) {
+        return version.replace("-SNAPSHOT", "");
     }
 
     private void validateDistributionIdentities(JsonNode yano, JsonNode yanoX) throws IOException {

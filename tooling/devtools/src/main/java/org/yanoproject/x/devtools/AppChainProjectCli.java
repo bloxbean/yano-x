@@ -37,59 +37,10 @@ final class AppChainProjectCli {
             new ConsoleColumn("SELECTION", 10));
 
     static final String USAGE = """
-            Usage: ./yano.sh appchain init [options]
-               or: ./yano.sh appchain render [project-directory] [--format text|json]
-               or: ./yano.sh appchain chain add <project> --chain-id <id> --recipe <recipe>
-               or: ./yano.sh appchain prepare [project-directory]
-               or: ./yano.sh appchain plan [project-directory]
-               or: ./yano.sh appchain apply [project-directory] --plan <reviewed-digest>
-               or: ./yano.sh appchain recipes [--format text|json]
+            Usage: ./yano.sh appchain recipes [--format text|json]
                or: ./yano.sh appchain capabilities [--format text|json]
-               or: ./yano.sh appchain doctor [project-directory] [--distribution <path>]
-               or: ./yano.sh appchain diff <old.lock> <new.lock> [--format text|json]
-               or: ./yano.sh appchain drift [project-directory] --peer <url> [--peer <url> ...]
-               or: ./yano.sh appchain gitops [project-directory] --target helm|kustomize|ansible --output <empty-dir>
                or: ./yano.sh appchain plugin inspect|validate|sign|scaffold [options]
                or: ./yano.sh appchain metadata verify <plugin.jar> --trust-key <key-id=64-hex-public-key>
-               or: ./yano.sh appchain migrate [project-directory] [--dry-run]
-            Init options:
-              --recipe <id>                 use `appchain recipes` to list release recipes
-              --network <network>           devnet, preview, preprod, mainnet
-              --members <1..32>             member count
-              --member-key <64-hex>         repeat once per known public member
-              --generate-local-member-keys  devnet host JVM only: create the member keys, keep
-                                            their private files in secrets/, pin the public keys
-              --node-host <hostname>        repeat for a multi-machine host deployment
-              --finality <policy>           majority, two-thirds, all
-              --sequencing <mode>           fixed or rotating
-              --membership <mode>           static or governed
-              --runtime <type>              jvm or native
-              --deployment <target>         host or docker-compose
-              --http-port-base <port>        same-machine HTTP base (default 8080)
-              --server-port-base <port>      same-machine n2n base (default 13337)
-              --capability <id>             repeatable additive capability
-              --answer <name=value>         repeatable non-secret recipe input
-              --name <project-name>         safe project identifier
-              --chain-id <id>               application chain identifier
-              --yano-version <version>      release pin (defaults to this tool)
-              --output <directory>          generated project directory
-              --non-interactive             fail instead of prompting for core intent
-              --format text|json            stable command result
-              --plugin-jar <path>           signed custom plugin product metadata (repeatable)
-              --component-catalog <path>    exported signed catalog snapshot (repeatable)
-              --trust-key <id=public-key>   trusted Ed25519 publisher key (repeatable)
-              --acknowledge <id>            persist an explicit product acknowledgement
-              --bindings <yaml>            required standalone document for declarative-composite only
-              --plugins-directory <path>   required authoring bundles for declarative-composite only
-              authenticated-map recipe      requires one --member-key per member (or, on devnet,
-                                            --generate-local-member-keys); edit the generated
-                                            authenticatedMap section for schemas
-            Drift options:
-              --peer <http(s)-base-url>     repeat for every node to compare
-              --api-key-env <variable>      read the privileged API key from this environment variable
-            GitOps options:
-              --target <helm|kustomize|ansible>     deterministic derivative deployment format
-              --output <directory>          missing or empty destination directory
             Metadata verification options:
               --trust-key <id=public-key>   repeatable trusted Ed25519 raw public key
             Plugin catalog examples:
@@ -106,15 +57,13 @@ final class AppChainProjectCli {
     private final ObjectMapper json;
     private final AppChainPropertyRegistry properties;
     private final AppChainProjectCatalog catalog;
-    private final AppChainProjectRenderer renderer;
-    private final AppChainProjectLifecycle lifecycle;
 
     AppChainProjectCli(PrintWriter out) throws IOException {
         this(new BufferedReader(new InputStreamReader(System.in)), out,
                 builtInRegistry(), new ObjectMapper());
     }
 
-    private static AppChainPropertyRegistry builtInRegistry() throws IOException {
+    static AppChainPropertyRegistry builtInRegistry() throws IOException {
         List<org.yanoproject.appchain.config.AppChainMetadataSource> sources =
                 new AppChainDescriptorLoader().loadBuiltInMetadata().stream()
                         .map(org.yanoproject.appchain.config.AppChainMetadataDescriptor::toSource)
@@ -132,9 +81,6 @@ final class AppChainProjectCli {
         this.json = java.util.Objects.requireNonNull(json, "json");
         this.properties = java.util.Objects.requireNonNull(properties, "properties");
         this.catalog = new AppChainProjectCatalog(properties);
-        this.renderer = new AppChainProjectRenderer(
-                catalog, new AppChainProjectResolver(properties, catalog));
-        this.lifecycle = new AppChainProjectLifecycle(properties);
     }
 
     int run(String[] arguments) throws IOException {
@@ -148,170 +94,12 @@ final class AppChainProjectCli {
             return AppChainDevtoolsCli.EXIT_OK;
         }
         return switch (command) {
-            case "chain" -> addChain(remaining);
-            case "prepare", "plan", "apply", "start-check" -> operation(command, remaining);
-            case "init" -> initialize(parseInit(remaining));
-            case "render" -> render(parseRender(remaining));
             case "recipes" -> recipes(parseFormatOnly(remaining));
             case "capabilities" -> capabilities(parseFormatOnly(remaining));
-            case "doctor" -> doctor(parseDoctor(remaining));
-            case "diff" -> diff(parseDiff(remaining));
-            case "drift" -> drift(parseDrift(remaining));
-            case "gitops" -> gitOps(parseGitOps(remaining));
             case "plugin" -> plugin(parsePlugin(remaining));
             case "metadata" -> metadata(parseMetadata(remaining));
-            case "migrate" -> migrate(parseMigrate(remaining));
             default -> throw new Usage("Unknown appchain project command: " + safe(command));
         };
-    }
-
-    private int addChain(String[] arguments) throws IOException {
-        if (arguments.length < 2 || !"add".equals(arguments[0])) {
-            throw new Usage("chain add <project> --chain-id <id> --recipe <recipe>");
-        }
-        Path project = path(arguments[1]);
-        String id = null;
-        String recipe = null;
-        List<String> capabilities = new ArrayList<>();
-        Map<String, String> answers = new TreeMap<>();
-        for (int index = 2; index < arguments.length; index++) {
-            String argument = arguments[index];
-            switch (argument) {
-                case "--chain-id" -> id = once(id, value(arguments, ++index, argument), argument);
-                case "--recipe" -> recipe = once(recipe, value(arguments, ++index, argument), argument);
-                case "--capability" -> capabilities.add(value(arguments, ++index, argument));
-                case "--answer" -> parseAnswer(value(arguments, ++index, argument), answers);
-                default -> throw new Usage("Unknown chain add option");
-            }
-        }
-        if (id == null || recipe == null) throw new Usage("chain add requires --chain-id and --recipe");
-        new AppChainProjectOperations(properties).addChain(project, id, recipe, List.copyOf(capabilities),
-                Map.copyOf(answers));
-        out.println("CHAIN_PROPOSED: appchain.yaml updated. Run appchain plan before applying; "
-                + "the running configuration and retained state are unchanged.");
-        return AppChainDevtoolsCli.EXIT_OK;
-    }
-
-    private int operation(String command, String[] arguments) throws IOException {
-        Path project = Path.of(".");
-        String digest = null;
-        boolean directorySet = false;
-        for (int index = 0; index < arguments.length; index++) {
-            if ("--plan".equals(arguments[index]) && "apply".equals(command) && digest == null) {
-                digest = value(arguments, ++index, "--plan");
-            } else if (!arguments[index].startsWith("-") && !directorySet) {
-                project = path(arguments[index]);
-                directorySet = true;
-            } else throw new Usage("Unexpected " + command + " option");
-        }
-        project = project.toAbsolutePath().normalize();
-        var operations = new AppChainProjectOperations(properties);
-        switch (command) {
-            case "plan" -> {
-                var plan = operations.plan(project);
-                out.println(json.writerWithDefaultPrettyPrinter().writeValueAsString(plan));
-                return plan.blockers().isEmpty() ? AppChainDevtoolsCli.EXIT_OK : AppChainDevtoolsCli.EXIT_INVALID_CONFIG;
-            }
-            case "prepare" -> {
-                operations.prepare(project);
-                out.println("PREPARED: public member keys pinned; private files stay in secrets/. "
-                        + "Set YANO_HOME to this release, then run scripts/start and appchain drift.");
-            }
-            case "apply" -> {
-                operations.apply(project, digest);
-                out.println("APPLIED: configuration revision installed; retained state preserved. "
-                        + "Run scripts/start, then verify every chain before accepting traffic.");
-            }
-            case "start-check" -> operations.startCheck(project, true);
-            default -> throw new Usage("Unknown operation");
-        }
-        return AppChainDevtoolsCli.EXIT_OK;
-    }
-
-    private int doctor(DoctorOptions options) throws IOException {
-        AppChainProjectLifecycle selected = options.project() == null ? lifecycle
-                : AppChainProjectLifecycle.forProject(properties, options.project());
-        if (options.project() != null) {
-            verifyExplicitCatalogs(options.project(), options.pluginJars(),
-                    options.componentCatalogs(), options.trustKeys());
-        }
-        AppChainProjectModel.DoctorReport report = selected.doctor(
-                options.project(), options.distribution());
-        if (options.format() == Format.JSON) {
-            out.println(json.writeValueAsString(report));
-        } else {
-            for (AppChainProjectModel.DoctorCheck check : report.checks()) {
-                out.printf(Locale.ROOT, "%s\t%s\t%s%n",
-                        check.status(), check.id(), check.detail());
-            }
-            out.println(report.status());
-        }
-        return "DOCTOR_FAILED".equals(report.status())
-                ? AppChainDevtoolsCli.EXIT_INVALID_CONFIG : AppChainDevtoolsCli.EXIT_OK;
-    }
-
-    private int diff(DiffOptions options) throws IOException {
-        AppChainProjectModel.LockDiff result = lifecycle.diff(options.before(), options.after());
-        if (options.format() == Format.JSON) {
-            out.println(json.writeValueAsString(result));
-        } else {
-            for (AppChainProjectModel.LockChange change : result.changes()) {
-                out.printf(Locale.ROOT, "%s\t%s%n", change.policy(), change.key());
-            }
-            out.printf(Locale.ROOT, "%s changes=%d categories=%s%n",
-                    result.status(), result.changes().size(), result.categories());
-        }
-        return AppChainDevtoolsCli.EXIT_OK;
-    }
-
-    private int migrate(MigrateOptions options) throws IOException {
-        String status = AppChainProjectLifecycle.forProject(properties, options.project())
-                .migrate(options.project(), options.dryRun());
-        if (options.format() == Format.JSON) {
-            out.println(json.writeValueAsString(Map.of("status", status,
-                    "schemaVersion", "v1alpha1")));
-        } else {
-            out.println(status + " schema=v1alpha1");
-        }
-        return AppChainDevtoolsCli.EXIT_OK;
-    }
-
-    private int drift(DriftOptions options) throws IOException {
-        String apiKey = null;
-        if (options.apiKeyEnvironment() != null) {
-            apiKey = System.getenv(options.apiKeyEnvironment());
-            if (apiKey == null || apiKey.isBlank()) {
-                throw new Usage("--api-key-env does not name a populated environment variable");
-            }
-        }
-        AppChainProjectModel.DriftReport report = AppChainProjectLifecycle
-                .forProject(properties, options.project()).drift(
-                options.project(), options.peers(), apiKey);
-        if (options.format() == Format.JSON) {
-            out.println(json.writeValueAsString(report));
-        } else {
-            for (AppChainProjectModel.DriftCheck check : report.checks()) {
-                out.printf(Locale.ROOT, "%s\t%s\t%s%n",
-                        check.status(), check.category(), check.peer());
-            }
-            out.printf(Locale.ROOT, "%s peers=%d%n", report.status(), report.peerCount());
-        }
-        return "DRIFT_DETECTED".equals(report.status())
-                ? AppChainDevtoolsCli.EXIT_INVALID_CONFIG : AppChainDevtoolsCli.EXIT_OK;
-    }
-
-    private int gitOps(GitOpsOptions options) throws IOException {
-        AppChainProjectModel.GitOpsResult result = AppChainProjectLifecycle
-                .forProject(properties, options.project()).gitOps(
-                options.project(), options.target(), options.output());
-        if (options.format() == Format.JSON) {
-            out.println(json.writeValueAsString(result));
-        } else {
-            out.printf(Locale.ROOT, "%s target=%s files=%d output=%s%n",
-                    result.status(), result.target(), result.generatedFileCount(),
-                    fileName(options.output().toAbsolutePath().normalize()));
-        }
-        return AppChainDevtoolsCli.EXIT_OK;
     }
 
     private int metadata(MetadataOptions options) throws IOException {
@@ -422,129 +210,7 @@ final class AppChainProjectCli {
         return AppChainDevtoolsCli.EXIT_OK;
     }
 
-    private int initialize(InitOptions requested) throws IOException {
-        InitOptions options = complete(requested);
-        ExplicitCatalogs external = loadExplicitCatalogs(
-                options.pluginJars(), options.componentCatalogs(), options.trustKeys());
-        AppChainPropertyRegistry selectedProperties = external.loaded().isEmpty() ? properties
-                : new AppChainComponentCatalogLoader().extendRegistry(
-                properties, external.loaded());
-        AppChainProjectCatalog selectedCatalog = external.loaded().isEmpty() ? catalog
-                : new AppChainProjectCatalog(selectedProperties, external.loaded());
-        AppChainProjectRenderer selectedRenderer = external.loaded().isEmpty() ? renderer
-                : new AppChainProjectRenderer(selectedCatalog,
-                new AppChainProjectResolver(selectedProperties, selectedCatalog));
-        String projectName = valueOr(options.name(), slug(options.chainId()));
-        String chainId = valueOr(options.chainId(), projectName);
-        Path output = options.output() == null ? Path.of(projectName) : options.output();
-        boolean declarative = "declarative-composite".equals(options.recipe());
-        if (declarative != (options.bindings() != null && options.pluginsDirectory() != null)
-                || !declarative && (options.bindings() != null || options.pluginsDirectory() != null)) {
-            throw new Usage("--bindings and --plugins-directory are required together for declarative-composite only");
-        }
-        JsonNode composite = null;
-        String authoringPlugins = null;
-        if (declarative) {
-            composite = BindingDocumentCompiler.parseDocument(BindingCli.read(options.bindings(),
-                    BindingDocumentCompiler.MAX_SOURCE_CHARACTERS * 4));
-            if (composite != null && composite.has("composite") && composite.size() == 1) {
-                composite = composite.get("composite");
-            }
-            Path selectedPlugins = options.pluginsDirectory().toAbsolutePath().normalize();
-            Path projectRoot = output.toAbsolutePath().normalize();
-            authoringPlugins = java.util.Objects.equals(projectRoot.getRoot(), selectedPlugins.getRoot())
-                    ? projectRoot.relativize(selectedPlugins).toString() : selectedPlugins.toString();
-        }
-        AppChainProjectOperations.LocalMemberIdentities generated = null;
-        if (options.generateLocalMemberKeys()) {
-            if (!options.memberKeys().isEmpty()) {
-                throw new Usage("--generate-local-member-keys and --member-key are mutually exclusive");
-            }
-            if (!"devnet".equals(options.network()) || !"host".equals(options.deployment())
-                    || !"jvm".equals(options.runtime()) || !options.nodeHosts().isEmpty()) {
-                throw new Usage("--generate-local-member-keys is for a same-machine JVM devnet on the host only; "
-                        + "operators supply their own member keys");
-            }
-            generated = AppChainProjectOperations.LocalMemberIdentities.generate(options.members());
-        }
-        AppChainProjectModel.Topology topology = new AppChainProjectModel.Topology(
-                options.members(), generated == null ? options.memberKeys() : generated.publicKeys(),
-                options.nodeHosts(),
-                options.finality(), options.sequencing(), options.membership(),
-                options.httpPortBase(), options.serverPortBase());
-        AppChainProjectModel.AuthenticatedMapIntent authenticatedMap =
-                "authenticated-map".equals(options.recipe())
-                        ? defaultAuthenticatedMapIntent() : null;
-        AppChainProjectModel.ChainIntent chain = new AppChainProjectModel.ChainIntent(
-                chainId, options.recipe(), options.capabilities(), options.answers(), topology,
-                authenticatedMap, composite);
-        AppChainProjectModel.Spec spec = new AppChainProjectModel.Spec(
-                valueOr(options.yanoVersion(), toolVersion()),
-                options.network(),
-                new AppChainProjectModel.RuntimeSelection(options.runtime(), authoringPlugins),
-                new AppChainProjectModel.DeploymentSelection(options.deployment()),
-                List.of(chain),
-                external.references(),
-                options.acknowledgements());
-        AppChainProjectModel.Blueprint blueprint = new AppChainProjectModel.Blueprint(
-                AppChainProjectModel.API_VERSION,
-                AppChainProjectModel.BLUEPRINT_KIND,
-                new AppChainProjectModel.Metadata(projectName),
-                spec);
-        boolean outputExisted = Files.exists(output, LinkOption.NOFOLLOW_LINKS);
-        AppChainProjectModel.Lock lock = selectedRenderer.initialize(
-                output, blueprint, external.snapshotInputs());
-        if (generated != null) writeGeneratedMembers(output.toRealPath(), outputExisted, generated);
-        writeResult(options.format(), "PROJECT_INITIALIZED", output, lock,
-                generated == null ? null : generated.members());
-        return AppChainDevtoolsCli.EXIT_OK;
-    }
-
-    /**
-     * Writes generated member files into the project {@code init} just created. On failure it removes what init
-     * created, so no project stays pinned to public keys whose seeds are gone.
-     */
-    static void writeGeneratedMembers(
-            Path project,
-            boolean projectExisted,
-            AppChainProjectOperations.LocalMemberIdentities generated) throws IOException {
-        try {
-            generated.write(project);
-        } catch (IOException | RuntimeException failure) {
-            IOException reported = new IOException("Could not write the generated member files ("
-                    + failure.getMessage() + "); init removed the partial project", failure);
-            try {
-                removeCreatedProject(project, projectExisted);
-            } catch (IOException cleanup) {
-                reported = new IOException("Could not write the generated member files (" + failure.getMessage()
-                        + "); remove the partial project before running init again", failure);
-                reported.addSuppressed(cleanup);
-            }
-            throw reported;
-        }
-    }
-
-    /** Deletes a tree init created from an empty or missing directory, never following symbolic links. */
-    private static void removeCreatedProject(Path project, boolean keepRoot) throws IOException {
-        Files.walkFileTree(project, new SimpleFileVisitor<>() {
-            @Override
-            public FileVisitResult visitFile(
-                    Path file, BasicFileAttributes attributes) throws IOException {
-                Files.delete(file);
-                return FileVisitResult.CONTINUE;
-            }
-
-            @Override
-            public FileVisitResult postVisitDirectory(Path directory, IOException failure)
-                    throws IOException {
-                if (failure != null) throw failure;
-                if (!keepRoot || !directory.equals(project)) Files.delete(directory);
-                return FileVisitResult.CONTINUE;
-            }
-        });
-    }
-
-    private static AppChainProjectModel.AuthenticatedMapIntent defaultAuthenticatedMapIntent() {
+    static AppChainProjectModel.AuthenticatedMapIntent defaultAuthenticatedMapIntent() {
         return new AppChainProjectModel.AuthenticatedMapIntent(
                 "mpf-blake2b256-v1",
                 "00".repeat(32),
@@ -554,16 +220,6 @@ final class AppChainProjectCli {
                         "records", "open", false, 128, 65_536,
                         "opaque", null)),
                 List.of());
-    }
-
-    private int render(RenderOptions options) throws IOException {
-        AppChainProjectLifecycle selected = AppChainProjectLifecycle.forProject(
-                properties, options.project());
-        verifyExplicitCatalogs(options.project(), options.pluginJars(),
-                options.componentCatalogs(), options.trustKeys());
-        AppChainProjectModel.Lock lock = selected.render(options.project());
-        writeResult(options.format(), "PROJECT_RENDERED", options.project(), lock);
-        return AppChainDevtoolsCli.EXIT_OK;
     }
 
     private int recipes(Format format) throws IOException {
@@ -670,211 +326,6 @@ final class AppChainProjectCli {
         return value + " ".repeat(Math.max(0, width - value.length()));
     }
 
-    private void writeResult(
-            Format format,
-            String status,
-            Path project,
-            AppChainProjectModel.Lock lock) throws IOException {
-        writeResult(format, status, project, lock, null);
-    }
-
-    private void writeResult(
-            Format format,
-            String status,
-            Path project,
-            AppChainProjectModel.Lock lock,
-            Integer generatedMemberKeys) throws IOException {
-        String safeProject = fileName(project.toAbsolutePath().normalize());
-        if (format == Format.JSON) {
-            Map<String, Object> result = new LinkedHashMap<>();
-            result.put("status", status);
-            result.put("project", safeProject);
-            result.put("recipe", lock.recipe());
-            result.put("runtime", lock.runtime());
-            result.put("deployment", lock.deployment());
-            result.put("threshold", lock.consensusValues().get(
-                    "yano.app-chain.chains[0].threshold"));
-            result.put("resolvedConfigDigest", lock.resolvedConfigDigest());
-            result.put("validationCoverage", lock.validationCoverage());
-            result.put("maturity", lock.maturity());
-            result.put("acknowledgements", lock.acknowledgements());
-            if (generatedMemberKeys != null) result.put("generatedLocalMemberKeys", generatedMemberKeys);
-            out.println(json.writeValueAsString(result));
-        } else {
-            out.printf(Locale.ROOT,
-                    "%s project=%s recipe=%s runtime=%s deployment=%s coverage=%s "
-                            + "maturity=%s acknowledgements=%s%n",
-                    status, safeProject, lock.recipe(), lock.runtime(), lock.deployment(),
-                    lock.validationCoverage(), lock.maturity(), lock.acknowledgements());
-            if (generatedMemberKeys != null) {
-                out.printf(Locale.ROOT, "LOCAL_MEMBER_KEYS_GENERATED: %d disposable devnet member keys; private files "
-                        + "in secrets/, public keys pinned in appchain.yaml. Run appchain prepare next.%n",
-                        generatedMemberKeys);
-            }
-        }
-    }
-
-    private InitOptions complete(InitOptions options) throws IOException {
-        String recipe = options.recipe();
-        String network = options.network();
-        Integer members = options.membersBoxed();
-        if (options.nonInteractive()) {
-            if (recipe == null || network == null || members == null) {
-                throw new Usage("--non-interactive requires --recipe, --network, and --members");
-            }
-        } else {
-            recipe = prompt("Recipe", recipe, "audit-log");
-            network = prompt("Network", network, "devnet");
-            String memberText = prompt("Members", members == null ? null : members.toString(), "3");
-            members = parseMembers(memberText);
-        }
-        catalog.recipe(recipe);
-        return new InitOptions(
-                recipe,
-                network,
-                members,
-                options.memberKeys(),
-                options.nodeHosts(),
-                valueOr(options.finality(), "two-thirds"),
-                valueOr(options.sequencing(), "fixed"),
-                valueOr(options.membership(), "static"),
-                valueOr(options.runtime(), "jvm"),
-                valueOr(options.deployment(), "host"),
-                options.capabilities(),
-                options.answers(),
-                options.httpPortBase(),
-                options.serverPortBase(),
-                options.name(),
-                options.chainId(),
-                options.yanoVersion(),
-                options.output(),
-                options.nonInteractive(),
-                options.format(),
-                options.pluginJars(),
-                options.componentCatalogs(),
-                options.trustKeys(),
-                options.acknowledgements(), options.bindings(), options.pluginsDirectory(),
-                options.generateLocalMemberKeys());
-    }
-
-    private String prompt(String label, String existing, String defaultValue) throws IOException {
-        if (existing != null) return existing;
-        out.printf("%s [%s]: ", label, defaultValue);
-        out.flush();
-        String value = input.readLine();
-        if (value == null || value.isBlank()) return defaultValue;
-        return value.trim();
-    }
-
-    private static InitOptions parseInit(String[] arguments) {
-        String recipe = null;
-        String network = null;
-        Integer members = null;
-        String finality = null;
-        String sequencing = null;
-        String membership = null;
-        String runtime = null;
-        String deployment = null;
-        String name = null;
-        String chainId = null;
-        String yanoVersion = null;
-        Path output = null;
-        Path bindings = null;
-        Path pluginsDirectory = null;
-        Format format = Format.TEXT;
-        boolean nonInteractive = false;
-        boolean generateLocalMemberKeys = false;
-        List<String> memberKeys = new ArrayList<>();
-        List<String> nodeHosts = new ArrayList<>();
-        List<String> capabilities = new ArrayList<>();
-        Map<String, String> answers = new LinkedHashMap<>();
-        List<Path> pluginJars = new ArrayList<>();
-        List<Path> componentCatalogs = new ArrayList<>();
-        Map<String, String> trustKeys = new LinkedHashMap<>();
-        List<String> acknowledgements = new ArrayList<>();
-        Integer httpPortBase = null;
-        Integer serverPortBase = null;
-        for (int cursor = 0; cursor < arguments.length; cursor++) {
-            String argument = arguments[cursor];
-            switch (argument) {
-                case "--recipe" -> recipe = once(recipe, value(arguments, ++cursor, argument), argument);
-                case "--network" -> network = once(network, value(arguments, ++cursor, argument), argument);
-                case "--members" -> {
-                    if (members != null) throw new Usage("--members may be specified once");
-                    members = parseMembers(value(arguments, ++cursor, argument));
-                }
-                case "--member-key" -> memberKeys.add(value(arguments, ++cursor, argument));
-                case "--generate-local-member-keys" -> generateLocalMemberKeys = true;
-                case "--node-host" -> nodeHosts.add(value(arguments, ++cursor, argument));
-                case "--finality" -> finality = once(finality, value(arguments, ++cursor, argument), argument);
-                case "--sequencing" -> sequencing = once(sequencing, value(arguments, ++cursor, argument), argument);
-                case "--membership" -> membership = once(membership,
-                        value(arguments, ++cursor, argument), argument);
-                case "--runtime" -> runtime = once(runtime, value(arguments, ++cursor, argument), argument);
-                case "--deployment" -> deployment = once(deployment, value(arguments, ++cursor, argument), argument);
-                case "--capability" -> capabilities.add(value(arguments, ++cursor, argument));
-                case "--answer" -> parseAnswer(value(arguments, ++cursor, argument), answers);
-                case "--plugin-jar" -> pluginJars.add(
-                        path(value(arguments, ++cursor, argument)));
-                case "--bindings" -> {
-                    if (bindings != null) throw new Usage(argument + " may be specified once");
-                    bindings = path(value(arguments, ++cursor, argument));
-                }
-                case "--plugins-directory" -> {
-                    if (pluginsDirectory != null) throw new Usage(argument + " may be specified once");
-                    pluginsDirectory = path(value(arguments, ++cursor, argument));
-                }
-                case "--component-catalog" -> componentCatalogs.add(
-                        path(value(arguments, ++cursor, argument)));
-                case "--trust-key" -> parseTrustKey(
-                        value(arguments, ++cursor, argument), trustKeys);
-                case "--acknowledge" -> acknowledgements.add(
-                        value(arguments, ++cursor, argument));
-                case "--http-port-base" -> {
-                    if (httpPortBase != null) throw new Usage(argument + " may be specified once");
-                    httpPortBase = parsePort(value(arguments, ++cursor, argument), argument);
-                }
-                case "--server-port-base" -> {
-                    if (serverPortBase != null) throw new Usage(argument + " may be specified once");
-                    serverPortBase = parsePort(value(arguments, ++cursor, argument), argument);
-                }
-                case "--name" -> name = once(name, value(arguments, ++cursor, argument), argument);
-                case "--chain-id" -> chainId = once(chainId, value(arguments, ++cursor, argument), argument);
-                case "--yano-version" -> yanoVersion = once(
-                        yanoVersion, value(arguments, ++cursor, argument), argument);
-                case "--output" -> {
-                    if (output != null) throw new Usage("--output may be specified once");
-                    output = path(value(arguments, ++cursor, argument));
-                }
-                case "--format" -> format = parseFormat(value(arguments, ++cursor, argument));
-                case "--non-interactive" -> nonInteractive = true;
-                default -> throw new Usage("Unknown init option: " + safe(argument));
-            }
-        }
-        return new InitOptions(recipe, network, members, List.copyOf(memberKeys),
-                List.copyOf(nodeHosts),
-                finality, sequencing, membership, runtime, deployment,
-                List.copyOf(capabilities),
-                Map.copyOf(answers),
-                httpPortBase, serverPortBase,
-                name, chainId, yanoVersion, output, nonInteractive, format,
-                List.copyOf(pluginJars), List.copyOf(componentCatalogs),
-                Map.copyOf(trustKeys), List.copyOf(acknowledgements), bindings, pluginsDirectory,
-                generateLocalMemberKeys);
-    }
-
-    private static void parseAnswer(String assignment, Map<String, String> answers) {
-        int separator = assignment.indexOf('=');
-        if (separator < 1 || separator == assignment.length() - 1) {
-            throw new Usage("--answer must be name=value");
-        }
-        String name = assignment.substring(0, separator);
-        String value = assignment.substring(separator + 1);
-        if (answers.putIfAbsent(name, value) != null) {
-            throw new Usage("--answer name may be specified once: " + safe(name));
-        }
-    }
-
     private static void parseTrustKey(String assignment, Map<String, String> trustKeys) {
         int separator = assignment.indexOf('=');
         if (separator < 1 || separator == assignment.length() - 1) {
@@ -890,181 +341,12 @@ final class AppChainProjectCli {
         }
     }
 
-    private static RenderOptions parseRender(String[] arguments) {
-        Path project = Path.of(".");
-        boolean projectSeen = false;
-        Format format = Format.TEXT;
-        List<Path> pluginJars = new ArrayList<>();
-        List<Path> componentCatalogs = new ArrayList<>();
-        Map<String, String> trustKeys = new LinkedHashMap<>();
-        for (int cursor = 0; cursor < arguments.length; cursor++) {
-            String argument = arguments[cursor];
-            if ("--format".equals(argument)) {
-                format = parseFormat(value(arguments, ++cursor, argument));
-            } else if ("--plugin-jar".equals(argument)) {
-                pluginJars.add(path(value(arguments, ++cursor, argument)));
-            } else if ("--component-catalog".equals(argument)) {
-                componentCatalogs.add(path(value(arguments, ++cursor, argument)));
-            } else if ("--trust-key".equals(argument)) {
-                parseTrustKey(value(arguments, ++cursor, argument), trustKeys);
-            } else if (argument.startsWith("--")) {
-                throw new Usage("Unknown render option: " + safe(argument));
-            } else if (projectSeen) {
-                throw new Usage("render accepts one project directory");
-            } else {
-                project = path(argument);
-                projectSeen = true;
-            }
-        }
-        return new RenderOptions(project, format, List.copyOf(pluginJars),
-                List.copyOf(componentCatalogs), Map.copyOf(trustKeys));
-    }
-
     private static Format parseFormatOnly(String[] arguments) {
         if (arguments.length == 0) return Format.TEXT;
         if (arguments.length == 2 && "--format".equals(arguments[0])) {
             return parseFormat(arguments[1]);
         }
         throw new Usage("recipes accepts only --format text|json");
-    }
-
-    private static DoctorOptions parseDoctor(String[] arguments) {
-        Path project = null;
-        Path distribution = null;
-        Format format = Format.TEXT;
-        List<Path> pluginJars = new ArrayList<>();
-        List<Path> componentCatalogs = new ArrayList<>();
-        Map<String, String> trustKeys = new LinkedHashMap<>();
-        for (int cursor = 0; cursor < arguments.length; cursor++) {
-            String argument = arguments[cursor];
-            if ("--distribution".equals(argument)) {
-                if (distribution != null) throw new Usage("--distribution may be specified once");
-                distribution = path(value(arguments, ++cursor, argument));
-            } else if ("--format".equals(argument)) {
-                format = parseFormat(value(arguments, ++cursor, argument));
-            } else if ("--plugin-jar".equals(argument)) {
-                pluginJars.add(path(value(arguments, ++cursor, argument)));
-            } else if ("--component-catalog".equals(argument)) {
-                componentCatalogs.add(path(value(arguments, ++cursor, argument)));
-            } else if ("--trust-key".equals(argument)) {
-                parseTrustKey(value(arguments, ++cursor, argument), trustKeys);
-            } else if (argument.startsWith("--")) {
-                throw new Usage("Unknown doctor option: " + safe(argument));
-            } else if (project != null) {
-                throw new Usage("doctor accepts one project directory");
-            } else {
-                project = path(argument);
-            }
-        }
-        return new DoctorOptions(project, distribution, format,
-                List.copyOf(pluginJars), List.copyOf(componentCatalogs),
-                Map.copyOf(trustKeys));
-    }
-
-    private static DiffOptions parseDiff(String[] arguments) {
-        List<Path> locks = new ArrayList<>();
-        Format format = Format.TEXT;
-        for (int cursor = 0; cursor < arguments.length; cursor++) {
-            String argument = arguments[cursor];
-            if ("--format".equals(argument)) {
-                format = parseFormat(value(arguments, ++cursor, argument));
-            } else if (argument.startsWith("--")) {
-                throw new Usage("Unknown diff option: " + safe(argument));
-            } else {
-                locks.add(path(argument));
-            }
-        }
-        if (locks.size() != 2) throw new Usage("diff requires old.lock and new.lock");
-        return new DiffOptions(locks.get(0), locks.get(1), format);
-    }
-
-    private static MigrateOptions parseMigrate(String[] arguments) {
-        Path project = Path.of(".");
-        boolean projectSeen = false;
-        boolean dryRun = false;
-        Format format = Format.TEXT;
-        for (int cursor = 0; cursor < arguments.length; cursor++) {
-            String argument = arguments[cursor];
-            if ("--dry-run".equals(argument)) {
-                dryRun = true;
-            } else if ("--format".equals(argument)) {
-                format = parseFormat(value(arguments, ++cursor, argument));
-            } else if (argument.startsWith("--")) {
-                throw new Usage("Unknown migrate option: " + safe(argument));
-            } else if (projectSeen) {
-                throw new Usage("migrate accepts one project directory");
-            } else {
-                project = path(argument);
-                projectSeen = true;
-            }
-        }
-        return new MigrateOptions(project, dryRun, format);
-    }
-
-    private static DriftOptions parseDrift(String[] arguments) {
-        Path project = Path.of(".");
-        boolean projectSeen = false;
-        List<URI> peers = new ArrayList<>();
-        String apiKeyEnvironment = null;
-        Format format = Format.TEXT;
-        for (int cursor = 0; cursor < arguments.length; cursor++) {
-            String argument = arguments[cursor];
-            if ("--peer".equals(argument)) {
-                peers.add(uri(value(arguments, ++cursor, argument)));
-                if (peers.size() > 64) {
-                    throw new Usage("drift accepts at most 64 peers");
-                }
-            } else if ("--api-key-env".equals(argument)) {
-                apiKeyEnvironment = once(apiKeyEnvironment,
-                        value(arguments, ++cursor, argument), argument);
-                if (!apiKeyEnvironment.matches("[A-Za-z_][A-Za-z0-9_]*")) {
-                    throw new Usage("--api-key-env must be an environment variable name");
-                }
-            } else if ("--format".equals(argument)) {
-                format = parseFormat(value(arguments, ++cursor, argument));
-            } else if (argument.startsWith("--")) {
-                throw new Usage("Unknown drift option: " + safe(argument));
-            } else if (projectSeen) {
-                throw new Usage("drift accepts one project directory");
-            } else {
-                project = path(argument);
-                projectSeen = true;
-            }
-        }
-        if (peers.isEmpty()) throw new Usage("drift requires at least one --peer");
-        return new DriftOptions(project, List.copyOf(peers), apiKeyEnvironment, format);
-    }
-
-    private static GitOpsOptions parseGitOps(String[] arguments) {
-        Path project = Path.of(".");
-        boolean projectSeen = false;
-        AppChainGitOpsExporter.Target target = null;
-        Path output = null;
-        Format format = Format.TEXT;
-        for (int cursor = 0; cursor < arguments.length; cursor++) {
-            String argument = arguments[cursor];
-            if ("--target".equals(argument)) {
-                if (target != null) throw new Usage("--target may be specified once");
-                target = AppChainGitOpsExporter.Target.parse(
-                        value(arguments, ++cursor, argument));
-            } else if ("--output".equals(argument)) {
-                if (output != null) throw new Usage("--output may be specified once");
-                output = path(value(arguments, ++cursor, argument));
-            } else if ("--format".equals(argument)) {
-                format = parseFormat(value(arguments, ++cursor, argument));
-            } else if (argument.startsWith("--")) {
-                throw new Usage("Unknown gitops option: " + safe(argument));
-            } else if (projectSeen) {
-                throw new Usage("gitops accepts one project directory");
-            } else {
-                project = path(argument);
-                projectSeen = true;
-            }
-        }
-        if (target == null || output == null) {
-            throw new Usage("gitops requires --target and --output");
-        }
-        return new GitOpsOptions(project, target, output, format);
     }
 
     private static PluginOptions parsePlugin(String[] arguments) {
@@ -1192,106 +474,12 @@ final class AppChainProjectCli {
         return new MetadataOptions(artifact, Map.copyOf(trustKeys), format);
     }
 
-    private ExplicitCatalogs loadExplicitCatalogs(
-            List<Path> pluginJars,
-            List<Path> componentCatalogs,
-            Map<String, String> trustKeys) throws IOException {
-        List<Path> jars = pluginJars == null ? List.of() : pluginJars;
-        List<Path> snapshots = componentCatalogs == null ? List.of() : componentCatalogs;
-        Map<String, String> keys = trustKeys == null ? Map.of() : trustKeys;
-        if (jars.isEmpty() && snapshots.isEmpty()) {
-            if (!keys.isEmpty()) throw new Usage("--trust-key requires a custom catalog input");
-            return new ExplicitCatalogs(List.of(), List.of(), Map.of());
-        }
-        if (jars.size() + snapshots.size() > AppChainComponentCatalogLoader.MAX_CATALOGS) {
-            throw new Usage("at most 16 custom component catalogs are accepted");
-        }
-        AppChainComponentCatalogLoader loader = new AppChainComponentCatalogLoader();
-        List<AppChainComponentCatalogLoader.Loaded> loaded = new ArrayList<>();
-        for (Path jar : jars) loaded.add(loader.loadJar(jar, keys));
-        for (Path snapshot : snapshots) loaded.add(loader.loadSnapshot(snapshot, keys));
-        loaded.sort(java.util.Comparator.comparing(item -> item.catalog().catalogId()));
-
-        List<AppChainProjectModel.ComponentCatalogRef> references = new ArrayList<>();
-        Map<String, byte[]> inputs = new LinkedHashMap<>();
-        Set<String> ids = new java.util.LinkedHashSet<>();
-        for (AppChainComponentCatalogLoader.Loaded item : loaded) {
-            if (!ids.add(item.catalog().catalogId())) {
-                throw new IllegalArgumentException("custom component catalog id collides");
-            }
-            String publicKey = keys.get(item.trust().keyId());
-            if (publicKey == null) {
-                throw new IllegalArgumentException("missing trusted publisher key for catalog");
-            }
-            references.add(new AppChainProjectModel.ComponentCatalogRef(
-                    item.inputPath(), item.trust().keyId(), publicKey.toLowerCase(Locale.ROOT)));
-            inputs.put(item.inputPath(), item.snapshotBytes());
-        }
-        return new ExplicitCatalogs(List.copyOf(loaded), List.copyOf(references),
-                Map.copyOf(inputs));
-    }
-
-    private void verifyExplicitCatalogs(
-            Path project,
-            List<Path> pluginJars,
-            List<Path> componentCatalogs,
-            Map<String, String> trustKeys) throws IOException {
-        ExplicitCatalogs explicit = loadExplicitCatalogs(
-                pluginJars, componentCatalogs, trustKeys);
-        if (explicit.loaded().isEmpty()) return;
-        Map<String, AppChainComponentCatalogLoader.Loaded> expected = new LinkedHashMap<>();
-        for (AppChainComponentCatalogLoader.Loaded item
-                : new AppChainComponentCatalogLoader().loadProject(project)) {
-            expected.put(item.catalog().catalogId(), item);
-        }
-        for (AppChainComponentCatalogLoader.Loaded item : explicit.loaded()) {
-            AppChainComponentCatalogLoader.Loaded pinned = expected.get(item.catalog().catalogId());
-            if (pinned == null
-                    || !pinned.catalogSha256().equals(item.catalogSha256())
-                    || !pinned.runtimeManifestSha256().equals(item.runtimeManifestSha256())
-                    || !pinned.snapshot().artifactSha256()
-                    .equals(item.snapshot().artifactSha256())) {
-                throw new IllegalArgumentException(
-                        "explicit component input does not match the project pin: "
-                                + item.catalog().catalogId());
-            }
-        }
-    }
-
-    private static URI uri(String value) {
-        try {
-            return new URI(value);
-        } catch (URISyntaxException failure) {
-            throw new Usage("--peer URL is invalid");
-        }
-    }
-
     private static Format parseFormat(String value) {
         return switch (value) {
             case "text" -> Format.TEXT;
             case "json" -> Format.JSON;
             default -> throw new Usage("--format must be text or json");
         };
-    }
-
-    private static int parseMembers(String value) {
-        try {
-            int parsed = Integer.parseInt(value);
-            if (parsed < 1 || parsed > 32) throw new NumberFormatException();
-            return parsed;
-        } catch (NumberFormatException failure) {
-            throw new Usage("--members must be an integer in [1, 32]");
-        }
-    }
-
-    private static int parsePort(String value, String option) {
-        try {
-            int port = Integer.parseInt(value);
-            if (port < 1024 || port > 65535) throw new NumberFormatException();
-            return port;
-        } catch (NumberFormatException failure) {
-            throw new Usage(option + " must be an integer in [1024, 65535]");
-        }
     }
 
     private static String once(String prior, String value, String option) {
@@ -1374,76 +562,6 @@ final class AppChainProjectCli {
 
     enum Format { TEXT, JSON }
 
-    record InitOptions(
-            String recipe,
-            String network,
-            Integer membersBoxed,
-            List<String> memberKeys,
-            List<String> nodeHosts,
-            String finality,
-            String sequencing,
-            String membership,
-            String runtime,
-            String deployment,
-            List<String> capabilities,
-            Map<String, String> answers,
-            Integer httpPortBase,
-            Integer serverPortBase,
-            String name,
-            String chainId,
-            String yanoVersion,
-            Path output,
-            boolean nonInteractive,
-            Format format,
-            List<Path> pluginJars,
-            List<Path> componentCatalogs,
-            Map<String, String> trustKeys,
-            List<String> acknowledgements,
-            Path bindings,
-            Path pluginsDirectory,
-            boolean generateLocalMemberKeys) {
-        int members() {
-            return membersBoxed;
-        }
-    }
-
-    record RenderOptions(
-            Path project,
-            Format format,
-            List<Path> pluginJars,
-            List<Path> componentCatalogs,
-            Map<String, String> trustKeys) {
-    }
-
-    record DoctorOptions(
-            Path project,
-            Path distribution,
-            Format format,
-            List<Path> pluginJars,
-            List<Path> componentCatalogs,
-            Map<String, String> trustKeys) {
-    }
-
-    record DiffOptions(Path before, Path after, Format format) {
-    }
-
-    record DriftOptions(
-            Path project,
-            List<URI> peers,
-            String apiKeyEnvironment,
-            Format format) {
-    }
-
-    record MigrateOptions(Path project, boolean dryRun, Format format) {
-    }
-
-    record GitOpsOptions(
-            Path project,
-            AppChainGitOpsExporter.Target target,
-            Path output,
-            Format format) {
-    }
-
     record MetadataOptions(
             Path artifact,
             Map<String, String> trustKeys,
@@ -1465,12 +583,6 @@ final class AppChainProjectCli {
             String packageName,
             String yanoVersion,
             Format format) {
-    }
-
-    record ExplicitCatalogs(
-            List<AppChainComponentCatalogLoader.Loaded> loaded,
-            List<AppChainProjectModel.ComponentCatalogRef> references,
-            Map<String, byte[]> snapshotInputs) {
     }
 
     private record ConsoleColumn(String heading, int width) {

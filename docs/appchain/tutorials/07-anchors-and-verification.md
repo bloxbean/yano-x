@@ -1,6 +1,6 @@
 # Tutorial 7 — Connect an App Proof to Cardano
 
-[Open this anchored audit log in App-Chain Studio](../../../tooling/studio/src/main/web/index.html#recipe=audit-log&network=devnet&members=3&finality=majority&sequencing=fixed&membership=governed&runtime=jvm&deployment=host&name=anchored-audit&chainId=anchored-audit)
+To run this outcome with other operators, follow [Set up an application](../deployment/configure.md).
 
 - **Level:** intermediate to advanced
 - **Time:** about 20 minutes on local devnet
@@ -8,53 +8,64 @@
   blocks finalize, prove one record against the anchored root, and know which
   checks need your own Cardano source.
 
-**Before you start:** finish [Tutorial 1](01-first-app-chain.md) and stop or
-clean its cluster. You need the extracted Yano X JVM distribution, `curl`, and
-`jq`. Every command runs from the distribution's top-level directory. In
-Studio, add the `anchor:script` capability; it asks for reviewed validator and
-thread-policy references, while the local launcher uses the bundled artifacts.
+**Before you start:** finish [Tutorial 1](01-first-app-chain.md) and remove
+its rehearsal with `./yano.sh appchain try --clean`. You need the extracted
+Yano X JVM distribution, `curl`, and `jq`. Every command runs from the
+distribution's top-level directory. In Studio, add the `anchor:script`
+capability; it asks for reviewed validator and thread-policy references, while
+`./yano.sh appchain anchor` uses the bundled artifacts.
 
 An app ledger finality certificate proves that the configured member threshold
 approved a block. An L1 anchor makes a later application position durable and
 discoverable through Cardano. These are related but distinct proofs.
 
-## 1. Start an anchored local cluster
+## 1. Rehearse a chain with an anchor policy
+
+The anchor policy is part of the sealed application: every member must agree
+on how and how often a chain is anchored. Write it in a small template and
+rehearse it:
 
 ```bash
-export YANO_CLUSTER_DIR=/tmp/yano-tutorial-anchor
-
-./yano.sh appchain cluster start 3 \
-  --anchor-mode script \
-  --anchor-every 2
+cat > anchored.template.yaml <<'EOF'
+chains:
+  - id: orders
+    recipe: audit-log
+    anchor: {mode: script, every-blocks: 2}
+EOF
+./yano.sh appchain try --from anchored.template.yaml
 ```
 
-Script mode uses a thread NFT and a Plutus V3 validator. The local launcher has
-a deterministic demo anchor seed and can fund it from the self-contained
-devnet faucet. When the cluster is up, the launcher's summary names the next
-step, `anchor-bootstrap <chain>`.
+Script mode uses a thread NFT and a Plutus V3 validator. The policy alone
+anchors nothing: one member must lead anchoring, with a funded wallet.
 
-The commands below use node 0's HTTP port, `HTTP_BASE`. Set it to the first
-port of the range the launcher printed. It is `7070` unless the launcher
-printed a line such as `HTTP range 7070-7072 unavailable; using 7073-7075`:
+The commands below use alice's HTTP port. Read it from her `node.json`:
 
 ```bash
-HTTP_BASE=7070
+ALICE=$(jq -r .httpPort appchain-try/alice/yano-node/node.json)
 ```
 
-## 2. Bootstrap one chain's immutable anchor identity
+## 2. Lead anchoring and bootstrap the anchor identity
+
+On a devnet only the lead's node can anchor. Make alice's node the anchor
+leader of `orders`:
 
 ```bash
-./yano.sh appchain cluster anchor-bootstrap orders-chain
+./yano.sh appchain anchor --node-dir appchain-try/alice/yano-node --yes
 ```
 
-The command funds the anchor wallet from the devnet faucet, then calls the
-chain's `admin/anchor/bootstrap` endpoint and prints its JSON answer.
-Bootstrap consumes a seed UTxO, mints the one-shot thread NFT, and creates the
-genesis datum. It establishes identity; it does not let the wallet alone claim
-an arbitrary application tip.
+The command creates an anchor wallet key on alice's node only
+(`secrets/anchor.key`), restarts the node with anchoring on, funds the wallet
+from the self-contained devnet, and, because no member reports an anchor
+thread yet, calls the chain's `admin/anchor/bootstrap` endpoint. Bootstrap
+consumes a seed UTxO, mints the one-shot thread NFT, and creates the genesis
+datum. It establishes identity; it does not let the wallet alone claim an
+arbitrary application tip.
 
-Inspect the L1 Anchor card on node 0's status page,
-`http://127.0.0.1:$HTTP_BASE/ui/app-chain/`. It should show the thread policy,
+> **✓ You should see** `✓ Funded it with 100 test ADA from the devnet (alice's node)`,
+> then `✓ This node anchors orders (anchor thread confirmed)`.
+
+Inspect the L1 Anchor card on alice's status page,
+`http://127.0.0.1:$ALICE/ui/app-chain/`. It should show the thread policy,
 script address, wallet, anchored height, transaction, and lag.
 
 ## 3. Produce application progress
@@ -63,7 +74,7 @@ Submit one event through the REST API so you keep its message id, and wait
 until it is final:
 
 ```bash
-API=http://127.0.0.1:$HTTP_BASE/api/v1/app-chain/chains/orders-chain
+API=http://127.0.0.1:$ALICE/api/v1/app-chain/chains/orders
 
 MESSAGE_ID=$(curl -s -X POST "$API/messages" \
   -H 'Content-Type: application/json' \
@@ -74,23 +85,25 @@ until HEIGHT=$(curl -sf "$API/messages/$MESSAGE_ID" | jq -er .height); do sleep 
 echo "final at height $HEIGHT"
 ```
 
-An anchor is due once `--anchor-every 2` blocks have accumulated, and blocks
+An anchor is due once `every-blocks: 2` blocks have accumulated, and blocks
 exist only when there are messages. Submit a second event, then wait until a
 confirmed anchor covers your message's height:
 
 ```bash
-./yano.sh appchain cluster submit orders-chain audit \
-  '{"event":"certificate-published","id":"C-1"}'
+curl -s -X POST "$API/messages" \
+  -H 'Content-Type: application/json' \
+  -d '{"topic":"audit","body":"{\"event\":\"certificate-published\",\"id\":\"C-1\"}"}' | jq .
 
 until curl -sf "$API/anchor/commitment" \
     | jq -e --argjson h "$HEIGHT" '.anchoredHeight >= $h' >/dev/null; do
   sleep 2
 done
-./yano.sh appchain cluster status
+./yano.sh appchain status --node-dir appchain-try/alice/yano-node
 curl -s "$API/status" | jq '.anchor | {bootstrapped, lastAnchoredHeight, lastAnchorTx, lagBlocks}'
 ```
 
-All members independently reconcile the authenticated script UTxO from their
+`status` shows the chain's anchoring as `led by alice`, with the number of
+anchors and the last anchored height. All members independently reconcile the authenticated script UTxO from their
 own L1 view. Node-local “confirmed since restart” counters may differ after a
 restart; the durable anchored height, transaction, and lag should converge.
 
@@ -152,8 +165,8 @@ finality certificate, which you verify in step 7.
 
 ## 6. Export portable proof material
 
-Save the material a verifier needs, so it can be checked later without this
-cluster:
+Save the material a verifier needs, so it can be checked later without these
+nodes:
 
 ```bash
 curl -s "$API/messages/$MESSAGE_ID/proof-package" > message-proof-package.json
@@ -216,10 +229,13 @@ in script mode, the members who co-sign do.
 For preview or preprod:
 
 - generate a dedicated raw 32-byte anchor seed;
-- provide it through the owner-only anchor-key file mechanism;
-- fund the printed enterprise address with test ADA;
-- use an explicit public-network confirmation before the demo spends; and
-- increase cadence/stability settings to match real L1 timing and fees.
+- give it to the anchor leader's node with
+  `./yano.sh appchain anchor --key <seed-file>`, which copies it into that
+  node's `secrets/anchor.key` without printing it;
+- fund the printed enterprise address with test ADA; the command waits until
+  the funds arrive, and the balance is the spending limit; and
+- choose an anchor cadence (`every-blocks`) in the draft that matches real L1
+  timing and fees.
 
 Do not reuse a wallet mnemonic, validator member seed, actor signing key, or
 API key as the anchor wallet.
@@ -227,8 +243,8 @@ API key as the anchor wallet.
 ## 8. Clean up
 
 ```bash
-./yano.sh appchain cluster clean
-unset YANO_CLUSTER_DIR
+./yano.sh appchain try --clean
+rm anchored.template.yaml
 ```
 
 Local devnet state is disposable. A public script anchor is permanent Cardano

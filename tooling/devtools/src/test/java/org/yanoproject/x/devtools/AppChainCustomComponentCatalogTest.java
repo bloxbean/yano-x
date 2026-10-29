@@ -49,54 +49,6 @@ class AppChainCustomComponentCatalogTest {
     Path temporary;
 
     @Test
-    void signedCatalogInitializesPinsAndRevalidatesAProjectWithoutLoadingPluginCode()
-            throws Exception {
-        Fixture fixture = fixture("custom-sample", null);
-        AppChainComponentCatalogLoader loader = new AppChainComponentCatalogLoader();
-
-        AppChainComponentCatalogLoader.Loaded loaded = loader.loadJar(
-                fixture.jar(), Map.of("test-publisher", fixture.publicKey()));
-        assertThat(loaded.catalog().capabilities()).extracting(
-                AppChainProjectModel.Capability::id).containsExactly("state:custom-sample");
-        assertThat(loaded.snapshot().artifactSha256())
-                .isEqualTo(AppChainProjectCatalog.sha256(Files.readAllBytes(fixture.jar())));
-
-        Path project = temporary.resolve("project");
-        StringWriter output = new StringWriter();
-        AppChainProjectCli cli = new AppChainProjectCli(
-                new BufferedReader(new StringReader("")), new PrintWriter(output, true),
-                AppChainPropertyRegistry.framework(), new ObjectMapper());
-        int exit = cli.run(new String[]{"appchain", "init", "--non-interactive",
-                "--recipe", "custom-plugin", "--network", "devnet", "--members", "1",
-                "--runtime", "jvm", "--capability", "state:custom-sample",
-                "--plugin-jar", fixture.jar().toString(), "--trust-key",
-                "test-publisher=" + fixture.publicKey(), "--output", project.toString()});
-
-        assertThat(exit).isZero();
-        assertThat(output.toString()).contains("PROJECT_INITIALIZED");
-        AppChainProjectModel.ProjectValidation validation = AppChainProjectLifecycle
-                .forProject(AppChainPropertyRegistry.framework(), project).validate(project);
-        assertThat(validation.lock().selectedCapabilities()).contains("state:custom-sample");
-        assertThat(validation.lock().artifacts()).contains("plugin.custom-sample");
-        assertThat(validation.lock().catalogDigests()).containsKeys(
-                "external.custom-sample-plugin.snapshot",
-                "external.custom-sample-plugin.catalog",
-                "external.custom-sample-plugin.runtimeManifest",
-                "external.custom-sample-plugin.configurationMetadata",
-                "external.custom-sample-plugin.artifact");
-
-        Path snapshot = project.resolve("component-catalogs/custom-sample-plugin.json");
-        byte[] original = Files.readAllBytes(snapshot);
-        JsonNode tampered = new ObjectMapper().readTree(original);
-        ((com.fasterxml.jackson.databind.node.ObjectNode) tampered)
-                .put("artifactSha256", "00".repeat(32));
-        Files.write(snapshot, new ObjectMapper().writeValueAsBytes(tampered));
-        assertThatThrownBy(() -> AppChainProjectLifecycle.forProject(
-                AppChainPropertyRegistry.framework(), project).validate(project))
-                .hasMessageContaining("catalog digests");
-    }
-
-    @Test
     void customCapabilityCanDeclareAndEnforceSupportedNetworks() throws Exception {
         Fixture fixture = fixture("devnet-only", catalog -> {
             var capability = (com.fasterxml.jackson.databind.node.ObjectNode)
@@ -169,44 +121,6 @@ class AppChainCustomComponentCatalogTest {
         assertThatThrownBy(() -> new AppChainProjectCatalog(
                 AppChainPropertyRegistry.framework(), List.of(elevatedLoaded)))
                 .hasMessageContaining("cannot claim bundled");
-    }
-
-    @Test
-    void doctorFindsPinnedJvmJarAndExplainsNativeIncompatibility() throws Exception {
-        Fixture fixture = fixture("custom-sample", null);
-        Path project = initializeProject(fixture);
-        AppChainProjectLifecycle lifecycle = AppChainProjectLifecycle.forProject(
-                AppChainPropertyRegistry.framework(), project);
-        AppChainProjectCatalog builtIn = new AppChainProjectCatalog(
-                AppChainPropertyRegistry.framework());
-
-        Path jvm = distribution("jvm", builtIn.releaseIndexBytes());
-        Files.createDirectories(jvm.resolve("plugins"));
-        Files.copy(fixture.jar(), jvm.resolve(fixture.jar().getFileName()),
-                StandardCopyOption.REPLACE_EXISTING);
-        // The plugins directory is the explicit installation boundary.
-        Files.move(jvm.resolve(fixture.jar().getFileName()),
-                jvm.resolve("plugins").resolve(fixture.jar().getFileName()));
-        AppChainProjectModel.DoctorReport jvmReport = lifecycle.doctor(project, jvm);
-        assertThat(jvmReport.checks()).anySatisfy(check -> {
-            if ("artifact:plugin.custom-sample".equals(check.id())) {
-                assertThat(check.status()).isEqualTo("PASS");
-                assertThat(check.detail()).contains("pinned plugin digest");
-            }
-        });
-
-        Path nativeDistribution = distribution("native", builtIn.releaseIndexBytes());
-        Files.createDirectories(nativeDistribution.resolve("plugins"));
-        Files.copy(fixture.jar(), nativeDistribution.resolve("plugins").resolve(
-                fixture.jar().getFileName()));
-        AppChainProjectModel.DoctorReport nativeReport = lifecycle.doctor(
-                project, nativeDistribution);
-        assertThat(nativeReport.checks()).anySatisfy(check -> {
-            if ("artifact:plugin.custom-sample".equals(check.id())) {
-                assertThat(check.status()).isEqualTo("FAIL");
-                assertThat(check.detail()).contains("cannot be loaded by a native executable");
-            }
-        });
     }
 
     @Test
@@ -358,16 +272,6 @@ class AppChainCustomComponentCatalogTest {
                 snapshot, Map.of("test-publisher", fixture.publicKey()));
         assertThat(loaded.catalog().catalogId()).isEqualTo("cli-sample-plugin");
 
-        Path project = temporary.resolve("snapshot-project");
-        int initExit = cli.run(new String[]{"appchain", "init", "--non-interactive",
-                "--recipe", "custom-plugin", "--network", "devnet", "--members", "1",
-                "--runtime", "jvm", "--capability", "state:cli-sample",
-                "--component-catalog", snapshot.toString(), "--trust-key",
-                "test-publisher=" + fixture.publicKey(), "--output", project.toString()});
-        assertThat(initExit).isZero();
-        assertThat(AppChainProjectLifecycle.forProject(
-                AppChainPropertyRegistry.framework(), project).validate(project)
-                .lock().selectedCapabilities()).contains("state:cli-sample");
     }
 
     private Path initializeProject(Fixture fixture) throws Exception {

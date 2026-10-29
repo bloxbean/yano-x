@@ -36,40 +36,66 @@ files themselves do not deploy either workflow.
 ## Deploy the workflow on a local devnet
 
 Run these from the top-level directory of the extracted Yano X distribution.
-They create a three-member project from the shipped registry-to-audit document
-and start it on HTTP ports 7370–7372. A declarative project pins its member
-public keys at genesis, so it needs them at `init`. On a local devnet,
-`--generate-local-member-keys` creates them: the private files go to the
-project's owner-only `secrets/` directory, and only the public keys are written
-to `appchain.yaml`:
+They play every role of a real setup on one machine: a coordinator creates the
+application from the shipped registry-to-audit document, three operators
+(alice, bob and carol) each make a node key and a member card in their own node
+directory, the coordinator seals the cards into one `workflow.chain` file, and
+each operator joins and starts. The nodes listen on HTTP ports 7370–7372. Each
+private key stays in its own node directory's owner-only `secrets/`; only the
+public keys travel in the member cards.
 
 ```bash
 unset YANO_HOME
-./yano.sh appchain init --non-interactive --recipe declarative-composite \
-  --network devnet --members 3 --generate-local-member-keys \
-  --name workflow --chain-id records-audit \
-  --http-port-base 7370 --server-port-base 13637 \
-  --bindings examples/bindings/registry-to-audit.yaml --plugins-directory plugins \
-  --output ../workflow-project
-./yano.sh appchain prepare ../workflow-project
-./yano.sh appchain render ../workflow-project
-./yano.sh appchain config validate --mode project ../workflow-project
-./yano.sh appchain doctor ../workflow-project --distribution "$PWD"
+mkdir -p ../workflow/coordinator
+./yano.sh appchain new workflow --network devnet --operators alice,bob,carol \
+  --chain records-audit=bindings:examples/bindings/registry-to-audit.yaml \
+  --output ../workflow/coordinator --yes
 
-export YANO_HOME="$PWD"
-../workflow-project/scripts/start
-../workflow-project/scripts/status
+./yano.sh appchain request ../workflow/coordinator/workflow.draft.yaml --name alice \
+  --host 127.0.0.1 --node-port 13637 --http-port 7370 \
+  --node-dir ../workflow/alice/yano-node --output ../workflow/coordinator --yes
+./yano.sh appchain request ../workflow/coordinator/workflow.draft.yaml --name bob \
+  --host 127.0.0.1 --node-port 13638 --http-port 7371 \
+  --node-dir ../workflow/bob/yano-node --output ../workflow/coordinator --yes
+./yano.sh appchain request ../workflow/coordinator/workflow.draft.yaml --name carol \
+  --host 127.0.0.1 --node-port 13639 --http-port 7372 \
+  --node-dir ../workflow/carol/yano-node --output ../workflow/coordinator --yes
+
+./yano.sh appchain seal ../workflow/coordinator/workflow.draft.yaml
 ```
 
-> **✓ You should see** `PROJECT_INITIALIZED`, `LOCAL_MEMBER_KEYS_GENERATED: 3`,
-> `PREPARED`, `PROJECT_RENDERED`, `VALID_PROJECT`, a doctor
-> report ending in `DOCTOR_WARNINGS`, then three running nodes. The node API is
+`seal` compiles the binding document against the bundles in `plugins/`, copies
+it into `workflow.chain` and prints the chain fingerprint and each member's key
+id. Each operator then joins, confirming that fingerprint when asked, and
+starts. Start alice first: she is the lead and produces the local Cardano devnet
+that the other two follow.
+
+```bash
+for op in alice bob carol; do
+  ./yano.sh appchain join ../workflow/coordinator/workflow.chain \
+    --node-dir ../workflow/$op/yano-node
+done
+for op in alice bob carol; do
+  ./yano.sh appchain start --node-dir ../workflow/$op/yano-node
+done
+./yano.sh appchain status --node-dir ../workflow/bob/yano-node --wait live --timeout 180
+```
+
+> **✓ You should see** `✓ Sealed .../workflow.chain` with three members and the
+> chain `records-audit` (`declarative-composite`), then a status line
+> `Draft ─ Members ─ Sealed ─ Starting ─ [Live]` with `members online 3/3` and
+> `members agree` for `records-audit`. The node API is
 > `http://127.0.0.1:7370/api/v1` and the chain ID is `records-audit`.
 
-These are disposable local devnet keys; never reuse them. Stop the nodes with
-`../workflow-project/scripts/stop`. For the approval workflow, repeat the
-`init` with `examples/bindings/approval-to-audit.yaml` and its own `--name`,
-`--chain-id`, `--output` directory and port bases.
+Reads and submissions on these nodes need no API key; each node's key for
+privileged admin routes is in its node directory's `secrets/api.key`. These are
+disposable local devnet keys;
+never reuse them. Stop each node with
+`./yano.sh appchain stop --node-dir ../workflow/<operator>/yano-node`. For the
+approval workflow, repeat the steps with
+`examples/bindings/approval-to-audit.yaml`, a new application name and output
+directory, and free ports. Real operators run the same commands on their own
+machines; see [set up an application](../deployment/configure.md).
 
 ## Add the public client dependency
 

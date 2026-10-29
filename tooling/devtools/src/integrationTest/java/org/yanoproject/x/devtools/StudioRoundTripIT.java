@@ -2,6 +2,7 @@ package org.yanoproject.x.devtools;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.yanoproject.x.composite.contracts.BindingIrV1;
@@ -92,36 +93,48 @@ class StudioRoundTripIT {
         assertThat(checked).hasSizeGreaterThanOrEqualTo(10);
         assertThat(reordered).as("reordering must be exercised").isPositive();
         // The project model reads a Studio-spliced blueprint to the same chains and the same composite IR.
-        var mapper = AppChainProjectRenderer.configured(new ObjectMapper(
+        var mapper = strict(new ObjectMapper(
                 new com.fasterxml.jackson.dataformat.yaml.YAMLFactory()));
         try (var environment = BindingPluginEnvironment.open(plugins)) {
             var session = new BindingCatalogSession(environment.providers(), tutorial);
             for (JsonNode item : manifest.path("blueprints")) {
-                var original = mapper.readValue(cases.resolve(item.path("original").textValue()).toFile(),
-                        AppChainProjectModel.Blueprint.class);
-                var spliced = mapper.readValue(cases.resolve(item.path("spliced").textValue()).toFile(),
-                        AppChainProjectModel.Blueprint.class);
-                assertThat(spliced.spec().chains()).hasSameSizeAs(original.spec().chains());
-                for (int index = 0; index < original.spec().chains().size(); index++) {
-                    var before = original.spec().chains().get(index);
-                    var after = spliced.spec().chains().get(index);
-                    assertThat(after.chainId()).isEqualTo(before.chainId());
-                    if (before.composite() == null) {
+                // A setup draft (ADR-056): every field and chain but the edited composite is unchanged.
+                JsonNode original = mapper.readTree(cases.resolve(item.path("original").textValue()).toFile());
+                JsonNode spliced = mapper.readTree(cases.resolve(item.path("spliced").textValue()).toFile());
+                assertThat(spliced.path("chains")).hasSameSizeAs(original.path("chains"));
+                for (int index = 0; index < original.path("chains").size(); index++) {
+                    JsonNode before = original.path("chains").get(index);
+                    JsonNode after = spliced.path("chains").get(index);
+                    if (!before.has("composite")) {
                         assertThat(after).isEqualTo(before);
                         continue;
                     }
-                    assertThat(BindingDocumentCompiler.compile(after.composite(), session).encode())
-                            .isEqualTo(BindingDocumentCompiler.compile(before.composite(), session).encode());
+                    assertThat(withoutField(after, "composite")).isEqualTo(withoutField(before, "composite"));
+                    assertThat(BindingDocumentCompiler.compile(after.get("composite"), session).encode())
+                            .isEqualTo(BindingDocumentCompiler.compile(before.get("composite"), session).encode());
                 }
-                assertThat(spliced.metadata()).isEqualTo(original.metadata());
+                assertThat(withoutField(spliced, "chains")).isEqualTo(withoutField(original, "chains"));
             }
             assertThat(manifest.path("blueprints").size()).isPositive();
         }
+    }
+
+    private static JsonNode withoutField(JsonNode node, String field) {
+        ObjectNode copy = node.deepCopy();
+        copy.remove(field);
+        return copy;
     }
 
     private static String profile(BindingCatalogSession session, BindingIrV1 ir) {
         Object digest = session.validate(ir).operationalStatus().get("activeProfileDigest");
         assertThat(digest).isInstanceOf(String.class);
         return (String) digest;
+    }
+
+    private static ObjectMapper strict(ObjectMapper mapper) {
+        return mapper.enable(com.fasterxml.jackson.core.JsonParser.Feature.STRICT_DUPLICATE_DETECTION)
+                .enable(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
+                .enable(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
+                .enable(com.fasterxml.jackson.databind.SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS);
     }
 }

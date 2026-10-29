@@ -16,8 +16,6 @@ import com.bloxbean.cardano.client.transaction.spec.Value;
 import com.bloxbean.cardano.client.transaction.util.TransactionUtil;
 import org.yanoproject.x.eutxo.contracts.EutxoOutpoint;
 import org.yanoproject.x.eutxo.contracts.EutxoProfile;
-import org.yanoproject.api.appchain.state.StateCommitmentIdentity;
-import org.yanoproject.api.appchain.state.StateCommitmentProfiles;
 
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
@@ -52,6 +50,27 @@ public final class ShowcaseSettlementPlan {
     public static final String CHAIN_ID = "payment-chain-settlement";
     public static final String ROOT_TOKEN = "YanoSettleRoot";
     public static final int THRESHOLD = 2;
+
+    /** The packaged template's header: the showcase seals it as an application of its own. */
+    public static final String PACKAGED_TEMPLATE_COMMENT = """
+            The showcase's federated L1 settlement chain (ADR-UTXO-009) as its own application, DEVNET ONLY: the
+            hardened script vault with a relaxed fallback floor. Its vault, shard and root addresses are a pure
+            function of the deterministic devnet bootstrap and the three demo member keys (this plan), so it always
+            has the showcase's three founding nodes and is never part of their membership changes. showcase.sh
+            leaves it out on a public network; settlement/executor.json holds the executor's node-local settings.
+            Every key here is PUBLIC demo material; demo amounts only. Regenerate with
+            YANO_EMIT_SHOWCASE_SETTLEMENT=true ./gradlew :ledgers:eutxo:demo:test --tests '*EmitShowcaseSettlementTest'
+            """;
+
+    /** Where the packaged executor settings name the validators, relative to the showcase's config directory. */
+    public static final String PACKAGED_SCRIPT_DIR = "settlement";
+
+    /** The packaged devnet chain's settings, sealed and node-local together. */
+    public static Map<String, String> packagedProperties() {
+        return configProperties(PLAN, CHAIN_ID,
+                org.yanoproject.x.eutxo.client.EutxoKeyWallet.fromSeed(WITHDRAWAL_L2_SEED).address(),
+                OPERATOR_ADDRESS, OPERATOR_SEED, "devnet", PACKAGED_SCRIPT_DIR);
+    }
 
     /** Devnet demo mnemonic (public; the devnet genesis funds account 0). */
     public static final String DEVNET_MNEMONIC =
@@ -130,10 +149,6 @@ public final class ShowcaseSettlementPlan {
             byte[] operatorSeed, String operatorSeedFile,
             String networkName, String scriptDir) {
         Map<String, String> config = new LinkedHashMap<>();
-        StateCommitmentIdentity identity = StateCommitmentIdentity.explicit(
-                StateCommitmentProfiles.MPF,
-                stateGenesisId(plan, chainId));
-        config.putAll(new java.util.TreeMap<>(identity.settings()));
         config.put("machines.eutxo.profile", plan.profile().id());
         config.put("machines.eutxo.expected-profile-digest",
                 plan.profile().digestHex());
@@ -207,26 +222,6 @@ public final class ShowcaseSettlementPlan {
         return config;
     }
 
-    private static byte[] stateGenesisId(SettlementBootstrapPlan plan, String chainId) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            digest.update("yano-showcase-settlement-state-genesis-v1\0"
-                    .getBytes(StandardCharsets.US_ASCII));
-            digest.update(chainId.getBytes(StandardCharsets.US_ASCII));
-            digest.update((byte) 0);
-            digest.update(plan.profile().digestHex().getBytes(StandardCharsets.US_ASCII));
-            digest.update((byte) 0);
-            digest.update(plan.rootThreadPolicyIdHex().getBytes(StandardCharsets.US_ASCII));
-            digest.update((byte) 0);
-            digest.update(plan.shardThreadPolicyIdHex().getBytes(StandardCharsets.US_ASCII));
-            digest.update((byte) 0);
-            digest.update(plan.vaultScriptHash());
-            return digest.digest();
-        } catch (Exception impossible) {
-            throw new IllegalStateException(impossible);
-        }
-    }
-
     /** Inline-seed, file-script variant — the packaged devnet demo chain. */
     public static Map<String, String> configProperties(
             SettlementBootstrapPlan plan, String chainId,
@@ -243,15 +238,6 @@ public final class ShowcaseSettlementPlan {
             byte[] operatorSeed, String networkName) {
         return configProperties(plan, chainId, withdrawalL2Address,
                 operatorAddress, operatorSeed, null, networkName, null);
-    }
-
-    /**
-     * The chains[] index a generated block is rendered with before it is
-     * spliced into a real config — {@code chain add} renumbers it to the
-     * instance's next free slot.
-     */
-    public static int chainIndexPlaceholder() {
-        return 0;
     }
 
     /**
@@ -272,62 +258,44 @@ public final class ShowcaseSettlementPlan {
     }
 
     /**
-     * Render the properties as a chains[index] YAML block, NESTED on the
-     * dots so it reads like every other chain in the packaged config (and
-     * so it cannot depend on how the config layer treats dotted keys).
+     * The settlement chain as an app-chain template for {@code yano.sh appchain new --from}: every sealed
+     * setting of {@code properties}, without the executor's node-local ones (see {@link #executorSettings}).
      */
-    public static String yamlBlock(int chainIndex, String chainId,
-                                   Map<String, String> properties) {
-        Map<String, Object> tree = new java.util.LinkedHashMap<>();
-        tree.put("chain-id", chainId);
-        tree.put("state-machine", "eutxo-ledger");
-        tree.put("membership", new java.util.LinkedHashMap<>(
-                Map.of("mode", "governed")));
-        tree.put("block", new java.util.LinkedHashMap<>(
-                Map.of("interval-ms", 1000)));
-        tree.put("l1", new java.util.LinkedHashMap<>(
-                Map.of("stability-depth", 2)));
-        for (Map.Entry<String, String> entry : properties.entrySet()) {
-            insert(tree, entry.getKey().split("\\."), 0, entry.getValue());
-        }
+    public static String template(String chainId, Map<String, String> properties, String comment) {
         StringBuilder yaml = new StringBuilder();
-        yaml.append("    chains[").append(chainIndex).append("]:\n");
-        render(yaml, tree, "      ");
+        comment.lines().forEach(line -> yaml.append("# ").append(line).append('\n'));
+        yaml.append("membership: governed\n")
+                .append("sequencing: fixed\n")
+                .append("chains:\n")
+                .append("  - id: ").append(chainId).append('\n')
+                .append("    recipe: custom-plugin\n")
+                .append("    answers:\n")
+                .append("      stateMachine: \"eutxo-ledger\"\n")
+                .append("    settings:\n")
+                .append("      block.interval-ms: \"1000\"\n")
+                .append("      l1.stability-depth: \"2\"\n");
+        properties.forEach((key, value) -> {
+            if (!executorSetting(key)) {
+                yaml.append("      ").append(key).append(": \"").append(value).append("\"\n");
+            }
+        });
         return yaml.toString();
     }
 
-    @SuppressWarnings("unchecked")
-    private static void insert(Map<String, Object> node, String[] path,
-                               int index, String value) {
-        String key = path[index];
-        if (index == path.length - 1) {
-            node.put(key, value);
-            return;
-        }
-        Object child = node.computeIfAbsent(key,
-                ignored -> new java.util.LinkedHashMap<String, Object>());
-        if (!(child instanceof Map)) {
-            throw new IllegalStateException(
-                    "settlement config key collides with a scalar: " + key);
-        }
-        insert((Map<String, Object>) child, path, index + 1, value);
+    /**
+     * The settlement executor's node-local settings of {@code properties}, relative to the chain: each node runs
+     * the executor, and exactly one of them is its owner ({@code effects.executors.eutxo-settlement.owner}).
+     */
+    public static Map<String, String> executorSettings(Map<String, String> properties) {
+        Map<String, String> settings = new LinkedHashMap<>();
+        properties.forEach((key, value) -> {
+            if (executorSetting(key) && !key.endsWith(".owner")) settings.put(key, value);
+        });
+        return settings;
     }
 
-    @SuppressWarnings("unchecked")
-    private static void render(StringBuilder yaml, Map<String, Object> node,
-                               String indent) {
-        for (Map.Entry<String, Object> entry : node.entrySet()) {
-            String key = entry.getKey();
-            // Keys with a '[' (none today) or a leading '~' would need
-            // quoting; plain config keys do not.
-            if (entry.getValue() instanceof Map<?, ?> child) {
-                yaml.append(indent).append(key).append(":\n");
-                render(yaml, (Map<String, Object>) child, indent + "  ");
-            } else {
-                yaml.append(indent).append(key).append(": \"")
-                        .append(entry.getValue()).append("\"\n");
-            }
-        }
+    private static boolean executorSetting(String key) {
+        return key.startsWith("effects.executor.") || key.startsWith("effects.executors.");
     }
 
     static byte[] actorSeed(String actor) {

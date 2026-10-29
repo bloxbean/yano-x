@@ -96,9 +96,8 @@ See [Developing Yano X](/contributing/) for the full contributor workflow.
 cp shipment-yano-plugin.jar /opt/yano-x/plugins/
 /opt/yano-x/tools/yano-plugins/bin/yano-plugins validate /opt/yano-x/plugins/*.jar
 
-# Before admitting traffic:
-./yano.sh appchain doctor shipment-chain --distribution /opt/yano-x
-./yano.sh appchain drift  shipment-chain --peer http://node-a:8080/api/v1/
+# Before admitting traffic, on an application set up with the setup CLI:
+./yano.sh appchain status <app>
 ```
 
 The property is `yano.plugins.directory`. Restart the nodes; Yano is not
@@ -106,8 +105,9 @@ rebuilt. Each node checks the JAR again at start-up, before any plugin code runs
 [How plugins load](/plugins/how-plugins-load/) lists those checks and what they
 do not cover.
 
-`drift` is the fastest way to find the one member that is out of step, and it
-is worth running as a routine check rather than only during an incident.
+To find the one member that is out of step, compare each node's
+`pluginCatalogFingerprint` from its chain `identity` endpoint; it is worth
+doing as a routine check rather than only during an incident.
 
 ## Operating a plugin
 

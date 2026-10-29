@@ -98,24 +98,27 @@ helps when a command did not do what you expected.
 No particular filename is required. There are two authoring arrangements:
 
 - **Separate document:** keep `chain/bindings.yaml` (or any chosen filename) in
-  source control. Use it with `appchain bindings` commands or pass it to
-  `appchain init --recipe declarative-composite --bindings ...`.
-- **Inline blueprint:** select the `declarative-composite` recipe and put the
-  document body in that chain's `composite` field in `appchain.yaml`.
+  source control. Use it with `appchain bindings` commands, and deploy it with
+  `appchain new <app> --chain <id>=bindings:chain/bindings.yaml`, which copies
+  it beside the setup draft as `<id>.bindings.yaml` and references it with
+  `bindings:`. You can also write `bindings: ./chain/bindings.yaml` under a
+  chain in the draft yourself.
+- **Inline in the draft:** select the `declarative-composite` recipe and put the
+  document body under that chain's `composite:` key in `<app>.draft.yaml`.
 
 The standalone CLI document may contain the composite body directly or wrap it
-in one `composite:` property. Do not pass a complete multi-chain `appchain.yaml`
-to `appchain bindings compile`; that command expects the composite document.
+in one `composite:` property. Do not pass a whole setup draft to
+`appchain bindings compile`; that command expects the composite document.
 
-When `init` imports a separate document it copies the definition into the
-blueprint. It is **not** a live include: editing the original file afterwards
-does not change the generated project. Rendering validates against installed
-plugins, writes canonical binary IR into the chain configuration, and pins the
-IR/profile/catalog identities in `appchain.lock`.
+`appchain seal` reads the referenced document, compiles it against the plugin
+bundles in the distribution's `plugins/` directory, and copies it into the
+sealed `<app>.chain` file. It is **not** a live include: editing the original
+file after seal does not change the sealed chain. The sealed genesis also pins
+the digest of every plugin bundle the chain runs on.
 
-Nodes execute that committed IR, not a YAML file watched for changes. Editing
-YAML or replacing a JAR does not update a running chain. See
-[blueprint project authoring](../DECLARATIVE_BINDINGS_CLI.md#blueprint-projects)
+Nodes execute that committed definition, not a YAML file watched for changes.
+Editing YAML or replacing a JAR does not update a running chain. See
+[deploying a document](../DECLARATIVE_BINDINGS_CLI.md#deploying-a-document)
 and [upgrade planning](05-operations-and-upgrades.md#changing-a-workflow).
 
 ## Can I define bindings graphically?
@@ -148,7 +151,7 @@ the target's authorization checks.
 Reference material remains available for lookup:
 
 - [Language, event execution, limits and rejection codes](../DECLARATIVE_BINDINGS.md)
-- [CLI documents, context, fixtures and project generation](../DECLARATIVE_BINDINGS_CLI.md)
+- [CLI documents, context, fixtures and deployment](../DECLARATIVE_BINDINGS_CLI.md)
 - [Retained-chain compatibility and profile preflight](../DECLARATIVE_BINDINGS_UPGRADES.md)
 
 Next: [Your first workflow](01-first-workflow.md).

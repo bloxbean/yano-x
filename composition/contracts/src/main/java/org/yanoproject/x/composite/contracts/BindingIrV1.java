@@ -109,7 +109,7 @@ public record BindingIrV1(List<Component> components, List<AdmissionRule> rules,
      */
     public record Component(String id, String machineId, String ingressTopic,
                             Map<String, BindingSourceV1.Literal> configuration, int maxEffectsPerBlock,
-                            long fromHeight, List<RuleAttachment> admission) {
+                            long fromHeight, List<RuleAttachment> admission, Map<String, byte[]> payloadSchemas) {
         public Component {
             requireId(id);
             requireId(machineId);
@@ -124,10 +124,30 @@ public record BindingIrV1(List<Component> components, List<AdmissionRule> rules,
                 BindingExpressionV1.requireName(name);
                 Objects.requireNonNull(value, "configuration value");
             });
+            Map<String, byte[]> schemas = new LinkedHashMap<>();
+            if (payloadSchemas.size() > 16) throw new IllegalArgumentException("too many payload schemas");
+            payloadSchemas.forEach((hash, definition) -> {
+                if (hash == null || !hash.matches("[0-9a-f]{64}") || definition == null
+                        || definition.length == 0 || definition.length > 65_536) {
+                    throw new IllegalArgumentException("invalid payload schema");
+                }
+                schemas.put(hash, definition.clone());
+            });
+            payloadSchemas = Collections.unmodifiableMap(schemas);
             admission = List.copyOf(admission);
             if (admission.size() > Limits.MAX_RULES_PER_COMPONENT) {
                 throw new IllegalArgumentException("component rule attachments exceed limit");
             }
+        }
+        @Override public Map<String, byte[]> payloadSchemas() {
+            Map<String, byte[]> copy = new LinkedHashMap<>();
+            payloadSchemas.forEach((hash, definition) -> copy.put(hash, definition.clone()));
+            return Collections.unmodifiableMap(copy);
+        }
+        public Component(String id, String machineId, String ingressTopic,
+                         Map<String, BindingSourceV1.Literal> configuration, int maxEffectsPerBlock,
+                         long fromHeight, List<RuleAttachment> admission) {
+            this(id, machineId, ingressTopic, configuration, maxEffectsPerBlock, fromHeight, admission, Map.of());
         }
         /** Constructs a component generation without rule attachments. */
         public Component(String id, String machineId, String ingressTopic,
@@ -142,8 +162,10 @@ public record BindingIrV1(List<Component> components, List<AdmissionRule> rules,
         Object wire() {
             Map<String, Object> config = new LinkedHashMap<>();
             configuration.forEach((name, value) -> config.put(name, value.value()));
-            return List.of(id, machineId, ingressTopic, config, maxEffectsPerBlock, fromHeight,
-                    admission.stream().map(RuleAttachment::wire).toList());
+            List<Object> fields = new ArrayList<>(List.of(id, machineId, ingressTopic, config, maxEffectsPerBlock,
+                    fromHeight, admission.stream().map(RuleAttachment::wire).toList()));
+            if (!payloadSchemas.isEmpty()) fields.add(payloadSchemas);
+            return List.copyOf(fields);
         }
     }
 
@@ -218,8 +240,8 @@ public record BindingIrV1(List<Component> components, List<AdmissionRule> rules,
             if (clauses.isEmpty() || clauses.size() > MAX_CLAUSES) {
                 throw new IllegalArgumentException("rule clause count");
             }
-            Set<Scope> keys = command == null ? Set.of(Scope.PARAMS, Scope.CONFIG, Scope.CONTEXT, Scope.FACTS)
-                    : BindingExpressionV1.RULE_KEY_SCOPES;
+            Set<Scope> keys = new HashSet<>(BindingExpressionV1.RULE_KEY_SCOPES);
+            if (command == null) keys.remove(Scope.COMMAND);
             Set<Scope> expressions = new HashSet<>(keys);
             expressions.addAll(Set.of(Scope.READS, Scope.WRITE_ELEMENT));
             String site = command == null ? "a rule without a command selector" : "an admission rule";
@@ -273,7 +295,8 @@ public record BindingIrV1(List<Component> components, List<AdmissionRule> rules,
          */
         public boolean isStatic() {
             return reads.isEmpty() && clauses.stream().allMatch(clause -> clause instanceof ExpressionClause)
-                    && Set.of(Scope.COMMAND, Scope.PARAMS, Scope.CONFIG, Scope.WRITE_ELEMENT).containsAll(scopes());
+                    && Set.of(Scope.COMMAND, Scope.PARAMS, Scope.CONFIG, Scope.WRITE_ELEMENT, Scope.PAYLOAD, Scope.WRITER,
+                            Scope.SOURCE).containsAll(scopes());
         }
         /** Returns the parameter declaration with this name, or {@code null}. */
         public Parameter parameter(String name) {
@@ -371,7 +394,11 @@ public record BindingIrV1(List<Component> components, List<AdmissionRule> rules,
     }
 
     /** One ordered edge: all conditions must hold before its target is derived from the matching event. */
-    public record Binding(String id, String sourceComponent, String eventId, List<Clause> conditions, Target target) {
+    public record Binding(String id, String sourceComponent, String eventId, List<Clause> conditions, Target target,
+                          boolean crossesTopicPolicy) {
+        public Binding(String id, String sourceComponent, String eventId, List<Clause> conditions, Target target) {
+            this(id, sourceComponent, eventId, conditions, target, false);
+        }
         public Binding {
             requireId(id);
             requireId(sourceComponent);
@@ -413,7 +440,10 @@ public record BindingIrV1(List<Component> components, List<AdmissionRule> rules,
             }
         }
         Object wire() {
-            return List.of(id, sourceComponent, eventId, conditions.stream().map(Clause::wire).toList(), target.wire());
+            List<Object> fields = new ArrayList<>(List.of(id, sourceComponent, eventId,
+                    conditions.stream().map(Clause::wire).toList(), target.wire()));
+            if (crossesTopicPolicy) fields.add(true);
+            return List.copyOf(fields);
         }
     }
 
@@ -629,7 +659,8 @@ public record BindingIrV1(List<Component> components, List<AdmissionRule> rules,
 
     private static Component component(Object value) {
         if (value instanceof List<?> legacy && legacy.size() == 6) throw predatesPolicyPlane("component");
-        List<?> fields = BindingCbor.array(value, 7);
+        List<?> fields = list(value);
+        if (fields.size() != 7 && fields.size() != 8) throw new IllegalArgumentException("component fields");
         if (!(fields.get(3) instanceof Map<?, ?> raw)) throw new IllegalArgumentException("configuration map");
         Map<String, BindingSourceV1.Literal> config = new LinkedHashMap<>();
         raw.forEach((key, scalar) -> config.put(BindingCbor.text(key), new BindingSourceV1.Literal(scalar)));
@@ -642,7 +673,17 @@ public record BindingIrV1(List<Component> components, List<AdmissionRule> rules,
         }).toList();
         return new Component(BindingCbor.text(fields.get(0)), BindingCbor.text(fields.get(1)),
                 BindingCbor.text(fields.get(2)), config, Math.toIntExact(BindingCbor.integer(fields.get(4))),
-                BindingCbor.integer(fields.get(5)), attachments);
+                BindingCbor.integer(fields.get(5)), attachments,
+                fields.size() == 8 ? schemaDefinitions(fields.get(7)) : Map.of());
+    }
+    private static Map<String, byte[]> schemaDefinitions(Object value) {
+        if (!(value instanceof Map<?, ?> raw)) throw new IllegalArgumentException("payload schemas map");
+        Map<String, byte[]> schemas = new LinkedHashMap<>();
+        raw.forEach((key, definition) -> {
+            if (!(definition instanceof byte[] bytes)) throw new IllegalArgumentException("payload schema bytes");
+            schemas.put(BindingCbor.text(key), bytes);
+        });
+        return schemas;
     }
     private static AdmissionRule rule(Object value) {
         if (value instanceof List<?> legacy && legacy.size() == 5) throw predatesTypedViews("admission rule");
@@ -665,10 +706,14 @@ public record BindingIrV1(List<Component> components, List<AdmissionRule> rules,
                 parameters, reads, clauses);
     }
     private static Binding binding(Object value) {
-        List<?> fields = BindingCbor.array(value, 5);
+        List<?> fields = list(value);
+        if (fields.size() != 5 && fields.size() != 6) throw new IllegalArgumentException("binding fields");
+        if (fields.size() == 6 && !Boolean.TRUE.equals(fields.get(5))) {
+            throw new IllegalArgumentException("noncanonical topic crossing permission");
+        }
         return new Binding(BindingCbor.text(fields.get(0)), BindingCbor.text(fields.get(1)),
                 BindingCbor.text(fields.get(2)), list(fields.get(3)).stream().map(BindingIrV1::clause).toList(),
-                target(fields.get(4)));
+                target(fields.get(4)), fields.size() == 6);
     }
     private static Clause clause(Object value) {
         List<?> fields = list(value);

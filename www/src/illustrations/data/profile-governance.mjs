@@ -28,7 +28,7 @@ const begin = {
   title: 'Begin',
   text: 'Member A submits `BEGIN` with the proposal id, the active profile\'s digest, the membership digest, the '
     + 'target digest, the activation height H, and an expiry. A `BEGIN` that breaks any rule below is ignored.',
-  command: './profile-governance.py --chain evidence-chain begin --encode-only …',
+  command: './tools/composite-profile/profile-governance.py --chain evidence-chain begin --encode-only …',
   wires: [{ from: 'a', to: 'state', label: '`BEGIN`' }],
   checks: [
     { label: 'No other proposal is open', ok: true },
@@ -45,7 +45,7 @@ const chunks = {
   title: 'Stage the chunks',
   text: 'Member A submits the exact canonical bytes of the target profile in chunks, waiting for each to finalize. '
     + 'Only the author can stage. Replaying an identical chunk does nothing; a conflicting one voids the proposal.',
-  command: './profile-governance.py --chain evidence-chain chunk --index 0 …',
+  command: './tools/composite-profile/profile-governance.py --chain evidence-chain chunk --index 0 …',
   wires: [{ from: 'a', to: 'state', label: '`CHUNK` 0 … n−1' }],
   state: table('STAGING', '—', '—'),
   cards: { state: { title: 'STAGING', detail: 'all chunks staged' } },

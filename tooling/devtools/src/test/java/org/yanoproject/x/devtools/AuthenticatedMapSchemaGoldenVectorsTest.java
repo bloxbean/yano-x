@@ -25,8 +25,8 @@ class AuthenticatedMapSchemaGoldenVectorsTest {
             String prefix = "schema." + schema + ".";
             String source = new String(hex(actual.get(prefix + "source.hex")),
                     StandardCharsets.UTF_8);
-            AuthenticatedMapCddlCompiler.Compilation compilation =
-                    AuthenticatedMapCddlCompiler.compile(source, actual.get(prefix + "root"));
+            CddlSchemaCompiler.Compilation compilation =
+                    CddlSchemaCompiler.compile(source, actual.get(prefix + "root"));
             assertThat(compilation.definition()).isEqualTo(hex(actual.get(prefix + "ir.hex")));
             int accepts = Integer.parseInt(actual.get(prefix + "accept.count"));
             for (int index = 0; index < accepts; index++) {

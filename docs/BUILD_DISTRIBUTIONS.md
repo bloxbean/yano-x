@@ -79,11 +79,20 @@ See [Download a Yano X release](RELEASE_DOWNLOADS.md) for the user-facing
 quickstarts.
 
 The build writes the main release archive,
-`distribution/jvm/build/distributions/yano-x-jvm-<version>.zip`, and three
+`distribution/jvm/build/distributions/yano-x-jvm-<version>.zip`, and two
 standalone archives with the same content for users who need only one part:
-`distribution/jvm/build/distributions/yano-x-plugin-pack-<version>.zip`,
-`tooling/deployment/build/distributions/yano-x-deploy-<version>.zip`, and
-`tooling/studio/build/distributions/yano-x-studio-<version>.zip`.
+`distribution/jvm/build/distributions/yano-x-plugin-pack-<version>.zip` and
+`tooling/deployment/build/distributions/yano-x-deploy-<version>.zip`. The binding
+editor ships inside the JVM archive under `studio/` and is served by
+`yano.sh appchain ui`.
+
+`./gradlew :distribution:jvm:yanoXSelfContainedDistZip` builds the self-contained
+edition for the build machine's OS and architecture:
+`distribution/jvm/build/distributions/yano-x-jvm-<version>-<os>-<arch>.zip`. It is
+the JVM archive plus a jlink-trimmed Java 25 runtime under `runtime/`, which
+`yano.sh` uses when present, so the machine needs no Java installation. The release
+workflow builds one per platform on its own runner (Linux x64 and arm64, macOS
+arm64); it is not a native image.
 `verifyYanoXJvmDistribution` checks that the plugin pack carries exactly the
 bundles, manifest, and SBOM of the JVM archive.
 
@@ -101,7 +110,17 @@ both Yano and Yano X identity manifests:
 - `examples/showcase/` holds the local multi-node showcase. Its `yano/` home
   carries only the demo configuration; `showcase.sh` links everything else back
   to the distribution root on first run and never edits the distribution's own
-  `config/`.
+  `config/`. Its generated devnet node configurations bound anchor transaction
+  expiry to `min(299, floor(3 * securityParam / activeSlotsCoeff) - 1)` slots
+  using the selected Shelley genesis, keeping Plutus expiry inside the ledger's
+  forecast horizon. Public-network anchor lifetimes keep the host defaults.
+  Before first startup, the facade pins `devnet-shelley-genesis.json` inside
+  the instance, preserving the launcher's stock 500-slot epoch length, and
+  supplies its exact bytes and timestamp to the host launcher. Explicit custom
+  genesis bytes, including epoch length, remain unchanged.
+  Observer identities therefore use the same genesis hash across restart.
+  Conflicting node files, observer overlays, and legacy devnet state without
+  this pin are refused without rewriting retained identity or data.
 - `config/application-devnet.yml` (also in the showcase's `yano/config/`) turns
   off the devnet L1 history projection. Yano's JVM ZIP ships DuckLake extensions
   for Linux x64 only ([bloxbean/yano#137](https://github.com/bloxbean/yano/issues/137));

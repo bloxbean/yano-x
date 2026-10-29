@@ -1,0 +1,315 @@
+{
+  "status": "PASS",
+  "height": 38,
+  "stateRoot": "802830be6e08834bce21f582e43278962a0c9b152eeb24ff5af27994bbe7a65b",
+  "generationId": "c00351692d3bb8fcc5c67556552b18ba9dded89f19383caebebfbd42248a84c9",
+  "profile": "mpf-blake2b256-v1",
+  "genesisId": "27082a002578f3ae0d0244670ee96e6f7d767bcacdecd49dcef4bbc9a5b1bca3",
+  "consensusContextDigest": "3a109435fb65bdaa2236619bda430ad91db2ade907a5ba9147703f29753e23b4",
+  "consensusProfileDigest": "c13a0d00cedd107a18bc3371543971ac868356246f6e5f171c94ca5e8a31ded6",
+  "finalityThreshold": 2,
+  "framedMessageId": "e98347defe19f44f8e51547a02c86383fdfb568c9c7169e0e64c510172c035a1",
+  "framedHeight": 13,
+  "rideMessageId": "6d477a05f51a7c9c4c014ce49771bf7d6376fb385e5edb6ceeed4e38aae4d4bf",
+  "rideHeight": 14,
+  "schemaActivationHeight": 38,
+  "heldOldPolicyMessageId": "7431715df2f89ab10a07721f74b139bd53ffd1c3ebbf6a0e632407995945811b",
+  "members": [
+    "8a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c",
+    "8139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394",
+    "ed4928c628d1c2c6eae90338905995612959273a5c63f93636c14614ac8737d1"
+  ],
+  "capabilityManifest": {
+    "schemaVersion": 1,
+    "applicationId": "declarative-composite",
+    "applicationVersion": "1.2.0",
+    "manifestDigest": "f8d0e1f8470ee3b250605851a730f040ac4f332bb20daa3891e102d1693906d6",
+    "components": [
+      {
+        "id": "audit",
+        "version": "1.0.0",
+        "configurationId": "06caa7235cee95d1029a76da1ef5d48a7b6014329d45ddb1fc4a1d30e3256d90",
+        "stateNamespace": "component/audit/v1",
+        "topics": [],
+        "querySubjects": [],
+        "origin": "COMPOSED"
+      },
+      {
+        "id": "permitted",
+        "version": "1.0.0",
+        "configurationId": "06caa7235cee95d1029a76da1ef5d48a7b6014329d45ddb1fc4a1d30e3256d90",
+        "stateNamespace": "component/permitted/v1",
+        "topics": [],
+        "querySubjects": [],
+        "origin": "COMPOSED"
+      },
+      {
+        "id": "points",
+        "version": "1.0.0",
+        "configurationId": "90d240bf198a9ecb4cc56a87e8ffe3e1d3ad810b92e819c1755eb162be7e40d4",
+        "stateNamespace": "component/points/v1",
+        "topics": [],
+        "querySubjects": [],
+        "origin": "COMPOSED"
+      },
+      {
+        "id": "rides",
+        "version": "1.0.0",
+        "configurationId": "06caa7235cee95d1029a76da1ef5d48a7b6014329d45ddb1fc4a1d30e3256d90",
+        "stateNamespace": "component/rides/v1",
+        "topics": [],
+        "querySubjects": [],
+        "origin": "COMPOSED"
+      },
+      {
+        "id": "tick",
+        "version": "1.0.0",
+        "configurationId": "06caa7235cee95d1029a76da1ef5d48a7b6014329d45ddb1fc4a1d30e3256d90",
+        "stateNamespace": "component/tick/v1",
+        "topics": [],
+        "querySubjects": [],
+        "origin": "COMPOSED"
+      },
+      {
+        "id": "uncovered",
+        "version": "1.0.0",
+        "configurationId": "06caa7235cee95d1029a76da1ef5d48a7b6014329d45ddb1fc4a1d30e3256d90",
+        "stateNamespace": "component/uncovered/v1",
+        "topics": [],
+        "querySubjects": [],
+        "origin": "COMPOSED"
+      },
+      {
+        "id": "unregistered-permitted",
+        "version": "1.0.0",
+        "configurationId": "06caa7235cee95d1029a76da1ef5d48a7b6014329d45ddb1fc4a1d30e3256d90",
+        "stateNamespace": "component/unregistered-permitted/v1",
+        "topics": [],
+        "querySubjects": [],
+        "origin": "COMPOSED"
+      },
+      {
+        "id": "unregistered-source",
+        "version": "1.0.0",
+        "configurationId": "06caa7235cee95d1029a76da1ef5d48a7b6014329d45ddb1fc4a1d30e3256d90",
+        "stateNamespace": "component/unregistered-source/v1",
+        "topics": [],
+        "querySubjects": [],
+        "origin": "COMPOSED"
+      }
+    ],
+    "workflows": [
+      {
+        "id": "event-bindings",
+        "version": "1.2.0",
+        "participantComponentIds": [
+          "audit",
+          "permitted",
+          "points",
+          "rides",
+          "tick",
+          "uncovered",
+          "unregistered-permitted",
+          "unregistered-source"
+        ],
+        "topic": "audit/rides",
+        "effectTypes": [],
+        "origin": "COMPOSED"
+      }
+    ],
+    "crossCutting": [
+      {
+        "capabilityId": "composite-workflow-routes",
+        "version": "1.0.0",
+        "enabled": true,
+        "configurationDigest": "1a147e9a8799ca3845be7353b6c2b5ef2a8c9b29ffc05e58613c7c3f08614e75",
+        "attributes": {
+          "event-bindings.topic.0": "audit/rides",
+          "event-bindings.topic.1": "games/permitted",
+          "event-bindings.topic.2": "games/rides",
+          "event-bindings.topic.3": "games/unregistered",
+          "event-bindings.topic.4": "games/unregistered-permitted",
+          "event-bindings.topic.5": "heartbeat",
+          "event-bindings.topic.6": "ledger/points",
+          "event-bindings.topic.7": "unregistered/sink"
+        },
+        "origin": "COMPOSED"
+      },
+      {
+        "capabilityId": "declarative-event-bindings",
+        "version": "1.0.0",
+        "enabled": true,
+        "configurationDigest": "1a147e9a8799ca3845be7353b6c2b5ef2a8c9b29ffc05e58613c7c3f08614e75",
+        "attributes": {
+          "admission.audit.00.command": "*",
+          "admission.audit.00.deny": "PROVENANCE_DENIED",
+          "admission.audit.00.reads": "false",
+          "admission.audit.00.rule": "provenance",
+          "admission.audit.00.slot": "admission",
+          "admission.audit.00.static": "true",
+          "admission.audit.00.writes": "false",
+          "admission.permitted.00.command": "*",
+          "admission.permitted.00.deny": "RIDE_DENIED",
+          "admission.permitted.00.reads": "false",
+          "admission.permitted.00.rule": "ride",
+          "admission.permitted.00.slot": "admission",
+          "admission.permitted.00.static": "true",
+          "admission.permitted.00.writes": "false",
+          "admission.rides.00.command": "*",
+          "admission.rides.00.deny": "RIDE_DENIED",
+          "admission.rides.00.reads": "false",
+          "admission.rides.00.rule": "ride",
+          "admission.rides.00.slot": "admission",
+          "admission.rides.00.static": "true",
+          "admission.rides.00.writes": "false",
+          "admission.unregistered-permitted.00.command": "*",
+          "admission.unregistered-permitted.00.deny": "RIDE_DENIED",
+          "admission.unregistered-permitted.00.reads": "false",
+          "admission.unregistered-permitted.00.rule": "ride",
+          "admission.unregistered-permitted.00.slot": "admission",
+          "admission.unregistered-permitted.00.static": "true",
+          "admission.unregistered-permitted.00.writes": "false",
+          "admission.unregistered-source.00.command": "*",
+          "admission.unregistered-source.00.deny": "RIDE_DENIED",
+          "admission.unregistered-source.00.reads": "false",
+          "admission.unregistered-source.00.rule": "ride",
+          "admission.unregistered-source.00.slot": "admission",
+          "admission.unregistered-source.00.static": "true",
+          "admission.unregistered-source.00.writes": "false",
+          "binding.audit-ride.command": "append",
+          "binding.audit-ride.event": "composite.command-accepted.v1",
+          "binding.audit-ride.source": "rides",
+          "binding.audit-ride.target": "audit",
+          "binding.audit-ride.targetKind": "command",
+          "binding.permitted-ride.command": "append",
+          "binding.permitted-ride.event": "composite.command-accepted.v1",
+          "binding.permitted-ride.source": "permitted",
+          "binding.permitted-ride.target": "audit",
+          "binding.permitted-ride.targetKind": "command",
+          "binding.uncovered-permitted.command": "append",
+          "binding.uncovered-permitted.event": "composite.command-accepted.v1",
+          "binding.uncovered-permitted.source": "unregistered-permitted",
+          "binding.uncovered-permitted.target": "uncovered",
+          "binding.uncovered-permitted.targetKind": "command",
+          "binding.uncovered-ride.command": "append",
+          "binding.uncovered-ride.event": "composite.command-accepted.v1",
+          "binding.uncovered-ride.source": "unregistered-source",
+          "binding.uncovered-ride.target": "uncovered",
+          "binding.uncovered-ride.targetKind": "command",
+          "schema": "yano-x-binding-graph-v1"
+        },
+        "origin": "COMPOSED"
+      },
+      {
+        "capabilityId": "state-commitment:mpf-blake2b256-v1",
+        "version": "1.0.0",
+        "enabled": true,
+        "configurationDigest": "91ee14091200f1e24659112d640e877e9177779dcc81dd06117f013e9190082b",
+        "attributes": {
+          "backend": "mpf",
+          "verificationTarget": "off-chain,on-chain"
+        },
+        "origin": "RUNTIME_CONFIGURED"
+      },
+      {
+        "capabilityId": "state-index:finalized-block-messages-v1",
+        "version": "1.0.0",
+        "enabled": true,
+        "configurationDigest": "0d86b56dd32a27f307e85b4ef2cd8ab5bbf68dbacbd48f252bf86aaac7b42803",
+        "attributes": {
+          "keyDerivation": "sha256(namespace || block/ || uint64-be height)",
+          "keyNamespace": "~yano/finalized-block-messages/v1/",
+          "maxMessagesPerBlock": "5000",
+          "maximumWritesPerBlock": "1",
+          "retentionProfile": "primary",
+          "schemaVersion": "1"
+        },
+        "origin": "LAUNCHER_ENABLED"
+      }
+    ],
+    "proofSubjects": [
+      {
+        "subjectId": "audit:finalized-message-v1",
+        "subjectVersion": 1,
+        "componentId": "audit",
+        "keyNamespace": "typed-component-state-v1",
+        "verificationTarget": "typed-state-proof",
+        "descriptorDigest": "73e807a89528e3239e20e584fe52ce0b2455e1fdf63c85f4346b75eded978260"
+      },
+      {
+        "subjectId": "composite-profile-v1",
+        "subjectVersion": 1,
+        "componentId": "",
+        "keyNamespace": "typed-component-state-v1",
+        "verificationTarget": "typed-state-proof",
+        "descriptorDigest": "3f44b49bbce923130faa5b2b340d918740d5c3643a2a42cf65ddc9bce6b7a96b"
+      },
+      {
+        "subjectId": "finalized-block-messages-v1",
+        "subjectVersion": 1,
+        "componentId": "",
+        "keyNamespace": "~yano/finalized-block-messages/v1/",
+        "verificationTarget": "state-proof",
+        "descriptorDigest": "b5608aabbeb981a3f18e408e98a01d2e54cb3c311dcaf1958bfbafcbb5a22c5f"
+      },
+      {
+        "subjectId": "permitted:finalized-message-v1",
+        "subjectVersion": 1,
+        "componentId": "permitted",
+        "keyNamespace": "typed-component-state-v1",
+        "verificationTarget": "typed-state-proof",
+        "descriptorDigest": "69adcc5b87c897ab58d739c7140b32f112b65ec317483cf4b79e5215a234e06f"
+      },
+      {
+        "subjectId": "points:account-balance-v1",
+        "subjectVersion": 1,
+        "componentId": "points",
+        "keyNamespace": "typed-component-state-v1",
+        "verificationTarget": "typed-state-proof",
+        "descriptorDigest": "3680f45884cdd0261422ec36da5354c0a8f1d7f84c49676f9f14eb3a44d92da8"
+      },
+      {
+        "subjectId": "rides:finalized-message-v1",
+        "subjectVersion": 1,
+        "componentId": "rides",
+        "keyNamespace": "typed-component-state-v1",
+        "verificationTarget": "typed-state-proof",
+        "descriptorDigest": "7086f77ad8c96726bd8d75d08862a495dd50012adc42f6a86b545730492f3210"
+      },
+      {
+        "subjectId": "tick:finalized-message-v1",
+        "subjectVersion": 1,
+        "componentId": "tick",
+        "keyNamespace": "typed-component-state-v1",
+        "verificationTarget": "typed-state-proof",
+        "descriptorDigest": "6ccaae3ad37fc95a7bd6cff0c1e673968a0c9584dfa559b209f2797ce94a9900"
+      },
+      {
+        "subjectId": "uncovered:finalized-message-v1",
+        "subjectVersion": 1,
+        "componentId": "uncovered",
+        "keyNamespace": "typed-component-state-v1",
+        "verificationTarget": "typed-state-proof",
+        "descriptorDigest": "b04a2e19052e4ff7e6af885402a3e9450bf6b6fc5a1bff218f109621a9c72a17"
+      },
+      {
+        "subjectId": "unregistered-permitted:finalized-message-v1",
+        "subjectVersion": 1,
+        "componentId": "unregistered-permitted",
+        "keyNamespace": "typed-component-state-v1",
+        "verificationTarget": "typed-state-proof",
+        "descriptorDigest": "1177102a7952a4e9f86bd43510ff21ee37418ff7fb5e37f4e28d93b64ad41129"
+      },
+      {
+        "subjectId": "unregistered-source:finalized-message-v1",
+        "subjectVersion": 1,
+        "componentId": "unregistered-source",
+        "keyNamespace": "typed-component-state-v1",
+        "verificationTarget": "typed-state-proof",
+        "descriptorDigest": "9376666f00934f25b1aafa3c2adf6791ad87e6af9eed003d23fd05bf42f7fb11"
+      }
+    ]
+  },
+  "stateIdentityTrust": "First finalized peer state, checked against all three nodes and the configured member signatures; no Cardano anchoring claim.",
+  "archiveSha256": "1cc44e322d7eec6d59f3ec81b747cf906cff2ab122bb4543b133a2024107e407"
+}

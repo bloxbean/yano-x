@@ -98,8 +98,8 @@ threshold of 3, and `f = 1`.
   script mode a threshold of members must co-sign every anchor advance, so a
   compromised leader can stop anchoring but cannot advance the anchor alone.
 - **Connector credentials** for Kafka, S3, IPFS, and Cardano payments stay in
-  each executor node's configuration, never in an effect payload, blueprint, or
-  shared configuration.
+  each executor node's configuration, never in an effect payload, setup draft,
+  sealed `.chain` file, or shared configuration.
 
 ## Plugins are trusted code
 
@@ -107,15 +107,20 @@ Plugins run in the node's process, loaded through a shared, parent-first class
 loader. That is not a sandbox: a plugin can do anything the node can do.
 
 Plugin publishers sign a plugin's catalog and manifest with
-`./yano.sh appchain plugin sign`, and Yano X tooling (`validate`,
-`init --trust-key`, and `doctor`) checks the signature and pins the JAR digests
-in the project lock. **The node itself does not check publisher signatures when
-it loads plugins**; signed artifacts at load time are deferred work. So:
+`./yano.sh appchain plugin sign`, and Yano X tooling (`plugin validate` and
+`metadata verify`) checks the signature. `appchain seal` records the SHA-256
+digest of every bundle a chain runs on, and `join` and `start` refuse a node
+whose installed bundles differ. **The node itself does not check publisher
+signatures when it loads plugins**; signed artifacts at load time are deferred
+work. So:
 
 - install only plugins you trust, and the same JARs on every member;
 - restrict which bundles load with `yano.plugins.allow-list` and
   `yano.plugins.deny-list`; and
-- compare members with `./yano.sh appchain drift` to catch a node running
-  different plugins or configuration.
+- compare members' `pluginCatalogFingerprint` (from each node's chain
+  `identity` endpoint) to catch a node running different plugins; for an
+  application set up with the setup CLI, `appchain start` also refuses a node
+  whose sealed bundles changed, and `./yano.sh appchain status` flags a member
+  that reports a different genesis identity.
 
 Next: [Glossary](/reference/glossary/).

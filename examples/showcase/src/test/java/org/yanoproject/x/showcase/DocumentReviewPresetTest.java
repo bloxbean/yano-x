@@ -29,7 +29,7 @@ class DocumentReviewPresetTest {
         assertThat(machine.profile().components().stream()
                 .filter(component -> component.componentId().equals("documents"))
                 .findFirst().orElseThrow().queryPaths()).containsExactly("head");
-        assertThat(ShowcaseAuthenticatedMapConfig.documentReviewGenesis(
+        assertThat(ShowcaseGovernedGenesis.documentReviewGenesis(
                 "document-review-chain").approvalPolicy(DocumentReviewPreset.POLICY_ID))
                 .isNotNull();
     }

@@ -399,61 +399,6 @@ class BindingCliIT {
     }
 
     @Test
-    void blueprintPinsCatalogIrAndProfileWithoutLeakingAuthoringPathIntoConsensus() throws Exception {
-        inputs(DOCUMENT);
-        var properties = AppChainPropertyRegistry.framework();
-        var catalog = new AppChainProjectCatalog(properties);
-        var resolver = new AppChainProjectResolver(properties, catalog);
-        var renderer = new AppChainProjectRenderer(catalog, resolver);
-        var composite = new ObjectMapper(new YAMLFactory()).readTree(DOCUMENT).get("composite");
-        var topology = new AppChainProjectModel.Topology(3,
-                List.of("22".repeat(32), "33".repeat(32), "44".repeat(32)), List.of(),
-                "two-thirds", "fixed", "static", null, null);
-        var chain = new AppChainProjectModel.ChainIntent("workflow", "declarative-composite", List.of(),
-                Map.of(), topology, null, composite);
-        var blueprint = new AppChainProjectModel.Blueprint(AppChainProjectModel.API_VERSION,
-                AppChainProjectModel.BLUEPRINT_KIND,
-                new AppChainProjectModel.Metadata("binding-project"),
-                new AppChainProjectModel.Spec("0.1.0-test", "devnet",
-                        new AppChainProjectModel.RuntimeSelection("jvm", "../plugins"),
-                        new AppChainProjectModel.DeploymentSelection("host"), List.of(chain)));
-        Path project = temporary.resolve("project");
-        var lock = renderer.initialize(project, blueprint);
-        assertThat(lock.catalogDigests()).containsKeys("binding.workflow.profile", "binding.workflow.ir",
-                "binding.workflow.catalog");
-        assertThat(lock.catalogDigests().get("binding.workflow.profile")).matches("[0-9a-f]{64}");
-        assertThat(resolver.resolve(blueprint, project).consensusProperties().values())
-                .noneMatch(value -> value.contains("../plugins") || value.contains(temporary.toString()));
-        renderer.validate(project);
-        Path lockFile = project.resolve(AppChainProjectRenderer.LOCK_FILE);
-        var tampered = JSON.readTree(lockFile.toFile());
-        ((com.fasterxml.jackson.databind.node.ObjectNode) tampered.get("catalogDigests"))
-                .put("binding.workflow.profile", "00".repeat(32));
-        JSON.writeValue(lockFile.toFile(), tampered);
-        assertThatThrownBy(() -> renderer.validate(project)).isInstanceOf(java.io.IOException.class)
-                .hasMessageContaining("catalog digests");
-    }
-
-    @Test
-    void initImportsStrictBindingsAndStoresProjectRelativeAuthoringLocation() throws Exception {
-        Inputs inputs = inputs(DOCUMENT);
-        Path project = temporary.resolve("initialized");
-        StringWriter out = new StringWriter();
-        StringWriter err = new StringWriter();
-        int result = new AppChainDevtoolsCli().run(new String[]{"init", "--non-interactive",
-                "--recipe", "declarative-composite", "--network", "devnet", "--members", "3",
-                "--member-key", "22".repeat(32), "--member-key", "33".repeat(32),
-                "--member-key", "44".repeat(32), "--bindings", inputs.document().toString(),
-                "--plugins-directory", inputs.plugins().toString(), "--output", project.toString()},
-                new PrintWriter(out), new PrintWriter(err));
-        assertThat(result).as(err.toString()).isZero();
-        var blueprint = new ObjectMapper(new YAMLFactory()).readTree(project.resolve("appchain.yaml").toFile());
-        assertThat(blueprint.at("/spec/runtime/pluginsDirectory").textValue()).isEqualTo("../plugins");
-        assertThat(blueprint.at("/spec/chains/0/composite/bindings/0/id").textValue()).isEqualTo("audit-record");
-        assertThat(Files.readString(project.resolve("appchain.lock"))).doesNotContain(temporary.toString());
-    }
-
-    @Test
     void independentlyPackagedKernelComposesThroughCatalogAndCannotEscapeClosedLifetime() throws Exception {
         Inputs inputs = inputs(DOCUMENT.replace("machine: kv-registry", "machine: external-log")
                 .replace("kv-registry.entry-put.v1", "composite.command-accepted.v1")
@@ -586,7 +531,7 @@ class BindingCliIT {
     }
 
     private static BindingCatalogSession.ContextInput context() {
-        var profile = new AppChainConsensusProfile(2, 65536, 100, 1_048_576, 0, 0, false, false,
+        var profile = new AppChainConsensusProfile(2, 65536, 100, 1_048_576, 0, 0, AppChainConsensusProfile.DEFAULT_BLOCK_MAX_FORWARD_SKEW_MS, false, false,
                 0, 0, 0, 0, FinalityGate.APP_FINAL, EffectOutcomeCommitment.PER_EFFECT, true, List.of());
         var identity = StateCommitmentIdentity.explicit(StateCommitmentProfiles.MPF, new byte[32]);
         return new BindingCatalogSession.ContextInput("offline-test", identity.settings(), profile,

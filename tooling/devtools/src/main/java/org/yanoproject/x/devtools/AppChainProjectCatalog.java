@@ -24,9 +24,6 @@ final class AppChainProjectCatalog {
     static final String CAPABILITY_RESOURCE = RESOURCE_DIRECTORY
             + "/appchain-capability-catalog.json";
     static final String RECIPE_RESOURCE = RESOURCE_DIRECTORY + "/appchain-recipe-catalog.json";
-    static final String BLUEPRINT_SCHEMA_RESOURCE = RESOURCE_DIRECTORY
-            + "/appchain-blueprint.schema.json";
-    static final String LOCK_SCHEMA_RESOURCE = RESOURCE_DIRECTORY + "/appchain-lock.schema.json";
     static final String RELEASE_INDEX_RESOURCE = RESOURCE_DIRECTORY
             + "/appchain-release-capability-index.json";
     static final String RELEASE_ACCEPTANCE_INDEX_RESOURCE = RESOURCE_DIRECTORY
@@ -35,8 +32,6 @@ final class AppChainProjectCatalog {
             + "/appchain-first-party-metadata.json";
     static final String METADATA_TRUST_SCHEMA_RESOURCE = RESOURCE_DIRECTORY
             + "/appchain-metadata-trust.schema.json";
-    static final String GITOPS_LOCK_SCHEMA_RESOURCE = RESOURCE_DIRECTORY
-            + "/appchain-gitops-lock.schema.json";
     static final String COMPONENT_CATALOG_SCHEMA_RESOURCE = RESOURCE_DIRECTORY
             + "/appchain-component-catalog.schema.json";
     static final String COMPONENT_CATALOG_SNAPSHOT_SCHEMA_RESOURCE = RESOURCE_DIRECTORY
@@ -62,13 +57,10 @@ final class AppChainProjectCatalog {
     private final ObjectMapper json;
     private final byte[] capabilityBytes;
     private final byte[] recipeBytes;
-    private final byte[] blueprintSchemaBytes;
-    private final byte[] lockSchemaBytes;
     private final byte[] releaseIndexBytes;
     private final byte[] releaseAcceptanceIndexBytes;
     private final byte[] firstPartyMetadataBytes;
     private final byte[] metadataTrustSchemaBytes;
-    private final byte[] gitOpsLockSchemaBytes;
     private final byte[] componentCatalogSchemaBytes;
     private final byte[] componentCatalogSnapshotSchemaBytes;
     private final byte[] aiSkillBytes;
@@ -95,13 +87,10 @@ final class AppChainProjectCatalog {
                 .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
         capabilityBytes = resource(CAPABILITY_RESOURCE);
         recipeBytes = resource(RECIPE_RESOURCE);
-        blueprintSchemaBytes = resource(BLUEPRINT_SCHEMA_RESOURCE);
-        lockSchemaBytes = resource(LOCK_SCHEMA_RESOURCE);
         releaseIndexBytes = resource(RELEASE_INDEX_RESOURCE);
         releaseAcceptanceIndexBytes = resource(RELEASE_ACCEPTANCE_INDEX_RESOURCE);
         firstPartyMetadataBytes = resource(FIRST_PARTY_METADATA_RESOURCE);
         metadataTrustSchemaBytes = resource(METADATA_TRUST_SCHEMA_RESOURCE);
-        gitOpsLockSchemaBytes = resource(GITOPS_LOCK_SCHEMA_RESOURCE);
         componentCatalogSchemaBytes = resource(COMPONENT_CATALOG_SCHEMA_RESOURCE);
         componentCatalogSnapshotSchemaBytes = resource(
                 COMPONENT_CATALOG_SNAPSHOT_SCHEMA_RESOURCE);
@@ -184,19 +173,6 @@ final class AppChainProjectCatalog {
                 .anyMatch(capability -> capability.id().equals(id));
     }
 
-    boolean isExternalArtifact(String id) {
-        return externalCatalogs.stream()
-                .anyMatch(item -> item.catalog().artifact().id().equals(id));
-    }
-
-    String externalArtifactDigest(String id) {
-        return externalCatalogs.stream()
-                .filter(item -> item.catalog().artifact().id().equals(id))
-                .map(item -> item.snapshot().artifactSha256())
-                .findFirst().orElseThrow(() -> new IllegalArgumentException(
-                        "Unknown external artifact: " + safeId(id)));
-    }
-
     AppChainProjectModel.ReleaseIndex releaseIndex() {
         return releaseIndex;
     }
@@ -209,13 +185,10 @@ final class AppChainProjectCatalog {
         Map<String, String> digests = new LinkedHashMap<>();
         digests.put("capabilities", sha256(capabilityBytes));
         digests.put("recipes", sha256(recipeBytes));
-        digests.put("blueprintSchema", sha256(blueprintSchemaBytes));
-        digests.put("lockSchema", sha256(lockSchemaBytes));
         digests.put("releaseIndex", sha256(releaseIndexBytes));
         digests.put("releaseAcceptanceIndex", sha256(releaseAcceptanceIndexBytes));
         digests.put("firstPartyMetadata", sha256(firstPartyMetadataBytes));
         digests.put("metadataTrustSchema", sha256(metadataTrustSchemaBytes));
-        digests.put("gitOpsLockSchema", sha256(gitOpsLockSchemaBytes));
         digests.put("componentCatalogSchema", sha256(componentCatalogSchemaBytes));
         digests.put("componentCatalogSnapshotSchema",
                 sha256(componentCatalogSnapshotSchemaBytes));
@@ -286,14 +259,6 @@ final class AppChainProjectCatalog {
         return recipeBytes.clone();
     }
 
-    byte[] blueprintSchemaBytes() {
-        return blueprintSchemaBytes.clone();
-    }
-
-    byte[] lockSchemaBytes() {
-        return lockSchemaBytes.clone();
-    }
-
     byte[] releaseIndexBytes() {
         return releaseIndexBytes.clone();
     }
@@ -308,10 +273,6 @@ final class AppChainProjectCatalog {
 
     byte[] metadataTrustSchemaBytes() {
         return metadataTrustSchemaBytes.clone();
-    }
-
-    byte[] gitOpsLockSchemaBytes() {
-        return gitOpsLockSchemaBytes.clone();
     }
 
     byte[] componentCatalogSchemaBytes() {
@@ -413,8 +374,6 @@ final class AppChainProjectCatalog {
                     Set.copyOf(safeList(evidence.runtimeTypes())))
                     || !Set.copyOf(recipe.deploymentTargets()).equals(
                     Set.copyOf(safeList(evidence.deploymentTargets())))
-                    || !Set.copyOf(safeList(evidence.gitOpsTargets()))
-                    .equals(Set.of("helm", "kustomize"))
                     || !requiredLevel.equals(evidence.outcomeLevel())
                     || !recipe.acceptanceScenario().equals(evidence.acceptanceScenario())
                     || safeList(evidence.evidence()).isEmpty()) {

@@ -3,45 +3,45 @@
   "assurance" : "Editing assistance for the identified plugin catalog, context and configurations only. Not plugin trust, runtime availability, profile validation or deployment approval.",
   "producer" : {
     "tool" : "yano-x-devtools",
-    "version" : "0.1.0-pre4-SNAPSHOT",
-    "jarSha256" : "84837a41b3aa6419d040c20fd60ed652d41d044838179cd7a8d121200817ed8a",
-    "linkedCompositeJarSha256" : "a3fb538e1dd4cfecd5e31a4b45fd644e998f2428c2981a7c99f326b39aace16f"
+    "version" : "0.1.0-pre4",
+    "jarSha256" : "75b8fdeacd752691509fe61989a6c93fde805c004c9d8e9335368ea7bcff41ce",
+    "linkedCompositeJarSha256" : "d7bfb7f72fad81eda6729554ec3493710b55984ae2e4cb7efd1f3c106cb58702"
   },
   "host" : {
-    "version" : "0.1.0-pre18",
-    "coreApiJarSha256" : "722cbac3bb251ca780c75393ce8070091e6db03f6a0177c119be1d083a6cd712",
-    "runtimeJarSha256" : "35158b4c50776d21e6b401156b4329b67676ee851818f3dc72d2f68cc906ee65"
+    "version" : "0.1.0-pre19",
+    "coreApiJarSha256" : "e8cc29db9c9e36dd743c9ae81bd42e806a4035e87d090d392af017c5f12554e9",
+    "runtimeJarSha256" : "d99de754c54816a01b263bf02a4555befeb6623dc3cc633ac19b4299480293ed"
   },
   "authoringEnvironment" : "yano-x-binding-authoring-environment-v1",
   "catalog" : {
-    "fingerprint" : "sha256:2c325fd4f161a818f8bf879a31948b60b16867f198f6e829b341cf9748455980",
+    "fingerprint" : "sha256:0a4269c99832eb1435e9d827e27bc5100b10e092fe0cbcdd7b8c3daa7719be42",
     "pluginApi" : {
       "major" : 3,
-      "level" : 12
+      "level" : 13
     },
     "bundles" : [ {
       "id" : "org.yanoproject.x.composite",
-      "version" : "0.1.0-pre4-SNAPSHOT",
-      "digest" : "sha256:e3a417b4194ab8a7817a401423f3f5b6485b7a709eef2e62e314014080d92f44",
+      "version" : "0.1.0-pre4",
+      "digest" : "sha256:daea1d264308d490bbac782e133dec811aaf99b0aaf80e70140f932ff5329922",
       "digestMode" : "ARTIFACT_CLOSURE",
       "selected" : true
     }, {
       "id" : "org.yanoproject.x.role-workflow",
-      "version" : "0.1.0-pre4-SNAPSHOT",
-      "digest" : "sha256:e8592e672bb2bbc624e4ec9185c010af0cc76548bfdb75eddc0851d3a4b642ee",
+      "version" : "0.1.0-pre4",
+      "digest" : "sha256:4b007e173b97b639ad6ca2ed11bda548a80acbf91fde99769f6728ae3694c4ca",
       "digestMode" : "ARTIFACT_CLOSURE",
       "selected" : true
     }, {
       "id" : "org.yanoproject.x.stdlib",
-      "version" : "0.1.0-pre4-SNAPSHOT",
-      "digest" : "sha256:47c7495b8a0406977580b779e259f728db57d4b6a95ee3ad5479957839a52ea7",
+      "version" : "0.1.0-pre4",
+      "digest" : "sha256:790686572c393597eeb1f6630a67c9ff460a4c0df3d849438e2bde89cf1a2835",
       "digestMode" : "ARTIFACT_CLOSURE",
       "selected" : true
     } ]
   },
   "context" : {
-    "sha256" : "fd1059233408f30a8e02a62f5f8708ece723ceccf99cc4b0fe2744e8dac73539",
-    "bytes" : "991",
+    "sha256" : "2b738697623c717a152335cc0b8667b2d3e2bd405cbbb8379bfd509bce17d6d9",
+    "bytes" : "1026",
     "chainId" : "offline-test"
   },
   "document" : {
@@ -205,7 +205,7 @@
     }, {
       "cel" : "in",
       "ir" : "in",
-      "operands" : "text, text-set fact (admission rules only; stops at the first match)",
+      "operands" : "text, text-set field (admission rules only; stops at the first match)",
       "result" : "boolean"
     }, {
       "cel" : "startsWith(a, b)",
@@ -215,7 +215,7 @@
     }, {
       "cel" : "size(a)",
       "ir" : "size",
-      "operands" : "text (UTF-8 bytes) or bytes",
+      "operands" : "text (UTF-8 bytes), bytes, or writer.signers/source.writer.signers (cardinality)",
       "result" : "integer"
     }, {
       "cel" : "writes.all(w, e)",
@@ -289,6 +289,21 @@
       "ordinal" : 7,
       "useSites" : [ "admission-rule" ],
       "note" : "the current element w of writes.all(w, ...) or writes.exists(w, ...): content fields in either slot; coverage fields make the rule a fact rule"
+    }, {
+      "name" : "payload",
+      "ordinal" : 8,
+      "useSites" : [ "admission-rule", "rule-key" ],
+      "note" : "verified topic payload projected by every committed payloadSchemas definition"
+    }, {
+      "name" : "writer",
+      "ordinal" : 9,
+      "useSites" : [ "admission-rule", "rule-key" ],
+      "note" : "verified writer kind, canonical signers and optional issuer; derived steps have none"
+    }, {
+      "name" : "source",
+      "ordinal" : 10,
+      "useSites" : [ "admission-rule", "rule-key" ],
+      "note" : "originating topic and writer provenance only, never target authority"
     } ],
     "contextFields" : [ {
       "name" : "height",
@@ -342,6 +357,21 @@
       "useSites" : [ "admission-rule", "rule-key" ],
       "note" : "a kernel-declared fact"
     }, {
+      "key" : "payload",
+      "scope" : "payload",
+      "useSites" : [ "admission-rule", "rule-key" ],
+      "note" : "a verified scalar payload field typed by every committed schema"
+    }, {
+      "key" : "writer",
+      "scope" : "writer",
+      "useSites" : [ "admission-rule", "rule-key" ],
+      "note" : "the verified writer, with no authority on derived steps"
+    }, {
+      "key" : "source",
+      "scope" : "source",
+      "useSites" : [ "admission-rule", "rule-key" ],
+      "note" : "originating topic and writer provenance"
+    }, {
       "key" : "literal",
       "useSites" : [ "binding-condition", "binding-mapping", "admission-rule", "rule-key" ],
       "note" : "an embedded scalar"
@@ -370,7 +400,7 @@
       "readsPerRule" : 4,
       "readNamePattern" : "[a-zA-Z][a-zA-Z0-9_]{0,62}",
       "namespacePattern" : "\"\" or [a-z0-9][a-z0-9._-]{0,63}",
-      "readKeySources" : [ "context", "command", "param", "config", "fact", "literal", "fn", "expr" ],
+      "readKeySources" : [ "context", "command", "param", "config", "fact", "payload", "writer", "source", "literal", "fn", "expr" ],
       "readPresentField" : "present",
       "quantifiers" : [ "all", "exists" ],
       "slots" : [ {
@@ -380,7 +410,7 @@
         "name" : "fact",
         "when" : "after an approved kernel decision; rules that read facts or write coverage"
       } ],
-      "static" : "no reads, and expression clauses over command, params, config and write content only; also checked at ingress"
+      "static" : "no reads, and expression clauses over command, params, config, topic views and write content only; also checked at ingress"
     },
     "limits" : [ {
       "name" : "maxCascadeDepth",
@@ -743,6 +773,54 @@
       "origin" : "either",
       "levels" : [ "step" ],
       "locatesLastCondition" : "never"
+    }, {
+      "code" : "RULE_FIELD_UNAVAILABLE",
+      "category" : "admission-rule",
+      "origin" : "either",
+      "levels" : [ "step" ],
+      "locatesLastCondition" : "never"
+    }, {
+      "code" : "RULE_PAYLOAD_SCHEMA_MISMATCH",
+      "category" : "admission-rule",
+      "origin" : "either",
+      "levels" : [ "step" ],
+      "locatesLastCondition" : "never"
+    }, {
+      "code" : "RULE_TOPIC_POLICY_CROSSING",
+      "category" : "admission-rule",
+      "origin" : "either",
+      "levels" : [ "step" ],
+      "locatesLastCondition" : "never"
+    }, {
+      "code" : "TOPIC_RETIRED",
+      "category" : "admission-rule",
+      "origin" : "either",
+      "levels" : [ "step" ],
+      "locatesLastCondition" : "never"
+    }, {
+      "code" : "TOPIC_UNREGISTERED",
+      "category" : "admission-rule",
+      "origin" : "either",
+      "levels" : [ "step" ],
+      "locatesLastCondition" : "never"
+    }, {
+      "code" : "TOPIC_SCHEMA_INCOMPATIBLE",
+      "category" : "admission-rule",
+      "origin" : "either",
+      "levels" : [ "step" ],
+      "locatesLastCondition" : "never"
+    }, {
+      "code" : "TOPIC_PAYLOAD_TOO_LARGE",
+      "category" : "admission-rule",
+      "origin" : "either",
+      "levels" : [ "step" ],
+      "locatesLastCondition" : "never"
+    }, {
+      "code" : "TOPIC_SCHEMA_REJECTED",
+      "category" : "admission-rule",
+      "origin" : "either",
+      "levels" : [ "step" ],
+      "locatesLastCondition" : "never"
     } ]
   },
   "selectors" : [ {
@@ -750,7 +828,7 @@
     "origin" : {
       "kind" : "bundle",
       "bundleId" : "org.yanoproject.x.stdlib",
-      "digest" : "sha256:47c7495b8a0406977580b779e259f728db57d4b6a95ee3ad5479957839a52ea7",
+      "digest" : "sha256:790686572c393597eeb1f6630a67c9ff460a4c0df3d849438e2bde89cf1a2835",
       "digestMode" : "ARTIFACT_CLOSURE"
     },
     "composable" : null
@@ -759,7 +837,7 @@
     "origin" : {
       "kind" : "bundle",
       "bundleId" : "org.yanoproject.x.stdlib",
-      "digest" : "sha256:47c7495b8a0406977580b779e259f728db57d4b6a95ee3ad5479957839a52ea7",
+      "digest" : "sha256:790686572c393597eeb1f6630a67c9ff460a4c0df3d849438e2bde89cf1a2835",
       "digestMode" : "ARTIFACT_CLOSURE"
     },
     "composable" : null
@@ -768,7 +846,7 @@
     "origin" : {
       "kind" : "bundle",
       "bundleId" : "org.yanoproject.x.stdlib",
-      "digest" : "sha256:47c7495b8a0406977580b779e259f728db57d4b6a95ee3ad5479957839a52ea7",
+      "digest" : "sha256:790686572c393597eeb1f6630a67c9ff460a4c0df3d849438e2bde89cf1a2835",
       "digestMode" : "ARTIFACT_CLOSURE"
     },
     "composable" : null
@@ -777,7 +855,7 @@
     "origin" : {
       "kind" : "bundle",
       "bundleId" : "org.yanoproject.x.stdlib",
-      "digest" : "sha256:47c7495b8a0406977580b779e259f728db57d4b6a95ee3ad5479957839a52ea7",
+      "digest" : "sha256:790686572c393597eeb1f6630a67c9ff460a4c0df3d849438e2bde89cf1a2835",
       "digestMode" : "ARTIFACT_CLOSURE"
     },
     "composable" : null
@@ -786,7 +864,7 @@
     "origin" : {
       "kind" : "bundle",
       "bundleId" : "org.yanoproject.x.stdlib",
-      "digest" : "sha256:47c7495b8a0406977580b779e259f728db57d4b6a95ee3ad5479957839a52ea7",
+      "digest" : "sha256:790686572c393597eeb1f6630a67c9ff460a4c0df3d849438e2bde89cf1a2835",
       "digestMode" : "ARTIFACT_CLOSURE"
     },
     "composable" : null
@@ -795,7 +873,7 @@
     "origin" : {
       "kind" : "bundle",
       "bundleId" : "org.yanoproject.x.composite",
-      "digest" : "sha256:e3a417b4194ab8a7817a401423f3f5b6485b7a709eef2e62e314014080d92f44",
+      "digest" : "sha256:daea1d264308d490bbac782e133dec811aaf99b0aaf80e70140f932ff5329922",
       "digestMode" : "ARTIFACT_CLOSURE"
     },
     "composable" : false
@@ -804,7 +882,7 @@
     "origin" : {
       "kind" : "bundle",
       "bundleId" : "org.yanoproject.x.stdlib",
-      "digest" : "sha256:47c7495b8a0406977580b779e259f728db57d4b6a95ee3ad5479957839a52ea7",
+      "digest" : "sha256:790686572c393597eeb1f6630a67c9ff460a4c0df3d849438e2bde89cf1a2835",
       "digestMode" : "ARTIFACT_CLOSURE"
     },
     "composable" : null
@@ -813,7 +891,7 @@
     "origin" : {
       "kind" : "bundle",
       "bundleId" : "org.yanoproject.x.role-workflow",
-      "digest" : "sha256:e8592e672bb2bbc624e4ec9185c010af0cc76548bfdb75eddc0851d3a4b642ee",
+      "digest" : "sha256:4b007e173b97b639ad6ca2ed11bda548a80acbf91fde99769f6728ae3694c4ca",
       "digestMode" : "ARTIFACT_CLOSURE"
     },
     "composable" : null
@@ -822,7 +900,7 @@
     "origin" : {
       "kind" : "bundle",
       "bundleId" : "org.yanoproject.x.stdlib",
-      "digest" : "sha256:47c7495b8a0406977580b779e259f728db57d4b6a95ee3ad5479957839a52ea7",
+      "digest" : "sha256:790686572c393597eeb1f6630a67c9ff460a4c0df3d849438e2bde89cf1a2835",
       "digestMode" : "ARTIFACT_CLOSURE"
     },
     "composable" : null
@@ -831,7 +909,7 @@
     "origin" : {
       "kind" : "bundle",
       "bundleId" : "org.yanoproject.x.stdlib",
-      "digest" : "sha256:47c7495b8a0406977580b779e259f728db57d4b6a95ee3ad5479957839a52ea7",
+      "digest" : "sha256:790686572c393597eeb1f6630a67c9ff460a4c0df3d849438e2bde89cf1a2835",
       "digestMode" : "ARTIFACT_CLOSURE"
     },
     "composable" : null
@@ -840,7 +918,7 @@
     "origin" : {
       "kind" : "bundle",
       "bundleId" : "org.yanoproject.x.stdlib",
-      "digest" : "sha256:47c7495b8a0406977580b779e259f728db57d4b6a95ee3ad5479957839a52ea7",
+      "digest" : "sha256:790686572c393597eeb1f6630a67c9ff460a4c0df3d849438e2bde89cf1a2835",
       "digestMode" : "ARTIFACT_CLOSURE"
     },
     "composable" : null
@@ -849,7 +927,7 @@
     "origin" : {
       "kind" : "bundle",
       "bundleId" : "org.yanoproject.x.role-workflow",
-      "digest" : "sha256:e8592e672bb2bbc624e4ec9185c010af0cc76548bfdb75eddc0851d3a4b642ee",
+      "digest" : "sha256:4b007e173b97b639ad6ca2ed11bda548a80acbf91fde99769f6728ae3694c4ca",
       "digestMode" : "ARTIFACT_CLOSURE"
     },
     "composable" : null
@@ -858,7 +936,7 @@
     "origin" : {
       "kind" : "bundle",
       "bundleId" : "org.yanoproject.x.stdlib",
-      "digest" : "sha256:47c7495b8a0406977580b779e259f728db57d4b6a95ee3ad5479957839a52ea7",
+      "digest" : "sha256:790686572c393597eeb1f6630a67c9ff460a4c0df3d849438e2bde89cf1a2835",
       "digestMode" : "ARTIFACT_CLOSURE"
     },
     "composable" : null
@@ -873,7 +951,7 @@
     "origin" : {
       "kind" : "bundle",
       "bundleId" : "org.yanoproject.x.role-workflow",
-      "digest" : "sha256:e8592e672bb2bbc624e4ec9185c010af0cc76548bfdb75eddc0851d3a4b642ee",
+      "digest" : "sha256:4b007e173b97b639ad6ca2ed11bda548a80acbf91fde99769f6728ae3694c4ca",
       "digestMode" : "ARTIFACT_CLOSURE"
     },
     "composable" : null
@@ -882,7 +960,7 @@
     "origin" : {
       "kind" : "bundle",
       "bundleId" : "org.yanoproject.x.stdlib",
-      "digest" : "sha256:47c7495b8a0406977580b779e259f728db57d4b6a95ee3ad5479957839a52ea7",
+      "digest" : "sha256:790686572c393597eeb1f6630a67c9ff460a4c0df3d849438e2bde89cf1a2835",
       "digestMode" : "ARTIFACT_CLOSURE"
     },
     "composable" : null

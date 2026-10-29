@@ -44,15 +44,23 @@ final class AppChainYamlConfigRenderer {
         List<Object> tokens = new ArrayList<>();
         int offset = 0;
         while (offset < path.length()) {
-            int segmentEnd = offset;
-            while (segmentEnd < path.length()
-                    && path.charAt(segmentEnd) != '.'
-                    && path.charAt(segmentEnd) != '[') {
-                segmentEnd++;
+            if (path.charAt(offset) == '"') {
+                // A quoted segment such as a bundle id keeps its dots: yano.plugins.bundle."org.example".key
+                int close = path.indexOf('"', offset + 1);
+                if (close < 0 || close == offset + 1) throw invalidPath(path);
+                tokens.add(path.substring(offset + 1, close));
+                offset = close + 1;
+            } else {
+                int segmentEnd = offset;
+                while (segmentEnd < path.length()
+                        && path.charAt(segmentEnd) != '.'
+                        && path.charAt(segmentEnd) != '[') {
+                    segmentEnd++;
+                }
+                if (segmentEnd == offset) throw invalidPath(path);
+                tokens.add(path.substring(offset, segmentEnd));
+                offset = segmentEnd;
             }
-            if (segmentEnd == offset) throw invalidPath(path);
-            tokens.add(path.substring(offset, segmentEnd));
-            offset = segmentEnd;
             while (offset < path.length() && path.charAt(offset) == '[') {
                 int close = path.indexOf(']', offset + 1);
                 if (close < 0 || close == offset + 1) throw invalidPath(path);

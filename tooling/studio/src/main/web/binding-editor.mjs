@@ -438,10 +438,10 @@ export class BindingEditor {
       this.replaceDocument(async () => {
         const chains = session.importBlueprint(bytes, importBlueprint.files[0].name);
         this.announce(chains.length === 1 ? `Opened the composite of chain ${chains[0].chainId}.`
-          : `The blueprint has ${chains.length} composite chains; choose one below.`);
+          : `The draft has ${chains.length} composite chains; choose one below.`);
       })));
     const chooser = session.blueprint && session.blueprint.composites.length > 1 ? h('label', {},
-      'Blueprint chain', h('select', {id: 'blueprint-chain', onchange: event => {
+      'Draft chain', h('select', {id: 'blueprint-chain', onchange: event => {
         if (event.target.value === '') return;
         this.replaceDocument(async () => session.selectChain(Number(event.target.value)));
       }},
@@ -463,7 +463,7 @@ export class BindingEditor {
             this.announce(`Loaded the ${chosen.label} starter. ${chosen.description}`);
           })}),
         h('label', {class: 'file-button'}, 'Import binding YAML', importYaml),
-        h('label', {class: 'file-button'}, 'Import appchain.yaml blueprint', importBlueprint),
+        h('label', {class: 'file-button'}, 'Import a setup draft (<app>.draft.yaml)', importBlueprint),
         chooser,
         h('button', {type: 'button', id: 'reset-draft', class: 'secondary', text: 'Reset draft',
           disabled: !session.dirty, onclick: async () => {
@@ -609,7 +609,7 @@ export class BindingEditor {
       banner.hidden = false;
       banner.className = 'banner';
       put(banner, h('strong', {text: 'Choose a chain. '}),
-        'This blueprint has several inline composites. Choose one under Blueprint chain in the Document panel.');
+        'This draft has several inline composites. Choose one under Draft chain in the Document panel.');
     } else if (mode === 'read-only') {
       banner.hidden = false;
       banner.className = 'banner';
@@ -995,6 +995,13 @@ export class BindingEditor {
     const draft = this.session.draft;
     const binding = draft.bindings[index];
     const fields = this.eventFields(binding);
+    const crossing = h('select', {id: `b${index}-crossing`},
+      h('option', {value: '', text: 'Omitted — no permission'}),
+      h('option', {value: 'false', text: 'False — no permission'}),
+      h('option', {value: 'true', text: 'True — allow writer-policy crossing'}));
+    crossing.value = binding.crossesTopicPolicy == null ? '' : String(binding.crossesTopicPolicy);
+    crossing.addEventListener('change', () => this.set(['bindings', index, 'crossesTopicPolicy'],
+      crossing.value === '' ? null : crossing.value === 'true'));
     return [
       h('div', {class: 'inline-actions'},
         h('button', {type: 'button', class: 'secondary', id: `b${index}-rename`, text: 'Rename…',
@@ -1015,6 +1022,9 @@ export class BindingEditor {
               .then(done => done && this.session.select('document'));
           }})),
       this.sourceSection(index, binding, fields),
+      h('section', {class: 'form-section'}, h('label', {for: crossing.id}, 'Cross protected topic writer policy'),
+        crossing, h('p', {class: 'hint', text: 'Retirement, registration, payload limits and schemas still apply. '
+          + 'The derived writer remains none. Inspect active and pending policies in the Topics view.'})),
       this.conditionsSection(index, binding, fields),
       this.targetSection(index, binding, fields)];
   }
@@ -1391,6 +1401,11 @@ export class BindingEditor {
       instance?.normalizedConfiguration ?? {}).map(([name, value]) => [name, value.type]))});
     scopes.set('fact', {label: 'Verified fact', fields: merge(instance => (instance?.ruleFacts ?? [])
       .map(fact => [fact.name, fact.type]))});
+    scopes.set('payload', {label: 'Verified payload scalar (declared schemas)', fields: null});
+    scopes.set('writer', {label: 'Verified writer', fields: new Map([
+      ['kind', 'text'], ['signers', 'text-set'], ['issuer', 'text']])});
+    scopes.set('source', {label: 'Source provenance', fields: new Map([
+      ['topic', 'text'], ['writer.kind', 'text'], ['writer.signers', 'text-set'], ['writer.issuer', 'text']])});
     return scopes;
   }
 
@@ -1606,7 +1621,7 @@ export class BindingEditor {
   ruleClausesSection(index, rule, scopes) {
     const clauses = rule.require;
     const add = clause => this.apply(value => edits.addRuleClause(value, index, clause), `r${index}-c${clauses.length}-kind`);
-    const readable = [...scopes].flatMap(([key, site]) => [...site.fields].map(([name, type]) =>
+    const readable = [...scopes].flatMap(([key, site]) => [...(site.fields ?? [])].map(([name, type]) =>
       ({reference: `${key === 'param' ? 'params' : key === 'fact' ? 'facts' : key}.${name}`, type, label: site.label})))
       .concat(this.ruleViewReferences(rule));
     return h('section', {class: 'form-section', dataset: {path: JSON.stringify(['rules', index, 'require'])}},
@@ -2141,7 +2156,7 @@ export class BindingEditor {
                 ? `Downloaded ${EXPORT_NAMES.blueprint}; only the selected composite changed.`
                 : `Downloaded ${EXPORT_NAMES.blueprint} unchanged.`);
             } catch (error) {
-              this.announce(error instanceof SessionError ? error.message : `Studio could not prove the rest of the blueprint `
+              this.announce(error instanceof SessionError ? error.message : `Studio could not prove the rest of the draft `
                 + `stays unchanged (${error.message}). Download ${EXPORT_NAMES.document} and replace the composite yourself.`, true);
             }
           }}) : null,
@@ -2151,7 +2166,7 @@ export class BindingEditor {
       h('p', {class: 'note'}, 'Next, validate with the version-matched CLI and import its report: see the ',
         h('button', {type: 'button', class: 'link-button', id: 'open-validate', text: 'Validate tab',
           onclick: () => { this.showTab('validate'); this.el('tab-validate').focus(); }}), '.'),
-      blueprint ? h('p', {class: 'note', text: 'A composite inside a blueprint is validated by project rendering, not by Studio.'}) : null);
+      blueprint ? h('p', {class: 'note', text: 'A composite inside a draft is checked by yano.sh appchain seal, not by Studio. Rename the download to <app>.draft.yaml.'}) : null);
   }
 }
 

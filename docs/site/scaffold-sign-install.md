@@ -1,16 +1,14 @@
 # Scaffold, sign, install
 
-Seven steps from nothing to a running plugin. None of them require touching
-Yano. Select a step to see its command and what it checks.
+Five steps from nothing to a plugin installed on every member. None of them
+require touching Yano. Select a step to see its command and what it checks.
 
 <!-- illustration: plugin-pipeline -->
 1. Scaffold a project with `plugin scaffold`.
 2. Implement and test it.
 3. Sign the catalog and manifests with `plugin sign`.
 4. Build the JAR and verify it with `plugin validate`.
-5. Pin it into a project with `init --plugin-jar`.
-6. Check readiness against a distribution with `doctor`.
-7. Install the same JAR on every member; each node checks it at start-up.
+5. Install the same JAR on every member; each node checks it at start-up.
 <!-- /illustration -->
 
 ## 1. Scaffold
@@ -85,44 +83,12 @@ cd shipment-plugin && gradle jar && cd ..
 `inspect` prints the same verified catalog and its capabilities.
 
 Neither command loads provider classes, runs plugin code, fetches a registry, or
-installs the JAR. The exported snapshot is the safe, data-only local-import
-format used by Studio and by generated projects.
+installs the JAR. The exported snapshot is a safe, data-only copy of the
+verified catalog.
 
-## 5. Pin it into a project
+## 5. Install on every member
 
-```bash
-./yano.sh appchain init --non-interactive \
-  --recipe custom-plugin --network devnet --members 3 --runtime jvm \
-  --capability state:shipment \
-  --plugin-jar shipment-plugin/build/libs/shipment-yano-plugin.jar \
-  --trust-key example-release-2026=<64-hex-public-key> \
-  --output shipment-chain
-
-./yano.sh appchain config validate --mode project shipment-chain
-```
-
-The project stores the signed data-only snapshot under `component-catalogs/`.
-Its lock pins the snapshot, the catalog, the runtime manifest, the configuration
-metadata, and the complete plugin-JAR digests. Rendering and `doctor` reverify
-the project snapshot automatically.
-
-## 6. Check readiness against a real distribution
-
-`doctor` checks the distribution you will run, so copy the pinned JAR into its
-`plugins/` directory first:
-
-```bash
-cp shipment-plugin/build/libs/shipment-yano-plugin.jar /opt/yano-x/plugins/
-./yano.sh appchain doctor shipment-chain --distribution /opt/yano-x
-```
-
-A missing or different JAR fails artifact readiness with `pinned plugin digest
-is absent from distribution plugins/`. A native distribution reports a direct
-incompatibility, because Yano X plugins target the JVM host.
-
-## 7. Install on every member
-
-Copy the exact pinned JAR into `plugins/` in every member's distribution, then
+Copy the exact same JAR into `plugins/` in every member's distribution, then
 validate the resulting set from the distribution root:
 
 ```bash
@@ -132,6 +98,15 @@ tools/yano-plugins/bin/yano-plugins validate plugins/*.jar
 The plugin directory property is **`yano.plugins.directory`**. Restart the nodes;
 Yano is not rebuilt. At start-up each node checks the JAR again before any plugin
 code runs; [How plugins load](/plugins/how-plugins-load/) lists those checks.
+
+:::note[Custom catalogs and the setup CLI]
+`appchain seal` resolves an application's chains through the distribution's
+own recipe and capability catalog. It does not yet accept a custom signed
+component catalog, so a custom capability such as `state:shipment` cannot be
+selected in a setup draft in this release. See
+[Tutorial 8](/tutorials/08-plugins-and-composites/) for running a custom
+plugin today.
+:::
 
 :::caution[Every member, or none]
 The same bundle, the same machine or profile id, and the same committed settings
@@ -150,26 +125,11 @@ Adding a member or a node is routine. Changing what a plugin *computes* is not
 - Use activation heights and profile governance for compatible evolution.
 - Use a new namespace and a migration plan for incompatible state.
 
-## Compare, then apply
+## Find the member that is out of step
 
-Save the current lock before you change the blueprint, so there is something to
-compare against:
-
-```bash
-cp shipment-chain/appchain.lock previous.lock
-# ...edit the blueprint and re-render the project...
-./yano.sh appchain diff previous.lock shipment-chain/appchain.lock
-./yano.sh appchain migrate shipment-chain --dry-run
-./yano.sh appchain drift shipment-chain --peer http://node-a:8080/api/v1/ \
-  --api-key-env YANO_OPERATOR_API_KEY
-```
-
-`drift` reads node identities through the privileged API, so set
-`YANO_OPERATOR_API_KEY` to one of the keys in the nodes'
-`YANO_APPCHAIN_API_KEYS`; without it the nodes answer `HTTP 401`. The key is
-read only from the environment, never from the command line.
-
-`diff` classifies a blueprint change before you apply it. `drift` compares a
-project against running nodes when identities are available, including each
-node's plugin catalog fingerprint — the fastest way to find the one member that
-is out of step.
+Each node reports its plugin catalog fingerprint as `pluginCatalogFingerprint`
+from the privileged `identity` route of each chain; compare it across members
+to find the one that runs a different bundle. For an application set up with
+the setup CLI, `appchain start` refuses a node whose sealed bundles changed
+since it joined, until its operator accepts the new set with
+`./yano.sh appchain join <app>.chain --accept-bundles`.

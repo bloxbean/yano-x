@@ -89,13 +89,11 @@ Yano X does not publish a native composite extension.
 ## Inspect and encode commands
 
 The distribution includes a dependency-free operator helper,
-`appchain-cluster/profile-governance.py`. It encodes each governance command as
-canonical CBOR:
+`tools/composite-profile/profile-governance.py`. It encodes each governance
+command as canonical CBOR. Run it from the distribution's top-level directory:
 
 ```bash
-cd appchain-cluster
-
-./profile-governance.py --chain evidence-chain begin --encode-only \
+./tools/composite-profile/profile-governance.py --chain evidence-chain begin --encode-only \
   --proposal-id "$PROPOSAL_ID" \
   --base-digest "$ACTIVE_PROFILE_DIGEST" \
   --membership-digest "$MEMBERSHIP_EPOCH_DIGEST" \
@@ -149,10 +147,10 @@ Stage each reported chunk and seal the proposal, waiting for each command to
 finalize before the next step:
 
 ```bash
-./profile-governance.py --chain evidence-chain chunk --encode-only \
+./tools/composite-profile/profile-governance.py --chain evidence-chain chunk --encode-only \
   --proposal-id "$PROPOSAL_ID" --profile target-profile.cbor --index 0
 
-./profile-governance.py --chain evidence-chain seal --encode-only \
+./tools/composite-profile/profile-governance.py --chain evidence-chain seal --encode-only \
   --proposal-id "$PROPOSAL_ID"
 ```
 
@@ -171,10 +169,10 @@ Each approving member encodes its commands and submits them through its own
 node, as above, so its own member key signs them:
 
 ```bash
-./profile-governance.py --chain evidence-chain approve --encode-only \
+./tools/composite-profile/profile-governance.py --chain evidence-chain approve --encode-only \
   --proposal-hash "$PROPOSAL_HASH"
 
-./profile-governance.py --chain evidence-chain ready --encode-only \
+./tools/composite-profile/profile-governance.py --chain evidence-chain ready --encode-only \
   --proposal-hash "$PROPOSAL_HASH" --target-digest "$TARGET_DIGEST"
 ```
 
@@ -187,7 +185,7 @@ messages. There is no local break-glass override.
 Cancel before activation when necessary:
 
 ```bash
-./profile-governance.py --chain evidence-chain cancel --encode-only \
+./tools/composite-profile/profile-governance.py --chain evidence-chain cancel --encode-only \
   --proposal-hash "$PROPOSAL_HASH"
 ```
 

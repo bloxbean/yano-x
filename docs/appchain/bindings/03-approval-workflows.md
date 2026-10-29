@@ -64,6 +64,7 @@ Save the complete offline context as `approval-context.json`:
     "maxBlockBytes": 1048576,
     "l1StabilityDepth": 0,
     "epochStabilityDepth": 0,
+    "blockMaxForwardSkewMs": 5000,
     "enforceSenderSeq": false,
     "effectsEnabled": false,
     "effectsMaxPerBlock": 0,
@@ -247,7 +248,8 @@ The DPP roles are `manufacturer`, `operator`, `claim-issuer`, `certifier`, and
 from two different organizations. Feed uses `source`, `feed-operator`, and
 `publisher`, with `feed-admin` administration. Actors need not be consensus
 members. For your own organizations, actors, and keys, declare a governed map's
-genesis in a project and render it, as described in
+genesis in the `authenticatedMap` section of a setup draft and seal it, as
+described in
 [governed collections](../state-machines/authenticated-map.md#governed-collections).
 The DPP and feed starter generators moved with those products to
 [yano-x-products](https://github.com/bloxbean/yano-x-products). The feed example

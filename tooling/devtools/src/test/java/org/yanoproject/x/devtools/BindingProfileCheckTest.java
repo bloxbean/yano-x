@@ -233,7 +233,7 @@ class BindingProfileCheckTest {
         var settings = new LinkedHashMap<>(StateCommitmentIdentity.explicit(StateCommitmentProfiles.MPF,
                 new byte[32]).settings());
         if (governed) settings.put("membership.mode", "governed");
-        var consensus = new AppChainConsensusProfile(2, 65536, 100, 1048576, 0, 0, false, false,
+        var consensus = new AppChainConsensusProfile(2, 65536, 100, 1048576, 0, 0, AppChainConsensusProfile.DEFAULT_BLOCK_MAX_FORWARD_SKEW_MS, false, false,
                 0, 0, 0, 0, FinalityGate.APP_FINAL, EffectOutcomeCommitment.PER_EFFECT, true, List.of());
         return new BindingCatalogSession(registry, new BindingCatalogSession.ContextInput("profile-check", settings,
                 consensus, new AppChainMembershipEpoch(0, List.of("11".repeat(32)), 1)));

@@ -20,7 +20,7 @@ repository disagree.
 | [App ledger overview](https://github.com/bloxbean/yano-x/blob/main/docs/APP_CHAIN_OVERVIEW.md) | ~21 KB | The 10–15 minute architecture read, plus an editable presentation deck. |
 | [Consensus and internals guide](https://github.com/bloxbean/yano/blob/main/docs/APP_CHAIN_CONSENSUS_GUIDE.md) (Yano) | ~23 KB | The consensus round check by check, vote locks, sequencer modes, catch-up and restart semantics. |
 | [Plugin query and domain API contract](https://github.com/bloxbean/yano/blob/main/docs/APP_CHAIN_PLUGIN_QUERY_AND_DOMAIN_API.md) (Yano) | — | How plugins add read hooks and domain routes, and how the host secures them. |
-| [App ledger tutorial](https://github.com/bloxbean/yano-x/blob/main/docs/APP_CHAIN_TUTORIAL.md) | ~22 KB | Run a cluster and build a custom state machine end to end. |
+| [App ledger tutorial](https://github.com/bloxbean/yano-x/blob/main/docs/APP_CHAIN_TUTORIAL.md) | ~22 KB | Run several members and build a custom state machine end to end. |
 | [Use-case catalogue](https://github.com/bloxbean/yano-x/blob/main/docs/APP_CHAIN_USE_CASES.md) | ~18 KB | Worked application patterns and their starting points. |
 
 ## Domain and governance
@@ -48,11 +48,11 @@ repository disagree.
 |---|---|
 | [Build and test](https://github.com/bloxbean/yano-x/blob/main/docs/BUILD_AND_TEST.md) | Every build task and verification gate. |
 | [Build distributions](https://github.com/bloxbean/yano-x/blob/main/docs/BUILD_DISTRIBUTIONS.md) | Distribution inputs, outputs, and the artifact API prefix. |
-| [Cluster launcher](https://github.com/bloxbean/yano-x/blob/main/scripts/appchain-cluster/README.md) | Per-node overlays, chain definitions, membership, load and soak tests. |
+| [Setup CLI](https://github.com/bloxbean/yano-x/blob/main/tooling/appchain-cli/README.md) | The setup commands: `try`, `new`, `request`, `seal`, `join`, `start`, `status`, `approve`, and `anchor`. |
 | [Evidence chain demo](https://github.com/bloxbean/yano-x/blob/main/docs/EVIDENCE_CHAIN_DEMO.md) | The complete scripted evidence scenario and its acceptance checks. |
 | [Showcase demo](https://github.com/bloxbean/yano-x/blob/main/examples/showcase/DEMO_SHOWCASE.md) | Operating the unified showcase distribution. |
-| [Developer tools](https://github.com/bloxbean/yano-x/blob/main/tooling/devtools/README.md) | The offline engine behind `yano.sh appchain`. |
-| [App-Chain Studio](/studio/) | The blueprint builder, hosted here. |
+| [Developer tools](https://github.com/bloxbean/yano-x/blob/main/tooling/devtools/README.md) | The offline recipe, capability, binding and plugin tools behind `yano.sh appchain`. |
+| [App-Chain Studio](/studio/) | The binding editor, hosted here. |
 
 ## eUTxO ledger
 

@@ -1,5 +1,6 @@
 package org.yanoproject.x.roles;
 
+import org.yanoproject.api.appchain.topics.TopicWire;
 import com.bloxbean.cardano.client.crypto.KeyGenUtil;
 import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
 import org.yanoproject.api.appchain.AppBlock;
@@ -666,6 +667,10 @@ class RoleWorkflowTest {
                            ComponentGeneration approvalGeneration,
                            MemoryState registryState, MemoryState approvalState)
             implements CompositeWorkflowContext {
+        @Override public TopicWire.EffectiveOutcome topicPolicy(String topic) {
+            return new TopicWire.EffectiveOutcome(TopicWire.OutcomeKind.DISABLED, null, null, List.of());
+        }
+        @Override public Optional<byte[]> topicSchema(String irHash) { return Optional.empty(); }
         @Override public AppStateWriter state(ComponentGeneration participant) {
             if (participant.equals(registryGeneration)) return registryState;
             if (participant.equals(approvalGeneration)) return approvalState;

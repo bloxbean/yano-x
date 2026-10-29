@@ -1,113 +1,176 @@
-# Add a chain without resetting your application
+# Grow and change your application
 
-- **Goal:** add an independent chain to a running local project and keep the
-  history of the chains it already has.
-- **Before you start:** a generated local JVM host project, such as the one from
-  [Configure your application](configure.md), and the matching Yano X JVM
-  release.
-- **Time:** about 15 minutes, including a short maintenance stop.
-- **Outcome:** the new chain runs beside the old ones, and an old message still
-  proves against its saved root.
+- **Goal:** add or remove a member of a running application, recover from a
+  lost key, host another application on the same nodes, and upgrade a node.
+- **Before you start:** a live application from
+  [Set up an application](configure.md), with every existing operator able to
+  run one command on their own node.
+- **Time:** a few minutes per operator; each change waits for the chain to
+  make about ten blocks.
+- **Outcome:** the new member finalizes blocks with the others, and no chain
+  was reset.
 
-An independent chain can be added to a generated local JVM host project through
-a reviewed configuration revision and controlled restart. Existing chains retain
-their genesis, state, member policy, and history. Adding without a process restart
-requires future upstream host lifecycle support.
+Members are fixed at seal, but a `governed` application (the default) can
+change them later. Every existing operator runs `approve` once; it does the
+whole quorum-safe procedure on every chain of the application.
 
-<!-- illustration: chain-add-lifecycle -->
-1. **Propose.** `chain add` edits only `appchain.yaml` and prints
-   `CHAIN_PROPOSED`.
-2. **Plan.** `plan` prints `PLAN_READY`, each chain's action, and a digest to
-   save.
-3. **Stop.** Record an old message, height, root, and proof, take a backup, and
-   stop the nodes.
-4. **Apply.** `apply --plan <digest>` checks the plan, installs the new
-   revision with the lock last, and prints `APPLIED`.
-5. **Start.** The start script refuses a pending apply or an unapplied lock,
-   then starts the nodes.
-6. **Verify.** `drift` prints `DRIFT_OK`; the old proof and a new-chain command
-   both check out.
+<!-- illustration: member-change -->
+1. **Request.** The new operator runs `request supply.chain` and sends the
+   card to every existing operator.
+2. **Approve.** Each existing operator runs `approve dave.member` once, in any
+   order.
+3. **Raise the threshold.** If the new member count needs it, `approve` first
+   raises the threshold and waits until that is active.
+4. **Add.** It then adds the member and waits until that is active.
+5. **Restart.** It adds the new peer to the operator's node and restarts the
+   node once.
+6. **Join and start.** The new operator runs `join supply.chain` and `start`;
+   the node catches up.
 <!-- /illustration -->
 
-## 1. Propose the addition
+## Add a member
 
-From the extracted, matching Yano X JVM release:
-
-```bash
-./yano.sh appchain chain add ./my-application \
-  --chain-id documents --recipe document-trail
-./yano.sh appchain plan ./my-application
-```
-
-`chain add` copies shared node placement from the existing project and edits only
-`appchain.yaml`. The active configuration is unchanged. It accepts repeatable
-`--capability` and non-secret `--answer name=value` options. A more complex genesis
-profile can be authored directly in the blueprint.
-
-> **✓ You should see** `CHAIN_PROPOSED: appchain.yaml updated.` from `chain add`,
-> then a JSON plan with `"status" : "PLAN_READY"`.
-
-Review the JSON plan. It should show existing chains as `UNCHANGED`, the new
-chain as `ADD`, no blockers, and activation `STOP_RENDER_RESTART`. Save its digest.
-The digest binds both the old lock and exact proposed blueprint; edits require a
-new plan. Changes to existing consensus values, genesis, release, network, or
-catalog are blocked. Optional/custom bundle installation requires a separately
-qualified deployment; this apply route does not install plugins.
-
-## 2. Record your verification reference and stop
-
-Before stopping, save an old message ID, its finalized height, chain identity,
-root, and proof. Take a recoverable backup using the supported procedure for the
-runtime; do not copy an open RocksDB directory as a backup. Use a maintenance
-window and stop clients that submit new work.
+The new operator, dave, needs the same Yano X release and the sealed
+`supply.chain` file. On his machine:
 
 ```bash
-./my-application/scripts/stop
-./yano.sh appchain apply ./my-application --plan <digest-from-plan>
-./my-application/scripts/start
+./yano.sh appchain request supply.chain
 ```
 
-> **✓ You should see** `APPLIED: configuration revision installed; retained state
-> preserved.`, then `Started 3 ready node processes; see logs/`.
+> **✓ You should see** `✓ Wrote ./dave.member  (key id ee22fe112c2e69cb, …)`
+> and `Next: send dave.member to the existing operators`.
 
-Apply refuses running local nodes, checks old generated files for manual edits,
-checks node-local settings, stages the new configuration, and installs its lock
-last. It never deletes or resets application or L1 data. It does not submit
-application commands, execute anchor bootstrap, or install new plugin bundles.
+Each existing operator, with their node running, then runs:
 
-This command supports same-machine host projects. A VM or Compose rollout needs
-coordinated operator automation; it is not silently treated as a local rollout.
+```bash
+./yano.sh appchain approve dave.member
+```
 
-## 3. Verify both old and new chains
+> **✓ You should see**
+>
+> ```text
+> Adding dave (key ee22fe112c2e69cb, 127.0.0.1:15450) to supply
+> orders: first raising the threshold from 2 to 3 (4 members)
+> orders: waiting for threshold 3 (it activates once enough operators approve and the chain makes 10 more blocks)
+> ✓ orders: dave is a member
+> Restarting this node to connect to dave …
+> ```
 
-Run multi-chain `appchain drift` with every member as shown in the
-[configuration guide](configure.md). Retrieve the old message and proof at the
-saved height, then submit an appropriate typed command to the new chain. Verify
-its finalized business result and root agreement on every member. Document-trail
-commands use canonical CBOR; see [the state-machine guide](../state-machines/doc-trail.md).
+Check the key id against the one dave reads out to you before you approve.
 
-Check old-chain records after another stop/start. Compare proofs at the same
-finalized height when observers or other traffic continue to advance the tip.
+- **Why the threshold rises.** Two of three is a majority; two of four is not.
+  So while a three-member application grows, it runs at three of four for a
+  while, and one offline member stops it. `approve` refuses to raise the
+  threshold unless enough members are online.
+- **Why it waits.** A change activates ten blocks after enough operators
+  approve, and a chain only makes blocks when it has messages. On an idle
+  `ordered-log`, `kv-registry`, or `approvals` chain, `approve` offers to send
+  small heartbeat messages (`--heartbeat` in scripts); on an ordered log each
+  one is a permanent entry. Other chains need ordinary traffic.
+- **Safe to run again.** If `approve` is interrupted or times out, run it
+  again: it skips what is done and reports what is still waiting.
+  Approvals expire after 600 blocks.
 
-## Interrupted apply
+When every operator has approved, dave joins and starts:
 
-An apply operation records `.deployment/pending.json` and a staged revision.
-Startup refuses a pending operation with `Resume pending apply first`. Restore the reviewed blueprint if it was
-edited, then repeat apply using the **same plan digest**. The command accepts only
-previous or staged bytes for each generated file; unexpected edits fail closed.
-Keep the pending journal and staged revision until recovery finishes.
+```bash
+./yano.sh appchain join supply.chain
+./yano.sh appchain start
+./yano.sh appchain status supply
+```
 
-After new-chain work finalizes, repair forward. Do not roll back the new chain's
-history, remove its stores, or replace old genesis identities. The previous lock
-is diagnostic evidence, not a rollback of application state.
+> **✓ You should see** four members online and `members agree` for every
+> chain. Before every operator has approved, dave's status shows
+> `waiting for approval`.
+
+## Remove a member
+
+Each remaining operator runs:
+
+```bash
+./yano.sh appchain approve --remove carol
+```
+
+`approve` lowers the threshold if needed, removes carol on every chain, drops
+her as a peer, and restarts the operator's node once. With `sequencing:
+fixed` (the default) the lead cannot be removed: the runtime refuses to
+remove the fixed proposer. An application sealed with `sequencing: rotating`
+has no fixed proposer, so its lead can be removed like any other member
+(on a devnet the lead's node still produces the Cardano devnet).
+
+## Recover from a lost key
+
+If carol loses her node directory, **remove her first, then add her again**:
+
+1. The other operators each run `approve --remove carol`. The chain keeps
+   finalizing without her.
+2. Carol makes a fresh node directory and runs `request supply.chain`, which
+   creates a new key and card.
+3. The others run `approve carol.member`; carol runs `join supply.chain` and
+   `start`.
+
+Adding first would raise the threshold to a level the lost key can never help
+reach. With fixed sequencing the lead's key is the exception: losing it
+means sealing a new application, so the lead must back up their node
+directory.
+
+## Host another application on the same node
+
+An operator can run several applications on one node. Each one is a separate
+setup: the coordinator runs `new` and `seal` for it, and each operator runs
+`request` and `join` with the new files. In an existing node directory,
+`request` reuses your member key and addresses. Adding a chain to a running node
+still needs a stop and start:
+
+```bash
+./yano.sh appchain join documents.chain
+./yano.sh appchain stop
+./yano.sh appchain start
+```
+
+`join` refuses a chain id the node already runs, and node-wide settings that
+differ from those of the applications it already hosts. On a devnet, the
+applications on one node must share the same lead.
+
+A chain's state machines are fixed at its genesis. To add a new chain to an
+existing application, seal a new application with the same operators.
+
+## Upgrade Yano X on a node
+
+`start` checks the plugin bundles against the ones the node accepted at
+`join`. After installing a newer Yano X release, it refuses with
+`Plugin bundles changed since this node joined supply`. Agree the upgrade with
+the other operators first, then accept the new bundles:
+
+```bash
+./yano.sh appchain join supply.chain --accept-bundles
+./yano.sh appchain start
+```
+
+`join --accept-bundles` lists the changed bundles and records the new set.
+Once every node runs again, the `Plugins:` line of `status` must show the same
+catalog fingerprint on every member.
+Changing what a state machine computes is a consensus change, not a rolling
+upgrade; see [consensus rules](../../site/plugins-consensus-rules.md#evolving-a-live-chain).
+
+## Change an address
+
+A peer's address is outside the chain fingerprint, so it can change without a
+new chain. If bob moves, each other operator runs:
+
+```bash
+./yano.sh appchain join supply.chain --peer bob=node-b.example:13337
+./yano.sh appchain stop && ./yano.sh appchain start
+```
 
 ## Troubleshooting
 
 | You see | What it means and what to do |
 |---|---|
-| `"status" : "PLAN_BLOCKED"` with `existing consensus or genesis changes require a separate migration` | The blueprint also changes an existing chain. Restore its values; this route only adds chains. |
-| `Plan is stale; run plan again` | `appchain.yaml` or the lock changed after you planned. Review a new plan and apply its digest. |
-| `Stop all project nodes with scripts/stop before applying` | Run `./my-application/scripts/stop` first. |
-| `Resume the pending operation with its original plan digest` | An earlier apply was interrupted. Repeat it with that apply's digest. |
+| `This node must be running; run  yano.sh appchain start  first` | `approve` talks to your own node. Start it first. |
+| `orders: only 2 members are connected, but the new threshold needs 3; bring the others online first so the chain cannot stall` | Ask the offline operators to start their nodes, then run `approve` again. |
+| `orders: still waiting for …` and exit code 3 | The chain has not made enough blocks yet, or other operators have not approved. Send traffic, or run again later. |
+| `dave.member was made for another application (invite …)` | The card was made for a different `.chain`. Ask dave to run `request supply.chain`. |
+| `alice is the fixed proposer of orders; the runtime refuses to remove it.` | With fixed sequencing the lead cannot be removed. Losing the lead's key means sealing a new application. |
 
-**Next:** [operate remote VMs](operators.md).
+**Next:** [run your node on a server](operators.md).

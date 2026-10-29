@@ -85,7 +85,7 @@ shows it depends on the mode:
 
 ```bash
 # Devnet: fund an address from the self-contained faucet
-curl -X POST http://127.0.0.1:7070/api/v1/devnet/fund \
+curl -X POST http://127.0.0.1:<http-port>/api/v1/devnet/fund \
   -H 'Content-Type: application/json' \
   -d '{"address":"addr...","ada":100}'
 
@@ -93,8 +93,8 @@ curl -X POST http://127.0.0.1:7070/api/v1/devnet/fund \
 openssl rand -hex 32
 ```
 
-The local cluster launcher's `anchor-bootstrap` command funds the demo wallet
-from the devnet faucet for you.
+On a devnet, `./yano.sh appchain anchor` creates the anchor wallet and funds
+it from the devnet faucet for you.
 
 :::caution[A wallet mnemonic will not work]
 A CIP-1852 mnemonic from Eternl, Lace, or the devkit **cannot** be converted
@@ -182,21 +182,26 @@ An independent verifier should check the Cardano output itself. See
 
 ## Try it
 
-On the local devnet, with no wallet or test ADA of your own:
+On the local devnet, with no wallet or test ADA of your own. The anchor mode
+and cadence are sealed chain settings, so the rehearsal sets them when it
+creates the application:
 
 ```bash
-export YANO_CLUSTER_DIR=/tmp/yano-anchor-try
-./yano.sh appchain cluster start 3 --anchor-mode script --anchor-every 2
-./yano.sh appchain cluster anchor-bootstrap orders-chain
-./yano.sh appchain cluster submit orders-chain audit '{"event":"anchored","id":"A-1"}'
-./yano.sh appchain cluster submit orders-chain audit '{"event":"anchored","id":"A-2"}'
-curl -s http://127.0.0.1:7070/api/v1/app-chain/chains/orders-chain/status \
+./yano.sh appchain try --setting orders.anchor.mode=script --setting orders.anchor.every-blocks=2
+./yano.sh appchain anchor --node-dir appchain-try/alice/yano-node   # wallet, devnet funds, bootstrap
+PORT=$(jq -r .httpPort appchain-try/alice/yano-node/node.json)
+for id in A-1 A-2; do
+  curl -s -X POST "http://127.0.0.1:$PORT/api/v1/app-chain/chains/orders/messages" \
+    -H 'Content-Type: application/json' -d "{\"topic\":\"audit\",\"body\":\"anchored $id\"}"
+done
+curl -s "http://127.0.0.1:$PORT/api/v1/app-chain/chains/orders/status" \
   | jq '.anchor | {bootstrapped, scriptAddress, lastAnchoredHeight, lastAnchorTx, lagBlocks}'
 ```
 
-After about 20 seconds, `bootstrapped` is `true`, `lastAnchoredHeight` is above
-0, and `lastAnchorTx` names the advance transaction. Clean up with
-`./yano.sh appchain cluster clean`.
+`anchor` returns once the anchor thread is confirmed. After about 20 seconds
+more, `bootstrapped` is `true`, `lastAnchoredHeight` is above 0, and
+`lastAnchorTx` names the advance transaction. Clean up with
+`./yano.sh appchain try --clean`.
 
 [Tutorial 7 — anchors and verification](/tutorials/07-anchors-and-verification/)
 walks through the same sequence and then verifies a record against the anchor,

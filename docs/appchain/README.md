@@ -27,6 +27,7 @@ credentials unless a guide explicitly says otherwise.
 | Collect member approvals and optionally trigger an action | [`approvals` reference](state-machines/approvals.md) | Configuration + typed commands |
 | Maintain a document-hash trail per product or case | [`doc-trail` reference](state-machines/doc-trail.md) | Configuration + typed commands |
 | Select a stock ledger/workflow capability | [Stock state-machine cookbook](tutorials/03-stock-state-machines.md) | Configuration + typed commands |
+| Protect a topic and issue browser session keys | [Topic protection guide](TOPIC_SESSION_KEYS.md) | Configuration + application sign-in |
 | Connect stock components with deterministic event bindings | [Beginner-to-advanced developer learning path](bindings/README.md) | YAML; public actor proofs for governed recipes |
 | Publish immutable evidence to object storage/IPFS and notify Kafka | [Evidence publication](tutorials/04-evidence-publication.md) | No for the demo; optional connector plugins in deployments |
 | Approve arbitrary payload hashes using application-defined roles | [`role-approvals` reference](state-machines/role-approvals.md) | Configuration + actor integration |
@@ -99,8 +100,9 @@ business meaning.
 ### Beginner: operate first, understand second
 
 1. Use the self-contained devnet. No Cardano funds or external node is needed.
-2. Submit through `./yano.sh appchain cluster` rather than constructing wire bytes.
-3. Compare tips and roots on all members.
+2. Rehearse three members with `./yano.sh appchain try`, then submit through
+   their REST API rather than constructing wire bytes.
+3. Compare heights and roots on all members with `./yano.sh appchain status`.
 4. Inspect one proof and one intentional no-op/failure.
 5. Stop while keeping data, restart, and verify the same state.
 
@@ -133,9 +135,6 @@ business meaning.
 - From source, follow [the Yano X distribution build](../BUILD_DISTRIBUTIONS.md),
   then run the extracted JVM distribution. The upstream Yano `:app` build is
   not a task in this repository.
-
-The cluster launcher can also use a released Yano tree; see
-[`scripts/appchain-cluster/README.md`](../../scripts/appchain-cluster/README.md).
 
 ## Reference shelf
 

@@ -105,8 +105,14 @@ plugin-validated submissions through that endpoint:
 
 The local showcase intentionally starts with broad API authentication disabled,
 so reads and submissions need no key. Privileged admin operations still require
-the configured unscoped local-demo key. It is known demo material and must not
-be used on a public interface.
+a key: each node has its own, generated at setup in
+`data/showcase/<instance>/node<i>/secrets/api.key`. Read it from that file
+rather than copying it into commands or documents:
+
+```bash
+curl -fsS -H "X-API-Key: $(cat data/showcase/demo/node0/secrets/api.key)" \
+  "$BASE/api/v1/app-chain/chains/orders-chain/admin/members" | jq .
+```
 
 In an application deployment, enable whole-surface authentication and inject
 keys through the deployment's secret mechanism:

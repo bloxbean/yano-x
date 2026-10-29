@@ -107,23 +107,6 @@ class BindingCliTest {
     }
 
     @Test
-    void declarativeInitRequiresBothExplicitInputsAndRejectsThemForOtherRecipes() {
-        List<String> base = List.of("init", "--non-interactive", "--network", "devnet", "--members", "3",
-                "--output", temporary.resolve("project").toString(), "--recipe");
-        for (List<String> suffix : List.of(List.of("declarative-composite"),
-                List.of("declarative-composite", "--bindings", "missing.yaml"),
-                List.of("declarative-composite", "--plugins-directory", "missing"),
-                List.of("audit-log", "--bindings", "missing.yaml", "--plugins-directory", "missing"))) {
-            var args = new ArrayList<>(base);
-            args.addAll(suffix);
-            Output result = run(args.toArray(String[]::new));
-            assertThat(result.exit()).as(result.err()).isEqualTo(AppChainDevtoolsCli.EXIT_USAGE);
-            assertThat(result.err()).contains("--bindings", "--plugins-directory");
-            assertThat(temporary.resolve("project")).doesNotExist();
-        }
-    }
-
-    @Test
     void rejectsMalformedUtf8AndMissingFilesWithoutCreatingOutputFiles() throws Exception {
         Path bad = temporary.resolve("bad.hex");
         Files.write(bad, new byte[]{(byte) 0xc3, 0x28});

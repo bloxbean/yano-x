@@ -1,43 +1,50 @@
-// Tutorial 1, synced to the terminal: one event submitted through node 1 of a
-// three-node launcher cluster, ordered by node 0 and finalized by any two
-// members. Each step carries the command the reader runs at that point.
-// Facts: cluster.sh (threshold default, proposer injection, output markers),
-// the stock config (fixed proposer for orders-chain, 1 s cadence), and Yano's
-// consensus guide (two-phase round, quorum timeouts).
+// Tutorial 1, synced to the terminal: one event submitted through bob's node in
+// the `appchain try` rehearsal (operators alice, bob and carol), ordered by the
+// lead and finalized by any two members. Each step carries the command the
+// reader runs at that point.
+// Facts: TryCommand.java (operators, default chain, ports, its own submission),
+// Draft.java (majority threshold, fixed sequencing), SealedApp.java (the lead is
+// the fixed proposer), StatusCommand.java (agreement line), and Yano's consensus
+// guide (two-phase round, quorum timeouts).
 
-const SUBMIT_COMMAND = './yano.sh appchain cluster submit orders-chain orders \\\n'
-  + '  \'{"event":"order-created","orderId":"A-1001","quantity":4}\' --node 1';
+const SUBMIT_COMMAND = 'BOB=$(jq -r .httpPort appchain-try/bob/yano-node/node.json)\n'
+  + 'curl -X POST http://127.0.0.1:$BOB/api/v1/app-chain/chains/orders/messages \\\n'
+  + '  -H \'Content-Type: application/json\' -d \'{"topic":"orders","body":"order A-1001 created"}\'';
+const STATUS_COMMAND = './yano.sh appchain status --node-dir appchain-try/bob/yano-node';
 
 const start = {
   title: 'Start',
-  text: 'The launcher starts node 0 first. It produces blocks for the private Cardano devnet and is also a member. '
-    + 'After a 25-second warm-up, nodes 1 and 2 join it. The threshold defaults to a majority, `N/2 + 1` in '
-    + 'whole numbers: 2 of 3.',
-  viewText: { terminal: 'Prints `members : 3   threshold: 2`, then `Cluster up.`' },
-  command: './yano.sh appchain cluster start 3',
+  text: '`try` runs the real setup steps for a coordinator and three operators: `new`, one `request` per operator, '
+    + '`seal`, `join`, and `start`. Alice is the lead, so her node produces the private Cardano devnet and is also a '
+    + 'member; bob and carol follow it. The threshold defaults to a majority, `N/2 + 1` in whole numbers: 2 of 3.',
+  viewText: {
+    terminal: 'Prints every command it runs, then `✓ Node alice is up at …` and the same for bob and carol.',
+  },
+  command: './yano.sh appchain try',
   cards: {
-    terminal: { title: 'Cluster up.', detail: 'threshold: 2' },
-    n0: { title: 'Ready', detail: 'http 7070' },
-    n1: { title: 'Ready', detail: 'http 7071' },
-    n2: { title: 'Ready', detail: 'http 7072' },
+    terminal: { title: 'Nodes up', detail: 'threshold: 2 of 3' },
+    n0: { title: 'Ready', detail: 'http 8080' },
+    n1: { title: 'Ready', detail: 'http 8081' },
+    n2: { title: 'Ready', detail: 'http 8082' },
   },
 };
 
 const check = {
   title: 'Check agreement',
-  text: 'Status asks every running node for each chain\'s tip and state root, then compares the roots. '
-    + '`AGREED` means all of them report the same root for that chain. It is a comparison, not a vote.',
-  viewText: { terminal: 'Prints `orders-chain: AGREED (…)`, and the same for `registry-chain` and `effects-chain`.' },
-  command: './yano.sh appchain cluster status',
-  cards: { terminal: { title: 'AGREED', detail: 'three chains', tone: 'ok' } },
+  text: 'Status asks every member\'s node for each chain\'s genesis identity, tip, and state root. `members agree` '
+    + 'means they all run the same chain, and status warns when two members report different roots at the same '
+    + 'height. It is a comparison, not a vote.',
+  viewText: { terminal: 'Prints `members online 3/3`, then `chain orders … members agree`.' },
+  command: STATUS_COMMAND,
+  cards: { terminal: { title: 'members agree', detail: 'chain orders', tone: 'ok' } },
 };
 
 const submit = {
   title: 'Submit',
-  text: 'The launcher sends a topic and a body to node 1. Node 1 checks the command, signs the envelope with its own '
-    + 'member key, keeps it in its pending pool, and answers **202** with a message id. You sign nothing, and 202 '
-    + 'means queued, not final.',
-  viewText: { terminal: 'Prints `submitted <message id>... to orders-chain`.' },
+  text: 'You send a topic and a body to bob\'s node. It checks the command, signs the envelope with bob\'s member '
+    + 'key, keeps it in its pending pool, and answers **202** with a message id. You sign nothing, and 202 means '
+    + 'queued, not final.',
+  viewText: { terminal: 'Prints a JSON answer with the `messageId`.' },
   command: SUBMIT_COMMAND,
   wires: [
     { from: 'terminal', to: 'n1', label: 'POST `{topic, body}`' },
@@ -45,14 +52,14 @@ const submit = {
   ],
   cards: {
     terminal: { title: '202 Accepted', detail: 'not final yet', tone: 'pending' },
-    n1: { title: 'Envelope', detail: 'signed by node 1' },
+    n1: { title: 'Envelope', detail: 'signed by bob' },
   },
 };
 
 const gossip = {
   title: 'Gossip',
-  text: 'Node 1 gossips the envelope to nodes 0 and 2. Each checks the signature and that node 1 is a member, then '
-    + 'holds the message in memory until a block includes it.',
+  text: 'Bob\'s node gossips the envelope to alice and carol. Each checks the signature and that bob is a member, '
+    + 'then holds the message in memory until a block includes it.',
   viewText: { terminal: 'Nothing new yet. The message is waiting in the pools.' },
   wires: [
     { from: 'n1', to: 'n0', label: 'gossip envelope' },
@@ -66,9 +73,9 @@ const gossip = {
 
 const propose = {
   title: 'Propose',
-  text: '`orders-chain` uses a fixed sequencer, and the launcher names node 0 as its proposer, so node 0 leads. On its '
-    + 'next tick (every second on this chain) it builds block h, applies it to compute the state root, and sends the '
-    + 'block with its PREPARE vote.',
+  text: 'The application uses fixed sequencing by default: the lead, alice, proposes every block. On her node\'s '
+    + 'next block tick it builds block h, applies it to compute the state root, and sends the block with its '
+    + 'PREPARE vote.',
   viewText: { terminal: 'Still pending.' },
   wires: [
     { from: 'n0', to: 'n1', label: 'block h + PREPARE' },
@@ -79,7 +86,7 @@ const propose = {
 
 const vote = {
   title: 'Vote',
-  text: 'Nodes 1 and 2 check the block and apply it themselves. Each votes PREPARE only if its own state root matches '
+  text: 'Bob and carol check the block and apply it themselves. Each votes PREPARE only if its own state root matches '
     + 'byte for byte. Two PREPARE votes reach the threshold and form a **PreparedQC**, and the members then sign COMMIT.',
   viewText: { terminal: 'Still pending. Every member is re-running the block.' },
   wires: [
@@ -98,7 +105,7 @@ const certify = {
     + 'Every node writes block h and its new root in one atomic batch. The block is final, and there is no rollback '
     + 'below finality.',
   viewText: { terminal: 'The newest block summary shows `certSignatures` of at least 2.' },
-  command: 'curl -s http://127.0.0.1:7070/api/v1/app-chain/chains/orders-chain/blocks | jq .',
+  command: 'curl -s http://127.0.0.1:$BOB/api/v1/app-chain/chains/orders/blocks | jq .',
   wires: [
     { from: 'n0', to: 'n1', label: 'finality certificate' },
     { from: 'n0', to: 'n2', label: 'finality certificate' },
@@ -112,23 +119,25 @@ const certify = {
 
 const agree = {
   title: 'Agree again',
-  text: 'Every node now reports the new tip of `orders-chain` and the same root, so status prints `AGREED` again. '
-    + 'Agreement after new traffic is the result this tutorial is about.',
-  viewText: { terminal: 'Prints `orders-chain: AGREED (…)` with a higher tip on every node.' },
-  command: './yano.sh appchain cluster status',
-  cards: { terminal: { title: 'AGREED', detail: 'same root on 3 nodes', tone: 'final' } },
+  text: 'Every node now reports the new tip of `orders` and the same root, so status still prints `members agree`, '
+    + 'with a higher height. Agreement after new traffic is the result this tutorial is about.',
+  viewText: { terminal: 'Prints `chain orders` with a higher height and `members agree`.' },
+  command: STATUS_COMMAND,
+  cards: { terminal: { title: 'members agree', detail: 'same root on 3 nodes', tone: 'final' } },
 };
 
-const nodeTwoDown = {
-  title: 'Node 2 stops',
-  text: 'Suppose node 2\'s process stops after the cluster started. Two members remain, and the threshold is still 2.',
-  viewText: { terminal: 'Status no longer shows node 2 as ready.' },
+const carolDown = {
+  title: 'Carol stops',
+  text: 'Suppose carol stops her node after the application started. Two members remain, and the threshold is '
+    + 'still 2.',
+  viewText: { terminal: 'Status shows carol `offline` and `members online 2/3`.' },
+  command: './yano.sh appchain stop --node-dir appchain-try/carol/yano-node',
   cards: { n2: { title: 'Offline', detail: 'no votes', tone: 'fail' } },
 };
 
-const submitWithoutTwo = {
+const submitWithoutCarol = {
   ...submit,
-  text: 'You submit through node 1 as before. Node 1 signs the envelope, answers 202, and gossips it to node 0.',
+  text: 'You submit through bob\'s node as before. It signs the envelope, answers 202, and gossips it to alice.',
   cards: { ...submit.cards, n2: { title: 'Offline', detail: 'no votes', tone: 'fail' } },
 };
 
@@ -136,16 +145,16 @@ export default {
   id: 'first-chain-finality',
   type: 'steps',
   title: 'Your first finalized event',
-  intro: 'the three-node cluster from this tutorial, with the command you run at each step. Pick a step, press Play, '
+  intro: 'the three nodes from this tutorial, with the command you run at each step. Pick a step, press Play, '
     + 'or switch to “Your terminal” to see only what the commands print.',
   lanes: [
     { id: 'terminal', label: 'Your terminal', note: '`./yano.sh appchain`', kind: 'client' },
-    { id: 'n0', label: 'Node 0', note: 'devnet producer · proposer', kind: 'leader' },
-    { id: 'n1', label: 'Node 1', note: 'receives your event', kind: 'member' },
-    { id: 'n2', label: 'Node 2', note: 'member', kind: 'member' },
+    { id: 'n0', label: 'Alice', note: 'lead · devnet producer · proposer', kind: 'leader' },
+    { id: 'n1', label: 'Bob', note: 'receives your event', kind: 'member' },
+    { id: 'n2', label: 'Carol', note: 'member', kind: 'member' },
   ],
   views: [
-    { id: 'default', label: 'Cluster' },
+    { id: 'default', label: 'Nodes' },
     { id: 'terminal', label: 'Your terminal', focus: ['terminal'] },
   ],
   scenarios: [
@@ -158,21 +167,21 @@ export default {
       id: 'one-down',
       label: 'One member is down',
       summary: 'With a threshold of 2, any two of the three members can make a block final.',
-      steps: [nodeTwoDown, submitWithoutTwo, {
+      steps: [carolDown, submitWithoutCarol, {
         ...propose,
-        text: 'Node 0 builds block h and sends it with its PREPARE vote. Only node 1 can answer.',
+        text: 'Alice\'s node builds block h and sends it with its PREPARE vote. Only bob can answer.',
         wires: [{ from: 'n0', to: 'n1', label: 'block h + PREPARE' }],
       }, {
         ...vote,
-        text: 'Node 1 re-executes the block and votes. Node 0\'s vote and node 1\'s vote are two of three, so they form '
+        text: 'Bob re-executes the block and votes. Alice\'s vote and bob\'s vote are two of three, so they form '
           + 'a PreparedQC and then a COMMIT quorum.',
         wires: [{ from: 'n1', to: 'n0', label: 'PREPARE, then COMMIT' }],
         cards: { n1: vote.cards.n1 },
       }, {
-        title: 'Final without node 2',
-        text: 'Block h is final on nodes 0 and 1. When node 2 runs again, it fetches the missing blocks from a peer, '
-          + 'verifies each block and its certificate, and re-applies them before it catches up.',
-        viewText: { terminal: 'Your message is final. Node 0 and node 1 agree.' },
+        title: 'Final without carol',
+        text: 'Block h is final on alice\'s and bob\'s nodes. When carol starts her node again, it fetches the missing '
+          + 'blocks from a peer, verifies each block and its certificate, and re-applies them before it catches up.',
+        viewText: { terminal: 'Your message is final. Alice and bob agree.' },
         wires: [{ from: 'n0', to: 'n1', label: 'finality certificate' }],
         cards: {
           n0: { title: 'Final at h', detail: '2 of 3', tone: 'final' },
@@ -187,27 +196,31 @@ export default {
       summary: 'When every member must vote, one missing member stops finality.',
       steps: [{
         title: 'Start with threshold 3',
-        text: 'The threshold is part of the cluster\'s identity, so a retained cluster refuses a different one. Start a '
-          + 'second cluster in a new data directory instead. Every block now needs three COMMIT votes.',
-        viewText: { terminal: 'Prints `members : 3   threshold: 3`.' },
-        command: 'export YANO_CLUSTER_DIR=/tmp/yano-tutorial-threshold-3\n'
-          + './yano.sh appchain cluster start 3 --threshold 3',
+        text: 'The threshold is sealed into the application when it is created, so it cannot change on a running '
+          + 'rehearsal. Rehearse again in a new directory from a template with `threshold: all`. Every block now needs '
+          + 'three COMMIT votes.',
+        viewText: { terminal: 'Every node starts as before; each chain now needs 3 signatures.' },
+        command: 'printf \'threshold: all\\nchains:\\n  - id: orders\\n    recipe: audit-log\\n\' > all.template.yaml\n'
+          + './yano.sh appchain try --from all.template.yaml --dir appchain-try-all',
         cards: {
-          terminal: { title: 'Cluster up.', detail: 'threshold: 3' },
+          terminal: { title: 'Nodes up', detail: 'threshold: 3 of 3' },
           n0: { title: 'Ready' },
           n1: { title: 'Ready' },
           n2: { title: 'Ready' },
         },
-      }, nodeTwoDown, submitWithoutTwo, {
+      }, {
+        ...carolDown,
+        command: './yano.sh appchain stop --node-dir appchain-try-all/carol/yano-node',
+      }, submitWithoutCarol, {
         ...propose,
-        text: 'Node 0 builds block h and sends it with its PREPARE vote. Only node 1 can answer.',
+        text: 'Alice\'s node builds block h and sends it with its PREPARE vote. Only bob can answer.',
         wires: [{ from: 'n0', to: 'n1', label: 'block h + PREPARE' }],
       }, {
         title: 'Stalled',
         text: 'Only two PREPARE votes exist, so no PreparedQC forms. The round times out, but moving to a new view also '
-          + 'needs three signed timeouts. Nothing becomes final until node 2 returns, and the message expires from the '
+          + 'needs three signed timeouts. Nothing becomes final until carol returns, and the message expires from the '
           + 'pools after 10 minutes by default.',
-        viewText: { terminal: 'The submission was accepted, but the tip of `orders-chain` does not move.' },
+        viewText: { terminal: 'The submission was accepted, but the tip of `orders` does not move.' },
         checks: [
           { label: 'PREPARE votes reach the threshold of 3 (only 2 arrive)', ok: false },
           { label: 'Signed timeouts reach 3 for a new view (only 2 arrive)', ok: false },
@@ -222,20 +235,27 @@ export default {
   ],
   legend: [
     ['client', 'your terminal'],
-    ['leader', 'proposer for `orders-chain`'],
+    ['leader', 'lead and proposer'],
     ['member', 'member node'],
     ['final', 'final'],
     ['fail', 'offline or stalled'],
   ],
   sources: [
-    { repo: 'yano-x', path: 'scripts/appchain-cluster/cluster.sh',
-      anchors: ['default_threshold() { echo $(( $1 / 2 + 1 )); }', 'local warmup="${CLUSTER_WARMUP:-25}"',
-        'members : $n   threshold:', 'c_grn "Cluster up."', 'AGREED (${seen:0:16}...)',
-        'echo "submitted ${mid:0:16}... to $cid"', '-Dyano.app-chain.chains[$idx].sequencer.proposer=$proposer',
-        'proposer="$(node_pub 0)"', 'HTTP_BASE="${YANO_CLUSTER_HTTP_BASE:-7070}"',
-        'differs from retained state; restore the original profile or use a new data directory'] },
-    { repo: 'yano-x', path: 'config/application-appchain.yml',
-      anchors: ['chain-id: "orders-chain"', 'No sequencer.mode → fixed proposer', 'interval-ms: 1000'] },
+    { repo: 'yano-x', path: 'tooling/appchain-cli/src/main/java/org/yanoproject/x/appchain/cli/TryCommand.java',
+      anchors: ['List.of("alice", "bob", "carol")', 'private static final String LOG_RECIPE = "audit-log";',
+        '"orders=" + LOG_RECIPE', 'The lead (alice) starts the devnet; the others follow it.',
+        'int http = Ports.firstFree(8080, used);', 'An application submits a message through bob\'s node',
+        'Map.of("topic", "orders", "body", "order A-100 created")',
+        'Set.of("dir", "from", "chain", "answer", "setting", "without"'] },
+    { repo: 'yano-x', path: 'tooling/appchain-formats/src/main/java/org/yanoproject/x/appchain/formats/Draft.java',
+      anchors: ['threshold = threshold == null ? "majority" : threshold;', 'case "majority" -> members / 2 + 1;',
+        'case "all" -> members;', 'sequencing = sequencing == null ? "fixed" : sequencing;'] },
+    { repo: 'yano-x', path: 'tooling/appchain-formats/src/main/java/org/yanoproject/x/appchain/formats/SealedApp.java',
+      anchors: ['!members.getFirst().publicKey().equals(values.get("sequencer.proposer"))'] },
+    { repo: 'yano-x', path: 'tooling/appchain-cli/src/main/java/org/yanoproject/x/appchain/cli/StatusCommand.java',
+      anchors: ['"members agree" : "MISMATCH"', '"  members online "', 'member.online() ? "online " : "offline"'] },
+    { repo: 'yano-x', path: 'tooling/appchain-cli/src/main/java/org/yanoproject/x/appchain/cli/StartCommand.java',
+      anchors: ['" is up at "'] },
     { repo: 'yano', path: 'docs/APP_CHAIN_CONSENSUS_GUIDE.md',
       anchors: ['`sequencer.proposer` selects the view-0 leader', 'requires byte-identical `stateRoot`', 'PreparedQC',
         'FinalityCert', 'A quorum of signed timeout records forms a', 'there is no rollback path below finality',

@@ -36,9 +36,9 @@ const scan = {
 const apiRange = {
   title: 'Check the API range',
   text: 'The manifest’s `yanoApi {min, max, minLevel}` must include the host’s API major, 3, and the host’s level, '
-    + '12, must be at least `minLevel`. There is a maximum major but no maximum level.',
-  checks: [{ label: '`min` ≤ 3 ≤ `max`, and 12 ≥ `minLevel`', ok: true }],
-  cards: { scan: { title: 'API compatible', detail: 'major 3 · level 12', tone: 'ok' } },
+    + '13, must be at least `minLevel`. There is a maximum major but no maximum level.',
+  checks: [{ label: '`min` ≤ 3 ≤ `max`, and 13 ≥ `minLevel`', ok: true }],
+  cards: { scan: { title: 'API compatible', detail: 'major 3 · level 13', tone: 'ok' } },
 };
 
 const isolated = {
@@ -148,14 +148,14 @@ export default {
     {
       id: 'min-level',
       label: 'minLevel is too high',
-      summary: 'The manifest declares `minLevel: 13`, but this host is at level 12.',
+      summary: 'The manifest declares `minLevel: 14`, but this host is at level 13.',
       steps: [capture, scan, {
         ...apiRange,
-        text: 'The host’s level, 12, is below the bundle’s `minLevel` of 13. The bundle needs API that this host '
+        text: 'The host’s level, 13, is below the bundle’s `minLevel` of 14. The bundle needs API that this host '
           + 'does not have.',
-        checks: [{ label: '`min` ≤ 3 ≤ `max`, and 12 ≥ `minLevel`', ok: false, code: 'level 12 < 13' }],
-        cards: { scan: { title: 'Incompatible', detail: 'needs level 13', tone: 'fail' } },
-      }, fatal('Start-up fails', 'The node reports that the bundle does not support Yano plugin API major 3 level 12. '
+        checks: [{ label: '`min` ≤ 3 ≤ `max`, and 13 ≥ `minLevel`', ok: false, code: 'level 13 < 14' }],
+        cards: { scan: { title: 'Incompatible', detail: 'needs level 14', tone: 'fail' } },
+      }, fatal('Start-up fails', 'The node reports that the bundle does not support Yano plugin API major 3 level 13. '
         + 'Use the host version the bundle was built for.', 'API level too low')],
     },
     {
@@ -165,15 +165,15 @@ export default {
       steps: [capture, scan, apiRange, isolated, policy, sharedLoader, correlate, order, {
         ...fingerprint,
         text: 'Every check passes on member C. Only its fingerprint differs from A and B, because the JAR’s digest '
-          + 'differs. Nothing at start-up compares fingerprints across members.',
+          + 'differs. The node itself never compares fingerprints across members.',
         cards: { catalog: { title: 'Fingerprint differs', detail: 'from members A and B', tone: 'pending' } },
       }, {
         title: 'Diverge',
         text: 'Member C starts. If its code computes a different result, its state root differs and it does not vote '
-          + 'for that block, so it stalls. Catch drift before traffic: `appchain drift` compares '
-          + '`cluster.plugin-catalog` across members, and `appchain doctor` checks each JAR’s digest against the '
-          + 'project lock.',
-        cards: { node: { title: 'Stalls on divergence', detail: 'drift: `DRIFT_DETECTED`', tone: 'fail' } },
+          + 'for that block, so it stalls. Catch it before traffic: for an application set up with `appchain`, '
+          + '`join` and `start` refuse a bundle whose digest differs from the sealed one, and `appchain status` '
+          + 'prints this node’s `Plugins: catalog …` fingerprint for the members to compare.',
+        cards: { node: { title: 'Stalls on divergence', detail: 'status: catalog differs', tone: 'fail' } },
       }],
     },
   ],
@@ -196,7 +196,7 @@ export default {
     { repo: 'yano', path: 'plugin-catalog/src/main/java/org/yanoproject/catalog/YanoApiRange.java',
       anchors: ['return apiMajor >= min && apiMajor <= max && apiLevel >= minLevel;'] },
     { repo: 'yano', path: 'core-api/src/main/java/org/yanoproject/api/plugin/PluginApiVersion.java',
-      anchors: ['CURRENT_MAJOR = 3', 'CURRENT_LEVEL = 12'] },
+      anchors: ['CURRENT_MAJOR = 3', 'CURRENT_LEVEL = 13'] },
     { repo: 'yano', path: 'runtime/src/main/java/org/yanoproject/runtime/plugins/DirectoryPluginArtifactValidator.java',
       anchors: ['Provider constructors and static initializers are not invoked.'] },
     { repo: 'yano', path: 'runtime/src/main/java/org/yanoproject/runtime/plugins/PluginRuntimeEnvironment.java',
@@ -216,8 +216,10 @@ export default {
         'No `NodePlugin` lifecycle callback or typed contribution factory method runs'] },
     { repo: 'yano', path: 'app/src/main/java/org/yanoproject/app/api/appchain/AppChainResource.java',
       anchors: ['"pluginCatalogFingerprint"'] },
-    { repo: 'yano-x', path: 'tooling/devtools/src/main/java/org/yanoproject/x/devtools/AppChainDriftClient.java',
-      anchors: ['"cluster.plugin-catalog"', 'DRIFT_DETECTED'] },
+    { repo: 'yano-x', path: 'tooling/appchain-cli/src/main/java/org/yanoproject/x/appchain/cli/StatusCommand.java',
+      anchors: ['identity.path("pluginCatalogFingerprint")', '(compare with the other members)'] },
+    { repo: 'yano-x', path: 'tooling/appchain-cli/src/main/java/org/yanoproject/x/appchain/cli/StartCommand.java',
+      anchors: ['Plugin bundles changed since this node joined '] },
     { repo: 'yano', path: 'docs/APP_CHAIN_CONSENSUS_GUIDE.md', anchors: ['requires byte-identical `stateRoot`'] },
   ],
 };

@@ -1,7 +1,5 @@
 package org.yanoproject.x.eutxo.demo;
 
-import org.yanoproject.api.appchain.state.StateCommitmentIdentity;
-import org.yanoproject.api.appchain.state.StateCommitmentProfiles;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;
@@ -48,14 +46,11 @@ class ShowcaseSettlementPlanTest {
                         "eutxo-batch-withdrawal-confirmation-v1")
                 .containsEntry("effects.executors.eutxo-settlement.owner",
                         "false");
-        assertThat(StateCommitmentIdentity.fromSettings(config).profile())
-                .isEqualTo(StateCommitmentProfiles.MPF);
         assertThat(config.get("effects.executors.eutxo-settlement.vault-script"))
                 .isNotBlank();
-        assertThat(ShowcaseSettlementPlan.yamlBlock(
-                10, ShowcaseSettlementPlan.CHAIN_ID, config))
-                .contains("chains[10]:")
-                .contains("payment-chain-settlement");
+        assertThat(ShowcaseSettlementPlan.template(ShowcaseSettlementPlan.CHAIN_ID, config, "settlement"))
+                .contains("  - id: payment-chain-settlement", "recipe: custom-plugin")
+                .doesNotContain("effects.executors");
         System.out.println("[showcase-settlement] seedTx="
                 + ShowcaseSettlementPlan.SEED_TX_ID);
         System.out.println("[showcase-settlement] vault="

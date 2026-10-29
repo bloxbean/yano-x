@@ -1,0 +1,13 @@
+{
+  "effects.executor.enabled" : "true",
+  "effects.executors.eutxo-settlement.vault-address" : "addr_test1wpwhmf5cd5pm9gsg5y8xnkyk3xue2u35ral098gd8u49g3gjpdqgr",
+  "effects.executors.eutxo-settlement.shard-address" : "addr_test1wqkrdxsvwfrzwm60qf6fk06w6f3me8ssfwururl4mt3j94sjytqyh",
+  "effects.executors.eutxo-settlement.root-address" : "addr_test1wqrd9g5sauf0qr32qh4xptfs5sjnuq89skca6tn3kgf6pkcyfxw0z",
+  "effects.executors.eutxo-settlement.root-unit" : "57f1b65a38d0bfc2ce88071973137972eaa365e89bb43ef857982c0659616e6f536574746c65526f6f74",
+  "effects.executors.eutxo-settlement.shard-thread-policy-id" : "f31a3e218309d7a8b055150d55ef930a96c096072ad8ce31e758edec",
+  "effects.executors.eutxo-settlement.operator-address" : "addr_test1vq2p8rmdp8p70auqjg0vzu59793575jqegfuwejrk5mu42czwm8wp",
+  "effects.executors.eutxo-settlement.operator-seed" : "9166d2a27e522e201ff90f5f24d9d18f5f0a7999886c006e0d2653946c40af79",
+  "effects.executors.eutxo-settlement.vault-script-file" : "settlement/settlement-vault.script",
+  "effects.executors.eutxo-settlement.shard-script-file" : "settlement/settlement-shard.script",
+  "effects.executors.eutxo-settlement.round-timeout-ms" : "15000"
+}

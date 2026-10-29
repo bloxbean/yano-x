@@ -1,21 +1,28 @@
 # Yano App-Chain Studio
 
-Static, release-pinned guided blueprint generation for multi-chain JVM projects.
-Add or remove chain cards, select each recipe and its capabilities, and configure
-shared member placement. Downloaded intent is validated by the matching CLI.
-Local devnet users run `appchain prepare` to pin identities before starting.
-See [the configuration guide](../../docs/appchain/deployment/configure.md).
-Studio has no backend, telemetry, persistence, or secret inputs. The downloaded
-`appchain.yaml` is rendered and semantically validated by the version-matched
-`yano appchain` CLI, which remains authoritative.
+Static, release-pinned binding editor for chains that combine several state
+machines. Studio has no backend, telemetry, persistence, or secret inputs, and
+never requests or stores private keys. Applications themselves are created and
+sealed with the CLI (`./yano.sh appchain try`, `new`, `request`, `seal`); the
+start page points there. See
+[the configuration guide](../../docs/appchain/deployment/configure.md).
 
 For declarative bindings, `bindings.html` is a guided editor (ADR-031.2): forms
 backed by an authoring catalog, a synchronized YAML view and graph, CLI handoff
 with fixed file names, and explanation of imported, unauthenticated CLI reports.
 It edits the same YAML the CLI compiles and never compiles, executes, submits or
-stores anything. The blueprint page keeps its read-only viewer for
-capability-manifest snapshots. See the
+stores anything. Its composite import opens a chain's inline `composite` from a
+setup draft (`<app>.draft.yaml`) and writes back only that composite. A bindings
+file reaches an application through `appchain new <app> --chain
+<id>=bindings:<file>` or `bindings:` in the draft. See the
 [editor chapter](../../docs/appchain/bindings/06-guided-editor.md).
+
+`topics.html` writes the `topics.yaml` that `yano.sh appchain topics plan`
+checks against the chain: a form for one namespace change (owners, writers,
+session-key issuers, payload schema) and the CLI commands that follow. Planning,
+signing, member votes, proofs and diagnostics stay in the CLI, so Studio never
+computes the bytes anyone signs. See
+[protect a topic](../../docs/appchain/TOPIC_SESSION_KEYS.md).
 
 The editor ships a generated reference catalog (`binding-authoring-catalog.json`,
 for the tutorial context in `binding-authoring-context.json`) and two starters

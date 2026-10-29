@@ -601,7 +601,7 @@
       "scope": "chain",
       "selectable": true,
       "trustStatement": "Operator-owned advanced path; Yano does not trust or install the plugin automatically.",
-      "description": "Project boundary for a separately reviewed custom state-machine bundle.",
+      "description": "Runs a separately reviewed custom state-machine bundle that every operator installs and seal pins by digest.",
       "provides": [
         "state-machine"
       ],

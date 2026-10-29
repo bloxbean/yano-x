@@ -114,27 +114,25 @@ change the signed action.
 
 ## Configure
 
-Start from the project recipe. Membership, consensus settings, collections,
-validators and the state-commitment profile are all part of genesis, so the
-member keys must be known up front:
+Start from the `authenticated-map` recipe in a setup draft. Membership,
+consensus settings, collections, validators and the state-commitment profile
+are all part of genesis, so they are fixed when the coordinator seals the
+operators' member cards into the draft:
 
 ```bash
-./yano.sh appchain init --non-interactive \
-  --recipe authenticated-map --network preprod --members 3 \
-  --member-key <member-0-64-hex> \
-  --member-key <member-1-64-hex> \
-  --member-key <member-2-64-hex> \
-  --name product-registry --chain-id product-registry \
-  --output product-registry
+./yano.sh appchain new product-registry --network preprod \
+  --operators alice,bob,carol --chain product-registry=authenticated-map
 ```
 
-For a disposable local devnet, use `--network devnet` and replace the
-`--member-key` options with `--generate-local-member-keys`. It keeps the private
-keys in the project's owner-only `secrets/` directory and pins only the public
-keys. On public networks, operators always supply their own keys.
+Each operator makes their own key with `appchain request`; private keys never
+leave their node directories. See [set up an application](../deployment/configure.md)
+for the whole ceremony.
 
-Then edit `spec.chains[0].authenticatedMap` in `appchain.yaml`. This example
-combines an opaque collection, a canonical-CBOR collection and a schema:
+Before sealing, add an `authenticatedMap` section under the chain in
+`product-registry.draft.yaml` (next to `id` and `recipe`), with the same fields
+shown here; `seal` reads it as written. Without one, the chain starts with one open, opaque `records`
+collection. This example combines an opaque collection, a canonical-CBOR
+collection and a schema:
 
 ```yaml
 authenticatedMap:
@@ -174,17 +172,25 @@ authenticatedMap:
         }
 ```
 
-Render and check the exact release:
+Seal with the release every operator runs:
 
 ```bash
-./yano.sh appchain render product-registry
-./yano.sh appchain doctor product-registry --distribution /path/to/yano-x-jvm-<version>
+./yano.sh appchain seal product-registry.draft.yaml
 ```
 
-The renderer writes the canonical genesis and the three state-identity
-settings, `state.commitment-profile`, `state.format-fingerprint` and
-`state.genesis-id`. Do not edit them by hand. Every member must use the same
-generated configuration and validator artifacts.
+`seal` writes the canonical genesis and the three state-identity settings,
+`state.commitment-profile`, `state.format-fingerprint` and `state.genesis-id`,
+into `product-registry.chain`. The map derives its own genesis id, which `join`
+recomputes and the node checks again at startup. Do not edit them by hand.
+Every member must use the same sealed file and validator artifacts; `join` and
+`start` check the installed bundles against the sealed digests.
+`./yano.sh appchain inspect product-registry.chain --map-genesis product-registry`
+prints the sealed map genesis as hex for the offline tools.
+
+`seal` refuses a collection that names a `validator` schema without
+`valueEncoding: canonical-cbor`. It seals, with a warning, a `governed-role` or
+`approval` collection that has no active policy at genesis; such a collection
+accepts no writes until the governance authority activates one.
 
 `anchorPolicyCommitment` is part of the chain identity. The all-zero value is a
 development placeholder; replace it with the reviewed 32-byte commitment
@@ -316,7 +322,7 @@ keys.
 A `governed-role` or `approval` collection names a stable policy, and genesis
 provides a closed set of organizations, actors, keys and policies. This
 abridged direct-role example shows the shape; substitute the generated
-lowercase hex values before rendering:
+lowercase hex values before sealing:
 
 ```yaml
 authenticatedMap:
@@ -363,7 +369,7 @@ authenticatedMap:
 ```
 
 Generate the public key and proof-of-possession offline. The seed stays in a
-file you control and is never written to the project:
+file you control and is never written to the draft:
 
 ```bash
 ADMIN_PUBLIC_KEY="$(./yano.sh appchain role public-key \
@@ -397,7 +403,7 @@ approvalPolicies:
 
 Every referenced organization, actor, key and policy must be revision 1,
 canonical, active, proof-of-possession valid and inside the configured bounds;
-the renderer refuses an invalid set. `authorizationLimits` can lower the
+`seal` refuses an invalid set. `authorizationLimits` can lower the
 committed evidence, genesis, pending-index, expiry, query-page and crypto-work
 maxima.
 
@@ -411,10 +417,9 @@ onboarding:
     note: activate before enabling release submissions
 ```
 
-The collection stays fail-closed until governance activates that policy.
-`appchain doctor` reports `GOVERNED_COLLECTION_NOT_BOOTSTRAPPED`, and the
-renderer writes `bootstrap/authenticated-map-onboarding.yaml` as an
-operational plan, not consensus state.
+The collection stays fail-closed until governance activates that policy. The
+`onboarding` list is an operational note, not consensus state: track and
+perform the activation yourself after the chain is live.
 
 ### Governed authoring and external signing
 
@@ -572,7 +577,7 @@ In a composite, a rejected map command rejects the cascade with the code
 
 Collections, validation rules, batch limits, the commitment profile, the
 bootstrap membership digest and the anchor-policy commitment are all part of
-the chain identity. Review and archive the rendered genesis before launch,
+the chain identity. Review and archive the sealed `.chain` file before launch,
 keep plugin artifacts byte-identical across nodes, and fail the deployment
 when a digest or provider is missing.
 

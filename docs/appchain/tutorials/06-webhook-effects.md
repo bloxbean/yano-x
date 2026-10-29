@@ -1,6 +1,6 @@
 # Tutorial 6 — Invoke an External HTTP Endpoint Safely
 
-[Open this approval-to-webhook workflow in App-Chain Studio](../../../tooling/studio/src/main/web/index.html#recipe=approval-workflow&network=devnet&members=3&finality=majority&sequencing=fixed&membership=governed&runtime=jvm&deployment=host&name=webhook-effects&chainId=webhook-effects)
+To run this outcome with other operators, follow [Set up an application](../deployment/configure.md).
 
 - **Level:** intermediate to advanced
 - **Time:** about 20 minutes
@@ -8,8 +8,8 @@
   acknowledged `webhook.post` effect, and run the latter from a stock approval
   transition against a local receiver.
 
-**Before you start:** finish [Tutorial 1](01-first-app-chain.md) and stop or
-clean its cluster. You need the extracted Yano X JVM distribution, Python 3,
+**Before you start:** finish [Tutorial 1](01-first-app-chain.md) and remove
+its rehearsal with `./yano.sh appchain try --clean`. You need the extracted Yano X JVM distribution, Python 3,
 `curl`, and `jq`. Every command runs from the distribution's top-level
 directory, the one that contains `yano.sh`; the tutorial files ship under
 `docs/` there. In Studio, add the `effects:on-approved` and `executor:webhook`
@@ -24,9 +24,9 @@ Yano provides two HTTP delivery shapes with different guarantees.
 | `webhook.post` effect | One business action after a deterministic transition | Yes, for `CHAIN` results |
 
 The snippets in Options A and B use the single-chain form,
-`yano.app-chain.<key>`. On a node with several chains, such as the local
-cluster, the same keys go under `yano.app-chain.chains[<i>].<key>`; the
-exercise below uses `chains[0]`.
+`yano.app-chain.<key>`. A node set up with `./yano.sh appchain join` addresses
+each chain by index, so the same keys go under
+`yano.app-chain.chains[<i>].<key>`; the exercise below uses `chains[0]`.
 
 ## Option A — observe every finalized block
 
@@ -125,76 +125,97 @@ PY
 
 It prints nothing until the first POST arrives.
 
-### 2. Create private per-node overrides
+### 2. Rehearse an approvals chain that emits the effect
 
-Start from a clean tutorial cluster and create three owner-only property files.
-All members receive the same consensus settings; only node 0 runs the
-executor. Each file must begin with `config_ordinal=275`.
+Write a small template with one chain. It uses the `approval-workflow` recipe
+(the stock `approvals` machine) and adds the `effects:on-approved` capability,
+whose `effectType` answer names the effect it emits:
 
-The local cluster launcher loads these files as per-node overlays when the
-`YANO_CLUSTER_NODE_CONFIG_DIR` environment variable names their directory.
-They are not generated-project configuration: generated app ledger projects and
-`appchain config` use YAML.
+```bash
+cat > webhook.template.yaml <<'EOF'
+chains:
+  - id: approvals
+    recipe: approval-workflow
+    capabilities: [effects:on-approved]
+    answers: {effectType: webhook.post}
+EOF
+./yano.sh appchain try --from webhook.template.yaml
+```
 
-Common settings for `node0.properties`, `node1.properties`, and
-`node2.properties`:
+`seal` fixes the same settings for every member. The capability turns on the
+effects runtime and seals these chain settings:
 
 ```properties
-config_ordinal=275
-yano.app-chain.chains[0].state-machine=approvals
-yano.app-chain.chains[0].effects.enabled=true
-yano.app-chain.chains[0].machines.approvals.on-approved-effect.enabled=true
-yano.app-chain.chains[0].machines.approvals.activations.on-approved-effect=1
-yano.app-chain.chains[0].machines.approvals.on-approved-effect.type=webhook.post
-yano.app-chain.chains[0].machines.approvals.on-approved-effect.gate=app-final
+effects.enabled=true
+machines.approvals.on-approved-effect.enabled=true
+machines.approvals.on-approved-effect.type=webhook.post
+machines.approvals.on-approved-effect.gate=chain-default
+machines.approvals.activations.on-approved-effect=1
 ```
 
 These settings attach one generic action to the stock approval transition.
 `webhook.post` is only the executor routing type; the approvals machine does
 not interpret the payload as a payment or webhook. The approval decision stays
 `APPROVED`, while the separate `ae/s/<itemId>` record tracks the effect as
-`PENDING`, `CONFIRMED`, or `FAILED`. Change `type` to another packaged or custom
-executor contract without changing approval semantics. The effect uses a
-`CHAIN` result, and with no `expiry-blocks` setting its expiry is the chain's
-default.
+`PENDING`, `CONFIRMED`, or `FAILED`. Change `effectType` to another packaged
+or custom executor contract without changing approval semantics. The effect
+uses a `CHAIN` result.
 
-Append these node-local settings only to `node0.properties`:
+### 3. Run the executor on alice's node only
 
-```properties
-yano.app-chain.chains[0].effects.executor.enabled=true
-yano.app-chain.chains[0].effects.executor.types=webhook.post
-yano.app-chain.chains[0].effects.executors.webhook.url=http://127.0.0.1:8099/yano
-yano.app-chain.chains[0].effects.executors.webhook.timeout-ms=5000
-```
+Which node executes an effect, and where it sends it, are node-local
+settings. They go in that node's `config/local.yaml`, which the setup tool
+never rewrites. Alice's node runs the executor; bob's and carol's do not.
 
-The distribution includes those exact files under
-`docs/appchain/tutorials/config/webhook/`. Install owner-only copies and start
-a fresh cluster:
+`join` gives each chain an index. Check the chain's index on alice's node:
 
 ```bash
-install -d -m 700 /tmp/yano-tutorial-webhook-config
-install -m 600 \
-  docs/appchain/tutorials/config/webhook/node*.properties \
-  /tmp/yano-tutorial-webhook-config/
-
-export YANO_CLUSTER_DIR=/tmp/yano-tutorial-webhook
-export YANO_CLUSTER_NODE_CONFIG_DIR=/tmp/yano-tutorial-webhook-config
-./yano.sh appchain cluster start 3
+cat appchain-try/alice/yano-node/apps/chain-indexes.json
 ```
 
-The commands below reach node *n* on HTTP port `HTTP_BASE + n`. Set
-`HTTP_BASE` to the first port of the range the launcher printed. It is `7070`
-unless the launcher printed a line such as
-`HTTP range 7070-7072 unavailable; using 7073-7075`:
+With this one chain it is `0`. Append the executor settings for `chains[0]`
+to alice's local file:
 
 ```bash
-HTTP_BASE=7070
+cat >> appchain-try/alice/yano-node/config/local.yaml <<'EOF'
+yano:
+  app-chain:
+    "chains[0]":
+      effects:
+        executor:
+          enabled: true
+          types: webhook.post
+        executors:
+          webhook:
+            url: http://127.0.0.1:8099/yano
+            timeout-ms: 5000
+EOF
 ```
 
-The chain id remains `orders-chain`, but its fresh deterministic profile is
-now `approvals`. Never apply this override to retained `ordered-log` state.
+These keys are node-local; `start` refuses a local file that changes a sealed
+setting. Restart alice's node so it reads the file:
 
-### 3. Encode and submit a proposal
+```bash
+./yano.sh appchain stop --node-dir appchain-try/alice/yano-node
+./yano.sh appchain start --node-dir appchain-try/alice/yano-node
+```
+
+> **✓ You should see** `✓ Stopped alice; its data is kept`, then
+> `✓ Node alice is up at http://127.0.0.1:…`.
+
+To run the executor on every member instead, add the `executor:webhook`
+capability to the chain with a `webhookUrl` answer. Every member then
+executes, so the receiver must deduplicate.
+
+Read each node's HTTP port from its `node.json`:
+
+```bash
+ALICE=$(jq -r .httpPort appchain-try/alice/yano-node/node.json)
+BOB=$(jq -r .httpPort appchain-try/bob/yano-node/node.json)
+CAROL=$(jq -r .httpPort appchain-try/carol/yano-node/node.json)
+```
+
+### 4. Encode and submit a proposal
 
 Encode the supplied HTTP body and the canonical stock commands with the
 tutorial helper:
@@ -210,21 +231,22 @@ PROPOSE_HEX=$(python3 "$TOOL" approvals propose erp-release-001 \
 APPROVE_HEX=$(python3 "$TOOL" approvals approve erp-release-001)
 ```
 
-Propose through member 0, then approve through members 1 and 2. Proposing is
-not approving: the item needs two approvals from distinct members.
+Propose through alice's node, then approve through bob's and carol's.
+Proposing is not approving: the item needs two approvals from distinct
+members.
 
 ```bash
-API=api/v1/app-chain/chains/orders-chain/messages
+API=api/v1/app-chain/chains/approvals/messages
 
-curl -s -X POST "http://127.0.0.1:$HTTP_BASE/$API" \
+curl -s -X POST "http://127.0.0.1:$ALICE/$API" \
   -H 'Content-Type: application/json' \
   -d "{\"topic\":\"approvals\",\"bodyHex\":\"$PROPOSE_HEX\"}" | jq .
 
-curl -s -X POST "http://127.0.0.1:$((HTTP_BASE + 1))/$API" \
+curl -s -X POST "http://127.0.0.1:$BOB/$API" \
   -H 'Content-Type: application/json' \
   -d "{\"topic\":\"approvals\",\"bodyHex\":\"$APPROVE_HEX\"}" | jq .
 
-curl -s -X POST "http://127.0.0.1:$((HTTP_BASE + 2))/$API" \
+curl -s -X POST "http://127.0.0.1:$CAROL/$API" \
   -H 'Content-Type: application/json' \
   -d "{\"topic\":\"approvals\",\"bodyHex\":\"$APPROVE_HEX\"}" | jq .
 ```
@@ -234,12 +256,12 @@ Each call answers `202 Accepted` with a message id:
 ```json
 {
   "messageId": "<64 hex characters>",
-  "chainId": "orders-chain",
+  "chainId": "approvals",
   "topic": "approvals"
 }
 ```
 
-### 4. Watch the delivery
+### 5. Watch the delivery
 
 After finality and the executor tick, the receiver terminal prints one line:
 
@@ -255,14 +277,14 @@ Wait until the result is incorporated, then inspect the effect record and the
 executor status:
 
 ```bash
-STATUS=http://127.0.0.1:$HTTP_BASE/api/v1/app-chain/chains/orders-chain/status
+STATUS=http://127.0.0.1:$ALICE/api/v1/app-chain/chains/approvals/status
 until curl -s "$STATUS" | jq -e '.effects.executor.executionTotals.confirmed >= 1
     and .effects.executor.openOnChain == 0' >/dev/null; do
   sleep 1
 done
 
 curl -s \
-  "http://127.0.0.1:$HTTP_BASE/api/v1/app-chain/chains/orders-chain/effects?fromHeight=1&limit=20" \
+  "http://127.0.0.1:$ALICE/api/v1/app-chain/chains/approvals/effects?fromHeight=1&limit=20" \
   | jq '.effects[] | {height, ordinal, type, scope}'
 
 curl -s "$STATUS" \
@@ -290,16 +312,15 @@ message has been incorporated. The approval item is still `APPROVED`;
 confirmation updates only its independently provable generic effect-state
 record.
 
-### 5. Clean up
+### 6. Clean up
 
 ```bash
-./yano.sh appchain cluster clean
-unset YANO_CLUSTER_DIR YANO_CLUSTER_NODE_CONFIG_DIR
-rm -rf /tmp/yano-tutorial-webhook-config
+./yano.sh appchain try --clean
+rm webhook.template.yaml
 ```
 
-Stop the receiver with `Ctrl-C`. Remove the private override directory after
-the cluster is stopped.
+`try --clean` stops the nodes and deletes the rehearsal, including alice's
+`local.yaml`. Stop the receiver with `Ctrl-C`.
 
 ## Security and product boundary
 

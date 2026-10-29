@@ -674,7 +674,7 @@ final class DeploymentRenderer {
             DeploymentDocument document,
             ShowcaseArtifact.Metadata artifact,
             SettlementProfileCompiler.Compiled settlement) throws IOException {
-        JsonNode parsed = yaml.readTree(artifacts.readEntry(artifact, ShowcaseArtifact.SHOWCASE_APPLICATION));
+        JsonNode parsed = yaml.readTree(ShowcaseArtifact.profileApplication());
         ObjectNode yano = (ObjectNode) parsed.path("yano");
         ArrayNode allowList = (ArrayNode) yano.path("plugins").path("allow-list");
         List<String> allowed = new ArrayList<>();
@@ -859,7 +859,7 @@ final class DeploymentRenderer {
     }
 
     private Set<String> observerChains(ShowcaseArtifact.Metadata artifact) throws IOException {
-        JsonNode parsed = yaml.readTree(artifacts.readEntry(artifact, ShowcaseArtifact.SHOWCASE_APPLICATION));
+        JsonNode parsed = yaml.readTree(ShowcaseArtifact.profileApplication());
         Set<String> result = new java.util.LinkedHashSet<>();
         parsed.path("yano").path("app-chain").fields().forEachRemaining(entry -> {
             JsonNode chain = entry.getValue();
@@ -1299,8 +1299,8 @@ final class DeploymentRenderer {
                         group: yano
                         mode: '0755'
                     # yano.sh runs from the directory it sits in, and the node reads
-                    # config/ from there. The home puts the showcase configuration in
-                    # front of the release runtime instead of the distribution's own.
+                    # config/ from there; the showcase chains come from
+                    # /etc/yano/application-appchain.yml (quarkus.config.locations).
                     - name: Link the showcase Yano home to the active release runtime
                       ansible.builtin.file:
                         src: "/opt/yano/current/{{ item }}"
@@ -1314,9 +1314,9 @@ final class DeploymentRenderer {
                       ansible.builtin.file:
                         path: /opt/yano/home/config
                         state: absent
-                    - name: Install the showcase configuration from the active release
+                    - name: Install the Yano configuration from the active release
                       ansible.builtin.copy:
-                        src: "{{ yano_release }}/examples/showcase/yano/config/"
+                        src: "{{ yano_release }}/config/"
                         dest: /opt/yano/home/config/
                         remote_src: true
                         owner: root

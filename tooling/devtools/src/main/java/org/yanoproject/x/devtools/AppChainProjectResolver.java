@@ -10,6 +10,7 @@ import org.yanoproject.appchain.config.AppChainConfigSemantics;
 import org.yanoproject.appchain.config.AppChainApprovalsConfig;
 import org.yanoproject.appchain.config.AppChainEffectsConfig;
 import org.yanoproject.appchain.config.AppChainPropertyDefinition;
+import org.yanoproject.api.appchain.topics.TopicChainSettings;
 import org.yanoproject.appchain.config.AppChainPropertyRegistry;
 import org.yanoproject.appchain.config.PropertyScope;
 import org.yanoproject.x.roles.contracts.ActorKeyEpochV1;
@@ -61,23 +62,33 @@ final class AppChainProjectResolver {
     private final AppChainPropertyRegistry properties;
     private final AppChainProjectCatalog catalog;
     private final Path projectDirectory;
+    private final AppChainSealResolver.SealHooks hooks;
 
     AppChainProjectResolver(
             AppChainPropertyRegistry properties,
             AppChainProjectCatalog catalog) {
-        this(properties, catalog, null);
+        this(properties, catalog, null, null);
+    }
+
+    /** A resolver for seal: {@code hooks} adds setting overrides and chooses genesis ids (ADR-056 D2). */
+    AppChainProjectResolver(
+            AppChainPropertyRegistry properties,
+            AppChainProjectCatalog catalog,
+            AppChainSealResolver.SealHooks hooks) {
+        this(properties, catalog, null, hooks);
     }
 
     private AppChainProjectResolver(AppChainPropertyRegistry properties, AppChainProjectCatalog catalog,
-                                    Path projectDirectory) {
+                                    Path projectDirectory, AppChainSealResolver.SealHooks hooks) {
         this.properties = java.util.Objects.requireNonNull(properties, "properties");
         this.catalog = java.util.Objects.requireNonNull(catalog, "catalog");
         this.projectDirectory = projectDirectory;
+        this.hooks = hooks;
     }
 
     /** Resolve authoring paths against the blueprint directory, never the invoking process's working directory. */
     AppChainProjectModel.Resolution resolve(AppChainProjectModel.Blueprint blueprint, Path project) {
-        return new AppChainProjectResolver(properties, catalog, project.toAbsolutePath().normalize())
+        return new AppChainProjectResolver(properties, catalog, project.toAbsolutePath().normalize(), hooks)
                 .resolve(blueprint);
     }
 
@@ -220,10 +231,14 @@ final class AppChainProjectResolver {
         if (blockInterval != null) {
             consensus.putIfAbsent(prefix + "block.interval-ms", blockInterval);
         }
+        if (hooks != null) {
+            hooks.overrides(chain.chainId()).forEach((key, value) -> consensus.put(prefix + key, value));
+        }
         materializeConsensusDefaults(consensus, prefix);
         if (chain.authenticatedMap() != null) {
             materializeAuthenticatedMap(
-                    chain, consensus, nodeTemplate, prefix);
+                    chain, consensus, nodeTemplate, prefix,
+                    pluginsDirectory(blueprint, false));
         }
         materializeStateCommitmentIdentity(
                 blueprint.metadata().name(), chain, sortedCapabilities, consensus, prefix);
@@ -247,13 +262,10 @@ final class AppChainProjectResolver {
                 "PARTIAL", List.of(), bindingDigests);
     }
 
-    /** Compile and construct the catalog-selected profile before any generated project file can be written. */
-    private Map<String, String> materializeBindings(AppChainProjectModel.Blueprint blueprint,
-                                                     AppChainProjectModel.ChainIntent chain,
-                                                     Map<String, String> consensus, String prefix,
-                                                     List<String> members, int threshold) {
+    private Path pluginsDirectory(AppChainProjectModel.Blueprint blueprint, boolean required) {
         String configured = blueprint.spec().runtime().pluginsDirectory();
         if (configured == null || configured.isBlank()) {
+            if (!required) return null;
             throw new IllegalArgumentException("declarative-composite requires runtime.pluginsDirectory for authoring");
         }
         Path directory = Path.of(configured);
@@ -263,6 +275,15 @@ final class AppChainProjectResolver {
             }
             directory = projectDirectory.resolve(directory).normalize();
         }
+        return directory;
+    }
+
+    /** Compile and construct the catalog-selected profile before any generated project file can be written. */
+    private Map<String, String> materializeBindings(AppChainProjectModel.Blueprint blueprint,
+                                                     AppChainProjectModel.ChainIntent chain,
+                                                     Map<String, String> consensus, String prefix,
+                                                     List<String> members, int threshold) {
+        Path directory = pluginsDirectory(blueprint, true);
         Map<String, String> suffix = new TreeMap<>();
         consensus.forEach((key, value) -> {
             if (key.startsWith(prefix)) suffix.put(key.substring(prefix.length()), value);
@@ -389,7 +410,8 @@ final class AppChainProjectResolver {
         if (topology.members() < 1 || topology.members() > 32) {
             throw new IllegalArgumentException("Topology members must be in [1, 32]");
         }
-        if (!Set.of("majority", "two-thirds", "all").contains(topology.finality())) {
+        if (!Set.of("majority", "two-thirds", "all").contains(topology.finality())
+                && !topology.finality().matches("[1-9][0-9]{0,2}")) {
             throw new IllegalArgumentException("Unsupported finality policy");
         }
         if (!Set.of("fixed", "rotating").contains(topology.sequencing())) {
@@ -587,7 +609,8 @@ final class AppChainProjectResolver {
             AppChainProjectModel.ChainIntent chain,
             Map<String, String> consensus,
             Map<String, String> nodeTemplate,
-            String prefix
+            String prefix,
+            Path pluginsDirectory
     ) {
         AppChainProjectModel.AuthenticatedMapIntent intent = chain.authenticatedMap();
         List<AppChainProjectModel.AuthenticatedMapSchemaIntent> schemaIntents =
@@ -599,10 +622,22 @@ final class AppChainProjectResolver {
                         "authenticatedMap schemas require id and inline CDDL source");
             }
             String root = blank(schema.root()) ? "root" : schema.root();
-            byte[] definition = AuthenticatedMapCddlCompiler
+            byte[] definition = CddlSchemaCompiler
                     .compile(schema.source(), root).definition();
             validators.add(AuthenticatedMapContract.ValidatorDescriptor.schema(
                     schema.id(), definition));
+        }
+
+        List<AppChainProjectModel.AuthenticatedMapPluginValidatorIntent> pluginValidators =
+                safeList(intent.validators());
+        if (!pluginValidators.isEmpty()) {
+            Map<String, Path> bundles = AuthenticatedMapPluginValidators.bundles(pluginsDirectory);
+            for (AppChainProjectModel.AuthenticatedMapPluginValidatorIntent validator : pluginValidators) {
+                validators.add(AuthenticatedMapPluginValidators.descriptor(validator, bundles));
+            }
+            // A validator runs only from an explicitly allow-listed bundle, and a non-empty allow-list loads
+            // nothing else, so it names every bundle the node has.
+            nodeTemplate.put(AuthenticatedMapPluginValidators.ALLOW_LIST, String.join(",", bundles.keySet()));
         }
 
         List<AppChainProjectModel.AuthenticatedMapCollectionIntent> collectionIntents =
@@ -664,7 +699,7 @@ final class AppChainProjectResolver {
         }
     }
 
-    private static void materializeStateCommitmentIdentity(
+    private void materializeStateCommitmentIdentity(
             String projectName,
             AppChainProjectModel.ChainIntent chain,
             Set<String> capabilities,
@@ -676,6 +711,16 @@ final class AppChainProjectResolver {
         StateCommitmentProfile profile = StateCommitmentProfiles.require(
                 consensus.getOrDefault(profileKey, StateCommitmentProfiles.MPF.id()));
         String genesisHex = consensus.get(genesisKey);
+        if (genesisHex == null && hooks != null) {
+            Map<String, String> settings = new TreeMap<>();
+            consensus.forEach((key, value) -> {
+                if (key.startsWith(prefix)) settings.put(key.substring(prefix.length()), value);
+            });
+            settings.put(StateCommitmentIdentity.PROFILE_SETTING, profile.id());
+            settings.put(StateCommitmentIdentity.FINGERPRINT_SETTING,
+                    HexFormat.of().formatHex(profile.formatFingerprint()));
+            genesisHex = hooks.genesisId(chain.chainId(), settings, chain.composite());
+        }
         byte[] genesisId = genesisHex == null
                 ? HexFormat.of().parseHex(AppChainProjectCatalog.sha256(
                 "yano-appchain-project-genesis-v1\0"
@@ -952,8 +997,21 @@ final class AppChainProjectResolver {
                 continue;
             }
             String key = definition.indexed() ? prefix + definition.suffix() : definition.key();
+            // The registrar threshold default means nothing without registrar keys, and the host refuses it once
+            // topics are enabled; an explicit threshold stays, so the check below reports it.
+            if (key.equals(prefix + TopicChainSettings.REGISTRAR_THRESHOLD) && !registrars(values, prefix)) continue;
             values.putIfAbsent(key, definition.defaultValue());
         }
+        Map<String, String> topics = new TreeMap<>();
+        values.forEach((key, value) -> {
+            if (key.startsWith(prefix + TopicChainSettings.PREFIX)) topics.put(key.substring(prefix.length()), value);
+        });
+        TopicChainSettings.genesisSeed(topics);
+    }
+
+    private static boolean registrars(Map<String, String> values, String prefix) {
+        String keys = values.getOrDefault(prefix + TopicChainSettings.REGISTRAR_KEYS, "").trim();
+        return !keys.isEmpty() && !keys.equalsIgnoreCase("none");
     }
 
     private static void validateWithRuntimeParser(
@@ -1012,7 +1070,20 @@ final class AppChainProjectResolver {
             case "majority" -> members / 2 + 1;
             case "two-thirds" -> (2 * members + 2) / 3;
             case "all" -> members;
-            default -> throw new IllegalArgumentException("Unsupported finality policy");
+            default -> {
+                // An explicit signature count, such as 5 of 6: more than half and at most all.
+                int count;
+                try {
+                    count = Integer.parseInt(finality);
+                } catch (NumberFormatException unsupported) {
+                    throw new IllegalArgumentException("Unsupported finality policy");
+                }
+                if (count <= members / 2 || count > members) {
+                    throw new IllegalArgumentException("Finality " + count + " is not more than half of "
+                            + members + " members and at most all of them");
+                }
+                yield count;
+            }
         };
     }
 

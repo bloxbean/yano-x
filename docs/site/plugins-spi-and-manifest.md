@@ -18,7 +18,7 @@ shipment-yano-plugin.jar
 |---|---|
 | `plugins/<bundle-id>.json` | The executable runtime contributions — what this bundle actually provides to a running node — and its `yanoApi` range: the `min` and `max` API majors it supports and the `minLevel` it needs. |
 | `appchain-config-metadata-v1.json` | Typed configuration definitions: keys, types, defaults, allowed values, scope, change policy, and whether a value is secret. |
-| `appchain-component-catalog-v1.json` | Selectable product capabilities and the artifacts they require — what a user sees in `appchain capabilities` and in Studio. |
+| `appchain-component-catalog-v1.json` | Selectable product capabilities and the artifacts they require — what a user sees in `appchain capabilities`. |
 
 They are deliberately separate. A tool can read the catalog to offer a
 capability without loading any code, and a node can validate the runtime
@@ -73,7 +73,7 @@ The Ed25519 signature binds:
 
 It authenticates **those exact bytes**. Understanding what it does *not* do
 matters just as much. Tooling checks the signature (`plugin validate`,
-`plugin inspect`, `metadata verify`, project rendering and `doctor`); a running
+`plugin inspect` and `metadata verify`); a running
 node does not check it at start-up.
 
 :::caution[Signing is not approval]
@@ -96,18 +96,19 @@ None of these commands loads provider classes, runs plugin code, fetches a
 registry, or installs the JAR. The public key is not secret; distribute it
 freely.
 
-## Pinning, in a project
+## Pinning, in an application
 
-When a project selects a custom capability, `appchain.lock` pins:
+When the coordinator seals an application, the sealed `<app>.chain` file
+records the SHA-256 digest of every plugin bundle each chain runs on. Each
+operator's `appchain join` and every `appchain start` check the installed
+bundles against those digests, so a JAR that does not match refuses to start
+until the operator accepts the new set with `join --accept-bundles`. That is
+how a "works on my node" plugin mismatch becomes a start-up error rather than a
+stalled chain.
 
-- the signed, data-only catalog snapshot under `component-catalogs/`;
-- the catalog, runtime manifest, and configuration-metadata digests; and
-- the complete plugin-JAR digests.
-
-`render` and `doctor` reverify the snapshot automatically, and a JAR that does
-not match the pinned digest fails artifact readiness. That is how a
-"works on my node" plugin mismatch becomes a build error rather than a stalled
-chain.
+`seal` resolves chains through the distribution's own catalog only: it does not
+yet accept a custom signed component catalog, so a custom capability cannot be
+selected in a setup draft in this release.
 
 ## Configuration metadata and coverage
 

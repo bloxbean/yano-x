@@ -163,7 +163,7 @@ class AppChainStateCliTest {
     }
 
     private Path writeGenesis() throws Exception {
-        byte[] schema = AuthenticatedMapCddlCompiler.compile(
+        byte[] schema = CddlSchemaCompiler.compile(
                 "root = { qty: uint .le 10 }").definition();
         AuthenticatedMapContract.ValidatorDescriptor recordValidator =
                 AuthenticatedMapContract.ValidatorDescriptor.schema("record-v1", schema);

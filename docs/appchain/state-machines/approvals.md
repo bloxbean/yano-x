@@ -54,8 +54,8 @@ Deadlines are Unix milliseconds compared with the finalized block timestamp.
 Time passing writes nothing: an item stays PENDING in state until a command
 touches it after its deadline.
 
-The sender of the envelope is the approver. Through the local cluster, ports
-7070, 7071 and 7072 are three different members.
+The sender of the envelope is the approver. In an `./yano.sh appchain try`
+rehearsal, alice's, bob's and carol's nodes are three different members.
 
 ## When to use it
 
@@ -72,17 +72,25 @@ controls HTTP access; it is not an approval identity.
 
 ## Try it
 
-The stock local cluster hosts `effects-chain`, which runs `approvals` with a
-demonstration effect. From the top-level directory of the extracted release:
+The `approval-workflow` recipe runs `approvals`. From the top-level directory
+of the extracted release, rehearse a three-member application with one
+`approvals` chain:
 
 ```bash
-./yano.sh appchain cluster start 3
-./yano.sh appchain cluster effect demo "release 2026-07 approved"
+./yano.sh appchain try --chain approvals=approval-workflow
 ```
 
-The demo proposes and approves a one-approval item, emits a `demo.webhook`
-effect, plays the external worker, reports success, and checks the effect
-proof. It calls no real webhook.
+It starts alice's, bob's and carol's nodes under `./appchain-try/`. Read
+their HTTP ports:
+
+```bash
+ALICE=$(jq -r .httpPort appchain-try/alice/yano-node/node.json)
+BOB=$(jq -r .httpPort appchain-try/bob/yano-node/node.json)
+CAROL=$(jq -r .httpPort appchain-try/carol/yano-node/node.json)
+```
+
+[Tutorial 6](../tutorials/06-webhook-effects.md) adds the on-approved effect
+and delivers it to a local webhook receiver.
 
 ## Submit through REST
 
@@ -98,15 +106,15 @@ APPROVE_HEX=$(python3 "$TOOL" approvals approve "$ITEM")
 REJECT_HEX=$(python3 "$TOOL" approvals reject "$ITEM")
 ```
 
-Propose through node 0, then approve through two other members:
+Propose through alice's node, then approve through bob's and carol's:
 
 ```bash
-curl -sS -X POST http://127.0.0.1:7070/api/v1/app-chain/chains/effects-chain/messages \
+curl -sS -X POST "http://127.0.0.1:$ALICE/api/v1/app-chain/chains/approvals/messages" \
   -H 'Content-Type: application/json' \
   -d "{\"topic\":\"approvals.command.v1\",\"bodyHex\":\"$PROPOSE_HEX\"}" | jq .
 
-for port in 7071 7072; do
-  curl -sS -X POST "http://127.0.0.1:$port/api/v1/app-chain/chains/effects-chain/messages" \
+for port in "$BOB" "$CAROL"; do
+  curl -sS -X POST "http://127.0.0.1:$port/api/v1/app-chain/chains/approvals/messages" \
     -H 'Content-Type: application/json' \
     -d "{\"topic\":\"approvals.command.v1\",\"bodyHex\":\"$APPROVE_HEX\"}" | jq .
 done
@@ -138,12 +146,13 @@ import org.yanoproject.x.client.StdlibAppChainClient;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 
-var proposer = new StdlibAppChainClient(AppChainClient.builder("http://127.0.0.1:7070/api/v1")
-        .chainId("effects-chain").build());
-var approver1 = new StdlibAppChainClient(AppChainClient.builder("http://127.0.0.1:7071/api/v1")
-        .chainId("effects-chain").build());
-var approver2 = new StdlibAppChainClient(AppChainClient.builder("http://127.0.0.1:7072/api/v1")
-        .chainId("effects-chain").build());
+// Three different members' nodes, for example alice's, bob's and carol's.
+var proposer = new StdlibAppChainClient(AppChainClient.builder("http://127.0.0.1:8080/api/v1")
+        .chainId("approvals").build());
+var approver1 = new StdlibAppChainClient(AppChainClient.builder("http://127.0.0.1:8081/api/v1")
+        .chainId("approvals").build());
+var approver2 = new StdlibAppChainClient(AppChainClient.builder("http://127.0.0.1:8082/api/v1")
+        .chainId("approvals").build());
 
 String itemId = "release-2026-07";
 byte[] payload = "{\"artifact\":\"inventory-service:2.4.0\"}".getBytes(StandardCharsets.UTF_8);
@@ -168,7 +177,7 @@ history while the node retains it.
 ITEM_KEY_HEX=$(python3 -c 'print("i/release-2026-07".encode().hex())')
 
 curl -sS \
-  "http://127.0.0.1:7070/api/v1/app-chain/chains/effects-chain/state/proof/$ITEM_KEY_HEX" \
+  "http://127.0.0.1:$ALICE/api/v1/app-chain/chains/approvals/state/proof/$ITEM_KEY_HEX" \
   | jq '{committedHeight, stateRoot, presence, valueHex}'
 ```
 
@@ -184,15 +193,18 @@ Cardano anchor, not the root the serving node reports.
 
 ## Configure
 
-`effects-chain` in the stock cluster file is a complete example, including the
-three [state-identity settings](README.md#before-you-configure-one) and the
-on-approved effect:
+In an application set up with `./yano.sh appchain new`, the
+`approval-workflow` recipe and `appchain seal` write the chain settings for
+you, and the `effects:on-approved` capability adds the on-approved effect.
+Written by hand, a complete example, including the three
+[state-identity settings](README.md#before-you-configure-one) and the
+on-approved effect, looks like this:
 
 ```yaml
 yano:
   app-chain:
-    chains[2]:
-      chain-id: "effects-chain"
+    chains[0]:
+      chain-id: "approvals"
       state-machine: approvals
       state:
         commitment-profile: mpf-blake2b256-v1

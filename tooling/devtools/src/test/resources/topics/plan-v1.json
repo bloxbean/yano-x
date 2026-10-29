@@ -1,0 +1,1552 @@
+[ {
+  "name" : "governance-create",
+  "document" : {
+    "schemaVersion" : 1,
+    "kind" : "Topics",
+    "chainId" : "topics-demo",
+    "commands" : [ {
+      "target" : "games-new/",
+      "operation" : "create",
+      "authority" : "governance",
+      "nonce" : "44444444444444444444444444444444",
+      "owners" : {
+        "threshold" : 1,
+        "keys" : [ "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8" ]
+      },
+      "policy" : {
+        "writers" : "open",
+        "schema" : "none"
+      }
+    } ]
+  },
+  "snapshot" : {
+    "chainId" : "topics-demo",
+    "generationId" : "2222222222222222222222222222222222222222222222222222222222222222",
+    "height" : 10,
+    "stateRoot" : "3333333333333333333333333333333333333333333333333333333333333333",
+    "maxMessageBytes" : 65536,
+    "config" : {
+      "revision" : 1,
+      "registrarsSince" : 1,
+      "settings" : {
+        "governance" : true,
+        "registrars" : {
+          "threshold" : 1,
+          "keys" : [ "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8" ]
+        },
+        "openClaims" : true,
+        "unregisteredReject" : true,
+        "maxDelegationMs" : 3600000,
+        "maxCommandMs" : 3600000,
+        "maxPendingPerEntry" : 16,
+        "maxEntries" : 1024,
+        "maxEntriesPerNamespace" : 128,
+        "activationLag" : 2,
+        "governanceWindowBlocks" : 600
+      }
+    },
+    "entries" : {
+      "games/" : {
+        "name" : "games/",
+        "active" : {
+          "revision" : 1,
+          "activeFrom" : 2,
+          "ownersSince" : 1,
+          "content" : {
+            "owners" : {
+              "threshold" : 1,
+              "keys" : [ "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8" ]
+            },
+            "policy" : {
+              "writers" : {
+                "keys" : null
+              },
+              "delegate" : [ ],
+              "maxDelegationMs" : null,
+              "schema" : "",
+              "maxPayloadBytes" : null
+            },
+            "retired" : false
+          }
+        },
+        "head" : 1,
+        "pending" : 0,
+        "subtree" : 1
+      }
+    },
+    "freedHeads" : { }
+  },
+  "plan" : {
+    "schemaVersion" : 1,
+    "kind" : "TopicsPlan",
+    "document" : {
+      "schemaVersion" : 1,
+      "kind" : "Topics",
+      "chainId" : "topics-demo",
+      "commands" : [ {
+        "target" : "games-new/",
+        "operation" : "create",
+        "authority" : "governance",
+        "nonce" : "44444444444444444444444444444444",
+        "owners" : {
+          "threshold" : 1,
+          "keys" : [ "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8" ]
+        },
+        "policy" : {
+          "writers" : "open",
+          "schema" : "none"
+        }
+      } ]
+    },
+    "snapshot" : {
+      "chainId" : "topics-demo",
+      "generationId" : "2222222222222222222222222222222222222222222222222222222222222222",
+      "height" : 10,
+      "stateRoot" : "3333333333333333333333333333333333333333333333333333333333333333",
+      "maxMessageBytes" : 65536,
+      "config" : {
+        "revision" : 1,
+        "registrarsSince" : 1,
+        "settings" : {
+          "governance" : true,
+          "registrars" : {
+            "threshold" : 1,
+            "keys" : [ "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8" ]
+          },
+          "openClaims" : true,
+          "unregisteredReject" : true,
+          "maxDelegationMs" : 3600000,
+          "maxCommandMs" : 3600000,
+          "maxPendingPerEntry" : 16,
+          "maxEntries" : 1024,
+          "maxEntriesPerNamespace" : 128,
+          "activationLag" : 2,
+          "governanceWindowBlocks" : 600
+        }
+      },
+      "entries" : {
+        "games/" : {
+          "name" : "games/",
+          "active" : {
+            "revision" : 1,
+            "activeFrom" : 2,
+            "ownersSince" : 1,
+            "content" : {
+              "owners" : {
+                "threshold" : 1,
+                "keys" : [ "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8" ]
+              },
+              "policy" : {
+                "writers" : {
+                  "keys" : null
+                },
+                "delegate" : [ ],
+                "maxDelegationMs" : null,
+                "schema" : "",
+                "maxPayloadBytes" : null
+              },
+              "retired" : false
+            }
+          },
+          "head" : 1,
+          "pending" : 0,
+          "subtree" : 1
+        }
+      },
+      "freedHeads" : { }
+    },
+    "commands" : [ {
+      "target" : "games-new/",
+      "operation" : "create",
+      "authority" : "governance",
+      "mode" : "governance",
+      "commandHex" : "85781879616e6f2d746f7069632d676f7665726e616e63652d76316b746f706963732d64656d6f58202222222222222222222222222222222222222222222222222222222222222222504444444444444444444444444444444485006a67616d65732d6e65772f820181582003a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b88500f6f640f6f6",
+      "endpoint" : "admin/topics/governance",
+      "before" : {
+        "kind" : "UNREGISTERED_REJECT",
+        "policy" : null,
+        "configRevision" : 1,
+        "sources" : [ ]
+      },
+      "earliestActivation" : 13,
+      "afterActivation" : {
+        "kind" : "POLICY",
+        "policy" : {
+          "writers" : {
+            "keys" : null
+          },
+          "delegate" : [ ],
+          "maxDelegationMs" : 3600000,
+          "schema" : "",
+          "maxPayloadBytes" : 65536,
+          "retired" : false
+        },
+        "configRevision" : 1,
+        "sources" : [ {
+          "name" : "games-new/",
+          "revision" : 1
+        } ]
+      }
+    } ]
+  }
+}, {
+  "name" : "owner-update-schema",
+  "document" : {
+    "schemaVersion" : 1,
+    "kind" : "Topics",
+    "chainId" : "topics-demo",
+    "commands" : [ {
+      "target" : "games/",
+      "operation" : "update",
+      "authority" : "games/",
+      "nonce" : "44444444444444444444444444444444",
+      "notAfter" : 1000000,
+      "policy" : {
+        "writers" : {
+          "threshold" : 1,
+          "keys" : [ "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8" ]
+        },
+        "delegate" : [ "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8" ],
+        "maxDelegationMs" : 3600000,
+        "maxPayloadBytes" : 1024,
+        "schemaCddl" : "root = { frames: 1200..9000, name: tstr .size (1..32) }"
+      }
+    } ]
+  },
+  "snapshot" : {
+    "chainId" : "topics-demo",
+    "generationId" : "2222222222222222222222222222222222222222222222222222222222222222",
+    "height" : 10,
+    "stateRoot" : "3333333333333333333333333333333333333333333333333333333333333333",
+    "maxMessageBytes" : 65536,
+    "config" : {
+      "revision" : 1,
+      "registrarsSince" : 1,
+      "settings" : {
+        "governance" : true,
+        "registrars" : {
+          "threshold" : 1,
+          "keys" : [ "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8" ]
+        },
+        "openClaims" : true,
+        "unregisteredReject" : true,
+        "maxDelegationMs" : 3600000,
+        "maxCommandMs" : 3600000,
+        "maxPendingPerEntry" : 16,
+        "maxEntries" : 1024,
+        "maxEntriesPerNamespace" : 128,
+        "activationLag" : 2,
+        "governanceWindowBlocks" : 600
+      }
+    },
+    "entries" : {
+      "games/" : {
+        "name" : "games/",
+        "active" : {
+          "revision" : 1,
+          "activeFrom" : 2,
+          "ownersSince" : 1,
+          "content" : {
+            "owners" : {
+              "threshold" : 1,
+              "keys" : [ "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8" ]
+            },
+            "policy" : {
+              "writers" : {
+                "keys" : null
+              },
+              "delegate" : [ ],
+              "maxDelegationMs" : null,
+              "schema" : "",
+              "maxPayloadBytes" : null
+            },
+            "retired" : false
+          }
+        },
+        "head" : 1,
+        "pending" : 0,
+        "subtree" : 1
+      }
+    },
+    "freedHeads" : { }
+  },
+  "plan" : {
+    "schemaVersion" : 1,
+    "kind" : "TopicsPlan",
+    "document" : {
+      "schemaVersion" : 1,
+      "kind" : "Topics",
+      "chainId" : "topics-demo",
+      "commands" : [ {
+        "target" : "games/",
+        "operation" : "update",
+        "authority" : "games/",
+        "nonce" : "44444444444444444444444444444444",
+        "notAfter" : 1000000,
+        "policy" : {
+          "writers" : {
+            "threshold" : 1,
+            "keys" : [ "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8" ]
+          },
+          "delegate" : [ "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8" ],
+          "maxDelegationMs" : 3600000,
+          "maxPayloadBytes" : 1024,
+          "schemaCddl" : "root = { frames: 1200..9000, name: tstr .size (1..32) }"
+        }
+      } ]
+    },
+    "snapshot" : {
+      "chainId" : "topics-demo",
+      "generationId" : "2222222222222222222222222222222222222222222222222222222222222222",
+      "height" : 10,
+      "stateRoot" : "3333333333333333333333333333333333333333333333333333333333333333",
+      "maxMessageBytes" : 65536,
+      "config" : {
+        "revision" : 1,
+        "registrarsSince" : 1,
+        "settings" : {
+          "governance" : true,
+          "registrars" : {
+            "threshold" : 1,
+            "keys" : [ "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8" ]
+          },
+          "openClaims" : true,
+          "unregisteredReject" : true,
+          "maxDelegationMs" : 3600000,
+          "maxCommandMs" : 3600000,
+          "maxPendingPerEntry" : 16,
+          "maxEntries" : 1024,
+          "maxEntriesPerNamespace" : 128,
+          "activationLag" : 2,
+          "governanceWindowBlocks" : 600
+        }
+      },
+      "entries" : {
+        "games/" : {
+          "name" : "games/",
+          "active" : {
+            "revision" : 1,
+            "activeFrom" : 2,
+            "ownersSince" : 1,
+            "content" : {
+              "owners" : {
+                "threshold" : 1,
+                "keys" : [ "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8" ]
+              },
+              "policy" : {
+                "writers" : {
+                  "keys" : null
+                },
+                "delegate" : [ ],
+                "maxDelegationMs" : null,
+                "schema" : "",
+                "maxPayloadBytes" : null
+              },
+              "retired" : false
+            }
+          },
+          "head" : 1,
+          "pending" : 0,
+          "subtree" : 1
+        }
+      },
+      "freedHeads" : { }
+    },
+    "commands" : [ {
+      "target" : "games/",
+      "operation" : "update",
+      "authority" : "games/",
+      "mode" : "registry",
+      "statementHex" : "897579616e6f2d746f7069632d636f6d6d616e642d76316b746f706963732d64656d6f582022222222222222222222222222222222222222222222222222222222222222226667616d65732f6667616d65732f0150444444444444444444444444444444441a000f4240830185820181582003a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b881582003a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b81a0036ee80582091ea1b411d1282f3e999b13b368d534a95480a9552570f5069922d5aa59fad951904005829820182068283646e616d65018501011820006083666672616d65730184000264313230306439303030",
+      "statementHash" : "006cb688c663b6e761d517b54dbdc796b16751c9d68dd66f226f72464db623b3",
+      "requiredSigners" : {
+        "threshold" : 1,
+        "keys" : [ "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8" ]
+      },
+      "signatures" : [ ],
+      "before" : {
+        "kind" : "POLICY",
+        "policy" : {
+          "writers" : {
+            "keys" : null
+          },
+          "delegate" : [ ],
+          "maxDelegationMs" : 3600000,
+          "schema" : "",
+          "maxPayloadBytes" : 65536,
+          "retired" : false
+        },
+        "configRevision" : 1,
+        "sources" : [ {
+          "name" : "games/",
+          "revision" : 1
+        } ]
+      },
+      "earliestActivation" : 13,
+      "afterActivation" : {
+        "kind" : "POLICY",
+        "policy" : {
+          "writers" : {
+            "keys" : {
+              "threshold" : 1,
+              "keys" : [ "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8" ]
+            }
+          },
+          "delegate" : [ "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8" ],
+          "maxDelegationMs" : 3600000,
+          "schema" : "91ea1b411d1282f3e999b13b368d534a95480a9552570f5069922d5aa59fad95",
+          "maxPayloadBytes" : 1024,
+          "retired" : false
+        },
+        "configRevision" : 1,
+        "sources" : [ {
+          "name" : "games/",
+          "revision" : 2
+        } ]
+      }
+    } ]
+  }
+}, {
+  "name" : "inherited-child",
+  "document" : {
+    "schemaVersion" : 1,
+    "kind" : "Topics",
+    "chainId" : "topics-demo",
+    "commands" : [ {
+      "target" : "games/neon-rush/",
+      "operation" : "create",
+      "authority" : "games/",
+      "nonce" : "44444444444444444444444444444444",
+      "notAfter" : 1000000,
+      "owners" : {
+        "threshold" : 1,
+        "keys" : [ "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8" ]
+      }
+    } ]
+  },
+  "snapshot" : {
+    "chainId" : "topics-demo",
+    "generationId" : "2222222222222222222222222222222222222222222222222222222222222222",
+    "height" : 10,
+    "stateRoot" : "3333333333333333333333333333333333333333333333333333333333333333",
+    "maxMessageBytes" : 65536,
+    "config" : {
+      "revision" : 1,
+      "registrarsSince" : 1,
+      "settings" : {
+        "governance" : true,
+        "registrars" : {
+          "threshold" : 1,
+          "keys" : [ "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8" ]
+        },
+        "openClaims" : true,
+        "unregisteredReject" : true,
+        "maxDelegationMs" : 3600000,
+        "maxCommandMs" : 3600000,
+        "maxPendingPerEntry" : 16,
+        "maxEntries" : 1024,
+        "maxEntriesPerNamespace" : 128,
+        "activationLag" : 2,
+        "governanceWindowBlocks" : 600
+      }
+    },
+    "entries" : {
+      "games/" : {
+        "name" : "games/",
+        "active" : {
+          "revision" : 1,
+          "activeFrom" : 2,
+          "ownersSince" : 1,
+          "content" : {
+            "owners" : {
+              "threshold" : 1,
+              "keys" : [ "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8" ]
+            },
+            "policy" : {
+              "writers" : {
+                "keys" : null
+              },
+              "delegate" : [ ],
+              "maxDelegationMs" : null,
+              "schema" : "",
+              "maxPayloadBytes" : null
+            },
+            "retired" : false
+          }
+        },
+        "head" : 1,
+        "pending" : 0,
+        "subtree" : 1
+      }
+    },
+    "freedHeads" : { }
+  },
+  "plan" : {
+    "schemaVersion" : 1,
+    "kind" : "TopicsPlan",
+    "document" : {
+      "schemaVersion" : 1,
+      "kind" : "Topics",
+      "chainId" : "topics-demo",
+      "commands" : [ {
+        "target" : "games/neon-rush/",
+        "operation" : "create",
+        "authority" : "games/",
+        "nonce" : "44444444444444444444444444444444",
+        "notAfter" : 1000000,
+        "owners" : {
+          "threshold" : 1,
+          "keys" : [ "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8" ]
+        }
+      } ]
+    },
+    "snapshot" : {
+      "chainId" : "topics-demo",
+      "generationId" : "2222222222222222222222222222222222222222222222222222222222222222",
+      "height" : 10,
+      "stateRoot" : "3333333333333333333333333333333333333333333333333333333333333333",
+      "maxMessageBytes" : 65536,
+      "config" : {
+        "revision" : 1,
+        "registrarsSince" : 1,
+        "settings" : {
+          "governance" : true,
+          "registrars" : {
+            "threshold" : 1,
+            "keys" : [ "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8" ]
+          },
+          "openClaims" : true,
+          "unregisteredReject" : true,
+          "maxDelegationMs" : 3600000,
+          "maxCommandMs" : 3600000,
+          "maxPendingPerEntry" : 16,
+          "maxEntries" : 1024,
+          "maxEntriesPerNamespace" : 128,
+          "activationLag" : 2,
+          "governanceWindowBlocks" : 600
+        }
+      },
+      "entries" : {
+        "games/" : {
+          "name" : "games/",
+          "active" : {
+            "revision" : 1,
+            "activeFrom" : 2,
+            "ownersSince" : 1,
+            "content" : {
+              "owners" : {
+                "threshold" : 1,
+                "keys" : [ "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8" ]
+              },
+              "policy" : {
+                "writers" : {
+                  "keys" : null
+                },
+                "delegate" : [ ],
+                "maxDelegationMs" : null,
+                "schema" : "",
+                "maxPayloadBytes" : null
+              },
+              "retired" : false
+            }
+          },
+          "head" : 1,
+          "pending" : 0,
+          "subtree" : 1
+        }
+      },
+      "freedHeads" : { }
+    },
+    "commands" : [ {
+      "target" : "games/neon-rush/",
+      "operation" : "create",
+      "authority" : "games/",
+      "mode" : "registry",
+      "statementHex" : "897579616e6f2d746f7069632d636f6d6d616e642d76316b746f706963732d64656d6f582022222222222222222222222222222222222222222222222222222222222222227067616d65732f6e656f6e2d727573682f6667616d65732ff650444444444444444444444444444444441a000f42408400820181582003a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b885f6f6f6f6f6f6",
+      "statementHash" : "7729e103052a431920d4a3cc27d03b24bfdd5d5124fb5515481526fca316487f",
+      "requiredSigners" : {
+        "threshold" : 1,
+        "keys" : [ "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8" ]
+      },
+      "signatures" : [ ],
+      "before" : {
+        "kind" : "POLICY",
+        "policy" : {
+          "writers" : {
+            "keys" : null
+          },
+          "delegate" : [ ],
+          "maxDelegationMs" : 3600000,
+          "schema" : "",
+          "maxPayloadBytes" : 65536,
+          "retired" : false
+        },
+        "configRevision" : 1,
+        "sources" : [ {
+          "name" : "games/",
+          "revision" : 1
+        } ]
+      },
+      "earliestActivation" : 13,
+      "afterActivation" : {
+        "kind" : "POLICY",
+        "policy" : {
+          "writers" : {
+            "keys" : null
+          },
+          "delegate" : [ ],
+          "maxDelegationMs" : 3600000,
+          "schema" : "",
+          "maxPayloadBytes" : 65536,
+          "retired" : false
+        },
+        "configRevision" : 1,
+        "sources" : [ {
+          "name" : "games/",
+          "revision" : 1
+        }, {
+          "name" : "games/neon-rush/",
+          "revision" : 1
+        } ]
+      }
+    } ]
+  }
+}, {
+  "name" : "open-claim",
+  "document" : {
+    "schemaVersion" : 1,
+    "kind" : "Topics",
+    "chainId" : "topics-demo",
+    "commands" : [ {
+      "target" : "claimed/",
+      "operation" : "create",
+      "authority" : "~claim",
+      "nonce" : "44444444444444444444444444444444",
+      "notAfter" : 1000000,
+      "owners" : {
+        "threshold" : 1,
+        "keys" : [ "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8" ]
+      }
+    } ]
+  },
+  "snapshot" : {
+    "chainId" : "topics-demo",
+    "generationId" : "2222222222222222222222222222222222222222222222222222222222222222",
+    "height" : 10,
+    "stateRoot" : "3333333333333333333333333333333333333333333333333333333333333333",
+    "maxMessageBytes" : 65536,
+    "config" : {
+      "revision" : 1,
+      "registrarsSince" : 1,
+      "settings" : {
+        "governance" : true,
+        "registrars" : {
+          "threshold" : 1,
+          "keys" : [ "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8" ]
+        },
+        "openClaims" : true,
+        "unregisteredReject" : true,
+        "maxDelegationMs" : 3600000,
+        "maxCommandMs" : 3600000,
+        "maxPendingPerEntry" : 16,
+        "maxEntries" : 1024,
+        "maxEntriesPerNamespace" : 128,
+        "activationLag" : 2,
+        "governanceWindowBlocks" : 600
+      }
+    },
+    "entries" : {
+      "games/" : {
+        "name" : "games/",
+        "active" : {
+          "revision" : 1,
+          "activeFrom" : 2,
+          "ownersSince" : 1,
+          "content" : {
+            "owners" : {
+              "threshold" : 1,
+              "keys" : [ "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8" ]
+            },
+            "policy" : {
+              "writers" : {
+                "keys" : null
+              },
+              "delegate" : [ ],
+              "maxDelegationMs" : null,
+              "schema" : "",
+              "maxPayloadBytes" : null
+            },
+            "retired" : false
+          }
+        },
+        "head" : 1,
+        "pending" : 0,
+        "subtree" : 1
+      }
+    },
+    "freedHeads" : { }
+  },
+  "plan" : {
+    "schemaVersion" : 1,
+    "kind" : "TopicsPlan",
+    "document" : {
+      "schemaVersion" : 1,
+      "kind" : "Topics",
+      "chainId" : "topics-demo",
+      "commands" : [ {
+        "target" : "claimed/",
+        "operation" : "create",
+        "authority" : "~claim",
+        "nonce" : "44444444444444444444444444444444",
+        "notAfter" : 1000000,
+        "owners" : {
+          "threshold" : 1,
+          "keys" : [ "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8" ]
+        }
+      } ]
+    },
+    "snapshot" : {
+      "chainId" : "topics-demo",
+      "generationId" : "2222222222222222222222222222222222222222222222222222222222222222",
+      "height" : 10,
+      "stateRoot" : "3333333333333333333333333333333333333333333333333333333333333333",
+      "maxMessageBytes" : 65536,
+      "config" : {
+        "revision" : 1,
+        "registrarsSince" : 1,
+        "settings" : {
+          "governance" : true,
+          "registrars" : {
+            "threshold" : 1,
+            "keys" : [ "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8" ]
+          },
+          "openClaims" : true,
+          "unregisteredReject" : true,
+          "maxDelegationMs" : 3600000,
+          "maxCommandMs" : 3600000,
+          "maxPendingPerEntry" : 16,
+          "maxEntries" : 1024,
+          "maxEntriesPerNamespace" : 128,
+          "activationLag" : 2,
+          "governanceWindowBlocks" : 600
+        }
+      },
+      "entries" : {
+        "games/" : {
+          "name" : "games/",
+          "active" : {
+            "revision" : 1,
+            "activeFrom" : 2,
+            "ownersSince" : 1,
+            "content" : {
+              "owners" : {
+                "threshold" : 1,
+                "keys" : [ "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8" ]
+              },
+              "policy" : {
+                "writers" : {
+                  "keys" : null
+                },
+                "delegate" : [ ],
+                "maxDelegationMs" : null,
+                "schema" : "",
+                "maxPayloadBytes" : null
+              },
+              "retired" : false
+            }
+          },
+          "head" : 1,
+          "pending" : 0,
+          "subtree" : 1
+        }
+      },
+      "freedHeads" : { }
+    },
+    "commands" : [ {
+      "target" : "claimed/",
+      "operation" : "create",
+      "authority" : "~claim",
+      "mode" : "registry",
+      "statementHex" : "897579616e6f2d746f7069632d636f6d6d616e642d76316b746f706963732d64656d6f5820222222222222222222222222222222222222222222222222222222222222222268636c61696d65642f667e636c61696df650444444444444444444444444444444441a000f42408400820181582003a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b885f6f6f6f6f6f6",
+      "statementHash" : "8dfb79681f0d3059c1533cd04f9bb41cb77e7bf94cb66a897a381a13dc4b8b63",
+      "requiredSigners" : {
+        "threshold" : 1,
+        "keys" : [ "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8" ]
+      },
+      "signatures" : [ ],
+      "before" : {
+        "kind" : "UNREGISTERED_REJECT",
+        "policy" : null,
+        "configRevision" : 1,
+        "sources" : [ ]
+      },
+      "earliestActivation" : 13,
+      "afterActivation" : {
+        "kind" : "POLICY",
+        "policy" : {
+          "writers" : {
+            "keys" : null
+          },
+          "delegate" : [ ],
+          "maxDelegationMs" : 3600000,
+          "schema" : "",
+          "maxPayloadBytes" : 65536,
+          "retired" : false
+        },
+        "configRevision" : 1,
+        "sources" : [ {
+          "name" : "claimed/",
+          "revision" : 1
+        } ]
+      }
+    } ]
+  }
+}, {
+  "name" : "registrar-create",
+  "document" : {
+    "schemaVersion" : 1,
+    "kind" : "Topics",
+    "chainId" : "topics-demo",
+    "commands" : [ {
+      "target" : "registered/",
+      "operation" : "create",
+      "authority" : "~registrars",
+      "nonce" : "44444444444444444444444444444444",
+      "notAfter" : 1000000,
+      "owners" : {
+        "threshold" : 1,
+        "keys" : [ "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8" ]
+      }
+    } ]
+  },
+  "snapshot" : {
+    "chainId" : "topics-demo",
+    "generationId" : "2222222222222222222222222222222222222222222222222222222222222222",
+    "height" : 10,
+    "stateRoot" : "3333333333333333333333333333333333333333333333333333333333333333",
+    "maxMessageBytes" : 65536,
+    "config" : {
+      "revision" : 1,
+      "registrarsSince" : 1,
+      "settings" : {
+        "governance" : true,
+        "registrars" : {
+          "threshold" : 1,
+          "keys" : [ "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8" ]
+        },
+        "openClaims" : true,
+        "unregisteredReject" : true,
+        "maxDelegationMs" : 3600000,
+        "maxCommandMs" : 3600000,
+        "maxPendingPerEntry" : 16,
+        "maxEntries" : 1024,
+        "maxEntriesPerNamespace" : 128,
+        "activationLag" : 2,
+        "governanceWindowBlocks" : 600
+      }
+    },
+    "entries" : {
+      "games/" : {
+        "name" : "games/",
+        "active" : {
+          "revision" : 1,
+          "activeFrom" : 2,
+          "ownersSince" : 1,
+          "content" : {
+            "owners" : {
+              "threshold" : 1,
+              "keys" : [ "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8" ]
+            },
+            "policy" : {
+              "writers" : {
+                "keys" : null
+              },
+              "delegate" : [ ],
+              "maxDelegationMs" : null,
+              "schema" : "",
+              "maxPayloadBytes" : null
+            },
+            "retired" : false
+          }
+        },
+        "head" : 1,
+        "pending" : 0,
+        "subtree" : 1
+      }
+    },
+    "freedHeads" : { }
+  },
+  "plan" : {
+    "schemaVersion" : 1,
+    "kind" : "TopicsPlan",
+    "document" : {
+      "schemaVersion" : 1,
+      "kind" : "Topics",
+      "chainId" : "topics-demo",
+      "commands" : [ {
+        "target" : "registered/",
+        "operation" : "create",
+        "authority" : "~registrars",
+        "nonce" : "44444444444444444444444444444444",
+        "notAfter" : 1000000,
+        "owners" : {
+          "threshold" : 1,
+          "keys" : [ "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8" ]
+        }
+      } ]
+    },
+    "snapshot" : {
+      "chainId" : "topics-demo",
+      "generationId" : "2222222222222222222222222222222222222222222222222222222222222222",
+      "height" : 10,
+      "stateRoot" : "3333333333333333333333333333333333333333333333333333333333333333",
+      "maxMessageBytes" : 65536,
+      "config" : {
+        "revision" : 1,
+        "registrarsSince" : 1,
+        "settings" : {
+          "governance" : true,
+          "registrars" : {
+            "threshold" : 1,
+            "keys" : [ "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8" ]
+          },
+          "openClaims" : true,
+          "unregisteredReject" : true,
+          "maxDelegationMs" : 3600000,
+          "maxCommandMs" : 3600000,
+          "maxPendingPerEntry" : 16,
+          "maxEntries" : 1024,
+          "maxEntriesPerNamespace" : 128,
+          "activationLag" : 2,
+          "governanceWindowBlocks" : 600
+        }
+      },
+      "entries" : {
+        "games/" : {
+          "name" : "games/",
+          "active" : {
+            "revision" : 1,
+            "activeFrom" : 2,
+            "ownersSince" : 1,
+            "content" : {
+              "owners" : {
+                "threshold" : 1,
+                "keys" : [ "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8" ]
+              },
+              "policy" : {
+                "writers" : {
+                  "keys" : null
+                },
+                "delegate" : [ ],
+                "maxDelegationMs" : null,
+                "schema" : "",
+                "maxPayloadBytes" : null
+              },
+              "retired" : false
+            }
+          },
+          "head" : 1,
+          "pending" : 0,
+          "subtree" : 1
+        }
+      },
+      "freedHeads" : { }
+    },
+    "commands" : [ {
+      "target" : "registered/",
+      "operation" : "create",
+      "authority" : "~registrars",
+      "mode" : "registry",
+      "statementHex" : "897579616e6f2d746f7069632d636f6d6d616e642d76316b746f706963732d64656d6f582022222222222222222222222222222222222222222222222222222222222222226b726567697374657265642f6b7e72656769737472617273f650444444444444444444444444444444441a000f42408400820181582003a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b885f6f6f6f6f6f6",
+      "statementHash" : "fc25ce1fcc1cc35b6297e2d815e56d1c9badefc39ffa98780365b4c170d717fd",
+      "requiredSigners" : {
+        "threshold" : 1,
+        "keys" : [ "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8" ]
+      },
+      "signatures" : [ ],
+      "before" : {
+        "kind" : "UNREGISTERED_REJECT",
+        "policy" : null,
+        "configRevision" : 1,
+        "sources" : [ ]
+      },
+      "earliestActivation" : 13,
+      "afterActivation" : {
+        "kind" : "POLICY",
+        "policy" : {
+          "writers" : {
+            "keys" : null
+          },
+          "delegate" : [ ],
+          "maxDelegationMs" : 3600000,
+          "schema" : "",
+          "maxPayloadBytes" : 65536,
+          "retired" : false
+        },
+        "configRevision" : 1,
+        "sources" : [ {
+          "name" : "registered/",
+          "revision" : 1
+        } ]
+      }
+    } ]
+  }
+}, {
+  "name" : "owner-revoke",
+  "document" : {
+    "schemaVersion" : 1,
+    "kind" : "Topics",
+    "chainId" : "topics-demo",
+    "commands" : [ {
+      "target" : "games/neon-rush/",
+      "operation" : "revoke",
+      "authority" : "games/",
+      "nonce" : "44444444444444444444444444444444",
+      "notAfter" : 1000000,
+      "delegationHex" : "8701582003a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b87067616d65732f6e656f6e2d727573682f1903e81a0036f2685820fd1724385aa0c75b64fb78cd602fa1d991fdebf76b13c58ed702eac835e9f61858404ad221bfb2f333d706edaae3211d9b82f56963dfb21c3b3693205eaf4231c01ce34440e0a5ecb3e670b9f249136cd32782ab611fec8d679ca8ec469ba7133002"
+    } ]
+  },
+  "snapshot" : {
+    "chainId" : "topics-demo",
+    "generationId" : "2222222222222222222222222222222222222222222222222222222222222222",
+    "height" : 10,
+    "stateRoot" : "3333333333333333333333333333333333333333333333333333333333333333",
+    "maxMessageBytes" : 65536,
+    "config" : {
+      "revision" : 1,
+      "registrarsSince" : 1,
+      "settings" : {
+        "governance" : true,
+        "registrars" : {
+          "threshold" : 1,
+          "keys" : [ "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8" ]
+        },
+        "openClaims" : true,
+        "unregisteredReject" : true,
+        "maxDelegationMs" : 3600000,
+        "maxCommandMs" : 3600000,
+        "maxPendingPerEntry" : 16,
+        "maxEntries" : 1024,
+        "maxEntriesPerNamespace" : 128,
+        "activationLag" : 2,
+        "governanceWindowBlocks" : 600
+      }
+    },
+    "entries" : {
+      "games/" : {
+        "name" : "games/",
+        "active" : {
+          "revision" : 1,
+          "activeFrom" : 2,
+          "ownersSince" : 1,
+          "content" : {
+            "owners" : {
+              "threshold" : 1,
+              "keys" : [ "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8" ]
+            },
+            "policy" : {
+              "writers" : {
+                "keys" : {
+                  "threshold" : 1,
+                  "keys" : [ "fd1724385aa0c75b64fb78cd602fa1d991fdebf76b13c58ed702eac835e9f618" ]
+                }
+              },
+              "delegate" : [ "fd1724385aa0c75b64fb78cd602fa1d991fdebf76b13c58ed702eac835e9f618" ],
+              "maxDelegationMs" : 3600000,
+              "schema" : "",
+              "maxPayloadBytes" : null
+            },
+            "retired" : false
+          }
+        },
+        "head" : 1,
+        "pending" : 0,
+        "subtree" : 1
+      }
+    },
+    "freedHeads" : { }
+  },
+  "plan" : {
+    "schemaVersion" : 1,
+    "kind" : "TopicsPlan",
+    "document" : {
+      "schemaVersion" : 1,
+      "kind" : "Topics",
+      "chainId" : "topics-demo",
+      "commands" : [ {
+        "target" : "games/neon-rush/",
+        "operation" : "revoke",
+        "authority" : "games/",
+        "nonce" : "44444444444444444444444444444444",
+        "notAfter" : 1000000,
+        "delegationHex" : "8701582003a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b87067616d65732f6e656f6e2d727573682f1903e81a0036f2685820fd1724385aa0c75b64fb78cd602fa1d991fdebf76b13c58ed702eac835e9f61858404ad221bfb2f333d706edaae3211d9b82f56963dfb21c3b3693205eaf4231c01ce34440e0a5ecb3e670b9f249136cd32782ab611fec8d679ca8ec469ba7133002"
+      } ]
+    },
+    "snapshot" : {
+      "chainId" : "topics-demo",
+      "generationId" : "2222222222222222222222222222222222222222222222222222222222222222",
+      "height" : 10,
+      "stateRoot" : "3333333333333333333333333333333333333333333333333333333333333333",
+      "maxMessageBytes" : 65536,
+      "config" : {
+        "revision" : 1,
+        "registrarsSince" : 1,
+        "settings" : {
+          "governance" : true,
+          "registrars" : {
+            "threshold" : 1,
+            "keys" : [ "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8" ]
+          },
+          "openClaims" : true,
+          "unregisteredReject" : true,
+          "maxDelegationMs" : 3600000,
+          "maxCommandMs" : 3600000,
+          "maxPendingPerEntry" : 16,
+          "maxEntries" : 1024,
+          "maxEntriesPerNamespace" : 128,
+          "activationLag" : 2,
+          "governanceWindowBlocks" : 600
+        }
+      },
+      "entries" : {
+        "games/" : {
+          "name" : "games/",
+          "active" : {
+            "revision" : 1,
+            "activeFrom" : 2,
+            "ownersSince" : 1,
+            "content" : {
+              "owners" : {
+                "threshold" : 1,
+                "keys" : [ "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8" ]
+              },
+              "policy" : {
+                "writers" : {
+                  "keys" : {
+                    "threshold" : 1,
+                    "keys" : [ "fd1724385aa0c75b64fb78cd602fa1d991fdebf76b13c58ed702eac835e9f618" ]
+                  }
+                },
+                "delegate" : [ "fd1724385aa0c75b64fb78cd602fa1d991fdebf76b13c58ed702eac835e9f618" ],
+                "maxDelegationMs" : 3600000,
+                "schema" : "",
+                "maxPayloadBytes" : null
+              },
+              "retired" : false
+            }
+          },
+          "head" : 1,
+          "pending" : 0,
+          "subtree" : 1
+        }
+      },
+      "freedHeads" : { }
+    },
+    "commands" : [ {
+      "target" : "games/neon-rush/",
+      "operation" : "revoke",
+      "authority" : "games/",
+      "mode" : "registry",
+      "statementHex" : "897579616e6f2d746f7069632d636f6d6d616e642d76316b746f706963732d64656d6f582022222222222222222222222222222222222222222222222222222222222222227067616d65732f6e656f6e2d727573682f6667616d65732ff650444444444444444444444444444444441a000f424082048701582003a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b87067616d65732f6e656f6e2d727573682f1903e81a0036f2685820fd1724385aa0c75b64fb78cd602fa1d991fdebf76b13c58ed702eac835e9f61858404ad221bfb2f333d706edaae3211d9b82f56963dfb21c3b3693205eaf4231c01ce34440e0a5ecb3e670b9f249136cd32782ab611fec8d679ca8ec469ba7133002",
+      "statementHash" : "6a9e08a2d0125f3a5f42abea91db746fb76e7b3c027c2c4921f3619b0bc60e05",
+      "requiredSigners" : {
+        "threshold" : 1,
+        "keys" : [ "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8" ]
+      },
+      "signatures" : [ ],
+      "before" : {
+        "kind" : "POLICY",
+        "policy" : {
+          "writers" : {
+            "keys" : {
+              "threshold" : 1,
+              "keys" : [ "fd1724385aa0c75b64fb78cd602fa1d991fdebf76b13c58ed702eac835e9f618" ]
+            }
+          },
+          "delegate" : [ "fd1724385aa0c75b64fb78cd602fa1d991fdebf76b13c58ed702eac835e9f618" ],
+          "maxDelegationMs" : 3600000,
+          "schema" : "",
+          "maxPayloadBytes" : 65536,
+          "retired" : false
+        },
+        "configRevision" : 1,
+        "sources" : [ {
+          "name" : "games/",
+          "revision" : 1
+        } ]
+      }
+    } ]
+  }
+}, {
+  "name" : "issuer-revoke",
+  "document" : {
+    "schemaVersion" : 1,
+    "kind" : "Topics",
+    "chainId" : "topics-demo",
+    "commands" : [ {
+      "target" : "games/neon-rush/",
+      "operation" : "revoke",
+      "authority" : "~issuer",
+      "nonce" : "44444444444444444444444444444444",
+      "notAfter" : 1000000,
+      "delegationHex" : "8701582003a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b87067616d65732f6e656f6e2d727573682f1903e81a0036f2685820fd1724385aa0c75b64fb78cd602fa1d991fdebf76b13c58ed702eac835e9f61858404ad221bfb2f333d706edaae3211d9b82f56963dfb21c3b3693205eaf4231c01ce34440e0a5ecb3e670b9f249136cd32782ab611fec8d679ca8ec469ba7133002"
+    } ]
+  },
+  "snapshot" : {
+    "chainId" : "topics-demo",
+    "generationId" : "2222222222222222222222222222222222222222222222222222222222222222",
+    "height" : 10,
+    "stateRoot" : "3333333333333333333333333333333333333333333333333333333333333333",
+    "maxMessageBytes" : 65536,
+    "config" : {
+      "revision" : 1,
+      "registrarsSince" : 1,
+      "settings" : {
+        "governance" : true,
+        "registrars" : {
+          "threshold" : 1,
+          "keys" : [ "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8" ]
+        },
+        "openClaims" : true,
+        "unregisteredReject" : true,
+        "maxDelegationMs" : 3600000,
+        "maxCommandMs" : 3600000,
+        "maxPendingPerEntry" : 16,
+        "maxEntries" : 1024,
+        "maxEntriesPerNamespace" : 128,
+        "activationLag" : 2,
+        "governanceWindowBlocks" : 600
+      }
+    },
+    "entries" : {
+      "games/" : {
+        "name" : "games/",
+        "active" : {
+          "revision" : 1,
+          "activeFrom" : 2,
+          "ownersSince" : 1,
+          "content" : {
+            "owners" : {
+              "threshold" : 1,
+              "keys" : [ "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8" ]
+            },
+            "policy" : {
+              "writers" : {
+                "keys" : {
+                  "threshold" : 1,
+                  "keys" : [ "fd1724385aa0c75b64fb78cd602fa1d991fdebf76b13c58ed702eac835e9f618" ]
+                }
+              },
+              "delegate" : [ "fd1724385aa0c75b64fb78cd602fa1d991fdebf76b13c58ed702eac835e9f618" ],
+              "maxDelegationMs" : 3600000,
+              "schema" : "",
+              "maxPayloadBytes" : null
+            },
+            "retired" : false
+          }
+        },
+        "head" : 1,
+        "pending" : 0,
+        "subtree" : 1
+      }
+    },
+    "freedHeads" : { }
+  },
+  "plan" : {
+    "schemaVersion" : 1,
+    "kind" : "TopicsPlan",
+    "document" : {
+      "schemaVersion" : 1,
+      "kind" : "Topics",
+      "chainId" : "topics-demo",
+      "commands" : [ {
+        "target" : "games/neon-rush/",
+        "operation" : "revoke",
+        "authority" : "~issuer",
+        "nonce" : "44444444444444444444444444444444",
+        "notAfter" : 1000000,
+        "delegationHex" : "8701582003a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b87067616d65732f6e656f6e2d727573682f1903e81a0036f2685820fd1724385aa0c75b64fb78cd602fa1d991fdebf76b13c58ed702eac835e9f61858404ad221bfb2f333d706edaae3211d9b82f56963dfb21c3b3693205eaf4231c01ce34440e0a5ecb3e670b9f249136cd32782ab611fec8d679ca8ec469ba7133002"
+      } ]
+    },
+    "snapshot" : {
+      "chainId" : "topics-demo",
+      "generationId" : "2222222222222222222222222222222222222222222222222222222222222222",
+      "height" : 10,
+      "stateRoot" : "3333333333333333333333333333333333333333333333333333333333333333",
+      "maxMessageBytes" : 65536,
+      "config" : {
+        "revision" : 1,
+        "registrarsSince" : 1,
+        "settings" : {
+          "governance" : true,
+          "registrars" : {
+            "threshold" : 1,
+            "keys" : [ "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8" ]
+          },
+          "openClaims" : true,
+          "unregisteredReject" : true,
+          "maxDelegationMs" : 3600000,
+          "maxCommandMs" : 3600000,
+          "maxPendingPerEntry" : 16,
+          "maxEntries" : 1024,
+          "maxEntriesPerNamespace" : 128,
+          "activationLag" : 2,
+          "governanceWindowBlocks" : 600
+        }
+      },
+      "entries" : {
+        "games/" : {
+          "name" : "games/",
+          "active" : {
+            "revision" : 1,
+            "activeFrom" : 2,
+            "ownersSince" : 1,
+            "content" : {
+              "owners" : {
+                "threshold" : 1,
+                "keys" : [ "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8" ]
+              },
+              "policy" : {
+                "writers" : {
+                  "keys" : {
+                    "threshold" : 1,
+                    "keys" : [ "fd1724385aa0c75b64fb78cd602fa1d991fdebf76b13c58ed702eac835e9f618" ]
+                  }
+                },
+                "delegate" : [ "fd1724385aa0c75b64fb78cd602fa1d991fdebf76b13c58ed702eac835e9f618" ],
+                "maxDelegationMs" : 3600000,
+                "schema" : "",
+                "maxPayloadBytes" : null
+              },
+              "retired" : false
+            }
+          },
+          "head" : 1,
+          "pending" : 0,
+          "subtree" : 1
+        }
+      },
+      "freedHeads" : { }
+    },
+    "commands" : [ {
+      "target" : "games/neon-rush/",
+      "operation" : "revoke",
+      "authority" : "~issuer",
+      "mode" : "registry",
+      "statementHex" : "897579616e6f2d746f7069632d636f6d6d616e642d76316b746f706963732d64656d6f582022222222222222222222222222222222222222222222222222222222222222227067616d65732f6e656f6e2d727573682f677e697373756572f650444444444444444444444444444444441a000f424082048701582003a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b87067616d65732f6e656f6e2d727573682f1903e81a0036f2685820fd1724385aa0c75b64fb78cd602fa1d991fdebf76b13c58ed702eac835e9f61858404ad221bfb2f333d706edaae3211d9b82f56963dfb21c3b3693205eaf4231c01ce34440e0a5ecb3e670b9f249136cd32782ab611fec8d679ca8ec469ba7133002",
+      "statementHash" : "1f2553c0cabc0a5356a372ec112e3abe727d2083606533aee409dfcbae09b874",
+      "requiredSigners" : {
+        "threshold" : 1,
+        "keys" : [ "fd1724385aa0c75b64fb78cd602fa1d991fdebf76b13c58ed702eac835e9f618" ]
+      },
+      "signatures" : [ ],
+      "before" : {
+        "kind" : "POLICY",
+        "policy" : {
+          "writers" : {
+            "keys" : {
+              "threshold" : 1,
+              "keys" : [ "fd1724385aa0c75b64fb78cd602fa1d991fdebf76b13c58ed702eac835e9f618" ]
+            }
+          },
+          "delegate" : [ "fd1724385aa0c75b64fb78cd602fa1d991fdebf76b13c58ed702eac835e9f618" ],
+          "maxDelegationMs" : 3600000,
+          "schema" : "",
+          "maxPayloadBytes" : 65536,
+          "retired" : false
+        },
+        "configRevision" : 1,
+        "sources" : [ {
+          "name" : "games/",
+          "revision" : 1
+        } ]
+      }
+    } ]
+  }
+}, {
+  "name" : "retired-owner-revoke",
+  "document" : {
+    "schemaVersion" : 1,
+    "kind" : "Topics",
+    "chainId" : "topics-demo",
+    "commands" : [ {
+      "target" : "games/neon-rush/",
+      "operation" : "revoke",
+      "authority" : "games/",
+      "nonce" : "44444444444444444444444444444444",
+      "notAfter" : 1000000,
+      "delegationHex" : "8701582003a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b87067616d65732f6e656f6e2d727573682f1903e81a0036f2685820fd1724385aa0c75b64fb78cd602fa1d991fdebf76b13c58ed702eac835e9f61858404ad221bfb2f333d706edaae3211d9b82f56963dfb21c3b3693205eaf4231c01ce34440e0a5ecb3e670b9f249136cd32782ab611fec8d679ca8ec469ba7133002"
+    } ]
+  },
+  "snapshot" : {
+    "chainId" : "topics-demo",
+    "generationId" : "2222222222222222222222222222222222222222222222222222222222222222",
+    "height" : 10,
+    "stateRoot" : "3333333333333333333333333333333333333333333333333333333333333333",
+    "maxMessageBytes" : 65536,
+    "config" : {
+      "revision" : 1,
+      "registrarsSince" : 1,
+      "settings" : {
+        "governance" : true,
+        "registrars" : {
+          "threshold" : 1,
+          "keys" : [ "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8" ]
+        },
+        "openClaims" : true,
+        "unregisteredReject" : true,
+        "maxDelegationMs" : 3600000,
+        "maxCommandMs" : 3600000,
+        "maxPendingPerEntry" : 16,
+        "maxEntries" : 1024,
+        "maxEntriesPerNamespace" : 128,
+        "activationLag" : 2,
+        "governanceWindowBlocks" : 600
+      }
+    },
+    "entries" : {
+      "games/" : {
+        "name" : "games/",
+        "active" : {
+          "revision" : 1,
+          "activeFrom" : 2,
+          "ownersSince" : 1,
+          "content" : {
+            "owners" : {
+              "threshold" : 1,
+              "keys" : [ "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8" ]
+            },
+            "policy" : {
+              "writers" : {
+                "keys" : {
+                  "threshold" : 1,
+                  "keys" : [ "fd1724385aa0c75b64fb78cd602fa1d991fdebf76b13c58ed702eac835e9f618" ]
+                }
+              },
+              "delegate" : [ "fd1724385aa0c75b64fb78cd602fa1d991fdebf76b13c58ed702eac835e9f618" ],
+              "maxDelegationMs" : 3600000,
+              "schema" : "",
+              "maxPayloadBytes" : null
+            },
+            "retired" : true
+          }
+        },
+        "head" : 1,
+        "pending" : 0,
+        "subtree" : 1
+      }
+    },
+    "freedHeads" : { }
+  },
+  "plan" : {
+    "schemaVersion" : 1,
+    "kind" : "TopicsPlan",
+    "document" : {
+      "schemaVersion" : 1,
+      "kind" : "Topics",
+      "chainId" : "topics-demo",
+      "commands" : [ {
+        "target" : "games/neon-rush/",
+        "operation" : "revoke",
+        "authority" : "games/",
+        "nonce" : "44444444444444444444444444444444",
+        "notAfter" : 1000000,
+        "delegationHex" : "8701582003a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b87067616d65732f6e656f6e2d727573682f1903e81a0036f2685820fd1724385aa0c75b64fb78cd602fa1d991fdebf76b13c58ed702eac835e9f61858404ad221bfb2f333d706edaae3211d9b82f56963dfb21c3b3693205eaf4231c01ce34440e0a5ecb3e670b9f249136cd32782ab611fec8d679ca8ec469ba7133002"
+      } ]
+    },
+    "snapshot" : {
+      "chainId" : "topics-demo",
+      "generationId" : "2222222222222222222222222222222222222222222222222222222222222222",
+      "height" : 10,
+      "stateRoot" : "3333333333333333333333333333333333333333333333333333333333333333",
+      "maxMessageBytes" : 65536,
+      "config" : {
+        "revision" : 1,
+        "registrarsSince" : 1,
+        "settings" : {
+          "governance" : true,
+          "registrars" : {
+            "threshold" : 1,
+            "keys" : [ "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8" ]
+          },
+          "openClaims" : true,
+          "unregisteredReject" : true,
+          "maxDelegationMs" : 3600000,
+          "maxCommandMs" : 3600000,
+          "maxPendingPerEntry" : 16,
+          "maxEntries" : 1024,
+          "maxEntriesPerNamespace" : 128,
+          "activationLag" : 2,
+          "governanceWindowBlocks" : 600
+        }
+      },
+      "entries" : {
+        "games/" : {
+          "name" : "games/",
+          "active" : {
+            "revision" : 1,
+            "activeFrom" : 2,
+            "ownersSince" : 1,
+            "content" : {
+              "owners" : {
+                "threshold" : 1,
+                "keys" : [ "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8" ]
+              },
+              "policy" : {
+                "writers" : {
+                  "keys" : {
+                    "threshold" : 1,
+                    "keys" : [ "fd1724385aa0c75b64fb78cd602fa1d991fdebf76b13c58ed702eac835e9f618" ]
+                  }
+                },
+                "delegate" : [ "fd1724385aa0c75b64fb78cd602fa1d991fdebf76b13c58ed702eac835e9f618" ],
+                "maxDelegationMs" : 3600000,
+                "schema" : "",
+                "maxPayloadBytes" : null
+              },
+              "retired" : true
+            }
+          },
+          "head" : 1,
+          "pending" : 0,
+          "subtree" : 1
+        }
+      },
+      "freedHeads" : { }
+    },
+    "commands" : [ {
+      "target" : "games/neon-rush/",
+      "operation" : "revoke",
+      "authority" : "games/",
+      "mode" : "registry",
+      "statementHex" : "897579616e6f2d746f7069632d636f6d6d616e642d76316b746f706963732d64656d6f582022222222222222222222222222222222222222222222222222222222222222227067616d65732f6e656f6e2d727573682f6667616d65732ff650444444444444444444444444444444441a000f424082048701582003a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b87067616d65732f6e656f6e2d727573682f1903e81a0036f2685820fd1724385aa0c75b64fb78cd602fa1d991fdebf76b13c58ed702eac835e9f61858404ad221bfb2f333d706edaae3211d9b82f56963dfb21c3b3693205eaf4231c01ce34440e0a5ecb3e670b9f249136cd32782ab611fec8d679ca8ec469ba7133002",
+      "statementHash" : "6a9e08a2d0125f3a5f42abea91db746fb76e7b3c027c2c4921f3619b0bc60e05",
+      "requiredSigners" : {
+        "threshold" : 1,
+        "keys" : [ "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8" ]
+      },
+      "signatures" : [ ],
+      "before" : {
+        "kind" : "POLICY",
+        "policy" : {
+          "writers" : {
+            "keys" : {
+              "threshold" : 1,
+              "keys" : [ "fd1724385aa0c75b64fb78cd602fa1d991fdebf76b13c58ed702eac835e9f618" ]
+            }
+          },
+          "delegate" : [ "fd1724385aa0c75b64fb78cd602fa1d991fdebf76b13c58ed702eac835e9f618" ],
+          "maxDelegationMs" : 3600000,
+          "schema" : "",
+          "maxPayloadBytes" : 65536,
+          "retired" : true
+        },
+        "configRevision" : 1,
+        "sources" : [ {
+          "name" : "games/",
+          "revision" : 1
+        } ]
+      }
+    } ]
+  }
+} ]

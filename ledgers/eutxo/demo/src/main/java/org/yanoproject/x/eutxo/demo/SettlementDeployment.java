@@ -177,16 +177,24 @@ public final class SettlementDeployment {
         payload.put("scriptDirectory", scripts.toString());
         payload.put("deploymentRecord",
                 SettlementDeploymentRecord.path(stateDir, chainId).toString());
-        payload.put("configBlock", ShowcaseSettlementPlan.yamlBlock(
-                ShowcaseSettlementPlan.chainIndexPlaceholder(), chainId,
-                ShowcaseSettlementPlan.configProperties(
-                        plan, chainId,
-                        withdrawalAddress(identity),
-                        identity.operatorAddress(),
-                        // The operator's key stays in its owner-only file; the
-                        // chain YAML only ever names the path.
-                        null, keyFile.toAbsolutePath().toString(),
-                        network, scriptDir.toString())));
+        // The setup commands seal the template; the executor settings go into each node's config/local.yaml.
+        Map<String, String> properties = ShowcaseSettlementPlan.configProperties(
+                plan, chainId,
+                withdrawalAddress(identity),
+                identity.operatorAddress(),
+                // The operator's key stays in its owner-only file; the settings only ever name the path.
+                null, keyFile.toAbsolutePath().toString(),
+                network, scriptDir.toString());
+        Path template = scriptDir.resolve("settlement.template.yaml");
+        java.nio.file.Files.writeString(template, ShowcaseSettlementPlan.template(chainId, properties,
+                "The " + network + " settlement chain this bootstrap deployed; adopt it with\n"
+                        + "./showcase.sh settlement adopt --instance <name>"));
+        Path executor = scriptDir.resolve("executor.json");
+        java.nio.file.Files.writeString(executor, new com.fasterxml.jackson.databind.ObjectMapper()
+                .writerWithDefaultPrettyPrinter()
+                .writeValueAsString(ShowcaseSettlementPlan.executorSettings(properties)) + "\n");
+        payload.put("template", template.toString());
+        payload.put("executorSettings", executor.toString());
         return payload;
     }
 

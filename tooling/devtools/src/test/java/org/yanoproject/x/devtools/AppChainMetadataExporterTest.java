@@ -41,6 +41,11 @@ class AppChainMetadataExporterTest {
         assertThat(appChain.path("patternProperties").path("^chains\\[[0-9]+]$")
                 .path("properties").path("block").path("properties")
                 .path("max-bytes").path("maximum").asLong()).isPositive();
+        JsonNode chain = appChain.path("patternProperties").path("^chains\\[[0-9]+]$").path("properties");
+        assertThat(chain.path("block-time").path("properties").path("max-forward-skew-ms")
+                .path("default").asLong()).isEqualTo(5000);
+        assertThat(chain.path("topics").path("properties").path("mode")
+                .path("default").asText()).isEqualTo("disabled");
         JsonNode effects = appChain.path("patternProperties").path("^chains\\[[0-9]+]$")
                 .path("properties").path("effects");
         assertThat(effects.path("additionalProperties").asBoolean()).isTrue();

@@ -29,15 +29,21 @@ governance is a separate concern from application roles and approvals.
 Expected: Java 25, Python 3, curl, jq, the Yano JAR, config, and plugin are
 reported present. Python uses only its standard library.
 
-## 1. Start three nodes and bootstrap the devnet script anchor
+## 1. Start three nodes and turn on the devnet script anchor
 
 ```bash
 ./showcase.sh quickstart --profile light --instance master-demo --nodes 3
 ```
 
-This starts nodes on HTTP ports 7070–7072 and n2n ports 13337–13339. The MPF
-threshold defaults to 2. It bootstraps the one-time script identity for
-`workflow-chain`, runs the composite and authenticated-map scenarios, checks
+This sets up three nodes with the ordinary app-chain setup commands
+(`yano.sh appchain new`, one `request` per node, `seal`, `join`, `start`) and
+seals three applications: `showcase` (eleven chains), `history`, and
+`settlement`. Nodes listen on HTTP ports 7070–7072 and node ports
+13337–13339; each is a node directory under
+`data/showcase/master-demo/node<i>`. The MPF threshold defaults to 2.
+`quickstart` then turns on script anchoring for `workflow-chain` (node 0
+funds its anchor wallet from the devnet faucet and submits the one-time
+bootstrap), runs the composite and authenticated-map scenarios, checks
 converged roots, and prints the UI URL.
 
 Expected checkpoints:
@@ -58,21 +64,24 @@ If quickstart was already run, use the restart path instead:
 ./showcase.sh restart --instance master-demo
 ```
 
-Never re-bootstrap an already bootstrapped script identity. Normal restart
-reuses it.
+Restart reuses the node directories and the anchor identity; the bootstrap
+is never repeated.
 
 ## 2. Inspect configuration without searching the data tree
 
 ```bash
 ./showcase.sh config show --instance master-demo
 ./showcase.sh config paths --instance master-demo
-./showcase.sh config export ./master-demo-config.json --instance master-demo
+./showcase.sh config export ./master-demo.chain --instance master-demo
 ```
 
-Point out the network, bootstrap member count, chain IDs, anchor chain,
-config/plugin digests, port allocation, live state-machine IDs, and the
-separate active versus scheduled membership/threshold fields.
-The export redacts the anchor-key path and never contains key material.
+Point out each sealed application and its fingerprint (the value every node
+compared before joining), the chain IDs, members, threshold, and anchor
+policy, then the live state-machine IDs and the separate active versus
+scheduled membership/threshold fields. `config paths` shows where each node
+keeps its files and its node-local `config/local.yaml`. The export is the
+sealed `showcase.chain`: a public file with no key material. Any sealed file
+can also be read with `../../yano.sh appchain inspect <file>`.
 
 ## 3. Open the status UI
 
@@ -209,7 +218,7 @@ no duplicate business event is created.
 ./demos/inspect-eutxo.sh master-demo
 ```
 
-The light cluster hosts generic `role-approvals` and experimental
+The light showcase hosts generic `role-approvals` and experimental
 `eutxo-ledger`. For the full actor/policy/key-rotation flow use the evidence
 role variant. For signed ledger/bridge flows use the EUTxO profile:
 
@@ -271,65 +280,44 @@ Then show convergence:
 ./showcase.sh verify all --instance master-demo
 ```
 
-## 13. Govern a new member into the running cluster
+## 13. Govern a new member into the running chains
 
 The next index after a three-node bootstrap is 3:
 
 ```bash
 ./showcase.sh member join 3 --instance master-demo
-./showcase.sh status --instance master-demo
 ./showcase.sh config show --instance master-demo
-./showcase.sh governance activate --instance master-demo
-```
-
-Expected sequence for every chain:
-
-- current members submit threshold-many `ADD` governance commands;
-- the command finalizes under the old 2-of-3 threshold;
-- a later membership epoch is scheduled for node 3;
-- node 3 starts before activation, replays the governed history, catches up; and
-- its per-chain tip and state root match an existing node;
-- existing processes refresh their local peer endpoint set one at a time,
-  without another governance command;
-- valid state-machine-specific demo traffic advances each chain to the
-  activation height; and
-- one proof block finalizes with node 3 in the active member profile.
-
-No live YAML member list is edited. Application state, membership history,
-and old block verification remain height-versioned.
-
-## 14. Govern a new MPF finality threshold
-
-After node 3 has joined, demonstrate 3-of-4:
-
-```bash
-./showcase.sh threshold set 3 --instance master-demo
-./showcase.sh config show --instance master-demo
-./showcase.sh governance activate --instance master-demo
 ./showcase.sh verify all --instance master-demo
 ./showcase.sh status --instance master-demo
 ```
 
-The old threshold (2) authorizes the threshold-change command. The new
-threshold activates only in the recorded later epoch. It changes member block
-finality, not existing approval items’ business voter counts.
+Expected sequence, the same one real operators follow:
 
-`config show` displays both active 2-of-3 and scheduled 3-of-4 values with
-each chain's activation height before `governance activate`. The activation
-command sends explicitly labeled, normally sequenced messages and then
-finalizes one block under 3-of-4 on every chain. Each chain receives a valid
-state-machine-specific command; the role-policy probe is a deliberate
-business no-op and the EUTxO command is a signed virtual-funds payment. These
-are demo messages, not synthetic database edits.
+- node 3 requests membership with the sealed `showcase.chain` and writes its
+  member card;
+- every existing node runs `yano.sh appchain approve` with that card: it first
+  raises the threshold on every chain so 2-of-3 becomes 3-of-4, then approves
+  the `ADD`, adds node 3 as a peer, and restarts once;
+- while those membership epochs wait to activate, valid
+  state-machine-specific demo traffic keeps every chain making blocks;
+- node 3 joins after comparing the application fingerprint, starts, replays
+  the governed history, and catches up; and
+- `governance activate` finalizes one proof block with node 3 in the active
+  member profile on every showcase chain.
 
-To lower it again:
+No member list is edited by hand. Application state, membership history,
+and old block verification remain height-versioned. The `history` and
+`settlement` applications keep their three founding nodes.
 
-```bash
-./showcase.sh threshold set 2 --instance master-demo
-./showcase.sh governance activate --instance master-demo
-```
+The new 3-of-4 threshold changes member block finality, not existing approval
+items' business voter counts. `config show` displays active and scheduled
+members and thresholds with each chain's activation height. Each chain
+receives a valid state-machine-specific command; the role-policy probe is a
+deliberate business no-op and the EUTxO command is a signed virtual-funds
+payment. These are demo messages, not synthetic database edits. There is no
+separate threshold command.
 
-## 15. Restart and prove retained identity
+## 14. Restart and prove retained identity
 
 ```bash
 ./showcase.sh restart --instance master-demo
@@ -337,11 +325,11 @@ To lower it again:
 ./showcase.sh config show --instance master-demo
 ```
 
-Expected: bootstrap nodes restart from retained state; previously joined nodes
-use the retained `resume` path (no second governance vote), roots converge,
-the outbox receipt remains one file, and the anchor identity is reused.
+Expected: every node, founding and joined, restarts from its node directory
+(no second governance vote), roots converge, the outbox receipt remains one
+file, and the anchor identity is reused.
 
-## 16. Preprod anchor branch (optional, fee-paying)
+## 15. Preprod anchor branch (optional, fee-paying)
 
 Read [ANCHORING_DEMO.md](ANCHORING_DEMO.md) and
 [PREPROD_ANCHORING.md](PREPROD_ANCHORING.md) first. Never put a
@@ -356,11 +344,13 @@ mnemonic in a command. Supply an owner-only raw 32-byte Ed25519 seed file:
 ./showcase.sh config show --instance preprod-demo
 ```
 
-Fund the printed anchor address externally. Wait until the copied/synced
-preprod node can observe a stable funding UTxO, then bootstrap exactly once:
+Wait until the preprod node is synchronized, then turn anchoring on. The
+command prints the anchor address, waits for you to fund it externally, and
+submits the one-time bootstrap:
 
 ```bash
-./showcase.sh anchor bootstrap workflow-chain --instance preprod-demo
+./showcase.sh anchor workflow-chain --instance preprod-demo \
+  --confirm-public-anchor preprod
 ./showcase.sh run composite --instance preprod-demo
 ./showcase.sh status --instance preprod-demo
 ```
@@ -368,25 +358,23 @@ preprod node can observe a stable funding UTxO, then bootstrap exactly once:
 Show the L2 state root, finality certificate, Cardano transaction ID/output,
 and each node’s L1 observation in the UI/status. Bootstrap establishes the
 thread-NFT identity; ordinary later anchors and restarts do not repeat it.
-Public-network cadence defaults to one anchor per 30 `workflow-chain` blocks;
-use the complete steps in [ANCHORING_DEMO.md](ANCHORING_DEMO.md) when rehearsing
-an ordinary post-bootstrap anchor.
+Public-network cadence is one anchor per 30 `workflow-chain` blocks; use the
+complete steps in [ANCHORING_DEMO.md](ANCHORING_DEMO.md) when rehearsing an
+ordinary post-bootstrap anchor.
 
-To demonstrate late anchoring without resetting an existing chain, expand the
-retained scope, restart automatically on the same data, and then perform the
-new chain's one-time bootstrap:
+To demonstrate late anchoring without resetting an existing chain, turn it on
+for another chain; node 0 restarts on the same data and performs that chain's
+one-time bootstrap:
 
 ```bash
-./showcase.sh anchor enable registry-chain --instance preprod-demo \
+./showcase.sh anchor registry-chain --instance preprod-demo \
   --confirm-public-anchor preprod
-./showcase.sh anchor bootstrap registry-chain --instance preprod-demo
 ```
 
-Use `anchor enable all` and `anchor bootstrap all` to cover every configured
-chain. The latter waits for each L1 bootstrap confirmation before submitting
-the next transaction.
+Use `anchor all` to cover every chain of the instance. It waits for each L1
+bootstrap confirmation before submitting the next transaction.
 
-## 17. Stop or explicitly reset
+## 16. Stop or explicitly reset
 
 ```bash
 ./showcase.sh stop --instance master-demo

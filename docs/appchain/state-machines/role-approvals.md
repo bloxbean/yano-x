@@ -109,40 +109,119 @@ proposal, policy and revision, payload domain and hash, deadline, actor
 revision, key and clause, so a signature cannot be reused for another chain,
 payload or decision.
 
-## Create a project
+## Create an application
 
-From the top-level directory of the extracted release:
-
-```bash
-./yano.sh appchain init --non-interactive \
-  --recipe role-approval --network devnet --members 3 \
-  --runtime jvm --deployment host \
-  --http-port-base 7070 --server-port-base 13337 \
-  --name role-approval-chain --chain-id role-approval-chain \
-  --output role-approval-chain
-```
-
-On devnet, `prepare` generates the member keys, pins their public keys in the
-blueprint and renders the project. On a public network, add the reviewed public
-member keys to `appchain.yaml` and run `./yano.sh appchain render` instead.
+From the top-level directory of the extracted release, this rehearses a
+three-operator setup on one machine: the coordinator creates the draft, each
+operator makes a key and a member card in their own node directory, the
+coordinator seals, and each operator joins and starts. The nodes serve HTTP on
+7070–7072.
 
 ```bash
-./yano.sh appchain prepare role-approval-chain
-./yano.sh appchain doctor role-approval-chain --distribution "$PWD"
-export YANO_HOME="$PWD"
-role-approval-chain/scripts/start
+mkdir -p ../roles/coordinator
+./yano.sh appchain new roles --network devnet --operators alice,bob,carol \
+  --chain role-approval-chain=role-approval --output ../roles/coordinator --yes
+i=0
+for op in alice bob carol; do
+  ./yano.sh appchain request ../roles/coordinator/roles.draft.yaml --name $op \
+    --host 127.0.0.1 --node-port $((13337 + i)) --http-port $((7070 + i)) \
+    --node-dir ../roles/$op/yano-node --output ../roles/coordinator --yes
+  i=$((i + 1))
+done
+./yano.sh appchain seal ../roles/coordinator/roles.draft.yaml
+for op in alice bob carol; do
+  ./yano.sh appchain join ../roles/coordinator/roles.chain --node-dir ../roles/$op/yano-node
+done
+for op in alice bob carol; do
+  ./yano.sh appchain start --node-dir ../roles/$op/yano-node
+done
+./yano.sh appchain status --node-dir ../roles/alice/yano-node --wait live --timeout 180
 ```
 
-`doctor` reports `DOCTOR_WARNINGS`. `APPLICATION_BOOTSTRAPPED` stays `PENDING`
-even after the bootstrap below: `doctor` runs offline and never queries the
-chain, so the line is a reminder. Reading every record back is the check.
+`join` shows the chain fingerprint and each member's key id and asks you to
+confirm. On a real deployment each operator runs `request`, `join` and `start`
+on their own machine; see [set up an application](../deployment/configure.md).
+The chain runs with a threshold of 2 of 3. `status` shows the chain live, but
+it does not know about the organizations, actors and policies below: reading
+every record back is the check.
 
 ## Bootstrap organizations, actors and policies
 
-`bootstrap/role-approvals-plan.yaml` is a non-secret plan for organizations,
-actors, proof-of-possession, policies, governance and verification. Fill it
-with public values only; actor private keys belong in the actor's application,
-KMS, HSM or vault.
+A role bootstrap plan is a non-secret file for organizations, actors,
+proof-of-possession, policies, governance and verification. Fill it with public
+values only; actor private keys belong in the actor's application, KMS, HSM or
+vault. `seal` wrote the template beside the sealed file, here as
+`../roles/coordinator/role-approval-chain.role-plan.yaml`, with the chain id,
+profile and the chain's signature threshold filled in, and printed the
+`role bootstrap --plan` step to run once the chain is live. It never
+overwrites a plan that already exists. The template reads:
+
+```yaml
+# Generated non-secret planning template. Replace every REPLACE_* value.
+apiVersion: yano.bloxbean.com/v1alpha1
+kind: RoleBootstrapPlan
+chainId: role-approval-chain
+profile: role-approvals
+idempotency:
+  beforeEveryOperation: QUERY_COMMITTED_RECORD_AND_VERIFY_PROOF
+  whenAbsent: PROPOSE_APPROVE_TO_THRESHOLD_AND_ACTIVATE
+  whenExactRevisionAndValueMatch: SKIP_AND_RECORD_PROOF
+  whenRevisionOrValueDiffers: FAIL_CLOSED
+  replacement: FORBIDDEN
+organizations:
+  - organizationId: organization-a
+    revision: 1
+    status: ACTIVE
+    metadataCommitment: REPLACE_64_HEX_OR_EMPTY
+  - organizationId: organization-b
+    revision: 1
+    status: ACTIVE
+    metadataCommitment: REPLACE_64_HEX_OR_EMPTY
+actors:
+  - actorId: proposer-a
+    organizationId: organization-a
+    revision: 1
+    roles: [proposer]
+    publicKeys:
+      - keyId: proposer-key-v1
+        publicKey: REPLACE_64_HEX
+        validFromHeight: 1
+        validUntilHeight: 0
+        proofOfPossession: REQUIRED
+  - actorId: reviewer-a
+    organizationId: organization-b
+    revision: 1
+    roles: [reviewer]
+    publicKeys:
+      - keyId: reviewer-key-v1
+        publicKey: REPLACE_64_HEX
+        validFromHeight: 1
+        validUntilHeight: 0
+        proofOfPossession: REQUIRED
+policies:
+  - policyId: application-approval
+    revision: 1
+    proposerRoles: [proposer]
+    clauses:
+      - clauseId: reviewers
+        role: reviewer
+        minimumCount: 1
+        distinctBy: ORGANIZATION
+    rejectionMode: ANY_ELIGIBLE
+    maximumLifetimeBlocks: 1000
+governance:
+  administrators: genesis-app-chain-members
+  threshold: 2
+  sequence: [PROPOSE, APPROVE_TO_THRESHOLD, ACTIVATE]
+  proposalIdsMustBeUnique: true
+verification:
+  organization: organizations/{id}?revision={revision}
+  actor: actors/{id}?revision={revision}
+  policy: policies/{id}?revision={revision}
+  proposal: proposals/{id}
+  stats: stats
+  proofs: responses include proofKey, recordValue, stateRoot, and committedHeight
+```
 
 Organizations, actors and policies are created through member governance.
 Each record is proposed by one member, which counts as its first approval,
@@ -180,7 +259,7 @@ REVIEWER_KEY=$(./yano.sh appchain role public-key --seed-file actors/reviewer-a.
 commitments and the two public keys, in the order the plan lists the actors:
 
 ```bash
-python3 - role-approval-chain/bootstrap/role-approvals-plan.yaml \
+python3 - ../roles/coordinator/role-approval-chain.role-plan.yaml \
   role-approvals-plan.yaml "$PROPOSER_KEY" "$REVIEWER_KEY" <<'PY'
 import sys
 source, target, proposer, reviewer = sys.argv[1:]
@@ -212,12 +291,11 @@ The expiry must be above the current height and at most
 beyond it. One expiry covers every step, so leave room for all of them: a
 propose that arrives after it is ignored. Organizations go to
 `actors.command.v1` before the actors that belong to them; policies go to
-`role-approvals.command.v1`. If you created the project without
-`--http-port-base`, its members listen on 8080 and up: adjust `API0` and
-`API1`.
+`role-approvals.command.v1`. If your members listen on other HTTP ports, adjust
+`API0` and `API1`.
 
 **4. Submit each step.** A member's approval is the envelope it relays, so send
-the approve through a different member than the propose. With the generated
+the approve through a different member than the propose. With the
 threshold of 2, one extra approval is enough:
 
 ```bash
@@ -301,8 +379,8 @@ Any member can relay an actor statement; the actor's signature, not the
 member, is what counts.
 
 When API authentication is enabled (`yano.app-chain.api.auth.enabled=true`),
-add `-H "X-API-Key: $API_KEY"` to every request. A generated project keeps its
-local key as `YANO_APPCHAIN_API_KEYS` in `secrets/node0.env`.
+add `-H "X-API-Key: $API_KEY"` to every request. A node set up with
+`appchain join` keeps its local key in its node directory's `secrets/api.key`.
 
 `202` means queued, not approved. `submit` waits for finality; then read the
 proposal below. The `reviewers` clause needs one reviewer, counted once per

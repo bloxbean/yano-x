@@ -1,0 +1,30 @@
+# App-chain draft. Edit freely until `yano.sh appchain seal`.
+name: orders-and-audit   # application name
+invite: "7c1e-52aa-9d03"          # written by `new`; do not edit
+network: "devnet"
+operators: [alice, bob, carol]    # the first is the lead
+threshold: two-thirds
+membership: governed
+sequencing: fixed
+chains:
+  - id: "ledger"
+    recipe: audit-log
+  - id: "workflow"
+    recipe: declarative-composite
+    composite:
+      # Registry values are audited.
+      components:
+        - {id: records, machine: kv-registry}
+        - {id: audit, machine: doc-trail}
+      bindings:
+        - id: audit-record
+          from: {component: records, event: kv-registry.entry-put.v1}
+          to:
+            component: audit
+            command: append
+            map:
+              entityId: {fn: hex, args: [{field: key}]}
+              entryHash: {field: valueHash}
+              reference: {literal: published}
+    # trailing comment belongs to the chain, not the composite
+    anchor: {mode: script, every-blocks: 10}

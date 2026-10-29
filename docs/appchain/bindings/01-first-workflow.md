@@ -77,6 +77,7 @@ The zero genesis and repeated public-key bytes are synthetic offline inputs.
     "maxBlockBytes": 1048576,
     "l1StabilityDepth": 0,
     "epochStabilityDepth": 0,
+    "blockMaxForwardSkewMs": 5000,
     "enforceSenderSeq": false,
     "effectsEnabled": false,
     "effectsMaxPerBlock": 0,
@@ -234,14 +235,16 @@ An imported snapshot is not authenticated chain evidence. To author the document
 itself with guided forms, use Studio's **Bindings** page
 ([chapter 6](06-guided-editor.md)).
 
-## From rehearsal to a project
+## From rehearsal to a deployment
 
-To deploy, import the document with `appchain init --recipe declarative-composite`
-and `--bindings bindings.yaml --plugins-directory plugins`, supplying your real
-topology member public keys and other required project options. Follow the full
-[blueprint project example](../DECLARATIVE_BINDINGS_CLI.md#blueprint-projects)
-and [deployment guide](../deployment/README.md); do not deploy the dummy context
-or authentication bytes from this tutorial. Chapter 4 shows a complete
-[local devnet deployment](04-java-integration.md#deploy-the-workflow-on-a-local-devnet).
+To deploy, name the document as one chain of an application:
+`appchain new <app> --chain <id>=bindings:bindings.yaml`. The operators then
+send member cards, the coordinator seals, and each operator joins and starts.
+`seal` compiles the document against the distribution's `plugins/` bundles and
+copies it into the sealed file. Follow
+[deploying a document](../DECLARATIVE_BINDINGS_CLI.md#deploying-a-document)
+and [set up an application](../deployment/configure.md); do not deploy the
+dummy context or authentication bytes from this tutorial. Chapter 4 shows a
+complete [local devnet deployment](04-java-integration.md#deploy-the-workflow-on-a-local-devnet).
 
 Next: [Conditions and mappings](02-conditions-and-mappings.md).

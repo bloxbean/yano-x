@@ -133,7 +133,6 @@ jobs:
           cp "distribution/jvm/build/distributions/yano-x-jvm-${VERSION}.zip" release-assets/
           cp "distribution/jvm/build/distributions/yano-x-plugin-pack-${VERSION}.zip" release-assets/
           cp "tooling/deployment/build/distributions/yano-x-deploy-${VERSION}.zip" release-assets/
-          cp "tooling/studio/build/distributions/yano-x-studio-${VERSION}.zip" release-assets/
           for archive in release-assets/*.zip; do
             unzip -tq "$archive"
           done
@@ -305,8 +304,46 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-  github-release:
+  # ADR-056 A3: the same distribution with a bundled Java runtime, one archive per platform. Each runner
+  # links its own platform's runtime, so the archives cannot be cross-built on one machine.
+  self-contained:
     needs: publish
+    if: needs.publish.outputs.github_release == 'true'
+    strategy:
+      fail-fast: true
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm, macos-14]
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '25'
+      - name: Build the self-contained edition
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./gradlew :distribution:jvm:yanoXSelfContainedDistZip -PskipSigning=true --stacktrace
+          mkdir self-contained
+          cp distribution/jvm/build/distributions/yano-x-jvm-*-{linux,macos}-*.zip self-contained/
+          for archive in self-contained/*.zip; do
+            unzip -tq "$archive"
+            (cd self-contained && shasum -a 256 "$(basename "$archive")" > "$(basename "$archive").sha256")
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-assets-${{ matrix.runner }}
+          path: self-contained/
+          if-no-files-found: error
+          retention-days: 7
+
+  github-release:
+    needs: [publish, self-contained]
     # Gated by github_release in gradle.properties. Runs only after the Central deployment is staged, and
     # on failure can be re-run on its own without touching Central.
     if: needs.publish.outputs.github_release == 'true'
@@ -317,7 +354,8 @@ jobs:
       - name: Download release assets
         uses: actions/download-artifact@v4
         with:
-          name: release-assets
+          pattern: release-assets*
+          merge-multiple: true
           path: dist
 
       # Creates the release for the tag, or adds the assets if it already exists. Do not pre-create a draft

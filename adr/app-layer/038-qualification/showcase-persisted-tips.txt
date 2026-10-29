@@ -1,0 +1,10 @@
+orders-chain tip 1 -> 1, root at 1 unchanged
+registry-chain tip 1 -> 1, root at 1 unchanged
+approvals-chain tip 3 -> 3, root at 3 unchanged
+balances-chain tip 2 -> 2, root at 2 unchanged
+documents-chain tip 1 -> 1, root at 1 unchanged
+workflow-chain tip 12 -> 12, root at 12 unchanged
+payments-chain tip 1 -> 1, root at 1 unchanged
+authenticated-map-chain tip 18 -> 18, root at 18 unchanged
+document-review-chain tip 4 -> 4, root at 4 unchanged
+cardano-history-chain tip 1 -> 1, root at 1 unchanged

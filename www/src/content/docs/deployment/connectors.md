@@ -27,12 +27,16 @@ Build one JVM plugin from the repository root, for example:
 Copy only the resulting `*-bundle.jar` into the plugin directory of every node
 that owns that sink or executor. The default directory is `plugins/`; an
 operator may override it with `yano.plugins.directory`. Keep the plugin version
-aligned with the Yano release, and run `doctor` before starting:
+aligned with the Yano release:
 
 ```bash
 cp connectors/kafka/build/libs/*-bundle.jar /opt/yano/plugins/
-./yano.sh appchain doctor my-project --distribution /opt/yano
 ```
+
+A node set up with `appchain join` checks only the bundles its chains were
+sealed with at every `appchain start`; adding a connector bundle does not change
+them. Replacing one of those sealed bundles does, and `start` then refuses until
+the operator accepts the new set with `appchain join <app>.chain --accept-bundles`.
 
 Do not copy a thin build-time JAR into the JVM plugin directory. These connector
 bundles are JVM-only and cannot be installed beside Yano's native executable.
@@ -42,7 +46,13 @@ bundles are JVM-only and cannot be installed beside Yano's native executable.
 Consensus records contain a stable effect type, target alias, and bounded
 action payload. Endpoints, credentials, wallet keys, TLS material, bucket
 names, and broker/Kubo/backend policy are node-local. Never put them into an
-effect payload, blueprint, lock, Studio link, or shared consensus YAML.
+effect payload, setup draft, sealed `.chain` file, or shared consensus YAML.
+
+On a node set up with `appchain join`, put a connector's node-local settings
+in `config/local.yaml` in the node directory. `join` creates that file and
+never rewrites it, and its values win over the generated `config/node.yaml`.
+`start` refuses it if it sets any sealed consensus setting. Supply credentials
+through the environment or a secret provider, not in the file itself.
 
 At-least-once execution is intentional. Targets must use the effect ID as an
 idempotency key or provide the connector's documented reconciliation
@@ -87,5 +97,7 @@ testnet rehearsal before production. See the
 
 The evidence demo stages Kafka, S3 and IPFS plugins and local services to prove
 the complete scenario. That does not make those plugins bundled in the normal
-Yano distribution. Always use the release capability catalog and `doctor`, not
-the contents of a demo Compose environment, as packaging truth.
+Yano distribution. Always use the release capability catalog
+(`./yano.sh appchain capabilities`) and the bundles in the distribution's
+`plugins/` directory, not the contents of a demo Compose environment, as
+packaging truth.

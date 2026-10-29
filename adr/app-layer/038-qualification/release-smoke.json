@@ -1,0 +1,87 @@
+{
+  "status": "PASS",
+  "archiveSha256": "1cc44e322d7eec6d59f3ec81b747cf906cff2ab122bb4543b133a2024107e407",
+  "steps": [
+    {
+      "name": "archive",
+      "status": "PASS",
+      "seconds": 5
+    },
+    {
+      "name": "layout",
+      "status": "PASS",
+      "seconds": 1
+    },
+    {
+      "name": "runtime-acceptance",
+      "status": "PASS",
+      "seconds": 27
+    },
+    {
+      "name": "stock-outcomes",
+      "status": "PASS",
+      "seconds": 54
+    },
+    {
+      "name": "showcase-doctor",
+      "status": "PASS",
+      "seconds": 1
+    },
+    {
+      "name": "showcase-quickstart",
+      "status": "PASS",
+      "seconds": 106
+    },
+    {
+      "name": "showcase-projection-off",
+      "status": "PASS",
+      "seconds": 0
+    },
+    {
+      "name": "showcase-run-all",
+      "status": "PASS",
+      "seconds": 95
+    },
+    {
+      "name": "showcase-verify",
+      "status": "PASS",
+      "seconds": 6
+    },
+    {
+      "name": "showcase-record-tips",
+      "status": "PASS",
+      "seconds": 1
+    },
+    {
+      "name": "showcase-restart",
+      "status": "PASS",
+      "seconds": 56
+    },
+    {
+      "name": "showcase-verify-after-restart",
+      "status": "PASS",
+      "seconds": 6
+    },
+    {
+      "name": "showcase-persisted-tips",
+      "status": "PASS",
+      "seconds": 0
+    },
+    {
+      "name": "distribution-config-unchanged",
+      "status": "PASS",
+      "seconds": 0
+    },
+    {
+      "name": "showcase-stop",
+      "status": "PASS",
+      "seconds": 2
+    },
+    {
+      "name": "topics-acceptance",
+      "status": "PASS",
+      "seconds": 121
+    }
+  ],
+  "topicPolicyResult": "topics-v3-final.json"
+}

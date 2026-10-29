@@ -40,6 +40,8 @@ dependencies {
     // module's deterministic plan; the golden test re-derives it.
     testImplementation project(':ledgers:eutxo:demo')
     testImplementation rootProject.ext.yanoModule('yano-appchain-core-testkit')
+    // The templates are read with the setup tool's own draft parser.
+    testImplementation project(':tooling:appchain-formats')
     testImplementation libs.cbor
     testImplementation libs.cardano.client.core
     testImplementation libs.cardano.client.crypto
@@ -104,7 +106,6 @@ tasks.register('verifyShowcasePluginArtifact') {
                         pluginManifest,
                         'org/yanoproject/x/showcase/ShowcaseCompositeStateMachineProvider.class',
                         'org/yanoproject/x/showcase/DocumentReviewStateMachineProvider.class',
-                        'org/yanoproject/x/showcase/ShowcaseAuthenticatedMapConfig.class',
                         'org/yanoproject/x/showcase/ShowcaseOutboxExecutorFactory.class',
                         'org/yanoproject/x/showcase/ShowcaseEutxoTransactions.class'
                 ]

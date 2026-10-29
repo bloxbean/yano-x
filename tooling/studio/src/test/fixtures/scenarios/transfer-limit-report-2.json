@@ -5,38 +5,38 @@
   "assurance" : "Unauthenticated local tool output. Matching digests show that the same inputs were used; they do not identify the producer, prove finality or approve a deployment.",
   "producer" : {
     "tool" : "yano-x-devtools",
-    "version" : "0.1.0-pre4-SNAPSHOT",
-    "jarSha256" : "84837a41b3aa6419d040c20fd60ed652d41d044838179cd7a8d121200817ed8a",
-    "linkedCompositeJarSha256" : "a3fb538e1dd4cfecd5e31a4b45fd644e998f2428c2981a7c99f326b39aace16f"
+    "version" : "0.1.0-pre4",
+    "jarSha256" : "75b8fdeacd752691509fe61989a6c93fde805c004c9d8e9335368ea7bcff41ce",
+    "linkedCompositeJarSha256" : "d7bfb7f72fad81eda6729554ec3493710b55984ae2e4cb7efd1f3c106cb58702"
   },
   "host" : {
-    "version" : "0.1.0-pre18",
-    "coreApiJarSha256" : "722cbac3bb251ca780c75393ce8070091e6db03f6a0177c119be1d083a6cd712",
-    "runtimeJarSha256" : "35158b4c50776d21e6b401156b4329b67676ee851818f3dc72d2f68cc906ee65"
+    "version" : "0.1.0-pre19",
+    "coreApiJarSha256" : "e8cc29db9c9e36dd743c9ae81bd42e806a4035e87d090d392af017c5f12554e9",
+    "runtimeJarSha256" : "d99de754c54816a01b263bf02a4555befeb6623dc3cc633ac19b4299480293ed"
   },
   "authoringEnvironment" : "yano-x-binding-authoring-environment-v1",
   "catalog" : {
-    "fingerprint" : "sha256:2c325fd4f161a818f8bf879a31948b60b16867f198f6e829b341cf9748455980",
+    "fingerprint" : "sha256:0a4269c99832eb1435e9d827e27bc5100b10e092fe0cbcdd7b8c3daa7719be42",
     "pluginApi" : {
       "major" : 3,
-      "level" : 12
+      "level" : 13
     },
     "bundles" : [ {
       "id" : "org.yanoproject.x.composite",
-      "version" : "0.1.0-pre4-SNAPSHOT",
-      "digest" : "sha256:e3a417b4194ab8a7817a401423f3f5b6485b7a709eef2e62e314014080d92f44",
+      "version" : "0.1.0-pre4",
+      "digest" : "sha256:daea1d264308d490bbac782e133dec811aaf99b0aaf80e70140f932ff5329922",
       "digestMode" : "ARTIFACT_CLOSURE",
       "selected" : true
     }, {
       "id" : "org.yanoproject.x.role-workflow",
-      "version" : "0.1.0-pre4-SNAPSHOT",
-      "digest" : "sha256:e8592e672bb2bbc624e4ec9185c010af0cc76548bfdb75eddc0851d3a4b642ee",
+      "version" : "0.1.0-pre4",
+      "digest" : "sha256:4b007e173b97b639ad6ca2ed11bda548a80acbf91fde99769f6728ae3694c4ca",
       "digestMode" : "ARTIFACT_CLOSURE",
       "selected" : true
     }, {
       "id" : "org.yanoproject.x.stdlib",
-      "version" : "0.1.0-pre4-SNAPSHOT",
-      "digest" : "sha256:47c7495b8a0406977580b779e259f728db57d4b6a95ee3ad5479957839a52ea7",
+      "version" : "0.1.0-pre4",
+      "digest" : "sha256:790686572c393597eeb1f6630a67c9ff460a4c0df3d849438e2bde89cf1a2835",
       "digestMode" : "ARTIFACT_CLOSURE",
       "selected" : true
     } ]
@@ -49,8 +49,8 @@
   }, {
     "role" : "context",
     "state" : "read",
-    "bytes" : "991",
-    "sha256" : "fd1059233408f30a8e02a62f5f8708ece723ceccf99cc4b0fe2744e8dac73539"
+    "bytes" : "1026",
+    "sha256" : "2b738697623c717a152335cc0b8667b2d3e2bd405cbbb8379bfd509bce17d6d9"
   }, {
     "role" : "fixture",
     "state" : "read",
@@ -60,7 +60,7 @@
     "role" : "priorResult",
     "state" : "read",
     "bytes" : "6165",
-    "sha256" : "d409f87785abcaa69417a9e0a034918274b35a758987b9ea1d3ffc1e671eed10"
+    "sha256" : "fe1b08674409ba550b4f1424d8b24fa095a1efa42af5b5dd929b9726029fea9b"
   } ],
   "documentFormat" : "yaml",
   "result" : {
@@ -85,7 +85,7 @@
         "stateRootHex" : "0000000000000000000000000000000000000000000000000000000000000000",
         "pendingEffects" : "0"
       },
-      "executionIdentity" : "d3767e390de4b6b2abb529542abfee3c209a5241e0318613dcff2ffb6b0336dc",
+      "executionIdentity" : "de1c3d5aa0c99a4a62135ceaabe34aa2b73451878df9bbc81be26d3404cce4eb",
       "assurance" : "execution-only; fixture inputs are not authenticated; no post-state root or finality claim",
       "postStateSha256" : "ad82e82c1d4db05e2d2e34ff23df92d272c70fa3e35c890a7fb298f5cb9f14bc",
       "stateChangeCount" : 8,
@@ -366,6 +366,54 @@
     "locatesLastCondition" : "never"
   }, {
     "code" : "ADMISSION_RULE_INPUT",
+    "category" : "admission-rule",
+    "origin" : "either",
+    "levels" : [ "step" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "RULE_FIELD_UNAVAILABLE",
+    "category" : "admission-rule",
+    "origin" : "either",
+    "levels" : [ "step" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "RULE_PAYLOAD_SCHEMA_MISMATCH",
+    "category" : "admission-rule",
+    "origin" : "either",
+    "levels" : [ "step" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "RULE_TOPIC_POLICY_CROSSING",
+    "category" : "admission-rule",
+    "origin" : "either",
+    "levels" : [ "step" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "TOPIC_RETIRED",
+    "category" : "admission-rule",
+    "origin" : "either",
+    "levels" : [ "step" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "TOPIC_UNREGISTERED",
+    "category" : "admission-rule",
+    "origin" : "either",
+    "levels" : [ "step" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "TOPIC_SCHEMA_INCOMPATIBLE",
+    "category" : "admission-rule",
+    "origin" : "either",
+    "levels" : [ "step" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "TOPIC_PAYLOAD_TOO_LARGE",
+    "category" : "admission-rule",
+    "origin" : "either",
+    "levels" : [ "step" ],
+    "locatesLastCondition" : "never"
+  }, {
+    "code" : "TOPIC_SCHEMA_REJECTED",
     "category" : "admission-rule",
     "origin" : "either",
     "levels" : [ "step" ],

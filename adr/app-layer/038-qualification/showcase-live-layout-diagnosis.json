@@ -1,0 +1,21 @@
+{
+  "archiveSha256": "d29b45b5b724cf506d0b3d426673e7e1cc665fa02c1cb1174cff2acc95ab5826",
+  "status": "FAILED",
+  "finding": "Restart preflight matched live nodeN.pid sidecars as node directories. All showcase scenarios and cross-node history verification passed before this refusal.",
+  "fix": "Match exact numeric node directory and overlay names; retain rejection of files and symlinks at actual node names.",
+  "regressions": "Facade restart creates the real launcher PID/meta sidecars; helper also covers launch fences and temporary files.",
+  "helperTests": 11,
+  "steps": [
+    "archive                            PASS     5s",
+    "layout                             PASS     1s",
+    "runtime-acceptance                 PASS    27s",
+    "stock-outcomes                     PASS    54s",
+    "showcase-doctor                    PASS     0s",
+    "showcase-quickstart                PASS   100s",
+    "showcase-projection-off            PASS     0s",
+    "showcase-run-all                   PASS   102s",
+    "showcase-verify                    PASS     7s",
+    "showcase-record-tips               PASS     1s",
+    "showcase-restart                   FAIL     0s  (/private/tmp/yano-x-pr80-release.30g0r9c3/smoke/logs/showcase-restart.log)"
+  ]
+}

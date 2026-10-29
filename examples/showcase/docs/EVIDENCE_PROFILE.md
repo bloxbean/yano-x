@@ -63,7 +63,10 @@ Two variants:
 ## 2. Prerequisites and port planning
 
 **Docker is required** (Compose is the only showcase deployment for this
-profile). Check readiness first:
+profile). To run the evidence chain on your own hosts instead, use the setup
+commands with the `evidence-ledger` recipe
+(`./yano.sh appchain new <name> --chain evidence=evidence-ledger`; see
+`docs/appchain/deployment/configure.md`). Check readiness first:
 
 ```bash
 ./showcase.sh doctor --profile evidence
@@ -75,7 +78,7 @@ the packaged harness reads its port plan from the environment (defaults:
 nodes 7070-7072, UI 7080, Kafka 9092, S3 9000, IPFS 5001). To coexist with a
 running light profile (7070+) or eutxo instances, export a different plan.
 
-The evidence profile writes no showcase identity marker, so the environment
+The evidence profile writes no showcase `instance.json`, so the environment
 and flags must be identical on **every** command. Put them in a file once and
 source it in any shell you use:
 
@@ -96,8 +99,8 @@ source evidence.env
 
 (The connector subnet only needs changing when you run two evidence
 environments side by side — each needs a distinct subnet, instance, and port
-plan. `DEMO_SERVER_BASE` matters only for `--deployment host`; in Compose the
-nodes talk over the internal network.)
+plan. The nodes talk to each other over the internal Compose network, so no
+peer-port base needs planning.)
 
 ## 3. Create and start (composite variant)
 
@@ -167,7 +170,7 @@ fails (the composite machine cannot run the role scenario).
 ## 5. Everyday operations
 
 Always `source evidence.env` first; always repeat `--profile evidence
---variant … --instance …` (no marker adoption for this profile).
+--variant … --instance …` (no `instance.json` adoption for this profile).
 
 ```bash
 # container status for the instance
@@ -302,7 +305,7 @@ If you use it at all, run `./showcase.sh stop …` first.
 
 ## 9. Gotchas
 
-- **No identity marker.** Every command needs the same `DEMO_*` environment
+- **No `instance.json`.** Every command needs the same `DEMO_*` environment
   (source `evidence.env`) and the same `--profile/--variant/--instance`
   flags. Nothing is remembered between commands.
 - **`--http-base` is silently ignored** for this profile; only `DEMO_*` env
@@ -325,7 +328,7 @@ If you use it at all, run `./showcase.sh stop …` first.
 
 - `../evidence/README.md` — the authoritative harness document:
   load semantics, composite and role profiles, port table, persistence
-  layout, cleanup, host deployment, public-network (preview/preprod) anchor
+  layout, cleanup, public-network (preview/preprod) anchor
   profiles with `--anchor-key-file` / `--confirm-public-anchor`.
 - `DEMO_SHOWCASE.md` §13 — how this profile relates to the light and eutxo
   profiles.

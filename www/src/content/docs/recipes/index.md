@@ -60,35 +60,40 @@ only.
 
 ## Using a recipe
 
+A recipe is chosen per chain in an application's setup draft. The coordinator
+creates the draft, each operator makes a key and a member card on their own
+machine, the coordinator seals, and each operator joins and starts:
+
 ```bash
-# 1. See what this build offers.
+# 1. See what this build offers, and rehearse every step on one machine.
 ./yano.sh appchain recipes
+./yano.sh appchain try
 
-# 2. Generate a project non-interactively and reproducibly.
-./yano.sh appchain init --non-interactive \
-  --recipe owned-registry --network preprod --members 3 \
-  --node-host node-a.example --node-host node-b.example --node-host node-c.example \
-  --deployment host --output product-registry
+# 2. Coordinator: create the draft (a wizard asks when run without options).
+./yano.sh appchain new product-registry --network preprod \
+  --operators alice,bob,carol --chain registry=owned-registry
 
-# 3. Edit appchain.yaml, then regenerate the derived output.
-#    Rendering stops if a generated file has an unaccounted manual edit.
-./yano.sh appchain render product-registry
+# 3. Each operator, on their own machine: make a key and a member card.
+./yano.sh appchain request product-registry.draft.yaml
 
-# 4. Validate the project and check it against a real distribution.
-./yano.sh appchain config validate --mode project product-registry
-./yano.sh appchain doctor product-registry --distribution /path/to/yano-x-jvm
+# 4. Coordinator: seal the draft with the cards beside it.
+./yano.sh appchain seal product-registry.draft.yaml
 
-# 5. Export deterministic deployment derivatives.
-./yano.sh appchain gitops product-registry --target helm      --output deploy/helm
-./yano.sh appchain gitops product-registry --target kustomize --output deploy/kustomize
+# 5. Each operator: compare the fingerprint, then join and start.
+./yano.sh appchain join product-registry.chain
+./yano.sh appchain start
+./yano.sh appchain status product-registry
 ```
 
-Edit **only** `appchain.yaml`. Generated runtime files are derived output, and
-the project lock pins the snapshot, catalog, runtime manifest, configuration
-metadata, and plugin-JAR digests.
+Edit **only** the draft, and only before `seal`. `seal` resolves every chain
+through the release's recipe and capability catalog once and writes the exact
+settings, member keys and plugin bundle digests into the sealed `.chain` file;
+`join` turns that into each node's configuration. See
+[Set up an application](/deployment/configure/) for the whole ceremony.
 
-You can also build a blueprint visually in the
-[App-Chain Studio](/studio/) and export it.
+For several state machines in one chain, compose them with a binding document
+in the [binding editor](/studio/) or YAML and name it with
+`--chain <id>=bindings:<file>`.
 
 ## Selection and deployment rules
 
@@ -120,9 +125,8 @@ Compile bounded event bindings into one committed atomic composite profile.
 - **Reference:** [/reference/declarative-bindings-cli/](/reference/declarative-bindings-cli/)
 
 ```bash
-./yano.sh appchain init --non-interactive \
-  --recipe declarative-composite --network devnet --members 3 --runtime jvm \
-  --output declarative-composite-chain
+./yano.sh appchain new declarative-composite-app --network devnet --operators alice,bob,carol \
+  --chain flow=bindings:examples/bindings/registry-to-audit.yaml
 ```
 
 ### `audit-log` — Replicated audit log
@@ -137,9 +141,8 @@ A replicated append-only log for opaque application records.
 - **Reference:** [docs/core-host.md](https://github.com/bloxbean/yano-x/blob/main/docs/core-host.md)
 
 ```bash
-./yano.sh appchain init --non-interactive \
-  --recipe audit-log --network devnet --members 3 --runtime jvm \
-  --output audit-log-chain
+./yano.sh appchain new audit-log-app --network devnet --operators alice,bob,carol \
+  --chain audit-log=audit-log
 ```
 
 ### `owned-registry` — Owned registry
@@ -154,9 +157,8 @@ A first-writer-owned key/value registry with committed query proofs.
 - **Reference:** [/state-machines/kv-registry/](/state-machines/kv-registry/)
 
 ```bash
-./yano.sh appchain init --non-interactive \
-  --recipe owned-registry --network devnet --members 3 --runtime jvm \
-  --output owned-registry-chain
+./yano.sh appchain new owned-registry-app --network devnet --operators alice,bob,carol \
+  --chain owned-registry=owned-registry
 ```
 
 ### `document-trail` — Document trail
@@ -171,9 +173,8 @@ Append document hashes to a provable trail for each product, case, or shipment.
 - **Reference:** [/state-machines/doc-trail/](/state-machines/doc-trail/)
 
 ```bash
-./yano.sh appchain init --non-interactive \
-  --recipe document-trail --network devnet --members 3 --runtime jvm \
-  --output document-trail-chain
+./yano.sh appchain new document-trail-app --network devnet --operators alice,bob,carol \
+  --chain document-trail=document-trail
 ```
 
 ### `authenticated-map` — Authenticated map
@@ -189,9 +190,8 @@ A proof-oriented multi-collection registry with optional canonical-CBOR and decl
 - **Reference:** [/state-machines/authenticated-map/](/state-machines/authenticated-map/)
 
 ```bash
-./yano.sh appchain init --non-interactive \
-  --recipe authenticated-map --network devnet --members 3 --runtime jvm \
-  --output authenticated-map-chain
+./yano.sh appchain new authenticated-map-app --network devnet --operators alice,bob,carol \
+  --chain authenticated-map=authenticated-map
 ```
 
 ### `approval-workflow` — Threshold approval workflow
@@ -206,9 +206,8 @@ Validator members propose, approve, reject, and prove terminal decisions.
 - **Reference:** [/state-machines/approvals/](/state-machines/approvals/)
 
 ```bash
-./yano.sh appchain init --non-interactive \
-  --recipe approval-workflow --network devnet --members 3 --runtime jvm \
-  --output approval-workflow-chain
+./yano.sh appchain new approval-workflow-app --network devnet --operators alice,bob,carol \
+  --chain approval-workflow=approval-workflow
 ```
 
 ### `role-approval` — Governed role approvals
@@ -224,9 +223,8 @@ Governed organizations, actors, and policies approve arbitrary application paylo
 - **Reference:** [/tutorials/05-domain-role-approvals/](/tutorials/05-domain-role-approvals/)
 
 ```bash
-./yano.sh appchain init --non-interactive \
-  --recipe role-approval --network devnet --members 3 --runtime jvm \
-  --output role-approval-chain
+./yano.sh appchain new role-approval-app --network devnet --operators alice,bob,carol \
+  --chain role-approval=role-approval
 ```
 
 ### `evidence-ledger` — Role-aware evidence ledger
@@ -242,9 +240,8 @@ A role-aware evidence ledger that emits publication intents; add and provision e
 - **Reference:** [/tutorials/04-evidence-publication/](/tutorials/04-evidence-publication/)
 
 ```bash
-./yano.sh appchain init --non-interactive \
-  --recipe evidence-ledger --network devnet --members 3 --runtime jvm \
-  --output evidence-ledger-chain
+./yano.sh appchain new evidence-ledger-app --network devnet --operators alice,bob,carol \
+  --chain evidence-ledger=evidence-ledger
 ```
 
 ### `eutxo-ledger` — Scalus-backed EUTxO ledger
@@ -260,10 +257,11 @@ A deterministic Cardano-shaped test ledger funded by an explicit virtual genesis
 - **Reference:** [ledgers/eutxo/README.md](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/README.md)
 
 ```bash
-./yano.sh appchain init --non-interactive \
-  --recipe eutxo-ledger --network devnet --members 3 --runtime jvm \
-  --output eutxo-ledger-chain
+./yano.sh appchain new eutxo-ledger-app --network devnet --operators alice,bob,carol \
+  --chain eutxo-ledger=eutxo-ledger
 ```
+
+This recipe needs `eutxoGenesisAddress`, `eutxoGenesisLovelace`. Give each with `--answer eutxo-ledger.<name>=<value>` (the wizard asks for any that is missing), or set them under the chain's `answers:` in the draft before sealing.
 
 ### `eutxo-cardano-bridge` — Federated Cardano EUTxO bridge
 
@@ -279,14 +277,15 @@ A Cardano-backed EUTxO ledger with stable deposits and claim-bound federated wit
 - **Reference:** [ledgers/eutxo/README.md](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/README.md)
 
 ```bash
-./yano.sh appchain init --non-interactive \
-  --recipe eutxo-cardano-bridge --network devnet --members 3 --runtime jvm \
-  --output eutxo-cardano-bridge-chain
+./yano.sh appchain new eutxo-cardano-bridge-app --network devnet --operators alice,bob,carol \
+  --chain eutxo-cardano-bridge=eutxo-cardano-bridge
 ```
+
+This recipe needs `bridgeVaultAddress`, `bridgeVaultScriptHash`, `bridgeMaxDepositLovelace`, `bridgeWithdrawalAddress`, `bridgeEpoch`, `bridgeMaxWithdrawalLovelace`, `bridgeMaxPendingWithdrawals`. Give each with `--answer eutxo-cardano-bridge.<name>=<value>` (the wizard asks for any that is missing), or set them under the chain's `answers:` in the draft before sealing.
 
 ### `custom-plugin` — Custom state-machine project
 
-A generated project boundary for a separately reviewed custom state-machine plugin.
+A chain that runs a separately reviewed custom state-machine plugin, named by the stateMachine answer and pinned by digest at seal.
 
 - **Outcome:** The operator-defined state-machine contract is loaded from a reviewed pinned plugin bundle.
 - **Availability / maturity:** `REFERENCE` / `experimental`
@@ -297,11 +296,7 @@ A generated project boundary for a separately reviewed custom state-machine plug
 - **Bootstrap requirements:** `plugin-metadata-trust-review`
 - **Reference:** [/plugins/](/plugins/)
 
-```bash
-./yano.sh appchain init --non-interactive \
-  --recipe custom-plugin --network devnet --members 3 --runtime jvm \
-  --output custom-plugin-chain
-```
+`appchain seal` does not yet accept a custom signed component catalog, so this recipe cannot be selected in a setup draft. See [Scaffold, sign, install](/plugins/scaffold-sign-install/).
 
 <!-- catalog:recipe-details-end -->
 

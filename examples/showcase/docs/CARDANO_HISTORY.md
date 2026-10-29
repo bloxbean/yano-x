@@ -29,9 +29,14 @@ Enable larger L1 datasets explicitly at genesis:
   --cardano-history-profile full
 ```
 
-`showcase-identity.json` retains product enablement, normalized preset, and the product-bundle
-SHA-256. Changing these options requires another instance. Use `--disable-cardano-history` only
-when demonstrating the base catalog without the product chain.
+`cardano-history-chain` is its own application, `history`, run by the founding nodes and sealed
+from `config/history.template.yaml`. It makes blocks only from L1 observations, so keeping it apart
+lets the showcase's membership changes activate without waiting for epochs. The preset and the
+stake and governance observers it needs become sealed settings of that application
+(`data/showcase/<instance>/history/history.chain`; read it with `../../yano.sh appchain inspect`).
+`instance.json` retains product enablement and the normalized preset; changing them requires
+another instance. Use `--disable-cardano-history` only when demonstrating the base catalog without
+the product chain.
 
 Cardano History does not invent an attestation from mutable current-epoch state. On startup, all
 members reconstruct the same completed boundaries still retained in their L1 account-state stores;
@@ -72,7 +77,9 @@ Inspect lifecycle without guessing storage paths:
 ```
 
 Archive, restore, and eviction are explicit node-local administrative jobs. They do not change the
-consensus root and a proof request never triggers an implicit restore.
+consensus root and a proof request never triggers an implicit restore. Each node's archive
+directory, `node<i>/data/appchain-snapshot-archives`, and the optional MPF pruning are node-local
+settings in its `config/local.yaml`; the snapshot capability and its series are sealed.
 
 ## Console proof demonstration
 
@@ -106,22 +113,26 @@ exported claim package as an on-chain redeemer.
 
 ## Standalone CLI
 
-The distribution includes `tools/yano-cardano-history/bin/yano-cardano-history`, reachable from this showcase as `yano/tools/yano-cardano-history/bin/yano-cardano-history`. Always provide the actual node
-URL; the CLI never maps an arbitrary instance name to port 7070.
+The distribution includes `tools/yano-cardano-history/bin/yano-cardano-history`, reachable from
+this showcase as `../../tools/yano-cardano-history/bin/yano-cardano-history`. Always provide the
+actual node URL; the CLI never maps an arbitrary instance name to port 7070. Pass that node's own
+API key, read from its node directory:
 
 ```bash
-yano/tools/yano-cardano-history/bin/yano-cardano-history status \
-  --url http://127.0.0.1:7070/api/v1 --chain cardano-history-chain \
-  --api-key "$YANO_CLUSTER_API_KEY"
+API_KEY="$(cat data/showcase/history-params/node0/secrets/api.key)"
 
-yano/tools/yano-cardano-history/bin/yano-cardano-history query params --epoch 1 \
+../../tools/yano-cardano-history/bin/yano-cardano-history status \
   --url http://127.0.0.1:7070/api/v1 --chain cardano-history-chain \
-  --api-key "$YANO_CLUSTER_API_KEY"
+  --api-key "$API_KEY"
 
-yano/tools/yano-cardano-history/bin/yano-cardano-history proof params --epoch 1 \
+../../tools/yano-cardano-history/bin/yano-cardano-history query params --epoch 1 \
+  --url http://127.0.0.1:7070/api/v1 --chain cardano-history-chain \
+  --api-key "$API_KEY"
+
+../../tools/yano-cardano-history/bin/yano-cardano-history proof params --epoch 1 \
   --output params-proof.json \
   --url http://127.0.0.1:7070/api/v1 --chain cardano-history-chain \
-  --api-key "$YANO_CLUSTER_API_KEY"
+  --api-key "$API_KEY"
 ```
 
 Proof generation is fixed to the latest L1-confirmed Cardano History commitment, not merely the
