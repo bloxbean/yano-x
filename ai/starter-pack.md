@@ -225,32 +225,42 @@ optional plugins: Kafka, S3-compatible `object.put`, `ipfs.pin`,
 
 ```bash
 # 1. Scaffold. Modes: state-machine | composite-role | effect-executor | sink
+#    --yano-version must be the host's version, or the build cannot resolve the API.
+#    A -SNAPSHOT host also needs https://repo.bloxbean.org/maven/snapshots in the
+#    scaffold's repositories.
 ./yano.sh appchain plugin scaffold --mode state-machine --id shipment \
-  --package com.example.shipment --output shipment-plugin
+  --package com.example.shipment \
+  --yano-version "$(jq -r .version yano-distribution-v1.json)" --output shipment-plugin
 
-# 2. Implement and test.
+# 2. Implement and test: (cd shipment-plugin && gradle test)
 
 # 3. Sign the catalog, runtime manifest, and optional config metadata.
 #    The 32-byte seed stays outside the repo and is passed BY FILE ONLY.
 ./yano.sh appchain plugin sign \
   --catalog <catalog.json> --runtime-manifest <manifest.json> \
   --seed-file /secure/publisher.seed --key-id example-release-2026 \
-  --output <catalog.sig.json>
+  --output shipment-plugin/src/main/resources/META-INF/yano/appchain-component-catalog-v1.sig.json
 
-# 4. Build and validate. Loads no plugin code.
+# 4. Build, so the JAR carries the signature, then validate. Loads no plugin code.
+(cd shipment-plugin && gradle jar)
 ./yano.sh appchain plugin validate <jar> --trust-key <key-id>=<public-key-hex>
 
-# 5. Pin into a project.
-./yano.sh appchain init --non-interactive --recipe custom-plugin \
-  --network devnet --members 3 --runtime jvm \
-  --capability state:shipment --plugin-jar <jar> \
-  --trust-key <key-id>=<public-key-hex> --output shipment-chain
-
-# 6. Check readiness against a real distribution.
-./yano.sh appchain doctor shipment-chain --distribution /opt/yano-x
-
-# 7. Copy the exact pinned JAR into plugins/ on EVERY member, then validate.
+# 5. Every operator installs the identical JAR in plugins/ BEFORE the seal.
+cp <jar> plugins/
 tools/yano-plugins/bin/yano-plugins validate plugins/*.jar
+
+# 6. Draft a chain that selects the machine: the custom-plugin recipe, with the
+#    machine id as the stateMachine answer (chains[].answers.stateMachine: shipment).
+./yano.sh appchain new shipments --network devnet --operators alice,bob,carol \
+  --chain shipments=custom-plugin --answer shipments.stateMachine=shipment --yes
+
+# 7. The usual ceremony. seal records the SHA-256 of every bundle in plugins/;
+#    join and start refuse a distribution whose bundles differ.
+./yano.sh appchain request shipments.draft.yaml --name <your-name>  # each operator
+./yano.sh appchain seal shipments.draft.yaml                   # coordinator
+./yano.sh appchain join shipments.chain                        # each operator
+./yano.sh appchain start
+./yano.sh appchain status shipments
 ```
 
 The JAR carries three independent bounded contracts plus a signature:
@@ -271,13 +281,13 @@ The custom state-machine shape:
 
 ```java
 public final class ShipmentStateMachine implements AppStateMachine {
-    @Override public String id() { return "shipment-v1"; }
+    @Override public String id() { return "shipment"; }
 
     @Override
     public AdmissionResult validate(AppMessage message) {
         return decodeSafely(message.getBody())
                 ? AdmissionResult.accept()
-                : AdmissionResult.reject("invalid shipment command");
+                : AdmissionResult.reject("INVALID_SHIPMENT_COMMAND");
     }
 
     @Override
@@ -396,13 +406,13 @@ catch-up, restart, and anchor state.
 
 | Symptom | Root cause | Fix |
 |---|---|---|
-| Cluster stops finalizing after a deploy | Members run different bundles or different `CONSENSUS_SHARED` values | `./yano.sh appchain drift <project> --peer <node-url>`; align bundles and config |
+| Cluster stops finalizing after a deploy | Members run different bundles or different consensus settings | `./yano.sh appchain status` prints each chain's height and `members agree`, and warns when members report different roots at the same height; `join` and `start` refuse bundles that differ from the sealed digests, so reinstall the exact JAR |
 | Root parity holds locally, fails on a cluster | Reproducible but not identical — usually `HashMap` iteration or a wall clock | See §4; re-run under `@AppChainCluster` |
 | `verifyJvmOnlyBuild` fails | A native-image build or distribution task crept in | Remove it. Yano X is JVM-only by decision |
 | `verifyArtifactInventory` fails | Module identity changed without updating `config/artifacts-v1.json` | Update the inventory and its verification tests |
 | Build tries to reach Maven Local | `-PuseMavenLocal=true` needed but that is the contributor track | Users need no flags at all |
 | Missing release asset for `yanoVersion` | SNAPSHOT or staged Yano version | Supply `-PyanoJvmDist` with the exact matching ZIP |
-| `appchain doctor` reports incompatibility | Pointed at a native distribution | Yano X plugins target the JVM host |
+| `join` or `start` refuses the plugin bundles | `plugins/` differs from the sealed set (a JAR added, removed or rebuilt) | Install exactly the sealed JARs, or after an agreed upgrade run `join <app>.chain --accept-bundles` |
 | Node refuses to start with a catalog error | Two bundles provide the same contribution | Install exactly one of them |
 | `POST /messages` returns 429 | Pending pool full — backpressure working | Back off and retry; tune `pool.max-messages` deliberately |
 | Message rejected, `drops.stale_seq` | Per-sender seq at or below the last finalized seq — a replay | Do not reuse envelopes; seq gaps are fine and meaningless |
@@ -421,7 +431,7 @@ catch-up, restart, and anchor state.
 | Live recipes, capabilities, modules, config properties | [`/ai/catalog.json`](https://yano-x.io/ai/catalog.json) |
 | Everything on this site as one file | [`/llms-full.txt`](https://yano-x.io/llms-full.txt) |
 | Version-matched truth for a build | `./yano.sh appchain recipes`, `./yano.sh appchain capabilities --format json` |
-| Project workflow for agents | The in-repo `configure-yano-appchain` skill under `tooling/devtools/src/main/resources/appchain-dx/v1alpha1/skills/` — **it wins where it overlaps this pack** |
+| Setup workflow for agents | The in-repo `configure-yano-appchain` skill under `tooling/devtools/src/main/resources/appchain-dx/v1alpha1/skills/` — **it wins where it overlaps this pack** |
 | Exhaustive reference | [Reference shelf](https://yano-x.io/reference/shelf/) |
 | Plugin SPI contract | Yano's ADR-011 series in its `adr/app-layer/` directory, and its [plugin query and domain API guide](https://github.com/bloxbean/yano/blob/main/docs/APP_CHAIN_PLUGIN_QUERY_AND_DOMAIN_API.md) |
 | Consensus internals | Yano's [consensus guide](https://github.com/bloxbean/yano/blob/main/docs/APP_CHAIN_CONSENSUS_GUIDE.md) |
@@ -435,7 +445,7 @@ catch-up, restart, and anchor state.
   documented environment-variable or secret-provider names.
 - Never invent configuration keys, values, defaults, recipes, or compatibility
   claims. Report an unavailable capability as unsupported.
-- Keep blueprint, resolved-config, release, plugin-catalog, and consensus
+- Keep draft/sealed file, resolved-config, release, plugin-catalog, and consensus
   identities distinct.
 - Do not mutate a running node or call privileged runtime APIs unless explicitly
   asked.

@@ -2,7 +2,7 @@
 
 yanoXVersion: 0.1.0-pre4
 yanoVersion: 0.1.0-pre19
-generatedAt: 2026-10-29T15:11:55.680Z
+generatedAt: 2026-10-30T02:21:47.138Z
 
 > Yano X is the Java 25, JVM-only extension ecosystem for Yano app ledgers. An app ledger (an "app chain" in Yano's CLI, configuration, and APIs) is an application-specific replicated ledger with deterministic state, threshold finality, authenticated state proofs, optional Cardano anchoring, and controlled external effects. Yano X supplies the stock state machines, capabilities, connectors, products, SDKs, and the batteries-included JVM distribution that run on top of the Yano host.
 
@@ -73,7 +73,7 @@ Key facts an AI agent should know before generating Yano X code or configuration
 - [Where data lives](https://yano-x.io/concepts/where-data-lives/): A Yano node keeps three separate stores. Two are authoritative and one is derived. Knowing which is which tells you what to back up, what you can delete…
 - [Restart, catch-up and snapshots](https://yano-x.io/concepts/recovery/): A member that restarts, falls behind, or joins from a snapshot never trusts the data it is given. It re-checks every block and certificate, and it…
 - [Keys and trust](https://yano-x.io/concepts/trust-model/): An app ledger involves several kinds of keys and credentials, and each one means something different. This page says what each key signs or unlocks, what…
-- [Namespaces, writer policies and session keys](https://yano-x.io/concepts/topic-policies/): A topic registry gives an app chain a committed policy for who may write each topic. Yano owns registry state, signature verification, activation and…
+- [Namespaces, writer policies and session keys](https://yano-x.io/concepts/topic-policies/): Every message on an app chain names a topic, such as freight/acme/shipments. On any chain the topic is a label. On a chain sealed with a topics: block, a…
 
 ## Recipes
 

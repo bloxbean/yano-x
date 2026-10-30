@@ -227,7 +227,9 @@ Omitting a historical profile cannot establish that it is safe to remove.</p>
 <p>The current <code dir="auto">bindings compile</code>, <code dir="auto">validate</code>, <code dir="auto">graph</code>, and <code dir="auto">dry-run</code> commands
 construct a fixed genesis profile. They are useful for command and cascade
 rehearsal, but do not qualify a governed epoch transition or migrate a retained
-chain. Project lock validation detects changes; it does not make them compatible.</p>
+chain. The sealed bundle digests detect changes: <code dir="auto">appchain join</code> and
+<code dir="auto">appchain start</code> refuse a changed plugin bundle until the operator accepts it
+with <code dir="auto">join --accept-bundles</code>. Detecting a change does not make it compatible.</p>
 <p><code dir="auto">profile-check</code> supplies a fail-closed reconstruction preflight, not an installer
 or migration planner. There is no general declarative command that installs old
 and new workflow implementations side by side, exports a complete historical

@@ -4,7 +4,7 @@
 
 yanoXVersion: 0.1.0-pre4
 yanoVersion: 0.1.0-pre19
-Generated: 2026-10-29T15:11:55.680Z
+Generated: 2026-10-30T02:21:47.138Z
 Site: https://yano-x.io
 Repo: https://github.com/bloxbean/yano-x
 
@@ -551,32 +551,42 @@ optional plugins: Kafka, S3-compatible `object.put`, `ipfs.pin`,
 
 ```bash
 ### 1. Scaffold. Modes: state-machine | composite-role | effect-executor | sink
+###    --yano-version must be the host's version, or the build cannot resolve the API.
+###    A -SNAPSHOT host also needs https://repo.bloxbean.org/maven/snapshots in the
+###    scaffold's repositories.
 ./yano.sh appchain plugin scaffold --mode state-machine --id shipment \
-  --package com.example.shipment --output shipment-plugin
+  --package com.example.shipment \
+  --yano-version "$(jq -r .version yano-distribution-v1.json)" --output shipment-plugin
 
-### 2. Implement and test.
+### 2. Implement and test: (cd shipment-plugin && gradle test)
 
 ### 3. Sign the catalog, runtime manifest, and optional config metadata.
 ###    The 32-byte seed stays outside the repo and is passed BY FILE ONLY.
 ./yano.sh appchain plugin sign \
   --catalog <catalog.json> --runtime-manifest <manifest.json> \
   --seed-file /secure/publisher.seed --key-id example-release-2026 \
-  --output <catalog.sig.json>
+  --output shipment-plugin/src/main/resources/META-INF/yano/appchain-component-catalog-v1.sig.json
 
-### 4. Build and validate. Loads no plugin code.
+### 4. Build, so the JAR carries the signature, then validate. Loads no plugin code.
+(cd shipment-plugin && gradle jar)
 ./yano.sh appchain plugin validate <jar> --trust-key <key-id>=<public-key-hex>
 
-### 5. Pin into a project.
-./yano.sh appchain init --non-interactive --recipe custom-plugin \
-  --network devnet --members 3 --runtime jvm \
-  --capability state:shipment --plugin-jar <jar> \
-  --trust-key <key-id>=<public-key-hex> --output shipment-chain
-
-### 6. Check readiness against a real distribution.
-./yano.sh appchain doctor shipment-chain --distribution /opt/yano-x
-
-### 7. Copy the exact pinned JAR into plugins/ on EVERY member, then validate.
+### 5. Every operator installs the identical JAR in plugins/ BEFORE the seal.
+cp <jar> plugins/
 tools/yano-plugins/bin/yano-plugins validate plugins/*.jar
+
+### 6. Draft a chain that selects the machine: the custom-plugin recipe, with the
+###    machine id as the stateMachine answer (chains[].answers.stateMachine: shipment).
+./yano.sh appchain new shipments --network devnet --operators alice,bob,carol \
+  --chain shipments=custom-plugin --answer shipments.stateMachine=shipment --yes
+
+### 7. The usual ceremony. seal records the SHA-256 of every bundle in plugins/;
+###    join and start refuse a distribution whose bundles differ.
+./yano.sh appchain request shipments.draft.yaml --name <your-name>  # each operator
+./yano.sh appchain seal shipments.draft.yaml                   # coordinator
+./yano.sh appchain join shipments.chain                        # each operator
+./yano.sh appchain start
+./yano.sh appchain status shipments
 ```
 
 The JAR carries three independent bounded contracts plus a signature:
@@ -597,13 +607,13 @@ The custom state-machine shape:
 
 ```java
 public final class ShipmentStateMachine implements AppStateMachine {
-    @Override public String id() { return "shipment-v1"; }
+    @Override public String id() { return "shipment"; }
 
     @Override
     public AdmissionResult validate(AppMessage message) {
         return decodeSafely(message.getBody())
                 ? AdmissionResult.accept()
-                : AdmissionResult.reject("invalid shipment command");
+                : AdmissionResult.reject("INVALID_SHIPMENT_COMMAND");
     }
 
     @Override
@@ -722,13 +732,13 @@ catch-up, restart, and anchor state.
 
 | Symptom | Root cause | Fix |
 |---|---|---|
-| Cluster stops finalizing after a deploy | Members run different bundles or different `CONSENSUS_SHARED` values | `./yano.sh appchain drift <project> --peer <node-url>`; align bundles and config |
+| Cluster stops finalizing after a deploy | Members run different bundles or different consensus settings | `./yano.sh appchain status` prints each chain's height and `members agree`, and warns when members report different roots at the same height; `join` and `start` refuse bundles that differ from the sealed digests, so reinstall the exact JAR |
 | Root parity holds locally, fails on a cluster | Reproducible but not identical — usually `HashMap` iteration or a wall clock | See §4; re-run under `@AppChainCluster` |
 | `verifyJvmOnlyBuild` fails | A native-image build or distribution task crept in | Remove it. Yano X is JVM-only by decision |
 | `verifyArtifactInventory` fails | Module identity changed without updating `config/artifacts-v1.json` | Update the inventory and its verification tests |
 | Build tries to reach Maven Local | `-PuseMavenLocal=true` needed but that is the contributor track | Users need no flags at all |
 | Missing release asset for `yanoVersion` | SNAPSHOT or staged Yano version | Supply `-PyanoJvmDist` with the exact matching ZIP |
-| `appchain doctor` reports incompatibility | Pointed at a native distribution | Yano X plugins target the JVM host |
+| `join` or `start` refuses the plugin bundles | `plugins/` differs from the sealed set (a JAR added, removed or rebuilt) | Install exactly the sealed JARs, or after an agreed upgrade run `join <app>.chain --accept-bundles` |
 | Node refuses to start with a catalog error | Two bundles provide the same contribution | Install exactly one of them |
 | `POST /messages` returns 429 | Pending pool full — backpressure working | Back off and retry; tune `pool.max-messages` deliberately |
 | Message rejected, `drops.stale_seq` | Per-sender seq at or below the last finalized seq — a replay | Do not reuse envelopes; seq gaps are fine and meaningless |
@@ -747,7 +757,7 @@ catch-up, restart, and anchor state.
 | Live recipes, capabilities, modules, config properties | [`/ai/catalog.json`](https://yano-x.io/ai/catalog.json) |
 | Everything on this site as one file | [`/llms-full.txt`](https://yano-x.io/llms-full.txt) |
 | Version-matched truth for a build | `./yano.sh appchain recipes`, `./yano.sh appchain capabilities --format json` |
-| Project workflow for agents | The in-repo `configure-yano-appchain` skill under `tooling/devtools/src/main/resources/appchain-dx/v1alpha1/skills/` — **it wins where it overlaps this pack** |
+| Setup workflow for agents | The in-repo `configure-yano-appchain` skill under `tooling/devtools/src/main/resources/appchain-dx/v1alpha1/skills/` — **it wins where it overlaps this pack** |
 | Exhaustive reference | [Reference shelf](https://yano-x.io/reference/shelf/) |
 | Plugin SPI contract | Yano's ADR-011 series in its `adr/app-layer/` directory, and its [plugin query and domain API guide](https://github.com/bloxbean/yano/blob/main/docs/APP_CHAIN_PLUGIN_QUERY_AND_DOMAIN_API.md) |
 | Consensus internals | Yano's [consensus guide](https://github.com/bloxbean/yano/blob/main/docs/APP_CHAIN_CONSENSUS_GUIDE.md) |
@@ -761,7 +771,7 @@ catch-up, restart, and anchor state.
   documented environment-variable or secret-provider names.
 - Never invent configuration keys, values, defaults, recipes, or compatibility
   claims. Report an unavailable capability as unsupported.
-- Keep blueprint, resolved-config, release, plugin-catalog, and consensus
+- Keep draft/sealed file, resolved-config, release, plugin-catalog, and consensus
   identities distinct.
 - Do not mutate a running node or call privileged runtime APIs unless explicitly
   asked.
@@ -1357,7 +1367,7 @@ yano-x-jvm-<version>/
 ├── yano.sh                       # the public CLI and node launcher
 ├── yano.jar
 ├── config/                       # chain definitions and network genesis
-│   └── schema/                   # blueprint, catalog, and lock schemas
+│   └── schema/                   # component catalog, snapshot, and metadata-trust schemas
 ├── plugins/                      # the default, conflict-free bundle selection
 ├── tools/
 │   ├── lib/                      # jars shared by the Yano X command-line tools
@@ -1365,7 +1375,7 @@ yano-x-jvm-<version>/
 │   ├── yano-appchain/            # the setup CLI and tools behind `yano.sh appchain`
 │   ├── composite-profile/        # profile-governance.py, the composite-profile governance CLI
 │   └── yano-deploy/ …            # deployment CLI and product CLIs
-├── studio/                       # App-Chain Studio, the blueprint builder
+├── studio/                       # App-Chain Studio (binding and topics editors)
 ├── skills/configure-yano-appchain/   # the first-party AI agent skill
 ├── examples/
 │   ├── showcase/                 # the local multi-node showcase
@@ -1375,9 +1385,10 @@ yano-x-jvm-<version>/
 └── LICENSE, LICENSE.yano
 ```
 
-Two of those are easy to miss: `studio/` is the same blueprint builder
-[hosted on this site](https://yano-x.io/studio/), and `skills/configure-yano-appchain/` is a
-version-matched agent skill — see [Using Yano X with AI agents](https://yano-x.io/ai/).
+Two of those are easy to miss: `studio/` is the same App-Chain Studio, with
+its binding and topics editors, [hosted on this site](https://yano-x.io/studio/), and
+`skills/configure-yano-appchain/` is a version-matched agent skill — see
+[Using Yano X with AI agents](https://yano-x.io/ai/).
 
 #### Unpack and check
 
@@ -1453,7 +1464,7 @@ a GitHub release asset, and locally built or staged versions must supply
 | A missing release asset for `yanoVersion` | You are on a staged or locally built Yano version. Supply `-PyanoJvmDist` with the exact matching ZIP. |
 | `Could not find org.yanoproject-snapshot:yano` | Yano publishes snapshot jars and the snapshot ZIP in separate workflows; the ZIP for that commit is not published yet. Wait for it, or pick a commit listed in `repo.bloxbean.org/dist/snapshots/yano/latest.json`. |
 | `verifyJvmOnlyBuild` fails | Something introduced a native-image build or distribution task. Yano X is JVM-only by decision. |
-| A native distribution is rejected by `appchain doctor` | Yano X plugins target the JVM host. Use the `yano-x-jvm` archive. |
+| A native Yano distribution cannot load Yano X plugins | Use the `yano-x-jvm` archive. |
 
 For the full matrix of build tasks and verification gates, see
 [Build and test](https://github.com/bloxbean/yano-x/blob/main/docs/BUILD_AND_TEST.md)
@@ -1475,6 +1486,8 @@ wallet, public-network funds, or external Cardano node.
 - **Before you start:** Java 25, Python 3, `curl`, and `jq`. Python uses only
   its standard library. Docker is needed only for the separate evidence demo.
   The showcase uses HTTP ports `7070`–`7072` and node ports `13337`–`13339`.
+  If they are busy, add `--http-base <port> --server-base <port>` to the first
+  `quickstart` of an instance (see Troubleshooting).
 - **Time:** about 10 minutes, most of it startup.
 - **Outcome:** three nodes running thirteen chains, a finalized order with a
   proof, and an instance you can stop and resume.
@@ -1526,8 +1539,9 @@ nodes. It bootstraps the `workflow-chain` anchor on that devnet, runs a
 composite workflow and an authenticated-map demonstration, checks convergence,
 and prints the console address.
 
-> **✓ You should see** `Cluster up.`, one line per chain such as
-> `orders-chain       nodes=3 tip=... cert=.../...`, and finally
+> **✓ You should see** one line per chain such as
+> `orders-chain       nodes=3 tip=... cert=.../...`,
+> `workflow-chain L1 anchor confirmed: ...`, and finally
 > `Status UI: http://127.0.0.1:7070/ui/app-chain/`.
 
 The light profile demonstrates logs, registries, document trails, approvals,
@@ -1569,8 +1583,9 @@ for the actual requests, message lookup, and typed proof route.
 ./showcase.sh verify --instance first-demo
 ```
 
-> **✓ You should see** `stopped 3 node(s)` after `stop`, and `Cluster up.`
-> after `restart`.
+> **✓ You should see** `✓ Stopped node0; its data is kept` (one line per node)
+> after `stop`, and `node0 is up at http://127.0.0.1:7070` (one per node) with
+> the per-chain lines after `restart`.
 
 Retrieve the same order after the restart, using the message ID that
 `submit-orders.sh` printed:
@@ -1580,6 +1595,8 @@ MESSAGE_ID=<message-id printed by submit-orders.sh>
 curl -fsS "http://127.0.0.1:7070/api/v1/app-chain/chains/orders-chain/messages/$MESSAGE_ID" \
   | jq '{messageId,height,index,topic}'
 ```
+
+If you started the instance with `--http-base`, use that port instead of `7070`.
 
 > **✓ You should see** the same `messageId` at the same `height` as before
 > the restart.
@@ -1595,8 +1612,7 @@ the generated identity and data directories together.
 |---|---|
 | `Java 25 is required (found ...)` | Put a Java 25 JDK first on your `PATH`, then run `doctor` again. |
 | `required command not found: jq` | Install the named command and run `doctor` again. |
-| `explicit HTTP range 7070-7072 is busy (port ...)` | Another program holds the showcase ports. Stop it and run the same command again, or start a new instance with other ports, for example `--instance second-demo --http-base 7170 --server-base 14337`. |
-| `run showcase.sh from examples/showcase in an extracted Yano X JVM distribution` | Run the script from inside the extracted JVM ZIP, not from a source checkout. |
+| `Port 7070 is already in use by another program…` or `Port 13337 is already in use…`, then `node0 did not start` | Another program holds a showcase port. Stop it and run the same command again. An instance keeps the ports of its first `quickstart` (`requested httpBase differs from the retained instance` otherwise), so to use other ports start a new instance, for example `--instance second-demo --http-base 7170 --server-base 14337`. |
 
 **Next:** [set up your own application with other operators](https://yano-x.io/deployment/configure/), or explore the
 [complete showcase](https://github.com/bloxbean/yano-x/blob/main/examples/showcase/docs/MASTER_DEMO.md).
@@ -2200,8 +2216,10 @@ ledger data is never placed below L1 `chainstate`.
 
 #### Deployment shape
 
-- **JVM:** copy a self-contained manifested bundle into every member's plugin
-  directory, select it in configuration, and restart. No Yano rebuild is needed.
+- **JVM:** every member installs the same self-contained manifested bundle in
+  `plugins/` before `seal`, and the setup draft selects it. A later change needs
+  `appchain join <app>.chain --accept-bundles` on every member. No Yano rebuild
+  is needed.
 - **Native:** Yano's native image is core-only. Yano X extensions are JVM-only.
 - **Several ledgers per node:** one node can host several independently
   configured chains.
@@ -2760,7 +2778,10 @@ later.
 
 Effects are off by default, and these are **consensus parameters** — every
 member must set identical values, or the state root diverges exactly as it
-would with a mismatched state machine.
+would with a mismatched state machine. With the setup commands they are sealed
+chain settings, so put them in the draft, for example
+`./yano.sh appchain new <app> --setting <chain>.effects.enabled=true`; `seal`
+writes them into every member's configuration. The raw properties are:
 
 ```yaml
 yano.app-chain.effects.enabled: true
@@ -2869,6 +2890,7 @@ who may attest:
 
 ```yaml
 ### Only these member keys' ~fx/result messages are accepted. Default: any member.
+### A sealed setting: --setting <chain>.effects.result.signers=<hex pubkey>
 yano.app-chain.effects.result.signers: "<hex pubkey of the executor node>"
 ```
 
@@ -2879,7 +2901,11 @@ result attestation for high-value effects is designed but not yet shipped.
 #### Running an executor
 
 The effect runtime is off by default on every node. Everywhere it is off,
-effects are still emitted and provable; they wait.
+effects are still emitted and provable; they wait. Executor settings are
+node-local: on a node set up with `appchain join`, put them in the node's
+`config/local.yaml` under the chain's entry,
+`yano.app-chain.chains[<i>].effects.executor.*`, where `<i>` is the chain's
+index in `yano-node/apps/chain-indexes.json`. The keys are:
 
 ```yaml
 yano.app-chain.effects.executor.enabled: true   # this node executes effects
@@ -3250,15 +3276,17 @@ openssl rand -hex 32
 ```
 
 On a devnet, `./yano.sh appchain anchor` creates the anchor wallet and funds
-it from the devnet faucet for you.
+it from the devnet faucet for you. Only the lead's node can anchor there,
+because only it keeps the Cardano wallet view anchoring needs.
 
 **A WALLET MNEMONIC WILL NOT WORK:**
 A CIP-1852 mnemonic from Eternl, Lace, or the devkit **cannot** be converted
 into this seed — HD payment keys are extended keys, not seeds. Generate a
 dedicated seed and fund its address.
 
-Treat it as a hot wallet holding fee money only. The key sits in configuration
-on the node box.
+Treat it as a hot wallet holding fee money only. The key sits on the node box:
+on a node set up with `appchain join`, `appchain anchor` keeps it in
+`yano-node/secrets/anchor.key`, separate from the member key.
 
 Only the anchor **leader** needs `anchor.*` configuration — typically node 0.
 In script mode, members co-sign and adopt the on-chain identity with **zero**
@@ -3292,14 +3320,22 @@ An unavailable leader can **stop anchoring** while app ledger finality
 continues. Threshold checks prevent unilateral script-state advances, but a
 compromised leader can also endanger its fee wallet and disrupt operations. The
 app ledger keeps finalizing and `lagBlocks` climbs visibly. Recovery is
-operational: enable `anchor.*` with the wallet key on another member and
-restart it. The on-chain identity is persisted on L1 and members adopt it from
+operational: on another member, run
+`./yano.sh appchain anchor <app> --chain <id> --take-over --key <wallet-seed-file>`
+(or, on a hand-configured node, enable `anchor.*` with the wallet key and
+restart it). The on-chain identity is persisted on L1 and members adopt it from
 sign requests, so the new leader resumes where the old one stopped.
 
 Metadata mode is the same minus co-signing. Its commitment is data-only and the
 leader alone signs, so the trust statement is correspondingly weaker.
 
 #### Configuration
+
+On a node set up with `appchain join`, do not write these by hand. `mode` and
+`every-blocks` are sealed chain settings, chosen in the draft
+(`--setting <chain>.anchor.mode=script`), and `./yano.sh appchain anchor`
+writes the leader's node-local properties, reading the seed from
+`yano-node/secrets/anchor.key`. On a hand-configured node, the properties are:
 
 ```yaml
 yano:
@@ -3863,13 +3899,19 @@ plus a manifest signed by the member that took it. The manifest binds the chain
 id, the tip height and block hash, the state root, the state identity, a hash of
 the membership epochs, and a SHA-256 of every file.
 
+Taking one is privileged, so pass the node's API key. From the directory that
+holds `yano-node/`, with the node's HTTP port:
+
 ```bash
-./yano.sh appchain state snapshot --url http://127.0.0.1:7070/api/v1 --chain orders-chain \
-  --path /var/lib/yano/snapshots/orders-chain-1   # a fresh directory on the node
+./yano.sh appchain state snapshot --url http://127.0.0.1:8080/api/v1 --chain orders \
+  --api-key "$(cat yano-node/secrets/api.key)" \
+  --path /var/lib/yano/snapshots/orders-1   # a fresh directory on the node
 ```
 
-To restore, copy the snapshot directory to `<yano.app-chain.storage.path>/<chain-id>/`
-on the new or recovering member and start it. The node then refuses to start
+To restore, stop the new or recovering member, copy the snapshot directory to
+`<yano.app-chain.storage.path>/<chain-id>/` (on a node set up with
+`appchain join`, `yano-node/data/appchain-chainstate/<chain-id>/`), and start
+it. The node then refuses to start
 unless:
 
 - the manifest was signed by a configured member, and every file hash matches,
@@ -3980,6 +4022,13 @@ threshold of 3, and `f = 1`.
 
 #### Node-local secrets
 
+On a node set up with `appchain request` and `join`, each secret is a file in
+the node directory, readable only by its owner: `yano-node/secrets/member.key`
+(the member signing key), `yano-node/secrets/api.key` (the node's API key), and,
+on an anchor leader, `yano-node/secrets/anchor.key` (the anchor wallet seed).
+`appchain start` passes them to the node as environment variables, so the
+generated configuration never contains them.
+
 - **API keys** control access to a node's REST API: `yano.app-chain.api.keys`,
   sent as `X-API-Key`. A full key unlocks privileged operations, such as pausing
   submissions, membership and threshold administration, effect operations, and
@@ -4024,70 +4073,176 @@ Next: [Glossary](https://yano-x.io/reference/glossary/).
 
 Source: https://yano-x.io/concepts/topic-policies/
 
-> A topic registry gives an app chain a committed policy for who may write each topic. Yano owns registry state, signature verification, activation and…
+> Every message on an app chain names a topic, such as freight/acme/shipments. On any chain the topic is a label. On a chain sealed with a topics: block, a…
 
-A topic registry gives an app chain a committed policy for who may write each
-topic. Yano owns registry state, signature verification, activation and replay.
-Yano X supplies authoring tools, clients and composite admission rules. A chain
-gets a registry from its draft's `topics:` block, which is sealed into its
-genesis; see [configure an application](https://yano-x.io/deployment/configure/).
+Every message on an app chain names a **topic**, such as
+`freight/acme/shipments`. On any chain the topic is a label. On a chain sealed
+with a `topics:` block, a **topic registry** in the chain's state also decides
+who may write each topic, and every member enforces it before any state machine
+sees the message. Yano owns the registry, its checks and its proofs; Yano X
+supplies the `appchain topics` commands, the clients and the composite rules.
 
-A namespace ends in `/`. `games/` covers `games/neon-rush/rides`, and the nearer
-`games/neon-rush/` entry can override individual policy fields. An omitted field
-inherits; `writers: open`, an empty delegation list and `schema: none` are
-explicit overrides. Retirement is inherited and cannot be undone by a child.
-Owner keys manage a namespace. Writer keys authorize messages. Members can
-recover ownership through the chain's enabled governance path.
+The examples on this page follow one chain: a freight consortium whose members
+share delivery records. The consortium owns the `freight/` namespace, each
+member company runs its own namespace below it, and Acme's drivers record
+delivery scans on `freight/acme/shipments` from a web app.
 
-On a protected topic a message body is a canonical CBOR frame containing the
-payload and its proof. Direct writes carry the required writer signatures.
-Delegated writes carry a short-lived issuer credential and a session-key
-signature. Both signatures bind the chain generation, so copying a credential
-to a fresh chain does not grant authority. A signed write also binds the topic,
-payload hash, nonce and expiry. The host rejects reused statements, revoked
-credentials and expired or out-of-scope writes.
+#### One topic name, used everywhere
 
-A delegation stands in for one writer: its issuer must be an allowed delegator
-and a member of a 1-of-n writer set. It cannot satisfy a 2-of-n policy by itself.
-The effective lifetime is bounded by both the namespace and chain settings.
-Changing the allowed issuers takes effect at the committed activation height.
+<!-- illustration: topic-touchpoints -->
 
-The host first checks topic policy, then calls machine admission and composite
-rules. Machine hooks receive the verified payload through `getBody()`, while
-message identity still refers to the original frame. A balance command executes
-the same transfer with or without framing; its message ID, receipt and message
-proof necessarily follow the actual submitted bytes. Do not strip a frame from
-an archived message or synthesize a replacement ID.
+A chain gets a registry from its draft: add `topics:` to the chain
+(`./yano.sh appchain new --topics <chain>=members`, or answer the wizard), with
+governed membership. It is sealed into the chain's genesis; see
+[configure an application](https://yano-x.io/deployment/configure/). Without it, topics work
+as before and anyone who can submit to a node may write any topic.
 
-Topic payload schemas use the same `yano-cbor-schema-ir-v1` evaluator as
-`authenticated-map`. CDDL is compiled by `CddlSchemaCompiler` before submission;
-members only evaluate committed IR. Put a topic schema on an opaque machine
-such as `ordered-log`. Typed kernels such as `balances` already define their
-command format and reject a second topic schema.
+#### Who registers, manages and writes
+
+<!-- illustration: topic-roles -->
+
+| Who | What they may do | How |
+|---|---|---|
+| **The members**, by a vote | Create a top-level namespace (`create: members`). Always available, also to recover a namespace whose owners lost their keys | `topics init`, `plan`, then `topics approve` on each node |
+| **Registrars**, keys named in the draft | Create a top-level namespace alone (`create: registrars`) | `topics init`, `plan`, `sign`, `submit` |
+| **Anyone**, first come | Claim an unused single-segment name (`create: anyone`) | the same, signed by the new owners |
+| **The owners** of a namespace (k-of-n keys) | Create entries below it, change policies, rotate owners, retire entries, revoke credentials | `topics plan`, `sign`, `submit` |
+| **Writers** (k-of-n keys, or anyone when `writers: open`) | Write messages on the topic | the [Java or JavaScript client](https://yano-x.io/recipes/topic-session-keys/#use-a-browser-session) |
+| **An issuer**: a writer listed under `delegate` | Sign short-lived credentials so users write with session keys | an application service; `topics delegate` for tests |
+
+Names form a tree:
+
+- **A namespace ends in `/`** and covers every topic below it. The longest
+  matching entry wins: `freight/acme/` can override single fields of
+  `freight/`, and an omitted field inherits. `writers: open`, an empty
+  `delegate` list and `schema: none` are explicit overrides. Retirement is
+  inherited, and a child cannot undo it.
+- **A topic no entry covers** follows the draft's `unregistered:` setting.
+  `open`, the default of `appchain new`, accepts it as before. `reject`
+  refuses it with `TOPIC_UNREGISTERED`, and the chain then makes blocks only
+  from registered topics. Topics starting with `~` are system topics.
+- **Changes take effect later**: a committed change activates after the
+  chain's activation lag (10 blocks by default), never retroactively, so every
+  earlier message stays verifiable under the policy it was written under.
+
+A policy has these fields:
+
+| Field | Meaning |
+|---|---|
+| `writers` | `open`, or `threshold` of `keys`: the signatures a write needs |
+| `delegate` | Writer keys that may issue session credentials. Only with a 1-of-n writer set |
+| `maxDelegationMs` | The longest credential lifetime; the chain's `max-delegation-ms` (one hour by default) also caps it |
+| `maxPayloadBytes` | The largest payload. It applies to open topics too |
+| `schemaCddl` | An optional CBOR schema for the payload (see below) |
+
+Some common policies:
+
+| Use case | Topic | Policy |
+|---|---|---|
+| Delivery scans from drivers' phones | `freight/acme/shipments` | `writers` 1 of [login service, warehouse system]; the login service in `delegate` gives drivers one-hour session keys; a schema checks `tempC` |
+| Payments that need two officers | `finance/payments/approvals` | `writers` 2 of [three officers' keys]; no delegation |
+| Readings from plant gateways | `iot/plant-7/readings` | `writers` 1 of [the gateways' keys]; `maxPayloadBytes` 512; a schema |
+| Feedback from any partner | `partners/feedback` | `writers: open`; size and schema still apply |
+| Scratch or test traffic | not registered | accepted with `unregistered: open`, refused with `reject` |
+
+#### A write on a protected topic
+
+<!-- illustration: topic-write-check -->
+1. **Log in.** A driver signs in to the delivery app by any means it likes,
+   such as the company's SSO, and the app makes a session key that never leaves
+   the device.
+2. **Issue a credential.** The login service signs a delegation for that
+   session key, one scope (`freight/acme/`) and a short time window.
+3. **Write.** The app signs a frame (payload plus write proof) and posts it
+   to any member.
+4. **Check the policy.** The member resolves the effective policy and runs the
+   checks in order; the first failure refuses with `400` and a code.
+5. **Run the machine.** Only then do the state machine's admission and any
+   composite rules run, on the verified payload.
+6. **Finalize.** The proposer and every follower repeat the checks; a follower
+   rejects a block that breaks them.
+<!-- /illustration -->
+
+- **A direct write** carries the policy's threshold of writer signatures
+  instead of a credential.
+- **A credential stands in for one writer.** Its issuer must be listed under
+  `delegate` and belong to a 1-of-n writer set; it cannot satisfy a 2-of-n
+  policy by itself. A change to the allowed issuers takes effect at its
+  activation height.
+- **Signatures bind the chain generation**, so a credential copied to a fresh
+  chain grants nothing. A write also binds the topic, payload hash, nonce and
+  expiry, and the host rejects reused, revoked, expired or out-of-scope writes.
+- **The machine sees the payload, not the frame.** Machine hooks receive the
+  verified payload through `getBody()`, while the message id, receipt and
+  message proof follow the submitted frame. Do not strip a frame from an
+  archived message or make up a replacement id.
+
+| Code | The write was refused because |
+|---|---|
+| `TOPIC_UNREGISTERED` | no entry covers the topic, and the chain rejects unregistered topics |
+| `TOPIC_RETIRED` | the entry is retired |
+| `TOPIC_FRAME_INVALID` | the topic is protected and the body is not a canonical frame |
+| `TOPIC_PROOF_EXPIRED` | the write proof's `notAfter` has passed or is too far ahead |
+| `TOPIC_WRITER_DENIED` | signatures are missing, invalid, below the threshold, or not from writer keys |
+| `TOPIC_DELEGATION_INVALID` | the credential's issuer, scope or time window is wrong, or it was revoked |
+| `TOPIC_PROOF_REPLAYED` | this write was already used |
+| `TOPIC_PAYLOAD_TOO_LARGE` | the payload is above `maxPayloadBytes` |
+| `TOPIC_SCHEMA_REJECTED` | the payload is not canonical CBOR or does not match the schema |
+
+Registry commands have their own codes: `TOPIC_COMMAND_INVALID`, `_DENIED`,
+`_EXPIRED`, `_STALE`, `_LIMIT` and `_SUPERSEDED`.
+
+#### Payload schemas
+
+Topic schemas use the same `yano-cbor-schema-ir-v1` evaluator as
+`authenticated-map`. CDDL is compiled by `CddlSchemaCompiler` before
+submission; members only evaluate the committed IR. Put a topic
+schema on an opaque machine such as `ordered-log`. Typed kernels such as
+`balances` already define their command format and reject a second topic
+schema. Composite rules can read the verified payload; see
+[admission rules](https://yano-x.io/bindings/admission-rules/).
+
+#### Read the registry
+
+| You want | CLI | REST, below `/api/v1/app-chain/chains/{chainId}` |
+|---|---|---|
+| The chain's topic settings | `topics init` reads them | `GET /topics/config` |
+| One entry and its revisions | | `GET /topics/entries/{name}` |
+| A topic's effective policy at the tip | | `GET /topics/resolve?topic=` |
+| The same for a block, with proofs | `topics resolve <topic> [--height <n>]`, verified | `GET /topics/proof?topic=&height=` |
+| A schema's IR | | `GET /topics/schemas/{hash}` |
+| The outcome of a registry command | | `GET /topics/receipts/{messageId}` |
+
+All of these are reads. In an entry name, encode the trailing slash:
+`/topics/entries/freight%2F`. Owners' commands are submitted as ordinary messages on
+`~topics/registry`; members' votes go through the privileged
+`POST /admin/topics/governance`, which `topics approve` calls on each
+operator's own node. See the [REST API](https://yano-x.io/reference/rest-api/#topic-registry).
 
 #### Proofs and trust
 
 An entry-state proof establishes one registry record at a root. It does not
-establish a topic's effective policy: ancestors, absence of overrides and the
-configuration also matter. `appchain topics resolve` returns a
+establish a topic's effective policy: ancestors, the absence of overrides and
+the configuration also matter. `appchain topics resolve` returns a
 `topic-policy-v1` effective-policy bundle for a candidate height, anchored to
 its parent state's root. It includes the configuration revision and source
 entry revisions, including disabled and unregistered outcomes.
 
-The current host exposes entry-state proofs through the generic state proof
-API, rather than a separate `topic-entry-v1` typed REST endpoint. Studio labels
-them as entry-only proofs. Its downloaded peer responses are not independent
-verification. For authorship, `appchain topics verify` requires the message,
-frame, generation and complete effective-policy and replay/revocation evidence,
-plus independently trusted block/root information. It refuses entry-only data.
-A valid signature alone does not establish current authority or finality.
+Entry-state proofs come from the generic state proof API, not a separate
+`topic-entry-v1` typed endpoint. Studio labels them as entry-only proofs, and
+its downloaded peer responses are not independent verification. For
+authorship, `appchain topics verify` requires the message, frame, generation
+and complete effective-policy, replay, revocation and schema evidence, plus
+independently trusted block/root information; the
+[how-to](https://yano-x.io/recipes/topic-session-keys/#diagnose-and-verify) lists the inputs. It refuses entry-only data. A
+valid signature alone does not establish current authority or finality.
 
 #### Preview upgrade boundary
 
 This implementation pins the Yano host at `0.1.0-pre19`, API level 13, with
-its matching ordinary JVM ZIP. Qualify it on a fresh app-chain genesis. Existing retained deployments
-remain on their exact host, profile and genesis; this change supplies no
-in-place migration or reset procedure.
+its matching ordinary JVM ZIP. Qualify it on a fresh app-chain genesis.
+Existing retained deployments remain on their exact host, profile and genesis;
+this change supplies no in-place migration or reset procedure.
 
 The old collection schema vectors keep their IR bytes and results. The merged
 core evaluator also hardens the work budget by charging bytes examined in
@@ -4097,8 +4252,7 @@ intentional prerelease boundary, not a claim that every historical state can
 be replayed under the new host. The host also adds a committed clock-skew field
 to its consensus profile. Keep old stores with the binary that created them.
 
-See [Protect a topic and give users session keys](https://yano-x.io/recipes/topic-session-keys/) and
-[admission rules](https://yano-x.io/bindings/admission-rules/).
+Next: [protect a topic and give users session keys](https://yano-x.io/recipes/topic-session-keys/).
 
 ---
 
@@ -4403,7 +4557,12 @@ A chain that runs a separately reviewed custom state-machine plugin, named by th
 - **Bootstrap requirements:** `plugin-metadata-trust-review`
 - **Reference:** [/plugins/](https://yano-x.io/plugins/)
 
-`appchain seal` does not yet accept a custom signed component catalog, so this recipe cannot be selected in a setup draft. See [Scaffold, sign, install](https://yano-x.io/plugins/scaffold-sign-install/).
+```bash
+./yano.sh appchain new custom-plugin-app --network devnet --operators alice,bob,carol \
+  --chain custom-plugin=custom-plugin --answer custom-plugin.stateMachine=<machine-id>
+```
+
+Copy the reviewed plugin JAR into `plugins/` of every operator's distribution, the coordinator's included, before `seal`: the seal pins the digest of every installed bundle. See [Scaffold, sign, install](https://yano-x.io/plugins/scaffold-sign-install/).
 
 <!-- catalog:recipe-details-end -->
 
@@ -4437,7 +4596,7 @@ not the first move.
 | Maintain a provable, owner-controlled registry | `owned-registry` recipe ([`kv-registry`](https://yano-x.io/state-machines/kv-registry/)) | No |
 | Maintain several proof-oriented collections, optionally with value validation | `authenticated-map` recipe ([guide](https://yano-x.io/state-machines/authenticated-map/)) | Configuration; a plugin only for custom rules |
 | Collect member approvals and optionally trigger an action | `approval-workflow` recipe ([`approvals`](https://yano-x.io/state-machines/approvals/)) | Configuration plus typed commands |
-| Track balances with a non-negative account ledger | [`balances`](https://yano-x.io/state-machines/balances/) | Configuration plus typed commands |
+| Track balances with a non-negative account ledger | `custom-plugin` recipe with `--answer <chain>.stateMachine=balances` ([`balances`](https://yano-x.io/state-machines/balances/)) | Configuration plus typed commands |
 | Maintain a document-hash trail per product or case | `document-trail` recipe ([`doc-trail`](https://yano-x.io/state-machines/doc-trail/)) | Configuration plus typed commands |
 | Approve payload hashes using application-defined roles | `role-approval` recipe ([`role-approvals`](https://yano-x.io/state-machines/role-approvals/)) | Configuration plus actor integration |
 | Require manufacturers, auditors, and regulators to sign by role | [Domain-role approvals](https://yano-x.io/tutorials/05-domain-role-approvals/) | No, for the stock scenario |
@@ -4539,17 +4698,31 @@ Source: https://yano-x.io/recipes/topic-session-keys/
 
 Topic policies are switched on per chain when the application is sealed: add a
 `topics:` block to the chain in the draft (`./yano.sh appchain new --topics
-games=members`, or answer the wizard's question), with governed membership.
+arcade=members` for a chain `arcade`, or answer the wizard's question), with
+governed membership.
 `create` chooses who creates top-level namespaces: the members by a vote
 (`members`), named operators or keys (`registrars`), or anyone first come
 (`anyone`). See [configure an application](https://yano-x.io/deployment/configure/) and
 [the policy model](https://yano-x.io/concepts/topic-policies/). This guide creates a top-level namespace
 by member vote and its children with owner signatures.
 
-Run the commands in your node directory (`./yano-node`, or pass `--node-dir`).
+Run the commands from the directory that holds `yano-node/` (or pass
+`--node-dir`).
 They use your node, its API key and, when the application has one chain, that
-chain. Elsewhere, add `--peer <url> --chain <id>`, and `--api-key-env NAME` to
-read a node API credential from an environment variable.
+chain. Elsewhere, add `--peer <url>` (and `--chain <id>` to `init`, `resolve`,
+`delegate` and `doctor`; `plan`, `sign` and `submit` read the chain from the
+file), and
+`--api-key-env NAME` to read a node API credential from an environment
+variable.
+
+A new chain has no registry until its first block. If `status` shows height 0,
+send one message first (step 7 of [configure an application](https://yano-x.io/deployment/configure/)).
+Owners sign with an Ed25519 seed file: 64 lowercase hex characters, readable
+only by you, outside any served directory. To make one:
+
+```bash
+(umask 077; openssl rand -hex 32 > owner.seed)
+```
 
 #### Create a namespace by member vote
 
@@ -4580,10 +4753,12 @@ runs, in their own node directory:
 ```
 
 `approve` first shows what the plan asks the members to vote for and asks for a
-yes (`--yes` in scripts, after checking it). Each vote goes through that
-operator's own node; no tool votes on a member's behalf. It then waits until
-enough operators have voted and the activation lag has passed, and prints
-`create games/ … is in effect`. A chain makes blocks only from messages: on an
+yes in a terminal; in a script it stops and asks for `--yes`, after you have
+checked the change. Each vote goes through that operator's own node; no tool
+votes on a member's behalf. Votes from the chain's block threshold of members
+are enough (two of three with `threshold: majority`). `approve` then waits
+until the activation lag has passed and prints `create games/ … is in effect`;
+an operator who runs it after that only waits, and casts no vote. A chain makes blocks only from messages: on an
 idle chain pass `--heartbeat`, or send traffic. `--no-wait` returns after
 voting, and `--plan-sha256 <digest>` refuses a plan file whose bytes changed
 since you checked it.
@@ -4604,7 +4779,9 @@ them apart, name a separate public key under `registrars:` instead. With
 
 #### Change a namespace with owner signatures
 
-Write the change inside `games/` as a `Topics` document:
+The simplest start is `topics init games/neon-rush/ --output neon-rush.yaml
+--owner-key-file owner.seed`, which fills in the authority, the owner key, a
+fresh nonce and a `notAfter` one hour ahead. The document looks like this:
 
 ```yaml
 schemaVersion: 1
@@ -4614,8 +4791,8 @@ commands:
   - target: games/neon-rush/
     operation: create
     authority: games/
-    nonce: '11111111111111111111111111111111'
-    notAfter: 1793106000000
+    nonce: '<fresh 32 hex characters>'
+    notAfter: <Unix milliseconds, in the future and within 7 days>
     owners:
       threshold: 1
       keys: ['<owner-public-key-64-hex>']
@@ -4629,10 +4806,16 @@ commands:
       schemaCddl: 'root = { frames: 1200..9000, name: tstr .size (1..32) }'
 ```
 
-Replace the public keys, choose a fresh 16-byte nonce and a future Unix
-millisecond `notAfter` within the chain's command window. The schema above is
-an illustrative ride payload, not the full Neon Rush game protocol. Studio's
-**Topics** page writes the same document from a form.
+Replace the public keys (`topics public-key <seed file>` prints one). The
+command window is the chain's `max-command-ms`, seven days by default. The
+schema above is an illustrative ride payload, not the full Neon Rush game
+protocol. Studio's **Topics** page writes the same document from a form.
+
+**To change an existing entry**, `init` writes an `update` that starts from the
+entry's active policy, so planned unchanged it changes nothing; edit only the
+fields you change. `plan` and `sign` list every effective-policy field that
+changes, old and new, and flag a change that removes writer keys, delegators
+or the schema.
 
 ```bash
 ./yano.sh appchain topics plan neon-rush.yaml
@@ -4640,8 +4823,7 @@ an illustrative ride payload, not the full Neon Rush game protocol. Studio's
 ./yano.sh appchain topics submit neon-rush.signed.json
 ```
 
-`topics init games/neon-rush/` writes this with the right authority. `plan`
-names the keys that must sign, and `submit` waits until the change is accepted
+`plan` names the keys that must sign, and `submit` waits until the change is accepted
 and in effect (`--no-wait` returns at once; `--heartbeat` makes blocks on an idle
 chain). Seed files contain a 32-byte Ed25519
 seed as 64 lowercase hex characters. Keep them outside served directories and
@@ -4649,21 +4831,38 @@ restrict file permissions; pass only the file path. For k-of-n owners, send
 `neon-rush.signed.json` to the next owner, who runs `sign` on it; every signer
 verifies the same immutable statement, and `sign` says when enough have
 signed. A changed generation, head or authority, or an expired command, needs
-a fresh plan and new signatures. Queued owner changes are inspected after
-activation rather than predicting an uncertain policy. `--json` prints the
-machine-readable result of any of these commands instead.
+a fresh plan and new signatures. `plan` checks against the active policy only:
+if an owner change is queued, wait until it is in effect, then plan. `--json`
+prints the machine-readable result of any of these commands instead; with
+`submit` it waits like the plain command unless you add `--no-wait`, prints
+progress on standard error and the JSON when done.
 
 To revoke one credential, write a `revoke` command with its public
-`delegationHex` and use its exact scope as the target. The authority is an
-owner namespace or `~issuer`; an issuer must still be an effective delegator
-for that scope, and an active owner record can revoke after retirement. `plan`
-checks the credential's signature, chain and generation. Revocation does not
-change the entry's policy revision, so its plan has no policy-activation
-preview.
+`delegationHex` and use its exact scope as the target:
+
+```yaml
+commands:
+  - target: games/neon-rush/
+    operation: revoke
+    authority: '~issuer'          # or an owner namespace, such as games/
+    nonce: '<fresh 32 hex characters>'
+    notAfter: <Unix milliseconds>
+    delegationHex: '<the credential, as delegate printed it>'
+```
+
+The authority is an owner namespace or `~issuer`; an issuer must still be an
+effective delegator for that scope, and an active owner record can revoke after
+retirement. `plan` checks the credential's signature, chain and generation.
+Then `sign` and `submit` as above. A revocation takes effect in the next block,
+without the activation lag, and does not change the entry's policy revision.
+A write with a revoked credential is refused with `TOPIC_DELEGATION_INVALID`.
 
 #### Use a browser session
 
 Import the dependency-free modules from `sdk/javascript/` into your example.
+In the JVM distribution they are in `studio/assets/topics/`; copy that folder.
+Read the chain's `generationId` from
+`GET /api/v1/app-chain/chains/<chainId>/state/identity` and pin it.
 The application service validates the user's signed login proof before issuing
 a credential for the newly created session public key:
 
@@ -4679,7 +4878,7 @@ const session = new DelegatedSession({
 });
 const topic = 'games/neon-rush/rides';
 const frame = await session.frame(topic, encodeCanonicalValue({frames: 1800, name: 'rider'}));
-await submitFrame({baseUrl: 'http://localhost:7170/api/v1', chainId, topic, frame});
+await submitFrame({baseUrl: 'http://<node>:<http-port>/api/v1', chainId, topic, frame});
 ```
 
 The session key is a non-extractable WebCrypto key. A caller-supplied IndexedDB
@@ -4690,7 +4889,12 @@ same wire/signing operations for services; see the [Java client](https://github.
 and [JavaScript client](https://github.com/bloxbean/yano-x/blob/main/sdk/javascript/README.md) source documentation.
 
 For a manual test, `topics delegate --help` describes the file-based issuer
-command. The public `--session-key` is safe to pass as an argument. Application
+command. It prints the credential as JSON (`delegationHex`). The public
+`--session-key` is safe to pass as an argument. In a node directory or with
+`--peer`, `delegate` first checks the scope's policy: the issuer must be a
+writer of a 1-of-n set and listed under `delegate`, and the lifetime within
+`maxDelegationMs`. With `--generation` and no node it cannot check, and says
+so; members still check every write. Application
 issuer keys belong in the delegation service, outside the static site and the
 node process.
 
@@ -4698,15 +4902,36 @@ node process.
 
 ```bash
 ./yano.sh appchain topics resolve games/neon-rush/rides --height 42   # in words; --json for the proof
-./yano.sh appchain topics doctor --bindings composite.yaml
+./yano.sh appchain topics doctor --bindings <your composite bindings file>
 ./yano.sh appchain topics verify <messageId> \
   --bundle authorship.json --trusted-block trusted-block.json
 ```
 
-The doctor checks active and queued topic policies, undeclared payload schemas,
+`resolve` shows the policy a write landing in that block gets (by default the
+next block), with its proofs checked. The doctor checks your composite
+bindings against active and queued topic policies: undeclared payload schemas,
 coverage under unregistered-topic rejection and bindings that cross protected
 topics. These diagnostics are advisory; runtime checks use the committed
 candidate-height registry state on every member.
+
+`verify` checks who wrote a finalized message, offline, against a block you
+trust. No command assembles its inputs yet; build them from the REST API of
+any member (paths below `/api/v1/app-chain/chains/<chainId>`, message at
+height `h`):
+
+| Input | Contents |
+|---|---|
+| `authorship.json` | `{"schemaVersion": 1, "kind": "TopicAuthorshipBundle", "message", "messageProof", "policyProof", "additionalStateProofs"}` |
+| `message` | The message's `version`, `messageId`, `chainId`, `topic`, `sender`, `senderSeq`, `expiresAt`, `bodyHex`, `authScheme` and `authProofHex`, all in hex: `suppliedMessage` of `GET /messages/<id>/proof-package`, whose fields are base64 |
+| `messageProof` | `GET /messages/<id>/proof` |
+| `policyProof` | `GET /topics/proof?topic=<topic>&height=<h>`, the `proof` that `resolve --json` prints |
+| `additionalStateProofs` | `[{keyHex, presence, valueHex, proofWireHex}]` from `GET /state/proof/<keyHex>?height=<h-1>` for `~yano/topics/v1/used/<write statement hash>`, and also `~yano/topics/v1/revoked/<delegationHash>` for a delegated write and `~yano/topics/v1/schema/<hash>` when the policy has a schema |
+| `trusted-block.json` | `{chainId, profile, genesisId, height, blockHash, messagesRoot, parentStateRoot, timestamp}`: block `h` from a source you trust, `parentStateRoot` from block `h-1`, `profile` and `genesisId` from `GET /state/identity` |
+
+`verify` refuses a bundle that leaves any of these out. A success reports the
+writer kind, the signers or issuer, and `availability: NOT_PROVEN`: it proves
+authorship under the trusted block, not that every member still serves the
+message.
 
 The [game-center reference](https://github.com/bloxbean/yano-x-examples/tree/main/21-anchor-game-center)
 lives in `yano-x-examples`. Its delegation service checks the existing commander
@@ -4756,7 +4981,15 @@ as ordered, certified inputs; see [around the ledger](#around-the-ledger).
 
 #### Rung 0 — configuration only
 
-Select one stock machine or profile, identically on every member:
+Select one stock machine or profile, identically on every member. With the
+setup commands, a recipe in the draft does it, and `seal` gives every member the
+same value:
+
+```bash
+./yano.sh appchain new <app> --chain registry=owned-registry
+```
+
+On a hand-configured node, the raw property is:
 
 ```yaml
 yano.app-chain.state-machine: kv-registry
@@ -5012,24 +5245,36 @@ verified catalog.
 
 #### 5. Install on every member
 
-Copy the exact same JAR into `plugins/` in every member's distribution, then
-validate the resulting set from the distribution root:
+Before the coordinator seals, every operator, the coordinator included,
+copies the exact same JAR into `plugins/` in the extracted distribution, then
+validates the resulting set from the distribution root:
 
 ```bash
+cp shipment-plugin/build/libs/shipment-yano-plugin.jar plugins/
 tools/yano-plugins/bin/yano-plugins validate plugins/*.jar
 ```
 
-The plugin directory property is **`yano.plugins.directory`**. Restart the nodes;
-Yano is not rebuilt. At start-up each node checks the JAR again before any plugin
-code runs; [How plugins load](https://yano-x.io/plugins/how-plugins-load/) lists those checks.
+A chain runs the machine through the `custom-plugin` recipe, with the machine
+id as its `stateMachine` answer:
+
+```bash
+./yano.sh appchain new shipments --chain shipments=custom-plugin \
+  --answer shipments.stateMachine=shipment
+```
+
+`seal` records the SHA-256 of every JAR in `plugins/`; `join` and `start`
+refuse a distribution with a JAR added, removed, or replaced. Yano is not
+rebuilt. At start-up each node checks the JAR again before any plugin code
+runs; [How plugins load](https://yano-x.io/plugins/how-plugins-load/) lists those checks. The
+setup commands read only `plugins/`, so do not point `yano.plugins.directory`
+elsewhere on a joined node.
 
 **CUSTOM CATALOGS AND THE SETUP CLI:**
 `appchain seal` resolves an application's chains through the distribution's
-own recipe and capability catalog. It does not yet accept a custom signed
-component catalog, so a custom capability such as `state:shipment` cannot be
-selected in a setup draft in this release. See
-[Tutorial 8](https://yano-x.io/tutorials/08-plugins-and-composites/) for running a custom
-plugin today.
+own recipe and capability catalog. It does not accept a custom signed
+component catalog, so a custom capability such as `state:shipment` is not
+selectable directly; use the `custom-plugin` recipe as above. See
+[Tutorial 8](https://yano-x.io/tutorials/08-plugins-and-composites/).
 
 **EVERY MEMBER, OR NONE:**
 The same bundle, the same machine or profile id, and the same committed settings
@@ -5046,6 +5291,10 @@ Adding a member or a node is routine. Changing what a plugin *computes* is not
 - Never silently change semantics behind an existing machine or component id.
 - Use activation heights and profile governance for compatible evolution.
 - Use a new namespace and a migration plan for incompatible state.
+- To install an agreed new JAR, each operator copies it into `plugins/`, runs
+  `./yano.sh appchain stop`, then
+  `./yano.sh appchain join <app>.chain --accept-bundles`, then
+  `./yano.sh appchain start`.
 
 #### Find the member that is out of step
 
@@ -5162,16 +5411,19 @@ freely.
 #### Pinning, in an application
 
 When the coordinator seals an application, the sealed `<app>.chain` file
-records the SHA-256 digest of every plugin bundle each chain runs on. Each
+records the SHA-256 digest of every JAR in the distribution's `plugins/`. Each
 operator's `appchain join` and every `appchain start` check the installed
-bundles against those digests, so a JAR that does not match refuses to start
-until the operator accepts the new set with `join --accept-bundles`. That is
-how a "works on my node" plugin mismatch becomes a start-up error rather than a
-stalled chain.
+bundles against those digests, so a JAR added, removed, or replaced refuses to
+start until the operator accepts the new set with `join --accept-bundles`. That
+is how a "works on my node" plugin mismatch becomes a start-up error rather
+than a stalled chain. Every operator therefore installs the identical JARs
+before `seal`.
 
 `seal` resolves chains through the distribution's own catalog only: it does not
-yet accept a custom signed component catalog, so a custom capability cannot be
-selected in a setup draft in this release.
+accept a custom signed component catalog, so a custom capability is not
+selectable directly. A chain runs a custom state machine through the
+`custom-plugin` recipe instead, with the machine id as its `stateMachine`
+answer (`--answer <chain>.stateMachine=<machine-id>`).
 
 #### Configuration metadata and coverage
 
@@ -5509,20 +5761,27 @@ keys, API keys, effect credentials, and anchor wallet funds.
 #### Verifying before you ship
 
 ```bash
-### Focused iteration.
-./gradlew :state-machines:stdlib:test
+### Focused iteration, in the plugin's own project.
+cd shipment-plugin && gradle test && cd ..
 
 ### Real nodes: identical height, root, profile, genesis, capability digest.
+### The JAR must be in the distribution's plugins/ before try seals.
+cp shipment-plugin/build/libs/shipment-yano-plugin.jar plugins/
 ./yano.sh appchain try --chain shipments=custom-plugin --answer shipments.stateMachine=<your-id>
+### Submit some of your machine's commands through one node (see below).
 ./yano.sh appchain status --node-dir appchain-try/alice/yano-node
 for name in carol bob alice; do ./yano.sh appchain stop --node-dir appchain-try/$name/yano-node; done
 for name in alice bob carol; do ./yano.sh appchain start --node-dir appchain-try/$name/yano-node; done
-./yano.sh appchain status --node-dir appchain-try/alice/yano-node   # same heights and roots after restart
+./yano.sh appchain status --node-dir appchain-try/alice/yano-node   # same heights, no root warning
 ```
 
+`try` submits traffic only to an `audit-log` chain, so without your own
+commands this chain stays at height 0 and a restart compares nothing beyond
+genesis. Submit them through one node's messages endpoint, as in
+[Send a message and see it final](https://yano-x.io/deployment/configure/#7-send-a-message-and-see-it-final).
 To check catch-up under your rules, stop one node, keep submitting through the
 others, then start it again and compare `status`. To check a new member, use
-`approve` as in [Set up an application](https://yano-x.io/deployment/configure/).
+`approve` as in [Add a member](https://yano-x.io/deployment/add-chain/#add-a-member).
 
 Persistence changes additionally require apply, rollback, replay, restart, and
 root-parity checks. Derived indexes must never advance beyond authoritative
@@ -5624,19 +5883,38 @@ See [Developing Yano X](https://yano-x.io/contributing/) for the full contributo
 
 #### Installing on a cluster
 
-```bash
-### On every member's distribution:
-cp shipment-yano-plugin.jar /opt/yano-x/plugins/
-/opt/yano-x/tools/yano-plugins/bin/yano-plugins validate /opt/yano-x/plugins/*.jar
+Every operator, the coordinator included, installs the identical JAR in the
+extracted distribution's `plugins/` **before** the coordinator seals. A chain
+selects a custom state machine with the `custom-plugin` recipe and the
+machine's id as its `stateMachine` answer:
 
-### Before admitting traffic, on an application set up with the setup CLI:
-./yano.sh appchain status <app>
+```bash
+### On every member's distribution, before seal:
+cp shipment-yano-plugin.jar plugins/
+tools/yano-plugins/bin/yano-plugins validate plugins/*.jar
+
+### Coordinator: draft a chain that runs the machine, then the usual ceremony.
+./yano.sh appchain new shipments --chain shipments=custom-plugin \
+  --answer shipments.stateMachine=shipment
+
+### Before admitting traffic:
+./yano.sh appchain status shipments
 ```
 
-The property is `yano.plugins.directory`. Restart the nodes; Yano is not
-rebuilt. Each node checks the JAR again at start-up, before any plugin code runs;
-[How plugins load](https://yano-x.io/plugins/how-plugins-load/) lists those checks and what they
-do not cover.
+`seal` records the SHA-256 of every JAR in `plugins/`, and `join` and `start`
+refuse a distribution with a JAR added, removed, or replaced. To change a
+bundle after an agreed upgrade, each operator copies the same JAR, runs
+`./yano.sh appchain stop`, then
+`./yano.sh appchain join <app>.chain --accept-bundles`, then
+`./yano.sh appchain start`. Yano is not rebuilt. The
+setup commands read only `plugins/`; do not point `yano.plugins.directory`
+elsewhere on a joined node. Each node checks the JAR again at start-up, before
+any plugin code runs; [How plugins load](https://yano-x.io/plugins/how-plugins-load/) lists
+those checks and what they do not cover.
+
+`seal` does not accept a custom signed component catalog, so a custom
+capability such as `state:shipment` is not selectable directly; the
+`custom-plugin` recipe is the route.
 
 To find the one member that is out of step, compare each node's
 `pluginCatalogFingerprint` from its chain `identity` endpoint; it is worth
@@ -5737,7 +6015,7 @@ coordinator hands out join links, `invite --serve` also listens on port `7099`
 The supported evaluation posture is a local devnet. Public networks follow the
 same steps, but anchoring and settlement there are explicit operations that
 spend real test ADA; easier setup does not change
-the release-readiness assessment.
+[the release-readiness assessment](https://github.com/bloxbean/yano-x/blob/main/adr/045-yano-x-release-readiness.md).
 
 **Next:** [start the local showcase](https://yano-x.io/start-here/quickstart/), or
 [rehearse a shared application](https://yano-x.io/deployment/configure/#1-practise-on-one-machine).
@@ -5801,7 +6079,7 @@ Each existing operator, with their node running, then runs:
 > ```text
 > Adding dave (key ee22fe112c2e69cb, 127.0.0.1:15450) to supply
 > orders: first raising the threshold from 2 to 3 (4 members)
-> orders: waiting for threshold 3 (it activates once enough operators approve and the chain makes 10 more blocks)
+> orders: waiting for threshold 3 (it activates once enough operators approve and each chain makes 10 more blocks)
 > ✓ orders: dave is a member
 > Restarting this node to connect to dave …
 > ```
@@ -5814,7 +6092,8 @@ Check the key id against the one dave reads out to you before you approve.
   threshold unless enough members are online.
 - **Why it waits.** A change activates ten blocks after enough operators
   approve, and a chain only makes blocks when it has messages. On an idle
-  `ordered-log`, `kv-registry`, or `approvals` chain, `approve` offers to send
+  chain running `ordered-log` (the `audit-log` recipe), `kv-registry`
+  (`owned-registry`), or the stock `approvals` machine, `approve` offers to send
   small heartbeat messages (`--heartbeat` in scripts); on an ordered log each
   one is a permanent entry. Other chains need ordinary traffic.
 - **Safe to run again.** If `approve` is interrupted or times out, run it
@@ -5829,9 +6108,10 @@ When every operator has approved, dave joins and starts:
 ./yano.sh appchain status supply
 ```
 
+`join` says `you join later as dave`.
+
 > **✓ You should see** four members online and `members agree` for every
-> chain. Before every operator has approved, dave's status shows
-> `waiting for approval`.
+> chain.
 
 #### Remove a member
 
@@ -5842,7 +6122,11 @@ Each remaining operator runs:
 ```
 
 `approve` lowers the threshold if needed, removes carol on every chain, drops
-her as a peer, and restarts the operator's node once. With `sequencing:
+her as a peer, and restarts the operator's node once. It lowers the threshold
+only when the old one would be unsafe, so it does not return to the sealed
+policy: after growing to four members (three signatures) and removing one, the
+chain runs at three of three, and one offline member stops it. `status` shows
+the current `members N, T signatures`. With `sequencing:
 fixed` (the default) the lead cannot be removed: the runtime refuses to
 remove the fixed proposer. An application sealed with `sequencing: rotating`
 has no fixed proposer, so its lead can be removed like any other member
@@ -5854,9 +6138,11 @@ If carol loses her node directory, **remove her first, then add her again**:
 
 1. The other operators each run `approve --remove carol`. The chain keeps
    finalizing without her.
-2. Carol makes a fresh node directory and runs `request supply.chain`, which
-   creates a new key and card.
-3. The others run `approve carol.member`; carol runs `join supply.chain` and
+2. Carol makes a fresh node directory and runs `request supply.chain` under a
+   **new name**, for example `--name carol-2`, which creates a new key and
+   card. The sealed roster keeps the name `carol` for her old key, so
+   `request` refuses to reuse it.
+3. The others run `approve carol-2.member`; carol runs `join supply.chain` and
    `start`.
 
 Adding first would raise the threshold to a level the lost key can never help
@@ -5868,8 +6154,12 @@ directory.
 
 An operator can run several applications on one node. Each one is a separate
 setup: the coordinator runs `new` and `seal` for it, and each operator runs
-`request` and `join` with the new files. In an existing node directory,
-`request` reuses your member key and addresses. Adding a chain to a running node
+`request` and `join` with the new files. Keep each application's files in a
+folder of its own: the coordinator creates the draft with `new documents
+--output documents-app`, and each operator runs `request` with `--output
+<folder>`, so the new cards neither overwrite nor mix with the first
+application's cards. In an existing node directory, `request` reuses your
+member key and addresses. Adding a chain to a running node
 still needs a stop and start:
 
 ```bash
@@ -5918,9 +6208,10 @@ new chain. If bob moves, each other operator runs:
 | You see | What it means and what to do |
 |---|---|
 | `This node must be running; run  yano.sh appchain start  first` | `approve` talks to your own node. Start it first. |
-| `orders: only 2 members are connected, but the new threshold needs 3; bring the others online first so the chain cannot stall` | Ask the offline operators to start their nodes, then run `approve` again. |
+| `orders: only 2 members are online with their active key, but the new threshold needs 3; bring the others online first so the chain cannot stall` | Ask the offline operators to start their nodes, then run `approve` again. |
 | `orders: still waiting for …` and exit code 3 | The chain has not made enough blocks yet, or other operators have not approved. Send traffic, or run again later. |
 | `dave.member was made for another application (invite …)` | The card was made for a different `.chain`. Ask dave to run `request supply.chain`. |
+| `The sealed roster of supply already lists carol` from `request` | A replacement node cannot reuse a sealed name. Remove the old member, then request under a new name such as `carol-2`. |
 | `alice is the fixed proposer of orders; the runtime refuses to remove it.` | With fixed sequencing the lead cannot be removed. Losing the lead's key means sealing a new application. |
 
 **Next:** [run your node on a server](https://yano-x.io/deployment/operators/).
@@ -6000,7 +6291,7 @@ message check runs when one of the chains uses `audit-log`.
 
 ```bash
 ./yano.sh appchain try --chain orders=audit-log --chain registry=owned-registry
-./yano.sh appchain try --chain flow=bindings:flow.yaml
+./yano.sh appchain try --chain flow=bindings:examples/bindings/approval-to-audit.yaml
 ```
 
 **Prefer a browser?** `./yano.sh appchain ui` opens a page on this computer
@@ -6021,7 +6312,8 @@ A short wizard asks for the Cardano network, the operator names (you first),
 and each chain: its id, and whether it runs one ready-made state machine
 (a *recipe*) or several working together. If a recipe needs answers, such as
 the genesis address of an `eutxo-ledger` chain, the wizard asks for each one.
-`./yano.sh appchain recipes` lists the recipes and the answers each needs. To
+`./yano.sh appchain recipes` lists the recipes; `recipes --format json` also
+shows the answers each needs (`nonSecretAnswers`). To
 skip the wizard, pass everything as flags, with one `--answer
 <chain>.<name>=<value>` per answer:
 
@@ -6144,14 +6436,16 @@ On your own machine:
 It asks for your operator name and the address other members reach your node
 at: a host name or IP, and two ports (defaults: node-to-node `13337`, HTTP
 `8080`). On a devnet where everyone is on one machine, the host is
-`127.0.0.1` and each operator needs different ports. For scripts, pass
-`--name`, `--host`, `--node-port`, `--http-port`, and `--yes`.
+`127.0.0.1` and each operator needs different ports; the examples below use
+node ports `14437`–`14439` and HTTP ports `9180`–`9182` for alice, bob and
+carol. For scripts, pass `--name`, `--host`, `--node-port`, `--http-port`, and
+`--yes`.
 
 > **✓ You should see**
 >
 > ```text
 > ✓ Created node directory …/yano-node with a new member key (keep it safe; it never leaves this directory)
-> ✓ Wrote ./alice.member  (key id a6622032b8e615ee, reachable at 127.0.0.1:13337)
+> ✓ Wrote ./alice.member  (key id a6622032b8e615ee, reachable at 127.0.0.1:14437)
 > ```
 
 Your private key is now in `yano-node/secrets/member.key`, readable only by
@@ -6176,7 +6470,7 @@ When every card is there, seal:
 >
 > ```text
 > ✓ Sealed .../supply.chain
-> Application supply on devnet (Yano 0.1.0-pre18, Yano X 0.1.0-pre4)
+> Application supply on devnet (Yano …, Yano X …)
 >   3 members, 2 signatures per block, governed membership
 >   alice        key a6622032b8e615ee  127.0.0.1:14437  (lead)
 >   bob          key 9be1fb9123767845  127.0.0.1:14438
@@ -6188,7 +6482,9 @@ When every card is there, seal:
 `seal` refuses a card for a different invite, a card with a bad signature, an
 unexpected name, or a key used twice. It fixes every chain's settings, the
 release versions, and the digests of the plugin bundles in this distribution.
-Send `supply.chain` to every operator.
+Every operator's `plugins/` must hold exactly the same JARs as the
+coordinator's when `seal` runs: `join` refuses any difference. Send
+`supply.chain` to every operator.
 
 `seal` also checks what a chain can do from its first block:
 
@@ -6201,7 +6497,8 @@ Send `supply.chain` to every operator.
   actors. `seal` writes a template plan beside the sealed file, for example
   `approvals.role-plan.yaml`, and prints the next step: fill it in and, once
   the application is live, run
-  `./yano.sh appchain role bootstrap --plan approvals.role-plan.yaml`. See
+  `./yano.sh appchain role bootstrap --plan approvals.role-plan.yaml --expiry-height <n>`
+  and submit the commands it prints. See
   [role approvals](https://yano-x.io/state-machines/role-approvals/).
 
 #### 5. Compare the fingerprint, then join
@@ -6247,7 +6544,7 @@ and the other nodes download that genesis from it on their first start. On
 preview, preprod, or mainnet every node syncs Cardano itself first, which can
 take a while; watch `yano-node/logs/node.log`.
 
-> **✓ You should see** `✓ Node alice is up at http://127.0.0.1:8080`.
+> **✓ You should see** `✓ Node alice is up at http://127.0.0.1:9180`.
 
 Then check the whole application from any member:
 
@@ -6291,7 +6588,7 @@ without printing it, and submit through your own node (use your HTTP port):
 
 ```bash
 API_KEY=$(cat yano-node/secrets/api.key)
-MESSAGE_ID=$(curl -fsS -X POST http://127.0.0.1:8080/api/v1/app-chain/chains/orders/messages \
+MESSAGE_ID=$(curl -fsS -X POST http://127.0.0.1:9180/api/v1/app-chain/chains/orders/messages \
   -H "X-API-Key: $API_KEY" -H 'Content-Type: application/json' \
   -d '{"topic":"orders","body":"order A-100 created"}' | jq -er .messageId)
 echo "Accepted message $MESSAGE_ID"
@@ -6302,7 +6599,7 @@ look it up:
 
 ```bash
 curl -fsS -H "X-API-Key: $API_KEY" \
-  "http://127.0.0.1:8080/api/v1/app-chain/chains/orders/messages/$MESSAGE_ID" | jq .height
+  "http://127.0.0.1:9180/api/v1/app-chain/chains/orders/messages/$MESSAGE_ID" | jq .height
 ```
 
 > **✓ You should see** a height of 1 or more. Until the message is final, the
@@ -6331,7 +6628,8 @@ to Cardano, one operator runs:
 ```
 
 It creates an anchor wallet key on that node only, shows its address and the
-cost per anchor, waits for funds, and restarts the node with anchoring on. On
+cost per anchor, asks to go ahead (`--yes` in scripts), waits for funds, and
+restarts the node with anchoring on. On
 a devnet only the **lead** can anchor, and the lead's devnet funds the wallet.
 On a public network, fund the wallet only with what you are willing to spend
 on fees: its balance is the spending limit. Afterwards `status` shows the
@@ -6341,8 +6639,8 @@ chain's anchoring as, for example, `led by alice, 12 anchored (last height
 #### Optional: protect topics
 
 On a chain sealed with `topics:`, namespaces are created and changed with
-plans. Make one from your node directory, which supplies the node, its key and
-the chain:
+plans. Run these from the directory that holds your node directory (or pass
+`--node-dir`); it supplies the node, its key and the chain:
 
 ```bash
 ./yano.sh appchain topics init games/     # writes topics.yaml: fill in the owner keys and policy
@@ -6383,8 +6681,8 @@ holds everything for your node:
 | `topic-votes/`, `topic-submissions/` | The topic votes this node cast and the signed changes it submitted, so `topics approve` never votes twice and a repeated `topics submit` follows the first one |
 | `config/consensus.yaml`, `config/node.yaml` | Generated by `join`; do not edit, run `join` again instead |
 | `config/local.yaml` | Your own node-only settings, such as connector endpoints. `join` creates it empty and never rewrites it; its values win over `config/node.yaml`. `start` refuses it if it sets any sealed consensus setting |
-| `data/` | Chain data: `chainstate`, `appchain-chainstate`, `history` |
-| `logs/node.log` | The node's log |
+| `data/` | Chain data: `chainstate` and `appchain-chainstate`, plus `appchain-indexers` (rebuildable) when a read index is enabled |
+| `logs/node.log`, `logs/yano.log` | The node's console log and its application log |
 
 Back up the node directory. It holds your key and your chain data.
 
@@ -6400,11 +6698,12 @@ Keep secrets out of it: reference them through the environment.
 |---|---|
 | `Members 2/3: waiting for carol` from `seal` | A card is missing. Ask carol to run `request` and send the card; put it next to the draft. |
 | `carol.member was made for a different invite (…)` | The card was made for an older draft. Ask carol to run `request` again with the current draft. |
-| `This node's key (…) is not a member of supply` | The sealed file holds someone else's card under your name. Do not start. Tell the coordinator. |
+| `The sealed roster lists <name> with key …, but this node's key is …` | The sealed file holds someone else's card under your name. Do not start. Tell the coordinator. |
+| `This node's key (…) is not a member of supply` | Your name is not in the sealed roster. A founding operator tells the coordinator; to join later, run `request supply.chain` first. |
 | `The fingerprint is …, not …. Do not start: the file differs from the one the coordinator sealed.` | Your `supply.chain` is not the one compared on the call. Get the file again. |
 | `This distribution's plugin bundles differ from the sealed ones: …` | Install the Yano X release named in the message, the same one the coordinator sealed with. |
 | `Port 8080 is already in use by another program.` | Stop that program, or make a new node directory with other ports (`request --http-port`, `--node-port`). |
-| `status` stays at `Starting` with `ask the lead (alice) to run  yano.sh appchain start  first` | On a devnet the other nodes wait for the lead's devnet. Ask the lead to start. |
+| `status` stays at `Starting` with `ask the lead (alice) to run  yano.sh appchain start  first`, or `start` says `Waiting for the lead (alice) to start the devnet …` | On a devnet the other nodes wait for the lead's devnet. Ask the lead to start; the waiting `start` continues by itself until its `--timeout`. |
 | `config/local.yaml changes sealed consensus settings: …` from `start` | Your local file overrides a value every member must share. Remove the named keys from `config/local.yaml`. |
 | `Port 7099 is in use; pass --port with a free one` from `invite --serve` | Choose another port with `--port`; the links printed afterwards carry it. |
 | `The links expired before every operator received the sealed file` | Run `invite --serve` again; it prints new links. Operators who already sent a card can rerun `request` with their new link. |
@@ -6443,19 +6742,25 @@ Build one JVM plugin from the repository root, for example:
 ./gradlew :connectors:kafka:shadowJar
 ```
 
-Copy only the resulting `*-bundle.jar` into the plugin directory of every node
-that owns that sink or executor. The default directory is `plugins/`; an
-operator may override it with `yano.plugins.directory`. Keep the plugin version
-aligned with the Yano release:
+Copy only the resulting `*-bundle.jar` into the `plugins/` directory of the
+extracted Yano X distribution. Keep the plugin version aligned with the Yano
+release:
 
 ```bash
-cp connectors/kafka/build/libs/*-bundle.jar /opt/yano/plugins/
+cp connectors/kafka/build/libs/*-bundle.jar ~/yano-x/yano-x-jvm-*/plugins/
 ```
 
-A node set up with `appchain join` checks only the bundles its chains were
-sealed with at every `appchain start`; adding a connector bundle does not change
-them. Replacing one of those sealed bundles does, and `start` then refuses until
-the operator accepts the new set with `appchain join <app>.chain --accept-bundles`.
+`appchain seal` records the SHA-256 of every JAR in `plugins/`, and
+`appchain join` and `appchain start` refuse a distribution whose `plugins/`
+has a JAR added, removed, or replaced. For a new application, every operator,
+the coordinator included, installs the same connector JAR before `seal`. To
+add one to a running application, the operators agree on it, and each copies
+the identical JAR, runs `appchain stop`, then
+`appchain join <app>.chain --accept-bundles`, then `appchain start`.
+
+The setup commands read only `<extracted Yano X>/plugins/`. On a node set up
+with `appchain join`, do not point `yano.plugins.directory` anywhere else: the
+node would load bundles the sealed set does not cover.
 
 Do not copy a thin build-time JAR into the JVM plugin directory. These connector
 bundles are JVM-only and cannot be installed beside Yano's native executable.
@@ -6610,8 +6915,9 @@ as the user who ran `join`, and restarts the node if it fails.
 
 Once the unit is installed and enabled, `./yano.sh appchain start` and
 `stop`, and the restarts that `approve` and `anchor` make, go through
-`systemctl`, so one node never has two managers. You can also use systemd
-directly:
+`systemctl`, so one node never has two managers. When `systemctl` needs root,
+the command prints the `sudo systemctl …` line to run and then asks you to run
+the same command again. You can also use systemd directly:
 
 ```bash
 systemctl status yano-appchain-alice.service
@@ -6621,7 +6927,8 @@ journalctl -u yano-appchain-alice.service
 On a devnet the lead starts first. On a public network the node syncs Cardano
 before its chains make progress; the `Cardano:` line of `status` shows
 `syncing: about N hours behind` until it reports `up to date`, and
-`yano-node/logs/node.log` has the details.
+`yano-node/logs/node.log` (the console) and `yano-node/logs/yano.log` (the
+application log) have the details.
 
 #### Node-only settings
 
@@ -6630,9 +6937,21 @@ anything that belongs to your node alone, such as connector endpoints for an
 effect executor, in `config/local.yaml` in the node directory. `join` creates
 it, never rewrites it, and its values win over `config/node.yaml`. `start`
 refuses the file if it sets any sealed consensus setting, because every member
-must run the sealed values. Keep credentials in the environment or a secret
-provider rather than in the file. See
-[optional connectors](https://yano-x.io/deployment/connectors/).
+must run the sealed values. A chain's own keys go under its index from
+`yano-node/apps/chain-indexes.json`, for example an effect executor on chain 0:
+
+```yaml
+yano:
+  app-chain:
+    "chains[0]":
+      effects:
+        executor:
+          enabled: true
+```
+
+Keep credentials in the environment or a secret provider rather than in the
+file. See [optional connectors](https://yano-x.io/deployment/connectors/) and
+[webhook effects](https://yano-x.io/tutorials/06-webhook-effects/).
 
 #### 4. Check the application
 
@@ -6682,7 +7001,8 @@ tools/yano-deploy/bin/yano-x-deploy plan ./vm-cluster
 > The import refuses an archive without `yano.sh`, `yano.jar`, and the
 > `examples/showcase/` profile.
 
-Read the [full operator runbook](https://github.com/bloxbean/yano-x/blob/main/deployment/README.md) for SSH bootstrap,
+Read the [full operator runbook](https://github.com/bloxbean/yano-x/blob/main/deployment/README.md)
+(`tools/yano-deploy/README.md` in the distribution) for SSH bootstrap,
 provider credentials, OS and capacity checks, network policy, and manifest fields.
 The current profile requires Preprod anchoring and settlement configuration.
 Public addresses in generated examples are documentation placeholders.
@@ -6759,7 +7079,8 @@ propose, approve and activate commands, with proofs from `appchain role key-proo
 **Every member checks the sealed file before joining.** On a call, the coordinator reads out the
 chain fingerprint, which covers every chain's settings and genesis id, the members, the threshold,
 and the plugin bundle digests; each operator reads out its own key id. `join` shows the same summary,
-recomputes a derived genesis id, and refuses a node whose own key is not in the roster. A
+checks the fingerprint the operator compared (`--expect-fingerprint`, or a confirmation), and refuses
+a node whose own key is not in the roster unless it asked to join later with `request`. A
 participant whose fingerprint differs should not join the ledger. Publish the fingerprint and the
 genesis ids where members and verifiers can check them.
 
@@ -7192,11 +7513,11 @@ until every node reports the same tip height and root.
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| `404 {"error":"Unknown app chain: <chainId>"}` | The node does not host that chain id. | Check the spelling: `./yano.sh appchain status` lists the chains of the application this node joined. To add one, follow [Add a chain](https://yano-x.io/deployment/add-chain/). |
+| `404 {"error":"Unknown app chain: <chainId>"}` | The node does not host that chain id. | Check the spelling: `./yano.sh appchain status` lists the chains of the application this node joined. To host another application's chains on this node, see [Host another application on the same node](https://yano-x.io/deployment/add-chain/#host-another-application-on-the-same-node). |
 | `400 … app chains are hosted — use /app-chain/chains/{chainId}/...` | A route without a chain id was used on a node that hosts several chains. | Use the chain-scoped route `/api/v1/app-chain/chains/{chainId}/…`. |
-| `503 App chain is not enabled on this node` | The node hosts no app ledger. | Add a chain to the node's configuration. |
-| The node does not start: `… is not in the configured member list (yano.app-chain.members)` | The node's member key is not in the member list. | Fix `yano.app-chain.members` or the node's `signing-key`. |
-| The node does not start: `… is not selected (available: […])` | The configured `state-machine` id does not match any loaded state machine. | Fix the id, or install the plugin bundle on that node. |
+| `503 App chain is not enabled on this node` | The node hosts no app ledger. | On a joined node, run `./yano.sh appchain join <app>.chain`. On a hand-configured node, add a chain to the node's configuration. |
+| The node does not start: `… is not in the configured member list (yano.app-chain.members)` | The node's member key is not in the member list. | On a joined node, the generated `config/consensus.yaml` and `config/node.yaml` say "do not edit": re-run `./yano.sh appchain join <app>.chain` instead of editing them. On a hand-configured node, fix `yano.app-chain.members` or the node's `signing-key`. |
+| The node does not start: `… is not selected (available: […])` | The configured `state-machine` id does not match any loaded state machine. | On a joined node, install exactly the sealed plugin bundles in the distribution's `plugins/`; do not edit the generated configuration. On a hand-configured node, fix the id or install the plugin bundle. |
 | The node does not start: `Retained state-commitment profile, fingerprint, or genesis id is incompatible` | The ledger on disk belongs to another identity. | Restore the original identity settings. Do not reset retained data; see [Chain identity](https://yano-x.io/concepts/chain-identity/). |
 | The node does not start: `consensus quorums do not intersect in an honest member` | The threshold is too low for the member count and fault bound. | Choose a threshold `t` with `2t − n > f` and `t ≤ n − f`. See [Keys and trust](https://yano-x.io/concepts/trust-model/#how-many-members-can-fail). |
 
@@ -7357,7 +7678,8 @@ Yano's tooling calls an app ledger an *app chain*, so the commands below say
 #### What you will see
 
 Here is the whole tutorial in one picture. Each step shows the command you run
-at that point. The "What if" scenarios show what happens when a member is down.
+at that point. On the website, the "What if" scenarios of the picture show what
+happens when a member is down.
 
 <!-- illustration: first-chain-finality -->
 1. **Start.** `try` starts alice's node first. It produces the local devnet, is
@@ -7475,6 +7797,10 @@ curl -s -X POST "http://127.0.0.1:$BOB/api/v1/app-chain/chains/orders/messages" 
 
 > **✓ You should see** a JSON object with a `messageId`.
 
+A rehearsal node accepts submissions without an API key. A node can require
+one for every call; [Set up an application](https://yano-x.io/deployment/configure/#7-send-a-message-and-see-it-final)
+sends it with `X-API-Key`, which works either way.
+
 You did not sign anything. Bob's node checked the command, signed the envelope
 with its own member key, and gossiped it. Alice's node put it in a block, two
 of the three members voted for that block, and every member applied the same
@@ -7575,8 +7901,9 @@ finalized. Explore what each node keeps in its directory, for example
 - `apps/demo.chain`: the sealed application the node joined;
 - `config/`: `consensus.yaml` and `node.yaml`, written by `join`, and
   `local.yaml` for the node's own settings;
-- `data/`: `chainstate` (Cardano L1), `appchain-chainstate` (the app ledger),
-  and `appchain-indexers` (rebuildable read indexes);
+- `data/`: `chainstate` (Cardano L1) and `appchain-chainstate` (the app
+  ledger), plus `appchain-indexers` (rebuildable read indexes) once a read
+  index is enabled;
 - `logs/node.log`: the node's log.
 
 `appchain-try/coordinator/` holds the draft, the member cards, and the sealed
@@ -7687,8 +8014,9 @@ file. Choose two free ports for his node; the example uses the ones after
 carol's:
 
 ```bash
+CAROL_NODE=$(jq -r .listenPort appchain-try/carol/yano-node/node.json)
 ./yano.sh appchain request appchain-try/coordinator/demo.chain --name dave \
-  --host 127.0.0.1 --node-port 13340 --http-port $((CAROL + 1)) \
+  --host 127.0.0.1 --node-port $((CAROL_NODE + 1)) --http-port $((CAROL + 1)) \
   --node-dir appchain-try/dave/yano-node --output appchain-try/coordinator --yes
 ```
 
@@ -7788,8 +8116,8 @@ including the chain identities.
   ```
 
   `seal` prints `3 members, 3 signatures per block`, and every block now needs
-  all three votes. The "Threshold 3, one member down" scenario above shows why
-  one stopped member then halts finality. If the first rehearsal still runs,
+  all three votes, so one stopped member then halts finality (the website's
+  "Threshold 3, one member down" scenario shows it). If the first rehearsal still runs,
   `try` picks the next free ports. Remove this rehearsal when you are done:
 
   ```bash
@@ -8005,6 +8333,20 @@ existing chain, changing it needs a governed profile activation or a new chain.
 #### 1. Answer three questions
 
 <!-- illustration: sm-chooser -->
+1. **What must the ledger keep for you?**
+   - Only the order of events, with your applications reading the payloads:
+     `ordered-log`.
+   - Current records that writers can change: go to question 2.
+   - Quantities that move between accounts: `balances`.
+   - An ordered history of document hashes per product or case: `doc-trail`.
+   - A decision that several approvers make: go to question 3.
+2. **Who may change a record?** The member that wrote it first:
+   `kv-registry`. It depends on the collection (open, owner, member, a role or
+   an approval, with revisions, tombstones and atomic batches):
+   `authenticated-map`.
+3. **Who approves?** The member nodes themselves: `approvals`. Business actors
+   with roles and organizations, separate from the members: `role-approvals`.
+<!-- /illustration -->
 
 #### 2. Compare the stock machines
 
@@ -8068,11 +8410,12 @@ pages. `ordered-log` takes any non-empty body.
 #### 4. Choose the machine for each chain
 
 When you set up an application, each chain names a *recipe*: a stock state
-machine with the settings it needs. List the recipes and the answers each one
-needs:
+machine with the settings it needs. List the recipes, then the answers each
+one needs:
 
 ```bash
 ./yano.sh appchain recipes
+./yano.sh appchain recipes --format json | jq '.recipes[] | {id, nonSecretAnswers}'
 ```
 
 | Machine | Recipe |
@@ -8094,6 +8437,7 @@ per chain. `new` takes the same options for a real application:
 
 ```bash
 ./yano.sh appchain try --chain orders=audit-log --chain workflow=approval-workflow
+./yano.sh appchain try --clean
 ```
 
 For more than a couple of chains, or for answers and settings, write the
@@ -8124,11 +8468,15 @@ does the same on the command line. `settings:` are flat chain settings that
 `--without <chain>` leaves a template chain out. Settings that `seal` derives
 from the draft, such as members, threshold, sequencing, and membership, are
 refused there. A mistyped recipe or a missing answer stops `try` before
-anything runs and leaves no rehearsal behind.
+anything runs and leaves no rehearsal behind; a refused setting stops it at
+`seal`, so run `./yano.sh appchain try --clean` before the next attempt.
 
 > **✓ You should see** `seal` list one line per chain with its recipe and
-> genesis, for example `chain workflow approval-workflow genesis …`, and the
-> final `status` show every chain with `members agree`.
+> genesis, for example `chain workflow approval-workflow genesis …` (the
+> `credits` line shows the recipe `custom-plugin`;
+> `./yano.sh appchain inspect appchain-try/coordinator/demo.chain --json`
+> shows its `"state-machine" : "balances"`), and the final `status` show every chain with
+> `members agree`.
 
 `seal` writes every chain setting, including the state identity (commitment
 profile, format fingerprint, and genesis id), into the sealed `<app>.chain`
@@ -8220,6 +8568,15 @@ IPFS, and the Evidence Explorer.
   `DEMO_UI_PORT`, `DEMO_KAFKA_PORT`, `DEMO_S3_PORT` and `DEMO_IPFS_PORT` move
   the other services. For example, `export DEMO_HTTP_BASE=7370` puts the
   members on 7370–7372, and the URLs the harness prints use those ports.
+- The connector services share a fixed Docker subnet, `172.30.13.0/24`. If
+  `up` fails with `Pool overlaps with other one on this address space`,
+  another Docker network already uses that range. Choose a free range before
+  an instance's **first** `up` (it is fixed after that) and keep it set:
+
+  ```bash
+  export DEMO_CONNECTOR_SUBNET=10.213.13.0/24
+  export DEMO_S3_IP=10.213.13.10 DEMO_KUBO_IP=10.213.13.11 DEMO_KAFKA_IP=10.213.13.12
+  ```
 - `prepare` and every `up` build two local Docker images from the
   distribution. By default they are tagged `yano-adr013-node:local` and
   `yano-adr013-runner:local` (inside a Git working tree, the tag is that
@@ -8234,10 +8591,11 @@ IPFS, and the Evidence Explorer.
   ```
 
 The harness runs the default `evidence-v1-gated` profile, in which validator
-members approve each release. The Studio link above opens the
-`evidence-ledger` recipe, which selects the role-aware `role-evidence` profile,
-where named business actors approve instead; the harness runs that profile
-when you add `--machine role` to every command.
+members approve each release. The `evidence-ledger` recipe
+(`./yano.sh appchain new <app> --chain <id>=evidence-ledger`) selects the
+role-aware `role-evidence` profile instead, where named business actors
+approve; the harness runs that profile when you add `--machine role` to every
+command.
 
 #### How one publication flows
 
@@ -8540,7 +8898,8 @@ The stack uses the same ports as Tutorial 4: 7070–7072 for the members, 7080
 for the Explorer, and 9092, 9000 and 5001. If any is busy, export the same
 `DEMO_HTTP_BASE` or other `DEMO_*_PORT` overrides that
 [Tutorial 4](https://yano-x.io/tutorials/04-evidence-publication/) describes before the first command,
-and keep them set for the whole tutorial.
+and keep them set for the whole tutorial. The same goes for
+`DEMO_CONNECTOR_SUBNET` if Docker reports a pool overlap.
 
 From the top-level directory of the extracted release:
 
@@ -8725,13 +9084,14 @@ To run this outcome with other operators, follow [Set up an application](https:/
   acknowledged `webhook.post` effect, and run the latter from a stock approval
   transition against a local receiver.
 
-**Before you start:** finish [Tutorial 1](https://yano-x.io/tutorials/01-first-app-chain/) and remove
+**Before you start:** if you ran [Tutorial 1](https://yano-x.io/tutorials/01-first-app-chain/), remove
 its rehearsal with `./yano.sh appchain try --clean`. You need the extracted Yano X JVM distribution, Python 3,
 `curl`, and `jq`. Every command runs from the distribution's top-level
 directory, the one that contains `yano.sh`; the tutorial files ship under
-`docs/` there. In Studio, add the `effects:on-approved` and `executor:webhook`
-capabilities; Studio then asks for the effect type and the webhook URL, which
-the exercise sets to `webhook.post` and `http://127.0.0.1:8099/yano`.
+`docs/` there. The exercise selects the `effects:on-approved` and
+`executor:webhook` capabilities in its template, with the effect type
+`webhook.post` and the webhook URL `http://127.0.0.1:8099/yano` as their
+answers.
 
 Yano provides two HTTP delivery shapes with different guarantees.
 
@@ -8867,6 +9227,7 @@ effects.enabled=true
 machines.approvals.on-approved-effect.enabled=true
 machines.approvals.on-approved-effect.type=webhook.post
 machines.approvals.on-approved-effect.gate=chain-default
+machines.approvals.on-approved-effect.expiry-blocks=0
 machines.approvals.activations.on-approved-effect=1
 ```
 
@@ -8891,7 +9252,9 @@ cat appchain-try/alice/yano-node/apps/chain-indexes.json
 ```
 
 With this one chain it is `0`. Append the executor settings for `chains[0]`
-to alice's local file:
+to alice's local file. Out of the box it holds only comments; if you have
+already added `yano:` keys to it, merge these under that block instead of
+appending a second one:
 
 ```bash
 cat >> appchain-try/alice/yano-node/config/local.yaml <<'EOF'
@@ -9083,9 +9446,10 @@ To run this outcome with other operators, follow [Set up an application](https:/
 **Before you start:** finish [Tutorial 1](https://yano-x.io/tutorials/01-first-app-chain/) and remove
 its rehearsal with `./yano.sh appchain try --clean`. You need the extracted
 Yano X JVM distribution, `curl`, and `jq`. Every command runs from the
-distribution's top-level directory. In Studio, add the `anchor:script`
-capability; it asks for reviewed validator and thread-policy references, while
-`./yano.sh appchain anchor` uses the bundled artifacts.
+distribution's top-level directory. The exercise's template selects script
+anchoring; `./yano.sh appchain anchor` then uses the bundled validator and
+thread policy. To use reviewed replacements, give the `anchor:script`
+capability its `anchorValidator` and `anchorThreadPolicy` answers in the draft.
 
 An app ledger finality certificate proves that the configured member threshold
 approved a block. An L1 anchor makes a later application position durable and
@@ -9280,8 +9644,8 @@ through them, then see how a forged root or an old anchor shows up:
 
 A transaction hash appearing in a Yano JSON response is not, by itself,
 independent anchor verification. From Java, use `ProofVerifier.verifyCertified`
-for steps 1–3 and `EvidenceVerifier` for the hash chain, rather than trusting
-server booleans.
+(`org.yanoproject.x.client.ProofVerifier` in `yano-x-client`) for steps 1–3 and
+`EvidenceVerifier` for the hash chain, rather than trusting server booleans.
 
 #### Metadata versus script anchoring
 
@@ -9519,10 +9883,83 @@ let an executor perform it after finality; see [effects](https://yano-x.io/conce
 
 #### 4. Test it
 
-Unit-test `parse` and `apply` first, including empty, oversized and malformed
-bodies. Then climb the [testing ladder](https://yano-x.io/plugins/testing-and-deployment/):
+The scaffold has no tests yet. Add JUnit to `shipment-plugin/build.gradle`,
+using the same Yano version as its `compileOnly` line:
+
+```groovy
+dependencies {
+    testImplementation 'org.yanoproject:yano-core-api:<the yano version above>'
+    testImplementation platform('org.junit:junit-bom:5.10.2')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+test { useJUnitPlatform() }
+```
+
+Then unit-test `validate` and `apply`, including empty, oversized and malformed
+bodies, in `src/test/java/com/example/shipment/ShipmentTest.java`:
+
+```java
+package com.example.shipment;
+
+import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
+import org.junit.jupiter.api.Test;
+import org.yanoproject.api.appchain.AppBlock;
+import org.yanoproject.api.appchain.AppBlockExecutionContext;
+import org.yanoproject.api.appchain.AppStateMachine;
+import org.yanoproject.api.appchain.AppStateWriter;
+import org.yanoproject.api.appchain.FinalityCert;
+import org.yanoproject.api.appchain.effects.AppEffectEmitter;
+
+import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+class ShipmentTest {
+    private static AppMessage message(byte[] body) {
+        return AppMessage.builder().version(2).chainId("t").topic("shipments")
+                .sender(new byte[32]).senderSeq(0).expiresAt(0)
+                .messageId(new byte[32]).authProof(new byte[0]).body(body).build();
+    }
+
+    @Test
+    void appliesValidUpdatesAndSkipsMalformedOnes() {
+        AppStateMachine machine = new ShipmentStateMachineProvider().create();
+        assertTrue(machine.validate(message("A-100=shipped".getBytes())).isAccepted());
+        assertFalse(machine.validate(message("bad".getBytes())).isAccepted());
+        assertFalse(machine.validate(message(new byte[0])).isAccepted());
+        assertFalse(machine.validate(message(new byte[300])).isAccepted());
+
+        List<AppMessage> messages = List.of(message("A-100=shipped".getBytes()),
+                message("=x".getBytes()), message(new byte[300]));
+        AppBlock block = new AppBlock(2, "t", 1, new byte[32], 0, new byte[0], 0L,
+                new byte[32], new byte[32], messages, new byte[32], FinalityCert.empty());
+        Map<String, byte[]> state = new HashMap<>();
+        AppStateWriter writer = new AppStateWriter() {
+            public Optional<byte[]> get(byte[] key) { return Optional.ofNullable(state.get(new String(key))); }
+            public void put(byte[] key, byte[] value) { state.put(new String(key), value); }
+            public void delete(byte[] key) { state.remove(new String(key)); }
+            public byte[] stateRoot() { return new byte[32]; }
+        };
+        machine.apply(AppBlockExecutionContext.fromValidatedBlock(block), writer,
+                AppEffectEmitter.rejecting("none"));
+
+        assertEquals(1, state.size());
+        assertEquals("shipped", new String(state.get("shipment/A-100"), StandardCharsets.UTF_8));
+    }
+}
+```
+
+Run it with `(cd shipment-plugin && gradle test)`. Then climb the
+[testing ladder](https://yano-x.io/plugins/testing-and-deployment/):
 replay, hostile input, an embedded multi-member cluster, and a packaged JVM
-cluster. The [plugin template](https://github.com/bloxbean/yano-x/tree/main/scaffolds/plugin-template/) shows unit,
+cluster. The [plugin template](https://github.com/bloxbean/yano-x/tree/main/scaffolds/plugin-template) shows unit,
 conformance and domain API tests for a similar machine.
 
 #### 5. Sign, build and validate
@@ -9554,8 +9991,8 @@ with it:
 (cd shipment-plugin && gradle wrapper --gradle-version 9.4.1 && ./gradlew jar)
 ```
 
-`plugin sign` ends with `PLUGIN_CATALOG_SIGNED key=example-release-2026
-public-key=<64 hex characters>`; that public key is the
+`plugin sign` prints `PLUGIN_CATALOG_SIGNED key=example-release-2026
+public-key=<64 hex characters> output=…`; that public key is the
 `<64-hex-public-key>` for `--trust-key` here and in step 6. `plugin validate`
 prints `PLUGIN_CATALOG_VALID` and `SNAPSHOT_WRITTEN shipment-catalog.json`,
 and `yano-plugins validate` prints `VALID`.
@@ -9593,17 +10030,17 @@ clash with other tutorials:
 
 ```bash
 ./yano.sh appchain new shipments --network devnet --operators alice \
-  --chain shipments=custom-plugin --yes
+  --chain shipments=custom-plugin --answer shipments.stateMachine=shipment --yes
 ```
 
-Open `shipments.draft.yaml` and add the machine id to the chain:
+`--answer` writes the machine id into the draft, which you can check:
 
 ```yaml
 chains:
   - id: shipments
     recipe: custom-plugin
     answers:
-      stateMachine: shipment
+      stateMachine: "shipment"
 ```
 
 Then make the key, seal, join, and start:
@@ -9617,13 +10054,28 @@ Then make the key, seal, join, and start:
 ./yano.sh appchain status shipments --node-dir shipment-node
 ```
 
+`join` shows the chain fingerprint and asks you to confirm it matches the one
+`seal` printed. In a script, pass `--expect-fingerprint <fingerprint>` instead.
+
 > **✓ You should see** `chain shipments  custom-plugin` in the sealed summary,
 > then `[Live]` with `members online 1/1` from `status`.
 
-Submit a shipment update through the node and look it up, as in
-[Set up an application](https://yano-x.io/deployment/configure/#7-send-a-message-and-see-it-final),
-with the chain `shipments` and a body such as `A-100=shipped`. Stop the node
-with `./yano.sh appchain stop --node-dir shipment-node`.
+Submit a shipment update through the node, then look it up:
+
+```bash
+API_KEY=$(cat shipment-node/secrets/api.key)
+MESSAGE_ID=$(curl -fsS -X POST http://127.0.0.1:7370/api/v1/app-chain/chains/shipments/messages \
+  -H "X-API-Key: $API_KEY" -H 'Content-Type: application/json' \
+  -d '{"topic":"shipments","body":"A-100=shipped"}' | jq -er .messageId)
+sleep 3
+curl -fsS -H "X-API-Key: $API_KEY" \
+  "http://127.0.0.1:7370/api/v1/app-chain/chains/shipments/messages/$MESSAGE_ID" | jq .height
+```
+
+> **✓ You should see** a height of 1 or more. A body your `validate` refuses,
+> such as `bad`, is rejected at submission with `"code":"INVALID_SHIPMENT_COMMAND"`.
+
+Stop the node with `./yano.sh appchain stop --node-dir shipment-node`.
 
 For members on separate machines, list every operator in `--operators` and
 follow [Set up an application](https://yano-x.io/deployment/configure/): every operator
@@ -9641,7 +10093,7 @@ describes the options.
 
 A rebuilt JAR has a new digest, so each node's `start` refuses it until its
 operator accepts it with `./yano.sh appchain join shipments.chain
---accept-bundles`. Agree the change with every operator first; the command
+--node-dir shipment-node --accept-bundles`. Agree the change with every operator first; the command
 only makes the change explicit.
 
 #### Go deeper
@@ -9651,7 +10103,7 @@ only makes the change explicit.
 - [Testing and deployment](https://yano-x.io/plugins/testing-and-deployment/)
 - [Composite implementation guide](https://github.com/bloxbean/yano-x/blob/main/composition/runtime/README.md), for a
   Java composite
-- [Plugin template scaffold](https://github.com/bloxbean/yano-x/tree/main/scaffolds/plugin-template/)
+- [Plugin template scaffold](https://github.com/bloxbean/yano-x/tree/main/scaffolds/plugin-template)
 - [Yano core testkit](https://github.com/bloxbean/yano/tree/main/appchain/appchain-testkit)
 - Yano's [plugin query and domain API guide](https://github.com/bloxbean/yano/blob/main/docs/APP_CHAIN_PLUGIN_QUERY_AND_DOMAIN_API.md)
   and [plugin operations guide](https://github.com/bloxbean/yano/blob/main/docs/PLUGIN_OPERATIONS.md)
@@ -9751,8 +10203,11 @@ and sends each organization its own join link instead; see
 Each organization, on the server that will run its node:
 
 ```bash
-./yano.sh appchain request permissioned-pilot.draft.yaml --host node-a.pilot.example
+./yano.sh appchain request permissioned-pilot.draft.yaml --name acme --host node-a.pilot.example
 ```
+
+Each organization passes its own `--name` (`acme`, `globex`, `initech`).
+Without it, `request` asks which operator you are and which ports to use.
 
 > **✓ You should see** `✓ Created node directory …/yano-node with a new member
 > key` and `✓ Wrote ./acme.member  (key id …, reachable at
@@ -9784,7 +10239,7 @@ the organizations and your verifiers can find them.
 
 Each organization follows [Run your node on a server](https://yano-x.io/deployment/operators/):
 `join permissioned-pilot.chain` (it shows the summary and asks to confirm),
-install the systemd unit that `join` writes, start, and run
+on Linux install the systemd unit that `join` writes, start, and run
 `./yano.sh appchain status permissioned-pilot`.
 
 > **✓ You should see** `[Live]`, `members online 3/3`, and `members agree` for
@@ -9825,8 +10280,8 @@ their own in `yano-node/config/local.yaml`, which `join` never rewrites and
 | Connector credential | Kafka, S3, IPFS, or API access | The executor host only |
 | TLS key and trust roots | Transport identity | Platform PKI |
 
-Back up each node directory. Never copy the deterministic demo keys, launcher
-API key, sample actor seeds, or local connector credentials into a shared
+Back up each node directory. Never copy the deterministic demo keys, the
+evidence demo's API key file, sample actor seeds, or local connector credentials into a shared
 environment.
 
 #### 8. Choose the trust statement
@@ -9875,7 +10330,7 @@ but it does change operational identity, reconciliation, and credentials.
 - Connector outage and executor crash recovery.
 - Anchor-leader failure and recovery (`anchor --stop`, `anchor --take-over`).
 - Evidence and proof archival before configured pruning horizons.
-- An explicit maintenance and upgrade process (`join --accept-bundles`).
+- An explicit maintenance and upgrade process (`join <app>.chain --accept-bundles`).
 
 #### 11. Run acceptance in layers
 
@@ -9919,7 +10374,8 @@ or a remembered manual session.
 | You see | What it means and what to do |
 |---|---|
 | `Members 2/3: waiting for initech` from `seal` | A card is missing. Ask that organization to run `request` and send its card. |
-| `This node's key (…) is not a member of permissioned-pilot` at `join` | The sealed file holds another key under your name. Do not start; tell the coordinator. |
+| `The sealed roster lists <name> with key …, but this node's key is …` at `join` | Someone else's card was sealed under your name. Do not start; tell the coordinator. |
+| `This node's key (…) is not a member of permissioned-pilot` at `join` | Your name is not in the sealed roster. A founding operator tells the coordinator; to join later, run `request permissioned-pilot.chain` first. |
 | `This distribution's plugin bundles differ from the sealed ones: …` | Install the same Yano X release the coordinator sealed with. |
 | `threshold 2 is not safe for 4 members; …` | A numeric threshold must be more than half of the members and at most all of them. |
 
@@ -9930,7 +10386,7 @@ or a remembered manual session.
 - [From demonstration to production](https://yano-x.io/deployment/production/)
 - [Full user/operations guide](https://github.com/bloxbean/yano-x/blob/main/docs/APP_CHAIN_USER_GUIDE.md)
 - [Profile-governance runbook](https://yano-x.io/deployment/profile-governance/)
-- Canonical app-layer open items
+- [Canonical app-layer open items](https://github.com/bloxbean/yano-x/blob/main/adr/app-layer/open_item.md)
 - [Evidence flow and trust limits](https://github.com/bloxbean/yano-x/blob/main/docs/EVIDENCE_CHAIN_DEMO.md)
 - [Domain-role production signing and recovery](https://github.com/bloxbean/yano-x/blob/main/docs/APP_CHAIN_DOMAIN_ROLES.md)
 
@@ -11604,7 +12060,8 @@ steps through what `profile-check` does.
 #### Before sharing a deployment
 
 - Archive the exact host/X artifacts, plugin catalog, YAML, IR, canonical
-  profiles, lock file and deployment identity; keep key custody separate.
+  profiles, sealed `<app>.chain` file and deployment identity; keep key
+  custody separate.
 - Test accepted and rejected cascades, authorization failures, replay and
   independent receipt proofs with your real command codecs.
 - Compare finalized heights, roots and profile identities across members;
@@ -11798,10 +12255,10 @@ The status line says what Studio can claim:
 
 The status considers every imported report, in any order. A dry-run that failed
 only on its fixture or continuation is listed separately and never counts as a
-rejection of the document. For a composite opened from an `appchain.yaml` file the
-wording never says "validated": the CLI checked the extracted composite under the
-context you supplied, and `appchain seal`, with the context it derives from the
-application, decides.
+rejection of the document. For a composite opened from an application draft
+(`<app>.draft.yaml`) the wording never says "validated": the CLI checked the
+extracted composite under the context you supplied, and `appchain seal`, with
+the context it derives from the application, decides.
 
 A report is an unauthenticated file: anyone can edit one. Studio decodes every
 receipt from its canonical bytes and rejects reports that contradict themselves,
@@ -15229,7 +15686,7 @@ about a use case. Every "Try it" below runs from an extracted
 |---|---|---|---|---|
 | [Evidence](https://yano-x.io/products/evidence/) | Publishes a document through threshold approval, stores it in object storage and IPFS, notifies Kafka, and proves each step. | Teams releasing records several organizations approve | `examples/evidence/demo.sh` (Docker) | `preview` |
 | [Cardano History](https://yano-x.io/products/cardano-history/) | Proves historical Cardano parameters, epoch stake, DRep distribution, and proposals instead of trusting an indexer. | Governance, reward, and validator tooling | Showcase `cardano-history-chain` | `preview` |
-| [eUTxO ledger](https://yano-x.io/products/eutxo/) | A Cardano-shaped UTxO ledger with an optional federated bridge, for test funds only. | Researchers and protocol teams | `./yano.sh appchain eutxo demo` | `experimental` |
+| [eUTxO ledger](https://yano-x.io/products/eutxo/) | A Cardano-shaped UTxO ledger with an optional federated bridge, for test funds only. | Researchers and protocol teams | `./yano.sh appchain eutxo demo up --scenario ledger` | `experimental` |
 
 #### Choosing one
 
@@ -15373,7 +15830,10 @@ The `evidence-ledger` recipe is the configuration-only path. It selects the
 governed organizations, actors, and role policies. `seal` writes a role
 bootstrap plan template beside the sealed file, `evidence-chain.role-plan.yaml`;
 fill it in and, once the chain is live, run
-`./yano.sh appchain role bootstrap --plan evidence-chain.role-plan.yaml` (see
+`./yano.sh appchain role bootstrap --plan evidence-chain.role-plan.yaml
+--expiry-height <n>`, with `<n>` above the chain's current height. It only
+prints JSON: the propose, approve and activate commands for each record, which
+the members must then submit (see
 [role approvals](https://yano-x.io/state-machines/role-approvals/)).
 
 ```bash
@@ -15732,6 +16192,7 @@ and each operator's `request` sends the card, waits for the seal and joins:
 | `status [<app>\|<app>.draft.yaml]` | Show the stage, every member's state, each chain's height, agreement and anchoring, this node's Cardano view (sync, or the devnet genesis), and its plugin catalog fingerprint. Members compare the last two. | The stage ladder and a `Next:` line |
 | `approve <name>.member`, `approve --remove <name>` | Add or remove a member on every chain, raising or lowering the threshold safely, then restart this node once. | `✓ <chain>: <name> is a member` |
 | `anchor [<app>]` | Make this node the anchor leader of a chain: create the wallet, wait for funds, restart. `--stop` gives the role up. | `✓ This node anchors <chain>` |
+| `topics approve <plan.json>` | Cast this node's member vote on a namespace change, for a chain whose draft has `topics:`. Every operator votes from their own node. | `✓ …: voted (message …)` |
 | `inspect <file>` | Show and check a draft, a member card, or a sealed file. `--map-genesis <chain>` prints an authenticated-map chain's genesis CBOR hex instead. | The summary |
 | `ui` | Open a page on this computer (127.0.0.1 only) with the same steps. Every button runs the command shown under it. | `✓ App-chain setup UI for …` and the page address |
 
@@ -15740,7 +16201,8 @@ Common options:
 - `try`: `--chain <id>=<recipe>` or `--chain <id>=bindings:<file>` (repeatable;
   default one `orders=audit-log` chain), `--answer <chain>.<name>=<value>`,
   `--from <template.yaml>`, `--setting <chain>.<key>=<value>`,
-  `--without <chain>` (all as for `new`), `--dir <dir>` (default
+  `--without <chain>`, `--topics <chain>=members|anyone|registrars:<a>+<b>`
+  (all as for `new`), `--dir <dir>` (default
   `appchain-try`), `--clean`. It gives each node the first free ports from
   `8080` (HTTP) and `13337` (node).
 - `new`: `--network devnet|preview|preprod|mainnet`, `--operators alice,bob,carol`
@@ -15749,7 +16211,10 @@ Common options:
   for any answer a recipe still needs), `--from <template.yaml>` (start from a
   template's chains and defaults), `--setting <chain>.<key>=<value>`
   (repeatable; a sealed chain setting), `--without <chain>` (leave out one of
-  the template's chains), `--threshold majority|two-thirds|all|<n>`,
+  the template's chains), `--topics <chain>=members|anyone|registrars:<a>+<b>`
+  (repeatable; protect that chain's topics with namespaces and choose who may
+  create a top-level namespace),
+  `--threshold majority|two-thirds|all|<n>`,
   `--membership governed|static`, `--sequencing fixed|rotating` (default
   `fixed`: the lead proposes every block), `--output <dir>`, `--force`, `--yes`.
 - `invite`: `--serve` (required), `--host <public-host>`, `--port` (default
@@ -15785,11 +16250,47 @@ chains:
   - id: approvals
     recipe: approval-workflow
     capabilities: [effects:on-approved, executor:webhook]
-    answers: {effectType: webhook.post}
+    answers: {effectType: webhook.post, webhookUrl: "http://127.0.0.1:9999/hook"}
 ```
 
 Exit codes: `0` success, `1` failure, `2` usage error, `3` not ready yet or
 timed out. Every command ends with a `Next:` line.
+
+#### Topic policies
+
+For a chain whose draft has `topics:`, these commands manage a namespace's
+owners, writers, and payload schema, check a topic's policy, and issue
+session-key credentials. See [Topic policies](https://yano-x.io/concepts/topic-policies/) and
+[Topic session keys](https://yano-x.io/recipes/topic-session-keys/).
+
+```text
+./yano.sh appchain topics init <namespace> [--owner-key-file <seed file>] [--output topics.yaml]
+./yano.sh appchain topics public-key <seed file>
+./yano.sh appchain topics plan <topics.yaml> [--output <name>.plan.json]
+./yano.sh appchain topics sign <plan.json> --key-file <owner seed file> [--command <index>]
+./yano.sh appchain topics submit <signed plan.json>
+./yano.sh appchain topics approve <plan.json>     # each operator: a member vote from this node
+./yano.sh appchain topics resolve <topic> [--height <n>]
+./yano.sh appchain topics delegate --scope <name> --session-key <64-hex> \
+    --not-before <ms> --not-after <ms> --key-file <issuer seed file>
+./yano.sh appchain topics verify <messageId> --bundle <json> --trusted-block <json>
+./yano.sh appchain topics doctor --bindings <yaml>
+```
+
+In a node directory (`--node-dir`, default `./yano-node`) the commands use
+this node, its API key and, when the application has one chain, that chain.
+Elsewhere pass `--peer <url>`, and `--chain <id>` to `init`, `resolve`,
+`delegate` and `doctor` (`plan`, `sign` and `submit` read the chain from the
+file); `--api-key-env <name>` reads
+an API credential from the named environment variable, and
+`--snapshot snapshot.json` plans offline. `--json` prints the
+machine-readable result instead (with `submit` it still waits unless you add
+`--no-wait`). For an existing entry, `init` starts the update from the active
+policy, and `plan` and `sign` list every field that changes. With a node,
+`delegate` checks the scope's policy first; offline (`--generation`) it
+cannot. Signing keys are 32-byte Ed25519 seed files, never
+command arguments. Plans are immutable: regenerate and sign again an expired
+or stale plan. No tool votes on a member's behalf.
 
 #### Configuration tools
 
@@ -15853,7 +16354,7 @@ see [State and proofs](https://yano-x.io/concepts/state-and-proofs/).
 ```
 
 The subcommands are `compile`, `validate`, `graph`, `dry-run`, `catalog`,
-`receipt-key`, `recipe`, and `profile-check`. See the
+`receipt-key`, and `profile-check`. See the
 [bindings CLI reference](https://yano-x.io/reference/declarative-bindings-cli/).
 
 #### Business identities and authorizations
@@ -15862,7 +16363,7 @@ These commands encode and sign offline. They never contact a node.
 
 | Command family | Subcommands | Use it to |
 |---|---|---|
-| `role` | `public-key`, `sign`, `key-proof`, `key-proof-signature`, `govern-propose`, `govern-approve`, `govern-activate`, `bootstrap --plan <chainId>.role-plan.yaml` | Derive an actor key, sign a role approval, prove key possession, encode governed role mutations, and encode every bootstrap step from the plan `seal` wrote. |
+| `role` | `public-key`, `sign`, `key-proof`, `key-proof-signature`, `govern-propose`, `govern-approve`, `govern-activate`, `bootstrap --plan <chainId>.role-plan.yaml --expiry-height <n>` | Derive an actor key, sign a role approval, prove key possession, encode governed role mutations, and encode every bootstrap step from the plan `seal` wrote. |
 | `authenticated-map` | `action`, `action-commitment`, `direct-preimage`, `direct-complete`, `approval-payload`, `approval-reference`, `command` | Build and sign `authenticated-map` commands for governed collections. |
 
 Pass private seeds with `--seed-file` only.
@@ -17118,7 +17619,9 @@ Omitting a historical profile cannot establish that it is safe to remove.
 The current `bindings compile`, `validate`, `graph`, and `dry-run` commands
 construct a fixed genesis profile. They are useful for command and cascade
 rehearsal, but do not qualify a governed epoch transition or migrate a retained
-chain. Project lock validation detects changes; it does not make them compatible.
+chain. The sealed bundle digests detect changes: `appchain join` and
+`appchain start` refuse a changed plugin bundle until the operator accepts it
+with `join --accept-bundles`. Detecting a change does not make it compatible.
 
 `profile-check` supplies a fail-closed reconstruction preflight, not an installer
 or migration planner. There is no general declarative command that installs old
@@ -17221,6 +17724,25 @@ All paths below are relative to `/api/v1/app-chain/chains/{chainId}`.
 | `POST /proof/verify` | Read | Verify a proof on the node. |
 | `POST /query/{path}` | Read | Run the state machine's read hook against one committed snapshot. |
 
+##### Topic registry
+
+On a chain sealed with a `topics:` block. Without one, `GET /topics/config`
+answers `{"enabled": false}`. See
+[topic policies](https://yano-x.io/concepts/topic-policies/).
+
+| Method and path | Access | Purpose |
+|---|---|---|
+| `GET /topics/config` | Read | The committed topic configuration: creation modes, `unregistered-topics` and limits. |
+| `GET /topics/entries/{name}` | Read | One registry entry: its active revision (owners, policy, `retired`), `head` and pending count. Encode a namespace's trailing slash, as in `freight%2F`. A field the entry inherits is `null`. `404` if there is none. |
+| `GET /topics/resolve?topic=` | Read | A topic's effective outcome at the tip, without proofs: `POLICY` with the policy and the entries it came from, `UNREGISTERED_OPEN`, `UNREGISTERED_REJECT` or `DISABLED`, plus its `effectivePolicyDigest`. |
+| `GET /topics/proof?topic=&height=` | Read | `topic-policy-v1`: key proofs, against the root of block `height - 1`, of everything that decides the topic's outcome for block `height` (default: the next block). `height` must be at least 2; a height whose parent state is not retained, including a future one, answers `404`. `topics resolve` verifies it. |
+| `GET /topics/schemas/{hash}` | Read | The canonical IR of a payload schema, as `irHex`. |
+| `GET /topics/receipts/{messageId}` | Read | The outcome of a registry command, or of the vote that decided a governance command, such as `{"code": "ACCEPTED", "activation": 38}`. Kept for `max-command-ms` after inclusion; other messages answer `404`. |
+| `POST /admin/topics/governance` | Privileged | This member's vote on a topic-governance command. Body `{"commandHex":"..."}`; returns `202` with the `messageId`. `topics approve` calls it. |
+
+Owners, registrars and claimants submit their signed commands with
+`POST /messages` on the topic `~topics/registry`; `topics submit` does this.
+
 ##### Effects
 
 | Method and path | Access | Purpose |
@@ -17274,12 +17796,16 @@ input — the same model as a wallet talking to its own node. This is why the AP
 must not be exposed to untrusted callers without authentication.
 
 **The body is opaque.** Use `body` for UTF-8 text or `bodyHex` for arbitrary
-bytes. The framework never parses it; only the state machine does.
+bytes. The framework never parses it; only the state machine does. The
+exception is a topic protected by the topic registry: there the body is a
+canonical CBOR frame that carries the payload and its write proof, which the
+[Java and JavaScript clients](https://yano-x.io/recipes/topic-session-keys/#use-a-browser-session)
+build.
 
 | Response | Meaning |
 |---|---|
 | `202` with `messageId` | Accepted into this node's pending pool. Not final yet. |
-| `400` with `code` | The application rejected the command at admission. |
+| `400` with `code` | The application rejected the command at admission, or the topic policy refused it (a `TOPIC_*` code). |
 | `429` | The pending pool is full. Back off and retry. |
 | `503` | The node cannot accept submissions right now. |
 
@@ -18056,7 +18582,7 @@ explained. Yano's command line, configuration, and APIs say *app chain* where
 the guides say *app ledger*; identifiers such as `yano.app-chain.*` and
 `/api/v1/app-chain/` keep their names.
 
-#### A–C
+#### A–D
 
 **Actor.** A person or organization that signs a business decision, such as an
 approval, with its own key. The signature travels inside the message body.
@@ -18100,6 +18626,11 @@ See [Chain identity](https://yano-x.io/concepts/chain-identity/).
 verifies each one, including its certificate and state root. See
 [Restart, catch-up and snapshots](https://yano-x.io/concepts/recovery/).
 
+**Chain fingerprint.** The SHA-256 of the sealed file's genesis section, shown
+as eight groups for reading aloud. Every operator compares it with the others,
+out of band, before `join`. See
+[Set up an application](https://yano-x.io/deployment/configure/).
+
 **Chain id.** The identifier of one app ledger, `chain-id` in configuration. One
 node can host several ledgers.
 
@@ -18114,7 +18645,14 @@ root, applying them in a committed order within each block.
 genesis id, height, quorum, member keys, and consensus profiles. Every vote
 signs it.
 
-#### E–M
+**Coordinator.** The operator who creates the draft with `new`, hands out the
+invites, collects the member cards, and seals the application with `seal`.
+
+**Draft.** `<app>.draft.yaml`, written by `./yano.sh appchain new`: the
+network, operators, threshold, membership, and chains of an application, with
+its invite code. A public file; `seal` turns it into the sealed file.
+
+#### E–N
 
 **Effect.** An immutable record that a transition emits to authorize external
 work, such as a webhook call or a Kafka message. An executor performs it after
@@ -18137,6 +18675,18 @@ proof format, `state.format-fingerprint`. Fixed at genesis.
 **Genesis id.** 32 bytes, `state.genesis-id`, that name one generation of a
 ledger. Never regenerate the genesis id of a ledger whose data you keep.
 
+**Invite code.** A random value in the draft that names one setup. Every member
+card carries it, `seal` refuses a card made for another invite, and it feeds
+each chain's genesis id, so two setups never share a ledger identity.
+
+**Key id.** The first 16 hex characters of a member's public key, printed by
+`request`, `inspect`, and `status`. Operators read it aloud with the chain
+fingerprint to confirm whose key is whose.
+
+**Lead.** The first operator in the draft's `--operators` list. With `fixed`
+sequencing it proposes every block, and on a devnet its node runs the devnet
+that the other nodes follow and is the only one that can anchor.
+
 **Leader.** The member that proposes the block for a height and view. With a
 `fixed` sequencer, a configured member leads view 0; with `rotating`, the view-0
 leader is derived from the consensus context and the parent block hash. After a
@@ -18146,6 +18696,10 @@ certified timeout, the next member in order leads.
 key. Members sign the envelopes of messages they accept, re-execute and vote on
 every block, and each hold the full state. A ledger has at most 32 members.
 
+**Member card.** `<name>.member`, written by `./yano.sh appchain request`: an
+operator's public member key, its node and HTTP addresses, and the invite code,
+signed with that key. It contains no secret.
+
 **Membership epoch.** The member set and threshold in force from a given height.
 With governed membership, changes are finalized ledger transactions, and every
 check uses the membership at that height.
@@ -18154,12 +18708,20 @@ check uses the membership at that height.
 that accepted it. Its message id is derived from its content. Only the state
 machine interprets the body.
 
+**Node directory.** The directory a node's commands act on, `--node-dir`
+(default `./yano-node`): its secrets, generated `config/`, `data/` stores, and
+the applications it has joined.
+
 #### O–R
 
 **Observation.** External information that enters the ledger as certified
 input: stable Cardano facts on reserved `~l1/` topics, which every member
 re-derives from its own Cardano view, or generic observations certified under a
 shared policy (preview). See [External observations](https://yano-x.io/concepts/observations/).
+
+**Operator.** A person or organization that runs one member node, with its own
+member key. Every operator runs `request`, `join`, and `start` on their own
+machine.
 
 **Organization.** A governed record that groups actors, so a policy can require
 approvals from distinct organizations.
@@ -18188,6 +18750,11 @@ kept in `appchain-indexers/`. Never authoritative. See
 configuration for a kind of ledger. See [Recipes](https://yano-x.io/recipes/).
 
 #### S–V
+
+**Sealed file.** `<app>.chain`, written by `./yano.sh appchain seal` from the
+draft and the member cards: the genesis of every chain, the member keys, the
+plugin bundle digests, and the peers. Its genesis section is what the chain
+fingerprint covers. Public; every operator joins with the same file.
 
 **Sink.** A component that pushes finalized blocks to an external system, such
 as a webhook or Kafka, at least once.
@@ -18399,9 +18966,15 @@ npm run build    # imports, builds to dist/, generates the AI artifacts
 relative link in an imported document **fails the build** rather than shipping a
 404.
 
-Edit the sources under `docs/` for imported pages, and
-`www/src/content/docs/` for authored ones. Never hand-edit content between
-catalog anchors — it is regenerated.
+Most site pages are imported from `docs/`: `IMPORTED_DOCS` in
+`www/scripts/repo-sources.mjs` lists them, and you edit their sources under
+`docs/`. Only a few pages are authored directly under `www/src/content/docs/`:
+`concepts/{architecture,consensus-and-finality,determinism-rules}.md`,
+`plugins/testing-and-deployment.md`,
+`products/{cardano-history,eutxo,evidence}.md`,
+`recipes/{index,choosing-a-recipe}.md`, `reference/{capabilities,cli,shelf}.md`,
+and `404.md`. Never hand-edit content between catalog anchors — it is
+regenerated.
 
 The site's content strategy and design decisions are recorded in ADR-038, in
 the repository's `adr/` directory.

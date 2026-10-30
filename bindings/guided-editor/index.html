@@ -250,10 +250,10 @@ The status line says what Studio can claim:</p>
 <table><thead><tr><th>Status</th><th>Meaning</th></tr></thead><tbody><tr><td>Draft with local checks only</td><td>No CLI report describes this draft</td></tr><tr><td>Imported matching CLI report</td><td>A report says the CLI validated exactly this document, context, plugin catalog and tool</td></tr><tr><td>The CLI rejected exactly the current inputs</td><td>A matching report says compiling or validating the document failed; its diagnostics link to the form</td></tr><tr><td>Rehearsed source outcomes</td><td>Reports give the real engine’s results for these exact, assumed fixture inputs; the line adds how many blocks are stale or unverified</td></tr><tr><td>Stale or unverifiable report</td><td>Something differs; the report is history, not a result for this draft</td></tr></tbody></table>
 <p>The status considers every imported report, in any order. A dry-run that failed
 only on its fixture or continuation is listed separately and never counts as a
-rejection of the document. For a composite opened from an <code dir="auto">appchain.yaml</code> file the
-wording never says “validated”: the CLI checked the extracted composite under the
-context you supplied, and <code dir="auto">appchain seal</code>, with the context it derives from the
-application, decides.</p>
+rejection of the document. For a composite opened from an application draft
+(<code dir="auto">&#x3C;app>.draft.yaml</code>) the wording never says “validated”: the CLI checked the
+extracted composite under the context you supplied, and <code dir="auto">appchain seal</code>, with
+the context it derives from the application, decides.</p>
 <p>A report is an unauthenticated file: anyone can edit one. Studio decodes every
 receipt from its canonical bytes and rejects reports that contradict themselves,
 but a match only shows the same inputs were used. It is not an attestation, a
