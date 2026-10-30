@@ -56,7 +56,10 @@ MAX_IDENTITY_DEPTH = 16
 MAX_IDENTITY_ITEMS = 4096
 MARKER_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\Z")
 INSTANCE_NAME = re.compile(r"[a-z0-9][a-z0-9-]{0,31}\Z")
-DEPLOYMENT_NAME = re.compile(r"(?:compose|host)\Z")
+DEPLOYMENT_NAME = re.compile(r"compose\Z")
+# The retired host deployment mode used this name for its control, L1 and
+# runtime directories. Its leftovers are reported, never adopted or deleted.
+RETIRED_HOST_DEPLOYMENT = "host"
 NETWORK_NAME = re.compile(r"[a-z][a-z0-9-]{0,31}\Z")
 CHAIN_ID = re.compile(r"[a-z][a-z0-9-]{0,62}\Z")
 SHA256_HEX = re.compile(r"[0-9a-f]{64}\Z")
@@ -80,6 +83,7 @@ CLEANUP_PLAN_FIELDS = {
 }
 CENTRAL_CLEANUP_MARKER = ".yano-cleanup-transaction.json"
 DEVNET_RESET_MARKER = ".yano-devnet-reset-transaction.json"
+DEVNET_RESET_QUARANTINE_SUFFIX = ".yano-devnet-reset-quarantine"
 OPERATION_LOCK_DIRECTORY = ".yano-operation-locks"
 
 
@@ -840,12 +844,11 @@ def _validate_active_identity_shape(document: dict[str, Any], marker: Path) -> N
     digest = document.get("networkIdentitySha256")
     if not isinstance(digest, str) or not SHA256_HEX.fullmatch(digest):
         raise LifecycleError(f"app-chain identity marker has an invalid network digest: {marker}")
+    if document.get("deployment") != "compose":
+        raise LifecycleError(f"app-chain identity marker has an invalid deployment: {marker}")
     project = document.get("composeProject")
-    if document.get("deployment") == "compose":
-        if not isinstance(project, str) or not project or len(project) > 255:
-            raise LifecycleError(f"compose identity marker has an invalid project: {marker}")
-    elif project is not None:
-        raise LifecycleError(f"host identity marker must use a null composeProject: {marker}")
+    if not isinstance(project, str) or not project or len(project) > 255:
+        raise LifecycleError(f"compose identity marker has an invalid project: {marker}")
 
     state_machine = document.get("stateMachine")
     state_machine_fields = (
@@ -981,27 +984,16 @@ def _validate_active_identity_shape(document: dict[str, Any], marker: Path) -> N
             )
     if layout_version >= 2:
         s3 = connectors["s3"]
-        if document.get("deployment") == "compose":
-            if (
-                s3.get("provider") != "rustfs"
-                or s3.get("providerVersion") != "1.0.0-beta.9"
-                or s3.get("profile") != "local-demo-v2"
-                or s3.get("dataLayoutVersion") != 2
-                or not isinstance(s3.get("iamConfigSha256"), str)
-                or not SHA256_HEX.fullmatch(s3["iamConfigSha256"])
-            ):
-                raise LifecycleError(
-                    f"compose identity marker has incompatible S3 provider metadata: {marker}"
-                )
-        elif (
-            s3.get("provider") != "external-s3-compatible"
-            or s3.get("providerVersion") is not None
-            or s3.get("profile") != "operator-managed-v1"
-            or s3.get("dataLayoutVersion") != 1
-            or s3.get("iamConfigSha256") is not None
+        if (
+            s3.get("provider") != "rustfs"
+            or s3.get("providerVersion") != "1.0.0-beta.9"
+            or s3.get("profile") != "local-demo-v2"
+            or s3.get("dataLayoutVersion") != 2
+            or not isinstance(s3.get("iamConfigSha256"), str)
+            or not SHA256_HEX.fullmatch(s3["iamConfigSha256"])
         ):
             raise LifecycleError(
-                f"host identity marker has invalid provider-neutral S3 metadata: {marker}"
+                f"compose identity marker has incompatible S3 provider metadata: {marker}"
             )
 
 
@@ -1404,6 +1396,87 @@ def _validate_network_root_identity(root: Path, network_name: str) -> str:
     return _identity_digest(content)
 
 
+def _retired_host_entries(container: Path) -> list[Path]:
+    """Return host-mode state stored directly inside one deployment container."""
+    if container.is_symlink() or not container.is_dir():
+        return []
+    try:
+        names = sorted(os.listdir(container))
+    except OSError as error:
+        raise LifecycleError(f"cannot inspect {container}: {error.strerror}") from error
+    return [
+        container / name
+        for name in names
+        if name == RETIRED_HOST_DEPLOYMENT
+        or name.startswith(f".{RETIRED_HOST_DEPLOYMENT}.yano-quarantine.")
+    ]
+
+
+def _child_directories(container: Path) -> list[Path]:
+    if container.is_symlink() or not container.is_dir():
+        return []
+    try:
+        children = sorted(container.iterdir(), key=lambda child: child.name)
+    except OSError as error:
+        raise LifecycleError(f"cannot inspect {container}: {error.strerror}") from error
+    return [child for child in children if child.is_dir() and not child.is_symlink()]
+
+
+def _reject_retired_host_data(root: Path, runtime_parents: Sequence[Path] = ()) -> None:
+    """Refuse to act while state from the retired host deployment mode remains.
+
+    Host mode kept its identity under ``instances/<id>/host``, its L1 state and
+    node links under ``l1/host``, lifecycle records under ``retired/host`` and
+    ``reservations/host``, and runtime/UI process state under
+    ``<runtime>/<id>/host``. Those processes may still be running, so this tool
+    neither adopts nor deletes that state: the operator stops them and removes
+    the exact reported paths. Devnet-reset quarantines and an interrupted
+    host cleanup transaction are covered so no host data is half-processed.
+    """
+    found: list[Path] = []
+    for name in ("l1", "retired", "reservations"):
+        for container in (root / name, root / f".{name}{DEVNET_RESET_QUARANTINE_SUFFIX}"):
+            found.extend(_retired_host_entries(container))
+    for container in (root / "instances", root / f".instances{DEVNET_RESET_QUARANTINE_SUFFIX}"):
+        for instance_root in _child_directories(container):
+            leftovers = _retired_host_entries(instance_root)
+            if leftovers and len(leftovers) == len(_safe_directory_entries(
+                instance_root,
+                "instance control directory",
+            )):
+                # A host-only instance is removed as a whole; an emptied
+                # instance directory would itself block the claim snapshot.
+                found.append(instance_root)
+            else:
+                found.extend(leftovers)
+    for runtime_parent in runtime_parents:
+        found.extend(_retired_host_entries(runtime_parent))
+
+    central = root / CENTRAL_CLEANUP_MARKER
+    if _exists(central):
+        try:
+            transaction = _read_canonical_record(
+                central,
+                "central cleanup transaction",
+                CLEANUP_TRANSACTION_KIND,
+            )
+        except LifecycleError:
+            # Every caller validates this marker strictly afterwards.
+            transaction = {}
+        plan = transaction.get("plan")
+        if isinstance(plan, dict) and plan.get("deployment") == RETIRED_HOST_DEPLOYMENT:
+            found.append(central)
+
+    if found:
+        rendered = ", ".join(str(path) for path in sorted(set(found)))
+        raise LifecycleError(
+            "found state left by the retired host deployment mode: "
+            f"{rendered}. Stop any old host-mode nodes, then remove these paths "
+            "yourself and retry; this tool never adopts or deletes host-mode state "
+            "and changed nothing"
+        )
+
+
 def _operation_lock_root(data_root: Path, network: str, deployment: str) -> Path:
     if not NETWORK_NAME.fullmatch(network):
         raise LifecycleError("operation lock has an invalid network name")
@@ -1714,7 +1787,7 @@ def _deployment_acquire(args: argparse.Namespace) -> None:
         raise LifecycleError("lease identity does not bind the supplied app-chain identity digest")
     if lease.get("networkIdentitySha256") != identity.get("networkIdentitySha256"):
         raise LifecycleError("lease identity does not bind the app-chain network identity digest")
-    if deployment == "compose" and lease.get("project") != identity.get("composeProject"):
+    if lease.get("project") != identity.get("composeProject"):
         raise LifecycleError("compose lease project does not match the app-chain identity")
 
     raw_root, root = _prepare_allowed_root(args.network_root, create=False)
@@ -1738,6 +1811,7 @@ def _deployment_acquire(args: argparse.Namespace) -> None:
         network_digest = _validate_network_root_identity(root, network_name)
         if identity.get("networkIdentitySha256") != network_digest:
             raise LifecycleError("app-chain identity does not bind the retained network marker")
+        _reject_retired_host_data(root)
         _reject_active_cleanup(root)
         snapshot = _claim_snapshot(root, network_name, candidate=(pair, data_root))
         _authorize_deployment_claim(snapshot, pair, chain_ids, identity_digest)
@@ -1999,10 +2073,7 @@ def _reject_overlapping_targets(targets: Sequence[tuple[str, Path]]) -> None:
                 )
 
 
-def _reject_symlinks_in_tree(
-    target: Path,
-    allowed_symlinks: frozenset[Path] = frozenset(),
-) -> None:
+def _reject_symlinks_in_tree(target: Path) -> None:
     def walk_error(error: OSError) -> None:
         raise LifecycleError(
             f"cannot inspect cleanup target {error.filename or target}: {error.strerror}"
@@ -2025,9 +2096,7 @@ def _reject_symlinks_in_tree(
             child = base / name
             try:
                 if child.is_symlink():
-                    if child not in allowed_symlinks:
-                        raise LifecycleError(f"cleanup target contains a symlink: {child}")
-                    continue
+                    raise LifecycleError(f"cleanup target contains a symlink: {child}")
                 child_info = child.stat()
                 if child_info.st_dev != target_device or (child.is_dir() and os.path.ismount(child)):
                     raise LifecycleError(
@@ -2123,12 +2192,6 @@ class CleanupTarget:
     quarantine: Path
 
 
-@dataclass(frozen=True)
-class ManagedHostLink:
-    path: Path
-    target: Path
-
-
 def _cleanup_coordinates(
     plan: dict[str, Any],
     root: Path,
@@ -2157,7 +2220,7 @@ def _target_specs(
     runtime_allowed_root: Path,
     transaction_id: str,
     runtime_root_initially_present: bool,
-) -> tuple[list[CleanupTarget], list[ManagedHostLink]]:
+) -> list[CleanupTarget]:
     data_root, l1_root, selected_runtime = _cleanup_coordinates(
         plan,
         root,
@@ -2192,17 +2255,7 @@ def _target_specs(
         quarantine = target.parent / f".{target.name}.yano-quarantine.{transaction_id}"
         targets.append(CleanupTarget(category, allowed, allowed_present, target, quarantine))
     _reject_overlapping_targets([(target.category, target.target) for target in targets])
-
-    links: list[ManagedHostLink] = []
-    if plan["deployment"] == "host" and scope in {"instance", "l1", "all"}:
-        for index in range(3):
-            links.append(
-                ManagedHostLink(
-                    l1_root / "host-cluster" / f"node{index}" / "appchain-chainstate",
-                    data_root / "app-chain" / f"node{index}",
-                )
-            )
-    return targets, links
+    return targets
 
 
 def _cleanup_transaction_document(
@@ -2210,7 +2263,6 @@ def _cleanup_transaction_document(
     plan_digest: str,
     transaction_id: str,
     targets: Sequence[CleanupTarget],
-    links: Sequence[ManagedHostLink],
     runtime_root_initially_present: bool,
 ) -> dict[str, Any]:
     return {
@@ -2230,10 +2282,6 @@ def _cleanup_transaction_document(
             }
             for target in targets
         ],
-        "hostLinks": [
-            {"path": str(link.path), "target": str(link.target)}
-            for link in links
-        ],
     }
 
 
@@ -2244,7 +2292,7 @@ def _read_or_publish_cleanup_transaction(
     plan_digest: str,
     runtime_root_initially_present: bool,
     new_transaction_id: Optional[str] = None,
-) -> tuple[Path, list[CleanupTarget], list[ManagedHostLink]]:
+) -> tuple[Path, list[CleanupTarget]]:
     marker = root / CENTRAL_CLEANUP_MARKER
     _recover_marker_temporaries(marker)
     if _exists(marker):
@@ -2259,7 +2307,7 @@ def _read_or_publish_cleanup_transaction(
         recorded_runtime_state = current.get("runtimeAllowedRootInitiallyPresent")
         if not isinstance(recorded_runtime_state, bool):
             raise LifecycleError(f"central cleanup transaction has invalid runtime-root state: {marker}")
-        targets, links = _target_specs(
+        targets = _target_specs(
             plan,
             root,
             runtime_allowed_root,
@@ -2271,21 +2319,20 @@ def _read_or_publish_cleanup_transaction(
             plan_digest,
             transaction_id,
             targets,
-            links,
             recorded_runtime_state,
         )
         if current != expected:
             raise LifecycleError(
                 f"another or malformed cleanup plan is already published: {marker}"
             )
-        return marker, targets, links
+        return marker, targets
 
     artifacts = _walk_lifecycle_artifacts(root) + _walk_lifecycle_artifacts(runtime_allowed_root)
     if artifacts:
         rendered = ", ".join(str(path) for path in sorted(set(artifacts)))
         raise LifecycleError(f"orphan cleanup journal or quarantine requires inspection: {rendered}")
     transaction_id = new_transaction_id or secrets.token_hex(16)
-    targets, links = _target_specs(
+    targets = _target_specs(
         plan,
         root,
         runtime_allowed_root,
@@ -2297,13 +2344,12 @@ def _read_or_publish_cleanup_transaction(
         plan_digest,
         transaction_id,
         targets,
-        links,
         runtime_root_initially_present,
     )
     _atomic_write_marker(marker, _canonical_json(document))
     print(f"CLEANUP TRANSACTION {transaction_id} planSha256={plan_digest} marker={marker}")
     _test_stop("transaction")
-    return marker, targets, links
+    return marker, targets
 
 
 def _validate_known_cleanup_artifacts(
@@ -2319,11 +2365,7 @@ def _validate_known_cleanup_artifacts(
         raise LifecycleError(f"unknown cleanup quarantine or journal requires inspection: {rendered}")
 
 
-def _prevalidate_cleanup_targets(
-    targets: Sequence[CleanupTarget],
-    links: Sequence[ManagedHostLink] = (),
-) -> None:
-    allowed_symlinks = frozenset(link.path for link in links)
+def _prevalidate_cleanup_targets(targets: Sequence[CleanupTarget]) -> None:
     for item in targets:
         if not item.allowed_root_initially_present:
             if _exists(item.allowed_root) or _exists(item.target) or _exists(item.quarantine):
@@ -2345,31 +2387,7 @@ def _prevalidate_cleanup_targets(
         if candidate.is_symlink() or not candidate.is_dir():
             raise LifecycleError(f"cleanup target is not a real directory: {candidate}")
         _validate_owned_directory(candidate, f"cleanup {item.category} directory")
-        _reject_symlinks_in_tree(candidate, allowed_symlinks)
-
-
-def _prevalidate_host_links(links: Sequence[ManagedHostLink]) -> None:
-    for link in links:
-        l1_root = link.path.parents[2]
-        _reject_symlink_components(
-            l1_root,
-            link.path.relative_to(l1_root).parts[:-1],
-            "managed host-link parent",
-        )
-        if not _exists(link.path):
-            continue
-        try:
-            info = link.path.lstat()
-        except OSError as error:
-            raise LifecycleError(f"cannot inspect managed host link {link.path}: {error.strerror}") from error
-        if not stat.S_ISLNK(info.st_mode):
-            raise LifecycleError(f"managed host link is not a symlink: {link.path}")
-        if hasattr(os, "geteuid") and info.st_uid != os.geteuid():
-            raise LifecycleError(f"managed host link is not owned by the current user: {link.path}")
-        if Path(os.path.realpath(link.path)) != link.target.resolve(strict=False):
-            raise LifecycleError(
-                f"managed host link points outside its exact app-chain target: {link.path}"
-            )
+        _reject_symlinks_in_tree(candidate)
 
 
 def _require_cleanup_lease_absent(
@@ -2392,21 +2410,6 @@ def _require_cleanup_lease_absent(
             # never interpreted as an absent lease.
             _read_canonical_record(lease, "L1 lease", LEASE_KIND)
             raise LifecycleError(f"L1 state is actively leased; stop it before cleanup: {lease}")
-
-
-def _remove_managed_host_links(links: Sequence[ManagedHostLink]) -> None:
-    for link in links:
-        if not _exists(link.path):
-            continue
-        # All links were validated before the first mutation. Revalidate each
-        # immediately before unlinking to fail closed against replacement.
-        _prevalidate_host_links([link])
-        try:
-            link.path.unlink()
-            _fsync_directory(link.path.parent)
-        except OSError as error:
-            raise LifecycleError(f"cannot remove managed host link {link.path}: {error.strerror}") from error
-        print(f"UNLINK host-appchain {link.path}")
 
 
 def _cleanup_retirement_plan(plan: dict[str, Any]) -> dict[str, Any]:
@@ -2663,11 +2666,12 @@ def _cleanup_execute(args: argparse.Namespace) -> None:
 
     with _exclusive_lock(root):
         _validate_network_root_identity(root, plan["networkName"])
+        _reject_retired_host_data(root, (runtime_allowed_root,))
         central = root / CENTRAL_CLEANUP_MARKER
         _recover_marker_temporaries(central)
         transaction_exists = _exists(central)
         if transaction_exists:
-            marker, targets, links = _read_or_publish_cleanup_transaction(
+            marker, targets = _read_or_publish_cleanup_transaction(
                 root,
                 runtime_allowed_root,
                 plan,
@@ -2677,10 +2681,10 @@ def _cleanup_execute(args: argparse.Namespace) -> None:
         else:
             # Every non-mutating check is completed while holding the network
             # lock before the global transaction is published. A bad lease,
-            # attachment, link, identity, target, or lineage therefore cannot
+            # attachment, identity, target, or lineage therefore cannot
             # strand a fence that blocks a healthy running deployment.
             transaction_id = secrets.token_hex(16)
-            targets, links = _target_specs(
+            targets = _target_specs(
                 plan,
                 root,
                 runtime_allowed_root,
@@ -2696,8 +2700,7 @@ def _cleanup_execute(args: argparse.Namespace) -> None:
                 raise LifecycleError(
                     f"orphan cleanup journal or quarantine requires inspection: {rendered}"
                 )
-            _prevalidate_host_links(links)
-            _prevalidate_cleanup_targets(targets, links)
+            _prevalidate_cleanup_targets(targets)
             _require_cleanup_lease_absent(Path(plan["l1Root"]), targets)
             pair = (plan["deployment"], plan["instanceId"])
             snapshot = _claim_snapshot(
@@ -2708,7 +2711,7 @@ def _cleanup_execute(args: argparse.Namespace) -> None:
                 else None,
             )
             _validate_cleanup_snapshot(plan, snapshot)
-            marker, targets, links = _read_or_publish_cleanup_transaction(
+            marker, targets = _read_or_publish_cleanup_transaction(
                 root,
                 runtime_allowed_root,
                 plan,
@@ -2718,8 +2721,7 @@ def _cleanup_execute(args: argparse.Namespace) -> None:
             )
 
         _validate_known_cleanup_artifacts(root, runtime_allowed_root, targets)
-        _prevalidate_host_links(links)
-        _prevalidate_cleanup_targets(targets, links)
+        _prevalidate_cleanup_targets(targets)
         _require_cleanup_lease_absent(Path(plan["l1Root"]), targets)
 
         pair = (plan["deployment"], plan["instanceId"])
@@ -2752,7 +2754,6 @@ def _cleanup_execute(args: argparse.Namespace) -> None:
                 logical_overrides=overrides,
             )
         _verify_l1_attachments(snapshot, plan)
-        _remove_managed_host_links(links)
         for target in targets:
             _execute_central_cleanup_target(target)
 
@@ -2784,7 +2785,7 @@ def _devnet_reset_targets(
             root,
             True,
             root / name,
-            root / f".{name}.yano-devnet-reset-quarantine",
+            root / f".{name}{DEVNET_RESET_QUARANTINE_SUFFIX}",
         )
         for name in ("instances", "l1", "retired", "reservations")
     ]
@@ -2795,7 +2796,7 @@ def _devnet_reset_targets(
             runtime_base,
             runtime_base_present,
             runtime_target,
-            runtime_target.parent / ".devnet.yano-devnet-reset-quarantine",
+            runtime_target.parent / f".devnet{DEVNET_RESET_QUARANTINE_SUFFIX}",
         )
     )
     _reject_overlapping_targets([(target.category, target.target) for target in targets])
@@ -2804,10 +2805,7 @@ def _devnet_reset_targets(
 
 def _validate_devnet_reset_lease(root: Path, compose_stopped: bool) -> None:
     l1_root = root / "l1"
-    expected = {
-        l1_root / "compose" / DEFAULT_LEASE_MARKER,
-        l1_root / "host" / DEFAULT_LEASE_MARKER,
-    }
+    expected = {l1_root / "compose" / DEFAULT_LEASE_MARKER}
     if l1_root.exists():
         discovered = {
             path for path in l1_root.glob(f"*/{DEFAULT_LEASE_MARKER}")
@@ -2817,12 +2815,6 @@ def _validate_devnet_reset_lease(root: Path, compose_stopped: bool) -> None:
         if unexpected:
             rendered = ", ".join(str(path) for path in sorted(unexpected))
             raise LifecycleError(f"unexpected devnet L1 lease location: {rendered}")
-
-    host_lease = l1_root / "host" / DEFAULT_LEASE_MARKER
-    if host_lease.exists() or host_lease.is_symlink():
-        raise LifecycleError(
-            "host devnet is active or uncertain; stop the host deployment before reset-devnet"
-        )
 
     compose_lease = l1_root / "compose" / DEFAULT_LEASE_MARKER
     if not compose_lease.exists() and not compose_lease.is_symlink():
@@ -2838,42 +2830,6 @@ def _validate_devnet_reset_lease(root: Path, compose_stopped: bool) -> None:
     _validate_lease_identity_shape(document, "Compose devnet lease")
     if document.get("networkName") != "devnet" or document.get("deployment") != "compose":
         raise LifecycleError(f"Compose devnet lease identity is inconsistent: {compose_lease}")
-
-
-def _reject_active_host_devnet_artifacts(root: Path, runtime_base: Path) -> None:
-    host_cluster = root / "l1" / "host" / "host-cluster"
-    patterns = (
-        "node*.pid",
-        "node*.pid.meta",
-        "node*.launch",
-        "node*.pid.tmp.*",
-        "node*.pid.meta.tmp.*",
-    )
-    active: set[Path] = set()
-    if host_cluster.exists():
-        for pattern in patterns:
-            active.update(host_cluster.glob(pattern))
-
-    runtime_network = runtime_base / "networks" / "devnet"
-    if runtime_network.exists():
-        for instance_root in runtime_network.iterdir():
-            host_runtime = instance_root / "host"
-            for name in (
-                "host-ui.process.json",
-                ".host-ui.launch.json",
-                ".host-ui.process.tmp",
-                ".host-ui.process-update.tmp",
-                ".host-ui.launch.tmp",
-            ):
-                path = host_runtime / name
-                if path.exists() or path.is_symlink():
-                    active.add(path)
-    if active:
-        rendered = ", ".join(str(path) for path in sorted(active))
-        raise LifecycleError(
-            "host devnet process state is active or uncertain; stop it before reset-devnet: "
-            f"{rendered}"
-        )
 
 
 def _devnet_reset_document(targets: Sequence[CleanupTarget]) -> dict[str, Any]:
@@ -2922,9 +2878,19 @@ def _reset_devnet(args: argparse.Namespace) -> None:
     with _exclusive_lock(root):
         network_marker = root / DEFAULT_NETWORK_MARKER
         _validate_network_root_identity(root, "devnet")
+        _reject_retired_host_data(
+            root,
+            [
+                instance_runtime
+                for runtime_network in (
+                    runtime_base / "networks" / "devnet",
+                    runtime_base / "networks" / f".devnet{DEVNET_RESET_QUARANTINE_SUFFIX}",
+                )
+                for instance_runtime in _child_directories(runtime_network)
+            ],
+        )
         _reject_active_cleanup(root)
         _validate_devnet_reset_lease(root, args.compose_stopped)
-        _reject_active_host_devnet_artifacts(root, runtime_base)
 
         allowed_entries = {
             root / DEFAULT_NETWORK_MARKER,
@@ -2950,11 +2916,11 @@ def _reset_devnet(args: argparse.Namespace) -> None:
             if current != expected_document:
                 raise LifecycleError(f"devnet reset transaction does not match: {marker}")
         else:
-            _prevalidate_cleanup_targets(targets, [])
+            _prevalidate_cleanup_targets(targets)
             _atomic_write_marker(marker, expected_content)
             print(f"DEVNET RESET START marker={marker}")
 
-        _prevalidate_cleanup_targets(targets, [])
+        _prevalidate_cleanup_targets(targets)
         for target in targets:
             _execute_central_cleanup_target(target)
 

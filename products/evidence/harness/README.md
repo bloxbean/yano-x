@@ -666,6 +666,14 @@ with the `evidence-ledger` recipe (`./yano.sh appchain new <name> --chain
 evidence=evidence-ledger`; see
 [Set up an application](../../../docs/appchain/deployment/configure.md)).
 
+A network data root (`networks/<network>` below the data directory) may still
+hold state from that retired mode: `instances/<id>/host`, `l1/host`,
+`retired/host`, `reservations/host`, or a `host` directory beside an
+instance's runtime. The launcher never adopts or deletes it. `prepare`, `up`,
+`config`, `clean`, and `reset-devnet` refuse before changing anything and name
+each such path. Stop any old host-mode nodes, remove those exact paths
+yourself, and retry.
+
 Connector services you provision yourself need what the Compose profile
 creates: a versioned `evidence-staging` bucket **without** Object Lock, a
 versioned `evidence-archive` bucket **with** Object Lock enabled but **no**

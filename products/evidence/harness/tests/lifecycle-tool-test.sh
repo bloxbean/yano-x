@@ -109,7 +109,7 @@ document = {
     "networkIdentitySha256": network_digest,
     "instanceId": instance,
     "deployment": deployment,
-    "composeProject": f"yano-{instance}" if deployment == "compose" else None,
+    "composeProject": f"yano-{instance}",
     "chainIds": [chain],
     "stateMachine": {
         "provider": "evidence-registry",
@@ -162,7 +162,7 @@ document = {
     "instanceId": identity["instanceId"],
     "deployment": identity["deployment"],
     "chainIds": identity["chainIds"],
-    "project": identity["composeProject"] or f"yano-{identity['instanceId']}-host",
+    "project": identity["composeProject"],
     "networkIdentitySha256": identity["networkIdentitySha256"],
     "appchainIdentitySha256": hashlib.sha256(raw).hexdigest(),
 }
@@ -464,8 +464,8 @@ else
   assert_absent "$LEASE_RACE_NETWORK/instances/racea/compose"
 fi
 
-# A chain id is a permanent network-wide claim, including across deployment
-# modes. Concurrent same-chain acquisition has one winner and no loser marker.
+# A chain id is a permanent network-wide claim. Concurrent same-chain
+# acquisition has one winner and no loser marker.
 CHAIN_RACE_NETWORK="$(make_atomic_network "$TMP/acquire-chain-race")"
 make_app_identity "$TMP/chain-race-a-app.json" "$CHAIN_RACE_NETWORK" chaina compose shared-chain
 make_lease_identity "$TMP/chain-race-a-lease.json" "$TMP/chain-race-a-app.json"
@@ -501,14 +501,6 @@ else
 fi
 grep -Fq 'permanently claimed' "$TMP/failure.err" \
   || fail "permanent chain claim diagnostic is missing"
-make_app_identity "$TMP/chain-cross-mode-app.json" "$CHAIN_RACE_NETWORK" \
-  crossmode host shared-chain
-make_lease_identity "$TMP/chain-cross-mode-lease.json" "$TMP/chain-cross-mode-app.json"
-expect_failure "network-wide chain claim across deployments" atomic_acquire \
-  "$CHAIN_RACE_NETWORK" crossmode host "$TMP/chain-cross-mode-app.json" \
-  "$TMP/chain-cross-mode-lease.json"
-grep -Fq 'permanently claimed' "$TMP/failure.err" \
-  || fail "cross-deployment chain claim diagnostic is missing"
 
 # The same (deployment, instance) cannot be assigned a different chain even
 # after its lease is released.
@@ -551,11 +543,11 @@ grep -Fq 'conflicts with its immutable active marker' "$TMP/failure.err" \
 # One canonical but partial global marker poisons the entire snapshot rather
 # than becoming a weak claim that bypasses full immutable-profile validation.
 MALFORMED_NETWORK="$(make_atomic_network "$TMP/acquire-malformed")"
-mkdir -p "$MALFORMED_NETWORK/instances/partial/host"
+mkdir -p "$MALFORMED_NETWORK/instances/partial/compose"
 printf '%s\n' \
-  '{"chainIds":["partial-chain"],"deployment":"host","instanceId":"partial","kind":"yano.demo.appchain-identity","networkName":"devnet","schemaVersion":1}' \
-  > "$MALFORMED_NETWORK/instances/partial/host/appchain-identity.json"
-chmod 600 "$MALFORMED_NETWORK/instances/partial/host/appchain-identity.json"
+  '{"chainIds":["partial-chain"],"deployment":"compose","instanceId":"partial","kind":"yano.demo.appchain-identity","networkName":"devnet","schemaVersion":1}' \
+  > "$MALFORMED_NETWORK/instances/partial/compose/appchain-identity.json"
+chmod 600 "$MALFORMED_NETWORK/instances/partial/compose/appchain-identity.json"
 make_app_identity "$TMP/malformed-good-app.json" "$MALFORMED_NETWORK" good compose chain-good
 make_lease_identity "$TMP/malformed-good-lease.json" "$TMP/malformed-good-app.json"
 expect_failure "partial canonical global marker" atomic_acquire "$MALFORMED_NETWORK" \
@@ -568,17 +560,17 @@ UNSAFE_CLAIM_NETWORK="$(make_atomic_network "$TMP/acquire-unsafe-records")"
 make_app_identity "$TMP/unsafe-record-good-app.json" "$UNSAFE_CLAIM_NETWORK" \
   good compose chain-safe-good
 make_lease_identity "$TMP/unsafe-record-good-lease.json" "$TMP/unsafe-record-good-app.json"
-mkdir -p "$UNSAFE_CLAIM_NETWORK/instances/broken/host"
+mkdir -p "$UNSAFE_CLAIM_NETWORK/instances/broken/compose"
 expect_failure "markerless global deployment record" atomic_acquire "$UNSAFE_CLAIM_NETWORK" \
   good compose "$TMP/unsafe-record-good-app.json" "$TMP/unsafe-record-good-lease.json"
 grep -Fq 'missing its identity marker' "$TMP/failure.err" \
   || fail "markerless global record diagnostic is missing"
 rm -rf "$UNSAFE_CLAIM_NETWORK/instances/broken"
 make_app_identity "$TMP/symlink-record-target.json" "$UNSAFE_CLAIM_NETWORK" \
-  linked host chain-linked
-mkdir -p "$UNSAFE_CLAIM_NETWORK/instances/linked/host"
+  linked compose chain-linked
+mkdir -p "$UNSAFE_CLAIM_NETWORK/instances/linked/compose"
 ln -s "$TMP/symlink-record-target.json" \
-  "$UNSAFE_CLAIM_NETWORK/instances/linked/host/appchain-identity.json"
+  "$UNSAFE_CLAIM_NETWORK/instances/linked/compose/appchain-identity.json"
 expect_failure "symlinked global deployment record" atomic_acquire "$UNSAFE_CLAIM_NETWORK" \
   good compose "$TMP/unsafe-record-good-app.json" "$TMP/unsafe-record-good-lease.json"
 grep -Fq 'must not be a symlink' "$TMP/failure.err" \
@@ -626,9 +618,9 @@ path = root / "reservations" / "compose" / "branched.json"
 path.write_text(json.dumps(reservation, sort_keys=True, separators=(",", ":")) + "\n")
 path.chmod(0o600)
 PY
-make_app_identity "$TMP/collision-good-app.json" "$COLLISION_NETWORK" good host chain-collision-good
+make_app_identity "$TMP/collision-good-app.json" "$COLLISION_NETWORK" good compose chain-collision-good
 make_lease_identity "$TMP/collision-good-lease.json" "$TMP/collision-good-app.json"
-expect_failure "branched replacement collision" atomic_acquire "$COLLISION_NETWORK" good host \
+expect_failure "branched replacement collision" atomic_acquire "$COLLISION_NETWORK" good compose \
   "$TMP/collision-good-app.json" "$TMP/collision-good-lease.json"
 grep -Fq 'multiple retirement records reserve' "$TMP/failure.err" \
   || fail "branched replacement collision diagnostic is missing"
@@ -674,14 +666,14 @@ expect_failure "different cleanup plan during recovery" cleanup_execute "$CLEAN_
 grep -Fq 'another or malformed cleanup plan is already published' "$TMP/failure.err" \
   || fail "different cleanup-plan recovery diagnostic is missing"
 make_app_identity "$TMP/cleanup-fenced-acquire-app.json" "$CLEAN_NETWORK" \
-  fenced host chain-fenced
+  fenced compose chain-fenced
 make_lease_identity "$TMP/cleanup-fenced-acquire-lease.json" \
   "$TMP/cleanup-fenced-acquire-app.json"
 expect_failure "deployment acquisition during cleanup" atomic_acquire "$CLEAN_NETWORK" \
-  fenced host "$TMP/cleanup-fenced-acquire-app.json" "$TMP/cleanup-fenced-acquire-lease.json"
+  fenced compose "$TMP/cleanup-fenced-acquire-app.json" "$TMP/cleanup-fenced-acquire-lease.json"
 grep -Fq 'cleanup transaction is active' "$TMP/failure.err" \
   || fail "active cleanup did not fence deployment acquisition"
-assert_absent "$CLEAN_NETWORK/instances/fenced/host"
+assert_absent "$CLEAN_NETWORK/instances/fenced/compose"
 LINKED_CENTRAL_TEMP="$CLEAN_NETWORK/..yano-cleanup-transaction.json.tmp.9999.0123456789abcdef"
 ln "$CENTRAL_TX" "$LINKED_CENTRAL_TEMP"
 cleanup_execute "$CLEAN_NETWORK" "$CLEAN_RUNTIME/guarded" \
@@ -794,91 +786,133 @@ atomic_acquire "$CLEAN_NETWORK" successor compose \
   "$TMP/clean-successor-app.json" "$TMP/clean-successor-lease.json" >/dev/null
 atomic_release "$CLEAN_NETWORK" compose "$TMP/clean-successor-lease.json"
 
-# Host cleanup validates every known app-chain link before publishing or
-# unlinking anything. A wrong sibling target leaves no transaction/retirement;
-# the exact managed link is then removed as part of the successful reset.
-HOST_CLEAN_NETWORK="$(make_atomic_network "$TMP/atomic-host-cleanup")"
-make_app_identity "$TMP/host-clean-app.json" "$HOST_CLEAN_NETWORK" hostold host chain-hostold
-make_lease_identity "$TMP/host-clean-lease.json" "$TMP/host-clean-app.json"
-atomic_acquire "$HOST_CLEAN_NETWORK" hostold host \
-  "$TMP/host-clean-app.json" "$TMP/host-clean-lease.json" >/dev/null
-atomic_release "$HOST_CLEAN_NETWORK" host "$TMP/host-clean-lease.json"
-HOST_DATA="$HOST_CLEAN_NETWORK/instances/hostold/host"
-HOST_LINK="$HOST_CLEAN_NETWORK/l1/host/host-cluster/node0/appchain-chainstate"
-mkdir -p "$HOST_DATA/app-chain/node0" "$(dirname "$HOST_LINK")" "$TMP/wrong-host-target"
-ln -s "$TMP/wrong-host-target" "$HOST_LINK"
-HOST_RUNTIME_PARENT="$TMP/absent-host-runtime/hostold"
-make_cleanup_plan "$TMP/host-clean-plan.json" "$HOST_CLEAN_NETWORK" \
-  "$HOST_RUNTIME_PARENT" hostold host chain-hostold "$TMP/host-clean-app.json" \
-  instance hostnext chain-hostnext
-expect_failure "wrong managed host link" cleanup_execute "$HOST_CLEAN_NETWORK" \
-  "$HOST_RUNTIME_PARENT" "$TMP/host-clean-plan.json"
-grep -Fq 'points outside its exact app-chain target' "$TMP/failure.err" \
-  || fail "wrong managed-host-link diagnostic is missing"
-assert_absent "$HOST_CLEAN_NETWORK/.yano-cleanup-transaction.json"
-assert_absent "$HOST_CLEAN_NETWORK/retired/host/hostold.json"
-rm "$HOST_LINK"
-ln -s "$HOST_DATA/app-chain/node0" "$HOST_LINK"
-cleanup_execute "$HOST_CLEAN_NETWORK" "$HOST_RUNTIME_PARENT" \
-  "$TMP/host-clean-plan.json" >/dev/null
-assert_absent "$HOST_LINK"
-assert_absent "$HOST_DATA"
-assert_file "$HOST_CLEAN_NETWORK/retired/host/hostold.json"
+# The host deployment mode is retired. Its leftover state may belong to nodes
+# that are still running, so every mutating command refuses before changing
+# anything, names each exact leftover path, and leaves removal to the operator.
+real_path() {
+  python3 -c 'import os, sys; print(os.path.realpath(sys.argv[1]))' "$1"
+}
+assert_host_refusal() {
+  grep -Fq 'found state left by the retired host deployment mode' "$TMP/failure.err" \
+    || fail "retired host-mode refusal is missing"
+  grep -Fq 'Stop any old host-mode nodes, then remove these paths yourself' "$TMP/failure.err" \
+    || fail "retired host-mode refusal does not tell the operator what to do"
+  for leftover in "$@"; do
+    [ -e "$leftover" ] || [ -L "$leftover" ] \
+      || fail "retired host-mode state was removed: $leftover"
+    grep -Fq "$(real_path "$leftover")" "$TMP/failure.err" \
+      || fail "retired host-mode refusal does not name $leftover"
+  done
+}
+HOST_LEFTOVER_BASE="$TMP/host-leftover"
+HOST_LEFTOVER_NETWORK="$(make_atomic_network "$HOST_LEFTOVER_BASE")"
+HOST_LEFTOVER_RUNTIME="$TMP/host-leftover-runtime"
+KEPT_RUNTIME="$HOST_LEFTOVER_RUNTIME/networks/devnet/kept"
+mkdir -p "$KEPT_RUNTIME/compose"
+make_app_identity "$TMP/host-leftover-kept-app.json" "$HOST_LEFTOVER_NETWORK" \
+  kept compose chain-kept
+make_lease_identity "$TMP/host-leftover-kept-lease.json" "$TMP/host-leftover-kept-app.json"
+atomic_acquire "$HOST_LEFTOVER_NETWORK" kept compose \
+  "$TMP/host-leftover-kept-app.json" "$TMP/host-leftover-kept-lease.json" >/dev/null
+atomic_release "$HOST_LEFTOVER_NETWORK" compose "$TMP/host-leftover-kept-lease.json"
+KEPT_DATA="$HOST_LEFTOVER_NETWORK/instances/kept/compose"
+mkdir -p "$KEPT_DATA/observability"
+printf 'kept\n' > "$KEPT_DATA/observability/sentinel"
 
-# Host all-scope cleanup permits only its three exact, prevalidated managed
-# app-chain links inside the L1 target. An extra nested link or a managed link
-# with the wrong target fails before transaction publication or mutation.
-HOST_ALL_NETWORK="$(make_atomic_network "$TMP/atomic-host-all-cleanup")"
-make_app_identity "$TMP/host-all-app.json" "$HOST_ALL_NETWORK" hostall host chain-hostall
-make_lease_identity "$TMP/host-all-lease.json" "$TMP/host-all-app.json"
-atomic_acquire "$HOST_ALL_NETWORK" hostall host \
-  "$TMP/host-all-app.json" "$TMP/host-all-lease.json" >/dev/null
-atomic_release "$HOST_ALL_NETWORK" host "$TMP/host-all-lease.json"
-HOST_ALL_DATA="$HOST_ALL_NETWORK/instances/hostall/host"
-HOST_ALL_L1="$HOST_ALL_NETWORK/l1/host"
-for index in 0 1 2; do
-  mkdir -p "$HOST_ALL_DATA/app-chain/node$index" \
-    "$HOST_ALL_L1/host-cluster/node$index/chainstate"
-  ln -s "$HOST_ALL_DATA/app-chain/node$index" \
-    "$HOST_ALL_L1/host-cluster/node$index/appchain-chainstate"
-done
-printf 'l1\n' > "$HOST_ALL_L1/sentinel"
-HOST_ALL_RUNTIME_PARENT="$TMP/absent-host-all-runtime/hostall"
-make_cleanup_plan "$TMP/host-all-plan.json" "$HOST_ALL_NETWORK" \
-  "$HOST_ALL_RUNTIME_PARENT" hostall host chain-hostall "$TMP/host-all-app.json" \
-  all hostallnext chain-hostallnext
+# An old host instance: its identity marker (deployment=host), app-chain
+# state, L1 cluster with its node link and lease, and a lifecycle record.
+HOST_INSTANCE="$HOST_LEFTOVER_NETWORK/instances/old"
+HOST_L1="$HOST_LEFTOVER_NETWORK/l1/host"
+HOST_RETIRED="$HOST_LEFTOVER_NETWORK/retired/host"
+make_app_identity "$TMP/host-leftover-old-app.json" "$HOST_LEFTOVER_NETWORK" \
+  old host chain-old
+mkdir -p "$HOST_INSTANCE/host/app-chain/node0" "$HOST_L1/host-cluster/node0" "$HOST_RETIRED"
+cp "$TMP/host-leftover-old-app.json" "$HOST_INSTANCE/host/appchain-identity.json"
+ln -s "$HOST_INSTANCE/host/app-chain/node0" "$HOST_L1/host-cluster/node0/appchain-chainstate"
+printf 'lease\n' > "$HOST_L1/demo-owner.json"
+printf 'record\n' > "$HOST_RETIRED/older.json"
 
-mkdir -p "$TMP/host-all-unmanaged-target"
-ln -s "$TMP/host-all-unmanaged-target" \
-  "$HOST_ALL_L1/host-cluster/node0/chainstate/unmanaged"
-expect_failure "host all nested unmanaged link" cleanup_execute "$HOST_ALL_NETWORK" \
-  "$HOST_ALL_RUNTIME_PARENT" "$TMP/host-all-plan.json"
-grep -Fq 'cleanup target contains a symlink' "$TMP/failure.err" \
-  || fail "host all unmanaged-link diagnostic is missing"
-assert_absent "$HOST_ALL_NETWORK/.yano-cleanup-transaction.json"
-assert_file "$HOST_ALL_DATA/appchain-identity.json"
-assert_file "$HOST_ALL_L1/sentinel"
-rm "$HOST_ALL_L1/host-cluster/node0/chainstate/unmanaged"
+make_app_identity "$TMP/host-leftover-fresh-app.json" "$HOST_LEFTOVER_NETWORK" \
+  fresh compose chain-fresh
+make_lease_identity "$TMP/host-leftover-fresh-lease.json" "$TMP/host-leftover-fresh-app.json"
+expect_failure "acquisition beside retired host-mode state" atomic_acquire \
+  "$HOST_LEFTOVER_NETWORK" fresh compose \
+  "$TMP/host-leftover-fresh-app.json" "$TMP/host-leftover-fresh-lease.json"
+assert_host_refusal "$HOST_INSTANCE" "$HOST_L1" "$HOST_RETIRED"
+assert_absent "$HOST_LEFTOVER_NETWORK/instances/fresh"
+assert_absent "$HOST_LEFTOVER_NETWORK/l1/compose/demo-owner.json"
+assert_file "$HOST_INSTANCE/host/appchain-identity.json"
+[ -L "$HOST_L1/host-cluster/node0/appchain-chainstate" ] \
+  || fail "retired host-mode node link was removed"
 
-rm "$HOST_ALL_L1/host-cluster/node2/appchain-chainstate"
-ln -s "$HOST_ALL_DATA/app-chain/node1" \
-  "$HOST_ALL_L1/host-cluster/node2/appchain-chainstate"
-expect_failure "host all wrong managed link" cleanup_execute "$HOST_ALL_NETWORK" \
-  "$HOST_ALL_RUNTIME_PARENT" "$TMP/host-all-plan.json"
-grep -Fq 'points outside its exact app-chain target' "$TMP/failure.err" \
-  || fail "host all wrong-link diagnostic is missing"
-assert_absent "$HOST_ALL_NETWORK/.yano-cleanup-transaction.json"
-assert_file "$HOST_ALL_DATA/appchain-identity.json"
-assert_file "$HOST_ALL_L1/sentinel"
-rm "$HOST_ALL_L1/host-cluster/node2/appchain-chainstate"
-ln -s "$HOST_ALL_DATA/app-chain/node2" \
-  "$HOST_ALL_L1/host-cluster/node2/appchain-chainstate"
+make_cleanup_plan "$TMP/host-leftover-observability-plan.json" "$HOST_LEFTOVER_NETWORK" \
+  "$KEPT_RUNTIME" kept compose chain-kept "$TMP/host-leftover-kept-app.json" observability
+expect_failure "cleanup beside retired host-mode state" cleanup_execute \
+  "$HOST_LEFTOVER_NETWORK" "$KEPT_RUNTIME" "$TMP/host-leftover-observability-plan.json"
+assert_host_refusal "$HOST_INSTANCE" "$HOST_L1" "$HOST_RETIRED"
+assert_absent "$HOST_LEFTOVER_NETWORK/.yano-cleanup-transaction.json"
+assert_file "$KEPT_DATA/observability/sentinel"
 
-cleanup_execute "$HOST_ALL_NETWORK" "$HOST_ALL_RUNTIME_PARENT" \
-  "$TMP/host-all-plan.json" >/dev/null
-assert_absent "$HOST_ALL_DATA"
-assert_absent "$HOST_ALL_L1"
-assert_file "$HOST_ALL_NETWORK/retired/host/hostall.json"
+# Host mode also kept runtime and UI process state beside each instance.
+HOST_RUNTIME="$KEPT_RUNTIME/host"
+mkdir -p "$HOST_RUNTIME"
+printf '{}\n' > "$HOST_RUNTIME/host-ui.process.json"
+expect_failure "devnet reset beside retired host-mode state" python3 "$TOOL" reset-devnet \
+  --data-base "$HOST_LEFTOVER_BASE" --runtime-base "$HOST_LEFTOVER_RUNTIME" \
+  --compose-stopped --yes
+assert_host_refusal "$HOST_INSTANCE" "$HOST_L1" "$HOST_RETIRED" "$HOST_RUNTIME"
+assert_absent "$HOST_LEFTOVER_NETWORK/.yano-devnet-reset-transaction.json"
+assert_file "$KEPT_DATA/appchain-identity.json"
+assert_file "$HOST_RUNTIME/host-ui.process.json"
+
+# Each exact path the operator removes stops being reported; once none is
+# left, the Compose commands proceed unchanged.
+rm -rf "$HOST_INSTANCE" "$HOST_L1" "$HOST_RETIRED"
+expect_failure "cleanup beside retired host-mode runtime" cleanup_execute \
+  "$HOST_LEFTOVER_NETWORK" "$KEPT_RUNTIME" "$TMP/host-leftover-observability-plan.json"
+assert_host_refusal "$HOST_RUNTIME"
+if grep -Fq "$(real_path "$HOST_LEFTOVER_NETWORK")/l1/host" "$TMP/failure.err"; then
+  fail "removed host-mode state is still reported"
+fi
+assert_file "$KEPT_DATA/observability/sentinel"
+rm -rf "$HOST_RUNTIME"
+cleanup_execute "$HOST_LEFTOVER_NETWORK" "$KEPT_RUNTIME" \
+  "$TMP/host-leftover-observability-plan.json" >/dev/null
+assert_absent "$KEPT_DATA/observability"
+atomic_acquire "$HOST_LEFTOVER_NETWORK" fresh compose \
+  "$TMP/host-leftover-fresh-app.json" "$TMP/host-leftover-fresh-lease.json" >/dev/null
+atomic_release "$HOST_LEFTOVER_NETWORK" compose "$TMP/host-leftover-fresh-lease.json"
+python3 "$TOOL" reset-devnet --data-base "$HOST_LEFTOVER_BASE" \
+  --runtime-base "$HOST_LEFTOVER_RUNTIME" --compose-stopped --yes >/dev/null
+assert_absent "$HOST_LEFTOVER_NETWORK/instances"
+
+# A cleanup transaction an old host-mode run left half-done is reported, not
+# resumed or treated as an ordinary active cleanup.
+HOST_TX_NETWORK="$(make_atomic_network "$TMP/host-leftover-transaction")"
+HOST_TX="$HOST_TX_NETWORK/.yano-cleanup-transaction.json"
+printf '%s\n' \
+  '{"kind":"yano.demo.cleanup-transaction","plan":{"deployment":"host"},"schemaVersion":1}' \
+  > "$HOST_TX"
+chmod 600 "$HOST_TX"
+expect_failure "acquisition beside a host-mode cleanup transaction" atomic_acquire \
+  "$HOST_TX_NETWORK" fresh compose \
+  "$TMP/host-leftover-fresh-app.json" "$TMP/host-leftover-fresh-lease.json"
+assert_host_refusal "$HOST_TX"
+assert_absent "$HOST_TX_NETWORK/instances"
+
+# `host` is no longer a deployment the tool accepts as input.
+make_lease_identity "$TMP/host-input-lease.json" "$TMP/host-leftover-old-app.json"
+expect_failure "host deployment identity" atomic_acquire "$HOST_TX_NETWORK" old host \
+  "$TMP/host-leftover-old-app.json" "$TMP/host-input-lease.json"
+grep -Fq 'has an invalid deployment' "$TMP/failure.err" \
+  || fail "host deployment identity diagnostic is missing"
+make_cleanup_plan "$TMP/host-input-plan.json" "$HOST_TX_NETWORK" "$TMP/host-input-runtime" \
+  old host chain-old "$TMP/host-leftover-old-app.json" observability
+expect_failure "host deployment cleanup plan" cleanup_execute "$HOST_TX_NETWORK" \
+  "$TMP/host-input-runtime" "$TMP/host-input-plan.json"
+grep -Fq "cleanup plan field 'deployment' is invalid" "$TMP/failure.err" \
+  || fail "host deployment cleanup-plan diagnostic is missing"
+assert_file "$HOST_TX"
 
 # An unjournaled quarantine is never guessed or adopted by cleanup-execute.
 ORPHAN_TX_NETWORK="$(make_atomic_network "$TMP/atomic-orphan-cleanup")"
@@ -897,10 +931,10 @@ grep -Fq 'orphan cleanup journal or quarantine requires inspection' "$TMP/failur
 assert_dir "$ORPHAN_TX"
 assert_absent "$ORPHAN_TX_NETWORK/.yano-cleanup-transaction.json"
 make_app_identity "$TMP/orphan-fenced-app.json" "$ORPHAN_TX_NETWORK" \
-  fenced host chain-orphan-fenced
+  fenced compose chain-orphan-fenced
 make_lease_identity "$TMP/orphan-fenced-lease.json" "$TMP/orphan-fenced-app.json"
 expect_failure "deployment acquisition with orphan quarantine" atomic_acquire \
-  "$ORPHAN_TX_NETWORK" fenced host "$TMP/orphan-fenced-app.json" \
+  "$ORPHAN_TX_NETWORK" fenced compose "$TMP/orphan-fenced-app.json" \
   "$TMP/orphan-fenced-lease.json"
 grep -Fq 'cleanup journal or quarantine requires recovery' "$TMP/failure.err" \
   || fail "orphan quarantine did not fence deployment acquisition"
