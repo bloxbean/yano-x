@@ -9,8 +9,9 @@ two kinds of reader:
   to state proofs, L1 anchoring, deterministic composition, effects, plugins,
   governance, and operational boundaries.
 
-Start with the [deployment guide](deployment/README.md) for released archives,
-Studio configuration, local chain additions, and VM operations.
+Start with the [deployment guide](deployment/README.md): the local showcase,
+rehearsing with `appchain try`, setting up an application with other operators,
+adding or removing members, and running a node on a server.
 
 The tutorials use the current source tree. Yano is still pre-release; use local
 devnet or a Cardano test network, disposable application data, and non-production
@@ -21,7 +22,7 @@ credentials unless a guide explicitly says otherwise.
 | I want to… | Start with | Coding required? |
 |---|---|---:|
 | See three members finalize the same events | [Your first app chain](tutorials/01-first-app-chain.md) | No |
-| Use or customize the built-in append-only event log | [`ordered-log` reference](../core-host.md) | No, unless adding business rules |
+| Use or customize the built-in append-only event log | [`ordered-log` reference](state-machines/ordered-log.md) | No, unless adding business rules |
 | Maintain a provable owner-controlled registry | [`kv-registry` reference](state-machines/kv-registry.md) | No |
 | Maintain multiple proof-oriented collections with optional value validation | [Authenticated-map guide](state-machines/authenticated-map.md) | Configuration; plugin only for custom rules |
 | Collect member approvals and optionally trigger an action | [`approvals` reference](state-machines/approvals.md) | Configuration + typed commands |
@@ -145,7 +146,7 @@ need full detail:
 - [State-machine references](state-machines/README.md)
 - [Release capability and recipe catalog](CAPABILITIES.md)
 - [Optional first-party connector installation](OPTIONAL_CONNECTORS.md)
-- [`ordered-log` state-machine reference](../core-host.md)
+- [`ordered-log` state-machine reference](state-machines/ordered-log.md)
 - [`kv-registry` state-machine reference](state-machines/kv-registry.md)
 - [Authenticated-map guide](state-machines/authenticated-map.md)
 - [Authenticated-map value-validation guide](state-machines/authenticated-map-validation.md)
@@ -155,13 +156,14 @@ need full detail:
 - [`role-approvals` state-machine reference](state-machines/role-approvals.md)
 - [Complete user and configuration guide](../APP_CHAIN_USER_GUIDE.md)
 - [Use-case catalogue](../APP_CHAIN_USE_CASES.md)
-- [Consensus and state-machine internals](../core-host.md)
+- [Consensus and state-machine internals](https://github.com/bloxbean/yano/blob/main/docs/APP_CHAIN_CONSENSUS_GUIDE.md) (Yano)
+- [Yano core host boundary](../core-host.md)
 - [Profile governance runbook](../APP_CHAIN_PROFILE_GOVERNANCE.md)
 - [Domain actors and role-aware approvals](../APP_CHAIN_DOMAIN_ROLES.md)
-- [Plugin query and domain API contract](../core-host.md)
+- [Plugin query and domain API contract](https://github.com/bloxbean/yano/blob/main/docs/APP_CHAIN_PLUGIN_QUERY_AND_DOMAIN_API.md) (Yano)
 - [Release acceptance and schema status](RELEASE_ACCEPTANCE.md)
-- [Deployment experience review and design plan (proposal)](DEPLOYMENT_EXPERIENCE_REVIEW_AND_PLAN.md)
-- [Canonical open-work tracker](../../adr/app-layer/open_item.md)
+- [Deployment experience review and design plan (historical, superseded by ADR-056)](DEPLOYMENT_EXPERIENCE_REVIEW_AND_PLAN.md)
+- [Canonical open-work tracker](https://github.com/bloxbean/yano-x/blob/main/adr/app-layer/open_item.md)
 
 ## A note on “no code”
 

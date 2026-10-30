@@ -18,7 +18,7 @@ not the first move.
 | Maintain a provable, owner-controlled registry | `owned-registry` recipe ([`kv-registry`](/state-machines/kv-registry/)) | No |
 | Maintain several proof-oriented collections, optionally with value validation | `authenticated-map` recipe ([guide](/state-machines/authenticated-map/)) | Configuration; a plugin only for custom rules |
 | Collect member approvals and optionally trigger an action | `approval-workflow` recipe ([`approvals`](/state-machines/approvals/)) | Configuration plus typed commands |
-| Track balances with a non-negative account ledger | [`balances`](/state-machines/balances/) | Configuration plus typed commands |
+| Track balances with a non-negative account ledger | `custom-plugin` recipe with `--answer <chain>.stateMachine=balances` ([`balances`](/state-machines/balances/)) | Configuration plus typed commands |
 | Maintain a document-hash trail per product or case | `document-trail` recipe ([`doc-trail`](/state-machines/doc-trail/)) | Configuration plus typed commands |
 | Approve payload hashes using application-defined roles | `role-approval` recipe ([`role-approvals`](/state-machines/role-approvals/)) | Configuration plus actor integration |
 | Require manufacturers, auditors, and regulators to sign by role | [Domain-role approvals](/tutorials/05-domain-role-approvals/) | No, for the stock scenario |

@@ -296,7 +296,12 @@ A chain that runs a separately reviewed custom state-machine plugin, named by th
 - **Bootstrap requirements:** `plugin-metadata-trust-review`
 - **Reference:** [/plugins/](/plugins/)
 
-`appchain seal` does not yet accept a custom signed component catalog, so this recipe cannot be selected in a setup draft. See [Scaffold, sign, install](/plugins/scaffold-sign-install/).
+```bash
+./yano.sh appchain new custom-plugin-app --network devnet --operators alice,bob,carol \
+  --chain custom-plugin=custom-plugin --answer custom-plugin.stateMachine=<machine-id>
+```
+
+Copy the reviewed plugin JAR into `plugins/` of every operator's distribution, the coordinator's included, before `seal`: the seal pins the digest of every installed bundle. See [Scaffold, sign, install](/plugins/scaffold-sign-install/).
 
 <!-- catalog:recipe-details-end -->
 

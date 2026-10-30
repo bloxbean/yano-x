@@ -35,7 +35,7 @@ import java.util.Set;
 import java.util.function.Supplier;
 
 /**
- * Turns a generated {@code bootstrap/role-approvals-plan.yaml} into the member-governance commands that create its
+ * Turns the {@code <chain>.role-plan.yaml} that {@code seal} writes into the member-governance commands that create its
  * organizations, actors and policies: for each record, the mutation, its hash, and the encoded propose, approve and
  * activate commands with the topic they go to. Nothing is submitted and no secret is read; actors prove possession
  * of their keys with {@code role key-proof} beforehand.
@@ -45,10 +45,11 @@ import java.util.function.Supplier;
  */
 final class RoleBootstrapPlan {
     static final String USAGE = """
-            Usage: ./yano.sh appchain role bootstrap --plan <bootstrap/role-approvals-plan.yaml>
+            Usage: ./yano.sh appchain role bootstrap --plan <chain>.role-plan.yaml
                      --expiry-height <n> [--key-proof <file>]... [--attempt <n>]
             Prints JSON: for each organization, actor and policy in the plan, the governed mutation and the hex
-            propose, approve and activate commands with their topic.
+            propose, approve and activate commands with their topic. It submits nothing: send each command to
+            its topic through a member's node once the chain is live.
               --key-proof   hex output of 'role key-proof' for an actor key. At revision 1 every key needs one.
                             In a later revision, mark each key kept from the prior revision with
                             proofOfPossession: OPTIONAL and pass proofs only for the keys that revision adds.

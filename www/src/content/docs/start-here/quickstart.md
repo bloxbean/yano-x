@@ -10,6 +10,8 @@ wallet, public-network funds, or external Cardano node.
 - **Before you start:** Java 25, Python 3, `curl`, and `jq`. Python uses only
   its standard library. Docker is needed only for the separate evidence demo.
   The showcase uses HTTP ports `7070`–`7072` and node ports `13337`–`13339`.
+  If they are busy, add `--http-base <port> --server-base <port>` to the first
+  `quickstart` of an instance (see Troubleshooting).
 - **Time:** about 10 minutes, most of it startup.
 - **Outcome:** three nodes running thirteen chains, a finalized order with a
   proof, and an instance you can stop and resume.
@@ -61,8 +63,9 @@ nodes. It bootstraps the `workflow-chain` anchor on that devnet, runs a
 composite workflow and an authenticated-map demonstration, checks convergence,
 and prints the console address.
 
-> **✓ You should see** `Cluster up.`, one line per chain such as
-> `orders-chain       nodes=3 tip=... cert=.../...`, and finally
+> **✓ You should see** one line per chain such as
+> `orders-chain       nodes=3 tip=... cert=.../...`,
+> `workflow-chain L1 anchor confirmed: ...`, and finally
 > `Status UI: http://127.0.0.1:7070/ui/app-chain/`.
 
 The light profile demonstrates logs, registries, document trails, approvals,
@@ -104,8 +107,9 @@ for the actual requests, message lookup, and typed proof route.
 ./showcase.sh verify --instance first-demo
 ```
 
-> **✓ You should see** `stopped 3 node(s)` after `stop`, and `Cluster up.`
-> after `restart`.
+> **✓ You should see** `✓ Stopped node0; its data is kept` (one line per node)
+> after `stop`, and `node0 is up at http://127.0.0.1:7070` (one per node) with
+> the per-chain lines after `restart`.
 
 Retrieve the same order after the restart, using the message ID that
 `submit-orders.sh` printed:
@@ -115,6 +119,8 @@ MESSAGE_ID=<message-id printed by submit-orders.sh>
 curl -fsS "http://127.0.0.1:7070/api/v1/app-chain/chains/orders-chain/messages/$MESSAGE_ID" \
   | jq '{messageId,height,index,topic}'
 ```
+
+If you started the instance with `--http-base`, use that port instead of `7070`.
 
 > **✓ You should see** the same `messageId` at the same `height` as before
 > the restart.
@@ -130,8 +136,7 @@ the generated identity and data directories together.
 |---|---|
 | `Java 25 is required (found ...)` | Put a Java 25 JDK first on your `PATH`, then run `doctor` again. |
 | `required command not found: jq` | Install the named command and run `doctor` again. |
-| `explicit HTTP range 7070-7072 is busy (port ...)` | Another program holds the showcase ports. Stop it and run the same command again, or start a new instance with other ports, for example `--instance second-demo --http-base 7170 --server-base 14337`. |
-| `run showcase.sh from examples/showcase in an extracted Yano X JVM distribution` | Run the script from inside the extracted JVM ZIP, not from a source checkout. |
+| `Port 7070 is already in use by another program…` or `Port 13337 is already in use…`, then `node0 did not start` | Another program holds a showcase port. Stop it and run the same command again. An instance keeps the ports of its first `quickstart` (`requested httpBase differs from the retained instance` otherwise), so to use other ports start a new instance, for example `--instance second-demo --http-base 7170 --server-base 14337`. |
 
 **Next:** [set up your own application with other operators](/deployment/configure/), or explore the
 [complete showcase](https://github.com/bloxbean/yano-x/blob/main/examples/showcase/docs/MASTER_DEMO.md).

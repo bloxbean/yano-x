@@ -81,13 +81,19 @@ plus a manifest signed by the member that took it. The manifest binds the chain
 id, the tip height and block hash, the state root, the state identity, a hash of
 the membership epochs, and a SHA-256 of every file.
 
+Taking one is privileged, so pass the node's API key. From the directory that
+holds `yano-node/`, with the node's HTTP port:
+
 ```bash
-./yano.sh appchain state snapshot --url http://127.0.0.1:7070/api/v1 --chain orders-chain \
-  --path /var/lib/yano/snapshots/orders-chain-1   # a fresh directory on the node
+./yano.sh appchain state snapshot --url http://127.0.0.1:8080/api/v1 --chain orders \
+  --api-key "$(cat yano-node/secrets/api.key)" \
+  --path /var/lib/yano/snapshots/orders-1   # a fresh directory on the node
 ```
 
-To restore, copy the snapshot directory to `<yano.app-chain.storage.path>/<chain-id>/`
-on the new or recovering member and start it. The node then refuses to start
+To restore, stop the new or recovering member, copy the snapshot directory to
+`<yano.app-chain.storage.path>/<chain-id>/` (on a node set up with
+`appchain join`, `yano-node/data/appchain-chainstate/<chain-id>/`), and start
+it. The node then refuses to start
 unless:
 
 - the manifest was signed by a configured member, and every file hash matches,

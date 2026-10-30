@@ -9,6 +9,20 @@ import java.util.Set;
 
 /** Offline canonical action assembly and external-signature completion CLI. */
 public final class AuthenticatedMapAuthorizationCli {
+    public static final String USAGE = """
+            Usage: ./yano.sh appchain authenticated-map action --command-hex <hex> --assignments <list>
+               or: ./yano.sh appchain authenticated-map action-commitment --action-hex <hex>
+               or: ./yano.sh appchain authenticated-map direct-preimage --action-hex <hex>
+                     --authorization-id <64-hex> --chain <id> --genesis-id <64-hex> --indexes <list>
+                     --policy <id> --policy-revision <n> --actor <id> --actor-revision <n> --key <id>
+                     --public-key <64-hex> --issued-height <n> --deadline-height <n>
+               or: ./yano.sh appchain authenticated-map direct-complete <the direct-preimage options>
+                     --signature <128-hex>
+               or: ./yano.sh appchain authenticated-map approval-payload --action-hex <hex> --genesis-id <64-hex>
+               or: ./yano.sh appchain authenticated-map approval-reference --action-hex <hex> --proposal <id>
+                     --indexes <list> --policy <id> --policy-revision <n>
+               or: ./yano.sh appchain authenticated-map command --action-hex <hex> [--evidence-hex <hex,...>]
+            Offline: each prints hex and reads no key; sign the direct-preimage output with the actor's key.""";
     private static final HexFormat HEX = HexFormat.of();
 
     private AuthenticatedMapAuthorizationCli() {

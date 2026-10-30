@@ -13,6 +13,20 @@ existing chain, changing it needs a governed profile activation or a new chain.
 ## 1. Answer three questions
 
 <!-- illustration: sm-chooser -->
+1. **What must the ledger keep for you?**
+   - Only the order of events, with your applications reading the payloads:
+     `ordered-log`.
+   - Current records that writers can change: go to question 2.
+   - Quantities that move between accounts: `balances`.
+   - An ordered history of document hashes per product or case: `doc-trail`.
+   - A decision that several approvers make: go to question 3.
+2. **Who may change a record?** The member that wrote it first:
+   `kv-registry`. It depends on the collection (open, owner, member, a role or
+   an approval, with revisions, tombstones and atomic batches):
+   `authenticated-map`.
+3. **Who approves?** The member nodes themselves: `approvals`. Business actors
+   with roles and organizations, separate from the members: `role-approvals`.
+<!-- /illustration -->
 
 ## 2. Compare the stock machines
 
@@ -76,11 +90,12 @@ pages. `ordered-log` takes any non-empty body.
 ## 4. Choose the machine for each chain
 
 When you set up an application, each chain names a *recipe*: a stock state
-machine with the settings it needs. List the recipes and the answers each one
-needs:
+machine with the settings it needs. List the recipes, then the answers each
+one needs:
 
 ```bash
 ./yano.sh appchain recipes
+./yano.sh appchain recipes --format json | jq '.recipes[] | {id, nonSecretAnswers}'
 ```
 
 | Machine | Recipe |
@@ -102,6 +117,7 @@ per chain. `new` takes the same options for a real application:
 
 ```bash
 ./yano.sh appchain try --chain orders=audit-log --chain workflow=approval-workflow
+./yano.sh appchain try --clean
 ```
 
 For more than a couple of chains, or for answers and settings, write the
@@ -132,11 +148,15 @@ does the same on the command line. `settings:` are flat chain settings that
 `--without <chain>` leaves a template chain out. Settings that `seal` derives
 from the draft, such as members, threshold, sequencing, and membership, are
 refused there. A mistyped recipe or a missing answer stops `try` before
-anything runs and leaves no rehearsal behind.
+anything runs and leaves no rehearsal behind; a refused setting stops it at
+`seal`, so run `./yano.sh appchain try --clean` before the next attempt.
 
 > **✓ You should see** `seal` list one line per chain with its recipe and
-> genesis, for example `chain workflow approval-workflow genesis …`, and the
-> final `status` show every chain with `members agree`.
+> genesis, for example `chain workflow approval-workflow genesis …` (the
+> `credits` line shows the recipe `custom-plugin`;
+> `./yano.sh appchain inspect appchain-try/coordinator/demo.chain --json`
+> shows its `"state-machine" : "balances"`), and the final `status` show every chain with
+> `members agree`.
 
 `seal` writes every chain setting, including the state identity (commitment
 profile, format fingerprint, and genesis id), into the sealed `<app>.chain`

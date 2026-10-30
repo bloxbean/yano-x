@@ -55,7 +55,8 @@ The stack uses the same ports as Tutorial 4: 7070–7072 for the members, 7080
 for the Explorer, and 9092, 9000 and 5001. If any is busy, export the same
 `DEMO_HTTP_BASE` or other `DEMO_*_PORT` overrides that
 [Tutorial 4](04-evidence-publication.md) describes before the first command,
-and keep them set for the whole tutorial.
+and keep them set for the whole tutorial. The same goes for
+`DEMO_CONNECTOR_SUBNET` if Docker reports a pool overlap.
 
 From the top-level directory of the extracted release:
 
@@ -221,5 +222,5 @@ and the bootstrap, from actor keys to a read-back of every record.
 - The [`role-approvals` reference](../state-machines/role-approvals.md), with
   an interactive walkthrough of every outcome code.
 - The complete [domain-role guide](../../APP_CHAIN_DOMAIN_ROLES.md).
-- The [evidence demo README](../../../products/evidence/harness/README.md), for
+- The [evidence demo README](https://github.com/bloxbean/yano-x/blob/main/products/evidence/harness/README.md), for
   other profiles, ports and cleanup.

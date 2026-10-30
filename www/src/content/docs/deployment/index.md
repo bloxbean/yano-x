@@ -57,7 +57,7 @@ coordinator hands out join links, `invite --serve` also listens on port `7099`
 The supported evaluation posture is a local devnet. Public networks follow the
 same steps, but anchoring and settlement there are explicit operations that
 spend real test ADA; easier setup does not change
-the release-readiness assessment.
+[the release-readiness assessment](https://github.com/bloxbean/yano-x/blob/main/adr/045-yano-x-release-readiness.md).
 
 **Next:** [start the local showcase](/start-here/quickstart/), or
 [rehearse a shared application](/deployment/configure/#1-practise-on-one-machine).

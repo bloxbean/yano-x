@@ -91,24 +91,36 @@ verified catalog.
 
 ## 5. Install on every member
 
-Copy the exact same JAR into `plugins/` in every member's distribution, then
-validate the resulting set from the distribution root:
+Before the coordinator seals, every operator, the coordinator included,
+copies the exact same JAR into `plugins/` in the extracted distribution, then
+validates the resulting set from the distribution root:
 
 ```bash
+cp shipment-plugin/build/libs/shipment-yano-plugin.jar plugins/
 tools/yano-plugins/bin/yano-plugins validate plugins/*.jar
 ```
 
-The plugin directory property is **`yano.plugins.directory`**. Restart the nodes;
-Yano is not rebuilt. At start-up each node checks the JAR again before any plugin
-code runs; [How plugins load](/plugins/how-plugins-load/) lists those checks.
+A chain runs the machine through the `custom-plugin` recipe, with the machine
+id as its `stateMachine` answer:
+
+```bash
+./yano.sh appchain new shipments --chain shipments=custom-plugin \
+  --answer shipments.stateMachine=shipment
+```
+
+`seal` records the SHA-256 of every JAR in `plugins/`; `join` and `start`
+refuse a distribution with a JAR added, removed, or replaced. Yano is not
+rebuilt. At start-up each node checks the JAR again before any plugin code
+runs; [How plugins load](/plugins/how-plugins-load/) lists those checks. The
+setup commands read only `plugins/`, so do not point `yano.plugins.directory`
+elsewhere on a joined node.
 
 :::note[Custom catalogs and the setup CLI]
 `appchain seal` resolves an application's chains through the distribution's
-own recipe and capability catalog. It does not yet accept a custom signed
-component catalog, so a custom capability such as `state:shipment` cannot be
-selected in a setup draft in this release. See
-[Tutorial 8](/tutorials/08-plugins-and-composites/) for running a custom
-plugin today.
+own recipe and capability catalog. It does not accept a custom signed
+component catalog, so a custom capability such as `state:shipment` is not
+selectable directly; use the `custom-plugin` recipe as above. See
+[Tutorial 8](/tutorials/08-plugins-and-composites/).
 :::
 
 :::caution[Every member, or none]
@@ -127,6 +139,10 @@ Adding a member or a node is routine. Changing what a plugin *computes* is not
 - Never silently change semantics behind an existing machine or component id.
 - Use activation heights and profile governance for compatible evolution.
 - Use a new namespace and a migration plan for incompatible state.
+- To install an agreed new JAR, each operator copies it into `plugins/`, runs
+  `./yano.sh appchain stop`, then
+  `./yano.sh appchain join <app>.chain --accept-bundles`, then
+  `./yano.sh appchain start`.
 
 ## Find the member that is out of step
 

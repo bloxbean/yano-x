@@ -18,8 +18,11 @@ class JoinCommandTest {
     @Test
     void foundingJoinWritesSealedConsensusAndLocalNodeSettingsWithoutSecrets() throws Exception {
         CeremonyFixture fixture = sealed("devnet");
-        fixture.ok(fixture.join("supply", "bob"));
+        var joined = fixture.ok(fixture.join("supply", "bob"));
         Path bob = fixture.node("bob");
+        // The node is not ./yano-node, so the printed next commands name it.
+        assertThat(joined.out()).contains("yano.sh appchain start --node-dir " + bob.toAbsolutePath().normalize(),
+                "yano.sh appchain status supply --node-dir " + bob.toAbsolutePath().normalize());
         String consensus = Files.readString(bob.resolve("config/consensus.yaml"));
         String node = Files.readString(bob.resolve("config/node.yaml"));
         assertThat(consensus).contains("chain-id: \"orders\"", "genesis-id: \"" + fixture.sealed("supply").genesis()
@@ -93,6 +96,21 @@ class JoinCommandTest {
         assertThat(Files.readString(fixture.node("dave").resolve("config/consensus.yaml")))
                 .doesNotContain(Files.readString(fixture.node("dave").resolve("node.json")).replaceAll(
                         "(?s).*\"publicKey\" : \"([0-9a-f]{64})\".*", "$1"));
+    }
+
+    @Test
+    void aReplacementNodeCannotRequestUnderANameTheSealedRosterKeeps() throws Exception {
+        CeremonyFixture fixture = sealed("devnet");
+        Path fresh = temporary.resolve("carol-replacement");
+
+        var refused = fixture.run("request", fixture.sealedFile("supply").toString(), "--name", "carol", "--host",
+                "carol.example", "--node-port", "13340", "--http-port", "8090", "--node-dir", fresh.toString(),
+                "--output", fixture.coordinator.toString(), "--yes");
+
+        assertThat(refused.exit()).isNotZero();
+        assertThat(refused.err()).contains("already lists carol", "--name <new-name>", "carol-2");
+        assertThat(fresh.resolve("secrets")).doesNotExist();
+        assertThat(fixture.card(fixture.sealedFile("supply"), "carol-2", 3).out()).contains("approve carol-2.member");
     }
 
     @Test

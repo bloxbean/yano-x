@@ -11,9 +11,10 @@ To run this outcome with other operators, follow [Set up an application](../depl
 **Before you start:** finish [Tutorial 1](01-first-app-chain.md) and remove
 its rehearsal with `./yano.sh appchain try --clean`. You need the extracted
 Yano X JVM distribution, `curl`, and `jq`. Every command runs from the
-distribution's top-level directory. In Studio, add the `anchor:script`
-capability; it asks for reviewed validator and thread-policy references, while
-`./yano.sh appchain anchor` uses the bundled artifacts.
+distribution's top-level directory. The exercise's template selects script
+anchoring; `./yano.sh appchain anchor` then uses the bundled validator and
+thread policy. To use reviewed replacements, give the `anchor:script`
+capability its `anchorValidator` and `anchorThreadPolicy` answers in the draft.
 
 An app ledger finality certificate proves that the configured member threshold
 approved a block. An L1 anchor makes a later application position durable and
@@ -208,8 +209,8 @@ through them, then see how a forged root or an old anchor shows up:
 
 A transaction hash appearing in a Yano JSON response is not, by itself,
 independent anchor verification. From Java, use `ProofVerifier.verifyCertified`
-for steps 1–3 and `EvidenceVerifier` for the hash chain, rather than trusting
-server booleans.
+(`org.yanoproject.x.client.ProofVerifier` in `yano-x-client`) for steps 1–3 and
+`EvidenceVerifier` for the hash chain, rather than trusting server booleans.
 
 ## Metadata versus script anchoring
 

@@ -38,7 +38,8 @@ Yano's tooling calls an app ledger an *app chain*, so the commands below say
 ## What you will see
 
 Here is the whole tutorial in one picture. Each step shows the command you run
-at that point. The "What if" scenarios show what happens when a member is down.
+at that point. On the website, the "What if" scenarios of the picture show what
+happens when a member is down.
 
 <!-- illustration: first-chain-finality -->
 1. **Start.** `try` starts alice's node first. It produces the local devnet, is
@@ -156,6 +157,10 @@ curl -s -X POST "http://127.0.0.1:$BOB/api/v1/app-chain/chains/orders/messages" 
 
 > **✓ You should see** a JSON object with a `messageId`.
 
+A rehearsal node accepts submissions without an API key. A node can require
+one for every call; [Set up an application](../deployment/configure.md#7-send-a-message-and-see-it-final)
+sends it with `X-API-Key`, which works either way.
+
 You did not sign anything. Bob's node checked the command, signed the envelope
 with its own member key, and gossiped it. Alice's node put it in a block, two
 of the three members voted for that block, and every member applied the same
@@ -256,8 +261,9 @@ finalized. Explore what each node keeps in its directory, for example
 - `apps/demo.chain`: the sealed application the node joined;
 - `config/`: `consensus.yaml` and `node.yaml`, written by `join`, and
   `local.yaml` for the node's own settings;
-- `data/`: `chainstate` (Cardano L1), `appchain-chainstate` (the app ledger),
-  and `appchain-indexers` (rebuildable read indexes);
+- `data/`: `chainstate` (Cardano L1) and `appchain-chainstate` (the app
+  ledger), plus `appchain-indexers` (rebuildable read indexes) once a read
+  index is enabled;
 - `logs/node.log`: the node's log.
 
 `appchain-try/coordinator/` holds the draft, the member cards, and the sealed
@@ -368,8 +374,9 @@ file. Choose two free ports for his node; the example uses the ones after
 carol's:
 
 ```bash
+CAROL_NODE=$(jq -r .listenPort appchain-try/carol/yano-node/node.json)
 ./yano.sh appchain request appchain-try/coordinator/demo.chain --name dave \
-  --host 127.0.0.1 --node-port 13340 --http-port $((CAROL + 1)) \
+  --host 127.0.0.1 --node-port $((CAROL_NODE + 1)) --http-port $((CAROL + 1)) \
   --node-dir appchain-try/dave/yano-node --output appchain-try/coordinator --yes
 ```
 
@@ -469,8 +476,8 @@ including the chain identities.
   ```
 
   `seal` prints `3 members, 3 signatures per block`, and every block now needs
-  all three votes. The "Threshold 3, one member down" scenario above shows why
-  one stopped member then halts finality. If the first rehearsal still runs,
+  all three votes, so one stopped member then halts finality (the website's
+  "Threshold 3, one member down" scenario shows it). If the first rehearsal still runs,
   `try` picks the next free ports. Remove this rehearsal when you are done:
 
   ```bash

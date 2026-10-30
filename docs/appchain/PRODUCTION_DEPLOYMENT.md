@@ -50,7 +50,8 @@ propose, approve and activate commands, with proofs from `appchain role key-proo
 **Every member checks the sealed file before joining.** On a call, the coordinator reads out the
 chain fingerprint, which covers every chain's settings and genesis id, the members, the threshold,
 and the plugin bundle digests; each operator reads out its own key id. `join` shows the same summary,
-recomputes a derived genesis id, and refuses a node whose own key is not in the roster. A
+checks the fingerprint the operator compared (`--expect-fingerprint`, or a confirmation), and refuses
+a node whose own key is not in the roster unless it asked to join later with `request`. A
 participant whose fingerprint differs should not join the ledger. Publish the fingerprint and the
 genesis ids where members and verifiers can check them.
 

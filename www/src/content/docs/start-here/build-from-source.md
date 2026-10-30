@@ -107,7 +107,7 @@ yano-x-jvm-<version>/
 ├── yano.sh                       # the public CLI and node launcher
 ├── yano.jar
 ├── config/                       # chain definitions and network genesis
-│   └── schema/                   # blueprint, catalog, and lock schemas
+│   └── schema/                   # component catalog, snapshot, and metadata-trust schemas
 ├── plugins/                      # the default, conflict-free bundle selection
 ├── tools/
 │   ├── lib/                      # jars shared by the Yano X command-line tools
@@ -115,7 +115,7 @@ yano-x-jvm-<version>/
 │   ├── yano-appchain/            # the setup CLI and tools behind `yano.sh appchain`
 │   ├── composite-profile/        # profile-governance.py, the composite-profile governance CLI
 │   └── yano-deploy/ …            # deployment CLI and product CLIs
-├── studio/                       # App-Chain Studio, the blueprint builder
+├── studio/                       # App-Chain Studio (binding and topics editors)
 ├── skills/configure-yano-appchain/   # the first-party AI agent skill
 ├── examples/
 │   ├── showcase/                 # the local multi-node showcase
@@ -125,9 +125,10 @@ yano-x-jvm-<version>/
 └── LICENSE, LICENSE.yano
 ```
 
-Two of those are easy to miss: `studio/` is the same blueprint builder
-[hosted on this site](/studio/), and `skills/configure-yano-appchain/` is a
-version-matched agent skill — see [Using Yano X with AI agents](/ai/).
+Two of those are easy to miss: `studio/` is the same App-Chain Studio, with
+its binding and topics editors, [hosted on this site](/studio/), and
+`skills/configure-yano-appchain/` is a version-matched agent skill — see
+[Using Yano X with AI agents](/ai/).
 
 ## Unpack and check
 
@@ -203,7 +204,7 @@ a GitHub release asset, and locally built or staged versions must supply
 | A missing release asset for `yanoVersion` | You are on a staged or locally built Yano version. Supply `-PyanoJvmDist` with the exact matching ZIP. |
 | `Could not find org.yanoproject-snapshot:yano` | Yano publishes snapshot jars and the snapshot ZIP in separate workflows; the ZIP for that commit is not published yet. Wait for it, or pick a commit listed in `repo.bloxbean.org/dist/snapshots/yano/latest.json`. |
 | `verifyJvmOnlyBuild` fails | Something introduced a native-image build or distribution task. Yano X is JVM-only by decision. |
-| A native distribution is rejected by `appchain doctor` | Yano X plugins target the JVM host. Use the `yano-x-jvm` archive. |
+| A native Yano distribution cannot load Yano X plugins | Use the `yano-x-jvm` archive. |
 
 For the full matrix of build tasks and verification gates, see
 [Build and test](https://github.com/bloxbean/yano-x/blob/main/docs/BUILD_AND_TEST.md)

@@ -9,14 +9,28 @@ import java.io.PrintStream;
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.Map;
 import java.util.Set;
 
 /**
- * {@code yano.sh appchain}: the app-chain setup verbs of ADR-056. Every other verb goes to the devtools CLI.
+ * {@code yano.sh appchain}: the app-chain setup verbs of ADR-056. The other tools go to the devtools CLI.
  */
 public final class AppChainCli {
     static final Set<String> VERBS = Set.of("new", "request", "seal", "inspect", "join", "start", "stop",
             "status", "approve", "anchor", "try", "invite", "ui", "topics");
+    static final Set<String> TOOLS = Set.of("recipes", "capabilities", "bindings", "state", "role", "plugin",
+            "metadata", "config", "authenticated-map", "eutxo");
+    /** Commands of the one-author project lifecycle (ADR-056 D9) and what replaces them. */
+    private static final Map<String, String> REMOVED = Map.ofEntries(
+            Map.entry("init", "new (or try, to rehearse on one machine)"),
+            Map.entry("cluster", "try"),
+            Map.entry("prepare", "request"),
+            Map.entry("render", "seal"),
+            Map.entry("plan", "seal"),
+            Map.entry("apply", "join"),
+            Map.entry("doctor", "status"),
+            Map.entry("drift", "status"),
+            Map.entry("start-check", "status"));
 
     private static final String HELP = """
             Set up and run an app chain with other operators.
@@ -61,6 +75,29 @@ public final class AppChainCli {
         System.exit(run(arguments, new Terminal(in, out, interactive), System.err));
     }
 
+    /**
+     * A scaffolded plugin compiles against the host's Yano API, so {@code plugin scaffold} defaults its
+     * {@code --yano-version} to this distribution's Yano version rather than the tool's own.
+     */
+    static String[] withHostYanoVersion(String[] args, Distribution distribution) {
+        if (args.length < 2 || !"plugin".equals(args[0]) || !"scaffold".equals(args[1])
+                || Arrays.asList(args).contains("--yano-version") || Arrays.asList(args).contains("--help")) {
+            return args;
+        }
+        String version = distribution.yanoVersion();
+        if ("unknown".equals(version)) return args;
+        String[] extended = Arrays.copyOf(args, args.length + 2);
+        extended[args.length] = "--yano-version";
+        extended[args.length + 1] = version;
+        return extended;
+    }
+
+    /** An argument echoed back, without control characters and bounded. */
+    private static String printable(String argument) {
+        String safe = argument.replaceAll("[^A-Za-z0-9._-]", "?");
+        return safe.length() > 40 ? safe.substring(0, 40) + "..." : safe;
+    }
+
     static int run(String[] arguments, Terminal terminal, PrintStream err) {
         return run(arguments, terminal, err, null);
     }
@@ -78,10 +115,17 @@ public final class AppChainCli {
             return 0;
         }
         String verb = args[0];
+        if (!VERBS.contains(verb) && !TOOLS.contains(verb)) {
+            String replacement = REMOVED.get(verb);
+            err.println("'" + printable(verb) + "' is not a yano.sh appchain command"
+                    + (replacement == null ? "." : "; use " + replacement + " instead."));
+            err.println("Run 'yano.sh appchain help' for the commands.");
+            return CliException.USAGE;
+        }
         if (!VERBS.contains(verb)) {
             PrintWriter out = new PrintWriter(terminal.out(), true, StandardCharsets.UTF_8);
             PrintWriter error = new PrintWriter(err, true, StandardCharsets.UTF_8);
-            return new AppChainDevtoolsCli().run(args, out, error);
+            return new AppChainDevtoolsCli().run(withHostYanoVersion(args, optional.get()), out, error);
         }
         String[] rest = Arrays.copyOfRange(args, 1, args.length);
         if ("topics".equals(verb) && !(rest.length > 0 && "approve".equals(rest[0]))) {
@@ -95,7 +139,8 @@ public final class AppChainCli {
                 return CliException.FAILURE;
             }
         }
-        if (Arrays.asList(rest).contains("--help")) {
+        // topics approve prints its own option help.
+        if (Arrays.asList(rest).contains("--help") && !"topics".equals(verb)) {
             terminal.say("Usage: " + usage(verb));
             return 0;
         }

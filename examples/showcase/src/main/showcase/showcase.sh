@@ -645,7 +645,7 @@ start_nodes() {
   local index
   # The lead (node 0) starts first: it creates the devnet the others download.
   while IFS= read -r index; do
-    appchain start --node-dir "$(node_dir "$index")" >/dev/null || die "node$index did not start; see $(node_dir "$index")/logs/node.log"
+    appchain start --node-dir "$(node_dir "$index")" >/dev/null || die "node$index did not start; the reason is printed above (node log: $(node_dir "$index")/logs/node.log, once the node has run)"
     note "node$index is up at http://127.0.0.1:$((HTTP_BASE + index))"
   done < <(node_indexes)
   appchain status "$APP" --node-dir "$(node_dir 0)" --wait live --timeout 300

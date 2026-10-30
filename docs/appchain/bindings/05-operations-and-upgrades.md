@@ -195,7 +195,8 @@ steps through what `profile-check` does.
 ## Before sharing a deployment
 
 - Archive the exact host/X artifacts, plugin catalog, YAML, IR, canonical
-  profiles, lock file and deployment identity; keep key custody separate.
+  profiles, sealed `<app>.chain` file and deployment identity; keep key
+  custody separate.
 - Test accepted and rejected cascades, authorization failures, replay and
   independent receipt proofs with your real command codecs.
 - Compare finalized heights, roots and profile identities across members;

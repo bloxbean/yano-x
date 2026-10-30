@@ -110,8 +110,10 @@ ledger data is never placed below L1 `chainstate`.
 
 ## Deployment shape
 
-- **JVM:** copy a self-contained manifested bundle into every member's plugin
-  directory, select it in configuration, and restart. No Yano rebuild is needed.
+- **JVM:** every member installs the same self-contained manifested bundle in
+  `plugins/` before `seal`, and the setup draft selects it. A later change needs
+  `appchain join <app>.chain --accept-bundles` on every member. No Yano rebuild
+  is needed.
 - **Native:** Yano's native image is core-only. Yano X extensions are JVM-only.
 - **Several ledgers per node:** one node can host several independently
   configured chains.

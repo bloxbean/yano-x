@@ -99,16 +99,19 @@ freely.
 ## Pinning, in an application
 
 When the coordinator seals an application, the sealed `<app>.chain` file
-records the SHA-256 digest of every plugin bundle each chain runs on. Each
+records the SHA-256 digest of every JAR in the distribution's `plugins/`. Each
 operator's `appchain join` and every `appchain start` check the installed
-bundles against those digests, so a JAR that does not match refuses to start
-until the operator accepts the new set with `join --accept-bundles`. That is
-how a "works on my node" plugin mismatch becomes a start-up error rather than a
-stalled chain.
+bundles against those digests, so a JAR added, removed, or replaced refuses to
+start until the operator accepts the new set with `join --accept-bundles`. That
+is how a "works on my node" plugin mismatch becomes a start-up error rather
+than a stalled chain. Every operator therefore installs the identical JARs
+before `seal`.
 
 `seal` resolves chains through the distribution's own catalog only: it does not
-yet accept a custom signed component catalog, so a custom capability cannot be
-selected in a setup draft in this release.
+accept a custom signed component catalog, so a custom capability is not
+selectable directly. A chain runs a custom state machine through the
+`custom-plugin` recipe instead, with the machine id as its `stateMachine`
+answer (`--answer <chain>.stateMachine=<machine-id>`).
 
 ## Configuration metadata and coverage
 

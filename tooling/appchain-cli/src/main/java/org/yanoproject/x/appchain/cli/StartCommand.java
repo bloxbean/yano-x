@@ -75,7 +75,8 @@ final class StartCommand {
             if (!changed.isEmpty()) {
                 throw CliException.failure("Plugin bundles changed since this node joined " + name + ": "
                         + String.join(", ", changed) + ". Reinstall the release it joined with, or accept the "
-                        + "upgrade with  yano.sh appchain join " + node.appFile(name) + " --accept-bundles");
+                        + "upgrade with  yano.sh appchain join " + node.appFile(name) + node.flag()
+                        + " --accept-bundles");
             }
         }
         SealedApp first = joined.getFirst().app();
@@ -125,7 +126,10 @@ final class StartCommand {
             if ((Service.installed(node) || Processes.running(node)) && client.ready()) {
                 Devnet.pinAfterStart(node);
                 terminal.ok("Node " + node.requireIdentity().name() + " is up at " + client.base());
-                if (showNext) terminal.next("yano.sh appchain status   (shows whether every member is online)");
+                if (showNext) {
+                    terminal.next("yano.sh appchain status" + node.flag()
+                            + "   (shows whether every member is online)");
+                }
                 return 0;
             }
             String failure = startupFailure(node);

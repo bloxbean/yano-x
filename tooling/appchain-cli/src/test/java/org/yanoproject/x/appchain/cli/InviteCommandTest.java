@@ -63,8 +63,9 @@ class InviteCommandTest {
                 "--http-port", "9401", "--node-dir", fixture.node("bob").toString(), "--output",
                 fixture.node("bob").toString(), "--yes");
         assertThat(bob.out()).contains("Fetched linked.draft.yaml", "you are bob", "Received", "--expect-fingerprint");
+        // Coming back with --no-wait again still collects the sealed file the coordinator now serves.
         var resumed = fixture.ok("request", links.get("alice"), "--node-dir", fixture.node("alice").toString(),
-                "--output", fixture.node("alice").toString(), "--yes");
+                "--output", fixture.node("alice").toString(), "--no-wait", "--yes");
         assertThat(resumed.out()).contains("Received").doesNotContain("Sent your card");
         assertThat(coordinator.get(30, TimeUnit.SECONDS)).isZero();
         assertThat(served.toString(StandardCharsets.UTF_8)).contains("Card from alice", "Card from bob",

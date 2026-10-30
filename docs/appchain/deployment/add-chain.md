@@ -51,7 +51,7 @@ Each existing operator, with their node running, then runs:
 > ```text
 > Adding dave (key ee22fe112c2e69cb, 127.0.0.1:15450) to supply
 > orders: first raising the threshold from 2 to 3 (4 members)
-> orders: waiting for threshold 3 (it activates once enough operators approve and the chain makes 10 more blocks)
+> orders: waiting for threshold 3 (it activates once enough operators approve and each chain makes 10 more blocks)
 > ✓ orders: dave is a member
 > Restarting this node to connect to dave …
 > ```
@@ -64,7 +64,8 @@ Check the key id against the one dave reads out to you before you approve.
   threshold unless enough members are online.
 - **Why it waits.** A change activates ten blocks after enough operators
   approve, and a chain only makes blocks when it has messages. On an idle
-  `ordered-log`, `kv-registry`, or `approvals` chain, `approve` offers to send
+  chain running `ordered-log` (the `audit-log` recipe), `kv-registry`
+  (`owned-registry`), or the stock `approvals` machine, `approve` offers to send
   small heartbeat messages (`--heartbeat` in scripts); on an ordered log each
   one is a permanent entry. Other chains need ordinary traffic.
 - **Safe to run again.** If `approve` is interrupted or times out, run it
@@ -79,9 +80,10 @@ When every operator has approved, dave joins and starts:
 ./yano.sh appchain status supply
 ```
 
+`join` says `you join later as dave`.
+
 > **✓ You should see** four members online and `members agree` for every
-> chain. Before every operator has approved, dave's status shows
-> `waiting for approval`.
+> chain.
 
 ## Remove a member
 
@@ -92,7 +94,11 @@ Each remaining operator runs:
 ```
 
 `approve` lowers the threshold if needed, removes carol on every chain, drops
-her as a peer, and restarts the operator's node once. With `sequencing:
+her as a peer, and restarts the operator's node once. It lowers the threshold
+only when the old one would be unsafe, so it does not return to the sealed
+policy: after growing to four members (three signatures) and removing one, the
+chain runs at three of three, and one offline member stops it. `status` shows
+the current `members N, T signatures`. With `sequencing:
 fixed` (the default) the lead cannot be removed: the runtime refuses to
 remove the fixed proposer. An application sealed with `sequencing: rotating`
 has no fixed proposer, so its lead can be removed like any other member
@@ -104,9 +110,11 @@ If carol loses her node directory, **remove her first, then add her again**:
 
 1. The other operators each run `approve --remove carol`. The chain keeps
    finalizing without her.
-2. Carol makes a fresh node directory and runs `request supply.chain`, which
-   creates a new key and card.
-3. The others run `approve carol.member`; carol runs `join supply.chain` and
+2. Carol makes a fresh node directory and runs `request supply.chain` under a
+   **new name**, for example `--name carol-2`, which creates a new key and
+   card. The sealed roster keeps the name `carol` for her old key, so
+   `request` refuses to reuse it.
+3. The others run `approve carol-2.member`; carol runs `join supply.chain` and
    `start`.
 
 Adding first would raise the threshold to a level the lost key can never help
@@ -118,8 +126,12 @@ directory.
 
 An operator can run several applications on one node. Each one is a separate
 setup: the coordinator runs `new` and `seal` for it, and each operator runs
-`request` and `join` with the new files. In an existing node directory,
-`request` reuses your member key and addresses. Adding a chain to a running node
+`request` and `join` with the new files. Keep each application's files in a
+folder of its own: the coordinator creates the draft with `new documents
+--output documents-app`, and each operator runs `request` with `--output
+<folder>`, so the new cards neither overwrite nor mix with the first
+application's cards. In an existing node directory, `request` reuses your
+member key and addresses. Adding a chain to a running node
 still needs a stop and start:
 
 ```bash
@@ -168,9 +180,10 @@ new chain. If bob moves, each other operator runs:
 | You see | What it means and what to do |
 |---|---|
 | `This node must be running; run  yano.sh appchain start  first` | `approve` talks to your own node. Start it first. |
-| `orders: only 2 members are connected, but the new threshold needs 3; bring the others online first so the chain cannot stall` | Ask the offline operators to start their nodes, then run `approve` again. |
+| `orders: only 2 members are online with their active key, but the new threshold needs 3; bring the others online first so the chain cannot stall` | Ask the offline operators to start their nodes, then run `approve` again. |
 | `orders: still waiting for …` and exit code 3 | The chain has not made enough blocks yet, or other operators have not approved. Send traffic, or run again later. |
 | `dave.member was made for another application (invite …)` | The card was made for a different `.chain`. Ask dave to run `request supply.chain`. |
+| `The sealed roster of supply already lists carol` from `request` | A replacement node cannot reuse a sealed name. Remove the old member, then request under a new name such as `carol-2`. |
 | `alice is the fixed proposer of orders; the runtime refuses to remove it.` | With fixed sequencing the lead cannot be removed. Losing the lead's key means sealing a new application. |
 
 **Next:** [run your node on a server](operators.md).

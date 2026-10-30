@@ -1,5 +1,6 @@
 package org.yanoproject.x.appchain.cli;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.Test;
@@ -11,6 +12,8 @@ import org.yanoproject.x.devtools.TopicsCli;
 
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -47,6 +50,12 @@ class TopicsCommandTest {
         assertThat(none.peer()).isNull();
         assertThat(none.apiKey()).isNull();
         assertThat(none.chain()).isNull();
+    }
+
+    @Test
+    void aRevocationWaitsForOneBlockNotTheActivationLag() {
+        assertThat(TopicsCommand.waitReason(true)).isEqualTo("a revocation takes effect in the next block");
+        assertThat(TopicsCommand.waitReason(false)).contains("activation lag");
     }
 
     @Test
@@ -199,6 +208,136 @@ class TopicsCommandTest {
         Files.writeString(node.path("config").resolve("local.yaml"),
                 "yano:\n  app-chain:\n    default-ttl-seconds: 3600\n");
         assertThat(TopicsCommand.messageLifetimeMs(node)).isEqualTo(3_600_000);
+    }
+
+    @Test
+    void approveHelpListsItsOptions() throws Exception {
+        CeremonyFixture fixture = new CeremonyFixture(temporary);
+        assertThat(fixture.ok("topics", "approve", "--help").out()).contains("Usage: " + TopicsCommand.APPROVE_USAGE,
+                "--plan-sha256 <hex>  refuse the plan", "--again", "--timeout <seconds>");
+    }
+
+    @Test
+    void submitJsonWaitsRecordsTheSubmissionAndFollowsItOnARerun() throws Exception {
+        ObjectMapper json = new ObjectMapper();
+        String chain = "games";
+        String generation = "22".repeat(32);
+        String root = "33".repeat(32);
+        String messageId = "66".repeat(32);
+        Path seed = Files.writeString(temporary.resolve("owner.seed"), "01".repeat(32));
+        String owner = tool(json, "public-key", seed.toString()).path("publicKey").asText();
+        var owners = new TopicWire.KeySet(1, List.of(owner));
+        var settings = new TopicWire.Settings(true, null, false, false, 3_600_000, 3_600_000, 16, 1_024, 128, 2,
+                600);
+        var config = new TopicWire.Config(1, 1, settings);
+        var entry = new TopicWire.EntryRecord("games/", new TopicWire.ActiveRevision(1, 2, 1,
+                new TopicWire.EntryContent(owners, new TopicWire.Policy(TopicWire.Writers.OPEN, List.of(), null, "",
+                        null), false)), 1, 0, 0);
+        var snapshot = json.createObjectNode().put("chainId", chain).put("generationId", generation)
+                .put("height", 10).put("stateRoot", root).put("maxMessageBytes", 65_536);
+        snapshot.set("config", json.valueToTree(config));
+        snapshot.putObject("entries").set("games/", json.valueToTree(entry));
+        snapshot.putObject("freedHeads");
+        Path snapshotFile = Files.writeString(temporary.resolve("snapshot.json"), snapshot.toString());
+        var document = json.createObjectNode().put("schemaVersion", 1).put("kind", "Topics").put("chainId", chain);
+        document.putArray("commands").addObject().put("target", "games/").put("operation", "update")
+                .put("authority", "games/").put("nonce", "44".repeat(16))
+                .put("notAfter", System.currentTimeMillis() + 300_000).putObject("policy").put("writers", "open");
+        Path doc = Files.writeString(temporary.resolve("games.json"), document.toString());
+        Path plan = temporary.resolve("games.plan.json");
+        Path signed = temporary.resolve("games.signed.json");
+        tool(json, "plan", doc.toString(), "--snapshot", snapshotFile.toString(), "--output", plan.toString());
+        tool(json, "sign", plan.toString(), "--key-file", seed.toString(), "--output", signed.toString());
+        String statementHash = json.readTree(signed.toFile()).path("commands").get(0).path("statementHash").asText();
+
+        // A node that takes the command once: its receipt and the new revision are in the next block, and the
+        // same statement again is refused as pending.
+        var state = new ConcurrentHashMap<String, String>();
+        var posts = new AtomicInteger();
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/api/v1/app-chain/chains/" + chain, exchange -> {
+            String path = exchange.getRequestURI().getRawPath();
+            String body;
+            int status = 200;
+            if (path.endsWith("/status")) {
+                var value = json.createObjectNode().put("chainId", chain);
+                value.putObject("stateCommitment").put("generationId", generation).put("version", 10)
+                        .put("stateRoot", root);
+                value.putObject("consensusProfile").put("maxMessageBytes", 65_536);
+                body = value.toString();
+            } else if (path.endsWith("/topics/config")) {
+                var value = json.createObjectNode().put("enabled", true);
+                value.set("config", json.valueToTree(config));
+                body = value.toString();
+            } else if (path.contains("/topics/entries/")) {
+                body = json.writeValueAsString(entry);
+            } else if (path.endsWith("/messages")) {
+                if (posts.incrementAndGet() > 1) {
+                    status = 409;
+                    body = "{\"code\":\"TOPIC_COMMAND_PENDING\"}";
+                } else {
+                    state.put(HexFormat.of().formatHex(TopicKeys.receipt(messageId)), HexFormat.of().formatHex(
+                            TopicWireCodec.encodeReceipt(new TopicWire.Receipt(TopicWire.Receipt.ACCEPTED, 13))));
+                    state.put(HexFormat.of().formatHex(TopicKeys.entry("games/")), HexFormat.of().formatHex(
+                            TopicWireCodec.encodeEntryRecord(new TopicWire.EntryRecord("games/",
+                                    new TopicWire.ActiveRevision(2, 13, 1, entry.active().content()), 2, 0, 0))));
+                    state.put(HexFormat.of().formatHex(TopicKeys.used(statementHash)), "01");
+                    status = 202;
+                    body = "{\"messageId\":\"" + messageId + "\"}";
+                }
+            } else if (path.contains("/state/entry/")) {
+                String value = state.get(path.substring(path.lastIndexOf('/') + 1));
+                body = value == null ? "{\"stateRoot\":\"" + root + "\",\"presence\":\"ABSENT\"}"
+                        : "{\"stateRoot\":\"" + root + "\",\"presence\":\"PRESENT\",\"valueHex\":\""
+                        + value + "\"}";
+            } else {
+                status = 404;
+                body = "{}";
+            }
+            byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().add("Content-Type", "application/json");
+            exchange.sendResponseHeaders(status, bytes.length);
+            exchange.getResponseBody().write(bytes);
+            exchange.close();
+        });
+        server.start();
+        try {
+            NodeDir node = new NodeDir(temporary.resolve("node"));
+            node.saveIdentity(new NodeDir.Identity("alice", "bb".repeat(32), "127.0.0.1:1", "127.0.0.1:"
+                    + server.getAddress().getPort(), 1, server.getAddress().getPort()));
+            CeremonyFixture fixture = new CeremonyFixture(temporary);
+            var first = fixture.run("topics", "submit", signed.toString(), "--json", "--timeout", "30",
+                    "--node-dir", node.root().toString());
+            assertThat(first.exit()).as(first.err()).isZero();
+            // Standard output is only the result; the progress is on standard error.
+            var result = json.readTree(first.out());
+            assertThat(result.path("commands").get(0).path("submission").path("messageId").asText())
+                    .isEqualTo(messageId);
+            assertThat(result.path("commands").get(0).path("inEffect").asBoolean()).isTrue();
+            assertThat(first.err()).contains("Submitted games/ (message " + messageId + ")",
+                    "games/ is in effect");
+            assertThat(node.path("topic-submissions").resolve(statementHash + ".json")).isRegularFile();
+
+            // Run again, as JSON and without waiting: the node refuses the copy, and this node directory knows
+            // the earlier submission, so it follows that one instead.
+            var again = fixture.run("topics", "submit", signed.toString(), "--json", "--node-dir",
+                    node.root().toString());
+            assertThat(again.exit()).as(again.err()).isZero();
+            assertThat(again.err()).contains("was already submitted").doesNotContain("not from this node directory");
+            assertThat(json.readTree(again.out()).path("alreadySubmitted").asBoolean()).isTrue();
+            assertThat(posts.get()).isEqualTo(2);
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    private static JsonNode tool(ObjectMapper json, String... args) throws Exception {
+        var out = new StringWriter();
+        var err = new StringWriter();
+        int exit = new TopicsCli().run(args, new PrintWriter(out), new PrintWriter(err),
+                TopicsCli.Defaults.NONE);
+        assertThat(exit).as(err.toString()).isZero();
+        return out.toString().startsWith("Written") ? json.createObjectNode() : json.readTree(out.toString());
     }
 
     private static List<TopicsCli.Vote> cast(TopicsCommand.Ballot ballot, TopicsCli.Vote vote, boolean again) {

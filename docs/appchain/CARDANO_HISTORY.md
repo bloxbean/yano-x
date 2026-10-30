@@ -77,36 +77,40 @@ export YANO_API_KEY=$(cat <node-dir>/secrets/api.key)
 
 ```java
 var history = CardanoHistoryClient.builder(
-        "http://localhost:17070/api/v1", "cardano-history-chain")
+        "http://127.0.0.1:7070/api/v1", "cardano-history-chain")
         .apiKey(System.getenv("YANO_API_KEY")).build();
 var stake = history.stake(170, 0, credentialHash);
 ```
 
-The CLI never assumes port 7070 or derives a chain from an arbitrary showcase instance name:
+The CLI ships in the distribution as `tools/yano-cardano-history`. It never assumes port 7070 or
+derives a chain from an arbitrary showcase instance name. These examples use the first node of the
+light showcase, as in its quickstart, from the extracted distribution's root:
 
 ```bash
-yano-cardano-history status \
-  --url http://localhost:17070/api/v1 \
+HISTORY=tools/yano-cardano-history/bin/yano-cardano-history
+
+$HISTORY status \
+  --url http://127.0.0.1:7070/api/v1 \
   --chain cardano-history-chain \
   --api-key "$YANO_API_KEY"
 
-yano-cardano-history query params --epoch 170 \
-  --url http://localhost:17070/api/v1 \
+$HISTORY query params --epoch 170 \
+  --url http://127.0.0.1:7070/api/v1 \
   --chain cardano-history-chain
 
-yano-cardano-history proof params --epoch 170 --output params-proof.json \
-  --url http://localhost:17070/api/v1 \
+$HISTORY proof params --epoch 170 --output params-proof.json \
+  --url http://127.0.0.1:7070/api/v1 \
   --chain cardano-history-chain \
   --api-key "$YANO_API_KEY"
 
-yano-cardano-history proof stake --epoch 169 \
+$HISTORY proof stake --epoch 169 \
   --credential "$STAKE_CREDENTIAL_HEX" --coin 1000000 --mode minimum \
   --output stake-proof.json \
-  --url http://localhost:17070/api/v1 \
+  --url http://127.0.0.1:7070/api/v1 \
   --chain cardano-history-chain \
   --api-key "$YANO_API_KEY"
 
-yano-cardano-history verify --bundle params-proof.json \
+$HISTORY verify --bundle params-proof.json \
   --trusted-root independently-obtained-cardano-root.json
 ```
 

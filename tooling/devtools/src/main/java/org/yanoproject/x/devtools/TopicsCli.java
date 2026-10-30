@@ -9,6 +9,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.yanoproject.api.appchain.topics.TopicKeys;
 import org.yanoproject.api.appchain.topics.TopicNames;
 import org.yanoproject.api.appchain.topics.TopicPolicyProof;
+import org.yanoproject.api.appchain.topics.TopicPolicyResolver;
 import org.yanoproject.api.appchain.topics.TopicWire;
 import org.yanoproject.api.appchain.topics.TopicWire.CommandStatement;
 import org.yanoproject.api.appchain.topics.TopicWire.Signature;
@@ -33,6 +34,7 @@ import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -56,7 +58,8 @@ public final class TopicsCli {
                or: yano.sh appchain topics verify <messageId> --bundle <json> --trusted-block <json>
                or: yano.sh appchain topics doctor --bindings <yaml>
             In a node directory (--node-dir, default ./yano-node) the commands use this node, its API key and,
-            when the application has one chain, that chain. Elsewhere pass --peer <url> and --chain <id>;
+            when the application has one chain, that chain. Elsewhere pass --peer <url>, and --chain <id> to
+            init, resolve, delegate and doctor (plan, sign and submit read the chain from the file);
             --api-key-env <name> reads an API credential from the named environment variable, and
             --snapshot snapshot.json plans offline. --json prints the machine-readable result of init, plan,
             sign, submit, resolve, delegate, verify and doctor instead. init picks the authority from the chain:
@@ -74,20 +77,24 @@ public final class TopicsCli {
                     Writes topics.yaml for one namespace change. In a node directory it reads the chain: a new
                     top-level name follows its creation policy (member vote, ~registrars or ~claim), a name under an
                     owned namespace is signed by that namespace's owners, and an existing namespace gets an update by
-                    its owners. --owner-key-file fills in the owners' public key from a seed file.""",
+                    its owners that starts from its active policy, so planning it unchanged changes nothing.
+                    --owner-key-file fills in the owners' public key from a seed file.""",
             "plan", """
                     Usage: yano.sh appchain topics plan <topics.yaml> [--output <name>.plan.json]
                     Checks the change against the chain and writes <name>.plan.json with the exact statements to
-                    sign or vote on, and who must act. Elsewhere: --peer <url> --chain <id>, or --snapshot <file>.""",
+                    sign or vote on, who must act, and how each change alters the effective policy. The chain is
+                    the file's chainId. Elsewhere: --peer <url>, or --snapshot <file> to plan offline.""",
             "sign", """
                     Usage: yano.sh appchain topics sign <plan.json> --key-file <seed file> [--command <index>]
                     Adds this key's signature to every command it may sign and writes <name>.signed.json (a signed
                     file is updated in place). The seed never leaves the file; member votes use topics approve.""",
             "submit", """
                     Usage: yano.sh appchain topics submit <signed plan.json> [--no-wait] [--heartbeat] [--timeout <s>]
+                             [--json]
                     Submits the signed commands through this node and waits until each is accepted and in effect;
                     --heartbeat makes blocks on an idle chain, --no-wait returns at once. Submitting the same plan
-                    again waits for the earlier submission instead.""",
+                    again waits for the earlier submission instead. --json prints the result as JSON once done, and
+                    the progress on standard error.""",
             "resolve", """
                     Usage: yano.sh appchain topics resolve <topic> [--height <n>] [--json]
                     The policy that governs writes to <topic> (at the block --height, 2 or more), in words, with
@@ -97,8 +104,11 @@ public final class TopicsCli {
                              --not-before <unix ms> --not-after <unix ms> --key-file <issuer seed file>
                     Issues a session-key credential: the issuer (an allowed delegator of the scope) lets a short-lived
                     browser key write under <scope> between the two times. In a node directory the chain and its
-                    generation come from this node. Prints the credential (delegationHex) for the application; in
-                    production a delegation service does this, outside the node.""",
+                    generation come from this node, and the credential is checked against the scope's active policy
+                    first (the issuer a writer of a 1-of-n set and listed under delegate, the lifetime within
+                    maxDelegationMs); with --generation and no node it is not checked. Prints the credential
+                    (delegationHex) for the application; in production a delegation service does this, outside
+                    the node.""",
             "verify", """
                     Usage: yano.sh appchain topics verify <messageId> --bundle <json> --trusted-block <json>
                     Checks offline who wrote a message under which policy, against a block you trust.""",
@@ -332,6 +342,8 @@ public final class TopicsCli {
     private static final int MAX_QUEUED_SCAN = 16;
 
     private Defaults defaults = Defaults.NONE;
+    /** Where notes go that are not part of a command's result. */
+    private PrintWriter err = new PrintWriter(PrintWriter.nullWriter());
     /** The exact plan bytes {@code sign} read, so an in-place update replaces only them. */
     private byte[] signedInput;
 
@@ -398,6 +410,11 @@ public final class TopicsCli {
                 return AppChainDevtoolsCli.EXIT_OK;
             }
             Arguments arguments = parse(args);
+            this.err = err;
+            if (Set.of("plan", "sign", "submit").contains(args[0]) && arguments.options().containsKey("chain")) {
+                throw TopicPlan.guidance(args[0] + " reads the chain from the file (its chainId); remove --chain, "
+                        + "and pass --peer <url> to use another node");
+            }
             JsonNode result = switch (args[0]) {
                 case "init" -> initialize(arguments);
                 case "public-key" -> publicKey(arguments);
@@ -450,6 +467,8 @@ public final class TopicsCli {
         // top-level name follows the chain's creation policy. Without a node, the member vote is the default.
         String authority = "governance";
         String operation = "create";
+        TopicWire.Policy current = null;
+        long currentRevision = 0;
         long expiryWindow = 3_600_000;
         boolean online = chain != null && (args.options().containsKey("peer") || defaults.peer() != null);
         if (online) {
@@ -467,14 +486,19 @@ public final class TopicsCli {
                     authority = name;
                 }
             }
-            // An existing namespace is changed by its own owners rather than created again.
+            // An existing namespace is changed by its own owners rather than created again, starting from its
+            // active policy: an update replaces the entry's whole policy, so an unedited one changes nothing.
             JsonNode existing = peer.optional("/topics/entries/" + TopicsPeer.segment(namespace));
             if (existing != null && existing.path("active").isObject()) {
-                if (existing.path("active").path("content").path("retired").asBoolean(false)) {
+                TopicWire.ActiveRevision active = TopicPlan.JSON.treeToValue(existing, TopicWire.EntryRecord.class)
+                        .active();
+                if (active.content().retired()) {
                     throw TopicPlan.guidance(TopicPlan.safe(namespace) + " is retired; it takes no more changes");
                 }
                 operation = "update";
                 authority = namespace;
+                current = active.content().policy();
+                currentRevision = active.revision();
             }
             JsonNode settings = config.path("config").path("settings");
             // Inside the chain's command window with room to sign and submit: an hour, or 90% of a shorter window.
@@ -496,14 +520,35 @@ public final class TopicsCli {
         command.put("nonce", Hex.encode(nonce));
         if (!"governance".equals(authority)) command.put("notAfter", System.currentTimeMillis() + expiryWindow);
         if ("create".equals(operation)) command.putObject("owners").put("threshold", 1).putArray("keys").add(owner);
-        command.putObject("policy").put("writers", "open").put("schema", "none");
+        if (current != null) command.set("policy", policyDocument(current));
+        else command.putObject("policy").put("writers", "open").put("schema", "none");
         Path path = Path.of(args.options().getOrDefault("output", "topics.yaml"));
         Files.writeString(path, TopicPlan.YAML.writeValueAsString(document), StandardCharsets.UTF_8,
                 StandardOpenOption.CREATE_NEW);
-        return TopicPlan.JSON.createObjectNode().put("written", path.toString()).put("kind", "Topics")
+        ObjectNode result = TopicPlan.JSON.createObjectNode().put("written", path.toString()).put("kind", "Topics")
                 .put("authority", authority).put("operation", operation)
                 .put("ownerKnown", "update".equals(operation) || !owner.startsWith("REPLACE"))
                 .put("chainKnown", chain != null).put("checked", online);
+        if (current != null) result.put("policyFromRevision", currentRevision);
+        return result;
+    }
+
+    /**
+     * An entry's own stored policy as a topics document writes it: a field the entry leaves to its ancestors stays
+     * out, and explicit overrides ({@code writers: open}, an empty {@code delegate}, {@code schema: none}) stay in.
+     * A stored schema is named by its hash, which the chain already holds.
+     */
+    static ObjectNode policyDocument(TopicWire.Policy policy) {
+        ObjectNode node = TopicPlan.JSON.createObjectNode();
+        if (policy.writers() != null) {
+            if (policy.writers().open()) node.put("writers", "open");
+            else node.set("writers", TopicPlan.JSON.valueToTree(policy.writers().keys()));
+        }
+        if (policy.delegate() != null) policy.delegate().forEach(node.putArray("delegate")::add);
+        if (policy.maxDelegationMs() != null) node.put("maxDelegationMs", policy.maxDelegationMs());
+        if (policy.maxPayloadBytes() != null) node.put("maxPayloadBytes", policy.maxPayloadBytes());
+        if (policy.schema() != null) node.put("schema", policy.schema().isEmpty() ? "none" : policy.schema());
+        return node;
     }
 
     /** The public key of a seed file; the seed is never printed. */
@@ -528,7 +573,7 @@ public final class TopicsCli {
         if (defaults.chain() != null && !defaults.chain().equals(snapshot.chainId())
                 && !args.options().containsKey("peer")) {
             throw TopicPlan.guidance("the topics file names another chain than this node's " + defaults.chain()
-                    + "; fix its chainId, or pass --peer and --chain");
+                    + "; fix its chainId, or pass --peer <url> for a node of that chain");
         }
         ObjectNode result = TopicPlan.compile(document, snapshot);
         checkExpiry(result, System.currentTimeMillis());
@@ -682,15 +727,75 @@ public final class TopicsCli {
         args.only(Set.of("chain", "generation", "scope", "session-key", "not-before", "not-after",
                 "key-file", "output", "peer", "api-key-env"), 0);
         String chain = chain(args);
+        // With a node to read, the credential is checked against the scope's policy before it is signed.
+        boolean online = args.options().containsKey("peer") || defaults.peer() != null;
+        TopicsPeer peer = online ? peer(args, chain) : null;
         // The generation binds the credential to this chain's identity; a node supplies it from its status.
         String generation = args.options().containsKey("generation") ? args.required("generation")
                 : TopicPlan.text(peer(args, chain).get("/status").path("stateCommitment"), "generationId");
+        String scope = args.required("scope");
+        String sessionKey = args.required("session-key");
+        long notBefore = positive(args.required("not-before"), 0);
+        long notAfter = positive(args.required("not-after"), 0);
         try (FileSigner signer = new FileSigner(Path.of(args.required("key-file")))) {
-            TopicWire.Delegation delegation = TopicAuthoring.issueDelegation(chain,
-                    generation, args.required("session-key"), args.required("scope"),
-                    positive(args.required("not-before"), 0), positive(args.required("not-after"), 0), signer);
+            if (online) checkDelegation(peer, scope, signer.publicKey(), notBefore, notAfter);
+            else {
+                err.println("Note: no node was read, so this credential was not checked against the policy of "
+                        + TopicPlan.safe(scope) + "; members check it on every write");
+            }
+            TopicWire.Delegation delegation = TopicAuthoring.issueDelegation(chain, generation, sessionKey, scope,
+                    notBefore, notAfter, signer);
             return TopicPlan.JSON.createObjectNode().put("delegationHex", Hex.encode(TopicWireCodec.encodeDelegation(delegation)))
-                    .put("delegationHash", TopicWireCodec.delegationHash(chain, generation, delegation));
+                    .put("delegationHash", TopicWireCodec.delegationHash(chain, generation, delegation))
+                    .put("policyChecked", online);
+        }
+    }
+
+    /**
+     * Refuses a credential the chain would refuse on every write, by the rules members apply to the scope at the
+     * tip: its policy must have a 1-of-n writer set, the issuer must be one of those writers and listed under
+     * {@code delegate}, and the lifetime must fit {@code maxDelegationMs} (capped by the chain). A topic below the
+     * scope can still narrow its own policy, and pending changes are not seen; members check each write.
+     */
+    private static void checkDelegation(TopicsPeer peer, String scope, String issuer, long notBefore, long notAfter)
+            throws IOException {
+        String where = TopicPlan.safe(scope);
+        if (!TopicNames.isValidEntryName(scope)) {
+            throw TopicPlan.guidance("--scope must be a namespace (ending in /) or a topic name");
+        }
+        TopicPlan.Snapshot snapshot = peer.snapshot(new LinkedHashSet<>(TopicNames.applicableNames(scope)));
+        if (snapshot.config() == null) throw TopicPlan.guidance(TopicPlan.NO_REGISTRY);
+        TopicWire.EffectiveOutcome outcome = TopicPolicyResolver.resolve(scope, snapshot.config(),
+                snapshot.maxMessageBytes(), snapshot.entries());
+        String issuerId = "this key (" + issuer.substring(0, 16) + ")";
+        if (outcome.policy() == null) {
+            throw TopicPlan.guidance("no namespace covers " + where + ", so a credential for it grants nothing; "
+                    + "create the namespace first");
+        }
+        TopicWire.ResolvedPolicy policy = outcome.policy();
+        if (policy.retired()) throw TopicPlan.guidance(where + " is retired; it takes no more writes");
+        if (policy.writers().open()) {
+            throw TopicPlan.guidance("anyone may write " + where + " (writers: open), so it needs no credential");
+        }
+        TopicWire.KeySet writers = policy.writers().keys();
+        if (writers.threshold() != 1) {
+            throw TopicPlan.guidance(where + " needs " + writers.threshold() + " writer signatures on each write; a "
+                    + "credential stands in for one writer, so it works only with a 1-of-n writer set");
+        }
+        if (!writers.keys().contains(issuer)) {
+            throw TopicPlan.guidance(issuerId + " is not a writer of " + where + "; issue with a writer key");
+        }
+        if (!policy.delegate().contains(issuer)) {
+            throw TopicPlan.guidance(issuerId + " is not listed under delegate for " + where + "; its owners add it "
+                    + "with  yano.sh appchain topics init " + where + "  (an update), then plan, sign and submit");
+        }
+        if (notAfter - notBefore > policy.maxDelegationMs()) {
+            throw TopicPlan.guidance("the credential would last " + (notAfter - notBefore) + " ms, longer than "
+                    + where + " allows (" + policy.maxDelegationMs() + " ms: its maxDelegationMs, capped by the "
+                    + "chain's max-delegation-ms); move --not-after closer to --not-before");
+        }
+        if (notAfter < System.currentTimeMillis()) {
+            throw TopicPlan.guidance("--not-after is in the past, so the credential would never be valid");
         }
     }
 
@@ -722,7 +827,11 @@ public final class TopicsCli {
                 List<String> edits = new ArrayList<>();
                 if (!result.path("ownerKnown").asBoolean()) edits.add("the owners' public keys");
                 if (!result.path("chainKnown").asBoolean()) edits.add("the chain id");
-                edits.add("the writer policy");
+                if (result.has("policyFromRevision")) {
+                    out.println("  The policy is the active one (revision " + result.path("policyFromRevision")
+                            .asLong() + "); change only the fields you mean to change");
+                    edits.add("the policy fields to change");
+                } else edits.add("the writer policy");
                 next(out, "check " + String.join(", ", edits) + " in it" + (result.path("ownerKnown").asBoolean()
                                 ? "" : " (topics public-key <seed file> prints a key)") + ", then run  "
                                 + "yano.sh appchain topics plan " + result.path("written").asText());
@@ -759,6 +868,7 @@ public final class TopicsCli {
                         signatures = true;
                     }
                     if (command.has("warning")) out.println("    " + command.path("warning").asText());
+                    changes(command, revoked(result, command)).forEach(line -> out.println("    " + line));
                 }
                 List<String> lines = new ArrayList<>();
                 if (signatures) {
@@ -797,6 +907,7 @@ public final class TopicsCli {
                     out.println("  " + command.path("operation").asText() + " "
                             + TopicPlan.safe(command.path("target").asText()) + ": " + have + " of " + need
                             + " signatures");
+                    changes(command, revoked(result, command)).forEach(line -> out.println("    " + line));
                     complete &= have >= need;
                 }
                 next(out, complete ? "yano.sh appchain topics submit " + file
@@ -833,6 +944,89 @@ public final class TopicsCli {
                 } else out.print(serialized);
             }
         }
+    }
+
+    /**
+     * How a planned command changes its target's effective policy, field by field, from the plan's {@code before}
+     * and {@code afterActivation}; a change that drops writer keys, delegators or a schema is called out, so
+     * nobody signs a removal by accident. A revocation names the credential instead.
+     */
+    static List<String> changes(JsonNode command, String revoked) {
+        if (revoked != null) return List.of("revokes " + revoked);
+        JsonNode before = command.path("before");
+        JsonNode after = command.path("afterActivation");
+        if (!after.isObject()) return List.of();
+        if (!"POLICY".equals(before.path("kind").asText())) {
+            return List.of("after activation: " + outcomeWords(after));
+        }
+        JsonNode old = before.path("policy");
+        JsonNode next = after.path("policy");
+        List<String> lines = new ArrayList<>();
+        List<String> removed = new ArrayList<>();
+        String[][] fields = {{"writers", writersWords(old), writersWords(next)},
+                {"delegate", delegateWords(old), delegateWords(next)},
+                {"maxDelegationMs", old.path("maxDelegationMs").asText(), next.path("maxDelegationMs").asText()},
+                {"maxPayloadBytes", old.path("maxPayloadBytes").asText(), next.path("maxPayloadBytes").asText()},
+                {"schema", schemaWords(old), schemaWords(next)},
+                {"retired", old.path("retired").asText("false"), next.path("retired").asText("false")}};
+        for (String[] field : fields) {
+            if (!field[1].equals(field[2])) lines.add(field[0] + ": " + field[1] + " → " + field[2]);
+        }
+        if (old.path("writers").path("keys").isObject() && !next.path("writers").path("keys").isObject()) {
+            removed.add("the writer keys (anyone may write)");
+        }
+        if (!old.path("delegate").isEmpty() && next.path("delegate").isEmpty()) removed.add("every delegator");
+        if (!old.path("schema").asText("").isEmpty() && next.path("schema").asText("").isEmpty()) {
+            removed.add("the payload schema");
+        }
+        if (lines.isEmpty()) return List.of("the effective policy does not change");
+        if (!removed.isEmpty()) lines.add("! this removes " + String.join(", ", removed));
+        return lines;
+    }
+
+    private static String writersWords(JsonNode policy) {
+        JsonNode keys = policy.path("writers").path("keys");
+        return keys.isObject() ? keys.path("threshold").asInt() + " of " + keyIds(keys.path("keys")) : "anyone";
+    }
+
+    private static String delegateWords(JsonNode policy) {
+        return policy.path("delegate").isEmpty() ? "nobody" : keyIds(policy.path("delegate"));
+    }
+
+    private static String schemaWords(JsonNode policy) {
+        String schema = policy.path("schema").asText("");
+        return schema.isEmpty() ? "none" : schema.substring(0, 16) + "…";
+    }
+
+    /**
+     * The credential a plan's revoke command revokes, in words: its hash, session key and scope; null for any
+     * other command.
+     */
+    static String revoked(JsonNode plan, JsonNode command) {
+        if (!"revoke".equals(command.path("operation").asText())) return null;
+        String target = command.path("target").asText();
+        for (JsonNode written : plan.path("document").path("commands")) {
+            if (!target.equals(written.path("target").asText()) || !written.has("delegationHex")) continue;
+            TopicWire.Delegation delegation = TopicWireCodec.decodeDelegation(Hex.decode(
+                    written.path("delegationHex").asText()));
+            JsonNode snapshot = plan.path("snapshot");
+            String hash = TopicWireCodec.delegationHash(snapshot.path("chainId").asText(),
+                    snapshot.path("generationId").asText(), delegation);
+            return "credential " + hash.substring(0, 16) + "… (session key " + delegation.delegate().substring(0, 16)
+                    + "…, scope " + TopicPlan.safe(delegation.scope()) + ")";
+        }
+        return null;
+    }
+
+    /** The credential each revoke command of a plan revokes, in words, by target. */
+    public static Map<String, String> revocations(Path planFile) throws IOException {
+        JsonNode plan = read(planFile.toString(), false);
+        Map<String, String> revoked = new LinkedHashMap<>();
+        for (JsonNode command : plan.path("commands")) {
+            String words = revoked(plan, command);
+            if (words != null) revoked.put(command.path("target").asText(), words);
+        }
+        return revoked;
     }
 
     /** An effective outcome in words: who may write, the schema and the size limit, and where it comes from. */
@@ -1089,13 +1283,25 @@ public final class TopicsCli {
 
         String required(String key) {
             String value = options.get(key);
-            if (value == null || value.isBlank()) throw TopicPlan.invalid("missing option");
+            // Only the option's name is repeated, never a value.
+            if (value == null || value.isBlank()) {
+                throw TopicPlan.guidance("missing --" + key + "; the command's --help lists what it needs");
+            }
             return value;
         }
 
         void only(Set<String> names, int positionalCount) {
-            if (!names.containsAll(options.keySet()) || positionals.size() != positionalCount) {
-                throw TopicPlan.invalid("unexpected option or positional argument");
+            // Option names are repeated, never a value or a positional argument, which may be a path.
+            List<String> unknown = options.keySet().stream().filter(name -> !names.contains(name))
+                    .map(name -> "--" + TopicPlan.safe(name)).sorted().toList();
+            if (!unknown.isEmpty()) {
+                throw TopicPlan.invalid("unknown option " + String.join(", ", unknown)
+                        + "; the command's --help lists its options");
+            }
+            if (positionals.size() != positionalCount) {
+                throw TopicPlan.invalid("expected " + positionalCount + " file "
+                        + (positionalCount == 1 ? "argument" : "arguments") + ", got " + positionals.size()
+                        + "; the command's --help lists what it needs");
             }
         }
     }

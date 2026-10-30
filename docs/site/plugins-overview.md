@@ -30,7 +30,15 @@ as ordered, certified inputs; see [around the ledger](#around-the-ledger).
 
 ## Rung 0 — configuration only
 
-Select one stock machine or profile, identically on every member:
+Select one stock machine or profile, identically on every member. With the
+setup commands, a recipe in the draft does it, and `seal` gives every member the
+same value:
+
+```bash
+./yano.sh appchain new <app> --chain registry=owned-registry
+```
+
+On a hand-configured node, the raw property is:
 
 ```yaml
 yano.app-chain.state-machine: kv-registry

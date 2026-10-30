@@ -8,13 +8,14 @@ To run this outcome with other operators, follow [Set up an application](../depl
   acknowledged `webhook.post` effect, and run the latter from a stock approval
   transition against a local receiver.
 
-**Before you start:** finish [Tutorial 1](01-first-app-chain.md) and remove
+**Before you start:** if you ran [Tutorial 1](01-first-app-chain.md), remove
 its rehearsal with `./yano.sh appchain try --clean`. You need the extracted Yano X JVM distribution, Python 3,
 `curl`, and `jq`. Every command runs from the distribution's top-level
 directory, the one that contains `yano.sh`; the tutorial files ship under
-`docs/` there. In Studio, add the `effects:on-approved` and `executor:webhook`
-capabilities; Studio then asks for the effect type and the webhook URL, which
-the exercise sets to `webhook.post` and `http://127.0.0.1:8099/yano`.
+`docs/` there. The exercise selects the `effects:on-approved` and
+`executor:webhook` capabilities in its template, with the effect type
+`webhook.post` and the webhook URL `http://127.0.0.1:8099/yano` as their
+answers.
 
 Yano provides two HTTP delivery shapes with different guarantees.
 
@@ -150,6 +151,7 @@ effects.enabled=true
 machines.approvals.on-approved-effect.enabled=true
 machines.approvals.on-approved-effect.type=webhook.post
 machines.approvals.on-approved-effect.gate=chain-default
+machines.approvals.on-approved-effect.expiry-blocks=0
 machines.approvals.activations.on-approved-effect=1
 ```
 
@@ -174,7 +176,9 @@ cat appchain-try/alice/yano-node/apps/chain-indexes.json
 ```
 
 With this one chain it is `0`. Append the executor settings for `chains[0]`
-to alice's local file:
+to alice's local file. Out of the box it holds only comments; if you have
+already added `yano:` keys to it, merge these under that block instead of
+appending a second one:
 
 ```bash
 cat >> appchain-try/alice/yano-node/config/local.yaml <<'EOF'

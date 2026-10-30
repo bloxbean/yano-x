@@ -88,6 +88,25 @@ All paths below are relative to `/api/v1/app-chain/chains/{chainId}`.
 | `POST /proof/verify` | Read | Verify a proof on the node. |
 | `POST /query/{path}` | Read | Run the state machine's read hook against one committed snapshot. |
 
+### Topic registry
+
+On a chain sealed with a `topics:` block. Without one, `GET /topics/config`
+answers `{"enabled": false}`. See
+[topic policies](/concepts/topic-policies/).
+
+| Method and path | Access | Purpose |
+|---|---|---|
+| `GET /topics/config` | Read | The committed topic configuration: creation modes, `unregistered-topics` and limits. |
+| `GET /topics/entries/{name}` | Read | One registry entry: its active revision (owners, policy, `retired`), `head` and pending count. Encode a namespace's trailing slash, as in `freight%2F`. A field the entry inherits is `null`. `404` if there is none. |
+| `GET /topics/resolve?topic=` | Read | A topic's effective outcome at the tip, without proofs: `POLICY` with the policy and the entries it came from, `UNREGISTERED_OPEN`, `UNREGISTERED_REJECT` or `DISABLED`, plus its `effectivePolicyDigest`. |
+| `GET /topics/proof?topic=&height=` | Read | `topic-policy-v1`: key proofs, against the root of block `height - 1`, of everything that decides the topic's outcome for block `height` (default: the next block). `height` must be at least 2; a height whose parent state is not retained, including a future one, answers `404`. `topics resolve` verifies it. |
+| `GET /topics/schemas/{hash}` | Read | The canonical IR of a payload schema, as `irHex`. |
+| `GET /topics/receipts/{messageId}` | Read | The outcome of a registry command, or of the vote that decided a governance command, such as `{"code": "ACCEPTED", "activation": 38}`. Kept for `max-command-ms` after inclusion; other messages answer `404`. |
+| `POST /admin/topics/governance` | Privileged | This member's vote on a topic-governance command. Body `{"commandHex":"..."}`; returns `202` with the `messageId`. `topics approve` calls it. |
+
+Owners, registrars and claimants submit their signed commands with
+`POST /messages` on the topic `~topics/registry`; `topics submit` does this.
+
 ### Effects
 
 | Method and path | Access | Purpose |
@@ -141,12 +160,16 @@ input — the same model as a wallet talking to its own node. This is why the AP
 must not be exposed to untrusted callers without authentication.
 
 **The body is opaque.** Use `body` for UTF-8 text or `bodyHex` for arbitrary
-bytes. The framework never parses it; only the state machine does.
+bytes. The framework never parses it; only the state machine does. The
+exception is a topic protected by the topic registry: there the body is a
+canonical CBOR frame that carries the payload and its write proof, which the
+[Java and JavaScript clients](/recipes/topic-session-keys/#use-a-browser-session)
+build.
 
 | Response | Meaning |
 |---|---|
 | `202` with `messageId` | Accepted into this node's pending pool. Not final yet. |
-| `400` with `code` | The application rejected the command at admission. |
+| `400` with `code` | The application rejected the command at admission, or the topic policy refused it (a `TOPIC_*` code). |
 | `429` | The pending pool is full. Back off and retry. |
 | `503` | The node cannot accept submissions right now. |
 

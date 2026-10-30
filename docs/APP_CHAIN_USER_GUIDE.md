@@ -137,8 +137,8 @@ are never finalized; a tampered block fails the state-root re-execution check.
 
 For the full developer-level mechanics — the consensus round check by check,
 vote locks, rotation math, catch-up/restart semantics, and every built-in
-state machine's exact wire format — see the
-[consensus & internals guide](core-host.md).
+state machine's exact wire format — see Yano's
+[consensus & internals guide](https://github.com/bloxbean/yano/blob/main/docs/APP_CHAIN_CONSENSUS_GUIDE.md).
 
 ---
 
@@ -157,7 +157,7 @@ instructions; releases: https://github.com/bloxbean/yano/releases
 
 The public REST prefix is the exception: it is an immutable artifact input,
 not a `-D` or YAML launch setting. Build it with `-PyanoApiPrefix` as described
-in section 4 and the distribution guide.
+in section 4 and Yano's [distribution guide](https://github.com/bloxbean/yano/blob/main/docs/BUILD_DISTRIBUTIONS.md#artifact-api-prefix).
 
 ### 3.0 Recommended: set up an application with `appchain`
 
@@ -270,13 +270,13 @@ curl -s -X POST http://nodeA:8080/api/v1/app-chain/messages \
 curl -s http://nodeB:8080/api/v1/app-chain/tip
 # → {"chainId":"acme-audit-log","height":1,"stateRoot":"95edf7..."}  (same on A!)
 
-curl -s http://nodeB:8080/api/v1/app-chain/state/proof/6d1be691...
-# → MPF inclusion proof for the message against the shared state root
+curl -s http://nodeB:8080/api/v1/app-chain/messages/6d1be691.../proof
+# → proof that the message is recorded, against the shared state root
 ```
 
-Ready-made end-to-end regressions of this flow (on devnet, with anchoring) are
-the `test-app-chain-cluster` and `test-app-chain-extensions` skills under
-`.claude/skills/`.
+Ready-made end-to-end regressions of the setup flow (on devnet, with
+anchoring) are the `validate-yano-x-appchain` and `smoke-yano-x-release` skills
+under `.agents/skills/`.
 
 > **Devnet tip:** when node B follows a devnet producer for L1, start B with
 > `-Dyano.dev-mode=false -Dyano.block-producer.enabled=false` and give it a
@@ -321,7 +321,8 @@ Highlights (full guide: [Set up an application](appchain/deployment/configure.md
   devnet it funds the wallet from the devnet faucet and bootstraps the thread
   NFT. See [tutorial 7](appchain/tutorials/07-anchors-and-verification.md).
 - **Members**: `./yano.sh appchain approve <name>.member` on every existing
-  node adds a member, raising the threshold first when needed (§14.2).
+  node adds a member, raising the threshold first when needed; see
+  [grow and change](appchain/deployment/add-chain.md#add-a-member).
 - **Real operators** run the same commands on their own machines: `new`,
   `request`, `seal`, `join`, `start`, `status`.
 - **Load tests**: the showcase ships a parallel load driver,
@@ -337,7 +338,7 @@ Base path: `<artifact-api-prefix>/app-chain` (default
 artifact with strict `-PyanoApiPrefix=<path>`; it is not editable launch
 configuration. `/` and canonical paths up to 256 characters are supported.
 Changing it requires a rebuild; see
-[`BUILD_DISTRIBUTIONS.md`](BUILD_DISTRIBUTIONS.md#artifact-api-prefix).
+Yano's [`BUILD_DISTRIBUTIONS.md`](https://github.com/bloxbean/yano/blob/main/docs/BUILD_DISTRIBUTIONS.md#artifact-api-prefix).
 
 Every chain endpoint below is also available **chain-scoped** as
 `/app-chain/chains/{chainId}/...` on a multi-chain node (section 8). The
@@ -504,8 +505,13 @@ yano:
 One-time **bootstrap** per chain (leader only, wallet must be funded):
 
 ```bash
-curl -X POST localhost:7070/api/v1/app-chain/chains/<chain-id>/admin/anchor/bootstrap
+curl -X POST localhost:7070/api/v1/app-chain/chains/<chain-id>/admin/anchor/bootstrap \
+  -H "X-API-Key: $API_KEY"
 ```
+
+The route is privileged, so it needs the node's API key. On a node set up with
+`appchain join`, `./yano.sh appchain anchor` creates the wallet, waits for
+funds, and runs this bootstrap for you.
 
 The bootstrap consumes a seed UTxO from the wallet and mints a **one-shot
 thread NFT** into the anchor validator's script address with the genesis
@@ -783,14 +789,21 @@ The plugin template ships this test pre-wired (`CounterConformanceTest`).
    validation coverage. The envelope schema and canonical payload contract are
    packaged as `appchain-metadata-trust.schema.json` and documented by the
    app-chain developer tool.
-5. Drop the jar into the JVM node's plugins directory (`yano.plugins.directory`,
-   default `plugins/`), and select it:
-   ```yaml
-   yano:
-     app-chain:
-       state-machine: "order-book"
+5. Before the application is sealed, every operator, the coordinator
+   included, copies the identical jar into the extracted distribution's
+   `plugins/` directory. The setup draft selects it through the
+   `custom-plugin` recipe, with the machine id as the `stateMachine` answer:
+   ```bash
+   ./yano.sh appchain new orders --chain orders=custom-plugin \
+     --answer orders.stateMachine=order-book
    ```
-   Unknown ids fail fast at startup with the list of available machines.
+   `seal` records the SHA-256 of every jar in `plugins/`, and `join` and
+   `start` refuse a jar that was added, removed, or replaced. To change it
+   later, each operator copies the same new jar, runs `appchain stop`, then
+   `appchain join <app>.chain --accept-bundles`, then `appchain start`. On a
+   hand-configured node, the equivalent is `yano.plugins.directory` (default
+   `plugins/`) plus `yano.app-chain.state-machine: "order-book"`. Unknown ids
+   fail fast at startup with the list of available machines.
    Compile against the `yano-core-api` artifact (`AppStateMachine`,
    `AppMessage`, `AppStateWriter` live there / in `yaci-core`).
    A ready Gradle project for this is `scaffolds/plugin-template`.
@@ -1249,7 +1262,8 @@ chain. `POST /admin/members/reset` is a loudly logged local trust-model
 deviation for ordinary governed-membership chains and is disabled when a
 governed composite profile requires authenticated membership continuity.
 
-**Static mode runbook (default)** — staged and operator-coordinated: run the
+**Static mode runbook (the property's default; `./yano.sh appchain new`
+defaults to `--membership governed`)** — staged and operator-coordinated: run the
 SAME steps on EVERY node, in this order. The rotated state persists and
 overrides config across restarts (`POST /admin/members/reset` drops the
 override and returns to the configured list).
@@ -2080,6 +2094,11 @@ required; a proof already obtained remains verifiable forever.
 
 ## 18. Troubleshooting
 
+On an application set up with the setup commands, start with
+`./yano.sh appchain status <app>` and the
+[troubleshooting table](appchain/deployment/configure.md#troubleshooting) of
+the setup guide; the items below describe the underlying node.
+
 - **`/status` is your dashboard**: `role`, `tipHeight`, `stateRoot`,
   `poolSize` (pending messages), per-peer connectivity, `anchor` progress,
   sink cursors.
@@ -2105,8 +2124,8 @@ required; a proof already obtained remains verifiable forever.
   history is immutable.
 - **L1 impact**: none — the app protocols are invisible to non-Yano peers
   (capability negotiated in the handshake; a Haskell node simply never
-  selects it). Run the `test-haskell-sync` skill for the standard L1
-  compatibility regression.
+  selects it). Yano's `test-haskell-sync` skill, in the Yano repository, is
+  the standard L1 compatibility regression.
 
 ## 19. Current limitations
 

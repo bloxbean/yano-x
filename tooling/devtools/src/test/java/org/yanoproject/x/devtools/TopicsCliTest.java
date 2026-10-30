@@ -132,6 +132,9 @@ class TopicsCliTest {
                 TopicWireCodec.delegationSignedBytes(TopicPlanFixtures.CHAIN, TopicPlanFixtures.GENERATION, delegation)))
                 .isTrue();
         assertThat(result.out + result.err).doesNotContain(Hex.encode(seed(1)));
+        // Without a node nothing was checked against the policy, and it says so.
+        assertThat(output.path("policyChecked").asBoolean()).isFalse();
+        assertThat(result.err).contains("not checked against the policy of games/");
     }
 
     @Test
@@ -438,6 +441,148 @@ class TopicsCliTest {
         assertThat(operation.err).contains("unknown operation").doesNotContain(seed);
         Result missing = run("topics", "sign", "--plan", temporary.resolve(seed).toString(), "--key-file", seed);
         assertThat(missing.err).contains("(path not shown)").doesNotContain(seed);
+    }
+
+    @Test
+    void anUpdateStartsFromTheActivePolicyAndPlanShowsWhatAChangeRemoves() throws Exception {
+        var protectedGames = protectedGames("55".repeat(32));
+        HttpServer server = server(new AtomicReference<>(protectedGames), new AtomicInteger(), new ArrayList<>());
+        try {
+            String peer = "http://127.0.0.1:" + server.getAddress().getPort();
+            var defaults = new TopicsCli.Defaults(peer, null, TopicPlanFixtures.CHAIN, true);
+            Path yaml = temporary.resolve("games.yaml");
+            Result init = guided(defaults, "init", "games/", "--output", yaml.toString());
+            assertThat(init.exit).as(init.err).isZero();
+            assertThat(init.out).contains("update games/ by the owners of games/",
+                    "The policy is the active one (revision 1)");
+            JsonNode policy = TopicPlan.read(Files.readAllBytes(yaml), true).path("commands").get(0).path("policy");
+            assertThat(policy.path("writers").path("threshold").asInt()).isEqualTo(1);
+            assertThat(policy.path("writers").path("keys").get(0).asText()).isEqualTo(TopicPlanFixtures.ISSUER);
+            assertThat(policy.path("delegate").get(0).asText()).isEqualTo(TopicPlanFixtures.ISSUER);
+            assertThat(policy.path("schema").asText()).isEqualTo("55".repeat(32));
+            assertThat(policy.path("maxPayloadBytes").asLong()).isEqualTo(4096);
+            assertThat(policy.has("maxDelegationMs")).isFalse(); // inherited stays inherited
+
+            // Planned unedited, the update changes nothing, and plan says so.
+            Result unchanged = guided(defaults, "plan", yaml.toString());
+            assertThat(unchanged.exit).as(unchanged.err).isZero();
+            assertThat(unchanged.out).contains("the effective policy does not change").doesNotContain("→");
+
+            // An edit that drops the writers, and with them the delegators, and the schema is spelled out.
+            ObjectNode document = (ObjectNode) TopicPlan.read(Files.readAllBytes(yaml), true);
+            ObjectNode edited = (ObjectNode) document.path("commands").get(0).path("policy");
+            edited.put("writers", "open").put("schema", "none").put("maxPayloadBytes", 2048);
+            Path open = write("open.yaml", TopicPlan.YAML.writeValueAsString(document));
+            Result removing = guided(defaults, "plan", open.toString());
+            assertThat(removing.exit).as(removing.err).isZero();
+            assertThat(removing.out).contains("writers: 1 of key " + TopicPlanFixtures.ISSUER.substring(0, 16)
+                            + " → anyone",
+                    "delegate: key " + TopicPlanFixtures.ISSUER.substring(0, 16) + " → nobody",
+                    "maxPayloadBytes: 4096 → 2048", "schema: 5555555555555555… → none",
+                    "! this removes the writer keys (anyone may write), every delegator, the payload schema");
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void delegateChecksTheScopesPolicyWhenItCanReadTheChain() throws Exception {
+        var current = new AtomicReference<>(TopicPlanFixtures.revocationSnapshot(false));
+        HttpServer server = server(current, new AtomicInteger(), new ArrayList<>());
+        try {
+            String peer = "http://127.0.0.1:" + server.getAddress().getPort();
+            var defaults = new TopicsCli.Defaults(peer, null, TopicPlanFixtures.CHAIN, false);
+            long now = System.currentTimeMillis();
+            Path issuer = seedFile("issuer", 9);
+            Result issued = guided(defaults, "delegate", "--scope", "games/neon-rush/", "--session-key",
+                    publicKey(2), "--not-before", String.valueOf(now), "--not-after", String.valueOf(now + 600_000),
+                    "--key-file", issuer.toString());
+            assertThat(issued.exit).as(issued.err).isZero();
+            assertThat(TopicPlan.JSON.readTree(issued.out).path("policyChecked").asBoolean()).isTrue();
+            assertThat(issued.err).doesNotContain("not checked");
+
+            Result tooLong = guided(defaults, "delegate", "--scope", "games/neon-rush/", "--session-key",
+                    publicKey(2), "--not-before", String.valueOf(now), "--not-after",
+                    String.valueOf(now + 7_200_000), "--key-file", issuer.toString());
+            assertThat(tooLong.exit).isNotZero();
+            assertThat(tooLong.err).contains("longer than games/neon-rush/ allows (3600000 ms");
+            Result stranger = guided(defaults, "delegate", "--scope", "games/", "--session-key", publicKey(2),
+                    "--not-before", String.valueOf(now), "--not-after", String.valueOf(now + 600_000),
+                    "--key-file", seedFile("stranger", 1).toString());
+            assertThat(stranger.err).contains("this key (" + publicKey(1).substring(0, 16) + ") is not a writer");
+            Result expired = guided(defaults, "delegate", "--scope", "games/", "--session-key", publicKey(2),
+                    "--not-before", "1000", "--not-after", "2000", "--key-file", issuer.toString());
+            assertThat(expired.err).contains("--not-after is in the past");
+
+            // Writers 1 of [issuer] but delegate empty: a writer that is not a delegator.
+            var snapshot = TopicPlanFixtures.revocationSnapshot(false);
+            var entry = snapshot.entries().get("games/");
+            var content = entry.active().content();
+            current.set(withGames(snapshot, new EntryContent(content.owners(), new Policy(content.policy().writers(),
+                    List.of(), null, "", null), false)));
+            assertThat(guided(defaults, "delegate", "--scope", "games/", "--session-key", publicKey(2),
+                    "--not-before", String.valueOf(now), "--not-after", String.valueOf(now + 600_000),
+                    "--key-file", issuer.toString()).err).contains("is not listed under delegate for games/");
+            // Open writers need no credential.
+            current.set(TopicPlanFixtures.snapshot());
+            assertThat(guided(defaults, "delegate", "--scope", "games/", "--session-key", publicKey(2),
+                    "--not-before", String.valueOf(now), "--not-after", String.valueOf(now + 600_000),
+                    "--key-file", issuer.toString()).err).contains("(writers: open), so it needs no credential");
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void planReadsTheChainFromTheFileAndMissingOptionsAreNamed() throws Exception {
+        assertThat(run("topics", "plan", "--help").out).doesNotContain("--chain").contains("chainId");
+        Path doc = write("games.yaml", TopicPlan.YAML.writeValueAsString(liveDocument()));
+        Result chain = run("topics", "plan", doc.toString(), "--chain", "other");
+        assertThat(chain.exit).isNotZero();
+        assertThat(chain.err).contains("plan reads the chain from the file (its chainId); remove --chain");
+        Result doctor = run("topics", "doctor");
+        assertThat(doctor.exit).isNotZero();
+        assertThat(doctor.err).contains("missing --bindings");
+        Result unknown = run("topics", "sign", "plan.json", "--key", "owner.seed");
+        assertThat(unknown.exit).isNotZero();
+        assertThat(unknown.err).contains("unknown option --key;").doesNotContain("owner.seed");
+        Result extra = run("topics", "sign", "a.plan.json", "b.plan.json", "--key-file", "owner.seed");
+        assertThat(extra.exit).isNotZero();
+        assertThat(extra.err).contains("expected 1 file argument, got 2").doesNotContain("b.plan.json");
+    }
+
+    @Test
+    void aRevocationIsNamedByItsCredential() throws Exception {
+        ObjectNode document = TopicPlanFixtures.revocation("games/");
+        ((ObjectNode) document.path("commands").get(0)).put("notAfter", System.currentTimeMillis() + 300_000);
+        Path doc = write("revoke.yaml", TopicPlan.YAML.writeValueAsString(document));
+        Path state = write("state.json", TopicPlan.JSON.writeValueAsString(
+                TopicPlanFixtures.revocationSnapshot(false)));
+        Result planned = run("topics", "plan", "--file", doc.toString(), "--snapshot", state.toString());
+        assertThat(planned.exit).as(planned.err).isZero();
+        Path plan = write("revoke.plan.json", planned.out);
+        var delegation = TopicWireCodec.decodeDelegation(Hex.decode(document.path("commands").get(0)
+                .path("delegationHex").asText()));
+        String hash = TopicWireCodec.delegationHash(TopicPlanFixtures.CHAIN, TopicPlanFixtures.GENERATION,
+                delegation);
+        assertThat(TopicsCli.revocations(plan)).containsExactly(Map.entry("games/neon-rush/", "credential "
+                + hash.substring(0, 16) + "… (session key " + TopicPlanFixtures.KEY.substring(0, 16)
+                + "…, scope games/neon-rush/)"));
+    }
+
+    /** games/ protected by the fixture issuer, with a stored schema and size; maxDelegationMs inherited. */
+    private static TopicPlan.Snapshot protectedGames(String schema) {
+        var snapshot = TopicPlanFixtures.snapshot();
+        var owners = snapshot.entries().get("games/").active().content().owners();
+        return withGames(snapshot, new EntryContent(owners, new Policy(new Writers(new KeySet(1,
+                List.of(TopicPlanFixtures.ISSUER))), List.of(TopicPlanFixtures.ISSUER), null, schema, 4096L), false));
+    }
+
+    private static TopicPlan.Snapshot withGames(TopicPlan.Snapshot snapshot, EntryContent content) {
+        var entry = new EntryRecord("games/", new ActiveRevision(1, 2, 1, content), 1, 0, 1);
+        return new TopicPlan.Snapshot(snapshot.chainId(), snapshot.generationId(), snapshot.height(),
+                snapshot.stateRoot(), snapshot.maxMessageBytes(), snapshot.config(), Map.of("games/", entry),
+                Map.of());
     }
 
     private Result guided(TopicsCli.Defaults defaults, String... args) {

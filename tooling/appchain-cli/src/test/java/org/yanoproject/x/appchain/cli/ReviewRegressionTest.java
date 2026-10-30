@@ -22,6 +22,38 @@ class ReviewRegressionTest {
     Path temporary;
 
     @Test
+    void anUnknownOrRemovedCommandSaysSoInsteadOfPrintingTheConfigUsage() throws Exception {
+        CeremonyFixture fixture = new CeremonyFixture(temporary);
+
+        CeremonyFixture.Result removed = fixture.run("init", "--help");
+        CeremonyFixture.Result unknown = fixture.run("frobnicate\u001b[2J");
+        CeremonyFixture.Result tool = fixture.run("recipes");
+
+        assertThat(removed.exit()).isEqualTo(CliException.USAGE);
+        assertThat(removed.err()).contains("'init' is not a yano.sh appchain command; use new")
+                .doesNotContain("config validate");
+        assertThat(unknown.exit()).isEqualTo(CliException.USAGE);
+        assertThat(unknown.err()).contains("'frobnicate??2J' is not a yano.sh appchain command.")
+                .doesNotContain("\u001b");
+        assertThat(tool.exit()).isZero();
+    }
+
+    @Test
+    void aScaffoldedPluginCompilesAgainstTheHostYanoVersionByDefault() throws Exception {
+        CeremonyFixture fixture = new CeremonyFixture(temporary);
+        Path chosen = temporary.resolve("chosen");
+
+        fixture.ok("plugin", "scaffold", "--mode", "state-machine", "--id", "shipment", "--package",
+                "com.example.shipment", "--output", temporary.resolve("default").toString());
+        fixture.ok("plugin", "scaffold", "--mode", "state-machine", "--id", "shipment", "--package",
+                "com.example.shipment", "--yano-version", "0.1.0-chosen", "--output", chosen.toString());
+
+        assertThat(Files.readString(temporary.resolve("default/build.gradle")))
+                .contains("org.yanoproject:yano-core-api:0.1.0-test");
+        assertThat(Files.readString(chosen.resolve("build.gradle"))).contains("yano-core-api:0.1.0-chosen");
+    }
+
+    @Test
     void aSealedFileWhoseSettingsDisagreeWithItsRosterIsRefused() throws Exception {
         CeremonyFixture fixture = sealed();
         String text = Files.readString(fixture.sealedFile("supply"));
@@ -74,9 +106,15 @@ class ReviewRegressionTest {
     @Test
     void aStrangerCardUnderAFoundingNameIsCaughtByTheOperatorItReplaced() throws Exception {
         CeremonyFixture fixture = sealed();
-        // The real bob's node directory exists; an attacker's node made a card for the sealed file under bob's name.
+        // The real bob's node directory exists; an attacker's node made a card under bob's name. A request for the
+        // sealed file under a sealed name is refused outright; one made from the draft is caught at join.
         CeremonyFixture attacker = new CeremonyFixture(temporary.resolve("attacker"));
-        attacker.card(fixture.sealedFile("supply"), "bob", 7);
+        var late = attacker.run("request", fixture.sealedFile("supply").toString(), "--name", "bob", "--host",
+                "bob.example", "--node-dir", attacker.node("bob").toString(), "--output",
+                attacker.coordinator.toString(), "--yes");
+        assertThat(late.exit()).isEqualTo(CliException.FAILURE);
+        assertThat(late.err()).contains("already lists bob");
+        attacker.card(fixture.draft("supply"), "bob", 7);
         var refused = attacker.run("join", fixture.sealedFile("supply").toString(), "--expect-fingerprint",
                 fixture.sealed("supply").displayFingerprint(), "--node-dir", attacker.node("bob").toString());
         assertThat(refused.exit()).isEqualTo(CliException.FAILURE);
