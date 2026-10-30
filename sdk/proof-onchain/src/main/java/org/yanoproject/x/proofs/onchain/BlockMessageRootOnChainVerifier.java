@@ -1,8 +1,8 @@
 package org.yanoproject.x.proofs.onchain;
 
-import com.bloxbean.cardano.julc.core.types.JulcList;
-import com.bloxbean.cardano.julc.stdlib.Builtins;
-import com.bloxbean.cardano.julc.stdlib.annotation.OnchainLibrary;
+import org.julclang.core.types.JulcList;
+import org.julclang.stdlib.Builtins;
+import org.julclang.stdlib.annotation.OnchainLibrary;
 
 import java.math.BigInteger;
 

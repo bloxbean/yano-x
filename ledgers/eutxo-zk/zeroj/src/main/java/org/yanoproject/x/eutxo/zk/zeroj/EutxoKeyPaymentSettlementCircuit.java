@@ -4,7 +4,7 @@ import org.yanoproject.x.eutxo.zk.contracts.EutxoKeyPaymentBatch;
 import org.yanoproject.x.eutxo.zk.contracts.EutxoZkBatchData;
 import org.yanoproject.x.eutxo.zk.contracts.EutxoZkProfile;
 import org.yanoproject.x.eutxo.zk.contracts.EutxoZkSettlementPublicInputs;
-import com.bloxbean.cardano.zeroj.circuit.CircuitBuilder;
+import org.zeroj.circuit.CircuitBuilder;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;

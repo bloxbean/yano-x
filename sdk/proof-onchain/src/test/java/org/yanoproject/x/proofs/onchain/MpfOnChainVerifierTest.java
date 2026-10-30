@@ -1,8 +1,10 @@
 package org.yanoproject.x.proofs.onchain;
 
 import com.bloxbean.cardano.client.crypto.Blake2bUtil;
-import com.bloxbean.cardano.julc.core.types.JulcList;
-import com.bloxbean.cardano.julc.testkit.ContractTest;
+import org.julclang.core.types.JulcList;
+import org.julclang.testkit.ContractTest;
+import org.julclang.testkit.JulcEval;
+import org.yanoproject.x.proofs.MpfNormalizedProof;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeAll;
 
@@ -29,6 +31,28 @@ class MpfOnChainVerifierTest extends ContractTest {
 
         assertThat(MpfOnChainVerifier.verifyInclusion(proof, root)).isTrue();
         assertThat(MpfOnChainVerifier.verifyInclusion(proof, filled(9))).isFalse();
+    }
+
+    /**
+     * Julc 0.1.0-pre16 silently dropped the conditional branch-value update in the fold loop (later versions reject
+     * that shape), so the script ignored a fold's {@code branchValueHash}: it accepted junk there and rejected a root
+     * that commits to it.
+     */
+    @Test
+    void compiledInclusionCommitsToABranchValueHash() {
+        MpfTestTrie trie = MpfTestTrie.of("member/", 48);
+        MpfNormalizedProof proof = trie.inclusion(MpfTestTrie.key("member/", 7));
+        int top = proof.folds().size() - 1;
+        byte[] branchValue = filled(0x77);
+        assertThat(MpfTestTrie.root(proof, -1, null)).isEqualTo(proof.stateRoot());
+        JulcEval eval = JulcEval.forClass(MpfOnChainVerifier.class);
+
+        assertThat(eval.call("verifyInclusion", MpfTestTrie.inclusionData(proof, -1, null),
+                proof.stateRoot()).asBoolean()).isTrue();
+        assertThat(eval.call("verifyInclusion", MpfTestTrie.inclusionData(proof, top, branchValue),
+                proof.stateRoot()).asBoolean()).isFalse();
+        assertThat(eval.call("verifyInclusion", MpfTestTrie.inclusionData(proof, top, branchValue),
+                MpfTestTrie.root(proof, top, branchValue)).asBoolean()).isTrue();
     }
 
     @Test

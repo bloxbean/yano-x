@@ -10,7 +10,7 @@ import com.bloxbean.cardano.client.transaction.spec.script.ScriptPubkey;
 import org.yanoproject.x.eutxo.contracts.EutxoProfile;
 import org.yanoproject.x.eutxo.zk.contracts.EutxoZkBatchProfile;
 import org.yanoproject.x.eutxo.zk.zeroj.ZerojPoseidonValidityProvider;
-import com.bloxbean.cardano.zeroj.circuit.lib.jubjub.EdDSAJubjub;
+import org.zeroj.circuit.lib.jubjub.EdDSAJubjub;
 
 import java.math.BigInteger;
 import java.util.HexFormat;

@@ -1,16 +1,16 @@
 package org.yanoproject.x.proofs.onchain;
 
-import com.bloxbean.cardano.julc.stdlib.Builtins;
-import com.bloxbean.cardano.julc.core.PlutusData;
-import com.bloxbean.cardano.julc.core.types.JulcList;
-import com.bloxbean.cardano.julc.ledger.ScriptContext;
-import com.bloxbean.cardano.julc.ledger.OutputDatum;
-import com.bloxbean.cardano.julc.ledger.TxInInfo;
-import com.bloxbean.cardano.julc.ledger.TxOut;
-import com.bloxbean.cardano.julc.stdlib.annotation.Entrypoint;
-import com.bloxbean.cardano.julc.stdlib.annotation.Param;
-import com.bloxbean.cardano.julc.stdlib.annotation.SpendingValidator;
-import com.bloxbean.cardano.julc.stdlib.lib.ValuesLib;
+import org.julclang.stdlib.Builtins;
+import org.julclang.core.PlutusData;
+import org.julclang.core.types.JulcList;
+import org.julclang.ledger.ScriptContext;
+import org.julclang.ledger.OutputDatum;
+import org.julclang.ledger.TxInInfo;
+import org.julclang.ledger.TxOut;
+import org.julclang.stdlib.annotation.Entrypoint;
+import org.julclang.stdlib.annotation.Param;
+import org.julclang.stdlib.annotation.SpendingValidator;
+import org.julclang.stdlib.lib.ValuesLib;
 
 import java.math.BigInteger;
 import java.util.Optional;
@@ -257,12 +257,12 @@ public final class AuthenticatedSnapshotOnChainVerifier {
                 valid = false;
                 break;
             }
-            byte[] merkle = aggregate(nibble, child, fold.neighbor1(), fold.neighbor2(),
+            byte[] branch = aggregate(nibble, child, fold.neighbor1(), fold.neighbor2(),
                     fold.neighbor3(), fold.neighbor4());
-            if (Builtins.lengthOfByteString(fold.branchValueHash()) == 32) {
-                merkle = hash(merkle, hash(Builtins.consByteString(
-                        255, Builtins.emptyByteString()), fold.branchValueHash()));
-            }
+            byte[] merkle = Builtins.lengthOfByteString(fold.branchValueHash()) == 32
+                    ? hash(branch, hash(Builtins.consByteString(
+                            255, Builtins.emptyByteString()), fold.branchValueHash()))
+                    : branch;
             child = hash(fold.prefix(), merkle);
             cursorEnd = cursor;
         }
@@ -314,12 +314,12 @@ public final class AuthenticatedSnapshotOnChainVerifier {
                 valid = false;
                 break;
             }
-            byte[] merkle = aggregate(nibble, child, fold.neighbor1(), fold.neighbor2(),
+            byte[] branch = aggregate(nibble, child, fold.neighbor1(), fold.neighbor2(),
                     fold.neighbor3(), fold.neighbor4());
-            if (Builtins.lengthOfByteString(fold.branchValueHash()) == 32) {
-                merkle = hash(merkle, hash(Builtins.consByteString(
-                        255, Builtins.emptyByteString()), fold.branchValueHash()));
-            }
+            byte[] merkle = Builtins.lengthOfByteString(fold.branchValueHash()) == 32
+                    ? hash(branch, hash(Builtins.consByteString(
+                            255, Builtins.emptyByteString()), fold.branchValueHash()))
+                    : branch;
             child = hash(fold.prefix(), merkle);
             cursorEnd = cursor;
         }

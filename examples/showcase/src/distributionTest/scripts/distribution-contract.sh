@@ -90,7 +90,7 @@ for node in 0 1 2; do
 done
 SETTLEMENT="$DATA/settlement/settlement.chain"
 jq -e '.genesis.chains[0].settings as $s
-  | $s["machines.eutxo.bridge.vault-address"] == "addr_test1wpwhmf5cd5pm9gsg5y8xnkyk3xue2u35ral098gd8u49g3gjpdqgr"
+  | $s["machines.eutxo.bridge.vault-address"] == "addr_test1wq5u4vuennj4u5dgzcmufwzv2n5ndkatw4w56mqth080qksmf27gw"
   and $s["machines.eutxo.bridge.withdrawal-address"] == "addr_test1vrf4896s3htkc8pzytgvvm07c2e489rtcg42f23zk5r2mjs8ge5ef"' \
   "$SETTLEMENT" >/dev/null
 # A plugin validator is used only from an allow-listed bundle; the seal lists every bundle the node has.

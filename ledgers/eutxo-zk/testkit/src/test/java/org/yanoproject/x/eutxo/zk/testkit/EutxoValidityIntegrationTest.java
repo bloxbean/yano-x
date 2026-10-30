@@ -31,8 +31,8 @@ import org.yanoproject.x.eutxo.zk.contracts.EutxoValidityWitness;
 import org.yanoproject.x.eutxo.zk.contracts.EutxoZkAuthorizationProfile;
 import org.yanoproject.x.eutxo.zk.contracts.EutxoZkProfile;
 import org.yanoproject.x.eutxo.zk.zeroj.ZerojPoseidonValidityProvider;
-import com.bloxbean.cardano.zeroj.circuit.lib.jubjub.EdDSAJubjub;
-import com.bloxbean.cardano.zeroj.circuit.lib.jubjub.JubjubCurve;
+import org.zeroj.circuit.lib.jubjub.EdDSAJubjub;
+import org.zeroj.circuit.lib.jubjub.JubjubCurve;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigInteger;
@@ -570,7 +570,7 @@ class EutxoValidityIntegrationTest {
                     domain, bodyCbor, List.of(unsigned));
             BigInteger message = new BigInteger(
                     1, template.signingCommitment()).mod(
-                    com.bloxbean.cardano.zeroj.circuit.lib.jubjub
+                    org.zeroj.circuit.lib.jubjub
                             .JubjubCurve.BASE_FIELD_PRIME);
             EdDSAJubjub.Signature signature =
                     EdDSAJubjub.sign(secret, message);

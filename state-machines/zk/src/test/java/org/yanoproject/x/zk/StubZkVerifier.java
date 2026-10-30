@@ -1,12 +1,12 @@
 package org.yanoproject.x.zk;
 
-import com.bloxbean.cardano.zeroj.api.CurveId;
-import com.bloxbean.cardano.zeroj.api.ProofSystemId;
-import com.bloxbean.cardano.zeroj.api.VerificationMaterial;
-import com.bloxbean.cardano.zeroj.api.VerificationResult;
-import com.bloxbean.cardano.zeroj.api.ZkProofEnvelope;
-import com.bloxbean.cardano.zeroj.backend.spi.BackendDescriptor;
-import com.bloxbean.cardano.zeroj.backend.spi.ZkVerifier;
+import org.zeroj.api.CurveId;
+import org.zeroj.api.ProofSystemId;
+import org.zeroj.api.VerificationMaterial;
+import org.zeroj.api.VerificationResult;
+import org.zeroj.api.ZkProofEnvelope;
+import org.zeroj.backend.spi.BackendDescriptor;
+import org.zeroj.backend.spi.ZkVerifier;
 
 import java.nio.charset.StandardCharsets;
 

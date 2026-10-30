@@ -13,7 +13,7 @@ dependencies {
     // self-contained, so carry the reviewed Jackson BOM into its own closure.
     implementation platform(libs.jackson.bom)
     api libs.zeroj.api
-    api libs.zeroj.verifier.core
+    api libs.zeroj.backend.spi
     api libs.zeroj.bbs                         // E7.2 BBS selective disclosure
     // Verifier backends are discovered via ServiceLoader at runtime; ship the
     // ones the deployment needs (or add zeroj-verifier-plonk).

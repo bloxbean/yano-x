@@ -1,17 +1,17 @@
 package org.yanoproject.x.eutxo.bridge.onchain;
 
-import com.bloxbean.cardano.julc.core.PlutusData;
-import com.bloxbean.cardano.julc.core.types.JulcList;
-import com.bloxbean.cardano.julc.ledger.OutputDatum;
-import com.bloxbean.cardano.julc.ledger.ScriptContext;
-import com.bloxbean.cardano.julc.ledger.TxInfo;
-import com.bloxbean.cardano.julc.ledger.TxOut;
-import com.bloxbean.cardano.julc.stdlib.Builtins;
-import com.bloxbean.cardano.julc.stdlib.annotation.Entrypoint;
-import com.bloxbean.cardano.julc.stdlib.annotation.Param;
-import com.bloxbean.cardano.julc.stdlib.annotation.SpendingValidator;
-import com.bloxbean.cardano.julc.stdlib.lib.ContextsLib;
-import com.bloxbean.cardano.julc.stdlib.lib.ValuesLib;
+import org.julclang.core.PlutusData;
+import org.julclang.core.types.JulcList;
+import org.julclang.ledger.OutputDatum;
+import org.julclang.ledger.ScriptContext;
+import org.julclang.ledger.TxInfo;
+import org.julclang.ledger.TxOut;
+import org.julclang.stdlib.Builtins;
+import org.julclang.stdlib.annotation.Entrypoint;
+import org.julclang.stdlib.annotation.Param;
+import org.julclang.stdlib.annotation.SpendingValidator;
+import org.julclang.stdlib.lib.ContextsLib;
+import org.julclang.stdlib.lib.ValuesLib;
 
 import java.math.BigInteger;
 
@@ -184,7 +184,7 @@ public final class FederatedRootValidator {
                     && generation.equals(current.generation())
                     && threshold.equals(current.threshold())
                     && Builtins.equalsByteString(
-                    membersDigest(members),
+                    membersDataDigest(members),
                     membersDigest(current.memberKeys()))
                     && height.compareTo(current.height()) > 0;
         }
@@ -224,7 +224,7 @@ public final class FederatedRootValidator {
                 && threshold.compareTo(count) <= 0;
     }
 
-    private static byte[] membersDigest(PlutusData members) {
+    private static byte[] membersDataDigest(PlutusData members) {
         byte[] encoded = Builtins.emptyByteString();
         PlutusData remaining = members;
         while (!Builtins.nullList(remaining)) {

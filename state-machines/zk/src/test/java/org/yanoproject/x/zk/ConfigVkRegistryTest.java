@@ -2,7 +2,7 @@ package org.yanoproject.x.zk;
 
 import com.bloxbean.cardano.client.crypto.Blake2bUtil;
 import com.bloxbean.cardano.yaci.core.util.HexUtil;
-import com.bloxbean.cardano.zeroj.api.VerificationKeyRef;
+import org.zeroj.api.VerificationKeyRef;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 

@@ -61,12 +61,12 @@ tasks.register('verifyEutxoZkDependencyPins') {
                         org.gradle.api.artifacts.component.ModuleComponentIdentifier) {
                     def id = component.id as
                             org.gradle.api.artifacts.component.ModuleComponentIdentifier
-                    if (id.group == 'com.bloxbean.cardano'
+                    if (id.group == 'org.zeroj'
                             && id.module.startsWith('zeroj-')
                             && id.version != expectedZeroj) {
                         violations.add("${moduleProject.path} -> ${id}")
                     }
-                    if (id.group == 'com.bloxbean.cardano'
+                    if (id.group == 'org.julclang'
                             && id.module.startsWith('julc-')
                             && id.version != expectedJulc) {
                         violations.add("${moduleProject.path} -> ${id}")

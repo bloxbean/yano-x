@@ -1,23 +1,32 @@
 package org.yanoproject.x.eutxo.bridge.onchain;
 
-import com.bloxbean.cardano.julc.core.PlutusData;
-import com.bloxbean.cardano.julc.core.Program;
-import com.bloxbean.cardano.julc.ledger.Address;
-import com.bloxbean.cardano.julc.ledger.Credential;
-import com.bloxbean.cardano.julc.ledger.OutputDatum;
-import com.bloxbean.cardano.julc.ledger.PolicyId;
-import com.bloxbean.cardano.julc.ledger.ScriptHash;
-import com.bloxbean.cardano.julc.ledger.TokenName;
-import com.bloxbean.cardano.julc.ledger.TxId;
-import com.bloxbean.cardano.julc.ledger.TxInInfo;
-import com.bloxbean.cardano.julc.ledger.TxOut;
-import com.bloxbean.cardano.julc.ledger.TxOutRef;
-import com.bloxbean.cardano.julc.ledger.Value;
-import com.bloxbean.cardano.julc.testkit.ContractTest;
+import com.bloxbean.cardano.client.plutus.spec.BytesPlutusData;
+import com.bloxbean.cardano.client.plutus.spec.ConstrPlutusData;
+import org.julclang.clientlib.PlutusDataAdapter;
+import org.julclang.core.PlutusData;
+import org.julclang.core.Program;
+import org.julclang.core.types.JulcList;
+import org.julclang.ledger.Address;
+import org.julclang.ledger.Credential;
+import org.julclang.ledger.OutputDatum;
+import org.julclang.ledger.PolicyId;
+import org.julclang.ledger.ScriptHash;
+import org.julclang.ledger.TokenName;
+import org.julclang.ledger.TxId;
+import org.julclang.ledger.TxInInfo;
+import org.julclang.ledger.TxOut;
+import org.julclang.ledger.TxOutRef;
+import org.julclang.ledger.Value;
+import org.julclang.stdlib.lib.CryptoLib;
+import org.julclang.testkit.ContractTest;
 import com.bloxbean.cardano.vds.core.api.NodeStore;
 import com.bloxbean.cardano.vds.mpf.MpfTrie;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.yanoproject.x.eutxo.bridge.onchain.mpf.MerklePatriciaForestry;
+import org.yanoproject.x.eutxo.bridge.onchain.mpf.Neighbor;
+import org.yanoproject.x.eutxo.bridge.onchain.mpf.ProofStep;
+import org.yanoproject.x.eutxo.client.NullifierShardMirror;
 
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
@@ -28,6 +37,8 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 
 /**
  * ADR-UTXO-009 SP-M2: nullifier shard — chained non-membership + insert
@@ -75,6 +86,122 @@ class NullifierShardConformanceTest extends ContractTest {
         assertFailure(evaluate(program(), context(2, false, true)));
     }
 
+    /**
+     * A shard's first settlement starts from the empty root (32 zero bytes). The proofs are the mirror's wire
+     * proofs, put in the redeemer the way QuickTxSettlePipeline does.
+     */
+    @Test
+    void emptyShardAcceptsFirstInserts() {
+        for (int n : new int[] {1, 4}) {
+            List<byte[]> ids = new ArrayList<>();
+            for (int i = 0; i < n; i++) {
+                ids.add(shardZeroClaimId(0x20 + i));
+            }
+            var plan = new NullifierShardMirror().planInserts(0, ids);
+            assertArrayEquals(NullifierShardMirror.emptyRoot(), plan.priorRoot());
+            assertSuccess(evaluate(program(),
+                    context(plan.priorRoot(), redeemerInserts(plan), plan.nextRoot(), false)));
+        }
+    }
+
+    /**
+     * A settled claim id must not settle again. Each forged proof rebuilds the running root as if the id were
+     * absent, so only miss()'s proof shape check rejects it. The next root is the one an unchecked walk computes,
+     * which a shard validator without the check accepts.
+     */
+    @Test
+    void forgedReinsertOfASettledIdFails() {
+        // One settled id: a Leaf step that rebuilds the id's own leaf.
+        byte[] settled = shardZeroClaimId(0x30);
+        var mirror = new NullifierShardMirror();
+        mirror.insert(settled);
+        byte[] path = CryptoLib.blake2b_256(settled);
+        byte[] ownLeaf = MerklePatriciaForestry.combine(
+                MerklePatriciaForestry.suffix(path, 1), CryptoLib.blake2b_256(settled));
+        assertForgedReinsertFails(mirror.root(0), settled,
+                new ProofStep.Leaf(0, path, CryptoLib.blake2b_256(settled)), ownLeaf);
+
+        // Two settled ids under one path nibble: a Fork whose neighbor is that branch, on the path's own nibble.
+        byte[] first = shardZeroClaimId(0x31);
+        byte[] firstPath = CryptoLib.blake2b_256(first);
+        byte[] second = null;
+        for (int fill = 0x32; second == null; fill++) {
+            byte[] candidate = CryptoLib.blake2b_256(shardZeroClaimId(fill));
+            if (MerklePatriciaForestry.nibble(candidate, 0) == MerklePatriciaForestry.nibble(firstPath, 0)
+                    && MerklePatriciaForestry.nibble(candidate, 1) != MerklePatriciaForestry.nibble(firstPath, 1)) {
+                second = shardZeroClaimId(fill);
+            }
+        }
+        var pair = new NullifierShardMirror();
+        pair.insert(first);
+        pair.insert(second);
+        byte[] secondPath = CryptoLib.blake2b_256(second);
+        byte[] children = MerklePatriciaForestry.sparseMerkle16(
+                MerklePatriciaForestry.nibble(firstPath, 1), leafAt(first, 2),
+                MerklePatriciaForestry.nibble(secondPath, 1), leafAt(second, 2));
+        assertForgedReinsertFails(pair.root(0), first,
+                new ProofStep.Fork(0, new Neighbor(MerklePatriciaForestry.nibble(firstPath, 0), new byte[0], children)),
+                MerklePatriciaForestry.combine(new byte[0], children));
+    }
+
+    /** The second copy of an id is checked against the root that already holds it. */
+    @Test
+    void sameIdTwiceInOneBatchFails() {
+        var mirror = new NullifierShardMirror();
+        for (int i = 0; i < 4; i++) {
+            mirror.insert(shardKey(0x10 + i));
+        }
+        var plan = mirror.planInserts(0, List.of(shardZeroClaimId(0x50)));
+        List<PlutusData> once = redeemerInserts(plan);
+        assertSuccess(evaluate(program(), context(plan.priorRoot(), once, plan.nextRoot(), false)));
+        assertFailure(evaluate(program(),
+                context(plan.priorRoot(), List.of(once.get(0), once.get(0)), plan.nextRoot(), false)));
+    }
+
+    private void assertForgedReinsertFails(
+            byte[] root, byte[] claimId, ProofStep forged, byte[] neighborHash) {
+        assertArrayEquals(root, MerklePatriciaForestry.excluding(claimId, JulcList.of(forged)));
+        // What doFork computes for the one forged step when it does not reject the neighbor's nibble.
+        int branch = MerklePatriciaForestry.nibble(CryptoLib.blake2b_256(claimId), 0);
+        byte[] nextRoot = MerklePatriciaForestry.combine(new byte[0],
+                MerklePatriciaForestry.sparseMerkle16(branch, leafAt(claimId, 1), branch, neighborHash));
+        PlutusData insert = PlutusData.constr(0, PlutusData.bytes(claimId), PlutusData.list(stepData(forged)));
+        assertFailure(evaluate(program(), context(root, List.of(insert), nextRoot, false)));
+    }
+
+    /** Hash of a claim id's leaf (the id is its own value) at the given cursor. */
+    private static byte[] leafAt(byte[] claimId, int cursor) {
+        return MerklePatriciaForestry.combine(
+                MerklePatriciaForestry.suffix(CryptoLib.blake2b_256(claimId), cursor),
+                CryptoLib.blake2b_256(claimId));
+    }
+
+    private static PlutusData stepData(ProofStep step) {
+        if (step instanceof ProofStep.Fork fork) {
+            Neighbor n = fork.neighbor();
+            return PlutusData.constr(1, PlutusData.integer(fork.skip()), PlutusData.constr(0,
+                    PlutusData.integer(n.nibble()), PlutusData.bytes(n.prefix()), PlutusData.bytes(n.root())));
+        }
+        ProofStep.Leaf leaf = (ProofStep.Leaf) step;
+        return PlutusData.constr(2, PlutusData.integer(leaf.skip()),
+                PlutusData.bytes(leaf.key()), PlutusData.bytes(leaf.value()));
+    }
+
+    /** Insert items exactly as QuickTxSettlePipeline builds them, converted to the testkit's Data. */
+    private static List<PlutusData> redeemerInserts(NullifierShardMirror.InsertPlan plan) {
+        List<PlutusData> items = new ArrayList<>();
+        try {
+            for (NullifierShardMirror.PlannedInsert insert : plan.inserts()) {
+                items.add(PlutusDataAdapter.fromClientLib(ConstrPlutusData.of(0,
+                        BytesPlutusData.of(insert.claimId()),
+                        com.bloxbean.cardano.client.plutus.spec.PlutusData.deserialize(insert.proofWire()))));
+            }
+        } catch (Exception failure) {
+            throw new IllegalStateException(failure);
+        }
+        return items;
+    }
+
     private PlutusData context(int inserts, boolean wrongNextRoot, boolean noVault) {
         MpfTrie trie = new MpfTrie(new MapNodeStore());
         // Seed the shard trie with some settled ids.
@@ -91,7 +218,11 @@ class NullifierShardConformanceTest extends ContractTest {
             trie.put(claimId, claimId);
         }
         byte[] finalRoot = wrongNextRoot ? filled(0x00, 32) : trie.getRootHash();
+        return context(currentRoot, insertItems, finalRoot, noVault);
+    }
 
+    private PlutusData context(
+            byte[] currentRoot, List<PlutusData> insertItems, byte[] finalRoot, boolean noVault) {
         PlutusData currentDatum = shardDatum(currentRoot);
         PlutusData nextDatum = shardDatum(finalRoot);
         Address shardAddress = scriptAddress(SHARD_SCRIPT);

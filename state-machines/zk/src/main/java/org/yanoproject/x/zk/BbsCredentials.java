@@ -1,12 +1,12 @@
 package org.yanoproject.x.zk;
 
-import com.bloxbean.cardano.zeroj.bbs.BbsCiphersuite;
-import com.bloxbean.cardano.zeroj.bbs.BbsKeyPair;
-import com.bloxbean.cardano.zeroj.bbs.BbsPresentation;
-import com.bloxbean.cardano.zeroj.bbs.BbsPresentationCodec;
-import com.bloxbean.cardano.zeroj.bbs.BbsPublicKey;
-import com.bloxbean.cardano.zeroj.bbs.BbsService;
-import com.bloxbean.cardano.zeroj.bbs.BbsSignature;
+import org.zeroj.bbs.BbsCiphersuite;
+import org.zeroj.bbs.BbsKeyPair;
+import org.zeroj.bbs.BbsPresentation;
+import org.zeroj.bbs.BbsPresentationCodec;
+import org.zeroj.bbs.BbsPublicKey;
+import org.zeroj.bbs.BbsService;
+import org.zeroj.bbs.BbsSignature;
 
 import java.util.List;
 

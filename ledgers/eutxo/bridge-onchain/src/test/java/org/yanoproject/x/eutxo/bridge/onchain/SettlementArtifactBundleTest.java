@@ -1,7 +1,7 @@
 package org.yanoproject.x.eutxo.bridge.onchain;
 
-import com.bloxbean.cardano.julc.clientlib.JulcScriptAdapter;
-import com.bloxbean.cardano.julc.testkit.ValidatorTest;
+import org.julclang.clientlib.JulcScriptAdapter;
+import org.julclang.testkit.ValidatorTest;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -31,7 +31,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * validator (root policy id/name).
  */
 class SettlementArtifactBundleTest
-        extends com.bloxbean.cardano.julc.testkit.ContractTest {
+        extends org.julclang.testkit.ContractTest {
     private static final Path RESOURCES =
             Path.of("src/main/resources/META-INF/plutus");
     private static final Pattern CBOR_HEX =

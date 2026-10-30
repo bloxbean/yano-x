@@ -2,11 +2,11 @@ package org.yanoproject.x.eutxo.zk.zeroj;
 
 import org.yanoproject.x.eutxo.zk.contracts.EutxoZkProfile;
 import org.yanoproject.x.eutxo.zk.contracts.EutxoZkPublicInputs;
-import com.bloxbean.cardano.zeroj.api.CurveId;
-import com.bloxbean.cardano.zeroj.circuit.CircuitBuilder;
-import com.bloxbean.cardano.zeroj.circuit.lib.Poseidon;
-import com.bloxbean.cardano.zeroj.circuit.lib.poseidon.PoseidonHash;
-import com.bloxbean.cardano.zeroj.circuit.lib.poseidon.PoseidonParamsBLS12_381T3;
+import org.zeroj.api.CurveId;
+import org.zeroj.circuit.CircuitBuilder;
+import org.zeroj.circuit.lib.Poseidon;
+import org.zeroj.circuit.lib.poseidon.PoseidonHash;
+import org.zeroj.circuit.lib.poseidon.PoseidonParamsBLS12_381T3;
 
 import java.math.BigInteger;
 import java.util.List;

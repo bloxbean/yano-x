@@ -2,7 +2,7 @@ package org.yanoproject.x.eutxo.zk.zeroj;
 
 import org.yanoproject.x.eutxo.zk.contracts.EutxoKeyPaymentBatch;
 import org.yanoproject.x.eutxo.zk.contracts.EutxoZkBatchData;
-import com.bloxbean.cardano.zeroj.api.CurveId;
+import org.zeroj.api.CurveId;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigInteger;
@@ -64,7 +64,7 @@ class EutxoZ6CircuitFuzzTest {
     }
 
     private static boolean satisfied(
-            List<com.bloxbean.cardano.zeroj.api.R1CSConstraint> constraints,
+            List<org.zeroj.api.R1CSConstraint> constraints,
             BigInteger[] witness,
             BigInteger field
     ) {

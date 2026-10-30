@@ -2,18 +2,18 @@ package org.yanoproject.x.eutxo.zk.zeroj;
 
 import org.yanoproject.x.eutxo.zk.contracts.EutxoZkPublicInputs;
 import org.yanoproject.x.eutxo.zk.contracts.EutxoZkSettlementPublicInputs;
-import com.bloxbean.cardano.zeroj.api.CurveId;
-import com.bloxbean.cardano.zeroj.api.R1CSConstraint;
-import com.bloxbean.cardano.zeroj.bls12381.ec.G1Point;
-import com.bloxbean.cardano.zeroj.bls12381.ec.G2Point;
-import com.bloxbean.cardano.zeroj.bls12381.field.Fp;
-import com.bloxbean.cardano.zeroj.bls12381.field.Fp2;
-import com.bloxbean.cardano.zeroj.bls12381.pairing.BLS12381Pairing;
-import com.bloxbean.cardano.zeroj.crypto.groth16.Groth16Keys;
-import com.bloxbean.cardano.zeroj.crypto.groth16.Groth16ProofBLS381;
-import com.bloxbean.cardano.zeroj.crypto.setup.PowersOfTauBLS381;
-import com.bloxbean.cardano.zeroj.onchain.julc.groth16.codec.ProverToCardano;
-import com.bloxbean.cardano.zeroj.onchain.julc.groth16.codec.SnarkjsToCardano;
+import org.zeroj.api.CurveId;
+import org.zeroj.api.R1CSConstraint;
+import org.zeroj.bls12381.ec.G1Point;
+import org.zeroj.bls12381.ec.G2Point;
+import org.zeroj.bls12381.field.Fp;
+import org.zeroj.bls12381.field.Fp2;
+import org.zeroj.bls12381.pairing.BLS12381Pairing;
+import org.zeroj.crypto.groth16.Groth16Keys;
+import org.zeroj.crypto.groth16.Groth16ProofBLS381;
+import org.zeroj.crypto.setup.PowersOfTauBLS381;
+import org.zeroj.onchain.julc.groth16.codec.ProverToCardano;
+import org.zeroj.onchain.julc.groth16.codec.SnarkjsToCardano;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -30,13 +30,13 @@ import java.util.Objects;
  * an externally generated ceremony bundle instead.</p>
  */
 public final class EutxoGroth16DevelopmentSetup implements AutoCloseable {
-    private final com.bloxbean.cardano.zeroj.circuit.r1cs.R1CSConstraintSystem r1cs;
+    private final org.zeroj.circuit.r1cs.R1CSConstraintSystem r1cs;
     private final List<R1CSConstraint> constraints;
     private final Groth16Keys keys;
     private final long setupMillis;
 
     private EutxoGroth16DevelopmentSetup(
-            com.bloxbean.cardano.zeroj.circuit.r1cs.R1CSConstraintSystem r1cs,
+            org.zeroj.circuit.r1cs.R1CSConstraintSystem r1cs,
             List<R1CSConstraint> constraints,
             Groth16Keys keys,
             long setupMillis
@@ -52,27 +52,27 @@ public final class EutxoGroth16DevelopmentSetup implements AutoCloseable {
     }
 
     static EutxoGroth16DevelopmentSetup create(
-            com.bloxbean.cardano.zeroj.circuit.CircuitBuilder circuit
+            org.zeroj.circuit.CircuitBuilder circuit
     ) {
         return create(circuit, null, false);
     }
 
     static EutxoGroth16DevelopmentSetup create(
-            com.bloxbean.cardano.zeroj.circuit.CircuitBuilder circuit,
+            org.zeroj.circuit.CircuitBuilder circuit,
             Path keyDirectory
     ) {
         return create(circuit, keyDirectory, false);
     }
 
     static EutxoGroth16DevelopmentSetup load(
-            com.bloxbean.cardano.zeroj.circuit.CircuitBuilder circuit,
+            org.zeroj.circuit.CircuitBuilder circuit,
             Path keyDirectory
     ) {
         return create(circuit, keyDirectory, true);
     }
 
     private static EutxoGroth16DevelopmentSetup create(
-            com.bloxbean.cardano.zeroj.circuit.CircuitBuilder circuit,
+            org.zeroj.circuit.CircuitBuilder circuit,
             Path keyDirectory,
             boolean loadOnly
     ) {
@@ -246,7 +246,7 @@ public final class EutxoGroth16DevelopmentSetup implements AutoCloseable {
     }
 
     private static G1Point toG1(
-            com.bloxbean.cardano.zeroj.bls12381.ec.JacobianG1BLS381.AffineG1 point
+            org.zeroj.bls12381.ec.JacobianG1BLS381.AffineG1 point
     ) {
         if (point.isInfinity()) {
             return G1Point.INFINITY;
@@ -255,7 +255,7 @@ public final class EutxoGroth16DevelopmentSetup implements AutoCloseable {
     }
 
     private static G2Point toG2(
-            com.bloxbean.cardano.zeroj.bls12381.ec.JacobianG2BLS381.AffineG2 point
+            org.zeroj.bls12381.ec.JacobianG2BLS381.AffineG2 point
     ) {
         if (point.isInfinity()) {
             return G2Point.INFINITY;

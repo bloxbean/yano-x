@@ -6,21 +6,21 @@ import com.bloxbean.cardano.client.transaction.spec.TransactionBody;
 import com.bloxbean.cardano.client.transaction.spec.TransactionInput;
 import com.bloxbean.cardano.client.transaction.spec.TransactionOutput;
 import com.bloxbean.cardano.client.transaction.spec.Value;
-import com.bloxbean.cardano.julc.core.PlutusData;
-import com.bloxbean.cardano.julc.clientlib.JulcScriptAdapter;
-import com.bloxbean.cardano.julc.clientlib.JulcScriptLoader;
-import com.bloxbean.cardano.julc.ledger.Address;
-import com.bloxbean.cardano.julc.ledger.Credential;
-import com.bloxbean.cardano.julc.ledger.OutputDatum;
-import com.bloxbean.cardano.julc.ledger.PolicyId;
-import com.bloxbean.cardano.julc.ledger.ScriptHash;
-import com.bloxbean.cardano.julc.ledger.TokenName;
-import com.bloxbean.cardano.julc.ledger.TxId;
-import com.bloxbean.cardano.julc.ledger.TxInInfo;
-import com.bloxbean.cardano.julc.ledger.TxOut;
-import com.bloxbean.cardano.julc.ledger.TxOutRef;
-import com.bloxbean.cardano.julc.testkit.ContractTest;
-import com.bloxbean.cardano.julc.testkit.TestDataBuilder;
+import org.julclang.core.PlutusData;
+import org.julclang.clientlib.JulcScriptAdapter;
+import org.julclang.clientlib.JulcScriptLoader;
+import org.julclang.ledger.Address;
+import org.julclang.ledger.Credential;
+import org.julclang.ledger.OutputDatum;
+import org.julclang.ledger.PolicyId;
+import org.julclang.ledger.ScriptHash;
+import org.julclang.ledger.TokenName;
+import org.julclang.ledger.TxId;
+import org.julclang.ledger.TxInInfo;
+import org.julclang.ledger.TxOut;
+import org.julclang.ledger.TxOutRef;
+import org.julclang.testkit.ContractTest;
+import org.julclang.testkit.TestDataBuilder;
 import org.yanoproject.x.eutxo.contracts.EutxoL2Authorization;
 import org.yanoproject.x.eutxo.contracts.EutxoL2Domain;
 import org.yanoproject.x.eutxo.contracts.EutxoL2Transaction;
@@ -31,9 +31,9 @@ import org.yanoproject.x.eutxo.zk.contracts.EutxoZkBatchProfile;
 import org.yanoproject.x.eutxo.zk.contracts.EutxoZkBatchSettlement;
 import org.yanoproject.x.eutxo.zk.contracts.EutxoZkProfile;
 import org.yanoproject.x.eutxo.zk.zeroj.EutxoJubjubBatchDevelopmentSetup;
-import com.bloxbean.cardano.zeroj.circuit.lib.jubjub.EdDSAJubjub;
-import com.bloxbean.cardano.zeroj.circuit.lib.jubjub.JubjubCurve;
-import com.bloxbean.cardano.zeroj.onchain.julc.groth16.validator.Groth16BLS12381Verifier;
+import org.zeroj.circuit.lib.jubjub.EdDSAJubjub;
+import org.zeroj.circuit.lib.jubjub.JubjubCurve;
+import org.zeroj.onchain.julc.groth16.validator.Groth16BLS12381Verifier;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -254,9 +254,9 @@ class EutxoJubjubBatchValidityRootTest extends ContractTest {
     ) {
         return new TxOut(
                 address,
-                com.bloxbean.cardano.julc.ledger.Value
+                org.julclang.ledger.Value
                         .lovelace(BigInteger.valueOf(2_000_000))
-                        .merge(com.bloxbean.cardano.julc.ledger.Value
+                        .merge(org.julclang.ledger.Value
                                 .singleton(
                                         new PolicyId(THREAD_POLICY),
                                         new TokenName(new byte[0]),
@@ -268,7 +268,7 @@ class EutxoJubjubBatchValidityRootTest extends ContractTest {
     private static TxOut dataOutput(byte[] manifest) {
         return new TxOut(
                 scriptAddress(DATA_SCRIPT),
-                com.bloxbean.cardano.julc.ledger.Value
+                org.julclang.ledger.Value
                         .lovelace(BigInteger.valueOf(2_000_000)),
                 new OutputDatum.OutputDatumInline(
                         PlutusData.bytes(manifest)),

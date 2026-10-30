@@ -11,7 +11,7 @@ dependencies {
     // only — validator classes are never loaded) + julc param application.
     implementation project(':ledgers:eutxo:bridge-onchain')
     implementation rootProject.ext.yanoModule('yano-appchain-anchor-onchain')
-    implementation "com.bloxbean.cardano:julc-cardano-client-lib:${libs.versions.julc.get()}"
+    implementation "org.julclang:julc-cardano-client-lib:${libs.versions.julc.get()}"
     implementation libs.cardano.client.backend.blockfrost
     implementation libs.cardano.client.quicktx
     implementation libs.cardano.client.core

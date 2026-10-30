@@ -73,7 +73,7 @@ final class SettlementProfileCompiler {
         return new Compiled(yaml, record.rootAddress(), record.vaultAddress());
     }
 
-    private static byte[] stateGenesisId(SettlementBootstrapPlan plan, String chainId) {
+    static byte[] stateGenesisId(SettlementBootstrapPlan plan, String chainId) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             digest.update("yano-showcase-settlement-state-genesis-v1\0"

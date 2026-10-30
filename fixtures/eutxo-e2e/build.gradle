@@ -18,15 +18,15 @@ dependencies {
     testImplementation libs.cardano.client.backend.blockfrost
     testImplementation libs.cardano.client.quicktx
     testImplementation libs.cardano.client.cip20
-    testImplementation "com.bloxbean.cardano:julc-stdlib:${libs.versions.julc.get()}"
-    testImplementation "com.bloxbean.cardano:julc-ledger-api:${libs.versions.julc.get()}"
-    testImplementation "com.bloxbean.cardano:julc-testkit:${libs.versions.julc.get()}"
-    testImplementation "com.bloxbean.cardano:julc-compiler:${libs.versions.julc.get()}"
+    testImplementation "org.julclang:julc-stdlib:${libs.versions.julc.get()}"
+    testImplementation "org.julclang:julc-ledger-api:${libs.versions.julc.get()}"
+    testImplementation "org.julclang:julc-testkit:${libs.versions.julc.get()}"
+    testImplementation "org.julclang:julc-compiler:${libs.versions.julc.get()}"
     testImplementation libs.julc.cardano.client.lib
     testImplementation libs.scalus.bloxbean.ccl
     testImplementation libs.scalus.cardano.ledger
     testImplementation libs.scala3.library
-    testRuntimeOnly "com.bloxbean.cardano:julc-vm-java:${libs.versions.julc.get()}"
+    testRuntimeOnly "org.julclang:julc-vm-java:${libs.versions.julc.get()}"
     testImplementation 'io.quarkus:quarkus-junit'
     testImplementation libs.junit.jupiter.api
     testRuntimeOnly libs.junit.jupiter.engine

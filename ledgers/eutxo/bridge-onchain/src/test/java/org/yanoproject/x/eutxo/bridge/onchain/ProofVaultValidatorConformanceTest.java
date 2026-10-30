@@ -1,6 +1,7 @@
 package org.yanoproject.x.eutxo.bridge.onchain;
 
 import com.bloxbean.cardano.client.crypto.Bech32;
+import com.bloxbean.cardano.client.crypto.Blake2bUtil;
 import com.bloxbean.cardano.vds.core.api.NodeStore;
 import com.bloxbean.cardano.vds.mpf.MpfTrie;
 import org.yanoproject.x.client.AppChainClient;
@@ -11,31 +12,33 @@ import org.yanoproject.x.eutxo.contracts.EutxoOutpoint;
 import org.yanoproject.x.eutxo.contracts.EutxoStateKeys;
 import org.yanoproject.x.eutxo.contracts.EutxoWithdrawalClaim;
 import org.yanoproject.x.eutxo.contracts.EutxoWithdrawalCommitment;
-import com.bloxbean.cardano.julc.core.PlutusData;
-import com.bloxbean.cardano.julc.core.Program;
-import com.bloxbean.cardano.julc.ledger.Address;
-import com.bloxbean.cardano.julc.ledger.Credential;
-import com.bloxbean.cardano.julc.ledger.OutputDatum;
-import com.bloxbean.cardano.julc.ledger.PolicyId;
-import com.bloxbean.cardano.julc.ledger.ScriptHash;
-import com.bloxbean.cardano.julc.ledger.TokenName;
-import com.bloxbean.cardano.julc.ledger.TxId;
-import com.bloxbean.cardano.julc.ledger.TxInInfo;
-import com.bloxbean.cardano.julc.ledger.TxOut;
-import com.bloxbean.cardano.julc.ledger.TxOutRef;
-import com.bloxbean.cardano.julc.ledger.Value;
-import com.bloxbean.cardano.julc.testkit.ContractTest;
+import org.julclang.core.PlutusData;
+import org.julclang.core.Program;
+import org.julclang.ledger.Address;
+import org.julclang.ledger.Credential;
+import org.julclang.ledger.OutputDatum;
+import org.julclang.ledger.PolicyId;
+import org.julclang.ledger.ScriptHash;
+import org.julclang.ledger.TokenName;
+import org.julclang.ledger.TxId;
+import org.julclang.ledger.TxInInfo;
+import org.julclang.ledger.TxOut;
+import org.julclang.ledger.TxOutRef;
+import org.julclang.ledger.Value;
+import org.julclang.testkit.ContractTest;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.UnaryOperator;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -127,6 +130,57 @@ class ProofVaultValidatorConformanceTest extends ContractTest {
                         fixture,
                         false, false, false, false,
                         false, true, false, false, false)));
+    }
+
+    /**
+     * A fold's 32-byte branch value hash is part of the committed root. Julc 0.1.0-pre16 silently dropped the
+     * conditional branch-value update in the compiled fold loop (later versions reject that shape), so the vault
+     * accepted junk in that field and rejected a root that commits to it.
+     */
+    @Test
+    void foldBranchValueHashIsCommittedToTheRoot() {
+        Fixture honest = fixture();
+        int top = honest.proof().folds().size() - 1;
+        byte[] branchValue = filled(0x77, 32);
+        assertThat(foldRoot(honest.proof(), honest.proof().folds())).isEqualTo(honest.proof().stateRoot());
+
+        Fixture junk = fixture(proof -> withBranchValue(proof, top, branchValue, false));
+        assertFailure(evaluate(program(), context(junk, false, false, false)));
+        Fixture committed = fixture(proof -> withBranchValue(proof, top, branchValue, true));
+        assertSuccess(evaluate(program(), context(committed, false, false, false)));
+    }
+
+    private static MpfNormalizedProof withBranchValue(
+            MpfNormalizedProof proof, int foldIndex, byte[] branchValue, boolean commitRoot) {
+        List<MpfNormalizedProof.FoldStep> folds = new ArrayList<>(proof.folds());
+        MpfNormalizedProof.FoldStep fold = folds.get(foldIndex);
+        folds.set(foldIndex, new MpfNormalizedProof.FoldStep(
+                fold.cursor(), fold.prefix(), fold.nibble(), fold.neighbors(), branchValue));
+        return new MpfNormalizedProof(commitRoot ? foldRoot(proof, folds) : proof.stateRoot(),
+                proof.key(), proof.value(), proof.leafSuffix(), folds, proof.committedHeight());
+    }
+
+    /** The mpf-blake2b256-v1 root of {@code proof}'s leaf under {@code folds}, branch values included. */
+    private static byte[] foldRoot(MpfNormalizedProof proof, List<MpfNormalizedProof.FoldStep> folds) {
+        byte[] child = hash(proof.leafSuffix(), Blake2bUtil.blake2bHash256(proof.value()));
+        for (MpfNormalizedProof.FoldStep fold : folds) {
+            byte[] merkle = child;
+            for (int level = 0; level < 4; level++) {
+                byte[] sibling = fold.neighbors().get(3 - level);
+                merkle = ((fold.nibble() >> level) & 1) == 0 ? hash(merkle, sibling) : hash(sibling, merkle);
+            }
+            if (fold.branchValueHash().length == 32) {
+                merkle = hash(merkle, hash(new byte[] {(byte) 0xff}, fold.branchValueHash()));
+            }
+            child = hash(fold.prefix(), merkle);
+        }
+        return child;
+    }
+
+    private static byte[] hash(byte[] left, byte[] right) {
+        byte[] joined = Arrays.copyOf(left, left.length + right.length);
+        System.arraycopy(right, 0, joined, left.length, right.length);
+        return Blake2bUtil.blake2bHash256(joined);
     }
 
     private Program program() {
@@ -283,6 +337,10 @@ class ProofVaultValidatorConformanceTest extends ContractTest {
     }
 
     private static Fixture fixture() {
+        return fixture(proof -> proof);
+    }
+
+    private static Fixture fixture(UnaryOperator<MpfNormalizedProof> adjust) {
         EutxoWithdrawalClaim claim = new EutxoWithdrawalClaim(
                 1,
                 "payments",
@@ -317,7 +375,9 @@ class ProofVaultValidatorConformanceTest extends ContractTest {
                 HexFormat.of().formatHex(value),
                 42L,
                 42L);
-        MpfNormalizedProof proof = MpfProofConverter.convert(wire);
+        MpfNormalizedProof converted = MpfProofConverter.convert(wire);
+        // The off-chain withdrawal envelope verifies its proof, so it keeps the unadjusted one.
+        MpfNormalizedProof proof = adjust.apply(converted);
         AppChainClient.Proof unrelatedWire = clientProof(
                 HexFormat.of().formatHex(unrelatedKey),
                 "payments",
@@ -331,7 +391,7 @@ class ProofVaultValidatorConformanceTest extends ContractTest {
                 MpfProofConverter.convert(unrelatedWire);
         org.yanoproject.x.eutxo.contracts.EutxoProofWithdrawal withdrawal =
                 new org.yanoproject.x.eutxo.contracts.EutxoProofWithdrawal(
-                        1, commitment, proof);
+                        1, commitment, converted);
         Address destination = destinationAddress();
         PlutusData claimData = PlutusData.constr(
                 3,

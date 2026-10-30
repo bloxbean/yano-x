@@ -10,8 +10,8 @@ import org.yanoproject.api.appchain.AppStateWriter;
 import org.yanoproject.api.appchain.FinalityCert;
 import org.yanoproject.api.appchain.effects.AppEffectEmitter;
 import org.yanoproject.api.appchain.transition.FinalizedMessageIndex;
-import com.bloxbean.cardano.zeroj.bbs.BbsKeyPair;
-import com.bloxbean.cardano.zeroj.verifier.core.VerifierRegistry;
+import org.zeroj.bbs.BbsKeyPair;
+import org.zeroj.verifier.core.VerifierRegistry;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 

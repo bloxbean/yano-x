@@ -1,8 +1,8 @@
 package org.yanoproject.x.proofs.onchain;
 
-import com.bloxbean.cardano.julc.core.types.JulcList;
-import com.bloxbean.cardano.julc.stdlib.Builtins;
-import com.bloxbean.cardano.julc.stdlib.annotation.OnchainLibrary;
+import org.julclang.core.types.JulcList;
+import org.julclang.stdlib.Builtins;
+import org.julclang.stdlib.annotation.OnchainLibrary;
 
 import java.math.BigInteger;
 
@@ -134,12 +134,12 @@ public final class MpfPairOnChainVerifier {
                 valid = false;
                 break;
             }
-            byte[] merkle = aggregate(nibble, child, fold.neighbor1(), fold.neighbor2(),
+            byte[] branch = aggregate(nibble, child, fold.neighbor1(), fold.neighbor2(),
                     fold.neighbor3(), fold.neighbor4());
-            if (Builtins.lengthOfByteString(fold.branchValueHash()) == 32) {
-                merkle = hash(merkle, hash(Builtins.consByteString(
-                        255, Builtins.emptyByteString()), fold.branchValueHash()));
-            }
+            byte[] merkle = Builtins.lengthOfByteString(fold.branchValueHash()) == 32
+                    ? hash(branch, hash(Builtins.consByteString(
+                            255, Builtins.emptyByteString()), fold.branchValueHash()))
+                    : branch;
             child = hash(fold.prefix(), merkle);
             cursorEnd = cursor;
         }
@@ -364,12 +364,12 @@ public final class MpfPairOnChainVerifier {
                 valid = false;
                 break;
             }
-            byte[] merkle = aggregate(nibble, child, fold.neighbor1(), fold.neighbor2(),
+            byte[] branch = aggregate(nibble, child, fold.neighbor1(), fold.neighbor2(),
                     fold.neighbor3(), fold.neighbor4());
-            if (Builtins.lengthOfByteString(fold.branchValueHash()) == 32) {
-                merkle = hash(merkle, hash(Builtins.consByteString(
-                        255, Builtins.emptyByteString()), fold.branchValueHash()));
-            }
+            byte[] merkle = Builtins.lengthOfByteString(fold.branchValueHash()) == 32
+                    ? hash(branch, hash(Builtins.consByteString(
+                            255, Builtins.emptyByteString()), fold.branchValueHash()))
+                    : branch;
             child = hash(fold.prefix(), merkle);
             cursorEnd = cursor;
         }

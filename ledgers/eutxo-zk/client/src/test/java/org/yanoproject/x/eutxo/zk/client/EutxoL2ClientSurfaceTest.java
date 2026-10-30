@@ -16,9 +16,9 @@ import org.yanoproject.x.eutxo.contracts.EutxoRecord;
 import org.yanoproject.x.eutxo.testkit.EutxoTestWallet;
 import org.yanoproject.x.eutxo.zk.contracts.EutxoZkAuthorizationProfile;
 import org.yanoproject.x.eutxo.zk.contracts.EutxoZkProfile;
-import com.bloxbean.cardano.zeroj.circuit.lib.jubjub.EdDSAJubjub;
-import com.bloxbean.cardano.zeroj.circuit.lib.jubjub.JubjubCurve;
-import com.bloxbean.cardano.zeroj.circuit.lib.jubjub.JubjubPoint;
+import org.zeroj.circuit.lib.jubjub.EdDSAJubjub;
+import org.zeroj.circuit.lib.jubjub.JubjubCurve;
+import org.zeroj.circuit.lib.jubjub.JubjubPoint;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigInteger;

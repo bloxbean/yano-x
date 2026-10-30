@@ -1,20 +1,21 @@
 package org.yanoproject.x.proofs.onchain;
 
-import com.bloxbean.cardano.julc.core.PlutusData;
-import com.bloxbean.cardano.julc.core.Program;
-import com.bloxbean.cardano.julc.core.cbor.PlutusDataCborEncoder;
-import com.bloxbean.cardano.julc.ledger.Address;
-import com.bloxbean.cardano.julc.ledger.Credential;
-import com.bloxbean.cardano.julc.ledger.OutputDatum;
-import com.bloxbean.cardano.julc.ledger.PolicyId;
-import com.bloxbean.cardano.julc.ledger.ScriptHash;
-import com.bloxbean.cardano.julc.ledger.TokenName;
-import com.bloxbean.cardano.julc.ledger.TxId;
-import com.bloxbean.cardano.julc.ledger.TxInInfo;
-import com.bloxbean.cardano.julc.ledger.TxOutRef;
-import com.bloxbean.cardano.julc.ledger.TxOut;
-import com.bloxbean.cardano.julc.ledger.Value;
-import com.bloxbean.cardano.julc.testkit.ContractTest;
+import com.bloxbean.cardano.client.crypto.Blake2bUtil;
+import org.julclang.core.PlutusData;
+import org.julclang.core.Program;
+import org.julclang.core.cbor.PlutusDataCborEncoder;
+import org.julclang.ledger.Address;
+import org.julclang.ledger.Credential;
+import org.julclang.ledger.OutputDatum;
+import org.julclang.ledger.PolicyId;
+import org.julclang.ledger.ScriptHash;
+import org.julclang.ledger.TokenName;
+import org.julclang.ledger.TxId;
+import org.julclang.ledger.TxInInfo;
+import org.julclang.ledger.TxOutRef;
+import org.julclang.ledger.TxOut;
+import org.julclang.ledger.Value;
+import org.julclang.testkit.ContractTest;
 import com.bloxbean.cardano.vds.core.api.NodeStore;
 import com.bloxbean.cardano.vds.mpf.MpfTrie;
 import org.yanoproject.x.client.AppChainClient;
@@ -143,6 +144,29 @@ class MpfPairOnChainVerifierTest extends ContractTest {
             assertSuccess(result);
             assertBudgetUnder(result, MAX_TX_CPU, MAX_TX_MEM);
         }
+    }
+
+    /**
+     * Julc before 0.1.0-pre17 discarded the {@code return false} guards of {@code verifyAbsence}, so the compiled
+     * validator accepted a present key's own leaf as the conflicting leaf of an absence proof.
+     */
+    @Test
+    void rejectsAnAbsenceClaimForAPresentKey() {
+        Fixture fixture = fixture();
+        MpfNormalizedProof fact = fixture.fact();
+        PlutusData ownLeafAsConflict = MpfTestTrie.absenceData(fact.key(), fact.leafSuffix(), fact.folds(),
+                MpfTestTrie.leafCursor(fact.leafSuffix()), Blake2bUtil.blake2bHash256(fact.key()),
+                Blake2bUtil.blake2bHash256(fact.value()));
+        PlutusData redeemer = PlutusData.constr(0, ownLeafAsConflict, proofData(fixture.complete()),
+                PlutusData.bytes(fixture.factKey()), PlutusData.bytes(fixture.completeKey()),
+                PlutusData.integer(4), PlutusData.integer(0), PlutusData.bytes(new byte[0]));
+        var result = evaluate(program(), spendingContext(
+                        new TxOutRef(new TxId(filled(0x79, 32)), BigInteger.ZERO), PlutusData.UNIT)
+                .redeemer(redeemer)
+                .referenceInput(anchorInput(fixture.root()))
+                .buildPlutusData());
+
+        assertFailure(result);
     }
 
     @Test

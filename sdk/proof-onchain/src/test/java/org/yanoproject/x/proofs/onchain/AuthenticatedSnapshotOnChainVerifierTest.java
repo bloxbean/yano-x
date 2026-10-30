@@ -1,22 +1,22 @@
 package org.yanoproject.x.proofs.onchain;
 
 import com.bloxbean.cardano.client.crypto.Blake2bUtil;
-import com.bloxbean.cardano.julc.core.types.JulcList;
-import com.bloxbean.cardano.julc.core.PlutusData;
-import com.bloxbean.cardano.julc.core.Program;
-import com.bloxbean.cardano.julc.core.cbor.PlutusDataCborEncoder;
-import com.bloxbean.cardano.julc.ledger.Address;
-import com.bloxbean.cardano.julc.ledger.Credential;
-import com.bloxbean.cardano.julc.ledger.OutputDatum;
-import com.bloxbean.cardano.julc.ledger.PolicyId;
-import com.bloxbean.cardano.julc.ledger.ScriptHash;
-import com.bloxbean.cardano.julc.ledger.TokenName;
-import com.bloxbean.cardano.julc.ledger.TxId;
-import com.bloxbean.cardano.julc.ledger.TxInInfo;
-import com.bloxbean.cardano.julc.ledger.TxOut;
-import com.bloxbean.cardano.julc.ledger.TxOutRef;
-import com.bloxbean.cardano.julc.ledger.Value;
-import com.bloxbean.cardano.julc.testkit.ContractTest;
+import org.julclang.core.types.JulcList;
+import org.julclang.core.PlutusData;
+import org.julclang.core.Program;
+import org.julclang.core.cbor.PlutusDataCborEncoder;
+import org.julclang.ledger.Address;
+import org.julclang.ledger.Credential;
+import org.julclang.ledger.OutputDatum;
+import org.julclang.ledger.PolicyId;
+import org.julclang.ledger.ScriptHash;
+import org.julclang.ledger.TokenName;
+import org.julclang.ledger.TxId;
+import org.julclang.ledger.TxInInfo;
+import org.julclang.ledger.TxOut;
+import org.julclang.ledger.TxOutRef;
+import org.julclang.ledger.Value;
+import org.julclang.testkit.ContractTest;
 import org.yanoproject.api.appchain.snapshot.AuthenticatedSnapshotSeriesDescriptorV1;
 import org.yanoproject.api.appchain.snapshot.SnapshotCanonicalCodec;
 import org.yanoproject.api.appchain.snapshot.SnapshotDescriptorV1;
@@ -121,6 +121,25 @@ class AuthenticatedSnapshotOnChainVerifierTest extends ContractTest {
                 spendingContext(new TxOutRef(new TxId(filled(0x66, 32)), BigInteger.ZERO),
                         PlutusData.UNIT).redeemer(nestedData(fixture))
                         .referenceInput(anchorInput(fixture.primary().root())).buildPlutusData()));
+    }
+
+    /**
+     * Julc before 0.1.0-pre17 discarded the {@code return false} guards of {@code verifyAbsence}, so the compiled
+     * validator accepted the fact's own leaf as the conflicting leaf that proves the fact key absent.
+     */
+    @Test
+    void rejectsAnAbsenceClaimForAPresentKey() {
+        Fixture fixture = fixture();
+        var fact = fixture.fact().proof();
+        PlutusData ownLeafAsConflict = PlutusData.constr(0, PlutusData.bytes(fact.key()),
+                PlutusData.bytes(new byte[0]), PlutusData.bytes(fact.leafSuffix()), PlutusData.list(),
+                PlutusData.integer(0), PlutusData.bytes(Blake2bUtil.blake2bHash256(fact.key())),
+                PlutusData.bytes(Blake2bUtil.blake2bHash256(fact.value())));
+        assertFailure(evaluate(program(BigInteger.valueOf(4), BigInteger.ZERO, new byte[0]),
+                spendingContext(new TxOutRef(new TxId(filled(0x67, 32)), BigInteger.ZERO), PlutusData.UNIT)
+                        .redeemer(PlutusData.constr(0, proofData(fixture.primary().proof()), ownLeafAsConflict))
+                        .referenceInput(anchorInput(fixture.primary().root()))
+                        .buildPlutusData()));
     }
 
     private void assertRejected(Fixture fixture) {
