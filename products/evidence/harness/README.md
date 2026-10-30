@@ -46,6 +46,16 @@ These defaults avoid Linux's default automatic client-port range. On Linux the
 test reads the actual `ip_local_port_range` and rejects overlapping listener
 overrides; it does not modify sysctls or terminate processes occupying a port.
 The usual `YANO_ROLE_WORKFLOW_*` overrides remain available for other free ports.
+The workflow-replay E2E applies the same guard with HTTP 26070–26072, app peers
+26337–26339, UI 26080, connector/observability ports 27000, 27001, 27030, 27090
+and 27092, and connector subnet 172.30.116.0/24 (`YANO_WORKFLOW_REPLAY_*`
+overrides). Neither collides with the effect-failover E2E, so the three
+scenarios can share one Docker host. On a host that already has many Docker
+networks, Compose may auto-assign `172.30.0.0/16` to another project network
+and the connector network then fails with "Pool overlaps"; pick a subnet
+outside Docker's default pools, such as `10.213.116.0/24`, with
+`YANO_WORKFLOW_REPLAY_SUBNET` and the matching `_S3_IP`, `_KUBO_IP` and
+`_KAFKA_IP` overrides.
 
 Prerequisites are JDK 25, Docker with Compose v2, `curl`, `jq`, `openssl`, and
 Python 3. In an extracted Yano X JVM distribution, run from
@@ -504,9 +514,9 @@ explicit health checks, and writable mounts/tmpfs only where required.
 
 CI runs the release gates in two workflows. `build.yml`'s `release-acceptance`
 job requires the JVM build, the distribution check and the real connector fault
-matrix. The fenced devnet and role workflow E2E gates run
-in `evidence-e2e.yml`, and `tag-release.yml` tags a release only on a commit
-where that workflow passed.
+matrix. The fenced devnet, workflow replay and role workflow E2E gates run as
+three parallel jobs in `evidence-e2e.yml`, and `tag-release.yml` tags a release
+only on a commit where that workflow passed.
 
 ## Persistence
 
@@ -698,6 +708,7 @@ Run the static deployment checks without starting services:
 ./tests/key-material-test.sh
 ./tests/secret-file-test.sh
 ./tests/anchor-funding-test.sh
+./tests/workflow-replay-contract.sh
 ```
 
 Run the release-only connector and ownership gates explicitly:
@@ -710,6 +721,14 @@ Run the release-only connector and ownership gates explicitly:
 # Three-node post-ack crash and fenced executor handoff/requeue. This always
 # creates and removes its own temporary roots, ports, and Compose project.
 YANO_RUN_EFFECT_FAILOVER_E2E=true ./tests/effect-failover-e2e.sh
+
+# One evidence id through the whole Compose stack: first run, immediate replay,
+# retained stop/up restart and post-restart replay, with effect ownership,
+# executor activity, plugin inventory, metrics and the UI's latest report.
+# Defaults to the composite machine with direct continuation; select others with
+# YANO_WORKFLOW_REPLAY_MACHINE (standalone, composite, role) and
+# YANO_WORKFLOW_REPLAY_CONTINUATION_MODE (explicit, direct).
+YANO_RUN_WORKFLOW_REPLAY_E2E=true ./tests/workflow-replay-e2e.sh
 
 # Role governance, actor-signed release, rotation/revocation, current-pointer
 # proof material, and one-member retained restart/catch-up.

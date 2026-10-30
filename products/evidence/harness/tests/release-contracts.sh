@@ -18,7 +18,8 @@ for test in \
   lifecycle-tool-test.sh \
   operation-lock-test.sh \
   rustfs-iam-spec-test.sh \
-  secret-file-test.sh
+  secret-file-test.sh \
+  workflow-replay-contract.sh
 do
   bash "$SCRIPT_DIR/$test"
 done

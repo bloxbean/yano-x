@@ -1367,6 +1367,25 @@ compose_node_config() {
   rm -f "$base"
 }
 
+# A devnet anchor's validity in slots. Yano's default (7200) reaches past the fast
+# devnet's forecast horizon of 3k/f slots, where the ledger cannot translate a script
+# anchor's validity interval (TimeTranslationPastHorizon) and rejects the bootstrap.
+# Stay inside it, capped at about a minute of the stock 0.2-second devnet, as the
+# setup CLI does for devnet chains.
+devnet_anchor_validity_slots() {
+  python3 - "$APP_DIR/config/network/devnet/shelley-genesis.json" <<'PY'
+from decimal import Decimal, ROUND_FLOOR
+import json, sys
+genesis = json.load(open(sys.argv[1], encoding="utf-8"))
+k = genesis.get("securityParam")
+f = Decimal(str(genesis.get("activeSlotsCoeff")))
+if not isinstance(k, int) or k < 1 or not Decimal(0) < f <= Decimal(1):
+    raise SystemExit(1)
+horizon = int((Decimal(3 * k) / f).to_integral_value(rounding=ROUND_FLOOR))
+print(max(1, min(299, horizon - 1)))
+PY
+}
+
 append_devnet_producer_settings() {
   local output="$1"
   [ "$DEMO_NETWORK" = devnet ] || return 0
@@ -1375,7 +1394,7 @@ append_devnet_producer_settings() {
 }
 
 prepare_compose_configs() {
-  local executor follower node0extra anchor_key
+  local executor follower node0extra anchor_key anchor_validity
   validate_target_id compose-S3-target-id "$COMPOSE_S3_TARGET_ID"
   validate_target_id compose-IPFS-target-id "$COMPOSE_IPFS_TARGET_ID"
   validate_target_id compose-Kafka-target-id "$COMPOSE_KAFKA_TARGET_ID"
@@ -1394,6 +1413,11 @@ prepare_compose_configs() {
   append_devnet_producer_settings "$node0extra"
   if [ "$ANCHOR_ENABLED" = true ]; then
     anchor_key="$ANCHOR_KEY_VALUE"
+    anchor_validity=""
+    if [ "$DEMO_NETWORK" = devnet ]; then
+      anchor_validity="$(devnet_anchor_validity_slots)" \
+        || die "the devnet genesis has no usable securityParam/activeSlotsCoeff"
+    fi
     {
       printf '%s\n' 'yano.app-chain.chains[0].anchor.enabled=true'
       printf '%s\n' 'yano.app-chain.chains[0].anchor.mode=script'
@@ -1403,6 +1427,9 @@ prepare_compose_configs() {
       printf 'yano.app-chain.chains[0].anchor.every-blocks=%s\n' "$PROFILE_ANCHOR_EVERY_BLOCKS"
       printf 'yano.app-chain.chains[0].anchor.max-interval-minutes=%s\n' \
         "$PROFILE_ANCHOR_MAX_INTERVAL_MINUTES"
+      if [ -n "$anchor_validity" ]; then
+        printf 'yano.app-chain.chains[0].anchor.validity-slots=%s\n' "$anchor_validity"
+      fi
     } >> "$node0extra"
   fi
   if [ "$PROFILE_L1_MODE" = producer ]; then
