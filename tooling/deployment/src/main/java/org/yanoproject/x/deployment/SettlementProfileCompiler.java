@@ -54,7 +54,8 @@ final class SettlementProfileCompiler {
                         document.settlementChainId(), 0, Networks.testnet(),
                         ShowcaseSettlementPlan.ROOT_TOKEN.getBytes(StandardCharsets.UTF_8),
                         members, document.threshold(), 0,
-                        EutxoProfile.V3.fallbackDelayMinSlots()));
+                        EutxoProfile.V3.fallbackDelayMinSlots(),
+                        SettlementBootstrapPlan.PUBLIC_SLOT_LENGTH_MILLIS));
         if (!record.vaultAddress().equals(plan.vaultAddress())
                 || !record.shardAddress().equals(plan.shardAddress())
                 || !record.rootAddress().equals(plan.rootAddress())) {

@@ -53,6 +53,9 @@ class EutxoSettlementBootstrapDevnetE2ETest extends BaseE2ETest {
     private Account payout;
     private SettlementBootstrapPlan plan;
     private String rootUnit;
+    private SettlementBootstrapPlan exitPlan;
+    private PlutusData exitedClaimOne;
+    private List<byte[]> exitedIds;
 
     @Override
     protected int getAccountBaseIndex() {
@@ -99,7 +102,8 @@ class EutxoSettlementBootstrapDevnetE2ETest extends BaseE2ETest {
                                         memberTwo.publicKeyBytes())),
                         2,
                         0,
-                        86_400));
+                        86_400,
+                        SettlementBootstrapPlan.DEVNET_SLOT_LENGTH_MILLIS));
         log.info("settlement bootstrap: vault={} shard={} root={}",
                 plan.vaultAddress(), plan.shardAddress(), plan.rootAddress());
 
@@ -366,7 +370,7 @@ class EutxoSettlementBootstrapDevnetE2ETest extends BaseE2ETest {
                         Amount.lovelace(BigInteger.valueOf(5_000_000L)))
                 .from(operator.enterpriseAddress()));
         checkIfUtxoAvailable(seedTx, operator.enterpriseAddress());
-        SettlementBootstrapPlan exitPlan = SettlementBootstrapPlan.plan(
+        exitPlan = SettlementBootstrapPlan.plan(
                 new EutxoOutpoint(seedTx, 0),
                 new EutxoOutpoint(seedTx, 1),
                 new SettlementBootstrapPlan.Config(
@@ -377,7 +381,8 @@ class EutxoSettlementBootstrapDevnetE2ETest extends BaseE2ETest {
                                         memberOne.publicKeyBytes()),
                                 HexFormat.of().formatHex(
                                         memberTwo.publicKeyBytes())),
-                        2, 0, 86_400, stateRoot));
+                        2, 0, 86_400,
+                        SettlementBootstrapPlan.DEVNET_SLOT_LENGTH_MILLIS, stateRoot));
         bootstrapIdentity(exitPlan, seedTx);
 
         // --- the permissionless exit tx ----------------------------------
@@ -395,6 +400,8 @@ class EutxoSettlementBootstrapDevnetE2ETest extends BaseE2ETest {
                 com.bloxbean.cardano.client.plutus.spec.ConstrPlutusData.of(1,
                         com.bloxbean.cardano.client.plutus.spec.ListPlutusData
                                 .of(exits.toArray(new PlutusData[0])));
+        exitedClaimOne = exits.getFirst();
+        exitedIds = List.of(claimOne, claimTwo);
 
         org.yanoproject.x.eutxo.client.NullifierShardMirror
                 mirror = new org.yanoproject.x.eutxo.client
@@ -483,6 +490,92 @@ class EutxoSettlementBootstrapDevnetE2ETest extends BaseE2ETest {
         assertEquals(2, paid, "both positional exit payouts landed");
         log.info("A3 exit E2E complete: {} (stateRoot {})", exitTxId,
                 HexFormat.of().formatHex(stateRoot));
+    }
+
+    /**
+     * ADR-UTXO-009 §13.3, live: once claim one has exited, a cranker cannot exit it AGAIN by pairing the vault spend
+     * with a shard insert of some fresh id. The claim's inclusion proof under the unchanged state root is still valid
+     * and the fresh id's non-membership proof is honest, so before the vault bound inserts to the paid claims this
+     * transaction re-paid claim one.
+     */
+    @Test
+    @org.junit.jupiter.api.Order(4)
+    void exitCannotRepayAClaimByNullifyingAnotherId() throws Exception {
+        assertNotNull(exitPlan, "the A3 exit step must run first");
+        byte[] fresh = new byte[32];
+        java.util.Arrays.fill(fresh, (byte) 0x75);
+        fresh[31] = 0x50;
+        org.yanoproject.x.eutxo.client.NullifierShardMirror mirror =
+                new org.yanoproject.x.eutxo.client.NullifierShardMirror();
+        mirror.planInserts(0, exitedIds);
+        var insertPlan = mirror.planInserts(0, List.of(fresh));
+        PlutusData shardRedeemer = com.bloxbean.cardano.client.plutus.spec.ConstrPlutusData.of(0,
+                com.bloxbean.cardano.client.plutus.spec.ListPlutusData.of(
+                        com.bloxbean.cardano.client.plutus.spec.ConstrPlutusData.of(0,
+                                com.bloxbean.cardano.client.plutus.spec.BytesPlutusData.of(fresh),
+                                PlutusData.deserialize(insertPlan.inserts().getFirst().proofWire()))));
+        PlutusData vaultRedeemer = com.bloxbean.cardano.client.plutus.spec.ConstrPlutusData.of(1,
+                com.bloxbean.cardano.client.plutus.spec.ListPlutusData.of(exitedClaimOne));
+
+        Utxo vaultUtxo = utxoSupplier.getAll(exitPlan.vaultAddress()).getFirst();
+        String shardUnit = exitPlan.shardThreadPolicyIdHex() + "00";
+        Utxo shardUtxo = utxoSupplier.getAll(exitPlan.shardAddress()).stream()
+                .filter(utxo -> utxo.getAmount().stream().anyMatch(
+                        amount -> shardUnit.equals(amount.getUnit())))
+                .findFirst().orElseThrow();
+        Utxo rootUtxo = utxoSupplier.getAll(exitPlan.rootAddress()).getFirst();
+        BigInteger payoutOne = BigInteger.valueOf(2_500_000L);
+        BigInteger bounty = BigInteger.valueOf(1_000_000L);
+        BigInteger remainder = vaultUtxo.getAmount().getFirst().getQuantity()
+                .subtract(payoutOne).subtract(bounty);
+        org.yanoproject.x.eutxo.contracts.EutxoBatchSettlementMarker marker =
+                new org.yanoproject.x.eutxo.contracts.EutxoBatchSettlementMarker(1,
+                        List.of(HexFormat.of().formatHex(exitedIds.getFirst())));
+        EutxoShardDatum shardDatum = EutxoShardDatum.decode(HexFormat.of().parseHex(shardUtxo.getInlineDatum()));
+
+        long tipSlot = backendService.getBlockService().getLatestBlock().getValue().getSlot();
+        ScriptTx repay = new ScriptTx()
+                .collectFrom(vaultUtxo, vaultRedeemer)
+                .collectFrom(shardUtxo, shardRedeemer)
+                .readFrom(rootUtxo)
+                .payToAddress(payout.enterpriseAddress(), Amount.lovelace(payoutOne))
+                .payToContract(exitPlan.vaultAddress(),
+                        List.of(Amount.lovelace(remainder)),
+                        PlutusData.deserialize(marker.encode()))
+                .payToContract(exitPlan.shardAddress(),
+                        List.of(Amount.lovelace(BigInteger.valueOf(THREAD_LOVELACE)),
+                                new Amount(shardUnit, BigInteger.ONE)),
+                        PlutusData.deserialize(shardDatum.withRoot(insertPlan.nextRoot()).encode()))
+                .attachSpendingValidator(exitPlan.vaultScript())
+                .attachSpendingValidator(exitPlan.shardScript());
+        // The shard half is honest: the fresh id's non-membership proof is against the live shard root, so the
+        // shard validator accepts its insert and only the vault can reject the spend. Against the vault before the
+        // binding this exact transaction was accepted and paid claim one a second time.
+        org.junit.jupiter.api.Assertions.assertArrayEquals(
+                shardDatum.nullifierRoot(), insertPlan.priorRoot(), "mirror matches the on-chain shard root");
+        String rejection;
+        try {
+            Result<String> result = quickTxBuilder.compose(repay)
+                    .feePayer(operator.enterpriseAddress())
+                    .validFrom(Math.max(1, tipSlot - 30))
+                    .withSigner(SignerProviders.signerFrom(operator))
+                    .complete();
+            assertTrue(!result.isSuccessful(), "a re-pay exit paired with an unrelated insert must be rejected");
+            rejection = String.valueOf(result.getResponse());
+        } catch (com.bloxbean.cardano.client.function.exception.TxBuildException rejected) {
+            StringBuilder chain = new StringBuilder();
+            for (Throwable cause = rejected; cause != null; cause = cause.getCause()) {
+                chain.append(cause.getMessage()).append(" | ");
+            }
+            rejection = chain.toString();
+        }
+        assertTrue(rejection.contains("Script evaluation failed"),
+                "the re-pay exit must fail phase-2 script evaluation, not for another reason: " + rejection);
+        assertTrue(utxoSupplier.getAll(exitPlan.vaultAddress()).stream()
+                        .anyMatch(utxo -> utxo.getTxHash().equals(vaultUtxo.getTxHash())
+                                && utxo.getOutputIndex() == vaultUtxo.getOutputIndex()),
+                "the vault output stays unspent");
+        log.info("re-pay exit rejected: {}", rejection);
     }
 
     /** Bootstrap one settlement identity (mints + genesis outputs). */

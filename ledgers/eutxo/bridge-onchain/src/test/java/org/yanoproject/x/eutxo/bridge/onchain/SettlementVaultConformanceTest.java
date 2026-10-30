@@ -11,6 +11,7 @@ import org.julclang.ledger.IntervalBoundType;
 import org.julclang.ledger.OutputDatum;
 import org.julclang.ledger.PolicyId;
 import org.julclang.ledger.PubKeyHash;
+import org.julclang.ledger.ScriptPurpose;
 import org.julclang.ledger.ScriptHash;
 import org.julclang.ledger.TokenName;
 import org.julclang.ledger.TxId;
@@ -55,7 +56,8 @@ class SettlementVaultConformanceTest extends ContractTest {
     private static final byte[] KEY_PREFIX = new byte[] {0x01, 0x03};
     private static final BigInteger EPOCH = BigInteger.valueOf(7);
     private static final BigInteger THRESHOLD = BigInteger.valueOf(2);
-    private static final long FALLBACK_DELAY = 86_400L;
+    /** POSIX milliseconds, as the bootstrap writes it: 86,400 one-second slots. */
+    private static final long FALLBACK_DELAY_MILLIS = 86_400_000L;
     private static Program program;
     private static final List<byte[]> MEMBER_KEYS = sortedMembers();
 
@@ -124,6 +126,57 @@ class SettlementVaultConformanceTest extends ContractTest {
     }
 
     /**
+     * The shard must insert exactly the paid claim ids, in claim order. Before this check the vault only required
+     * some shard input, so an Exit could pay a claim again while the shard inserted an unrelated fresh id, and any
+     * spend could nullify claims it never paid.
+     */
+    @Test
+    void shardInsertsMustBeThePaidClaims() {
+        Batch batch = batch(2);
+        byte[] first = batch.claims().get(0).claimId;
+        byte[] second = batch.claims().get(1).claimId;
+        byte[] unrelated = filled(0x7a, 32);
+        unrelated[31] = 0;
+        long armed = batch.updatedAtMillis + FALLBACK_DELAY_MILLIS + 10;
+
+        assertSuccess(evaluate(program(), signed(shardVariant(batch, 0, armed, List.of(first, second), 1, true))));
+        assertSuccess(evaluate(program(), shardVariant(batch, 1, armed, List.of(first, second), 1, true)
+                .buildPlutusData()));
+
+        for (int mode : new int[] {0, 1}) {
+            List<List<byte[]>> wrong = List.of(
+                    List.of(first, unrelated),
+                    List.of(unrelated, unrelated),
+                    List.of(second, first),
+                    List.of(first),
+                    List.of(first, second, unrelated),
+                    List.of());
+            for (List<byte[]> inserted : wrong) {
+                var builder = shardVariant(batch, mode, armed, inserted, 1, true);
+                assertFailure(evaluate(program(), mode == 0 ? signed(builder) : builder.buildPlutusData()));
+            }
+            // A second shard input could nullify unpaid claims of its own shard. It inserts a real id, and it comes
+            // both before and after the paired shard, so the guard is tested whichever input is found first.
+            for (int extraShards : new int[] {2, -2}) {
+                var twoShards = shardVariant(batch, mode, armed, List.of(first, second), extraShards, true);
+                assertFailure(evaluate(program(), mode == 0 ? signed(twoShards) : twoShards.buildPlutusData()));
+            }
+            // The shard input has no spend redeemer to read.
+            var noRedeemer = shardVariant(batch, mode, armed, List.of(first, second), 1, false);
+            assertFailure(evaluate(program(), mode == 0 ? signed(noRedeemer) : noRedeemer.buildPlutusData()));
+        }
+    }
+
+    /** The Exit delay is POSIX milliseconds: one millisecond short of the delay stays closed. */
+    @Test
+    void exitArmsOnlyAfterTheDelayInMilliseconds() {
+        Batch batch = batch(1);
+        long boundary = batch.updatedAtMillis + FALLBACK_DELAY_MILLIS;
+        assertFailure(evaluate(program(), baseBuilder(batch, 1, false, boundary).buildPlutusData()));
+        assertSuccess(evaluate(program(), baseBuilder(batch, 1, false, boundary + 1).buildPlutusData()));
+    }
+
+    /**
      * The vault counts each federation key once and requires the root's keys strictly ascending. Julc before
      * 0.1.0-pre17 discarded the sortedness {@code return} in {@code countSigners}, so a root datum listing one key
      * twice let that key alone meet a threshold of two.
@@ -150,12 +203,19 @@ class SettlementVaultConformanceTest extends ContractTest {
     private PlutusData settleContext(
             Batch batch, boolean signed, boolean skim) {
         var builder = baseBuilder(batch, 0, skim, 0L);
-        if (signed) {
-            for (byte[] key : MEMBER_KEYS) {
-                builder.signer(new PubKeyHash(Blake2bUtil.blake2bHash224(key)));
-            }
+        return signed ? signed(builder) : builder.buildPlutusData();
+    }
+
+    private static PlutusData signed(org.julclang.testkit.ScriptContextTestBuilder builder) {
+        for (byte[] key : MEMBER_KEYS) {
+            builder.signer(new PubKeyHash(Blake2bUtil.blake2bHash224(key)));
         }
         return builder.buildPlutusData();
+    }
+
+    private org.julclang.testkit.ScriptContextTestBuilder shardVariant(
+            Batch batch, int mode, long now, List<byte[]> inserted, int shardInputs, boolean withRedeemer) {
+        return baseBuilder(batch, mode, false, now, false, false, inserted, shardInputs, withRedeemer);
     }
 
     private PlutusData tokenlessShardContext(Batch batch) {
@@ -167,13 +227,13 @@ class SettlementVaultConformanceTest extends ContractTest {
     }
 
     private PlutusData exitContext(Batch batch, boolean armed) {
-        long now = armed ? batch.updatedAtSlot + FALLBACK_DELAY + 10
-                : batch.updatedAtSlot + 10;
+        long now = armed ? batch.updatedAtMillis + FALLBACK_DELAY_MILLIS + 10
+                : batch.updatedAtMillis + 10;
         return baseBuilder(batch, 1, false, now).buildPlutusData();
     }
 
     private PlutusData exitReorderedContext(Batch batch) {
-        long now = batch.updatedAtSlot + FALLBACK_DELAY + 10;
+        long now = batch.updatedAtMillis + FALLBACK_DELAY_MILLIS + 10;
         return baseBuilder(batch, 1, false, now, true).buildPlutusData();
     }
 
@@ -190,6 +250,13 @@ class SettlementVaultConformanceTest extends ContractTest {
     private org.julclang.testkit.ScriptContextTestBuilder baseBuilder(
             Batch batch, int mode, boolean skim, long now, boolean reorderPayouts,
             boolean tokenlessShard) {
+        List<byte[]> ids = batch.claims().stream().map(Claim::claimId).toList();
+        return baseBuilder(batch, mode, skim, now, reorderPayouts, tokenlessShard, ids, 1, true);
+    }
+
+    private org.julclang.testkit.ScriptContextTestBuilder baseBuilder(
+            Batch batch, int mode, boolean skim, long now, boolean reorderPayouts,
+            boolean tokenlessShard, List<byte[]> insertedIds, int shardInputs, boolean withShardRedeemer) {
         Address vaultAddress = scriptAddress(VAULT_SCRIPT);
         Address rootAddress = scriptAddress(ROOT_SCRIPT);
         Address shardAddress = scriptAddress(SHARD_SCRIPT);
@@ -201,27 +268,53 @@ class SettlementVaultConformanceTest extends ContractTest {
                 ? PlutusData.constr(0, PlutusData.list(batch.settleClaims()))
                 : PlutusData.constr(1, PlutusData.list(batch.exitClaims()));
 
-        var builder = spendingContext(vaultRef, PlutusData.UNIT)
-                .redeemer(redeemer)
-                .fee(BigInteger.valueOf(300_000))
-                .input(new TxInInfo(vaultRef, new TxOut(
+        List<TxInInfo> paired = List.of(
+                new TxInInfo(vaultRef, new TxOut(
                         vaultAddress, Value.lovelace(batch.vaultInput),
                         new OutputDatum.OutputDatumInline(PlutusData.UNIT),
-                        Optional.empty())))
-                .input(new TxInInfo(shardRef, new TxOut(
+                        Optional.empty())),
+                new TxInInfo(shardRef, new TxOut(
                         shardAddress,
                         tokenlessShard
                                 ? Value.lovelace(BigInteger.valueOf(2_000_000))
                                 : threadedValue(BigInteger.valueOf(2_000_000),
                                 SHARD_POLICY, new byte[] {0x00}),
                         new OutputDatum.OutputDatumInline(PlutusData.UNIT),
-                        Optional.empty())))
+                        Optional.empty())));
+        var builder = spendingContext(vaultRef, PlutusData.UNIT)
+                .redeemer(redeemer)
+                .fee(BigInteger.valueOf(300_000))
+                .redeemerEntry(new ScriptPurpose.Spending(vaultRef), redeemer)
                 .referenceInput(new TxInInfo(rootRef, new TxOut(
                         rootAddress,
                         threadedValue(BigInteger.valueOf(2_000_000), ROOT_POLICY,
                                 new byte[0]),
                         new OutputDatum.OutputDatumInline(batch.rootDatum()),
                         Optional.empty())));
+
+        if (withShardRedeemer) {
+            builder.redeemerEntry(new ScriptPurpose.Spending(shardRef), shardInsertBatch(insertedIds));
+        }
+        // shardInputs < 0 adds the extra shards ahead of the paired one in input order.
+        List<TxInInfo> extras = new ArrayList<>();
+        for (int extra = 1; extra < Math.abs(shardInputs); extra++) {
+            TxOutRef extraRef = new TxOutRef(
+                    new TxId(filled(shardInputs < 0 ? 0x5f : 0x63, 32)), BigInteger.valueOf(extra));
+            extras.add(new TxInInfo(extraRef, new TxOut(
+                    shardAddress,
+                    threadedValue(BigInteger.valueOf(2_000_000), SHARD_POLICY, new byte[] {(byte) extra}),
+                    new OutputDatum.OutputDatumInline(PlutusData.UNIT),
+                    Optional.empty())));
+            // An unpaid claim id of the extra shard's own nibble.
+            byte[] unpaid = filled(0x90 + extra, 32);
+            unpaid[31] = (byte) extra;
+            builder.redeemerEntry(new ScriptPurpose.Spending(extraRef), shardInsertBatch(List.of(unpaid)));
+        }
+        List<TxInInfo> inputs = new ArrayList<>(paired);
+        inputs.addAll(shardInputs < 0 ? 0 : inputs.size(), extras);
+        for (TxInInfo input : inputs) {
+            builder.input(input);
+        }
 
         List<TxOut> payouts = new ArrayList<>(batch.payoutOutputs());
         if (reorderPayouts && payouts.size() >= 2) {
@@ -246,6 +339,15 @@ class SettlementVaultConformanceTest extends ContractTest {
                             BigInteger.valueOf(now + 1_000)), true)));
         }
         return builder;
+    }
+
+    /** NullifierShardValidator's InsertBatch{[Insert{claimId, proof}]}; the vault reads only the ids. */
+    private static PlutusData shardInsertBatch(List<byte[]> claimIds) {
+        List<PlutusData> inserts = new ArrayList<>();
+        for (byte[] claimId : claimIds) {
+            inserts.add(PlutusData.constr(0, PlutusData.bytes(claimId), PlutusData.list()));
+        }
+        return PlutusData.constr(0, PlutusData.list(inserts.toArray(new PlutusData[0])));
     }
 
     private Batch batch(int claimCount) {
@@ -334,11 +436,11 @@ class SettlementVaultConformanceTest extends ContractTest {
 
     private record Batch(
             List<Claim> claims, BigInteger total, BigInteger vaultInput,
-            byte[] stateRoot, long updatedAtSlot,
+            byte[] stateRoot, long updatedAtMillis,
             PlutusData[] settleClaims, PlutusData[] exitClaims,
             List<TxOut> payoutOutputs, byte[] joinedIds, List<byte[]> members) {
         Batch withMembers(List<byte[]> replacement) {
-            return new Batch(claims, total, vaultInput, stateRoot, updatedAtSlot, settleClaims, exitClaims,
+            return new Batch(claims, total, vaultInput, stateRoot, updatedAtMillis, settleClaims, exitClaims,
                     payoutOutputs, joinedIds, replacement);
         }
 
@@ -356,8 +458,8 @@ class SettlementVaultConformanceTest extends ContractTest {
                     PlutusData.list(keys.toArray(new PlutusData[0])),
                     PlutusData.integer(THRESHOLD),
                     PlutusData.integer(1),
-                    PlutusData.integer(updatedAtSlot),
-                    PlutusData.integer(FALLBACK_DELAY));
+                    PlutusData.integer(updatedAtMillis),
+                    PlutusData.integer(FALLBACK_DELAY_MILLIS));
         }
 
         PlutusData marker() {

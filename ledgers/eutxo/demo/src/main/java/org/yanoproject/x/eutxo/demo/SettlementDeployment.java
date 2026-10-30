@@ -148,7 +148,8 @@ public final class SettlementDeployment {
                         ShowcaseSettlementPlan.ROOT_TOKEN
                                 .getBytes(StandardCharsets.UTF_8),
                         List.copyOf(members), threshold, 0,
-                        EutxoProfile.V3.fallbackDelayMinSlots()));
+                        EutxoProfile.V3.fallbackDelayMinSlots(),
+                        SettlementBootstrapPlan.PUBLIC_SLOT_LENGTH_MILLIS));
 
         SettlementDeploymentRecord record = new SettlementDeploymentRecord(
                 chainId, network, plan.profile().id(), rootSeed, shardSeed,

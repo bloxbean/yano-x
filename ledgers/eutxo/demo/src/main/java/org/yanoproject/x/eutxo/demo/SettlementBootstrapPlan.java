@@ -58,6 +58,10 @@ public record SettlementBootstrapPlan(
     /** The v2 claim digest domain (matches EutxoWithdrawalCommitment). */
     public static final byte[] DEFAULT_CLAIM_DOMAIN =
             "yano-eutxo-withdrawal-v2".getBytes(StandardCharsets.US_ASCII);
+    /** The Shelley slot length on mainnet, preprod and preview. */
+    public static final long PUBLIC_SLOT_LENGTH_MILLIS = 1_000L;
+    /** The Shelley slot length of the packaged Yano devnet (0.2 s). */
+    public static final long DEVNET_SLOT_LENGTH_MILLIS = 200L;
 
     public record Config(
             String chainId,
@@ -66,8 +70,9 @@ public record SettlementBootstrapPlan(
             byte[] rootThreadAssetName,
             List<String> memberKeysHex,
             int threshold,
-            long updatedAtSlot,
+            long updatedAtMillis,
             long fallbackDelaySlots,
+            long slotLengthMillis,
             byte[] initialStateRoot,
             EutxoProfile profile
     ) {
@@ -75,32 +80,33 @@ public record SettlementBootstrapPlan(
         public Config(
                 String chainId, long bridgeEpoch, Network network,
                 byte[] rootThreadAssetName, List<String> memberKeysHex,
-                int threshold, long updatedAtSlot, long fallbackDelaySlots) {
+                int threshold, long updatedAtMillis, long fallbackDelaySlots,
+                long slotLengthMillis) {
             this(chainId, bridgeEpoch, network, rootThreadAssetName,
-                    memberKeysHex, threshold, updatedAtSlot,
-                    fallbackDelaySlots, new byte[32], EutxoProfile.V3);
+                    memberKeysHex, threshold, updatedAtMillis,
+                    fallbackDelaySlots, slotLengthMillis, new byte[32], EutxoProfile.V3);
         }
 
         /** Explicit accepted state root, on the PRODUCTION v3 profile. */
         public Config(
                 String chainId, long bridgeEpoch, Network network,
                 byte[] rootThreadAssetName, List<String> memberKeysHex,
-                int threshold, long updatedAtSlot, long fallbackDelaySlots,
-                byte[] initialStateRoot) {
+                int threshold, long updatedAtMillis, long fallbackDelaySlots,
+                long slotLengthMillis, byte[] initialStateRoot) {
             this(chainId, bridgeEpoch, network, rootThreadAssetName,
-                    memberKeysHex, threshold, updatedAtSlot,
-                    fallbackDelaySlots, initialStateRoot, EutxoProfile.V3);
+                    memberKeysHex, threshold, updatedAtMillis,
+                    fallbackDelaySlots, slotLengthMillis, initialStateRoot, EutxoProfile.V3);
         }
 
         /** Genesis with an empty state root on an explicit profile. */
         public Config(
                 String chainId, long bridgeEpoch, Network network,
                 byte[] rootThreadAssetName, List<String> memberKeysHex,
-                int threshold, long updatedAtSlot, long fallbackDelaySlots,
-                EutxoProfile profile) {
+                int threshold, long updatedAtMillis, long fallbackDelaySlots,
+                long slotLengthMillis, EutxoProfile profile) {
             this(chainId, bridgeEpoch, network, rootThreadAssetName,
-                    memberKeysHex, threshold, updatedAtSlot,
-                    fallbackDelaySlots, new byte[32], profile);
+                    memberKeysHex, threshold, updatedAtMillis,
+                    fallbackDelaySlots, slotLengthMillis, new byte[32], profile);
         }
 
         public Config {
@@ -141,9 +147,13 @@ public record SettlementBootstrapPlan(
                 throw new IllegalArgumentException(
                         "threshold must be 1..members");
             }
-            if (updatedAtSlot < 0) {
+            if (updatedAtMillis < 0) {
                 throw new IllegalArgumentException(
-                        "updatedAtSlot cannot be negative");
+                        "updatedAtMillis cannot be negative");
+            }
+            if (slotLengthMillis < 1 || slotLengthMillis > 60_000) {
+                throw new IllegalArgumentException(
+                        "slot length must be 1-60000 milliseconds");
             }
             profile = Objects.requireNonNull(profile, "profile");
             if (!profile.settlement()) {
@@ -163,6 +173,15 @@ public record SettlementBootstrapPlan(
                 throw new IllegalArgumentException(
                         "initial state root must be 32 bytes");
             }
+        }
+
+        /**
+         * The fallback delay the root datum carries. The vault compares it with
+         * the validity range, which a script sees in POSIX milliseconds, so the
+         * governed slot count is converted with the network's slot length.
+         */
+        public long fallbackDelayMillis() {
+            return Math.multiplyExact(fallbackDelaySlots, slotLengthMillis);
         }
     }
 
@@ -232,8 +251,8 @@ public record SettlementBootstrapPlan(
     /**
      * The genesis RootDatum the root thread is bootstrapped with —
      * {@code Constr0[1, chainId, bridgeEpoch, height=0, stateRoot=32 zero
-     * bytes, memberKeys(sorted), threshold, generation=0, updatedAtSlot,
-     * fallbackDelaySlots]}, the exact on-chain
+     * bytes, memberKeys(sorted), threshold, generation=0, updatedAtMillis,
+     * fallbackDelayMillis]}, the exact on-chain
      * {@code SettlementRootValidator.RootDatum} shape.
      */
     static byte[] genesisRootDatum(Config config) {
@@ -255,8 +274,8 @@ public record SettlementBootstrapPlan(
                                             .spec.PlutusData[0])),
                             BigIntPlutusData.of(config.threshold()),
                             BigIntPlutusData.of(0),
-                            BigIntPlutusData.of(config.updatedAtSlot()),
-                            BigIntPlutusData.of(config.fallbackDelaySlots()))
+                            BigIntPlutusData.of(config.updatedAtMillis()),
+                            BigIntPlutusData.of(config.fallbackDelayMillis()))
                     .serializeToBytes();
         } catch (Exception failure) {
             throw new IllegalStateException(

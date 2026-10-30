@@ -19,14 +19,16 @@ import java.math.BigInteger;
 /**
  * ADR-UTXO-009 accepted-root thread (§7.1): the federation-threshold root of
  * the L2 state, consumed by the settlement vault as a REFERENCE input. On
- * top of the legacy federated root it records {@code updatedAtSlot} —
+ * top of the legacy federated root it records {@code updatedAtMillis} —
  * honestly bound to the transaction validity range — and the governed
- * {@code fallbackDelaySlots} that arms the permissionless Exit path once
- * the thread goes stale.
+ * {@code fallbackDelayMillis} that arms the permissionless Exit path once
+ * the thread goes stale. Both are POSIX milliseconds, the unit of the
+ * validity range a script sees; the bootstrap converts the governed delay
+ * from L1 slots with the network's slot length.
  *
  * <p>Datum: Constr0[version=1, chainId, bridgeEpoch, height, stateRoot,
- * memberKeys(sorted), threshold, generation, updatedAtSlot,
- * fallbackDelaySlots]. Redeemer: 0 = advance (profile preserved),
+ * memberKeys(sorted), threshold, generation, updatedAtMillis,
+ * fallbackDelayMillis]. Redeemer: 0 = advance (profile preserved),
  * 1 = migrate (epoch+1, generation+1; members/threshold/delay may change).
  */
 @SpendingValidator
@@ -46,8 +48,8 @@ public final class SettlementRootValidator {
             JulcList<byte[]> memberKeys,
             BigInteger threshold,
             BigInteger generation,
-            BigInteger updatedAtSlot,
-            BigInteger fallbackDelaySlots
+            BigInteger updatedAtMillis,
+            BigInteger fallbackDelayMillis
     ) {
     }
 
@@ -69,8 +71,8 @@ public final class SettlementRootValidator {
                 current.height(),
                 current.stateRoot(),
                 current.generation(),
-                current.updatedAtSlot(),
-                current.fallbackDelaySlots())
+                current.updatedAtMillis(),
+                current.fallbackDelayMillis())
                 || !currentValidAndSigned(
                 context.txInfo(),
                 current.memberKeys(),
@@ -102,8 +104,8 @@ public final class SettlementRootValidator {
             BigInteger height,
             byte[] stateRoot,
             BigInteger generation,
-            BigInteger updatedAtSlot,
-            BigInteger fallbackDelaySlots
+            BigInteger updatedAtMillis,
+            BigInteger fallbackDelayMillis
     ) {
         long chainLength = Builtins.lengthOfByteString(chainId);
         return version.equals(BigInteger.ONE)
@@ -112,8 +114,8 @@ public final class SettlementRootValidator {
                 && height.signum() >= 0
                 && Builtins.lengthOfByteString(stateRoot) == 32
                 && generation.signum() >= 0
-                && updatedAtSlot.signum() >= 0
-                && fallbackDelaySlots.signum() > 0;
+                && updatedAtMillis.signum() >= 0
+                && fallbackDelayMillis.signum() > 0;
     }
 
     static boolean currentValidAndSigned(
@@ -194,7 +196,7 @@ public final class SettlementRootValidator {
         BigInteger generation =
                 Builtins.unIData(Builtins.headList(f7));
         PlutusData f8 = Builtins.tailList(f7);
-        BigInteger updatedAtSlot =
+        BigInteger updatedAtMillis =
                 Builtins.unIData(Builtins.headList(f8));
         PlutusData f9 = Builtins.tailList(f8);
         BigInteger fallbackDelay =
@@ -204,21 +206,21 @@ public final class SettlementRootValidator {
                 || !Builtins.nullList(trailing)
                 || !baseProfileValid(
                 version, chainId, epoch, height,
-                stateRoot, generation, updatedAtSlot, fallbackDelay)
+                stateRoot, generation, updatedAtMillis, fallbackDelay)
                 || !memberProfileValid(members, threshold)
                 || !Builtins.equalsByteString(
                 chainId, current.chainId())
-                // The recorded slot is honestly bound to the validity range
+                // The recorded time is honestly bound to the validity range
                 // and never regresses.
-                || !updatedAtSlot.equals(validityUpperBound)
-                || updatedAtSlot.compareTo(current.updatedAtSlot()) < 0) {
+                || !updatedAtMillis.equals(validityUpperBound)
+                || updatedAtMillis.compareTo(current.updatedAtMillis()) < 0) {
             return false;
         }
         if (action.signum() == 0) {
             return epoch.equals(current.bridgeEpoch())
                     && generation.equals(current.generation())
                     && threshold.equals(current.threshold())
-                    && fallbackDelay.equals(current.fallbackDelaySlots())
+                    && fallbackDelay.equals(current.fallbackDelayMillis())
                     && Builtins.equalsByteString(
                     membersDataDigest(members),
                     membersDigest(current.memberKeys()))

@@ -125,7 +125,9 @@ public final class ShowcaseSettlementPlan {
                             CHAIN_ID, 0, Networks.testnet(),
                             ROOT_TOKEN.getBytes(StandardCharsets.UTF_8),
                             CLUSTER_MEMBERS, THRESHOLD, 0,
-                            FALLBACK_DELAY_SLOTS, EutxoProfile.V3_DEVNET));
+                            FALLBACK_DELAY_SLOTS,
+                            SettlementBootstrapPlan.DEVNET_SLOT_LENGTH_MILLIS,
+                            EutxoProfile.V3_DEVNET));
 
     private ShowcaseSettlementPlan() {
     }

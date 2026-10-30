@@ -1,6 +1,7 @@
 # ADR-UTXO-009: Claim Settlement Process and Vault Spend Conditions
 
-- Status: Implemented (2026-08-07) — all milestones SP-M1..SP-M6 complete; see §12
+- Status: Implemented (2026-08-07) — all milestones SP-M1..SP-M6 complete; see §12.
+  Amended 2026-10-30: claim binding, Exit time units, and the Settle trust model (§13.3)
 - Version: v1
 - Date: 2026-08-05
 - Owners: App-chain / EUTxO / Bridge
@@ -200,7 +201,8 @@ except WHO authorizes the spend.
 ### 7.1 Shared machinery
 
 - **Accepted-root thread** (`FederatedRootValidator`): one UTxO holding
-  `{height, stateRoot, memberSetHash, membershipEpoch, updatedAtSlot}`.
+  `{height, stateRoot, memberSetHash, membershipEpoch, updatedAtMillis}`
+  (POSIX milliseconds, §13.3).
   Updates require the L2 membership threshold signature; membership
   rotation is honored via the governed epoch already tracked on-chain.
   Exits consume it as a REFERENCE INPUT — reference inputs do not consume
@@ -256,12 +258,17 @@ for every claim id, batch size ≤ the profile's hard cap.
 
 **The signer is NOT today's single operator wallet.** The settle path
 demands the federation threshold (member-set keys verified against the
-root thread's memberSetHash). Compromise analysis under V1: stolen keys —
-even a full quorum — can only produce valid settlements of real pending
-claims to their committed addresses; the script forbids redirection, so
-key compromise buys CENSORSHIP at worst, and censorship arms A3 after
-fallbackDelay. Keys degrade from custody to liveness; a compromised fee
-wallet loses only its float.
+root thread's memberSetHash). Compromise analysis under V1 (corrected
+2026-10-30, §13.3): the Settle script checks the threshold, positional
+payouts, conservation and the paired nullifier inserts, but NOT that each
+claim is committed under the accepted state root. A threshold quorum is
+therefore trusted for custody: it can sign a settlement paying any
+destination. Checking claims against the state root would not change that,
+because the same threshold signs every root update and could first post a
+root containing the claims it wants. What the script does guarantee is that
+no claim is paid twice and that a sub-threshold minority, a stolen fee
+wallet, or a cranker cannot move funds outside the committed claims; a
+compromised fee wallet loses only its float.
 
 **Execution via the effect system (proposed, replacing an external
 scheduler).** The batch trigger (N pending claims or T elapsed) is
@@ -286,7 +293,8 @@ batch ABI + observer change required.
 
 Redeemer: `Exit { claimIds[], claimProofs[], nonMembershipProofs[] }`.
 Script checks: root thread referenced and STALE — fallback is armed only
-when `now − updatedAtSlot > fallbackDelay` (the ADR-007 trigger: the
+when `now − updatedAtMillis > fallbackDelayMillis`, all POSIX milliseconds
+(§13.3; the ADR-007 trigger: the
 federation stopped rooting/settling); each claim proven present under the
 accepted `stateRoot` at its claims key; nullifier shard non-membership +
 insert; exact payouts and remainder preservation as in A2. Anyone may
@@ -332,7 +340,7 @@ structure for marginal gain over shards + cranker batching.
 | | A2 signer path | A3 proof path |
 |---|---|---|
 | Trust for liveness | federation | none (cranker economics) |
-| Trust for safety | V1 script (same) | V1 script (same) |
+| Trust for safety | federation threshold + V1 script (§7.2) | V1 script + accepted state root |
 | Ex-unit profile | O(1) sig + O(n) outputs → big batches | O(n) proofs → small batches |
 | Contention | none (self-serialized) | shard-managed, cranker-absorbed |
 | Latency | trigger-bounded (seconds–minutes) | fallbackDelay-gated (hours) |
@@ -511,15 +519,17 @@ Three validators, all julc-VM conformance-tested against real off-chain
   hand-port.
 - **SettlementVaultValidator**: dual `Settle`/`Exit` redeemer. Settle checks
   the federation threshold against member keys carried on the root-thread
-  reference input; Exit is armed only when `now − updatedAtSlot >
-  fallbackDelay` and proves each claim's v2 commitment present under the
-  accepted state root. Both: positional payouts (output[i]=claim[i]), paired
-  nullifier-shard spend, remainder conservation (continuing =
+  reference input; Exit is armed only when `now − updatedAtMillis >
+  fallbackDelayMillis` and proves each claim's v2 commitment present under the
+  accepted state root. Both: positional payouts (output[i]=claim[i]), exactly
+  one paired nullifier-shard spend inserting the paid claim ids (§13.3),
+  remainder conservation (continuing =
   Σinputs − Σ(payout+bounty)), batch marker with ordered claim ids.
 - **NullifierShardValidator**: k=16 shards (shard = claim id's last nibble),
   chained non-membership+insert per claim, paired vault spend.
-- **SettlementRootValidator**: FederatedRoot + `updatedAtSlot` bound to the
-  validity range + governed `fallbackDelaySlots`.
+- **SettlementRootValidator**: FederatedRoot + `updatedAtMillis` bound to the
+  validity range + the governed fallback delay as `fallbackDelayMillis`
+  (field names and units corrected in §13.3).
 - **Commitment ABI v2**: `EutxoWithdrawalCommitment` binds the bounty into
   its digest preimage (review fix — claimId-only binding let a cranker
   inflate the bounty and skim the remainder).
@@ -703,9 +713,9 @@ the SP-M2 vault Exit path accepts: Settle's exact shape (positional payouts,
 continuing vault `Σinputs − Σ(payout+bounty)` under the batch marker, shard
 spend, root reference input) minus required signers, with Σbounty paid to the
 CRANKER's own output and the L1 fee from the cranker's inputs. Refuses to
-build unless armed: `currentSlot − rootUpdatedAtSlot > fallbackDelaySlots`
-must hold strictly (mirroring the on-chain `finiteLowerBound(validRange)`
-check), the batch must drain a SINGLE nullifier shard (claim-id last nibble),
+build unless armed: `currentSlotMillis − rootUpdatedAtMillis >
+fallbackDelayMillis` must hold strictly, all POSIX milliseconds (mirroring the
+on-chain `finiteLowerBound(validRange)` check; corrected from slots in §13.3), the batch must drain a SINGLE nullifier shard (claim-id last nibble),
 respect the governed `maxExitBatch`, and not mix bridge epochs.
 
 `CrankPlanner` — deterministic claim selection for one shard: armed-gate,
@@ -912,7 +922,7 @@ A3 exit (`EutxoSettlementBootstrapDevnetE2ETest`) and the full effect path
 is enforced only OFF-chain — by `EutxoBridgeParams`/`EutxoStateMachine`
 validation and by the bootstrap plan's config checks. The Plutus side does
 not check it: `SettlementRootValidator.baseProfileValid` requires merely
-`fallbackDelaySlots.signum() > 0`, and `SettlementVaultValidator`'s Exit arming
+`fallbackDelayMillis.signum() > 0` (named `fallbackDelaySlots` before §13.3), and `SettlementVaultValidator`'s Exit arming
 reads whatever the root datum carries. So the floor protects against operator
 MISCONFIGURATION, not against a federation that deliberately bootstraps (or
 migrates to) a root datum with a tiny delay — which would let its own
@@ -959,3 +969,68 @@ STRUCTURAL bound (positive, within the frozen maximum) and the machine —
 which knows its profile — enforces the policy floor at genesis and on
 governed activation. §13.1 remains open regardless: an on-chain floor would
 be per-profile too, taken from the same field at deploy time.
+
+### 13.3 Review corrections (2026-10-30)
+
+A correctness review of the V1 scripts (yano-x#91) found three defects in
+the implementation of §7. All three predate the julc 0.1.0-pre20 move.
+
+**Paid claims are now bound to nullifier inserts.** The vault only checked
+that SOME input held a shard thread token, and the shard only checked that
+SOME vault input was spent. Nothing tied the claims the vault paid to the
+ids the shard inserted, so a permissionless Exit could pay a claim again
+while the shard inserted an unrelated fresh id, and any vault spend could
+nullify claims it never paid. The vault now requires exactly one input
+holding a shard thread token, reads that input's spend redeemer from the
+transaction's redeemer map, and requires its inserted claim ids to equal
+the paid claim ids in claim order (the same order as the batch marker).
+Because the shard validator proves each inserted id absent before inserting
+it, every paid claim is now nullified exactly once and nothing else is.
+This relies on every shard thread token sitting at the shard validator: the
+thread policy does not constrain where the bootstrap sends the 16 tokens.
+Anyone auditing a deployment for Exit safety should check that all 16 sit at
+the shard address with empty-root genesis datums.
+The off-chain builders already planned inserts in claim order, so the
+settle pipeline is unchanged; the vault script, and therefore the vault
+and shard addresses and the showcase settlement identity, changed.
+
+**Exit arming is in POSIX milliseconds.** A script sees the validity range
+in POSIX milliseconds, and the root validator records `updatedAt` from it,
+but the genesis datum carried `fallbackDelaySlots` unconverted. The vault
+compared milliseconds with slots, so the 21,600-slot production floor (6 h)
+armed after about 22 s. The root datum fields are now `updatedAtMillis`
+and `fallbackDelayMillis`; the bootstrap plan converts the governed slot
+count with the network's slot length (`slotLengthMillis`: 1,000 on
+mainnet, preprod and preview; 200 on the packaged Yano devnet). The vault
+and root scripts compare the same values as before, so only the datum the
+bootstrap writes changed. `CrankPlanner` and `ExitTransactionBuilder` now
+take the root's times in milliseconds and the POSIX time of the validity
+start. The profile parameter itself stays in L1 slots.
+
+Every bootstrap today writes `updatedAtMillis = 0`, and nothing in the live
+pipeline advances the root thread, so Exit is armed from genesis and the
+delay only starts to matter after the first root advance. That is harmless
+while the accepted state root is the bootstrap root, because no claim can be
+proven under it. The fix makes the delay correct for the first advanced
+root; it does not change today's devnet behaviour.
+
+**Settle is not authenticated against the state root, by design.** §7.2
+claimed that even a full quorum could not redirect payouts. That was not
+true of the implementation, and adding a state-root inclusion check to
+Settle would not make it true: the root thread is advanced by the same
+threshold, so a quorum could post a root with the claims it wants and then
+settle them. The live settlement pipeline also never advances the root
+thread, so the check would block every A2 settlement. §7.2 now states the
+trust model as implemented: a threshold quorum is a custody assumption.
+Removing it needs root updates that a quorum cannot forge (for example a
+validity proof of the L2 transition, ADR-055), which is out of scope here.
+
+**MPF library note.** The review also flagged that a Fork step's neighbor
+prefix length is not bounded, and that a leaf and a branch can encode alike
+at nibble 63. Both follow the Aiken merkle-patricia-forestry design and need
+a chosen 64-nibble path; with blake2b-hashed keys they need a hash
+collision. The bridge keeps its copy of julc-examples PR #4 unchanged so it
+stays comparable with upstream; any change belongs upstream first.
+
+§13.1 (the on-chain fallback-delay floor) is still open; an on-chain floor
+would now be stated in milliseconds as well.
