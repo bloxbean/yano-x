@@ -1,8 +1,8 @@
 # Yano X
 
 yanoXVersion: 0.1.0-pre4
-yanoVersion: 0.1.0-pre19
-generatedAt: 2026-10-30T02:21:47.138Z
+yanoVersion: 0.1.0-pre18
+generatedAt: 2026-10-30T05:18:39.270Z
 
 > Yano X is the Java 25, JVM-only extension ecosystem for Yano app ledgers. An app ledger (an "app chain" in Yano's CLI, configuration, and APIs) is an application-specific replicated ledger with deterministic state, threshold finality, authenticated state proofs, optional Cardano anchoring, and controlled external effects. Yano X supplies the stock state machines, capabilities, connectors, products, SDKs, and the batteries-included JVM distribution that run on top of the Yano host.
 
@@ -13,7 +13,7 @@ Key facts an AI agent should know before generating Yano X code or configuration
   products, SDKs, and the batteries-included JVM distribution. The dependency
   direction is strictly `yano-x -> yano` and must never be inverted, nor satisfied
   with a composite Gradle build or a sibling source checkout.
-- **Versions:** Yano X `0.1.0-pre4` builds against Yano `0.1.0-pre19`, Java 25.
+- **Versions:** Yano X `0.1.0-pre4` builds against Yano `0.1.0-pre18`, Java 25.
   Start with a matching release archive; build from source for unpublished changes.
 - **Yano X is JVM-only.** Never add GraalVM/native-image tasks, reachability
   metadata, or native executables. `verifyJvmOnlyBuild` enforces this.
@@ -166,6 +166,6 @@ Key facts an AI agent should know before generating Yano X code or configuration
 
 - Yano X: https://github.com/bloxbean/yano-x
 - Yano (host): https://github.com/bloxbean/yano
-- Base Yano JVM distribution: https://github.com/bloxbean/yano/releases/download/v0.1.0-pre19/yano-0.1.0-pre19.zip
+- Base Yano JVM distribution: https://github.com/bloxbean/yano/releases/download/v0.1.0-pre18/yano-0.1.0-pre18.zip
 - App-Chain Studio (binding editor): https://yano-x.io/studio/
 

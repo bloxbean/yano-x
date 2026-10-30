@@ -3,8 +3,8 @@
 > Single-file dump of the Yano X docsite, suitable for AI agent ingestion.
 
 yanoXVersion: 0.1.0-pre4
-yanoVersion: 0.1.0-pre19
-Generated: 2026-10-30T02:21:47.138Z
+yanoVersion: 0.1.0-pre18
+Generated: 2026-10-30T05:18:39.270Z
 Site: https://yano-x.io
 Repo: https://github.com/bloxbean/yano-x
 
@@ -15,7 +15,7 @@ Repo: https://github.com/bloxbean/yano-x
   products, SDKs, and the batteries-included JVM distribution. The dependency
   direction is strictly `yano-x -> yano` and must never be inverted, nor satisfied
   with a composite Gradle build or a sibling source checkout.
-- **Versions:** Yano X `0.1.0-pre4` builds against Yano `0.1.0-pre19`, Java 25.
+- **Versions:** Yano X `0.1.0-pre4` builds against Yano `0.1.0-pre18`, Java 25.
   Start with a matching release archive; build from source for unpublished changes.
 - **Yano X is JVM-only.** Never add GraalVM/native-image tasks, reachability
   metadata, or native executables. `verifyJvmOnlyBuild` enforces this.
@@ -374,10 +374,10 @@ in its `gradle.properties`.
 | Value | Current |
 |---|---|
 | Yano X version | `0.1.0-pre4` |
-| Yano host version | `0.1.0-pre19` |
+| Yano host version | `0.1.0-pre18` |
 | Maven group | `org.yanoproject.x` |
 | Java | `25` |
-| Base Yano JVM ZIP | [`yano-0.1.0-pre19.zip`](https://github.com/bloxbean/yano/releases/download/v0.1.0-pre19/yano-0.1.0-pre19.zip) |
+| Base Yano JVM ZIP | [`yano-0.1.0-pre18.zip`](https://github.com/bloxbean/yano/releases/download/v0.1.0-pre18/yano-0.1.0-pre18.zip) |
 
 <!-- catalog:versions-end -->
 
@@ -1319,10 +1319,10 @@ the latest release it is:
 | Value | Current |
 |---|---|
 | Yano X version | `0.1.0-pre4` |
-| Yano host version | `0.1.0-pre19` |
+| Yano host version | `0.1.0-pre18` |
 | Maven group | `org.yanoproject.x` |
 | Java | `25` |
-| Base Yano JVM ZIP | [`yano-0.1.0-pre19.zip`](https://github.com/bloxbean/yano/releases/download/v0.1.0-pre19/yano-0.1.0-pre19.zip) |
+| Base Yano JVM ZIP | [`yano-0.1.0-pre18.zip`](https://github.com/bloxbean/yano/releases/download/v0.1.0-pre18/yano-0.1.0-pre18.zip) |
 
 <!-- catalog:versions-end -->
 
@@ -18312,10 +18312,10 @@ The latest Yano X release and the Yano host it is built on:
 | Value | Current |
 |---|---|
 | Yano X version | `0.1.0-pre4` |
-| Yano host version | `0.1.0-pre19` |
+| Yano host version | `0.1.0-pre18` |
 | Maven group | `org.yanoproject.x` |
 | Java | `25` |
-| Base Yano JVM ZIP | [`yano-0.1.0-pre19.zip`](https://github.com/bloxbean/yano/releases/download/v0.1.0-pre19/yano-0.1.0-pre19.zip) |
+| Base Yano JVM ZIP | [`yano-0.1.0-pre18.zip`](https://github.com/bloxbean/yano/releases/download/v0.1.0-pre18/yano-0.1.0-pre18.zip) |
 
 <!-- catalog:versions-end -->
 
