@@ -438,8 +438,8 @@ and `status` shows the sync progress.
   the devnet settlement chain, whose vault scripts commit to the founding members and threshold. A
   public-network settlement chain is adopted the same way: the bootstrap writes a template and the
   executor's settings, and `showcase.sh settlement adopt` seals them.
-- **Not changed:** the ADR-039 VM deployment tool keeps rendering its own node configuration from its
-  own showcase profile; moving it onto sealed applications is a separate decision.
+- **Not changed yet:** the ADR-039 VM deployment tool keeps rendering its own node configuration from
+  its own showcase profile. ADR-039 §19 (proposed) moves it onto sealed applications.
 
 ### D15 — Topic policies are chosen in the draft and voted from node directories
 
@@ -594,3 +594,5 @@ and E (publishing the chain fingerprint and member cards on Cardano).
 - **r14** (2026-10-27; stacked on ADR app-layer/038): D15 brings topic policies into the draft, seal
   and the node-directory commands, adds `topics approve`, and narrows Studio's Topics page to a
   `topics.yaml` form. Devnet chains seal an anchor validity inside the devnet's forecast horizon.
+- **r15** (2026-10-28): D14 points to ADR-039 §19, the proposed amendment that moves the VM
+  deployment tool onto sealed applications.

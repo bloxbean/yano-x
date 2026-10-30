@@ -6,6 +6,9 @@
   `examples/showcase/`; the separate showcase ZIP named below is no longer built.
   Nodes run from `/opt/yano/home`, which pairs the release runtime with the
   showcase configuration.
+- **Amendment proposed 2026-10-28:** deploy sealed applications made with the app-chain setup
+  commands (ADR-056) instead of rendering this tool's own showcase profile. See §19; until it is
+  accepted and implemented, the sections above describe the tool as it is.
 - **Date:** 2026-08-23
 - **Owner:** Yano X
 - **Scope:** Declarative provisioning and operation of a new geographically distributed,
@@ -1253,3 +1256,224 @@ Costs and limitations:
 These decisions select the first operated environment; they do not block the provider-neutral
 implementation. This change creates no cloud resources, mutates no existing VM, creates no DNS
 record or public endpoint, submits no Cardano transaction, and does not touch retained cluster state.
+
+## 19. Amendment (proposed 2026-10-28): deploy sealed applications
+
+- **Status:** Proposed. Design only; nothing in §§1–18 changes until this is accepted and implemented.
+- **Risk:** high. It changes how a deployment fixes its app-chain identity, what is installed on
+  every validator, and the on-host layout. It does not change Yano consensus or runtime behaviour.
+- **Related:** ADR-056 (simple app-chain setup), whose D14 left this tool on its own profile and
+  called moving it "a separate decision". This section is that decision.
+
+### 19.1 Context
+
+Since ADR-056, every other way of running app-chain nodes goes through the setup commands:
+`new`, `request`, `seal`, `join` and `start`. The packaged showcase is three sealed applications made
+from templates: `showcase`, `history` and `settlement`. This tool is the last exception. It still:
+
+- carries its own 13-chain `showcase-profile/application-appchain.yml` and the
+  `ShowcaseAuthenticatedMapConfig` generator, which it runs out of process on the release's jars;
+- writes 13 indexed `yano.app-chain.chains[i].*` blocks into one `node.properties.j2`, including
+  members, threshold, sequencer, peers and the member seed itself (`lookup('file', member_key_file)`);
+- accepts a pinned `cardanoHistory.genesisId`, which keeps a retained identity alive across renders
+  outside any sealed file.
+
+Two ways of fixing a chain's identity is the problem ADR-056 removed everywhere else:
+
+- An operator who learns the setup commands cannot read or check a deployment made by this tool.
+- A change to the showcase must be made twice: in the template and in this tool's profile. The
+  profile must also follow every runtime setting the CLI already resolves: plugin allow-lists,
+  authenticated-map validators, observer genesis ids and node-wide settings.
+
+The live five-VM Preprod showcase (pre3) was rendered by this tool and runs its own extraction plus
+an operator overlay. It used fresh genesis ids, so it does not depend on this tool preserving them.
+
+### 19.2 Decisions
+
+**AM-D1 — A deployment is sealed applications.** The deployment directory gains `apps/`, holding the
+sealed files (`showcase.chain`, `history.chain` and, when settlement is enabled, `settlement.chain`)
+and their drafts. The sealed files are public material: member public keys, endpoints, chain
+settings and bundle digests, with no secrets. They are reviewed and committed with
+`deployment.yaml`. The tool no longer ships a showcase profile, the authenticated-map generator, or
+per-chain property rendering. Chain settings come only from the sealed files; node-local settings
+come only from each node's `config/local.yaml`.
+
+**AM-D2 — `yano-x-deploy seal` runs the ceremony on the controller, once.** The controller already
+holds every validator's seed file (§8.2), so the team that owns the deployment runs the founding
+ceremony itself, using the imported release's own CLI out of process:
+
+1. `appchain new <app> --from <release>/examples/showcase/config/<app>.template.yaml --network
+   <l1> --operators <validators> --threshold <n> --membership governed --sequencing fixed`, plus
+   `--setting` for the deployment's choices: anchor mode and cadence, and the Cardano History preset
+   and observations.
+2. For each validator, `appchain request <draft> --key <its seed file> --name <node id> --host
+   <advertised address> --node-port <p2p> --http-port <http>`. Each request runs in its own
+   owner-only temporary node directory. Only the `.member` card is kept; the temporary directory,
+   which holds a copy of the seed, is deleted before the command returns, also on failure.
+3. `appchain seal`, followed by `inspect --json` to record the fingerprint.
+
+`seal` refuses to run when `apps/` already holds sealed files. Changing them before the first start
+is a deliberate deletion by the operator. Membership changes after start go through governance
+(`approve`), never through a new seal (AM-I2).
+
+**AM-D3 — `render` consumes the sealed files and checks them against the manifest.** Render stays
+offline. It refuses a sealed file whose roster names, keys and addresses, threshold, network,
+membership, sequencing, Yano and Yano X versions, or bundle digests differ from the manifest and the
+imported release. The lock records each sealed file's SHA-256 and display fingerprint. Render never
+writes or changes a sealed file.
+
+**AM-D4 — Validators create their node directory and join on the host.** Ansible installs the seed,
+API key and (on the anchor leader) anchor wallet as owner-only files, then runs, as the `yano` user:
+
+```text
+yano.sh appchain request <app>.chain --key <seed> --name <node id> --host <advertised> \
+  --node-port <p2p> --http-port <http> --node-dir /var/lib/yano/node --output <scratch> --yes
+yano.sh appchain join <app>.chain --expect-fingerprint <locked fingerprint> \
+  --node-dir /var/lib/yano/node --yes                     # once per sealed application
+```
+
+`request` runs only when the node directory has no `node.json`. On a rerun, it and `join` check the
+existing identity instead of replacing it. `join` refuses a node whose key is not in the sealed
+roster under that name.
+
+**AM-D5 — Node roles go in `config/local.yaml`.** The tool renders one `local.yaml` per node. The
+setup commands never rewrite it, and `start` refuses it when it touches a sealed setting. It
+carries:
+
+- `quarkus.http.host=127.0.0.1` on gateway nodes, or the firewall-limited address (§9.3);
+- API authentication for `allowlist` exposure, and the relay connection limits;
+- the file-outbox executor on its owner node and the settlement executor on the settlement owner;
+- the Cardano History snapshot-archive directory;
+- `yano.epoch-params.tracking-enabled` on the anchor leader.
+
+Anchoring is turned on from the leader with `appchain anchor <app> --chain <id> --key <wallet seed
+file>`, per chain, so `anchoring.chainSeedFiles` keeps its meaning. `bootstrap-anchors` keeps its
+readiness gate (§10.2) and calls that command instead of rendering anchor properties.
+
+**AM-D6 — The service is `appchain start --foreground`.** The systemd unit runs
+`/opt/yano/home/yano.sh appchain start --node-dir /var/lib/yano/node --foreground`. The node
+directory's `data/` replaces `/var/lib/yano/{chainstate,appchain-chainstate,appchain-indexers}`, and
+the `status`, `reset`, backup and `mesh-recover` playbooks move to those paths. `status` reads
+`appchain status --json` on each node for the convergence gate (§5.2 step 11).
+
+**AM-D7 — The excluded integrations are excluded at seal.** When an application uses a plugin
+validator, as the showcase's governed maps do, `seal` allow-lists every bundle in the sealing
+distribution's `plugins/` directory. `join` checks the node's installed bundles against the sealed
+digests. So the controller seals from a staged copy of the release whose `plugins/` already omits
+the forbidden markers: Kafka, S3, IPFS, the evidence bundles, `effects-cardano` and `eutxo-zk`.
+Validators install the same staged plugin set. `active-plugin-policy.txt` is kept as the reviewed
+statement of that set.
+
+**AM-D8 — One roster order everywhere.** A fixed sequencer proposes from the sealed roster's first
+member, and `SealedApp` refuses anything else. The settlement vault also commits to an ordered
+member list. So the tool orders operators with `proposerNode` first, followed by the remaining
+validators in manifest order, and uses that one order for every application and for the settlement
+deployment record. A record bootstrapped with another order is refused at `seal`.
+
+**AM-D9 — Fresh clusters only; retained clusters stay on their own extraction.** A lock rendered by
+an earlier renderer revision is refused with a message that this revision deploys sealed
+applications to fresh clusters. `cardanoHistory.genesisId` is removed from the schema, because seal
+alone sets a chain's genesis id. The retained pre3 cluster keeps running its own extraction and
+overlay. Moving it means a fresh deployment with new genesis ids, the same path pre3 itself took.
+Nothing in this amendment touches it.
+
+### 19.3 Invariants
+
+- **AM-I1** (AM-D2, AM-D4): no seed, API key or wallet seed appears in `apps/`, the render output,
+  the lock, logs, OpenTofu state, process arguments or `local.yaml`. Seeds are passed only as file
+  paths. Controller-side temporary node directories are owner-only and are removed on every exit
+  path.
+- **AM-I2** (AM-D2, AM-D3, AM-D9): no command regenerates a genesis id. `seal` refuses existing
+  sealed files, `render` never writes them, and resume, repair and host replacement reuse them.
+- **AM-I3** (AM-D3, AM-D4): every validator runs byte-identical sealed files. Its node directory
+  holds the sealed roster's key under its own name, and `join` saw the locked fingerprint.
+- **AM-I4** (AM-D5): `local.yaml` never contains a sealed setting. `start` refuses one, and render
+  checks the same rule offline.
+- **AM-I5** (AM-D7): the sealed allow-list, the bundles every validator installs and
+  `active-plugin-policy.txt` describe one plugin set, which contains no forbidden marker.
+- **AM-I6** (AM-D8): the first sealed member is the fixed proposer in every application, and the
+  settlement record's member order equals the sealed roster order.
+- **AM-I7** (AM-D6): authoritative stores stay separate from rebuildable indexes inside the node
+  directory (`data/chainstate`, `data/appchain-chainstate`, `data/appchain-indexers`), and `reset`
+  scopes keep their meaning on the new paths.
+
+### 19.4 What is removed
+
+- `src/main/resources/showcase-profile/application-appchain.yml`, `ShowcaseProfileCompiler`,
+  `ShowcaseAuthenticatedMapConfig` and the per-chain body of `node.properties.j2`. The release's
+  templates declare both governed maps, and `seal` computes their geneses for the sealed roster.
+- `SettlementProfileCompiler`'s YAML block. It keeps verifying the deployment record and instead
+  writes the settlement template and executor settings, the same output `showcase.sh settlement
+  bootstrap` produces for `settlement adopt`.
+- `files/application-appchain.yml`, `/etc/yano/node.properties` and the `start:<profile>` launch.
+
+### 19.5 Gaps in the setup commands found while designing this
+
+- **Rotating sequencing.** The deploy tool's experimental `rotating` mode with `windowSlots` has no
+  draft field, and `sequencer.*` settings are reserved. Until drafts carry a window size, the tool
+  supports `fixed` only and refuses `rotating` at validate time.
+- **`request` on a sealed file by a founding member.** It works today: a card is written and `join`
+  accepts the founder. But it also writes an unneeded `apps/<app>.request` file, and its `Next:` text
+  describes a later join. AM-M1 makes it recognise a founding key and say "run join".
+- **Sealing against a staged plugin set.** AM-D7 relies on `seal` reading the bundles of the
+  distribution it runs from. A staged copy of the release does that without new flags. AM-M1
+  confirms this with a test.
+
+### 19.6 Milestones
+
+- **AM-M1, CLI:**
+  - founder-aware `request <app>.chain`;
+  - a test that sealing from a staged release excludes removed bundles from the allow-list;
+  - `status --json` fields for the convergence gate.
+
+  Exit: unit tests, and `try` unchanged.
+- **AM-M2, deploy tool:**
+  - `seal`, sealed-file checks in `validate` and `render`, and lock fields;
+  - playbooks for request, join, `local.yaml`, the unit, status, reset, backup, mesh recovery and
+    anchor bootstrap;
+  - removal of the §19.4 items and the `cardanoHistory.genesisId` schema field;
+  - renderer revision 31.
+
+  Exit: renderer and lifecycle tests for AM-I1 to AM-I7, including a negative test for each.
+- **AM-M3, local qualification without cloud spend:** three Linux containers with systemd and sshd,
+  used as `existing` VMs on a private Docker network. Steps:
+  - seal, render and apply;
+  - the convergence gate;
+  - a restart;
+  - `reset --scope appchain`;
+  - a rerun that changes nothing.
+
+  Exit: identical heights, roots, geneses and certificates on all three, and no secret in the render
+  output or the logs.
+- **AM-M4, Preprod:** a fresh five-VM deployment only with the maintainer's explicit authorization
+  for the spend and the anchor and settlement bootstraps (§10.2). The retained pre3 cluster is out of
+  scope.
+
+### 19.7 Alternatives considered
+
+- **Keep the tool's own profile (status quo).** It works for one team, but every showcase change
+  must be made twice and checked twice. Operators also see a node layout and a configuration no
+  other Yano X tool produces.
+- **Validators request and the controller collects cards over SSH.** Seeds would never touch the
+  controller in a ceremony. But under §8.2 the controller already holds them, and splitting `render`
+  into "render, then fetch cards, then seal" makes the offline render depend on live hosts.
+  Rejected for this team-operated tool. A multi-operator deployment uses ADR-056's own flow, with one
+  operator per node.
+- **Ship node directories built on the controller.** This makes the fewest remote steps. But a node
+  directory carries absolute paths and secrets, and it would put every member's seed into the render
+  output. Rejected under AM-I1.
+
+### 19.8 Open questions
+
+1. Should `apps/` live inside the deployment directory, which is reviewed and committed, or beside
+   the controller's secrets? Lean: inside, because sealed files are public and reviewing them is the
+   point.
+2. Should rotating sequencing wait for a draft field, or be dropped from this tool? Lean: refuse it
+   until ADR-056 gains the field. It is experimental and unqualified (§10.1).
+3. Should `seal` also emit the operator-facing fingerprint card that ADR-056 operators compare on a
+   call, so a later multi-operator handover starts from the same files? Lean: yes; it is
+   `inspect --json` output.
+
+### 19.9 Revision history
+
+- r1 (2026-10-28): proposed after ADR-056 r13 left the deployment tool on its own profile.
