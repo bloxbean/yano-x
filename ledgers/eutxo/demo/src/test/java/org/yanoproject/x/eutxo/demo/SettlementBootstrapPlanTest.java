@@ -108,8 +108,24 @@ class SettlementBootstrapPlanTest {
         assertThat(((BigIntPlutusData) fields.get(6)).getValue()).isEqualTo(2);
         assertThat(((BigIntPlutusData) fields.get(8)).getValue())
                 .isEqualTo(1_000);
+        // The vault compares the delay with POSIX milliseconds: 86,400 one-second slots.
         assertThat(((BigIntPlutusData) fields.get(9)).getValue())
-                .isEqualTo(86_400);
+                .isEqualTo(86_400_000L);
+    }
+
+    @Test
+    void fallbackDelayIsConvertedWithTheNetworkSlotLength() {
+        SettlementBootstrapPlan.Config devnet = new SettlementBootstrapPlan.Config(
+                "payments-eutxo", 7, Networks.testnet(), new byte[0],
+                List.of(MEMBER_ONE), 1, 0, 60,
+                SettlementBootstrapPlan.DEVNET_SLOT_LENGTH_MILLIS,
+                org.yanoproject.x.eutxo.contracts.EutxoProfile.V3_DEVNET);
+        assertThat(devnet.fallbackDelayMillis()).isEqualTo(12_000L);
+        assertThatThrownBy(() -> new SettlementBootstrapPlan.Config(
+                "payments-eutxo", 7, Networks.testnet(), new byte[0],
+                List.of(MEMBER_ONE), 1, 0, 86_400, 0))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("slot length");
     }
 
     @Test
@@ -120,17 +136,17 @@ class SettlementBootstrapPlanTest {
                 .hasMessageContaining("distinct one-shot seeds");
         assertThatThrownBy(() -> new SettlementBootstrapPlan.Config(
                 "payments-eutxo", 7, Networks.testnet(), new byte[0],
-                List.of(MEMBER_ONE, MEMBER_ONE), 1, 1_000, 86_400))
+                List.of(MEMBER_ONE, MEMBER_ONE), 1, 1_000, 86_400, 1_000))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("distinct");
         assertThatThrownBy(() -> new SettlementBootstrapPlan.Config(
                 "payments-eutxo", 7, Networks.testnet(), new byte[0],
-                List.of(MEMBER_ONE, MEMBER_TWO), 3, 1_000, 86_400))
+                List.of(MEMBER_ONE, MEMBER_TWO), 3, 1_000, 86_400, 1_000))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("threshold");
         assertThatThrownBy(() -> new SettlementBootstrapPlan.Config(
                 "payments-eutxo", 7, Networks.testnet(), new byte[0],
-                List.of(MEMBER_ONE, MEMBER_TWO), 2, 1_000, 60))
+                List.of(MEMBER_ONE, MEMBER_TWO), 2, 1_000, 60, 1_000))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("tier-1");
     }
@@ -144,6 +160,7 @@ class SettlementBootstrapPlanTest {
                 List.of(MEMBER_TWO, MEMBER_ONE), // out of order on purpose
                 2,
                 1_000,
-                86_400);
+                86_400,
+                1_000);
     }
 }

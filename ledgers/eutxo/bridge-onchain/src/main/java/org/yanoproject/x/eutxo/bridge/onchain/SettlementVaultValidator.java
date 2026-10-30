@@ -4,6 +4,7 @@ import org.julclang.core.PlutusData;
 import org.julclang.core.types.JulcList;
 import org.julclang.ledger.OutputDatum;
 import org.julclang.ledger.ScriptContext;
+import org.julclang.ledger.ScriptPurpose;
 import org.julclang.ledger.TxInInfo;
 import org.julclang.ledger.TxInfo;
 import org.julclang.ledger.TxOut;
@@ -33,10 +34,14 @@ import java.util.Optional;
  * bounty).
  *
  * <p>Both paths enforce: positional payouts (output[i] pays claim[i]
- * exactly), a paired nullifier-shard spend, and remainder conservation —
- * the continuing vault output keeps {@code inputs − Σ(payout+bounty)} under
- * the batch marker Constr0[1, count, concat(claimIds)]. Σbounty floats free
- * for the executor; the L1 fee never comes from the vault.
+ * exactly), exactly one paired nullifier-shard spend whose inserts are the
+ * paid claim ids in claim order, and remainder conservation — the continuing
+ * vault output keeps {@code inputs − Σ(payout+bounty)} under the batch marker
+ * Constr0[1, count, concat(claimIds)]. Σbounty floats free for the executor;
+ * the L1 fee never comes from the vault.
+ *
+ * <p>The root datum's {@code updatedAtMillis} and {@code fallbackDelayMillis}
+ * are POSIX milliseconds, the unit of the validity range a script sees.
  */
 @SpendingValidator
 public final class SettlementVaultValidator {
@@ -99,8 +104,8 @@ public final class SettlementVaultValidator {
             byte[] memberKeys,
             BigInteger memberCount,
             BigInteger threshold,
-            BigInteger updatedAtSlot,
-            BigInteger fallbackDelaySlots
+            BigInteger updatedAtMillis,
+            BigInteger fallbackDelayMillis
     ) {
     }
 
@@ -111,7 +116,7 @@ public final class SettlementVaultValidator {
     public static boolean validate(
             PlutusData datum, VaultRedeemer redeemer, ScriptContext context) {
         Optional<Root> rootOptional = acceptedRoot(context);
-        if (rootOptional.isEmpty() || !shardIsSpent(context)) {
+        if (rootOptional.isEmpty()) {
             return false;
         }
         Root root = rootOptional.get();
@@ -126,12 +131,13 @@ public final class SettlementVaultValidator {
         }
         BigInteger inSum = vaultInputSum(context.txInfo(), ownHash);
         JulcList<TxOut> outputs = context.txInfo().outputs();
+        byte[] inserted = shardInsertedIds(context.txInfo());
 
         return switch (redeemer) {
             case Settle settle -> settleValid(
-                    settle.claims(), root, context.txInfo(), outputs, inSum, ownHash);
+                    settle.claims(), root, context.txInfo(), outputs, inSum, ownHash, inserted);
             case Exit exit -> exitValid(
-                    exit.exits(), root, context.txInfo(), outputs, inSum, ownHash);
+                    exit.exits(), root, context.txInfo(), outputs, inSum, ownHash, inserted);
         };
     }
 
@@ -139,7 +145,8 @@ public final class SettlementVaultValidator {
 
     private static boolean settleValid(
             JulcList<Claim> claims, Root root, TxInfo txInfo,
-            JulcList<TxOut> outputs, BigInteger inSum, byte[] ownHash) {
+            JulcList<TxOut> outputs, BigInteger inSum, byte[] ownHash,
+            byte[] inserted) {
         long count = claims.size();
         if (count < 1 || count > Builtins.indexByteString(maxSettleBatch, 0)
                 || count >= outputs.size()
@@ -149,14 +156,16 @@ public final class SettlementVaultValidator {
         }
         BigInteger total = claimsTotal(claims);
         byte[] joined = claimsJoined(claims);
-        return continuingValid(outputs, count, ownHash, inSum, total, joined)
+        return Builtins.equalsByteString(inserted, joined)
+                && continuingValid(outputs, count, ownHash, inSum, total, joined)
                 && thresholdSigned(txInfo, root.memberKeys(),
                 root.memberCount(), root.threshold());
     }
 
     private static boolean exitValid(
             JulcList<ExitClaim> exits, Root root, TxInfo txInfo,
-            JulcList<TxOut> outputs, BigInteger inSum, byte[] ownHash) {
+            JulcList<TxOut> outputs, BigInteger inSum, byte[] ownHash,
+            byte[] inserted) {
         long count = exits.size();
         if (count < 1 || count > Builtins.indexByteString(maxExitBatch, 0)
                 || count >= outputs.size()
@@ -168,9 +177,10 @@ public final class SettlementVaultValidator {
         BigInteger total = exitsTotal(exits);
         byte[] joined = exitsJoined(exits);
         BigInteger now = IntervalLib.finiteLowerBound(txInfo.validRange());
-        return continuingValid(outputs, count, ownHash, inSum, total, joined)
-                && now.subtract(root.updatedAtSlot())
-                .compareTo(root.fallbackDelaySlots()) > 0;
+        return Builtins.equalsByteString(inserted, joined)
+                && continuingValid(outputs, count, ownHash, inSum, total, joined)
+                && now.subtract(root.updatedAtMillis())
+                .compareTo(root.fallbackDelayMillis()) > 0;
     }
 
     private static boolean claimsPositional(
@@ -313,7 +323,7 @@ public final class SettlementVaultValidator {
         BigInteger threshold = Builtins.unIData(Builtins.headList(f6));
         PlutusData f7 = Builtins.tailList(f6);
         PlutusData f8 = Builtins.tailList(f7);
-        BigInteger updatedAtSlot = Builtins.unIData(Builtins.headList(f8));
+        BigInteger updatedAtMillis = Builtins.unIData(Builtins.headList(f8));
         PlutusData f9 = Builtins.tailList(f8);
         BigInteger fallbackDelay = Builtins.unIData(Builtins.headList(f9));
         if (!version.equals(BigInteger.ONE)
@@ -323,19 +333,53 @@ public final class SettlementVaultValidator {
         }
         return Optional.of(new Root(
                 chainId, epoch, stateRoot, memberBytes, memberCount,
-                threshold, updatedAtSlot, fallbackDelay));
+                threshold, updatedAtMillis, fallbackDelay));
     }
 
-    private static boolean shardIsSpent(ScriptContext context) {
-        boolean found = false;
-        for (var input : context.txInfo().inputs()) {
-            if (ValuesLib.containsPolicy(
-                    input.resolved().value(), shardThreadPolicyId)) {
-                found = true;
-                break;
-            }
+    /**
+     * The claim ids the transaction's nullifier shard inserts, concatenated
+     * in redeemer order. The shard validator proves each id absent and
+     * inserts it; comparing these ids with the paid claims makes every paid
+     * claim settled and nothing else. Empty, which no batch equals, unless
+     * exactly one input holds a shard thread token and that input has a
+     * spend redeemer.
+     */
+    private static byte[] shardInsertedIds(TxInfo txInfo) {
+        JulcList<TxInInfo> shards = shardInputs(txInfo.inputs(), JulcList.empty());
+        if (shards.size() != 1) {
+            return Builtins.emptyByteString();
         }
-        return found;
+        Optional<PlutusData> redeemer = txInfo.redeemers()
+                .lookup(new ScriptPurpose.Spending(shards.head().outRef()));
+        if (redeemer.isEmpty()) {
+            return Builtins.emptyByteString();
+        }
+        PlutusData inserts = Builtins.unListData(
+                Builtins.headList(Builtins.constrFields(redeemer.get())));
+        return insertIdsJoined(inserts, Builtins.emptyByteString());
+    }
+
+    /** The inputs holding a shard thread token. */
+    private static JulcList<TxInInfo> shardInputs(JulcList<TxInInfo> inputs, JulcList<TxInInfo> acc) {
+        if (inputs.isEmpty()) {
+            return acc;
+        }
+        TxInInfo input = inputs.head();
+        if (ValuesLib.containsPolicy(input.resolved().value(), shardThreadPolicyId)) {
+            return shardInputs(inputs.tail(), acc.prepend(input));
+        }
+        return shardInputs(inputs.tail(), acc);
+    }
+
+    /** Concatenate the claim id of each shard Insert{claimId, proof}. */
+    private static byte[] insertIdsJoined(PlutusData inserts, byte[] acc) {
+        if (Builtins.nullList(inserts)) {
+            return acc;
+        }
+        byte[] claimId = Builtins.unBData(
+                Builtins.headList(Builtins.constrFields(Builtins.headList(inserts))));
+        return insertIdsJoined(Builtins.tailList(inserts),
+                Builtins.appendByteString(acc, claimId));
     }
 
     private static BigInteger vaultInputSum(TxInfo txInfo, byte[] ownHash) {

@@ -599,7 +599,8 @@ class DeploymentRendererTest {
                                 .getBytes(java.nio.charset.StandardCharsets.UTF_8),
                         PUBLIC_KEYS, 4, 0,
                         org.yanoproject.x.eutxo.contracts.EutxoProfile.V3
-                                .fallbackDelayMinSlots()));
+                                .fallbackDelayMinSlots(),
+                        org.yanoproject.x.eutxo.demo.SettlementBootstrapPlan.PUBLIC_SLOT_LENGTH_MILLIS));
         new org.yanoproject.x.eutxo.demo.SettlementDeploymentRecord(
                 "payment-chain-settlement", "preprod",
                 org.yanoproject.x.eutxo.contracts.EutxoProfile.V3.id(),

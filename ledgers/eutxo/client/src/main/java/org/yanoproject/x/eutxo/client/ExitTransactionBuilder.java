@@ -22,10 +22,12 @@ import java.util.Objects;
  * ADR-UTXO-009 §7.3 / SP-M5: builds the unsigned permissionless A3 Exit
  * transaction the SP-M2 {@code SettlementVaultValidator} Exit path accepts.
  * A cranker drains one nullifier shard's queue once the accepted-root thread
- * has gone stale beyond its governed {@code fallbackDelaySlots}; the tx needs
- * no federation signature — arming (a validity lower bound past
- * {@code updatedAtSlot + fallbackDelaySlots}) plus per-claim MPF inclusion in
- * the accepted state root authorizes it.
+ * has gone stale beyond its governed fallback delay; the tx needs no
+ * federation signature — arming (a validity lower bound past
+ * {@code updatedAtMillis + fallbackDelayMillis}) plus per-claim MPF inclusion
+ * in the accepted state root authorizes it. The root datum's times are POSIX
+ * milliseconds, as the vault sees the validity range, so the caller supplies
+ * the POSIX time of {@code currentSlot} too.
  *
  * <p>Body shape (identical to Settle, minus required signers):
  * <ul>
@@ -53,9 +55,10 @@ public final class ExitTransactionBuilder {
             String crankerAddress,
             BigInteger fee,
             BigInteger minimumContinuingLovelace,
-            long rootUpdatedAtSlot,
-            long fallbackDelaySlots,
+            long rootUpdatedAtMillis,
+            long fallbackDelayMillis,
             long currentSlot,
+            long currentSlotMillis,
             long ttlSlots,
             int maxExitBatch,
             ExecutionInputs execution
@@ -75,7 +78,7 @@ public final class ExitTransactionBuilder {
         BigInteger checkedFee = nonNegative(fee, "fee");
         BigInteger minimum = positive(
                 minimumContinuingLovelace, "minimum continuing lovelace");
-        if (rootUpdatedAtSlot < 0 || fallbackDelaySlots <= 0) {
+        if (rootUpdatedAtMillis < 0 || fallbackDelayMillis <= 0) {
             throw new IllegalArgumentException("invalid root staleness parameters");
         }
         if (currentSlot < 0 || ttlSlots <= 0
@@ -83,8 +86,8 @@ public final class ExitTransactionBuilder {
             throw new IllegalArgumentException("invalid exit validity interval");
         }
         // Arming: the validity LOWER bound the vault reads must be strictly
-        // past updatedAtSlot + fallbackDelaySlots, or the Exit path is closed.
-        if (currentSlot - rootUpdatedAtSlot <= fallbackDelaySlots) {
+        // past updatedAtMillis + fallbackDelayMillis, or the Exit path is closed.
+        if (currentSlotMillis - rootUpdatedAtMillis <= fallbackDelayMillis) {
             throw new IllegalArgumentException(
                     "exit is not armed: the accepted root is not stale beyond "
                             + "its fallback delay");

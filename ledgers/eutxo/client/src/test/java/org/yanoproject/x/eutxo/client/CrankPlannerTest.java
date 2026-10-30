@@ -16,9 +16,10 @@ import static org.assertj.core.api.Assertions.assertThat;
  * skip-nullified, capped at the governed exit batch, deterministic.
  */
 class CrankPlannerTest {
-    private static final long ROOT_UPDATED = 1_000L;
-    private static final long DELAY = 21_600L;
-    private static final long ARMED_SLOT = ROOT_UPDATED + DELAY + 500L;
+    private static final long ROOT_UPDATED = ExitTransactionBuilderTest.ROOT_UPDATED;
+    private static final long DELAY = ExitTransactionBuilderTest.DELAY;
+    private static final long ARMED_SLOT = 1_000L + 21_600L + 500L;
+    private static final long ARMED_MILLIS = ExitTransactionBuilderTest.slotMillis(ARMED_SLOT);
 
     @Test
     void unarmedRootYieldsNoWorkEvenWithOwedClaims() {
@@ -47,7 +48,7 @@ class CrankPlannerTest {
         String nullified = shardClaims.get(1).claimId();
 
         CrankPlanner.Plan plan = CrankPlanner.plan(
-                shard, owed, ROOT_UPDATED, DELAY, ARMED_SLOT, 6,
+                shard, owed, ROOT_UPDATED, DELAY, ARMED_MILLIS, 6,
                 Set.of(nullified)::contains);
 
         assertThat(plan.armed()).isTrue();
@@ -72,7 +73,7 @@ class CrankPlannerTest {
         int shard = ExitTransactionBuilderTest.shardOf(owed.getFirst());
 
         CrankPlanner.Plan plan = CrankPlanner.plan(
-                shard, owed, ROOT_UPDATED, DELAY, ARMED_SLOT, 3, id -> false);
+                shard, owed, ROOT_UPDATED, DELAY, ARMED_MILLIS, 3, id -> false);
 
         assertThat(plan.claims()).hasSize(3);
         assertThat(plan.claims()).containsExactlyElementsOf(owed.subList(0, 3));
@@ -87,7 +88,7 @@ class CrankPlannerTest {
         int shard = ExitTransactionBuilderTest.shardOf(owed.getFirst());
 
         CrankPlanner.Plan plan = CrankPlanner.plan(
-                shard, owed, ROOT_UPDATED, DELAY, ARMED_SLOT, 6, id -> false);
+                shard, owed, ROOT_UPDATED, DELAY, ARMED_MILLIS, 6, id -> false);
 
         ExitTransactionBuilder.Plan exit = ExitTransactionBuilder.build(
                 plan.claims(),
@@ -96,7 +97,7 @@ class CrankPlannerTest {
                         BigInteger.valueOf(40_000_000L))),
                 EutxoCliShared.VAULT, EutxoCliShared.CRANKER,
                 BigInteger.valueOf(300_000L), BigInteger.valueOf(2_000_000L),
-                ROOT_UPDATED, DELAY, ARMED_SLOT, 7_200L, 6,
+                ROOT_UPDATED, DELAY, ARMED_SLOT, ARMED_MILLIS, 7_200L, 6,
                 ExitTransactionBuilderTest.execution());
 
         assertThat(exit.shard()).isEqualTo(shard);

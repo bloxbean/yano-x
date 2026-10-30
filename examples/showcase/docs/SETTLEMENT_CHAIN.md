@@ -67,7 +67,9 @@ link at any time.
 Two one-shot mints and the genesis threads:
 
 - the **accepted-root thread** (an NFT) carrying the federation member set,
-  threshold, accepted state root, and the governed `fallbackDelaySlots`;
+  threshold, accepted state root, and the fallback delay. The delay is
+  governed in L1 slots; the root datum holds it in POSIX milliseconds (slots
+  times the network's slot length), the unit the vault compares;
 - **16 nullifier shard threads**, each holding an MPF root of settled claim
   ids (a claim's shard is its id's last nibble);
 - the **vault** itself.
@@ -138,6 +140,11 @@ surviving L2 node.
 - **One node owns settlement.** Exactly one member (node 0) runs the executor
   and leads co-sign rounds; the others verify and sign. That is coordination,
   not custody — releasing funds still needs the threshold.
+- **The threshold is trusted for custody.** The scripts pay each claim at
+  most once and nullify exactly the claims a transaction pays. A Settle needs
+  the threshold, and a full threshold can sign any payout. The permissionless
+  Exit needs no signature, but only once the root thread is stale, and only
+  for claims proven under the accepted state root; see ADR-UTXO-009 §13.3.
 
 ## 7. Deeper reading
 

@@ -75,7 +75,8 @@ public final class EutxoSettlementDevnetE2ETestProfile extends DevnetTestProfile
             new SettlementBootstrapPlan.Config(
                     CHAIN_ID, 0, Networks.testnet(),
                     ROOT_TOKEN.getBytes(StandardCharsets.UTF_8),
-                    List.of(MEMBER), 1, 0, 86_400));
+                    List.of(MEMBER), 1, 0, 86_400,
+                    SettlementBootstrapPlan.DEVNET_SLOT_LENGTH_MILLIS));
 
     private static byte[] buildSeedTx() {
         try {

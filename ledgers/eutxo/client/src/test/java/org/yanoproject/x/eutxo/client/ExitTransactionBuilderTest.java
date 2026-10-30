@@ -27,10 +27,13 @@ class ExitTransactionBuilderTest {
             EutxoTestWallet.fromSeed(fill(32, 0x54)).address();
     private static final String CRANKER =
             EutxoTestWallet.fromSeed(fill(32, 0xC4)).address();
-    private static final long ROOT_UPDATED = 1_000L;
-    private static final long DELAY = 21_600L;
-    /** Strictly past updatedAtSlot + fallbackDelaySlots. */
-    private static final long ARMED_SLOT = ROOT_UPDATED + DELAY + 1_000L;
+    /** POSIX time of slot 0 with one-second slots. */
+    static final long SYSTEM_START_MILLIS = 1_700_000_000_000L;
+    static final long ROOT_UPDATED = slotMillis(1_000L);
+    /** The root datum's delay: 21,600 one-second slots in milliseconds. */
+    static final long DELAY = 21_600_000L;
+    /** Strictly past updatedAtMillis + fallbackDelayMillis. */
+    private static final long ARMED_SLOT = 1_000L + 21_600L + 1_000L;
 
     @Test
     void armedExitPaysPositionallyMarksTheBatchAndTipsTheCranker() throws Exception {
@@ -45,7 +48,7 @@ class ExitTransactionBuilderTest {
                                 outpoint(0x12), BigInteger.valueOf(20_000_000L))),
                 VAULT, CRANKER,
                 BigInteger.valueOf(300_000L), BigInteger.valueOf(2_000_000L),
-                ROOT_UPDATED, DELAY, ARMED_SLOT, 7_200L, 6, execution());
+                ROOT_UPDATED, DELAY, ARMED_SLOT, slotMillis(ARMED_SLOT), 7_200L, 6, execution());
 
         assertThat(plan.shard()).isEqualTo(shard);
         TransactionBody body = TransactionBody.deserialize(
@@ -89,14 +92,14 @@ class ExitTransactionBuilderTest {
     @Test
     void unarmedExitIsRefused() {
         List<EutxoWithdrawalClaim> claims = sameShardClaims(1);
-        long tooEarly = ROOT_UPDATED + DELAY; // boundary: NOT strictly past
+        long tooEarly = 1_000L + 21_600L; // boundary: NOT strictly past
         assertThatThrownBy(() -> ExitTransactionBuilder.build(
                 claims,
                 List.of(new ExitTransactionBuilder.VaultInput(
                         outpoint(0x11), BigInteger.valueOf(40_000_000L))),
                 VAULT, CRANKER,
                 BigInteger.valueOf(300_000L), BigInteger.valueOf(2_000_000L),
-                ROOT_UPDATED, DELAY, tooEarly, 7_200L, 6, execution()))
+                ROOT_UPDATED, DELAY, tooEarly, slotMillis(tooEarly), 7_200L, 6, execution()))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("not armed");
     }
@@ -110,7 +113,7 @@ class ExitTransactionBuilderTest {
                         outpoint(0x11), BigInteger.valueOf(400_000_000L))),
                 VAULT, CRANKER,
                 BigInteger.valueOf(300_000L), BigInteger.valueOf(2_000_000L),
-                ROOT_UPDATED, DELAY, ARMED_SLOT, 7_200L, 6, execution()))
+                ROOT_UPDATED, DELAY, ARMED_SLOT, slotMillis(ARMED_SLOT), 7_200L, 6, execution()))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("single nullifier shard");
 
@@ -121,7 +124,7 @@ class ExitTransactionBuilderTest {
                         outpoint(0x11), BigInteger.valueOf(400_000_000L))),
                 VAULT, CRANKER,
                 BigInteger.valueOf(300_000L), BigInteger.valueOf(2_000_000L),
-                ROOT_UPDATED, DELAY, ARMED_SLOT, 7_200L, 6, execution()))
+                ROOT_UPDATED, DELAY, ARMED_SLOT, slotMillis(ARMED_SLOT), 7_200L, 6, execution()))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("governed maximum");
     }
@@ -135,12 +138,36 @@ class ExitTransactionBuilderTest {
                         outpoint(0x11), BigInteger.valueOf(1_000_000L))),
                 VAULT, CRANKER,
                 BigInteger.valueOf(300_000L), BigInteger.valueOf(2_000_000L),
-                ROOT_UPDATED, DELAY, ARMED_SLOT, 7_200L, 6, execution()))
+                ROOT_UPDATED, DELAY, ARMED_SLOT, slotMillis(ARMED_SLOT), 7_200L, 6, execution()))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("cannot fund");
     }
 
+    /**
+     * The datum's delay is milliseconds. A slot count past the delay's number (21,600 slots plus one) is armed
+     * only once the POSIX time is past it too: at 0.2 s slots the same slot count is a fifth of the time.
+     */
+    @Test
+    void armingComparesMillisecondsNotSlots() {
+        List<EutxoWithdrawalClaim> claims = sameShardClaims(1);
+        long slot = 21_601L;
+        long fifthSecondSlots = SYSTEM_START_MILLIS + slot * 200L;
+        assertThatThrownBy(() -> ExitTransactionBuilder.build(
+                claims,
+                List.of(new ExitTransactionBuilder.VaultInput(
+                        outpoint(0x11), BigInteger.valueOf(40_000_000L))),
+                VAULT, CRANKER,
+                BigInteger.valueOf(300_000L), BigInteger.valueOf(2_000_000L),
+                SYSTEM_START_MILLIS, DELAY, slot, fifthSecondSlots, 7_200L, 6, execution()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("not armed");
+    }
+
     // --- fixtures ---------------------------------------------------------
+
+    static long slotMillis(long slot) {
+        return SYSTEM_START_MILLIS + slot * 1_000L;
+    }
 
     static int shardOf(EutxoWithdrawalClaim claim) {
         byte[] id = HexFormat.of().parseHex(claim.claimId());
