@@ -2,9 +2,9 @@
 
 > Single-file dump of the Yano X docsite, suitable for AI agent ingestion.
 
-yanoXVersion: 0.1.0-pre6-dev1
+yanoXVersion: 0.1.0-pre6
 yanoVersion: 0.1.0-pre19
-Generated: 2026-11-04T16:16:06.343Z
+Generated: 2026-11-04T17:12:53.694Z
 Site: https://yano-x.io
 Repo: https://github.com/bloxbean/yano-x
 
@@ -15,7 +15,7 @@ Repo: https://github.com/bloxbean/yano-x
   products, SDKs, and the batteries-included JVM distribution. The dependency
   direction is strictly `yano-x -> yano` and must never be inverted, nor satisfied
   with a composite Gradle build or a sibling source checkout.
-- **Versions:** Yano X `0.1.0-pre6-dev1` builds against Yano `0.1.0-pre19`, Java 25.
+- **Versions:** Yano X `0.1.0-pre6` builds against Yano `0.1.0-pre19`, Java 25.
   Start with a matching release archive; build from source for unpublished changes.
 - **Yano X is JVM-only.** Never add GraalVM/native-image tasks, reachability
   metadata, or native executables. `verifyJvmOnlyBuild` enforces this.
@@ -373,7 +373,7 @@ in its `gradle.properties`.
 
 | Value | Current |
 |---|---|
-| Yano X version | `0.1.0-pre6-dev1` |
+| Yano X version | `0.1.0-pre6` |
 | Yano host version | `0.1.0-pre19` |
 | Maven group | `org.yanoproject.x` |
 | Java | `25` |
@@ -1318,7 +1318,7 @@ the latest release it is:
 
 | Value | Current |
 |---|---|
-| Yano X version | `0.1.0-pre6-dev1` |
+| Yano X version | `0.1.0-pre6` |
 | Yano host version | `0.1.0-pre19` |
 | Maven group | `org.yanoproject.x` |
 | Java | `25` |
@@ -18311,7 +18311,7 @@ The latest Yano X release and the Yano host it is built on:
 
 | Value | Current |
 |---|---|
-| Yano X version | `0.1.0-pre6-dev1` |
+| Yano X version | `0.1.0-pre6` |
 | Yano host version | `0.1.0-pre19` |
 | Maven group | `org.yanoproject.x` |
 | Java | `25` |
