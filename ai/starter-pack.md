@@ -1,4 +1,4 @@
-<!-- yanoXVersion: 0.1.0-pre5; yanoVersion: 0.1.0-pre19 -->
+<!-- yanoXVersion: 0.1.0-pre6-dev1; yanoVersion: 0.1.0-pre19 -->
 
 > **Read this entire document before generating any Yano X code or
 > configuration.** It distills the architecture boundary, the extension ladder,
@@ -47,7 +47,7 @@ in its `gradle.properties`.
 
 | Value | Current |
 |---|---|
-| Yano X version | `0.1.0-pre5` |
+| Yano X version | `0.1.0-pre6-dev1` |
 | Yano host version | `0.1.0-pre19` |
 | Maven group | `org.yanoproject.x` |
 | Java | `25` |
