@@ -1,7 +1,8 @@
 # Grow and change your application
 
-- **Goal:** add or remove a member of a running application, recover from a
-  lost key, host another application on the same nodes, and upgrade a node.
+- **Goal:** add or remove a member of a running application, follow a chain
+  from a read-only node, recover from a lost key, host another application on
+  the same nodes, and upgrade a node.
 - **Before you start:** a live application from
   [Set up an application](configure.md), with every existing operator able to
   run one command on their own node.
@@ -84,6 +85,65 @@ When every operator has approved, dave joins and starts:
 
 > **✓ You should see** four members online and `members agree` for every
 > chain.
+
+## Follow a chain without joining it
+
+A node can follow a `governed` application without being a member. There is no
+separate observer role: it is a node that has made a card and joined, but that
+nobody has approved. It keeps a full copy of the chain and answers reads, and
+it does not vote, so it never counts toward the threshold.
+
+Use the same Yano X release and the sealed `supply.chain` file, with ports not
+used by another node on that machine:
+
+```bash
+./yano.sh appchain request supply.chain --name erin --host 127.0.0.1 \
+  --node-port 15341 --http-port 9195
+./yano.sh appchain join supply.chain
+./yano.sh appchain start
+```
+
+Do not send `erin.member` to the operators. To check that the observer has the
+same chain, compare its height and state root with a member's (use each node's
+HTTP port):
+
+```bash
+curl -fsS http://127.0.0.1:9195/api/v1/app-chain/chains/supply/status \
+  | jq '{tipHeight, stateRoot, memberActiveForNextBlock}'
+```
+
+> **✓ You should see** the member's `tipHeight` and `stateRoot`, with
+> `memberActiveForNextBlock` set to `false`.
+
+Submitting through the observer is refused with HTTP `503`:
+
+```json
+{"error":"This node is not an active member of app-chain 'supply'; no block can include its submissions"}
+```
+
+This `503` does not clear with time, so applications must submit through a
+member and must not retry this refusal.
+
+Keep these points in mind:
+
+- **Nothing approves an observer.** Anyone with the sealed file and access to a
+  member's node port can follow the chain and read its full history. Restrict
+  who can reach those ports if the chain's data is private.
+- **`status` is written for a joining member.** On the observer it shows the
+  `Starting` step, `waiting for approval`, and a `Next:` line that suggests
+  `approve`. Those are expected. Its member list holds the sealed members and
+  the observer itself, so it omits later members and its `members online` count
+  is not the chain's. The `members 4, 3 signatures` part of the chain line does
+  come from the chain. Members do not list the observer in their own `status`.
+- **It reads from the sealed peers.** The observer connects to the addresses in
+  the sealed file, and to any you set with `join --peer`, so at least one of
+  them must stay reachable for it to keep following.
+- **Static membership is not supported.** `join` refuses an application that
+  uses `static` membership.
+
+To make the observer a member later, send `erin.member` to every operator and
+follow [Add a member](#add-a-member). Keep `yano-node/secrets/member.key`,
+because the card is tied to that key.
 
 ## Remove a member
 
@@ -184,6 +244,7 @@ new chain. If bob moves, each other operator runs:
 | `orders: still waiting for …` and exit code 3 | The chain has not made enough blocks yet, or other operators have not approved. Send traffic, or run again later. |
 | `dave.member was made for another application (invite …)` | The card was made for a different `.chain`. Ask dave to run `request supply.chain`. |
 | `The sealed roster of supply already lists carol` from `request` | A replacement node cannot reuse a sealed name. Remove the old member, then request under a new name such as `carol-2`. |
+| `This node is not an active member of app-chain 'supply'; no block can include its submissions` (HTTP `503`) | This node is an [observer](#follow-a-chain-without-joining-it), or a member that was removed. Submit through a member. |
 | `alice is the fixed proposer of orders; the runtime refuses to remove it.` | With fixed sequencing the lead cannot be removed. Losing the lead's key means sealing a new application. |
 
 **Next:** [run your node on a server](operators.md).

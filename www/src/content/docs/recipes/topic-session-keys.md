@@ -1,8 +1,12 @@
 ---
 title: "Protect a topic and give users session keys"
-description: "Topic policies are switched on per chain when the application is sealed: add a topics: block to the chain in the draft (./yano.sh appchain new --topics…"
+description: "New to topics? Start with get started with the topic registry, which walks through namespaces, signed writes and refusals on a local chain."
 editUrl: "https://github.com/bloxbean/yano-x/edit/main/docs/appchain/TOPIC_SESSION_KEYS.md"
 ---
+New to topics? Start with
+[get started with the topic registry](/recipes/topics-getting-started/), which walks
+through namespaces, signed writes and refusals on a local chain.
+
 Topic policies are switched on per chain when the application is sealed: add a
 `topics:` block to the chain in the draft (`./yano.sh appchain new --topics
 arcade=members` for a chain `arcade`, or answer the wizard's question), with

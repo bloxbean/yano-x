@@ -1,5 +1,9 @@
 # Protect a topic and give users session keys
 
+New to topics? Start with
+[get started with the topic registry](TOPICS_GETTING_STARTED.md), which walks
+through namespaces, signed writes and refusals on a local chain.
+
 Topic policies are switched on per chain when the application is sealed: add a
 `topics:` block to the chain in the draft (`./yano.sh appchain new --topics
 arcade=members` for a chain `arcade`, or answer the wizard's question), with
