@@ -330,7 +330,14 @@ jobs:
           set -euo pipefail
           ./gradlew :distribution:jvm:yanoXSelfContainedDistZip -PskipSigning=true --stacktrace
           mkdir self-contained
-          cp distribution/jvm/build/distributions/yano-x-jvm-*-{linux,macos}-*.zip self-contained/
+          # Each runner builds only its own platform's archive, so one of these patterns never matches.
+          shopt -s nullglob
+          archives=(distribution/jvm/build/distributions/yano-x-jvm-*-{linux,macos}-*.zip)
+          if [ "${#archives[@]}" -eq 0 ]; then
+            echo "::error::No self-contained archive was built" >&2
+            exit 1
+          fi
+          cp "${archives[@]}" self-contained/
           for archive in self-contained/*.zip; do
             unzip -tq "$archive"
             (cd self-contained && shasum -a 256 "$(basename "$archive")" > "$(basename "$archive").sha256")
