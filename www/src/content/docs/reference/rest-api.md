@@ -90,8 +90,8 @@ All paths below are relative to `/api/v1/app-chain/chains/{chainId}`.
 
 ### Topic registry
 
-On a chain sealed with a `topics:` block. Without one, `GET /topics/config`
-answers `{"enabled": false}`. See
+On a chain sealed with a `topics:` block. Without one, or before the chain's first
+block, `GET /topics/config` answers `{"enabled": false}`. See
 [topic policies](/concepts/topic-policies/).
 
 | Method and path | Access | Purpose |
