@@ -10,6 +10,35 @@ follow the [VM operator guide](docs/appchain/deployment/operators.md).
 The [deployment guide](docs/appchain/deployment/README.md) connects these paths,
 including how to add a chain while preserving existing state.
 
+## Architecture
+
+[![Yano X master architecture](docs/architecture/yano-x-architecture.svg)](docs/architecture/yano-x-architecture.svg)
+
+Every app-ledger member runs the same Yano node (`yano.jar`) from the upstream
+[bloxbean/yano](https://github.com/bloxbean/yano) host. The host owns the
+consensus pipeline: it admits signed messages, proposes ordered blocks,
+re-executes them on every member, and finalizes them with a threshold
+certificate. It also owns authenticated state and proofs, the effect runtime,
+Cardano anchoring and L1 observation, the REST API, and the per-node RocksDB
+stores.
+
+Yano X adds behavior only through runtime plugin bundles. Each bundle is loaded
+from `plugins/` through the host's plugin catalog. The bundles supply:
+
+- state machines and composites: stdlib, composite, role-workflow, evidence,
+  cardano-history, eutxo;
+- effect executors and sinks: Kafka, S3, IPFS, Cardano payments;
+- the eUTxO bridge and read models.
+
+Libraries, SDKs, on-chain validators and tools are published separately. The
+build packages everything into one JVM distribution, and the dependency always
+points from Yano X to Yano.
+Open the diagram in its own tab to read it at full size. A
+[PNG copy](docs/architecture/yano-x-architecture.png) is available for slides.
+The SVG is generated from
+[`generate_diagram.py`](docs/architecture/generate_diagram.py). Edit that
+script, not the SVG.
+
 ## Use as a library
 
 Reusable Yano X libraries are published to
