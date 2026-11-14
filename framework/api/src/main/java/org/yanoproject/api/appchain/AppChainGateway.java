@@ -1,6 +1,9 @@
 package org.yanoproject.api.appchain;
 
 import org.yanoproject.api.appchain.state.StateCommitmentIdentity;
+import org.yanoproject.api.appchain.codec.AppBlockCodec;
+import org.yanoproject.x.proofs.commitment.FinalizedAppCommitmentV1;
+import java.util.Optional;
 import org.yanoproject.api.appchain.state.StateIntegrityReport;
 import org.yanoproject.api.appchain.state.StateProof;
 import org.yanoproject.api.appchain.state.StateProofEnvelope;
@@ -127,6 +130,28 @@ public interface AppChainGateway {
 
     /** Finalized block at the given height, if present. */
     java.util.Optional<AppBlock> block(long height);
+
+    /**
+     * Export a destination-independent commitment to an already finalized local block.
+     * Empty when the block or genesis identity is unavailable. This envelope does not
+     * itself prove finality: external verifiers still need the certificate/evidence and
+     * independently trusted chain context. Export never publishes to an L1 or mutates history.
+     */
+    default Optional<FinalizedAppCommitmentV1> finalizedCommitment(long height) {
+        if (height < 1) throw new IllegalArgumentException("height must be positive");
+        Optional<StateCommitmentIdentity> identity = stateCommitmentIdentity();
+        if (identity.isEmpty()) return Optional.empty();
+        return block(height).map(block -> {
+            if (block.height() != height || !chainId().equals(block.chainId())) {
+                throw new IllegalStateException("Finalized block does not belong to the requested chain/height");
+            }
+            StateCommitmentIdentity pinned = identity.orElseThrow();
+            return new FinalizedAppCommitmentV1(block.chainId(), pinned.profile().id(),
+                    pinned.profile().formatFingerprint(), pinned.genesisId(),
+                    block.consensusContextDigest(), block.height(),
+                    AppBlockCodec.blockHash(block), block.stateRoot());
+        });
+    }
 
     /** State commitment root after the last finalized block (32 zero bytes if none). */
     byte[] stateRoot();

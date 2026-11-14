@@ -71,3 +71,11 @@ Run `./gradlew :sdk:proof-contracts:test verifyArtifactInventory verifyJvmOnlyBu
 Golden vectors, strict decoding, defensive copying and destination isolation are
 covered. Framework extraction, host integration and the oldest-host release matrix
 remain separate acceptance gates; this contract alone does not complete Phase 2.
+
+The extracted `AppChainGateway.finalizedCommitment(height)` exports this envelope
+from an already finalized local block and the pinned state commitment identity.
+It returns empty when either is unavailable, preserving compatibility with older
+implementations that do not expose the identity. It refuses inconsistent
+chain/height responses. The method is read-only: adapters decide independently
+whether and where to publish. Verifiers still need the finality evidence and
+an independently trusted chain context; the envelope is not a certificate.

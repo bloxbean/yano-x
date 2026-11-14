@@ -1,5 +1,6 @@
 description = 'Application-ledger public contracts, preserving established Java names'
 dependencies {
+    api project(':sdk:proof-contracts')
     api("org.yanoproject:yano-host-api:${providers.gradleProperty('hostApiVersion').getOrElse('1.0.0-245.1')}") {
         version { strictly providers.gradleProperty('hostApiVersion').getOrElse('1.0.0-245.1') }
     }
