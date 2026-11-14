@@ -20,3 +20,5 @@ The earlier host `.4` / X `.6`–`.7` probe remains under `../first-host`; it pr
 `independent-framework-10.json` records X `.10` with Yaci `0.5.0-pre15-app-only-245.3` passing both profiles against the unchanged oldest supported candidate host `.5`, Host API `.4`, and the same `.9`-compiled fixture.
 
 `host-5-and-6-framework-10.json` records all four profiles passing with X `.10` and Yaci `.3`: the unchanged oldest host/foundation `.5` and the newer `.6`, both using the unchanged Host API `.4` and frozen fixture.
+
+`host-5-and-7-framework-10.json` retains the subsequent four-cell pass against host/foundation `.7` and the same frozen oldest host `.5`, with X `.10`, Yaci `.3`, Host API `.4`, and fixture bytes unchanged.
