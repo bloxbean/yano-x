@@ -76,7 +76,9 @@ repositories {
 }
 
 dependencies {
-    yanoHostRuntime platform(
+    // This non-consumable qualification graph must describe the exact supplied ZIP,
+    // even when the retained Host API's foundation version sorts above this host.
+    yanoHostRuntime enforcedPlatform(
             "org.yanoproject:yano-bom:${yanoVersion.getOrElse('unspecified')}")
     yanoHostRuntime 'org.yanoproject:yano-node-api'
     yanoHostRuntime 'org.yanoproject:yano-cardano-api'
