@@ -43,9 +43,24 @@ run_case() {
   local workspace="$test_directory/$name" result=0
   mkdir -p "$workspace"
   printf 'yanoVersion=0.1.0-pre14\n' > "$workspace/gradle.properties"
-  if [[ "$name" == committed-pin ]]; then
+  if [[ "$name" == committed-* || "$name" == explicit-default-override ]]; then
     mkdir -p "$workspace/.github"
-    jq -n --arg commit "$commit" '{host:{runId:"123",commit:$commit}}' > "$workspace/.github/ci-input-pins.json"
+    printf 'yanoVersion = %s\nnodeApiVersion = %s\nhostApiVersion = %s  \n' \
+      "$version" "$version" "$host_api_version" > "$workspace/gradle.properties"
+    jq -n --arg commit "$commit" \
+      '{host:{runId:"123",commit:$commit},foundation:{runId:"123",commit:$commit}}' \
+      > "$workspace/.github/ci-input-pins.json"
+    if [[ "$name" == committed-drift-* ]]; then
+      printf '%s = different-version\n' "${name#committed-drift-}" >> "$workspace/gradle.properties"
+    elif [[ "$name" == committed-missing-* ]]; then
+      grep -v "^${name#committed-missing-} " "$workspace/gradle.properties" > "$workspace/properties.tmp"
+      mv "$workspace/properties.tmp" "$workspace/gradle.properties"
+    elif [[ "$name" == explicit-default-override || "$name" == committed-foundation ]]; then
+      printf 'yanoVersion=another-host\nnodeApiVersion=another-node\nhostApiVersion=another-api\n' \
+        > "$workspace/gradle.properties"
+    elif [[ "$name" == committed-no-properties ]]; then
+      rm "$workspace/gradle.properties"
+    fi
   fi
   if env PATH="$test_directory/bin:$PATH" GITHUB_WORKSPACE="$workspace" GITHUB_ENV="$workspace/env" \
       TEST_INPUT_FIXTURE="$fixture" TEST_INPUT_VERSION="$version" YANO_VERSION='' \
@@ -67,6 +82,20 @@ run_case() {
 run_case valid pass
 run_case 'space path' pass
 run_case committed-pin pass YANO_INPUTS_RUN_ID='' YANO_INPUTS_COMMIT=''
+for property in yanoVersion nodeApiVersion hostApiVersion; do
+  for failure in drift missing; do
+    name="committed-$failure-$property"
+    run_case "$name" fail YANO_INPUTS_RUN_ID='' YANO_INPUTS_COMMIT=''
+    grep -F "Committed host pin differs from $property" "$test_directory/$name/output.log" >/dev/null
+    [[ ! -e "$test_directory/$name/env" ]]
+  done
+done
+run_case committed-no-properties fail YANO_INPUTS_RUN_ID='' YANO_INPUTS_COMMIT=''
+grep -F 'Committed host pin requires gradle.properties' "$test_directory/committed-no-properties/output.log" >/dev/null
+[[ ! -e "$test_directory/committed-no-properties/env" ]]
+run_case explicit-default-override pass
+run_case committed-foundation pass YANO_INPUTS_RUN_ID='' YANO_INPUTS_COMMIT='' \
+  YANO_INPUTS_SCOPE=foundation TEST_INPUT_FIXTURE="$foundation"
 run_case foundation pass YANO_INPUTS_SCOPE=foundation TEST_INPUT_FIXTURE="$foundation"
 run_case foundation-requires-pin fail YANO_INPUTS_SCOPE=foundation YANO_INPUTS_RUN_ID='' YANO_INPUTS_COMMIT=''
 run_case wrong-scope fail YANO_INPUTS_SCOPE=foundation

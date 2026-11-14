@@ -9,7 +9,9 @@ fail() { printf '%s\n' "$1" >&2; exit 1; }
 scope="${YANO_INPUTS_SCOPE:-host}"
 [[ "$scope" == host || "$scope" == foundation ]] || fail 'Invalid input scope'
 pins="$GITHUB_WORKSPACE/.github/ci-input-pins.json"
+using_committed_pin=false
 if [[ -z "${YANO_INPUTS_RUN_ID:-}${YANO_INPUTS_COMMIT:-}" && -f "$pins" ]]; then
+  using_committed_pin=true
   YANO_INPUTS_RUN_ID="$(jq -r --arg scope "$scope" '.[$scope].runId // empty' "$pins")"
   YANO_INPUTS_COMMIT="$(jq -r --arg scope "$scope" '.[$scope].commit // empty' "$pins")"
 fi
@@ -73,6 +75,17 @@ if [[ -n "${YANO_INPUTS_RUN_ID:-}${YANO_INPUTS_COMMIT:-}" ]]; then
   require_publication yano-cardano-api "$staged_version"
   [[ "$scope" != host ]] || require_publication yano-runtime "$staged_version"
   require_publication yano-host-api "$host_api_version"
+  if [[ "$using_committed_pin" == true && "$scope" == host ]]; then
+    [[ -f "$GITHUB_WORKSPACE/gradle.properties" ]] || fail 'Committed host pin requires gradle.properties'
+    for property in yanoVersion nodeApiVersion hostApiVersion; do
+      expected="$staged_version"
+      [[ "$property" != hostApiVersion ]] || expected="$host_api_version"
+      declared="$(sed -n "s/^[[:space:]]*$property[[:space:]]*=[[:space:]]*//p" \
+        "$GITHUB_WORKSPACE/gradle.properties" | sed 's/[[:space:]]*$//')"
+      [[ "$declared" == "$expected" ]] \
+        || fail "Committed host pin differs from $property in gradle.properties"
+    done
+  fi
   printf 'ORG_GRADLE_PROJECT_nodeApiVersion=%s\nORG_GRADLE_PROJECT_hostApiVersion=%s\n' \
     "$staged_version" "$host_api_version" >> "$GITHUB_ENV"
   YANO_VERSION="$staged_version"

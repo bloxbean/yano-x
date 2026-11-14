@@ -77,3 +77,11 @@ catalog smoke and verifies that rebuilding the Host API did not change the
 foundation JAR bytes or overwrite its original publication metadata. The normal
 X preparer downloaded this host artifact and verified its complete checksum
 inventory locally before the host pin was committed.
+
+For a committed host pin, the verified manifest must also match the central
+`yanoVersion`, `nodeApiVersion` and `hostApiVersion` defaults; CI rejects drift
+before exporting inputs. Explicit manual run/commit overrides and foundation-only
+staging retain their independent version selection. Public foundation/framework
+coordinates must replace temporary Actions inputs before merge into a branch
+that publishes snapshots or releases, and final release POMs must use released
+Yaci rather than the qualification snapshot.

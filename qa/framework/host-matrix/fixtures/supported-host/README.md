@@ -52,7 +52,7 @@ skips. These include live Cardano anchoring/observations, cross-node roots and
 restart/persistence checks. `reviewer1-template-and-boundary-checks.json` records
 the isolated template/catalog checks, rejection of mixed framework versions and
 rejection of forbidden host dependencies in evidence-contracts publication
-metadata. See Yano's [review follow-up report](https://github.com/bloxbean/yano/blob/feat/245-app-ledger-host-api/qa/app-ledger/REVIEWER1_REREVIEW.md)
+metadata. See Yano's [qualification record](https://github.com/bloxbean/yano/blob/feat/245-app-ledger-host-api/qa/app-ledger/PHASE2_VALIDATION.md#published-yaci-snapshot-qualification)
 for coordinated runtime, public snapshot and clean CI input qualification.
 These results do not relabel historical native/Haskell runs or replace the one
 final comprehensive release-qualification cycle.
