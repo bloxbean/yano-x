@@ -27,7 +27,11 @@ java {
 }
 
 tasks.named('test') {
-    systemProperty 'yano.x.test.runtime-classpath', sourceSets.test.runtimeClasspath.asPath
+    // Structural/framework checks may realize this task without running SDK tests.
+    // Resolve the forked-process classpath only when the test actually executes.
+    doFirst {
+        systemProperty 'yano.x.test.runtime-classpath', sourceSets.test.runtimeClasspath.asPath
+    }
 }
 
 publishing {

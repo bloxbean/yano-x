@@ -80,6 +80,12 @@ jobs:
           cache: 'gradle'
       - name: Verify input preparation
         run: bash .github/scripts/tests/prepare-yano-inputs-test.sh
+      - name: Verify configuration without host publications
+        run: >-
+          ./gradlew verifyJvmOnlyBuild
+          -PyanoVersion=0.0.0-configuration-probe
+          -PnodeApiVersion=0.0.0-configuration-probe
+          -PhostApiVersion=0.0.0-configuration-probe --stacktrace
       - name: Prepare pinned foundation APIs
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -118,6 +124,12 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: bash .github/scripts/prepare-yano-inputs.sh
+      - name: Verify configuration without host publications
+        run: >-
+          ./gradlew verifyJvmOnlyBuild
+          -PyanoVersion=0.0.0-configuration-probe
+          -PnodeApiVersion=0.0.0-configuration-probe
+          -PhostApiVersion=0.0.0-configuration-probe --stacktrace
       - name: Stage Yano X publications in the isolated build repository
         run: ./gradlew publishAllPublicationsToInternalRepository -PskipSigning=true --stacktrace
       - name: Verify standalone plugin template
