@@ -4158,6 +4158,12 @@ public class AppLedgerRuntime implements Subsystem, AppChainGateway {
         }
     }
 
+    // The host serializes stop/restart; capture the cleanup barrier installed by
+    // the completed stop without changing direct start/stop behavior.
+    CompletableFuture<Void> runtimeShutdownCompletion() {
+        return deferredRuntimeShutdown;
+    }
+
     private void startTransition() {
         if (!deferredRuntimeShutdown.isDone()) {
             throw new IllegalStateException("App-chain '" + config.chainId()

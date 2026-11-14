@@ -273,6 +273,80 @@ class AppLedgerHostPluginTest {
     }
 
     @Test
+    void blankIndexedTransportFallsBackAndDedicatedIsCaseInsensitive() {
+        for (String perChain : List.of("", "  ", "Dedicated", " DEDICATED ")) {
+            Map<String, Object> first = new HashMap<>(Harness.chain("first"));
+            first.put("transport.mode", perChain);
+            Harness harness = new Harness();
+            harness.globals(Map.of("yano.app-chain.enabled", true,
+                    "yano.app-chain.network-magic", 424242,
+                    "yano.app-chain.transport.mode", " Dedicated ",
+                    "yano.app-chain.chains", List.of(first)));
+            assertAssemblyAccepts(harness, 1);
+        }
+        for (String transport : List.of("Dedicated", " DEDICATED ")) {
+            Harness harness = new Harness();
+            harness.globals(flatGlobals(transport));
+            assertAssemblyAccepts(harness, 1);
+        }
+    }
+
+    @Test
+    void blankIndexedAndGlobalModesStillRejectTheSharedDefault() {
+        Map<String, Object> first = new HashMap<>(Harness.chain("first"));
+        first.put("transport.mode", "  ");
+        Harness harness = new Harness();
+        harness.globals(Map.of("yano.app-chain.enabled", true,
+                "yano.app-chain.network-magic", 424242,
+                "yano.app-chain.transport.mode", "  ",
+                "yano.app-chain.chains", List.of(first)));
+        assertTransportRejectedBeforeFactories(harness, "first");
+    }
+
+    @Test
+    void standaloneNeverDecoratesSharedOutboundSessionsEvenWhenHostOffersThem() {
+        Harness harness = new Harness();
+        harness.sharedOutboundSessions = true;
+        harness.services.put(AppLedgerHostPlugin.NODE_CONFIG_SERVICE,
+                YanoConfig.builder().mode(RuntimeMode.APP_LEDGER).enableClient(true)
+                        .appChainStoragePath("appchain-test").build());
+        harness.globals(transportGlobals("shared", "dedicated", "Dedicated"));
+        // Harness.decorateOutbound throws: per-chain dedicated overrides must
+        // never cause the standalone runtime to reuse the global shared session.
+        assertAssemblyAccepts(harness, 2);
+    }
+
+    @Test
+    void standaloneNetworkMagicRejectsMissingMalformedAndOutOfRangeBeforeFactories() {
+        for (String magic : List.of("", " ", "not-a-number", "-1", "0", "4294967296", "9223372036854775808")) {
+            Harness harness = new Harness();
+            Map<String, Object> globals = new HashMap<>(flatGlobals("dedicated"));
+            if (magic.isEmpty()) globals.remove("yano.app-chain.network-magic");
+            else globals.put("yano.app-chain.network-magic", magic);
+            harness.globals(globals);
+            ProbePlugin plugin = new ProbePlugin();
+            plugin.init(harness);
+            assertThatThrownBy(plugin::assemble).isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("yano.app-chain.network-magic");
+            assertThat(plugin.chains).isEmpty();
+            assertThat(harness.owned.get()).isNull();
+        }
+    }
+
+    @Test
+    void standaloneNetworkMagicPreservesUnsignedUpperBound() {
+        Harness harness = new Harness();
+        Map<String, Object> globals = new HashMap<>(flatGlobals("dedicated"));
+        globals.put("yano.app-chain.network-magic", " 4294967295 ");
+        harness.globals(globals);
+        ProbePlugin plugin = new ProbePlugin();
+        plugin.init(harness);
+        AppLedgerManager manager = plugin.assemble();
+        try { assertThat(plugin.lastMagic).isEqualTo(0xffff_ffffL); }
+        finally { manager.close(); }
+    }
+
+    @Test
     void indexedSharedRejectsGlobalDedicatedBeforeAnyChainFactoryRuns() {
         Harness harness = new Harness();
         harness.globals(transportGlobals("dedicated", "dedicated", "shared"));
@@ -387,6 +461,7 @@ class AppLedgerHostPluginTest {
         private boolean attemptWorkerAssembly;
         private boolean closeFromFactoryWorker;
         private boolean allowCardanoDeployment;
+        private long lastMagic;
 
         @Override
         protected void validateDeployment(YanoConfig node) {
@@ -396,6 +471,7 @@ class AppLedgerHostPluginTest {
         @Override
         protected AppLedgerRuntime createChain(AppChainConfig config, long magic, String storage,
                 YanoConfig node, HostApi host, PluginContext context) {
+            lastMagic = magic;
             if (requireLaterService) {
                 assertThat(context.getService("later-plugin-ready", Boolean.class)).contains(true);
             }
@@ -439,6 +515,7 @@ class AppLedgerHostPluginTest {
         private final AtomicReference<Subsystem> owned = new AtomicReference<>();
         private boolean rejectOwnership;
         private boolean rejectProtocols;
+        private boolean sharedOutboundSessions;
         private boolean initializationComplete;
         private Runnable onProtocolRegistration = () -> { };
         private Runnable onOwnershipTransfer = () -> { };
@@ -450,7 +527,7 @@ class AppLedgerHostPluginTest {
             services.put(AppLedgerHostPlugin.NODE_CONFIG_SERVICE, node);
             globals(transportGlobals("dedicated", "", ""));
             N2NExtensionRegistry n2n = new N2NExtensionRegistry() {
-                public boolean hasSharedOutboundSessions() { return false; }
+                public boolean hasSharedOutboundSessions() { return sharedOutboundSessions; }
                 public void registerInbound(int id, AgentFactory factory) {
                     if (rejectProtocols) throw new IllegalStateException("protocol rejected");
                     onProtocolRegistration.run();

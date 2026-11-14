@@ -16,7 +16,13 @@ import org.yanoproject.runtime.kernel.SubsystemHealth;
 import org.yanoproject.runtime.util.LifecycleFailures;
 import org.slf4j.Logger;
 
+import java.time.Duration;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 /**
  * Hosts one {@link AppLedgerRuntime} per configured chain (multi-chain per
@@ -262,6 +268,44 @@ public class AppLedgerManager implements Subsystem, AppChainGateways {
     @Override
     public void stop() {
         stopManagedChains(lifecycleChains, log);
+    }
+
+    /**
+     * Wait for cleanup retained by a preceding {@link #stop()}, using one total
+     * timeout for all chains. The host must serialize stop/restart around this
+     * call. This does not stop running chains or start a new generation.
+     *
+     * @return false only when cleanup is still pending at the deadline
+     * @throws IllegalStateException if interrupted (the interrupt flag is retained)
+     * @throws RuntimeException if the preceding cleanup failed
+     */
+    public boolean awaitStopped(Duration timeout) {
+        Objects.requireNonNull(timeout, "timeout");
+        if (timeout.isNegative()) throw new IllegalArgumentException("timeout must not be negative");
+        List<CompletableFuture<Void>> shutdowns = chains.values().stream()
+                .map(AppLedgerRuntime::runtimeShutdownCompletion).toList();
+        CompletableFuture<Void> completion = CompletableFuture.allOf(shutdowns.toArray(CompletableFuture[]::new));
+        try {
+            completion.get(timeout.toNanos(), TimeUnit.NANOSECONDS);
+            return true;
+        } catch (TimeoutException pending) {
+            return false;
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted while awaiting app-chain cleanup", interrupted);
+        } catch (ExecutionException failed) {
+            Throwable failure = null;
+            for (CompletableFuture<Void> shutdown : shutdowns) {
+                try {
+                    shutdown.join();
+                } catch (Throwable cleanupFailure) {
+                    Throwable cause = cleanupFailure instanceof CompletionException
+                            && cleanupFailure.getCause() != null ? cleanupFailure.getCause() : cleanupFailure;
+                    failure = LifecycleFailures.merge(failure, cause);
+                }
+            }
+            throw propagateLifecycleFailure(failure, "App-chain cleanup failed");
+        }
     }
 
     /**

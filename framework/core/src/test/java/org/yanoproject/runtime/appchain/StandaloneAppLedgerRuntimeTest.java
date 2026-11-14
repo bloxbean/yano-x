@@ -26,6 +26,7 @@ import org.slf4j.LoggerFactory;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HexFormat;
 import java.util.List;
@@ -122,6 +123,76 @@ class StandaloneAppLedgerRuntimeTest {
     }
 
     @Test
+    void managerWaitsForRealQueryCleanupWithoutMakingPendingRestartTerminal() throws Exception {
+        SimpleEventBus events = new SimpleEventBus();
+        QueryableOrderedLog machine = new QueryableOrderedLog();
+        AppLedgerRuntime runtime = runtime(config(), machine, events);
+        AppLedgerManager manager = new AppLedgerManager(List.of(runtime), LoggerFactory.getLogger(getClass()));
+        var workers = Executors.newFixedThreadPool(2, Thread.ofVirtual().factory());
+        try {
+            manager.start();
+            byte[] id = HexFormat.of().parseHex(runtime.submit("orders", new byte[]{1}));
+            awaitFinalized(runtime, id);
+            machine.blockQueries = true;
+            workers.submit(() -> runtime.query("message", id));
+            assertThat(machine.queryEntered.await(3, TimeUnit.SECONDS)).isTrue();
+            manager.stop();
+            assertThat(manager.awaitStopped(Duration.ofMillis(50))).isFalse();
+            assertThatThrownBy(runtime::start).hasMessageContaining("still draining");
+            workers.submit(() -> {
+                Thread.currentThread().interrupt();
+                try {
+                    assertThatThrownBy(() -> manager.awaitStopped(Duration.ofSeconds(1)))
+                            .isInstanceOf(IllegalStateException.class).hasMessageContaining("Interrupted");
+                    assertThat(Thread.currentThread().isInterrupted()).isTrue();
+                } finally { Thread.interrupted(); }
+            }).get(3, TimeUnit.SECONDS);
+            machine.releaseQuery.countDown();
+            assertThat(manager.awaitStopped(Duration.ofSeconds(3))).isTrue();
+            assertThat(manager.awaitStopped(Duration.ZERO)).isTrue();
+            machine.blockQueries = false;
+            manager.start();
+            assertThat(runtime.messageHeight(id)).isPresent();
+        } finally {
+            machine.releaseQuery.countDown();
+            manager.close();
+            workers.shutdownNow();
+            events.close();
+        }
+    }
+
+    @Test
+    void managerPreservesCleanupFailurePrecedenceAcrossChains() {
+        SimpleEventBus events = new SimpleEventBus();
+        var ordinary = new IllegalStateException("ordinary cleanup");
+        var fatal = new AssertionError("fatal cleanup");
+        List<AppLedgerRuntime> runtimes = new ArrayList<>();
+        for (int index = 0; index < 2; index++) {
+            int selected = index;
+            runtimes.add(new AppLedgerRuntime(config("cleanup-" + index), 424242, events, null,
+                    directory.resolve("cleanup").toString(), PluginProviderRegistry.empty(),
+                    LoggerFactory.getLogger(getClass())) {
+                @Override protected void stopIntegrationInputs(SynchronousCleanupFailures failures) {
+                    if (selected == 0) throw ordinary;
+                    throw fatal;
+                }
+            });
+        }
+        AppLedgerManager manager = new AppLedgerManager(runtimes, LoggerFactory.getLogger(getClass()));
+        try {
+            manager.start();
+            manager.stop(); // Runtime retains cleanup failures for restart/terminal close.
+            assertThatThrownBy(() -> manager.awaitStopped(Duration.ofSeconds(1))).isSameAs(fatal);
+            assertThat(fatal.getSuppressed()).contains(ordinary);
+            assertThatThrownBy(() -> manager.awaitStopped(Duration.ofNanos(-1)))
+                    .isInstanceOf(IllegalArgumentException.class);
+        } finally {
+            assertThatThrownBy(manager::close).isSameAs(fatal);
+            events.close();
+        }
+    }
+
+    @Test
     void finalizesQueriesAndRestartsWithoutCardanoRuntimeOrSdk() throws Exception {
         for (String unavailable : List.of(
                 "org.yanoproject.runtime.appchain.AppChainSubsystem",
@@ -159,6 +230,7 @@ class StandaloneAppLedgerRuntimeTest {
                 assertThatThrownBy(() -> runtime.query("message", firstId))
                         .isInstanceOfSatisfying(AppQueryException.class,
                                 failure -> assertThat(failure.code()).isEqualTo(AppQueryException.Code.UNAVAILABLE));
+                assertThat(manager.awaitStopped(Duration.ofSeconds(3))).isTrue();
                 manager.start();
                 assertThat(AppBlockCodec.blockHash(runtime.block(firstBlock.height()).orElseThrow()))
                         .isEqualTo(AppBlockCodec.blockHash(firstBlock));
@@ -196,10 +268,14 @@ class StandaloneAppLedgerRuntimeTest {
     }
 
     private AppChainConfig config() {
+        return config("lean-runtime");
+    }
+
+    private AppChainConfig config(String chainId) {
         byte[] seed = new byte[32];
         Arrays.fill(seed, (byte) 73);
         String member = HexFormat.of().formatHex(KeyGenUtil.getPublicKeyFromPrivateKey(seed));
-        return AppChainConfig.builder("lean-runtime")
+        return AppChainConfig.builder(chainId)
                 .signingKeyHex(HexFormat.of().formatHex(seed))
                 .memberKeysHex(Set.of(member))
                 .proposerKeyHex(member)
@@ -244,6 +320,9 @@ class StandaloneAppLedgerRuntimeTest {
     private static final class QueryableOrderedLog implements AppStateMachine {
         private final OrderedLogStateMachine delegate = new OrderedLogStateMachine();
         private final AtomicReference<Thread> queryThread = new AtomicReference<>();
+        private final CountDownLatch queryEntered = new CountDownLatch(1);
+        private final CountDownLatch releaseQuery = new CountDownLatch(1);
+        private volatile boolean blockQueries;
 
         @Override
         public String id() { return delegate.id(); }
@@ -266,6 +345,15 @@ class StandaloneAppLedgerRuntimeTest {
         public byte[] query(String path, byte[] request, AppQueryContext state) {
             assertThat(path).isEqualTo("message");
             queryThread.set(Thread.currentThread());
+            if (blockQueries) {
+                queryEntered.countDown();
+                boolean interrupted = false;
+                for (;;) {
+                    try { releaseQuery.await(); break; }
+                    catch (InterruptedException cancellation) { interrupted = true; }
+                }
+                if (interrupted) Thread.currentThread().interrupt();
+            }
             return state.get(FinalizedMessageIndex.messageKey(request)).orElseThrow();
         }
     }

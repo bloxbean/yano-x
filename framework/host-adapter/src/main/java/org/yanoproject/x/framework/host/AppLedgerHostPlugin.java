@@ -110,18 +110,16 @@ public class AppLedgerHostPlugin implements NodePlugin {
         if (standalone) {
             for (AppChainConfig chain : configurations) {
                 AppLedgerOperatingProfile.STANDALONE.validate(chain);
-                Object configuredTransport = chain.pluginSettings().containsKey("transport.mode")
-                        ? chain.pluginSettings().get("transport.mode")
-                        : globals.get("yano.app-chain.transport.mode");
-                String transport = stringOf(configuredTransport, "shared");
-                if (!"dedicated".equals(transport)) {
+                String transport = stringOf(chain.pluginSettings().get("transport.mode"),
+                        stringOf(globals.get("yano.app-chain.transport.mode"), "shared"));
+                if (!"dedicated".equalsIgnoreCase(transport)) {
                     throw new IllegalArgumentException("Standalone app chain '" + chain.chainId()
                             + "' requires transport.mode=dedicated (effective: " + transport + ")");
                 }
             }
         }
         long magic = standalone
-                ? Long.parseLong(String.valueOf(globals.get("yano.app-chain.network-magic")))
+                ? standaloneNetworkMagic(globals.get("yano.app-chain.network-magic"))
                 : node.getProtocolMagic();
         String storage = storageRoot(node);
         context.logger().info("App-chain storage root: {}", storage);
@@ -145,7 +143,7 @@ public class AppLedgerHostPlugin implements NodePlugin {
                 host.n2n().registerInbound(protocol, factory);
                 requireOpen();
             });
-            if (host.n2n().hasSharedOutboundSessions() && node.isClientEnabled()) {
+            if (!standalone && host.n2n().hasSharedOutboundSessions() && node.isClientEnabled()) {
                 requireOpen();
                 AppLedgerManager sharedManager = manager;
                 String transport = stringOf(globals.get("yano.app-chain.transport.mode"), "shared");
@@ -188,6 +186,21 @@ public class AppLedgerHostPlugin implements NodePlugin {
     protected AppLedgerManager createManager(List<AppLedgerRuntime> chains, YanoConfig node,
             PluginContext context) {
         return new AppLedgerManager(chains, context.logger());
+    }
+
+    private static long standaloneNetworkMagic(Object value) {
+        long magic;
+        try {
+            magic = Long.parseLong(String.valueOf(value).trim());
+        } catch (NumberFormatException invalid) {
+            throw new IllegalArgumentException(
+                    "Standalone requires yano.app-chain.network-magic (unsigned 32-bit)");
+        }
+        if (magic <= 0 || magic > 0xffff_ffffL) {
+            throw new IllegalArgumentException(
+                    "yano.app-chain.network-magic must be between 1 and 4294967295");
+        }
+        return magic;
     }
 
     private static String storageRoot(YanoConfig node) {
