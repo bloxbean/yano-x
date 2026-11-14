@@ -11,6 +11,9 @@ plugins {
 description = 'Yano X JVM distribution assembly boundary'
 
 def yanoVersion = providers.gradleProperty('yanoVersion')
+def explicitHostApiVersion = providers.gradleProperty('hostApiVersion')
+apply from: file('yano-input-versions.gradle')
+apply from: file('src/test/yano-input-version-contract.gradle')
 def configuredYanoJvmDist = providers.gradleProperty('yanoJvmDist').map { file(it) }
 def isSnapshotYano = yanoVersion.getOrElse('').endsWith('-SNAPSHOT')
 // A Yano commit snapshot names its Maven version <base>-<commit>-SNAPSHOT and
@@ -137,9 +140,11 @@ tasks.register('extractYanoHostEntries') {
 }
 
 tasks.register('verifyYanoInputs') {
+    dependsOn tasks.named('verifyYanoInputVersionContract')
     group = 'verification'
     description = 'Resolves and verifies matching Yano Maven and JVM ZIP build identities.'
     inputs.property('yanoVersion', yanoVersion).optional(true)
+    inputs.property('hostApiVersion', explicitHostApiVersion).optional(true)
     inputs.property('yanoJvmDistSource', yanoJvmDistSource)
     inputs.files(yanoJvmDist).withPropertyName('yanoJvmDist').optional()
     def report = layout.buildDirectory.file('reports/yano-inputs.json')
@@ -166,13 +171,19 @@ tasks.register('verifyYanoInputs') {
                             org.gradle.api.artifacts.component.ModuleComponentIdentifier
                     [module: id.module, version: id.version]
                 }.sort { left, right -> left.module <=> right.module }
-        def mismatched = yanoComponents.findAll {
-            it.version != expectedVersion
+        def bom = configurations.yanoHostRuntime.incoming.resolutionResult.allComponents.find {
+            it.moduleVersion?.group == 'org.yanoproject' && it.moduleVersion?.name == 'yano-bom'
+                    && it.moduleVersion?.version == expectedVersion
         }
-        if (!mismatched.isEmpty()) {
-            throw new GradleException(
-                    "Resolved Yano artifacts do not match ${expectedVersion}: ${mismatched}")
+        def hostApiConstraints = bom?.dependencies?.findAll {
+            it.constraint && it.requested instanceof org.gradle.api.artifacts.component.ModuleComponentSelector
+                    && it.requested.group == 'org.yanoproject' && it.requested.module == 'yano-host-api'
+        }?.collect { it.requested.version }?.unique() ?: []
+        if (hostApiConstraints.size() > 1) {
+            throw new GradleException("Ambiguous Host API versions in Yano BOM: ${hostApiConstraints}")
         }
+        def expectedHostApiVersion = validateYanoArtifactVersions(yanoComponents, expectedVersion,
+                hostApiConstraints ? hostApiConstraints.first() : null, explicitHostApiVersion.orNull)
         def requiredModules = [
                 'yano-bom',
                 'yano-core-api',
@@ -261,6 +272,7 @@ tasks.register('verifyYanoInputs') {
         def body = [
                 schemaVersion: 1,
                 yanoVersion: expectedVersion,
+                hostApiVersion: expectedHostApiVersion,
                 distributionRoot: expectedRoot,
                 distributionImplementationVersion: implementationVersion,
                 distributionContract: distributionManifest,

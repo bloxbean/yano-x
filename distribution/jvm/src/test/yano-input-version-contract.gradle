@@ -1,0 +1,40 @@
+tasks.register('verifyYanoInputVersionContract') {
+    group = 'verification'
+    description = 'Regress exact host alignment and independently versioned Host API validation.'
+    doLast {
+        def verify = project.ext.validateYanoArtifactVersions
+        def aligned = [[module: 'yano-runtime', version: '0.1.0-host'],
+                       [module: 'yano-node-api', version: '0.1.0-host'],
+                       [module: 'yano-host-api', version: '1.0.0-api']]
+        def rejects = { String reason, Closure operation ->
+            try {
+                operation.call()
+            } catch (GradleException failure) {
+                assert failure.message.contains(reason): failure.message
+                return
+            }
+            throw new AssertionError("Expected rejection: ${reason}")
+        }
+        assert verify(aligned, '0.1.0-host', '1.0.0-api', null) == '1.0.0-api'
+        assert verify(aligned, '0.1.0-host', null, '1.0.0-api') == '1.0.0-api'
+        assert verify(aligned, '0.1.0-host', '1.0.0-api', '1.0.0-api') == '1.0.0-api'
+        rejects('yano-host-api') { verify(aligned, '0.1.0-host', '1.0.1-api', null) }
+        rejects('yano-runtime') {
+            verify(aligned + [[module: 'yano-runtime', version: '0.2.0-other']],
+                    '0.1.0-host', '1.0.0-api', null)
+        }
+        rejects('does not match the selected Yano BOM') {
+            verify(aligned, '0.1.0-host', '1.0.0-api', '1.1.0-api')
+        }
+        rejects('exact matching BOM constraint') { verify(aligned, '0.1.0-host', null, null) }
+        ['1.+', '[1,2)', 'latest.release', ''].each { dynamic ->
+            rejects('exact version') { verify(aligned, '0.1.0-host', dynamic, null) }
+        }
+        rejects('Host API contract was not resolved') {
+            verify(aligned.findAll { it.module != 'yano-host-api' }, '0.1.0-host', '1.0.0-api', null)
+        }
+        // Existing pre-Host-API distributions retain their exact host-only contract.
+        assert verify(aligned.findAll { it.module != 'yano-host-api' }, '0.1.0-host', null, null) == null
+        logger.lifecycle('Passed host/Host API version-contract regressions')
+    }
+}
