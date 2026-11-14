@@ -107,7 +107,19 @@ public class AppLedgerHostPlugin implements NodePlugin {
         validateDeployment(node);
         boolean standalone = node.getMode() == RuntimeMode.APP_LEDGER;
         List<AppChainConfig> configurations = AppChainConfigParser.parseChains(globals, standalone);
-        if (standalone) configurations.forEach(AppLedgerOperatingProfile.STANDALONE::validate);
+        if (standalone) {
+            for (AppChainConfig chain : configurations) {
+                AppLedgerOperatingProfile.STANDALONE.validate(chain);
+                Object configuredTransport = chain.pluginSettings().containsKey("transport.mode")
+                        ? chain.pluginSettings().get("transport.mode")
+                        : globals.get("yano.app-chain.transport.mode");
+                String transport = stringOf(configuredTransport, "shared");
+                if (!"dedicated".equals(transport)) {
+                    throw new IllegalArgumentException("Standalone app chain '" + chain.chainId()
+                            + "' requires transport.mode=dedicated (effective: " + transport + ")");
+                }
+            }
+        }
         long magic = standalone
                 ? Long.parseLong(String.valueOf(globals.get("yano.app-chain.network-magic")))
                 : node.getProtocolMagic();

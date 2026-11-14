@@ -4,7 +4,7 @@ dependencies {
     api project(':framework:core')
     api project(':framework:cardano-api')
     implementation project(':framework:host-adapter')
-    // registerProtocols retains its existing public Host API signature.
+    // The Cardano adapter exposes Host API types in its protected factory hooks.
     api "org.yanoproject:yano-host-api:${providers.gradleProperty('hostApiVersion').getOrElse('1.0.0-245.4')}"
 
     implementation libs.cardano.client.core

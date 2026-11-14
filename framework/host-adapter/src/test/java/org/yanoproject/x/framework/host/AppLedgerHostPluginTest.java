@@ -258,6 +258,109 @@ class AppLedgerHostPluginTest {
         assertThatThrownBy(plugin::assemble).hasMessageContaining("closed");
     }
 
+    @Test
+    void indexedTransportUsesChainOverrideThenGlobalThenSharedDefault() {
+        for (String global : List.of(" dedicated ", "shared", "")) {
+            for (String perChain : List.of(" dedicated ", "shared", "")) {
+                Harness harness = new Harness();
+                harness.globals(transportGlobals(global, "dedicated", perChain));
+                String effective = !perChain.isEmpty() ? perChain.trim()
+                        : !global.isEmpty() ? global.trim() : "shared";
+                if (effective.equals("dedicated")) assertAssemblyAccepts(harness, 2);
+                else assertTransportRejectedBeforeFactories(harness, "second");
+            }
+        }
+    }
+
+    @Test
+    void indexedSharedRejectsGlobalDedicatedBeforeAnyChainFactoryRuns() {
+        Harness harness = new Harness();
+        harness.globals(transportGlobals("dedicated", "dedicated", "shared"));
+        assertTransportRejectedBeforeFactories(harness, "second");
+    }
+
+    @Test
+    void indexedMissingTransportRejectsTheImplicitSharedDefault() {
+        Harness harness = new Harness();
+        harness.globals(transportGlobals("", "dedicated", ""));
+        assertTransportRejectedBeforeFactories(harness, "second");
+    }
+
+    @Test
+    void flatDedicatedRetainsItsExistingConfigurationShape() {
+        Harness harness = new Harness();
+        harness.globals(flatGlobals(" dedicated "));
+        assertAssemblyAccepts(harness, 1);
+    }
+
+    @Test
+    void flatSharedAndUnspecifiedTransportRejectBeforeFactories() {
+        for (String transport : List.of("shared", "")) {
+            Harness harness = new Harness();
+            harness.globals(flatGlobals(transport));
+            assertTransportRejectedBeforeFactories(harness, "flat");
+        }
+    }
+
+    @Test
+    void cardanoModeDoesNotAcquireTheStandaloneTransportRestriction() {
+        for (String global : List.of("shared", "dedicated", "")) {
+            Harness harness = new Harness();
+            harness.services.put(AppLedgerHostPlugin.NODE_CONFIG_SERVICE,
+                    YanoConfig.builder().mode(RuntimeMode.CARDANO).rocksDBPath("unused-cardano")
+                            .appChainStoragePath("appchain-test").build());
+            harness.globals(transportGlobals(global, "shared", ""));
+            ProbePlugin plugin = new ProbePlugin();
+            plugin.allowCardanoDeployment = true;
+            plugin.failConstructionAt = 0;
+            plugin.init(harness);
+            // Reach the optional runtime factory without imposing standalone
+            // transport rules; this descriptor-free adapter test stays SDK-free.
+            assertThatThrownBy(plugin::assemble).hasMessage("construction failed");
+        }
+    }
+
+    private static Map<String, Object> transportGlobals(String global, String firstMode, String secondMode) {
+        Map<String, Object> first = new HashMap<>(Harness.chain("first"));
+        Map<String, Object> second = new HashMap<>(Harness.chain("second"));
+        if (!firstMode.isEmpty()) first.put("transport.mode", firstMode);
+        if (!secondMode.isEmpty()) second.put("transport.mode", secondMode);
+        Map<String, Object> globals = new HashMap<>(Map.of("yano.app-chain.enabled", true,
+                "yano.app-chain.network-magic", 424242, "yano.app-chain.chains", List.of(first, second)));
+        if (!global.isEmpty()) globals.put("yano.app-chain.transport.mode", global);
+        return globals;
+    }
+
+    private static Map<String, Object> flatGlobals(String transport) {
+        Map<String, Object> globals = new HashMap<>(Map.of("yano.app-chain.enabled", true,
+                "yano.app-chain.network-magic", 424242));
+        Harness.chain("flat").forEach((key, value) -> globals.put("yano.app-chain." + key, value));
+        if (!transport.isEmpty()) globals.put("yano.app-chain.transport.mode", transport);
+        return globals;
+    }
+
+    private static void assertAssemblyAccepts(Harness harness, int chains) {
+        ProbePlugin plugin = new ProbePlugin();
+        plugin.init(harness);
+        AppLedgerManager manager = plugin.assemble();
+        try {
+            assertThat(plugin.chains).hasSize(chains);
+            assertThat(harness.owned.get()).isSameAs(manager);
+        } finally {
+            manager.close();
+        }
+    }
+
+    private static void assertTransportRejectedBeforeFactories(Harness harness, String chainId) {
+        ProbePlugin plugin = new ProbePlugin();
+        plugin.init(harness);
+        assertThatThrownBy(plugin::assemble).isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Standalone app chain '" + chainId
+                        + "' requires transport.mode=dedicated (effective: shared)");
+        assertThat(plugin.chains).isEmpty();
+        assertThat(harness.owned.get()).isNull();
+    }
+
     private static final class ProbeChain extends AppLedgerRuntime {
         private int starts;
         private int stops;
@@ -283,6 +386,12 @@ class AppLedgerHostPluginTest {
         private boolean requireLaterService;
         private boolean attemptWorkerAssembly;
         private boolean closeFromFactoryWorker;
+        private boolean allowCardanoDeployment;
+
+        @Override
+        protected void validateDeployment(YanoConfig node) {
+            if (!allowCardanoDeployment) super.validateDeployment(node);
+        }
 
         @Override
         protected AppLedgerRuntime createChain(AppChainConfig config, long magic, String storage,
@@ -339,9 +448,7 @@ class AppLedgerHostPluginTest {
             YanoConfig node = YanoConfig.builder().mode(RuntimeMode.APP_LEDGER)
                     .appChainStoragePath("appchain-test").build();
             services.put(AppLedgerHostPlugin.NODE_CONFIG_SERVICE, node);
-            services.put(AppLedgerHostPlugin.RUNTIME_OPTIONS_SERVICE, new RuntimeOptions(null, null,
-                    Map.of("yano.app-chain.enabled", true, "yano.app-chain.network-magic", 424242,
-                            "yano.app-chain.chains", List.of(chain("first"), chain("second")))));
+            globals(transportGlobals("dedicated", "", ""));
             N2NExtensionRegistry n2n = new N2NExtensionRegistry() {
                 public boolean hasSharedOutboundSessions() { return false; }
                 public void registerInbound(int id, AgentFactory factory) {
@@ -364,6 +471,9 @@ class AppLedgerHostPluginTest {
                     };
                 }
             });
+        }
+        private void globals(Map<String, Object> globals) {
+            services.put(AppLedgerHostPlugin.RUNTIME_OPTIONS_SERVICE, new RuntimeOptions(null, null, globals));
         }
         public EventBus eventBus() { return null; }
         public Logger logger() { return LoggerFactory.getLogger(AppLedgerHostPluginTest.class); }

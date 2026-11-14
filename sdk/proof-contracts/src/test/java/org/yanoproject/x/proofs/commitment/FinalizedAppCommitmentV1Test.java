@@ -9,6 +9,11 @@ import java.util.HexFormat;
 import static org.assertj.core.api.Assertions.*;
 
 class FinalizedAppCommitmentV1Test {
+    private static final int VERSION_OFFSET = "yano-app-finalized-commitment-v1\0"
+            .getBytes(StandardCharsets.US_ASCII).length;
+    private static final int CHAIN_LENGTH_OFFSET = VERSION_OFFSET + Integer.BYTES;
+    private static final int CHAIN_TEXT_OFFSET = CHAIN_LENGTH_OFFSET + Integer.BYTES;
+
     @Test
     void canonicalCommitmentAndReceiptMatchIndependentGoldenVectors() throws Exception {
         FinalizedAppCommitmentV1 commitment = sample();
@@ -52,19 +57,41 @@ class FinalizedAppCommitmentV1Test {
         }
         assertThatThrownBy(() -> FinalizedAppCommitmentV1.decode(Arrays.copyOf(encoded, encoded.length + 1)))
                 .isInstanceOf(IllegalArgumentException.class);
-        byte[] version = encoded.clone();
-        version[33] = 2;
-        assertThatThrownBy(() -> FinalizedAppCommitmentV1.decode(version)).isInstanceOf(IllegalArgumentException.class);
-        byte[] length = encoded.clone();
-        ByteBuffer.wrap(length).putInt(34, Integer.MAX_VALUE);
-        assertThatThrownBy(() -> FinalizedAppCommitmentV1.decode(length)).isInstanceOf(IllegalArgumentException.class);
-        byte[] utf8 = encoded.clone();
-        utf8[38] = (byte) 0xff;
-        assertThatThrownBy(() -> FinalizedAppCommitmentV1.decode(utf8)).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> new FinalizedAppCommitmentV1("orders", "mpf", bytes(1), bytes(2), bytes(3),
                 0, bytes(4), bytes(5))).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> new CommitmentDestination("\uD800", "anchor", bytes(6)))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void rejectsUnknownVersionWithoutCorruptingTheDomain() {
+        byte[] encoded = sample().encode();
+        assertThat(ByteBuffer.wrap(encoded).getInt(VERSION_OFFSET)).isEqualTo(1);
+        ByteBuffer.wrap(encoded).putInt(VERSION_OFFSET, 2);
+        assertThatThrownBy(() -> FinalizedAppCommitmentV1.decode(encoded))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Unknown finalized commitment domain/version");
+    }
+
+    @Test
+    void rejectsMalformedChainLengthAfterTheCompleteVersionField() {
+        byte[] encoded = sample().encode();
+        assertThat(ByteBuffer.wrap(encoded).getInt(CHAIN_LENGTH_OFFSET)).isEqualTo(6);
+        ByteBuffer.wrap(encoded).putInt(CHAIN_LENGTH_OFFSET, Integer.MAX_VALUE);
+        assertThatThrownBy(() -> FinalizedAppCommitmentV1.decode(encoded))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Invalid identity length");
+    }
+
+    @Test
+    void rejectsMalformedUtf8InsideChainTextWithoutChangingItsLength() {
+        byte[] encoded = sample().encode();
+        assertThat(Arrays.copyOfRange(encoded, CHAIN_TEXT_OFFSET, CHAIN_TEXT_OFFSET + 6))
+                .isEqualTo("orders".getBytes(StandardCharsets.UTF_8));
+        encoded[CHAIN_TEXT_OFFSET] = (byte) 0xff;
+        assertThatThrownBy(() -> FinalizedAppCommitmentV1.decode(encoded))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Identity is not valid UTF-8");
     }
 
     @Test

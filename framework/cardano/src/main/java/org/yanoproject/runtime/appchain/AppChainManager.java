@@ -2,7 +2,6 @@ package org.yanoproject.runtime.appchain;
 
 import org.yanoproject.api.appchain.l1view.L1EpochStateProvider;
 import org.slf4j.Logger;
-import org.yanoproject.api.host.N2NExtensionRegistry;
 
 import java.util.List;
 import java.util.Objects;
@@ -14,10 +13,6 @@ public final class AppChainManager extends AppLedgerManager {
     public AppChainManager(List<AppChainSubsystem> subsystems, Logger log) {
         super(subsystems, log);
         cardanoChains = List.copyOf(subsystems);
-    }
-
-    public void registerProtocols(N2NExtensionRegistry registry) {
-        serverAgentRegistrations().forEach(registry::registerInbound);
     }
 
     /** Wire the host's epoch-pinned ledger view after ledger-state assembly completes. */
