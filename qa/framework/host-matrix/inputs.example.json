@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "frameworkVersion": "0.1.0-245.7",
+  "repositories": [
+    "file:///private/tmp/yano-245-host-artifacts",
+    "file:///private/tmp/yano-245-foundation-artifacts",
+    "file:///private/tmp/yano-245-framework-artifacts",
+    "file:///private/tmp/yano-245-artifacts"
+  ],
+  "baseline": {
+    "hostVersion": "0.1.0-245.4",
+    "foundationVersion": "0.1.0-245.4",
+    "hostApiVersion": "1.0.0-245.4"
+  },
+  "current": {
+    "hostVersion": "0.1.0-245.4",
+    "foundationVersion": "0.1.0-245.4",
+    "hostApiVersion": "1.0.0-245.4"
+  },
+  "yaciCoreVersion": "0.5.0-pre15-app-only-245"
+}

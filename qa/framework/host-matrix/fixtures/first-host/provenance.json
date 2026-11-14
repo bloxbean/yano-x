@@ -1,0 +1,871 @@
+{
+  "baselineHostIdentity": [
+    [
+      "yano-appchain-config",
+      "0.1.0-245.4",
+      "c6deada2fac53b8ea6523dbda77597b128006674616f140f04df23264c6d1aa3"
+    ],
+    [
+      "yano-cardano-api",
+      "0.1.0-245.4",
+      "bae10258fdeb609f21b138ef18d8d57f8553e1fbb56630aa4921262659392edd"
+    ],
+    [
+      "yano-consensus",
+      "0.1.0-245.4",
+      "436c3c9ce19eb81858ad0da5492484a39ae8a0023adf7126cb58b85653353b19"
+    ],
+    [
+      "yano-core-api",
+      "0.1.0-245.4",
+      "89704da8690e150e5594f09f78fc0e30b457cb67b84f9a708b6943a18a3e08ae"
+    ],
+    [
+      "yano-host-api",
+      "1.0.0-245.4",
+      "fa37872204c49d1e8875965dd9b5e0b47a95bfdbedd157f50534f5c2353141cd"
+    ],
+    [
+      "yano-ledger-rules",
+      "0.1.0-245.4",
+      "e7de0da00101a91c38f310c9ee10361475960e9533c2fecc4ef47cc899515673"
+    ],
+    [
+      "yano-ledger-state",
+      "0.1.0-245.4",
+      "2f4f4f05bdedecfae84292b541f01db6a733c1699e4908fadeba7fc872f3c565"
+    ],
+    [
+      "yano-node-api",
+      "0.1.0-245.4",
+      "11dc3dab938bcd9be781fe58f6188b49ffa437db39fc3ff4f9fd0c4381abb277"
+    ],
+    [
+      "yano-p2p",
+      "0.1.0-245.4",
+      "1be7abf93d7cbf891003ffa76a7fd20a5ebae3eccbb61e74a1b1d686542290d8"
+    ],
+    [
+      "yano-plugin-catalog",
+      "0.1.0-245.4",
+      "3fd21ecf6fb7afbe3b731b64cbb49909c2023e337da89bbac90a68d15cf7a0f6"
+    ],
+    [
+      "yano-runtime",
+      "0.1.0-245.4",
+      "62f310fe3de40f696910344e98d983f670729d50fc390c724a2921745634164d"
+    ]
+  ],
+  "baselineRequest": {
+    "foundationVersion": "0.1.0-245.4",
+    "frameworkVersion": "0.1.0-245.6",
+    "hostApiVersion": "1.0.0-245.4",
+    "hostVersion": "0.1.0-245.4",
+    "repositories": [
+      "file:///private/tmp/yano-245-host-artifacts",
+      "file:///private/tmp/yano-245-foundation-artifacts",
+      "file:///private/tmp/yano-245-framework-artifacts",
+      "file:///private/tmp/yano-245-artifacts"
+    ],
+    "yaciCoreVersion": "0.5.0-pre15-app-only-245"
+  },
+  "compileInputs": [
+    {
+      "classifier": null,
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/ch.qos.reload4j/reload4j/1.2.22/f9d9e55d1072d7a697d2bf06e1847e93635a7cf9/reload4j-1.2.22.jar",
+      "group": "ch.qos.reload4j",
+      "name": "reload4j",
+      "sha256": "222f90d3e69541218ef6e70547749d693bd4c1846817e5bd7949b3e28950f99f",
+      "version": "1.2.22"
+    },
+    {
+      "classifier": null,
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/co.nstant.in/cbor/0.9/6fdebc091a3b58c996018ab2cbb395917de0034/cbor-0.9.jar",
+      "group": "co.nstant.in",
+      "name": "cbor",
+      "sha256": "5ef465c47e34c6b13f93ece2ff49e94b933d69cf9f172cc4997418303884da73",
+      "version": "0.9"
+    },
+    {
+      "classifier": null,
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/com.bloxbean.cardano/cardano-client-address/0.8.0-pre7/ccc87c38cf3ae7fa5a3773ecadf60e5ef646559e/cardano-client-address-0.8.0-pre7.jar",
+      "group": "com.bloxbean.cardano",
+      "name": "cardano-client-address",
+      "sha256": "8b6cd7401dead2f6798b0ba6c6f957e049e3e4ff3e65e0eb452648f3f7ac64d8",
+      "version": "0.8.0-pre7"
+    },
+    {
+      "classifier": null,
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/com.bloxbean.cardano/cardano-client-backend/0.8.0-pre7/48ba3796d9624034073ec35e79195947a6a7eb16/cardano-client-backend-0.8.0-pre7.jar",
+      "group": "com.bloxbean.cardano",
+      "name": "cardano-client-backend",
+      "sha256": "2d2bf29076bc83309375fa5be8e37b9a4dc32b213c4774a54ddf43cc341d78a3",
+      "version": "0.8.0-pre7"
+    },
+    {
+      "classifier": null,
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/com.bloxbean.cardano/cardano-client-coinselection/0.8.0-pre7/eea9164de67b2ba779e01637a9d79163162b6777/cardano-client-coinselection-0.8.0-pre7.jar",
+      "group": "com.bloxbean.cardano",
+      "name": "cardano-client-coinselection",
+      "sha256": "5454f0d0797a96feb9beeb97df3c0171262be652a7b015401fec331296f848f6",
+      "version": "0.8.0-pre7"
+    },
+    {
+      "classifier": null,
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/com.bloxbean.cardano/cardano-client-common-spec/0.8.0-pre7/e2986fe0ea6592ced3050886174228605314d382/cardano-client-common-spec-0.8.0-pre7.jar",
+      "group": "com.bloxbean.cardano",
+      "name": "cardano-client-common-spec",
+      "sha256": "a653b478569f99aa5bb24c6ee7003561bfec410b9020f3d4e1970ae2afda23fc",
+      "version": "0.8.0-pre7"
+    },
+    {
+      "classifier": null,
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/com.bloxbean.cardano/cardano-client-common/0.8.0-pre7/73431ac2f2680797d72cb261836cb81418b4b73c/cardano-client-common-0.8.0-pre7.jar",
+      "group": "com.bloxbean.cardano",
+      "name": "cardano-client-common",
+      "sha256": "aa33f08390323f457accac2c7c46e0b0f12734bcd0a7971c5cac9621b9b60517",
+      "version": "0.8.0-pre7"
+    },
+    {
+      "classifier": null,
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/com.bloxbean.cardano/cardano-client-core-api/0.8.0-pre7/55de85d90593665b5cd18c4bb21c1857c0d2e7bb/cardano-client-core-api-0.8.0-pre7.jar",
+      "group": "com.bloxbean.cardano",
+      "name": "cardano-client-core-api",
+      "sha256": "dcdca0e62b6cf3dc80f4c0a0f87010565afd5117af2f3babb5f0eba1a62f2114",
+      "version": "0.8.0-pre7"
+    },
+    {
+      "classifier": null,
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/com.bloxbean.cardano/cardano-client-core/0.8.0-pre7/caed201edac7a690effefc3de7f56388d432d5e4/cardano-client-core-0.8.0-pre7.jar",
+      "group": "com.bloxbean.cardano",
+      "name": "cardano-client-core",
+      "sha256": "9de937256e55dc3fd9bcdb79f5a3680073060219e9f7ec1bb64cf4aaab503501",
+      "version": "0.8.0-pre7"
+    },
+    {
+      "classifier": null,
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/com.bloxbean.cardano/cardano-client-crypto-ext/0.8.0-pre7/407c64e8c36ae78d7f603ed396dade8937e0d071/cardano-client-crypto-ext-0.8.0-pre7.jar",
+      "group": "com.bloxbean.cardano",
+      "name": "cardano-client-crypto-ext",
+      "sha256": "0d328a9eacc7c852cc59878f16068317badb035745f2be19354aaae13a64102e",
+      "version": "0.8.0-pre7"
+    },
+    {
+      "classifier": null,
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/com.bloxbean.cardano/cardano-client-crypto/0.8.0-pre7/c8be20f675734a7dba8715084169da4887a77bf1/cardano-client-crypto-0.8.0-pre7.jar",
+      "group": "com.bloxbean.cardano",
+      "name": "cardano-client-crypto",
+      "sha256": "9420c83df18157660f8711a41600c6b0af5347deb8951fb6ca269d994b5ee139",
+      "version": "0.8.0-pre7"
+    },
+    {
+      "classifier": null,
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/com.bloxbean.cardano/cardano-client-function/0.8.0-pre7/b2c7c34a76b8f637a7916d3f927420a1cec917f2/cardano-client-function-0.8.0-pre7.jar",
+      "group": "com.bloxbean.cardano",
+      "name": "cardano-client-function",
+      "sha256": "3ae4d5ac9ed524a1d11b9a486078d42408b226501c7b34a7f71837ad867ec49a",
+      "version": "0.8.0-pre7"
+    },
+    {
+      "classifier": null,
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/com.bloxbean.cardano/cardano-client-governance/0.8.0-pre7/e355f0ccf5b0868323ec77fcdab824e733c16a94/cardano-client-governance-0.8.0-pre7.jar",
+      "group": "com.bloxbean.cardano",
+      "name": "cardano-client-governance",
+      "sha256": "9131d9b173ae94cc1129f8a10c0ee649e1114d824e36a6b9d5cac5b88cf4f91b",
+      "version": "0.8.0-pre7"
+    },
+    {
+      "classifier": null,
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/com.bloxbean.cardano/cardano-client-hd-wallet/0.8.0-pre7/d32493d2c2804aa92c8e84834d9a35d59ba15162/cardano-client-hd-wallet-0.8.0-pre7.jar",
+      "group": "com.bloxbean.cardano",
+      "name": "cardano-client-hd-wallet",
+      "sha256": "6acf69e1bd158f171b5a6db6ac72e9f59e93acd5def13219864c8ef6515f845f",
+      "version": "0.8.0-pre7"
+    },
+    {
+      "classifier": null,
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/com.bloxbean.cardano/cardano-client-jellyfish-merkle/0.8.0-pre7/6b51cbcdb5792781a9d462e04f4e63828d12c49f/cardano-client-jellyfish-merkle-0.8.0-pre7.jar",
+      "group": "com.bloxbean.cardano",
+      "name": "cardano-client-jellyfish-merkle",
+      "sha256": "369523d8005e93ffada61bdd2d73d18b1d1f9d20e85e6b7238cf0677a77457fd",
+      "version": "0.8.0-pre7"
+    },
+    {
+      "classifier": null,
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/com.bloxbean.cardano/cardano-client-merkle-patricia-forestry-rocksdb/0.8.0-pre7/8d71171969bab63c1cae51775557e3e931148d42/cardano-client-merkle-patricia-forestry-rocksdb-0.8.0-pre7.jar",
+      "group": "com.bloxbean.cardano",
+      "name": "cardano-client-merkle-patricia-forestry-rocksdb",
+      "sha256": "f1b66e5a4206f0f0ffdb0e1bb1e7739310898ac497259c7f549e09d8ca58728d",
+      "version": "0.8.0-pre7"
+    },
+    {
+      "classifier": null,
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/com.bloxbean.cardano/cardano-client-merkle-patricia-forestry/0.8.0-pre7/c2d7fd67c7039f8a5d74ea73ec0fa7a27ead6e95/cardano-client-merkle-patricia-forestry-0.8.0-pre7.jar",
+      "group": "com.bloxbean.cardano",
+      "name": "cardano-client-merkle-patricia-forestry",
+      "sha256": "7346b01e0179aeacd77f8b19e5b79d5a50351cc4854e638ae849807e11908f8b",
+      "version": "0.8.0-pre7"
+    },
+    {
+      "classifier": null,
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/com.bloxbean.cardano/cardano-client-metadata/0.8.0-pre7/6d741367f86f355ac4ab3e2580b00dd88e62848/cardano-client-metadata-0.8.0-pre7.jar",
+      "group": "com.bloxbean.cardano",
+      "name": "cardano-client-metadata",
+      "sha256": "522f05fbd6b7e91da3bd379121af4616381ef7512ea11cb54e13fffe67f3b185",
+      "version": "0.8.0-pre7"
+    },
+    {
+      "classifier": null,
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/com.bloxbean.cardano/cardano-client-plutus/0.8.0-pre7/2be88edd8c50ca78fb1cf6d3c9e91771cc91879d/cardano-client-plutus-0.8.0-pre7.jar",
+      "group": "com.bloxbean.cardano",
+      "name": "cardano-client-plutus",
+      "sha256": "96d95a1df3f63c8bb8d4b00100755fae55d87e1bde668f25f7e49753af598d63",
+      "version": "0.8.0-pre7"
+    },
+    {
+      "classifier": null,
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/com.bloxbean.cardano/cardano-client-quicktx/0.8.0-pre7/91774941899d9b021da811670657a625060f3c03/cardano-client-quicktx-0.8.0-pre7.jar",
+      "group": "com.bloxbean.cardano",
+      "name": "cardano-client-quicktx",
+      "sha256": "6a6a238952a58ff7f3ae184854a96aab6d600dd64713d5ba18c7c5f80e695514",
+      "version": "0.8.0-pre7"
+    },
+    {
+      "classifier": null,
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/com.bloxbean.cardano/cardano-client-rocksdb-core/0.8.0-pre7/9cf4a64e151b2b1a0cdc3ad9a1e9fa97747a7578/cardano-client-rocksdb-core-0.8.0-pre7.jar",
+      "group": "com.bloxbean.cardano",
+      "name": "cardano-client-rocksdb-core",
+      "sha256": "6b04f7c224a1ac9df5d76c618402f3e42d658c9a2cdc49fac8ab291d53aab044",
+      "version": "0.8.0-pre7"
+    },
+    {
+      "classifier": null,
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/com.bloxbean.cardano/cardano-client-transaction-spec/0.8.0-pre7/56697c8cbdc83c690cc9a3c1b64d11676d3fefac/cardano-client-transaction-spec-0.8.0-pre7.jar",
+      "group": "com.bloxbean.cardano",
+      "name": "cardano-client-transaction-spec",
+      "sha256": "34b57944a454fc443b9ed9df8f6c3d986c70eea77612dc90a718c503164204c6",
+      "version": "0.8.0-pre7"
+    },
+    {
+      "classifier": null,
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/com.bloxbean.cardano/cardano-client-verified-structures-core/0.8.0-pre7/103711f4bb5db2d08682483f801cb32d967f0d5d/cardano-client-verified-structures-core-0.8.0-pre7.jar",
+      "group": "com.bloxbean.cardano",
+      "name": "cardano-client-verified-structures-core",
+      "sha256": "a47f349920b050aef0bbb717d2fbca8f328e434091c877910500f61c67d28194",
+      "version": "0.8.0-pre7"
+    },
+    {
+      "classifier": null,
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/com.bloxbean.cardano/net-i2p-crypto-eddsa/0.3.1/39f76e9119ca22a4a094ecabddd896a354fbd7e8/net-i2p-crypto-eddsa-0.3.1.jar",
+      "group": "com.bloxbean.cardano",
+      "name": "net-i2p-crypto-eddsa",
+      "sha256": "3bc2c8922a52de7ecad21e9a34d2594b473f18598b7a2b8bd7d4b68ed6cc4dbf",
+      "version": "0.3.1"
+    },
+    {
+      "classifier": null,
+      "file": "/private/tmp/yano-245-artifacts/com/bloxbean/cardano/yaci-core/0.5.0-pre15-app-only-245/yaci-core-0.5.0-pre15-app-only-245.jar",
+      "group": "com.bloxbean.cardano",
+      "name": "yaci-core",
+      "sha256": "77577072cd5e634cb88ebe269789ef037dcd6b09d1bbc23b6e1627377b65cf78",
+      "version": "0.5.0-pre15-app-only-245"
+    },
+    {
+      "classifier": null,
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/com.bloxbean.cardano/yaci-events-core/0.5.0-pre15/c6326aa9a51a715379bf190d1f9595082217333a/yaci-events-core-0.5.0-pre15.jar",
+      "group": "com.bloxbean.cardano",
+      "name": "yaci-events-core",
+      "sha256": "a3e4575413fdd9218fa3d1468b617bc4ca2cf08f2477d3577795a6d4037657bf",
+      "version": "0.5.0-pre15"
+    },
+    {
+      "classifier": null,
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/com.bloxbean.cardano/yaci-helper/0.5.0-pre15/ce6a1564d496999c5708cda3bd71eb09f956a919/yaci-helper-0.5.0-pre15.jar",
+      "group": "com.bloxbean.cardano",
+      "name": "yaci-helper",
+      "sha256": "b9d4a715cc9ecb1a6b082cbea8bf76aec23e2f72250a9f833473cc1b133222f0",
+      "version": "0.5.0-pre15"
+    },
+    {
+      "classifier": null,
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/com.fasterxml.jackson.core/jackson-annotations/2.21/b1bc1868bf02dc0bd6c7836257a036a331005309/jackson-annotations-2.21.jar",
+      "group": "com.fasterxml.jackson.core",
+      "name": "jackson-annotations",
+      "sha256": "53ca085f4a150f703f49e1aabd935bd03b43e1ea3d55d135438292af22cef56b",
+      "version": "2.21"
+    },
+    {
+      "classifier": null,
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/com.fasterxml.jackson.core/jackson-core/2.21.4/56a503ba45016714394807ea89f95f5093760089/jackson-core-2.21.4.jar",
+      "group": "com.fasterxml.jackson.core",
+      "name": "jackson-core",
+      "sha256": "4b40a06396f239f8de2da57419adde6e94e5edc18a2171d471ea05eeed4e5c2d",
+      "version": "2.21.4"
+    },
+    {
+      "classifier": null,
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/com.fasterxml.jackson.core/jackson-databind/2.21.4/9e495680be707d466527d734368ebf36e464da2/jackson-databind-2.21.4.jar",
+      "group": "com.fasterxml.jackson.core",
+      "name": "jackson-databind",
+      "sha256": "3888e9e69ab66fbacaacc9aea0e9ffbf15368288e4aca468b024dba11c09fbf9",
+      "version": "2.21.4"
+    },
+    {
+      "classifier": null,
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/com.fasterxml.jackson.dataformat/jackson-dataformat-cbor/2.21.4/154f7fbed7cc3261786c08ad58ba1fd87444e9b7/jackson-dataformat-cbor-2.21.4.jar",
+      "group": "com.fasterxml.jackson.dataformat",
+      "name": "jackson-dataformat-cbor",
+      "sha256": "fbde9e27625b5b8af54fbd2e184112b5471cf43216c38c2b9e039205a50bd6a9",
+      "version": "2.21.4"
+    },
+    {
+      "classifier": null,
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/com.fasterxml.jackson.dataformat/jackson-dataformat-yaml/2.21.4/d506a8a96ba24172110aca439e78fd6a38a11799/jackson-dataformat-yaml-2.21.4.jar",
+      "group": "com.fasterxml.jackson.dataformat",
+      "name": "jackson-dataformat-yaml",
+      "sha256": "055eb4c008ab12f0cb63e93a6454463d032fde0fca85943d69f8dc7469489e4b",
+      "version": "2.21.4"
+    },
+    {
+      "classifier": null,
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/com.google.errorprone/error_prone_annotations/2.41.0/4381275efdef6ddfae38f002c31e84cd001c97f0/error_prone_annotations-2.41.0.jar",
+      "group": "com.google.errorprone",
+      "name": "error_prone_annotations",
+      "sha256": "a56e782b5b50811ac204073a355a21d915a2107fce13ec711331ad036f660fcc",
+      "version": "2.41.0"
+    },
+    {
+      "classifier": null,
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/com.google.guava/failureaccess/1.0.3/aeaffd00d57023a2c947393ed251f0354f0985fc/failureaccess-1.0.3.jar",
+      "group": "com.google.guava",
+      "name": "failureaccess",
+      "sha256": "cbfc3906b19b8f55dd7cfd6dfe0aa4532e834250d7f080bd8d211a3e246b59cb",
+      "version": "1.0.3"
+    },
+    {
+      "classifier": null,
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/com.google.guava/guava/33.5.0-jre/8699de25f2f979108d6c1b804a7ba38cda1116bc/guava-33.5.0-jre.jar",
+      "group": "com.google.guava",
+      "name": "guava",
+      "sha256": "1e301f0c52ac248b0b14fdc3d12283c77252d4d6f48521d572e7d8c4c2cc4ac7",
+      "version": "33.5.0-jre"
+    },
+    {
+      "classifier": null,
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/com.google.guava/listenablefuture/9999.0-empty-to-avoid-conflict-with-guava/b421526c5f297295adef1c886e5246c39d4ac629/listenablefuture-9999.0-empty-to-avoid-conflict-with-guava.jar",
+      "group": "com.google.guava",
+      "name": "listenablefuture",
+      "sha256": "b372a037d4230aa57fbeffdef30fd6123f9c0c2db85d0aced00c91b974f33f99",
+      "version": "9999.0-empty-to-avoid-conflict-with-guava"
+    },
+    {
+      "classifier": null,
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/com.google.j2objc/j2objc-annotations/3.1/a892ca9507839bbdb900d64310ac98256cab992f/j2objc-annotations-3.1.jar",
+      "group": "com.google.j2objc",
+      "name": "j2objc-annotations",
+      "sha256": "84d3a150518485f8140ea99b8a985656749629f6433c92b80c75b36aba3b099b",
+      "version": "3.1"
+    },
+    {
+      "classifier": null,
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/io.netty/netty-all/4.1.131.Final/42c2b3c74e53b481c0a80f93eba3bdd3147b356c/netty-all-4.1.131.Final.jar",
+      "group": "io.netty",
+      "name": "netty-all",
+      "sha256": "2ba2f1b94122c4647341950e3a63aae08125b8ff4089626a33942b3c3189efab",
+      "version": "4.1.131.Final"
+    },
+    {
+      "classifier": null,
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/io.netty/netty-buffer/4.1.131.Final/f97b636ecd9b81ae3fd1d039b69c4fd3959ecf/netty-buffer-4.1.131.Final.jar",
+      "group": "io.netty",
+      "name": "netty-buffer",
+      "sha256": "5bb114bc74ce3d470f49ff664485091cf0ab4911e28f282656fb3d3f565dce8f",
+      "version": "4.1.131.Final"
+    },
+    {
+      "classifier": null,
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/io.netty/netty-codec-dns/4.1.131.Final/cd23e12e5c3448a1b12c8a4b8deeb4faeb5e483e/netty-codec-dns-4.1.131.Final.jar",
+      "group": "io.netty",
+      "name": "netty-codec-dns",
+      "sha256": "f6158882208c0d00f4b8f78787a5ed37ccdbb193541a1a168dfb3239a5b7e442",
+      "version": "4.1.131.Final"
+    },
+    {
+      "classifier": null,
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/io.netty/netty-codec-haproxy/4.1.131.Final/b104e6fff2d749a6e539db3c10f4b021fd937d9f/netty-codec-haproxy-4.1.131.Final.jar",
+      "group": "io.netty",
+      "name": "netty-codec-haproxy",
+      "sha256": "32870da446b53e86acdd1741866ef7847f2d2f7803b01762ddddcba7e805c5a7",
+      "version": "4.1.131.Final"
+    },
+    {
+      "classifier": null,
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/io.netty/netty-codec-http2/4.1.131.Final/2e4c47131c60e0bbbca067c891597b466f7033ba/netty-codec-http2-4.1.131.Final.jar",
+      "group": "io.netty",
+      "name": "netty-codec-http2",
+      "sha256": "df8beeb7f083b6f22de5106078323b9f836f4b2686817de35d3da49f87179c73",
+      "version": "4.1.131.Final"
+    },
+    {
+      "classifier": null,
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/io.netty/netty-codec-http/4.1.131.Final/253d80637ed689ed309ca62371e5fb97746b165/netty-codec-http-4.1.131.Final.jar",
+      "group": "io.netty",
+      "name": "netty-codec-http",
+      "sha256": "2d3319063bebc3c2252c68480a1d44b8e400be0b4d6a65266d4d91b7a4f32e4b",
+      "version": "4.1.131.Final"
+    },
+    {
+      "classifier": null,
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/io.netty/netty-codec-memcache/4.1.131.Final/c1192508637a476d097bf89ab97ae2ad17632833/netty-codec-memcache-4.1.131.Final.jar",
+      "group": "io.netty",
+      "name": "netty-codec-memcache",
+      "sha256": "8c0f6fad7a80c8363a066f64edfc8da8f3dd9797efbb579dd3e9270227ad1615",
+      "version": "4.1.131.Final"
+    },
+    {
+      "classifier": null,
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/io.netty/netty-codec-mqtt/4.1.131.Final/fa6d13fbc8fa735e377ab0f9f4ee8ee8e1e45428/netty-codec-mqtt-4.1.131.Final.jar",
+      "group": "io.netty",
+      "name": "netty-codec-mqtt",
+      "sha256": "a168e53d9ab4c879fcdca8fa086ec2335f22e5974fc1a30bc6c06147314dd483",
+      "version": "4.1.131.Final"
+    },
+    {
+      "classifier": null,
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/io.netty/netty-codec-redis/4.1.131.Final/d948beb76a66652ab7581126233e66e4c5eb1b01/netty-codec-redis-4.1.131.Final.jar",
+      "group": "io.netty",
+      "name": "netty-codec-redis",
+      "sha256": "c4bc29c9595babf0c1a311b910c057927ab521a1c7694df8a5577588d2484732",
+      "version": "4.1.131.Final"
+    },
+    {
+      "classifier": null,
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/io.netty/netty-codec-smtp/4.1.131.Final/2537dfd31a668a55fb552f9d2ff53cc513b3bcc9/netty-codec-smtp-4.1.131.Final.jar",
+      "group": "io.netty",
+      "name": "netty-codec-smtp",
+      "sha256": "d3cdf32f2c910f6e3ca88b549dad67d05a73fadef6278f512f2967510040874a",
+      "version": "4.1.131.Final"
+    },
+    {
+      "classifier": null,
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/io.netty/netty-codec-socks/4.1.131.Final/614eacc17f44d8abaeaea81f210b4980c3568262/netty-codec-socks-4.1.131.Final.jar",
+      "group": "io.netty",
+      "name": "netty-codec-socks",
+      "sha256": "eaf05f836b229666215aa84f3daf7c9618ca670d50230c29ac0e4b8626565e18",
+      "version": "4.1.131.Final"
+    },
+    {
+      "classifier": null,
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/io.netty/netty-codec-stomp/4.1.131.Final/478395f749ae6e668e452a403ffd69976727e4f6/netty-codec-stomp-4.1.131.Final.jar",
+      "group": "io.netty",
+      "name": "netty-codec-stomp",
+      "sha256": "9e4f0ec60a14435cb5ebd762d3fb83adfcc52678abbe2cddfcaad7602b12ef18",
+      "version": "4.1.131.Final"
+    },
+    {
+      "classifier": null,
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/io.netty/netty-codec-xml/4.1.131.Final/211f87d7822e4b56d25706511255ee0de6e6ee82/netty-codec-xml-4.1.131.Final.jar",
+      "group": "io.netty",
+      "name": "netty-codec-xml",
+      "sha256": "aa66faed2430be1234cdd5a8fca43f01dcf17ca9d2347b25b80acb5549f3e3eb",
+      "version": "4.1.131.Final"
+    },
+    {
+      "classifier": null,
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/io.netty/netty-codec/4.1.131.Final/1874341f7b29879c6833c17e7305272f0cdc2cb6/netty-codec-4.1.131.Final.jar",
+      "group": "io.netty",
+      "name": "netty-codec",
+      "sha256": "a38007e8d368764c7737fd1b6d5f74f905324da66cbb9ed2dba6db471a2517f4",
+      "version": "4.1.131.Final"
+    },
+    {
+      "classifier": null,
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/io.netty/netty-common/4.1.131.Final/cdc659109da226b698a74b543a5b97dd0f7e6959/netty-common-4.1.131.Final.jar",
+      "group": "io.netty",
+      "name": "netty-common",
+      "sha256": "0ba0ff177ffc0c67aaf12bfcaac5423e1f899fa8bb5634394c1512d0e53fc1d4",
+      "version": "4.1.131.Final"
+    },
+    {
+      "classifier": null,
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/io.netty/netty-handler-proxy/4.1.131.Final/5ff9e74613a9dd3ca078f06880a16c8cdc046de0/netty-handler-proxy-4.1.131.Final.jar",
+      "group": "io.netty",
+      "name": "netty-handler-proxy",
+      "sha256": "e79b668f2b97c9f2940d3babbaab509ef21a2f8f3b2eaded7a973096021633aa",
+      "version": "4.1.131.Final"
+    },
+    {
+      "classifier": null,
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/io.netty/netty-handler-ssl-ocsp/4.1.131.Final/d3aa485470cb0f929758605b648dd35c22707246/netty-handler-ssl-ocsp-4.1.131.Final.jar",
+      "group": "io.netty",
+      "name": "netty-handler-ssl-ocsp",
+      "sha256": "484e8d02cf73e603decf49d023ed2f2392f2e10403460fb4b42b0096a693b788",
+      "version": "4.1.131.Final"
+    },
+    {
+      "classifier": null,
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/io.netty/netty-handler/4.1.131.Final/5ca67999f41c0a68f0b66485ceb990683a0b0694/netty-handler-4.1.131.Final.jar",
+      "group": "io.netty",
+      "name": "netty-handler",
+      "sha256": "0a2fbcc3b9dec45dad5ca0c945ea0261e3df0d11522f62d51c8e5237b3c6cac2",
+      "version": "4.1.131.Final"
+    },
+    {
+      "classifier": null,
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/io.netty/netty-resolver-dns-classes-macos/4.1.131.Final/b9d57038cc4144e36aee5898085b7f1f018d2c9f/netty-resolver-dns-classes-macos-4.1.131.Final.jar",
+      "group": "io.netty",
+      "name": "netty-resolver-dns-classes-macos",
+      "sha256": "e3fb127cc5337bd8559851c4565b9512756660277588e53691d287563916a06b",
+      "version": "4.1.131.Final"
+    },
+    {
+      "classifier": "osx-aarch_64",
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/io.netty/netty-resolver-dns-native-macos/4.1.131.Final/8a267377f5036d2b08b412979dbe7a0a266271ac/netty-resolver-dns-native-macos-4.1.131.Final-osx-aarch_64.jar",
+      "group": "io.netty",
+      "name": "netty-resolver-dns-native-macos",
+      "sha256": "8431bc92b3b29b00f6523120f75a6510d7890ea7a96ea3f9bed086d5258c7280",
+      "version": "4.1.131.Final"
+    },
+    {
+      "classifier": "osx-x86_64",
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/io.netty/netty-resolver-dns-native-macos/4.1.131.Final/9e4a908c073e56caa4127f54d946e3e9a5208506/netty-resolver-dns-native-macos-4.1.131.Final-osx-x86_64.jar",
+      "group": "io.netty",
+      "name": "netty-resolver-dns-native-macos",
+      "sha256": "1dfc3d5ef5f88aea766dec6ec7ca69cfe4f285cec50658e4532214c9f65a3da1",
+      "version": "4.1.131.Final"
+    },
+    {
+      "classifier": null,
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/io.netty/netty-resolver-dns/4.1.131.Final/7714c0babe26712ccfdbc158aa64898ab909e7d8/netty-resolver-dns-4.1.131.Final.jar",
+      "group": "io.netty",
+      "name": "netty-resolver-dns",
+      "sha256": "9e29774c15075eea74cdd4896d9c4c95c931c526b8a9524d8b30adccc6d4975e",
+      "version": "4.1.131.Final"
+    },
+    {
+      "classifier": null,
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/io.netty/netty-resolver/4.1.131.Final/9db1bfd7c57b9b6aa9b5cfc61fc3304594bb6b39/netty-resolver-4.1.131.Final.jar",
+      "group": "io.netty",
+      "name": "netty-resolver",
+      "sha256": "0fa9960663f0defef2253bf4f2c9f29e4497fad29e9ecab597de93dcd1d04c39",
+      "version": "4.1.131.Final"
+    },
+    {
+      "classifier": null,
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/io.netty/netty-transport-classes-epoll/4.1.131.Final/4d7848ac709491fb14f8bce2796fc3eff4a04fd6/netty-transport-classes-epoll-4.1.131.Final.jar",
+      "group": "io.netty",
+      "name": "netty-transport-classes-epoll",
+      "sha256": "6ad7651484d699cdd4846793dca058cfa321e667c1e44f9e2b97b675649fa1ca",
+      "version": "4.1.131.Final"
+    },
+    {
+      "classifier": null,
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/io.netty/netty-transport-classes-kqueue/4.1.131.Final/2b7c9ecd55d8ec532a1af63addf8bcf98733c608/netty-transport-classes-kqueue-4.1.131.Final.jar",
+      "group": "io.netty",
+      "name": "netty-transport-classes-kqueue",
+      "sha256": "d4e77e4b1a747ef596727d7bf533111b95d5d94e95af8f032b103b838b367d51",
+      "version": "4.1.131.Final"
+    },
+    {
+      "classifier": "linux-aarch_64",
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/io.netty/netty-transport-native-epoll/4.1.131.Final/cbf6742160168c96ada674503272d68f7870d454/netty-transport-native-epoll-4.1.131.Final-linux-aarch_64.jar",
+      "group": "io.netty",
+      "name": "netty-transport-native-epoll",
+      "sha256": "2ada28eecdf7fa045c389599bd90027bade8240f2f675be38e0c46bde8f1f744",
+      "version": "4.1.131.Final"
+    },
+    {
+      "classifier": "linux-riscv64",
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/io.netty/netty-transport-native-epoll/4.1.131.Final/a03d01cbb4308cc5f21d5abc981d81bf7c88ac8a/netty-transport-native-epoll-4.1.131.Final-linux-riscv64.jar",
+      "group": "io.netty",
+      "name": "netty-transport-native-epoll",
+      "sha256": "23a6cf5acdbd306b8d2bee74b6f7c808c8e0a13b71b77943aa79806c55ae6242",
+      "version": "4.1.131.Final"
+    },
+    {
+      "classifier": "linux-x86_64",
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/io.netty/netty-transport-native-epoll/4.1.131.Final/10b7a905019c1ad5c37e8cf63d7229fb00668c1d/netty-transport-native-epoll-4.1.131.Final-linux-x86_64.jar",
+      "group": "io.netty",
+      "name": "netty-transport-native-epoll",
+      "sha256": "8c8cbcf30fae219cb81da34f5dad44086a0f569442362001c873dbdaae34d1c8",
+      "version": "4.1.131.Final"
+    },
+    {
+      "classifier": "osx-aarch_64",
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/io.netty/netty-transport-native-kqueue/4.1.131.Final/4e14774426b6b07382d530df88202282c9b11e7c/netty-transport-native-kqueue-4.1.131.Final-osx-aarch_64.jar",
+      "group": "io.netty",
+      "name": "netty-transport-native-kqueue",
+      "sha256": "9185e052b2c829b9873fafc36c4e316200896623c8df16136a4b8844d6405dcc",
+      "version": "4.1.131.Final"
+    },
+    {
+      "classifier": "osx-x86_64",
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/io.netty/netty-transport-native-kqueue/4.1.131.Final/759ccb1e8b00c687367f0482e69d3f08beedad5f/netty-transport-native-kqueue-4.1.131.Final-osx-x86_64.jar",
+      "group": "io.netty",
+      "name": "netty-transport-native-kqueue",
+      "sha256": "f04afe82211379d77dca1edd3b2b28da0cd7f824909b6fef036d31287a6ddb9a",
+      "version": "4.1.131.Final"
+    },
+    {
+      "classifier": null,
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/io.netty/netty-transport-native-unix-common/4.1.131.Final/fa975e4751b23d50c0a60569829f31944d11d292/netty-transport-native-unix-common-4.1.131.Final.jar",
+      "group": "io.netty",
+      "name": "netty-transport-native-unix-common",
+      "sha256": "92d1d132c01aa0cc42d8f48bf8ce06b6a0ed919a315793b637dc634c5c2f350c",
+      "version": "4.1.131.Final"
+    },
+    {
+      "classifier": null,
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/io.netty/netty-transport-rxtx/4.1.131.Final/629169a48207d923d04a1ef30da78b09cb5ce940/netty-transport-rxtx-4.1.131.Final.jar",
+      "group": "io.netty",
+      "name": "netty-transport-rxtx",
+      "sha256": "df2d4fd3fdcb87c4ea348a80e851a38c307fab666bb1b0b5cb9f2df3c6c8e629",
+      "version": "4.1.131.Final"
+    },
+    {
+      "classifier": null,
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/io.netty/netty-transport-sctp/4.1.131.Final/50e3bf6455f8bdaf571264985fa329ffdbaea022/netty-transport-sctp-4.1.131.Final.jar",
+      "group": "io.netty",
+      "name": "netty-transport-sctp",
+      "sha256": "40cea4bd6470935221f7e46b6dd6387155bb8a969f4e81194e4447d2b4653627",
+      "version": "4.1.131.Final"
+    },
+    {
+      "classifier": null,
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/io.netty/netty-transport-udt/4.1.131.Final/df22108908014c5a2ffaf4f892fb8267af5d1fc2/netty-transport-udt-4.1.131.Final.jar",
+      "group": "io.netty",
+      "name": "netty-transport-udt",
+      "sha256": "124cab8402ec5c0c4f0481aee2161428e138103d074b513b5f1c8dc7e83659ec",
+      "version": "4.1.131.Final"
+    },
+    {
+      "classifier": null,
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/io.netty/netty-transport/4.1.131.Final/474862e0855d7a9828fab06a9c73c05387604ee3/netty-transport-4.1.131.Final.jar",
+      "group": "io.netty",
+      "name": "netty-transport",
+      "sha256": "b7556f626c5efb730b321fc522bec06e29fea7f231f28c763e201356e59e331a",
+      "version": "4.1.131.Final"
+    },
+    {
+      "classifier": null,
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/io.projectreactor/reactor-core/3.6.10/6860a576ae0bd1957c5d4c87e861025248818c01/reactor-core-3.6.10.jar",
+      "group": "io.projectreactor",
+      "name": "reactor-core",
+      "sha256": "b1b447164454508b0382def6921492247484c5dfc044094c1eb9735e97a1ba33",
+      "version": "3.6.10"
+    },
+    {
+      "classifier": null,
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/org.bouncycastle/bcprov-jdk18on/1.83/310e719f391bd9f4ee5103ca299c172643efb595/bcprov-jdk18on-1.83.jar",
+      "group": "org.bouncycastle",
+      "name": "bcprov-jdk18on",
+      "sha256": "82cf3a2af766c3bc874f6d36b9f20a8b99a8f09762dc776e8a227a45d8daaafb",
+      "version": "1.83"
+    },
+    {
+      "classifier": null,
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/org.cardanofoundation/cf-rewards-calculation/1.0.2/f9586fd6780c896a741d8f12fc468b84663fc7df/cf-rewards-calculation-1.0.2.jar",
+      "group": "org.cardanofoundation",
+      "name": "cf-rewards-calculation",
+      "sha256": "5ef2e6ef28a34851f0e7ab0f3b0a03b1334fd6995ffa2f3f7f66e7ed06a659f4",
+      "version": "1.0.2"
+    },
+    {
+      "classifier": null,
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/org.jspecify/jspecify/1.0.0/7425a601c1c7ec76645a78d22b8c6a627edee507/jspecify-1.0.0.jar",
+      "group": "org.jspecify",
+      "name": "jspecify",
+      "sha256": "1fad6e6be7557781e4d33729d49ae1cdc8fdda6fe477bb0cc68ce351eafdfbab",
+      "version": "1.0.0"
+    },
+    {
+      "classifier": null,
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/org.reactivestreams/reactive-streams/1.0.4/3864a1320d97d7b045f729a326e1e077661f31b7/reactive-streams-1.0.4.jar",
+      "group": "org.reactivestreams",
+      "name": "reactive-streams",
+      "sha256": "f75ca597789b3dac58f61857b9ac2e1034a68fa672db35055a8fb4509e325f28",
+      "version": "1.0.4"
+    },
+    {
+      "classifier": null,
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/org.rocksdb/rocksdbjni/9.11.2/ac1a5b2520a21334fd7b6bb558fa9d2c470ab987/rocksdbjni-9.11.2.jar",
+      "group": "org.rocksdb",
+      "name": "rocksdbjni",
+      "sha256": "c8473497c3551e6544f2fa9921582c108e15d973c337f56b222d6571284c1587",
+      "version": "9.11.2"
+    },
+    {
+      "classifier": null,
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/org.slf4j/slf4j-api/2.0.18/78a9e7a37cd6360e0b818e86341b24123d28d4df/slf4j-api-2.0.18.jar",
+      "group": "org.slf4j",
+      "name": "slf4j-api",
+      "sha256": "44508fd1576500688c790b190acdd16fec4f8c79a3e0b900afd70503cf055f55",
+      "version": "2.0.18"
+    },
+    {
+      "classifier": null,
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/org.slf4j/slf4j-reload4j/2.0.18/b9c429f5f30eac9cdd55d7fdf855a83faf4bdd5d/slf4j-reload4j-2.0.18.jar",
+      "group": "org.slf4j",
+      "name": "slf4j-reload4j",
+      "sha256": "37dc7cb891448c3c0db454d9e84c54b3f4e6a5f84b0db35917e7d0f322ae60df",
+      "version": "2.0.18"
+    },
+    {
+      "classifier": null,
+      "file": "/Users/satya/.gradle/caches/modules-2/files-2.1/org.yaml/snakeyaml/2.5/2d53ddec134280cb384c1e35d094e5f71c1f2316/snakeyaml-2.5.jar",
+      "group": "org.yaml",
+      "name": "snakeyaml",
+      "sha256": "e6682acf1ace77508ef13649cbf4f8d09d2cf5457bdb61d25ffb6ac0233d78dd",
+      "version": "2.5"
+    },
+    {
+      "classifier": null,
+      "file": "/private/tmp/yano-245-framework-artifacts/org/yanoproject/x/yano-x-appchain-api/0.1.0-245.6/yano-x-appchain-api-0.1.0-245.6.jar",
+      "group": "org.yanoproject.x",
+      "name": "yano-x-appchain-api",
+      "sha256": "45aeb5e76c3987d6f6d2d1e04d545615e2bb7dfd0eb3bd4fac5b05feb32bc54f",
+      "version": "0.1.0-245.6"
+    },
+    {
+      "classifier": null,
+      "file": "/private/tmp/yano-245-framework-artifacts/org/yanoproject/x/yano-x-appchain-cardano-api/0.1.0-245.6/yano-x-appchain-cardano-api-0.1.0-245.6.jar",
+      "group": "org.yanoproject.x",
+      "name": "yano-x-appchain-cardano-api",
+      "sha256": "94aa592672aa53ac5e4482d2018f11115b1a4df4ec0cddaabf67bf30ae321bde",
+      "version": "0.1.0-245.6"
+    },
+    {
+      "classifier": null,
+      "file": "/private/tmp/yano-245-framework-artifacts/org/yanoproject/x/yano-x-appchain-config/0.1.0-245.6/yano-x-appchain-config-0.1.0-245.6.jar",
+      "group": "org.yanoproject.x",
+      "name": "yano-x-appchain-config",
+      "sha256": "5105d581503c4371940c905cfe503fe92a5299092e5a47b26563f4176ab32b19",
+      "version": "0.1.0-245.6"
+    },
+    {
+      "classifier": null,
+      "file": "/private/tmp/yano-245-framework-artifacts/org/yanoproject/x/yano-x-appchain-core/0.1.0-245.6/yano-x-appchain-core-0.1.0-245.6.jar",
+      "group": "org.yanoproject.x",
+      "name": "yano-x-appchain-core",
+      "sha256": "9146d5675b81aff9d08e36fa7ed6470d4ce207d5ac7648003e62fbd0d1d53247",
+      "version": "0.1.0-245.6"
+    },
+    {
+      "classifier": null,
+      "file": "/private/tmp/yano-245-framework-artifacts/org/yanoproject/x/yano-x-appchain-host-adapter/0.1.0-245.6/yano-x-appchain-host-adapter-0.1.0-245.6.jar",
+      "group": "org.yanoproject.x",
+      "name": "yano-x-appchain-host-adapter",
+      "sha256": "36b76f9093d563c2e728e3fd8bbe454a0e82c63e7bc3f6b8b1e4a047ac91a1a9",
+      "version": "0.1.0-245.6"
+    },
+    {
+      "classifier": null,
+      "file": "/private/tmp/yano-245-framework-artifacts/org/yanoproject/x/yano-x-appchain-standalone/0.1.0-245.6/yano-x-appchain-standalone-0.1.0-245.6.jar",
+      "group": "org.yanoproject.x",
+      "name": "yano-x-appchain-standalone",
+      "sha256": "e1fc4178f279abf9abfa3a10828d92455cbb421fef93b89f2370f73d46542d71",
+      "version": "0.1.0-245.6"
+    },
+    {
+      "classifier": null,
+      "file": "/private/tmp/yano-245-framework-artifacts/org/yanoproject/x/yano-x-proof-contracts/0.1.0-245.6/yano-x-proof-contracts-0.1.0-245.6.jar",
+      "group": "org.yanoproject.x",
+      "name": "yano-x-proof-contracts",
+      "sha256": "cba7d02e6322dffd44e531d81f27d51a6d28ae63feee1848d01ec66fb7ee02de",
+      "version": "0.1.0-245.6"
+    },
+    {
+      "classifier": null,
+      "file": "/private/tmp/yano-245-host-artifacts/org/yanoproject/yano-appchain-config/0.1.0-245.4/yano-appchain-config-0.1.0-245.4.jar",
+      "group": "org.yanoproject",
+      "name": "yano-appchain-config",
+      "sha256": "c6deada2fac53b8ea6523dbda77597b128006674616f140f04df23264c6d1aa3",
+      "version": "0.1.0-245.4"
+    },
+    {
+      "classifier": null,
+      "file": "/private/tmp/yano-245-foundation-artifacts/org/yanoproject/yano-cardano-api/0.1.0-245.4/yano-cardano-api-0.1.0-245.4.jar",
+      "group": "org.yanoproject",
+      "name": "yano-cardano-api",
+      "sha256": "bae10258fdeb609f21b138ef18d8d57f8553e1fbb56630aa4921262659392edd",
+      "version": "0.1.0-245.4"
+    },
+    {
+      "classifier": null,
+      "file": "/private/tmp/yano-245-host-artifacts/org/yanoproject/yano-consensus/0.1.0-245.4/yano-consensus-0.1.0-245.4.jar",
+      "group": "org.yanoproject",
+      "name": "yano-consensus",
+      "sha256": "436c3c9ce19eb81858ad0da5492484a39ae8a0023adf7126cb58b85653353b19",
+      "version": "0.1.0-245.4"
+    },
+    {
+      "classifier": null,
+      "file": "/private/tmp/yano-245-host-artifacts/org/yanoproject/yano-core-api/0.1.0-245.4/yano-core-api-0.1.0-245.4.jar",
+      "group": "org.yanoproject",
+      "name": "yano-core-api",
+      "sha256": "89704da8690e150e5594f09f78fc0e30b457cb67b84f9a708b6943a18a3e08ae",
+      "version": "0.1.0-245.4"
+    },
+    {
+      "classifier": null,
+      "file": "/private/tmp/yano-245-foundation-artifacts/org/yanoproject/yano-host-api/1.0.0-245.4/yano-host-api-1.0.0-245.4.jar",
+      "group": "org.yanoproject",
+      "name": "yano-host-api",
+      "sha256": "fa37872204c49d1e8875965dd9b5e0b47a95bfdbedd157f50534f5c2353141cd",
+      "version": "1.0.0-245.4"
+    },
+    {
+      "classifier": null,
+      "file": "/private/tmp/yano-245-host-artifacts/org/yanoproject/yano-ledger-rules/0.1.0-245.4/yano-ledger-rules-0.1.0-245.4.jar",
+      "group": "org.yanoproject",
+      "name": "yano-ledger-rules",
+      "sha256": "e7de0da00101a91c38f310c9ee10361475960e9533c2fecc4ef47cc899515673",
+      "version": "0.1.0-245.4"
+    },
+    {
+      "classifier": null,
+      "file": "/private/tmp/yano-245-host-artifacts/org/yanoproject/yano-ledger-state/0.1.0-245.4/yano-ledger-state-0.1.0-245.4.jar",
+      "group": "org.yanoproject",
+      "name": "yano-ledger-state",
+      "sha256": "2f4f4f05bdedecfae84292b541f01db6a733c1699e4908fadeba7fc872f3c565",
+      "version": "0.1.0-245.4"
+    },
+    {
+      "classifier": null,
+      "file": "/private/tmp/yano-245-foundation-artifacts/org/yanoproject/yano-node-api/0.1.0-245.4/yano-node-api-0.1.0-245.4.jar",
+      "group": "org.yanoproject",
+      "name": "yano-node-api",
+      "sha256": "11dc3dab938bcd9be781fe58f6188b49ffa437db39fc3ff4f9fd0c4381abb277",
+      "version": "0.1.0-245.4"
+    },
+    {
+      "classifier": null,
+      "file": "/private/tmp/yano-245-host-artifacts/org/yanoproject/yano-p2p/0.1.0-245.4/yano-p2p-0.1.0-245.4.jar",
+      "group": "org.yanoproject",
+      "name": "yano-p2p",
+      "sha256": "1be7abf93d7cbf891003ffa76a7fd20a5ebae3eccbb61e74a1b1d686542290d8",
+      "version": "0.1.0-245.4"
+    },
+    {
+      "classifier": null,
+      "file": "/private/tmp/yano-245-host-artifacts/org/yanoproject/yano-plugin-catalog/0.1.0-245.4/yano-plugin-catalog-0.1.0-245.4.jar",
+      "group": "org.yanoproject",
+      "name": "yano-plugin-catalog",
+      "sha256": "3fd21ecf6fb7afbe3b731b64cbb49909c2023e337da89bbac90a68d15cf7a0f6",
+      "version": "0.1.0-245.4"
+    },
+    {
+      "classifier": null,
+      "file": "/private/tmp/yano-245-host-artifacts/org/yanoproject/yano-runtime/0.1.0-245.4/yano-runtime-0.1.0-245.4.jar",
+      "group": "org.yanoproject",
+      "name": "yano-runtime",
+      "sha256": "62f310fe3de40f696910344e98d983f670729d50fc390c724a2921745634164d",
+      "version": "0.1.0-245.4"
+    }
+  ],
+  "compiler": "javac 25.0.2",
+  "fixtureSha256": "78a7d50dfe5f80cb7c49670de2e46e6ba4276f6c3590032416441dd91d2295ea",
+  "provenance": "Exact supplied Maven artifacts; staged candidates are not claimed as public releases",
+  "schemaVersion": 1,
+  "sourceSha256": "491fe590d9ccbe1058149540471740d99ec98eef679e75b18d00c772817abdca"
+}
