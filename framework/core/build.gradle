@@ -8,6 +8,8 @@ dependencies {
     implementation libs.cardano.client.crypto
     implementation libs.rocksdb
     implementation libs.jackson.databind
+    compileOnly libs.netty
+    testImplementation libs.netty
 }
 
 // Resolve the actual production closure, not just declared dependencies. This catches
