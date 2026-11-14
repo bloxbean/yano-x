@@ -1,3 +1,10 @@
+import org.gradle.api.artifacts.component.ModuleComponentIdentifier
+import org.gradle.api.artifacts.component.ProjectComponentIdentifier
+import java.security.MessageDigest
+import java.util.zip.ZipEntry
+import java.util.zip.ZipFile
+import java.util.zip.ZipOutputStream
+
 plugins {
     id 'application'
     id 'com.gradleup.shadow'
@@ -96,14 +103,97 @@ def pluginMetadataPrefixes = [
 ]
 def forbiddenClassPrefixes = [
         'org/yanoproject/runtime/',
+        'org/yanoproject/x/framework/host/',
+        'org/yanoproject/x/framework/cardano/',
+        'org/yanoproject/x/framework/standalone/',
         'org/yanoproject/x/kafka/',
         'org/yanoproject/x/ipfs/',
         'org/yanoproject/x/objectstore/s3/'
 ]
 
+// Public node and Cardano contracts retain implementation-shaped namespaces for compatibility.
+// Admit only the exact classes owned by the resolved API artifact, never a package-wide exemption.
+def boundaryClassHashes = { File artifact ->
+    new ZipFile(artifact).withCloseable { zip ->
+        zip.entries().findAll { entry ->
+            !entry.directory && entry.name.endsWith('.class')
+                    && forbiddenClassPrefixes.any { entry.name.startsWith(it) }
+        }.collectEntries { entry ->
+            [(entry.name): zip.getInputStream(entry).withCloseable { stream ->
+                MessageDigest.getInstance('SHA-256').digest(stream.bytes).encodeHex().toString()
+            }]
+        }
+    }
+}
+def publicContractHashes = {
+    def artifacts = configurations.runtimeClasspath.incoming.artifacts.artifacts
+    def owners = [
+            'yano-node-api': artifacts.findAll {
+                def id = it.id.componentIdentifier
+                id instanceof ModuleComponentIdentifier && id.group == 'org.yanoproject'
+                        && id.module == 'yano-node-api'
+            },
+            'yano-x-appchain-cardano-api': artifacts.findAll {
+                def id = it.id.componentIdentifier
+                (id instanceof ProjectComponentIdentifier && id.projectPath == ':framework:cardano-api')
+                        || (id instanceof ModuleComponentIdentifier && id.group == 'org.yanoproject.x'
+                            && id.module == 'yano-x-appchain-cardano-api')
+            }
+    ]
+    owners.collectEntries { name, resolved ->
+        if (resolved.size() != 1) {
+            throw new GradleException("Demo runner must resolve exactly one ${name} contract owner")
+        }
+        def prefix = name == 'yano-node-api' ? 'org/yanoproject/runtime/' : 'org/yanoproject/x/framework/cardano/'
+        boundaryClassHashes(resolved.first().file).findAll { className, hash -> className.startsWith(prefix) }
+    }
+}
+def implementationClasses = { Map classes, Map apiContracts ->
+    classes.findAll { name, hash -> !apiContracts.containsKey(name) || apiContracts[name] != hash }.keySet()
+}
+
+tasks.register('verifyDemoRunnerBoundaryContract') {
+    group = 'verification'
+    description = 'Checks exact API ownership while rejecting real runtime and connector implementations.'
+    def coreJar = project(':framework:core').tasks.named('jar')
+    def connectorJar = project(':connectors:kafka').tasks.named('jar')
+    def adapterJar = project(':framework:host-adapter').tasks.named('jar')
+    def cardanoJar = project(':framework:cardano').tasks.named('jar')
+    dependsOn coreJar, connectorJar, adapterJar, cardanoJar
+    inputs.files(configurations.runtimeClasspath)
+    inputs.files(coreJar.flatMap { it.archiveFile }, connectorJar.flatMap { it.archiveFile },
+            adapterJar.flatMap { it.archiveFile }, cardanoJar.flatMap { it.archiveFile })
+    doLast {
+        def contracts = publicContractHashes()
+        assert contracts.containsKey('org/yanoproject/runtime/kernel/Subsystem.class')
+        assert contracts.containsKey('org/yanoproject/x/framework/cardano/CardanoRuntimeServices.class')
+        assert implementationClasses(contracts, contracts).isEmpty()
+        assert implementationClasses(boundaryClassHashes(coreJar.get().archiveFile.get().asFile), contracts)
+                .contains('org/yanoproject/runtime/appchain/AppLedgerRuntime.class')
+        assert implementationClasses(boundaryClassHashes(connectorJar.get().archiveFile.get().asFile), contracts)
+                .any { it.startsWith('org/yanoproject/x/kafka/') }
+        assert implementationClasses(boundaryClassHashes(adapterJar.get().archiveFile.get().asFile), contracts)
+                .contains('org/yanoproject/x/framework/host/AppLedgerHostPlugin.class')
+        assert implementationClasses(boundaryClassHashes(cardanoJar.get().archiveFile.get().asFile), contracts)
+                .contains('org/yanoproject/x/framework/cardano/CardanoAppLedgerPlugin.class')
+        // A familiar public name must not hide replacement implementation bytes.
+        def name = contracts.keySet().first()
+        def forged = new File(temporaryDir, 'replaced-api.jar')
+        forged.parentFile.mkdirs()
+        new ZipOutputStream(new FileOutputStream(forged)).withCloseable { zip ->
+            zip.putNextEntry(new ZipEntry(name))
+            zip.write('replacement implementation'.getBytes('UTF-8'))
+            zip.closeEntry()
+        }
+        assert implementationClasses(boundaryClassHashes(forged), contracts).contains(name)
+        logger.lifecycle('Verified exact public API ownership and runtime/adapter/connector/replacement rejection')
+    }
+}
+
 tasks.register('verifyDemoRunnerArtifactBoundary') {
     group = 'verification'
     description = 'Verifies that the demo runner cannot activate or embed Yano plugin/runtime implementations'
+    dependsOn tasks.named('verifyDemoRunnerBoundaryContract')
     dependsOn rootProject.tasks.named('verifyAdr013JacksonAlignment'),
             rootProject.tasks.named('verifyAdr013Slf4jAlignment')
     dependsOn tasks.named('jar'), tasks.named('shadowJar')
@@ -127,23 +217,27 @@ tasks.register('verifyDemoRunnerArtifactBoundary') {
             if (!artifact.name.endsWith('.jar')) {
                 return [] as Set
             }
-            return new java.util.zip.ZipFile(artifact).withCloseable { zip ->
+            return new ZipFile(artifact).withCloseable { zip ->
                 zip.entries().collect { entry -> entry.name }.toSet()
             }
         }
+        def apiContracts = publicContractHashes()
         [tasks.named('jar').get().archiveFile.get().asFile,
          tasks.named('shadowJar').get().archiveFile.get().asFile].each { artifact ->
             def entries = entryNames(artifact)
             if (entries.any { name -> pluginMetadataPrefixes.any { name.startsWith(it) } }) {
                 throw new GradleException("Demo runner contains plugin metadata: ${artifact.name}")
             }
-            if (entries.any { name -> forbiddenClassPrefixes.any { name.startsWith(it) } }) {
-                throw new GradleException("Demo runner embeds a plugin/runtime implementation: ${artifact.name}")
+            def implementations = implementationClasses(boundaryClassHashes(artifact), apiContracts)
+            if (!implementations.isEmpty()) {
+                throw new GradleException("Demo runner embeds a plugin/runtime implementation: "
+                        + "${artifact.name}: ${implementations.sort()}")
             }
         }
 
         def forbiddenProjects = [
-        ':runtime', ':products:evidence:registry', ':products:evidence:profile',
+                ':runtime', ':framework:core', ':framework:cardano', ':framework:host-adapter',
+                ':framework:standalone', ':products:evidence:registry', ':products:evidence:profile',
                 ':composition:runtime', ':state-machines:stdlib', ':capabilities:role-workflow', ':connectors:kafka',
                 ':connectors:objectstore-s3', ':connectors:ipfs'
         ] as Set
