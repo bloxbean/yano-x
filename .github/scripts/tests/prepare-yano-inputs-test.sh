@@ -71,6 +71,12 @@ run_case foundation pass YANO_INPUTS_SCOPE=foundation TEST_INPUT_FIXTURE="$found
 run_case foundation-requires-pin fail YANO_INPUTS_SCOPE=foundation YANO_INPUTS_RUN_ID='' YANO_INPUTS_COMMIT=''
 run_case wrong-scope fail YANO_INPUTS_SCOPE=foundation
 run_case host-requires-distribution fail TEST_INPUT_FIXTURE="$foundation"
+for field in version hostApiVersion; do
+  run_case "invalid-$field" fail TEST_INVALID_VERSION_FIELD="$field"
+  [[ ! -e "$test_directory/invalid-$field/env" ]]
+done
+grep -F 'Invalid staged version' "$test_directory/invalid-version/output.log" >/dev/null
+grep -F 'Missing or invalid Host API version' "$test_directory/invalid-hostApiVersion/output.log" >/dev/null
 run_case wrong-node-api-version fail ORG_GRADLE_PROJECT_nodeApiVersion=0.1.0-other
 run_case wrong-host-api-version fail ORG_GRADLE_PROJECT_hostApiVersion=1.0.0-other
 run_case matching-api-overrides pass ORG_GRADLE_PROJECT_nodeApiVersion="$version" \
@@ -101,3 +107,49 @@ grep -Fx "ORG_GRADLE_PROJECT_nodeApiVersion=$version" "$test_directory/valid/env
 grep -Fx "ORG_GRADLE_PROJECT_hostApiVersion=$host_api_version" "$test_directory/valid/env" >/dev/null
 grep -F '%20' "$test_directory/space path/env" >/dev/null
 echo "Input preparation fixtures retained at $test_directory"
+
+# Exercise real Gradle precedence without configuring this repository or resolving dependencies.
+precedence="$test_directory/gradle-precedence"
+mkdir -p "$precedence"
+printf "rootProject.name = 'input-precedence'\n" > "$precedence/settings.gradle"
+keys=(yanoVersion nodeApiVersion hostApiVersion)
+for key in "${keys[@]}"; do printf '%s=checked-in-default\n' "$key"; done > "$precedence/gradle.properties"
+cat > "$precedence/build.gradle" <<'GRADLE'
+tasks.register('verifyInputs') {
+    doLast {
+        ['yanoVersion', 'nodeApiVersion', 'hostApiVersion'].each { key ->
+            assert providers.gradleProperty(key).get() == providers.gradleProperty("expected_${key}").get()
+        }
+    }
+}
+GRADLE
+(
+  # GITHUB_ENV is data, not shell code (paths may contain spaces).
+  while IFS='=' read -r key value; do export "$key=$value"; done < "$test_directory/valid/env"
+  prepared_env="$test_directory/valid/env"
+  unset GRADLE_OPTS
+  for mode in defaults prepared command-line; do
+    arguments=()
+    for key in "${keys[@]}"; do
+      variable="ORG_GRADLE_PROJECT_$key"
+      expected="$(sed -n "s/^$variable=//p" "$prepared_env")"
+      if [[ "$mode" == defaults ]]; then
+        expected=checked-in-default
+        unset "$variable"
+      else
+        export "$variable=$expected"
+      fi
+      if [[ "$mode" == command-line ]]; then
+        expected=explicit-override
+        arguments+=("-P$key=$expected")
+      fi
+      arguments+=("-Pexpected_$key=$expected")
+    done
+    if ! "$scripts_dir/../../gradlew" -p "$precedence" --offline --no-daemon --no-watch-fs --no-parallel \
+        --console=plain verifyInputs "${arguments[@]}" > "$precedence/$mode.log" 2>&1; then
+      echo "FAIL: Gradle $mode precedence (see $precedence/$mode.log)" >&2
+      exit 1
+    fi
+    echo "PASS: Gradle $mode precedence"
+  done
+)

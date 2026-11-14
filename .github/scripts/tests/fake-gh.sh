@@ -23,6 +23,14 @@ elif [[ "${1:-}" == run && "${2:-}" == download ]]; then
     grep -v "/$TEST_UNLISTED_PUBLICATION/" "$destination/SHA256SUMS" > "$destination/SHA256SUMS.tmp"
     mv "$destination/SHA256SUMS.tmp" "$destination/SHA256SUMS"
   fi
+  if [[ -n "${TEST_INVALID_VERSION_FIELD:-}" ]]; then
+    jq --arg field "$TEST_INVALID_VERSION_FIELD" '.[$field]="1 -Dunexpected=value" | if $field == "version" and has("distribution") then .distribution=("yano-"+.version+".zip") else . end' \
+      "$destination/yano-inputs.json" > "$destination/manifest.tmp"
+    mv "$destination/manifest.tmp" "$destination/yano-inputs.json"
+    grep -v '  yano-inputs.json$' "$destination/SHA256SUMS" > "$destination/SHA256SUMS.tmp"
+    (cd "$destination" && sha256sum yano-inputs.json) >> "$destination/SHA256SUMS.tmp"
+    mv "$destination/SHA256SUMS.tmp" "$destination/SHA256SUMS"
+  fi
   if [[ "${TEST_MISSING_HOST_API_VERSION:-0}" == 1 ]]; then
     jq 'del(.hostApiVersion)' "$destination/yano-inputs.json" > "$destination/manifest.tmp"
     mv "$destination/manifest.tmp" "$destination/yano-inputs.json"
