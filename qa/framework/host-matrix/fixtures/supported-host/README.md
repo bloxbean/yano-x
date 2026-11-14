@@ -39,3 +39,20 @@ the unchanged host `.5`/`.8`, framework `.11`, Host API `.4` and fixture run wit
 Yaci `0.5.0-pre15-app-only-245.4`. No framework or host rebuild was needed. This
 new-parser matrix is separate from the retained full package/smoke qualification,
 whose exact Yaci input remains `.3`; it does not relabel those earlier packages.
+
+`host-5-and-9-framework-12-public-yaci.json` records all four profiles passing
+against oldest host `.5` and current host `.9`, with framework `.12`, unchanged
+Host API `.4` and the same frozen fixture. It selects the immutable timestamped
+public Yaci snapshot `0.5.0-pre16-f57fc88-20261114.141754-1`; this is verified
+byte-for-byte against the catalog's `0.5.0-pre16-f57fc88-SNAPSHOT` core JAR.
+
+`reviewer1-host9-distribution-qualification.json` retains the matching host `.9`
+and framework `.12` distribution check and all 16 packaged smoke steps, with no
+skips. These include live Cardano anchoring/observations, cross-node roots and
+restart/persistence checks. `reviewer1-template-and-boundary-checks.json` records
+the isolated template/catalog checks, rejection of mixed framework versions and
+rejection of forbidden host dependencies in evidence-contracts publication
+metadata. See Yano's [review follow-up report](https://github.com/bloxbean/yano/blob/feat/245-app-ledger-host-api/qa/app-ledger/REVIEWER1_REREVIEW.md)
+for coordinated runtime, public snapshot and clean CI input qualification.
+These results do not relabel historical native/Haskell runs or replace the one
+final comprehensive release-qualification cycle.

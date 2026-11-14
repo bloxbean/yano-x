@@ -5,7 +5,7 @@ dependencies {
     api project(':framework:cardano-api')
     implementation project(':framework:host-adapter')
     // The Cardano adapter exposes Host API types in its protected factory hooks.
-    api "org.yanoproject:yano-host-api:${providers.gradleProperty('hostApiVersion').getOrElse('1.0.0-245.4')}"
+    api "org.yanoproject:yano-host-api:${providers.gradleProperty('hostApiVersion').get()}"
 
     implementation libs.cardano.client.core
     implementation libs.cardano.client.quicktx

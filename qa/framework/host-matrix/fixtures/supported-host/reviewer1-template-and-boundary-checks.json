@@ -1,0 +1,60 @@
+{
+  "hostVersion": "0.1.0-245.8",
+  "frameworkVersion": "0.1.0-245.12",
+  "foundationVersion": "0.1.0-245.4",
+  "hostApiVersion": "1.0.0-245.4",
+  "evidenceArtifactBoundary": "PASS",
+  "evidenceClientBoundary": "PASS",
+  "forbiddenNodeApiPomInjection": "PASS: rejected",
+  "templateSelectedFrameworkMismatch": "PASS: rejected",
+  "templateFinalCheck": "PASS: 8 tasks executed, 6 tests, real catalog probe",
+  "templateSuites": [
+    {
+      "name": "com.example.appchain.CounterConformanceTest",
+      "tests": "1",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "timestamp": "2026-11-14T14:36:34.699Z"
+    },
+    {
+      "name": "com.example.appchain.CounterDomainApiTest",
+      "tests": "3",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "timestamp": "2026-11-14T14:36:37.443Z"
+    },
+    {
+      "name": "com.example.appchain.CounterStateMachineTest",
+      "tests": "2",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "timestamp": "2026-11-14T14:36:37.488Z"
+    }
+  ],
+  "generatedPomRestoredSha256": "e8ad01e97a041945779b5cdddd57bc5b9aec8656e2606d889bb653a971d2e5d1",
+  "logs": {
+    "evidence-positive": {
+      "path": "/private/tmp/yano-x-245-review12-evidence-positive.log",
+      "sha256": "c3e7c2ed6d5e790d53c0d00296ccd816d04f96ed095a29acdc5e4591baebbf61"
+    },
+    "evidence-negative": {
+      "path": "/private/tmp/yano-x-245-review12-evidence-negative.log",
+      "sha256": "e75c00f779921d2b36985a06eded92180255c9d4957c7b6d7d28e5b075da22be"
+    },
+    "template-positive": {
+      "path": "/private/tmp/yano-x-245-review12-template-positive.log",
+      "sha256": "2e8d4f4aa9a821a4ddfb6e8799a8e643b7e117a20cfc74db0150c36b9ea2a2dc"
+    },
+    "template-negative": {
+      "path": "/private/tmp/yano-x-245-review12-template-negative.log",
+      "sha256": "00518fd3b115484b8a7be669e5fa6ed8530b0484420ced37973b32d69fa9a155"
+    },
+    "template-final": {
+      "path": "/private/tmp/yano-x-245-review12-template-final.log",
+      "sha256": "0137534eb4bb2dbcf89699cad50fc49fb88e7d4b27463d2432ba13c29e0e2d11"
+    }
+  }
+}
