@@ -21,7 +21,17 @@ OWNERS = {
     "org/yanoproject/api/config/YanoConfig.class": "yano-node-api",
     "org/yanoproject/runtime/appchain/AppLedgerRuntime.class": "yano-x-appchain-core",
     "org/yanoproject/runtime/appchain/AppLedgerManager.class": "yano-x-appchain-core",
-    "org/yanoproject/x/framework/standalone/StandaloneAppLedgerPlugin.class": "yano-x-appchain-standalone",
+}
+PROFILE_OWNERS = {
+    "standalone": {
+        "org/yanoproject/x/framework/standalone/StandaloneAppLedgerPlugin.class": "yano-x-appchain-standalone",
+    },
+    "cardano-construction": {
+        "org/yanoproject/x/framework/cardano/CardanoAppLedgerPlugin.class": "yano-x-appchain-cardano",
+        "org/yanoproject/runtime/appchain/AppChainSubsystem.class": "yano-x-appchain-cardano",
+        "org/yanoproject/runtime/appchain/AppChainManager.class": "yano-x-appchain-cardano",
+        "org/yanoproject/x/framework/cardano/CardanoRuntimeServices.class": "yano-x-appchain-cardano-api",
+    },
 }
 SPECIAL_RESOURCES = {
     "META-INF/yano/plugins/org.yanoproject.x.app-ledger.json",
@@ -58,8 +68,9 @@ def checked(command, log, cwd, timeout):
         raise RuntimeError(f"Command exited {code}; see {log}")
 
 
-def request(matrix, label):
+def request(matrix, label, profile="standalone"):
     row = dict(matrix[label])
+    row["profile"] = profile
     row["frameworkVersion"] = matrix["frameworkVersion"]
     row["yaciCoreVersion"] = matrix["yaciCoreVersion"]
     row["repositories"] = matrix["repositories"]
@@ -82,14 +93,18 @@ def resolve(specification, output, timeout):
 
 
 def verify_composition(resolved):
+    profile = resolved["request"].get("profile", "standalone")
+    expected_owners = OWNERS | PROFILE_OWNERS[profile]
+    forbidden = ({"yano-x-appchain-cardano", "yano-x-appchain-anchor-onchain"}
+                 if profile == "standalone" else {"yano-x-appchain-standalone"})
     owners = {}
     resources = {}
     for artifact in resolved["artifacts"]:
         path = Path(artifact["file"])
         if digest(path) != artifact["sha256"]:
             raise RuntimeError(f"Resolved input changed: {path}")
-        if artifact["name"] in {"yano-x-appchain-cardano", "yano-x-appchain-anchor-onchain"}:
-            raise RuntimeError(f"Cardano runtime is not a standalone activation input: {path}")
+        if artifact["name"] in forbidden:
+            raise RuntimeError(f"Forbidden activation artifact for {profile}: {path}")
         if not path.name.endswith(".jar"):
             raise RuntimeError(f"Expected ordinary published JAR: {path}")
         with zipfile.ZipFile(path) as archive:
@@ -110,12 +125,17 @@ def verify_composition(resolved):
     duplicates += [name for name, artifacts in resources.items() if len(artifacts) != 1]
     if duplicates:
         raise RuntimeError(f"Duplicate class/resource ownership: {duplicates[:20]}")
-    for name, artifact_id in OWNERS.items():
+    for name, artifact_id in expected_owners.items():
         actual = owners.get(name, [])
         if len(actual) != 1 or actual[0]["name"] != artifact_id:
             raise RuntimeError(f"Unexpected owner for {name}: {actual}")
     if len(resources.get("META-INF/yano/plugins/org.yanoproject.x.app-ledger.json", [])) != 1:
         raise RuntimeError("Exactly one manifested framework activation root is required")
+    if profile == "cardano-construction":
+        for name in SPECIAL_RESOURCES - {"META-INF/yano/plugins/org.yanoproject.x.app-ledger.json"}:
+            actual = resources.get(name, [])
+            if len(actual) != 1 or actual[0]["name"] != "yano-x-appchain-anchor-onchain":
+                raise RuntimeError(f"Missing or incorrect on-chain resource owner: {name}")
     resolved["ownershipVerified"] = True
 
 
@@ -125,7 +145,9 @@ def host_identity(resolved):
 
 
 def prepare(matrix, output, timeout):
-    resolved = resolve(request(matrix, "baseline"), output / "baseline", timeout)
+    baselines = {profile: resolve(request(matrix, "baseline", profile), output / f"baseline-{profile}", timeout)
+                 for profile in matrix.get("profiles", ["standalone"])}
+    resolved = baselines["standalone"]
     classes = output / "classes"
     classes.mkdir()
     empty_sourcepath = output / "empty-sourcepath"
@@ -140,6 +162,9 @@ def prepare(matrix, output, timeout):
                   "compiler": subprocess.check_output(["javac", "-version"], text=True).strip(),
                   "baselineRequest": resolved["request"], "compileInputs": resolved["artifacts"],
                   "baselineHostIdentity": host_identity(resolved),
+                  "profileBaselines": {profile: {"hostIdentity": host_identity(baseline),
+                                                  "inputs": baseline["artifacts"]}
+                                       for profile, baseline in baselines.items()},
                   "provenance": "Exact supplied Maven artifacts; staged candidates are not claimed as public releases"}
     write_json(output / "provenance.json", provenance)
     shutil.rmtree(classes)
@@ -192,8 +217,10 @@ def package_cell(resolved, fixture, directory, timeout):
     shutil.rmtree(package)
     classpath = [execution / "catalog", execution / fixture.name,
                  *sorted((execution / "lib").glob("*.jar"))]
+    profile = resolved["request"].get("profile", "standalone")
+    runtime_timeout = min(timeout, 60) if profile == "cardano-construction" else timeout
     checked(["java", "-cp", os.pathsep.join(map(str, classpath)), "compat.PackagedHostCluster",
-             str(execution / "state")], directory / "runtime.log", execution, timeout)
+             str(execution / "state"), profile], directory / "runtime.log", execution, runtime_timeout)
     result = json.loads((execution / "state/results.json").read_text())
     if not result.get("passed"):
         raise RuntimeError(f"Packaged cluster failed: {result}")
@@ -201,7 +228,8 @@ def package_cell(resolved, fixture, directory, timeout):
     by_name = {Path(artifact["file"]).name: artifact for artifact in resolved["artifacts"]}
     for name, origin in result["loadedOrigins"].items():
         path = Path(unquote(urlparse(origin).path)).resolve()
-        expected = OWNERS.get(name.replace(".", "/") + ".class")
+        expected = (OWNERS | PROFILE_OWNERS[resolved["request"].get("profile", "standalone")]).get(
+            name.replace(".", "/") + ".class")
         if path.parent != (execution / "lib").resolve() or path.name not in by_name:
             raise RuntimeError(f"Class loaded outside packaged Maven inputs: {name}: {origin}")
         if expected and by_name[path.name]["name"] != expected:
@@ -221,10 +249,12 @@ def run_matrix(matrix, fixture_directory, output, timeout):
               "fixtureSha256": digest(fixture), "fixtureProvenance": provenance, "cells": []}
     requests = {}
     for label in ("baseline", "current"):
-        specification = request(matrix, label)
-        key = json.dumps(specification, sort_keys=True)
-        requests.setdefault(key, {"request": specification, "labels": []})["labels"].append(label)
-    report["deduplicatedInitialBaseline"] = len(requests) == 1
+        for profile in matrix.get("profiles", ["standalone"]):
+            specification = request(matrix, label, profile)
+            key = json.dumps(specification, sort_keys=True)
+            requests.setdefault(key, {"request": specification, "labels": []})["labels"].append(label)
+    report["deduplicatedInitialBaseline"] = all(cell["labels"] == ["baseline", "current"]
+                                                for cell in requests.values())
     try:
         for position, cell in enumerate(requests.values()):
             directory = output / f"cell-{position}"
@@ -235,13 +265,20 @@ def run_matrix(matrix, fixture_directory, output, timeout):
             try:
                 resolved = resolve(cell["request"], directory / "resolution", timeout)
                 evidence["artifacts"] = resolved["artifacts"]
+                profile = cell["request"]["profile"]
+                profile_baseline = provenance.get("profileBaselines", {}).get(profile)
+                if profile != "standalone" and profile_baseline is None:
+                    raise RuntimeError(f"Frozen fixture has no prepared baseline for {profile}")
+                frozen_inputs = profile_baseline["inputs"] if profile_baseline else provenance["compileInputs"]
                 frozen_hashes = {(item["group"], item["name"], item["version"], item.get("classifier")):
-                                 item["sha256"] for item in provenance["compileInputs"]}
+                                 item["sha256"] for item in frozen_inputs}
                 for artifact in resolved["artifacts"]:
                     coordinate = (artifact["group"], artifact["name"], artifact["version"], artifact.get("classifier"))
                     if coordinate in frozen_hashes and artifact["sha256"] != frozen_hashes[coordinate]:
                         raise RuntimeError(f"Previously frozen coordinate changed bytes: {coordinate}")
-                if "baseline" in cell["labels"] and host_identity(resolved) != [tuple(item) for item in provenance["baselineHostIdentity"]]:
+                frozen_host = (profile_baseline["hostIdentity"] if profile_baseline
+                               else provenance["baselineHostIdentity"])
+                if "baseline" in cell["labels"] and host_identity(resolved) != [tuple(item) for item in frozen_host]:
                     raise RuntimeError("Baseline host artifacts changed since fixture preparation")
                 evidence.update(package_cell(resolved, fixture, directory, timeout))
             except Exception as failure:
@@ -265,6 +302,10 @@ def main():
     matrix = json.loads(args.inputs.read_text())
     if matrix.get("schemaVersion") != 1 or not matrix.get("repositories"):
         parser.error("Expected schemaVersion=1 and explicit Maven repositories")
+    profiles = matrix.get("profiles", ["standalone"])
+    if (not isinstance(profiles, list) or "standalone" not in profiles
+            or len(profiles) != len(set(profiles)) or not set(profiles) <= set(PROFILE_OWNERS)):
+        parser.error("profiles must include standalone, optionally cardano-construction, without duplicates")
     output = args.out.resolve()
     if output.is_relative_to(ROOT) or output.exists():
         parser.error("Output must be a new directory outside the source checkout")

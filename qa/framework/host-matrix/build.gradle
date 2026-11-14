@@ -13,6 +13,10 @@ def foundationVersion = (request.foundationVersion ?: hostVersion) as String
 def hostApiVersion = request.hostApiVersion as String
 def frameworkVersion = request.frameworkVersion as String
 def yaciCoreVersion = request.yaciCoreVersion as String
+def profile = (request.profile ?: 'standalone') as String
+if (!(profile in ['standalone', 'cardano-construction'])) {
+    throw new GradleException("Unknown qualification profile: ${profile}")
+}
 [hostVersion, foundationVersion, hostApiVersion, frameworkVersion, yaciCoreVersion].each {
     if (!it || it.contains('+') || it.contains('[') || it.endsWith('SNAPSHOT')) {
         throw new GradleException('Qualification requires exact, immutable candidate/release versions')
@@ -62,7 +66,12 @@ dependencies {
     packagedHost("org.yanoproject:yano-plugin-catalog:${hostVersion}") {
         exclude group: 'org.yanoproject.x'
     }
-    packagedHost "org.yanoproject.x:yano-x-appchain-standalone:${frameworkVersion}"
+    if (profile == 'standalone') {
+        packagedHost "org.yanoproject.x:yano-x-appchain-standalone:${frameworkVersion}"
+    } else {
+        packagedHost "org.yanoproject.x:yano-x-appchain-cardano:${frameworkVersion}"
+        packagedHost "org.yanoproject.x:yano-x-appchain-anchor-onchain:${frameworkVersion}"
+    }
     // The existing host catalog's effect contribution enum retains this legacy SPI.
     // This is an API compatibility carrier, never the Cardano runtime/activation root.
     packagedHost "org.yanoproject.x:yano-x-appchain-cardano-api:${frameworkVersion}"

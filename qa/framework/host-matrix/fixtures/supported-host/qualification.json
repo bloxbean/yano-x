@@ -1,0 +1,99 @@
+{
+  "cells": [
+    {
+      "catalogSha256": "070875200d5d791bcf5470273e92f471546d866a0b83dcbbbb1d00374de2d503",
+      "elapsedSeconds": 39.05,
+      "labels": [
+        "baseline",
+        "current"
+      ],
+      "packageSha256": "512e69f8c18343274846392674f4bd4cf9980b1f4633a806cf1f39408aa10ef7",
+      "passed": true,
+      "request": {
+        "foundationVersion": "0.1.0-245.5",
+        "frameworkVersion": "0.1.0-245.9",
+        "hostApiVersion": "1.0.0-245.4",
+        "hostVersion": "0.1.0-245.5",
+        "profile": "standalone",
+        "repositories": [
+          "file:///private/tmp/yano-245-host-artifacts",
+          "file:///private/tmp/yano-245-foundation-artifacts",
+          "file:///private/tmp/yano-245-framework-artifacts",
+          "file:///private/tmp/yano-245-artifacts"
+        ],
+        "yaciCoreVersion": "0.5.0-pre15-app-only-245"
+      },
+      "runtime": {
+        "cardanoStateCreated": false,
+        "lateJoin": true,
+        "loadedOrigins": {
+          "org.yanoproject.api.config.YanoConfig": "yano-node-api-0.1.0-245.5.jar",
+          "org.yanoproject.api.host.HostApi": "yano-host-api-1.0.0-245.4.jar",
+          "org.yanoproject.runtime.appchain.AppLedgerRuntime": "yano-x-appchain-core-0.1.0-245.9.jar",
+          "org.yanoproject.runtime.assembly.YanoAssembly": "yano-runtime-0.1.0-245.5.jar",
+          "org.yanoproject.runtime.plugins.PluginRuntimeEnvironment": "yano-runtime-0.1.0-245.5.jar",
+          "org.yanoproject.x.framework.standalone.StandaloneAppLedgerPlugin": "yano-x-appchain-standalone-0.1.0-245.9.jar"
+        },
+        "nodes": 3,
+        "optionalPluginsEnabled": false,
+        "passed": true,
+        "profile": "standalone",
+        "restartAndReopen": true,
+        "schemaVersion": 1,
+        "transport": "real-tcp-100-103"
+      }
+    },
+    {
+      "catalogSha256": "0d825781c7b11717c5a42d2a09d12a66af8c20eb7d560bf2bd8dd4baf3b556a7",
+      "elapsedSeconds": 7.33,
+      "labels": [
+        "baseline",
+        "current"
+      ],
+      "packageSha256": "bb7584fe5c748dbc3374fae1537eeb6e8c71f992ada407917f5f9c9d4ebbee51",
+      "passed": true,
+      "request": {
+        "foundationVersion": "0.1.0-245.5",
+        "frameworkVersion": "0.1.0-245.9",
+        "hostApiVersion": "1.0.0-245.4",
+        "hostVersion": "0.1.0-245.5",
+        "profile": "cardano-construction",
+        "repositories": [
+          "file:///private/tmp/yano-245-host-artifacts",
+          "file:///private/tmp/yano-245-foundation-artifacts",
+          "file:///private/tmp/yano-245-framework-artifacts",
+          "file:///private/tmp/yano-245-artifacts"
+        ],
+        "yaciCoreVersion": "0.5.0-pre15-app-only-245"
+      },
+      "runtime": {
+        "cardanoAppLedgerAssembled": true,
+        "cardanoManagerLifecycleHooks": true,
+        "cardanoRuntimeServicesLinked": true,
+        "loadedOrigins": {
+          "org.yanoproject.api.config.YanoConfig": "yano-node-api-0.1.0-245.5.jar",
+          "org.yanoproject.api.host.HostApi": "yano-host-api-1.0.0-245.4.jar",
+          "org.yanoproject.runtime.appchain.AppChainManager": "yano-x-appchain-cardano-0.1.0-245.9.jar",
+          "org.yanoproject.runtime.appchain.AppChainSubsystem": "yano-x-appchain-cardano-0.1.0-245.9.jar",
+          "org.yanoproject.runtime.appchain.AppLedgerRuntime": "yano-x-appchain-core-0.1.0-245.9.jar",
+          "org.yanoproject.runtime.assembly.YanoAssembly": "yano-runtime-0.1.0-245.5.jar",
+          "org.yanoproject.runtime.plugins.PluginRuntimeEnvironment": "yano-runtime-0.1.0-245.5.jar",
+          "org.yanoproject.x.framework.cardano.CardanoAppLedgerPlugin": "yano-x-appchain-cardano-0.1.0-245.9.jar",
+          "org.yanoproject.x.framework.cardano.CardanoRuntimeServices": "yano-x-appchain-cardano-api-0.1.0-245.9.jar"
+        },
+        "networkStarted": false,
+        "passed": true,
+        "persistentStoresCreated": false,
+        "profile": "cardano-construction",
+        "schemaVersion": 1
+      }
+    }
+  ],
+  "deduplicatedInitialBaseline": true,
+  "fixtureSha256": "fa6b31460535985d388734c2c04036d27f5a6644aa81c3984ddb472b952f1770",
+  "fullReportLocation": "/private/tmp/yano-245-thin-host-matrix-final-2/results.json",
+  "fullReportSha256": "843826a75452831b3e5cf1f316b9a76b43fada81feb63e6dfe75a16f1a738bb0",
+  "schemaVersion": 1,
+  "sourceSha256": "ec526326af0465bc9ad0bdd1ee5b466f449d3b30ea3d7d812698a1254f9d337c",
+  "status": "passed-unpublished-candidate-qualification"
+}

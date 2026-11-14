@@ -6,22 +6,26 @@ Prerequisites: Java 25, Python 3, and externally published/staged immutable Yano
 
 The required `yaciCoreVersion` input explicitly selects the coordinated app-only transport candidate. The resolver verifies that exact selected version and records its SHA-256 with the other inputs; `yaci-helper` retains its published dependency/version. This override is visible qualification input because the staged foundation POM still names the original Yaci core. The final production release must pin the actual upstream version containing the transport change in its publication metadata, rather than rely on this QA override or a same-version local replacement.
 
-The standalone root and legacy Cardano **API** carrier are selected. The latter supplies the effect-factory vocabulary required by the existing host catalog. Cardano runtime/activation and on-chain artifact dependencies are forbidden. The separate framework-core tests establish absence of Cardano SDK dependencies; this host fixture does not claim the entire integrated host library closure is SDK-free.
+The mandatory `standalone` profile selects the standalone root and legacy Cardano **API** carrier. The latter supplies the effect-factory vocabulary required by the existing host catalog. Cardano runtime/activation and on-chain artifact dependencies remain forbidden in this profile. The separate framework-core tests establish absence of Cardano SDK dependencies; the host fixture does not claim the entire integrated host library closure is SDK-free.
 
-The first candidate fixture is retained in [`fixtures/first-host`](fixtures/first-host/README.md). Normal runs reuse it unchanged. To establish a new baseline deliberately, prepare once after the first compatible host artifacts are staged:
+The optional `cardano-construction` profile selects the Cardano root and on-chain artifact instead; the standalone root is forbidden. It enforces exactly one framework manifest and exact ownership of the Cardano runtime classes and both on-chain resources. Set `"profiles": ["standalone", "cardano-construction"]` to include it. Each profile gets its own independently packaged JVM/classpath, resolved-input hashes and frozen host identity.
+
+The Cardano check constructs and closes a real in-memory `YanoAssembly.relay` with the app ledger enabled, plugins enabled, peers empty, and anchoring disabled. It validates the actual `CardanoRuntimeServices` constructor linkage, Cardano chain assembly, one manager lifecycle hook, and public handles. It never calls `start()` and must leave both persistent-store paths absent. Its JVM has a maximum 60-second timeout. This construction check does not claim Cardano network synchronization or anchoring coverage; those remain integrated release-qualification gates.
+
+The final candidate fixture is retained in [`fixtures/supported-host`](fixtures/supported-host/README.md), with passing evidence for both profiles. Normal qualification reuses it unchanged. The older `.4` / `.6`–`.7` probe under `fixtures/first-host` is preserved as historical candidate evidence. To deliberately establish a new baseline, prepare once after exact compatible host artifacts are staged:
 
 ```sh
 python3 qa/framework/host-matrix/run.py prepare \
   --inputs /absolute/host-matrix.json --out /private/tmp/frozen-host-fixture
 ```
 
-Preparation verifies artifact ownership, compiles the retained fixture source with an explicit external JAR classpath and empty sourcepath, and records compiler/source/bytecode and every compilation-input hash. Archive the fixture JAR and provenance unchanged. Preparation refuses an existing output directory; normal qualification never compiles the fixture.
+Preparation resolves and freezes each requested profile's baseline inputs, verifies artifact ownership, then compiles the retained fixture source with an explicit external JAR classpath and empty sourcepath, and records compiler/source/bytecode and every compilation-input hash. Archive the fixture JAR and provenance unchanged. Preparation refuses an existing output directory; normal qualification never compiles the fixture.
 
 Run the unchanged fixture against the oldest supported and current hosts:
 
 ```sh
 python3 qa/framework/host-matrix/run.py run \
-  --inputs /absolute/host-matrix.json --fixture /private/tmp/frozen-host-fixture \
+  --inputs /absolute/host-matrix.json --fixture qa/framework/host-matrix/fixtures/supported-host \
   --out /private/tmp/host-matrix-run
 ```
 
@@ -29,4 +33,4 @@ Each cell resolves Maven artifacts, checks hashes and single class/resource owne
 
 The fixture reuses the public builders/scenario from Yano's `AppLedgerAssemblyTest`: three actual TCP nodes, optional plugins disabled but required framework active, follower submission, threshold certificates/evidence, late-join protocol 103, common block/root/commitment, restart/reopen, subsequent finality, and no Cardano subsystem or chainstate. It intentionally provides no REST server or operator configuration surface. Existing integrated packaged/API/tooling regression gates remain required.
 
-`results.json` reports each exact host/framework combination, input hashes, fixture provenance, loaded origins and outcome. A baseline host hash change fails rather than silently replacing the baseline. At the first supported release, baseline and current are genuinely the same artifact set: the harness reports one deduplicated cell with both labels, not fabricated older-host evidence. Future X versions reuse the same fixture and baseline host bytes. Candidate artifacts are not described as previously published releases, and this matrix does not replace final coordinated release qualification.
+`results.json` reports each exact host/framework combination, input hashes, fixture provenance, loaded origins and outcome. A baseline host hash change fails rather than silently replacing the baseline. At the first supported release, baseline and current are genuinely the same artifact set: the harness reports one deduplicated cell per selected profile with both labels, not fabricated older-host evidence. Future X versions reuse the same fixture and baseline host bytes. Candidate artifacts are not described as previously published releases, and this matrix does not replace final coordinated release qualification.

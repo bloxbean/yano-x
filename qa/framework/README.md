@@ -38,14 +38,19 @@ separate test task. Native MPF proof encodings and snapshot/reopen checks remain
 on the lean core classpath; no format or hashing algorithm changed.
 
 
-The first development baseline uses Yano `0.1.0-245.4` and Host API
+The historical development probe uses Yano `0.1.0-245.4` and Host API
 `1.0.0-245.4`. The retained fixture was compiled once with X `.6`, then passed
 unchanged with X `0.1.0-245.7`: three-node TCP consensus, late joining, threshold
 certificates, commitments/evidence, stop/start, reopen and no L1 state. Required
 framework activation works with optional plugins disabled. Loaded class origins
 are checked inside the unpacked Maven-only package, with no Cardano runtime root.
-Baseline/current are the same first-supported host and are reported as one cell;
+That probe used the same first candidate for baseline/current, reported as one cell;
 this is not a claim that a pre-Host-API Yano release supports the framework.
+
+That probe predates the final assembly-order contract. The final supported
+candidate uses host/foundation `.5` and unchanged Host API `1.0.0-245.4`, with
+X compiled against node API `.4`. The matrix additionally constructs and closes
+the actual optional Cardano assembly in a separate packaged JVM.
 
 All candidate artifacts are unpublished development inputs. Freeze the first
 published compatible host and its exact inputs during the coordinated release;

@@ -41,30 +41,55 @@ public final class PackagedHostCluster {
         Map<String, Object> report = new LinkedHashMap<>();
         report.put("schemaVersion", 1);
         report.put("passed", false);
+        String profile = args.length > 1 ? args[1] : "standalone";
+        require(Set.of("standalone", "cardano-construction").contains(profile), "known qualification profile");
+        report.put("profile", profile);
+        boolean cardano = profile.equals("cardano-construction");
         Throwable failure = null;
         try {
             Map<String, String> origins = new LinkedHashMap<>();
-            for (String name : List.of("org.yanoproject.runtime.assembly.YanoAssembly",
+            List<String> originClasses = new ArrayList<>(List.of("org.yanoproject.runtime.assembly.YanoAssembly",
                     "org.yanoproject.api.host.HostApi", "org.yanoproject.api.config.YanoConfig",
                     "org.yanoproject.runtime.plugins.PluginRuntimeEnvironment",
-                    "org.yanoproject.runtime.appchain.AppLedgerRuntime",
-                    "org.yanoproject.x.framework.standalone.StandaloneAppLedgerPlugin")) {
+                    "org.yanoproject.runtime.appchain.AppLedgerRuntime"));
+            if (cardano) {
+                originClasses.addAll(List.of("org.yanoproject.x.framework.cardano.CardanoAppLedgerPlugin",
+                        "org.yanoproject.x.framework.cardano.CardanoRuntimeServices",
+                        "org.yanoproject.runtime.appchain.AppChainManager",
+                        "org.yanoproject.runtime.appchain.AppChainSubsystem"));
+            } else {
+                originClasses.add("org.yanoproject.x.framework.standalone.StandaloneAppLedgerPlugin");
+            }
+            for (String name : originClasses) {
                 origins.put(name, Class.forName(name).getProtectionDomain().getCodeSource().getLocation().toString());
             }
             report.put("loadedOrigins", origins);
-            for (String name : List.of("org.yanoproject.runtime.appchain.AppChainSubsystem",
-                    "org.yanoproject.x.framework.cardano.CardanoAppLedgerPlugin")) {
-                try { Class.forName(name); throw new AssertionError("Unexpected Cardano runtime: " + name); }
+            List<String> absentClasses = cardano
+                    ? List.of("org.yanoproject.x.framework.standalone.StandaloneAppLedgerPlugin")
+                    : List.of("org.yanoproject.runtime.appchain.AppChainSubsystem",
+                            "org.yanoproject.x.framework.cardano.CardanoAppLedgerPlugin");
+            for (String name : absentClasses) {
+                try { Class.forName(name); throw new AssertionError("Unexpected activation class: " + name); }
                 catch (ClassNotFoundException expected) { }
             }
-            new PackagedHostCluster(directory).run();
+            PackagedHostCluster fixture = new PackagedHostCluster(directory);
+            if (cardano) {
+                fixture.constructCardano();
+                report.put("cardanoRuntimeServicesLinked", true);
+                report.put("cardanoAppLedgerAssembled", true);
+                report.put("cardanoManagerLifecycleHooks", true);
+                report.put("networkStarted", false);
+                report.put("persistentStoresCreated", false);
+            } else {
+                fixture.run();
+                report.put("nodes", 3);
+                report.put("transport", "real-tcp-100-103");
+                report.put("optionalPluginsEnabled", false);
+                report.put("lateJoin", true);
+                report.put("restartAndReopen", true);
+                report.put("cardanoStateCreated", false);
+            }
             report.put("passed", true);
-            report.put("nodes", 3);
-            report.put("transport", "real-tcp-100-103");
-            report.put("optionalPluginsEnabled", false);
-            report.put("lateJoin", true);
-            report.put("restartAndReopen", true);
-            report.put("cardanoStateCreated", false);
         } catch (Throwable problem) {
             failure = problem;
             report.put("error", problem.toString());
@@ -73,6 +98,33 @@ public final class PackagedHostCluster {
         }
         if (failure instanceof Error error) throw error;
         if (failure instanceof Exception exception) throw exception;
+    }
+
+    private void constructCardano() {
+        Path l1 = directory.resolve("cardano-chainstate");
+        Path app = directory.resolve("cardano-appchain");
+        YanoConfig config = YanoConfig.serverOnly(0).toBuilder()
+                .enableServer(false).useRocksDB(false).rocksDBPath(l1.toString())
+                .appChainStoragePath(app.toString()).build();
+        Map<String, Object> globals = settings(0, List.of(1, 2));
+        globals.put("yano.app-chain.peers", "");
+        globals.put("yano.app-chain.anchor.enabled", false);
+        PluginsOptions plugins = new PluginsOptions(true, false, Set.of(), Set.of(), Map.of());
+        // Construction wires the real Cardano callback record and the optional
+        // framework manager. Never start networking, ledger stores, or anchoring.
+        try (Yano node = YanoAssembly.relay(config)
+                .runtimeOptions(new RuntimeOptions(null, plugins, globals))
+                .pluginLoader(PluginLoaderHandle.packagedClasspath(PackagedHostCluster.class.getClassLoader()))
+                .build()) {
+            require(node.chain() != null && node.ledger() != null && node.txGateway() != null
+                    && node.txEvaluationGateway() != null, "Cardano public handles");
+            require(node.appChain().orElseThrow().getClass().getName()
+                    .equals("org.yanoproject.runtime.appchain.AppChainSubsystem"), "Cardano chain assembled");
+            long managers = node.kernel().orElseThrow().subsystems().stream().filter(subsystem ->
+                    subsystem.name().equals("app-chain")).count();
+            require(managers == 1, "exactly one Cardano manager lifecycle hook");
+        }
+        require(!Files.exists(l1) && !Files.exists(app), "construction creates no persistent stores");
     }
 
     private void run() throws Exception {
