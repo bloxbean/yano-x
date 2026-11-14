@@ -14,6 +14,22 @@ elif [[ "${1:-}" == run && "${2:-}" == download ]]; then
   done
   [[ -n "$destination" ]]
   cp -R "$TEST_INPUT_FIXTURE/." "$destination/"
+  if [[ -n "${TEST_DROP_PUBLICATION:-}" ]]; then
+    rm -r "$destination/maven/org/yanoproject/$TEST_DROP_PUBLICATION"
+    grep -v "/$TEST_DROP_PUBLICATION/" "$destination/SHA256SUMS" > "$destination/SHA256SUMS.tmp"
+    mv "$destination/SHA256SUMS.tmp" "$destination/SHA256SUMS"
+  fi
+  if [[ -n "${TEST_UNLISTED_PUBLICATION:-}" ]]; then
+    grep -v "/$TEST_UNLISTED_PUBLICATION/" "$destination/SHA256SUMS" > "$destination/SHA256SUMS.tmp"
+    mv "$destination/SHA256SUMS.tmp" "$destination/SHA256SUMS"
+  fi
+  if [[ "${TEST_MISSING_HOST_API_VERSION:-0}" == 1 ]]; then
+    jq 'del(.hostApiVersion)' "$destination/yano-inputs.json" > "$destination/manifest.tmp"
+    mv "$destination/manifest.tmp" "$destination/yano-inputs.json"
+    grep -v '  yano-inputs.json$' "$destination/SHA256SUMS" > "$destination/SHA256SUMS.tmp"
+    (cd "$destination" && sha256sum yano-inputs.json) >> "$destination/SHA256SUMS.tmp"
+    mv "$destination/SHA256SUMS.tmp" "$destination/SHA256SUMS"
+  fi
   if [[ "${TEST_TAMPER_ZIP:-0}" == 1 ]]; then
     printf 'tampered' >> "$destination/yano-$TEST_INPUT_VERSION.zip"
   fi

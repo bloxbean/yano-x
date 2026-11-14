@@ -3,7 +3,8 @@ dependencies {
     // does not activate the node/runtime SPI carried by the framework APIs. Keep the rest
     // of the lightweight client verifier closure transitive.
     api(project(':sdk:client')) {
-        // Gradle project names and published Maven artifact IDs differ.
+        // These are distinct coordinates, not duplicate exclusions: source projects
+        // use private internal groups/names, while published consumers use Maven IDs.
         exclude group: project(':framework:api').group, module: project(':framework:api').name
         exclude group: project(':framework:cardano-api').group, module: project(':framework:cardano-api').name
         // Older compatible hosts still expose the removed aggregate transitively.

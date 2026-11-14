@@ -8,15 +8,30 @@ plugins {
 group = 'com.example'
 version = '0.1.0'
 
-def yanoVersion = providers.gradleProperty('yanoVersion').get()
-def yanoXVersion = providers.gradleProperty('yanoXVersion').get()
+def yanoVersion = providers.gradleProperty('yanoVersion').orNull?.trim()
+def yanoXVersion = providers.gradleProperty('yanoXVersion').orNull?.trim()
+if (!yanoVersion || !yanoXVersion) {
+    throw new GradleException('Plugin template requires both -PyanoVersion=<published-host-version> '
+            + 'and -PyanoXVersion=<published-framework-version>. '
+            + 'Run gradle build with these independent versions; see README.md in the plugin template.')
+}
 
 repositories {
-    if (providers.gradleProperty('useMavenLocal').getOrElse('false').toBoolean()) { mavenLocal() }
+    if (providers.gradleProperty('useMavenLocal').getOrElse('false').toBoolean()) {
+        mavenLocal { content { includeGroupByRegex 'org\\.yanoproject(\\..*)?' } }
+    }
     providers.gradleProperty('yanoRepository').orNull?.split(',')?.each { repository ->
         maven { url = uri(repository) }
     }
     mavenCentral()
+    maven {
+        url = uri('https://repo.bloxbean.org/maven/snapshots')
+        mavenContent { snapshotsOnly() }
+    }
+    maven {
+        url = uri('https://repo.bloxbean.org/maven/releases')
+        mavenContent { releasesOnly() }
+    }
 }
 
 // This source set is deliberately isolated from sourceSets.main.output. Its

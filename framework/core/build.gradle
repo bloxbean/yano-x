@@ -1,6 +1,9 @@
 description = 'Application-ledger consensus, storage and deterministic execution core'
 dependencies {
     api project(':framework:api')
+    // appOnly is newer than the Yaci API exposed by the oldest supported host.
+    // Publish this requirement so independent X upgrades resolve it as well.
+    implementation(libs.yaci.core) { exclude group: 'com.bloxbean.cardano', module: 'cardano-client-core' }
     implementation project(':framework:config')
     // Preserve the existing MPF/proof-wire implementation. Its optional PlutusData
     // formatter is only needed by Cardano adapters, never by native proof-wire paths.

@@ -35,7 +35,9 @@ cd scaffolds/plugin-template
 gradle build -PyanoVersion=<published-host-version> -PyanoXVersion=<published-framework-version>
 ```
 
-Both versions are explicit and independent. The plugin compiles against
+Both versions are explicit and independent. Missing or blank versions fail with
+the complete build command guidance. Run `./check-inputs.sh` to exercise these
+configuration failures through the actual standalone Gradle build. The plugin compiles against
 `yano-node-api` and `yano-x-appchain-api`; the framework core supplies
 `StateMachineConformance` for tests, and `yano-runtime` supplies the catalog probe.
 For isolated staged Maven inputs, pass `-PyanoRepository=<repo-url>,<other-repo-url>`.

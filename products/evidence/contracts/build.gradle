@@ -67,9 +67,20 @@ tasks.register('verifyEvidenceContractArtifact') {
         }
         def pom = layout.buildDirectory.file(
                 'publications/mavenJava/pom-default.xml').get().asFile.getText('UTF-8')
-        if (pom.contains('<artifactId>yano-core-api</artifactId>')) {
+        def forbiddenApiCoordinates = [
+                'org.yanoproject:yano-core-api',
+                'org.yanoproject:yano-node-api',
+                'org.yanoproject:yano-cardano-api',
+                'org.yanoproject:yano-host-api',
+                'org.yanoproject.x:yano-x-appchain-api',
+                'org.yanoproject.x:yano-x-appchain-cardano-api'
+        ] as Set
+        def dependencies = new groovy.xml.XmlSlurper(false, false).parseText(pom)
+                .dependencies.dependency.collect { "${it.groupId.text()}:${it.artifactId.text()}".toString() }
+        def forbidden = dependencies.findAll { forbiddenApiCoordinates.contains(it) }
+        if (!forbidden.isEmpty()) {
             throw new GradleException(
-                    'Evidence contracts published POM must not depend on core-api')
+                    "Evidence contracts published POM must not depend on host/framework APIs: ${forbidden}")
         }
     }
 }

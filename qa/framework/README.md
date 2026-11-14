@@ -13,11 +13,13 @@ For the coordinated unpublished candidates, supply exact artifact repositories:
 ./gradlew frameworkCheck --rerun-tasks --no-parallel \
   -PyanoRepository=file:///absolute/foundation-maven-repository \
   -PnodeApiVersion=EXACT_NODE_API_VERSION \
-  -PhostApiVersion=EXACT_HOST_API_VERSION \
-  -I qa/framework/artifact-inputs.gradle \
-  -PappLedgerYaciRepository=file:///absolute/yaci-maven-repository \
-  -PappLedgerYaciVersion=EXACT_YACI_VERSION
+  -PhostApiVersion=EXACT_HOST_API_VERSION
 ```
+
+The catalog resolves published Yaci `0.5.0-pre16-f57fc88-SNAPSHOT` from the
+BloxBean snapshot repository, including the merged app-only handshake changes.
+A Yaci checkout or local version override is no longer required. The optional
+`artifact-inputs.gradle` is reserved for testing another explicit candidate.
 
 No checkout or build invocation in another repository is required. Local staging
 is development evidence, not a published compatibility baseline. Keep the
