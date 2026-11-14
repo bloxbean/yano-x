@@ -68,9 +68,9 @@ Current verified sequence:
   commit `272157da2cb368fc2b7fc4fd0f8b9d68a8f23340`.
 - [X framework 43607120836](https://github.com/bloxbean/yano-x/actions/runs/43607120836),
   commit `2fc43e75944ba9c52b7a8a763155ea851801c23a`.
-- [Yano full host 43608923020](https://github.com/bloxbean/yano/actions/runs/43608923020),
-  commit `7823bfe21bc8079af1b813199271dbc2d3169ab9`, host/node/Cardano
-  `0.1.0-pre20-7823bfe21`, retaining Host API `1.0.0-272157da2` unchanged.
+- [Yano full host 43611263682](https://github.com/bloxbean/yano/actions/runs/43611263682),
+  commit `1defb5bb9e59fd6fe5fc2b9c8161bc3a3d4734ff`, host/node/Cardano
+  `0.1.0-pre20-1defb5bb9`, retaining Host API `1.0.0-272157da2` unchanged.
 
 All three runs succeeded. Full-host staging includes the actual packaged JVM
 catalog smoke and verifies that rebuilding the Host API did not change the
