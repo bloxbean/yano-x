@@ -57,6 +57,8 @@ dependencies {
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 
     catalogProbeImplementation "org.yanoproject:yano-runtime:${yanoVersion}"
+    // Exercise the independently selected framework, not the older host POM's pin.
+    catalogProbeImplementation "org.yanoproject.x:yano-x-appchain-cardano:${yanoXVersion}"
 }
 
 java {
@@ -203,6 +205,11 @@ tasks.register('verifyPluginCatalogLaunch', JavaExec) {
     inputs.file(tasks.named('jar').flatMap { it.archiveFile })
 
     doFirst {
+        def framework = configurations.catalogProbeRuntimeClasspath.incoming.resolutionResult.allComponents
+                .collect { it.moduleVersion }.findAll { it?.group == 'org.yanoproject.x' }
+        if (framework.isEmpty() || framework.any { it.version != yanoXVersion }) {
+            throw new GradleException("Catalog probe must use framework ${yanoXVersion}; resolved ${framework}")
+        }
         args = [
                 tasks.named('jar').get().archiveFile.get().asFile.absolutePath,
                 project.version.toString()
