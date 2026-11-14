@@ -41,7 +41,8 @@ class AppLedgerHostPluginTest {
         Harness harness = new Harness();
         ProbePlugin plugin = new ProbePlugin();
         plugin.failConstructionAt = 1;
-        assertThatThrownBy(() -> plugin.init(harness)).hasMessage("construction failed");
+        plugin.init(harness);
+        assertThatThrownBy(plugin::assemble).hasMessage("construction failed");
         assertThat(plugin.chains.getFirst().closes).isEqualTo(1);
         assertThat(harness.owned.get()).isNull();
     }
@@ -51,7 +52,8 @@ class AppLedgerHostPluginTest {
         Harness harness = new Harness();
         ProbePlugin plugin = new ProbePlugin();
         plugin.failWiring = true;
-        assertThatThrownBy(() -> plugin.init(harness)).hasMessage("wiring failed");
+        plugin.init(harness);
+        assertThatThrownBy(plugin::assemble).hasMessage("wiring failed");
         assertThat(plugin.chains.getFirst().closes).isEqualTo(1);
     }
 
@@ -60,7 +62,8 @@ class AppLedgerHostPluginTest {
         Harness harness = new Harness();
         harness.rejectOwnership = true;
         ProbePlugin plugin = new ProbePlugin();
-        assertThatThrownBy(() -> plugin.init(harness)).hasMessage("ownership rejected");
+        plugin.init(harness);
+        assertThatThrownBy(plugin::assemble).hasMessage("ownership rejected");
         plugin.chains.forEach(chain -> assertThat(chain.closes).isEqualTo(1));
         assertThat(harness.owned.get()).isNull();
     }
@@ -70,7 +73,8 @@ class AppLedgerHostPluginTest {
         Harness harness = new Harness();
         harness.rejectProtocols = true;
         ProbePlugin plugin = new ProbePlugin();
-        assertThatThrownBy(() -> plugin.init(harness)).hasMessage("protocol rejected");
+        plugin.init(harness);
+        assertThatThrownBy(plugin::assemble).hasMessage("protocol rejected");
         plugin.chains.forEach(chain -> assertThat(chain.closes).isEqualTo(1));
         assertThat(harness.owned.get()).isNull();
     }
@@ -80,9 +84,11 @@ class AppLedgerHostPluginTest {
         Harness harness = new Harness();
         ProbePlugin plugin = new ProbePlugin();
         plugin.init(harness);
-        AppLedgerManager manager = (AppLedgerManager) harness.owned.get();
-        assertThat(harness.services.get(AppLedgerHostPlugin.GATEWAYS_SERVICE)).isSameAs(manager);
-        assertThat(harness.services.get(AppLedgerHostPlugin.MANAGER_SERVICE)).isSameAs(manager);
+        assertThat(plugin.chains).isEmpty();
+        assertThat(harness.services.get(AppLedgerHostPlugin.ASSEMBLY_SERVICE)).isSameAs(plugin);
+        harness.initializationComplete = true;
+        AppLedgerManager manager = plugin.assemble();
+        assertThat(harness.owned.get()).isSameAs(manager);
         plugin.start();
         plugin.stop();
         plugin.close();
@@ -108,6 +114,7 @@ class AppLedgerHostPluginTest {
         plugin.init(harness);
         assertThat(plugin.chains).isEmpty();
         assertThat(harness.owned.get()).isNull();
+        assertThat(plugin.assemble()).isNull();
     }
 
     @Test
@@ -146,6 +153,111 @@ class AppLedgerHostPluginTest {
         assertThat(plugin.chains).isEmpty();
     }
 
+    @Test
+    void factoriesObserveLaterPluginInitializationAndAssemblyPublishesNoServices() {
+        Harness harness = new Harness();
+        ProbePlugin plugin = new ProbePlugin();
+        plugin.requireLaterService = true;
+        plugin.init(harness);
+        assertThat(plugin.chains).isEmpty();
+        assertThat(harness.owned.get()).isNull();
+        // A different plugin initializes after the framework provider.
+        harness.registerService("later-plugin-ready", Boolean.TRUE);
+        harness.initializationComplete = true;
+        AppLedgerManager manager = plugin.assemble();
+        try {
+            assertThat(plugin.chains).hasSize(2);
+            assertThatThrownBy(plugin::assemble).hasMessageContaining("already assembled");
+        } finally {
+            manager.close();
+        }
+    }
+
+    @Test
+    void configurationValidationIsDeferredUntilAssembly() {
+        Harness harness = new Harness();
+        harness.services.remove(AppLedgerHostPlugin.NODE_CONFIG_SERVICE);
+        ProbePlugin plugin = new ProbePlugin();
+        plugin.init(harness);
+        assertThat(plugin.chains).isEmpty();
+        assertThatThrownBy(plugin::assemble).hasMessageContaining(AppLedgerHostPlugin.NODE_CONFIG_SERVICE);
+    }
+
+    @Test
+    void factoryWorkerCanRejectConcurrentAssemblyWithoutWaitingOnFactoryCompletion() {
+        Harness harness = new Harness();
+        ProbePlugin plugin = new ProbePlugin();
+        plugin.attemptWorkerAssembly = true;
+        plugin.init(harness);
+        AppLedgerManager manager = plugin.assemble();
+        try {
+            assertThat(plugin.chains).hasSize(2);
+        } finally {
+            manager.close();
+        }
+    }
+
+    @Test
+    void closeFromFactoryWorkerCancelsAssemblyAndClosesReturnedChain() {
+        Harness harness = new Harness();
+        ProbePlugin plugin = new ProbePlugin();
+        plugin.closeFromFactoryWorker = true;
+        plugin.init(harness);
+        assertThatThrownBy(plugin::assemble).hasMessageContaining("closed");
+        assertThat(plugin.chains).hasSize(1);
+        assertThat(plugin.chains.getFirst().closes).isEqualTo(1);
+        assertThat(harness.owned.get()).isNull();
+    }
+
+    @Test
+    void closeDuringProtocolRegistrationCancelsBeforeOwnershipTransfer() {
+        Harness harness = new Harness();
+        ProbePlugin plugin = new ProbePlugin();
+        harness.onProtocolRegistration = plugin::close;
+        plugin.init(harness);
+        assertThatThrownBy(plugin::assemble).hasMessageContaining("closed");
+        plugin.chains.forEach(chain -> assertThat(chain.closes).isEqualTo(1));
+        assertThat(harness.owned.get()).isNull();
+    }
+
+    @Test
+    void closeDuringSuccessfulOwnershipTransferLeavesCleanupWithHost() {
+        Harness harness = new Harness();
+        ProbePlugin plugin = new ProbePlugin();
+        harness.onOwnershipTransfer = plugin::close;
+        plugin.init(harness);
+        assertThatThrownBy(plugin::assemble).hasMessageContaining("closed");
+        assertThat(harness.owned.get()).isNotNull();
+        plugin.chains.forEach(chain -> assertThat(chain.closes).isZero());
+        harness.owned.get().close();
+        plugin.chains.forEach(chain -> assertThat(chain.closes).isEqualTo(1));
+    }
+
+    @Test
+    void rejectedInitServiceRegistrationCreatesNoRuntimeResources() {
+        Harness harness = new Harness();
+        harness.initializationComplete = true;
+        ProbePlugin plugin = new ProbePlugin();
+        assertThatThrownBy(() -> plugin.init(harness)).hasMessage("service registration outside init");
+        plugin.close();
+        assertThat(plugin.chains).isEmpty();
+        assertThat(harness.owned.get()).isNull();
+        assertThatThrownBy(plugin::assemble).hasMessageContaining("closed");
+    }
+
+    @Test
+    void laterPluginInitFailureClosesAdapterWithoutConstructingFactories() {
+        Harness harness = new Harness();
+        ProbePlugin plugin = new ProbePlugin();
+        plugin.init(harness);
+        // The host must skip assembly when a later plugin init fails; catalog
+        // rollback closes this provider without any ledger factories having run.
+        plugin.close();
+        assertThat(plugin.chains).isEmpty();
+        assertThat(harness.owned.get()).isNull();
+        assertThatThrownBy(plugin::assemble).hasMessageContaining("closed");
+    }
+
     private static final class ProbeChain extends AppLedgerRuntime {
         private int starts;
         private int stops;
@@ -168,10 +280,40 @@ class AppLedgerHostPluginTest {
         private final List<ProbeChain> chains = new ArrayList<>();
         private int failConstructionAt = -1;
         private boolean failWiring;
+        private boolean requireLaterService;
+        private boolean attemptWorkerAssembly;
+        private boolean closeFromFactoryWorker;
 
         @Override
         protected AppLedgerRuntime createChain(AppChainConfig config, long magic, String storage,
                 YanoConfig node, HostApi host, PluginContext context) {
+            if (requireLaterService) {
+                assertThat(context.getService("later-plugin-ready", Boolean.class)).contains(true);
+            }
+            if (closeFromFactoryWorker) {
+                Thread worker = Thread.ofVirtual().start(this::close);
+                try { worker.join(3000); }
+                catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                    throw new AssertionError(interrupted);
+                }
+                assertThat(worker.isAlive()).as("close does not wait on its calling factory").isFalse();
+            }
+            if (attemptWorkerAssembly) {
+                AtomicReference<Throwable> failure = new AtomicReference<>();
+                Thread worker = Thread.ofVirtual().start(() -> {
+                    try { assemble(); }
+                    catch (Throwable rejected) { failure.set(rejected); }
+                });
+                try { worker.join(3000); }
+                catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                    throw new AssertionError(interrupted);
+                }
+                assertThat(worker.isAlive()).as("assembly monitor released before factory callback").isFalse();
+                assertThat(failure.get()).isInstanceOf(IllegalStateException.class)
+                        .hasMessageContaining("already assembled");
+            }
             if (chains.size() == failConstructionAt) throw new IllegalStateException("construction failed");
             ProbeChain chain = new ProbeChain(config);
             chains.add(chain);
@@ -188,6 +330,9 @@ class AppLedgerHostPluginTest {
         private final AtomicReference<Subsystem> owned = new AtomicReference<>();
         private boolean rejectOwnership;
         private boolean rejectProtocols;
+        private boolean initializationComplete;
+        private Runnable onProtocolRegistration = () -> { };
+        private Runnable onOwnershipTransfer = () -> { };
         private Map<String, Object> legacyConfig = Map.of();
 
         Harness() {
@@ -201,6 +346,7 @@ class AppLedgerHostPluginTest {
                 public boolean hasSharedOutboundSessions() { return false; }
                 public void registerInbound(int id, AgentFactory factory) {
                     if (rejectProtocols) throw new IllegalStateException("protocol rejected");
+                    onProtocolRegistration.run();
                 }
                 public void decorateOutbound(UnaryOperator<PeerClientFactory> decorator) {
                     throw new AssertionError("no shared outbound sessions");
@@ -214,6 +360,7 @@ class AppLedgerHostPluginTest {
                     return service -> {
                         if (rejectOwnership) throw new IllegalStateException("ownership rejected");
                         owned.set(service);
+                        onOwnershipTransfer.run();
                     };
                 }
             });
@@ -224,7 +371,10 @@ class AppLedgerHostPluginTest {
         public ScheduledExecutorService scheduler() { return null; }
         public Optional<ClassLoader> pluginClassLoader() { return Optional.empty(); }
         public void registerStorageFilter(StorageFilter filter) { throw new UnsupportedOperationException(); }
-        public void registerService(String key, Object value) { services.put(key, value); }
+        public void registerService(String key, Object value) {
+            if (initializationComplete) throw new IllegalStateException("service registration outside init");
+            services.put(key, value);
+        }
         public <T> Optional<T> getService(String key, Class<T> type) {
             Object value = services.get(key);
             return type.isInstance(value) ? Optional.of(type.cast(value)) : Optional.empty();

@@ -23,8 +23,9 @@ import java.util.Objects;
 import java.util.Properties;
 
 /**
- * Constructs the existing ledger runtime during catalog initialization. The
- * host's pre-publication lifecycle owns start, stop and close after registration.
+ * Registers its assembly entry point during catalog initialization. The host
+ * calls it after every plugin has initialized, before sealing N2N/lifecycle
+ * registration. The existing pre-publication lifecycle owns the resulting runtime.
  * This library deliberately has no discovery descriptor; deployment roots select
  * either its standalone subclass or the optional Cardano specialization.
  */
@@ -32,9 +33,12 @@ public class AppLedgerHostPlugin implements NodePlugin {
     public static final String BUNDLE_ID = "org.yanoproject.x.app-ledger";
     public static final String NODE_CONFIG_SERVICE = "org.yanoproject.app-ledger.node-config";
     public static final String RUNTIME_OPTIONS_SERVICE = "org.yanoproject.app-ledger.runtime-options";
-    public static final String GATEWAYS_SERVICE = "org.yanoproject.app-ledger.gateways";
-    public static final String MANAGER_SERVICE = "org.yanoproject.app-ledger.manager";
+    public static final String ASSEMBLY_SERVICE = "org.yanoproject.app-ledger.assembly";
     private boolean initialized;
+    private boolean assemblyAttempted;
+    private boolean closed;
+    private PluginContext assemblyContext;
+    private RuntimeOptions assemblyOptions;
 
     @Override public final String id() { return BUNDLE_ID; }
 
@@ -52,7 +56,8 @@ public class AppLedgerHostPlugin implements NodePlugin {
     }
 
     @Override
-    public final void init(PluginContext context) {
+    public final synchronized void init(PluginContext context) {
+        if (closed) throw new IllegalStateException("Application-ledger plugin is closed");
         if (initialized) throw new IllegalStateException("Application-ledger plugin already initialized");
         initialized = true;
         RuntimeOptions options = context.getService(RUNTIME_OPTIONS_SERVICE, RuntimeOptions.class).orElse(null);
@@ -67,6 +72,33 @@ public class AppLedgerHostPlugin implements NodePlugin {
         Map<String, Object> globals = options.globals();
         if (!Boolean.parseBoolean(String.valueOf(globals.get("yano.app-chain.enabled")))) return;
 
+        assemblyContext = context;
+        assemblyOptions = options;
+        context.registerService(ASSEMBLY_SERVICE, this);
+    }
+
+    /**
+     * Assemble exactly once after the host has successfully completed all
+     * NodePlugin initialization callbacks. No plugin services are registered
+     * here: init-scoped registration is already closed. The returned manager
+     * also implements AppChainGateways for the host's existing public facade.
+     * A disabled provider returns null and allocates no runtime resources.
+     */
+    public final AppLedgerManager assemble() {
+        PluginContext context;
+        RuntimeOptions options;
+        synchronized (this) {
+            if (!initialized) throw new IllegalStateException("Application-ledger plugin is not initialized");
+            if (closed) throw new IllegalStateException("Application-ledger plugin is closed");
+            if (assemblyAttempted) throw new IllegalStateException("Application-ledger runtime already assembled");
+            assemblyAttempted = true;
+            context = assemblyContext;
+            options = assemblyOptions;
+        }
+        if (context == null) return null;
+        // Provider factories can invoke arbitrary callbacks. Do not retain the
+        // assembly monitor while constructing or transferring runtime ownership.
+        Map<String, Object> globals = options.globals();
         YanoConfig node = requireService(context, NODE_CONFIG_SERVICE, YanoConfig.class);
         HostApi host = requireService(context, HostApi.SERVICE_KEY, HostApi.class);
         host.version().requireCompatible(1, 1);
@@ -87,22 +119,35 @@ public class AppLedgerHostPlugin implements NodePlugin {
         boolean transferred = false;
         try {
             for (AppChainConfig configuration : configurations) {
+                requireOpen();
                 AppLedgerRuntime chain = createChain(configuration, magic, storage, node, host, context);
                 chains.add(Objects.requireNonNull(chain, "application-ledger runtime"));
+                requireOpen();
                 wireChain(chain, node, context);
+                requireOpen();
             }
             manager = createManager(chains, node, context);
-            manager.serverAgentRegistrations().forEach(host.n2n()::registerInbound);
+            requireOpen();
+            manager.serverAgentRegistrations().forEach((protocol, factory) -> {
+                requireOpen();
+                host.n2n().registerInbound(protocol, factory);
+                requireOpen();
+            });
             if (host.n2n().hasSharedOutboundSessions() && node.isClientEnabled()) {
+                requireOpen();
                 AppLedgerManager sharedManager = manager;
                 String transport = stringOf(globals.get("yano.app-chain.transport.mode"), "shared");
                 host.n2n().decorateOutbound(delegate -> sharedManager.wrapPeerClientFactory(
                         delegate, transport, node.getRemoteHost(), node.getRemotePort()));
             }
-            context.registerService(GATEWAYS_SERVICE, manager);
-            context.registerService(MANAGER_SERVICE, manager);
+            requireOpen();
             lifecycle.registerBeforePublication(manager);
             transferred = true;
+            // A registry callback may close this adapter while accepting the
+            // manager. Report cancellation, but leave accepted ownership with
+            // the host: its construction rollback closes the manager once.
+            requireOpen();
+            return manager;
         } catch (Throwable failure) {
             if (!transferred) {
                 if (manager != null) failure = close(manager, failure);
@@ -147,6 +192,10 @@ public class AppLedgerHostPlugin implements NodePlugin {
                 new IllegalStateException("Application-ledger host service is unavailable: " + key));
     }
 
+    private synchronized void requireOpen() {
+        if (closed) throw new IllegalStateException("Application-ledger plugin is closed");
+    }
+
     private static Throwable close(AutoCloseable resource, Throwable failure) {
         try { resource.close(); }
         catch (Throwable cleanup) { failure = LifecycleFailures.merge(failure, cleanup); }
@@ -162,5 +211,5 @@ public class AppLedgerHostPlugin implements NodePlugin {
     // Ownership is transferred exactly once to the existing host lifecycle.
     @Override public final void start() { }
     @Override public final void stop() { }
-    @Override public final void close() { }
+    @Override public final synchronized void close() { closed = true; }
 }
