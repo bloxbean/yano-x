@@ -1,0 +1,321 @@
+{
+  "artifactIdentities": [
+    {
+      "coordinate": "com.bloxbean.cardano:yaci-core:0.5.0-pre15-app-only-245.4",
+      "sha256": "46474bf493e6efefa812cb06ce8d4ceb9a6449270fb535eebe2ed661e523d767"
+    },
+    {
+      "coordinate": "org.yanoproject.x:yano-x-appchain-anchor-onchain:0.1.0-245.11",
+      "sha256": "807d30aad1b11fe688c801312ece70cdc58f47781074f3e635764254f272a33e"
+    },
+    {
+      "coordinate": "org.yanoproject.x:yano-x-appchain-api:0.1.0-245.11",
+      "sha256": "45aeb5e76c3987d6f6d2d1e04d545615e2bb7dfd0eb3bd4fac5b05feb32bc54f"
+    },
+    {
+      "coordinate": "org.yanoproject.x:yano-x-appchain-cardano-api:0.1.0-245.11",
+      "sha256": "94aa592672aa53ac5e4482d2018f11115b1a4df4ec0cddaabf67bf30ae321bde"
+    },
+    {
+      "coordinate": "org.yanoproject.x:yano-x-appchain-cardano:0.1.0-245.11",
+      "sha256": "38a2464f3fa0bca9aab598e313c46b327e9be2cf1c66539c691dfb681c218bd2"
+    },
+    {
+      "coordinate": "org.yanoproject.x:yano-x-appchain-config:0.1.0-245.11",
+      "sha256": "5105d581503c4371940c905cfe503fe92a5299092e5a47b26563f4176ab32b19"
+    },
+    {
+      "coordinate": "org.yanoproject.x:yano-x-appchain-core:0.1.0-245.11",
+      "sha256": "9146d5675b81aff9d08e36fa7ed6470d4ce207d5ac7648003e62fbd0d1d53247"
+    },
+    {
+      "coordinate": "org.yanoproject.x:yano-x-appchain-host-adapter:0.1.0-245.11",
+      "sha256": "e4024d0abefb21d229dd1bd701cfc78ce72cce2c6f135cbc59360bc49ea32f72"
+    },
+    {
+      "coordinate": "org.yanoproject.x:yano-x-appchain-standalone:0.1.0-245.11",
+      "sha256": "f982d0527ec15d678a64af9d13942abc00939403177e3398efc8de9b4224c0dc"
+    },
+    {
+      "coordinate": "org.yanoproject.x:yano-x-proof-contracts:0.1.0-245.11",
+      "sha256": "cba7d02e6322dffd44e531d81f27d51a6d28ae63feee1848d01ec66fb7ee02de"
+    },
+    {
+      "coordinate": "org.yanoproject:yano-appchain-config:0.1.0-245.5",
+      "sha256": "c6deada2fac53b8ea6523dbda77597b128006674616f140f04df23264c6d1aa3"
+    },
+    {
+      "coordinate": "org.yanoproject:yano-appchain-config:0.1.0-245.8",
+      "sha256": "c6deada2fac53b8ea6523dbda77597b128006674616f140f04df23264c6d1aa3"
+    },
+    {
+      "coordinate": "org.yanoproject:yano-cardano-api:0.1.0-245.5",
+      "sha256": "bae10258fdeb609f21b138ef18d8d57f8553e1fbb56630aa4921262659392edd"
+    },
+    {
+      "coordinate": "org.yanoproject:yano-cardano-api:0.1.0-245.8",
+      "sha256": "bae10258fdeb609f21b138ef18d8d57f8553e1fbb56630aa4921262659392edd"
+    },
+    {
+      "coordinate": "org.yanoproject:yano-consensus:0.1.0-245.5",
+      "sha256": "436c3c9ce19eb81858ad0da5492484a39ae8a0023adf7126cb58b85653353b19"
+    },
+    {
+      "coordinate": "org.yanoproject:yano-consensus:0.1.0-245.8",
+      "sha256": "436c3c9ce19eb81858ad0da5492484a39ae8a0023adf7126cb58b85653353b19"
+    },
+    {
+      "coordinate": "org.yanoproject:yano-core-api:0.1.0-245.5",
+      "sha256": "89704da8690e150e5594f09f78fc0e30b457cb67b84f9a708b6943a18a3e08ae"
+    },
+    {
+      "coordinate": "org.yanoproject:yano-host-api:1.0.0-245.4",
+      "sha256": "fa37872204c49d1e8875965dd9b5e0b47a95bfdbedd157f50534f5c2353141cd"
+    },
+    {
+      "coordinate": "org.yanoproject:yano-ledger-rules:0.1.0-245.5",
+      "sha256": "e7de0da00101a91c38f310c9ee10361475960e9533c2fecc4ef47cc899515673"
+    },
+    {
+      "coordinate": "org.yanoproject:yano-ledger-rules:0.1.0-245.8",
+      "sha256": "e7de0da00101a91c38f310c9ee10361475960e9533c2fecc4ef47cc899515673"
+    },
+    {
+      "coordinate": "org.yanoproject:yano-ledger-state:0.1.0-245.5",
+      "sha256": "2f4f4f05bdedecfae84292b541f01db6a733c1699e4908fadeba7fc872f3c565"
+    },
+    {
+      "coordinate": "org.yanoproject:yano-ledger-state:0.1.0-245.8",
+      "sha256": "2f4f4f05bdedecfae84292b541f01db6a733c1699e4908fadeba7fc872f3c565"
+    },
+    {
+      "coordinate": "org.yanoproject:yano-node-api:0.1.0-245.5",
+      "sha256": "11dc3dab938bcd9be781fe58f6188b49ffa437db39fc3ff4f9fd0c4381abb277"
+    },
+    {
+      "coordinate": "org.yanoproject:yano-node-api:0.1.0-245.8",
+      "sha256": "11dc3dab938bcd9be781fe58f6188b49ffa437db39fc3ff4f9fd0c4381abb277"
+    },
+    {
+      "coordinate": "org.yanoproject:yano-p2p:0.1.0-245.5",
+      "sha256": "1be7abf93d7cbf891003ffa76a7fd20a5ebae3eccbb61e74a1b1d686542290d8"
+    },
+    {
+      "coordinate": "org.yanoproject:yano-p2p:0.1.0-245.8",
+      "sha256": "1be7abf93d7cbf891003ffa76a7fd20a5ebae3eccbb61e74a1b1d686542290d8"
+    },
+    {
+      "coordinate": "org.yanoproject:yano-plugin-catalog:0.1.0-245.5",
+      "sha256": "3fd21ecf6fb7afbe3b731b64cbb49909c2023e337da89bbac90a68d15cf7a0f6"
+    },
+    {
+      "coordinate": "org.yanoproject:yano-plugin-catalog:0.1.0-245.8",
+      "sha256": "3fd21ecf6fb7afbe3b731b64cbb49909c2023e337da89bbac90a68d15cf7a0f6"
+    },
+    {
+      "coordinate": "org.yanoproject:yano-runtime:0.1.0-245.5",
+      "sha256": "e36b279aabadb34ca02967b0c3279562f2c4ca37a21cc186c85301ffe00fd8d9"
+    },
+    {
+      "coordinate": "org.yanoproject:yano-runtime:0.1.0-245.8",
+      "sha256": "8ca368481e364699fd01a327d15290e9dc68cdabdbb9668f371a06f8a775d427"
+    }
+  ],
+  "cells": [
+    {
+      "catalogSha256": "425a1537c9b4ace3c5bacb80bf191e258d6193a3ee478aed8d3b06c6f1ecb1c5",
+      "elapsedSeconds": 39.22,
+      "labels": [
+        "baseline"
+      ],
+      "legacyCoreApiPresent": true,
+      "packageSha256": "92cb05792718ea9453ad1da9df2aa51e76898bfc76668ae72130f90149ac2763",
+      "passed": true,
+      "request": {
+        "foundationVersion": "0.1.0-245.5",
+        "frameworkVersion": "0.1.0-245.11",
+        "hostApiVersion": "1.0.0-245.4",
+        "hostVersion": "0.1.0-245.5",
+        "profile": "standalone",
+        "repositories": [
+          "file:///private/tmp/yano-245-host-artifacts",
+          "file:///private/tmp/yano-245-foundation-artifacts",
+          "file:///private/tmp/yano-245-framework-artifacts",
+          "file:///private/tmp/yano-245-artifacts"
+        ],
+        "yaciCoreVersion": "0.5.0-pre15-app-only-245.4"
+      },
+      "runtime": {
+        "cardanoStateCreated": false,
+        "lateJoin": true,
+        "loadedOrigins": {
+          "org.yanoproject.api.config.YanoConfig": "yano-node-api-0.1.0-245.5.jar",
+          "org.yanoproject.api.host.HostApi": "yano-host-api-1.0.0-245.4.jar",
+          "org.yanoproject.runtime.appchain.AppLedgerRuntime": "yano-x-appchain-core-0.1.0-245.11.jar",
+          "org.yanoproject.runtime.assembly.YanoAssembly": "yano-runtime-0.1.0-245.5.jar",
+          "org.yanoproject.runtime.plugins.PluginRuntimeEnvironment": "yano-runtime-0.1.0-245.5.jar",
+          "org.yanoproject.x.framework.standalone.StandaloneAppLedgerPlugin": "yano-x-appchain-standalone-0.1.0-245.11.jar"
+        },
+        "nodes": 3,
+        "optionalPluginsEnabled": false,
+        "passed": true,
+        "profile": "standalone",
+        "restartAndReopen": true,
+        "schemaVersion": 1,
+        "transport": "real-tcp-100-103"
+      }
+    },
+    {
+      "catalogSha256": "fb5e74342a64a98d013e8bc73c1a98ac54323a463fe161d692a6f49120099985",
+      "elapsedSeconds": 15.49,
+      "labels": [
+        "baseline"
+      ],
+      "legacyCoreApiPresent": true,
+      "packageSha256": "87d3d4f799ac50d134422e0b521a57191c0c46f7bc437aeb37ba1bf088605a16",
+      "passed": true,
+      "request": {
+        "foundationVersion": "0.1.0-245.5",
+        "frameworkVersion": "0.1.0-245.11",
+        "hostApiVersion": "1.0.0-245.4",
+        "hostVersion": "0.1.0-245.5",
+        "profile": "cardano-construction",
+        "repositories": [
+          "file:///private/tmp/yano-245-host-artifacts",
+          "file:///private/tmp/yano-245-foundation-artifacts",
+          "file:///private/tmp/yano-245-framework-artifacts",
+          "file:///private/tmp/yano-245-artifacts"
+        ],
+        "yaciCoreVersion": "0.5.0-pre15-app-only-245.4"
+      },
+      "runtime": {
+        "cardanoAppLedgerAssembled": true,
+        "cardanoManagerLifecycleHooks": true,
+        "cardanoRuntimeServicesLinked": true,
+        "loadedOrigins": {
+          "org.yanoproject.api.config.YanoConfig": "yano-node-api-0.1.0-245.5.jar",
+          "org.yanoproject.api.host.HostApi": "yano-host-api-1.0.0-245.4.jar",
+          "org.yanoproject.runtime.appchain.AppChainManager": "yano-x-appchain-cardano-0.1.0-245.11.jar",
+          "org.yanoproject.runtime.appchain.AppChainSubsystem": "yano-x-appchain-cardano-0.1.0-245.11.jar",
+          "org.yanoproject.runtime.appchain.AppLedgerRuntime": "yano-x-appchain-core-0.1.0-245.11.jar",
+          "org.yanoproject.runtime.assembly.YanoAssembly": "yano-runtime-0.1.0-245.5.jar",
+          "org.yanoproject.runtime.plugins.PluginRuntimeEnvironment": "yano-runtime-0.1.0-245.5.jar",
+          "org.yanoproject.x.framework.cardano.CardanoAppLedgerPlugin": "yano-x-appchain-cardano-0.1.0-245.11.jar",
+          "org.yanoproject.x.framework.cardano.CardanoRuntimeServices": "yano-x-appchain-cardano-api-0.1.0-245.11.jar"
+        },
+        "networkStarted": false,
+        "passed": true,
+        "persistentStoresCreated": false,
+        "profile": "cardano-construction",
+        "schemaVersion": 1
+      }
+    },
+    {
+      "catalogSha256": "6db2b46a5b2b3c065c25f20bd90d94b54cda1439f1bd1051f4785eccc30e29c8",
+      "elapsedSeconds": 53.64,
+      "labels": [
+        "current"
+      ],
+      "legacyCoreApiPresent": false,
+      "packageSha256": "230f13ad71c71cafb1e58cdb41bd5edeb2f28e1a6a620b15d84cc203573a9c17",
+      "passed": true,
+      "request": {
+        "foundationVersion": "0.1.0-245.8",
+        "frameworkVersion": "0.1.0-245.11",
+        "hostApiVersion": "1.0.0-245.4",
+        "hostVersion": "0.1.0-245.8",
+        "profile": "standalone",
+        "repositories": [
+          "file:///private/tmp/yano-245-host-artifacts",
+          "file:///private/tmp/yano-245-foundation-artifacts",
+          "file:///private/tmp/yano-245-framework-artifacts",
+          "file:///private/tmp/yano-245-artifacts"
+        ],
+        "yaciCoreVersion": "0.5.0-pre15-app-only-245.4"
+      },
+      "runtime": {
+        "cardanoStateCreated": false,
+        "lateJoin": true,
+        "loadedOrigins": {
+          "org.yanoproject.api.config.YanoConfig": "yano-node-api-0.1.0-245.8.jar",
+          "org.yanoproject.api.host.HostApi": "yano-host-api-1.0.0-245.4.jar",
+          "org.yanoproject.runtime.appchain.AppLedgerRuntime": "yano-x-appchain-core-0.1.0-245.11.jar",
+          "org.yanoproject.runtime.assembly.YanoAssembly": "yano-runtime-0.1.0-245.8.jar",
+          "org.yanoproject.runtime.plugins.PluginRuntimeEnvironment": "yano-runtime-0.1.0-245.8.jar",
+          "org.yanoproject.x.framework.standalone.StandaloneAppLedgerPlugin": "yano-x-appchain-standalone-0.1.0-245.11.jar"
+        },
+        "nodes": 3,
+        "optionalPluginsEnabled": false,
+        "passed": true,
+        "profile": "standalone",
+        "restartAndReopen": true,
+        "schemaVersion": 1,
+        "transport": "real-tcp-100-103"
+      }
+    },
+    {
+      "catalogSha256": "f4de991c07473281f2c1e5150c71933cfd56ca96b39cfb7af27d0a473831746f",
+      "elapsedSeconds": 13.02,
+      "labels": [
+        "current"
+      ],
+      "legacyCoreApiPresent": false,
+      "packageSha256": "9820e9c09b1b51b935d5cb5e2626686f37f0a70eb8a9a2ef25b53fe3c54bd392",
+      "passed": true,
+      "request": {
+        "foundationVersion": "0.1.0-245.8",
+        "frameworkVersion": "0.1.0-245.11",
+        "hostApiVersion": "1.0.0-245.4",
+        "hostVersion": "0.1.0-245.8",
+        "profile": "cardano-construction",
+        "repositories": [
+          "file:///private/tmp/yano-245-host-artifacts",
+          "file:///private/tmp/yano-245-foundation-artifacts",
+          "file:///private/tmp/yano-245-framework-artifacts",
+          "file:///private/tmp/yano-245-artifacts"
+        ],
+        "yaciCoreVersion": "0.5.0-pre15-app-only-245.4"
+      },
+      "runtime": {
+        "cardanoAppLedgerAssembled": true,
+        "cardanoManagerLifecycleHooks": true,
+        "cardanoRuntimeServicesLinked": true,
+        "loadedOrigins": {
+          "org.yanoproject.api.config.YanoConfig": "yano-node-api-0.1.0-245.8.jar",
+          "org.yanoproject.api.host.HostApi": "yano-host-api-1.0.0-245.4.jar",
+          "org.yanoproject.runtime.appchain.AppChainManager": "yano-x-appchain-cardano-0.1.0-245.11.jar",
+          "org.yanoproject.runtime.appchain.AppChainSubsystem": "yano-x-appchain-cardano-0.1.0-245.11.jar",
+          "org.yanoproject.runtime.appchain.AppLedgerRuntime": "yano-x-appchain-core-0.1.0-245.11.jar",
+          "org.yanoproject.runtime.assembly.YanoAssembly": "yano-runtime-0.1.0-245.8.jar",
+          "org.yanoproject.runtime.plugins.PluginRuntimeEnvironment": "yano-runtime-0.1.0-245.8.jar",
+          "org.yanoproject.x.framework.cardano.CardanoAppLedgerPlugin": "yano-x-appchain-cardano-0.1.0-245.11.jar",
+          "org.yanoproject.x.framework.cardano.CardanoRuntimeServices": "yano-x-appchain-cardano-api-0.1.0-245.11.jar"
+        },
+        "networkStarted": false,
+        "passed": true,
+        "persistentStoresCreated": false,
+        "profile": "cardano-construction",
+        "schemaVersion": 1
+      }
+    }
+  ],
+  "deduplicatedInitialBaseline": false,
+  "fixtureCompiledWithFrameworkVersion": "0.1.0-245.9",
+  "fixtureSha256": "fa6b31460535985d388734c2c04036d27f5a6644aa81c3984ddb472b952f1770",
+  "fullReportLocation": "/private/tmp/yano-245-wire-shape-host5-host8-x11-matrix/results.json",
+  "fullReportSha256": "be884c1ca2b7e776c502a6d5e0cfc3c7e7d01f07ceec6b2eecd774af673286ee",
+  "qualificationScope": "Targeted parser upgrade on unchanged host/framework/fixture. Prior integrated JVM/native packages and full X smoke used Yaci .3; these were not rebuilt or rerun.",
+  "schemaVersion": 1,
+  "selectedFrameworkVersion": "0.1.0-245.11",
+  "selectedYaciCoreVersion": "0.5.0-pre15-app-only-245.4",
+  "sourceSha256": "ec526326af0465bc9ad0bdd1ee5b466f449d3b30ea3d7d812698a1254f9d337c",
+  "status": "passed-unpublished-candidate-two-host-matrix",
+  "yaciBuildTests": {
+    "existingSkipped": 25,
+    "failures": 0,
+    "log": "/private/tmp/yaci-245-wire-shape-full-build.log",
+    "passed": 1046,
+    "total": 1071
+  },
+  "yaciSourceCommit": "3d675058"
+}

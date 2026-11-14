@@ -32,3 +32,10 @@ all 16 packaged smoke steps (no skips), with artifact/log hashes. The separate
 [Yano cleanup validation report](https://github.com/bloxbean/yano/blob/feat/245-app-ledger-host-api/qa/app-ledger/CORE_API_REMOVAL_VALIDATION.md)
 tracks coordinated host qualification; the X pass does not replace that result
 or the final comprehensive release cycle.
+
+`host-5-and-8-framework-11-yaci-4.json` records all four profiles passing after
+[Yaci's wire-shape review](https://github.com/bloxbean/yaci/pull/245#issuecomment-6877562379):
+the unchanged host `.5`/`.8`, framework `.11`, Host API `.4` and fixture run with
+Yaci `0.5.0-pre15-app-only-245.4`. No framework or host rebuild was needed. This
+new-parser matrix is separate from the retained full package/smoke qualification,
+whose exact Yaci input remains `.3`; it does not relabel those earlier packages.
