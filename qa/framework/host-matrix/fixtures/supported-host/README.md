@@ -16,3 +16,5 @@ python3 qa/framework/host-matrix/run.py run \
 The earlier host `.4` / X `.6`–`.7` probe remains under `../first-host`; it predates the final assembly-order contract and cannot replace this baseline. Final coordinated Yano release qualification remains required.
 
 `independent-framework-8.json` records a second actual framework selection on the same host bytes: X `.8` passes both profiles using the unchanged fixture compiled with X `.9`. Together with the `.9` result this tests two distinct framework candidates against one host; it does not imply the client was compiled against `.8` or that either candidate was publicly released.
+
+`independent-framework-10.json` records X `.10` with Yaci `0.5.0-pre15-app-only-245.3` passing both profiles against the unchanged oldest supported candidate host `.5`, Host API `.4`, and the same `.9`-compiled fixture.
