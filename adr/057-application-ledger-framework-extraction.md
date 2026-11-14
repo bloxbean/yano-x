@@ -49,3 +49,15 @@ host matrix remain required. Do not call this milestone the complete Phase 2.
 Use one final coordinated Yano release-qualification cycle after both phases;
 there is no intermediate Yano release. Local staged candidate versions are not
 public releases or a frozen compatibility promise.
+
+The following incremental milestone moves the four existing Yaci transport wiring
+classes into the framework artifact, retaining their Java names and behavior.
+The manager/subsystem host assembly still remains in Yano. The API now exposes
+`AppChainGateway.finalizedCommitment(height)` as an additive default method; it
+exports existing canonical identity/root/context without publishing or changing
+block bytes. Missing legacy identity/history returns empty. Current focused
+counts are 217 API, 31 configuration, 57 core/transport and six proof-contract
+tests, all passing against external host candidate `1.0.0-245.1`. A deliberately
+injected transitive Yano runtime artifact is rejected by the boundary check.
+This is candidate-artifact compatibility evidence, not the outstanding packaged
+oldest-host/distribution matrix.
