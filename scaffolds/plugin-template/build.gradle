@@ -61,6 +61,19 @@ dependencies {
     catalogProbeImplementation "org.yanoproject.x:yano-x-appchain-cardano:${yanoXVersion}"
 }
 
+// A compatible host may name a newer-sorting framework build in its POM.
+// This isolated probe must exercise the framework version selected by the user.
+['catalogProbeCompileClasspath', 'catalogProbeRuntimeClasspath'].each { name ->
+    configurations.named(name) {
+        resolutionStrategy.eachDependency { dependency ->
+            if (dependency.requested.group == 'org.yanoproject.x') {
+                dependency.useVersion(yanoXVersion)
+                dependency.because('Catalog probe exercises the explicitly selected framework version')
+            }
+        }
+    }
+}
+
 java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(25)
