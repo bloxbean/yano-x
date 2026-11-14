@@ -5,7 +5,7 @@ plugins {
 // S3-compatible immutable object promotion for ADR-013 object.put effects.
 def expectedAwsSdkVersion = libs.versions.aws.sdk.get()
 dependencies {
-    compileOnly rootProject.ext.yanoModule('yano-core-api')          // provided by the node at runtime
+    compileOnly project(':framework:cardano-api')          // provided by the node at runtime
     implementation project(':sdk:integration-contracts')
     implementation(libs.aws.sdk.s3) {
         // The connector explicitly constructs the synchronous URLConnection
@@ -17,7 +17,7 @@ dependencies {
     implementation libs.aws.sdk.url.connection.client
     implementation libs.slf4j.api
 
-    testImplementation rootProject.ext.yanoModule('yano-core-api')
+    testImplementation project(':framework:cardano-api')
     testImplementation project(':sdk:effects-testkit')
     testImplementation libs.junit.jupiter.api
     testRuntimeOnly libs.junit.jupiter.engine

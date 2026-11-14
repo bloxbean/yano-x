@@ -26,7 +26,7 @@ import java.util.Objects;
  * transaction or to the first applied block boundary of a new L1 epoch.
  * Every member recomputes the observer-specific claim from its own L1 view.
  *
- * <p>Wire format (CBOR, see {@code core-api/src/main/cddl/appchain/
+ * <p>Wire format (CBOR, see {@code framework/api/src/main/cddl/appchain/
  * l1-observation-v1.cddl}):
  * {@code [1, observer-id, [anchor-tag, anchor-value], event-ordinal, slot,
  * block-hash, claim]}.

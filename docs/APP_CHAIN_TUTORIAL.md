@@ -328,8 +328,8 @@ repositories { mavenLocal(); mavenCentral() }
 java { sourceCompatibility = 21; targetCompatibility = 21 }
 
 dependencies {
-    compileOnly 'org.yanoproject:yano-core-api:0.1.0-pre15'   // AppStateMachine SPI
-    // yaci-core (AppMessage) comes in transitively via yano-core-api
+    compileOnly 'org.yanoproject.x:yano-x-appchain-api:<yano-x-version>'   // AppStateMachine SPI
+    // yaci-core (AppMessage) comes in transitively via yano-x-appchain-api
 }
 ```
 
@@ -543,7 +543,7 @@ Yano node required.
 - Design, trust model, roadmap (rotating sequencer, script anchors,
   chain-governed membership): `adr/app-layer/005-yano-app-chain-framework.md`
 - Wire-format CDDL (build a compatible node in another language):
-  yaci `core/src/main/cddl/appmsg/`, yano `core-api/src/main/cddl/appchain/`
+  yaci `core/src/main/cddl/appmsg/`, Yano-X `framework/api/src/main/cddl/appchain/` and `framework/cardano-api/src/main/cddl/appchain/`
 
 ---
 

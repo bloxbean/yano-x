@@ -9,7 +9,7 @@ import java.util.List;
 
 /**
  * Off-chain codec for the anchor datum (ABI:
- * {@code core-api/src/main/cddl/appchain/anchor-v1.cddl}). Wire format is
+ * {@code framework/cardano-api/src/main/cddl/appchain/anchor-v1.cddl}). Wire format is
  * {@code Constr(0, [version, chain-id, chain-genesis-id, application-id,
  * commitment-profile-id, format-fingerprint, height, block-hash, state-root,
  * member-keys, threshold])} — the same encoding the julc record codec and

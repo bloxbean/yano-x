@@ -40,6 +40,16 @@ tasks.register('verifyFrameworkProjectResolution') {
     dependsOn ':tooling:appchain-cli:classes', ':tooling:devtools:generatePomFileForMavenJavaPublication'
     inputs.files(providers.provider { project(':tooling:appchain-cli').configurations.runtimeClasspath })
     doLast {
+        def obsoleteDeclarations = allprojects.collectMany { owner ->
+            owner.configurations.toList().collectMany { configuration ->
+                configuration.dependencies.toList().findAll {
+                    it.group == 'org.yanoproject' && it.name == 'yano-core-api'
+                }.collect { "${owner.path}:${configuration.name}" }
+            }
+        }
+        if (!obsoleteDeclarations.isEmpty()) {
+            throw new GradleException("Declare the actual API owner instead of removed core-api: ${obsoleteDeclarations}")
+        }
         def probeOwners = priorFrameworkProbe.incoming.resolutionResult.root.dependencies.collect {
             if (!(it.selected.id instanceof ProjectComponentIdentifier)) {
                 throw new GradleException("Old host framework coordinate has no project owner: ${it}")

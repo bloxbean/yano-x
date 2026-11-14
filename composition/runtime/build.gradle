@@ -5,7 +5,7 @@ apply from: rootProject.file('gradle/runtime-plugin-bundle.gradle')
 dependencies {
     implementation libs.cardano.client.crypto
     implementation libs.cbor
-    api rootProject.ext.yanoModule('yano-core-api')
+    api project(':framework:api')
     api project(':composition:contracts')
 
     testImplementation rootProject.ext.yanoModule('yano-appchain-core-testkit')

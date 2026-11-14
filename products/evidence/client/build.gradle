@@ -1,11 +1,17 @@
 dependencies {
     // This companion uses AppChainClient's transport/value API but deliberately
-    // does not activate the node/runtime SPI carried by core-api. Keep the rest
+    // does not activate the node/runtime SPI carried by the framework APIs. Keep the rest
     // of the lightweight client verifier closure transitive.
     api(project(':sdk:client')) {
+        // Gradle project names and published Maven artifact IDs differ.
+        exclude group: project(':framework:api').group, module: project(':framework:api').name
+        exclude group: project(':framework:cardano-api').group, module: project(':framework:cardano-api').name
+        // Older compatible hosts still expose the removed aggregate transitively.
         exclude group: 'org.yanoproject', module: 'yano-core-api'
+        exclude group: 'org.yanoproject.x', module: 'yano-x-appchain-api'
+        exclude group: 'org.yanoproject.x', module: 'yano-x-appchain-cardano-api'
     }
-    compileOnly rootProject.ext.yanoModule('yano-core-api')
+    compileOnly project(':framework:api')
     api project(':products:evidence:contracts')
     api project(':composition:contracts')
 
@@ -13,7 +19,7 @@ dependencies {
     testRuntimeOnly libs.junit.jupiter.engine
     testRuntimeOnly libs.junit.platform.launcher
     testImplementation libs.assertj.core
-    testImplementation rootProject.ext.yanoModule('yano-core-api')
+    testImplementation project(':framework:api')
 }
 
 java {
@@ -75,7 +81,8 @@ tasks.register('verifyEvidenceClientArtifactBoundary') {
 
         def forbiddenProjectPaths = [
                 ':products:evidence:registry',
-                ':core-api'
+                ':framework:api',
+                ':framework:cardano-api'
         ] as Set
         def forbiddenComponents = configurations.runtimeClasspath.incoming
                 .resolutionResult.allComponents.findAll { component ->
@@ -85,7 +92,7 @@ tasks.register('verifyEvidenceClientArtifactBoundary') {
         }
         if (!forbiddenComponents.isEmpty()) {
             throw new GradleException(
-                    'Evidence client runtime dependency closure contains registry/core-api: '
+                    'Evidence client runtime dependency closure contains registry/framework APIs: '
                             + forbiddenComponents.collect {
                         it.id.projectPath
                     }.sort().join(', '))
@@ -126,9 +133,10 @@ tasks.register('verifyEvidenceClientArtifactBoundary') {
             throw new GradleException(
                     'Evidence client published POM must not depend on the registry plugin')
         }
-        if (publishedDependencies.contains('yano-core-api')) {
+        if (publishedDependencies.any { it in ['yano-core-api', 'yano-node-api', 'yano-cardano-api',
+                                                  'yano-x-appchain-api', 'yano-x-appchain-cardano-api'] }) {
             throw new GradleException(
-                    'Evidence client published POM must not depend on core-api')
+                    'Evidence client published POM must not depend on host/framework API modules')
         }
         ['yano-x-client', 'yano-x-evidence-contracts'].each { artifactId ->
             if (!publishedDependencies.contains(artifactId)) {

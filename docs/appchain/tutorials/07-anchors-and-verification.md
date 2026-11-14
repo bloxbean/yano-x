@@ -180,7 +180,7 @@ path, the block-message-root and state-record proofs, the evidence bundle, and
 the anchor reference the node used. Its embedded verification results are
 explanatory only. The evidence bundle holds the message's block, every block up
 to the anchored one, and their finality signatures; verify it with
-`EvidenceVerifier.verify(bundle, trustContext)` from `yano-core-api`, with a
+`EvidenceVerifier.verify(bundle, trustContext)` from `yano-x-appchain-api`, with a
 trust context you pinned yourself.
 
 ## 7. The independent verification chain

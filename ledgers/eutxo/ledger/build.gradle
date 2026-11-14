@@ -3,7 +3,7 @@ plugins {
 }
 
 dependencies {
-    compileOnly rootProject.ext.yanoModule('yano-core-api')
+    compileOnly project(':framework:api')
     implementation(project(':ledgers:eutxo:contracts')) {
         transitive = false
     }
@@ -14,7 +14,7 @@ dependencies {
     compileOnly libs.scala3.library
     compileOnly libs.cbor
 
-    testImplementation rootProject.ext.yanoModule('yano-core-api')
+    testImplementation project(':framework:api')
     testImplementation rootProject.ext.yanoModule('yano-runtime')
     testImplementation project(':ledgers:eutxo:testkit')
     testImplementation libs.cardano.client.core

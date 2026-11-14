@@ -35,3 +35,11 @@ application-node upgrades.
 See [ADR-057](../adr/057-application-ledger-framework-extraction.md) for the
 module boundaries and the single coordinated release plan with
 [Yano issue #245](https://github.com/bloxbean/yano/issues/245).
+
+The prerelease `yano-core-api` aggregate has been removed. Application contracts are
+owned by `org.yanoproject.x:yano-x-appchain-api`; the legacy Cardano application
+contracts are in `yano-x-appchain-cardano-api`. Host/plugin contracts remain in
+`org.yanoproject:yano-node-api`, and Cardano-specific host contracts remain in
+`yano-cardano-api`. Shared plugin hooks keep their existing node-api ownership.
+Plugin scaffolding accepts independent `--yano-version` and `--yano-x-version`
+inputs; the packaged launcher defaults each to its corresponding distribution version.

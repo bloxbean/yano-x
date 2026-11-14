@@ -40,7 +40,7 @@ factory provider id, `authenticated-map-validator-v1` SPI contract, canonical
 parameter map, and raw 32-byte SHA-256 artifact-closure digest. A normal plugin
 rejection produces `ERROR_VALUE_VALIDATOR = 12`; an unexpected plugin failure
 is a node failure and must not become a receipt. The public validator SPI lives
-in `core-api`, while first-party implementations live in the separate
+in `framework/api`, while first-party implementations live in the separate
 `appchain-authenticated-map-validators` bundle.
 
 `AuthenticatedMapAuthorizationContract` freezes the separate action/evidence

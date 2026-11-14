@@ -27,7 +27,7 @@ import java.util.stream.IntStream;
 
 /**
  * Conformance vectors for the anchor spending validator (ADR app-layer/008.4
- * §4, ABI: core-api/src/main/cddl/appchain/anchor-v1.cddl). These vectors are
+ * §4, ABI: framework/cardano-api/src/main/cddl/appchain/anchor-v1.cddl). These vectors are
  * implementation-independent and exercise the exact checked-in release artifact.
  */
 class AnchorValidatorConformanceTest extends ContractTest {

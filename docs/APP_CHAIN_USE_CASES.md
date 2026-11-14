@@ -228,7 +228,8 @@ service per member: `apply` itself must stay deterministic and free of I/O.
 
 ## Part C: Yano as a library
 
-Yano publishes Java artifacts (`yano-core-api`, `yano-runtime`, and others);
+Yano publishes host artifacts (`yano-node-api`, `yano-cardano-api`, `yano-runtime`, and others);
+Yano-X publishes `yano-x-appchain-api` for application contracts;
 the node application is one way to package them. Library mode is for teams
 building their own node or product around an app ledger.
 

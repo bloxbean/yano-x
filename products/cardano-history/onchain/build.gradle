@@ -17,7 +17,7 @@ dependencies {
     testImplementation "org.julclang:julc-compiler:${libs.versions.julc.get()}"
     testRuntimeOnly "org.julclang:julc-vm-java:${libs.versions.julc.get()}"
     testImplementation libs.cardano.client.crypto
-    testImplementation rootProject.ext.yanoModule('yano-core-api')
+    testImplementation project(':framework:cardano-api')
     testImplementation libs.junit.jupiter.api
     testRuntimeOnly libs.junit.jupiter.engine
     testRuntimeOnly libs.junit.platform.launcher

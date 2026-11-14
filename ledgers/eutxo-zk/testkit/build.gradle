@@ -12,7 +12,7 @@ dependencies {
 
     testImplementation project(':ledgers:eutxo:ledger')
     testImplementation project(':ledgers:eutxo:testkit')
-    testImplementation rootProject.ext.yanoModule('yano-core-api')
+    testImplementation project(':framework:api')
     testImplementation libs.junit.jupiter.api
     testRuntimeOnly libs.junit.jupiter.engine
     testRuntimeOnly libs.junit.platform.launcher

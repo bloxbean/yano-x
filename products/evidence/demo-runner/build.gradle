@@ -16,7 +16,7 @@ dependencies {
     // threshold-finality/anchor evidence verification. This executable does
     // not run inside the node and contributes no SPI.
     implementation platform(libs.jackson.bom)
-    implementation rootProject.ext.yanoModule('yano-core-api')
+    implementation project(':framework:cardano-api')
     implementation project(':products:evidence:client')
     implementation project(':products:evidence:contracts')
     implementation project(':composition:contracts')

@@ -4,11 +4,11 @@ plugins {
 
 // Pin-only Kubo/IPFS integration for ADR-013 ipfs.pin effects.
 dependencies {
-    compileOnly rootProject.ext.yanoModule('yano-core-api')          // provided by the node at runtime
+    compileOnly project(':framework:cardano-api')          // provided by the node at runtime
     implementation project(':sdk:integration-contracts')
     implementation libs.slf4j.api
 
-    testImplementation rootProject.ext.yanoModule('yano-core-api')
+    testImplementation project(':framework:cardano-api')
     testImplementation project(':sdk:effects-testkit')
     testImplementation libs.junit.jupiter.api
     testRuntimeOnly libs.junit.jupiter.engine

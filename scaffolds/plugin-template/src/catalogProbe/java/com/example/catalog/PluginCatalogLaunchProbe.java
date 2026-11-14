@@ -144,7 +144,7 @@ public final class PluginCatalogLaunchProbe {
         if (!bundle.selected()
                 || !expectedVersion.equals(bundle.version())
                 || bundle.source() != PluginSourceCategory.DIRECTORY
-                || bundle.digestMode() != PluginDigestMode.JAR
+                || bundle.digestMode() != PluginDigestMode.ARTIFACT_CLOSURE
                 || bundle.contributions().size() != 4
                 || bundle.contributions().stream().noneMatch(contribution ->
                         PROVIDER_CLASS.equals(contribution.providerClass()))
@@ -155,7 +155,9 @@ public final class PluginCatalogLaunchProbe {
                 || bundle.contributions().stream().noneMatch(contribution ->
                         METRICS_PROVIDER_CLASS.equals(contribution.providerClass()))) {
             throw new IllegalStateException(
-                    "Scaffold bundle inventory does not match its deployment contract");
+                    "Scaffold bundle inventory does not match its deployment contract: "
+                            + "version=" + bundle.version() + ", source=" + bundle.source()
+                            + ", digest=" + bundle.digestMode() + ", contributions=" + bundle.contributions());
         }
     }
 

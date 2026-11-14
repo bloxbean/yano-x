@@ -8,12 +8,14 @@ plugins {
 group = 'com.example'
 version = '0.1.0'
 
-def yanoVersion = providers.gradleProperty('yanoVersion')
-        .orElse('0.1.0-pre9')
-        .get()
+def yanoVersion = providers.gradleProperty('yanoVersion').get()
+def yanoXVersion = providers.gradleProperty('yanoXVersion').get()
 
 repositories {
-    mavenLocal()   // resolves locally-published yano artifacts
+    if (providers.gradleProperty('useMavenLocal').getOrElse('false').toBoolean()) { mavenLocal() }
+    providers.gradleProperty('yanoRepository').orNull?.split(',')?.each { repository ->
+        maven { url = uri(repository) }
+    }
     mavenCentral()
 }
 
@@ -28,11 +30,12 @@ sourceSets {
 
 dependencies {
     // The node provides the public SPI at runtime — never package it in the plugin.
-    compileOnly "org.yanoproject:yano-core-api:${yanoVersion}"
+    compileOnly "org.yanoproject:yano-node-api:${yanoVersion}"
+    compileOnly "org.yanoproject.x:yano-x-appchain-api:${yanoXVersion}"
 
-    testImplementation "org.yanoproject:yano-core-api:${yanoVersion}"
-    // StateMachineConformance is a runtime test utility, not part of core-api.
-    testImplementation "org.yanoproject:yano-runtime:${yanoVersion}"
+    testImplementation "org.yanoproject.x:yano-x-appchain-api:${yanoXVersion}"
+    // StateMachineConformance is owned by the framework implementation.
+    testImplementation "org.yanoproject.x:yano-x-appchain-core:${yanoXVersion}"
     testImplementation platform('org.junit:junit-bom:5.10.2')
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testImplementation 'org.assertj:assertj-core:3.25.3'
@@ -154,9 +157,9 @@ tasks.register('verifyPluginJar') {
                     contribution.provider == expectedMetricsProvider
         }
         if (manifest.id != 'com.example.appchain.counter'
-                || manifest.yanoApi?.min != 1
-                || manifest.yanoApi?.max != 1
-                || manifest.yanoApi?.minLevel != 1
+                || manifest.yanoApi?.min != 3
+                || manifest.yanoApi?.max != 3
+                || manifest.yanoApi?.minLevel != 4
                 || stateMachineContributions.size() != 1
                 || domainApiContributions.size() != 1
                 || healthContributions.size() != 1

@@ -7,7 +7,7 @@ description = 'Demo-only unified Yano app-chain showcase and plugin bundle'
 dependencies {
     // These APIs and generic products are supplied by the Yano JVM host. The
     // drop-in bundle contains only showcase-owned implementation classes.
-    compileOnly rootProject.ext.yanoModule('yano-core-api')
+    compileOnly project(':framework:cardano-api')
     compileOnly rootProject.ext.yanoModule('yano-plugin-catalog')
     compileOnly project(':composition:runtime')
     compileOnly project(':composition:contracts')
@@ -23,7 +23,7 @@ dependencies {
     compileOnly libs.jackson.databind
     compileOnly libs.slf4j.api
 
-    testImplementation rootProject.ext.yanoModule('yano-core-api')
+    testImplementation project(':framework:cardano-api')
     testImplementation rootProject.ext.yanoModule('yano-plugin-catalog')
     testImplementation project(':composition:runtime')
     testImplementation project(':composition:contracts')

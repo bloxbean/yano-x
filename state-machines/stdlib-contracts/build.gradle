@@ -1,6 +1,6 @@
 dependencies {
     api project(':capabilities:role-workflow-contracts')
-    api rootProject.ext.yanoModule('yano-core-api')
+    api project(':framework:api')
 
     implementation libs.cbor
     implementation libs.cardano.client.crypto

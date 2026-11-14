@@ -32,7 +32,7 @@ framework), `adr/app-layer/006-appchain-enterprise-extensions-and-zk.md`
 `adr/app-layer/015-governed-composite-profile-evolution.md` (governed
 composite profiles).
 Wire format specs (for building compatible implementations in other languages):
-yaci `core/src/main/cddl/appmsg/` and yano `core-api/src/main/cddl/appchain/`.
+yaci `core/src/main/cddl/appmsg/` and Yano-X `framework/api/src/main/cddl/appchain/` and `framework/cardano-api/src/main/cddl/appchain/`.
 
 ## Published modules
 
@@ -591,7 +591,7 @@ one-shot mint.
    as failed finality.
 2. Obtain the expected chain id, member keys, and threshold independently from
    the trusted chain profile or the exact Cardano anchor datum. Verify with
-   `EvidenceVerifier.verify(bundle, trustContext)` from `yano-core-api`. It
+   `EvidenceVerifier.verify(bundle, trustContext)` from `yano-x-appchain-api`. It
    checks message-id inclusion via the recomputed messages-root, the prev-hash
    chain, the independently pinned m-of-n signatures, and the claimed anchor
    block hash. Never derive the trust context only from the bundle.
@@ -804,7 +804,7 @@ The plugin template ships this test pre-wired (`CounterConformanceTest`).
    hand-configured node, the equivalent is `yano.plugins.directory` (default
    `plugins/`) plus `yano.app-chain.state-machine: "order-book"`. Unknown ids
    fail fast at startup with the list of available machines.
-   Compile against the `yano-core-api` artifact (`AppStateMachine`,
+   Compile against the `yano-x-appchain-api` artifact (`AppStateMachine`,
    `AppMessage`, `AppStateWriter` live there / in `yaci-core`).
    A ready Gradle project for this is `scaffolds/plugin-template`.
 
@@ -1144,7 +1144,7 @@ fresh signed message ID and corrected preconditions; replaying its original ID
 does not execute it again. See [binding submission and retry](appchain/DECLARATIVE_BINDINGS.md#submission-validity-and-retry).
 
 Node side (custom state machines): extend `TypedAppStateMachine<T>` with a
-`MessageCodec<T>` — default `JacksonCborCodec`, in core-api — and implement
+`MessageCodec<T>` — default `JacksonCborCodec`, in framework/api — and implement
 typed validate/apply instead of parsing bytes yourself. The client `CborCodec`
 and the node `JacksonCborCodec` are wire-compatible.
 
@@ -1177,7 +1177,7 @@ mTLS/OIDC put the API behind your standard gateway/reverse-proxy.
 chain carries ciphertext only (ordering, proofs and anchors all work over it),
 and per-topic keys give need-to-know inside one chain. AES-256-GCM with the
 topic as associated data; `GroupCipher` (client SDK) and `BodyCipher`
-(core-api, for state machines) share the wire format:
+(framework/api, for state machines) share the wire format:
 
 ```java
 byte[] key = Hex.decode(groupKeyHex);

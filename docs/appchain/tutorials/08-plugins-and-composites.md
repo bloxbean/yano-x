@@ -178,11 +178,11 @@ let an executor perform it after finality; see [effects](../../site/concepts-eff
 ## 4. Test it
 
 The scaffold has no tests yet. Add JUnit to `shipment-plugin/build.gradle`,
-using the same Yano version as its `compileOnly` line:
+using the same Yano-X version as its framework `compileOnly` line:
 
 ```groovy
 dependencies {
-    testImplementation 'org.yanoproject:yano-core-api:<the yano version above>'
+    testImplementation 'org.yanoproject.x:yano-x-appchain-api:<the yano-x version above>'
     testImplementation platform('org.junit:junit-bom:5.10.2')
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'

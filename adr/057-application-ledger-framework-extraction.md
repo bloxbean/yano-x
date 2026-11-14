@@ -29,16 +29,18 @@ runtime, P2P, ledger-state implementations, QuickTx or julc. Public legacy obser
 and effect signatures still expose Cardano model types; those API compatibility
 dependencies are retained. Protocols 100/103 remain implemented in Yaci.
 
-Yano's old core-api and appchain-config coordinates become compatibility
-aggregates with no duplicate definitions. Foundational Yano node/plugin APIs are
-in `yano-node-api`, breaking the otherwise circular API dependency. Exact external
+Yano's obsolete `core-api` aggregate is removed before release; consumers use
+`yano-node-api`, optional `yano-cardano-api`, and X's framework API owners directly.
+The `appchain-config` coordinate remains a compatibility aggregate with no duplicate
+definitions. Foundational Yano node/plugin APIs remain in `yano-node-api`, including
+shared Cardano-related plugin hooks whose signatures are already part of that SPI. Exact external
 Maven inputs are mandatory; no sibling checkout, composite build or sibling task
 invocation is added. Host API version selection is independent of X's version.
 
 `frameworkCheck` runs copied wire-vector/configuration tests plus extracted
 engine tests and an actual resolved dependency-boundary check. Test fixtures are
 owned here and loaded from resources, not a Yano filesystem layout. The boundary
-report records resolved artifact hashes. Yano also tests its aggregate API,
+report records resolved artifact hashes. Yano also tests its API ownership,
 configuration coordinate and three-node consensus against the X JAR, and loads
 fixed earlier plugin bytecode to catch binary linkage changes.
 

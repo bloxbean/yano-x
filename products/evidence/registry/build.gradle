@@ -3,7 +3,7 @@ plugins {
 }
 
 dependencies {
-    compileOnly rootProject.ext.yanoModule('yano-core-api')
+    compileOnly project(':framework:api')
     implementation(project(':products:evidence:contracts')) {
         transitive = false
     }
@@ -13,7 +13,7 @@ dependencies {
     implementation libs.cbor
     implementation libs.bouncycastle.bcprov
 
-    testImplementation rootProject.ext.yanoModule('yano-core-api')
+    testImplementation project(':framework:api')
     testImplementation rootProject.ext.yanoModule('yano-appchain-core-testkit')
     testImplementation testFixtures(project(':products:evidence:contracts'))
 }

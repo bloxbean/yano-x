@@ -25,6 +25,7 @@ final class AppChainPluginScaffolder {
             String componentId,
             String packageName,
             String yanoVersion,
+            String yanoXVersion,
             Path output) throws IOException {
         if (!MODES.contains(mode)) {
             throw new IllegalArgumentException(
@@ -39,6 +40,9 @@ final class AppChainPluginScaffolder {
         }
         if (yanoVersion == null || !VERSION.matcher(yanoVersion).matches()) {
             throw new IllegalArgumentException("Yano version is invalid");
+        }
+        if (yanoXVersion == null || !VERSION.matcher(yanoXVersion).matches()) {
+            throw new IllegalArgumentException("Yano X version is invalid");
         }
         Path root = output.toAbsolutePath().normalize();
         requireMissingOrEmpty(root);
@@ -63,7 +67,7 @@ final class AppChainPluginScaffolder {
 
         write(root.resolve("settings.gradle"),
                 "rootProject.name = '" + componentId + "-yano-plugin'\n");
-        write(root.resolve("build.gradle"), buildGradle(yanoVersion));
+        write(root.resolve("build.gradle"), buildGradle(mode, yanoVersion, yanoXVersion));
         write(root.resolve("README.md"), readme(mode, componentId, packageName,
                 providerClass, bundleId));
         Path javaFile = root.resolve("src/main/java")
@@ -109,7 +113,7 @@ final class AppChainPluginScaffolder {
                 StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
     }
 
-    private static String buildGradle(String yanoVersion) {
+    private static String buildGradle(String mode, String yanoVersion, String yanoXVersion) {
         return """
                 plugins {
                     id 'java-library'
@@ -120,13 +124,15 @@ final class AppChainPluginScaffolder {
                 }
 
                 dependencies {
-                    compileOnly 'org.yanoproject:yano-core-api:%s'
+                    compileOnly 'org.yanoproject:yano-node-api:%s'
+                    compileOnly 'org.yanoproject.x:%s:%s'
                 }
 
                 java {
                     toolchain { languageVersion = JavaLanguageVersion.of(25) }
                 }
-                """.formatted(yanoVersion);
+                """.formatted(yanoVersion, "effect-executor".equals(mode)
+                        ? "yano-x-appchain-cardano-api" : "yano-x-appchain-api", yanoXVersion);
     }
 
     private static String readme(

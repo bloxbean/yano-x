@@ -1,5 +1,5 @@
 //// Yano app-chain script anchor — OPT-IN Aiken implementation
-//// (ADR app-layer/008.4; ABI: core-api/src/main/cddl/appchain/anchor-v1.cddl).
+//// (ADR app-layer/008.4; ABI: framework/cardano-api/src/main/cddl/appchain/anchor-v1.cddl).
 ////
 //// Drop-in interchangeable with the bundled julc/Java implementation: same
 //// datum/redeemer ABI, same rules, verified by the SAME conformance vectors

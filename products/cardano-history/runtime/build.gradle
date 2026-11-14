@@ -5,13 +5,13 @@ plugins {
 description = 'Optional Cardano History app-chain product plugin'
 
 dependencies {
-    compileOnly rootProject.ext.yanoModule('yano-core-api')
+    compileOnly project(':framework:cardano-api')
     compileOnly project(':composition:runtime')
     compileOnly project(':composition:contracts')
     compileOnly project(':state-machines:stdlib')
     compileOnly project(':state-machines:stdlib-contracts')
 
-    testImplementation rootProject.ext.yanoModule('yano-core-api')
+    testImplementation project(':framework:cardano-api')
     testImplementation project(':composition:runtime')
     testImplementation project(':composition:contracts')
     testImplementation project(':state-machines:stdlib')

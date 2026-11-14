@@ -78,7 +78,8 @@ repositories {
 dependencies {
     yanoHostRuntime platform(
             "org.yanoproject:yano-bom:${yanoVersion.getOrElse('unspecified')}")
-    yanoHostRuntime 'org.yanoproject:yano-core-api'
+    yanoHostRuntime 'org.yanoproject:yano-node-api'
+    yanoHostRuntime 'org.yanoproject:yano-cardano-api'
     yanoHostRuntime 'org.yanoproject:yano-runtime'
     yanoHostRuntime 'org.yanoproject:yano-appchain-config'
     yanoHostRuntime 'org.yanoproject:yano-appchain-proof-verifier'
@@ -186,7 +187,8 @@ tasks.register('verifyYanoInputs') {
                 hostApiConstraints ? hostApiConstraints.first() : null, explicitHostApiVersion.orNull)
         def requiredModules = [
                 'yano-bom',
-                'yano-core-api',
+                'yano-node-api',
+                'yano-cardano-api',
                 'yano-runtime',
                 'yano-appchain-config',
                 'yano-appchain-proof-verifier'

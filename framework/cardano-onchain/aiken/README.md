@@ -1,7 +1,7 @@
 # App-chain script anchor — Aiken implementation (opt-in)
 
 The source of the supported clean-baseline anchor validators
-(ADR app-layer/031; ABI: `core-api/src/main/cddl/appchain/anchor-v1.cddl`).
+(ADR app-layer/031; ABI: `framework/cardano-api/src/main/cddl/appchain/anchor-v1.cddl`).
 The checked artifacts are executed by the `framework:cardano-onchain` conformance suite on
 `julc-vm-java`.
 

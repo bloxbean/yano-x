@@ -5,7 +5,7 @@ plugins {
 // Kafka integration for finalized app blocks (ADR 006 E3.2) and acknowledged
 // kafka.publish effects (ADR 013), packaged as one T3 plugin bundle.
 dependencies {
-    compileOnly rootProject.ext.yanoModule('yano-core-api')          // provided by the node at runtime
+    compileOnly project(':framework:cardano-api')          // provided by the node at runtime
     implementation project(':sdk:integration-contracts')
     implementation libs.kafka.clients
     implementation libs.lz4.java
@@ -15,7 +15,7 @@ dependencies {
     implementation libs.snappy.java
     implementation libs.slf4j.api
 
-    testImplementation rootProject.ext.yanoModule('yano-core-api')
+    testImplementation project(':framework:cardano-api')
     testImplementation project(':sdk:effects-testkit')
     testImplementation libs.kafka.clients
     testImplementation libs.junit.jupiter.api
