@@ -1,0 +1,97 @@
+import org.gradle.api.artifacts.component.ModuleComponentIdentifier
+import org.gradle.api.artifacts.component.ProjectComponentIdentifier
+import java.util.zip.ZipFile
+
+// The host's compatibility aggregates reference published framework coordinates.
+// In an X source build, those coordinates have exactly one owner: this checkout.
+// Match every requested version so the next X release also replaces the older
+// framework version named by an unchanged compatible host. The external host
+// matrix is a separate Gradle build and intentionally never applies this rule.
+def frameworkOwners = rootProject.ext.yanoXArtifactInventory.artifacts.findAll {
+    it.modulePath.startsWith(':framework:') || it.modulePath == ':sdk:proof-contracts'
+}.collectEntries { [(it.artifactId.toString()): it.modulePath.toString()] }
+def frameworkGroup = rootProject.group.toString()
+allprojects {
+    configurations.configureEach {
+        resolutionStrategy.dependencySubstitution {
+            frameworkOwners.each { artifactId, modulePath ->
+                substitute(module("${frameworkGroup}:${artifactId}"))
+                        .using(project(modulePath))
+                        .because('The current X source build owns extracted framework coordinates')
+            }
+        }
+    }
+}
+
+// An older host request must resolve without a published copy of that old X
+// version. This catches accidental version-qualified substitution rules.
+def priorFrameworkProbe = configurations.create('priorFrameworkOwnershipProbe') {
+    canBeConsumed = false
+    canBeResolved = true
+    transitive = false
+}
+frameworkOwners.keySet().each { artifactId ->
+    dependencies.add(priorFrameworkProbe.name, "${frameworkGroup}:${artifactId}:0.0.0-host-probe")
+}
+
+tasks.register('verifyFrameworkProjectResolution') {
+    group = 'verification'
+    description = 'Checks single framework owners and older-host coordinate substitution in X tooling.'
+    dependsOn ':tooling:appchain-cli:classes', ':tooling:devtools:generatePomFileForMavenJavaPublication'
+    inputs.files(providers.provider { project(':tooling:appchain-cli').configurations.runtimeClasspath })
+    doLast {
+        def probeOwners = priorFrameworkProbe.incoming.resolutionResult.root.dependencies.collect {
+            if (!(it.selected.id instanceof ProjectComponentIdentifier)) {
+                throw new GradleException("Old host framework coordinate has no project owner: ${it}")
+            }
+            it.selected.id.projectPath
+        }.toSet()
+        if (probeOwners != frameworkOwners.values().toSet()) {
+            throw new GradleException("Incomplete old-host framework substitution: ${probeOwners}")
+        }
+        def runtime = project(':tooling:appchain-cli').configurations.runtimeClasspath
+        def duplicatedPublishedOwners = runtime.incoming.resolutionResult.allComponents.findAll {
+            it.id instanceof ModuleComponentIdentifier && it.id.group == frameworkGroup
+                    && frameworkOwners.containsKey(it.id.module)
+        }
+        if (!duplicatedPublishedOwners.isEmpty()) {
+            throw new GradleException("CLI still resolves published framework owners: ${duplicatedPublishedOwners}")
+        }
+        def representativeOwners = [
+                'org/yanoproject/api/appchain/AppChainConfig.class': ':framework:api',
+                'org/yanoproject/appchain/config/AppChainPropertyRegistry.class': ':framework:config',
+                'org/yanoproject/runtime/appchain/OrderedLogStateMachine.class': ':framework:core'
+        ]
+        def actual = representativeOwners.collectEntries { [(it.key): []] }
+        runtime.incoming.artifacts.artifacts.each { artifact ->
+            if (artifact.file.name.endsWith('.jar')) {
+                new ZipFile(artifact.file).withCloseable { jar ->
+                    representativeOwners.keySet().each { name ->
+                        if (jar.getEntry(name) != null) actual[name].add(artifact.id.componentIdentifier)
+                    }
+                }
+            }
+        }
+        representativeOwners.each { name, owner ->
+            def found = actual[name]
+            if (found.size() != 1 || !(found.first() instanceof ProjectComponentIdentifier)
+                    || found.first().projectPath != owner) {
+                throw new GradleException("Unexpected CLI owner for ${name}: ${found}")
+            }
+        }
+        // Source selection does not turn published dependency metadata into
+        // checkout paths or require consumers to share this build.
+        def pomFile = project(':tooling:devtools').layout.buildDirectory.file('publications/mavenJava/pom-default.xml')
+                .get().asFile
+        def pom = new groovy.xml.XmlSlurper().parse(pomFile)
+        ['yano-x-appchain-api', 'yano-x-appchain-config', 'yano-x-appchain-core'].each { artifactId ->
+            def dependency = pom.dependencies.dependency.find {
+                it.groupId.text() == frameworkGroup && it.artifactId.text() == artifactId
+            }
+            if (dependency.version.text() != rootProject.version.toString()) {
+                throw new GradleException("Tool publication lost normal Maven coordinate ${artifactId}")
+            }
+        }
+        logger.lifecycle('Verified single framework project owners, older-host requests and published Maven coordinates')
+    }
+}
