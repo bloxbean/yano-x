@@ -4,12 +4,12 @@ ext.runtimePluginExcludedBundleIds = []
 apply from: rootProject.file('gradle/runtime-plugin-bundle.gradle')
 
 dependencies {
-    compileOnly(rootProject.ext.yanoModule('yano-core-api')) {
+    compileOnly(project(':framework:api')) {
         transitive = false
     }
     implementation project(':state-machines:stdlib-contracts')
 
-    testImplementation(rootProject.ext.yanoModule('yano-core-api')) {
+    testImplementation(project(':framework:api')) {
         transitive = false
     }
 }

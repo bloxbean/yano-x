@@ -12,27 +12,22 @@ dependencies {
     implementation project(':ledgers:eutxo:client')
     implementation project(':ledgers:eutxo:demo')
     runtimeOnly project(':ledgers:eutxo:indexer-jdbc')
-    implementation(rootProject.ext.yanoModule('yano-appchain-config')) {
+    // The legacy host coordinates are compatibility aggregates after extraction.
+    // Consume the owning framework modules directly; OrderedLog needs no full runtime closure.
+    implementation project(':framework:api')
+    implementation project(':framework:config')
+    implementation(project(':framework:core')) {
         transitive = false
     }
     implementation project(':capabilities:role-workflow-contracts')
     implementation project(':state-machines:stdlib')
     implementation libs.cardano.client.crypto
-    compileOnly(rootProject.ext.yanoModule('yano-core-api')) {
-        transitive = false
-    }
-    runtimeOnly(rootProject.ext.yanoModule('yano-core-api')) {
-        transitive = false
-    }
     implementation libs.jackson.databind
     implementation libs.jackson.dataformat.yaml
     // Loading real plugin bundles initializes SLF4J; a CLI has no logging backend of its own.
     runtimeOnly libs.slf4j.nop
     implementation libs.smallrye.config.core
     implementation libs.smallrye.config.yaml
-    testImplementation(rootProject.ext.yanoModule('yano-core-api')) {
-        transitive = false
-    }
     testImplementation project(':capabilities:authenticated-map-validators')
     testImplementation project(':fixtures:governed-recipes')
     // Live receipt-parity tests boot the real host subsystem, unlike the lightweight offline CLI.
