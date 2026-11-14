@@ -1,0 +1,11 @@
+description = 'Application-ledger public contracts, preserving established Java names'
+dependencies {
+    api("org.yanoproject:yano-host-api:${providers.gradleProperty('hostApiVersion').getOrElse('1.0.0-245.1')}") {
+        version { strictly providers.gradleProperty('hostApiVersion').getOrElse('1.0.0-245.1') }
+    }
+    api "org.yanoproject:yano-node-api:${providers.gradleProperty('nodeApiVersion').getOrElse('0.1.0-245.1')}"
+    implementation libs.cardano.client.crypto
+    implementation libs.cardano.client.core
+    implementation libs.jackson.databind
+    implementation libs.jackson.dataformat.cbor
+}

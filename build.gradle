@@ -115,3 +115,11 @@ subprojects.findAll { candidate ->
 
 apply from: file('gradle/plugin-bundle-host-classes.gradle')
 apply from: file('gradle/verification.gradle')
+
+// Focused extraction contract; deliberately does not build unrelated product bundles.
+tasks.register('frameworkCheck') {
+    group = 'verification'
+    description = 'Test the ledger framework with exact external host artifacts and enforce its boundary'
+    dependsOn ':framework:api:test', ':framework:config:test', ':framework:core:test',
+            ':framework:core:verifyFrameworkBoundary', 'verifyArtifactInventory', 'verifyJvmOnlyBuild'
+}

@@ -1,0 +1,45 @@
+description = 'Application-ledger consensus, storage and deterministic execution core'
+dependencies {
+    api project(':framework:api')
+    implementation project(':framework:config')
+    implementation libs.cardano.client.mpf
+    implementation libs.cardano.client.mpf.rocksdb
+    implementation libs.cardano.client.jmt
+    implementation libs.cardano.client.crypto
+    implementation libs.rocksdb
+    implementation libs.jackson.databind
+}
+
+// Resolve the actual production closure, not just declared dependencies. This catches
+// a transitive node implementation or settlement SDK added through any API module.
+tasks.register('verifyFrameworkBoundary') {
+    group = 'verification'
+    description = 'Reject node implementation/settlement SDK dependencies in the ledger core'
+    inputs.files(configurations.runtimeClasspath)
+    def report = layout.buildDirectory.file('reports/framework-boundary.json')
+    outputs.file(report)
+    doLast {
+        def artifacts = configurations.runtimeClasspath.resolvedConfiguration.resolvedArtifacts
+                .collect { artifact ->
+                    [group: artifact.moduleVersion.id.group, name: artifact.name,
+                     version: artifact.moduleVersion.id.version,
+                     sha256: java.security.MessageDigest.getInstance('SHA-256')
+                             .digest(artifact.file.bytes).encodeHex().toString()]
+                }.sort { a, b -> "${a.group}:${a.name}" <=> "${b.group}:${b.name}" }
+        def violations = artifacts.findAll { artifact ->
+            (artifact.group == 'org.yanoproject'
+                    && !(artifact.name in ['yano-host-api', 'yano-node-api'])) ||
+                    artifact.group.startsWith('org.julclang') ||
+                    artifact.name in ['cardano-client-quicktx', 'cardano-client-backend',
+                                      'cardano-client-lib', 'cardano-client-backend-blockfrost']
+        }
+        def output = report.get().asFile
+        output.parentFile.mkdirs()
+        output.text = groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(
+                [schemaVersion: 1, passed: violations.empty, artifacts: artifacts, violations: violations])) + '\n'
+        if (!violations.empty) {
+            throw new GradleException("Application-ledger core boundary violated: ${violations}")
+        }
+    }
+}
+tasks.named('check') { dependsOn 'verifyFrameworkBoundary' }

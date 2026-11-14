@@ -8,6 +8,9 @@ pluginManagement {
 rootProject.name = 'yano-x'
 
 def yanoXModules = [
+        ':framework:api': 'framework/api',
+        ':framework:config': 'framework/config',
+        ':framework:core': 'framework/core',
         ':state-machines:stdlib': 'state-machines/stdlib',
         ':state-machines:stdlib-contracts': 'state-machines/stdlib-contracts',
         ':capabilities:authenticated-map-validators': 'capabilities/authenticated-map-validators',
