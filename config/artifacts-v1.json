@@ -409,6 +409,14 @@
       "publicationType": "library",
       "pluginBundleId": null,
       "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":framework:cardano-api",
+      "directory": "framework/cardano-api",
+      "artifactId": "yano-x-appchain-cardano-api",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
     }
   ]
 }

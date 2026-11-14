@@ -5,7 +5,7 @@ import java.util.Set;
 /**
  * Executes effects against an external system (ADR app-layer/010 F5) — the
  * plugin boundary of the execution plane. Discovered via
- * {@link AppEffectExecutorFactory} (ServiceLoader) or registered
+ * {@code AppEffectExecutorFactory} (ServiceLoader) or registered
  * programmatically; the Effect Runtime supplies discovery, finality gating,
  * retries, backoff and the poison lane — an executor only performs one
  * attempt.

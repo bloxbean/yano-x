@@ -61,3 +61,32 @@ tests, all passing against external host candidate `1.0.0-245.1`. A deliberately
 injected transitive Yano runtime artifact is rejected by the boundary check.
 This is candidate-artifact compatibility evidence, not the outstanding packaged
 oldest-host/distribution matrix.
+
+Review refinement: retain `framework` as the parent group (owner-confirmed), with
+`core` naming the deterministic engine/storage module. Split Cardano-specific
+legacy API carriers into `framework/cardano-api`, keeping their Java names and
+reexporting them through Yano's integrated compatibility coordinate. The effect
+factory and its context move together because their signatures reference each
+other; generic effect execution stays in core. The generic API depends only on
+Yano's SDK-free node/plugin foundation, not Host API. Remove the published strict
+Host API version constraint; runtime API-level checks and exact compatibility
+matrix inputs establish support without forcing matching repository releases.
+
+Keep the parent name `framework` with `api`, `config`, `core`, and optional
+`cardano-api` children. Preserve appchain Maven artifact names, Java names and
+`yano.app-chain.*` tooling throughout the move.
+
+The generic Yano foundation excludes the unused transaction SDK edges from Yaci
+core/helper. Framework core excludes MPF's optional Plutus formatter dependency
+from both MPF edges while keeping the exact native proof-wire implementation.
+Cardano integration restores the SDK explicitly. `AppOnlyWireTest` runs real TCP
+handshake 101, signed protocol-100 messages, protocol-103 persisted block bytes,
+and keepalive with transaction/Plutus SDK classes demonstrably absent. Existing
+snapshot/archive tests cover MPF proof bytes and reopening on the same classpath.
+`ObserverConsensusProfile` is the one extracted copy of the existing canonical
+observer/network identity codec, with fixed legacy digest vectors.
+
+Refinement evidence: foundation `0.1.0-245.3`, Host API `1.0.0-245.3`, and framework
+`0.1.0-245.4` are exact unpublished staged inputs, not a frozen release baseline.
+The optional Cardano attachment, manifested host adapter, independent host and
+oldest/current packaged compatibility matrix remain subsequent implementation work.

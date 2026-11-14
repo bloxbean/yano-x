@@ -21,7 +21,7 @@ For the coordinated unpublished candidates, supply exact artifact repositories:
 
 No checkout or build invocation in another repository is required. Local staging
 is development evidence, not a published compatibility baseline. Keep the
-`framework/{api,config,core}/build/test-results/test` XML and
+`framework/{api,cardano-api,config,core}/build/test-results/test` XML and
 `framework/core/build/reports/framework-boundary.json` with the CI run.
 
 The first frozen Host API will be the oldest supported host for this feature.
@@ -29,3 +29,10 @@ Once frozen, run this gate against that unchanged artifact and each newer
 compatible API, then run the same packaged X bundle on oldest/current hosts.
 That packaged matrix is still outstanding; this core-only gate does not replace
 it. Do not regenerate the baseline with each framework release.
+
+The core suite includes `AppOnlyWireTest`: real TCP handshake 101, signed messages
+on protocol 100, persisted block bytes over 103, and keepalive. It explicitly
+checks transaction/Plutus classes are absent, so an integrated Yano classpath
+cannot accidentally mask a dependency leak. Optional Cardano contracts have a
+separate test task. Native MPF proof encodings and snapshot/reopen checks remain
+on the lean core classpath; no format or hashing algorithm changed.

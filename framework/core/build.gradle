@@ -2,8 +2,10 @@ description = 'Application-ledger consensus, storage and deterministic execution
 dependencies {
     api project(':framework:api')
     implementation project(':framework:config')
-    implementation libs.cardano.client.mpf
-    implementation libs.cardano.client.mpf.rocksdb
+    // Preserve the existing MPF/proof-wire implementation. Its optional PlutusData
+    // formatter is only needed by Cardano adapters, never by native proof-wire paths.
+    implementation(libs.cardano.client.mpf) { exclude group: 'com.bloxbean.cardano', module: 'cardano-client-plutus' }
+    implementation(libs.cardano.client.mpf.rocksdb) { exclude group: 'com.bloxbean.cardano', module: 'cardano-client-plutus' }
     implementation libs.cardano.client.jmt
     implementation libs.cardano.client.crypto
     implementation libs.rocksdb
@@ -30,10 +32,12 @@ tasks.register('verifyFrameworkBoundary') {
                 }.sort { a, b -> "${a.group}:${a.name}" <=> "${b.group}:${b.name}" }
         def violations = artifacts.findAll { artifact ->
             (artifact.group == 'org.yanoproject'
-                    && !(artifact.name in ['yano-host-api', 'yano-node-api'])) ||
+                    && artifact.name != 'yano-node-api') ||
                     artifact.group.startsWith('org.julclang') ||
                     artifact.name in ['cardano-client-quicktx', 'cardano-client-backend',
-                                      'cardano-client-lib', 'cardano-client-backend-blockfrost']
+                                      'cardano-client-lib', 'cardano-client-backend-blockfrost',
+                                      'cardano-client-core', 'cardano-client-core-api', 'cardano-client-plutus',
+                                      'cardano-client-transaction-spec']
         }
         def output = report.get().asFile
         output.parentFile.mkdirs()
