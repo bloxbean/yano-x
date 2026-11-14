@@ -1,0 +1,25 @@
+description = 'Checked Aiken anchor validators and optional Java source conformance checks'
+
+// The checked META-INF/plutus resources are the released on-chain identities.
+// Neither the ordinary build nor publication recompiles or regenerates them.
+dependencies {
+    compileOnly "org.julclang:julc-stdlib:${libs.versions.julc.get()}"
+    compileOnly "org.julclang:julc-ledger-api:${libs.versions.julc.get()}"
+
+    testImplementation "org.julclang:julc-stdlib:${libs.versions.julc.get()}"
+    testImplementation "org.julclang:julc-ledger-api:${libs.versions.julc.get()}"
+    testImplementation "org.julclang:julc-testkit:${libs.versions.julc.get()}"
+    testImplementation "org.julclang:julc-compiler:${libs.versions.julc.get()}"
+    testRuntimeOnly libs.julc.vm.java
+}
+
+tasks.named('test') {
+    systemProperty 'julc.source-check', System.getProperty('julc.source-check', 'false')
+}
+
+// Ship authoring inputs with the source artifact without putting an Aiken
+// compiler invocation on the release build path.
+tasks.named('sourceJar') {
+    from('aiken') { into 'aiken' }
+    from('src/main/resources')
+}

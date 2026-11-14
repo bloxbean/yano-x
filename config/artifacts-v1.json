@@ -417,6 +417,38 @@
       "publicationType": "library",
       "pluginBundleId": null,
       "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":framework:cardano",
+      "directory": "framework/cardano",
+      "artifactId": "yano-x-appchain-cardano",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":framework:cardano-onchain",
+      "directory": "framework/cardano-onchain",
+      "artifactId": "yano-x-appchain-anchor-onchain",
+      "publicationType": "onchain-artifact",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":framework:host-adapter",
+      "directory": "framework/host-adapter",
+      "artifactId": "yano-x-appchain-host-adapter",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":framework:standalone",
+      "directory": "framework/standalone",
+      "artifactId": "yano-x-appchain-standalone",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
     }
   ]
 }

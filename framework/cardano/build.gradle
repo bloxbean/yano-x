@@ -1,0 +1,30 @@
+description = 'Optional Cardano integration and compatible application-ledger runtime'
+
+dependencies {
+    api project(':framework:core')
+    api project(':framework:cardano-api')
+    implementation project(':framework:host-adapter')
+    // registerProtocols retains its existing public Host API signature.
+    api "org.yanoproject:yano-host-api:${providers.gradleProperty('hostApiVersion').getOrElse('1.0.0-245.4')}"
+
+    implementation libs.cardano.client.core
+    implementation libs.cardano.client.quicktx
+    implementation libs.julc.cardano.client.lib
+    implementation libs.jackson.databind
+    implementation libs.cbor
+    implementation libs.rocksdb
+
+    // Evaluator discovery and the checked anchor identities are optional with
+    // this integration. Neither belongs to the standalone framework closure.
+    runtimeOnly(libs.julc.vm.java) {
+        exclude group: 'com.bloxbean.cardano', module: 'cardano-client-lib'
+    }
+    runtimeOnly project(':framework:cardano-onchain')
+    testImplementation project(':framework:config')
+}
+
+tasks.named('processResources') {
+    filesMatching('META-INF/yano/plugins/*.json') {
+        expand(pluginVersion: project.version.toString())
+    }
+}

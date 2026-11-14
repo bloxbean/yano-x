@@ -121,5 +121,7 @@ tasks.register('frameworkCheck') {
     group = 'verification'
     description = 'Test the ledger framework with exact external host artifacts and enforce its boundary'
     dependsOn ':framework:api:test', ':framework:cardano-api:test', ':framework:config:test', ':framework:core:test',
-            ':framework:core:verifyFrameworkBoundary', 'verifyArtifactInventory', 'verifyJvmOnlyBuild'
+            ':framework:core:verifyFrameworkBoundary', ':framework:host-adapter:test',
+            ':framework:cardano:test', ':framework:cardano-onchain:test', ':framework:standalone:jar',
+            'verifyArtifactInventory', 'verifyJvmOnlyBuild'
 }

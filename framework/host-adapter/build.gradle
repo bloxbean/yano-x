@@ -1,0 +1,13 @@
+description = 'Descriptor-free application-ledger adapter to the existing Yano Host API'
+
+dependencies {
+    api project(':framework:core')
+    implementation project(':framework:config')
+    api "org.yanoproject:yano-host-api:${providers.gradleProperty('hostApiVersion').getOrElse('1.0.0-245.4')}"
+}
+
+tasks.named('processResources') {
+    filesMatching('META-INF/yano/app-ledger-version.properties') {
+        expand(pluginVersion: project.version.toString())
+    }
+}
