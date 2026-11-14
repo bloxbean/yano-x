@@ -22,3 +22,13 @@ The earlier host `.4` / X `.6`–`.7` probe remains under `../first-host`; it pr
 `host-5-and-6-framework-10.json` records all four profiles passing with X `.10` and Yaci `.3`: the unchanged oldest host/foundation `.5` and the newer `.6`, both using the unchanged Host API `.4` and frozen fixture.
 
 `host-5-and-7-framework-10.json` retains the subsequent four-cell pass against host/foundation `.7` and the same frozen oldest host `.5`, with X `.10`, Yaci `.3`, Host API `.4`, and fixture bytes unchanged.
+
+`host-5-and-8-framework-11.json` records all four profiles passing with X `.11`
+against the frozen host `.5` and current host `.8`. The older host still resolves
+its historical `yano-core-api`; the current host resolves none. The fixture and
+Host API `.4` are unchanged. `core-api-removal-qualification.json` retains the
+focused checks, standalone template/catalog check, final distribution check, and
+all 16 packaged smoke steps (no skips), with artifact/log hashes. The separate
+[Yano cleanup validation report](https://github.com/bloxbean/yano/blob/feat/245-app-ledger-host-api/qa/app-ledger/CORE_API_REMOVAL_VALIDATION.md)
+tracks coordinated host qualification; the X pass does not replace that result
+or the final comprehensive release cycle.

@@ -1,0 +1,164 @@
+{
+  "status": "passed-unpublished-candidate-x-cleanup-qualification",
+  "sourceCommit": "7b806ed9",
+  "frameworkVersion": "0.1.0-245.11",
+  "hostApiVersion": "1.0.0-245.4",
+  "minimumNodeApiVersion": "0.1.0-245.4",
+  "yaciCoreVersion": "0.5.0-pre15-app-only-245.3",
+  "checks": {
+    "frameworkCheck": {
+      "tests": 469,
+      "passed": 409,
+      "skippedExisting": 60,
+      "log": "/private/tmp/yano-x-245-core-api-cleanup-framework.log"
+    },
+    "devtools": {
+      "passed": 209
+    },
+    "appchainCli": {
+      "passed": 49
+    },
+    "evidenceClient": {
+      "passed": 15,
+      "strictRuntimeBoundary": "passed"
+    },
+    "evidenceContracts": {
+      "passed": 39,
+      "artifactBoundary": "passed"
+    },
+    "isolatedScaffold": {
+      "passed": 6,
+      "catalogProbe": "passed",
+      "hostVersion": "0.1.0-245.7",
+      "frameworkVersion": "0.1.0-245.11",
+      "log": "/private/tmp/yano-x-245-core-api-cleanup-template-final.log"
+    },
+    "topicVectors": "relocated independent generator produces byte-identical golden JSON",
+    "matrix": "/private/tmp/yano-x-245-core-api-cleanup-matrix-evidence.json",
+    "distributionCheck": {
+      "status": "passed",
+      "seconds": 196,
+      "tasks": 199,
+      "log": "/private/tmp/yano-x-245-core-api-cleanup-distribution-check.log"
+    },
+    "packagedSmoke": {
+      "status": "passed",
+      "steps": [
+        {
+          "step": "archive",
+          "status": "PASS",
+          "seconds": 12
+        },
+        {
+          "step": "layout",
+          "status": "PASS",
+          "seconds": 1
+        },
+        {
+          "step": "runtime-acceptance",
+          "status": "PASS",
+          "seconds": 140
+        },
+        {
+          "step": "stock-outcomes",
+          "status": "PASS",
+          "seconds": 56
+        },
+        {
+          "step": "showcase-doctor",
+          "status": "PASS",
+          "seconds": 1
+        },
+        {
+          "step": "showcase-quickstart",
+          "status": "PASS",
+          "seconds": 202
+        },
+        {
+          "step": "showcase-projection-off",
+          "status": "PASS",
+          "seconds": 1
+        },
+        {
+          "step": "showcase-run-all",
+          "status": "PASS",
+          "seconds": 86
+        },
+        {
+          "step": "showcase-verify",
+          "status": "PASS",
+          "seconds": 12
+        },
+        {
+          "step": "showcase-record-tips",
+          "status": "PASS",
+          "seconds": 1
+        },
+        {
+          "step": "showcase-restart",
+          "status": "PASS",
+          "seconds": 66
+        },
+        {
+          "step": "showcase-verify-after-restart",
+          "status": "PASS",
+          "seconds": 15
+        },
+        {
+          "step": "showcase-persisted-tips",
+          "status": "PASS",
+          "seconds": 1
+        },
+        {
+          "step": "distribution-config-unchanged",
+          "status": "PASS",
+          "seconds": 0
+        },
+        {
+          "step": "showcase-stop",
+          "status": "PASS",
+          "seconds": 6
+        },
+        {
+          "step": "topics-acceptance",
+          "status": "PASS",
+          "seconds": 232
+        }
+      ],
+      "summedStepSeconds": 832,
+      "log": "/private/tmp/yano-x-245-core-api-cleanup-release-smoke.log",
+      "logSha256": "6b07ff4978471db5aae6ba3634fbec70282370b50b6c1f019044639b5f081d56",
+      "skipped": [],
+      "platform": "macOS-26.0.1-arm64-arm-64bit-Mach-O",
+      "javaVersion": "25.0.2",
+      "reservedPortsReleased": true,
+      "notCovered": [
+        "Docker evidence profile",
+        "eutxo profile",
+        "preprod",
+        "remote deployment"
+      ]
+    }
+  },
+  "publication": {
+    "modules": 9,
+    "repository": "/private/tmp/yano-245-framework-artifacts",
+    "log": "/private/tmp/yano-x-245-core-api-cleanup-framework11-publish.log",
+    "hashes": "/private/tmp/yano-x-245-framework11-artifact-hashes.json"
+  },
+  "notes": [
+    "Framework core/API/config/proof production JAR bytes unchanged; manifested roots carry selected new version",
+    "Template-only prerelease drift repaired: context/effects test calls, manifest3/3/4 assertion, ARTIFACT_CLOSURE digest expectation",
+    "Oldesthost5 historical aggregate allowed; currenthost8 aggregate absent in both matrix profiles",
+    "Oldest-supported-host fixture bytecode and provenance unchanged",
+    "This X result does not imply that the separate Yano consensus or comprehensive release-qualification cycle has completed."
+  ],
+  "distribution": {
+    "zip": "/private/tmp/yano-x-245-core-api-cleanup-smoke-artifacts/yano-x-jvm-0.1.0-245.11.zip",
+    "bytes": 506201016,
+    "sha256": "31e25144684d3f471a96de2134eb142ec89a09c6d2a737cfdf5dc0f76b8ddcf6",
+    "yanoVersion": "0.1.0-245.8",
+    "yanoZipSha256": "e8671edd3dd5f05285abee96b44a54ef04df287fdb9c445f8d8f7977ff802f2a"
+  },
+  "coordinatedYanoValidation": "https://github.com/bloxbean/yano/blob/feat/245-app-ledger-host-api/qa/app-ledger/CORE_API_REMOVAL_VALIDATION.md"
+}
