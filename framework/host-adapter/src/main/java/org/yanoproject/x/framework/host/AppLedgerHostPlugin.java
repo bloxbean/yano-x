@@ -55,11 +55,19 @@ public class AppLedgerHostPlugin implements NodePlugin {
     public final void init(PluginContext context) {
         if (initialized) throw new IllegalStateException("Application-ledger plugin already initialized");
         initialized = true;
-        YanoConfig node = requireService(context, NODE_CONFIG_SERVICE, YanoConfig.class);
-        RuntimeOptions options = requireService(context, RUNTIME_OPTIONS_SERVICE, RuntimeOptions.class);
+        RuntimeOptions options = context.getService(RUNTIME_OPTIONS_SERVICE, RuntimeOptions.class).orElse(null);
+        if (options == null) {
+            // The public legacy PluginManager may discover this provider on an
+            // ordinary classpath without assembling an application-ledger host.
+            // Disabled features need no capabilities; an explicit request must
+            // still fail rather than silently ignoring a missing host contract.
+            if (!Boolean.parseBoolean(String.valueOf(context.config().get("yano.app-chain.enabled")))) return;
+            options = requireService(context, RUNTIME_OPTIONS_SERVICE, RuntimeOptions.class);
+        }
         Map<String, Object> globals = options.globals();
         if (!Boolean.parseBoolean(String.valueOf(globals.get("yano.app-chain.enabled")))) return;
 
+        YanoConfig node = requireService(context, NODE_CONFIG_SERVICE, YanoConfig.class);
         HostApi host = requireService(context, HostApi.SERVICE_KEY, HostApi.class);
         host.version().requireCompatible(1, 1);
         // Verify lifecycle availability before constructing or owning any chain.

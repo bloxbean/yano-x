@@ -101,12 +101,49 @@ class AppLedgerHostPluginTest {
     void disabledApplicationLedgerDoesNotRequireHostCapabilities() {
         Harness harness = new Harness();
         harness.services.remove(HostApi.SERVICE_KEY);
+        harness.services.remove(AppLedgerHostPlugin.NODE_CONFIG_SERVICE);
         harness.services.put(AppLedgerHostPlugin.RUNTIME_OPTIONS_SERVICE,
                 new RuntimeOptions(null, null, Map.of("yano.app-chain.enabled", false)));
         ProbePlugin plugin = new ProbePlugin();
         plugin.init(harness);
         assertThat(plugin.chains).isEmpty();
         assertThat(harness.owned.get()).isNull();
+    }
+
+    @Test
+    void legacyDiscoveryWithoutFeatureActivationNeedsNoHostServices() {
+        Harness harness = new Harness();
+        harness.services.clear();
+        ProbePlugin plugin = new ProbePlugin();
+        plugin.init(harness);
+        plugin.start();
+        plugin.stop();
+        plugin.close();
+        assertThat(plugin.chains).isEmpty();
+        assertThat(harness.owned.get()).isNull();
+    }
+
+    @Test
+    void explicitLegacyActivationRejectsMissingRuntimeOptions() {
+        Harness harness = new Harness();
+        harness.services.clear();
+        harness.legacyConfig = Map.of("yano.app-chain.enabled", true);
+        ProbePlugin plugin = new ProbePlugin();
+        assertThatThrownBy(() -> plugin.init(harness)).isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining(AppLedgerHostPlugin.RUNTIME_OPTIONS_SERVICE);
+        assertThat(plugin.chains).isEmpty();
+    }
+
+    @Test
+    void disabledRuntimeOptionsTakePrecedenceOverLegacyCompatibilityConfig() {
+        Harness harness = new Harness();
+        harness.services.clear();
+        harness.services.put(AppLedgerHostPlugin.RUNTIME_OPTIONS_SERVICE,
+                new RuntimeOptions(null, null, Map.of("yano.app-chain.enabled", false)));
+        harness.legacyConfig = Map.of("yano.app-chain.enabled", true);
+        ProbePlugin plugin = new ProbePlugin();
+        plugin.init(harness);
+        assertThat(plugin.chains).isEmpty();
     }
 
     private static final class ProbeChain extends AppLedgerRuntime {
@@ -151,6 +188,7 @@ class AppLedgerHostPluginTest {
         private final AtomicReference<Subsystem> owned = new AtomicReference<>();
         private boolean rejectOwnership;
         private boolean rejectProtocols;
+        private Map<String, Object> legacyConfig = Map.of();
 
         Harness() {
             YanoConfig node = YanoConfig.builder().mode(RuntimeMode.APP_LEDGER)
@@ -182,7 +220,7 @@ class AppLedgerHostPluginTest {
         }
         public EventBus eventBus() { return null; }
         public Logger logger() { return LoggerFactory.getLogger(AppLedgerHostPluginTest.class); }
-        public Map<String, Object> config() { return Map.of(); }
+        public Map<String, Object> config() { return legacyConfig; }
         public ScheduledExecutorService scheduler() { return null; }
         public Optional<ClassLoader> pluginClassLoader() { return Optional.empty(); }
         public void registerStorageFilter(StorageFilter filter) { throw new UnsupportedOperationException(); }
