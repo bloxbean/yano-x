@@ -63,7 +63,7 @@ unzip -p "$CARDANO_HISTORY_BUNDLE" META-INF/yano/plugins/org.yanoproject.x.carda
     ' >/dev/null
 ! unzip -Z1 "$CARDANO_HISTORY_BUNDLE" | grep -q '^META-INF/yano/ui/'
 ! unzip -Z1 "$CARDANO_HISTORY_BUNDLE" \
-  | grep -Eq '^(org/yanoproject/api/|org/yanoproject/x/(composite|stdlib)/|org/slf4j/)'
+  | grep -Eq '^(org/yanoproject/api/|org/yanoproject/x/(framework/(api|cardano/api)|composite|stdlib)/|org/slf4j/)'
 grep -q 'document-review-chain' "$ROOT/docs/CAPABILITY_CATALOG.md"
 
 # The release's setup commands seal all thirteen showcase chains, in three applications, for three nodes.

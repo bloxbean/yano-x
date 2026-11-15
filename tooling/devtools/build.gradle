@@ -31,6 +31,7 @@ dependencies {
     testImplementation project(':capabilities:authenticated-map-validators')
     testImplementation project(':fixtures:governed-recipes')
     // Live receipt-parity tests boot the real host subsystem, unlike the lightweight offline CLI.
+    integrationTestImplementation project(':framework:cardano')
     integrationTestRuntimeOnly(rootProject.ext.yanoModule('yano-runtime'))
     // Recipe generation over the governed fixtures is a shared test helper (BindingRecipe).
     integrationTestImplementation sourceSets.test.output

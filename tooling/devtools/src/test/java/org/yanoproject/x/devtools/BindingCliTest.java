@@ -7,6 +7,7 @@ import org.junit.jupiter.api.io.TempDir;
 import org.yanoproject.x.composite.CompositeStateKeys;
 import org.yanoproject.x.composite.contracts.BindingIrV1;
 import org.yanoproject.x.framework.api.appchain.AppStateMachine;
+import org.yanoproject.x.framework.cardano.api.effects.AppEffectExecutorFactory;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
@@ -124,6 +125,8 @@ class BindingCliTest {
         try (JarOutputStream jar = new JarOutputStream(Files.newOutputStream(bundle))) {
             for (String entry : List.of("META-INF/yano/plugins/fixture.json", "dev/cel/compiler/CelCompiler.class",
                     "org/yanoproject/x/framework/api/appchain/AppStateMachine.class",
+                    "org/yanoproject/x/framework/cardano/api/effects/AppEffectExecutorFactory.class",
+                    "org/yanoproject/x/framework/runtime/appchain/AppLedgerRuntime.class",
                     "com/bloxbean/cardano/yaci/core/protocol/appmsg/model/AppMessage.class")) {
                 jar.putNextEntry(new JarEntry(entry));
                 jar.write(new byte[]{0});
@@ -137,6 +140,13 @@ class BindingCliTest {
                 .isInstanceOf(ClassNotFoundException.class);
         assertThat(parent.loadClass(AppStateMachine.class.getName())).isSameAs(AppStateMachine.class);
         assertThat(parent.loadClass(AppMessage.class.getName())).isSameAs(AppMessage.class);
+        assertThat(parent.loadClass(AppEffectExecutorFactory.class.getName())).isSameAs(AppEffectExecutorFactory.class);
+        String implementation = "org/yanoproject/x/framework/runtime/appchain/AppLedgerRuntime.class";
+        assertThat(getClass().getClassLoader().getResource(implementation)).isNotNull();
+        assertThat(parent.getResource(implementation)).isNull();
+        assertThatThrownBy(() -> parent.loadClass(
+                "org.yanoproject.x.framework.runtime.appchain.AppLedgerRuntime"))
+                .isInstanceOf(ClassNotFoundException.class);
         assertThat(parent.getResource("dev/cel/compiler/CelCompiler.class")).isNull();
         assertThat(parent.getResources("META-INF/services/org.yanoproject.x.framework.api.appchain.AppStateMachineProvider")
                 .hasMoreElements()).isFalse();

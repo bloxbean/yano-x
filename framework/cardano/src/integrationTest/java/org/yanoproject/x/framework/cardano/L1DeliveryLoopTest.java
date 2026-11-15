@@ -11,6 +11,7 @@ import org.yanoproject.api.events.BlockAppliedEvent;
 import org.yanoproject.runtime.chain.BlockBodyRetentionRegistry;
 import org.yanoproject.x.framework.runtime.appchain.AppChainEngine;
 import org.yanoproject.x.framework.runtime.appchain.AppLedgerStore;
+import org.yanoproject.x.framework.runtime.appchain.AppLedgerTestFixtures;
 
 import java.nio.file.Path;
 import java.util.ArrayDeque;
@@ -685,7 +686,7 @@ class L1DeliveryLoopTest {
                         }
                     } else if (op < 8 && random.nextBoolean()) {
                         boolean[] fired = new boolean[1];
-                        seedLedger.injectMetaWriteFault(() -> {
+                        AppLedgerTestFixtures.injectMetaWriteFault(seedLedger, () -> {
                             if (!fired[0]) {
                                 fired[0] = true;
                                 throw new IllegalStateException("disk unavailable"); // the next record write
@@ -706,7 +707,7 @@ class L1DeliveryLoopTest {
                 }
                 derived.nextApply.clear();
                 derived.nextRollback.clear();
-                seedLedger.injectMetaWriteFault(null);
+                AppLedgerTestFixtures.injectMetaWriteFault(seedLedger, null);
                 settle(loop);
 
                 assertThat(loop.snapshot().cursor()).as("seed %d: caught up", seed)
@@ -741,7 +742,7 @@ class L1DeliveryLoopTest {
             DerivedStateHost derived = new DerivedStateHost();
             derived.crashPoint = crashes::point;
             try (AppLedgerStore crashLedger = openStore(dir.resolve("crash-" + crashAt).toString(), log)) {
-                crashLedger.injectMetaWriteFault(crashes::point);
+                AppLedgerTestFixtures.injectMetaWriteFault(crashLedger, crashes::point);
                 chain.append(10, 20, 30, 40, 50);
                 L1DeliveryLoop loop = seededLoop(chain, crashLedger, derived);
                 List<Runnable> steps = List.of(() -> { }, () -> chain.append(60, 70), () -> chain.fork(5, 75),
