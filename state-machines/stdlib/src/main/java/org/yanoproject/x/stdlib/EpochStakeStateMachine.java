@@ -1,20 +1,21 @@
 package org.yanoproject.x.stdlib;
 
-import org.yanoproject.api.appchain.AppBlockExecutionContext;
-import org.yanoproject.api.appchain.AppCapabilityManifest;
-import org.yanoproject.api.appchain.AppQueryContext;
-import org.yanoproject.api.appchain.AppQueryException;
-import org.yanoproject.api.appchain.AppStateMachine;
-import org.yanoproject.api.appchain.AppStateWriter;
-import org.yanoproject.api.appchain.effects.AppEffectEmitter;
-import org.yanoproject.api.appchain.l1view.L1Observation;
-import org.yanoproject.api.appchain.snapshot.AuthenticatedSnapshotSeriesDescriptorV1;
-import org.yanoproject.api.appchain.snapshot.AuthenticatedSnapshotSourceCommitmentV1;
-import org.yanoproject.api.appchain.snapshot.SnapshotEntry;
-import org.yanoproject.api.appchain.snapshot.SnapshotBuildTokenV1;
-import org.yanoproject.api.appchain.snapshot.SnapshotSeriesHandle;
-import org.yanoproject.api.appchain.snapshot.SnapshotSourceBoundary;
-import org.yanoproject.api.appchain.state.StateCommitmentProfiles;
+import org.yanoproject.x.framework.api.appchain.AppBlockExecutionContext;
+import org.yanoproject.x.framework.api.appchain.AppCapabilityManifest;
+import org.yanoproject.x.framework.api.appchain.AppQueryContext;
+import org.yanoproject.x.framework.api.appchain.AppQueryException;
+import org.yanoproject.x.framework.api.appchain.AppStateMachine;
+import org.yanoproject.x.framework.api.appchain.AppStateWriter;
+import org.yanoproject.x.framework.api.appchain.effects.AppEffectEmitter;
+import org.yanoproject.x.framework.api.appchain.l1view.L1Observation;
+import org.yanoproject.x.framework.api.appchain.snapshot.AuthenticatedSnapshotSeriesDescriptorV1;
+import org.yanoproject.x.framework.api.appchain.snapshot.AuthenticatedSnapshotSourceCommitmentV1;
+import org.yanoproject.x.framework.api.appchain.snapshot.SnapshotBuildTokenV1;
+import org.yanoproject.x.framework.api.appchain.snapshot.SnapshotDescriptorDraftV1;
+import org.yanoproject.x.framework.api.appchain.snapshot.SnapshotEntry;
+import org.yanoproject.x.framework.api.appchain.snapshot.SnapshotSeriesHandle;
+import org.yanoproject.x.framework.api.appchain.snapshot.SnapshotSourceBoundary;
+import org.yanoproject.x.framework.api.appchain.state.StateCommitmentProfiles;
 import org.yanoproject.x.stdlib.contracts.EpochStakeContract;
 
 import java.util.ArrayList;
@@ -75,7 +76,7 @@ public final class EpochStakeStateMachine implements AppStateMachine {
             @Override public String seriesId() { return SNAPSHOT_SERIES_ID; }
             @Override public String algorithm() { return "blake2b256"; }
             @Override public String wireVersion() { return "epoch-stake-source-v1"; }
-            @Override public byte[] initial(org.yanoproject.api.appchain.snapshot.SnapshotDescriptorDraftV1 draft) {
+            @Override public byte[] initial(SnapshotDescriptorDraftV1 draft) {
                 return EpochStakeContract.initialSnapshotRoot();
             }
             @Override public byte[] append(byte[] accumulator, long chunkIndex, List<SnapshotEntry> entries) {

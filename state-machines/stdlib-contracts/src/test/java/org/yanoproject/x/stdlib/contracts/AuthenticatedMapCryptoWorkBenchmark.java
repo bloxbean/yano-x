@@ -1,7 +1,7 @@
 package org.yanoproject.x.stdlib.contracts;
 
 import com.bloxbean.cardano.client.crypto.KeyGenUtil;
-import org.yanoproject.api.appchain.AppChainConfig;
+import org.yanoproject.x.framework.api.appchain.AppChainConfig;
 import org.yanoproject.x.roles.contracts.RoleWorkflowLimits;
 import org.yanoproject.x.roles.contracts.internal.RoleWorkflowEd25519;
 

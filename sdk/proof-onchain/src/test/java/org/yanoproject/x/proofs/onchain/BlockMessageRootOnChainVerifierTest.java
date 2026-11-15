@@ -5,9 +5,9 @@ import org.julclang.core.PlutusData;
 import org.julclang.core.types.JulcList;
 import org.julclang.testkit.ContractTest;
 import org.julclang.testkit.JulcEval;
-import org.yanoproject.api.appchain.transition.FinalizedBlockMessageRootIndex;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.yanoproject.x.framework.api.appchain.transition.FinalizedBlockMessageRootIndex;
 
 import java.math.BigInteger;
 import java.util.ArrayList;

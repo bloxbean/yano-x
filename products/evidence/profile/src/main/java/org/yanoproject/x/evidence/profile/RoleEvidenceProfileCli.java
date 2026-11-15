@@ -1,12 +1,12 @@
 package org.yanoproject.x.evidence.profile;
 
-import org.yanoproject.api.appchain.AppChainConfig;
-import org.yanoproject.api.appchain.AppChainConsensusProfile;
-import org.yanoproject.api.appchain.AppChainMembershipEpoch;
-import org.yanoproject.api.appchain.AppChainMembershipView;
-import org.yanoproject.api.appchain.AppStateMachineContext;
-import org.yanoproject.api.appchain.effects.EffectOutcomeCommitment;
-import org.yanoproject.api.appchain.effects.FinalityGate;
+import org.yanoproject.x.framework.api.appchain.AppChainConfig;
+import org.yanoproject.x.framework.api.appchain.AppChainConsensusProfile;
+import org.yanoproject.x.framework.api.appchain.AppChainMembershipEpoch;
+import org.yanoproject.x.framework.api.appchain.AppChainMembershipView;
+import org.yanoproject.x.framework.api.appchain.AppStateMachineContext;
+import org.yanoproject.x.framework.api.appchain.effects.EffectOutcomeCommitment;
+import org.yanoproject.x.framework.api.appchain.effects.FinalityGate;
 
 import java.util.HexFormat;
 import java.util.LinkedHashMap;

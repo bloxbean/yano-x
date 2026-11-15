@@ -1,11 +1,12 @@
 package org.yanoproject.x.history.client;
 
-import org.yanoproject.api.appchain.anchor.AnchorDatumV1;
-import org.yanoproject.api.appchain.state.StateProofSubject;
-import org.yanoproject.api.appchain.l1view.ProtocolParamsCanonicalCodec;
 import org.yanoproject.x.client.AppChainClient;
 import org.yanoproject.x.client.ProofSubjects;
 import org.yanoproject.x.client.ProofVerifier;
+import org.yanoproject.x.framework.api.appchain.snapshot.SnapshotSourceBoundary;
+import org.yanoproject.x.framework.api.appchain.state.StateProofSubject;
+import org.yanoproject.x.framework.cardano.api.anchor.AnchorDatumV1;
+import org.yanoproject.x.framework.cardano.api.l1view.ProtocolParamsCanonicalCodec;
 import org.yanoproject.x.stdlib.contracts.EpochGovernanceContract;
 import org.yanoproject.x.stdlib.contracts.EpochStakeContract;
 
@@ -112,7 +113,7 @@ public final class CardanoHistoryProofBundle {
                     || !"blake2b256".equals(descriptor.sourceCommitmentAlgorithm())
                     || !"epoch-stake-source-v1".equals(descriptor.sourceCommitmentWireVersion())
                     || !(descriptor.sourceBoundary()
-                    instanceof org.yanoproject.api.appchain.snapshot.SnapshotSourceBoundary.L1Epoch boundary)
+                    instanceof SnapshotSourceBoundary.L1Epoch boundary)
                     || boundary.datasetEpoch() != epoch || boundary.previousEpoch() != epoch
                     || epoch == Long.MAX_VALUE || boundary.newEpoch() != epoch + 1
                     || !Arrays.equals(HexFormat.of().parseHex(proof.secondaryProof().keyHex()),
@@ -205,7 +206,7 @@ public final class CardanoHistoryProofBundle {
                     || !"blake2b256".equals(descriptor.sourceCommitmentAlgorithm())
                     || !"epoch-drep-source-v1".equals(descriptor.sourceCommitmentWireVersion())
                     || !(descriptor.sourceBoundary()
-                    instanceof org.yanoproject.api.appchain.snapshot.SnapshotSourceBoundary.L1Epoch boundary)
+                    instanceof SnapshotSourceBoundary.L1Epoch boundary)
                     || boundary.datasetEpoch() != epoch || boundary.newEpoch() != epoch
                     || boundary.previousEpoch() != (epoch == 0 ? 0 : epoch - 1)
                     || !Arrays.equals(HexFormat.of().parseHex(proof.secondaryProof().keyHex()),

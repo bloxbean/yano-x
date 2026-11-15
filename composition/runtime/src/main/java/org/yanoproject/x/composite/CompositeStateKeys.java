@@ -1,14 +1,15 @@
 package org.yanoproject.x.composite;
 
 import org.yanoproject.x.composite.contracts.CompositeCommitmentV1;
+import org.yanoproject.x.framework.api.appchain.effects.EffectId;
 
-import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.io.ByteArrayInputStream;
-import java.io.DataInputStream;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Objects;
 
@@ -93,7 +94,7 @@ public final class CompositeStateKeys {
                 Arrays.copyOfRange(key, 0, COMPONENT_DOMAIN.length));
     }
 
-    static byte[] effectOwnerKey(org.yanoproject.api.appchain.effects.EffectId effectId) {
+    static byte[] effectOwnerKey(EffectId effectId) {
         byte[] hash = Objects.requireNonNull(effectId, "effectId").hash();
         return ByteBuffer.allocate(EFFECT_OWNER_DOMAIN.length + hash.length)
                 .put(EFFECT_OWNER_DOMAIN).put(hash).array();

@@ -1,10 +1,5 @@
 package org.yanoproject.x.examples.evidence.demo;
 
-import org.yanoproject.api.appchain.effects.EffectRecord;
-import org.yanoproject.x.examples.evidence.event.EvidenceAvailableEventV1;
-import org.yanoproject.x.examples.evidence.state.EvidenceRecordV1;
-import org.yanoproject.x.integration.kafka.KafkaPublishCommandV1;
-import org.yanoproject.x.integration.kafka.KafkaPublishReceiptV1;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.AdminClientConfig;
 import org.apache.kafka.clients.admin.NewTopic;
@@ -16,6 +11,11 @@ import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.TopicExistsException;
 import org.apache.kafka.common.header.Header;
 import org.apache.kafka.common.serialization.ByteArrayDeserializer;
+import org.yanoproject.x.examples.evidence.event.EvidenceAvailableEventV1;
+import org.yanoproject.x.examples.evidence.state.EvidenceRecordV1;
+import org.yanoproject.x.framework.api.appchain.effects.EffectRecord;
+import org.yanoproject.x.integration.kafka.KafkaPublishCommandV1;
+import org.yanoproject.x.integration.kafka.KafkaPublishReceiptV1;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;

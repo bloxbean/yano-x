@@ -1,10 +1,10 @@
 package org.yanoproject.x.proofs.onchain;
 
 import com.bloxbean.cardano.client.crypto.Blake2bUtil;
-import org.julclang.core.types.JulcList;
 import org.julclang.core.PlutusData;
 import org.julclang.core.Program;
 import org.julclang.core.cbor.PlutusDataCborEncoder;
+import org.julclang.core.types.JulcList;
 import org.julclang.ledger.Address;
 import org.julclang.ledger.Credential;
 import org.julclang.ledger.OutputDatum;
@@ -17,13 +17,13 @@ import org.julclang.ledger.TxOut;
 import org.julclang.ledger.TxOutRef;
 import org.julclang.ledger.Value;
 import org.julclang.testkit.ContractTest;
-import org.yanoproject.api.appchain.snapshot.AuthenticatedSnapshotSeriesDescriptorV1;
-import org.yanoproject.api.appchain.snapshot.SnapshotCanonicalCodec;
-import org.yanoproject.api.appchain.snapshot.SnapshotDescriptorV1;
-import org.yanoproject.api.appchain.snapshot.SnapshotSourceBoundary;
-import org.yanoproject.api.appchain.state.StateCommitmentProfiles;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
+import org.yanoproject.x.framework.api.appchain.snapshot.AuthenticatedSnapshotSeriesDescriptorV1;
+import org.yanoproject.x.framework.api.appchain.snapshot.SnapshotCanonicalCodec;
+import org.yanoproject.x.framework.api.appchain.snapshot.SnapshotDescriptorV1;
+import org.yanoproject.x.framework.api.appchain.snapshot.SnapshotSourceBoundary;
+import org.yanoproject.x.framework.api.appchain.state.StateCommitmentProfiles;
 
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;

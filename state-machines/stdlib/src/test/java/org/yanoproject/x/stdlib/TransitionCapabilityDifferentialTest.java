@@ -1,14 +1,14 @@
 package org.yanoproject.x.stdlib;
 
 import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
-import org.yanoproject.api.appchain.AppBlock;
-import org.yanoproject.api.appchain.AppBlockExecutionContext;
-import org.yanoproject.api.appchain.AppStateWriter;
-import org.yanoproject.api.appchain.FinalityCert;
-import org.yanoproject.api.appchain.effects.AppEffectEmitter;
-import org.yanoproject.api.appchain.transition.TransitionContext;
-import org.yanoproject.api.appchain.transition.TransitionPlans;
 import org.junit.jupiter.api.Test;
+import org.yanoproject.x.framework.api.appchain.AppBlock;
+import org.yanoproject.x.framework.api.appchain.AppBlockExecutionContext;
+import org.yanoproject.x.framework.api.appchain.AppStateWriter;
+import org.yanoproject.x.framework.api.appchain.FinalityCert;
+import org.yanoproject.x.framework.api.appchain.effects.AppEffectEmitter;
+import org.yanoproject.x.framework.api.appchain.transition.TransitionContext;
+import org.yanoproject.x.framework.api.appchain.transition.TransitionPlans;
 
 import java.util.Arrays;
 import java.util.LinkedHashMap;

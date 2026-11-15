@@ -142,7 +142,7 @@ export default {
     { repo: 'yano', path: 'plugin-catalog/README.md',
       anchors: ['./tools/yano-plugins/bin/yano-plugins validate plugins/example.jar',
         'it does not load provider classes, run static'] },
-    { repo: 'yano', path: 'core-api/src/main/java/org/yanoproject/api/config/YanoPropertyKeys.java',
+    { repo: 'yano', path: 'node-api/src/main/java/org/yanoproject/api/config/YanoPropertyKeys.java',
       anchors: ['"yano.plugins.directory"'] },
     { repo: 'yano-x', path: 'adr/app-layer/open_item.md',
       anchors: ['Signed manifests/JARs or external deployment attestations and provenance policy.'] },

@@ -1,9 +1,9 @@
 package org.yanoproject.x.stdlib;
 
-import org.yanoproject.api.appchain.proof.ProofSubjectProvider;
-import org.yanoproject.api.appchain.proof.ProofSubjectRegistry;
-import org.yanoproject.x.stdlib.contracts.BalancesContract;
 import org.junit.jupiter.api.Test;
+import org.yanoproject.x.framework.api.appchain.proof.ProofSubjectProvider;
+import org.yanoproject.x.framework.api.appchain.proof.ProofSubjectRegistry;
+import org.yanoproject.x.stdlib.contracts.BalancesContract;
 
 import java.math.BigInteger;
 import java.util.List;

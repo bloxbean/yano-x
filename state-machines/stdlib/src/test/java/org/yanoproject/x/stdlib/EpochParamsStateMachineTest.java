@@ -1,13 +1,13 @@
 package org.yanoproject.x.stdlib;
 
-import org.yanoproject.api.appchain.l1view.L1Observation;
-import org.yanoproject.api.appchain.l1view.ProtocolParamsCanonicalCodec;
-import org.yanoproject.x.stdlib.contracts.EpochParamsContract;
-import org.yanoproject.runtime.appchain.StateMachineConformance;
 import co.nstant.in.cbor.CborEncoder;
 import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.UnsignedInteger;
 import org.junit.jupiter.api.Test;
+import org.yanoproject.x.framework.api.appchain.l1view.L1Observation;
+import org.yanoproject.x.framework.cardano.api.l1view.ProtocolParamsCanonicalCodec;
+import org.yanoproject.x.framework.runtime.appchain.StateMachineConformance;
+import org.yanoproject.x.stdlib.contracts.EpochParamsContract;
 
 import java.util.Map;
 

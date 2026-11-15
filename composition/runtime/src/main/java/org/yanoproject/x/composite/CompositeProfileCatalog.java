@@ -1,6 +1,6 @@
 package org.yanoproject.x.composite;
 
-import org.yanoproject.api.appchain.AppStateMachine;
+import org.yanoproject.x.framework.api.appchain.AppStateMachine;
 
 import java.util.ArrayList;
 import java.util.Collections;

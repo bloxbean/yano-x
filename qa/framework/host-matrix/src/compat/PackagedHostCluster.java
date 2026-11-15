@@ -2,11 +2,6 @@ package compat;
 
 import com.bloxbean.cardano.client.crypto.KeyGenUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.yanoproject.api.appchain.AppChainGateway;
-import org.yanoproject.api.appchain.codec.AppBlockCodec;
-import org.yanoproject.api.appchain.evidence.EvidenceVerifier;
-import org.yanoproject.api.appchain.state.StateCommitmentIdentity;
-import org.yanoproject.api.appchain.state.StateCommitmentProfiles;
 import org.yanoproject.api.config.PluginsOptions;
 import org.yanoproject.api.config.RuntimeMode;
 import org.yanoproject.api.config.RuntimeOptions;
@@ -14,6 +9,11 @@ import org.yanoproject.api.config.YanoConfig;
 import org.yanoproject.runtime.assembly.Yano;
 import org.yanoproject.runtime.assembly.YanoAssembly;
 import org.yanoproject.runtime.plugins.PluginLoaderHandle;
+import org.yanoproject.x.framework.api.appchain.AppChainGateway;
+import org.yanoproject.x.framework.api.appchain.codec.AppBlockCodec;
+import org.yanoproject.x.framework.api.appchain.evidence.EvidenceVerifier;
+import org.yanoproject.x.framework.api.appchain.state.StateCommitmentIdentity;
+import org.yanoproject.x.framework.api.appchain.state.StateCommitmentProfiles;
 
 import java.net.ServerSocket;
 import java.nio.file.Files;
@@ -51,12 +51,12 @@ public final class PackagedHostCluster {
             List<String> originClasses = new ArrayList<>(List.of("org.yanoproject.runtime.assembly.YanoAssembly",
                     "org.yanoproject.api.host.HostApi", "org.yanoproject.api.config.YanoConfig",
                     "org.yanoproject.runtime.plugins.PluginRuntimeEnvironment",
-                    "org.yanoproject.runtime.appchain.AppLedgerRuntime"));
+                    "org.yanoproject.x.framework.runtime.appchain.AppLedgerRuntime"));
             if (cardano) {
                 originClasses.addAll(List.of("org.yanoproject.x.framework.cardano.CardanoAppLedgerPlugin",
-                        "org.yanoproject.x.framework.cardano.CardanoRuntimeServices",
-                        "org.yanoproject.runtime.appchain.AppChainManager",
-                        "org.yanoproject.runtime.appchain.AppChainSubsystem"));
+                        "org.yanoproject.x.framework.cardano.api.CardanoRuntimeServices",
+                        "org.yanoproject.x.framework.cardano.AppChainManager",
+                        "org.yanoproject.x.framework.cardano.AppChainSubsystem"));
             } else {
                 originClasses.add("org.yanoproject.x.framework.standalone.StandaloneAppLedgerPlugin");
             }
@@ -66,7 +66,7 @@ public final class PackagedHostCluster {
             report.put("loadedOrigins", origins);
             List<String> absentClasses = cardano
                     ? List.of("org.yanoproject.x.framework.standalone.StandaloneAppLedgerPlugin")
-                    : List.of("org.yanoproject.runtime.appchain.AppChainSubsystem",
+                    : List.of("org.yanoproject.x.framework.cardano.AppChainSubsystem",
                             "org.yanoproject.x.framework.cardano.CardanoAppLedgerPlugin");
             for (String name : absentClasses) {
                 try { Class.forName(name); throw new AssertionError("Unexpected activation class: " + name); }
@@ -119,7 +119,7 @@ public final class PackagedHostCluster {
             require(node.chain() != null && node.ledger() != null && node.txGateway() != null
                     && node.txEvaluationGateway() != null, "Cardano public handles");
             require(node.appChain().orElseThrow().getClass().getName()
-                    .equals("org.yanoproject.runtime.appchain.AppChainSubsystem"), "Cardano chain assembled");
+                    .equals("org.yanoproject.x.framework.cardano.AppChainSubsystem"), "Cardano chain assembled");
             long managers = node.kernel().orElseThrow().subsystems().stream().filter(subsystem ->
                     subsystem.name().equals("app-chain")).count();
             require(managers == 1, "exactly one Cardano manager lifecycle hook");

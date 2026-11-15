@@ -4,10 +4,10 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
-import org.yanoproject.api.appchain.topics.TopicWire.ActiveRevision;
-import org.yanoproject.api.appchain.topics.TopicWire.EntryRecord;
-import org.yanoproject.api.appchain.topics.TopicWireCodec;
 import org.yanoproject.x.client.Hex;
+import org.yanoproject.x.framework.api.appchain.topics.TopicWire.ActiveRevision;
+import org.yanoproject.x.framework.api.appchain.topics.TopicWire.EntryRecord;
+import org.yanoproject.x.framework.api.appchain.topics.TopicWireCodec;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Map;

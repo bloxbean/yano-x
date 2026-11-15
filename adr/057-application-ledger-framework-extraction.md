@@ -1,20 +1,77 @@
 # ADR-057: Application-ledger framework extraction
 
-Status: accepted for incremental implementation; extraction is incomplete.
+Status: implemented; namespace-compatible host qualification and final coordinated release qualification pending.
 
 Coordinated with [Yano issue #245](https://github.com/bloxbean/yano/issues/245),
 [Yano ADR-063](https://github.com/bloxbean/yano/blob/feat/245-app-ledger-host-api/adr/063-standalone-application-ledger-and-host-api.md)
-and drafts [Yano #246](https://github.com/bloxbean/yano/pull/246) /
+and PRs [Yano #246](https://github.com/bloxbean/yano/pull/246) /
 [X #102](https://github.com/bloxbean/yano-x/pull/102).
 
-Issue #245 supersedes ADR-029's historical leaf-extension-only boundary. X now
-owns the application-ledger framework as well as its optional products. This
-change preserves established Java names, plugin signatures, `yano.app-chain.*`
-configuration, persisted formats and wire encodings. The moved classes retain
-`org.yanoproject.api.appchain` and `org.yanoproject.runtime.appchain` names to
-avoid breaking existing binaries; new product APIs remain under
-`org.yanoproject.x`. This is a specific migration exception to the old namespace
-and leaf-only guidance, not permission to introduce node implementation imports.
+Issue #245 supersedes ADR-029's historical leaf-extension-only boundary. X owns
+its application-ledger framework under `org.yanoproject.x.framework.*`. The
+namespace migration supersedes the initial Java-name preservation decision below.
+It preserves `yano.app-chain.*` configuration and provider IDs, persisted formats,
+wire encodings, consensus hashes, and the existing implementation behavior.
+
+The framework is prerelease. Moving its Java types is an intentional source and
+binary compatibility break: plugins, SDK consumers, embedding applications and
+Yano's integrated host must recompile against the new packages. No forwarding
+classes or duplicate old-package definitions are introduced. Host-owned
+`org.yanoproject.api.*` and `org.yanoproject.runtime.*` contracts retain their
+names, including NodePlugin, host configuration, lifecycle, and operations SPIs.
+Only types owned by X are moved; shared parent package names do not imply ownership.
+
+The generic API is `framework.api.*`; Cardano-specific public contracts are
+`framework.cardano.api.*`; deterministic implementation is `framework.runtime.*`;
+configuration is `framework.config.*`; optional Cardano implementation and checked
+on-chain Java helpers are `framework.cardano.*` and `framework.cardano.onchain.*`.
+The existing `framework.host.*` and `framework.standalone.*` activation roots stay
+in place. All these suffixes are relative to `org.yanoproject.x`.
+
+This requires a new minimum namespace-compatible **host implementation** and a
+new explicitly prepared matrix fixture. The Host API interface/version contract
+itself does not change. Older development host artifacts and frozen fixture JARs
+remain unchanged as historical evidence; their binary compatibility results do
+not qualify the new namespace. Once the new baseline is frozen against exact
+artifacts, later compatible X releases must run against those unchanged host and
+fixture bytes. Baseline and current may initially be the same host; the harness
+must report that honestly rather than invent older support.
+
+`verifyFrameworkPackageOwnership`, included in `frameworkCheck` and `check`,
+inspects each framework module's own JAR for its designated package ownership and
+duplicate definitions. Dependency JARs are not misclassified as framework-owned.
+Bundle checks exclude both host and X API definitions while preserving the exact
+service descriptor owners. The implementation history below records superseded
+prerelease milestones; its old-name and frozen-client claims apply only to the
+candidate versions named there.
+
+
+### Test ownership after the namespace migration
+
+Tests follow the implementation owner. Pure engine, storage, effects, snapshot,
+wire, observer, and anchoring tests live in the relevant X `framework/core` or
+`framework/cardano` source sets. Mixed tests that exercise Yano assembly, catalog,
+HTTP, host lifecycle, or integrated node behavior remain in Yano and consume the
+published framework APIs; test packages do not create new production ownership.
+
+`frameworkCheck` remains a foundation-only gate. It runs framework unit tests,
+wire/format vectors, actual core dependency closure verification, and package
+ownership checks without resolving `yano-runtime`. The Cardano `integrationTest`
+source set owns `L1DeliveryLoopTest` and `ScriptAnchorServiceTest`, which need the
+real selected Yano chain reader/block builder and protocol-parameter mapping.
+That source set resolves the exact external `yanoVersion` runtime artifact and
+loads its complete protocol-parameter fixture from resources with recorded origin
+and checksum. It has no sibling checkout or generated-file dependency. Normal
+`check` includes this Cardano integration task; configuration-only probes and
+`frameworkCheck` do not run it or resolve its host classpath.
+
+The core's existing Gradle `java-test-fixtures` mechanism publishes the test-only
+setup and fault-injection classifier used by Cardano and Yano tests. Its narrow
+factories reach package-private constructors and store hooks without promoting
+those internals to runtime API. It is not a new module or production component.
+Production visibility is expanded only where the separate Cardano implementation
+actually collaborates with the generic core. Child-JVM test classpaths are resolved
+inside task execution, preserving configuration-only and foundation staging.
 
 The first milestone adds three inventoried libraries:
 

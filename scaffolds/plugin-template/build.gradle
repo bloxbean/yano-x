@@ -102,9 +102,9 @@ tasks.register('verifyPluginJar') {
         def archive = tasks.named('jar').get().archiveFile.get().asFile
         def contents = zipTree(archive)
         def stateMachineServicePath = 'META-INF/services/' +
-                'org.yanoproject.api.appchain.AppStateMachineProvider'
+                'org.yanoproject.x.framework.api.appchain.AppStateMachineProvider'
         def domainApiServicePath = 'META-INF/services/' +
-                'org.yanoproject.api.plugin.domain.DomainApiProvider'
+                'org.yanoproject.x.framework.api.plugin.domain.DomainApiProvider'
         def healthServicePath = 'META-INF/services/' +
                 'org.yanoproject.api.plugin.operations.PluginHealthProvider'
         def metricsServicePath = 'META-INF/services/' +

@@ -1,6 +1,5 @@
 package org.yanoproject.x.stdlib;
 
-import org.yanoproject.api.appchain.AppStateMachineContext;
 import org.yanoproject.x.composite.ComponentDescriptor;
 import org.yanoproject.x.composite.ComponentGeneration;
 import org.yanoproject.x.composite.ComposableAppStateMachine;
@@ -8,6 +7,7 @@ import org.yanoproject.x.composite.CompositeStateMachine;
 import org.yanoproject.x.composite.CompositeWorkflow;
 import org.yanoproject.x.composite.LegacyQueryAlias;
 import org.yanoproject.x.composite.WorkflowDescriptor;
+import org.yanoproject.x.framework.api.appchain.AppStateMachineContext;
 import org.yanoproject.x.roles.DomainActorRegistryComponent;
 import org.yanoproject.x.roles.GovernedRoleApprovalWorkflow;
 import org.yanoproject.x.roles.RoleAwareApprovalsComponent;

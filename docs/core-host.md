@@ -15,9 +15,10 @@ callbacks finish before the host invokes framework assembly, and assembly
 finishes before sessions can start.
 
 The integrated Yano distribution continues to bundle compatible framework
-artifacts. Existing `yano.app-chain.*` properties, public package names, provider
-identifiers, observer signatures, consensus hashes and storage formats remain
-compatible. The Cardano root retains the existing observer/anchor services;
+artifacts. Existing `yano.app-chain.*` properties, provider identifiers,
+consensus hashes and storage formats remain compatible. Framework Java types
+now use `org.yanoproject.x.framework.*`; plugins and embedding clients must
+recompile. Host-owned node and plugin SPI packages remain unchanged. The Cardano root retains the existing observer/anchor services;
 the standalone root uses the same core without Cardano runtime activation.
 Standalone app-ledger mode requires fresh standalone genesis and explicitly
 rejects L1-dependent settings. Application finality and state proofs do not by
@@ -28,7 +29,10 @@ artifacts and restart against an unchanged supported Yano host. Do not overlay
 new engine classes on an older integrated uber-JAR. The
 [packaged compatibility matrix](../qa/framework/host-matrix/README.md) freezes a
 compiled client and host artifact hashes, then tests later X versions on that
-oldest host as well as the current host. A new host capability may require a
+oldest namespace-compatible host as well as the current host. The namespace
+migration requires a new host implementation baseline and a newly frozen client;
+historical old-package fixtures remain evidence for their original candidates.
+This package migration does not change the Host API version. A new host capability may require a
 higher Host API level; consensus changes may separately require coordinated
 application-node upgrades.
 
@@ -37,7 +41,7 @@ module boundaries and the single coordinated release plan with
 [Yano issue #245](https://github.com/bloxbean/yano/issues/245).
 
 The prerelease `yano-core-api` aggregate has been removed. Application contracts are
-owned by `org.yanoproject.x:yano-x-appchain-api`; the legacy Cardano application
+owned by `org.yanoproject.x:yano-x-appchain-api`; the Cardano application
 contracts are in `yano-x-appchain-cardano-api`. Host/plugin contracts remain in
 `org.yanoproject:yano-node-api`, and Cardano-specific host contracts remain in
 `yano-cardano-api`. Shared plugin hooks keep their existing node-api ownership.

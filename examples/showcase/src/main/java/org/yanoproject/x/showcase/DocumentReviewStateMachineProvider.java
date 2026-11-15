@@ -1,8 +1,8 @@
 package org.yanoproject.x.showcase;
 
-import org.yanoproject.api.appchain.AppStateMachine;
-import org.yanoproject.api.appchain.AppStateMachineContext;
-import org.yanoproject.api.appchain.AppStateMachineProvider;
+import org.yanoproject.x.framework.api.appchain.AppStateMachine;
+import org.yanoproject.x.framework.api.appchain.AppStateMachineContext;
+import org.yanoproject.x.framework.api.appchain.AppStateMachineProvider;
 
 /** Demo provider for document trail + domain actors + role-aware approval composition. */
 public final class DocumentReviewStateMachineProvider implements AppStateMachineProvider {

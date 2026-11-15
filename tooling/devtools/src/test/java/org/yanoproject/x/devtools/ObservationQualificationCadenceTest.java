@@ -2,8 +2,8 @@ package org.yanoproject.x.devtools;
 
 import com.bloxbean.cardano.client.crypto.KeyGenUtil;
 import com.bloxbean.cardano.client.crypto.config.CryptoConfiguration;
-import org.yanoproject.api.appchain.observation.ObservationReport;
 import org.junit.jupiter.api.Test;
+import org.yanoproject.x.framework.api.appchain.observation.ObservationReport;
 
 import java.util.HashSet;
 

@@ -1,15 +1,10 @@
 package org.yanoproject.x.devtools;
 
 import org.junit.jupiter.api.Test;
-import org.yanoproject.api.appchain.transition.CommandDescriptor;
-import org.yanoproject.api.appchain.transition.ConfigurationDescriptor;
-import org.yanoproject.api.appchain.transition.RuleFact;
-import org.yanoproject.api.appchain.transition.TransitionScalars;
 import org.yanoproject.x.composite.contracts.BindingExpressionV1.Call;
 import org.yanoproject.x.composite.contracts.BindingExpressionV1.Field;
 import org.yanoproject.x.composite.contracts.BindingExpressionV1.Scope;
 import org.yanoproject.x.composite.contracts.BindingExpressionV1.Type;
-import org.yanoproject.x.composite.contracts.BindingIrV1;
 import org.yanoproject.x.composite.contracts.BindingIrV1.AdmissionRule;
 import org.yanoproject.x.composite.contracts.BindingIrV1.Component;
 import org.yanoproject.x.composite.contracts.BindingIrV1.Expectation;
@@ -18,7 +13,12 @@ import org.yanoproject.x.composite.contracts.BindingIrV1.LookupClause;
 import org.yanoproject.x.composite.contracts.BindingIrV1.Parameter;
 import org.yanoproject.x.composite.contracts.BindingIrV1.ParameterType;
 import org.yanoproject.x.composite.contracts.BindingIrV1.RuleAttachment;
+import org.yanoproject.x.composite.contracts.BindingIrV1;
 import org.yanoproject.x.composite.contracts.BindingSourceV1;
+import org.yanoproject.x.framework.api.appchain.transition.CommandDescriptor;
+import org.yanoproject.x.framework.api.appchain.transition.ConfigurationDescriptor;
+import org.yanoproject.x.framework.api.appchain.transition.RuleFact;
+import org.yanoproject.x.framework.api.appchain.transition.TransitionScalars;
 
 import java.util.List;
 import java.util.Map;

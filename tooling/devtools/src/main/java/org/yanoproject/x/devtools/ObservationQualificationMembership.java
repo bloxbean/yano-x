@@ -3,13 +3,13 @@ package org.yanoproject.x.devtools;
 import com.bloxbean.cardano.client.crypto.KeyGenUtil;
 import com.bloxbean.cardano.client.crypto.config.CryptoConfiguration;
 import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
-import org.yanoproject.api.appchain.observation.ObservationProfileV1;
-import org.yanoproject.api.appchain.observation.ObservationResult;
-import org.yanoproject.api.appchain.observation.ObservationResultStatus;
-import org.yanoproject.api.appchain.transition.FinalizedBlockMessageRootIndex;
-import org.yanoproject.x.client.AppChainClient;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.yanoproject.x.client.AppChainClient;
+import org.yanoproject.x.framework.api.appchain.observation.ObservationProfileV1;
+import org.yanoproject.x.framework.api.appchain.observation.ObservationResult;
+import org.yanoproject.x.framework.api.appchain.observation.ObservationResultStatus;
+import org.yanoproject.x.framework.api.appchain.transition.FinalizedBlockMessageRootIndex;
 
 import java.io.IOException;
 import java.net.URI;

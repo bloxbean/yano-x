@@ -709,7 +709,7 @@ non-member business actors. The evidence-profile bundle supplies the complete
 `role-evidence` preset; see
 [Domain Actors and Role-Aware Approvals](APP_CHAIN_DOMAIN_ROLES.md).
 For everything else, implement
-`org.yanoproject.api.appchain.AppStateMachine`:
+`org.yanoproject.x.framework.api.appchain.AppStateMachine`:
 
 ```java
 public class OrderBookStateMachine implements AppStateMachine {
@@ -768,7 +768,7 @@ The plugin template ships this test pre-wired (`CounterConformanceTest`).
    }
    ```
 2. Add the ServiceLoader entry to your jar:
-   `META-INF/services/org.yanoproject.api.appchain.AppStateMachineProvider`
+   `META-INF/services/org.yanoproject.x.framework.api.appchain.AppStateMachineProvider`
    containing the provider class name.
 3. Add the bundle manifest
    `META-INF/yano/plugins/<bundle-id>.json`; its contribution kind, name and
@@ -816,7 +816,7 @@ closure must agree; the bundle must not embed host SPI classes.
 ### 6.2 Embed programmatically (library mode)
 
 For fully custom nodes, `AppChainSubsystem` (module `runtime`,
-`org.yanoproject.runtime.appchain`) is a public kernel `Subsystem`
+`org.yanoproject.x.framework.cardano`) is a public kernel `Subsystem`
 whose constructor accepts your `AppStateMachine` instance directly. A
 first-class `YanoAssembly.appChain(spec)` builder is planned; until then the
 plugin-jar route is the recommended packaging for custom chains.
@@ -1998,7 +1998,7 @@ public class CredentialExecutorFactory implements AppEffectExecutorFactory {
 ```
 
 Register it via
-`META-INF/services/org.yanoproject.api.appchain.effects.AppEffectExecutorFactory`
+`META-INF/services/org.yanoproject.x.framework.cardano.api.effects.AppEffectExecutorFactory`
 (one line: the factory's fully-qualified name), and add
 `META-INF/yano/plugins/com.example.credential.json`:
 

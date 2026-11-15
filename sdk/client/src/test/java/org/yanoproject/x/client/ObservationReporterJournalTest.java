@@ -1,12 +1,12 @@
 package org.yanoproject.x.client;
 
-import org.yanoproject.api.appchain.observation.ObservationAnchorType;
-import org.yanoproject.api.appchain.observation.ObservationFixedPoint;
-import org.yanoproject.api.appchain.observation.ObservationReport;
-import org.yanoproject.api.appchain.observation.ObservationReporterMode;
-import org.yanoproject.api.appchain.observation.ObservationRound;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.yanoproject.x.framework.api.appchain.observation.ObservationAnchorType;
+import org.yanoproject.x.framework.api.appchain.observation.ObservationFixedPoint;
+import org.yanoproject.x.framework.api.appchain.observation.ObservationReport;
+import org.yanoproject.x.framework.api.appchain.observation.ObservationReporterMode;
+import org.yanoproject.x.framework.api.appchain.observation.ObservationRound;
 
 import java.io.IOException;
 import java.math.BigInteger;

@@ -1,5 +1,7 @@
 package org.yanoproject.x.composite;
 
+import org.yanoproject.x.framework.api.appchain.l1view.L1Observation;
+
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 import java.util.regex.Pattern;
@@ -37,8 +39,7 @@ final class CompositeValidation {
     static String route(String value, String field) {
         printable(value, field);
         if (value.startsWith("~")) {
-            String l1Prefix = org.yanoproject.api.appchain.l1view
-                    .L1Observation.TOPIC_PREFIX;
+            String l1Prefix = L1Observation.TOPIC_PREFIX;
             boolean topicField = field.toLowerCase(java.util.Locale.ROOT).contains("topic");
             boolean declaredL1Observer = topicField
                     && value.startsWith(l1Prefix)

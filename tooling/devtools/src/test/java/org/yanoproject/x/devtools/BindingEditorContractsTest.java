@@ -2,11 +2,11 @@ package org.yanoproject.x.devtools;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import org.yanoproject.api.appchain.transition.ConfigurationDescriptor;
-import org.yanoproject.api.appchain.transition.TransitionScalars;
 import org.yanoproject.x.composite.contracts.BindingExpressionV1.Type;
 import org.yanoproject.x.composite.contracts.BindingIrV1.Component;
 import org.yanoproject.x.composite.contracts.BindingReceiptV1;
+import org.yanoproject.x.framework.api.appchain.transition.ConfigurationDescriptor;
+import org.yanoproject.x.framework.api.appchain.transition.TransitionScalars;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;

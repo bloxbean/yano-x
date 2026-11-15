@@ -1,17 +1,17 @@
 package org.yanoproject.x.composite.bindings;
 
 import org.junit.jupiter.api.Test;
-import org.yanoproject.api.appchain.transition.CommandDescriptor;
-import org.yanoproject.api.appchain.transition.TransitionScalars;
 import org.yanoproject.x.composite.contracts.BindingCbor;
-import org.yanoproject.x.composite.contracts.BindingExpressionV1;
 import org.yanoproject.x.composite.contracts.BindingExpressionV1.Call;
 import org.yanoproject.x.composite.contracts.BindingExpressionV1.Field;
 import org.yanoproject.x.composite.contracts.BindingExpressionV1.Literal;
 import org.yanoproject.x.composite.contracts.BindingExpressionV1.Scope;
 import org.yanoproject.x.composite.contracts.BindingExpressionV1.Type;
+import org.yanoproject.x.composite.contracts.BindingExpressionV1;
 import org.yanoproject.x.composite.contracts.BindingIrV1;
 import org.yanoproject.x.composite.contracts.BindingSourceV1;
+import org.yanoproject.x.framework.api.appchain.transition.CommandDescriptor;
+import org.yanoproject.x.framework.api.appchain.transition.TransitionScalars;
 
 import java.util.Arrays;
 import java.util.List;

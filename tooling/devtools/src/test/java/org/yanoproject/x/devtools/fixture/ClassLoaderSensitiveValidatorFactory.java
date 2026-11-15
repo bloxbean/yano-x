@@ -1,9 +1,9 @@
 package org.yanoproject.x.devtools.fixture;
 
-import org.yanoproject.api.appchain.authmap.AuthenticatedMapValueValidator;
-import org.yanoproject.api.appchain.authmap.AuthenticatedMapValueValidatorFactory;
-import org.yanoproject.api.appchain.authmap.ValidatorInitContext;
-import org.yanoproject.api.appchain.authmap.ValidatorVerdict;
+import org.yanoproject.x.framework.api.appchain.authmap.AuthenticatedMapValueValidator;
+import org.yanoproject.x.framework.api.appchain.authmap.AuthenticatedMapValueValidatorFactory;
+import org.yanoproject.x.framework.api.appchain.authmap.ValidatorInitContext;
+import org.yanoproject.x.framework.api.appchain.authmap.ValidatorVerdict;
 
 /** Deliberately invalid fixture whose verdict depends on an ambient class-loader resource. */
 public final class ClassLoaderSensitiveValidatorFactory

@@ -1,9 +1,9 @@
 package org.yanoproject.x.evidence.profile;
 
-import org.yanoproject.api.appchain.AppStateMachine;
-import org.yanoproject.api.appchain.AppStateMachineContext;
-import org.yanoproject.api.appchain.AppStateMachineProvider;
 import org.yanoproject.x.composite.CompositeStateMachine;
+import org.yanoproject.x.framework.api.appchain.AppStateMachine;
+import org.yanoproject.x.framework.api.appchain.AppStateMachineContext;
+import org.yanoproject.x.framework.api.appchain.AppStateMachineProvider;
 
 /** Manifested provider for the configuration-only stock composite presets. */
 public final class EvidenceCompositeStateMachineProvider implements AppStateMachineProvider {

@@ -1,7 +1,7 @@
 package org.yanoproject.x.roles.internal;
 
-import org.yanoproject.api.appchain.AppStateReader;
-import org.yanoproject.api.appchain.AppStateWriter;
+import org.yanoproject.x.framework.api.appchain.AppStateReader;
+import org.yanoproject.x.framework.api.appchain.AppStateWriter;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;

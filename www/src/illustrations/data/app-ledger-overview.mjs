@@ -156,6 +156,6 @@ export default {
     { repo: 'yano', path: 'docs/APP_CHAIN_CONSENSUS_GUIDE.md', anchors: ['APP_FINAL', 'stateRoot', 'messagesRoot'] },
     { repo: 'yano-x', path: 'docs/appchain/OPTIONAL_CONNECTORS.md',
       anchors: ['`executor:kafka`', '`executor:objectstore-s3`', '`executor:ipfs`', '`executor:cardano-payment`'] },
-    { repo: 'yano', path: 'core-api/src/main/java/org/yanoproject/api/appchain/AppChainConfig.java', anchors: ['MAX_MEMBERS = 32'] },
+    { repo: 'yano-x', path: 'framework/api/src/main/java/org/yanoproject/x/framework/api/appchain/AppChainConfig.java', anchors: ['MAX_MEMBERS = 32'] },
   ],
 };

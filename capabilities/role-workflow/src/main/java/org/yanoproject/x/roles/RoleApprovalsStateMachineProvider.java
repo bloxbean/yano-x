@@ -1,8 +1,8 @@
 package org.yanoproject.x.roles;
 
-import org.yanoproject.api.appchain.AppStateMachine;
-import org.yanoproject.api.appchain.AppStateMachineContext;
-import org.yanoproject.api.appchain.AppStateMachineProvider;
+import org.yanoproject.x.framework.api.appchain.AppStateMachine;
+import org.yanoproject.x.framework.api.appchain.AppStateMachineContext;
+import org.yanoproject.x.framework.api.appchain.AppStateMachineProvider;
 
 /** Stock provider for domain actors and role-gated payload approvals. */
 public final class RoleApprovalsStateMachineProvider implements AppStateMachineProvider {

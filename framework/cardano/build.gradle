@@ -1,6 +1,7 @@
 description = 'Optional Cardano integration and compatible application-ledger runtime'
 
 dependencies {
+    testImplementation(testFixtures(project(':framework:core')))
     api project(':framework:core')
     api project(':framework:cardano-api')
     implementation project(':framework:host-adapter')
@@ -28,3 +29,11 @@ tasks.named('processResources') {
         expand(pluginVersion: project.version.toString())
     }
 }
+
+// Exercises Cardano delivery against the real selected host's chain reader and
+// block builder; kept out of foundation-only frameworkCheck and unit tests.
+dependencies {
+    integrationTestImplementation "org.yanoproject:yano-runtime:${providers.gradleProperty('yanoVersion').get()}"
+    integrationTestImplementation testFixtures(project(':framework:core'))
+}
+tasks.named('check') { dependsOn tasks.named('integrationTest') }

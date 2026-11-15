@@ -1,16 +1,17 @@
 package org.yanoproject.x.composite;
 
 import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
-import org.yanoproject.api.appchain.AppBlock;
-import org.yanoproject.api.appchain.AppChainMembershipEpoch;
-import org.yanoproject.api.appchain.AppChainMembershipView;
-import org.yanoproject.api.appchain.AppStateReader;
-import org.yanoproject.api.appchain.AppStateWriter;
-import org.yanoproject.api.appchain.codec.internal.CborStructurePreflight;
 import org.yanoproject.x.composite.contracts.CompositeCommitmentV1;
 import org.yanoproject.x.composite.contracts.CompositeGovernanceStatusV1;
 import org.yanoproject.x.composite.contracts.CompositeProfileEpochV1;
 import org.yanoproject.x.composite.contracts.CompositeProfileGovernanceV1;
+import org.yanoproject.x.framework.api.appchain.AppBlock;
+import org.yanoproject.x.framework.api.appchain.AppChainMembershipEpoch;
+import org.yanoproject.x.framework.api.appchain.AppChainMembershipView;
+import org.yanoproject.x.framework.api.appchain.AppQueryException;
+import org.yanoproject.x.framework.api.appchain.AppStateReader;
+import org.yanoproject.x.framework.api.appchain.AppStateWriter;
+import org.yanoproject.x.framework.api.appchain.codec.internal.CborStructurePreflight;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -24,10 +25,10 @@ import java.util.Arrays;
 import java.util.HexFormat;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.Map;
 
 /** Deterministic authenticated state protocol for ADR-015 profile epochs. */
 final class CompositeProfileGovernanceRuntime {
@@ -249,13 +250,13 @@ final class CompositeProfileGovernanceRuntime {
         } else if (params.length == Long.BYTES) {
             number = ByteBuffer.wrap(params).getLong();
             if (number < 0 || number > currentEpoch(state)) {
-                throw new org.yanoproject.api.appchain.AppQueryException(
-                        org.yanoproject.api.appchain.AppQueryException.Code.INVALID_REQUEST,
+                throw new AppQueryException(
+                        AppQueryException.Code.INVALID_REQUEST,
                         "profile epoch is outside retained history");
             }
         } else {
-            throw new org.yanoproject.api.appchain.AppQueryException(
-                    org.yanoproject.api.appchain.AppQueryException.Code.INVALID_REQUEST,
+            throw new AppQueryException(
+                    AppQueryException.Code.INVALID_REQUEST,
                     "profile epoch query expects zero or eight bytes");
         }
         return epoch(state, number).encode();

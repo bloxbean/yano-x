@@ -7,11 +7,11 @@ import com.bloxbean.cardano.yaci.core.model.Amount;
 import com.bloxbean.cardano.yaci.core.model.Block;
 import com.bloxbean.cardano.yaci.core.model.TransactionBody;
 import com.bloxbean.cardano.yaci.core.model.TransactionOutput;
-import org.yanoproject.api.appchain.l1view.L1Observation;
+import org.junit.jupiter.api.Test;
 import org.yanoproject.x.eutxo.contracts.EutxoBatchSettlementMarker;
 import org.yanoproject.x.eutxo.contracts.EutxoBatchWithdrawalConfirmation;
 import org.yanoproject.x.eutxo.testkit.EutxoTestWallet;
-import org.junit.jupiter.api.Test;
+import org.yanoproject.x.framework.api.appchain.l1view.L1Observation;
 
 import java.math.BigInteger;
 import java.util.ArrayList;

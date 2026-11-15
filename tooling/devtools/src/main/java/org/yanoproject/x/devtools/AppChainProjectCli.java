@@ -1,8 +1,10 @@
 package org.yanoproject.x.devtools;
 
-import org.yanoproject.appchain.config.AppChainPropertyRegistry;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.yanoproject.x.framework.config.AppChainMetadataDescriptor;
+import org.yanoproject.x.framework.config.AppChainMetadataSource;
+import org.yanoproject.x.framework.config.AppChainPropertyRegistry;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -11,8 +13,8 @@ import java.io.PrintWriter;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.file.FileVisitResult;
-import java.nio.file.InvalidPathException;
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
@@ -64,9 +66,9 @@ final class AppChainProjectCli {
     }
 
     static AppChainPropertyRegistry builtInRegistry() throws IOException {
-        List<org.yanoproject.appchain.config.AppChainMetadataSource> sources =
+        List<AppChainMetadataSource> sources =
                 new AppChainDescriptorLoader().loadBuiltInMetadata().stream()
-                        .map(org.yanoproject.appchain.config.AppChainMetadataDescriptor::toSource)
+                        .map(AppChainMetadataDescriptor::toSource)
                         .toList();
         return AppChainPropertyRegistry.withSources(sources);
     }

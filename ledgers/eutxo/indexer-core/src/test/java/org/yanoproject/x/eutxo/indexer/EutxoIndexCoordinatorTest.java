@@ -1,15 +1,15 @@
 package org.yanoproject.x.eutxo.indexer;
 
 import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
-import org.yanoproject.api.appchain.AppBlock;
-import org.yanoproject.api.plugin.domain.FinalizedChainView;
-import org.yanoproject.api.appchain.AppQueryResult;
-import org.yanoproject.api.appchain.FinalityCert;
+import org.junit.jupiter.api.Test;
 import org.yanoproject.x.eutxo.contracts.EutxoQueryCodec;
 import org.yanoproject.x.eutxo.contracts.EutxoTransactionSummary;
 import org.yanoproject.x.eutxo.indexer.memory.InMemoryEutxoIndexStore;
 import org.yanoproject.x.eutxo.indexer.testing.EutxoIndexFixtures;
-import org.junit.jupiter.api.Test;
+import org.yanoproject.x.framework.api.appchain.AppBlock;
+import org.yanoproject.x.framework.api.appchain.AppQueryResult;
+import org.yanoproject.x.framework.api.appchain.FinalityCert;
+import org.yanoproject.x.framework.api.plugin.domain.FinalizedChainView;
 
 import java.lang.reflect.Proxy;
 import java.util.HexFormat;
@@ -295,7 +295,7 @@ class EutxoIndexCoordinatorTest {
                 HexFormat.of().parseHex(
                         EutxoIndexFixtures.hex(100 + height)),
                 1_000 + height,
-                org.yanoproject.api.appchain.codec.AppBlockCodec
+                org.yanoproject.x.framework.api.appchain.codec.AppBlockCodec
                         .messagesRoot(messages),
                 new byte[32],
                 messages,

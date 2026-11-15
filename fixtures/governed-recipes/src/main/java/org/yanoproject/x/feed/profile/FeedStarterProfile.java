@@ -1,10 +1,10 @@
 package org.yanoproject.x.feed.profile;
 
+import org.yanoproject.x.framework.api.appchain.schema.CborSchema;
 import org.yanoproject.x.roles.contracts.ApprovalPolicyV1;
 import org.yanoproject.x.roles.contracts.DirectRolePolicyV1;
 import org.yanoproject.x.roles.contracts.RecordStatus;
 import org.yanoproject.x.stdlib.contracts.AuthenticatedMapContract;
-import org.yanoproject.api.appchain.schema.CborSchema;
 
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;

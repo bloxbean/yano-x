@@ -1,12 +1,12 @@
 package org.yanoproject.x.devtools;
 
 import org.junit.jupiter.api.Test;
-import org.yanoproject.api.appchain.topics.TopicWireCodec;
-import org.yanoproject.api.appchain.transition.CommandDescriptor;
-import org.yanoproject.api.appchain.transition.ConfigurationDescriptor;
 import org.yanoproject.x.composite.contracts.BindingExpressionV1.Scope;
 import org.yanoproject.x.composite.contracts.BindingExpressionV1.Type;
 import org.yanoproject.x.composite.contracts.BindingIrV1;
+import org.yanoproject.x.framework.api.appchain.topics.TopicWireCodec;
+import org.yanoproject.x.framework.api.appchain.transition.CommandDescriptor;
+import org.yanoproject.x.framework.api.appchain.transition.ConfigurationDescriptor;
 
 import java.util.HexFormat;
 import java.util.List;

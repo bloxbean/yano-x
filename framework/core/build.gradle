@@ -1,4 +1,14 @@
+plugins { id 'java-test-fixtures' }
+
 description = 'Application-ledger consensus, storage and deterministic execution core'
+
+// Crash-recovery probes launch a child JVM with the same resolved test inputs.
+tasks.withType(Test).configureEach {
+    doFirst {
+        systemProperty 'yano.test.runtime-classpath', classpath.asPath
+    }
+}
+
 dependencies {
     api project(':framework:api')
     // appOnly is newer than the Yaci API exposed by the oldest supported host.
@@ -52,3 +62,42 @@ tasks.register('verifyFrameworkBoundary') {
     }
 }
 tasks.named('check') { dependsOn 'verifyFrameworkBoundary' }
+
+tasks.register('benchmarkAdr025ClassicJmtRuntime', JavaExec) {
+    group = 'verification'
+    description = 'Runs the ADR-025 Phase 3 durable classic-JMT runtime benchmark'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'org.yanoproject.x.framework.runtime.appchain.ClassicJmtRuntimeBenchmark'
+    def report = layout.buildDirectory.file('reports/adr025/phase3-classic-jmt-runtime.json')
+    args report.get().asFile.absolutePath,
+            providers.gradleProperty('adr025RuntimeKeys').getOrElse('100000'),
+            providers.gradleProperty('adr025RuntimeBatch').getOrElse('100'),
+            providers.gradleProperty('adr025RuntimeProofs').getOrElse('128')
+    outputs.file(report)
+}
+
+['Mpf': 'mpf-blake2b256-v1', 'Jmt': 'jmt-blake2b256-v1'].each { suffix, profile ->
+    tasks.register("benchmarkAdr028AuthenticatedSnapshot${suffix}", JavaExec) {
+        group = 'verification'
+        description = "Runs the ADR-028 M8 ${profile} logical-snapshot benchmark"
+        dependsOn tasks.named('testClasses')
+        classpath = sourceSets.test.runtimeClasspath
+        mainClass = 'org.yanoproject.x.framework.runtime.appchain.AuthenticatedSnapshotBenchmark'
+        maxHeapSize = '6g'
+        def report = rootProject.layout.projectDirectory.file(
+                "adr/app-layer/benchmarks/028-m8-authenticated-snapshot-${suffix.toLowerCase()}.json")
+        args report.asFile.absolutePath, profile,
+                providers.gradleProperty('adr028SnapshotEntries').getOrElse('1300000'),
+                providers.gradleProperty('adr028SnapshotProofs').getOrElse('4096'),
+                providers.gradleProperty('adr028SnapshotClients').getOrElse('32')
+        outputs.file(report)
+    }
+}
+
+dependencies {
+    testFixturesApi libs.rocksdb
+    testFixturesApi libs.jackson.databind
+    testFixturesApi(libs.yaci.core) { exclude group: 'com.bloxbean.cardano', module: 'cardano-client-core' }
+    testFixturesApi libs.slf4j.api
+}

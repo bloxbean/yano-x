@@ -39,7 +39,8 @@ tasks.named('shadowJar') {
     reproducibleFileOrder = true
     preserveFileTimestamps = false
     mergeServiceFiles()
-    exclude 'org/yanoproject/api/**'
+    exclude 'org/yanoproject/api/**', 'org/yanoproject/x/framework/api/**',
+            'org/yanoproject/x/framework/cardano/api/**'
     exclude 'META-INF/*.SF', 'META-INF/*.RSA', 'META-INF/*.DSA', 'module-info.class'
 }
 

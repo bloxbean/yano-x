@@ -1,7 +1,7 @@
 package org.yanoproject.x.dpp.profile;
 
-import org.yanoproject.api.appchain.schema.CborSchema;
 import org.junit.jupiter.api.Test;
+import org.yanoproject.x.framework.api.appchain.schema.CborSchema;
 
 import java.nio.charset.StandardCharsets;
 import java.util.HexFormat;

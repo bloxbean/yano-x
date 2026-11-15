@@ -1,10 +1,10 @@
 package org.yanoproject.x.stdlib;
 
 import org.junit.jupiter.api.Test;
-import org.yanoproject.api.appchain.transition.StateMutation;
-import org.yanoproject.api.appchain.transition.TransitionContext;
-import org.yanoproject.api.appchain.transition.TransitionDecision;
-import org.yanoproject.api.appchain.transition.TransitionScalars;
+import org.yanoproject.x.framework.api.appchain.transition.StateMutation;
+import org.yanoproject.x.framework.api.appchain.transition.TransitionContext;
+import org.yanoproject.x.framework.api.appchain.transition.TransitionDecision;
+import org.yanoproject.x.framework.api.appchain.transition.TransitionScalars;
 import org.yanoproject.x.stdlib.contracts.BalancesContract;
 
 import java.math.BigInteger;

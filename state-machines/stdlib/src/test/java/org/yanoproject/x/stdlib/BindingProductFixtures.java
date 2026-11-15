@@ -1,7 +1,6 @@
 package org.yanoproject.x.stdlib;
 
 import com.bloxbean.cardano.client.crypto.KeyGenUtil;
-import org.yanoproject.api.appchain.AppChainConfig;
 import org.yanoproject.x.composite.bindings.DeclarativeCompositeProvider;
 import org.yanoproject.x.composite.contracts.BindingIrV1;
 import org.yanoproject.x.composite.contracts.BindingSourceV1;
@@ -12,6 +11,7 @@ import org.yanoproject.x.feed.profile.Aggregation;
 import org.yanoproject.x.feed.profile.FeedGenesis;
 import org.yanoproject.x.feed.profile.FeedStarterProfile;
 import org.yanoproject.x.feed.profile.FeedValues;
+import org.yanoproject.x.framework.api.appchain.AppChainConfig;
 import org.yanoproject.x.roles.DeclarativeRoleProviders;
 import org.yanoproject.x.stdlib.contracts.AuthenticatedMapContract;
 import org.yanoproject.x.trust.profile.TrustRegistryGenesis;

@@ -1,6 +1,8 @@
 package org.yanoproject.x.roles;
 
-import org.yanoproject.api.appchain.AppStateWriter;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.yanoproject.x.framework.api.appchain.AppStateWriter;
 import org.yanoproject.x.roles.contracts.ActorKeyEpochV1;
 import org.yanoproject.x.roles.contracts.ActorRecordV1;
 import org.yanoproject.x.roles.contracts.ApprovalPolicyV1;
@@ -11,8 +13,6 @@ import org.yanoproject.x.roles.contracts.DirectRolePolicyV1;
 import org.yanoproject.x.roles.contracts.OrganizationRecordV1;
 import org.yanoproject.x.roles.contracts.RecordStatus;
 import org.yanoproject.x.roles.contracts.RoleWorkflowKeys;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
 
 import java.nio.ByteBuffer;
 import java.util.Arrays;

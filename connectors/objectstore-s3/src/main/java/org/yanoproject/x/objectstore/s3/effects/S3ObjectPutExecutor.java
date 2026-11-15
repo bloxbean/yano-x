@@ -1,11 +1,11 @@
 package org.yanoproject.x.objectstore.s3.effects;
 
-import org.yanoproject.api.appchain.effects.AppEffectExecutor;
-import org.yanoproject.api.appchain.effects.EffectExecution;
-import org.yanoproject.api.appchain.effects.EffectExecutionContext;
-import org.yanoproject.api.appchain.effects.EffectExecutorOperationalSnapshot;
-import org.yanoproject.api.appchain.effects.EffectExecutorOperationsTracker;
-import org.yanoproject.api.appchain.effects.PendingEffect;
+import org.yanoproject.x.framework.api.appchain.effects.AppEffectExecutor;
+import org.yanoproject.x.framework.api.appchain.effects.EffectExecution;
+import org.yanoproject.x.framework.api.appchain.effects.EffectExecutionContext;
+import org.yanoproject.x.framework.api.appchain.effects.EffectExecutorOperationalSnapshot;
+import org.yanoproject.x.framework.api.appchain.effects.EffectExecutorOperationsTracker;
+import org.yanoproject.x.framework.api.appchain.effects.PendingEffect;
 import org.yanoproject.x.integration.ConnectorContractException;
 import org.yanoproject.x.integration.ConnectorErrorCode;
 import org.yanoproject.x.integration.ConnectorTypes;

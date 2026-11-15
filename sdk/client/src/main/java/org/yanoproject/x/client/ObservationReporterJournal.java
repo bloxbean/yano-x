@@ -1,14 +1,14 @@
 package org.yanoproject.x.client;
 
-import org.yanoproject.api.appchain.observation.ObservationHashes;
-import org.yanoproject.api.appchain.observation.ObservationReport;
-import org.yanoproject.api.appchain.observation.ObservationRound;
+import org.yanoproject.x.framework.api.appchain.observation.ObservationHashes;
+import org.yanoproject.x.framework.api.appchain.observation.ObservationReport;
+import org.yanoproject.x.framework.api.appchain.observation.ObservationRound;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;

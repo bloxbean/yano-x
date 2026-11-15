@@ -1,9 +1,5 @@
 package org.yanoproject.x.devtools;
 
-import org.yanoproject.appchain.config.AppChainPropertyDefinition;
-import org.yanoproject.appchain.config.AppChainPropertyRegistry;
-import org.yanoproject.appchain.config.ConfigSourceKind;
-import org.yanoproject.appchain.config.EffectiveConfigValue;
 import io.smallrye.config.ConfigValue;
 import io.smallrye.config.EnvConfigSource;
 import io.smallrye.config.SmallRyeConfig;
@@ -11,6 +7,10 @@ import io.smallrye.config.SmallRyeConfigBuilder;
 import io.smallrye.config.SysPropConfigSource;
 import io.smallrye.config.source.yaml.YamlConfigSource;
 import org.eclipse.microprofile.config.spi.ConfigSource;
+import org.yanoproject.x.framework.config.AppChainPropertyDefinition;
+import org.yanoproject.x.framework.config.AppChainPropertyRegistry;
+import org.yanoproject.x.framework.config.ConfigSourceKind;
+import org.yanoproject.x.framework.config.EffectiveConfigValue;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;

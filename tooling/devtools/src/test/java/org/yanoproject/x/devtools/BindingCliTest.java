@@ -4,9 +4,9 @@ import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import org.yanoproject.api.appchain.AppStateMachine;
 import org.yanoproject.x.composite.CompositeStateKeys;
 import org.yanoproject.x.composite.contracts.BindingIrV1;
+import org.yanoproject.x.framework.api.appchain.AppStateMachine;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
@@ -123,7 +123,7 @@ class BindingCliTest {
         Path bundle = temporary.resolve("fixture.jar");
         try (JarOutputStream jar = new JarOutputStream(Files.newOutputStream(bundle))) {
             for (String entry : List.of("META-INF/yano/plugins/fixture.json", "dev/cel/compiler/CelCompiler.class",
-                    "org/yanoproject/api/appchain/AppStateMachine.class",
+                    "org/yanoproject/x/framework/api/appchain/AppStateMachine.class",
                     "com/bloxbean/cardano/yaci/core/protocol/appmsg/model/AppMessage.class")) {
                 jar.putNextEntry(new JarEntry(entry));
                 jar.write(new byte[]{0});
@@ -138,7 +138,7 @@ class BindingCliTest {
         assertThat(parent.loadClass(AppStateMachine.class.getName())).isSameAs(AppStateMachine.class);
         assertThat(parent.loadClass(AppMessage.class.getName())).isSameAs(AppMessage.class);
         assertThat(parent.getResource("dev/cel/compiler/CelCompiler.class")).isNull();
-        assertThat(parent.getResources("META-INF/services/org.yanoproject.api.appchain.AppStateMachineProvider")
+        assertThat(parent.getResources("META-INF/services/org.yanoproject.x.framework.api.appchain.AppStateMachineProvider")
                 .hasMoreElements()).isFalse();
         assertThatThrownBy(() -> parent.initialize(List.of(bundle))).isInstanceOf(IllegalStateException.class);
     }

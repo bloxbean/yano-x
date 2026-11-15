@@ -1,8 +1,8 @@
 package org.yanoproject.x.framework.host;
 
-import org.yanoproject.api.config.YanoPropertyKeys;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.yanoproject.api.config.YanoPropertyKeys;
 
 import java.nio.file.Path;
 

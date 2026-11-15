@@ -154,7 +154,7 @@ export default {
       anchors: ['"amount must be positive"', 'accountKey(account);'] },
     { repo: 'yano-x', path: 'docs/appchain/tutorials/tools/stdlib_command.py',
       anchors: ['return array(uint(0), bstr(key), bstr(value))', 'raise ValueError("amount must be positive")'] },
-    { repo: 'yano', path: 'core-api/src/main/java/org/yanoproject/api/appchain/AppSubmissionRejectedException.java',
+    { repo: 'yano-x', path: 'framework/api/src/main/java/org/yanoproject/x/framework/api/appchain/AppSubmissionRejectedException.java',
       anchors: ['Pattern.compile("[A-Z_]{1,32}")', '"APPLICATION_REJECTED"'] },
     { repo: 'yano', path: 'app/src/main/java/org/yanoproject/app/api/appchain/AppChainResource.java',
       anchors: ['rejection.put("code", e.code());', 'Response.Status.BAD_REQUEST'] },

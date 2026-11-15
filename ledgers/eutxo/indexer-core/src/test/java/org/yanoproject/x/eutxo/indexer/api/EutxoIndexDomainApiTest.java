@@ -1,12 +1,6 @@
 package org.yanoproject.x.eutxo.indexer.api;
 
-import org.yanoproject.api.appchain.AppQueryException;
-import org.yanoproject.api.plugin.domain.DomainApiContext;
-import org.yanoproject.api.plugin.domain.DomainApiException;
-import org.yanoproject.api.plugin.domain.DomainApiRequest;
-import org.yanoproject.api.plugin.domain.DomainHttpMethod;
-import org.yanoproject.api.plugin.domain.DomainQueryService;
-import org.yanoproject.api.plugin.domain.LocalReadModelResult;
+import org.junit.jupiter.api.Test;
 import org.yanoproject.x.eutxo.indexer.EutxoIndexEvent;
 import org.yanoproject.x.eutxo.indexer.EutxoLocalReadModel;
 import org.yanoproject.x.eutxo.indexer.EutxoProjector;
@@ -15,7 +9,13 @@ import org.yanoproject.x.eutxo.indexer.IndexCoverage;
 import org.yanoproject.x.eutxo.indexer.IndexHealth;
 import org.yanoproject.x.eutxo.indexer.memory.InMemoryEutxoIndexStore;
 import org.yanoproject.x.eutxo.indexer.testing.EutxoIndexFixtures;
-import org.junit.jupiter.api.Test;
+import org.yanoproject.x.framework.api.appchain.AppQueryException;
+import org.yanoproject.x.framework.api.plugin.domain.DomainApiContext;
+import org.yanoproject.x.framework.api.plugin.domain.DomainApiException;
+import org.yanoproject.x.framework.api.plugin.domain.DomainApiRequest;
+import org.yanoproject.x.framework.api.plugin.domain.DomainHttpMethod;
+import org.yanoproject.x.framework.api.plugin.domain.DomainQueryService;
+import org.yanoproject.x.framework.api.plugin.domain.LocalReadModelResult;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -229,7 +229,7 @@ class EutxoIndexDomainApiTest {
             }
 
             @Override
-            public org.yanoproject.api.appchain.AppQueryResult query(
+            public org.yanoproject.x.framework.api.appchain.AppQueryResult query(
                     String chainId,
                     String path,
                     byte[] params
@@ -274,7 +274,7 @@ class EutxoIndexDomainApiTest {
     }
 
     private static String body(
-            org.yanoproject.api.plugin.domain.DomainApiResponse response
+            org.yanoproject.x.framework.api.plugin.domain.DomainApiResponse response
     ) {
         return new String(response.body(), StandardCharsets.UTF_8);
     }

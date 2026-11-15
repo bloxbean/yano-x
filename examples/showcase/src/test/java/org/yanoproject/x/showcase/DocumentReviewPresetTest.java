@@ -1,10 +1,10 @@
 package org.yanoproject.x.showcase;
 
-import org.yanoproject.api.appchain.AppChainConsensusProfile;
-import org.yanoproject.api.appchain.AppStateMachineContext;
-import org.yanoproject.x.composite.CompositeStateMachine;
-import org.yanoproject.appchain.testkit.AppChainTestProfiles;
 import org.junit.jupiter.api.Test;
+import org.yanoproject.appchain.testkit.AppChainTestProfiles;
+import org.yanoproject.x.composite.CompositeStateMachine;
+import org.yanoproject.x.framework.api.appchain.AppChainConsensusProfile;
+import org.yanoproject.x.framework.api.appchain.AppStateMachineContext;
 
 import java.util.Map;
 import java.util.Optional;

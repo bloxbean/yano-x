@@ -305,7 +305,7 @@ kv-appchain-plugin/
     │   └── KvStateMachineProvider.java
     └── resources/META-INF/
         ├── services/
-        │   └── org.yanoproject.api.appchain.AppStateMachineProvider
+        │   └── org.yanoproject.x.framework.api.appchain.AppStateMachineProvider
         └── yano/plugins/
             └── com.example.kvchain.json
 ```
@@ -341,10 +341,10 @@ dependencies {
 package com.example.kvchain;
 
 import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
-import org.yanoproject.api.appchain.AppBlockExecutionContext;
-import org.yanoproject.api.appchain.effects.AppEffectEmitter;
-import org.yanoproject.api.appchain.AppStateMachine;
-import org.yanoproject.api.appchain.AppStateWriter;
+import org.yanoproject.x.framework.api.appchain.AppBlockExecutionContext;
+import org.yanoproject.x.framework.api.appchain.effects.AppEffectEmitter;
+import org.yanoproject.x.framework.api.appchain.AppStateMachine;
+import org.yanoproject.x.framework.api.appchain.AppStateWriter;
 
 import java.nio.charset.StandardCharsets;
 
@@ -398,8 +398,8 @@ public class KvStateMachine implements AppStateMachine {
 ```java
 package com.example.kvchain;
 
-import org.yanoproject.api.appchain.AppStateMachine;
-import org.yanoproject.api.appchain.AppStateMachineProvider;
+import org.yanoproject.x.framework.api.appchain.AppStateMachine;
+import org.yanoproject.x.framework.api.appchain.AppStateMachineProvider;
 
 public class KvStateMachineProvider implements AppStateMachineProvider {
     @Override
@@ -415,7 +415,7 @@ public class KvStateMachineProvider implements AppStateMachineProvider {
 ```
 
 The ServiceLoader manifest —
-`src/main/resources/META-INF/services/org.yanoproject.api.appchain.AppStateMachineProvider`:
+`src/main/resources/META-INF/services/org.yanoproject.x.framework.api.appchain.AppStateMachineProvider`:
 
 ```
 com.example.kvchain.KvStateMachineProvider

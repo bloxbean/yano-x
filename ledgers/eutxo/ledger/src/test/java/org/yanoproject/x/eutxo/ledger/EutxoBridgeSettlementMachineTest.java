@@ -6,19 +6,7 @@ import com.bloxbean.cardano.client.transaction.spec.TransactionOutput;
 import com.bloxbean.cardano.client.transaction.spec.Value;
 import com.bloxbean.cardano.client.transaction.util.TransactionUtil;
 import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
-import org.yanoproject.api.appchain.AppBlock;
-import org.yanoproject.api.appchain.AppBlockExecutionContext;
-import org.yanoproject.api.appchain.AppChainMembershipEpoch;
-import org.yanoproject.api.appchain.AppChainMembershipView;
-import org.yanoproject.api.appchain.AppStateMachineContext;
-import org.yanoproject.api.appchain.FinalityCert;
-import org.yanoproject.api.appchain.effects.AppEffectEmitter;
-import org.yanoproject.api.appchain.effects.EffectId;
-import org.yanoproject.api.appchain.effects.EffectIntent;
-import org.yanoproject.api.appchain.effects.EffectOutcome;
-import org.yanoproject.api.appchain.effects.EffectResult;
-import org.yanoproject.x.eutxo.contracts.EutxoSettlementBatch;
-import org.yanoproject.api.appchain.l1view.L1Observation;
+import org.junit.jupiter.api.Test;
 import org.yanoproject.x.eutxo.contracts.EutxoBatchWithdrawalConfirmation;
 import org.yanoproject.x.eutxo.contracts.EutxoBridgeParams;
 import org.yanoproject.x.eutxo.contracts.EutxoBridgeParamsGovernanceV1;
@@ -28,6 +16,7 @@ import org.yanoproject.x.eutxo.contracts.EutxoProfile;
 import org.yanoproject.x.eutxo.contracts.EutxoQueryCodec;
 import org.yanoproject.x.eutxo.contracts.EutxoReceipt;
 import org.yanoproject.x.eutxo.contracts.EutxoReserve;
+import org.yanoproject.x.eutxo.contracts.EutxoSettlementBatch;
 import org.yanoproject.x.eutxo.contracts.EutxoStateKeys;
 import org.yanoproject.x.eutxo.contracts.EutxoWithdrawalClaim;
 import org.yanoproject.x.eutxo.contracts.EutxoWithdrawalConfirmation;
@@ -36,12 +25,25 @@ import org.yanoproject.x.eutxo.contracts.EutxoWithdrawalRecord;
 import org.yanoproject.x.eutxo.testkit.EutxoTestWallet;
 import org.yanoproject.x.eutxo.testkit.EutxoTransactionFixtures;
 import org.yanoproject.x.eutxo.testkit.MemoryAppState;
-import org.junit.jupiter.api.Test;
+import org.yanoproject.x.framework.api.appchain.AppBlock;
+import org.yanoproject.x.framework.api.appchain.AppBlockExecutionContext;
+import org.yanoproject.x.framework.api.appchain.AppChainMembershipEpoch;
+import org.yanoproject.x.framework.api.appchain.AppChainMembershipView;
+import org.yanoproject.x.framework.api.appchain.AppStateMachineContext;
+import org.yanoproject.x.framework.api.appchain.FinalityCert;
+import org.yanoproject.x.framework.api.appchain.effects.AppEffectEmitter;
+import org.yanoproject.x.framework.api.appchain.effects.EffectId;
+import org.yanoproject.x.framework.api.appchain.effects.EffectIntent;
+import org.yanoproject.x.framework.api.appchain.effects.EffectOutcome;
+import org.yanoproject.x.framework.api.appchain.effects.EffectResult;
+import org.yanoproject.x.framework.api.appchain.effects.FxResultBody;
+import org.yanoproject.x.framework.api.appchain.l1view.L1Observation;
+import org.yanoproject.x.framework.runtime.appchain.StateMachineConformance;
 
 import java.math.BigInteger;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HexFormat;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -123,8 +125,7 @@ class EutxoBridgeSettlementMachineTest {
                 .version(1)
                 .messageId(fill(32, 99))
                 .chainId("eutxo-test")
-                .topic(org.yanoproject.api.appchain.effects
-                        .FxResultBody.TOPIC)
+                .topic(FxResultBody.TOPIC)
                 .sender(new byte[32])
                 .senderSeq(99)
                 .expiresAt(Long.MAX_VALUE)
@@ -439,10 +440,9 @@ class EutxoBridgeSettlementMachineTest {
                 EutxoProfile.V3.digestHex(),
                 "machines.eutxo.genesis.address", ALICE.address(),
                 "machines.eutxo.genesis.lovelace", "100");
-        List<org.yanoproject.runtime.appchain.StateMachineConformance
+        List<org.yanoproject.x.framework.runtime.appchain.StateMachineConformance
                 .CorpusMessage> corpus = List.of(
-                new org.yanoproject.runtime.appchain
-                        .StateMachineConformance.CorpusMessage(
+                new StateMachineConformance.CorpusMessage(
                         EutxoBridgeParamsGovernanceV1.TOPIC,
                         new EutxoBridgeParamsGovernanceV1.Command(
                                 1,
@@ -450,12 +450,10 @@ class EutxoBridgeSettlementMachineTest {
                                         2_000_000L, 8, 100L, 3_600L,
                                         86_400L, 0L),
                                 1).encode()),
-                new org.yanoproject.runtime.appchain
-                        .StateMachineConformance.CorpusMessage(
+                new StateMachineConformance.CorpusMessage(
                         EutxoBridgeParamsGovernanceV1.TOPIC,
                         new byte[] {0x01}),
-                new org.yanoproject.runtime.appchain
-                        .StateMachineConformance.CorpusMessage(
+                new StateMachineConformance.CorpusMessage(
                         EutxoBridgeParamsGovernanceV1.TOPIC,
                         new EutxoBridgeParamsGovernanceV1.Command(
                                 1,
@@ -463,8 +461,7 @@ class EutxoBridgeSettlementMachineTest {
                                         2_000_000L, 4, 50L, 1_800L,
                                         86_400L, 0L),
                                 2).encode()),
-                new org.yanoproject.runtime.appchain
-                        .StateMachineConformance.CorpusMessage(
+                new StateMachineConformance.CorpusMessage(
                         EutxoBridgeParamsGovernanceV1.TOPIC,
                         new EutxoBridgeParamsGovernanceV1.Command(
                                 1,
@@ -472,9 +469,8 @@ class EutxoBridgeSettlementMachineTest {
                                         2_000_000L, 8, 100L, 3_600L,
                                         86_400L, 0L),
                                 1).encode()));
-        org.yanoproject.runtime.appchain.StateMachineConformance.Result
-                result = org.yanoproject.runtime.appchain
-                .StateMachineConformance.builder(new EutxoStateMachineProvider())
+        org.yanoproject.x.framework.runtime.appchain.StateMachineConformance.Result
+                result = StateMachineConformance.builder(new EutxoStateMachineProvider())
                 .chainId("eutxo-conformance")
                 .settings(settings)
                 .blocks(corpus.size())

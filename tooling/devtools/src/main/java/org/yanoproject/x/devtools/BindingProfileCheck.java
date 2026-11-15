@@ -8,12 +8,12 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.yanoproject.api.appchain.AppQueryContext;
-import org.yanoproject.api.appchain.AppStateMachine;
 import org.yanoproject.x.composite.CompositeProfile;
 import org.yanoproject.x.composite.CompositeProfileCodec;
 import org.yanoproject.x.composite.CompositeStateKeys;
 import org.yanoproject.x.composite.contracts.BindingIrV1;
+import org.yanoproject.x.framework.api.appchain.AppQueryContext;
+import org.yanoproject.x.framework.api.appchain.AppStateMachine;
 
 import java.io.IOException;
 import java.io.PrintWriter;

@@ -1,18 +1,18 @@
 package org.yanoproject.x.devtools;
 
-import org.yanoproject.api.appchain.AppChainConfig;
-import org.yanoproject.api.appchain.AppChainMembershipEpoch;
-import org.yanoproject.api.appchain.state.StateCommitmentIdentity;
-import org.yanoproject.api.appchain.state.StateCommitmentProfile;
-import org.yanoproject.api.appchain.state.StateCommitmentProfiles;
-import org.yanoproject.appchain.config.AppChainConfigParser;
-import org.yanoproject.appchain.config.AppChainConfigSemantics;
-import org.yanoproject.appchain.config.AppChainApprovalsConfig;
-import org.yanoproject.appchain.config.AppChainEffectsConfig;
-import org.yanoproject.appchain.config.AppChainPropertyDefinition;
-import org.yanoproject.api.appchain.topics.TopicChainSettings;
-import org.yanoproject.appchain.config.AppChainPropertyRegistry;
-import org.yanoproject.appchain.config.PropertyScope;
+import org.yanoproject.x.framework.api.appchain.AppChainConfig;
+import org.yanoproject.x.framework.api.appchain.AppChainMembershipEpoch;
+import org.yanoproject.x.framework.api.appchain.state.StateCommitmentIdentity;
+import org.yanoproject.x.framework.api.appchain.state.StateCommitmentProfile;
+import org.yanoproject.x.framework.api.appchain.state.StateCommitmentProfiles;
+import org.yanoproject.x.framework.api.appchain.topics.TopicChainSettings;
+import org.yanoproject.x.framework.config.AppChainApprovalsConfig;
+import org.yanoproject.x.framework.config.AppChainConfigParser;
+import org.yanoproject.x.framework.config.AppChainConfigSemantics;
+import org.yanoproject.x.framework.config.AppChainEffectsConfig;
+import org.yanoproject.x.framework.config.AppChainPropertyDefinition;
+import org.yanoproject.x.framework.config.AppChainPropertyRegistry;
+import org.yanoproject.x.framework.config.PropertyScope;
 import org.yanoproject.x.roles.contracts.ActorKeyEpochV1;
 import org.yanoproject.x.roles.contracts.ActorKeyProofV1;
 import org.yanoproject.x.roles.contracts.ActorRecordV1;
@@ -27,6 +27,8 @@ import org.yanoproject.x.roles.contracts.RecordStatus;
 import org.yanoproject.x.stdlib.AuthenticatedMapGenesisFactory;
 import org.yanoproject.x.stdlib.contracts.AuthenticatedMapContract;
 
+import java.io.IOException;
+import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HexFormat;
@@ -39,8 +41,6 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.regex.Pattern;
-import java.nio.file.Path;
-import java.io.IOException;
 
 /** Deterministically expands one blueprint through recipe and capability descriptors. */
 final class AppChainProjectResolver {

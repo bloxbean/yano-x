@@ -36,7 +36,7 @@ stops a broken bundle.
 1. **Capture.** The node copies every JAR in `yano.plugins.directory` into a
    private snapshot: at most 256 JARs, 1 GiB each and 4 GiB in total.
 2. **Scan.** It reads each snapshot as data. It needs one schema-v1 manifest,
-   no packaged `org/yanoproject/api/**` classes, ServiceLoader entries that match
+   no packaged `org/yanoproject/api/**`, `org/yanoproject/x/framework/api/**`, or `org/yanoproject/x/framework/cardano/api/**` classes, ServiceLoader entries that match
    the manifest exactly, and no JAR-manifest `Class-Path`.
 3. **Check the API range.** The manifest's `yanoApi` must include the host's API
    major, and the host's level must be at least `minLevel`.
@@ -67,7 +67,7 @@ loader as its parent:
 
 - **Parent-first.** A class the host already has always comes from the host.
   That keeps one copy of the Yano API, and it is why a plugin must not package
-  `org/yanoproject/api/**` classes. Do not also put plugin JARs on the host's
+  `org/yanoproject/api/**`, `org/yanoproject/x/framework/api/**`, or `org/yanoproject/x/framework/cardano/api/**` classes. Do not also put plugin JARs on the host's
   class path.
 - **Shared.** Bundles see each other's classes. There is no per-bundle
   isolation: if two bundles carry different versions of one library, both get

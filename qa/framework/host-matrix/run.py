@@ -15,12 +15,13 @@ import zipfile
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[2]
 SOURCE = HERE / "src/compat/PackagedHostCluster.java"
+FRAMEWORK_NAMESPACE = "org.yanoproject.x.framework"
 OWNERS = {
     "org/yanoproject/runtime/assembly/YanoAssembly.class": "yano-runtime",
     "org/yanoproject/api/host/HostApi.class": "yano-host-api",
     "org/yanoproject/api/config/YanoConfig.class": "yano-node-api",
-    "org/yanoproject/runtime/appchain/AppLedgerRuntime.class": "yano-x-appchain-core",
-    "org/yanoproject/runtime/appchain/AppLedgerManager.class": "yano-x-appchain-core",
+    "org/yanoproject/x/framework/runtime/appchain/AppLedgerRuntime.class": "yano-x-appchain-core",
+    "org/yanoproject/x/framework/runtime/appchain/AppLedgerManager.class": "yano-x-appchain-core",
 }
 PROFILE_OWNERS = {
     "standalone": {
@@ -28,9 +29,9 @@ PROFILE_OWNERS = {
     },
     "cardano-construction": {
         "org/yanoproject/x/framework/cardano/CardanoAppLedgerPlugin.class": "yano-x-appchain-cardano",
-        "org/yanoproject/runtime/appchain/AppChainSubsystem.class": "yano-x-appchain-cardano",
-        "org/yanoproject/runtime/appchain/AppChainManager.class": "yano-x-appchain-cardano",
-        "org/yanoproject/x/framework/cardano/CardanoRuntimeServices.class": "yano-x-appchain-cardano-api",
+        "org/yanoproject/x/framework/cardano/AppChainSubsystem.class": "yano-x-appchain-cardano",
+        "org/yanoproject/x/framework/cardano/AppChainManager.class": "yano-x-appchain-cardano",
+        "org/yanoproject/x/framework/cardano/api/CardanoRuntimeServices.class": "yano-x-appchain-cardano-api",
     },
 }
 SPECIAL_RESOURCES = {
@@ -165,6 +166,7 @@ def prepare(matrix, output, timeout):
                   "profileBaselines": {profile: {"hostIdentity": host_identity(baseline),
                                                   "inputs": baseline["artifacts"]}
                                        for profile, baseline in baselines.items()},
+                  "frameworkNamespace": FRAMEWORK_NAMESPACE,
                   "provenance": "Exact supplied Maven artifacts; staged candidates are not claimed as public releases"}
     write_json(output / "provenance.json", provenance)
     shutil.rmtree(classes)
@@ -243,6 +245,9 @@ def package_cell(resolved, fixture, directory, timeout):
 def run_matrix(matrix, fixture_directory, output, timeout):
     fixture = fixture_directory / "packaged-host-fixture.jar"
     provenance = json.loads((fixture_directory / "provenance.json").read_text())
+    if provenance.get("frameworkNamespace") != FRAMEWORK_NAMESPACE:
+        raise RuntimeError("Historical old-package fixture: prepare a new namespace-compatible baseline once; "
+                           "do not modify the retained historical fixture")
     if digest(fixture) != provenance["fixtureSha256"] or digest(SOURCE) != provenance["sourceSha256"]:
         raise RuntimeError("Frozen fixture/source differs from explicit preparation provenance")
     report = {"schemaVersion": 1, "kind": "packaged-thin-host-qualification", "passed": False,

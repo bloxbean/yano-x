@@ -47,7 +47,9 @@ tasks.register('verifyEvidenceClientArtifactBoundary') {
     doLast {
         def forbiddenPrefixes = [
                 'META-INF/yano/plugins/',
-                'META-INF/services/org.yanoproject.api.'
+                'META-INF/services/org.yanoproject.api.',
+                'META-INF/services/org.yanoproject.x.framework.api.',
+                'META-INF/services/org.yanoproject.x.framework.cardano.api.'
         ]
         def containsEntries = { File artifact, Collection<String> prefixes ->
             if (artifact.isDirectory()) {
@@ -111,6 +113,8 @@ tasks.register('verifyEvidenceClientArtifactBoundary') {
         def forbiddenRuntimeClassPrefixes = [
                 'com/bloxbean/cardano/yaci/',
                 'org/yanoproject/api/',
+                'org/yanoproject/x/framework/api/',
+                'org/yanoproject/x/framework/cardano/api/',
                 'io/netty/',
                 'org/reactivestreams/',
                 'reactor/'

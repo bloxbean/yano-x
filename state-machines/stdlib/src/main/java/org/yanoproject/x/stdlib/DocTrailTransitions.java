@@ -6,12 +6,12 @@ import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.client.crypto.Blake2bUtil;
 import com.bloxbean.cardano.yaci.core.util.CborSerializationUtil;
-import org.yanoproject.api.appchain.AppStateReader;
-import org.yanoproject.api.appchain.transition.StateMutation;
-import org.yanoproject.api.appchain.transition.TransitionCapability;
-import org.yanoproject.api.appchain.transition.TransitionContext;
-import org.yanoproject.api.appchain.transition.TransitionDecision;
-import org.yanoproject.api.appchain.transition.TransitionPlan;
+import org.yanoproject.x.framework.api.appchain.AppStateReader;
+import org.yanoproject.x.framework.api.appchain.transition.StateMutation;
+import org.yanoproject.x.framework.api.appchain.transition.TransitionCapability;
+import org.yanoproject.x.framework.api.appchain.transition.TransitionContext;
+import org.yanoproject.x.framework.api.appchain.transition.TransitionDecision;
+import org.yanoproject.x.framework.api.appchain.transition.TransitionPlan;
 import org.yanoproject.x.stdlib.contracts.DocTrailContract;
 
 import java.util.List;

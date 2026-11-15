@@ -1,14 +1,14 @@
 package org.yanoproject.x.devtools;
 
-import org.yanoproject.appchain.config.AppChainMetadataDescriptor;
-import org.yanoproject.appchain.config.TemplateContract;
-import org.yanoproject.appchain.config.ValidationCoverage;
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.StreamReadFeature;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import org.yanoproject.x.framework.config.AppChainMetadataDescriptor;
+import org.yanoproject.x.framework.config.TemplateContract;
+import org.yanoproject.x.framework.config.ValidationCoverage;
 
 import java.io.IOException;
 import java.io.InputStream;

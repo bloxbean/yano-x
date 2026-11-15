@@ -1,5 +1,4 @@
 import org.gradle.api.artifacts.component.ModuleComponentIdentifier
-import org.gradle.api.artifacts.component.ProjectComponentIdentifier
 import java.security.MessageDigest
 import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
@@ -99,10 +98,13 @@ tasks.named('shadowJar') {
 
 def pluginMetadataPrefixes = [
         'META-INF/yano/plugins/',
-        'META-INF/services/org.yanoproject.api.'
+        'META-INF/services/org.yanoproject.api.',
+        'META-INF/services/org.yanoproject.x.framework.api.',
+        'META-INF/services/org.yanoproject.x.framework.cardano.api.'
 ]
 def forbiddenClassPrefixes = [
         'org/yanoproject/runtime/',
+        'org/yanoproject/x/framework/runtime/',
         'org/yanoproject/x/framework/host/',
         'org/yanoproject/x/framework/cardano/',
         'org/yanoproject/x/framework/standalone/',
@@ -111,13 +113,14 @@ def forbiddenClassPrefixes = [
         'org/yanoproject/x/objectstore/s3/'
 ]
 
-// Public node and Cardano contracts retain implementation-shaped namespaces for compatibility.
-// Admit only the exact classes owned by the resolved API artifact, never a package-wide exemption.
+// Public node contracts retain host runtime package names. Admit only the exact
+// resolved node API bytes; framework contracts have their own explicit API packages.
 def boundaryClassHashes = { File artifact ->
     new ZipFile(artifact).withCloseable { zip ->
         zip.entries().findAll { entry ->
             !entry.directory && entry.name.endsWith('.class')
                     && forbiddenClassPrefixes.any { entry.name.startsWith(it) }
+                    && !entry.name.startsWith('org/yanoproject/x/framework/cardano/api/')
         }.collectEntries { entry ->
             [(entry.name): zip.getInputStream(entry).withCloseable { stream ->
                 MessageDigest.getInstance('SHA-256').digest(stream.bytes).encodeHex().toString()
@@ -127,26 +130,16 @@ def boundaryClassHashes = { File artifact ->
 }
 def publicContractHashes = {
     def artifacts = configurations.runtimeClasspath.incoming.artifacts.artifacts
-    def owners = [
-            'yano-node-api': artifacts.findAll {
-                def id = it.id.componentIdentifier
-                id instanceof ModuleComponentIdentifier && id.group == 'org.yanoproject'
-                        && id.module == 'yano-node-api'
-            },
-            'yano-x-appchain-cardano-api': artifacts.findAll {
-                def id = it.id.componentIdentifier
-                (id instanceof ProjectComponentIdentifier && id.projectPath == ':framework:cardano-api')
-                        || (id instanceof ModuleComponentIdentifier && id.group == 'org.yanoproject.x'
-                            && id.module == 'yano-x-appchain-cardano-api')
-            }
-    ]
-    owners.collectEntries { name, resolved ->
-        if (resolved.size() != 1) {
-            throw new GradleException("Demo runner must resolve exactly one ${name} contract owner")
-        }
-        def prefix = name == 'yano-node-api' ? 'org/yanoproject/runtime/' : 'org/yanoproject/x/framework/cardano/'
-        boundaryClassHashes(resolved.first().file).findAll { className, hash -> className.startsWith(prefix) }
+    def owners = artifacts.findAll {
+        def id = it.id.componentIdentifier
+        id instanceof ModuleComponentIdentifier && id.group == 'org.yanoproject'
+                && id.module == 'yano-node-api'
     }
+    if (owners.size() != 1) {
+        throw new GradleException('Demo runner must resolve exactly one yano-node-api contract owner')
+    }
+    boundaryClassHashes(owners.first().file)
+            .findAll { name, hash -> name.startsWith('org/yanoproject/runtime/') }
 }
 def implementationClasses = { Map classes, Map apiContracts ->
     classes.findAll { name, hash -> !apiContracts.containsKey(name) || apiContracts[name] != hash }.keySet()
@@ -159,17 +152,23 @@ tasks.register('verifyDemoRunnerBoundaryContract') {
     def connectorJar = project(':connectors:kafka').tasks.named('jar')
     def adapterJar = project(':framework:host-adapter').tasks.named('jar')
     def cardanoJar = project(':framework:cardano').tasks.named('jar')
-    dependsOn coreJar, connectorJar, adapterJar, cardanoJar
+    def cardanoApiJar = project(':framework:cardano-api').tasks.named('jar')
+    dependsOn coreJar, connectorJar, adapterJar, cardanoJar, cardanoApiJar
     inputs.files(configurations.runtimeClasspath)
     inputs.files(coreJar.flatMap { it.archiveFile }, connectorJar.flatMap { it.archiveFile },
-            adapterJar.flatMap { it.archiveFile }, cardanoJar.flatMap { it.archiveFile })
+            adapterJar.flatMap { it.archiveFile }, cardanoJar.flatMap { it.archiveFile },
+            cardanoApiJar.flatMap { it.archiveFile })
     doLast {
         def contracts = publicContractHashes()
         assert contracts.containsKey('org/yanoproject/runtime/kernel/Subsystem.class')
-        assert contracts.containsKey('org/yanoproject/x/framework/cardano/CardanoRuntimeServices.class')
+        def cardanoApi = cardanoApiJar.get().archiveFile.get().asFile
+        new ZipFile(cardanoApi).withCloseable { zip ->
+            assert zip.getEntry('org/yanoproject/x/framework/cardano/api/CardanoRuntimeServices.class') != null
+        }
+        assert boundaryClassHashes(cardanoApi).isEmpty()
         assert implementationClasses(contracts, contracts).isEmpty()
         assert implementationClasses(boundaryClassHashes(coreJar.get().archiveFile.get().asFile), contracts)
-                .contains('org/yanoproject/runtime/appchain/AppLedgerRuntime.class')
+                .contains('org/yanoproject/x/framework/runtime/appchain/AppLedgerRuntime.class')
         assert implementationClasses(boundaryClassHashes(connectorJar.get().archiveFile.get().asFile), contracts)
                 .any { it.startsWith('org/yanoproject/x/kafka/') }
         assert implementationClasses(boundaryClassHashes(adapterJar.get().archiveFile.get().asFile), contracts)

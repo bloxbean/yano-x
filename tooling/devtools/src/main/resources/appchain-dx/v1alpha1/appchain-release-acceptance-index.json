@@ -88,20 +88,20 @@
       "yano:runtime/src/integrationTest/java/org/yanoproject/runtime/appchain/AppChainRotationIntegrationTest.java#feedSlot"
     ],
     "anchor:metadata": [
-      "yano:runtime/src/test/java/org/yanoproject/runtime/appchain/AnchorServiceTest.java#observedConfirmationRetriesOnTickWithoutReplayOrResubmit"
+      "framework/cardano/src/test/java/org/yanoproject/x/framework/cardano/AnchorServiceTest.java#observedConfirmationRetriesOnTickWithoutReplayOrResubmit"
     ],
     "anchor:script": [
-      "yano:runtime/src/test/java/org/yanoproject/runtime/appchain/ScriptAnchorServiceTest.java#First real anchor"
+      "framework/cardano/src/integrationTest/java/org/yanoproject/x/framework/cardano/ScriptAnchorServiceTest.java#First real anchor"
     ],
     "observer:address-deposit": [
-      "yano:runtime/src/test/java/org/yanoproject/runtime/appchain/L1ObservationServiceTest.java#observers_computeDepositAndMetadataClaims"
+      "framework/cardano/src/test/java/org/yanoproject/x/framework/cardano/L1ObservationServiceTest.java#observers_computeDepositAndMetadataClaims"
     ],
     "observer:metadata-label": [
-      "yano:runtime/src/test/java/org/yanoproject/runtime/appchain/L1ObservationServiceTest.java#observers_computeDepositAndMetadataClaims"
+      "framework/cardano/src/test/java/org/yanoproject/x/framework/cardano/L1ObservationServiceTest.java#observers_computeDepositAndMetadataClaims"
     ],
     "effects:runtime": [
-      "yano:runtime/src/test/java/org/yanoproject/runtime/appchain/FxEffectsM2Test.java#retry",
-      "yano:runtime/src/test/java/org/yanoproject/runtime/appchain/FxEffectsM3Test.java#expiry"
+      "framework/core/src/test/java/org/yanoproject/x/framework/runtime/appchain/FxEffectsM2Test.java#retry",
+      "framework/core/src/test/java/org/yanoproject/x/framework/runtime/appchain/FxEffectsM3Test.java#expiry"
     ],
     "effects:on-approved": [
       "state-machines/stdlib/src/test/java/org/yanoproject/x/stdlib/ApprovalsGenericEffectTest.java#allTerminalOutcomesPreserveApprovedDecisionAndExactEvidence"

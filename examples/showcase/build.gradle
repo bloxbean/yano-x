@@ -74,7 +74,8 @@ tasks.named('shadowJar') {
     reproducibleFileOrder = true
     preserveFileTimestamps = false
     mergeServiceFiles()
-    exclude 'org/yanoproject/api/**'
+    exclude 'org/yanoproject/api/**', 'org/yanoproject/x/framework/api/**',
+            'org/yanoproject/x/framework/cardano/api/**'
     exclude 'META-INF/*.SF', 'META-INF/*.RSA', 'META-INF/*.DSA', 'module-info.class'
 }
 
@@ -82,9 +83,9 @@ tasks.named('shadowJar') {
 // distribution/jvm/jvm-distribution.gradle assembles it from these sources.
 
 def stateMachineService =
-        'META-INF/services/org.yanoproject.api.appchain.AppStateMachineProvider'
+        'META-INF/services/org.yanoproject.x.framework.api.appchain.AppStateMachineProvider'
 def effectExecutorService =
-        'META-INF/services/org.yanoproject.api.appchain.effects.AppEffectExecutorFactory'
+        'META-INF/services/org.yanoproject.x.framework.cardano.api.effects.AppEffectExecutorFactory'
 def pluginManifest =
         'META-INF/yano/plugins/org.yanoproject.x.showcase.json'
 
@@ -113,7 +114,9 @@ tasks.register('verifyShowcasePluginArtifact') {
                     throw new GradleException(
                             "Showcase plugin artifact is missing: ${(required - names).sort()}")
                 }
-                if (names.any { it.startsWith('org/yanoproject/api/') }) {
+                if (names.any { (it.startsWith('org/yanoproject/api/')
+                    || it.startsWith('org/yanoproject/x/framework/api/')
+                    || it.startsWith('org/yanoproject/x/framework/cardano/api/')) }) {
                     throw new GradleException('Showcase bundle embeds host Yano API classes')
                 }
                 def manifestEntry = zip.getEntry(pluginManifest)

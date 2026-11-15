@@ -1,21 +1,21 @@
 package org.yanoproject.x.composite;
 
 import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
-import org.yanoproject.api.appchain.AppBlock;
-import org.yanoproject.api.appchain.AppBlockExecutionContext;
-import org.yanoproject.api.appchain.AppChainConsensusProfile;
-import org.yanoproject.api.appchain.AppChainMembershipEpoch;
-import org.yanoproject.api.appchain.AppQueryContext;
-import org.yanoproject.api.appchain.AppStateMachineContext;
-import org.yanoproject.api.appchain.AppStateWriter;
-import org.yanoproject.api.appchain.FinalityCert;
-import org.yanoproject.api.appchain.effects.AppEffectEmitter;
+import org.junit.jupiter.api.Test;
+import org.yanoproject.appchain.testkit.AppChainTestProfiles;
 import org.yanoproject.x.composite.contracts.CompositeCommitmentV1;
 import org.yanoproject.x.composite.contracts.CompositeGovernanceStatusV1;
 import org.yanoproject.x.composite.contracts.CompositeProfileEpochV1;
 import org.yanoproject.x.composite.contracts.CompositeProfileGovernanceV1;
-import org.yanoproject.appchain.testkit.AppChainTestProfiles;
-import org.junit.jupiter.api.Test;
+import org.yanoproject.x.framework.api.appchain.AppBlock;
+import org.yanoproject.x.framework.api.appchain.AppBlockExecutionContext;
+import org.yanoproject.x.framework.api.appchain.AppChainConsensusProfile;
+import org.yanoproject.x.framework.api.appchain.AppChainMembershipEpoch;
+import org.yanoproject.x.framework.api.appchain.AppQueryContext;
+import org.yanoproject.x.framework.api.appchain.AppStateMachineContext;
+import org.yanoproject.x.framework.api.appchain.AppStateWriter;
+import org.yanoproject.x.framework.api.appchain.FinalityCert;
+import org.yanoproject.x.framework.api.appchain.effects.AppEffectEmitter;
 
 import java.nio.ByteBuffer;
 import java.util.Arrays;
@@ -147,7 +147,7 @@ class CompositeProfileGovernanceTest {
             @Override public Optional<AppChainConsensusProfile> consensusProfile() {
                 return Optional.of(limits);
             }
-            @Override public Optional<org.yanoproject.api.appchain.AppChainMembershipView>
+            @Override public Optional<org.yanoproject.x.framework.api.appchain.AppChainMembershipView>
             membershipView() {
                 return Optional.of(ignored -> membership());
             }
@@ -214,7 +214,7 @@ class CompositeProfileGovernanceTest {
 
         @Override
         public void apply(AppBlockExecutionContext execution, AppStateWriter state,
-                          org.yanoproject.api.appchain.effects.AppEffectEmitter effects) {
+                          org.yanoproject.x.framework.api.appchain.effects.AppEffectEmitter effects) {
             AppBlock block = execution.block();
             for (AppMessage message : execution.messages()) state.put(VALUE_KEY, message.getBody());
         }

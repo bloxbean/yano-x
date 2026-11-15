@@ -9,12 +9,12 @@ import com.bloxbean.cardano.yaci.core.model.Block;
 import com.bloxbean.cardano.yaci.core.model.TransactionBody;
 import com.bloxbean.cardano.yaci.core.model.TransactionOutput;
 import com.bloxbean.cardano.yaci.core.util.HexUtil;
-import org.yanoproject.api.appchain.l1view.L1Observation;
-import org.yanoproject.api.appchain.l1view.L1Observer;
-import org.yanoproject.api.appchain.l1view.L1ObserverConsensusIdentity;
 import org.yanoproject.x.eutxo.contracts.EutxoDepositClaim;
 import org.yanoproject.x.eutxo.contracts.EutxoOutpoint;
 import org.yanoproject.x.eutxo.contracts.EutxoVaultDatum;
+import org.yanoproject.x.framework.api.appchain.l1view.L1Observation;
+import org.yanoproject.x.framework.api.appchain.l1view.L1Observer;
+import org.yanoproject.x.framework.api.appchain.l1view.L1ObserverConsensusIdentity;
 
 import java.math.BigInteger;
 import java.util.ArrayList;

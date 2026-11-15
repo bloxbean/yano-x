@@ -5,12 +5,12 @@ import co.nstant.in.cbor.model.UnicodeString;
 import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.client.crypto.KeyGenUtil;
 import com.bloxbean.cardano.yaci.core.util.CborSerializationUtil;
-import org.yanoproject.api.appchain.AppChainConfig;
 import org.yanoproject.x.dpp.profile.DppGenesis;
 import org.yanoproject.x.dpp.profile.DppStarterProfile;
+import org.yanoproject.x.framework.api.appchain.AppChainConfig;
+import org.yanoproject.x.framework.api.appchain.schema.CborSchema.MapField;
+import org.yanoproject.x.framework.api.appchain.schema.CborSchema;
 import org.yanoproject.x.stdlib.contracts.AuthenticatedMapContract;
-import org.yanoproject.api.appchain.schema.CborSchema;
-import org.yanoproject.api.appchain.schema.CborSchema.MapField;
 import org.yanoproject.x.trust.profile.TrustRegistryGenesis;
 
 import java.nio.charset.StandardCharsets;

@@ -1,12 +1,12 @@
 package org.yanoproject.x.history;
 
-import org.yanoproject.api.appchain.AppStateMachineContext;
-import org.yanoproject.api.appchain.AppChainConsensusProfile;
-import org.yanoproject.api.appchain.state.StateCommitmentIdentity;
-import org.yanoproject.api.appchain.state.StateCommitmentProfiles;
-import org.yanoproject.x.stdlib.contracts.EpochParamsContract;
-import org.yanoproject.appchain.testkit.AppChainTestProfiles;
 import org.junit.jupiter.api.Test;
+import org.yanoproject.appchain.testkit.AppChainTestProfiles;
+import org.yanoproject.x.framework.api.appchain.AppChainConsensusProfile;
+import org.yanoproject.x.framework.api.appchain.AppStateMachineContext;
+import org.yanoproject.x.framework.api.appchain.state.StateCommitmentIdentity;
+import org.yanoproject.x.framework.api.appchain.state.StateCommitmentProfiles;
+import org.yanoproject.x.stdlib.contracts.EpochParamsContract;
 
 import java.util.LinkedHashMap;
 import java.util.Map;

@@ -1,32 +1,34 @@
 package org.yanoproject.x.evidence.profile;
 
-import org.yanoproject.x.evidence.profile.contracts.EvidenceReleaseCommandV1;
-import org.yanoproject.x.evidence.profile.contracts.EvidenceReleasePrerequisiteCommandsV1;
 import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
-import org.yanoproject.api.appchain.AppBlock;
-import org.yanoproject.api.appchain.AppBlockExecutionContext;
-import org.yanoproject.api.appchain.AppQueryContext;
-import org.yanoproject.api.appchain.AppStateMachineContext;
-import org.yanoproject.api.appchain.AppStateWriter;
-import org.yanoproject.api.appchain.FinalityCert;
-import org.yanoproject.api.appchain.effects.AppEffectEmitter;
-import org.yanoproject.api.appchain.effects.EffectId;
-import org.yanoproject.api.appchain.effects.EffectIntent;
-import org.yanoproject.api.appchain.effects.EffectOutcome;
-import org.yanoproject.api.appchain.effects.EffectResult;
+import org.junit.jupiter.api.Test;
+import org.yanoproject.appchain.testkit.AppChainTestProfiles;
 import org.yanoproject.x.composite.CompositeStateKeys;
 import org.yanoproject.x.composite.CompositeStateMachine;
-import org.yanoproject.appchain.config.AppChainApprovalsConfig;
+import org.yanoproject.x.evidence.profile.contracts.EvidenceReleaseCommandV1;
+import org.yanoproject.x.evidence.profile.contracts.EvidenceReleasePrerequisiteCommandsV1;
 import org.yanoproject.x.examples.evidence.EvidenceContract;
 import org.yanoproject.x.examples.evidence.command.NotifyEvidenceCommandV1;
 import org.yanoproject.x.examples.evidence.command.RepublishEvidenceCommandV1;
 import org.yanoproject.x.examples.evidence.command.SubmitEvidenceCommandV1;
 import org.yanoproject.x.examples.evidence.query.EvidenceGetRequestV1;
 import org.yanoproject.x.examples.evidence.query.EvidenceGetResponseV1;
-import org.yanoproject.x.examples.evidence.state.EvidenceKeys;
 import org.yanoproject.x.examples.evidence.state.EvidenceEffectOperation;
+import org.yanoproject.x.examples.evidence.state.EvidenceKeys;
 import org.yanoproject.x.examples.evidence.state.EvidenceRecordV1;
 import org.yanoproject.x.examples.evidence.state.EvidenceStatus;
+import org.yanoproject.x.framework.api.appchain.AppBlock;
+import org.yanoproject.x.framework.api.appchain.AppBlockExecutionContext;
+import org.yanoproject.x.framework.api.appchain.AppQueryContext;
+import org.yanoproject.x.framework.api.appchain.AppStateMachineContext;
+import org.yanoproject.x.framework.api.appchain.AppStateWriter;
+import org.yanoproject.x.framework.api.appchain.FinalityCert;
+import org.yanoproject.x.framework.api.appchain.effects.AppEffectEmitter;
+import org.yanoproject.x.framework.api.appchain.effects.EffectId;
+import org.yanoproject.x.framework.api.appchain.effects.EffectIntent;
+import org.yanoproject.x.framework.api.appchain.effects.EffectOutcome;
+import org.yanoproject.x.framework.api.appchain.effects.EffectResult;
+import org.yanoproject.x.framework.config.AppChainApprovalsConfig;
 import org.yanoproject.x.integration.ConnectorTypes;
 import org.yanoproject.x.integration.ipfs.CanonicalCid;
 import org.yanoproject.x.integration.ipfs.IpfsPinCommandV1;
@@ -35,8 +37,6 @@ import org.yanoproject.x.integration.objectstore.ObjectPutCommandV1;
 import org.yanoproject.x.stdlib.ApprovalsStateMachine;
 import org.yanoproject.x.stdlib.DocTrailStateMachine;
 import org.yanoproject.x.stdlib.KvRegistryStateMachine;
-import org.yanoproject.appchain.testkit.AppChainTestProfiles;
-import org.junit.jupiter.api.Test;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -45,8 +45,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HexFormat;
-import java.util.List;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -473,14 +473,14 @@ class EvidenceCompositePresetTest {
             @Override public String chainId() { return CHAIN; }
             @Override public Map<String, String> settings() { return Map.copyOf(settings); }
             @Override
-            public Optional<org.yanoproject.api.appchain.AppChainConsensusProfile>
+            public Optional<org.yanoproject.x.framework.api.appchain.AppChainConsensusProfile>
             consensusProfile() {
                 return Optional.of(AppChainTestProfiles.enabledEffects(effectCap, 8));
             }
             @Override
-            public Optional<org.yanoproject.api.appchain.AppChainMembershipView>
+            public Optional<org.yanoproject.x.framework.api.appchain.AppChainMembershipView>
             membershipView() {
-                var epoch = new org.yanoproject.api.appchain.AppChainMembershipEpoch(
+                var epoch = new org.yanoproject.x.framework.api.appchain.AppChainMembershipEpoch(
                         0, List.of(HexFormat.of().formatHex(SENDER)), 1);
                 return Optional.of(ignored -> epoch);
             }

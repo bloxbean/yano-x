@@ -1,13 +1,13 @@
 package org.yanoproject.app;
 
 import org.yanoproject.api.config.PluginsOptions;
-import org.yanoproject.api.appchain.AppChainConsensusProfile;
-import org.yanoproject.api.appchain.AppStateMachineContext;
-import org.yanoproject.x.composite.CompositeStateMachine;
-import org.yanoproject.x.evidence.profile.EvidenceCompositePresets;
 import org.yanoproject.catalog.PluginIndex;
 import org.yanoproject.catalog.PluginIndexCodec;
 import org.yanoproject.runtime.plugins.PluginRuntimeEnvironment;
+import org.yanoproject.x.composite.CompositeStateMachine;
+import org.yanoproject.x.evidence.profile.EvidenceCompositePresets;
+import org.yanoproject.x.framework.api.appchain.AppChainConsensusProfile;
+import org.yanoproject.x.framework.api.appchain.AppStateMachineContext;
 
 import java.io.InputStream;
 import java.net.URL;

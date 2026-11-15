@@ -74,7 +74,7 @@ The scaffold is a small Gradle project. It compiles against the host API as
 
 - `src/main/java/com/example/shipment/ShipmentStateMachineProvider.java`, the
   provider, which does no business work yet;
-- its `META-INF/services/org.yanoproject.api.appchain.AppStateMachineProvider`
+- its `META-INF/services/org.yanoproject.x.framework.api.appchain.AppStateMachineProvider`
   entry;
 - the runtime manifest `META-INF/yano/plugins/plugin-bundle.shipment.json`; and
 - the product catalog `META-INF/yano/appchain-component-catalog-v1.json`, which
@@ -98,11 +98,11 @@ status.
 package com.example.shipment;
 
 import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
-import org.yanoproject.api.appchain.AppBlockExecutionContext;
-import org.yanoproject.api.appchain.AppStateMachine;
-import org.yanoproject.api.appchain.AppStateMachineProvider;
-import org.yanoproject.api.appchain.AppStateWriter;
-import org.yanoproject.api.appchain.effects.AppEffectEmitter;
+import org.yanoproject.x.framework.api.appchain.AppBlockExecutionContext;
+import org.yanoproject.x.framework.api.appchain.AppStateMachine;
+import org.yanoproject.x.framework.api.appchain.AppStateMachineProvider;
+import org.yanoproject.x.framework.api.appchain.AppStateWriter;
+import org.yanoproject.x.framework.api.appchain.effects.AppEffectEmitter;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Optional;
@@ -198,12 +198,12 @@ package com.example.shipment;
 
 import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
 import org.junit.jupiter.api.Test;
-import org.yanoproject.api.appchain.AppBlock;
-import org.yanoproject.api.appchain.AppBlockExecutionContext;
-import org.yanoproject.api.appchain.AppStateMachine;
-import org.yanoproject.api.appchain.AppStateWriter;
-import org.yanoproject.api.appchain.FinalityCert;
-import org.yanoproject.api.appchain.effects.AppEffectEmitter;
+import org.yanoproject.x.framework.api.appchain.AppBlock;
+import org.yanoproject.x.framework.api.appchain.AppBlockExecutionContext;
+import org.yanoproject.x.framework.api.appchain.AppStateMachine;
+import org.yanoproject.x.framework.api.appchain.AppStateWriter;
+import org.yanoproject.x.framework.api.appchain.FinalityCert;
+import org.yanoproject.x.framework.api.appchain.effects.AppEffectEmitter;
 
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;

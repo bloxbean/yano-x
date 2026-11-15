@@ -1,11 +1,11 @@
 package org.yanoproject.x.showcase;
 
-import org.yanoproject.api.appchain.AppBlockExecutionContext;
-import org.yanoproject.api.appchain.AppQueryContext;
-import org.yanoproject.api.appchain.AppQueryException;
-import org.yanoproject.api.appchain.AppStateMachine;
-import org.yanoproject.api.appchain.AppStateWriter;
-import org.yanoproject.api.appchain.effects.AppEffectEmitter;
+import org.yanoproject.x.framework.api.appchain.AppBlockExecutionContext;
+import org.yanoproject.x.framework.api.appchain.AppQueryContext;
+import org.yanoproject.x.framework.api.appchain.AppQueryException;
+import org.yanoproject.x.framework.api.appchain.AppStateMachine;
+import org.yanoproject.x.framework.api.appchain.AppStateWriter;
+import org.yanoproject.x.framework.api.appchain.effects.AppEffectEmitter;
 
 import java.nio.charset.StandardCharsets;
 

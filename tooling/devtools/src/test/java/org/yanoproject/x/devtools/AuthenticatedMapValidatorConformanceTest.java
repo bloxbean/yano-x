@@ -1,16 +1,16 @@
 package org.yanoproject.x.devtools;
 
-import org.yanoproject.api.appchain.authmap.AuthenticatedMapValueValidator;
-import org.yanoproject.api.appchain.authmap.AuthenticatedMapValueValidatorFactory;
-import org.yanoproject.api.appchain.authmap.ValidatorInitContext;
-import org.yanoproject.api.appchain.authmap.ValidatorVerdict;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import org.yanoproject.x.authmap.validators.Gs1GtinValidatorFactory;
 import org.yanoproject.x.devtools.AuthenticatedMapValidatorConformance.Report;
 import org.yanoproject.x.devtools.AuthenticatedMapValidatorConformance.ValidationCase;
 import org.yanoproject.x.devtools.fixture.ClassLoaderSensitiveValidatorFactory;
-import org.yanoproject.x.authmap.validators.Gs1GtinValidatorFactory;
+import org.yanoproject.x.framework.api.appchain.authmap.AuthenticatedMapValueValidator;
+import org.yanoproject.x.framework.api.appchain.authmap.AuthenticatedMapValueValidatorFactory;
+import org.yanoproject.x.framework.api.appchain.authmap.ValidatorInitContext;
+import org.yanoproject.x.framework.api.appchain.authmap.ValidatorVerdict;
 import org.yanoproject.x.stdlib.contracts.AuthenticatedMapContract;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 
 import java.net.URL;
 import java.nio.charset.StandardCharsets;

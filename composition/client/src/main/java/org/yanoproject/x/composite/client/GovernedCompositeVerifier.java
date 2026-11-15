@@ -1,20 +1,20 @@
 package org.yanoproject.x.composite.client;
 
-import org.yanoproject.api.appchain.AppBlock;
-import org.yanoproject.api.appchain.evidence.EvidenceBundle;
-import org.yanoproject.api.appchain.evidence.EvidenceVerifier;
 import org.yanoproject.x.client.AppChainClient;
 import org.yanoproject.x.client.ProofVerifier;
 import org.yanoproject.x.composite.contracts.CompositeCommitmentV1;
 import org.yanoproject.x.composite.contracts.CompositeProfileEpochChainVerifier;
 import org.yanoproject.x.composite.contracts.CompositeProfileEpochV1;
+import org.yanoproject.x.framework.api.appchain.AppBlock;
+import org.yanoproject.x.framework.api.appchain.evidence.EvidenceBundle;
+import org.yanoproject.x.framework.api.appchain.evidence.EvidenceVerifier;
 
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.HexFormat;
-import java.util.List;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 

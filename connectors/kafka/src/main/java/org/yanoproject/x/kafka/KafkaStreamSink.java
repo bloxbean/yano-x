@@ -1,13 +1,13 @@
 package org.yanoproject.x.kafka;
 
-import org.yanoproject.api.appchain.AppBlock;
-import org.yanoproject.api.appchain.sink.AppBlockJson;
-import org.yanoproject.api.appchain.sink.FinalizedStreamSink;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.clients.producer.RecordMetadata;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.yanoproject.x.framework.api.appchain.AppBlock;
+import org.yanoproject.x.framework.api.appchain.sink.AppBlockJson;
+import org.yanoproject.x.framework.api.appchain.sink.FinalizedStreamSink;
 
 import java.time.Duration;
 import java.util.Objects;

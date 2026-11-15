@@ -1,19 +1,19 @@
 package org.yanoproject.x.eutxo.indexer.api;
 
-import org.yanoproject.api.plugin.domain.DomainApi;
-import org.yanoproject.api.plugin.domain.DomainApiAccess;
-import org.yanoproject.api.plugin.domain.DomainApiContext;
-import org.yanoproject.api.plugin.domain.DomainApiException;
-import org.yanoproject.api.plugin.domain.DomainApiMediaType;
-import org.yanoproject.api.plugin.domain.DomainApiRequest;
-import org.yanoproject.api.plugin.domain.DomainApiResponse;
-import org.yanoproject.api.plugin.domain.DomainApiRoute;
-import org.yanoproject.api.plugin.domain.DomainHttpMethod;
-import org.yanoproject.api.plugin.domain.LocalReadModelResult;
 import org.yanoproject.x.eutxo.contracts.EutxoOutpoint;
 import org.yanoproject.x.eutxo.indexer.EutxoCursorCodec;
 import org.yanoproject.x.eutxo.indexer.EutxoIndexRequest;
 import org.yanoproject.x.eutxo.indexer.EutxoLocalReadModel;
+import org.yanoproject.x.framework.api.plugin.domain.DomainApi;
+import org.yanoproject.x.framework.api.plugin.domain.DomainApiAccess;
+import org.yanoproject.x.framework.api.plugin.domain.DomainApiContext;
+import org.yanoproject.x.framework.api.plugin.domain.DomainApiException;
+import org.yanoproject.x.framework.api.plugin.domain.DomainApiMediaType;
+import org.yanoproject.x.framework.api.plugin.domain.DomainApiRequest;
+import org.yanoproject.x.framework.api.plugin.domain.DomainApiResponse;
+import org.yanoproject.x.framework.api.plugin.domain.DomainApiRoute;
+import org.yanoproject.x.framework.api.plugin.domain.DomainHttpMethod;
+import org.yanoproject.x.framework.api.plugin.domain.LocalReadModelResult;
 
 import java.nio.charset.StandardCharsets;
 import java.util.HexFormat;

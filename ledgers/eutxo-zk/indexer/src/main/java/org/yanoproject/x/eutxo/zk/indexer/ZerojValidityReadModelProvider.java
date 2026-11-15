@@ -1,16 +1,16 @@
 package org.yanoproject.x.eutxo.zk.indexer;
 
-import org.yanoproject.api.plugin.domain.FinalizedChainView;
-import org.yanoproject.api.plugin.domain.LocalReadModelContext;
-import org.yanoproject.api.plugin.domain.LocalReadModelProvider;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.yanoproject.x.eutxo.indexer.EutxoValidityBatchRecord;
 import org.yanoproject.x.eutxo.indexer.EutxoValidityIndexSource;
 import org.yanoproject.x.eutxo.indexer.EutxoValidityLocalReadModel;
 import org.yanoproject.x.eutxo.zk.contracts.EutxoZkBatchProof;
 import org.yanoproject.x.eutxo.zk.contracts.EutxoZkBatchVerificationKey;
 import org.yanoproject.x.eutxo.zk.zeroj.EutxoJubjubBatchDevelopmentSetup;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import org.yanoproject.x.framework.api.plugin.domain.FinalizedChainView;
+import org.yanoproject.x.framework.api.plugin.domain.LocalReadModelContext;
+import org.yanoproject.x.framework.api.plugin.domain.LocalReadModelProvider;
 
 import java.io.IOException;
 import java.math.BigInteger;

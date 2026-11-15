@@ -40,7 +40,8 @@ tasks.named('shadowJar') {
     reproducibleFileOrder = true
     preserveFileTimestamps = false
     mergeServiceFiles()
-    exclude 'org/yanoproject/api/**'
+    exclude 'org/yanoproject/api/**', 'org/yanoproject/x/framework/api/**',
+            'org/yanoproject/x/framework/cardano/api/**'
     exclude 'org/yanoproject/x/composite/**'
     exclude 'org/yanoproject/x/stdlib/**'
     // Logging is supplied by the host. Shipping another SLF4J API/provider in
@@ -56,6 +57,8 @@ tasks.register('verifyBundleBoundary') {
     inputs.file(tasks.named('shadowJar').flatMap { it.archiveFile })
     doLast {
         def forbidden = ['org/yanoproject/api/',
+                'org/yanoproject/x/framework/api/',
+                'org/yanoproject/x/framework/cardano/api/',
                          'org/yanoproject/x/composite/',
                          'org/yanoproject/x/stdlib/',
                          'org/slf4j/']

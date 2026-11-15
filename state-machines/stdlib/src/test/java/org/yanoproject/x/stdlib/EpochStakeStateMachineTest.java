@@ -1,19 +1,19 @@
 package org.yanoproject.x.stdlib;
 
-import org.yanoproject.api.appchain.AppBlock;
-import org.yanoproject.api.appchain.AppBlockExecutionContext;
 import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
-import org.yanoproject.api.appchain.AppQueryContext;
-import org.yanoproject.api.appchain.AppStateWriter;
-import org.yanoproject.api.appchain.FinalityCert;
-import org.yanoproject.api.appchain.effects.AppEffectEmitter;
-import org.yanoproject.api.appchain.l1view.L1EpochBoundary;
-import org.yanoproject.api.appchain.l1view.L1EpochState;
-import org.yanoproject.api.appchain.l1view.L1Observation;
-import org.yanoproject.api.appchain.l1view.ProtocolParamsView;
-import org.yanoproject.x.stdlib.contracts.EpochStakeContract;
-import org.yanoproject.runtime.appchain.StateMachineConformance;
 import org.junit.jupiter.api.Test;
+import org.yanoproject.x.framework.api.appchain.AppBlock;
+import org.yanoproject.x.framework.api.appchain.AppBlockExecutionContext;
+import org.yanoproject.x.framework.api.appchain.AppQueryContext;
+import org.yanoproject.x.framework.api.appchain.AppStateWriter;
+import org.yanoproject.x.framework.api.appchain.FinalityCert;
+import org.yanoproject.x.framework.api.appchain.effects.AppEffectEmitter;
+import org.yanoproject.x.framework.api.appchain.l1view.L1EpochBoundary;
+import org.yanoproject.x.framework.api.appchain.l1view.L1EpochState;
+import org.yanoproject.x.framework.api.appchain.l1view.L1Observation;
+import org.yanoproject.x.framework.api.appchain.l1view.ProtocolParamsView;
+import org.yanoproject.x.framework.runtime.appchain.StateMachineConformance;
+import org.yanoproject.x.stdlib.contracts.EpochStakeContract;
 
 import java.math.BigInteger;
 import java.nio.ByteBuffer;

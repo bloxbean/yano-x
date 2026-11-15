@@ -116,6 +116,7 @@ subprojects.findAll { candidate ->
 apply from: file('gradle/framework-project-resolution.gradle')
 apply from: file('gradle/plugin-bundle-host-classes.gradle')
 apply from: file('gradle/verification.gradle')
+apply from: file('gradle/framework-package-ownership.gradle')
 
 // Focused extraction contract; deliberately does not build unrelated product bundles.
 tasks.register('frameworkCheck') {
@@ -124,5 +125,5 @@ tasks.register('frameworkCheck') {
     dependsOn ':framework:api:test', ':framework:cardano-api:test', ':framework:config:test', ':framework:core:test',
             ':framework:core:verifyFrameworkBoundary', ':framework:host-adapter:test',
             ':framework:cardano:test', ':framework:cardano-onchain:test', ':framework:standalone:jar',
-            'verifyArtifactInventory', 'verifyJvmOnlyBuild'
+            'verifyArtifactInventory', 'verifyJvmOnlyBuild', 'verifyFrameworkPackageOwnership'
 }

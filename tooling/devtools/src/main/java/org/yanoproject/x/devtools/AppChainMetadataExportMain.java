@@ -1,6 +1,6 @@
 package org.yanoproject.x.devtools;
 
-import org.yanoproject.appchain.config.AppChainPropertyRegistry;
+import org.yanoproject.x.framework.config.AppChainPropertyRegistry;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;

@@ -1,22 +1,22 @@
 package org.yanoproject.x.devtools;
 
 import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
-import org.yanoproject.api.appchain.AppBlock;
-import org.yanoproject.api.appchain.AppBlockExecutionContext;
-import org.yanoproject.api.appchain.AppChainConsensusProfile;
-import org.yanoproject.api.appchain.AppChainInfo;
-import org.yanoproject.api.appchain.AppQueryContext;
-import org.yanoproject.api.appchain.AppStateMachine;
-import org.yanoproject.api.appchain.AppStateMachine.AdmissionResult;
-import org.yanoproject.api.appchain.AppStateWriter;
-import org.yanoproject.api.appchain.FinalityCert;
-import org.yanoproject.api.appchain.effects.AppEffectEmitter;
-import org.yanoproject.api.appchain.effects.EffectId;
-import org.yanoproject.api.appchain.effects.EffectIntent;
 import org.yanoproject.x.composite.CompositeStateKeys;
 import org.yanoproject.x.composite.bindings.EventBindingWorkflow;
 import org.yanoproject.x.composite.contracts.BindingCbor;
 import org.yanoproject.x.composite.contracts.BindingReceiptV1;
+import org.yanoproject.x.framework.api.appchain.AppBlock;
+import org.yanoproject.x.framework.api.appchain.AppBlockExecutionContext;
+import org.yanoproject.x.framework.api.appchain.AppChainConsensusProfile;
+import org.yanoproject.x.framework.api.appchain.AppChainInfo;
+import org.yanoproject.x.framework.api.appchain.AppQueryContext;
+import org.yanoproject.x.framework.api.appchain.AppStateMachine.AdmissionResult;
+import org.yanoproject.x.framework.api.appchain.AppStateMachine;
+import org.yanoproject.x.framework.api.appchain.AppStateWriter;
+import org.yanoproject.x.framework.api.appchain.FinalityCert;
+import org.yanoproject.x.framework.api.appchain.effects.AppEffectEmitter;
+import org.yanoproject.x.framework.api.appchain.effects.EffectId;
+import org.yanoproject.x.framework.api.appchain.effects.EffectIntent;
 
 import java.util.ArrayList;
 import java.util.HexFormat;

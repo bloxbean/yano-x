@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "frameworkVersion": "0.1.0-245.9",
+  "frameworkVersion": "<namespace-framework-version>",
   "repositories": [
     "file:///private/tmp/yano-245-host-artifacts",
     "file:///private/tmp/yano-245-foundation-artifacts",
@@ -8,16 +8,16 @@
     "file:///private/tmp/yano-245-artifacts"
   ],
   "baseline": {
-    "hostVersion": "0.1.0-245.5",
-    "foundationVersion": "0.1.0-245.5",
-    "hostApiVersion": "1.0.0-245.4"
+    "hostVersion": "<namespace-compatible-host-version>",
+    "foundationVersion": "<compatible-foundation-version>",
+    "hostApiVersion": "<unchanged-host-api-version>"
   },
   "current": {
-    "hostVersion": "0.1.0-245.5",
-    "foundationVersion": "0.1.0-245.5",
-    "hostApiVersion": "1.0.0-245.4"
+    "hostVersion": "<namespace-compatible-host-version>",
+    "foundationVersion": "<compatible-foundation-version>",
+    "hostApiVersion": "<unchanged-host-api-version>"
   },
-  "yaciCoreVersion": "0.5.0-pre15-app-only-245",
+  "yaciCoreVersion": "0.5.0-pre16-f57fc88-20261114.141754-1",
   "profiles": [
     "standalone",
     "cardano-construction"

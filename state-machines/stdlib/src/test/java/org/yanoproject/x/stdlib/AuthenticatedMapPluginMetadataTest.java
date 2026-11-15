@@ -1,7 +1,7 @@
 package org.yanoproject.x.stdlib;
 
-import org.yanoproject.api.plugin.domain.DomainApiProvider;
 import org.junit.jupiter.api.Test;
+import org.yanoproject.x.framework.api.plugin.domain.DomainApiProvider;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;

@@ -68,9 +68,9 @@ tasks.register('verifyFrameworkProjectResolution') {
             throw new GradleException("CLI still resolves published framework owners: ${duplicatedPublishedOwners}")
         }
         def representativeOwners = [
-                'org/yanoproject/api/appchain/AppChainConfig.class': ':framework:api',
-                'org/yanoproject/appchain/config/AppChainPropertyRegistry.class': ':framework:config',
-                'org/yanoproject/runtime/appchain/OrderedLogStateMachine.class': ':framework:core'
+                'org/yanoproject/x/framework/api/appchain/AppChainConfig.class': ':framework:api',
+                'org/yanoproject/x/framework/config/AppChainPropertyRegistry.class': ':framework:config',
+                'org/yanoproject/x/framework/runtime/appchain/OrderedLogStateMachine.class': ':framework:core'
         ]
         def actual = representativeOwners.collectEntries { [(it.key): []] }
         runtime.incoming.artifacts.artifacts.each { artifact ->

@@ -267,9 +267,9 @@ export default {
         'the pending pool', 'deterministic no-op', 'AppChainStalledEvent'] },
     { repo: 'yano', path: 'docs/appchain/submission.md',
       anchors: ['**202** with `messageId`', '**429**', 'Accepted is not finalized', 'message ID is already consumed'] },
-    { repo: 'yano', path: 'core-api/src/main/java/org/yanoproject/api/appchain/AppChainConfig.java',
+    { repo: 'yano-x', path: 'framework/api/src/main/java/org/yanoproject/x/framework/api/appchain/AppChainConfig.java',
       anchors: ['DEFAULT_DEFAULT_TTL_SECONDS = 600', 'DEFAULT_BLOCK_INTERVAL_MS = 2000'] },
-    { repo: 'yano', path: 'runtime/src/main/java/org/yanoproject/runtime/appchain/AppChainSubsystem.java',
+    { repo: 'yano-x', path: 'framework/core/src/main/java/org/yanoproject/x/framework/runtime/appchain/AppLedgerRuntime.java',
       anchors: ['Math.max(config.blockIntervalMs() * 5, 10_000)', '.sender(signer.publicKey())'] },
   ],
 };

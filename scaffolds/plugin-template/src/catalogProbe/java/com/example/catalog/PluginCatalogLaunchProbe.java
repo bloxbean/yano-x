@@ -1,18 +1,10 @@
 package com.example.catalog;
 
-import org.yanoproject.api.appchain.AppStateMachine;
-import org.yanoproject.api.appchain.AppStateMachineProvider;
-import org.yanoproject.api.appchain.AppQueryException;
-import org.yanoproject.api.appchain.AppQueryResult;
 import org.yanoproject.api.config.PluginsOptions;
-import org.yanoproject.api.plugin.PluginBundleInfo;
 import org.yanoproject.api.plugin.PluginApiVersion;
+import org.yanoproject.api.plugin.PluginBundleInfo;
 import org.yanoproject.api.plugin.PluginDigestMode;
 import org.yanoproject.api.plugin.PluginSourceCategory;
-import org.yanoproject.api.plugin.domain.DomainApi;
-import org.yanoproject.api.plugin.domain.DomainApiContext;
-import org.yanoproject.api.plugin.domain.DomainApiProvider;
-import org.yanoproject.api.plugin.domain.DomainQueryService;
 import org.yanoproject.api.plugin.operations.PluginHealthContext;
 import org.yanoproject.api.plugin.operations.PluginHealthProvider;
 import org.yanoproject.api.plugin.operations.PluginHealthSource;
@@ -22,6 +14,14 @@ import org.yanoproject.api.plugin.operations.PluginMetricsProvider;
 import org.yanoproject.api.plugin.operations.PluginMetricsSource;
 import org.yanoproject.runtime.plugins.PluginLoaderHandle;
 import org.yanoproject.runtime.plugins.PluginRuntimeEnvironment;
+import org.yanoproject.x.framework.api.appchain.AppQueryException;
+import org.yanoproject.x.framework.api.appchain.AppQueryResult;
+import org.yanoproject.x.framework.api.appchain.AppStateMachine;
+import org.yanoproject.x.framework.api.appchain.AppStateMachineProvider;
+import org.yanoproject.x.framework.api.plugin.domain.DomainApi;
+import org.yanoproject.x.framework.api.plugin.domain.DomainApiContext;
+import org.yanoproject.x.framework.api.plugin.domain.DomainApiProvider;
+import org.yanoproject.x.framework.api.plugin.domain.DomainQueryService;
 
 import java.nio.file.Files;
 import java.nio.file.Path;

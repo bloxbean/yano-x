@@ -1,13 +1,13 @@
 package org.yanoproject.x.showcase;
 
-import org.yanoproject.api.appchain.effects.EffectExecution;
-import org.yanoproject.api.appchain.effects.EffectExecutionContext;
-import org.yanoproject.api.appchain.effects.EffectRecord;
-import org.yanoproject.api.appchain.effects.FinalityGate;
-import org.yanoproject.api.appchain.effects.PendingEffect;
-import org.yanoproject.api.appchain.effects.ResultPolicy;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.yanoproject.x.framework.api.appchain.effects.EffectExecution;
+import org.yanoproject.x.framework.api.appchain.effects.EffectExecutionContext;
+import org.yanoproject.x.framework.api.appchain.effects.EffectRecord;
+import org.yanoproject.x.framework.api.appchain.effects.FinalityGate;
+import org.yanoproject.x.framework.api.appchain.effects.PendingEffect;
+import org.yanoproject.x.framework.api.appchain.effects.ResultPolicy;
 
 import java.nio.file.Files;
 import java.nio.file.Path;

@@ -1,9 +1,9 @@
 package org.yanoproject.x.eutxo.indexer.jdbc;
 
-import org.yanoproject.api.plugin.domain.DomainApi;
-import org.yanoproject.api.plugin.domain.DomainApiContext;
-import org.yanoproject.api.plugin.domain.DomainApiProvider;
 import org.yanoproject.x.eutxo.indexer.api.EutxoIndexDomainApiProvider;
+import org.yanoproject.x.framework.api.plugin.domain.DomainApi;
+import org.yanoproject.x.framework.api.plugin.domain.DomainApiContext;
+import org.yanoproject.x.framework.api.plugin.domain.DomainApiProvider;
 
 /** Bundle-local provider entry point for the storage-neutral index domain API. */
 public final class EutxoJdbcIndexDomainApiProvider implements DomainApiProvider {

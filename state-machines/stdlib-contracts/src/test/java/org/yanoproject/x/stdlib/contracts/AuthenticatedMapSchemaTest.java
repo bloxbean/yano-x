@@ -1,10 +1,10 @@
 package org.yanoproject.x.stdlib.contracts;
 
-import org.yanoproject.api.appchain.schema.CborSchema;
-import org.junit.jupiter.api.Test;
 import co.nstant.in.cbor.CborEncoder;
 import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.ByteString;
+import org.junit.jupiter.api.Test;
+import org.yanoproject.x.framework.api.appchain.schema.CborSchema;
 
 import java.io.ByteArrayOutputStream;
 import java.math.BigInteger;

@@ -1,17 +1,17 @@
 package org.yanoproject.x.eutxo.zk.indexer;
 
-import org.yanoproject.api.appchain.AppBlock;
-import org.yanoproject.api.appchain.AppQueryResult;
-import org.yanoproject.api.appchain.state.StateCommitmentIdentity;
-import org.yanoproject.api.plugin.domain.FinalizedChainView;
-import org.yanoproject.api.plugin.domain.LocalReadModelContext;
-import org.yanoproject.api.plugin.domain.LocalReadModelHost;
-import org.yanoproject.api.plugin.domain.LocalReadModelResult;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.yanoproject.x.eutxo.indexer.EutxoIndexRequest;
 import org.yanoproject.x.eutxo.indexer.EutxoLocalReadModel;
 import org.yanoproject.x.eutxo.indexer.EutxoValidityLocalReadModel;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
+import org.yanoproject.x.framework.api.appchain.AppBlock;
+import org.yanoproject.x.framework.api.appchain.AppQueryResult;
+import org.yanoproject.x.framework.api.appchain.state.StateCommitmentIdentity;
+import org.yanoproject.x.framework.api.plugin.domain.FinalizedChainView;
+import org.yanoproject.x.framework.api.plugin.domain.LocalReadModelContext;
+import org.yanoproject.x.framework.api.plugin.domain.LocalReadModelHost;
+import org.yanoproject.x.framework.api.plugin.domain.LocalReadModelResult;
 
 import java.nio.file.Files;
 import java.nio.file.Path;

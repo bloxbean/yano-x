@@ -90,10 +90,10 @@ export default {
     },
   },
   sources: [
-    { repo: 'yano', path: 'core-api/src/main/java/org/yanoproject/api/appchain/proof/ProofLabVocabulary.java',
+    { repo: 'yano-x', path: 'framework/api/src/main/java/org/yanoproject/x/framework/api/appchain/proof/ProofLabVocabulary.java',
       anchors: ['INTERNAL_CONSISTENCY_ONLY', 'CALLER_PINNED_ROOT', 'NODE_CONFIRMED_L1_REFERENCE', 'CALLER_PINNED_ANCHOR',
         'INDEPENDENTLY_VERIFIED_L1_ANCHOR', 'NOT_PROVEN', 'LOCALLY_RETAINED'] },
-    { repo: 'yano', path: 'runtime/src/main/java/org/yanoproject/runtime/appchain/AppChainSubsystem.java',
+    { repo: 'yano-x', path: 'framework/core/src/main/java/org/yanoproject/x/framework/runtime/appchain/AppLedgerRuntime.java',
       anchors: ['.TrustLevel.INTERNAL_CONSISTENCY_ONLY;', 'case LATEST_CONFIRMED_ANCHOR ->',
         '.TrustLevel.NODE_CONFIRMED_L1_REFERENCE;'] },
     { repo: 'yano', path: 'app/src/main/java/org/yanoproject/app/api/appchain/AppChainResource.java',

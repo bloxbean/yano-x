@@ -1,10 +1,10 @@
 package org.yanoproject.x.zk;
 
-import org.yanoproject.api.appchain.AppStateMachine;
-import org.yanoproject.api.appchain.AppStateMachineContext;
-import org.yanoproject.api.appchain.AppStateMachineProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.yanoproject.x.framework.api.appchain.AppStateMachine;
+import org.yanoproject.x.framework.api.appchain.AppStateMachineContext;
+import org.yanoproject.x.framework.api.appchain.AppStateMachineProvider;
 
 /**
  * ServiceLoader provider for the E7.1 ZK gate. Selected by

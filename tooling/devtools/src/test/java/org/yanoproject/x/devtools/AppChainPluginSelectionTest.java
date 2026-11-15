@@ -1,8 +1,8 @@
 package org.yanoproject.x.devtools;
 
-import org.yanoproject.appchain.config.AppChainPropertyRegistry;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.yanoproject.x.framework.config.AppChainPropertyRegistry;
 
 import java.io.IOException;
 import java.nio.file.Path;

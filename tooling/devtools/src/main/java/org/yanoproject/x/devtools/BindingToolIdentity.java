@@ -1,10 +1,10 @@
 package org.yanoproject.x.devtools;
 
-import org.yanoproject.api.appchain.AppStateMachine;
 import org.yanoproject.api.plugin.PluginBundleInfo;
 import org.yanoproject.api.plugin.PluginCatalogView;
 import org.yanoproject.runtime.plugins.PluginProviderRegistry;
 import org.yanoproject.x.composite.bindings.BindingProgram;
+import org.yanoproject.x.framework.api.appchain.AppStateMachine;
 
 import java.io.IOException;
 import java.io.InputStream;

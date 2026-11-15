@@ -1,7 +1,5 @@
 package org.yanoproject.app.e2e;
 
-import org.yanoproject.api.appchain.state.StateCommitmentIdentity;
-import org.yanoproject.api.appchain.state.StateCommitmentProfiles;
 import com.bloxbean.cardano.client.address.AddressProvider;
 import com.bloxbean.cardano.client.address.Credential;
 import com.bloxbean.cardano.client.common.model.Networks;
@@ -10,6 +8,8 @@ import com.bloxbean.cardano.client.crypto.KeyGenUtil;
 import org.yanoproject.x.eutxo.contracts.EutxoOutpoint;
 import org.yanoproject.x.eutxo.contracts.EutxoProfile;
 import org.yanoproject.x.eutxo.demo.SettlementBootstrapPlan;
+import org.yanoproject.x.framework.api.appchain.state.StateCommitmentIdentity;
+import org.yanoproject.x.framework.api.appchain.state.StateCommitmentProfiles;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;

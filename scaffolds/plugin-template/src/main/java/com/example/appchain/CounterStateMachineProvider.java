@@ -1,12 +1,12 @@
 package com.example.appchain;
 
-import org.yanoproject.api.appchain.AppStateMachine;
-import org.yanoproject.api.appchain.AppStateMachineProvider;
+import org.yanoproject.x.framework.api.appchain.AppStateMachine;
+import org.yanoproject.x.framework.api.appchain.AppStateMachineProvider;
 
 /**
  * ServiceLoader provider that advertises {@link CounterStateMachine} to the
  * node. The node discovers this class through the
- * {@code META-INF/services/org.yanoproject.api.appchain.AppStateMachineProvider}
+ * {@code META-INF/services/org.yanoproject.x.framework.api.appchain.AppStateMachineProvider}
  * entry and instantiates the machine when
  * {@code yano.app-chain.state-machine=counter}.
  */

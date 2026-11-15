@@ -1,7 +1,5 @@
 package org.yanoproject.x.framework.host;
 
-import org.yanoproject.api.appchain.AppChainConfig;
-import org.yanoproject.api.appchain.AppLedgerOperatingProfile;
 import org.yanoproject.api.config.RuntimeMode;
 import org.yanoproject.api.config.RuntimeOptions;
 import org.yanoproject.api.config.YanoConfig;
@@ -9,10 +7,12 @@ import org.yanoproject.api.host.HostApi;
 import org.yanoproject.api.host.HostLifecycleRegistry;
 import org.yanoproject.api.plugin.NodePlugin;
 import org.yanoproject.api.plugin.PluginContext;
-import org.yanoproject.appchain.config.AppChainConfigParser;
-import org.yanoproject.runtime.appchain.AppLedgerManager;
-import org.yanoproject.runtime.appchain.AppLedgerRuntime;
 import org.yanoproject.runtime.util.LifecycleFailures;
+import org.yanoproject.x.framework.api.appchain.AppChainConfig;
+import org.yanoproject.x.framework.api.appchain.AppLedgerOperatingProfile;
+import org.yanoproject.x.framework.config.AppChainConfigParser;
+import org.yanoproject.x.framework.runtime.appchain.AppLedgerManager;
+import org.yanoproject.x.framework.runtime.appchain.AppLedgerRuntime;
 
 import java.io.IOException;
 import java.io.InputStream;

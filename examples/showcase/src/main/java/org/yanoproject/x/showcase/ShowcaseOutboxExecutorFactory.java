@@ -1,7 +1,7 @@
 package org.yanoproject.x.showcase;
 
-import org.yanoproject.api.appchain.effects.AppEffectExecutor;
-import org.yanoproject.api.appchain.effects.AppEffectExecutorFactory;
+import org.yanoproject.x.framework.api.appchain.effects.AppEffectExecutor;
+import org.yanoproject.x.framework.cardano.api.effects.AppEffectExecutorFactory;
 
 import java.nio.file.Path;
 import java.util.List;

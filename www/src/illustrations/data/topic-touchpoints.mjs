@@ -129,7 +129,7 @@ export default {
         'Names starting with `~` are reserved.'] },
     { repo: 'yano-x', path: 'docs/appchain/bindings/07-admission-rules.md',
       anchors: ['`writer.kind`', '`writer.signers`', 'Derived bytes still obey the target\'s `maxPayloadBytes`'] },
-    { repo: 'yano', path: 'core-api/src/main/java/org/yanoproject/api/appchain/topics/TopicWriteRules.java',
+    { repo: 'yano-x', path: 'framework/api/src/main/java/org/yanoproject/x/framework/api/appchain/topics/TopicWriteRules.java',
       anchors: ['signatures do not meet the writer policy', 'payload exceeds maxPayloadBytes',
         'payload does not satisfy the topic schema'] },
   ],

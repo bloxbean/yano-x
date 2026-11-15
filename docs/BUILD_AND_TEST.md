@@ -108,6 +108,31 @@ For coordinated local or staged Yano development, retain
 `-PuseMavenLocal=true` or `-PyanoRepository=<URL-or-path>` as appropriate on
 both commands, and add the matching `-PyanoJvmDist` to the clean build.
 
+
+## Framework test ownership
+
+`./gradlew frameworkCheck` runs the framework unit/wire suites and enforces both
+the lean core dependency boundary and module package ownership. It consumes only
+the selected foundation/Host API artifacts, so it can run before a full host is
+staged. The generic tests belong to `framework/core`; Cardano-specific unit tests
+belong to `framework/cardano`. Host assembly, catalog, REST and integrated node
+tests stay in Yano and consume the published framework contracts.
+
+The Cardano integration source set runs `L1DeliveryLoopTest` and
+`ScriptAnchorServiceTest` with the exact `yanoVersion` runtime artifact. Its
+protocol-parameter JSON is a checksum-documented test resource, not a file read
+from another checkout. `./gradlew :framework:cardano:integrationTest` runs this
+slice; normal `./gradlew check` includes it. Supply a namespace-compatible host
+and the matching foundation/Host API inputs. No host runtime resolution occurs
+merely from configuring these tasks or running `frameworkCheck`.
+
+The core's Gradle `testFixtures` classifier provides narrow setup and fault
+injection helpers used only by tests across the module/repository boundary.
+Package-private engine/store internals do not become production APIs for tests.
+See [the framework gate](../qa/framework/README.md) for exact input commands and
+[the packaged host matrix](../qa/framework/host-matrix/README.md) for frozen
+baseline qualification after the namespace migration.
+
 ## Coordinated CI staging (not a release)
 
 The host `integration.yml` workflow can stage a clean, exact-commit Maven

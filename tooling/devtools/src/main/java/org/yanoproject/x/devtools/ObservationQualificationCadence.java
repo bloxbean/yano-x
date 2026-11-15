@@ -2,17 +2,17 @@ package org.yanoproject.x.devtools;
 
 import com.bloxbean.cardano.client.crypto.KeyGenUtil;
 import com.bloxbean.cardano.client.crypto.config.CryptoConfiguration;
-import org.yanoproject.api.appchain.observation.ObservationFixedPoint;
-import org.yanoproject.api.appchain.observation.ObservationKeys;
-import org.yanoproject.api.appchain.observation.ObservationProfileV1;
-import org.yanoproject.api.appchain.observation.ObservationReport;
-import org.yanoproject.api.appchain.observation.ObservationResult;
-import org.yanoproject.api.appchain.observation.ObservationResultStatus;
-import org.yanoproject.api.appchain.observation.ObservationRound;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.yanoproject.x.client.AppChainClient;
 import org.yanoproject.x.client.ObservationReporterJournal;
+import org.yanoproject.x.framework.api.appchain.observation.ObservationFixedPoint;
+import org.yanoproject.x.framework.api.appchain.observation.ObservationKeys;
+import org.yanoproject.x.framework.api.appchain.observation.ObservationProfileV1;
+import org.yanoproject.x.framework.api.appchain.observation.ObservationReport;
+import org.yanoproject.x.framework.api.appchain.observation.ObservationResult;
+import org.yanoproject.x.framework.api.appchain.observation.ObservationResultStatus;
+import org.yanoproject.x.framework.api.appchain.observation.ObservationRound;
 import org.yanoproject.x.stdlib.AdaUsdReferenceStateMachine;
-import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;

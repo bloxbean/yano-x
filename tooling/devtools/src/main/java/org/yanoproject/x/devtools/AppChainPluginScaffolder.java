@@ -77,11 +77,11 @@ final class AppChainPluginScaffolder {
         Path resources = root.resolve("src/main/resources");
         String service = switch (mode) {
             case "state-machine", "composite-role" ->
-                    "org.yanoproject.api.appchain.AppStateMachineProvider";
+                    "org.yanoproject.x.framework.api.appchain.AppStateMachineProvider";
             case "effect-executor" ->
-                    "org.yanoproject.api.appchain.effects.AppEffectExecutorFactory";
+                    "org.yanoproject.x.framework.cardano.api.effects.AppEffectExecutorFactory";
             case "sink" ->
-                    "org.yanoproject.api.appchain.sink.FinalizedStreamSinkFactory";
+                    "org.yanoproject.x.framework.api.appchain.sink.FinalizedStreamSinkFactory";
             default -> throw new IllegalStateException("unreachable scaffold mode");
         };
         write(resources.resolve("META-INF/services").resolve(service),
@@ -179,11 +179,11 @@ final class AppChainPluginScaffolder {
                     package %s;
 
                     import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
-                    import org.yanoproject.api.appchain.AppBlockExecutionContext;
-                    import org.yanoproject.api.appchain.AppStateMachine;
-                    import org.yanoproject.api.appchain.AppStateMachineProvider;
-                    import org.yanoproject.api.appchain.AppStateWriter;
-                    import org.yanoproject.api.appchain.effects.AppEffectEmitter;
+                    import org.yanoproject.x.framework.api.appchain.AppBlockExecutionContext;
+                    import org.yanoproject.x.framework.api.appchain.AppStateMachine;
+                    import org.yanoproject.x.framework.api.appchain.AppStateMachineProvider;
+                    import org.yanoproject.x.framework.api.appchain.AppStateWriter;
+                    import org.yanoproject.x.framework.api.appchain.effects.AppEffectEmitter;
 
                     public final class %s implements AppStateMachineProvider {
                         @Override
@@ -222,8 +222,8 @@ final class AppChainPluginScaffolder {
             case "effect-executor" -> """
                     package %s;
 
-                    import org.yanoproject.api.appchain.effects.AppEffectExecutor;
-                    import org.yanoproject.api.appchain.effects.AppEffectExecutorFactory;
+                    import org.yanoproject.x.framework.api.appchain.effects.AppEffectExecutor;
+                    import org.yanoproject.x.framework.cardano.api.effects.AppEffectExecutorFactory;
                     import java.util.List;
                     import java.util.Map;
 
@@ -244,8 +244,8 @@ final class AppChainPluginScaffolder {
             case "sink" -> """
                     package %s;
 
-                    import org.yanoproject.api.appchain.sink.FinalizedStreamSink;
-                    import org.yanoproject.api.appchain.sink.FinalizedStreamSinkFactory;
+                    import org.yanoproject.x.framework.api.appchain.sink.FinalizedStreamSink;
+                    import org.yanoproject.x.framework.api.appchain.sink.FinalizedStreamSinkFactory;
                     import java.util.List;
                     import java.util.Map;
 

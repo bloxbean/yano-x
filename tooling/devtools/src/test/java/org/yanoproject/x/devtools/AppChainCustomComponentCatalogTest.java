@@ -1,21 +1,21 @@
 package org.yanoproject.x.devtools;
 
-import org.yanoproject.api.appchain.AppStateMachine;
-import org.yanoproject.api.appchain.AppStateMachineProvider;
-import org.yanoproject.api.appchain.effects.AppEffectExecutorFactory;
-import org.yanoproject.api.appchain.sink.FinalizedStreamSinkFactory;
-import org.yanoproject.appchain.config.AppChainPropertyRegistry;
-import org.yanoproject.appchain.config.AppChainMetadataDescriptor;
-import org.yanoproject.appchain.config.AppChainPropertyDefinition;
-import org.yanoproject.appchain.config.ChangePolicy;
-import org.yanoproject.appchain.config.ConstraintProvenance;
-import org.yanoproject.appchain.config.PropertyScope;
-import org.yanoproject.appchain.config.PropertyType;
-import org.yanoproject.appchain.config.ValidationCoverage;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.yanoproject.x.framework.api.appchain.AppStateMachine;
+import org.yanoproject.x.framework.api.appchain.AppStateMachineProvider;
+import org.yanoproject.x.framework.api.appchain.sink.FinalizedStreamSinkFactory;
+import org.yanoproject.x.framework.cardano.api.effects.AppEffectExecutorFactory;
+import org.yanoproject.x.framework.config.AppChainMetadataDescriptor;
+import org.yanoproject.x.framework.config.AppChainPropertyDefinition;
+import org.yanoproject.x.framework.config.AppChainPropertyRegistry;
+import org.yanoproject.x.framework.config.ChangePolicy;
+import org.yanoproject.x.framework.config.ConstraintProvenance;
+import org.yanoproject.x.framework.config.PropertyScope;
+import org.yanoproject.x.framework.config.PropertyType;
+import org.yanoproject.x.framework.config.ValidationCoverage;
 
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;

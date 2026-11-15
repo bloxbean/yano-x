@@ -1,7 +1,7 @@
 package org.yanoproject.x.composite.bindings;
 
-import org.yanoproject.api.appchain.transition.CommandDescriptor;
 import org.yanoproject.x.composite.contracts.BindingCbor;
+import org.yanoproject.x.framework.api.appchain.transition.CommandDescriptor;
 
 import java.util.ArrayList;
 import java.util.Arrays;

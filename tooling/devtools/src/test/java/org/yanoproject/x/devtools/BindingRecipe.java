@@ -1,9 +1,9 @@
 package org.yanoproject.x.devtools;
 
-import org.yanoproject.api.appchain.AppChainMembershipEpoch;
-import org.yanoproject.appchain.config.AppChainEffectsConfig;
 import org.yanoproject.x.dpp.profile.DppGenesis;
 import org.yanoproject.x.feed.profile.FeedGenesis;
+import org.yanoproject.x.framework.api.appchain.AppChainMembershipEpoch;
+import org.yanoproject.x.framework.config.AppChainEffectsConfig;
 import org.yanoproject.x.roles.contracts.ApprovalPolicyV1;
 import org.yanoproject.x.roles.contracts.GenesisActorV1;
 import org.yanoproject.x.roles.contracts.GovernedGenesisV1;

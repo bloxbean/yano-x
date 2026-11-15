@@ -1,8 +1,8 @@
 package org.yanoproject.x.stdlib;
 
-import org.yanoproject.api.appchain.l1view.L1EpochObserver;
-import org.yanoproject.api.appchain.l1view.L1EpochObserverProvider;
-import org.yanoproject.api.appchain.l1view.L1ObserverConsensusIdentity;
+import org.yanoproject.x.framework.api.appchain.l1view.L1EpochObserver;
+import org.yanoproject.x.framework.api.appchain.l1view.L1EpochObserverProvider;
+import org.yanoproject.x.framework.api.appchain.l1view.L1ObserverConsensusIdentity;
 import org.yanoproject.x.stdlib.contracts.EpochGovernanceContract;
 
 import java.util.Map;

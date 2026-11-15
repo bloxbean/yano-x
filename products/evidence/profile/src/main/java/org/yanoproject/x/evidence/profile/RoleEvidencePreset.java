@@ -1,6 +1,5 @@
 package org.yanoproject.x.evidence.profile;
 
-import org.yanoproject.api.appchain.AppStateMachineContext;
 import org.yanoproject.x.composite.ComponentDescriptor;
 import org.yanoproject.x.composite.ComponentGeneration;
 import org.yanoproject.x.composite.ComposableAppStateMachine;
@@ -12,6 +11,7 @@ import org.yanoproject.x.evidence.profile.contracts.EvidenceWorkflowCapacityV1;
 import org.yanoproject.x.examples.evidence.EvidenceContract;
 import org.yanoproject.x.examples.evidence.EvidenceRegistryConfig;
 import org.yanoproject.x.examples.evidence.EvidenceRegistryStateMachine;
+import org.yanoproject.x.framework.api.appchain.AppStateMachineContext;
 import org.yanoproject.x.roles.DomainActorRegistryComponent;
 import org.yanoproject.x.roles.RoleApprovalWorkflow;
 import org.yanoproject.x.roles.RoleAwareApprovalsComponent;

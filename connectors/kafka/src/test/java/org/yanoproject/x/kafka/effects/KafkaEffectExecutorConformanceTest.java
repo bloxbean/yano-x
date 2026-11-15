@@ -1,8 +1,13 @@
 package org.yanoproject.x.kafka.effects;
 
-import org.yanoproject.api.appchain.effects.AppEffectExecutor;
-import org.yanoproject.api.appchain.effects.EffectExecutionContext;
-import org.yanoproject.api.appchain.effects.PendingEffect;
+import org.apache.kafka.common.errors.NetworkException;
+import org.apache.kafka.common.errors.TimeoutException;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.DynamicNode;
+import org.junit.jupiter.api.TestFactory;
+import org.yanoproject.x.framework.api.appchain.effects.AppEffectExecutor;
+import org.yanoproject.x.framework.api.appchain.effects.EffectExecutionContext;
+import org.yanoproject.x.framework.api.appchain.effects.PendingEffect;
 import org.yanoproject.x.integration.ConnectorErrorCode;
 import org.yanoproject.x.integration.ConnectorTypes;
 import org.yanoproject.x.integration.detail.ConnectorDetailDocumentV1;
@@ -22,11 +27,6 @@ import org.yanoproject.x.testkit.effects.ExternalProbe;
 import org.yanoproject.x.testkit.effects.FailedConstructionObservation;
 import org.yanoproject.x.testkit.effects.IdempotencyModel;
 import org.yanoproject.x.testkit.effects.PayloadCase;
-import org.apache.kafka.common.errors.NetworkException;
-import org.apache.kafka.common.errors.TimeoutException;
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.DynamicNode;
-import org.junit.jupiter.api.TestFactory;
 
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;

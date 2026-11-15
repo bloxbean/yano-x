@@ -1,10 +1,10 @@
 package org.yanoproject.x.examples.evidence;
 
-import org.yanoproject.api.appchain.AppStateMachineProvider;
-import org.yanoproject.api.plugin.domain.DomainApiProvider;
+import org.junit.jupiter.api.Test;
 import org.yanoproject.catalog.BundleManifestParser;
 import org.yanoproject.catalog.ContributionKind;
-import org.junit.jupiter.api.Test;
+import org.yanoproject.x.framework.api.appchain.AppStateMachineProvider;
+import org.yanoproject.x.framework.api.plugin.domain.DomainApiProvider;
 
 import java.io.InputStream;
 import java.util.ServiceLoader;

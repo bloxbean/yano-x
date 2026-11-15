@@ -1,6 +1,7 @@
 package org.yanoproject.x.stdlib.contracts;
 
-import org.yanoproject.api.appchain.schema.CborSchema;
+import org.yanoproject.x.framework.api.appchain.schema.CborSchema;
+
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;

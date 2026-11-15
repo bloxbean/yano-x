@@ -1,8 +1,8 @@
 package org.yanoproject.x.client;
 
-import org.yanoproject.api.appchain.topics.TopicWire.RegistryCommand;
-import org.yanoproject.api.appchain.topics.TopicWire.Signature;
-import org.yanoproject.api.appchain.topics.TopicWireCodec;
+import org.yanoproject.x.framework.api.appchain.topics.TopicWire.RegistryCommand;
+import org.yanoproject.x.framework.api.appchain.topics.TopicWire.Signature;
+import org.yanoproject.x.framework.api.appchain.topics.TopicWireCodec;
 
 import java.util.List;
 import java.util.Objects;

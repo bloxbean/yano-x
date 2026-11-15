@@ -1,0 +1,79 @@
+import groovy.json.JsonOutput
+import java.util.zip.ZipFile
+
+// Package ownership is independent of Maven identity. Inspect only each module's
+// ordinary JAR; host API dependencies may legitimately retain Yano namespaces.
+def packageOwners = [
+        ':framework:api': 'org/yanoproject/x/framework/api/',
+        ':framework:cardano-api': 'org/yanoproject/x/framework/cardano/api/',
+        ':framework:core': 'org/yanoproject/x/framework/runtime/',
+        ':framework:config': 'org/yanoproject/x/framework/config/',
+        ':framework:cardano': 'org/yanoproject/x/framework/cardano/',
+        ':framework:cardano-onchain': 'org/yanoproject/x/framework/cardano/onchain/',
+        ':framework:host-adapter': 'org/yanoproject/x/framework/host/',
+        ':framework:standalone': 'org/yanoproject/x/framework/standalone/'
+]
+def violations = { Map<String, List<String>> entries ->
+    def failures = []
+    def classes = [:].withDefault { [] }
+    entries.each { module, names ->
+        names.findAll { it.endsWith('.class') && it != 'module-info.class' }.each { name ->
+            // The longest prefix owns the class: Cardano API and on-chain classes
+            // cannot accidentally become runtime implementation definitions.
+            def owner = packageOwners.findAll { path, prefix -> name.startsWith(prefix) }
+                    .max { it.value.length() }?.key
+            if (owner != module) failures.add("${module} defines ${name}; owner=${owner ?: 'outside framework'}")
+            classes[name].add(module)
+        }
+    }
+    classes.findAll { name, modules -> modules.size() != 1 }.each { name, modules ->
+        failures.add("Duplicate class ${name}: ${modules}")
+    }
+    failures
+}
+
+tasks.register('verifyFrameworkPackageOwnership') {
+    group = 'verification'
+    description = 'Enforce framework-owned Java namespaces and unique class definitions'
+    def jars = packageOwners.collectEntries { module, prefix ->
+        [(module): project(module).tasks.named('jar')]
+    }
+    dependsOn jars.values()
+    inputs.files(jars.values().collect { it.flatMap { task -> task.archiveFile } })
+    def report = layout.buildDirectory.file('reports/framework-package-ownership.json')
+    outputs.file(report)
+    doLast {
+        def inventoried = rootProject.ext.artifactByPath.keySet()
+                .findAll { it.startsWith(':framework:') }.toSet()
+        if (inventoried != packageOwners.keySet()) {
+            throw new GradleException("Framework package owners must cover the artifact inventory: ${inventoried}")
+        }
+        // Exercise the same classifier with wrong host roots, wrong module roots,
+        // nested Cardano ownership, and duplicate definitions before inspecting JARs.
+        assert violations([':framework:api': ['org/yanoproject/x/framework/api/Contract.class']]).empty
+        assert !violations([':framework:api': ['org/yanoproject/api/Contract.class']]).empty
+        assert !violations([':framework:core': ['org/yanoproject/x/framework/api/Contract.class']]).empty
+        assert !violations([':framework:cardano': ['org/yanoproject/x/framework/cardano/api/Contract.class']]).empty
+        assert !violations([':framework:cardano': ['org/yanoproject/x/framework/cardano/onchain/Validator.class']]).empty
+        assert !violations([':framework:api': ['org/yanoproject/x/framework/api/Contract.class',
+                                               'org/yanoproject/x/framework/api/Contract.class']]).empty
+        def entries = jars.collectEntries { module, jar ->
+            new ZipFile(jar.get().archiveFile.get().asFile).withCloseable { zip ->
+                [(module): zip.entries().findAll { !it.directory }.collect { it.name }]
+            }
+        }
+        def failures = violations(entries)
+        entries.findAll { module, names -> !names.any { it.endsWith('.class') } }.each { module, names ->
+            failures.add("Framework module has no compiled class definitions: ${module}")
+        }
+        def output = report.get().asFile
+        output.parentFile.mkdirs()
+        output.text = JsonOutput.prettyPrint(JsonOutput.toJson([
+                passed: failures.empty, packageOwners: packageOwners,
+                classes: entries.collectEntries { module, names ->
+                    [(module): names.findAll { it.endsWith('.class') }.sort()]
+                }, violations: failures])) + '\n'
+        if (!failures.empty) throw new GradleException("Framework package ownership failed:\n${failures.join('\n')}")
+    }
+}
+tasks.named('check') { dependsOn 'verifyFrameworkPackageOwnership' }

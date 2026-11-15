@@ -2,14 +2,14 @@ package org.yanoproject.x.client;
 
 import com.bloxbean.cardano.client.crypto.config.CryptoConfiguration;
 import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
-import org.yanoproject.api.appchain.evidence.EvidenceVerifier;
-import org.yanoproject.api.appchain.proof.MessageProofPackageV1;
-import org.yanoproject.api.appchain.proof.ProofLabVocabulary;
-import org.yanoproject.api.appchain.state.StateCommitmentIdentity;
-import org.yanoproject.api.appchain.state.StateProof;
-import org.yanoproject.api.appchain.state.StateProofEnvelope;
-import org.yanoproject.api.appchain.transition.FinalizedBlockMessageRootIndex;
-import org.yanoproject.api.appchain.transition.FinalizedMessageIndex;
+import org.yanoproject.x.framework.api.appchain.evidence.EvidenceVerifier;
+import org.yanoproject.x.framework.api.appchain.proof.MessageProofPackageV1;
+import org.yanoproject.x.framework.api.appchain.proof.ProofLabVocabulary;
+import org.yanoproject.x.framework.api.appchain.state.StateCommitmentIdentity;
+import org.yanoproject.x.framework.api.appchain.state.StateProof;
+import org.yanoproject.x.framework.api.appchain.state.StateProofEnvelope;
+import org.yanoproject.x.framework.api.appchain.transition.FinalizedBlockMessageRootIndex;
+import org.yanoproject.x.framework.api.appchain.transition.FinalizedMessageIndex;
 
 import java.util.Arrays;
 import java.util.Objects;

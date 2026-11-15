@@ -1,17 +1,17 @@
 package org.yanoproject.x.devtools;
 
-import org.yanoproject.api.appchain.state.StateCommitmentProfiles;
-import org.yanoproject.appchain.config.AppChainPropertyRegistry;
-import org.yanoproject.appchain.config.AppChainResolvedValidator;
-import org.yanoproject.appchain.config.ConfigSourceKind;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.yanoproject.x.framework.api.appchain.state.StateCommitmentProfiles;
+import org.yanoproject.x.framework.config.AppChainPropertyRegistry;
+import org.yanoproject.x.framework.config.AppChainResolvedValidator;
+import org.yanoproject.x.framework.config.ConfigSourceKind;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.List;
 import java.util.HexFormat;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;

@@ -1,7 +1,7 @@
 package org.yanoproject.x.roles.internal;
 
-import org.yanoproject.api.appchain.AppStateReader;
-import org.yanoproject.api.appchain.AppStateWriter;
+import org.yanoproject.x.framework.api.appchain.AppStateReader;
+import org.yanoproject.x.framework.api.appchain.AppStateWriter;
 import org.yanoproject.x.roles.GovernedCryptoWork;
 import org.yanoproject.x.roles.contracts.AcceptedAdministratorVoteV1;
 import org.yanoproject.x.roles.contracts.ActorGovernanceCommandV1;
@@ -13,9 +13,9 @@ import org.yanoproject.x.roles.contracts.GovernedAuthorizationLimitsV1;
 import org.yanoproject.x.roles.contracts.GovernedMutationRecordV1;
 import org.yanoproject.x.roles.contracts.OrganizationRecordV1;
 import org.yanoproject.x.roles.contracts.RecordStatus;
+import org.yanoproject.x.roles.contracts.RolePendingQueriesV1;
 import org.yanoproject.x.roles.contracts.RoleWorkflowKeys;
 import org.yanoproject.x.roles.contracts.RoleWorkflowResultCode;
-import org.yanoproject.x.roles.contracts.RolePendingQueriesV1;
 import org.yanoproject.x.roles.contracts.SignedAdministratorStatementV1;
 
 import java.nio.ByteBuffer;

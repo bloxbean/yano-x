@@ -138,7 +138,7 @@ export default {
       anchors: ['append-only log of opaque messages; per-message inclusion proofs'] },
     { repo: 'yano', path: 'adr/app-layer/011-plugin-architecture.md',
       anchors: ['In-process plugins are fully trusted code.'] },
-    { repo: 'yano-x', path: 'framework/api/src/main/java/org/yanoproject/api/appchain/state/StateCommitmentProfiles.java',
+    { repo: 'yano-x', path: 'framework/api/src/main/java/org/yanoproject/x/framework/api/appchain/state/StateCommitmentProfiles.java',
       anchors: ['"mpf-blake2b256-v1"', '"jmt-blake2b256-v1"'] },
     { repo: 'yano-x', path: 'docs/appchain/OPTIONAL_CONNECTORS.md',
       anchors: ['`executor:kafka`, `sink:kafka`', '`executor:objectstore-s3`', '`executor:ipfs`', '`executor:cardano-payment`'] },

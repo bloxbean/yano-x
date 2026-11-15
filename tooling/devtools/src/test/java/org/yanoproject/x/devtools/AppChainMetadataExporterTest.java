@@ -1,9 +1,9 @@
 package org.yanoproject.x.devtools;
 
-import org.yanoproject.appchain.config.AppChainPropertyRegistry;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import org.yanoproject.x.framework.config.AppChainPropertyRegistry;
 
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;

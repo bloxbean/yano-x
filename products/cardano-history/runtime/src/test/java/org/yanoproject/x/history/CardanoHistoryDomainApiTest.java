@@ -1,18 +1,18 @@
 package org.yanoproject.x.history;
 
-import org.yanoproject.api.appchain.AppQueryResult;
-import org.yanoproject.api.appchain.l1view.ProtocolParamsCanonicalCodec;
-import org.yanoproject.api.plugin.domain.DomainApiContext;
-import org.yanoproject.api.plugin.domain.DomainApiException;
-import org.yanoproject.api.plugin.domain.DomainApiRequest;
-import org.yanoproject.api.plugin.domain.DomainHttpMethod;
-import org.yanoproject.api.plugin.domain.DomainQueryService;
+import org.junit.jupiter.api.Test;
 import org.yanoproject.api.util.CardanoBech32Ids;
 import org.yanoproject.x.composite.contracts.AggregateQueryCodecV1;
 import org.yanoproject.x.composite.contracts.AggregateQueryLimitsV1;
+import org.yanoproject.x.framework.api.appchain.AppQueryResult;
+import org.yanoproject.x.framework.api.plugin.domain.DomainApiContext;
+import org.yanoproject.x.framework.api.plugin.domain.DomainApiException;
+import org.yanoproject.x.framework.api.plugin.domain.DomainApiRequest;
+import org.yanoproject.x.framework.api.plugin.domain.DomainHttpMethod;
+import org.yanoproject.x.framework.api.plugin.domain.DomainQueryService;
+import org.yanoproject.x.framework.cardano.api.l1view.ProtocolParamsCanonicalCodec;
 import org.yanoproject.x.stdlib.contracts.EpochParamsContract;
 import org.yanoproject.x.stdlib.contracts.EpochStakeContract;
-import org.junit.jupiter.api.Test;
 
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;

@@ -1,21 +1,21 @@
 package org.yanoproject.x.devtools;
 
+import com.bloxbean.cardano.client.crypto.KeyGenUtil;
+import com.bloxbean.cardano.client.crypto.config.CryptoConfiguration;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.bloxbean.cardano.client.crypto.KeyGenUtil;
-import com.bloxbean.cardano.client.crypto.config.CryptoConfiguration;
-import org.yanoproject.api.appchain.topics.TopicWire.ActiveRevision;
-import org.yanoproject.api.appchain.topics.TopicWire.Config;
-import org.yanoproject.api.appchain.topics.TopicWire.Delegation;
-import org.yanoproject.api.appchain.topics.TopicWire.EntryContent;
-import org.yanoproject.api.appchain.topics.TopicWire.EntryRecord;
-import org.yanoproject.api.appchain.topics.TopicWire.KeySet;
-import org.yanoproject.api.appchain.topics.TopicWire.Policy;
-import org.yanoproject.api.appchain.topics.TopicWire.Settings;
-import org.yanoproject.api.appchain.topics.TopicWire.Writers;
-import org.yanoproject.api.appchain.topics.TopicWireCodec;
 import org.yanoproject.x.client.Hex;
+import org.yanoproject.x.framework.api.appchain.topics.TopicWire.ActiveRevision;
+import org.yanoproject.x.framework.api.appchain.topics.TopicWire.Config;
+import org.yanoproject.x.framework.api.appchain.topics.TopicWire.Delegation;
+import org.yanoproject.x.framework.api.appchain.topics.TopicWire.EntryContent;
+import org.yanoproject.x.framework.api.appchain.topics.TopicWire.EntryRecord;
+import org.yanoproject.x.framework.api.appchain.topics.TopicWire.KeySet;
+import org.yanoproject.x.framework.api.appchain.topics.TopicWire.Policy;
+import org.yanoproject.x.framework.api.appchain.topics.TopicWire.Settings;
+import org.yanoproject.x.framework.api.appchain.topics.TopicWire.Writers;
+import org.yanoproject.x.framework.api.appchain.topics.TopicWireCodec;
 
 import java.nio.file.Files;
 import java.nio.file.Path;

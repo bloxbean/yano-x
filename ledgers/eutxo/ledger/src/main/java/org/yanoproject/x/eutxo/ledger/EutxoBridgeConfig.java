@@ -1,5 +1,7 @@
 package org.yanoproject.x.eutxo.ledger;
 
+import org.yanoproject.x.framework.api.appchain.l1view.L1Observation;
+
 import java.math.BigInteger;
 import java.util.Map;
 import java.util.Objects;
@@ -71,12 +73,12 @@ record EutxoBridgeConfig(
     }
 
     String topic() {
-        return org.yanoproject.api.appchain.l1view.L1Observation.TOPIC_PREFIX
+        return L1Observation.TOPIC_PREFIX
                 + observerId;
     }
 
     String confirmationTopic() {
-        return org.yanoproject.api.appchain.l1view.L1Observation.TOPIC_PREFIX
+        return L1Observation.TOPIC_PREFIX
                 + confirmationObserverId;
     }
 

@@ -1,14 +1,15 @@
 package org.yanoproject.x.evidence.profile;
 
-import org.yanoproject.api.appchain.AppQueryResult;
-import org.yanoproject.api.plugin.domain.DomainApiAccess;
-import org.yanoproject.api.plugin.domain.DomainApiContext;
-import org.yanoproject.api.plugin.domain.DomainApiException;
-import org.yanoproject.api.plugin.domain.DomainApiRequest;
-import org.yanoproject.api.plugin.domain.DomainApiResponse;
-import org.yanoproject.api.plugin.domain.DomainHttpMethod;
+import org.junit.jupiter.api.Test;
 import org.yanoproject.x.composite.contracts.CompositeCommitmentV1;
-import org.yanoproject.api.plugin.domain.DomainQueryService;
+import org.yanoproject.x.framework.api.appchain.AppQueryResult;
+import org.yanoproject.x.framework.api.plugin.domain.DomainApiAccess;
+import org.yanoproject.x.framework.api.plugin.domain.DomainApiContext;
+import org.yanoproject.x.framework.api.plugin.domain.DomainApiException;
+import org.yanoproject.x.framework.api.plugin.domain.DomainApiRequest;
+import org.yanoproject.x.framework.api.plugin.domain.DomainApiResponse;
+import org.yanoproject.x.framework.api.plugin.domain.DomainHttpMethod;
+import org.yanoproject.x.framework.api.plugin.domain.DomainQueryService;
 import org.yanoproject.x.roles.DomainActorRegistryComponent;
 import org.yanoproject.x.roles.RoleAwareApprovalsComponent;
 import org.yanoproject.x.roles.contracts.ActorKeyEpochV1;
@@ -20,7 +21,6 @@ import org.yanoproject.x.roles.contracts.OrganizationRecordV1;
 import org.yanoproject.x.roles.contracts.RecordStatus;
 import org.yanoproject.x.roles.contracts.RoleApprovalStatsV1;
 import org.yanoproject.x.roles.contracts.RoleWorkflowKeys;
-import org.junit.jupiter.api.Test;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;

@@ -1,24 +1,26 @@
 package org.yanoproject.x.stdlib;
 
 import com.bloxbean.cardano.client.crypto.KeyGenUtil;
-import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AuthScheme;
 import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
-import org.yanoproject.api.appchain.AppBlock;
-import org.yanoproject.api.appchain.AppBlockExecutionContext;
-import org.yanoproject.api.appchain.AppChainConfig;
-import org.yanoproject.api.appchain.AppChainInfo;
-import org.yanoproject.api.appchain.AppChainMembershipEpoch;
-import org.yanoproject.api.appchain.AppQueryContext;
-import org.yanoproject.api.appchain.AppQueryException;
-import org.yanoproject.api.appchain.AppStateMachineContext;
-import org.yanoproject.api.appchain.AppStateWriter;
-import org.yanoproject.api.appchain.FinalityCert;
-import org.yanoproject.api.appchain.effects.AppEffectEmitter;
-import org.yanoproject.api.appchain.authmap.AuthenticatedMapValidatorResolver;
-import org.yanoproject.api.appchain.authmap.ValidatorVerdict;
+import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AuthScheme;
+import org.junit.jupiter.api.Test;
 import org.yanoproject.x.composite.CompositeStateKeys;
 import org.yanoproject.x.composite.CompositeStateMachine;
-import org.yanoproject.appchain.config.AppChainEffectsConfig;
+import org.yanoproject.x.framework.api.appchain.AppBlock;
+import org.yanoproject.x.framework.api.appchain.AppBlockExecutionContext;
+import org.yanoproject.x.framework.api.appchain.AppChainConfig;
+import org.yanoproject.x.framework.api.appchain.AppChainInfo;
+import org.yanoproject.x.framework.api.appchain.AppChainMembershipEpoch;
+import org.yanoproject.x.framework.api.appchain.AppQueryContext;
+import org.yanoproject.x.framework.api.appchain.AppQueryException;
+import org.yanoproject.x.framework.api.appchain.AppStateMachineContext;
+import org.yanoproject.x.framework.api.appchain.AppStateWriter;
+import org.yanoproject.x.framework.api.appchain.FinalityCert;
+import org.yanoproject.x.framework.api.appchain.authmap.AuthenticatedMapValidatorResolver;
+import org.yanoproject.x.framework.api.appchain.authmap.ValidatorVerdict;
+import org.yanoproject.x.framework.api.appchain.effects.AppEffectEmitter;
+import org.yanoproject.x.framework.api.appchain.schema.CborSchema;
+import org.yanoproject.x.framework.config.AppChainEffectsConfig;
 import org.yanoproject.x.roles.DomainActorRegistryComponent;
 import org.yanoproject.x.roles.GovernedRoleApprovalWorkflow;
 import org.yanoproject.x.roles.RoleAwareApprovalsComponent;
@@ -37,19 +39,17 @@ import org.yanoproject.x.roles.contracts.GovernedAuthorizationLimitsV1;
 import org.yanoproject.x.roles.contracts.GovernedGenesisV1;
 import org.yanoproject.x.roles.contracts.OrganizationRecordV1;
 import org.yanoproject.x.roles.contracts.RecordStatus;
-import org.yanoproject.x.roles.contracts.RoleWorkflowKeys;
 import org.yanoproject.x.roles.contracts.RoleApprovalStatsV1;
 import org.yanoproject.x.roles.contracts.RoleCommandResultV1;
 import org.yanoproject.x.roles.contracts.RolePendingQueriesV1;
+import org.yanoproject.x.roles.contracts.RoleWorkflowKeys;
 import org.yanoproject.x.roles.contracts.RoleWorkflowLimits;
 import org.yanoproject.x.roles.contracts.RoleWorkflowResultCode;
-import org.yanoproject.x.roles.contracts.SignedAdministratorStatementV1;
 import org.yanoproject.x.roles.contracts.SignedActorCommandV1;
-import org.yanoproject.x.stdlib.contracts.AuthenticatedMapAuthorizationContract;
+import org.yanoproject.x.roles.contracts.SignedAdministratorStatementV1;
 import org.yanoproject.x.stdlib.contracts.AuthenticatedMapAuthorizationContract.*;
+import org.yanoproject.x.stdlib.contracts.AuthenticatedMapAuthorizationContract;
 import org.yanoproject.x.stdlib.contracts.AuthenticatedMapContract;
-import org.yanoproject.api.appchain.schema.CborSchema;
-import org.junit.jupiter.api.Test;
 
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
@@ -1366,14 +1366,14 @@ class AuthenticatedMapCompositeAssemblyTest {
             }
 
             @Override
-            public Optional<org.yanoproject.api.appchain.AppChainConsensusProfile>
+            public Optional<org.yanoproject.x.framework.api.appchain.AppChainConsensusProfile>
             consensusProfile() {
                 return Optional.of(AppChainEffectsConfig.from(config)
                         .consensusProfile(config));
             }
 
             @Override
-            public Optional<org.yanoproject.api.appchain.AppChainMembershipView>
+            public Optional<org.yanoproject.x.framework.api.appchain.AppChainMembershipView>
             membershipView() {
                 return Optional.of(height -> membership);
             }

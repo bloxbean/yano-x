@@ -1,14 +1,14 @@
 package org.yanoproject.x.roles;
 
 import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
-import org.yanoproject.api.appchain.AppBlock;
-import org.yanoproject.api.appchain.AppBlockExecutionContext;
-import org.yanoproject.api.appchain.AppStateMachine;
-import org.yanoproject.api.appchain.AppStateWriter;
 import org.yanoproject.x.composite.ComponentGeneration;
 import org.yanoproject.x.composite.CompositeWorkflow;
 import org.yanoproject.x.composite.CompositeWorkflowContext;
 import org.yanoproject.x.composite.WorkflowDescriptor;
+import org.yanoproject.x.framework.api.appchain.AppBlock;
+import org.yanoproject.x.framework.api.appchain.AppBlockExecutionContext;
+import org.yanoproject.x.framework.api.appchain.AppStateMachine;
+import org.yanoproject.x.framework.api.appchain.AppStateWriter;
 import org.yanoproject.x.roles.contracts.ApprovalPolicyV1;
 import org.yanoproject.x.roles.contracts.GovernedAuthorizationLimitsV1;
 import org.yanoproject.x.roles.contracts.GovernedMutationCommandV1;

@@ -1,11 +1,11 @@
 package org.yanoproject.x.stdlib;
 
 import com.bloxbean.cardano.client.crypto.Blake2bUtil;
-import org.yanoproject.api.appchain.l1view.EpochObservationManifest;
-import org.yanoproject.api.appchain.l1view.L1EpochBoundary;
-import org.yanoproject.api.appchain.l1view.L1EpochObservationSink;
-import org.yanoproject.api.appchain.l1view.L1EpochObserver;
-import org.yanoproject.api.appchain.l1view.L1EpochState;
+import org.yanoproject.x.framework.api.appchain.l1view.EpochObservationManifest;
+import org.yanoproject.x.framework.api.appchain.l1view.L1EpochBoundary;
+import org.yanoproject.x.framework.api.appchain.l1view.L1EpochObservationSink;
+import org.yanoproject.x.framework.api.appchain.l1view.L1EpochObserver;
+import org.yanoproject.x.framework.api.appchain.l1view.L1EpochState;
 import org.yanoproject.x.stdlib.contracts.EpochParamsContract;
 
 import java.util.Map;

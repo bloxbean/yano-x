@@ -1,15 +1,15 @@
 package org.yanoproject.x.devtools;
 
-import org.yanoproject.appchain.config.AppChainMetadataSource;
-import org.yanoproject.appchain.config.AppChainPropertyDefinition;
-import org.yanoproject.appchain.config.AppChainPropertyRegistry;
-import org.yanoproject.appchain.config.DynamicNamespaceDefinition;
-import org.yanoproject.appchain.config.PropertyType;
-import org.yanoproject.appchain.config.ValidationCoverage;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.yanoproject.x.framework.config.AppChainMetadataSource;
+import org.yanoproject.x.framework.config.AppChainPropertyDefinition;
+import org.yanoproject.x.framework.config.AppChainPropertyRegistry;
+import org.yanoproject.x.framework.config.DynamicNamespaceDefinition;
+import org.yanoproject.x.framework.config.PropertyType;
+import org.yanoproject.x.framework.config.ValidationCoverage;
 
 import java.util.LinkedHashMap;
 import java.util.Map;

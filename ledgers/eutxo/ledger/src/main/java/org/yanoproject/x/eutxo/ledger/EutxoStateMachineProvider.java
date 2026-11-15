@@ -1,12 +1,12 @@
 package org.yanoproject.x.eutxo.ledger;
 
 import com.bloxbean.cardano.client.crypto.config.CryptoConfiguration;
-import org.yanoproject.api.appchain.AppStateMachine;
-import org.yanoproject.api.appchain.AppStateMachineContext;
-import org.yanoproject.api.appchain.AppStateMachineProvider;
 import org.yanoproject.x.eutxo.contracts.EutxoProfile;
 import org.yanoproject.x.eutxo.contracts.EutxoValidityCommitmentEngine;
 import org.yanoproject.x.eutxo.contracts.EutxoValidityCommitmentProvider;
+import org.yanoproject.x.framework.api.appchain.AppStateMachine;
+import org.yanoproject.x.framework.api.appchain.AppStateMachineContext;
+import org.yanoproject.x.framework.api.appchain.AppStateMachineProvider;
 
 /** Service-loaded provider for {@code state:eutxo-ledger}. */
 public final class EutxoStateMachineProvider implements AppStateMachineProvider {

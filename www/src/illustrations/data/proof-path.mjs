@@ -121,7 +121,7 @@ export default {
     },
   },
   sources: [
-    { repo: 'yano', path: 'core-api/src/main/java/org/yanoproject/api/appchain/state/StateCommitmentProfiles.java',
+    { repo: 'yano-x', path: 'framework/api/src/main/java/org/yanoproject/x/framework/api/appchain/state/StateCommitmentProfiles.java',
       anchors: ['MPF_BLAKE2B256_V1 = "mpf-blake2b256-v1"', 'JMT_BLAKE2B256_V1 = "jmt-blake2b256-v1"'] },
     { repo: 'yano', path: 'docs/APP_CHAIN_CONSENSUS_GUIDE.md',
       anchors: ['individually provable against the resulting root'] },
