@@ -3,16 +3,16 @@
   "source": "Generated from the Yano X repository at documentation build time.",
   "versions": {
     "yanoXVersion": "0.1.0-pre6",
-    "yanoVersion": "0.1.0-pre19",
+    "yanoVersion": "0.1.0-pre20-bf45507fd",
     "group": "org.yanoproject.x",
     "javaVersion": "25",
-    "yanoJvmZipUrl": "https://github.com/bloxbean/yano/releases/download/v0.1.0-pre19/yano-0.1.0-pre19.zip"
+    "yanoJvmZipUrl": null
   },
   "counts": {
     "recipes": 11,
     "capabilities": 39,
     "artifacts": 14,
-    "modules": 46,
+    "modules": 54,
     "configurationProperties": 44,
     "runtimePlugins": 15
   },
@@ -2354,6 +2354,78 @@
       "pluginBundleId": null,
       "bundleArtifactId": null,
       "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/fixtures/governed-recipes"
+    },
+    {
+      "modulePath": ":framework:api",
+      "directory": "framework/api",
+      "artifactId": "yano-x-appchain-api",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null,
+      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/framework/api"
+    },
+    {
+      "modulePath": ":framework:config",
+      "directory": "framework/config",
+      "artifactId": "yano-x-appchain-config",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null,
+      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/framework/config"
+    },
+    {
+      "modulePath": ":framework:core",
+      "directory": "framework/core",
+      "artifactId": "yano-x-appchain-core",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null,
+      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/framework/core"
+    },
+    {
+      "modulePath": ":framework:cardano-api",
+      "directory": "framework/cardano-api",
+      "artifactId": "yano-x-appchain-cardano-api",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null,
+      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/framework/cardano-api"
+    },
+    {
+      "modulePath": ":framework:cardano",
+      "directory": "framework/cardano",
+      "artifactId": "yano-x-appchain-cardano",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null,
+      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/framework/cardano"
+    },
+    {
+      "modulePath": ":framework:cardano-onchain",
+      "directory": "framework/cardano-onchain",
+      "artifactId": "yano-x-appchain-anchor-onchain",
+      "publicationType": "onchain-artifact",
+      "pluginBundleId": null,
+      "bundleArtifactId": null,
+      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/framework/cardano-onchain"
+    },
+    {
+      "modulePath": ":framework:host-adapter",
+      "directory": "framework/host-adapter",
+      "artifactId": "yano-x-appchain-host-adapter",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null,
+      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/framework/host-adapter"
+    },
+    {
+      "modulePath": ":framework:standalone",
+      "directory": "framework/standalone",
+      "artifactId": "yano-x-appchain-standalone",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null,
+      "sourceUrl": "https://github.com/bloxbean/yano-x/blob/main/framework/standalone"
     }
   ],
   "configuration": [

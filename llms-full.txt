@@ -3,8 +3,8 @@
 > Single-file dump of the Yano X docsite, suitable for AI agent ingestion.
 
 yanoXVersion: 0.1.0-pre6
-yanoVersion: 0.1.0-pre19
-Generated: 2026-11-04T17:12:53.694Z
+yanoVersion: 0.1.0-pre20-bf45507fd
+Generated: 2026-11-15T05:18:30.300Z
 Site: https://yano-x.io
 Repo: https://github.com/bloxbean/yano-x
 
@@ -15,7 +15,7 @@ Repo: https://github.com/bloxbean/yano-x
   products, SDKs, and the batteries-included JVM distribution. The dependency
   direction is strictly `yano-x -> yano` and must never be inverted, nor satisfied
   with a composite Gradle build or a sibling source checkout.
-- **Versions:** Yano X `0.1.0-pre6` builds against Yano `0.1.0-pre19`, Java 25.
+- **Versions:** Yano X `0.1.0-pre6` builds against Yano `0.1.0-pre20-bf45507fd`, Java 25.
   Start with a matching release archive; build from source for unpublished changes.
 - **Yano X is JVM-only.** Never add GraalVM/native-image tasks, reachability
   metadata, or native executables. `verifyJvmOnlyBuild` enforces this.
@@ -374,10 +374,10 @@ in its `gradle.properties`.
 | Value | Current |
 |---|---|
 | Yano X version | `0.1.0-pre6` |
-| Yano host version | `0.1.0-pre19` |
+| Yano host version | `0.1.0-pre20-bf45507fd` |
 | Maven group | `org.yanoproject.x` |
 | Java | `25` |
-| Base Yano JVM ZIP | [`yano-0.1.0-pre19.zip`](https://github.com/bloxbean/yano/releases/download/v0.1.0-pre19/yano-0.1.0-pre19.zip) |
+| Base Yano JVM ZIP | Local build required; supply matching Maven artifacts and `-PyanoJvmDist` ([instructions](https://yano-x.io/start-here/build-from-source/)). |
 
 <!-- catalog:versions-end -->
 
@@ -1319,10 +1319,10 @@ the latest release it is:
 | Value | Current |
 |---|---|
 | Yano X version | `0.1.0-pre6` |
-| Yano host version | `0.1.0-pre19` |
+| Yano host version | `0.1.0-pre20-bf45507fd` |
 | Maven group | `org.yanoproject.x` |
 | Java | `25` |
-| Base Yano JVM ZIP | [`yano-0.1.0-pre19.zip`](https://github.com/bloxbean/yano/releases/download/v0.1.0-pre19/yano-0.1.0-pre19.zip) |
+| Base Yano JVM ZIP | Local build required; supply matching Maven artifacts and `-PyanoJvmDist` ([instructions](https://yano-x.io/start-here/build-from-source/)). |
 
 <!-- catalog:versions-end -->
 
@@ -1853,7 +1853,8 @@ service per member: `apply` itself must stay deterministic and free of I/O.
 
 #### Part C: Yano as a library
 
-Yano publishes Java artifacts (`yano-core-api`, `yano-runtime`, and others);
+Yano publishes host artifacts (`yano-node-api`, `yano-cardano-api`, `yano-runtime`, and others);
+Yano-X publishes `yano-x-appchain-api` for application contracts;
 the node application is one way to package them. Library mode is for teams
 building their own node or product around an app ledger.
 
@@ -5045,10 +5046,10 @@ Only when you need genuinely new state or new rules.
 
 ```java
 import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
-import org.yanoproject.api.appchain.AppBlockExecutionContext;
-import org.yanoproject.api.appchain.AppStateMachine;
-import org.yanoproject.api.appchain.AppStateWriter;
-import org.yanoproject.api.appchain.effects.AppEffectEmitter;
+import org.yanoproject.x.framework.api.appchain.AppBlockExecutionContext;
+import org.yanoproject.x.framework.api.appchain.AppStateMachine;
+import org.yanoproject.x.framework.api.appchain.AppStateWriter;
+import org.yanoproject.x.framework.api.appchain.effects.AppEffectEmitter;
 
 public final class ShipmentStateMachine implements AppStateMachine {
     @Override
@@ -5522,7 +5523,7 @@ stops a broken bundle.
 1. **Capture.** The node copies every JAR in `yano.plugins.directory` into a
    private snapshot: at most 256 JARs, 1 GiB each and 4 GiB in total.
 2. **Scan.** It reads each snapshot as data. It needs one schema-v1 manifest,
-   no packaged `org/yanoproject/api/**` classes, ServiceLoader entries that match
+   no packaged `org/yanoproject/api/**`, `org/yanoproject/x/framework/api/**`, or `org/yanoproject/x/framework/cardano/api/**` classes, ServiceLoader entries that match
    the manifest exactly, and no JAR-manifest `Class-Path`.
 3. **Check the API range.** The manifest's `yanoApi` must include the host's API
    major, and the host's level must be at least `minLevel`.
@@ -5553,7 +5554,7 @@ loader as its parent:
 
 - **Parent-first.** A class the host already has always comes from the host.
   That keeps one copy of the Yano API, and it is why a plugin must not package
-  `org/yanoproject/api/**` classes. Do not also put plugin JARs on the host's
+  `org/yanoproject/api/**`, `org/yanoproject/x/framework/api/**`, or `org/yanoproject/x/framework/cardano/api/**` classes. Do not also put plugin JARs on the host's
   class path.
 - **Shared.** Bundles see each other's classes. There is no per-bundle
   isolation: if two bundles carry different versions of one library, both get
@@ -9615,7 +9616,7 @@ path, the block-message-root and state-record proofs, the evidence bundle, and
 the anchor reference the node used. Its embedded verification results are
 explanatory only. The evidence bundle holds the message's block, every block up
 to the anchored one, and their finality signatures; verify it with
-`EvidenceVerifier.verify(bundle, trustContext)` from `yano-core-api`, with a
+`EvidenceVerifier.verify(bundle, trustContext)` from `yano-x-appchain-api`, with a
 trust context you pinned yourself.
 
 #### 7. The independent verification chain
@@ -9780,7 +9781,7 @@ The scaffold is a small Gradle project. It compiles against the host API as
 
 - `src/main/java/com/example/shipment/ShipmentStateMachineProvider.java`, the
   provider, which does no business work yet;
-- its `META-INF/services/org.yanoproject.api.appchain.AppStateMachineProvider`
+- its `META-INF/services/org.yanoproject.x.framework.api.appchain.AppStateMachineProvider`
   entry;
 - the runtime manifest `META-INF/yano/plugins/plugin-bundle.shipment.json`; and
 - the product catalog `META-INF/yano/appchain-component-catalog-v1.json`, which
@@ -9804,11 +9805,11 @@ status.
 package com.example.shipment;
 
 import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
-import org.yanoproject.api.appchain.AppBlockExecutionContext;
-import org.yanoproject.api.appchain.AppStateMachine;
-import org.yanoproject.api.appchain.AppStateMachineProvider;
-import org.yanoproject.api.appchain.AppStateWriter;
-import org.yanoproject.api.appchain.effects.AppEffectEmitter;
+import org.yanoproject.x.framework.api.appchain.AppBlockExecutionContext;
+import org.yanoproject.x.framework.api.appchain.AppStateMachine;
+import org.yanoproject.x.framework.api.appchain.AppStateMachineProvider;
+import org.yanoproject.x.framework.api.appchain.AppStateWriter;
+import org.yanoproject.x.framework.api.appchain.effects.AppEffectEmitter;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Optional;
@@ -9884,11 +9885,11 @@ let an executor perform it after finality; see [effects](https://yano-x.io/conce
 #### 4. Test it
 
 The scaffold has no tests yet. Add JUnit to `shipment-plugin/build.gradle`,
-using the same Yano version as its `compileOnly` line:
+using the same Yano-X version as its framework `compileOnly` line:
 
 ```groovy
 dependencies {
-    testImplementation 'org.yanoproject:yano-core-api:<the yano version above>'
+    testImplementation 'org.yanoproject.x:yano-x-appchain-api:<the yano-x version above>'
     testImplementation platform('org.junit:junit-bom:5.10.2')
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
@@ -9904,12 +9905,12 @@ package com.example.shipment;
 
 import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
 import org.junit.jupiter.api.Test;
-import org.yanoproject.api.appchain.AppBlock;
-import org.yanoproject.api.appchain.AppBlockExecutionContext;
-import org.yanoproject.api.appchain.AppStateMachine;
-import org.yanoproject.api.appchain.AppStateWriter;
-import org.yanoproject.api.appchain.FinalityCert;
-import org.yanoproject.api.appchain.effects.AppEffectEmitter;
+import org.yanoproject.x.framework.api.appchain.AppBlock;
+import org.yanoproject.x.framework.api.appchain.AppBlockExecutionContext;
+import org.yanoproject.x.framework.api.appchain.AppStateMachine;
+import org.yanoproject.x.framework.api.appchain.AppStateWriter;
+import org.yanoproject.x.framework.api.appchain.FinalityCert;
+import org.yanoproject.x.framework.api.appchain.effects.AppEffectEmitter;
 
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
@@ -13639,7 +13640,7 @@ them, and pin them by their exact `ARTIFACT_CLOSURE` digest. Never load
 untrusted code.
 
 The descriptor lives in the no-SPI contracts artifact; the factory SPI lives in
-`core-api`. Programmatic genesis uses:
+`framework/api`. Programmatic genesis uses:
 
 ```java
 var validator = AuthenticatedMapContract.ValidatorDescriptor.plugin(
@@ -14233,7 +14234,7 @@ root shows retention, not that a pointer was current at decision time.
 
 ##### Custom validator plugins
 
-Implement `AuthenticatedMapValueValidatorFactory` from `core-api`, register it
+Implement `AuthenticatedMapValueValidatorFactory` from `framework/api`, register it
 through `ServiceLoader` and a Yano plugin manifest, and return only `ACCEPT` or
 `REJECT` from a total, deterministic validator. The descriptor in genesis pins
 the provider id, the SPI contract version, the canonical parameters and the
@@ -18312,10 +18313,10 @@ The latest Yano X release and the Yano host it is built on:
 | Value | Current |
 |---|---|
 | Yano X version | `0.1.0-pre6` |
-| Yano host version | `0.1.0-pre19` |
+| Yano host version | `0.1.0-pre20-bf45507fd` |
 | Maven group | `org.yanoproject.x` |
 | Java | `25` |
-| Base Yano JVM ZIP | [`yano-0.1.0-pre19.zip`](https://github.com/bloxbean/yano/releases/download/v0.1.0-pre19/yano-0.1.0-pre19.zip) |
+| Base Yano JVM ZIP | Local build required; supply matching Maven artifacts and `-PyanoJvmDist` ([instructions](https://yano-x.io/start-here/build-from-source/)). |
 
 <!-- catalog:versions-end -->
 
@@ -18380,7 +18381,7 @@ artifact identity and that every runtime plugin has a bundle publication.
 | `:ledgers:eutxo:bridge-cardano` | `yano-x-eutxo-bridge-cardano` | `org.yanoproject.x.eutxo.bridge.cardano` | [ledgers/eutxo/bridge-cardano](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/bridge-cardano) |
 | `:ledgers:eutxo:indexer-jdbc` | `yano-x-eutxo-indexer-jdbc` | `org.yanoproject.x.eutxo.indexer` | [ledgers/eutxo/indexer-jdbc](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/indexer-jdbc) |
 
-##### `library` (14)
+##### `library` (21)
 
 | Gradle module | Artifact id | Plugin bundle id | Source |
 |---|---|---|---|
@@ -18398,6 +18399,13 @@ artifact identity and that every runtime plugin has a bundle publication.
 | `:ledgers:eutxo:client` | `yano-x-eutxo-client` | — | [ledgers/eutxo/client](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/client) |
 | `:ledgers:eutxo:indexer-core` | `yano-x-eutxo-indexer-core` | — | [ledgers/eutxo/indexer-core](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/indexer-core) |
 | `:tooling:spring-boot-starter` | `yano-x-spring-boot-starter` | — | [tooling/spring-boot-starter](https://github.com/bloxbean/yano-x/blob/main/tooling/spring-boot-starter) |
+| `:framework:api` | `yano-x-appchain-api` | — | [framework/api](https://github.com/bloxbean/yano-x/blob/main/framework/api) |
+| `:framework:config` | `yano-x-appchain-config` | — | [framework/config](https://github.com/bloxbean/yano-x/blob/main/framework/config) |
+| `:framework:core` | `yano-x-appchain-core` | — | [framework/core](https://github.com/bloxbean/yano-x/blob/main/framework/core) |
+| `:framework:cardano-api` | `yano-x-appchain-cardano-api` | — | [framework/cardano-api](https://github.com/bloxbean/yano-x/blob/main/framework/cardano-api) |
+| `:framework:cardano` | `yano-x-appchain-cardano` | — | [framework/cardano](https://github.com/bloxbean/yano-x/blob/main/framework/cardano) |
+| `:framework:host-adapter` | `yano-x-appchain-host-adapter` | — | [framework/host-adapter](https://github.com/bloxbean/yano-x/blob/main/framework/host-adapter) |
+| `:framework:standalone` | `yano-x-appchain-standalone` | — | [framework/standalone](https://github.com/bloxbean/yano-x/blob/main/framework/standalone) |
 
 ##### `application` (3)
 
@@ -18425,13 +18433,14 @@ artifact identity and that every runtime plugin has a bundle publication.
 | `:sdk:effects-testkit` | `yano-x-effects-testkit` | — | [sdk/effects-testkit](https://github.com/bloxbean/yano-x/blob/main/sdk/effects-testkit) |
 | `:ledgers:eutxo:testkit` | `yano-x-eutxo-testkit` | — | [ledgers/eutxo/testkit](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/testkit) |
 
-##### `onchain-artifact` (3)
+##### `onchain-artifact` (4)
 
 | Gradle module | Artifact id | Plugin bundle id | Source |
 |---|---|---|---|
 | `:sdk:proof-onchain` | `yano-x-proof-onchain` | — | [sdk/proof-onchain](https://github.com/bloxbean/yano-x/blob/main/sdk/proof-onchain) |
 | `:products:cardano-history:onchain` | `yano-x-cardano-history-onchain` | — | [products/cardano-history/onchain](https://github.com/bloxbean/yano-x/blob/main/products/cardano-history/onchain) |
 | `:ledgers:eutxo:bridge-onchain` | `yano-x-eutxo-bridge-onchain` | — | [ledgers/eutxo/bridge-onchain](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/bridge-onchain) |
+| `:framework:cardano-onchain` | `yano-x-appchain-anchor-onchain` | — | [framework/cardano-onchain](https://github.com/bloxbean/yano-x/blob/main/framework/cardano-onchain) |
 
 ##### `web-application` (1)
 

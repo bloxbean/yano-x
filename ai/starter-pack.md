@@ -1,4 +1,4 @@
-<!-- yanoXVersion: 0.1.0-pre6; yanoVersion: 0.1.0-pre19 -->
+<!-- yanoXVersion: 0.1.0-pre6; yanoVersion: 0.1.0-pre20-bf45507fd -->
 
 > **Read this entire document before generating any Yano X code or
 > configuration.** It distills the architecture boundary, the extension ladder,
@@ -48,10 +48,10 @@ in its `gradle.properties`.
 | Value | Current |
 |---|---|
 | Yano X version | `0.1.0-pre6` |
-| Yano host version | `0.1.0-pre19` |
+| Yano host version | `0.1.0-pre20-bf45507fd` |
 | Maven group | `org.yanoproject.x` |
 | Java | `25` |
-| Base Yano JVM ZIP | [`yano-0.1.0-pre19.zip`](https://github.com/bloxbean/yano/releases/download/v0.1.0-pre19/yano-0.1.0-pre19.zip) |
+| Base Yano JVM ZIP | Local build required; supply matching Maven artifacts and `-PyanoJvmDist` ([instructions](https://yano-x.io/start-here/build-from-source/)). |
 
 <!-- catalog:versions-end -->
 
