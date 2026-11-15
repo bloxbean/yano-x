@@ -1,22 +1,23 @@
 package org.yanoproject.x.devtools;
 
-import org.yanoproject.appchain.config.AppChainMetadataSource;
-import org.yanoproject.appchain.config.AppChainPropertyDefinition;
-import org.yanoproject.appchain.config.AppChainPropertyRegistry;
-import org.yanoproject.appchain.config.AppChainResolvedValidator;
-import org.yanoproject.appchain.config.AppChainTemplateValidator;
-import org.yanoproject.appchain.config.DynamicNamespaceDefinition;
-import org.yanoproject.appchain.config.EffectiveConfigValue;
-import org.yanoproject.appchain.config.ResolvedValidationResult;
-import org.yanoproject.appchain.config.TemplateContract;
-import org.yanoproject.appchain.config.TemplateValidationResult;
-import org.yanoproject.appchain.config.ValidationDiagnostic;
-import org.yanoproject.x.roles.contracts.RoleWorkflowCli;
-import org.yanoproject.x.stdlib.contracts.AuthenticatedMapAuthorizationCli;
-import org.yanoproject.x.eutxo.client.EutxoCli;
-import org.yanoproject.x.eutxo.demo.EutxoDemoCli;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import org.yanoproject.x.eutxo.client.EutxoCli;
+import org.yanoproject.x.eutxo.demo.EutxoDemoCli;
+import org.yanoproject.x.framework.config.AppChainMetadataDescriptor;
+import org.yanoproject.x.framework.config.AppChainMetadataSource;
+import org.yanoproject.x.framework.config.AppChainPropertyDefinition;
+import org.yanoproject.x.framework.config.AppChainPropertyRegistry;
+import org.yanoproject.x.framework.config.AppChainResolvedValidator;
+import org.yanoproject.x.framework.config.AppChainTemplateValidator;
+import org.yanoproject.x.framework.config.DynamicNamespaceDefinition;
+import org.yanoproject.x.framework.config.EffectiveConfigValue;
+import org.yanoproject.x.framework.config.ResolvedValidationResult;
+import org.yanoproject.x.framework.config.TemplateContract;
+import org.yanoproject.x.framework.config.TemplateValidationResult;
+import org.yanoproject.x.framework.config.ValidationDiagnostic;
+import org.yanoproject.x.roles.contracts.RoleWorkflowCli;
+import org.yanoproject.x.stdlib.contracts.AuthenticatedMapAuthorizationCli;
 
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -233,7 +234,7 @@ public final class AppChainDevtoolsCli {
     private AppChainPropertyRegistry registry(List<Path> descriptors) throws IOException {
         List<AppChainMetadataSource> sources = new ArrayList<>();
         descriptorLoader.loadBuiltInMetadata().stream()
-                .map(org.yanoproject.appchain.config.AppChainMetadataDescriptor::toSource)
+                .map(AppChainMetadataDescriptor::toSource)
                 .forEach(sources::add);
         for (Path descriptor : descriptors) {
             sources.add(descriptorLoader.loadMetadata(descriptor).toSource());

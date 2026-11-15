@@ -1,12 +1,12 @@
 package org.yanoproject.x.eutxo.indexer.jdbc;
 
-import org.yanoproject.api.plugin.domain.LocalReadModelContext;
-import org.yanoproject.api.plugin.domain.LocalReadModelHost;
+import org.junit.jupiter.api.Test;
 import org.yanoproject.api.plugin.operations.PluginGaugeValue;
 import org.yanoproject.api.plugin.operations.PluginHealthContext;
 import org.yanoproject.api.plugin.operations.PluginHealthStatus;
 import org.yanoproject.api.plugin.operations.PluginMetricsContext;
-import org.junit.jupiter.api.Test;
+import org.yanoproject.x.framework.api.plugin.domain.LocalReadModelContext;
+import org.yanoproject.x.framework.api.plugin.domain.LocalReadModelHost;
 
 import java.util.List;
 import java.util.Map;

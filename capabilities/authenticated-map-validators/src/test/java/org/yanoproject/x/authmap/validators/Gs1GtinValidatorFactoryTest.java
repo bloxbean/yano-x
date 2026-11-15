@@ -1,10 +1,10 @@
 package org.yanoproject.x.authmap.validators;
 
-import org.yanoproject.api.appchain.authmap.AuthenticatedMapValueValidator;
-import org.yanoproject.api.appchain.authmap.ValidatorInitContext;
-import org.yanoproject.api.appchain.authmap.ValidatorVerdict;
-import org.yanoproject.x.stdlib.contracts.AuthenticatedMapContract;
 import org.junit.jupiter.api.Test;
+import org.yanoproject.x.framework.api.appchain.authmap.AuthenticatedMapValueValidator;
+import org.yanoproject.x.framework.api.appchain.authmap.ValidatorInitContext;
+import org.yanoproject.x.framework.api.appchain.authmap.ValidatorVerdict;
+import org.yanoproject.x.stdlib.contracts.AuthenticatedMapContract;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;

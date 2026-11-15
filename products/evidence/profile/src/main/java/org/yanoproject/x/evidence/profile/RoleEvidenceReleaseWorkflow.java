@@ -1,13 +1,6 @@
 package org.yanoproject.x.evidence.profile;
 
 import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
-import org.yanoproject.api.appchain.AppBlock;
-import org.yanoproject.api.appchain.AppBlockExecutionContext;
-import org.yanoproject.api.appchain.AppStateMachine;
-import org.yanoproject.api.appchain.AppStateWriter;
-import org.yanoproject.api.appchain.effects.AppEffectEmitter;
-import org.yanoproject.api.appchain.transition.TransitionContext;
-import org.yanoproject.api.appchain.transition.TransitionPlans;
 import org.yanoproject.x.composite.ComponentGeneration;
 import org.yanoproject.x.composite.CompositeWorkflow;
 import org.yanoproject.x.composite.CompositeWorkflowContext;
@@ -17,6 +10,13 @@ import org.yanoproject.x.evidence.profile.contracts.EvidenceReleaseCommandV1;
 import org.yanoproject.x.evidence.profile.contracts.RoleEvidenceKeys;
 import org.yanoproject.x.examples.evidence.EvidenceContract;
 import org.yanoproject.x.examples.evidence.EvidenceRegistryStateMachine;
+import org.yanoproject.x.framework.api.appchain.AppBlock;
+import org.yanoproject.x.framework.api.appchain.AppBlockExecutionContext;
+import org.yanoproject.x.framework.api.appchain.AppStateMachine;
+import org.yanoproject.x.framework.api.appchain.AppStateWriter;
+import org.yanoproject.x.framework.api.appchain.effects.AppEffectEmitter;
+import org.yanoproject.x.framework.api.appchain.transition.TransitionContext;
+import org.yanoproject.x.framework.api.appchain.transition.TransitionPlans;
 import org.yanoproject.x.roles.RoleAuthorizationCapability;
 import org.yanoproject.x.roles.contracts.ApprovalProposalV1;
 import org.yanoproject.x.roles.contracts.ApprovalReferenceV1;

@@ -172,7 +172,7 @@ export default {
         'if (rejected.code().equals(CAPACITY)) return AdmissionResult.reject(CAPACITY);'] },
     { repo: 'yano-x', path: 'state-machines/stdlib/src/main/java/org/yanoproject/x/stdlib/ApprovalsTransitions.java',
       anchors: ['A duplicate/unknown/terminal command produces an empty plan'] },
-    { repo: 'yano', path: 'core-api/src/main/java/org/yanoproject/api/appchain/transition/TransitionWorkAccounting.java',
+    { repo: 'yano-x', path: 'framework/api/src/main/java/org/yanoproject/x/framework/api/appchain/transition/TransitionWorkAccounting.java',
       anchors: ['successful reservation at a newer height starts a fresh count'] },
     { repo: 'yano', path: 'docs/APP_CHAIN_CONSENSUS_GUIDE.md',
       anchors: ['In-memory (lost on restart, by design): the pending pool', 'not expired'] },

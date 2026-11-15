@@ -1,7 +1,11 @@
 package org.yanoproject.x.deployment;
 
 import com.bloxbean.cardano.client.crypto.KeyGenUtil;
-import org.yanoproject.api.appchain.AppChainConfig;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.yanoproject.catalog.CatalogDigests;
+import org.yanoproject.x.framework.api.appchain.AppChainConfig;
+import org.yanoproject.x.framework.api.appchain.schema.CborSchema;
 import org.yanoproject.x.roles.contracts.ActorKeyEpochV1;
 import org.yanoproject.x.roles.contracts.ActorKeyProofV1;
 import org.yanoproject.x.roles.contracts.ActorRecordV1;
@@ -15,10 +19,6 @@ import org.yanoproject.x.roles.contracts.OrganizationRecordV1;
 import org.yanoproject.x.roles.contracts.RecordStatus;
 import org.yanoproject.x.stdlib.AuthenticatedMapGenesisFactory;
 import org.yanoproject.x.stdlib.contracts.AuthenticatedMapContract;
-import org.yanoproject.api.appchain.schema.CborSchema;
-import org.yanoproject.catalog.CatalogDigests;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
 import java.io.InputStream;

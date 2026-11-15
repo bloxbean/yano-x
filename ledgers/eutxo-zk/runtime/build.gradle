@@ -3,7 +3,7 @@ plugins {
 }
 
 dependencies {
-    compileOnly rootProject.ext.yanoModule('yano-core-api')
+    compileOnly project(':framework:api')
     implementation(project(':ledgers:eutxo:ledger')) {
         transitive = false
     }
@@ -22,7 +22,7 @@ dependencies {
     compileOnly libs.scala3.library
     compileOnly libs.cbor
 
-    testImplementation rootProject.ext.yanoModule('yano-core-api')
+    testImplementation project(':framework:api')
     testImplementation rootProject.ext.yanoModule('yano-runtime')
     testImplementation libs.cardano.client.core
     testImplementation libs.cardano.client.crypto
@@ -50,7 +50,8 @@ tasks.named('shadowJar') {
     archiveClassifier.set('bundle')
     reproducibleFileOrder = true
     preserveFileTimestamps = false
-    exclude 'org/yanoproject/api/**'
+    exclude 'org/yanoproject/api/**', 'org/yanoproject/x/framework/api/**',
+            'org/yanoproject/x/framework/cardano/api/**'
     exclude 'META-INF/yano/plugins/org.yanoproject.x.eutxo.json'
     exclude 'META-INF/services/org.yanoproject.x.eutxo.contracts.EutxoValidityCommitmentProvider'
     exclude 'META-INF/*.SF', 'META-INF/*.RSA', 'META-INF/*.DSA', 'module-info.class'
@@ -69,7 +70,7 @@ tasks.register('verifyEutxoZkRuntimeBundle') {
             [
                     'org/yanoproject/x/eutxo/zk/runtime/EutxoZkStateMachineProvider.class',
                     'org/yanoproject/x/eutxo/zk/zeroj/ZerojPoseidonValidityProvider.class',
-                    'META-INF/services/org.yanoproject.api.appchain.AppStateMachineProvider'
+                    'META-INF/services/org.yanoproject.x.framework.api.appchain.AppStateMachineProvider'
             ].each { required ->
                 if (!entries.contains(required)) {
                     throw new GradleException(
@@ -77,7 +78,7 @@ tasks.register('verifyEutxoZkRuntimeBundle') {
                 }
             }
             def providerEntry = zip.getEntry(
-                    'META-INF/services/org.yanoproject.api.appchain.AppStateMachineProvider')
+                    'META-INF/services/org.yanoproject.x.framework.api.appchain.AppStateMachineProvider')
             def providers = zip.getInputStream(providerEntry).getText('UTF-8')
                     .readLines().findAll { !it.isBlank() }
             if (providers != [

@@ -1,15 +1,15 @@
 package org.yanoproject.x.eutxo.ledger;
 
-import org.yanoproject.api.appchain.AppQueryResult;
-import org.yanoproject.api.plugin.domain.DomainApiContext;
-import org.yanoproject.api.plugin.domain.DomainApiException;
-import org.yanoproject.api.plugin.domain.DomainApiRequest;
-import org.yanoproject.api.plugin.domain.DomainHttpMethod;
-import org.yanoproject.api.plugin.domain.DomainQueryService;
+import org.junit.jupiter.api.Test;
 import org.yanoproject.x.eutxo.contracts.EutxoOutpoint;
 import org.yanoproject.x.eutxo.contracts.EutxoQueryCodec;
 import org.yanoproject.x.eutxo.contracts.EutxoTransactionSummary;
-import org.junit.jupiter.api.Test;
+import org.yanoproject.x.framework.api.appchain.AppQueryResult;
+import org.yanoproject.x.framework.api.plugin.domain.DomainApiContext;
+import org.yanoproject.x.framework.api.plugin.domain.DomainApiException;
+import org.yanoproject.x.framework.api.plugin.domain.DomainApiRequest;
+import org.yanoproject.x.framework.api.plugin.domain.DomainHttpMethod;
+import org.yanoproject.x.framework.api.plugin.domain.DomainQueryService;
 
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;

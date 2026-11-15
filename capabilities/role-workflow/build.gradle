@@ -5,7 +5,7 @@ ext.runtimePluginExcludedBundleIds = [
 apply from: rootProject.file('gradle/runtime-plugin-bundle.gradle')
 
 dependencies {
-    api rootProject.ext.yanoModule('yano-core-api')
+    api project(':framework:api')
     api project(':composition:runtime')
     api project(':capabilities:role-workflow-contracts')
 
@@ -43,8 +43,8 @@ tasks.register('verifyGenericRoleWorkflowBoundary') {
             }
             def servicePrefix = 'META-INF/services/'
             def allowedServices = [
-                    servicePrefix + 'org.yanoproject.api.appchain.AppStateMachineProvider',
-                    servicePrefix + 'org.yanoproject.api.plugin.domain.DomainApiProvider'
+                    servicePrefix + 'org.yanoproject.x.framework.api.appchain.AppStateMachineProvider',
+                    servicePrefix + 'org.yanoproject.x.framework.api.plugin.domain.DomainApiProvider'
             ].toSet()
             def services = entries.findAll { entry ->
                 !entry.endsWith('/') && entry.startsWith(servicePrefix)

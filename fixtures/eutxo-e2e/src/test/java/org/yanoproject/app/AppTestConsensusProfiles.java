@@ -1,9 +1,9 @@
 package org.yanoproject.app;
 
-import org.yanoproject.api.appchain.AppChainConfig;
-import org.yanoproject.api.appchain.AppChainConsensusProfile;
-import org.yanoproject.api.appchain.effects.EffectOutcomeCommitment;
-import org.yanoproject.api.appchain.effects.FinalityGate;
+import org.yanoproject.x.framework.api.appchain.AppChainConfig;
+import org.yanoproject.x.framework.api.appchain.AppChainConsensusProfile;
+import org.yanoproject.x.framework.api.appchain.effects.EffectOutcomeCommitment;
+import org.yanoproject.x.framework.api.appchain.effects.FinalityGate;
 
 import java.util.List;
 

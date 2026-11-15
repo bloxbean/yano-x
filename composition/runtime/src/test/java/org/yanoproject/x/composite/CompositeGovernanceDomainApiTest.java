@@ -1,14 +1,14 @@
 package org.yanoproject.x.composite;
 
-import org.yanoproject.api.appchain.AppQueryResult;
-import org.yanoproject.api.plugin.domain.DomainApiContext;
-import org.yanoproject.api.plugin.domain.DomainApiRequest;
-import org.yanoproject.api.plugin.domain.DomainHttpMethod;
-import org.yanoproject.api.plugin.domain.DomainQueryService;
-import org.yanoproject.api.plugin.domain.LocalReadModelQueryService;
-import org.yanoproject.api.plugin.domain.PrivilegedSystemMessageService;
-import org.yanoproject.x.composite.contracts.CompositeProfileGovernanceV1;
 import org.junit.jupiter.api.Test;
+import org.yanoproject.x.composite.contracts.CompositeProfileGovernanceV1;
+import org.yanoproject.x.framework.api.appchain.AppQueryResult;
+import org.yanoproject.x.framework.api.plugin.domain.DomainApiContext;
+import org.yanoproject.x.framework.api.plugin.domain.DomainApiRequest;
+import org.yanoproject.x.framework.api.plugin.domain.DomainHttpMethod;
+import org.yanoproject.x.framework.api.plugin.domain.DomainQueryService;
+import org.yanoproject.x.framework.api.plugin.domain.LocalReadModelQueryService;
+import org.yanoproject.x.framework.api.plugin.domain.PrivilegedSystemMessageService;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;

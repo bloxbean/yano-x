@@ -1,8 +1,9 @@
 package org.yanoproject.x.client;
 
+import org.junit.jupiter.api.Test;
 import org.yanoproject.x.composite.contracts.CompositeCommitmentV1;
-import org.yanoproject.api.appchain.transition.FinalizedMessageIndex;
-import org.yanoproject.api.appchain.transition.FinalizedBlockMessageRootIndex;
+import org.yanoproject.x.framework.api.appchain.transition.FinalizedBlockMessageRootIndex;
+import org.yanoproject.x.framework.api.appchain.transition.FinalizedMessageIndex;
 import org.yanoproject.x.roles.contracts.ApprovalPolicyV1;
 import org.yanoproject.x.roles.contracts.ApprovalProposalV1;
 import org.yanoproject.x.roles.contracts.RecordStatus;
@@ -12,7 +13,6 @@ import org.yanoproject.x.stdlib.contracts.DocTrailContract;
 import org.yanoproject.x.stdlib.contracts.EpochGovernanceContract;
 import org.yanoproject.x.stdlib.contracts.EpochParamsContract;
 import org.yanoproject.x.stdlib.contracts.EpochStakeContract;
-import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
 import java.util.List;

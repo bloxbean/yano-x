@@ -1,0 +1,123 @@
+import groovy.json.JsonOutput
+import groovy.json.JsonSlurper
+import java.security.MessageDigest
+import org.gradle.api.attributes.java.TargetJvmEnvironment
+import org.gradle.api.attributes.java.TargetJvmVersion
+import org.gradle.api.artifacts.result.ResolvedDependencyResult
+
+// QA-only isolated Maven consumer: no project dependency, sibling build, or local source substitution.
+plugins { id 'java-base' }
+def request = new JsonSlurper().parse(file(providers.gradleProperty('request').get()))
+def hostVersion = request.hostVersion as String
+def foundationVersion = (request.foundationVersion ?: hostVersion) as String
+def hostApiVersion = request.hostApiVersion as String
+def frameworkVersion = request.frameworkVersion as String
+def yaciCoreVersion = request.yaciCoreVersion as String
+def profile = (request.profile ?: 'standalone') as String
+if (!(profile in ['standalone', 'cardano-construction'])) {
+    throw new GradleException("Unknown qualification profile: ${profile}")
+}
+[hostVersion, foundationVersion, hostApiVersion, frameworkVersion, yaciCoreVersion].each {
+    if (!it || it.contains('+') || it.contains('[') || it.endsWith('SNAPSHOT')) {
+        throw new GradleException('Qualification requires exact, immutable candidate/release versions')
+    }
+}
+repositories {
+    request.repositories.each { location -> maven { url = uri(location) } }
+    mavenCentral()
+    maven { url = uri('https://repo.bloxbean.org/maven/releases') }
+}
+configurations {
+    packagedHost {
+        canBeConsumed = false
+        canBeResolved = true
+        attributes {
+            attribute(Usage.USAGE_ATTRIBUTE, objects.named(Usage, Usage.JAVA_RUNTIME))
+            attribute(Category.CATEGORY_ATTRIBUTE, objects.named(Category, Category.LIBRARY))
+            attribute(LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE, objects.named(LibraryElements, LibraryElements.JAR))
+            attribute(TargetJvmEnvironment.TARGET_JVM_ENVIRONMENT_ATTRIBUTE,
+                    objects.named(TargetJvmEnvironment, TargetJvmEnvironment.STANDARD_JVM))
+            attribute(TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE, 25)
+        }
+    }
+}
+def expectedHostVersion = { String name ->
+    name == 'yano-host-api' ? hostApiVersion :
+            name in ['yano-node-api', 'yano-cardano-api'] ? foundationVersion : hostVersion
+}
+configurations.packagedHost.resolutionStrategy.eachDependency { detail ->
+    if (detail.requested.group == 'com.bloxbean.cardano' && detail.requested.name == 'yaci-core') {
+        detail.useVersion(yaciCoreVersion)
+        detail.because('Explicit coordinated app-only transport candidate; no hidden Maven Local replacement')
+    }
+    if (detail.requested.group == 'org.yanoproject') {
+        detail.useVersion(expectedHostVersion(detail.requested.name))
+        detail.because('This qualification cell must never silently upgrade its frozen host')
+    }
+    if (detail.requested.group == 'org.yanoproject.x') {
+        detail.useVersion(frameworkVersion)
+        detail.because('Exactly one independently selected X release owns every framework class')
+    }
+}
+dependencies {
+    packagedHost("org.yanoproject:yano-runtime:${hostVersion}") {
+        exclude group: 'org.yanoproject.x'
+    }
+    packagedHost("org.yanoproject:yano-plugin-catalog:${hostVersion}") {
+        exclude group: 'org.yanoproject.x'
+    }
+    if (profile == 'standalone') {
+        packagedHost "org.yanoproject.x:yano-x-appchain-standalone:${frameworkVersion}"
+    } else {
+        packagedHost "org.yanoproject.x:yano-x-appchain-cardano:${frameworkVersion}"
+        packagedHost "org.yanoproject.x:yano-x-appchain-anchor-onchain:${frameworkVersion}"
+    }
+    // The existing host catalog's effect contribution enum retains this legacy SPI.
+    // This is an API compatibility carrier, never the Cardano runtime/activation root.
+    packagedHost "org.yanoproject.x:yano-x-appchain-cardano-api:${frameworkVersion}"
+}
+tasks.register('resolveHostInputs') {
+    doLast {
+        def artifacts = configurations.packagedHost.resolvedConfiguration.resolvedArtifacts.collect { artifact ->
+            def id = artifact.moduleVersion.id
+            if (id.group == 'com.bloxbean.cardano' && id.name == 'yaci-core' && id.version != yaciCoreVersion) {
+                throw new GradleException("Unexpected Yaci core version: ${id}")
+            }
+            if (id.group == 'org.yanoproject' && id.version != expectedHostVersion(id.name)) {
+                throw new GradleException("Unexpected host upgrade: ${id}")
+            }
+            if (id.group == 'org.yanoproject.x' && id.version != frameworkVersion) {
+                throw new GradleException("Mixed framework versions: ${id}")
+            }
+            [group: id.group, name: id.name, version: id.version,
+             classifier: artifact.classifier, file: artifact.file.absolutePath,
+             sha256: MessageDigest.getInstance('SHA-256').digest(artifact.file.bytes).encodeHex().toString()]
+        }.sort { a, b -> "${a.group}:${a.name}:${a.classifier}" <=> "${b.group}:${b.name}:${b.classifier}" }
+        // Preserve the selected Maven graph, including the host-edge X exclusions.
+        def selectedArtifacts = configurations.packagedHost.incoming.artifacts.artifacts
+        def filesByComponent = selectedArtifacts.groupBy { it.id.componentIdentifier }
+        def components = configurations.packagedHost.incoming.resolutionResult.allComponents
+        def artifactClosures = [:]
+        components.each { root ->
+            def pending = new ArrayDeque([root])
+            def visited = [] as Set
+            while (!pending.isEmpty()) {
+                def component = pending.removeFirst()
+                if (!visited.add(component.id)) continue
+                component.dependencies.findAll { it instanceof ResolvedDependencyResult }.each {
+                    pending.addLast(it.selected)
+                }
+            }
+            def closure = visited.collectMany { id ->
+                (filesByComponent[id] ?: []).collect { it.file.name }
+            }.unique().sort()
+            (filesByComponent[root.id] ?: []).each { artifact ->
+                artifactClosures[artifact.file.name] = closure
+            }
+        }
+        def output = file(providers.gradleProperty('report').get())
+        output.parentFile.mkdirs()
+        output.text = JsonOutput.prettyPrint(JsonOutput.toJson([schemaVersion: 1, request: request,
+                                                               artifacts: artifacts, artifactClosures: artifactClosures])) + '\n'
+    }
+}

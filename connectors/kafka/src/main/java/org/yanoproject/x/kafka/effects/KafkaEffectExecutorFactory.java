@@ -1,7 +1,7 @@
 package org.yanoproject.x.kafka.effects;
 
-import org.yanoproject.api.appchain.effects.AppEffectExecutor;
-import org.yanoproject.api.appchain.effects.AppEffectExecutorFactory;
+import org.yanoproject.x.framework.api.appchain.effects.AppEffectExecutor;
+import org.yanoproject.x.framework.cardano.api.effects.AppEffectExecutorFactory;
 import org.yanoproject.x.integration.detail.ConnectorDetailArchive;
 import org.yanoproject.x.integration.detail.FileConnectorDetailArchive;
 import org.yanoproject.x.kafka.config.KafkaEffectConfig;

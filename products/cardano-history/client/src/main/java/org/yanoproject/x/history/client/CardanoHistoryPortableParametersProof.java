@@ -3,7 +3,7 @@ package org.yanoproject.x.history.client;
 import org.yanoproject.x.client.AppChainClient;
 import org.yanoproject.x.client.ProofSubjects;
 import org.yanoproject.x.client.ProofVerifier;
-import org.yanoproject.api.appchain.l1view.ProtocolParamsCanonicalCodec;
+import org.yanoproject.x.framework.cardano.api.l1view.ProtocolParamsCanonicalCodec;
 
 import java.util.Arrays;
 import java.util.HexFormat;

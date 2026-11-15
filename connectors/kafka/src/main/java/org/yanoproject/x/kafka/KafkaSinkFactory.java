@@ -1,12 +1,12 @@
 package org.yanoproject.x.kafka;
 
-import org.yanoproject.api.appchain.sink.FinalizedStreamSink;
-import org.yanoproject.api.appchain.sink.FinalizedStreamSinkFactory;
-import org.yanoproject.x.kafka.config.KafkaSinkConfig;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.yanoproject.x.framework.api.appchain.sink.FinalizedStreamSink;
+import org.yanoproject.x.framework.api.appchain.sink.FinalizedStreamSinkFactory;
+import org.yanoproject.x.kafka.config.KafkaSinkConfig;
 
 import java.util.List;
 import java.util.Map;

@@ -1,18 +1,19 @@
 package org.yanoproject.x.stdlib;
 
-import org.yanoproject.api.appchain.AppChainConsensusProfile;
-import org.yanoproject.api.appchain.AppChainConsensusProfileCommitment;
-import org.yanoproject.api.appchain.AppChainMembershipView;
-import org.yanoproject.api.appchain.AppStateMachine;
-import org.yanoproject.api.appchain.AppStateMachineContext;
-import org.yanoproject.api.appchain.AppStateMachineProvider;
-import org.yanoproject.api.appchain.state.StateCommitmentProfile;
-import org.yanoproject.api.appchain.state.StateCommitmentIdentity;
-import org.yanoproject.api.appchain.state.StateCommitmentProfiles;
-import org.yanoproject.appchain.config.AppChainApprovalsConfig;
+import org.yanoproject.x.framework.api.appchain.AppChainConsensusProfile;
+import org.yanoproject.x.framework.api.appchain.AppChainConsensusProfileCommitment;
+import org.yanoproject.x.framework.api.appchain.AppChainMembershipView;
+import org.yanoproject.x.framework.api.appchain.AppStateMachine;
+import org.yanoproject.x.framework.api.appchain.AppStateMachineContext;
+import org.yanoproject.x.framework.api.appchain.AppStateMachineProvider;
+import org.yanoproject.x.framework.api.appchain.effects.ActivationSchedule;
+import org.yanoproject.x.framework.api.appchain.state.StateCommitmentIdentity;
+import org.yanoproject.x.framework.api.appchain.state.StateCommitmentProfile;
+import org.yanoproject.x.framework.api.appchain.state.StateCommitmentProfiles;
+import org.yanoproject.x.framework.config.AppChainApprovalsConfig;
 import org.yanoproject.x.stdlib.contracts.AuthenticatedMapContract;
-import org.yanoproject.x.stdlib.contracts.EpochParamsContract;
 import org.yanoproject.x.stdlib.contracts.EpochGovernanceContract;
+import org.yanoproject.x.stdlib.contracts.EpochParamsContract;
 import org.yanoproject.x.stdlib.contracts.EpochStakeContract;
 
 import java.util.Arrays;
@@ -251,7 +252,7 @@ public final class StdlibStateMachineProviders {
         public AppStateMachine create(AppStateMachineContext context) {
             return new ApprovalsStateMachine(
                     AppChainApprovalsConfig.fromSettings(context.settings()),
-                    org.yanoproject.api.appchain.effects.ActivationSchedule
+                    ActivationSchedule
                             .from(context.settings(), ApprovalsStateMachine.ID));
         }
     }

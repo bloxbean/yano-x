@@ -1,9 +1,9 @@
 package org.yanoproject.x.roles.internal;
 
-import org.yanoproject.api.appchain.AppStateReader;
-import org.yanoproject.api.appchain.AppStateWriter;
-import org.yanoproject.api.appchain.transition.StateMutation;
-import org.yanoproject.api.appchain.transition.TransitionPlan;
+import org.yanoproject.x.framework.api.appchain.AppStateReader;
+import org.yanoproject.x.framework.api.appchain.AppStateWriter;
+import org.yanoproject.x.framework.api.appchain.transition.StateMutation;
+import org.yanoproject.x.framework.api.appchain.transition.TransitionPlan;
 import org.yanoproject.x.roles.GovernedCryptoWork;
 import org.yanoproject.x.roles.contracts.ActorKeyEpochV1;
 import org.yanoproject.x.roles.contracts.ActorRecordV1;
@@ -14,10 +14,10 @@ import org.yanoproject.x.roles.contracts.GovernedAuthorizationLimitsV1;
 import org.yanoproject.x.roles.contracts.OrganizationRecordV1;
 import org.yanoproject.x.roles.contracts.RecordStatus;
 import org.yanoproject.x.roles.contracts.RoleApprovalStatsV1;
+import org.yanoproject.x.roles.contracts.RolePendingQueriesV1;
 import org.yanoproject.x.roles.contracts.RoleWorkflowIdentifiers;
 import org.yanoproject.x.roles.contracts.RoleWorkflowKeys;
 import org.yanoproject.x.roles.contracts.RoleWorkflowResultCode;
-import org.yanoproject.x.roles.contracts.RolePendingQueriesV1;
 import org.yanoproject.x.roles.contracts.SignedActorCommandV1;
 
 import java.nio.ByteBuffer;

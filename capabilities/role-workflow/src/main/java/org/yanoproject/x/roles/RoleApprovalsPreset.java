@@ -1,11 +1,11 @@
 package org.yanoproject.x.roles;
 
-import org.yanoproject.api.appchain.AppStateMachineContext;
 import org.yanoproject.x.composite.ComponentDescriptor;
 import org.yanoproject.x.composite.ComponentGeneration;
 import org.yanoproject.x.composite.ComposableAppStateMachine;
 import org.yanoproject.x.composite.CompositeStateMachine;
 import org.yanoproject.x.composite.WorkflowDescriptor;
+import org.yanoproject.x.framework.api.appchain.AppStateMachineContext;
 
 import java.util.List;
 import java.util.Objects;

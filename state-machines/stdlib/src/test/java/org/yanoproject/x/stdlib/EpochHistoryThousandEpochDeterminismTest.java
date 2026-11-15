@@ -1,15 +1,15 @@
 package org.yanoproject.x.stdlib;
 
-import org.yanoproject.api.appchain.l1view.EpochObservationManifest;
-import org.yanoproject.api.appchain.l1view.GovernanceActionType;
-import org.yanoproject.api.appchain.l1view.GovernanceProposalStatus;
-import org.yanoproject.api.appchain.l1view.GovernanceProposalStatusReason;
-import org.yanoproject.api.appchain.l1view.L1EpochBoundary;
-import org.yanoproject.api.appchain.l1view.L1EpochObserver;
-import org.yanoproject.api.appchain.l1view.L1EpochState;
-import org.yanoproject.api.appchain.l1view.L1Observation;
-import org.yanoproject.api.appchain.l1view.ProtocolParamsView;
 import org.junit.jupiter.api.Test;
+import org.yanoproject.x.framework.api.appchain.l1view.EpochObservationManifest;
+import org.yanoproject.x.framework.api.appchain.l1view.GovernanceActionType;
+import org.yanoproject.x.framework.api.appchain.l1view.GovernanceProposalStatus;
+import org.yanoproject.x.framework.api.appchain.l1view.GovernanceProposalStatusReason;
+import org.yanoproject.x.framework.api.appchain.l1view.L1EpochBoundary;
+import org.yanoproject.x.framework.api.appchain.l1view.L1EpochObserver;
+import org.yanoproject.x.framework.api.appchain.l1view.L1EpochState;
+import org.yanoproject.x.framework.api.appchain.l1view.L1Observation;
+import org.yanoproject.x.framework.api.appchain.l1view.ProtocolParamsView;
 
 import java.math.BigInteger;
 import java.nio.ByteBuffer;

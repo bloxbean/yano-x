@@ -2,11 +2,11 @@ package org.yanoproject.x.devtools;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import org.yanoproject.api.appchain.topics.TopicKeys;
-import org.yanoproject.api.appchain.topics.TopicNames;
-import org.yanoproject.api.appchain.topics.TopicWire.Config;
-import org.yanoproject.api.appchain.topics.TopicWire.EntryRecord;
 import org.yanoproject.x.client.Hex;
+import org.yanoproject.x.framework.api.appchain.topics.TopicKeys;
+import org.yanoproject.x.framework.api.appchain.topics.TopicNames;
+import org.yanoproject.x.framework.api.appchain.topics.TopicWire.Config;
+import org.yanoproject.x.framework.api.appchain.topics.TopicWire.EntryRecord;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;

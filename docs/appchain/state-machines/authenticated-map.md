@@ -533,7 +533,7 @@ root shows retention, not that a pointer was current at decision time.
 
 ### Custom validator plugins
 
-Implement `AuthenticatedMapValueValidatorFactory` from `core-api`, register it
+Implement `AuthenticatedMapValueValidatorFactory` from `framework/api`, register it
 through `ServiceLoader` and a Yano plugin manifest, and return only `ACCEPT` or
 `REJECT` from a total, deterministic validator. The descriptor in genesis pins
 the provider id, the SPI contract version, the canonical parameters and the

@@ -1,7 +1,8 @@
 package org.yanoproject.x.ipfs.effects;
 
-import org.yanoproject.api.appchain.effects.EffectExecution;
-import org.yanoproject.api.appchain.effects.PendingEffect;
+import org.junit.jupiter.api.Test;
+import org.yanoproject.x.framework.api.appchain.effects.EffectExecution;
+import org.yanoproject.x.framework.api.appchain.effects.PendingEffect;
 import org.yanoproject.x.integration.ConnectorErrorCode;
 import org.yanoproject.x.integration.detail.ConnectorDetailDocumentV1;
 import org.yanoproject.x.integration.detail.IpfsPinDetailV1;
@@ -12,7 +13,6 @@ import org.yanoproject.x.integration.ipfs.IpfsPinReceiptV1;
 import org.yanoproject.x.ipfs.config.IpfsEffectConfig;
 import org.yanoproject.x.ipfs.internal.IpfsProviderException;
 import org.yanoproject.x.ipfs.internal.PinState;
-import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.time.Duration;
@@ -23,13 +23,13 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.yanoproject.x.ipfs.effects.IpfsEffectTestSupport.CID;
 import static org.yanoproject.x.ipfs.effects.IpfsEffectTestSupport.REPLICATION_POLICY;
 import static org.yanoproject.x.ipfs.effects.IpfsEffectTestSupport.TARGET_ALIAS;
 import static org.yanoproject.x.ipfs.effects.IpfsEffectTestSupport.command;
 import static org.yanoproject.x.ipfs.effects.IpfsEffectTestSupport.context;
 import static org.yanoproject.x.ipfs.effects.IpfsEffectTestSupport.effect;
-import static org.assertj.core.api.Assertions.assertThat;
 
 class IpfsPinExecutorTest {
 

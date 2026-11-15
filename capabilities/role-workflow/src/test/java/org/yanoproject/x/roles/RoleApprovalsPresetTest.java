@@ -1,11 +1,11 @@
 package org.yanoproject.x.roles;
 
-import org.yanoproject.api.appchain.AppChainMembershipEpoch;
-import org.yanoproject.api.appchain.AppStateMachineContext;
-import org.yanoproject.x.composite.CompositeStateMachine;
-import org.yanoproject.appchain.testkit.AppChainTestProfiles;
-import org.yanoproject.runtime.appchain.StateMachineConformance;
 import org.junit.jupiter.api.Test;
+import org.yanoproject.appchain.testkit.AppChainTestProfiles;
+import org.yanoproject.x.composite.CompositeStateMachine;
+import org.yanoproject.x.framework.api.appchain.AppChainMembershipEpoch;
+import org.yanoproject.x.framework.api.appchain.AppStateMachineContext;
+import org.yanoproject.x.framework.runtime.appchain.StateMachineConformance;
 
 import java.util.Arrays;
 import java.util.HexFormat;
@@ -66,7 +66,7 @@ class RoleApprovalsPresetTest {
     @Test
     void providerIsDiscoverableAndContextRequired() {
         var provider = java.util.ServiceLoader.load(
-                        org.yanoproject.api.appchain.AppStateMachineProvider.class)
+                        org.yanoproject.x.framework.api.appchain.AppStateMachineProvider.class)
                 .stream().map(java.util.ServiceLoader.Provider::get)
                 .filter(candidate -> RoleApprovalsStateMachineProvider.ID.equals(candidate.id()))
                 .findFirst().orElseThrow();
@@ -81,12 +81,12 @@ class RoleApprovalsPresetTest {
             @Override public String chainId() { return CHAIN; }
             @Override public Map<String, String> settings() { return Map.of(); }
             @Override
-            public Optional<org.yanoproject.api.appchain.AppChainConsensusProfile>
+            public Optional<org.yanoproject.x.framework.api.appchain.AppChainConsensusProfile>
             consensusProfile() {
                 return Optional.of(AppChainTestProfiles.fromSettings(Map.of()));
             }
             @Override
-            public Optional<org.yanoproject.api.appchain.AppChainMembershipView>
+            public Optional<org.yanoproject.x.framework.api.appchain.AppChainMembershipView>
             membershipView() {
                 AppChainMembershipEpoch epoch = new AppChainMembershipEpoch(
                         0, List.of(member), 1);

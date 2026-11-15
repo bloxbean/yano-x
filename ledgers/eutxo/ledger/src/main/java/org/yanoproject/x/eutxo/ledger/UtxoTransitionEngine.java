@@ -1,9 +1,9 @@
 package org.yanoproject.x.eutxo.ledger;
 
-import org.yanoproject.api.appchain.AppStateReader;
+import org.yanoproject.x.eutxo.contracts.EutxoL2Transaction;
 import org.yanoproject.x.eutxo.contracts.EutxoOutpoint;
 import org.yanoproject.x.eutxo.contracts.EutxoRecord;
-import org.yanoproject.x.eutxo.contracts.EutxoL2Transaction;
+import org.yanoproject.x.framework.api.appchain.AppStateReader;
 
 import java.util.List;
 import java.util.Objects;

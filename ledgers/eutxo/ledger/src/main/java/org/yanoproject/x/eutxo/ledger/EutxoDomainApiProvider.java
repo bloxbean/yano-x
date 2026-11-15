@@ -1,8 +1,8 @@
 package org.yanoproject.x.eutxo.ledger;
 
-import org.yanoproject.api.plugin.domain.DomainApi;
-import org.yanoproject.api.plugin.domain.DomainApiContext;
-import org.yanoproject.api.plugin.domain.DomainApiProvider;
+import org.yanoproject.x.framework.api.plugin.domain.DomainApi;
+import org.yanoproject.x.framework.api.plugin.domain.DomainApiContext;
+import org.yanoproject.x.framework.api.plugin.domain.DomainApiProvider;
 
 /** Read-only transaction explorer API for the bundled EUTxO state machine. */
 public final class EutxoDomainApiProvider implements DomainApiProvider {

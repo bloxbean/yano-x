@@ -1,7 +1,7 @@
 package com.example.appchain;
 
-import org.yanoproject.runtime.appchain.StateMachineConformance;
 import org.junit.jupiter.api.Test;
+import org.yanoproject.x.framework.runtime.appchain.StateMachineConformance;
 
 import java.nio.charset.StandardCharsets;
 

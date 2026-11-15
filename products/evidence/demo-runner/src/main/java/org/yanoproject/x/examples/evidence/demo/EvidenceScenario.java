@@ -1,6 +1,5 @@
 package org.yanoproject.x.examples.evidence.demo;
 
-import org.yanoproject.api.appchain.effects.EffectRecord;
 import org.yanoproject.x.client.AppChainClient;
 import org.yanoproject.x.evidence.profile.contracts.EvidenceReleaseCommandV1;
 import org.yanoproject.x.evidence.profile.contracts.EvidenceReleasePrerequisiteCommandsV1;
@@ -11,6 +10,7 @@ import org.yanoproject.x.examples.evidence.command.SubmitEvidenceCommandV1;
 import org.yanoproject.x.examples.evidence.event.EvidenceAvailableEventV1;
 import org.yanoproject.x.examples.evidence.state.EvidenceRecordV1;
 import org.yanoproject.x.examples.evidence.state.EvidenceStatus;
+import org.yanoproject.x.framework.api.appchain.effects.EffectRecord;
 import org.yanoproject.x.integration.ConnectorTypes;
 import org.yanoproject.x.integration.ipfs.CanonicalCid;
 import org.yanoproject.x.integration.ipfs.IpfsCidFingerprint;
@@ -31,8 +31,8 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;

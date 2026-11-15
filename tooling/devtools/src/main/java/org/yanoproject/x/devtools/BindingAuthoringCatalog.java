@@ -8,12 +8,13 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
-import org.yanoproject.api.appchain.AppStateMachine;
-import org.yanoproject.api.appchain.transition.CommandDescriptor;
-import org.yanoproject.api.appchain.transition.ConfigurationDescriptor;
-import org.yanoproject.api.appchain.transition.RuleFact;
-import org.yanoproject.api.appchain.transition.TransitionKernel;
 import org.yanoproject.x.composite.bindings.BindingCommandView;
+import org.yanoproject.x.framework.api.appchain.AppStateMachine;
+import org.yanoproject.x.framework.api.appchain.transition.CommandDescriptor;
+import org.yanoproject.x.framework.api.appchain.transition.ConfigurationDescriptor;
+import org.yanoproject.x.framework.api.appchain.transition.RuleFact;
+import org.yanoproject.x.framework.api.appchain.transition.TransitionKernel;
+import org.yanoproject.x.framework.api.appchain.transition.TransitionScalars;
 
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -419,7 +420,7 @@ final class BindingAuthoringCatalog {
         }).toList();
     }
 
-    private static String type(org.yanoproject.api.appchain.transition.TransitionScalars.Type type) {
+    private static String type(TransitionScalars.Type type) {
         return type.name().toLowerCase(Locale.ROOT);
     }
 

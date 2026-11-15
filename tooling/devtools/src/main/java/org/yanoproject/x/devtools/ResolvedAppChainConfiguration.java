@@ -1,6 +1,6 @@
 package org.yanoproject.x.devtools;
 
-import org.yanoproject.appchain.config.EffectiveConfigValue;
+import org.yanoproject.x.framework.config.EffectiveConfigValue;
 
 import java.util.List;
 import java.util.Map;

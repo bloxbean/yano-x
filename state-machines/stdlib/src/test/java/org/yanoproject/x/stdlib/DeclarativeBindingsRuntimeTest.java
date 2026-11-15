@@ -5,14 +5,14 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.io.TempDir;
 import org.slf4j.LoggerFactory;
-import org.yanoproject.api.appchain.AppChainConfig;
-import org.yanoproject.runtime.appchain.AppChainSubsystem;
 import org.yanoproject.x.composite.CompositeStateKeys;
 import org.yanoproject.x.composite.bindings.DeclarativeCompositeProvider;
 import org.yanoproject.x.composite.bindings.EventBindingWorkflow;
 import org.yanoproject.x.composite.contracts.BindingIrV1;
 import org.yanoproject.x.composite.contracts.BindingReceiptV1;
 import org.yanoproject.x.composite.contracts.BindingSourceV1;
+import org.yanoproject.x.framework.api.appchain.AppChainConfig;
+import org.yanoproject.x.framework.cardano.AppChainSubsystem;
 import org.yanoproject.x.stdlib.contracts.DocTrailContract;
 
 import java.nio.file.Path;

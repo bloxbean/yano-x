@@ -1,10 +1,10 @@
 package org.yanoproject.x.history;
 
-import org.yanoproject.api.appchain.AppStateMachineContext;
-import org.yanoproject.api.appchain.state.StateCommitmentProfile;
 import org.yanoproject.x.composite.ComponentDescriptor;
 import org.yanoproject.x.composite.ComposableAppStateMachine;
 import org.yanoproject.x.composite.CompositeStateMachine;
+import org.yanoproject.x.framework.api.appchain.AppStateMachineContext;
+import org.yanoproject.x.framework.api.appchain.state.StateCommitmentProfile;
 import org.yanoproject.x.stdlib.EpochGovernanceStateMachine;
 import org.yanoproject.x.stdlib.EpochParamsStateMachine;
 import org.yanoproject.x.stdlib.EpochStakeStateMachine;

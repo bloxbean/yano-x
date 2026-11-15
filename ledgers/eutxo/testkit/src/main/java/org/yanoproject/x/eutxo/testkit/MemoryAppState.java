@@ -1,7 +1,7 @@
 package org.yanoproject.x.eutxo.testkit;
 
-import org.yanoproject.api.appchain.AppQueryContext;
-import org.yanoproject.api.appchain.AppStateWriter;
+import org.yanoproject.x.framework.api.appchain.AppQueryContext;
+import org.yanoproject.x.framework.api.appchain.AppStateWriter;
 
 import java.util.Arrays;
 import java.util.HexFormat;

@@ -1,21 +1,21 @@
 package org.yanoproject.x.devtools;
 
-import org.yanoproject.api.appchain.AppStateMachine;
-import org.yanoproject.api.appchain.AppStateMachineProvider;
-import org.yanoproject.api.appchain.effects.AppEffectExecutorFactory;
-import org.yanoproject.api.appchain.sink.FinalizedStreamSinkFactory;
-import org.yanoproject.appchain.config.AppChainPropertyRegistry;
-import org.yanoproject.appchain.config.AppChainMetadataDescriptor;
-import org.yanoproject.appchain.config.AppChainPropertyDefinition;
-import org.yanoproject.appchain.config.ChangePolicy;
-import org.yanoproject.appchain.config.ConstraintProvenance;
-import org.yanoproject.appchain.config.PropertyScope;
-import org.yanoproject.appchain.config.PropertyType;
-import org.yanoproject.appchain.config.ValidationCoverage;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.yanoproject.x.framework.api.appchain.AppStateMachine;
+import org.yanoproject.x.framework.api.appchain.AppStateMachineProvider;
+import org.yanoproject.x.framework.api.appchain.sink.FinalizedStreamSinkFactory;
+import org.yanoproject.x.framework.cardano.api.effects.AppEffectExecutorFactory;
+import org.yanoproject.x.framework.config.AppChainMetadataDescriptor;
+import org.yanoproject.x.framework.config.AppChainPropertyDefinition;
+import org.yanoproject.x.framework.config.AppChainPropertyRegistry;
+import org.yanoproject.x.framework.config.ChangePolicy;
+import org.yanoproject.x.framework.config.ConstraintProvenance;
+import org.yanoproject.x.framework.config.PropertyScope;
+import org.yanoproject.x.framework.config.PropertyType;
+import org.yanoproject.x.framework.config.ValidationCoverage;
 
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
@@ -130,9 +130,13 @@ class AppChainCustomComponentCatalogTest {
             Path output = temporary.resolve(mode);
             AppChainPluginScaffolder.Result result = scaffolder.scaffold(
                     mode, "sample-" + mode, "example." + mode.replace('-', '_'),
-                    "0.1.0-test", output);
+                    "0.1.0-test", "0.2.0-x-test", output);
             assertThat(result.mode()).isEqualTo(mode);
-            assertThat(output.resolve("build.gradle")).isRegularFile();
+            assertThat(output.resolve("build.gradle")).content()
+                    .contains("yano-node-api:0.1.0-test")
+                    .contains(("effect-executor".equals(mode) ? "yano-x-appchain-cardano-api" : "yano-x-appchain-api")
+                            + ":0.2.0-x-test")
+                    .doesNotContain("yano-core-api");
             assertThat(output.resolve("README.md")).content().contains("plugin sign");
             assertThat(output.resolve("src/main/resources/"
                     + AppChainComponentCatalogLoader.CATALOG_PATH)).isRegularFile();
@@ -140,7 +144,7 @@ class AppChainCustomComponentCatalogTest {
                     .filter(Files::isRegularFile).count()).isEqualTo(1);
             assertThatThrownBy(() -> scaffolder.scaffold(
                     mode, "sample-" + mode, "example." + mode.replace('-', '_'),
-                    "0.1.0-test", output)).hasMessageContaining("not empty");
+                    "0.1.0-test", "0.2.0-x-test", output)).hasMessageContaining("not empty");
         }
     }
 
@@ -158,7 +162,7 @@ class AppChainCustomComponentCatalogTest {
             String id = "compiled-" + mode;
             Path output = temporary.resolve("compile-" + mode);
             new AppChainPluginScaffolder().scaffold(
-                    mode, id, "example.compiled." + mode.replace('-', '_'), "0.1.0-test", output);
+                    mode, id, "example.compiled." + mode.replace('-', '_'), "0.1.0-test", "0.2.0-x-test", output);
             List<String> sources;
             try (var paths = Files.walk(output.resolve("src/main/java"))) {
                 sources = paths.filter(path -> path.toString().endsWith(".java"))
@@ -312,7 +316,7 @@ class AppChainCustomComponentCatalogTest {
         Path scaffold = temporary.resolve("scaffold-" + id);
         new AppChainPluginScaffolder().scaffold(
                 "state-machine", id, "example." + id.replace('-', '_'),
-                "0.1.0-test", scaffold);
+                "0.1.0-test", "0.2.0-x-test", scaffold);
         Path resources = scaffold.resolve("src/main/resources");
         Path catalog = resources.resolve(AppChainComponentCatalogLoader.CATALOG_PATH);
         if (mutate != null) {

@@ -1,8 +1,5 @@
 package org.yanoproject.x.evidence.profile;
 
-import org.yanoproject.api.appchain.AppStateMachineContext;
-import org.yanoproject.api.appchain.effects.ActivationSchedule;
-import org.yanoproject.x.evidence.profile.contracts.EvidenceWorkflowCapacityV1;
 import org.yanoproject.x.composite.ComponentDescriptor;
 import org.yanoproject.x.composite.ComponentGeneration;
 import org.yanoproject.x.composite.ComposableAppStateMachine;
@@ -10,10 +7,13 @@ import org.yanoproject.x.composite.CompositeStateMachine;
 import org.yanoproject.x.composite.CompositeWorkflow;
 import org.yanoproject.x.composite.LegacyQueryAlias;
 import org.yanoproject.x.composite.WorkflowDescriptor;
-import org.yanoproject.appchain.config.AppChainApprovalsConfig;
+import org.yanoproject.x.evidence.profile.contracts.EvidenceWorkflowCapacityV1;
 import org.yanoproject.x.examples.evidence.EvidenceContract;
 import org.yanoproject.x.examples.evidence.EvidenceRegistryConfig;
 import org.yanoproject.x.examples.evidence.EvidenceRegistryStateMachine;
+import org.yanoproject.x.framework.api.appchain.AppStateMachineContext;
+import org.yanoproject.x.framework.api.appchain.effects.ActivationSchedule;
+import org.yanoproject.x.framework.config.AppChainApprovalsConfig;
 import org.yanoproject.x.stdlib.ApprovalsStateMachine;
 import org.yanoproject.x.stdlib.DocTrailStateMachine;
 import org.yanoproject.x.stdlib.KvRegistryStateMachine;

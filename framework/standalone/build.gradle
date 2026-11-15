@@ -1,0 +1,9 @@
+description = 'Manifested standalone application-ledger activation root'
+dependencies {
+    api project(':framework:host-adapter')
+}
+tasks.named('processResources') {
+    filesMatching('META-INF/yano/plugins/*.json') {
+        expand(pluginVersion: project.version.toString())
+    }
+}

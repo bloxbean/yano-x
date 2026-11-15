@@ -385,6 +385,70 @@
       "publicationType": "test-fixture",
       "pluginBundleId": null,
       "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":framework:api",
+      "directory": "framework/api",
+      "artifactId": "yano-x-appchain-api",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":framework:config",
+      "directory": "framework/config",
+      "artifactId": "yano-x-appchain-config",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":framework:core",
+      "directory": "framework/core",
+      "artifactId": "yano-x-appchain-core",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":framework:cardano-api",
+      "directory": "framework/cardano-api",
+      "artifactId": "yano-x-appchain-cardano-api",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":framework:cardano",
+      "directory": "framework/cardano",
+      "artifactId": "yano-x-appchain-cardano",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":framework:cardano-onchain",
+      "directory": "framework/cardano-onchain",
+      "artifactId": "yano-x-appchain-anchor-onchain",
+      "publicationType": "onchain-artifact",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":framework:host-adapter",
+      "directory": "framework/host-adapter",
+      "artifactId": "yano-x-appchain-host-adapter",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":framework:standalone",
+      "directory": "framework/standalone",
+      "artifactId": "yano-x-appchain-standalone",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
     }
   ]
 }

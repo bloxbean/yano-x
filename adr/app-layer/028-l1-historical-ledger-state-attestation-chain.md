@@ -98,9 +98,13 @@ Epoch-boundary state has three properties arbitrary "state at slot S" lacks:
 ### 5.1 New SPI — `L1EpochObserver`
 
 Mirrors `L1ObserverProvider` exactly (ServiceLoader, `observers.<id>.*` config, plugin jar).
+The package below follows X's current `framework/api` ownership from
+[ADR-057](../057-application-ledger-framework-extraction.md). The original
+observer decision and wire contract are unchanged; prerelease Java consumers
+must recompile after the namespace migration.
 
 ```java
-package org.yanoproject.api.appchain.l1view;
+package org.yanoproject.x.framework.api.appchain.l1view;
 
 /**
  * An epoch-boundary observer: a PURE function from a finalized L1 epoch

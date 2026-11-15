@@ -1,10 +1,10 @@
 package org.yanoproject.x.ipfs.effects;
 
-import org.yanoproject.api.appchain.effects.EffectExecutionContext;
-import org.yanoproject.api.appchain.effects.EffectRecord;
-import org.yanoproject.api.appchain.effects.FinalityGate;
-import org.yanoproject.api.appchain.effects.PendingEffect;
-import org.yanoproject.api.appchain.effects.ResultPolicy;
+import org.yanoproject.x.framework.api.appchain.effects.EffectExecutionContext;
+import org.yanoproject.x.framework.api.appchain.effects.EffectRecord;
+import org.yanoproject.x.framework.api.appchain.effects.FinalityGate;
+import org.yanoproject.x.framework.api.appchain.effects.PendingEffect;
+import org.yanoproject.x.framework.api.appchain.effects.ResultPolicy;
 import org.yanoproject.x.integration.detail.ConnectorDetailArchive;
 import org.yanoproject.x.integration.detail.ConnectorDetailDocumentV1;
 import org.yanoproject.x.integration.detail.ConnectorDetailHash;

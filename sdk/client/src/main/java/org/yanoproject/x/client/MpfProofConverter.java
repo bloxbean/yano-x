@@ -9,8 +9,9 @@ import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.client.crypto.Blake2bUtil;
 import org.yanoproject.x.client.AppChainClient;
 import org.yanoproject.x.client.ProofVerifier;
-import org.yanoproject.x.proofs.MpfNormalizedProof;
+import org.yanoproject.x.framework.api.appchain.state.StateProof;
 import org.yanoproject.x.proofs.MpfNormalizedNonMembershipProof;
+import org.yanoproject.x.proofs.MpfNormalizedProof;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -31,7 +32,7 @@ public final class MpfProofConverter {
 
     /** Convert the canonical in-process proof envelope used by typed proof packages. */
     public static MpfNormalizedProof convert(
-            org.yanoproject.api.appchain.state.StateProof proof) {
+            StateProof proof) {
         Objects.requireNonNull(proof, "proof");
         var profile = proof.snapshot().identity().profile();
         return convert(new AppChainClient.Proof(

@@ -4,7 +4,7 @@ import co.nstant.in.cbor.CborDecoder;
 import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.UnicodeString;
 import co.nstant.in.cbor.model.UnsignedInteger;
-import org.yanoproject.api.appchain.codec.internal.CborStructurePreflight;
+import org.yanoproject.x.framework.api.appchain.codec.internal.CborStructurePreflight;
 
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;

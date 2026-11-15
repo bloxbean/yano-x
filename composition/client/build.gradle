@@ -1,7 +1,7 @@
 dependencies {
     api project(':sdk:client')
     api project(':composition:contracts')
-    api rootProject.ext.yanoModule('yano-core-api')
+    api project(':framework:api')
 
     testImplementation libs.junit.jupiter.api
     testRuntimeOnly libs.junit.jupiter.engine

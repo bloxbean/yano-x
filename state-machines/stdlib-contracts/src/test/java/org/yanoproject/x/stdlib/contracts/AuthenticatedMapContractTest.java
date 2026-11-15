@@ -1,9 +1,9 @@
 package org.yanoproject.x.stdlib.contracts;
 
-import org.yanoproject.api.appchain.schema.CborSchema;
 import com.bloxbean.cardano.vds.jmt.JmtProfile;
-import org.yanoproject.api.appchain.state.StateCommitmentProfiles;
 import org.junit.jupiter.api.Test;
+import org.yanoproject.x.framework.api.appchain.schema.CborSchema;
+import org.yanoproject.x.framework.api.appchain.state.StateCommitmentProfiles;
 
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;

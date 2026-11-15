@@ -1,7 +1,7 @@
 package org.yanoproject.x.client;
 
+import org.yanoproject.x.framework.api.appchain.schema.CborSchema;
 import org.yanoproject.x.stdlib.contracts.AuthenticatedMapContract;
-import org.yanoproject.api.appchain.schema.CborSchema;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;

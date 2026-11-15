@@ -1,13 +1,17 @@
 package org.yanoproject.x.trust.profile;
 
 import com.bloxbean.cardano.client.crypto.KeyGenUtil;
-import org.yanoproject.api.appchain.AppChainConfig;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.yanoproject.x.framework.api.appchain.AppChainConfig;
 import org.yanoproject.x.roles.contracts.ActorKeyEpochV1;
 import org.yanoproject.x.roles.contracts.ActorKeyProofV1;
 import org.yanoproject.x.roles.contracts.ActorRecordV1;
+import org.yanoproject.x.roles.contracts.AdministratorAuthorityV1;
 import org.yanoproject.x.roles.contracts.ApprovalPolicyV1;
 import org.yanoproject.x.roles.contracts.DirectRolePolicyV1;
-import org.yanoproject.x.roles.contracts.AdministratorAuthorityV1;
 import org.yanoproject.x.roles.contracts.GenesisActorV1;
 import org.yanoproject.x.roles.contracts.GovernedAuthorizationLimitsV1;
 import org.yanoproject.x.roles.contracts.GovernedGenesisV1;
@@ -15,10 +19,6 @@ import org.yanoproject.x.roles.contracts.OrganizationRecordV1;
 import org.yanoproject.x.roles.contracts.RecordStatus;
 import org.yanoproject.x.stdlib.AuthenticatedMapGenesisFactory;
 import org.yanoproject.x.stdlib.contracts.AuthenticatedMapContract;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;

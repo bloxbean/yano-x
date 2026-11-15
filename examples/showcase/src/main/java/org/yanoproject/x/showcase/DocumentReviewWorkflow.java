@@ -1,16 +1,16 @@
 package org.yanoproject.x.showcase;
 
 import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
-import org.yanoproject.api.appchain.AppBlock;
-import org.yanoproject.api.appchain.AppBlockExecutionContext;
-import org.yanoproject.api.appchain.AppStateMachine;
-import org.yanoproject.api.appchain.effects.AppEffectEmitter;
-import org.yanoproject.api.appchain.transition.TransitionContext;
-import org.yanoproject.api.appchain.transition.TransitionPlans;
 import org.yanoproject.x.composite.ComponentGeneration;
 import org.yanoproject.x.composite.CompositeWorkflow;
 import org.yanoproject.x.composite.CompositeWorkflowContext;
 import org.yanoproject.x.composite.WorkflowDescriptor;
+import org.yanoproject.x.framework.api.appchain.AppBlock;
+import org.yanoproject.x.framework.api.appchain.AppBlockExecutionContext;
+import org.yanoproject.x.framework.api.appchain.AppStateMachine;
+import org.yanoproject.x.framework.api.appchain.effects.AppEffectEmitter;
+import org.yanoproject.x.framework.api.appchain.transition.TransitionContext;
+import org.yanoproject.x.framework.api.appchain.transition.TransitionPlans;
 import org.yanoproject.x.roles.RoleAuthorizationCapability;
 import org.yanoproject.x.stdlib.DocTrailStateMachine;
 import org.yanoproject.x.stdlib.DocTrailTransitions;

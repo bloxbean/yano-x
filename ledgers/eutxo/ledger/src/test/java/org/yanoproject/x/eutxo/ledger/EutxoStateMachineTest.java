@@ -1,12 +1,5 @@
 package org.yanoproject.x.eutxo.ledger;
 
-import com.bloxbean.cardano.client.transaction.spec.Transaction;
-import com.bloxbean.cardano.client.transaction.spec.TransactionBody;
-import com.bloxbean.cardano.client.transaction.spec.TransactionInput;
-import com.bloxbean.cardano.client.transaction.spec.TransactionOutput;
-import com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet;
-import com.bloxbean.cardano.client.transaction.spec.Value;
-import com.bloxbean.cardano.client.transaction.util.TransactionUtil;
 import com.bloxbean.cardano.client.address.AddressProvider;
 import com.bloxbean.cardano.client.address.Credential;
 import com.bloxbean.cardano.client.api.util.CostModelUtil;
@@ -19,30 +12,33 @@ import com.bloxbean.cardano.client.plutus.spec.Redeemer;
 import com.bloxbean.cardano.client.plutus.spec.RedeemerTag;
 import com.bloxbean.cardano.client.plutus.util.ScriptDataHashGenerator;
 import com.bloxbean.cardano.client.spec.NetworkId;
+import com.bloxbean.cardano.client.transaction.spec.Transaction;
+import com.bloxbean.cardano.client.transaction.spec.TransactionBody;
+import com.bloxbean.cardano.client.transaction.spec.TransactionInput;
+import com.bloxbean.cardano.client.transaction.spec.TransactionOutput;
+import com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet;
+import com.bloxbean.cardano.client.transaction.spec.Value;
+import com.bloxbean.cardano.client.transaction.util.TransactionUtil;
 import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
-import org.yanoproject.api.appchain.AppBlock;
-import org.yanoproject.api.appchain.AppBlockExecutionContext;
-import org.yanoproject.api.appchain.AppStateMachineContext;
-import org.yanoproject.api.appchain.FinalityCert;
-import org.yanoproject.api.appchain.l1view.L1Observation;
+import org.junit.jupiter.api.Test;
 import org.yanoproject.x.eutxo.contracts.EutxoDepositClaim;
-import org.yanoproject.x.eutxo.contracts.EutxoIgnoredConfirmations;
 import org.yanoproject.x.eutxo.contracts.EutxoDepositNotice;
-import org.yanoproject.x.eutxo.contracts.EutxoL2KeyRegistration;
-import org.yanoproject.x.eutxo.contracts.EutxoValidityTransition;
-import org.yanoproject.x.eutxo.contracts.EutxoValidityCommitmentProvider;
-import org.yanoproject.x.eutxo.contracts.EutxoValidityCommitmentEngine;
-import org.yanoproject.x.eutxo.contracts.EutxoValidityCommitment;
-import org.yanoproject.x.eutxo.contracts.EutxoL2KeyBinding;
 import org.yanoproject.x.eutxo.contracts.EutxoDepositRecord;
+import org.yanoproject.x.eutxo.contracts.EutxoIgnoredConfirmations;
+import org.yanoproject.x.eutxo.contracts.EutxoL2KeyBinding;
+import org.yanoproject.x.eutxo.contracts.EutxoL2KeyRegistration;
 import org.yanoproject.x.eutxo.contracts.EutxoOutpoint;
+import org.yanoproject.x.eutxo.contracts.EutxoProfile;
 import org.yanoproject.x.eutxo.contracts.EutxoQueryCodec;
 import org.yanoproject.x.eutxo.contracts.EutxoReceipt;
 import org.yanoproject.x.eutxo.contracts.EutxoRecord;
-import org.yanoproject.x.eutxo.contracts.EutxoProfile;
 import org.yanoproject.x.eutxo.contracts.EutxoReserve;
 import org.yanoproject.x.eutxo.contracts.EutxoStateKeys;
 import org.yanoproject.x.eutxo.contracts.EutxoTransactionSummary;
+import org.yanoproject.x.eutxo.contracts.EutxoValidityCommitment;
+import org.yanoproject.x.eutxo.contracts.EutxoValidityCommitmentEngine;
+import org.yanoproject.x.eutxo.contracts.EutxoValidityCommitmentProvider;
+import org.yanoproject.x.eutxo.contracts.EutxoValidityTransition;
 import org.yanoproject.x.eutxo.contracts.EutxoWithdrawalClaim;
 import org.yanoproject.x.eutxo.contracts.EutxoWithdrawalConfirmation;
 import org.yanoproject.x.eutxo.contracts.EutxoWithdrawalDatum;
@@ -50,8 +46,12 @@ import org.yanoproject.x.eutxo.contracts.EutxoWithdrawalRecord;
 import org.yanoproject.x.eutxo.testkit.EutxoTestWallet;
 import org.yanoproject.x.eutxo.testkit.EutxoTransactionFixtures;
 import org.yanoproject.x.eutxo.testkit.MemoryAppState;
-import org.yanoproject.runtime.appchain.StateMachineConformance;
-import org.junit.jupiter.api.Test;
+import org.yanoproject.x.framework.api.appchain.AppBlock;
+import org.yanoproject.x.framework.api.appchain.AppBlockExecutionContext;
+import org.yanoproject.x.framework.api.appchain.AppStateMachineContext;
+import org.yanoproject.x.framework.api.appchain.FinalityCert;
+import org.yanoproject.x.framework.api.appchain.l1view.L1Observation;
+import org.yanoproject.x.framework.runtime.appchain.StateMachineConformance;
 
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
@@ -1042,7 +1042,7 @@ class EutxoStateMachineTest {
             MemoryAppState state
     ) {
         machine.apply(AppBlockExecutionContext.fromValidatedBlock(block), state,
-                org.yanoproject.api.appchain.effects.AppEffectEmitter
+                org.yanoproject.x.framework.api.appchain.effects.AppEffectEmitter
                         .rejecting("unused"));
     }
 

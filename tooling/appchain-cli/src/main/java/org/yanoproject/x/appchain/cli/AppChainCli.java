@@ -8,6 +8,7 @@ import java.io.InputStreamReader;
 import java.io.PrintStream;
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Set;
@@ -75,21 +76,22 @@ public final class AppChainCli {
         System.exit(run(arguments, new Terminal(in, out, interactive), System.err));
     }
 
-    /**
-     * A scaffolded plugin compiles against the host's Yano API, so {@code plugin scaffold} defaults its
-     * {@code --yano-version} to this distribution's Yano version rather than the tool's own.
-     */
+    /** Defaults the independently versioned host and framework dependencies from this distribution. */
     static String[] withHostYanoVersion(String[] args, Distribution distribution) {
         if (args.length < 2 || !"plugin".equals(args[0]) || !"scaffold".equals(args[1])
-                || Arrays.asList(args).contains("--yano-version") || Arrays.asList(args).contains("--help")) {
+                || Arrays.asList(args).contains("--help")) {
             return args;
         }
-        String version = distribution.yanoVersion();
-        if ("unknown".equals(version)) return args;
-        String[] extended = Arrays.copyOf(args, args.length + 2);
-        extended[args.length] = "--yano-version";
-        extended[args.length + 1] = version;
-        return extended;
+        var extended = new ArrayList<>(Arrays.asList(args));
+        if (!extended.contains("--yano-version") && !"unknown".equals(distribution.yanoVersion())) {
+            extended.add("--yano-version");
+            extended.add(distribution.yanoVersion());
+        }
+        if (!extended.contains("--yano-x-version") && !"unknown".equals(distribution.yanoXVersion())) {
+            extended.add("--yano-x-version");
+            extended.add(distribution.yanoXVersion());
+        }
+        return extended.toArray(String[]::new);
     }
 
     /** An argument echoed back, without control characters and bounded. */

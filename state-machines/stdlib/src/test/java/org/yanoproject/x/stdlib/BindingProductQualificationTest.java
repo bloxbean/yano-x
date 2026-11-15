@@ -3,13 +3,12 @@ package org.yanoproject.x.stdlib;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.io.TempDir;
-import org.yanoproject.runtime.appchain.AppChainSubsystem;
 import org.yanoproject.x.composite.CompositeStateKeys;
-import org.yanoproject.x.composite.contracts.BindingExpressionV1;
 import org.yanoproject.x.composite.contracts.BindingExpressionV1.Call;
 import org.yanoproject.x.composite.contracts.BindingExpressionV1.Field;
 import org.yanoproject.x.composite.contracts.BindingExpressionV1.Literal;
 import org.yanoproject.x.composite.contracts.BindingExpressionV1.Scope;
+import org.yanoproject.x.composite.contracts.BindingExpressionV1;
 import org.yanoproject.x.composite.contracts.BindingIrV1;
 import org.yanoproject.x.composite.contracts.BindingReceiptV1;
 import org.yanoproject.x.composite.contracts.BindingSourceV1;
@@ -17,6 +16,7 @@ import org.yanoproject.x.dpp.profile.DppStarterProfile;
 import org.yanoproject.x.dpp.profile.DppValues;
 import org.yanoproject.x.feed.profile.FeedStarterProfile;
 import org.yanoproject.x.feed.profile.FeedValues;
+import org.yanoproject.x.framework.cardano.AppChainSubsystem;
 import org.yanoproject.x.roles.contracts.ActorStatementV1;
 import org.yanoproject.x.roles.contracts.ApprovalProposalV1;
 import org.yanoproject.x.roles.contracts.RoleWorkflowKeys;
@@ -33,8 +33,8 @@ import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.yanoproject.x.stdlib.DeclarativeBindingsClusterTest.awaitReceipt;
 import static org.yanoproject.x.stdlib.DeclarativeBindingsClusterTest.assertConvergence;
+import static org.yanoproject.x.stdlib.DeclarativeBindingsClusterTest.awaitReceipt;
 import static org.yanoproject.x.stdlib.DeclarativeBindingsClusterTest.verifyCertifiedProof;
 
 /**

@@ -1,7 +1,7 @@
 package org.yanoproject.x.stdlib;
 
 import org.junit.jupiter.api.Test;
-import org.yanoproject.api.appchain.transition.TransitionKernel;
+import org.yanoproject.x.framework.api.appchain.transition.TransitionKernel;
 import org.yanoproject.x.stdlib.contracts.ApprovalsContract;
 import org.yanoproject.x.stdlib.contracts.BalancesContract;
 import org.yanoproject.x.stdlib.contracts.DocTrailContract;

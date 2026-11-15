@@ -1,20 +1,20 @@
 package org.yanoproject.x.devtools;
 
-import org.yanoproject.appchain.config.AppChainPropertyRegistry;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.yanoproject.x.composite.CompositeProfile;
 import org.yanoproject.x.composite.CompositeProfileCodec;
+import org.yanoproject.x.composite.contracts.BindingReceiptV1;
 import org.yanoproject.x.composite.contracts.CompositeCommitmentV1;
 import org.yanoproject.x.dpp.profile.DppGenesis;
 import org.yanoproject.x.feed.profile.FeedGenesis;
+import org.yanoproject.x.framework.config.AppChainPropertyRegistry;
 import org.yanoproject.x.stdlib.contracts.ApprovalsContract;
 import org.yanoproject.x.stdlib.contracts.BalancesContract;
 import org.yanoproject.x.stdlib.contracts.DocTrailContract;
-import org.yanoproject.x.composite.contracts.BindingReceiptV1;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -23,10 +23,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;

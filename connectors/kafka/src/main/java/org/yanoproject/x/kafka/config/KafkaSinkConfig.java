@@ -1,7 +1,7 @@
 package org.yanoproject.x.kafka.config;
 
-import org.yanoproject.api.appchain.AppChainConfig;
 import org.apache.kafka.clients.producer.ProducerConfig;
+import org.yanoproject.x.framework.api.appchain.AppChainConfig;
 
 import java.time.Duration;
 import java.util.LinkedHashMap;

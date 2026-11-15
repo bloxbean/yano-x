@@ -1,21 +1,8 @@
 package org.yanoproject.x.examples.evidence;
 
 import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
-import org.yanoproject.api.appchain.AppBlock;
-import org.yanoproject.api.appchain.AppBlockExecutionContext;
-import org.yanoproject.api.appchain.AppQueryContext;
-import org.yanoproject.api.appchain.AppQueryException;
-import org.yanoproject.api.appchain.AppStateMachineContext;
-import org.yanoproject.api.appchain.AppStateWriter;
-import org.yanoproject.api.appchain.FinalityCert;
-import org.yanoproject.api.appchain.effects.AppEffectEmitter;
-import org.yanoproject.api.appchain.effects.EffectId;
-import org.yanoproject.api.appchain.effects.EffectIntent;
-import org.yanoproject.api.appchain.effects.EffectOutcome;
-import org.yanoproject.api.appchain.effects.EffectResult;
-import org.yanoproject.api.appchain.effects.FinalityGate;
-import org.yanoproject.api.appchain.effects.FxResultBody;
-import org.yanoproject.api.appchain.effects.ResultPolicy;
+import org.junit.jupiter.api.Test;
+import org.yanoproject.appchain.testkit.AppChainTestProfiles;
 import org.yanoproject.x.examples.evidence.command.NotifyEvidenceCommandV1;
 import org.yanoproject.x.examples.evidence.query.EvidenceGetRequestV1;
 import org.yanoproject.x.examples.evidence.query.EvidenceGetResponseV1;
@@ -23,11 +10,24 @@ import org.yanoproject.x.examples.evidence.state.EvidenceEffectOperation;
 import org.yanoproject.x.examples.evidence.state.EvidenceKeys;
 import org.yanoproject.x.examples.evidence.state.EvidenceRecordV1;
 import org.yanoproject.x.examples.evidence.state.EvidenceStatus;
+import org.yanoproject.x.framework.api.appchain.AppBlock;
+import org.yanoproject.x.framework.api.appchain.AppBlockExecutionContext;
+import org.yanoproject.x.framework.api.appchain.AppQueryContext;
+import org.yanoproject.x.framework.api.appchain.AppQueryException;
+import org.yanoproject.x.framework.api.appchain.AppStateMachineContext;
+import org.yanoproject.x.framework.api.appchain.AppStateWriter;
+import org.yanoproject.x.framework.api.appchain.FinalityCert;
+import org.yanoproject.x.framework.api.appchain.effects.AppEffectEmitter;
+import org.yanoproject.x.framework.api.appchain.effects.EffectId;
+import org.yanoproject.x.framework.api.appchain.effects.EffectIntent;
+import org.yanoproject.x.framework.api.appchain.effects.EffectOutcome;
+import org.yanoproject.x.framework.api.appchain.effects.EffectResult;
+import org.yanoproject.x.framework.api.appchain.effects.FinalityGate;
+import org.yanoproject.x.framework.api.appchain.effects.FxResultBody;
+import org.yanoproject.x.framework.api.appchain.effects.ResultPolicy;
+import org.yanoproject.x.framework.runtime.appchain.StateMachineConformance;
 import org.yanoproject.x.integration.ConnectorTypes;
 import org.yanoproject.x.integration.kafka.KafkaPublishCommandV1;
-import org.yanoproject.appchain.testkit.AppChainTestProfiles;
-import org.yanoproject.runtime.appchain.StateMachineConformance;
-import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -474,7 +474,7 @@ class EvidenceRegistryStateMachineTest {
             @Override public String chainId() { return CHAIN; }
             @Override public Map<String, String> settings() { return Map.copyOf(settings); }
             @Override
-            public Optional<org.yanoproject.api.appchain.AppChainConsensusProfile>
+            public Optional<org.yanoproject.x.framework.api.appchain.AppChainConsensusProfile>
             consensusProfile() {
                 return Optional.of(AppChainTestProfiles.fromSettings(settings));
             }

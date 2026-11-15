@@ -1,7 +1,7 @@
 package org.yanoproject.x.eutxo.indexer;
 
-import org.yanoproject.api.plugin.domain.LocalReadModelHost;
-import org.yanoproject.api.plugin.domain.LocalReadModelResult;
+import org.yanoproject.x.framework.api.plugin.domain.LocalReadModelHost;
+import org.yanoproject.x.framework.api.plugin.domain.LocalReadModelResult;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;

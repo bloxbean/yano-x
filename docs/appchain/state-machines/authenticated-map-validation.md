@@ -268,7 +268,7 @@ them, and pin them by their exact `ARTIFACT_CLOSURE` digest. Never load
 untrusted code.
 
 The descriptor lives in the no-SPI contracts artifact; the factory SPI lives in
-`core-api`. Programmatic genesis uses:
+`framework/api`. Programmatic genesis uses:
 
 ```java
 var validator = AuthenticatedMapContract.ValidatorDescriptor.plugin(

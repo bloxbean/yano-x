@@ -1,13 +1,13 @@
 package org.yanoproject.x.deployment;
 
 import com.bloxbean.cardano.client.common.model.Networks;
-import org.yanoproject.api.appchain.state.StateCommitmentIdentity;
-import org.yanoproject.api.appchain.state.StateCommitmentProfiles;
 import org.yanoproject.x.eutxo.contracts.EutxoProfile;
 import org.yanoproject.x.eutxo.demo.SettlementBootstrapPlan;
 import org.yanoproject.x.eutxo.demo.SettlementDeploymentRecord;
 import org.yanoproject.x.eutxo.demo.SettlementOperatorIdentity;
 import org.yanoproject.x.eutxo.demo.ShowcaseSettlementPlan;
+import org.yanoproject.x.framework.api.appchain.state.StateCommitmentIdentity;
+import org.yanoproject.x.framework.api.appchain.state.StateCommitmentProfiles;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;

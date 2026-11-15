@@ -1,12 +1,12 @@
 package org.yanoproject.x.history.client;
 
-import org.yanoproject.api.appchain.snapshot.AuthenticatedSnapshotProofBundleCodec;
-import org.yanoproject.api.appchain.snapshot.AuthenticatedSnapshotProofBundleV1;
-import org.yanoproject.api.appchain.snapshot.SnapshotCanonicalCodec;
-import org.yanoproject.api.appchain.snapshot.SnapshotSourceBoundary;
-import org.yanoproject.api.appchain.state.StateProof;
 import org.yanoproject.x.client.AppChainClient;
 import org.yanoproject.x.client.ProofVerifier;
+import org.yanoproject.x.framework.api.appchain.snapshot.AuthenticatedSnapshotProofBundleCodec;
+import org.yanoproject.x.framework.api.appchain.snapshot.AuthenticatedSnapshotProofBundleV1;
+import org.yanoproject.x.framework.api.appchain.snapshot.SnapshotCanonicalCodec;
+import org.yanoproject.x.framework.api.appchain.snapshot.SnapshotSourceBoundary;
+import org.yanoproject.x.framework.api.appchain.state.StateProof;
 import org.yanoproject.x.stdlib.contracts.EpochStakeContract;
 
 import java.util.Arrays;

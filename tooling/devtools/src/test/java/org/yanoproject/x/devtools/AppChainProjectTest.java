@@ -1,17 +1,17 @@
 package org.yanoproject.x.devtools;
 
 import com.bloxbean.cardano.client.crypto.KeyGenUtil;
-import org.yanoproject.appchain.config.AppChainPropertyRegistry;
-import org.yanoproject.x.client.Hex;
-import org.yanoproject.x.roles.contracts.ActorKeyEpochV1;
-import org.yanoproject.x.roles.contracts.ActorKeyProofV1;
-import org.yanoproject.x.roles.contracts.RecordStatus;
-import org.yanoproject.x.stdlib.contracts.AuthenticatedMapContract;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.yanoproject.x.client.Hex;
+import org.yanoproject.x.framework.config.AppChainPropertyRegistry;
+import org.yanoproject.x.roles.contracts.ActorKeyEpochV1;
+import org.yanoproject.x.roles.contracts.ActorKeyProofV1;
+import org.yanoproject.x.roles.contracts.RecordStatus;
+import org.yanoproject.x.stdlib.contracts.AuthenticatedMapContract;
 
 import java.io.BufferedReader;
 import java.io.IOException;

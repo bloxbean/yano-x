@@ -1,7 +1,7 @@
 package org.yanoproject.x.eutxo.ledger;
 
-import org.yanoproject.api.appchain.AppStateMachineContext;
 import org.junit.jupiter.api.Test;
+import org.yanoproject.x.framework.api.appchain.AppStateMachineContext;
 
 import java.util.Map;
 

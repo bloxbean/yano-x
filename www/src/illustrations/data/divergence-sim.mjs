@@ -155,10 +155,10 @@ export default {
       anchors: ['A nondeterministic state machine stalls its chain right here.',
         'no locale-dependent serialization', 'no environment reads', 'AppChainStalledEvent',
         'the next member in canonical member order becomes leader'] },
-    { repo: 'yano', path: 'runtime/src/main/java/org/yanoproject/runtime/appchain/AppChainEngine.java',
+    { repo: 'yano-x', path: 'framework/core/src/main/java/org/yanoproject/x/framework/runtime/appchain/AppChainEngine.java',
       anchors: ['Proposal state-root mismatch', 'currentView = 0;',
         'if ("fixed".equals(sequencerMode.id()) && !config.proposerKeyHex().isBlank()) {'] },
-    { repo: 'yano', path: 'runtime/src/main/java/org/yanoproject/runtime/appchain/AppChainSubsystem.java',
+    { repo: 'yano-x', path: 'framework/core/src/main/java/org/yanoproject/x/framework/runtime/appchain/AppLedgerRuntime.java',
       anchors: ['Math.max(config.blockIntervalMs() * 5, 10_000)', 'status.put("stalled"', 'STALL_WINDOW_MS = 60_000'] },
   ],
 };

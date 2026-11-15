@@ -1,8 +1,8 @@
 package org.yanoproject.x.client;
 
-import org.yanoproject.x.stdlib.contracts.AuthenticatedMapContract;
-import org.yanoproject.api.appchain.schema.CborSchema;
 import org.junit.jupiter.api.Test;
+import org.yanoproject.x.framework.api.appchain.schema.CborSchema;
+import org.yanoproject.x.stdlib.contracts.AuthenticatedMapContract;
 
 import java.math.BigInteger;
 import java.util.List;

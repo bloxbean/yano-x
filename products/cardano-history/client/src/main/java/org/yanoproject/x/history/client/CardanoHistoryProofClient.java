@@ -2,9 +2,10 @@ package org.yanoproject.x.history.client;
 
 import org.yanoproject.x.client.AppChainClient;
 import org.yanoproject.x.client.ProofSubjects;
+import org.yanoproject.x.framework.api.appchain.snapshot.SnapshotSourceBoundary;
+import org.yanoproject.x.framework.cardano.api.l1view.ProtocolParamsCanonicalCodec;
 import org.yanoproject.x.stdlib.contracts.EpochGovernanceContract;
 import org.yanoproject.x.stdlib.contracts.EpochStakeContract;
-import org.yanoproject.api.appchain.l1view.ProtocolParamsCanonicalCodec;
 
 import java.math.BigInteger;
 import java.util.Objects;
@@ -101,8 +102,7 @@ public final class CardanoHistoryProofClient {
                             && descriptor.completedAppChainHeight() <= anchoredHeight
                             && "blake2b256".equals(descriptor.sourceCommitmentAlgorithm())
                             && descriptor.sourceBoundary()
-                            instanceof org.yanoproject.api.appchain.snapshot
-                            .SnapshotSourceBoundary.L1Epoch boundary
+                            instanceof SnapshotSourceBoundary.L1Epoch boundary
                             && boundary.datasetEpoch() == epoch
                             && (stake
                             ? "epoch-stake-v1".equals(descriptor.schemaId())

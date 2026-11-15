@@ -1,10 +1,10 @@
 package org.yanoproject.x.eutxo.bridge.cardano;
 
-import org.yanoproject.api.appchain.effects.AppEffectExecutor;
-import org.yanoproject.api.appchain.effects.EffectExecution;
-import org.yanoproject.api.appchain.effects.EffectExecutionContext;
-import org.yanoproject.api.appchain.effects.PendingEffect;
 import org.yanoproject.x.eutxo.contracts.EutxoSettlementBatch;
+import org.yanoproject.x.framework.api.appchain.effects.AppEffectExecutor;
+import org.yanoproject.x.framework.api.appchain.effects.EffectExecution;
+import org.yanoproject.x.framework.api.appchain.effects.EffectExecutionContext;
+import org.yanoproject.x.framework.api.appchain.effects.PendingEffect;
 
 import java.nio.charset.StandardCharsets;
 import java.util.HexFormat;

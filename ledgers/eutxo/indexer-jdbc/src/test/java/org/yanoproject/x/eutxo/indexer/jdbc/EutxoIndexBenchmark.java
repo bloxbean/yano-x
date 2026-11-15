@@ -1,10 +1,5 @@
 package org.yanoproject.x.eutxo.indexer.jdbc;
 
-import org.yanoproject.api.appchain.AppBlock;
-import org.yanoproject.api.plugin.domain.FinalizedChainView;
-import org.yanoproject.api.appchain.AppQueryResult;
-import org.yanoproject.api.appchain.FinalityCert;
-import org.yanoproject.api.appchain.codec.AppBlockCodec;
 import org.yanoproject.x.eutxo.contracts.EutxoOutpoint;
 import org.yanoproject.x.eutxo.contracts.EutxoQueryCodec;
 import org.yanoproject.x.eutxo.contracts.EutxoTransactionSummary;
@@ -21,6 +16,11 @@ import org.yanoproject.x.eutxo.indexer.IndexIdentity;
 import org.yanoproject.x.eutxo.indexer.SourcePoint;
 import org.yanoproject.x.eutxo.indexer.memory.InMemoryEutxoIndexStore;
 import org.yanoproject.x.eutxo.indexer.testing.EutxoIndexFixtures;
+import org.yanoproject.x.framework.api.appchain.AppBlock;
+import org.yanoproject.x.framework.api.appchain.AppQueryResult;
+import org.yanoproject.x.framework.api.appchain.FinalityCert;
+import org.yanoproject.x.framework.api.appchain.codec.AppBlockCodec;
+import org.yanoproject.x.framework.api.plugin.domain.FinalizedChainView;
 
 import java.lang.reflect.Proxy;
 import java.math.BigInteger;

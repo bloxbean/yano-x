@@ -3,7 +3,7 @@ plugins {
 }
 
 dependencies {
-    api rootProject.ext.yanoModule('yano-core-api')
+    api project(':framework:api')
     api project(':ledgers:eutxo:contracts')
     implementation libs.cardano.client.core
 

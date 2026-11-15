@@ -1,13 +1,1 @@
 rootProject.name = 'appchain-plugin'
-
-// Repository verification can compile this standalone template against the
-// current Yano checkout without publishing provisional artifacts first.
-def yanoSource = providers.gradleProperty('yanoSource')
-if (yanoSource.present) {
-    includeBuild(file(yanoSource.get())) {
-        dependencySubstitution {
-            substitute module('org.yanoproject:yano-core-api') using project(':core-api')
-            substitute module('org.yanoproject:yano-runtime') using project(':runtime')
-        }
-    }
-}

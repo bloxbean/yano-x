@@ -1,10 +1,10 @@
 package org.yanoproject.x.composite;
 
-import org.yanoproject.api.appchain.AppCapabilityManifest;
-import org.yanoproject.api.appchain.proof.ProofLabVocabulary;
-import org.yanoproject.api.appchain.proof.ProofSubjectDescriptorV1;
-import org.yanoproject.api.appchain.proof.ProofSubjectProvider;
 import org.yanoproject.x.composite.contracts.CompositeCommitmentV1;
+import org.yanoproject.x.framework.api.appchain.AppCapabilityManifest;
+import org.yanoproject.x.framework.api.appchain.proof.ProofLabVocabulary;
+import org.yanoproject.x.framework.api.appchain.proof.ProofSubjectDescriptorV1;
+import org.yanoproject.x.framework.api.appchain.proof.ProofSubjectProvider;
 
 import java.util.HexFormat;
 import java.util.List;

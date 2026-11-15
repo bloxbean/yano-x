@@ -25,6 +25,7 @@ command -v jq >/dev/null 2>&1 || fail 'jq is required'
 docker compose version >/dev/null 2>&1 || fail 'Docker Compose v2 is required'
 
 bash -n "$SCRIPT_DIR/effect-failover-e2e.sh"
+python3 "$SCRIPT_DIR/support/plugin_inventory_contract.py"
 python3 - "$SCRIPT_DIR/effect-failover-e2e.sh" <<'PY'
 from pathlib import Path
 import subprocess
@@ -118,30 +119,45 @@ release_contracts = Path(sys.argv[4]).read_text(encoding="utf-8")
 e2e_workflow = Path(sys.argv[5]).read_text(encoding="utf-8")
 tag_workflow = Path(sys.argv[6]).read_text(encoding="utf-8")
 
-# Check both exact live inventories against source manifests. The host API
-# minimum comes from the selected manifests, never from the live response.
+# Configured optional plugins and required integrated host plugins are distinct.
+# Derive the live inventory from both owners, not from the E2E's expected array.
 repo = Path(sys.argv[2]).resolve().parents[2]
-inventory = source.split("assert_plugin_operations_all_nodes() {", 1)[1].split("and (.items", 1)[0]
-selected = set(re.findall(r'"(org\.yanoproject\.x\.[a-z0-9.-]+)"', inventory))
-manifests = {}
-for path in repo.glob("**/src/main/resources/META-INF/yano/plugins/*.json"):
-    document = json.loads(path.read_text(encoding="utf-8"))
-    if document["id"] in selected:
-        if document["id"] in manifests:
-            raise SystemExit("duplicate selected source manifest")
-        manifests[document["id"]] = document
-if len(selected) != 8 or set(manifests) != selected:
-    raise SystemExit("exact demo selection does not match source manifests")
-# The node template admits plugins by id; an unknown id fails catalog
-# activation only at node startup, so pin it to the same selection.
 template = Path(sys.argv[3]).parent / "config" / "templates" / "node-compose.properties.in"
 allow_list = re.search(r"^yano\.plugins\.allow-list=(.*)$",
                        template.read_text(encoding="utf-8"), re.MULTILINE)
-if allow_list is None or set(allow_list.group(1).split(",")) != selected:
-    raise SystemExit(f"{template.name} plugin allow-list does not match the selected source manifests")
+if allow_list is None:
+    raise SystemExit("demo template has no plugin allow-list")
+optional = set(allow_list.group(1).split(","))
+if len(optional) != 8:
+    raise SystemExit("demo must configure its exact eight optional plugins")
+manifests = {}
+for path in repo.glob("**/src/main/resources/META-INF/yano/plugins/*.json"):
+    document = json.loads(path.read_text(encoding="utf-8"))
+    if document["id"] in optional:
+        if document["id"] in manifests:
+            raise SystemExit("duplicate selected source manifest")
+        manifests[document["id"]] = document
+if set(manifests) != optional:
+    raise SystemExit("demo allow-list does not match optional source manifests")
+# Cardano and standalone activation roots intentionally share a bundle ID.
+# This harness exercises the integrated Cardano host, so use its exact owner.
+required_path = repo / "framework/cardano/src/main/resources/META-INF/yano/plugins/org.yanoproject.x.app-ledger.json"
+required = json.loads(required_path.read_text(encoding="utf-8"))
+if required["id"] != "org.yanoproject.x.app-ledger" or required["id"] in optional:
+    raise SystemExit("required app-ledger owner must be distinct from the optional allow-list")
+manifests[required["id"]] = required
 contributions = sum(len(document["contributions"]) for document in manifests.values())
-if f"and ([.items[] | select(.selected) | .contributionCount] | add) == {contributions}" not in source:
-    raise SystemExit("live demo contribution count drifted from its selected manifests")
+for script, function in ((source, "assert_plugin_operations_all_nodes"),
+                         ((Path(sys.argv[1]).parent / "workflow-replay-e2e.sh").read_text(encoding="utf-8"),
+                          "assert_plugin_inventory")):
+    inventory = script.split(function + "() {", 1)[1].split("and (.items", 1)[0]
+    selected = re.findall(r'"(org\.yanoproject\.x\.[a-z0-9.-]+)"', inventory)
+    if selected != sorted(manifests):
+        raise SystemExit("exact live demo selection differs from optional plus required manifests")
+    if f"and ([.items[] | select(.selected) | .contributionCount] | add) == {contributions}" not in script:
+        raise SystemExit("live demo contribution count drifted from its selected manifests")
+    if f"and .totals.selectedBundles == {len(manifests)}" not in script:
+        raise SystemExit("live demo bundle total drifted from its selected manifests")
 if 'and (.pluginApiLevel | type == "number" and . >= 8)' not in source:
     raise SystemExit("live demo must require the selected plugins' API level 8")
 preflight = '"$DEMO_DIR/demo.sh" config --deployment compose'
@@ -190,7 +206,7 @@ for required in (
         "--max-filesize \"$max_bytes\"",
         "printf 'header = \"X-API-Key: %s\"\\n' \"$api_key\"",
         "/api/v1/plugin-operations/bundles?limit=100",
-        'and .totals.selectedBundles == 8',
+        'and .totals.selectedBundles == 9',
         'and .totals.failedBundles == 0',
         'sample("yano_appchain_tip_height", f\'chain="{chain}"\')',
         'sample("yano_appchain_effects_open", f\'chain="{chain}"\')',

@@ -3,8 +3,8 @@
 This module contains trusted first-party validator implementations for the
 authenticated-map state machine. The public SPI is deliberately not defined
 here: applications implement
-`org.yanoproject.api.appchain.authmap.AuthenticatedMapValueValidatorFactory`
-from `core-api`, while genesis descriptors remain in
+`org.yanoproject.x.framework.api.appchain.authmap.AuthenticatedMapValueValidatorFactory`
+from `framework/api`, while genesis descriptors remain in
 `yano-x-stdlib-contracts`.
 
 The bundle currently contributes `gs1-gtin-v1`. It binds an ASCII GTIN-8,

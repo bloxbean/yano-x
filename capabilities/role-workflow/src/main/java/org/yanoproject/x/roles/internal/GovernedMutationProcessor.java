@@ -1,6 +1,6 @@
 package org.yanoproject.x.roles.internal;
 
-import org.yanoproject.api.appchain.AppStateWriter;
+import org.yanoproject.x.framework.api.appchain.AppStateWriter;
 import org.yanoproject.x.roles.RoleWorkflowGovernanceConfig;
 import org.yanoproject.x.roles.contracts.GovernedMutationCommandV1;
 import org.yanoproject.x.roles.contracts.RoleWorkflowKeys;

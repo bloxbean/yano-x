@@ -1,8 +1,8 @@
 package org.yanoproject.x.stdlib;
 
-import org.yanoproject.api.appchain.AppStateMachineProvider;
 import org.yanoproject.runtime.plugins.PluginProviderRegistry;
 import org.yanoproject.x.composite.bindings.DeclarativeCompositeProvider;
+import org.yanoproject.x.framework.api.appchain.AppStateMachineProvider;
 import org.yanoproject.x.roles.DeclarativeRoleProviders;
 
 import java.util.List;

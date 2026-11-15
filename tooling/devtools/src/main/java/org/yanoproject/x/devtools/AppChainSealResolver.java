@@ -3,7 +3,7 @@ package org.yanoproject.x.devtools;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.json.JsonMapper;
-import org.yanoproject.appchain.config.AppChainPropertyRegistry;
+import org.yanoproject.x.framework.config.AppChainPropertyRegistry;
 
 import java.io.IOException;
 import java.nio.file.Path;

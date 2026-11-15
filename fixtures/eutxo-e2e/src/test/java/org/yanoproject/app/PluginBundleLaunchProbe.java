@@ -1,19 +1,19 @@
 package org.yanoproject.app;
 
 import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
-import org.yanoproject.api.appchain.AppStateMachine;
-import org.yanoproject.api.appchain.AppStateMachineContext;
-import org.yanoproject.api.appchain.AppStateMachineProvider;
-import org.yanoproject.api.appchain.AppQueryResult;
-import org.yanoproject.api.appchain.effects.AppEffectExecutorFactory;
-import org.yanoproject.api.appchain.sink.FinalizedStreamSinkFactory;
 import org.yanoproject.api.config.PluginsOptions;
-import org.yanoproject.api.plugin.domain.DomainApi;
-import org.yanoproject.api.plugin.domain.DomainApiContext;
-import org.yanoproject.api.plugin.domain.DomainApiProvider;
-import org.yanoproject.api.plugin.domain.DomainQueryService;
 import org.yanoproject.runtime.plugins.PluginLoaderHandle;
 import org.yanoproject.runtime.plugins.PluginRuntimeEnvironment;
+import org.yanoproject.x.framework.api.appchain.AppQueryResult;
+import org.yanoproject.x.framework.api.appchain.AppStateMachine;
+import org.yanoproject.x.framework.api.appchain.AppStateMachineContext;
+import org.yanoproject.x.framework.api.appchain.AppStateMachineProvider;
+import org.yanoproject.x.framework.api.appchain.sink.FinalizedStreamSinkFactory;
+import org.yanoproject.x.framework.api.plugin.domain.DomainApi;
+import org.yanoproject.x.framework.api.plugin.domain.DomainApiContext;
+import org.yanoproject.x.framework.api.plugin.domain.DomainApiProvider;
+import org.yanoproject.x.framework.api.plugin.domain.DomainQueryService;
+import org.yanoproject.x.framework.cardano.api.effects.AppEffectExecutorFactory;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -164,7 +164,7 @@ public final class PluginBundleLaunchProbe {
                                         "effects.max-payload-bytes", "4096");
                             }
                             @Override
-                            public java.util.Optional<org.yanoproject.api.appchain.AppChainConsensusProfile>
+                            public java.util.Optional<org.yanoproject.x.framework.api.appchain.AppChainConsensusProfile>
                             consensusProfile() {
                                 return java.util.Optional.of(
                                         AppTestConsensusProfiles.enabledEffects(8, 4096));

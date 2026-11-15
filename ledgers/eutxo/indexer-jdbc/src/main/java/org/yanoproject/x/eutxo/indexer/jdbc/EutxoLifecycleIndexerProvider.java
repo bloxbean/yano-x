@@ -1,10 +1,5 @@
 package org.yanoproject.x.eutxo.indexer.jdbc;
 
-import org.yanoproject.api.appchain.AppQueryException;
-import org.yanoproject.api.plugin.domain.FinalizedChainView;
-import org.yanoproject.api.plugin.domain.LocalReadModelHost;
-import org.yanoproject.api.plugin.domain.LocalReadModelContext;
-import org.yanoproject.api.plugin.domain.LocalReadModelProvider;
 import org.yanoproject.x.eutxo.contracts.EutxoL2ParameterSnapshot;
 import org.yanoproject.x.eutxo.contracts.EutxoQueryCodec;
 import org.yanoproject.x.eutxo.indexer.EutxoIndexCoordinator;
@@ -15,6 +10,11 @@ import org.yanoproject.x.eutxo.indexer.EutxoLocalReadModel;
 import org.yanoproject.x.eutxo.indexer.IndexHealth;
 import org.yanoproject.x.eutxo.indexer.IndexIdentity;
 import org.yanoproject.x.eutxo.indexer.jdbc.SqliteEutxoIndexStoreProvider;
+import org.yanoproject.x.framework.api.appchain.AppQueryException;
+import org.yanoproject.x.framework.api.plugin.domain.FinalizedChainView;
+import org.yanoproject.x.framework.api.plugin.domain.LocalReadModelContext;
+import org.yanoproject.x.framework.api.plugin.domain.LocalReadModelHost;
+import org.yanoproject.x.framework.api.plugin.domain.LocalReadModelProvider;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;

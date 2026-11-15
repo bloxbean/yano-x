@@ -1,5 +1,6 @@
 package org.yanoproject.x.evidence.profile;
 
+import org.junit.jupiter.api.Test;
 import org.yanoproject.x.composite.CompositeStateKeys;
 import org.yanoproject.x.evidence.profile.contracts.EvidenceReleaseCommandV1;
 import org.yanoproject.x.examples.evidence.command.RepublishEvidenceCommandV1;
@@ -9,16 +10,15 @@ import org.yanoproject.x.examples.evidence.state.EvidenceKeys;
 import org.yanoproject.x.examples.evidence.state.EvidenceRecordV1;
 import org.yanoproject.x.examples.evidence.state.EvidenceStatus;
 import org.yanoproject.x.examples.evidence.state.EvidenceTerminalOutcome;
+import org.yanoproject.x.framework.api.appchain.effects.EffectOutcome;
+import org.yanoproject.x.framework.api.appchain.effects.FxResultBody;
+import org.yanoproject.x.framework.runtime.appchain.StateMachineConformance;
 import org.yanoproject.x.integration.ipfs.CanonicalCid;
 import org.yanoproject.x.integration.ipfs.IpfsPinCommandV1;
 import org.yanoproject.x.integration.objectstore.DigestAlgorithm;
 import org.yanoproject.x.integration.objectstore.ObjectPutCommandV1;
 import org.yanoproject.x.stdlib.ApprovalsStateMachine;
-import org.yanoproject.api.appchain.effects.EffectOutcome;
-import org.yanoproject.api.appchain.effects.FxResultBody;
 import org.yanoproject.x.stdlib.KvRegistryStateMachine;
-import org.yanoproject.runtime.appchain.StateMachineConformance;
-import org.junit.jupiter.api.Test;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;

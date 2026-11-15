@@ -1,8 +1,8 @@
 // Client SDK for applications talking to a Yano app chain over REST/SSE.
-// Deliberately light: no yaci/runtime dependencies — just JSON and the
-// release-matched MPF/JMT verifiers for client-side proof checks.
+// Uses public framework contracts and release-matched MPF/JMT verifiers;
+// no concrete node runtime dependency.
 dependencies {
-    api rootProject.ext.yanoModule('yano-core-api')
+    api project(':framework:cardano-api')
     api rootProject.ext.yanoModule('yano-appchain-proof-verifier')
     api project(':state-machines:stdlib-contracts')
     api project(':composition:contracts')
@@ -27,7 +27,11 @@ java {
 }
 
 tasks.named('test') {
-    systemProperty 'yano.x.test.runtime-classpath', sourceSets.test.runtimeClasspath.asPath
+    // Structural/framework checks may realize this task without running SDK tests.
+    // Resolve the forked-process classpath only when the test actually executes.
+    doFirst {
+        systemProperty 'yano.x.test.runtime-classpath', sourceSets.test.runtimeClasspath.asPath
+    }
 }
 
 publishing {

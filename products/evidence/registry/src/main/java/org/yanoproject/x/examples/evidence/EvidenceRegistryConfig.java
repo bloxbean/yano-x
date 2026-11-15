@@ -1,12 +1,16 @@
 package org.yanoproject.x.examples.evidence;
 
-import org.yanoproject.api.appchain.AppChainConsensusProfile;
-import org.yanoproject.api.appchain.AppStateMachineContext;
-import org.yanoproject.api.appchain.effects.ActivationSchedule;
-import org.yanoproject.api.appchain.effects.EffectOutcomeCommitment;
-import org.yanoproject.api.appchain.effects.FinalityGate;
+import org.yanoproject.x.framework.api.appchain.AppChainConsensusProfile;
+import org.yanoproject.x.framework.api.appchain.AppStateMachineContext;
+import org.yanoproject.x.framework.api.appchain.effects.ActivationSchedule;
+import org.yanoproject.x.framework.api.appchain.effects.EffectOutcomeCommitment;
+import org.yanoproject.x.framework.api.appchain.effects.FinalityGate;
 import org.yanoproject.x.integration.objectstore.ObjectPutCommandV1;
 
+import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.HexFormat;
 import java.util.LinkedHashSet;
 import java.util.Locale;
@@ -14,10 +18,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Pattern;
-import java.io.ByteArrayOutputStream;
-import java.io.DataOutputStream;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 
 /** Immutable, consensus-affecting configuration for the evidence registry. */
 public final class EvidenceRegistryConfig {

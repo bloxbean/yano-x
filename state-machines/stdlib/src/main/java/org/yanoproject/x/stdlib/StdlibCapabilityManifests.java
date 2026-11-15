@@ -1,6 +1,6 @@
 package org.yanoproject.x.stdlib;
 
-import org.yanoproject.api.appchain.AppCapabilityManifest;
+import org.yanoproject.x.framework.api.appchain.AppCapabilityManifest;
 
 import java.util.List;
 

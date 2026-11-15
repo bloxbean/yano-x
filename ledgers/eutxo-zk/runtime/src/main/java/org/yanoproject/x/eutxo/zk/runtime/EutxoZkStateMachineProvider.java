@@ -1,10 +1,10 @@
 package org.yanoproject.x.eutxo.zk.runtime;
 
-import org.yanoproject.api.appchain.AppStateMachine;
-import org.yanoproject.api.appchain.AppStateMachineContext;
-import org.yanoproject.api.appchain.AppStateMachineProvider;
 import org.yanoproject.x.eutxo.ledger.EutxoStateMachineProvider;
 import org.yanoproject.x.eutxo.zk.zeroj.ZerojPoseidonValidityProvider;
+import org.yanoproject.x.framework.api.appchain.AppStateMachine;
+import org.yanoproject.x.framework.api.appchain.AppStateMachineContext;
+import org.yanoproject.x.framework.api.appchain.AppStateMachineProvider;
 
 /** Integrated bundle root that owns the optional ZeroJ capability directly. */
 public final class EutxoZkStateMachineProvider

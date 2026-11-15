@@ -5,11 +5,11 @@ import com.bloxbean.cardano.client.crypto.api.impl.EdDSASigningProvider;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
-import org.yanoproject.api.appchain.topics.TopicWire.Delegation;
-import org.yanoproject.api.appchain.topics.TopicWire.Frame;
-import org.yanoproject.api.appchain.topics.TopicWire.RegistryCommand;
-import org.yanoproject.api.appchain.topics.TopicWire.Signature;
-import org.yanoproject.api.appchain.topics.TopicWireCodec;
+import org.yanoproject.x.framework.api.appchain.topics.TopicWire.Delegation;
+import org.yanoproject.x.framework.api.appchain.topics.TopicWire.Frame;
+import org.yanoproject.x.framework.api.appchain.topics.TopicWire.RegistryCommand;
+import org.yanoproject.x.framework.api.appchain.topics.TopicWire.Signature;
+import org.yanoproject.x.framework.api.appchain.topics.TopicWireCodec;
 
 import java.io.IOException;
 import java.util.Arrays;

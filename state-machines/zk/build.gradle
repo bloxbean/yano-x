@@ -7,7 +7,7 @@ plugins {
 // Drop on yano.plugins.directory and select via yano.app-chain.state-machine=zk-gate.
 // Proof GENERATION lives client-side (yano-x-client-zk); the node only verifies.
 dependencies {
-    compileOnly rootProject.ext.yanoModule('yano-core-api')          // provided by the node at runtime
+    compileOnly project(':framework:api')          // provided by the node at runtime
 
     // ZeroJ currently requests an older Jackson family. The drop-in bundle is
     // self-contained, so carry the reviewed Jackson BOM into its own closure.
@@ -23,7 +23,7 @@ dependencies {
     compileOnly libs.cardano.client.crypto
     compileOnly libs.slf4j.api
 
-    testImplementation rootProject.ext.yanoModule('yano-core-api')
+    testImplementation project(':framework:api')
     testImplementation rootProject.ext.yanoModule('yano-runtime')
     testImplementation libs.cardano.client.crypto
 }
@@ -41,7 +41,8 @@ tasks.named('shadowJar') {
     reproducibleFileOrder = true
     preserveFileTimestamps = false
     mergeServiceFiles()
-    exclude 'org/yanoproject/api/**'
+    exclude 'org/yanoproject/api/**', 'org/yanoproject/x/framework/api/**',
+            'org/yanoproject/x/framework/cardano/api/**'
     exclude 'META-INF/*.SF', 'META-INF/*.RSA', 'META-INF/*.DSA', 'module-info.class'
 }
 

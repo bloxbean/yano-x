@@ -1,11 +1,11 @@
 package org.yanoproject.x.stdlib.contracts;
 
-import org.yanoproject.api.appchain.schema.CborSchema;
 import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.ByteString;
 import co.nstant.in.cbor.model.UnicodeString;
 import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.client.crypto.Blake2bUtil;
+import org.yanoproject.x.framework.api.appchain.schema.CborSchema;
 import org.yanoproject.x.roles.contracts.GovernedGenesisV1;
 import org.yanoproject.x.roles.contracts.RoleWorkflowIdentifiers;
 import org.yanoproject.x.stdlib.contracts.internal.CanonicalValueCbor;

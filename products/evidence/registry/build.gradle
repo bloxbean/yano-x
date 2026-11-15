@@ -3,7 +3,7 @@ plugins {
 }
 
 dependencies {
-    compileOnly rootProject.ext.yanoModule('yano-core-api')
+    compileOnly project(':framework:api')
     implementation(project(':products:evidence:contracts')) {
         transitive = false
     }
@@ -13,7 +13,7 @@ dependencies {
     implementation libs.cbor
     implementation libs.bouncycastle.bcprov
 
-    testImplementation rootProject.ext.yanoModule('yano-core-api')
+    testImplementation project(':framework:api')
     testImplementation rootProject.ext.yanoModule('yano-appchain-core-testkit')
     testImplementation testFixtures(project(':products:evidence:contracts'))
 }
@@ -55,15 +55,16 @@ tasks.named('shadowJar') {
     relocate 'org.bouncycastle',
             'org.yanoproject.x.examples.evidence.internal.contracts.v1deps.bouncycastle'
     exclude 'org/yanoproject/x/evidence/profile/contracts/**'
-    exclude 'org/yanoproject/api/**'
+    exclude 'org/yanoproject/api/**', 'org/yanoproject/x/framework/api/**',
+            'org/yanoproject/x/framework/cardano/api/**'
     exclude 'META-INF/services/java.security.Provider'
     exclude 'META-INF/*.SF', 'META-INF/*.RSA', 'META-INF/*.DSA', 'module-info.class'
 }
 
 def stateMachineService =
-        'META-INF/services/org.yanoproject.api.appchain.AppStateMachineProvider'
+        'META-INF/services/org.yanoproject.x.framework.api.appchain.AppStateMachineProvider'
 def domainApiService =
-        'META-INF/services/org.yanoproject.api.plugin.domain.DomainApiProvider'
+        'META-INF/services/org.yanoproject.x.framework.api.plugin.domain.DomainApiProvider'
 def pluginManifest =
         'META-INF/yano/plugins/org.yanoproject.x.evidence-registry.json'
 def unrelocatedContracts = 'org/yanoproject/x/integration/'
@@ -110,6 +111,8 @@ def allowedBundleServices = [stateMachineService, domainApiService] as Set
 def forbiddenBundlePrefixes = [
         'com/bloxbean/cardano/yaci/',
         'org/yanoproject/api/',
+                'org/yanoproject/x/framework/api/',
+                'org/yanoproject/x/framework/cardano/api/',
         'com/fasterxml/jackson/',
         'io/netty/',
         'org/reactivestreams/',

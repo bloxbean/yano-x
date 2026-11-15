@@ -46,11 +46,13 @@ class ReviewRegressionTest {
         fixture.ok("plugin", "scaffold", "--mode", "state-machine", "--id", "shipment", "--package",
                 "com.example.shipment", "--output", temporary.resolve("default").toString());
         fixture.ok("plugin", "scaffold", "--mode", "state-machine", "--id", "shipment", "--package",
-                "com.example.shipment", "--yano-version", "0.1.0-chosen", "--output", chosen.toString());
+                "com.example.shipment", "--yano-version", "0.1.0-chosen", "--yano-x-version", "0.2.0-x-chosen", "--output", chosen.toString());
 
         assertThat(Files.readString(temporary.resolve("default/build.gradle")))
-                .contains("org.yanoproject:yano-core-api:0.1.0-test");
-        assertThat(Files.readString(chosen.resolve("build.gradle"))).contains("yano-core-api:0.1.0-chosen");
+                .contains("org.yanoproject:yano-node-api:0.1.0-test")
+                .contains("org.yanoproject.x:yano-x-appchain-api:0.1.0-x-test");
+        assertThat(Files.readString(chosen.resolve("build.gradle"))).contains("yano-node-api:0.1.0-chosen")
+                .contains("yano-x-appchain-api:0.2.0-x-chosen").doesNotContain("yano-core-api");
     }
 
     @Test

@@ -1,8 +1,8 @@
 package org.yanoproject.x.composite;
 
-import org.yanoproject.api.appchain.AppStateMachine;
-import org.yanoproject.api.appchain.AppStateMachineContext;
 import org.yanoproject.x.composite.contracts.AggregateQueryLimitsV1;
+import org.yanoproject.x.framework.api.appchain.AppStateMachine;
+import org.yanoproject.x.framework.api.appchain.AppStateMachineContext;
 
 import java.util.ArrayList;
 import java.util.List;

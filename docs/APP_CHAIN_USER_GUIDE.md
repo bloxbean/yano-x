@@ -32,7 +32,7 @@ framework), `adr/app-layer/006-appchain-enterprise-extensions-and-zk.md`
 `adr/app-layer/015-governed-composite-profile-evolution.md` (governed
 composite profiles).
 Wire format specs (for building compatible implementations in other languages):
-yaci `core/src/main/cddl/appmsg/` and yano `core-api/src/main/cddl/appchain/`.
+yaci `core/src/main/cddl/appmsg/` and Yano-X `framework/api/src/main/cddl/appchain/` and `framework/cardano-api/src/main/cddl/appchain/`.
 
 ## Published modules
 
@@ -591,7 +591,7 @@ one-shot mint.
    as failed finality.
 2. Obtain the expected chain id, member keys, and threshold independently from
    the trusted chain profile or the exact Cardano anchor datum. Verify with
-   `EvidenceVerifier.verify(bundle, trustContext)` from `yano-core-api`. It
+   `EvidenceVerifier.verify(bundle, trustContext)` from `yano-x-appchain-api`. It
    checks message-id inclusion via the recomputed messages-root, the prev-hash
    chain, the independently pinned m-of-n signatures, and the claimed anchor
    block hash. Never derive the trust context only from the bundle.
@@ -709,7 +709,7 @@ non-member business actors. The evidence-profile bundle supplies the complete
 `role-evidence` preset; see
 [Domain Actors and Role-Aware Approvals](APP_CHAIN_DOMAIN_ROLES.md).
 For everything else, implement
-`org.yanoproject.api.appchain.AppStateMachine`:
+`org.yanoproject.x.framework.api.appchain.AppStateMachine`:
 
 ```java
 public class OrderBookStateMachine implements AppStateMachine {
@@ -768,7 +768,7 @@ The plugin template ships this test pre-wired (`CounterConformanceTest`).
    }
    ```
 2. Add the ServiceLoader entry to your jar:
-   `META-INF/services/org.yanoproject.api.appchain.AppStateMachineProvider`
+   `META-INF/services/org.yanoproject.x.framework.api.appchain.AppStateMachineProvider`
    containing the provider class name.
 3. Add the bundle manifest
    `META-INF/yano/plugins/<bundle-id>.json`; its contribution kind, name and
@@ -804,7 +804,7 @@ The plugin template ships this test pre-wired (`CounterConformanceTest`).
    hand-configured node, the equivalent is `yano.plugins.directory` (default
    `plugins/`) plus `yano.app-chain.state-machine: "order-book"`. Unknown ids
    fail fast at startup with the list of available machines.
-   Compile against the `yano-core-api` artifact (`AppStateMachine`,
+   Compile against the `yano-x-appchain-api` artifact (`AppStateMachine`,
    `AppMessage`, `AppStateWriter` live there / in `yaci-core`).
    A ready Gradle project for this is `scaffolds/plugin-template`.
 
@@ -816,7 +816,7 @@ closure must agree; the bundle must not embed host SPI classes.
 ### 6.2 Embed programmatically (library mode)
 
 For fully custom nodes, `AppChainSubsystem` (module `runtime`,
-`org.yanoproject.runtime.appchain`) is a public kernel `Subsystem`
+`org.yanoproject.x.framework.cardano`) is a public kernel `Subsystem`
 whose constructor accepts your `AppStateMachine` instance directly. A
 first-class `YanoAssembly.appChain(spec)` builder is planned; until then the
 plugin-jar route is the recommended packaging for custom chains.
@@ -1144,7 +1144,7 @@ fresh signed message ID and corrected preconditions; replaying its original ID
 does not execute it again. See [binding submission and retry](appchain/DECLARATIVE_BINDINGS.md#submission-validity-and-retry).
 
 Node side (custom state machines): extend `TypedAppStateMachine<T>` with a
-`MessageCodec<T>` — default `JacksonCborCodec`, in core-api — and implement
+`MessageCodec<T>` — default `JacksonCborCodec`, in framework/api — and implement
 typed validate/apply instead of parsing bytes yourself. The client `CborCodec`
 and the node `JacksonCborCodec` are wire-compatible.
 
@@ -1177,7 +1177,7 @@ mTLS/OIDC put the API behind your standard gateway/reverse-proxy.
 chain carries ciphertext only (ordering, proofs and anchors all work over it),
 and per-topic keys give need-to-know inside one chain. AES-256-GCM with the
 topic as associated data; `GroupCipher` (client SDK) and `BodyCipher`
-(core-api, for state machines) share the wire format:
+(framework/api, for state machines) share the wire format:
 
 ```java
 byte[] key = Hex.decode(groupKeyHex);
@@ -1998,7 +1998,7 @@ public class CredentialExecutorFactory implements AppEffectExecutorFactory {
 ```
 
 Register it via
-`META-INF/services/org.yanoproject.api.appchain.effects.AppEffectExecutorFactory`
+`META-INF/services/org.yanoproject.x.framework.cardano.api.effects.AppEffectExecutorFactory`
 (one line: the factory's fully-qualified name), and add
 `META-INF/yano/plugins/com.example.credential.json`:
 

@@ -5,21 +5,21 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import org.yanoproject.api.appchain.AppChainConsensusProfile;
-import org.yanoproject.api.appchain.AppChainMembershipEpoch;
-import org.yanoproject.api.appchain.AppStateMachineProvider;
-import org.yanoproject.api.appchain.AppQueryContext;
-import org.yanoproject.api.appchain.effects.EffectOutcomeCommitment;
-import org.yanoproject.api.appchain.effects.FinalityGate;
-import org.yanoproject.api.appchain.state.StateCommitmentIdentity;
-import org.yanoproject.api.appchain.state.StateCommitmentProfiles;
-import org.yanoproject.api.appchain.transition.TransitionKernel;
-import org.yanoproject.appchain.config.AppChainPropertyRegistry;
+import org.yanoproject.x.composite.CompositeProfile;
+import org.yanoproject.x.composite.CompositeProfileCodec;
 import org.yanoproject.x.composite.contracts.BindingIrV1;
 import org.yanoproject.x.composite.contracts.BindingReceiptV1;
 import org.yanoproject.x.composite.contracts.BindingSourceV1;
-import org.yanoproject.x.composite.CompositeProfile;
-import org.yanoproject.x.composite.CompositeProfileCodec;
+import org.yanoproject.x.framework.api.appchain.AppChainConsensusProfile;
+import org.yanoproject.x.framework.api.appchain.AppChainMembershipEpoch;
+import org.yanoproject.x.framework.api.appchain.AppQueryContext;
+import org.yanoproject.x.framework.api.appchain.AppStateMachineProvider;
+import org.yanoproject.x.framework.api.appchain.effects.EffectOutcomeCommitment;
+import org.yanoproject.x.framework.api.appchain.effects.FinalityGate;
+import org.yanoproject.x.framework.api.appchain.state.StateCommitmentIdentity;
+import org.yanoproject.x.framework.api.appchain.state.StateCommitmentProfiles;
+import org.yanoproject.x.framework.api.appchain.transition.TransitionKernel;
+import org.yanoproject.x.framework.config.AppChainPropertyRegistry;
 import org.yanoproject.x.stdlib.contracts.KvRegistryContract;
 
 import java.io.PrintWriter;
@@ -434,10 +434,10 @@ class BindingCliIT {
         Files.writeString(source, """
                 package thirdparty;
                 import java.util.*;
-                import org.yanoproject.api.appchain.*;
-                import org.yanoproject.api.appchain.codec.MessageCodec;
-                import org.yanoproject.api.appchain.effects.AppEffectEmitter;
-                import org.yanoproject.api.appchain.transition.*;
+                import org.yanoproject.x.framework.api.appchain.*;
+                import org.yanoproject.x.framework.api.appchain.codec.MessageCodec;
+                import org.yanoproject.x.framework.api.appchain.effects.AppEffectEmitter;
+                import org.yanoproject.x.framework.api.appchain.transition.*;
                 public final class ExternalProvider implements AppStateMachineProvider {
                   static void check() {
                     if (Thread.currentThread().getContextClassLoader() != ExternalProvider.class.getClassLoader())
@@ -506,7 +506,7 @@ class BindingCliIT {
                        "provider":"thirdparty.ExternalProvider"}]}
                     """.getBytes(java.nio.charset.StandardCharsets.UTF_8));
             jar.closeEntry();
-            jar.putNextEntry(new JarEntry("META-INF/services/org.yanoproject.api.appchain.AppStateMachineProvider"));
+            jar.putNextEntry(new JarEntry("META-INF/services/org.yanoproject.x.framework.api.appchain.AppStateMachineProvider"));
             jar.write("thirdparty.ExternalProvider\n".getBytes(java.nio.charset.StandardCharsets.UTF_8));
             jar.closeEntry();
         }

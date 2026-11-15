@@ -1,17 +1,17 @@
 package org.yanoproject.x.devtools;
 
-import org.yanoproject.api.appchain.schema.CborSchema;
-import org.yanoproject.api.appchain.schema.CborSchema.ArrayNode;
-import org.yanoproject.api.appchain.schema.CborSchema.BooleanNode;
-import org.yanoproject.api.appchain.schema.CborSchema.BytesNode;
-import org.yanoproject.api.appchain.schema.CborSchema.ChoiceNode;
-import org.yanoproject.api.appchain.schema.CborSchema.IntegerNode;
-import org.yanoproject.api.appchain.schema.CborSchema.MapField;
-import org.yanoproject.api.appchain.schema.CborSchema.MapNode;
-import org.yanoproject.api.appchain.schema.CborSchema.Node;
-import org.yanoproject.api.appchain.schema.CborSchema.NullNode;
-import org.yanoproject.api.appchain.schema.CborSchema.Occurrence;
-import org.yanoproject.api.appchain.schema.CborSchema.TextNode;
+import org.yanoproject.x.framework.api.appchain.schema.CborSchema.ArrayNode;
+import org.yanoproject.x.framework.api.appchain.schema.CborSchema.BooleanNode;
+import org.yanoproject.x.framework.api.appchain.schema.CborSchema.BytesNode;
+import org.yanoproject.x.framework.api.appchain.schema.CborSchema.ChoiceNode;
+import org.yanoproject.x.framework.api.appchain.schema.CborSchema.IntegerNode;
+import org.yanoproject.x.framework.api.appchain.schema.CborSchema.MapField;
+import org.yanoproject.x.framework.api.appchain.schema.CborSchema.MapNode;
+import org.yanoproject.x.framework.api.appchain.schema.CborSchema.Node;
+import org.yanoproject.x.framework.api.appchain.schema.CborSchema.NullNode;
+import org.yanoproject.x.framework.api.appchain.schema.CborSchema.Occurrence;
+import org.yanoproject.x.framework.api.appchain.schema.CborSchema.TextNode;
+import org.yanoproject.x.framework.api.appchain.schema.CborSchema;
 
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;

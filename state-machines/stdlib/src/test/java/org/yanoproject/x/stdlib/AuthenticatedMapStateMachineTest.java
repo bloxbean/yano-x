@@ -2,40 +2,40 @@ package org.yanoproject.x.stdlib;
 
 import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
 import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AuthScheme;
-import org.yanoproject.api.appchain.AppBlock;
-import org.yanoproject.api.appchain.AppBlockExecutionContext;
-import org.yanoproject.api.appchain.AppChainInfo;
-import org.yanoproject.api.appchain.AppChainConfig;
-import org.yanoproject.api.appchain.AppChainMembershipEpoch;
-import org.yanoproject.api.appchain.AppChainConsensusProfile;
-import org.yanoproject.api.appchain.AppChainMembershipView;
-import org.yanoproject.api.appchain.AppQueryContext;
-import org.yanoproject.api.appchain.AppStateMachineContext;
-import org.yanoproject.api.appchain.AppStateWriter;
-import org.yanoproject.api.appchain.FinalityCert;
-import org.yanoproject.api.appchain.effects.AppEffectEmitter;
-import org.yanoproject.api.appchain.authmap.AuthenticatedMapValidatorResolver;
-import org.yanoproject.api.appchain.authmap.ValidatorVerdict;
-import org.yanoproject.api.appchain.state.StateCommitmentProfiles;
-import org.yanoproject.api.appchain.state.StateCommitmentIdentity;
-import org.yanoproject.appchain.config.AppChainEffectsConfig;
-import org.yanoproject.x.stdlib.contracts.AuthenticatedMapContract;
-import org.yanoproject.api.appchain.schema.CborSchema;
-import org.yanoproject.x.composite.CompositeStateMachine;
-import org.yanoproject.x.composite.CompositeStateKeys;
-import org.yanoproject.x.stdlib.contracts.AuthenticatedMapAuthorizationContract;
-import org.yanoproject.runtime.appchain.StateMachineConformance;
 import org.junit.jupiter.api.Test;
+import org.yanoproject.x.composite.CompositeStateKeys;
+import org.yanoproject.x.composite.CompositeStateMachine;
+import org.yanoproject.x.framework.api.appchain.AppBlock;
+import org.yanoproject.x.framework.api.appchain.AppBlockExecutionContext;
+import org.yanoproject.x.framework.api.appchain.AppChainConfig;
+import org.yanoproject.x.framework.api.appchain.AppChainConsensusProfile;
+import org.yanoproject.x.framework.api.appchain.AppChainInfo;
+import org.yanoproject.x.framework.api.appchain.AppChainMembershipEpoch;
+import org.yanoproject.x.framework.api.appchain.AppChainMembershipView;
+import org.yanoproject.x.framework.api.appchain.AppQueryContext;
+import org.yanoproject.x.framework.api.appchain.AppStateMachineContext;
+import org.yanoproject.x.framework.api.appchain.AppStateWriter;
+import org.yanoproject.x.framework.api.appchain.FinalityCert;
+import org.yanoproject.x.framework.api.appchain.authmap.AuthenticatedMapValidatorResolver;
+import org.yanoproject.x.framework.api.appchain.authmap.ValidatorVerdict;
+import org.yanoproject.x.framework.api.appchain.effects.AppEffectEmitter;
+import org.yanoproject.x.framework.api.appchain.schema.CborSchema;
+import org.yanoproject.x.framework.api.appchain.state.StateCommitmentIdentity;
+import org.yanoproject.x.framework.api.appchain.state.StateCommitmentProfiles;
+import org.yanoproject.x.framework.config.AppChainEffectsConfig;
+import org.yanoproject.x.framework.runtime.appchain.StateMachineConformance;
+import org.yanoproject.x.stdlib.contracts.AuthenticatedMapAuthorizationContract;
+import org.yanoproject.x.stdlib.contracts.AuthenticatedMapContract;
 
-import java.nio.charset.StandardCharsets;
 import java.math.BigInteger;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.HexFormat;
-import java.util.Random;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Random;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -611,7 +611,7 @@ class AuthenticatedMapStateMachineTest {
 
     private static AuthenticatedMapStateMachine pluginMachine(
             AuthenticatedMapContract.ValidatorDescriptor descriptor,
-            org.yanoproject.api.appchain.authmap.AuthenticatedMapValueValidator validator,
+            org.yanoproject.x.framework.api.appchain.authmap.AuthenticatedMapValueValidator validator,
             List<AuthenticatedMapContract.GenesisEntry> initialEntries
     ) {
         AuthenticatedMapContract.Genesis genesis = new AuthenticatedMapContract.Genesis(
@@ -627,7 +627,7 @@ class AuthenticatedMapStateMachineTest {
 
     private static AuthenticatedMapValidatorResolver resolver(
             AuthenticatedMapContract.ValidatorDescriptor descriptor,
-            org.yanoproject.api.appchain.authmap.AuthenticatedMapValueValidator validator
+            org.yanoproject.x.framework.api.appchain.authmap.AuthenticatedMapValueValidator validator
     ) {
         return (digest, context) -> {
             assertThat(digest).isEqualTo(descriptor.definition());
@@ -654,13 +654,13 @@ class AuthenticatedMapStateMachineTest {
             @Override public String chainId() { return config.chainId(); }
             @Override public Map<String, String> settings() { return settings; }
             @Override
-            public Optional<org.yanoproject.api.appchain.AppChainConsensusProfile>
+            public Optional<org.yanoproject.x.framework.api.appchain.AppChainConsensusProfile>
             consensusProfile() {
                 return Optional.of(AppChainEffectsConfig.from(config)
                         .consensusProfile(config));
             }
             @Override
-            public Optional<org.yanoproject.api.appchain.AppChainMembershipView>
+            public Optional<org.yanoproject.x.framework.api.appchain.AppChainMembershipView>
             membershipView() {
                 return Optional.of(height -> membership);
             }

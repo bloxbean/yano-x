@@ -9,7 +9,7 @@ the node.
 
 ```
 plugin-template/
-├── build.gradle                       # compileOnly against yano-core-api
+├── build.gradle                       # compileOnly against node and framework APIs
 ├── settings.gradle
 ├── src/main/java/com/example/appchain/
     ├── CounterStateMachine.java       # deterministic apply + committed query
@@ -20,8 +20,8 @@ plugin-template/
     └── JsonSupport.java               # safe JSON string encoding
 └── src/main/resources/META-INF/
     ├── services/
-    │   ├── org.yanoproject.api.appchain.AppStateMachineProvider
-    │   ├── org.yanoproject.api.plugin.domain.DomainApiProvider
+    │   ├── org.yanoproject.x.framework.api.appchain.AppStateMachineProvider
+    │   ├── org.yanoproject.x.framework.api.plugin.domain.DomainApiProvider
     │   ├── org.yanoproject.api.plugin.operations.PluginHealthProvider
     │   └── org.yanoproject.api.plugin.operations.PluginMetricsProvider
     └── yano/plugins/
@@ -31,40 +31,31 @@ plugin-template/
 ## Build
 
 ```bash
-# publish yano artifacts locally first (from the yano repo root), if needed:
-#   ./gradlew publishToMavenLocal
 cd scaffolds/plugin-template
-gradle build          # -> build/libs/appchain-plugin-0.1.0.jar
+gradle build -PyanoVersion=<published-host-version> -PyanoXVersion=<published-framework-version>
 ```
 
-The template defaults to Yano `0.1.0-pre9`. To test another published or
-locally published version, use `gradle build -PyanoVersion=<version>`. The
-plugin compiles against `yano-core-api`; `yano-runtime` is test-only because
-it supplies `StateMachineConformance`. The `check` lifecycle also runs
-`verifyPluginJar`, which rejects missing discovery metadata or bundled Yano
-API/runtime classes, and `verifyPluginCatalogLaunch`, which loads the built JAR
-through Yano's production directory catalog and constructs all four providers.
-The plugin project version is this bundle's independently released SemVer and
-must match the manifest `version`; it is not the Yano dependency version
-selected by `-PyanoVersion`.
+Both versions are explicit and independent. Missing or blank versions fail with
+the complete build command guidance. Run `./check-inputs.sh` to exercise these
+configuration failures through the actual standalone Gradle build. The plugin compiles against
+`yano-node-api` and `yano-x-appchain-api`; the framework core supplies
+`StateMachineConformance` for tests, and `yano-runtime` supplies the catalog probe.
+For isolated staged Maven inputs, pass `-PyanoRepository=<repo-url>,<other-repo-url>`.
+Maven Local is disabled unless `-PuseMavenLocal=true` is supplied. No source checkout
+or composite build is used.
+
+The `check` lifecycle runs `verifyPluginJar`, rejecting missing discovery metadata
+or bundled host API/runtime classes, and `verifyPluginCatalogLaunch`, loading the
+built JAR through Yano's production directory catalog. The plugin's own SemVer
+must match its manifest; it is independent of both dependency versions.
 
 The schema-v1 manifest's `yanoApi` object is a separate host-compatibility
 contract. `min`/`max` are inclusive plugin API majors and the required positive
 `minLevel` is the oldest global additive API level whose public symbols this
-plugin uses. The complete, unreleased preview surface is the major 1 / level 1
-baseline. After that baseline ships, Yano increments the global level for each
-additive public plugin API symbol or contribution kind and never resets it on a
-major bump. Before level 2, the repository will add the append-only level
-ledger that maps each level to its first release and exact additions. Keep
-`minLevel` at the oldest level that actually supplies the APIs you need; do not
-copy the plugin's artifact version into it.
-
-Yano repository contributors can verify the scaffold directly against the
-current checkout, without publishing it first:
-
-```bash
-./gradlew -p scaffolds/plugin-template clean build -PyanoSource="$PWD"
-```
+plugin uses. This template declares major 3 / level 4, matching its current
+provider and domain/operations contracts. The template's verification task checks
+that declaration. Keep the lowest supported level that actually supplies your
+plugin's APIs; do not copy artifact versions into this compatibility contract.
 
 ## Deploy
 
@@ -100,7 +91,7 @@ global API level is at least `minLevel`, rejecting an incompatible bundle
 before provider construction.
 
 If the plugin uses third-party runtime dependencies, publish a reproducible
-shaded JAR (without `org/yanoproject/api/**`) so the artifact is a
+shaded JAR (without `org/yanoproject/api/**`, `org/yanoproject/x/framework/api/**`, or `org/yanoproject/x/framework/cardano/api/**`) so the artifact is a
 self-contained deployment unit and its catalog digest covers all executable
 plugin code. Thin plugin JARs are intentionally rejected when their provider
 class cannot be correlated to the same artifact.

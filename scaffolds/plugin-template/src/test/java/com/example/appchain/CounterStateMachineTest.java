@@ -1,13 +1,17 @@
 package com.example.appchain;
 
 import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
-import org.yanoproject.api.appchain.AppBlock;
-import org.yanoproject.api.appchain.AppQueryContext;
-import org.yanoproject.api.appchain.AppQueryException;
-import org.yanoproject.api.appchain.AppStateWriter;
 import org.junit.jupiter.api.Test;
+import org.yanoproject.x.framework.api.appchain.AppBlock;
+import org.yanoproject.x.framework.api.appchain.AppBlockExecutionContext;
+import org.yanoproject.x.framework.api.appchain.AppQueryContext;
+import org.yanoproject.x.framework.api.appchain.AppQueryException;
+import org.yanoproject.x.framework.api.appchain.AppStateWriter;
+import org.yanoproject.x.framework.api.appchain.FinalityCert;
+import org.yanoproject.x.framework.api.appchain.effects.AppEffectEmitter;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -28,11 +32,11 @@ class CounterStateMachineTest {
         CounterStateMachine machine = new CounterStateMachine();
         MapWriter writer = new MapWriter();
 
-        machine.apply(block("visits", "visits", "signups"), writer);
+        machine.apply(block("visits", "visits", "signups"), writer, AppEffectEmitter.rejecting("No effects in counter test"));
         assertThat(new String(writer.map.get("c/visits"), StandardCharsets.UTF_8)).isEqualTo("2");
         assertThat(new String(writer.map.get("c/signups"), StandardCharsets.UTF_8)).isEqualTo("1");
 
-        machine.apply(block("visits"), writer);
+        machine.apply(block("visits"), writer, AppEffectEmitter.rejecting("No effects in counter test"));
         assertThat(new String(writer.map.get("c/visits"), StandardCharsets.UTF_8)).isEqualTo("3");
     }
 
@@ -40,7 +44,7 @@ class CounterStateMachineTest {
     void committedQueryReadsOnlyTheSuppliedRootFixedContext() {
         CounterStateMachine machine = new CounterStateMachine();
         MapWriter committed = new MapWriter();
-        machine.apply(block("visits", "visits"), committed);
+        machine.apply(block("visits", "visits"), committed, AppEffectEmitter.rejecting("No effects in counter test"));
 
         assertThat(machine.query("counter/read",
                 "visits".getBytes(StandardCharsets.US_ASCII), committed))
@@ -58,17 +62,18 @@ class CounterStateMachineTest {
                                 .isEqualTo(AppQueryException.Code.INVALID_REQUEST));
     }
 
-    private static AppBlock block(String... bodies) {
-        List<AppMessage> messages = java.util.Arrays.stream(bodies)
+    private static AppBlockExecutionContext block(String... bodies) {
+        List<AppMessage> messages = Arrays.stream(bodies)
                 .map(b -> AppMessage.builder()
                         .version(2).chainId("t").topic("counter")
                         .sender(new byte[32]).senderSeq(0).expiresAt(0)
+                        .messageId(new byte[32]).authScheme(0).authProof(new byte[64])
                         .body(b.getBytes(StandardCharsets.UTF_8))
                         .build())
                 .toList();
-        return new AppBlock(2, "t", 1, new byte[32], 0, new byte[0], 0L,
+        return AppBlockExecutionContext.fromValidatedBlock(new AppBlock(2, "t", 1, new byte[32], 0, new byte[0], 0L,
                 new byte[32], new byte[32], messages, new byte[32],
-                new org.yanoproject.api.appchain.FinalityCert(0, List.of()));
+                new FinalityCert(0, List.of())));
     }
 
     /** Minimal AppStateWriter backed by a HashMap. */

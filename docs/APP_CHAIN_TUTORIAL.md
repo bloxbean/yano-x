@@ -305,7 +305,7 @@ kv-appchain-plugin/
     │   └── KvStateMachineProvider.java
     └── resources/META-INF/
         ├── services/
-        │   └── org.yanoproject.api.appchain.AppStateMachineProvider
+        │   └── org.yanoproject.x.framework.api.appchain.AppStateMachineProvider
         └── yano/plugins/
             └── com.example.kvchain.json
 ```
@@ -328,8 +328,8 @@ repositories { mavenLocal(); mavenCentral() }
 java { sourceCompatibility = 21; targetCompatibility = 21 }
 
 dependencies {
-    compileOnly 'org.yanoproject:yano-core-api:0.1.0-pre15'   // AppStateMachine SPI
-    // yaci-core (AppMessage) comes in transitively via yano-core-api
+    compileOnly 'org.yanoproject.x:yano-x-appchain-api:<yano-x-version>'   // AppStateMachine SPI
+    // yaci-core (AppMessage) comes in transitively via yano-x-appchain-api
 }
 ```
 
@@ -341,10 +341,10 @@ dependencies {
 package com.example.kvchain;
 
 import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
-import org.yanoproject.api.appchain.AppBlockExecutionContext;
-import org.yanoproject.api.appchain.effects.AppEffectEmitter;
-import org.yanoproject.api.appchain.AppStateMachine;
-import org.yanoproject.api.appchain.AppStateWriter;
+import org.yanoproject.x.framework.api.appchain.AppBlockExecutionContext;
+import org.yanoproject.x.framework.api.appchain.effects.AppEffectEmitter;
+import org.yanoproject.x.framework.api.appchain.AppStateMachine;
+import org.yanoproject.x.framework.api.appchain.AppStateWriter;
 
 import java.nio.charset.StandardCharsets;
 
@@ -398,8 +398,8 @@ public class KvStateMachine implements AppStateMachine {
 ```java
 package com.example.kvchain;
 
-import org.yanoproject.api.appchain.AppStateMachine;
-import org.yanoproject.api.appchain.AppStateMachineProvider;
+import org.yanoproject.x.framework.api.appchain.AppStateMachine;
+import org.yanoproject.x.framework.api.appchain.AppStateMachineProvider;
 
 public class KvStateMachineProvider implements AppStateMachineProvider {
     @Override
@@ -415,7 +415,7 @@ public class KvStateMachineProvider implements AppStateMachineProvider {
 ```
 
 The ServiceLoader manifest —
-`src/main/resources/META-INF/services/org.yanoproject.api.appchain.AppStateMachineProvider`:
+`src/main/resources/META-INF/services/org.yanoproject.x.framework.api.appchain.AppStateMachineProvider`:
 
 ```
 com.example.kvchain.KvStateMachineProvider
@@ -543,7 +543,7 @@ Yano node required.
 - Design, trust model, roadmap (rotating sequencer, script anchors,
   chain-governed membership): `adr/app-layer/005-yano-app-chain-framework.md`
 - Wire-format CDDL (build a compatible node in another language):
-  yaci `core/src/main/cddl/appmsg/`, yano `core-api/src/main/cddl/appchain/`
+  yaci `core/src/main/cddl/appmsg/`, Yano-X `framework/api/src/main/cddl/appchain/` and `framework/cardano-api/src/main/cddl/appchain/`
 
 ---
 

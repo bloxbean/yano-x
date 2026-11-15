@@ -1,18 +1,18 @@
 package org.yanoproject.x.composite;
 
 import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
-import org.yanoproject.x.composite.contracts.AggregateQueryLimitsV1;
-import org.yanoproject.api.appchain.AppBlock;
-import org.yanoproject.api.appchain.AppBlockExecutionContext;
-import org.yanoproject.api.appchain.AppStateMachine;
-import org.yanoproject.api.appchain.AppStateMachineContext;
-import org.yanoproject.appchain.testkit.AppChainTestProfiles;
-import org.yanoproject.api.appchain.AppStateWriter;
-import org.yanoproject.api.appchain.FinalityCert;
-import org.yanoproject.api.appchain.snapshot.AuthenticatedSnapshotSeriesDescriptorV1;
-import org.yanoproject.api.appchain.state.StateCommitmentProfiles;
-import org.yanoproject.api.appchain.effects.AppEffectEmitter;
 import org.junit.jupiter.api.Test;
+import org.yanoproject.appchain.testkit.AppChainTestProfiles;
+import org.yanoproject.x.composite.contracts.AggregateQueryLimitsV1;
+import org.yanoproject.x.framework.api.appchain.AppBlock;
+import org.yanoproject.x.framework.api.appchain.AppBlockExecutionContext;
+import org.yanoproject.x.framework.api.appchain.AppStateMachine;
+import org.yanoproject.x.framework.api.appchain.AppStateMachineContext;
+import org.yanoproject.x.framework.api.appchain.AppStateWriter;
+import org.yanoproject.x.framework.api.appchain.FinalityCert;
+import org.yanoproject.x.framework.api.appchain.effects.AppEffectEmitter;
+import org.yanoproject.x.framework.api.appchain.snapshot.AuthenticatedSnapshotSeriesDescriptorV1;
+import org.yanoproject.x.framework.api.appchain.state.StateCommitmentProfiles;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
@@ -228,7 +228,7 @@ class CompositeIsolationTest {
                 return Map.of("effects.max-per-block", Integer.toString(effectCap));
             }
             @Override
-            public java.util.Optional<org.yanoproject.api.appchain.AppChainConsensusProfile>
+            public java.util.Optional<org.yanoproject.x.framework.api.appchain.AppChainConsensusProfile>
             consensusProfile() {
                 return java.util.Optional.of(AppChainTestProfiles.enabledEffects(effectCap));
             }

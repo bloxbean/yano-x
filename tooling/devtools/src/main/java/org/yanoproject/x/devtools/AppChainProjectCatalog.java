@@ -1,9 +1,9 @@
 package org.yanoproject.x.devtools;
 
-import org.yanoproject.appchain.config.AppChainPropertyRegistry;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.yanoproject.x.framework.config.AppChainPropertyRegistry;
 
 import java.io.IOException;
 import java.io.InputStream;

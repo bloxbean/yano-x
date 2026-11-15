@@ -178,9 +178,9 @@ export default {
       anchors: ['("b/" + account)'] },
     { repo: 'yano-x', path: 'state-machines/stdlib-contracts/src/main/java/org/yanoproject/x/stdlib/contracts/DocTrailContract.java',
       anchors: ['("e/" + entityId)'] },
-    { repo: 'yano', path: 'core-api/src/main/java/org/yanoproject/api/appchain/transition/FinalizedMessageIndex.java',
+    { repo: 'yano-x', path: 'framework/api/src/main/java/org/yanoproject/x/framework/api/appchain/transition/FinalizedMessageIndex.java',
       anchors: ['LOGICAL_NAMESPACE = "~yano/finalized-message/v1/"', 'MessageDigest.getInstance("SHA-256")'] },
-    { repo: 'yano', path: 'core-api/src/main/java/org/yanoproject/api/appchain/transition/FinalizedMessageProofSubjectProvider.java',
+    { repo: 'yano-x', path: 'framework/api/src/main/java/org/yanoproject/x/framework/api/appchain/transition/FinalizedMessageProofSubjectProvider.java',
       anchors: ['SUBJECT_ID = "finalized-message-v1"', '"recorded"'] },
   ],
 };

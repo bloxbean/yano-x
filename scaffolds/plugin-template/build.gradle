@@ -8,13 +8,30 @@ plugins {
 group = 'com.example'
 version = '0.1.0'
 
-def yanoVersion = providers.gradleProperty('yanoVersion')
-        .orElse('0.1.0-pre9')
-        .get()
+def yanoVersion = providers.gradleProperty('yanoVersion').orNull?.trim()
+def yanoXVersion = providers.gradleProperty('yanoXVersion').orNull?.trim()
+if (!yanoVersion || !yanoXVersion) {
+    throw new GradleException('Plugin template requires both -PyanoVersion=<published-host-version> '
+            + 'and -PyanoXVersion=<published-framework-version>. '
+            + 'Run gradle build with these independent versions; see README.md in the plugin template.')
+}
 
 repositories {
-    mavenLocal()   // resolves locally-published yano artifacts
+    if (providers.gradleProperty('useMavenLocal').getOrElse('false').toBoolean()) {
+        mavenLocal { content { includeGroupByRegex 'org\\.yanoproject(\\..*)?' } }
+    }
+    providers.gradleProperty('yanoRepository').orNull?.split(',')?.each { repository ->
+        maven { url = uri(repository) }
+    }
     mavenCentral()
+    maven {
+        url = uri('https://repo.bloxbean.org/maven/snapshots')
+        mavenContent { snapshotsOnly() }
+    }
+    maven {
+        url = uri('https://repo.bloxbean.org/maven/releases')
+        mavenContent { releasesOnly() }
+    }
 }
 
 // This source set is deliberately isolated from sourceSets.main.output. Its
@@ -28,17 +45,33 @@ sourceSets {
 
 dependencies {
     // The node provides the public SPI at runtime — never package it in the plugin.
-    compileOnly "org.yanoproject:yano-core-api:${yanoVersion}"
+    compileOnly "org.yanoproject:yano-node-api:${yanoVersion}"
+    compileOnly "org.yanoproject.x:yano-x-appchain-api:${yanoXVersion}"
 
-    testImplementation "org.yanoproject:yano-core-api:${yanoVersion}"
-    // StateMachineConformance is a runtime test utility, not part of core-api.
-    testImplementation "org.yanoproject:yano-runtime:${yanoVersion}"
+    testImplementation "org.yanoproject.x:yano-x-appchain-api:${yanoXVersion}"
+    // StateMachineConformance is owned by the framework implementation.
+    testImplementation "org.yanoproject.x:yano-x-appchain-core:${yanoXVersion}"
     testImplementation platform('org.junit:junit-bom:5.10.2')
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testImplementation 'org.assertj:assertj-core:3.25.3'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 
     catalogProbeImplementation "org.yanoproject:yano-runtime:${yanoVersion}"
+    // Exercise the independently selected framework, not the older host POM's pin.
+    catalogProbeImplementation "org.yanoproject.x:yano-x-appchain-cardano:${yanoXVersion}"
+}
+
+// A compatible host may name a newer-sorting framework build in its POM.
+// This isolated probe must exercise the framework version selected by the user.
+['catalogProbeCompileClasspath', 'catalogProbeRuntimeClasspath'].each { name ->
+    configurations.named(name) {
+        resolutionStrategy.eachDependency { dependency ->
+            if (dependency.requested.group == 'org.yanoproject.x') {
+                dependency.useVersion(yanoXVersion)
+                dependency.because('Catalog probe exercises the explicitly selected framework version')
+            }
+        }
+    }
 }
 
 java {
@@ -69,9 +102,9 @@ tasks.register('verifyPluginJar') {
         def archive = tasks.named('jar').get().archiveFile.get().asFile
         def contents = zipTree(archive)
         def stateMachineServicePath = 'META-INF/services/' +
-                'org.yanoproject.api.appchain.AppStateMachineProvider'
+                'org.yanoproject.x.framework.api.appchain.AppStateMachineProvider'
         def domainApiServicePath = 'META-INF/services/' +
-                'org.yanoproject.api.plugin.domain.DomainApiProvider'
+                'org.yanoproject.x.framework.api.plugin.domain.DomainApiProvider'
         def healthServicePath = 'META-INF/services/' +
                 'org.yanoproject.api.plugin.operations.PluginHealthProvider'
         def metricsServicePath = 'META-INF/services/' +
@@ -154,9 +187,9 @@ tasks.register('verifyPluginJar') {
                     contribution.provider == expectedMetricsProvider
         }
         if (manifest.id != 'com.example.appchain.counter'
-                || manifest.yanoApi?.min != 1
-                || manifest.yanoApi?.max != 1
-                || manifest.yanoApi?.minLevel != 1
+                || manifest.yanoApi?.min != 3
+                || manifest.yanoApi?.max != 3
+                || manifest.yanoApi?.minLevel != 4
                 || stateMachineContributions.size() != 1
                 || domainApiContributions.size() != 1
                 || healthContributions.size() != 1
@@ -185,6 +218,11 @@ tasks.register('verifyPluginCatalogLaunch', JavaExec) {
     inputs.file(tasks.named('jar').flatMap { it.archiveFile })
 
     doFirst {
+        def framework = configurations.catalogProbeRuntimeClasspath.incoming.resolutionResult.allComponents
+                .collect { it.moduleVersion }.findAll { it?.group == 'org.yanoproject.x' }
+        if (framework.isEmpty() || framework.any { it.version != yanoXVersion }) {
+            throw new GradleException("Catalog probe must use framework ${yanoXVersion}; resolved ${framework}")
+        }
         args = [
                 tasks.named('jar').get().archiveFile.get().asFile.absolutePath,
                 project.version.toString()

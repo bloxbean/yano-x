@@ -1,0 +1,103 @@
+plugins { id 'java-test-fixtures' }
+
+description = 'Application-ledger consensus, storage and deterministic execution core'
+
+// Crash-recovery probes launch a child JVM with the same resolved test inputs.
+tasks.withType(Test).configureEach {
+    doFirst {
+        systemProperty 'yano.test.runtime-classpath', classpath.asPath
+    }
+}
+
+dependencies {
+    api project(':framework:api')
+    // appOnly is newer than the Yaci API exposed by the oldest supported host.
+    // Publish this requirement so independent X upgrades resolve it as well.
+    implementation(libs.yaci.core) { exclude group: 'com.bloxbean.cardano', module: 'cardano-client-core' }
+    implementation project(':framework:config')
+    // Preserve the existing MPF/proof-wire implementation. Its optional PlutusData
+    // formatter is only needed by Cardano adapters, never by native proof-wire paths.
+    implementation(libs.cardano.client.mpf) { exclude group: 'com.bloxbean.cardano', module: 'cardano-client-plutus' }
+    implementation(libs.cardano.client.mpf.rocksdb) { exclude group: 'com.bloxbean.cardano', module: 'cardano-client-plutus' }
+    implementation libs.cardano.client.jmt
+    implementation libs.cardano.client.crypto
+    implementation libs.rocksdb
+    implementation libs.jackson.databind
+    compileOnly libs.netty
+    testImplementation libs.netty
+}
+
+// Resolve the actual production closure, not just declared dependencies. This catches
+// a transitive node implementation or settlement SDK added through any API module.
+tasks.register('verifyFrameworkBoundary') {
+    group = 'verification'
+    description = 'Reject node implementation/settlement SDK dependencies in the ledger core'
+    inputs.files(configurations.runtimeClasspath)
+    def report = layout.buildDirectory.file('reports/framework-boundary.json')
+    outputs.file(report)
+    doLast {
+        def artifacts = configurations.runtimeClasspath.resolvedConfiguration.resolvedArtifacts
+                .collect { artifact ->
+                    [group: artifact.moduleVersion.id.group, name: artifact.name,
+                     version: artifact.moduleVersion.id.version,
+                     sha256: java.security.MessageDigest.getInstance('SHA-256')
+                             .digest(artifact.file.bytes).encodeHex().toString()]
+                }.sort { a, b -> "${a.group}:${a.name}" <=> "${b.group}:${b.name}" }
+        def violations = artifacts.findAll { artifact ->
+            (artifact.group == 'org.yanoproject'
+                    && artifact.name != 'yano-node-api') ||
+                    artifact.group.startsWith('org.julclang') ||
+                    artifact.name in ['cardano-client-quicktx', 'cardano-client-backend',
+                                      'cardano-client-lib', 'cardano-client-backend-blockfrost',
+                                      'cardano-client-core', 'cardano-client-core-api', 'cardano-client-plutus',
+                                      'cardano-client-transaction-spec']
+        }
+        def output = report.get().asFile
+        output.parentFile.mkdirs()
+        output.text = groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(
+                [schemaVersion: 1, passed: violations.empty, artifacts: artifacts, violations: violations])) + '\n'
+        if (!violations.empty) {
+            throw new GradleException("Application-ledger core boundary violated: ${violations}")
+        }
+    }
+}
+tasks.named('check') { dependsOn 'verifyFrameworkBoundary' }
+
+tasks.register('benchmarkAdr025ClassicJmtRuntime', JavaExec) {
+    group = 'verification'
+    description = 'Runs the ADR-025 Phase 3 durable classic-JMT runtime benchmark'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'org.yanoproject.x.framework.runtime.appchain.ClassicJmtRuntimeBenchmark'
+    def report = layout.buildDirectory.file('reports/adr025/phase3-classic-jmt-runtime.json')
+    args report.get().asFile.absolutePath,
+            providers.gradleProperty('adr025RuntimeKeys').getOrElse('100000'),
+            providers.gradleProperty('adr025RuntimeBatch').getOrElse('100'),
+            providers.gradleProperty('adr025RuntimeProofs').getOrElse('128')
+    outputs.file(report)
+}
+
+['Mpf': 'mpf-blake2b256-v1', 'Jmt': 'jmt-blake2b256-v1'].each { suffix, profile ->
+    tasks.register("benchmarkAdr028AuthenticatedSnapshot${suffix}", JavaExec) {
+        group = 'verification'
+        description = "Runs the ADR-028 M8 ${profile} logical-snapshot benchmark"
+        dependsOn tasks.named('testClasses')
+        classpath = sourceSets.test.runtimeClasspath
+        mainClass = 'org.yanoproject.x.framework.runtime.appchain.AuthenticatedSnapshotBenchmark'
+        maxHeapSize = '6g'
+        def report = rootProject.layout.projectDirectory.file(
+                "adr/app-layer/benchmarks/028-m8-authenticated-snapshot-${suffix.toLowerCase()}.json")
+        args report.asFile.absolutePath, profile,
+                providers.gradleProperty('adr028SnapshotEntries').getOrElse('1300000'),
+                providers.gradleProperty('adr028SnapshotProofs').getOrElse('4096'),
+                providers.gradleProperty('adr028SnapshotClients').getOrElse('32')
+        outputs.file(report)
+    }
+}
+
+dependencies {
+    testFixturesApi libs.rocksdb
+    testFixturesApi libs.jackson.databind
+    testFixturesApi(libs.yaci.core) { exclude group: 'com.bloxbean.cardano', module: 'cardano-client-core' }
+    testFixturesApi libs.slf4j.api
+}

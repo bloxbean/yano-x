@@ -1,8 +1,10 @@
 package org.yanoproject.x.devtools;
 
-import org.yanoproject.appchain.config.AppChainPropertyRegistry;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.yanoproject.x.framework.config.AppChainMetadataDescriptor;
+import org.yanoproject.x.framework.config.AppChainMetadataSource;
+import org.yanoproject.x.framework.config.AppChainPropertyRegistry;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -11,8 +13,8 @@ import java.io.PrintWriter;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.file.FileVisitResult;
-import java.nio.file.InvalidPathException;
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
@@ -45,7 +47,7 @@ final class AppChainProjectCli {
               --trust-key <id=public-key>   repeatable trusted Ed25519 raw public key
             Plugin catalog examples:
               plugin scaffold --mode <state-machine|composite-role|effect-executor|sink>
-                --id <id> --package <java-package> --yano-version <version> --output <empty-dir>
+                --id <id> --package <java-package> --yano-version <version> [--yano-x-version <version>] --output <empty-dir>
               plugin sign --catalog <json> --runtime-manifest <json> [--config-metadata <json>]
                 --seed-file <file> --key-id <id> --output <signature-json>
               plugin inspect <jar|snapshot> --trust-key <id=public-key>
@@ -64,9 +66,9 @@ final class AppChainProjectCli {
     }
 
     static AppChainPropertyRegistry builtInRegistry() throws IOException {
-        List<org.yanoproject.appchain.config.AppChainMetadataSource> sources =
+        List<AppChainMetadataSource> sources =
                 new AppChainDescriptorLoader().loadBuiltInMetadata().stream()
-                        .map(org.yanoproject.appchain.config.AppChainMetadataDescriptor::toSource)
+                        .map(AppChainMetadataDescriptor::toSource)
                         .toList();
         return AppChainPropertyRegistry.withSources(sources);
     }
@@ -195,7 +197,8 @@ final class AppChainProjectCli {
     private int scaffoldPlugin(PluginOptions options) throws IOException {
         AppChainPluginScaffolder.Result result = new AppChainPluginScaffolder().scaffold(
                 options.mode(), options.componentId(), options.packageName(),
-                valueOr(options.yanoVersion(), toolVersion()), options.output());
+                valueOr(options.yanoVersion(), toolVersion()),
+                valueOr(options.yanoXVersion(), toolVersion()), options.output());
         if (options.format() == Format.JSON) {
             out.println(json.writeValueAsString(Map.of(
                     "status", "PLUGIN_SCAFFOLDED",
@@ -368,6 +371,7 @@ final class AppChainProjectCli {
         String componentId = null;
         String packageName = null;
         String yanoVersion = null;
+        String yanoXVersion = null;
         Format format = Format.TEXT;
         Map<String, String> trustKeys = new LinkedHashMap<>();
         for (int cursor = 1; cursor < arguments.length; cursor++) {
@@ -409,6 +413,8 @@ final class AppChainProjectCli {
                         packageName, value(arguments, ++cursor, argument), argument);
                 case "--yano-version" -> yanoVersion = once(
                         yanoVersion, value(arguments, ++cursor, argument), argument);
+                case "--yano-x-version" -> yanoXVersion = once(
+                        yanoXVersion, value(arguments, ++cursor, argument), argument);
                 case "--format" -> format = parseFormat(
                         value(arguments, ++cursor, argument));
                 default -> {
@@ -444,7 +450,7 @@ final class AppChainProjectCli {
         }
         return new PluginOptions(action, input, output, Map.copyOf(trustKeys),
                 catalog, runtimeManifest, configurationMetadata, seedFile, keyId,
-                mode, componentId, packageName, yanoVersion, format);
+                mode, componentId, packageName, yanoVersion, yanoXVersion, format);
     }
 
     private static MetadataOptions parseMetadata(String[] arguments) {
@@ -582,6 +588,7 @@ final class AppChainProjectCli {
             String componentId,
             String packageName,
             String yanoVersion,
+            String yanoXVersion,
             Format format) {
     }
 

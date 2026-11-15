@@ -1,10 +1,9 @@
 package org.yanoproject.x.roles;
 
-import org.yanoproject.api.appchain.AppStateWriter;
-import org.yanoproject.api.appchain.transition.TransitionWorkAccounting;
-import org.yanoproject.api.appchain.transition.TransitionWorkBudget;
+import org.yanoproject.x.framework.api.appchain.AppStateWriter;
+import org.yanoproject.x.framework.api.appchain.transition.TransitionWorkAccounting;
+import org.yanoproject.x.framework.api.appchain.transition.TransitionWorkBudget;
 import org.yanoproject.x.roles.contracts.RoleWorkflowKeys;
-
 
 /** Shared, block-scoped governed-signature work fence stored in actor state. */
 public final class GovernedCryptoWork {

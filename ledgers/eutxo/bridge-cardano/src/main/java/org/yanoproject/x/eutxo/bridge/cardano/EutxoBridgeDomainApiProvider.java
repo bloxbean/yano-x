@@ -1,8 +1,8 @@
 package org.yanoproject.x.eutxo.bridge.cardano;
 
-import org.yanoproject.api.plugin.domain.DomainApi;
-import org.yanoproject.api.plugin.domain.DomainApiContext;
-import org.yanoproject.api.plugin.domain.DomainApiProvider;
+import org.yanoproject.x.framework.api.plugin.domain.DomainApi;
+import org.yanoproject.x.framework.api.plugin.domain.DomainApiContext;
+import org.yanoproject.x.framework.api.plugin.domain.DomainApiProvider;
 
 /** Cataloged transaction-building API for the Cardano EUTxO bridge. */
 public final class EutxoBridgeDomainApiProvider implements DomainApiProvider {

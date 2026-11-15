@@ -1,16 +1,6 @@
 package org.yanoproject.x.composite.bindings;
 
 import com.bloxbean.cardano.client.crypto.Blake2bUtil;
-import org.yanoproject.api.appchain.AppChainConsensusProfile;
-import org.yanoproject.api.appchain.AppChainMembershipView;
-import org.yanoproject.api.appchain.AppStateMachine;
-import org.yanoproject.api.appchain.AppStateMachineContext;
-import org.yanoproject.api.appchain.AppStateMachineProvider;
-import org.yanoproject.api.appchain.authmap.AuthenticatedMapValidatorResolver;
-import org.yanoproject.api.appchain.observation.ObservationProfileV1;
-import org.yanoproject.api.appchain.state.StateCommitmentIdentity;
-import org.yanoproject.api.appchain.transition.TransitionKernel;
-import org.yanoproject.api.appchain.transition.TransitionScalars;
 import org.yanoproject.x.composite.ComponentDescriptor;
 import org.yanoproject.x.composite.ComponentGeneration;
 import org.yanoproject.x.composite.CompositeProfile;
@@ -18,8 +8,18 @@ import org.yanoproject.x.composite.CompositeProfileCatalog;
 import org.yanoproject.x.composite.CompositeStateMachine;
 import org.yanoproject.x.composite.WorkflowDescriptor;
 import org.yanoproject.x.composite.contracts.AggregateQueryLimitsV1;
-import org.yanoproject.x.composite.contracts.BindingIrV1;
 import org.yanoproject.x.composite.contracts.BindingCbor;
+import org.yanoproject.x.composite.contracts.BindingIrV1;
+import org.yanoproject.x.framework.api.appchain.AppChainConsensusProfile;
+import org.yanoproject.x.framework.api.appchain.AppChainMembershipView;
+import org.yanoproject.x.framework.api.appchain.AppStateMachine;
+import org.yanoproject.x.framework.api.appchain.AppStateMachineContext;
+import org.yanoproject.x.framework.api.appchain.AppStateMachineProvider;
+import org.yanoproject.x.framework.api.appchain.authmap.AuthenticatedMapValidatorResolver;
+import org.yanoproject.x.framework.api.appchain.observation.ObservationProfileV1;
+import org.yanoproject.x.framework.api.appchain.state.StateCommitmentIdentity;
+import org.yanoproject.x.framework.api.appchain.transition.TransitionKernel;
+import org.yanoproject.x.framework.api.appchain.transition.TransitionScalars;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;

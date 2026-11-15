@@ -1,10 +1,10 @@
 package org.yanoproject.x.eutxo.bridge.cardano;
 
-import org.yanoproject.api.appchain.effects.AppChainEffectContext;
-import org.yanoproject.api.appchain.effects.AppEffectExecutor;
-import org.yanoproject.api.appchain.l1view.BridgeDiffusionHandler;
-import org.yanoproject.api.appchain.signer.SignerProvider;
 import org.junit.jupiter.api.Test;
+import org.yanoproject.x.framework.api.appchain.effects.AppEffectExecutor;
+import org.yanoproject.x.framework.api.appchain.l1view.BridgeDiffusionHandler;
+import org.yanoproject.x.framework.api.appchain.signer.SignerProvider;
+import org.yanoproject.x.framework.cardano.api.effects.AppChainEffectContext;
 
 import java.util.HashMap;
 import java.util.List;
@@ -115,7 +115,7 @@ class EutxoSettlementExecutorFactoryTest {
             }
 
             @Override
-            public org.yanoproject.api.appchain.AppQueryResult query(
+            public org.yanoproject.x.framework.api.appchain.AppQueryResult query(
                     String path, byte[] request) {
                 return null;
             }

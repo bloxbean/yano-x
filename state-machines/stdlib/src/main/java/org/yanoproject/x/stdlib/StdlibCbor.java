@@ -1,7 +1,7 @@
 package org.yanoproject.x.stdlib;
 
-import org.yanoproject.api.appchain.AppChainConfig;
-import org.yanoproject.api.appchain.codec.internal.CborStructurePreflight;
+import org.yanoproject.x.framework.api.appchain.AppChainConfig;
+import org.yanoproject.x.framework.api.appchain.codec.internal.CborStructurePreflight;
 
 /** Frozen appchain-stdlib command/value CBOR work bounds (ADR-014 P0.1). */
 final class StdlibCbor {

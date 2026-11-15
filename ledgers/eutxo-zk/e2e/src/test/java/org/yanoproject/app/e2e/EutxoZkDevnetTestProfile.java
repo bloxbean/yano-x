@@ -1,7 +1,5 @@
 package org.yanoproject.app.e2e;
 
-import org.yanoproject.api.appchain.state.StateCommitmentIdentity;
-import org.yanoproject.api.appchain.state.StateCommitmentProfiles;
 import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.address.AddressProvider;
 import com.bloxbean.cardano.client.common.model.Networks;
@@ -10,6 +8,8 @@ import com.bloxbean.cardano.client.transaction.spec.script.ScriptPubkey;
 import org.yanoproject.x.eutxo.contracts.EutxoProfile;
 import org.yanoproject.x.eutxo.zk.contracts.EutxoZkBatchProfile;
 import org.yanoproject.x.eutxo.zk.zeroj.ZerojPoseidonValidityProvider;
+import org.yanoproject.x.framework.api.appchain.state.StateCommitmentIdentity;
+import org.yanoproject.x.framework.api.appchain.state.StateCommitmentProfiles;
 import org.zeroj.circuit.lib.jubjub.EdDSAJubjub;
 
 import java.math.BigInteger;

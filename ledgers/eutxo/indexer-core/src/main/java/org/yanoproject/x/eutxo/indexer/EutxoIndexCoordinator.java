@@ -1,16 +1,15 @@
 package org.yanoproject.x.eutxo.indexer;
 
-import org.yanoproject.api.appchain.AppBlock;
-import org.yanoproject.api.appchain.AppQueryException;
-import org.yanoproject.api.plugin.domain.FinalizedChainView;
-import org.yanoproject.api.appchain.codec.AppBlockCodec;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.yanoproject.x.eutxo.contracts.EutxoDepositRecord;
 import org.yanoproject.x.eutxo.contracts.EutxoQueryCodec;
 import org.yanoproject.x.eutxo.contracts.EutxoTransactionSummary;
 import org.yanoproject.x.eutxo.contracts.EutxoWithdrawalRecord;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.yanoproject.x.framework.api.appchain.AppBlock;
+import org.yanoproject.x.framework.api.appchain.AppQueryException;
+import org.yanoproject.x.framework.api.appchain.codec.AppBlockCodec;
+import org.yanoproject.x.framework.api.plugin.domain.FinalizedChainView;
 
 import java.util.ArrayList;
 import java.util.Comparator;

@@ -1,6 +1,6 @@
 package org.yanoproject.x.eutxo.bridge.cardano;
 
-import org.yanoproject.api.appchain.codec.internal.CborStructurePreflight;
+import org.yanoproject.x.framework.api.appchain.codec.internal.CborStructurePreflight;
 
 /**
  * Bounds an inline datum read from L1 before it is decoded. Anyone can attach any datum to an output at the

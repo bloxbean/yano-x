@@ -1,9 +1,9 @@
 package org.yanoproject.x.stdlib;
 
 import org.junit.jupiter.api.Test;
-import org.yanoproject.api.appchain.state.StateCommitmentProfiles;
-import org.yanoproject.api.appchain.transition.TransitionKernel;
 import org.yanoproject.x.composite.bindings.BindingCommandView;
+import org.yanoproject.x.framework.api.appchain.state.StateCommitmentProfiles;
+import org.yanoproject.x.framework.api.appchain.transition.TransitionKernel;
 import org.yanoproject.x.stdlib.contracts.ApprovalsContract;
 import org.yanoproject.x.stdlib.contracts.AuthenticatedMapContract;
 import org.yanoproject.x.stdlib.contracts.BalancesContract;

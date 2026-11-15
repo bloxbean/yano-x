@@ -1,9 +1,6 @@
 package org.yanoproject.x.devtools;
 
 import com.bloxbean.cardano.client.crypto.KeyGenUtil;
-import org.yanoproject.x.roles.contracts.internal.RoleWorkflowEd25519;
-import org.yanoproject.appchain.config.AppChainMetadataSource;
-import org.yanoproject.appchain.config.AppChainPropertyRegistry;
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.StreamReadFeature;
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -11,6 +8,10 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import org.yanoproject.x.framework.config.AppChainMetadataDescriptor;
+import org.yanoproject.x.framework.config.AppChainMetadataSource;
+import org.yanoproject.x.framework.config.AppChainPropertyRegistry;
+import org.yanoproject.x.roles.contracts.internal.RoleWorkflowEd25519;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -76,8 +77,7 @@ final class AppChainComponentCatalogLoader {
                     uniqueRuntimeManifest(archive, manifestPath), "runtime manifest");
             validateRuntimeManifest(manifestBytes, catalog.bundleId(), catalog.bundleVersion());
             ZipEntry metadataEntry = uniqueOptional(
-                    archive, org.yanoproject.appchain.config
-                            .AppChainMetadataDescriptor.RESOURCE_PATH);
+                    archive, AppChainMetadataDescriptor.RESOURCE_PATH);
             byte[] metadataBytes = metadataEntry == null ? new byte[0]
                     : readBounded(archive, metadataEntry, "configuration metadata");
             verifyBinding(catalogBytes, manifestBytes, metadataBytes,

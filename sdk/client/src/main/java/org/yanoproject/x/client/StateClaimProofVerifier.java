@@ -1,10 +1,10 @@
 package org.yanoproject.x.client;
 
-import org.yanoproject.api.appchain.proof.ProofLabVocabulary;
-import org.yanoproject.api.appchain.proof.ProofSubjectProvider;
-import org.yanoproject.api.appchain.proof.StateClaimProofPackageV1;
-import org.yanoproject.api.appchain.state.StateCommitmentIdentity;
-import org.yanoproject.api.appchain.state.StateProof;
+import org.yanoproject.x.framework.api.appchain.proof.ProofLabVocabulary;
+import org.yanoproject.x.framework.api.appchain.proof.ProofSubjectProvider;
+import org.yanoproject.x.framework.api.appchain.proof.StateClaimProofPackageV1;
+import org.yanoproject.x.framework.api.appchain.state.StateCommitmentIdentity;
+import org.yanoproject.x.framework.api.appchain.state.StateProof;
 
 import java.util.Arrays;
 import java.util.Map;

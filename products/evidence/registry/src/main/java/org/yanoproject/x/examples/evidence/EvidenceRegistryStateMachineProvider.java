@@ -1,8 +1,8 @@
 package org.yanoproject.x.examples.evidence;
 
-import org.yanoproject.api.appchain.AppStateMachine;
-import org.yanoproject.api.appchain.AppStateMachineContext;
-import org.yanoproject.api.appchain.AppStateMachineProvider;
+import org.yanoproject.x.framework.api.appchain.AppStateMachine;
+import org.yanoproject.x.framework.api.appchain.AppStateMachineContext;
+import org.yanoproject.x.framework.api.appchain.AppStateMachineProvider;
 
 /** ServiceLoader entry point for one configured evidence-registry chain. */
 public final class EvidenceRegistryStateMachineProvider implements AppStateMachineProvider {

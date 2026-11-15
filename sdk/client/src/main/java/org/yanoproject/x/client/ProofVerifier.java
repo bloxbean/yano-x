@@ -5,14 +5,16 @@ import com.bloxbean.cardano.client.crypto.config.CryptoConfiguration;
 import com.bloxbean.cardano.vds.core.api.NodeStore;
 import com.bloxbean.cardano.vds.jmt.JmtProfile;
 import com.bloxbean.cardano.vds.mpf.MpfTrie;
-import org.yanoproject.api.appchain.AppBlock;
-import org.yanoproject.api.appchain.AppBlockHeader;
-import org.yanoproject.api.appchain.anchor.AnchorDatumV1;
-import org.yanoproject.api.appchain.snapshot.SnapshotCanonicalCodec;
-import org.yanoproject.api.appchain.snapshot.AuthenticatedSnapshotProofBundleCodec;
-import org.yanoproject.api.appchain.state.StateCommitmentIdentity;
-import org.yanoproject.api.appchain.state.StateCommitmentProfiles;
 import org.yanoproject.appchain.proof.MpfProofWirePreflight;
+import org.yanoproject.x.framework.api.appchain.AppAnchorCommitment;
+import org.yanoproject.x.framework.api.appchain.AppBlock;
+import org.yanoproject.x.framework.api.appchain.AppBlockHeader;
+import org.yanoproject.x.framework.api.appchain.snapshot.AuthenticatedSnapshotProofBundleCodec;
+import org.yanoproject.x.framework.api.appchain.snapshot.SnapshotCanonicalCodec;
+import org.yanoproject.x.framework.api.appchain.state.StateCommitmentIdentity;
+import org.yanoproject.x.framework.api.appchain.state.StateCommitmentProfiles;
+import org.yanoproject.x.framework.api.appchain.state.StateProof;
+import org.yanoproject.x.framework.cardano.api.anchor.AnchorDatumV1;
 
 import java.io.ByteArrayOutputStream;
 import java.nio.ByteBuffer;
@@ -169,7 +171,7 @@ public final class ProofVerifier {
     }
 
     private static boolean sameProof(
-            org.yanoproject.api.appchain.state.StateProof canonical,
+            StateProof canonical,
             AppChainClient.SnapshotNativeProof transport) {
         return canonical.snapshot().identity().profile().id().equals(transport.profile())
                 && Hex.encode(canonical.snapshot().identity().profile().formatFingerprint())
@@ -187,7 +189,7 @@ public final class ProofVerifier {
     }
 
     private static boolean sameAnchor(
-            org.yanoproject.api.appchain.AppAnchorCommitment canonical,
+            AppAnchorCommitment canonical,
             AppChainClient.SnapshotAnchor transport) {
         return canonical.chainId().equals(transport.chainId())
                 && canonical.mode().equals(transport.mode())

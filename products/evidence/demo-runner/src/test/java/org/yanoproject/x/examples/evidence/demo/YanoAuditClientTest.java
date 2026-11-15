@@ -1,12 +1,12 @@
 package org.yanoproject.x.examples.evidence.demo;
 
-import org.yanoproject.api.appchain.evidence.EvidenceBundleCodec;
-import org.yanoproject.x.composite.contracts.CompositeCommitmentV1;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.yanoproject.x.composite.contracts.CompositeCommitmentV1;
+import org.yanoproject.x.framework.api.appchain.evidence.EvidenceBundleCodec;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;

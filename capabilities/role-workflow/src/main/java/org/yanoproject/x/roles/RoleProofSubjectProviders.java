@@ -1,11 +1,11 @@
 package org.yanoproject.x.roles;
 
-import org.yanoproject.api.appchain.AppCapabilityManifest;
-import org.yanoproject.api.appchain.proof.ProofLabVocabulary;
-import org.yanoproject.api.appchain.proof.ProofSubjectDescriptorV1;
-import org.yanoproject.api.appchain.proof.ProofSubjectProvider;
-import org.yanoproject.api.appchain.proof.ProofSubjectProvider.ClaimRequest;
-import org.yanoproject.api.appchain.proof.ProofSubjectProvider.ClaimResult;
+import org.yanoproject.x.framework.api.appchain.AppCapabilityManifest;
+import org.yanoproject.x.framework.api.appchain.proof.ProofLabVocabulary;
+import org.yanoproject.x.framework.api.appchain.proof.ProofSubjectDescriptorV1;
+import org.yanoproject.x.framework.api.appchain.proof.ProofSubjectProvider.ClaimRequest;
+import org.yanoproject.x.framework.api.appchain.proof.ProofSubjectProvider.ClaimResult;
+import org.yanoproject.x.framework.api.appchain.proof.ProofSubjectProvider;
 import org.yanoproject.x.roles.contracts.ActorRecordV1;
 import org.yanoproject.x.roles.contracts.ApprovalProposalV1;
 import org.yanoproject.x.roles.contracts.RoleWorkflowKeys;

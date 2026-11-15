@@ -1,8 +1,8 @@
 package org.yanoproject.x.client;
 
-import org.yanoproject.api.appchain.observation.ObservationHashes;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.Test;
+import org.yanoproject.x.framework.api.appchain.observation.ObservationHashes;
 
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;

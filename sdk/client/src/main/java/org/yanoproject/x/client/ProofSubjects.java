@@ -1,9 +1,10 @@
 package org.yanoproject.x.client;
 
-import org.yanoproject.api.appchain.state.StateProofSubject;
-import org.yanoproject.api.appchain.transition.FinalizedMessageIndex;
-import org.yanoproject.api.appchain.transition.FinalizedBlockMessageRootIndex;
 import org.yanoproject.x.composite.contracts.CompositeCommitmentV1;
+import org.yanoproject.x.framework.api.appchain.state.StateProofSubject;
+import org.yanoproject.x.framework.api.appchain.transition.FinalizedBlockMessageRootIndex;
+import org.yanoproject.x.framework.api.appchain.transition.FinalizedMessageIndex;
+import org.yanoproject.x.framework.cardano.api.l1view.ProtocolParamsCanonicalCodec;
 import org.yanoproject.x.roles.contracts.ApprovalProposalV1;
 import org.yanoproject.x.roles.contracts.RoleWorkflowKeys;
 import org.yanoproject.x.stdlib.contracts.AuthenticatedMapContract;
@@ -11,7 +12,6 @@ import org.yanoproject.x.stdlib.contracts.DocTrailContract;
 import org.yanoproject.x.stdlib.contracts.EpochGovernanceContract;
 import org.yanoproject.x.stdlib.contracts.EpochParamsContract;
 import org.yanoproject.x.stdlib.contracts.EpochStakeContract;
-import org.yanoproject.api.appchain.l1view.ProtocolParamsCanonicalCodec;
 
 import java.math.BigInteger;
 import java.util.Objects;

@@ -1,8 +1,8 @@
 package org.yanoproject.x.roles;
 
-import org.yanoproject.api.plugin.domain.DomainApi;
-import org.yanoproject.api.plugin.domain.DomainApiContext;
-import org.yanoproject.api.plugin.domain.DomainApiProvider;
+import org.yanoproject.x.framework.api.plugin.domain.DomainApi;
+import org.yanoproject.x.framework.api.plugin.domain.DomainApiContext;
+import org.yanoproject.x.framework.api.plugin.domain.DomainApiProvider;
 
 /** Read-only JSON API for the stock role-approvals profile. */
 public final class RoleApprovalsDomainApiProvider implements DomainApiProvider {

@@ -1,7 +1,8 @@
 package org.yanoproject.x.objectstore.s3.effects;
 
-import org.yanoproject.api.appchain.effects.EffectExecution;
-import org.yanoproject.api.appchain.effects.PendingEffect;
+import org.junit.jupiter.api.Test;
+import org.yanoproject.x.framework.api.appchain.effects.EffectExecution;
+import org.yanoproject.x.framework.api.appchain.effects.PendingEffect;
 import org.yanoproject.x.integration.ConnectorErrorCode;
 import org.yanoproject.x.integration.detail.ConnectorDetailDocumentV1;
 import org.yanoproject.x.integration.detail.ObjectPutDetailV1;
@@ -13,7 +14,6 @@ import org.yanoproject.x.objectstore.s3.internal.BucketVersioning;
 import org.yanoproject.x.objectstore.s3.internal.EncryptionMode;
 import org.yanoproject.x.objectstore.s3.internal.StoredObject;
 import org.yanoproject.x.objectstore.s3.internal.StoredObjectMetadata;
-import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.time.Clock;
@@ -27,12 +27,12 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.yanoproject.x.objectstore.s3.effects.ObjectStoreEffectTestSupport.CONTENT;
 import static org.yanoproject.x.objectstore.s3.effects.ObjectStoreEffectTestSupport.NOW;
 import static org.yanoproject.x.objectstore.s3.effects.ObjectStoreEffectTestSupport.command;
 import static org.yanoproject.x.objectstore.s3.effects.ObjectStoreEffectTestSupport.context;
 import static org.yanoproject.x.objectstore.s3.effects.ObjectStoreEffectTestSupport.effect;
-import static org.assertj.core.api.Assertions.assertThat;
 
 class S3ObjectPutExecutorTest {
 

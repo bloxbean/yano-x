@@ -1,9 +1,6 @@
 package org.yanoproject.x.evidence.profile;
 
 import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
-import org.yanoproject.api.appchain.AppBlock;
-import org.yanoproject.api.appchain.AppBlockExecutionContext;
-import org.yanoproject.api.appchain.AppStateMachine;
 import org.yanoproject.x.composite.ComponentGeneration;
 import org.yanoproject.x.composite.CompositeWorkflow;
 import org.yanoproject.x.composite.CompositeWorkflowContext;
@@ -12,6 +9,9 @@ import org.yanoproject.x.examples.evidence.EvidenceContract;
 import org.yanoproject.x.examples.evidence.EvidenceRegistryStateMachine;
 import org.yanoproject.x.examples.evidence.command.EvidenceCommandCodec;
 import org.yanoproject.x.examples.evidence.command.NotifyEvidenceCommandV1;
+import org.yanoproject.x.framework.api.appchain.AppBlock;
+import org.yanoproject.x.framework.api.appchain.AppBlockExecutionContext;
+import org.yanoproject.x.framework.api.appchain.AppStateMachine;
 
 import java.util.List;
 

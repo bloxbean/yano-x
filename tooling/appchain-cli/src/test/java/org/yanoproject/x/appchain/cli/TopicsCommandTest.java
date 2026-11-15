@@ -5,10 +5,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import org.yanoproject.api.appchain.topics.TopicKeys;
-import org.yanoproject.api.appchain.topics.TopicWire;
-import org.yanoproject.api.appchain.topics.TopicWireCodec;
 import org.yanoproject.x.devtools.TopicsCli;
+import org.yanoproject.x.framework.api.appchain.topics.TopicKeys;
+import org.yanoproject.x.framework.api.appchain.topics.TopicWire;
+import org.yanoproject.x.framework.api.appchain.topics.TopicWireCodec;
 
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;

@@ -1,36 +1,40 @@
 package org.yanoproject.x.composite;
 
-import org.yanoproject.api.appchain.AppBlock;
-import org.yanoproject.api.appchain.AppChainConsensusProfileCommitment;
-import org.yanoproject.api.appchain.topics.TopicPayloadMessage;
-import org.yanoproject.api.appchain.topics.TopicKeys;
-import org.yanoproject.api.appchain.topics.TopicState;
-import org.yanoproject.api.appchain.topics.TopicWire;
-import org.yanoproject.api.appchain.AppBlockExecutionContext;
-import org.yanoproject.api.appchain.AppChainInfo;
-import org.yanoproject.api.appchain.AppCapabilityIds;
-import org.yanoproject.api.appchain.AppCapabilityManifest;
-import org.yanoproject.api.appchain.AppQueryContext;
-import org.yanoproject.api.appchain.AppQueryException;
-import org.yanoproject.api.appchain.AppStateMachine;
-import org.yanoproject.api.appchain.AppStateReader;
-import org.yanoproject.api.appchain.AppStateWriter;
 import org.yanoproject.x.composite.bindings.EventBindingWorkflow;
 import org.yanoproject.x.composite.contracts.AggregateQueryCodecV1;
 import org.yanoproject.x.composite.contracts.BindingIrV1;
-import org.yanoproject.api.appchain.AppStateMachineContext;
-import org.yanoproject.api.appchain.effects.AppEffectEmitter;
-import org.yanoproject.api.appchain.effects.EffectId;
-import org.yanoproject.api.appchain.effects.EffectIntent;
-import org.yanoproject.api.appchain.effects.EffectResult;
-import org.yanoproject.api.appchain.effects.FxResultBody;
-import org.yanoproject.api.appchain.effects.ResultPolicy;
-import org.yanoproject.api.appchain.proof.ProofSubjectProvider;
+import org.yanoproject.x.framework.api.appchain.AppBlock;
+import org.yanoproject.x.framework.api.appchain.AppBlockExecutionContext;
+import org.yanoproject.x.framework.api.appchain.AppCapabilityIds;
+import org.yanoproject.x.framework.api.appchain.AppCapabilityManifest;
+import org.yanoproject.x.framework.api.appchain.AppChainConsensusProfileCommitment;
+import org.yanoproject.x.framework.api.appchain.AppChainInfo;
+import org.yanoproject.x.framework.api.appchain.AppChainMembershipView;
+import org.yanoproject.x.framework.api.appchain.AppQueryContext;
+import org.yanoproject.x.framework.api.appchain.AppQueryException;
+import org.yanoproject.x.framework.api.appchain.AppStateMachine;
+import org.yanoproject.x.framework.api.appchain.AppStateMachineContext;
+import org.yanoproject.x.framework.api.appchain.AppStateReader;
+import org.yanoproject.x.framework.api.appchain.AppStateWriter;
+import org.yanoproject.x.framework.api.appchain.effects.AppEffectEmitter;
+import org.yanoproject.x.framework.api.appchain.effects.EffectId;
+import org.yanoproject.x.framework.api.appchain.effects.EffectIntent;
+import org.yanoproject.x.framework.api.appchain.effects.EffectResult;
+import org.yanoproject.x.framework.api.appchain.effects.FxResultBody;
+import org.yanoproject.x.framework.api.appchain.effects.ResultPolicy;
+import org.yanoproject.x.framework.api.appchain.l1view.L1Observation;
+import org.yanoproject.x.framework.api.appchain.proof.ProofSubjectProvider;
+import org.yanoproject.x.framework.api.appchain.snapshot.AuthenticatedSnapshotSeriesDescriptorV1;
+import org.yanoproject.x.framework.api.appchain.snapshot.AuthenticatedSnapshotSourceCommitmentV1;
+import org.yanoproject.x.framework.api.appchain.topics.TopicKeys;
+import org.yanoproject.x.framework.api.appchain.topics.TopicPayloadMessage;
+import org.yanoproject.x.framework.api.appchain.topics.TopicState;
+import org.yanoproject.x.framework.api.appchain.topics.TopicWire;
 
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
-import java.util.Arrays;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -148,7 +152,7 @@ public final class CompositeStateMachine implements AppStateMachine {
             byte[] initialProfileDigest,
             int frameworkMaxEffects,
             CompositeGovernanceConfig governanceConfig,
-            org.yanoproject.api.appchain.AppChainMembershipView membershipView
+            AppChainMembershipView membershipView
     ) {
         this.machineId = CompositeValidation.id(machineId, "machineId");
         this.catalog = Objects.requireNonNull(catalog, "catalog");
@@ -230,10 +234,8 @@ public final class CompositeStateMachine implements AppStateMachine {
     }
 
     @Override
-    public List<org.yanoproject.api.appchain.snapshot
-            .AuthenticatedSnapshotSeriesDescriptorV1> authenticatedSnapshotSeries() {
-        Map<String, org.yanoproject.api.appchain.snapshot
-                .AuthenticatedSnapshotSeriesDescriptorV1> declared = new LinkedHashMap<>();
+    public List<AuthenticatedSnapshotSeriesDescriptorV1> authenticatedSnapshotSeries() {
+        Map<String, AuthenticatedSnapshotSeriesDescriptorV1> declared = new LinkedHashMap<>();
         for (ComponentBinding component : allComponents) {
             String componentId = component.descriptor().componentId();
             for (var series : component.product().authenticatedSnapshotSeries()) {
@@ -246,15 +248,12 @@ public final class CompositeStateMachine implements AppStateMachine {
             }
         }
         return declared.values().stream().sorted(
-                java.util.Comparator.comparing(org.yanoproject.api.appchain.snapshot
-                        .AuthenticatedSnapshotSeriesDescriptorV1::seriesId)).toList();
+                java.util.Comparator.comparing(AuthenticatedSnapshotSeriesDescriptorV1::seriesId)).toList();
     }
 
     @Override
-    public List<org.yanoproject.api.appchain.snapshot
-            .AuthenticatedSnapshotSourceCommitmentV1> authenticatedSnapshotSourceCommitments() {
-        Map<String, org.yanoproject.api.appchain.snapshot
-                .AuthenticatedSnapshotSourceCommitmentV1> declared = new LinkedHashMap<>();
+    public List<AuthenticatedSnapshotSourceCommitmentV1> authenticatedSnapshotSourceCommitments() {
+        Map<String, AuthenticatedSnapshotSourceCommitmentV1> declared = new LinkedHashMap<>();
         for (ComponentBinding component : allComponents) {
             String componentId = component.descriptor().componentId();
             for (var source : component.product().authenticatedSnapshotSourceCommitments()) {
@@ -271,8 +270,7 @@ public final class CompositeStateMachine implements AppStateMachine {
             }
         }
         return declared.values().stream().sorted(java.util.Comparator.comparing(
-                org.yanoproject.api.appchain.snapshot
-                        .AuthenticatedSnapshotSourceCommitmentV1::seriesId)).toList();
+                AuthenticatedSnapshotSourceCommitmentV1::seriesId)).toList();
     }
 
     @Override
@@ -337,8 +335,7 @@ public final class CompositeStateMachine implements AppStateMachine {
                 .filter(workflow -> workflow.descriptor().topics().contains(topic))
                 .toList();
         if (topic != null && topic.startsWith("~")
-                && !topic.startsWith(org.yanoproject.api.appchain.l1view
-                .L1Observation.TOPIC_PREFIX)
+                && !topic.startsWith(L1Observation.TOPIC_PREFIX)
                 && candidates.isEmpty()) {
             return AdmissionResult.reject("Unsupported composite framework topic");
         }

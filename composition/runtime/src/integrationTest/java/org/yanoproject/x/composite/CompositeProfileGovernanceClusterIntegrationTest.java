@@ -7,30 +7,30 @@ import com.bloxbean.cardano.yaci.core.protocol.handshake.util.N2NVersionTableCon
 import com.bloxbean.cardano.yaci.core.storage.ChainState;
 import com.bloxbean.cardano.yaci.core.storage.ChainTip;
 import com.bloxbean.cardano.yaci.core.util.HexUtil;
-import org.yanoproject.api.appchain.AppBlock;
-import org.yanoproject.api.appchain.AppBlockExecutionContext;
-import org.yanoproject.api.appchain.AppChainConfig;
-import org.yanoproject.api.appchain.AppChainConsensusProfile;
-import org.yanoproject.api.appchain.AppChainMembershipEpoch;
-import org.yanoproject.api.appchain.AppQueryContext;
-import org.yanoproject.api.appchain.AppStateMachine;
-import org.yanoproject.api.appchain.AppStateMachineContext;
-import org.yanoproject.api.appchain.AppStateWriter;
-import org.yanoproject.api.appchain.AppSubmissionRejectedException;
-import org.yanoproject.api.appchain.effects.AppEffectEmitter;
-import org.yanoproject.api.appchain.state.StateCommitmentIdentity;
-import org.yanoproject.api.appchain.state.StateCommitmentProfiles;
-import org.yanoproject.x.composite.contracts.AggregateQueryLimitsV1;
-import org.yanoproject.x.composite.contracts.CompositeProfileGovernanceV1;
-import org.yanoproject.appchain.testkit.AppChainTestProfiles;
-import org.yanoproject.runtime.appchain.AppChainSubsystem;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.function.Executable;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
+import org.junit.jupiter.api.function.Executable;
 import org.junit.jupiter.api.io.TempDir;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.yanoproject.appchain.testkit.AppChainTestProfiles;
+import org.yanoproject.x.composite.contracts.AggregateQueryLimitsV1;
+import org.yanoproject.x.composite.contracts.CompositeProfileGovernanceV1;
+import org.yanoproject.x.framework.api.appchain.AppBlock;
+import org.yanoproject.x.framework.api.appchain.AppBlockExecutionContext;
+import org.yanoproject.x.framework.api.appchain.AppChainConfig;
+import org.yanoproject.x.framework.api.appchain.AppChainConsensusProfile;
+import org.yanoproject.x.framework.api.appchain.AppChainMembershipEpoch;
+import org.yanoproject.x.framework.api.appchain.AppQueryContext;
+import org.yanoproject.x.framework.api.appchain.AppStateMachine;
+import org.yanoproject.x.framework.api.appchain.AppStateMachineContext;
+import org.yanoproject.x.framework.api.appchain.AppStateWriter;
+import org.yanoproject.x.framework.api.appchain.AppSubmissionRejectedException;
+import org.yanoproject.x.framework.api.appchain.effects.AppEffectEmitter;
+import org.yanoproject.x.framework.api.appchain.state.StateCommitmentIdentity;
+import org.yanoproject.x.framework.api.appchain.state.StateCommitmentProfiles;
+import org.yanoproject.x.framework.cardano.AppChainSubsystem;
 
 import java.io.IOException;
 import java.net.ServerSocket;
@@ -293,7 +293,7 @@ class CompositeProfileGovernanceClusterIntegrationTest {
                 return Optional.of(limits);
             }
             @Override
-            public Optional<org.yanoproject.api.appchain.AppChainMembershipView>
+            public Optional<org.yanoproject.x.framework.api.appchain.AppChainMembershipView>
             membershipView() {
                 return Optional.of(ignored -> membership);
             }

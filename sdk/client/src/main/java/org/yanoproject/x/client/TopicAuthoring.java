@@ -1,15 +1,15 @@
 package org.yanoproject.x.client;
 
-import org.yanoproject.api.appchain.topics.TopicNames;
-import org.yanoproject.api.appchain.topics.TopicWire.CommandStatement;
-import org.yanoproject.api.appchain.topics.TopicWire.Delegation;
-import org.yanoproject.api.appchain.topics.TopicWire.Frame;
-import org.yanoproject.api.appchain.topics.TopicWire.RegistryCommand;
-import org.yanoproject.api.appchain.topics.TopicWire.Signature;
-import org.yanoproject.api.appchain.topics.TopicWire.WriteStatement;
-import org.yanoproject.api.appchain.topics.TopicWire.WriterProof;
-import org.yanoproject.api.appchain.topics.TopicWireCodec;
 import org.yanoproject.api.util.StrictEd25519;
+import org.yanoproject.x.framework.api.appchain.topics.TopicNames;
+import org.yanoproject.x.framework.api.appchain.topics.TopicWire.CommandStatement;
+import org.yanoproject.x.framework.api.appchain.topics.TopicWire.Delegation;
+import org.yanoproject.x.framework.api.appchain.topics.TopicWire.Frame;
+import org.yanoproject.x.framework.api.appchain.topics.TopicWire.RegistryCommand;
+import org.yanoproject.x.framework.api.appchain.topics.TopicWire.Signature;
+import org.yanoproject.x.framework.api.appchain.topics.TopicWire.WriteStatement;
+import org.yanoproject.x.framework.api.appchain.topics.TopicWire.WriterProof;
+import org.yanoproject.x.framework.api.appchain.topics.TopicWireCodec;
 
 import java.security.SecureRandom;
 import java.util.ArrayList;

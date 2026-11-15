@@ -1,12 +1,12 @@
 package org.yanoproject.x.stdlib;
 
-import org.yanoproject.api.appchain.AppStateWriter;
-import org.yanoproject.api.appchain.AppStateReader;
+import org.yanoproject.x.framework.api.appchain.AppStateReader;
+import org.yanoproject.x.framework.api.appchain.AppStateWriter;
 import org.yanoproject.x.roles.GovernedCryptoWork;
 import org.yanoproject.x.roles.RoleAuthorizationCapability;
 import org.yanoproject.x.roles.contracts.GovernedAuthorizationLimitsV1;
-import org.yanoproject.x.stdlib.contracts.AuthenticatedMapAuthorizationContract;
 import org.yanoproject.x.stdlib.contracts.AuthenticatedMapAuthorizationContract.*;
+import org.yanoproject.x.stdlib.contracts.AuthenticatedMapAuthorizationContract;
 import org.yanoproject.x.stdlib.contracts.AuthenticatedMapContract;
 
 import java.security.MessageDigest;

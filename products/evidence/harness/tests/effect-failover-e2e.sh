@@ -471,9 +471,11 @@ assert_plugin_operations_all_nodes() {
       "http://127.0.0.1:$port/api/v1/plugin-operations" \
       '.catalogFingerprint | test("^sha256:[0-9a-f]{64}$")' "$summary" \
       || fail "node $node plugin operations summary is unavailable"
+    # Required host app-ledger bundle plus the eight configured optional demo bundles.
     wait_authenticated_json \
       "http://127.0.0.1:$port/api/v1/plugin-operations/bundles?limit=100" \
       '(.items | map(select(.selected)) | map(.id)) == [
+          "org.yanoproject.x.app-ledger",
           "org.yanoproject.x.composite",
           "org.yanoproject.x.evidence-profile",
           "org.yanoproject.x.evidence-registry",
@@ -488,7 +490,7 @@ assert_plugin_operations_all_nodes() {
           and (.health == "UNKNOWN" or .health == "UP")
           and .failure.code == "NONE"
           and .metricsStale == false))
-        and ([.items[] | select(.selected) | .contributionCount] | add) == 30
+        and ([.items[] | select(.selected) | .contributionCount] | add) == 31
         and .nextAfter == null' "$bundles" \
       || fail "node $node plugin inventory is not the exact selected demo catalog"
     fingerprint="$(jq -r '.catalogFingerprint' "$summary")"
@@ -498,7 +500,7 @@ assert_plugin_operations_all_nodes() {
       and (.capturedAtEpochMillis | type == "number" and . > 0)
       and .pluginApiMajor == 3
       and (.pluginApiLevel | type == "number" and . >= 8)
-      and .totals.selectedBundles == 8
+      and .totals.selectedBundles == 9
       and .totals.failedBundles == 0
       and .totals.degradedBundles == 0
       and .totals.staleSources == 0
@@ -556,7 +558,7 @@ def sample(name, required_label):
 
 sample("yano_appchain_tip_height", f'chain="{chain}"')
 sample("yano_appchain_effects_open", f'chain="{chain}"')
-if sample("yano_plugin_bundles", 'state="selected"') != 8:
+if sample("yano_plugin_bundles", 'state="selected"') != 9:
     raise SystemExit(1)
 PY
   done

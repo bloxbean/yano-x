@@ -1,5 +1,5 @@
 dependencies {
-    api rootProject.ext.yanoModule('yano-core-api')
+    api project(':framework:api')
     api project(':ledgers:eutxo:contracts')
     api libs.cardano.client.core
     implementation libs.cardano.client.crypto

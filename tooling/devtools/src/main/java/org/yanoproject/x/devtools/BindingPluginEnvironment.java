@@ -1,6 +1,7 @@
 package org.yanoproject.x.devtools;
 
 import org.yanoproject.api.config.PluginsOptions;
+import org.yanoproject.api.plugin.PluginCatalogView;
 import org.yanoproject.runtime.plugins.PluginLoaderHandle;
 import org.yanoproject.runtime.plugins.PluginProviderRegistry;
 import org.yanoproject.runtime.plugins.PluginRuntimeEnvironment;
@@ -49,7 +50,7 @@ final class BindingPluginEnvironment implements AutoCloseable {
     String fingerprint() { return runtime.catalog().fingerprint(); }
 
     /** Exact validated catalog view: plugin API level, fingerprint and bundle inventory. */
-    org.yanoproject.api.plugin.PluginCatalogView catalog() { return runtime.catalog(); }
+    PluginCatalogView catalog() { return runtime.catalog(); }
 
     @Override public void close() { runtime.close(); }
 
@@ -100,9 +101,12 @@ final class BindingPluginEnvironment implements AutoCloseable {
         }
 
         private boolean hidden(String name) {
-            // Host classes are stripped from published bundles. SPI identity must never be hidden even
-            // for an invalid bundle; catalog validation will reject a bundle that embeds the host API.
-            if (name.startsWith("org/yanoproject/api/") || name.startsWith("com/bloxbean/cardano/")
+            // Shared APIs are stripped from published bundles. SPI identity must never be hidden even
+            // for an invalid bundle; catalog validation rejects embedded host or framework APIs.
+            if (name.startsWith("org/yanoproject/api/")
+                    || name.startsWith("org/yanoproject/x/framework/api/")
+                    || name.startsWith("org/yanoproject/x/framework/cardano/api/")
+                    || name.startsWith("com/bloxbean/cardano/")
                     || name.startsWith("com/fasterxml/jackson/")
                     || name.startsWith("co/nstant/in/cbor/")) return false;
             return name.equals("META-INF/yano-plugin-index-v1.json")

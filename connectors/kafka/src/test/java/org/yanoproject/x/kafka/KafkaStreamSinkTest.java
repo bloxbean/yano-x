@@ -1,11 +1,11 @@
 package org.yanoproject.x.kafka;
 
-import org.yanoproject.api.appchain.AppBlock;
-import org.yanoproject.api.appchain.FinalityCert;
 import org.apache.kafka.clients.producer.MockProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.jupiter.api.Test;
+import org.yanoproject.x.framework.api.appchain.AppBlock;
+import org.yanoproject.x.framework.api.appchain.FinalityCert;
 
 import java.util.List;
 import java.util.Map;

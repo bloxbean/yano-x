@@ -2,19 +2,19 @@ package org.yanoproject.x.stdlib;
 
 import com.bloxbean.cardano.client.crypto.KeyGenUtil;
 import com.bloxbean.cardano.yaci.core.util.HexUtil;
-import org.yanoproject.api.appchain.AppChainConfig;
-import org.yanoproject.api.appchain.AppQueryResult;
-import org.yanoproject.x.composite.CompositeStateKeys;
-import org.yanoproject.x.stdlib.contracts.AuthenticatedMapAuthorizationContract;
-import org.yanoproject.x.stdlib.contracts.AuthenticatedMapContract;
-import org.yanoproject.runtime.appchain.AppChainSubsystem;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.function.Executable;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
+import org.junit.jupiter.api.function.Executable;
 import org.junit.jupiter.api.io.TempDir;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.yanoproject.x.composite.CompositeStateKeys;
+import org.yanoproject.x.framework.api.appchain.AppChainConfig;
+import org.yanoproject.x.framework.api.appchain.AppQueryResult;
+import org.yanoproject.x.framework.cardano.AppChainSubsystem;
+import org.yanoproject.x.stdlib.contracts.AuthenticatedMapAuthorizationContract;
+import org.yanoproject.x.stdlib.contracts.AuthenticatedMapContract;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
