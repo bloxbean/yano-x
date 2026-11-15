@@ -12,7 +12,7 @@ The optional `cardano-construction` profile selects the Cardano root and on-chai
 
 The Cardano check constructs and closes a real in-memory `YanoAssembly.relay` with the app ledger enabled, plugins enabled, peers empty, and anchoring disabled. It validates the actual `CardanoRuntimeServices` constructor linkage, Cardano chain assembly, one manager lifecycle hook, and public handles. It never calls `start()` and must leave both persistent-store paths absent. Its JVM has a maximum 60-second timeout. This construction check does not claim Cardano network synchronization or anchoring coverage; those remain integrated release-qualification gates.
 
-The old-package candidates in [`fixtures/supported-host`](fixtures/supported-host/README.md) and `fixtures/first-host` are immutable historical evidence. They cannot qualify the migrated `org.yanoproject.x.framework.*` namespace. Recompile consumers and prepare a new namespace-compatible baseline once, after matching exact host artifacts are staged; archive it in a new fixture directory. The Host API interface/version contract remains unchanged, but the host implementation must use the new framework types. Fill the version placeholders in `inputs.example.json`; do not mix old-package host candidates into this matrix:
+The old-package candidates in [`fixtures/supported-host`](fixtures/supported-host/README.md) and `fixtures/first-host` are immutable historical evidence. They cannot qualify the migrated `org.yanoproject.x.framework.*` namespace. Recompile consumers. The [namespace-compatible baseline](fixtures/namespace-host/README.md) now retains its newly compiled client and exact qualification inputs; reuse those bytes for subsequent compatible X releases. The Host API interface/version contract remains unchanged, but the host implementation must use the new framework types. The example pins this first baseline/current candidate; replace its repository path with verified staged inputs. Do not mix old-package host candidates into this matrix. The preparation command below is for deliberately establishing a new baseline, not for normal upgrades:
 
 ```sh
 python3 qa/framework/host-matrix/run.py prepare \
@@ -25,7 +25,7 @@ Run the unchanged fixture against the oldest supported and current hosts:
 
 ```sh
 python3 qa/framework/host-matrix/run.py run \
-  --inputs /absolute/host-matrix.json --fixture /absolute/frozen-namespace-host-fixture \
+  --inputs /absolute/host-matrix.json --fixture qa/framework/host-matrix/fixtures/namespace-host \
   --out /private/tmp/host-matrix-run
 ```
 

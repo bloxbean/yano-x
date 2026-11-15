@@ -1,6 +1,6 @@
 # ADR-057: Application-ledger framework extraction
 
-Status: implemented; namespace-compatible host qualification and final coordinated release qualification pending.
+Status: implemented; namespace-compatible host qualification passed; final coordinated release qualification pending.
 
 Coordinated with [Yano issue #245](https://github.com/bloxbean/yano/issues/245),
 [Yano ADR-063](https://github.com/bloxbean/yano/blob/feat/245-app-ledger-host-api/adr/063-standalone-application-ledger-and-host-api.md)

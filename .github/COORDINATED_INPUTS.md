@@ -66,11 +66,11 @@ Current verified sequence:
 
 - [Yano foundation 43605316740](https://github.com/bloxbean/yano/actions/runs/43605316740),
   commit `272157da2cb368fc2b7fc4fd0f8b9d68a8f23340`.
-- [X framework 43607120836](https://github.com/bloxbean/yano-x/actions/runs/43607120836),
-  commit `2fc43e75944ba9c52b7a8a763155ea851801c23a`.
-- [Yano full host 43611263682](https://github.com/bloxbean/yano/actions/runs/43611263682),
-  commit `1defb5bb9e59fd6fe5fc2b9c8161bc3a3d4734ff`, host/node/Cardano
-  `0.1.0-pre20-1defb5bb9`, retaining Host API `1.0.0-272157da2` unchanged.
+- [X framework 43665017469](https://github.com/bloxbean/yano-x/actions/runs/43665017469),
+  commit `a3ef67b3696385270dc1083c165159d9f4f5f34a`.
+- [Yano full host 43665604964](https://github.com/bloxbean/yano/actions/runs/43665604964),
+  commit `bf45507fdd39d37516fceab7eae17e3df171376d`, host/node/Cardano
+  `0.1.0-pre20-bf45507fd`, retaining Host API `1.0.0-272157da2` unchanged.
 
 All three runs succeeded. Full-host staging includes the actual packaged JVM
 catalog smoke and verifies that rebuilding the Host API did not change the
@@ -85,3 +85,8 @@ staging retain their independent version selection. Public foundation/framework
 coordinates must replace temporary Actions inputs before merge into a branch
 that publishes snapshots or releases, and final release POMs must use released
 Yaci rather than the qualification snapshot.
+
+The renamed framework requires this namespace-compatible host implementation.
+Host API `1.0.0-272157da2` is unchanged. The newly frozen
+[namespace fixture](../qa/framework/host-matrix/fixtures/namespace-host/README.md)
+qualifies the new baseline; historical old-package fixture results do not.

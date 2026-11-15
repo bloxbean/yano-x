@@ -55,8 +55,9 @@ is development evidence, not a published compatibility baseline. Keep the
 
 The namespace migration requires the first namespace-compatible host implementation
 as the new supported baseline; the Host API contract itself is unchanged.
-Once frozen, run this gate against that unchanged artifact and each newer
-compatible API, then run the same packaged X bundle on oldest/current hosts.
+The candidate fixture below is now frozen. Run this gate against that unchanged
+artifact and each newer compatible API, then run the same packaged X bundle on
+oldest/current hosts.
 The [packaged host matrix](host-matrix/README.md) runs a frozen client against
 actual thin host artifacts; the core-only gate does not replace it. Do not regenerate the baseline with each framework release.
 
@@ -83,11 +84,20 @@ X compiled against node API `.4`. The matrix additionally constructs and closes
 the actual optional Cardano assembly in a separate packaged JVM.
 
 These retained old-package fixtures are immutable historical evidence and do not
-qualify the migrated namespace. Prepare a new fixture exactly once against the
-new namespace-compatible host, then reuse it unchanged for subsequent X releases.
+qualify the migrated namespace. The separate namespace fixture below was prepared
+once against the new host; reuse it unchanged for subsequent compatible X candidates.
 
 All candidate artifacts are unpublished development inputs. Freeze the first
 published compatible host and its exact inputs during the coordinated release;
 ordinary later X releases reuse that baseline and the unchanged fixture. Keep
 all final public dependency versions truthful, including the upstream Yaci
 release; the explicit QA candidate override is not a production dependency pin.
+
+## Namespace-compatible baseline
+
+The [new namespace fixture](host-matrix/fixtures/namespace-host/README.md)
+passes standalone three-node protocol 100/103 communication, late join and restart,
+plus Cardano construction against CI host `0.1.0-pre20-bf45507fd` and framework
+`0.1.0-pre6-a3ef67b36`, with unchanged foundation/Host API `272157da2`.
+Baseline and current are the same first candidate, honestly deduplicated.
+Earlier old-package fixtures remain historical evidence; never regenerate them.
