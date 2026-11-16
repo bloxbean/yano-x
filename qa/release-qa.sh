@@ -120,13 +120,22 @@ done
 
 # --------------------------------------------------------------------- report ----
 python3 - "$OUT" "$RUN_ID" "$(git rev-parse HEAD 2>/dev/null)" "$JAR" "$JAR_SHA256" <<'PY'
-import json, pathlib, sys
+import json, pathlib, sys, zipfile
 out, run_id, commit, jar, sha = sys.argv[1:6]
 out = pathlib.Path(out)
+# The jar under test identifies itself; the checkout running the harness may be a different commit.
+with zipfile.ZipFile(jar) as archive:
+    manifest = dict(line.split(": ", 1) for line in
+                    archive.read("META-INF/MANIFEST.MF").decode().replace("\r\n ", "").replace("\n ", "")
+                    .splitlines() if ": " in line)
+yano_version = manifest.get("Implementation-Version", "unknown")
+yano_x_version = manifest.get("Yano-X-Version", "unknown")
 results = [json.loads(p.read_text()) for p in sorted((out / "results").glob("*.json"))]
-json.dump({"run_id": run_id, "commit": commit, "jar": jar, "jar_sha256": sha, "tests": results},
+json.dump({"run_id": run_id, "harness_commit": commit, "jar": jar, "jar_sha256": sha,
+           "jar_yano_version": yano_version, "jar_yano_x_version": yano_x_version, "tests": results},
           open(out / "results.json", "w"), indent=2)
-lines = [f"# App-chain release QA {run_id}", "", f"- Commit: `{commit}`", f"- Jar: `{jar}`",
+lines = [f"# App-chain release QA {run_id}", "", f"- Harness commit: `{commit}`", f"- Jar: `{jar}`",
+         f"- Jar versions (manifest): Yano `{yano_version}`, Yano X `{yano_x_version}`",
          f"- Jar SHA-256: `{sha}`", "", "| Test | Status | Duration | Reason | Log |",
          "| --- | --- | --- | --- | --- |"]
 for r in results:

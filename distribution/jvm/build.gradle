@@ -78,9 +78,13 @@ registerPluginIndex([
 ])
 
 // The node identifies as the Yano release it runs, as the baseline integrated jar did.
+// Yano-X-Version identifies the composed Yano X build (release QA reports it).
 quarkus {
     set('application.name', 'yano')
     set('application.version', yanoVersion.getOrElse('unspecified'))
+    manifest {
+        attributes('Yano-X-Version': project.version.toString())
+    }
 }
 
 java {
