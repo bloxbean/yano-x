@@ -1,7 +1,5 @@
 dependencies {
     api project(':framework:cardano')
-    // The host bindings of the X contribution kinds that classPathRegistry() discovers.
-    runtimeOnly project(':framework:host-adapter')
     api libs.junit.jupiter.api
     api rootProject.ext.yanoModule('yano-plugin-catalog')
 
