@@ -625,9 +625,10 @@ class GovernedMembershipIntegrationTest {
     /** Restart C on its own ledger and wait until it has caught up with A. */
     private AppChainSubsystem restartC(AppChainSubsystem nodeA, AppChainSubsystem nodeC, Map<String, String> topics)
             throws Exception {
-        if (nodes.remove(nodeC)) {
-            nodeC.stop();
-        }
+        nodes.remove(nodeC);
+        // stop() may return while a callback still drains and before the ledger releases its RocksDB lock;
+        // close() waits for that cleanup, so the replacement can open the same ledger.
+        nodeC.close();
         AppChainSubsystem restarted = start("c", KEY_C, Set.of(pubHex(KEY_A), pubHex(KEY_B), pubHex(KEY_C)), 0,
                 List.of(peer(topicPorts[0]), peer(topicPorts[1])), 600, topics);
         awaitTrue("restarted C caught up", () -> restarted.tipHeight() == nodeA.tipHeight()
