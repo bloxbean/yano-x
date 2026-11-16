@@ -449,6 +449,14 @@
       "publicationType": "library",
       "pluginBundleId": null,
       "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":framework:proof-verifier",
+      "directory": "framework/proof-verifier",
+      "artifactId": "yano-x-appchain-proof-verifier",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
     }
   ]
 }
