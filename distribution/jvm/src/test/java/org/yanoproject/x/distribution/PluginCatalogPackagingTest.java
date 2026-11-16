@@ -1,4 +1,4 @@
-package org.yanoproject.x.fixture.rest;
+package org.yanoproject.x.distribution;
 
 import org.junit.jupiter.api.Test;
 import org.yanoproject.api.config.PluginsOptions;

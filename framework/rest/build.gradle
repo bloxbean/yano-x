@@ -6,7 +6,7 @@ plugins {
 // ADR-064 D8: the app-chain REST surface, metrics, health, configuration projection and
 // console of the integrated Yano + Yano X application, as a Quarkus library composed with
 // yano-app-core. Plain-Java embedders use framework/host-adapter's AppLedgers instead.
-// The HTTP suites run in fixtures/appchain-rest, a Quarkus application composed from this library.
+// The HTTP suites run in distribution/jvm, the integrated application composed from this library.
 description = 'Quarkus REST, metrics, health, configuration projection and console for Yano app chains'
 
 def yanoVersion = providers.gradleProperty('yanoVersion').get()

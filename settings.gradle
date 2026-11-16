@@ -65,7 +65,6 @@ def yanoXModules = [
         ':tooling:spring-boot-starter': 'tooling/spring-boot-starter',
         ':fixtures:eutxo-e2e': 'fixtures/eutxo-e2e',
         ':fixtures:governed-recipes': 'fixtures/governed-recipes',
-        ':fixtures:appchain-rest': 'fixtures/appchain-rest',
         ':fixtures:appchain-plugin-conformance': 'fixtures/appchain-plugin-conformance'
 ]
 

@@ -1,4 +1,4 @@
-package org.yanoproject.x.fixture.rest;
+package org.yanoproject.x.distribution;
 
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.junit.TestProfile;

@@ -1,4 +1,4 @@
-package org.yanoproject.x.fixture.rest;
+package org.yanoproject.x.distribution;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
