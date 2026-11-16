@@ -10,11 +10,9 @@ import org.yanoproject.catalog.PluginCatalogInspection;
 import org.yanoproject.catalog.PluginCatalogInspectionPolicy;
 import org.yanoproject.catalog.PluginCatalogInspector;
 import org.yanoproject.catalog.PluginIndexGenerator;
-import org.yanoproject.x.framework.api.appchain.AppStateMachineProvider;
-import org.yanoproject.x.framework.cardano.api.effects.AppEffectExecutorFactory;
+import org.yanoproject.x.framework.host.AppLedgerKinds;
 
 import java.io.IOException;
-import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
@@ -143,20 +141,9 @@ final class AppChainPluginSelection {
         return providers;
     }
 
-    /**
-     * The kinds a host built from this tool's framework accepts: Yano's built-ins plus the X kinds
-     * declared by the descriptors of the framework API artifacts this tool runs with.
-     */
+    /** The kinds a host built from this tool's framework accepts. */
     static ContributionKindRegistry hostKinds() throws IOException {
-        List<Path> apiArtifacts = new ArrayList<>();
-        for (Class<?> api : List.of(AppStateMachineProvider.class, AppEffectExecutorFactory.class)) {
-            try {
-                apiArtifacts.add(Path.of(api.getProtectionDomain().getCodeSource().getLocation().toURI()));
-            } catch (URISyntaxException e) {
-                throw new IOException("framework API artifact location is invalid", e);
-            }
-        }
-        return ContributionKindRegistry.fromHostArtifacts(apiArtifacts);
+        return AppLedgerKinds.hostRegistry(AppChainPluginSelection.class.getClassLoader());
     }
 
     private static List<Path> artifacts(Path directory) throws IOException {

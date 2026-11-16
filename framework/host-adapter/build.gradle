@@ -4,6 +4,9 @@ dependencies {
     api project(':framework:core')
     implementation project(':framework:config')
     api "org.yanoproject:yano-host-api:${providers.gradleProperty('hostApiVersion').get()}"
+    // AppLedgerKinds serves offline catalogs, whose callers bring the host's catalog library.
+    compileOnly rootProject.ext.yanoModule('yano-plugin-catalog')
+    testImplementation rootProject.ext.yanoModule('yano-plugin-catalog')
 }
 
 tasks.named('processResources') {

@@ -16,8 +16,8 @@ dependencies {
     // Consume the owning framework modules directly; OrderedLog needs no full runtime closure.
     implementation project(':framework:api')
     // The host bindings of the X contribution kinds (framework/api kinds in host-adapter, effect-executor in
-    // cardano); Yano accepts a descriptor kind only with its binding.
-    runtimeOnly(project(':framework:host-adapter')) {
+    // cardano); Yano accepts a descriptor kind only with its binding. AppLedgerKinds reads them.
+    implementation(project(':framework:host-adapter')) {
         transitive = false
     }
     runtimeOnly(project(':framework:cardano')) {

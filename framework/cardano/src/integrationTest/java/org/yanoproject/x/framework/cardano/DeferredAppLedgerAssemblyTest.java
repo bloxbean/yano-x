@@ -20,6 +20,7 @@ import org.yanoproject.api.config.YanoPropertyKeys;
 import org.yanoproject.runtime.assembly.Yano;
 import org.yanoproject.runtime.assembly.YanoAssembly;
 import org.yanoproject.x.framework.host.AppLedgerHostPlugin;
+import org.yanoproject.x.framework.host.AppLedgerKinds;
 import org.yanoproject.x.framework.host.AppLedgers;
 import org.yanoproject.api.events.BlockAppliedEvent;
 import org.yanoproject.api.events.RollbackEvent;
@@ -236,12 +237,7 @@ class DeferredAppLedgerAssemblyTest {
     }
 
     private static ContributionKindRegistry kinds() throws IOException {
-        try {
-            return ContributionKindRegistry.fromHostArtifacts(List.of(Path.of(AppStateMachineProvider.class
-                    .getProtectionDomain().getCodeSource().getLocation().toURI())));
-        } catch (java.net.URISyntaxException invalid) {
-            throw new IOException(invalid);
-        }
+        return AppLedgerKinds.hostRegistry(DeferredAppLedgerAssemblyTest.class.getClassLoader());
     }
 
     private static long managedSubscriptions(PropagatingEventBus events,
