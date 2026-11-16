@@ -15,6 +15,14 @@ dependencies {
     // The legacy host coordinates are compatibility aggregates after extraction.
     // Consume the owning framework modules directly; OrderedLog needs no full runtime closure.
     implementation project(':framework:api')
+    // The host bindings of the X contribution kinds (framework/api kinds in host-adapter, effect-executor in
+    // cardano); Yano accepts a descriptor kind only with its binding.
+    runtimeOnly(project(':framework:host-adapter')) {
+        transitive = false
+    }
+    runtimeOnly(project(':framework:cardano')) {
+        transitive = false
+    }
     implementation project(':framework:config')
     implementation(project(':framework:core')) {
         transitive = false

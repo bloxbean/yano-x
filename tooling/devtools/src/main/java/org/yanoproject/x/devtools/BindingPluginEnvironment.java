@@ -2,6 +2,7 @@ package org.yanoproject.x.devtools;
 
 import org.yanoproject.api.config.PluginsOptions;
 import org.yanoproject.api.plugin.PluginCatalogView;
+import org.yanoproject.api.plugin.spi.ContributionKindBinding;
 import org.yanoproject.runtime.plugins.PluginLoaderHandle;
 import org.yanoproject.runtime.plugins.PluginProviderRegistry;
 import org.yanoproject.runtime.plugins.PluginRuntimeEnvironment;
@@ -56,6 +57,8 @@ final class BindingPluginEnvironment implements AutoCloseable {
 
     /** Parent-first SPI identities are shared; all snapshotted implementation entries remain bundle-owned. */
     static final class SnapshotParent extends ClassLoader {
+        private static final String HOST_KIND_BINDINGS =
+                "META-INF/services/" + ContributionKindBinding.class.getName();
         private Set<String> entries = Set.of();
         private boolean initialized;
 
@@ -108,7 +111,9 @@ final class BindingPluginEnvironment implements AutoCloseable {
                     || name.startsWith("org/yanoproject/x/framework/cardano/api/")
                     || name.startsWith("com/bloxbean/cardano/")
                     || name.startsWith("com/fasterxml/jackson/")
-                    || name.startsWith("co/nstant/in/cbor/")) return false;
+                    || name.startsWith("co/nstant/in/cbor/")
+                    // The host's contribution-kind bindings, which make the X kinds valid.
+                    || name.equals(HOST_KIND_BINDINGS)) return false;
             return name.equals("META-INF/yano-plugin-index-v1.json")
                     || name.startsWith("META-INF/services/") || name.startsWith("META-INF/yano/plugins/")
                     || entries.contains(name);
