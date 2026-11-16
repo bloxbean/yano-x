@@ -39,7 +39,7 @@ fails closed rather than picking one.
 | Capability | Availability | Maturity | Runtimes | Requires artifacts | Description |
 |---|---|---|---|---|---|
 | [`state:declarative-composite`](/reference/declarative-bindings-cli/) | `BUNDLED` | `preview` | `jvm` | `yano-runtime`, `yano-x-composite`, `yano-x-stdlib`, `yano-x-role-workflow` | Committed bounded event-to-command and event-to-effect workflows. |
-| [`state:ordered-log`](https://github.com/bloxbean/yano-x/blob/main/docs/core-host.md) | `BUNDLED` | `stable` | `jvm`, `native` | `yano-runtime` | Append-only ordered application messages. |
+| [`state:ordered-log`](https://github.com/bloxbean/yano-x/blob/main/docs/core-host.md) | `BUNDLED` | `stable` | `jvm` | `yano-x-appchain-cardano` | Append-only ordered application messages. |
 | [`state:kv-registry`](/state-machines/kv-registry/) | `BUNDLED` | `stable` | `jvm` | `yano-runtime`, `yano-x-stdlib` | First-writer-owned mutable key/value records with committed proofs. |
 | [`state:authenticated-map`](/state-machines/authenticated-map/) | `BUNDLED` | `preview` | `jvm` | `yano-runtime`, `yano-x-stdlib`, `yano-x-role-workflow` | Multi-collection authenticated records with basic, direct-role, and approval authorization plus optional canonical-CBOR and schema validation. |
 | [`state:approval-workflow`](/state-machines/approvals/) | `BUNDLED` | `stable` | `jvm` | `yano-runtime`, `yano-x-stdlib` | Validator-member proposals, votes, and terminal threshold decisions. |
@@ -86,41 +86,41 @@ fails closed rather than picking one.
 
 | Capability | Availability | Maturity | Runtimes | Requires artifacts | Description |
 |---|---|---|---|---|---|
-| [`sequencer:fixed`](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/README.md) | `BUNDLED` | `stable` | `jvm`, `native` | `yano-runtime` | One declared member proposes application blocks. |
-| [`sequencer:rotating`](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/README.md) | `BUNDLED` | `experimental` | `jvm`, `native` | `yano-runtime` | Rotates proposership across members using bounded L1 slot windows. |
+| [`sequencer:fixed`](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/README.md) | `BUNDLED` | `stable` | `jvm` | `yano-x-appchain-cardano` | One declared member proposes application blocks. |
+| [`sequencer:rotating`](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/README.md) | `BUNDLED` | `experimental` | `jvm` | `yano-x-appchain-cardano` | Rotates proposership across members using bounded L1 slot windows. |
 
 ### `membership`
 
 | Capability | Availability | Maturity | Runtimes | Requires artifacts | Description |
 |---|---|---|---|---|---|
-| [`membership:static`](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/README.md) | `BUNDLED` | `stable` | `jvm`, `native` | `yano-runtime` | Pins the initial member set as the active set. |
-| [`membership:governed`](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/README.md) | `BUNDLED` | `preview` | `jvm`, `native` | `yano-runtime` | Allows authenticated member epochs to evolve through replicated governance. |
+| [`membership:static`](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/README.md) | `BUNDLED` | `stable` | `jvm` | `yano-x-appchain-cardano` | Pins the initial member set as the active set. |
+| [`membership:governed`](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/README.md) | `BUNDLED` | `preview` | `jvm` | `yano-x-appchain-cardano` | Allows authenticated member epochs to evolve through replicated governance. |
 
 ### `l1`
 
 | Capability | Availability | Maturity | Runtimes | Requires artifacts | Description |
 |---|---|---|---|---|---|
-| [`l1:slot-feed`](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/README.md) | `BUNDLED` | `stable` | `jvm`, `native` | `yano-runtime` | Supplies stable local Cardano slot observations to slot-aware app-chain behavior. |
+| [`l1:slot-feed`](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/README.md) | `BUNDLED` | `stable` | `jvm` | `yano-x-appchain-cardano` | Supplies stable local Cardano slot observations to slot-aware app-chain behavior. |
 
 ### `anchor`
 
 | Capability | Availability | Maturity | Runtimes | Requires artifacts | Description |
 |---|---|---|---|---|---|
-| [`anchor:metadata`](/tutorials/07-anchors-and-verification/) | `BUNDLED` | `stable` | `jvm`, `native` | `yano-runtime` | Commits finalized app-chain roots in Cardano transaction metadata. |
-| [`anchor:script`](/tutorials/07-anchors-and-verification/) | `BUNDLED` | `preview` | `jvm`, `native` | `yano-runtime` | Advances an app-chain anchor thread through a reviewed Cardano script. |
+| [`anchor:metadata`](/tutorials/07-anchors-and-verification/) | `BUNDLED` | `stable` | `jvm` | `yano-x-appchain-cardano` | Commits finalized app-chain roots in Cardano transaction metadata. |
+| [`anchor:script`](/tutorials/07-anchors-and-verification/) | `BUNDLED` | `preview` | `jvm` | `yano-x-appchain-cardano` | Advances an app-chain anchor thread through a reviewed Cardano script. |
 
 ### `l1-observer`
 
 | Capability | Availability | Maturity | Runtimes | Requires artifacts | Description |
 |---|---|---|---|---|---|
-| [`observer:address-deposit`](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/README.md) | `BUNDLED` | `preview` | `jvm`, `native` | `yano-runtime` | Creates stable observations for lovelace paid to one configured Cardano address. |
-| [`observer:metadata-label`](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/README.md) | `BUNDLED` | `preview` | `jvm`, `native` | `yano-runtime` | Creates stable observations for one configured Cardano transaction metadata label. |
+| [`observer:address-deposit`](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/README.md) | `BUNDLED` | `preview` | `jvm` | `yano-x-appchain-cardano` | Creates stable observations for lovelace paid to one configured Cardano address. |
+| [`observer:metadata-label`](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/README.md) | `BUNDLED` | `preview` | `jvm` | `yano-x-appchain-cardano` | Creates stable observations for one configured Cardano transaction metadata label. |
 
 ### `effects-runtime`
 
 | Capability | Availability | Maturity | Runtimes | Requires artifacts | Description |
 |---|---|---|---|---|---|
-| [`effects:runtime`](/tutorials/06-webhook-effects/) | `BUNDLED` | `preview` | `jvm`, `native` | `yano-runtime` | Enables deterministic effect intents, gates, result incorporation, and proofs. |
+| [`effects:runtime`](/tutorials/06-webhook-effects/) | `BUNDLED` | `preview` | `jvm` | `yano-x-appchain-cardano` | Enables deterministic effect intents, gates, result incorporation, and proofs. |
 
 ### `effect-emission`
 
@@ -132,7 +132,7 @@ fails closed rather than picking one.
 
 | Capability | Availability | Maturity | Runtimes | Requires artifacts | Description |
 |---|---|---|---|---|---|
-| [`executor:webhook`](/tutorials/06-webhook-effects/) | `BUNDLED` | `preview` | `jvm`, `native` | `yano-runtime` | Executes webhook.post effects against one node-local configured URL. |
+| [`executor:webhook`](/tutorials/06-webhook-effects/) | `BUNDLED` | `preview` | `jvm` | `yano-x-appchain-cardano` | Executes webhook.post effects against one node-local configured URL. |
 | [`executor:kafka`](https://github.com/bloxbean/yano-x/blob/main/connectors/kafka/README.md) | `FIRST_PARTY_OPTIONAL` | `preview` | `jvm` | `yano-runtime`, `yano-x-kafka` | Executes kafka.publish intents through allowlisted node-local Kafka targets. |
 | [`executor:objectstore-s3`](https://github.com/bloxbean/yano-x/blob/main/connectors/objectstore-s3/README.md) | `FIRST_PARTY_OPTIONAL` | `preview` | `jvm` | `yano-runtime`, `yano-x-objectstore-s3` | Executes immutable object.put promotion against allowlisted S3-compatible targets. |
 | [`executor:ipfs`](https://github.com/bloxbean/yano-x/blob/main/connectors/ipfs/README.md) | `FIRST_PARTY_OPTIONAL` | `preview` | `jvm` | `yano-runtime`, `yano-x-ipfs` | Executes reconciled ipfs.pin intents against allowlisted Kubo targets. |
@@ -142,7 +142,7 @@ fails closed rather than picking one.
 
 | Capability | Availability | Maturity | Runtimes | Requires artifacts | Description |
 |---|---|---|---|---|---|
-| [`sink:webhook`](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/README.md) | `BUNDLED` | `stable` | `jvm`, `native` | `yano-runtime` | Posts finalized application blocks to one configured node-local webhook endpoint. |
+| [`sink:webhook`](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/README.md) | `BUNDLED` | `stable` | `jvm` | `yano-x-appchain-cardano` | Posts finalized application blocks to one configured node-local webhook endpoint. |
 | [`sink:kafka`](https://github.com/bloxbean/yano-x/blob/main/connectors/kafka/README.md) | `FIRST_PARTY_OPTIONAL` | `preview` | `jvm` | `yano-runtime`, `yano-x-kafka` | Publishes finalized application blocks to a configured Kafka topic. |
 
 ### `distribution`
@@ -150,8 +150,8 @@ fails closed rather than picking one.
 | Capability | Availability | Maturity | Runtimes | Requires artifacts | Description |
 |---|---|---|---|---|---|
 | [`runtime:composite`](/plugins/) | `BUNDLED` | `preview` | `jvm` | `yano-x-composite` | Deterministic component, workflow, profile, query, quota, and profile-governance framework. |
-| [`ui:console`](https://github.com/bloxbean/yano-x/blob/main/docs/console-ui.md) | `BUNDLED` | `preview` | `jvm`, `native` | `yano-runtime` | Embedded operational app-chain status console derived from the selected Yano distribution. |
-| [`observability:prometheus`](https://github.com/bloxbean/yano-x/blob/main/docs/console-ui.md) | `FIRST_PARTY_OPTIONAL` | `preview` | `jvm`, `native` | `yano-runtime` | Optional one-command durable metrics history for the unified console. |
+| [`ui:console`](https://github.com/bloxbean/yano-x/blob/main/docs/console-ui.md) | `BUNDLED` | `preview` | `jvm` | `yano-x-appchain-cardano` | Embedded operational app-chain status console derived from the selected Yano distribution. |
+| [`observability:prometheus`](https://github.com/bloxbean/yano-x/blob/main/docs/console-ui.md) | `FIRST_PARTY_OPTIONAL` | `preview` | `jvm` | `yano-x-appchain-cardano` | Optional one-command durable metrics history for the unified console. |
 
 <!-- catalog:capabilities-end -->
 
@@ -166,6 +166,7 @@ in the distribution's checksummed bundle list.
 | Artifact | Availability | Plugin bundle id | Runtimes | Native posture |
 |---|---|---|---|---|
 | `yano-runtime` | `BUNDLED` | `builtin:yano-runtime` | `jvm`, `native` | `bundled` |
+| `yano-x-appchain-cardano` | `BUNDLED` | `builtin:yano-x-appchain-cardano` | `jvm` | `unsupported` |
 | `yano-x-stdlib` | `BUNDLED` | `org.yanoproject.x.stdlib` | `jvm` | `unsupported` |
 | `yano-x-evidence-registry` | `BUNDLED` | `org.yanoproject.x.evidence-registry` | `jvm` | `unsupported` |
 | `yano-x-composite` | `BUNDLED` | `org.yanoproject.x.composite` | `jvm` | `unsupported` |
@@ -188,7 +189,7 @@ in the distribution's checksummed bundle list.
 
 | Distribution | Runtime | Archive | Platforms | Bundled artifacts |
 |---|---|---|---|---|
-| `yano-x-jvm` | `jvm` | `yano-x-jvm-{version}.zip` | `java-25` | 10 |
+| `yano-x-jvm` | `jvm` | `yano-x-jvm-{version}.zip` | `java-25` | 11 |
 
 <!-- catalog:distributions-end -->
 

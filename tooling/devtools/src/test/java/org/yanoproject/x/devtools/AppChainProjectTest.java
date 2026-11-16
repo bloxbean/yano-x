@@ -370,6 +370,26 @@ class AppChainProjectTest {
     }
 
     @Test
+    void builtInAppChainCapabilitiesAreJvmOnlyAndOwnedByTheXFramework() throws Exception {
+        AppChainPropertyRegistry properties = AppChainPropertyRegistry.framework();
+        AppChainProjectCatalog catalog = new AppChainProjectCatalog(properties);
+        AppChainProjectResolver resolver = new AppChainProjectResolver(properties, catalog);
+
+        AppChainProjectModel.Resolution auditLog = resolver.resolve(
+                blueprint("audit-log", "fixed", List.of("a".repeat(64), "b".repeat(64), "c".repeat(64))));
+        assertThat(auditLog.artifacts()).containsExactly("yano-x-appchain-cardano");
+        assertThat(catalog.artifact("yano-x-appchain-cardano").bundleId())
+                .isEqualTo("builtin:yano-x-appchain-cardano");
+        assertThat(catalog.capabilities()).allSatisfy(capability -> {
+            assertThat(capability.runtimeTypes()).containsExactly("jvm");
+            assertThat(capability.nativePosture()).isEqualTo("unsupported");
+        });
+        assertThatThrownBy(() -> resolver.resolve(withTarget(blueprint("audit-log", "fixed",
+                List.of("a".repeat(64), "b".repeat(64), "c".repeat(64))), "native", "host")))
+                .hasMessageContaining("does not support runtime native");
+    }
+
+    @Test
     void releaseIndexAdvertisesOnlyTheYanoXJvmDistribution() throws Exception {
         AppChainPropertyRegistry properties = AppChainPropertyRegistry.framework();
         AppChainProjectCatalog catalog = new AppChainProjectCatalog(properties);

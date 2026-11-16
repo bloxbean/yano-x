@@ -49,17 +49,16 @@
         "blockIntervalMs": "1000"
       },
       "runtimeTypes": [
-        "jvm",
-        "native"
+        "jvm"
       ],
       "deploymentTargets": [
         "host",
         "docker-compose"
       ],
       "artifacts": [
-        "yano-runtime"
+        "yano-x-appchain-cardano"
       ],
-      "nativePosture": "bundled",
+      "nativePosture": "unsupported",
       "externalPrerequisites": [],
       "bootstrapRequirements": [],
       "nonSecretAnswers": [],

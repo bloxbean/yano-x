@@ -26,6 +26,7 @@
   ],
   "artifacts": [
     "yano-runtime",
+    "yano-x-appchain-cardano",
     "yano-x-stdlib",
     "yano-x-evidence-registry",
     "yano-x-composite",
@@ -47,6 +48,7 @@
       ],
       "artifacts": [
         "yano-runtime",
+        "yano-x-appchain-cardano",
         "yano-x-stdlib",
         "yano-x-evidence-registry",
         "yano-x-composite",

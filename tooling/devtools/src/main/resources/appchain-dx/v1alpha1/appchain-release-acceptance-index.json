@@ -157,8 +157,7 @@
       "maturity": "stable",
       "availability": "BUNDLED",
       "runtimeTypes": [
-        "jvm",
-        "native"
+        "jvm"
       ],
       "deploymentTargets": [
         "host",

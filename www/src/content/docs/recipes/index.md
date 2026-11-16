@@ -136,8 +136,8 @@ A replicated append-only log for opaque application records.
 - **Outcome:** One opaque record is threshold-finalized in the shared application order.
 - **Availability / maturity:** `BUNDLED` / `stable`
 - **Capabilities:** `state:ordered-log`, `sequencer:fixed`
-- **Runtime artifacts:** `yano-runtime`
-- **Runtimes:** `jvm`, `native` · **Deployment:** `host`, `docker-compose`
+- **Runtime artifacts:** `yano-x-appchain-cardano`
+- **Runtimes:** `jvm` · **Deployment:** `host`, `docker-compose`
 - **Reference:** [docs/core-host.md](https://github.com/bloxbean/yano-x/blob/main/docs/core-host.md)
 
 ```bash
