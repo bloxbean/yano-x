@@ -31,8 +31,17 @@ path. A bare Yano rejects this bundle with "contribution kind is not supported".
   It never resolves another SPI and no fixture-specific registry backdoor is
   exposed.
 
-The fixture is never published and is absent from stock artifacts. The packaged
-integrated-distribution smoke loads it from an external plugin directory.
+The fixture is never published and is absent from stock artifacts. Two
+distribution gates load it from an external plugin directory into the
+integrated application:
+
+- `:distribution:jvm:packagedJvmPluginCatalogSmoke` (part of `distributionCheck`)
+  starts the `yano.jar` of the unpacked JVM ZIP with a one-member chain that
+  selects every fixture kind, and checks the running status (signer, state
+  machine, sequencer, observer, sink, effect executor), the committed-query and
+  domain APIs, plugin health and metrics, and exactly one activation marker;
+- the `DomainRouteAuth*Test` `@QuarkusTest` classes in `distribution/jvm` check
+  the HTTP auth outcomes of its domain routes.
 
 For multi-node operations tests, the same fixture JAR can expose node-local
 health outcomes with `-Dyano.plugin.conformance.health-mode=UP|DEGRADED|DOWN|HANG`.

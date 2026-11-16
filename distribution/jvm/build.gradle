@@ -405,6 +405,7 @@ tasks.register('verifyYanoInputs') {
 
 apply from: file('plugin-pack.gradle')
 apply from: file('jvm-distribution.gradle')
+apply from: file('packaged-plugin-catalog-smoke.gradle')
 
 tasks.named('check') {
     dependsOn tasks.named('verifyYanoXJvmDistribution')
