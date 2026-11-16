@@ -5,7 +5,7 @@ allprojects {
     def inputVersion = providers.gradleProperty('appLedgerYaciVersion')
     if (!inputRepository.isPresent() || !inputVersion.isPresent()) {
         throw new GradleException('Supply -PappLedgerYaciRepository=<Maven repository URI> '
-                + 'and -PappLedgerYaciVersion=<exact version>; see qa/app-ledger/README.md')
+                + 'and -PappLedgerYaciVersion=<exact version>; see qa/framework/README.md')
     }
     repositories {
         exclusiveContent {
