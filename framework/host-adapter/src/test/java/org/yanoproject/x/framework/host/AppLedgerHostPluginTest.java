@@ -25,6 +25,16 @@ import org.yanoproject.runtime.plugins.PluginProviderRegistry;
 import org.yanoproject.x.framework.api.appchain.AppChainConfig;
 import org.yanoproject.x.framework.api.appchain.state.StateCommitmentIdentity;
 import org.yanoproject.x.framework.api.appchain.state.StateCommitmentProfiles;
+import org.yanoproject.x.framework.api.plugin.domain.DomainApi;
+import org.yanoproject.x.framework.api.plugin.domain.DomainApiAccess;
+import org.yanoproject.x.framework.api.plugin.domain.DomainApiContext;
+import org.yanoproject.x.framework.api.plugin.domain.DomainApiProvider;
+import org.yanoproject.x.framework.api.plugin.domain.DomainApiRequest;
+import org.yanoproject.x.framework.api.plugin.domain.DomainApiResponse;
+import org.yanoproject.x.framework.api.plugin.domain.DomainApiRoute;
+import org.yanoproject.x.framework.api.plugin.domain.DomainHttpMethod;
+import org.yanoproject.x.framework.api.plugin.domain.LocalReadModelContext;
+import org.yanoproject.x.framework.api.plugin.domain.LocalReadModelProvider;
 import org.yanoproject.x.framework.runtime.appchain.AppLedgerManager;
 import org.yanoproject.x.framework.runtime.appchain.AppLedgerRuntime;
 
@@ -40,6 +50,7 @@ import java.util.function.UnaryOperator;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.catchThrowable;
 
 class AppLedgerHostPluginTest {
     @Test
@@ -163,6 +174,55 @@ class AppLedgerHostPluginTest {
         harness.products.sealAndAwait();
         plugin.close();
         assertThat(ledgers.localReadModels()).isEmpty();
+    }
+
+    @Test
+    void productSealStillSealsTheReadModelsWhenADomainProductFailsToClose() {
+        Harness harness = new Harness();
+        List<String> events = new ArrayList<>();
+        IllegalStateException domainFailure = new IllegalStateException("domain close failed");
+        IllegalStateException readModelFailure = new IllegalStateException("read-model close failed");
+        harness.providers = providers(new DomainApiProvider() {
+            public String id() { return "com.example.domain"; }
+            public DomainApi create(DomainApiContext context) {
+                return new DomainApi() {
+                    public List<DomainApiRoute> routes() {
+                        return List.of(new DomainApiRoute("read", DomainHttpMethod.GET, "read",
+                                DomainApiAccess.READ));
+                    }
+                    public DomainApiResponse handle(DomainApiRequest request) {
+                        throw new AssertionError("not dispatched");
+                    }
+                    public void close() {
+                        events.add("close:domain");
+                        throw domainFailure;
+                    }
+                };
+            }
+        }, new LocalReadModelProvider() {
+            public String id() { return "com.example.read-model"; }
+            public AutoCloseable start(LocalReadModelContext context) {
+                return () -> {
+                    events.add("close:read-model");
+                    throw readModelFailure;
+                };
+            }
+        });
+        ProbePlugin plugin = new ProbePlugin();
+        plugin.init(harness);
+        plugin.assemble();
+        try {
+            assertThat(harness.published.get(1).name()).isEqualTo("local-read-models");
+            harness.published.get(1).start();
+            harness.products.resume();
+
+            assertThat(catchThrowable(harness.products::sealAndAwait)).isSameAs(domainFailure);
+            assertThat(events).containsExactly("close:domain", "close:read-model");
+            assertThat(domainFailure.getSuppressed()).containsExactly(readModelFailure);
+        } finally {
+            harness.owned.get().close();
+            plugin.close();
+        }
     }
 
     @Test
@@ -659,6 +719,7 @@ class AppLedgerHostPluginTest {
         private Runnable onProtocolRegistration = () -> { };
         private Runnable onOwnershipTransfer = () -> { };
         private Map<String, Object> legacyConfig = Map.of();
+        private PluginProviderRegistry providers = PluginProviderRegistry.empty();
 
         Harness() {
             globals(transportGlobals("dedicated", "", ""));
@@ -702,7 +763,7 @@ class AppLedgerHostPluginTest {
             services.put(HostApi.SERVICE_KEY, new HostApi() {
                 public HostApiVersion version() { return version; }
                 public N2NExtensionRegistry n2n() { return n2n; }
-                public PluginProviderRegistry providers() { return PluginProviderRegistry.empty(); }
+                public PluginProviderRegistry providers() { return providers; }
                 public HostLifecycleRegistry lifecycle() { return lifecycle; }
                 public YanoConfig nodeConfig() {
                     if (node == null) throw new IllegalStateException("node configuration unavailable");
@@ -739,6 +800,27 @@ class AppLedgerHostPluginTest {
                     "members", "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a"));
             return Map.copyOf(settings);
         }
+    }
+
+    /** One manifest-owned domain product and one manifest-owned read model. */
+    private static PluginProviderRegistry providers(DomainApiProvider domain, LocalReadModelProvider readModel) {
+        Map<Class<?>, Object> contributions = Map.of(DomainApiProvider.class, domain,
+                LocalReadModelProvider.class, readModel);
+        return new PluginProviderRegistry() {
+            public <P> Optional<P> find(Class<P> type, String selector) {
+                return names(type).contains(selector) ? Optional.of(type.cast(contributions.get(type)))
+                        : Optional.empty();
+            }
+            public <P> List<String> names(Class<P> type) {
+                Object provider = contributions.get(type);
+                if (provider instanceof DomainApiProvider product) return List.of(product.id());
+                if (provider instanceof LocalReadModelProvider product) return List.of(product.id());
+                return List.of();
+            }
+            public <P> Optional<String> contributionOwner(Class<P> type, String selector) {
+                return names(type).contains(selector) ? Optional.of("com.example.bundle") : Optional.empty();
+            }
+        };
     }
 
     private static final PluginOperationsRecorder NO_OPERATIONS = new PluginOperationsRecorder() {

@@ -325,11 +325,22 @@ public class AppLedgerHostPlugin implements NodePlugin {
             domainApis.resume();
         }
 
+        /** Seals the read models even when the domain seal fails; both failures are reported. */
         @Override
         public void sealAndAwait() {
+            Throwable failure = null;
             DomainApiRegistry domain = domainApis;
-            if (domain != null) domain.sealAndAwait();
-            readModels.sealAndAwait();
+            try {
+                if (domain != null) domain.sealAndAwait();
+            } catch (Throwable sealFailure) {
+                failure = sealFailure;
+            }
+            try {
+                readModels.sealAndAwait();
+            } catch (Throwable sealFailure) {
+                failure = LifecycleFailures.merge(failure, sealFailure);
+            }
+            if (failure != null) throw propagate(failure);
         }
     }
 }
