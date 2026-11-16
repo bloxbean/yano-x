@@ -1,7 +1,5 @@
 package org.yanoproject.x.framework.config;
 
-import org.yanoproject.api.config.YanoConfig;
-import org.yanoproject.api.config.YanoPropertyKeys;
 import org.yanoproject.x.framework.api.appchain.AppChainConfig;
 import org.yanoproject.x.framework.api.appchain.AppChainConsensusProfile;
 import org.yanoproject.x.framework.api.appchain.effects.FxKeys;
@@ -189,10 +187,10 @@ public final class AppChainPropertyRegistry {
                 .filter(candidate -> editDistance(canonical, candidate) <= 4);
     }
 
-    /** Canonical key constants currently exposed by {@link YanoPropertyKeys.AppChain}. */
+    /** Canonical key constants currently exposed by {@link AppChainPropertyKeys}. */
     public static Set<String> runtimeKeyConstants() {
         var keys = new java.util.TreeSet<String>();
-        for (Field field : YanoPropertyKeys.AppChain.class.getDeclaredFields()) {
+        for (Field field : AppChainPropertyKeys.class.getDeclaredFields()) {
             if (Modifier.isPublic(field.getModifiers())
                     && Modifier.isStatic(field.getModifiers())
                     && field.getType() == String.class) {
@@ -208,65 +206,65 @@ public final class AppChainPropertyRegistry {
 
     private static List<AppChainPropertyDefinition> frameworkDefinitions() {
         List<AppChainPropertyDefinition> definitions = new ArrayList<>();
-        definitions.add(plain(YanoPropertyKeys.AppChain.ENABLED, PropertyType.BOOLEAN, "false",
+        definitions.add(plain(AppChainPropertyKeys.ENABLED, PropertyType.BOOLEAN, "false",
                 PropertyScope.NODE_LOCAL, ChangePolicy.RESTART_REQUIRED, false,
                 "Enable app-chain participation on this node"));
-        definitions.add(runtimeDefined(YanoPropertyKeys.AppChain.STORAGE_PATH,
-                PropertyType.STRING, YanoConfig.DEFAULT_APP_CHAIN_STORAGE_PATH,
+        definitions.add(runtimeDefined(AppChainPropertyKeys.STORAGE_PATH,
+                PropertyType.STRING, AppChainStoragePaths.DEFAULT_STORAGE_PATH,
                 PropertyScope.NODE_LOCAL,
                 "Node-local root directory containing hosted app-chain ledgers"));
-        definitions.add(plain(YanoPropertyKeys.AppChain.CHAINS, PropertyType.OBJECT, null,
+        definitions.add(plain(AppChainPropertyKeys.CHAINS, PropertyType.OBJECT, null,
                 PropertyScope.CLUSTER_SHARED, ChangePolicy.NEW_CHAIN_REQUIRED, false,
                 "Container for indexed multi-chain configuration"));
-        definitions.add(boundedText(YanoPropertyKeys.AppChain.CHAIN_ID, null,
+        definitions.add(boundedText(AppChainPropertyKeys.CHAIN_ID, null,
                 1, AppChainConfig.MAX_CHAIN_ID_BYTES,
                 PropertyScope.CONSENSUS_SHARED, ChangePolicy.NEW_CHAIN_REQUIRED, true,
                 "Stable app-chain identity"));
-        definitions.add(secret(YanoPropertyKeys.AppChain.SIGNING_KEY,
+        definitions.add(secret(AppChainPropertyKeys.SIGNING_KEY,
                 "Member Ed25519 signing-key seed or secret reference", true));
-        definitions.add(boundedList(YanoPropertyKeys.AppChain.MEMBERS,
+        definitions.add(boundedList(AppChainPropertyKeys.MEMBERS,
                 AppChainConfig.MAX_MEMBERS, PropertyScope.CONSENSUS_SHARED,
                 ChangePolicy.GOVERNED_ACTIVATION, true, "App-chain member public keys"));
-        definitions.add(plain(YanoPropertyKeys.AppChain.PEERS, PropertyType.STRING_LIST, null,
+        definitions.add(plain(AppChainPropertyKeys.PEERS, PropertyType.STRING_LIST, null,
                 PropertyScope.NODE_LOCAL, ChangePolicy.RESTART_REQUIRED, true,
                 "App-group peer endpoints"));
-        definitions.add(bounded(YanoPropertyKeys.AppChain.MAX_MESSAGE_BYTES,
+        definitions.add(bounded(AppChainPropertyKeys.MAX_MESSAGE_BYTES,
                 PropertyType.INTEGER, Integer.toString(AppChainConfig.DEFAULT_MAX_MESSAGE_BYTES),
                 null, (long) AppChainConfig.MAX_MESSAGE_BYTES,
                 PropertyScope.CONSENSUS_SHARED, ChangePolicy.NEW_CHAIN_REQUIRED,
                 "Maximum opaque application-message body size"));
-        definitions.add(plain(YanoPropertyKeys.AppChain.MAX_TTL_SECONDS, PropertyType.LONG,
+        definitions.add(plain(AppChainPropertyKeys.MAX_TTL_SECONDS, PropertyType.LONG,
                 Long.toString(AppChainConfig.DEFAULT_MAX_TTL_SECONDS),
                 PropertyScope.CONSENSUS_SHARED, ChangePolicy.NEW_CHAIN_REQUIRED, true,
                 "Maximum accepted message time-to-live"));
-        definitions.add(plain(YanoPropertyKeys.AppChain.DEFAULT_TTL_SECONDS, PropertyType.LONG,
+        definitions.add(plain(AppChainPropertyKeys.DEFAULT_TTL_SECONDS, PropertyType.LONG,
                 Long.toString(AppChainConfig.DEFAULT_DEFAULT_TTL_SECONDS),
                 PropertyScope.CONSENSUS_SHARED, ChangePolicy.NEW_CHAIN_REQUIRED, true,
                 "Default locally submitted message time-to-live"));
-        definitions.add(plain(YanoPropertyKeys.AppChain.SEQUENCER_PROPOSER, PropertyType.STRING,
+        definitions.add(plain(AppChainPropertyKeys.SEQUENCER_PROPOSER, PropertyType.STRING,
                 null, PropertyScope.CONSENSUS_SHARED, ChangePolicy.GOVERNED_ACTIVATION, true,
                 "Fixed sequencer member public key"));
-        definitions.add(plain(YanoPropertyKeys.AppChain.THRESHOLD, PropertyType.INTEGER, "1",
+        definitions.add(plain(AppChainPropertyKeys.THRESHOLD, PropertyType.INTEGER, "1",
                 PropertyScope.CONSENSUS_SHARED, ChangePolicy.GOVERNED_ACTIVATION, true,
                 "Finality certificate signature threshold"));
-        definitions.add(plain(YanoPropertyKeys.AppChain.TRANSPORT_MODE, PropertyType.STRING,
+        definitions.add(plain(AppChainPropertyKeys.TRANSPORT_MODE, PropertyType.STRING,
                 "shared", PropertyScope.NODE_LOCAL, ChangePolicy.RESTART_REQUIRED, true,
                 "Shared or dedicated app-message transport selection"));
-        definitions.add(plain(YanoPropertyKeys.AppChain.BLOCK_INTERVAL_MS, PropertyType.LONG,
+        definitions.add(plain(AppChainPropertyKeys.BLOCK_INTERVAL_MS, PropertyType.LONG,
                 Long.toString(AppChainConfig.DEFAULT_BLOCK_INTERVAL_MS),
                 PropertyScope.CONSENSUS_SHARED, ChangePolicy.NEW_CHAIN_REQUIRED, true,
                 "Sequencer proposal interval in milliseconds"));
-        definitions.add(bounded(YanoPropertyKeys.AppChain.BLOCK_MAX_MESSAGES,
+        definitions.add(bounded(AppChainPropertyKeys.BLOCK_MAX_MESSAGES,
                 PropertyType.INTEGER, Integer.toString(AppChainConfig.DEFAULT_MAX_BLOCK_MESSAGES),
                 null, (long) AppChainConfig.MAX_BLOCK_MESSAGES,
                 PropertyScope.CONSENSUS_SHARED, ChangePolicy.NEW_CHAIN_REQUIRED,
                 "Maximum messages verified in one app block"));
-        definitions.add(bounded(YanoPropertyKeys.AppChain.BLOCK_MAX_BYTES,
+        definitions.add(bounded(AppChainPropertyKeys.BLOCK_MAX_BYTES,
                 PropertyType.LONG, Long.toString(AppChainConfig.DEFAULT_BLOCK_MAX_BYTES),
                 null, AppChainConfig.MAX_BLOCK_BYTES,
                 PropertyScope.CONSENSUS_SHARED, ChangePolicy.NEW_CHAIN_REQUIRED,
                 "Maximum serialized app-block size"));
-        definitions.add(plain(YanoPropertyKeys.AppChain.STATE_MACHINE, PropertyType.STRING,
+        definitions.add(plain(AppChainPropertyKeys.STATE_MACHINE, PropertyType.STRING,
                 AppChainConfig.DEFAULT_STATE_MACHINE,
                 PropertyScope.CONSENSUS_SHARED, ChangePolicy.NEW_CHAIN_REQUIRED, true,
                 "State-machine or committed composite-profile identifier"));
@@ -284,96 +282,96 @@ public final class AppChainPropertyRegistry {
                 null, 64, 64, PropertyScope.CONSENSUS_SHARED,
                 ChangePolicy.NEW_CHAIN_REQUIRED, true,
                 "Canonical authenticated-map chain-generation identity"));
-        definitions.add(plain(YanoPropertyKeys.AppChain.STATE_L1_PROOF_CONSUMPTION_REQUIRED,
+        definitions.add(plain(AppChainPropertyKeys.STATE_L1_PROOF_CONSUMPTION_REQUIRED,
                 PropertyType.BOOLEAN, "false", PropertyScope.CONSENSUS_SHARED,
                 ChangePolicy.NEW_CHAIN_REQUIRED, true,
                 "Require an MPF commitment profile consumable by L1 validators"));
-        definitions.add(plain(YanoPropertyKeys.AppChain.STATE_PROOF_PRUNING_ENABLED,
+        definitions.add(plain(AppChainPropertyKeys.STATE_PROOF_PRUNING_ENABLED,
                 PropertyType.BOOLEAN, "false", PropertyScope.NODE_LOCAL,
                 ChangePolicy.RESTART_REQUIRED, true,
                 "Opt in to experimental MPF reachability pruning"));
-        definitions.add(bounded(YanoPropertyKeys.AppChain.STATE_PROOF_PRUNING_RETAIN_HEIGHTS,
+        definitions.add(bounded(AppChainPropertyKeys.STATE_PROOF_PRUNING_RETAIN_HEIGHTS,
                 PropertyType.LONG, "10000", 1L, null, PropertyScope.NODE_LOCAL,
                 ChangePolicy.RESTART_REQUIRED,
                 "Contiguous finalized-height horizon retained for proof generation"));
-        definitions.add(bounded(YanoPropertyKeys.AppChain.STATE_PROOF_PRUNING_INTERVAL_SECONDS,
+        definitions.add(bounded(AppChainPropertyKeys.STATE_PROOF_PRUNING_INTERVAL_SECONDS,
                 PropertyType.LONG, "3600", 1L, null, PropertyScope.NODE_LOCAL,
                 ChangePolicy.RESTART_REQUIRED,
                 "Interval between experimental MPF pruning passes"));
-        definitions.add(plain(YanoPropertyKeys.AppChain.ANCHOR_ENABLED, PropertyType.BOOLEAN,
+        definitions.add(plain(AppChainPropertyKeys.ANCHOR_ENABLED, PropertyType.BOOLEAN,
                 "false", PropertyScope.CONSENSUS_SHARED, ChangePolicy.GOVERNED_ACTIVATION, true,
                 "Enable Cardano L1 anchoring"));
-        definitions.add(secret(YanoPropertyKeys.AppChain.ANCHOR_SIGNING_KEY,
+        definitions.add(secret(AppChainPropertyKeys.ANCHOR_SIGNING_KEY,
                 "Anchor wallet signing-key seed or secret reference", true));
-        definitions.add(plain(YanoPropertyKeys.AppChain.ANCHOR_EVERY_BLOCKS, PropertyType.LONG,
+        definitions.add(plain(AppChainPropertyKeys.ANCHOR_EVERY_BLOCKS, PropertyType.LONG,
                 "10", PropertyScope.CONSENSUS_SHARED, ChangePolicy.GOVERNED_ACTIVATION, true,
                 "Anchor after this many finalized app blocks"));
-        definitions.add(plain(YanoPropertyKeys.AppChain.ANCHOR_MAX_INTERVAL_MINUTES,
+        definitions.add(plain(AppChainPropertyKeys.ANCHOR_MAX_INTERVAL_MINUTES,
                 PropertyType.LONG, "60", PropertyScope.CONSENSUS_SHARED,
                 ChangePolicy.GOVERNED_ACTIVATION, true,
                 "Maximum pending-anchor interval"));
-        definitions.add(plain(YanoPropertyKeys.AppChain.ANCHOR_METADATA_LABEL, PropertyType.LONG,
+        definitions.add(plain(AppChainPropertyKeys.ANCHOR_METADATA_LABEL, PropertyType.LONG,
                 "7014", PropertyScope.CONSENSUS_SHARED, ChangePolicy.NEW_CHAIN_REQUIRED, true,
                 "Cardano metadata label for metadata anchors"));
-        definitions.add(plain(YanoPropertyKeys.AppChain.ANCHOR_VALIDITY_SLOTS, PropertyType.LONG,
+        definitions.add(plain(AppChainPropertyKeys.ANCHOR_VALIDITY_SLOTS, PropertyType.LONG,
                 Long.toString(AppChainConfig.AnchorConfig.DEFAULT_VALIDITY_SLOTS),
                 PropertyScope.CONSENSUS_SHARED, ChangePolicy.GOVERNED_ACTIVATION, true,
                 "Anchor transaction validity window"));
-        definitions.add(plain(YanoPropertyKeys.AppChain.ANCHOR_FALLBACK_FEE_LOVELACE,
+        definitions.add(plain(AppChainPropertyKeys.ANCHOR_FALLBACK_FEE_LOVELACE,
                 PropertyType.LONG,
                 Long.toString(AppChainConfig.AnchorConfig.DEFAULT_FALLBACK_FEE_LOVELACE),
                 PropertyScope.NODE_LOCAL, ChangePolicy.RESTART_REQUIRED, true,
                 "Fallback anchor transaction fee"));
-        definitions.add(enumerated(YanoPropertyKeys.AppChain.ANCHOR_MODE,
+        definitions.add(enumerated(AppChainPropertyKeys.ANCHOR_MODE,
                 AppChainConfig.AnchorConfig.MODE_METADATA,
                 Set.of(AppChainConfig.AnchorConfig.MODE_METADATA,
                         AppChainConfig.AnchorConfig.MODE_SCRIPT),
                 PropertyScope.CONSENSUS_SHARED, ChangePolicy.NEW_CHAIN_REQUIRED,
                 "Metadata or script anchor mode"));
-        definitions.add(plain(YanoPropertyKeys.AppChain.ANCHOR_SCRIPT_VALIDATOR,
+        definitions.add(plain(AppChainPropertyKeys.ANCHOR_SCRIPT_VALIDATOR,
                 PropertyType.STRING, null, PropertyScope.CONSENSUS_SHARED,
                 ChangePolicy.NEW_CHAIN_REQUIRED, true,
                 "Script-anchor validator artifact reference"));
-        definitions.add(plain(YanoPropertyKeys.AppChain.ANCHOR_SCRIPT_THREAD_POLICY,
+        definitions.add(plain(AppChainPropertyKeys.ANCHOR_SCRIPT_THREAD_POLICY,
                 PropertyType.STRING, null, PropertyScope.CONSENSUS_SHARED,
                 ChangePolicy.NEW_CHAIN_REQUIRED, true,
                 "Script-anchor thread-policy artifact reference"));
-        definitions.add(plain(YanoPropertyKeys.AppChain.L1_STABILITY_DEPTH,
+        definitions.add(plain(AppChainPropertyKeys.L1_STABILITY_DEPTH,
                 PropertyType.INTEGER, "0", PropertyScope.CONSENSUS_SHARED,
                 ChangePolicy.NEW_CHAIN_REQUIRED, true,
                 "Minimum stable L1 depth referenced by app blocks"));
-        definitions.add(plain(YanoPropertyKeys.AppChain.WEBHOOKS, PropertyType.STRING_LIST, null,
+        definitions.add(plain(AppChainPropertyKeys.WEBHOOKS, PropertyType.STRING_LIST, null,
                 PropertyScope.INFRASTRUCTURE, ChangePolicy.RESTART_REQUIRED, true,
                 "Finalized-block webhook sink URLs"));
-        definitions.add(plain(YanoPropertyKeys.AppChain.RETENTION_ENABLED, PropertyType.BOOLEAN,
+        definitions.add(plain(AppChainPropertyKeys.RETENTION_ENABLED, PropertyType.BOOLEAN,
                 "false", PropertyScope.NODE_LOCAL, ChangePolicy.RESTART_REQUIRED, true,
                 "Prune eligible finalized message bodies"));
-        definitions.add(plain(YanoPropertyKeys.AppChain.RETENTION_KEEP_BLOCKS,
+        definitions.add(plain(AppChainPropertyKeys.RETENTION_KEEP_BLOCKS,
                 PropertyType.INTEGER, "0", PropertyScope.NODE_LOCAL,
                 ChangePolicy.RESTART_REQUIRED, true,
                 "Recent block bodies retained regardless of anchor horizon"));
-        definitions.add(plain(YanoPropertyKeys.AppChain.POOL_MAX_MESSAGES, PropertyType.INTEGER,
+        definitions.add(plain(AppChainPropertyKeys.POOL_MAX_MESSAGES, PropertyType.INTEGER,
                 Integer.toString(AppChainConfig.DEFAULT_POOL_MAX_MESSAGES),
                 PropertyScope.NODE_LOCAL, ChangePolicy.RESTART_REQUIRED, true,
                 "Pending-message pool capacity"));
-        definitions.add(plain(YanoPropertyKeys.AppChain.MESSAGE_ENFORCE_SENDER_SEQ,
+        definitions.add(plain(AppChainPropertyKeys.MESSAGE_ENFORCE_SENDER_SEQ,
                 PropertyType.BOOLEAN, "false", PropertyScope.CONSENSUS_SHARED,
                 ChangePolicy.NEW_CHAIN_REQUIRED, true,
                 "Consensus-visible per-sender sequence enforcement"));
-        definitions.add(plain(YanoPropertyKeys.AppChain.API_AUTH_ENABLED, PropertyType.BOOLEAN,
+        definitions.add(plain(AppChainPropertyKeys.API_AUTH_ENABLED, PropertyType.BOOLEAN,
                 "false", PropertyScope.NODE_LOCAL, ChangePolicy.RESTART_REQUIRED, false,
                 "Enable broad READ/SUBMIT API-key authentication"));
-        definitions.add(secret(YanoPropertyKeys.AppChain.API_KEYS,
+        definitions.add(secret(AppChainPropertyKeys.API_KEYS,
                 "API keys and optional topic scopes", false));
-        definitions.add(secret(YanoPropertyKeys.AppChain.SNAPSHOT_ADMIN_API_KEYS,
+        definitions.add(secret(AppChainPropertyKeys.SNAPSHOT_ADMIN_API_KEYS,
                 "Dedicated authenticated-snapshot lifecycle administration keys", false));
-        definitions.add(runtimeDefined(YanoPropertyKeys.AppChain.VALIDATION_STRICT,
+        definitions.add(runtimeDefined(AppChainPropertyKeys.VALIDATION_STRICT,
                 PropertyType.BOOLEAN, "false", PropertyScope.NODE_LOCAL,
                 "Reject unknown keys only in FULL runtime-owned namespaces"));
-        definitions.add(runtimeDefined(YanoPropertyKeys.AppChain.DX_RESOLVED_CONFIG_DIGEST,
+        definitions.add(runtimeDefined(AppChainPropertyKeys.DX_RESOLVED_CONFIG_DIGEST,
                 PropertyType.STRING, null, PropertyScope.NODE_LOCAL,
                 "Generated project resolved-configuration identity"));
-        definitions.add(runtimeDefined(YanoPropertyKeys.AppChain.DX_RELEASE_CATALOG_DIGEST,
+        definitions.add(runtimeDefined(AppChainPropertyKeys.DX_RELEASE_CATALOG_DIGEST,
                 PropertyType.STRING, null, PropertyScope.NODE_LOCAL,
                 "Generated project release-catalog identity"));
         definitions.add(runtimeParsed("effects.enabled", PropertyType.BOOLEAN, "false",

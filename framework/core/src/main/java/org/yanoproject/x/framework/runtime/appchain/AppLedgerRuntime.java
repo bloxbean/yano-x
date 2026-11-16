@@ -16,7 +16,6 @@ import com.bloxbean.cardano.yaci.events.api.EventMetadata;
 import com.bloxbean.cardano.yaci.events.api.PublishOptions;
 import org.rocksdb.WriteBatch;
 import org.slf4j.Logger;
-import org.yanoproject.api.config.YanoConfig;
 import org.yanoproject.api.plugin.PluginActivationException;
 import org.yanoproject.runtime.kernel.Subsystem;
 import org.yanoproject.runtime.kernel.SubsystemHealth;
@@ -111,6 +110,7 @@ import org.yanoproject.x.framework.api.events.AppBlockFinalizedEvent;
 import org.yanoproject.x.framework.api.events.AppChainStalledEvent;
 import org.yanoproject.x.framework.api.events.AppMessageReceivedEvent;
 import org.yanoproject.x.framework.config.AppChainConfigSemantics;
+import org.yanoproject.x.framework.config.AppChainStoragePaths;
 import org.yanoproject.x.framework.runtime.plugins.CatalogAuthenticatedMapValidatorResolver;
 
 import java.io.ByteArrayOutputStream;
@@ -659,7 +659,7 @@ public class AppLedgerRuntime implements Subsystem, AppChainGateway {
                     : ProofSubjectRegistry.bind(
                             effectiveStateMachine.capabilityManifest(), proofSubjectProviders);
             this.ledgerPath = (ledgerPath != null
-                    ? ledgerPath : YanoConfig.DEFAULT_APP_CHAIN_STORAGE_PATH)
+                    ? ledgerPath : AppChainStoragePaths.DEFAULT_STORAGE_PATH)
                     + "/" + config.chainId();
             this.l1ReadinessMaxLagBlocks = parseLongSetting("l1.delivery.readiness-max-lag-blocks", 100);
 

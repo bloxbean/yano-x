@@ -1,8 +1,7 @@
-package org.yanoproject.x.framework.host;
+package org.yanoproject.x.framework.config;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import org.yanoproject.api.config.YanoPropertyKeys;
 
 import java.nio.file.Path;
 
@@ -46,7 +45,7 @@ class AppChainStoragePathsTest {
         assertThatIllegalArgumentException().isThrownBy(() ->
                         AppChainStoragePaths.resolve(
                                 tempDir.resolve("chainstate").toString(), "  "))
-                .withMessageContaining(YanoPropertyKeys.AppChain.STORAGE_PATH);
+                .withMessageContaining(AppChainPropertyKeys.STORAGE_PATH);
     }
 
     @Test
