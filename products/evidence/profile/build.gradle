@@ -15,12 +15,12 @@ dependencies {
     implementation project(':composition:contracts')
     implementation project(':capabilities:role-workflow-contracts')
     implementation project(':state-machines:stdlib')
-    implementation rootProject.ext.yanoModule('yano-appchain-config')
+    implementation project(':framework:config')
     implementation project(':products:evidence:contracts')
     implementation project(':products:evidence:registry')
     implementation project(':sdk:integration-contracts')
 
-    testImplementation rootProject.ext.yanoModule('yano-appchain-core-testkit')
+    testImplementation project(':sdk:appchain-testkit')
     testImplementation rootProject.ext.yanoModule('yano-plugin-catalog')
     testImplementation libs.assertj.core
 }

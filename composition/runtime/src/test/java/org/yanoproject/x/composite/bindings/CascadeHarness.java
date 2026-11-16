@@ -1,7 +1,7 @@
 package org.yanoproject.x.composite.bindings;
 
 import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
-import org.yanoproject.appchain.testkit.AppChainTestProfiles;
+import org.yanoproject.x.testkit.AppChainTestProfiles;
 import org.yanoproject.x.composite.ComponentGeneration;
 import org.yanoproject.x.composite.CompositeWorkflowContext;
 import org.yanoproject.x.composite.WorkflowDescriptor;

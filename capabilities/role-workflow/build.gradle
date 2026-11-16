@@ -11,7 +11,7 @@ dependencies {
 
     implementation libs.cbor
 
-    testImplementation rootProject.ext.yanoModule('yano-appchain-core-testkit')
+    testImplementation project(':sdk:appchain-testkit')
     testImplementation libs.assertj.core
 }
 

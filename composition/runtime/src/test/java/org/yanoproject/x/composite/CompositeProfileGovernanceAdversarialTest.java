@@ -2,7 +2,7 @@ package org.yanoproject.x.composite;
 
 import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
 import org.junit.jupiter.api.Test;
-import org.yanoproject.appchain.testkit.AppChainTestProfiles;
+import org.yanoproject.x.testkit.AppChainTestProfiles;
 import org.yanoproject.x.composite.contracts.CompositeCommitmentV1;
 import org.yanoproject.x.composite.contracts.CompositeGovernanceStatusV1;
 import org.yanoproject.x.composite.contracts.CompositeProfileEpochV1;

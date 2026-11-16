@@ -70,7 +70,6 @@ tasks.register('verifyEvidenceContractArtifact') {
         def pom = layout.buildDirectory.file(
                 'publications/mavenJava/pom-default.xml').get().asFile.getText('UTF-8')
         def forbiddenApiCoordinates = [
-                'org.yanoproject:yano-core-api',
                 'org.yanoproject:yano-node-api',
                 'org.yanoproject:yano-cardano-api',
                 'org.yanoproject:yano-host-api',

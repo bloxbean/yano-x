@@ -2,7 +2,7 @@ package org.yanoproject.x.evidence.profile;
 
 import org.junit.jupiter.api.Test;
 import org.yanoproject.catalog.BundleManifestParser;
-import org.yanoproject.catalog.ContributionKind;
+import org.yanoproject.x.testkit.AppChainTestKinds;
 import org.yanoproject.x.composite.CompositeStateMachine;
 import org.yanoproject.x.framework.api.appchain.AppStateMachineProvider;
 import org.yanoproject.x.framework.api.plugin.domain.DomainApiProvider;
@@ -39,21 +39,21 @@ class EvidenceProfilePluginMetadataTest {
 
         try (InputStream input = getClass().getClassLoader().getResourceAsStream(MANIFEST)) {
             assertThat(input).isNotNull();
-            var manifest = new BundleManifestParser().parse(MANIFEST, input);
+            var manifest = new BundleManifestParser(AppChainTestKinds.classPathRegistry()).parse(MANIFEST, input);
             assertThat(manifest.id()).isEqualTo(BUNDLE_ID);
             assertThat(manifest.contributions()).hasSize(3);
             assertThat(manifest.contributions()).anySatisfy(contribution -> {
-                assertThat(contribution.kind()).isEqualTo(ContributionKind.APP_STATE_MACHINE);
+                assertThat(contribution.kind().manifestKey()).isEqualTo("app-state-machine");
                 assertThat(contribution.name()).isEqualTo(CompositeStateMachine.ID);
                 assertThat(contribution.provider()).isEqualTo(
                         EvidenceCompositeStateMachineProvider.class.getName());
             }).anySatisfy(contribution -> {
-                assertThat(contribution.kind()).isEqualTo(ContributionKind.APP_STATE_MACHINE);
+                assertThat(contribution.kind().manifestKey()).isEqualTo("app-state-machine");
                 assertThat(contribution.name()).isEqualTo(RoleEvidenceStateMachineProvider.ID);
                 assertThat(contribution.provider()).isEqualTo(
                         RoleEvidenceStateMachineProvider.class.getName());
             }).anySatisfy(contribution -> {
-                assertThat(contribution.kind()).isEqualTo(ContributionKind.DOMAIN_API);
+                assertThat(contribution.kind().manifestKey()).isEqualTo("domain-api");
                 assertThat(contribution.name()).isEqualTo(BUNDLE_ID);
                 assertThat(contribution.provider()).isEqualTo(
                         RoleEvidenceDomainApiProvider.class.getName());

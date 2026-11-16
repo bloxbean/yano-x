@@ -10,7 +10,7 @@ dependencies {
     api project(':state-machines:stdlib-contracts')
     api project(':composition:runtime')
     api project(':capabilities:role-workflow')
-    implementation rootProject.ext.yanoModule('yano-appchain-config')
+    implementation project(':framework:config')
 
     implementation libs.cbor
     implementation libs.cardano.client.crypto

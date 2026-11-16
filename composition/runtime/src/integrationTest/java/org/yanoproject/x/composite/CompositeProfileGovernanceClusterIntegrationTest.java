@@ -14,7 +14,7 @@ import org.junit.jupiter.api.function.Executable;
 import org.junit.jupiter.api.io.TempDir;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.yanoproject.appchain.testkit.AppChainTestProfiles;
+import org.yanoproject.x.testkit.AppChainTestProfiles;
 import org.yanoproject.x.composite.contracts.AggregateQueryLimitsV1;
 import org.yanoproject.x.composite.contracts.CompositeProfileGovernanceV1;
 import org.yanoproject.x.framework.api.appchain.AppBlock;

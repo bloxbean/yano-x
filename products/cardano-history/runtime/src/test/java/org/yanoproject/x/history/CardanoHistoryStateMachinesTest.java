@@ -1,7 +1,7 @@
 package org.yanoproject.x.history;
 
 import org.junit.jupiter.api.Test;
-import org.yanoproject.appchain.testkit.AppChainTestProfiles;
+import org.yanoproject.x.testkit.AppChainTestProfiles;
 import org.yanoproject.x.framework.api.appchain.AppChainConsensusProfile;
 import org.yanoproject.x.framework.api.appchain.AppStateMachineContext;
 import org.yanoproject.x.framework.api.appchain.state.StateCommitmentIdentity;

@@ -7,8 +7,6 @@ dependencies {
         // use private internal groups/names, while published consumers use Maven IDs.
         exclude group: project(':framework:api').group, module: project(':framework:api').name
         exclude group: project(':framework:cardano-api').group, module: project(':framework:cardano-api').name
-        // Older compatible hosts still expose the removed aggregate transitively.
-        exclude group: 'org.yanoproject', module: 'yano-core-api'
         exclude group: 'org.yanoproject.x', module: 'yano-x-appchain-api'
         exclude group: 'org.yanoproject.x', module: 'yano-x-appchain-cardano-api'
     }
@@ -138,7 +136,7 @@ tasks.register('verifyEvidenceClientArtifactBoundary') {
             throw new GradleException(
                     'Evidence client published POM must not depend on the registry plugin')
         }
-        if (publishedDependencies.any { it in ['yano-core-api', 'yano-node-api', 'yano-cardano-api',
+        if (publishedDependencies.any { it in ['yano-node-api', 'yano-cardano-api',
                                                   'yano-x-appchain-api', 'yano-x-appchain-cardano-api'] }) {
             throw new GradleException(
                     'Evidence client published POM must not depend on host/framework API modules')

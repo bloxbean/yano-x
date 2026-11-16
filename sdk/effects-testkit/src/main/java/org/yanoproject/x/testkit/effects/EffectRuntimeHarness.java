@@ -4,7 +4,7 @@ import com.bloxbean.cardano.client.crypto.KeyGenUtil;
 import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
 import com.bloxbean.cardano.yaci.core.util.HexUtil;
 import org.slf4j.LoggerFactory;
-import org.yanoproject.appchain.testkit.AppChainTestStateCommitments;
+import org.yanoproject.x.testkit.AppChainTestStateCommitments;
 import org.yanoproject.runtime.plugins.PluginProviderRegistry;
 import org.yanoproject.x.framework.api.appchain.AppBlockExecutionContext;
 import org.yanoproject.x.framework.api.appchain.AppChainConfig;

@@ -2,7 +2,7 @@ package org.yanoproject.x.examples.evidence;
 
 import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
 import org.junit.jupiter.api.Test;
-import org.yanoproject.appchain.testkit.AppChainTestProfiles;
+import org.yanoproject.x.testkit.AppChainTestProfiles;
 import org.yanoproject.x.examples.evidence.command.NotifyEvidenceCommandV1;
 import org.yanoproject.x.examples.evidence.query.EvidenceGetRequestV1;
 import org.yanoproject.x.examples.evidence.query.EvidenceGetResponseV1;
