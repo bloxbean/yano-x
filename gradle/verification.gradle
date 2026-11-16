@@ -24,6 +24,7 @@ def failOn = { String label, List<String> failures ->
 }
 
 def adr013ReleaseScopes = [
+        'integrated-application': ':distribution:jvm',
         runner: ':products:evidence:demo-runner',
         'bundle-kafka': ':connectors:kafka',
         'bundle-objectstore-s3': ':connectors:objectstore-s3',

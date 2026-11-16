@@ -5,10 +5,14 @@ import java.util.jar.JarInputStream
 import java.util.zip.ZipFile
 
 plugins {
-    id 'base'
+    id 'java'
+    id 'io.quarkus' version "${quarkusPluginVersion}"
 }
 
-description = 'Yano X JVM distribution assembly boundary'
+// ADR-064 D8: the integrated Yano + Yano X application. A small Quarkus application composed from
+// Yano's published yano-app-core and runtime with the Yano X framework and its REST surface; it
+// builds the integrated yano.jar, which the JVM ZIP below ships in place of Yano's own.
+description = 'Integrated Yano X application and JVM distribution assembly boundary'
 
 def yanoVersion = providers.gradleProperty('yanoVersion')
 def explicitHostApiVersion = providers.gradleProperty('hostApiVersion')
@@ -20,11 +24,84 @@ def isSnapshotYano = yanoVersion.getOrElse('').endsWith('-SNAPSHOT')
 // its JVM ZIP yano-<base>-<commit>.zip, whose root is yano-<base>-<commit>/.
 def yanoDistributionVersion = yanoVersion.getOrElse('unspecified') - ~/-SNAPSHOT$/
 
+apply from: rootProject.file('gradle/plugin-index.gradle')
+
+// The executable dependency rules of Yano's own app (app/build.gradle).
+def jacksonPatchVersion = libs.versions.jackson.get()
+def jacksonAnnotationsVersion = jacksonPatchVersion.replaceFirst(/\.\d+$/, '')
+def cardanoClientLibVersion = libs.versions.cardano.client.lib.get()
+
+configurations.configureEach {
+    // Quarkus owns the application logging provider on one SLF4J API.
+    exclude group: 'org.slf4j', module: 'slf4j-reload4j'
+    exclude group: 'ch.qos.reload4j', module: 'reload4j'
+    resolutionStrategy.force(libs.slf4j.api.get())
+    resolutionStrategy.eachDependency { details ->
+        def group = details.requested.group
+        // The Quarkus platform selects a vulnerable Jackson patch; align every Jackson family to the
+        // reviewed line (jackson-annotations follows Jackson's BOM convention without a patch component).
+        if (group == 'com.fasterxml.jackson' || group?.startsWith('com.fasterxml.jackson.')) {
+            details.useVersion(details.requested.name == 'jackson-annotations'
+                    ? jacksonAnnotationsVersion : jacksonPatchVersion)
+            details.because('ADR-013 release image requires the fixed Jackson family')
+        }
+        // One executable carries one cardano-client-lib family, the catalog's.
+        if (group == 'com.bloxbean.cardano' && details.requested.name.startsWith('cardano-client-')) {
+            details.useVersion(cardanoClientLibVersion)
+            details.because('the executable aligns the cardano-client-lib family to the catalog version')
+        }
+    }
+}
+
+dependencies {
+    implementation enforcedPlatform(
+            "${quarkusPlatformGroupId}:${quarkusPlatformArtifactId}:${quarkusPlatformVersion}")
+    implementation project(':framework:rest')
+    // The Cardano activation root serves both yano.mode=cardano and app-ledger, as in the baseline
+    // integrated jar; the standalone root is a mutually exclusive alternative and is not composed.
+    runtimeOnly project(':framework:cardano')
+
+    testImplementation 'io.quarkus:quarkus-junit'
+    testImplementation 'io.rest-assured:rest-assured'
+    testImplementation libs.junit.jupiter.api
+    testImplementation libs.assertj.core
+    testRuntimeOnly libs.junit.jupiter.engine
+    testRuntimeOnly libs.junit.platform.launcher
+}
+
+registerPluginIndex([
+        'org.yanoproject.plugins.logging': 'org.yanoproject:yano-runtime',
+        'org.yanoproject.x.app-ledger': ':framework:cardano'
+])
+
+// The node identifies as the Yano release it runs, as the baseline integrated jar did.
+quarkus {
+    set('application.name', 'yano')
+    set('application.version', yanoVersion.getOrElse('unspecified'))
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_25
+    targetCompatibility = JavaVersion.VERSION_25
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
+
+def integratedYanoJar = layout.buildDirectory.file('yano.jar')
+ext.yanoXIntegratedJar = integratedYanoJar
+
 configurations {
     yanoHostRuntime {
         canBeConsumed = false
         canBeResolved = true
         description = 'Published Yano host artifacts aligned by yano-bom'
+        // Select the same JVM runtime variants as the application's runtimeClasspath.
+        attributes {
+            attribute(Usage.USAGE_ATTRIBUTE, objects.named(Usage, Usage.JAVA_RUNTIME))
+            attribute(LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE, objects.named(LibraryElements, LibraryElements.JAR))
+        }
     }
     yanoReleaseJvmDist {
         canBeConsumed = false
@@ -76,15 +153,14 @@ repositories {
 }
 
 dependencies {
-    // This non-consumable qualification graph must describe the exact supplied ZIP,
+    // This non-consumable qualification graph must describe the exact composed host,
     // even when the retained Host API's foundation version sorts above this host.
     yanoHostRuntime enforcedPlatform(
             "org.yanoproject:yano-bom:${yanoVersion.getOrElse('unspecified')}")
     yanoHostRuntime 'org.yanoproject:yano-node-api'
     yanoHostRuntime 'org.yanoproject:yano-cardano-api'
     yanoHostRuntime 'org.yanoproject:yano-runtime'
-    yanoHostRuntime 'org.yanoproject:yano-appchain-config'
-    yanoHostRuntime 'org.yanoproject:yano-appchain-proof-verifier'
+    yanoHostRuntime 'org.yanoproject:yano-app-core'
     if (isSnapshotYano) {
         yanoSnapshotJvmDist "org.yanoproject-snapshot:yano:${yanoDistributionVersion}@zip"
         yanoSnapshotJvmDist "org.yanoproject-snapshot:manifest:${yanoDistributionVersion}@json"
@@ -109,30 +185,22 @@ def yanoJvmDistSource = configuredYanoJvmDist.map { 'local-override' }
         .orElse(providers.provider { isSnapshotYano ? 'bloxbean-snapshot' : 'github-release' })
 ext.yanoXBaseJvmDistribution = yanoJvmDist
 
-// Lists every file in the host yano.jar. Runtime plugin bundles leave these
+// Lists every file in the integrated yano.jar. Runtime plugin bundles leave these
 // out; see gradle/plugin-bundle-host-classes.gradle.
 def yanoHostEntries = layout.buildDirectory.file('yano-host/yano-jar-entries.txt')
 tasks.register('extractYanoHostEntries') {
+    dependsOn tasks.named('quarkusBuild')
     group = 'distribution'
-    description = 'Lists the files in the host yano.jar that runtime plugin bundles omit.'
-    inputs.files(yanoJvmDist).withPropertyName('yanoJvmDist')
+    description = 'Lists the files in the integrated yano.jar that runtime plugin bundles omit.'
+    inputs.file(integratedYanoJar).withPropertyName('integratedYanoJar')
     outputs.file(yanoHostEntries)
 
     doLast {
         def names = new TreeSet<String>()
-        new ZipFile(yanoJvmDist.get()).withCloseable { archive ->
-            def runtimeEntry = archive.entries().find { entry ->
-                entry.name.tokenize('/').size() == 2 && entry.name.endsWith('/yano.jar')
-            }
-            if (runtimeEntry == null) {
-                throw new GradleException('yanoJvmDist does not contain yano.jar')
-            }
-            new JarInputStream(archive.getInputStream(runtimeEntry)).withCloseable { runtimeJar ->
-                def entry
-                while ((entry = runtimeJar.nextEntry) != null) {
-                    if (!entry.directory) {
-                        names.add(entry.name)
-                    }
+        new ZipFile(integratedYanoJar.get().asFile).withCloseable { jar ->
+            jar.entries().each { entry ->
+                if (!entry.directory) {
+                    names.add(entry.name)
                 }
             }
         }
@@ -192,13 +260,21 @@ tasks.register('verifyYanoInputs') {
                 'yano-node-api',
                 'yano-cardano-api',
                 'yano-runtime',
-                'yano-appchain-config',
-                'yano-appchain-proof-verifier'
+                'yano-app-core'
         ] as Set
         def missingModules = requiredModules - (yanoComponents*.module as Set)
         if (!missingModules.isEmpty()) {
             throw new GradleException(
                     "Required Yano artifacts were not resolved: ${missingModules.sort()}")
+        }
+        // The integrated application must ship exactly the qualified host artifacts.
+        def shippedComponents = configurations.runtimeClasspath.incoming.resolutionResult.allComponents.findAll {
+            it.id instanceof org.gradle.api.artifacts.component.ModuleComponentIdentifier
+                    && it.id.group == 'org.yanoproject'
+        }.collect { [module: it.id.module, version: it.id.version] }
+        def unqualified = shippedComponents - yanoComponents
+        if (!unqualified.isEmpty()) {
+            throw new GradleException("Integrated application ships unqualified Yano artifacts: ${unqualified}")
         }
 
         def distributionVersion = expectedVersion.endsWith('-SNAPSHOT')
@@ -240,15 +316,16 @@ tasks.register('verifyYanoInputs') {
                     "yano.jar Implementation-Version ${implementationVersion} "
                             + "does not match ${expectedVersion}")
         }
+        // builtInStateMachines describes Yano's own yano.jar, which the integrated jar replaces;
+        // verifyYanoXJvmDistribution checks what the integrated jar contains.
         def expectedDistributionManifest = [
                 schemaVersion: 1,
                 product: 'yano',
                 distribution: 'core-jvm',
                 version: expectedVersion,
-                builtInStateMachines: ['ordered-log'],
                 pluginDirectorySupported: true
         ]
-        if (distributionManifest != expectedDistributionManifest) {
+        if (distributionManifest.findAll { it.key != 'builtInStateMachines' } != expectedDistributionManifest) {
             throw new GradleException(
                     "Unexpected Yano distribution contract: ${distributionManifest}")
         }
