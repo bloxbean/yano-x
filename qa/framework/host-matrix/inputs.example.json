@@ -7,14 +7,14 @@
     "https://repo.bloxbean.org/maven/snapshots"
   ],
   "baseline": {
-    "hostVersion": "0.1.0-pre20-adr064.1",
-    "foundationVersion": "0.1.0-pre20-adr064.1",
-    "hostApiVersion": "1.2.0-adr064.1"
+    "hostVersion": "0.1.0-pre20-adr064.4",
+    "foundationVersion": "0.1.0-pre20-adr064.4",
+    "hostApiVersion": "1.2.0-adr064.4"
   },
   "current": {
-    "hostVersion": "0.1.0-pre20-adr064.1",
-    "foundationVersion": "0.1.0-pre20-adr064.1",
-    "hostApiVersion": "1.2.0-adr064.1"
+    "hostVersion": "0.1.0-pre20-adr064.4",
+    "foundationVersion": "0.1.0-pre20-adr064.4",
+    "hostApiVersion": "1.2.0-adr064.4"
   },
   "yaciCoreVersion": "0.5.0-pre16-f57fc88-20261114.141754-1",
   "profiles": [

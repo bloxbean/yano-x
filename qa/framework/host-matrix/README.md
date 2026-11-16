@@ -12,7 +12,7 @@ The optional `cardano-construction` profile selects the Cardano root and on-chai
 
 The Cardano check constructs and closes a real in-memory `YanoAssembly.relay` with the app ledger enabled, plugins enabled, peers empty, and anchoring disabled. It validates the actual Yano `CardanoHostServices` linkage, Cardano chain assembly, one manager lifecycle hook, and public handles. It never calls `start()` and must leave both persistent-store paths absent. Its JVM has a maximum 60-second timeout. This construction check does not claim Cardano network synchronization or anchoring coverage; those remain integrated release-qualification gates.
 
-Activation uses Host API 1.2 only: the fixture lists the framework root in `yano.plugins.required`, passes `yano.app-chain.*` (including `yano.app-chain.storage.path`) as `RuntimeOptions` globals and reaches chains through `AppLedgers.of(yano)`. The frozen fixtures that modelled hosts embedding X (`first-host`, `supported-host`, `namespace-host`) were retired with ADR-064; `run` rejects any fixture whose provenance lacks the `host-api-1.2` contract. A new frozen Host API 1.2 baseline is prepared once from the first ADR-064 Yano artifacts and then reused unchanged for subsequent compatible X releases. Replace the example's repository path with verified staged inputs. The preparation command below is for deliberately establishing a new baseline, not for normal upgrades:
+Activation uses Host API 1.2 only: the fixture lists the framework root in `yano.plugins.required`, passes `yano.app-chain.*` (including `yano.app-chain.storage.path`) as `RuntimeOptions` globals and reaches chains through `AppLedgers.of(yano)`. The frozen fixtures that modelled hosts embedding X (`first-host`, `supported-host`, `namespace-host`) were retired with ADR-064; `run` rejects any fixture whose provenance lacks the `host-api-1.2` contract. The frozen Host API 1.2 baseline is committed at `fixtures/host-api-1.2-baseline/` (`packaged-host-fixture.jar` and its `provenance.json`); its provenance records the exact Yano `0.1.0-pre20-adr064.4` / Host API `1.2.0-adr064.4` and X `0.1.0-pre6` inputs it was compiled against, and it is reused unchanged for subsequent compatible X releases. Replace the example's repository paths with verified staged inputs. The preparation command below is for deliberately establishing a new baseline, not for normal upgrades:
 
 ```sh
 python3 qa/framework/host-matrix/run.py prepare \
@@ -25,7 +25,7 @@ Run the unchanged fixture against the oldest supported and current hosts:
 
 ```sh
 python3 qa/framework/host-matrix/run.py run \
-  --inputs /absolute/host-matrix.json --fixture qa/framework/host-matrix/fixtures/<host-api-1.2-baseline> \
+  --inputs /absolute/host-matrix.json --fixture qa/framework/host-matrix/fixtures/host-api-1.2-baseline \
   --out /private/tmp/host-matrix-run
 ```
 
