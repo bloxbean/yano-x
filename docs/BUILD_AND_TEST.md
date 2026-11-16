@@ -113,17 +113,24 @@ both commands, and add the matching `-PyanoJvmDist` to the clean build.
 
 `./gradlew frameworkCheck` runs the framework unit/wire suites and enforces both
 the lean core dependency boundary and module package ownership. It consumes only
-the selected foundation/Host API artifacts, so it can run before a full host is
-staged. The generic tests belong to `framework/core`; Cardano-specific unit tests
-belong to `framework/cardano`. Host assembly, catalog, REST and integrated node
-tests stay in Yano and consume the published framework contracts.
+the selected node, Cardano and Host API artifacts (`yano-node-api`,
+`yano-cardano-api`, `yano-host-api`), so it can run without the Yano runtime.
+The generic tests belong to `framework/core`; Cardano-specific unit tests
+belong to `framework/cardano`; host-adapter tests to `framework/host-adapter`.
+Since ADR-064 the app-chain host assembly, catalog, REST and integrated node
+tests live in Yano X too: the assembly suites in the `framework/cardano`
+integration source set, the REST resource tests in `framework/rest`, and the
+packaging, OpenAPI and HTTP tests of the integrated application in
+`distribution/jvm`.
 
-The Cardano integration source set runs `L1DeliveryLoopTest` and
-`ScriptAnchorServiceTest` with the exact `yanoVersion` runtime artifact. Its
-protocol-parameter JSON is a checksum-documented test resource, not a file read
-from another checkout. `./gradlew :framework:cardano:integrationTest` runs this
-slice; normal `./gradlew check` includes it. Supply a namespace-compatible host
-and the matching foundation/Host API inputs. No host runtime resolution occurs
+The Cardano integration source set runs the host assembly, consensus, L1
+delivery and anchoring suites (for example `AppLedgerAssemblyTest`,
+`L1DeliveryLoopTest` and `ScriptAnchorServiceTest`) with the exact
+`yanoVersion` runtime artifact. Its protocol-parameter JSON is a
+checksum-documented test resource, not a file read from another checkout.
+`./gradlew :framework:cardano:integrationTest` runs this slice; normal
+`./gradlew check` includes it. Supply the matching Yano and Host API inputs.
+No host runtime resolution occurs
 merely from configuring these tasks or running `frameworkCheck`.
 
 The core's Gradle `testFixtures` classifier provides narrow setup and fault
