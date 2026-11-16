@@ -7,7 +7,9 @@
 //
 // Two kinds of entry always stay with the bundle: anything under META-INF
 // (service files, plugin manifests, licences, multi-release classes), and any
-// path the bundle relocates into its own namespace. A relocated library is a
+// path the bundle relocates into its own namespace. The exception is a
+// contribution-kind descriptor the host provides: Yano trusts descriptors only
+// from host class-path artifacts and rejects a bundle that carries one. A relocated library is a
 // private copy by design (ADR-013) and does not collide with the host once
 // renamed. Applied to the root project by build.gradle.
 
@@ -30,7 +32,7 @@ gradle.projectsEvaluated {
             }
             exclude { details ->
                 def path = details.path
-                !path.startsWith('META-INF/')
+                (!path.startsWith('META-INF/') || path.startsWith('META-INF/yano/contribution-kinds/'))
                         && hostEntries.contains(path)
                         && !bundleRelocators.any { it.canRelocatePath(path) }
             }
