@@ -72,8 +72,8 @@ dependencies {
 // The one Yano X plugin-index script (ADR-064 D8) generates this cell's strict ARTIFACT_CLOSURE index
 // over the resolved host class path with the host's own published PluginIndexGenerator.
 apply from: file('../../../gradle/plugin-index.gradle')
-def report = file(providers.gradleProperty('report').get())
-def pluginIndex = layout.file(providers.provider { new File(report.parentFile, 'yano-plugin-index-v1.json') })
+def report = providers.gradleProperty('report').map { file(it) }
+def pluginIndex = layout.file(report.map { new File(it.parentFile, 'yano-plugin-index-v1.json') })
 def generatePluginIndex = pluginIndexTask('generatePluginIndex', configurations.packagedHost,
         configurations.packagedHost, [
         'org.yanoproject.plugins.logging': [root: 'org.yanoproject:yano-runtime', manifestVersion: '1.0.0'],
@@ -81,7 +81,6 @@ def generatePluginIndex = pluginIndexTask('generatePluginIndex', configurations.
                 ? 'org.yanoproject.x:yano-x-appchain-standalone' : 'org.yanoproject.x:yano-x-appchain-cardano',
                                          manifestVersion: frameworkVersion]
 ], pluginIndex)
-
 tasks.register('resolveHostInputs') {
     dependsOn generatePluginIndex
     doLast {
@@ -100,8 +99,9 @@ tasks.register('resolveHostInputs') {
              classifier: artifact.classifier, file: artifact.file.absolutePath,
              sha256: MessageDigest.getInstance('SHA-256').digest(artifact.file.bytes).encodeHex().toString()]
         }.sort { a, b -> "${a.group}:${a.name}:${a.classifier}" <=> "${b.group}:${b.name}:${b.classifier}" }
-        report.parentFile.mkdirs()
-        report.text = JsonOutput.prettyPrint(JsonOutput.toJson([schemaVersion: 1, request: request,
+        def reportFile = report.get()
+        reportFile.parentFile.mkdirs()
+        reportFile.text = JsonOutput.prettyPrint(JsonOutput.toJson([schemaVersion: 1, request: request,
                                                                artifacts: artifacts,
                                                                pluginIndex: pluginIndex.get().asFile.path])) + '\n'
     }
