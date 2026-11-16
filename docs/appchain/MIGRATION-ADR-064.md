@@ -19,8 +19,18 @@ keys and defaults, REST paths, JSON shapes and status codes are unchanged.
   settings as `RuntimeOptions` globals. Quarkus is not required.
 - `YanoConfig.appChainStoragePath` / `getAppChainStoragePath()` are removed.
   Configure storage with `yano.app-chain.storage.path`; the default is still
-  `appchain-chainstate`. The key constants that were `YanoPropertyKeys.AppChain`
-  moved to X with the same strings.
+  `appchain-chainstate`, now resolved by
+  `org.yanoproject.x.framework.config.AppChainStoragePaths`
+  (`yano-x-appchain-config`). The key constants that were
+  `YanoPropertyKeys.AppChain` moved to X with the same strings.
+- X's `CardanoRuntimeServices` record and the `AppLedgerHostPlugin`
+  `NODE_CONFIG_SERVICE`, `RUNTIME_OPTIONS_SERVICE` and `ASSEMBLY_SERVICE`
+  service keys are removed. The adapter reads `HostApi.nodeConfig()` and
+  `runtimeOptions()` and registers its assembly with
+  `HostLifecycleRegistry.registerAssembly`; Cardano services come from Yano's
+  `org.yanoproject.api.CardanoHostServices`, registered under
+  `CardanoHostServices.SERVICE_KEY` (`org.yanoproject.host.cardano-services`)
+  and looked up through `PluginServiceLookup`.
 
 ## Maven coordinates
 
@@ -31,7 +41,7 @@ Yano stops publishing these artifacts. Use the Yano X owners:
 | `yano-appchain-core-testkit` | `yano-x-appchain-testkit` (`sdk/appchain-testkit`, package `org.yanoproject.x.testkit`) |
 | `yano-appchain-config` | `yano-x-appchain-config` |
 | `yano-appchain-anchor-onchain` | `yano-x-appchain-anchor-onchain` |
-| `yano-appchain-proof-verifier` | `yano-x-appchain-proof-verifier` (packages under `org.yanoproject.x.*`) |
+| `yano-appchain-proof-verifier` | `yano-x-appchain-proof-verifier` (`framework/proof-verifier`, package `org.yanoproject.x.framework.proof`) |
 
 ## Plugin authors
 
@@ -54,13 +64,24 @@ Yano stops publishing these artifacts. Use the Yano X owners:
 
 ## Operators
 
-- The integrated JVM ZIP and any Docker image with app chains come from
-  Yano X. Yano's own ZIP, Docker image and native binary serve no app chains;
-  the native binary has no application-ledger support.
+- The integrated JVM ZIP comes from Yano X. Yano's own ZIP, Docker image and
+  native binary serve no app chains; the native binary has no
+  application-ledger support.
 - The `yano.sh appchain` subcommand now exists only in the Yano X
   distribution launcher.
 - `yano.mode=app-ledger` on a bare Yano fails startup with "app-ledger mode
   requires a plugin that provides an app-only network".
+- The integrated application sets `yano.plugins.required` to
+  `org.yanoproject.x.app-ledger`. If `yano.app-chain.enabled` is true and an
+  override drops that root from `yano.plugins.required`, startup fails.
+- `/api/v1/plugin-operations` is protected by Yano's own
+  `PluginOperationsAuthFilter`, with or without Yano X. It still reads the keys
+  from `yano.app-chain.api.keys` and keeps the same outcomes: 404 for a
+  non-canonical path, 503 `AUTH_UNAVAILABLE` without a full key, 401 for a
+  missing or invalid key, 403 for a topic-scoped key.
+- Docker: Yano's compose bundle no longer mounts `appchain-chainstate/` or
+  `appchain-indexers/`, and Yano X publishes no Docker image. Build one from the
+  integrated `yano.jar` (see `scaffolds/docker-compose-cluster`).
 - REST paths, ports, `yano.app-chain.*` settings and storage directories are
   unchanged. The app-chain console is at `/ui/app-chain/` and links back to
   Yano's console at `/ui/`.
