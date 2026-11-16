@@ -9,3 +9,5 @@ build/
 .idea/
 **/.env.local
 **/.env.*.local
+qa/work/
+qa/results/
