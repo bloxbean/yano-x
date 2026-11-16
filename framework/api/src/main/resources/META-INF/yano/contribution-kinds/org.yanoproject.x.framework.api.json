@@ -1,5 +1,6 @@
 {
   "schemaVersion": 1,
+  "owner": "org.yanoproject.x.framework.api",
   "apiPackages": ["org.yanoproject.x.framework.api"],
   "kinds": [
     {

@@ -38,8 +38,9 @@ Yano stops publishing these artifacts. Use the Yano X owners:
 - Bundle manifests are unchanged.
 - `ContributionKind` is no longer an enum with app-chain constants. Yano knows
   four built-in kinds; X declares its kinds (`app-state-machine`, `domain-api`,
-  `l1-observer`, ...) in a `META-INF/yano/contribution-kinds.json` descriptor
-  (owner declared inside) in the X framework jars. Refer to X kinds by their manifest key strings.
+  `l1-observer`, ...) in owner-qualified
+  `META-INF/yano/contribution-kinds/<owner>.json` descriptors in the X framework
+  jars. Refer to X kinds by their manifest key strings.
 - Catalog classes take the kind registry: `new BundleManifestParser(kinds)`,
   `new PluginCatalogInspector(kinds)`, `new PluginIndexGenerator(kinds)`. In
   tests, `org.yanoproject.x.testkit.AppChainTestKinds.classPathRegistry()`

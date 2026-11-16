@@ -90,6 +90,8 @@ import java.util.function.Function;
  * route every plugin callback through the host's {@link PluginCallbackScope}.
  */
 public final class AppLedgerKindBindings {
+    /** Owner of the descriptor that declares these kinds, and its file name. */
+    public static final String DESCRIPTOR_OWNER = "org.yanoproject.x.framework.api";
     /** One observer callback may expose many block observations, but remains bounded. */
     public static final int MAX_OBSERVATIONS_PER_CALLBACK = 4_096;
     public static final int MAX_OBSERVATION_CLAIM_BYTES = 1_048_576;
@@ -110,6 +112,7 @@ public final class AppLedgerKindBindings {
 
     /** One binding: a kind key, its SPI, the selector the manifest name must equal and the facade. */
     public abstract static class Binding<P> implements ContributionKindBinding<P> {
+        private final String descriptorOwner;
         private final String manifestKey;
         private final Class<P> serviceType;
         private final Function<P, String> selector;
@@ -117,12 +120,19 @@ public final class AppLedgerKindBindings {
 
         protected Binding(String manifestKey, Class<P> serviceType, Function<P, String> selector,
                           FacadeFactory<P> facade) {
+            this(DESCRIPTOR_OWNER, manifestKey, serviceType, selector, facade);
+        }
+
+        protected Binding(String descriptorOwner, String manifestKey, Class<P> serviceType,
+                          Function<P, String> selector, FacadeFactory<P> facade) {
+            this.descriptorOwner = descriptorOwner;
             this.manifestKey = manifestKey;
             this.serviceType = serviceType;
             this.selector = selector;
             this.facade = facade;
         }
 
+        @Override public final String descriptorOwner() { return descriptorOwner; }
         @Override public final Class<P> serviceType() { return serviceType; }
         @Override public final String manifestKey() { return manifestKey; }
         @Override public final String selector(P provider) { return selector.apply(provider); }

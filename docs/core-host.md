@@ -21,8 +21,10 @@ All plugin `init()` callbacks finish before the host runs assembly callbacks,
 and assembly finishes before sessions can start. In Cardano mode the adapter
 reads `CardanoHostServices`, including the epoch snapshot reader.
 
-X declares its contribution kinds in one `META-INF/yano/contribution-kinds.json`
-descriptor per framework jar (the owner is named inside the JSON) and binds them with `ContributionKindBinding` implementations. Yano reads
+X declares its contribution kinds in one owner-qualified descriptor per
+framework jar, `META-INF/yano/contribution-kinds/<owner>.json` (the JSON repeats
+its `owner`), and binds them with `ContributionKindBinding` implementations whose
+`descriptorOwner()` names that owner. Yano reads
 descriptors only from trusted host artifacts, so X kinds exist only when the X
 framework is on the host class path, as in the integrated distribution. A bare
 Yano with X bundles in `plugins/` fails closed.

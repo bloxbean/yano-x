@@ -20,8 +20,11 @@ import java.util.Set;
  * {@code META-INF/yano/contribution-kinds/org.yanoproject.x.framework.cardano.api.json}.
  */
 public final class EffectExecutorKindBinding extends AppLedgerKindBindings.Binding<AppEffectExecutorFactory> {
+    /** Owner of the descriptor that declares this kind, and its file name. */
+    public static final String DESCRIPTOR_OWNER = "org.yanoproject.x.framework.cardano.api";
+
     public EffectExecutorKindBinding() {
-        super("effect-executor", AppEffectExecutorFactory.class, AppEffectExecutorFactory::scheme,
+        super(DESCRIPTOR_OWNER, "effect-executor", AppEffectExecutorFactory.class, AppEffectExecutorFactory::scheme,
                 EffectExecutorFactoryFacade::new);
     }
 
