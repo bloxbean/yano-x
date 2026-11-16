@@ -178,7 +178,6 @@ def package_cell(resolved, fixture, directory, timeout):
     package = directory / "package"
     library = package / "lib"
     library.mkdir(parents=True)
-    jars = []
     for artifact in resolved["artifacts"]:
         source = Path(artifact["file"])
         destination = library / source.name
@@ -187,26 +186,11 @@ def package_cell(resolved, fixture, directory, timeout):
         shutil.copy2(source, destination)
         if digest(destination) != artifact["sha256"]:
             raise RuntimeError(f"Copied input differs: {source}")
-        jars.append(destination)
     shutil.copy2(fixture, package / fixture.name)
+    # The resolver generated the strict ARTIFACT_CLOSURE index with the shared plugin-index script.
     catalog = package / "catalog/META-INF/yano-plugin-index-v1.json"
     catalog.parent.mkdir(parents=True)
-    arguments = directory / "catalog-arguments.txt"
-    catalog_arguments = ["--output", str(catalog), "--strict-bundle-closures"]
-    by_filename = {path.name: path for path in jars}
-    for path in jars:
-        with zipfile.ZipFile(path) as artifact:
-            manifests = [name for name in artifact.namelist()
-                         if name.startswith("META-INF/yano/plugins/") and name.endswith(".json")]
-            for manifest in manifests:
-                bundle_id = json.loads(artifact.read(manifest))["id"]
-                for filename in resolved["artifactClosures"][path.name]:
-                    catalog_arguments.extend(["--bundle-closure", bundle_id, str(by_filename[filename])])
-    catalog_arguments.extend(["--", *map(str, jars)])
-    arguments.write_text("\n".join(catalog_arguments) + "\n")
-    checked(["java", "-cp", os.pathsep.join(map(str, jars)),
-             "org.yanoproject.catalog.PluginIndexGenerator", "--args-file", str(arguments)],
-            directory / "catalog.log", directory, timeout)
+    shutil.copy2(resolved["pluginIndex"], catalog)
     write_json(package / "artifact-inputs.json", resolved)
     archive = directory / "packaged-host.zip"
     with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as target:

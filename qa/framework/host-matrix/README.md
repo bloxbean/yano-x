@@ -29,7 +29,7 @@ python3 qa/framework/host-matrix/run.py run \
   --out /private/tmp/host-matrix-run
 ```
 
-Each cell resolves Maven artifacts, checks hashes and single class/resource ownership, generates one strict `ARTIFACT_CLOSURE` catalog using the published `PluginIndexGenerator` and the resolved Maven dependency graph, packs an ordinary ZIP, unpacks outside the source checkout, and launches a separate bounded JVM with only those packaged inputs. Loaded class origins must match the recorded JARs. Child processes get dedicated process groups and are terminated on timeout/interruption.
+Each cell resolves Maven artifacts, checks hashes and single class/resource ownership, generates one strict `ARTIFACT_CLOSURE` catalog using the published `PluginIndexGenerator` and the resolved Maven dependency graph (the same `gradle/plugin-index.gradle` that builds the integrated distribution's index), packs an ordinary ZIP, unpacks outside the source checkout, and launches a separate bounded JVM with only those packaged inputs. Loaded class origins must match the recorded JARs. Child processes get dedicated process groups and are terminated on timeout/interruption.
 
 The fixture reuses the public builders/scenario of the standalone assembly tests: three actual TCP nodes, optional plugins disabled but required framework active, follower submission, threshold certificates/evidence, late-join protocol 103, common block/root/commitment, restart/reopen, subsequent finality, and no Cardano subsystem or chainstate. It intentionally provides no REST server or operator configuration surface. Existing integrated packaged/API/tooling regression gates remain required.
 
