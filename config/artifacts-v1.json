@@ -457,6 +457,14 @@
       "publicationType": "library",
       "pluginBundleId": null,
       "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":framework:rest",
+      "directory": "framework/rest",
+      "artifactId": "yano-x-appchain-rest",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
     }
   ]
 }

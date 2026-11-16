@@ -1,0 +1,32 @@
+plugins {
+    id 'org.kordamp.gradle.jandex' version '2.3.0'
+}
+
+// ADR-064 D8: the app-chain REST surface, metrics, health, configuration projection and
+// console of the integrated Yano + Yano X application, as a Quarkus library composed with
+// yano-app-core. Plain-Java embedders use framework/host-adapter's AppLedgers instead.
+// The HTTP suites run in fixtures/appchain-rest, a Quarkus application composed from this library.
+description = 'Quarkus REST, metrics, health, configuration projection and console for Yano app chains'
+
+def yanoVersion = providers.gradleProperty('yanoVersion').get()
+
+dependencies {
+    // Downstream applications compose this with yano-app-core on the same Quarkus line;
+    // enforcedPlatform would not be publishable.
+    api platform("${quarkusPlatformGroupId}:${quarkusPlatformArtifactId}:${quarkusPlatformVersion}")
+    api "org.yanoproject:yano-app-core:${yanoVersion}"
+    api project(':framework:api')
+    implementation project(':framework:config')
+    implementation project(':framework:host-adapter')
+    implementation project(':framework:proof-verifier')
+}
+
+// The Jandex plugin writes into the main resources output, which javadoc reads.
+tasks.named('javadoc') {
+    dependsOn tasks.named('jandex')
+}
+
+tasks.named('test') {
+    // AppChainRuntimeRegistryParityTest reads the projection source it checks.
+    systemProperty 'yano.test.repo-root', rootProject.projectDir.absolutePath
+}

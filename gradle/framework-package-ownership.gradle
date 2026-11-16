@@ -12,7 +12,8 @@ def packageOwners = [
         ':framework:cardano-onchain': 'org/yanoproject/x/framework/cardano/onchain/',
         ':framework:host-adapter': 'org/yanoproject/x/framework/host/',
         ':framework:standalone': 'org/yanoproject/x/framework/standalone/',
-        ':framework:proof-verifier': 'org/yanoproject/x/framework/proof/'
+        ':framework:proof-verifier': 'org/yanoproject/x/framework/proof/',
+        ':framework:rest': 'org/yanoproject/x/framework/rest/'
 ]
 def violations = { Map<String, List<String>> entries ->
     def failures = []
