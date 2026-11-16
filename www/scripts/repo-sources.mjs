@@ -198,6 +198,7 @@ export const IMPORTED_DOCS = {
   'docs/appchain/DECLARATIVE_BINDINGS.md': '/reference/declarative-bindings/',
   'docs/appchain/DECLARATIVE_BINDINGS_CLI.md': '/reference/declarative-bindings-cli/',
   'docs/appchain/DECLARATIVE_BINDINGS_UPGRADES.md': '/reference/declarative-bindings-upgrades/',
+  'docs/appchain/MIGRATION-ADR-064.md': '/reference/migration-adr-064/',
   'docs/site/observations.md': '/concepts/observations/',
   'docs/site/ai-starter-pack.md': '/ai/starter-pack/',
 

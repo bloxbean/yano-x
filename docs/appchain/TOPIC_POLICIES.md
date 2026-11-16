@@ -4,8 +4,8 @@ Every message on an app chain names a **topic**, such as
 `freight/acme/shipments`. On any chain the topic is a label. On a chain sealed
 with a `topics:` block, a **topic registry** in the chain's state also decides
 who may write each topic, and every member enforces it before any state machine
-sees the message. Yano owns the registry, its checks and its proofs; Yano X
-supplies the `appchain topics` commands, the clients and the composite rules.
+sees the message. The framework owns the registry, its checks and its proofs;
+the `appchain topics` commands, the clients and the composite rules build on it.
 
 The examples on this page follow one chain: a freight consortium whose members
 share delivery records. The consortium owns the `freight/` namespace, each

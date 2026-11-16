@@ -162,6 +162,7 @@ export default defineConfig({
             { label: 'Capability catalog', slug: 'reference/capabilities' },
             { label: 'Configuration', slug: 'reference/configuration' },
             { label: 'Modules and artifacts', slug: 'reference/modules' },
+            { label: 'Migrating to ADR-064', slug: 'reference/migration-adr-064' },
             { label: 'Reference shelf', slug: 'reference/shelf' },
             { label: 'Glossary', slug: 'reference/glossary' },
           ],

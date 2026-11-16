@@ -167,7 +167,7 @@ export default {
       anchors: ['sameGenesis', 'sameApplication', 'sameCommitment'] },
     { repo: 'yano-x', path: 'framework/api/src/main/java/org/yanoproject/x/framework/api/appchain/AppCapabilityManifest.java',
       anchors: ['Immutable v1 discovery description for one application profile.'] },
-    { repo: 'yano', path: 'docs/APP_CHAIN_CONSENSUS_GUIDE.md',
+    { repo: 'yano-x', path: 'docs/APP_CHAIN_CONSENSUS_GUIDE.md',
       anchors: ['commits genesis, membership, quorum, and consensus/observer profiles'] },
     { repo: 'yano-x', path: 'adr/app-layer/033-showcase-reference-catalog-and-capability-discovery.md',
       anchors: ['It is descriptive discovery data, not a new trust root.'] },

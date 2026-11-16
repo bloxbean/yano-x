@@ -30,7 +30,7 @@ Two ideas apply to every machine on these pages:
 | [`balances`](balances.md) | stable | Member-owned units with a minter | `b/<account>` | `account-balance-v1` |
 | [`doc-trail`](doc-trail.md) | stable | A chained history of document hashes per entity | `e/<entityId>` | `document-head-v1` |
 
-`ordered-log` is built into Yano. The others ship in the Yano X standard
+`ordered-log` is built into the app-chain framework. The others ship in the standard
 library and role-workflow bundles. Value validation for `authenticated-map` has
 its [own page](authenticated-map-validation.md).
 
@@ -75,7 +75,7 @@ existing chain needs a governed profile activation or a new chain.
 
 - [Choose a stock state machine](../tutorials/03-stock-state-machines.md), the
   hands-on companion to this page.
-- [Consensus guide](https://github.com/bloxbean/yano/blob/main/docs/APP_CHAIN_CONSENSUS_GUIDE.md)
+- [Consensus guide](../../APP_CHAIN_CONSENSUS_GUIDE.md)
   in Yano: how blocks are ordered, re-executed and certified.
 - [Plugins and composites](../tutorials/08-plugins-and-composites.md), for
   rules the stock machines do not cover.

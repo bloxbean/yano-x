@@ -161,7 +161,7 @@ digest all match. Resolution must be deterministic and side-effect free — see
   shared loader, and the trust boundaries.
 - Yano's [manifested bundle catalog ADR](https://github.com/bloxbean/yano/blob/main/adr/app-layer/011.2-manifested-bundle-catalog.md)
   — the host's catalog, compatibility, isolation and lifecycle contract.
-- Yano's [plugin query and domain API guide](https://github.com/bloxbean/yano/blob/main/docs/APP_CHAIN_PLUGIN_QUERY_AND_DOMAIN_API.md)
+- The [plugin query and domain API guide](../APP_CHAIN_PLUGIN_QUERY_AND_DOMAIN_API.md)
   and [plugin operations guide](https://github.com/bloxbean/yano/blob/main/docs/PLUGIN_OPERATIONS.md).
 - [Composite implementation guide](https://github.com/bloxbean/yano-x/blob/main/composition/runtime/README.md)
 - [Plugin template scaffold](https://github.com/bloxbean/yano-x/tree/main/scaffolds/plugin-template/)

@@ -96,7 +96,7 @@ export default {
     { repo: 'yano-x', path: 'framework/core/src/main/java/org/yanoproject/x/framework/runtime/appchain/AppLedgerRuntime.java',
       anchors: ['.TrustLevel.INTERNAL_CONSISTENCY_ONLY;', 'case LATEST_CONFIRMED_ANCHOR ->',
         '.TrustLevel.NODE_CONFIRMED_L1_REFERENCE;'] },
-    { repo: 'yano', path: 'app/src/main/java/org/yanoproject/app/api/appchain/AppChainResource.java',
+    { repo: 'yano-x', path: 'framework/rest/src/main/java/org/yanoproject/x/framework/rest/AppChainResource.java',
       anchors: ['case "latest-confirmed-anchor" ->', 'response.put("trust", result.trust().name());'] },
     { repo: 'yano-x', path: 'sdk/client/src/main/java/org/yanoproject/x/client/PortableProofBundle.java',
       anchors: ['case FINALITY_CERTIFICATE, CALLER_PINNED ->', 'ProofLabVocabulary.TrustLevel.CALLER_PINNED_ROOT;',

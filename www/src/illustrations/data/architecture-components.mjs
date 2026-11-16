@@ -147,7 +147,7 @@ export default {
     },
   },
   sources: [
-    { repo: 'yano', path: 'docs/APP_CHAIN_CONSENSUS_GUIDE.md',
+    { repo: 'yano-x', path: 'docs/APP_CHAIN_CONSENSUS_GUIDE.md',
       anchors: ['AppChainManager  ── one per node', 'shared INBOUND transport (appmsg, protocol 100)',
         'shared catch-up server  (protocol 103)', 'message pool (admission, backpressure)',
         'AppChainEngine (consensus, single-threaded)', 'AppLedgerStore (RocksDB: blocks, MPF, indexes)',
@@ -155,7 +155,7 @@ export default {
         'Chains share only the node\'s networking and its L1 view.', 'In-memory (lost on restart, by design): the pending pool'] },
     { repo: 'yano-x', path: 'framework/core/src/main/java/org/yanoproject/x/framework/runtime/appchain/AppChainEngine.java',
       anchors: ['The engine is a serial', 'commits each finalized block, state root, and framework'] },
-    { repo: 'yano', path: 'app/src/main/java/org/yanoproject/app/api/appchain/AppChainResource.java',
+    { repo: 'yano-x', path: 'framework/rest/src/main/java/org/yanoproject/x/framework/rest/AppChainResource.java',
       anchors: ['@Produces(MediaType.SERVER_SENT_EVENTS)'] },
     { repo: 'yano', path: 'adr/app-layer/011-plugin-architecture.md',
       anchors: ['Sandboxing untrusted Java code. In-process plugins are fully trusted code.'] },

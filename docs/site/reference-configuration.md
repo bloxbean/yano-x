@@ -117,7 +117,7 @@ Each property reports how well its constraints are known:
 The properties above are the ones **Yano X plugins** own. Core app ledger
 configuration — chain id, members, threshold, sequencing, block cadence,
 storage, API authentication, anchoring, effects caps, retention — belongs to the
-Yano host and is documented in
+app-chain framework and is documented in
 [section 7 of the app ledger user guide](https://github.com/bloxbean/yano-x/blob/main/docs/APP_CHAIN_USER_GUIDE.md).
 
 Frequently needed host values:
@@ -127,6 +127,8 @@ Frequently needed host values:
 | `yano.app-chain.chain-id` | 1–128 valid UTF-8 bytes. One group of participants = one chain id. |
 | `yano.app-chain.state-machine` | The selected machine or profile id. Consensus-shared. |
 | `yano.plugins.directory` | Where bundles are loaded from. **Not** `yaci.plugins.directory`. |
+| `yano.app-chain.storage.path` | Authoritative app-chain RocksDB root, default `appchain-chainstate`, process-relative and separate from `yano.storage.path`. Environment: `YANO_APP_CHAIN_STORAGE_PATH`; concurrently running nodes need distinct values. |
+| `yano.plugins.required` | Bundle ids activated from the host class path regardless of `yano.plugins.enabled`; the integrated distribution sets the X root `org.yanoproject.x.app-ledger`. |
 | `yano.app-chain.effects.*` | Enablement and deterministic caps. All consensus-shared — see [Effects](/concepts/effects/). |
 | `yano.app-chain.anchor.*` | Anchor leader only — see [Cardano anchoring](/concepts/anchoring/). |
 | `yano.app-chain.message.enforce-sender-seq` | Consensus-visible when on; all members must agree. |

@@ -71,9 +71,9 @@ export default {
     },
   },
   sources: [
-    { repo: 'yano', path: 'docs/appchain/submission.md',
+    { repo: 'yano-x', path: 'docs/appchain/submission.md',
       anchors: ['**202** with `messageId`', 'Accepted is not finalized'] },
-    { repo: 'yano', path: 'docs/APP_CHAIN_CONSENSUS_GUIDE.md',
+    { repo: 'yano-x', path: 'docs/APP_CHAIN_CONSENSUS_GUIDE.md',
       anchors: ['**202** is only a local acceptance acknowledgement', 'In-memory (lost on restart, by design): the pending pool',
         'requires byte-identical `stateRoot`', 'there is no rollback path below finality', 'deterministic no-op'] },
     { repo: 'yano-x', path: 'docs/appchain/PROOF_LAB.md',

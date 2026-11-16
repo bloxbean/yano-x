@@ -182,8 +182,8 @@ Runtime plugins additionally must:
 - have bounded lifecycle cleanup.
 
 :::caution[JVM only]
-Yano X plugins target the JVM distribution. Yano's native image cannot discover
-directory JARs and does not include Yano X plugins. Run Yano X applications
+Yano X plugins target the JVM distribution. Yano's native image has no
+application-ledger support. Run Yano X applications
 from the `yano-x-jvm` distribution.
 :::
 

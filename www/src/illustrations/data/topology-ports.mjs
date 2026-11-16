@@ -114,7 +114,7 @@ export default {
       anchors: ['[--node-port 13337] [--http-port 8080]'] },
     { repo: 'yano-x', path: `${CLI}/NodeConfig.java`,
       anchors: ['local.put("quarkus.http.host", loopback ? "127.0.0.1" : "0.0.0.0");'] },
-    { repo: 'yano', path: 'docs/APP_CHAIN_CONSENSUS_GUIDE.md',
+    { repo: 'yano-x', path: 'docs/APP_CHAIN_CONSENSUS_GUIDE.md',
       anchors: ['per-chain dispatch by chain-id', 'one TCP connection per peer pair'] },
   ],
 };

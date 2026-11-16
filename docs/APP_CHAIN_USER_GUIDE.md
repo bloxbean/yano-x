@@ -50,7 +50,7 @@ separately installed JVM plugin bundles (group id
 | `yano-x-evidence-profile` | `products/evidence/profile` | Bundled preview evidence and role-evidence profiles |
 | `yano-x-client` | `sdk/client` | Java client SDK: REST + SSE + client-side proof verification (§16) |
 | `yano-x-composite-client` | `composition/client` | Governed-profile finality, one-root MPF, epoch-chain, and authorization-policy verification |
-| `yano-appchain-core-testkit` | [Yano `appchain/appchain-testkit`](https://github.com/bloxbean/yano/tree/main/appchain/appchain-testkit) | JUnit 5 `@AppChainCluster` embedded clusters for tests (§16) |
+| `yano-x-appchain-testkit` | [`sdk/appchain-testkit`](../sdk/appchain-testkit) | JUnit 5 `@AppChainCluster` embedded clusters for tests (§16) |
 | `yano-x-integration-contracts` | `sdk/integration-contracts` | Provider-neutral connector payload, receipt, CDDL, and golden-vector contracts |
 | `yano-x-kafka` | `connectors/kafka` | Node plugin: finalized blocks and acknowledged `kafka.publish` effects → Kafka topics (§10, §17) |
 | `yano-x-objectstore-s3` | `connectors/objectstore-s3` | Node plugin: immutable/versioned `object.put` effects for tested S3-compatible stores (§17) |
@@ -138,7 +138,7 @@ are never finalized; a tampered block fails the state-root re-execution check.
 For the full developer-level mechanics — the consensus round check by check,
 vote locks, rotation math, catch-up/restart semantics, and every built-in
 state machine's exact wire format — see Yano's
-[consensus & internals guide](https://github.com/bloxbean/yano/blob/main/docs/APP_CHAIN_CONSENSUS_GUIDE.md).
+[consensus & internals guide](APP_CHAIN_CONSENSUS_GUIDE.md).
 
 ---
 
@@ -1448,7 +1448,7 @@ class Orders {
 Listener methods take `StreamedMessage`, `byte[]` or `String`; all beans are
 `@ConditionalOnMissingBean`, so anything can be overridden.
 
-**Testkit** (`org.yanoproject:yano-appchain-core-testkit`, test scope) —
+**Testkit** (`org.yanoproject.x:yano-x-appchain-testkit`, test scope) —
 embedded multi-node chains for CI: generated keys, real sockets, temp ledgers:
 
 ```java

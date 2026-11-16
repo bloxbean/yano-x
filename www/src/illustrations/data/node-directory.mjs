@@ -166,7 +166,7 @@ export default {
         'root.resolve(operator).resolve("yano-node")', '"orders=" + LOG_RECIPE'] },
     { repo: 'yano-x', path: 'docs/APP_CHAIN_USER_GUIDE.md',
       anchors: ['Never restore this derived index root', 'It can be deleted and rebuilt from finalized app-chain blocks.'] },
-    { repo: 'yano', path: 'docs/APP_CHAIN_CONSENSUS_GUIDE.md',
+    { repo: 'yano-x', path: 'docs/APP_CHAIN_CONSENSUS_GUIDE.md',
       anchors: ['(`<resolved yano.app-chain.storage.path>/<chain-id>/`)'] },
   ],
 };

@@ -164,7 +164,7 @@ reaches activation. An add keeps the current threshold, so with `f = 0` a
 2-of-3 ledger cannot add a fourth member directly: raise the threshold to 3
 first, wait until that epoch is active, then add the member (3-of-4).
 `./yano.sh appchain approve` does this for you. The
-[Yano consensus guide](https://github.com/bloxbean/yano/blob/main/docs/APP_CHAIN_CONSENSUS_GUIDE.md)
+[consensus guide](https://github.com/bloxbean/yano-x/blob/main/docs/APP_CHAIN_CONSENSUS_GUIDE.md)
 describes the procedure.
 
 ## Catch-up and restart
@@ -221,7 +221,7 @@ versioned upgrade, not a rolling code change. See
 
 ## Deeper reading
 
-- [Yano consensus and internals guide](https://github.com/bloxbean/yano/blob/main/docs/APP_CHAIN_CONSENSUS_GUIDE.md):
+- [Consensus and internals guide](https://github.com/bloxbean/yano-x/blob/main/docs/APP_CHAIN_CONSENSUS_GUIDE.md):
   the round check by check, vote locks, rotation, catch-up, and restart.
 - [ADR-036](https://github.com/bloxbean/yano/blob/main/adr/app-layer/036-certified-view-change-and-durable-l1-observation-delivery.md):
   the safety and liveness model.

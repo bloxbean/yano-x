@@ -202,7 +202,7 @@ rm -f chains.template.yaml
   maturity, state key and proof subject.
 - Each reference page, for example [`kv-registry`](../state-machines/kv-registry.md),
   covers REST, Java, proofs and design choices.
-- The Yano [consensus guide](https://github.com/bloxbean/yano/blob/main/docs/APP_CHAIN_CONSENSUS_GUIDE.md)
+- The [consensus guide](../../APP_CHAIN_CONSENSUS_GUIDE.md)
   explains how blocks are ordered, re-executed and certified.
 - For business actors, continue with
   [domain-role approvals](05-domain-role-approvals.md); for coordinated

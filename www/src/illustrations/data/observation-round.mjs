@@ -233,7 +233,7 @@ export default {
         'followers verify the certificate before signing', 'Retry locally; Phase 1 signs no failure report',
         'Reject locally; never sign or convert it to domain `false`',
         'the kernel derives `EXPIRED` from committed round state without a certificate'] },
-    { repo: 'yano', path: 'docs/appchain/observations.md',
+    { repo: 'yano-x', path: 'docs/appchain/observations.md',
       anchors: ['`ed25519-merkle-inclusion-v1`', '`https-attested-merkle-v1`',
         'leaf-to-root list of at most 20 sibling hashes', 'A malformed proof is rejected before local signing'] },
     { repo: 'yano-x', path: 'docs/APP_CHAIN_USER_GUIDE.md',

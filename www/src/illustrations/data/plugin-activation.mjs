@@ -36,9 +36,9 @@ const scan = {
 const apiRange = {
   title: 'Check the API range',
   text: 'The manifest’s `yanoApi {min, max, minLevel}` must include the host’s API major, 3, and the host’s level, '
-    + '13, must be at least `minLevel`. There is a maximum major but no maximum level.',
-  checks: [{ label: '`min` ≤ 3 ≤ `max`, and 13 ≥ `minLevel`', ok: true }],
-  cards: { scan: { title: 'API compatible', detail: 'major 3 · level 13', tone: 'ok' } },
+    + '14, must be at least `minLevel`. There is a maximum major but no maximum level.',
+  checks: [{ label: '`min` ≤ 3 ≤ `max`, and 14 ≥ `minLevel`', ok: true }],
+  cards: { scan: { title: 'API compatible', detail: 'major 3 · level 14', tone: 'ok' } },
 };
 
 const isolated = {
@@ -122,7 +122,7 @@ export default {
     {
       id: 'host-class',
       label: 'It embeds a host API class',
-      summary: 'The bundle was packaged with a copy of `yano-core-api` inside it.',
+      summary: 'The bundle was packaged with a copy of `yano-node-api` inside it.',
       steps: [capture, {
         ...scan,
         text: 'The JAR contains classes under `org/yanoproject/api/`. Two copies of one interface would break type '
@@ -148,14 +148,14 @@ export default {
     {
       id: 'min-level',
       label: 'minLevel is too high',
-      summary: 'The manifest declares `minLevel: 14`, but this host is at level 13.',
+      summary: 'The manifest declares `minLevel: 15`, but this host is at level 14.',
       steps: [capture, scan, {
         ...apiRange,
-        text: 'The host’s level, 13, is below the bundle’s `minLevel` of 14. The bundle needs API that this host '
+        text: 'The host’s level, 14, is below the bundle’s `minLevel` of 15. The bundle needs API that this host '
           + 'does not have.',
-        checks: [{ label: '`min` ≤ 3 ≤ `max`, and 13 ≥ `minLevel`', ok: false, code: 'level 13 < 14' }],
-        cards: { scan: { title: 'Incompatible', detail: 'needs level 14', tone: 'fail' } },
-      }, fatal('Start-up fails', 'The node reports that the bundle does not support Yano plugin API major 3 level 13. '
+        checks: [{ label: '`min` ≤ 3 ≤ `max`, and 14 ≥ `minLevel`', ok: false, code: 'level 14 < 15' }],
+        cards: { scan: { title: 'Incompatible', detail: 'needs level 15', tone: 'fail' } },
+      }, fatal('Start-up fails', 'The node reports that the bundle does not support Yano plugin API major 3 level 14. '
         + 'Use the host version the bundle was built for.', 'API level too low')],
     },
     {
@@ -189,18 +189,20 @@ export default {
       anchors: ['MAX_PLUGIN_JARS = 256', 'MAX_PLUGIN_JAR_BYTES = 1024L * 1024L * 1024L',
         'MAX_PLUGIN_SNAPSHOT_BYTES = 4L * 1024L * 1024L * 1024L',
         'The parent is a trusted application boundary, not a sandbox boundary.', 'Directory loaders are parent-first'] },
+    { repo: 'yano', path: 'plugin-catalog/src/main/java/org/yanoproject/catalog/ContributionKindRegistry.java',
+      anchors: ['BUILT_IN_API_PREFIX = "org/yanoproject/api/"'] },
     { repo: 'yano', path: 'plugin-catalog/src/main/java/org/yanoproject/catalog/PluginArtifactScanner.java',
-      anchors: ['API_CLASS_PREFIXES = List.of(', 'plugin artifact packages Yano API class',
+      anchors: ['plugin artifact packages Yano API class',
         'manifest and supported ServiceLoader entries differ; missing=', 'JAR manifest Class-Path is unsupported',
         'artifact contains more than one qualified plugin manifest', 'without loading provider code'] },
     { repo: 'yano', path: 'plugin-catalog/src/main/java/org/yanoproject/catalog/YanoApiRange.java',
       anchors: ['return apiMajor >= min && apiMajor <= max && apiLevel >= minLevel;'] },
     { repo: 'yano', path: 'node-api/src/main/java/org/yanoproject/api/plugin/PluginApiVersion.java',
-      anchors: ['CURRENT_MAJOR = 3', 'CURRENT_LEVEL = 13'] },
+      anchors: ['CURRENT_MAJOR = 3', 'CURRENT_LEVEL = 14'] },
     { repo: 'yano', path: 'runtime/src/main/java/org/yanoproject/runtime/plugins/DirectoryPluginArtifactValidator.java',
       anchors: ['Provider constructors and static initializers are not invoked.'] },
     { repo: 'yano', path: 'runtime/src/main/java/org/yanoproject/runtime/plugins/PluginRuntimeEnvironment.java',
-      anchors: ['PluginCatalogBuilder.validateManifestCompatibility(inputs);', 'validateDirectoryArtifacts(handle, inputs);',
+      anchors: ['PluginCatalogBuilder.validateManifestCompatibility(inputs);', 'validateDirectoryArtifacts(kinds, handle, inputs);',
         'handle.activateDirectoryArtifacts(', 'One directory artifact cannot mix selected and policy-filtered bundles',
         'YANO_PLUGIN_CATALOG_PROVENANCE'] },
     { repo: 'yano', path: 'runtime/src/main/java/org/yanoproject/runtime/plugins/PluginCatalogBuilder.java',
@@ -214,12 +216,12 @@ export default {
       anchors: ['Any structural catalog error is startup-fatal regardless of contribution',
         'in complete-SHA-256 order', 'lazy selected-provider construction at required activation point',
         'No `NodePlugin` lifecycle callback or typed contribution factory method runs'] },
-    { repo: 'yano', path: 'app/src/main/java/org/yanoproject/app/api/appchain/AppChainResource.java',
+    { repo: 'yano-x', path: 'framework/rest/src/main/java/org/yanoproject/x/framework/rest/AppChainResource.java',
       anchors: ['"pluginCatalogFingerprint"'] },
     { repo: 'yano-x', path: 'tooling/appchain-cli/src/main/java/org/yanoproject/x/appchain/cli/StatusCommand.java',
       anchors: ['identity.path("pluginCatalogFingerprint")', '(compare with the other members)'] },
     { repo: 'yano-x', path: 'tooling/appchain-cli/src/main/java/org/yanoproject/x/appchain/cli/StartCommand.java',
       anchors: ['Plugin bundles changed since this node joined '] },
-    { repo: 'yano', path: 'docs/APP_CHAIN_CONSENSUS_GUIDE.md', anchors: ['requires byte-identical `stateRoot`'] },
+    { repo: 'yano-x', path: 'docs/APP_CHAIN_CONSENSUS_GUIDE.md', anchors: ['requires byte-identical `stateRoot`'] },
   ],
 };

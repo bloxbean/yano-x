@@ -50,11 +50,11 @@ in its `gradle.properties`.
 
 | Value | Current |
 |---|---|
-| Yano X version | `0.1.0-pre4` |
-| Yano host version | `0.1.0-pre19` |
+| Yano X version | `0.1.0-pre6` |
+| Yano host version | `0.1.0-pre20-bf45507fd` |
 | Maven group | `org.yanoproject.x` |
 | Java | `25` |
-| Base Yano JVM ZIP | [`yano-0.1.0-pre19.zip`](https://github.com/bloxbean/yano/releases/download/v0.1.0-pre19/yano-0.1.0-pre19.zip) |
+| Base Yano JVM ZIP | Local build required; supply matching Maven artifacts and `-PyanoJvmDist` ([instructions](/start-here/build-from-source/)). |
 
 <!-- catalog:versions-end -->
 
@@ -436,8 +436,8 @@ catch-up, restart, and anchor state.
 | Version-matched truth for a build | `./yano.sh appchain recipes`, `./yano.sh appchain capabilities --format json` |
 | Setup workflow for agents | The in-repo `configure-yano-appchain` skill under `tooling/devtools/src/main/resources/appchain-dx/v1alpha1/skills/` — **it wins where it overlaps this pack** |
 | Exhaustive reference | [Reference shelf](/reference/shelf/) |
-| Plugin SPI contract | Yano's ADR-011 series in its `adr/app-layer/` directory, and its [plugin query and domain API guide](https://github.com/bloxbean/yano/blob/main/docs/APP_CHAIN_PLUGIN_QUERY_AND_DOMAIN_API.md) |
-| Consensus internals | Yano's [consensus guide](https://github.com/bloxbean/yano/blob/main/docs/APP_CHAIN_CONSENSUS_GUIDE.md) |
+| Plugin SPI contract | The ADR-011 series in `adr/app-layer/` and the [plugin query and domain API guide](https://github.com/bloxbean/yano-x/blob/main/docs/APP_CHAIN_PLUGIN_QUERY_AND_DOMAIN_API.md) |
+| Consensus internals | The [consensus guide](https://github.com/bloxbean/yano-x/blob/main/docs/APP_CHAIN_CONSENSUS_GUIDE.md) |
 | Repository invariants | [`AGENTS.md`](https://github.com/bloxbean/yano-x/blob/main/AGENTS.md) |
 
 ---

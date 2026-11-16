@@ -97,7 +97,7 @@ export default {
         'StateMutation.put(blockKey(block.height()), record.canonicalBytes())'] },
     { repo: 'yano-x', path: 'framework/api/src/main/java/org/yanoproject/x/framework/api/appchain/transition/FinalizedBlockMessageRootIndexedStateMachine.java',
       anchors: ['source.getOrDefault(ENABLED_SETTING, "true")'] },
-    { repo: 'yano', path: 'app/src/main/java/org/yanoproject/app/api/appchain/AppChainResource.java',
+    { repo: 'yano-x', path: 'framework/rest/src/main/java/org/yanoproject/x/framework/rest/AppChainResource.java',
       anchors: ['result.put("presence", proof.presence().name());', 'result.put("valueHex"',
         'result.put("stateRoot", HexUtil.encodeHexString(stateRoot));', '"No finalized message with id "'] },
   ],

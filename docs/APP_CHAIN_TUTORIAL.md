@@ -559,7 +559,7 @@ enterprise extension set — see `docs/APP_CHAIN_USER_GUIDE.md` sections 8–17:
 - **Spring Boot clients** — `yano-x-spring-boot-starter` gives your
   application an auto-configured `AppChainTemplate` and `@AppChainListener`
   over the Java SDK (guide §16) — no curl in production code.
-- **Tests** — `yano-appchain-core-testkit`: `@AppChainCluster(nodes = 3)` spins an
+- **Tests** — `yano-x-appchain-testkit`: `@AppChainCluster(nodes = 3)` spins an
   embedded multi-node chain inside a JUnit 5 test (guide §16).
 - **Scaffolds** — `scaffolds/docker-compose-cluster` (ready 3-node cluster)
   and `scaffolds/plugin-template` (Part 2 of this tutorial as a ready-made

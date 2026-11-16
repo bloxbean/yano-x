@@ -55,8 +55,8 @@ binary in your hands:
 | `experimental` | Under active development. |
 
 Remember that Yano X is JVM-only. A recipe whose native posture is
-`unsupported` cannot run on Yano's native image, which carries `ordered-log`
-only.
+`unsupported` cannot run natively; Yano's native image has no
+application-ledger support.
 
 ## Using a recipe
 

@@ -151,7 +151,7 @@ export default {
     ['fail', 'refused, stalled, or halted'],
   ],
   sources: [
-    { repo: 'yano', path: 'docs/APP_CHAIN_CONSENSUS_GUIDE.md',
+    { repo: 'yano-x', path: 'docs/APP_CHAIN_CONSENSUS_GUIDE.md',
       anchors: ['A nondeterministic state machine stalls its chain right here.',
         'no locale-dependent serialization', 'no environment reads', 'AppChainStalledEvent',
         'the next member in canonical member order becomes leader'] },
