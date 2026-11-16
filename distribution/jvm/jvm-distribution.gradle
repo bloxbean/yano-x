@@ -631,6 +631,10 @@ tasks.register('verifyYanoXJvmDistribution') {
                         throw new GradleException("Integrated yano.jar is missing ${name}")
                     }
                 }
+                def tzdb = jar.entries().findAll { it.name.startsWith('zonedb/') || it.name.startsWith('java/time/') }
+                if (!tzdb.isEmpty()) {
+                    throw new GradleException("Integrated yano.jar ships a replacement tzdb provider: ${tzdb*.name.take(5)}")
+                }
                 def index = jar.getInputStream(jar.getEntry('META-INF/yano-plugin-index-v1.json'))
                         .withCloseable { stream -> new JsonSlurper().parse(stream) }
                 def indexed = index.bundles.collect { it.manifest.id }.toSet()

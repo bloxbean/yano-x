@@ -35,7 +35,11 @@ configurations.configureEach {
     // Quarkus owns the application logging provider on one SLF4J API.
     exclude group: 'org.slf4j', module: 'slf4j-reload4j'
     exclude group: 'ch.qos.reload4j', module: 'reload4j'
+    // Scribe's cross-platform tzdb jar packages a replacement java.time.zone.TzdbZoneRulesProvider;
+    // the JVM supplies that provider, and Yano's own application excludes the duplicate the same way.
+    exclude group: 'io.github.cquiroz', module: 'scala-java-time-tzdb_3'
     resolutionStrategy.force(libs.slf4j.api.get())
+
     resolutionStrategy.eachDependency { details ->
         def group = details.requested.group
         // The Quarkus platform selects a vulnerable Jackson patch; align every Jackson family to the
