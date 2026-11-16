@@ -387,6 +387,14 @@
       "bundleArtifactId": null
     },
     {
+      "modulePath": ":fixtures:appchain-rest",
+      "directory": "fixtures/appchain-rest",
+      "artifactId": "yano-x-appchain-rest-fixture",
+      "publicationType": "test-fixture",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
       "modulePath": ":framework:api",
       "directory": "framework/api",
       "artifactId": "yano-x-appchain-api",
