@@ -153,7 +153,8 @@ class AppLedgerHostPluginTest {
         assertThat(plugin.chains).isEmpty();
         assertThat(harness.owned.get()).isNull();
         assertThat(harness.readiness).isNull();
-        assertThat(harness.published).extracting(Subsystem::name).containsExactly("local-read-models");
+        // Without a gateway to follow, the read models get no pre-publication stage (baseline behaviour).
+        assertThat(harness.published).isEmpty();
         assertThat(harness.appOnlyNetwork).isNull();
         AppLedgers ledgers = AppLedgers.of(harness);
         assertThat(ledgers.appChains().all()).isEmpty();

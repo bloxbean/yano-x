@@ -181,11 +181,15 @@ public class AppLedgerHostPlugin implements NodePlugin {
                     l1Transactions(node, context), operations);
             created.add(domainApis);
             products.domainApis = domainApis;
-            lifecycle.registerBeforePublication(new Subsystem() {
-                @Override public String name() { return "local-read-models"; }
-                @Override public void start() { contributions.resume(); }
-                @Override public void stop() { contributions.sealAndAwait(); }
-            });
+            // Derived read models start after every app-chain gateway is live; with app chains disabled
+            // there is no gateway to follow, so no stage is registered.
+            if (manager != null) {
+                lifecycle.registerBeforePublication(new Subsystem() {
+                    @Override public String name() { return "local-read-models"; }
+                    @Override public void start() { contributions.resume(); }
+                    @Override public void stop() { contributions.sealAndAwait(); }
+                });
+            }
             synchronized (this) {
                 requireOpen();
                 registries.addAll(created);
