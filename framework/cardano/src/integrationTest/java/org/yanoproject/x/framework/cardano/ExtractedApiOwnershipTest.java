@@ -1,4 +1,4 @@
-package org.yanoproject.runtime.plugins;
+package org.yanoproject.x.framework.cardano;
 
 import org.junit.jupiter.api.Test;
 
