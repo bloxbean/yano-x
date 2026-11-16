@@ -401,7 +401,9 @@ class DomainApiRegistryTest {
     void recorderReceivesDomainEventsAndThrowingRecorderCannotChangeResponseOrLifetime() {
         String id = "com.example.recorded";
         DomainApiProvider provider = provider(id, () -> api(List.of(
-                route("read", "read", DomainApiAccess.READ)), request -> text("7"), new AtomicInteger()));
+                route("read", "read", DomainApiAccess.READ),
+                new DomainApiRoute("write", DomainHttpMethod.POST, "write", DomainApiAccess.READ)),
+                request -> text("7"), new AtomicInteger()));
         RecordingProviders providers = new RecordingProviders(provider);
         List<String> events = new java.util.concurrent.CopyOnWriteArrayList<>();
         AtomicBoolean fail = new AtomicBoolean();
@@ -430,9 +432,13 @@ class DomainApiRegistryTest {
             registry.resume();
             assertThat(registry.dispatch(id, DomainHttpMethod.GET, "read", Map.of(), new byte[0]).body())
                     .containsExactly('7');
+            assertThat(events).containsOnlyOnce("outcome:DOMAIN_GET").doesNotContain("outcome:DOMAIN_POST");
+            assertThat(registry.dispatch(id, DomainHttpMethod.POST, "write", Map.of(), new byte[0]).body())
+                    .containsExactly('7');
+            assertThat(events).containsOnlyOnce("outcome:DOMAIN_GET", "outcome:DOMAIN_POST");
             registry.sealAndAwait();
             assertThat(events).contains("activating:domain-api", "active:domain-api", "admitted", "started",
-                    "callback-finished", "outcome:DOMAIN_GET", "stopped:domain-api");
+                    "callback-finished", "outcome:DOMAIN_GET", "outcome:DOMAIN_POST", "stopped:domain-api");
 
             fail.set(true);
             registry.resume();

@@ -125,7 +125,7 @@ public class AppLedgerHostPlugin implements NodePlugin {
             }
         }
         long magic = standalone
-                ? standaloneNetworkMagic(globals.get("yano.app-chain.network-magic"))
+                ? standaloneNetworkMagic(globals.get(AppChainPropertyKeys.NETWORK_MAGIC))
                 : node.getProtocolMagic();
         String storage = enabled ? storageRoot(node, globals.get(AppChainPropertyKeys.STORAGE_PATH)) : null;
         if (standalone) host.n2n().requireAppOnlyNetwork(magic);

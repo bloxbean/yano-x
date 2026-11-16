@@ -8,6 +8,8 @@ public final class AppChainPropertyKeys {
     public static final String ENABLED = "yano.app-chain.enabled";
     /** Node-local root directory containing one RocksDB ledger per hosted app chain. */
     public static final String STORAGE_PATH = "yano.app-chain.storage.path";
+    /** App-only network magic (unsigned 32-bit) of a standalone {@code yano.mode=app-ledger} node. */
+    public static final String NETWORK_MAGIC = "yano.app-chain.network-magic";
     /**
      * Multi-chain config (ADR 006 E5.2): runtime-globals key holding a
      * List of Maps of suffix-keyed chain settings, populated by adapters

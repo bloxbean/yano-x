@@ -82,12 +82,17 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 
 /**
  * Host-side {@link ContributionKindBinding}s of the application-ledger contribution kinds declared by
  * {@code META-INF/yano/contribution-kinds/org.yanoproject.x.framework.api.json}, and the facades that
  * route every plugin callback through the host's {@link PluginCallbackScope}.
+ *
+ * <p>The {@code effect-executor} kind is deliberately not bound here: framework/cardano declares and binds it
+ * with its executor SPI. A standalone-only composition (framework/standalone without framework/cardano)
+ * therefore offers no effect-executor contributions; that is intended.</p>
  */
 public final class AppLedgerKindBindings {
     /** Owner of the descriptor that declares these kinds, and its file name. */
@@ -116,15 +121,15 @@ public final class AppLedgerKindBindings {
         private final String manifestKey;
         private final Class<P> serviceType;
         private final Function<P, String> selector;
-        private final FacadeFactory<P> facade;
+        private final BiFunction<P, PluginCallbackScope, P> facade;
 
         protected Binding(String manifestKey, Class<P> serviceType, Function<P, String> selector,
-                          FacadeFactory<P> facade) {
+                          BiFunction<P, PluginCallbackScope, P> facade) {
             this(DESCRIPTOR_OWNER, manifestKey, serviceType, selector, facade);
         }
 
         protected Binding(String descriptorOwner, String manifestKey, Class<P> serviceType,
-                          Function<P, String> selector, FacadeFactory<P> facade) {
+                          Function<P, String> selector, BiFunction<P, PluginCallbackScope, P> facade) {
             this.descriptorOwner = descriptorOwner;
             this.manifestKey = manifestKey;
             this.serviceType = serviceType;
@@ -137,14 +142,8 @@ public final class AppLedgerKindBindings {
         @Override public final String manifestKey() { return manifestKey; }
         @Override public final String selector(P provider) { return selector.apply(provider); }
         @Override public final P facade(P provider, PluginCallbackScope scope) {
-            return facade.create(provider, scope);
+            return facade.apply(provider, scope);
         }
-    }
-
-    /** Facade constructor of one provider SPI. */
-    @FunctionalInterface
-    public interface FacadeFactory<P> {
-        P create(P provider, PluginCallbackScope scope);
     }
 
     public static final class StateMachine extends Binding<AppStateMachineProvider> {

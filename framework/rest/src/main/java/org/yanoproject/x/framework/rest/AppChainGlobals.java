@@ -206,8 +206,8 @@ public class AppChainGlobals implements RuntimeGlobalsContributor {
         } else if (!appChainList.isEmpty()) {
             log.info("App-chain multi-chain config present but yano.app-chain.enabled=false — not started");
         }
-        appConfig.getOptionalValue("yano.app-chain.network-magic", String.class)
-                .ifPresent(value -> globals.put("yano.app-chain.network-magic", value));
+        appConfig.getOptionalValue(AppChainPropertyKeys.NETWORK_MAGIC, String.class)
+                .ifPresent(value -> globals.put(AppChainPropertyKeys.NETWORK_MAGIC, value));
     }
 
     /**
