@@ -19,7 +19,7 @@
       "recommended": {"blockIntervalMs": "1000"},
       "runtimeTypes": ["jvm"],
       "deploymentTargets": ["host", "docker-compose"],
-      "artifacts": ["yano-runtime", "yano-x-composite", "yano-x-stdlib", "yano-x-role-workflow"],
+      "artifacts": ["yano-x-appchain-cardano", "yano-x-composite", "yano-x-stdlib", "yano-x-role-workflow"],
       "nativePosture": "unsupported",
       "externalPrerequisites": ["Exact manifested authoring plugin directory"],
       "bootstrapRequirements": ["Pinned public member keys and normalized component configuration"],
@@ -94,7 +94,7 @@
         "docker-compose"
       ],
       "artifacts": [
-        "yano-runtime",
+        "yano-x-appchain-cardano",
         "yano-x-stdlib"
       ],
       "nativePosture": "unsupported",
@@ -133,7 +133,7 @@
         "docker-compose"
       ],
       "artifacts": [
-        "yano-runtime",
+        "yano-x-appchain-cardano",
         "yano-x-stdlib"
       ],
       "nativePosture": "unsupported",
@@ -172,7 +172,7 @@
         "docker-compose"
       ],
       "artifacts": [
-        "yano-runtime",
+        "yano-x-appchain-cardano",
         "yano-x-stdlib"
       ],
       "nativePosture": "unsupported",
@@ -213,7 +213,7 @@
         "docker-compose"
       ],
       "artifacts": [
-        "yano-runtime",
+        "yano-x-appchain-cardano",
         "yano-x-stdlib"
       ],
       "nativePosture": "unsupported",
@@ -252,7 +252,7 @@
         "docker-compose"
       ],
       "artifacts": [
-        "yano-runtime",
+        "yano-x-appchain-cardano",
         "yano-x-composite",
         "yano-x-role-workflow"
       ],
@@ -296,7 +296,7 @@
         "docker-compose"
       ],
       "artifacts": [
-        "yano-runtime",
+        "yano-x-appchain-cardano",
         "yano-x-stdlib",
         "yano-x-evidence-registry",
         "yano-x-composite",
@@ -344,7 +344,7 @@
         "docker-compose"
       ],
       "artifacts": [
-        "yano-runtime",
+        "yano-x-appchain-cardano",
         "yano-x-eutxo-ledger"
       ],
       "nativePosture": "unsupported",
@@ -389,7 +389,7 @@
         "docker-compose"
       ],
       "artifacts": [
-        "yano-runtime",
+        "yano-x-appchain-cardano",
         "yano-x-eutxo-ledger",
         "yano-x-eutxo-bridge-cardano"
       ],
@@ -446,7 +446,7 @@
         "docker-compose"
       ],
       "artifacts": [
-        "yano-runtime"
+        "yano-x-appchain-cardano"
       ],
       "nativePosture": "unsupported",
       "externalPrerequisites": [

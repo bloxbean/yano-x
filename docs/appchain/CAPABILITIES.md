@@ -39,24 +39,24 @@ select it explicitly.
 <!-- capability-catalog:start -->
 | ID | Category | Availability | Maturity | Scope | Selectable | Runtimes | Native posture | Required artifacts | Reference |
 |---|---|---|---|---|---:|---|---|---|---|
-| `state:declarative-composite` | `state` | `BUNDLED` | `preview` | `chain` | yes | JVM | `unsupported` | `yano-runtime`, `yano-x-composite`, `yano-x-stdlib`, `yano-x-role-workflow` | [Declarative bindings](DECLARATIVE_BINDINGS_CLI.md) |
+| `state:declarative-composite` | `state` | `BUNDLED` | `preview` | `chain` | yes | JVM | `unsupported` | `yano-x-appchain-cardano`, `yano-x-composite`, `yano-x-stdlib`, `yano-x-role-workflow` | [Declarative bindings](DECLARATIVE_BINDINGS_CLI.md) |
 | `state:ordered-log` | `state` | `BUNDLED` | `stable` | `chain` | yes | JVM | `unsupported` | `yano-x-appchain-cardano` | [Yano core host](../core-host.md) |
-| `state:kv-registry` | `state` | `BUNDLED` | `stable` | `chain` | yes | JVM | `unsupported` | `yano-runtime`, `yano-x-stdlib` | [KV registry](state-machines/kv-registry.md) |
-| `state:authenticated-map` | `state` | `BUNDLED` | `preview` | `chain` | yes | JVM | `unsupported` | `yano-runtime`, `yano-x-stdlib`, `yano-x-role-workflow` | [Authenticated map](state-machines/authenticated-map.md) |
-| `state:approval-workflow` | `state` | `BUNDLED` | `stable` | `chain` | yes | JVM | `unsupported` | `yano-runtime`, `yano-x-stdlib` | [Approvals](state-machines/approvals.md) |
-| `state:balances` | `state` | `BUNDLED` | `stable` | `chain` | yes | JVM | `unsupported` | `yano-runtime`, `yano-x-stdlib` | [Balances](state-machines/balances.md) |
-| `state:doc-trail` | `state` | `BUNDLED` | `stable` | `chain` | yes | JVM | `unsupported` | `yano-runtime`, `yano-x-stdlib` | [Document trail](state-machines/doc-trail.md) |
-| `state:evidence-registry` | `state` | `BUNDLED` | `preview` | `chain` | yes | JVM | `unsupported` | `yano-runtime`, `yano-x-evidence-registry` | [Evidence](tutorials/04-evidence-publication.md) |
-| `state:role-approvals` | `state` | `BUNDLED` | `preview` | `chain` | yes | JVM | `unsupported` | `yano-runtime`, `yano-x-composite`, `yano-x-role-workflow` | [Generic role approvals](state-machines/role-approvals.md) |
-| `state:role-evidence` | `state` | `BUNDLED` | `preview` | `chain` | yes | JVM | `unsupported` | `yano-runtime`, `yano-x-stdlib`, `yano-x-evidence-registry`, `yano-x-composite`, `yano-x-role-workflow`, `yano-x-evidence-profile` | [Role evidence](tutorials/04-evidence-publication.md) |
-| `state:custom-plugin` | `custom-plugin` | `REFERENCE` | `experimental` | `chain` | yes | JVM | `unsupported` | `yano-runtime` | [Custom plugins](tutorials/08-plugins-and-composites.md) |
-| `state:eutxo-ledger` | `state` | `FIRST_PARTY_OPTIONAL` | `experimental` | `chain` | derived | JVM | `unsupported` | `yano-runtime`, `yano-x-eutxo-ledger` | [EUTxO extension](../../ledgers/eutxo/README.md) |
-| `profile:eutxo-plutus-v3` | `profile` | `FIRST_PARTY_OPTIONAL` | `experimental` | `chain` | yes | JVM | `unsupported` | `yano-runtime`, `yano-x-eutxo-ledger` | [EUTxO profiles](../../ledgers/eutxo/README.md) |
-| `profile:eutxo-bridge-settlement` | `profile` | `FIRST_PARTY_OPTIONAL` | `experimental` | `chain` | yes | JVM | `unsupported` | `yano-runtime`, `yano-x-eutxo-ledger` | [EUTxO profiles](../../ledgers/eutxo/README.md) |
-| `profile:eutxo-key-payments` | `profile` | `FIRST_PARTY_OPTIONAL` | `experimental` | `chain` | yes | JVM | `unsupported` | `yano-runtime`, `yano-x-eutxo-ledger` | [EUTxO profiles](../../ledgers/eutxo/README.md) |
-| `funding:eutxo-genesis` | `funding` | `FIRST_PARTY_OPTIONAL` | `experimental` | `chain` | yes | JVM | `unsupported` | `yano-runtime`, `yano-x-eutxo-ledger` | [EUTxO genesis](../../ledgers/eutxo/README.md) |
-| `bridge:cardano-federated` | `bridge` | `EXPERIMENTAL` | `experimental` | `chain` | yes | JVM | `unsupported` | `yano-runtime`, `yano-x-eutxo-ledger`, `yano-x-eutxo-bridge-cardano` | [EUTxO bridge](../../ledgers/eutxo/README.md) |
-| `indexer:eutxo-lifecycle` | `indexer` | `FIRST_PARTY_OPTIONAL` | `preview` | `node` | derived | JVM | `unsupported` | `yano-runtime`, `yano-x-eutxo-indexer-core`, `yano-x-eutxo-indexer-jdbc` | [Indexer operations](../../ledgers/eutxo/INDEXER_OPERATIONS.md) |
+| `state:kv-registry` | `state` | `BUNDLED` | `stable` | `chain` | yes | JVM | `unsupported` | `yano-x-appchain-cardano`, `yano-x-stdlib` | [KV registry](state-machines/kv-registry.md) |
+| `state:authenticated-map` | `state` | `BUNDLED` | `preview` | `chain` | yes | JVM | `unsupported` | `yano-x-appchain-cardano`, `yano-x-stdlib`, `yano-x-role-workflow` | [Authenticated map](state-machines/authenticated-map.md) |
+| `state:approval-workflow` | `state` | `BUNDLED` | `stable` | `chain` | yes | JVM | `unsupported` | `yano-x-appchain-cardano`, `yano-x-stdlib` | [Approvals](state-machines/approvals.md) |
+| `state:balances` | `state` | `BUNDLED` | `stable` | `chain` | yes | JVM | `unsupported` | `yano-x-appchain-cardano`, `yano-x-stdlib` | [Balances](state-machines/balances.md) |
+| `state:doc-trail` | `state` | `BUNDLED` | `stable` | `chain` | yes | JVM | `unsupported` | `yano-x-appchain-cardano`, `yano-x-stdlib` | [Document trail](state-machines/doc-trail.md) |
+| `state:evidence-registry` | `state` | `BUNDLED` | `preview` | `chain` | yes | JVM | `unsupported` | `yano-x-appchain-cardano`, `yano-x-evidence-registry` | [Evidence](tutorials/04-evidence-publication.md) |
+| `state:role-approvals` | `state` | `BUNDLED` | `preview` | `chain` | yes | JVM | `unsupported` | `yano-x-appchain-cardano`, `yano-x-composite`, `yano-x-role-workflow` | [Generic role approvals](state-machines/role-approvals.md) |
+| `state:role-evidence` | `state` | `BUNDLED` | `preview` | `chain` | yes | JVM | `unsupported` | `yano-x-appchain-cardano`, `yano-x-stdlib`, `yano-x-evidence-registry`, `yano-x-composite`, `yano-x-role-workflow`, `yano-x-evidence-profile` | [Role evidence](tutorials/04-evidence-publication.md) |
+| `state:custom-plugin` | `custom-plugin` | `REFERENCE` | `experimental` | `chain` | yes | JVM | `unsupported` | `yano-x-appchain-cardano` | [Custom plugins](tutorials/08-plugins-and-composites.md) |
+| `state:eutxo-ledger` | `state` | `FIRST_PARTY_OPTIONAL` | `experimental` | `chain` | derived | JVM | `unsupported` | `yano-x-appchain-cardano`, `yano-x-eutxo-ledger` | [EUTxO extension](../../ledgers/eutxo/README.md) |
+| `profile:eutxo-plutus-v3` | `profile` | `FIRST_PARTY_OPTIONAL` | `experimental` | `chain` | yes | JVM | `unsupported` | `yano-x-appchain-cardano`, `yano-x-eutxo-ledger` | [EUTxO profiles](../../ledgers/eutxo/README.md) |
+| `profile:eutxo-bridge-settlement` | `profile` | `FIRST_PARTY_OPTIONAL` | `experimental` | `chain` | yes | JVM | `unsupported` | `yano-x-appchain-cardano`, `yano-x-eutxo-ledger` | [EUTxO profiles](../../ledgers/eutxo/README.md) |
+| `profile:eutxo-key-payments` | `profile` | `FIRST_PARTY_OPTIONAL` | `experimental` | `chain` | yes | JVM | `unsupported` | `yano-x-appchain-cardano`, `yano-x-eutxo-ledger` | [EUTxO profiles](../../ledgers/eutxo/README.md) |
+| `funding:eutxo-genesis` | `funding` | `FIRST_PARTY_OPTIONAL` | `experimental` | `chain` | yes | JVM | `unsupported` | `yano-x-appchain-cardano`, `yano-x-eutxo-ledger` | [EUTxO genesis](../../ledgers/eutxo/README.md) |
+| `bridge:cardano-federated` | `bridge` | `EXPERIMENTAL` | `experimental` | `chain` | yes | JVM | `unsupported` | `yano-x-appchain-cardano`, `yano-x-eutxo-ledger`, `yano-x-eutxo-bridge-cardano` | [EUTxO bridge](../../ledgers/eutxo/README.md) |
+| `indexer:eutxo-lifecycle` | `indexer` | `FIRST_PARTY_OPTIONAL` | `preview` | `node` | derived | JVM | `unsupported` | `yano-x-appchain-cardano`, `yano-x-eutxo-indexer-core`, `yano-x-eutxo-indexer-jdbc` | [Indexer operations](../../ledgers/eutxo/INDEXER_OPERATIONS.md) |
 | `sequencer:fixed` | `sequencer` | `BUNDLED` | `stable` | `chain` | yes | JVM | `unsupported` | `yano-x-appchain-cardano` | [App-chain guide](README.md) |
 | `sequencer:rotating` | `sequencer` | `BUNDLED` | `experimental` | `chain` | yes | JVM | `unsupported` | `yano-x-appchain-cardano` | [App-chain guide](README.md) |
 | `membership:static` | `membership` | `BUNDLED` | `stable` | `chain` | yes | JVM | `unsupported` | `yano-x-appchain-cardano` | [App-chain guide](README.md) |
@@ -67,14 +67,14 @@ select it explicitly.
 | `observer:address-deposit` | `l1-observer` | `BUNDLED` | `preview` | `chain` | yes | JVM | `unsupported` | `yano-x-appchain-cardano` | [App-chain guide](README.md) |
 | `observer:metadata-label` | `l1-observer` | `BUNDLED` | `preview` | `chain` | yes | JVM | `unsupported` | `yano-x-appchain-cardano` | [App-chain guide](README.md) |
 | `effects:runtime` | `effects-runtime` | `BUNDLED` | `preview` | `chain` | yes | JVM | `unsupported` | `yano-x-appchain-cardano` | [Effects](tutorials/06-webhook-effects.md) |
-| `effects:on-approved` | `effect-emission` | `BUNDLED` | `preview` | `chain` | yes | JVM | `unsupported` | `yano-runtime`, `yano-x-stdlib` | [Approval effect](state-machines/approvals.md) |
+| `effects:on-approved` | `effect-emission` | `BUNDLED` | `preview` | `chain` | yes | JVM | `unsupported` | `yano-x-appchain-cardano`, `yano-x-stdlib` | [Approval effect](state-machines/approvals.md) |
 | `executor:webhook` | `effect-executor` | `BUNDLED` | `preview` | `node` | yes | JVM | `unsupported` | `yano-x-appchain-cardano` | [Webhook effects](tutorials/06-webhook-effects.md) |
 | `sink:webhook` | `finalized-sink` | `BUNDLED` | `stable` | `node` | yes | JVM | `unsupported` | `yano-x-appchain-cardano` | [App-chain guide](README.md) |
-| `executor:kafka` | `effect-executor` | `FIRST_PARTY_OPTIONAL` | `preview` | `node` | yes | JVM | `unsupported` | `yano-runtime`, `yano-x-kafka` | [Optional connectors](OPTIONAL_CONNECTORS.md#kafka) |
-| `sink:kafka` | `finalized-sink` | `FIRST_PARTY_OPTIONAL` | `preview` | `node` | yes | JVM | `unsupported` | `yano-runtime`, `yano-x-kafka` | [Optional connectors](OPTIONAL_CONNECTORS.md#kafka) |
-| `executor:objectstore-s3` | `effect-executor` | `FIRST_PARTY_OPTIONAL` | `preview` | `node` | yes | JVM | `unsupported` | `yano-runtime`, `yano-x-objectstore-s3` | [Optional connectors](OPTIONAL_CONNECTORS.md#s3-compatible-object-storage) |
-| `executor:ipfs` | `effect-executor` | `FIRST_PARTY_OPTIONAL` | `preview` | `node` | yes | JVM | `unsupported` | `yano-runtime`, `yano-x-ipfs` | [Optional connectors](OPTIONAL_CONNECTORS.md#ipfskubo) |
-| `executor:cardano-payment` | `effect-executor` | `FIRST_PARTY_OPTIONAL` | `preview` | `node` | yes | JVM | `unsupported` | `yano-runtime`, `yano-x-effects-cardano` | [Optional connectors](OPTIONAL_CONNECTORS.md#cardano-payments) |
+| `executor:kafka` | `effect-executor` | `FIRST_PARTY_OPTIONAL` | `preview` | `node` | yes | JVM | `unsupported` | `yano-x-appchain-cardano`, `yano-x-kafka` | [Optional connectors](OPTIONAL_CONNECTORS.md#kafka) |
+| `sink:kafka` | `finalized-sink` | `FIRST_PARTY_OPTIONAL` | `preview` | `node` | yes | JVM | `unsupported` | `yano-x-appchain-cardano`, `yano-x-kafka` | [Optional connectors](OPTIONAL_CONNECTORS.md#kafka) |
+| `executor:objectstore-s3` | `effect-executor` | `FIRST_PARTY_OPTIONAL` | `preview` | `node` | yes | JVM | `unsupported` | `yano-x-appchain-cardano`, `yano-x-objectstore-s3` | [Optional connectors](OPTIONAL_CONNECTORS.md#s3-compatible-object-storage) |
+| `executor:ipfs` | `effect-executor` | `FIRST_PARTY_OPTIONAL` | `preview` | `node` | yes | JVM | `unsupported` | `yano-x-appchain-cardano`, `yano-x-ipfs` | [Optional connectors](OPTIONAL_CONNECTORS.md#ipfskubo) |
+| `executor:cardano-payment` | `effect-executor` | `FIRST_PARTY_OPTIONAL` | `preview` | `node` | yes | JVM | `unsupported` | `yano-x-appchain-cardano`, `yano-x-effects-cardano` | [Optional connectors](OPTIONAL_CONNECTORS.md#cardano-payments) |
 | `runtime:composite` | `distribution` | `BUNDLED` | `preview` | `distribution` | derived | JVM | `unsupported` | `yano-x-composite` | [Composites](tutorials/08-plugins-and-composites.md) |
 | `ui:console` | `distribution` | `BUNDLED` | `preview` | `node` | derived | JVM | `unsupported` | `yano-x-appchain-cardano` | [Yano console boundary](../console-ui.md) |
 | `observability:prometheus` | `distribution` | `FIRST_PARTY_OPTIONAL` | `preview` | `distribution` | derived | JVM | `unsupported` | `yano-x-appchain-cardano` | [Console observability](../console-ui.md#historical-metrics) |
@@ -88,17 +88,17 @@ capabilities first; users may then add only compatible selectable capabilities.
 <!-- recipe-catalog:start -->
 | Recipe | Availability | Maturity | Runtimes | Native posture | Required artifacts | Reference |
 |---|---|---|---|---|---|---|
-| `declarative-composite` | `BUNDLED` | `preview` | JVM | `unsupported` | `yano-runtime`, `yano-x-composite`, `yano-x-stdlib`, `yano-x-role-workflow` | [Declarative bindings](DECLARATIVE_BINDINGS_CLI.md) |
+| `declarative-composite` | `BUNDLED` | `preview` | JVM | `unsupported` | `yano-x-appchain-cardano`, `yano-x-composite`, `yano-x-stdlib`, `yano-x-role-workflow` | [Declarative bindings](DECLARATIVE_BINDINGS_CLI.md) |
 | `audit-log` | `BUNDLED` | `stable` | JVM | `unsupported` | `yano-x-appchain-cardano` | [Yano core host](../core-host.md) |
-| `owned-registry` | `BUNDLED` | `stable` | JVM | `unsupported` | `yano-runtime`, `yano-x-stdlib` | [KV registry](state-machines/kv-registry.md) |
-| `document-trail` | `BUNDLED` | `preview` | JVM | `unsupported` | `yano-runtime`, `yano-x-stdlib` | [Document trail](state-machines/doc-trail.md) |
-| `authenticated-map` | `BUNDLED` | `preview` | JVM | `unsupported` | `yano-runtime`, `yano-x-stdlib` | [Authenticated map](state-machines/authenticated-map.md) |
-| `approval-workflow` | `BUNDLED` | `stable` | JVM | `unsupported` | `yano-runtime`, `yano-x-stdlib` | [Approvals](state-machines/approvals.md) |
-| `role-approval` | `BUNDLED` | `preview` | JVM | `unsupported` | `yano-runtime`, `yano-x-composite`, `yano-x-role-workflow` | [Generic role approvals](state-machines/role-approvals.md) |
-| `evidence-ledger` | `BUNDLED` | `preview` | JVM | `unsupported` | `yano-runtime`, `yano-x-stdlib`, `yano-x-evidence-registry`, `yano-x-composite`, `yano-x-role-workflow`, `yano-x-evidence-profile` | [Evidence](tutorials/04-evidence-publication.md) |
-| `eutxo-ledger` | `FIRST_PARTY_OPTIONAL` | `experimental` | JVM | `unsupported` | `yano-runtime`, `yano-x-eutxo-ledger` | [EUTxO ledger](../../ledgers/eutxo/README.md) |
-| `eutxo-cardano-bridge` | `EXPERIMENTAL` | `experimental` | JVM | `unsupported` | `yano-runtime`, `yano-x-eutxo-ledger`, `yano-x-eutxo-bridge-cardano` | [EUTxO bridge](../../ledgers/eutxo/README.md) |
-| `custom-plugin` | `REFERENCE` | `experimental` | JVM | `unsupported` | `yano-runtime` | [Custom plugins](tutorials/08-plugins-and-composites.md) |
+| `owned-registry` | `BUNDLED` | `stable` | JVM | `unsupported` | `yano-x-appchain-cardano`, `yano-x-stdlib` | [KV registry](state-machines/kv-registry.md) |
+| `document-trail` | `BUNDLED` | `preview` | JVM | `unsupported` | `yano-x-appchain-cardano`, `yano-x-stdlib` | [Document trail](state-machines/doc-trail.md) |
+| `authenticated-map` | `BUNDLED` | `preview` | JVM | `unsupported` | `yano-x-appchain-cardano`, `yano-x-stdlib` | [Authenticated map](state-machines/authenticated-map.md) |
+| `approval-workflow` | `BUNDLED` | `stable` | JVM | `unsupported` | `yano-x-appchain-cardano`, `yano-x-stdlib` | [Approvals](state-machines/approvals.md) |
+| `role-approval` | `BUNDLED` | `preview` | JVM | `unsupported` | `yano-x-appchain-cardano`, `yano-x-composite`, `yano-x-role-workflow` | [Generic role approvals](state-machines/role-approvals.md) |
+| `evidence-ledger` | `BUNDLED` | `preview` | JVM | `unsupported` | `yano-x-appchain-cardano`, `yano-x-stdlib`, `yano-x-evidence-registry`, `yano-x-composite`, `yano-x-role-workflow`, `yano-x-evidence-profile` | [Evidence](tutorials/04-evidence-publication.md) |
+| `eutxo-ledger` | `FIRST_PARTY_OPTIONAL` | `experimental` | JVM | `unsupported` | `yano-x-appchain-cardano`, `yano-x-eutxo-ledger` | [EUTxO ledger](../../ledgers/eutxo/README.md) |
+| `eutxo-cardano-bridge` | `EXPERIMENTAL` | `experimental` | JVM | `unsupported` | `yano-x-appchain-cardano`, `yano-x-eutxo-ledger`, `yano-x-eutxo-bridge-cardano` | [EUTxO bridge](../../ledgers/eutxo/README.md) |
+| `custom-plugin` | `REFERENCE` | `experimental` | JVM | `unsupported` | `yano-x-appchain-cardano` | [Custom plugins](tutorials/08-plugins-and-composites.md) |
 <!-- recipe-catalog:end -->
 
 ## Selection and deployment rules

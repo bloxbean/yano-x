@@ -23,8 +23,8 @@ For your exact build, ask the binary:
 |---|---|
 | Availability | `BUNDLED` ships in the distribution; `FIRST_PARTY_OPTIONAL` needs its release-matched plugin bundle installed; `EXPERIMENTAL` may change; `REFERENCE` is a documented workflow. |
 | Maturity | `stable`, `preview`, or `experimental`. |
-| Runtimes | `jvm`, and `native` only for the handful of core capabilities. Yano X extensions are JVM-only. |
-| Requires artifacts | The runtime artifacts that must be present. `yano-runtime` means the host itself. |
+| Runtimes | `jvm`. Yano X capabilities are JVM-only. |
+| Requires artifacts | The runtime artifacts that must be present. `yano-x-appchain-cardano` is the X framework built into the integrated `yano.jar`. |
 
 Capabilities also declare `requires`, `implies`, and `conflicts` relationships.
 The CLI and [Studio](/studio/) resolve those for you; a conflicting selection
@@ -38,49 +38,49 @@ fails closed rather than picking one.
 
 | Capability | Availability | Maturity | Runtimes | Requires artifacts | Description |
 |---|---|---|---|---|---|
-| [`state:declarative-composite`](/reference/declarative-bindings-cli/) | `BUNDLED` | `preview` | `jvm` | `yano-runtime`, `yano-x-composite`, `yano-x-stdlib`, `yano-x-role-workflow` | Committed bounded event-to-command and event-to-effect workflows. |
+| [`state:declarative-composite`](/reference/declarative-bindings-cli/) | `BUNDLED` | `preview` | `jvm` | `yano-x-appchain-cardano`, `yano-x-composite`, `yano-x-stdlib`, `yano-x-role-workflow` | Committed bounded event-to-command and event-to-effect workflows. |
 | [`state:ordered-log`](https://github.com/bloxbean/yano-x/blob/main/docs/core-host.md) | `BUNDLED` | `stable` | `jvm` | `yano-x-appchain-cardano` | Append-only ordered application messages. |
-| [`state:kv-registry`](/state-machines/kv-registry/) | `BUNDLED` | `stable` | `jvm` | `yano-runtime`, `yano-x-stdlib` | First-writer-owned mutable key/value records with committed proofs. |
-| [`state:authenticated-map`](/state-machines/authenticated-map/) | `BUNDLED` | `preview` | `jvm` | `yano-runtime`, `yano-x-stdlib`, `yano-x-role-workflow` | Multi-collection authenticated records with basic, direct-role, and approval authorization plus optional canonical-CBOR and schema validation. |
-| [`state:approval-workflow`](/state-machines/approvals/) | `BUNDLED` | `stable` | `jvm` | `yano-runtime`, `yano-x-stdlib` | Validator-member proposals, votes, and terminal threshold decisions. |
-| [`state:balances`](/state-machines/balances/) | `BUNDLED` | `stable` | `jvm` | `yano-runtime`, `yano-x-stdlib` | Member-authorized mint and transfer accounts for bounded application balances. |
-| [`state:doc-trail`](/state-machines/doc-trail/) | `BUNDLED` | `stable` | `jvm` | `yano-runtime`, `yano-x-stdlib` | Append-only per-entity document and event hash trails. |
-| [`state:evidence-registry`](/tutorials/04-evidence-publication/) | `BUNDLED` | `preview` | `jvm` | `yano-runtime`, `yano-x-evidence-registry` | Inspection and compliance evidence records with exact committed query proofs. |
-| [`state:role-approvals`](/tutorials/05-domain-role-approvals/) | `BUNDLED` | `preview` | `jvm` | `yano-runtime`, `yano-x-composite`, `yano-x-role-workflow` | Governed organizations, actors, policies, and signed approvals for arbitrary payload hashes. |
-| [`state:role-evidence`](/tutorials/04-evidence-publication/) | `BUNDLED` | `preview` | `jvm` | `yano-runtime`, `yano-x-stdlib`, `yano-x-evidence-registry`, `yano-x-composite`, `yano-x-role-workflow`, `yano-x-evidence-profile` | Evidence registration combined with governed domain actors and role-aware release approval. |
-| [`state:eutxo-ledger`](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/README.md) | `FIRST_PARTY_OPTIONAL` | `experimental` | `jvm` | `yano-runtime`, `yano-x-eutxo-ledger` | Deterministic Cardano-shaped EUTxO state, root-fixed receipts, address indexes, and MPF-proven outputs under one explicitly selected ledger profile. |
+| [`state:kv-registry`](/state-machines/kv-registry/) | `BUNDLED` | `stable` | `jvm` | `yano-x-appchain-cardano`, `yano-x-stdlib` | First-writer-owned mutable key/value records with committed proofs. |
+| [`state:authenticated-map`](/state-machines/authenticated-map/) | `BUNDLED` | `preview` | `jvm` | `yano-x-appchain-cardano`, `yano-x-stdlib`, `yano-x-role-workflow` | Multi-collection authenticated records with basic, direct-role, and approval authorization plus optional canonical-CBOR and schema validation. |
+| [`state:approval-workflow`](/state-machines/approvals/) | `BUNDLED` | `stable` | `jvm` | `yano-x-appchain-cardano`, `yano-x-stdlib` | Validator-member proposals, votes, and terminal threshold decisions. |
+| [`state:balances`](/state-machines/balances/) | `BUNDLED` | `stable` | `jvm` | `yano-x-appchain-cardano`, `yano-x-stdlib` | Member-authorized mint and transfer accounts for bounded application balances. |
+| [`state:doc-trail`](/state-machines/doc-trail/) | `BUNDLED` | `stable` | `jvm` | `yano-x-appchain-cardano`, `yano-x-stdlib` | Append-only per-entity document and event hash trails. |
+| [`state:evidence-registry`](/tutorials/04-evidence-publication/) | `BUNDLED` | `preview` | `jvm` | `yano-x-appchain-cardano`, `yano-x-evidence-registry` | Inspection and compliance evidence records with exact committed query proofs. |
+| [`state:role-approvals`](/tutorials/05-domain-role-approvals/) | `BUNDLED` | `preview` | `jvm` | `yano-x-appchain-cardano`, `yano-x-composite`, `yano-x-role-workflow` | Governed organizations, actors, policies, and signed approvals for arbitrary payload hashes. |
+| [`state:role-evidence`](/tutorials/04-evidence-publication/) | `BUNDLED` | `preview` | `jvm` | `yano-x-appchain-cardano`, `yano-x-stdlib`, `yano-x-evidence-registry`, `yano-x-composite`, `yano-x-role-workflow`, `yano-x-evidence-profile` | Evidence registration combined with governed domain actors and role-aware release approval. |
+| [`state:eutxo-ledger`](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/README.md) | `FIRST_PARTY_OPTIONAL` | `experimental` | `jvm` | `yano-x-appchain-cardano`, `yano-x-eutxo-ledger` | Deterministic Cardano-shaped EUTxO state, root-fixed receipts, address indexes, and MPF-proven outputs under one explicitly selected ledger profile. |
 
 ### `custom-plugin`
 
 | Capability | Availability | Maturity | Runtimes | Requires artifacts | Description |
 |---|---|---|---|---|---|
-| [`state:custom-plugin`](/plugins/) | `REFERENCE` | `experimental` | `jvm` | `yano-runtime` | Runs a separately reviewed custom state-machine bundle that every operator installs and seal pins by digest. |
+| [`state:custom-plugin`](/plugins/) | `REFERENCE` | `experimental` | `jvm` | `yano-x-appchain-cardano` | Runs a separately reviewed custom state-machine bundle that every operator installs and seal pins by digest. |
 
 ### `profile`
 
 | Capability | Availability | Maturity | Runtimes | Requires artifacts | Description |
 |---|---|---|---|---|---|
-| [`profile:eutxo-plutus-v3`](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/README.md) | `FIRST_PARTY_OPTIONAL` | `experimental` | `jvm` | `yano-runtime`, `yano-x-eutxo-ledger` | Pins the immutable yano-eutxo-v2-plutus-v3 ledger profile and every consensus-relevant bound. |
-| [`profile:eutxo-bridge-settlement`](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/README.md) | `FIRST_PARTY_OPTIONAL` | `experimental` | `jvm` | `yano-runtime`, `yano-x-eutxo-ledger` | Pins the immutable yano-eutxo-v3-bridge-settlement ledger profile (ADR-UTXO-009) and every consensus-relevant bound. |
-| [`profile:eutxo-key-payments`](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/README.md) | `FIRST_PARTY_OPTIONAL` | `experimental` | `jvm` | `yano-runtime`, `yano-x-eutxo-ledger` | Pins the immutable yano-eutxo-v1 key-payments ledger profile. |
+| [`profile:eutxo-plutus-v3`](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/README.md) | `FIRST_PARTY_OPTIONAL` | `experimental` | `jvm` | `yano-x-appchain-cardano`, `yano-x-eutxo-ledger` | Pins the immutable yano-eutxo-v2-plutus-v3 ledger profile and every consensus-relevant bound. |
+| [`profile:eutxo-bridge-settlement`](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/README.md) | `FIRST_PARTY_OPTIONAL` | `experimental` | `jvm` | `yano-x-appchain-cardano`, `yano-x-eutxo-ledger` | Pins the immutable yano-eutxo-v3-bridge-settlement ledger profile (ADR-UTXO-009) and every consensus-relevant bound. |
+| [`profile:eutxo-key-payments`](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/README.md) | `FIRST_PARTY_OPTIONAL` | `experimental` | `jvm` | `yano-x-appchain-cardano`, `yano-x-eutxo-ledger` | Pins the immutable yano-eutxo-v1 key-payments ledger profile. |
 
 ### `funding`
 
 | Capability | Availability | Maturity | Runtimes | Requires artifacts | Description |
 |---|---|---|---|---|---|
-| [`funding:eutxo-genesis`](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/README.md) | `FIRST_PARTY_OPTIONAL` | `experimental` | `jvm` | `yano-runtime`, `yano-x-eutxo-ledger` | Bootstraps one explicit ADA-only virtual allocation for no-real-funds testing. |
+| [`funding:eutxo-genesis`](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/README.md) | `FIRST_PARTY_OPTIONAL` | `experimental` | `jvm` | `yano-x-appchain-cardano`, `yano-x-eutxo-ledger` | Bootstraps one explicit ADA-only virtual allocation for no-real-funds testing. |
 
 ### `bridge`
 
 | Capability | Availability | Maturity | Runtimes | Requires artifacts | Description |
 |---|---|---|---|---|---|
-| [`bridge:cardano-federated`](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/README.md) | `EXPERIMENTAL` | `experimental` | `jvm` | `yano-runtime`, `yano-x-eutxo-ledger`, `yano-x-eutxo-bridge-cardano` | Observes exact accepted vault deposits and settles irrevocable bounded claims through either exact external signing or permissionless current-root MPF proofs with an on-chain replay nullifier. |
+| [`bridge:cardano-federated`](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/README.md) | `EXPERIMENTAL` | `experimental` | `jvm` | `yano-x-appchain-cardano`, `yano-x-eutxo-ledger`, `yano-x-eutxo-bridge-cardano` | Observes exact accepted vault deposits and settles irrevocable bounded claims through either exact external signing or permissionless current-root MPF proofs with an on-chain replay nullifier. |
 
 ### `indexer`
 
 | Capability | Availability | Maturity | Runtimes | Requires artifacts | Description |
 |---|---|---|---|---|---|
-| [`indexer:eutxo-lifecycle`](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/INDEXER_OPERATIONS.md) | `FIRST_PARTY_OPTIONAL` | `preview` | `jvm` | `yano-runtime`, `yano-x-eutxo-indexer-core`, `yano-x-eutxo-indexer-jdbc` | Indexes finalized EUTxO transactions, accounts, bridge lifecycle records, and optional validity batches for bounded APIs and the unified console. |
+| [`indexer:eutxo-lifecycle`](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/INDEXER_OPERATIONS.md) | `FIRST_PARTY_OPTIONAL` | `preview` | `jvm` | `yano-x-appchain-cardano`, `yano-x-eutxo-indexer-core`, `yano-x-eutxo-indexer-jdbc` | Indexes finalized EUTxO transactions, accounts, bridge lifecycle records, and optional validity batches for bounded APIs and the unified console. |
 
 ### `sequencer`
 
@@ -126,24 +126,24 @@ fails closed rather than picking one.
 
 | Capability | Availability | Maturity | Runtimes | Requires artifacts | Description |
 |---|---|---|---|---|---|
-| [`effects:on-approved`](/state-machines/approvals/) | `BUNDLED` | `preview` | `jvm` | `yano-runtime`, `yano-x-stdlib` | Emits one typed chain-result effect when a stock approval reaches its threshold. |
+| [`effects:on-approved`](/state-machines/approvals/) | `BUNDLED` | `preview` | `jvm` | `yano-x-appchain-cardano`, `yano-x-stdlib` | Emits one typed chain-result effect when a stock approval reaches its threshold. |
 
 ### `effect-executor`
 
 | Capability | Availability | Maturity | Runtimes | Requires artifacts | Description |
 |---|---|---|---|---|---|
 | [`executor:webhook`](/tutorials/06-webhook-effects/) | `BUNDLED` | `preview` | `jvm` | `yano-x-appchain-cardano` | Executes webhook.post effects against one node-local configured URL. |
-| [`executor:kafka`](https://github.com/bloxbean/yano-x/blob/main/connectors/kafka/README.md) | `FIRST_PARTY_OPTIONAL` | `preview` | `jvm` | `yano-runtime`, `yano-x-kafka` | Executes kafka.publish intents through allowlisted node-local Kafka targets. |
-| [`executor:objectstore-s3`](https://github.com/bloxbean/yano-x/blob/main/connectors/objectstore-s3/README.md) | `FIRST_PARTY_OPTIONAL` | `preview` | `jvm` | `yano-runtime`, `yano-x-objectstore-s3` | Executes immutable object.put promotion against allowlisted S3-compatible targets. |
-| [`executor:ipfs`](https://github.com/bloxbean/yano-x/blob/main/connectors/ipfs/README.md) | `FIRST_PARTY_OPTIONAL` | `preview` | `jvm` | `yano-runtime`, `yano-x-ipfs` | Executes reconciled ipfs.pin intents against allowlisted Kubo targets. |
-| [`executor:cardano-payment`](https://github.com/bloxbean/yano-x/blob/main/connectors/effects-cardano/README.md) | `FIRST_PARTY_OPTIONAL` | `preview` | `jvm` | `yano-runtime`, `yano-x-effects-cardano` | Executes bounded cardano.payment intents from an operator-controlled payer wallet. |
+| [`executor:kafka`](https://github.com/bloxbean/yano-x/blob/main/connectors/kafka/README.md) | `FIRST_PARTY_OPTIONAL` | `preview` | `jvm` | `yano-x-appchain-cardano`, `yano-x-kafka` | Executes kafka.publish intents through allowlisted node-local Kafka targets. |
+| [`executor:objectstore-s3`](https://github.com/bloxbean/yano-x/blob/main/connectors/objectstore-s3/README.md) | `FIRST_PARTY_OPTIONAL` | `preview` | `jvm` | `yano-x-appchain-cardano`, `yano-x-objectstore-s3` | Executes immutable object.put promotion against allowlisted S3-compatible targets. |
+| [`executor:ipfs`](https://github.com/bloxbean/yano-x/blob/main/connectors/ipfs/README.md) | `FIRST_PARTY_OPTIONAL` | `preview` | `jvm` | `yano-x-appchain-cardano`, `yano-x-ipfs` | Executes reconciled ipfs.pin intents against allowlisted Kubo targets. |
+| [`executor:cardano-payment`](https://github.com/bloxbean/yano-x/blob/main/connectors/effects-cardano/README.md) | `FIRST_PARTY_OPTIONAL` | `preview` | `jvm` | `yano-x-appchain-cardano`, `yano-x-effects-cardano` | Executes bounded cardano.payment intents from an operator-controlled payer wallet. |
 
 ### `finalized-sink`
 
 | Capability | Availability | Maturity | Runtimes | Requires artifacts | Description |
 |---|---|---|---|---|---|
 | [`sink:webhook`](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/README.md) | `BUNDLED` | `stable` | `jvm` | `yano-x-appchain-cardano` | Posts finalized application blocks to one configured node-local webhook endpoint. |
-| [`sink:kafka`](https://github.com/bloxbean/yano-x/blob/main/connectors/kafka/README.md) | `FIRST_PARTY_OPTIONAL` | `preview` | `jvm` | `yano-runtime`, `yano-x-kafka` | Publishes finalized application blocks to a configured Kafka topic. |
+| [`sink:kafka`](https://github.com/bloxbean/yano-x/blob/main/connectors/kafka/README.md) | `FIRST_PARTY_OPTIONAL` | `preview` | `jvm` | `yano-x-appchain-cardano`, `yano-x-kafka` | Publishes finalized application blocks to a configured Kafka topic. |
 
 ### `distribution`
 
@@ -165,7 +165,6 @@ in the distribution's checksummed bundle list.
 
 | Artifact | Availability | Plugin bundle id | Runtimes | Native posture |
 |---|---|---|---|---|
-| `yano-runtime` | `BUNDLED` | `builtin:yano-runtime` | `jvm`, `native` | `bundled` |
 | `yano-x-appchain-cardano` | `BUNDLED` | `builtin:yano-x-appchain-cardano` | `jvm` | `unsupported` |
 | `yano-x-stdlib` | `BUNDLED` | `org.yanoproject.x.stdlib` | `jvm` | `unsupported` |
 | `yano-x-evidence-registry` | `BUNDLED` | `org.yanoproject.x.evidence-registry` | `jvm` | `unsupported` |
@@ -189,7 +188,7 @@ in the distribution's checksummed bundle list.
 
 | Distribution | Runtime | Archive | Platforms | Bundled artifacts |
 |---|---|---|---|---|
-| `yano-x-jvm` | `jvm` | `yano-x-jvm-{version}.zip` | `java-25` | 11 |
+| `yano-x-jvm` | `jvm` | `yano-x-jvm-{version}.zip` | `java-25` | 10 |
 
 <!-- catalog:distributions-end -->
 

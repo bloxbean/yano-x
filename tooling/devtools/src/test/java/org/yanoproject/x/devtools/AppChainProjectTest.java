@@ -59,7 +59,7 @@ class AppChainProjectTest {
                 "state:role-evidence", "sequencer:rotating", "membership:static",
                 "l1:slot-feed");
         assertThat(resolution.impliedCapabilities()).containsExactly("l1:slot-feed");
-        assertThat(resolution.artifacts()).contains("yano-runtime", "yano-x-stdlib",
+        assertThat(resolution.artifacts()).contains("yano-x-appchain-cardano", "yano-x-stdlib",
                 "yano-x-evidence-profile", "yano-x-role-workflow");
         assertThat(resolution.consensusProperties())
                 .containsEntry("yano.app-chain.chains[0].effects.enabled", "true")

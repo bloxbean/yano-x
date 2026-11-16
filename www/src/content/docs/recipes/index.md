@@ -118,7 +118,7 @@ Compile bounded event bindings into one committed atomic composite profile.
 - **Outcome:** A source command and its event-derived commands commit atomically with an auditable receipt.
 - **Availability / maturity:** `BUNDLED` / `preview`
 - **Capabilities:** `state:declarative-composite`, `sequencer:fixed`
-- **Runtime artifacts:** `yano-runtime`, `yano-x-composite`, `yano-x-stdlib`, `yano-x-role-workflow`
+- **Runtime artifacts:** `yano-x-appchain-cardano`, `yano-x-composite`, `yano-x-stdlib`, `yano-x-role-workflow`
 - **Runtimes:** `jvm` · **Deployment:** `host`, `docker-compose`
 - **External prerequisites:** `Exact manifested authoring plugin directory`
 - **Bootstrap requirements:** `Pinned public member keys and normalized component configuration`
@@ -152,7 +152,7 @@ A first-writer-owned key/value registry with committed query proofs.
 - **Outcome:** The first writer owns a named value that is readable with a committed state proof.
 - **Availability / maturity:** `BUNDLED` / `stable`
 - **Capabilities:** `state:kv-registry`, `sequencer:fixed`
-- **Runtime artifacts:** `yano-runtime`, `yano-x-stdlib`
+- **Runtime artifacts:** `yano-x-appchain-cardano`, `yano-x-stdlib`
 - **Runtimes:** `jvm` · **Deployment:** `host`, `docker-compose`
 - **Reference:** [/state-machines/kv-registry/](/state-machines/kv-registry/)
 
@@ -168,7 +168,7 @@ Append document hashes to a provable trail for each product, case, or shipment.
 - **Outcome:** A document hash advances an entity trail; its count and head have a committed state proof.
 - **Availability / maturity:** `BUNDLED` / `preview`
 - **Capabilities:** `state:doc-trail`, `sequencer:fixed`
-- **Runtime artifacts:** `yano-runtime`, `yano-x-stdlib`
+- **Runtime artifacts:** `yano-x-appchain-cardano`, `yano-x-stdlib`
 - **Runtimes:** `jvm` · **Deployment:** `host`, `docker-compose`
 - **Reference:** [/state-machines/doc-trail/](/state-machines/doc-trail/)
 
@@ -184,7 +184,7 @@ A proof-oriented multi-collection registry with optional canonical-CBOR and decl
 - **Outcome:** A value accepted under a genesis-declared collection schema is committed and available with a state proof.
 - **Availability / maturity:** `BUNDLED` / `preview`
 - **Capabilities:** `state:authenticated-map`, `sequencer:fixed`
-- **Runtime artifacts:** `yano-runtime`, `yano-x-stdlib`
+- **Runtime artifacts:** `yano-x-appchain-cardano`, `yano-x-stdlib`
 - **Runtimes:** `jvm` · **Deployment:** `host`, `docker-compose`
 - **Bootstrap requirements:** `pin-all-genesis-member-identities`
 - **Reference:** [/state-machines/authenticated-map/](/state-machines/authenticated-map/)
@@ -201,7 +201,7 @@ Validator members propose, approve, reject, and prove terminal decisions.
 - **Outcome:** Distinct validator-member decisions produce a provable terminal approval or rejection.
 - **Availability / maturity:** `BUNDLED` / `stable`
 - **Capabilities:** `state:approval-workflow`, `sequencer:fixed`
-- **Runtime artifacts:** `yano-runtime`, `yano-x-stdlib`
+- **Runtime artifacts:** `yano-x-appchain-cardano`, `yano-x-stdlib`
 - **Runtimes:** `jvm` · **Deployment:** `host`, `docker-compose`
 - **Reference:** [/state-machines/approvals/](/state-machines/approvals/)
 
@@ -217,7 +217,7 @@ Governed organizations, actors, and policies approve arbitrary application paylo
 - **Outcome:** A governed role policy accepts valid actor decisions and rejects an ineligible actor decision.
 - **Availability / maturity:** `BUNDLED` / `preview`
 - **Capabilities:** `state:role-approvals`, `sequencer:fixed`
-- **Runtime artifacts:** `yano-runtime`, `yano-x-composite`, `yano-x-role-workflow`
+- **Runtime artifacts:** `yano-x-appchain-cardano`, `yano-x-composite`, `yano-x-role-workflow`
 - **Runtimes:** `jvm` · **Deployment:** `host`, `docker-compose`
 - **Bootstrap requirements:** `governed-organizations`, `governed-actors`, `governed-policies`
 - **Reference:** [/tutorials/05-domain-role-approvals/](/tutorials/05-domain-role-approvals/)
@@ -234,7 +234,7 @@ A role-aware evidence ledger that emits publication intents; add and provision e
 - **Outcome:** A role-authorized evidence record and its release decision are committed and queryable.
 - **Availability / maturity:** `BUNDLED` / `preview`
 - **Capabilities:** `state:role-evidence`, `sequencer:fixed`
-- **Runtime artifacts:** `yano-runtime`, `yano-x-stdlib`, `yano-x-evidence-registry`, `yano-x-composite`, `yano-x-role-workflow`, `yano-x-evidence-profile`
+- **Runtime artifacts:** `yano-x-appchain-cardano`, `yano-x-stdlib`, `yano-x-evidence-registry`, `yano-x-composite`, `yano-x-role-workflow`, `yano-x-evidence-profile`
 - **Runtimes:** `jvm` · **Deployment:** `host`, `docker-compose`
 - **Bootstrap requirements:** `governed-organizations`, `governed-actors`, `governed-policies`
 - **Reference:** [/tutorials/04-evidence-publication/](/tutorials/04-evidence-publication/)
@@ -251,7 +251,7 @@ A deterministic Cardano-shaped test ledger funded by an explicit virtual genesis
 - **Outcome:** A signed key-controlled or bounded Plutus V3 transaction consumes virtual EUTxOs and creates MPF-proven outputs and receipts.
 - **Availability / maturity:** `FIRST_PARTY_OPTIONAL` / `experimental`
 - **Capabilities:** `profile:eutxo-plutus-v3`, `funding:eutxo-genesis`, `sequencer:fixed`
-- **Runtime artifacts:** `yano-runtime`, `yano-x-eutxo-ledger`
+- **Runtime artifacts:** `yano-x-appchain-cardano`, `yano-x-eutxo-ledger`
 - **Runtimes:** `jvm` · **Deployment:** `host`, `docker-compose`
 - **Bootstrap requirements:** `use-test-keys-and-no-real-funds`
 - **Reference:** [ledgers/eutxo/README.md](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/README.md)
@@ -270,7 +270,7 @@ A Cardano-backed EUTxO ledger with stable deposits and claim-bound federated wit
 - **Outcome:** Accepted stable deposits create mirrored EUTxOs; signed L2 spends create irrevocable claims that settle only through the configured signer path or a current accepted MPF root with single-use nullification.
 - **Availability / maturity:** `EXPERIMENTAL` / `experimental`
 - **Capabilities:** `profile:eutxo-plutus-v3`, `bridge:cardano-federated`, `sequencer:fixed`
-- **Runtime artifacts:** `yano-runtime`, `yano-x-eutxo-ledger`, `yano-x-eutxo-bridge-cardano`
+- **Runtime artifacts:** `yano-x-appchain-cardano`, `yano-x-eutxo-ledger`, `yano-x-eutxo-bridge-cardano`
 - **Runtimes:** `jvm` · **Deployment:** `host`, `docker-compose`
 - **External prerequisites:** `reviewed-staging-vault-root-nullifier-and-proof-contract-identities`, `stable-cardano-l1-feed`, `federated-vault-and-root-operators`, `external-threshold-or-hsm-settlement-signer-for-signer-mode`
 - **Bootstrap requirements:** `configure-durable-settlement-journal-for-signer-mode`, `pin-current-root-nullifier-and-proof-contract-identities-for-proof-mode`, `complete-real-funds-custody-review`
@@ -290,7 +290,7 @@ A chain that runs a separately reviewed custom state-machine plugin, named by th
 - **Outcome:** The operator-defined state-machine contract is loaded from a reviewed pinned plugin bundle.
 - **Availability / maturity:** `REFERENCE` / `experimental`
 - **Capabilities:** `state:custom-plugin`, `sequencer:fixed`
-- **Runtime artifacts:** `yano-runtime`
+- **Runtime artifacts:** `yano-x-appchain-cardano`
 - **Runtimes:** `jvm` · **Deployment:** `host`, `docker-compose`
 - **External prerequisites:** `reviewed-custom-plugin-bundle`
 - **Bootstrap requirements:** `plugin-metadata-trust-review`
