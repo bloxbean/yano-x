@@ -15,6 +15,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static io.restassured.RestAssured.given;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -117,15 +118,13 @@ abstract class DomainRouteAuthMatrixTest {
 
     /** The fixture bundle in a plugin directory and a one-member chain that selects every fixture kind. */
     static class ConformanceChainProfile extends NoAutoStartTestProfile implements QuarkusTestProfile {
+        /** One state directory per profile, under the module build directory. */
+        private static final Map<String, Path> STATE = new ConcurrentHashMap<>();
+
         @Override
         public Map<String, String> getConfigOverrides() {
             Map<String, String> overrides = new HashMap<>(super.getConfigOverrides());
-            Path state;
-            try {
-                state = Files.createTempDirectory("domain-auth-matrix-");
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
+            Path state = STATE.computeIfAbsent(getClass().getName(), name -> createStateDirectory());
             // The node starts (no upstream client), so the app chain publishes its plugin products.
             overrides.put("yano.auto-sync-start", "true");
             overrides.put("yano.plugins.enabled", "true");
@@ -149,6 +148,15 @@ abstract class DomainRouteAuthMatrixTest {
 
         Map<String, String> keyConfiguration() {
             return Map.of();
+        }
+
+        private static Path createStateDirectory() {
+            try {
+                Path root = Files.createDirectories(Path.of(System.getProperty("yano.x.test.state-root")));
+                return Files.createTempDirectory(root, "domain-auth-matrix-");
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
         }
     }
 
