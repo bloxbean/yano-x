@@ -1,0 +1,32 @@
+dependencies {
+    api project(':framework:cardano')
+    api rootProject.ext.yanoModule('yano-runtime')
+    api libs.junit.jupiter.api
+    api rootProject.ext.yanoModule('yano-plugin-catalog')
+
+    implementation(libs.yaci.core) { exclude group: 'com.bloxbean.cardano', module: 'cardano-client-core' }
+    implementation libs.cardano.client.crypto
+    implementation libs.slf4j.api
+}
+
+java {
+    sourceCompatibility = 25
+    targetCompatibility = 25
+}
+
+tasks.named('compileJava') {
+    // This module has no annotation processor that consumes the repository-wide
+    // project identity option, so do not emit an irrelevant javac processing warning.
+    options.compilerArgs.removeAll { it.startsWith('-Aproject=') }
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Yano X App-Chain Testkit'
+                description = 'JUnit 5 embedded multi-node app-chain clusters and test profiles for Yano X'
+            }
+        }
+    }
+}

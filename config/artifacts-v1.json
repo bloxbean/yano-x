@@ -116,6 +116,14 @@
       "bundleArtifactId": null
     },
     {
+      "modulePath": ":sdk:appchain-testkit",
+      "directory": "sdk/appchain-testkit",
+      "artifactId": "yano-x-appchain-testkit",
+      "publicationType": "test-library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
       "modulePath": ":sdk:client",
       "directory": "sdk/client",
       "artifactId": "yano-x-client",
@@ -390,6 +398,14 @@
       "modulePath": ":fixtures:appchain-rest",
       "directory": "fixtures/appchain-rest",
       "artifactId": "yano-x-appchain-rest-fixture",
+      "publicationType": "test-fixture",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":fixtures:appchain-plugin-conformance",
+      "directory": "fixtures/appchain-plugin-conformance",
+      "artifactId": "yano-x-appchain-plugin-conformance",
       "publicationType": "test-fixture",
       "pluginBundleId": null,
       "bundleArtifactId": null

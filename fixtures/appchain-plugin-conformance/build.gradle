@@ -1,0 +1,65 @@
+plugins {
+    id 'java-library'
+}
+
+description = 'Build-only ADR-011.2 plugin SPI conformance fixture for the X contribution kinds; never published'
+
+dependencies {
+    compileOnly project(':framework:cardano-api')
+
+    testImplementation project(':framework:cardano')
+    testImplementation project(':sdk:appchain-testkit')
+    testImplementation rootProject.ext.yanoModule('yano-runtime')
+    testImplementation libs.junit.jupiter.api
+    testRuntimeOnly libs.junit.jupiter.engine
+    testRuntimeOnly libs.junit.platform.launcher
+    testImplementation libs.assertj.core
+}
+
+java {
+    sourceCompatibility = 25
+    targetCompatibility = 25
+}
+
+tasks.named('processResources') {
+    filesMatching('META-INF/yano/plugins/*.json') {
+        expand(pluginVersion: project.version.toString())
+    }
+}
+
+def generatedVersionSources = layout.buildDirectory.dir('generated/sources/pluginVersion/java')
+tasks.register('generatePluginVersionSource') {
+    inputs.property('pluginVersion', project.version.toString())
+    outputs.dir(generatedVersionSources)
+    doLast {
+        def target = generatedVersionSources.get().file(
+                'org/yanoproject/x/conformance/NativePluginConformanceVersion.java').asFile
+        target.parentFile.mkdirs()
+        target.setText("""package org.yanoproject.x.conformance;
+
+final class NativePluginConformanceVersion {
+    static final String VERSION = \"${project.version}\";
+
+    private NativePluginConformanceVersion() {
+    }
+}
+""", 'UTF-8')
+    }
+}
+
+sourceSets.main.java.srcDir(generatedVersionSources)
+tasks.named('compileJava') {
+    dependsOn tasks.named('generatePluginVersionSource')
+}
+
+tasks.named('test', Test) {
+    useJUnitPlatform()
+    dependsOn tasks.named('jar')
+    def testWorkDir = layout.buildDirectory.dir('test-workdir')
+    workingDir testWorkDir
+    doFirst {
+        testWorkDir.get().asFile.mkdirs()
+        systemProperty 'yano.plugin.conformance.fixture.jar',
+                tasks.named('jar').get().archiveFile.get().asFile.absolutePath
+    }
+}

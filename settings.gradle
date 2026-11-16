@@ -32,6 +32,7 @@ def yanoXModules = [
         ':capabilities:role-workflow-contracts': 'capabilities/role-workflow-contracts',
         ':capabilities:role-workflow': 'capabilities/role-workflow',
         ':sdk:effects-testkit': 'sdk/effects-testkit',
+        ':sdk:appchain-testkit': 'sdk/appchain-testkit',
         ':sdk:client': 'sdk/client',
         ':sdk:proof-contracts': 'sdk/proof-contracts',
         ':sdk:proof-onchain': 'sdk/proof-onchain',
@@ -64,7 +65,8 @@ def yanoXModules = [
         ':tooling:spring-boot-starter': 'tooling/spring-boot-starter',
         ':fixtures:eutxo-e2e': 'fixtures/eutxo-e2e',
         ':fixtures:governed-recipes': 'fixtures/governed-recipes',
-        ':fixtures:appchain-rest': 'fixtures/appchain-rest'
+        ':fixtures:appchain-rest': 'fixtures/appchain-rest',
+        ':fixtures:appchain-plugin-conformance': 'fixtures/appchain-plugin-conformance'
 ]
 
 include 'bom'
