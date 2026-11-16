@@ -40,3 +40,18 @@ A harness can also run alone, for example
 
 `harness/common.sh` is X's bounded copy of the generic process and HTTP helpers of
 Yano's harness (ADR-064 D8); Yano's L1, Haskell and native tests stay in Yano.
+
+## Not ported from Yano
+
+Two Yano baseline QA assets deliberately did not move unchanged (ADR-064 D9):
+
+- `qa/app-ledger/` (the #245 incremental gates, japicmp host-ABI check and
+  pre19 fixtures) is Yano-only evidence of the retired embedded-X host and is
+  not ported. The test suites it ran moved with their code (the framework
+  modules and `distribution/jvm`); packaged host compatibility is the
+  [host matrix](framework/host-matrix/README.md).
+- The `deploy-showcase-preprod-cluster` skill was rewritten rather than copied.
+  Its baseline `scripts/` (`deploy.sh`, `validate_cluster.sh`,
+  `write_runbook.sh`, `adopt_settlement_config.py`) ran Gradle tasks of Yano's
+  former app-chain modules. The X skill builds the distribution as the devnet
+  skill does and drives the extracted `examples/showcase/showcase.sh` directly.
