@@ -454,8 +454,8 @@ catch up the delta (user guide §14.3).
 iteration over unordered collections, no locale-dependent serialization.
 Violations don't corrupt anything — they *stall the chain*, because
 followers reject the proposer's state root (§4.2). Test with
-`StateMachineConformance` (`org.yanoproject.runtime.appchain`, in
-`yano-runtime`): it applies an identical seeded
+`StateMachineConformance` (`org.yanoproject.x.framework.runtime.appchain`, in
+`yano-x-appchain-core`): it applies an identical seeded
 block corpus in N independent runs plus a kill-and-reopen replay and asserts
 byte-identical roots at every height.
 

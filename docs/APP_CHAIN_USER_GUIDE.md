@@ -205,10 +205,12 @@ Use it to understand them, or to run a node without the setup tool.
 
 ### 3.1 Generate member keys
 
-Each member needs an Ed25519 keypair (32-byte seed). Using the built jar:
+Each member needs an Ed25519 keypair (32-byte seed). Using the integrated jar
+(`yano.jar` in the Yano X JVM distribution, or `distribution/jvm/build/yano.jar`
+from `./gradlew :distribution:jvm:quarkusBuild`):
 
 ```bash
-jshell --class-path app/build/yano.jar - <<'EOF'
+jshell --class-path yano.jar - <<'EOF'
 import com.bloxbean.cardano.client.crypto.KeyGenUtil;
 import com.bloxbean.cardano.yaci.core.util.HexUtil;
 byte[] seed = new byte[32]; new java.security.SecureRandom().nextBytes(seed);
@@ -744,7 +746,7 @@ file I/O, environment reads, iteration over unordered collections
 library-default serialization. Note that `validate()` runs at the proposer's
 admission only — any rule that must hold by consensus belongs in `apply()`.
 
-**Verify before deploying** with the conformance harness (in `yano-runtime`,
+**Verify before deploying** with the conformance harness (in `yano-x-appchain-core`,
 ADR 008.1 I1.6) — it applies one identical block corpus through the real
 ledger commit path in N independent runs plus a kill-and-reopen replay, and
 asserts byte-identical roots at every height:

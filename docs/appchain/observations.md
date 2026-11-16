@@ -260,10 +260,10 @@ counts local hint calls, including coalesced hints, and is not a consensus count
 ```text
 # Observation contracts and codecs
 ./gradlew :framework:api:test --tests '*Observation*'
-# Observation runtime, across the framework modules
-./gradlew test --tests '*Observation*'
-YANO_OBSERVATION_SCALE=1 ./gradlew test --tests '*ObservationKernelTest'
-YANO_OBSERVATION_HTTPS_LIVE=1 ./gradlew test --tests '*ObservationRuntimeClusterTest'
+# Observation runtime and journals (generic core, Cardano L1 observers)
+./gradlew :framework:core:test --tests '*Observation*' :framework:cardano:test --tests '*Observation*'
+YANO_OBSERVATION_SCALE=1 ./gradlew :framework:core:test --tests '*ObservationKernelTest'
+YANO_OBSERVATION_HTTPS_LIVE=1 ./gradlew :framework:cardano:integrationTest --tests '*ObservationRuntimeClusterTest'
 ./gradlew test
 ```
 

@@ -91,7 +91,7 @@ artifact identity and that every runtime plugin has a bundle publication.
 | `:ledgers:eutxo:bridge-cardano` | `yano-x-eutxo-bridge-cardano` | `org.yanoproject.x.eutxo.bridge.cardano` | [ledgers/eutxo/bridge-cardano](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/bridge-cardano) |
 | `:ledgers:eutxo:indexer-jdbc` | `yano-x-eutxo-indexer-jdbc` | `org.yanoproject.x.eutxo.indexer` | [ledgers/eutxo/indexer-jdbc](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/indexer-jdbc) |
 
-### `library` (21)
+### `library` (23)
 
 | Gradle module | Artifact id | Plugin bundle id | Source |
 |---|---|---|---|
@@ -116,6 +116,8 @@ artifact identity and that every runtime plugin has a bundle publication.
 | `:framework:cardano` | `yano-x-appchain-cardano` | — | [framework/cardano](https://github.com/bloxbean/yano-x/blob/main/framework/cardano) |
 | `:framework:host-adapter` | `yano-x-appchain-host-adapter` | — | [framework/host-adapter](https://github.com/bloxbean/yano-x/blob/main/framework/host-adapter) |
 | `:framework:standalone` | `yano-x-appchain-standalone` | — | [framework/standalone](https://github.com/bloxbean/yano-x/blob/main/framework/standalone) |
+| `:framework:proof-verifier` | `yano-x-appchain-proof-verifier` | — | [framework/proof-verifier](https://github.com/bloxbean/yano-x/blob/main/framework/proof-verifier) |
+| `:framework:rest` | `yano-x-appchain-rest` | — | [framework/rest](https://github.com/bloxbean/yano-x/blob/main/framework/rest) |
 
 ### `application` (3)
 

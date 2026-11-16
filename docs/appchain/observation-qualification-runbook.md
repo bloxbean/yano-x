@@ -57,7 +57,7 @@ The scale test is opt-in; ordinary `test` runs skip it. Execute it explicitly
 and inspect the test result to confirm that it ran rather than skipped:
 
 ```bash
-YANO_OBSERVATION_SCALE=1 ./gradlew test \
+YANO_OBSERVATION_SCALE=1 ./gradlew :framework:core:test \
   --tests '*ObservationKernelTest.recoversOneHundredThousandCommittedSubscriptionsWithBoundedOpening' \
   -PskipSigning=true --no-parallel
 ```

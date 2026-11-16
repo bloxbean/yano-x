@@ -70,5 +70,5 @@ standalone application's identity.
 The framework tests cover real TCP consensus, catch-up and restart, and signed
 invalid-L1 input rejection (`./gradlew frameworkCheck`, see the
 [framework gate](../../qa/framework/README.md)). Release QA runs the app-chain
-harnesses against the integrated distribution jar (`qa/release-qa.sh`, category
-`appchain`).
+harnesses against the integrated distribution jar; the standalone row is
+`qa/release-qa.sh --only appchain-standalone` (see the [QA guide](../../qa/README.md)).
