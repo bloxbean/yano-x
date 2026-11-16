@@ -36,6 +36,7 @@ import org.yanoproject.api.plugin.NodePlugin;
 import org.yanoproject.api.plugin.PluginApiVersion;
 import org.yanoproject.api.plugin.PluginContext;
 import org.yanoproject.api.plugin.StorageFilter;
+import org.yanoproject.api.plugin.spi.ContributionKindBinding;
 import org.yanoproject.x.framework.api.plugin.domain.DomainApi;
 import org.yanoproject.x.framework.api.plugin.domain.DomainApiContext;
 import org.yanoproject.x.framework.api.plugin.domain.DomainApiProvider;
@@ -81,6 +82,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class NativePluginConformanceVerifierTest {
     private static final String MANIFEST_PATH = "META-INF/yano/plugins/"
             + NativePluginConformanceVerifier.BUNDLE_ID + ".json";
+    /** The host's own X kind bindings stay visible; only fixture discovery is hidden from the parent. */
+    private static final String HOST_BINDINGS = "META-INF/services/" + ContributionKindBinding.class.getName();
 
     @Test
     void nodePluginDoesNotReachTypedProvidersOutsideTheCatalogRegistry()
@@ -436,7 +439,8 @@ class NativePluginConformanceVerifierTest {
             }
 
             private boolean isFixtureDiscoveryResource(String name) {
-                return name.startsWith("META-INF/services/") || MANIFEST_PATH.equals(name);
+                return name.startsWith("META-INF/services/") && !HOST_BINDINGS.equals(name)
+                        || MANIFEST_PATH.equals(name);
             }
         };
     }

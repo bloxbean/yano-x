@@ -17,6 +17,8 @@ dependencies {
     implementation libs.slf4j.api
 
     testImplementation rootProject.ext.yanoModule('yano-runtime')
+    // Yano's runtime no longer re-exports the X Cardano framework (ADR-064 D1).
+    testImplementation project(':framework:cardano')
     testImplementation project(':sdk:client')
     testImplementation project(':fixtures:governed-recipes')
 }
