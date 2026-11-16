@@ -78,7 +78,6 @@ def request(matrix, label, profile="standalone"):
     row["frameworkVersion"] = matrix["frameworkVersion"]
     row["yaciCoreVersion"] = matrix["yaciCoreVersion"]
     row["repositories"] = matrix["repositories"]
-    row.setdefault("foundationVersion", row["hostVersion"])
     return row
 
 
@@ -293,6 +292,10 @@ def main():
     matrix = json.loads(args.inputs.read_text())
     if matrix.get("schemaVersion") != 1 or not matrix.get("repositories"):
         parser.error("Expected schemaVersion=1 and explicit Maven repositories")
+    for label in ("baseline", "current"):
+        if set(matrix.get(label, {})) != {"yanoVersion"}:
+            parser.error(f"{label} must select exactly one yanoVersion; every Yano module, Host API included, "
+                         "is published at the one Yano version")
     profiles = matrix.get("profiles", ["standalone"])
     if (not isinstance(profiles, list) or "standalone" not in profiles
             or len(profiles) != len(set(profiles)) or not set(profiles) <= set(PROFILE_OWNERS)):

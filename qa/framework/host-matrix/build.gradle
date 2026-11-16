@@ -7,16 +7,15 @@ import org.gradle.api.attributes.java.TargetJvmVersion
 // QA-only isolated Maven consumer: no project dependency, sibling build, or local source substitution.
 plugins { id 'java-base' }
 def request = new JsonSlurper().parse(file(providers.gradleProperty('request').get()))
-def hostVersion = request.hostVersion as String
-def foundationVersion = (request.foundationVersion ?: hostVersion) as String
-def hostApiVersion = request.hostApiVersion as String
+// Every Yano module, yano-host-api included, is published at the one Yano version (ADR-064 MD4).
+def yanoVersion = request.yanoVersion as String
 def frameworkVersion = request.frameworkVersion as String
 def yaciCoreVersion = request.yaciCoreVersion as String
 def profile = (request.profile ?: 'standalone') as String
 if (!(profile in ['standalone', 'cardano-construction'])) {
     throw new GradleException("Unknown qualification profile: ${profile}")
 }
-[hostVersion, foundationVersion, hostApiVersion, frameworkVersion, yaciCoreVersion].each {
+[yanoVersion, frameworkVersion, yaciCoreVersion].each {
     if (!it || it.contains('+') || it.contains('[') || it.endsWith('SNAPSHOT')) {
         throw new GradleException('Qualification requires exact, immutable candidate/release versions')
     }
@@ -40,17 +39,13 @@ configurations {
         }
     }
 }
-def expectedHostVersion = { String name ->
-    name == 'yano-host-api' ? hostApiVersion :
-            name in ['yano-node-api', 'yano-cardano-api'] ? foundationVersion : hostVersion
-}
 configurations.packagedHost.resolutionStrategy.eachDependency { detail ->
     if (detail.requested.group == 'com.bloxbean.cardano' && detail.requested.name == 'yaci-core') {
         detail.useVersion(yaciCoreVersion)
         detail.because('Explicit coordinated app-only transport candidate; no hidden Maven Local replacement')
     }
     if (detail.requested.group == 'org.yanoproject') {
-        detail.useVersion(expectedHostVersion(detail.requested.name))
+        detail.useVersion(yanoVersion)
         detail.because('This qualification cell must never silently upgrade its frozen host')
     }
     if (detail.requested.group == 'org.yanoproject.x') {
@@ -60,8 +55,8 @@ configurations.packagedHost.resolutionStrategy.eachDependency { detail ->
 }
 dependencies {
     // ADR-064: the host never depends on X, so the host edges need no X exclusions.
-    packagedHost "org.yanoproject:yano-runtime:${hostVersion}"
-    packagedHost "org.yanoproject:yano-plugin-catalog:${hostVersion}"
+    packagedHost "org.yanoproject:yano-runtime:${yanoVersion}"
+    packagedHost "org.yanoproject:yano-plugin-catalog:${yanoVersion}"
     if (profile == 'standalone') {
         packagedHost "org.yanoproject.x:yano-x-appchain-standalone:${frameworkVersion}"
     } else {
@@ -89,7 +84,7 @@ tasks.register('resolveHostInputs') {
             if (id.group == 'com.bloxbean.cardano' && id.name == 'yaci-core' && id.version != yaciCoreVersion) {
                 throw new GradleException("Unexpected Yaci core version: ${id}")
             }
-            if (id.group == 'org.yanoproject' && id.version != expectedHostVersion(id.name)) {
+            if (id.group == 'org.yanoproject' && id.version != yanoVersion) {
                 throw new GradleException("Unexpected host upgrade: ${id}")
             }
             if (id.group == 'org.yanoproject.x' && id.version != frameworkVersion) {

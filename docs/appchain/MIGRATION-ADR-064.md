@@ -95,9 +95,11 @@ Yano stops publishing these artifacts. Use the Yano X owners:
 
 Yano X requires Host API 1.2 (`HostApiVersion` `(1, 2)`). The frozen
 host-matrix fixtures that modelled hosts embedding X (`first-host`,
-`supported-host`, `namespace-host`) are retired. The Host API 1.2 baseline
-fixture is committed at `qa/framework/host-matrix/fixtures/host-api-1.2-baseline`,
-compiled against Yano `0.1.0-pre20-adr064.5` (Host API `1.2.0-adr064.5`) and
-X `0.1.0-pre6`; see `qa/framework/host-matrix/README.md`.
+`supported-host`, `namespace-host`) are retired. Every Yano module,
+`yano-host-api` included, is published at the one Yano version, so Yano X
+selects all of them with the single `yanoVersion` property (`nodeApiVersion`
+and `hostApiVersion` are gone). The Host API 1.2 baseline fixture is recorded
+from the first released Yano version that contains Host API 1.2; see
+`qa/framework/host-matrix/README.md`.
 
 See [Yano ADR-064](https://github.com/bloxbean/yano/blob/main/adr/064-yano-x-depends-on-yano-never-the-reverse.md).

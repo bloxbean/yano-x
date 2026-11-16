@@ -2,7 +2,7 @@
 
 This QA-only Maven consumer exercises the public Yano embedding API with an independently selected X framework. It does not modify the integrated Quarkus distribution, add a CLI/configuration parser, or load a new framework over an older uber-JAR. Ordinary embedding deployments compose the same thin artifacts on one classpath.
 
-Prerequisites: Java 25, Python 3, and externally published/staged immutable Yano, Host API, X and Yaci artifacts. No Maven Local, sibling checkout, composite build or production source output is consumed. The existing wrapper only runs the isolated resolver in this directory. Supply exact versions and repository URLs in a copy of `inputs.example.json`. Each host row pins every Yano module, with separately selected foundation and Host API versions. The host has no X dependency (ADR-064); X is explicitly supplied at one selected framework version.
+Prerequisites: Java 25, Python 3, and externally published/staged immutable Yano, X and Yaci artifacts. No Maven Local, sibling checkout, composite build or production source output is consumed. The existing wrapper only runs the isolated resolver in this directory. Supply exact versions and repository URLs in a copy of `inputs.example.json`. Each host row (`baseline`, `current`) selects exactly one `yanoVersion`, which pins every Yano module: Yano publishes all of them, `yano-host-api` included, at the one Yano version (ADR-064 MD4). The host has no X dependency (ADR-064); X is explicitly supplied at one selected framework version.
 
 The required `yaciCoreVersion` input explicitly selects the coordinated app-only transport candidate. The resolver verifies that exact selected version and records its SHA-256 with the other inputs; `yaci-helper` retains its published dependency/version. This override is visible qualification input because the staged foundation POM still names the original Yaci core. The final production release must pin the actual upstream version containing the transport change in its publication metadata, rather than rely on this QA override or a same-version local replacement.
 
@@ -12,7 +12,7 @@ The optional `cardano-construction` profile selects the Cardano root and on-chai
 
 The Cardano check constructs and closes a real in-memory `YanoAssembly.relay` with the app ledger enabled, plugins enabled, peers empty, and anchoring disabled. It validates the actual Yano `CardanoHostServices` linkage, Cardano chain assembly, one manager lifecycle hook, and public handles. It never calls `start()` and must leave both persistent-store paths absent. Its JVM has a maximum 60-second timeout. This construction check does not claim Cardano network synchronization or anchoring coverage; those remain integrated release-qualification gates.
 
-Activation uses Host API 1.2 only: the fixture lists the framework root in `yano.plugins.required`, passes `yano.app-chain.*` (including `yano.app-chain.storage.path`) as `RuntimeOptions` globals and reaches chains through `AppLedgers.of(yano)`. The frozen fixtures that modelled hosts embedding X (`first-host`, `supported-host`, `namespace-host`) were retired with ADR-064; `run` rejects any fixture whose provenance lacks the `host-api-1.2` contract. The frozen Host API 1.2 baseline is committed at `fixtures/host-api-1.2-baseline/` (`packaged-host-fixture.jar` and its `provenance.json`); its provenance records the exact Yano `0.1.0-pre20-adr064.5` / Host API `1.2.0-adr064.5` and X `0.1.0-pre6` inputs it was compiled against, and it is reused unchanged for subsequent compatible X releases. Replace the example's repository paths with verified staged inputs. The preparation command below is for deliberately establishing a new baseline, not for normal upgrades:
+Activation uses Host API 1.2 only: the fixture lists the framework root in `yano.plugins.required`, passes `yano.app-chain.*` (including `yano.app-chain.storage.path`) as `RuntimeOptions` globals and reaches chains through `AppLedgers.of(yano)`. The frozen fixtures that modelled hosts embedding X (`first-host`, `supported-host`, `namespace-host`) were retired with ADR-064; `run` rejects any fixture whose provenance lacks the `host-api-1.2` contract. The Host API 1.2 baseline fixture (`packaged-host-fixture.jar` and its `provenance.json`) is recorded once from the first released Yano version that contains Host API 1.2; its provenance records that exact Yano version and the X and Yaci inputs it was compiled against, and it is then reused unchanged for subsequent compatible X releases. No baseline fixture is committed yet: the matrix accepts only immutable (non-SNAPSHOT) Yano versions, and the ADR-064 development staging (whose Host API still had a separate version) cannot be reproduced. Replace the example's versions and repository paths with verified inputs. The preparation command below is for deliberately establishing that baseline, not for normal upgrades:
 
 ```sh
 python3 qa/framework/host-matrix/run.py prepare \
@@ -25,7 +25,7 @@ Run the unchanged fixture against the oldest supported and current hosts:
 
 ```sh
 python3 qa/framework/host-matrix/run.py run \
-  --inputs /absolute/host-matrix.json --fixture qa/framework/host-matrix/fixtures/host-api-1.2-baseline \
+  --inputs /absolute/host-matrix.json --fixture /absolute/frozen-host-fixture \
   --out /private/tmp/host-matrix-run
 ```
 
