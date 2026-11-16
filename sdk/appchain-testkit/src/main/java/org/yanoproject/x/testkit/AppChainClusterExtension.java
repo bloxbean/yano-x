@@ -15,6 +15,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -90,16 +92,14 @@ public class AppChainClusterExtension implements BeforeAllCallback, AfterAllCall
             int threshold = annotation.threshold() > 0 ? annotation.threshold() : nodeCount;
 
             // Allocate a server port per node; full-mesh peers
-            List<Integer> ports = new ArrayList<>();
-            for (int i = 0; i < nodeCount; i++) {
-                ports.add(freePort());
-            }
+            List<Integer> ports = loopbackPorts(nodeCount);
+            String peerHost = InetAddress.getLoopbackAddress().getHostAddress();
 
             for (int i = 0; i < nodeCount; i++) {
                 List<AppChainConfig.AppPeer> peers = new ArrayList<>();
                 for (int j = 0; j < nodeCount; j++) {
                     if (j != i) {
-                        peers.add(new AppChainConfig.AppPeer("localhost", ports.get(j)));
+                        peers.add(new AppChainConfig.AppPeer(peerHost, ports.get(j)));
                     }
                 }
                 AppChainConfig config = AppChainConfig.builder(annotation.chainId())
@@ -163,9 +163,29 @@ public class AppChainClusterExtension implements BeforeAllCallback, AfterAllCall
             }
         }
 
-        private static int freePort() throws IOException {
-            try (ServerSocket socket = new ServerSocket(0)) {
-                return socket.getLocalPort();
+        /**
+         * Distinct ports that are free on the loopback address the peers dial. The node server binds
+         * the wildcard address with SO_REUSEADDR, which succeeds even when another process already
+         * listens on loopback at that port, and the peers would then reach that process. Probing the
+         * loopback address without SO_REUSEADDR excludes such ports; holding every probe open until
+         * all are chosen keeps them distinct.
+         */
+        private static List<Integer> loopbackPorts(int count) throws IOException {
+            List<ServerSocket> probes = new ArrayList<>();
+            try {
+                List<Integer> ports = new ArrayList<>();
+                for (int i = 0; i < count; i++) {
+                    ServerSocket probe = new ServerSocket();
+                    probes.add(probe);
+                    probe.setReuseAddress(false);
+                    probe.bind(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0));
+                    ports.add(probe.getLocalPort());
+                }
+                return ports;
+            } finally {
+                for (ServerSocket probe : probes) {
+                    probe.close();
+                }
             }
         }
     }
