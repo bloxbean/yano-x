@@ -85,7 +85,7 @@
       "framework/cardano/src/integrationTest/java/org/yanoproject/x/framework/cardano/GovernedMembershipIntegrationTest.java#thresholdApproval_activates_andLateJoinerDerivesHistory"
     ],
     "l1:slot-feed": [
-      "framework/cardano/src/integrationTest/java/org/yanoproject/x/framework/cardano/AppChainRotationIntegrationTest.java#l1-slot-feeder"
+      "framework/cardano/src/integrationTest/java/org/yanoproject/x/framework/cardano/AppChainRotationIntegrationTest.java#rotation_survivesProposerCrash"
     ],
     "anchor:metadata": [
       "framework/cardano/src/test/java/org/yanoproject/x/framework/cardano/AnchorServiceTest.java#observedConfirmationRetriesOnTickWithoutReplayOrResubmit"
