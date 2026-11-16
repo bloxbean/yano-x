@@ -82,6 +82,11 @@ Yano stops publishing these artifacts. Use the Yano X owners:
 - Docker: Yano's compose bundle no longer mounts `appchain-chainstate/` or
   `appchain-indexers/`, and Yano X publishes no Docker image. Build one from the
   integrated `yano.jar` (see `scaffolds/docker-compose-cluster`).
+- `yano.app-chain.network-magic` is now a registered property definition
+  (1..4294967295), so the config validator no longer reports it as unknown.
+  The generated v1 DX metadata (`appchain-runtime.schema.json` and
+  `appchain-property-catalog.json`) gained this one entry; the change is
+  additive and existing configuration stays valid.
 - REST paths, ports, `yano.app-chain.*` settings and storage directories are
   unchanged. The app-chain console is at `/ui/app-chain/` and links back to
   Yano's console at `/ui/`.
