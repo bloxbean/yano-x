@@ -15,7 +15,6 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 import static io.restassured.RestAssured.given;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -118,13 +117,10 @@ abstract class DomainRouteAuthMatrixTest {
 
     /** The fixture bundle in a plugin directory and a one-member chain that selects every fixture kind. */
     static class ConformanceChainProfile extends NoAutoStartTestProfile implements QuarkusTestProfile {
-        /** One state directory per profile, under the module build directory. */
-        private static final Map<String, Path> STATE = new ConcurrentHashMap<>();
-
         @Override
         public Map<String, String> getConfigOverrides() {
             Map<String, String> overrides = new HashMap<>(super.getConfigOverrides());
-            Path state = STATE.computeIfAbsent(getClass().getName(), name -> createStateDirectory());
+            Path state = stateDirectory();
             // The node starts (no upstream client), so the app chain publishes its plugin products.
             overrides.put("yano.auto-sync-start", "true");
             overrides.put("yano.plugins.enabled", "true");
@@ -150,10 +146,14 @@ abstract class DomainRouteAuthMatrixTest {
             return Map.of();
         }
 
-        private static Path createStateDirectory() {
+        /**
+         * One state directory per profile under the module build directory, which the test task empties
+         * before each run. Quarkus calls this from more than one class loader, so it is a fixed path.
+         */
+        private Path stateDirectory() {
             try {
-                Path root = Files.createDirectories(Path.of(System.getProperty("yano.x.test.state-root")));
-                return Files.createTempDirectory(root, "domain-auth-matrix-");
+                return Files.createDirectories(
+                        Path.of(System.getProperty("yano.x.test.state-root"), getClass().getName()));
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }

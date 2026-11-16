@@ -107,7 +107,9 @@ tasks.named('test') {
     systemProperty 'yano.x.test.launcher', launcher.get().asFile.absolutePath
     systemProperty 'yano.x.test.conformance-plugins',
             layout.buildDirectory.dir('conformance-plugins').get().asFile.absolutePath
-    systemProperty 'yano.x.test.state-root', layout.buildDirectory.dir('tmp/test-state').get().asFile.absolutePath
+    def stateRoot = layout.buildDirectory.dir('tmp/test-state').get().asFile
+    systemProperty 'yano.x.test.state-root', stateRoot.absolutePath
+    doFirst { delete stateRoot }
 }
 
 def integratedYanoJar = layout.buildDirectory.file('yano.jar')
