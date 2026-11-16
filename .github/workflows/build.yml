@@ -86,9 +86,7 @@ jobs:
       - name: Verify configuration without host publications
         run: >-
           ./gradlew verifyJvmOnlyBuild
-          -PyanoVersion=0.0.0-configuration-probe
-          -PnodeApiVersion=0.0.0-configuration-probe
-          -PhostApiVersion=0.0.0-configuration-probe --stacktrace
+          -PyanoVersion=0.0.0-configuration-probe --stacktrace
       - name: Stage Yano X publications in the isolated build repository
         run: ./gradlew publishAllPublicationsToInternalRepository -PskipSigning=true --stacktrace
       - name: Verify standalone plugin template

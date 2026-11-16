@@ -14,9 +14,8 @@ For the coordinated unpublished candidates, supply exact artifact repositories:
 
 ```sh
 ./gradlew frameworkCheck --rerun-tasks --no-parallel \
-  -PyanoRepository=file:///absolute/foundation-maven-repository \
-  -PnodeApiVersion=EXACT_NODE_API_VERSION \
-  -PhostApiVersion=EXACT_HOST_API_VERSION
+  -PyanoRepository=file:///absolute/yano-maven-repository \
+  -PyanoVersion=EXACT_YANO_VERSION
 ```
 
 Framework tests follow their implementation owners: generic engine/store/effects
@@ -27,7 +26,8 @@ host. The core's `java-test-fixtures` classifier supplies only package-private
 construction/setup/fault-injection helpers to framework tests; it is not a
 runtime API or module.
 
-`frameworkCheck` needs the external foundation and Host API, but does not resolve
+`frameworkCheck` needs the external `yano-node-api`, `yano-cardano-api` and
+`yano-host-api`, all at the one `yanoVersion`, but does not resolve
 `yano-runtime`. `:framework:cardano:integrationTest` separately runs
 `L1DeliveryLoopTest` and `ScriptAnchorServiceTest` against the exact selected host
 runtime, using the checksum-documented protocol parameters under
@@ -37,10 +37,8 @@ host artifacts are available:
 
 ```sh
 ./gradlew :framework:cardano:integrationTest --no-parallel \
-  -PyanoRepository=file:///absolute/host-maven-repository \
-  -PyanoVersion=EXACT_HOST_VERSION \
-  -PnodeApiVersion=EXACT_NODE_API_VERSION \
-  -PhostApiVersion=EXACT_HOST_API_VERSION
+  -PyanoRepository=file:///absolute/yano-maven-repository \
+  -PyanoVersion=EXACT_YANO_VERSION
 ```
 
 The catalog resolves published Yaci `0.5.0-pre16-f57fc88-SNAPSHOT` from the
@@ -78,5 +76,8 @@ release; the explicit QA candidate override is not a production dependency pin.
 
 The frozen fixtures that modelled hosts embedding X (`first-host`,
 `supported-host`, `namespace-host`) were retired with ADR-064. A new Host API 1.2
-baseline fixture is prepared once with `host-matrix/run.py prepare` from the first
-ADR-064 Yano artifacts and then reused unchanged.
+baseline fixture is recorded once with `host-matrix/run.py prepare` from the first
+released (non-SNAPSHOT) Yano version that contains Host API 1.2, and then reused
+unchanged. No baseline fixture is committed until that Yano release exists: every
+Yano module, `yano-host-api` included, is published at the one Yano version, and
+the matrix accepts only immutable Yano versions.

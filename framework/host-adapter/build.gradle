@@ -3,7 +3,7 @@ description = 'Descriptor-free application-ledger adapter to the existing Yano H
 dependencies {
     api project(':framework:core')
     implementation project(':framework:config')
-    api "org.yanoproject:yano-host-api:${providers.gradleProperty('hostApiVersion').get()}"
+    api rootProject.ext.yanoModule('yano-host-api')
     testImplementation rootProject.ext.yanoModule('yano-plugin-catalog')
 }
 

@@ -35,8 +35,9 @@ matching Yano version first, then opt in explicitly:
 ```
 
 The `yanoVersion` must identify the exact Yano API/runtime line against which
-Yano X is being built. `version` independently controls Yano X artifact and
-plugin versions. For a released `yanoVersion`, distribution tasks resolve and
+Yano X is being built. Every Yano module, `yano-host-api` included, resolves at
+that one version; there is no separate node API or Host API version property.
+`version` independently controls Yano X artifact and plugin versions. For a released `yanoVersion`, distribution tasks resolve and
 cache `yano-<version>.zip` from the matching `v<version>` release in
 `bloxbean/yano`. For a Yano commit snapshot such as
 `0.1.0-pre18-3c73341-SNAPSHOT`, the Maven artifacts come from the BloxBean
@@ -113,8 +114,9 @@ both commands, and add the matching `-PyanoJvmDist` to the clean build.
 
 `./gradlew frameworkCheck` runs the framework unit/wire suites and enforces both
 the lean core dependency boundary and module package ownership. It consumes only
-the selected node, Cardano and Host API artifacts (`yano-node-api`,
-`yano-cardano-api`, `yano-host-api`), so it can run without the Yano runtime.
+the node, Cardano and Host API artifacts (`yano-node-api`, `yano-cardano-api`,
+`yano-host-api`) at the selected `yanoVersion`, so it can run without the Yano
+runtime.
 The generic tests belong to `framework/core`; Cardano-specific unit tests
 belong to `framework/cardano`; host-adapter tests to `framework/host-adapter`.
 Since ADR-064 the app-chain host assembly, catalog, REST and integrated node
@@ -129,7 +131,7 @@ delivery and anchoring suites (for example `AppLedgerAssemblyTest`,
 `yanoVersion` runtime artifact. Its protocol-parameter JSON is a
 checksum-documented test resource, not a file read from another checkout.
 `./gradlew :framework:cardano:integrationTest` runs this slice; normal
-`./gradlew check` includes it. Supply the matching Yano and Host API inputs.
+`./gradlew check` includes it. Supply the matching Yano inputs.
 No host runtime resolution occurs
 merely from configuring these tasks or running `frameworkCheck`.
 

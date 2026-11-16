@@ -6,7 +6,7 @@ dependencies {
     api project(':framework:cardano-api')
     implementation project(':framework:host-adapter')
     // The Cardano adapter exposes Host API types in its protected factory hooks.
-    api "org.yanoproject:yano-host-api:${providers.gradleProperty('hostApiVersion').get()}"
+    api rootProject.ext.yanoModule('yano-host-api')
 
     implementation libs.cardano.client.core
     implementation libs.cardano.client.quicktx
@@ -35,7 +35,7 @@ tasks.named('processResources') {
 // Exercises Cardano delivery against the real selected host's chain reader and
 // block builder; kept out of foundation-only frameworkCheck and unit tests.
 dependencies {
-    integrationTestImplementation "org.yanoproject:yano-runtime:${providers.gradleProperty('yanoVersion').get()}"
+    integrationTestImplementation rootProject.ext.yanoModule('yano-runtime')
     integrationTestImplementation testFixtures(project(':framework:core'))
     // Governed-membership topic proofs are checked with the native verifier.
     integrationTestImplementation project(':framework:proof-verifier')

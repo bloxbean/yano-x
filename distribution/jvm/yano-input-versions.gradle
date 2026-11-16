@@ -1,36 +1,9 @@
-// Host API is independently versioned; every other Yano artifact still follows
-// the selected host release. Prefer the exact constraint from its matching BOM.
-ext.validateYanoArtifactVersions = { List components, String hostVersion,
-                                    String bomHostApiVersion, String explicitHostApiVersion ->
-    def exact = { String version ->
-        version != null && !version.isBlank() && !version.contains('+')
-                && !(version =~ /[\[\](),]/).find() && !version.startsWith('latest.')
-    }
-    [bomHostApiVersion, explicitHostApiVersion].findAll { it != null }.each { version ->
-        if (!exact(version)) {
-            throw new GradleException("Host API requires an exact version, got '${version}'")
-        }
-    }
-    if (bomHostApiVersion != null && explicitHostApiVersion != null
-            && bomHostApiVersion != explicitHostApiVersion) {
-        throw new GradleException("Explicit Host API ${explicitHostApiVersion} does not match "
-                + "the selected Yano BOM contract ${bomHostApiVersion}")
-    }
-    def expectedHostApi = explicitHostApiVersion ?: bomHostApiVersion
-    if (components.any { it.module == 'yano-host-api' } && expectedHostApi == null) {
-        throw new GradleException('Resolved Host API requires an exact matching BOM constraint or -PhostApiVersion')
-    }
-    if (expectedHostApi != null && !components.any { it.module == 'yano-host-api' }) {
-        throw new GradleException('The selected Host API contract was not resolved')
-    }
-    def mismatched = components.findAll {
-        it.version != (it.module == 'yano-host-api' ? expectedHostApi : hostVersion)
-    }
+// Every Yano module, yano-host-api included, is published at the one Yano version (ADR-064 MD4).
+ext.validateYanoArtifactVersions = { List components, String yanoVersion ->
+    def mismatched = components.findAll { it.version != yanoVersion }
     if (!mismatched.isEmpty()) {
-        throw new GradleException("Resolved Yano artifacts do not match host ${hostVersion} "
-                + "and Host API ${expectedHostApi}: ${mismatched}")
+        throw new GradleException("Resolved Yano artifacts do not match Yano ${yanoVersion}: ${mismatched}")
     }
-    expectedHostApi
 }
 
 // The integrated jar replaces Yano's yano.jar, so it must carry the host's exact Quarkus, Jackson,
