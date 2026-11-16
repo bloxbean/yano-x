@@ -76,10 +76,12 @@ def report = file(providers.gradleProperty('report').get())
 def pluginIndex = layout.file(providers.provider { new File(report.parentFile, 'yano-plugin-index-v1.json') })
 def generatePluginIndex = pluginIndexTask('generatePluginIndex', configurations.packagedHost,
         configurations.packagedHost, [
-        'org.yanoproject.plugins.logging': 'org.yanoproject:yano-runtime',
-        'org.yanoproject.x.app-ledger': profile == 'standalone'
-                ? 'org.yanoproject.x:yano-x-appchain-standalone' : 'org.yanoproject.x:yano-x-appchain-cardano'
+        'org.yanoproject.plugins.logging': [root: 'org.yanoproject:yano-runtime', manifestVersion: '1.0.0'],
+        'org.yanoproject.x.app-ledger': [root: profile == 'standalone'
+                ? 'org.yanoproject.x:yano-x-appchain-standalone' : 'org.yanoproject.x:yano-x-appchain-cardano',
+                                         manifestVersion: frameworkVersion]
 ], pluginIndex)
+
 tasks.register('resolveHostInputs') {
     dependsOn generatePluginIndex
     doLast {

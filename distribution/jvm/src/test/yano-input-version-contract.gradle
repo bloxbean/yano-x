@@ -122,5 +122,29 @@ tasks.register('verifyYanoInputVersionContract') {
         assert verify(exact, resolutionHost, resolutionHostApi, null) == resolutionHostApi
         logger.lifecycle('Passed real Maven resolution: retained foundation cannot override the selected host BOM')
         logger.lifecycle('Passed host/Host API version-contract regressions')
+
+        def align = project.ext.validateHostLibraryAlignment
+        def hostLibraries = [[group: 'io.quarkus', module: 'quarkus-core', version: '3.0.0'],
+                             [group: 'io.quarkus', module: 'quarkus-arc', version: '3.0.0'],
+                             [group: 'com.fasterxml.jackson.core', module: 'jackson-databind', version: '2.0.1'],
+                             [group: 'org.slf4j', module: 'slf4j-api', version: '2.0.0'],
+                             [group: 'com.bloxbean.cardano', module: 'cardano-client-core', version: '0.8.0']]
+        // Modules only one side ships are not compared; unrelated groups are ignored.
+        align(hostLibraries, hostLibraries + [[group: 'com.fasterxml.jackson.dataformat',
+                                               module: 'jackson-dataformat-xml', version: '2.0.1'],
+                                              [group: 'org.example', module: 'other', version: '9'],
+                                              [group: 'org.slf4j', module: 'slf4j-jdk14', version: '9']])
+        [['io.quarkus', 'quarkus-arc'], ['com.fasterxml.jackson.core', 'jackson-databind'],
+         ['org.slf4j', 'slf4j-api'], ['com.bloxbean.cardano', 'cardano-client-core']].each { group, module ->
+            rejects("${group}:${module} 0.0.0-drift") {
+                align(hostLibraries, hostLibraries.collect {
+                    it.group == group && it.module == module ? it + [version: '0.0.0-drift'] : it
+                })
+            }
+        }
+        rejects('anchors are absent: [org.slf4j:slf4j-api]') {
+            align(hostLibraries.findAll { it.module != 'slf4j-api' }, hostLibraries)
+        }
+        logger.lifecycle('Passed host library alignment regressions')
     }
 }

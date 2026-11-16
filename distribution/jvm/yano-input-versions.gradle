@@ -32,3 +32,31 @@ ext.validateYanoArtifactVersions = { List components, String hostVersion,
     }
     expectedHostApi
 }
+
+// The integrated jar replaces Yano's yano.jar, so it must carry the host's exact Quarkus, Jackson,
+// SLF4J and cardano-client-lib versions (components are [group, module, version] maps; the host's
+// come from the Yano JVM ZIP SBOM). Every module both ship must match, and each family's anchor
+// module must be present in both.
+ext.validateHostLibraryAlignment = { List hostComponents, List shippedComponents ->
+    def aligned = { component ->
+        component.group.startsWith('io.quarkus') || component.group.startsWith('com.fasterxml.jackson')
+                || (component.group == 'org.slf4j' && component.module == 'slf4j-api')
+                || (component.group == 'com.bloxbean.cardano' && component.module.startsWith('cardano-client-'))
+    }
+    def versions = { List components ->
+        components.findAll(aligned).collectEntries { [("${it.group}:${it.module}".toString()): it.version] }
+    }
+    def host = versions(hostComponents)
+    def shipped = versions(shippedComponents)
+    def anchors = ['io.quarkus:quarkus-core', 'com.fasterxml.jackson.core:jackson-databind',
+                   'org.slf4j:slf4j-api', 'com.bloxbean.cardano:cardano-client-core']
+    def missing = anchors.findAll { !host.containsKey(it) || !shipped.containsKey(it) }
+    if (!missing.isEmpty()) {
+        throw new GradleException("Host library alignment anchors are absent: ${missing}")
+    }
+    def mismatched = shipped.findAll { module, version -> host.containsKey(module) && host[module] != version }
+            .collect { module, version -> "${module} ${version} (host ${host[module]})" }
+    if (!mismatched.isEmpty()) {
+        throw new GradleException("Integrated jar library versions differ from the Yano host: ${mismatched.sort()}")
+    }
+}

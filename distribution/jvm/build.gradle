@@ -39,7 +39,6 @@ configurations.configureEach {
     // the JVM supplies that provider, and Yano's own application excludes the duplicate the same way.
     exclude group: 'io.github.cquiroz', module: 'scala-java-time-tzdb_3'
     resolutionStrategy.force(libs.slf4j.api.get())
-
     resolutionStrategy.eachDependency { details ->
         def group = details.requested.group
         // The Quarkus platform selects a vulnerable Jackson patch; align every Jackson family to the
@@ -74,8 +73,8 @@ dependencies {
 }
 
 registerPluginIndex([
-        'org.yanoproject.plugins.logging': 'org.yanoproject:yano-runtime',
-        'org.yanoproject.x.app-ledger': ':framework:cardano'
+        'org.yanoproject.plugins.logging': [root: 'org.yanoproject:yano-runtime', manifestVersion: '1.0.0'],
+        'org.yanoproject.x.app-ledger': [root: ':framework:cardano', manifestVersion: project.version.toString()]
 ])
 
 // The node identifies as the Yano release it runs, as the baseline integrated jar did.
@@ -96,7 +95,6 @@ tasks.named('test') {
     inputs.file(launcher).withPropertyName('integratedLauncher')
     systemProperty 'yano.x.test.launcher', launcher.get().asFile.absolutePath
 }
-
 
 def integratedYanoJar = layout.buildDirectory.file('yano.jar')
 ext.yanoXIntegratedJar = integratedYanoJar
@@ -294,6 +292,7 @@ tasks.register('verifyYanoInputs') {
         def roots
         def implementationVersion
         def distributionManifest
+        def hostLibraries
         new ZipFile(distribution).withCloseable { archive ->
             roots = archive.entries().collect { entry ->
                 entry.name.tokenize('/').find()
@@ -319,14 +318,25 @@ tasks.register('verifyYanoInputs') {
             }
             distributionManifest = archive.getInputStream(manifestEntry)
                     .withCloseable { stream -> new JsonSlurper().parse(stream) }
+            def sbomEntry = archive.getEntry("${expectedRoot}/sbom/yano.cdx.json")
+            if (sbomEntry == null) {
+                throw new GradleException('yanoJvmDist does not contain sbom/yano.cdx.json')
+            }
+            hostLibraries = archive.getInputStream(sbomEntry).withCloseable { stream ->
+                new JsonSlurper().parse(stream).components.collect {
+                    [group: it.group ?: '', module: it.name, version: it.version]
+                }
+            }
         }
+        validateHostLibraryAlignment(hostLibraries,
+                configurations.runtimeClasspath.incoming.resolutionResult.allComponents.findAll {
+                    it.id instanceof org.gradle.api.artifacts.component.ModuleComponentIdentifier
+                }.collect { [group: it.id.group, module: it.id.module, version: it.id.version] })
         if (implementationVersion != expectedVersion) {
             throw new GradleException(
                     "yano.jar Implementation-Version ${implementationVersion} "
                             + "does not match ${expectedVersion}")
         }
-        // builtInStateMachines describes Yano's own yano.jar, which the integrated jar replaces;
-        // verifyYanoXJvmDistribution checks what the integrated jar contains.
         def expectedDistributionManifest = [
                 schemaVersion: 1,
                 product: 'yano',
@@ -334,7 +344,7 @@ tasks.register('verifyYanoInputs') {
                 version: expectedVersion,
                 pluginDirectorySupported: true
         ]
-        if (distributionManifest.findAll { it.key != 'builtInStateMachines' } != expectedDistributionManifest) {
+        if (distributionManifest != expectedDistributionManifest) {
             throw new GradleException(
                     "Unexpected Yano distribution contract: ${distributionManifest}")
         }
