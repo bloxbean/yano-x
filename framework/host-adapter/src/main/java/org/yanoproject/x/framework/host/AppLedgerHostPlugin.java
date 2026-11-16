@@ -1,21 +1,29 @@
 package org.yanoproject.x.framework.host;
 
 import org.yanoproject.api.config.RuntimeMode;
-import org.yanoproject.api.config.RuntimeOptions;
 import org.yanoproject.api.config.YanoConfig;
 import org.yanoproject.api.host.HostApi;
 import org.yanoproject.api.host.HostLifecycleRegistry;
 import org.yanoproject.api.plugin.NodePlugin;
 import org.yanoproject.api.plugin.PluginContext;
+import org.yanoproject.api.plugin.operations.PluginOperationsRecorder;
+import org.yanoproject.api.plugin.spi.PluginProducts;
+import org.yanoproject.runtime.kernel.Subsystem;
 import org.yanoproject.runtime.util.LifecycleFailures;
 import org.yanoproject.x.framework.api.appchain.AppChainConfig;
+import org.yanoproject.x.framework.api.appchain.AppChainGateways;
 import org.yanoproject.x.framework.api.appchain.AppLedgerOperatingProfile;
+import org.yanoproject.x.framework.api.plugin.domain.L1TransactionBuilderService;
 import org.yanoproject.x.framework.config.AppChainConfigParser;
+import org.yanoproject.x.framework.config.AppChainPropertyKeys;
+import org.yanoproject.x.framework.config.AppChainStoragePaths;
 import org.yanoproject.x.framework.runtime.appchain.AppLedgerManager;
 import org.yanoproject.x.framework.runtime.appchain.AppLedgerRuntime;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Path;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -23,22 +31,22 @@ import java.util.Objects;
 import java.util.Properties;
 
 /**
- * Registers its assembly entry point during catalog initialization. The host
- * calls it after every plugin has initialized, before sealing N2N/lifecycle
- * registration. The existing pre-publication lifecycle owns the resulting runtime.
- * This library deliberately has no discovery descriptor; deployment roots select
- * either its standalone subclass or the optional Cardano specialization.
+ * Registers its assembly step and its stable {@link AppLedgers} holder during plugin initialization. The host
+ * runs the assembly after every plugin has initialized, before sealing N2N/lifecycle registration. The host's
+ * pre-publication lifecycle owns the resulting chain runtime; this plugin owns the domain-API and read-model
+ * registries it creates and closes them from {@link #close()}. Deployment roots select either the standalone
+ * subclass or the optional Cardano specialization.
  */
 public class AppLedgerHostPlugin implements NodePlugin {
     public static final String BUNDLE_ID = "org.yanoproject.x.app-ledger";
-    public static final String NODE_CONFIG_SERVICE = "org.yanoproject.app-ledger.node-config";
-    public static final String RUNTIME_OPTIONS_SERVICE = "org.yanoproject.app-ledger.runtime-options";
-    public static final String ASSEMBLY_SERVICE = "org.yanoproject.app-ledger.assembly";
+    private static final Duration RESTART_DRAIN = Duration.ofSeconds(3);
+    private final AppLedgerHolder holder = new AppLedgerHolder();
+    private final List<AutoCloseable> registries = new ArrayList<>();
     private boolean initialized;
     private boolean assemblyAttempted;
     private boolean closed;
     private PluginContext assemblyContext;
-    private RuntimeOptions assemblyOptions;
+    private HostApi assemblyHost;
 
     @Override public final String id() { return BUNDLE_ID; }
 
@@ -60,58 +68,56 @@ public class AppLedgerHostPlugin implements NodePlugin {
         if (closed) throw new IllegalStateException("Application-ledger plugin is closed");
         if (initialized) throw new IllegalStateException("Application-ledger plugin already initialized");
         initialized = true;
-        RuntimeOptions options = context.getService(RUNTIME_OPTIONS_SERVICE, RuntimeOptions.class).orElse(null);
-        if (options == null) {
+        HostApi host = context.getService(HostApi.SERVICE_KEY, HostApi.class).orElse(null);
+        if (host == null) {
             // The public legacy PluginManager may discover this provider on an
             // ordinary classpath without assembling an application-ledger host.
             // Disabled features need no capabilities; an explicit request must
             // still fail rather than silently ignoring a missing host contract.
-            if (!Boolean.parseBoolean(String.valueOf(context.config().get("yano.app-chain.enabled")))) return;
-            options = requireService(context, RUNTIME_OPTIONS_SERVICE, RuntimeOptions.class);
+            if (!Boolean.parseBoolean(String.valueOf(context.config().get(AppChainPropertyKeys.ENABLED)))) return;
+            throw new IllegalStateException("Application-ledger host service is unavailable: " + HostApi.SERVICE_KEY);
         }
-        Map<String, Object> globals = options.globals();
-        if (!Boolean.parseBoolean(String.valueOf(globals.get("yano.app-chain.enabled")))) return;
-
+        host.version().requireCompatible(1, 2);
         assemblyContext = context;
-        assemblyOptions = options;
-        context.registerService(ASSEMBLY_SERVICE, this);
+        assemblyHost = host;
+        context.registerService(AppLedgers.SERVICE_KEY, holder);
+        host.lifecycle().registerAssembly(BUNDLE_ID, this::assemble);
     }
 
     /**
-     * Assemble exactly once after the host has successfully completed all
-     * NodePlugin initialization callbacks. No plugin services are registered
-     * here: init-scoped registration is already closed. The returned manager
-     * also implements AppChainGateways for the host's existing public facade.
-     * A disabled provider returns null and allocates no runtime resources.
+     * Assemble exactly once, as the host's assembly step. With app chains disabled the domain-API and
+     * read-model registries are still built over empty gateways. No plugin services are registered here:
+     * init-scoped registration is already closed; the holder registered during init is populated instead.
      */
-    public final AppLedgerManager assemble() {
+    final void assemble() {
         PluginContext context;
-        RuntimeOptions options;
+        HostApi host;
         synchronized (this) {
             if (!initialized) throw new IllegalStateException("Application-ledger plugin is not initialized");
             if (closed) throw new IllegalStateException("Application-ledger plugin is closed");
             if (assemblyAttempted) throw new IllegalStateException("Application-ledger runtime already assembled");
             assemblyAttempted = true;
             context = assemblyContext;
-            options = assemblyOptions;
+            host = assemblyHost;
         }
-        if (context == null) return null;
         // Provider factories can invoke arbitrary callbacks. Do not retain the
         // assembly monitor while constructing or transferring runtime ownership.
-        Map<String, Object> globals = options.globals();
-        YanoConfig node = requireService(context, NODE_CONFIG_SERVICE, YanoConfig.class);
-        HostApi host = requireService(context, HostApi.SERVICE_KEY, HostApi.class);
-        host.version().requireCompatible(1, 1);
-        // Verify lifecycle availability before constructing or owning any chain.
+        YanoConfig node = host.nodeConfig();
+        Map<String, Object> globals = host.runtimeOptions().globals();
         HostLifecycleRegistry lifecycle = host.lifecycle();
         validateDeployment(node);
         boolean standalone = node.getMode() == RuntimeMode.APP_LEDGER;
-        List<AppChainConfig> configurations = AppChainConfigParser.parseChains(globals, standalone);
+        boolean enabled = Boolean.parseBoolean(String.valueOf(globals.get(AppChainPropertyKeys.ENABLED)));
+        if (standalone && !enabled) {
+            throw new IllegalArgumentException("yano.mode=app-ledger requires yano.app-chain.enabled=true");
+        }
+        List<AppChainConfig> configurations = enabled
+                ? AppChainConfigParser.parseChains(globals, standalone) : List.of();
         if (standalone) {
             for (AppChainConfig chain : configurations) {
                 AppLedgerOperatingProfile.STANDALONE.validate(chain);
                 String transport = stringOf(chain.pluginSettings().get("transport.mode"),
-                        stringOf(globals.get("yano.app-chain.transport.mode"), "shared"));
+                        stringOf(globals.get(AppChainPropertyKeys.TRANSPORT_MODE), "shared"));
                 if (!"dedicated".equalsIgnoreCase(transport)) {
                     throw new IllegalArgumentException("Standalone app chain '" + chain.chainId()
                             + "' requires transport.mode=dedicated (effective: " + transport + ")");
@@ -121,44 +127,74 @@ public class AppLedgerHostPlugin implements NodePlugin {
         long magic = standalone
                 ? standaloneNetworkMagic(globals.get("yano.app-chain.network-magic"))
                 : node.getProtocolMagic();
-        String storage = storageRoot(node);
-        context.logger().info("App-chain storage root: {}", storage);
+        String storage = enabled ? storageRoot(node, globals.get(AppChainPropertyKeys.STORAGE_PATH)) : null;
+        if (standalone) host.n2n().requireAppOnlyNetwork(magic);
+        if (enabled) context.logger().info("App-chain storage root: {}", storage);
 
         List<AppLedgerRuntime> chains = new ArrayList<>();
+        List<AutoCloseable> created = new ArrayList<>();
         AppLedgerManager manager = null;
         boolean transferred = false;
         try {
-            for (AppChainConfig configuration : configurations) {
+            if (enabled) {
+                for (AppChainConfig configuration : configurations) {
+                    requireOpen();
+                    AppLedgerRuntime chain = createChain(configuration, magic, storage, node, host, context);
+                    chains.add(Objects.requireNonNull(chain, "application-ledger runtime"));
+                    requireOpen();
+                    wireChain(chain, node, context);
+                    requireOpen();
+                }
+                manager = createManager(chains, node, context);
                 requireOpen();
-                AppLedgerRuntime chain = createChain(configuration, magic, storage, node, host, context);
-                chains.add(Objects.requireNonNull(chain, "application-ledger runtime"));
+                manager.serverAgentRegistrations().forEach((protocol, factory) -> {
+                    requireOpen();
+                    host.n2n().registerInbound(protocol, factory);
+                    requireOpen();
+                });
+                if (!standalone && host.n2n().hasSharedOutboundSessions() && node.isClientEnabled()) {
+                    requireOpen();
+                    AppLedgerManager sharedManager = manager;
+                    String transport = stringOf(globals.get(AppChainPropertyKeys.TRANSPORT_MODE), "shared");
+                    host.n2n().decorateOutbound(delegate -> sharedManager.wrapPeerClientFactory(
+                            delegate, transport, node.getRemoteHost(), node.getRemotePort()));
+                }
                 requireOpen();
-                wireChain(chain, node, context);
+                lifecycle.registerBeforePublication(manager);
+                transferred = true;
+                // A registry callback may close this adapter while accepting the
+                // manager. Report cancellation, but leave accepted ownership with
+                // the host: its construction rollback closes the manager once.
                 requireOpen();
+                AppLedgerManager restartable = manager;
+                lifecycle.registerRestartReadiness(BUNDLE_ID, () -> restartable.awaitStopped(RESTART_DRAIN));
             }
-            manager = createManager(chains, node, context);
-            requireOpen();
-            manager.serverAgentRegistrations().forEach((protocol, factory) -> {
-                requireOpen();
-                host.n2n().registerInbound(protocol, factory);
-                requireOpen();
+            AppChainGateways gateways = manager != null ? manager : AppChainGateways.empty();
+            LocalReadModelRegistry readModels = new LocalReadModelRegistry();
+            created.add(readModels);
+            LocalReadModelContributionRegistry contributions =
+                    new LocalReadModelContributionRegistry(host, gateways, readModels);
+            created.add(contributions);
+            Products products = new Products(contributions);
+            PluginOperationsRecorder operations = lifecycle.registerPluginProducts(BUNDLE_ID, products);
+            DomainApiRegistry domainApis = new DomainApiRegistry(host, gateways, context.logger(), readModels,
+                    l1Transactions(node, context), operations);
+            created.add(domainApis);
+            products.domainApis = domainApis;
+            lifecycle.registerBeforePublication(new Subsystem() {
+                @Override public String name() { return "local-read-models"; }
+                @Override public void start() { contributions.resume(); }
+                @Override public void stop() { contributions.sealAndAwait(); }
             });
-            if (!standalone && host.n2n().hasSharedOutboundSessions() && node.isClientEnabled()) {
+            synchronized (this) {
                 requireOpen();
-                AppLedgerManager sharedManager = manager;
-                String transport = stringOf(globals.get("yano.app-chain.transport.mode"), "shared");
-                host.n2n().decorateOutbound(delegate -> sharedManager.wrapPeerClientFactory(
-                        delegate, transport, node.getRemoteHost(), node.getRemotePort()));
+                registries.addAll(created);
+                holder.publish(new AppLedgerHolder.Assembled(gateways, domainApis, readModels));
             }
-            requireOpen();
-            lifecycle.registerBeforePublication(manager);
-            transferred = true;
-            // A registry callback may close this adapter while accepting the
-            // manager. Report cancellation, but leave accepted ownership with
-            // the host: its construction rollback closes the manager once.
-            requireOpen();
-            return manager;
         } catch (Throwable failure) {
+            for (int index = created.size() - 1; index >= 0; index--) {
+                failure = close(created.get(index), failure);
+            }
             if (!transferred) {
                 if (manager != null) failure = close(manager, failure);
                 else for (int index = chains.size() - 1; index >= 0; index--) {
@@ -188,6 +224,11 @@ public class AppLedgerHostPlugin implements NodePlugin {
         return new AppLedgerManager(chains, context.logger());
     }
 
+    /** Unsigned L1 transaction construction offered to domain APIs; unavailable without Cardano L1. */
+    protected L1TransactionBuilderService l1Transactions(YanoConfig node, PluginContext context) {
+        return L1TransactionBuilderService.unavailable();
+    }
+
     private static long standaloneNetworkMagic(Object value) {
         long magic;
         try {
@@ -203,9 +244,20 @@ public class AppLedgerHostPlugin implements NodePlugin {
         return magic;
     }
 
-    private static String storageRoot(YanoConfig node) {
-        if (node.getMode() == RuntimeMode.APP_LEDGER) return node.getAppChainStoragePath();
-        return AppChainStoragePaths.resolve(node.getRocksDBPath(), node.getAppChainStoragePath()).toString();
+    private static String storageRoot(YanoConfig node, Object configured) {
+        String path = configured == null ? null : String.valueOf(configured);
+        if (node.getMode() != RuntimeMode.APP_LEDGER) {
+            return AppChainStoragePaths.resolve(node.getRocksDBPath(), path).toString();
+        }
+        if (path == null) path = AppChainStoragePaths.DEFAULT_STORAGE_PATH;
+        if (path.isBlank()) throw new IllegalArgumentException("yano.app-chain.storage.path is required");
+        Path appPath = Path.of(path).toAbsolutePath().normalize();
+        Path l1Path = Path.of(node.getRocksDBPath() == null ? "chainstate" : node.getRocksDBPath())
+                .toAbsolutePath().normalize();
+        if (appPath.equals(l1Path)) {
+            throw new IllegalArgumentException("App storage must differ from yano.storage.path");
+        }
+        return path;
     }
 
     private static String stringOf(Object value, String fallback) {
@@ -233,8 +285,47 @@ public class AppLedgerHostPlugin implements NodePlugin {
                 : new IllegalStateException("Application-ledger initialization failed", failure);
     }
 
-    // Ownership is transferred exactly once to the existing host lifecycle.
+    // The chain runtime is owned by the host lifecycle; the registries by close().
     @Override public final void start() { }
     @Override public final void stop() { }
-    @Override public final synchronized void close() { closed = true; }
+
+    /** Closes the registries this plugin created, in reverse creation order. Repeated close is a no-op. */
+    @Override
+    public final void close() {
+        List<AutoCloseable> owned;
+        synchronized (this) {
+            if (closed) return;
+            closed = true;
+            holder.clear();
+            owned = List.copyOf(registries);
+            registries.clear();
+        }
+        Throwable failure = null;
+        for (int index = owned.size() - 1; index >= 0; index--) {
+            failure = close(owned.get(index), failure);
+        }
+        if (failure != null) throw propagate(failure);
+    }
+
+    /** Host positions of the domain-API products: domain seal first, then the read models. */
+    private static final class Products implements PluginProducts {
+        private final LocalReadModelContributionRegistry readModels;
+        private volatile DomainApiRegistry domainApis;
+
+        private Products(LocalReadModelContributionRegistry readModels) {
+            this.readModels = readModels;
+        }
+
+        @Override
+        public void resume() {
+            domainApis.resume();
+        }
+
+        @Override
+        public void sealAndAwait() {
+            DomainApiRegistry domain = domainApis;
+            if (domain != null) domain.sealAndAwait();
+            readModels.sealAndAwait();
+        }
+    }
 }

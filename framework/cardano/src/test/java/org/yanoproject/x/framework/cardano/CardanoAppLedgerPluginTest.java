@@ -73,7 +73,7 @@ class CardanoAppLedgerPluginTest {
             }
         };
         HostApi host = new HostApi() {
-            public HostApiVersion version() { return new HostApiVersion(1, 1); }
+            public HostApiVersion version() { return new HostApiVersion(1, 2); }
             public N2NExtensionRegistry n2n() { throw new UnsupportedOperationException(); }
             public PluginProviderRegistry providers() { return providers; }
         };
@@ -87,8 +87,7 @@ class CardanoAppLedgerPluginTest {
                     case "getService" -> { serviceLookups.incrementAndGet(); yield Optional.empty(); }
                     default -> throw new AssertionError("Unexpected context call: " + method.getName());
                 });
-        YanoConfig node = YanoConfig.builder().mode(RuntimeMode.APP_LEDGER)
-                .appChainStoragePath(directory.toString()).build();
+        YanoConfig node = YanoConfig.builder().mode(RuntimeMode.APP_LEDGER).build();
         byte[] seed = new byte[32];
         seed[0] = 7;
         String member = HexFormat.of().formatHex(KeyGenUtil.getPublicKeyFromPrivateKey(seed));

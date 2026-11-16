@@ -12,8 +12,13 @@ import org.yanoproject.api.host.HostApi;
 import org.yanoproject.api.host.HostApiVersion;
 import org.yanoproject.api.host.HostLifecycleRegistry;
 import org.yanoproject.api.host.N2NExtensionRegistry;
+import org.yanoproject.api.host.PluginServiceLookup;
 import org.yanoproject.api.plugin.PluginContext;
 import org.yanoproject.api.plugin.StorageFilter;
+import org.yanoproject.api.plugin.operations.PluginOperation;
+import org.yanoproject.api.plugin.operations.PluginOperationOutcome;
+import org.yanoproject.api.plugin.operations.PluginOperationsRecorder;
+import org.yanoproject.api.plugin.spi.PluginProducts;
 import org.yanoproject.p2p.peer.PeerClientFactory;
 import org.yanoproject.runtime.kernel.Subsystem;
 import org.yanoproject.runtime.plugins.PluginProviderRegistry;
@@ -30,6 +35,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
 import java.util.function.UnaryOperator;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -85,10 +91,12 @@ class AppLedgerHostPluginTest {
         ProbePlugin plugin = new ProbePlugin();
         plugin.init(harness);
         assertThat(plugin.chains).isEmpty();
-        assertThat(harness.services.get(AppLedgerHostPlugin.ASSEMBLY_SERVICE)).isSameAs(plugin);
+        assertThat(harness.assembly).isNotNull();
+        assertThat(harness.services.get(AppLedgers.SERVICE_KEY)).isInstanceOf(AppLedgerHolder.class);
         harness.initializationComplete = true;
-        AppLedgerManager manager = plugin.assemble();
-        assertThat(harness.owned.get()).isSameAs(manager);
+        harness.assembly.run();
+        AppLedgerManager manager = harness.owned.get();
+        assertThat(manager).isNotNull();
         plugin.start();
         plugin.stop();
         plugin.close();
@@ -104,17 +112,131 @@ class AppLedgerHostPluginTest {
     }
 
     @Test
-    void disabledApplicationLedgerDoesNotRequireHostCapabilities() {
+    void assemblyPublishesTheHolderAndRegistersEveryHostPosition() {
         Harness harness = new Harness();
-        harness.services.remove(HostApi.SERVICE_KEY);
-        harness.services.remove(AppLedgerHostPlugin.NODE_CONFIG_SERVICE);
-        harness.services.put(AppLedgerHostPlugin.RUNTIME_OPTIONS_SERVICE,
-                new RuntimeOptions(null, null, Map.of("yano.app-chain.enabled", false)));
         ProbePlugin plugin = new ProbePlugin();
         plugin.init(harness);
+        AppLedgers ledgers = AppLedgers.of(harness);
+        assertThat(ledgers.appChains().all()).isEmpty();
+        assertThat(ledgers.localReadModels()).isEmpty();
+        plugin.assemble();
+        try {
+            assertThat(harness.published).extracting(Subsystem::name)
+                    .containsExactly(harness.owned.get().name(), "local-read-models");
+            assertThat(harness.readiness).isNotNull();
+            assertThat(harness.readiness.getAsBoolean()).isTrue();
+            assertThat(harness.products).isNotNull();
+            assertThat(ledgers.appChains().all()).hasSize(2);
+            assertThat(ledgers.appChain()).isEmpty();
+            assertThat(ledgers.localReadModels()).isPresent();
+            assertThat(ledgers.domainApis().routes()).isEmpty();
+            harness.products.resume();
+            harness.products.sealAndAwait();
+            harness.products.sealAndAwait();
+        } finally {
+            harness.owned.get().close();
+            plugin.close();
+        }
+        assertThat(ledgers.appChains().all()).isEmpty();
+        assertThat(ledgers.localReadModels()).isEmpty();
+    }
+
+    @Test
+    void disabledAppChainsStillAssembleDomainRegistriesInCardanoMode() {
+        Harness harness = new Harness();
+        harness.node = YanoConfig.builder().mode(RuntimeMode.CARDANO).build();
+        harness.globals(Map.of("yano.app-chain.enabled", false));
+        ProbePlugin plugin = new ProbePlugin();
+        plugin.allowCardanoDeployment = true;
+        plugin.init(harness);
+        plugin.assemble();
         assertThat(plugin.chains).isEmpty();
         assertThat(harness.owned.get()).isNull();
-        assertThat(plugin.assemble()).isNull();
+        assertThat(harness.readiness).isNull();
+        assertThat(harness.published).extracting(Subsystem::name).containsExactly("local-read-models");
+        assertThat(harness.appOnlyNetwork).isNull();
+        AppLedgers ledgers = AppLedgers.of(harness);
+        assertThat(ledgers.appChains().all()).isEmpty();
+        assertThat(ledgers.localReadModels()).isPresent();
+        harness.products.resume();
+        harness.products.sealAndAwait();
+        plugin.close();
+        assertThat(ledgers.localReadModels()).isEmpty();
+    }
+
+    @Test
+    void standaloneRequiresEnabledAppChainsBeforeAnyResource() {
+        Harness harness = new Harness();
+        harness.globals(Map.of("yano.app-chain.enabled", false));
+        ProbePlugin plugin = new ProbePlugin();
+        plugin.init(harness);
+        assertThatThrownBy(plugin::assemble).isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("yano.mode=app-ledger requires yano.app-chain.enabled=true");
+        assertThat(harness.products).isNull();
+        assertThat(harness.appOnlyNetwork).isNull();
+    }
+
+    @Test
+    void standaloneSuppliesTheAppOnlyNetworkAndValidatesStorage() {
+        Harness harness = new Harness();
+        plugin(harness).assemble();
+        assertThat(harness.appOnlyNetwork).isEqualTo(424242L);
+        harness.owned.get().close();
+
+        for (String storage : List.of("", "  ")) {
+            Harness blank = new Harness();
+            Map<String, Object> globals = new HashMap<>(flatGlobals("dedicated"));
+            globals.put("yano.app-chain.storage.path", storage);
+            blank.globals(globals);
+            assertThatThrownBy(plugin(blank)::assemble).isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage("yano.app-chain.storage.path is required");
+        }
+        Harness same = new Harness();
+        same.node = YanoConfig.builder().mode(RuntimeMode.APP_LEDGER).rocksDBPath("shared-store").build();
+        Map<String, Object> globals = new HashMap<>(flatGlobals("dedicated"));
+        globals.put("yano.app-chain.storage.path", "./shared-store");
+        same.globals(globals);
+        assertThatThrownBy(plugin(same)::assemble).isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("App storage must differ from yano.storage.path");
+        assertThat(same.appOnlyNetwork).isNull();
+    }
+
+    @Test
+    void partialAssemblyClosesTheRegistriesItCreatedAndLeavesTheManagerWithTheHost() {
+        Harness harness = new Harness();
+        harness.rejectReadModelStage = true;
+        ProbePlugin plugin = new ProbePlugin();
+        plugin.init(harness);
+        assertThatThrownBy(plugin::assemble).hasMessage("read-model stage rejected");
+        assertThat(harness.products).isNotNull();
+        // The domain registry was closed in reverse creation order: it can no longer resume.
+        assertThatThrownBy(harness.products::resume).isInstanceOf(IllegalStateException.class);
+        harness.products.sealAndAwait();
+        assertThat(AppLedgers.of(harness).localReadModels()).isEmpty();
+        plugin.chains.forEach(chain -> assertThat(chain.closes).isZero());
+        harness.owned.get().close();
+        plugin.chains.forEach(chain -> assertThat(chain.closes).isEqualTo(1));
+        plugin.close();
+    }
+
+    @Test
+    void closeBeforeAssemblyAndRepeatedCloseAreNoOps() {
+        Harness harness = new Harness();
+        ProbePlugin plugin = new ProbePlugin();
+        plugin.init(harness);
+        plugin.close();
+        plugin.close();
+        assertThatThrownBy(plugin::assemble).hasMessageContaining("closed");
+        assertThat(harness.products).isNull();
+
+        Harness assembled = new Harness();
+        ProbePlugin owner = plugin(assembled);
+        owner.assemble();
+        owner.close();
+        assertThatThrownBy(assembled.products::resume).isInstanceOf(IllegalStateException.class);
+        owner.close();
+        assertThat(AppLedgers.of(assembled).appChains().all()).isEmpty();
+        assembled.owned.get().close();
     }
 
     @Test
@@ -128,29 +250,28 @@ class AppLedgerHostPluginTest {
         plugin.close();
         assertThat(plugin.chains).isEmpty();
         assertThat(harness.owned.get()).isNull();
+        assertThat(harness.assembly).isNull();
     }
 
     @Test
-    void explicitLegacyActivationRejectsMissingRuntimeOptions() {
+    void explicitLegacyActivationRejectsAMissingHostApi() {
         Harness harness = new Harness();
         harness.services.clear();
         harness.legacyConfig = Map.of("yano.app-chain.enabled", true);
         ProbePlugin plugin = new ProbePlugin();
         assertThatThrownBy(() -> plugin.init(harness)).isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining(AppLedgerHostPlugin.RUNTIME_OPTIONS_SERVICE);
+                .hasMessageContaining(HostApi.SERVICE_KEY);
         assertThat(plugin.chains).isEmpty();
     }
 
     @Test
-    void disabledRuntimeOptionsTakePrecedenceOverLegacyCompatibilityConfig() {
+    void olderHostApiLevelIsRejectedDuringInit() {
         Harness harness = new Harness();
-        harness.services.clear();
-        harness.services.put(AppLedgerHostPlugin.RUNTIME_OPTIONS_SERVICE,
-                new RuntimeOptions(null, null, Map.of("yano.app-chain.enabled", false)));
-        harness.legacyConfig = Map.of("yano.app-chain.enabled", true);
+        harness.version = new HostApiVersion(1, 1);
         ProbePlugin plugin = new ProbePlugin();
-        plugin.init(harness);
-        assertThat(plugin.chains).isEmpty();
+        assertThatThrownBy(() -> plugin.init(harness)).isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("1.2");
+        assertThat(harness.assembly).isNull();
     }
 
     @Test
@@ -164,23 +285,23 @@ class AppLedgerHostPluginTest {
         // A different plugin initializes after the framework provider.
         harness.registerService("later-plugin-ready", Boolean.TRUE);
         harness.initializationComplete = true;
-        AppLedgerManager manager = plugin.assemble();
+        plugin.assemble();
         try {
             assertThat(plugin.chains).hasSize(2);
             assertThatThrownBy(plugin::assemble).hasMessageContaining("already assembled");
         } finally {
-            manager.close();
+            harness.owned.get().close();
         }
     }
 
     @Test
     void configurationValidationIsDeferredUntilAssembly() {
         Harness harness = new Harness();
-        harness.services.remove(AppLedgerHostPlugin.NODE_CONFIG_SERVICE);
+        harness.node = null;
         ProbePlugin plugin = new ProbePlugin();
         plugin.init(harness);
         assertThat(plugin.chains).isEmpty();
-        assertThatThrownBy(plugin::assemble).hasMessageContaining(AppLedgerHostPlugin.NODE_CONFIG_SERVICE);
+        assertThatThrownBy(plugin::assemble).hasMessageContaining("node configuration unavailable");
     }
 
     @Test
@@ -189,11 +310,11 @@ class AppLedgerHostPluginTest {
         ProbePlugin plugin = new ProbePlugin();
         plugin.attemptWorkerAssembly = true;
         plugin.init(harness);
-        AppLedgerManager manager = plugin.assemble();
+        plugin.assemble();
         try {
             assertThat(plugin.chains).hasSize(2);
         } finally {
-            manager.close();
+            harness.owned.get().close();
         }
     }
 
@@ -228,6 +349,7 @@ class AppLedgerHostPluginTest {
         plugin.init(harness);
         assertThatThrownBy(plugin::assemble).hasMessageContaining("closed");
         assertThat(harness.owned.get()).isNotNull();
+        assertThat(harness.products).isNull();
         plugin.chains.forEach(chain -> assertThat(chain.closes).isZero());
         harness.owned.get().close();
         plugin.chains.forEach(chain -> assertThat(chain.closes).isEqualTo(1));
@@ -242,6 +364,7 @@ class AppLedgerHostPluginTest {
         plugin.close();
         assertThat(plugin.chains).isEmpty();
         assertThat(harness.owned.get()).isNull();
+        assertThat(harness.assembly).isNull();
         assertThatThrownBy(plugin::assemble).hasMessageContaining("closed");
     }
 
@@ -307,9 +430,7 @@ class AppLedgerHostPluginTest {
     void standaloneNeverDecoratesSharedOutboundSessionsEvenWhenHostOffersThem() {
         Harness harness = new Harness();
         harness.sharedOutboundSessions = true;
-        harness.services.put(AppLedgerHostPlugin.NODE_CONFIG_SERVICE,
-                YanoConfig.builder().mode(RuntimeMode.APP_LEDGER).enableClient(true)
-                        .appChainStoragePath("appchain-test").build());
+        harness.node = YanoConfig.builder().mode(RuntimeMode.APP_LEDGER).enableClient(true).build();
         harness.globals(transportGlobals("shared", "dedicated", "Dedicated"));
         // Harness.decorateOutbound throws: per-chain dedicated overrides must
         // never cause the standalone runtime to reuse the global shared session.
@@ -341,9 +462,11 @@ class AppLedgerHostPluginTest {
         harness.globals(globals);
         ProbePlugin plugin = new ProbePlugin();
         plugin.init(harness);
-        AppLedgerManager manager = plugin.assemble();
-        try { assertThat(plugin.lastMagic).isEqualTo(0xffff_ffffL); }
-        finally { manager.close(); }
+        plugin.assemble();
+        try {
+            assertThat(plugin.lastMagic).isEqualTo(0xffff_ffffL);
+            assertThat(harness.appOnlyNetwork).isEqualTo(0xffff_ffffL);
+        } finally { harness.owned.get().close(); }
     }
 
     @Test
@@ -380,9 +503,7 @@ class AppLedgerHostPluginTest {
     void cardanoModeDoesNotAcquireTheStandaloneTransportRestriction() {
         for (String global : List.of("shared", "dedicated", "")) {
             Harness harness = new Harness();
-            harness.services.put(AppLedgerHostPlugin.NODE_CONFIG_SERVICE,
-                    YanoConfig.builder().mode(RuntimeMode.CARDANO).rocksDBPath("unused-cardano")
-                            .appChainStoragePath("appchain-test").build());
+            harness.node = YanoConfig.builder().mode(RuntimeMode.CARDANO).rocksDBPath("unused-cardano").build();
             harness.globals(transportGlobals(global, "shared", ""));
             ProbePlugin plugin = new ProbePlugin();
             plugin.allowCardanoDeployment = true;
@@ -391,7 +512,14 @@ class AppLedgerHostPluginTest {
             // Reach the optional runtime factory without imposing standalone
             // transport rules; this descriptor-free adapter test stays SDK-free.
             assertThatThrownBy(plugin::assemble).hasMessage("construction failed");
+            assertThat(harness.appOnlyNetwork).isNull();
         }
+    }
+
+    private static ProbePlugin plugin(Harness harness) {
+        ProbePlugin plugin = new ProbePlugin();
+        plugin.init(harness);
+        return plugin;
     }
 
     private static Map<String, Object> transportGlobals(String global, String firstMode, String secondMode) {
@@ -416,12 +544,13 @@ class AppLedgerHostPluginTest {
     private static void assertAssemblyAccepts(Harness harness, int chains) {
         ProbePlugin plugin = new ProbePlugin();
         plugin.init(harness);
-        AppLedgerManager manager = plugin.assemble();
+        plugin.assemble();
         try {
             assertThat(plugin.chains).hasSize(chains);
-            assertThat(harness.owned.get()).isSameAs(manager);
+            assertThat(harness.owned.get()).isNotNull();
         } finally {
-            manager.close();
+            harness.owned.get().close();
+            plugin.close();
         }
     }
 
@@ -510,11 +639,20 @@ class AppLedgerHostPluginTest {
         }
     }
 
-    private static final class Harness implements PluginContext {
+    private static final class Harness implements PluginContext, PluginServiceLookup {
         private final Map<String, Object> services = new HashMap<>();
-        private final AtomicReference<Subsystem> owned = new AtomicReference<>();
+        private final AtomicReference<AppLedgerManager> owned = new AtomicReference<>();
+        private final List<Subsystem> published = new ArrayList<>();
+        private YanoConfig node = YanoConfig.builder().mode(RuntimeMode.APP_LEDGER).build();
+        private Map<String, Object> globals;
+        private HostApiVersion version = new HostApiVersion(1, 2);
+        private Runnable assembly;
+        private BooleanSupplier readiness;
+        private PluginProducts products;
+        private Long appOnlyNetwork;
         private boolean rejectOwnership;
         private boolean rejectProtocols;
+        private boolean rejectReadModelStage;
         private boolean sharedOutboundSessions;
         private boolean initializationComplete;
         private Runnable onProtocolRegistration = () -> { };
@@ -522,9 +660,6 @@ class AppLedgerHostPluginTest {
         private Map<String, Object> legacyConfig = Map.of();
 
         Harness() {
-            YanoConfig node = YanoConfig.builder().mode(RuntimeMode.APP_LEDGER)
-                    .appChainStoragePath("appchain-test").build();
-            services.put(AppLedgerHostPlugin.NODE_CONFIG_SERVICE, node);
             globals(transportGlobals("dedicated", "", ""));
             N2NExtensionRegistry n2n = new N2NExtensionRegistry() {
                 public boolean hasSharedOutboundSessions() { return sharedOutboundSessions; }
@@ -535,22 +670,50 @@ class AppLedgerHostPluginTest {
                 public void decorateOutbound(UnaryOperator<PeerClientFactory> decorator) {
                     throw new AssertionError("no shared outbound sessions");
                 }
+                public void requireAppOnlyNetwork(long magic) { appOnlyNetwork = magic; }
+            };
+            HostLifecycleRegistry lifecycle = new HostLifecycleRegistry() {
+                public void registerBeforePublication(Subsystem service) {
+                    if (service instanceof AppLedgerManager manager) {
+                        if (rejectOwnership) throw new IllegalStateException("ownership rejected");
+                        owned.set(manager);
+                        published.add(service);
+                        onOwnershipTransfer.run();
+                        return;
+                    }
+                    if (rejectReadModelStage) throw new IllegalStateException("read-model stage rejected");
+                    published.add(service);
+                }
+                public void registerAssembly(String owner, Runnable step) {
+                    assertThat(owner).isEqualTo(AppLedgerHostPlugin.BUNDLE_ID);
+                    assembly = step;
+                }
+                public void registerRestartReadiness(String owner, BooleanSupplier ready) {
+                    assertThat(owner).isEqualTo(AppLedgerHostPlugin.BUNDLE_ID);
+                    readiness = ready;
+                }
+                public PluginOperationsRecorder registerPluginProducts(String owner, PluginProducts value) {
+                    assertThat(owner).isEqualTo(AppLedgerHostPlugin.BUNDLE_ID);
+                    products = value;
+                    return NO_OPERATIONS;
+                }
             };
             services.put(HostApi.SERVICE_KEY, new HostApi() {
-                public HostApiVersion version() { return new HostApiVersion(1, 1); }
+                public HostApiVersion version() { return version; }
                 public N2NExtensionRegistry n2n() { return n2n; }
                 public PluginProviderRegistry providers() { return PluginProviderRegistry.empty(); }
-                public HostLifecycleRegistry lifecycle() {
-                    return service -> {
-                        if (rejectOwnership) throw new IllegalStateException("ownership rejected");
-                        owned.set(service);
-                        onOwnershipTransfer.run();
-                    };
+                public HostLifecycleRegistry lifecycle() { return lifecycle; }
+                public YanoConfig nodeConfig() {
+                    if (node == null) throw new IllegalStateException("node configuration unavailable");
+                    return node;
                 }
+                public RuntimeOptions runtimeOptions() { return new RuntimeOptions(null, null, globals); }
+                public String networkName() { return "app-424242"; }
+                public Map<String, Object> bundleConfig(String bundleId) { return Map.of(); }
             });
         }
         private void globals(Map<String, Object> globals) {
-            services.put(AppLedgerHostPlugin.RUNTIME_OPTIONS_SERVICE, new RuntimeOptions(null, null, globals));
+            this.globals = globals;
         }
         public EventBus eventBus() { return null; }
         public Logger logger() { return LoggerFactory.getLogger(AppLedgerHostPluginTest.class); }
@@ -566,6 +729,7 @@ class AppLedgerHostPluginTest {
             Object value = services.get(key);
             return type.isInstance(value) ? Optional.of(type.cast(value)) : Optional.empty();
         }
+        public <T> Optional<T> service(String key, Class<T> type) { return getService(key, type); }
         private static Map<String, Object> chain(String id) {
             Map<String, Object> settings = new HashMap<>(StateCommitmentIdentity.explicit(
                     StateCommitmentProfiles.require("mpf-blake2b256-v1"), new byte[32]).settings());
@@ -575,4 +739,16 @@ class AppLedgerHostPluginTest {
             return Map.copyOf(settings);
         }
     }
+
+    private static final PluginOperationsRecorder NO_OPERATIONS = new PluginOperationsRecorder() {
+        public void activating(String kind, String bundleId) { }
+        public void active(String kind, String bundleId) { }
+        public void activationFailed(String kind, String bundleId) { }
+        public void stopped(String kind, String bundleId, boolean succeeded) { }
+        public void admitted(String bundleId) { }
+        public void started(String bundleId) { }
+        public void queueFinished(String bundleId) { }
+        public void callbackFinished(String bundleId) { }
+        public void outcome(String bundleId, PluginOperation operation, PluginOperationOutcome outcome) { }
+    };
 }

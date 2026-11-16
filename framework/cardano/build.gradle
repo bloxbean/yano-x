@@ -22,6 +22,8 @@ dependencies {
     }
     runtimeOnly project(':framework:cardano-onchain')
     testImplementation project(':framework:config')
+    // Moved runtime app-chain tests build MPF tries directly.
+    testImplementation libs.cardano.client.mpf
 }
 
 tasks.named('processResources') {
@@ -35,5 +37,12 @@ tasks.named('processResources') {
 dependencies {
     integrationTestImplementation "org.yanoproject:yano-runtime:${providers.gradleProperty('yanoVersion').get()}"
     integrationTestImplementation testFixtures(project(':framework:core'))
+    // Shared runtime test helpers (state-commitment identities).
+    integrationTestImplementation sourceSets.test.output
 }
 tasks.named('check') { dependsOn tasks.named('integrationTest') }
+// The host catalog indexes the embedded application-ledger root as one artifact (manifest plus
+// classes), exactly as a distribution ships it, so run against the module jar.
+tasks.named('integrationTest', Test) {
+    classpath = files(tasks.named('jar')) + classpath.filter { !(it in sourceSets.main.output.files) }
+}
