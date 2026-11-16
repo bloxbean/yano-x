@@ -11,7 +11,6 @@ on:
         options:
           - connector-runtime
           - all
-          - framework-stage
       yano_version:
         description: Published or staged Yano version (falls back to YANO_VERSION repository variable)
         required: false
@@ -61,46 +60,6 @@ env:
   YANO_INPUTS_COMMIT: ${{ inputs.yano_inputs_commit }}
 
 jobs:
-  framework-stage:
-    env:
-      YANO_VERSION: ''
-      YANO_JVM_DIST_URL: ''
-      YANO_MAVEN_REPOSITORY_URL: ''
-    if: github.event_name == 'workflow_dispatch' && inputs.scope == 'framework-stage'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 45
-    steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
-        with:
-          persist-credentials: false
-      - uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9
-        with:
-          java-version: '25'
-          distribution: 'temurin'
-          cache: 'gradle'
-      - name: Verify input preparation
-        run: bash .github/scripts/tests/prepare-yano-inputs-test.sh
-      - name: Verify configuration without host publications
-        run: >-
-          ./gradlew verifyJvmOnlyBuild
-          -PyanoVersion=0.0.0-configuration-probe
-          -PnodeApiVersion=0.0.0-configuration-probe
-          -PhostApiVersion=0.0.0-configuration-probe --stacktrace
-      - name: Prepare pinned foundation APIs
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          YANO_INPUTS_SCOPE: foundation
-        run: bash .github/scripts/prepare-yano-inputs.sh
-      - name: Test and stage extracted framework publications
-        id: stage
-        run: bash .github/scripts/stage-framework-inputs.sh
-      - uses: actions/upload-artifact@v4
-        with:
-          name: yano-x-framework-inputs-${{ github.sha }}
-          path: ${{ steps.stage.outputs.directory }}
-          if-no-files-found: error
-          retention-days: 90
-
   commit-build:
     if: >-
       github.event_name != 'schedule' &&

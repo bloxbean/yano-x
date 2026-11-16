@@ -9,18 +9,15 @@ preparer verifies repository, workflow, event, successful conclusion, source
 commit, manifest and SHA-256 inventory, and exports independently pinned
 `yanoVersion`, `nodeApiVersion` and `hostApiVersion`.
 
-To make ordinary branch CI consume a successful full-host run, commit
+To make ordinary branch CI consume a successful host staging run, commit
 `.github/ci-input-pins.json`:
 
 ```json
-{
-  "host":{"runId":"<successful-full-host-run>","commit":"<full-Yano-commit>"},
-  "foundation":{"runId":"<successful-foundation-run>","commit":"<full-Yano-commit>"}
-}
+{"host":{"runId":"<successful-stage-consumer-inputs-run>","commit":"<full-Yano-commit>"}}
 ```
 
 Explicit run/commit inputs take precedence; partial pins are rejected. Do not
-commit placeholders. No pin means normal published Maven/ZIP resolution.
+commit placeholders. No pin file means normal published Maven/ZIP resolution.
 Qualification artifacts expire after 90 days; switch to published dependency
 versions before expiration. This does not publish an intermediate Yano release.
 
@@ -36,9 +33,9 @@ probes (the wrapper may bootstrap Gradle; no repository publication occurs):
 bash .github/scripts/tests/prepare-yano-inputs-test.sh
 ```
 
-The branch defaults in `gradle.properties` match the verified full-host inputs;
-framework modules read the central node/Host API properties instead of local
-candidate fallbacks. Environment and `-P` overrides remain available for older
+A committed pin must match the `yanoVersion`, `nodeApiVersion` and
+`hostApiVersion` defaults in `gradle.properties`; framework modules read those
+central properties instead of local candidate fallbacks. Environment and `-P` overrides remain available for older
 compatible hosts. The frozen minimum-host matrix continues to use its explicit
 input manifest and unchanged fixture.
 
@@ -57,7 +54,12 @@ while IFS='=' read -r name value; do export "$name=$value"; done < "$inputs_env"
 This stages only this checkout's X publications locally; upstream host inputs
 come from the verified artifact. No Maven Local or sibling checkout is used.
 
-The verified pins are recorded in `.github/ci-input-pins.json`. Retired #245
-sequences (foundation, X framework and full-host runs) and the frozen
-host-matrix fixtures that modelled hosts embedding X are historical; the
-Host API 1.2 baseline fixture is recorded from the first ADR-064 Yano artifacts.
+**Current state (ADR-064 PR).** No pin file is committed, so CI resolves the
+`gradle.properties` versions as published inputs. Those versions currently name
+locally staged ADR-064 Yano artifacts, so ordinary CI cannot resolve them yet.
+The final pin is set before merge: either a committed `ci-input-pins.json` for a
+`stage-consumer-inputs.yml` run, or `gradle.properties` moved to the published
+Yano snapshot (ADR-064 "PRs and merge order"). The retired #245 sequences
+(foundation scope, X `framework-stage` job and their pins) are deleted. The
+Host API 1.2 host-matrix baseline fixture is recorded from the ADR-064 Yano
+artifacts (`qa/framework/host-matrix/fixtures/`).

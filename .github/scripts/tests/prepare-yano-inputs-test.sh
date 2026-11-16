@@ -28,14 +28,13 @@ jq -n --arg commit "$commit" --arg version "$version" --arg hostApiVersion "$hos
   sha256sum "yano-$version.zip" yano-inputs.json
 ) > "$fixture/SHA256SUMS"
 
-foundation="$test_directory/foundation-fixture"
-cp -R "$fixture" "$foundation"
-rm "$foundation/yano-$version.zip"
-rm -r "$foundation/maven/org/yanoproject/yano-runtime"
-jq '.scope="foundation" | del(.distribution)' "$foundation/yano-inputs.json" > "$foundation/manifest.tmp"
-mv "$foundation/manifest.tmp" "$foundation/yano-inputs.json"
-(cd "$foundation"; find maven -type f -print0 | sort -z | xargs -0 sha256sum; sha256sum yano-inputs.json) \
-  > "$foundation/SHA256SUMS"
+no_distribution="$test_directory/no-distribution-fixture"
+cp -R "$fixture" "$no_distribution"
+rm "$no_distribution/yano-$version.zip"
+jq 'del(.distribution)' "$no_distribution/yano-inputs.json" > "$no_distribution/manifest.tmp"
+mv "$no_distribution/manifest.tmp" "$no_distribution/yano-inputs.json"
+(cd "$no_distribution"; find maven -type f -print0 | sort -z | xargs -0 sha256sum; sha256sum yano-inputs.json) \
+  > "$no_distribution/SHA256SUMS"
 
 run_case() {
   local name="$1" expected="$2"
@@ -48,14 +47,14 @@ run_case() {
     printf 'yanoVersion = %s\nnodeApiVersion = %s\nhostApiVersion = %s  \n' \
       "$version" "$version" "$host_api_version" > "$workspace/gradle.properties"
     jq -n --arg commit "$commit" \
-      '{host:{runId:"123",commit:$commit},foundation:{runId:"123",commit:$commit}}' \
+      '{host:{runId:"123",commit:$commit}}' \
       > "$workspace/.github/ci-input-pins.json"
     if [[ "$name" == committed-drift-* ]]; then
       printf '%s = different-version\n' "${name#committed-drift-}" >> "$workspace/gradle.properties"
     elif [[ "$name" == committed-missing-* ]]; then
       grep -v "^${name#committed-missing-} " "$workspace/gradle.properties" > "$workspace/properties.tmp"
       mv "$workspace/properties.tmp" "$workspace/gradle.properties"
-    elif [[ "$name" == explicit-default-override || "$name" == committed-foundation ]]; then
+    elif [[ "$name" == explicit-default-override ]]; then
       printf 'yanoVersion=another-host\nnodeApiVersion=another-node\nhostApiVersion=another-api\n' \
         > "$workspace/gradle.properties"
     elif [[ "$name" == committed-no-properties ]]; then
@@ -66,7 +65,7 @@ run_case() {
       TEST_INPUT_FIXTURE="$fixture" TEST_INPUT_VERSION="$version" YANO_VERSION='' \
       ORG_GRADLE_PROJECT_nodeApiVersion='' ORG_GRADLE_PROJECT_hostApiVersion='' \
       YANO_INPUTS_RUN_ID=123 YANO_INPUTS_COMMIT="$commit" \
-      YANO_JVM_DIST_URL='' YANO_MAVEN_REPOSITORY_URL='' YANO_INPUTS_SCOPE=host "$@" \
+      YANO_JVM_DIST_URL='' YANO_MAVEN_REPOSITORY_URL='' "$@" \
       bash "$scripts_dir/prepare-yano-inputs.sh" > "$workspace/output.log" 2>&1; then
     result=0
   else
@@ -94,12 +93,7 @@ run_case committed-no-properties fail YANO_INPUTS_RUN_ID='' YANO_INPUTS_COMMIT='
 grep -F 'Committed host pin requires gradle.properties' "$test_directory/committed-no-properties/output.log" >/dev/null
 [[ ! -e "$test_directory/committed-no-properties/env" ]]
 run_case explicit-default-override pass
-run_case committed-foundation pass YANO_INPUTS_RUN_ID='' YANO_INPUTS_COMMIT='' \
-  YANO_INPUTS_SCOPE=foundation TEST_INPUT_FIXTURE="$foundation"
-run_case foundation pass YANO_INPUTS_SCOPE=foundation TEST_INPUT_FIXTURE="$foundation"
-run_case foundation-requires-pin fail YANO_INPUTS_SCOPE=foundation YANO_INPUTS_RUN_ID='' YANO_INPUTS_COMMIT=''
-run_case wrong-scope fail YANO_INPUTS_SCOPE=foundation
-run_case host-requires-distribution fail TEST_INPUT_FIXTURE="$foundation"
+run_case host-requires-distribution fail TEST_INPUT_FIXTURE="$no_distribution"
 for field in version hostApiVersion; do
   run_case "invalid-$field" fail TEST_INVALID_VERSION_FIELD="$field"
   [[ ! -e "$test_directory/invalid-$field/env" ]]
@@ -118,6 +112,7 @@ run_case missing-host-api-version fail TEST_MISSING_HOST_API_VERSION=1
 run_case wrong-commit fail TEST_RUN_COMMIT=2222222222222222222222222222222222222222
 run_case failed-run fail TEST_RUN_CONCLUSION=failure
 run_case wrong-repository fail TEST_RUN_REPOSITORY=someone/else
+run_case wrong-workflow fail TEST_RUN_PATH=.github/workflows/integration.yml
 run_case wrong-version fail YANO_VERSION=0.1.0-other
 run_case missing-pin fail YANO_INPUTS_COMMIT=''
 run_case mixed-inputs fail YANO_JVM_DIST_URL=https://example.invalid/yano.zip
