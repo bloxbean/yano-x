@@ -12,7 +12,6 @@ dependencies {
     implementation project(':ledgers:eutxo:client')
     implementation project(':ledgers:eutxo:demo')
     runtimeOnly project(':ledgers:eutxo:indexer-jdbc')
-    // The legacy host coordinates are compatibility aggregates after extraction.
     // Consume the owning framework modules directly; OrderedLog needs no full runtime closure.
     implementation project(':framework:api')
     // The host bindings of the X contribution kinds (framework/api kinds in host-adapter, effect-executor in
