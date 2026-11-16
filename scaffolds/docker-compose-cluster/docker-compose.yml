@@ -2,7 +2,7 @@
 # mini-protocol, sharing one app chain. ADR app-layer/006 E1.5 scaffold.
 #
 # Build the node image first (from the repo root):
-#   ./gradlew :app:quarkusBuild
+#   ./gradlew :distribution:jvm:quarkusBuild
 #   docker build -t yano-node:local -f scaffolds/docker-compose-cluster/Dockerfile .
 # Then from this directory:
 #   docker compose up
