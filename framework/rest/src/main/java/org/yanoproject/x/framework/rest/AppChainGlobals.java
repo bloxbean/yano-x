@@ -1,7 +1,11 @@
 package org.yanoproject.x.framework.rest;
 
+import io.quarkus.runtime.StartupEvent;
+import jakarta.annotation.Priority;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.event.Observes;
 import jakarta.inject.Inject;
+import jakarta.interceptor.Interceptor;
 import org.eclipse.microprofile.config.Config;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.slf4j.Logger;
@@ -28,7 +32,9 @@ import java.util.Optional;
  * environment-variable mapping for dashed keys such as {@code YANO_APP_CHAIN_*}.
  *
  * <p>Startup fails when app chains are enabled but the application-ledger root bundle is missing
- * from {@code yano.plugins.required}, for example because an operator overrode the property.</p>
+ * from {@code yano.plugins.required}, for example because an operator overrode the property. The
+ * projection is validated by a startup observer that runs before Yano's, because Yano only logs a
+ * runtime-initialization failure and keeps the application up.</p>
  */
 @ApplicationScoped
 public class AppChainGlobals implements RuntimeGlobalsContributor {
@@ -141,6 +147,11 @@ public class AppChainGlobals implements RuntimeGlobalsContributor {
 
     @ConfigProperty(name = AppChainPropertyKeys.VALIDATION_STRICT, defaultValue = "false")
     boolean appChainValidationStrict;
+
+    /** Fails Quarkus startup when the projection is invalid (see the class documentation). */
+    void validateAtStartup(@Observes @Priority(Interceptor.Priority.LIBRARY_BEFORE) StartupEvent event) {
+        globals();
+    }
 
     @Override
     public Map<String, Object> globals() {
