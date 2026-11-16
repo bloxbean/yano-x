@@ -10,7 +10,6 @@ import org.yanoproject.catalog.PluginCatalogInspection;
 import org.yanoproject.catalog.PluginCatalogInspectionPolicy;
 import org.yanoproject.catalog.PluginCatalogInspector;
 import org.yanoproject.catalog.PluginIndexGenerator;
-import org.yanoproject.x.framework.host.AppLedgerKinds;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -143,7 +142,7 @@ final class AppChainPluginSelection {
 
     /** The kinds a host built from this tool's framework accepts. */
     static ContributionKindRegistry hostKinds() throws IOException {
-        return AppLedgerKinds.hostRegistry(AppChainPluginSelection.class.getClassLoader());
+        return ContributionKindRegistry.fromHostClassLoader(AppChainPluginSelection.class.getClassLoader());
     }
 
     private static List<Path> artifacts(Path directory) throws IOException {
