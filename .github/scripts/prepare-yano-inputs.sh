@@ -47,12 +47,6 @@ if [[ -n "${YANO_INPUTS_RUN_ID:-}${YANO_INPUTS_COMMIT:-}" ]]; then
     [[ "$checksum_path" != /* && "/$checksum_path/" != *"/../"* ]] || fail 'Unsafe checksum path'
   done < "$staged_inputs/SHA256SUMS"
   (cd "$staged_inputs" && sha256sum --check --strict SHA256SUMS) || fail 'Staged input checksum mismatch'
-  host_api_version="$(jq -r '.hostApiVersion // empty' "$staged_inputs/yano-inputs.json")"
-  [[ "$host_api_version" =~ ^[0-9A-Za-z.-]+$ ]] || fail 'Missing or invalid Host API version'
-  [[ -z "${ORG_GRADLE_PROJECT_nodeApiVersion:-}" || "$ORG_GRADLE_PROJECT_nodeApiVersion" == "$staged_version" ]] \
-    || fail 'Conflicting node API version override'
-  [[ -z "${ORG_GRADLE_PROJECT_hostApiVersion:-}" || "$ORG_GRADLE_PROJECT_hostApiVersion" == "$host_api_version" ]] \
-    || fail 'Conflicting Host API version override'
   require_checksum() {
     awk -v expected="$1" 'substr($0, 67) == expected { found=1 } END { exit !found }' \
       "$staged_inputs/SHA256SUMS" || fail "File is absent from checksum inventory: $1"
@@ -60,30 +54,24 @@ if [[ -n "${YANO_INPUTS_RUN_ID:-}${YANO_INPUTS_COMMIT:-}" ]]; then
   require_checksum yano-inputs.json
   require_checksum "yano-$staged_version.zip"
   require_publication() {
-    local artifact="$1" version="$2" extension path
+    local artifact="$1" extension path
     for extension in pom jar; do
-      path="maven/org/yanoproject/$artifact/$version/$artifact-$version.$extension"
+      path="maven/org/yanoproject/$artifact/$staged_version/$artifact-$staged_version.$extension"
       [[ -f "$staged_inputs/$path" ]] || fail "Missing publication: $artifact ($extension)"
       require_checksum "$path"
     done
   }
-  require_publication yano-node-api "$staged_version"
-  require_publication yano-cardano-api "$staged_version"
-  require_publication yano-runtime "$staged_version"
-  require_publication yano-host-api "$host_api_version"
+  # Every Yano module, yano-host-api included, is published at the one Yano version (ADR-064 MD4).
+  for artifact in yano-node-api yano-cardano-api yano-host-api yano-runtime; do
+    require_publication "$artifact"
+  done
   if [[ "$using_committed_pin" == true ]]; then
     [[ -f "$GITHUB_WORKSPACE/gradle.properties" ]] || fail 'Committed host pin requires gradle.properties'
-    for property in yanoVersion nodeApiVersion hostApiVersion; do
-      expected="$staged_version"
-      [[ "$property" != hostApiVersion ]] || expected="$host_api_version"
-      declared="$(sed -n "s/^[[:space:]]*$property[[:space:]]*=[[:space:]]*//p" \
-        "$GITHUB_WORKSPACE/gradle.properties" | sed 's/[[:space:]]*$//')"
-      [[ "$declared" == "$expected" ]] \
-        || fail "Committed host pin differs from $property in gradle.properties"
-    done
+    declared="$(sed -n 's/^[[:space:]]*yanoVersion[[:space:]]*=[[:space:]]*//p' \
+      "$GITHUB_WORKSPACE/gradle.properties" | sed 's/[[:space:]]*$//')"
+    [[ "$declared" == "$staged_version" ]] \
+      || fail 'Committed host pin differs from yanoVersion in gradle.properties'
   fi
-  printf 'ORG_GRADLE_PROJECT_nodeApiVersion=%s\nORG_GRADLE_PROJECT_hostApiVersion=%s\n' \
-    "$staged_version" "$host_api_version" >> "$GITHUB_ENV"
   YANO_VERSION="$staged_version"
   [[ -f "$staged_inputs/yano-$staged_version.zip" ]] || fail 'Missing JVM distribution'
   printf 'ORG_GRADLE_PROJECT_yanoJvmDist=%s\n' \

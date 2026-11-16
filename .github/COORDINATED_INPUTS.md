@@ -6,8 +6,9 @@ run fed the Yano host build, is obsolete. Yano's `stage-consumer-inputs.yml`
 stages its Maven publications and matching JVM ZIP; X branch CI consumes that
 run with `scope=all`, `yano_inputs_run_id` and `yano_inputs_commit`. The input
 preparer verifies repository, workflow, event, successful conclusion, source
-commit, manifest and SHA-256 inventory, and exports independently pinned
-`yanoVersion`, `nodeApiVersion` and `hostApiVersion`.
+commit, manifest and SHA-256 inventory, and exports the one staged
+`yanoVersion`. Every Yano module, `yano-host-api` included, is published at that
+version (ADR-064 MD4), so the staged manifest carries only `version`.
 
 To make ordinary branch CI consume a successful host staging run, commit
 `.github/ci-input-pins.json`:
@@ -33,11 +34,11 @@ probes (the wrapper may bootstrap Gradle; no repository publication occurs):
 bash .github/scripts/tests/prepare-yano-inputs-test.sh
 ```
 
-A committed pin must match the `yanoVersion`, `nodeApiVersion` and
-`hostApiVersion` defaults in `gradle.properties`; framework modules read those
-central properties instead of local candidate fallbacks. Environment and `-P` overrides remain available for older
-compatible hosts. The frozen minimum-host matrix continues to use its explicit
-input manifest and unchanged fixture.
+A committed pin must match the `yanoVersion` default in `gradle.properties`;
+framework modules read that one central property instead of local candidate
+fallbacks. Environment and `-P` overrides remain available for older compatible
+hosts. The frozen minimum-host matrix uses its own explicit input manifest and
+unchanged fixture.
 
 For a clean local checkout, authenticate `gh`, prepare the same pinned inputs,
 then use the ordinary staging/build sequence (Java 25):
@@ -61,5 +62,6 @@ The final pin is set before merge: either a committed `ci-input-pins.json` for a
 `stage-consumer-inputs.yml` run, or `gradle.properties` moved to the published
 Yano snapshot (ADR-064 "PRs and merge order"). The retired #245 sequences
 (foundation scope, X `framework-stage` job and their pins) are deleted. The
-Host API 1.2 host-matrix baseline fixture is recorded from the ADR-064 Yano
-artifacts (`qa/framework/host-matrix/fixtures/`).
+Host API 1.2 host-matrix baseline fixture is recorded from the first released
+Yano version that contains Host API 1.2 (see `qa/framework/host-matrix/README.md`);
+none is committed before that release.
