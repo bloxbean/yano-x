@@ -12,7 +12,7 @@ import java.util.Arrays;
 /**
  * The contribution kinds a host built from the test class path accepts: Yano's
  * built-in kinds plus the X kinds declared by the framework descriptors
- * ({@code META-INF/yano/contribution-kinds/}) on that class path.
+ * ({@code META-INF/yano/contribution-kinds.json}) on that class path.
  */
 public final class AppChainTestKinds {
     private AppChainTestKinds() {

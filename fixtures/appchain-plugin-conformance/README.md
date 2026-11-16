@@ -9,7 +9,7 @@ its own X-free fixture for the built-in kinds.
 Its schema-v1 manifest declares the host's current plugin API range
 (`PluginApiVersion`; major `3`, `minLevel` `14` at the time of writing). The
 X kinds are not Yano built-ins: a host accepts them only when the X framework
-descriptors (`META-INF/yano/contribution-kinds/`) and bindings are on its class
+descriptors (`META-INF/yano/contribution-kinds.json`) and bindings are on its class
 path. A bare Yano rejects this bundle with "contribution kind is not supported".
 
 - The JVM test opens the fixture JAR through `PluginRuntimeEnvironment` with the
