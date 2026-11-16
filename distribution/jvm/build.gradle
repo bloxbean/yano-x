@@ -92,12 +92,21 @@ java {
     targetCompatibility = JavaVersion.VERSION_25
 }
 
+// The conformance fixture bundle alone in a plugin directory, as an operator installs it.
+def conformancePlugins = tasks.register('prepareConformancePlugins', Sync) {
+    from project(':fixtures:appchain-plugin-conformance').tasks.named('jar')
+    into layout.buildDirectory.dir('conformance-plugins')
+}
+
 tasks.named('test') {
     useJUnitPlatform()
     def launcher = layout.buildDirectory.file('prepared/launcher/yano.sh')
-    dependsOn 'prepareIntegratedLauncher'
+    dependsOn 'prepareIntegratedLauncher', conformancePlugins
     inputs.file(launcher).withPropertyName('integratedLauncher')
+    inputs.files(conformancePlugins).withPropertyName('conformancePlugins')
     systemProperty 'yano.x.test.launcher', launcher.get().asFile.absolutePath
+    systemProperty 'yano.x.test.conformance-plugins',
+            layout.buildDirectory.dir('conformance-plugins').get().asFile.absolutePath
 }
 
 def integratedYanoJar = layout.buildDirectory.file('yano.jar')
