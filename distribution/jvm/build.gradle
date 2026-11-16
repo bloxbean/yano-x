@@ -87,7 +87,12 @@ java {
 
 tasks.named('test') {
     useJUnitPlatform()
+    def launcher = layout.buildDirectory.file('prepared/launcher/yano.sh')
+    dependsOn 'prepareIntegratedLauncher'
+    inputs.file(launcher).withPropertyName('integratedLauncher')
+    systemProperty 'yano.x.test.launcher', launcher.get().asFile.absolutePath
 }
+
 
 def integratedYanoJar = layout.buildDirectory.file('yano.jar')
 ext.yanoXIntegratedJar = integratedYanoJar

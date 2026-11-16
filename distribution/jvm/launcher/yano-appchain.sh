@@ -12,7 +12,6 @@ EOF
 appchain_cli() {
     local configured="${YANO_APPCHAIN_CLI:-}"
     local candidate
-    local found=""
 
     if [ -n "$configured" ]; then
         case "$configured" in
@@ -28,33 +27,13 @@ appchain_cli() {
     fi
 
     candidate="$YANO_ROOT/tools/yano-appchain/bin/yano-appchain"
-    if [ -x "$candidate" ]; then
-        printf '%s\n' "$candidate"
-        return
-    fi
-    candidate="$YANO_ROOT/yano-devtools/bin/yano-appchain"
-    if [ -x "$candidate" ]; then
-        printf '%s\n' "$candidate"
-        return
-    fi
-
-    for candidate in "$YANO_ROOT"/yano-devtools-*/bin/yano-appchain; do
-        if [ -x "$candidate" ]; then
-            if [ -n "$found" ] && [ "$found" != "$candidate" ]; then
-                echo "Error: Multiple yano-devtools installations found." >&2
-                echo "Set YANO_APPCHAIN_CLI to the version-matched launcher." >&2
-                exit 1
-            fi
-            found="$candidate"
-        fi
-    done
-    if [ -z "$found" ]; then
+    if [ ! -x "$candidate" ]; then
         echo "Error: This app-chain command requires version-matched app-chain tooling." >&2
         echo "Install the release-matched Yano X JVM distribution/tooling archive." >&2
         echo "Advanced users may set YANO_APPCHAIN_CLI." >&2
         exit 1
     fi
-    printf '%s\n' "$found"
+    printf '%s\n' "$candidate"
 }
 
 # The tooling owns the command list, so help always matches the installed
@@ -85,18 +64,6 @@ dispatch_appchain() {
             appchain_help
             ;;
     esac
-    if [ "$1" = "cluster" ]; then
-        shift
-        if [ ! -x "$YANO_ROOT/appchain-cluster/cluster.sh" ]; then
-            echo "Error: appchain-cluster/cluster.sh is missing or not executable." >&2
-            echo "Install the release-matched Yano X JVM distribution." >&2
-            exit 1
-        fi
-        if [ "$#" -eq 0 ]; then
-            set -- help
-        fi
-        exec "$YANO_ROOT/appchain-cluster/cluster.sh" "$@"
-    fi
     local cli
     cli="$(appchain_cli)"
     cd "$CALLER_DIR"
