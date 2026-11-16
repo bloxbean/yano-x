@@ -1,19 +1,20 @@
 {
   "schemaVersion": 1,
-  "frameworkVersion": "0.1.0-pre6-a3ef67b36",
+  "frameworkVersion": "0.1.0-pre6",
   "repositories": [
     "file:///absolute/path/to/verified-host-inputs/maven",
+    "file:///absolute/path/to/verified-framework-inputs/maven",
     "https://repo.bloxbean.org/maven/snapshots"
   ],
   "baseline": {
-    "hostVersion": "0.1.0-pre20-bf45507fd",
-    "foundationVersion": "0.1.0-pre20-272157da2",
-    "hostApiVersion": "1.0.0-272157da2"
+    "hostVersion": "0.1.0-pre20-adr064.1",
+    "foundationVersion": "0.1.0-pre20-adr064.1",
+    "hostApiVersion": "1.2.0-adr064.1"
   },
   "current": {
-    "hostVersion": "0.1.0-pre20-bf45507fd",
-    "foundationVersion": "0.1.0-pre20-272157da2",
-    "hostApiVersion": "1.0.0-272157da2"
+    "hostVersion": "0.1.0-pre20-adr064.1",
+    "foundationVersion": "0.1.0-pre20-adr064.1",
+    "hostApiVersion": "1.2.0-adr064.1"
   },
   "yaciCoreVersion": "0.5.0-pre16-f57fc88-20261114.141754-1",
   "profiles": [

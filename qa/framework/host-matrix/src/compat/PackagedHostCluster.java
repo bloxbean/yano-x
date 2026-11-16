@@ -6,6 +6,7 @@ import org.yanoproject.api.config.PluginsOptions;
 import org.yanoproject.api.config.RuntimeMode;
 import org.yanoproject.api.config.RuntimeOptions;
 import org.yanoproject.api.config.YanoConfig;
+import org.yanoproject.api.config.YanoPropertyKeys;
 import org.yanoproject.runtime.assembly.Yano;
 import org.yanoproject.runtime.assembly.YanoAssembly;
 import org.yanoproject.runtime.plugins.PluginLoaderHandle;
@@ -14,6 +15,8 @@ import org.yanoproject.x.framework.api.appchain.codec.AppBlockCodec;
 import org.yanoproject.x.framework.api.appchain.evidence.EvidenceVerifier;
 import org.yanoproject.x.framework.api.appchain.state.StateCommitmentIdentity;
 import org.yanoproject.x.framework.api.appchain.state.StateCommitmentProfiles;
+import org.yanoproject.x.framework.host.AppLedgerHostPlugin;
+import org.yanoproject.x.framework.host.AppLedgers;
 
 import java.net.ServerSocket;
 import java.nio.file.Files;
@@ -54,7 +57,7 @@ public final class PackagedHostCluster {
                     "org.yanoproject.x.framework.runtime.appchain.AppLedgerRuntime"));
             if (cardano) {
                 originClasses.addAll(List.of("org.yanoproject.x.framework.cardano.CardanoAppLedgerPlugin",
-                        "org.yanoproject.x.framework.cardano.api.CardanoRuntimeServices",
+                        "org.yanoproject.api.CardanoHostServices",
                         "org.yanoproject.x.framework.cardano.AppChainManager",
                         "org.yanoproject.x.framework.cardano.AppChainSubsystem"));
             } else {
@@ -75,7 +78,7 @@ public final class PackagedHostCluster {
             PackagedHostCluster fixture = new PackagedHostCluster(directory);
             if (cardano) {
                 fixture.constructCardano();
-                report.put("cardanoRuntimeServicesLinked", true);
+                report.put("cardanoHostServicesLinked", true);
                 report.put("cardanoAppLedgerAssembled", true);
                 report.put("cardanoManagerLifecycleHooks", true);
                 report.put("networkStarted", false);
@@ -104,9 +107,8 @@ public final class PackagedHostCluster {
         Path l1 = directory.resolve("cardano-chainstate");
         Path app = directory.resolve("cardano-appchain");
         YanoConfig config = YanoConfig.serverOnly(0).toBuilder()
-                .enableServer(false).useRocksDB(false).rocksDBPath(l1.toString())
-                .appChainStoragePath(app.toString()).build();
-        Map<String, Object> globals = settings(0, List.of(1, 2));
+                .enableServer(false).useRocksDB(false).rocksDBPath(l1.toString()).build();
+        Map<String, Object> globals = settings(0, List.of(1, 2), app);
         globals.put("yano.app-chain.peers", "");
         globals.put("yano.app-chain.anchor.enabled", false);
         PluginsOptions plugins = new PluginsOptions(true, false, Set.of(), Set.of(), Map.of());
@@ -118,7 +120,7 @@ public final class PackagedHostCluster {
                 .build()) {
             require(node.chain() != null && node.ledger() != null && node.txGateway() != null
                     && node.txEvaluationGateway() != null, "Cardano public handles");
-            require(node.appChain().orElseThrow().getClass().getName()
+            require(AppLedgers.of(node).appChain().orElseThrow().getClass().getName()
                     .equals("org.yanoproject.x.framework.cardano.AppChainSubsystem"), "Cardano chain assembled");
             long managers = node.kernel().orElseThrow().subsystems().stream().filter(subsystem ->
                     subsystem.name().equals("app-chain")).count();
@@ -145,19 +147,19 @@ public final class PackagedHostCluster {
             nodes.add(node(0, ports));
             nodes.add(node(1, ports));
             nodes.forEach(Yano::start);
-            AppChainGateway proposer = nodes.getFirst().appChain().orElseThrow();
-            AppChainGateway follower = nodes.get(1).appChain().orElseThrow();
+            AppChainGateway proposer = AppLedgers.of(nodes.getFirst()).appChain().orElseThrow();
+            AppChainGateway follower = AppLedgers.of(nodes.get(1)).appChain().orElseThrow();
             byte[] id = HexFormat.of().parseHex(follower.submit("orders", new byte[]{1, 2, 3}));
             await(() -> proposer.messageHeight(id).isPresent() && follower.messageHeight(id).isPresent());
             long height = proposer.messageHeight(id).orElseThrow();
             nodes.add(node(2, ports));
             nodes.get(2).start();
-            await(() -> nodes.get(2).appChain().orElseThrow().tipHeight() >= height);
+            await(() -> AppLedgers.of(nodes.get(2)).appChain().orElseThrow().tipHeight() >= height);
             Set<String> members = IntStream.range(0, 3).mapToObj(index ->
                     HexFormat.of().formatHex(KeyGenUtil.getPublicKeyFromPrivateKey(seed(index))))
                     .collect(Collectors.toSet());
             for (Yano node : nodes) {
-                AppChainGateway chain = node.appChain().orElseThrow();
+                AppChainGateway chain = AppLedgers.of(node).appChain().orElseThrow();
                 var block = chain.block(height).orElseThrow();
                 var expected = proposer.block(height).orElseThrow();
                 require(Arrays.equals(AppBlockCodec.blockHash(block), AppBlockCodec.blockHash(expected)), "block agreement");
@@ -184,9 +186,10 @@ public final class PackagedHostCluster {
             nodes.get(2).close();
             nodes.set(2, node(2, ports));
             nodes.get(2).start();
-            require(nodes.get(2).appChain().orElseThrow().tipHeight() >= height, "persistent history on fresh owner");
+            require(AppLedgers.of(nodes.get(2)).appChain().orElseThrow().tipHeight() >= height,
+                    "persistent history on fresh owner");
             byte[] next = HexFormat.of().parseHex(follower.submit("orders", new byte[]{4, 5, 6}));
-            await(() -> nodes.get(2).appChain().orElseThrow().messageHeight(next).isPresent());
+            await(() -> AppLedgers.of(nodes.get(2)).appChain().orElseThrow().messageHeight(next).isPresent());
         } catch (Throwable problem) { failure = problem; }
         finally {
             for (Yano node : nodes.reversed()) {
@@ -203,17 +206,20 @@ public final class PackagedHostCluster {
 
     private Yano node(int index, List<Integer> ports) {
         YanoConfig config = YanoConfig.builder().mode(RuntimeMode.APP_LEDGER).enableServer(true)
-                .serverPort(ports.get(index)).rocksDBPath(directory.resolve("l1").toString())
-                .appChainStoragePath(directory.resolve("node-" + index).toString()).build();
+                .serverPort(ports.get(index)).rocksDBPath(directory.resolve("l1").toString()).build();
         PluginsOptions plugins = new PluginsOptions(false, false, Set.of(), Set.of(), Map.of());
-        return YanoAssembly.fromConfig(config).runtimeOptions(new RuntimeOptions(null, plugins, settings(index, ports)))
+        Map<String, Object> settings = settings(index, ports, directory.resolve("node-" + index));
+        return YanoAssembly.fromConfig(config).runtimeOptions(new RuntimeOptions(null, plugins, settings))
                 .pluginLoader(PluginLoaderHandle.packagedClasspath(PackagedHostCluster.class.getClassLoader())).build();
     }
 
-    private static Map<String, Object> settings(int index, List<Integer> ports) {
+    private static Map<String, Object> settings(int index, List<Integer> ports, Path storage) {
         Map<String, Object> settings = new LinkedHashMap<>();
+        // Host API 1.2 activates the framework root only through the generic required-bundle list.
+        settings.put(YanoPropertyKeys.Plugins.REQUIRED, AppLedgerHostPlugin.BUNDLE_ID);
         String prefix = "yano.app-chain.";
         settings.put(prefix + "enabled", true);
+        settings.put(prefix + "storage.path", storage.toString());
         settings.put(prefix + "network-magic", 424242);
         settings.put(prefix + "transport.mode", "dedicated");
         settings.put(prefix + "chain-id", "standalone-test");

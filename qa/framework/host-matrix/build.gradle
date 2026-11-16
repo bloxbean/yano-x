@@ -60,21 +60,15 @@ configurations.packagedHost.resolutionStrategy.eachDependency { detail ->
     }
 }
 dependencies {
-    packagedHost("org.yanoproject:yano-runtime:${hostVersion}") {
-        exclude group: 'org.yanoproject.x'
-    }
-    packagedHost("org.yanoproject:yano-plugin-catalog:${hostVersion}") {
-        exclude group: 'org.yanoproject.x'
-    }
+    // ADR-064: the host never depends on X, so the host edges need no X exclusions.
+    packagedHost "org.yanoproject:yano-runtime:${hostVersion}"
+    packagedHost "org.yanoproject:yano-plugin-catalog:${hostVersion}"
     if (profile == 'standalone') {
         packagedHost "org.yanoproject.x:yano-x-appchain-standalone:${frameworkVersion}"
     } else {
         packagedHost "org.yanoproject.x:yano-x-appchain-cardano:${frameworkVersion}"
         packagedHost "org.yanoproject.x:yano-x-appchain-anchor-onchain:${frameworkVersion}"
     }
-    // The existing host catalog's effect contribution enum retains this legacy SPI.
-    // This is an API compatibility carrier, never the Cardano runtime/activation root.
-    packagedHost "org.yanoproject.x:yano-x-appchain-cardano-api:${frameworkVersion}"
 }
 tasks.register('resolveHostInputs') {
     doLast {
@@ -93,7 +87,7 @@ tasks.register('resolveHostInputs') {
              classifier: artifact.classifier, file: artifact.file.absolutePath,
              sha256: MessageDigest.getInstance('SHA-256').digest(artifact.file.bytes).encodeHex().toString()]
         }.sort { a, b -> "${a.group}:${a.name}:${a.classifier}" <=> "${b.group}:${b.name}:${b.classifier}" }
-        // Preserve the selected Maven graph, including the host-edge X exclusions.
+        // Preserve the selected Maven graph.
         def selectedArtifacts = configurations.packagedHost.incoming.artifacts.artifacts
         def filesByComponent = selectedArtifacts.groupBy { it.id.componentIdentifier }
         def components = configurations.packagedHost.incoming.resolutionResult.allComponents
