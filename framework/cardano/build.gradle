@@ -37,6 +37,8 @@ tasks.named('processResources') {
 dependencies {
     integrationTestImplementation "org.yanoproject:yano-runtime:${providers.gradleProperty('yanoVersion').get()}"
     integrationTestImplementation testFixtures(project(':framework:core'))
+    // Governed-membership topic proofs are checked with the native verifier.
+    integrationTestImplementation project(':framework:proof-verifier')
     // Shared runtime test helpers (state-commitment identities).
     integrationTestImplementation sourceSets.test.output
 }
