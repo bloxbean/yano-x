@@ -1,4 +1,4 @@
-<!-- yanoXVersion: 0.1.0-pre6; yanoVersion: 0.1.0-pre20-bf45507fd -->
+<!-- yanoXVersion: 0.1.0-pre6; yanoVersion: 0.1.0-pre20-9370f5a-SNAPSHOT -->
 
 > **Read this entire document before generating any Yano X code or
 > configuration.** It distills the architecture boundary, the extension ladder,
@@ -48,10 +48,10 @@ in its `gradle.properties`.
 | Value | Current |
 |---|---|
 | Yano X version | `0.1.0-pre6` |
-| Yano host version | `0.1.0-pre20-bf45507fd` |
+| Yano host version | `0.1.0-pre20-9370f5a-SNAPSHOT` |
 | Maven group | `org.yanoproject.x` |
 | Java | `25` |
-| Base Yano JVM ZIP | Local build required; supply matching Maven artifacts and `-PyanoJvmDist` ([instructions](https://yano-x.io/start-here/build-from-source/)). |
+| Base Yano JVM ZIP | [`yano-0.1.0-pre20-9370f5a.zip`](https://repo.bloxbean.org/dist/snapshots/yano/0.1.0-pre20-9370f5a/yano-0.1.0-pre20-9370f5a.zip) |
 
 <!-- catalog:versions-end -->
 
@@ -433,8 +433,8 @@ catch-up, restart, and anchor state.
 | Version-matched truth for a build | `./yano.sh appchain recipes`, `./yano.sh appchain capabilities --format json` |
 | Setup workflow for agents | The in-repo `configure-yano-appchain` skill under `tooling/devtools/src/main/resources/appchain-dx/v1alpha1/skills/` — **it wins where it overlaps this pack** |
 | Exhaustive reference | [Reference shelf](https://yano-x.io/reference/shelf/) |
-| Plugin SPI contract | Yano's ADR-011 series in its `adr/app-layer/` directory, and its [plugin query and domain API guide](https://github.com/bloxbean/yano/blob/main/docs/APP_CHAIN_PLUGIN_QUERY_AND_DOMAIN_API.md) |
-| Consensus internals | Yano's [consensus guide](https://github.com/bloxbean/yano/blob/main/docs/APP_CHAIN_CONSENSUS_GUIDE.md) |
+| Plugin SPI contract | The ADR-011 series in `adr/app-layer/` and the [plugin query and domain API guide](https://github.com/bloxbean/yano-x/blob/main/docs/APP_CHAIN_PLUGIN_QUERY_AND_DOMAIN_API.md) |
+| Consensus internals | The [consensus guide](https://github.com/bloxbean/yano-x/blob/main/docs/APP_CHAIN_CONSENSUS_GUIDE.md) |
 | Repository invariants | [`AGENTS.md`](https://github.com/bloxbean/yano-x/blob/main/AGENTS.md) |
 
 ---

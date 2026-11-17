@@ -1,8 +1,8 @@
 # Yano X
 
 yanoXVersion: 0.1.0-pre6
-yanoVersion: 0.1.0-pre20-bf45507fd
-generatedAt: 2026-11-15T05:18:30.300Z
+yanoVersion: 0.1.0-pre20-9370f5a-SNAPSHOT
+generatedAt: 2026-11-17T04:44:45.753Z
 
 > Yano X is the Java 25, JVM-only extension ecosystem for Yano app ledgers. An app ledger (an "app chain" in Yano's CLI, configuration, and APIs) is an application-specific replicated ledger with deterministic state, threshold finality, authenticated state proofs, optional Cardano anchoring, and controlled external effects. Yano X supplies the stock state machines, capabilities, connectors, products, SDKs, and the batteries-included JVM distribution that run on top of the Yano host.
 
@@ -13,7 +13,7 @@ Key facts an AI agent should know before generating Yano X code or configuration
   products, SDKs, and the batteries-included JVM distribution. The dependency
   direction is strictly `yano-x -> yano` and must never be inverted, nor satisfied
   with a composite Gradle build or a sibling source checkout.
-- **Versions:** Yano X `0.1.0-pre6` builds against Yano `0.1.0-pre20-bf45507fd`, Java 25.
+- **Versions:** Yano X `0.1.0-pre6` builds against Yano `0.1.0-pre20-9370f5a-SNAPSHOT`, Java 25.
   Start with a matching release archive; build from source for unpublished changes.
 - **Yano X is JVM-only.** Never add GraalVM/native-image tasks, reachability
   metadata, or native executables. `verifyJvmOnlyBuild` enforces this.
@@ -135,7 +135,7 @@ Key facts an AI agent should know before generating Yano X code or configuration
 - [balances](https://yano-x.io/state-machines/balances/): Balances is a simple, non-negative account ledger. A configured minter creates units, and each member can spend only from its own account. Every balance…
 - [doc-trail](https://yano-x.io/state-machines/doc-trail/): doc-trail keeps an append-only, tamper-evident history of document hashes for each business entity, such as a product, case or shipment. Each append…
 - [kv-registry](https://yano-x.io/state-machines/kv-registry/): kv-registry is a shared key/value registry with one simple rule: the member that first writes a key owns it. Only the owner can update or delete the key…
-- [ordered-log](https://yano-x.io/state-machines/ordered-log/): ordered-log is the state machine built into Yano. It gives a group of members one agreed, final order of opaque events, and a proof of where each event…
+- [ordered-log](https://yano-x.io/state-machines/ordered-log/): ordered-log is the state machine built into the app-chain framework (framework/core). It gives a group of members one agreed, final order of opaque…
 - [role-approvals](https://yano-x.io/state-machines/role-approvals/): role-approvals lets business actors approve things when those actors are not the app ledger's member nodes. Governed organizations, actors, keys, roles…
 
 ## Products
@@ -155,6 +155,7 @@ Key facts an AI agent should know before generating Yano X code or configuration
 - [Capability catalog](https://yano-x.io/reference/capabilities/): Every selectable app ledger capability in this release — state machines, profiles, sequencing, membership, anchoring, effects, executors, sinks, and observability — generated from the repository catalog.
 - [Configuration reference](https://yano-x.io/reference/configuration/): Yano X plugins declare their configuration as typed metadata, not as prose. That metadata is what makes appchain config validate and appchain config…
 - [Modules and artifacts](https://yano-x.io/reference/modules/): Yano X Maven publications use the group org.yanoproject.x. This inventory also includes tools, distributions, and fixtures that are not Maven Central…
+- [Migrating to Yano-X-owned app chains (ADR-064)](https://yano-x.io/reference/migration-adr-064/): Yano no longer depends on Yano X. Yano is a Cardano node and a generic plugin host (Host API 1.2) with no application-ledger code. Yano X owns the…
 - [Reference shelf](https://yano-x.io/reference/shelf/): Deep links to the exhaustive guides in the Yano X and Yano repositories — the user guide, the consensus guide, state-machine references, connector guides, ADRs, and demo scripts.
 - [Glossary](https://yano-x.io/reference/glossary/): Short definitions of the terms these guides use, with a link to where each is explained. Yano's command line, configuration, and APIs say app chain where…
 
@@ -166,6 +167,6 @@ Key facts an AI agent should know before generating Yano X code or configuration
 
 - Yano X: https://github.com/bloxbean/yano-x
 - Yano (host): https://github.com/bloxbean/yano
-- Base Yano JVM distribution: local build required; https://yano-x.io/start-here/build-from-source/
+- Base Yano JVM distribution: https://repo.bloxbean.org/dist/snapshots/yano/0.1.0-pre20-9370f5a/yano-0.1.0-pre20-9370f5a.zip
 - App-Chain Studio (binding editor): https://yano-x.io/studio/
 

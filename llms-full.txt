@@ -3,8 +3,8 @@
 > Single-file dump of the Yano X docsite, suitable for AI agent ingestion.
 
 yanoXVersion: 0.1.0-pre6
-yanoVersion: 0.1.0-pre20-bf45507fd
-Generated: 2026-11-15T05:18:30.300Z
+yanoVersion: 0.1.0-pre20-9370f5a-SNAPSHOT
+Generated: 2026-11-17T04:44:45.753Z
 Site: https://yano-x.io
 Repo: https://github.com/bloxbean/yano-x
 
@@ -15,7 +15,7 @@ Repo: https://github.com/bloxbean/yano-x
   products, SDKs, and the batteries-included JVM distribution. The dependency
   direction is strictly `yano-x -> yano` and must never be inverted, nor satisfied
   with a composite Gradle build or a sibling source checkout.
-- **Versions:** Yano X `0.1.0-pre6` builds against Yano `0.1.0-pre20-bf45507fd`, Java 25.
+- **Versions:** Yano X `0.1.0-pre6` builds against Yano `0.1.0-pre20-9370f5a-SNAPSHOT`, Java 25.
   Start with a matching release archive; build from source for unpublished changes.
 - **Yano X is JVM-only.** Never add GraalVM/native-image tasks, reachability
   metadata, or native executables. `verifyJvmOnlyBuild` enforces this.
@@ -120,6 +120,7 @@ Repo: https://github.com/bloxbean/yano-x
 - [Reference → Capability catalog](https://yano-x.io/reference/capabilities/)
 - [Reference → Configuration reference](https://yano-x.io/reference/configuration/)
 - [Reference → Modules and artifacts](https://yano-x.io/reference/modules/)
+- [Reference → Migrating to Yano-X-owned app chains (ADR-064)](https://yano-x.io/reference/migration-adr-064/)
 - [Reference → Reference shelf](https://yano-x.io/reference/shelf/)
 - [Reference → Glossary](https://yano-x.io/reference/glossary/)
 - [Contributing → Developing Yano X](https://yano-x.io/contributing/)
@@ -374,10 +375,10 @@ in its `gradle.properties`.
 | Value | Current |
 |---|---|
 | Yano X version | `0.1.0-pre6` |
-| Yano host version | `0.1.0-pre20-bf45507fd` |
+| Yano host version | `0.1.0-pre20-9370f5a-SNAPSHOT` |
 | Maven group | `org.yanoproject.x` |
 | Java | `25` |
-| Base Yano JVM ZIP | Local build required; supply matching Maven artifacts and `-PyanoJvmDist` ([instructions](https://yano-x.io/start-here/build-from-source/)). |
+| Base Yano JVM ZIP | [`yano-0.1.0-pre20-9370f5a.zip`](https://repo.bloxbean.org/dist/snapshots/yano/0.1.0-pre20-9370f5a/yano-0.1.0-pre20-9370f5a.zip) |
 
 <!-- catalog:versions-end -->
 
@@ -759,8 +760,8 @@ catch-up, restart, and anchor state.
 | Version-matched truth for a build | `./yano.sh appchain recipes`, `./yano.sh appchain capabilities --format json` |
 | Setup workflow for agents | The in-repo `configure-yano-appchain` skill under `tooling/devtools/src/main/resources/appchain-dx/v1alpha1/skills/` — **it wins where it overlaps this pack** |
 | Exhaustive reference | [Reference shelf](https://yano-x.io/reference/shelf/) |
-| Plugin SPI contract | Yano's ADR-011 series in its `adr/app-layer/` directory, and its [plugin query and domain API guide](https://github.com/bloxbean/yano/blob/main/docs/APP_CHAIN_PLUGIN_QUERY_AND_DOMAIN_API.md) |
-| Consensus internals | Yano's [consensus guide](https://github.com/bloxbean/yano/blob/main/docs/APP_CHAIN_CONSENSUS_GUIDE.md) |
+| Plugin SPI contract | The ADR-011 series in `adr/app-layer/` and the [plugin query and domain API guide](https://github.com/bloxbean/yano-x/blob/main/docs/APP_CHAIN_PLUGIN_QUERY_AND_DOMAIN_API.md) |
+| Consensus internals | The [consensus guide](https://github.com/bloxbean/yano-x/blob/main/docs/APP_CHAIN_CONSENSUS_GUIDE.md) |
 | Repository invariants | [`AGENTS.md`](https://github.com/bloxbean/yano-x/blob/main/AGENTS.md) |
 
 ---
@@ -1022,8 +1023,9 @@ Choose Yano X when several organizations need shared records, workflows, or
 integrations with independently verifiable results. Start with existing
 capabilities, then add custom Java rules only where your application needs them.
 
-Yano supplies the host. Yano X adds application behavior through JVM plugins
-and reusable libraries. The dependency runs one way: `yano-x → yano`.
+Yano supplies the Cardano node and the generic plugin host. Yano X owns the
+app-chain framework and adds application behavior through JVM plugins and
+reusable libraries. The dependency runs one way: `yano-x → yano`.
 
 #### The boundary
 
@@ -1032,12 +1034,13 @@ and reusable libraries. The dependency runs one way: `yano-x → yano`.
 | Concern | Owned by |
 |---|---|
 | Cardano node, chain sync, L1 `chainstate` | Yano |
-| Message ordering, membership, threshold finality certificates | Yano |
-| Authenticated state (MPF or JMT), proofs and proof subjects, catch-up, replay | Yano |
-| Anchoring to Cardano metadata or a threshold-signed script | Yano |
-| Effect runtime: gates, retries, receipts, result incorporation; the webhook executor | Yano |
-| Plugin SPI, manifest schema, catalog validation, lifecycle | Yano |
-| `ordered-log` | Yano |
+| Plugin catalog, manifest schema, catalog validation, lifecycle, Host API | Yano |
+| Message ordering, membership, threshold finality certificates | **Yano X** framework |
+| Authenticated state (MPF or JMT), proofs and proof subjects, catch-up, replay | **Yano X** framework |
+| Anchoring to Cardano metadata or a threshold-signed script | **Yano X** framework |
+| Effect runtime: gates, retries, receipts, result incorporation; the webhook executor | **Yano X** framework |
+| App-chain contribution kinds and SPIs, app-chain REST API and console | **Yano X** framework |
+| `ordered-log` | **Yano X** framework |
 | Every other stock state machine | **Yano X** |
 | Composite profiles, governed profile evolution, declarative bindings | **Yano X** |
 | Kafka, S3, IPFS, and Cardano-payment executors; the Kafka sink | **Yano X** |
@@ -1082,9 +1085,8 @@ selects or manages them.
 #### JVM only, on purpose
 
 Yano X is JVM-only: no GraalVM or native-image tasks and no native executables.
-Yano's native image is core-only and starts with `ordered-log`, but it cannot
-load Yano X bundles, so a custom JVM plugin is incompatible with a native
-distribution.
+Yano's native image has no application-ledger support, so app chains and
+custom JVM plugins need the Yano X JVM distribution.
 
 #### Namespaces
 
@@ -1319,10 +1321,10 @@ the latest release it is:
 | Value | Current |
 |---|---|
 | Yano X version | `0.1.0-pre6` |
-| Yano host version | `0.1.0-pre20-bf45507fd` |
+| Yano host version | `0.1.0-pre20-9370f5a-SNAPSHOT` |
 | Maven group | `org.yanoproject.x` |
 | Java | `25` |
-| Base Yano JVM ZIP | Local build required; supply matching Maven artifacts and `-PyanoJvmDist` ([instructions](https://yano-x.io/start-here/build-from-source/)). |
+| Base Yano JVM ZIP | [`yano-0.1.0-pre20-9370f5a.zip`](https://repo.bloxbean.org/dist/snapshots/yano/0.1.0-pre20-9370f5a/yano-0.1.0-pre20-9370f5a.zip) |
 
 <!-- catalog:versions-end -->
 
@@ -2129,10 +2131,10 @@ composite runs several state machines under one root.
 
 | Layer | What it does | Provided by | What it guarantees |
 |---|---|---|---|
-| 1. Consensus | Members order messages into blocks and certify each block with a threshold of signatures. | Yano | A final block is never rolled back. |
-| 2. Execution | One deterministic state machine computes each block's new state. Members run it while they vote. | Yano runs it. `ordered-log` is built in; Yano X provides the other stock machines and composites. | Every honest member computes the same state. |
-| 3. Evidence | A state root after every block, proofs against it, and optional Cardano anchors. | Yano | A record can be checked without trusting the node that served it. |
-| 4. Integration | APIs and clients, plus effects that act on external systems after finality. | Yano provides the APIs, the effect runtime, and the webhook executor. Yano X adds connectors, SDKs, and products. | External actions never run inside consensus. |
+| 1. Consensus | Members order messages into blocks and certify each block with a threshold of signatures. | Yano X framework | A final block is never rolled back. |
+| 2. Execution | One deterministic state machine computes each block's new state. Members run it while they vote. | The framework runs it. `ordered-log` is built in; Yano X also provides the other stock machines and composites. | Every honest member computes the same state. |
+| 3. Evidence | A state root after every block, proofs against it, and optional Cardano anchors. | Yano X framework | A record can be checked without trusting the node that served it. |
+| 4. Integration | APIs and clients, plus effects that act on external systems after finality. | The framework provides the APIs, the effect runtime, and the webhook executor. Yano X adds connectors, SDKs, and products. | External actions never run inside consensus. |
 
 Two identities stay separate across the layers. The member that accepts a
 message signs its envelope; that is transport. When a workflow needs a person
@@ -2221,7 +2223,7 @@ ledger data is never placed below L1 `chainstate`.
   `plugins/` before `seal`, and the setup draft selects it. A later change needs
   `appchain join <app>.chain --accept-bundles` on every member. No Yano rebuild
   is needed.
-- **Native:** Yano's native image is core-only. Yano X extensions are JVM-only.
+- **Native:** Yano's native image has no application-ledger support. Yano X is JVM-only.
 - **Several ledgers per node:** one node can host several independently
   configured chains.
 - **Executor placement:** effects can run on a designated member, a dedicated
@@ -2406,7 +2408,7 @@ reaches activation. An add keeps the current threshold, so with `f = 0` a
 2-of-3 ledger cannot add a fourth member directly: raise the threshold to 3
 first, wait until that epoch is active, then add the member (3-of-4).
 `./yano.sh appchain approve` does this for you. The
-[Yano consensus guide](https://github.com/bloxbean/yano/blob/main/docs/APP_CHAIN_CONSENSUS_GUIDE.md)
+[consensus guide](https://github.com/bloxbean/yano-x/blob/main/docs/APP_CHAIN_CONSENSUS_GUIDE.md)
 describes the procedure.
 
 #### Catch-up and restart
@@ -2463,7 +2465,7 @@ versioned upgrade, not a rolling code change. See
 
 #### Deeper reading
 
-- [Yano consensus and internals guide](https://github.com/bloxbean/yano/blob/main/docs/APP_CHAIN_CONSENSUS_GUIDE.md):
+- [Consensus and internals guide](https://github.com/bloxbean/yano-x/blob/main/docs/APP_CHAIN_CONSENSUS_GUIDE.md):
   the round check by check, vote locks, rotation, catch-up, and restart.
 - [ADR-036](https://github.com/bloxbean/yano/blob/main/adr/app-layer/036-certified-view-change-and-durable-l1-observation-delivery.md):
   the safety and liveness model.
@@ -3035,8 +3037,8 @@ plugins; see the
 
 A generic observation asks members to fetch a fact from a configured source,
 check its evidence, and agree on the value before the application sees it.
-Yano owns the protocol, verification, certification, and callbacks; your state
-machine only asks and reacts.
+The framework owns the protocol, verification, certification, and callbacks;
+your state machine only asks and reacts.
 
 **Ask** during a deterministic callback, through the `AppObservationEmitter`
 handed to the observation-aware `apply(context, writer, effects, observations)`:
@@ -3127,8 +3129,8 @@ extend a deadline, or supply a value.
 
 The observation profile is genesis-pinned through
 `observations.profile-cbor-hex`. Changing it on a retained chain is not an
-in-place upgrade. Read Yano's
-[certified observations guide](https://github.com/bloxbean/yano/blob/main/docs/appchain/observations.md)
+in-place upgrade. Read the
+[certified observations guide](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/observations.md)
 before you create an application identity that uses them.
 
 #### The shipment reference workflow
@@ -4080,8 +4082,8 @@ Every message on an app chain names a **topic**, such as
 `freight/acme/shipments`. On any chain the topic is a label. On a chain sealed
 with a `topics:` block, a **topic registry** in the chain's state also decides
 who may write each topic, and every member enforces it before any state machine
-sees the message. Yano owns the registry, its checks and its proofs; Yano X
-supplies the `appchain topics` commands, the clients and the composite rules.
+sees the message. The framework owns the registry, its checks and its proofs;
+the `appchain topics` commands, the clients and the composite rules build on it.
 
 The examples on this page follow one chain: a freight consortium whose members
 share delivery records. The consortium owns the `freight/` namespace, each
@@ -4317,8 +4319,8 @@ binary in your hands:
 | `experimental` | Under active development. |
 
 Remember that Yano X is JVM-only. A recipe whose native posture is
-`unsupported` cannot run on Yano's native image, which carries `ordered-log`
-only.
+`unsupported` cannot run natively; Yano's native image has no
+application-ledger support.
 
 #### Using a recipe
 
@@ -4380,7 +4382,7 @@ Compile bounded event bindings into one committed atomic composite profile.
 - **Outcome:** A source command and its event-derived commands commit atomically with an auditable receipt.
 - **Availability / maturity:** `BUNDLED` / `preview`
 - **Capabilities:** `state:declarative-composite`, `sequencer:fixed`
-- **Runtime artifacts:** `yano-runtime`, `yano-x-composite`, `yano-x-stdlib`, `yano-x-role-workflow`
+- **Runtime artifacts:** `yano-x-appchain-cardano`, `yano-x-composite`, `yano-x-stdlib`, `yano-x-role-workflow`
 - **Runtimes:** `jvm` · **Deployment:** `host`, `docker-compose`
 - **External prerequisites:** `Exact manifested authoring plugin directory`
 - **Bootstrap requirements:** `Pinned public member keys and normalized component configuration`
@@ -4398,8 +4400,8 @@ A replicated append-only log for opaque application records.
 - **Outcome:** One opaque record is threshold-finalized in the shared application order.
 - **Availability / maturity:** `BUNDLED` / `stable`
 - **Capabilities:** `state:ordered-log`, `sequencer:fixed`
-- **Runtime artifacts:** `yano-runtime`
-- **Runtimes:** `jvm`, `native` · **Deployment:** `host`, `docker-compose`
+- **Runtime artifacts:** `yano-x-appchain-cardano`
+- **Runtimes:** `jvm` · **Deployment:** `host`, `docker-compose`
 - **Reference:** [docs/core-host.md](https://github.com/bloxbean/yano-x/blob/main/docs/core-host.md)
 
 ```bash
@@ -4414,7 +4416,7 @@ A first-writer-owned key/value registry with committed query proofs.
 - **Outcome:** The first writer owns a named value that is readable with a committed state proof.
 - **Availability / maturity:** `BUNDLED` / `stable`
 - **Capabilities:** `state:kv-registry`, `sequencer:fixed`
-- **Runtime artifacts:** `yano-runtime`, `yano-x-stdlib`
+- **Runtime artifacts:** `yano-x-appchain-cardano`, `yano-x-stdlib`
 - **Runtimes:** `jvm` · **Deployment:** `host`, `docker-compose`
 - **Reference:** [/state-machines/kv-registry/](https://yano-x.io/state-machines/kv-registry/)
 
@@ -4430,7 +4432,7 @@ Append document hashes to a provable trail for each product, case, or shipment.
 - **Outcome:** A document hash advances an entity trail; its count and head have a committed state proof.
 - **Availability / maturity:** `BUNDLED` / `preview`
 - **Capabilities:** `state:doc-trail`, `sequencer:fixed`
-- **Runtime artifacts:** `yano-runtime`, `yano-x-stdlib`
+- **Runtime artifacts:** `yano-x-appchain-cardano`, `yano-x-stdlib`
 - **Runtimes:** `jvm` · **Deployment:** `host`, `docker-compose`
 - **Reference:** [/state-machines/doc-trail/](https://yano-x.io/state-machines/doc-trail/)
 
@@ -4446,7 +4448,7 @@ A proof-oriented multi-collection registry with optional canonical-CBOR and decl
 - **Outcome:** A value accepted under a genesis-declared collection schema is committed and available with a state proof.
 - **Availability / maturity:** `BUNDLED` / `preview`
 - **Capabilities:** `state:authenticated-map`, `sequencer:fixed`
-- **Runtime artifacts:** `yano-runtime`, `yano-x-stdlib`
+- **Runtime artifacts:** `yano-x-appchain-cardano`, `yano-x-stdlib`
 - **Runtimes:** `jvm` · **Deployment:** `host`, `docker-compose`
 - **Bootstrap requirements:** `pin-all-genesis-member-identities`
 - **Reference:** [/state-machines/authenticated-map/](https://yano-x.io/state-machines/authenticated-map/)
@@ -4463,7 +4465,7 @@ Validator members propose, approve, reject, and prove terminal decisions.
 - **Outcome:** Distinct validator-member decisions produce a provable terminal approval or rejection.
 - **Availability / maturity:** `BUNDLED` / `stable`
 - **Capabilities:** `state:approval-workflow`, `sequencer:fixed`
-- **Runtime artifacts:** `yano-runtime`, `yano-x-stdlib`
+- **Runtime artifacts:** `yano-x-appchain-cardano`, `yano-x-stdlib`
 - **Runtimes:** `jvm` · **Deployment:** `host`, `docker-compose`
 - **Reference:** [/state-machines/approvals/](https://yano-x.io/state-machines/approvals/)
 
@@ -4479,7 +4481,7 @@ Governed organizations, actors, and policies approve arbitrary application paylo
 - **Outcome:** A governed role policy accepts valid actor decisions and rejects an ineligible actor decision.
 - **Availability / maturity:** `BUNDLED` / `preview`
 - **Capabilities:** `state:role-approvals`, `sequencer:fixed`
-- **Runtime artifacts:** `yano-runtime`, `yano-x-composite`, `yano-x-role-workflow`
+- **Runtime artifacts:** `yano-x-appchain-cardano`, `yano-x-composite`, `yano-x-role-workflow`
 - **Runtimes:** `jvm` · **Deployment:** `host`, `docker-compose`
 - **Bootstrap requirements:** `governed-organizations`, `governed-actors`, `governed-policies`
 - **Reference:** [/tutorials/05-domain-role-approvals/](https://yano-x.io/tutorials/05-domain-role-approvals/)
@@ -4496,7 +4498,7 @@ A role-aware evidence ledger that emits publication intents; add and provision e
 - **Outcome:** A role-authorized evidence record and its release decision are committed and queryable.
 - **Availability / maturity:** `BUNDLED` / `preview`
 - **Capabilities:** `state:role-evidence`, `sequencer:fixed`
-- **Runtime artifacts:** `yano-runtime`, `yano-x-stdlib`, `yano-x-evidence-registry`, `yano-x-composite`, `yano-x-role-workflow`, `yano-x-evidence-profile`
+- **Runtime artifacts:** `yano-x-appchain-cardano`, `yano-x-stdlib`, `yano-x-evidence-registry`, `yano-x-composite`, `yano-x-role-workflow`, `yano-x-evidence-profile`
 - **Runtimes:** `jvm` · **Deployment:** `host`, `docker-compose`
 - **Bootstrap requirements:** `governed-organizations`, `governed-actors`, `governed-policies`
 - **Reference:** [/tutorials/04-evidence-publication/](https://yano-x.io/tutorials/04-evidence-publication/)
@@ -4513,7 +4515,7 @@ A deterministic Cardano-shaped test ledger funded by an explicit virtual genesis
 - **Outcome:** A signed key-controlled or bounded Plutus V3 transaction consumes virtual EUTxOs and creates MPF-proven outputs and receipts.
 - **Availability / maturity:** `FIRST_PARTY_OPTIONAL` / `experimental`
 - **Capabilities:** `profile:eutxo-plutus-v3`, `funding:eutxo-genesis`, `sequencer:fixed`
-- **Runtime artifacts:** `yano-runtime`, `yano-x-eutxo-ledger`
+- **Runtime artifacts:** `yano-x-appchain-cardano`, `yano-x-eutxo-ledger`
 - **Runtimes:** `jvm` · **Deployment:** `host`, `docker-compose`
 - **Bootstrap requirements:** `use-test-keys-and-no-real-funds`
 - **Reference:** [ledgers/eutxo/README.md](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/README.md)
@@ -4532,7 +4534,7 @@ A Cardano-backed EUTxO ledger with stable deposits and claim-bound federated wit
 - **Outcome:** Accepted stable deposits create mirrored EUTxOs; signed L2 spends create irrevocable claims that settle only through the configured signer path or a current accepted MPF root with single-use nullification.
 - **Availability / maturity:** `EXPERIMENTAL` / `experimental`
 - **Capabilities:** `profile:eutxo-plutus-v3`, `bridge:cardano-federated`, `sequencer:fixed`
-- **Runtime artifacts:** `yano-runtime`, `yano-x-eutxo-ledger`, `yano-x-eutxo-bridge-cardano`
+- **Runtime artifacts:** `yano-x-appchain-cardano`, `yano-x-eutxo-ledger`, `yano-x-eutxo-bridge-cardano`
 - **Runtimes:** `jvm` · **Deployment:** `host`, `docker-compose`
 - **External prerequisites:** `reviewed-staging-vault-root-nullifier-and-proof-contract-identities`, `stable-cardano-l1-feed`, `federated-vault-and-root-operators`, `external-threshold-or-hsm-settlement-signer-for-signer-mode`
 - **Bootstrap requirements:** `configure-durable-settlement-journal-for-signer-mode`, `pin-current-root-nullifier-and-proof-contract-identities-for-proof-mode`, `complete-real-funds-custody-review`
@@ -4552,7 +4554,7 @@ A chain that runs a separately reviewed custom state-machine plugin, named by th
 - **Outcome:** The operator-defined state-machine contract is loaded from a reviewed pinned plugin bundle.
 - **Availability / maturity:** `REFERENCE` / `experimental`
 - **Capabilities:** `state:custom-plugin`, `sequencer:fixed`
-- **Runtime artifacts:** `yano-runtime`
+- **Runtime artifacts:** `yano-x-appchain-cardano`
 - **Runtimes:** `jvm` · **Deployment:** `host`, `docker-compose`
 - **External prerequisites:** `reviewed-custom-plugin-bundle`
 - **Bootstrap requirements:** `plugin-metadata-trust-review`
@@ -5131,8 +5133,8 @@ Runtime plugins additionally must:
 - have bounded lifecycle cleanup.
 
 **JVM ONLY:**
-Yano X plugins target the JVM distribution. Yano's native image cannot discover
-directory JARs and does not include Yano X plugins. Run Yano X applications
+Yano X plugins target the JVM distribution. Yano's native image has no
+application-ledger support. Run Yano X applications
 from the `yano-x-jvm` distribution.
 
 #### The rest of this section
@@ -5474,7 +5476,7 @@ digest all match. Resolution must be deterministic and side-effect free — see
   shared loader, and the trust boundaries.
 - Yano's [manifested bundle catalog ADR](https://github.com/bloxbean/yano/blob/main/adr/app-layer/011.2-manifested-bundle-catalog.md)
   — the host's catalog, compatibility, isolation and lifecycle contract.
-- Yano's [plugin query and domain API guide](https://github.com/bloxbean/yano/blob/main/docs/APP_CHAIN_PLUGIN_QUERY_AND_DOMAIN_API.md)
+- The [plugin query and domain API guide](https://github.com/bloxbean/yano-x/blob/main/docs/APP_CHAIN_PLUGIN_QUERY_AND_DOMAIN_API.md)
   and [plugin operations guide](https://github.com/bloxbean/yano/blob/main/docs/PLUGIN_OPERATIONS.md).
 - [Composite implementation guide](https://github.com/bloxbean/yano-x/blob/main/composition/runtime/README.md)
 - [Plugin template scaffold](https://github.com/bloxbean/yano-x/tree/main/scaffolds/plugin-template/)
@@ -5844,7 +5846,7 @@ Climb it in order. Each rung catches a class of bug the one below cannot.
 
 | Artifact | Purpose |
 |---|---|
-| `yano-appchain-core-testkit` | JUnit 5 `@AppChainCluster` embedded clusters. |
+| `yano-x-appchain-testkit` | JUnit 5 `@AppChainCluster` embedded clusters. |
 | `yano-x-effects-testkit` | Effect executor and result-path testing. |
 | `yano-x-client` | REST, SSE, and client-side proof verification from tests. |
 | `yano-x-eutxo-testkit` | For the eUTxO ledger. |
@@ -7988,7 +7990,7 @@ payload size, and the member count. Record those inputs when comparing runs.
 The test appends real finalized messages to the retained `orders` history.
 
 For capacity settings and workload boundaries, see the
-[`ordered-log` reference](https://github.com/bloxbean/yano/blob/main/docs/appchain/state-machines/ordered-log.md#operational-tuning).
+[`ordered-log` reference](https://yano-x.io/state-machines/ordered-log/#operational-tuning).
 
 ##### B. Try an effect
 
@@ -8127,7 +8129,7 @@ including the chain identities.
   ```
 
 - Read Yano's
-  [consensus guide](https://github.com/bloxbean/yano/blob/main/docs/APP_CHAIN_CONSENSUS_GUIDE.md)
+  [consensus guide](https://github.com/bloxbean/yano-x/blob/main/docs/APP_CHAIN_CONSENSUS_GUIDE.md)
   for the proposer, votes, certificates, replay, and catch-up.
 
 **Next:** [Tutorial 2 — registry ownership and state proofs](https://yano-x.io/tutorials/02-registry-and-proofs/).
@@ -8523,7 +8525,7 @@ rm -f chains.template.yaml
   maturity, state key and proof subject.
 - Each reference page, for example [`kv-registry`](https://yano-x.io/state-machines/kv-registry/),
   covers REST, Java, proofs and design choices.
-- The Yano [consensus guide](https://github.com/bloxbean/yano/blob/main/docs/APP_CHAIN_CONSENSUS_GUIDE.md)
+- The [consensus guide](https://github.com/bloxbean/yano-x/blob/main/docs/APP_CHAIN_CONSENSUS_GUIDE.md)
   explains how blocks are ordered, re-executed and certified.
 - For business actors, continue with
   [domain-role approvals](https://yano-x.io/tutorials/05-domain-role-approvals/); for coordinated
@@ -10105,8 +10107,8 @@ only makes the change explicit.
 - [Composite implementation guide](https://github.com/bloxbean/yano-x/blob/main/composition/runtime/README.md), for a
   Java composite
 - [Plugin template scaffold](https://github.com/bloxbean/yano-x/tree/main/scaffolds/plugin-template)
-- [Yano core testkit](https://github.com/bloxbean/yano/tree/main/appchain/appchain-testkit)
-- Yano's [plugin query and domain API guide](https://github.com/bloxbean/yano/blob/main/docs/APP_CHAIN_PLUGIN_QUERY_AND_DOMAIN_API.md)
+- [App-chain testkit](https://github.com/bloxbean/yano-x/tree/main/sdk/appchain-testkit)
+- The [plugin query and domain API guide](https://github.com/bloxbean/yano-x/blob/main/docs/APP_CHAIN_PLUGIN_QUERY_AND_DOMAIN_API.md)
   and [plugin operations guide](https://github.com/bloxbean/yano/blob/main/docs/PLUGIN_OPERATIONS.md)
 
 ---
@@ -10303,7 +10305,7 @@ establishes it.
 Consensus recovers from an offline leader through a certified view change,
 but by default it assumes no dishonest members. Choose the threshold for the
 faults you must survive; see Yano's
-[consensus guide](https://github.com/bloxbean/yano/blob/main/docs/APP_CHAIN_CONSENSUS_GUIDE.md).
+[consensus guide](https://github.com/bloxbean/yano-x/blob/main/docs/APP_CHAIN_CONSENSUS_GUIDE.md).
 
 #### 9. Replace demo infrastructure deliberately
 
@@ -10364,9 +10366,8 @@ or a remembered manual session.
 
 - **JVM distribution:** supports plugin-directory installation and is the
   simplest extensible pilot shape. Every operator installs the same release.
-- **Yano native image:** runs the core ordered-log capability only. Yano X
-  plugins are JVM-only and cannot be installed into that image; choose the JVM
-  distribution for a Yano X pilot.
+- **Yano native image:** has no application-ledger support; choose the Yano X
+  JVM distribution for a pilot.
 - **Embedded library:** appropriate when an application team owns lifecycle,
   configuration, APIs, and dependency integration in one Java service.
 
@@ -13004,7 +13005,7 @@ Two ideas apply to every machine on these pages:
 | [`balances`](https://yano-x.io/state-machines/balances/) | stable | Member-owned units with a minter | `b/<account>` | `account-balance-v1` |
 | [`doc-trail`](https://yano-x.io/state-machines/doc-trail/) | stable | A chained history of document hashes per entity | `e/<entityId>` | `document-head-v1` |
 
-`ordered-log` is built into Yano. The others ship in the Yano X standard
+`ordered-log` is built into the app-chain framework. The others ship in the standard
 library and role-workflow bundles. Value validation for `authenticated-map` has
 its [own page](https://yano-x.io/state-machines/authenticated-map-validation/).
 
@@ -13049,7 +13050,7 @@ existing chain needs a governed profile activation or a new chain.
 
 - [Choose a stock state machine](https://yano-x.io/tutorials/03-stock-state-machines/), the
   hands-on companion to this page.
-- [Consensus guide](https://github.com/bloxbean/yano/blob/main/docs/APP_CHAIN_CONSENSUS_GUIDE.md)
+- [Consensus guide](https://github.com/bloxbean/yano-x/blob/main/docs/APP_CHAIN_CONSENSUS_GUIDE.md)
   in Yano: how blocks are ordered, re-executed and certified.
 - [Plugins and composites](https://yano-x.io/tutorials/08-plugins-and-composites/), for
   rules the stock machines do not cover.
@@ -15002,7 +15003,7 @@ In a declarative composite, admission rules can read this machine's entries
 - [Choose a stock state machine](https://yano-x.io/tutorials/03-stock-state-machines/)
 - [State machines](https://yano-x.io/state-machines/)
 - [Java app ledger client](https://github.com/bloxbean/yano-x/blob/main/sdk/client/README.md)
-- [Consensus guide](https://github.com/bloxbean/yano/blob/main/docs/APP_CHAIN_CONSENSUS_GUIDE.md)
+- [Consensus guide](https://github.com/bloxbean/yano-x/blob/main/docs/APP_CHAIN_CONSENSUS_GUIDE.md)
 
 ---
 
@@ -15010,21 +15011,19 @@ In a declarative composite, admission rules can read this machine's entries
 
 Source: https://yano-x.io/state-machines/ordered-log/
 
-> ordered-log is the state machine built into Yano. It gives a group of members one agreed, final order of opaque events, and a proof of where each event…
+> ordered-log is the state machine built into the app-chain framework (framework/core). It gives a group of members one agreed, final order of opaque…
 
-`ordered-log` is the state machine built into Yano. It gives a group of members
+`ordered-log` is the state machine built into the app-chain framework
+(`framework/core`). It gives a group of members
 one agreed, final order of opaque events, and a proof of where each event was
 finalized. It never reads payloads and never rejects a message for business
 reasons.
-
-This page summarizes the machine for Yano X users. The complete reference is
-[`ordered-log` in the Yano repository](https://github.com/bloxbean/yano/blob/main/docs/appchain/state-machines/ordered-log.md).
 
 #### At a glance
 
 | | |
 |---|---|
-| Machine id | `ordered-log`, built into Yano |
+| Machine id | `ordered-log`, built into the framework |
 | Maturity | stable |
 | Commands | none: any non-empty body, on any topic that does not start with `~` |
 | State | per message, `sha256("~yano/finalized-message/v1/" ‖ message id)` → `[1, height, index, topic, sender]`; plus one tip record |
@@ -15140,6 +15139,64 @@ yano:
 `ordered-log` has no settings of its own. Capacity, expiry, retention and
 anchoring use the common chain settings.
 
+##### Operational tuning
+
+For example:
+
+```yaml
+yano:
+  app-chain:
+    chains[0]:
+      chain-id: orders
+      state-machine: ordered-log
+      max-message-bytes: 65536
+      default-ttl-seconds: 600
+      max-ttl-seconds: 3600
+      block:
+        interval-ms: 1000
+        max-bytes: 4194304
+        max-messages: 5000
+      pool:
+        max-messages: 10000
+      retention:
+        enabled: true
+        keep-blocks: 1000
+```
+
+Keep consensus-affecting settings identical across members. When retention is
+enabled, eligible old message bodies below the confirmed anchor horizon may be
+stripped, while headers, ids, roots, and certificates remain so inclusion
+evidence is preserved. Archive bodies or evidence bundles separately when the
+original content must remain independently verifiable.
+
+Use multiple topics in one chain when the events share the same membership,
+finality, retention, anchoring, and operational lifecycle. Use separate chains
+when any of those boundaries should differ: each chain has its own blocks,
+pending pool, certificates, state root, membership, storage, proofs and
+anchor.
+
+#### Read and follow
+
+Besides the lookup by id and the typed proof, all relative to
+`/api/v1/app-chain`:
+
+```text
+GET /chains/{chainId}/messages/by-topic/{topic}?fromHeight=0&limit=100
+GET /chains/{chainId}/stream?fromHeight=0&topic={topic}
+GET /chains/{chainId}/blocks?from=1&limit=100
+GET /chains/{chainId}/evidence/{messageId}
+GET /chains/{chainId}/status
+```
+
+The Java client follows finalized messages with `subscribe(...)` and
+`subscribeTyped(...)`. The message body stays in finalized block history and
+the message index; it is not duplicated in state. Besides the per-message
+records, the machine keeps a tip record at
+`sha256("~yano/finalized-message/v1/" ‖ "tip")` → `cbor(block-height)`. The
+lower-level `state/proof/{keyHex}` route takes the resolved physical key, not
+the message id; `messages/{messageId}/proof` proves membership in the block's
+compact `messagesRoot`.
+
 #### Bounds
 
 The framework, not the machine, refuses a submission when:
@@ -15150,6 +15207,12 @@ The framework, not the machine, refuses a submission when:
 
 Submitting the same bytes twice creates two messages with two ids. Business
 deduplication, schemas and transitions need another machine or a plugin.
+
+These checks protect the protocol; they do not validate any business meaning.
+Every member receives the body and finalized history may be retained or
+exported, so do not put secrets or unnecessary personal data in payloads.
+Encrypt bodies before submission when confidentiality is required, and manage
+the keys outside consensus.
 
 #### Advanced
 
@@ -15164,11 +15227,21 @@ deduplication, schemas and transitions need another machine or a plugin.
 - **When to choose something else.** Use [`kv-registry`](https://yano-x.io/state-machines/kv-registry/) for
   current values, [`doc-trail`](https://yano-x.io/state-machines/doc-trail/) for a history per entity, or a
   [plugin](https://yano-x.io/tutorials/08-plugins-and-composites/) for business rules.
+  Admission hooks give early feedback, but the deterministic `apply()` remains
+  the consensus authority and must handle invalid or stale commands without
+  external I/O.
+- **No in-place switch.** Do not change an existing `ordered-log` ledger to
+  different application semantics in place; use a fresh chain id and storage,
+  or a deliberately versioned migration.
+- **External actions.** `ordered-log` calls no external system. A consumer can
+  follow finalized messages and do idempotent off-chain work; when the action
+  and its outcome must be part of the committed workflow, use an
+  effect-emitting machine and executor plugin.
 
 #### Related documentation
 
-- [`ordered-log` in Yano](https://github.com/bloxbean/yano/blob/main/docs/appchain/state-machines/ordered-log.md)
-- [Consensus guide](https://github.com/bloxbean/yano/blob/main/docs/APP_CHAIN_CONSENSUS_GUIDE.md)
+- [Consensus guide](https://github.com/bloxbean/yano-x/blob/main/docs/APP_CHAIN_CONSENSUS_GUIDE.md)
+- [Message submission and HTTP outcomes](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/submission.md)
 - [Your first app ledger](https://yano-x.io/tutorials/01-first-app-chain/)
 - [State machines](https://yano-x.io/state-machines/)
 
@@ -17666,7 +17739,9 @@ OpenAPI document, and these endpoints have no alias at all: `query`,
 `identity`, `admin/members*`, `admin/threshold`, `proof-subjects/*`,
 `snapshots/*`, `admin/snapshots/*`, and `observations/*`. **Use
 `chains/{chainId}` in every integration.** Swagger UI at `/q/swagger-ui/`
-documents the chain-scoped surface.
+documents the chain-scoped surface; the app-chain OpenAPI group is
+`/q/openapi-app-chain` (`/app-chain/chains/{chainId}/...` and
+`/plugins/{bundleId}/...`).
 
 #### Access
 
@@ -17854,14 +17929,15 @@ Prefer a typed client over raw HTTP where one exists:
 | `yano-x-client` | REST, SSE, and client-side proof verification. |
 | `yano-x-composite-client` | Governed-profile finality, one-root MPF, epoch-chain, and authorization-policy verification. |
 | `yano-x-spring-boot-starter` | Spring Boot auto-configuration for the client SDK. |
-| `yano-appchain-core-testkit` | JUnit 5 `@AppChainCluster` embedded clusters. |
+| `yano-x-appchain-testkit` | JUnit 5 `@AppChainCluster` embedded clusters. |
 
 #### Deeper reading
 
 The exhaustive API, configuration, security, and operations reference is
 [section 4 of the app ledger user guide](https://github.com/bloxbean/yano-x/blob/main/docs/APP_CHAIN_USER_GUIDE.md).
-The host's resource class is the final word on paths and access:
-[`AppChainResource.java`](https://github.com/bloxbean/yano/blob/main/app/src/main/java/org/yanoproject/app/api/appchain/AppChainResource.java).
+The `AppChainResource` class in
+[`framework/rest`](https://github.com/bloxbean/yano-x/tree/main/framework/rest)
+is the final word on paths and access.
 
 ---
 
@@ -17889,8 +17965,8 @@ For your exact build, ask the binary:
 |---|---|
 | Availability | `BUNDLED` ships in the distribution; `FIRST_PARTY_OPTIONAL` needs its release-matched plugin bundle installed; `EXPERIMENTAL` may change; `REFERENCE` is a documented workflow. |
 | Maturity | `stable`, `preview`, or `experimental`. |
-| Runtimes | `jvm`, and `native` only for the handful of core capabilities. Yano X extensions are JVM-only. |
-| Requires artifacts | The runtime artifacts that must be present. `yano-runtime` means the host itself. |
+| Runtimes | `jvm`. Yano X capabilities are JVM-only. |
+| Requires artifacts | The runtime artifacts that must be present. `yano-x-appchain-cardano` is the X framework built into the integrated `yano.jar`. |
 
 Capabilities also declare `requires`, `implies`, and `conflicts` relationships.
 The CLI and [Studio](https://yano-x.io/studio/) resolve those for you; a conflicting selection
@@ -17904,120 +17980,120 @@ fails closed rather than picking one.
 
 | Capability | Availability | Maturity | Runtimes | Requires artifacts | Description |
 |---|---|---|---|---|---|
-| [`state:declarative-composite`](https://yano-x.io/reference/declarative-bindings-cli/) | `BUNDLED` | `preview` | `jvm` | `yano-runtime`, `yano-x-composite`, `yano-x-stdlib`, `yano-x-role-workflow` | Committed bounded event-to-command and event-to-effect workflows. |
-| [`state:ordered-log`](https://github.com/bloxbean/yano-x/blob/main/docs/core-host.md) | `BUNDLED` | `stable` | `jvm`, `native` | `yano-runtime` | Append-only ordered application messages. |
-| [`state:kv-registry`](https://yano-x.io/state-machines/kv-registry/) | `BUNDLED` | `stable` | `jvm` | `yano-runtime`, `yano-x-stdlib` | First-writer-owned mutable key/value records with committed proofs. |
-| [`state:authenticated-map`](https://yano-x.io/state-machines/authenticated-map/) | `BUNDLED` | `preview` | `jvm` | `yano-runtime`, `yano-x-stdlib`, `yano-x-role-workflow` | Multi-collection authenticated records with basic, direct-role, and approval authorization plus optional canonical-CBOR and schema validation. |
-| [`state:approval-workflow`](https://yano-x.io/state-machines/approvals/) | `BUNDLED` | `stable` | `jvm` | `yano-runtime`, `yano-x-stdlib` | Validator-member proposals, votes, and terminal threshold decisions. |
-| [`state:balances`](https://yano-x.io/state-machines/balances/) | `BUNDLED` | `stable` | `jvm` | `yano-runtime`, `yano-x-stdlib` | Member-authorized mint and transfer accounts for bounded application balances. |
-| [`state:doc-trail`](https://yano-x.io/state-machines/doc-trail/) | `BUNDLED` | `stable` | `jvm` | `yano-runtime`, `yano-x-stdlib` | Append-only per-entity document and event hash trails. |
-| [`state:evidence-registry`](https://yano-x.io/tutorials/04-evidence-publication/) | `BUNDLED` | `preview` | `jvm` | `yano-runtime`, `yano-x-evidence-registry` | Inspection and compliance evidence records with exact committed query proofs. |
-| [`state:role-approvals`](https://yano-x.io/tutorials/05-domain-role-approvals/) | `BUNDLED` | `preview` | `jvm` | `yano-runtime`, `yano-x-composite`, `yano-x-role-workflow` | Governed organizations, actors, policies, and signed approvals for arbitrary payload hashes. |
-| [`state:role-evidence`](https://yano-x.io/tutorials/04-evidence-publication/) | `BUNDLED` | `preview` | `jvm` | `yano-runtime`, `yano-x-stdlib`, `yano-x-evidence-registry`, `yano-x-composite`, `yano-x-role-workflow`, `yano-x-evidence-profile` | Evidence registration combined with governed domain actors and role-aware release approval. |
-| [`state:eutxo-ledger`](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/README.md) | `FIRST_PARTY_OPTIONAL` | `experimental` | `jvm` | `yano-runtime`, `yano-x-eutxo-ledger` | Deterministic Cardano-shaped EUTxO state, root-fixed receipts, address indexes, and MPF-proven outputs under one explicitly selected ledger profile. |
+| [`state:declarative-composite`](https://yano-x.io/reference/declarative-bindings-cli/) | `BUNDLED` | `preview` | `jvm` | `yano-x-appchain-cardano`, `yano-x-composite`, `yano-x-stdlib`, `yano-x-role-workflow` | Committed bounded event-to-command and event-to-effect workflows. |
+| [`state:ordered-log`](https://github.com/bloxbean/yano-x/blob/main/docs/core-host.md) | `BUNDLED` | `stable` | `jvm` | `yano-x-appchain-cardano` | Append-only ordered application messages. |
+| [`state:kv-registry`](https://yano-x.io/state-machines/kv-registry/) | `BUNDLED` | `stable` | `jvm` | `yano-x-appchain-cardano`, `yano-x-stdlib` | First-writer-owned mutable key/value records with committed proofs. |
+| [`state:authenticated-map`](https://yano-x.io/state-machines/authenticated-map/) | `BUNDLED` | `preview` | `jvm` | `yano-x-appchain-cardano`, `yano-x-stdlib`, `yano-x-role-workflow` | Multi-collection authenticated records with basic, direct-role, and approval authorization plus optional canonical-CBOR and schema validation. |
+| [`state:approval-workflow`](https://yano-x.io/state-machines/approvals/) | `BUNDLED` | `stable` | `jvm` | `yano-x-appchain-cardano`, `yano-x-stdlib` | Validator-member proposals, votes, and terminal threshold decisions. |
+| [`state:balances`](https://yano-x.io/state-machines/balances/) | `BUNDLED` | `stable` | `jvm` | `yano-x-appchain-cardano`, `yano-x-stdlib` | Member-authorized mint and transfer accounts for bounded application balances. |
+| [`state:doc-trail`](https://yano-x.io/state-machines/doc-trail/) | `BUNDLED` | `stable` | `jvm` | `yano-x-appchain-cardano`, `yano-x-stdlib` | Append-only per-entity document and event hash trails. |
+| [`state:evidence-registry`](https://yano-x.io/tutorials/04-evidence-publication/) | `BUNDLED` | `preview` | `jvm` | `yano-x-appchain-cardano`, `yano-x-evidence-registry` | Inspection and compliance evidence records with exact committed query proofs. |
+| [`state:role-approvals`](https://yano-x.io/tutorials/05-domain-role-approvals/) | `BUNDLED` | `preview` | `jvm` | `yano-x-appchain-cardano`, `yano-x-composite`, `yano-x-role-workflow` | Governed organizations, actors, policies, and signed approvals for arbitrary payload hashes. |
+| [`state:role-evidence`](https://yano-x.io/tutorials/04-evidence-publication/) | `BUNDLED` | `preview` | `jvm` | `yano-x-appchain-cardano`, `yano-x-stdlib`, `yano-x-evidence-registry`, `yano-x-composite`, `yano-x-role-workflow`, `yano-x-evidence-profile` | Evidence registration combined with governed domain actors and role-aware release approval. |
+| [`state:eutxo-ledger`](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/README.md) | `FIRST_PARTY_OPTIONAL` | `experimental` | `jvm` | `yano-x-appchain-cardano`, `yano-x-eutxo-ledger` | Deterministic Cardano-shaped EUTxO state, root-fixed receipts, address indexes, and MPF-proven outputs under one explicitly selected ledger profile. |
 
 ##### `custom-plugin`
 
 | Capability | Availability | Maturity | Runtimes | Requires artifacts | Description |
 |---|---|---|---|---|---|
-| [`state:custom-plugin`](https://yano-x.io/plugins/) | `REFERENCE` | `experimental` | `jvm` | `yano-runtime` | Runs a separately reviewed custom state-machine bundle that every operator installs and seal pins by digest. |
+| [`state:custom-plugin`](https://yano-x.io/plugins/) | `REFERENCE` | `experimental` | `jvm` | `yano-x-appchain-cardano` | Runs a separately reviewed custom state-machine bundle that every operator installs and seal pins by digest. |
 
 ##### `profile`
 
 | Capability | Availability | Maturity | Runtimes | Requires artifacts | Description |
 |---|---|---|---|---|---|
-| [`profile:eutxo-plutus-v3`](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/README.md) | `FIRST_PARTY_OPTIONAL` | `experimental` | `jvm` | `yano-runtime`, `yano-x-eutxo-ledger` | Pins the immutable yano-eutxo-v2-plutus-v3 ledger profile and every consensus-relevant bound. |
-| [`profile:eutxo-bridge-settlement`](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/README.md) | `FIRST_PARTY_OPTIONAL` | `experimental` | `jvm` | `yano-runtime`, `yano-x-eutxo-ledger` | Pins the immutable yano-eutxo-v3-bridge-settlement ledger profile (ADR-UTXO-009) and every consensus-relevant bound. |
-| [`profile:eutxo-key-payments`](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/README.md) | `FIRST_PARTY_OPTIONAL` | `experimental` | `jvm` | `yano-runtime`, `yano-x-eutxo-ledger` | Pins the immutable yano-eutxo-v1 key-payments ledger profile. |
+| [`profile:eutxo-plutus-v3`](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/README.md) | `FIRST_PARTY_OPTIONAL` | `experimental` | `jvm` | `yano-x-appchain-cardano`, `yano-x-eutxo-ledger` | Pins the immutable yano-eutxo-v2-plutus-v3 ledger profile and every consensus-relevant bound. |
+| [`profile:eutxo-bridge-settlement`](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/README.md) | `FIRST_PARTY_OPTIONAL` | `experimental` | `jvm` | `yano-x-appchain-cardano`, `yano-x-eutxo-ledger` | Pins the immutable yano-eutxo-v3-bridge-settlement ledger profile (ADR-UTXO-009) and every consensus-relevant bound. |
+| [`profile:eutxo-key-payments`](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/README.md) | `FIRST_PARTY_OPTIONAL` | `experimental` | `jvm` | `yano-x-appchain-cardano`, `yano-x-eutxo-ledger` | Pins the immutable yano-eutxo-v1 key-payments ledger profile. |
 
 ##### `funding`
 
 | Capability | Availability | Maturity | Runtimes | Requires artifacts | Description |
 |---|---|---|---|---|---|
-| [`funding:eutxo-genesis`](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/README.md) | `FIRST_PARTY_OPTIONAL` | `experimental` | `jvm` | `yano-runtime`, `yano-x-eutxo-ledger` | Bootstraps one explicit ADA-only virtual allocation for no-real-funds testing. |
+| [`funding:eutxo-genesis`](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/README.md) | `FIRST_PARTY_OPTIONAL` | `experimental` | `jvm` | `yano-x-appchain-cardano`, `yano-x-eutxo-ledger` | Bootstraps one explicit ADA-only virtual allocation for no-real-funds testing. |
 
 ##### `bridge`
 
 | Capability | Availability | Maturity | Runtimes | Requires artifacts | Description |
 |---|---|---|---|---|---|
-| [`bridge:cardano-federated`](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/README.md) | `EXPERIMENTAL` | `experimental` | `jvm` | `yano-runtime`, `yano-x-eutxo-ledger`, `yano-x-eutxo-bridge-cardano` | Observes exact accepted vault deposits and settles irrevocable bounded claims through either exact external signing or permissionless current-root MPF proofs with an on-chain replay nullifier. |
+| [`bridge:cardano-federated`](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/README.md) | `EXPERIMENTAL` | `experimental` | `jvm` | `yano-x-appchain-cardano`, `yano-x-eutxo-ledger`, `yano-x-eutxo-bridge-cardano` | Observes exact accepted vault deposits and settles irrevocable bounded claims through either exact external signing or permissionless current-root MPF proofs with an on-chain replay nullifier. |
 
 ##### `indexer`
 
 | Capability | Availability | Maturity | Runtimes | Requires artifacts | Description |
 |---|---|---|---|---|---|
-| [`indexer:eutxo-lifecycle`](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/INDEXER_OPERATIONS.md) | `FIRST_PARTY_OPTIONAL` | `preview` | `jvm` | `yano-runtime`, `yano-x-eutxo-indexer-core`, `yano-x-eutxo-indexer-jdbc` | Indexes finalized EUTxO transactions, accounts, bridge lifecycle records, and optional validity batches for bounded APIs and the unified console. |
+| [`indexer:eutxo-lifecycle`](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/INDEXER_OPERATIONS.md) | `FIRST_PARTY_OPTIONAL` | `preview` | `jvm` | `yano-x-appchain-cardano`, `yano-x-eutxo-indexer-core`, `yano-x-eutxo-indexer-jdbc` | Indexes finalized EUTxO transactions, accounts, bridge lifecycle records, and optional validity batches for bounded APIs and the unified console. |
 
 ##### `sequencer`
 
 | Capability | Availability | Maturity | Runtimes | Requires artifacts | Description |
 |---|---|---|---|---|---|
-| [`sequencer:fixed`](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/README.md) | `BUNDLED` | `stable` | `jvm`, `native` | `yano-runtime` | One declared member proposes application blocks. |
-| [`sequencer:rotating`](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/README.md) | `BUNDLED` | `experimental` | `jvm`, `native` | `yano-runtime` | Rotates proposership across members using bounded L1 slot windows. |
+| [`sequencer:fixed`](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/README.md) | `BUNDLED` | `stable` | `jvm` | `yano-x-appchain-cardano` | One declared member proposes application blocks. |
+| [`sequencer:rotating`](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/README.md) | `BUNDLED` | `experimental` | `jvm` | `yano-x-appchain-cardano` | Rotates proposership across members using bounded L1 slot windows. |
 
 ##### `membership`
 
 | Capability | Availability | Maturity | Runtimes | Requires artifacts | Description |
 |---|---|---|---|---|---|
-| [`membership:static`](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/README.md) | `BUNDLED` | `stable` | `jvm`, `native` | `yano-runtime` | Pins the initial member set as the active set. |
-| [`membership:governed`](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/README.md) | `BUNDLED` | `preview` | `jvm`, `native` | `yano-runtime` | Allows authenticated member epochs to evolve through replicated governance. |
+| [`membership:static`](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/README.md) | `BUNDLED` | `stable` | `jvm` | `yano-x-appchain-cardano` | Pins the initial member set as the active set. |
+| [`membership:governed`](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/README.md) | `BUNDLED` | `preview` | `jvm` | `yano-x-appchain-cardano` | Allows authenticated member epochs to evolve through replicated governance. |
 
 ##### `l1`
 
 | Capability | Availability | Maturity | Runtimes | Requires artifacts | Description |
 |---|---|---|---|---|---|
-| [`l1:slot-feed`](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/README.md) | `BUNDLED` | `stable` | `jvm`, `native` | `yano-runtime` | Supplies stable local Cardano slot observations to slot-aware app-chain behavior. |
+| [`l1:slot-feed`](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/README.md) | `BUNDLED` | `stable` | `jvm` | `yano-x-appchain-cardano` | Supplies stable local Cardano slot observations to slot-aware app-chain behavior. |
 
 ##### `anchor`
 
 | Capability | Availability | Maturity | Runtimes | Requires artifacts | Description |
 |---|---|---|---|---|---|
-| [`anchor:metadata`](https://yano-x.io/tutorials/07-anchors-and-verification/) | `BUNDLED` | `stable` | `jvm`, `native` | `yano-runtime` | Commits finalized app-chain roots in Cardano transaction metadata. |
-| [`anchor:script`](https://yano-x.io/tutorials/07-anchors-and-verification/) | `BUNDLED` | `preview` | `jvm`, `native` | `yano-runtime` | Advances an app-chain anchor thread through a reviewed Cardano script. |
+| [`anchor:metadata`](https://yano-x.io/tutorials/07-anchors-and-verification/) | `BUNDLED` | `stable` | `jvm` | `yano-x-appchain-cardano` | Commits finalized app-chain roots in Cardano transaction metadata. |
+| [`anchor:script`](https://yano-x.io/tutorials/07-anchors-and-verification/) | `BUNDLED` | `preview` | `jvm` | `yano-x-appchain-cardano` | Advances an app-chain anchor thread through a reviewed Cardano script. |
 
 ##### `l1-observer`
 
 | Capability | Availability | Maturity | Runtimes | Requires artifacts | Description |
 |---|---|---|---|---|---|
-| [`observer:address-deposit`](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/README.md) | `BUNDLED` | `preview` | `jvm`, `native` | `yano-runtime` | Creates stable observations for lovelace paid to one configured Cardano address. |
-| [`observer:metadata-label`](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/README.md) | `BUNDLED` | `preview` | `jvm`, `native` | `yano-runtime` | Creates stable observations for one configured Cardano transaction metadata label. |
+| [`observer:address-deposit`](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/README.md) | `BUNDLED` | `preview` | `jvm` | `yano-x-appchain-cardano` | Creates stable observations for lovelace paid to one configured Cardano address. |
+| [`observer:metadata-label`](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/README.md) | `BUNDLED` | `preview` | `jvm` | `yano-x-appchain-cardano` | Creates stable observations for one configured Cardano transaction metadata label. |
 
 ##### `effects-runtime`
 
 | Capability | Availability | Maturity | Runtimes | Requires artifacts | Description |
 |---|---|---|---|---|---|
-| [`effects:runtime`](https://yano-x.io/tutorials/06-webhook-effects/) | `BUNDLED` | `preview` | `jvm`, `native` | `yano-runtime` | Enables deterministic effect intents, gates, result incorporation, and proofs. |
+| [`effects:runtime`](https://yano-x.io/tutorials/06-webhook-effects/) | `BUNDLED` | `preview` | `jvm` | `yano-x-appchain-cardano` | Enables deterministic effect intents, gates, result incorporation, and proofs. |
 
 ##### `effect-emission`
 
 | Capability | Availability | Maturity | Runtimes | Requires artifacts | Description |
 |---|---|---|---|---|---|
-| [`effects:on-approved`](https://yano-x.io/state-machines/approvals/) | `BUNDLED` | `preview` | `jvm` | `yano-runtime`, `yano-x-stdlib` | Emits one typed chain-result effect when a stock approval reaches its threshold. |
+| [`effects:on-approved`](https://yano-x.io/state-machines/approvals/) | `BUNDLED` | `preview` | `jvm` | `yano-x-appchain-cardano`, `yano-x-stdlib` | Emits one typed chain-result effect when a stock approval reaches its threshold. |
 
 ##### `effect-executor`
 
 | Capability | Availability | Maturity | Runtimes | Requires artifacts | Description |
 |---|---|---|---|---|---|
-| [`executor:webhook`](https://yano-x.io/tutorials/06-webhook-effects/) | `BUNDLED` | `preview` | `jvm`, `native` | `yano-runtime` | Executes webhook.post effects against one node-local configured URL. |
-| [`executor:kafka`](https://github.com/bloxbean/yano-x/blob/main/connectors/kafka/README.md) | `FIRST_PARTY_OPTIONAL` | `preview` | `jvm` | `yano-runtime`, `yano-x-kafka` | Executes kafka.publish intents through allowlisted node-local Kafka targets. |
-| [`executor:objectstore-s3`](https://github.com/bloxbean/yano-x/blob/main/connectors/objectstore-s3/README.md) | `FIRST_PARTY_OPTIONAL` | `preview` | `jvm` | `yano-runtime`, `yano-x-objectstore-s3` | Executes immutable object.put promotion against allowlisted S3-compatible targets. |
-| [`executor:ipfs`](https://github.com/bloxbean/yano-x/blob/main/connectors/ipfs/README.md) | `FIRST_PARTY_OPTIONAL` | `preview` | `jvm` | `yano-runtime`, `yano-x-ipfs` | Executes reconciled ipfs.pin intents against allowlisted Kubo targets. |
-| [`executor:cardano-payment`](https://github.com/bloxbean/yano-x/blob/main/connectors/effects-cardano/README.md) | `FIRST_PARTY_OPTIONAL` | `preview` | `jvm` | `yano-runtime`, `yano-x-effects-cardano` | Executes bounded cardano.payment intents from an operator-controlled payer wallet. |
+| [`executor:webhook`](https://yano-x.io/tutorials/06-webhook-effects/) | `BUNDLED` | `preview` | `jvm` | `yano-x-appchain-cardano` | Executes webhook.post effects against one node-local configured URL. |
+| [`executor:kafka`](https://github.com/bloxbean/yano-x/blob/main/connectors/kafka/README.md) | `FIRST_PARTY_OPTIONAL` | `preview` | `jvm` | `yano-x-appchain-cardano`, `yano-x-kafka` | Executes kafka.publish intents through allowlisted node-local Kafka targets. |
+| [`executor:objectstore-s3`](https://github.com/bloxbean/yano-x/blob/main/connectors/objectstore-s3/README.md) | `FIRST_PARTY_OPTIONAL` | `preview` | `jvm` | `yano-x-appchain-cardano`, `yano-x-objectstore-s3` | Executes immutable object.put promotion against allowlisted S3-compatible targets. |
+| [`executor:ipfs`](https://github.com/bloxbean/yano-x/blob/main/connectors/ipfs/README.md) | `FIRST_PARTY_OPTIONAL` | `preview` | `jvm` | `yano-x-appchain-cardano`, `yano-x-ipfs` | Executes reconciled ipfs.pin intents against allowlisted Kubo targets. |
+| [`executor:cardano-payment`](https://github.com/bloxbean/yano-x/blob/main/connectors/effects-cardano/README.md) | `FIRST_PARTY_OPTIONAL` | `preview` | `jvm` | `yano-x-appchain-cardano`, `yano-x-effects-cardano` | Executes bounded cardano.payment intents from an operator-controlled payer wallet. |
 
 ##### `finalized-sink`
 
 | Capability | Availability | Maturity | Runtimes | Requires artifacts | Description |
 |---|---|---|---|---|---|
-| [`sink:webhook`](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/README.md) | `BUNDLED` | `stable` | `jvm`, `native` | `yano-runtime` | Posts finalized application blocks to one configured node-local webhook endpoint. |
-| [`sink:kafka`](https://github.com/bloxbean/yano-x/blob/main/connectors/kafka/README.md) | `FIRST_PARTY_OPTIONAL` | `preview` | `jvm` | `yano-runtime`, `yano-x-kafka` | Publishes finalized application blocks to a configured Kafka topic. |
+| [`sink:webhook`](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/README.md) | `BUNDLED` | `stable` | `jvm` | `yano-x-appchain-cardano` | Posts finalized application blocks to one configured node-local webhook endpoint. |
+| [`sink:kafka`](https://github.com/bloxbean/yano-x/blob/main/connectors/kafka/README.md) | `FIRST_PARTY_OPTIONAL` | `preview` | `jvm` | `yano-x-appchain-cardano`, `yano-x-kafka` | Publishes finalized application blocks to a configured Kafka topic. |
 
 ##### `distribution`
 
 | Capability | Availability | Maturity | Runtimes | Requires artifacts | Description |
 |---|---|---|---|---|---|
 | [`runtime:composite`](https://yano-x.io/plugins/) | `BUNDLED` | `preview` | `jvm` | `yano-x-composite` | Deterministic component, workflow, profile, query, quota, and profile-governance framework. |
-| [`ui:console`](https://github.com/bloxbean/yano-x/blob/main/docs/console-ui.md) | `BUNDLED` | `preview` | `jvm`, `native` | `yano-runtime` | Embedded operational app-chain status console derived from the selected Yano distribution. |
-| [`observability:prometheus`](https://github.com/bloxbean/yano-x/blob/main/docs/console-ui.md) | `FIRST_PARTY_OPTIONAL` | `preview` | `jvm`, `native` | `yano-runtime` | Optional one-command durable metrics history for the unified console. |
+| [`ui:console`](https://github.com/bloxbean/yano-x/blob/main/docs/console-ui.md) | `BUNDLED` | `preview` | `jvm` | `yano-x-appchain-cardano` | Embedded operational app-chain status console derived from the selected Yano distribution. |
+| [`observability:prometheus`](https://github.com/bloxbean/yano-x/blob/main/docs/console-ui.md) | `FIRST_PARTY_OPTIONAL` | `preview` | `jvm` | `yano-x-appchain-cardano` | Optional one-command durable metrics history for the unified console. |
 
 <!-- catalog:capabilities-end -->
 
@@ -18031,7 +18107,7 @@ in the distribution's checksummed bundle list.
 
 | Artifact | Availability | Plugin bundle id | Runtimes | Native posture |
 |---|---|---|---|---|
-| `yano-runtime` | `BUNDLED` | `builtin:yano-runtime` | `jvm`, `native` | `bundled` |
+| `yano-x-appchain-cardano` | `BUNDLED` | `builtin:yano-x-appchain-cardano` | `jvm` | `unsupported` |
 | `yano-x-stdlib` | `BUNDLED` | `org.yanoproject.x.stdlib` | `jvm` | `unsupported` |
 | `yano-x-evidence-registry` | `BUNDLED` | `org.yanoproject.x.evidence-registry` | `jvm` | `unsupported` |
 | `yano-x-composite` | `BUNDLED` | `org.yanoproject.x.composite` | `jvm` | `unsupported` |
@@ -18209,7 +18285,7 @@ Each property reports how well its constraints are known:
 The properties above are the ones **Yano X plugins** own. Core app ledger
 configuration — chain id, members, threshold, sequencing, block cadence,
 storage, API authentication, anchoring, effects caps, retention — belongs to the
-Yano host and is documented in
+app-chain framework and is documented in
 [section 7 of the app ledger user guide](https://github.com/bloxbean/yano-x/blob/main/docs/APP_CHAIN_USER_GUIDE.md).
 
 Frequently needed host values:
@@ -18219,6 +18295,8 @@ Frequently needed host values:
 | `yano.app-chain.chain-id` | 1–128 valid UTF-8 bytes. One group of participants = one chain id. |
 | `yano.app-chain.state-machine` | The selected machine or profile id. Consensus-shared. |
 | `yano.plugins.directory` | Where bundles are loaded from. **Not** `yaci.plugins.directory`. |
+| `yano.app-chain.storage.path` | Authoritative app-chain RocksDB root, default `appchain-chainstate`, process-relative and separate from `yano.storage.path`. Environment: `YANO_APP_CHAIN_STORAGE_PATH`; concurrently running nodes need distinct values. |
+| `yano.plugins.required` | Bundle ids activated from the host class path regardless of `yano.plugins.enabled`; the integrated distribution sets the X root `org.yanoproject.x.app-ledger`. |
 | `yano.app-chain.effects.*` | Enablement and deterministic caps. All consensus-shared — see [Effects](https://yano-x.io/concepts/effects/). |
 | `yano.app-chain.anchor.*` | Anchor leader only — see [Cardano anchoring](https://yano-x.io/concepts/anchoring/). |
 | `yano.app-chain.message.enforce-sender-seq` | Consensus-visible when on; all members must agree. |
@@ -18313,10 +18391,10 @@ The latest Yano X release and the Yano host it is built on:
 | Value | Current |
 |---|---|
 | Yano X version | `0.1.0-pre6` |
-| Yano host version | `0.1.0-pre20-bf45507fd` |
+| Yano host version | `0.1.0-pre20-9370f5a-SNAPSHOT` |
 | Maven group | `org.yanoproject.x` |
 | Java | `25` |
-| Base Yano JVM ZIP | Local build required; supply matching Maven artifacts and `-PyanoJvmDist` ([instructions](https://yano-x.io/start-here/build-from-source/)). |
+| Base Yano JVM ZIP | [`yano-0.1.0-pre20-9370f5a.zip`](https://repo.bloxbean.org/dist/snapshots/yano/0.1.0-pre20-9370f5a/yano-0.1.0-pre20-9370f5a.zip) |
 
 <!-- catalog:versions-end -->
 
@@ -18381,7 +18459,7 @@ artifact identity and that every runtime plugin has a bundle publication.
 | `:ledgers:eutxo:bridge-cardano` | `yano-x-eutxo-bridge-cardano` | `org.yanoproject.x.eutxo.bridge.cardano` | [ledgers/eutxo/bridge-cardano](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/bridge-cardano) |
 | `:ledgers:eutxo:indexer-jdbc` | `yano-x-eutxo-indexer-jdbc` | `org.yanoproject.x.eutxo.indexer` | [ledgers/eutxo/indexer-jdbc](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/indexer-jdbc) |
 
-##### `library` (21)
+##### `library` (23)
 
 | Gradle module | Artifact id | Plugin bundle id | Source |
 |---|---|---|---|
@@ -18406,6 +18484,8 @@ artifact identity and that every runtime plugin has a bundle publication.
 | `:framework:cardano` | `yano-x-appchain-cardano` | — | [framework/cardano](https://github.com/bloxbean/yano-x/blob/main/framework/cardano) |
 | `:framework:host-adapter` | `yano-x-appchain-host-adapter` | — | [framework/host-adapter](https://github.com/bloxbean/yano-x/blob/main/framework/host-adapter) |
 | `:framework:standalone` | `yano-x-appchain-standalone` | — | [framework/standalone](https://github.com/bloxbean/yano-x/blob/main/framework/standalone) |
+| `:framework:proof-verifier` | `yano-x-appchain-proof-verifier` | — | [framework/proof-verifier](https://github.com/bloxbean/yano-x/blob/main/framework/proof-verifier) |
+| `:framework:rest` | `yano-x-appchain-rest` | — | [framework/rest](https://github.com/bloxbean/yano-x/blob/main/framework/rest) |
 
 ##### `application` (3)
 
@@ -18426,11 +18506,12 @@ artifact identity and that every runtime plugin has a bundle publication.
 | `:tooling:studio` | `yano-x-studio` | — | [tooling/studio](https://github.com/bloxbean/yano-x/blob/main/tooling/studio) |
 | `:products:cardano-history:cli` | `yano-x-cardano-history-cli` | — | [products/cardano-history/cli](https://github.com/bloxbean/yano-x/blob/main/products/cardano-history/cli) |
 
-##### `test-library` (2)
+##### `test-library` (3)
 
 | Gradle module | Artifact id | Plugin bundle id | Source |
 |---|---|---|---|
 | `:sdk:effects-testkit` | `yano-x-effects-testkit` | — | [sdk/effects-testkit](https://github.com/bloxbean/yano-x/blob/main/sdk/effects-testkit) |
+| `:sdk:appchain-testkit` | `yano-x-appchain-testkit` | — | [sdk/appchain-testkit](https://github.com/bloxbean/yano-x/blob/main/sdk/appchain-testkit) |
 | `:ledgers:eutxo:testkit` | `yano-x-eutxo-testkit` | — | [ledgers/eutxo/testkit](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/testkit) |
 
 ##### `onchain-artifact` (4)
@@ -18448,12 +18529,13 @@ artifact identity and that every runtime plugin has a bundle publication.
 |---|---|---|---|
 | `:products:eutxo:ui` | `yano-x-eutxo-ui` | — | [products/eutxo/ui](https://github.com/bloxbean/yano-x/blob/main/products/eutxo/ui) |
 
-##### `test-fixture` (2)
+##### `test-fixture` (3)
 
 | Gradle module | Artifact id | Plugin bundle id | Source |
 |---|---|---|---|
 | `:fixtures:eutxo-e2e` | `yano-x-eutxo-e2e` | — | [fixtures/eutxo-e2e](https://github.com/bloxbean/yano-x/blob/main/fixtures/eutxo-e2e) |
 | `:fixtures:governed-recipes` | `yano-x-governed-recipes` | — | [fixtures/governed-recipes](https://github.com/bloxbean/yano-x/blob/main/fixtures/governed-recipes) |
+| `:fixtures:appchain-plugin-conformance` | `yano-x-appchain-plugin-conformance` | — | [fixtures/appchain-plugin-conformance](https://github.com/bloxbean/yano-x/blob/main/fixtures/appchain-plugin-conformance) |
 
 <!-- catalog:modules-end -->
 
@@ -18473,7 +18555,7 @@ dependencies {
     implementation 'org.yanoproject.x:yano-x-evidence-contracts'
 
     // Tests.
-    testImplementation 'org.yanoproject:yano-appchain-core-testkit'
+    testImplementation 'org.yanoproject.x:yano-x-appchain-testkit'
     testImplementation 'org.yanoproject.x:yano-x-effects-testkit'
 }
 ```
@@ -18498,6 +18580,118 @@ into `plugins/` in a distribution, not added to a build file.
 
 ---
 
+## Migrating to Yano-X-owned app chains (ADR-064)
+
+Source: https://yano-x.io/reference/migration-adr-064/
+
+> Yano no longer depends on Yano X. Yano is a Cardano node and a generic plugin host (Host API 1.2) with no application-ledger code. Yano X owns the…
+
+Yano no longer depends on Yano X. Yano is a Cardano node and a generic plugin
+host (Host API 1.2) with no application-ledger code. Yano X owns the app-chain
+engine, adapter, REST API, console, configuration projection, QA and the
+integrated JVM product. This is a preview break; there are no compatibility
+shims. Wire formats, consensus identities, storage layouts, `yano.app-chain.*`
+keys and defaults, REST paths, JSON shapes and status codes are unchanged.
+
+#### Embedders
+
+- `Yano.appChain()`, `appChains()`, `domainApis()` and `localReadModels()` are
+  removed. `Yano` now extends `PluginServiceLookup`; reach the chains with
+  `org.yanoproject.x.framework.host.AppLedgers.of(yano)` from
+  `yano-x-appchain-host-adapter`. Resolve on every use instead of caching the
+  result across a restart.
+- Start Yano with `YanoAssembly`, set `yano.plugins.required` to the X root
+  bundle id (`org.yanoproject.x.app-ledger`), and pass the `yano.app-chain.*`
+  settings as `RuntimeOptions` globals. Quarkus is not required.
+- `YanoConfig.appChainStoragePath` / `getAppChainStoragePath()` are removed.
+  Configure storage with `yano.app-chain.storage.path`; the default is still
+  `appchain-chainstate`, now resolved by
+  `org.yanoproject.x.framework.config.AppChainStoragePaths`
+  (`yano-x-appchain-config`). The key constants that were
+  `YanoPropertyKeys.AppChain` moved to X with the same strings.
+- X's `CardanoRuntimeServices` record and the `AppLedgerHostPlugin`
+  `NODE_CONFIG_SERVICE`, `RUNTIME_OPTIONS_SERVICE` and `ASSEMBLY_SERVICE`
+  service keys are removed. The adapter reads `HostApi.nodeConfig()` and
+  `runtimeOptions()` and registers its assembly with
+  `HostLifecycleRegistry.registerAssembly`; Cardano services come from Yano's
+  `org.yanoproject.api.CardanoHostServices`, registered under
+  `CardanoHostServices.SERVICE_KEY` (`org.yanoproject.host.cardano-services`)
+  and looked up through `PluginServiceLookup`.
+
+#### Maven coordinates
+
+Yano stops publishing these artifacts. Use the Yano X owners:
+
+| Old (`org.yanoproject`) | New (`org.yanoproject.x`) |
+|---|---|
+| `yano-appchain-core-testkit` | `yano-x-appchain-testkit` (`sdk/appchain-testkit`, package `org.yanoproject.x.testkit`) |
+| `yano-appchain-config` | `yano-x-appchain-config` |
+| `yano-appchain-anchor-onchain` | `yano-x-appchain-anchor-onchain` |
+| `yano-appchain-proof-verifier` | `yano-x-appchain-proof-verifier` (`framework/proof-verifier`, package `org.yanoproject.x.framework.proof`) |
+
+#### Plugin authors
+
+- Bundle manifests are unchanged.
+- `ContributionKind` is no longer an enum with app-chain constants. Yano knows
+  four built-in kinds; X declares its kinds (`app-state-machine`, `domain-api`,
+  `l1-observer`, ...) in owner-qualified
+  `META-INF/yano/contribution-kinds/<owner>.json` descriptors in the X framework
+  jars. Refer to X kinds by their manifest key strings.
+- Catalog classes take the kind registry: `new BundleManifestParser(kinds)`,
+  `new PluginCatalogInspector(kinds)`, `new PluginIndexGenerator(kinds)`. In
+  tests, `org.yanoproject.x.testkit.AppChainTestKinds.classPathRegistry()`
+  builds the registry from the X descriptors on the class path; replace
+  `contribution.kind() == ContributionKind.APP_STATE_MACHINE` with a check of
+  `contribution.kind().manifestKey()`.
+- The `yano-plugins` CLI accepts X kinds only when you pass the integrated jar
+  or the X framework jars with `--host-artifact <jar>`.
+- A bare Yano with X bundles in `plugins/` fails closed with "contribution kind
+  is not supported".
+
+#### Operators
+
+- The integrated JVM ZIP comes from Yano X. Yano's own ZIP, Docker image and
+  native binary serve no app chains; the native binary has no
+  application-ledger support.
+- The `yano.sh appchain` subcommand now exists only in the Yano X
+  distribution launcher.
+- `yano.mode=app-ledger` on a bare Yano fails startup with "app-ledger mode
+  requires a plugin that provides an app-only network".
+- The integrated application sets `yano.plugins.required` to
+  `org.yanoproject.x.app-ledger`. If `yano.app-chain.enabled` is true and an
+  override drops that root from `yano.plugins.required`, startup fails.
+- `/api/v1/plugin-operations` is protected by Yano's own
+  `PluginOperationsAuthFilter`, with or without Yano X. It still reads the keys
+  from `yano.app-chain.api.keys` and keeps the same outcomes: 404 for a
+  non-canonical path, 503 `AUTH_UNAVAILABLE` without a full key, 401 for a
+  missing or invalid key, 403 for a topic-scoped key.
+- Docker: Yano's compose bundle no longer mounts `appchain-chainstate/` or
+  `appchain-indexers/`, and Yano X publishes no Docker image. Build one from the
+  integrated `yano.jar` (see `scaffolds/docker-compose-cluster`).
+- `yano.app-chain.network-magic` is now a registered property definition
+  (1..4294967295), so the config validator no longer reports it as unknown.
+  The generated v1 DX metadata (`appchain-runtime.schema.json` and
+  `appchain-property-catalog.json`) gained this one entry; the change is
+  additive and existing configuration stays valid.
+- REST paths, ports, `yano.app-chain.*` settings and storage directories are
+  unchanged. The app-chain console is at `/ui/app-chain/` and links back to
+  Yano's console at `/ui/`.
+
+#### Host API compatibility
+
+Yano X requires Host API 1.2 (`HostApiVersion` `(1, 2)`). The frozen
+host-matrix fixtures that modelled hosts embedding X (`first-host`,
+`supported-host`, `namespace-host`) are retired. Every Yano module,
+`yano-host-api` included, is published at the one Yano version, so Yano X
+selects all of them with the single `yanoVersion` property (`nodeApiVersion`
+and `hostApiVersion` are gone). The Host API 1.2 baseline fixture is recorded
+from the first released Yano version that contains Host API 1.2; see
+`qa/framework/host-matrix/README.md`.
+
+See [Yano ADR-064](https://github.com/bloxbean/yano/blob/main/adr/064-yano-x-depends-on-yano-never-the-reverse.md).
+
+---
+
 ## Reference shelf
 
 Source: https://yano-x.io/reference/shelf/
@@ -18517,8 +18711,11 @@ repository disagree.
 |---|---|---|
 | [App ledger user guide](https://github.com/bloxbean/yano-x/blob/main/docs/APP_CHAIN_USER_GUIDE.md) | ~114 KB | The exhaustive reference: configuration, REST API, anchoring, custom app ledgers, multi-chain nodes, standard state machines, SSE/webhook/Kafka consumption, typed messages, security, compliance, operations, queries, client libraries, effects, troubleshooting, and current limitations. |
 | [App ledger overview](https://github.com/bloxbean/yano-x/blob/main/docs/APP_CHAIN_OVERVIEW.md) | ~21 KB | The 10–15 minute architecture read, plus an editable presentation deck. |
-| [Consensus and internals guide](https://github.com/bloxbean/yano/blob/main/docs/APP_CHAIN_CONSENSUS_GUIDE.md) (Yano) | ~23 KB | The consensus round check by check, vote locks, sequencer modes, catch-up and restart semantics. |
-| [Plugin query and domain API contract](https://github.com/bloxbean/yano/blob/main/docs/APP_CHAIN_PLUGIN_QUERY_AND_DOMAIN_API.md) (Yano) | — | How plugins add read hooks and domain routes, and how the host secures them. |
+| [Consensus and internals guide](https://github.com/bloxbean/yano-x/blob/main/docs/APP_CHAIN_CONSENSUS_GUIDE.md) | ~23 KB | The consensus round check by check, vote locks, sequencer modes, catch-up and restart semantics. |
+| [Plugin query and domain API contract](https://github.com/bloxbean/yano-x/blob/main/docs/APP_CHAIN_PLUGIN_QUERY_AND_DOMAIN_API.md) | — | How plugins add read hooks and domain routes, and how the host secures them. |
+| [Message submission](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/submission.md) | — | Admission, backpressure and the HTTP outcomes of a submission. |
+| [Certified observations](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/observations.md) | — | Generic observation profiles, scheduling, bounds, audit queries and qualification. |
+| [Standalone application ledgers](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/STANDALONE.md) | — | `yano.mode=app-ledger`: app chains without Cardano chainstate. |
 | [App ledger tutorial](https://github.com/bloxbean/yano-x/blob/main/docs/APP_CHAIN_TUTORIAL.md) | ~22 KB | Run several members and build a custom state machine end to end. |
 | [Use-case catalogue](https://github.com/bloxbean/yano-x/blob/main/docs/APP_CHAIN_USE_CASES.md) | ~18 KB | Worked application patterns and their starting points. |
 
@@ -18572,11 +18769,11 @@ contract; trust this site and the code for current behaviour.
 #### The upstream host
 
 Yano itself lives at [github.com/bloxbean/yano](https://github.com/bloxbean/yano)
-and owns the node, consensus, proofs, anchoring, the effect runtime, the plugin
-SPI, and `ordered-log`. Host-contract questions belong there. Its
-[`ordered-log` reference](https://github.com/bloxbean/yano/blob/main/docs/appchain/state-machines/ordered-log.md)
-and [submission contract](https://github.com/bloxbean/yano/blob/main/docs/appchain/submission.md)
-are the host-side companions to this site.
+and owns the Cardano node, the generic plugin host and its SPI, and the Host
+API. It contains no application-ledger code: consensus, proofs, anchoring, the
+effect runtime, `ordered-log`, the app-chain REST API and console are Yano X's
+`framework` modules. Host-contract questions belong in Yano. See the
+[ADR-064 migration notes](https://yano-x.io/reference/migration-adr-064/).
 
 ---
 
