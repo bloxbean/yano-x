@@ -1,7 +1,7 @@
 description = 'Application-ledger public contracts in the framework API namespace'
 dependencies {
     api project(':sdk:proof-contracts')
-    api "org.yanoproject:yano-node-api:${providers.gradleProperty('nodeApiVersion').get()}"
+    api rootProject.ext.yanoModule('yano-node-api')
     implementation libs.cardano.client.crypto
     implementation libs.cbor
     implementation libs.jackson.databind

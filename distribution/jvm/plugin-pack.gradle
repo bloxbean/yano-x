@@ -225,17 +225,17 @@ tasks.register('generatePluginPackManifest') {
     }
 }
 
-// Bundles leave out the host yano.jar classes, so the pack names the one Yano
-// release it runs on.
+// Bundles leave out the integrated yano.jar classes, so the pack names the one
+// Yano X distribution and Yano release it runs on.
 def pluginPackReadme = { String hostVersion ->
     def optionalLine = optionalBundleIds ? '''- `optional-plugins/` holds alternative implementations. Never activate two
   implementations of the same contribution.
 ''' : ''
     """# Yano X plugin pack ${packVersion}
 
-Runtime plugin bundles for an existing Yano JVM node. They run only on
-Yano ${hostVersion}: each bundle omits the classes that release's yano.jar
-already provides.
+Runtime plugin bundles for an existing Yano X JVM node. They run only on the
+yano.jar of yano-x-jvm-${packVersion} (Yano ${hostVersion}): each bundle omits
+the classes that jar already provides.
 
 - `plugins/` holds the conflict-free default set.
 ${optionalLine}- `yano-x-plugin-pack-v1.json` lists every bundle with its SHA-256.

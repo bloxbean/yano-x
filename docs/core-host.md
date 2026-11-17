@@ -1,49 +1,61 @@
 # Yano host and application-ledger framework boundary
 
-Yano owns the node runtime, Cardano synchronization and ledger services, the
-plugin catalog, public node facades, operations API, and console UI. Yano-X's
-`framework` modules own the application-ledger APIs, configuration parser,
-consensus/finality engine, storage, OrderedLog, query and effect execution, plus
-the optional Cardano observer and anchoring implementation.
+Yano owns the Cardano node runtime, Cardano synchronization and ledger
+services, the plugin catalog, public node facades, the Host API, the generic
+operations API and its generic console. It contains no application-ledger code
+and never depends on Yano X (ADR-064). Yano-X's `framework` modules own the
+application-ledger APIs, contribution kinds and their facades, configuration
+parser and projection, consensus/finality engine, storage, OrderedLog, query
+and effect execution, the app-chain REST API and console, and the optional
+Cardano observer and anchoring implementation. Yano X also composes the
+integrated JVM product.
 
 The deterministic framework core depends on the generic node contracts and Yaci,
 not Yano runtime implementation classes, the Host API, or Cardano settlement
-SDKs. Protocols 100 and 103 stay in Yaci. The optional host adapter uses the
-versioned Yano Host API for N2N registration and lifecycle ownership; it reuses
-the existing schema-v1 plugin catalog and service registry. All plugin `init()`
-callbacks finish before the host invokes framework assembly, and assembly
-finishes before sessions can start.
+SDKs. Protocols 100 and 103 stay in Yaci. The host adapter uses Host API 1.2:
+the X root plugin is activated through `yano.plugins.required`, reads its
+configuration through `HostApi.nodeConfig()/runtimeOptions()`, registers its
+assembly, restart readiness and plugin products with the host lifecycle, and
+publishes its chains as a plugin service that `AppLedgers.of(yano)` resolves.
+All plugin `init()` callbacks finish before the host runs assembly callbacks,
+and assembly finishes before sessions can start. In Cardano mode the adapter
+reads `CardanoHostServices`, including the epoch snapshot reader.
 
-The integrated Yano distribution continues to bundle compatible framework
-artifacts. Existing `yano.app-chain.*` properties, provider identifiers,
-consensus hashes and storage formats remain compatible. Framework Java types
-now use `org.yanoproject.x.framework.*`; plugins and embedding clients must
-recompile. Host-owned node and plugin SPI packages remain unchanged. The Cardano root retains the existing observer/anchor services;
-the standalone root uses the same core without Cardano runtime activation.
-Standalone app-ledger mode requires fresh standalone genesis and explicitly
-rejects L1-dependent settings. Application finality and state proofs do not by
-themselves provide public L1 anchoring or settlement guarantees.
+X declares its contribution kinds in one owner-qualified descriptor per
+framework jar, `META-INF/yano/contribution-kinds/<owner>.json` (the JSON repeats
+its `owner`), and binds them with `ContributionKindBinding` implementations whose
+`descriptorOwner()` names that owner. Yano reads
+descriptors only from trusted host artifacts, so X kinds exist only when the X
+framework is on the host class path, as in the integrated distribution. A bare
+Yano with X bundles in `plugins/` fails closed.
 
-Ordinary Maven embedding deployments may independently select compatible X
-artifacts and restart against an unchanged supported Yano host. Do not overlay
-new engine classes on an older integrated uber-JAR. The
-[packaged compatibility matrix](../qa/framework/host-matrix/README.md) freezes a
-compiled client and host artifact hashes, then tests later X versions on that
-oldest namespace-compatible host as well as the current host. The namespace
-migration requires a new host implementation baseline and a newly frozen client;
-historical old-package fixtures remain evidence for their original candidates.
-This package migration does not change the Host API version. A new host capability may require a
-higher Host API level; consensus changes may separately require coordinated
-application-node upgrades.
+Existing `yano.app-chain.*` properties, provider identifiers, consensus hashes,
+REST paths and storage formats remain compatible. Framework Java types use
+`org.yanoproject.x.framework.*`. The standalone root uses the same core without
+Cardano runtime activation; `yano.mode=app-ledger` requires the X plugin that
+supplies the app-only network. Standalone app-ledger mode requires fresh
+standalone genesis and explicitly rejects L1-dependent settings. Application
+finality and state proofs do not by themselves provide public L1 anchoring or
+settlement guarantees.
+
+Ordinary Maven embedding deployments start Yano with `YanoAssembly` and
+`yano.plugins.required`, select compatible X artifacts, and do not need Quarkus.
+Do not overlay new engine classes on an older integrated jar. X requires Host
+API 1.2; the [packaged compatibility matrix](../qa/framework/host-matrix/README.md)
+runs X against a frozen Host API 1.2 baseline host and the current host. A new
+host capability may require a higher Host API level; consensus changes may
+separately require coordinated application-node upgrades.
+
+Contracts: application contracts are owned by
+`org.yanoproject.x:yano-x-appchain-api`; the Cardano application contracts are
+in `yano-x-appchain-cardano-api`. Host/plugin contracts remain in
+`org.yanoproject:yano-node-api` and `yano-host-api`, and Cardano-specific host
+contracts in `yano-cardano-api`. Plugin scaffolding accepts independent
+`--yano-version` and `--yano-x-version` inputs; the packaged launcher defaults
+each to its corresponding distribution version.
 
 See [ADR-057](../adr/057-application-ledger-framework-extraction.md) for the
-module boundaries and the single coordinated release plan with
-[Yano issue #245](https://github.com/bloxbean/yano/issues/245).
-
-The prerelease `yano-core-api` aggregate has been removed. Application contracts are
-owned by `org.yanoproject.x:yano-x-appchain-api`; the Cardano application
-contracts are in `yano-x-appchain-cardano-api`. Host/plugin contracts remain in
-`org.yanoproject:yano-node-api`, and Cardano-specific host contracts remain in
-`yano-cardano-api`. Shared plugin hooks keep their existing node-api ownership.
-Plugin scaffolding accepts independent `--yano-version` and `--yano-x-version`
-inputs; the packaged launcher defaults each to its corresponding distribution version.
+module boundaries, Yano
+[ADR-064](https://github.com/bloxbean/yano/blob/main/adr/064-yano-x-depends-on-yano-never-the-reverse.md)
+for the dependency direction, and the
+[migration notes](appchain/MIGRATION-ADR-064.md).

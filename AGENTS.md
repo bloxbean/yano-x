@@ -4,20 +4,25 @@ This file gives Codex durable project context for the Yano X repository.
 
 ## Project mission
 
-Yano X is the Java 25, JVM-only extension ecosystem for Yano app chains. It
-contains optional state machines, capabilities, composition, connectors,
+Yano X is the Java 25, JVM-only home of Yano app chains. It owns the
+application-ledger framework (engine, host adapter, app-chain REST API and
+console, configuration projection) and contains optional state machines, capabilities, composition, connectors,
 products, SDKs, examples, tooling, on-chain artifacts, and the batteries-
 included JVM distribution.
 
 The sibling Yano repository is the upstream host:
 
-- `/Users/satya/work/bloxbean/yano`: Cardano data node, minimal app-chain host,
-  public plugin SPI, generic runtime/REST/operations, anchoring/proof support,
-  and OrderedLog as the only built-in state machine. GraalVM is Yano's primary
-  deployment target, though it also publishes Java artifacts and its ordinary
-  JVM ZIP for Yano X.
-- `/Users/satya/work/bloxbean/yano-x`: JVM extensions and products. Dependency
-  direction is strictly `yano-x -> yano`.
+- `/Users/satya/work/bloxbean/yano`: Cardano data node and generic plugin host:
+  plugin catalog and SPI, Host API 1.2, generic runtime/REST/operations and its
+  generic console. It contains no application-ledger code. GraalVM is Yano's
+  primary deployment target; its native image has no app-chain support. It
+  publishes the Java artifacts (`node-api`, `host-api`, `cardano-api`,
+  `plugin-catalog`, `runtime`, `app-core`) and its ordinary JVM ZIP that Yano X
+  composes.
+- `/Users/satya/work/bloxbean/yano-x`: the app-chain framework, JVM extensions,
+  products and the integrated distribution. Dependency direction is strictly
+  `yano-x -> yano`: Yano never depends on Yano X in code, resources, builds,
+  publications, distributions, CI or QA (ADR-064 D1).
 
 Do not add a source checkout dependency, composite Gradle build, sibling task
 invocation, or generated-file dependency from Yano X to Yano. Consume an exact
@@ -45,8 +50,9 @@ published Yano version and its matching ordinary JVM ZIP.
   `yaci.plugins.directory`.
 - Yano X is JVM-only. Do not add GraalVM/native-image tasks, reachability
   metadata, or native executables. `verifyJvmOnlyBuild` enforces this boundary.
-- UI currently remains a deliberate exception in Yano. Do not move or fork it
-  here without a new decision.
+- The app-chain console is Yano X-owned: a separate UI served at
+  `/ui/app-chain/` from `framework/rest`. Yano keeps its generic console at
+  `/ui/`; do not add app-chain pages there (ADR-064 D9).
 - The app-chain feature has not had a public release. Remove obsolete adapters,
   aliases, duplicate activation paths, and other prerelease technical debt now;
   do not preserve accidental compatibility. Preserve documented Cardano node,
@@ -174,10 +180,12 @@ cross-node behavior changed.
   the packaged multi-node acceptance gates, which `build` and CI do not, plus a
   live showcase with restart.
 
-The pre-split low-level `test-app-chain-*` skills in the Yano repository are
-historical evidence, not directly runnable Yano X procedures. Port their
-invariants to the packaged showcase or current plugin APIs instead of reusing
-old monorepo paths and configuration blindly.
+Yano X owns the app-chain release QA (ADR-064 D9): `qa/harness/appchain-*.sh`,
+`qa/release-qa.sh` (ids `appchain-cluster`, `appchain-extensions`,
+`appchain-rotation-governance`, `appchain-script-anchor`,
+`appchain-standalone`; see `qa/README.md`) and the `.claude/skills/test-app-chain-*`
+skills. They launch the integrated distribution jar:
+`JAR=<absolute integrated yano.jar> qa/release-qa.sh [--only <id>] [--out DIR]`.
 
 ## Showcase and retained state
 

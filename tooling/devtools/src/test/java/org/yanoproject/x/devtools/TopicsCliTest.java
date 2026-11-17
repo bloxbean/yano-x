@@ -8,7 +8,7 @@ import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.yanoproject.api.util.StrictEd25519;
-import org.yanoproject.appchain.proof.TopicPolicyProofVerifier;
+import org.yanoproject.x.framework.proof.TopicPolicyProofVerifier;
 import org.yanoproject.x.client.Hex;
 import org.yanoproject.x.framework.api.appchain.topics.TopicKeys;
 import org.yanoproject.x.framework.api.appchain.topics.TopicWire.ActiveRevision;

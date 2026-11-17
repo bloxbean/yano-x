@@ -1,7 +1,7 @@
 package org.yanoproject.x.composite.bindings;
 
 import org.junit.jupiter.api.Test;
-import org.yanoproject.appchain.testkit.AppChainTestProfiles;
+import org.yanoproject.x.testkit.AppChainTestProfiles;
 import org.yanoproject.x.composite.CompositeStateKeys;
 import org.yanoproject.x.composite.CompositeStateMachine;
 import org.yanoproject.x.composite.contracts.BindingExpressionV1.Call;

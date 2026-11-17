@@ -3,6 +3,7 @@ package org.yanoproject.x.devtools;
 import org.yanoproject.api.plugin.PluginBundleInfo;
 import org.yanoproject.api.plugin.PluginContributionInfo;
 import org.yanoproject.catalog.BundleContribution;
+import org.yanoproject.catalog.ContributionKindRegistry;
 import org.yanoproject.catalog.IndexedBundle;
 import org.yanoproject.catalog.PluginCatalogException;
 import org.yanoproject.catalog.PluginCatalogInspection;
@@ -62,7 +63,7 @@ final class AppChainPluginSelection {
                         Set<String> stagedBundles) throws IOException {
         PluginCatalogInspection inspection;
         try {
-            inspection = new PluginCatalogInspector().inspect(
+            inspection = new PluginCatalogInspector(hostKinds()).inspect(
                     artifacts(distribution.resolve("plugins")), PluginCatalogInspectionPolicy.current());
         } catch (PluginCatalogException failure) {
             return new Result("FAIL", "plugins/ selection is invalid: " + bounded(failure.getMessage()));
@@ -122,10 +123,11 @@ final class AppChainPluginSelection {
 
     private static Map<String, String> optionalProviders(Path directory) throws IOException {
         Map<String, String> providers = new TreeMap<>();
+        PluginIndexGenerator generator = new PluginIndexGenerator(hostKinds());
         // One scan per artifact: alternative bundles may provide the same contribution.
         for (Path artifact : artifacts(directory)) {
             try {
-                for (IndexedBundle bundle : new PluginIndexGenerator().generate(List.of(artifact)).bundles()) {
+                for (IndexedBundle bundle : generator.generate(List.of(artifact)).bundles()) {
                     for (BundleContribution contribution : bundle.manifest().contributions()) {
                         providers.putIfAbsent(contribution.kind().manifestKey() + "/" + contribution.name(),
                                 bundle.manifest().id());
@@ -136,6 +138,11 @@ final class AppChainPluginSelection {
             }
         }
         return providers;
+    }
+
+    /** The kinds a host built from this tool's framework accepts. */
+    static ContributionKindRegistry hostKinds() throws IOException {
+        return ContributionKindRegistry.fromHostClassLoader(AppChainPluginSelection.class.getClassLoader());
     }
 
     private static List<Path> artifacts(Path directory) throws IOException {

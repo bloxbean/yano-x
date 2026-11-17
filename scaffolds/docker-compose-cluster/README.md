@@ -8,7 +8,7 @@ standard-library state machine and a 2-of-3 finality threshold.
 
 ```bash
 # from the repo root
-./gradlew :app:quarkusBuild
+./gradlew :distribution:jvm:quarkusBuild
 docker build -t yano-node:local -f scaffolds/docker-compose-cluster/Dockerfile .
 
 cd scaffolds/docker-compose-cluster

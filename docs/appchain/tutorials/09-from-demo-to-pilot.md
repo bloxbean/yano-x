@@ -186,7 +186,7 @@ establishes it.
 Consensus recovers from an offline leader through a certified view change,
 but by default it assumes no dishonest members. Choose the threshold for the
 faults you must survive; see Yano's
-[consensus guide](https://github.com/bloxbean/yano/blob/main/docs/APP_CHAIN_CONSENSUS_GUIDE.md).
+[consensus guide](../../APP_CHAIN_CONSENSUS_GUIDE.md).
 
 ## 9. Replace demo infrastructure deliberately
 
@@ -247,9 +247,8 @@ or a remembered manual session.
 
 - **JVM distribution:** supports plugin-directory installation and is the
   simplest extensible pilot shape. Every operator installs the same release.
-- **Yano native image:** runs the core ordered-log capability only. Yano X
-  plugins are JVM-only and cannot be installed into that image; choose the JVM
-  distribution for a Yano X pilot.
+- **Yano native image:** has no application-ledger support; choose the Yano X
+  JVM distribution for a pilot.
 - **Embedded library:** appropriate when an application team owns lifecycle,
   configuration, APIs, and dependency integration in one Java service.
 

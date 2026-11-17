@@ -249,7 +249,7 @@ A Yano X JVM deployment loads a self-contained manifested bundle from its
 `plugins/` directory, installed on every member before the application is
 sealed, and a chain in the setup draft selects its state-machine contribution
 (the `custom-plugin` recipe with a `stateMachine` answer).
-Yano's native image is core-only and does not include Yano X bundles.
+Yano's native image has no application-ledger support.
 
 A custom bundle can contribute typed capabilities such as:
 

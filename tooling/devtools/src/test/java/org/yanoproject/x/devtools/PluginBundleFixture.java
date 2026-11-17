@@ -1,7 +1,5 @@
 package org.yanoproject.x.devtools;
 
-import org.yanoproject.catalog.ContributionKind;
-
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
@@ -30,8 +28,8 @@ final class PluginBundleFixture {
         Files.createDirectories(directory);
         try (OutputStream file = Files.newOutputStream(jar); ZipOutputStream zip = new ZipOutputStream(file)) {
             entry(zip, "META-INF/yano/plugins/" + id + ".json", manifest);
-            entry(zip, "META-INF/services/" + ContributionKind.fromManifestKey(kind).serviceType().getName(),
-                    provider + "\n");
+            String service = AppChainPluginSelection.hostKinds().fromManifestKey(kind).serviceInterface();
+            entry(zip, "META-INF/services/" + service, provider + "\n");
             entry(zip, provider.replace('.', '/') + ".class", "");
         }
     }

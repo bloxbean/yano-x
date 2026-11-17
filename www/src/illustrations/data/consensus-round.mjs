@@ -236,7 +236,7 @@ export default {
     ['fail', 'offline, refused, or stalled'],
   ],
   sources: [
-    { repo: 'yano', path: 'docs/APP_CHAIN_CONSENSUS_GUIDE.md',
+    { repo: 'yano-x', path: 'docs/APP_CHAIN_CONSENSUS_GUIDE.md',
       anchors: ['persist the `(height, view, blockHash)` prepare lock, broadcast the proposal and PREPARE',
         'height is exactly `tip+1`', '`block.proposer == envelope sender`', '`prevHash` equals the local tip hash',
         '`messagesRoot` recomputes from the message list', 'no conflicting prepare lock in this view',

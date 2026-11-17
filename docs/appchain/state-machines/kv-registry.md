@@ -296,4 +296,4 @@ In a declarative composite, admission rules can read this machine's entries
 - [Choose a stock state machine](../tutorials/03-stock-state-machines.md)
 - [State machines](README.md)
 - [Java app ledger client](../../../sdk/client/README.md)
-- [Consensus guide](https://github.com/bloxbean/yano/blob/main/docs/APP_CHAIN_CONSENSUS_GUIDE.md)
+- [Consensus guide](../../APP_CHAIN_CONSENSUS_GUIDE.md)

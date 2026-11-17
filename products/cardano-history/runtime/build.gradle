@@ -16,7 +16,7 @@ dependencies {
     testImplementation project(':composition:contracts')
     testImplementation project(':state-machines:stdlib')
     testImplementation project(':state-machines:stdlib-contracts')
-    testImplementation rootProject.ext.yanoModule('yano-appchain-core-testkit')
+    testImplementation project(':sdk:appchain-testkit')
     testImplementation rootProject.ext.yanoModule('yano-plugin-catalog')
     testImplementation libs.assertj.core
     testImplementation libs.junit.jupiter.api

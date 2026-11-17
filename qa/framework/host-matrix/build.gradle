@@ -3,21 +3,19 @@ import groovy.json.JsonSlurper
 import java.security.MessageDigest
 import org.gradle.api.attributes.java.TargetJvmEnvironment
 import org.gradle.api.attributes.java.TargetJvmVersion
-import org.gradle.api.artifacts.result.ResolvedDependencyResult
 
 // QA-only isolated Maven consumer: no project dependency, sibling build, or local source substitution.
 plugins { id 'java-base' }
 def request = new JsonSlurper().parse(file(providers.gradleProperty('request').get()))
-def hostVersion = request.hostVersion as String
-def foundationVersion = (request.foundationVersion ?: hostVersion) as String
-def hostApiVersion = request.hostApiVersion as String
+// Every Yano module, yano-host-api included, is published at the one Yano version (ADR-064 MD4).
+def yanoVersion = request.yanoVersion as String
 def frameworkVersion = request.frameworkVersion as String
 def yaciCoreVersion = request.yaciCoreVersion as String
 def profile = (request.profile ?: 'standalone') as String
 if (!(profile in ['standalone', 'cardano-construction'])) {
     throw new GradleException("Unknown qualification profile: ${profile}")
 }
-[hostVersion, foundationVersion, hostApiVersion, frameworkVersion, yaciCoreVersion].each {
+[yanoVersion, frameworkVersion, yaciCoreVersion].each {
     if (!it || it.contains('+') || it.contains('[') || it.endsWith('SNAPSHOT')) {
         throw new GradleException('Qualification requires exact, immutable candidate/release versions')
     }
@@ -41,17 +39,13 @@ configurations {
         }
     }
 }
-def expectedHostVersion = { String name ->
-    name == 'yano-host-api' ? hostApiVersion :
-            name in ['yano-node-api', 'yano-cardano-api'] ? foundationVersion : hostVersion
-}
 configurations.packagedHost.resolutionStrategy.eachDependency { detail ->
     if (detail.requested.group == 'com.bloxbean.cardano' && detail.requested.name == 'yaci-core') {
         detail.useVersion(yaciCoreVersion)
         detail.because('Explicit coordinated app-only transport candidate; no hidden Maven Local replacement')
     }
     if (detail.requested.group == 'org.yanoproject') {
-        detail.useVersion(expectedHostVersion(detail.requested.name))
+        detail.useVersion(yanoVersion)
         detail.because('This qualification cell must never silently upgrade its frozen host')
     }
     if (detail.requested.group == 'org.yanoproject.x') {
@@ -60,30 +54,37 @@ configurations.packagedHost.resolutionStrategy.eachDependency { detail ->
     }
 }
 dependencies {
-    packagedHost("org.yanoproject:yano-runtime:${hostVersion}") {
-        exclude group: 'org.yanoproject.x'
-    }
-    packagedHost("org.yanoproject:yano-plugin-catalog:${hostVersion}") {
-        exclude group: 'org.yanoproject.x'
-    }
+    // ADR-064: the host never depends on X, so the host edges need no X exclusions.
+    packagedHost "org.yanoproject:yano-runtime:${yanoVersion}"
+    packagedHost "org.yanoproject:yano-plugin-catalog:${yanoVersion}"
     if (profile == 'standalone') {
         packagedHost "org.yanoproject.x:yano-x-appchain-standalone:${frameworkVersion}"
     } else {
         packagedHost "org.yanoproject.x:yano-x-appchain-cardano:${frameworkVersion}"
         packagedHost "org.yanoproject.x:yano-x-appchain-anchor-onchain:${frameworkVersion}"
     }
-    // The existing host catalog's effect contribution enum retains this legacy SPI.
-    // This is an API compatibility carrier, never the Cardano runtime/activation root.
-    packagedHost "org.yanoproject.x:yano-x-appchain-cardano-api:${frameworkVersion}"
 }
+// The one Yano X plugin-index script (ADR-064 D8) generates this cell's strict ARTIFACT_CLOSURE index
+// over the resolved host class path with the host's own published PluginIndexGenerator.
+apply from: file('../../../gradle/plugin-index.gradle')
+def report = providers.gradleProperty('report').map { file(it) }
+def pluginIndex = layout.file(report.map { new File(it.parentFile, 'yano-plugin-index-v1.json') })
+def generatePluginIndex = pluginIndexTask('generatePluginIndex', configurations.packagedHost,
+        configurations.packagedHost, [
+        'org.yanoproject.plugins.logging': [root: 'org.yanoproject:yano-runtime', manifestVersion: '1.0.0'],
+        'org.yanoproject.x.app-ledger': [root: profile == 'standalone'
+                ? 'org.yanoproject.x:yano-x-appchain-standalone' : 'org.yanoproject.x:yano-x-appchain-cardano',
+                                         manifestVersion: frameworkVersion]
+], pluginIndex)
 tasks.register('resolveHostInputs') {
+    dependsOn generatePluginIndex
     doLast {
         def artifacts = configurations.packagedHost.resolvedConfiguration.resolvedArtifacts.collect { artifact ->
             def id = artifact.moduleVersion.id
             if (id.group == 'com.bloxbean.cardano' && id.name == 'yaci-core' && id.version != yaciCoreVersion) {
                 throw new GradleException("Unexpected Yaci core version: ${id}")
             }
-            if (id.group == 'org.yanoproject' && id.version != expectedHostVersion(id.name)) {
+            if (id.group == 'org.yanoproject' && id.version != yanoVersion) {
                 throw new GradleException("Unexpected host upgrade: ${id}")
             }
             if (id.group == 'org.yanoproject.x' && id.version != frameworkVersion) {
@@ -93,31 +94,10 @@ tasks.register('resolveHostInputs') {
              classifier: artifact.classifier, file: artifact.file.absolutePath,
              sha256: MessageDigest.getInstance('SHA-256').digest(artifact.file.bytes).encodeHex().toString()]
         }.sort { a, b -> "${a.group}:${a.name}:${a.classifier}" <=> "${b.group}:${b.name}:${b.classifier}" }
-        // Preserve the selected Maven graph, including the host-edge X exclusions.
-        def selectedArtifacts = configurations.packagedHost.incoming.artifacts.artifacts
-        def filesByComponent = selectedArtifacts.groupBy { it.id.componentIdentifier }
-        def components = configurations.packagedHost.incoming.resolutionResult.allComponents
-        def artifactClosures = [:]
-        components.each { root ->
-            def pending = new ArrayDeque([root])
-            def visited = [] as Set
-            while (!pending.isEmpty()) {
-                def component = pending.removeFirst()
-                if (!visited.add(component.id)) continue
-                component.dependencies.findAll { it instanceof ResolvedDependencyResult }.each {
-                    pending.addLast(it.selected)
-                }
-            }
-            def closure = visited.collectMany { id ->
-                (filesByComponent[id] ?: []).collect { it.file.name }
-            }.unique().sort()
-            (filesByComponent[root.id] ?: []).each { artifact ->
-                artifactClosures[artifact.file.name] = closure
-            }
-        }
-        def output = file(providers.gradleProperty('report').get())
-        output.parentFile.mkdirs()
-        output.text = JsonOutput.prettyPrint(JsonOutput.toJson([schemaVersion: 1, request: request,
-                                                               artifacts: artifacts, artifactClosures: artifactClosures])) + '\n'
+        def reportFile = report.get()
+        reportFile.parentFile.mkdirs()
+        reportFile.text = JsonOutput.prettyPrint(JsonOutput.toJson([schemaVersion: 1, request: request,
+                                                               artifacts: artifacts,
+                                                               pluginIndex: pluginIndex.get().asFile.path])) + '\n'
     }
 }

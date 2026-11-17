@@ -1,5 +1,5 @@
 dependencies {
-    api rootProject.ext.yanoModule('yano-appchain-core-testkit')
+    api project(':sdk:appchain-testkit')
     api project(':sdk:integration-contracts')
 
     implementation libs.cardano.client.crypto

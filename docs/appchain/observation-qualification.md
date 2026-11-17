@@ -2,8 +2,8 @@
 
 This helper prepares configuration only. It does not launch processes, copy
 chainstate, submit Cardano transactions, bootstrap anchors, or mark any
-qualification gate passed. The full qualification matrix remains in Yano
-ADR-037 and its observation qualification runbook.
+qualification gate passed. The full qualification matrix is in Yano
+ADR-037 and the [observation qualification runbook](observation-qualification-runbook.md).
 
 Use released Yano `0.1.0-pre14` Maven inputs and its matching ordinary JVM
 ZIP to build and verify the Yano X distribution. Extract both into a dedicated artifact area.

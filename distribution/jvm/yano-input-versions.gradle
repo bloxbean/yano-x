@@ -1,34 +1,35 @@
-// Host API is independently versioned; every other Yano artifact still follows
-// the selected host release. Prefer the exact constraint from its matching BOM.
-ext.validateYanoArtifactVersions = { List components, String hostVersion,
-                                    String bomHostApiVersion, String explicitHostApiVersion ->
-    def exact = { String version ->
-        version != null && !version.isBlank() && !version.contains('+')
-                && !(version =~ /[\[\](),]/).find() && !version.startsWith('latest.')
-    }
-    [bomHostApiVersion, explicitHostApiVersion].findAll { it != null }.each { version ->
-        if (!exact(version)) {
-            throw new GradleException("Host API requires an exact version, got '${version}'")
-        }
-    }
-    if (bomHostApiVersion != null && explicitHostApiVersion != null
-            && bomHostApiVersion != explicitHostApiVersion) {
-        throw new GradleException("Explicit Host API ${explicitHostApiVersion} does not match "
-                + "the selected Yano BOM contract ${bomHostApiVersion}")
-    }
-    def expectedHostApi = explicitHostApiVersion ?: bomHostApiVersion
-    if (components.any { it.module == 'yano-host-api' } && expectedHostApi == null) {
-        throw new GradleException('Resolved Host API requires an exact matching BOM constraint or -PhostApiVersion')
-    }
-    if (expectedHostApi != null && !components.any { it.module == 'yano-host-api' }) {
-        throw new GradleException('The selected Host API contract was not resolved')
-    }
-    def mismatched = components.findAll {
-        it.version != (it.module == 'yano-host-api' ? expectedHostApi : hostVersion)
-    }
+// Every Yano module, yano-host-api included, is published at the one Yano version (ADR-064 MD4).
+ext.validateYanoArtifactVersions = { List components, String yanoVersion ->
+    def mismatched = components.findAll { it.version != yanoVersion }
     if (!mismatched.isEmpty()) {
-        throw new GradleException("Resolved Yano artifacts do not match host ${hostVersion} "
-                + "and Host API ${expectedHostApi}: ${mismatched}")
+        throw new GradleException("Resolved Yano artifacts do not match Yano ${yanoVersion}: ${mismatched}")
     }
-    expectedHostApi
+}
+
+// The integrated jar replaces Yano's yano.jar, so it must carry the host's exact Quarkus, Jackson,
+// SLF4J and cardano-client-lib versions (components are [group, module, version] maps; the host's
+// come from the Yano JVM ZIP SBOM). Every module both ship must match, and each family's anchor
+// module must be present in both.
+ext.validateHostLibraryAlignment = { List hostComponents, List shippedComponents ->
+    def aligned = { component ->
+        component.group.startsWith('io.quarkus') || component.group.startsWith('com.fasterxml.jackson')
+                || (component.group == 'org.slf4j' && component.module == 'slf4j-api')
+                || (component.group == 'com.bloxbean.cardano' && component.module.startsWith('cardano-client-'))
+    }
+    def versions = { List components ->
+        components.findAll(aligned).collectEntries { [("${it.group}:${it.module}".toString()): it.version] }
+    }
+    def host = versions(hostComponents)
+    def shipped = versions(shippedComponents)
+    def anchors = ['io.quarkus:quarkus-core', 'com.fasterxml.jackson.core:jackson-databind',
+                   'org.slf4j:slf4j-api', 'com.bloxbean.cardano:cardano-client-core']
+    def missing = anchors.findAll { !host.containsKey(it) || !shipped.containsKey(it) }
+    if (!missing.isEmpty()) {
+        throw new GradleException("Host library alignment anchors are absent: ${missing}")
+    }
+    def mismatched = shipped.findAll { module, version -> host.containsKey(module) && host[module] != version }
+            .collect { module, version -> "${module} ${version} (host ${host[module]})" }
+    if (!mismatched.isEmpty()) {
+        throw new GradleException("Integrated jar library versions differ from the Yano host: ${mismatched.sort()}")
+    }
 }

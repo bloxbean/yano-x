@@ -1,0 +1,8 @@
+description = 'Implementation-neutral native state-proof verification for Yano app chains'
+
+// A plain library: no Quarkus, no node runtime. framework/rest, sdk/client and tooling/devtools consume it.
+dependencies {
+    api project(':framework:api')
+    api libs.cardano.client.mpf
+    api libs.cardano.client.jmt
+}

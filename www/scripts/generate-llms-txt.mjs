@@ -117,6 +117,7 @@ const SECTIONS = [
       'reference/capabilities.md',
       'reference/configuration.md',
       'reference/modules.md',
+      'reference/migration-adr-064.md',
       'reference/shelf.md',
       'reference/glossary.md',
     ],

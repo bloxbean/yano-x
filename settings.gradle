@@ -16,6 +16,8 @@ def yanoXModules = [
         ':framework:core': 'framework/core',
         ':framework:host-adapter': 'framework/host-adapter',
         ':framework:standalone': 'framework/standalone',
+        ':framework:proof-verifier': 'framework/proof-verifier',
+        ':framework:rest': 'framework/rest',
         ':state-machines:stdlib': 'state-machines/stdlib',
         ':state-machines:stdlib-contracts': 'state-machines/stdlib-contracts',
         ':capabilities:authenticated-map-validators': 'capabilities/authenticated-map-validators',
@@ -30,6 +32,7 @@ def yanoXModules = [
         ':capabilities:role-workflow-contracts': 'capabilities/role-workflow-contracts',
         ':capabilities:role-workflow': 'capabilities/role-workflow',
         ':sdk:effects-testkit': 'sdk/effects-testkit',
+        ':sdk:appchain-testkit': 'sdk/appchain-testkit',
         ':sdk:client': 'sdk/client',
         ':sdk:proof-contracts': 'sdk/proof-contracts',
         ':sdk:proof-onchain': 'sdk/proof-onchain',
@@ -61,7 +64,8 @@ def yanoXModules = [
         ':ledgers:eutxo:indexer-jdbc': 'ledgers/eutxo/indexer-jdbc',
         ':tooling:spring-boot-starter': 'tooling/spring-boot-starter',
         ':fixtures:eutxo-e2e': 'fixtures/eutxo-e2e',
-        ':fixtures:governed-recipes': 'fixtures/governed-recipes'
+        ':fixtures:governed-recipes': 'fixtures/governed-recipes',
+        ':fixtures:appchain-plugin-conformance': 'fixtures/appchain-plugin-conformance'
 ]
 
 include 'bom'

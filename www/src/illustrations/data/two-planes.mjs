@@ -149,7 +149,7 @@ export default {
         'committed transitively through a count-bound `effectsRoot`', 'Executed `CHAIN` outcomes re-enter as member-signed `~fx/result` messages',
         '**exactly-once incorporation, at-least-once execution**', 'must be idempotent',
         'yano.app-chain.effects.default-gate: app-final'] },
-    { repo: 'yano', path: 'docs/APP_CHAIN_CONSENSUS_GUIDE.md',
+    { repo: 'yano-x', path: 'docs/APP_CHAIN_CONSENSUS_GUIDE.md',
       anchors: ['`void apply(AppBlockExecutionContext, AppStateWriter, AppEffectEmitter)`',
         'effects only through the `AppEffectEmitter`', 'no wall clock', 'no I/O'] },
   ],

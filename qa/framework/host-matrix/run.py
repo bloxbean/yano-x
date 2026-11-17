@@ -16,6 +16,9 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[2]
 SOURCE = HERE / "src/compat/PackagedHostCluster.java"
 FRAMEWORK_NAMESPACE = "org.yanoproject.x.framework"
+# ADR-064: fixtures compiled against hosts that embedded X are retired; only fixtures
+# prepared against a Host API 1.2 host (Yano never depends on X) qualify.
+FIXTURE_CONTRACT = "host-api-1.2"
 OWNERS = {
     "org/yanoproject/runtime/assembly/YanoAssembly.class": "yano-runtime",
     "org/yanoproject/api/host/HostApi.class": "yano-host-api",
@@ -31,7 +34,7 @@ PROFILE_OWNERS = {
         "org/yanoproject/x/framework/cardano/CardanoAppLedgerPlugin.class": "yano-x-appchain-cardano",
         "org/yanoproject/x/framework/cardano/AppChainSubsystem.class": "yano-x-appchain-cardano",
         "org/yanoproject/x/framework/cardano/AppChainManager.class": "yano-x-appchain-cardano",
-        "org/yanoproject/x/framework/cardano/api/CardanoRuntimeServices.class": "yano-x-appchain-cardano-api",
+        "org/yanoproject/api/CardanoHostServices.class": "yano-cardano-api",
     },
 }
 SPECIAL_RESOURCES = {
@@ -75,7 +78,6 @@ def request(matrix, label, profile="standalone"):
     row["frameworkVersion"] = matrix["frameworkVersion"]
     row["yaciCoreVersion"] = matrix["yaciCoreVersion"]
     row["repositories"] = matrix["repositories"]
-    row.setdefault("foundationVersion", row["hostVersion"])
     return row
 
 
@@ -96,7 +98,7 @@ def resolve(specification, output, timeout):
 def verify_composition(resolved):
     profile = resolved["request"].get("profile", "standalone")
     expected_owners = OWNERS | PROFILE_OWNERS[profile]
-    forbidden = ({"yano-x-appchain-cardano", "yano-x-appchain-anchor-onchain"}
+    forbidden = ({"yano-x-appchain-cardano", "yano-x-appchain-cardano-api", "yano-x-appchain-anchor-onchain"}
                  if profile == "standalone" else {"yano-x-appchain-standalone"})
     owners = {}
     resources = {}
@@ -114,11 +116,9 @@ def verify_composition(resolved):
                     raise RuntimeError(f"Input embeds an aggregate catalog; expected raw thin JAR: {path}")
                 if name.startswith("org/yanoproject/") and name.endswith(".class"):
                     owners.setdefault(name, []).append(artifact)
-                    if artifact["group"] == "org.yanoproject" and (
-                            name.startswith("org/yanoproject/api/appchain/") or
-                            name.startswith("org/yanoproject/x/framework/") or
-                            name.startswith("org/yanoproject/runtime/appchain/")
-                            and not name.startswith("org/yanoproject/runtime/appchain/hostbridge/")):
+                    if artifact["group"] == "org.yanoproject" and name.startswith((
+                            "org/yanoproject/x/", "org/yanoproject/api/appchain/",
+                            "org/yanoproject/runtime/appchain/")):
                         raise RuntimeError(f"Host artifact embeds framework class {name}: {path}")
                 if name in SPECIAL_RESOURCES:
                     resources.setdefault(name, []).append(artifact)
@@ -166,7 +166,7 @@ def prepare(matrix, output, timeout):
                   "profileBaselines": {profile: {"hostIdentity": host_identity(baseline),
                                                   "inputs": baseline["artifacts"]}
                                        for profile, baseline in baselines.items()},
-                  "frameworkNamespace": FRAMEWORK_NAMESPACE,
+                  "frameworkNamespace": FRAMEWORK_NAMESPACE, "fixtureContract": FIXTURE_CONTRACT,
                   "provenance": "Exact supplied Maven artifacts; staged candidates are not claimed as public releases"}
     write_json(output / "provenance.json", provenance)
     shutil.rmtree(classes)
@@ -177,7 +177,6 @@ def package_cell(resolved, fixture, directory, timeout):
     package = directory / "package"
     library = package / "lib"
     library.mkdir(parents=True)
-    jars = []
     for artifact in resolved["artifacts"]:
         source = Path(artifact["file"])
         destination = library / source.name
@@ -186,26 +185,11 @@ def package_cell(resolved, fixture, directory, timeout):
         shutil.copy2(source, destination)
         if digest(destination) != artifact["sha256"]:
             raise RuntimeError(f"Copied input differs: {source}")
-        jars.append(destination)
     shutil.copy2(fixture, package / fixture.name)
+    # The resolver generated the strict ARTIFACT_CLOSURE index with the shared plugin-index script.
     catalog = package / "catalog/META-INF/yano-plugin-index-v1.json"
     catalog.parent.mkdir(parents=True)
-    arguments = directory / "catalog-arguments.txt"
-    catalog_arguments = ["--output", str(catalog), "--strict-bundle-closures"]
-    by_filename = {path.name: path for path in jars}
-    for path in jars:
-        with zipfile.ZipFile(path) as artifact:
-            manifests = [name for name in artifact.namelist()
-                         if name.startswith("META-INF/yano/plugins/") and name.endswith(".json")]
-            for manifest in manifests:
-                bundle_id = json.loads(artifact.read(manifest))["id"]
-                for filename in resolved["artifactClosures"][path.name]:
-                    catalog_arguments.extend(["--bundle-closure", bundle_id, str(by_filename[filename])])
-    catalog_arguments.extend(["--", *map(str, jars)])
-    arguments.write_text("\n".join(catalog_arguments) + "\n")
-    checked(["java", "-cp", os.pathsep.join(map(str, jars)),
-             "org.yanoproject.catalog.PluginIndexGenerator", "--args-file", str(arguments)],
-            directory / "catalog.log", directory, timeout)
+    shutil.copy2(resolved["pluginIndex"], catalog)
     write_json(package / "artifact-inputs.json", resolved)
     archive = directory / "packaged-host.zip"
     with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as target:
@@ -245,9 +229,10 @@ def package_cell(resolved, fixture, directory, timeout):
 def run_matrix(matrix, fixture_directory, output, timeout):
     fixture = fixture_directory / "packaged-host-fixture.jar"
     provenance = json.loads((fixture_directory / "provenance.json").read_text())
-    if provenance.get("frameworkNamespace") != FRAMEWORK_NAMESPACE:
-        raise RuntimeError("Historical old-package fixture: prepare a new namespace-compatible baseline once; "
-                           "do not modify the retained historical fixture")
+    if (provenance.get("frameworkNamespace") != FRAMEWORK_NAMESPACE
+            or provenance.get("fixtureContract") != FIXTURE_CONTRACT):
+        raise RuntimeError("Fixture predates the Host API 1.2 contract (ADR-064): prepare a new baseline once "
+                           "against a Host API 1.2 host")
     if digest(fixture) != provenance["fixtureSha256"] or digest(SOURCE) != provenance["sourceSha256"]:
         raise RuntimeError("Frozen fixture/source differs from explicit preparation provenance")
     report = {"schemaVersion": 1, "kind": "packaged-thin-host-qualification", "passed": False,
@@ -307,6 +292,10 @@ def main():
     matrix = json.loads(args.inputs.read_text())
     if matrix.get("schemaVersion") != 1 or not matrix.get("repositories"):
         parser.error("Expected schemaVersion=1 and explicit Maven repositories")
+    for label in ("baseline", "current"):
+        if set(matrix.get(label, {})) != {"yanoVersion"}:
+            parser.error(f"{label} must select exactly one yanoVersion; every Yano module, Host API included, "
+                         "is published at the one Yano version")
     profiles = matrix.get("profiles", ["standalone"])
     if (not isinstance(profiles, list) or "standalone" not in profiles
             or len(profiles) != len(set(profiles)) or not set(profiles) <= set(PROFILE_OWNERS)):

@@ -25,7 +25,7 @@
     "custom-plugin"
   ],
   "artifacts": [
-    "yano-runtime",
+    "yano-x-appchain-cardano",
     "yano-x-stdlib",
     "yano-x-evidence-registry",
     "yano-x-composite",
@@ -46,7 +46,7 @@
         "java-25"
       ],
       "artifacts": [
-        "yano-runtime",
+        "yano-x-appchain-cardano",
         "yano-x-stdlib",
         "yano-x-evidence-registry",
         "yano-x-composite",

@@ -1,19 +1,19 @@
 package org.yanoproject.x.framework.cardano;
 
+import org.yanoproject.api.CardanoHostServices;
 import org.yanoproject.api.config.RuntimeMode;
 import org.yanoproject.api.config.YanoConfig;
 import org.yanoproject.api.host.HostApi;
 import org.yanoproject.api.plugin.PluginContext;
 import org.yanoproject.x.framework.api.appchain.AppChainConfig;
-import org.yanoproject.x.framework.cardano.AppChainManager;
+import org.yanoproject.x.framework.api.plugin.domain.L1TransactionBuilderService;
 import org.yanoproject.x.framework.cardano.AppChainSubsystem.AnchorFeeParams;
-import org.yanoproject.x.framework.cardano.AppChainSubsystem;
-import org.yanoproject.x.framework.cardano.api.CardanoRuntimeServices;
 import org.yanoproject.x.framework.host.AppLedgerHostPlugin;
 import org.yanoproject.x.framework.runtime.appchain.AppLedgerManager;
 import org.yanoproject.x.framework.runtime.appchain.AppLedgerRuntime;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.OptionalLong;
 
 /** Integrated root preserving legacy executor factories, including in standalone mode. */
@@ -30,8 +30,7 @@ public final class CardanoAppLedgerPlugin extends AppLedgerHostPlugin {
     @Override
     protected void wireChain(AppLedgerRuntime chain, YanoConfig node, PluginContext context) {
         if (node.getMode() == RuntimeMode.APP_LEDGER) return;
-        CardanoRuntimeServices services = requireService(context,
-                CardanoRuntimeServices.SERVICE_KEY, CardanoRuntimeServices.class);
+        CardanoHostServices services = cardano(context);
         AppChainSubsystem cardano = (AppChainSubsystem) chain;
         cardano.wireL1(services.txSubmitter(), services.utxoState());
         cardano.wireL1Chain(services.chain(), services.retainBodies().apply(OptionalLong.of(0)));
@@ -43,11 +42,28 @@ public final class CardanoAppLedgerPlugin extends AppLedgerHostPlugin {
     @Override
     protected AppLedgerManager createManager(List<AppLedgerRuntime> chains, YanoConfig node,
             PluginContext context) {
-        return new AppChainManager(chains.stream().map(AppChainSubsystem.class::cast).toList(),
-                context.logger());
+        List<AppChainSubsystem> cardanoChains = chains.stream().map(AppChainSubsystem.class::cast).toList();
+        if (node.getMode() == RuntimeMode.APP_LEDGER) {
+            return new AppChainManager(cardanoChains, context.logger(), Optional::empty);
+        }
+        CardanoHostServices services = cardano(context);
+        return new AppChainManager(cardanoChains, context.logger(),
+                () -> services.epochSnapshots().get().map(CardanoEpochStateProvider::new));
     }
 
-    private static AnchorFeeParams anchorFees(CardanoRuntimeServices services, PluginContext context) {
+    @Override
+    protected L1TransactionBuilderService l1Transactions(YanoConfig node, PluginContext context) {
+        if (node.getMode() == RuntimeMode.APP_LEDGER) return L1TransactionBuilderService.unavailable();
+        CardanoHostServices services = cardano(context);
+        return new DefaultL1TransactionBuilderService(services.utxoState(), services.pricingParameters(),
+                () -> services.chain().getLocalTip() == null ? 0 : services.chain().getLocalTip().getSlot());
+    }
+
+    private static CardanoHostServices cardano(PluginContext context) {
+        return requireService(context, CardanoHostServices.SERVICE_KEY, CardanoHostServices.class);
+    }
+
+    private static AnchorFeeParams anchorFees(CardanoHostServices services, PluginContext context) {
         try {
             var params = services.protocolParameters().get();
             if (params != null && params.minFeeA() != null && params.minFeeB() != null) {

@@ -1,7 +1,7 @@
 package org.yanoproject.x.showcase;
 
 import org.junit.jupiter.api.Test;
-import org.yanoproject.appchain.testkit.AppChainTestProfiles;
+import org.yanoproject.x.testkit.AppChainTestProfiles;
 import org.yanoproject.x.composite.CompositeStateMachine;
 import org.yanoproject.x.framework.api.appchain.AppChainConsensusProfile;
 import org.yanoproject.x.framework.api.appchain.AppStateMachineContext;

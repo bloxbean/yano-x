@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 1,
+  "owner": "org.yanoproject.x.framework.api",
+  "apiPackages": ["org.yanoproject.x.framework.api"],
+  "kinds": [
+    {
+      "key": "app-state-machine",
+      "serviceInterface": "org.yanoproject.x.framework.api.appchain.AppStateMachineProvider",
+      "manifestRequired": false,
+      "trustTier": "CONSENSUS",
+      "reservedSystemNames": ["ordered-log"]
+    },
+    {
+      "key": "authenticated-map-validator",
+      "serviceInterface": "org.yanoproject.x.framework.api.appchain.authmap.AuthenticatedMapValueValidatorFactory",
+      "manifestRequired": true,
+      "trustTier": "CONSENSUS"
+    },
+    {
+      "key": "sequencer-mode",
+      "serviceInterface": "org.yanoproject.x.framework.api.appchain.sequencer.SequencerModeProvider",
+      "manifestRequired": false,
+      "trustTier": "CONSENSUS",
+      "reservedSystemNames": ["fixed", "rotating"]
+    },
+    {
+      "key": "l1-observer",
+      "serviceInterface": "org.yanoproject.x.framework.api.appchain.l1view.L1ObserverProvider",
+      "manifestRequired": false,
+      "trustTier": "CONSENSUS",
+      "reservedSystemNames": ["metadata-label", "address-deposit"]
+    },
+    {
+      "key": "l1-epoch-observer",
+      "serviceInterface": "org.yanoproject.x.framework.api.appchain.l1view.L1EpochObserverProvider",
+      "manifestRequired": false,
+      "trustTier": "CONSENSUS"
+    },
+    {
+      "key": "observation-provider",
+      "serviceInterface": "org.yanoproject.x.framework.api.appchain.observation.ObservationProviderFactory",
+      "manifestRequired": false,
+      "trustTier": "PRIVILEGED_LOCAL"
+    },
+    {
+      "key": "signer-provider",
+      "serviceInterface": "org.yanoproject.x.framework.api.appchain.signer.SignerProviderFactory",
+      "manifestRequired": false,
+      "trustTier": "PRIVILEGED_LOCAL",
+      "forbiddenNameChars": ":"
+    },
+    {
+      "key": "finalized-sink",
+      "serviceInterface": "org.yanoproject.x.framework.api.appchain.sink.FinalizedStreamSinkFactory",
+      "manifestRequired": false,
+      "trustTier": "AUXILIARY_LOCAL",
+      "forbiddenNameChars": "."
+    },
+    {
+      "key": "domain-api",
+      "serviceInterface": "org.yanoproject.x.framework.api.plugin.domain.DomainApiProvider",
+      "manifestRequired": true,
+      "trustTier": "PRIVILEGED_LOCAL",
+      "maxPerBundle": 1,
+      "nameIsBundleId": true,
+      "operationsTracked": true
+    },
+    {
+      "key": "local-read-model",
+      "serviceInterface": "org.yanoproject.x.framework.api.plugin.domain.LocalReadModelProvider",
+      "manifestRequired": true,
+      "trustTier": "PRIVILEGED_LOCAL"
+    }
+  ]
+}

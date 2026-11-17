@@ -91,7 +91,7 @@ artifact identity and that every runtime plugin has a bundle publication.
 | `:ledgers:eutxo:bridge-cardano` | `yano-x-eutxo-bridge-cardano` | `org.yanoproject.x.eutxo.bridge.cardano` | [ledgers/eutxo/bridge-cardano](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/bridge-cardano) |
 | `:ledgers:eutxo:indexer-jdbc` | `yano-x-eutxo-indexer-jdbc` | `org.yanoproject.x.eutxo.indexer` | [ledgers/eutxo/indexer-jdbc](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/indexer-jdbc) |
 
-### `library` (14)
+### `library` (23)
 
 | Gradle module | Artifact id | Plugin bundle id | Source |
 |---|---|---|---|
@@ -109,6 +109,15 @@ artifact identity and that every runtime plugin has a bundle publication.
 | `:ledgers:eutxo:client` | `yano-x-eutxo-client` | — | [ledgers/eutxo/client](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/client) |
 | `:ledgers:eutxo:indexer-core` | `yano-x-eutxo-indexer-core` | — | [ledgers/eutxo/indexer-core](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/indexer-core) |
 | `:tooling:spring-boot-starter` | `yano-x-spring-boot-starter` | — | [tooling/spring-boot-starter](https://github.com/bloxbean/yano-x/blob/main/tooling/spring-boot-starter) |
+| `:framework:api` | `yano-x-appchain-api` | — | [framework/api](https://github.com/bloxbean/yano-x/blob/main/framework/api) |
+| `:framework:config` | `yano-x-appchain-config` | — | [framework/config](https://github.com/bloxbean/yano-x/blob/main/framework/config) |
+| `:framework:core` | `yano-x-appchain-core` | — | [framework/core](https://github.com/bloxbean/yano-x/blob/main/framework/core) |
+| `:framework:cardano-api` | `yano-x-appchain-cardano-api` | — | [framework/cardano-api](https://github.com/bloxbean/yano-x/blob/main/framework/cardano-api) |
+| `:framework:cardano` | `yano-x-appchain-cardano` | — | [framework/cardano](https://github.com/bloxbean/yano-x/blob/main/framework/cardano) |
+| `:framework:host-adapter` | `yano-x-appchain-host-adapter` | — | [framework/host-adapter](https://github.com/bloxbean/yano-x/blob/main/framework/host-adapter) |
+| `:framework:standalone` | `yano-x-appchain-standalone` | — | [framework/standalone](https://github.com/bloxbean/yano-x/blob/main/framework/standalone) |
+| `:framework:proof-verifier` | `yano-x-appchain-proof-verifier` | — | [framework/proof-verifier](https://github.com/bloxbean/yano-x/blob/main/framework/proof-verifier) |
+| `:framework:rest` | `yano-x-appchain-rest` | — | [framework/rest](https://github.com/bloxbean/yano-x/blob/main/framework/rest) |
 
 ### `application` (3)
 
@@ -129,20 +138,22 @@ artifact identity and that every runtime plugin has a bundle publication.
 | `:tooling:studio` | `yano-x-studio` | — | [tooling/studio](https://github.com/bloxbean/yano-x/blob/main/tooling/studio) |
 | `:products:cardano-history:cli` | `yano-x-cardano-history-cli` | — | [products/cardano-history/cli](https://github.com/bloxbean/yano-x/blob/main/products/cardano-history/cli) |
 
-### `test-library` (2)
+### `test-library` (3)
 
 | Gradle module | Artifact id | Plugin bundle id | Source |
 |---|---|---|---|
 | `:sdk:effects-testkit` | `yano-x-effects-testkit` | — | [sdk/effects-testkit](https://github.com/bloxbean/yano-x/blob/main/sdk/effects-testkit) |
+| `:sdk:appchain-testkit` | `yano-x-appchain-testkit` | — | [sdk/appchain-testkit](https://github.com/bloxbean/yano-x/blob/main/sdk/appchain-testkit) |
 | `:ledgers:eutxo:testkit` | `yano-x-eutxo-testkit` | — | [ledgers/eutxo/testkit](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/testkit) |
 
-### `onchain-artifact` (3)
+### `onchain-artifact` (4)
 
 | Gradle module | Artifact id | Plugin bundle id | Source |
 |---|---|---|---|
 | `:sdk:proof-onchain` | `yano-x-proof-onchain` | — | [sdk/proof-onchain](https://github.com/bloxbean/yano-x/blob/main/sdk/proof-onchain) |
 | `:products:cardano-history:onchain` | `yano-x-cardano-history-onchain` | — | [products/cardano-history/onchain](https://github.com/bloxbean/yano-x/blob/main/products/cardano-history/onchain) |
 | `:ledgers:eutxo:bridge-onchain` | `yano-x-eutxo-bridge-onchain` | — | [ledgers/eutxo/bridge-onchain](https://github.com/bloxbean/yano-x/blob/main/ledgers/eutxo/bridge-onchain) |
+| `:framework:cardano-onchain` | `yano-x-appchain-anchor-onchain` | — | [framework/cardano-onchain](https://github.com/bloxbean/yano-x/blob/main/framework/cardano-onchain) |
 
 ### `web-application` (1)
 
@@ -150,12 +161,13 @@ artifact identity and that every runtime plugin has a bundle publication.
 |---|---|---|---|
 | `:products:eutxo:ui` | `yano-x-eutxo-ui` | — | [products/eutxo/ui](https://github.com/bloxbean/yano-x/blob/main/products/eutxo/ui) |
 
-### `test-fixture` (2)
+### `test-fixture` (3)
 
 | Gradle module | Artifact id | Plugin bundle id | Source |
 |---|---|---|---|
 | `:fixtures:eutxo-e2e` | `yano-x-eutxo-e2e` | — | [fixtures/eutxo-e2e](https://github.com/bloxbean/yano-x/blob/main/fixtures/eutxo-e2e) |
 | `:fixtures:governed-recipes` | `yano-x-governed-recipes` | — | [fixtures/governed-recipes](https://github.com/bloxbean/yano-x/blob/main/fixtures/governed-recipes) |
+| `:fixtures:appchain-plugin-conformance` | `yano-x-appchain-plugin-conformance` | — | [fixtures/appchain-plugin-conformance](https://github.com/bloxbean/yano-x/blob/main/fixtures/appchain-plugin-conformance) |
 
 <!-- catalog:modules-end -->
 
@@ -175,7 +187,7 @@ dependencies {
     implementation 'org.yanoproject.x:yano-x-evidence-contracts'
 
     // Tests.
-    testImplementation 'org.yanoproject:yano-appchain-core-testkit'
+    testImplementation 'org.yanoproject.x:yano-x-appchain-testkit'
     testImplementation 'org.yanoproject.x:yano-x-effects-testkit'
 }
 ```

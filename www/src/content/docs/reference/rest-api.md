@@ -29,7 +29,9 @@ OpenAPI document, and these endpoints have no alias at all: `query`,
 `identity`, `admin/members*`, `admin/threshold`, `proof-subjects/*`,
 `snapshots/*`, `admin/snapshots/*`, and `observations/*`. **Use
 `chains/{chainId}` in every integration.** Swagger UI at `/q/swagger-ui/`
-documents the chain-scoped surface.
+documents the chain-scoped surface; the app-chain OpenAPI group is
+`/q/openapi-app-chain` (`/app-chain/chains/{chainId}/...` and
+`/plugins/{bundleId}/...`).
 
 ## Access
 
@@ -217,11 +219,12 @@ Prefer a typed client over raw HTTP where one exists:
 | `yano-x-client` | REST, SSE, and client-side proof verification. |
 | `yano-x-composite-client` | Governed-profile finality, one-root MPF, epoch-chain, and authorization-policy verification. |
 | `yano-x-spring-boot-starter` | Spring Boot auto-configuration for the client SDK. |
-| `yano-appchain-core-testkit` | JUnit 5 `@AppChainCluster` embedded clusters. |
+| `yano-x-appchain-testkit` | JUnit 5 `@AppChainCluster` embedded clusters. |
 
 ## Deeper reading
 
 The exhaustive API, configuration, security, and operations reference is
 [section 4 of the app ledger user guide](https://github.com/bloxbean/yano-x/blob/main/docs/APP_CHAIN_USER_GUIDE.md).
-The host's resource class is the final word on paths and access:
-[`AppChainResource.java`](https://github.com/bloxbean/yano/blob/main/app/src/main/java/org/yanoproject/app/api/appchain/AppChainResource.java).
+The `AppChainResource` class in
+[`framework/rest`](https://github.com/bloxbean/yano-x/tree/main/framework/rest)
+is the final word on paths and access.

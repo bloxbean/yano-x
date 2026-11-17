@@ -1,13 +1,12 @@
 import groovy.json.JsonOutput
 import org.gradle.api.artifacts.result.UnresolvedDependencyResult
 
-// Resolve real Maven metadata, including a retained Host API whose foundation
-// dependency sorts above the newer host's commit-qualified version. Keep these
-// synthetic coordinates exclusive to the task's local fixture repository.
+// Resolve real Maven metadata, including a transitive Yano dependency whose version
+// sorts above the host's commit-qualified version. Keep these synthetic coordinates
+// exclusive to the task's local fixture repository.
 def resolutionFixtureRepository = layout.buildDirectory.dir('tmp/yano-version-contract/maven')
 def resolutionHost = '0.0.0-resolution-fixture-1def'
-def resolutionFoundation = '0.0.0-resolution-fixture-272'
-def resolutionHostApi = '1.0.0-resolution-fixture-api'
+def resolutionTransitive = '0.0.0-resolution-fixture-272'
 def resolutionRepository = repositories.maven {
     name = 'yanoVersionContractFixture'
     url = resolutionFixtureRepository
@@ -18,19 +17,19 @@ repositories.exclusiveContent {
     filter {
         includeVersion 'org.yanoproject', 'yano-bom', resolutionHost
         includeVersion 'org.yanoproject', 'yano-node-api', resolutionHost
-        includeVersion 'org.yanoproject', 'yano-node-api', resolutionFoundation
-        includeVersion 'org.yanoproject', 'yano-host-api', resolutionHostApi
+        includeVersion 'org.yanoproject', 'yano-node-api', resolutionTransitive
+        includeVersion 'org.yanoproject', 'yano-host-api', resolutionHost
     }
 }
 
 tasks.register('verifyYanoInputVersionContract') {
     group = 'verification'
-    description = 'Regress exact host alignment and independently versioned Host API validation.'
+    description = 'Regress exact alignment of every resolved Yano artifact to the one Yano version.'
     doLast {
         def verify = project.ext.validateYanoArtifactVersions
         def aligned = [[module: 'yano-runtime', version: '0.1.0-host'],
                        [module: 'yano-node-api', version: '0.1.0-host'],
-                       [module: 'yano-host-api', version: '1.0.0-api']]
+                       [module: 'yano-host-api', version: '0.1.0-host']]
         def rejects = { String reason, Closure operation ->
             try {
                 operation.call()
@@ -40,26 +39,15 @@ tasks.register('verifyYanoInputVersionContract') {
             }
             throw new AssertionError("Expected rejection: ${reason}")
         }
-        assert verify(aligned, '0.1.0-host', '1.0.0-api', null) == '1.0.0-api'
-        assert verify(aligned, '0.1.0-host', null, '1.0.0-api') == '1.0.0-api'
-        assert verify(aligned, '0.1.0-host', '1.0.0-api', '1.0.0-api') == '1.0.0-api'
-        rejects('yano-host-api') { verify(aligned, '0.1.0-host', '1.0.1-api', null) }
+        verify(aligned, '0.1.0-host')
+        // Host API has no version train of its own (ADR-064 MD4).
+        rejects('yano-host-api') {
+            verify(aligned.collect { it.module == 'yano-host-api' ? it + [version: '1.2.0-api'] : it },
+                    '0.1.0-host')
+        }
         rejects('yano-runtime') {
-            verify(aligned + [[module: 'yano-runtime', version: '0.2.0-other']],
-                    '0.1.0-host', '1.0.0-api', null)
+            verify(aligned + [[module: 'yano-runtime', version: '0.2.0-other']], '0.1.0-host')
         }
-        rejects('does not match the selected Yano BOM') {
-            verify(aligned, '0.1.0-host', '1.0.0-api', '1.1.0-api')
-        }
-        rejects('exact matching BOM constraint') { verify(aligned, '0.1.0-host', null, null) }
-        ['1.+', '[1,2)', 'latest.release', ''].each { dynamic ->
-            rejects('exact version') { verify(aligned, '0.1.0-host', dynamic, null) }
-        }
-        rejects('Host API contract was not resolved') {
-            verify(aligned.findAll { it.module != 'yano-host-api' }, '0.1.0-host', '1.0.0-api', null)
-        }
-        // Existing pre-Host-API distributions retain their exact host-only contract.
-        assert verify(aligned.findAll { it.module != 'yano-host-api' }, '0.1.0-host', null, null) == null
         def repository = resolutionFixtureRepository.get().asFile
         def dependencyXml = { String artifact, String version ->
             "<dependency><groupId>org.yanoproject</groupId><artifactId>${artifact}</artifactId>" +
@@ -73,12 +61,12 @@ tasks.register('verifyYanoInputVersionContract') {
                     "<packaging>${packaging}</packaging>${body}</project>"
         }
         publishPom('yano-node-api', resolutionHost, 'jar', '')
-        publishPom('yano-node-api', resolutionFoundation, 'jar', '')
-        publishPom('yano-host-api', resolutionHostApi, 'jar', '<dependencies>' +
-                dependencyXml('yano-node-api', resolutionFoundation) + '</dependencies>')
+        publishPom('yano-node-api', resolutionTransitive, 'jar', '')
+        publishPom('yano-host-api', resolutionHost, 'jar', '<dependencies>' +
+                dependencyXml('yano-node-api', resolutionTransitive) + '</dependencies>')
         publishPom('yano-bom', resolutionHost, 'pom', '<dependencyManagement><dependencies>' +
                 dependencyXml('yano-node-api', resolutionHost) +
-                dependencyXml('yano-host-api', resolutionHostApi) + '</dependencies></dependencyManagement>')
+                dependencyXml('yano-host-api', resolutionHost) + '</dependencies></dependencyManagement>')
         // The published host BOM carries Gradle module metadata. A base-plugin
         // project does not derive platform variants from a bare Maven POM.
         def bomMetadata = new File(repository,
@@ -92,11 +80,11 @@ tasks.register('verifyYanoInputVersionContract') {
                                     [group: 'org.yanoproject', module: 'yano-node-api',
                                      version: [requires: resolutionHost]],
                                     [group: 'org.yanoproject', module: 'yano-host-api',
-                                     version: [requires: resolutionHostApi]]]]]])
+                                     version: [requires: resolutionHost]]]]]])
         def resolve = { platformDependency ->
             def configuration = configurations.detachedConfiguration(platformDependency,
                     dependencies.create("org.yanoproject:yano-node-api:${resolutionHost}"),
-                    dependencies.create("org.yanoproject:yano-host-api:${resolutionHostApi}"))
+                    dependencies.create("org.yanoproject:yano-host-api:${resolutionHost}"))
             def result = configuration.incoming.resolutionResult
             result.allDependencies.each { dependency ->
                 if (dependency instanceof UnresolvedDependencyResult) {
@@ -108,8 +96,8 @@ tasks.register('verifyYanoInputVersionContract') {
             }
         }
         def soft = resolve(dependencies.platform("org.yanoproject:yano-bom:${resolutionHost}"))
-        assert soft.find { it.module == 'yano-node-api' }.version == resolutionFoundation
-        rejects('yano-node-api') { verify(soft, resolutionHost, resolutionHostApi, null) }
+        assert soft.find { it.module == 'yano-node-api' }.version == resolutionTransitive
+        rejects('yano-node-api') { verify(soft, resolutionHost) }
 
         // Copy the actual distribution dependency, so reverting enforcedPlatform
         // to platform breaks this regression instead of leaving a self-fulfilling test.
@@ -119,8 +107,32 @@ tasks.register('verifyYanoInputVersionContract') {
         selectedPlatform.version { constraint -> constraint.strictly(resolutionHost) }
         def exact = resolve(selectedPlatform)
         assert exact.find { it.module == 'yano-node-api' }.version == resolutionHost
-        assert verify(exact, resolutionHost, resolutionHostApi, null) == resolutionHostApi
-        logger.lifecycle('Passed real Maven resolution: retained foundation cannot override the selected host BOM')
-        logger.lifecycle('Passed host/Host API version-contract regressions')
+        verify(exact, resolutionHost)
+        logger.lifecycle('Passed real Maven resolution: a transitive Yano version cannot override the selected BOM')
+        logger.lifecycle('Passed single Yano version-contract regressions')
+
+        def align = project.ext.validateHostLibraryAlignment
+        def hostLibraries = [[group: 'io.quarkus', module: 'quarkus-core', version: '3.0.0'],
+                             [group: 'io.quarkus', module: 'quarkus-arc', version: '3.0.0'],
+                             [group: 'com.fasterxml.jackson.core', module: 'jackson-databind', version: '2.0.1'],
+                             [group: 'org.slf4j', module: 'slf4j-api', version: '2.0.0'],
+                             [group: 'com.bloxbean.cardano', module: 'cardano-client-core', version: '0.8.0']]
+        // Modules only one side ships are not compared; unrelated groups are ignored.
+        align(hostLibraries, hostLibraries + [[group: 'com.fasterxml.jackson.dataformat',
+                                               module: 'jackson-dataformat-xml', version: '2.0.1'],
+                                              [group: 'org.example', module: 'other', version: '9'],
+                                              [group: 'org.slf4j', module: 'slf4j-jdk14', version: '9']])
+        [['io.quarkus', 'quarkus-arc'], ['com.fasterxml.jackson.core', 'jackson-databind'],
+         ['org.slf4j', 'slf4j-api'], ['com.bloxbean.cardano', 'cardano-client-core']].each { group, module ->
+            rejects("${group}:${module} 0.0.0-drift") {
+                align(hostLibraries, hostLibraries.collect {
+                    it.group == group && it.module == module ? it + [version: '0.0.0-drift'] : it
+                })
+            }
+        }
+        rejects('anchors are absent: [org.slf4j:slf4j-api]') {
+            align(hostLibraries.findAll { it.module != 'slf4j-api' }, hostLibraries)
+        }
+        logger.lifecycle('Passed host library alignment regressions')
     }
 }

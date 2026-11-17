@@ -5,7 +5,7 @@ import com.bloxbean.cardano.client.crypto.config.CryptoConfiguration;
 import com.bloxbean.cardano.vds.core.api.NodeStore;
 import com.bloxbean.cardano.vds.jmt.JmtProfile;
 import com.bloxbean.cardano.vds.mpf.MpfTrie;
-import org.yanoproject.appchain.proof.MpfProofWirePreflight;
+import org.yanoproject.x.framework.proof.MpfProofWirePreflight;
 import org.yanoproject.x.framework.api.appchain.AppAnchorCommitment;
 import org.yanoproject.x.framework.api.appchain.AppBlock;
 import org.yanoproject.x.framework.api.appchain.AppBlockHeader;

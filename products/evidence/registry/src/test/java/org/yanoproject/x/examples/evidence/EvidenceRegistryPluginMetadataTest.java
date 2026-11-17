@@ -2,7 +2,7 @@ package org.yanoproject.x.examples.evidence;
 
 import org.junit.jupiter.api.Test;
 import org.yanoproject.catalog.BundleManifestParser;
-import org.yanoproject.catalog.ContributionKind;
+import org.yanoproject.x.testkit.AppChainTestKinds;
 import org.yanoproject.x.framework.api.appchain.AppStateMachineProvider;
 import org.yanoproject.x.framework.api.plugin.domain.DomainApiProvider;
 
@@ -34,17 +34,17 @@ class EvidenceRegistryPluginMetadataTest {
 
         try (InputStream input = getClass().getClassLoader().getResourceAsStream(MANIFEST)) {
             assertThat(input).isNotNull();
-            var manifest = new BundleManifestParser().parse(MANIFEST, input);
+            var manifest = new BundleManifestParser(AppChainTestKinds.classPathRegistry()).parse(MANIFEST, input);
             assertThat(manifest.id()).isEqualTo(EvidenceRegistryDomainApiProvider.BUNDLE_ID);
             assertThat(manifest.dependencies()).isEmpty();
             assertThat(manifest.contributions()).hasSize(2);
             assertThat(manifest.contributions()).anySatisfy(contribution -> {
-                assertThat(contribution.kind()).isEqualTo(ContributionKind.APP_STATE_MACHINE);
+                assertThat(contribution.kind().manifestKey()).isEqualTo("app-state-machine");
                 assertThat(contribution.name()).isEqualTo(EvidenceContract.STATE_MACHINE_ID);
                 assertThat(contribution.provider()).isEqualTo(
                         EvidenceRegistryStateMachineProvider.class.getName());
             }).anySatisfy(contribution -> {
-                assertThat(contribution.kind()).isEqualTo(ContributionKind.DOMAIN_API);
+                assertThat(contribution.kind().manifestKey()).isEqualTo("domain-api");
                 assertThat(contribution.name())
                         .isEqualTo(EvidenceRegistryDomainApiProvider.BUNDLE_ID);
                 assertThat(contribution.provider()).isEqualTo(

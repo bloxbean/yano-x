@@ -44,9 +44,9 @@ tasks.register('verifyEutxoZkDependencyPins') {
     doLast {
         def expectedZeroj = libs.versions.zeroj.get()
         def expectedJulc = libs.versions.julc.get()
-        if (expectedZeroj != '0.1.0-pre10') {
+        if (expectedZeroj != '0.1.0-pre13') {
             throw new GradleException(
-                    "ADR-UTXO-001 Phase C requires ZeroJ 0.1.0-pre10; found ${expectedZeroj}")
+                    "ADR-UTXO-001 Phase C requires ZeroJ 0.1.0-pre13; found ${expectedZeroj}")
         }
         def modules = [
                 project(':ledgers:eutxo-zk:zeroj'),

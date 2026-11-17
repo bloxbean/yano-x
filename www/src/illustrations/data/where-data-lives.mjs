@@ -112,7 +112,7 @@ export default {
       anchors: ['local.put("yano.storage.path", data(node, "chainstate"));',
         'local.put("yano.app-chain.storage.path", data(node, "appchain-chainstate"));',
         'local.put("yano.app-chain.indexer.storage.path", data(node, "appchain-indexers"));'] },
-    { repo: 'yano', path: 'docs/APP_CHAIN_CONSENSUS_GUIDE.md',
+    { repo: 'yano-x', path: 'docs/APP_CHAIN_CONSENSUS_GUIDE.md',
       anchors: ['The state machine and framework-authenticated keys share the trie.',
         'all in RocksDB CFs *outside* the state commitment', 'One atomic batch per block.'] },
     { repo: 'yano-x', path: 'ledgers/eutxo/indexer-core/src/main/java/org/yanoproject/x/eutxo/indexer/EutxoIndexCoordinator.java',

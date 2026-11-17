@@ -2,7 +2,7 @@ package org.yanoproject.x.history;
 
 import org.junit.jupiter.api.Test;
 import org.yanoproject.catalog.BundleManifestParser;
-import org.yanoproject.catalog.ContributionKind;
+import org.yanoproject.x.testkit.AppChainTestKinds;
 import org.yanoproject.x.framework.api.appchain.AppStateMachineProvider;
 import org.yanoproject.x.framework.api.plugin.domain.DomainApiProvider;
 
@@ -26,12 +26,12 @@ class CardanoHistoryPluginMetadataTest {
         String path = "META-INF/yano/plugins/" + CardanoHistoryProduct.BUNDLE_ID + ".json";
         try (InputStream input = getClass().getClassLoader().getResourceAsStream(path)) {
             assertThat(input).isNotNull();
-            var manifest = new BundleManifestParser().parse(path, input);
+            var manifest = new BundleManifestParser(AppChainTestKinds.classPathRegistry()).parse(path, input);
             assertThat(manifest.id()).isEqualTo(CardanoHistoryProduct.BUNDLE_ID);
-            assertThat(manifest.contributions()).extracting(contribution -> contribution.kind())
+            assertThat(manifest.contributions()).extracting(contribution -> contribution.kind().manifestKey())
                     .containsExactlyInAnyOrder(
-                            ContributionKind.APP_STATE_MACHINE,
-                            ContributionKind.DOMAIN_API);
+                            "app-state-machine",
+                            "domain-api");
             assertThat(manifest.contributions()).extracting(contribution -> contribution.name())
                     .containsExactlyInAnyOrder(
                             CardanoHistoryProduct.STATE_MACHINE_ID,

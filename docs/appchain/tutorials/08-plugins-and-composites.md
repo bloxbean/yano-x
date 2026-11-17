@@ -398,6 +398,6 @@ only makes the change explicit.
 - [Composite implementation guide](https://github.com/bloxbean/yano-x/blob/main/composition/runtime/README.md), for a
   Java composite
 - [Plugin template scaffold](https://github.com/bloxbean/yano-x/tree/main/scaffolds/plugin-template)
-- [Yano core testkit](https://github.com/bloxbean/yano/tree/main/appchain/appchain-testkit)
-- Yano's [plugin query and domain API guide](https://github.com/bloxbean/yano/blob/main/docs/APP_CHAIN_PLUGIN_QUERY_AND_DOMAIN_API.md)
+- [App-chain testkit](../../../sdk/appchain-testkit)
+- The [plugin query and domain API guide](../../APP_CHAIN_PLUGIN_QUERY_AND_DOMAIN_API.md)
   and [plugin operations guide](https://github.com/bloxbean/yano/blob/main/docs/PLUGIN_OPERATIONS.md)

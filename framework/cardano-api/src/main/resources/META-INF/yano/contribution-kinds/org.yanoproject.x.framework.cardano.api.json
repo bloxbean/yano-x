@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "owner": "org.yanoproject.x.framework.cardano.api",
+  "apiPackages": ["org.yanoproject.x.framework.cardano.api"],
+  "kinds": [
+    {
+      "key": "effect-executor",
+      "serviceInterface": "org.yanoproject.x.framework.cardano.api.effects.AppEffectExecutorFactory",
+      "manifestRequired": false,
+      "trustTier": "PRIVILEGED_LOCAL",
+      "forbiddenNameChars": ".",
+      "reservedSystemNames": ["webhook"]
+    }
+  ]
+}

@@ -6,7 +6,7 @@ dependencies {
     api project(':framework:cardano-api')
     implementation project(':framework:host-adapter')
     // The Cardano adapter exposes Host API types in its protected factory hooks.
-    api "org.yanoproject:yano-host-api:${providers.gradleProperty('hostApiVersion').get()}"
+    api rootProject.ext.yanoModule('yano-host-api')
 
     implementation libs.cardano.client.core
     implementation libs.cardano.client.quicktx
@@ -22,6 +22,8 @@ dependencies {
     }
     runtimeOnly project(':framework:cardano-onchain')
     testImplementation project(':framework:config')
+    // Moved runtime app-chain tests build MPF tries directly.
+    testImplementation libs.cardano.client.mpf
 }
 
 tasks.named('processResources') {
@@ -33,7 +35,16 @@ tasks.named('processResources') {
 // Exercises Cardano delivery against the real selected host's chain reader and
 // block builder; kept out of foundation-only frameworkCheck and unit tests.
 dependencies {
-    integrationTestImplementation "org.yanoproject:yano-runtime:${providers.gradleProperty('yanoVersion').get()}"
+    integrationTestImplementation rootProject.ext.yanoModule('yano-runtime')
     integrationTestImplementation testFixtures(project(':framework:core'))
+    // Governed-membership topic proofs are checked with the native verifier.
+    integrationTestImplementation project(':framework:proof-verifier')
+    // Shared runtime test helpers (state-commitment identities).
+    integrationTestImplementation sourceSets.test.output
 }
 tasks.named('check') { dependsOn tasks.named('integrationTest') }
+// The host catalog indexes the embedded application-ledger root as one artifact (manifest plus
+// classes), exactly as a distribution ships it, so run against the module jar.
+tasks.named('integrationTest', Test) {
+    classpath = files(tasks.named('jar')) + classpath.filter { !(it in sourceSets.main.output.files) }
+}

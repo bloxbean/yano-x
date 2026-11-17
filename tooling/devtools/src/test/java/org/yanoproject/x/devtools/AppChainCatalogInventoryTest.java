@@ -41,7 +41,9 @@ class AppChainCatalogInventoryTest {
             }
             String expected = "runtime-plugin".equals(declared.path("publicationType").asText())
                     ? declared.path("pluginBundleId").asText() : null;
-            if (expected != null ? !expected.equals(bundleId) : !bundleId.startsWith("library:")) {
+            // A library composed into the integrated yano.jar (the X framework) is built in.
+            if (expected != null ? !expected.equals(bundleId)
+                    : !bundleId.startsWith("library:") && !bundleId.equals("builtin:" + id)) {
                 mismatches.add(id + " names " + bundleId + ", inventory says "
                         + (expected == null ? "a library" : expected));
             }

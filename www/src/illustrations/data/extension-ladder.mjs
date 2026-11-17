@@ -189,7 +189,7 @@ export default {
     { repo: 'yano-x', path: 'framework/api/src/main/java/org/yanoproject/x/framework/api/appchain/sequencer/SequencerMode.java',
       anchors: ['who may propose now, and whose proposals', 'It can never weaken finality',
         'All members of a chain must run the same mode id (fail-closed).'] },
-    { repo: 'yano', path: 'docs/APP_CHAIN_CONSENSUS_GUIDE.md',
+    { repo: 'yano-x', path: 'docs/APP_CHAIN_CONSENSUS_GUIDE.md',
       anchors: ['every `~l1/*` observation message re-derives from the node\'s own L1',
         'commits genesis, membership, quorum, and consensus/observer profiles'] },
     { repo: 'yano-x', path: 'framework/api/src/main/java/org/yanoproject/x/framework/api/appchain/AppStateMachine.java',

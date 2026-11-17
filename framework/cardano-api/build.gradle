@@ -1,7 +1,7 @@
 description = 'Optional Cardano application-ledger public contracts'
 dependencies {
     api project(':framework:api')
-    api "org.yanoproject:yano-cardano-api:${providers.gradleProperty('nodeApiVersion').get()}"
+    api rootProject.ext.yanoModule('yano-cardano-api')
     implementation libs.cardano.client.core
     implementation libs.jackson.databind
     implementation libs.jackson.dataformat.cbor

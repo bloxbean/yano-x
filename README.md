@@ -2,7 +2,11 @@
 
 [![snapshot](https://img.shields.io/maven-metadata/v?metadataUrl=https%3A%2F%2Frepo.bloxbean.org%2Fmaven%2Fsnapshots%2Forg%2Fyanoproject%2Fx%2Fyano-x-client%2Fmaven-metadata.xml&strategy=latestProperty&label=snapshot)](#use-as-a-library)
 
-Yano X is the JVM extension and application ecosystem for Yano.
+Yano X is the JVM home of Yano app chains: the application-ledger framework,
+its REST API and console, extensions, products and the integrated JVM
+distribution. Yano itself is a Cardano node and generic plugin host with no
+application-ledger code; the dependency runs one way, `yano-x -> yano`
+([migration notes](docs/appchain/MIGRATION-ADR-064.md)).
 
 Start with the [local showcase](docs/appchain/deployment/quickstart.md),
 [configure your own application](docs/appchain/deployment/configure.md), or

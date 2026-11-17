@@ -4,6 +4,7 @@ import java.util.zip.ZipFile
 
 def requestedYanoVersion = providers.gradleProperty('yanoVersion')
 def baseYanoDistribution = project.ext.yanoXBaseJvmDistribution
+def integratedYanoJar = project.ext.yanoXIntegratedJar
 def runtimeBundleSpecifications = project.ext.yanoXRuntimeBundleSpecifications
 def defaultBundleIds = project.ext.yanoXDefaultBundleIds
 def optionalBundleIds = project.ext.yanoXOptionalBundleIds
@@ -96,6 +97,50 @@ def rebaseBaseRoot = { details ->
 def devnetProfileOverlay = file('config/application-devnet.yml')
 
 
+// ADR-064 D8: Yano's launcher has no app-chain commands. The integrated distribution adds the
+// `appchain` dispatch, recorded from Yano 27ad23351:app/bin/yano.sh, to the launcher of the composed
+// Yano release; each edit must match exactly once, so a changed launcher fails the build.
+def appchainLauncherFunctions = file('launcher/yano-appchain.sh')
+def preparedLauncherDirectory = layout.buildDirectory.dir('prepared/launcher')
+tasks.register('prepareIntegratedLauncher') {
+    group = 'distribution'
+    description = "Adds the app-chain commands to the composed Yano release's yano.sh."
+    inputs.files(baseYanoDistribution).withPropertyName('yanoJvmDist')
+    inputs.file(appchainLauncherFunctions)
+    outputs.dir(preparedLauncherDirectory)
+
+    doLast {
+        def text = new ZipFile(baseYanoDistribution.get()).withCloseable { archive ->
+            def entry = archive.entries().find { it.name.tokenize('/').size() == 2 && it.name.endsWith('/yano.sh') }
+            if (entry == null) throw new GradleException('yanoJvmDist does not contain yano.sh')
+            archive.getInputStream(entry).getText('UTF-8')
+        }
+        def usageEnd = '  YANO_EXTRA_ARGS  Extra runtime args for jar and native distributions\nEOF\n}\n'
+        def observability = 'if [ "$1" = "observability" ]; then\n'
+        [
+                ['#   ./yano.sh observability start  #',
+                 '#   ./yano.sh appchain ...         # App-chain tooling (ships with Yano X)\n'
+                         + '#   ./yano.sh observability start  #'],
+                ['SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"\n',
+                 'CALLER_DIR="$PWD"\nSCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"\n'],
+                ['[start|start:<profiles>|observability|help]', '[start|start:<profiles>|appchain|observability|help]'],
+                ['\n  ./yano.sh observability start\n',
+                 '\n  ./yano.sh appchain try\n  ./yano.sh appchain new\n  ./yano.sh appchain help'
+                         + '\n  ./yano.sh observability start\n'],
+                [usageEnd, usageEnd.replace('\nEOF\n', '\n\nAdvanced:\n'
+                        + '  YANO_APPCHAIN_CLI  Internal version-matched app-chain tooling override\nEOF\n')
+                        + '\n' + appchainLauncherFunctions.getText('UTF-8')],
+                [observability, 'if [ "$1" = "appchain" ]; then\n    dispatch_appchain "$@"\nfi\n\n' + observability]
+        ].each { edit ->
+            if (text.count(edit[0]) != 1) throw new GradleException("yano.sh layout changed near: ${edit[0].trim()}")
+            text = text.replace(edit[0], edit[1])
+        }
+        def output = preparedLauncherDirectory.get().file('yano.sh').asFile
+        output.parentFile.mkdirs()
+        output.setText(text, 'UTF-8')
+    }
+}
+
 // The showcase ships at examples/showcase. It sets its nodes up with the distribution's own app-chain
 // setup tool from the templates in config/, so it carries no Yano configuration of its own.
 tasks.register('prepareShowcase', Sync) {
@@ -136,7 +181,8 @@ tasks.register('prepareShowcase', Sync) {
 }
 
 tasks.register('yanoXJvmDistZip', Zip) {
-    dependsOn tasks.named('generateYanoXDistributionManifest'),
+    dependsOn tasks.named('quarkusBuild'), tasks.named('prepareIntegratedLauncher'),
+            tasks.named('generateYanoXDistributionManifest'),
             tasks.named('normalizeYanoXReleaseSbom'),
             ':tooling:appchain-cli:installDist', ':tooling:studio:prepareStudio',
             ':products:cardano-history:cli:installDist',
@@ -153,10 +199,9 @@ tasks.register('yanoXJvmDistZip', Zip) {
     preserveFileTimestamps = false
 
     from({ zipTree(baseYanoDistribution.get()) }) {
-        // The explicit X overlays below own application-devnet.yml. Yano's demo application-appchain.yml (one chain
-        // with a fixed signing key, for its `appchain` profile) is left out: Yano X nodes take their chains from
-        // sealed applications.
-        exclude '*/config/application-devnet.yml', '*/config/application-appchain.yml'
+        // The integrated yano.jar and launcher below replace Yano's, and the explicit X overlays own
+        // application-devnet.yml.
+        exclude '*/yano.jar', '*/yano.sh', '*/config/application-devnet.yml'
         eachFile rebaseBaseRoot
         includeEmptyDirs = false
         filesMatching(['**/*.sh', '**/bin/*']) {
@@ -165,6 +210,10 @@ tasks.register('yanoXJvmDistZip', Zip) {
     }
     into(distributionRoot) {
         from(rootProject.file('LICENSE'))
+        from(integratedYanoJar)
+        from(preparedLauncherDirectory) {
+            filePermissions { unix('755') }
+        }
         from(releaseSbom) {
             into 'sbom'
         }
@@ -256,7 +305,8 @@ tasks.register('yanoXJvmDistZip', Zip) {
 }
 
 tasks.register('prepareEvidenceDemoArtifacts', Sync) {
-    dependsOn tasks.named('verifyYanoInputs'), ':products:evidence:demo-runner:shadowJar',
+    dependsOn tasks.named('verifyYanoInputs'), tasks.named('quarkusBuild'),
+            ':products:evidence:demo-runner:shadowJar',
             ':connectors:kafka:shadowJar', ':connectors:ipfs:shadowJar',
             ':connectors:objectstore-s3:shadowJar', ':state-machines:stdlib:shadowJar',
             ':composition:runtime:shadowJar', ':capabilities:role-workflow:shadowJar',
@@ -301,8 +351,11 @@ tasks.register('prepareEvidenceDemoArtifacts', Sync) {
         include "yano-x-evidence-profile-${project.version}-bundle.jar"
         into 'plugins'
     }
+    from(integratedYanoJar) {
+        into 'yano-context/yano'
+    }
     from({ zipTree(baseYanoDistribution.get()) }) {
-        include '**/yano.jar', '**/config/**'
+        include '**/config/**'
         eachFile { details ->
             def segments = details.relativePath.segments.toList()
             if (segments.size() <= 1) {
@@ -328,6 +381,7 @@ tasks.register('verifyYanoXJvmDistribution') {
     description = 'Verifies the Yano X plugin pack and JVM-only distribution.'
     inputs.file(tasks.named('yanoXPluginPackZip', Zip).flatMap { it.archiveFile })
     inputs.file(tasks.named('yanoXJvmDistZip', Zip).flatMap { it.archiveFile })
+    inputs.file(integratedYanoJar)
 
     doLast {
         def pack = new JsonSlurper().parse(pluginPackManifest.get().asFile)
@@ -556,6 +610,37 @@ tasks.register('verifyYanoXJvmDistribution') {
                     || !nativeEntries.isEmpty()) {
                 throw new GradleException(
                         'Yano X JVM distribution is missing yano.jar or contains a native binary')
+            }
+            // ADR-064 D8: the ZIP ships the integrated application and its app-chain launcher commands.
+            def integrated = integratedYanoJar.get().asFile
+            def shippedJar = archive.getEntry("${root}/yano.jar")
+            def integratedCrc = new java.util.zip.CRC32()
+            integrated.eachByte(64 * 1024) { buffer, count -> integratedCrc.update(buffer, 0, count) }
+            if (shippedJar.size != integrated.length() || shippedJar.crc != integratedCrc.value) {
+                throw new GradleException('Yano X JVM distribution does not ship the integrated yano.jar')
+            }
+            if (!archive.getInputStream(archive.getEntry("${root}/yano.sh")).getText('UTF-8')
+                    .contains('    dispatch_appchain "$@"\n')) {
+                throw new GradleException('Yano X JVM distribution launcher lacks the appchain command')
+            }
+            new ZipFile(integrated).withCloseable { jar ->
+                ['META-INF/yano/plugins/org.yanoproject.x.app-ledger.json',
+                 'org/yanoproject/x/framework/runtime/appchain/OrderedLogStateMachine.class',
+                 'org/yanoproject/x/framework/rest/AppChainResource.class'].each { name ->
+                    if (jar.getEntry(name) == null) {
+                        throw new GradleException("Integrated yano.jar is missing ${name}")
+                    }
+                }
+                def tzdb = jar.entries().findAll { it.name.startsWith('zonedb/') || it.name.startsWith('java/time/') }
+                if (!tzdb.isEmpty()) {
+                    throw new GradleException("Integrated yano.jar ships a replacement tzdb provider: ${tzdb*.name.take(5)}")
+                }
+                def index = jar.getInputStream(jar.getEntry('META-INF/yano-plugin-index-v1.json'))
+                        .withCloseable { stream -> new JsonSlurper().parse(stream) }
+                def indexed = index.bundles.collect { it.manifest.id }.toSet()
+                if (indexed != ['org.yanoproject.plugins.logging', 'org.yanoproject.x.app-ledger'] as Set) {
+                    throw new GradleException("Integrated yano.jar plugin index has unexpected bundles: ${indexed}")
+                }
             }
         }
     }

@@ -3,7 +3,7 @@
 // no concrete node runtime dependency.
 dependencies {
     api project(':framework:cardano-api')
-    api rootProject.ext.yanoModule('yano-appchain-proof-verifier')
+    api project(':framework:proof-verifier')
     api project(':state-machines:stdlib-contracts')
     api project(':composition:contracts')
     api project(':capabilities:role-workflow-contracts')

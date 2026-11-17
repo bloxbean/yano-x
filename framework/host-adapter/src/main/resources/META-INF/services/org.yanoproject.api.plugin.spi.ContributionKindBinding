@@ -1,0 +1,10 @@
+org.yanoproject.x.framework.host.AppLedgerKindBindings$StateMachine
+org.yanoproject.x.framework.host.AppLedgerKindBindings$AuthenticatedMapValidator
+org.yanoproject.x.framework.host.AppLedgerKindBindings$Sequencer
+org.yanoproject.x.framework.host.AppLedgerKindBindings$Observer
+org.yanoproject.x.framework.host.AppLedgerKindBindings$EpochObserver
+org.yanoproject.x.framework.host.AppLedgerKindBindings$Observation
+org.yanoproject.x.framework.host.AppLedgerKindBindings$Signer
+org.yanoproject.x.framework.host.AppLedgerKindBindings$Sink
+org.yanoproject.x.framework.host.AppLedgerKindBindings$Domain
+org.yanoproject.x.framework.host.AppLedgerKindBindings$LocalReadModel

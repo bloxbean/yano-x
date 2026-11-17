@@ -133,9 +133,9 @@ export default {
       anchors: ['SUBJECT_ID = "finalized-message-v1"', '"message-id"', '"recorded"'] },
     { repo: 'yano-x', path: 'framework/core/src/main/java/org/yanoproject/x/framework/runtime/appchain/AppLedgerRuntime.java',
       anchors: ['"Topics starting with \'~\' are reserved for the framework"', 'throw new IllegalArgumentException("body must not be empty");'] },
-    { repo: 'yano', path: 'app/src/main/java/org/yanoproject/app/api/appchain/AppChainResource.java',
+    { repo: 'yano-x', path: 'framework/rest/src/main/java/org/yanoproject/x/framework/rest/AppChainResource.java',
       anchors: ['@Path("proof-subjects/{subjectId}/proof")', '"No finalized message with id "'] },
-    { repo: 'yano', path: 'docs/appchain/state-machines/ordered-log.md',
-      anchors: ['Submitting identical payload bytes twice normally creates two messages.'] },
+    { repo: 'yano-x', path: 'docs/appchain/state-machines/ordered-log.md',
+      anchors: ['Submitting the same bytes twice creates two messages with two ids.'] },
   ],
 };

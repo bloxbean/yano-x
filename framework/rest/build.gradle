@@ -1,0 +1,120 @@
+plugins {
+    id 'org.kordamp.gradle.jandex' version '2.3.0'
+    id 'com.github.node-gradle.node' version '7.1.0'
+}
+
+// ADR-064 D8: the app-chain REST surface, metrics, health, configuration projection and
+// console of the integrated Yano + Yano X application, as a Quarkus library composed with
+// yano-app-core. Plain-Java embedders use framework/host-adapter's AppLedgers instead.
+// The HTTP suites run in distribution/jvm, the integrated application composed from this library.
+description = 'Quarkus REST, metrics, health, configuration projection and console for Yano app chains'
+
+def yanoVersion = providers.gradleProperty('yanoVersion').get()
+
+dependencies {
+    // Downstream applications compose this with yano-app-core on the same Quarkus line;
+    // enforcedPlatform would not be publishable.
+    api platform("${quarkusPlatformGroupId}:${quarkusPlatformArtifactId}:${quarkusPlatformVersion}")
+    api "org.yanoproject:yano-app-core:${yanoVersion}"
+    api project(':framework:api')
+    implementation project(':framework:config')
+    implementation project(':framework:host-adapter')
+    implementation project(':framework:proof-verifier')
+}
+
+// The Jandex plugin writes into the main resources output, which javadoc reads.
+tasks.named('javadoc') {
+    dependsOn tasks.named('jandex')
+}
+
+tasks.named('test') {
+    // AppChainRuntimeRegistryParityTest reads the projection source it checks.
+    systemProperty 'yano.test.repo-root', rootProject.projectDir.absolutePath
+}
+
+// ADR-064 D9: the app-chain console, a SvelteKit SPA served at /ui/app-chain/ next to
+// Yano's console at /ui/, which owns every other /ui path.
+node {
+    version = '22.12.0'
+    download = true
+    nodeProjectDir = file('console')
+}
+
+def consoleOutput = layout.buildDirectory.dir('generated/console')
+def consoleUi = consoleOutput.map { it.dir('META-INF/resources/ui/app-chain') }
+sourceSets.main.resources.srcDir(consoleOutput)
+
+def consoleInputs = [fileTree('console/src'), fileTree('console/assets'), 'console/package.json',
+                     'console/package-lock.json', 'console/svelte.config.js', 'console/vite.config.ts',
+                     'console/tsconfig.json']
+
+tasks.register('npmCi', NpmTask) {
+    args = ['ci']
+    inputs.files('console/package.json', 'console/package-lock.json')
+    outputs.dir('console/node_modules')
+}
+
+def buildConsole = tasks.register('buildConsole', NpmTask) {
+    dependsOn tasks.named('npmCi')
+    args = ['run', 'build']
+    inputs.files(consoleInputs)
+    outputs.dir(consoleOutput)
+}
+
+def checkConsole = tasks.register('checkConsole', NpmTask) {
+    dependsOn tasks.named('npmCi')
+    args = ['run', 'check']
+    inputs.files(consoleInputs)
+    outputs.dir('console/.svelte-kit')
+}
+
+def testConsole = tasks.register('testConsole', NpmTask) {
+    dependsOn tasks.named('npmCi')
+    args = ['run', 'test']
+    inputs.files(consoleInputs, fileTree('console/test-vectors'), 'console/vitest.config.ts')
+}
+
+// The app-chain checks of Yano's former verifyStaticConsoleContract.
+def verifyConsoleContract = tasks.register('verifyConsoleContract') {
+    dependsOn buildConsole
+    group = 'verification'
+    description = 'Checks the packaged app-chain console pages, markers and view order'
+    inputs.dir(consoleUi)
+    inputs.file('console/src/routes/+page.svelte')
+    doLast {
+        def root = consoleUi.get().asFile
+        ['index.html', 'eutxo/index.html', 'authenticated-map/index.html', 'cardano-history/index.html'].each {
+            def page = new File(root, it)
+            if (!page.isFile() || !page.getText('UTF-8').contains('name="viewport"')) {
+                throw new GradleException("App-chain console page is missing or lacks a viewport: ${it}")
+            }
+        }
+        def textAssets = fileTree(root).matching { include '**/*.html', '**/*.js', '**/*.css' }
+                .files.collect { it.getText('UTF-8') }
+        ['Raw effect statistics', 'Load latest anchored proof', 'Expected proof-value SHA-256', 'Verify proof',
+         'data-console-route="eutxo"', 'data-console-route="authenticated-map"', 'href="/ui/"'].each { marker ->
+            if (!textAssets.any { it.contains(marker) }) {
+                throw new GradleException("App-chain console lacks marker: ${marker}")
+            }
+        }
+        def source = file('console/src/routes/+page.svelte').getText('UTF-8')
+        [['data-app-chain-view="operations"', 'data-app-chain-view="capabilities"', 'data-app-chain-view="proofs"'],
+         ['data-app-chain-section="finalized"', 'data-app-chain-section="effects"']].each { markers ->
+            def previous = -1
+            markers.each { marker ->
+                def index = source.indexOf(marker)
+                if (index <= previous) {
+                    throw new GradleException("App-chain console order is invalid at marker: ${marker}")
+                }
+                previous = index
+            }
+        }
+        if (!source.contains('data-proof-lab-navigation="workflows"')
+                || !source.contains("[['message', 'Message'], ['state', 'State'], ['import', 'Import and verify'],")) {
+            throw new GradleException('App-chain console lacks the released Proof Lab workflow order')
+        }
+    }
+}
+
+tasks.named('processResources') { dependsOn buildConsole }
+tasks.named('check') { dependsOn checkConsole, testConsole, verifyConsoleContract }

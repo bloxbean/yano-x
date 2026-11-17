@@ -208,7 +208,7 @@ export default {
     ['fail', 'rejected'],
   ],
   sources: [
-    { repo: 'yano', path: 'docs/APP_CHAIN_CONSENSUS_GUIDE.md',
+    { repo: 'yano-x', path: 'docs/APP_CHAIN_CONSENSUS_GUIDE.md',
       anchors: ['every 5s it asks one connected peer for `tip+1 .. tip+50`',
         'expiry is NOT re-checked — the messages were finalized before expiry',
         '**the threshold cert is fully verified**, and the block is re-applied with',

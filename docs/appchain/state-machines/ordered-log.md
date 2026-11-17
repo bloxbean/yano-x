@@ -1,18 +1,16 @@
 # ordered-log
 
-`ordered-log` is the state machine built into Yano. It gives a group of members
+`ordered-log` is the state machine built into the app-chain framework
+(`framework/core`). It gives a group of members
 one agreed, final order of opaque events, and a proof of where each event was
 finalized. It never reads payloads and never rejects a message for business
 reasons.
-
-This page summarizes the machine for Yano X users. The complete reference is
-[`ordered-log` in the Yano repository](https://github.com/bloxbean/yano/blob/main/docs/appchain/state-machines/ordered-log.md).
 
 ## At a glance
 
 | | |
 |---|---|
-| Machine id | `ordered-log`, built into Yano |
+| Machine id | `ordered-log`, built into the framework |
 | Maturity | stable |
 | Commands | none: any non-empty body, on any topic that does not start with `~` |
 | State | per message, `sha256("~yano/finalized-message/v1/" ‖ message id)` → `[1, height, index, topic, sender]`; plus one tip record |
@@ -128,6 +126,64 @@ yano:
 `ordered-log` has no settings of its own. Capacity, expiry, retention and
 anchoring use the common chain settings.
 
+### Operational tuning
+
+For example:
+
+```yaml
+yano:
+  app-chain:
+    chains[0]:
+      chain-id: orders
+      state-machine: ordered-log
+      max-message-bytes: 65536
+      default-ttl-seconds: 600
+      max-ttl-seconds: 3600
+      block:
+        interval-ms: 1000
+        max-bytes: 4194304
+        max-messages: 5000
+      pool:
+        max-messages: 10000
+      retention:
+        enabled: true
+        keep-blocks: 1000
+```
+
+Keep consensus-affecting settings identical across members. When retention is
+enabled, eligible old message bodies below the confirmed anchor horizon may be
+stripped, while headers, ids, roots, and certificates remain so inclusion
+evidence is preserved. Archive bodies or evidence bundles separately when the
+original content must remain independently verifiable.
+
+Use multiple topics in one chain when the events share the same membership,
+finality, retention, anchoring, and operational lifecycle. Use separate chains
+when any of those boundaries should differ: each chain has its own blocks,
+pending pool, certificates, state root, membership, storage, proofs and
+anchor.
+
+## Read and follow
+
+Besides the lookup by id and the typed proof, all relative to
+`/api/v1/app-chain`:
+
+```text
+GET /chains/{chainId}/messages/by-topic/{topic}?fromHeight=0&limit=100
+GET /chains/{chainId}/stream?fromHeight=0&topic={topic}
+GET /chains/{chainId}/blocks?from=1&limit=100
+GET /chains/{chainId}/evidence/{messageId}
+GET /chains/{chainId}/status
+```
+
+The Java client follows finalized messages with `subscribe(...)` and
+`subscribeTyped(...)`. The message body stays in finalized block history and
+the message index; it is not duplicated in state. Besides the per-message
+records, the machine keeps a tip record at
+`sha256("~yano/finalized-message/v1/" ‖ "tip")` → `cbor(block-height)`. The
+lower-level `state/proof/{keyHex}` route takes the resolved physical key, not
+the message id; `messages/{messageId}/proof` proves membership in the block's
+compact `messagesRoot`.
+
 ## Bounds
 
 The framework, not the machine, refuses a submission when:
@@ -138,6 +194,12 @@ The framework, not the machine, refuses a submission when:
 
 Submitting the same bytes twice creates two messages with two ids. Business
 deduplication, schemas and transitions need another machine or a plugin.
+
+These checks protect the protocol; they do not validate any business meaning.
+Every member receives the body and finalized history may be retained or
+exported, so do not put secrets or unnecessary personal data in payloads.
+Encrypt bodies before submission when confidentiality is required, and manage
+the keys outside consensus.
 
 ## Advanced
 
@@ -152,10 +214,20 @@ deduplication, schemas and transitions need another machine or a plugin.
 - **When to choose something else.** Use [`kv-registry`](kv-registry.md) for
   current values, [`doc-trail`](doc-trail.md) for a history per entity, or a
   [plugin](../tutorials/08-plugins-and-composites.md) for business rules.
+  Admission hooks give early feedback, but the deterministic `apply()` remains
+  the consensus authority and must handle invalid or stale commands without
+  external I/O.
+- **No in-place switch.** Do not change an existing `ordered-log` ledger to
+  different application semantics in place; use a fresh chain id and storage,
+  or a deliberately versioned migration.
+- **External actions.** `ordered-log` calls no external system. A consumer can
+  follow finalized messages and do idempotent off-chain work; when the action
+  and its outcome must be part of the committed workflow, use an
+  effect-emitting machine and executor plugin.
 
 ## Related documentation
 
-- [`ordered-log` in Yano](https://github.com/bloxbean/yano/blob/main/docs/appchain/state-machines/ordered-log.md)
-- [Consensus guide](https://github.com/bloxbean/yano/blob/main/docs/APP_CHAIN_CONSENSUS_GUIDE.md)
+- [Consensus guide](../../APP_CHAIN_CONSENSUS_GUIDE.md)
+- [Message submission and HTTP outcomes](../submission.md)
 - [Your first app ledger](../tutorials/01-first-app-chain.md)
 - [State machines](README.md)

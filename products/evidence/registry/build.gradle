@@ -14,7 +14,7 @@ dependencies {
     implementation libs.bouncycastle.bcprov
 
     testImplementation project(':framework:api')
-    testImplementation rootProject.ext.yanoModule('yano-appchain-core-testkit')
+    testImplementation project(':sdk:appchain-testkit')
     testImplementation testFixtures(project(':products:evidence:contracts'))
 }
 

@@ -15,7 +15,7 @@ dependencies {
     compileOnly project(':state-machines:stdlib-contracts')
     compileOnly project(':capabilities:role-workflow-contracts')
     compileOnly project(':capabilities:role-workflow')
-    compileOnly rootProject.ext.yanoModule('yano-appchain-config')
+    compileOnly project(':framework:config')
     compileOnly project(':ledgers:eutxo:contracts')
     compileOnly libs.cbor
     compileOnly libs.cardano.client.core
@@ -31,7 +31,7 @@ dependencies {
     testImplementation project(':state-machines:stdlib-contracts')
     testImplementation project(':capabilities:role-workflow-contracts')
     testImplementation project(':capabilities:role-workflow')
-    testImplementation rootProject.ext.yanoModule('yano-appchain-config')
+    testImplementation project(':framework:config')
     testImplementation project(':ledgers:eutxo:contracts')
     // ADR-UTXO-008: golden derivation of the bridge chain's deterministic
     // vault/payout identities uses the exact client wallet derivation.
@@ -39,7 +39,7 @@ dependencies {
     // ADR-UTXO-009: the settlement chain block is generated from the demo
     // module's deterministic plan; the golden test re-derives it.
     testImplementation project(':ledgers:eutxo:demo')
-    testImplementation rootProject.ext.yanoModule('yano-appchain-core-testkit')
+    testImplementation project(':sdk:appchain-testkit')
     // The templates are read with the setup tool's own draft parser.
     testImplementation project(':tooling:appchain-formats')
     testImplementation libs.cbor

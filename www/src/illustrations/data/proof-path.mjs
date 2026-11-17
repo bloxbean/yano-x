@@ -123,7 +123,7 @@ export default {
   sources: [
     { repo: 'yano-x', path: 'framework/api/src/main/java/org/yanoproject/x/framework/api/appchain/state/StateCommitmentProfiles.java',
       anchors: ['MPF_BLAKE2B256_V1 = "mpf-blake2b256-v1"', 'JMT_BLAKE2B256_V1 = "jmt-blake2b256-v1"'] },
-    { repo: 'yano', path: 'docs/APP_CHAIN_CONSENSUS_GUIDE.md',
+    { repo: 'yano-x', path: 'docs/APP_CHAIN_CONSENSUS_GUIDE.md',
       anchors: ['individually provable against the resulting root'] },
     { repo: 'yano-x', path: 'docs/appchain/COMPOSABLE_STATE_AND_PROOFS.md',
       anchors: ['`ProofVerifier.verifyInternalConsistency(proof)` checks only proof math against the root carried by the same response',

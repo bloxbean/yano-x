@@ -21,8 +21,9 @@ import java.util.Optional;
  * App-chain script anchor — spending validator (ADR app-layer/008.4 §2.2,
  * ABI: framework/cardano-api/src/main/cddl/appchain/anchor-v1.cddl; datum wire format is
  * Constr(0, [fields]) — the julc record codec and Aiken types agree on this).
- * Default (julc/Java) implementation; interchangeable with the Aiken
- * implementation via the same ABI.
+ * Julc/Java source of the same ABI. The shipped validator is the Aiken build in
+ * {@code META-INF/plutus/AnchorValidator.plutus.json}; this source is compiled and
+ * compared only by the optional {@code -Djulc.source-check=true} drift check.
  *
  * <p>Advance rules:
  * <ol>

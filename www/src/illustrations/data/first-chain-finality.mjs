@@ -256,7 +256,7 @@ export default {
       anchors: ['"members agree" : "MISMATCH"', '"  members online "', 'member.online() ? "online " : "offline"'] },
     { repo: 'yano-x', path: 'tooling/appchain-cli/src/main/java/org/yanoproject/x/appchain/cli/StartCommand.java',
       anchors: ['" is up at "'] },
-    { repo: 'yano', path: 'docs/APP_CHAIN_CONSENSUS_GUIDE.md',
+    { repo: 'yano-x', path: 'docs/APP_CHAIN_CONSENSUS_GUIDE.md',
       anchors: ['`sequencer.proposer` selects the view-0 leader', 'requires byte-identical `stateRoot`', 'PreparedQC',
         'FinalityCert', 'A quorum of signed timeout records forms a', 'there is no rollback path below finality',
         'the threshold cert is fully verified'] },
@@ -267,7 +267,7 @@ export default {
       anchors: ['.sender(signer.publicKey())'] },
     { repo: 'yano-x', path: 'framework/api/src/main/java/org/yanoproject/x/framework/api/appchain/AppChainConfig.java',
       anchors: ['DEFAULT_DEFAULT_TTL_SECONDS = 600'] },
-    { repo: 'yano', path: 'app/src/main/java/org/yanoproject/app/api/appchain/AppChainResource.java',
+    { repo: 'yano-x', path: 'framework/rest/src/main/java/org/yanoproject/x/framework/rest/AppChainResource.java',
       anchors: ['summary.put("certSignatures", b.cert().signatures().size());'] },
   ],
 };

@@ -347,7 +347,7 @@ payload size, and the member count. Record those inputs when comparing runs.
 The test appends real finalized messages to the retained `orders` history.
 
 For capacity settings and workload boundaries, see the
-[`ordered-log` reference](https://github.com/bloxbean/yano/blob/main/docs/appchain/state-machines/ordered-log.md#operational-tuning).
+[`ordered-log` reference](../state-machines/ordered-log.md#operational-tuning).
 
 ### B. Try an effect
 
@@ -486,7 +486,7 @@ including the chain identities.
   ```
 
 - Read Yano's
-  [consensus guide](https://github.com/bloxbean/yano/blob/main/docs/APP_CHAIN_CONSENSUS_GUIDE.md)
+  [consensus guide](../../APP_CHAIN_CONSENSUS_GUIDE.md)
   for the proposer, votes, certificates, replay, and catch-up.
 
 **Next:** [Tutorial 2 — registry ownership and state proofs](02-registry-and-proofs.md).

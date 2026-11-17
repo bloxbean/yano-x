@@ -2,7 +2,7 @@ package org.yanoproject.x.evidence.profile;
 
 import com.bloxbean.cardano.yaci.core.protocol.appmsg.model.AppMessage;
 import org.junit.jupiter.api.Test;
-import org.yanoproject.appchain.testkit.AppChainTestProfiles;
+import org.yanoproject.x.testkit.AppChainTestProfiles;
 import org.yanoproject.x.composite.CompositeStateKeys;
 import org.yanoproject.x.composite.CompositeStateMachine;
 import org.yanoproject.x.evidence.profile.contracts.EvidenceApprovalConsumptionV1;

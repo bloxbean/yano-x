@@ -1,8 +1,6 @@
 package org.yanoproject.x.framework.config;
 
 import org.junit.jupiter.api.Test;
-import org.yanoproject.api.config.YanoConfig;
-import org.yanoproject.api.config.YanoPropertyKeys;
 import org.yanoproject.x.framework.api.appchain.AppChainConfig;
 
 import java.util.List;
@@ -30,7 +28,7 @@ class AppChainPropertyRegistryTest {
         AppChainPropertyRegistry registry = AppChainPropertyRegistry.framework();
 
         AppChainPropertyDefinition blockBytes = registry
-                .find(YanoPropertyKeys.AppChain.BLOCK_MAX_BYTES).orElseThrow().definition();
+                .find(AppChainPropertyKeys.BLOCK_MAX_BYTES).orElseThrow().definition();
         assertThat(blockBytes.defaultValue())
                 .isEqualTo(Long.toString(AppChainConfig.DEFAULT_BLOCK_MAX_BYTES));
         assertThat(blockBytes.maximum()).isEqualTo(AppChainConfig.MAX_BLOCK_BYTES);
@@ -39,14 +37,14 @@ class AppChainPropertyRegistryTest {
         assertThat(blockBytes.coverage()).isEqualTo(ValidationCoverage.PARTIAL);
 
         AppChainPropertyDefinition chainId = registry
-                .find(YanoPropertyKeys.AppChain.CHAIN_ID).orElseThrow().definition();
+                .find(AppChainPropertyKeys.CHAIN_ID).orElseThrow().definition();
         assertThat(chainId.minimumUtf8Bytes()).isOne();
         assertThat(chainId.maximumUtf8Bytes()).isEqualTo(AppChainConfig.MAX_CHAIN_ID_BYTES);
 
         AppChainPropertyDefinition storagePath = registry
-                .find(YanoPropertyKeys.AppChain.STORAGE_PATH).orElseThrow().definition();
+                .find(AppChainPropertyKeys.STORAGE_PATH).orElseThrow().definition();
         assertThat(storagePath.defaultValue())
-                .isEqualTo(YanoConfig.DEFAULT_APP_CHAIN_STORAGE_PATH);
+                .isEqualTo(AppChainStoragePaths.DEFAULT_STORAGE_PATH);
         assertThat(storagePath.indexed()).isFalse();
         assertThat(storagePath.scope()).isEqualTo(PropertyScope.NODE_LOCAL);
 
@@ -105,7 +103,7 @@ class AppChainPropertyRegistryTest {
     @Test
     void conflictingComponentClaimsFailClosed() {
         AppChainPropertyDefinition custom = new AppChainPropertyDefinition(
-                YanoPropertyKeys.AppChain.BLOCK_MAX_BYTES, AppChainPropertyRegistry.OWNER_CORE,
+                AppChainPropertyKeys.BLOCK_MAX_BYTES, AppChainPropertyRegistry.OWNER_CORE,
                 PropertyType.LONG, null, null, null, null, null, null, Set.of(),
                 PropertyScope.CONSENSUS_SHARED, ChangePolicy.NEW_CHAIN_REQUIRED, false, true,
                 ConstraintProvenance.NOT_APPLICABLE, ValidationCoverage.PARTIAL,

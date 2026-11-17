@@ -117,7 +117,7 @@ export default {
       anchors: ['The node signs your submission with **its own** member key', 'hot wallet holding fee money only',
         'Use `approvals` when app-chain member keys are intentionally the business approvers',
         'A result is a *member attestation*, not an independently verified fact'] },
-    { repo: 'yano', path: 'node-api/src/main/java/org/yanoproject/api/config/YanoPropertyKeys.java',
+    { repo: 'yano-x', path: 'framework/config/src/main/java/org/yanoproject/x/framework/config/AppChainPropertyKeys.java',
       anchors: ['yano.app-chain.signing-key', 'yano.app-chain.api.keys', 'yano.app-chain.anchor.signing-key'] },
     { repo: 'yano-x', path: 'capabilities/role-workflow-contracts/src/main/java/org/yanoproject/x/roles/contracts/RecordStatus.java',
       anchors: ['ACTIVE(0), SUSPENDED(1), REVOKED(2)'] },

@@ -54,8 +54,8 @@ plugins; see the
 
 A generic observation asks members to fetch a fact from a configured source,
 check its evidence, and agree on the value before the application sees it.
-Yano owns the protocol, verification, certification, and callbacks; your state
-machine only asks and reacts.
+The framework owns the protocol, verification, certification, and callbacks;
+your state machine only asks and reacts.
 
 **Ask** during a deterministic callback, through the `AppObservationEmitter`
 handed to the observation-aware `apply(context, writer, effects, observations)`:
@@ -146,8 +146,8 @@ extend a deadline, or supply a value.
 
 The observation profile is genesis-pinned through
 `observations.profile-cbor-hex`. Changing it on a retained chain is not an
-in-place upgrade. Read Yano's
-[certified observations guide](https://github.com/bloxbean/yano/blob/main/docs/appchain/observations.md)
+in-place upgrade. Read the
+[certified observations guide](../appchain/observations.md)
 before you create an application identity that uses them.
 
 ## The shipment reference workflow

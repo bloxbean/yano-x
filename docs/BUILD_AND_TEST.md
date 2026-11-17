@@ -35,8 +35,9 @@ matching Yano version first, then opt in explicitly:
 ```
 
 The `yanoVersion` must identify the exact Yano API/runtime line against which
-Yano X is being built. `version` independently controls Yano X artifact and
-plugin versions. For a released `yanoVersion`, distribution tasks resolve and
+Yano X is being built. Every Yano module, `yano-host-api` included, resolves at
+that one version; there is no separate node API or Host API version property.
+`version` independently controls Yano X artifact and plugin versions. For a released `yanoVersion`, distribution tasks resolve and
 cache `yano-<version>.zip` from the matching `v<version>` release in
 `bloxbean/yano`. For a Yano commit snapshot such as
 `0.1.0-pre18-3c73341-SNAPSHOT`, the Maven artifacts come from the BloxBean
@@ -113,17 +114,25 @@ both commands, and add the matching `-PyanoJvmDist` to the clean build.
 
 `./gradlew frameworkCheck` runs the framework unit/wire suites and enforces both
 the lean core dependency boundary and module package ownership. It consumes only
-the selected foundation/Host API artifacts, so it can run before a full host is
-staged. The generic tests belong to `framework/core`; Cardano-specific unit tests
-belong to `framework/cardano`. Host assembly, catalog, REST and integrated node
-tests stay in Yano and consume the published framework contracts.
+the node, Cardano and Host API artifacts (`yano-node-api`, `yano-cardano-api`,
+`yano-host-api`) at the selected `yanoVersion`, so it can run without the Yano
+runtime.
+The generic tests belong to `framework/core`; Cardano-specific unit tests
+belong to `framework/cardano`; host-adapter tests to `framework/host-adapter`.
+Since ADR-064 the app-chain host assembly, catalog, REST and integrated node
+tests live in Yano X too: the assembly suites in the `framework/cardano`
+integration source set, the REST resource tests in `framework/rest`, and the
+packaging, OpenAPI and HTTP tests of the integrated application in
+`distribution/jvm`.
 
-The Cardano integration source set runs `L1DeliveryLoopTest` and
-`ScriptAnchorServiceTest` with the exact `yanoVersion` runtime artifact. Its
-protocol-parameter JSON is a checksum-documented test resource, not a file read
-from another checkout. `./gradlew :framework:cardano:integrationTest` runs this
-slice; normal `./gradlew check` includes it. Supply a namespace-compatible host
-and the matching foundation/Host API inputs. No host runtime resolution occurs
+The Cardano integration source set runs the host assembly, consensus, L1
+delivery and anchoring suites (for example `AppLedgerAssemblyTest`,
+`L1DeliveryLoopTest` and `ScriptAnchorServiceTest`) with the exact
+`yanoVersion` runtime artifact. Its protocol-parameter JSON is a
+checksum-documented test resource, not a file read from another checkout.
+`./gradlew :framework:cardano:integrationTest` runs this slice; normal
+`./gradlew check` includes it. Supply the matching Yano inputs.
+No host runtime resolution occurs
 merely from configuring these tasks or running `frameworkCheck`.
 
 The core's Gradle `testFixtures` classifier provides narrow setup and fault
@@ -135,9 +144,8 @@ baseline qualification after the namespace migration.
 
 ## Coordinated CI staging (not a release)
 
-The host `integration.yml` workflow can stage a clean, exact-commit Maven
-repository and ordinary JVM ZIP using `stage_inputs_only=true`. After the
-host run succeeds, dispatch this repository's `build.yml` with `scope=all`,
+The host `stage-consumer-inputs.yml` workflow stages a clean, exact-commit
+Maven repository and ordinary JVM ZIP. After the host run succeeds, dispatch this repository's `build.yml` with `scope=all`,
 `yano_inputs_run_id` and an independently pinned full `yano_inputs_commit`.
 An explicitly supplied `yano_version` must match the staged manifest.
 
@@ -148,7 +156,7 @@ overrides, unpinned or failed runs, unsafe checksum paths and tampered files.
 The runner must have authenticated read access to the host Actions artifacts.
 It does not enable Maven Local or a sibling source checkout.
 
-The workflow requests 14-day retention, but repository policy may shorten it.
+The workflow requests 90-day retention, but repository policy may shorten it.
 Record provenance and the artifact API's actual `expires_at` deadline; this is
 temporary qualification, not a permanent publication channel or a substitute
 for passing the complete CI suite. Without staging inputs, the normal

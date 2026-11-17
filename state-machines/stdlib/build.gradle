@@ -10,13 +10,15 @@ dependencies {
     api project(':state-machines:stdlib-contracts')
     api project(':composition:runtime')
     api project(':capabilities:role-workflow')
-    implementation rootProject.ext.yanoModule('yano-appchain-config')
+    implementation project(':framework:config')
 
     implementation libs.cbor
     implementation libs.cardano.client.crypto
     implementation libs.slf4j.api
 
     testImplementation rootProject.ext.yanoModule('yano-runtime')
+    // Yano's runtime no longer re-exports the X Cardano framework (ADR-064 D1).
+    testImplementation project(':framework:cardano')
     testImplementation project(':sdk:client')
     testImplementation project(':fixtures:governed-recipes')
 }

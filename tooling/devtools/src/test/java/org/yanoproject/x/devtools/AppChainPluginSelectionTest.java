@@ -126,7 +126,7 @@ class AppChainPluginSelectionTest {
         AppChainProjectCatalog catalog = new AppChainProjectCatalog(AppChainPropertyRegistry.framework());
         Set<String> hostOnly = new java.util.TreeSet<>();
         for (AppChainProjectModel.Capability capability : catalog.capabilities()) {
-            if (!List.of("yano-runtime").equals(capability.artifacts())) continue;
+            if (!List.of("yano-x-appchain-cardano").equals(capability.artifacts())) continue;
             Map<String, String> values = new java.util.TreeMap<>();
             capability.properties().forEach((key, value) -> {
                 if (!value.contains("${")) values.put("yano.app-chain.chains[0]." + key, value);

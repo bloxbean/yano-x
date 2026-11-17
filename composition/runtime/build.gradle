@@ -8,7 +8,7 @@ dependencies {
     api project(':framework:api')
     api project(':composition:contracts')
 
-    testImplementation rootProject.ext.yanoModule('yano-appchain-core-testkit')
+    testImplementation project(':sdk:appchain-testkit')
 }
 
 java {

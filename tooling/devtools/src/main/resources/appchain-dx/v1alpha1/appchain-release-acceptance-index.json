@@ -73,19 +73,19 @@
       "ledgers/eutxo/indexer-core/src/test/java/org/yanoproject/x/eutxo/indexer/EutxoIndexCoordinatorTest.java#slowStoreCoalescesNotificationBurstsWithoutBlockingFinality"
     ],
     "sequencer:fixed": [
-      "yano:runtime/src/integrationTest/java/org/yanoproject/runtime/appchain/AppChainSequencingIntegrationTest.java#sequencer_finalizesBlocks_identicalRoots_andSurvivesRestart"
+      "framework/cardano/src/integrationTest/java/org/yanoproject/x/framework/cardano/AppChainSequencingIntegrationTest.java#sequencer_finalizesBlocks_identicalRoots_andSurvivesRestart"
     ],
     "sequencer:rotating": [
-      "yano:runtime/src/integrationTest/java/org/yanoproject/runtime/appchain/AppChainRotationIntegrationTest.java#rotation_survivesProposerCrash"
+      "framework/cardano/src/integrationTest/java/org/yanoproject/x/framework/cardano/AppChainRotationIntegrationTest.java#rotation_survivesProposerCrash"
     ],
     "membership:static": [
-      "yano:runtime/src/test/java/org/yanoproject/runtime/appchain/AppChainTwoNodeSmokeTest.java#twoNodes_exchangeAuthenticatedMessages_bothDirections"
+      "framework/cardano/src/test/java/org/yanoproject/x/framework/cardano/AppChainTwoNodeSmokeTest.java#twoNodes_exchangeAuthenticatedMessages_bothDirections"
     ],
     "membership:governed": [
-      "yano:runtime/src/integrationTest/java/org/yanoproject/runtime/appchain/GovernedMembershipIntegrationTest.java#thresholdApproval_activates_andLateJoinerDerivesHistory"
+      "framework/cardano/src/integrationTest/java/org/yanoproject/x/framework/cardano/GovernedMembershipIntegrationTest.java#thresholdApproval_activates_andLateJoinerDerivesHistory"
     ],
     "l1:slot-feed": [
-      "yano:runtime/src/integrationTest/java/org/yanoproject/runtime/appchain/AppChainRotationIntegrationTest.java#feedSlot"
+      "framework/cardano/src/integrationTest/java/org/yanoproject/x/framework/cardano/AppChainRotationIntegrationTest.java#rotation_survivesProposerCrash"
     ],
     "anchor:metadata": [
       "framework/cardano/src/test/java/org/yanoproject/x/framework/cardano/AnchorServiceTest.java#observedConfirmationRetriesOnTickWithoutReplayOrResubmit"
@@ -107,10 +107,10 @@
       "state-machines/stdlib/src/test/java/org/yanoproject/x/stdlib/ApprovalsGenericEffectTest.java#allTerminalOutcomesPreserveApprovedDecisionAndExactEvidence"
     ],
     "executor:webhook": [
-      "yano:runtime/src/test/java/org/yanoproject/runtime/appchain/AppChainWebhookTest.java#webhookSink_deliversInOrder_withRetry_andListenerFires"
+      "framework/cardano/src/test/java/org/yanoproject/x/framework/cardano/AppChainWebhookTest.java#webhookSink_deliversInOrder_withRetry_andListenerFires"
     ],
     "sink:webhook": [
-      "yano:runtime/src/test/java/org/yanoproject/runtime/appchain/AppChainWebhookTest.java#webhookSink_deliversInOrder_withRetry_andListenerFires"
+      "framework/cardano/src/test/java/org/yanoproject/x/framework/cardano/AppChainWebhookTest.java#webhookSink_deliversInOrder_withRetry_andListenerFires"
     ],
     "executor:kafka": [
       "connectors/kafka/src/test/java/org/yanoproject/x/kafka/effects/KafkaEffectExecutorConformanceTest.java#conformance"
@@ -131,7 +131,7 @@
       "composition/runtime/src/test/java/org/yanoproject/x/composite/CompositeRoutingAndEffectsTest.java#routesOnlyExactActiveTopicsInProfileOrderAndEnforcesPhysicalNamespaces"
     ],
     "ui:console": [
-      "yano:app/src/test/java/org/yanoproject/app/AppChainStatusPageTest.java#appChainStatusPage_isServed"
+      "distribution/jvm/src/test/java/org/yanoproject/x/distribution/AppChainStatusPageTest.java#appChainStatusPage_isServed"
     ],
     "observability:prometheus": [
       "yano:app/observability/tests/contract.sh#observability-launcher-contract"
@@ -157,8 +157,7 @@
       "maturity": "stable",
       "availability": "BUNDLED",
       "runtimeTypes": [
-        "jvm",
-        "native"
+        "jvm"
       ],
       "deploymentTargets": [
         "host",

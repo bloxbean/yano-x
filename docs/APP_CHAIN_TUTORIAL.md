@@ -1,4 +1,4 @@
-# App Chain Tutorial — Default Yano Distribution
+# App Chain Tutorial — Yano X JVM Distribution
 
 > Looking for task-oriented no-code scenarios rather than a custom-plugin
 > walkthrough? Start with the [app-chain tutorial hub](appchain/README.md).
@@ -6,11 +6,11 @@
 A hands-on, copy-pasteable walkthrough in two parts:
 
 - **Part 1** — run an app chain with the **out-of-the-box `ordered-log`
-  implementation**: two Yano nodes from the default distribution, config only,
+  implementation**: two Yano nodes from the Yano X JVM distribution, config only,
   no code.
 - **Part 2** — build a **custom app chain as a plugin jar** (a small
-  key-value store), drop it into the plugins directory of the same default
-  distribution, and use it — still no Yano rebuild.
+  key-value store), drop it into the plugins directory of the same
+  distribution, and use it — still no rebuild.
 
 Reference documentation (all config options, REST reference, ops):
 `docs/APP_CHAIN_USER_GUIDE.md`. Internals (consensus round, state-machine
@@ -21,10 +21,11 @@ wire formats): `docs/APP_CHAIN_CONSENSUS_GUIDE.md`. Design:
 
 ## Part 0 — Get the distribution
 
-Yano ships in three official forms per release
-([github.com/bloxbean/yano/releases](https://github.com/bloxbean/yano/releases)),
-plus building from source. The app chain works identically in all of them —
-only *where the configuration lives* differs.
+App chains ship in the Yano X JVM distribution, `yano-x-jvm-<version>.zip`
+([github.com/bloxbean/yano-x/releases](https://github.com/bloxbean/yano-x/releases),
+see [release downloads](RELEASE_DOWNLOADS.md)), or you build it from source.
+Yano's own ZIP, Docker image and native binary contain no app-chain support
+(ADR-064). Yano X is JVM-only.
 
 > **Shortcut:** if you just want a running multi-node app chain in one
 > command, the Yano X JVM distribution rehearses one on this machine —
@@ -33,64 +34,41 @@ only *where the configuration lives* differs.
 > guide §3.5). This tutorial instead walks the two nodes by hand so you see
 > every moving part.
 
-### Option A — Official zip (JVM)
+### Option A — Release ZIP
 
 ```bash
-unzip yano-<version>.zip && cd yano-<version>
+unzip yano-x-jvm-<version>.zip && cd yano-x-jvm-<version>
 ./yano.sh start:devnet \
   -Dyano.app-chain.enabled=true \
   -Dyano.app-chain.chain-id=tutorial-chain \
   ...                                   # any -D flag from this tutorial
 ```
 
-The zip contains `yano.jar`, the `yano.sh` launcher and a `config/` directory.
-Instead of `-D` flags you can put the same keys under `yano.app-chain.*` in
-`config/application.yml` — the recommended place for a permanent setup. Run
-from the unzipped directory (network genesis files resolve relative to it).
-`JAVA_OPTS` / `YANO_EXTRA_ARGS` env vars are honored.
+The ZIP contains the integrated `yano.jar`, the `yano.sh` launcher, a
+`config/` directory and `plugins/`. Instead of `-D` flags you can put the same
+keys under `yano.app-chain.*` in `config/application.yml` — the recommended
+place for a permanent setup. Run from the unzipped directory (network genesis
+files resolve relative to it). `JAVA_OPTS` / `YANO_EXTRA_ARGS` env vars are
+honored.
 
-Native binaries (`yano-native-<version>-<os>-<arch>.zip`) have the same layout
-with a `yano` binary instead of the jar — same flags, same `config/`. A native
-image cannot load a new JAR from `plugins/` after it is built. The supported
-Yano native distribution is the core data node/app-chain host with
-`ordered-log`; use the Yano X JVM distribution for stock or custom extension
-bundles.
-
-### Option B — Docker
+### Option B — From source
 
 ```bash
-unzip yano-docker-<version>.zip && cd yano-docker-<version>
-# app-chain settings: edit config/application.yml (mounted read-only into the
-# container) or add -D flags via YANO_EXTRA_ARGS in config/env
-./yano.sh start:devnet          # or start:preprod / start:preview / start
-./yano.sh logs:yano
+./gradlew :distribution:jvm:yanoXJvmDistZip
+# → distribution/jvm/build/distributions/yano-x-jvm-<version>.zip
 ```
 
-The compose bundle runs the `bloxbean/yano` image (`-jvm` or `-native`
-flavor), exposes REST on `7070` and N2N on `13337`, and mounts:
+Unzip it and continue as in Option A. `./gradlew :distribution:jvm:quarkusBuild`
+builds only the integrated `distribution/jvm/build/yano.jar`.
 
-| Host path | In container | Use for |
-|---|---|---|
-| `config/application.yml` | `/app/config/application.yml` | `yano.app-chain.*` settings |
-| `plugins/` | `/app/plugins` | JVM-image plugin bundles (`yano.plugins.directory` is preset; native images ignore directory JARs) |
-| `chainstate-*/` | `/app/chainstate` | persistent L1 ledger |
-| `appchain-chainstate-*/` | `/app/appchain-chainstate` | persistent app-chain ledgers |
-| `appchain-indexers-*/` | `/app/appchain-indexers` | rebuildable app-chain read indexes |
+Yano X publishes no Docker image, and Yano's compose bundle runs a Yano image
+without app chains. To containerize the tutorial nodes, build an image from the
+integrated `yano.jar` as in
+[`scaffolds/docker-compose-cluster`](../scaffolds/docker-compose-cluster/README.md).
 
-For the two-node tutorial cluster below, run two copies of the compose bundle
-with distinct `INSTANCE_NAME`, `YANO_HTTP_PORT` and `YANO_N2N_PORT`, and point
-each node's `yano.app-chain.peers` at the other's published N2N port
-(`host.docker.internal:<port>` from inside a container, or put both services
-on one compose network).
-
-### Option C — From source
-
-```bash
-./gradlew :app:quarkusBuild        # → app/build/yano.jar (uber-jar)
-```
-
-Everything below uses Option C's `java -jar` form with explicit `-D` flags —
-the flags map 1:1 to `config/application.yml` keys in Options A/B.
+Everything below runs `java -jar yano.jar` from the unzipped distribution
+directory with explicit `-D` flags — the flags map 1:1 to
+`config/application.yml` keys.
 
 ---
 
@@ -117,7 +95,7 @@ This tutorial uses fixed Ed25519 seeds so outputs are reproducible:
 Generate real keys for real deployments:
 
 ```bash
-jshell --class-path app/build/yano.jar - <<'EOF'
+jshell --class-path yano.jar - <<'EOF'
 import com.bloxbean.cardano.client.crypto.KeyGenUtil;
 import com.bloxbean.cardano.yaci.core.util.HexUtil;
 byte[] seed = new byte[32]; new java.security.SecureRandom().nextBytes(seed);
@@ -135,9 +113,8 @@ export STATE_FORMAT=91ee14091200f1e24659112d640e877e9177779dcc81dd06117f013e9190
 export STATE_GENESIS=2a5bc14e4bf7eb6d624fce199f820d6f073e297b2de751d0f81607a0905a92c4
 
 mkdir -p /tmp/appchain-tutorial
-cp app/config/network/devnet/shelley-genesis.json /tmp/appchain-tutorial/genesis-a.json
+cp config/network/devnet/shelley-genesis.json /tmp/appchain-tutorial/genesis-a.json
 
-cd app
 java -Dquarkus.profile=devnet -Dquarkus.http.port=7070 \
   -Dyano.genesis.shelley-genesis-file=/tmp/appchain-tutorial/genesis-a.json \
   -Dyano.storage.path=/tmp/appchain-tutorial/chainstate-a \
@@ -156,7 +133,7 @@ java -Dquarkus.profile=devnet -Dquarkus.http.port=7070 \
   -Dyano.app-chain.anchor.enabled=true \
   -Dyano.app-chain.anchor.signing-key=0303030303030303030303030303030303030303030303030303030303030303 \
   -Dyano.app-chain.anchor.every-blocks=2 \
-  -jar build/yano.jar > /tmp/appchain-tutorial/node-a.log 2>&1 &
+  -jar yano.jar > /tmp/appchain-tutorial/node-a.log 2>&1 &
 
 until curl -sf http://localhost:7070/q/health/ready > /dev/null; do sleep 1; done
 echo "node A up"
@@ -200,7 +177,7 @@ java -Dquarkus.profile=devnet -Dquarkus.http.port=7071 \
   -Dyano.app-chain.peers=localhost:13337 \
   -Dyano.app-chain.sequencer.proposer=$PUB_A \
   -Dyano.app-chain.threshold=2 \
-  -jar build/yano.jar > /tmp/appchain-tutorial/node-b.log 2>&1 &
+  -jar yano.jar > /tmp/appchain-tutorial/node-b.log 2>&1 &
 
 until curl -sf http://localhost:7071/q/health/ready > /dev/null; do sleep 1; done
 echo "node B up"; sleep 10   # let L1 sync + app peers connect
@@ -290,8 +267,7 @@ rm -rf /tmp/appchain-tutorial
 The framework never interprets message bodies — a **state machine** does.
 Here you build one: a replicated **key-value store** where message bodies are
 commands (`set:<key>=<value>` / `del:<key>`), packaged as a plugin jar for the
-default JVM distribution. No Yano rebuild is needed for that deployment mode;
-a native deployment must instead include the bundle at application build time.
+Yano X JVM distribution. No rebuild of the distribution is needed.
 
 ### 2.1 Plugin project
 
@@ -317,7 +293,7 @@ rootProject.name = 'kv-appchain-plugin'
 ```
 
 `build.gradle` — the node provides these APIs at runtime, so they are
-`compileOnly` (run `./gradlew publishToMavenLocal` in the yano repo first if
+`compileOnly` (run `./gradlew publishToMavenLocal` in the yano-x repo first if
 you are working against a local build):
 
 ```gradle
@@ -454,19 +430,17 @@ cd kv-appchain-plugin && ./gradlew jar
 # → build/libs/kv-appchain-plugin.jar
 ```
 
-### 2.3 Deploy on the default JVM distribution
+### 2.3 Deploy on the Yano X JVM distribution
 
 Drop the jar into the node's plugins directory and select the machine by id —
 on **every member** (all members must run the same state machine, or their
 state roots diverge and blocks are rejected):
 
 ```bash
-mkdir -p app/plugins
-cp kv-appchain-plugin/build/libs/kv-appchain-plugin.jar app/plugins/
+cp /path/to/kv-appchain-plugin/build/libs/kv-appchain-plugin.jar plugins/
 ```
 
-Do not copy this JAR beside Yano's native executable: native startup reports and
-ignores it. Yano X plugins target the JVM distribution.
+Yano X plugins run only on the JVM distribution.
 
 Config (only two things change relative to Part 1):
 
@@ -559,7 +533,7 @@ enterprise extension set — see `docs/APP_CHAIN_USER_GUIDE.md` sections 8–17:
 - **Spring Boot clients** — `yano-x-spring-boot-starter` gives your
   application an auto-configured `AppChainTemplate` and `@AppChainListener`
   over the Java SDK (guide §16) — no curl in production code.
-- **Tests** — `yano-appchain-core-testkit`: `@AppChainCluster(nodes = 3)` spins an
+- **Tests** — `yano-x-appchain-testkit`: `@AppChainCluster(nodes = 3)` spins an
   embedded multi-node chain inside a JUnit 5 test (guide §16).
 - **Scaffolds** — `scaffolds/docker-compose-cluster` (ready 3-node cluster)
   and `scaffolds/plugin-template` (Part 2 of this tutorial as a ready-made

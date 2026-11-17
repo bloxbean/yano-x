@@ -4,8 +4,9 @@ Choose Yano X when several organizations need shared records, workflows, or
 integrations with independently verifiable results. Start with existing
 capabilities, then add custom Java rules only where your application needs them.
 
-Yano supplies the host. Yano X adds application behavior through JVM plugins
-and reusable libraries. The dependency runs one way: `yano-x → yano`.
+Yano supplies the Cardano node and the generic plugin host. Yano X owns the
+app-chain framework and adds application behavior through JVM plugins and
+reusable libraries. The dependency runs one way: `yano-x → yano`.
 
 ## The boundary
 
@@ -14,12 +15,13 @@ and reusable libraries. The dependency runs one way: `yano-x → yano`.
 | Concern | Owned by |
 |---|---|
 | Cardano node, chain sync, L1 `chainstate` | Yano |
-| Message ordering, membership, threshold finality certificates | Yano |
-| Authenticated state (MPF or JMT), proofs and proof subjects, catch-up, replay | Yano |
-| Anchoring to Cardano metadata or a threshold-signed script | Yano |
-| Effect runtime: gates, retries, receipts, result incorporation; the webhook executor | Yano |
-| Plugin SPI, manifest schema, catalog validation, lifecycle | Yano |
-| `ordered-log` | Yano |
+| Plugin catalog, manifest schema, catalog validation, lifecycle, Host API | Yano |
+| Message ordering, membership, threshold finality certificates | **Yano X** framework |
+| Authenticated state (MPF or JMT), proofs and proof subjects, catch-up, replay | **Yano X** framework |
+| Anchoring to Cardano metadata or a threshold-signed script | **Yano X** framework |
+| Effect runtime: gates, retries, receipts, result incorporation; the webhook executor | **Yano X** framework |
+| App-chain contribution kinds and SPIs, app-chain REST API and console | **Yano X** framework |
+| `ordered-log` | **Yano X** framework |
 | Every other stock state machine | **Yano X** |
 | Composite profiles, governed profile evolution, declarative bindings | **Yano X** |
 | Kafka, S3, IPFS, and Cardano-payment executors; the Kafka sink | **Yano X** |
@@ -64,9 +66,8 @@ selects or manages them.
 ## JVM only, on purpose
 
 Yano X is JVM-only: no GraalVM or native-image tasks and no native executables.
-Yano's native image is core-only and starts with `ordered-log`, but it cannot
-load Yano X bundles, so a custom JVM plugin is incompatible with a native
-distribution.
+Yano's native image has no application-ledger support, so app chains and
+custom JVM plugins need the Yano X JVM distribution.
 
 ## Namespaces
 

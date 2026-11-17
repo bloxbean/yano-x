@@ -59,7 +59,7 @@ generic message endpoint. The state machine records:
 - every accepted or rejected attempt under the outer app-message ID; and
 - a bounded address index.
 
-The typed `appchain-eutxo-client` uses Yano's generic query and MPF proof
+The typed `yano-x-eutxo-client` uses Yano's generic query and MPF proof
 endpoints. Every typed query has a `*Snapshot` form returning the decoded value
 together with the exact committed height and state root:
 
@@ -84,12 +84,12 @@ transactions conflict, the first valid spend wins and later attempts receive
 
 ## Modules
 
-- `appchain-eutxo-contracts` — public identifiers, state keys, models, and
+- `yano-x-eutxo-contracts` — public identifiers, state keys, models, and
   canonical CBOR codecs.
 - `yano-x-eutxo-ledger` — optional state-machine plugin and transition
   engine.
-- `appchain-eutxo-client` — typed wrapper over generic submit/query/proof APIs.
-- `appchain-eutxo-testkit` — deterministic wallets, transactions, and replay
+- `yano-x-eutxo-client` — typed wrapper over generic submit/query/proof APIs.
+- `yano-x-eutxo-testkit` — deterministic wallets, transactions, and replay
   state for extension authors.
 - `yano-x-eutxo-indexer-core` — storage-neutral projection, reader,
   checkpoint, health, lineage, and store-conformance contracts.

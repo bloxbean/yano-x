@@ -207,7 +207,7 @@ export default {
       anchors: ['FIXTURE_ADMISSION_REJECTED', 'ADMISSION_RULE_DENIED/transfer-limit/TRANSFER_LIMIT_EXCEEDED'] },
     { repo: 'yano-x', path: 'tooling/studio/src/test/fixtures/scenarios/quorum-report-2.json',
       anchors: ['"ruleId" : "minimum-quorum"', '"denyCode" : "QUORUM_TOO_LOW"', '"failedStepOrdinal" : 1'] },
-    { repo: 'yano', path: 'docs/appchain/submission.md',
+    { repo: 'yano-x', path: 'docs/appchain/submission.md',
       anchors: ['"details": {"rule": "transfer-limit", "deny": "TRANSFER_LIMIT_EXCEEDED"}'] },
   ],
 };

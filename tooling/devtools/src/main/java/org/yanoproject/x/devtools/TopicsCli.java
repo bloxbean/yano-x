@@ -6,7 +6,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import org.yanoproject.appchain.proof.TopicPolicyProofVerifier;
+import org.yanoproject.x.framework.proof.TopicPolicyProofVerifier;
 import org.yanoproject.x.client.Hex;
 import org.yanoproject.x.client.TopicAuthoring;
 import org.yanoproject.x.framework.api.appchain.topics.TopicKeys;

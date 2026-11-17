@@ -163,7 +163,7 @@ tasks.register('verifyDemoRunnerBoundaryContract') {
         assert contracts.containsKey('org/yanoproject/runtime/kernel/Subsystem.class')
         def cardanoApi = cardanoApiJar.get().archiveFile.get().asFile
         new ZipFile(cardanoApi).withCloseable { zip ->
-            assert zip.getEntry('org/yanoproject/x/framework/cardano/api/CardanoRuntimeServices.class') != null
+            assert zip.getEntry('org/yanoproject/x/framework/cardano/api/effects/AppEffectExecutorFactory.class') != null
         }
         assert boundaryClassHashes(cardanoApi).isEmpty()
         assert implementationClasses(contracts, contracts).isEmpty()

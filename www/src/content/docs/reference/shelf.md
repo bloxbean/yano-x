@@ -18,8 +18,11 @@ repository disagree.
 |---|---|---|
 | [App ledger user guide](https://github.com/bloxbean/yano-x/blob/main/docs/APP_CHAIN_USER_GUIDE.md) | ~114 KB | The exhaustive reference: configuration, REST API, anchoring, custom app ledgers, multi-chain nodes, standard state machines, SSE/webhook/Kafka consumption, typed messages, security, compliance, operations, queries, client libraries, effects, troubleshooting, and current limitations. |
 | [App ledger overview](https://github.com/bloxbean/yano-x/blob/main/docs/APP_CHAIN_OVERVIEW.md) | ~21 KB | The 10–15 minute architecture read, plus an editable presentation deck. |
-| [Consensus and internals guide](https://github.com/bloxbean/yano/blob/main/docs/APP_CHAIN_CONSENSUS_GUIDE.md) (Yano) | ~23 KB | The consensus round check by check, vote locks, sequencer modes, catch-up and restart semantics. |
-| [Plugin query and domain API contract](https://github.com/bloxbean/yano/blob/main/docs/APP_CHAIN_PLUGIN_QUERY_AND_DOMAIN_API.md) (Yano) | — | How plugins add read hooks and domain routes, and how the host secures them. |
+| [Consensus and internals guide](https://github.com/bloxbean/yano-x/blob/main/docs/APP_CHAIN_CONSENSUS_GUIDE.md) | ~23 KB | The consensus round check by check, vote locks, sequencer modes, catch-up and restart semantics. |
+| [Plugin query and domain API contract](https://github.com/bloxbean/yano-x/blob/main/docs/APP_CHAIN_PLUGIN_QUERY_AND_DOMAIN_API.md) | — | How plugins add read hooks and domain routes, and how the host secures them. |
+| [Message submission](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/submission.md) | — | Admission, backpressure and the HTTP outcomes of a submission. |
+| [Certified observations](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/observations.md) | — | Generic observation profiles, scheduling, bounds, audit queries and qualification. |
+| [Standalone application ledgers](https://github.com/bloxbean/yano-x/blob/main/docs/appchain/STANDALONE.md) | — | `yano.mode=app-ledger`: app chains without Cardano chainstate. |
 | [App ledger tutorial](https://github.com/bloxbean/yano-x/blob/main/docs/APP_CHAIN_TUTORIAL.md) | ~22 KB | Run several members and build a custom state machine end to end. |
 | [Use-case catalogue](https://github.com/bloxbean/yano-x/blob/main/docs/APP_CHAIN_USE_CASES.md) | ~18 KB | Worked application patterns and their starting points. |
 
@@ -73,8 +76,8 @@ contract; trust this site and the code for current behaviour.
 ## The upstream host
 
 Yano itself lives at [github.com/bloxbean/yano](https://github.com/bloxbean/yano)
-and owns the node, consensus, proofs, anchoring, the effect runtime, the plugin
-SPI, and `ordered-log`. Host-contract questions belong there. Its
-[`ordered-log` reference](https://github.com/bloxbean/yano/blob/main/docs/appchain/state-machines/ordered-log.md)
-and [submission contract](https://github.com/bloxbean/yano/blob/main/docs/appchain/submission.md)
-are the host-side companions to this site.
+and owns the Cardano node, the generic plugin host and its SPI, and the Host
+API. It contains no application-ledger code: consensus, proofs, anchoring, the
+effect runtime, `ordered-log`, the app-chain REST API and console are Yano X's
+`framework` modules. Host-contract questions belong in Yano. See the
+[ADR-064 migration notes](/reference/migration-adr-064/).

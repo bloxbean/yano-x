@@ -51,7 +51,7 @@ Climb it in order. Each rung catches a class of bug the one below cannot.
 
 | Artifact | Purpose |
 |---|---|
-| `yano-appchain-core-testkit` | JUnit 5 `@AppChainCluster` embedded clusters. |
+| `yano-x-appchain-testkit` | JUnit 5 `@AppChainCluster` embedded clusters. |
 | `yano-x-effects-testkit` | Effect executor and result-path testing. |
 | `yano-x-client` | REST, SSE, and client-side proof verification from tests. |
 | `yano-x-eutxo-testkit` | For the eUTxO ledger. |

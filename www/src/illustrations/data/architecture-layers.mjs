@@ -119,7 +119,7 @@ export default {
     },
   },
   sources: [
-    { repo: 'yano', path: 'docs/APP_CHAIN_CONSENSUS_GUIDE.md',
+    { repo: 'yano-x', path: 'docs/APP_CHAIN_CONSENSUS_GUIDE.md',
       anchors: ['AppChainEngine (consensus, single-threaded)', 'MemberGroup (static or governed membership)',
         'Any member holding the round aggregates PREPARE votes'] },
     { repo: 'yano-x', path: 'framework/api/src/main/java/org/yanoproject/x/framework/api/appchain/AppChainConfig.java',

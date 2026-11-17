@@ -50,7 +50,7 @@ separately installed JVM plugin bundles (group id
 | `yano-x-evidence-profile` | `products/evidence/profile` | Bundled preview evidence and role-evidence profiles |
 | `yano-x-client` | `sdk/client` | Java client SDK: REST + SSE + client-side proof verification (§16) |
 | `yano-x-composite-client` | `composition/client` | Governed-profile finality, one-root MPF, epoch-chain, and authorization-policy verification |
-| `yano-appchain-core-testkit` | [Yano `appchain/appchain-testkit`](https://github.com/bloxbean/yano/tree/main/appchain/appchain-testkit) | JUnit 5 `@AppChainCluster` embedded clusters for tests (§16) |
+| `yano-x-appchain-testkit` | [`sdk/appchain-testkit`](../sdk/appchain-testkit) | JUnit 5 `@AppChainCluster` embedded clusters for tests (§16) |
 | `yano-x-integration-contracts` | `sdk/integration-contracts` | Provider-neutral connector payload, receipt, CDDL, and golden-vector contracts |
 | `yano-x-kafka` | `connectors/kafka` | Node plugin: finalized blocks and acknowledged `kafka.publish` effects → Kafka topics (§10, §17) |
 | `yano-x-objectstore-s3` | `connectors/objectstore-s3` | Node plugin: immutable/versioned `object.put` effects for tested S3-compatible stores (§17) |
@@ -138,7 +138,7 @@ are never finalized; a tampered block fails the state-root re-execution check.
 For the full developer-level mechanics — the consensus round check by check,
 vote locks, rotation math, catch-up/restart semantics, and every built-in
 state machine's exact wire format — see Yano's
-[consensus & internals guide](https://github.com/bloxbean/yano/blob/main/docs/APP_CHAIN_CONSENSUS_GUIDE.md).
+[consensus & internals guide](APP_CHAIN_CONSENSUS_GUIDE.md).
 
 ---
 
@@ -205,10 +205,12 @@ Use it to understand them, or to run a node without the setup tool.
 
 ### 3.1 Generate member keys
 
-Each member needs an Ed25519 keypair (32-byte seed). Using the built jar:
+Each member needs an Ed25519 keypair (32-byte seed). Using the integrated jar
+(`yano.jar` in the Yano X JVM distribution, or `distribution/jvm/build/yano.jar`
+from `./gradlew :distribution:jvm:quarkusBuild`):
 
 ```bash
-jshell --class-path app/build/yano.jar - <<'EOF'
+jshell --class-path yano.jar - <<'EOF'
 import com.bloxbean.cardano.client.crypto.KeyGenUtil;
 import com.bloxbean.cardano.yaci.core.util.HexUtil;
 byte[] seed = new byte[32]; new java.security.SecureRandom().nextBytes(seed);
@@ -744,7 +746,7 @@ file I/O, environment reads, iteration over unordered collections
 library-default serialization. Note that `validate()` runs at the proposer's
 admission only — any rule that must hold by consensus belongs in `apply()`.
 
-**Verify before deploying** with the conformance harness (in `yano-runtime`,
+**Verify before deploying** with the conformance harness (in `yano-x-appchain-core`,
 ADR 008.1 I1.6) — it applies one identical block corpus through the real
 ledger commit path in N independent runs plus a kill-and-reopen replay, and
 asserts byte-identical roots at every height:
@@ -1448,7 +1450,7 @@ class Orders {
 Listener methods take `StreamedMessage`, `byte[]` or `String`; all beans are
 `@ConditionalOnMissingBean`, so anything can be overridden.
 
-**Testkit** (`org.yanoproject:yano-appchain-core-testkit`, test scope) —
+**Testkit** (`org.yanoproject.x:yano-x-appchain-testkit`, test scope) —
 embedded multi-node chains for CI: generated keys, real sockets, temp ledgers:
 
 ```java

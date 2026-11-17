@@ -187,7 +187,7 @@ export default {
         'Proposal consensus context mismatch', 'is not from the deterministic leader', 'Proposal prev-hash mismatch',
         'Proposal messages-root mismatch', 'Proposal state-root mismatch', 'seed.put(context).put(parent);',
         '!group.containsAt(signerHex, block.height()) || !seen.add(signerHex)'] },
-    { repo: 'yano', path: 'docs/APP_CHAIN_CONSENSUS_GUIDE.md',
+    { repo: 'yano-x', path: 'docs/APP_CHAIN_CONSENSUS_GUIDE.md',
       anchors: ['only the cert is outside the hash', 'the ONLY time a state machine may use',
         'With `l1.stability-depth > 0`, every block carries an `(l1Slot, l1BlockHash)`', 'slots must be monotonic'] },
   ],

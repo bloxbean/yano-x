@@ -22,10 +22,10 @@ composite runs several state machines under one root.
 
 | Layer | What it does | Provided by | What it guarantees |
 |---|---|---|---|
-| 1. Consensus | Members order messages into blocks and certify each block with a threshold of signatures. | Yano | A final block is never rolled back. |
-| 2. Execution | One deterministic state machine computes each block's new state. Members run it while they vote. | Yano runs it. `ordered-log` is built in; Yano X provides the other stock machines and composites. | Every honest member computes the same state. |
-| 3. Evidence | A state root after every block, proofs against it, and optional Cardano anchors. | Yano | A record can be checked without trusting the node that served it. |
-| 4. Integration | APIs and clients, plus effects that act on external systems after finality. | Yano provides the APIs, the effect runtime, and the webhook executor. Yano X adds connectors, SDKs, and products. | External actions never run inside consensus. |
+| 1. Consensus | Members order messages into blocks and certify each block with a threshold of signatures. | Yano X framework | A final block is never rolled back. |
+| 2. Execution | One deterministic state machine computes each block's new state. Members run it while they vote. | The framework runs it. `ordered-log` is built in; Yano X also provides the other stock machines and composites. | Every honest member computes the same state. |
+| 3. Evidence | A state root after every block, proofs against it, and optional Cardano anchors. | Yano X framework | A record can be checked without trusting the node that served it. |
+| 4. Integration | APIs and clients, plus effects that act on external systems after finality. | The framework provides the APIs, the effect runtime, and the webhook executor. Yano X adds connectors, SDKs, and products. | External actions never run inside consensus. |
 
 Two identities stay separate across the layers. The member that accepts a
 message signs its envelope; that is transport. When a workflow needs a person
@@ -114,7 +114,7 @@ ledger data is never placed below L1 `chainstate`.
   `plugins/` before `seal`, and the setup draft selects it. A later change needs
   `appchain join <app>.chain --accept-bundles` on every member. No Yano rebuild
   is needed.
-- **Native:** Yano's native image is core-only. Yano X extensions are JVM-only.
+- **Native:** Yano's native image has no application-ledger support. Yano X is JVM-only.
 - **Several ledgers per node:** one node can host several independently
   configured chains.
 - **Executor placement:** effects can run on a designated member, a dedicated
