@@ -320,12 +320,28 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
+      # The build JDK's jmods become the bundled runtime (jlink), so this JDK ships to users. Corretto, because
+      # Temurin has no build with the CVE-2026-114938 (Java4Shell) fix yet; the jobs that only build and test
+      # stay on Temurin.
       - uses: actions/setup-java@v6
         with:
-          distribution: temurin
+          distribution: corretto
           java-version: '25'
+      # Refuses a JDK older than the first fixed build, e.g. from a stale tool cache or a vendor regression.
+      - name: Require a patched build JDK
+        shell: bash
+        env:
+          MIN_JAVA_VERSION: 25.0.5.1
+        run: |
+          set -euo pipefail
+          version=$("$JAVA_HOME/bin/java" -XshowSettings:properties -version 2>&1 \
+            | awk -F' = ' '/^ *java\.runtime\.version = / { print $2; exit }')
+          echo "Build JDK: $JAVA_HOME ($version)"
+          bash .github/scripts/require-java-version.sh "${version%%[+-]*}" "$MIN_JAVA_VERSION"
       - name: Build the self-contained edition
         shell: bash
+        env:
+          MIN_JAVA_VERSION: 25.0.5.1
         run: |
           set -euo pipefail
           ./gradlew :distribution:jvm:yanoXSelfContainedDistZip -PskipSigning=true --stacktrace
@@ -340,6 +356,10 @@ jobs:
           cp "${archives[@]}" self-contained/
           for archive in self-contained/*.zip; do
             unzip -tq "$archive"
+            # Checks the runtime that actually ships, whichever JDK Gradle linked it from.
+            bundled=$(unzip -p "$archive" '*/runtime/release' | sed -nE 's/^JAVA_VERSION="([^"]+)"$/\1/p')
+            echo "$(basename "$archive"): bundled runtime ${bundled:-<none>}"
+            bash .github/scripts/require-java-version.sh "$bundled" "$MIN_JAVA_VERSION"
             (cd self-contained && shasum -a 256 "$(basename "$archive")" > "$(basename "$archive").sha256")
           done
       - uses: actions/upload-artifact@v4
