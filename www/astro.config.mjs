@@ -93,6 +93,7 @@ export default defineConfig({
           items: [
             { label: 'Recipe catalog', slug: 'recipes' },
             { label: 'Choosing a recipe', slug: 'recipes/choosing-a-recipe' },
+            { label: 'Get started with topics', slug: 'recipes/topics-getting-started' },
             { label: 'Protect a topic with session keys', slug: 'recipes/topic-session-keys' },
           ],
         },

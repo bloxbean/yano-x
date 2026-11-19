@@ -440,7 +440,8 @@ and anyone runs `topics submit topics.signed.json`, which waits until it is in
 effect. `topics public-key <seed file>` prints the public key to put in
 `topics.yaml`. Studio's **Topics** page
 writes `topics.yaml` with a form if you prefer. See
-[protect a topic and give users session keys](../TOPIC_SESSION_KEYS.md).
+[protect a topic and give users session keys](../TOPIC_SESSION_KEYS.md). New to
+topics? Follow [get started with the topic registry](../TOPICS_GETTING_STARTED.md).
 
 ## Where each setting lives
 

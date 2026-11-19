@@ -12,6 +12,7 @@ machine, then set it up for real with the other operators.
 | Rehearse a shared application | [`./yano.sh appchain try`](/deployment/configure/#1-practise-on-one-machine) | Every real setup step, on one machine, with three simulated operators |
 | Run an application with other operators | [Set up an application](/deployment/configure/) | Each operator runs their own node; everyone checks they have the same chain |
 | Add or remove a member, or add another application | [Grow and change it](/deployment/add-chain/) | One command per operator, without resetting anything |
+| Follow a chain from a read-only node | [Follow a chain without joining it](/deployment/add-chain/#follow-a-chain-without-joining-it) | A full copy of the chain that answers reads and does not vote |
 | Run your node on a server | [Run your node on a server](/deployment/operators/) | A systemd service, open ports, and the cloud route for the showcase |
 
 Yano X is JVM-only and requires Java 25. Yano's tooling calls an app ledger an

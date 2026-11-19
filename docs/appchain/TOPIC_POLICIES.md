@@ -177,4 +177,5 @@ intentional prerelease boundary, not a claim that every historical state can
 be replayed under the new host. The host also adds a committed clock-skew field
 to its consensus profile. Keep old stores with the binary that created them.
 
-Next: [protect a topic and give users session keys](TOPIC_SESSION_KEYS.md).
+Next: [get started with the topic registry](TOPICS_GETTING_STARTED.md), or
+[protect a topic and give users session keys](TOPIC_SESSION_KEYS.md).

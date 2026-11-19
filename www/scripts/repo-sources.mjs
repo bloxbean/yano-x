@@ -185,6 +185,7 @@ export const loadArtifactInventory = () => readJson('config/artifacts-v1.json');
  */
 export const IMPORTED_DOCS = {
   'docs/appchain/TOPIC_POLICIES.md': '/concepts/topic-policies/',
+  'docs/appchain/TOPICS_GETTING_STARTED.md': '/recipes/topics-getting-started/',
   'docs/appchain/TOPIC_SESSION_KEYS.md': '/recipes/topic-session-keys/',
   'docs/appchain/bindings/README.md': '/bindings/',
   'docs/appchain/bindings/01-first-workflow.md': '/bindings/first-workflow/',
