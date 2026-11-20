@@ -4,7 +4,8 @@
 - **Issue:** [#103](https://github.com/bloxbean/yano-x/issues/103) (ExecutionBackedStateMachine and
   GraalVM polyglot plugins).
 - **Evidence:** the incubator repository
-  [bloxbean/yano-x-executors](https://github.com/bloxbean/yano-x-executors) at commit `f578f94`
+  [bloxbean/yano-x-executors](https://github.com/bloxbean/yano-x-executors) at commit `f578f94` (M1)
+  and `da9b093` (M2 so far)
   (private for now, to be made public). This ADR restates everything a reviewer needs; the
   incubator holds the code, the tests and the full specifications.
 - **Related:** ADR app-layer/011 (plugin architecture and trust tiers), ADR app-layer/031
@@ -159,12 +160,16 @@ Package `org.yanoproject.x.executors.spi` during incubation, no dependencies, no
 | `MemoryModel` | `DETERMINISTIC_LIMIT` or `NOT_ENFORCED` |
 | `Readiness` | `READY`, `DEGRADED` (for example interpreter-only Truffle) or `UNAVAILABLE`, with a reason |
 | `ProgramArtifact`, `InstanceConfig` | media type, ABI version and bytes; required exports, host function table, memory limit |
-| `LoadedProgram`, `ProgramInstance` | `exports()`, `instantiate(HostCalls)`; `invoke(export, input, computeBudget)`, poisoned after any result other than `Completed` |
+| `LoadedProgram`, `ProgramInstance` | `exports()`, `instantiate(HostCalls, computeBudget)`; `invoke(export, input)` under the instance's budget, metered from zero each time, poisoned after any result other than `Completed` |
 | `HostFunction`, `HostCalls`, `HostAbort` | host function shape (index, name, arity, return kind); the host side of the binding; the uncatchable abort a host function throws |
 | `ExecutionResult` | sealed: `Completed(output)`, `Trapped(TrapCode)`, `OutOfCompute`, `HostAborted(HostAbort)` |
 | `TrapCode` | `GUEST_ERROR`, `GUEST_FAULT`, `MEMORY_LIMIT`, `CALL_DEPTH`, `BAD_RETURN` |
 | `ExecutionEngineException`, `ProgramRejectedException` | any non-deterministic failure; a load failure with a deterministic code (`malformed`, `unsupported-abi`, `unsupported-media-type`, `forbidden-feature`, `unknown-import`, `missing-export`, `too-large`) |
 | `ExecutionProfile` | `CONSENSUS`; `OBSERVER` and `EFFECT` reserved |
+
+The compute budget is fixed per instance, and every invocation of an instance gets all of it (r2).
+GraalJS forced this: it sets a context's statement limit when the context is built and can only
+reset the count, so a budget per `invoke` call would not be portable.
 
 The runtime contract has seven rules: results are deterministic; metering is exact; everything
 that can change a result is in the fingerprint; host aborts end the invocation even if the guest
@@ -233,8 +238,9 @@ effect result, and the program config bytes from the descriptor.
 **Language bindings.** JavaScript: one ECMAScript script evaluated in a fresh realm per instance;
 global functions over `Uint8Array`; a frozen global `yano`; a `Promise` or any non-`Uint8Array`
 return is a `bad-return` trap; `Math.random` throws; `Date`, `Intl`, `performance`,
-`SharedArrayBuffer`, `Atomics`, `WeakRef` and `FinalizationRegistry` are absent; no I/O, host
-classes, threads or polyglot access. WebAssembly: exports `memory`, `yano_alloc(len) -> ptr` and
+`SharedArrayBuffer`, `Atomics`, `WeakRef` and `FinalizationRegistry` are absent; locale-sensitive
+built-ins (`toLocaleLowerCase`, `toLocaleString`, `localeCompare`) use a pinned locale, `en-US`,
+never the node's (r2); no I/O, host classes, threads or polyglot access. WebAssembly: exports `memory`, `yano_alloc(len) -> ptr` and
 each entry point as `(ptr, len) -> i64` returning `(ptr << 32) | len`; imports only from `yano`;
 a load-time gatekeeper rejects unknown imports, floats, SIMD, threads and atomics, memory64,
 multiple memories, a start function and a memory maximum above the descriptor limit.
@@ -272,8 +278,8 @@ Every outcome but the last is a deterministic function of program, input, budget
 *Rejected:* one invocation per block, where any sender could make a whole block fail; and a
 long-lived instance per chain, where guest memory becomes hidden, unhashed state. A per-block
 instance replaced after any failure is also deterministic and may be cheaper; Phase 2 measures it
-(Q1). Phase 0 puts the per-invocation cost at about 0.11 ms of context creation, so roughly 22 ms
-for a 200-message block, before any reuse of the parsed program.
+(Q1). M2 measured 21.9 ms for a 200-message block with an instance per invocation and 3.4 ms with
+one instance per block (Oracle GraalVM, p50).
 
 ### D5. Two budgets per invocation; usage is not consensus data
 
@@ -373,11 +379,13 @@ adapter. The TCK drives the runtime with the same host session class the adapter
 The runtime author writes 16 programs in the guest language with normative behaviour (counter,
 effects, echo, reject, trap after write, spin, host flood, catch host abort, oversize value,
 reserved key, write in validate, deep recursion, missing export, unknown import, static state,
-environment probe). The 25 checks cover descriptor validity and stability, readiness, load
+environment probe). The 26 checks cover descriptor validity and stability, readiness, load
 validation, byte transparency, exact outputs, exact exhaustion of both budgets (host fuel aborts on
-exactly call `floor(100000 / 101) + 1` for a 100,000 budget), uncatchable aborts, ABI violations,
-recursion on three stack sizes, memory bounds, instance isolation, environment stability across
-instances, time and runtime opens, a 120-message determinism corpus and eight concurrent threads.
+exactly call `floor(100000 / 101) + 1` for a 100,000 budget), a meter that restarts for every
+invocation of an instance, uncatchable aborts, ABI violations, recursion on three stack sizes,
+memory bounds, instance isolation, environment stability across instances, time, runtime opens and
+JVM default locale and time zone (the second open runs under `tr-TR` and `Asia/Kolkata`), a
+120-message determinism corpus and eight concurrent threads.
 
 A result is PASS, WARN or FAIL. WARN marks a known, documented gap: `memory.bounded` for runtimes
 with `NOT_ENFORCED` memory, and `load.unknown-import` for dynamic languages that cannot declare
@@ -423,16 +431,32 @@ forbids raw `ServiceLoader` activation in yano-x).
 
 - `SandboxPolicy.CONSTRAINED`, no host class lookup, I/O, threads, native or polyglot access; the
   prelude of D3 removes ambient nondeterminism.
+- `js.locale=en-US` and `js.ecmascript-version=2024`, both fingerprint components. Without the
+  locale option, GraalJS uses the JVM default locale even with `Intl` removed: on a `tr-TR` JVM
+  `'I'.toLocaleLowerCase()` gives a dotless `ı` and `toLocaleString()` gives `1.234.567,891`
+  (measured, r2).
 - Compute is a statement limit, which Phase 0 showed deterministic across JIT, interpreter and
-  JVMs for a pinned GraalJS version. The GraalJS version is a fingerprint component.
+  JVMs for a pinned GraalJS version. The GraalJS version is a fingerprint component. The limit's
+  source filter counts every non-internal source, so code from `eval` and `new Function` is
+  metered too; GraalJS allows only one filter per engine.
 - `readiness(CONSENSUS)` is `DEGRADED` on interpreter-only Truffle (about 70 times slower). A stock
   JDK gets the optimizing runtime with `-XX:+UnlockExperimentalVMOptions -XX:+EnableJVMCI
   --upgrade-module-path=<Graal compiler jars>` through `JAVA_OPTS`, which `yano.sh` and the Docker
   entrypoint already honour.
 - A deterministic call-depth limit of its own, in the fingerprint. GraalJS turns Java stack
   overflow into a JS `RangeError` at a depth that depends on stack size and compilation, which
-  fails `recursion.deterministic`. Candidate techniques: source instrumentation of function entry,
-  or a guarded counter in an instrument; M2 picks one.
+  fails `recursion.deterministic`. M2 uses a Truffle instrument that cancels the context, which
+  guest code cannot catch, at 2,000 guest frames (r2).
+- Native recursion inside built-ins (for example `String()` of a deeply nested array) has no guest
+  frames. In M2 it overflowed a 16 MiB stack on a cold run but not after JIT warm-up. GraalJS
+  converts the `StackOverflowError` into a catchable `RangeError` that keeps it as its Java cause,
+  which guests cannot forge. The instrument records it as it passes any guest statement, and the
+  invocation becomes an engine failure (D7) even if the guest catches it (r2).
+- Guest code runs only on runtime-owned threads with a fixed large stack (256 MiB). On a 512 KiB
+  caller thread, a stack overflow inside Truffle's class initialisation broke the engine for the
+  whole JVM (r2).
+- Host aborts close the context from inside the host call. A host exception would be catchable by
+  the guest; a cancellation is not (r2).
 - `MemoryModel.NOT_ENFORCED`: GraalJS cannot bound guest heap under `CONSTRAINED`. A guest can
   exhaust the node heap. That is an engine failure (D7), so the node stops rather than diverges,
   but it is a denial of service by a program author (R1).
@@ -473,6 +497,8 @@ adapter tests in the incubator).
 | I12 | `validate` and `query` never write or emit, and `validate` fails closed. | D10 | `host.read-only`; adapter admission and query tests |
 | I13 | Within a block, an invocation sees the writes of earlier committed invocations; a retried block sees none of its failed attempt. | D4 | adapter read-your-writes and retried-block tests |
 | I14 | New instances share no guest state. | D2, D4 | `isolation.instances` |
+| I15 | No result depends on the node's environment: clock, randomness, JVM default locale or time zone (added in r2). | D3, D14 | `environment.stable` (second runtime under `tr-TR` and `Asia/Kolkata`); GraalJS cross-locale test |
+| I16 | Every invocation of an instance gets the instance's whole compute budget (added in r2). | D2, D5 | `compute.per-invocation`, with a broken-runtime self-test |
 
 ## 7. Findings about the Yano API
 
@@ -515,7 +541,7 @@ Found while building the adapter. None blocks incubation; all affect promotion.
 |---|---|---|---|
 | M0 | Phase 0 spikes | — | Done (`9d0a8ba`): §1.1 |
 | M1 | Phase 1: ABI v1, SPI, TCK, adapter draft | M0 | Done (`f578f94`): build passes; TCK passes on the reference runtime with only `memory.bounded` as WARN; broken runtimes fail the intended checks; adapter conformance roots equal a Java machine |
-| M2 | GraalJS runtime, JS SDK, counter and escrow examples | this ADR reviewed (Proposed is enough to start incubator work) | TCK passes (WARN only `memory.bounded`, `load.unknown-import`), I1–I14; `StateMachineConformance` passes with roots identical across two class loaders and a restart; two-node devnet agrees on roots; per-invocation vs per-block instance measured (Q1) |
+| M2 | GraalJS runtime, JS SDK, counter and escrow examples | this ADR reviewed (Proposed is enough to start incubator work) | TCK passes (WARN only `memory.bounded`, `load.unknown-import`), I1–I16; `StateMachineConformance` passes with roots identical across two class loaders and a restart; two-node devnet agrees on roots; per-invocation vs per-block instance measured (Q1) |
 | M3 | Chicory runtime, gatekeeper, Rust SDK, the same examples in Rust | M2 | TCK passes with no WARN for memory; JS and Rust examples give identical roots for one message log; any SPI change re-verified on GraalJS |
 | M4 | Promotion into yano-x (D13) | M3; this ADR Accepted; Q3–Q6 decided | yano-x `check` passes with the new kind; catalog-loaded runtime passes the TCK; `~exec/` reserved if decided |
 | M5 | Graduation: AOT with injected gas, performance budgets, hostile multi-node tests | M4 | Considered for a yano-x plugin pack in a later ADR |
@@ -551,7 +577,7 @@ Passing tests are not a security review. M5 includes one before any plugin-pack 
 | R2 | GraalJS statement counts change between releases. | Engine version in the fingerprint; upgrade is a chain upgrade (Q5). |
 | R3 | Chicory `ExecutionListener` is marked experimental and unsupported. | Pin Chicory; gas instrumentation (M5) removes the dependency. |
 | R4 | Interpreter-only Truffle is about 70 times slower. | `DEGRADED` readiness refuses CONSENSUS unless `allow-degraded`; documented JVMCI flags. |
-| R5 | Per-invocation instances cost about 0.11 ms each. | Measure per-block instances in M2 (Q1); M2 shares parsed program source through one GraalJS `Engine`. |
+| R5 | Per-invocation instances cost about 0.11 ms each (110 µs per message in M2). | Per-block instances are about 6 times cheaper (Q1); parsed program source is shared through one GraalJS `Engine`. |
 | R6 | 35 MB GraalJS bundle. | Never in yano-x Central; separate plugin pack after graduation. |
 | R7 | A runtime bug passes the TCK and diverges in production. | Two independent runtimes, differential examples, pinned fingerprints, multi-node tests (M5). |
 | R8 | Effect budgets in composite chains are shared invisibly (finding 2). | Standalone chains only until Q4 is decided. |
@@ -560,7 +586,7 @@ Passing tests are not a security review. M5 includes one before any plugin-pack 
 
 | ID | Question | Options | Lean |
 |---|---|---|---|
-| Q1 | Fresh instance per invocation, or one instance per block replaced after any failed invocation? | Per invocation (strictest isolation, about 0.11 ms each); per block (cheaper, also deterministic because failures are) | Decide on M2 numbers; keep per invocation unless the cost is material at realistic block sizes. |
+| Q1 | Fresh instance per invocation, or one instance per block replaced after any failed invocation? | Per invocation (strictest isolation); per block (cheaper, also deterministic because failures are) | Measured in M2 (r2), for a 200-message block of the counter example, p50: 21.9 ms per invocation against 3.4 ms per block on Oracle GraalVM 25.0.2, and 24.8 ms against 4.0 ms on Liberica 25.0.2 with the Graal compiler. Lean: one instance per block, replaced after any outcome other than `transition-ok`. Guest memory then carries between committed messages of a block, so the instance scope becomes semantics: it must be pinned (a descriptor field or an ABI rule) and covered by the TCK. `validate` and `query` keep their own instances. |
 | Q2 | Receipts on by default, and pruned? | On by default; off by default; on with a retention window | On by default, no pruning in v1; pruning needs a deterministic rule and belongs with snapshot work. |
 | Q3 | Reserve `~exec/` in the framework next to `~fx/`? | Reserve in `FxKeys`-like framework code; leave it adapter-private | Reserve at promotion, once the adapter is framework code. |
 | Q4 | How do execution-backed machines share effect budgets in composite chains? | Framework exposes per-block emission count; per-component budget split in settings; standalone only | Ask the framework for a per-block count (small API addition at promotion); standalone only until then. |
@@ -589,3 +615,8 @@ Passing tests are not a security review. M5 includes one before any plugin-pack 
 ## Revision history
 
 - r1 (2026-11-21): initial version.
+- r2 (2026-11-21; responds to the automated review of `02dcab42` and adds M2 results): locale
+  finding → D3 and D14 pin `js.locale=en-US`, D11 runs the environment check under another JVM
+  locale and time zone, new I15. Budget per instance (D2, new I16), call-depth and native-overflow
+  guards, runtime-owned threads and uncatchable host aborts (D14) come from M2 in the incubator at
+  `da9b093`. Q1 and R5 now carry the M2 measurements.
