@@ -5,8 +5,8 @@
   GraalVM polyglot plugins).
 - **Evidence:** the incubator repository
   [bloxbean/yano-x-executors](https://github.com/bloxbean/yano-x-executors) at commits `f578f94`
-  (M1), `da9b093` and `ce0a7cf` (M2), and `5ef2c58`, `3cb79d3` and `fc7d31f` (M3 and the
-  two-node devnet)
+  (M1), `da9b093` and `ce0a7cf` (M2), `5ef2c58`, `3cb79d3` and `fc7d31f` (M3 and the
+  two-node devnet), and `48c9bbf` (CDDL check)
   (private for now, to be made public). This ADR restates everything a reviewer needs; the
   incubator holds the code, the tests and the full specifications.
 - **Related:** ADR app-layer/011 (plugin architecture and trust tiers), ADR app-layer/031
@@ -134,7 +134,7 @@ runtime plugin that is malicious, which ADR-011 already treats as fully trusted 
 | Chicory | 1.7.5 | Second runtime (M3) |
 | yano-x framework API | `main` at `00274933` (ADR-057 packages) | Adapter contract |
 | Rust toolchain | 1.97.0, target `wasm32-unknown-unknown` (pinned in `rust-toolchain.toml`) | Rust SDK and the checked-in guest modules, which rebuild byte for byte (r3) |
-| Incubator specifications | `bloxbean/yano-x-executors@fc7d31f`: `docs/guest-abi-v1.md`, `spec/guest-abi-v1.cddl`, `spec/vectors/abi-v1.json`, `docs/runtime-spi.md`, `docs/tck.md`, `docs/phase-0-results.md` to `docs/phase-3-results.md` | Normative text for D2 to D11 |
+| Incubator specifications | `bloxbean/yano-x-executors@48c9bbf`: `docs/guest-abi-v1.md`, `spec/guest-abi-v1.cddl`, `spec/vectors/abi-v1.json`, `docs/runtime-spi.md`, `docs/tck.md`, `docs/phase-0-results.md` to `docs/phase-3-results.md` | Normative text for D2 to D11 |
 
 ## 5. Decisions
 
@@ -226,7 +226,7 @@ ends the invocation as an ABI violation with a fixed code:
 | Value length | at most 65,536 bytes | `value-too-large` |
 | Distinct keys written per invocation | at most 4096 | `write-limit` |
 | Writes and effects | only in `apply_message` and `on_effect_result` | `read-only` |
-| Effect intent | canonical and valid | `invalid-effect` |
+| Effect intent | canonical and valid; scope at most 256 bytes, payload at most 65,536 bytes, whatever the chain's `effects.max-payload-bytes` allows (r4) | `invalid-effect` |
 | Effects enabled on the chain | `effects.enabled` | `effects-disabled` |
 | Effects | at most 64 per invocation and within the chain's `effects.*` limits | `effect-limit` |
 | Hash input | at most 1 MiB | `input-too-large` |
@@ -605,9 +605,16 @@ independent evidence:
   RFC 8949 and the CDDL, decodes and re-encodes all 15 valid vectors byte for byte, generically and
   as typed records, and rejects all 14 invalid ones with the expected code. The JS SDK, run on
   GraalJS, does the same for the valid vectors and the 9 CBOR-level invalid ones; the other 5 are
-  outputs and effect intents, which guests only produce and the host checks. A check of the CDDL
-  by an independent CDDL tool is still outstanding: installing one was not possible in the
-  incubator's environment.
+  outputs and effect intents, which guests only produce and the host checks.
+- **CDDL.** Done (r4): `spec/tools/check_cddl.py` validates every vector against the CDDL with
+  cddl-rs 0.10.7, which shares no code with the three codecs. All 15 valid vectors match; all 9
+  `schema` and `unsupported-type` vectors and 6 mutation controls do not. The 5 encoding-level
+  vectors are out of CDDL's scope (it describes values, not bytes). The first run found that two
+  `effect-intent` rules lived only in comments (now in the schema) and that cddl-rs does not anchor
+  `.regexp` as RFC 8610 §3.8.3 (XSD) requires (the script anchors patterns). Comparing the CDDL with
+  the reference host found two undocumented caps, effect scope 256 bytes and payload 65,536 bytes,
+  which would have given a host written from the spec different receipts on a chain with a larger
+  `effects.max-payload-bytes`; both are now ABI v1 rules.
 - **Differential runs.** Same message log through the JS program, the Rust program and a plain Java
   machine; roots must be identical at every height (M2, M3). Done (r3): the JS and Rust counters
   each match a plain Java counter, and the Rust escrow on Chicory matches the JS escrow on GraalJS,
@@ -692,3 +699,6 @@ Passing tests are not a security review. M5 includes one before any plugin-pack 
   and M3 marked done (Q1 still open). §10: the vectors pass the independent JS and Rust codecs; the
   devnet ran. Q1 gains the Chicory numbers. New R9 (Chicory throughput) and R10 (plugin
   packaging). Two related findings. Incubator commits `ce0a7cf`, `5ef2c58`, `3cb79d3`, `fc7d31f`.
+- r4 (2026-11-21; no new review findings; head before this revision `224e9dc7`). §10: the CDDL check
+  by an independent tool is done. The D3 violation table states the ABI's effect scope and payload
+  caps, which the reference host enforced but the spec did not. Incubator commit `48c9bbf`.
