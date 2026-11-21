@@ -6,8 +6,8 @@
 - **Evidence:** the incubator repository
   [bloxbean/yano-x-executors](https://github.com/bloxbean/yano-x-executors) at commits `f578f94`
   (M1), `da9b093` and `ce0a7cf` (M2), `5ef2c58`, `3cb79d3` and `fc7d31f` (M3 and the
-  two-node devnet), `48c9bbf` (CDDL check), and `09969a6` and `c50988c` (Q1: one instance per
-  block)
+  two-node devnet), `48c9bbf` (CDDL check), `09969a6` and `c50988c` (Q1: one instance per
+  block), and `66f7c42` (R1 investigation)
   (private for now, to be made public). This ADR restates everything a reviewer needs; the
   incubator holds the code, the tests and the full specifications.
 - **Related:** ADR app-layer/011 (plugin architecture and trust tiers), ADR app-layer/031
@@ -136,7 +136,7 @@ runtime plugin that is malicious, which ADR-011 already treats as fully trusted 
 | Chicory | 1.7.5 | Second runtime (M3) |
 | yano-x framework API | `main` at `00274933` (ADR-057 packages) | Adapter contract |
 | Rust toolchain | 1.97.0, target `wasm32-unknown-unknown` (pinned in `rust-toolchain.toml`) | Rust SDK and the checked-in guest modules, which rebuild byte for byte (r3) |
-| Incubator specifications | `bloxbean/yano-x-executors@c50988c`: `docs/guest-abi-v1.md`, `spec/guest-abi-v1.cddl`, `spec/vectors/abi-v1.json`, `docs/runtime-spi.md`, `docs/tck.md`, `docs/phase-0-results.md` to `docs/phase-3-results.md` | Normative text for D2 to D11 |
+| Incubator specifications | `bloxbean/yano-x-executors@66f7c42`: `docs/guest-abi-v1.md`, `spec/guest-abi-v1.cddl`, `spec/vectors/abi-v1.json`, `docs/runtime-spi.md`, `docs/tck.md`, `docs/phase-0-results.md` to `docs/phase-3-results.md` | Normative text for D2 to D11 |
 
 ## 5. Decisions
 
@@ -650,7 +650,7 @@ Passing tests are not a security review. M5 includes one before any plugin-pack 
 
 | ID | Risk | Mitigation |
 |---|---|---|
-| R1 | GraalJS guest exhausts the node heap (D14). | Node stops instead of diverging (D7); documented WARN; program authors are chain members; Chicory has an exact bound. A Truffle allocation limit or an isolate was not investigated in M2 or M3; still open. |
+| R1 | GraalJS guest exhausts the node heap (D14). | Node stops instead of diverging (D7); documented WARN; program authors are chain members; Chicory has an exact bound (I18). Investigated in r6: no deterministic heap bound exists for GraalJS. `js-community` has no `sandbox.MaxHeapMemory`. The Oracle edition (`truffle-enterprise`, GFTC licence) enforces it on Oracle GraalVM, but where it stops varies between runs (26,780 to 39,800 arrays under 64 MB in five runs), and it is unsupported without the Graal compiler. So it could only be a node-local safety net that turns heap exhaustion into an engine failure. It cannot become a consensus limit. Open for a maintainer decision: accept R1 for GraalJS with trusted program authors, and use Chicory where authors are not trusted. |
 | R2 | GraalJS statement counts change between releases. | Engine version in the fingerprint; upgrade is a chain upgrade (Q5). |
 | R3 | Chicory `ExecutionListener` is marked experimental and unsupported. | Pin Chicory; gas instrumentation (M5) removes the dependency. |
 | R4 | Interpreter-only Truffle is about 70 times slower. | `DEGRADED` readiness refuses CONSENSUS unless `allow-degraded`; documented JVMCI flags. |
@@ -720,3 +720,8 @@ Passing tests are not a security review. M5 includes one before any plugin-pack 
   resolved Q1: one instance per block. D4 states the instance scope as an ABI rule and moves the
   per-invocation rule to its rejected alternatives; new I19; R5 resolved; §1.1 and M2 updated.
   Incubator commits `09969a6` (adapter, Rust SDK heap reset, tests) and `c50988c` (devnet run).
+- r6 (2026-11-21; no new review findings; head before this revision `29d8de91`). R1 investigated:
+  GraalVM's only heap control, `sandbox.MaxHeapMemory`, is missing from `js-community`, needs the
+  Oracle edition and the Graal compiler, and stops at points that vary between runs. So R1 stays a
+  risk to accept, with Chicory for programs whose authors are not trusted. Incubator commit `66f7c42`
+  (`docs/phase-2-results.md`, probe in `docs/probes/graaljs-heap-limit`).
