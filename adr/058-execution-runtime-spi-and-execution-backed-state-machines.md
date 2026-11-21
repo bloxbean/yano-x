@@ -7,7 +7,7 @@
   [bloxbean/yano-x-executors](https://github.com/bloxbean/yano-x-executors) at commits `f578f94`
   (M1), `da9b093` and `ce0a7cf` (M2), `5ef2c58`, `3cb79d3` and `fc7d31f` (M3 and the
   two-node devnet), `48c9bbf` (CDDL check), `09969a6` and `c50988c` (Q1: one instance per
-  block), and `66f7c42` (R1 investigation)
+  block), `66f7c42` (R1 investigation), and `f6adab0` (r7 decisions)
   (private for now, to be made public). This ADR restates everything a reviewer needs; the
   incubator holds the code, the tests and the full specifications.
 - **Related:** ADR app-layer/011 (plugin architecture and trust tiers), ADR app-layer/031
@@ -99,7 +99,7 @@ Non-goals:
 - GraalPy, MoveVM and Plutus/UPLC. Each would be a further runtime behind the same SPI, if its
   semantics fit; none is evaluated here.
 - Atomic participation in composite cascades (transition kernels, ADR-031.1). An execution-backed
-  machine is a plain `AppStateMachine` in v1 (§12, open question Q7).
+  machine is a plain `AppStateMachine` in v1 (§12, Q7, decided in r7).
 - Any yano-x change before promotion (milestone M4).
 - Performance claims. Phase 0 numbers compare options on one machine.
 
@@ -136,7 +136,7 @@ runtime plugin that is malicious, which ADR-011 already treats as fully trusted 
 | Chicory | 1.7.5 | Second runtime (M3) |
 | yano-x framework API | `main` at `00274933` (ADR-057 packages) | Adapter contract |
 | Rust toolchain | 1.97.0, target `wasm32-unknown-unknown` (pinned in `rust-toolchain.toml`) | Rust SDK and the checked-in guest modules, which rebuild byte for byte (r3) |
-| Incubator specifications | `bloxbean/yano-x-executors@66f7c42`: `docs/guest-abi-v1.md`, `spec/guest-abi-v1.cddl`, `spec/vectors/abi-v1.json`, `docs/runtime-spi.md`, `docs/tck.md`, `docs/phase-0-results.md` to `docs/phase-3-results.md` | Normative text for D2 to D11 |
+| Incubator specifications | `bloxbean/yano-x-executors@f6adab0`: `docs/guest-abi-v1.md`, `spec/guest-abi-v1.cddl`, `spec/vectors/abi-v1.json`, `docs/runtime-spi.md`, `docs/tck.md`, `docs/phase-0-results.md` to `docs/phase-3-results.md` | Normative text for D2 to D11 |
 
 ## 5. Decisions
 
@@ -360,7 +360,7 @@ only, never semantics.
 
 *Consequence:* upgrading the engine (for example GraalJS 25.0.2 to a later release) changes the
 fingerprint, so it is a chain upgrade. A height-gated schedule for descriptors is needed before
-graduation (Q5).
+graduation (Q5, decided in r7: it is an M5 gate).
 
 *Rejected:* pinning only a runtime name and version string (misses semantic options and internal
 limits); a program referenced by URL (fetch is not deterministic; the digest is what matters).
@@ -395,7 +395,9 @@ When the descriptor enables receipts, a discarded transition writes
 `receipt = {0: 1, 1: height, 2: kind 1..5, 3: code}` at `~exec/r/<message id>` (for
 `apply_message`) or `~exec/fx/<blake2b-256 effect id hash>` (for `on_effect_result`). Guests are
 forbidden every key that starts with `~`. Today only `~fx/` is reserved in the trie
-(`FxKeys.RESERVED_PREFIX`); after promotion `~exec/` should be reserved next to it (Q3).
+(`FxKeys.RESERVED_PREFIX`); `~exec/` is reserved next to it at promotion, in M4 (Q3, decided in
+r7). Receipts are on by default (the descriptor tooling sets them) and are not pruned in v1 (Q2,
+decided in r7); pruning needs a deterministic rule and belongs with snapshot work.
 
 *Rejected:* no receipts at all (a sender cannot learn why a message had no effect without trusting
 one node's logs); receipts with compute used (not portable, D5).
@@ -504,7 +506,9 @@ forbids raw `ServiceLoader` activation in yano-x).
   (r3).
 - `MemoryModel.NOT_ENFORCED`: GraalJS cannot bound guest heap under `CONSTRAINED`. A guest can
   exhaust the node heap. That is an engine failure (D7), so the node stops rather than diverges,
-  but it is a denial of service by a program author (R1).
+  but it is a denial of service by a program author (R1). **Accepted in r7:** GraalJS is for
+  programs whose authors the chain's members trust (they pin the program in genesis); programs
+  from authors who are not trusted run on Chicory, whose bound is exact (I18).
 
 ### D15. Chicory runtime requirements (M3)
 
@@ -573,7 +577,11 @@ Found while building the adapter. None blocks incubation; all affect promotion.
    test fails without the reset.
 2. **`AppEffectEmitter.pendingCount()` counts open CHAIN effects, not effects emitted this block.**
    The adapter tracks per-block emission itself. In a composite chain several components share the
-   block's budget, which the adapter cannot see (Q4).
+   block's budget, which the adapter cannot see (Q4). Decided in r7: standalone chains only in v1.
+   The framework enforces it already: Yano X's declarative composite accepts only components with
+   a transition kernel, and the adapter offers none (Q7; adapter test
+   `offersNoTransitionKernelSoCompositesRefuseIt`). The binding IR already declares
+   `maxEffectsPerBlock` per component, the budget to hand a kernel if Q7 is revisited.
 3. **Effect limits must be mirrored** (D8), because `FxKernel` throws at `emit`.
 4. **Only `~fx/` is reserved in the trie** (Q3).
 5. **`validate` reasons.** A guest's rejection code becomes the admission reason. Yano already
@@ -606,7 +614,7 @@ Found while building the adapter. None blocks incubation; all affect promotion.
 | M1 | Phase 1: ABI v1, SPI, TCK, adapter draft | M0 | Done (`f578f94`): build passes; TCK passes on the reference runtime with only `memory.bounded` as WARN; broken runtimes fail the intended checks; adapter conformance roots equal a Java machine |
 | M2 | GraalJS runtime, JS SDK, counter and escrow examples | this ADR reviewed (Proposed is enough to start incubator work) | Done (`da9b093`, `ce0a7cf`, devnet `fc7d31f`; Q1 in `09969a6`): TCK passes (WARN only `memory.bounded`, `load.unknown-import`), I1–I17 and I19; `StateMachineConformance` passes with roots identical across two class loaders and a restart; two-node devnet agrees on roots; per-invocation vs per-block instance measured and decided (Q1) |
 | M3 | Chicory runtime, gatekeeper, Rust SDK, the same examples in Rust | M2 | Done (`5ef2c58`, devnet `fc7d31f`): TCK passes with no WARN; Rust escrow on Chicory and JS escrow on GraalJS give identical roots for one message log; no SPI change (the TCK changes were re-run on GraalJS); I18 |
-| M4 | Promotion into yano-x (D13) | M3; this ADR Accepted; Q3–Q6 decided | yano-x `check` passes with the new kind; catalog-loaded runtime passes the TCK; `~exec/` reserved if decided |
+| M4 | Promotion into yano-x (D13) | M3; this ADR Accepted; Q3–Q6 decided (done in r7) | yano-x `check` passes with the new kind; catalog-loaded runtime passes the TCK; `~exec/` reserved if decided |
 | M5 | Graduation: AOT with injected gas, performance budgets, hostile multi-node tests | M4 | Considered for a yano-x plugin pack in a later ADR |
 
 ## 10. Verification and test vectors
@@ -650,7 +658,7 @@ Passing tests are not a security review. M5 includes one before any plugin-pack 
 
 | ID | Risk | Mitigation |
 |---|---|---|
-| R1 | GraalJS guest exhausts the node heap (D14). | Node stops instead of diverging (D7); documented WARN; program authors are chain members; Chicory has an exact bound (I18). Investigated in r6: no deterministic heap bound exists for GraalJS. `js-community` has no `sandbox.MaxHeapMemory`. The Oracle edition (`truffle-enterprise`, GFTC licence) enforces it on Oracle GraalVM, but where it stops varies between runs (26,780 to 39,800 arrays under 64 MB in five runs), and it is unsupported without the Graal compiler. So it could only be a node-local safety net that turns heap exhaustion into an engine failure. It cannot become a consensus limit. Open for a maintainer decision: accept R1 for GraalJS with trusted program authors, and use Chicory where authors are not trusted. |
+| R1 | GraalJS guest exhausts the node heap (D14). | Node stops instead of diverging (D7); documented WARN; program authors are chain members; Chicory has an exact bound (I18). Investigated in r6: no deterministic heap bound exists for GraalJS. `js-community` has no `sandbox.MaxHeapMemory`. The Oracle edition (`truffle-enterprise`, GFTC licence) enforces it on Oracle GraalVM, but where it stops varies between runs (26,780 to 39,800 arrays under 64 MB in five runs), and it is unsupported without the Graal compiler. So it could only be a node-local safety net that turns heap exhaustion into an engine failure. It cannot become a consensus limit. **Accepted by the maintainer in r7:** GraalJS for programs whose authors are trusted, Chicory where they are not (D14). |
 | R2 | GraalJS statement counts change between releases. | Engine version in the fingerprint; upgrade is a chain upgrade (Q5). |
 | R3 | Chicory `ExecutionListener` is marked experimental and unsupported. | Pin Chicory; gas instrumentation (M5) removes the dependency. |
 | R4 | Interpreter-only Truffle is about 70 times slower. | `DEGRADED` readiness refuses CONSENSUS unless `allow-degraded`; documented JVMCI flags. |
@@ -659,19 +667,21 @@ Passing tests are not a security review. M5 includes one before any plugin-pack 
 | R10 | Plugin packaging silently drops what a runtime needs: shaded jars lose service files and jar manifests (r3). | The bundle build merges service files itself and copies the GraalJS version; the runtimes refuse to open if a version they need is missing, so a broken bundle fails closed at start-up. |
 | R6 | 35 MB GraalJS bundle. | Never in yano-x Central; separate plugin pack after graduation. |
 | R7 | A runtime bug passes the TCK and diverges in production. | Two independent runtimes, differential examples, pinned fingerprints, multi-node tests (M5). |
-| R8 | Effect budgets in composite chains are shared invisibly (finding 2). | Standalone chains only until Q4 is decided. |
+| R8 | Effect budgets in composite chains are shared invisibly (finding 2). | Standalone chains only (Q4, decided in r7), enforced by the framework: composites accept only components with a transition kernel, and the adapter offers none. |
 
 ## 12. Open questions
 
-| ID | Question | Options | Lean |
+All resolved by the maintainer (Q1 in r5, Q2–Q7 in r7); the table keeps the options considered.
+
+| ID | Question | Options | Decision |
 |---|---|---|---|
 | Q1 | Fresh instance per invocation, or one instance per block replaced after any failed invocation? | Per invocation (strictest isolation); per block (cheaper, also deterministic because failures are) | **Resolved in r5 by the maintainer: one instance per block** (D4, I19). Measured in M2 (r2), for a 200-message block of the counter example, p50: 21.9 ms per invocation against 3.4 ms per block on Oracle GraalVM 25.0.2, and 24.8 ms against 4.0 ms on Liberica 25.0.2 with the Graal compiler; on Chicory (r3) 85.8 ms against 82.7 ms. Pinned as an ABI rule rather than a descriptor field. |
-| Q2 | Receipts on by default, and pruned? | On by default; off by default; on with a retention window | On by default, no pruning in v1; pruning needs a deterministic rule and belongs with snapshot work. |
-| Q3 | Reserve `~exec/` in the framework next to `~fx/`? | Reserve in `FxKeys`-like framework code; leave it adapter-private | Reserve at promotion, once the adapter is framework code. |
-| Q4 | How do execution-backed machines share effect budgets in composite chains? | Framework exposes per-block emission count; per-component budget split in settings; standalone only | Ask the framework for a per-block count (small API addition at promotion); standalone only until then. |
-| Q5 | How are engine upgrades scheduled? | Chain upgrade only; height-gated descriptor schedule like `ActivationSchedule` | Height-gated schedule before graduation (M5 gate). |
-| Q6 | Where do runtimes live after promotion? | Separate `execution-runtime` kind (D13); bundled with the adapter | Separate kind, so third-party runtimes do not depend on the adapter's release. |
-| Q7 | Should execution-backed machines become transition kernels in composite cascades? | Plain `AppStateMachine` only; add a kernel entry point in ABI v2 | Plain machine in v1; revisit after M3 with a concrete use case. |
+| Q2 | Receipts on by default, and pruned? | On by default; off by default; on with a retention window | **Resolved in r7: on by default, no pruning in v1** (D9); pruning needs a deterministic rule and belongs with snapshot work. |
+| Q3 | Reserve `~exec/` in the framework next to `~fx/`? | Reserve in `FxKeys`-like framework code; leave it adapter-private | **Resolved in r7: reserve at promotion** (M4), once the adapter is framework code. |
+| Q4 | How do execution-backed machines share effect budgets in composite chains? | Framework exposes per-block emission count; per-component budget split in settings; standalone only | **Resolved in r7: standalone only in v1**, already enforced because composites need a transition kernel. At promotion, a per-block emission count from the framework, or the per-component `maxEffectsPerBlock` the binding IR already declares, if Q7 is revisited. |
+| Q5 | How are engine upgrades scheduled? | Chain upgrade only; height-gated descriptor schedule like `ActivationSchedule` | **Resolved in r7: a height-gated descriptor schedule before graduation** (M5 gate). |
+| Q6 | Where do runtimes live after promotion? | Separate `execution-runtime` kind (D13); bundled with the adapter | **Resolved in r7: a separate kind** (D13), so third-party runtimes do not depend on the adapter's release. |
+| Q7 | Should execution-backed machines become transition kernels in composite cascades? | Plain `AppStateMachine` only; add a kernel entry point in ABI v2 | **Resolved in r7: a plain machine in v1**; revisit with a concrete use case, which needs an ABI v2 kernel entry point. |
 
 ## 13. Alternatives considered (overall)
 
@@ -725,3 +735,9 @@ Passing tests are not a security review. M5 includes one before any plugin-pack 
   Oracle edition and the Graal compiler, and stops at points that vary between runs. So R1 stays a
   risk to accept, with Chicory for programs whose authors are not trusted. Incubator commit `66f7c42`
   (`docs/phase-2-results.md`, probe in `docs/probes/graaljs-heap-limit`).
+- r7 (2026-11-21; no new review findings; head before this revision `f79cb95c`). The maintainer
+  decided the remaining questions as leaned. R1 accepted: GraalJS for trusted program authors,
+  Chicory otherwise (D14, R1). Q2 receipts on by default, no pruning (D9). Q3 `~exec/` reserved at
+  promotion (D9, M4). Q4 standalone only, found to be enforced already because composites need a
+  transition kernel (finding 2, R8). Q5 a descriptor schedule as an M5 gate. Q6 a separate runtime
+  kind. Q7 a plain machine in v1. No questions remain open. Incubator commit `f6adab0`.
