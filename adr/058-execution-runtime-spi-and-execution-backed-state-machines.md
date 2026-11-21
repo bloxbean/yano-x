@@ -4,8 +4,9 @@
 - **Issue:** [#103](https://github.com/bloxbean/yano-x/issues/103) (ExecutionBackedStateMachine and
   GraalVM polyglot plugins).
 - **Evidence:** the incubator repository
-  [bloxbean/yano-x-executors](https://github.com/bloxbean/yano-x-executors) at commit `f578f94` (M1)
-  and `da9b093` (M2 so far)
+  [bloxbean/yano-x-executors](https://github.com/bloxbean/yano-x-executors) at commits `f578f94`
+  (M1), `da9b093` and `ce0a7cf` (M2), and `5ef2c58`, `3cb79d3` and `fc7d31f` (M3 and the
+  two-node devnet)
   (private for now, to be made public). This ADR restates everything a reviewer needs; the
   incubator holds the code, the tests and the full specifications.
 - **Related:** ADR app-layer/011 (plugin architecture and trust tiers), ADR app-layer/031
@@ -67,6 +68,16 @@ passes on a reference runtime whose guests are Java classes, and three deliberat
 runtimes each fail exactly the check meant to catch them. The adapter passes
 `StateMachineConformance` with the same roots as a plain Java machine.
 
+M2 (GraalJS) and M3 (Chicory) are done apart from the Q1 decision (r3):
+
+| Result | Evidence |
+|---|---|
+| Both runtimes pass the TCK (now 26 checks) | GraalJS: WARN only `memory.bounded`, `load.unknown-import`. Chicory: every check PASS, no WARN |
+| The SPI did not change for the second runtime | Chicory fits the SPI as M2 left it, budget per instance included |
+| The same programs agree across runtimes | Rust escrow on Chicory equals JS escrow on GraalJS at all 60 heights (60 distinct roots); the JS and Rust counters equal a plain Java counter at every height; 3 replays with a restart each |
+| The golden vectors are now checked independently | The JS and Rust SDK codecs each pass all 15 valid and 14 invalid vectors (the JS SDK checks the 9 CBOR-level ones; the other 5 are schema checks done by the host) |
+| Real nodes on two JDKs agree | Two-node devnet from yano-x `main` (alice on Oracle GraalVM, bob on Liberica), one JS and one Rust escrow chain: every root agrees, escrow state is byte-identical across nodes and runtimes, and the chain still agrees after a member restart |
+
 ## 2. Goals and non-goals
 
 Goals:
@@ -122,7 +133,8 @@ runtime plugin that is malicious, which ADR-011 already treats as fully trusted 
 | GraalVM / GraalJS (`org.graalvm.polyglot:polyglot`, `js-community`) | 25.0.2 | First runtime (M2) |
 | Chicory | 1.7.5 | Second runtime (M3) |
 | yano-x framework API | `main` at `00274933` (ADR-057 packages) | Adapter contract |
-| Incubator specifications | `bloxbean/yano-x-executors@f578f94`: `docs/guest-abi-v1.md`, `spec/guest-abi-v1.cddl`, `spec/vectors/abi-v1.json`, `docs/runtime-spi.md`, `docs/tck.md`, `docs/phase-0-results.md`, `docs/phase-1-results.md` | Normative text for D2 to D11 |
+| Rust toolchain | 1.97.0, target `wasm32-unknown-unknown` (pinned in `rust-toolchain.toml`) | Rust SDK and the checked-in guest modules, which rebuild byte for byte (r3) |
+| Incubator specifications | `bloxbean/yano-x-executors@fc7d31f`: `docs/guest-abi-v1.md`, `spec/guest-abi-v1.cddl`, `spec/vectors/abi-v1.json`, `docs/runtime-spi.md`, `docs/tck.md`, `docs/phase-0-results.md` to `docs/phase-3-results.md` | Normative text for D2 to D11 |
 
 ## 5. Decisions
 
@@ -241,9 +253,15 @@ return is a `bad-return` trap; `Math.random` throws; `Date`, `Intl`, `performanc
 `SharedArrayBuffer`, `Atomics`, `WeakRef` and `FinalizationRegistry` are absent; locale-sensitive
 built-ins (`toLocaleLowerCase`, `toLocaleString`, `localeCompare`) use a pinned locale, `en-US`,
 never the node's (r2); no I/O, host classes, threads or polyglot access. WebAssembly: exports `memory`, `yano_alloc(len) -> ptr` and
-each entry point as `(ptr, len) -> i64` returning `(ptr << 32) | len`; imports only from `yano`;
-a load-time gatekeeper rejects unknown imports, floats, SIMD, threads and atomics, memory64,
-multiple memories, a start function and a memory maximum above the descriptor limit.
+each entry point as `(ptr, len) -> i64` returning `(ptr << 32) | len`; imports only from `yano`,
+with exactly the type the host table implies; empty byte strings cross as `(0, 0)` without
+`yano_alloc`, a function that returns bytes returns `-1` for absent, and `yano_alloc` returning 0
+is a `memory-limit` trap. A load-time gatekeeper allows only an allowlist of instructions (MVP
+integer instructions, sign extension, multi-value, bulk memory copy and fill) and only `i32` and
+`i64` values, so it rejects floats, SIMD, threads, atomics and shared memory, exception handling,
+tail calls, GC and table instructions, multiple memories, a start function, and a memory declared
+above the descriptor limit (r3). WASM `unreachable`, where a Rust panic ends, is `guest-error`;
+every other interpreter trap is `guest-fault` (r3).
 
 Ed25519 verification, L1 observations, transition kernels, privileged messages and events are not
 in v1. Each needs only new entry points or host functions, never an SPI change.
@@ -267,7 +285,7 @@ the block.
 | `transition-ok` | committed | none |
 | `transition-rejected` | discarded | 1 rejected, the guest's code |
 | Output not a canonical `transition-outcome` | discarded | 5 ABI violation, `bad-output` |
-| Trapped | discarded | 2 trapped, the trap code |
+| Trapped | discarded | 2 trapped, the trap code: `guest-error` (an unhandled guest error: a JS `throw`, a WASM `unreachable`), `guest-fault` (a machine fault), `memory-limit`, `call-depth` or `bad-return` (r3: the TCK and the SPI disagreed on `unreachable`) |
 | Compute exhausted | discarded | 3 out of compute, `compute` |
 | Host fuel exhausted | discarded | 4 out of host fuel, `host-fuel` |
 | Host function rejected a call | discarded | 5 ABI violation, the host's code |
@@ -314,7 +332,12 @@ The execution descriptor is canonical CBOR in the chain settings
 | 9 | whether receipts are written |
 
 Fingerprint components must include the runtime id, engine version, metering unit, and every
-option or internal limit that can change a result (for example a call-depth limit). At startup the
+option or internal limit that can change a result (for example a call-depth limit). The engine
+version must come from the engine's own jars, and the runtime must refuse to open with any version
+but the one it was verified against. An engine's version API is not enough: on a stock JDK GraalJS's
+`Engine.getVersion()` returns `Development Build` for every release, and only Oracle GraalVM
+reports `25.0.2`. So until r3 the GraalJS fingerprint pinned nothing on stock JDKs and differed
+between JDKs (found in M3). At startup the
 adapter recomputes the fingerprint from the installed runtime, hashes the program (from
 `program-path` or `program-hex`) and refuses to start if either differs from the descriptor, or if
 the runtime reports `UNAVAILABLE` (or `DEGRADED` without the node-local `allow-degraded`).
@@ -379,11 +402,12 @@ adapter. The TCK drives the runtime with the same host session class the adapter
 The runtime author writes 16 programs in the guest language with normative behaviour (counter,
 effects, echo, reject, trap after write, spin, host flood, catch host abort, oversize value,
 reserved key, write in validate, deep recursion, missing export, unknown import, static state,
-environment probe). The 26 checks cover descriptor validity and stability, readiness, load
+environment probe), plus a 17th, a memory hog, when the runtime claims `DETERMINISTIC_LIMIT` (r3). The 26 checks cover descriptor validity and stability, readiness, load
 validation, byte transparency, exact outputs, exact exhaustion of both budgets (host fuel aborts on
 exactly call `floor(100000 / 101) + 1` for a 100,000 budget), a meter that restarts for every
 invocation of an instance, uncatchable aborts, ABI violations, recursion on three stack sizes,
-memory bounds, instance isolation, environment stability across instances, time, runtime opens and
+memory bounds (for a `DETERMINISTIC_LIMIT` runtime, memory must stop growing at exactly the limit
+in every instance, r3), instance isolation, environment stability across instances, time, runtime opens and
 JVM default locale and time zone (the second open runs under `tr-TR` and `Asia/Kolkata`), a
 120-message determinism corpus and eight concurrent threads.
 
@@ -391,14 +415,16 @@ A result is PASS, WARN or FAIL. WARN marks a known, documented gap: `memory.boun
 with `NOT_ENFORCED` memory, and `load.unknown-import` for dynamic languages that cannot declare
 imports (an unknown host function then traps as a guest error when called).
 
-The TCK also tests itself: a guest that leaks `System.nanoTime`, a runtime without a depth limit
-and a non-canonical output each fail exactly the intended check.
+The TCK also tests itself: a guest that leaks `System.nanoTime`, a runtime without a depth limit,
+a non-canonical output, a meter that does not restart, and (r3) a Chicory runtime that gives guests
+twice the configured memory each fail exactly the intended check.
 
 ### D12. Two runtimes before promotion
 
 GraalJS is the first runtime (M2) and Chicory the second (M3). M3 must not change the SPI without
 re-running the GraalJS TCK, and the same example programs written in JavaScript and Rust must give
-identical roots for the same message log. The SPI is promoted only after both pass (M4).
+identical roots for the same message log. The SPI is promoted only after both pass (M4). Both
+passed in M3 without an SPI change; the two TCK changes M3 made were re-run on GraalJS (r3).
 
 *Rejected:* promote after GraalJS alone (the abstraction would encode GraalJS's shape; Phase 0
 already found three places where the engines differ).
@@ -457,18 +483,39 @@ forbids raw `ServiceLoader` activation in yano-x).
   whole JVM (r2).
 - Host aborts close the context from inside the host call. A host exception would be catchable by
   the guest; a cancellation is not (r2).
+- The engine version comes from the jars (D6, r3). Polyglot and Truffle record theirs in
+  `META-INF/graalvm/*/version`; GraalJS only in its jar manifest, which a shaded plugin bundle
+  drops, so the bundle copies it into `META-INF/graalvm/org.graalvm.js/version`. A bundle build
+  must also merge `META-INF/services` files itself: Shadow 9 with `zipTree` inputs kept only the
+  first copy, which dropped TRegex's language provider (JavaScript regular expressions) in M3
+  (r3).
 - `MemoryModel.NOT_ENFORCED`: GraalJS cannot bound guest heap under `CONSTRAINED`. A guest can
   exhaust the node heap. That is an engine failure (D7), so the node stops rather than diverges,
   but it is a denial of service by a program author (R1).
 
 ### D15. Chicory runtime requirements (M3)
 
-- The load-time gatekeeper of D3, which Chicory's parser makes simple (Phase 0 found all four
-  float opcodes in a test module).
-- Fuel through the interpreter's `ExecutionListener`, one unit per instruction, exact. AOT is not
-  used for metered execution until modules are instrumented with gas at basic-block boundaries
-  (Parity `wasm-instrument` or NEAR `finite-wasm` style), which is M5 work.
-- `MemoryModel.DETERMINISTIC_LIMIT`: `memory.grow` past the descriptor limit returns -1.
+As built and measured in M3 (r3):
+
+- The load-time gatekeeper of D3 is an allowlist, so an instruction a later Chicory version adds
+  is rejected until someone allows it. Its SHA-256 is a fingerprint component. A module is also
+  instantiated once at load, so segments that do not fit are rejected at load and do not trap
+  later. A module with 200,000 nested blocks loads without stack trouble (the parser is iterative).
+- Fuel through the interpreter's `ExecutionListener`, one unit per executed instruction, exact
+  (a function `i64.const 0` costs 2 including its `end`; a budget one short stops at exactly the
+  budget). The `yano_alloc` calls the host makes during an invocation count too. AOT is not used
+  for metered execution until modules are instrumented with gas at basic-block boundaries (Parity
+  `wasm-instrument` or NEAR `finite-wasm` style), which is M5 work.
+- A deterministic call-depth limit of 10,000 interpreter frames, enforced in a subclass of
+  Chicory's `InterpreterMachine`, through which every call passes. Chicory recurses on the Java
+  stack for each call (about 1,200 to 1,500 frames per MiB of stack, measured), and turns
+  `StackOverflowError` into a catchable "call stack exhausted" at a depth set by the thread. Guests
+  run on runtime-owned threads with at least 64 MiB of stack, which holds about 75,000 frames.
+- `MemoryModel.DETERMINISTIC_LIMIT`: linear memory is capped at the descriptor limit, or at the
+  module's declared maximum if lower; `memory.grow` past it returns -1.
+- Host aborts are plain Java exceptions, which WebAssembly cannot catch, and the gatekeeper
+  rejects exception handling altogether.
+- The Chicory version is read from its jar and required (D6).
 
 ### D16. CONSENSUS profile only
 
@@ -499,6 +546,8 @@ adapter tests in the incubator).
 | I14 | New instances share no guest state. | D2, D4 | `isolation.instances` |
 | I15 | No result depends on the node's environment: clock, randomness, JVM default locale or time zone (added in r2). | D3, D14 | `environment.stable` (second runtime under `tr-TR` and `Asia/Kolkata`); GraalJS cross-locale test |
 | I16 | Every invocation of an instance gets the instance's whole compute budget (added in r2). | D2, D5 | `compute.per-invocation`, with a broken-runtime self-test |
+| I17 | The same engine has the same fingerprint on every JDK (added in r3). | D6, D14, D15 | runtime version tests; fingerprints probed on Liberica, Temurin and Oracle GraalVM; the two-node devnet on two JDKs |
+| I18 | A runtime that claims `DETERMINISTIC_LIMIT` stops guest memory at exactly the limit (added in r3). | D2, D15 | `memory.bounded` with the memory hog, with a broken-runtime self-test |
 
 ## 7. Findings about the Yano API
 
@@ -541,8 +590,8 @@ Found while building the adapter. None blocks incubation; all affect promotion.
 |---|---|---|---|
 | M0 | Phase 0 spikes | — | Done (`9d0a8ba`): §1.1 |
 | M1 | Phase 1: ABI v1, SPI, TCK, adapter draft | M0 | Done (`f578f94`): build passes; TCK passes on the reference runtime with only `memory.bounded` as WARN; broken runtimes fail the intended checks; adapter conformance roots equal a Java machine |
-| M2 | GraalJS runtime, JS SDK, counter and escrow examples | this ADR reviewed (Proposed is enough to start incubator work) | TCK passes (WARN only `memory.bounded`, `load.unknown-import`), I1–I16; `StateMachineConformance` passes with roots identical across two class loaders and a restart; two-node devnet agrees on roots; per-invocation vs per-block instance measured (Q1) |
-| M3 | Chicory runtime, gatekeeper, Rust SDK, the same examples in Rust | M2 | TCK passes with no WARN for memory; JS and Rust examples give identical roots for one message log; any SPI change re-verified on GraalJS |
+| M2 | GraalJS runtime, JS SDK, counter and escrow examples | this ADR reviewed (Proposed is enough to start incubator work) | Done except the Q1 decision (`da9b093`, `ce0a7cf`, devnet `fc7d31f`): TCK passes (WARN only `memory.bounded`, `load.unknown-import`), I1–I17; `StateMachineConformance` passes with roots identical across two class loaders and a restart; two-node devnet agrees on roots; per-invocation vs per-block instance measured (Q1) |
+| M3 | Chicory runtime, gatekeeper, Rust SDK, the same examples in Rust | M2 | Done (`5ef2c58`, devnet `fc7d31f`): TCK passes with no WARN; Rust escrow on Chicory and JS escrow on GraalJS give identical roots for one message log; no SPI change (the TCK changes were re-run on GraalJS); I18 |
 | M4 | Promotion into yano-x (D13) | M3; this ADR Accepted; Q3–Q6 decided | yano-x `check` passes with the new kind; catalog-loaded runtime passes the TCK; `~exec/` reserved if decided |
 | M5 | Graduation: AOT with injected gas, performance budgets, hostile multi-node tests | M4 | Considered for a yano-x plugin pack in a later ADR |
 
@@ -551,21 +600,28 @@ Found while building the adapter. None blocks incubation; all affect promotion.
 Values derived from the code under test prove little on their own, so verification leans on
 independent evidence:
 
-- **Golden vectors.** Today `spec/vectors/abi-v1.json` is generated by the Java reference codec, so
-  it is not yet independent evidence. M2 and M3 must decode and re-encode every vector with
-  independently written codecs (the JS SDK and the Rust SDK, each using its own CBOR code), and
-  check the CDDL with an independent CDDL tool. Phase 1 could not run a CDDL validator (installing
-  one was not possible in the sandbox); that check is outstanding.
+- **Golden vectors.** `spec/vectors/abi-v1.json` is generated by the Java reference codec. In M2
+  and M3 two independently written codecs checked every vector (r3). The Rust SDK, written from
+  RFC 8949 and the CDDL, decodes and re-encodes all 15 valid vectors byte for byte, generically and
+  as typed records, and rejects all 14 invalid ones with the expected code. The JS SDK, run on
+  GraalJS, does the same for the valid vectors and the 9 CBOR-level invalid ones; the other 5 are
+  outputs and effect intents, which guests only produce and the host checks. A check of the CDDL
+  by an independent CDDL tool is still outstanding: installing one was not possible in the
+  incubator's environment.
 - **Differential runs.** Same message log through the JS program, the Rust program and a plain Java
-  machine; roots must be identical at every height (M2, M3). Phase 0 and Phase 1 already did this
-  JS against Java and adapter against Java.
+  machine; roots must be identical at every height (M2, M3). Done (r3): the JS and Rust counters
+  each match a plain Java counter, and the Rust escrow on Chicory matches the JS escrow on GraalJS,
+  at every height.
 - **Hostile corpus.** The TCK programs spin, flood host calls, catch aborts, recurse without limit,
   write reserved keys and oversize values, and probe the environment.
 - **Negative TCK self-tests.** Broken runtimes must fail; a TCK that passes everything proves
   nothing.
 - **Cross-JVM and cross-stack.** Metering and recursion are checked on Oracle GraalVM and a stock
   JDK, with and without the optimizing runtime, and on three stack sizes.
-- **Multi-node.** A two-node devnet in M2; hostile multi-node tests in M5.
+- **Multi-node.** A two-node devnet ran in M3 (r3): a JVM distribution from yano-x `main`, members
+  on Oracle GraalVM and on Liberica, a JS escrow chain on GraalJS and a Rust escrow chain on
+  Chicory. Roots agree, escrow state is byte-identical across nodes and runtimes, and the chain
+  still agrees after a member restart. Hostile multi-node tests are M5.
 
 Passing tests are not a security review. M5 includes one before any plugin-pack release.
 
@@ -573,11 +629,13 @@ Passing tests are not a security review. M5 includes one before any plugin-pack 
 
 | ID | Risk | Mitigation |
 |---|---|---|
-| R1 | GraalJS guest exhausts the node heap (D14). | Node stops instead of diverging (D7); documented WARN; program authors are chain members; Chicory has an exact bound. Investigate a Truffle allocation limit or an isolate in M2. |
+| R1 | GraalJS guest exhausts the node heap (D14). | Node stops instead of diverging (D7); documented WARN; program authors are chain members; Chicory has an exact bound. A Truffle allocation limit or an isolate was not investigated in M2 or M3; still open. |
 | R2 | GraalJS statement counts change between releases. | Engine version in the fingerprint; upgrade is a chain upgrade (Q5). |
 | R3 | Chicory `ExecutionListener` is marked experimental and unsupported. | Pin Chicory; gas instrumentation (M5) removes the dependency. |
 | R4 | Interpreter-only Truffle is about 70 times slower. | `DEGRADED` readiness refuses CONSENSUS unless `allow-degraded`; documented JVMCI flags. |
 | R5 | Per-invocation instances cost about 0.11 ms each (110 µs per message in M2). | Per-block instances are about 6 times cheaper (Q1); parsed program source is shared through one GraalJS `Engine`. |
+| R9 | The Chicory interpreter is slow: about 413 µs and 32,800 instructions for a counter message, mostly the Rust SDK's generic CBOR decoding (r3). | A borrowing decoder in the SDK; AOT with injected gas (M5, about 25 times faster in Phase 0). |
+| R10 | Plugin packaging silently drops what a runtime needs: shaded jars lose service files and jar manifests (r3). | The bundle build merges service files itself and copies the GraalJS version; the runtimes refuse to open if a version they need is missing, so a broken bundle fails closed at start-up. |
 | R6 | 35 MB GraalJS bundle. | Never in yano-x Central; separate plugin pack after graduation. |
 | R7 | A runtime bug passes the TCK and diverges in production. | Two independent runtimes, differential examples, pinned fingerprints, multi-node tests (M5). |
 | R8 | Effect budgets in composite chains are shared invisibly (finding 2). | Standalone chains only until Q4 is decided. |
@@ -586,7 +644,7 @@ Passing tests are not a security review. M5 includes one before any plugin-pack 
 
 | ID | Question | Options | Lean |
 |---|---|---|---|
-| Q1 | Fresh instance per invocation, or one instance per block replaced after any failed invocation? | Per invocation (strictest isolation); per block (cheaper, also deterministic because failures are) | Measured in M2 (r2), for a 200-message block of the counter example, p50: 21.9 ms per invocation against 3.4 ms per block on Oracle GraalVM 25.0.2, and 24.8 ms against 4.0 ms on Liberica 25.0.2 with the Graal compiler. Lean: one instance per block, replaced after any outcome other than `transition-ok`. Guest memory then carries between committed messages of a block, so the instance scope becomes semantics: it must be pinned (a descriptor field or an ABI rule) and covered by the TCK. `validate` and `query` keep their own instances. |
+| Q1 | Fresh instance per invocation, or one instance per block replaced after any failed invocation? | Per invocation (strictest isolation); per block (cheaper, also deterministic because failures are) | Measured in M2 (r2), for a 200-message block of the counter example, p50: 21.9 ms per invocation against 3.4 ms per block on Oracle GraalVM 25.0.2, and 24.8 ms against 4.0 ms on Liberica 25.0.2 with the Graal compiler. On Chicory (r3) the choice hardly matters: 85.8 ms against 82.7 ms, because interpretation, not instantiation, dominates. Lean: one instance per block, replaced after any outcome other than `transition-ok`. Guest memory then carries between committed messages of a block, so the instance scope becomes semantics: it must be pinned (a descriptor field or an ABI rule) and covered by the TCK. `validate` and `query` keep their own instances. |
 | Q2 | Receipts on by default, and pruned? | On by default; off by default; on with a retention window | On by default, no pruning in v1; pruning needs a deterministic rule and belongs with snapshot work. |
 | Q3 | Reserve `~exec/` in the framework next to `~fx/`? | Reserve in `FxKeys`-like framework code; leave it adapter-private | Reserve at promotion, once the adapter is framework code. |
 | Q4 | How do execution-backed machines share effect budgets in composite chains? | Framework exposes per-block emission count; per-component budget split in settings; standalone only | Ask the framework for a per-block count (small API addition at promotion); standalone only until then. |
@@ -609,6 +667,12 @@ Passing tests are not a security review. M5 includes one before any plugin-pack 
 ## 14. Related findings (out of scope)
 
 - `adr/README.md` has no row for ADR-057.
+- Tutorial 8 runs `yano-plugins validate <jar>` without `--host-artifact yano.jar`; without it the
+  tool reports "contribution kind is not supported" even for stock bundles, because the host
+  declares the framework-owned kinds (seen in M3, r3).
+- In the M3 devnet, both nodes logged about ten "Proposal replays an already-finalized message
+  identity — rejecting" warnings within one second. No message was applied twice and the members
+  never diverged; not investigated (r3).
 - The issue's OBSERVER and EFFECT profiles, GraalPy, MoveVM and Plutus/UPLC each need their own
   evaluation.
 
@@ -620,3 +684,11 @@ Passing tests are not a security review. M5 includes one before any plugin-pack 
   locale and time zone, new I15. Budget per instance (D2, new I16), call-depth and native-overflow
   guards, runtime-owned threads and uncatchable host aborts (D14) come from M2 in the incubator at
   `da9b093`. Q1 and R5 now carry the M2 measurements.
+- r3 (2026-11-21; no new review findings; adds M3 and the two-node devnet). §1.1 summarises M2
+  and M3. D6 and D14: the engine version is read from the jars and required, because GraalJS's
+  version API says `Development Build` on stock JDKs; new I17. D3 and D4: the full WebAssembly
+  binding, with `unreachable` as `guest-error` and machine traps as `guest-fault`. D11: the memory
+  hog and a real `memory.bounded` check; new I18. D15 rewritten from the built Chicory runtime. M2
+  and M3 marked done (Q1 still open). §10: the vectors pass the independent JS and Rust codecs; the
+  devnet ran. Q1 gains the Chicory numbers. New R9 (Chicory throughput) and R10 (plugin
+  packaging). Two related findings. Incubator commits `ce0a7cf`, `5ef2c58`, `3cb79d3`, `fc7d31f`.
