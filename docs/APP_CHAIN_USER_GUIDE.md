@@ -45,6 +45,8 @@ separately installed JVM plugin bundles (group id
 | Artifact | Repo path | Purpose |
 |---|---|---|
 | `yano-x-stdlib` | `state-machines/stdlib` | Ready state machines, selected by id (§9); ships in the distribution |
+| `yano-x-execution` | `state-machines/execution` | The `execution` state machine: a genesis-pinned guest program on an installed `execution-runtime` plugin ([execution/](execution/README.md), ADR-058); ships in the distribution |
+| `yano-x-execution-tck` | `sdk/execution-tck` | Conformance kit for execution runtimes ([execution/tck.md](execution/tck.md)) |
 | `yano-x-composite` | `composition/runtime` | Deterministic composition/profile framework and experimental catalog-backed `declarative-composite` provider |
 | `yano-x-role-workflow` | `capabilities/role-workflow` | Bundled preview `role-approvals` provider and generic role domain API |
 | `yano-x-evidence-profile` | `products/evidence/profile` | Bundled preview evidence and role-evidence profiles |

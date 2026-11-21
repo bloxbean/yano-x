@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "org.yanoproject.fixture.execution-runtime",
+  "version": "${pluginVersion}",
+  "yanoApi": { "min": 3, "max": 3, "minLevel": 4 },
+  "dependencies": [],
+  "contributions": [
+    {
+      "kind": "execution-runtime",
+      "name": "reference",
+      "provider": "org.yanoproject.x.execution.conformance.ConformanceReferenceRuntimeFactory"
+    }
+  ]
+}
