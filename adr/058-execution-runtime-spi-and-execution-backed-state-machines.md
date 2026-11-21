@@ -1,7 +1,7 @@
 # ADR-058 — Execution runtime SPI and execution-backed state machines
 
 - **Status:** Accepted (2026-11-22; proposed 2026-11-21). M0–M3 are done; M4 (promotion into
-  yano-x) is in progress.
+  yano-x) is implemented in #108, awaiting review.
 - **Issue:** [#103](https://github.com/bloxbean/yano-x/issues/103) (ExecutionBackedStateMachine and
   GraalVM polyglot plugins).
 - **Evidence:** the incubator repository
@@ -397,7 +397,9 @@ When the descriptor enables receipts, a discarded transition writes
 `apply_message`) or `~exec/fx/<blake2b-256 effect id hash>` (for `on_effect_result`). Guests are
 forbidden every key that starts with `~`. Today only `~fx/` is reserved in the trie
 (`FxKeys.RESERVED_PREFIX`); `~exec/` is reserved next to it at promotion, in M4 (Q3, decided in
-r7). Receipts are on by default (the descriptor tooling sets them) and are not pruned in v1 (Q2,
+r7). In M4 the reservation is an API declaration (`ExecutionKeys` in `framework/api`), not a
+writer-level block like `~fx/`: the execution state machine is the chain's application machine and
+the only writer of receipts, so a writer block would refuse its own receipts (r9). Receipts are on by default (the descriptor tooling sets them) and are not pruned in v1 (Q2,
 decided in r7); pruning needs a deterministic rule and belongs with snapshot work.
 
 *Rejected:* no receipts at all (a sender cannot learn why a message had no effect without trusting
@@ -464,6 +466,26 @@ At promotion (M4):
 - The adapter moves to `state-machines/`, the guest SDKs to `sdk/`, the TCK next to
   `StateMachineConformance`.
 - The incubator keeps only the runtimes, guest SDKs and examples.
+
+*As implemented in M4 (#108, r9):*
+
+- The SPI is `org.yanoproject.x.framework.api.execution` in `framework/api`, with
+  `ExecutionRuntimeResolver` on `AppStateMachineContext`. The kind requires a manifest.
+- `CatalogExecutionRuntimeResolver` (`framework/core`) resolves a runtime only from a manifested
+  bundle in `yano.plugins.allow-list`, as for authenticated-map validators. The fingerprint is the
+  genesis pin, but only an open runtime reports it, so the state machine checks it right after
+  `open` and before any execution. A non-empty allow-list selects only the listed bundles, so an
+  operator lists every bundle the node uses.
+- The host facades run every factory, runtime, program and instance call under the bundle's
+  callback scope, copy inputs, close through cleanup, and pass `ExecutionEngineException`,
+  `ProgramRejectedException` and results unchanged.
+- Modules: `state-machines/execution` (`yano-x-execution`, bundle `org.yanoproject.x.execution`, in
+  the default distribution), `state-machines/execution-abi`, `sdk/execution-tck` (with the reference
+  runtime; `StateMachineConformance` stays in `framework/core`, which must not depend on JUnit), and
+  `fixtures/execution-runtime-conformance`.
+- The guest SDKs stay in the incubator with the runtimes that test them, which resolves the two
+  places this decision listed them. The incubator mirrors the ABI's CDDL and vectors and checks the
+  mirror byte for byte.
 
 *Rejected:* experimental modules inside yano-x (the ZK precedent); a runtime registry outside the
 plugin catalog (ADR-011 requires every optional behaviour to cross the catalog boundary; AGENTS.md
@@ -602,9 +624,12 @@ Found while building the adapter. None blocks incubation; all affect promotion.
   supports.
 - **Engine upgrades** change the fingerprint and are chain upgrades until a descriptor schedule
   exists (Q5).
-- **Java packages:** `org.yanoproject.x.executors.*` during incubation, moved to
-  `org.yanoproject.x.framework.*` at promotion. The framework is prerelease, so this is an
-  intentional break without forwarding classes, as in ADR-057.
+- **Java packages:** `org.yanoproject.x.executors.*` during incubation. At promotion the SPI moved to
+  `org.yanoproject.x.framework.api.execution`; the ABI, TCK and state machine moved to
+  `org.yanoproject.x.execution.*`, because yano-x lets only framework modules define
+  `org.yanoproject.x.framework.*` packages (`verifyFrameworkPackageOwnership`), as for
+  `org.yanoproject.x.stdlib` (r9). The framework is prerelease, so this is an intentional break
+  without forwarding classes, as in ADR-057.
 - **Plugin manifest:** M4 adds one contribution kind to the framework's kind descriptor.
 
 ## 9. Milestones
@@ -615,7 +640,7 @@ Found while building the adapter. None blocks incubation; all affect promotion.
 | M1 | Phase 1: ABI v1, SPI, TCK, adapter draft | M0 | Done (`f578f94`): build passes; TCK passes on the reference runtime with only `memory.bounded` as WARN; broken runtimes fail the intended checks; adapter conformance roots equal a Java machine |
 | M2 | GraalJS runtime, JS SDK, counter and escrow examples | this ADR reviewed (Proposed is enough to start incubator work) | Done (`da9b093`, `ce0a7cf`, devnet `fc7d31f`; Q1 in `09969a6`): TCK passes (WARN only `memory.bounded`, `load.unknown-import`), I1–I17 and I19; `StateMachineConformance` passes with roots identical across two class loaders and a restart; two-node devnet agrees on roots; per-invocation vs per-block instance measured and decided (Q1) |
 | M3 | Chicory runtime, gatekeeper, Rust SDK, the same examples in Rust | M2 | Done (`5ef2c58`, devnet `fc7d31f`): TCK passes with no WARN; Rust escrow on Chicory and JS escrow on GraalJS give identical roots for one message log; no SPI change (the TCK changes were re-run on GraalJS); I18 |
-| M4 | Promotion into yano-x (D13) | M3; this ADR Accepted (2026-11-22); Q3–Q6 decided (done in r7) | yano-x `check` passes with the new kind; catalog-loaded runtime passes the TCK; `~exec/` reserved if decided |
+| M4 | Promotion into yano-x (D13) | M3; this ADR Accepted (2026-11-22); Q3–Q6 decided (done in r7) | yano-x `check` passes with the new kind; catalog-loaded runtime passes the TCK; `~exec/` reserved if decided. Implemented in #108 (r9): yano-x gates pass; the reference runtime (fixture) and the GraalJS and Chicory bundles pass the TCK through the directory catalog, with the same roots as direct; two-node devnet agrees, also after a restart; `~exec/` reserved by `ExecutionKeys` |
 | M5 | Graduation: AOT with injected gas, performance budgets, hostile multi-node tests | M4 | Considered for a yano-x plugin pack in a later ADR |
 
 ## 10. Verification and test vectors
@@ -744,3 +769,9 @@ All resolved by the maintainer (Q1 in r5, Q2–Q7 in r7); the table keeps the op
   kind. Q7 a plain machine in v1. No questions remain open. Incubator commit `f6adab0`.
 - r8 (2026-11-22; head before this revision `2ee19141`). The maintainer accepted the ADR. Status
   set to Accepted; M4 may start. No design change.
+- r9 (2026-11-22; head before this revision `89bc4516`). M4 implemented in #108 (incubator branch
+  `m4-promotion`, `953bc08`). D13 and §8 record the implementation: the SPI package, the other
+  packages under `org.yanoproject.x.execution.*` (framework package ownership), explicit
+  allow-listing with the fingerprint checked at open, the facades, the module layout, and the guest
+  SDKs staying in the incubator. D9: `~exec/` is reserved by API, not by a writer block. M4 exit
+  evidence in §9. No change to the ABI, the SPI contract or any consensus rule.
