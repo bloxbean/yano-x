@@ -6,7 +6,8 @@
 - **Evidence:** the incubator repository
   [bloxbean/yano-x-executors](https://github.com/bloxbean/yano-x-executors) at commits `f578f94`
   (M1), `da9b093` and `ce0a7cf` (M2), `5ef2c58`, `3cb79d3` and `fc7d31f` (M3 and the
-  two-node devnet), and `48c9bbf` (CDDL check)
+  two-node devnet), `48c9bbf` (CDDL check), and `09969a6` and `c50988c` (Q1: one instance per
+  block)
   (private for now, to be made public). This ADR restates everything a reviewer needs; the
   incubator holds the code, the tests and the full specifications.
 - **Related:** ADR app-layer/011 (plugin architecture and trust tiers), ADR app-layer/031
@@ -68,7 +69,7 @@ passes on a reference runtime whose guests are Java classes, and three deliberat
 runtimes each fail exactly the check meant to catch them. The adapter passes
 `StateMachineConformance` with the same roots as a plain Java machine.
 
-M2 (GraalJS) and M3 (Chicory) are done apart from the Q1 decision (r3):
+M2 (GraalJS) and M3 (Chicory) are done (r3); Q1 is decided and implemented (r5):
 
 | Result | Evidence |
 |---|---|
@@ -77,6 +78,7 @@ M2 (GraalJS) and M3 (Chicory) are done apart from the Q1 decision (r3):
 | The same programs agree across runtimes | Rust escrow on Chicory equals JS escrow on GraalJS at all 60 heights (60 distinct roots); the JS and Rust counters equal a plain Java counter at every height; 3 replays with a restart each |
 | The golden vectors are now checked independently | The JS and Rust SDK codecs each pass all 15 valid and 14 invalid vectors (the JS SDK checks the 9 CBOR-level ones; the other 5 are schema checks done by the host) |
 | Real nodes on two JDKs agree | Two-node devnet from yano-x `main` (alice on Oracle GraalVM, bob on Liberica), one JS and one Rust escrow chain: every root agrees, escrow state is byte-identical across nodes and runtimes, and the chain still agrees after a member restart |
+| One instance per block (Q1, r5) | Guest memory carries between committed transitions of a block and nowhere else: identical roots for JS, Rust and Java at 30 heights against values computed from the rule; in the devnet a 12-message block counts to 12 on both members and both runtimes, and the next block restarts |
 
 ## 2. Goals and non-goals
 
@@ -134,7 +136,7 @@ runtime plugin that is malicious, which ADR-011 already treats as fully trusted 
 | Chicory | 1.7.5 | Second runtime (M3) |
 | yano-x framework API | `main` at `00274933` (ADR-057 packages) | Adapter contract |
 | Rust toolchain | 1.97.0, target `wasm32-unknown-unknown` (pinned in `rust-toolchain.toml`) | Rust SDK and the checked-in guest modules, which rebuild byte for byte (r3) |
-| Incubator specifications | `bloxbean/yano-x-executors@48c9bbf`: `docs/guest-abi-v1.md`, `spec/guest-abi-v1.cddl`, `spec/vectors/abi-v1.json`, `docs/runtime-spi.md`, `docs/tck.md`, `docs/phase-0-results.md` to `docs/phase-3-results.md` | Normative text for D2 to D11 |
+| Incubator specifications | `bloxbean/yano-x-executors@c50988c`: `docs/guest-abi-v1.md`, `spec/guest-abi-v1.cddl`, `spec/vectors/abi-v1.json`, `docs/runtime-spi.md`, `docs/tck.md`, `docs/phase-0-results.md` to `docs/phase-3-results.md` | Normative text for D2 to D11 |
 
 ## 5. Decisions
 
@@ -272,13 +274,22 @@ sets for the same value; a strict decoder of our own makes "accepted" mean the s
 language); writes returned in the output instead of through host functions (no read-your-writes
 inside an invocation, and the output size grows with the writes).
 
-### D4. One invocation per message on a fresh instance; failures are isolated
+### D4. One invocation per message, one instance per block; failures are isolated
 
 For each block the adapter calls `on_effect_result` for each committed effect result, in Yano's
 delivery order, then `apply_message` for each message whose topic does not start with `~`, in
-block order. Every invocation runs on a fresh instance, and a guest must not rely on memory
-carrying between invocations. Writes of a committed invocation are visible to later invocations in
-the block.
+block order. Writes of a committed invocation are visible to later invocations in the block.
+
+**Instance scope (r5, resolves Q1).** The block's transitions share one instance. The adapter
+creates it at the block's first transition and creates a new one after every transition whose
+outcome is not `transition-ok`. So guest memory carries only between committed transitions of one
+block: never across blocks, and a discarded transition leaves nothing behind, not even in guest
+memory. `validate` and `query` each run on a fresh instance. This is an ABI rule (guest ABI
+section 2), the same for every runtime, so the descriptor gains no field; a different scope would
+need a new ABI version. Guests whose allocator never frees must reset it between invocations; the
+Rust SDK's bump heap starts again after every entry point, or a long block would exhaust memory for
+its later messages (M3 test: without the reset, message 86 of 400 messages of 60 KB fails under a
+16 MiB limit).
 
 | Outcome | Writes and effects | Receipt kind, code |
 |---|---|---|
@@ -293,11 +304,13 @@ the block.
 
 Every outcome but the last is a deterministic function of program, input, budgets and state.
 
-*Rejected:* one invocation per block, where any sender could make a whole block fail; and a
-long-lived instance per chain, where guest memory becomes hidden, unhashed state. A per-block
-instance replaced after any failure is also deterministic and may be cheaper; Phase 2 measures it
-(Q1). M2 measured 21.9 ms for a 200-message block with an instance per invocation and 3.4 ms with
-one instance per block (Oracle GraalVM, p50).
+*Rejected:* one invocation per block, where any sender could make a whole block fail; a
+long-lived instance per chain, where guest memory becomes hidden state that a restarting node
+cannot rebuild; and a fresh instance per invocation (the r1 to r4 rule), which is the strictest
+isolation but costs about 6 times as much on GraalJS: M2 measured 21.9 ms for a 200-message block
+with an instance per invocation and 3.4 ms with one instance per block (Oracle GraalVM, p50). A
+per-block instance is restart-safe because every block starts from a fresh instance and committed
+state, and deterministic because the outcomes that replace it are.
 
 ### D5. Two budgets per invocation; usage is not consensus data
 
@@ -548,6 +561,7 @@ adapter tests in the incubator).
 | I16 | Every invocation of an instance gets the instance's whole compute budget (added in r2). | D2, D5 | `compute.per-invocation`, with a broken-runtime self-test |
 | I17 | The same engine has the same fingerprint on every JDK (added in r3). | D6, D14, D15 | runtime version tests; fingerprints probed on Liberica, Temurin and Oracle GraalVM; the two-node devnet on two JDKs |
 | I18 | A runtime that claims `DETERMINISTIC_LIMIT` stops guest memory at exactly the limit (added in r3). | D2, D15 | `memory.bounded` with the memory hog, with a broken-runtime self-test |
+| I19 | Guest memory carries between the committed transitions of one block and nowhere else: a new instance at every block and after every transition that is not `transition-ok`; `validate` and `query` on fresh instances (added in r5). | D4 | `isolation.instances` (runtimes keep memory within an instance); adapter `transitionsOfABlockShareOneInstanceUntilOneIsNotOk`; `InstanceScopeConformanceTest` on three runtimes; devnet `scope_scenario.py` |
 
 ## 7. Findings about the Yano API
 
@@ -590,7 +604,7 @@ Found while building the adapter. None blocks incubation; all affect promotion.
 |---|---|---|---|
 | M0 | Phase 0 spikes | — | Done (`9d0a8ba`): §1.1 |
 | M1 | Phase 1: ABI v1, SPI, TCK, adapter draft | M0 | Done (`f578f94`): build passes; TCK passes on the reference runtime with only `memory.bounded` as WARN; broken runtimes fail the intended checks; adapter conformance roots equal a Java machine |
-| M2 | GraalJS runtime, JS SDK, counter and escrow examples | this ADR reviewed (Proposed is enough to start incubator work) | Done except the Q1 decision (`da9b093`, `ce0a7cf`, devnet `fc7d31f`): TCK passes (WARN only `memory.bounded`, `load.unknown-import`), I1–I17; `StateMachineConformance` passes with roots identical across two class loaders and a restart; two-node devnet agrees on roots; per-invocation vs per-block instance measured (Q1) |
+| M2 | GraalJS runtime, JS SDK, counter and escrow examples | this ADR reviewed (Proposed is enough to start incubator work) | Done (`da9b093`, `ce0a7cf`, devnet `fc7d31f`; Q1 in `09969a6`): TCK passes (WARN only `memory.bounded`, `load.unknown-import`), I1–I17 and I19; `StateMachineConformance` passes with roots identical across two class loaders and a restart; two-node devnet agrees on roots; per-invocation vs per-block instance measured and decided (Q1) |
 | M3 | Chicory runtime, gatekeeper, Rust SDK, the same examples in Rust | M2 | Done (`5ef2c58`, devnet `fc7d31f`): TCK passes with no WARN; Rust escrow on Chicory and JS escrow on GraalJS give identical roots for one message log; no SPI change (the TCK changes were re-run on GraalJS); I18 |
 | M4 | Promotion into yano-x (D13) | M3; this ADR Accepted; Q3–Q6 decided | yano-x `check` passes with the new kind; catalog-loaded runtime passes the TCK; `~exec/` reserved if decided |
 | M5 | Graduation: AOT with injected gas, performance budgets, hostile multi-node tests | M4 | Considered for a yano-x plugin pack in a later ADR |
@@ -640,7 +654,7 @@ Passing tests are not a security review. M5 includes one before any plugin-pack 
 | R2 | GraalJS statement counts change between releases. | Engine version in the fingerprint; upgrade is a chain upgrade (Q5). |
 | R3 | Chicory `ExecutionListener` is marked experimental and unsupported. | Pin Chicory; gas instrumentation (M5) removes the dependency. |
 | R4 | Interpreter-only Truffle is about 70 times slower. | `DEGRADED` readiness refuses CONSENSUS unless `allow-degraded`; documented JVMCI flags. |
-| R5 | Per-invocation instances cost about 0.11 ms each (110 µs per message in M2). | Per-block instances are about 6 times cheaper (Q1); parsed program source is shared through one GraalJS `Engine`. |
+| R5 | Per-invocation instances cost about 0.11 ms each (110 µs per message in M2). | Resolved by D4 (r5): one instance per block, about 6 times cheaper; parsed program source is shared through one GraalJS `Engine`. A block whose messages keep failing still pays for a new instance after each failure. |
 | R9 | The Chicory interpreter is slow: about 413 µs and 32,800 instructions for a counter message, mostly the Rust SDK's generic CBOR decoding (r3). | A borrowing decoder in the SDK; AOT with injected gas (M5, about 25 times faster in Phase 0). |
 | R10 | Plugin packaging silently drops what a runtime needs: shaded jars lose service files and jar manifests (r3). | The bundle build merges service files itself and copies the GraalJS version; the runtimes refuse to open if a version they need is missing, so a broken bundle fails closed at start-up. |
 | R6 | 35 MB GraalJS bundle. | Never in yano-x Central; separate plugin pack after graduation. |
@@ -651,7 +665,7 @@ Passing tests are not a security review. M5 includes one before any plugin-pack 
 
 | ID | Question | Options | Lean |
 |---|---|---|---|
-| Q1 | Fresh instance per invocation, or one instance per block replaced after any failed invocation? | Per invocation (strictest isolation); per block (cheaper, also deterministic because failures are) | Measured in M2 (r2), for a 200-message block of the counter example, p50: 21.9 ms per invocation against 3.4 ms per block on Oracle GraalVM 25.0.2, and 24.8 ms against 4.0 ms on Liberica 25.0.2 with the Graal compiler. On Chicory (r3) the choice hardly matters: 85.8 ms against 82.7 ms, because interpretation, not instantiation, dominates. Lean: one instance per block, replaced after any outcome other than `transition-ok`. Guest memory then carries between committed messages of a block, so the instance scope becomes semantics: it must be pinned (a descriptor field or an ABI rule) and covered by the TCK. `validate` and `query` keep their own instances. |
+| Q1 | Fresh instance per invocation, or one instance per block replaced after any failed invocation? | Per invocation (strictest isolation); per block (cheaper, also deterministic because failures are) | **Resolved in r5 by the maintainer: one instance per block** (D4, I19). Measured in M2 (r2), for a 200-message block of the counter example, p50: 21.9 ms per invocation against 3.4 ms per block on Oracle GraalVM 25.0.2, and 24.8 ms against 4.0 ms on Liberica 25.0.2 with the Graal compiler; on Chicory (r3) 85.8 ms against 82.7 ms. Pinned as an ABI rule rather than a descriptor field. |
 | Q2 | Receipts on by default, and pruned? | On by default; off by default; on with a retention window | On by default, no pruning in v1; pruning needs a deterministic rule and belongs with snapshot work. |
 | Q3 | Reserve `~exec/` in the framework next to `~fx/`? | Reserve in `FxKeys`-like framework code; leave it adapter-private | Reserve at promotion, once the adapter is framework code. |
 | Q4 | How do execution-backed machines share effect budgets in composite chains? | Framework exposes per-block emission count; per-component budget split in settings; standalone only | Ask the framework for a per-block count (small API addition at promotion); standalone only until then. |
@@ -702,3 +716,7 @@ Passing tests are not a security review. M5 includes one before any plugin-pack 
 - r4 (2026-11-21; no new review findings; head before this revision `224e9dc7`). §10: the CDDL check
   by an independent tool is done. The D3 violation table states the ABI's effect scope and payload
   caps, which the reference host enforced but the spec did not. Incubator commit `48c9bbf`.
+- r5 (2026-11-21; no new review findings; head before this revision `e88c847e`). The maintainer
+  resolved Q1: one instance per block. D4 states the instance scope as an ABI rule and moves the
+  per-invocation rule to its rejected alternatives; new I19; R5 resolved; §1.1 and M2 updated.
+  Incubator commits `09969a6` (adapter, Rust SDK heap reset, tests) and `c50988c` (devnet run).
