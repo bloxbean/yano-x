@@ -51,6 +51,7 @@ import org.yanoproject.x.framework.api.appchain.MessageRef;
 import org.yanoproject.x.framework.api.appchain.PoolFullException;
 import org.yanoproject.x.framework.api.appchain.ReceivedAppMessage;
 import org.yanoproject.x.framework.api.appchain.authmap.AuthenticatedMapValidatorResolver;
+import org.yanoproject.x.framework.api.execution.ExecutionRuntimeResolver;
 import org.yanoproject.x.framework.api.appchain.codec.AppBlockCodec;
 import org.yanoproject.x.framework.api.appchain.effects.AppEffectEmitter;
 import org.yanoproject.x.framework.api.appchain.effects.AppEffectExecutor;
@@ -112,6 +113,7 @@ import org.yanoproject.x.framework.api.events.AppMessageReceivedEvent;
 import org.yanoproject.x.framework.config.AppChainConfigSemantics;
 import org.yanoproject.x.framework.config.AppChainStoragePaths;
 import org.yanoproject.x.framework.runtime.plugins.CatalogAuthenticatedMapValidatorResolver;
+import org.yanoproject.x.framework.runtime.plugins.CatalogExecutionRuntimeResolver;
 
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
@@ -599,6 +601,13 @@ public class AppLedgerRuntime implements Subsystem, AppChainGateway {
                                 authenticatedMapValidatorResolver() {
                                     return Optional.of(
                                             new CatalogAuthenticatedMapValidatorResolver(
+                                                    pluginProviders));
+                                }
+                                @Override
+                                public Optional<ExecutionRuntimeResolver>
+                                executionRuntimeResolver() {
+                                    return Optional.of(
+                                            new CatalogExecutionRuntimeResolver(
                                                     pluginProviders));
                                 }
                                 @Override

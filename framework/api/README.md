@@ -25,6 +25,9 @@ Packages under `org.yanoproject.x.framework.api`:
 - `appchain.effects`, `appchain.observation`, `appchain.l1view`, `appchain.topics`,
   `appchain.authmap`, `appchain.sequencer`, `appchain.signer`, `appchain.sink`,
   `appchain.consensus`, `appchain.codec`, `appchain.schema`, `appchain.crypto`.
+- `execution`: the execution runtime SPI of ADR-058 (`ExecutionRuntimeFactory`,
+  `ExecutionRuntime`, `LoadedProgram`, `ProgramInstance`, `ExecutionResult`), the host's
+  `ExecutionRuntimeResolver` bridge and the reserved `~exec/` receipt keys (`ExecutionKeys`).
 - `plugin.domain`: domain API and local read-model SPIs (`DomainApiProvider`,
   `LocalReadModelProvider`, `FinalizedChainView`, `L1TransactionBuilderService`).
 - `events`: `AppBlockFinalizedEvent`, `AppMessageReceivedEvent`, `AppChainStalledEvent`.
@@ -33,7 +36,7 @@ Resources and specifications:
 
 - `META-INF/yano/contribution-kinds/org.yanoproject.x.framework.api.json`: the X
   contribution kinds (`app-state-machine`, `authenticated-map-validator`,
-  `sequencer-mode`, `l1-observer`, `l1-epoch-observer`, `observation-provider`,
+  `execution-runtime`, `sequencer-mode`, `l1-observer`, `l1-epoch-observer`, `observation-provider`,
   `signer-provider`, `finalized-sink`, `domain-api`, `local-read-model`). Yano has
   no built-in knowledge of these kinds (ADR-064 D3).
 - `META-INF/yano/topics/v1/topics.cddl` and the L1-observation golden vectors.

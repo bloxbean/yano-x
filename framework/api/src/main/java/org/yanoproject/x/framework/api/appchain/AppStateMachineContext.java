@@ -1,6 +1,7 @@
 package org.yanoproject.x.framework.api.appchain;
 
 import org.yanoproject.x.framework.api.appchain.authmap.AuthenticatedMapValidatorResolver;
+import org.yanoproject.x.framework.api.execution.ExecutionRuntimeResolver;
 import org.yanoproject.x.framework.api.appchain.observation.ObservationProfileV1;
 import org.yanoproject.x.framework.api.appchain.state.StateCommitmentIdentity;
 
@@ -64,6 +65,15 @@ public interface AppStateMachineContext {
      * source compatibility and simply cannot activate plugin validators.
      */
     default Optional<AuthenticatedMapValidatorResolver> authenticatedMapValidatorResolver() {
+        return Optional.empty();
+    }
+
+    /**
+     * Narrow host bridge for execution runtimes, the {@code execution-runtime} contribution kind
+     * (ADR-058). The normal runtime supplies it; other contexts cannot activate execution-backed
+     * state machines.
+     */
+    default Optional<ExecutionRuntimeResolver> executionRuntimeResolver() {
         return Optional.empty();
     }
 }

@@ -22,6 +22,19 @@ import org.yanoproject.x.framework.api.appchain.authmap.ValidatorVerdict;
 import org.yanoproject.x.framework.api.appchain.codec.MessageCodec;
 import org.yanoproject.x.framework.api.appchain.effects.AppEffectEmitter;
 import org.yanoproject.x.framework.api.appchain.effects.EffectResult;
+import org.yanoproject.x.framework.api.execution.ExecutionProfile;
+import org.yanoproject.x.framework.api.execution.ExecutionResult;
+import org.yanoproject.x.framework.api.execution.ExecutionRuntime;
+import org.yanoproject.x.framework.api.execution.ExecutionRuntimeFactory;
+import org.yanoproject.x.framework.api.execution.HostCalls;
+import org.yanoproject.x.framework.api.execution.InstanceConfig;
+import org.yanoproject.x.framework.api.execution.LoadedProgram;
+import org.yanoproject.x.framework.api.execution.ProgramArtifact;
+import org.yanoproject.x.framework.api.execution.ProgramInstance;
+import org.yanoproject.x.framework.api.execution.ProgramRejectedException;
+import org.yanoproject.x.framework.api.execution.Readiness;
+import org.yanoproject.x.framework.api.execution.RuntimeDescriptor;
+import org.yanoproject.x.framework.api.execution.RuntimeOptions;
 import org.yanoproject.x.framework.api.appchain.l1view.EpochObservationManifest;
 import org.yanoproject.x.framework.api.appchain.l1view.L1EpochBoundary;
 import org.yanoproject.x.framework.api.appchain.l1view.L1EpochObservationSink;
@@ -157,6 +170,13 @@ public final class AppLedgerKindBindings {
         public AuthenticatedMapValidator() {
             super("authenticated-map-validator", AuthenticatedMapValueValidatorFactory.class,
                     AuthenticatedMapValueValidatorFactory::id, AuthenticatedMapValidatorFactoryFacade::new);
+        }
+    }
+
+    public static final class ExecutionRuntimes extends Binding<ExecutionRuntimeFactory> {
+        public ExecutionRuntimes() {
+            super("execution-runtime", ExecutionRuntimeFactory.class, ExecutionRuntimeFactory::runtimeId,
+                    ExecutionRuntimeFactoryFacade::new);
         }
     }
 
@@ -361,6 +381,130 @@ public final class AppLedgerKindBindings {
                     () -> scope.call(() -> scope.product(
                             delegate.create(input),
                             validator -> new AuthenticatedMapValidatorFacade(validator, scope))));
+        }
+    }
+
+    /**
+     * Execution runtimes (ADR-058): the factory, the open runtime, loaded programs and instances all
+     * run under the bundle's callback scope. Exceptions pass through unchanged, because the execution
+     * adapter tells engine failures ({@code ExecutionEngineException}) from program rejections, and a
+     * host function's {@code HostAbort} must reach the runtime that called it.
+     */
+    private record ExecutionRuntimeFactoryFacade(
+            ExecutionRuntimeFactory delegate,
+            PluginCallbackScope scope
+    ) implements ExecutionRuntimeFactory {
+        private ExecutionRuntimeFactoryFacade {
+            Objects.requireNonNull(delegate, "delegate");
+        }
+
+        @Override
+        public String runtimeId() {
+            return scope.activation("read execution-runtime identity", () -> scope.call(delegate::runtimeId));
+        }
+
+        @Override
+        public ExecutionRuntime open(RuntimeOptions options) {
+            Objects.requireNonNull(options, "options");
+            return Objects.requireNonNull(scope.call(() -> scope.product(delegate.open(options),
+                            runtime -> new ExecutionRuntimeFacade(runtime, scope))),
+                    "ExecutionRuntimeFactory.open() must not return null");
+        }
+    }
+
+    private record ExecutionRuntimeFacade(
+            ExecutionRuntime delegate,
+            PluginCallbackScope scope
+    ) implements ExecutionRuntime {
+        private ExecutionRuntimeFacade {
+            Objects.requireNonNull(delegate, "delegate");
+        }
+
+        @Override
+        public RuntimeDescriptor descriptor() {
+            return Objects.requireNonNull(scope.call(delegate::descriptor),
+                    "ExecutionRuntime.descriptor() must not return null");
+        }
+
+        @Override
+        public Readiness readiness(ExecutionProfile profile) {
+            Objects.requireNonNull(profile, "profile");
+            return Objects.requireNonNull(scope.call(() -> delegate.readiness(profile)),
+                    "ExecutionRuntime.readiness() must not return null");
+        }
+
+        @Override
+        public LoadedProgram load(ProgramArtifact artifact, InstanceConfig config) throws ProgramRejectedException {
+            Objects.requireNonNull(artifact, "artifact");
+            Objects.requireNonNull(config, "config");
+            return Objects.requireNonNull(scope.call(() -> scope.product(delegate.load(artifact, config),
+                            program -> new LoadedProgramFacade(program, scope))),
+                    "ExecutionRuntime.load() must not return null");
+        }
+
+        @Override
+        public void close() {
+            scope.runCleanup(delegate::close);
+        }
+    }
+
+    private record LoadedProgramFacade(
+            LoadedProgram delegate,
+            PluginCallbackScope scope
+    ) implements LoadedProgram {
+        private LoadedProgramFacade {
+            Objects.requireNonNull(delegate, "delegate");
+        }
+
+        @Override
+        public Set<String> exports() {
+            return Set.copyOf(Objects.requireNonNull(scope.call(delegate::exports),
+                    "LoadedProgram.exports() must not return null"));
+        }
+
+        @Override
+        public ProgramInstance instantiate(HostCalls host, long computeBudget) {
+            Objects.requireNonNull(host, "host");
+            return Objects.requireNonNull(scope.call(() -> scope.product(delegate.instantiate(host, computeBudget),
+                            instance -> new ProgramInstanceFacade(instance, scope))),
+                    "LoadedProgram.instantiate() must not return null");
+        }
+
+        @Override
+        public void close() {
+            scope.runCleanup(delegate::close);
+        }
+    }
+
+    private record ProgramInstanceFacade(
+            ProgramInstance delegate,
+            PluginCallbackScope scope
+    ) implements ProgramInstance {
+        private ProgramInstanceFacade {
+            Objects.requireNonNull(delegate, "delegate");
+        }
+
+        @Override
+        public ExecutionResult invoke(String export, byte[] input) {
+            Objects.requireNonNull(export, "export");
+            byte[] copy = Objects.requireNonNull(input, "input").clone();
+            return Objects.requireNonNull(scope.call(() -> delegate.invoke(export, copy)),
+                    "ProgramInstance.invoke() must not return null");
+        }
+
+        @Override
+        public long computeBudget() {
+            return scope.call(delegate::computeBudget);
+        }
+
+        @Override
+        public boolean usable() {
+            return scope.call(delegate::usable);
+        }
+
+        @Override
+        public void close() {
+            scope.runCleanup(delegate::close);
         }
     }
 

@@ -1,0 +1,155 @@
+; Yano X execution guest ABI, version 1 (incubating).
+;
+; Every value is encoded as RFC 8949 core deterministic CBOR (section 4.2.1), restricted to:
+; integers in the int64 range, byte strings, UTF-8 text strings, arrays, maps with integer or text
+; keys, true, false and null. Floats, tags, undefined, other simple values and indefinite lengths
+; are not allowed. Decoders MUST reject any input that is not the canonical encoding of its value,
+; including non-shortest heads, unsorted or duplicate map keys and trailing bytes.
+;
+; Maps are integer-keyed. Keys not listed here are errors: a v1 decoder rejects them, and new
+; fields need a new ABI version. Optional keys are omitted when they carry their default value;
+; a present optional key with its default value is an error, so every value has one encoding.
+;
+; Normative text: docs/guest-abi-v1.md. Golden vectors: spec/vectors/abi-v1.json.
+
+abi-version = 1
+uint64 = uint .le 9223372036854775807
+hash32 = bstr .size 32
+code = tstr .regexp "[a-z0-9][a-z0-9._-]{0,63}"
+
+; ---------------------------------------------------------------- entry-point inputs
+
+block-info = {
+  0: tstr,          ; chain id
+  1: uint64,        ; height, >= 1
+  2: uint64,        ; block timestamp, milliseconds, from the app block
+  3: uint64,        ; L1 slot the block references
+  4: bstr,          ; L1 block hash
+  5: bstr,          ; previous app block hash
+  6: bstr,          ; proposer key
+}
+
+message = {
+  0: bstr,          ; message id
+  1: tstr,          ; topic (never starts with "~": framework topics do not reach guests)
+  2: bstr,          ; sender key
+  3: uint64,        ; sender sequence number
+  4: uint64,        ; expires-at, 0 for none
+  5: bstr,          ; body: the verified payload view when the topic registry supplies one
+  6: uint64,        ; original index in the app block; 0 in validate-input
+}
+
+effect-result = {
+  0: tstr,          ; effect id: chain id
+  1: uint64,        ; effect id: height of emission, >= 1
+  2: uint64,        ; effect id: ordinal in that block
+  3: tstr,          ; effect type
+  4: tstr,          ; scope given at emission
+  5: 1..4,          ; outcome: 1 confirmed, 2 failed, 3 cancelled, 4 expired
+  6: bstr,          ; external reference, for example an L1 transaction id
+  ? 7: hash32,      ; detail hash
+  8: uint64,        ; height at which the result was incorporated
+}
+
+; apply_message: one application message of a finalized block.
+apply-message-input = {
+  0: abi-version,
+  1: block-info,
+  2: message,
+  3: bstr,          ; program config, pinned in the execution descriptor
+}
+
+; on_effect_result: a committed effect outcome, before the block's messages.
+on-effect-result-input = {
+  0: abi-version,
+  1: block-info,
+  2: effect-result,
+  3: bstr,          ; program config
+}
+
+; validate: advisory mempool admission against committed state at candidate height - 1.
+validate-input = {
+  0: abi-version,
+  1: tstr,          ; chain id
+  2: uint64,        ; candidate height
+  3: message,
+  4: bstr,          ; program config
+}
+
+; query: an off-consensus read of committed state.
+query-input = {
+  0: abi-version,
+  1: tstr,          ; chain id
+  2: uint64,        ; committed height of the snapshot
+  3: tstr,          ; path
+  4: bstr,          ; params
+  5: bstr,          ; program config
+}
+
+; ---------------------------------------------------------------- entry-point outputs
+
+; apply_message and on_effect_result. Writes and effects are made through host functions during
+; the call; a Rejected outcome discards them.
+transition-outcome = transition-ok / transition-rejected
+transition-ok = { 0: 0 }
+transition-rejected = { 0: 1, 1: code }
+
+verdict = verdict-accept / verdict-reject
+verdict-accept = { 0: 0 }
+verdict-reject = { 0: 1, 1: code }
+
+query-outcome = query-payload / query-error
+query-payload = { 0: 0, 1: bstr .size (0..1048576) }
+query-error = { 0: 1, 1: "unsupported" / "invalid-request" }
+
+; ---------------------------------------------------------------- host function arguments
+
+; effect_emit(intent). The host sets the source message id itself.
+effect-intent = effect-intent-unobserved / effect-intent-observed
+effect-intent-unobserved = { effect-intent-base }
+effect-intent-observed = {
+  effect-intent-base,
+  4: 1,                 ; result policy: 1 chain; absent means 0 (none)
+  ? 5: 1..9223372036854775807,  ; expiry in blocks; only with result policy 1
+}
+effect-intent-base = (
+  0: tstr .regexp "[A-Za-z][A-Za-z0-9._:+-]{0,127}",  ; effect type
+  1: bstr .size (0..65536),  ; payload; the chain's effects.max-payload-bytes may be lower
+  ? 2: tstr .size (1..256),  ; scope, UTF-8 bytes; default ""
+  ? 3: 0..2,            ; finality gate: 0 app final, 1 L1 anchored, 2 ZK settled; default chain default
+)
+
+; ---------------------------------------------------------------- adapter records
+
+; Written at "~exec/r/" ++ message id, or "~exec/fx/" ++ blake2b-256 effect id hash, when a
+; transition's changes are discarded and the descriptor enables receipts.
+receipt = {
+  0: 1,             ; receipt version
+  1: uint64,        ; height
+  2: 1..5,          ; 1 rejected, 2 trapped, 3 out of compute, 4 out of host fuel, 5 ABI violation
+  3: code,          ; guest rejection code, trap code, or host violation code
+}
+
+; Genesis-pinned description of an execution-backed state machine.
+execution-descriptor = {
+  0: 1,             ; descriptor version
+  1: tstr,          ; runtime id, for example "graaljs" or "chicory"
+  2: hash32,        ; engine fingerprint: blake2b-256 of the canonical map of fingerprint components
+  3: tstr,          ; program media type, for example "text/javascript" or "application/wasm"
+  4: hash32,        ; blake2b-256 of the program bytes
+  5: abi-version,
+  6: budgets,
+  7: uint64,        ; guest memory limit in bytes, for runtimes that enforce one
+  8: bstr,          ; program config
+  9: bool,          ; write receipts
+}
+
+; Per invocation. Compute is in the pinned runtime's own unit; host fuel is in ABI host units.
+budgets = {
+  0: uint64,        ; transition compute
+  1: uint64,        ; transition host fuel
+  2: uint64,        ; validate compute
+  3: uint64,        ; validate host fuel
+  4: uint64,        ; query compute
+  5: uint64,        ; query host fuel
+}

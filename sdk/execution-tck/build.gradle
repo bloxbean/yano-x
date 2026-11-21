@@ -1,0 +1,30 @@
+// Execution runtime TCK (ADR-058 D11): the conformance gate a runtime must pass before a chain may pin
+// it, plus the reference runtime that the TCK, the execution state machine and the catalog fixture test.
+dependencies {
+    api project(':framework:api')
+    api project(':state-machines:execution-abi')
+    api libs.junit.jupiter.api
+
+    testRuntimeOnly libs.junit.jupiter.engine
+    testRuntimeOnly libs.junit.platform.launcher
+}
+
+java {
+    sourceCompatibility = 25
+    targetCompatibility = 25
+}
+
+tasks.named('compileJava') {
+    options.compilerArgs.removeAll { it.startsWith('-Aproject=') }
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Yano X Execution Runtime TCK'
+                description = 'Conformance kit for execution runtimes, with a reference runtime for testing'
+            }
+        }
+    }
+}

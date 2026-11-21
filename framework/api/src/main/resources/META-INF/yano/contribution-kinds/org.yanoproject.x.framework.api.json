@@ -17,6 +17,12 @@
       "trustTier": "CONSENSUS"
     },
     {
+      "key": "execution-runtime",
+      "serviceInterface": "org.yanoproject.x.framework.api.execution.ExecutionRuntimeFactory",
+      "manifestRequired": true,
+      "trustTier": "CONSENSUS"
+    },
+    {
       "key": "sequencer-mode",
       "serviceInterface": "org.yanoproject.x.framework.api.appchain.sequencer.SequencerModeProvider",
       "manifestRequired": false,

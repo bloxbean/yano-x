@@ -11,6 +11,7 @@ def supportedServicePaths = [
         'META-INF/services/org.yanoproject.api.plugin.NodePlugin',
         'META-INF/services/org.yanoproject.x.framework.api.appchain.AppStateMachineProvider',
         'META-INF/services/org.yanoproject.x.framework.api.appchain.authmap.AuthenticatedMapValueValidatorFactory',
+        'META-INF/services/org.yanoproject.x.framework.api.execution.ExecutionRuntimeFactory',
         'META-INF/services/org.yanoproject.x.framework.api.appchain.sequencer.SequencerModeProvider',
         'META-INF/services/org.yanoproject.x.framework.api.appchain.l1view.L1ObserverProvider',
         'META-INF/services/org.yanoproject.x.framework.api.appchain.l1view.L1EpochObserverProvider',

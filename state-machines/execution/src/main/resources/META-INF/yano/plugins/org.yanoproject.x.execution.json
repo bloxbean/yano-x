@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "id": "org.yanoproject.x.execution",
+  "version": "${pluginVersion}",
+  "yanoApi": { "min": 3, "max": 3, "minLevel": 4 },
+  "dependencies": [],
+  "contributions": [
+    { "kind": "app-state-machine", "name": "execution", "provider": "org.yanoproject.x.execution.ExecutionStateMachineProvider" }
+  ]
+}

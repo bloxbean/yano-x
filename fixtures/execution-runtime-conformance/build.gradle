@@ -1,0 +1,60 @@
+plugins {
+    id 'java-library'
+    id 'com.gradleup.shadow'
+}
+
+description = 'Build-only ADR-058 fixture: the reference execution runtime as a manifested plugin bundle; never published'
+
+// The bundle carries the fixture, the reference runtime and the ABI it encodes with. The host API
+// (framework/api, with the SPI) comes from the host, as it would for any runtime bundle.
+dependencies {
+    compileOnly(project(':framework:api')) {
+        transitive = false
+    }
+    implementation(project(':sdk:execution-tck')) {
+        transitive = false
+    }
+    implementation(project(':state-machines:execution-abi')) {
+        transitive = false
+    }
+    implementation libs.bouncycastle.bcprov
+
+    testImplementation project(':framework:core')
+    testImplementation project(':framework:host-adapter')
+    testImplementation project(':state-machines:execution')
+    testImplementation project(':sdk:execution-tck')
+    testImplementation rootProject.ext.yanoModule('yano-runtime')
+    testImplementation libs.junit.jupiter.api
+    testRuntimeOnly libs.junit.jupiter.engine
+    testRuntimeOnly libs.junit.platform.launcher
+    testImplementation libs.assertj.core
+}
+
+java {
+    sourceCompatibility = 25
+    targetCompatibility = 25
+}
+
+tasks.named('processResources') {
+    filesMatching('META-INF/yano/plugins/*.json') {
+        expand(pluginVersion: project.version.toString())
+    }
+}
+
+tasks.named('shadowJar') {
+    archiveClassifier.set('bundle')
+    reproducibleFileOrder = true
+    preserveFileTimestamps = false
+    exclude 'org/yanoproject/api/**', 'org/yanoproject/x/framework/api/**',
+            'META-INF/*.SF', 'META-INF/*.RSA', 'META-INF/*.DSA', 'module-info.class'
+}
+
+tasks.named('test', Test) {
+    useJUnitPlatform()
+    dependsOn tasks.named('shadowJar')
+    def bundle = tasks.named('shadowJar').flatMap { it.archiveFile }
+    inputs.file(bundle)
+    doFirst {
+        systemProperty 'yano.execution.fixture.bundle', bundle.get().asFile.absolutePath
+    }
+}

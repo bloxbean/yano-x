@@ -10,6 +10,7 @@
     "org.yanoproject.x.eutxo.indexer",
     "org.yanoproject.x.evidence-profile",
     "org.yanoproject.x.evidence-registry",
+    "org.yanoproject.x.execution",
     "org.yanoproject.x.ipfs",
     "org.yanoproject.x.kafka",
     "org.yanoproject.x.objectstore.s3",

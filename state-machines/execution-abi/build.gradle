@@ -1,0 +1,50 @@
+// Guest ABI v1 (ADR-058 D3): strict canonical CBOR, entry-point inputs and outputs, the host function
+// table and the host session that implements it. Used by the execution state machine and the TCK;
+// runtimes need only the SPI in framework/api.
+dependencies {
+    // The SPI types (HostAbort, ExecutionKeys) are host API, shared by the plugin class loaders.
+    compileOnly(project(':framework:api')) {
+        transitive = false
+    }
+    testImplementation project(':framework:api')
+
+    implementation libs.bouncycastle.bcprov
+
+    testImplementation libs.junit.jupiter.api
+    testRuntimeOnly libs.junit.jupiter.engine
+    testRuntimeOnly libs.junit.platform.launcher
+}
+
+java {
+    sourceCompatibility = 25
+    targetCompatibility = 25
+}
+
+tasks.named('compileJava') {
+    options.compilerArgs.removeAll { it.startsWith('-Aproject=') }
+}
+
+// The specification travels with the codec: the CDDL, the golden vectors and the independent CDDL check.
+tasks.named('processResources') {
+    from('spec') {
+        include 'guest-abi-v1.cddl', 'vectors/*.json'
+        into 'org/yanoproject/x/execution/abi/v1/spec'
+    }
+}
+
+tasks.named('test', Test) {
+    // -PupdateVectors=true rewrites spec/vectors/*.json from the Java definitions.
+    systemProperty 'vectors.dir', file('spec/vectors').absolutePath
+    systemProperty 'vectors.update', providers.gradleProperty('updateVectors').getOrElse('false')
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Yano X Execution Guest ABI'
+                description = 'Guest ABI v1 for execution-backed state machines: canonical CBOR, entry points and host functions'
+            }
+        }
+    }
+}

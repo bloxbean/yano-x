@@ -1,0 +1,42 @@
+// The execution state machine (ADR-058): an app-state-machine contribution, selected as
+// state-machine = execution, that runs a genesis-pinned guest program on an installed
+// execution-runtime contribution.
+ext.runtimePluginBundleId = 'org.yanoproject.x.execution'
+ext.runtimePluginExcludedBundleIds = []
+apply from: rootProject.file('gradle/runtime-plugin-bundle.gradle')
+
+dependencies {
+    // Host-provided: the framework API (with the runtime SPI) and Yano's node API (AppMessage).
+    compileOnly(project(':framework:api')) {
+        transitive = false
+    }
+    compileOnly rootProject.ext.yanoModule('yano-node-api')
+    implementation project(':state-machines:execution-abi')
+
+    testImplementation project(':framework:api')
+    testImplementation project(':framework:core')
+    testImplementation project(':sdk:execution-tck')
+    testImplementation libs.junit.jupiter.api
+    testRuntimeOnly libs.junit.jupiter.engine
+    testRuntimeOnly libs.junit.platform.launcher
+}
+
+java {
+    sourceCompatibility = 25
+    targetCompatibility = 25
+}
+
+tasks.named('compileJava') {
+    options.compilerArgs.removeAll { it.startsWith('-Aproject=') }
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Yano X Execution State Machine'
+                description = 'Execution-backed state machine: genesis-pinned guest programs on pluggable runtimes'
+            }
+        }
+    }
+}

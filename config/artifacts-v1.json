@@ -19,6 +19,22 @@
       "bundleArtifactId": null
     },
     {
+      "modulePath": ":state-machines:execution",
+      "directory": "state-machines/execution",
+      "artifactId": "yano-x-execution",
+      "publicationType": "runtime-plugin",
+      "pluginBundleId": "org.yanoproject.x.execution",
+      "bundleArtifactId": "yano-x-execution-bundle"
+    },
+    {
+      "modulePath": ":state-machines:execution-abi",
+      "directory": "state-machines/execution-abi",
+      "artifactId": "yano-x-execution-abi",
+      "publicationType": "library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
       "modulePath": ":capabilities:authenticated-map-validators",
       "directory": "capabilities/authenticated-map-validators",
       "artifactId": "yano-x-authenticated-map-validators",
@@ -119,6 +135,14 @@
       "modulePath": ":sdk:appchain-testkit",
       "directory": "sdk/appchain-testkit",
       "artifactId": "yano-x-appchain-testkit",
+      "publicationType": "test-library",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":sdk:execution-tck",
+      "directory": "sdk/execution-tck",
+      "artifactId": "yano-x-execution-tck",
       "publicationType": "test-library",
       "pluginBundleId": null,
       "bundleArtifactId": null
@@ -398,6 +422,14 @@
       "modulePath": ":fixtures:appchain-plugin-conformance",
       "directory": "fixtures/appchain-plugin-conformance",
       "artifactId": "yano-x-appchain-plugin-conformance",
+      "publicationType": "test-fixture",
+      "pluginBundleId": null,
+      "bundleArtifactId": null
+    },
+    {
+      "modulePath": ":fixtures:execution-runtime-conformance",
+      "directory": "fixtures/execution-runtime-conformance",
+      "artifactId": "yano-x-execution-runtime-conformance",
       "publicationType": "test-fixture",
       "pluginBundleId": null,
       "bundleArtifactId": null
