@@ -1,6 +1,7 @@
 # ADR-058 — Execution runtime SPI and execution-backed state machines
 
-- **Status:** Proposed (2026-11-21).
+- **Status:** Accepted (2026-11-22; proposed 2026-11-21). M0–M3 are done; M4 (promotion into
+  yano-x) is in progress.
 - **Issue:** [#103](https://github.com/bloxbean/yano-x/issues/103) (ExecutionBackedStateMachine and
   GraalVM polyglot plugins).
 - **Evidence:** the incubator repository
@@ -614,7 +615,7 @@ Found while building the adapter. None blocks incubation; all affect promotion.
 | M1 | Phase 1: ABI v1, SPI, TCK, adapter draft | M0 | Done (`f578f94`): build passes; TCK passes on the reference runtime with only `memory.bounded` as WARN; broken runtimes fail the intended checks; adapter conformance roots equal a Java machine |
 | M2 | GraalJS runtime, JS SDK, counter and escrow examples | this ADR reviewed (Proposed is enough to start incubator work) | Done (`da9b093`, `ce0a7cf`, devnet `fc7d31f`; Q1 in `09969a6`): TCK passes (WARN only `memory.bounded`, `load.unknown-import`), I1–I17 and I19; `StateMachineConformance` passes with roots identical across two class loaders and a restart; two-node devnet agrees on roots; per-invocation vs per-block instance measured and decided (Q1) |
 | M3 | Chicory runtime, gatekeeper, Rust SDK, the same examples in Rust | M2 | Done (`5ef2c58`, devnet `fc7d31f`): TCK passes with no WARN; Rust escrow on Chicory and JS escrow on GraalJS give identical roots for one message log; no SPI change (the TCK changes were re-run on GraalJS); I18 |
-| M4 | Promotion into yano-x (D13) | M3; this ADR Accepted; Q3–Q6 decided (done in r7) | yano-x `check` passes with the new kind; catalog-loaded runtime passes the TCK; `~exec/` reserved if decided |
+| M4 | Promotion into yano-x (D13) | M3; this ADR Accepted (2026-11-22); Q3–Q6 decided (done in r7) | yano-x `check` passes with the new kind; catalog-loaded runtime passes the TCK; `~exec/` reserved if decided |
 | M5 | Graduation: AOT with injected gas, performance budgets, hostile multi-node tests | M4 | Considered for a yano-x plugin pack in a later ADR |
 
 ## 10. Verification and test vectors
@@ -741,3 +742,5 @@ All resolved by the maintainer (Q1 in r5, Q2–Q7 in r7); the table keeps the op
   promotion (D9, M4). Q4 standalone only, found to be enforced already because composites need a
   transition kernel (finding 2, R8). Q5 a descriptor schedule as an M5 gate. Q6 a separate runtime
   kind. Q7 a plain machine in v1. No questions remain open. Incubator commit `f6adab0`.
+- r8 (2026-11-22; head before this revision `2ee19141`). The maintainer accepted the ADR. Status
+  set to Accepted; M4 may start. No design change.
